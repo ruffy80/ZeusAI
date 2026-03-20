@@ -4210,7 +4210,7 @@ function createStructure() {
     'VERCEL_PROJECT_ID=<YOUR_VERCEL_PROJECT_ID>'
   ].join('\n') + '\n');
 
-  writeText(path.join(ROOT, 'README.md'), '# UNICORN_FINAL\n\nGenerated automatically.\n\n## Scripts\n- npm run lint\n- npm test\n- npm start\n- npm run innovation:report\n- npm run innovation:sprint\n\n## Interactive Unicorn Site\n- / serves an animated Zeus + Robot innovation dashboard\n- /snapshot auto-refresh data source for live UI\n- /modules shows all Unicorn modules status\n- /innovation and /innovation/sprint feed innovation data into the UI\n');
+  writeText(path.join(ROOT, 'README.md'), '# UNICORN_FINAL\n\nGenerated automatically.\n\n## Scripts\n- npm run lint\n- npm test\n- npm start\n- npm run innovation:report\n- npm run innovation:sprint\n\n## Interactive Unicorn Site\n- / serves an animated Zeus + Robot innovation dashboard\n- /snapshot provides full JSON state\n- /stream provides real-time updates (SSE)\n- /modules shows all Unicorn modules status\n- /innovation and /innovation/sprint feed innovation data into the UI\n');
 
   writeText(path.join(ROOT, 'package.json'), JSON.stringify({
     name: 'unicorn-final',
@@ -4257,6 +4257,18 @@ function buildSnapshot() {
   };
 }
 
+const streamClients = new Set();
+const streamTimer = setInterval(() => {
+  const payload = 'data: ' + JSON.stringify(buildSnapshot()) + '\\n\\n';
+  for (const client of streamClients) {
+    client.write(payload);
+  }
+}, 5000);
+
+if (typeof streamTimer.unref === 'function') {
+  streamTimer.unref();
+}
+
 const server = http.createServer((req, res) => {
   if (req.url === '/health') {
     res.writeHead(200, { 'Content-Type': 'application/json' });
@@ -4283,6 +4295,22 @@ const server = http.createServer((req, res) => {
   if (req.url === '/snapshot') {
     res.writeHead(200, { 'Content-Type': 'application/json' });
     return res.end(JSON.stringify(buildSnapshot()));
+  }
+
+  if (req.url === '/stream') {
+    res.writeHead(200, {
+      'Content-Type': 'text/event-stream',
+      'Cache-Control': 'no-cache, no-transform',
+      Connection: 'keep-alive'
+    });
+
+    res.write('data: ' + JSON.stringify(buildSnapshot()) + '\\n\\n');
+    streamClients.add(res);
+
+    req.on('close', () => {
+      streamClients.delete(res);
+    });
+    return;
   }
 
   if (req.url === '/' || req.url === '/index.html') {
@@ -4318,7 +4346,8 @@ module.exports = server;
 '    .hero { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; align-items: stretch; }' +
 '    .card { background: rgba(255,255,255,0.04); border: 1px solid rgba(138,180,248,0.25); border-radius: 18px; padding: 16px; backdrop-filter: blur(6px); }' +
 '    .faces { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }' +
-'    .face { position: relative; height: 220px; border-radius: 16px; overflow: hidden; background: linear-gradient(145deg, rgba(19,26,58,.9), rgba(11,13,22,.9)); border: 1px solid rgba(130,196,255,.25); }' +
+'    .face { position: relative; height: 240px; border-radius: 16px; overflow: hidden; background: linear-gradient(145deg, rgba(19,26,58,.9), rgba(11,13,22,.9)); border: 1px solid rgba(130,196,255,.25); }' +
+'    .avatar { width: 100%; height: 100%; display: block; }' +
 '    .orb { position: absolute; width: 110px; height: 110px; border-radius: 999px; filter: blur(2px); animation: pulse 2.8s infinite ease-in-out; }' +
 '    .zeus .orb { left: 24px; top: 32px; background: radial-gradient(circle, #8bd7ff, #3b82f6 65%, #1f2a7d); box-shadow: 0 0 32px #60a5fa; }' +
 '    .robot .orb { right: 24px; top: 32px; background: radial-gradient(circle, #b2ffdb, #34d399 65%, #065f46); box-shadow: 0 0 32px #34d399; }' +
@@ -4327,6 +4356,7 @@ module.exports = server;
 '    .grid { margin-top: 18px; display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }' +
 '    .kpi { font-size: 28px; font-weight: 700; color: #8bd7ff; }' +
 '    .small { color: #b3c0df; font-size: 13px; }' +
+'    .status-live { color: #7ef29a; font-weight: 600; }' +
 '    ul { margin: 0; padding-left: 18px; }' +
 '    li { margin: 6px 0; }' +
 '    @keyframes pulse { 0%,100%{ transform: scale(1); opacity: .9; } 50% { transform: scale(1.1); opacity: 1; } }' +
@@ -4337,11 +4367,11 @@ module.exports = server;
 '<body>' +
 '  <div class="wrap">' +
 '    <h1>UNICORN ZEUS Innovation Hub</h1>' +
-'    <p class="small">Connected live to Unicorn core. Data auto-refreshes every 8 seconds.</p>' +
+'    <p class="small">Connected live to Unicorn core via <span id="liveMode" class="status-live">stream</span>.</p>' +
 '    <div class="hero">' +
 '      <div class="card faces">' +
-'        <div class="face zeus"><div class="orb"></div><div class="scan"></div><h3>ZEUS FACE — Strategic Intelligence</h3></div>' +
-'        <div class="face robot"><div class="orb"></div><div class="scan"></div><h3>ROBOT FACE — Execution Intelligence</h3></div>' +
+'        <div class="face zeus"><canvas id="zeusCanvas" class="avatar"></canvas><div class="orb"></div><div class="scan"></div><h3>ZEUS FACE — Strategic Intelligence</h3></div>' +
+'        <div class="face robot"><canvas id="robotCanvas" class="avatar"></canvas><div class="orb"></div><div class="scan"></div><h3>ROBOT FACE — Execution Intelligence</h3></div>' +
 '      </div>' +
 '      <div class="card">' +
 '        <div class="small">Top innovation right now</div>' +
@@ -4362,9 +4392,34 @@ module.exports = server;
 '    </div>' +
 '  </div>' +
 '  <script>' +
-'    async function refresh() {' +
-'      const res = await fetch("/snapshot");' +
-'      const data = await res.json();' +
+'    function drawFace(canvasId, hueOffset) {' +
+'      const canvas = document.getElementById(canvasId);' +
+'      const ctx = canvas.getContext("2d");' +
+'      const stars = Array.from({ length: 70 }).map(function(_, i) { return { x: Math.random(), y: Math.random(), z: Math.random(), p: i / 70 }; });' +
+'      function resize() { canvas.width = canvas.clientWidth; canvas.height = canvas.clientHeight; }' +
+'      resize(); window.addEventListener("resize", resize);' +
+'      function frame(t) {' +
+'        const w = canvas.width; const h = canvas.height;' +
+'        ctx.clearRect(0, 0, w, h);' +
+'        ctx.fillStyle = "rgba(8,12,24,0.6)"; ctx.fillRect(0, 0, w, h);' +
+'        stars.forEach(function(s, idx) {' +
+'          const z = (s.z + (t * 0.00006) + idx * 0.0005) % 1;' +
+'          const px = (s.x - 0.5) * w * (0.2 + z) + w / 2;' +
+'          const py = (s.y - 0.5) * h * (0.2 + z) + h / 2;' +
+'          const size = 1 + z * 2.8;' +
+'          ctx.fillStyle = "hsla(" + (200 + hueOffset + z * 40) + ",95%,70%," + (0.35 + z * 0.65) + ")";' +
+'          ctx.beginPath(); ctx.arc(px, py, size, 0, Math.PI * 2); ctx.fill();' +
+'        });' +
+'        ctx.strokeStyle = "rgba(120,180,255,0.25)";' +
+'        ctx.lineWidth = 1.2;' +
+'        ctx.beginPath();' +
+'        ctx.moveTo(w * 0.26, h * 0.62); ctx.quadraticCurveTo(w * 0.5, h * 0.7, w * 0.74, h * 0.62);' +
+'        ctx.stroke();' +
+'        requestAnimationFrame(frame);' +
+'      }' +
+'      requestAnimationFrame(frame);' +
+'    }' +
+'    function renderSnapshot(data) {' +
 '      const top = data.innovation.topPriority || {};' +
 '      document.getElementById("topTitle").textContent = top.title || "No priority";' +
 '      document.getElementById("topProblem").textContent = top.problem || "";' +
@@ -4376,8 +4431,28 @@ module.exports = server;
 '      document.getElementById("innovationList").innerHTML = data.innovation.backlog.map(function(i){ return "<li><b>" + i.title + "</b> (score " + i.score + ")</li>"; }).join("");' +
 '      document.getElementById("sprintList").innerHTML = data.sprint.tasks.map(function(t){ return "<li><b>" + t.title + "</b> — " + t.owner + " (" + t.etaDays + "d)</li>"; }).join("");' +
 '    }' +
-'    refresh();' +
-'    setInterval(refresh, 8000);' +
+'    async function pullFallback() {' +
+'      const res = await fetch("/snapshot");' +
+'      const data = await res.json();' +
+'      renderSnapshot(data);' +
+'    }' +
+'    function startRealtime() {' +
+'      if (!("EventSource" in window)) {' +
+'        document.getElementById("liveMode").textContent = "polling";' +
+'        pullFallback(); setInterval(pullFallback, 8000); return;' +
+'      }' +
+'      const es = new EventSource("/stream");' +
+'      es.onmessage = function(event) {' +
+'        try { renderSnapshot(JSON.parse(event.data)); } catch (_) {}' +
+'      };' +
+'      es.onerror = function() {' +
+'        document.getElementById("liveMode").textContent = "polling";' +
+'      };' +
+'      pullFallback();' +
+'    }' +
+'    drawFace("zeusCanvas", 0);' +
+'    drawFace("robotCanvas", 120);' +
+'    startRealtime();' +
 '  </script>' +
 '</body>' +
 '</html>';
@@ -4528,6 +4603,7 @@ async function run() {
   const modulesBody = await modulesResponse.json();
   const snapshotResponse = await fetch('http://127.0.0.1:' + port + '/snapshot');
   const snapshotBody = await snapshotResponse.json();
+  const streamResponse = await fetch('http://127.0.0.1:' + port + '/stream');
   const siteResponse = await fetch('http://127.0.0.1:' + port + '/');
   const siteHtml = await siteResponse.text();
 
@@ -4545,6 +4621,11 @@ async function run() {
   assert.equal(snapshotResponse.status, 200);
   assert.ok(Array.isArray(snapshotBody.modules));
   assert.ok(snapshotBody.sprint.tasks.length >= 3);
+  assert.equal(streamResponse.status, 200);
+  assert.ok((streamResponse.headers.get('content-type') || '').includes('text/event-stream'));
+  if (streamResponse.body) {
+    await streamResponse.body.cancel();
+  }
   assert.equal(siteResponse.status, 200);
   assert.ok(siteHtml.includes('ZEUS FACE'));
   assert.ok(siteHtml.includes('ROBOT FACE'));
