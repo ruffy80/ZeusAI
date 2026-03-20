@@ -4163,6 +4163,7 @@ const { execSync } = require('child_process');
 const ROOT = path.join(__dirname, 'UNICORN_FINAL');
 const SRC = path.join(ROOT, 'src');
 const MODULES = path.join(SRC, 'modules');
+const INNOVATION = path.join(SRC, 'innovation');
 const TEST = path.join(ROOT, 'test');
 
 function ensureDir(dirPath) {
@@ -4183,6 +4184,7 @@ function createStructure() {
     ROOT,
     SRC,
     MODULES,
+    INNOVATION,
     TEST,
     path.join(ROOT, 'client', 'src', 'components'),
     path.join(ROOT, 'client', 'src', 'pages'),
@@ -4206,7 +4208,7 @@ function createStructure() {
     'VERCEL_PROJECT_ID=<YOUR_VERCEL_PROJECT_ID>'
   ].join('\n') + '\n');
 
-  writeText(path.join(ROOT, 'README.md'), '# UNICORN_FINAL\n\nGenerated automatically.\n\n## Scripts\n- npm run lint\n- npm test\n- npm start\n');
+  writeText(path.join(ROOT, 'README.md'), '# UNICORN_FINAL\n\nGenerated automatically.\n\n## Scripts\n- npm run lint\n- npm test\n- npm start\n- npm run innovation:report\n\n## Innovation pack\n- /innovation endpoint for idea backlog\n- priority engine for selecting high-impact ideas\n- human-first safety and ethics checklist\n');
 
   writeText(path.join(ROOT, 'package.json'), JSON.stringify({
     name: 'unicorn-final',
@@ -4215,7 +4217,8 @@ function createStructure() {
     scripts: {
       start: 'node src/index.js',
       test: 'node test/health.test.js',
-      lint: 'node --check src/index.js && node --check test/health.test.js'
+      lint: 'node --check src/index.js && node --check src/innovation/innovation-engine.js && node --check test/health.test.js',
+      'innovation:report': 'node src/innovation/report.js'
     }
   }, null, 2) + '\n');
 
@@ -4226,6 +4229,7 @@ function createStructure() {
   }, null, 2) + '\n');
 
   writeText(path.join(SRC, 'index.js'), `const http = require('http');
+const { buildInnovationReport } = require('./innovation/innovation-engine');
 
 const PORT = Number(process.env.PORT || 3000);
 
@@ -4233,6 +4237,12 @@ const server = http.createServer((req, res) => {
   if (req.url === '/health') {
     res.writeHead(200, { 'Content-Type': 'application/json' });
     return res.end(JSON.stringify({ ok: true, service: 'unicorn-final' }));
+  }
+
+  if (req.url === '/innovation') {
+    const report = buildInnovationReport();
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    return res.end(JSON.stringify(report));
   }
 
   res.writeHead(200, { 'Content-Type': 'application/json' });
@@ -4248,6 +4258,71 @@ if (require.main === module) {
 module.exports = server;
 `);
 
+  writeText(path.join(INNOVATION, 'innovation-engine.js'), `function scoreIdea(idea) {
+  const impact = Number(idea.impact || 0);
+  const feasibility = Number(idea.feasibility || 0);
+  const urgency = Number(idea.urgency || 0);
+  const safety = Number(idea.safety || 0);
+  return impact * 0.4 + feasibility * 0.2 + urgency * 0.2 + safety * 0.2;
+}
+
+function buildInnovationReport() {
+  const ideas = [
+    {
+      id: 'care-companion-ai',
+      title: 'Personal preventive care companion',
+      problem: 'Late detection of health risk patterns',
+      impact: 10,
+      feasibility: 7,
+      urgency: 10,
+      safety: 9
+    },
+    {
+      id: 'micro-grid-coordinator',
+      title: 'Community micro-grid optimizer',
+      problem: 'Energy waste and unstable local grids',
+      impact: 9,
+      feasibility: 7,
+      urgency: 9,
+      safety: 9
+    },
+    {
+      id: 'learning-path-orchestrator',
+      title: 'Adaptive education path builder',
+      problem: 'Low retention in one-size-fits-all education',
+      impact: 9,
+      feasibility: 8,
+      urgency: 8,
+      safety: 10
+    }
+  ];
+
+  const prioritized = ideas
+    .map((idea) => ({ ...idea, score: Number(scoreIdea(idea).toFixed(2)) }))
+    .sort((a, b) => b.score - a.score);
+
+  return {
+    generatedAt: new Date().toISOString(),
+    principles: [
+      'human-first',
+      'privacy-by-design',
+      'reversible rollout',
+      'measurable real-world impact'
+    ],
+    topPriority: prioritized[0],
+    backlog: prioritized
+  };
+}
+
+module.exports = { buildInnovationReport, scoreIdea };
+`);
+
+  writeText(path.join(INNOVATION, 'report.js'), `const { buildInnovationReport } = require('./innovation-engine');
+
+const report = buildInnovationReport();
+console.log(JSON.stringify(report, null, 2));
+`);
+
   writeText(path.join(TEST, 'health.test.js'), `const assert = require('assert');
 const server = require('../src/index');
 
@@ -4257,9 +4332,14 @@ async function run() {
 
   const response = await fetch('http://127.0.0.1:' + port + '/health');
   const body = await response.json();
+  const innovationResponse = await fetch('http://127.0.0.1:' + port + '/innovation');
+  const innovationBody = await innovationResponse.json();
 
   assert.equal(response.status, 200);
   assert.equal(body.ok, true);
+  assert.equal(innovationResponse.status, 200);
+  assert.ok(Array.isArray(innovationBody.backlog));
+  assert.ok(innovationBody.backlog.length > 0);
 
   await new Promise((resolve, reject) => {
     server.close((err) => (err ? reject(err) : resolve()));
