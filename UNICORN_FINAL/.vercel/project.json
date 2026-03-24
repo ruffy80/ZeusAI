@@ -1,1 +1,16 @@
-{"projectId":"prj_Cc3JQL4loyaeIPGmGV3rkq6kQ0oo","orgId":"team_JVySjmBjiwzjzOvLn2AOA9Le","projectName":"unicorn-final"}
+{
+  "projectId": "prj_Cc3JQL4loyaeIPGmGV3rkq6kQ0oo",
+  "orgId": "team_JVySjmBjiwzjzOvLn2AOA9Le",
+  "projectName": "unicorn-final",
+  "settings": {
+    "createdAt": 1774030037062,
+    "framework": null,
+    "devCommand": null,
+    "installCommand": null,
+    "buildCommand": null,
+    "outputDirectory": null,
+    "rootDirectory": null,
+    "directoryListing": false,
+    "nodeVersion": "24.x"
+  }
+}
