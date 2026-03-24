@@ -3,7 +3,7 @@ set -euo pipefail
 
 REPO_DIR="/Users/ionutvladoi/Desktop/generate-unicorn"
 BRANCH="${AUTO_SYNC_BRANCH:-main}"
-INTERVAL="${AUTO_SYNC_INTERVAL:-10}"
+INTERVAL="${AUTO_SYNC_INTERVAL:-3}"
 LOG_FILE="$REPO_DIR/logs/auto-sync.log"
 
 mkdir -p "$REPO_DIR/logs"
