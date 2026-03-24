@@ -1,0 +1,10 @@
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+body { @apply bg-gray-900 text-white font-sans; overflow-x: hidden; transition: background-color 0.3s, color 0.3s; }
+body.light { @apply bg-gray-100 text-gray-900; }
+.neon-text { text-shadow: 0 0 5px #00ffff, 0 0 10px #00ffff, 0 0 20px #00ffff; }
+.particle-bg { position: fixed; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 0; }
+.gold-text { text-shadow: 0 0 5px #ffaa00, 0 0 10px #ffaa00; }
+.luxury-card { background: linear-gradient(135deg, rgba(128,0,128,0.3), rgba(0,0,0,0.7)); border: 1px solid #ffaa00; box-shadow: 0 0 20px rgba(255,170,0,0.3); }

@@ -1,0 +1,12 @@
+{
+  "name": "unicorn-final",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "start": "node src/index.js",
+    "test": "node test/health.test.js",
+    "lint": "node --check src/index.js && node --check src/site/template.js && node --check src/innovation/innovation-engine.js && node --check src/innovation/innovation-sprint.js && node --check test/health.test.js",
+    "innovation:report": "node src/innovation/report.js",
+    "innovation:sprint": "node src/innovation/sprint.js"
+  }
+}
