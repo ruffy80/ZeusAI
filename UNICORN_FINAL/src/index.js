@@ -163,7 +163,7 @@ if (typeof streamTimer.unref === 'function') {
   streamTimer.unref();
 }
 
-const server = http.createServer(async (req, res) => {
+async function handleRequest(req, res) {
   if (req.url === '/api/health') {
     res.writeHead(200, { 'Content-Type': 'application/json' });
     return res.end(JSON.stringify({ status: 'ok', uptime: process.uptime(), service: 'unicorn-final' }));
@@ -310,6 +310,13 @@ const server = http.createServer(async (req, res) => {
 
   res.writeHead(404, { 'Content-Type': 'application/json' });
   return res.end(JSON.stringify({ error: 'Not found' }));
+}
+
+const server = http.createServer((req, res) => {
+  handleRequest(req, res).catch((err) => {
+    res.writeHead(500, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ error: 'Internal server error', message: err.message }));
+  });
 });
 
 if (require.main === module) {
@@ -319,3 +326,4 @@ if (require.main === module) {
 }
 
 module.exports = server;
+module.exports.handleRequest = handleRequest;
