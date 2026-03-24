@@ -114,6 +114,20 @@ function getSiteHtml() {
     </div>
 
     <div class="row section">
+      <div class="card">
+        <h3>Global Impact Engine (30Y)</h3>
+        <p class="small" id="impactMission">Loading mission...</p>
+        <div class="small" style="margin-top:10px;">Resilience Index: <b id="resilienceIndex">--</b></div>
+        <div class="small">Carbon-aware mode: <span id="carbonAware">--</span></div>
+        <div class="small">Languages: <span id="languageCoverage">--</span></div>
+      </div>
+      <div class="card">
+        <h3>Impact Pillars</h3>
+        <ul id="impactPillars"></ul>
+      </div>
+    </div>
+
+    <div class="row section">
       <div class="card"><h3>Module Status</h3><ul id="modulesList"></ul></div>
       <div class="card"><h3>Sprint Plan</h3><ul id="sprintList"></ul></div>
     </div>
@@ -173,6 +187,15 @@ function getSiteHtml() {
       document.getElementById('industryUse').innerHTML = data.industries.map(function(i){ return '<li><b>' + i.title + ':</b> ' + i.outcomes.join(', ') + '</li>'; }).join('');
 
       document.getElementById('billingInfo').textContent = 'Primary: ' + data.billing.primary + ' | Supported: ' + data.billing.supported.join(', ');
+
+      var impact = data.impact || {};
+      document.getElementById('impactMission').textContent = impact.mission || 'Impact mission unavailable.';
+      document.getElementById('resilienceIndex').textContent = String(impact.resilienceIndex || '--');
+      document.getElementById('carbonAware').textContent = impact.carbonAwareMode ? 'enabled' : 'disabled';
+      document.getElementById('languageCoverage').textContent = Array.isArray(impact.multilingualCoverage) ? impact.multilingualCoverage.join(', ') : '--';
+      document.getElementById('impactPillars').innerHTML = Array.isArray(impact.pillars)
+        ? impact.pillars.map(function(p){ return '<li><b>' + p.title + '</b> — score ' + p.score + ' — goal: ' + p.goal2030 + '</li>'; }).join('')
+        : '<li>No pillars available</li>';
     }
 
     async function pullFallback() {

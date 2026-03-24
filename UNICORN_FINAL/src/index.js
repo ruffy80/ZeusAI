@@ -45,6 +45,33 @@ const userProfile = {
   aiChild: { level: 7, health: 89, growth: 76, mood: 'curious' }
 };
 
+function buildGlobalImpact() {
+  const impactPillars = [
+    { id: 'healthcare', title: 'Healthcare Augmentation', score: 92, goal2030: 'faster triage and prevention' },
+    { id: 'education', title: 'Education Access', score: 90, goal2030: 'adaptive AI tutoring at scale' },
+    { id: 'climate', title: 'Climate Efficiency', score: 87, goal2030: 'lower energy and waste footprint' },
+    { id: 'inclusion', title: 'Digital Inclusion', score: 89, goal2030: 'multilingual-first product access' }
+  ];
+
+  const avgScore = Math.round(impactPillars.reduce((sum, item) => sum + item.score, 0) / impactPillars.length);
+  const resilienceIndex = Math.round(avgScore * 0.6 + userProfile.aiChild.health * 0.2 + userProfile.aiChild.growth * 0.2);
+
+  return {
+    updatedAt: new Date().toISOString(),
+    mission: 'Build useful, ethical, and resilient AI capabilities for people, companies, and industries.',
+    horizonYears: 30,
+    resilienceIndex,
+    carbonAwareMode: true,
+    multilingualCoverage: ['en', 'ro', 'es', 'fr', 'de', 'zh', 'ja'],
+    pillars: impactPillars,
+    nextMilestones: [
+      'Launch accessibility-by-default UX checks in every release',
+      'Enable low-energy execution mode for high-traffic workloads',
+      'Continuously track social value KPIs alongside revenue KPIs'
+    ]
+  };
+}
+
 function buildTelemetry() {
   return {
     moduleHealth: 97,
@@ -65,6 +92,7 @@ function buildSnapshot() {
     codex: codexSections,
     industries,
     telemetry: buildTelemetry(),
+    impact: buildGlobalImpact(),
     innovation: buildInnovationReport(),
     sprint: generateSprintPlan(),
     recommendations: [
@@ -133,6 +161,11 @@ const server = http.createServer((req, res) => {
   if (req.url === '/telemetry') {
     res.writeHead(200, { 'Content-Type': 'application/json' });
     return res.end(JSON.stringify(buildTelemetry()));
+  }
+
+  if (req.url === '/impact') {
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    return res.end(JSON.stringify(buildGlobalImpact()));
   }
 
   if (req.url === '/recommendations') {

@@ -14,3 +14,4 @@ Generated automatically.
 - /snapshot provides full JSON state for users, companies, industries, and modules
 - /stream provides real-time updates (SSE)
 - /modules, /marketplace, /codex, /telemetry, /me, /recommendations are exposed
+- /impact provides the 30-year global impact and resilience model (mission, pillars, milestones)
