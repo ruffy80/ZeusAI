@@ -40,10 +40,34 @@ const industries = [
 
 const userProfile = {
   id: 'demo-user',
+  name: 'ZEUS Operator',
+  email: 'demo@unicorn.ai',
   type: 'company',
   plan: 'Growth',
   aiChild: { level: 7, health: 89, growth: 76, mood: 'curious' }
 };
+
+function readJsonBody(req) {
+  return new Promise((resolve) => {
+    let raw = '';
+    req.on('data', (chunk) => {
+      raw += chunk;
+      if (raw.length > 1024 * 1024) {
+        raw = '{}';
+        req.destroy();
+      }
+    });
+    req.on('end', () => {
+      if (!raw) return resolve({});
+      try {
+        resolve(JSON.parse(raw));
+      } catch (_) {
+        resolve({});
+      }
+    });
+    req.on('error', () => resolve({}));
+  });
+}
 
 function buildGlobalImpact() {
   const impactPillars = [
@@ -80,6 +104,25 @@ function buildTelemetry() {
     requests: 98544,
     aiGrowth: userProfile.aiChild.growth
   };
+}
+
+function buildTrends() {
+  return [
+    'Adopt AI copilots for repetitive workflows in all teams',
+    'Shift toward carbon-aware workload scheduling',
+    'Expand multilingual onboarding for global adoption'
+  ];
+}
+
+function computeOptimalPrice(service, segment) {
+  const basePrices = {
+    'AI Consulting': 149,
+    'API Access': 79,
+    'Custom Module Development': 399
+  };
+  const base = basePrices[service] || 99;
+  const multiplier = segment === 'enterprise' ? 1.35 : segment === 'startup' ? 0.85 : 1;
+  return Math.round(base * multiplier * 100) / 100;
 }
 
 function buildSnapshot() {
@@ -120,7 +163,63 @@ if (typeof streamTimer.unref === 'function') {
   streamTimer.unref();
 }
 
-const server = http.createServer((req, res) => {
+const server = http.createServer(async (req, res) => {
+  if (req.url === '/api/health') {
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    return res.end(JSON.stringify({ status: 'ok', uptime: process.uptime(), service: 'unicorn-final' }));
+  }
+
+  if (req.url === '/api/modules') {
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    return res.end(JSON.stringify({ modules: modules.map((m) => m.id), details: modules }));
+  }
+
+  if (req.url === '/api/trends/analyze') {
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    return res.end(JSON.stringify({ trends: buildTrends() }));
+  }
+
+  if (req.url === '/api/pricing/optimize' && req.method === 'POST') {
+    const payload = await readJsonBody(req);
+    const service = payload?.clientData?.service;
+    const segment = payload?.clientData?.segment;
+    const optimalPrice = computeOptimalPrice(service, segment);
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    return res.end(JSON.stringify({ optimalPrice, currency: 'USD' }));
+  }
+
+  if (req.url === '/api/generate-site' && req.method === 'POST') {
+    const payload = await readJsonBody(req);
+    const topic = (payload.topic || 'business').toString().trim().toLowerCase().replace(/\s+/g, '-').slice(0, 40);
+    const id = Date.now().toString(36);
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    return res.end(JSON.stringify({ path: '/landing/' + topic + '-' + id + '.html' }));
+  }
+
+  if (req.url === '/api/auth/login' && req.method === 'POST') {
+    const payload = await readJsonBody(req);
+    const email = payload.email || userProfile.email;
+    const name = email.split('@')[0] || userProfile.name;
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    return res.end(JSON.stringify({ token: 'demo-token-' + Date.now(), user: { id: userProfile.id, name, email } }));
+  }
+
+  if (req.url === '/api/auth/register' && req.method === 'POST') {
+    const payload = await readJsonBody(req);
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    return res.end(JSON.stringify({ token: 'demo-token-' + Date.now(), user: { id: 'user-' + Date.now(), name: payload.name || 'New User', email: payload.email || 'new@unicorn.ai' } }));
+  }
+
+  if (req.url === '/api/uaic/ask' && req.method === 'POST') {
+    const payload = await readJsonBody(req);
+    const prompt = (payload.prompt || '').toString().trim();
+    const answer = prompt
+      ? 'ZEUS suggests: prioritize outcomes, automate repeatable tasks, and measure impact weekly. Prompt: ' + prompt
+      : 'ZEUS suggests: start with one workflow, automate it, then scale safely.';
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    return res.end(JSON.stringify({ result: answer }));
+  }
+
   if (req.url === '/health') {
     res.writeHead(200, { 'Content-Type': 'application/json' });
     return res.end(JSON.stringify({ ok: true, service: 'unicorn-final' }));
