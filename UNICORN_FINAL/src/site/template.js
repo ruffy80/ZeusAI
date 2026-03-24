@@ -54,6 +54,7 @@ function getSiteHtml() {
           <span class="pill">EN</span><span class="pill">RO</span><span class="pill">ES</span><span class="pill">FR</span><span class="pill">DE</span><span class="pill">ZH</span><span class="pill">JA</span>
         </div>
       </div>
+      <div class="small" style="margin-bottom:10px;">LIVE DEPLOY MARKER: ZEUS-LUXURY-2026-03-24-2</div>
 
       <div class="hero">
         <div class="card">
