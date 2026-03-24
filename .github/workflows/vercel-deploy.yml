@@ -25,8 +25,8 @@ jobs:
 
       - name: Pull Vercel project settings
         working-directory: UNICORN_FINAL
-        run: vercel pull --yes --environment=production --token=${{ secrets.VERCEL_TOKEN }}
+        run: vercel pull --yes --environment=production --token=${{ secrets.VERCELZEUS }}
 
       - name: Deploy to Vercel Production
         working-directory: UNICORN_FINAL
-        run: vercel deploy --prod --token=${{ secrets.VERCEL_TOKEN }}
+        run: vercel deploy --prod --token=${{ secrets.VERCELZEUS }}
