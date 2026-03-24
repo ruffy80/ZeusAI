@@ -1,0 +1,32 @@
+name: Deploy UNICORN_FINAL to Vercel
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'UNICORN_FINAL/**'
+      - '.github/workflows/vercel-deploy.yml'
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install Vercel CLI
+        run: npm i -g vercel@latest
+
+      - name: Pull Vercel project settings
+        working-directory: UNICORN_FINAL
+        run: vercel pull --yes --environment=production --token=${{ secrets.VERCEL_TOKEN }}
+
+      - name: Deploy to Vercel Production
+        working-directory: UNICORN_FINAL
+        run: vercel deploy --prod --token=${{ secrets.VERCEL_TOKEN }}
