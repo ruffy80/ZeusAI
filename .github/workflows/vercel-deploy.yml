@@ -74,20 +74,14 @@ jobs:
       - name: Validate Vercel credentials
         id: vercel_guard
         run: |
-          TOKEN='${{ secrets.VERCEL_TOKEN }}'
-          ORG='${{ secrets.VERCEL_ORG_ID }}'
-          PROJ='${{ secrets.VERCEL_PROJECT_ID }}'
-          if [ -z "$TOKEN" ] || [ -z "$ORG" ] || [ -z "$PROJ" ]; then
+          # Check if secrets exist (not empty string)
+          if [ -z "${{ secrets.VERCEL_TOKEN }}" ] || [ -z "${{ secrets.VERCEL_ORG_ID }}" ] || [ -z "${{ secrets.VERCEL_PROJECT_ID }}" ]; then
             echo "ready=false" >> "$GITHUB_OUTPUT"
             echo "ℹ️  Missing Vercel secrets. Skipping Vercel deploy job."
             exit 0
           fi
-          if [[ "$TOKEN" == *"*"* ]]; then
-            echo "ready=false" >> "$GITHUB_OUTPUT"
-            echo "ℹ️  VERCEL_TOKEN appears masked/invalid (contains '*'). Skipping Vercel deploy."
-            exit 0
-          fi
           echo "ready=true" >> "$GITHUB_OUTPUT"
+          echo "✅ Vercel credentials validated"
 
       - name: Setup Node 20
         if: steps.vercel_guard.outputs.ready == 'true'
