@@ -2,9 +2,15 @@
   "name": "generate-unicorn-next",
   "private": true,
   "scripts": {
-    "dev": "next dev",
-    "build": "next build",
-    "start": "next start"
+    "dev": "node UNICORN_FINAL/src/index.js",
+    "build": "npm --prefix UNICORN_FINAL run lint && npm --prefix UNICORN_FINAL test",
+    "start": "node UNICORN_FINAL/src/index.js",
+    "unicorn:start": "node UNICORN_FINAL/src/index.js",
+    "unicorn:test": "npm --prefix UNICORN_FINAL test",
+    "unicorn:lint": "npm --prefix UNICORN_FINAL run lint",
+    "next:dev": "next dev",
+    "next:build": "next build",
+    "next:start": "next start"
   },
   "dependencies": {
     "next": "14.2.5",

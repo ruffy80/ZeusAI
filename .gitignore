@@ -5,4 +5,12 @@ logs/
 .next/
 out/
 build/
-.env*.local
+.env
+.env.local
+.env.*.local
+.env.auto-connector
+platform-setup-results.json
+run-platform-setup.js
+*.log
+.vercel/
+*.pid

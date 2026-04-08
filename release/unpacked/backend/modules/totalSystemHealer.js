@@ -1,0 +1,69 @@
+const cron = require('node-cron');
+const http = require('http');
+const fs = require('fs');
+const path = require('path');
+
+class TotalSystemHealer {
+  start() {
+    console.log('🩺 TotalSystemHealer activ – monitorizare la 30 secunde');
+
+    // Monitorizare sănătate server
+    cron.schedule('*/30 * * * * *', () => {
+      const req = http.get('http://localhost:3000/health', (res) => {
+        let data = '';
+        res.on('data', chunk => data += chunk);
+        res.on('end', () => {
+          try {
+            const json = JSON.parse(data);
+            if (json.status !== 'ok') {
+              console.log('⚠️ Health check eșuat! Stare:', json.status);
+              this.heal();
+            }
+          } catch (err) {
+            console.log('⚠️ Răspuns invalid la health check');
+            this.heal();
+          }
+        });
+      });
+      req.on('error', () => {
+        console.log('⚠️ Serverul nu răspunde! Încerc reparare...');
+        this.heal();
+      });
+      req.end();
+    });
+
+    // Verifică modulele periodic
+    cron.schedule('*/5 * * * *', () => {
+      this.checkModules();
+    });
+  }
+
+  heal() {
+    console.log('🛠️ Încerc reparare sistem...');
+    // Aici s-ar putea reporni serviciul sau procesul
+    const { exec } = require('child_process');
+    exec('systemctl restart unicorn 2>/dev/null || pm2 restart unicorn 2>/dev/null || echo "Restart manual necesar"');
+  }
+
+  checkModules() {
+    const modulesDir = path.join(__dirname);
+    if (!fs.existsSync(modulesDir)) return;
+
+    const files = fs.readdirSync(modulesDir).filter(f => f.endsWith('.js'));
+    for (const file of files) {
+      try {
+        const mod = require(path.join(modulesDir, file));
+        if (mod.methods && typeof mod.methods.getStatus === 'function') {
+          const status = mod.methods.getStatus();
+          if (status.health !== 'good') {
+            console.log(`⚠️ Modulul ${file} are sănătatea: ${status.health}`);
+          }
+        }
+      } catch (err) {
+        console.log(`❌ Modulul ${file} nu poate fi încărcat:`, err.message);
+      }
+    }
+  }
+}
+
+module.exports = new TotalSystemHealer();

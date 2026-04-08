@@ -1,0 +1,195 @@
+name: Deploy UNICORN_FINAL (Vercel + Hetzner)
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'UNICORN_FINAL/**'
+      - '.github/workflows/vercel-deploy.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: unicorn-final-production
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    name: Validate UNICORN_FINAL
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: UNICORN_FINAL
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Setup Node
+        uses: actions/setup-node@v5
+        with:
+          node-version: '20'
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Lint
+        run: CI=1 npm run lint
+
+      - name: Test
+        run: CI=1 npm test
+
+  deploy-vercel:
+    name: Deploy to Vercel
+    runs-on: ubuntu-latest
+    needs: validate
+    if: ${{ secrets.VERCEL_TOKEN != '' && secrets.VERCEL_ORG_ID != '' && secrets.VERCEL_PROJECT_ID != '' }}
+    defaults:
+      run:
+        working-directory: UNICORN_FINAL
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Setup Node
+        uses: actions/setup-node@v5
+        with:
+          node-version: '20'
+
+      - name: Install Vercel CLI
+        run: npm i -g vercel@latest
+
+      - name: Configure Vercel project linkage
+        run: |
+          mkdir -p .vercel
+          cat > .vercel/project.json <<EOF
+          {
+            "orgId": "${{ secrets.VERCEL_ORG_ID }}",
+            "projectId": "${{ secrets.VERCEL_PROJECT_ID }}"
+          }
+          EOF
+
+      - name: Pull Vercel environment
+        run: vercel pull --yes --environment=production --token=${{ secrets.VERCEL_TOKEN }}
+
+      - name: Build Vercel artifacts
+        run: vercel build --prod --token=${{ secrets.VERCEL_TOKEN }}
+
+      - name: Deploy to Vercel Production
+        run: vercel deploy --prebuilt --prod --token=${{ secrets.VERCEL_TOKEN }}
+
+  deploy-hetzner:
+    name: Deploy to Hetzner
+    runs-on: ubuntu-latest
+    needs: validate
+    if: ${{ secrets.HETZNER_HOST != '' && secrets.HETZNER_USER != '' && secrets.HETZNER_DEPLOY_USER != '' && secrets.HETZNER_DEPLOY_PORT != '' && (secrets.HETZNER_API_KEY != '' || secrets.HETZNER_API_TOKEN != '') && secrets.HETZNER_SSH_PRIVATE_KEY != '' && secrets.HETZNER_DEPLOY_PATH != '' }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Resolve Hetzner API credential
+        run: |
+          if [ -n "${{ secrets.HETZNER_API_KEY }}" ]; then
+            echo "HETZNER_API_VALUE=${{ secrets.HETZNER_API_KEY }}" >> "$GITHUB_ENV"
+          else
+            echo "HETZNER_API_VALUE=${{ secrets.HETZNER_API_TOKEN }}" >> "$GITHUB_ENV"
+          fi
+
+      - name: Setup SSH key
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.HETZNER_SSH_PRIVATE_KEY }}
+
+      - name: Sync code to Hetzner
+        id: sync_hetzner
+        continue-on-error: true
+        run: |
+          rsync -az --delete \
+            --exclude='.git' \
+            --exclude='node_modules' \
+            --exclude='.next' \
+            --exclude='logs' \
+            --exclude='*.local' \
+            -e "ssh -p ${{ secrets.HETZNER_DEPLOY_PORT }} -o StrictHostKeyChecking=no" \
+            ./UNICORN_FINAL/ \
+            ${{ secrets.HETZNER_DEPLOY_USER }}@${{ secrets.HETZNER_HOST }}:${{ secrets.HETZNER_DEPLOY_PATH }}/
+
+      - name: Install and restart on Hetzner
+        id: restart_hetzner
+        continue-on-error: true
+        run: |
+          ssh -p ${{ secrets.HETZNER_DEPLOY_PORT }} -o StrictHostKeyChecking=no ${{ secrets.HETZNER_DEPLOY_USER }}@${{ secrets.HETZNER_HOST }} '
+            set -e
+            cd "${{ secrets.HETZNER_DEPLOY_PATH }}"
+            if [ -f .env ]; then
+              grep -v "^HETZNER_API_KEY=" .env > .env.tmp || true
+              grep -v "^HETZNER_API_TOKEN=" .env.tmp > .env.clean || true
+              mv .env.clean .env.tmp
+              printf "%s\n" "HETZNER_API_KEY=${HETZNER_API_VALUE}" >> .env.tmp
+              printf "%s\n" "HETZNER_API_TOKEN=${HETZNER_API_VALUE}" >> .env.tmp
+              mv .env.tmp .env
+            else
+              printf "%s\n" "HETZNER_API_KEY=${HETZNER_API_VALUE}" > .env
+              printf "%s\n" "HETZNER_API_TOKEN=${HETZNER_API_VALUE}" >> .env
+            fi
+            npm install --no-audit --no-fund
+            if [ -f client/package.json ]; then
+              cd client
+              npm install --no-audit --no-fund
+              npm run build || true
+              cd ..
+            fi
+
+            npm run innovation:sprint || true
+            npm run innovation:report || true
+
+            if command -v systemctl >/dev/null 2>&1 && systemctl list-unit-files | grep -q "^unicorn\.service"; then
+              systemctl restart unicorn
+            elif command -v pm2 >/dev/null 2>&1; then
+              pm2 describe unicorn >/dev/null 2>&1 && pm2 restart unicorn || pm2 start ecosystem.config.js
+              pm2 save
+            else
+              pkill -f "node backend/index.js" || true
+              nohup node backend/index.js > /var/log/unicorn-app.log 2>&1 &
+            fi
+          '
+
+      - name: Fallback to Hetzner webhook (if SSH path failed)
+        id: webhook_fallback
+        if: ${{ (steps.sync_hetzner.outcome != 'success' || steps.restart_hetzner.outcome != 'success') && secrets.HETZNER_WEBHOOK_URL != '' && (secrets.HETZNER_WEBHOOK_SECRET != '' || secrets.WEBHOOK_SECRET != '') }}
+        run: |
+          if [ -n "${{ secrets.HETZNER_WEBHOOK_SECRET }}" ]; then
+            WEBHOOK_SECRET_VALUE="${{ secrets.HETZNER_WEBHOOK_SECRET }}"
+          else
+            WEBHOOK_SECRET_VALUE="${{ secrets.WEBHOOK_SECRET }}"
+          fi
+
+          curl --fail --show-error --silent \
+            -X POST "${{ secrets.HETZNER_WEBHOOK_URL }}" \
+            -H "Content-Type: application/json" \
+            -H "x-webhook-secret: ${WEBHOOK_SECRET_VALUE}" \
+            -d '{"source":"github-actions","action":"deploy-fallback"}'
+
+      - name: Fail only when both SSH and webhook deployment failed
+        if: ${{ (steps.sync_hetzner.outcome != 'success' || steps.restart_hetzner.outcome != 'success') && (secrets.HETZNER_WEBHOOK_URL == '' || steps.webhook_fallback.outcome != 'success') }}
+        run: |
+          echo "Hetzner deployment failed: SSH path failed and webhook fallback was not successful."
+          exit 1
+
+  deploy-hetzner-webhook:
+    name: Deploy to Hetzner (Webhook Fallback)
+    runs-on: ubuntu-latest
+    needs: validate
+    if: ${{ secrets.HETZNER_WEBHOOK_URL != '' && (secrets.HETZNER_WEBHOOK_SECRET != '' || secrets.WEBHOOK_SECRET != '') && secrets.HETZNER_SSH_PRIVATE_KEY == '' }}
+    steps:
+      - name: Trigger Hetzner webhook
+        run: |
+          if [ -n "${{ secrets.HETZNER_WEBHOOK_SECRET }}" ]; then
+            WEBHOOK_SECRET_VALUE="${{ secrets.HETZNER_WEBHOOK_SECRET }}"
+          else
+            WEBHOOK_SECRET_VALUE="${{ secrets.WEBHOOK_SECRET }}"
+          fi
+
+          curl --fail --show-error --silent \
+            -X POST "${{ secrets.HETZNER_WEBHOOK_URL }}" \
+            -H "Content-Type: application/json" \
+            -H "x-webhook-secret: ${WEBHOOK_SECRET_VALUE}" \
+            -d '{"source":"github-actions","action":"deploy"}'

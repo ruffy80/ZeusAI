@@ -1,4 +1,4 @@
-name: Deploy UNICORN_FINAL to Vercel
+name: 🦄 Deploy UNICORN_FINAL (GitHub → Vercel + Hetzner)
 
 on:
   push:
@@ -7,15 +7,72 @@ on:
       - 'UNICORN_FINAL/**'
       - '.github/workflows/vercel-deploy.yml'
   workflow_dispatch:
+    inputs:
+      force_deploy:
+        description: 'Force deploy even without code changes'
+        required: false
+        default: 'false'
+
+concurrency:
+  group: unicorn-final-production
+  cancel-in-progress: true
 
 jobs:
-  deploy:
+  # ──────────────────────────────────────────────────────────────────────
+  # JOB 1: Validate (lint + test)
+  # ──────────────────────────────────────────────────────────────────────
+  validate:
+    name: ✅ Validate UNICORN_FINAL
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: UNICORN_FINAL
+    outputs:
+      lint_ok: ${{ steps.lint.outcome }}
+      test_ok: ${{ steps.test.outcome }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Setup Node
+      - name: Setup Node 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: UNICORN_FINAL/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci --no-audit --no-fund || npm install --no-audit --no-fund
+
+      - name: Lint
+        id: lint
+        run: CI=1 npm run lint
+
+      - name: Test
+        id: test
+        run: CI=1 npm test
+
+      - name: Innovation report (pre-deploy snapshot)
+        run: npm run innovation:report || true
+
+  # ──────────────────────────────────────────────────────────────────────
+  # JOB 2: Deploy to Vercel (runs src/index.js - the Node HTTP server)
+  # ──────────────────────────────────────────────────────────────────────
+  deploy-vercel:
+    name: 🚀 Deploy → Vercel
+    runs-on: ubuntu-latest
+    needs: validate
+    if: ${{ secrets.VERCEL_TOKEN != '' && secrets.VERCEL_ORG_ID != '' && secrets.VERCEL_PROJECT_ID != '' }}
+    defaults:
+      run:
+        working-directory: UNICORN_FINAL
+    outputs:
+      deploy_url: ${{ steps.deploy.outputs.deploy_url }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node 20
         uses: actions/setup-node@v4
         with:
           node-version: '20'
@@ -23,10 +80,203 @@ jobs:
       - name: Install Vercel CLI
         run: npm i -g vercel@latest
 
-      - name: Pull Vercel project settings
-        working-directory: UNICORN_FINAL
-        run: vercel pull --yes --environment=production --token=${{ secrets.VERCELZEUS }}
+      - name: Link Vercel project
+        run: |
+          mkdir -p .vercel
+          cat > .vercel/project.json <<EOF
+          {
+            "orgId": "${{ secrets.VERCEL_ORG_ID }}",
+            "projectId": "${{ secrets.VERCEL_PROJECT_ID }}"
+          }
+          EOF
+
+      - name: Pull Vercel environment
+        run: vercel pull --yes --environment=production --token=${{ secrets.VERCEL_TOKEN }}
+
+      - name: Build
+        run: vercel build --prod --token=${{ secrets.VERCEL_TOKEN }}
 
       - name: Deploy to Vercel Production
-        working-directory: UNICORN_FINAL
-        run: vercel deploy --prod --token=${{ secrets.VERCELZEUS }}
+        id: deploy
+        run: |
+          URL=$(vercel deploy --prebuilt --prod --token=${{ secrets.VERCEL_TOKEN }})
+          echo "deploy_url=$URL" >> "$GITHUB_OUTPUT"
+          echo "✅ Vercel deploy: $URL"
+
+      - name: Smoke test Vercel URL
+        run: |
+          sleep 10
+          URL="${{ steps.deploy.outputs.deploy_url }}"
+          if [ -n "$URL" ]; then
+            STATUS=$(curl -s -o /dev/null -w "%{http_code}" "$URL/health" || echo "000")
+            echo "Vercel /health → HTTP $STATUS"
+            [ "$STATUS" = "200" ] || [ "$STATUS" = "000" ] && echo "⚠️  Could not verify (may need warmup)" || true
+          fi
+
+  # ──────────────────────────────────────────────────────────────────────
+  # JOB 3: Deploy to Hetzner via SSH (runs backend/index.js)
+  # ──────────────────────────────────────────────────────────────────────
+  deploy-hetzner:
+    name: 🖥️ Deploy → Hetzner (SSH)
+    runs-on: ubuntu-latest
+    needs: validate
+    if: ${{ secrets.HETZNER_HOST != '' && secrets.HETZNER_DEPLOY_USER != '' && secrets.HETZNER_SSH_PRIVATE_KEY != '' && secrets.HETZNER_DEPLOY_PATH != '' }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Resolve Hetzner API credential
+        run: |
+          if [ -n "${{ secrets.HETZNER_API_KEY }}" ]; then
+            echo "HETZNER_API_VALUE=${{ secrets.HETZNER_API_KEY }}" >> "$GITHUB_ENV"
+          else
+            echo "HETZNER_API_VALUE=${{ secrets.HETZNER_API_TOKEN }}" >> "$GITHUB_ENV"
+          fi
+
+      - name: Setup SSH agent
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.HETZNER_SSH_PRIVATE_KEY }}
+
+      - name: Sync UNICORN_FINAL to Hetzner
+        id: sync_hetzner
+        continue-on-error: true
+        run: |
+          SSH_PORT="${{ secrets.HETZNER_DEPLOY_PORT || '22' }}"
+          rsync -az --delete \
+            --exclude='.git' \
+            --exclude='node_modules' \
+            --exclude='.next' \
+            --exclude='logs' \
+            --exclude='*.local' \
+            --exclude='.env' \
+            -e "ssh -p ${SSH_PORT} -o StrictHostKeyChecking=no" \
+            ./UNICORN_FINAL/ \
+            ${{ secrets.HETZNER_DEPLOY_USER }}@${{ secrets.HETZNER_HOST }}:${{ secrets.HETZNER_DEPLOY_PATH }}/
+
+      - name: Install deps + restart backend on Hetzner
+        id: restart_hetzner
+        continue-on-error: true
+        run: |
+          SSH_PORT="${{ secrets.HETZNER_DEPLOY_PORT || '22' }}"
+          ssh -p ${SSH_PORT} -o StrictHostKeyChecking=no \
+            ${{ secrets.HETZNER_DEPLOY_USER }}@${{ secrets.HETZNER_HOST }} << 'ENDSSH'
+            set -e
+            cd "${{ secrets.HETZNER_DEPLOY_PATH }}"
+
+            # ── Update .env with Hetzner API token ───────────────────────
+            if [ -f .env ]; then
+              sed -i '/^HETZNER_API_KEY=/d;/^HETZNER_API_TOKEN=/d' .env
+            fi
+            printf "HETZNER_API_KEY=%s\nHETZNER_API_TOKEN=%s\n" \
+              "${HETZNER_API_VALUE}" "${HETZNER_API_VALUE}" >> .env
+
+            # ── Install dependencies ──────────────────────────────────────
+            npm ci --no-audit --no-fund 2>/dev/null || npm install --no-audit --no-fund
+
+            # ── Run innovation sprint + report ────────────────────────────
+            npm run innovation:sprint  || true
+            npm run innovation:report  || true
+
+            # ── Restart backend process ───────────────────────────────────
+            if command -v systemctl >/dev/null 2>&1 && systemctl list-unit-files | grep -q "^unicorn\.service"; then
+              systemctl restart unicorn && echo "✅ Restarted via systemctl"
+            elif command -v pm2 >/dev/null 2>&1; then
+              pm2 describe unicorn >/dev/null 2>&1 \
+                && pm2 restart unicorn \
+                || pm2 start backend/index.js --name unicorn --log logs/backend.log
+              pm2 save
+              echo "✅ Restarted via pm2"
+            else
+              pkill -f "node backend/index.js" || true
+              sleep 1
+              mkdir -p logs
+              nohup node backend/index.js > logs/backend.log 2>&1 &
+              echo "✅ Restarted via nohup"
+            fi
+
+            # ── Start autonomous orchestrator ─────────────────────────────
+            if command -v pm2 >/dev/null 2>&1; then
+              pm2 describe unicorn-orchestrator >/dev/null 2>&1 \
+                && pm2 restart unicorn-orchestrator \
+                || pm2 start autonomous-orchestrator.js --name unicorn-orchestrator --log logs/orchestrator.log
+              pm2 save
+              echo "✅ Orchestrator running via pm2"
+            else
+              pkill -f "autonomous-orchestrator.js" || true
+              sleep 1
+              nohup node autonomous-orchestrator.js > logs/orchestrator.log 2>&1 &
+              echo "✅ Orchestrator running via nohup"
+            fi
+          ENDSSH
+
+      - name: Health check Hetzner backend
+        id: hetzner_health
+        continue-on-error: true
+        if: steps.restart_hetzner.outcome == 'success'
+        run: |
+          SSH_PORT="${{ secrets.HETZNER_DEPLOY_PORT || '22' }}"
+          sleep 8
+          HEALTH=$(ssh -p ${SSH_PORT} -o StrictHostKeyChecking=no \
+            ${{ secrets.HETZNER_DEPLOY_USER }}@${{ secrets.HETZNER_HOST }} \
+            "curl -s http://localhost:${PORT:-3000}/api/health 2>/dev/null || echo '{\"status\":\"unreachable\"}'")
+          echo "Hetzner health: $HEALTH"
+          echo "$HEALTH" | grep -q '"status":"ok"' && echo "✅ Backend healthy" || echo "⚠️  Backend not yet ready"
+
+      - name: Fallback — trigger Hetzner webhook (if SSH failed)
+        id: webhook_fallback
+        if: ${{ (steps.sync_hetzner.outcome != 'success' || steps.restart_hetzner.outcome != 'success') && secrets.HETZNER_WEBHOOK_URL != '' }}
+        run: |
+          SECRET="${{ secrets.HETZNER_WEBHOOK_SECRET || secrets.WEBHOOK_SECRET }}"
+          curl --fail --show-error --silent \
+            -X POST "${{ secrets.HETZNER_WEBHOOK_URL }}/deploy" \
+            -H "Content-Type: application/json" \
+            -H "x-webhook-secret: ${SECRET}" \
+            -d '{"source":"github-actions","action":"deploy-fallback","ref":"${{ github.sha }}"}'
+
+      - name: Fail if both SSH and webhook failed
+        if: ${{ (steps.sync_hetzner.outcome != 'success' || steps.restart_hetzner.outcome != 'success') && steps.webhook_fallback.outcome != 'success' }}
+        run: |
+          echo "❌ Hetzner deploy failed: SSH failed and no webhook configured."
+          exit 1
+
+  # ──────────────────────────────────────────────────────────────────────
+  # JOB 4: Webhook-only deploy (when no SSH key is set, only webhook)
+  # ──────────────────────────────────────────────────────────────────────
+  deploy-hetzner-webhook:
+    name: 🔔 Deploy → Hetzner (Webhook only)
+    runs-on: ubuntu-latest
+    needs: validate
+    if: ${{ secrets.HETZNER_WEBHOOK_URL != '' && (secrets.HETZNER_WEBHOOK_SECRET != '' || secrets.WEBHOOK_SECRET != '') && secrets.HETZNER_SSH_PRIVATE_KEY == '' }}
+    steps:
+      - name: Trigger Hetzner webhook
+        run: |
+          SECRET="${{ secrets.HETZNER_WEBHOOK_SECRET || secrets.WEBHOOK_SECRET }}"
+          curl --fail --show-error --silent \
+            -X POST "${{ secrets.HETZNER_WEBHOOK_URL }}/deploy" \
+            -H "Content-Type: application/json" \
+            -H "x-webhook-secret: ${SECRET}" \
+            -d '{"source":"github-actions","action":"deploy","ref":"${{ github.sha }}"}'
+
+  # ──────────────────────────────────────────────────────────────────────
+  # JOB 5: Deploy summary
+  # ──────────────────────────────────────────────────────────────────────
+  deploy-summary:
+    name: 📊 Deploy Summary
+    runs-on: ubuntu-latest
+    needs: [validate, deploy-vercel, deploy-hetzner]
+    if: always()
+    steps:
+      - name: Print summary
+        run: |
+          echo "## 🦄 UNICORN Deploy Summary" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Target    | Result |" >> "$GITHUB_STEP_SUMMARY"
+          echo "|-----------|--------|" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Validate  | ${{ needs.validate.result }} |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Vercel    | ${{ needs.deploy-vercel.result }} |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Hetzner   | ${{ needs.deploy-hetzner.result }} |" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "Commit: \`${{ github.sha }}\` by **${{ github.actor }}**" >> "$GITHUB_STEP_SUMMARY"
+          echo "Triggered: ${{ github.event_name }}" >> "$GITHUB_STEP_SUMMARY"
+

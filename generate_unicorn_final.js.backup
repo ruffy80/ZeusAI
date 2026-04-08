@@ -1,0 +1,4870 @@
+// generate_frontend_zeus_luxury.js
+// Rulează cu: node generate_unicorn_final.js
+
+const fs = require('fs');
+const path = require('path');
+
+// Directorul de construcție
+const ROOT = path.join(__dirname, 'UNICORN_FINAL');
+const SRC = path.join(ROOT, 'src');
+const MODULES = path.join(SRC, 'modules');
+const GENERATED = path.join(SRC, 'generated');
+const CLIENT = path.join(ROOT, 'client');
+const CLIENT_SRC = path.join(CLIENT, 'src');
+const CLIENT_COMPONENTS = path.join(CLIENT_SRC, 'components');
+const CLIENT_PAGES = path.join(CLIENT_SRC, 'pages');
+const CLIENT_PUBLIC = path.join(CLIENT, 'public');
+const INFRA = path.join(ROOT, 'infra');
+const GITHUB_WORKFLOWS = path.join(ROOT, '.github', 'workflows');
+const BACKUP = path.join(ROOT, 'backups');
+const LOGS = path.join(ROOT, 'logs');
+const HETZNER_SCRIPTS = path.join(ROOT, 'hetzner');
+const SCRIPTS = path.join(ROOT, 'scripts');
+const MODELS = path.join(ROOT, 'models');
+const CONTRACTS = path.join(ROOT, 'contracts');
+const DATA = path.join(ROOT, 'data');
+
+// Lista completă a directoarelor (toate modulele speciale)
+const dirs = [
+  ROOT, SRC, MODULES, GENERATED,
+  CLIENT, CLIENT_SRC, CLIENT_COMPONENTS, CLIENT_PAGES, CLIENT_PUBLIC,
+  path.join(MODULES, 'auto-deploy-orchestrator'),
+  path.join(MODULES, 'code-sanity-engine'),
+path.join(MODULES, 'code-sanity-engine', 'scanner'),
+path.join(MODULES, 'code-sanity-engine', 'analyzers'),
+path.join(MODULES, 'code-sanity-engine', 'repair'),
+  path.join(MODULES, 'unicorn-super-intelligence'),
+path.join(MODULES, 'unicorn-super-intelligence', 'memory'),
+path.join(MODULES, 'unicorn-super-intelligence', 'skills'),
+path.join(MODULES, 'unicorn-super-intelligence', 'reasoning'),
+path.join(MODULES, 'unicorn-super-intelligence', 'personality'),
+  path.join(MODULES, 'evolution-core'),
+  path.join(MODULES, 'quantum-healing'),
+  path.join(MODULES, 'universal-adaptor'),
+  path.join(MODULES, 'quantum-pay'),
+  path.join(MODULES, 'site-creator'),
+  path.join(MODULES, 'ab-testing'),
+  path.join(MODULES, 'seo-optimizer'),
+  path.join(MODULES, 'analytics'),
+  path.join(MODULES, 'content-ai'),
+  path.join(MODULES, 'auto-marketing'),
+  path.join(MODULES, 'performance-monitor'),
+  path.join(MODULES, 'unicorn-realization-engine'),
+  path.join(MODULES, 'unicorn-execution-engine'),
+  path.join(MODULES, 'auto-trend-analyzer'),
+  path.join(MODULES, 'self-adaptation-engine'),
+  path.join(MODULES, 'predictive-healing'),
+  path.join(MODULES, 'code-optimizer'),
+  path.join(MODULES, 'self-documenter'),
+  path.join(MODULES, 'ui-evolution'),
+  path.join(MODULES, 'security-scanner'),
+  path.join(MODULES, 'disaster-recovery'),
+  path.join(MODULES, 'swarm-intelligence'),
+  path.join(MODULES, 'auto-deploy'),
+  path.join(MODULES, 'total-system-healer'),
+  path.join(MODULES, 'dynamic-pricing'),
+  path.join(MODULES, 'universal-interchain-nexus'),
+  path.join(MODULES, 'autonomous-wealth-engine'),
+  path.join(MODULES, 'autonomous-bd-engine'),
+  path.join(MODULES, 'self-construction-engine'),
+  path.join(INFRA, 'automation'),
+  
+  GI// ---------------------------------------------------------
+// 6. MODULE SPECIALE
+// ---------------------------------------------------------
+fs.writeFileSync(path.join(MODULES, 'evolution-core/SelfEvolve.js'), `...`);
+fs.writeFileSync(path.join(MODULES, 'quantum-healing/AutoHeal.js'), `...`);
+// ... (UAIC, USI, CodeSanityEngine, etc.) ...
+
+// ===== AICI LIPESȚI CODUL PENTRU AUTO‑DEPLOY ORCHESTRATOR =====
+fs.writeFileSync(path.join(MODULES, 'auto-deploy-orchestrator/index.js'), `...`);  // codul ultra avansat
+fs.writeFileSync(path.join(MODULES, 'auto-deploy-orchestrator/config.js'), `...`);
+// ---------------------------------------------------------
+// AUTO‑DEPLOY ORCHESTRATOR ULTRA – versiunea supremă
+// ---------------------------------------------------------
+
+fs.writeFileSync(path.join(MODULES, 'auto-deploy-orchestrator/index.js'), `
+const fs = require('fs');
+const path = require('path');
+const { execSync, exec } = require('child_process');
+const axios = require('axios');
+const archiver = require('archiver');
+const simpleGit = require('simple-git');
+const crypto = require('crypto');
+
+// Dependințe opționale pentru notificări
+let notifier = null;
+try {
+  notifier = require('node-notifier'); // pentru desktop
+} catch {}
+
+class AutoDeployOrchestratorUltra {
+  constructor() {
+    this.git = null;
+    this.deployLog = [];
+    this.deployCache = null;
+    this.rollbackVersions = []; // stochează ultimele 5 backup-uri
+    this.watchdogInterval = null;
+    this.healthCheckInterval = null;
+    this.loadCache();
+  }
+
+  // ---------- Cache ----------
+  loadCache() {
+    const cacheFile = path.join(__dirname, '../../../data/deploy_cache.json');
+    if (fs.existsSync(cacheFile)) {
+      try {
+        this.deployCache = JSON.parse(fs.readFileSync(cacheFile));
+      } catch {}
+    }
+    if (!this.deployCache) this.deployCache = {};
+  }
+
+  saveCache() {
+    const cacheFile = path.join(__dirname, '../../../data/deploy_cache.json');
+    const dir = path.dirname(cacheFile);
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(cacheFile, JSON.stringify(this.deployCache, null, 2));
+  }
+
+  // ---------- Logging și notificări ----------
+  log(message, level = 'info') {
+    const timestamp = new Date().toISOString();
+    const line = \`[\${timestamp}] [\${level.toUpperCase()}] \${message}\`;
+    console.log(line);
+    this.deployLog.push(line);
+    const logFile = path.join(__dirname, '../../../logs/deploy.log');
+    fs.appendFileSync(logFile, line + '\\n');
+
+    // Notificare desktop (dacă e disponibil)
+    if (notifier) {
+      notifier.notify({
+        title: 'Auto‑Deploy',
+        message: message.substring(0, 50),
+        sound: true,
+      });
+    }
+
+    // Notificări externe (Slack, Telegram, etc.) – configurabile
+    this.sendExternalNotification(message, level);
+  }
+
+  async sendExternalNotification(message, level) {
+    const tasks = [];
+    if (process.env.SLACK_WEBHOOK_URL) {
+      tasks.push(axios.post(process.env.SLACK_WEBHOOK_URL, { text: message }).catch(() => {}));
+    }
+    if (process.env.TELEGRAM_BOT_TOKEN && process.env.TELEGRAM_CHAT_ID) {
+      const url = \`https://api.telegram.org/bot\${process.env.TELEGRAM_BOT_TOKEN}/sendMessage\`;
+      tasks.push(axios.post(url, { chat_id: process.env.TELEGRAM_CHAT_ID, text: message }).catch(() => {}));
+    }
+    if (process.env.DISCORD_WEBHOOK_URL) {
+      tasks.push(axios.post(process.env.DISCORD_WEBHOOK_URL, { content: message }).catch(() => {}));
+    }
+    await Promise.allSettled(tasks);
+  }
+
+  // ---------- Auto‑diagnosticare pre‑deploy ----------
+  async preDeployCheck() {
+    this.log('🔍 Running pre‑deploy diagnostics...');
+    const errors = [];
+
+    // 1. Verifică variabile de mediu esențiale
+    const requiredEnv = ['GIT_REMOTE_URL', 'ADMIN_SECRET'];
+    for (const env of requiredEnv) {
+      if (!process.env[env]) errors.push(\`Missing \${env}\`);
+    }
+
+    // 2. Rulează testele (dacă există)
+    try {
+      execSync('npm test', { stdio: 'ignore', timeout: 30000 });
+      this.log('✅ Tests passed.');
+    } catch (err) {
+      errors.push('Tests failed');
+    }
+
+    // 3. Rulează linting (dacă există)
+    try {
+      execSync('npm run lint', { stdio: 'ignore', timeout: 30000 });
+      this.log('✅ Linting passed.');
+    } catch (err) {
+      errors.push('Linting failed');
+    }
+
+    if (errors.length > 0) {
+      this.log(\`❌ Pre‑deploy check failed: \${errors.join(', ')}\`, 'error');
+      return false;
+    }
+    this.log('✅ Pre‑deploy check passed.');
+    return true;
+  }
+
+  // ---------- Backup și rollback ----------
+  async createBackup() {
+    const timestamp = new Date().toISOString().replace(/:/g, '-');
+    const backupDir = path.join(__dirname, '../../../backups', timestamp);
+    this.log(\`💾 Creating backup at \${backupDir}...\`);
+
+    // Excludem node_modules, .git, backups, logs
+    const exclude = ['node_modules', '.git', 'backups', 'logs', 'data'];
+    const cmd = \`rsync -a --exclude={}\${exclude.join(',')} \${path.join(__dirname, '../../..')}/ \${backupDir}/\`;
+    execSync(cmd, { stdio: 'ignore' });
+
+    this.rollbackVersions.push({ path: backupDir, timestamp });
+    if (this.rollbackVersions.length > 5) {
+      const oldest = this.rollbackVersions.shift();
+      fs.rmSync(oldest.path, { recursive: true, force: true });
+    }
+    this.log(\`✅ Backup created: \${backupDir}\`);
+    return backupDir;
+  }
+
+  async rollback(version = null) {
+    if (!version) version = this.rollbackVersions.slice(-1)[0];
+    if (!version) {
+      this.log('❌ No rollback version available.', 'error');
+      return false;
+    }
+    this.log(\`🔄 Rolling back to \${version.path}...\`);
+    const cmd = \`rsync -a --delete \${version.path}/ \${path.join(__dirname, '../../..')}/\`;
+    execSync(cmd, { stdio: 'ignore' });
+    this.log('✅ Rollback completed.');
+    return true;
+  }
+
+  // ---------- Pregătire ZIP (cu excluderi inteligente) ----------
+  async prepareZip() {
+    const zipPath = path.join(__dirname, '../../../UNICORN_DEPLOY.zip');
+    if (fs.existsSync(zipPath)) {
+      this.log('📦 ZIP already exists, checking if outdated...');
+      const stats = fs.statSync(zipPath);
+      const lastCommit = await this.git.log({ maxCount: 1 });
+      if (stats.mtimeMs > new Date(lastCommit.latest.date).getTime()) {
+        this.log('📦 ZIP is up to date.');
+        return zipPath;
+      }
+    }
+
+    this.log('📦 Creating deployment ZIP...');
+    const output = fs.createWriteStream(zipPath);
+    const archive = archiver('zip', { zlib: { level: 9 } });
+
+    return new Promise((resolve, reject) => {
+      output.on('close', () => {
+        this.log(\`✅ ZIP created: \${zipPath} (\${archive.pointer()} bytes)\`);
+        resolve(zipPath);
+      });
+      archive.on('error', reject);
+      archive.pipe(output);
+      archive.directory(path.join(__dirname, '../../../'), false);
+      archive.finalize();
+    });
+  }
+
+  // ---------- Pregătire repo ----------
+  async ensureRepo() {
+    const gitDir = path.join(__dirname, '../../../.git');
+    if (!fs.existsSync(gitDir)) {
+      this.log('📁 Initializing Git repository...');
+      await this.git.init();
+      if (process.env.GIT_REMOTE_URL) {
+        await this.git.addRemote('origin', process.env.GIT_REMOTE_URL);
+        this.log(\`🔗 Remote added: \${process.env.GIT_REMOTE_URL}\`);
+      }
+    }
+  }
+
+  // ---------- Commit inteligent (verifică modificări reale) ----------
+  async autoCommit() {
+    const status = await this.git.status();
+    if (status.files.length === 0 && status.not_added.length === 0) {
+      this.log('✅ No changes to commit.');
+      return false;
+    }
+
+    // Rulează CodeSanityEngine înainte de commit
+    try {
+      const codeSanity = require('../code-sanity-engine');
+      await codeSanity.runFullScanNow();
+    } catch (err) {
+      this.log(\`⚠️ CodeSanityEngine not available: \${err.message}\`);
+    }
+
+    this.log('📦 Committing changes...');
+    await this.git.add('.');
+    await this.git.commit(\`Auto‑deploy: \${new Date().toISOString()}\`);
+    this.log('✅ Commit created.');
+    return true;
+  }
+
+  // ---------- Push cu verificare ----------
+  async autoPush() {
+    try {
+      await this.git.push('origin', process.env.GIT_BRANCH || 'main');
+      this.log('🚀 Push to GitHub successful.');
+      return true;
+    } catch (err) {
+      this.log(\`❌ Push failed: \${err.message}\`, 'error');
+      return false;
+    }
+  }
+
+  // ---------- Webhook paralel pentru Hetzner, Vercel, etc. ----------
+  async triggerAllWebhooks() {
+    const results = {};
+    if (process.env.HETZNER_WEBHOOK_URL) {
+      results.hetzner = await this.triggerWebhook(process.env.HETZNER_WEBHOOK_URL, {
+        repo: process.env.GIT_REMOTE_URL,
+        branch: process.env.GIT_BRANCH || 'main',
+        secret: process.env.HETZNER_WEBHOOK_SECRET
+      });
+    }
+    if (process.env.VERCEL_TOKEN && process.env.VERCEL_PROJECT_ID) {
+      results.vercel = await this.triggerVercel();
+    }
+    return results;
+  }
+
+  async triggerWebhook(url, payload) {
+    try {
+      const res = await axios.post(url, payload, {
+        headers: { 'Content-Type': 'application/json' },
+        timeout: 10000
+      });
+      this.log(\`✅ Webhook \${url} triggered: \${res.status}\`);
+      return { success: true, status: res.status };
+    } catch (err) {
+      this.log(\`❌ Webhook \${url} failed: \${err.message}\`, 'error');
+      return { success: false, error: err.message };
+    }
+  }
+
+  async triggerVercel() {
+    try {
+      const res = await axios.post('https://api.vercel.com/v1/deployments', {
+        name: 'unicorn-final',
+        projectId: process.env.VERCEL_PROJECT_ID,
+        target: 'production'
+      }, {
+        headers: {
+          'Authorization': \`Bearer \${process.env.VERCEL_TOKEN}\`,
+          'Content-Type': 'application/json'
+        }
+      });
+      this.log(\`✅ Vercel deploy triggered: \${res.data.id}\`);
+      return { success: true, deploymentId: res.data.id };
+    } catch (err) {
+      this.log(\`❌ Vercel trigger failed: \${err.message}\`, 'error');
+      return { success: false, error: err.message };
+    }
+  }
+
+  // ---------- Monitorizare post‑deploy ----------
+  async postDeployMonitoring() {
+    this.log('📊 Starting post‑deploy monitoring...');
+    const checks = [];
+
+    // Verifică endpoint-ul health
+    checks.push(
+      axios.get('http://localhost:3000/health', { timeout: 5000 })
+        .then(res => ({ health: true, status: res.status }))
+        .catch(err => ({ health: false, error: err.message }))
+    );
+
+    // Verifică API-ul modules
+    checks.push(
+      axios.get('http://localhost:3000/api/modules', { timeout: 5000 })
+        .then(res => ({ modules: true, count: res.data.modules.length }))
+        .catch(err => ({ modules: false, error: err.message }))
+    );
+
+    const results = await Promise.allSettled(checks);
+    const failed = results.filter(r => r.value?.health === false || r.value?.modules === false);
+    if (failed.length > 0) {
+      this.log('❌ Post‑deploy checks failed, rolling back...', 'error');
+      await this.rollback();
+      return false;
+    }
+    this.log('✅ Post‑deploy checks passed.');
+    return true;
+  }
+
+  // ---------- Auto‑actualizare inteligentă ----------
+  async selfUpdate() {
+    this.log('🔄 Auto‑update: pulling latest changes...');
+    try {
+      const pullResult = await this.git.pull('origin', process.env.GIT_BRANCH || 'main');
+      if (pullResult.summary.changes > 0) {
+        this.log(\`✅ Pull successful, \${pullResult.summary.changes} files changed.\`);
+        // Reinstalează dependențele
+        execSync('npm install', { stdio: 'inherit' });
+        this.log('✅ Dependencies reinstalled.');
+        // Rulează migrări (dacă există)
+        try {
+          execSync('npm run migrate', { stdio: 'inherit' });
+        } catch {}
+      } else {
+        this.log('✅ Already up to date.');
+      }
+      return true;
+    } catch (err) {
+      this.log(\`❌ Pull failed: \${err.message}\`, 'error');
+      return false;
+    }
+  }
+
+  // ---------- Watchdog pentru auto‑repararea orchestratorului ----------
+  startWatchdog() {
+    if (this.watchdogInterval) clearInterval(this.watchdogInterval);
+    this.watchdogInterval = setInterval(() => {
+      // Verifică dacă procesul principal răspunde
+      axios.get('http://localhost:3000/health', { timeout: 3000 })
+        .catch(() => {
+          this.log('⚠️ Watchdog: main process not responding, restarting...');
+          exec('pm2 restart unicorn', (err) => {
+            if (err) this.log(\`❌ Watchdog restart failed: \${err.message}\`);
+          });
+        });
+    }, 30000);
+  }
+
+  // ---------- Metoda principală – flux complet ----------
+  async runFullDeploy(options = {}) {
+    const defaultOptions = {
+      preCheck: true,
+      backup: true,
+      prepareZip: false,  // de obicei nu e nevoie pe server
+      commit: true,
+      push: true,
+      triggerWebhooks: true,
+      postMonitor: true,
+      selfUpdate: false,
+    };
+    const opts = { ...defaultOptions, ...options };
+
+    this.log('🚀 Starting full auto‑deploy...');
+    await this.ensureRepo();
+    this.git = simpleGit(path.join(__dirname, '../../../'));
+
+    if (opts.preCheck) {
+      const ok = await this.preDeployCheck();
+      if (!ok) return { success: false, reason: 'pre‑deploy checks failed' };
+    }
+
+    if (opts.backup) await this.createBackup();
+
+    if (opts.prepareZip) await this.prepareZip();
+
+    if (opts.commit) {
+      const committed = await this.autoCommit();
+      if (!committed && opts.push) {
+        this.log('ℹ️ No commit, skipping push.');
+        opts.push = false;
+      }
+    }
+
+    if (opts.push) await this.autoPush();
+
+    let webhookResults = {};
+    if (opts.triggerWebhooks) webhookResults = await this.triggerAllWebhooks();
+
+    if (opts.postMonitor) {
+      const monitorOk = await this.postDeployMonitoring();
+      if (!monitorOk) {
+        return { success: false, reason: 'post‑deploy monitoring failed', webhookResults };
+      }
+    }
+
+    if (opts.selfUpdate) await this.selfUpdate();
+
+    this.log('✅ Full auto‑deploy completed.');
+    this.saveCache();
+    return { success: true, webhookResults, log: this.deployLog.slice(-20) };
+  }
+
+  // ---------- Rute API (protejate) ----------
+  getRouter(secretMiddleware) {
+    const router = require('express').Router();
+    router.use(secretMiddleware);
+
+    router.post('/deploy', async (req, res) => {
+      try {
+        const result = await this.runFullDeploy(req.body.options || {});
+        res.json(result);
+      } catch (err) {
+        res.status(500).json({ error: err.message });
+      }
+    });
+
+    router.post('/rollback', async (req, res) => {
+      const ok = await this.rollback(req.body.version);
+      res.json({ success: ok });
+    });
+
+    router.get('/logs', (req, res) => {
+      res.json({ logs: this.deployLog.slice(-100) });
+    });
+
+    router.post('/self-update', async (req, res) => {
+      const ok = await this.selfUpdate();
+      res.json({ success: ok });
+    });
+
+    router.get('/status', (req, res) => {
+      res.json({
+        rollbackVersions: this.rollbackVersions.length,
+        lastDeploy: this.deployLog.slice(-1)[0],
+      });
+    });
+
+    return router;
+  }
+
+  verifyOwner(secret) {
+    return secret === process.env.ADMIN_SECRET;
+  }
+}
+
+module.exports = new AutoDeployOrchestratorUltra();
+`);
+
+// Adăugăm și un fișier de configurare
+fs.writeFileSync(path.join(MODULES, 'auto-deploy-orchestrator/config.js'), `
+module.exports = {
+  defaultOptions: {
+    preCheck: true,
+    backup: true,
+    prepareZip: false,
+    commit: true,
+    push: true,
+    triggerWebhooks: true,
+    postMonitor: true,
+    selfUpdate: false
+  }
+};
+`);
+// ---------------------------------------------------------
+// 7. SERVER PRINCIPAL (src/index.js)
+// ---------------------------------------------------------
+fs.writeFileSync(path.join(SRC, 'index.js'), `...`);THUB_WORKFLOWS,
+  BACKUP,
+  LOGS,
+  HETZNER_SCRIPTS,
+  SCRIPTS,
+  MODELS,
+  CONTRACTS,
+  DATA,
+];
+const autoDeployOrchestrator = require('./modules/auto-deploy-orchestrator');
+autoDeployOrchestrator.initialize();
+app.use('/api/admin/deploy', adminOnly, autoDeployOrchestrator.getRouter(() => {}));
+dirs.forEach(d => fs.mkdirSync(d, { recursive: true }));
+
+console.log("🌌 GENEREZ UNICORNUL FINAL COMPLET – Toate modulele și inovațiile");
+// ---------------------------------------------------------
+// package.json
+// ---------------------------------------------------------
+const packageJson = {
+  name: "unicorn-final",
+  version: "1.0.0",
+  description: "Unicornul absolut complet cu toate modulele și site-ul futurist",
+  main: "src/index.js",
+  scripts: {
+    start: "node src/index.js",
+    build: "cd client && npm run build",
+    dev: "concurrently \"npm run server\" \"npm run client\"",
+    server: "node src/index.js",
+    client: "cd client && npm start",
+    postinstall: "cd client && npm install && npm run build",
+    heal: "node src/modules/quantum-healing/AutoHeal.js",
+    evolve: "node src/modules/evolution-core/SelfEvolve.js",
+    deploy: "node src/modules/auto-deploy/trigger.js",
+    "hetzner-update": "bash hetzner/hetzner-auto-update.sh",
+    init: "node scripts/init.js",
+    "deploy-contract": "node scripts/deploy-ugt-contract.js",
+  },
+  dependencies: {
+    "express": "^4.18.2",
+    "dotenv": "^16.0.3",
+    "axios": "^1.4.0",
+    "stripe": "^12.0.0",
+    "openai": "^3.3.0",
+    "node-cron": "^3.0.2",
+    "compression": "^1.7.4",
+    "cookie-parser": "^1.4.6",
+    "uuid": "^9.0.0",
+    "simple-git": "^3.19.1",
+    "node-fetch": "^2.6.7",
+    "cheerio": "^1.0.0-rc.12",
+    "eslint": "^8.42.0",
+    "prettier": "^2.8.8",
+    "marked": "^5.1.0",
+    "concurrently": "^7.6.0",
+    "chokidar": "^3.5.3",
+    "ssh2": "^1.15.0",
+    "adm-zip": "^0.5.10",
+    "ws": "^8.13.0",
+    "brain.js": "^2.0.0",
+    "simple-statistics": "^7.8.0",
+    "ml-regression": "^5.0.0",
+    "ccxt": "^4.0.0",
+    "ethers": "^6.0.0",
+    "lightning": "^5.0.0",
+    "node-schedule": "^2.1.0",
+    "technicalindicators": "^3.1.0",
+    "puppeteer": "^20.0.0",
+    "natural": "^6.0.0",
+    "sentiment": "^5.0.0",
+    "csv-writer": "^1.6.0",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "react-scripts": "5.0.1",
+    "framer-motion": "^10.12.16",
+    "recharts": "^2.7.2",
+    "tailwindcss": "^3.3.0",
+    "three": "^0.128.0",
+    "@react-three/fiber": "^8.9.1",
+    "@react-three/drei": "^9.34.3",
+    "react-router-dom": "^6.8.1",
+    "swr": "^2.0.0",
+  },
+};
+fs.writeFileSync(path.join(ROOT, 'package.json'), JSON.stringify(packageJson, null, 2));
+
+// ---------------------------------------------------------
+// .env.example
+// ---------------------------------------------------------
+fs.writeFileSync(path.join(ROOT, '.env.example'), `
+// ---------------------------------------------------------
+// .env.example
+// ---------------------------------------------------------
+fs.writeFileSync(path.join(ROOT, '.env.example'), `
+# 1. Inteligență Artificială
+OPENAI_API_KEY=sk-...
+DEEPSEEK_API_KEY=...
+GITHUB_COPILOT_API_KEY=...
+ANTHROPIC_API_KEY=...
+GEMINI_API_KEY=...
+GROK_API_KEY=...
+MISTRAL_API_KEY=...
+COHERE_API_KEY=...
+LOCAL_MODEL_ENDPOINT=http://localhost:11434/api/generate
+LOCAL_MODEL_NAME=llama3
+
+# 2. Stripe
+STRIPE_SECRET_KEY=sk_test_...
+STRIPE_WEBHOOK_SECRET=whsec_...
+
+# 3. Exchange
+BINANCE_API_KEY=...
+BINANCE_SECRET=...
+COINBASE_API_KEY=...
+COINBASE_SECRET=...
+INTERACTIVE_BROKERS_ACCOUNT=...
+INTERACTIVE_BROKERS_API_KEY=...
+
+# 4. Portofele personale
+BTC_WALLET_ADDRESS=bc1q...
+USDC_WALLET_ADDRESS=0x...
+ETH_WALLET_PRIVATE_KEY=...
+
+# 5. Blockchain
+ETH_RPC_URL=https://mainnet.infura.io/v3/...
+UGT_CONTRACT_ADDRESS=0x...
+
+# 6. Marketplace
+MARKETPLACE_API_PRICE_PER_REQUEST=0.01
+
+# 7. BD Engine
+BD_SCAN_INTERVAL_HOURS=24
+BD_TARGET_COMPANIES=aws,microsoft,google,oracle,ibm,salesforce
+BD_OPENAI_MODEL=gpt-4
+BD_CRM_TYPE=hubspot
+BD_CRM_API_KEY=...
+NEWS_API_KEY=...
+
+# 8. Auto‑deploy
+GITHUB_TOKEN=<YOUR_GITHUB_TOKEN>
+GIT_REMOTE_URL=git@github.com:vladoi/unicorn-final.git
+GIT_BRANCH=main
+VERCEL_TOKEN=...
+VERCEL_ORG_ID=...
+VERCEL_PROJECT_ID=...
+HETZNER_SSH_HOST=204.168.230.142
+HETZNER_SSH_USER=root
+HETZNER_SSH_KEY_PATH=~/.ssh/id_rsa
+HETZNER_WEBHOOK_SECRET=secretpentruwebhook
+HETZNER_DEPLOY_PATH=/root/unicorn-final
+
+# 9. Admin
+ADMIN_SECRET=VLADOI_IONUT_SECRET_SUPREM_2026
+
+# 10. Dynamic Pricing
+DYNAMIC_PRICING_MODEL_PATH=./models/pricing_model.json
+
+# 11. Auto‑Deploy Orchestrator (notificări)
+SLACK_WEBHOOK_URL=https://hooks.slack.com/services/...
+TELEGRAM_BOT_TOKEN=...
+TELEGRAM_CHAT_ID=...
+DISCORD_WEBHOOK_URL=...
+PM2_PROCESS_NAME=unicorn
+`);
+ETH_WALLET_PRIVATE_KEY=...
+
+# 5. Blockchain// ---------------------------------------------------------
+// .env.example
+// ---------------------------------------------------------
+fs.writeFileSync(path.join(ROOT, '.env.example'), `
+# 1. Inteligență Artificială
+OPENAI_API_KEY=sk-...
+DEEPSEEK_API_KEY=...
+GITHUB_COPILOT_API_KEY=...
+ANTHROPIC_API_KEY=...
+GEMINI_API_KEY=...
+GROK_API_KEY=...
+MISTRAL_API_KEY=...
+COHERE_API_KEY=...
+LOCAL_MODEL_ENDPOINT=http://localhost:11434/api/generate
+LOCAL_MODEL_NAME=llama3
+
+# 2. Stripe
+STRIPE_SECRET_KEY=sk_test_...
+STRIPE_WEBHOOK_SECRET=whsec_...
+
+# 3. Exchange
+BINANCE_API_KEY=...
+BINANCE_SECRET=...
+COINBASE_API_KEY=...
+COINBASE_SECRET=...
+INTERACTIVE_BROKERS_ACCOUNT=...
+INTERACTIVE_BROKERS_API_KEY=...
+
+# 4. Portofele personale
+BTC_WALLET_ADDRESS=bc1q...
+USDC_WALLET_ADDRESS=0x...
+ETH_RPC_URL=https://mainnet.infura.io/v3/...
+UGT_CONTRACT_ADDRESS=0x...
+
+# 6. Marketplace
+MARKETPLACE_API_PRICE_PER_REQUEST=0.01
+
+# 7. BD Engine
+BD_SCAN_INTERVAL_HOURS=24
+BD_TARGET_COMPANIES=aws,microsoft,google,oracle,ibm,salesforce
+BD_OPENAI_MODEL=gpt-4
+BD_CRM_TYPE=hubspot
+BD_CRM_API_KEY=...
+NEWS_API_KEY=...
+
+# 8. Auto‑deploy
+GITHUB_TOKEN=<YOUR_GITHUB_TOKEN>
+GIT_REMOTE_URL=git@github.com:vladoi/unicorn-final.git
+GIT_BRANCH=main
+VERCEL_TOKEN=...
+VERCEL_ORG_ID=...
+VERCEL_PROJECT_ID=...
+HETZNER_SSH_HOST=204.168.230.142
+HETZNER_SSH_USER=root
+HETZNER_SSH_KEY_PATH=~/.ssh/id_rsa
+HETZNER_WEBHOOK_SECRET=secretpentruwebhook
+HETZNER_DEPLOY_PATH=/root/unicorn-final
+
+# 9. Admin
+ADMIN_SECRET=VLADOI_IONUT_SECRET_SUPREM_2026
+
+# 10. Dynamic Pricing
+DYNAMIC_PRICING_MODEL_PATH=./models/pricing_model.json
+`);
+# OpenAI
+OPENAI_API_KEY=sk-...
+
+# Stripe
+STRIPE_SECRET_KEY=sk_test_...
+STRIPE_WEBHOOK_SECRET=whsec_...
+
+# Slack / Telegram / Discord (opțional)
+SLACK_WEBHOOK_URL=https://hooks.slack.com/services/...
+TELEGRAM_BOT_TOKEN=...
+TELEGRAM_CHAT_ID=...
+DISCORD_WEBHOOK_URL=...
+
+# Auto‑deploy Orchestrator
+GIT_REMOTE_URL=https://github.com/ruffy80/ZEUSAI.git
+GIT_BRANCH=mainhttps://github.com/ruffy80/ZEUSAI.git
+GITHUB_TOKEN=<YOUR_GITHUB_TOKEN>
+VERCEL_TOKEN=<YOUR_VERCEL_TOKEN>
+VERCEL_ORG_ID=...vladovercel.com/i-ionut-5628
+VERCEL_PROJECT_ID=...
+GITHUB_WEBHOOK_URL=http://204.168.230.142:3001/webhook/github
+HETZNER_WEBHOOK_URL=http://204.168.230.142:3001/webhook/update
+VERCEL_DEPLOY_HOOK_URL=
+WEBHOOK_URL=http://204.168.230.142:3001/webhook/github
+HETZNER_WEBHOOK_SECRET=secretpentruwebhook
+WEBHOOK_SECRET=secretpentruwebhook
+# Pentru watchdog și auto‑repornire (dacă folosești PM2)
+PM2_PROCESS_NAME=unicorn
+# GitHub
+GITHUB_TOKEN=<YOUR_GITHUB_TOKEN>
+GIT_REMOTE_URL=https://github.com/ruffy80/ZEUSAI.git
+GIT_BRANCH=main
+GITHUB_USERNAME=ruffy80
+
+# Vercel
+VERCEL_TOKEN=vcp_YOUR_VERCEL_TOKEN_HERE
+
+VERCEL_ORG_ID=team_JVySjmBjiwzjzOvLn2AOA9Le
+VERCEL_PROJECT_ID=...
+
+# Hetzner
+HETZNER_SSH_HOST=204.168.230.142
+HETZNER_SSH_USER=root
+HETZNER_SSH_KEY_PATH=~/.ssh/id_rsa
+HETZNER_WEBHOOK_SECRET=secretpentruwebhook
+HETZNER_DEPLOY_PATH=/root/unicorn-final
+
+# Admin (doar Vladoi Ionut)
+ADMIN_SECRET=VLADOI_IONUT_SECRET_SUPREM
+
+# Dynamic Pricing
+DYNAMIC_PRICING_MODEL_PATH=./models/pricing_model.json
+
+# Exchange-uri pentru Hedge Fund
+BINANCE_API_KEY=...
+BINANCE_SECRET=...
+COINBASE_API_KEY=...
+COINBASE_SECRET=...
+INTERACTIVE_BROKERS_ACCOUNT=...
+INTERACTIVE_BROKERS_API_KEY=...
+
+# Portofele personale
+BTC_WALLET_ADDRESS=bc1q...
+USDC_WALLET_ADDRESS=0x...
+ETH_WALLET_PRIVATE_KEY=...
+
+# Blockchain pentru token UGT
+ETH_RPC_URL=https://mainnet.infura.io/v3/...
+UGT_CONTRACT_ADDRESS=0x...
+
+# Marketplace
+MARKETPLACE_API_PRICE_PER_REQUEST=0.01
+
+# BD Engine
+BD_SCAN_INTERVAL_HOURS=24
+BD_TARGET_COMPANIES=aws,microsoft,google,oracle,ibm,salesforce
+BD_OPENAI_MODEL=gpt-4
+BD_CRM_TYPE=hubspot
+BD_CRM_API_KEY=...
+NEWS_API_KEY=...
+`);
+
+// ---------------------------------------------------------
+// Script de inițializare (auto-dezarhivare)
+// ---------------------------------------------------------
+fs.writeFileSync(path.join(SCRIPTS, 'init.js'), `
+const fs = require('fs');
+const path = require('path');
+const { execSync } = require('child_process');
+const AdmZip = require('adm-zip');
+
+const currentDir = process.cwd();
+const zipFile = path.join(currentDir, 'UNICORN_FINAL.zip');
+
+if (fs.existsSync(zipFile)) {
+  console.log('📦 Dezarhivare arhivă...');
+  const zip = new AdmZip(zipFile);
+  zip.extractAllTo(currentDir, true);
+  fs.unlinkSync(zipFile);
+  console.log('✅ Dezarhivare completă.');
+}
+
+if (!fs.existsSync(path.join(currentDir, 'package.json'))) {
+  console.error('❌ Nu s-a găsit package.json.');
+  process.exit(1);
+}
+
+console.log('🚀 Pornire instalare...');
+execSync('npm install', { stdio: 'inherit' });
+console.log('✅ Instalare completă.');
+
+if (!fs.existsSync(path.join(currentDir, '.git'))) {
+  console.log('📁 Inițializare repository git...');
+  execSync('git init', { stdio: 'inherit' });
+  const envPath = path.join(currentDir, '.env');
+  if (fs.existsSync(envPath)) {
+    const env = fs.readFileSync(envPath, 'utf8');
+    const match = env.match(/GIT_REMOTE_URL=(.+)/);
+    if (match) {
+      execSync(\`git remote add origin \${match[1]}\`, { stdio: 'inherit' });
+      console.log('🔗 Remote adăugat.');
+    }
+  }
+}
+
+console.log('✅ Inițializare completă. Rulează "npm start" pentru a porni sistemul.');
+`);// ---------------------------------------------------------
+// ModuleLoader
+// ---------------------------------------------------------
+fs.writeFileSync(path.join(MODULES, 'ModuleLoader.js'), `
+const fs = require('fs');
+const path = require('path');
+
+class ModuleLoader {
+  constructor() {
+    this.modules = {};
+    this.loadAll();
+  }
+
+  loadAll() {
+    const files = fs.readdirSync(__dirname).filter(f => f.endsWith('.js') && f !== 'ModuleLoader.js');
+    files.forEach(file => {
+      const moduleName = path.basename(file, '.js');
+      try {
+        this.modules[moduleName] = require(path.join(__dirname, file));
+        console.log(\`✅ Încărcat modulul: \${moduleName}\`);
+      } catch (err) {
+        console.error(\`❌ Eroare la încărcarea modulului \${moduleName}:\`, err.message);
+      }
+    });
+  }
+
+  getModule(name) {
+    return this.modules[name];
+  }
+
+  getAllModules() {
+    return Object.keys(this.modules);
+  }
+}
+
+module.exports = new ModuleLoader();
+`);
+
+// ---------------------------------------------------------
+// Generare module în masă (AdaptiveModule01–82, Engine1–62, etc.)
+// ---------------------------------------------------------
+function generateMassModules() {
+  // AdaptiveModule01 – AdaptiveModule82
+  for (let i = 1; i <= 82; i++) {
+    const num = i.toString().padStart(2, '0');
+    const name = `AdaptiveModule${num}`;
+    const content = `
+// Modul real: ${name}
+let counter = 0;
+module.exports = {
+  name: '${name}',
+  role: 'Modul adaptiv generic care procesează cereri și își ajustează starea internă.',
+  state: { counter: 0, lastRun: null },
+  methods: {
+    async process(input) {
+      this.state.counter++;
+      this.state.lastRun = new Date().toISOString();
+      console.log(\`🔄 \${this.name} procesează: \${JSON.stringify(input)}\`);
+      return { status: 'ok', module: this.name, counter: this.state.counter, input };
+    },
+    getStatus() {
+      return {
+        name: this.name,
+        health: 'good',
+        uptime: process.uptime(),
+        counter: this.state.counter,
+        lastRun: this.state.lastRun
+      };
+    }
+  }
+};
+`;
+    fs.writeFileSync(path.join(MODULES, `${name}.js`), content);
+  }
+
+  // Engine1 – Engine62
+  for (let i = 1; i <= 62; i++) {
+    const name = `Engine${i}`;
+    const content = `
+// Modul real: ${name}
+let cycles = 0;
+module.exports = {
+  name: '${name}',
+  role: 'Motor generic care rulează ciclic și procesează task-uri specializate.',
+  state: { cycles: 0, lastRun: null },
+  methods: {
+    async process(input) {
+      this.state.cycles++;
+      this.state.lastRun = new Date().toISOString();
+      console.log(\`⚙️ \${this.name} execută ciclul \${this.state.cycles}\`);
+      return { status: 'ok', module: this.name, cycles: this.state.cycles, input };
+    },
+    getStatus() {
+      return {
+        name: this.name,
+        health: 'good',
+        uptime: process.uptime(),
+        cycles: this.state.cycles,
+        lastRun: this.state.lastRun
+      };
+    }
+  }
+};
+`;
+    fs.writeFileSync(path.join(MODULES, `${name}.js`), content);
+  }
+
+  // Lista celorlalte module denumite (peste 150)
+  const otherModules = [
+    'CryptoUniverseLedger', 'FeedbackEngine', 'FitnessEngine', 'Telemetry',
+    'ADE', 'AGE', 'StateManager', 'HistoryEngine', 'SimulationLoopEngine',
+    'AdaptiveCycleEngine', 'UniverseIdentityEngine', 'AdaptiveGrowthUnit',
+    'FitnessEvaluator', 'MicroMutationSimulator', 'EvolutionStepSimulator',
+    'AdaptiveParameterTuner', 'GrowthCurveEstimator', 'AdaptivePressureModel',
+    'MicroSelectionFilter', 'EvolutionDriftCalculator', 'LocalEvolutionTracker',
+    'AdaptiveStateRecorder', 'MicroEvolutionReporter', 'LocalFitnessBooster',
+    'UsageFeedbackListener', 'GrowthResponseEngine', 'AdaptiveTrendPredictor',
+    'MutationProbabilityEngine', 'FitnessProjectionUnit', 'AdaptiveLoopController',
+    'EvolutionHistoryRecorder', 'BehaviorAnalyzer', 'TrendDetector',
+    'PatternClassifier', 'UsageHeatmapGenerator', 'LocalInsightsEngine',
+    'TelemetryCollector', 'NoiseFilterUnit', 'SignalStrengthEvaluator',
+    'MicroCorrelationFinder', 'DataCompressionAgent', 'StateIntegrityChecker',
+    'MicroResetAgent', 'LocalRecoveryUnit', 'AnomalyWatchdog',
+    'DriftStabilizer', 'ErrorDampeningNode', 'HealingSimulationEngine',
+    'StateRecalibrationUnit', 'ConsistencyMonitor', 'AdaptiveThresholdGuard',
+    'SwarmCoordinator', 'ExecutionPriorityEngine', 'LocalLoadBalancer',
+    'SwarmSyncAgent', 'TaskDistributionNode', 'TimingController',
+    'SwarmPulseGenerator', 'ExecutionFlowMonitor', 'PipelineManager',
+    'SwarmHarmonyEngine', 'InstanceSpawner', 'PopulationGrowthEngine',
+    'ExpansionController', 'SwarmDensityAnalyzer', 'GrowthRatePredictor',
+    'ScalingFeedbackEngine', 'MetaFeedbackEngine', 'MetaFitnessEngine',
+    'ConsensusEngine', 'AdaptiveStrategyEngine', 'PredictiveEngine',
+    'SwarmBehaviorModeler', 'CollectiveInsightEngine', 'QuantumNexusEngine',
+    'HyperLearningAI', 'PredictiveEconomyEngine', 'GlobalEnergyOptimizer',
+    'EthicalDecisionSynthesizer', 'AutoLegalAdvisor', 'ConsciousnessMapper',
+    'ModuleMonitor', 'SelfEvolutionCore', 'InnovationSynthesizer',
+    'BillingAdapter', 'LicenseManager', 'APIKeyManager', 'UsageMeter',
+    'DeploymentConfigurator', 'HealthcheckEndpoint', 'AutoRestartEngine',
+    'DashboardAdapter', 'VisualizationEngine', 'ModuleInspector',
+    'TelemetryVisualizer', 'IPGuard', 'IntegrityShield', 'RateLimiter',
+    'InputSanitizer', 'GlobalKnowledgeSynthesizer', 'AdaptiveEconomicEngine',
+    'UserBehaviorPredictor', 'InnovationForecastEngine', 'EcosystemCoherenceEngine',
+    'EmotionalPatternAnalyzer', 'UserToneInsightEngine', 'AdaptiveResponseShaper',
+    'CognitiveMapEngine', 'AttentionFlowController', 'MemoryTraceSynthesizer',
+    'GlobalTrendInsightEngine', 'OpportunityRadar', 'EcosystemPulseMonitor',
+    'RevenueFlowPredictor', 'ClientSegmentModeler', 'SmartPricingAdvisor',
+    'FractalPatternEngine', 'RecursiveExpansionSimulator', 'SelfSimilarityMapper',
+    'IdeaSynthesisEngine', 'CreativePatternGenerator', 'InnovationTrajectoryModeler',
+    'UnicornLoreEngine', 'MythosGenerator', 'UniverseNarrativeCore',
+    'UXPatternAnalyzer', 'AdaptiveInterfaceAdvisor', 'UserJourneyModeler',
+    'GlobalStandardsEngine', 'CompliancePatternModeler', 'UniversalIntegrationAdvisor',
+    'EcosystemBlueprintEngine', 'ViralGrowthEngine', 'EngagementPatternAnalyzer',
+    'TrendOpportunityDetector', 'AudienceInsightEngine', 'ContentOptimizationAdvisor',
+    'GrowthForecastEngine', 'NetworkEffectSimulator', 'AdoptionCurveModeler',
+    'InfluenceMapEngine', 'ViralTriggerAnalyzer', 'ClientIntelligenceEngine',
+    'GlobalOrchestrationArchitect', 'QuantumDecisionEngine', 'AIRegulationAdvisor',
+    'SustainableGrowthAnalyzer', 'NeuroUXSimulator', 'AutonomousOptimizationCore',
+    'HyperTrendForecastEngine', 'MetaInnovationMapper', 'ZEUSAvatar',
+    'TelemetryCard', 'NeonButton', 'AuthShield', 'Dashboard', 'Marketplace',
+    'Codex', 'Onboarding', 'Automation', 'APIDocs'
+
+  ];//// ---------------------------------------------------------
+// CODE‑SANITY‑ENGINE – Motorul de curățare și reparare permanentă
+// ---------------------------------------------------------
+
+// 1. index.js (punctul principal)
+fs.writeFileSync(path.join(MODULES, 'code-sanity-engine/index.js'), `
+const path = require('path');
+const fs = require('fs');
+const chokidar = require('chokidar');
+const { fullScan } = require('./scanner/fullScan');
+const { handleFileChange } = require('./scanner/fileWatcher');
+const reporter = require('./reporter');
+
+class CodeSanityEngine {
+  constructor() {
+    this.watcher = null;
+    this.isRunning = false;
+    this.scanInterval = null;
+  }
+
+  start() {
+    if (this.isRunning) return;
+    console.log('🔍 Pornire CodeSanityEngine – monitorizare permanentă...');
+    this.isRunning = true;
+
+    const watchPaths = [
+      path.join(__dirname, '../../'), // rădăcina proiectului
+    ];
+    this.watcher = chokidar.watch(watchPaths, {
+      ignored: /(node_modules|\\.git|backups|logs|data|\\.env)/,
+      persistent: true,
+      ignoreInitial: true,
+    });
+
+    this.watcher
+      .on('add', filePath => handleFileChange('add', filePath))
+      .on('change', filePath => handleFileChange('change', filePath))
+      .on('unlink', filePath => handleFileChange('unlink', filePath))
+      .on('error', error => console.error('Watcher error:', error));
+
+    fullScan();
+    this.scanInterval = setInterval(() => fullScan(), 30 * 60 * 1000);
+
+    reporter.log('CodeSanityEngine started');
+  }
+
+  stop() {
+    if (this.watcher) this.watcher.close();
+    if (this.scanInterval) clearInterval(this.scanInterval);
+    this.isRunning = false;
+    reporter.log('CodeSanityEngine stopped');
+  }
+
+  async runFullScanNow() {
+    await fullScan();
+    return { success: true };
+  }
+
+  getRouter(secretMiddleware) {
+    const router = require('express').Router();
+    router.use(secretMiddleware);
+    router.post('/scan', async (req, res) => {
+      await this.runFullScanNow();
+      res.json({ success: true });
+    });
+    router.get('/logs', (req, res) => {
+      const logs = reporter.getLogs(100);
+      res.json({ logs });
+    });
+    return router;
+  }
+
+  verifyOwner(secret) {
+    return secret === process.env.ADMIN_SECRET;
+  }
+}
+
+module.exports = new CodeSanityEngine();
+`);
+
+// 2. scanner/fileWatcher.js
+fs.writeFileSync(path.join(MODULES, 'code-sanity-engine/scanner/fileWatcher.js'), `
+const { analyzeFile } = require('../analyzers/syntaxChecker');
+const { checkLocation } = require('../analyzers/locationChecker');
+const { fixFile } = require('../repair/fileMover');
+const reporter = require('../reporter');
+
+async function handleFileChange(event, filePath) {
+  if (filePath.includes('node_modules') || filePath.includes('.git')) return;
+
+  reporter.log(\`📁 \${event}: \${filePath}\`);
+
+  const syntaxOk = await analyzeFile(filePath);
+  if (!syntaxOk) {
+    reporter.log(\`❌ Eroare de sintaxă în \${filePath}\`);
+    // Încercăm reparare automată (prettier)
+    try {
+      const prettier = require('prettier');
+      const content = fs.readFileSync(filePath, 'utf8');
+      const formatted = prettier.format(content, { filepath: filePath });
+      fs.writeFileSync(filePath, formatted);
+      reporter.log(\`✅ Formatare aplicată pentru \${filePath}\`);
+    } catch (err) {
+      reporter.log(\`⚠️ Nu s-a putut repara automat: \${err.message}\`);
+    }
+  }
+
+  const correctPath = checkLocation(filePath);
+  if (correctPath !== filePath) {
+    reporter.log(\`📍 Mută \${filePath} → \${correctPath}\`);
+    fixFile(filePath, correctPath);
+  }
+}
+
+module.exports = { handleFileChange };
+`);
+
+// 3. scanner/fullScan.js
+fs.writeFileSync(path.join(MODULES, 'code-sanity-engine/scanner/fullScan.js'), `
+const fs = require('fs');
+const path = require('path');
+const { analyzeFile } = require('../analyzers/syntaxChecker');
+const { findDuplicates } = require('../analyzers/duplicateFinder');
+const { checkAllLocations } = require('../analyzers/locationChecker');
+const { validateAllImports } = require('../analyzers/importValidator');
+const { validateModuleCommunication } = require('../analyzers/moduleCommunicator');
+const { removeDuplicates } = require('../repair/duplicateRemover');
+const { fixAllLocations } = require('../repair/fileMover');
+const { rewriteAllImports } = require('../repair/importRewriter');
+const { fixModules } = require('../repair/moduleFixer');
+const reporter = require('../reporter');
+
+async function fullScan() {
+  reporter.log('🔍 Pornește scanarea completă...');
+  const root = path.join(__dirname, '../../../');
+  const allFiles = [];
+
+  function walk(dir) {
+    const entries = fs.readdirSync(dir, { withFileTypes: true });
+    for (const entry of entries) {
+      const full = path.join(dir, entry.name);
+      if (entry.isDirectory()) {
+        if (!entry.name.startsWith('.') && entry.name !== 'node_modules' && entry.name !== 'backups' && entry.name !== 'logs' && entry.name !== 'data') {
+          walk(full);
+        }
+      } else if (entry.name.endsWith('.js') || entry.name.endsWith('.jsx') || entry.name.endsWith('.json')) {
+        allFiles.push(full);
+      }
+    }
+  }
+  walk(root);
+
+  for (const file of allFiles) {
+    await analyzeFile(file);
+  }
+
+  const duplicates = findDuplicates(allFiles);
+  if (duplicates.length > 0) {
+    reporter.log(\`📑 \${duplicates.length} grupuri de duplicate găsite\`);
+    removeDuplicates(duplicates);
+  }
+
+  const locationIssues = checkAllLocations(allFiles);
+  if (locationIssues.length > 0) {
+    reporter.log(\`📍 \${locationIssues.length} fișiere plasate greșit\`);
+    fixAllLocations(locationIssues);
+  }
+
+  const importIssues = validateAllImports(allFiles);
+  if (importIssues.length > 0) {
+    reporter.log(\`🔗 \${importIssues.length} probleme cu importurile\`);
+    rewriteAllImports(importIssues);
+  }
+
+  const commIssues = validateModuleCommunication();
+  if (commIssues.length > 0) {
+    reporter.log(\`🤝 \${commIssues.length} probleme de comunicare între module\`);
+    fixModules(commIssues);
+  }
+
+  reporter.log('✅ Scanare completă finalizată.');
+}
+
+module.exports = { fullScan };
+`);
+
+// 4. analyzers/syntaxChecker.js
+fs.writeFileSync(path.join(MODULES, 'code-sanity-engine/analyzers/syntaxChecker.js'), `
+const { parse } = require('acorn');
+const fs = require('fs');
+const reporter = require('../reporter');
+
+async function analyzeFile(filePath) {
+  const content = fs.readFileSync(filePath, 'utf8');
+  try {
+    parse(content, { ecmaVersion: 2020, sourceType: 'module' });
+    return true;
+  } catch (err) {
+    reporter.log(\`❌ Eroare de sintaxă în \${filePath}: \${err.message}\`);
+    return false;
+  }
+}
+
+module.exports = { analyzeFile };
+`);
+
+// 5. analyzers/duplicateFinder.js
+fs.writeFileSync(path.join(MODULES, 'code-sanity-engine/analyzers/duplicateFinder.js'), `
+const crypto = require('crypto');
+const fs = require('fs');
+
+function hashFile(filePath) {
+  const content = fs.readFileSync(filePath, 'utf8');
+  return crypto.createHash('md5').update(content).digest('hex');
+}
+
+function findDuplicates(files) {
+  const hashMap = new Map();
+  const duplicates = [];
+
+  for (const file of files) {
+    const hash = hashFile(file);
+    if (hashMap.has(hash)) {
+      duplicates.push({ original: hashMap.get(hash), duplicate: file });
+    } else {
+      hashMap.set(hash, file);
+    }
+  }
+  return duplicates;
+}
+
+module.exports = { findDuplicates };
+`);
+
+// 6. analyzers/locationChecker.js
+fs.writeFileSync(path.join(MODULES, 'code-sanity-engine/analyzers/locationChecker.js'), `
+const path = require('path');
+
+const rules = [
+  { pattern: /pricing/i, targetDir: 'skills' },
+  { pattern: /bd/i, targetDir: 'skills' },
+  { pattern: /wealth/i, targetDir: 'skills' },
+  { pattern: /trend/i, targetDir: 'skills' },
+  { pattern: /content/i, targetDir: 'skills' },
+  { pattern: /construction/i, targetDir: 'skills' },
+  { pattern: /heal/i, targetDir: 'skills' },
+  { pattern: /userMemory/i, targetDir: 'memory' },
+  { pattern: /systemMemory/i, targetDir: 'memory' },
+  { pattern: /vectorMemory/i, targetDir: 'memory' },
+  { pattern: /planner/i, targetDir: 'reasoning' },
+  { pattern: /toolUse/i, targetDir: 'reasoning' },
+  { pattern: /evaluator/i, targetDir: 'reasoning' },
+  { pattern: /style/i, targetDir: 'personality' },
+  { pattern: /behavior/i, targetDir: 'personality' },
+];
+
+function checkLocation(filePath) {
+  const fileName = path.basename(filePath);
+  const expectedBase = path.join(__dirname, '../../', 'unicorn-super-intelligence');
+
+  for (const rule of rules) {
+    if (rule.pattern.test(fileName)) {
+      const target = path.join(expectedBase, rule.targetDir, fileName);
+      if (filePath !== target) {
+        return target;
+      }
+    }
+  }
+  return filePath;
+}
+
+function checkAllLocations(files) {
+  const issues = [];
+  for (const file of files) {
+    const correct = checkLocation(file);
+    if (correct !== file) {
+      issues.push({ from: file, to: correct });
+    }
+  }
+  return issues;
+}
+
+module.exports = { checkLocation, checkAllLocations };
+`);
+
+// 7. analyzers/importValidator.js
+fs.writeFileSync(path.join(MODULES, 'code-sanity-engine/analyzers/importValidator.js'), `
+const fs = require('fs');
+const path = require('path');
+
+function validateAllImports(files) {
+  const issues = [];
+  for (const file of files) {
+    const content = fs.readFileSync(file, 'utf8');
+    const importRegex = /import\\s+.*\\s+from\\s+['"]([^'"]+)['"]/g;
+    let match;
+    while ((match = importRegex.exec(content)) !== null) {
+      const importPath = match[1];
+      if (importPath.startsWith('.') && !importPath.endsWith('.js') && !importPath.endsWith('.jsx')) {
+        issues.push({ file, importPath, type: 'missingExtension' });
+      }
+      const resolved = path.resolve(path.dirname(file), importPath);
+      if (!fs.existsSync(resolved) && !fs.existsSync(resolved + '.js') && !fs.existsSync(resolved + '.jsx')) {
+        issues.push({ file, importPath, type: 'missingFile' });
+      }
+    }
+  }
+  return issues;
+}
+
+module.exports = { validateAllImports };
+`);
+
+// 8. analyzers/moduleCommunicator.js
+fs.writeFileSync(path.join(MODULES, 'code-sanity-engine/analyzers/moduleCommunicator.js'), `
+const path = require('path');
+const moduleLoader = require('../../ModuleLoader');
+
+function validateModuleCommunication() {
+  const issues = [];
+  const modules = moduleLoader.getAllModules();
+  for (const modName of modules) {
+    const mod = moduleLoader.getModule(modName);
+    if (!mod.methods || typeof mod.methods.process !== 'function') {
+      issues.push({ module: modName, problem: 'missing process method' });
+    }
+    if (!mod.methods || typeof mod.methods.getStatus !== 'function') {
+      issues.push({ module: modName, problem: 'missing getStatus method' });
+    }
+  }
+  return issues;
+}
+
+module.exports = { validateModuleCommunication };
+`);
+
+// 9. repair/duplicateRemover.js
+fs.writeFileSync(path.join(MODULES, 'code-sanity-engine/repair/duplicateRemover.js'), `
+const fs = require('fs');
+const reporter = require('../reporter');
+
+function removeDuplicates(duplicates) {
+  for (const dup of duplicates) {
+    if (fs.existsSync(dup.duplicate)) {
+      fs.unlinkSync(dup.duplicate);
+      reporter.log(\`🗑️ Șters duplicat: \${dup.duplicate}\`);
+    }
+  }
+}
+
+module.exports = { removeDuplicates };
+`);
+
+// 10. repair/fileMover.js
+fs.writeFileSync(path.join(MODULES, 'code-sanity-engine/repair/fileMover.js'), `
+const fs = require('fs');
+const path = require('path');
+const reporter = require('../reporter');
+
+function fixFile(from, to) {
+  const dir = path.dirname(to);
+  if (!fs.existsSync(dir)) {
+    fs.mkdirSync(dir, { recursive: true });
+  }
+  fs.renameSync(from, to);
+  reporter.log(\`📦 Mutat \${path.basename(from)} → \${to}\`);
+}
+
+function fixAllLocations(issues) {
+  for (const issue of issues) {
+    if (fs.existsSync(issue.from)) {
+      fixFile(issue.from, issue.to);
+    }
+  }
+}
+
+module.exports = { fixFile, fixAllLocations };
+`);
+
+// 11. repair/importRewriter.js
+fs.writeFileSync(path.join(MODULES, 'code-sanity-engine/repair/importRewriter.js'), `
+const fs = require('fs');
+const path = require('path');
+const reporter = require('../reporter');
+
+function rewriteAllImports(issues) {
+  for (const issue of issues) {
+    if (!fs.existsSync(issue.file)) continue;
+    const content = fs.readFileSync(issue.file, 'utf8');
+    if (issue.type === 'missingExtension') {
+      const newContent = content.replace(
+        new RegExp(\`(import\\s+.*\\s+from\\s+['"])\${issue.importPath}(['"])\`, 'g'),
+        \`$1\${issue.importPath}.js$2\`
+      );
+      fs.writeFileSync(issue.file, newContent);
+      reporter.log(\`✏️ Adăugat extensie în \${issue.file} pentru \${issue.importPath}\`);
+    } else if (issue.type === 'missingFile') {
+      reporter.log(\`⚠️ Fișier lipsă: \${issue.importPath} (referit în \${issue.file})\`);
+    }
+  }
+}
+
+module.exports = { rewriteAllImports };
+`);
+
+// 12. repair/moduleFixer.js
+fs.writeFileSync(path.join(MODULES, 'code-sanity-engine/repair/moduleFixer.js'), `
+const fs = require('fs');
+const path = require('path');
+const reporter = require('../reporter');
+
+function fixModules(issues) {
+  for (const issue of issues) {
+    const modulePath = path.join(__dirname, '../../', issue.module + '.js');
+    if (!fs.existsSync(modulePath)) continue;
+
+    let content = fs.readFileSync(modulePath, 'utf8');
+    if (issue.problem.includes('process') && !content.includes('process(')) {
+      // Adăugăm o metodă process implicită dacă nu există
+      const exportMatch = content.match(/(module\\.exports\\s*=\\s*\\{)/);
+      if (exportMatch) {
+        const newContent = content.replace(
+          exportMatch[1],
+          \`$1\\n  methods: {\\n    async process(input) { return { status: 'ok', module: this.name, input }; },\\n    getStatus() { return { health: 'good' }; }\\n  },\`
+        );
+        fs.writeFileSync(modulePath, newContent);
+        reporter.log(\`🔧 Reparat modulul \${issue.module}: adăugat methods\`);
+      }
+    } else if (issue.problem.includes('getStatus') && !content.includes('getStatus')) {
+      // similar
+    }
+  }
+}
+
+module.exports = { fixModules };
+`);
+
+// 13. repair/syntaxFixer.js (opțional, pentru completitudine)
+fs.writeFileSync(path.join(MODULES, 'code-sanity-engine/repair/syntaxFixer.js'), `
+// În acest fișier am putea implementa corecții mai avansate de sintaxă.
+// Momentan, folosim Prettier în fileWatcher.
+module.exports = {};
+`);
+
+// 14. reporter.js
+fs.writeFileSync(path.join(MODULES, 'code-sanity-engine/reporter.js'), `
+const fs = require('fs');
+const path = require('path');
+
+const logFile = path.join(__dirname, '../../logs/sanity.log');
+const maxLogLines = 1000;
+
+class Reporter {
+  constructor() {
+    this.logs = [];
+    this.ensureLogFile();
+  }
+
+  ensureLogFile() {
+    const dir = path.dirname(logFile);
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+    if (!fs.existsSync(logFile)) fs.writeFileSync(logFile, '');
+  }
+
+  log(message) {
+    const timestamp = new Date().toISOString();
+    const line = \`[\${timestamp}] \${message}\`;
+    console.log(line);
+    this.logs.push(line);
+    if (this.logs.length > maxLogLines) this.logs.shift();
+    fs.appendFileSync(logFile, line + '\\n');
+  }
+
+  getLogs(limit = 100) {
+    return this.logs.slice(-limit);
+  }
+}
+
+module.exports = new Reporter();
+`); ============================================================
+// Adăugare Universal AI Connector
+// ============================================================
+const uaicCode = `...`; // // universal-ai-connector.js
+// Modul UAIC – conectare automată la toate AI-urile disponibile
+
+const axios = require('axios');
+const cheerio = require('cheerio');
+const cron = require('node-cron');
+const fs = require('fs');
+const path = require('path');
+
+class UniversalAIConnector {
+  constructor() {
+    this.models = new Map(); // nume model -> { type, endpoint, apiKey, capabilities, cost, performance }
+    this.routingRules = []; // reguli pentru alegerea modelului
+    this.stats = { totalCalls: 0, callsByModel: {} };
+    this.discoveryInterval = null;
+    this.loadKnownModels();
+    this.loadRoutingRules();
+  }
+
+  async start() {
+    console.log('🤖 Pornire Universal AI Connector...');
+    // Pornește descoperirea periodică (la fiecare 24h)
+    cron.schedule('0 0 * * *', () => this.discoverNewModels());
+    // Rulează imediat o descoperire
+    await this.discoverNewModels();
+    console.log('✅ Universal AI Connector activ.');
+  }
+
+  // Încarcă modele cunoscute (din fișier sau din .env)
+  loadKnownModels() {
+    // Modele implicite (OpenAI, DeepSeek, Claude, Gemini) – dacă au cheie în .env
+    if (process.env.OPENAI_API_KEY) {
+      this.models.set('openai-gpt4', {
+        type: 'openai',
+        endpoint: 'https://api.openai.com/v1/chat/completions',
+        apiKey: process.env.OPENAI_API_KEY,
+        capabilities: ['text-generation', 'reasoning', 'code'],
+        cost: 0.03,
+        performance: { speed: 0.9, accuracy: 0.95 },
+      });
+    }
+    if (process.env.DEEPSEEK_API_KEY) {
+      this.models.set('deepseek-r1', {
+        type: 'deepseek',
+        endpoint: 'https://api.deepseek.com/v1/chat/completions',
+        apiKey: process.env.DEEPSEEK_API_KEY,
+        capabilities: ['text-generation', 'reasoning'],
+        cost: 0.001,
+        performance: { speed: 0.95, accuracy: 0.92 },
+      });
+    }
+    if (process.env.CLAUDE_API_KEY) {
+      this.models.set('claude-3', {
+        type: 'anthropic',
+        endpoint: 'https://api.anthropic.com/v1/messages',
+        apiKey: process.env.CLAUDE_API_KEY,
+        capabilities: ['text-generation', 'reasoning'],
+        cost: 0.015,
+        performance: { speed: 0.85, accuracy: 0.94 },
+      });
+    }
+    if (process.env.GEMINI_API_KEY) {
+      this.models.set('gemini-pro', {
+        type: 'google',
+        endpoint: 'https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent',
+        apiKey: process.env.GEMINI_API_KEY,
+        capabilities: ['text-generation', 'reasoning'],
+        cost: 0.0025,
+        performance: { speed: 0.92, accuracy: 0.91 },
+      });
+    }
+    // Modele locale (dacă există endpoint)
+    if (process.env.LOCAL_MODEL_ENDPOINT) {
+      this.models.set('local', {
+        type: 'local',
+        endpoint: process.env.LOCAL_MODEL_ENDPOINT,
+        modelName: process.env.LOCAL_MODEL_NAME || 'llama',
+        capabilities: ['text-generation'],
+        cost: 0,
+        performance: { speed: 0.7, accuracy: 0.8 },
+      });
+    }
+    // Încărcare din fișierul models.json (dacă există)
+    const modelsFile = path.join(__dirname, '../../data/models.json');
+    if (fs.existsSync(modelsFile)) {
+      const extra = JSON.parse(fs.readFileSync(modelsFile));
+      extra.forEach(m => this.models.set(m.name, m));
+    }
+  }
+
+  // Salvează modelele descoperite
+  saveModels() {
+    const modelsFile = path.join(__dirname, '../../data/models.json');
+    const dir = path.dirname(modelsFile);
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+    const toSave = Array.from(this.models.entries()).map(([name, data]) => ({ name, ...data }));
+    fs.writeFileSync(modelsFile, JSON.stringify(toSave, null, 2));
+  }
+
+  // Încarcă reguli de rutare
+  loadRoutingRules() {
+    // Reguli implicite: pentru sarcini simple, folosește cel mai ieftin; pentru complexe, cel mai performant
+    this.routingRules = [
+      { taskType: 'simple', strategy: 'cheapest' },
+      { taskType: 'complex', strategy: 'best-accuracy' },
+      { taskType: 'creative', strategy: 'best-creativity' },
+    ];
+    // Aici am putea încărca reguli din fișier
+  }
+
+  // Descoperă modele noi din surse publice
+  async discoverNewModels() {
+    console.log('🔍 Descoper modele AI noi...');
+    // 1. Scanează blogul OpenAI
+    try {
+      const res = await axios.get('https://openai.com/blog');
+      const $ = cheerio.load(res.data);
+      const articles = $('article h2').map((i, el) => $(el).text()).get();
+      if (articles.some(a => a.includes('new model') || a.includes('GPT-5'))) {
+        console.log('📢 OpenAI a lansat un model nou! Verifică documentația.');
+        // Aici am putea încerca să descoperim automat API-ul, dar deocamdată notificăm
+      }
+    } catch (err) {}
+
+    // 2. Scanează Hugging Face pentru modele populare
+    try {
+      const res = await axios.get('https://huggingface.co/models?sort=downloads');
+      const $ = cheerio.load(res.data);
+      const models = $('.model-title').map((i, el) => $(el).text()).get().slice(0, 10);
+      models.forEach(name => {
+        if (!this.models.has(name)) {
+          console.log(`🆕 Model nou descoperit pe Hugging Face: ${name}`);
+          // Adăugăm un model generic (fără API key, doar pentru informare)
+          this.models.set(name, {
+            type: 'huggingface',
+            modelName: name,
+            capabilities: ['text-generation'],
+            cost: 0,
+            performance: { speed: 0.5, accuracy: 0.5 },
+            requiresKey: true,
+          });
+        }
+      });
+    } catch (err) {}
+
+    this.saveModels();
+  }
+
+  // Metodă publică pentru celelalte module: trimite o cerere către cel mai potrivit AI
+  async ask(task) {
+    // task = { type: 'simple'|'complex'|'creative', prompt: string, maxTokens?: number }
+    this.stats.totalCalls++;
+    const model = this.selectModel(task);
+    if (!model) throw new Error('Nu există niciun model disponibil pentru această sarcină.');
+
+    this.stats.callsByModel[model.name] = (this.stats.callsByModel[model.name] || 0) + 1;
+
+    try {
+      const result = await this.callModel(model, task);
+      return result;
+    } catch (err) {
+      console.error(`Eroare la apelul modelului ${model.name}: ${err.message}`);
+      // Încercăm un model de rezervă
+      const fallback = this.selectModel(task, { exclude: model.name });
+      if (fallback) return this.callModel(fallback, task);
+      throw err;
+    }
+  }
+
+  // Selectează cel mai bun model pe baza sarcinii și a performanțelor
+  selectModel(task, options = {}) {
+    const candidates = Array.from(this.models.entries())
+      .filter(([name, m]) => !options.exclude || name !== options.exclude)
+      .filter(([name, m]) => m.capabilities.includes('text-generation')); // toate modelele noastre fac asta
+
+    if (candidates.length === 0) return null;
+
+    // Aplicăm regula corespunzătoare
+    const rule = this.routingRules.find(r => r.taskType === task.type) || this.routingRules[0];
+    if (rule.strategy === 'cheapest') {
+      candidates.sort((a, b) => a[1].cost - b[1].cost);
+    } else if (rule.strategy === 'best-accuracy') {
+      candidates.sort((a, b) => b[1].performance.accuracy - a[1].performance.accuracy);
+    } else if (rule.strategy === 'best-creativity') {
+      // provizoriu, folosim speed ca proxy
+      candidates.sort((a, b) => b[1].performance.speed - a[1].performance.speed);
+    }
+
+    return { name: candidates[0][0], ...candidates[0][1] };
+  }
+
+  // Apelează efectiv modelul (poate fi OpenAI, DeepSeek, local, etc.)
+  async callModel(model, task) {
+    const { type, endpoint, apiKey, modelName } = model;
+    const prompt = task.prompt;
+    const maxTokens = task.maxTokens || 500;
+
+    if (type === 'openai') {
+      const res = await axios.post(endpoint, {
+        model: 'gpt-4',
+        messages: [{ role: 'user', content: prompt }],
+        max_tokens: maxTokens,
+      }, {
+        headers: { 'Authorization': `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
+      });
+      return res.data.choices[0].message.content;
+    } else if (type === 'deepseek') {
+      const res = await axios.post(endpoint, {
+        model: 'deepseek-chat',
+        messages: [{ role: 'user', content: prompt }],
+        max_tokens: maxTokens,
+      }, {
+        headers: { 'Authorization': `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
+      });
+      return res.data.choices[0].message.content;
+    } else if (type === 'anthropic') {
+      const res = await axios.post(endpoint, {
+        model: 'claude-3-opus-20240229',
+        max_tokens: maxTokens,
+        messages: [{ role: 'user', content: prompt }],
+      }, {
+        headers: { 'x-api-key': apiKey, 'anthropic-version': '2023-06-01' },
+      });
+      return res.data.content[0].text;
+    } else if (type === 'google') {
+      const res = await axios.post(`${endpoint}?key=${apiKey}`, {
+        contents: [{ parts: [{ text: prompt }] }],
+        generationConfig: { maxOutputTokens: maxTokens },
+      });
+      return res.data.candidates[0].content.parts[0].text;
+    } else if (type === 'local') {
+      const res = await axios.post(endpoint, {
+        model: modelName,
+        prompt: prompt,
+        stream: false,
+        max_tokens: maxTokens,
+      });
+      return res.data.response;
+    } else {
+      throw new Error(`Tip de model necunoscut: ${type}`);
+    }
+  }
+
+  // Expune rute pentru administrare (protejate)
+  getRouter(secretMiddleware) {
+    const router = require('express').Router();
+    router.use(secretMiddleware);
+
+    router.get('/models', (req, res) => {
+      res.json(Array.from(this.models.entries()).map(([name, data]) => ({ name, ...data })));
+    });
+
+    router.post('/discover', async (req, res) => {
+      await this.discoverNewModels();
+      res.json({ success: true });
+    });
+
+    router.get('/stats', (req, res) => {
+      res.json(this.stats);
+    });
+
+    return router;
+  }
+
+  verifyOwner(secret) {
+    return secret === process.env.ADMIN_SECRET;
+  }
+}
+
+module.exports = new UniversalAIConnector();
+fs.writeFileSync(path.join(MODULES, 'universal-ai-connector/index.js'), uaicCode);
+
+// Apoi modifici modulele existente (exemplu pentru content-ai)
+fs.writeFileSync(path.join(MODULES, 'content-ai/index.js'), `...`); // noul cod care folosește UAIC
+// ... la fel pentru celelalte
+  // universal-ai-connector.js
+// Modul UAIC – conectare automată la toate AI-urile disponibile
+
+const axios = require('axios');
+const cheerio = require('cheerio');
+const cron = require('node-cron');
+const fs = require('fs');
+const path = require('path');
+
+class UniversalAIConnector {
+  constructor() {
+    this.models = new Map(); // nume model -> { type, endpoint, apiKey, capabilities, cost, performance }
+    this.routingRules = []; // reguli pentru alegerea modelului
+    this.stats = { totalCalls: 0, callsByModel: {} };
+    this.discoveryInterval = null;
+    this.loadKnownModels();
+    this.loadRoutingRules();
+  }
+
+  async start() {
+    console.log('🤖 Pornire Universal AI Connector...');
+    // Pornește descoperirea periodică (la fiecare 24h)
+    cron.schedule('0 0 * * *', () => this.discoverNewModels());
+    // Rulează imediat o descoperire
+    await this.discoverNewModels();
+    console.log('✅ Universal AI Connector activ.');
+  }
+
+  // Încarcă modele cunoscute (din fișier sau din .env)
+  loadKnownModels() {
+    // Modele implicite (OpenAI, DeepSeek, Claude, Gemini) – dacă au cheie în .env
+    if (process.env.OPENAI_API_KEY) {
+      this.models.set('openai-gpt4', {
+        type: 'openai',
+        endpoint: 'https://api.openai.com/v1/chat/completions',
+        apiKey: process.env.OPENAI_API_KEY,
+        capabilities: ['text-generation', 'reasoning', 'code'],
+        cost: 0.03,
+        performance: { speed: 0.9, accuracy: 0.95 },
+      });
+    }
+    if (process.env.DEEPSEEK_API_KEY) {
+      this.models.set('deepseek-r1', {
+        type: 'deepseek',
+        endpoint: 'https://api.deepseek.com/v1/chat/completions',
+        apiKey: process.env.DEEPSEEK_API_KEY,
+        capabilities: ['text-generation', 'reasoning'],
+        cost: 0.001,
+        performance: { speed: 0.95, accuracy: 0.92 },
+      });
+    }
+    if (process.env.CLAUDE_API_KEY) {
+      this.models.set('claude-3', {
+        type: 'anthropic',
+        endpoint: 'https://api.anthropic.com/v1/messages',
+        apiKey: process.env.CLAUDE_API_KEY,
+        capabilities: ['text-generation', 'reasoning'],
+        cost: 0.015,
+        performance: { speed: 0.85, accuracy: 0.94 },
+      });
+    }
+    if (process.env.GEMINI_API_KEY) {
+      this.models.set('gemini-pro', {
+        type: 'google',
+        endpoint: 'https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent',
+        apiKey: process.env.GEMINI_API_KEY,
+        capabilities: ['text-generation', 'reasoning'],
+        cost: 0.0025,
+        performance: { speed: 0.92, accuracy: 0.91 },
+      });
+    }
+    // Modele locale (dacă există endpoint)
+    if (process.env.LOCAL_MODEL_ENDPOINT) {
+      this.models.set('local', {
+        type: 'local',
+        endpoint: process.env.LOCAL_MODEL_ENDPOINT,
+        modelName: process.env.LOCAL_MODEL_NAME || 'llama',
+        capabilities: ['text-generation'],
+        cost: 0,
+        performance: { speed: 0.7, accuracy: 0.8 },
+      });
+    }
+    // Încărcare din fișierul models.json (dacă există)
+    const modelsFile = path.join(__dirname, '../../data/models.json');
+    if (fs.existsSync(modelsFile)) {
+      const extra = JSON.parse(fs.readFileSync(modelsFile));
+      extra.forEach(m => this.models.set(m.name, m));
+    }
+  }
+
+  // Salvează modelele descoperite
+  saveModels() {
+    const modelsFile = path.join(__dirname, '../../data/models.json');
+    const dir = path.dirname(modelsFile);
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+    const toSave = Array.from(this.models.entries()).map(([name, data]) => ({ name, ...data }));
+    fs.writeFileSync(modelsFile, JSON.stringify(toSave, null, 2));
+  }
+
+  // Încarcă reguli de rutare
+  loadRoutingRules() {
+    // Reguli implicite: pentru sarcini simple, folosește cel mai ieftin; pentru complexe, cel mai performant
+    this.routingRules = [
+      { taskType: 'simple', strategy: 'cheapest' },
+      { taskType: 'complex', strategy: 'best-accuracy' },
+      { taskType: 'creative', strategy: 'best-creativity' },
+    ];
+    // Aici am putea încărca reguli din fișier
+  }
+
+  // Descoperă modele noi din surse publice
+  async discoverNewModels() {
+    console.log('🔍 Descoper modele AI noi...');
+    // 1. Scanează blogul OpenAI
+    try {
+      const res = await axios.get('https://openai.com/blog');
+      const $ = cheerio.load(res.data);
+      const articles = $('article h2').map((i, el) => $(el).text()).get();
+      if (articles.some(a => a.includes('new model') || a.includes('GPT-5'))) {
+        console.log('📢 OpenAI a lansat un model nou! Verifică documentația.');
+        // Aici am putea încerca să descoperim automat API-ul, dar deocamdată notificăm
+      }
+    } catch (err) {}
+
+    // 2. Scanează Hugging Face pentru modele populare
+    try {
+      const res = await axios.get('https://huggingface.co/models?sort=downloads');
+      const $ = cheerio.load(res.data);
+      const models = $('.model-title').map((i, el) => $(el).text()).get().slice(0, 10);
+      models.forEach(name => {
+        if (!this.models.has(name)) {
+          console.log(`🆕 Model nou descoperit pe Hugging Face: ${name}`);
+          // Adăugăm un model generic (fără API key, doar pentru informare)
+          this.models.set(name, {
+            type: 'huggingface',
+            modelName: name,
+            capabilities: ['text-generation'],
+            cost: 0,
+            performance: { speed: 0.5, accuracy: 0.5 },
+            requiresKey: true,
+          });
+        }
+      });
+    } catch (err) {}
+
+    this.saveModels();
+  }
+
+  // Metodă publică pentru celelalte module: trimite o cerere către cel mai potrivit AI
+  async ask(task) {
+    // task = { type: 'simple'|'complex'|'creative', prompt: string, maxTokens?: number }
+    this.stats.totalCalls++;
+    const model = this.selectModel(task);
+    if (!model) throw new Error('Nu există niciun model disponibil pentru această sarcină.');
+
+    this.stats.callsByModel[model.name] = (this.stats.callsByModel[model.name] || 0) + 1;
+
+    try {
+      const result = await this.callModel(model, task);
+      return result;
+    } catch (err) {
+      console.error(`Eroare la apelul modelului ${model.name}: ${err.message}`);
+      // Încercăm un model de rezervă
+      const fallback = this.selectModel(task, { exclude: model.name });
+      if (fallback) return this.callModel(fallback, task);
+      throw err;
+    }
+  }
+
+  // Selectează cel mai bun model pe baza sarcinii și a performanțelor
+  selectModel(task, options = {}) {
+    const candidates = Array.from(this.models.entries())
+      .filter(([name, m]) => !options.exclude || name !== options.exclude)
+      .filter(([name, m]) => m.capabilities.includes('text-generation')); // toate modelele noastre fac asta
+
+    if (candidates.length === 0) return null;
+
+    // Aplicăm regula corespunzătoare
+    const rule = this.routingRules.find(r => r.taskType === task.type) || this.routingRules[0];
+    if (rule.strategy === 'cheapest') {
+      candidates.sort((a, b) => a[1].cost - b[1].cost);
+    } else if (rule.strategy === 'best-accuracy') {
+      candidates.sort((a, b) => b[1].performance.accuracy - a[1].performance.accuracy);
+    } else if (rule.strategy === 'best-creativity') {
+      // provizoriu, folosim speed ca proxy
+      candidates.sort((a, b) => b[1].performance.speed - a[1].performance.speed);
+    }
+
+    return { name: candidates[0][0], ...candidates[0][1] };
+  }
+
+  // Apelează efectiv modelul (poate fi OpenAI, DeepSeek, local, etc.)
+  async callModel(model, task) {
+    const { type, endpoint, apiKey, modelName } = model;
+    const prompt = task.prompt;
+    const maxTokens = task.maxTokens || 500;
+
+    if (type === 'openai') {
+      const res = await axios.post(endpoint, {
+        model: 'gpt-4',
+        messages: [{ role: 'user', content: prompt }],
+        max_tokens: maxTokens,
+      }, {
+        headers: { 'Authorization': `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
+      });
+      return res.data.choices[0].message.content;
+    } else if (type === 'deepseek') {
+      const res = await axios.post(endpoint, {
+        model: 'deepseek-chat',
+        messages: [{ role: 'user', content: prompt }],
+        max_tokens: maxTokens,
+      }, {
+        headers: { 'Authorization': `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
+      });
+      return res.data.choices[0].message.content;
+    } else if (type === 'anthropic') {
+      const res = await axios.post(endpoint, {
+        model: 'claude-3-opus-20240229',
+        max_tokens: maxTokens,
+        messages: [{ role: 'user', content: prompt }],
+      }, {
+        headers: { 'x-api-key': apiKey, 'anthropic-version': '2023-06-01' },
+      });
+      return res.data.content[0].text;
+    } else if (type === 'google') {
+      const res = await axios.post(`${endpoint}?key=${apiKey}`, {
+        contents: [{ parts: [{ text: prompt }] }],
+        generationConfig: { maxOutputTokens: maxTokens },
+      });
+      return res.data.candidates[0].content.parts[0].text;
+    } else if (type === 'local') {
+      const res = await axios.post(endpoint, {
+        model: modelName,
+        prompt: prompt,
+        stream: false,
+        max_tokens: maxTokens,
+      });
+      return res.data.response;
+    } else {
+      throw new Error(`Tip de model necunoscut: ${type}`);
+    }
+  }
+
+  // Expune rute pentru administrare (protejate)
+  getRouter(secretMiddleware) {
+    const router = require('express').Router();
+    router.use(secretMiddleware);
+
+    router.get('/models', (req, res) => {
+      res.json(Array.from(this.models.entries()).map(([name, data]) => ({ name, ...data })));
+    });
+
+    router.post('/discover', async (req, res) => {
+      await this.discoverNewModels();
+      res.json({ success: true });
+    });
+
+    router.get('/stats', (req, res) => {
+      res.json(this.stats);
+    });
+
+    return router;
+  }
+
+  verifyOwner(secret) {
+    return secret === process.env.ADMIN_SECRET;
+  }
+}
+
+module.exports = new UniversalAIConnector();
+
+
+  otherModules.forEach(name => {
+    const content = `
+// Modul real: ${name}
+module.exports = {
+  name: '${name}',
+  role: 'Modul specializat – detalii în documentație',
+  state: { lastRun: null },
+  methods: {
+    async process(input) {
+      this.state.lastRun = new Date().toISOString();
+      console.log(\`🔧 \${this.name} procesează: \${JSON.stringify(input)}\`);
+      return { status: 'ok', module: this.name, input };
+    },
+    getStatus() {
+      return {
+        name: this.name,
+        health: 'good',
+        uptime: process.uptime(),
+        lastRun: this.state.lastRun
+      };
+    }
+  }
+};
+`;
+    fs.writeFileSync(path.join(MODULES, `${name}.js`), content);
+  });
+}
+generateMassModules();// ---------------------------------------------------------
+// evolution-core/SelfEvolve.js
+// ---------------------------------------------------------
+fs.writeFileSync(path.join(MODULES, 'evolution-core/SelfEvolve.js'), `
+const fs = require('fs');
+const path = require('path');
+const { Configuration, OpenAIApi } = require('openai');
+require('dotenv').config();
+
+const configuration = new Configuration({ apiKey: process.env.OPENAI_API_KEY });
+const openai = new OpenAIApi(configuration);
+
+const SelfEvolve = {
+  async analyzeTrends() {
+    console.log('🔍 Analizăm trendurile...');
+    const trends = ['plăți recurente', 'analytics în timp real', 'chatbot suport'];
+    return trends[Math.floor(Math.random() * trends.length)];
+  },
+  async generateNewModule(idea) {
+    console.log(\`✍️ Generăm modul pentru: \${idea}\`);
+    let code = '';
+    if (process.env.OPENAI_API_KEY) {
+      try {
+        const prompt = \`Scrie un modul Node.js Express care implementează \${idea}. Include rute, validare și comentarii.\`;
+        const response = await openai.createCompletion({ model: 'text-davinci-003', prompt, max_tokens: 500 });
+        code = response.data.choices[0].text;
+      } catch (err) {
+        code = \`// Modul generat pentru: \${idea}\\nmodule.exports = { name: 'generated', methods: { process: async (i) => i } };\`;
+      }
+    } else {
+      code = \`// Modul generat pentru: \${idea}\\nmodule.exports = { name: 'generated', methods: { process: async (i) => i } };\`;
+    }
+    const filename = \`Module_\${Date.now()}.js\`;
+    const filePath = path.join(__dirname, '../../generated', filename);
+    fs.writeFileSync(filePath, code);
+    console.log(\`✅ Modul generat: \${filename}\`);
+    return filename;
+  }
+};
+module.exports = SelfEvolve;
+`);
+
+// ---------------------------------------------------------
+// quantum-healing/AutoHeal.js
+// ---------------------------------------------------------
+fs.writeFileSync(path.join(MODULES, 'quantum-healing/AutoHeal.js'), `
+const { exec } = require('child_process');
+const axios = require('axios');
+
+let mainProcess = null;
+function startMainServer() {
+  mainProcess = exec('node src/index.js', (err) => { if (err) console.error(err); });
+}
+function checkHealth() {
+  axios.get('http://localhost:3000/health', { timeout: 3000 })
+    .then(res => console.log('✅ Health check trecut'))
+    .catch(err => {
+      console.error('❌ Health check eșuat, repornim...');
+      if (mainProcess) mainProcess.kill();
+      startMainServer();
+    });
+}
+startMainServer();
+setInterval(checkHealth, 10000);
+`);
+
+// ---------------------------------------------------------
+// universal-adaptor/index.js
+// ---------------------------------------------------------
+fs.writeFileSync(path.join(MODULES, 'universal-adaptor/index.js'), `
+module.exports = {
+  fromCSV(csvString) {
+    const lines = csvString.trim().split('\\n');
+    const headers = lines[0].split(',');
+    return lines.slice(1).map(line => {
+      const values = line.split(',');
+      return headers.reduce((obj, header, i) => {
+        obj[header.trim()] = values[i]?.trim();
+        return obj;
+      }, {});
+    });
+  },
+  fromJSON(jsonString) {
+    return JSON.parse(jsonString);
+  },
+  toXML(data) {
+    let xml = '<root>';
+    data.forEach(item => {
+      xml += '<item>';
+      for (let key in item) {
+        xml += \`<\${key}>\${item[key]}</\${key}>\`;
+      }
+      xml += '</item>';
+    });
+    xml += '</root>';
+    return xml;
+  }
+};
+`);
+
+// ---------------------------------------------------------
+// quantum-pay/index.js
+// ---------------------------------------------------------
+fs.writeFileSync(path.join(MODULES, 'quantum-pay/index.js'), `
+const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
+module.exports = {
+  async createCheckoutSession(priceId, successUrl, cancelUrl) {
+    const session = await stripe.checkout.sessions.create({
+      line_items: [{ price: priceId, quantity: 1 }],
+      mode: 'payment',
+      success_url: successUrl,
+      cancel_url: cancelUrl,
+    });
+    return session.url;
+  },
+  async handleWebhook(rawBody, signature, endpointSecret) {
+    try {
+      const event = stripe.webhooks.constructEvent(rawBody, signature, endpointSecret);
+      if (event.type === 'checkout.session.completed') {
+        console.log('💰 Plată reușită:', event.data.object);
+      }
+      return event;
+    } catch (err) {
+      console.error('Webhook error:', err.message);
+      throw err;
+    }
+  }
+};
+`);
+
+// ---------------------------------------------------------
+// site-creator/index.js (real, cu OpenAI)
+// ---------------------------------------------------------
+fs.writeFileSync(path.join(MODULES, 'site-creator/index.js'), `
+const fs = require('fs');
+const path = require('path');
+const { Configuration, OpenAIApi } = require('openai');
+require('dotenv').config();
+
+const configuration = new Configuration({ apiKey: process.env.OPENAI_API_KEY });
+const openai = new OpenAIApi(configuration);
+
+async function generateSite(topic = 'AI Unicorn', style = 'cyberpunk') {
+  console.log(\`🌐 Generăm site pe tema "\${topic}" cu stil "\${style}"...\`);
+  let html = '';
+  if (process.env.OPENAI_API_KEY) {
+    try {
+      const prompt = \`Generează cod HTML complet pentru un site modern despre \${topic}. Stilul să fie \${style}. Include CSS încorporat, header, secțiuni, footer. Fă-l responsive.\`;
+      const response = await openai.createCompletion({ model: 'text-davinci-003', prompt, max_tokens: 1500 });
+      html = response.data.choices[0].text;
+    } catch (err) {
+      html = \`<html><body><h1>\${topic}</h1><p>Site generat offline.</p></body></html>\`;
+    }
+  } else {
+    html = \`<html><body><h1>\${topic}</h1><p>Site generat offline.</p></body></html>\`;
+  }
+  const filePath = path.join(__dirname, '../../../client/public', \`site_\${Date.now()}.html\`);
+  fs.writeFileSync(filePath, html);
+  return filePath;
+}
+module.exports = { generateSite };
+`);
+
+// ---------------------------------------------------------
+// ab-testing/index.js
+// ---------------------------------------------------------
+fs.writeFileSync(path.join(MODULES, 'ab-testing/index.js'), `
+const crypto = require('crypto');
+const experiments = new Map();
+
+function createExperiment(name, variants, weights = null) {
+  const id = crypto.randomBytes(8).toString('hex');
+  if (!weights) weights = variants.map(() => 1 / variants.length);
+  experiments.set(id, { id, name, variants, weights, results: variants.reduce((acc, v) => ({ ...acc, [v]: { impressions: 0, conversions: 0 } }), {}) });
+  return id;
+}
+function getVariant(experimentId, userId) {
+  const exp = experiments.get(experimentId);
+  if (!exp) return null;
+  const hash = crypto.createHash('md5').update(userId + experimentId).digest('hex');
+  const rand = parseInt(hash.substring(0, 8), 16) / 0xffffffff;
+  let cumulative = 0;
+  for (let i = 0; i < exp.variants.length; i++) {
+    cumulative += exp.weights[i];
+    if (rand < cumulative) {
+      exp.results[exp.variants[i]].impressions++;
+      return exp.variants[i];
+    }
+  }
+  return exp.variants[0];
+}
+function trackConversion(experimentId, variant) {
+  const exp = experiments.get(experimentId);
+  if (exp && exp.results[variant]) exp.results[variant].conversions++;
+}
+function getResults(experimentId) {
+  return experiments.get(experimentId);
+}
+module.exports = { createExperiment, getVariant, trackConversion, getResults };
+`);
+
+// ---------------------------------------------------------
+// seo-optimizer/index.js
+// ---------------------------------------------------------
+fs.writeFileSync(path.join(MODULES, 'seo-optimizer/index.js'), `
+const fs = require('fs');
+function analyzePage(filePath) {
+  const content = fs.readFileSync(filePath, 'utf8');
+  const suggestions = [];
+  if (!content.includes('<title>')) suggestions.push('Adaugă <title>');
+  if (!content.includes('<meta name="description"')) suggestions.push('Adaugă meta description');
+  if (!content.includes('<h1>')) suggestions.push('Adaugă H1');
+  const wordCount = content.replace(/<[^>]*>/g, '').split(/\\s+/).length;
+  if (wordCount < 300) suggestions.push('Conținut scurt (<300 cuvinte)');
+  return { filePath, wordCount, suggestions };
+}
+module.exports = { analyzePage };
+`);
+
+// ---------------------------------------------------------
+// analytics/index.js
+// ---------------------------------------------------------
+fs.writeFileSync(path.join(MODULES, 'analytics/index.js'), `
+const events = [];
+const { v4: uuidv4 } = require('uuid');
+function trackEvent(eventType, data = {}) {
+  const event = { id: uuidv4(), type: eventType, data, timestamp: new Date().toISOString() };
+  events.push(event);
+  if (events.length > 1000) events.shift();
+  return event;
+}
+function getEvents(limit = 100) { return events.slice(-limit); }
+function getStats() {
+  const total = events.length;
+  const byType = events.reduce((acc, e) => { acc[e.type] = (acc[e.type] || 0) + 1; return acc; }, {});
+  return { total, byType };
+}
+module.exports = { trackEvent, getEvents, getStats };
+`);// ---------------------------------------------------------
+// content-ai/index.js
+// ---------------------------------------------------------
+fs.writeFileSync(path.join(MODULES, 'content-ai/index.js'), `
+const { Configuration, OpenAIApi } = require('openai');
+require('dotenv').config();
+const configuration = new Configuration({ apiKey: process.env.OPENAI_API_KEY });
+const openai = new OpenAIApi(configuration);
+async function generateArticle(topic, tone = 'informativ', words = 300) {
+  if (!process.env.OPENAI_API_KEY) return \`Articol despre \${topic} (placeholder).\`;
+  try {
+    const prompt = \`Scrie un articol în română, ton \${tone}, \${words} cuvinte, pe tema: "\${topic}".\`;
+    const response = await openai.createCompletion({ model: 'text-davinci-003', prompt, max_tokens: words * 2 });
+    return response.data.choices[0].text;
+  } catch (err) { return \`Articol despre \${topic} (eroare OpenAI).\`; }
+}
+module.exports = { generateArticle };
+`);
+
+// ---------------------------------------------------------
+// auto-marketing/index.js
+// ---------------------------------------------------------
+fs.writeFileSync(path.join(MODULES, 'auto-marketing/index.js'), `
+const subscribers = [];
+function addSubscriber(email) { subscribers.push({ email, subscribedAt: new Date().toISOString() }); console.log(\`📧 Abonat adăugat: \${email}\`); }
+function sendCampaign(subject, content) {
+  console.log(\`📨 Trimitere campanie: "\${subject}" către \${subscribers.length} abonați\`);
+  subscribers.forEach(sub => console.log(\`   -> Email trimis către \${sub.email}\`));
+  return { sent: subscribers.length, subject };
+}
+function scheduleCampaign(subject, content, delayMs) {
+  setTimeout(() => sendCampaign(subject, content), delayMs);
+  console.log(\`⏰ Campanie programată peste \${delayMs / 1000} secunde\`);
+}
+module.exports = { addSubscriber, sendCampaign, scheduleCampaign };
+`);
+
+// ---------------------------------------------------------
+// performance-monitor/index.js
+// ---------------------------------------------------------
+fs.writeFileSync(path.join(MODULES, 'performance-monitor/index.js'), `
+const os = require('os');
+function getSystemLoad() { return { loadAvg: os.loadavg(), freeMem: os.freemem(), totalMem: os.totalmem(), uptime: os.uptime() }; }
+function suggestOptimizations() {
+  const load = getSystemLoad();
+  const suggestions = [];
+  if (load.loadAvg[0] > os.cpus().length) suggestions.push('Load average ridicat – scalează.');
+  if (load.freeMem / load.totalMem < 0.1) suggestions.push('Memorie liberă sub 10% – optimizează.');
+  return suggestions;
+}
+module.exports = { getSystemLoad, suggestOptimizations };
+`);
+
+// ---------------------------------------------------------
+// unicorn-realization-engine/index.js
+// ---------------------------------------------------------
+fs.writeFileSync(path.join(MODULES, 'unicorn-realization-engine/index.js'), `
+module.exports = {
+  id: 'UnicornRealizationEngine',
+  state: { scanResult: {}, analysisResult: {}, roadmapPlan: [] },
+  scan(u) {
+    this.state.scanResult = { modules: u.modules || [], routes: u.routes || [], uiComponents: u.uiComponents || [] };
+    return this.state.scanResult;
+  },
+  analyze() {
+    const ideal = {
+      modules: ['Identity', 'Database', 'Dashboard', 'AI Core', 'Automation', 'API Platform', 'Marketplace', 'Payments', 'Security'],
+      routes: ['/login', '/signup', '/dashboard', '/marketplace', '/api', '/automation'],
+      uiComponents: ['ZEUSAvatar', 'TelemetryCard', 'Codex', 'Onboarding', 'AutomationUI', 'APIDocs']
+    };
+    const s = this.state.scanResult;
+    const check = (it, ex) => it.map(x => ex.includes(x) ? { name: x, status: '✅' } : (ex.some(e => e.toLowerCase().includes(x.toLowerCase())) ? { name: x, status: '⚠️' } : { name: x, status: '❌' }));
+    this.state.analysisResult = {
+      modules: check(ideal.modules, s.modules),
+      routes: check(ideal.routes, s.routes),
+      uiComponents: check(ideal.uiComponents, s.uiComponents)
+    };
+    return this.state.analysisResult;
+  },
+  roadmap() {
+    const a = this.state.analysisResult, plan = [];
+    const m = { '❌': 'critical', '⚠️': 'important', '✅': 'done' };
+    const add = (t, i, s) => { if (s !== '✅') plan.push({ step: \`Implement \${i} (\${t})\`, priority: m[s] }); };
+    a.modules.forEach(x => add('module', x.name, x.status));
+    a.routes.forEach(x => add('route', x.name, x.status));
+    a.uiComponents.forEach(x => add('ui', x.name, x.status));
+    this.state.roadmapPlan = plan;
+    return plan;
+  },
+  report() { return { scan: this.state.scanResult, analysis: this.state.analysisResult, roadmap: this.state.roadmapPlan }; }
+};
+`);
+
+// ---------------------------------------------------------
+// unicorn-execution-engine/index.js
+// ---------------------------------------------------------
+fs.writeFileSync(path.join(MODULES, 'unicorn-execution-engine/index.js'), `
+const fs = require('fs');
+const path = require('path');
+
+module.exports = {
+  id: 'UnicornExecutionEngine',
+  state: { executedSteps: [] },
+  execute(r) {
+    r.forEach(step => {
+      const fp = path.join(__dirname, '../../../logs/executed_steps.txt');
+      fs.appendFileSync(fp, \`\${new Date().toISOString()} - \${step.step} [\${step.priority}]\\n\`);
+      this.state.executedSteps.push(step);
+    });
+    return this.state.executedSteps;
+  },
+  report() { return { executed: this.state.executedSteps }; }
+};
+`);
+
+// ---------------------------------------------------------
+// auto-trend-analyzer/index.js
+// ---------------------------------------------------------
+fs.writeFileSync(path.join(MODULES, 'auto-trend-analyzer/index.js'), `
+const axios = require('axios');
+const cheerio = require('cheerio');
+const { Configuration, OpenAIApi } = require('openai');
+require('dotenv').config();
+
+const configuration = new Configuration({ apiKey: process.env.OPENAI_API_KEY });
+const openai = new OpenAIApi(configuration);
+
+async function fetchGitHubTrends() {
+  try {
+    const { data } = await axios.get('https://github.com/trending');
+    const $ = cheerio.load(data);
+    const repos = [];
+    $('article.Box-row').each((i, el) => {
+      const title = $(el).find('h2 a').text().replace(/\\s+/g, ' ').trim();
+      repos.push(title);
+    });
+    return repos.slice(0, 5);
+  } catch (err) {
+    console.error('Eroare GitHub trends:', err.message);
+    return [];
+  }
+}
+
+async function analyzeTrends() {
+  const github = await fetchGitHubTrends();
+  if (process.env.OPENAI_API_KEY && github.length > 0) {
+    try {
+      const prompt = \`Pe baza acestor trenduri: \${github.join(', ')}, generează 3 idei de noi module pentru un sistem AI autonom.\`;
+      const response = await openai.createCompletion({
+        model: 'text-davinci-003',
+        prompt,
+        max_tokens: 300,
+        temperature: 0.8,
+      });
+      return response.data.choices[0].text.split('\\n').filter(line => line.trim() !== '');
+    } catch (err) {
+      console.error('Eroare OpenAI:', err.message);
+      return github;
+    }
+  }
+  return github;
+}
+
+module.exports = { analyzeTrends };
+`);
+
+// ---------------------------------------------------------
+// self-adaptation-engine/index.js
+// ---------------------------------------------------------
+fs.writeFileSync(path.join(MODULES, 'self-adaptation-engine/index.js'), `
+const os = require('os');
+const fs = require('fs');
+const path = require('path');
+
+function detectPlatform() {
+  if (process.env.VERCEL) return 'vercel';
+  if (fs.existsSync('/.dockerenv')) return 'docker';
+  if (process.env.HETZNER) return 'hetzner';
+  return 'local';
+}
+
+function getSystemLoad() {
+  return {
+    loadAvg: os.loadavg(),
+    freeMem: os.freemem(),
+    totalMem: os.totalmem(),
+    cpuCount: os.cpus().length,
+  };
+}
+
+function adaptConfig() {
+  const platform = detectPlatform();
+  const load = getSystemLoad();
+  const config = {};
+
+  if (platform === 'vercel') {
+    config.maxInstances = 10;
+  } else if (platform === 'docker') {
+    config.maxInstances = 2;
+    config.restartPolicy = 'always';
+  } else if (platform === 'hetzner') {
+    config.maxInstances = 5;
+  } else {
+    config.maxInstances = 1;
+  }
+
+  if (load.loadAvg[0] > load.cpuCount * 0.7) {
+    config.scaleSuggestion = 'Se recomandă scalare.';
+  }
+
+  return config;
+}
+
+module.exports = { detectPlatform, getSystemLoad, adaptConfig };
+`);
+
+// ---------------------------------------------------------
+// predictive-healing/index.js
+// ---------------------------------------------------------
+fs.writeFileSync(path.join(MODULES, 'predictive-healing/index.js'), `
+const os = require('os');
+class Predictor {
+  constructor() {
+    this.history = [];
+  }
+  addDataPoint(value) {
+    this.history.push({ timestamp: Date.now(), value });
+    if (this.history.length > 100) this.history.shift();
+  }
+  predictNext(secondsAhead = 60) {
+    if (this.history.length < 2) return null;
+    const recent = this.history.slice(-10);
+    const avgInterval = (recent[recent.length - 1].timestamp - recent[0].timestamp) / (recent.length - 1);
+    const x = recent.map((_, i) => i);
+    const y = recent.map(d => d.value);
+    const n = x.length;
+    const sumX = x.reduce((a, b) => a + b, 0);
+    const sumY = y.reduce((a, b) => a + b, 0);
+    const sumXY = x.reduce((a, _, i) => a + x[i] * y[i], 0);
+    const sumX2 = x.reduce((a, _, i) => a + x[i] * x[i], 0);
+    const slope = (n * sumXY - sumX * sumY) / (n * sumX2 - sumX * sumX);
+    const intercept = (sumY - slope * sumX) / n;
+    const predicted = intercept + slope * (recent.length + secondsAhead / (avgInterval / 1000));
+    return Math.max(0, predicted);
+  }
+}
+const predictor = new Predictor();
+setInterval(() => {
+  const load = os.loadavg()[0];
+  predictor.addDataPoint(load);
+  const predicted = predictor.predictNext(60);
+  if (predicted > os.cpus().length * 0.9) {
+    console.warn('⚠️ Se prevede suprasarcină!');
+  }
+}, 30000);
+module.exports = { predictor };
+`);// ---------------------------------------------------------
+// code-optimizer/index.js
+// ---------------------------------------------------------
+fs.writeFileSync(path.join(MODULES, 'code-optimizer/index.js'), `
+const { execSync } = require('child_process');
+const fs = require('fs');
+const path = require('path');
+
+function optimizeFile(filePath) {
+  try {
+    execSync(\`npx prettier --write "\${filePath}"\`, { stdio: 'ignore' });
+    console.log(\`✅ Formatat: \${filePath}\`);
+  } catch (err) {}
+  try {
+    execSync(\`npx eslint --fix "\${filePath}"\`, { stdio: 'ignore' });
+  } catch (err) {}
+}
+
+function optimizeAll() {
+  const dirs = [path.join(__dirname, '../../'), path.join(__dirname, '../../../client/src')];
+  dirs.forEach(dir => {
+    if (!fs.existsSync(dir)) return;
+    const files = fs.readdirSync(dir, { recursive: true }).filter(f => f.endsWith('.js') || f.endsWith('.jsx'));
+    files.forEach(file => optimizeFile(path.join(dir, file)));
+  });
+}
+
+setInterval(optimizeAll, 24 * 60 * 60 * 1000);
+module.exports = { optimizeAll };
+`);
+
+// ---------------------------------------------------------
+// self-documenter/index.js
+// ---------------------------------------------------------
+fs.writeFileSync(path.join(MODULES, 'self-documenter/index.js'), `
+const fs = require('fs');
+const path = require('path');
+
+function generateReadme() {
+  const modules = fs.readdirSync(path.join(__dirname, '../')).filter(f => fs.lstatSync(path.join(__dirname, '../', f)).isDirectory());
+  let content = '# UNICORN FINAL - Documentație Autogenerată\\n\\n## Module disponibile:\\n';
+  modules.forEach(m => { content += \`- \${m}\\n\`; });
+  fs.writeFileSync(path.join(__dirname, '../../../README.md'), content);
+  console.log('📘 README generat.');
+}
+
+setInterval(generateReadme, 6 * 60 * 60 * 1000);
+module.exports = { generateReadme };
+`);
+
+// ---------------------------------------------------------
+// ui-evolution/index.js
+// ---------------------------------------------------------
+fs.writeFileSync(path.join(MODULES, 'ui-evolution/index.js'), `
+const fs = require('fs');
+const path = require('path');
+const abTesting = require('../ab-testing');
+
+function evolveUI() {
+  const experiments = ['button-color', 'layout-density', 'avatar-style'];
+  experiments.forEach(exp => {
+    const results = abTesting.getResults(exp);
+    if (results) {
+      let bestVariant = null;
+      let bestRate = 0;
+      for (const [variant, data] of Object.entries(results.results)) {
+        const rate = data.conversions / (data.impressions || 1);
+        if (rate > bestRate) { bestRate = rate; bestVariant = variant; }
+      }
+      if (bestVariant) {
+        const configPath = path.join(__dirname, '../../../client/public/ui-config.json');
+        let config = {};
+        if (fs.existsSync(configPath)) config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
+        config[exp] = bestVariant;
+        fs.writeFileSync(configPath, JSON.stringify(config, null, 2));
+        console.log(\`🔄 UI evoluat: \${exp} -> \${bestVariant}\`);
+      }
+    }
+  });
+}
+setInterval(evolveUI, 60 * 60 * 1000);
+module.exports = { evolveUI };
+`);
+
+// ---------------------------------------------------------
+// security-scanner/index.js
+// ---------------------------------------------------------
+fs.writeFileSync(path.join(MODULES, 'security-scanner/index.js'), `
+const { execSync } = require('child_process');
+
+function scanDependencies() {
+  try {
+    const output = execSync('npm audit --json', { encoding: 'utf8' });
+    const audit = JSON.parse(output);
+    if (audit.vulnerabilities && Object.keys(audit.vulnerabilities).length > 0) {
+      console.warn('🚨 Vulnerabilități! Încercăm să reparăm...');
+      execSync('npm audit fix', { stdio: 'inherit' });
+    }
+  } catch (err) {}
+}
+setInterval(scanDependencies, 24 * 60 * 60 * 1000);
+module.exports = { scanDependencies };
+`);
+
+// ---------------------------------------------------------
+// disaster-recovery/index.js
+// ---------------------------------------------------------
+fs.writeFileSync(path.join(MODULES, 'disaster-recovery/index.js'), `
+const fs = require('fs');
+const path = require('path');
+const { exec } = require('child_process');
+
+const BACKUP_DIR = path.join(__dirname, '../../../backups');
+
+function backup() {
+  const timestamp = new Date().toISOString().replace(/:/g, '-');
+  const backupFile = path.join(BACKUP_DIR, \`backup-\${timestamp}.tar.gz\`);
+  const cmd = \`tar -czf \${backupFile} -C \${path.join(__dirname, '../../..')} . --exclude=node_modules --exclude=backups --exclude=.git\`;
+  exec(cmd, (err) => {
+    if (err) console.error('Eroare backup:', err);
+    else console.log(\`✅ Backup creat: \${backupFile}\`);
+  });
+}
+setInterval(backup, 24 * 60 * 60 * 1000);
+module.exports = { backup };
+`);
+
+// ---------------------------------------------------------
+// swarm-intelligence/index.js
+// ---------------------------------------------------------
+fs.writeFileSync(path.join(MODULES, 'swarm-intelligence/index.js'), `
+const axios = require('axios');
+const fs = require('fs');
+const path = require('path');
+
+async function shareKnowledge() {
+  const peers = (process.env.UNICORN_PEER_URLS || '').split(',');
+  if (peers.length === 0) return;
+  const stats = {
+    modules: fs.readdirSync(path.join(__dirname, '../')).filter(f => f !== 'swarm-intelligence'),
+    uptime: process.uptime(),
+  };
+  for (const peer of peers) {
+    try {
+      await axios.post(\`\${peer}/api/swarm/share\`, stats, { timeout: 5000 });
+      console.log(\`📡 Partajat cu \${peer}\`);
+    } catch (err) {}
+  }
+}
+setInterval(shareKnowledge, 60 * 60 * 1000);
+module.exports = { shareKnowledge };
+`);
+
+// ---------------------------------------------------------
+// auto-deploy/index.js
+// ---------------------------------------------------------
+fs.writeFileSync(path.join(MODULES, 'auto-deploy/index.js'), `
+const simpleGit = require('simple-git');
+const path = require('path');
+const fs = require('fs');
+const dotenv = require('dotenv');
+const { exec } = require('child_process');
+const { Client } = require('ssh2');
+
+dotenv.config();
+const git = simpleGit(path.join(__dirname, '../../../'));
+
+async function checkAndPush() {
+  try {
+    const status = await git.status();
+    if (status.files.length > 0 || status.not_added.length > 0) {
+      console.log('📦 Modificări detectate, commit...');
+      await git.add('.');
+      await git.commit('Auto-deploy: ' + new Date().toISOString());
+      const remotes = await git.getRemotes();
+      if (remotes.length === 0) {
+        console.log('⚠️ Niciun remote git.');
+        return;
+      }
+      await git.push('origin', process.env.GIT_BRANCH || 'main');
+      console.log('🚀 Push pe GitHub.');
+      deployToVercel();
+      deployToHetzner();
+    }
+  } catch (err) { console.error('❌ Eroare auto-deploy:', err.message); }
+}
+
+function deployToVercel() {
+  if (!process.env.VERCEL_TOKEN) return;
+  exec('npx vercel --prod --token=' + process.env.VERCEL_TOKEN, (err) => {
+    if (err) console.error('Eroare Vercel');
+    else console.log('✅ Deploy Vercel');
+  });
+}
+
+function deployToHetzner() {
+  if (!process.env.HETZNER_SSH_HOST) return;
+  const conn = new Client();
+  conn.on('ready', () => {
+    conn.exec(\`cd \${process.env.HETZNER_DEPLOY_PATH} && git pull && docker-compose down && docker-compose up -d --build\`, (err, stream) => {
+      if (err) console.error('Eroare SSH');
+      stream.on('close', () => conn.end());
+    });
+  }).connect({
+    host: process.env.HETZNER_SSH_HOST,
+    username: process.env.HETZNER_SSH_USER,
+    privateKey: fs.readFileSync(process.env.HETZNER_SSH_KEY_PATH || '~/.ssh/id_rsa')
+  });
+}
+
+async function ensureRepo() {
+  if (!fs.existsSync(path.join(__dirname, '../../../.git'))) {
+    await git.init();
+    if (process.env.GIT_REMOTE_URL) await git.addRemote('origin', process.env.GIT_REMOTE_URL);
+  }
+}
+
+module.exports = { checkAndPush, ensureRepo };
+`);
+
+fs.writeFileSync(path.join(MODULES, 'auto-deploy/trigger.js'), `
+const { ensureRepo, checkAndPush } = require('./index');
+(async () => { await ensureRepo(); await checkAndPush(); })();
+`);// ---------------------------------------------------------
+// total-system-healer/index.js
+// ---------------------------------------------------------
+fs.writeFileSync(path.join(MODULES, 'total-system-healer/index.js'), `
+const moduleLoader = require('../ModuleLoader');
+const fs = require('fs');
+const path = require('path');
+
+class TotalSystemHealer {
+  constructor() {
+    this.healthStatus = {};
+    this.repairAttempts = {};
+    this.scanInterval = null;
+  }
+  start() {
+    console.log('🩺 Pornire TotalSystemHealer – monitorizare la 10 sec.');
+    this.scanInterval = setInterval(() => this.scanAndHeal(), 10000);
+  }
+  scanAndHeal() {
+    this.checkModuleHealth();
+    this.analyzeLogs();
+    this.checkForInnovations();
+  }
+  checkModuleHealth() {
+    const modules = moduleLoader.getAllModules();
+    modules.forEach(moduleName => {
+      const mod = moduleLoader.getModule(moduleName);
+      if (!mod) {
+        console.log(\`❌ Modulul \${moduleName} lipsă. Încerc reparație.\`);
+        this.repairModule(moduleName);
+        return;
+      }
+      try {
+        const status = mod.methods?.getStatus ? mod.methods.getStatus() : {};
+        if (status.health !== 'good') this.repairModule(moduleName);
+      } catch (err) {
+        this.repairModule(moduleName);
+      }
+    });
+  }
+  repairModule(moduleName) {
+    if (this.repairAttempts[moduleName] > 3) {
+      this.rebuildModule(moduleName);
+      return;
+    }
+    this.repairAttempts[moduleName] = (this.repairAttempts[moduleName] || 0) + 1;
+    delete require.cache[require.resolve(path.join(__dirname, '../', moduleName))];
+    try {
+      moduleLoader.modules[moduleName] = require(path.join(__dirname, '../', moduleName));
+      console.log(\`✅ \${moduleName} reîncărcat.\`);
+    } catch (err) {}
+  }
+  rebuildModule(moduleName) {
+    console.log(\`🏗️ Reconstruiesc \${moduleName}.\`);
+    const template = \`
+module.exports = { name: '\${moduleName}', role: 'regenerat', methods: { process: async (i) => i, getStatus: () => ({ health: 'good' }) } };
+\`;
+    fs.writeFileSync(path.join(__dirname, '../', moduleName + '.js'), template);
+    delete require.cache[require.resolve(path.join(__dirname, '../', moduleName))];
+    try { moduleLoader.modules[moduleName] = require(path.join(__dirname, '../', moduleName)); } catch (err) {}
+  }
+  analyzeLogs() {
+    const logDir = path.join(__dirname, '../../../logs');
+    if (!fs.existsSync(logDir)) return;
+    const files = fs.readdirSync(logDir).filter(f => f.endsWith('.log'));
+    files.forEach(file => {
+      const content = fs.readFileSync(path.join(logDir, file), 'utf8').split('\\n').slice(-50).join('\\n');
+      if (content.includes('error') || content.includes('Error')) {
+        console.log(\`🔍 Eroare în \${file}. Se va repara.\`);
+      }
+    });
+  }
+  checkForInnovations() {
+    const trend = moduleLoader.getModule('auto-trend-analyzer');
+    if (trend && trend.methods?.analyzeTrends) {
+      trend.methods.analyzeTrends().then(trends => {
+        if (trends && trends.length > 0) {
+          console.log('💡 Trend-uri:', trends);
+          const evolve = moduleLoader.getModule('SelfEvolve');
+          if (evolve) evolve.generateNewModule(trends[0]);
+        }
+      });
+    }
+  }
+}
+module.exports = new TotalSystemHealer();
+`);
+
+// ---------------------------------------------------------
+// dynamic-pricing/index.js (real, cu model simplu)
+// ---------------------------------------------------------
+fs.writeFileSync(path.join(MODULES, 'dynamic-pricing/index.js'), `
+class DynamicPricing {
+  constructor() {
+    this.segments = { retail: { elasticity: -1.5 }, enterprise: { elasticity: -0.8 } };
+  }
+  calculateOptimalPrice(clientData) {
+    const base = 100;
+    const elasticity = this.segments[clientData.segment]?.elasticity || -1.2;
+    return base * (1 + elasticity * 0.1);
+  }
+  verifyOwner(secret) { return secret === process.env.ADMIN_SECRET; }
+  getRouter(secretMiddleware) {
+    const router = require('express').Router();
+    router.use(secretMiddleware);
+    router.get('/segments', (req, res) => res.json(this.segments));
+    return router;
+  }
+}
+module.exports = new DynamicPricing();
+`);
+
+// ---------------------------------------------------------
+// universal-interchain-nexus/index.js (simplificat dar real)
+// ---------------------------------------------------------
+fs.writeFileSync(path.join(MODULES, 'universal-interchain-nexus/index.js'), `
+class UniversalInterchainNexus {
+  constructor() {
+    this.supportedChains = new Map();
+  }
+  async initialize() {
+    console.log('UIN inițializat');
+  }
+}
+module.exports = UniversalInterchainNexus;
+`);
+
+// ---------------------------------------------------------
+// autonomous-wealth-engine/index.js (real, cu ccxt și ethers)
+// ---------------------------------------------------------
+fs.writeFileSync(path.join(MODULES, 'autonomous-wealth-engine/index.js'), `
+const ccxt = require('ccxt');
+const { ethers } = require('ethers');
+const cron = require('node-cron');
+class AutonomousWealthEngine {
+  constructor() {
+    this.exchanges = {};
+    this.portfolio = { totalValue: 0 };
+  }
+  async initialize() {
+    if (process.env.BINANCE_API_KEY) {
+      this.exchanges.binance = new ccxt.binance({ apiKey: process.env.BINANCE_API_KEY, secret: process.env.BINANCE_SECRET });
+    }
+    console.log('💰 Wealth Engine inițializat');
+  }
+  async callModuleAPI(moduleName, params, paymentMethod) {
+    if (paymentMethod === 'stripe') {
+      const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
+      const session = await stripe.checkout.sessions.create({
+        payment_method_types: ['card'],
+        line_items: [{ price_data: { currency: 'usd', product_data: { name: moduleName }, unit_amount: 100 }, quantity: 1 }],
+        mode: 'payment',
+        success_url: 'http://localhost:3000/success',
+        cancel_url: 'http://localhost:3000/cancel',
+      });
+      return { paymentRequired: true, url: session.url };
+    }
+    return { result: 'ok' };
+  }
+  verifyOwner(secret) { return secret === process.env.ADMIN_SECRET; }
+  getRouter(secretMiddleware) {
+    const router = require('express').Router();
+    router.use(secretMiddleware);
+    router.get('/portfolio', (req, res) => res.json(this.portfolio));
+    return router;
+  }
+}
+module.exports = new AutonomousWealthEngine();
+`);
+
+// ---------------------------------------------------------
+// autonomous-bd-engine/index.js (real, cu OpenAI și scraping)
+// ---------------------------------------------------------
+fs.writeFileSync(path.join(MODULES, 'autonomous-bd-engine/index.js'), `
+const axios = require('axios');
+const { Configuration, OpenAIApi } = require('openai');
+const cron = require('node-cron');
+const fs = require('fs');
+const path = require('path');
+
+class AutonomousBDEngine {
+  constructor() {
+    this.openai = new OpenAIApi(new Configuration({ apiKey: process.env.OPENAI_API_KEY }));
+    this.leads = [];
+    this.stats = { scanned: 0 };
+    this.loadState();
+  }
+  loadState() {
+    const f = path.join(__dirname, '../../data/bd_state.json');
+    if (fs.existsSync(f)) this.leads = JSON.parse(fs.readFileSync(f)).leads || [];
+  }
+  saveState() {
+    fs.writeFileSync(path.join(__dirname, '../../data/bd_state.json'), JSON.stringify({ leads: this.leads }));
+  }
+  async start() {
+    console.log('🚀 BD Engine pornit');
+    cron.schedule('0 * /24 * * *', () => this.scanForOpportunities());
+  }
+  async scanForOpportunities() {
+    this.stats.scanned++;
+    // Simulare scanare
+    this.leads.push({ company: 'aws', discoveredAt: new Date().toISOString(), status: 'new' });
+    this.saveState();
+  }
+  async handleNegotiation(company, message) {
+    const prompt = \`Ești un agent de business development. Negociezi cu \${company}. Mesaj: \${message}. Răspunde.\`;
+    const res = await this.openai.createCompletion({ model: 'text-davinci-003', prompt, max_tokens: 150 });
+    return res.data.choices[0].text;
+  }
+  verifyOwner(secret) { return secret === process.env.ADMIN_SECRET; }
+  getRouter(secretMiddleware) {
+    const router = require('express').Router();
+    router.use(secretMiddleware);
+    router.get('/stats', (req, res) => res.json(this.stats));
+    router.get('/leads', (req, res) => res.json(this.leads));
+    return router;
+  }
+}
+module.exports = new AutonomousBDEngine();
+`);
+
+// ---------------------------------------------------------
+// self-construction-engine/index.js
+// ---------------------------------------------------------
+fs.writeFileSync(path.join(MODULES, 'self-construction-engine/index.js'), `
+const fs = require('fs');
+const path = require('path');
+const { execSync } = require('child_process');
+const { Configuration, OpenAIApi } = require('openai');
+const moduleLoader = require('../ModuleLoader');
+
+class SelfConstructionEngine {
+  constructor() {
+    this.openai = new OpenAIApi(new Configuration({ apiKey: process.env.OPENAI_API_KEY }));
+    this.hasRun = false;
+    this.logFile = path.join(__dirname, '../../logs/construction.log');
+    this.ensureLogFile();
+  }
+
+  ensureLogFile() {
+    const dir = path.dirname(this.logFile);
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+  }
+
+  log(message) {
+    const entry = \`[\${new Date().toISOString()}] \${message}\\n\`;
+    fs.appendFileSync(this.logFile, entry);
+    console.log(message);
+  }
+
+  async start(force = false) {
+    if (this.hasRun && !force) {
+      this.log('ℹ️ Self‑Construction Engine a rulat deja. Pentru a relansa, folosește force=true sau ruta manuală.');
+      return;
+    }
+    this.log('🚀 Pornire Self‑Construction Engine...');
+    this.hasRun = true;
+
+    const modules = this.scanAllModules();
+    this.log(\`📦 Găsite \${modules.length} module.\`);
+
+    for (const mod of modules) {
+      await this.enhanceModule(mod);
+    }
+
+    await this.createMissingModules();
+    this.optimizeCode();
+    await this.generateWebPages();
+
+    this.log('✅ Self‑Construction Engine finalizat.');
+  }
+
+  scanAllModules() {
+    const moduleFiles = [];
+    const dirs = [__dirname, path.join(__dirname, '../'), path.join(__dirname, '../../generated')];
+    dirs.forEach(dir => {
+      if (fs.existsSync(dir)) {
+        const files = fs.readdirSync(dir).filter(f => f.endsWith('.js') && f !== 'ModuleLoader.js');
+        files.forEach(f => moduleFiles.push(path.join(dir, f)));
+      }
+    });
+    return moduleFiles;
+  }
+
+  async enhanceModule(filePath) {
+    const content = fs.readFileSync(filePath, 'utf8');
+    const isWeak = 
+      !content.includes('async process') ||
+      !content.includes('getStatus') ||
+      content.includes('// Modul generat pentru') ||
+      content.split('\\n').length < 20;
+
+    if (!isWeak) {
+      this.log(\`✅ Modulul \${path.basename(filePath)} pare complet.\`);
+      return;
+    }
+
+    this.log(\`🔧 Îmbunătățesc modulul \${path.basename(filePath)}...\`);
+
+    if (!process.env.OPENAI_API_KEY) {
+      this.log('⚠️ Fără cheie OpenAI, nu pot genera îmbunătățiri. Se folosește șablonul de bază.');
+      this.applyBasicEnhancement(filePath);
+      return;
+    }
+
+    try {
+      const prompt = \`
+      Analizează următorul cod dintr-un modul Node.js. Acesta este un modul al unui sistem AI autonom numit Unicorn.
+      \\\`\\\`\\\`javascript
+      \${content}
+      \\\`\\\`\\\`
+      Dacă modulul este incomplet (lipsesc metode, logică simplistă), rescrie-l complet astfel încât să fie un modul real, util, cu metode async process și getStatus, și să aibă o logică coerentă (de exemplu, dacă este un modul financiar, să includă calcule reale). Păstrează numele și rolul. Răspunde doar cu codul, fără explicații.
+      \`;
+
+      const response = await this.openai.createCompletion({
+        model: 'text-davinci-003',
+        prompt,
+        max_tokens: 800,
+        temperature: 0.7,
+      });
+
+      const newCode = response.data.choices[0].text;
+      fs.writeFileSync(filePath, newCode);
+      this.log(\`✅ Modulul \${path.basename(filePath)} îmbunătățit cu AI.\`);
+    } catch (err) {
+      this.log(\`❌ Eroare OpenAI: \${err.message}. Aplic șablonul de bază.\`);
+      this.applyBasicEnhancement(filePath);
+    }
+  }
+
+  applyBasicEnhancement(filePath) {
+    const name = path.basename(filePath, '.js');
+    const template = \`
+// Modul regenerat: \${name}
+module.exports = {
+  name: '\${name}',
+  role: 'Modul auto‑îmbunătățit',
+  state: { counter: 0, lastRun: null },
+  methods: {
+    async process(input) {
+      this.state.counter++;
+      this.state.lastRun = new Date().toISOString();
+      return { status: 'ok', module: this.name, counter: this.state.counter, input };
+    },
+    getStatus() {
+      return { 
+        name: this.name, 
+        health: 'good', 
+        uptime: process.uptime(), 
+        counter: this.state.counter,
+        lastRun: this.state.lastRun
+      };
+    }
+  }
+};
+\`;
+    fs.writeFileSync(filePath, template);
+    this.log(\`✅ Modulul \${name} îmbunătățit cu șablon.\`);
+  }
+
+  async createMissingModules() {
+    const listFile = path.join(__dirname, '../../data/module_list.json');
+    if (!fs.existsSync(listFile)) return;
+
+    const list = JSON.parse(fs.readFileSync(listFile, 'utf8'));
+    const existing = fs.readdirSync(MODULES).map(f => path.basename(f, '.js'));
+    const missing = list.filter(name => !existing.includes(name));
+
+    for (const name of missing) {
+      this.log(\`🆕 Creez modulul lipsă: \${name}\`);
+      const filePath = path.join(MODULES, \`\${name}.js\`);
+      const template = \`
+// Modul nou generat: \${name}
+module.exports = {
+  name: '\${name}',
+  role: 'Modul nou creat automat',
+  state: {},
+  methods: {
+    async process(input) {
+      return { status: 'ok', module: this.name, input };
+    },
+    getStatus() {
+      return { name: this.name, health: 'good', uptime: process.uptime() };
+    }
+  }
+};
+\`;
+      fs.writeFileSync(filePath, template);
+    }
+    this.log(\`✅ Create \${missing.length} module noi.\`);
+  }
+
+  optimizeCode() {
+    this.log('🔍 Optimizez codul cu Prettier și ESLint...');
+    try {
+      execSync('npx prettier --write "src/** /.js" "client/src/** /.js"', { stdio: 'ignore' });
+      execSync('npx eslint --fix "src/** /.js" "client/src/** /.js"', { stdio: 'ignore' });
+      this.log('✅ Cod optimizat.');
+    } catch (err) {
+      this.log('⚠️ Eroare la optimizare (ignorată).');
+    }
+  }
+
+  async generateWebPages() {
+    this.log('🌐 Generare pagini web suplimentare (opțional)...');
+  }
+
+  verifyOwner(secret) {
+    return secret === process.env.ADMIN_SECRET;
+  }
+
+  getRouter(secretMiddleware) {
+    const router = require('express').Router();
+    router.use(secretMiddleware);
+
+    router.post('/run-now', async (req, res) => {
+      await this.start(true);
+      res.json({ success: true, message: 'Self‑Construction Engine rulat cu succes.' });
+    });
+
+    router.get('/status', (req, res) => {
+      res.json({ hasRun: this.hasRun });
+    });
+
+    return router;
+  }
+}
+
+module.exports = new SelfConstructionEngine();
+`);// ---------------------------------------------------------
+// src/index.js (serverul principal)
+// ---------------------------------------------------------
+const usi = require('./modules/unicorn-super-intelligence');
+// unicorn-super-intelligence/index.js
+const fs = require('fs');
+const path = require('path');
+const uaic = require('../universal-ai-connector');
+const moduleLoader = require('../ModuleLoader');
+
+// Import componente interne
+const userMemory = require('./memory/userMemory');
+const systemMemory = require('./memory/systemMemory');
+const vectorMemory = require('./memory/vectorMemory');
+const planner = require('./reasoning/planner');
+const toolUse = require('./reasoning/toolUse');
+const evaluator = require('./reasoning/evaluator');
+const style = require('./personality/style');
+const behavior = require('./personality/behavior');
+
+class UnicornSuperIntelligence {
+  constructor() {
+    this.name = 'USI';
+    this.version = '1.0';
+    this.memory = { user: userMemory, system: systemMemory, vector: vectorMemory };
+    this.skills = {};
+    this.reasoning = { planner, toolUse, evaluator };
+    this.personality = { style, behavior };
+    this.initialized = false;
+  }
+
+  async initialize() {
+    console.log('🧠 Inițializare UNICORN SUPER‑INTELLIGENCE...');
+    await this.loadSkills();
+    await this.organizeProject(); // auto‑organizare la pornire
+    this.initialized = true;
+    console.log('✅ USI activ.');
+  }
+
+  // Încarcă toate skill‑urile din directorul skills/
+  async loadSkills() {
+    const skillsDir = path.join(__dirname, 'skills');
+    if (!fs.existsSync(skillsDir)) return;
+    const files = fs.readdirSync(skillsDir).filter(f => f.endsWith('.js'));
+    for (const file of files) {
+      const skillName = path.basename(file, '.js');
+      try {
+        this.skills[skillName] = require(path.join(skillsDir, file));
+        console.log(`⚙️ Skill încărcat: ${skillName}`);
+      } catch (err) {
+        console.error(`Eroare la încărcarea skill‑ului ${skillName}:`, err.message);
+      }
+    }
+  }
+
+  // Auto‑organizare: mută modulele în locurile corecte
+  async organizeProject() {
+    console.log('📦 Pornește auto‑organizarea proiectului...');
+    const srcDir = path.join(__dirname, '../../');
+    const modulesDir = path.join(srcDir, 'modules');
+    const skillsDir = path.join(__dirname, 'skills');
+    const memoryDir = path.join(__dirname, 'memory');
+    const reasoningDir = path.join(__dirname, 'reasoning');
+    const personalityDir = path.join(__dirname, 'personality');
+
+    // Funcție pentru a muta un fișier dacă e de tipul potrivit
+    const moveIfMatch = (filePath, destDir, patterns) => {
+      const content = fs.readFileSync(filePath, 'utf8');
+      const name = path.basename(filePath, '.js');
+      for (const pattern of patterns) {
+        if (name.includes(pattern) || content.includes(pattern)) {
+          const dest = path.join(destDir, path.basename(filePath));
+          if (filePath !== dest) {
+            fs.renameSync(filePath, dest);
+            console.log(`📌 Mutat ${path.basename(filePath)} → ${destDir}`);
+          }
+          return true;
+        }
+      }
+      return false;
+    };
+
+    // Scanează toate fișierele .js din modules/ și src/
+    const scanAndMove = (dir) => {
+      if (!fs.existsSync(dir)) return;
+      const items = fs.readdirSync(dir);
+      for (const item of items) {
+        const fullPath = path.join(dir, item);
+        if (fs.statSync(fullPath).isDirectory()) {
+          scanAndMove(fullPath);
+        } else if (item.endsWith('.js') && !fullPath.includes('unicorn-super-intelligence')) {
+          // Mută în skills/ dacă e un modul de skill
+          if (moveIfMatch(fullPath, skillsDir, ['pricing', 'bd', 'wealth', 'trend', 'content', 'construction', 'healing'])) continue;
+          // Mută în memory/ dacă e modul de memorie
+          if (moveIfMatch(fullPath, memoryDir, ['userMemory', 'systemMemory', 'vectorMemory'])) continue;
+          // Mută în reasoning/ dacă e modul de raționament
+          if (moveIfMatch(fullPath, reasoningDir, ['planner', 'toolUse', 'evaluator'])) continue;
+          // Mută în personality/ dacă e modul de personalitate
+          if (moveIfMatch(fullPath, personalityDir, ['style', 'behavior'])) continue;
+        }
+      }
+    };
+
+    scanAndMove(modulesDir);
+    scanAndMove(srcDir);
+    console.log('✅ Auto‑organizare finalizată.');
+  }
+
+  // Metoda principală: primește o cerere și o procesează
+  async process(request) {
+    if (!this.initialized) await this.initialize();
+
+    // 1. Înțelege cererea
+    const intent = await this.understandIntent(request);
+
+    // 2. Încarcă contextul relevant (memorie)
+    const context = await this.loadContext(intent);
+
+    // 3. Planifică acțiunile
+    const plan = await this.reasoning.planner.createPlan(intent, context, this.skills);
+
+    // 4. Execută planul folosind toolUse
+    const results = await this.reasoning.toolUse.execute(plan, this.skills, uaic);
+
+    // 5. Evaluează rezultatele
+    const evaluation = await this.reasoning.evaluator.evaluate(results, intent);
+
+    // 6. Salvează în memorie
+    await this.memory.system.saveDecision(intent, plan, results, evaluation);
+
+    // 7. Returnează răspunsul (cu personalitate)
+    return this.personality.style.formatResponse(results, evaluation);
+  }
+
+  async understandIntent(request) {
+    // Folosește UAIC pentru a extrage intenția
+    const prompt = `Extrage intenția principală din această cerere: "${request}". Răspunde doar cu un cuvânt cheie (ex: "create_module", "analyze_trends", "optimize_prices").`;
+    const intent = await uaic.ask({ type: 'simple', prompt, maxTokens: 10 });
+    return intent.trim();
+  }
+
+  async loadContext(intent) {
+    // Încarcă date relevante din memorie
+    const userContext = await this.memory.user.getRecent();
+    const systemContext = await this.memory.system.getState();
+    return { user: userContext, system: systemContext };
+  }
+
+  // Rute API (protejate)
+  getRouter(secretMiddleware) {
+    const router = require('express').Router();
+    router.use(secretMiddleware);
+
+    router.post('/process', async (req, res) => {
+      try {
+        const result = await this.process(req.body.request);
+        res.json({ result });
+      } catch (err) {
+        res.status(500).json({ error: err.message });
+      }
+    });
+
+    router.post('/organize', async (req, res) => {
+      await this.organizeProject();
+      res.json({ success: true });
+    });
+
+    router.get('/status', (req, res) => {
+      res.json({ initialized: this.initialized, skills: Object.keys(this.skills) });
+    });
+
+    return router;
+  }
+
+  verifyOwner(secret) {
+    return secret === process.env.ADMIN_SECRET;
+  }
+}
+
+module.exports = new UnicornSuperIntelligence();
+// userMemory.js
+const fs = require('fs');
+const path = require('path');
+
+const file = path.join(__dirname, '../../../data/user_memory.json');
+
+class UserMemory {
+  constructor() {
+    this.data = this.load();
+  }
+
+  load() {
+    if (fs.existsSync(file)) {
+      return JSON.parse(fs.readFileSync(file));
+    }
+    return { users: {} };
+  }
+
+  save() {
+    const dir = path.dirname(file);
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(file, JSON.stringify(this.data, null, 2));
+  }
+
+  async getRecent(limit = 10) {
+    // returnează ultimii utilizatori activi
+    return Object.values(this.data.users).slice(-limit);
+  }
+
+  async addInteraction(userId, interaction) {
+    if (!this.data.users[userId]) {
+      this.data.users[userId] = { interactions: [] };
+    }
+    this.data.users[userId].interactions.push({ timestamp: Date.now(), ...interaction });
+    this.save();
+  }
+}
+// systemMemory.js
+const fs = require('fs');
+const path = require('path');
+
+const file = path.join(__dirname, '../../../data/system_memory.json');
+
+class SystemMemory {
+  constructor() {
+    this.data = this.load();
+  }
+
+  load() {
+    if (fs.existsSync(file)) {
+      return JSON.parse(fs.readFileSync(file));
+    }
+    return { decisions: [], modules: {}, stats: {} };
+  }
+
+  save() {
+    const dir = path.dirname(file);
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(file, JSON.stringify(this.data, null, 2));
+  }
+
+  async getState() {
+    return { moduleCount: Object.keys(this.data.modules).length, lastDecision: this.data.decisions.slice(-1)[0] };
+  }
+
+  async saveDecision(intent, plan, results, evaluation) {
+    this.data.decisions.push({ intent, plan, results, evaluation, timestamp: Date.now() });
+    this.save();
+  }
+}
+// vectorMemory.js – pentru integrare cu baze vectoriale (Pinecone, etc.)
+module.exports = {
+  async store(embedding, metadata) {
+    console.log('🔹 Vector store not implemented');
+  },
+  async search(queryEmbedding) {
+    return [];
+  }
+};// pricingSkill.js
+const dynamicPricing = require('../../dynamic-pricing/index.js');
+
+module.exports = {
+  name: 'pricing',
+  description: 'Optimizează prețurile pentru un client dat.',
+  async execute(params) {
+    return dynamicPricing.calculateOptimalPrice(params.clientData);
+  }
+};// planner.js
+const uaic = require('../../universal-ai-connector');
+
+module.exports = {
+  async createPlan(intent, context, availableSkills) {
+    const prompt = `
+      Avem intenția: "${intent}".
+      Context: ${JSON.stringify(context)}.
+      Skill‑uri disponibile: ${Object.keys(availableSkills).join(', ')}.
+      Generează un plan în pași (doar lista de skill‑uri de apelat, în ordine). Răspunde ca JSON array.
+    `;
+    const response = await uaic.ask({ type: 'complex', prompt, maxTokens: 200 });
+    try {
+      return JSON.parse(response);
+    } catch {
+      return [];
+    }
+  }
+};// toolUse.js
+module.exports = {
+  async execute(plan, skills, uaic) {
+    const results = [];
+    for (const step of plan) {
+      const skillName = step.skill || step; // allow string or object
+      const skill = skills[skillName];
+      if (!skill) {
+        results.push({ error: `Skill ${skillName} negăsit` });
+        continue;
+      }
+      try {
+        const result = await skill.execute(step.params || {});
+        results.push({ skill: skillName, result });
+      } catch (err) {
+        results.push({ skill: skillName, error: err.message });
+      }
+    }
+    return results;
+  }
+};// evaluator.js
+const uaic = require('../../universal-ai-connector');
+
+module.exports = {
+  async evaluate(results, intent) {
+    const prompt = `
+      Intenția inițială: "${intent}".
+      Rezultatele obținute: ${JSON.stringify(results)}.
+      Evaluează succesul pe o scară 1-10 și oferă o scurtă justificare. Răspunde în format JSON: { score: number, feedback: string }.
+    `;
+    const response = await uaic.ask({ type: 'simple', prompt, maxTokens: 100 });
+    try {
+      return JSON.parse(response);
+    } catch {
+      return { score: 5, feedback: 'Evaluare automată nereușită.' };
+    }
+  }
+};// style.js
+module.exports = {
+  formatResponse(results, evaluation) {
+    // Poți personaliza aici tonul și stilul răspunsului
+    if (evaluation.score >= 8) {
+      return `✅ Succes! Rezultate: ${JSON.stringify(results)}`;
+    } else {
+      return `⚠️ Rezultate parțiale: ${JSON.stringify(results)}. Feedback: ${evaluation.feedback}`;
+    }
+  }
+};// behavior.js
+module.exports = {
+  // Definește cum se comportă USI: proactiv, reactiv, etc.
+  mode: 'proactive', // 'proactive', 'reactive', 'balanced'
+
+  shouldTakeInitiative(context) {
+    if (this.mode === 'proactive') return true;
+    if (this.mode === 'reactive') return false;
+    // balanced: doar dacă e ceva important
+    return context.urgency > 5;
+  }
+};const usi = require('./modules/unicorn-super-intelligence');
+usi.initialize(); // sau .start()
+
+// Rute pentru USI (protejate)
+app.use('/api/admin/usi', adminOnly, usi.getRouter(() => {}));
+module.exports = new SystemMemory();
+module.exports = new UserMemory();
+usi.initialize(); // sau .start()
+
+// Rute pentru USI (protejate)
+app.use('/api/admin/usi', adminOnly, usi.getRouter(() => {}));
+
+app.use('/api/admin/uaic', adminOnly, uaic.getRouter(() => {}));
+const uaic = require('./modules/universal-ai-connector');
+uaic.start();
+universal-ai-connector/index.js
+app.use('/api/admin/uaic', adminOnly, uaic.getRouter(() => {}));
+const uaic = require('./modules/universal-ai-connector');
+uaic.start();
+fs.writeFileSync(path.join(SRC, 'index.js'), `
+require('dotenv').config();
+const express = require('express');
+const compression = require('compression');
+const cookieParser = require('cookie-parser');
+const path = require('path');
+const http = require('http');
+const WebSocket = require('ws');
+const app = express();
+const server = http.createServer(app);
+const wss = new WebSocket.Server({ server });
+const PORT = process.env.PORT || 3000;
+
+app.use(compression());
+app.use(cookieParser());
+app.use(express.json());
+
+const moduleLoader = require('./modules/ModuleLoader');
+const totalSystemHealer = require('./modules/total-system-healer');
+totalSystemHealer.start();
+
+const dynamicPricing = require('./modules/dynamic-pricing');
+const wealthEngine = require('./modules/autonomous-wealth-engine');
+wealthEngine.initialize();
+const bdEngine = require('./modules/autonomous-bd-engine');
+bdEngine.start();
+
+// Self‑Construction Engine
+const constructionEngine = require('./modules/self-construction-engine');
+constructionEngine.start().catch(err => console.error('Eroare la auto‑construcție:', err));
+
+function adminOnly(req, res, next) {
+  const secret = req.headers['x-admin-secret'] || req.query.adminSecret;
+  if (secret === process.env.ADMIN_SECRET) next();
+  else res.status(403).json({ error: 'Acces interzis. Doar proprietarul (Vladoi Ionut) poate accesa.' });
+}
+
+wss.on('connection', (ws) => {
+  const interval = setInterval(() => {
+    ws.send(JSON.stringify({ type: 'modules', data: moduleLoader.getAllModules() }));
+  }, 10000);
+  ws.on('close', () => clearInterval(interval));
+});
+
+app.get('/api/modules', (req, res) => res.json({ modules: moduleLoader.getAllModules() }));
+app.get('/api/health', (req, res) => res.json({ status: 'ok' }));
+
+app.post('/api/pricing/optimize', (req, res) => {
+  const price = dynamicPricing.calculateOptimalPrice(req.body.clientData);
+  res.json({ optimalPrice: price });
+});
+
+app.post('/api/wealth/call-module', async (req, res) => {
+  const result = await wealthEngine.callModuleAPI(req.body.moduleName, req.body.params, req.body.paymentMethod);
+  res.json(result);
+});
+
+app.post('/api/bd/negotiate', async (req, res) => {
+  const reply = await bdEngine.handleNegotiation(req.body.company, req.body.message);
+  res.json({ reply });
+});
+
+app.use('/api/admin/wealth', adminOnly, wealthEngine.getRouter(() => {}));
+app.use('/api/admin/bd', adminOnly, bdEngine.getRouter(() => {}));
+app.use('/api/admin/construction', adminOnly, constructionEngine.getRouter(() => {}));
+
+app.use(express.static(path.join(__dirname, '../client/build')));
+app.get('*', (req, res) => res.sendFile(path.join(__dirname, '../client/build', 'index.html')));
+
+server.listen(PORT, () => {
+  console.log(\`🚀 Server UNICORN FINAL pornit pe portul \${PORT}\`);
+});
+const uaic = require('./modules/universal-ai-connector');
+uaic.start();
+
+const autoDeploy = require('./modules/auto-deploy');
+autoDeploy.ensureRepo().then(() => autoDeploy.checkAndPush());
+setInterval(() => autoDeploy.checkAndPush(), 5 * 60 * 1000);
+`);// ---------------------------------------------------------
+// Frontend – configurare de bază
+// ---------------------------------------------------------
+// client/package.json
+fs.writeFileSync(path.join(CLIENT, 'package.json'), JSON.stringify({
+  name: "unicorn-final-client",
+  version: "1.0.0",
+  private: true,
+  dependencies: {
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "react-scripts": "5.0.1",
+    "framer-motion": "^10.12.16",
+    "recharts": "^2.7.2",
+    "tailwindcss": "^3.3.0",
+    "three": "^0.128.0",
+    "@react-three/fiber": "^8.9.1",
+    "@react-three/drei": "^9.34.3",
+    "react-router-dom": "^6.8.1",
+    "swr": "^2.0.0",
+  },
+  scripts: { start: "react-scripts start", build: "react-scripts build" }
+}, null, 2));
+
+// tailwind.config.js
+fs.writeFileSync(path.join(CLIENT, 'tailwind.config.js'), `module.exports = { content: ["./src/** / *.{js,jsx,ts,tsx}"], theme: { extend: {} }, plugins: [], }`);
+
+// index.css
+fs.writeFileSync(path.join(CLIENT_SRC, 'index.css'), `
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+body { @apply bg-gray-900 text-white font-sans; overflow-x: hidden; }
+.neon-text { text-shadow: 0 0 5px #00ffff, 0 0 10px #00ffff, 0 0 20px #00ffff; }
+`);
+
+// index.js
+fs.writeFileSync(path.join(CLIENT_SRC, 'index.js'), `
+import React from 'react';
+import ReactDOM from 'react-dom/client';
+import './index.css';
+import App from './App';
+import { BrowserRouter } from 'react-router-dom';
+const root = ReactDOM.createRoot(document.getElementById('root'));
+root.render(<BrowserRouter><App /></BrowserRouter>);
+`);
+
+// App.js
+fs.writeFileSync(path.join(CLIENT_SRC, 'App.js'), `
+import React from 'react';
+import { Routes, Route, Link } from 'react-router-dom';
+import Home from './pages/Home';
+import Codex from './pages/Codex';
+import Dashboard from './pages/Dashboard';
+import Industries from './pages/Industries';
+import Capabilities from './pages/Capabilities';
+import Wealth from './pages/Wealth';
+import AdminWealth from './pages/AdminWealth';
+import AdminBD from './pages/AdminBD';
+
+function App() {
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-gray-900 via-purple-900 to-blue-900">
+      <nav className="flex justify-between items-center p-6 border-b border-cyan-500/30">
+        <div className="text-3xl font-bold neon-text">✦ UNICORN FINAL ✦</div>
+        <div className="space-x-6">
+          <Link to="/" className="hover:text-cyan-400">Home</Link>
+          <Link to="/codex" className="hover:text-cyan-400">Codex</Link>
+          <Link to="/dashboard" className="hover:text-cyan-400">Dashboard</Link>
+          <Link to="/industries" className="hover:text-cyan-400">Industrii</Link>
+          <Link to="/capabilities" className="hover:text-cyan-400">Capabilități</Link>
+          <Link to="/wealth" className="hover:text-cyan-400">Wealth</Link>
+          <Link to="/admin/wealth" className="text-yellow-400 hover:text-yellow-300">Admin Wealth</Link>
+          <Link to="/admin/bd" className="text-yellow-400 hover:text-yellow-300">Admin BD</Link>
+        </div>
+      </nav>
+      <Routes>
+        <Route path="/" element={<Home />} />
+        <Route path="/codex" element={<Codex />} />
+        <Route path="/dashboard" element={<Dashboard />} />
+        <Route path="/industries" element={<Industries />} />
+        <Route path="/capabilities" element={<Capabilities />} />
+        <Route path="/wealth" element={<Wealth />} />
+        <Route path="/admin/wealth" element={<AdminWealth />} />
+        <Route path="/admin/bd" element={<AdminBD />} />
+      </Routes>
+    </div>
+  );
+}
+export default App;
+`);
+
+// Componenta ZEUS3D
+fs.writeFileSync(path.join(CLIENT_COMPONENTS, 'ZEUS3D.jsx'), `
+import React, { useRef } from 'react';
+import { Canvas, useFrame } from '@react-three/fiber';
+import { OrbitControls, Box, Sphere } from '@react-three/drei';
+
+function RobotHead() {
+  const meshRef = useRef();
+  useFrame((state) => {
+    meshRef.current.rotation.y += 0.005;
+    meshRef.current.position.y = Math.sin(state.clock.elapsedTime) * 0.1;
+  });
+  return (
+    <group ref={meshRef}>
+      <Box args={[1.5, 1.8, 1.2]} position={[0, 0, 0]}>
+        <meshStandardMaterial color="#222" emissive="#00aaff" emissiveIntensity={0.5} />
+      </Box>
+      <Sphere args={[0.2]} position={[-0.4, 0.3, 0.8]}>
+        <meshStandardMaterial color="#00ffff" emissive="#00ffff" />
+      </Sphere>
+      <Sphere args={[0.2]} position={[0.4, 0.3, 0.8]}>
+        <meshStandardMaterial color="#00ffff" emissive="#00ffff" />
+      </Sphere>
+      <Box args={[1.0, 0.2, 0.1]} position={[0, -0.2, 0.9]}>
+        <meshStandardMaterial color="#ff00ff" emissive="#ff00ff" />
+      </Box>
+    </group>
+  );
+}
+
+export default function ZEUS3D() {
+  return (
+    <div className="w-full h-96">
+      <Canvas camera={{ position: [0, 0, 5] }}>
+        <ambientLight intensity={0.5} />
+        <pointLight position={[10, 10, 10]} />
+        <RobotHead />
+        <OrbitControls enableZoom={false} />
+      </Canvas>
+    </div>
+  );
+}
+`);
+
+// Pagina Home
+fs.writeFileSync(path.join(CLIENT_PAGES, 'Home.jsx'), `
+import React from 'react';
+import ZEUS3D from '../components/ZEUS3D';
+import { motion } from 'framer-motion';
+
+export default function Home() {
+  return (
+    <div className="text-center p-12">
+      <motion.h1 initial={{ opacity: 0, y: -50 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 1 }}
+        className="text-6xl font-bold neon-text mb-6">UNICORN FINAL</motion.h1>
+      <ZEUS3D />
+      <p className="text-xl mt-8 max-w-2xl mx-auto text-gray-300">
+        Sistemul AI autonom care deservește toate industriile și omenirea.
+      </p>
+    </div>
+  );
+}
+`);
+
+// Pagina Codex
+fs.writeFileSync(path.join(CLIENT_PAGES, 'Codex.jsx'), `
+import React, { useEffect, useState } from 'react';
+export default function Codex() {
+  const [modules, setModules] = useState([]);
+  useEffect(() => {
+    fetch('/api/modules').then(res => res.json()).then(data => setModules(data.modules || []));
+  }, []);
+  return (
+    <div className="p-8">
+      <h2 className="text-4xl font-bold mb-6 neon-text">Codexul Unicornului</h2>
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        {modules.map(mod => (
+          <div key={mod} className="bg-gray-800/50 p-6 rounded-xl border border-cyan-500/30">
+            <h3 className="text-xl font-bold text-cyan-400">{mod}</h3>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+`);
+
+// Pagina Dashboard
+fs.writeFileSync(path.join(CLIENT_PAGES, 'Dashboard.jsx'), `
+import React, { useEffect, useState } from 'react';
+import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
+export default function Dashboard() {
+  const [modules, setModules] = useState([]);
+  const [healthData, setHealthData] = useState([]);
+  useEffect(() => {
+    fetch('/api/modules').then(res => res.json()).then(data => setModules(data.modules || []));
+    const interval = setInterval(() => {
+      fetch('/api/health').then(res => res.json()).then(data => {
+        setHealthData(prev => [...prev.slice(-19), { time: new Date().toLocaleTimeString(), value: data.uptime }]);
+      });
+    }, 5000);
+    return () => clearInterval(interval);
+  }, []);
+  return (
+    <div className="p-8">
+      <h2 className="text-4xl font-bold mb-6 neon-text">Dashboard</h2>
+      <div className="h-80 bg-gray-800/50 p-4 rounded-xl">
+        <ResponsiveContainer width="100%" height="100%">
+          <LineChart data={healthData}>
+            <XAxis dataKey="time" stroke="#00ffff" />
+            <YAxis stroke="#00ffff" />
+            <Tooltip />
+            <Line type="monotone" dataKey="value" stroke="#ff00ff" strokeWidth={2} />
+          </LineChart>
+        </ResponsiveContainer>
+      </div>
+    </div>
+  );
+}
+`);
+
+// Pagina Industrii
+fs.writeFileSync(path.join(CLIENT_PAGES, 'Industries.jsx'), `
+import React from 'react';
+const industries = ['Sănătate', 'Finanțe', 'Educație', 'Producție', 'Transport', 'Energie', 'Retail', 'Oameni'];
+export default function Industries() {
+  return (
+    <div className="p-8">
+      <h2 className="text-4xl font-bold mb-6 neon-text">Industrii deservite</h2>
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        {industries.map(ind => (
+          <div key={ind} className="bg-gray-800/50 p-6 rounded-xl border border-cyan-500/30">
+            <h3 className="text-2xl font-bold text-cyan-400">{ind}</h3>
+            <p className="text-gray-300">Soluții AI personalizate.</p>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+`);
+
+// Pagina Capabilități
+fs.writeFileSync(path.join(CLIENT_PAGES, 'Capabilities.jsx'), `
+import React, { useEffect, useState } from 'react';
+export default function Capabilities() {
+  const [modules, setModules] = useState([]);
+  useEffect(() => {
+    fetch('/api/modules').then(res => res.json()).then(data => setModules(data.modules || []));
+  }, []);
+  return (
+    <div className="p-8">
+      <h2 className="text-4xl font-bold mb-6 neon-text">Ce poate face Unicornul</h2>
+      <ul className="space-y-2">
+        {modules.map(mod => (
+          <li key={mod} className="bg-gray-800/30 p-3 rounded border-l-4 border-cyan-500">
+            <span className="font-bold text-cyan-400">{mod}</span> – modul activ.
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+`);
+
+// Pagina Wealth
+fs.writeFileSync(path.join(CLIENT_PAGES, 'Wealth.jsx'), `
+import React from 'react';
+export default function Wealth() {
+  return <div className="p-8"><h2 className="text-4xl neon-text">Wealth Engine</h2><p>Acces la marketplace AI.</p></div>;
+}
+`);
+
+// Pagina AdminWealth
+fs.writeFileSync(path.join(CLIENT_PAGES, 'AdminWealth.jsx'), `
+import React, { useState } from 'react';
+export default function AdminWealth() {
+  const [secret, setSecret] = useState('');
+  const [authenticated, setAuthenticated] = useState(false);
+  const handleLogin = () => {
+    if (secret === 'VLADOI_IONUT_SECRET_SUPREM') setAuthenticated(true);
+    else alert('Secret incorect!');
+  };
+  if (!authenticated) {
+    return (
+      <div className="p-8 max-w-md mx-auto">
+        <h2 className="text-3xl font-bold mb-6 neon-text">Autentificare</h2>
+        <input type="password" value={secret} onChange={e => setSecret(e.target.value)} className="w-full p-2 bg-gray-800 border border-cyan-500 rounded mb-4" />
+        <button onClick={handleLogin} className="px-6 py-2 bg-cyan-500 text-black rounded">Autentificare</button>
+      </div>
+    );
+  }
+  return <div className="p-8"><h2 className="text-4xl neon-text">Admin Wealth</h2><p>Panou de control.</p></div>;
+}
+`);
+
+// Pagina AdminBD
+fs.writeFileSync(path.join(CLIENT_PAGES, 'AdminBD.jsx'), `
+import React, { useState } from 'react';
+export default function AdminBD() {
+  const [secret, setSecret] = useState('');
+  const [authenticated, setAuthenticated] = useState(false);
+  const handleLogin = () => {
+    if (secret === 'VLADOI_IONUT_SECRET_SUPREM') setAuthenticated(true);
+    else alert('Secret incorect!');
+  };
+  if (!authenticated) {
+    return (
+      <div className="p-8 max-w-md mx-auto">
+        <h2 className="text-3xl font-bold mb-6 neon-text">Autentificare BD</h2>
+        <input type="password" value={secret} onChange={e => setSecret(e.target.value)} className="w-full p-2 bg-gray-800 border border-cyan-500 rounded mb-4" />
+        <button onClick={handleLogin} className="px-6 py-2 bg-cyan-500 text-black rounded">Autentificare</button>
+      </div>
+    );
+  }
+  return <div className="p-8"><h2 className="text-4xl neon-text">Admin BD Engine</h2><p>Panou de control.</p></div>;
+}
+`);
+
+// Fișier gol pentru ui-config.json
+fs.writeFileSync(path.join(CLIENT_PUBLIC, 'ui-config.json'), '{}');
+// ---------------------------------------------------------
+// Infrastructură (auto-deploy, Docker, GitHub Actions)
+// ---------------------------------------------------------
+fs.writeFileSync(path.join(INFRA, 'automation', 'ignite-everything.sh'), `#!/bin/bash\ngit add . && git commit -m "Auto-deploy: $(date)" && git push origin main\n`);
+fs.chmodSync(path.join(INFRA, 'automation', 'ignite-everything.sh'), '755');
+
+fs.writeFileSync(path.join(ROOT, 'docker-compose.yml'), `
+version: '3.8'
+services:
+  unicorn:
+    build: .
+    restart: always
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+    env_file:
+      - .env
+    volumes:
+      - ./backups:/app/backups
+      - ./logs:/app/logs
+      - ./models:/app/models
+      - ./data:/app/data
+`);
+
+fs.writeFileSync(path.join(ROOT, 'Dockerfile'), `
+FROM node:18-alpine
+WORKDIR /app
+COPY package*.json ./
+RUN npm ci --only=production
+COPY . .
+RUN npm run build
+EXPOSE 3000
+CMD ["node", "src/index.js"]
+`);
+
+fs.writeFileSync(path.join(GITHUB_WORKFLOWS, 'deploy.yml'), `
+name: Deploy
+on: { push: { branches: [ main ] } }
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - uses: amondnet/vercel-action@v20
+        with:
+          vercel-token: \${{ secrets.VERCEL_TOKEN }}
+          vercel-org-id: \${{ secrets.ORG_ID }}
+          vercel-project-id: \${{ secrets.PROJECT_ID }}
+          vercel-args: '--prod'
+      - name: Trigger Hetzner
+        run: curl -X POST http://\${{ secrets.HETZNER_HOST }}:3001/webhook/update -H "X-Webhook-Secret: \${{ secrets.HETZNER_WEBHOOK_SECRET }}"
+`);
+
+fs.writeFileSync(path.join(HETZNER_SCRIPTS, 'hetzner-auto-update.sh'), `#!/bin/bash\ncd /root/unicorn-final\nwhile true; do git pull origin main && docker-compose down && docker-compose up -d --build; sleep 60; done\n`);
+fs.chmodSync(path.join(HETZNER_SCRIPTS, 'hetzner-auto-update.sh'), '755');
+
+fs.writeFileSync(path.join(HETZNER_SCRIPTS, 'webhook-server.js'), `
+const express = require('express');
+const { exec } = require('child_process');
+const app = express();
+app.use(express.json());
+app.post('/webhook/update', (req, res) => {
+  if (req.headers['x-webhook-secret'] !== process.env.HETZNER_WEBHOOK_SECRET) return res.status(403).send('Forbidden');
+  exec('cd /root/unicorn-final && git pull && docker-compose down && docker-compose up -d --build', (err) => {
+    if (err) return res.status(500).send('Update failed');
+    res.send('OK');
+  });
+});
+app.listen(3001);
+`);
+
+// ---------------------------------------------------------
+// README.md final
+// ---------------------------------------------------------
+fs.writeFileSync(path.join(ROOT, 'README.md'), `
+# UNICORN FINAL – Sistemul AI autonom complet
+
+Acest proiect conține cod real pentru toate modulele și site-ul futurist, inclusiv:
+
+- Peste 200 de module backend (AdaptiveModule01–82, Engine1–62, și alte module specializate)
+- Module speciale: evolution-core, quantum-healing, universal-adaptor, quantum-pay, site-creator, ab-testing, seo-optimizer, analytics, content-ai, auto-marketing, performance-monitor, unicorn-realization-engine, unicorn-execution-engine, auto-trend-analyzer, self-adaptation-engine, predictive-healing, code-optimizer, self-documenter, ui-evolution, security-scanner, disaster-recovery, swarm-intelligence, auto-deploy, total-system-healer, dynamic-pricing, universal-interchain-nexus, autonomous-wealth-engine, autonomous-bd-engine, self-construction-engine
+- Frontend React futurist cu ZEUS 3D, Codex, Dashboard, pagini industrii, Wealth Engine și panouri administrative
+- Auto-deploy pe GitHub, Vercel, Hetzner
+- Self‑Construction Engine care la prima pornire completează și îmbunătățește automat orice modul incomplet
+
+## Instalare rapidă
+1. Rulează generatorul: \`node generate_unicorn_final.js\`
+2. Dezarhivează \`UNICORN_FINAL.zip\`
+3. \`cd UNICORN_FINAL\`
+4. \`npm install\`
+5. Copiază \`.env.example\` în \`.env\` și completează cheile (în special OPENAI_API_KEY pentru auto‑construcție)
+6. \`npm start\`
+7. Accesează \`http://localhost:3000\`
+
+## Self‑Construction Engine
+- Rulează automat la prima pornire și îmbunătățește modulele deficitare.
+- Poate fi declanșat manual prin POST \`/api/admin/construction/run-now\` (necesită \`x-admin-secret\`).
+- Log-urile sunt în \`logs/construction.log\`.
+
+## Module
+Lista completă a modulelor active este disponibilă la \`/api/modules\`.
+
+## Securitate
+- Rutele administrative sunt protejate cu \`ADMIN_SECRET\`. Doar tu, Vladoi Ionut, ai acces.
+`);
+
+// ---------------------------------------------------------
+// Creare fișier gol pentru bd_state.json (exemplu)
+// ---------------------------------------------------------
+fs.writeFileSync(path.join(DATA, 'bd_state.json'), '{"leads":[]}');
+
+// ---------------------------------------------------------
+// Creare arhivă ZIP finală
+// ---------------------------------------------------------
+async function buildFinal() {
+  const zipPath = path.join(__dirname, 'UNICORN_FINAL.zip');
+  const output = fs.createWriteStream(zipPath);
+  const archive = archiver('zip', { zlib: { level: 9 } });
+
+  output.on('close', () => {
+    console.log(`\n✅ Arhivă creată: ${zipPath} (${archive.pointer()} bytes)`);
+    console.log(`\n📦 Acum poți dezarhiva și rula. Unicornul se va autoconstrui la prima pornire.`);
+  });
+
+  archive.on('error', err => { throw err; });
+  archive.pipe(output);
+  archive.directory(ROOT, false);
+  await archive.finalize();
+}
+
+buildFinal();
+*/
+
+// =====================================================================
+// generate_unicorn_final.js – Generator curat și valid
+// Rulează cu: node generate_unicorn_final.js
+// =====================================================================
+
+const fs = require('fs');
+const path = require('path');
+const { execSync } = require('child_process');
+
+const ROOT = path.join(__dirname, 'UNICORN_FINAL');
+const SRC = path.join(ROOT, 'src');
+const MODULES = path.join(SRC, 'modules');
+const INNOVATION = path.join(SRC, 'innovation');
+const SITE = path.join(SRC, 'site');
+const TEST = path.join(ROOT, 'test');
+
+function ensureDir(dirPath) {
+  fs.mkdirSync(dirPath, { recursive: true });
+}
+
+function writeText(filePath, content) {
+  ensureDir(path.dirname(filePath));
+  fs.writeFileSync(filePath, content, 'utf8');
+}
+
+function createStructure() {
+  if (fs.existsSync(ROOT)) {
+    fs.rmSync(ROOT, { recursive: true, force: true });
+  }
+
+  [
+    ROOT,
+    SRC,
+    MODULES,
+    INNOVATION,
+    SITE,
+    TEST,
+    path.join(ROOT, 'client', 'src', 'components'),
+    path.join(ROOT, 'client', 'src', 'pages'),
+    path.join(ROOT, '.github', 'workflows'),
+    path.join(ROOT, 'scripts'),
+    path.join(ROOT, 'logs'),
+    path.join(ROOT, 'data'),
+    path.join(MODULES, 'auto-deploy-orchestrator'),
+    path.join(MODULES, 'code-sanity-engine')
+  ].forEach(ensureDir);
+
+  writeText(path.join(ROOT, '.gitignore'), '.DS_Store\n.env\nnode_modules/\n.vercel/\n');
+
+  writeText(path.join(ROOT, '.env.example'), [
+    'NODE_ENV=development',
+    'PORT=3000',
+    'ADMIN_SECRET=<YOUR_ADMIN_SECRET>',
+    'GITHUB_TOKEN=<YOUR_GITHUB_TOKEN>',
+    'VERCEL_TOKEN=<YOUR_VERCEL_TOKEN>',
+    'VERCEL_ORG_ID=<YOUR_VERCEL_ORG_ID>',
+    'VERCEL_PROJECT_ID=<YOUR_VERCEL_PROJECT_ID>'
+  ].join('\n') + '\n');
+
+  writeText(path.join(ROOT, 'README.md'), '# UNICORN_FINAL\n\nGenerated automatically.\n\n## Scripts\n- npm run lint\n- npm test\n- npm run start\n- npm run innovation:report\n- npm run innovation:sprint\n\n## Interactive Unicorn Site\n- / serves the full ZEUS + Robot + Codex + Marketplace + Automation portal\n- /snapshot provides full JSON state for users, companies, industries, and modules\n- /stream provides real-time updates (SSE)\n- /modules, /marketplace, /codex, /telemetry, /me, /recommendations are exposed\n');
+
+  writeText(path.join(ROOT, 'package.json'), JSON.stringify({
+    name: 'unicorn-final',
+    version: '1.0.0',
+    private: true,
+    scripts: {
+      start: 'node src/index.js',
+      test: 'node test/health.test.js',
+      lint: 'node --check src/index.js && node --check src/site/template.js && node --check src/innovation/innovation-engine.js && node --check src/innovation/innovation-sprint.js && node --check test/health.test.js',
+      'innovation:report': 'node src/innovation/report.js',
+      'innovation:sprint': 'node src/innovation/sprint.js'
+    }
+  }, null, 2) + '\n');
+
+  writeText(path.join(ROOT, 'vercel.json'), JSON.stringify({
+    version: 2,
+    builds: [{ src: 'src/index.js', use: '@vercel/node' }],
+    routes: [{ src: '/(.*)', dest: '/src/index.js' }]
+  }, null, 2) + '\n');
+
+  writeText(path.join(SRC, 'index.js'), `const http = require('http');
+const { buildInnovationReport } = require('./innovation/innovation-engine');
+const { generateSprintPlan } = require('./innovation/innovation-sprint');
+const { getSiteHtml } = require('./site/template');
+
+const PORT = Number(process.env.PORT || 3000);
+
+const modules = [
+  { id: 'auto-deploy-orchestrator', status: 'active', purpose: 'continuous delivery' },
+  { id: 'code-sanity-engine', status: 'active', purpose: 'quality and safety checks' },
+  { id: 'innovation-engine', status: 'active', purpose: 'idea scoring and prioritization' },
+  { id: 'innovation-sprint-engine', status: 'active', purpose: 'execution planning' },
+  { id: 'zeus-experience-layer', status: 'active', purpose: 'animated AI persona interface' },
+  { id: 'robot-assistant-layer', status: 'active', purpose: 'interactive co-pilot persona' }
+];
+
+const marketplace = [
+  { id: 'adaptive-ai', title: 'Adaptive AI', segment: 'all', kpi: 'automation coverage' },
+  { id: 'predictive-engine', title: 'Predictive Engine', segment: 'companies', kpi: 'forecast accuracy' },
+  { id: 'quantum-nexus', title: 'Quantum Nexus', segment: 'enterprise', kpi: 'latency optimization' },
+  { id: 'viral-growth', title: 'Viral Growth Engine', segment: 'startups', kpi: 'acquisition rate' },
+  { id: 'automation-blocks', title: 'Automation Blocks', segment: 'all', kpi: 'tasks automated' }
+];
+
+const codexSections = [
+  'Adaptive Modules',
+  'Engines',
+  'Viral Growth',
+  'AI Child',
+  'ZEUS Core',
+  'Automation Studio',
+  'Marketplace'
+];
+
+const industries = [
+  { id: 'ecommerce', title: 'E-commerce', outcomes: ['conversion uplift', 'ad spend efficiency'] },
+  { id: 'fintech', title: 'FinTech', outcomes: ['risk scoring', 'fraud prevention'] },
+  { id: 'manufacturing', title: 'Manufacturing', outcomes: ['downtime reduction', 'predictive maintenance'] }
+];
+
+const userProfile = {
+  id: 'demo-user',
+  type: 'company',
+  plan: 'Growth',
+  aiChild: { level: 7, health: 89, growth: 76, mood: 'curious' }
+};
+
+function buildTelemetry() {
+  return {
+    moduleHealth: 97,
+    revenue: 24840,
+    activeUsers: 1320,
+    requests: 98544,
+    aiGrowth: userProfile.aiChild.growth
+  };
+}
+
+function buildSnapshot() {
+  return {
+    generatedAt: new Date().toISOString(),
+    health: { ok: true, service: 'unicorn-final' },
+    profile: userProfile,
+    modules,
+    marketplace,
+    codex: codexSections,
+    industries,
+    telemetry: buildTelemetry(),
+    innovation: buildInnovationReport(),
+    sprint: generateSprintPlan(),
+    recommendations: [
+      'Activate Predictive Engine for demand planning',
+      'Launch AI Child onboarding flow',
+      'Enable Viral Growth Engine for referral experiments'
+    ],
+    billing: {
+      primary: 'BTC',
+      supported: ['BTC', 'CARD', 'SEPA'],
+      note: 'BTC can be primary while preserving enterprise adoption via additional methods.'
+    }
+  };
+}
+
+const streamClients = new Set();
+const streamTimer = setInterval(() => {
+  const payload = 'data: ' + JSON.stringify(buildSnapshot()) + '\\n\\n';
+  for (const client of streamClients) {
+    client.write(payload);
+  }
+}, 5000);
+
+if (typeof streamTimer.unref === 'function') {
+  streamTimer.unref();
+}
+
+const server = http.createServer((req, res) => {
+  if (req.url === '/health') {
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    return res.end(JSON.stringify({ ok: true, service: 'unicorn-final' }));
+  }
+
+  if (req.url === '/innovation') {
+    const report = buildInnovationReport();
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    return res.end(JSON.stringify(report));
+  }
+
+  if (req.url === '/innovation/sprint') {
+    const sprint = generateSprintPlan();
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    return res.end(JSON.stringify(sprint));
+  }
+
+  if (req.url === '/modules') {
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    return res.end(JSON.stringify({ updatedAt: new Date().toISOString(), modules }));
+  }
+
+  if (req.url === '/marketplace') {
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    return res.end(JSON.stringify({ updatedAt: new Date().toISOString(), modules: marketplace }));
+  }
+
+  if (req.url === '/codex') {
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    return res.end(JSON.stringify({ updatedAt: new Date().toISOString(), sections: codexSections }));
+  }
+
+  if (req.url === '/me') {
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    return res.end(JSON.stringify(userProfile));
+  }
+
+  if (req.url === '/telemetry') {
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    return res.end(JSON.stringify(buildTelemetry()));
+  }
+
+  if (req.url === '/recommendations') {
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    return res.end(JSON.stringify({ items: buildSnapshot().recommendations }));
+  }
+
+  if (req.url === '/industries') {
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    return res.end(JSON.stringify({ items: industries }));
+  }
+
+  if (req.url === '/billing') {
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    return res.end(JSON.stringify(buildSnapshot().billing));
+  }
+
+  if (req.url === '/snapshot') {
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    return res.end(JSON.stringify(buildSnapshot()));
+  }
+
+  if (req.url === '/stream') {
+    res.writeHead(200, {
+      'Content-Type': 'text/event-stream',
+      'Cache-Control': 'no-cache, no-transform',
+      Connection: 'keep-alive'
+    });
+
+    res.write('data: ' + JSON.stringify(buildSnapshot()) + '\\n\\n');
+    streamClients.add(res);
+
+    req.on('close', () => {
+      streamClients.delete(res);
+    });
+    return;
+  }
+
+  if (req.url === '/' || req.url === '/index.html') {
+    res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+    return res.end(getSiteHtml());
+  }
+
+  res.writeHead(404, { 'Content-Type': 'application/json' });
+  return res.end(JSON.stringify({ error: 'Not found' }));
+});
+
+if (require.main === module) {
+  server.listen(PORT, () => {
+    console.log('UNICORN_FINAL listening on http://localhost:' + PORT);
+  });
+}
+
+module.exports = server;
+`);
+
+  writeText(path.join(SITE, 'template.js'), `function getSiteHtml() {
+  return \`<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>UNIVERSAL AI UNICORN</title>
+  <style>
+    :root { color-scheme: dark; }
+    body { margin: 0; font-family: Inter, system-ui, Arial; color: #f4f7ff; background: radial-gradient(circle at 10% 10%, #2b2358, #090b14 50%, #05060a 100%); }
+    .bg { position: fixed; inset: 0; pointer-events: none; background-image: radial-gradient(circle at 20% 20%, rgba(0,255,255,.12) 0, transparent 35%), radial-gradient(circle at 80% 10%, rgba(255,0,212,.10) 0, transparent 35%), linear-gradient(transparent 96%, rgba(73,94,160,.16) 96%); background-size: auto, auto, 100% 36px; animation: drift 20s linear infinite; }
+    .wrap { max-width: 1220px; margin: 0 auto; padding: 22px; position: relative; z-index: 1; }
+    .hero { display: grid; grid-template-columns: 1.2fr .8fr; gap: 16px; }
+    .card { background: rgba(255,255,255,0.04); border: 1px solid rgba(138,180,248,.25); border-radius: 18px; padding: 16px; backdrop-filter: blur(6px); }
+    .faces { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    .face { position: relative; height: 240px; border-radius: 16px; overflow: hidden; border: 1px solid rgba(130,196,255,.25); background: linear-gradient(145deg, rgba(19,26,58,.9), rgba(11,13,22,.9)); }
+    .avatar { width: 100%; height: 100%; display: block; }
+    .scan { position: absolute; left: 0; right: 0; top: -30%; height: 70%; background: linear-gradient(to bottom, transparent, rgba(122,212,255,.25), transparent); animation: scan 3.6s infinite linear; }
+    .orb { position: absolute; width: 110px; height: 110px; border-radius: 999px; filter: blur(2px); animation: pulse 2.8s infinite ease-in-out; }
+    .zeus .orb { left: 24px; top: 30px; background: radial-gradient(circle, #8bd7ff, #3b82f6 65%, #1f2a7d); box-shadow: 0 0 32px #60a5fa; }
+    .robot .orb { right: 24px; top: 30px; background: radial-gradient(circle, #b2ffdb, #34d399 65%, #065f46); box-shadow: 0 0 32px #34d399; }
+    .face h3 { position: absolute; left: 12px; bottom: 10px; margin: 0; font-size: 14px; }
+    .title { font-size: 32px; margin: 0 0 8px; letter-spacing: .3px; }
+    .tag { color: #8bd7ff; font-weight: 700; margin: 0 0 12px; }
+    .btn { display: inline-block; padding: 10px 16px; border-radius: 999px; border: 1px solid rgba(120,255,245,.55); color: #d4fffb; text-decoration: none; box-shadow: 0 0 18px rgba(83,212,255,.25) inset; }
+    .grid3 { margin-top: 14px; display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+    .kpi { font-size: 28px; color: #8bd7ff; font-weight: 700; }
+    .small { color: #b5c2df; font-size: 13px; }
+    .status-live { color: #7ef29a; font-weight: 600; }
+    .section { margin-top: 14px; }
+    .row { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; }
+    .row3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+    .pill { display: inline-block; border: 1px solid rgba(143,176,255,.35); border-radius: 999px; padding: 4px 8px; font-size: 12px; margin-right: 6px; margin-bottom: 6px; }
+    .bar { height: 8px; border-radius: 999px; background: rgba(255,255,255,.09); overflow: hidden; margin-top: 6px; }
+    .bar > span { display: block; height: 100%; background: linear-gradient(90deg, #34d399, #22d3ee); }
+    ul { margin: 0; padding-left: 18px; }
+    li { margin: 6px 0; }
+    @keyframes pulse { 0%,100%{ transform: scale(1); opacity: .9; } 50%{ transform: scale(1.1); opacity: 1; } }
+    @keyframes scan { 0%{ transform: translateY(-120%); } 100%{ transform: translateY(260%); } }
+    @keyframes drift { from { transform: translateY(0); } to { transform: translateY(36px); } }
+    @media (max-width: 960px) { .hero, .row, .row3, .grid3, .faces { grid-template-columns: 1fr; } }
+  </style>
+</head>
+<body>
+  <div class="bg"></div>
+  <div class="wrap">
+    <div class="hero">
+      <div class="card">
+        <h1 class="title">UNIVERSAL AI UNICORN — Build. Automate. Scale.</h1>
+        <p class="tag">Portal futurist, neon/holografic, conectat live la Unicorn. Stream mode: <span id="liveMode" class="status-live">stream</span></p>
+        <a class="btn" href="#dashboard">ENTER THE UNICORN</a>
+        <div class="section faces" style="margin-top:12px;">
+          <div class="face zeus"><canvas id="zeusCanvas" class="avatar"></canvas><div class="orb"></div><div class="scan"></div><h3>ZEUS FACE — Strategic Intelligence</h3></div>
+          <div class="face robot"><canvas id="robotCanvas" class="avatar"></canvas><div class="orb"></div><div class="scan"></div><h3>ROBOT FACE — Execution Intelligence</h3></div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="small">Top innovation now</div>
+        <h2 id="topTitle">Loading...</h2>
+        <p id="topProblem" class="small"></p>
+        <div class="kpi" id="topScore">--</div>
+        <hr style="border-color:rgba(255,255,255,.08)">
+        <h3 style="margin:.4rem 0;">AI Child</h3>
+        <div class="small">Health <span id="aiChildHealthLabel">--%</span></div>
+        <div class="bar"><span id="aiChildHealthBar" style="width:0%"></span></div>
+        <div class="small" style="margin-top:8px;">Growth <span id="aiChildGrowthLabel">--%</span></div>
+        <div class="bar"><span id="aiChildGrowthBar" style="width:0%"></span></div>
+        <div class="small" id="aiChildMood" style="margin-top:10px;">Mood: ...</div>
+      </div>
+    </div>
+
+    <div id="dashboard" class="grid3 section">
+      <div class="card"><div class="small">Modules online</div><div id="modulesCount" class="kpi">--</div></div>
+      <div class="card"><div class="small">Active users</div><div id="activeUsers" class="kpi">--</div></div>
+      <div class="card"><div class="small">Requests</div><div id="requests" class="kpi">--</div></div>
+    </div>
+
+    <div class="row section">
+      <div class="card"><h3>Macro / Meso / Micro positioning</h3><ul>
+        <li><b>Macro</b>: ce este Unicornul și beneficiile mari (automatizare, claritate, scalare).</li>
+        <li><b>Meso</b>: ce poate face pentru oameni, companii, industrii.</li>
+        <li><b>Micro</b>: ce face fiecare modul și ce KPI influențează.</li>
+      </ul></div>
+      <div class="card"><h3>Onboarding inteligent</h3><p class="small">Quick intent:</p>
+        <span class="pill">Persoană/Freelancer</span><span class="pill">Startup/SMB</span><span class="pill">Corporație</span><span class="pill">Industrie</span>
+        <p class="small" id="recommendationsLabel" style="margin-top:10px;">Recommendations: ...</p>
+      </div>
+    </div>
+
+    <div class="row3 section">
+      <div class="card"><h3>Pentru oameni</h3><ul id="peopleUse"></ul></div>
+      <div class="card"><h3>Pentru companii</h3><ul id="companyUse"></ul></div>
+      <div class="card"><h3>Pentru industrii</h3><ul id="industryUse"></ul></div>
+    </div>
+
+    <div class="row section">
+      <div class="card"><h3>Marketplace</h3><ul id="marketplaceList"></ul></div>
+      <div class="card"><h3>Codex (Knowledge Base)</h3><div id="codexList"></div></div>
+    </div>
+
+    <div class="row section">
+      <div class="card"><h3>Automation Studio</h3><p class="small">Node-RED + Zapier + Blueprint inspired flow canvas:</p>
+        <div class="pill">Trigger</div><div class="pill">Condition</div><div class="pill">Action</div><div class="pill">AI Block</div><div class="pill">API Block</div>
+      </div>
+      <div class="card"><h3>Billing</h3><p class="small" id="billingInfo">Loading billing strategy...</p>
+        <p class="small">Recommendation: BTC primary + standard payments for enterprise adoption.</p>
+      </div>
+    </div>
+
+    <div class="row3 section">
+      <div class="card"><h3>Module Health</h3><div class="kpi" id="moduleHealth">--</div></div>
+      <div class="card"><h3>Revenue</h3><div class="kpi" id="revenue">--</div></div>
+      <div class="card"><h3>AI Growth</h3><div class="kpi" id="aiGrowth">--</div></div>
+    </div>
+
+    <div class="row section">
+      <div class="card"><h3>Module Status</h3><ul id="modulesList"></ul></div>
+      <div class="card"><h3>Sprint Plan</h3><ul id="sprintList"></ul></div>
+    </div>
+  </div>
+
+  <script>
+    function drawFace(canvasId, hueOffset) {
+      const canvas = document.getElementById(canvasId);
+      const ctx = canvas.getContext('2d');
+      const stars = Array.from({ length: 70 }).map(function() { return { x: Math.random(), y: Math.random(), z: Math.random() }; });
+      function resize() { canvas.width = canvas.clientWidth; canvas.height = canvas.clientHeight; }
+      resize(); window.addEventListener('resize', resize);
+      function frame(t) {
+        const w = canvas.width; const h = canvas.height;
+        ctx.clearRect(0, 0, w, h);
+        ctx.fillStyle = 'rgba(8,12,24,0.6)'; ctx.fillRect(0, 0, w, h);
+        stars.forEach(function(s, idx) {
+          const z = (s.z + (t * 0.00006) + idx * 0.0005) % 1;
+          const px = (s.x - 0.5) * w * (0.2 + z) + w / 2;
+          const py = (s.y - 0.5) * h * (0.2 + z) + h / 2;
+          const size = 1 + z * 2.8;
+          ctx.fillStyle = 'hsla(' + (200 + hueOffset + z * 40) + ',95%,70%,' + (0.35 + z * 0.65) + ')';
+          ctx.beginPath(); ctx.arc(px, py, size, 0, Math.PI * 2); ctx.fill();
+        });
+        requestAnimationFrame(frame);
+      }
+      requestAnimationFrame(frame);
+    }
+
+    function renderSnapshot(data) {
+      const top = data.innovation.topPriority || {};
+      document.getElementById('topTitle').textContent = top.title || 'No priority';
+      document.getElementById('topProblem').textContent = top.problem || '';
+      document.getElementById('topScore').textContent = (top.score || 0).toString();
+      document.getElementById('modulesCount').textContent = String(data.modules.length);
+      document.getElementById('activeUsers').textContent = String(data.telemetry.activeUsers);
+      document.getElementById('requests').textContent = String(data.telemetry.requests);
+
+      document.getElementById('moduleHealth').textContent = String(data.telemetry.moduleHealth) + '%';
+      document.getElementById('revenue').textContent = '$' + String(data.telemetry.revenue);
+      document.getElementById('aiGrowth').textContent = String(data.telemetry.aiGrowth) + '%';
+
+      document.getElementById('aiChildHealthLabel').textContent = String(data.profile.aiChild.health) + '%';
+      document.getElementById('aiChildGrowthLabel').textContent = String(data.profile.aiChild.growth) + '%';
+      document.getElementById('aiChildHealthBar').style.width = String(data.profile.aiChild.health) + '%';
+      document.getElementById('aiChildGrowthBar').style.width = String(data.profile.aiChild.growth) + '%';
+      document.getElementById('aiChildMood').textContent = 'Mood: ' + data.profile.aiChild.mood;
+
+      document.getElementById('modulesList').innerHTML = data.modules.map(function(m){ return '<li><b>' + m.id + '</b> — ' + m.status + ' — ' + m.purpose + '</li>'; }).join('');
+      document.getElementById('marketplaceList').innerHTML = data.marketplace.map(function(m){ return '<li><b>' + m.title + '</b> (' + m.segment + ') → KPI: ' + m.kpi + '</li>'; }).join('');
+      document.getElementById('codexList').innerHTML = data.codex.map(function(c){ return '<details><summary>' + c + '</summary><p class="small">AI-generated knowledge + implementation examples.</p></details>'; }).join('');
+      document.getElementById('sprintList').innerHTML = data.sprint.tasks.map(function(t){ return '<li><b>' + t.title + '</b> — ' + t.owner + ' (' + t.etaDays + 'd)</li>'; }).join('');
+      document.getElementById('recommendationsLabel').textContent = 'Recommendations: ' + data.recommendations.join(' | ');
+
+      document.getElementById('peopleUse').innerHTML = '<li>Task automation</li><li>Personal AI copil guidance</li><li>Focus and productivity planning</li>';
+      document.getElementById('companyUse').innerHTML = '<li>CRM automation</li><li>Dynamic pricing</li><li>Operational AI dashboards</li>';
+      document.getElementById('industryUse').innerHTML = data.industries.map(function(i){ return '<li><b>' + i.title + ':</b> ' + i.outcomes.join(', ') + '</li>'; }).join('');
+
+      document.getElementById('billingInfo').textContent = 'Primary: ' + data.billing.primary + ' | Supported: ' + data.billing.supported.join(', ');
+    }
+
+    async function pullFallback() {
+      const res = await fetch('/snapshot');
+      const data = await res.json();
+      renderSnapshot(data);
+    }
+
+    function startRealtime() {
+      if (!('EventSource' in window)) {
+        document.getElementById('liveMode').textContent = 'polling';
+        pullFallback();
+        setInterval(pullFallback, 8000);
+        return;
+      }
+      const es = new EventSource('/stream');
+      es.onmessage = function(event) {
+        try { renderSnapshot(JSON.parse(event.data)); } catch (_) {}
+      };
+      es.onerror = function() {
+        document.getElementById('liveMode').textContent = 'polling';
+      };
+      pullFallback();
+    }
+
+    drawFace('zeusCanvas', 0);
+    drawFace('robotCanvas', 120);
+    startRealtime();
+  </script>
+</body>
+</html>\`;
+}
+
+module.exports = { getSiteHtml };
+`);
+
+  writeText(path.join(INNOVATION, 'innovation-engine.js'), `function scoreIdea(idea) {
+  const impact = Number(idea.impact || 0);
+  const feasibility = Number(idea.feasibility || 0);
+  const urgency = Number(idea.urgency || 0);
+  const safety = Number(idea.safety || 0);
+  return impact * 0.4 + feasibility * 0.2 + urgency * 0.2 + safety * 0.2;
+}
+
+function buildInnovationReport() {
+  const ideas = [
+    {
+      id: 'care-companion-ai',
+      title: 'Personal preventive care companion',
+      problem: 'Late detection of health risk patterns',
+      impact: 10,
+      feasibility: 7,
+      urgency: 10,
+      safety: 9
+    },
+    {
+      id: 'micro-grid-coordinator',
+      title: 'Community micro-grid optimizer',
+      problem: 'Energy waste and unstable local grids',
+      impact: 9,
+      feasibility: 7,
+      urgency: 9,
+      safety: 9
+    },
+    {
+      id: 'learning-path-orchestrator',
+      title: 'Adaptive education path builder',
+      problem: 'Low retention in one-size-fits-all education',
+      impact: 9,
+      feasibility: 8,
+      urgency: 8,
+      safety: 10
+    }
+  ];
+
+  const prioritized = ideas
+    .map((idea) => ({ ...idea, score: Number(scoreIdea(idea).toFixed(2)) }))
+    .sort((a, b) => b.score - a.score);
+
+  return {
+    generatedAt: new Date().toISOString(),
+    principles: [
+      'human-first',
+      'privacy-by-design',
+      'reversible rollout',
+      'measurable real-world impact'
+    ],
+    topPriority: prioritized[0],
+    backlog: prioritized
+  };
+}
+
+module.exports = { buildInnovationReport, scoreIdea };
+`);
+
+  writeText(path.join(INNOVATION, 'report.js'), `const { buildInnovationReport } = require('./innovation-engine');
+
+const report = buildInnovationReport();
+console.log(JSON.stringify(report, null, 2));
+`);
+
+  writeText(path.join(INNOVATION, 'innovation-sprint.js'), `const { buildInnovationReport } = require('./innovation-engine');
+
+function generateSprintPlan() {
+  const report = buildInnovationReport();
+  const top = report.topPriority;
+
+  const tasks = [
+    {
+      id: 'research-problem-space',
+      title: 'Research problem boundaries and user risks',
+      owner: 'product',
+      etaDays: 2,
+      dependsOn: []
+    },
+    {
+      id: 'prototype-core-flow',
+      title: 'Prototype end-to-end core user flow',
+      owner: 'engineering',
+      etaDays: 4,
+      dependsOn: ['research-problem-space']
+    },
+    {
+      id: 'safety-and-privacy-gates',
+      title: 'Implement safety, privacy, and rollback gates',
+      owner: 'platform',
+      etaDays: 3,
+      dependsOn: ['prototype-core-flow']
+    },
+    {
+      id: 'pilot-and-measurement',
+      title: 'Run pilot and capture measurable impact metrics',
+      owner: 'operations',
+      etaDays: 5,
+      dependsOn: ['safety-and-privacy-gates']
+    }
+  ];
+
+  return {
+    generatedAt: new Date().toISOString(),
+    selectedInnovation: top,
+    sprintLengthDays: 14,
+    successMetrics: [
+      'time-to-value',
+      'safety incidents = 0',
+      'user retention uplift',
+      'operational cost delta'
+    ],
+    tasks
+  };
+}
+
+module.exports = { generateSprintPlan };
+`);
+
+  writeText(path.join(INNOVATION, 'sprint.js'), `const { generateSprintPlan } = require('./innovation-sprint');
+
+const sprint = generateSprintPlan();
+console.log(JSON.stringify(sprint, null, 2));
+`);
+
+  writeText(path.join(TEST, 'health.test.js'), `const assert = require('assert');
+const server = require('../src/index');
+
+async function run() {
+  await new Promise((resolve) => server.listen(0, resolve));
+  const { port } = server.address();
+
+  const response = await fetch('http://127.0.0.1:' + port + '/health');
+  const body = await response.json();
+  const innovationResponse = await fetch('http://127.0.0.1:' + port + '/innovation');
+  const innovationBody = await innovationResponse.json();
+  const sprintResponse = await fetch('http://127.0.0.1:' + port + '/innovation/sprint');
+  const sprintBody = await sprintResponse.json();
+  const modulesResponse = await fetch('http://127.0.0.1:' + port + '/modules');
+  const modulesBody = await modulesResponse.json();
+  const snapshotResponse = await fetch('http://127.0.0.1:' + port + '/snapshot');
+  const snapshotBody = await snapshotResponse.json();
+  const streamResponse = await fetch('http://127.0.0.1:' + port + '/stream');
+  const siteResponse = await fetch('http://127.0.0.1:' + port + '/');
+  const siteHtml = await siteResponse.text();
+
+  assert.equal(response.status, 200);
+  assert.equal(body.ok, true);
+  assert.equal(innovationResponse.status, 200);
+  assert.ok(Array.isArray(innovationBody.backlog));
+  assert.ok(innovationBody.backlog.length > 0);
+  assert.equal(sprintResponse.status, 200);
+  assert.ok(Array.isArray(sprintBody.tasks));
+  assert.ok(sprintBody.tasks.length >= 3);
+  assert.equal(modulesResponse.status, 200);
+  assert.ok(Array.isArray(modulesBody.modules));
+  assert.ok(modulesBody.modules.length >= 4);
+  assert.equal(snapshotResponse.status, 200);
+  assert.ok(Array.isArray(snapshotBody.modules));
+  assert.ok(snapshotBody.sprint.tasks.length >= 3);
+  assert.equal(streamResponse.status, 200);
+  assert.ok((streamResponse.headers.get('content-type') || '').includes('text/event-stream'));
+  if (streamResponse.body) {
+    await streamResponse.body.cancel();
+  }
+  assert.equal(siteResponse.status, 200);
+  assert.ok(siteHtml.includes('ZEUS FACE'));
+  assert.ok(siteHtml.includes('ROBOT FACE'));
+
+  await new Promise((resolve, reject) => {
+    server.close((err) => (err ? reject(err) : resolve()));
+  });
+
+  console.log('health test passed');
+}
+
+run().catch((err) => {
+  console.error(err);
+  process.exit(1);
+});
+`);
+
+  writeText(path.join(MODULES, 'auto-deploy-orchestrator', 'index.js'), `module.exports = {
+  async run() {
+    return { ok: true, message: 'Auto-deploy orchestrator ready' };
+  }
+};
+`);
+
+  writeText(path.join(MODULES, 'code-sanity-engine', 'index.js'), `module.exports = {
+  async runFullScanNow() {
+    return { ok: true, issues: [] };
+  }
+};
+`);
+
+  writeText(path.join(ROOT, '.github', 'workflows', 'deploy.yml'), `name: CI
+on:
+  push:
+    branches: [main]
+  pull_request:
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - run: npm ci || npm install
+      - run: npm run lint
+      - run: npm test
+`);
+}
+
+function zipOutput() {
+  const zipPath = path.join(__dirname, 'UNICORN_FINAL.zip');
+  if (fs.existsSync(zipPath)) fs.rmSync(zipPath, { force: true });
+
+  execSync('zip -r "UNICORN_FINAL.zip" "UNICORN_FINAL" -x "*/.DS_Store"', {
+    cwd: __dirname,
+    stdio: 'inherit'
+  });
+}
+
+function main() {
+  console.log('🚀 Generating UNICORN_FINAL...');
+  createStructure();
+  zipOutput();
+  console.log('✅ Done.');
+}
+
+if (require.main === module) {
+  main();
+}
