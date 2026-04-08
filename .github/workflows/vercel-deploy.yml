@@ -15,7 +15,7 @@ on:
 
 concurrency:
   group: unicorn-final-production
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 jobs:
   # ──────────────────────────────────────────────────────────────────────
@@ -271,7 +271,6 @@ jobs:
               echo "✅ Orchestrator running via nohup"
             fi
           ENDSSH
-          ENDSSH
 
       - name: Health check Hetzner backend
         id: hetzner_health
@@ -279,9 +278,9 @@ jobs:
         if: steps.restart_hetzner.outcome == 'success'
         run: |
           sleep 8
-          HEALTH=$(ssh -p ${DEPLOY_PORT} -o StrictHostKeyChecking=no \
-            ${DEPLOY_USER}@${DEPLOY_HOST} \
-            "curl -s http://localhost:${PORT:-3000}/api/health 2>/dev/null || echo '{\"status\":\"unreachable\"}'")
+          HEALTH=$(ssh -i ~/.ssh/deploy_key -p 22 -o StrictHostKeyChecking=no -o UserKnownHostsFile=~/.ssh/known_hosts \
+            "${{ secrets.HETZNER_DEPLOY_USER || secrets.HETZNER_USER || secrets.SSH_USER }}@${{ secrets.HETZNER_HOST || secrets.SSH_HOST }}" \
+            "curl -sS http://localhost:3001/health 2>/dev/null || echo '{\"status\":\"unreachable\"}'")
           echo "Hetzner health: $HEALTH"
           echo "$HEALTH" | grep -q '"status":"ok"' && echo "✅ Backend healthy" || echo "⚠️  Backend not yet ready"
 
