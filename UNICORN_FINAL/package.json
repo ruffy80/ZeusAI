@@ -15,7 +15,8 @@
     "libsodium-wrappers": "^0.7.16",
     "node-cron": "^3.0.3",
     "simple-git": "^3.14.0",
-    "ssh2": "^1.17.0"
+    "ssh2": "^1.17.0",
+    "vercel": "^50.41.0"
   },
   "scripts": {
     "start": "node backend/index.js",
@@ -33,6 +34,7 @@
     "deploy:local": "bash deploy_locally.sh",
     "deploy:full": "node deploy-unicorn.js",
     "deploy:run": "bash run.sh",
+    "genesis:run": "node start.js",
     "hetzner:setup": "node scripts/setup-hetzner-auto.js",
     "zip:github": "mkdir -p ../release && zip -r ../release/unicorn-github-deploy.zip . -x '.git/*' 'node_modules/*' 'logs/*' '.next/*' '.env' '.vercel/*'",
     "unzip:github": "mkdir -p ../release/unpacked && unzip -o ../release/unicorn-github-deploy.zip -d ../release/unpacked"
