@@ -36,6 +36,8 @@
     "deploy:run": "bash run.sh",
     "genesis:run": "node start.js",
     "health:guardian": "node scripts/health-guardian.js",
+    "check:frontend": "bash scripts/check-frontend-build.sh",
+    "check:frontend:build-only": "bash scripts/check-frontend-build.sh --skip-server",
     "backup:create": "bash scripts/create-backup.sh",
     "backup:rollback": "bash scripts/rollback-last-backup.sh",
     "hetzner:setup": "node scripts/setup-hetzner-auto.js",
