@@ -150,7 +150,12 @@ jobs:
         run: |
           echo "DEPLOY_HOST=${{ secrets.HETZNER_HOST || secrets.SSH_HOST }}" >> "$GITHUB_ENV"
           echo "DEPLOY_USER=${{ secrets.HETZNER_DEPLOY_USER || secrets.HETZNER_USER || secrets.SSH_USER }}" >> "$GITHUB_ENV"
-          echo "DEPLOY_PORT=${{ secrets.HETZNER_DEPLOY_PORT || secrets.SSH_PORT || '22' }}" >> "$GITHUB_ENV"
+          DEPLOY_PORT="${{ secrets.HETZNER_DEPLOY_PORT || secrets.SSH_PORT || '22' }}"
+          # Ensure DEPLOY_PORT is numeric
+          if ! [[ "$DEPLOY_PORT" =~ ^[0-9]+$ ]]; then
+            DEPLOY_PORT="22"
+          fi
+          echo "DEPLOY_PORT=$DEPLOY_PORT" >> "$GITHUB_ENV"
           echo "DEPLOY_PATH=${{ secrets.HETZNER_DEPLOY_PATH || '/opt/unicorn' }}" >> "$GITHUB_ENV"
           echo "WEBHOOK_URL=${{ secrets.HETZNER_WEBHOOK_URL || secrets.GH_WEBHOOK_URL || secrets.WEBHOOK_URL }}" >> "$GITHUB_ENV"
 
