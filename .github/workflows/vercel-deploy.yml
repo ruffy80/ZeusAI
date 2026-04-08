@@ -156,8 +156,8 @@ jobs:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
           VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
           VERCEL_TEAM_ID: ${{ secrets.VERCEL_TEAM_ID || secrets.VERCEL_ORG_ID }}
-          SITE_DOMAIN: ${{ secrets.SITE_DOMAIN }}
-          UNICORN_DOMAIN: ${{ secrets.UNICORN_DOMAIN }}
+          SITE_DOMAIN: ${{ secrets.SITE_DOMAIN || 'zeusai.pro' }}
+          UNICORN_DOMAIN: ${{ secrets.UNICORN_DOMAIN || 'www.zeusai.pro' }}
         run: |
           attach_domain () {
             local domain="$1"
@@ -285,12 +285,20 @@ jobs:
               apt-get install -y nodejs
             fi
 
-            # ── Update .env with Hetzner API token ───────────────────────
-            if [ -f .env ]; then
-              sed -i '/^HETZNER_API_KEY=/d;/^HETZNER_API_TOKEN=/d' .env
-            fi
+            # ── Update .env with Hetzner API token + domain + owner credentials ──
+            for key in HETZNER_API_KEY HETZNER_API_TOKEN PUBLIC_APP_URL SITE_DOMAIN \
+                       BTC_WALLET_ADDRESS OWNER_BTC_ADDRESS OWNER_EMAIL OWNER_NAME \
+                       ADMIN_EMAIL SMTP_HOST SMTP_PORT SMTP_USER; do
+              [ -f .env ] && sed -i "/^${key}=/d" .env || true
+            done
             printf "HETZNER_API_KEY=%s\nHETZNER_API_TOKEN=%s\n" \
               "${HETZNER_API_VALUE}" "${HETZNER_API_VALUE}" >> .env
+            printf "PUBLIC_APP_URL=https://zeusai.pro\nSITE_DOMAIN=zeusai.pro\n" >> .env
+            printf "BTC_WALLET_ADDRESS=bc1q4f7e66z87mdfj56kz0dj5hvcnpmh0qh4wuv22e\n" >> .env
+            printf "OWNER_BTC_ADDRESS=bc1q4f7e66z87mdfj56kz0dj5hvcnpmh0qh4wuv22e\n" >> .env
+            printf "OWNER_NAME=Vladoi Ionut\nOWNER_EMAIL=vladoi_ionut@yahoo.com\n" >> .env
+            printf "ADMIN_EMAIL=vladoi_ionut@yahoo.com\n" >> .env
+            printf "SMTP_HOST=smtp.mail.yahoo.com\nSMTP_PORT=587\nSMTP_USER=vladoi_ionut@yahoo.com\n" >> .env
 
             # ── Install dependencies ──────────────────────────────────────
             npm ci --no-audit --no-fund 2>/dev/null || npm install --no-audit --no-fund

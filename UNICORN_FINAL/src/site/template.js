@@ -38,7 +38,9 @@ function getSiteHtml() {
     @keyframes pulse { 0%,100%{ transform: scale(1); opacity: .9; } 50%{ transform: scale(1.1); opacity: 1; } }
     @keyframes scan { 0%{ transform: translateY(-120%); } 100%{ transform: translateY(260%); } }
     @keyframes drift { from { transform: translateY(0); } to { transform: translateY(36px); } }
-    @media (max-width: 960px) { .hero, .row, .row3, .grid3, .faces { grid-template-columns: 1fr; } }
+    .footer { margin-top: 20px; padding: 16px; text-align: center; border-top: 1px solid rgba(138,180,248,.2); }
+    .footer a { color: #8bd7ff; text-decoration: none; }
+    .btc { font-family: monospace; font-size: 12px; color: #7ef29a; word-break: break-all; }
   </style>
 </head>
 <body>
@@ -104,6 +106,7 @@ function getSiteHtml() {
       </div>
       <div class="card"><h3>Billing</h3><p class="small" id="billingInfo">Loading billing strategy...</p>
         <p class="small">Recommendation: BTC primary + standard payments for enterprise adoption.</p>
+        <p class="small">BTC: <span class="btc" id="btcAddress">bc1q4f7e66z87mdfj56kz0dj5hvcnpmh0qh4wuv22e</span></p>
       </div>
     </div>
 
@@ -116,6 +119,12 @@ function getSiteHtml() {
     <div class="row section">
       <div class="card"><h3>Module Status</h3><ul id="modulesList"></ul></div>
       <div class="card"><h3>Sprint Plan</h3><ul id="sprintList"></ul></div>
+    </div>
+
+    <div class="footer">
+      <p class="small">🦄 <a href="https://zeusai.pro" target="_blank">zeusai.pro</a> — Universal AI Unicorn Platform</p>
+      <p class="small">Plăți BTC acceptate: <span class="btc">bc1q4f7e66z87mdfj56kz0dj5hvcnpmh0qh4wuv22e</span></p>
+      <p class="small" style="color:#b5c2df;">© 2026 Vladoi Ionut · <a href="mailto:vladoi_ionut@yahoo.com">vladoi_ionut@yahoo.com</a></p>
     </div>
   </div>
 
@@ -173,6 +182,9 @@ function getSiteHtml() {
       document.getElementById('industryUse').innerHTML = data.industries.map(function(i){ return '<li><b>' + i.title + ':</b> ' + i.outcomes.join(', ') + '</li>'; }).join('');
 
       document.getElementById('billingInfo').textContent = 'Primary: ' + data.billing.primary + ' | Supported: ' + data.billing.supported.join(', ');
+      if (data.billing.btcAddress) {
+        document.getElementById('btcAddress').textContent = data.billing.btcAddress;
+      }
     }
 
     async function pullFallback() {

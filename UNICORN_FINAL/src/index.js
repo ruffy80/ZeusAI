@@ -4,6 +4,10 @@ const { generateSprintPlan } = require('./innovation/innovation-sprint');
 const { getSiteHtml } = require('./site/template');
 
 const PORT = Number(process.env.PORT || 3000);
+const APP_URL = process.env.PUBLIC_APP_URL || 'https://zeusai.pro';
+const BTC_WALLET = process.env.BTC_WALLET_ADDRESS || process.env.OWNER_BTC_ADDRESS || 'bc1q4f7e66z87mdfj56kz0dj5hvcnpmh0qh4wuv22e';
+const OWNER_NAME = process.env.OWNER_NAME || 'Vladoi Ionut';
+const OWNER_EMAIL = process.env.OWNER_EMAIL || process.env.ADMIN_EMAIL || 'vladoi_ionut@yahoo.com';
 
 const modules = [
   { id: 'auto-deploy-orchestrator', status: 'active', purpose: 'continuous delivery' },
@@ -75,7 +79,14 @@ function buildSnapshot() {
     billing: {
       primary: 'BTC',
       supported: ['BTC', 'CARD', 'SEPA'],
+      btcAddress: BTC_WALLET,
       note: 'BTC can be primary while preserving enterprise adoption via additional methods.'
+    },
+    platform: {
+      url: APP_URL,
+      domain: 'zeusai.pro',
+      owner: OWNER_NAME,
+      contact: OWNER_EMAIL
     }
   };
 }
