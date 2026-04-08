@@ -135,6 +135,31 @@ jobs:
           echo "deploy_url=$URL" >> "$GITHUB_OUTPUT"
           echo "✅ Vercel deploy: $URL"
 
+      - name: Ensure Vercel custom domains (optional)
+        if: steps.vercel_guard.outputs.ready == 'true'
+        continue-on-error: true
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+          VERCEL_TEAM_ID: ${{ secrets.VERCEL_TEAM_ID || secrets.VERCEL_ORG_ID }}
+          SITE_DOMAIN: ${{ secrets.SITE_DOMAIN }}
+          UNICORN_DOMAIN: ${{ secrets.UNICORN_DOMAIN }}
+        run: |
+          attach_domain () {
+            local domain="$1"
+            [ -z "$domain" ] && return 0
+            echo "🌐 Ensuring domain: $domain"
+            curl --silent --show-error --fail \
+              -X POST "https://api.vercel.com/v10/projects/${VERCEL_PROJECT_ID}/domains?teamId=${VERCEL_TEAM_ID}" \
+              -H "Authorization: Bearer ${VERCEL_TOKEN}" \
+              -H "Content-Type: application/json" \
+              -d "{\"name\":\"${domain}\"}" \
+              || echo "ℹ️  Could not attach domain now (may already exist or DNS verification pending): ${domain}"
+          }
+
+          attach_domain "$SITE_DOMAIN"
+          attach_domain "$UNICORN_DOMAIN"
+
       - name: Smoke test Vercel URL
         if: steps.vercel_guard.outputs.ready == 'true'
         continue-on-error: true
