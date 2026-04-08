@@ -1,6 +1,7 @@
 /**
  * 🦄 UNICORN AUTONOMOUS ORCHESTRATOR
  * Coordinates: Innovation Engine + Revenue Engine + Deployment Pipeline
+ * + Platform Connectivity (GitHub ↔ Vercel ↔ Hetzner keep-alive)
  * Runs independently from the backend HTTP server
  */
 
@@ -11,12 +12,13 @@ const { exec } = require('child_process');
 
 // ─── Config ─────────────────────────────────────────────────────────────────
 const BASE = path.join(__dirname, 'backend/modules');
-const INNOVATION_INTERVAL = parseInt(process.env.INNOVATION_INTERVAL || '30', 10) * 1000;
-const REVENUE_INTERVAL    = parseInt(process.env.REVENUE_INTERVAL    || '15', 10) * 1000;
-const VIRAL_INTERVAL      = parseInt(process.env.VIRAL_INTERVAL      || '20', 10) * 1000;
-const DEPLOY_INTERVAL     = parseInt(process.env.DEPLOYMENT_INTERVAL || '120', 10) * 1000;
-const HEALTH_INTERVAL     = 15 * 1000;
-const BACKEND_HEAL_CMD    = process.env.BACKEND_HEAL_CMD || '';
+const INNOVATION_INTERVAL   = parseInt(process.env.INNOVATION_INTERVAL   || '30',  10) * 1000;
+const REVENUE_INTERVAL      = parseInt(process.env.REVENUE_INTERVAL      || '15',  10) * 1000;
+const VIRAL_INTERVAL        = parseInt(process.env.VIRAL_INTERVAL        || '20',  10) * 1000;
+const DEPLOY_INTERVAL       = parseInt(process.env.DEPLOYMENT_INTERVAL   || '120', 10) * 1000;
+const PLATFORM_INTERVAL     = parseInt(process.env.PLATFORM_INTERVAL     || '300', 10) * 1000;
+const HEALTH_INTERVAL       = 15 * 1000;
+const BACKEND_HEAL_CMD      = process.env.BACKEND_HEAL_CMD || '';
 
 let innovationEngine, revenueEngine, viralEngine;
 
@@ -49,6 +51,7 @@ const stats = {
   revenueCycles: 0,
   viralCycles: 0,
   deployCycles: 0,
+  platformCycles: 0,
   healthChecks: 0,
   errors: 0,
 };
@@ -174,6 +177,57 @@ async function runDeployCycle() {
   }
 }
 
+// ─── Platform connectivity cycle ─────────────────────────────────────────────
+async function runPlatformCycle() {
+  stats.platformCycles++;
+  log('🔗', `Platform connectivity check #${stats.platformCycles}`);
+  try {
+    const http  = require('http');
+    const https = require('https');
+
+    // Helper: simple GET returning statusCode or 0 on error; drains body to avoid socket exhaustion
+    const ping = (url, timeoutMs = 6000) => new Promise((resolve) => {
+      const lib = url.startsWith('https') ? https : http;
+      const req = lib.get(url, { timeout: timeoutMs }, (res) => {
+        res.resume(); // consume and discard body to free the socket
+        resolve(res.statusCode);
+      });
+      req.on('error', () => resolve(0));
+      req.on('timeout', () => { req.destroy(); resolve(0); });
+    });
+
+    // 1. Local backend health
+    const backendStatus = await ping('http://127.0.0.1:3000/api/health');
+    if (backendStatus === 200) {
+      log('✅', 'Backend reachable');
+    } else {
+      log('⚠️', `Backend not reachable (HTTP ${backendStatus}) — triggering heal`);
+      if (BACKEND_HEAL_CMD) {
+        exec(BACKEND_HEAL_CMD, (err) => {
+          if (err) { stats.errors++; log('❌', 'Backend heal failed', { message: err.message }); }
+          else { log('🛠️', 'Backend heal command executed'); }
+        });
+      }
+    }
+
+    // 2. Vercel health (optional)
+    const vercelUrl = process.env.VERCEL_HEALTH_URL || '';
+    if (vercelUrl) {
+      const vercelStatus = await ping(vercelUrl);
+      if (vercelStatus === 200) {
+        log('✅', `Vercel reachable (HTTP ${vercelStatus})`);
+      } else {
+        log('⚠️', `Vercel not reachable (HTTP ${vercelStatus})`);
+      }
+    }
+
+    log('✅', 'Platform cycle complete');
+  } catch (e) {
+    stats.errors++;
+    log('❌', 'Platform cycle error:', e.message);
+  }
+}
+
 // ─── Health report ────────────────────────────────────────────────────────────
 function printHealthReport() {
   stats.healthChecks++;
@@ -183,6 +237,7 @@ function printHealthReport() {
     revenueCycles: stats.revenueCycles,
     viralCycles: stats.viralCycles,
     deployCycles: stats.deployCycles,
+    platformCycles: stats.platformCycles,
     healthChecks: stats.healthChecks,
     errors: stats.errors,
     innovationEngine: innovationEngine ? 'ACTIVE' : 'MOCKED',
@@ -192,6 +247,7 @@ function printHealthReport() {
     nextRevenue: `${Math.round(REVENUE_INTERVAL / 1000)}s`,
     nextViral: `${Math.round(VIRAL_INTERVAL / 1000)}s`,
     nextDeploy: `${Math.round(DEPLOY_INTERVAL / 1000)}s`,
+    nextPlatform: `${Math.round(PLATFORM_INTERVAL / 1000)}s`,
   };
   log('📊', '══ ORCHESTRATOR HEALTH REPORT ══', report);
 }
@@ -212,6 +268,7 @@ process.on('uncaughtException', (err) => {
   log('🦄', `  Revenue every    ${REVENUE_INTERVAL / 1000}s`);
   log('🦄', `  Viral every      ${VIRAL_INTERVAL / 1000}s`);
   log('🦄', `  Deploy check every ${DEPLOY_INTERVAL / 1000}s`);
+  log('🦄', `  Platform check every ${PLATFORM_INTERVAL / 1000}s`);
   log('🦄', '══════════════════════════════════════════');
 
   // Immediate first cycles
@@ -219,6 +276,7 @@ process.on('uncaughtException', (err) => {
   await runRevenueCycle();
   await runViralCycle();
   await runDeployCycle();
+  await runPlatformCycle();
   printHealthReport();
 
   // Schedule recurring cycles
@@ -226,6 +284,7 @@ process.on('uncaughtException', (err) => {
   setInterval(runRevenueCycle,    REVENUE_INTERVAL);
   setInterval(runViralCycle,      VIRAL_INTERVAL);
   setInterval(runDeployCycle,     DEPLOY_INTERVAL);
+  setInterval(runPlatformCycle,   PLATFORM_INTERVAL);
   setInterval(printHealthReport,  HEALTH_INTERVAL);
 
   log('✅', 'All autonomous cycles scheduled and running 🚀');
