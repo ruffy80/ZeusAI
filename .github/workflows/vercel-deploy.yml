@@ -300,7 +300,7 @@ jobs:
           sleep 8
           HEALTH=$(ssh -i ~/.ssh/deploy_key -p 22 -o StrictHostKeyChecking=no -o UserKnownHostsFile=~/.ssh/known_hosts \
             "${{ secrets.HETZNER_DEPLOY_USER || secrets.HETZNER_USER || secrets.SSH_USER }}@${{ secrets.HETZNER_HOST || secrets.SSH_HOST }}" \
-            "curl -sS http://localhost:3001/health 2>/dev/null || echo '{\"status\":\"unreachable\"}'")
+            "curl -sS http://localhost:3000/health 2>/dev/null || echo '{\"status\":\"unreachable\"}'")
           echo "Hetzner health: $HEALTH"
           echo "$HEALTH" | grep -q '"status":"ok"' && echo "✅ Backend healthy" || echo "⚠️  Backend not yet ready"
 
