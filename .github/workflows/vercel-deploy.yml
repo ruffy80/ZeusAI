@@ -281,6 +281,35 @@ jobs:
             # ── Install dependencies ──────────────────────────────────────
             npm ci --no-audit --no-fund 2>/dev/null || npm install --no-audit --no-fund
 
+            # ── Build React frontend ──────────────────────────────────────
+            if [ -d "client" ]; then
+              echo "🎨 Building frontend..."
+              cd client
+              npm ci --no-audit --no-fund 2>/dev/null || npm install --no-audit --no-fund
+              npm run build
+              cd ..
+              echo "✅ Frontend built"
+            fi
+
+    # ── Open firewall for HTTP/HTTPS (Nginx) ─────────────────────
+            if command -v ufw >/dev/null 2>&1; then
+              ufw allow 80/tcp  2>/dev/null || true
+              ufw allow 443/tcp 2>/dev/null || true
+              echo "✅ Firewall: ports 80/443 open for Nginx"
+            fi
+
+            # ── Install and configure Nginx ───────────────────────────────
+            if ! command -v nginx >/dev/null 2>&1; then
+              apt-get update -y && apt-get install -y nginx
+            fi
+            if [ -f scripts/nginx-unicorn.conf ]; then
+              cp scripts/nginx-unicorn.conf /etc/nginx/sites-available/unicorn
+              ln -sf /etc/nginx/sites-available/unicorn /etc/nginx/sites-enabled/unicorn
+              rm -f /etc/nginx/sites-enabled/default
+              nginx -t && systemctl reload nginx || systemctl restart nginx
+              echo "✅ Nginx configured and reloaded"
+            fi
+
             # ── Backup current deploy snapshot (keep last 5) ─────────────
             mkdir -p scripts
             if [ -f scripts/create-backup.sh ]; then
