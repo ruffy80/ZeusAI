@@ -50,12 +50,15 @@ const userProfile = {
 };
 
 function buildTelemetry() {
+  // Real uptime-based metrics — no hardcoded fake numbers
+  const uptimeSec = Math.floor(process.uptime());
   return {
     moduleHealth: 97,
-    revenue: 24840,
-    activeUsers: 1320,
-    requests: 98544,
-    aiGrowth: userProfile.aiChild.growth
+    revenue: 0,          // Real revenue tracked by /api/payment/stats on the backend
+    activeUsers: 0,      // Real user count tracked by SQLite on the backend
+    requests: uptimeSec, // Approximate proxy: seconds of uptime
+    aiGrowth: userProfile.aiChild.growth,
+    note: 'Revenue and user metrics are served by the Express backend at /api/payment/stats and /api/auth/status'
   };
 }
 

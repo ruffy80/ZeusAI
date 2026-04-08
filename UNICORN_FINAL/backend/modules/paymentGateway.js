@@ -1,12 +1,13 @@
 const axios = require('axios');
 const QRCode = require('qrcode');
+const { payments: dbPayments } = require('../db');
 
 const DEFAULT_BTC_WALLET_ADDRESS = 'bc1q4f7e66z87mdfj56kz0dj5hvcnpmh0qh4wuv22e';
 const DEFAULT_APP_BASE_URL = 'http://localhost:3000';
 
 class PaymentGateway {
   constructor() {
-    this.payments = new Map();
+    this.payments = new Map(); // session-level cache; durable state lives in SQLite via dbPayments
     this.appBaseUrl = this.normalizeBaseUrl(
       process.env.PUBLIC_APP_URL
       || process.env.APP_BASE_URL
@@ -294,15 +295,17 @@ class PaymentGateway {
     }
 
     this.payments.set(txId, payment);
+    dbPayments.save(payment);
     return payment;
   }
 
   getPaymentStatus(txId) {
-    return this.payments.get(txId) || null;
+    // Try in-memory first (fastest), fall back to DB (survives restart)
+    return this.payments.get(txId) || dbPayments.findByTxId(txId) || null;
   }
 
   async processPayment(txId, details = {}) {
-    const payment = this.payments.get(txId);
+    const payment = this.payments.get(txId) || dbPayments.findByTxId(txId);
     if (!payment) {
       throw new Error('Payment not found');
     }
@@ -322,6 +325,7 @@ class PaymentGateway {
       };
 
       this.payments.set(txId, updatedPayment);
+      dbPayments.save(updatedPayment);
       return updatedPayment;
     }
 
@@ -341,6 +345,7 @@ class PaymentGateway {
         };
 
         this.payments.set(txId, updatedPayment);
+        dbPayments.save(updatedPayment);
         return updatedPayment;
       } catch (error) {
         if (error.response?.status === 422 || error.response?.status === 409) {
@@ -356,6 +361,7 @@ class PaymentGateway {
           };
 
           this.payments.set(txId, updatedPayment);
+          dbPayments.save(updatedPayment);
           return updatedPayment;
         }
 
@@ -387,36 +393,30 @@ class PaymentGateway {
     }
 
     this.payments.set(txId, updatedPayment);
+    dbPayments.save(updatedPayment);
     return updatedPayment;
   }
 
   getTransactionHistory(filters = {}) {
-    const { clientId, status, method } = filters;
-    return Array.from(this.payments.values())
-      .filter((payment) => !clientId || payment.clientId === clientId)
-      .filter((payment) => !status || payment.status === status)
-      .filter((payment) => !method || payment.method === method)
-      .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+    return dbPayments.list(filters);
   }
 
   getStats() {
-    const payments = Array.from(this.payments.values());
-    const revenue = payments
-      .filter((payment) => payment.status === 'completed')
-      .reduce((sum, payment) => sum + payment.total, 0);
-
-    const byMethod = payments.reduce((acc, payment) => {
-      acc[payment.method] = (acc[payment.method] || 0) + 1;
+    const allPayments = dbPayments.list();
+    const completed = allPayments.filter(p => p.status === 'completed');
+    const revenue = completed.reduce((sum, p) => sum + p.total, 0);
+    const byMethod = allPayments.reduce((acc, p) => {
+      acc[p.method] = (acc[p.method] || 0) + 1;
       return acc;
     }, {});
 
     return {
-      totalPayments: payments.length,
-      completedPayments: payments.filter((payment) => payment.status === 'completed').length,
-      pendingPayments: payments.filter((payment) => payment.status === 'pending' || payment.status === 'processing').length,
+      totalPayments: allPayments.length,
+      completedPayments: completed.length,
+      pendingPayments: allPayments.filter(p => p.status === 'pending' || p.status === 'processing').length,
       revenue: Number(revenue.toFixed(2)),
       byMethod,
-      activeMethods: this.methods.filter((method) => method.active).length,
+      activeMethods: this.methods.filter(m => m.active).length,
       supportedStatuses: this.statusFlow
     };
   }
