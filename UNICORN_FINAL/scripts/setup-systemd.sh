@@ -37,8 +37,10 @@ mkdir -p "$DEPLOY_PATH/logs"
 # ── Start all PM2 apps from ecosystem config ──────────────────────────────────
 echo "🚀 Starting all PM2 apps from ecosystem.config.js..."
 cd "$DEPLOY_PATH"
-"$PM2_BIN" start ecosystem.config.js --update-env || \
-  "$PM2_BIN" restart ecosystem.config.js --update-env
+# Clean start: delete all and restart fresh from ecosystem config
+"$PM2_BIN" stop all 2>/dev/null || true
+"$PM2_BIN" delete all 2>/dev/null || true
+"$PM2_BIN" start ecosystem.config.js
 "$PM2_BIN" save
 
 # ── Generate systemd unit via pm2 startup ─────────────────────────────────────
