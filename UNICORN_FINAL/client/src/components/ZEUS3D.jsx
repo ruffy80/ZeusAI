@@ -95,9 +95,14 @@ const ZEUS3D = ({ onCommand, speaking = false, listening = false }) => {
       if (onCommand) onCommand(text);
     };
     rec.onend = () => setRecognizing(false);
-    rec.onerror = () => setRecognizing(false);
+    rec.onerror = (e) => { setRecognizing(false); setVoiceInput('Eroare recunoaștere: ' + (e.error || 'necunoscută')); };
     recognitionRef.current = rec;
-    rec.start();
+    try {
+      rec.start();
+    } catch (e) {
+      setVoiceInput('Nu s-a putut porni recunoașterea vocală: ' + e.message);
+      setRecognizing(false);
+    }
   };
 
   const stopListening = () => {

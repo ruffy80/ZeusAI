@@ -18,11 +18,16 @@ on:
           - report
           - viral
 
+permissions:
+  contents: read
+
 jobs:
   autonomous:
     name: Autonomous Engine Cycle
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    permissions:
+      contents: read
 
     steps:
       - name: Checkout repository
@@ -95,7 +100,7 @@ jobs:
         "
 
       - name: Ping Hetzner keepalive
-        if: ${{ env.HETZNER_HOST != '' }}
+        if: ${{ secrets.HETZNER_HOST != '' && secrets.HETZNER_SSH_PRIVATE_KEY != '' }}
         env:
           HETZNER_HOST: ${{ secrets.HETZNER_HOST }}
           HETZNER_USER: ${{ secrets.HETZNER_USER }}

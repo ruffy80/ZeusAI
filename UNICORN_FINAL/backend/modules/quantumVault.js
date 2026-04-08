@@ -101,10 +101,23 @@ function listKeys() {
 }
 
 function unlock(emergencyCode) {
+  const emergencySecret = process.env.VAULT_EMERGENCY_CODE;
+  if (!emergencySecret) {
+    console.error('[QuantumVault] VAULT_EMERGENCY_CODE not configured – emergency unlock disabled.');
+    return false;
+  }
   const expected = crypto.createHash('sha256')
-    .update(HARDWARE_FP + (process.env.VAULT_EMERGENCY_CODE || 'emergency'))
+    .update(HARDWARE_FP + emergencySecret)
     .digest('hex');
-  if (crypto.timingSafeEqual(Buffer.from(emergencyCode, 'hex'), Buffer.from(expected, 'hex'))) {
+  let inputBuf, expectedBuf;
+  try {
+    inputBuf = Buffer.from(emergencyCode, 'hex');
+    expectedBuf = Buffer.from(expected, 'hex');
+  } catch {
+    return false;
+  }
+  if (inputBuf.length !== expectedBuf.length) return false;
+  if (crypto.timingSafeEqual(inputBuf, expectedBuf)) {
     vaultLocked = false;
     failedAttempts = 0;
     console.log('[QuantumVault] Vault unlocked via emergency code.');
