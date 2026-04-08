@@ -4,6 +4,26 @@
   "installCommand": "npm install --no-audit --no-fund",
   "buildCommand": "npm --prefix UNICORN_FINAL/client install --no-audit --no-fund && npm --prefix UNICORN_FINAL/client run build",
   "outputDirectory": "UNICORN_FINAL/client/build",
+  "headers": [
+    {
+      "source": "/index.html",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "no-store, no-cache, must-revalidate, proxy-revalidate"
+        }
+      ]
+    },
+    {
+      "source": "/static/(.*)",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=31536000, immutable"
+        }
+      ]
+    }
+  ],
   "rewrites": [
     {
       "source": "/(.*)",

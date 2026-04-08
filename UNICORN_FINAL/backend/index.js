@@ -1145,11 +1145,20 @@ const clientIndexPath = path.join(clientBuildPath, 'index.html');
 const fs = require('fs');
 
 if (fs.existsSync(clientBuildPath)) {
-  app.use(express.static(clientBuildPath));
+  app.use(express.static(clientBuildPath, {
+    setHeaders: (res, filePath) => {
+      if (filePath.endsWith('.html')) {
+        res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+        return;
+      }
+      res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+    }
+  }));
 }
 
 app.get('*', (req, res) => {
   if (fs.existsSync(clientIndexPath)) {
+    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
     return res.sendFile(clientIndexPath);
   }
   // Client not built yet — return API status instead of crashing
