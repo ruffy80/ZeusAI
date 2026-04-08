@@ -186,9 +186,21 @@ jobs:
       - name: Setup SSH agent
         if: steps.hetzner_guard.outputs.ssh_ready == 'true'
         continue-on-error: true
-        uses: webfactory/ssh-agent@v0.9.0
-        with:
-          ssh-private-key: ${{ secrets.HETZNER_SSH_PRIVATE_KEY || secrets.SSH_PRIVATE_KEY }}
+        run: |
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+          # Write SSH key to file (use fallback if primary key not available)
+          SSH_KEY="${{ secrets.HETZNER_SSH_PRIVATE_KEY || secrets.SSH_PRIVATE_KEY }}"
+          if [ -z "$SSH_KEY" ]; then
+            echo "⚠️  No SSH key found. SSH deploy will fail."
+            exit 1
+          fi
+          echo "$SSH_KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          
+          # Test SSH connection (continue on error)
+          ssh-keyscan -t ed25519,rsa -p ${DEPLOY_PORT:-22} ${DEPLOY_HOST} >> ~/.ssh/known_hosts 2>/dev/null || true
+          echo "✅ SSH key configured"
 
       - name: Sync UNICORN_FINAL to Hetzner
         id: sync_hetzner
@@ -202,16 +214,8 @@ jobs:
             --exclude='logs' \
             --exclude='*.local' \
             --exclude='.env' \
-            -e "ssh -p ${DEPLOY_PORT} -o StrictHostKeyChecking=no" \
-            ./UNICORN_FINAL/ \
-            ${DEPLOY_USER}@${DEPLOY_HOST}:${DEPLOY_PATH}/
-
-      - name: Install deps + restart backend on Hetzner
-        id: restart_hetzner
-        if: steps.hetzner_guard.outputs.ssh_ready == 'true'
-        continue-on-error: true
-        run: |
-          ssh -p ${DEPLOY_PORT} -o StrictHostKeyChecking=no \
+            -e "ssh -i ~/.ssh/deploy_key -p ${DEPLOY_PORT} -o StrictHostKeyChecking=no -o UserKnownHostsFile=~/.ssh/known_hosts" \
+          ssh -i ~/.ssh/deploy_key -p ${DEPLOY_PORT} -o StrictHostKeyChecking=no -o UserKnownHostsFile=~/.ssh/known_hosts \
             ${DEPLOY_USER}@${DEPLOY_HOST} << ENDSSH
             set -e
             cd "${DEPLOY_PATH}"
