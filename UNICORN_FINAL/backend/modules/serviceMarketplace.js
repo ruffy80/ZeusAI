@@ -1,12 +1,12 @@
 const fs = require('fs');
 const path = require('path');
 const axios = require('axios');
+const { purchases: dbPurchases } = require('../db');
 
 class ServiceMarketplace {
   constructor() {
     this.services = new Map();
     this.pricingHistory = new Map();
-    this.clientPreferences = new Map();
     this.marketTrends = { lastUpdate: null, trends: {}, globalMultiplier: 1.0 };
     this.discountRate = 0.20;
     this.loadServices();
@@ -152,9 +152,9 @@ class ServiceMarketplace {
     if (!service) return null;
 
     let basePrice = service.currentPrice || service.basePrice;
-    const clientHistory = this.clientPreferences.get(clientId);
-    if (clientHistory) {
-      const loyaltyDiscount = Math.min(clientHistory.purchases * 0.02, 0.15);
+    const stats = dbPurchases.statsForClient(clientId);
+    if (stats && stats.purchases > 0) {
+      const loyaltyDiscount = Math.min(stats.purchases * 0.02, 0.15);
       basePrice *= (1 - loyaltyDiscount);
     }
 
@@ -167,12 +167,9 @@ class ServiceMarketplace {
   }
 
   recordPurchase(serviceId, clientId, price, details = {}) {
-    if (!this.clientPreferences.has(clientId)) {
-      this.clientPreferences.set(clientId, { purchases: 0, totalSpent: 0, services: [], firstPurchase: new Date().toISOString() });
-    }
-    const client = this.clientPreferences.get(clientId);
     const service = this.services.get(serviceId);
-    const purchaseRecord = {
+    dbPurchases.record({
+      clientId,
       serviceId,
       serviceName: details.serviceName || service?.name || serviceId,
       description: details.description || service?.description || '',
@@ -180,21 +177,16 @@ class ServiceMarketplace {
       price: Number(price || 0),
       paymentTxId: details.paymentTxId || null,
       paymentMethod: details.paymentMethod || null,
-      purchasedAt: new Date().toISOString()
-    };
-    client.purchases += 1;
-    client.totalSpent += Number(price || 0);
-    client.services.push(purchaseRecord);
-    client.lastPurchase = new Date().toISOString();
+      purchasedAt: new Date().toISOString(),
+    });
 
     if (service) service.popularity = Math.min(service.popularity + 0.05, 1);
-    return client;
+    const stats = dbPurchases.statsForClient(clientId);
+    return { clientId, purchases: stats.purchases, totalSpent: stats.totalSpent };
   }
 
   getClientPurchases(clientId) {
-    const client = this.clientPreferences.get(clientId);
-    if (!client) return [];
-    return [...client.services].sort((a, b) => new Date(b.purchasedAt) - new Date(a.purchasedAt));
+    return dbPurchases.listByClient(clientId);
   }
 
   getAllServices() {
@@ -214,10 +206,10 @@ class ServiceMarketplace {
   }
 
   getRecommendations(clientId) {
-    const client = this.clientPreferences.get(clientId);
+    const purchasedIds = new Set(dbPurchases.listByClient(clientId).map(p => p.serviceId));
     const recommendations = [];
     for (const service of this.services.values()) {
-      if (!client || !client.services.some(s => s.serviceId === service.id)) {
+      if (!purchasedIds.has(service.id)) {
         recommendations.push({
           serviceId: service.id,
           name: service.name,

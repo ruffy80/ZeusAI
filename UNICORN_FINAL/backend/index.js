@@ -5,6 +5,7 @@ const compression = require('compression');
 const path = require('path');
 // const cron = require('node-cron'); // Optional scheduling
 const simpleGit = require('simple-git');
+const axios = require('axios');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -13,12 +14,18 @@ const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
 const JWT_SECRET = process.env.JWT_SECRET || 'unicorn-jwt-secret-change-in-prod';
 
+// Stripe raw body buffer for webhook signature verification
+app.use('/api/payment/webhook/stripe', express.raw({ type: 'application/json' }));
+
 app.use(compression());
 app.use(cors());
 app.use(express.json());
 
-// ==================== AUTH STORE (in-memory) ====================
-const users = [];
+// ==================== PERSISTENCE ====================
+const { users: dbUsers, payments: dbPayments, apiKeys: dbApiKeys } = require('./db');
+const emailService = require('./email');
+
+// ==================== AUTH STORE (SQLite-backed) ====================
 const adminSessions = new Set();
 const ADMIN_OWNER_NAME = process.env.LEGAL_OWNER_NAME || 'Vladoi Ionut';
 const ADMIN_OWNER_EMAIL = process.env.ADMIN_EMAIL || process.env.LEGAL_OWNER_EMAIL || 'vladoi_ionut@yahoo.com';
@@ -73,19 +80,71 @@ function adminTokenMiddleware(req, res, next) {
   }
 }
 
+// ==================== AUTH RATE LIMITING ====================
+// Simple sliding-window rate limiter for sensitive auth endpoints (no extra dependency).
+const authRateLimitStore = new Map(); // key -> [timestamps]
+
+function authRateLimit(maxRequests, windowMs) {
+  return function rateLimitMiddleware(req, res, next) {
+    const key = req.ip || 'unknown';
+    const now = Date.now();
+    const windowStart = now - windowMs;
+    const hits = (authRateLimitStore.get(key) || []).filter(ts => ts > windowStart);
+    if (hits.length >= maxRequests) {
+      return res.status(429).json({ error: 'Too many requests. Please try again later.' });
+    }
+    hits.push(now);
+    authRateLimitStore.set(key, hits);
+    return next();
+  };
+}
+
+// Prune stale entries every 10 minutes
+setInterval(() => {
+  const cutoff = Date.now() - 15 * 60 * 1000;
+  for (const [key, hits] of authRateLimitStore) {
+    const pruned = hits.filter(ts => ts > cutoff);
+    if (pruned.length === 0) authRateLimitStore.delete(key);
+    else authRateLimitStore.set(key, pruned);
+  }
+}, 10 * 60 * 1000).unref();
+
 // ==================== AUTH ROUTES ====================
-app.post('/api/auth/register', async (req, res) => {
+app.post('/api/auth/register', authRateLimit(10, 15 * 60 * 1000), async (req, res) => {
   const { name, email, password } = req.body;
   if (!name || !email || !password) return res.status(400).json({ error: 'name, email and password required' });
-  if (users.find(u => u.email === email)) return res.status(409).json({ error: 'Email already in use' });
+  if (dbUsers.findByEmail(email)) return res.status(409).json({ error: 'Email already in use' });
   const passwordHash = await bcrypt.hash(password, 10);
-  const user = { id: crypto.randomBytes(8).toString('hex'), name, email, passwordHash, createdAt: new Date().toISOString(), resetToken: null, resetExpires: null };
-  users.push(user);
+  const verifyToken = crypto.randomBytes(32).toString('hex');
+  const verifyExpires = Date.now() + 86400000; // 24h
+  const user = {
+    id: crypto.randomBytes(8).toString('hex'),
+    name,
+    email,
+    passwordHash,
+    emailVerified: 0,
+    verifyToken,
+    verifyExpires,
+    createdAt: new Date().toISOString(),
+  };
+  dbUsers.create(user);
   const token = jwt.sign({ id: user.id, email: user.email, name: user.name }, JWT_SECRET, { expiresIn: '7d' });
-  res.json({ token, user: { id: user.id, name: user.name, email: user.email } });
+  // Send verification email (non-blocking)
+  emailService.sendVerificationEmail(user, verifyToken).catch(err => console.error('[Email] verify send failed:', err.message));
+  res.json({ token, user: { id: user.id, name: user.name, email: user.email, emailVerified: false } });
 });
 
-app.post('/api/auth/login', async (req, res) => {
+app.get('/api/auth/verify-email', (req, res) => {
+  const { token } = req.query;
+  if (!token) return res.status(400).json({ error: 'token required' });
+  const user = dbUsers.findByVerifyToken(token);
+  if (!user) return res.status(400).json({ error: 'Invalid or expired verification link' });
+  dbUsers.verifyEmail(user.id);
+  emailService.sendWelcomeEmail(user).catch(err => console.error('[Email] welcome send failed:', err.message));
+  res.json({ success: true, message: 'Email verified. Contul tău este activ!' });
+});
+
+app.post('/api/auth/login', authRateLimit(20, 15 * 60 * 1000), async (req, res) => {
   const { email, password, twoFactorCode } = req.body || {};
 
   // Admin login (password + 2FA)
@@ -111,12 +170,12 @@ app.post('/api/auth/login', async (req, res) => {
     });
   }
 
-  const user = users.find(u => u.email === email);
+  const user = dbUsers.findByEmail(email);
   if (!user) return res.status(404).json({ error: 'User not found' });
   const valid = await bcrypt.compare(password, user.passwordHash);
   if (!valid) return res.status(401).json({ error: 'Invalid password' });
   const token = jwt.sign({ id: user.id, email: user.email, name: user.name }, JWT_SECRET, { expiresIn: '7d' });
-  res.json({ token, user: { id: user.id, name: user.name, email: user.email } });
+  res.json({ token, user: { id: user.id, name: user.name, email: user.email, emailVerified: Boolean(user.emailVerified) } });
 });
 
 app.get('/api/auth/status', adminTokenMiddleware, (req, res) => {
@@ -151,39 +210,38 @@ app.post('/api/auth/biometric/enroll', adminTokenMiddleware, (req, res) => {
 
 app.put('/api/auth/profile', authMiddleware, async (req, res) => {
   const { name, email } = req.body;
-  const user = users.find(u => u.id === req.user.id);
+  const user = dbUsers.findById(req.user.id);
   if (!user) return res.status(404).json({ error: 'User not found' });
-  if (name) user.name = name;
-  if (email) user.email = email;
-  const token = jwt.sign({ id: user.id, email: user.email, name: user.name }, JWT_SECRET, { expiresIn: '7d' });
-  res.json({ token, user: { id: user.id, name: user.name, email: user.email } });
+  const newName = name || user.name;
+  const newEmail = email || user.email;
+  dbUsers.updateProfile(user.id, newName, newEmail);
+  const token = jwt.sign({ id: user.id, email: newEmail, name: newName }, JWT_SECRET, { expiresIn: '7d' });
+  res.json({ token, user: { id: user.id, name: newName, email: newEmail } });
 });
 
 app.get('/api/auth/me', authMiddleware, (req, res) => {
-  const user = users.find(u => u.id === req.user.id);
+  const user = dbUsers.findById(req.user.id);
   if (!user) return res.status(404).json({ error: 'User not found' });
-  res.json({ id: user.id, name: user.name, email: user.email, createdAt: user.createdAt });
+  res.json({ id: user.id, name: user.name, email: user.email, createdAt: user.createdAt, emailVerified: Boolean(user.emailVerified) });
 });
 
-app.post('/api/auth/forgot-password', async (req, res) => {
+app.post('/api/auth/forgot-password', authRateLimit(5, 15 * 60 * 1000), async (req, res) => {
   const { email } = req.body;
-  const user = users.find(u => u.email === email);
+  const user = dbUsers.findByEmail(email);
   if (!user) return res.status(404).json({ error: 'User not found' });
   const resetToken = crypto.randomBytes(32).toString('hex');
-  user.resetToken = resetToken;
-  user.resetExpires = Date.now() + 3600000;
-  // In production: send email with link /reset-password?token=resetToken
-  res.json({ message: 'Password reset email sent', devToken: resetToken });
+  dbUsers.setResetToken(user.id, resetToken, Date.now() + 3600000);
+  emailService.sendPasswordResetEmail(user, resetToken).catch(err => console.error('[Email] reset send failed:', err.message));
+  res.json({ message: 'Password reset email sent' });
 });
 
 app.post('/api/auth/reset-password', async (req, res) => {
   const { token, newPassword } = req.body;
   if (!token || !newPassword) return res.status(400).json({ error: 'token and newPassword required' });
-  const user = users.find(u => u.resetToken === token && u.resetExpires > Date.now());
+  const user = dbUsers.findByResetToken(token);
   if (!user) return res.status(400).json({ error: 'Invalid or expired token' });
-  user.passwordHash = await bcrypt.hash(newPassword, 10);
-  user.resetToken = null;
-  user.resetExpires = null;
+  const passwordHash = await bcrypt.hash(newPassword, 10);
+  dbUsers.updatePassword(user.id, passwordHash);
   res.json({ message: 'Password reset successful' });
 });
 
@@ -269,7 +327,208 @@ console.log('📱 Social Media Viralizer: STARTING');
 console.log('🌐 Global Digital Standard: STARTING');
 
 // ==================== RUTE API ====================
-app.get('/api/health', (req, res) => res.json({ status: 'ok', uptime: process.uptime() }));
+app.get('/api/health', (req, res) => res.json({
+  status: 'ok',
+  uptime: process.uptime(),
+  users: dbUsers.count(),
+  dbConnected: true,
+}));
+
+// ==================== API KEY MIDDLEWARE ====================
+// Middleware for public API access (used with x-api-key header)
+function apiKeyMiddleware(req, res, next) {
+  const rawKey = req.headers['x-api-key'];
+  if (!rawKey) return res.status(401).json({ error: 'x-api-key header required' });
+  const keyRecord = dbApiKeys.verify(rawKey);
+  if (!keyRecord) return res.status(401).json({ error: 'Invalid API key' });
+  const allowed = dbApiKeys.checkRateLimit(keyRecord.keyId, keyRecord.planId, req.path);
+  if (!allowed) return res.status(429).json({ error: 'Rate limit exceeded. Upgrade your plan.' });
+  req.apiKey = keyRecord;
+  return next();
+}
+
+// Create API key (authenticated users)
+app.post('/api/platform/api-keys/create', authMiddleware, (req, res) => {
+  const { name, planId } = req.body || {};
+  const result = dbApiKeys.create({ name: name || 'My API Key', clientId: req.user.id, planId: planId || 'starter' });
+  res.json(result);
+});
+
+// List own API keys
+app.get('/api/platform/api-keys/mine', authMiddleware, (req, res) => {
+  const keys = dbApiKeys.listForClient(req.user.id);
+  res.json({ keys });
+});
+
+// ==================== PUBLIC BILLING PLANS ====================
+const BILLING_PLANS = [
+  {
+    id: 'free',
+    name: 'Free',
+    priceMonthly: 0,
+    priceYearly: 0,
+    currency: 'USD',
+    limits: { apiCalls: 100, seats: 1, modules: ['compliance', 'risk'] },
+    features: ['100 API calls/month', 'Compliance audit basic', 'Risk analyzer basic'],
+    cta: 'Get started free',
+  },
+  {
+    id: 'starter',
+    name: 'Starter',
+    priceMonthly: 29,
+    priceYearly: 290,
+    stripePriceIdMonthly: process.env.STRIPE_PRICE_STARTER_MONTHLY || '',
+    stripePriceIdYearly: process.env.STRIPE_PRICE_STARTER_YEARLY || '',
+    currency: 'USD',
+    limits: { apiCalls: 10000, seats: 3, modules: 'all' },
+    features: ['10,000 API calls/month', 'AI Negotiator', 'Compliance Engine', 'Carbon Exchange', '3 seats'],
+    cta: 'Start 14-day trial',
+  },
+  {
+    id: 'pro',
+    name: 'Pro',
+    priceMonthly: 99,
+    priceYearly: 990,
+    stripePriceIdMonthly: process.env.STRIPE_PRICE_PRO_MONTHLY || '',
+    stripePriceIdYearly: process.env.STRIPE_PRICE_PRO_YEARLY || '',
+    currency: 'USD',
+    popular: true,
+    limits: { apiCalls: 120000, seats: 15, modules: 'all' },
+    features: ['120,000 API calls/month', 'All AI modules', 'Quantum Blockchain', 'M&A Advisor', 'Legal Contracts', '15 seats', 'Priority support'],
+    cta: 'Start 14-day trial',
+  },
+  {
+    id: 'enterprise',
+    name: 'Enterprise',
+    priceMonthly: 499,
+    priceYearly: 4990,
+    stripePriceIdMonthly: process.env.STRIPE_PRICE_ENTERPRISE_MONTHLY || '',
+    stripePriceIdYearly: process.env.STRIPE_PRICE_ENTERPRISE_YEARLY || '',
+    currency: 'USD',
+    limits: { apiCalls: 1500000, seats: 100, modules: 'all' },
+    features: ['1.5M API calls/month', 'All AI modules', 'White-label option', 'Custom integrations', '100 seats', 'SLA 99.9%', 'Dedicated support'],
+    cta: 'Contact sales',
+  },
+];
+
+// Public — no auth required
+app.get('/api/billing/plans/public', (req, res) => {
+  res.json({ plans: BILLING_PLANS.map(p => ({ ...p, stripePriceIdMonthly: undefined, stripePriceIdYearly: undefined })) });
+});
+
+// Create Stripe subscription checkout session
+app.post('/api/billing/subscribe/stripe', authMiddleware, async (req, res) => {
+  const { planId, interval = 'monthly' } = req.body || {};
+  const plan = BILLING_PLANS.find(p => p.id === planId);
+  if (!plan || plan.id === 'free') return res.status(400).json({ error: 'Invalid plan' });
+
+  const priceId = interval === 'yearly' ? plan.stripePriceIdYearly : plan.stripePriceIdMonthly;
+  if (!priceId) {
+    return res.status(503).json({ error: 'Stripe not configured for this plan. Contact sales.' });
+  }
+
+  const stripeKey = process.env.STRIPE_SECRET_KEY;
+  if (!stripeKey) return res.status(503).json({ error: 'Stripe not configured' });
+
+  const APP_URL = process.env.PUBLIC_APP_URL || 'http://localhost:3000';
+
+  try {
+    const form = new URLSearchParams();
+    form.append('mode', 'subscription');
+    form.append('line_items[0][price]', priceId);
+    form.append('line_items[0][quantity]', '1');
+    form.append('success_url', APP_URL + '/dashboard?subscription=success&plan=' + planId);
+    form.append('cancel_url', APP_URL + '/payments?subscription=cancelled');
+    form.append('customer_email', req.user.email);
+    form.append('metadata[userId]', req.user.id);
+    form.append('metadata[planId]', planId);
+
+    const resp = await axios.post('https://api.stripe.com/v1/checkout/sessions', form.toString(), {
+      headers: { Authorization: 'Bearer ' + stripeKey, 'Content-Type': 'application/x-www-form-urlencoded' },
+      timeout: 15000,
+    });
+
+    res.json({ checkoutUrl: resp.data.url, sessionId: resp.data.id });
+  } catch (err) {
+    const msg = err.response?.data?.error?.message || err.message;
+    res.status(400).json({ error: msg });
+  }
+});
+
+// ==================== STRIPE WEBHOOK ====================
+app.post('/api/payment/webhook/stripe', (req, res) => {
+  const sig = req.headers['stripe-signature'];
+  const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
+
+  let event;
+
+  if (webhookSecret && sig) {
+    // Verify signature with stripe-signature header
+    const payload = req.body; // raw Buffer due to express.raw() middleware above
+    const parts = String(sig).split(',');
+    const ts = parts.find(p => p.startsWith('t='))?.split('=')[1];
+    const v1 = parts.find(p => p.startsWith('v1='))?.split('=')[1];
+    if (!ts || !v1) return res.status(400).json({ error: 'Invalid signature format' });
+    const signed = crypto.createHmac('sha256', webhookSecret)
+      .update(ts + '.' + payload)
+      .digest('hex');
+    if (signed !== v1) return res.status(400).json({ error: 'Webhook signature mismatch' });
+    try {
+      event = JSON.parse(payload.toString());
+    } catch {
+      return res.status(400).json({ error: 'Invalid JSON' });
+    }
+  } else {
+    // No webhook secret configured
+    if (process.env.NODE_ENV === 'production') {
+      return res.status(401).json({ error: 'STRIPE_WEBHOOK_SECRET not configured' });
+    }
+    // Development fallback — log a prominent warning
+    console.warn('⚠️  [Stripe Webhook] STRIPE_WEBHOOK_SECRET not set — accepting unverified payload (dev mode only)');
+    event = req.body || {};
+  }
+
+  console.log('[Stripe Webhook]', event.type, event.id || '');
+
+  switch (event.type) {
+    case 'checkout.session.completed': {
+      const session = event.data?.object || {};
+      if (session.payment_status === 'paid') {
+        const txId = session.metadata?.txId;
+        if (txId) {
+          const payment = dbPayments.findByTxId(txId);
+          if (payment) {
+            dbPayments.save({ ...payment, status: 'completed', providerStatus: 'paid', updatedAt: new Date().toISOString() });
+          }
+        }
+        const userId = session.metadata?.userId;
+        const planId = session.metadata?.planId;
+        if (userId && planId) {
+          console.log(`[Stripe Webhook] Subscription activated: user=${userId} plan=${planId}`);
+        }
+      }
+      break;
+    }
+    case 'invoice.payment_succeeded': {
+      const invoice = event.data?.object || {};
+      console.log('[Stripe Webhook] Invoice paid:', invoice.customer_email, '$' + (invoice.amount_paid / 100));
+      break;
+    }
+    case 'invoice.payment_failed': {
+      const invoice = event.data?.object || {};
+      console.log('[Stripe Webhook] Invoice payment FAILED:', invoice.customer_email);
+      break;
+    }
+    case 'customer.subscription.deleted': {
+      console.log('[Stripe Webhook] Subscription cancelled:', event.data?.object?.id);
+      break;
+    }
+    default:
+      console.log('[Stripe Webhook] Unhandled event type:', event.type);
+  }
+
+  res.json({ received: true });
+});
 
 app.get('/api/modules', (req, res) => {
   const fs = require('fs');
@@ -927,8 +1186,9 @@ app.get('/api/trust/audit', adminTokenMiddleware, (req, res) => {
 });
 
 // 2) Usage-based billing + plans
-app.get('/api/billing/plans', adminTokenMiddleware, (req, res) => {
-  res.json({ plans: unicornInnovationSuite.getPlans() });
+app.get('/api/billing/plans', (req, res) => {
+  // Return public billing plans (no auth required for viewing)
+  res.json({ plans: BILLING_PLANS.map(p => ({ ...p, stripePriceIdMonthly: undefined, stripePriceIdYearly: undefined })) });
 });
 
 app.post('/api/billing/subscribe', adminTokenMiddleware, (req, res) => {
@@ -1092,17 +1352,20 @@ app.post('/api/autonomous/innovation/optimize', adminTokenMiddleware, (req, res)
 });
 
 // ==================== AUTO REVENUE ROUTES ====================
+// NOTE: AutoRevenueEngine runs in DEMO/SIMULATION mode.
+// Figures shown are projections based on simulated deal flow — not real transactions.
+// Real revenue comes from /api/payment/* (Stripe/PayPal/crypto).
 app.get('/api/autonomous/revenue/status', (req, res) => {
-  res.json(autoRevenue.getRevenueStatus());
+  res.json({ ...autoRevenue.getRevenueStatus(), mode: 'DEMO', note: 'Simulated pipeline. Real revenue tracked via /api/payment/stats.' });
 });
 
 app.get('/api/autonomous/revenue/history', (req, res) => {
   const limit = req.query.limit || 20;
-  res.json(autoRevenue.getRevenueHistory(limit));
+  res.json({ ...autoRevenue.getRevenueHistory(limit), mode: 'DEMO', note: 'Simulated deal history.' });
 });
 
 app.get('/api/autonomous/revenue/metrics', (req, res) => {
-  res.json(autoRevenue.getDetailedMetrics());
+  res.json({ ...autoRevenue.getDetailedMetrics(), mode: 'DEMO', note: 'Simulated metrics for planning purposes.' });
 });
 
 app.post('/api/autonomous/revenue/generate-deals', adminTokenMiddleware, (req, res) => {
