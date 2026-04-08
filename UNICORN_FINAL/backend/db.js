@@ -122,7 +122,7 @@ try {
 // In-memory store (used when SQLite is unavailable)
 // ============================================================
 
-const mem = {
+let mem = {
   users: new Map(),
   payments: new Map(),
   purchases: [],
@@ -253,7 +253,7 @@ const payments = usingSqlite ? {
   save(payment) { mem.payments.set(payment.txId, { ...payment }); },
   findByTxId(txId) { return mem.payments.get(txId) || null; },
   list(filters = {}) {
-    let result = Array.from(mem.payments.values()).sort((a, b) => b.createdAt > a.createdAt ? 1 : -1);
+    let result = Array.from(mem.payments.values()).sort((a, b) => b.createdAt.localeCompare(a.createdAt));
     if (filters.clientId) result = result.filter(p => p.clientId === filters.clientId);
     if (filters.status) result = result.filter(p => p.status === filters.status);
     if (filters.method) result = result.filter(p => p.method === filters.method);
@@ -271,7 +271,7 @@ const purchases = usingSqlite ? {
   statsForClient(clientId) { return stmts.clientPurchaseStats.get(clientId); },
 } : {
   record(purchase) { mem.purchases.push({ ...purchase, id: mem.purchases.length + 1 }); },
-  listByClient(clientId) { return mem.purchases.filter(p => p.clientId === clientId).sort((a, b) => b.purchasedAt > a.purchasedAt ? 1 : -1); },
+  listByClient(clientId) { return mem.purchases.filter(p => p.clientId === clientId).sort((a, b) => b.purchasedAt.localeCompare(a.purchasedAt)); },
   statsForClient(clientId) {
     const list = mem.purchases.filter(p => p.clientId === clientId);
     return { purchases: list.length, totalSpent: list.reduce((s, p) => s + (p.price || 0), 0) };
@@ -335,7 +335,7 @@ const apiKeys = usingSqlite ? {
   pruneUsage() {
     const cutoff = Date.now() - 3_600_000;
     const before = mem.usage.length;
-    mem.usage.splice(0, mem.usage.length, ...mem.usage.filter(u => u.ts >= cutoff));
+    mem.usage = mem.usage.filter(u => u.ts >= cutoff);
     return before - mem.usage.length;
   },
 };
