@@ -136,8 +136,7 @@ class UnicornAutonomousCore {
       const filePath = path.join(this.modulesDir, moduleFile);
       let content = fs.readFileSync(filePath, 'utf8');
       if (!content.includes('this.cache') && content.includes('constructor()')) {
-        content = content.replace('constructor()', 'constructor()
-    this.cache = new Map(); this.cacheTTL = 60000;');
+        content = content.replace('constructor()', 'constructor()\n    this.cache = new Map(); this.cacheTTL = 60000;');
         fs.writeFileSync(filePath, content);
         this.log(`📈 Îmbunătățit: ${moduleFile}`);
         return true;
