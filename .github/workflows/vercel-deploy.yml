@@ -294,6 +294,7 @@ jobs:
       - name: Fallback — trigger Hetzner webhook (if SSH failed)
         id: webhook_fallback
         if: ${{ steps.hetzner_guard.outputs.ssh_ready != 'true' || steps.sync_hetzner.outcome != 'success' || steps.restart_hetzner.outcome != 'success' }}
+        continue-on-error: true
         run: |
           if [ -z "${WEBHOOK_URL}" ]; then
             echo "ℹ️  No HETZNER_WEBHOOK_URL configured. Skipping webhook fallback."
@@ -313,7 +314,8 @@ jobs:
             -X POST "${TARGET_URL}" \
             -H "Content-Type: application/json" \
             -H "x-webhook-secret: ${SECRET}" \
-            -d '{"source":"github-actions","action":"deploy-fallback","ref":"${{ github.sha }}"}'
+            -d '{"source":"github-actions","action":"deploy-fallback","ref":"${{ github.sha }}"}' \
+            || echo "⚠️  Hetzner fallback webhook endpoint not reachable right now."
 
       - name: Fail if both SSH and webhook failed
         if: ${{ (steps.sync_hetzner.outcome != 'success' || steps.restart_hetzner.outcome != 'success') && steps.webhook_fallback.outcome != 'success' }}
