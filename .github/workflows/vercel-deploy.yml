@@ -330,6 +330,7 @@ jobs:
     needs: validate
     steps:
       - name: Trigger Hetzner webhook
+        continue-on-error: true
         run: |
           URL='${{ secrets.HETZNER_WEBHOOK_URL || secrets.GH_WEBHOOK_URL || secrets.WEBHOOK_URL }}'
           if [ -z "${URL}" ]; then
@@ -350,7 +351,8 @@ jobs:
             -X POST "${TARGET_URL}" \
             -H "Content-Type: application/json" \
             -H "x-webhook-secret: ${SECRET}" \
-            -d '{"source":"github-actions","action":"deploy","ref":"${{ github.sha }}"}'
+            -d '{"source":"github-actions","action":"deploy","ref":"${{ github.sha }}"}' \
+            || echo "⚠️  Hetzner webhook endpoint not reachable right now."
 
   # ──────────────────────────────────────────────────────────────────────
   # JOB 5: Deploy summary
