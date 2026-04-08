@@ -62,7 +62,6 @@ jobs:
     name: 🚀 Deploy → Vercel
     runs-on: ubuntu-latest
     needs: validate
-    if: ${{ secrets.VERCEL_TOKEN != '' && secrets.VERCEL_ORG_ID != '' && secrets.VERCEL_PROJECT_ID != '' }}
     defaults:
       run:
         working-directory: UNICORN_FINAL
@@ -120,7 +119,6 @@ jobs:
     name: 🖥️ Deploy → Hetzner (SSH)
     runs-on: ubuntu-latest
     needs: validate
-    if: ${{ secrets.HETZNER_HOST != '' && secrets.HETZNER_DEPLOY_USER != '' && secrets.HETZNER_SSH_PRIVATE_KEY != '' && secrets.HETZNER_DEPLOY_PATH != '' }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -225,8 +223,12 @@ jobs:
 
       - name: Fallback — trigger Hetzner webhook (if SSH failed)
         id: webhook_fallback
-        if: ${{ (steps.sync_hetzner.outcome != 'success' || steps.restart_hetzner.outcome != 'success') && secrets.HETZNER_WEBHOOK_URL != '' }}
+        if: ${{ steps.sync_hetzner.outcome != 'success' || steps.restart_hetzner.outcome != 'success' }}
         run: |
+          if [ -z "${{ secrets.HETZNER_WEBHOOK_URL }}" ]; then
+            echo "ℹ️  No HETZNER_WEBHOOK_URL configured. Skipping webhook fallback."
+            exit 0
+          fi
           SECRET="${{ secrets.HETZNER_WEBHOOK_SECRET || secrets.WEBHOOK_SECRET }}"
           curl --fail --show-error --silent \
             -X POST "${{ secrets.HETZNER_WEBHOOK_URL }}/deploy" \
@@ -247,10 +249,13 @@ jobs:
     name: 🔔 Deploy → Hetzner (Webhook only)
     runs-on: ubuntu-latest
     needs: validate
-    if: ${{ secrets.HETZNER_WEBHOOK_URL != '' && (secrets.HETZNER_WEBHOOK_SECRET != '' || secrets.WEBHOOK_SECRET != '') && secrets.HETZNER_SSH_PRIVATE_KEY == '' }}
     steps:
       - name: Trigger Hetzner webhook
         run: |
+          if [ -z "${{ secrets.HETZNER_WEBHOOK_URL }}" ]; then
+            echo "ℹ️  No HETZNER_WEBHOOK_URL configured. Skipping webhook-only deploy."
+            exit 0
+          fi
           SECRET="${{ secrets.HETZNER_WEBHOOK_SECRET || secrets.WEBHOOK_SECRET }}"
           curl --fail --show-error --silent \
             -X POST "${{ secrets.HETZNER_WEBHOOK_URL }}/deploy" \
