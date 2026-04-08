@@ -37,6 +37,9 @@ import AdminLogin from './pages/AdminLogin';
 import AdminDashboard from './pages/AdminDashboard';
 import ExecutiveDashboard from './pages/ExecutiveDashboard';
 import UnicornLab from './pages/UnicornLab';
+import LandingPageGenerator from './pages/LandingPageGenerator';
+import AdminWealth from './pages/AdminWealth';
+import AdminBD from './pages/AdminBD';
 import toast, { Toaster } from 'react-hot-toast';
 
 function App() {
@@ -135,8 +138,11 @@ function App() {
           <Route path="/dashboard-client" element={user ? <ClientDashboard /> : <Navigate to="/login" />} />
           <Route path="/admin/login" element={<AdminLogin />} />
           <Route path="/admin/dashboard" element={<AdminDashboard />} />
+          <Route path="/admin/wealth" element={<AdminWealth />} />
+          <Route path="/admin/bd" element={<AdminBD />} />
           <Route path="/executive" element={<ExecutiveDashboard />} />
           <Route path="/unicorn-lab" element={<UnicornLab />} />
+          <Route path="/landing-generator" element={<LandingPageGenerator />} />
         </Routes>
       </main>
 
