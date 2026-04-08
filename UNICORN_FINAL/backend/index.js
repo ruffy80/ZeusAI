@@ -235,6 +235,7 @@ const executiveDashboard = mockModule('executiveDashboard');
 const unicornInnovationSuite = require('./modules/unicornInnovationSuite');
 const autonomousInnovation = require('./modules/autonomousInnovation');
 const autoRevenue = require('./modules/autoRevenue');
+const autoViralGrowth = require('./modules/autoViralGrowth');
 
 // Pornire module autonome
 selfConstruction.start();
@@ -244,6 +245,7 @@ autoDeploy.start();
 // Start autonomous systems
 console.log('🤖 Autonomous Innovation Engine: STARTING');
 console.log('💰 Auto Revenue Engine: STARTING');
+console.log('📣 Auto Viral Growth Engine: STARTING');
 
 // ==================== RUTE API ====================
 app.get('/api/health', (req, res) => res.json({ status: 'ok', uptime: process.uptime() }));
@@ -1089,6 +1091,16 @@ app.post('/api/autonomous/revenue/generate-deals', adminTokenMiddleware, (req, r
   res.json({ success: true, message: 'Revenue generation cycle triggered' });
 });
 
+// ==================== AUTO VIRAL GROWTH ROUTES ====================
+app.get('/api/autonomous/viral/status', (req, res) => {
+  res.json(autoViralGrowth.getViralStatus());
+});
+
+app.post('/api/autonomous/viral/trigger', adminTokenMiddleware, (req, res) => {
+  const result = autoViralGrowth.executeGrowthLoop();
+  res.json({ success: true, result });
+});
+
 app.get('/api/autonomous/platform/status', (req, res) => {
   res.json({
     timestamp: new Date().toISOString(),
@@ -1096,12 +1108,15 @@ app.get('/api/autonomous/platform/status', (req, res) => {
     autonomousEngines: {
       innovation: autonomousInnovation.getStatus(),
       revenue: autoRevenue.getRevenueStatus(),
+      viral: autoViralGrowth.getViralStatus(),
     },
     combinedMetrics: {
       totalInnovationsGenerated: autonomousInnovation.metrics.totalInnovationsGenerated,
       totalFeaturesDeployed: autonomousInnovation.metrics.totalFeaturesDeployed,
       projectedAnnualRevenue: autoRevenue.metrics.projectedAnnualRevenue,
       activeDeals: autoRevenue.metrics.activeDeals,
+      viralScore: autoViralGrowth.metrics.viralScore,
+      estimatedReach: autoViralGrowth.metrics.estimatedReach,
     },
   });
 });
