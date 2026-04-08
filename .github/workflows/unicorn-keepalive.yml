@@ -1,0 +1,108 @@
+name: 🔗 Unicorn Keep-Alive (Platform Health Check)
+
+# Runs every 3 hours to verify Vercel + Hetzner are reachable.
+# If either is down, triggers the main deploy workflow to heal the platform.
+
+on:
+  schedule:
+    - cron: '30 */3 * * *'   # every 3 hours at :30
+  workflow_dispatch:
+    inputs:
+      force_redeploy:
+        description: 'Force redeploy regardless of health'
+        required: false
+        default: 'false'
+
+concurrency:
+  group: unicorn-keepalive
+  cancel-in-progress: true
+
+jobs:
+  keepalive:
+    name: 🩺 Check Platform Health
+    runs-on: ubuntu-latest
+    outputs:
+      healthy: ${{ steps.health.outputs.healthy }}
+    steps:
+      - name: Check Vercel health
+        id: vercel_check
+        continue-on-error: true
+        run: |
+          URL="${{ secrets.VERCEL_HEALTH_URL || 'https://zeusai.vercel.app/health' }}"
+          STATUS=$(curl -s -o /dev/null -w "%{http_code}" --max-time 10 "$URL" || echo "000")
+          echo "Vercel /health → HTTP $STATUS"
+          if [ "$STATUS" = "200" ]; then
+            echo "vercel_ok=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "vercel_ok=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Check Hetzner health
+        id: hetzner_check
+        continue-on-error: true
+        run: |
+          HOST="${{ secrets.HETZNER_HOST || secrets.SSH_HOST }}"
+          if [ -z "$HOST" ]; then
+            echo "ℹ️  HETZNER_HOST not configured — skipping Hetzner health check"
+            echo "hetzner_ok=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          PORT="${{ secrets.HETZNER_APP_PORT || '3000' }}"
+          STATUS=$(curl -s -o /dev/null -w "%{http_code}" --max-time 10 "http://${HOST}:${PORT}/api/health" || echo "000")
+          echo "Hetzner /api/health → HTTP $STATUS"
+          if [ "$STATUS" = "200" ]; then
+            echo "hetzner_ok=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "hetzner_ok=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Evaluate platform health
+        id: health
+        run: |
+          VERCEL="${{ steps.vercel_check.outputs.vercel_ok || 'unknown' }}"
+          HETZNER="${{ steps.hetzner_check.outputs.hetzner_ok || 'unknown' }}"
+          FORCE="${{ inputs.force_redeploy || 'false' }}"
+
+          echo "Vercel status  : $VERCEL"
+          echo "Hetzner status : $HETZNER"
+          echo "Force redeploy : $FORCE"
+
+          if [ "$VERCEL" = "true" ] && [ "$HETZNER" = "true" ] && [ "$FORCE" != "true" ]; then
+            echo "✅ Platform fully healthy — no redeploy needed"
+            echo "healthy=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "⚠️  Platform needs attention — triggering redeploy"
+            echo "healthy=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Write job summary
+        if: always()
+        run: |
+          echo "## 🔗 Unicorn Keep-Alive Report" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Platform | Status |" >> "$GITHUB_STEP_SUMMARY"
+          echo "|----------|--------|" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Vercel   | ${{ steps.vercel_check.outputs.vercel_ok == 'true' && '✅ OK' || '❌ DOWN' }} |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Hetzner  | ${{ steps.hetzner_check.outputs.hetzner_ok == 'true' && '✅ OK' || '❌ DOWN' }} |" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "Checked at: $(date -u +"%Y-%m-%dT%H:%M:%SZ")" >> "$GITHUB_STEP_SUMMARY"
+
+  trigger-redeploy:
+    name: 🚀 Trigger Redeploy (if unhealthy)
+    runs-on: ubuntu-latest
+    needs: keepalive
+    if: needs.keepalive.outputs.healthy == 'false'
+    steps:
+      - name: Dispatch main deploy workflow
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            await github.rest.actions.createWorkflowDispatch({
+              owner: context.repo.owner,
+              repo:  context.repo.repo,
+              workflow_id: 'vercel-deploy.yml',
+              ref: 'main',
+              inputs: { force_deploy: 'true' }
+            });
+            console.log('✅ Deploy workflow dispatched successfully');

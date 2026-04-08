@@ -6,6 +6,9 @@ on:
     paths:
       - 'UNICORN_FINAL/**'
       - '.github/workflows/vercel-deploy.yml'
+  # ── Keep-alive: re-verify and redeploy every 6 hours ──────────────────────
+  schedule:
+    - cron: '0 */6 * * *'
   workflow_dispatch:
     inputs:
       force_deploy:
@@ -308,6 +311,14 @@ jobs:
               echo "✅ Restarted via nohup"
             fi
 
+            # ── Start all PM2 apps via ecosystem config (permanent boot) ──
+            if command -v pm2 >/dev/null 2>&1; then
+              pm2 start ecosystem.config.js --update-env 2>/dev/null || \
+                pm2 restart ecosystem.config.js --update-env 2>/dev/null || true
+              pm2 save
+              echo "✅ Ecosystem apps running via pm2"
+            fi
+
             # ── Start autonomous orchestrator ─────────────────────────────
             if command -v pm2 >/dev/null 2>&1; then
               pm2 describe unicorn-orchestrator >/dev/null 2>&1 \
@@ -318,13 +329,23 @@ jobs:
                 && pm2 restart unicorn-health-guardian --update-env \
                 || HEALTH_GUARDIAN_HEAL_CMD='systemctl restart unicorn' pm2 start scripts/health-guardian.js --name unicorn-health-guardian --log logs/health-guardian.log
 
+              pm2 describe unicorn-platform-connector >/dev/null 2>&1 \
+                && pm2 restart unicorn-platform-connector --update-env \
+                || pm2 start scripts/platform-connector.js --name unicorn-platform-connector --log logs/platform-connector.log
+
               pm2 save
-              echo "✅ Orchestrator running via pm2"
+              echo "✅ Orchestrator + connectors running via pm2"
             else
               pkill -f "autonomous-orchestrator.js" || true
               sleep 1
               nohup node autonomous-orchestrator.js > logs/orchestrator.log 2>&1 &
               echo "✅ Orchestrator running via nohup"
+            fi
+
+            # ── Setup systemd for permanent auto-boot (idempotent) ────────
+            if command -v systemctl >/dev/null 2>&1; then
+              bash scripts/setup-systemd.sh "${{ secrets.HETZNER_DEPLOY_PATH || '/opt/unicorn' }}" || true
+              echo "✅ Systemd auto-boot configured"
             fi
           ENDSSH
 
