@@ -207,10 +207,6 @@ jobs:
         if: steps.hetzner_guard.outputs.ssh_ready == 'true'
         continue-on-error: true
         run: |
-          DEPLOY_PORT="${DEPLOY_PORT:-22}"
-          if ! [[ "$DEPLOY_PORT" =~ ^[0-9]+$ ]]; then
-            DEPLOY_PORT="22"
-          fi
           rsync -az --delete \
             --exclude='.git' \
             --exclude='node_modules' \
@@ -218,7 +214,7 @@ jobs:
             --exclude='logs' \
             --exclude='*.local' \
             --exclude='.env' \
-            -e "ssh -i ~/.ssh/deploy_key -p $DEPLOY_PORT -o StrictHostKeyChecking=no -o UserKnownHostsFile=~/.ssh/known_hosts" \
+            -e "ssh -i ~/.ssh/deploy_key -p 22 -o StrictHostKeyChecking=no -o UserKnownHostsFile=~/.ssh/known_hosts" \
             ./UNICORN_FINAL/ \
             ${DEPLOY_USER}@${DEPLOY_HOST}:${DEPLOY_PATH}/
 
@@ -227,11 +223,7 @@ jobs:
         if: steps.hetzner_guard.outputs.ssh_ready == 'true'
         continue-on-error: true
         run: |
-          DEPLOY_PORT="${DEPLOY_PORT:-22}"
-          if ! [[ "$DEPLOY_PORT" =~ ^[0-9]+$ ]]; then
-            DEPLOY_PORT="22"
-          fi
-          ssh -i ~/.ssh/deploy_key -p $DEPLOY_PORT -o StrictHostKeyChecking=no -o UserKnownHostsFile=~/.ssh/known_hosts \
+          ssh -i ~/.ssh/deploy_key -p 22 -o StrictHostKeyChecking=no -o UserKnownHostsFile=~/.ssh/known_hosts \
             ${DEPLOY_USER}@${DEPLOY_HOST} << ENDSSH
             set -e
             cd "${DEPLOY_PATH}"
