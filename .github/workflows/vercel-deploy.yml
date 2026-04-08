@@ -286,9 +286,11 @@ jobs:
             fi
 
             # ── Update .env with Hetzner API token + domain + owner credentials ──
-            if [ -f .env ]; then
-              sed -i '/^HETZNER_API_KEY=/d;/^HETZNER_API_TOKEN=/d;/^PUBLIC_APP_URL=/d;/^SITE_DOMAIN=/d;/^BTC_WALLET_ADDRESS=/d;/^OWNER_BTC_ADDRESS=/d;/^OWNER_EMAIL=/d;/^OWNER_NAME=/d;/^ADMIN_EMAIL=/d;/^SMTP_HOST=/d;/^SMTP_PORT=/d;/^SMTP_USER=/d' .env
-            fi
+            for key in HETZNER_API_KEY HETZNER_API_TOKEN PUBLIC_APP_URL SITE_DOMAIN \
+                       BTC_WALLET_ADDRESS OWNER_BTC_ADDRESS OWNER_EMAIL OWNER_NAME \
+                       ADMIN_EMAIL SMTP_HOST SMTP_PORT SMTP_USER; do
+              [ -f .env ] && sed -i "/^${key}=/d" .env || true
+            done
             printf "HETZNER_API_KEY=%s\nHETZNER_API_TOKEN=%s\n" \
               "${HETZNER_API_VALUE}" "${HETZNER_API_VALUE}" >> .env
             printf "PUBLIC_APP_URL=https://zeusai.pro\nSITE_DOMAIN=zeusai.pro\n" >> .env
