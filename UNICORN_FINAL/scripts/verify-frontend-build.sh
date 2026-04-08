@@ -21,6 +21,11 @@ NC='\033[0m'
 PASS=0
 FAIL=0
 SERVER_PID=""
+LOG_FILE=""
+
+# Timeout pentru pornirea serverului de test
+MAX_RETRIES=20      # număr de încercări
+RETRY_DELAY=0.5     # secunde între încercări (total: MAX_RETRIES × RETRY_DELAY = 10s)
 
 ok()   { echo -e "${GREEN}✅  $1${NC}"; PASS=$((PASS + 1)); }
 ko()   { echo -e "${RED}❌  $1${NC}"; FAIL=$((FAIL + 1)); }
@@ -28,13 +33,16 @@ info() { echo -e "${BLUE}ℹ️   $1${NC}"; }
 warn() { echo -e "${YELLOW}⚠️   $1${NC}"; }
 
 # ---------------------------------------------------------------------------
-# Cleanup la ieșire — oprește serverul dacă a fost pornit
+# Cleanup la ieșire — oprește serverul și șterge fișierul temp de log
 # ---------------------------------------------------------------------------
 cleanup() {
   if [ -n "$SERVER_PID" ] && kill -0 "$SERVER_PID" 2>/dev/null; then
     info "Oprire server de test (PID $SERVER_PID)..."
     kill "$SERVER_PID" 2>/dev/null || true
     wait "$SERVER_PID" 2>/dev/null || true
+  fi
+  if [ -n "$LOG_FILE" ] && [ -f "$LOG_FILE" ]; then
+    rm -f "$LOG_FILE"
   fi
 }
 trap cleanup EXIT
@@ -145,15 +153,26 @@ fi
 # ---------------------------------------------------------------------------
 echo -e "\n4) Server activ — servire fișiere statice"
 
-# Găsește un port liber
-TEST_PORT=$(node -e "
-  const net = require('net');
-  const srv = net.createServer();
-  srv.listen(0, '127.0.0.1', () => {
-    process.stdout.write(String(srv.address().port));
-    srv.close();
-  });
-" 2>/dev/null)
+# Găsește un port liber folosind un interval aleatoriu pentru a reduce riscul de race condition
+# (portul este eliberat de Node înainte de a-l folosi, dar intervalul scurt minimizează conflictele)
+find_free_port() {
+  node -e "
+    const net = require('net');
+    function tryPort(port, cb) {
+      const srv = net.createServer();
+      srv.once('error', () => tryPort(port + 1, cb));
+      srv.listen(port, '127.0.0.1', () => {
+        const p = srv.address().port;
+        srv.close(() => cb(p));
+      });
+    }
+    // Alege un port de start aleatoriu în intervalul 20000-29999
+    const start = 20000 + Math.floor(Math.random() * 10000);
+    tryPort(start, (p) => process.stdout.write(String(p)));
+  " 2>/dev/null
+}
+
+TEST_PORT=$(find_free_port)
 
 if [ -z "$TEST_PORT" ]; then
   warn "Nu s-a putut determina un port liber. Se folosește 13001."
@@ -162,14 +181,16 @@ fi
 
 info "Pornire server pe portul $TEST_PORT..."
 
+LOG_FILE=$(mktemp)
+
 cd "$UNICORN_DIR"
-PORT="$TEST_PORT" node backend/index.js > /tmp/unicorn-server-test.log 2>&1 &
+PORT="$TEST_PORT" node backend/index.js > "$LOG_FILE" 2>&1 &
 SERVER_PID=$!
 
 # Așteaptă până la 10 secunde ca serverul să fie gata
 READY=0
-for i in $(seq 1 20); do
-  sleep 0.5
+for i in $(seq 1 "$MAX_RETRIES"); do
+  sleep "$RETRY_DELAY"
   if curl -s -o /dev/null "http://127.0.0.1:${TEST_PORT}/api/health" 2>/dev/null; then
     READY=1
     break
@@ -177,9 +198,9 @@ for i in $(seq 1 20); do
 done
 
 if [ "$READY" -eq 0 ]; then
-  ko "Serverul nu a răspuns în 10 secunde pe portul $TEST_PORT"
+  ko "Serverul nu a răspuns în $((MAX_RETRIES * 10 / 10)) secunde pe portul $TEST_PORT"
   info "Log server:"
-  cat /tmp/unicorn-server-test.log || true
+  cat "$LOG_FILE" || true
 else
   ok "Serverul a pornit și răspunde pe portul $TEST_PORT"
 
