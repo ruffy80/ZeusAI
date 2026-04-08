@@ -14,8 +14,9 @@ const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
 const JWT_SECRET = process.env.JWT_SECRET || 'unicorn-jwt-secret-change-in-prod';
 
-// Stripe raw body buffer for webhook signature verification
+// Raw body buffers needed for webhook signature verification
 app.use('/api/payment/webhook/stripe', express.raw({ type: 'application/json' }));
+app.use('/api/payment/webhook/paypal', express.raw({ type: 'application/json' }));
 
 app.use(compression());
 app.use(cors());
@@ -525,6 +526,132 @@ app.post('/api/payment/webhook/stripe', (req, res) => {
     }
     default:
       console.log('[Stripe Webhook] Unhandled event type:', event.type);
+  }
+
+  res.json({ received: true });
+});
+
+// ==================== PAYPAL WEBHOOK ====================
+app.post('/api/payment/webhook/paypal', async (req, res) => {
+  const webhookId = process.env.PAYPAL_WEBHOOK_ID;
+  const rawBody = req.body; // raw Buffer due to express.raw() middleware
+
+  let event;
+  try {
+    event = JSON.parse(rawBody.toString());
+  } catch {
+    return res.status(400).json({ error: 'Invalid JSON' });
+  }
+
+  // Verify PayPal webhook signature when PAYPAL_WEBHOOK_ID is configured
+  if (webhookId) {
+    try {
+      const paypalBase = (process.env.PAYPAL_ENV || 'sandbox').toLowerCase() === 'live'
+        ? 'https://api-m.paypal.com'
+        : 'https://api-m.sandbox.paypal.com';
+
+      const accessToken = await paymentGateway.getPayPalAccessToken();
+      const verifyResponse = await axios.post(
+        paypalBase + '/v1/notifications/verify-webhook-signature',
+        {
+          auth_algo: req.headers['paypal-auth-algo'],
+          cert_url: req.headers['paypal-cert-url'],
+          transmission_id: req.headers['paypal-transmission-id'],
+          transmission_sig: req.headers['paypal-transmission-sig'],
+          transmission_time: req.headers['paypal-transmission-time'],
+          webhook_id: webhookId,
+          webhook_event: event
+        },
+        {
+          headers: { Authorization: 'Bearer ' + accessToken, 'Content-Type': 'application/json' },
+          timeout: 15000
+        }
+      );
+
+      if (verifyResponse.data?.verification_status !== 'SUCCESS') {
+        console.warn('[PayPal Webhook] Signature verification failed:', verifyResponse.data?.verification_status);
+        return res.status(400).json({ error: 'Webhook signature verification failed' });
+      }
+    } catch (verifyErr) {
+      console.error('[PayPal Webhook] Signature verification error:', verifyErr.message);
+      if (process.env.NODE_ENV === 'production') {
+        return res.status(400).json({ error: 'Webhook verification error' });
+      }
+      console.warn('[PayPal Webhook] Skipping verification in non-production mode');
+    }
+  } else if (process.env.NODE_ENV === 'production') {
+    return res.status(401).json({ error: 'PAYPAL_WEBHOOK_ID not configured' });
+  } else {
+    console.warn('⚠️  [PayPal Webhook] PAYPAL_WEBHOOK_ID not set — accepting unverified payload (dev mode only)');
+  }
+
+  const eventType = event.event_type || '';
+  const resource = event.resource || {};
+  console.log('[PayPal Webhook]', eventType, event.id || '');
+
+  // Find the txId stored in the payment's reference_id
+  const refId = resource.supplementary_data?.related_ids?.order_id
+    || resource.custom_id
+    || resource.purchase_units?.[0]?.reference_id
+    || null;
+
+  const markCompleted = async (orderId, txIdHint) => {
+    // Try to find payment by provider payment ID or txId hint
+    const allPending = dbPayments.list({ status: 'pending' });
+    const payment = allPending.find(p =>
+      p.providerPaymentId === orderId ||
+      p.txId === txIdHint ||
+      p.providerPaymentId === txIdHint
+    );
+
+    if (payment) {
+      const updated = {
+        ...payment,
+        status: 'completed',
+        providerStatus: 'COMPLETED',
+        processorResponse: {
+          approved: true,
+          reference: orderId || payment.providerPaymentId,
+          note: 'PayPal webhook confirmed.'
+        },
+        updatedAt: new Date().toISOString()
+      };
+      dbPayments.save(updated);
+      paymentGateway.payments.set(payment.txId, updated);
+      console.log('[PayPal Webhook] Payment completed:', payment.txId);
+    }
+  };
+
+  switch (eventType) {
+    case 'PAYMENT.CAPTURE.COMPLETED': {
+      const orderId = resource.supplementary_data?.related_ids?.order_id || resource.id;
+      await markCompleted(orderId, refId);
+      break;
+    }
+    case 'CHECKOUT.ORDER.APPROVED': {
+      // Order approved; attempt to capture it automatically
+      try {
+        await paymentGateway.capturePayPalOrder(resource.id);
+        console.log('[PayPal Webhook] Order captured:', resource.id);
+      } catch (captureErr) {
+        console.error('[PayPal Webhook] Auto-capture failed:', captureErr.message);
+      }
+      break;
+    }
+    case 'PAYMENT.CAPTURE.DENIED':
+    case 'PAYMENT.CAPTURE.REVERSED': {
+      const orderId = resource.supplementary_data?.related_ids?.order_id || resource.id;
+      const allPending = dbPayments.list({ status: 'pending' });
+      const payment = allPending.find(p => p.providerPaymentId === orderId || p.providerPaymentId === resource.id);
+      if (payment) {
+        dbPayments.save({ ...payment, status: 'failed', providerStatus: eventType, updatedAt: new Date().toISOString() });
+        paymentGateway.payments.delete(payment.txId);
+      }
+      console.log('[PayPal Webhook] Payment denied/reversed:', orderId);
+      break;
+    }
+    default:
+      console.log('[PayPal Webhook] Unhandled event type:', eventType);
   }
 
   res.json({ received: true });
