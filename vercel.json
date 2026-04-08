@@ -1,0 +1,13 @@
+{
+  "version": 2,
+  "framework": null,
+  "installCommand": "npm install --no-audit --no-fund",
+  "buildCommand": "npm --prefix UNICORN_FINAL/client install --no-audit --no-fund && npm --prefix UNICORN_FINAL/client run build",
+  "outputDirectory": "UNICORN_FINAL/client/build",
+  "rewrites": [
+    {
+      "source": "/(.*)",
+      "destination": "/index.html"
+    }
+  ]
+}
