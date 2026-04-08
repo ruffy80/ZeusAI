@@ -214,13 +214,14 @@ jobs:
         continue-on-error: true
         run: |
           echo "Deploying UNICORN_FINAL to Hetzner..."
-          tar --exclude='.git' --exclude='node_modules' --exclude='.next' \
+          tar -C ./UNICORN_FINAL \
+              --exclude='.git' --exclude='node_modules' --exclude='.next' \
               --exclude='logs' --exclude='*.local' --exclude='.env' \
-              -czf - ./UNICORN_FINAL/ | \
+              -czf - . | \
             ssh -i ~/.ssh/deploy_key -p 22 -o StrictHostKeyChecking=no \
               -o BatchMode=yes \
               "${{ secrets.HETZNER_DEPLOY_USER || secrets.HETZNER_USER || secrets.SSH_USER }}@${{ secrets.HETZNER_HOST || secrets.SSH_HOST }}" \
-              "mkdir -p '${{ secrets.HETZNER_DEPLOY_PATH || '/opt/unicorn' }}' && cd '${{ secrets.HETZNER_DEPLOY_PATH || '/opt/unicorn' }}' && tar -xzf - --strip-components=1"
+              "mkdir -p '${{ secrets.HETZNER_DEPLOY_PATH || '/opt/unicorn' }}' && cd '${{ secrets.HETZNER_DEPLOY_PATH || '/opt/unicorn' }}' && tar -xzf -"
 
       - name: Install deps + restart backend on Hetzner
         id: restart_hetzner
@@ -232,6 +233,18 @@ jobs:
             "${{ secrets.HETZNER_DEPLOY_USER || secrets.HETZNER_USER || secrets.SSH_USER }}@${{ secrets.HETZNER_HOST || secrets.SSH_HOST }}" << ENDSSH
             set -e
             cd "${{ secrets.HETZNER_DEPLOY_PATH || '/opt/unicorn' }}"
+
+            # ── Ensure Node.js exists on host ───────────────────────────
+            if ! command -v node >/dev/null 2>&1; then
+              apt-get update -y
+              apt-get install -y curl ca-certificates gnupg
+              install -m 0755 -d /etc/apt/keyrings
+              curl -fsSL https://deb.nodesource.com/gpgkey/nodesource-repo.gpg.key | gpg --dearmor -o /etc/apt/keyrings/nodesource.gpg
+              chmod a+r /etc/apt/keyrings/nodesource.gpg
+              echo "deb [signed-by=/etc/apt/keyrings/nodesource.gpg] https://deb.nodesource.com/node_20.x nodistro main" > /etc/apt/sources.list.d/nodesource.list
+              apt-get update -y
+              apt-get install -y nodejs
+            fi
 
             # ── Update .env with Hetzner API token ───────────────────────
             if [ -f .env ]; then
