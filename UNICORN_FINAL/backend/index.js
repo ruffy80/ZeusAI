@@ -589,21 +589,24 @@ app.post('/api/payment/webhook/paypal', async (req, res) => {
   const resource = event.resource || {};
   console.log('[PayPal Webhook]', eventType, event.id || '');
 
-  // Find the txId stored in the payment's reference_id
-  const refId = resource.supplementary_data?.related_ids?.order_id
+  // Extract possible txId/order ID hint from various PayPal resource fields
+  const txIdHint = resource.supplementary_data?.related_ids?.order_id
     || resource.custom_id
     || resource.purchase_units?.[0]?.reference_id
     || null;
 
-  const markCompleted = async (orderId, txIdHint) => {
-    // Try to find payment by provider payment ID or txId hint
+  // Shared helper: find a pending payment by PayPal order ID or txId hint and update it
+  const findPaymentByOrderId = (orderId, hint) => {
     const allPending = dbPayments.list({ status: 'pending' });
-    const payment = allPending.find(p =>
+    return allPending.find(p =>
       p.providerPaymentId === orderId ||
-      p.txId === txIdHint ||
-      p.providerPaymentId === txIdHint
-    );
+      p.txId === hint ||
+      p.providerPaymentId === hint
+    ) || null;
+  };
 
+  const markCompleted = (orderId, hint) => {
+    const payment = findPaymentByOrderId(orderId, hint);
     if (payment) {
       const updated = {
         ...payment,
@@ -625,7 +628,7 @@ app.post('/api/payment/webhook/paypal', async (req, res) => {
   switch (eventType) {
     case 'PAYMENT.CAPTURE.COMPLETED': {
       const orderId = resource.supplementary_data?.related_ids?.order_id || resource.id;
-      await markCompleted(orderId, refId);
+      markCompleted(orderId, txIdHint);
       break;
     }
     case 'CHECKOUT.ORDER.APPROVED': {
@@ -641,8 +644,7 @@ app.post('/api/payment/webhook/paypal', async (req, res) => {
     case 'PAYMENT.CAPTURE.DENIED':
     case 'PAYMENT.CAPTURE.REVERSED': {
       const orderId = resource.supplementary_data?.related_ids?.order_id || resource.id;
-      const allPending = dbPayments.list({ status: 'pending' });
-      const payment = allPending.find(p => p.providerPaymentId === orderId || p.providerPaymentId === resource.id);
+      const payment = findPaymentByOrderId(orderId, txIdHint);
       if (payment) {
         dbPayments.save({ ...payment, status: 'failed', providerStatus: eventType, updatedAt: new Date().toISOString() });
         paymentGateway.payments.delete(payment.txId);

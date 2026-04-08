@@ -205,6 +205,9 @@ class PaymentGateway {
   }
 
   async capturePayPalOrder(orderId) {
+    if (!orderId || !/^[A-Za-z0-9_-]{1,100}$/.test(orderId)) {
+      throw new Error('Invalid PayPal order ID format');
+    }
     const accessToken = await this.getPayPalAccessToken();
     const response = await axios.post(this.getPayPalBaseUrl() + '/v2/checkout/orders/' + orderId + '/capture', {}, {
       headers: {
