@@ -207,17 +207,13 @@ jobs:
         if: steps.hetzner_guard.outputs.ssh_ready == 'true'
         continue-on-error: true
         run: |
-          echo "DEBUG: DEPLOY_USER=$DEPLOY_USER DEPLOY_HOST=$DEPLOY_HOST DEPLOY_PATH=$DEPLOY_PATH"
-          rsync -avz --delete \
-            --exclude='.git' \
-            --exclude='node_modules' \
-            --exclude='.next' \
-            --exclude='logs' \
-            --exclude='*.local' \
-            --exclude='.env' \
-            -e "ssh -i ~/.ssh/deploy_key -p 22 -o StrictHostKeyChecking=no" \
-            ./UNICORN_FINAL/ \
-            "$DEPLOY_USER@$DEPLOY_HOST:$DEPLOY_PATH/"
+          echo "Deploying UNICORN_FINAL to Hetzner..."
+          tar --exclude='.git' --exclude='node_modules' --exclude='.next' \
+              --exclude='logs' --exclude='*.local' --exclude='.env' \
+              -czf - ./UNICORN_FINAL/ | \
+            ssh -i ~/.ssh/deploy_key -p 22 -o StrictHostKeyChecking=no \
+              "$DEPLOY_USER@$DEPLOY_HOST" \
+              "mkdir -p '$DEPLOY_PATH' && cd '$DEPLOY_PATH' && tar -xzf - --strip-components=1"
 
       - name: Install deps + restart backend on Hetzner
         id: restart_hetzner
