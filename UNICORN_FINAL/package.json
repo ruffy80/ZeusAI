@@ -22,6 +22,7 @@
     "start:pm2": "pm2 start ecosystem.config.js",
     "stop:pm2": "pm2 stop unicorn",
     "restart:pm2": "pm2 restart unicorn",
+    "secrets:push": "node scripts/setup-github-secrets.js",
     "test": "node test/health.test.js",
     "lint": "node --check backend/index.js && node --check src/index.js",
     "lint:all": "node --check backend/index.js && node --check src/index.js",
