@@ -313,8 +313,9 @@ jobs:
 
             # ── Start all PM2 apps via ecosystem config (permanent boot) ──
             if command -v pm2 >/dev/null 2>&1; then
-              pm2 start ecosystem.config.js --update-env 2>/dev/null || \
-                pm2 restart ecosystem.config.js --update-env 2>/dev/null || true
+              pm2 start ecosystem.config.js --update-env 2>&1 || \
+                pm2 restart ecosystem.config.js --update-env 2>&1 || \
+                echo "⚠️ ecosystem.config.js start/restart failed — individual app restart may be needed"
               pm2 save
               echo "✅ Ecosystem apps running via pm2"
             fi

@@ -18,7 +18,7 @@ module.exports = {
       watch: false,
       max_restarts: 20,
       restart_delay: 3000,
-      exp_backoff_restart_delay: 100,
+      exp_backoff_restart_delay: 2000,
       env: {
         NODE_ENV: 'production',
         PORT: 3000
@@ -38,7 +38,7 @@ module.exports = {
       watch: false,
       max_restarts: 20,
       restart_delay: 5000,
-      exp_backoff_restart_delay: 200,
+      exp_backoff_restart_delay: 2000,
       env: {
         NODE_ENV: 'production',
         INNOVATION_INTERVAL: '30',

@@ -21,6 +21,8 @@ jobs:
   keepalive:
     name: 🩺 Check Platform Health
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     outputs:
       healthy: ${{ steps.health.outputs.healthy }}
     steps:
@@ -28,9 +30,14 @@ jobs:
         id: vercel_check
         continue-on-error: true
         run: |
-          URL="${{ secrets.VERCEL_HEALTH_URL || 'https://zeusai.vercel.app/health' }}"
+          URL="${{ secrets.VERCEL_HEALTH_URL }}"
+          if [ -z "$URL" ]; then
+            echo "ℹ️  VERCEL_HEALTH_URL secret not configured — skipping Vercel health check"
+            echo "vercel_ok=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
           STATUS=$(curl -s -o /dev/null -w "%{http_code}" --max-time 10 "$URL" || echo "000")
-          echo "Vercel /health → HTTP $STATUS"
+          echo "Vercel health URL → HTTP $STATUS"
           if [ "$STATUS" = "200" ]; then
             echo "vercel_ok=true" >> "$GITHUB_OUTPUT"
           else
@@ -92,6 +99,8 @@ jobs:
     runs-on: ubuntu-latest
     needs: keepalive
     if: needs.keepalive.outputs.healthy == 'false'
+    permissions:
+      actions: write
     steps:
       - name: Dispatch main deploy workflow
         uses: actions/github-script@v7

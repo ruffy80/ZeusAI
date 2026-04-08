@@ -185,10 +185,13 @@ async function runPlatformCycle() {
     const http  = require('http');
     const https = require('https');
 
-    // Helper: simple GET returning statusCode or 0 on error
+    // Helper: simple GET returning statusCode or 0 on error; drains body to avoid socket exhaustion
     const ping = (url, timeoutMs = 6000) => new Promise((resolve) => {
       const lib = url.startsWith('https') ? https : http;
-      const req = lib.get(url, { timeout: timeoutMs }, (res) => resolve(res.statusCode));
+      const req = lib.get(url, { timeout: timeoutMs }, (res) => {
+        res.resume(); // consume and discard body to free the socket
+        resolve(res.statusCode);
+      });
       req.on('error', () => resolve(0));
       req.on('timeout', () => { req.destroy(); resolve(0); });
     });
@@ -211,7 +214,7 @@ async function runPlatformCycle() {
     const vercelUrl = process.env.VERCEL_HEALTH_URL || '';
     if (vercelUrl) {
       const vercelStatus = await ping(vercelUrl);
-      if (vercelStatus >= 200 && vercelStatus < 400) {
+      if (vercelStatus === 200) {
         log('✅', `Vercel reachable (HTTP ${vercelStatus})`);
       } else {
         log('⚠️', `Vercel not reachable (HTTP ${vercelStatus})`);

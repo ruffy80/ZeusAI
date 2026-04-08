@@ -92,7 +92,6 @@ User=${RUN_USER}
 WorkingDirectory=${DEPLOY_PATH}
 Environment=NODE_ENV=production
 Environment=PORT=3000
-ExecStartPre=/bin/bash -c 'command -v pm2 && pm2 list | grep -q unicorn && exit 1 || exit 0'
 ExecStart=${NODE_BIN} backend/index.js
 Restart=on-failure
 RestartSec=5

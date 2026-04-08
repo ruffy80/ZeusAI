@@ -48,7 +48,7 @@ const state = {
   lastHetznerStatus: 'UNKNOWN',
 };
 
-const REDEPLOY_COOLDOWN_MS = 15 * 60 * 1000; // 15 min between redeploy triggers
+const REDEPLOY_COOLDOWN_MS = 10 * 60 * 1000; // 10 min between redeploy triggers
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 function log(emoji, msg, extra) {
@@ -72,7 +72,7 @@ function httpGet(url, timeoutMs = 8000) {
       const req = lib.get(url, { timeout: timeoutMs }, (res) => {
         let body = '';
         res.on('data', (d) => { body += d; });
-        res.on('end', () => resolve({ ok: res.statusCode >= 200 && res.statusCode < 400, statusCode: res.statusCode, body }));
+        res.on('end', () => resolve({ ok: res.statusCode === 200, statusCode: res.statusCode, body }));
       });
       req.on('error', (e) => resolve({ ok: false, statusCode: 0, body: e.message }));
       req.on('timeout', () => { req.destroy(); resolve({ ok: false, statusCode: 0, body: 'timeout' }); });
