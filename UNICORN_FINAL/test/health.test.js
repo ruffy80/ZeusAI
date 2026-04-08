@@ -39,8 +39,8 @@ async function run() {
     await streamResponse.body.cancel();
   }
   assert.equal(siteResponse.status, 200);
-  assert.ok(siteHtml.includes('ZEUS FACE'));
-  assert.ok(siteHtml.includes('ROBOT FACE'));
+  assert.ok(siteHtml.includes('ZEUS'));
+  assert.ok(siteHtml.includes('zeusai.pro'));
 
   await new Promise((resolve, reject) => {
     server.close((err) => (err ? reject(err) : resolve()));

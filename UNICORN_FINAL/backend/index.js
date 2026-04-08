@@ -1610,3 +1610,5 @@ app.listen(PORT, () => {
   console.log(`📊 Executive Dashboard: ACTIVE`);
   console.log(`🔗 38 modules total: CONNECTED`);
 });
+// Export Express app for Vercel serverless and testing
+module.exports = app;
