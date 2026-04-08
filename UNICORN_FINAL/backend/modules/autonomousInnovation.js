@@ -24,6 +24,20 @@ class AutonomousInnovation {
       cumulativeThroughput: 0,
     };
 
+    this.config = {
+      cycleMs: Math.max(parseInt(process.env.INNOVATION_CYCLE_MS || '30000', 10), 5000),
+      evaluateBatchSize: Math.max(parseInt(process.env.INNOVATION_EVAL_BATCH || '12', 10), 1),
+      deployBatchSize: Math.max(parseInt(process.env.INNOVATION_DEPLOY_BATCH || '5', 10), 1),
+      approveThreshold: Math.min(
+        Math.max(parseFloat(process.env.INNOVATION_APPROVE_THRESHOLD || '0.7'), 0.3),
+        0.95
+      ),
+      reviewThreshold: Math.min(
+        Math.max(parseFloat(process.env.INNOVATION_REVIEW_THRESHOLD || '0.45'), 0.2),
+        0.9
+      ),
+    };
+
     // Known innovation patterns
     this.innovationPatterns = [
       { type: 'API_ENHANCEMENT', weight: 0.25, description: 'New REST endpoints' },
@@ -42,12 +56,13 @@ class AutonomousInnovation {
   // ================================================================
 
   startInnovationCycle() {
-    // Generate new innovations every 60 seconds autonomously
+    // Generate new innovations continuously (power profile via env)
     this.innovationInterval = setInterval(() => {
       this.generateNewInnovation();
       this.evaluateQueuedInnovations();
       this.deployApprovedInnovations();
-    }, 60000); // 60 second cycle
+      this.selfOptimize();
+    }, this.config.cycleMs);
   }
 
   stopInnovationCycle() {
@@ -163,7 +178,7 @@ class AutonomousInnovation {
   // ================================================================
 
   evaluateQueuedInnovations() {
-    const toEvaluate = this.featureQueue.splice(0, 5); // Process max 5 per cycle
+    const toEvaluate = this.featureQueue.splice(0, this.config.evaluateBatchSize);
 
     for (const innovId of toEvaluate) {
       const innov = this.innovations.get(innovId);
@@ -173,10 +188,10 @@ class AutonomousInnovation {
       const evaluationScore = this.calculateEvaluationScore(innov);
       innov.evaluationScore = evaluationScore;
 
-      if (evaluationScore > 0.75) {
+      if (evaluationScore > this.config.approveThreshold) {
         innov.status = 'APPROVED';
         console.log(`[AutonomousInnovation] Approved: ${innovId} (score: ${evaluationScore.toFixed(2)})`);
-      } else if (evaluationScore > 0.5) {
+      } else if (evaluationScore > this.config.reviewThreshold) {
         innov.status = 'PENDING_REVIEW';
         console.log(`[AutonomousInnovation] Under review: ${innovId} (score: ${evaluationScore.toFixed(2)})`);
       } else {
@@ -215,8 +230,7 @@ class AutonomousInnovation {
       (i) => i.status === 'APPROVED' && !i.deployed
     );
 
-    for (const innov of approved.slice(0, 2)) {
-      // Deploy max 2 per cycle
+    for (const innov of approved.slice(0, this.config.deployBatchSize)) {
       this.deployInnovation(innov);
     }
   }
@@ -282,7 +296,7 @@ class AutonomousInnovation {
       completed: this.completedInnovations.length,
       metrics: this.metrics,
       recentDeployments: this.deploymentLog.slice(-5),
-      nextInnovationIn: '60s',
+      nextInnovationIn: `${Math.round(this.config.cycleMs / 1000)}s`,
     };
   }
 
@@ -330,7 +344,7 @@ class AutonomousInnovation {
         this.generateNewInnovation();
         this.evaluateQueuedInnovations();
         this.deployApprovedInnovations();
-      }, 120000); // Double the interval
+      }, Math.max(this.config.cycleMs * 2, 10000));
     } else if (this.metrics.deploymentSuccessRate > 95) {
       console.log('[AutonomousInnovation] Increasing generation rate due to high success');
       clearInterval(this.innovationInterval);
@@ -338,7 +352,7 @@ class AutonomousInnovation {
         this.generateNewInnovation();
         this.evaluateQueuedInnovations();
         this.deployApprovedInnovations();
-      }, 45000); // 1.33x faster
+      }, Math.max(Math.floor(this.config.cycleMs * 0.7), 5000));
     }
   }
 }

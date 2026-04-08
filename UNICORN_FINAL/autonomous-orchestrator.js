@@ -7,13 +7,15 @@
 'use strict';
 
 const path = require('path');
+const { exec } = require('child_process');
 
 // ─── Config ─────────────────────────────────────────────────────────────────
 const BASE = path.join(__dirname, 'backend/modules');
-const INNOVATION_INTERVAL = parseInt(process.env.INNOVATION_INTERVAL || '60', 10) * 1000;
-const REVENUE_INTERVAL    = parseInt(process.env.REVENUE_INTERVAL    || '30', 10) * 1000;
-const DEPLOY_INTERVAL     = parseInt(process.env.DEPLOYMENT_INTERVAL || '300', 10) * 1000;
+const INNOVATION_INTERVAL = parseInt(process.env.INNOVATION_INTERVAL || '30', 10) * 1000;
+const REVENUE_INTERVAL    = parseInt(process.env.REVENUE_INTERVAL    || '15', 10) * 1000;
+const DEPLOY_INTERVAL     = parseInt(process.env.DEPLOYMENT_INTERVAL || '120', 10) * 1000;
 const HEALTH_INTERVAL     = 15 * 1000;
+const BACKEND_HEAL_CMD    = process.env.BACKEND_HEAL_CMD || '';
 
 let innovationEngine, revenueEngine;
 
@@ -117,7 +119,25 @@ async function runDeployCycle() {
       req.setTimeout(5000, () => { req.abort(); resolve({ status: 'timeout' }); });
     });
     const health = await check();
-    log('✅', 'Backend health confirmed', health);
+    if (health && health.status === 'ok') {
+      log('✅', 'Backend health confirmed', health);
+      return;
+    }
+
+    log('⚠️', 'Backend unhealthy detected', health);
+    if (BACKEND_HEAL_CMD) {
+      exec(BACKEND_HEAL_CMD, (err, stdout, stderr) => {
+        if (err) {
+          stats.errors++;
+          log('❌', 'Auto-heal command failed', { message: err.message });
+          return;
+        }
+        log('🛠️', 'Auto-heal command executed', {
+          stdout: (stdout || '').trim().slice(0, 300),
+          stderr: (stderr || '').trim().slice(0, 300),
+        });
+      });
+    }
   } catch (e) {
     stats.errors++;
     log('❌', 'Deploy cycle error:', e.message);

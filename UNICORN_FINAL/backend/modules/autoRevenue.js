@@ -19,6 +19,18 @@ class AutoRevenueEngine {
     this.marketplaceListings = [];
     this.nextDealId = 1;
 
+    this.config = {
+      cycleMs: Math.max(parseInt(process.env.REVENUE_CYCLE_MS || '15000', 10), 5000),
+      affiliateDealsMin: Math.max(parseInt(process.env.AFFILIATE_DEALS_MIN || '4', 10), 1),
+      affiliateDealsMax: Math.max(parseInt(process.env.AFFILIATE_DEALS_MAX || '10', 10), 1),
+      marketplaceListingsMin: Math.max(parseInt(process.env.MARKETPLACE_LISTINGS_MIN || '2', 10), 1),
+      marketplaceListingsMax: Math.max(parseInt(process.env.MARKETPLACE_LISTINGS_MAX || '6', 10), 1),
+      b2bPartnersMin: Math.max(parseInt(process.env.B2B_PARTNERS_MIN || '2', 10), 1),
+      b2bPartnersMax: Math.max(parseInt(process.env.B2B_PARTNERS_MAX || '5', 10), 1),
+      paymentChance: Math.min(Math.max(parseFloat(process.env.PAYMENT_CHANCE || '0.45'), 0.05), 0.95),
+      maxActiveDeals: Math.max(parseInt(process.env.MAX_ACTIVE_DEALS || '5000', 10), 500),
+    };
+
     // Revenue metrics
     this.metrics = {
       totalRevenueGenerated: 0,
@@ -48,8 +60,9 @@ class AutoRevenueEngine {
       this.optimizeBillingRates();
       this.negotiateB2BPartnerships();
       this.processPayments();
+      this.pruneOldDeals();
       this.calculateMetrics();
-    }, 30000); // 30 second cycle
+    }, this.config.cycleMs);
   }
 
   stopRevenueGeneration() {
@@ -61,7 +74,8 @@ class AutoRevenueEngine {
   // ================================================================
 
   generateAffiliateDeals() {
-    const numDeals = Math.floor(Math.random() * 5) + 2; // 2-6 new deals
+    const spread = Math.max(this.config.affiliateDealsMax - this.config.affiliateDealsMin + 1, 1);
+    const numDeals = Math.floor(Math.random() * spread) + this.config.affiliateDealsMin;
 
     for (let i = 0; i < numDeals; i++) {
       const deal = {
@@ -126,7 +140,8 @@ class AutoRevenueEngine {
   // ================================================================
 
   createMarketplaceListings() {
-    const numListings = Math.floor(Math.random() * 3) + 1; // 1-3 new listings per cycle
+    const spread = Math.max(this.config.marketplaceListingsMax - this.config.marketplaceListingsMin + 1, 1);
+    const numListings = Math.floor(Math.random() * spread) + this.config.marketplaceListingsMin;
 
     for (let i = 0; i < numListings; i++) {
       const listing = {
@@ -228,7 +243,8 @@ class AutoRevenueEngine {
   // ================================================================
 
   negotiateB2BPartnerships() {
-    const numPartners = Math.floor(Math.random() * 3) + 1; // 1-3 new partnerships
+    const spread = Math.max(this.config.b2bPartnersMax - this.config.b2bPartnersMin + 1, 1);
+    const numPartners = Math.floor(Math.random() * spread) + this.config.b2bPartnersMin;
 
     for (let i = 0; i < numPartners; i++) {
       const partnership = {
@@ -275,8 +291,7 @@ class AutoRevenueEngine {
 
     // Simulate payment processing
     for (const deal of this.activeDeals) {
-      if (Math.random() > 0.7) {
-        // 30% chance of payment per cycle
+      if (Math.random() < this.config.paymentChance) {
         deal.lastPaymentDate = new Date().toISOString();
         deal.paymentProcessed = true;
 
@@ -314,12 +329,23 @@ class AutoRevenueEngine {
     this.metrics.revenuePerDay = totalMonthly / 30;
     this.metrics.projectedAnnualRevenue = totalMonthly * 12;
 
+    // reset cumulative mirrors before recalculation
+    this.metrics.totalAffiliateCommissions = 0;
+    this.metrics.totalMarketplaceRevenue = 0;
+    this.metrics.totalBillingRevenue = 0;
+
     // Calculate per-stream metrics
     for (const [key, stream] of this.revenueStreams.entries()) {
       if (key === 'AFFILIATE') this.metrics.totalAffiliateCommissions += stream.revenue;
       if (key === 'MARKETPLACE') this.metrics.totalMarketplaceRevenue += stream.revenue;
       if (key === 'USAGE_BILLING') this.metrics.totalBillingRevenue += stream.revenue;
     }
+  }
+
+  pruneOldDeals() {
+    if (this.activeDeals.length <= this.config.maxActiveDeals) return;
+    const keepFrom = this.activeDeals.length - this.config.maxActiveDeals;
+    this.activeDeals = this.activeDeals.slice(keepFrom);
   }
 
   // ================================================================
