@@ -80,6 +80,12 @@ jobs:
             echo "ℹ️  Missing Vercel secrets. Skipping Vercel deploy job."
             exit 0
           fi
+          # Validate token with Vercel API to avoid noisy failures in later steps
+          if ! curl -fsS -H "Authorization: Bearer ${{ secrets.VERCEL_TOKEN }}" https://api.vercel.com/v2/user >/dev/null; then
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+            echo "ℹ️  VERCEL_TOKEN is invalid. Skipping Vercel deploy job."
+            exit 0
+          fi
           echo "ready=true" >> "$GITHUB_OUTPUT"
           echo "✅ Vercel credentials validated"
 
@@ -212,6 +218,7 @@ jobs:
               --exclude='logs' --exclude='*.local' --exclude='.env' \
               -czf - ./UNICORN_FINAL/ | \
             ssh -i ~/.ssh/deploy_key -p 22 -o StrictHostKeyChecking=no \
+              -o BatchMode=yes \
               "${{ secrets.HETZNER_DEPLOY_USER || secrets.HETZNER_USER || secrets.SSH_USER }}@${{ secrets.HETZNER_HOST || secrets.SSH_HOST }}" \
               "mkdir -p '${{ secrets.HETZNER_DEPLOY_PATH || '/opt/unicorn' }}' && cd '${{ secrets.HETZNER_DEPLOY_PATH || '/opt/unicorn' }}' && tar -xzf - --strip-components=1"
 
@@ -221,7 +228,7 @@ jobs:
         continue-on-error: true
         run: |
           echo "DEBUG SSH: Connecting to $DEPLOY_USER@$DEPLOY_HOST:$DEPLOY_PATH"
-          ssh -i ~/.ssh/deploy_key -p 22 -o StrictHostKeyChecking=no -o UserKnownHostsFile=~/.ssh/known_hosts \
+          ssh -i ~/.ssh/deploy_key -p 22 -o StrictHostKeyChecking=no -o UserKnownHostsFile=~/.ssh/known_hosts -o BatchMode=yes \
             "${{ secrets.HETZNER_DEPLOY_USER || secrets.HETZNER_USER || secrets.SSH_USER }}@${{ secrets.HETZNER_HOST || secrets.SSH_HOST }}" << ENDSSH
             set -e
             cd "${{ secrets.HETZNER_DEPLOY_PATH || '/opt/unicorn' }}"
