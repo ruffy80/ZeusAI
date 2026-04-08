@@ -188,49 +188,42 @@ app.post('/api/auth/reset-password', async (req, res) => {
 });
 
 // ==================== MODULE AUTONOME ====================
-const autoDeploy = { start: () => {} };
-const selfConstruction = { start: () => {} };
-const totalSystemHealer = { start: () => {} };
+const autoDeploy = require('./modules/autoDeploy');
+const selfConstruction = require('./modules/selfConstruction');
+const totalSystemHealer = require('./modules/totalSystemHealer');
 
-// ==================== INOVAȚII - MOCK MODULES ====================
-// Using mock modules to avoid syntax errors in older innovation modules
-const mockModule = (name) => ({
-  [name]: { status: 'enabled' },
-  getStatus: () => ({ status: 'enabled', name }),
-  create: (data) => ({ success: true, data }),
-  get: (id) => ({ id, data: {} })
-});
-
-const qrIdentity = mockModule('qrIdentity');
-const aiNegotiator = mockModule('aiNegotiator');
-const carbonExchange = mockModule('carbonExchange');
-const marketplace = mockModule('marketplace');
-const complianceEngine = mockModule('complianceEngine');
-const riskAnalyzer = mockModule('riskAnalyzer');
-const reputationProtocol = mockModule('reputationProtocol');
-const opportunityRadar = mockModule('opportunityRadar');
-const businessBlueprint = mockModule('businessBlueprint');
-const paymentGateway = mockModule('paymentGateway');
-const aviationModule = mockModule('aviationModule');
-const paymentSystems = mockModule('paymentSystems');
-const governmentModule = mockModule('governmentModule');
-const defenseModule = mockModule('defenseModule');
-const telecomModule = mockModule('telecomModule');
-const enterprisePartner = mockModule('enterprisePartner');
-const quantumChain = mockModule('quantumChain');
-const workforce = mockModule('workforce');
-const ma = mockModule('ma');
-const legal = mockModule('legal');
-const energy = mockModule('energy');
-const uac = mockModule('uac');
-const socialViralizer = mockModule('socialViralizer');
-const umn = mockModule('umn');
-const gdes = mockModule('gdes');
-const ultimateModules = mockModule('ultimateModules');
-const uee = mockModule('uee');
-const legalFortress = mockModule('legalFortress');
-const qrc = mockModule('qrc');
-const executiveDashboard = mockModule('executiveDashboard');
+// ==================== TOATE MODULELE ====================
+const qrIdentity = require('./modules/qrDigitalIdentity');
+const aiNegotiator = require('./modules/aiNegotiator');
+const carbonExchange = require('./modules/carbonExchange');
+const marketplace = require('./modules/serviceMarketplace');
+const complianceEngine = require('./modules/complianceEngine');
+const riskAnalyzer = require('./modules/riskAnalyzer');
+const reputationProtocol = require('./modules/reputationProtocol');
+const opportunityRadar = require('./modules/opportunityRadar');
+const businessBlueprint = require('./modules/businessBlueprint');
+const paymentGateway = require('./modules/paymentGateway');
+const aviationModule = require('./modules/aviationModule');
+const paymentSystems = require('./modules/paymentSystems');
+const governmentModule = require('./modules/governmentModule');
+const defenseModule = require('./modules/defenseModule');
+const telecomModule = require('./modules/telecomModule');
+const enterprisePartner = require('./modules/enterprisePartnership');
+const quantumChain = require('./modules/quantumBlockchain');
+const workforce = require('./modules/aiWorkforce');
+const ma = require('./modules/maAdvisor');
+const legal = require('./modules/legalContract');
+const energy = require('./modules/energyGrid');
+const uac = require('./modules/unicornAutonomousCore');
+const socialViralizer = require('./modules/socialMediaViralizer');
+const umn = require('./modules/universalMarketNexus');
+const gdes = require('./modules/globalDigitalStandard');
+const ultimateModules = require('./modules/unicornUltimateModules');
+const uee = require('./modules/unicornEternalEngine');
+const legalFortress = require('./modules/legalFortress');
+const qrc = require('./modules/quantumResilienceCore');
+const executiveDashboard = require('./modules/executiveDashboard');
+const unicornAutoGenesis = require('./modules/unicornAutoGenesis');
 
 const unicornInnovationSuite = require('./modules/unicornInnovationSuite');
 const autonomousInnovation = require('./modules/autonomousInnovation');
@@ -242,10 +235,38 @@ selfConstruction.start();
 totalSystemHealer.start();
 autoDeploy.start();
 
+// Pornire module cu cicluri autonome
+uee.startEternalCycle();
+uee.startPredictiveInnovation();
+uee.startSelfHealing();
+socialViralizer.startAutoPosting();
+socialViralizer.startAutoReply();
+socialViralizer.startViralDetector();
+socialViralizer.startUGCIncentivizer();
+gdes.startComplianceEngine();
+gdes.startRevenueTracker();
+gdes.startAutonomousSLA();
+gdes.startSelfHealing();
+gdes.startSmartRateLimiting();
+gdes.startFallbackMonitor();
+gdes.startDailyReport();
+
+// Montare routere module
+app.use('/api/viral', socialViralizer.getRouter(adminSecretMiddleware));
+app.use('/api/market-nexus', umn.getRouter(adminSecretMiddleware));
+app.use('/api/digital-standard', gdes.getRouter(adminSecretMiddleware));
+app.use('/api/ultimate', ultimateModules.getRouter(adminSecretMiddleware));
+app.use('/api/legal-fortress', legalFortress.getRouter(adminSecretMiddleware));
+app.use('/api/quantum-resilience', qrc.getRouter(adminSecretMiddleware));
+app.use('/api/dashboard', executiveDashboard.getRouter(adminSecretMiddleware));
+
 // Start autonomous systems
 console.log('🤖 Autonomous Innovation Engine: STARTING');
 console.log('💰 Auto Revenue Engine: STARTING');
 console.log('📣 Auto Viral Growth Engine: STARTING');
+console.log('♾️  Unicorn Eternal Engine: STARTING');
+console.log('📱 Social Media Viralizer: STARTING');
+console.log('🌐 Global Digital Standard: STARTING');
 
 // ==================== RUTE API ====================
 app.get('/api/health', (req, res) => res.json({ status: 'ok', uptime: process.uptime() }));
@@ -1189,4 +1210,11 @@ app.listen(PORT, () => {
   console.log(`🚀 Unicorn autonom rulând pe portul ${PORT}`);
   console.log(`✨ Autonomous Innovation Engine: ACTIVE`);
   console.log(`💰 Auto Revenue Generation: ACTIVE`);
+  console.log(`♾️  Unicorn Eternal Engine: ACTIVE`);
+  console.log(`📱 Social Media Viralizer: ACTIVE`);
+  console.log(`🌐 Global Digital Standard: ACTIVE`);
+  console.log(`🏛️  Legal Fortress: ACTIVE`);
+  console.log(`⚡ Quantum Resilience Core: ACTIVE`);
+  console.log(`📊 Executive Dashboard: ACTIVE`);
+  console.log(`🔗 38 modules total: CONNECTED`);
 });
