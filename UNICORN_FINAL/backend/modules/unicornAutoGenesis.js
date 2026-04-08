@@ -139,7 +139,7 @@ class UnicornAutoGenesis {
 
     console.log(`
 ✅ AUTO‑GENESIS finalizat.
-🌐 Vercel: https://zeusai.vercel.app
+🌐 Production: https://zeusai.pro
 🖥️ Hetzner: http://${this.hetznerHost}:3000/health
 📦 GitHub Actions: https://github.com/${this.repo}/actions
 `);

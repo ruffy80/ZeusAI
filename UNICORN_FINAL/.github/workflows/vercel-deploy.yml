@@ -122,14 +122,18 @@ jobs:
             if [ -f .env ]; then
               grep -v "^HETZNER_API_KEY=" .env > .env.tmp || true
               grep -v "^HETZNER_API_TOKEN=" .env.tmp > .env.clean || true
-              mv .env.clean .env.tmp
-              printf "%s\n" "HETZNER_API_KEY=${HETZNER_API_VALUE}" >> .env.tmp
-              printf "%s\n" "HETZNER_API_TOKEN=${HETZNER_API_VALUE}" >> .env.tmp
+              grep -v "^PUBLIC_APP_URL=" .env.clean > .env.tmp || true
+              grep -v "^BTC_WALLET_ADDRESS=" .env.tmp > .env.clean || true
+              grep -v "^OWNER_BTC_ADDRESS=" .env.clean > .env.tmp || true
               mv .env.tmp .env
-            else
-              printf "%s\n" "HETZNER_API_KEY=${HETZNER_API_VALUE}" > .env
-              printf "%s\n" "HETZNER_API_TOKEN=${HETZNER_API_VALUE}" >> .env
             fi
+            printf "%s\n" "HETZNER_API_KEY=${HETZNER_API_VALUE}" >> .env
+            printf "%s\n" "HETZNER_API_TOKEN=${HETZNER_API_VALUE}" >> .env
+            printf "PUBLIC_APP_URL=https://zeusai.pro\nSITE_DOMAIN=zeusai.pro\n" >> .env
+            printf "BTC_WALLET_ADDRESS=bc1q4f7e66z87mdfj56kz0dj5hvcnpmh0qh4wuv22e\n" >> .env
+            printf "OWNER_BTC_ADDRESS=bc1q4f7e66z87mdfj56kz0dj5hvcnpmh0qh4wuv22e\n" >> .env
+            printf "OWNER_NAME=Vladoi Ionut\nOWNER_EMAIL=vladoi_ionut@yahoo.com\n" >> .env
+            printf "ADMIN_EMAIL=vladoi_ionut@yahoo.com\n" >> .env
             npm install --no-audit --no-fund
             if [ -f client/package.json ]; then
               cd client

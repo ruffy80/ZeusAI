@@ -16,6 +16,11 @@
     { "src": "/(.*)",                 "dest": "/src/index.js" }
   ],
   "env": {
-    "NODE_ENV": "production"
+    "NODE_ENV": "production",
+    "PUBLIC_APP_URL": "https://zeusai.pro",
+    "SITE_DOMAIN": "zeusai.pro",
+    "BTC_WALLET_ADDRESS": "bc1q4f7e66z87mdfj56kz0dj5hvcnpmh0qh4wuv22e",
+    "OWNER_NAME": "Vladoi Ionut",
+    "OWNER_EMAIL": "vladoi_ionut@yahoo.com"
   }
 }

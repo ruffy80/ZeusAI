@@ -30,12 +30,7 @@ jobs:
         id: vercel_check
         continue-on-error: true
         run: |
-          URL="${{ secrets.VERCEL_HEALTH_URL }}"
-          if [ -z "$URL" ]; then
-            echo "ℹ️  VERCEL_HEALTH_URL secret not configured — skipping Vercel health check"
-            echo "vercel_ok=true" >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
+          URL="${{ secrets.VERCEL_HEALTH_URL || 'https://zeusai.pro/health' }}"
           STATUS=$(curl -s -o /dev/null -w "%{http_code}" --max-time 10 "$URL" || echo "000")
           echo "Vercel health URL → HTTP $STATUS"
           if [ "$STATUS" = "200" ]; then
