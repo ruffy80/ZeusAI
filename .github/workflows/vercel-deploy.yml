@@ -207,24 +207,26 @@ jobs:
         if: steps.hetzner_guard.outputs.ssh_ready == 'true'
         continue-on-error: true
         run: |
-          rsync -az --delete \
+          echo "DEBUG: DEPLOY_USER=$DEPLOY_USER DEPLOY_HOST=$DEPLOY_HOST DEPLOY_PATH=$DEPLOY_PATH"
+          rsync -avz --delete \
             --exclude='.git' \
             --exclude='node_modules' \
             --exclude='.next' \
             --exclude='logs' \
             --exclude='*.local' \
             --exclude='.env' \
-            -e "ssh -i ~/.ssh/deploy_key -p 22 -o StrictHostKeyChecking=no -o UserKnownHostsFile=~/.ssh/known_hosts" \
+            -e "ssh -i ~/.ssh/deploy_key -p 22 -o StrictHostKeyChecking=no" \
             ./UNICORN_FINAL/ \
-            ${DEPLOY_USER}@${DEPLOY_HOST}:${DEPLOY_PATH}/
+            "$DEPLOY_USER@$DEPLOY_HOST:$DEPLOY_PATH/"
 
       - name: Install deps + restart backend on Hetzner
         id: restart_hetzner
         if: steps.hetzner_guard.outputs.ssh_ready == 'true'
         continue-on-error: true
         run: |
+          echo "DEBUG SSH: Connecting to $DEPLOY_USER@$DEPLOY_HOST:$DEPLOY_PATH"
           ssh -i ~/.ssh/deploy_key -p 22 -o StrictHostKeyChecking=no -o UserKnownHostsFile=~/.ssh/known_hosts \
-            ${DEPLOY_USER}@${DEPLOY_HOST} << ENDSSH
+            "$DEPLOY_USER@$DEPLOY_HOST" << ENDSSH
             set -e
             cd "${DEPLOY_PATH}"
 
