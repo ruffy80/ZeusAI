@@ -71,15 +71,36 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Validate Vercel credentials
+        id: vercel_guard
+        run: |
+          TOKEN='${{ secrets.VERCEL_TOKEN }}'
+          ORG='${{ secrets.VERCEL_ORG_ID }}'
+          PROJ='${{ secrets.VERCEL_PROJECT_ID }}'
+          if [ -z "$TOKEN" ] || [ -z "$ORG" ] || [ -z "$PROJ" ]; then
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+            echo "ℹ️  Missing Vercel secrets. Skipping Vercel deploy job."
+            exit 0
+          fi
+          if [[ "$TOKEN" == *"*"* ]]; then
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+            echo "ℹ️  VERCEL_TOKEN appears masked/invalid (contains '*'). Skipping Vercel deploy."
+            exit 0
+          fi
+          echo "ready=true" >> "$GITHUB_OUTPUT"
+
       - name: Setup Node 20
+        if: steps.vercel_guard.outputs.ready == 'true'
         uses: actions/setup-node@v4
         with:
           node-version: '20'
 
       - name: Install Vercel CLI
+        if: steps.vercel_guard.outputs.ready == 'true'
         run: npm i -g vercel@latest
 
       - name: Link Vercel project
+        if: steps.vercel_guard.outputs.ready == 'true'
         run: |
           mkdir -p .vercel
           cat > .vercel/project.json <<EOF
@@ -90,12 +111,15 @@ jobs:
           EOF
 
       - name: Pull Vercel environment
+        if: steps.vercel_guard.outputs.ready == 'true'
         run: vercel pull --yes --environment=production --token=${{ secrets.VERCEL_TOKEN }}
 
       - name: Build
+        if: steps.vercel_guard.outputs.ready == 'true'
         run: vercel build --prod --token=${{ secrets.VERCEL_TOKEN }}
 
       - name: Deploy to Vercel Production
+        if: steps.vercel_guard.outputs.ready == 'true'
         id: deploy
         run: |
           URL=$(vercel deploy --prebuilt --prod --token=${{ secrets.VERCEL_TOKEN }})
@@ -103,6 +127,7 @@ jobs:
           echo "✅ Vercel deploy: $URL"
 
       - name: Smoke test Vercel URL
+        if: steps.vercel_guard.outputs.ready == 'true'
         run: |
           sleep 10
           URL="${{ steps.deploy.outputs.deploy_url }}"
@@ -123,6 +148,24 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Resolve Hetzner target and channels
+        run: |
+          echo "DEPLOY_HOST=${{ secrets.HETZNER_HOST || secrets.SSH_HOST }}" >> "$GITHUB_ENV"
+          echo "DEPLOY_USER=${{ secrets.HETZNER_DEPLOY_USER || secrets.HETZNER_USER || secrets.SSH_USER }}" >> "$GITHUB_ENV"
+          echo "DEPLOY_PORT=${{ secrets.HETZNER_DEPLOY_PORT || secrets.SSH_PORT || '22' }}" >> "$GITHUB_ENV"
+          echo "DEPLOY_PATH=${{ secrets.HETZNER_DEPLOY_PATH || '/opt/unicorn' }}" >> "$GITHUB_ENV"
+          echo "WEBHOOK_URL=${{ secrets.HETZNER_WEBHOOK_URL || secrets.GH_WEBHOOK_URL || secrets.WEBHOOK_URL }}" >> "$GITHUB_ENV"
+
+      - name: Validate Hetzner SSH prerequisites
+        id: hetzner_guard
+        run: |
+          if [ -z "${DEPLOY_HOST}" ] || [ -z "${DEPLOY_USER}" ] || [ -z "${DEPLOY_PATH}" ]; then
+            echo "ssh_ready=false" >> "$GITHUB_OUTPUT"
+            echo "ℹ️  Missing SSH host/user/path. SSH deploy disabled."
+          else
+            echo "ssh_ready=true" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Resolve Hetzner API credential
         run: |
           if [ -n "${{ secrets.HETZNER_API_KEY }}" ]; then
@@ -132,15 +175,17 @@ jobs:
           fi
 
       - name: Setup SSH agent
+        if: steps.hetzner_guard.outputs.ssh_ready == 'true'
+        continue-on-error: true
         uses: webfactory/ssh-agent@v0.9.0
         with:
-          ssh-private-key: ${{ secrets.HETZNER_SSH_PRIVATE_KEY }}
+          ssh-private-key: ${{ secrets.HETZNER_SSH_PRIVATE_KEY || secrets.SSH_PRIVATE_KEY }}
 
       - name: Sync UNICORN_FINAL to Hetzner
         id: sync_hetzner
+        if: steps.hetzner_guard.outputs.ssh_ready == 'true'
         continue-on-error: true
         run: |
-          SSH_PORT="${{ secrets.HETZNER_DEPLOY_PORT || '22' }}"
           rsync -az --delete \
             --exclude='.git' \
             --exclude='node_modules' \
@@ -148,19 +193,19 @@ jobs:
             --exclude='logs' \
             --exclude='*.local' \
             --exclude='.env' \
-            -e "ssh -p ${SSH_PORT} -o StrictHostKeyChecking=no" \
+            -e "ssh -p ${DEPLOY_PORT} -o StrictHostKeyChecking=no" \
             ./UNICORN_FINAL/ \
-            ${{ secrets.HETZNER_DEPLOY_USER }}@${{ secrets.HETZNER_HOST }}:${{ secrets.HETZNER_DEPLOY_PATH }}/
+            ${DEPLOY_USER}@${DEPLOY_HOST}:${DEPLOY_PATH}/
 
       - name: Install deps + restart backend on Hetzner
         id: restart_hetzner
+        if: steps.hetzner_guard.outputs.ssh_ready == 'true'
         continue-on-error: true
         run: |
-          SSH_PORT="${{ secrets.HETZNER_DEPLOY_PORT || '22' }}"
-          ssh -p ${SSH_PORT} -o StrictHostKeyChecking=no \
-            ${{ secrets.HETZNER_DEPLOY_USER }}@${{ secrets.HETZNER_HOST }} << 'ENDSSH'
+          ssh -p ${DEPLOY_PORT} -o StrictHostKeyChecking=no \
+            ${DEPLOY_USER}@${DEPLOY_HOST} << ENDSSH
             set -e
-            cd "${{ secrets.HETZNER_DEPLOY_PATH }}"
+            cd "${DEPLOY_PATH}"
 
             # ── Update .env with Hetzner API token ───────────────────────
             if [ -f .env ]; then
@@ -213,25 +258,33 @@ jobs:
         continue-on-error: true
         if: steps.restart_hetzner.outcome == 'success'
         run: |
-          SSH_PORT="${{ secrets.HETZNER_DEPLOY_PORT || '22' }}"
           sleep 8
-          HEALTH=$(ssh -p ${SSH_PORT} -o StrictHostKeyChecking=no \
-            ${{ secrets.HETZNER_DEPLOY_USER }}@${{ secrets.HETZNER_HOST }} \
+          HEALTH=$(ssh -p ${DEPLOY_PORT} -o StrictHostKeyChecking=no \
+            ${DEPLOY_USER}@${DEPLOY_HOST} \
             "curl -s http://localhost:${PORT:-3000}/api/health 2>/dev/null || echo '{\"status\":\"unreachable\"}'")
           echo "Hetzner health: $HEALTH"
           echo "$HEALTH" | grep -q '"status":"ok"' && echo "✅ Backend healthy" || echo "⚠️  Backend not yet ready"
 
       - name: Fallback — trigger Hetzner webhook (if SSH failed)
         id: webhook_fallback
-        if: ${{ steps.sync_hetzner.outcome != 'success' || steps.restart_hetzner.outcome != 'success' }}
+        if: ${{ steps.hetzner_guard.outputs.ssh_ready != 'true' || steps.sync_hetzner.outcome != 'success' || steps.restart_hetzner.outcome != 'success' }}
         run: |
-          if [ -z "${{ secrets.HETZNER_WEBHOOK_URL }}" ]; then
+          if [ -z "${WEBHOOK_URL}" ]; then
             echo "ℹ️  No HETZNER_WEBHOOK_URL configured. Skipping webhook fallback."
             exit 0
           fi
+          if [[ "${WEBHOOK_URL}" != http://* && "${WEBHOOK_URL}" != https://* ]]; then
+            echo "ℹ️  Webhook URL is invalid: ${WEBHOOK_URL}"
+            exit 0
+          fi
+          TARGET_URL="${WEBHOOK_URL%/}"
+          case "${TARGET_URL}" in
+            */deploy) ;;
+            *) TARGET_URL="${TARGET_URL}/deploy" ;;
+          esac
           SECRET="${{ secrets.HETZNER_WEBHOOK_SECRET || secrets.WEBHOOK_SECRET }}"
           curl --fail --show-error --silent \
-            -X POST "${{ secrets.HETZNER_WEBHOOK_URL }}/deploy" \
+            -X POST "${TARGET_URL}" \
             -H "Content-Type: application/json" \
             -H "x-webhook-secret: ${SECRET}" \
             -d '{"source":"github-actions","action":"deploy-fallback","ref":"${{ github.sha }}"}'
@@ -252,13 +305,23 @@ jobs:
     steps:
       - name: Trigger Hetzner webhook
         run: |
-          if [ -z "${{ secrets.HETZNER_WEBHOOK_URL }}" ]; then
+          URL='${{ secrets.HETZNER_WEBHOOK_URL || secrets.GH_WEBHOOK_URL || secrets.WEBHOOK_URL }}'
+          if [ -z "${URL}" ]; then
             echo "ℹ️  No HETZNER_WEBHOOK_URL configured. Skipping webhook-only deploy."
             exit 0
           fi
+          if [[ "${URL}" != http://* && "${URL}" != https://* ]]; then
+            echo "ℹ️  Webhook URL is invalid: ${URL}"
+            exit 0
+          fi
+          TARGET_URL="${URL%/}"
+          case "${TARGET_URL}" in
+            */deploy) ;;
+            *) TARGET_URL="${TARGET_URL}/deploy" ;;
+          esac
           SECRET="${{ secrets.HETZNER_WEBHOOK_SECRET || secrets.WEBHOOK_SECRET }}"
           curl --fail --show-error --silent \
-            -X POST "${{ secrets.HETZNER_WEBHOOK_URL }}/deploy" \
+            -X POST "${TARGET_URL}" \
             -H "Content-Type: application/json" \
             -H "x-webhook-secret: ${SECRET}" \
             -d '{"source":"github-actions","action":"deploy","ref":"${{ github.sha }}"}'
