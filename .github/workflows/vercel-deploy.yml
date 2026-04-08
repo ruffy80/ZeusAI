@@ -52,6 +52,17 @@ jobs:
         id: test
         run: CI=1 npm test
 
+      - name: Build frontend (client)
+        id: frontend_build
+        run: |
+          if [ -d client ] && [ -f client/package.json ]; then
+            npm --prefix client install --no-audit --no-fund
+            npm --prefix client run build
+            echo "✅ Frontend build succeeded"
+          else
+            echo "ℹ️  No client/ directory found – skipping frontend build."
+          fi
+
       - name: Innovation report (pre-deploy snapshot)
         run: npm run innovation:report || true
 
@@ -428,7 +439,7 @@ jobs:
           echo "Triggered: ${{ github.event_name }}" >> "$GITHUB_STEP_SUMMARY"
 
   # ──────────────────────────────────────────────────────────────────────
-  # JOB 6: Smoke tests after deploy
+  # JOB 6: Smoke tests after deploy + HTTPS health check with auto-restart
   # ──────────────────────────────────────────────────────────────────────
   smoke-tests:
     name: 🧪 Post-deploy Smoke Tests
@@ -453,4 +464,68 @@ jobs:
             exit 1
           fi
           echo "✅ Smoke tests passed"
+
+      # ── HTTPS health check + automatic service restart ────────────────
+      - name: Setup SSH for HTTPS check
+        id: ssh_setup_smoke
+        continue-on-error: true
+        run: |
+          SSH_KEY="${{ secrets.HETZNER_SSH_PRIVATE_KEY || secrets.SSH_PRIVATE_KEY }}"
+          DEPLOY_HOST="${{ secrets.HETZNER_HOST || secrets.SSH_HOST }}"
+          if [ -z "$SSH_KEY" ] || [ -z "$DEPLOY_HOST" ]; then
+            echo "ssh_ready=false" >> "$GITHUB_OUTPUT"
+            echo "ℹ️  SSH credentials not available – skipping HTTPS auto-restart."
+            exit 0
+          fi
+          mkdir -p ~/.ssh && chmod 700 ~/.ssh
+          echo "$SSH_KEY" > ~/.ssh/deploy_key && chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -t ed25519,rsa "$DEPLOY_HOST" >> ~/.ssh/known_hosts 2>/dev/null || true
+          echo "ssh_ready=true" >> "$GITHUB_OUTPUT"
+
+      - name: HTTPS health check – restart service if site is down
+        if: steps.ssh_setup_smoke.outputs.ssh_ready == 'true'
+        continue-on-error: true
+        env:
+          DEPLOY_HOST: ${{ secrets.HETZNER_HOST || secrets.SSH_HOST }}
+          DEPLOY_USER: ${{ secrets.HETZNER_DEPLOY_USER || secrets.HETZNER_USER || secrets.SSH_USER }}
+          DEPLOY_PATH: ${{ secrets.HETZNER_DEPLOY_PATH || '/opt/unicorn' }}
+          # SITE_DOMAIN is preferred; falls back to IP-based HTTPS
+          SITE_DOMAIN: ${{ secrets.SITE_DOMAIN || secrets.UNICORN_DOMAIN }}
+        run: |
+          # Determine HTTPS URL to probe
+          if [ -n "$SITE_DOMAIN" ]; then
+            HTTPS_URL="https://${SITE_DOMAIN}/health"
+          else
+            HTTPS_URL="https://${DEPLOY_HOST}/health"
+          fi
+
+          echo "🔍 Probing HTTPS: $HTTPS_URL"
+          HTTPS_STATUS=$(curl -sk -o /dev/null -w "%{http_code}" --max-time 15 "$HTTPS_URL" || echo "000")
+          echo "HTTPS status: $HTTPS_STATUS"
+
+          if [ "$HTTPS_STATUS" = "200" ]; then
+            echo "✅ Site is responding correctly on HTTPS."
+          else
+            echo "⚠️  Site not responding on HTTPS (HTTP $HTTPS_STATUS). Attempting service restart via SSH…"
+            ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no -o BatchMode=yes \
+              "${DEPLOY_USER}@${DEPLOY_HOST}" \
+              "DEPLOY_PATH='${DEPLOY_PATH}'; if command -v systemctl >/dev/null 2>&1 && systemctl list-unit-files | grep -q '^unicorn\\.service'; then systemctl restart unicorn && echo 'Restarted via systemctl'; elif command -v pm2 >/dev/null 2>&1 && pm2 describe unicorn >/dev/null 2>&1; then pm2 restart unicorn && echo 'Restarted via pm2'; else pkill -f 'node backend/index.js' || true; sleep 1; cd \"\$DEPLOY_PATH\"; mkdir -p logs; nohup node backend/index.js > logs/backend.log 2>&1 & echo 'Restarted via nohup'; fi"
+
+            # Wait for service to come back up with a retry loop (max 60s)
+            echo "Waiting for service to recover…"
+            HTTPS_STATUS_RETRY="000"
+            for i in 1 2 3 4; do
+              sleep 15
+              HTTPS_STATUS_RETRY=$(curl -sk -o /dev/null -w "%{http_code}" --max-time 10 "$HTTPS_URL" || echo "000")
+              echo "  attempt $i → HTTP $HTTPS_STATUS_RETRY"
+              [ "$HTTPS_STATUS_RETRY" = "200" ] && break
+            done
+            echo "HTTPS status after restart: $HTTPS_STATUS_RETRY"
+            if [ "$HTTPS_STATUS_RETRY" = "200" ]; then
+              echo "✅ Site recovered after service restart."
+            else
+              echo "❌ Site still not responding on HTTPS after restart (HTTP $HTTPS_STATUS_RETRY)."
+              exit 1
+            fi
+          fi
 
