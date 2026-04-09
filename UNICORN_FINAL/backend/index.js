@@ -1606,17 +1606,20 @@ app.get('*', (req, res) => {
   });
 });
 
-app.listen(PORT, () => {
-  console.log(`🚀 Unicorn autonom rulând pe portul ${PORT}`);
-  console.log(`✨ Autonomous Innovation Engine: ACTIVE`);
-  console.log(`💰 Auto Revenue Generation: ACTIVE`);
-  console.log(`♾️  Unicorn Eternal Engine: ACTIVE`);
-  console.log(`📱 Social Media Viralizer: ACTIVE`);
-  console.log(`🌐 Global Digital Standard: ACTIVE`);
-  console.log(`🏛️  Legal Fortress: ACTIVE`);
-  console.log(`⚡ Quantum Resilience Core: ACTIVE`);
-  console.log(`📊 Executive Dashboard: ACTIVE`);
-  console.log(`🔗 38 modules total: CONNECTED`);
-});
+// Only bind to a port when run directly (not when imported by Vercel or tests)
+if (require.main === module) {
+  app.listen(PORT, () => {
+    console.log(`🚀 Unicorn autonom rulând pe portul ${PORT}`);
+    console.log(`✨ Autonomous Innovation Engine: ACTIVE`);
+    console.log(`💰 Auto Revenue Generation: ACTIVE`);
+    console.log(`♾️  Unicorn Eternal Engine: ACTIVE`);
+    console.log(`📱 Social Media Viralizer: ACTIVE`);
+    console.log(`🌐 Global Digital Standard: ACTIVE`);
+    console.log(`🏛️  Legal Fortress: ACTIVE`);
+    console.log(`⚡ Quantum Resilience Core: ACTIVE`);
+    console.log(`📊 Executive Dashboard: ACTIVE`);
+    console.log(`🔗 38 modules total: CONNECTED`);
+  });
+}
 // Export Express app for Vercel serverless and testing
 module.exports = app;
