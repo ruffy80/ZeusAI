@@ -103,7 +103,7 @@ jobs:
           "
 
       - name: Ping Hetzner keepalive
-        if: ${{ secrets.HETZNER_HOST != '' && secrets.HETZNER_SSH_PRIVATE_KEY != '' }}
+        if: ${{ env.HETZNER_HOST != '' }}
         env:
           HETZNER_HOST: ${{ secrets.HETZNER_HOST }}
           HETZNER_USER: ${{ secrets.HETZNER_USER }}
