@@ -283,6 +283,7 @@ const legalFortress = require('./modules/legalFortress');
 const qrc = require('./modules/quantumResilienceCore');
 const executiveDashboard = require('./modules/executiveDashboard');
 const unicornAutoGenesis = require('./modules/unicornAutoGenesis');
+const domainAutomationManager = require('./modules/domainAutomationManager');
 
 const unicornInnovationSuite = require('./modules/unicornInnovationSuite');
 const autonomousInnovation = require('./modules/autonomousInnovation');
@@ -293,6 +294,13 @@ const autoViralGrowth = require('./modules/autoViralGrowth');
 selfConstruction.start();
 totalSystemHealer.start();
 autoDeploy.start();
+
+// Domain automation (only if DOMAIN is configured)
+if (process.env.DOMAIN) {
+  domainAutomationManager.init().catch(err =>
+    console.warn('[DomainAutomation] init error:', err.message, err.stack)
+  );
+}
 
 // Pornire module cu cicluri autonome
 uee.startEternalCycle();
