@@ -41,15 +41,18 @@ const SECRETS = {
   VERCEL_ORG_ID:          'team_wes3fQvKjdfOMKXe7f4fFQoL',
   VERCEL_PROJECT_ID:      'prj_HZRAdxaNZf4m5jhkR1gpQLI9FWVu',
 
-  // Fill these in manually if you have Hetzner:
-  // VERCEL_TOKEN:         process.env.VERCEL_TOKEN || '',
-  // HETZNER_HOST:         process.env.HETZNER_HOST || '',
-  // HETZNER_USER:         process.env.HETZNER_USER || 'root',
-  // HETZNER_DEPLOY_USER:  process.env.HETZNER_DEPLOY_USER || 'root',
-  // HETZNER_DEPLOY_PORT:  process.env.HETZNER_DEPLOY_PORT || '22',
-  // HETZNER_DEPLOY_PATH:  process.env.HETZNER_DEPLOY_PATH || '/opt/unicorn',
-  // HETZNER_API_KEY:      process.env.HETZNER_API_TOKEN || '',
-  // HETZNER_SSH_PRIVATE_KEY: process.env.HETZNER_SSH_PRIVATE_KEY || '',
+  // Hetzner — known from .env.auto-connector.example
+  HETZNER_HOST:           '204.168.230.142',
+  HETZNER_USER:           'root',
+  HETZNER_DEPLOY_USER:    'root',
+  HETZNER_DEPLOY_PORT:    '22',
+  HETZNER_DEPLOY_PATH:    '/root/unicorn-final',
+  HETZNER_APP_PORT:       '3000',
+
+  // Pass-through from environment (must be provided externally if available)
+  ...(process.env.VERCEL_TOKEN           ? { VERCEL_TOKEN:            process.env.VERCEL_TOKEN }           : {}),
+  ...(process.env.HETZNER_API_KEY        ? { HETZNER_API_KEY:         process.env.HETZNER_API_KEY }        : {}),
+  ...(process.env.HETZNER_SSH_PRIVATE_KEY ? { HETZNER_SSH_PRIVATE_KEY: process.env.HETZNER_SSH_PRIVATE_KEY } : {}),
 };
 
 // ─── GitHub API helpers ─────────────────────────────────────────────────────────
