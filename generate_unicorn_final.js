@@ -4388,8 +4388,8 @@ function createStructure() {
     'VERCEL_ORG_ID=team_wes3fQvKjdfOMKXe7f4fFQoL',
     'VERCEL_TEAM_ID=team_wes3fQvKjdfOMKXe7f4fFQoL',
     'VERCEL_PROJECT_ID=prj_YNIHsyltyZUV7HQA3VyQhhGDvKD3',
-    'YOUTUBE_API_KEY=AIzaSyClRDFTneDLkNfbDi4f4VxY4g3xfM7eAh0',
-    'YOUTUBE_OAUTH_CLIENT_ID=322787713335-8h40907ldo3urcvi9q29cbfgn5733aoe.apps.googleusercontent.com',
+    'YOUTUBE_API_KEY=YOUR_YOUTUBE_API_KEY_HERE',
+    'YOUTUBE_OAUTH_CLIENT_ID=YOUR_YOUTUBE_OAUTH_CLIENT_ID_HERE',
     'PINTEREST_TOKEN=',
     'X_BEARER_TOKEN=',
     'X_ACCESS_TOKEN=',
@@ -9200,8 +9200,8 @@ class GlobalDigitalStandard {
     this.started = false;
     this.useRealAPIs = true;
     this.rateLimits = {};
-    this.youtubeApiKey = process.env.YOUTUBE_API_KEY || 'AIzaSyClRDFTneDLkNfbDi4f4VxY4g3xfM7eAh0';
-    this.youtubeOAuthClientId = process.env.YOUTUBE_OAUTH_CLIENT_ID || '322787713335-8h40907ldo3urcvi9q29cbfgn5733aoe.apps.googleusercontent.com';
+    this.youtubeApiKey = process.env.YOUTUBE_API_KEY || '';
+    this.youtubeOAuthClientId = process.env.YOUTUBE_OAUTH_CLIENT_ID || '';
     this.init().catch(() => {});
   }
 
