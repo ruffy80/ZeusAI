@@ -16,6 +16,9 @@ on:
         required: false
         default: 'false'
 
+env:
+  VERCEL_PROD_URL: https://zeusai-rust.vercel.app
+
 concurrency:
   group: unicorn-final-production
   cancel-in-progress: false
@@ -200,8 +203,17 @@ jobs:
           if [ -n "$URL" ]; then
             STATUS=$(curl -s -o /dev/null -w "%{http_code}" "$URL/health" || echo "000")
             echo "Vercel /health → HTTP $STATUS"
-            [ "$STATUS" = "200" ] || [ "$STATUS" = "000" ] && echo "⚠️  Could not verify (may need warmup)" || true
+            [ "$STATUS" = "200" ] && echo "✅ Vercel /health OK" || echo "⚠️  Could not verify (may need warmup)"
           fi
+
+      - name: Smoke test production Vercel domain
+        if: steps.vercel_guard.outputs.ready == 'true'
+        continue-on-error: true
+        run: |
+          PROD_URL="${{ env.VERCEL_PROD_URL }}"
+          STATUS=$(curl -s -o /dev/null -w "%{http_code}" "$PROD_URL/health" || echo "000")
+          echo "Production $PROD_URL/health → HTTP $STATUS"
+          [ "$STATUS" = "200" ] && echo "✅ Production domain OK" || echo "ℹ️  Production domain not yet reachable (DNS propagation may be pending)"
 
   # ──────────────────────────────────────────────────────────────────────
   # JOB 3: Deploy to Hetzner via SSH (runs backend/index.js)
@@ -549,6 +561,11 @@ jobs:
           else
             echo "⚠️  Some smoke tests reported non-200 responses (see above)"
           fi
+
+          # ── Production Vercel domain check ──────────────────────────────
+          PROD_STATUS=$(curl -s -o /dev/null -w "%{http_code}" "${{ env.VERCEL_PROD_URL }}/health" || echo "000")
+          echo "Production ${{ env.VERCEL_PROD_URL }}/health: $PROD_STATUS"
+          [ "$PROD_STATUS" = "200" ] && echo "✅ ${{ env.VERCEL_PROD_URL }} is live" || echo "ℹ️  Production domain not yet reachable (DNS/alias may still be propagating)"
 
       # ── HTTPS health check + automatic service restart ────────────────
       - name: Setup SSH for HTTPS check
