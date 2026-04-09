@@ -339,6 +339,7 @@ jobs:
         continue-on-error: true
         run: |
           echo "Deploying UNICORN_FINAL to Hetzner..."
+          DEST='${{ secrets.HETZNER_DEPLOY_PATH || '/opt/unicorn' }}'
           tar -C ./UNICORN_FINAL \
               --exclude='.git' --exclude='node_modules' --exclude='.next' \
               --exclude='logs' --exclude='*.local' --exclude='.env' \
@@ -346,7 +347,7 @@ jobs:
             ssh -i ~/.ssh/deploy_key -p 22 -o StrictHostKeyChecking=no \
               -o BatchMode=yes \
               "${{ secrets.HETZNER_DEPLOY_USER || secrets.HETZNER_USER || secrets.SSH_USER }}@${{ secrets.HETZNER_HOST || secrets.SSH_HOST }}" \
-              "mkdir -p '${{ secrets.HETZNER_DEPLOY_PATH || '/opt/unicorn' }}' && chmod -R u+w '${{ secrets.HETZNER_DEPLOY_PATH || '/opt/unicorn' }}' 2>/dev/null || true && cd '${{ secrets.HETZNER_DEPLOY_PATH || '/opt/unicorn' }}' && tar --overwrite --no-same-permissions --no-same-owner -xzf -"
+              "DEST='${DEST}'; mkdir -p \"\$DEST\" && chmod -R u+w \"\$DEST\" 2>/dev/null || true && cd \"\$DEST\" && tar --overwrite --no-same-permissions --no-same-owner -xzf -"
 
       - name: Install deps + restart backend on Hetzner
         id: restart_hetzner
@@ -388,13 +389,17 @@ jobs:
 
             # ── Verify source integrity: re-fetch any JS file with SyntaxError ──
             REPO_RAW="https://raw.githubusercontent.com/${{ github.repository }}/${{ github.sha }}/UNICORN_FINAL"
-            for jsfile in backend/modules/*.js src/index.js backend/index.js; do
-              if [ -f "$jsfile" ] && ! node --check "$jsfile" 2>/dev/null; then
-                echo "⚠️  SyntaxError in $jsfile — re-fetching from GitHub..."
-                curl -sfL "${REPO_RAW}/${jsfile}" -o "$jsfile" && \
-                  echo "✅ Re-fetched $jsfile" || echo "⚠️  Failed to re-fetch $jsfile"
-              fi
-            done
+            if [ -d "backend/modules" ]; then
+              shopt -s nullglob
+              for jsfile in backend/modules/*.js src/index.js backend/index.js; do
+                if [ -f "$jsfile" ] && ! node --check "$jsfile" 2>/dev/null; then
+                  echo "⚠️  SyntaxError in $jsfile — re-fetching from GitHub..."
+                  curl -sfL "${REPO_RAW}/${jsfile}" -o "$jsfile" && \
+                    echo "✅ Re-fetched $jsfile" || echo "⚠️  Failed to re-fetch $jsfile"
+                fi
+              done
+              shopt -u nullglob
+            fi
 
             # ── Install dependencies ──────────────────────────────────────
             npm ci --no-audit --no-fund 2>/dev/null || npm install --no-audit --no-fund
