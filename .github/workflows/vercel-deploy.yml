@@ -1,4 +1,4 @@
-name: 🦄 Deploy UNICORN_FINAL (GitHub → Vercel + Hetzner)
+name: 🦄 Deploy ZeusAI (GitHub → Vercel + Hetzner)
 
 on:
   push:
@@ -20,7 +20,7 @@ env:
   VERCEL_PROD_URL: https://zeusai-rust.vercel.app
 
 concurrency:
-  group: unicorn-final-production
+  group: zeusai-production
   cancel-in-progress: false
 
 jobs:
@@ -214,6 +214,35 @@ jobs:
           STATUS=$(curl -s -o /dev/null -w "%{http_code}" "$PROD_URL/health" || echo "000")
           echo "Production $PROD_URL/health → HTTP $STATUS"
           [ "$STATUS" = "200" ] && echo "✅ Production domain OK" || echo "ℹ️  Production domain not yet reachable (DNS propagation may be pending)"
+
+      - name: Delete old unicorn-final Vercel project (cleanup)
+        if: steps.vercel_guard.outputs.ready == 'true'
+        continue-on-error: true
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_TEAM_ID: ${{ secrets.VERCEL_TEAM_ID || secrets.VERCEL_ORG_ID }}
+        run: |
+          echo "🗑️  Looking up and removing old 'unicorn-final' Vercel project..."
+          TEAM_PARAM=""
+          [ -n "$VERCEL_TEAM_ID" ] && TEAM_PARAM="?teamId=${VERCEL_TEAM_ID}"
+          # Find project ID by name
+          OLD_PROJECT_ID=$(curl -fsS \
+            -H "Authorization: Bearer ${VERCEL_TOKEN}" \
+            "https://api.vercel.com/v9/projects/unicorn-final${TEAM_PARAM}" \
+            2>/dev/null | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('id',''))" 2>/dev/null || echo "")
+          if [ -z "$OLD_PROJECT_ID" ]; then
+            echo "ℹ️  Project 'unicorn-final' not found or already deleted – nothing to do."
+          else
+            HTTP=$(curl -s -o /dev/null -w "%{http_code}" \
+              -X DELETE \
+              -H "Authorization: Bearer ${VERCEL_TOKEN}" \
+              "https://api.vercel.com/v9/projects/${OLD_PROJECT_ID}${TEAM_PARAM}")
+            if [ "$HTTP" = "204" ] || [ "$HTTP" = "200" ]; then
+              echo "✅ Vercel project 'unicorn-final' (${OLD_PROJECT_ID}) deleted successfully."
+            else
+              echo "⚠️  Could not delete 'unicorn-final' (HTTP ${HTTP}). It may have already been removed."
+            fi
+          fi
 
   # ──────────────────────────────────────────────────────────────────────
   # JOB 3: Deploy to Hetzner via SSH (runs backend/index.js)
@@ -504,7 +533,7 @@ jobs:
     steps:
       - name: Print summary
         run: |
-          echo "## 🦄 UNICORN Deploy Summary" >> "$GITHUB_STEP_SUMMARY"
+          echo "## 🦄 ZeusAI Deploy Summary" >> "$GITHUB_STEP_SUMMARY"
           echo "" >> "$GITHUB_STEP_SUMMARY"
           echo "| Target    | Result |" >> "$GITHUB_STEP_SUMMARY"
           echo "|-----------|--------|" >> "$GITHUB_STEP_SUMMARY"

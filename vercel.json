@@ -1,11 +1,37 @@
 {
-  "buildCommand": "npm --prefix UNICORN_FINAL/client install --no-audit --no-fund && CI=false npm --prefix UNICORN_FINAL/client run build",
-  "outputDirectory": "UNICORN_FINAL/client/build",
-  "framework": "create-react-app",
-  "rewrites": [
+  "version": 2,
+  "name": "zeusai",
+  "builds": [
     {
-      "source": "/(.*)",
-      "destination": "/index.html"
+      "src": "UNICORN_FINAL/client/package.json",
+      "use": "@vercel/static-build",
+      "config": { "distDir": "build" }
+    },
+    {
+      "src": "UNICORN_FINAL/src/index.js",
+      "use": "@vercel/node"
     }
-  ]
+  ],
+  "routes": [
+    { "src": "/health",               "dest": "/UNICORN_FINAL/src/index.js" },
+    { "src": "/snapshot",             "dest": "/UNICORN_FINAL/src/index.js" },
+    { "src": "/stream",               "dest": "/UNICORN_FINAL/src/index.js" },
+    { "src": "/innovation(.*)",       "dest": "/UNICORN_FINAL/src/index.js" },
+    { "src": "/modules(.*)",          "dest": "/UNICORN_FINAL/src/index.js" },
+    { "src": "/static/js/(.*)",       "headers": { "cache-control": "public,max-age=31536000,immutable" }, "dest": "/UNICORN_FINAL/client/build/static/js/$1" },
+    { "src": "/static/css/(.*)",      "headers": { "cache-control": "public,max-age=31536000,immutable" }, "dest": "/UNICORN_FINAL/client/build/static/css/$1" },
+    { "src": "/static/media/(.*)",    "headers": { "cache-control": "public,max-age=31536000,immutable" }, "dest": "/UNICORN_FINAL/client/build/static/media/$1" },
+    { "src": "/favicon.ico",          "dest": "/UNICORN_FINAL/client/build/favicon.ico" },
+    { "src": "/manifest.json",        "dest": "/UNICORN_FINAL/client/build/manifest.json" },
+    { "src": "/robots.txt",           "dest": "/UNICORN_FINAL/client/build/robots.txt" },
+    { "src": "/(.*)",                 "headers": { "cache-control": "no-store,no-cache,must-revalidate" }, "dest": "/UNICORN_FINAL/client/build/index.html" }
+  ],
+  "env": {
+    "NODE_ENV": "production",
+    "PUBLIC_APP_URL": "https://zeusai.pro",
+    "SITE_DOMAIN": "zeusai.pro",
+    "BTC_WALLET_ADDRESS": "bc1q4f7e66z87mdfj56kz0dj5hvcnpmh0qh4wuv22e",
+    "OWNER_NAME": "Vladoi Ionut",
+    "OWNER_EMAIL": "vladoi_ionut@yahoo.com"
+  }
 }

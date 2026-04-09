@@ -1,6 +1,6 @@
 {
   "version": 2,
-  "name": "unicorn-final",
+  "name": "zeusai",
   "builds": [
     {
       "src": "client/package.json",
