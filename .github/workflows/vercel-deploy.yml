@@ -88,8 +88,9 @@ jobs:
     needs: validate
     # Skip Vercel deploy on scheduled runs – cron is for Hetzner keep-alive only.
     # Deploying on schedule quickly exhausts the 100 free deployments/day limit.
+    # Exception: force_deploy=true overrides the schedule skip (e.g. keepalive or setup-secrets triggering a full redeploy).
     # Skip on pull_request – PRs only run the validate job.
-    if: github.event_name != 'schedule' && github.event_name != 'pull_request'
+    if: (github.event_name != 'schedule' || inputs.force_deploy == 'true') && github.event_name != 'pull_request'
     defaults:
       run:
         working-directory: UNICORN_FINAL
