@@ -1597,13 +1597,21 @@ app.get('*', (req, res) => {
     res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
     return res.sendFile(clientIndexPath);
   }
-  // Client not built yet — return API status instead of crashing
-  res.json({
-    service: 'unicorn-autonomous',
-    status: 'running',
-    note: 'UI build not found. Run: cd client && npm install && npm run build',
-    api: '/api/health'
-  });
+  // Serve the full unicorn HTML template when no React client build is present
+  // (e.g. Vercel serverless deploy or fresh Hetzner setup)
+  try {
+    const { getSiteHtml } = require('../src/site/template');
+    res.setHeader('Content-Type', 'text/html; charset=utf-8');
+    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+    return res.send(getSiteHtml());
+  } catch (_) {
+    res.json({
+      service: 'unicorn-autonomous',
+      status: 'running',
+      note: 'UI build not found. Run: cd client && npm install && npm run build',
+      api: '/api/health'
+    });
+  }
 });
 
 // Only bind to a port when run directly (not when imported by Vercel or tests)
