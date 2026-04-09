@@ -36,7 +36,7 @@ class AutoDeploy {
   }
 
   start() {
-    const git = simpleGit(path.join(__dirname, '..'));
+    const git = simpleGit(path.join(__dirname, '../..'));
     let timeout = null;
 
     console.log('📡 Auto‑Deploy activ – monitorizez modificări...');

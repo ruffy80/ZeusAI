@@ -297,6 +297,8 @@ module.exports = new ${className}();
 
   getComponentTemplate(name) {
     return `// ${name} – Componentă construită autonom de UEE
+'use strict';
+
 class ${name} {
   constructor() {
     this.name = '${name}';
@@ -306,6 +308,10 @@ class ${name} {
 
   async process(input) {
     return { status: 'operational', component: this.name, futureReady: true, input };
+  }
+
+  getStatus() {
+    return { name: this.name, builtAt: this.builtAt, futureReady: this.futureReady };
   }
 }
 
@@ -346,9 +352,12 @@ module.exports = new ${name}();
   }
 
   startAutoEvolution() {
+    // setTimeout/setInterval max is 32-bit signed int (2147483647ms ≈ 24.85 days).
+    // 30 days (2592000000ms) overflows this and resets to 1ms; cap it safely.
+    const THIRTY_DAYS_MS = Math.min(30 * 24 * 60 * 60 * 1000, 2147483647);
     setInterval(async () => {
       await this.evolve();
-    }, 30 * 24 * 60 * 60 * 1000);
+    }, THIRTY_DAYS_MS);
   }
 
   async evolve() {

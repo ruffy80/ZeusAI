@@ -384,6 +384,9 @@ jobs:
             set -e
             cd "${{ secrets.HETZNER_DEPLOY_PATH || '/opt/unicorn' }}"
 
+            # ── Allow git to operate in the deploy directory (rsync owner may differ) ──
+            git config --global --add safe.directory "${{ secrets.HETZNER_DEPLOY_PATH || '/opt/unicorn' }}" 2>/dev/null || true
+
             # ── Ensure Node.js exists on host ───────────────────────────
             if ! command -v node >/dev/null 2>&1; then
               apt-get update -y
