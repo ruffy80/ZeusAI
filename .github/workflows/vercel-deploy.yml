@@ -116,16 +116,37 @@ jobs:
         if: steps.vercel_guard.outputs.ready == 'true'
         run: npm i -g vercel@latest
 
-      - name: Link Vercel project
+      - name: Resolve & link Vercel project (auto-sync zeusai project ID)
         if: steps.vercel_guard.outputs.ready == 'true'
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID_SECRET: ${{ secrets.VERCEL_PROJECT_ID }}
         run: |
+          # Query Vercel API for the 'zeusai' project to get the authoritative project ID
+          TEAM_PARAM=""
+          [ -n "$VERCEL_ORG_ID" ] && TEAM_PARAM="?teamId=${VERCEL_ORG_ID}"
+          RESOLVED_ID=$(curl -fsS \
+            -H "Authorization: Bearer ${VERCEL_TOKEN}" \
+            "https://api.vercel.com/v9/projects/zeusai${TEAM_PARAM}" \
+            2>/dev/null \
+            | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('id',''))" 2>/dev/null || echo "")
+          if [ -n "$RESOLVED_ID" ]; then
+            echo "✅ Resolved zeusai Vercel project ID: ${RESOLVED_ID}"
+            PROJECT_ID="$RESOLVED_ID"
+          else
+            echo "ℹ️  Could not resolve zeusai project from Vercel API – falling back to VERCEL_PROJECT_ID secret"
+            PROJECT_ID="$VERCEL_PROJECT_ID_SECRET"
+          fi
           mkdir -p .vercel
           cat > .vercel/project.json <<EOF
           {
-            "orgId": "${{ secrets.VERCEL_ORG_ID }}",
-            "projectId": "${{ secrets.VERCEL_PROJECT_ID }}"
+            "orgId": "${VERCEL_ORG_ID}",
+            "projectId": "${PROJECT_ID}"
           }
           EOF
+          echo "RESOLVED_VERCEL_PROJECT_ID=${PROJECT_ID}" >> "$GITHUB_ENV"
+          echo "🔗 Linked to Vercel project: ${PROJECT_ID}"
 
       - name: Pull Vercel environment
         if: steps.vercel_guard.outputs.ready == 'true'
@@ -157,7 +178,7 @@ jobs:
         continue-on-error: true
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
-          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+          VERCEL_PROJECT_ID: ${{ env.RESOLVED_VERCEL_PROJECT_ID || secrets.VERCEL_PROJECT_ID }}
           VERCEL_TEAM_ID: ${{ secrets.VERCEL_TEAM_ID || secrets.VERCEL_ORG_ID }}
           SITE_DOMAIN: ${{ secrets.SITE_DOMAIN || 'zeusai.pro' }}
           UNICORN_DOMAIN: ${{ secrets.UNICORN_DOMAIN || 'www.zeusai.pro' }}
@@ -182,7 +203,7 @@ jobs:
         continue-on-error: true
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
-          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+          VERCEL_PROJECT_ID: ${{ env.RESOLVED_VERCEL_PROJECT_ID || secrets.VERCEL_PROJECT_ID }}
           VERCEL_TEAM_ID: ${{ secrets.VERCEL_TEAM_ID || secrets.VERCEL_ORG_ID }}
         run: |
           echo "🔓 Disabling Vercel Password Protection..."
