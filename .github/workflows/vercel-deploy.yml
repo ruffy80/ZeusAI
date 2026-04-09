@@ -7,12 +7,16 @@ on:
       - 'UNICORN_FINAL/**'
       - '.github/workflows/vercel-deploy.yml'
       - '.github/workflows/setup-secrets-and-deploy.yml'
+      - '.github/workflows/autonomous.yml'
+      - '.github/workflows/unicorn-keepalive.yml'
   # ── Validate PRs targeting main (lint + test only, no deploy) ─────────────
   pull_request:
     branches: [main]
     paths:
       - 'UNICORN_FINAL/**'
       - '.github/workflows/vercel-deploy.yml'
+      - '.github/workflows/autonomous.yml'
+      - '.github/workflows/unicorn-keepalive.yml'
   # ── Keep-alive: re-verify and redeploy every 6 hours ──────────────────────
   schedule:
     - cron: '0 */6 * * *'
@@ -24,7 +28,7 @@ on:
         default: 'false'
 
 env:
-  VERCEL_PROD_URL: https://zeusai-rust.vercel.app
+  VERCEL_PROD_URL: https://zeusai.pro
 
 concurrency:
   group: ${{ github.event_name == 'pull_request' && format('pr-validate-{0}', github.event.pull_request.number) || 'zeusai-production' }}
