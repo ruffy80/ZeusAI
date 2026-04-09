@@ -130,7 +130,7 @@ jobs:
             -H "Authorization: Bearer ${VERCEL_TOKEN}" \
             "https://api.vercel.com/v9/projects/zeusai${TEAM_PARAM}" \
             2>/dev/null \
-            | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('id',''))" 2>/dev/null || echo "")
+            | jq -r '.id // empty' 2>/dev/null || echo "")
           if [ -n "$RESOLVED_ID" ]; then
             echo "✅ Resolved zeusai Vercel project ID: ${RESOLVED_ID}"
             PROJECT_ID="$RESOLVED_ID"
