@@ -72,32 +72,35 @@ jobs:
       - name: System health check
         if: ${{ github.event.inputs.action == 'all' || github.event.inputs.action == 'heal' || github.event.inputs.action == '' }}
         working-directory: UNICORN_FINAL
-        run: node -e "
-          const healer = require('./backend/modules/totalSystemHealer');
-          const status = healer.getHealthReport ? healer.getHealthReport() : healer.getStatus ? healer.getStatus() : { status: 'ok' };
-          console.log('[HEAL]', JSON.stringify(status, null, 2));
-          process.exit(0);
-        "
+        run: |
+          node -e "
+            const healer = require('./backend/modules/totalSystemHealer');
+            const status = healer.getHealthReport ? healer.getHealthReport() : healer.getStatus ? healer.getStatus() : { status: 'ok' };
+            console.log('[HEAL]', JSON.stringify(status, null, 2));
+            process.exit(0);
+          "
         continue-on-error: true
 
       - name: Quantum Resilience check
         working-directory: UNICORN_FINAL
-        run: node -e "
-          const qrc = require('./backend/modules/quantumResilienceCore');
-          const status = qrc.getStatus ? qrc.getStatus() : { status: 'ok' };
-          console.log('[QRC]', JSON.stringify(status, null, 2));
-          process.exit(0);
-        "
+        run: |
+          node -e "
+            const qrc = require('./backend/modules/quantumResilienceCore');
+            const status = qrc.getStatus ? qrc.getStatus() : { status: 'ok' };
+            console.log('[QRC]', JSON.stringify(status, null, 2));
+            process.exit(0);
+          "
         continue-on-error: true
 
       - name: Autonomous status report
         working-directory: UNICORN_FINAL
-        run: node -e "
-          console.log('[AUTONOMOUS] Cycle completed at', new Date().toISOString());
-          console.log('[AUTONOMOUS] Uptime check: PASS');
-          console.log('[AUTONOMOUS] All engines: ACTIVE');
-          process.exit(0);
-        "
+        run: |
+          node -e "
+            console.log('[AUTONOMOUS] Cycle completed at', new Date().toISOString());
+            console.log('[AUTONOMOUS] Uptime check: PASS');
+            console.log('[AUTONOMOUS] All engines: ACTIVE');
+            process.exit(0);
+          "
 
       - name: Ping Hetzner keepalive
         if: ${{ secrets.HETZNER_HOST != '' && secrets.HETZNER_SSH_PRIVATE_KEY != '' }}
