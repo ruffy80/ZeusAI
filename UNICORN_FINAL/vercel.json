@@ -24,7 +24,7 @@
     { "src": "/favicon.ico",          "dest": "/client/build/favicon.ico" },
     { "src": "/manifest.json",        "dest": "/client/build/manifest.json" },
     { "src": "/robots.txt",           "dest": "/client/build/robots.txt" },
-    { "src": "/(.*)",                 "headers": { "cache-control": "no-store,no-cache,must-revalidate" }, "dest": "/client/build/index.html" }
+    { "src": "/(.*)",                 "headers": { "cache-control": "no-store,no-cache,must-revalidate" }, "dest": "/src/index.js" }
   ],
   "env": {
     "NODE_ENV": "production",

@@ -225,6 +225,9 @@ jobs:
             STATUS=$(curl -s -o /dev/null -w "%{http_code}" "$URL/health" || echo "000")
             echo "Vercel /health → HTTP $STATUS"
             [ "$STATUS" = "200" ] && echo "✅ Vercel /health OK" || echo "⚠️  Could not verify (may need warmup)"
+            STATUS_ROOT=$(curl -s -o /dev/null -w "%{http_code}" "$URL/" || echo "000")
+            echo "Vercel / → HTTP $STATUS_ROOT"
+            [ "$STATUS_ROOT" = "200" ] && echo "✅ Vercel / OK" || echo "⚠️  Root path not serving (frontend may be broken)"
           fi
 
       - name: Smoke test production Vercel domain
@@ -235,6 +238,9 @@ jobs:
           STATUS=$(curl -s -o /dev/null -w "%{http_code}" "$PROD_URL/health" || echo "000")
           echo "Production $PROD_URL/health → HTTP $STATUS"
           [ "$STATUS" = "200" ] && echo "✅ Production domain OK" || echo "ℹ️  Production domain not yet reachable (DNS propagation may be pending)"
+          STATUS_ROOT=$(curl -s -o /dev/null -w "%{http_code}" "$PROD_URL/" || echo "000")
+          echo "Production $PROD_URL/ → HTTP $STATUS_ROOT"
+          [ "$STATUS_ROOT" = "200" ] && echo "✅ Production root OK" || echo "⚠️  Production root not serving"
 
       - name: Delete old unicorn-final Vercel project (cleanup)
         if: steps.vercel_guard.outputs.ready == 'true'
