@@ -49,8 +49,12 @@ jobs:
             echo "hetzner_ok=true" >> "$GITHUB_OUTPUT"
             exit 0
           fi
-          PORT="${{ secrets.HETZNER_APP_PORT || '3000' }}"
-          STATUS=$(curl -s -o /dev/null -w "%{http_code}" --max-time 10 "http://${HOST}:${PORT}/api/health" || echo "000")
+          # Prefer Nginx port 80 (proxied to backend:3000); port 3000 is firewall-restricted
+          STATUS=$(curl -s -o /dev/null -w "%{http_code}" --max-time 10 "http://${HOST}/api/health" || echo "000")
+          if [ "$STATUS" = "000" ] || [ "$STATUS" = "000000" ]; then
+            PORT="${{ secrets.HETZNER_APP_PORT || '3000' }}"
+            STATUS=$(curl -s -o /dev/null -w "%{http_code}" --max-time 10 "http://${HOST}:${PORT}/api/health" || echo "000")
+          fi
           echo "Hetzner /api/health → HTTP $STATUS"
           if [ "$STATUS" = "200" ]; then
             echo "hetzner_ok=true" >> "$GITHUB_OUTPUT"

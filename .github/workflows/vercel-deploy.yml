@@ -346,7 +346,7 @@ jobs:
             ssh -i ~/.ssh/deploy_key -p 22 -o StrictHostKeyChecking=no \
               -o BatchMode=yes \
               "${{ secrets.HETZNER_DEPLOY_USER || secrets.HETZNER_USER || secrets.SSH_USER }}@${{ secrets.HETZNER_HOST || secrets.SSH_HOST }}" \
-              "mkdir -p '${{ secrets.HETZNER_DEPLOY_PATH || '/opt/unicorn' }}' && cd '${{ secrets.HETZNER_DEPLOY_PATH || '/opt/unicorn' }}' && tar -xzf -"
+              "mkdir -p '${{ secrets.HETZNER_DEPLOY_PATH || '/opt/unicorn' }}' && chmod -R u+w '${{ secrets.HETZNER_DEPLOY_PATH || '/opt/unicorn' }}' 2>/dev/null || true && cd '${{ secrets.HETZNER_DEPLOY_PATH || '/opt/unicorn' }}' && tar --overwrite --no-same-permissions --no-same-owner -xzf -"
 
       - name: Install deps + restart backend on Hetzner
         id: restart_hetzner
@@ -386,8 +386,21 @@ jobs:
             printf "ADMIN_EMAIL=vladoi_ionut@yahoo.com\n" >> .env
             printf "SMTP_HOST=smtp.mail.yahoo.com\nSMTP_PORT=587\nSMTP_USER=vladoi_ionut@yahoo.com\n" >> .env
 
+            # ── Verify source integrity: re-fetch any JS file with SyntaxError ──
+            REPO_RAW="https://raw.githubusercontent.com/${{ github.repository }}/${{ github.sha }}/UNICORN_FINAL"
+            for jsfile in backend/modules/*.js src/index.js backend/index.js; do
+              if [ -f "$jsfile" ] && ! node --check "$jsfile" 2>/dev/null; then
+                echo "⚠️  SyntaxError in $jsfile — re-fetching from GitHub..."
+                curl -sfL "${REPO_RAW}/${jsfile}" -o "$jsfile" && \
+                  echo "✅ Re-fetched $jsfile" || echo "⚠️  Failed to re-fetch $jsfile"
+              fi
+            done
+
             # ── Install dependencies ──────────────────────────────────────
             npm ci --no-audit --no-fund 2>/dev/null || npm install --no-audit --no-fund
+
+            # ── Rebuild native modules for current Node.js version ────────
+            npm rebuild better-sqlite3 --no-fund 2>/dev/null || true
 
             # ── Build React frontend ──────────────────────────────────────
             if [ -d "client" ]; then
@@ -478,17 +491,24 @@ jobs:
         continue-on-error: true
         if: steps.restart_hetzner.outcome == 'success'
         run: |
-          # Wait for backend to start up after PM2 restart (retry up to 60s)
+          # Wait for backend to start up after PM2 restart (retry up to 90s)
           HEALTH='{"status":"unreachable"}'
-          for attempt in 1 2 3 4; do
+          for attempt in 1 2 3 4 5 6; do
             sleep 15
             HEALTH=$(ssh -i ~/.ssh/deploy_key -p 22 -o StrictHostKeyChecking=no -o UserKnownHostsFile=~/.ssh/known_hosts \
               "${{ secrets.HETZNER_DEPLOY_USER || secrets.HETZNER_USER || secrets.SSH_USER }}@${{ secrets.HETZNER_HOST || secrets.SSH_HOST }}" \
-              "curl -sS http://localhost:3000/api/health 2>/dev/null || echo '{\"status\":\"unreachable\"}'")
+              "curl -sS http://localhost:3000/api/health 2>/dev/null || curl -sS http://localhost:80/api/health 2>/dev/null || echo '{\"status\":\"unreachable\"}'")
             echo "Hetzner health (attempt $attempt): $HEALTH"
             echo "$HEALTH" | grep -q '"status":"ok"' && break || true
           done
-          echo "$HEALTH" | grep -q '"status":"ok"' && echo "✅ Backend healthy" || echo "⚠️  Backend not yet ready"
+          if echo "$HEALTH" | grep -q '"status":"ok"'; then
+            echo "✅ Backend healthy"
+          else
+            echo "⚠️  Backend not yet ready — collecting diagnostics..."
+            ssh -i ~/.ssh/deploy_key -p 22 -o StrictHostKeyChecking=no -o UserKnownHostsFile=~/.ssh/known_hosts \
+              "${{ secrets.HETZNER_DEPLOY_USER || secrets.HETZNER_USER || secrets.SSH_USER }}@${{ secrets.HETZNER_HOST || secrets.SSH_HOST }}" \
+              "pm2 list 2>/dev/null || true; echo '--- last 30 log lines ---'; pm2 logs unicorn --lines 30 --nostream 2>/dev/null || tail -30 '${{ secrets.HETZNER_DEPLOY_PATH || '/opt/unicorn' }}/logs/pm2-error.log' 2>/dev/null || true" || true
+          fi
 
       - name: Fallback — trigger Hetzner webhook (if SSH failed)
         id: webhook_fallback
@@ -608,7 +628,11 @@ jobs:
           if [ -z "$HETZNER_HOST" ]; then
             echo "ℹ️  Hetzner not configured – skipping Hetzner smoke test."
           else
-            HETZNER_STATUS=$(curl -s -o /dev/null -w "%{http_code}" "http://${HETZNER_HOST}:3000/api/health" || echo "000")
+            # Prefer Nginx port 80 (proxied to backend:3000); port 3000 is firewall-restricted
+            HETZNER_STATUS=$(curl -s -o /dev/null -w "%{http_code}" --max-time 15 "http://${HETZNER_HOST}/api/health" || echo "000")
+            if [ "$HETZNER_STATUS" = "000" ] || [ "$HETZNER_STATUS" = "000000" ]; then
+              HETZNER_STATUS=$(curl -s -o /dev/null -w "%{http_code}" --max-time 15 "http://${HETZNER_HOST}:3000/api/health" || echo "000")
+            fi
             echo "Hetzner /api/health: $HETZNER_STATUS"
             if [ "$HETZNER_STATUS" != "200" ]; then
               echo "⚠️  Hetzner smoke test: expected 200, got $HETZNER_STATUS"
@@ -658,12 +682,12 @@ jobs:
         run: |
           # Determine probe URL:
           # - With SITE_DOMAIN → use HTTPS (certbot-issued cert expected)
-          # - Without SITE_DOMAIN → fall back to plain HTTP on port 3000 (no SSL on raw IP)
+          # - Without SITE_DOMAIN → use HTTP via Nginx port 80 (proxied to backend:3000)
           if [ -n "$SITE_DOMAIN" ]; then
             PROBE_URL="https://${SITE_DOMAIN}/api/health"
           else
-            PROBE_URL="http://${DEPLOY_HOST}:3000/api/health"
-            echo "ℹ️  SITE_DOMAIN not set — probing HTTP on port 3000 instead of HTTPS"
+            PROBE_URL="http://${DEPLOY_HOST}/api/health"
+            echo "ℹ️  SITE_DOMAIN not set — probing HTTP via Nginx port 80"
           fi
 
           echo "🔍 Probing: $PROBE_URL"
