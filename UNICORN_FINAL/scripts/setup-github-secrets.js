@@ -24,7 +24,7 @@ const REPO  = 'ZeusAI';
 
 const VERCEL_ORG_ID = 'team_wes3fQvKjdfOMKXe7f4fFQoL';
 // Fallback project ID (unicorn-final legacy) used only when Vercel API is unavailable
-const VERCEL_PROJECT_ID_FALLBACK = 'prj_HZRAdxaNZf4m5jhkR1gpQLI9FWVu';
+const VERCEL_PROJECT_ID_FALLBACK = 'prj_YNIHsyltyZUV7HQA3VyQhhGDvKD3';
 
 if (!GITHUB_TOKEN) {
   console.error('❌  Set GITHUB_TOKEN=ghp_... before running this script.');
