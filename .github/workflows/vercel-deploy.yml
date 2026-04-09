@@ -169,7 +169,6 @@ jobs:
 
       - name: Build
         if: steps.vercel_guard.outputs.ready == 'true'
-        continue-on-error: true
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
         run: vercel build --prod
@@ -193,7 +192,7 @@ jobs:
             echo "❌ Vercel deploy failed: $DEPLOY_OUTPUT"
             exit 1
           fi
-          URL=$(echo "$DEPLOY_OUTPUT" | grep -E '^https://' | tail -1)
+          URL=$(echo "$DEPLOY_OUTPUT" | grep -oE 'https://[a-zA-Z0-9._-]+\.vercel\.app' | tail -1)
           echo "deploy_url=$URL" >> "$GITHUB_OUTPUT"
           echo "✅ Vercel deploy: $URL"
 
