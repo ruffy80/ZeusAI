@@ -471,11 +471,16 @@ jobs:
         continue-on-error: true
         if: steps.restart_hetzner.outcome == 'success'
         run: |
-          sleep 8
-          HEALTH=$(ssh -i ~/.ssh/deploy_key -p 22 -o StrictHostKeyChecking=no -o UserKnownHostsFile=~/.ssh/known_hosts \
-            "${{ secrets.HETZNER_DEPLOY_USER || secrets.HETZNER_USER || secrets.SSH_USER }}@${{ secrets.HETZNER_HOST || secrets.SSH_HOST }}" \
-            "curl -sS http://localhost:3000/api/health 2>/dev/null || echo '{\"status\":\"unreachable\"}'")
-          echo "Hetzner health: $HEALTH"
+          # Wait for backend to start up after PM2 restart (retry up to 60s)
+          HEALTH='{"status":"unreachable"}'
+          for attempt in 1 2 3 4; do
+            sleep 15
+            HEALTH=$(ssh -i ~/.ssh/deploy_key -p 22 -o StrictHostKeyChecking=no -o UserKnownHostsFile=~/.ssh/known_hosts \
+              "${{ secrets.HETZNER_DEPLOY_USER || secrets.HETZNER_USER || secrets.SSH_USER }}@${{ secrets.HETZNER_HOST || secrets.SSH_HOST }}" \
+              "curl -sS http://localhost:3000/api/health 2>/dev/null || echo '{\"status\":\"unreachable\"}'")
+            echo "Hetzner health (attempt $attempt): $HEALTH"
+            echo "$HEALTH" | grep -q '"status":"ok"' && break || true
+          done
           echo "$HEALTH" | grep -q '"status":"ok"' && echo "✅ Backend healthy" || echo "⚠️  Backend not yet ready"
 
       - name: Fallback — trigger Hetzner webhook (if SSH failed)
@@ -644,39 +649,42 @@ jobs:
           # SITE_DOMAIN is preferred; falls back to IP-based HTTPS
           SITE_DOMAIN: ${{ secrets.SITE_DOMAIN || secrets.UNICORN_DOMAIN }}
         run: |
-          # Determine HTTPS URL to probe (prefer domain, fallback to IP)
+          # Determine probe URL:
+          # - With SITE_DOMAIN → use HTTPS (certbot-issued cert expected)
+          # - Without SITE_DOMAIN → fall back to plain HTTP on port 3000 (no SSL on raw IP)
           if [ -n "$SITE_DOMAIN" ]; then
-            HTTPS_URL="https://${SITE_DOMAIN}/api/health"
+            PROBE_URL="https://${SITE_DOMAIN}/api/health"
           else
-            HTTPS_URL="https://${DEPLOY_HOST}/api/health"
+            PROBE_URL="http://${DEPLOY_HOST}:3000/api/health"
+            echo "ℹ️  SITE_DOMAIN not set — probing HTTP on port 3000 instead of HTTPS"
           fi
 
-          echo "🔍 Probing HTTPS: $HTTPS_URL"
-          HTTPS_STATUS=$(curl -sk -o /dev/null -w "%{http_code}" --max-time 15 "$HTTPS_URL" || echo "000")
-          echo "HTTPS status: $HTTPS_STATUS"
+          echo "🔍 Probing: $PROBE_URL"
+          HTTPS_STATUS=$(curl -sk -o /dev/null -w "%{http_code}" --max-time 15 "$PROBE_URL" || echo "000")
+          echo "Status: $HTTPS_STATUS"
 
           if [ "$HTTPS_STATUS" = "200" ]; then
-            echo "✅ Site is responding correctly on HTTPS."
+            echo "✅ Site is responding correctly."
           else
-            echo "⚠️  Site not responding on HTTPS (HTTP $HTTPS_STATUS). Attempting service restart via SSH…"
+            echo "⚠️  Site not responding (HTTP $HTTPS_STATUS). Attempting service restart via SSH…"
             ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no -o BatchMode=yes \
               "${DEPLOY_USER}@${DEPLOY_HOST}" \
               "DEPLOY_PATH='${DEPLOY_PATH}'; if command -v systemctl >/dev/null 2>&1 && systemctl list-unit-files | grep -q '^unicorn\\.service'; then systemctl restart unicorn && echo 'Restarted via systemctl'; elif command -v pm2 >/dev/null 2>&1 && pm2 describe unicorn >/dev/null 2>&1; then pm2 restart unicorn && echo 'Restarted via pm2'; else pkill -f 'node backend/index.js' || true; sleep 1; cd \"\$DEPLOY_PATH\"; mkdir -p logs; nohup node backend/index.js > logs/backend.log 2>&1 & echo 'Restarted via nohup'; fi"
 
             # Wait for service to come back up with a retry loop (max 60s)
             echo "Waiting for service to recover…"
-            HTTPS_STATUS_RETRY="000"
+            STATUS_RETRY="000"
             for i in 1 2 3 4; do
               sleep 15
-              HTTPS_STATUS_RETRY=$(curl -sk -o /dev/null -w "%{http_code}" --max-time 10 "$HTTPS_URL" || echo "000")
-              echo "  attempt $i → HTTP $HTTPS_STATUS_RETRY"
-              [ "$HTTPS_STATUS_RETRY" = "200" ] && break
+              STATUS_RETRY=$(curl -sk -o /dev/null -w "%{http_code}" --max-time 10 "$PROBE_URL" || echo "000")
+              echo "  attempt $i → HTTP $STATUS_RETRY"
+              [ "$STATUS_RETRY" = "200" ] && break
             done
-            echo "HTTPS status after restart: $HTTPS_STATUS_RETRY"
-            if [ "$HTTPS_STATUS_RETRY" = "200" ]; then
+            echo "Status after restart: $STATUS_RETRY"
+            if [ "$STATUS_RETRY" = "200" ]; then
               echo "✅ Site recovered after service restart."
             else
-              echo "❌ Site still not responding on HTTPS after restart (HTTP $HTTPS_STATUS_RETRY)."
+              echo "❌ Site still not responding after restart (HTTP $STATUS_RETRY)."
               exit 1
             fi
           fi
