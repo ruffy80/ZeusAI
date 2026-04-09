@@ -7,6 +7,12 @@ on:
       - 'UNICORN_FINAL/**'
       - '.github/workflows/vercel-deploy.yml'
       - '.github/workflows/setup-secrets-and-deploy.yml'
+  # ── Validate PRs targeting main (lint + test only, no deploy) ─────────────
+  pull_request:
+    branches: [main]
+    paths:
+      - 'UNICORN_FINAL/**'
+      - '.github/workflows/vercel-deploy.yml'
   # ── Keep-alive: re-verify and redeploy every 6 hours ──────────────────────
   schedule:
     - cron: '0 */6 * * *'
@@ -21,8 +27,8 @@ env:
   VERCEL_PROD_URL: https://zeusai-rust.vercel.app
 
 concurrency:
-  group: zeusai-production
-  cancel-in-progress: false
+  group: ${{ github.event_name == 'pull_request' && format('pr-validate-{0}', github.event.pull_request.number) || 'zeusai-production' }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   # ──────────────────────────────────────────────────────────────────────
@@ -82,7 +88,8 @@ jobs:
     needs: validate
     # Skip Vercel deploy on scheduled runs – cron is for Hetzner keep-alive only.
     # Deploying on schedule quickly exhausts the 100 free deployments/day limit.
-    if: github.event_name != 'schedule'
+    # Skip on pull_request – PRs only run the validate job.
+    if: github.event_name != 'schedule' && github.event_name != 'pull_request'
     defaults:
       run:
         working-directory: UNICORN_FINAL
@@ -294,6 +301,7 @@ jobs:
     name: 🖥️ Deploy → Hetzner (SSH)
     runs-on: ubuntu-latest
     needs: validate
+    if: github.event_name != 'pull_request'
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -569,6 +577,7 @@ jobs:
     name: 🔔 Deploy → Hetzner (Webhook only)
     runs-on: ubuntu-latest
     needs: validate
+    if: github.event_name != 'pull_request'
     steps:
       - name: Trigger Hetzner webhook
         continue-on-error: true
