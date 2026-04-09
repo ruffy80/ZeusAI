@@ -6,6 +6,7 @@ on:
     paths:
       - 'UNICORN_FINAL/**'
       - '.github/workflows/vercel-deploy.yml'
+      - '.github/workflows/setup-secrets-and-deploy.yml'
   # ── Keep-alive: re-verify and redeploy every 6 hours ──────────────────────
   schedule:
     - cron: '0 */6 * * *'

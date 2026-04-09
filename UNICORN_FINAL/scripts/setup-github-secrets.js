@@ -162,8 +162,10 @@ async function run() {
     VERCEL_PROJECT_ID:      vercelProjectId,
 
     // Domain — required for SSL/HTTPS health checks and certbot
-    SITE_DOMAIN:            'zeusai.pro',
-    UNICORN_DOMAIN:         'www.zeusai.pro',
+    // Can be overridden at runtime via SITE_DOMAIN / UNICORN_DOMAIN env vars
+    // (e.g. when triggered from setup-secrets-and-deploy.yml with custom inputs)
+    SITE_DOMAIN:    process.env.SITE_DOMAIN    || 'zeusai.pro',
+    UNICORN_DOMAIN: process.env.UNICORN_DOMAIN || 'www.zeusai.pro',
 
     // Hetzner — known from .env.auto-connector.example
     HETZNER_HOST:           '204.168.230.142',
