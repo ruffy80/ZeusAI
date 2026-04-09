@@ -22,11 +22,6 @@ const C = {
   haloEmit:   '#aa7a00',
 };
 
-// ─── Shared material creators (new each mount; memoised per component) ───────
-const mkMat = (color, roughness = 0.35, metalness = 0.1, emissive, emissiveIntensity = 0) =>
-  new THREE.MeshStandardMaterial({ color, roughness, metalness,
-    emissive: emissive || '#000000', emissiveIntensity });
-
 // ─── Hair strand (a tapered cylinder) ───────────────────────────────────────
 function HairStrand({ pos, rot, scale }) {
   return (
@@ -649,9 +644,9 @@ const ZEUS3D = ({ onCommand, speaking = false, listening = false }) => {
   const recognitionRef = useRef(null);
 
   const startListening = () => {
-    const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-    if (!SR) return;
-    const rec = new SR();
+    const SpeechRecognitionAPI = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SpeechRecognitionAPI) return;
+    const rec = new SpeechRecognitionAPI();
     rec.continuous = false;
     rec.lang = 'ro-RO';
     rec.onstart = () => setRecognizing(true);
