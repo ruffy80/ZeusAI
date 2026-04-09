@@ -5,7 +5,7 @@ name: 🔗 Unicorn Keep-Alive (Platform Health Check)
 
 on:
   schedule:
-    - cron: '30 */3 * * *'   # every 3 hours at :30
+    - cron: '30 */6 * * *'   # every 6 hours at :30
   workflow_dispatch:
     inputs:
       force_redeploy:
