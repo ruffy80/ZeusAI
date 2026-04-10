@@ -3,22 +3,32 @@
   "name": "zeusai",
   "builds": [
     {
+      "src": "backend/index.js",
+      "use": "@vercel/node",
+      "config": {
+        "includeFiles": ["backend/**"]
+      }
+    },
+    {
       "src": "src/index.js",
       "use": "@vercel/node"
     },
     {
-      "src": "backend/index.js",
-      "use": "@vercel/node"
+      "src": "client/package.json",
+      "use": "@vercel/static-build",
+      "config": {
+        "distDir": "build"
+      }
     }
   ],
   "routes": [
-    { "src": "/api/(.*)",             "dest": "/backend/index.js" },
-    { "src": "/health",               "dest": "/src/index.js" },
-    { "src": "/snapshot",             "dest": "/src/index.js" },
-    { "src": "/stream",               "dest": "/src/index.js" },
-    { "src": "/innovation(.*)",       "dest": "/src/index.js" },
-    { "src": "/modules(.*)",          "dest": "/src/index.js" },
-    { "src": "/(.*)",                 "headers": { "cache-control": "no-store,no-cache,must-revalidate" }, "dest": "/src/index.js" }
+    { "src": "/api/(.*)",    "dest": "/backend/index.js" },
+    { "src": "/deploy",      "dest": "/backend/index.js" },
+    { "src": "/health",      "dest": "/src/index.js" },
+    { "src": "/snapshot",    "dest": "/src/index.js" },
+    { "src": "/stream",      "dest": "/src/index.js" },
+    { "handle": "filesystem" },
+    { "src": "/(.*)",        "dest": "/index.html" }
   ],
   "env": {
     "NODE_ENV": "production",

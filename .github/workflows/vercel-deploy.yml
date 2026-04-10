@@ -175,6 +175,7 @@ jobs:
         if: steps.vercel_guard.outputs.ready == 'true'
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          CI: "false"
         run: vercel build --prod
 
       - name: Deploy to Vercel Production
