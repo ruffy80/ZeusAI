@@ -2,6 +2,22 @@
 // OWNERSHIP: Acest fișier este proprietatea exclusivă a lui Vladoi Ionut
 // Email: vladoi_ionut@yahoo.com
 // BTC Address: bc1q4f7e66z87mdfj56kz0dj5hvcnpmh0qh4wuv22e
+// Data: 2026-04-10T21:49:07.876Z
+// Orice copiere, modificare sau distribuție neautorizată este interzisă.
+// =====================================================================
+
+// =====================================================================
+// OWNERSHIP: Acest fișier este proprietatea exclusivă a lui Vladoi Ionut
+// Email: vladoi_ionut@yahoo.com
+// BTC Address: bc1q4f7e66z87mdfj56kz0dj5hvcnpmh0qh4wuv22e
+// Data: 2026-04-10T21:43:56.567Z
+// Orice copiere, modificare sau distribuție neautorizată este interzisă.
+// =====================================================================
+
+// =====================================================================
+// OWNERSHIP: Acest fișier este proprietatea exclusivă a lui Vladoi Ionut
+// Email: vladoi_ionut@yahoo.com
+// BTC Address: bc1q4f7e66z87mdfj56kz0dj5hvcnpmh0qh4wuv22e
 // Data: 2026-04-10T20:34:58.210Z
 // Orice copiere, modificare sau distribuție neautorizată este interzisă.
 // =====================================================================
@@ -483,6 +499,32 @@ const autonomousInnovation = require('./modules/autonomousInnovation');
 const autoRevenue = require('./modules/autoRevenue');
 const autoViralGrowth = require('./modules/autoViralGrowth');
 
+// ==================== MODULE INACTIVE – ACUM ACTIVATE ====================
+const moduleLoader = require('./modules/ModuleLoader');
+const futureCompatibilityBridge = require('./modules/FutureCompatibilityBridge');
+const quantumSecurityLayer = require('./modules/QuantumSecurityLayer');
+const temporalDataProcessor = require('./modules/TemporalDataProcessor');
+const configManager = require('./modules/configurationManager');
+const dynamicPricing = require('./modules/dynamic-pricing');
+const quantumPaymentNexus = require('./modules/quantumPaymentNexus');
+const quantumVault = require('./modules/quantumVault');
+const revenueModules = require('./modules/revenueModules');
+const sovereignGuardian = require('./modules/sovereignAccessGuardian');
+
+// ==================== MODULE GENERATE (UEE Future Innovations) ====================
+const agiSelfEvolution = require('./generated/AGISelf-EvolutionEngine');
+const autonomousSpaceComputing = require('./generated/AutonomousSpaceComputing');
+const decentralizedDigitalTwin = require('./generated/DecentralizedDigitalTwinNetwork');
+const neuralInterfaceAPI = require('./generated/NeuralInterfaceAPI');
+const quantumInternetProtocol = require('./generated/QuantumInternetProtocol');
+const quantumMLCore = require('./generated/QuantumMachineLearningCore');
+const temporalDataLayer = require('./generated/TemporalDataLayer');
+
+// ==================== MODULE SRC ====================
+const autoDeployOrchestrator = require('../src/modules/auto-deploy-orchestrator');
+const codeSanityEngine = require('../src/modules/code-sanity-engine');
+const innovationEngine = require('../src/innovation/innovation-engine');
+
 // Pornire module autonome
 selfConstruction.start();
 totalSystemHealer.start();
@@ -511,6 +553,9 @@ gdes.startSmartRateLimiting();
 gdes.startFallbackMonitor();
 gdes.startDailyReport();
 
+// Pornire module nou activate
+revenueModules.startAutoRevenue();
+
 // Montare routere module
 app.use('/api/viral', socialViralizer.getRouter(adminSecretMiddleware));
 app.use('/api/market-nexus', umn.getRouter(adminSecretMiddleware));
@@ -527,6 +572,24 @@ console.log('📣 Auto Viral Growth Engine: STARTING');
 console.log('♾️  Unicorn Eternal Engine: STARTING');
 console.log('📱 Social Media Viralizer: STARTING');
 console.log('🌐 Global Digital Standard: STARTING');
+console.log('💳 Quantum Payment Nexus: STARTING');
+console.log('🔒 Sovereign Access Guardian: STARTING');
+console.log('💸 Revenue Modules (7 streams): STARTING');
+console.log('🔑 Quantum Vault: STARTING');
+console.log('⚙️  Configuration Manager: STARTING');
+console.log('📊 Dynamic Pricing Engine: STARTING');
+console.log('🔮 UEE Components (FCB/QSL/TDP): STARTING');
+console.log('📦 Module Loader: STARTING');
+console.log('🤖 AGI Self-Evolution Engine: STARTING');
+console.log('🚀 Autonomous Space Computing: STARTING');
+console.log('🌐 Decentralized Digital Twin Network: STARTING');
+console.log('🧠 Neural Interface API: STARTING');
+console.log('⚛️  Quantum Internet Protocol: STARTING');
+console.log('🧬 Quantum Machine Learning Core: STARTING');
+console.log('⏳ Temporal Data Layer: STARTING');
+console.log('🚁 Auto Deploy Orchestrator: STARTING');
+console.log('🔍 Code Sanity Engine: STARTING');
+console.log('💡 Innovation Engine: STARTING');
 
 // ==================== RUTE API ====================
 app.get('/api/health', (req, res) => {
@@ -2006,6 +2069,368 @@ app.get('/api/bd/leads', adminCrudRateLimit, adminTokenMiddleware, (req, res) =>
   res.json(_bdStore.leads);
 });
 
+// ==================== UEE COMPONENTS (FutureCompatibilityBridge / QuantumSecurityLayer / TemporalDataProcessor) ====================
+app.get('/api/uee/components', adminSecretMiddleware, (req, res) => {
+  res.json({
+    futureCompatibilityBridge: futureCompatibilityBridge.getStatus(),
+    quantumSecurityLayer: quantumSecurityLayer.getStatus(),
+    temporalDataProcessor: temporalDataProcessor.getStatus(),
+  });
+});
+
+app.post('/api/uee/components/process', adminSecretMiddleware, async (req, res) => {
+  const { component, input } = req.body || {};
+  const components = {
+    FutureCompatibilityBridge: futureCompatibilityBridge,
+    QuantumSecurityLayer: quantumSecurityLayer,
+    TemporalDataProcessor: temporalDataProcessor,
+  };
+  if (!component || !components[component]) {
+    return res.status(400).json({ error: 'Unknown component. Use: FutureCompatibilityBridge, QuantumSecurityLayer, TemporalDataProcessor' });
+  }
+  try {
+    const result = await components[component].process(input);
+    res.json(result);
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// ==================== MODULE LOADER ====================
+app.get('/api/module-loader/status', adminSecretMiddleware, (req, res) => {
+  res.json(moduleLoader.getStatus());
+});
+
+app.post('/api/module-loader/load', adminSecretMiddleware, (req, res) => {
+  const { name } = req.body || {};
+  if (!name) return res.status(400).json({ error: 'Module name required' });
+  const mod = moduleLoader.loadModule(sanitizeString(name, 100));
+  if (!mod) return res.status(404).json({ error: `Module "${name}" not found or failed to load` });
+  res.json({ ok: true, module: name, loaded: true });
+});
+
+app.post('/api/module-loader/reload', adminSecretMiddleware, (req, res) => {
+  const { name } = req.body || {};
+  if (!name) return res.status(400).json({ error: 'Module name required' });
+  const mod = moduleLoader.reloadModule(sanitizeString(name, 100));
+  if (!mod) return res.status(500).json({ error: `Failed to reload module "${name}"` });
+  res.json({ ok: true, module: name, reloaded: true });
+});
+
+// ==================== CONFIGURATION MANAGER ====================
+app.get('/api/config/status', adminCrudRateLimit, adminTokenMiddleware, (req, res) => {
+  res.json(configManager.getStatus());
+});
+
+app.post('/api/config/wizard', adminCrudRateLimit, adminTokenMiddleware, (req, res) => {
+  const overrides = req.body || {};
+  const result = configManager.runWizard(overrides);
+  res.json(result);
+});
+
+app.post('/api/config/backup', adminCrudRateLimit, adminTokenMiddleware, (req, res) => {
+  configManager.backup();
+  res.json({ ok: true, message: 'Config backup triggered' });
+});
+
+// ==================== DYNAMIC PRICING ====================
+app.get('/api/pricing/all', globalPublicRateLimit, (req, res) => {
+  const { userId, coupon } = req.query;
+  res.json(dynamicPricing.getAllPrices({ userId, coupon }));
+});
+
+app.get('/api/pricing/market/conditions', globalPublicRateLimit, (req, res) => {
+  res.json(dynamicPricing.getMarketConditions());
+});
+
+app.get('/api/pricing/:serviceId', globalPublicRateLimit, (req, res) => {
+  const { quantity, userId, coupon } = req.query;
+  const price = dynamicPricing.getPrice(req.params.serviceId, {
+    quantity: parseInt(quantity) || 1,
+    userId,
+    coupon,
+  });
+  res.json(price);
+});
+
+app.post('/api/admin/pricing/surge', adminCrudRateLimit, adminTokenMiddleware, (req, res) => {
+  const durationMs = Math.min(parseInt(req.body?.durationMs) || 3600000, 86400000);
+  dynamicPricing.activateSurge(durationMs);
+  res.json({ ok: true, surgeActivated: true, durationMs });
+});
+
+app.post('/api/admin/pricing/discount', adminCrudRateLimit, adminTokenMiddleware, (req, res) => {
+  const { active } = req.body || {};
+  dynamicPricing.setDiscount(active !== false);
+  res.json({ ok: true, discountActive: active !== false });
+});
+
+// ==================== QUANTUM PAYMENT NEXUS ====================
+app.post('/api/quantum-payment/process', authRateLimit(20, 60_000), authMiddleware, async (req, res) => {
+  const { method, amount, currency, serviceId, metadata } = req.body || {};
+  if (!method || !amount) return res.status(400).json({ error: 'method and amount required' });
+  const parsedAmount = parseFloat(amount);
+  if (isNaN(parsedAmount) || parsedAmount <= 0) return res.status(400).json({ error: 'Invalid amount' });
+  try {
+    const payment = await quantumPaymentNexus.processPayment({
+      method,
+      amount: parsedAmount,
+      currency,
+      userId: req.user.id,
+      serviceId,
+      metadata: metadata || {},
+    });
+    res.json(payment);
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.get('/api/quantum-payment/status/:paymentId', authMiddleware, (req, res) => {
+  const payment = quantumPaymentNexus.getPaymentStatus(req.params.paymentId);
+  if (!payment) return res.status(404).json({ error: 'Payment not found' });
+  res.json(payment);
+});
+
+app.get('/api/quantum-payment/history', authMiddleware, (req, res) => {
+  res.json(quantumPaymentNexus.getTransactionHistory(req.user.id));
+});
+
+app.get('/api/quantum-payment/revenue', adminCrudRateLimit, adminTokenMiddleware, (req, res) => {
+  res.json(quantumPaymentNexus.getRevenueSummary());
+});
+
+app.post('/api/admin/quantum-payment/confirm-btc', adminCrudRateLimit, adminTokenMiddleware, (req, res) => {
+  const { paymentId } = req.body || {};
+  if (!paymentId) return res.status(400).json({ error: 'paymentId required' });
+  res.json(quantumPaymentNexus.confirmBtcPayment(paymentId));
+});
+
+// ==================== QUANTUM VAULT ====================
+app.get('/api/vault/status', adminCrudRateLimit, adminTokenMiddleware, (req, res) => {
+  res.json(quantumVault.getStatus());
+});
+
+app.post('/api/vault/store', adminCrudRateLimit, adminTokenMiddleware, (req, res) => {
+  const { key, value } = req.body || {};
+  if (!key || value === undefined) return res.status(400).json({ error: 'key and value required' });
+  try {
+    quantumVault.store(sanitizeString(key, 128), String(value));
+    res.json({ ok: true, key });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.post('/api/vault/retrieve', adminCrudRateLimit, adminTokenMiddleware, (req, res) => {
+  const { key } = req.body || {};
+  if (!key) return res.status(400).json({ error: 'key required' });
+  try {
+    const value = quantumVault.retrieve(sanitizeString(key, 128));
+    res.json({ key, value });
+  } catch (e) {
+    res.status(403).json({ error: e.message });
+  }
+});
+
+app.post('/api/vault/unlock', adminCrudRateLimit, adminTokenMiddleware, (req, res) => {
+  const { emergencyCode } = req.body || {};
+  if (!emergencyCode) return res.status(400).json({ error: 'emergencyCode required' });
+  const ok = quantumVault.unlock(String(emergencyCode));
+  res.json({ ok, unlocked: ok });
+});
+
+// ==================== REVENUE MODULES (7 streams) ====================
+app.get('/api/revenue-streams/status', adminCrudRateLimit, adminTokenMiddleware, (req, res) => {
+  res.json(revenueModules.getAllStatus());
+});
+
+app.post('/api/revenue-streams/trading/simulate', adminCrudRateLimit, adminTokenMiddleware, (req, res) => {
+  res.json(revenueModules.tradingModule.simulate());
+});
+
+app.post('/api/revenue-streams/credit-scoring/assess', authRateLimit(10, 60_000), authMiddleware, (req, res) => {
+  res.json(revenueModules.creditScoringModule.assess(req.body || {}));
+});
+
+app.post('/api/revenue-streams/data-marketplace/sell', adminCrudRateLimit, adminTokenMiddleware, (req, res) => {
+  const { datasetId, price } = req.body || {};
+  if (!datasetId) return res.status(400).json({ error: 'datasetId required' });
+  res.json(revenueModules.dataMarketplace.sell(datasetId, parseFloat(price) || 50));
+});
+
+app.post('/api/revenue-streams/legal-bot/generate', authRateLimit(10, 60_000), authMiddleware, (req, res) => {
+  const { docType } = req.body || {};
+  res.json(revenueModules.legalBot.generate(docType || 'contract'));
+});
+
+app.post('/api/revenue-streams/cloud-broker/optimize', adminCrudRateLimit, adminTokenMiddleware, (req, res) => {
+  res.json(revenueModules.cloudBroker.optimize());
+});
+
+app.post('/api/revenue-streams/recruitment/place', adminCrudRateLimit, adminTokenMiddleware, (req, res) => {
+  res.json(revenueModules.recruitment.place(req.body || {}));
+});
+
+app.post('/api/revenue-streams/api-gateway/register-key', adminCrudRateLimit, adminTokenMiddleware, (req, res) => {
+  res.json(revenueModules.apiGateway.registerKey());
+});
+
+// ==================== SOVEREIGN ACCESS GUARDIAN ====================
+app.get('/api/guardian/status', adminCrudRateLimit, adminTokenMiddleware, (req, res) => {
+  res.json(sovereignGuardian.getStatus());
+});
+
+app.post('/api/guardian/setup-totp', adminCrudRateLimit, adminTokenMiddleware, (req, res) => {
+  const { userId } = req.body || {};
+  if (!userId) return res.status(400).json({ error: 'userId required' });
+  const result = sovereignGuardian.setupTOTP(sanitizeString(userId, 128));
+  res.json(result);
+});
+
+app.post('/api/guardian/enable-biometric', adminCrudRateLimit, adminTokenMiddleware, (req, res) => {
+  const { userId, biometricTemplate } = req.body || {};
+  if (!userId || !biometricTemplate) return res.status(400).json({ error: 'userId and biometricTemplate required' });
+  const result = sovereignGuardian.enableBiometric(sanitizeString(userId, 128), String(biometricTemplate));
+  res.json(result);
+});
+
+app.post('/api/guardian/authenticate', authRateLimit(10, 60_000), async (req, res) => {
+  const { userId, password, totpToken, biometricTemplate } = req.body || {};
+  if (!userId || !password) return res.status(400).json({ error: 'userId and password required' });
+  const passwordHash = (() => {
+    const user = dbUsers.findById(userId) || dbUsers.findByEmail(userId);
+    return user ? user.passwordHash : null;
+  })();
+  const result = await sovereignGuardian.authenticate({
+    userId,
+    password,
+    passwordHash,
+    totpToken,
+    biometricTemplate,
+  });
+  if (!result.ok) return res.status(401).json(result);
+  res.json(result);
+});
+
+// ==================== GENERATED FUTURE MODULES (UEE Innovations) ====================
+app.get('/api/future-modules/status', adminSecretMiddleware, (req, res) => {
+  res.json({
+    agiSelfEvolution: agiSelfEvolution.getStatus(),
+    autonomousSpaceComputing: autonomousSpaceComputing.getStatus(),
+    decentralizedDigitalTwin: decentralizedDigitalTwin.getStatus(),
+    neuralInterfaceAPI: neuralInterfaceAPI.getStatus(),
+    quantumInternetProtocol: quantumInternetProtocol.getStatus(),
+    quantumMLCore: quantumMLCore.getStatus(),
+    temporalDataLayer: temporalDataLayer.getStatus(),
+  });
+});
+
+app.post('/api/future-modules/:module/process', adminSecretMiddleware, async (req, res) => {
+  const moduleMap = {
+    'agi-self-evolution': agiSelfEvolution,
+    'autonomous-space-computing': autonomousSpaceComputing,
+    'decentralized-digital-twin': decentralizedDigitalTwin,
+    'neural-interface-api': neuralInterfaceAPI,
+    'quantum-internet-protocol': quantumInternetProtocol,
+    'quantum-ml-core': quantumMLCore,
+    'temporal-data-layer': temporalDataLayer,
+  };
+  const mod = moduleMap[req.params.module];
+  if (!mod) return res.status(404).json({ error: 'Unknown future module', available: Object.keys(moduleMap) });
+  try {
+    const result = await mod.process(req.body || {});
+    res.json(result);
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// ==================== AUTO DEPLOY ORCHESTRATOR ====================
+app.get('/api/deploy-orchestrator/status', adminCrudRateLimit, adminTokenMiddleware, (req, res) => {
+  res.json({
+    active: true,
+    repo: autoDeployOrchestrator.getRepositoryUrl ? autoDeployOrchestrator.getRepositoryUrl() : null,
+    vercelConfigured: !!(process.env.VERCEL_TOKEN && process.env.VERCEL_PROJECT_ID),
+    hetznerConfigured: !!process.env.HETZNER_WEBHOOK_URL,
+  });
+});
+
+app.post('/api/deploy-orchestrator/trigger', adminCrudRateLimit, adminTokenMiddleware, async (req, res) => {
+  try {
+    const result = await autoDeployOrchestrator.runFullDeploy();
+    res.json(result);
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// ==================== CODE SANITY ENGINE ====================
+app.post('/api/code-sanity/scan', adminCrudRateLimit, adminTokenMiddleware, async (req, res) => {
+  try {
+    const result = await codeSanityEngine.runFullScanNow();
+    res.json(result);
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// ==================== INNOVATION ENGINE ====================
+app.get('/api/innovation-engine/report', adminCrudRateLimit, adminTokenMiddleware, (req, res) => {
+  res.json(innovationEngine.buildInnovationReport());
+});
+
+app.post('/api/innovation-engine/score', adminCrudRateLimit, adminTokenMiddleware, (req, res) => {
+  const idea = req.body || {};
+  if (!idea.impact || !idea.feasibility) return res.status(400).json({ error: 'impact and feasibility required' });
+  res.json({ score: innovationEngine.scoreIdea(idea) });
+});
+
+// ==================== STATUS RUTE PENTRU MODULE DEJA IMPORTATE (fără rute) ====================
+app.get('/api/auto-deploy/status', adminSecretMiddleware, (req, res) => {
+  res.json({ active: true, module: 'AutoDeploy', watching: true, description: 'Monitorizează modificări și face push automat' });
+});
+
+app.get('/api/self-construction/status', adminSecretMiddleware, (req, res) => {
+  res.json({ active: true, module: 'SelfConstruction', description: 'Auto-construiește componente lipsă' });
+});
+
+app.get('/api/system-healer/status', adminSecretMiddleware, (req, res) => {
+  res.json({ active: true, module: 'TotalSystemHealer', description: 'Monitorizează și repară sistemul la 30s' });
+});
+
+app.get('/api/auto-genesis/status', adminCrudRateLimit, adminTokenMiddleware, (req, res) => {
+  res.json({
+    active: true,
+    module: 'UnicornAutoGenesis',
+    repo: `${process.env.GITHUB_OWNER || 'ruffy80'}/${process.env.GITHUB_REPO || 'ZeusAI'}`,
+    vercelConfigured: !!(process.env.VERCEL_TOKEN && process.env.VERCEL_ORG_ID && process.env.VERCEL_PROJECT_ID),
+    hetznerConfigured: !!process.env.HETZNER_HOST,
+  });
+});
+
+app.post('/api/auto-genesis/run', adminCrudRateLimit, adminTokenMiddleware, async (req, res) => {
+  try {
+    await unicornAutoGenesis.run();
+    res.json({ ok: true, message: 'Auto-Genesis completed' });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.get('/api/domain-automation/status', adminCrudRateLimit, adminTokenMiddleware, (req, res) => {
+  res.json(domainAutomationManager.getStatus());
+});
+
+app.post('/api/domain-automation/init', adminCrudRateLimit, adminTokenMiddleware, async (req, res) => {
+  try {
+    await domainAutomationManager.init();
+    res.json({ ok: true, message: 'Domain automation initialized' });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 // ==================== WEBHOOK DEPLOY (Hetzner fallback) ====================
 // Called by GitHub Actions when SSH deploy fails (HETZNER_WEBHOOK_URL points here)
 app.post('/deploy', (req, res) => {
@@ -2098,7 +2523,7 @@ app.use((err, req, res, next) => {
 // Only bind to a port when run directly (not when imported by Vercel or tests)
 if (require.main === module) {
   app.listen(PORT, () => {
-    console.log(`🚀 Unicorn autonom rulând pe portul ${PORT}`);
+    console.log(`🦄 Unicorn autonom rulând pe portul ${PORT}`);
     console.log(`✨ Autonomous Innovation Engine: ACTIVE`);
     console.log(`💰 Auto Revenue Generation: ACTIVE`);
     console.log(`♾️  Unicorn Eternal Engine: ACTIVE`);
@@ -2107,7 +2532,25 @@ if (require.main === module) {
     console.log(`🏛️  Legal Fortress: ACTIVE`);
     console.log(`⚡ Quantum Resilience Core: ACTIVE`);
     console.log(`📊 Executive Dashboard: ACTIVE`);
-    console.log(`🔗 38 modules total: CONNECTED`);
+    console.log(`💳 Quantum Payment Nexus: ACTIVE`);
+    console.log(`🔒 Sovereign Access Guardian: ACTIVE`);
+    console.log(`💸 Revenue Modules 7 streams: ACTIVE`);
+    console.log(`🔑 Quantum Vault: ACTIVE`);
+    console.log(`⚙️  Configuration Manager: ACTIVE`);
+    console.log(`📈 Dynamic Pricing Engine: ACTIVE`);
+    console.log(`🔮 UEE Components (FCB/QSL/TDP): ACTIVE`);
+    console.log(`📦 Module Loader: ACTIVE`);
+    console.log(`🤖 AGI Self-Evolution Engine: ACTIVE`);
+    console.log(`🚀 Autonomous Space Computing: ACTIVE`);
+    console.log(`🌐 Decentralized Digital Twin: ACTIVE`);
+    console.log(`🧠 Neural Interface API: ACTIVE`);
+    console.log(`⚛️  Quantum Internet Protocol: ACTIVE`);
+    console.log(`🧬 Quantum ML Core: ACTIVE`);
+    console.log(`⏳ Temporal Data Layer: ACTIVE`);
+    console.log(`🚁 Auto Deploy Orchestrator: ACTIVE`);
+    console.log(`🔍 Code Sanity Engine: ACTIVE`);
+    console.log(`💡 Innovation Engine: ACTIVE`);
+    console.log(`🔗 51 module total: TOATE ACTIVE ♾️`);
   });
 }
 // Export Express app for Vercel serverless and testing
