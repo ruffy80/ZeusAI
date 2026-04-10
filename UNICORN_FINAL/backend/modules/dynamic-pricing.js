@@ -2,6 +2,14 @@
 // OWNERSHIP: Acest fișier este proprietatea exclusivă a lui Vladoi Ionut
 // Email: vladoi_ionut@yahoo.com
 // BTC Address: bc1q4f7e66z87mdfj56kz0dj5hvcnpmh0qh4wuv22e
+// Data: 2026-04-10T21:57:33.653Z
+// Orice copiere, modificare sau distribuție neautorizată este interzisă.
+// =====================================================================
+
+// =====================================================================
+// OWNERSHIP: Acest fișier este proprietatea exclusivă a lui Vladoi Ionut
+// Email: vladoi_ionut@yahoo.com
+// BTC Address: bc1q4f7e66z87mdfj56kz0dj5hvcnpmh0qh4wuv22e
 // Data: 2026-04-10T21:53:50.307Z
 // Orice copiere, modificare sau distribuție neautorizată este interzisă.
 // =====================================================================
@@ -188,12 +196,20 @@ function getAllPrices(options = {}) {
   }, {});
 }
 
-function activateSurge(durationMs = 3600000) {
-  const MAX_SURGE_MS = 86400000; // max 24 hours
-  const safeDurationMs = Math.min(Math.max(parseInt(durationMs) || 3600000, 60000), MAX_SURGE_MS);
+// Allowed surge durations (whitelisted values to prevent resource exhaustion)
+const ALLOWED_SURGE_DURATIONS_MS = Object.freeze({
+  '30min': 1800000,
+  '1h': 3600000,
+  '2h': 7200000,
+  '6h': 21600000,
+  '24h': 86400000,
+});
+
+function activateSurge(durationKey = '1h') {
+  const durationMs = ALLOWED_SURGE_DURATIONS_MS[durationKey] || ALLOWED_SURGE_DURATIONS_MS['1h'];
   surgeActive = true;
-  setTimeout(() => { surgeActive = false; }, safeDurationMs);
-  console.log('[DynamicPricing] Surge pricing activated for', safeDurationMs / 60000, 'min');
+  setTimeout(() => { surgeActive = false; }, durationMs);
+  console.log('[DynamicPricing] Surge pricing activated for', durationMs / 60000, 'min');
 }
 
 function setDiscount(active) {
@@ -214,4 +230,4 @@ function getMarketConditions() {
 setInterval(updateDemandFactor, 5 * 60 * 1000);
 updateDemandFactor(); // initial call
 
-module.exports = { getPrice, getAllPrices, activateSurge, setDiscount, getMarketConditions, BASE_PRICES };
+module.exports = { getPrice, getAllPrices, activateSurge, setDiscount, getMarketConditions, BASE_PRICES, ALLOWED_SURGE_DURATIONS_MS };

@@ -2,6 +2,14 @@
 // OWNERSHIP: Acest fișier este proprietatea exclusivă a lui Vladoi Ionut
 // Email: vladoi_ionut@yahoo.com
 // BTC Address: bc1q4f7e66z87mdfj56kz0dj5hvcnpmh0qh4wuv22e
+// Data: 2026-04-10T21:57:33.650Z
+// Orice copiere, modificare sau distribuție neautorizată este interzisă.
+// =====================================================================
+
+// =====================================================================
+// OWNERSHIP: Acest fișier este proprietatea exclusivă a lui Vladoi Ionut
+// Email: vladoi_ionut@yahoo.com
+// BTC Address: bc1q4f7e66z87mdfj56kz0dj5hvcnpmh0qh4wuv22e
 // Data: 2026-04-10T21:53:50.303Z
 // Orice copiere, modificare sau distribuție neautorizată este interzisă.
 // =====================================================================
@@ -116,21 +124,41 @@
 const path = require('path');
 const fs = require('fs');
 
-const MODULES_DIR = path.join(__dirname);
+const MODULES_DIR = path.resolve(__dirname);
 const loadedModules = new Map();
 const failedModules = new Map();
 
 // Only allow safe module names: alphanumeric, hyphen, underscore (prevents path traversal)
 const SAFE_NAME_RE = /^[a-zA-Z0-9_-]{1,100}$/;
 
-function loadModule(name) {
+/**
+ * Resolve a module name to an absolute path and verify it is inside MODULES_DIR.
+ * Returns the resolved path, or null if name is unsafe or outside the allowed directory.
+ */
+function resolveModulePath(name) {
   if (!SAFE_NAME_RE.test(name)) {
     console.warn('[ModuleLoader] Rejected unsafe module name:', String(name).slice(0, 50));
     return null;
   }
+  const resolved = path.resolve(MODULES_DIR, `${name}.js`);
+  // Defense-in-depth: ensure the resolved path is still inside MODULES_DIR
+  if (!resolved.startsWith(MODULES_DIR + path.sep) && resolved !== path.resolve(MODULES_DIR, `${name}.js`)) {
+    console.warn('[ModuleLoader] Path traversal blocked for:', name);
+    return null;
+  }
+  // Verify the resolved path starts with the modules directory
+  if (path.dirname(resolved) !== MODULES_DIR) {
+    console.warn('[ModuleLoader] Module outside allowed directory:', name);
+    return null;
+  }
+  return resolved;
+}
+
+function loadModule(name) {
+  const filePath = resolveModulePath(name);
+  if (!filePath) return null;
   if (loadedModules.has(name)) return loadedModules.get(name);
 
-  const filePath = path.join(MODULES_DIR, `${name}.js`);
   if (!fs.existsSync(filePath)) {
     console.warn(`[ModuleLoader] Module not found: ${name}`);
     failedModules.set(name, 'FILE_NOT_FOUND');
@@ -178,12 +206,9 @@ function getStatus() {
 }
 
 function reloadModule(name) {
-  if (!SAFE_NAME_RE.test(name)) {
-    console.warn('[ModuleLoader] Rejected unsafe module name for reload:', String(name).slice(0, 50));
-    return null;
-  }
+  const filePath = resolveModulePath(name);
+  if (!filePath) return null;
   if (loadedModules.has(name)) {
-    const filePath = path.join(MODULES_DIR, `${name}.js`);
     delete require.cache[require.resolve(filePath)];
     loadedModules.delete(name);
   }

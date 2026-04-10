@@ -2,6 +2,14 @@
 // OWNERSHIP: Acest fișier este proprietatea exclusivă a lui Vladoi Ionut
 // Email: vladoi_ionut@yahoo.com
 // BTC Address: bc1q4f7e66z87mdfj56kz0dj5hvcnpmh0qh4wuv22e
+// Data: 2026-04-10T21:57:33.649Z
+// Orice copiere, modificare sau distribuție neautorizată este interzisă.
+// =====================================================================
+
+// =====================================================================
+// OWNERSHIP: Acest fișier este proprietatea exclusivă a lui Vladoi Ionut
+// Email: vladoi_ionut@yahoo.com
+// BTC Address: bc1q4f7e66z87mdfj56kz0dj5hvcnpmh0qh4wuv22e
 // Data: 2026-04-10T21:53:50.302Z
 // Orice copiere, modificare sau distribuție neautorizată este interzisă.
 // =====================================================================
@@ -2165,9 +2173,10 @@ app.get('/api/pricing/:serviceId', globalPublicRateLimit, (req, res) => {
 });
 
 app.post('/api/admin/pricing/surge', adminCrudRateLimit, adminTokenMiddleware, (req, res) => {
-  const durationMs = Math.min(parseInt(req.body?.durationMs) || 3600000, 86400000);
-  dynamicPricing.activateSurge(durationMs);
-  res.json({ ok: true, surgeActivated: true, durationMs });
+  const allowed = dynamicPricing.ALLOWED_SURGE_DURATIONS_MS;
+  const durationKey = allowed[req.body?.duration] !== undefined ? req.body.duration : '1h';
+  dynamicPricing.activateSurge(durationKey);
+  res.json({ ok: true, surgeActivated: true, durationKey, durationMs: allowed[durationKey], allowedValues: Object.keys(allowed) });
 });
 
 app.post('/api/admin/pricing/discount', adminCrudRateLimit, adminTokenMiddleware, (req, res) => {
