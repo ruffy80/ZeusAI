@@ -406,7 +406,9 @@ jobs:
             # ── Update .env with Hetzner API token + domain + owner credentials ──
             for key in HETZNER_API_KEY HETZNER_API_TOKEN PUBLIC_APP_URL SITE_DOMAIN \
                        BTC_WALLET_ADDRESS OWNER_BTC_ADDRESS OWNER_EMAIL OWNER_NAME \
-                       ADMIN_EMAIL SMTP_HOST SMTP_PORT SMTP_USER; do
+                       ADMIN_EMAIL SMTP_HOST SMTP_PORT SMTP_USER \
+                       OPENAI_API_KEY DEEPSEEK_API_KEY ANTHROPIC_API_KEY GEMINI_API_KEY \
+                       MISTRAL_API_KEY COHERE_API_KEY XAI_API_KEY; do
               [ -f .env ] && sed -i "/^${key}=/d" .env || true
             done
             printf "HETZNER_API_KEY=%s\nHETZNER_API_TOKEN=%s\n" \
@@ -417,6 +419,22 @@ jobs:
             printf "OWNER_NAME=Vladoi Ionut\nOWNER_EMAIL=vladoi_ionut@yahoo.com\n" >> .env
             printf "ADMIN_EMAIL=vladoi_ionut@yahoo.com\n" >> .env
             printf "SMTP_HOST=smtp.mail.yahoo.com\nSMTP_PORT=587\nSMTP_USER=vladoi_ionut@yahoo.com\n" >> .env
+            # ── Inject AI provider keys from GitHub Secrets → .env on Hetzner ─
+            AI_OPENAI='${{ secrets.OPENAI_API_KEY }}'
+            AI_DEEPSEEK='${{ secrets.DEEPSEEK_API_KEY }}'
+            AI_ANTHROPIC='${{ secrets.ANTHROPIC_API_KEY }}'
+            AI_GEMINI='${{ secrets.GEMINI_API_KEY }}'
+            AI_MISTRAL='${{ secrets.MISTRAL_API_KEY }}'
+            AI_COHERE='${{ secrets.COHERE_API_KEY }}'
+            AI_XAI='${{ secrets.XAI_API_KEY }}'
+            [ -n "$AI_OPENAI" ]    && printf "OPENAI_API_KEY=%s\n"    "$AI_OPENAI"    >> .env
+            [ -n "$AI_DEEPSEEK" ]  && printf "DEEPSEEK_API_KEY=%s\n"  "$AI_DEEPSEEK"  >> .env
+            [ -n "$AI_ANTHROPIC" ] && printf "ANTHROPIC_API_KEY=%s\n" "$AI_ANTHROPIC" >> .env
+            [ -n "$AI_GEMINI" ]    && printf "GEMINI_API_KEY=%s\n"    "$AI_GEMINI"    >> .env
+            [ -n "$AI_MISTRAL" ]   && printf "MISTRAL_API_KEY=%s\n"   "$AI_MISTRAL"   >> .env
+            [ -n "$AI_COHERE" ]    && printf "COHERE_API_KEY=%s\n"    "$AI_COHERE"    >> .env
+            [ -n "$AI_XAI" ]       && printf "XAI_API_KEY=%s\n"       "$AI_XAI"       >> .env
+            echo "✅ AI provider keys injected into .env"
 
             # ── Verify source integrity: re-fetch any JS file with SyntaxError ──
             REPO_RAW="https://raw.githubusercontent.com/${{ github.repository }}/${{ github.sha }}/UNICORN_FINAL"
