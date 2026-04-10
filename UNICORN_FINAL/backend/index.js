@@ -622,7 +622,7 @@ app.get('/api/uaic/status', (req, res) => {
   res.json(_uaic.getStatus());
 });
 
-app.use('/api/admin/uaic', adminTokenMiddleware, (() => {
+app.use('/api/admin/uaic', authRateLimit(60, 60_000), adminTokenMiddleware, (() => {
   if (!_uaic) {
     const router = require('express').Router();
     router.all('*', (req, res) => res.status(503).json({ error: 'UAIC not loaded' }));
