@@ -36,8 +36,9 @@ export default function ClientDashboard() {
   }, [token, user.id]);
 
   const createApiKey = async () => {
+    const keyName = 'API Key ' + new Date().toLocaleDateString('ro-RO', { day: '2-digit', month: 'short', year: 'numeric' });
     try {
-      const res = await axios.post('/api/platform/api-keys/create', { name: 'My API Key', planId: me?.planId || 'free' }, { headers: { Authorization: 'Bearer ' + token } });
+      const res = await axios.post('/api/platform/api-keys/create', { name: keyName, planId: me?.planId || 'free' }, { headers: { Authorization: 'Bearer ' + token } });
       setApiKeys(prev => [...prev, res.data]);
       toast.success('API Key creat: ' + res.data.key);
     } catch (err) {

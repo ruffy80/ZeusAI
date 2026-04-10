@@ -123,7 +123,12 @@ try {
   // Migrate: add planId column if not present (idempotent)
   try {
     db.exec("ALTER TABLE users ADD COLUMN planId TEXT NOT NULL DEFAULT 'free'");
-  } catch (_) { /* column already exists */ }
+  } catch (err) {
+    // Ignore "duplicate column name" – any other error is unexpected
+    if (err.message && !err.message.includes('duplicate column name')) {
+      console.error('[DB] Migration error (planId):', err.message);
+    }
+  }
 
   usingSqlite = true;
   console.log('✅ SQLite database connected:', DB_PATH);

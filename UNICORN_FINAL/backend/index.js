@@ -25,10 +25,21 @@ const _allowedOrigins = (process.env.CORS_ORIGINS || process.env.PUBLIC_APP_URL 
 app.use(cors({
   origin: process.env.NODE_ENV === 'production' && _allowedOrigins.length
     ? (origin, cb) => {
-        if (!origin || _allowedOrigins.some(o => origin === o || origin.endsWith('.' + o.replace(/^https?:\/\//, '')))) {
-          return cb(null, true);
+        // Allow non-browser requests (e.g. server-to-server, curl)
+        if (!origin) return cb(null, true);
+        try {
+          const incomingHost = new URL(origin).hostname;
+          const allowed = _allowedOrigins.some(o => {
+            try {
+              const allowedHost = new URL(o).hostname;
+              // Exact match or valid subdomain (must be preceded by a dot)
+              return incomingHost === allowedHost || incomingHost.endsWith('.' + allowedHost);
+            } catch { return false; }
+          });
+          return cb(null, allowed ? true : new Error('CORS: origin not allowed'));
+        } catch {
+          return cb(new Error('CORS: invalid origin'));
         }
-        return cb(new Error('CORS: origin not allowed'));
       }
     : true,
   credentials: true,
@@ -421,15 +432,18 @@ app.post('/api/chat', authRateLimit(30, 60_000), async (req, res) => {
 
   // Smart keyword fallback
   const lower = message.toLowerCase();
-  let reply = 'Bun venit la Zeus AI! Sunt asistentul tău pentru business automation, AI, blockchain și plăți globale. Cum te pot ajuta?';
-  if (lower.includes('payment') || lower.includes('plat')) reply = 'Zeus AI suportă plăți via Stripe, PayPal, Bitcoin și alte 10+ metode. Accesează /payments pentru a iniția o tranzacție.';
-  else if (lower.includes('marketplace')) reply = 'Marketplace-ul Zeus AI oferă 50+ servicii AI specializate. Explorează /marketplace pentru prețuri personalizate.';
-  else if (lower.includes('blockchain') || lower.includes('crypto')) reply = 'Modulul Quantum Blockchain oferă tranzacții securizate și smart contracts. Accesează /innovation/blockchain.';
-  else if (lower.includes('compliance') || lower.includes('legal')) reply = 'Compliance Engine-ul acoperă GDPR, HIPAA, SOX și 25+ standarde globale. Accesează /innovation/legal.';
-  else if (lower.includes('revenue') || lower.includes('profit')) reply = 'Auto Revenue Engine generează deal-uri autonom 24/7. Dashboard-ul executiv afișează metricele live la /executive.';
-  else if (lower.includes('plan') || lower.includes('pricing') || lower.includes('pret')) reply = 'Planuri disponibile: Free ($0), Starter ($29/lună), Pro ($99/lună), Enterprise ($499/lună). Accesează /payments pentru upgrade.';
-  else if (lower.includes('innovation') || lower.includes('inova')) reply = 'Innovation Command Center coordonează AI Workforce, M&A Advisor, Energy Grid și Quantum Blockchain. Accesează /innovation.';
-  else if (lower.includes('admin') || lower.includes('dashboard')) reply = 'Dashboard-ul admin este disponibil la /admin/login. Dashboard-ul executiv la /executive.';
+  const KEYWORD_RESPONSES = [
+    [['payment', 'plat'], 'Zeus AI suportă plăți via Stripe, PayPal, Bitcoin și alte 10+ metode. Accesează /payments pentru a iniția o tranzacție.'],
+    [['marketplace'], 'Marketplace-ul Zeus AI oferă 50+ servicii AI specializate. Explorează /marketplace pentru prețuri personalizate.'],
+    [['blockchain', 'crypto'], 'Modulul Quantum Blockchain oferă tranzacții securizate și smart contracts. Accesează /innovation/blockchain.'],
+    [['compliance', 'legal'], 'Compliance Engine-ul acoperă GDPR, HIPAA, SOX și 25+ standarde globale. Accesează /innovation/legal.'],
+    [['revenue', 'profit'], 'Auto Revenue Engine generează deal-uri autonom 24/7. Dashboard-ul executiv afișează metricele live la /executive.'],
+    [['plan', 'pricing', 'pret'], 'Planuri disponibile: Free ($0), Starter ($29/lună), Pro ($99/lună), Enterprise ($499/lună). Accesează /payments pentru upgrade.'],
+    [['innovation', 'inova'], 'Innovation Command Center coordonează AI Workforce, M&A Advisor, Energy Grid și Quantum Blockchain. Accesează /innovation.'],
+    [['admin', 'dashboard'], 'Dashboard-ul admin este disponibil la /admin/login. Dashboard-ul executiv la /executive.'],
+  ];
+  const matched = KEYWORD_RESPONSES.find(([keywords]) => keywords.some(k => lower.includes(k)));
+  const reply = matched ? matched[1] : 'Bun venit la Zeus AI! Sunt asistentul tău pentru business automation, AI, blockchain și plăți globale. Cum te pot ajuta?';
 
   res.json({ reply });
 });
