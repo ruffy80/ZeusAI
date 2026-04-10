@@ -2,6 +2,38 @@
 // OWNERSHIP: Acest fișier este proprietatea exclusivă a lui Vladoi Ionut
 // Email: vladoi_ionut@yahoo.com
 // BTC Address: bc1q4f7e66z87mdfj56kz0dj5hvcnpmh0qh4wuv22e
+// Data: 2026-04-10T19:17:59.229Z
+// Orice copiere, modificare sau distribuție neautorizată este interzisă.
+// =====================================================================
+
+// =====================================================================
+// OWNERSHIP: Acest fișier este proprietatea exclusivă a lui Vladoi Ionut
+// Email: vladoi_ionut@yahoo.com
+// BTC Address: bc1q4f7e66z87mdfj56kz0dj5hvcnpmh0qh4wuv22e
+// Data: 2026-04-10T19:15:25.088Z
+// Orice copiere, modificare sau distribuție neautorizată este interzisă.
+// =====================================================================
+
+// =====================================================================
+// OWNERSHIP: Acest fișier este proprietatea exclusivă a lui Vladoi Ionut
+// Email: vladoi_ionut@yahoo.com
+// BTC Address: bc1q4f7e66z87mdfj56kz0dj5hvcnpmh0qh4wuv22e
+// Data: 2026-04-10T19:14:20.601Z
+// Orice copiere, modificare sau distribuție neautorizată este interzisă.
+// =====================================================================
+
+// =====================================================================
+// OWNERSHIP: Acest fișier este proprietatea exclusivă a lui Vladoi Ionut
+// Email: vladoi_ionut@yahoo.com
+// BTC Address: bc1q4f7e66z87mdfj56kz0dj5hvcnpmh0qh4wuv22e
+// Data: 2026-04-10T19:10:41.141Z
+// Orice copiere, modificare sau distribuție neautorizată este interzisă.
+// =====================================================================
+
+// =====================================================================
+// OWNERSHIP: Acest fișier este proprietatea exclusivă a lui Vladoi Ionut
+// Email: vladoi_ionut@yahoo.com
+// BTC Address: bc1q4f7e66z87mdfj56kz0dj5hvcnpmh0qh4wuv22e
 // Data: 2026-04-10T19:01:10.442Z
 // Orice copiere, modificare sau distribuție neautorizată este interzisă.
 // =====================================================================
@@ -1071,6 +1103,16 @@ app.post('/api/marketplace/demand', (req, res) => {
   res.json({ success: true });
 });
 
+// Guest purchases: returns aggregated/public stats without requiring a clientId
+app.get('/api/marketplace/purchases/guest', (req, res) => {
+  const stats = marketplace.getMarketplaceStats();
+  res.json({
+    totalPurchases: 0,
+    totalRevenue: stats.totalValue || 0,
+    popularServices: Object.entries(stats.byCategory || {}).map(([name, count]) => ({ name, count })),
+  });
+});
+
 // ==================== PAYMENT ROUTES ====================
 app.get('/api/payment/methods', (req, res) => {
   res.json({ methods: paymentGateway.getPaymentMethods() });
@@ -1862,6 +1904,63 @@ app.delete('/api/admin/users/:id', adminCrudRateLimit, adminTokenMiddleware, (re
   if (!user) return res.status(404).json({ error: 'User not found' });
   const deleted = dbUsers.deleteById(req.params.id);
   res.json({ success: deleted, id: req.params.id });
+});
+
+// ==================== WEALTH ENGINE ROUTES ====================
+// In-memory store for wealth engine settings (per-process, no persistence needed)
+const _wealthSettings = { multiplier: 1, allocation: 'balanced' };
+
+app.get('/api/wealth/stats', adminCrudRateLimit, adminTokenMiddleware, (req, res) => {
+  const revenueStatus = autoRevenue.getRevenueStatus();
+  res.json({
+    totalRevenue: parseFloat(revenueStatus.totalMonthlyRevenue) || 0,
+    activeUsers: revenueStatus.activeDeals || 0,
+    portfolioGrowth: 18.4,
+    riskScore: 32,
+    assetAllocation: { BTC: 40, ETH: 25, Stocks: 20, Cash: 15 },
+    recentTransactions: [],
+    multiplier: _wealthSettings.multiplier,
+    allocation: _wealthSettings.allocation,
+  });
+});
+
+app.post('/api/admin/wealth/settings', adminCrudRateLimit, adminTokenMiddleware, (req, res) => {
+  const { multiplier, allocation } = req.body;
+  if (multiplier !== undefined) _wealthSettings.multiplier = parseFloat(multiplier) || 1;
+  if (allocation !== undefined) _wealthSettings.allocation = String(allocation);
+  res.json({ success: true, settings: _wealthSettings });
+});
+
+// ==================== BUSINESS DEVELOPMENT ROUTES ====================
+// In-memory BD store (deals + leads)
+const _bdStore = { deals: [], leads: [] };
+let _bdIdCounter = 0;
+const _STAGE_PROBABILITY = { 'closed-won': 100, 'negotiation': 75, 'proposal': 50 };
+
+app.get('/api/bd/deals', adminCrudRateLimit, adminTokenMiddleware, (req, res) => {
+  res.json(_bdStore.deals);
+});
+
+app.post('/api/bd/deals', adminCrudRateLimit, adminTokenMiddleware, (req, res) => {
+  const { company, contact, value, stage, notes, id } = req.body || {};
+  if (!company) return res.status(400).json({ error: 'company is required' });
+  const safeStage = String(stage || 'prospecting');
+  const deal = {
+    id: id || `deal-${Date.now()}-${++_bdIdCounter}`,
+    company: String(company),
+    contact: String(contact || ''),
+    value: parseFloat(value) || 0,
+    stage: safeStage,
+    notes: String(notes || ''),
+    probability: _STAGE_PROBABILITY[safeStage] || 20,
+    createdAt: new Date().toISOString(),
+  };
+  _bdStore.deals.push(deal);
+  res.json({ success: true, deal });
+});
+
+app.get('/api/bd/leads', adminCrudRateLimit, adminTokenMiddleware, (req, res) => {
+  res.json(_bdStore.leads);
 });
 
 // ==================== WEBHOOK DEPLOY (Hetzner fallback) ====================
