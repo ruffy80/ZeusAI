@@ -109,7 +109,21 @@ try {
     );
 
     CREATE INDEX IF NOT EXISTS idx_api_usage_key_ts ON api_usage(keyId, ts);
+
+    CREATE TABLE IF NOT EXISTS admin_sessions (
+      token       TEXT PRIMARY KEY,
+      email       TEXT NOT NULL,
+      createdAt   TEXT NOT NULL,
+      expiresAt   INTEGER NOT NULL
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_admin_sessions_exp ON admin_sessions(expiresAt);
   `);
+
+  // Migrate: add planId column if not present (idempotent)
+  try {
+    db.exec("ALTER TABLE users ADD COLUMN planId TEXT NOT NULL DEFAULT 'free'");
+  } catch (_) { /* column already exists */ }
 
   usingSqlite = true;
   console.log('✅ SQLite database connected:', DB_PATH);
@@ -187,6 +201,14 @@ if (usingSqlite) {
     insertUsage: db.prepare('INSERT INTO api_usage (keyId, endpoint, ts) VALUES (?, ?, ?)'),
     countUsageInWindow: db.prepare('SELECT COUNT(*) as cnt FROM api_usage WHERE keyId = ? AND ts > ?'),
     pruneOldUsage: db.prepare('DELETE FROM api_usage WHERE ts < ?'),
+
+    updateUserPlanId: db.prepare("UPDATE users SET planId = @planId WHERE id = @id"),
+
+    insertAdminSession: db.prepare('INSERT OR REPLACE INTO admin_sessions (token, email, createdAt, expiresAt) VALUES (@token, @email, @createdAt, @expiresAt)'),
+    hasAdminSession: db.prepare('SELECT 1 FROM admin_sessions WHERE token = ? AND expiresAt > ?'),
+    deleteAdminSession: db.prepare('DELETE FROM admin_sessions WHERE token = ?'),
+    countAdminSessions: db.prepare('SELECT COUNT(*) as cnt FROM admin_sessions WHERE expiresAt > ?'),
+    pruneAdminSessions: db.prepare('DELETE FROM admin_sessions WHERE expiresAt <= ?'),
   };
 }
 
@@ -205,6 +227,7 @@ const users = usingSqlite ? {
   setResetToken(id, resetToken, resetExpires) { stmts.setResetToken.run({ id, resetToken, resetExpires }); },
   verifyEmail(id) { stmts.verifyEmail.run({ id }); },
   count() { return stmts.countUsers.get().cnt; },
+  setPlanId(id, planId) { stmts.updateUserPlanId.run({ id, planId }); },
 } : {
   // In-memory fallback
   create(user) { mem.users.set(user.id, { ...user }); },
@@ -217,6 +240,7 @@ const users = usingSqlite ? {
   setResetToken(id, resetToken, resetExpires) { const u = mem.users.get(id); if (u) { u.resetToken = resetToken; u.resetExpires = resetExpires; } },
   verifyEmail(id) { const u = mem.users.get(id); if (u) { u.emailVerified = 1; u.verifyToken = null; u.verifyExpires = null; } },
   count() { return mem.users.size; },
+  setPlanId(id, planId) { const u = mem.users.get(id); if (u) { u.planId = planId; } },
 };
 
 function deserializePayment(row) {
@@ -343,4 +367,38 @@ const apiKeys = usingSqlite ? {
 // Prune old usage rows hourly
 setInterval(() => apiKeys.pruneUsage(), 3_600_000).unref();
 
-module.exports = { db, users, payments, purchases, apiKeys };
+// ============================================================
+// Admin Sessions (SQLite-backed, survives restarts)
+// ============================================================
+
+const adminSessions = usingSqlite ? {
+  add(token, email, expiresAt) {
+    stmts.insertAdminSession.run({ token, email, createdAt: new Date().toISOString(), expiresAt });
+  },
+  has(token) {
+    return Boolean(stmts.hasAdminSession.get(token, Date.now()));
+  },
+  delete(token) {
+    stmts.deleteAdminSession.run(token);
+  },
+  get size() {
+    return stmts.countAdminSessions.get(Date.now()).cnt;
+  },
+  prune() {
+    stmts.pruneAdminSessions.run(Date.now());
+  },
+} : (() => {
+  const _map = new Map(); // token -> expiresAt
+  return {
+    add(token, _email, expiresAt) { _map.set(token, expiresAt); },
+    has(token) { const exp = _map.get(token); if (!exp || exp <= Date.now()) { _map.delete(token); return false; } return true; },
+    delete(token) { _map.delete(token); },
+    get size() { const now = Date.now(); let cnt = 0; for (const exp of _map.values()) if (exp > now) cnt++; return cnt; },
+    prune() { const now = Date.now(); for (const [t, exp] of _map) if (exp <= now) _map.delete(t); },
+  };
+})();
+
+// Prune expired admin sessions hourly
+setInterval(() => adminSessions.prune(), 3_600_000).unref();
+
+module.exports = { db, users, payments, purchases, apiKeys, adminSessions };

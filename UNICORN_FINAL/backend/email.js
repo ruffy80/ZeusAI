@@ -106,10 +106,38 @@ async function sendWelcomeEmail(user) {
   });
 }
 
+async function sendPaymentConfirmation(user, payment) {
+  const planLabel = { free: 'Free', starter: 'Starter ($29/lună)', pro: 'Pro ($99/lună)', enterprise: 'Enterprise ($499/lună)' };
+  const isSubscription = Boolean(payment.planId);
+  const subject = isSubscription
+    ? `Abonament ${planLabel[payment.planId] || payment.planId} activat – Zeus AI 🎉`
+    : `Plată confirmată – Zeus AI ✅`;
+  const body = isSubscription
+    ? `<p>Abonamentul tău <b>${planLabel[payment.planId] || payment.planId}</b> a fost activat cu succes!</p>`
+    : `<p>Plata ta de <b>$${Number(payment.amount || 0).toFixed(2)}</b> (${payment.method || ''}) a fost confirmată.</p>`;
+  return sendMail({
+    to: user.email,
+    subject,
+    html: `
+      <div style="font-family:sans-serif;max-width:560px;margin:auto">
+        <h2 style="color:#22d3ee">✅ ${subject}</h2>
+        <p>Salut <b>${user.name}</b>,</p>
+        ${body}
+        <a href="${APP_URL}/dashboard-client" style="display:inline-block;padding:12px 28px;background:linear-gradient(90deg,#22d3ee,#a855f7);color:#fff;text-decoration:none;border-radius:8px;font-weight:700;margin-top:8px">
+          Deschide Dashboard
+        </a>
+        <hr style="border:none;border-top:1px solid #eee;margin:24px 0">
+        <p style="color:#999;font-size:12px">Zeus AI · zeusai.pro</p>
+      </div>`,
+    text: subject + ' - ' + APP_URL + '/dashboard-client',
+  });
+}
+
 module.exports = {
   isConfigured,
   sendMail,
   sendVerificationEmail,
   sendPasswordResetEmail,
   sendWelcomeEmail,
+  sendPaymentConfirmation,
 };
