@@ -2,6 +2,14 @@
 // OWNERSHIP: Acest fișier este proprietatea exclusivă a lui Vladoi Ionut
 // Email: vladoi_ionut@yahoo.com
 // BTC Address: bc1q4f7e66z87mdfj56kz0dj5hvcnpmh0qh4wuv22e
+// Data: 2026-04-10T20:34:58.210Z
+// Orice copiere, modificare sau distribuție neautorizată este interzisă.
+// =====================================================================
+
+// =====================================================================
+// OWNERSHIP: Acest fișier este proprietatea exclusivă a lui Vladoi Ionut
+// Email: vladoi_ionut@yahoo.com
+// BTC Address: bc1q4f7e66z87mdfj56kz0dj5hvcnpmh0qh4wuv22e
 // Data: 2026-04-10T19:17:59.229Z
 // Orice copiere, modificare sau distribuție neautorizată este interzisă.
 // =====================================================================
@@ -538,6 +546,7 @@ app.get('/api/health', (req, res) => {
       revenue: true,
       viral: true,
       eternalEngine: true,
+      uaic: !!_uaic && _uaic.models.length > 0,
     },
     memory: {
       rss: Math.round(mem.rss / 1024 / 1024) + 'MB',
@@ -552,38 +561,36 @@ app.get('/api/health', (req, res) => {
 });
 
 // ==================== AI CHAT ====================
+// 🤖 UAIC – Universal AI Connector (rutare inteligentă multi-provider)
 // 🦙 Llama bridge — optional local fallback (Ollama)
+let _uaic;
+try { _uaic = require('./modules/universalAIConnector'); } catch { _uaic = null; }
+
 let _llamaBridge;
 try { _llamaBridge = require('./modules/llamaBridge'); } catch { _llamaBridge = null; }
+
+const CHAT_SYSTEM_PROMPT = 'You are Zeus AI Assistant, an expert in business automation, AI, blockchain, payments, and enterprise solutions. Be concise and helpful. You can also respond in Romanian if the user writes in Romanian.';
 
 app.post('/api/chat', authRateLimit(30, 60_000), async (req, res) => {
   const { message, history = [] } = req.body || {};
   if (!message) return res.status(400).json({ error: 'message required' });
 
-  const OPENAI_KEY = process.env.OPENAI_API_KEY;
-  if (OPENAI_KEY && OPENAI_KEY !== 'your_openai_api_key_here') {
+  // 1️⃣ UAIC – routare automată la cel mai bun provider disponibil (cheapest first pentru chat)
+  if (_uaic && _uaic.models.length > 0) {
     try {
-      const messages = [
-        { role: 'system', content: 'You are Zeus AI Assistant, an expert in business automation, AI, blockchain, payments, and enterprise solutions. Be concise and helpful. You can also respond in Romanian if the user writes in Romanian.' },
-        ...history.slice(-6).map(m => ({ role: m.role, content: m.content })),
-        { role: 'user', content: message }
-      ];
-      const resp = await axios.post('https://api.openai.com/v1/chat/completions', {
-        model: 'gpt-4o-mini',
-        messages,
-        max_tokens: 400,
-        temperature: 0.7,
-      }, {
-        headers: { Authorization: 'Bearer ' + OPENAI_KEY, 'Content-Type': 'application/json' },
-        timeout: 20000,
+      const result = await _uaic.ask(message, {
+        taskType: 'simple',
+        systemPrompt: CHAT_SYSTEM_PROMPT,
+        maxTokens: 400,
+        history,
       });
-      return res.json({ reply: resp.data.choices[0].message.content, model: 'gpt-4o-mini' });
+      return res.json({ reply: result.text, model: result.model });
     } catch (err) {
-      console.error('[Chat] OpenAI error:', err.response?.data?.error?.message || err.message);
+      console.error('[Chat] UAIC error:', err.message);
     }
   }
 
-  // 🦙 Llama local fallback (zero-cost, runs on Hetzner via Ollama)
+  // 2️⃣ Llama local fallback (zero-cost, rulează pe Hetzner via Ollama)
   if (_llamaBridge) {
     const historyText = history.slice(-4)
       .map(m => `${m.role === 'user' ? 'User' : 'Assistant'}: ${m.content}`)
@@ -594,14 +601,14 @@ app.post('/api/chat', authRateLimit(30, 60_000), async (req, res) => {
     const llamaReply = await _llamaBridge.generate(
       prompt,
       _llamaBridge.PRIORITY.CHAT,
-      'You are Zeus AI Assistant — expert in business automation, AI, blockchain, payments, and enterprise SaaS. Be concise and helpful. You can respond in Romanian if the user writes in Romanian.'
+      CHAT_SYSTEM_PROMPT
     );
     if (llamaReply) {
       return res.json({ reply: llamaReply, model: 'llama-local' });
     }
   }
 
-  // Smart keyword fallback (static — when both OpenAI and Llama are unavailable)
+  // 3️⃣ Smart keyword fallback (static — când niciun AI nu e disponibil)
   const lower = message.toLowerCase();
   const KEYWORD_RESPONSES = [
     [['payment', 'plat'], 'Zeus AI suportă plăți via Stripe, PayPal, Bitcoin și alte 10+ metode. Accesează /payments pentru a iniția o tranzacție.'],
@@ -618,6 +625,14 @@ app.post('/api/chat', authRateLimit(30, 60_000), async (req, res) => {
 
   res.json({ reply, model: 'keyword-fallback' });
 });
+
+// ==================== UAIC STATUS ====================
+app.get('/api/uaic/status', (req, res) => {
+  if (!_uaic) return res.json({ available: false, reason: 'module_not_loaded' });
+  res.json({ available: true, ...(_uaic.getStats()) });
+});
+
+app.use('/api/uaic', _uaic ? _uaic.getRouter(adminSecretMiddleware) : (req, res) => res.json({ error: 'UAIC not loaded' }));
 
 // ==================== LLAMA STATUS ====================
 app.get('/api/llama/status', (req, res) => {
