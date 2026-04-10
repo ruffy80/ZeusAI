@@ -6,118 +6,6 @@
 // Orice copiere, modificare sau distribuție neautorizată este interzisă.
 // =====================================================================
 
-// =====================================================================
-// OWNERSHIP: Acest fișier este proprietatea exclusivă a lui Vladoi Ionut
-// Email: vladoi_ionut@yahoo.com
-// BTC Address: bc1q4f7e66z87mdfj56kz0dj5hvcnpmh0qh4wuv22e
-// Data: 2026-04-10T21:33:19.612Z
-// Orice copiere, modificare sau distribuție neautorizată este interzisă.
-// =====================================================================
-
-// =====================================================================
-// OWNERSHIP: Acest fișier este proprietatea exclusivă a lui Vladoi Ionut
-// Email: vladoi_ionut@yahoo.com
-// BTC Address: bc1q4f7e66z87mdfj56kz0dj5hvcnpmh0qh4wuv22e
-// Data: 2026-04-10T21:28:24.674Z
-// Orice copiere, modificare sau distribuție neautorizată este interzisă.
-// =====================================================================
-
-// =====================================================================
-// OWNERSHIP: Acest fișier este proprietatea exclusivă a lui Vladoi Ionut
-// Email: vladoi_ionut@yahoo.com
-// BTC Address: bc1q4f7e66z87mdfj56kz0dj5hvcnpmh0qh4wuv22e
-// Data: 2026-04-10T21:27:44.394Z
-// Orice copiere, modificare sau distribuție neautorizată este interzisă.
-// =====================================================================
-
-// =====================================================================
-// OWNERSHIP: Acest fișier este proprietatea exclusivă a lui Vladoi Ionut
-// Email: vladoi_ionut@yahoo.com
-// BTC Address: bc1q4f7e66z87mdfj56kz0dj5hvcnpmh0qh4wuv22e
-// Data: 2026-04-10T20:34:58.210Z
-// Orice copiere, modificare sau distribuție neautorizată este interzisă.
-// =====================================================================
-
-// =====================================================================
-// OWNERSHIP: Acest fișier este proprietatea exclusivă a lui Vladoi Ionut
-// Email: vladoi_ionut@yahoo.com
-// BTC Address: bc1q4f7e66z87mdfj56kz0dj5hvcnpmh0qh4wuv22e
-// Data: 2026-04-10T19:17:59.229Z
-// Orice copiere, modificare sau distribuție neautorizată este interzisă.
-// =====================================================================
-
-// =====================================================================
-// OWNERSHIP: Acest fișier este proprietatea exclusivă a lui Vladoi Ionut
-// Email: vladoi_ionut@yahoo.com
-// BTC Address: bc1q4f7e66z87mdfj56kz0dj5hvcnpmh0qh4wuv22e
-// Data: 2026-04-10T19:15:25.088Z
-// Orice copiere, modificare sau distribuție neautorizată este interzisă.
-// =====================================================================
-
-// =====================================================================
-// OWNERSHIP: Acest fișier este proprietatea exclusivă a lui Vladoi Ionut
-// Email: vladoi_ionut@yahoo.com
-// BTC Address: bc1q4f7e66z87mdfj56kz0dj5hvcnpmh0qh4wuv22e
-// Data: 2026-04-10T19:14:20.601Z
-// Orice copiere, modificare sau distribuție neautorizată este interzisă.
-// =====================================================================
-
-// =====================================================================
-// OWNERSHIP: Acest fișier este proprietatea exclusivă a lui Vladoi Ionut
-// Email: vladoi_ionut@yahoo.com
-// BTC Address: bc1q4f7e66z87mdfj56kz0dj5hvcnpmh0qh4wuv22e
-// Data: 2026-04-10T19:10:41.141Z
-// Orice copiere, modificare sau distribuție neautorizată este interzisă.
-// =====================================================================
-
-// =====================================================================
-// OWNERSHIP: Acest fișier este proprietatea exclusivă a lui Vladoi Ionut
-// Email: vladoi_ionut@yahoo.com
-// BTC Address: bc1q4f7e66z87mdfj56kz0dj5hvcnpmh0qh4wuv22e
-// Data: 2026-04-10T19:01:10.442Z
-// Orice copiere, modificare sau distribuție neautorizată este interzisă.
-// =====================================================================
-
-// =====================================================================
-// OWNERSHIP: Acest fișier este proprietatea exclusivă a lui Vladoi Ionut
-// Email: vladoi_ionut@yahoo.com
-// BTC Address: bc1q4f7e66z87mdfj56kz0dj5hvcnpmh0qh4wuv22e
-// Data: 2026-04-10T18:58:03.194Z
-// Orice copiere, modificare sau distribuție neautorizată este interzisă.
-// =====================================================================
-
-// =====================================================================
-// OWNERSHIP: Acest fișier este proprietatea exclusivă a lui Vladoi Ionut
-// Email: vladoi_ionut@yahoo.com
-// BTC Address: bc1q4f7e66z87mdfj56kz0dj5hvcnpmh0qh4wuv22e
-// Data: 2026-04-10T18:53:47.262Z
-// Orice copiere, modificare sau distribuție neautorizată este interzisă.
-// =====================================================================
-
-// =====================================================================
-// OWNERSHIP: Acest fișier este proprietatea exclusivă a lui Vladoi Ionut
-// Email: vladoi_ionut@yahoo.com
-// BTC Address: bc1q4f7e66z87mdfj56kz0dj5hvcnpmh0qh4wuv22e
-// Data: 2026-04-10T18:53:01.123Z
-// Orice copiere, modificare sau distribuție neautorizată este interzisă.
-// =====================================================================
-
-// =====================================================================
-// OWNERSHIP: Acest fișier este proprietatea exclusivă a lui Vladoi Ionut
-// Email: vladoi_ionut@yahoo.com
-// BTC Address: bc1q4f7e66z87mdfj56kz0dj5hvcnpmh0qh4wuv22e
-// Data: 2026-04-10T18:52:08.773Z
-// Orice copiere, modificare sau distribuție neautorizată este interzisă.
-// =====================================================================
-
-// =====================================================================
-// OWNERSHIP: Acest fișier este proprietatea exclusivă a lui Vladoi Ionut
-// Email: vladoi_ionut@yahoo.com
-// BTC Address: bc1q4f7e66z87mdfj56kz0dj5hvcnpmh0qh4wuv22e
-// Data: 2026-04-10T18:51:01.953Z
-// Orice copiere, modificare sau distribuție neautorizată este interzisă.
-// =====================================================================
-
 require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
@@ -670,36 +558,8 @@ app.get('/api/uaic/status', (req, res) => {
   res.json(_uaic.getStatus());
 });
 
-// Admin UAIC endpoints — rate-limited + admin-token required
-app.get('/api/admin/uaic/models', authRateLimit(60, 60_000), adminTokenMiddleware, (req, res) => {
-  if (!_uaic) return res.status(503).json({ error: 'UAIC not loaded' });
-  res.json(_uaic.getModels());
-});
-
-app.get('/api/admin/uaic/stats', authRateLimit(60, 60_000), adminTokenMiddleware, (req, res) => {
-  if (!_uaic) return res.status(503).json({ error: 'UAIC not loaded' });
-  res.json(_uaic.getStatus());
-});
-
-app.post('/api/admin/uaic/discover', authRateLimit(10, 60_000), adminTokenMiddleware, async (req, res) => {
-  if (!_uaic) return res.status(503).json({ error: 'UAIC not loaded' });
-  await _uaic.discoverNewModels();
-  res.json({ success: true, models: _uaic.getStatus().models });
-});
-
-app.post('/api/admin/uaic/ask', authRateLimit(30, 60_000), adminTokenMiddleware, async (req, res) => {
-  if (!_uaic) return res.status(503).json({ error: 'UAIC not loaded' });
-  const { type = 'simple', prompt, system, maxTokens, messages } = req.body || {};
-  if (!prompt && (!messages || messages.length === 0)) {
-    return res.status(400).json({ error: 'prompt or messages required' });
-  }
-  try {
-    const result = await _uaic.ask({ type, prompt, system, maxTokens, messages });
-    res.json(result);
-  } catch (err) {
-    res.status(503).json({ error: err.message });
-  }
-});
+// Admin UAIC endpoints — mounted via module router (admin-token required)
+if (_uaic) app.use('/api/admin/uaic', _uaic.getRouter(adminTokenMiddleware));
 
 // ==================== LLAMA STATUS ====================
 app.get('/api/llama/status', (req, res) => {
