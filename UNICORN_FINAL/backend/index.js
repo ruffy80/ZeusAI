@@ -19,20 +19,71 @@ app.use('/api/payment/webhook/stripe', express.raw({ type: 'application/json' })
 app.use('/api/payment/webhook/paypal', express.raw({ type: 'application/json' }));
 
 app.use(compression());
-app.use(cors());
+
+// CORS: restrict to configured origins in production
+const _allowedOrigins = (process.env.CORS_ORIGINS || process.env.PUBLIC_APP_URL || '').split(',').map(s => s.trim()).filter(Boolean);
+app.use(cors({
+  origin: process.env.NODE_ENV === 'production' && _allowedOrigins.length
+    ? (origin, cb) => {
+        // Allow non-browser requests (e.g. server-to-server, curl)
+        if (!origin) return cb(null, true);
+        try {
+          const incomingHost = new URL(origin).hostname;
+          const allowed = _allowedOrigins.some(o => {
+            try {
+              const allowedHost = new URL(o).hostname;
+              // Exact match or valid subdomain (must be preceded by a dot)
+              return incomingHost === allowedHost || incomingHost.endsWith('.' + allowedHost);
+            } catch { return false; }
+          });
+          return cb(null, allowed ? true : new Error('CORS: origin not allowed'));
+        } catch {
+          return cb(new Error('CORS: invalid origin'));
+        }
+      }
+    : true,
+  credentials: true,
+}));
+
 app.use(express.json());
 
 // ==================== PERSISTENCE ====================
-const { users: dbUsers, payments: dbPayments, apiKeys: dbApiKeys } = require('./db');
+const { users: dbUsers, payments: dbPayments, apiKeys: dbApiKeys, adminSessions: dbAdminSessions } = require('./db');
 const emailService = require('./email');
 
+// ==================== SECURITY HEADERS ====================
+app.use((req, res, next) => {
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('X-Frame-Options', 'SAMEORIGIN');
+  res.setHeader('X-XSS-Protection', '1; mode=block');
+  res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+  res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
+  if (process.env.NODE_ENV === 'production') {
+    res.setHeader('Strict-Transport-Security', 'max-age=63072000; includeSubDomains; preload');
+  }
+  next();
+});
+
 // ==================== AUTH STORE (SQLite-backed) ====================
-const adminSessions = new Set();
 const ADMIN_OWNER_NAME = process.env.LEGAL_OWNER_NAME || 'Vladoi Ionut';
 const ADMIN_OWNER_EMAIL = process.env.ADMIN_EMAIL || process.env.LEGAL_OWNER_EMAIL || 'vladoi_ionut@yahoo.com';
 const ADMIN_OWNER_BTC = process.env.LEGAL_OWNER_BTC || 'bc1q4f7e66z87mdfj56kz0dj5hvcnpmh0qh4wuv22e';
 let adminPasswordHash = bcrypt.hashSync(process.env.ADMIN_MASTER_PASSWORD || 'UnicornAdmin2026!', 10);
 let adminBiometricHash = null;
+
+// ==================== STARTUP SECURITY VALIDATION ====================
+if (process.env.NODE_ENV === 'production') {
+  if (!process.env.JWT_SECRET || process.env.JWT_SECRET === 'unicorn-jwt-secret-change-in-prod') {
+    console.error('❌ FATAL: JWT_SECRET is weak/default. Set a strong secret in .env before running in production.');
+    process.exit(1);
+  }
+  if (!process.env.ADMIN_2FA_CODE || process.env.ADMIN_2FA_CODE === '123456') {
+    console.warn('⚠️  WARNING: ADMIN_2FA_CODE is using the default value "123456". Change it in production!');
+  }
+  if (!process.env.ADMIN_MASTER_PASSWORD || process.env.ADMIN_MASTER_PASSWORD === 'UnicornAdmin2026!') {
+    console.warn('⚠️  WARNING: ADMIN_MASTER_PASSWORD is using the default value. Change it in production!');
+  }
+}
 
 function adminSecretMiddleware(req, res, next) {
   const expected = process.env.ADMIN_SECRET || '';
@@ -73,7 +124,7 @@ function adminTokenMiddleware(req, res, next) {
   try {
     const payload = jwt.verify(token, JWT_SECRET);
     if (payload.role !== 'admin') return res.status(403).json({ error: 'Forbidden' });
-    if (!adminSessions.has(token)) return res.status(401).json({ error: 'Session expired' });
+    if (!dbAdminSessions.has(token)) return res.status(401).json({ error: 'Session expired' });
     req.admin = payload;
     return next();
   } catch {
@@ -158,7 +209,7 @@ app.post('/api/auth/login', authRateLimit(20, 15 * 60 * 1000), async (req, res) 
     }
 
     const token = jwt.sign({ role: 'admin', email: ADMIN_OWNER_EMAIL, name: ADMIN_OWNER_NAME }, JWT_SECRET, { expiresIn: '12h' });
-    adminSessions.add(token);
+    dbAdminSessions.add(token, ADMIN_OWNER_EMAIL, Date.now() + 12 * 60 * 60 * 1000);
 
     return res.json({
       success: true,
@@ -182,14 +233,14 @@ app.post('/api/auth/login', authRateLimit(20, 15 * 60 * 1000), async (req, res) 
 app.get('/api/auth/status', adminTokenMiddleware, (req, res) => {
   res.json({
     owner: { name: ADMIN_OWNER_NAME, email: ADMIN_OWNER_EMAIL, btcAddress: ADMIN_OWNER_BTC },
-    activeSessions: adminSessions.size,
+    activeSessions: dbAdminSessions.size,
     biometricEnabled: Boolean(adminBiometricHash)
   });
 });
 
 app.post('/api/auth/logout', adminTokenMiddleware, (req, res) => {
   const token = extractAdminToken(req);
-  adminSessions.delete(token);
+  dbAdminSessions.delete(token);
   res.json({ success: true });
 });
 
@@ -341,7 +392,61 @@ app.get('/api/health', (req, res) => res.json({
   uptime: process.uptime(),
   users: dbUsers.count(),
   dbConnected: true,
+  engines: {
+    innovation: true,
+    revenue: true,
+    viral: true,
+    eternalEngine: true,
+  },
+  version: '1.1.1',
+  timestamp: new Date().toISOString(),
 }));
+
+// ==================== AI CHAT ====================
+app.post('/api/chat', authRateLimit(30, 60_000), async (req, res) => {
+  const { message, history = [] } = req.body || {};
+  if (!message) return res.status(400).json({ error: 'message required' });
+
+  const OPENAI_KEY = process.env.OPENAI_API_KEY;
+  if (OPENAI_KEY && OPENAI_KEY !== 'your_openai_api_key_here') {
+    try {
+      const messages = [
+        { role: 'system', content: 'You are Zeus AI Assistant, an expert in business automation, AI, blockchain, payments, and enterprise solutions. Be concise and helpful. You can also respond in Romanian if the user writes in Romanian.' },
+        ...history.slice(-6).map(m => ({ role: m.role, content: m.content })),
+        { role: 'user', content: message }
+      ];
+      const resp = await axios.post('https://api.openai.com/v1/chat/completions', {
+        model: 'gpt-4o-mini',
+        messages,
+        max_tokens: 400,
+        temperature: 0.7,
+      }, {
+        headers: { Authorization: 'Bearer ' + OPENAI_KEY, 'Content-Type': 'application/json' },
+        timeout: 20000,
+      });
+      return res.json({ reply: resp.data.choices[0].message.content });
+    } catch (err) {
+      console.error('[Chat] OpenAI error:', err.response?.data?.error?.message || err.message);
+    }
+  }
+
+  // Smart keyword fallback
+  const lower = message.toLowerCase();
+  const KEYWORD_RESPONSES = [
+    [['payment', 'plat'], 'Zeus AI suportă plăți via Stripe, PayPal, Bitcoin și alte 10+ metode. Accesează /payments pentru a iniția o tranzacție.'],
+    [['marketplace'], 'Marketplace-ul Zeus AI oferă 50+ servicii AI specializate. Explorează /marketplace pentru prețuri personalizate.'],
+    [['blockchain', 'crypto'], 'Modulul Quantum Blockchain oferă tranzacții securizate și smart contracts. Accesează /innovation/blockchain.'],
+    [['compliance', 'legal'], 'Compliance Engine-ul acoperă GDPR, HIPAA, SOX și 25+ standarde globale. Accesează /innovation/legal.'],
+    [['revenue', 'profit'], 'Auto Revenue Engine generează deal-uri autonom 24/7. Dashboard-ul executiv afișează metricele live la /executive.'],
+    [['plan', 'pricing', 'pret'], 'Planuri disponibile: Free ($0), Starter ($29/lună), Pro ($99/lună), Enterprise ($499/lună). Accesează /payments pentru upgrade.'],
+    [['innovation', 'inova'], 'Innovation Command Center coordonează AI Workforce, M&A Advisor, Energy Grid și Quantum Blockchain. Accesează /innovation.'],
+    [['admin', 'dashboard'], 'Dashboard-ul admin este disponibil la /admin/login. Dashboard-ul executiv la /executive.'],
+  ];
+  const matched = KEYWORD_RESPONSES.find(([keywords]) => keywords.some(k => lower.includes(k)));
+  const reply = matched ? matched[1] : 'Bun venit la Zeus AI! Sunt asistentul tău pentru business automation, AI, blockchain și plăți globale. Cum te pot ajuta?';
+
+  res.json({ reply });
+});
 
 // ==================== API KEY MIDDLEWARE ====================
 // Middleware for public API access (used with x-api-key header)
@@ -514,6 +619,12 @@ app.post('/api/payment/webhook/stripe', (req, res) => {
         const planId = session.metadata?.planId;
         if (userId && planId) {
           console.log(`[Stripe Webhook] Subscription activated: user=${userId} plan=${planId}`);
+          dbUsers.setPlanId(userId, planId);
+          const user = dbUsers.findById(userId);
+          if (user) {
+            emailService.sendPaymentConfirmation(user, { planId, amount: 0, method: 'stripe' })
+              .catch(err => console.error('[Email] payment confirmation failed:', err.message));
+          }
         }
       }
       break;
@@ -630,6 +741,14 @@ app.post('/api/payment/webhook/paypal', async (req, res) => {
       dbPayments.save(updated);
       paymentGateway.payments.set(payment.txId, updated);
       console.log('[PayPal Webhook] Payment completed:', payment.txId);
+      // Send payment confirmation email
+      if (payment.clientId && payment.clientId !== 'guest') {
+        const user = dbUsers.findById(payment.clientId);
+        if (user) {
+          emailService.sendPaymentConfirmation(user, { amount: payment.total, method: 'paypal' })
+            .catch(err => console.error('[Email] PayPal confirmation failed:', err.message));
+        }
+      }
     }
   };
 
