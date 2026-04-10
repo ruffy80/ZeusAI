@@ -58,6 +58,10 @@
 
 const crypto = require('crypto');
 
+// 🦙 Llama bridge — optional; falls back gracefully when Ollama is unavailable
+let llamaBridge;
+try { llamaBridge = require('./llamaBridge'); } catch { llamaBridge = null; }
+
 class AutoRevenueEngine {
   constructor() {
     this.cache = new Map(); this.cacheTTL = 60000; 
@@ -67,6 +71,8 @@ class AutoRevenueEngine {
     this.affiliateNetwork = new Map();
     this.marketplaceListings = [];
     this.nextDealId = 1;
+    this.llamaStrategySuggestion = null; // last Llama revenue strategy
+    this._lastLlamaStrategyCycle = -1;  // tracks which cycle last triggered Llama
 
     this.config = {
       cycleMs: Math.max(parseInt(process.env.REVENUE_CYCLE_MS || '15000', 10), 5000),
@@ -111,7 +117,30 @@ class AutoRevenueEngine {
       this.processPayments();
       this.pruneOldDeals();
       this.calculateMetrics();
+      // Ask Llama for a revenue strategy every 5th cycle (async, non-blocking)
+      if (Math.floor(this.metrics.completedDeals / 5) !== this._lastLlamaStrategyCycle) {
+        this._lastLlamaStrategyCycle = Math.floor(this.metrics.completedDeals / 5);
+        this._refreshLlamaStrategy().catch(() => {});
+      }
     }, this.config.cycleMs);
+  }
+
+  async _refreshLlamaStrategy() {
+    if (!llamaBridge) return;
+    const snap = this.getRevenueStatus();
+    const prompt =
+      `You are a SaaS revenue strategist. The Unicorn platform has: ` +
+      `${snap.metrics.activeDeals} active deals, ` +
+      `$${snap.metrics.totalRevenueGenerated.toFixed(0)} total revenue, ` +
+      `projected annual revenue $${snap.metrics.projectedAnnualRevenue.toFixed(0)}. ` +
+      `Suggest ONE specific, actionable pricing or upsell tactic to increase MRR. ` +
+      `Reply in 1-2 sentences only.`;
+    const result = await llamaBridge.generate(prompt, llamaBridge.PRIORITY.REVENUE,
+      'You are a B2B SaaS growth expert. Be direct and specific.');
+    if (result) {
+      this.llamaStrategySuggestion = { text: result, generatedAt: new Date().toISOString() };
+      console.log(`[AutoRevenue] 🦙 Llama strategy: ${result}`);
+    }
   }
 
   stopRevenueGeneration() {
@@ -420,6 +449,7 @@ class AutoRevenueEngine {
       activeDeals: this.metrics.activeDeals,
       completedTransactions: this.metrics.completedDeals,
       revenueStreams: streamDetails,
+      llamaStrategy: this.llamaStrategySuggestion,
     };
   }
 

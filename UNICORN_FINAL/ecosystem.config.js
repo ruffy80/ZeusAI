@@ -91,6 +91,31 @@ module.exports = {
       error_file: 'logs/platform-connector-error.log',
       out_file: 'logs/platform-connector-out.log',
       log_date_format: 'YYYY-MM-DD HH:mm:ss'
+    },
+
+    // ── 5. Llama Bridge (starts Ollama serve at P4 / nice +10) ────────────────
+    // Prerequisite: `ollama` must be installed on the server.
+    // Install: curl -fsSL https://ollama.ai/install.sh | sh
+    // Pull model: ollama pull llama3.1:8b-instruct-q4_K_M
+    {
+      name: 'unicorn-llama-bridge',
+      script: 'sh',
+      args: '-c "nice -n 10 ollama serve"',
+      cwd: __dirname,
+      instances: 1,
+      autorestart: true,
+      watch: false,
+      max_restarts: 10,
+      restart_delay: 15000,
+      exp_backoff_restart_delay: 5000,
+      env: {
+        OLLAMA_HOST: '127.0.0.1:11434',
+        OLLAMA_NUM_PARALLEL: '1',
+        OLLAMA_MAX_LOADED_MODELS: '1'
+      },
+      error_file: 'logs/llama-bridge-error.log',
+      out_file: 'logs/llama-bridge-out.log',
+      log_date_format: 'YYYY-MM-DD HH:mm:ss'
     }
   ]
 };

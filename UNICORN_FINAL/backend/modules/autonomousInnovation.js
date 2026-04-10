@@ -54,6 +54,10 @@
 
 const crypto = require('crypto');
 
+// 🦙 Llama bridge — optional; falls back gracefully when Ollama is unavailable
+let llamaBridge;
+try { llamaBridge = require('./llamaBridge'); } catch { llamaBridge = null; }
+
 class AutonomousInnovation {
   constructor() {
     this.cache = new Map(); this.cacheTTL = 60000; 
@@ -136,13 +140,34 @@ class AutonomousInnovation {
       deploymentEstimate: Math.floor(Math.random() * 30) + 5, // 5-35 seconds
       dependencies: this.inferDependencies(innovationType.type),
       rollbackPlan: this.generateRollbackPlan(),
+      llamaEnriched: false,
     };
 
     this.innovations.set(innov.id, innov);
     this.featureQueue.push(innov.id);
 
     console.log(`[AutonomousInnovation] Generated: ${innov.id} (${innovationType.type})`);
+
+    // Async Llama enrichment (P3 — does not block the sync cycle)
+    this._enrichWithLlama(innov).catch(() => {});
+
     return innov;
+  }
+
+  async _enrichWithLlama(innov) {
+    if (!llamaBridge) return;
+    const prompt =
+      `You are the Unicorn AI innovation engine. Generate a concise (1-2 sentence) ` +
+      `technical feature description for a SaaS platform in the category "${innov.type}". ` +
+      `Current draft: "${innov.description}". Improve it with a specific, actionable enhancement. ` +
+      `Reply with the improved description only — no preamble.`;
+    const result = await llamaBridge.generate(prompt, llamaBridge.PRIORITY.INNOVATION,
+      'You are a senior software architect. Be specific and brief.');
+    if (result && this.innovations.has(innov.id)) {
+      innov.description = result;
+      innov.llamaEnriched = true;
+      console.log(`[AutonomousInnovation] 🦙 Llama enriched ${innov.id}`);
+    }
   }
 
   selectRandomPattern() {
