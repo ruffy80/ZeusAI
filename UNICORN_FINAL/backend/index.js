@@ -2,6 +2,14 @@
 // OWNERSHIP: Acest fișier este proprietatea exclusivă a lui Vladoi Ionut
 // Email: vladoi_ionut@yahoo.com
 // BTC Address: bc1q4f7e66z87mdfj56kz0dj5hvcnpmh0qh4wuv22e
+// Data: 2026-04-10T19:01:10.442Z
+// Orice copiere, modificare sau distribuție neautorizată este interzisă.
+// =====================================================================
+
+// =====================================================================
+// OWNERSHIP: Acest fișier este proprietatea exclusivă a lui Vladoi Ionut
+// Email: vladoi_ionut@yahoo.com
+// BTC Address: bc1q4f7e66z87mdfj56kz0dj5hvcnpmh0qh4wuv22e
 // Data: 2026-04-10T18:58:03.194Z
 // Orice copiere, modificare sau distribuție neautorizată este interzisă.
 // =====================================================================
@@ -1934,12 +1942,14 @@ app.get('*', (req, res) => {
 // eslint-disable-next-line no-unused-vars
 app.use((err, req, res, next) => {
   const statusCode = err.status || err.statusCode || 500;
-  // Use separate arguments to avoid tainted-format-string: method and path are safe to log
+  // Sanitize method and path; truncate err.message to avoid logging sensitive user data
   const method = String(req.method).slice(0, 10);
   const urlPath = String(req.path).slice(0, 200);
-  console.error('[Error]', method, urlPath, '->', err.message, err.stack ? '\n' + err.stack : '');
+  const safeMessage = String(err.message || '').slice(0, 500);
+  console.error('[Error]', method, urlPath, '->', safeMessage);
+  if (err.stack && process.env.NODE_ENV !== 'production') console.error(err.stack);
   res.status(statusCode).json({
-    error: process.env.NODE_ENV === 'production' ? 'Internal server error' : (err.message || 'Internal server error'),
+    error: process.env.NODE_ENV === 'production' ? 'Internal server error' : (safeMessage || 'Internal server error'),
   });
 });
 

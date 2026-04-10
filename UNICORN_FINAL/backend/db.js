@@ -2,6 +2,14 @@
 // OWNERSHIP: Acest fișier este proprietatea exclusivă a lui Vladoi Ionut
 // Email: vladoi_ionut@yahoo.com
 // BTC Address: bc1q4f7e66z87mdfj56kz0dj5hvcnpmh0qh4wuv22e
+// Data: 2026-04-10T19:01:10.045Z
+// Orice copiere, modificare sau distribuție neautorizată este interzisă.
+// =====================================================================
+
+// =====================================================================
+// OWNERSHIP: Acest fișier este proprietatea exclusivă a lui Vladoi Ionut
+// Email: vladoi_ionut@yahoo.com
+// BTC Address: bc1q4f7e66z87mdfj56kz0dj5hvcnpmh0qh4wuv22e
 // Data: 2026-04-10T18:58:02.798Z
 // Orice copiere, modificare sau distribuție neautorizată este interzisă.
 // =====================================================================
@@ -287,7 +295,8 @@ const users = usingSqlite ? {
   setPlanId(id, planId) { stmts.updateUserPlanId.run({ id, planId }); },
   listAll({ page = 1, limit = 20, search = null } = {}) {
     const offset = (Math.max(1, page) - 1) * limit;
-    const searchParam = search ? `%${search}%` : null;
+    // Escape SQLite LIKE wildcards (%, _) in user-supplied search to prevent unexpected matches
+    const searchParam = search ? `%${search.replace(/%/g, '\\%').replace(/_/g, '\\_')}%` : null;
     const rows = stmts.listUsers.all({ search: searchParam, limit, offset });
     const total = stmts.countUsersFiltered.get({ search: searchParam }).cnt;
     return { users: rows, total, page, limit, pages: Math.ceil(total / limit) };
