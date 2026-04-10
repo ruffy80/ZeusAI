@@ -2,6 +2,22 @@
 // OWNERSHIP: Acest fișier este proprietatea exclusivă a lui Vladoi Ionut
 // Email: vladoi_ionut@yahoo.com
 // BTC Address: bc1q4f7e66z87mdfj56kz0dj5hvcnpmh0qh4wuv22e
+// Data: 2026-04-10T20:21:48.170Z
+// Orice copiere, modificare sau distribuție neautorizată este interzisă.
+// =====================================================================
+
+// =====================================================================
+// OWNERSHIP: Acest fișier este proprietatea exclusivă a lui Vladoi Ionut
+// Email: vladoi_ionut@yahoo.com
+// BTC Address: bc1q4f7e66z87mdfj56kz0dj5hvcnpmh0qh4wuv22e
+// Data: 2026-04-10T20:18:03.445Z
+// Orice copiere, modificare sau distribuție neautorizată este interzisă.
+// =====================================================================
+
+// =====================================================================
+// OWNERSHIP: Acest fișier este proprietatea exclusivă a lui Vladoi Ionut
+// Email: vladoi_ionut@yahoo.com
+// BTC Address: bc1q4f7e66z87mdfj56kz0dj5hvcnpmh0qh4wuv22e
 // Data: 2026-04-10T19:17:59.229Z
 // Orice copiere, modificare sau distribuție neautorizată este interzisă.
 // =====================================================================
@@ -145,7 +161,7 @@ app.use((req, res, next) => {
     "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; " +
     "font-src 'self' https://fonts.gstatic.com; " +
     "img-src 'self' data: blob: https:; " +
-    "connect-src 'self' https://api.openai.com https://js.stripe.com; " +
+    "connect-src 'self' https://api.openai.com https://api.deepseek.com https://api.anthropic.com https://generativelanguage.googleapis.com https://api.mistral.ai https://api.cohere.com https://api.x.ai https://js.stripe.com; " +
     "frame-src https://js.stripe.com; " +
     "object-src 'none'; " +
     "base-uri 'self';"
@@ -552,6 +568,8 @@ app.get('/api/health', (req, res) => {
 });
 
 // ==================== AI CHAT ====================
+// Provideri: OpenAI → DeepSeek → Anthropic → Gemini → Mistral → Cohere → xAI Grok → Llama → keyword
+const _aiProviders = require('./modules/aiProviders');
 // 🦙 Llama bridge — optional local fallback (Ollama)
 let _llamaBridge;
 try { _llamaBridge = require('./modules/llamaBridge'); } catch { _llamaBridge = null; }
@@ -560,28 +578,9 @@ app.post('/api/chat', authRateLimit(30, 60_000), async (req, res) => {
   const { message, history = [] } = req.body || {};
   if (!message) return res.status(400).json({ error: 'message required' });
 
-  const OPENAI_KEY = process.env.OPENAI_API_KEY;
-  if (OPENAI_KEY && OPENAI_KEY !== 'your_openai_api_key_here') {
-    try {
-      const messages = [
-        { role: 'system', content: 'You are Zeus AI Assistant, an expert in business automation, AI, blockchain, payments, and enterprise solutions. Be concise and helpful. You can also respond in Romanian if the user writes in Romanian.' },
-        ...history.slice(-6).map(m => ({ role: m.role, content: m.content })),
-        { role: 'user', content: message }
-      ];
-      const resp = await axios.post('https://api.openai.com/v1/chat/completions', {
-        model: 'gpt-4o-mini',
-        messages,
-        max_tokens: 400,
-        temperature: 0.7,
-      }, {
-        headers: { Authorization: 'Bearer ' + OPENAI_KEY, 'Content-Type': 'application/json' },
-        timeout: 20000,
-      });
-      return res.json({ reply: resp.data.choices[0].message.content, model: 'gpt-4o-mini' });
-    } catch (err) {
-      console.error('[Chat] OpenAI error:', err.response?.data?.error?.message || err.message);
-    }
-  }
+  // Try all cloud AI providers in cascade (OpenAI, DeepSeek, Anthropic, Gemini, Mistral, Cohere, Grok)
+  const cloudResult = await _aiProviders.chat(message, history);
+  if (cloudResult) return res.json(cloudResult);
 
   // 🦙 Llama local fallback (zero-cost, runs on Hetzner via Ollama)
   if (_llamaBridge) {
@@ -601,7 +600,7 @@ app.post('/api/chat', authRateLimit(30, 60_000), async (req, res) => {
     }
   }
 
-  // Smart keyword fallback (static — when both OpenAI and Llama are unavailable)
+  // Smart keyword fallback (static — when all AI providers are unavailable)
   const lower = message.toLowerCase();
   const KEYWORD_RESPONSES = [
     [['payment', 'plat'], 'Zeus AI suportă plăți via Stripe, PayPal, Bitcoin și alte 10+ metode. Accesează /payments pentru a iniția o tranzacție.'],
@@ -623,6 +622,20 @@ app.post('/api/chat', authRateLimit(30, 60_000), async (req, res) => {
 app.get('/api/llama/status', (req, res) => {
   if (!_llamaBridge) return res.json({ available: false, reason: 'bridge_not_loaded' });
   res.json(_llamaBridge.getStatus());
+});
+
+// ==================== AI PROVIDERS STATUS ====================
+app.get('/api/ai/status', (req, res) => {
+  const providers = _aiProviders.getStatus();
+  const llama = _llamaBridge ? _llamaBridge.getStatus() : { available: false, reason: 'bridge_not_loaded' };
+  const activeCount = providers.filter(p => p.configured).length + (llama.available ? 1 : 0);
+  res.json({
+    providers,
+    llama,
+    activeCount,
+    total: providers.length + 1,
+    timestamp: new Date().toISOString(),
+  });
 });
 
 
