@@ -1934,6 +1934,8 @@ app.post('/api/admin/wealth/settings', adminCrudRateLimit, adminTokenMiddleware,
 // ==================== BUSINESS DEVELOPMENT ROUTES ====================
 // In-memory BD store (deals + leads)
 const _bdStore = { deals: [], leads: [] };
+let _bdIdCounter = 0;
+const _STAGE_PROBABILITY = { 'closed-won': 100, 'negotiation': 75, 'proposal': 50 };
 
 app.get('/api/bd/deals', adminCrudRateLimit, adminTokenMiddleware, (req, res) => {
   res.json(_bdStore.deals);
@@ -1942,14 +1944,15 @@ app.get('/api/bd/deals', adminCrudRateLimit, adminTokenMiddleware, (req, res) =>
 app.post('/api/bd/deals', adminCrudRateLimit, adminTokenMiddleware, (req, res) => {
   const { company, contact, value, stage, notes, id } = req.body || {};
   if (!company) return res.status(400).json({ error: 'company is required' });
+  const safeStage = String(stage || 'prospecting');
   const deal = {
-    id: id || Date.now(),
+    id: id || `deal-${Date.now()}-${++_bdIdCounter}`,
     company: String(company),
     contact: String(contact || ''),
     value: parseFloat(value) || 0,
-    stage: String(stage || 'prospecting'),
+    stage: safeStage,
     notes: String(notes || ''),
-    probability: stage === 'closed-won' ? 100 : stage === 'negotiation' ? 75 : stage === 'proposal' ? 50 : 20,
+    probability: _STAGE_PROBABILITY[safeStage] || 20,
     createdAt: new Date().toISOString(),
   };
   _bdStore.deals.push(deal);
