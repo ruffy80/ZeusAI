@@ -7,6 +7,7 @@ const nodemailer = require('nodemailer');
 
 class LegalFortress {
   constructor() {
+    this.cache = new Map(); this.cacheTTL = 60000; 
     this.owner = {
       name: 'Vladoi Ionut',
       email: 'vladoi_ionut@yahoo.com',

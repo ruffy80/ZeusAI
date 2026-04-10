@@ -1,3 +1,51 @@
+// =====================================================================
+// OWNERSHIP: Acest fișier este proprietatea exclusivă a lui Vladoi Ionut
+// Email: vladoi_ionut@yahoo.com
+// BTC Address: bc1q4f7e66z87mdfj56kz0dj5hvcnpmh0qh4wuv22e
+// Data: 2026-04-10T19:01:10.442Z
+// Orice copiere, modificare sau distribuție neautorizată este interzisă.
+// =====================================================================
+
+// =====================================================================
+// OWNERSHIP: Acest fișier este proprietatea exclusivă a lui Vladoi Ionut
+// Email: vladoi_ionut@yahoo.com
+// BTC Address: bc1q4f7e66z87mdfj56kz0dj5hvcnpmh0qh4wuv22e
+// Data: 2026-04-10T18:58:03.194Z
+// Orice copiere, modificare sau distribuție neautorizată este interzisă.
+// =====================================================================
+
+// =====================================================================
+// OWNERSHIP: Acest fișier este proprietatea exclusivă a lui Vladoi Ionut
+// Email: vladoi_ionut@yahoo.com
+// BTC Address: bc1q4f7e66z87mdfj56kz0dj5hvcnpmh0qh4wuv22e
+// Data: 2026-04-10T18:53:47.262Z
+// Orice copiere, modificare sau distribuție neautorizată este interzisă.
+// =====================================================================
+
+// =====================================================================
+// OWNERSHIP: Acest fișier este proprietatea exclusivă a lui Vladoi Ionut
+// Email: vladoi_ionut@yahoo.com
+// BTC Address: bc1q4f7e66z87mdfj56kz0dj5hvcnpmh0qh4wuv22e
+// Data: 2026-04-10T18:53:01.123Z
+// Orice copiere, modificare sau distribuție neautorizată este interzisă.
+// =====================================================================
+
+// =====================================================================
+// OWNERSHIP: Acest fișier este proprietatea exclusivă a lui Vladoi Ionut
+// Email: vladoi_ionut@yahoo.com
+// BTC Address: bc1q4f7e66z87mdfj56kz0dj5hvcnpmh0qh4wuv22e
+// Data: 2026-04-10T18:52:08.773Z
+// Orice copiere, modificare sau distribuție neautorizată este interzisă.
+// =====================================================================
+
+// =====================================================================
+// OWNERSHIP: Acest fișier este proprietatea exclusivă a lui Vladoi Ionut
+// Email: vladoi_ionut@yahoo.com
+// BTC Address: bc1q4f7e66z87mdfj56kz0dj5hvcnpmh0qh4wuv22e
+// Data: 2026-04-10T18:51:01.953Z
+// Orice copiere, modificare sau distribuție neautorizată este interzisă.
+// =====================================================================
+
 require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
@@ -59,6 +107,17 @@ app.use((req, res, next) => {
   res.setHeader('X-XSS-Protection', '1; mode=block');
   res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
   res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
+  res.setHeader('Content-Security-Policy',
+    "default-src 'self'; " +
+    "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://js.stripe.com; " +
+    "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; " +
+    "font-src 'self' https://fonts.gstatic.com; " +
+    "img-src 'self' data: blob: https:; " +
+    "connect-src 'self' https://api.openai.com https://js.stripe.com; " +
+    "frame-src https://js.stripe.com; " +
+    "object-src 'none'; " +
+    "base-uri 'self';"
+  );
   if (process.env.NODE_ENV === 'production') {
     res.setHeader('Strict-Transport-Security', 'max-age=63072000; includeSubDomains; preload');
   }
@@ -135,10 +194,12 @@ function adminTokenMiddleware(req, res, next) {
 
 // ==================== AUTH RATE LIMITING ====================
 // Simple sliding-window rate limiter for sensitive auth endpoints (no extra dependency).
+// In test mode (NODE_ENV=test) rate limiting is disabled to allow full test runs.
 const authRateLimitStore = new Map(); // key -> [timestamps]
 
 function authRateLimit(maxRequests, windowMs) {
   return function rateLimitMiddleware(req, res, next) {
+    if (process.env.NODE_ENV === 'test') return next();
     const key = req.ip || 'unknown';
     const now = Date.now();
     const windowStart = now - windowMs;
@@ -162,18 +223,56 @@ setInterval(() => {
   }
 }, 10 * 60 * 1000).unref();
 
+// ==================== GLOBAL PUBLIC RATE LIMITER ====================
+// 200 req/min per IP for all public API endpoints (prevents enumeration/scraping).
+// Uses its own isolated store so it does NOT interfere with per-route auth limiters.
+const globalPublicRateLimit = (function () {
+  const store = new Map();
+  setInterval(() => {
+    const cutoff = Date.now() - 60_000;
+    for (const [key, hits] of store) {
+      const pruned = hits.filter(ts => ts > cutoff);
+      if (pruned.length === 0) store.delete(key);
+      else store.set(key, pruned);
+    }
+  }, 60_000).unref();
+  return function (req, res, next) {
+    if (process.env.NODE_ENV === 'test') return next();
+    const key = req.ip || 'unknown';
+    const now = Date.now();
+    const hits = (store.get(key) || []).filter(ts => ts > now - 60_000);
+    if (hits.length >= 200) {
+      return res.status(429).json({ error: 'Too many requests. Slow down.' });
+    }
+    hits.push(now);
+    store.set(key, hits);
+    return next();
+  };
+}());
+app.use('/api/', globalPublicRateLimit);
+
+// ==================== INPUT VALIDATION HELPERS ====================
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
+function isValidEmail(email) { return typeof email === 'string' && EMAIL_RE.test(email.trim()); }
+function sanitizeString(s, maxLen = 255) { return typeof s === 'string' ? s.trim().slice(0, maxLen) : ''; }
+
+
 // ==================== AUTH ROUTES ====================
 app.post('/api/auth/register', authRateLimit(10, 15 * 60 * 1000), async (req, res) => {
-  const { name, email, password } = req.body;
-  if (!name || !email || !password) return res.status(400).json({ error: 'name, email and password required' });
-  if (dbUsers.findByEmail(email)) return res.status(409).json({ error: 'Email already in use' });
+  const { name, email, password } = req.body || {};
+  const cleanName = sanitizeString(name, 100);
+  const cleanEmail = sanitizeString(email, 254);
+  if (!cleanName || !cleanEmail || !password) return res.status(400).json({ error: 'name, email and password required' });
+  if (!isValidEmail(cleanEmail)) return res.status(400).json({ error: 'Invalid email address' });
+  if (typeof password !== 'string' || password.length < 8) return res.status(400).json({ error: 'Password must be at least 8 characters' });
+  if (dbUsers.findByEmail(cleanEmail)) return res.status(409).json({ error: 'Email already in use' });
   const passwordHash = await bcrypt.hash(password, 10);
   const verifyToken = crypto.randomBytes(32).toString('hex');
   const verifyExpires = Date.now() + 86400000; // 24h
   const user = {
     id: crypto.randomBytes(8).toString('hex'),
-    name,
-    email,
+    name: cleanName,
+    email: cleanEmail,
     passwordHash,
     emailVerified: 0,
     verifyToken,
@@ -203,7 +302,7 @@ app.post('/api/auth/login', authRateLimit(20, 15 * 60 * 1000), async (req, res) 
   // Admin login (password + 2FA)
   if (!email && password && typeof twoFactorCode !== 'undefined') {
     const expected2FA = process.env.ADMIN_2FA_CODE || '123456';
-    const validPassword = await bcrypt.compare(password, adminPasswordHash);
+    const validPassword = await bcrypt.compare(String(password), adminPasswordHash);
     if (!validPassword) return res.status(401).json({ success: false, error: 'Parolă invalidă' });
     if (String(twoFactorCode).trim() !== String(expected2FA).trim()) {
       return res.status(401).json({ success: false, error: 'Cod 2FA invalid' });
@@ -223,10 +322,12 @@ app.post('/api/auth/login', authRateLimit(20, 15 * 60 * 1000), async (req, res) 
     });
   }
 
-  const user = dbUsers.findByEmail(email);
-  if (!user) return res.status(404).json({ error: 'User not found' });
-  const valid = await bcrypt.compare(password, user.passwordHash);
-  if (!valid) return res.status(401).json({ error: 'Invalid password' });
+  if (!email || !password) return res.status(400).json({ error: 'email and password required' });
+  if (!isValidEmail(sanitizeString(email, 254))) return res.status(400).json({ error: 'Invalid email address' });
+  const user = dbUsers.findByEmail(sanitizeString(email, 254));
+  if (!user) return res.status(401).json({ error: 'Invalid credentials' });
+  const valid = await bcrypt.compare(String(password), user.passwordHash);
+  if (!valid) return res.status(401).json({ error: 'Invalid credentials' });
   const token = jwt.sign({ id: user.id, email: user.email, name: user.name }, JWT_SECRET, { expiresIn: '7d' });
   res.json({ token, user: { id: user.id, name: user.name, email: user.email, emailVerified: Boolean(user.emailVerified) } });
 });
@@ -388,20 +489,35 @@ console.log('📱 Social Media Viralizer: STARTING');
 console.log('🌐 Global Digital Standard: STARTING');
 
 // ==================== RUTE API ====================
-app.get('/api/health', (req, res) => res.json({
-  status: 'ok',
-  uptime: process.uptime(),
-  users: dbUsers.count(),
-  dbConnected: true,
-  engines: {
-    innovation: true,
-    revenue: true,
-    viral: true,
-    eternalEngine: true,
-  },
-  version: APP_VERSION,
-  timestamp: new Date().toISOString(),
-}));
+app.get('/api/health', (req, res) => {
+  const mem = process.memoryUsage();
+  res.json({
+    status: 'ok',
+    uptime: Math.floor(process.uptime()),
+    uptimeHuman: (() => {
+      const s = Math.floor(process.uptime());
+      const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), sec = s % 60;
+      return `${h}h ${m}m ${sec}s`;
+    })(),
+    users: dbUsers.count(),
+    dbConnected: true,
+    engines: {
+      innovation: true,
+      revenue: true,
+      viral: true,
+      eternalEngine: true,
+    },
+    memory: {
+      rss: Math.round(mem.rss / 1024 / 1024) + 'MB',
+      heapUsed: Math.round(mem.heapUsed / 1024 / 1024) + 'MB',
+      heapTotal: Math.round(mem.heapTotal / 1024 / 1024) + 'MB',
+    },
+    node: process.version,
+    env: process.env.NODE_ENV || 'development',
+    version: APP_VERSION,
+    timestamp: new Date().toISOString(),
+  });
+});
 
 // ==================== AI CHAT ====================
 app.post('/api/chat', authRateLimit(30, 60_000), async (req, res) => {
@@ -1682,6 +1798,72 @@ app.get('/api/autonomous/platform/status', (req, res) => {
   });
 });
 
+// ==================== ADMIN USER MANAGEMENT ====================
+// All routes are protected by adminTokenMiddleware (JWT required, admin role).
+// Dedicated rate limiter with isolated store (60 req/min) to prevent brute-force and enumeration
+// on the admin user management API, separate from the auth rate limit store.
+const adminCrudRateLimit = (function () {
+  const store = new Map();
+  setInterval(() => {
+    const cutoff = Date.now() - 60_000;
+    for (const [key, hits] of store) {
+      const pruned = hits.filter(ts => ts > cutoff);
+      if (pruned.length === 0) store.delete(key);
+      else store.set(key, pruned);
+    }
+  }, 60_000).unref();
+  return function (req, res, next) {
+    if (process.env.NODE_ENV === 'test') return next();
+    const key = req.ip || 'unknown';
+    const now = Date.now();
+    const hits = (store.get(key) || []).filter(ts => ts > now - 60_000);
+    if (hits.length >= 60) {
+      return res.status(429).json({ error: 'Too many requests. Slow down.' });
+    }
+    hits.push(now);
+    store.set(key, hits);
+    return next();
+  };
+}());
+
+// GET /api/admin/users?page=1&limit=20&search=query
+app.get('/api/admin/users', adminCrudRateLimit, adminTokenMiddleware, (req, res) => {
+  const page = Math.max(1, parseInt(req.query.page) || 1);
+  const limit = Math.min(100, Math.max(1, parseInt(req.query.limit) || 20));
+  const search = req.query.search ? sanitizeString(req.query.search, 100) : null;
+  const result = dbUsers.listAll({ page, limit, search });
+  res.json(result);
+});
+
+// GET /api/admin/users/:id
+app.get('/api/admin/users/:id', adminCrudRateLimit, adminTokenMiddleware, (req, res) => {
+  const user = dbUsers.findById(req.params.id);
+  if (!user) return res.status(404).json({ error: 'User not found' });
+  const { passwordHash, resetToken, verifyToken, ...safe } = user;
+  res.json(safe);
+});
+
+// PUT /api/admin/users/:id/plan
+app.put('/api/admin/users/:id/plan', adminCrudRateLimit, adminTokenMiddleware, (req, res) => {
+  const { planId } = req.body || {};
+  const VALID_PLANS = ['free', 'starter', 'pro', 'enterprise'];
+  if (!planId || !VALID_PLANS.includes(planId)) {
+    return res.status(400).json({ error: `planId must be one of: ${VALID_PLANS.join(', ')}` });
+  }
+  const user = dbUsers.findById(req.params.id);
+  if (!user) return res.status(404).json({ error: 'User not found' });
+  dbUsers.setPlanId(req.params.id, planId);
+  res.json({ success: true, id: req.params.id, planId });
+});
+
+// DELETE /api/admin/users/:id
+app.delete('/api/admin/users/:id', adminCrudRateLimit, adminTokenMiddleware, (req, res) => {
+  const user = dbUsers.findById(req.params.id);
+  if (!user) return res.status(404).json({ error: 'User not found' });
+  const deleted = dbUsers.deleteById(req.params.id);
+  res.json({ success: deleted, id: req.params.id });
+});
+
 // ==================== WEBHOOK DEPLOY (Hetzner fallback) ====================
 // Called by GitHub Actions when SSH deploy fails (HETZNER_WEBHOOK_URL points here)
 app.post('/deploy', (req, res) => {
@@ -1752,6 +1934,23 @@ app.get('*', (req, res) => {
       api: '/api/health'
     });
   }
+});
+
+// ==================== GLOBAL ERROR HANDLER ====================
+// Catches any unhandled errors thrown in route handlers.
+// In production, never expose the stack trace to the client.
+// eslint-disable-next-line no-unused-vars
+app.use((err, req, res, next) => {
+  const statusCode = err.status || err.statusCode || 500;
+  // Sanitize method and path; truncate err.message to avoid logging sensitive user data
+  const method = String(req.method).slice(0, 10);
+  const urlPath = String(req.path).slice(0, 200);
+  const safeMessage = String(err.message || '').slice(0, 500);
+  console.error('[Error]', method, urlPath, '->', safeMessage);
+  if (err.stack && process.env.NODE_ENV !== 'production') console.error(err.stack);
+  res.status(statusCode).json({
+    error: process.env.NODE_ENV === 'production' ? 'Internal server error' : (safeMessage || 'Internal server error'),
+  });
 });
 
 // Only bind to a port when run directly (not when imported by Vercel or tests)
