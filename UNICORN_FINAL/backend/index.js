@@ -2,6 +2,14 @@
 // OWNERSHIP: Acest fișier este proprietatea exclusivă a lui Vladoi Ionut
 // Email: vladoi_ionut@yahoo.com
 // BTC Address: bc1q4f7e66z87mdfj56kz0dj5hvcnpmh0qh4wuv22e
+// Data: 2026-04-10T18:58:03.194Z
+// Orice copiere, modificare sau distribuție neautorizată este interzisă.
+// =====================================================================
+
+// =====================================================================
+// OWNERSHIP: Acest fișier este proprietatea exclusivă a lui Vladoi Ionut
+// Email: vladoi_ionut@yahoo.com
+// BTC Address: bc1q4f7e66z87mdfj56kz0dj5hvcnpmh0qh4wuv22e
 // Data: 2026-04-10T18:53:47.262Z
 // Orice copiere, modificare sau distribuție neautorizată este interzisă.
 // =====================================================================
@@ -1784,10 +1792,34 @@ app.get('/api/autonomous/platform/status', (req, res) => {
 
 // ==================== ADMIN USER MANAGEMENT ====================
 // All routes are protected by adminTokenMiddleware (JWT required, admin role).
-// The globalPublicRateLimit (200 req/min) already applies via app.use('/api/').
+// Dedicated rate limiter with isolated store (60 req/min) to prevent brute-force and enumeration
+// on the admin user management API, separate from the auth rate limit store.
+const adminCrudRateLimit = (function () {
+  const store = new Map();
+  setInterval(() => {
+    const cutoff = Date.now() - 60_000;
+    for (const [key, hits] of store) {
+      const pruned = hits.filter(ts => ts > cutoff);
+      if (pruned.length === 0) store.delete(key);
+      else store.set(key, pruned);
+    }
+  }, 60_000).unref();
+  return function (req, res, next) {
+    if (process.env.NODE_ENV === 'test') return next();
+    const key = req.ip || 'unknown';
+    const now = Date.now();
+    const hits = (store.get(key) || []).filter(ts => ts > now - 60_000);
+    if (hits.length >= 60) {
+      return res.status(429).json({ error: 'Too many requests. Slow down.' });
+    }
+    hits.push(now);
+    store.set(key, hits);
+    return next();
+  };
+}());
 
 // GET /api/admin/users?page=1&limit=20&search=query
-app.get('/api/admin/users', adminTokenMiddleware, (req, res) => {
+app.get('/api/admin/users', adminCrudRateLimit, adminTokenMiddleware, (req, res) => {
   const page = Math.max(1, parseInt(req.query.page) || 1);
   const limit = Math.min(100, Math.max(1, parseInt(req.query.limit) || 20));
   const search = req.query.search ? sanitizeString(req.query.search, 100) : null;
@@ -1796,7 +1828,7 @@ app.get('/api/admin/users', adminTokenMiddleware, (req, res) => {
 });
 
 // GET /api/admin/users/:id
-app.get('/api/admin/users/:id', adminTokenMiddleware, (req, res) => {
+app.get('/api/admin/users/:id', adminCrudRateLimit, adminTokenMiddleware, (req, res) => {
   const user = dbUsers.findById(req.params.id);
   if (!user) return res.status(404).json({ error: 'User not found' });
   const { passwordHash, resetToken, verifyToken, ...safe } = user;
@@ -1804,7 +1836,7 @@ app.get('/api/admin/users/:id', adminTokenMiddleware, (req, res) => {
 });
 
 // PUT /api/admin/users/:id/plan
-app.put('/api/admin/users/:id/plan', adminTokenMiddleware, (req, res) => {
+app.put('/api/admin/users/:id/plan', adminCrudRateLimit, adminTokenMiddleware, (req, res) => {
   const { planId } = req.body || {};
   const VALID_PLANS = ['free', 'starter', 'pro', 'enterprise'];
   if (!planId || !VALID_PLANS.includes(planId)) {
@@ -1817,7 +1849,7 @@ app.put('/api/admin/users/:id/plan', adminTokenMiddleware, (req, res) => {
 });
 
 // DELETE /api/admin/users/:id
-app.delete('/api/admin/users/:id', adminTokenMiddleware, (req, res) => {
+app.delete('/api/admin/users/:id', adminCrudRateLimit, adminTokenMiddleware, (req, res) => {
   const user = dbUsers.findById(req.params.id);
   if (!user) return res.status(404).json({ error: 'User not found' });
   const deleted = dbUsers.deleteById(req.params.id);
@@ -1902,7 +1934,10 @@ app.get('*', (req, res) => {
 // eslint-disable-next-line no-unused-vars
 app.use((err, req, res, next) => {
   const statusCode = err.status || err.statusCode || 500;
-  console.error(`[Error] ${req.method} ${req.path} →`, err.message, err.stack ? '\n' + err.stack : '');
+  // Use separate arguments to avoid tainted-format-string: method and path are safe to log
+  const method = String(req.method).slice(0, 10);
+  const urlPath = String(req.path).slice(0, 200);
+  console.error('[Error]', method, urlPath, '->', err.message, err.stack ? '\n' + err.stack : '');
   res.status(statusCode).json({
     error: process.env.NODE_ENV === 'production' ? 'Internal server error' : (err.message || 'Internal server error'),
   });
