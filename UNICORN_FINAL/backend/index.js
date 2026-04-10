@@ -2,7 +2,114 @@
 // OWNERSHIP: Acest fișier este proprietatea exclusivă a lui Vladoi Ionut
 // Email: vladoi_ionut@yahoo.com
 // BTC Address: bc1q4f7e66z87mdfj56kz0dj5hvcnpmh0qh4wuv22e
+copilot/add-uaic-routing-module
+// Data: 2026-04-10T22:02:34.732Z
+// Orice copiere, modificare sau distribuție neautorizată este interzisă.
+// =====================================================================
+
+// =====================================================================
+// OWNERSHIP: Acest fișier este proprietatea exclusivă a lui Vladoi Ionut
+// Email: vladoi_ionut@yahoo.com
+// BTC Address: bc1q4f7e66z87mdfj56kz0dj5hvcnpmh0qh4wuv22e
+// Data: 2026-04-10T21:56:32.841Z
+// Orice copiere, modificare sau distribuție neautorizată este interzisă.
+// =====================================================================
+
+// =====================================================================
+// OWNERSHIP: Acest fișier este proprietatea exclusivă a lui Vladoi Ionut
+// Email: vladoi_ionut@yahoo.com
+// BTC Address: bc1q4f7e66z87mdfj56kz0dj5hvcnpmh0qh4wuv22e
+// Data: 2026-04-10T21:56:16.597Z
+// Orice copiere, modificare sau distribuție neautorizată este interzisă.
+// =====================================================================
+
+// =====================================================================
+// OWNERSHIP: Acest fișier este proprietatea exclusivă a lui Vladoi Ionut
+// Email: vladoi_ionut@yahoo.com
+// BTC Address: bc1q4f7e66z87mdfj56kz0dj5hvcnpmh0qh4wuv22e
+// Data: 2026-04-10T20:34:58.210Z
+// Orice copiere, modificare sau distribuție neautorizată este interzisă.
+// =====================================================================
+
+// =====================================================================
+// OWNERSHIP: Acest fișier este proprietatea exclusivă a lui Vladoi Ionut
+// Email: vladoi_ionut@yahoo.com
+// BTC Address: bc1q4f7e66z87mdfj56kz0dj5hvcnpmh0qh4wuv22e
+// Data: 2026-04-10T19:17:59.229Z
+// Orice copiere, modificare sau distribuție neautorizată este interzisă.
+// =====================================================================
+
+// =====================================================================
+// OWNERSHIP: Acest fișier este proprietatea exclusivă a lui Vladoi Ionut
+// Email: vladoi_ionut@yahoo.com
+// BTC Address: bc1q4f7e66z87mdfj56kz0dj5hvcnpmh0qh4wuv22e
+// Data: 2026-04-10T19:15:25.088Z
+// Orice copiere, modificare sau distribuție neautorizată este interzisă.
+// =====================================================================
+
+// =====================================================================
+// OWNERSHIP: Acest fișier este proprietatea exclusivă a lui Vladoi Ionut
+// Email: vladoi_ionut@yahoo.com
+// BTC Address: bc1q4f7e66z87mdfj56kz0dj5hvcnpmh0qh4wuv22e
+// Data: 2026-04-10T19:14:20.601Z
+// Orice copiere, modificare sau distribuție neautorizată este interzisă.
+// =====================================================================
+
+// =====================================================================
+// OWNERSHIP: Acest fișier este proprietatea exclusivă a lui Vladoi Ionut
+// Email: vladoi_ionut@yahoo.com
+// BTC Address: bc1q4f7e66z87mdfj56kz0dj5hvcnpmh0qh4wuv22e
+// Data: 2026-04-10T19:10:41.141Z
+// Orice copiere, modificare sau distribuție neautorizată este interzisă.
+// =====================================================================
+
+// =====================================================================
+// OWNERSHIP: Acest fișier este proprietatea exclusivă a lui Vladoi Ionut
+// Email: vladoi_ionut@yahoo.com
+// BTC Address: bc1q4f7e66z87mdfj56kz0dj5hvcnpmh0qh4wuv22e
+// Data: 2026-04-10T19:01:10.442Z
+// Orice copiere, modificare sau distribuție neautorizată este interzisă.
+// =====================================================================
+
+// =====================================================================
+// OWNERSHIP: Acest fișier este proprietatea exclusivă a lui Vladoi Ionut
+// Email: vladoi_ionut@yahoo.com
+// BTC Address: bc1q4f7e66z87mdfj56kz0dj5hvcnpmh0qh4wuv22e
+// Data: 2026-04-10T18:58:03.194Z
+// Orice copiere, modificare sau distribuție neautorizată este interzisă.
+// =====================================================================
+
+// =====================================================================
+// OWNERSHIP: Acest fișier este proprietatea exclusivă a lui Vladoi Ionut
+// Email: vladoi_ionut@yahoo.com
+// BTC Address: bc1q4f7e66z87mdfj56kz0dj5hvcnpmh0qh4wuv22e
+// Data: 2026-04-10T18:53:47.262Z
+// Orice copiere, modificare sau distribuție neautorizată este interzisă.
+// =====================================================================
+
+// =====================================================================
+// OWNERSHIP: Acest fișier este proprietatea exclusivă a lui Vladoi Ionut
+// Email: vladoi_ionut@yahoo.com
+// BTC Address: bc1q4f7e66z87mdfj56kz0dj5hvcnpmh0qh4wuv22e
+// Data: 2026-04-10T18:53:01.123Z
+// Orice copiere, modificare sau distribuție neautorizată este interzisă.
+// =====================================================================
+
+// =====================================================================
+// OWNERSHIP: Acest fișier este proprietatea exclusivă a lui Vladoi Ionut
+// Email: vladoi_ionut@yahoo.com
+// BTC Address: bc1q4f7e66z87mdfj56kz0dj5hvcnpmh0qh4wuv22e
+// Data: 2026-04-10T18:52:08.773Z
+// Orice copiere, modificare sau distribuție neautorizată este interzisă.
+// =====================================================================
+
+// =====================================================================
+// OWNERSHIP: Acest fișier este proprietatea exclusivă a lui Vladoi Ionut
+// Email: vladoi_ionut@yahoo.com
+// BTC Address: bc1q4f7e66z87mdfj56kz0dj5hvcnpmh0qh4wuv22e
+// Data: 2026-04-10T18:51:01.953Z
 // Data: 2026-04-10T21:38:58.439Z
+main
 // Orice copiere, modificare sau distribuție neautorizată este interzisă.
 // =====================================================================
 
@@ -466,7 +573,11 @@ app.get('/api/health', (req, res) => {
       revenue: true,
       viral: true,
       eternalEngine: true,
+copilot/add-uaic-routing-module
+      uaic: !!_uaic && _uaic.getStatus().models > 0,
+
       uaic: !!_uaic && (_uaic.getStatus?.().models || 0) > 0,
+main
     },
     memory: {
       rss: Math.round(mem.rss / 1024 / 1024) + 'MB',
@@ -487,6 +598,14 @@ let _uaic = null;
 try { _uaic = require('./modules/universal-ai-connector'); } catch (e) {
   console.warn('[UAIC] Nu s-a putut încărca Universal AI Connector:', e.message);
 }
+copilot/add-uaic-routing-module
+
+// 🦙 Llama bridge — also available standalone via /api/llama/status
+let _llamaBridge = null;
+try { _llamaBridge = require('./modules/llamaBridge'); } catch { /* optional */ }
+
+// ==================== AI CHAT ====================
+=======
 
 // 🦙 Llama bridge — also available standalone via /api/llama/status
 let _llamaBridge = null;
@@ -494,6 +613,7 @@ try { _llamaBridge = require('./modules/llamaBridge'); } catch { /* optional */ 
 
 // ==================== AI CHAT ====================
 
+main
 
 const CHAT_SYSTEM_PROMPT = 'You are Zeus AI Assistant, an expert in business automation, AI, blockchain, payments, and enterprise solutions. Be concise and helpful. You can also respond in Romanian if the user writes in Romanian.';
 
@@ -501,19 +621,32 @@ app.post('/api/chat', authRateLimit(30, 60_000), async (req, res) => {
   const { message, history = [] } = req.body || {};
   if (!message) return res.status(400).json({ error: 'message required' });
 
+ copilot/add-uaic-routing-module
+  const messages = [
+    ...history.slice(-6).map(m => ({ role: m.role, content: m.content })),
+    { role: 'user', content: message },
+  ];
+
+  // 1️⃣ UAIC – routare automată la cel mai bun provider disponibil
+
   // 1️⃣ UAIC – routare automată la cel mai bun provider disponibil (cheapest first pentru chat)
+main
   if (_uaic) {
     try {
       const result = await _uaic.ask({
         type: 'simple',
         prompt: message,
         system: CHAT_SYSTEM_PROMPT,
+ copilot/add-uaic-routing-module
+        messages,
+
         messages: history.slice(-6).map(m => ({ role: m.role, content: m.content })),
+ main
         maxTokens: 400,
       });
       return res.json({ reply: result.text, model: result.model });
     } catch (err) {
-      console.error('[Chat] UAIC error:', err.message);
+      console.warn('[Chat] UAIC a eșuat:', err.message);
     }
   }
 
@@ -556,10 +689,45 @@ app.post('/api/chat', authRateLimit(30, 60_000), async (req, res) => {
 app.get('/api/uaic/status', (req, res) => {
   if (!_uaic) return res.json({ active: false, reason: 'uaic_not_loaded' });
   res.json(_uaic.getStatus());
+ copilot/add-uaic-routing-module
+});
+
+// Admin UAIC endpoints — rate-limited + admin-token required
+app.get('/api/admin/uaic/models', authRateLimit(60, 60_000), adminTokenMiddleware, (req, res) => {
+  if (!_uaic) return res.status(503).json({ error: 'UAIC not loaded' });
+  res.json(_uaic.getModels());
+});
+
+app.get('/api/admin/uaic/stats', authRateLimit(60, 60_000), adminTokenMiddleware, (req, res) => {
+  if (!_uaic) return res.status(503).json({ error: 'UAIC not loaded' });
+  res.json(_uaic.getStatus());
+});
+
+app.post('/api/admin/uaic/discover', authRateLimit(10, 60_000), adminTokenMiddleware, async (req, res) => {
+  if (!_uaic) return res.status(503).json({ error: 'UAIC not loaded' });
+  await _uaic.discoverNewModels();
+  res.json({ success: true, models: _uaic.getStatus().models });
+});
+
+app.post('/api/admin/uaic/ask', authRateLimit(30, 60_000), adminTokenMiddleware, async (req, res) => {
+  if (!_uaic) return res.status(503).json({ error: 'UAIC not loaded' });
+  const { type = 'simple', prompt, system, maxTokens, messages } = req.body || {};
+  if (!prompt && (!messages || messages.length === 0)) {
+    return res.status(400).json({ error: 'prompt or messages required' });
+  }
+  try {
+    const result = await _uaic.ask({ type, prompt, system, maxTokens, messages });
+    res.json(result);
+  } catch (err) {
+    res.status(503).json({ error: err.message });
+  }
+});
+
 });
 
 // Admin UAIC endpoints — mounted via module router (admin-token required)
 if (_uaic) app.use('/api/admin/uaic', _uaic.getRouter(adminTokenMiddleware));
+main
 
 // ==================== LLAMA STATUS ====================
 app.get('/api/llama/status', (req, res) => {
