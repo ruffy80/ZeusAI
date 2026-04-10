@@ -3,6 +3,7 @@ const express = require('express');
 const cors = require('cors');
 const compression = require('compression');
 const path = require('path');
+const { version: APP_VERSION } = require('../package.json');
 // const cron = require('node-cron'); // Optional scheduling
 const simpleGit = require('simple-git');
 const axios = require('axios');
@@ -398,7 +399,7 @@ app.get('/api/health', (req, res) => res.json({
     viral: true,
     eternalEngine: true,
   },
-  version: '1.1.1',
+  version: APP_VERSION,
   timestamp: new Date().toISOString(),
 }));
 

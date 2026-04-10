@@ -1,6 +1,6 @@
 {
   "name": "unicorn-final",
-  "version": "1.1.1",
+  "version": "1.2.0",
   "private": true,
   "dependencies": {
     "@octokit/rest": "^20.1.2",
