@@ -1,3 +1,35 @@
+// =====================================================================
+// OWNERSHIP: Acest fișier este proprietatea exclusivă a lui Vladoi Ionut
+// Email: vladoi_ionut@yahoo.com
+// BTC Address: bc1q4f7e66z87mdfj56kz0dj5hvcnpmh0qh4wuv22e
+// Data: 2026-04-10T18:53:46.889Z
+// Orice copiere, modificare sau distribuție neautorizată este interzisă.
+// =====================================================================
+
+// =====================================================================
+// OWNERSHIP: Acest fișier este proprietatea exclusivă a lui Vladoi Ionut
+// Email: vladoi_ionut@yahoo.com
+// BTC Address: bc1q4f7e66z87mdfj56kz0dj5hvcnpmh0qh4wuv22e
+// Data: 2026-04-10T18:53:00.757Z
+// Orice copiere, modificare sau distribuție neautorizată este interzisă.
+// =====================================================================
+
+// =====================================================================
+// OWNERSHIP: Acest fișier este proprietatea exclusivă a lui Vladoi Ionut
+// Email: vladoi_ionut@yahoo.com
+// BTC Address: bc1q4f7e66z87mdfj56kz0dj5hvcnpmh0qh4wuv22e
+// Data: 2026-04-10T18:52:08.393Z
+// Orice copiere, modificare sau distribuție neautorizată este interzisă.
+// =====================================================================
+
+// =====================================================================
+// OWNERSHIP: Acest fișier este proprietatea exclusivă a lui Vladoi Ionut
+// Email: vladoi_ionut@yahoo.com
+// BTC Address: bc1q4f7e66z87mdfj56kz0dj5hvcnpmh0qh4wuv22e
+// Data: 2026-04-10T18:51:01.559Z
+// Orice copiere, modificare sau distribuție neautorizată este interzisă.
+// =====================================================================
+
 /**
  * SQLite persistence layer
  * Replaces all in-memory arrays/Maps so data survives server restarts.
@@ -170,6 +202,18 @@ if (usingSqlite) {
     setResetToken: db.prepare('UPDATE users SET resetToken = @resetToken, resetExpires = @resetExpires WHERE id = @id'),
     verifyEmail: db.prepare('UPDATE users SET emailVerified = 1, verifyToken = NULL, verifyExpires = NULL WHERE id = @id'),
     countUsers: db.prepare('SELECT COUNT(*) as cnt FROM users'),
+    listUsers: db.prepare(`
+      SELECT id, name, email, emailVerified, planId, createdAt
+      FROM users
+      WHERE (@search IS NULL OR name LIKE @search OR email LIKE @search)
+      ORDER BY createdAt DESC
+      LIMIT @limit OFFSET @offset
+    `),
+    countUsersFiltered: db.prepare(`
+      SELECT COUNT(*) as cnt FROM users
+      WHERE (@search IS NULL OR name LIKE @search OR email LIKE @search)
+    `),
+    deleteUser: db.prepare('DELETE FROM users WHERE id = ?'),
 
     upsertPayment: db.prepare(`
       INSERT OR REPLACE INTO payments
@@ -233,6 +277,14 @@ const users = usingSqlite ? {
   verifyEmail(id) { stmts.verifyEmail.run({ id }); },
   count() { return stmts.countUsers.get().cnt; },
   setPlanId(id, planId) { stmts.updateUserPlanId.run({ id, planId }); },
+  listAll({ page = 1, limit = 20, search = null } = {}) {
+    const offset = (Math.max(1, page) - 1) * limit;
+    const searchParam = search ? `%${search}%` : null;
+    const rows = stmts.listUsers.all({ search: searchParam, limit, offset });
+    const total = stmts.countUsersFiltered.get({ search: searchParam }).cnt;
+    return { users: rows, total, page, limit, pages: Math.ceil(total / limit) };
+  },
+  deleteById(id) { return stmts.deleteUser.run(id).changes > 0; },
 } : {
   // In-memory fallback
   create(user) { mem.users.set(user.id, { ...user }); },
@@ -246,6 +298,19 @@ const users = usingSqlite ? {
   verifyEmail(id) { const u = mem.users.get(id); if (u) { u.emailVerified = 1; u.verifyToken = null; u.verifyExpires = null; } },
   count() { return mem.users.size; },
   setPlanId(id, planId) { const u = mem.users.get(id); if (u) { u.planId = planId; } },
+  listAll({ page = 1, limit = 20, search = null } = {}) {
+    const all = Array.from(mem.users.values()).map(u => ({
+      id: u.id, name: u.name, email: u.email,
+      emailVerified: u.emailVerified, planId: u.planId || 'free', createdAt: u.createdAt,
+    }));
+    const filtered = search
+      ? all.filter(u => u.name.toLowerCase().includes(search.toLowerCase()) || u.email.toLowerCase().includes(search.toLowerCase()))
+      : all;
+    filtered.sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''));
+    const offset = (Math.max(1, page) - 1) * limit;
+    return { users: filtered.slice(offset, offset + limit), total: filtered.length, page, limit, pages: Math.ceil(filtered.length / limit) };
+  },
+  deleteById(id) { return mem.users.delete(id); },
 };
 
 function deserializePayment(row) {
