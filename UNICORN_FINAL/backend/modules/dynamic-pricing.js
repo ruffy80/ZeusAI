@@ -2,6 +2,14 @@
 // OWNERSHIP: Acest fișier este proprietatea exclusivă a lui Vladoi Ionut
 // Email: vladoi_ionut@yahoo.com
 // BTC Address: bc1q4f7e66z87mdfj56kz0dj5hvcnpmh0qh4wuv22e
+// Data: 2026-04-10T21:53:50.307Z
+// Orice copiere, modificare sau distribuție neautorizată este interzisă.
+// =====================================================================
+
+// =====================================================================
+// OWNERSHIP: Acest fișier este proprietatea exclusivă a lui Vladoi Ionut
+// Email: vladoi_ionut@yahoo.com
+// BTC Address: bc1q4f7e66z87mdfj56kz0dj5hvcnpmh0qh4wuv22e
 // Data: 2026-04-10T21:49:07.880Z
 // Orice copiere, modificare sau distribuție neautorizată este interzisă.
 // =====================================================================
@@ -181,9 +189,11 @@ function getAllPrices(options = {}) {
 }
 
 function activateSurge(durationMs = 3600000) {
+  const MAX_SURGE_MS = 86400000; // max 24 hours
+  const safeDurationMs = Math.min(Math.max(parseInt(durationMs) || 3600000, 60000), MAX_SURGE_MS);
   surgeActive = true;
-  setTimeout(() => { surgeActive = false; }, durationMs);
-  console.log('[DynamicPricing] Surge pricing activated for', durationMs / 60000, 'min');
+  setTimeout(() => { surgeActive = false; }, safeDurationMs);
+  console.log('[DynamicPricing] Surge pricing activated for', safeDurationMs / 60000, 'min');
 }
 
 function setDiscount(active) {

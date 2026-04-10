@@ -2,6 +2,14 @@
 // OWNERSHIP: Acest fișier este proprietatea exclusivă a lui Vladoi Ionut
 // Email: vladoi_ionut@yahoo.com
 // BTC Address: bc1q4f7e66z87mdfj56kz0dj5hvcnpmh0qh4wuv22e
+// Data: 2026-04-10T21:53:50.302Z
+// Orice copiere, modificare sau distribuție neautorizată este interzisă.
+// =====================================================================
+
+// =====================================================================
+// OWNERSHIP: Acest fișier este proprietatea exclusivă a lui Vladoi Ionut
+// Email: vladoi_ionut@yahoo.com
+// BTC Address: bc1q4f7e66z87mdfj56kz0dj5hvcnpmh0qh4wuv22e
 // Data: 2026-04-10T21:49:07.876Z
 // Orice copiere, modificare sau distribuție neautorizată este interzisă.
 // =====================================================================
@@ -2070,7 +2078,7 @@ app.get('/api/bd/leads', adminCrudRateLimit, adminTokenMiddleware, (req, res) =>
 });
 
 // ==================== UEE COMPONENTS (FutureCompatibilityBridge / QuantumSecurityLayer / TemporalDataProcessor) ====================
-app.get('/api/uee/components', adminSecretMiddleware, (req, res) => {
+app.get('/api/uee/components', adminCrudRateLimit, adminSecretMiddleware, (req, res) => {
   res.json({
     futureCompatibilityBridge: futureCompatibilityBridge.getStatus(),
     quantumSecurityLayer: quantumSecurityLayer.getStatus(),
@@ -2078,7 +2086,7 @@ app.get('/api/uee/components', adminSecretMiddleware, (req, res) => {
   });
 });
 
-app.post('/api/uee/components/process', adminSecretMiddleware, async (req, res) => {
+app.post('/api/uee/components/process', adminCrudRateLimit, adminSecretMiddleware, async (req, res) => {
   const { component, input } = req.body || {};
   const components = {
     FutureCompatibilityBridge: futureCompatibilityBridge,
@@ -2097,23 +2105,26 @@ app.post('/api/uee/components/process', adminSecretMiddleware, async (req, res) 
 });
 
 // ==================== MODULE LOADER ====================
-app.get('/api/module-loader/status', adminSecretMiddleware, (req, res) => {
+// Only allow safe module names: alphanumeric, hyphen, underscore, max 100 chars
+const MODULE_NAME_RE = /^[a-zA-Z0-9_-]{1,100}$/;
+
+app.get('/api/module-loader/status', adminCrudRateLimit, adminSecretMiddleware, (req, res) => {
   res.json(moduleLoader.getStatus());
 });
 
-app.post('/api/module-loader/load', adminSecretMiddleware, (req, res) => {
+app.post('/api/module-loader/load', adminCrudRateLimit, adminSecretMiddleware, (req, res) => {
   const { name } = req.body || {};
-  if (!name) return res.status(400).json({ error: 'Module name required' });
-  const mod = moduleLoader.loadModule(sanitizeString(name, 100));
-  if (!mod) return res.status(404).json({ error: `Module "${name}" not found or failed to load` });
+  if (!name || !MODULE_NAME_RE.test(name)) return res.status(400).json({ error: 'Module name must be alphanumeric (a-z, 0-9, hyphen, underscore)' });
+  const mod = moduleLoader.loadModule(name);
+  if (!mod) return res.status(404).json({ error: 'Module not found or failed to load' });
   res.json({ ok: true, module: name, loaded: true });
 });
 
-app.post('/api/module-loader/reload', adminSecretMiddleware, (req, res) => {
+app.post('/api/module-loader/reload', adminCrudRateLimit, adminSecretMiddleware, (req, res) => {
   const { name } = req.body || {};
-  if (!name) return res.status(400).json({ error: 'Module name required' });
-  const mod = moduleLoader.reloadModule(sanitizeString(name, 100));
-  if (!mod) return res.status(500).json({ error: `Failed to reload module "${name}"` });
+  if (!name || !MODULE_NAME_RE.test(name)) return res.status(400).json({ error: 'Module name must be alphanumeric (a-z, 0-9, hyphen, underscore)' });
+  const mod = moduleLoader.reloadModule(name);
+  if (!mod) return res.status(500).json({ error: 'Failed to reload module' });
   res.json({ ok: true, module: name, reloaded: true });
 });
 
@@ -2314,7 +2325,7 @@ app.post('/api/guardian/authenticate', authRateLimit(10, 60_000), async (req, re
 });
 
 // ==================== GENERATED FUTURE MODULES (UEE Innovations) ====================
-app.get('/api/future-modules/status', adminSecretMiddleware, (req, res) => {
+app.get('/api/future-modules/status', adminCrudRateLimit, adminSecretMiddleware, (req, res) => {
   res.json({
     agiSelfEvolution: agiSelfEvolution.getStatus(),
     autonomousSpaceComputing: autonomousSpaceComputing.getStatus(),
@@ -2326,7 +2337,7 @@ app.get('/api/future-modules/status', adminSecretMiddleware, (req, res) => {
   });
 });
 
-app.post('/api/future-modules/:module/process', adminSecretMiddleware, async (req, res) => {
+app.post('/api/future-modules/:module/process', adminCrudRateLimit, adminSecretMiddleware, async (req, res) => {
   const moduleMap = {
     'agi-self-evolution': agiSelfEvolution,
     'autonomous-space-computing': autonomousSpaceComputing,
@@ -2387,15 +2398,15 @@ app.post('/api/innovation-engine/score', adminCrudRateLimit, adminTokenMiddlewar
 });
 
 // ==================== STATUS RUTE PENTRU MODULE DEJA IMPORTATE (fără rute) ====================
-app.get('/api/auto-deploy/status', adminSecretMiddleware, (req, res) => {
+app.get('/api/auto-deploy/status', adminCrudRateLimit, adminSecretMiddleware, (req, res) => {
   res.json({ active: true, module: 'AutoDeploy', watching: true, description: 'Monitorizează modificări și face push automat' });
 });
 
-app.get('/api/self-construction/status', adminSecretMiddleware, (req, res) => {
+app.get('/api/self-construction/status', adminCrudRateLimit, adminSecretMiddleware, (req, res) => {
   res.json({ active: true, module: 'SelfConstruction', description: 'Auto-construiește componente lipsă' });
 });
 
-app.get('/api/system-healer/status', adminSecretMiddleware, (req, res) => {
+app.get('/api/system-healer/status', adminCrudRateLimit, adminSecretMiddleware, (req, res) => {
   res.json({ active: true, module: 'TotalSystemHealer', description: 'Monitorizează și repară sistemul la 30s' });
 });
 

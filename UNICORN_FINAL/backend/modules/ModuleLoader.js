@@ -2,6 +2,14 @@
 // OWNERSHIP: Acest fișier este proprietatea exclusivă a lui Vladoi Ionut
 // Email: vladoi_ionut@yahoo.com
 // BTC Address: bc1q4f7e66z87mdfj56kz0dj5hvcnpmh0qh4wuv22e
+// Data: 2026-04-10T21:53:50.303Z
+// Orice copiere, modificare sau distribuție neautorizată este interzisă.
+// =====================================================================
+
+// =====================================================================
+// OWNERSHIP: Acest fișier este proprietatea exclusivă a lui Vladoi Ionut
+// Email: vladoi_ionut@yahoo.com
+// BTC Address: bc1q4f7e66z87mdfj56kz0dj5hvcnpmh0qh4wuv22e
 // Data: 2026-04-10T21:49:07.877Z
 // Orice copiere, modificare sau distribuție neautorizată este interzisă.
 // =====================================================================
@@ -112,7 +120,14 @@ const MODULES_DIR = path.join(__dirname);
 const loadedModules = new Map();
 const failedModules = new Map();
 
+// Only allow safe module names: alphanumeric, hyphen, underscore (prevents path traversal)
+const SAFE_NAME_RE = /^[a-zA-Z0-9_-]{1,100}$/;
+
 function loadModule(name) {
+  if (!SAFE_NAME_RE.test(name)) {
+    console.warn('[ModuleLoader] Rejected unsafe module name:', String(name).slice(0, 50));
+    return null;
+  }
   if (loadedModules.has(name)) return loadedModules.get(name);
 
   const filePath = path.join(MODULES_DIR, `${name}.js`);
@@ -163,6 +178,10 @@ function getStatus() {
 }
 
 function reloadModule(name) {
+  if (!SAFE_NAME_RE.test(name)) {
+    console.warn('[ModuleLoader] Rejected unsafe module name for reload:', String(name).slice(0, 50));
+    return null;
+  }
   if (loadedModules.has(name)) {
     const filePath = path.join(MODULES_DIR, `${name}.js`);
     delete require.cache[require.resolve(filePath)];
