@@ -2,6 +2,30 @@
 // OWNERSHIP: Acest fișier este proprietatea exclusivă a lui Vladoi Ionut
 // Email: vladoi_ionut@yahoo.com
 // BTC Address: bc1q4f7e66z87mdfj56kz0dj5hvcnpmh0qh4wuv22e
+// Data: 2026-04-10T22:02:34.732Z
+// Orice copiere, modificare sau distribuție neautorizată este interzisă.
+// =====================================================================
+
+// =====================================================================
+// OWNERSHIP: Acest fișier este proprietatea exclusivă a lui Vladoi Ionut
+// Email: vladoi_ionut@yahoo.com
+// BTC Address: bc1q4f7e66z87mdfj56kz0dj5hvcnpmh0qh4wuv22e
+// Data: 2026-04-10T21:56:32.841Z
+// Orice copiere, modificare sau distribuție neautorizată este interzisă.
+// =====================================================================
+
+// =====================================================================
+// OWNERSHIP: Acest fișier este proprietatea exclusivă a lui Vladoi Ionut
+// Email: vladoi_ionut@yahoo.com
+// BTC Address: bc1q4f7e66z87mdfj56kz0dj5hvcnpmh0qh4wuv22e
+// Data: 2026-04-10T21:56:16.597Z
+// Orice copiere, modificare sau distribuție neautorizată este interzisă.
+// =====================================================================
+
+// =====================================================================
+// OWNERSHIP: Acest fișier este proprietatea exclusivă a lui Vladoi Ionut
+// Email: vladoi_ionut@yahoo.com
+// BTC Address: bc1q4f7e66z87mdfj56kz0dj5hvcnpmh0qh4wuv22e
 // Data: 2026-04-10T20:34:58.210Z
 // Orice copiere, modificare sau distribuție neautorizată este interzisă.
 // =====================================================================
@@ -546,7 +570,7 @@ app.get('/api/health', (req, res) => {
       revenue: true,
       viral: true,
       eternalEngine: true,
-      uaic: !!_uaic && _uaic.models.length > 0,
+      uaic: !!_uaic && _uaic.getStatus().models > 0,
     },
     memory: {
       rss: Math.round(mem.rss / 1024 / 1024) + 'MB',
@@ -560,14 +584,19 @@ app.get('/api/health', (req, res) => {
   });
 });
 
-// ==================== AI CHAT ====================
-// 🤖 UAIC – Universal AI Connector (rutare inteligentă multi-provider)
-// 🦙 Llama bridge — optional local fallback (Ollama)
-let _uaic;
-try { _uaic = require('./modules/universalAIConnector'); } catch { _uaic = null; }
+// ==================== UNIVERSAL AI CONNECTOR (UAIC) ====================
+// 🤖 UAIC — orchestrează inteligent toate resursele AI (OpenAI, DeepSeek,
+//           Claude, Gemini, Ollama local). Activat automat la pornire.
+let _uaic = null;
+try { _uaic = require('./modules/universal-ai-connector'); } catch (e) {
+  console.warn('[UAIC] Nu s-a putut încărca Universal AI Connector:', e.message);
+}
 
-let _llamaBridge;
-try { _llamaBridge = require('./modules/llamaBridge'); } catch { _llamaBridge = null; }
+// 🦙 Llama bridge — also available standalone via /api/llama/status
+let _llamaBridge = null;
+try { _llamaBridge = require('./modules/llamaBridge'); } catch { /* optional */ }
+
+// ==================== AI CHAT ====================
 
 const CHAT_SYSTEM_PROMPT = 'You are Zeus AI Assistant, an expert in business automation, AI, blockchain, payments, and enterprise solutions. Be concise and helpful. You can also respond in Romanian if the user writes in Romanian.';
 
@@ -575,18 +604,24 @@ app.post('/api/chat', authRateLimit(30, 60_000), async (req, res) => {
   const { message, history = [] } = req.body || {};
   if (!message) return res.status(400).json({ error: 'message required' });
 
-  // 1️⃣ UAIC – routare automată la cel mai bun provider disponibil (cheapest first pentru chat)
-  if (_uaic && _uaic.models.length > 0) {
+  const messages = [
+    ...history.slice(-6).map(m => ({ role: m.role, content: m.content })),
+    { role: 'user', content: message },
+  ];
+
+  // 1️⃣ UAIC – routare automată la cel mai bun provider disponibil
+  if (_uaic) {
     try {
-      const result = await _uaic.ask(message, {
-        taskType: 'simple',
-        systemPrompt: CHAT_SYSTEM_PROMPT,
+      const result = await _uaic.ask({
+        type: 'simple',
+        prompt: message,
+        system: CHAT_SYSTEM_PROMPT,
+        messages,
         maxTokens: 400,
-        history,
       });
       return res.json({ reply: result.text, model: result.model });
     } catch (err) {
-      console.error('[Chat] UAIC error:', err.message);
+      console.warn('[Chat] UAIC a eșuat:', err.message);
     }
   }
 
@@ -622,17 +657,45 @@ app.post('/api/chat', authRateLimit(30, 60_000), async (req, res) => {
   ];
   const matched = KEYWORD_RESPONSES.find(([keywords]) => keywords.some(k => lower.includes(k)));
   const reply = matched ? matched[1] : 'Bun venit la Zeus AI! Sunt asistentul tău pentru business automation, AI, blockchain și plăți globale. Cum te pot ajuta?';
-
   res.json({ reply, model: 'keyword-fallback' });
 });
 
-// ==================== UAIC STATUS ====================
+// ==================== UAIC STATUS + ADMIN ====================
 app.get('/api/uaic/status', (req, res) => {
-  if (!_uaic) return res.json({ available: false, reason: 'module_not_loaded' });
-  res.json({ available: true, ...(_uaic.getStats()) });
+  if (!_uaic) return res.json({ active: false, reason: 'uaic_not_loaded' });
+  res.json(_uaic.getStatus());
 });
 
-app.use('/api/uaic', _uaic ? _uaic.getRouter(adminSecretMiddleware) : (req, res) => res.json({ error: 'UAIC not loaded' }));
+// Admin UAIC endpoints — rate-limited + admin-token required
+app.get('/api/admin/uaic/models', authRateLimit(60, 60_000), adminTokenMiddleware, (req, res) => {
+  if (!_uaic) return res.status(503).json({ error: 'UAIC not loaded' });
+  res.json(_uaic.getModels());
+});
+
+app.get('/api/admin/uaic/stats', authRateLimit(60, 60_000), adminTokenMiddleware, (req, res) => {
+  if (!_uaic) return res.status(503).json({ error: 'UAIC not loaded' });
+  res.json(_uaic.getStatus());
+});
+
+app.post('/api/admin/uaic/discover', authRateLimit(10, 60_000), adminTokenMiddleware, async (req, res) => {
+  if (!_uaic) return res.status(503).json({ error: 'UAIC not loaded' });
+  await _uaic.discoverNewModels();
+  res.json({ success: true, models: _uaic.getStatus().models });
+});
+
+app.post('/api/admin/uaic/ask', authRateLimit(30, 60_000), adminTokenMiddleware, async (req, res) => {
+  if (!_uaic) return res.status(503).json({ error: 'UAIC not loaded' });
+  const { type = 'simple', prompt, system, maxTokens, messages } = req.body || {};
+  if (!prompt && (!messages || messages.length === 0)) {
+    return res.status(400).json({ error: 'prompt or messages required' });
+  }
+  try {
+    const result = await _uaic.ask({ type, prompt, system, maxTokens, messages });
+    res.json(result);
+  } catch (err) {
+    res.status(503).json({ error: err.message });
+  }
+});
 
 // ==================== LLAMA STATUS ====================
 app.get('/api/llama/status', (req, res) => {
@@ -2099,6 +2162,7 @@ app.use((err, req, res, next) => {
 if (require.main === module) {
   app.listen(PORT, () => {
     console.log(`🚀 Unicorn autonom rulând pe portul ${PORT}`);
+    console.log(`🤖 Universal AI Connector (UAIC): ${_uaic ? 'ACTIVE' : 'DISABLED'}`);
     console.log(`✨ Autonomous Innovation Engine: ACTIVE`);
     console.log(`💰 Auto Revenue Generation: ACTIVE`);
     console.log(`♾️  Unicorn Eternal Engine: ACTIVE`);
@@ -2107,7 +2171,7 @@ if (require.main === module) {
     console.log(`🏛️  Legal Fortress: ACTIVE`);
     console.log(`⚡ Quantum Resilience Core: ACTIVE`);
     console.log(`📊 Executive Dashboard: ACTIVE`);
-    console.log(`🔗 38 modules total: CONNECTED`);
+    console.log(`🔗 38+ modules total: CONNECTED`);
   });
 }
 // Export Express app for Vercel serverless and testing
