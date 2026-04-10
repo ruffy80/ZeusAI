@@ -577,7 +577,7 @@ app.post('/api/chat', authRateLimit(30, 60_000), async (req, res) => {
     [['blockchain', 'crypto'], 'Modulul Quantum Blockchain oferă tranzacții securizate și smart contracts. Accesează /innovation/blockchain.'],
     [['compliance', 'legal'], 'Compliance Engine-ul acoperă GDPR, HIPAA, SOX și 25+ standarde globale. Accesează /innovation/legal.'],
     [['revenue', 'profit'], 'Auto Revenue Engine generează deal-uri autonom 24/7. Dashboard-ul executiv afișează metricele live la /executive.'],
-    [['plan', 'pricing', 'pret'], 'Planuri disponibile: Free ($0), Starter ($29/lună), Pro/$99/lună), Enterprise ($499/lună). Accesează /payments pentru upgrade.'],
+    [['plan', 'pricing', 'pret'], 'Planuri disponibile: Free ($0), Starter ($29/lună), Pro ($99/lună), Enterprise ($499/lună). Accesează /payments pentru upgrade.'],
     [['innovation', 'inova'], 'Innovation Command Center coordonează AI Workforce, M&A Advisor, Energy Grid și Quantum Blockchain. Accesează /innovation.'],
     [['admin', 'dashboard'], 'Dashboard-ul admin este disponibil la /admin/login. Dashboard-ul executiv la /executive.'],
   ];
