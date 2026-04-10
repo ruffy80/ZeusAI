@@ -2,6 +2,14 @@
 // OWNERSHIP: Acest fișier este proprietatea exclusivă a lui Vladoi Ionut
 // Email: vladoi_ionut@yahoo.com
 // BTC Address: bc1q4f7e66z87mdfj56kz0dj5hvcnpmh0qh4wuv22e
+// Data: 2026-04-10T20:26:26.900Z
+// Orice copiere, modificare sau distribuție neautorizată este interzisă.
+// =====================================================================
+
+// =====================================================================
+// OWNERSHIP: Acest fișier este proprietatea exclusivă a lui Vladoi Ionut
+// Email: vladoi_ionut@yahoo.com
+// BTC Address: bc1q4f7e66z87mdfj56kz0dj5hvcnpmh0qh4wuv22e
 // Data: 2026-04-10T19:17:59.229Z
 // Orice copiere, modificare sau distribuție neautorizată este interzisă.
 // =====================================================================
@@ -551,57 +559,47 @@ app.get('/api/health', (req, res) => {
   });
 });
 
+// ==================== UNIVERSAL AI CONNECTOR (UAIC) ====================
+// 🤖 UAIC — orchestrează inteligent toate resursele AI (OpenAI, DeepSeek,
+//           Claude, Gemini, Ollama local). Activat automat la pornire.
+let _uaic = null;
+try { _uaic = require('./modules/universal-ai-connector'); } catch (e) {
+  console.warn('[UAIC] Nu s-a putut încărca Universal AI Connector:', e.message);
+}
+
+// 🦙 Llama bridge — also available standalone via /api/llama/status
+let _llamaBridge = null;
+try { _llamaBridge = require('./modules/llamaBridge'); } catch { /* optional */ }
+
 // ==================== AI CHAT ====================
-// 🦙 Llama bridge — optional local fallback (Ollama)
-let _llamaBridge;
-try { _llamaBridge = require('./modules/llamaBridge'); } catch { _llamaBridge = null; }
+const ZEUS_SYSTEM = 'You are Zeus AI Assistant, an expert in business automation, AI, blockchain, payments, and enterprise solutions. Be concise and helpful. You can also respond in Romanian if the user writes in Romanian.';
 
 app.post('/api/chat', authRateLimit(30, 60_000), async (req, res) => {
   const { message, history = [] } = req.body || {};
   if (!message) return res.status(400).json({ error: 'message required' });
 
-  const OPENAI_KEY = process.env.OPENAI_API_KEY;
-  if (OPENAI_KEY && OPENAI_KEY !== 'your_openai_api_key_here') {
+  const messages = [
+    ...history.slice(-6).map(m => ({ role: m.role, content: m.content })),
+    { role: 'user', content: message },
+  ];
+
+  // 🤖 Route through UAIC (OpenAI → DeepSeek → Claude → Gemini → Llama)
+  if (_uaic) {
     try {
-      const messages = [
-        { role: 'system', content: 'You are Zeus AI Assistant, an expert in business automation, AI, blockchain, payments, and enterprise solutions. Be concise and helpful. You can also respond in Romanian if the user writes in Romanian.' },
-        ...history.slice(-6).map(m => ({ role: m.role, content: m.content })),
-        { role: 'user', content: message }
-      ];
-      const resp = await axios.post('https://api.openai.com/v1/chat/completions', {
-        model: 'gpt-4o-mini',
+      const result = await _uaic.ask({
+        type: 'chat',
+        prompt: message,
+        system: ZEUS_SYSTEM,
         messages,
-        max_tokens: 400,
-        temperature: 0.7,
-      }, {
-        headers: { Authorization: 'Bearer ' + OPENAI_KEY, 'Content-Type': 'application/json' },
-        timeout: 20000,
+        maxTokens: 400,
       });
-      return res.json({ reply: resp.data.choices[0].message.content, model: 'gpt-4o-mini' });
+      return res.json({ reply: result.text, model: result.model });
     } catch (err) {
-      console.error('[Chat] OpenAI error:', err.response?.data?.error?.message || err.message);
+      console.warn('[Chat] UAIC a eșuat:', err.message);
     }
   }
 
-  // 🦙 Llama local fallback (zero-cost, runs on Hetzner via Ollama)
-  if (_llamaBridge) {
-    const historyText = history.slice(-4)
-      .map(m => `${m.role === 'user' ? 'User' : 'Assistant'}: ${m.content}`)
-      .join('\n');
-    const prompt = historyText
-      ? `${historyText}\nUser: ${message}\nAssistant:`
-      : message;
-    const llamaReply = await _llamaBridge.generate(
-      prompt,
-      _llamaBridge.PRIORITY.CHAT,
-      'You are Zeus AI Assistant — expert in business automation, AI, blockchain, payments, and enterprise SaaS. Be concise and helpful. You can respond in Romanian if the user writes in Romanian.'
-    );
-    if (llamaReply) {
-      return res.json({ reply: llamaReply, model: 'llama-local' });
-    }
-  }
-
-  // Smart keyword fallback (static — when both OpenAI and Llama are unavailable)
+  // Smart keyword fallback (static — when all AI models are unavailable)
   const lower = message.toLowerCase();
   const KEYWORD_RESPONSES = [
     [['payment', 'plat'], 'Zeus AI suportă plăți via Stripe, PayPal, Bitcoin și alte 10+ metode. Accesează /payments pentru a iniția o tranzacție.'],
@@ -615,9 +613,23 @@ app.post('/api/chat', authRateLimit(30, 60_000), async (req, res) => {
   ];
   const matched = KEYWORD_RESPONSES.find(([keywords]) => keywords.some(k => lower.includes(k)));
   const reply = matched ? matched[1] : 'Bun venit la Zeus AI! Sunt asistentul tău pentru business automation, AI, blockchain și plăți globale. Cum te pot ajuta?';
-
   res.json({ reply, model: 'keyword-fallback' });
 });
+
+// ==================== UAIC STATUS + ADMIN ====================
+app.get('/api/uaic/status', (req, res) => {
+  if (!_uaic) return res.json({ active: false, reason: 'uaic_not_loaded' });
+  res.json(_uaic.getStatus());
+});
+
+app.use('/api/admin/uaic', adminTokenMiddleware, (() => {
+  if (!_uaic) {
+    const router = require('express').Router();
+    router.all('*', (req, res) => res.status(503).json({ error: 'UAIC not loaded' }));
+    return router;
+  }
+  return _uaic.getRouter((_req, _res, next) => next());
+})());
 
 // ==================== LLAMA STATUS ====================
 app.get('/api/llama/status', (req, res) => {
@@ -2084,6 +2096,7 @@ app.use((err, req, res, next) => {
 if (require.main === module) {
   app.listen(PORT, () => {
     console.log(`🚀 Unicorn autonom rulând pe portul ${PORT}`);
+    console.log(`🤖 Universal AI Connector (UAIC): ${_uaic ? 'ACTIVE' : 'DISABLED'}`);
     console.log(`✨ Autonomous Innovation Engine: ACTIVE`);
     console.log(`💰 Auto Revenue Generation: ACTIVE`);
     console.log(`♾️  Unicorn Eternal Engine: ACTIVE`);
@@ -2092,7 +2105,7 @@ if (require.main === module) {
     console.log(`🏛️  Legal Fortress: ACTIVE`);
     console.log(`⚡ Quantum Resilience Core: ACTIVE`);
     console.log(`📊 Executive Dashboard: ACTIVE`);
-    console.log(`🔗 38 modules total: CONNECTED`);
+    console.log(`🔗 38+ modules total: CONNECTED`);
   });
 }
 // Export Express app for Vercel serverless and testing
