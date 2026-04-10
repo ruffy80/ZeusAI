@@ -622,14 +622,36 @@ app.get('/api/uaic/status', (req, res) => {
   res.json(_uaic.getStatus());
 });
 
-app.use('/api/admin/uaic', authRateLimit(60, 60_000), adminTokenMiddleware, (() => {
-  if (!_uaic) {
-    const router = require('express').Router();
-    router.all('*', (req, res) => res.status(503).json({ error: 'UAIC not loaded' }));
-    return router;
+// Admin UAIC endpoints — rate-limited + admin-token required
+app.get('/api/admin/uaic/models', authRateLimit(60, 60_000), adminTokenMiddleware, (req, res) => {
+  if (!_uaic) return res.status(503).json({ error: 'UAIC not loaded' });
+  res.json(_uaic.getModels());
+});
+
+app.get('/api/admin/uaic/stats', authRateLimit(60, 60_000), adminTokenMiddleware, (req, res) => {
+  if (!_uaic) return res.status(503).json({ error: 'UAIC not loaded' });
+  res.json(_uaic.getStatus());
+});
+
+app.post('/api/admin/uaic/discover', authRateLimit(10, 60_000), adminTokenMiddleware, async (req, res) => {
+  if (!_uaic) return res.status(503).json({ error: 'UAIC not loaded' });
+  await _uaic.discoverNewModels();
+  res.json({ success: true, models: _uaic.getStatus().models });
+});
+
+app.post('/api/admin/uaic/ask', authRateLimit(30, 60_000), adminTokenMiddleware, async (req, res) => {
+  if (!_uaic) return res.status(503).json({ error: 'UAIC not loaded' });
+  const { type = 'simple', prompt, system, maxTokens, messages } = req.body || {};
+  if (!prompt && (!messages || messages.length === 0)) {
+    return res.status(400).json({ error: 'prompt or messages required' });
   }
-  return _uaic.getRouter((_req, _res, next) => next());
-})());
+  try {
+    const result = await _uaic.ask({ type, prompt, system, maxTokens, messages });
+    res.json(result);
+  } catch (err) {
+    res.status(503).json({ error: err.message });
+  }
+});
 
 // ==================== LLAMA STATUS ====================
 app.get('/api/llama/status', (req, res) => {
