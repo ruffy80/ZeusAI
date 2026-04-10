@@ -93,7 +93,28 @@ module.exports = {
       log_date_format: 'YYYY-MM-DD HH:mm:ss'
     },
 
-    // ── 5. Llama Bridge (starts Ollama serve at P4 / nice +10) ────────────────
+    // ── 5. Universal AI Connector — UAIC (model discovery & routing daemon) ──
+    // Runs independently to keep the AI model registry fresh.
+    // The backend also loads UAIC inline; this process handles cron discovery.
+    {
+      name: 'unicorn-uaic',
+      script: 'backend/modules/universal-ai-connector/index.js',
+      cwd: __dirname,
+      instances: 1,
+      autorestart: true,
+      watch: false,
+      max_restarts: 20,
+      restart_delay: 10000,
+      exp_backoff_restart_delay: 3000,
+      env: {
+        NODE_ENV: 'production',
+      },
+      error_file: 'logs/uaic-error.log',
+      out_file: 'logs/uaic-out.log',
+      log_date_format: 'YYYY-MM-DD HH:mm:ss'
+    },
+
+    // ── 6. Llama Bridge (starts Ollama serve at P4 / nice +10) ────────────────
     // Prerequisite: `ollama` must be installed on the server.
     // Install: curl -fsSL https://ollama.ai/install.sh | sh
     // Pull model: ollama pull llama3.1:8b-instruct-q4_K_M
