@@ -1523,6 +1523,26 @@ app.post('/api/executive/copilot', adminTokenMiddleware, (req, res) => {
   res.json(unicornInnovationSuite.askCopilot(req.body || {}));
 });
 
+// ── Executive Dashboard routes (JWT auth, used by ExecutiveDashboard.jsx) ──
+app.get('/api/admin/executive/stats', authRateLimit(60, 60_000), adminTokenMiddleware, (req, res) => {
+  res.json(executiveDashboard.getStats());
+});
+app.get('/api/admin/executive/revenue', authRateLimit(60, 60_000), adminTokenMiddleware, (req, res) => {
+  res.json(executiveDashboard.stats.revenue);
+});
+app.get('/api/admin/executive/modules', authRateLimit(60, 60_000), adminTokenMiddleware, (req, res) => {
+  res.json(executiveDashboard.stats.modules);
+});
+app.get('/api/admin/executive/innovations', authRateLimit(60, 60_000), adminTokenMiddleware, (req, res) => {
+  res.json(executiveDashboard.stats.innovations);
+});
+app.get('/api/admin/executive/health', authRateLimit(60, 60_000), adminTokenMiddleware, (req, res) => {
+  res.json(executiveDashboard.stats.health);
+});
+app.get('/api/admin/executive/growth', authRateLimit(60, 60_000), adminTokenMiddleware, (req, res) => {
+  res.json(executiveDashboard.stats.growth);
+});
+
 // 7) Security hardening APIs
 app.get('/api/security/sessions', adminTokenMiddleware, (req, res) => {
   res.json({ sessions: unicornInnovationSuite.listSessions() });
