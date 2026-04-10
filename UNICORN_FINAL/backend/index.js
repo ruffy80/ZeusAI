@@ -552,6 +552,10 @@ app.get('/api/health', (req, res) => {
 });
 
 // ==================== AI CHAT ====================
+// 🦙 Llama bridge — optional local fallback (Ollama)
+let _llamaBridge;
+try { _llamaBridge = require('./modules/llamaBridge'); } catch { _llamaBridge = null; }
+
 app.post('/api/chat', authRateLimit(30, 60_000), async (req, res) => {
   const { message, history = [] } = req.body || {};
   if (!message) return res.status(400).json({ error: 'message required' });
@@ -573,13 +577,31 @@ app.post('/api/chat', authRateLimit(30, 60_000), async (req, res) => {
         headers: { Authorization: 'Bearer ' + OPENAI_KEY, 'Content-Type': 'application/json' },
         timeout: 20000,
       });
-      return res.json({ reply: resp.data.choices[0].message.content });
+      return res.json({ reply: resp.data.choices[0].message.content, model: 'gpt-4o-mini' });
     } catch (err) {
       console.error('[Chat] OpenAI error:', err.response?.data?.error?.message || err.message);
     }
   }
 
-  // Smart keyword fallback
+  // 🦙 Llama local fallback (zero-cost, runs on Hetzner via Ollama)
+  if (_llamaBridge) {
+    const historyText = history.slice(-4)
+      .map(m => `${m.role === 'user' ? 'User' : 'Assistant'}: ${m.content}`)
+      .join('\n');
+    const prompt = historyText
+      ? `${historyText}\nUser: ${message}\nAssistant:`
+      : message;
+    const llamaReply = await _llamaBridge.generate(
+      prompt,
+      _llamaBridge.PRIORITY.CHAT,
+      'You are Zeus AI Assistant — expert in business automation, AI, blockchain, payments, and enterprise SaaS. Be concise and helpful. You can respond in Romanian if the user writes in Romanian.'
+    );
+    if (llamaReply) {
+      return res.json({ reply: llamaReply, model: 'llama-local' });
+    }
+  }
+
+  // Smart keyword fallback (static — when both OpenAI and Llama are unavailable)
   const lower = message.toLowerCase();
   const KEYWORD_RESPONSES = [
     [['payment', 'plat'], 'Zeus AI suportă plăți via Stripe, PayPal, Bitcoin și alte 10+ metode. Accesează /payments pentru a iniția o tranzacție.'],
@@ -594,10 +616,16 @@ app.post('/api/chat', authRateLimit(30, 60_000), async (req, res) => {
   const matched = KEYWORD_RESPONSES.find(([keywords]) => keywords.some(k => lower.includes(k)));
   const reply = matched ? matched[1] : 'Bun venit la Zeus AI! Sunt asistentul tău pentru business automation, AI, blockchain și plăți globale. Cum te pot ajuta?';
 
-  res.json({ reply });
+  res.json({ reply, model: 'keyword-fallback' });
 });
 
-// ==================== API KEY MIDDLEWARE ====================
+// ==================== LLAMA STATUS ====================
+app.get('/api/llama/status', (req, res) => {
+  if (!_llamaBridge) return res.json({ available: false, reason: 'bridge_not_loaded' });
+  res.json(_llamaBridge.getStatus());
+});
+
+
 // Middleware for public API access (used with x-api-key header)
 function apiKeyMiddleware(req, res, next) {
   const rawKey = req.headers['x-api-key'];
