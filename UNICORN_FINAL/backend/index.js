@@ -1113,60 +1113,6 @@ app.get('/api/marketplace/purchases/guest', (req, res) => {
   });
 });
 
-// ==================== WEALTH ENGINE ROUTES ====================
-// In-memory store for wealth engine settings (per-process, no persistence needed)
-const _wealthSettings = { multiplier: 1, allocation: 'balanced' };
-
-app.get('/api/wealth/stats', (req, res) => {
-  const revenueStatus = autoRevenue.getRevenueStatus();
-  res.json({
-    totalRevenue: parseFloat(revenueStatus.totalMonthlyRevenue) || 0,
-    activeUsers: revenueStatus.activeDeals || 0,
-    portfolioGrowth: 18.4,
-    riskScore: 32,
-    assetAllocation: { BTC: 40, ETH: 25, Stocks: 20, Cash: 15 },
-    recentTransactions: [],
-    multiplier: _wealthSettings.multiplier,
-    allocation: _wealthSettings.allocation,
-  });
-});
-
-app.post('/api/admin/wealth/settings', adminTokenMiddleware, (req, res) => {
-  const { multiplier, allocation } = req.body;
-  if (multiplier !== undefined) _wealthSettings.multiplier = parseFloat(multiplier) || 1;
-  if (allocation !== undefined) _wealthSettings.allocation = String(allocation);
-  res.json({ success: true, settings: _wealthSettings });
-});
-
-// ==================== BUSINESS DEVELOPMENT ROUTES ====================
-// In-memory BD store (deals + leads)
-const _bdStore = { deals: [], leads: [] };
-
-app.get('/api/bd/deals', adminTokenMiddleware, (req, res) => {
-  res.json(_bdStore.deals);
-});
-
-app.post('/api/bd/deals', adminTokenMiddleware, (req, res) => {
-  const { company, contact, value, stage, notes, id } = req.body || {};
-  if (!company) return res.status(400).json({ error: 'company is required' });
-  const deal = {
-    id: id || Date.now(),
-    company: String(company),
-    contact: String(contact || ''),
-    value: parseFloat(value) || 0,
-    stage: String(stage || 'prospecting'),
-    notes: String(notes || ''),
-    probability: stage === 'closed-won' ? 100 : stage === 'negotiation' ? 75 : stage === 'proposal' ? 50 : 20,
-    createdAt: new Date().toISOString(),
-  };
-  _bdStore.deals.push(deal);
-  res.json({ success: true, deal });
-});
-
-app.get('/api/bd/leads', adminTokenMiddleware, (req, res) => {
-  res.json(_bdStore.leads);
-});
-
 // ==================== PAYMENT ROUTES ====================
 app.get('/api/payment/methods', (req, res) => {
   res.json({ methods: paymentGateway.getPaymentMethods() });
@@ -1958,6 +1904,60 @@ app.delete('/api/admin/users/:id', adminCrudRateLimit, adminTokenMiddleware, (re
   if (!user) return res.status(404).json({ error: 'User not found' });
   const deleted = dbUsers.deleteById(req.params.id);
   res.json({ success: deleted, id: req.params.id });
+});
+
+// ==================== WEALTH ENGINE ROUTES ====================
+// In-memory store for wealth engine settings (per-process, no persistence needed)
+const _wealthSettings = { multiplier: 1, allocation: 'balanced' };
+
+app.get('/api/wealth/stats', adminCrudRateLimit, adminTokenMiddleware, (req, res) => {
+  const revenueStatus = autoRevenue.getRevenueStatus();
+  res.json({
+    totalRevenue: parseFloat(revenueStatus.totalMonthlyRevenue) || 0,
+    activeUsers: revenueStatus.activeDeals || 0,
+    portfolioGrowth: 18.4,
+    riskScore: 32,
+    assetAllocation: { BTC: 40, ETH: 25, Stocks: 20, Cash: 15 },
+    recentTransactions: [],
+    multiplier: _wealthSettings.multiplier,
+    allocation: _wealthSettings.allocation,
+  });
+});
+
+app.post('/api/admin/wealth/settings', adminCrudRateLimit, adminTokenMiddleware, (req, res) => {
+  const { multiplier, allocation } = req.body;
+  if (multiplier !== undefined) _wealthSettings.multiplier = parseFloat(multiplier) || 1;
+  if (allocation !== undefined) _wealthSettings.allocation = String(allocation);
+  res.json({ success: true, settings: _wealthSettings });
+});
+
+// ==================== BUSINESS DEVELOPMENT ROUTES ====================
+// In-memory BD store (deals + leads)
+const _bdStore = { deals: [], leads: [] };
+
+app.get('/api/bd/deals', adminCrudRateLimit, adminTokenMiddleware, (req, res) => {
+  res.json(_bdStore.deals);
+});
+
+app.post('/api/bd/deals', adminCrudRateLimit, adminTokenMiddleware, (req, res) => {
+  const { company, contact, value, stage, notes, id } = req.body || {};
+  if (!company) return res.status(400).json({ error: 'company is required' });
+  const deal = {
+    id: id || Date.now(),
+    company: String(company),
+    contact: String(contact || ''),
+    value: parseFloat(value) || 0,
+    stage: String(stage || 'prospecting'),
+    notes: String(notes || ''),
+    probability: stage === 'closed-won' ? 100 : stage === 'negotiation' ? 75 : stage === 'proposal' ? 50 : 20,
+    createdAt: new Date().toISOString(),
+  };
+  _bdStore.deals.push(deal);
+  res.json({ success: true, deal });
+});
+
+app.get('/api/bd/leads', adminCrudRateLimit, adminTokenMiddleware, (req, res) => {
+  res.json(_bdStore.leads);
 });
 
 // ==================== WEBHOOK DEPLOY (Hetzner fallback) ====================
