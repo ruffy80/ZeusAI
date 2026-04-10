@@ -153,7 +153,7 @@ app.use((req, res, next) => {
     "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; " +
     "font-src 'self' https://fonts.gstatic.com; " +
     "img-src 'self' data: blob: https:; " +
-    "connect-src 'self' https://api.openai.com https://js.stripe.com; " +
+    "connect-src 'self' https://api.openai.com https://api.deepseek.com https://api.anthropic.com https://generativelanguage.googleapis.com https://api.mistral.ai https://api.cohere.com https://api.x.ai https://js.stripe.com; " +
     "frame-src https://js.stripe.com; " +
     "object-src 'none'; " +
     "base-uri 'self';"
@@ -561,6 +561,8 @@ app.get('/api/health', (req, res) => {
 });
 
 // ==================== AI CHAT ====================
+// Provideri: OpenAI → DeepSeek → Anthropic → Gemini → Mistral → Cohere → xAI Grok → UAIC → Llama → keyword
+const _aiProviders = require('./modules/aiProviders');
 // 🤖 UAIC – Universal AI Connector (rutare inteligentă multi-provider)
 // 🦙 Llama bridge — optional local fallback (Ollama)
 let _uaic;
@@ -575,7 +577,11 @@ app.post('/api/chat', authRateLimit(30, 60_000), async (req, res) => {
   const { message, history = [] } = req.body || {};
   if (!message) return res.status(400).json({ error: 'message required' });
 
-  // 1️⃣ UAIC – routare automată la cel mai bun provider disponibil (cheapest first pentru chat)
+  // 1️⃣ Cloud AI providers cascade (OpenAI → DeepSeek → Anthropic → Gemini → Mistral → Cohere → xAI Grok)
+  const cloudResult = await _aiProviders.chat(message, history);
+  if (cloudResult) return res.json(cloudResult);
+
+  // 2️⃣ UAIC – routare automată la cel mai bun provider disponibil (cheapest first pentru chat)
   if (_uaic && _uaic.models.length > 0) {
     try {
       const result = await _uaic.ask(message, {
@@ -590,7 +596,7 @@ app.post('/api/chat', authRateLimit(30, 60_000), async (req, res) => {
     }
   }
 
-  // 2️⃣ Llama local fallback (zero-cost, rulează pe Hetzner via Ollama)
+  // 3️⃣ Llama local fallback (zero-cost, rulează pe Hetzner via Ollama)
   if (_llamaBridge) {
     const historyText = history.slice(-4)
       .map(m => `${m.role === 'user' ? 'User' : 'Assistant'}: ${m.content}`)
@@ -608,7 +614,7 @@ app.post('/api/chat', authRateLimit(30, 60_000), async (req, res) => {
     }
   }
 
-  // 3️⃣ Smart keyword fallback (static — când niciun AI nu e disponibil)
+  // 4️⃣ Smart keyword fallback (static — când niciun AI nu e disponibil)
   const lower = message.toLowerCase();
   const KEYWORD_RESPONSES = [
     [['payment', 'plat'], 'Zeus AI suportă plăți via Stripe, PayPal, Bitcoin și alte 10+ metode. Accesează /payments pentru a iniția o tranzacție.'],
@@ -638,6 +644,20 @@ app.use('/api/uaic', _uaic ? _uaic.getRouter(adminSecretMiddleware) : (req, res)
 app.get('/api/llama/status', (req, res) => {
   if (!_llamaBridge) return res.json({ available: false, reason: 'bridge_not_loaded' });
   res.json(_llamaBridge.getStatus());
+});
+
+// ==================== AI PROVIDERS STATUS ====================
+app.get('/api/ai/status', (req, res) => {
+  const providers = _aiProviders.getStatus();
+  const llama = _llamaBridge ? _llamaBridge.getStatus() : { available: false, reason: 'bridge_not_loaded' };
+  const activeCount = providers.filter(p => p.configured).length + (llama.available ? 1 : 0);
+  res.json({
+    providers,
+    llama,
+    activeCount,
+    total: providers.length + 1,
+    timestamp: new Date().toISOString(),
+  });
 });
 
 
