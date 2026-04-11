@@ -49,12 +49,12 @@ jobs:
       test_ok: ${{ steps.test.outcome }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
-      - name: Setup Node 20
-        uses: actions/setup-node@v4
+      - name: Setup Node 22
+        uses: actions/setup-node@v5
         with:
-          node-version: '20'
+          node-version: '22'
           cache: 'npm'
           cache-dependency-path: UNICORN_FINAL/package-lock.json
 
@@ -102,7 +102,7 @@ jobs:
       deploy_url: ${{ steps.deploy.outputs.deploy_url }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Validate Vercel credentials
         id: vercel_guard
@@ -122,11 +122,11 @@ jobs:
           echo "ready=true" >> "$GITHUB_OUTPUT"
           echo "✅ Vercel credentials validated"
 
-      - name: Setup Node 20
+      - name: Setup Node 22
         if: steps.vercel_guard.outputs.ready == 'true'
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v5
         with:
-          node-version: '20'
+          node-version: '22'
 
       - name: Install Vercel CLI
         if: steps.vercel_guard.outputs.ready == 'true'
@@ -400,12 +400,12 @@ jobs:
         working-directory: UNICORN_FINAL
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
-      - name: Setup Node 20
-        uses: actions/setup-node@v4
+      - name: Setup Node 22
+        uses: actions/setup-node@v5
         with:
-          node-version: '20'
+          node-version: '22'
 
       - name: Configure DNS records (Hetzner DNS → Cloudflare fallback)
         continue-on-error: true
@@ -428,7 +428,7 @@ jobs:
     if: github.event_name != 'pull_request'
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Resolve Hetzner target and channels
         run: |
