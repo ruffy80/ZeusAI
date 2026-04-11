@@ -522,6 +522,12 @@ jobs:
               apt-get install -y nodejs
             fi
 
+            # ── Ensure PM2 is installed globally ─────────────────────────
+            if ! command -v pm2 >/dev/null 2>&1; then
+              echo "📦 Installing PM2 globally..."
+              npm install -g pm2
+            fi
+
             # ── Update .env with Hetzner API token + domain + owner credentials ──
             for key in HETZNER_API_KEY HETZNER_API_TOKEN PUBLIC_APP_URL SITE_DOMAIN \
                        BTC_WALLET_ADDRESS OWNER_BTC_ADDRESS OWNER_EMAIL OWNER_NAME \
