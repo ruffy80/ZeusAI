@@ -12,42 +12,30 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
 const JWT_SECRET = process.env.JWT_SECRET || 'unicorn-jwt-secret-change-in-prod';
+const rateLimit = require('express-rate-limit');
 
 app.use(compression());
 app.use(cors());
 app.use(express.json());
 
-// ==================== RATE LIMITER (in-memory, no external dep) ====================
-function makeRateLimiter(maxRequests, windowMs) {
-  const store = new Map();
-  const cleanup = () => {
-    const now = Date.now();
-    for (const [key, info] of store) {
-      if (now - info.windowStart > windowMs * 2) store.delete(key);
-    }
-  };
-  setInterval(cleanup, windowMs).unref();
-  return (req, res, next) => {
-    const key = (req.ip || 'unknown') + ':' + (req.headers['x-auth-token'] || req.headers.authorization || '');
-    const now = Date.now();
-    const info = store.get(key) || { count: 0, windowStart: now };
-    if (now - info.windowStart > windowMs) {
-      info.count = 0;
-      info.windowStart = now;
-    }
-    info.count++;
-    store.set(key, info);
-    if (info.count > maxRequests) {
-      return res.status(429).json({ error: 'Too many requests — try again later' });
-    }
-    return next();
-  };
-}
+// ==================== RATE LIMITERS ====================
+const globalPublicRateLimit = rateLimit({
+  windowMs: 60_000,
+  max: parseInt(process.env.PUBLIC_RATE_LIMIT || '200', 10),
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Too many requests — try again later' },
+});
 
-const adminCrudRateLimit   = makeRateLimiter(parseInt(process.env.ADMIN_RATE_LIMIT   || '60',  10), 60_000);
-const globalPublicRateLimit = makeRateLimiter(parseInt(process.env.PUBLIC_RATE_LIMIT || '200', 10), 60_000);
+const adminCrudRateLimit = rateLimit({
+  windowMs: 60_000,
+  max: parseInt(process.env.ADMIN_RATE_LIMIT || '60', 10),
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Too many requests — try again later' },
+});
 
-// Apply global rate limit to all public routes
+// Apply global rate limit to all routes
 app.use(globalPublicRateLimit);
 
 // ==================== AUTH STORE (in-memory) ====================
