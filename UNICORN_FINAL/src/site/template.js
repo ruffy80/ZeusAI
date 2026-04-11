@@ -273,6 +273,71 @@ select.form-inp option{background:#0a0e24;}
 /* LOADER */
 .loader{display:inline-block;width:16px;height:16px;border:2px solid rgba(0,212,255,.2);border-top-color:#00d4ff;border-radius:50%;animation:spin .8s linear infinite;}
 
+/* NOTIFICATION BELL */
+.notif-bell{position:relative;background:none;border:none;color:#7090b0;font-size:18px;cursor:pointer;padding:6px;border-radius:8px;transition:color .2s;}
+.notif-bell:hover{color:#00d4ff;background:rgba(0,212,255,.08);}
+.notif-badge{position:absolute;top:2px;right:2px;background:#ff4444;color:#fff;border-radius:50%;width:16px;height:16px;font-size:10px;font-weight:700;display:flex;align-items:center;justify-content:center;line-height:1;}
+.notif-badge.hidden{display:none;}
+
+/* ADMIN TABS */
+.adm-tabs{display:flex;gap:4px;margin-bottom:20px;background:rgba(255,255,255,.04);border-radius:10px;padding:4px;flex-wrap:wrap;}
+.adm-tab-btn{background:none;border:none;color:#7090b0;font-family:'Rajdhani',sans-serif;font-size:13px;font-weight:600;padding:7px 14px;border-radius:8px;cursor:pointer;transition:all .2s;white-space:nowrap;}
+.adm-tab-btn.active{background:rgba(0,212,255,.15);color:#00d4ff;}
+.adm-tab-panel{display:none;}
+.adm-tab-panel.active{display:block;}
+
+/* DATA TABLE */
+.data-table{width:100%;border-collapse:collapse;font-size:13px;}
+.data-table th{color:#7090b0;font-weight:700;text-transform:uppercase;letter-spacing:.8px;font-size:11px;padding:8px 10px;border-bottom:1px solid rgba(0,200,255,.15);text-align:left;}
+.data-table td{padding:8px 10px;border-bottom:1px solid rgba(255,255,255,.04);vertical-align:middle;}
+.data-table tr:hover td{background:rgba(0,212,255,.04);}
+.tbl-wrap{overflow-x:auto;border-radius:10px;border:1px solid rgba(0,200,255,.12);}
+
+/* STATUS INDICATORS */
+.status-dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:6px;}
+.status-dot.ok{background:#00ffa3;box-shadow:0 0 6px #00ffa3;}
+.status-dot.warn{background:#f59e0b;box-shadow:0 0 6px #f59e0b;}
+.status-dot.err{background:#ff4444;box-shadow:0 0 6px #ff4444;}
+
+/* DASHBOARD SUB-TABS */
+.dash-tabs{display:flex;gap:4px;margin-bottom:20px;background:rgba(255,255,255,.04);border-radius:10px;padding:4px;}
+.dash-tab-btn{flex:1;background:none;border:none;color:#7090b0;font-family:'Rajdhani',sans-serif;font-size:13px;font-weight:600;padding:7px;border-radius:8px;cursor:pointer;transition:all .2s;text-align:center;}
+.dash-tab-btn.active{background:rgba(0,212,255,.15);color:#00d4ff;}
+.dash-tab-panel{display:none;}
+.dash-tab-panel.active{display:block;}
+
+/* WORKFLOW */
+.workflow-card{background:rgba(10,14,36,.8);border:1px solid rgba(0,200,255,.15);border-radius:12px;padding:14px 16px;margin-bottom:10px;display:flex;align-items:center;justify-content:space-between;gap:10px;}
+.workflow-name{font-weight:700;font-size:14px;color:#e8f4ff;}
+.workflow-status{font-size:11px;font-weight:700;padding:2px 8px;border-radius:999px;}
+.workflow-status.active{background:rgba(0,255,163,.15);color:#00ffa3;border:1px solid rgba(0,255,163,.3);}
+.workflow-status.inactive{background:rgba(192,132,252,.15);color:#c084fc;border:1px solid rgba(192,132,252,.3);}
+
+/* ALERT CARD */
+.alert-card{background:rgba(10,14,36,.8);border:1px solid rgba(0,200,255,.15);border-radius:12px;padding:12px 14px;margin-bottom:8px;}
+.alert-card.unread{border-color:rgba(0,212,255,.4);background:rgba(0,212,255,.05);}
+.alert-title{font-weight:700;font-size:13px;color:#e8f4ff;margin-bottom:4px;}
+.alert-desc{font-size:12px;color:#7090b0;line-height:1.5;}
+
+/* HEALTH SCORE */
+.health-ring{width:100px;height:100px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-family:'Orbitron',monospace;font-size:20px;font-weight:900;border:4px solid;}
+.health-ring.good{border-color:#00ffa3;color:#00ffa3;box-shadow:0 0 20px rgba(0,255,163,.3);}
+.health-ring.warn{border-color:#f59e0b;color:#f59e0b;box-shadow:0 0 20px rgba(245,158,11,.3);}
+.health-ring.poor{border-color:#ff4444;color:#ff4444;box-shadow:0 0 20px rgba(255,68,68,.3);}
+
+/* BD CRM */
+.deal-row{display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-bottom:1px solid rgba(255,255,255,.06);gap:10px;}
+.deal-row:last-child{border-bottom:0;}
+.deal-stage{font-size:10px;padding:2px 8px;border-radius:999px;font-weight:700;}
+.deal-stage.lead{background:rgba(192,132,252,.15);color:#c084fc;border:1px solid rgba(192,132,252,.3);}
+.deal-stage.prospect{background:rgba(0,212,255,.15);color:#00d4ff;border:1px solid rgba(0,212,255,.3);}
+.deal-stage.negotiation{background:rgba(245,158,11,.15);color:#f59e0b;border:1px solid rgba(245,158,11,.3);}
+.deal-stage.closed{background:rgba(0,255,163,.15);color:#00ffa3;border:1px solid rgba(0,255,163,.3);}
+
+/* CHAT STREAMING */
+.chat-cursor{display:inline-block;width:2px;height:14px;background:#00d4ff;margin-left:2px;animation:blink .7s infinite;}
+@keyframes blink{0%,100%{opacity:1;}50%{opacity:0;}}
+
 /* RESPONSIVE NAV */
 @media(max-width:700px){
   .hdr-nav .nav-btn span{display:none;}
@@ -306,6 +371,9 @@ select.form-inp option{background:#0a0e24;}
   </nav>
   <div class="hdr-right">
     <div class="btc-ticker" id="btc-ticker">BTC $—</div>
+    <button class="notif-bell" id="notif-bell" onclick="toggleNotifPanel()" title="Opportunity Alerts" style="display:none">
+      🔔<span class="notif-badge hidden" id="notif-count">0</span>
+    </button>
     <div id="hdr-auth">
       <button class="btn btn-outline btn-sm" onclick="openModal('auth-modal')">Login</button>
     </div>
@@ -476,8 +544,31 @@ select.form-inp option{background:#0a0e24;}
   <!-- DASHBOARD VIEW -->
   <div id="view-dashboard" class="view">
     <div class="sec-title">My Dashboard</div>
-    <div id="dash-content">
-      <div style="text-align:center;padding:60px;color:#7090b0;">Loading dashboard...</div>
+    <div class="dash-tabs">
+      <button class="dash-tab-btn active" data-dtab="overview" onclick="switchDashTab('overview')">📊 Overview</button>
+      <button class="dash-tab-btn" data-dtab="workflows" onclick="switchDashTab('workflows')">⚙️ Workflows</button>
+      <button class="dash-tab-btn" data-dtab="alerts" onclick="switchDashTab('alerts')">🔔 Alerts</button>
+      <button class="dash-tab-btn" data-dtab="profile" onclick="switchDashTab('profile')">👤 Profile</button>
+    </div>
+    <div class="dash-tab-panel active" id="dtab-overview">
+      <div id="dash-content">
+        <div style="text-align:center;padding:60px;color:#7090b0;">Loading dashboard...</div>
+      </div>
+    </div>
+    <div class="dash-tab-panel" id="dtab-workflows">
+      <div id="workflows-content">
+        <div style="text-align:center;padding:40px;"><div class="loader"></div></div>
+      </div>
+    </div>
+    <div class="dash-tab-panel" id="dtab-alerts">
+      <div id="alerts-content">
+        <div style="text-align:center;padding:40px;"><div class="loader"></div></div>
+      </div>
+    </div>
+    <div class="dash-tab-panel" id="dtab-profile">
+      <div id="profile-content">
+        <div style="text-align:center;padding:40px;"><div class="loader"></div></div>
+      </div>
     </div>
   </div><!-- end #view-dashboard -->
 
@@ -500,20 +591,123 @@ select.form-inp option{background:#0a0e24;}
       </div>
     </div>
     <div id="admin-panel-section" style="display:none">
-      <div class="grid-3" style="margin-bottom:20px;">
-        <div class="card card-sm"><div class="label">Health</div><div class="kpi-val green" id="adm-health">—</div></div>
-        <div class="card card-sm"><div class="label">Uptime</div><div class="kpi-val cyan" id="adm-uptime">—</div></div>
-        <div class="card card-sm"><div class="label">Active Users</div><div class="kpi-val" id="adm-users">—</div></div>
+      <div class="adm-tabs">
+        <button class="adm-tab-btn active" data-atab="overview" onclick="switchAdminTab('overview')">📊 Overview</button>
+        <button class="adm-tab-btn" data-atab="users" onclick="switchAdminTab('users')">👥 Users</button>
+        <button class="adm-tab-btn" data-atab="revenue" onclick="switchAdminTab('revenue')">💰 Revenue</button>
+        <button class="adm-tab-btn" data-atab="system" onclick="switchAdminTab('system')">🛡️ System</button>
+        <button class="adm-tab-btn" data-atab="ai" onclick="switchAdminTab('ai')">🤖 AI</button>
+        <button class="adm-tab-btn" data-atab="crm" onclick="switchAdminTab('crm')">🤝 CRM</button>
       </div>
-      <div class="card" style="margin-bottom:20px;">
-        <div class="dash-section-title">BTC Collection Address</div>
-        <div class="btc-addr" onclick="copyText('bc1q4f7e66z87mdfj56kz0dj5hvcnpmh0qh4wuv22e',this)">bc1q4f7e66z87mdfj56kz0dj5hvcnpmh0qh4wuv22e</div>
-        <p class="muted" style="font-size:12px;margin-top:8px;">Owner: Vladoi Ionut | vladoi_ionut@yahoo.com</p>
+      <!-- OVERVIEW TAB -->
+      <div class="adm-tab-panel active" id="atab-overview">
+        <div class="grid-3" style="margin-bottom:20px;">
+          <div class="card card-sm"><div class="label">Health</div><div class="kpi-val green" id="adm-health">—</div></div>
+          <div class="card card-sm"><div class="label">Uptime</div><div class="kpi-val cyan" id="adm-uptime">—</div></div>
+          <div class="card card-sm"><div class="label">Active Users</div><div class="kpi-val" id="adm-users">—</div></div>
+        </div>
+        <div class="card" style="margin-bottom:20px;">
+          <div class="dash-section-title">BTC Collection Address</div>
+          <div class="btc-addr" onclick="copyText('bc1q4f7e66z87mdfj56kz0dj5hvcnpmh0qh4wuv22e',this)">bc1q4f7e66z87mdfj56kz0dj5hvcnpmh0qh4wuv22e</div>
+          <p class="muted" style="font-size:12px;margin-top:8px;">Owner: Vladoi Ionut | vladoi_ionut@yahoo.com</p>
+        </div>
+        <div class="card" style="margin-bottom:20px;">
+          <div class="dash-section-title">Platform Snapshot</div>
+          <div id="adm-snapshot" style="font-size:12px;color:#7090b0;"></div>
+        </div>
       </div>
-      <div class="card">
-        <div class="dash-section-title">Admin API Access</div>
-        <p class="muted" style="font-size:13px;">Full admin dashboard available via <code style="color:#00d4ff">/api/admin/*</code> endpoints using your admin JWT token.</p>
-        <div id="adm-snapshot" style="margin-top:12px;font-size:12px;color:#7090b0;"></div>
+      <!-- USERS TAB -->
+      <div class="adm-tab-panel" id="atab-users">
+        <div class="card">
+          <div style="display:flex;gap:10px;align-items:center;margin-bottom:16px;flex-wrap:wrap;">
+            <input class="inp-field" type="text" id="usr-search" placeholder="🔍 Search by email or name..." style="flex:1;min-width:200px;" oninput="loadAdminUsers()"/>
+            <button class="btn btn-outline btn-sm" onclick="loadAdminUsers()">Refresh</button>
+          </div>
+          <div class="tbl-wrap" id="users-tbl-wrap">
+            <div style="text-align:center;padding:30px;"><div class="loader"></div></div>
+          </div>
+          <div id="users-pagination" style="display:flex;gap:8px;justify-content:flex-end;margin-top:12px;align-items:center;font-size:13px;color:#7090b0;"></div>
+        </div>
+      </div>
+      <!-- REVENUE TAB -->
+      <div class="adm-tab-panel" id="atab-revenue">
+        <div class="grid-3" style="margin-bottom:20px;" id="rev-kpis">
+          <div class="card card-sm"><div class="label">Total Revenue</div><div class="kpi-val green" id="rev-total">—</div></div>
+          <div class="card card-sm"><div class="label">MRR</div><div class="kpi-val cyan" id="rev-mrr">—</div></div>
+          <div class="card card-sm"><div class="label">Profit Margin</div><div class="kpi-val" id="rev-margin">—</div></div>
+        </div>
+        <div class="card" style="margin-bottom:16px;">
+          <div class="dash-section-title">Revenue Breakdown</div>
+          <div id="rev-breakdown" style="color:#7090b0;font-size:13px;padding:10px 0;">Loading...</div>
+        </div>
+        <div class="card">
+          <div class="dash-section-title">Growth Metrics</div>
+          <div id="rev-growth" style="color:#7090b0;font-size:13px;padding:10px 0;">Loading...</div>
+        </div>
+      </div>
+      <!-- SYSTEM TAB -->
+      <div class="adm-tab-panel" id="atab-system">
+        <div class="grid-3" style="margin-bottom:16px;">
+          <div class="card card-sm" id="sys-slo-card">
+            <div class="label">SLO Status</div>
+            <div id="sys-slo" class="kpi-val" style="font-size:16px;">—</div>
+          </div>
+          <div class="card card-sm" id="sys-cb-card">
+            <div class="label">Circuit Breaker</div>
+            <div id="sys-cb" class="kpi-val" style="font-size:16px;">—</div>
+          </div>
+          <div class="card card-sm" id="sys-canary-card">
+            <div class="label">Canary</div>
+            <div id="sys-canary" class="kpi-val" style="font-size:16px;">—</div>
+          </div>
+        </div>
+        <div class="card" style="margin-bottom:16px;">
+          <div class="dash-section-title">Control Plane Decisions</div>
+          <div id="sys-decisions" style="font-size:12px;color:#7090b0;">Loading...</div>
+        </div>
+        <div class="card">
+          <div class="dash-section-title">Profit Loop Status</div>
+          <div id="sys-profit-loop" style="font-size:12px;color:#7090b0;">Loading...</div>
+          <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap;">
+            <button class="btn btn-outline btn-sm" onclick="loadAdminSystem()">🔄 Refresh</button>
+            <button class="btn btn-ghost btn-sm" onclick="adminResetCircuitBreaker()">Reset CB</button>
+          </div>
+        </div>
+      </div>
+      <!-- AI TAB -->
+      <div class="adm-tab-panel" id="atab-ai">
+        <div class="card" style="margin-bottom:16px;">
+          <div class="dash-section-title">AI Providers Status</div>
+          <div id="ai-providers-list" style="color:#7090b0;font-size:13px;">Loading...</div>
+        </div>
+        <div class="card" style="margin-bottom:16px;">
+          <div class="dash-section-title">UAIC Models</div>
+          <div id="ai-uaic-models" style="color:#7090b0;font-size:13px;">Loading...</div>
+        </div>
+        <div class="card">
+          <div class="dash-section-title">Ask UAIC (Admin)</div>
+          <div style="display:flex;gap:8px;margin-bottom:10px;">
+            <input class="inp-field" type="text" id="uaic-query" placeholder="Ask the AI anything..." style="flex:1;"/>
+            <button class="btn btn-primary btn-sm" onclick="askUaic()">Ask</button>
+          </div>
+          <div id="uaic-response" style="font-size:13px;color:#e8f4ff;background:rgba(0,212,255,.05);border:1px solid rgba(0,212,255,.1);border-radius:8px;padding:10px;min-height:40px;display:none;"></div>
+        </div>
+      </div>
+      <!-- CRM TAB -->
+      <div class="adm-tab-panel" id="atab-crm">
+        <div class="card" style="margin-bottom:16px;">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;">
+            <div class="dash-section-title" style="margin:0;">BD Deals</div>
+            <button class="btn btn-primary btn-sm" onclick="openAddDealModal()">+ New Deal</button>
+          </div>
+          <div id="crm-deals-list">
+            <div style="text-align:center;padding:20px;"><div class="loader"></div></div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="dash-section-title">Leads</div>
+          <div id="crm-leads-list" style="color:#7090b0;font-size:13px;">Loading...</div>
+        </div>
       </div>
     </div>
   </div><!-- end #view-admin -->
@@ -582,6 +776,46 @@ select.form-inp option{background:#0a0e24;}
   </div>
 </div>
 
+<!-- ADD DEAL MODAL -->
+<div class="modal-backdrop hidden" id="add-deal-modal" onclick="backdropClose(event,'add-deal-modal')">
+  <div class="modal-box" onclick="event.stopPropagation()">
+    <button class="modal-close" onclick="closeModal('add-deal-modal')">✕</button>
+    <div class="modal-title">New BD Deal</div>
+    <div class="inp-group">
+      <label class="inp-label">Company</label>
+      <input class="inp-field" type="text" id="deal-company" placeholder="Company Name"/>
+    </div>
+    <div class="inp-group">
+      <label class="inp-label">Value ($)</label>
+      <input class="inp-field" type="number" id="deal-value" placeholder="e.g. 50000"/>
+    </div>
+    <div class="inp-group">
+      <label class="inp-label">Stage</label>
+      <select class="inp-field" id="deal-stage">
+        <option value="lead">Lead</option>
+        <option value="prospect">Prospect</option>
+        <option value="negotiation">Negotiation</option>
+        <option value="closed">Closed</option>
+      </select>
+    </div>
+    <div class="inp-group">
+      <label class="inp-label">Notes</label>
+      <input class="inp-field" type="text" id="deal-notes" placeholder="Optional notes"/>
+    </div>
+    <div id="deal-msg"></div>
+    <button class="btn btn-primary" style="width:100%;margin-top:8px;" onclick="submitDeal()">💼 Add Deal</button>
+  </div>
+</div>
+
+<!-- NOTIFICATION PANEL -->
+<div id="notif-panel" style="position:fixed;top:70px;right:20px;z-index:190;width:300px;background:#0a0e24;border:1px solid rgba(0,200,255,.3);border-radius:16px;box-shadow:0 10px 40px rgba(0,0,0,.6);display:none;">
+  <div style="padding:12px 16px;border-bottom:1px solid rgba(0,200,255,.15);display:flex;align-items:center;justify-content:space-between;">
+    <span style="font-family:Orbitron,monospace;font-size:13px;color:#00d4ff;font-weight:700;">Opportunity Alerts</span>
+    <button style="background:none;border:none;color:#7090b0;cursor:pointer;font-size:14px;" onclick="closeNotifPanel()">✕</button>
+  </div>
+  <div id="notif-list" style="max-height:320px;overflow-y:auto;padding:8px;"></div>
+</div>
+
 <!-- CHAT WIDGET -->
 <button id="chat-fab" onclick="toggleChat()">💬 Zeus AI</button>
 <div id="chat-panel" class="hidden">
@@ -614,7 +848,11 @@ var STATE = {
   services: [],
   filteredServices: [],
   pricingYearly: false,
-  countdownTimer: null
+  countdownTimer: null,
+  adminTab: 'overview',
+  dashTab: 'overview',
+  adminUsersPage: 1,
+  notifOpen: false
 };
 
 // ================================================================
@@ -693,7 +931,7 @@ function navigate(view){
   else if(view==='pricing') loadPricing();
   else if(view==='dashboard'){
     if(!isLoggedIn()){openModal('auth-modal');return;}
-    loadDashboard();
+    switchDashTab(STATE.dashTab||'overview');
   }
   else if(view==='admin') initAdmin();
   window.scrollTo(0,0);
@@ -735,6 +973,8 @@ function updateHeaderAuth(){
   document.getElementById('hdr-user').style.display=loggedIn?'flex':'none';
   var dashBtn=document.getElementById('nav-dashboard');
   if(dashBtn) dashBtn.style.display=loggedIn?'':'none';
+  var bell=document.getElementById('notif-bell');
+  if(bell) bell.style.display=loggedIn?'block':'none';
   if(loggedIn&&STATE.user){
     var av=document.getElementById('user-avatar');
     if(av) av.textContent=(STATE.user.name||STATE.user.email||'?').charAt(0).toUpperCase();
@@ -1129,13 +1369,233 @@ async function generateReferral(){
 }
 
 // ================================================================
+// DASHBOARD SUB-TABS
+// ================================================================
+function switchDashTab(tab){
+  STATE.dashTab=tab;
+  document.querySelectorAll('.dash-tab-btn').forEach(function(b){b.classList.toggle('active',b.dataset.dtab===tab);});
+  document.querySelectorAll('.dash-tab-panel').forEach(function(p){p.classList.remove('active');});
+  var el=document.getElementById('dtab-'+tab);
+  if(el) el.classList.add('active');
+  if(tab==='overview') loadDashboard();
+  else if(tab==='workflows') loadWorkflows();
+  else if(tab==='alerts') loadAlerts();
+  else if(tab==='profile') loadProfile();
+}
+
+async function loadWorkflows(){
+  var el=document.getElementById('workflows-content');
+  if(!el) return;
+  el.innerHTML='<div style="text-align:center;padding:30px;"><div class="loader"></div></div>';
+  var r=await api('GET','/api/workflows');
+  var wfs=(r.workflows||r.data||r||[]);
+  if(!Array.isArray(wfs)) wfs=[];
+  el.innerHTML='<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">'
+    +'<div style="color:#7090b0;font-size:13px;">'+wfs.length+' workflow(s)</div>'
+    +'<button class="btn btn-primary btn-sm" onclick="openCreateWorkflowModal()">+ New Workflow</button>'
+    +'</div>'
+    +(wfs.length?wfs.map(function(w){
+      var statusCls=(w.status==='active')?'active':'inactive';
+      return '<div class="workflow-card">'
+        +'<div><div class="workflow-name">'+escHtml(w.name||w.id||'Workflow')+'</div>'
+        +'<div style="font-size:12px;color:#7090b0;margin-top:3px;">'+escHtml(w.description||w.trigger||'Automated workflow')+'</div>'
+        +'<div style="font-size:11px;color:#7090b0;margin-top:2px;">Steps: '+(w.steps?w.steps.length:0)
+        +' | Runs: '+(w.runs||w.runCount||0)+'</div></div>'
+        +'<div style="display:flex;gap:6px;align-items:center;">'
+        +'<span class="workflow-status '+statusCls+'">'+(w.status||'inactive')+'</span>'
+        +'<button class="btn btn-ghost btn-sm" onclick="runWorkflow(\''+escAttr(String(w.id||''))+'\')" title="Run">▶</button>'
+        +'<button class="btn btn-danger btn-sm" onclick="deleteWorkflow(\''+escAttr(String(w.id||''))+'\')" title="Delete">✕</button>'
+        +'</div></div>';
+    }).join(''):'<div class="card" style="text-align:center;padding:40px;color:#7090b0;"><p>No workflows yet.</p><button class="btn btn-outline" style="margin-top:12px;" onclick="openCreateWorkflowModal()">Create your first workflow</button></div>');
+}
+
+function openCreateWorkflowModal(){
+  if(!isLoggedIn()){openModal('auth-modal');return;}
+  var name=prompt('Workflow name:');
+  if(!name) return;
+  var desc=prompt('Description (optional):') || '';
+  createWorkflow(name,desc);
+}
+
+async function createWorkflow(name,desc){
+  var r=await api('POST','/api/workflows',{name:name,description:desc,steps:[],trigger:'manual'});
+  if(r.error){toast(r.error||'Failed to create workflow','err');return;}
+  toast('Workflow created!','ok');
+  loadWorkflows();
+}
+
+async function runWorkflow(id){
+  var r=await api('POST','/api/workflows/'+id+'/run',{});
+  if(r.error){toast(r.error,'err');return;}
+  toast('Workflow started!','ok');
+}
+
+async function deleteWorkflow(id){
+  if(!confirm('Delete this workflow?')) return;
+  var r=await api('DELETE','/api/workflows/'+id);
+  if(r.error){toast(r.error,'err');return;}
+  toast('Workflow deleted.','ok');
+  loadWorkflows();
+}
+
+async function loadAlerts(){
+  var el=document.getElementById('alerts-content');
+  if(!el) return;
+  el.innerHTML='<div style="text-align:center;padding:30px;"><div class="loader"></div></div>';
+  var [alerts,opps]=await Promise.all([
+    api('GET','/api/opportunity/alerts/unread'),
+    api('GET','/api/opportunity/list')
+  ]);
+  var unread=(alerts.alerts||alerts.data||[]);
+  var opList=(opps.opportunities||opps.data||[]);
+  if(!Array.isArray(unread)) unread=[];
+  if(!Array.isArray(opList)) opList=[];
+  el.innerHTML='<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">'
+    +'<div><span class="badge">'+unread.length+' unread</span></div>'
+    +(unread.length?'<button class="btn btn-ghost btn-sm" onclick="markAllAlertsRead()">Mark all read</button>':'')
+    +'</div>';
+  if(unread.length){
+    el.innerHTML+=unread.map(function(a){
+      return '<div class="alert-card unread">'
+        +'<div class="alert-title">'+escHtml(a.title||a.type||'New Opportunity')+'</div>'
+        +'<div class="alert-desc">'+escHtml(a.description||a.message||'')+'</div>'
+        +(a.value?'<div style="margin-top:6px;font-size:12px;font-weight:700;color:#00ffa3;">Value: $'+escHtml(String(a.value))+'</div>':'')
+        +'</div>';
+    }).join('');
+  }
+  if(opList.length){
+    el.innerHTML+='<div class="sec-title" style="font-size:14px;margin-top:20px;">All Opportunities</div>';
+    el.innerHTML+=opList.slice(0,10).map(function(o){
+      return '<div class="alert-card">'
+        +'<div class="alert-title">'+escHtml(o.title||o.type||'Opportunity')+'</div>'
+        +'<div class="alert-desc">'+escHtml(o.description||o.details||'')+'</div>'
+        +(o.score?'<div style="margin-top:4px;font-size:11px;color:#c084fc;">Score: '+escHtml(String(o.score))+'</div>':'')
+        +'</div>';
+    }).join('');
+  }
+  if(!unread.length&&!opList.length){
+    el.innerHTML+='<div class="card" style="text-align:center;padding:40px;color:#7090b0;">No alerts or opportunities at this time.</div>';
+  }
+}
+
+async function markAllAlertsRead(){
+  await api('POST','/api/opportunity/alerts/read',{});
+  toast('All alerts marked as read.','ok');
+  loadAlerts();
+  updateNotifBadge(0);
+}
+
+async function loadProfile(){
+  var el=document.getElementById('profile-content');
+  if(!el) return;
+  var u=STATE.user||{};
+  el.innerHTML='<div class="card" style="max-width:500px;">'
+    +'<div class="dash-section-title">Update Profile</div>'
+    +'<div class="inp-group"><label class="inp-label">Name</label>'
+    +'<input class="inp-field" type="text" id="prof-name" value="'+escAttr(u.name||'')+'"/></div>'
+    +'<div class="inp-group"><label class="inp-label">Email</label>'
+    +'<input class="inp-field" type="email" id="prof-email" value="'+escAttr(u.email||'')+'" readonly style="opacity:.6;cursor:not-allowed;"/></div>'
+    +'<div id="prof-msg"></div>'
+    +'<button class="btn btn-primary btn-sm" style="margin-top:4px;" onclick="saveProfile()">💾 Save Profile</button>'
+    +'</div>'
+    +'<div class="card" style="max-width:500px;margin-top:16px;">'
+    +'<div class="dash-section-title">Change Password</div>'
+    +'<div class="inp-group"><label class="inp-label">Current Password</label>'
+    +'<input class="inp-field" type="password" id="prof-cur-pass" placeholder="Current password"/></div>'
+    +'<div class="inp-group"><label class="inp-label">New Password</label>'
+    +'<input class="inp-field" type="password" id="prof-new-pass" placeholder="Min 8 characters"/></div>'
+    +'<div class="inp-group"><label class="inp-label">Confirm New Password</label>'
+    +'<input class="inp-field" type="password" id="prof-conf-pass" placeholder="Repeat new password"/></div>'
+    +'<div id="pass-msg"></div>'
+    +'<button class="btn btn-outline btn-sm" style="margin-top:4px;" onclick="changePassword()">🔑 Change Password</button>'
+    +'</div>';
+}
+
+async function saveProfile(){
+  var name=document.getElementById('prof-name').value.trim();
+  var msg=document.getElementById('prof-msg');
+  if(!name){msg.innerHTML='<div class="msg-err">Name cannot be empty.</div>';return;}
+  var r=await api('PUT','/api/auth/profile',{name:name});
+  if(r.error){msg.innerHTML='<div class="msg-err">'+escHtml(r.error)+'</div>';return;}
+  STATE.user=Object.assign(STATE.user||{},{name:name});
+  localStorage.setItem('zeus_user',JSON.stringify(STATE.user));
+  updateHeaderAuth();
+  msg.innerHTML='<div class="msg-ok">Profile updated!</div>';
+  setTimeout(function(){msg.innerHTML='';},2000);
+}
+
+async function changePassword(){
+  var cur=document.getElementById('prof-cur-pass').value;
+  var nw=document.getElementById('prof-new-pass').value;
+  var cf=document.getElementById('prof-conf-pass').value;
+  var msg=document.getElementById('pass-msg');
+  if(!cur||!nw||!cf){msg.innerHTML='<div class="msg-err">All fields required.</div>';return;}
+  if(nw!==cf){msg.innerHTML='<div class="msg-err">New passwords do not match.</div>';return;}
+  if(nw.length<8){msg.innerHTML='<div class="msg-err">Min 8 characters.</div>';return;}
+  var r=await api('POST','/api/auth/change-password',{currentPassword:cur,newPassword:nw});
+  if(r.error){msg.innerHTML='<div class="msg-err">'+escHtml(r.error||'Failed')+'</div>';return;}
+  msg.innerHTML='<div class="msg-ok">Password changed successfully!</div>';
+  document.getElementById('prof-cur-pass').value='';
+  document.getElementById('prof-new-pass').value='';
+  document.getElementById('prof-conf-pass').value='';
+  setTimeout(function(){msg.innerHTML='';},2500);
+}
+
+// ================================================================
+// NOTIFICATIONS
+// ================================================================
+function toggleNotifPanel(){
+  STATE.notifOpen=!STATE.notifOpen;
+  var panel=document.getElementById('notif-panel');
+  if(panel) panel.style.display=STATE.notifOpen?'block':'none';
+  if(STATE.notifOpen) pollNotifications();
+}
+
+function closeNotifPanel(){
+  STATE.notifOpen=false;
+  var panel=document.getElementById('notif-panel');
+  if(panel) panel.style.display='none';
+}
+
+function updateNotifBadge(count){
+  var badge=document.getElementById('notif-count');
+  if(!badge) return;
+  if(count>0){
+    badge.textContent=count>99?'99+':String(count);
+    badge.classList.remove('hidden');
+  } else {
+    badge.classList.add('hidden');
+  }
+}
+
+async function pollNotifications(){
+  if(!isLoggedIn()) return;
+  var r=await api('GET','/api/opportunity/alerts/unread').catch(function(){return {};});
+  var items=(r.alerts||r.data||[]);
+  if(!Array.isArray(items)) items=[];
+  updateNotifBadge(items.length);
+  var list=document.getElementById('notif-list');
+  if(!list) return;
+  if(!items.length){
+    list.innerHTML='<div style="padding:16px;text-align:center;color:#7090b0;font-size:13px;">No unread alerts</div>';
+    return;
+  }
+  list.innerHTML=items.slice(0,8).map(function(a){
+    return '<div style="padding:10px 12px;border-bottom:1px solid rgba(0,200,255,.1);cursor:pointer;" onclick="switchDashTab(\'alerts\');closeNotifPanel();navigate(\'dashboard\')">'
+      +'<div style="font-size:13px;font-weight:600;color:#e8f4ff;">'+escHtml(a.title||a.type||'Alert')+'</div>'
+      +'<div style="font-size:11px;color:#7090b0;margin-top:2px;">'+escHtml((a.description||a.message||'').slice(0,80))+'</div>'
+      +'</div>';
+  }).join('');
+}
+
+// ================================================================
 // ADMIN
 // ================================================================
 function initAdmin(){
   if(STATE.adminToken){
     document.getElementById('admin-login-section').style.display='none';
     document.getElementById('admin-panel-section').style.display='block';
-    loadAdminData();
+    switchAdminTab(STATE.adminTab||'overview');
   } else {
     document.getElementById('admin-login-section').style.display='block';
     document.getElementById('admin-panel-section').style.display='none';
@@ -1160,7 +1620,21 @@ async function doAdminLogin(){
   document.getElementById('admin-panel-section').style.display='block';
   document.getElementById('nav-admin').style.display='';
   msg.innerHTML='';
-  loadAdminData();
+  switchAdminTab('overview');
+}
+
+function switchAdminTab(tab){
+  STATE.adminTab=tab;
+  document.querySelectorAll('.adm-tab-btn').forEach(function(b){b.classList.toggle('active',b.dataset.atab===tab);});
+  document.querySelectorAll('.adm-tab-panel').forEach(function(p){p.classList.remove('active');});
+  var el=document.getElementById('atab-'+tab);
+  if(el) el.classList.add('active');
+  if(tab==='overview') loadAdminData();
+  else if(tab==='users') loadAdminUsers();
+  else if(tab==='revenue') loadAdminRevenue();
+  else if(tab==='system') loadAdminSystem();
+  else if(tab==='ai') loadAdminAI();
+  else if(tab==='crm') loadAdminCRM();
 }
 
 async function loadAdminData(){
@@ -1170,7 +1644,258 @@ async function loadAdminData(){
   setElText('adm-uptime',snap.telemetry&&snap.telemetry.uptime?fmtMs(snap.telemetry.uptime*1000):'—');
   setElText('adm-users',snap.telemetry&&snap.telemetry.activeUsers!=null?snap.telemetry.activeUsers:'—');
   var snapEl=document.getElementById('adm-snapshot');
-  if(snapEl) snapEl.innerHTML='<pre style="overflow:auto;max-height:200px;">'+escHtml(JSON.stringify(snap,null,2))+'</pre>';
+  if(snapEl) snapEl.innerHTML='<pre style="overflow:auto;max-height:200px;font-size:11px;">'+escHtml(JSON.stringify(snap,null,2))+'</pre>';
+}
+
+async function loadAdminUsers(){
+  var wrap=document.getElementById('users-tbl-wrap');
+  if(!wrap) return;
+  var search=(document.getElementById('usr-search')||{}).value||'';
+  var page=STATE.adminUsersPage||1;
+  var params='page='+page+'&limit=20'+(search?'&search='+encodeURIComponent(search):'');
+  wrap.innerHTML='<div style="text-align:center;padding:20px;"><div class="loader"></div></div>';
+  var r=await api('GET','/api/admin/users?'+params,null,true);
+  var users=(r.users||r.data||[]);
+  var total=(r.total||users.length);
+  if(!Array.isArray(users)||!users.length){
+    wrap.innerHTML='<div style="padding:20px;text-align:center;color:#7090b0;font-size:13px;">No users found.</div>';
+    return;
+  }
+  wrap.innerHTML='<table class="data-table">'
+    +'<thead><tr><th>Name</th><th>Email</th><th>Plan</th><th>Joined</th><th>Actions</th></tr></thead>'
+    +'<tbody>'+users.map(function(u){
+      return '<tr>'
+        +'<td>'+escHtml(u.name||'—')+'</td>'
+        +'<td style="font-family:monospace;font-size:12px;">'+escHtml(u.email||'—')+'</td>'
+        +'<td><span class="badge '+(u.plan==='enterprise'?'badge-purple':u.plan==='pro'?'badge-cyan':'')+'">'+escHtml((u.plan||'free').toUpperCase())+'</span></td>'
+        +'<td style="font-size:11px;color:#7090b0;">'+(u.createdAt?new Date(u.createdAt).toLocaleDateString():'—')+'</td>'
+        +'<td><div style="display:flex;gap:4px;">'
+        +'<button class="btn btn-ghost btn-sm" onclick="adminChangePlan(\''+escAttr(String(u.id||u._id||''))+'\',\''+escAttr(u.email||'')+'\')">Plan</button>'
+        +'<button class="btn btn-danger btn-sm" onclick="adminDeleteUser(\''+escAttr(String(u.id||u._id||''))+'\',\''+escAttr(u.email||'')+'\')">Del</button>'
+        +'</div></td>'
+        +'</tr>';
+    }).join('')+'</tbody></table>';
+  var pagEl=document.getElementById('users-pagination');
+  if(pagEl){
+    var pages=Math.ceil(total/20)||1;
+    pagEl.innerHTML='Page '+page+' of '+pages
+      +(page>1?'<button class="btn btn-ghost btn-sm" onclick="STATE.adminUsersPage='+(page-1)+';loadAdminUsers()">‹ Prev</button>':'')
+      +(page<pages?'<button class="btn btn-ghost btn-sm" onclick="STATE.adminUsersPage='+(page+1)+';loadAdminUsers()">Next ›</button>':'');
+  }
+}
+
+async function adminChangePlan(userId,email){
+  var plan=prompt('New plan for '+email+' (free/starter/pro/enterprise):');
+  if(!plan||!['free','starter','pro','enterprise'].includes(plan.toLowerCase())) return;
+  var r=await api('PUT','/api/admin/users/'+userId+'/plan',{planId:plan.toLowerCase()},true);
+  if(r.error){toast(r.error,'err');return;}
+  toast('Plan updated to '+plan,'ok');
+  loadAdminUsers();
+}
+
+async function adminDeleteUser(userId,email){
+  if(!confirm('Delete user '+email+'? This cannot be undone.')) return;
+  var r=await api('DELETE','/api/admin/users/'+userId,null,true);
+  if(r.error){toast(r.error,'err');return;}
+  toast('User deleted.','ok');
+  loadAdminUsers();
+}
+
+async function loadAdminRevenue(){
+  var [stats,rev,growth]=await Promise.all([
+    api('GET','/api/admin/executive/stats',null,true),
+    api('GET','/api/admin/executive/revenue',null,true),
+    api('GET','/api/admin/executive/growth',null,true)
+  ]);
+  setElText('rev-total','$'+(stats.totalRevenue||rev.total||0).toLocaleString());
+  setElText('rev-mrr','$'+(stats.mrr||rev.mrr||0).toLocaleString());
+  setElText('rev-margin',(stats.profitMargin||rev.margin||0)+'%');
+  var bkEl=document.getElementById('rev-breakdown');
+  if(bkEl){
+    var src=rev.breakdown||rev.sources||stats.breakdown;
+    if(src&&typeof src==='object'){
+      bkEl.innerHTML=Object.keys(src).map(function(k){
+        return '<div class="deal-row"><div><div style="font-weight:600;color:#e8f4ff;">'+escHtml(k)+'</div></div>'
+          +'<div class="green">$'+Number(src[k]).toLocaleString()+'</div></div>';
+      }).join('');
+    } else {
+      bkEl.innerHTML='<div style="color:#7090b0;">Revenue data loading...</div>';
+    }
+  }
+  var grEl=document.getElementById('rev-growth');
+  if(grEl){
+    var g=growth.metrics||growth.data||growth;
+    if(g&&typeof g==='object'){
+      grEl.innerHTML=Object.keys(g).slice(0,6).map(function(k){
+        var v=g[k];
+        var isPos=typeof v==='number'?v>=0:true;
+        return '<div class="deal-row"><div style="color:#e8f4ff;font-size:13px;">'+escHtml(k)+'</div>'
+          +'<div class="'+(isPos?'green':'')+'">'+escHtml(String(v))+'</div></div>';
+      }).join('');
+    } else {
+      grEl.innerHTML='<div style="color:#7090b0;">Growth data loading...</div>';
+    }
+  }
+}
+
+async function loadAdminSystem(){
+  var [slo,cb,canary,decisions,loop]=await Promise.all([
+    api('GET','/api/slo/status').catch(function(){return {};}),
+    api('GET','/api/circuit-breaker/status').catch(function(){return {};}),
+    api('GET','/api/canary').catch(function(){return {};}),
+    api('GET','/api/control-plane/decisions',null,true).catch(function(){return {};}),
+    api('GET','/api/profit-loop/status',null,true).catch(function(){return {};})
+  ]);
+  var sloOk=(slo.healthy||slo.status==='ok'||slo.all_met);
+  setElText('sys-slo',sloOk?'✅ Healthy':'⚠️ Degraded');
+  var cbOk=cb.state==='closed'||cb.status==='closed'||!cb.open;
+  setElText('sys-cb',cbOk?'✅ Closed':'🔴 Open');
+  var cOk=(canary.active||canary.status==='running');
+  setElText('sys-canary',cOk?'🟡 Active':'⚪ Idle');
+  var decEl=document.getElementById('sys-decisions');
+  if(decEl){
+    var decs=(decisions.decisions||decisions.data||[]);
+    if(Array.isArray(decs)&&decs.length){
+      decEl.innerHTML=decs.slice(0,5).map(function(d){
+        return '<div class="deal-row"><div><div style="font-weight:600;color:#e8f4ff;font-size:12px;">'+escHtml(d.action||d.type||'Decision')+'</div>'
+          +'<div style="font-size:11px;color:#7090b0;">'+escHtml((d.reason||d.description||'').slice(0,80))+'</div></div>'
+          +'<div style="font-size:11px;color:#7090b0;">'+(d.timestamp?new Date(d.timestamp).toLocaleDateString():'')+'</div>'
+          +'</div>';
+      }).join('');
+    } else {
+      decEl.innerHTML='<div style="color:#7090b0;padding:8px 0;">No recent decisions.</div>';
+    }
+  }
+  var loopEl=document.getElementById('sys-profit-loop');
+  if(loopEl){
+    var ls=loop.status||loop.state||loop;
+    loopEl.innerHTML='<pre style="font-size:11px;overflow:auto;max-height:120px;">'+escHtml(JSON.stringify(ls,null,2))+'</pre>';
+  }
+}
+
+async function adminResetCircuitBreaker(){
+  if(!confirm('Reset circuit breaker?')) return;
+  var r=await api('POST','/api/circuit-breaker/reset',{},true);
+  if(r.error){toast(r.error,'err');return;}
+  toast('Circuit breaker reset!','ok');
+  loadAdminSystem();
+}
+
+async function loadAdminAI(){
+  var [aiStatus,uaicModels,uaicStats]=await Promise.all([
+    api('GET','/api/ai/status').catch(function(){return {};}),
+    api('GET','/api/admin/uaic/models',null,true).catch(function(){return {};}),
+    api('GET','/api/admin/uaic/stats',null,true).catch(function(){return {};})
+  ]);
+  var provEl=document.getElementById('ai-providers-list');
+  if(provEl){
+    var provs=aiStatus.providers||aiStatus.data||aiStatus;
+    if(provs&&typeof provs==='object'&&!Array.isArray(provs)){
+      provEl.innerHTML=Object.keys(provs).map(function(k){
+        var ok=provs[k].available||provs[k].ok||provs[k].active||provs[k]===true;
+        return '<div class="deal-row">'
+          +'<div style="font-weight:600;color:#e8f4ff;">'+escHtml(k)+'</div>'
+          +'<div><span class="status-dot '+(ok?'ok':'err')+'"></span>'+(ok?'<span class="green">Active</span>':'<span style="color:#ff6060">Unavailable</span>')+'</div>'
+          +'</div>';
+      }).join('');
+    } else if(Array.isArray(provs)){
+      provEl.innerHTML=provs.map(function(p){
+        return '<div class="deal-row"><div class="' +(p.available?'green':'') +'">'+escHtml(p.name||p.id||p)+'</div>'
+          +'<span class="status-dot '+(p.available?'ok':'err')+'"></span>'
+          +'</div>';
+      }).join('');
+    } else {
+      provEl.innerHTML='<div style="color:#7090b0;">Provider status unavailable.</div>';
+    }
+  }
+  var modEl=document.getElementById('ai-uaic-models');
+  if(modEl){
+    var models=uaicModels.models||uaicModels.data||[];
+    var stats=uaicStats.stats||uaicStats.data||uaicStats||{};
+    var html='';
+    if(stats.totalRequests!=null){
+      html+='<div class="deal-row"><div>Total Requests</div><div class="cyan">'+stats.totalRequests+'</div></div>';
+      html+='<div class="deal-row"><div>Success Rate</div><div class="green">'+(stats.successRate||'—')+'</div></div>';
+      if(stats.cheapestProvider) html+='<div class="deal-row"><div>Cheapest Provider</div><div class="green">'+escHtml(stats.cheapestProvider)+'</div></div>';
+    }
+    if(Array.isArray(models)&&models.length){
+      html+=models.slice(0,6).map(function(m){
+        return '<div class="deal-row"><div style="font-size:12px;color:#e8f4ff;">'+escHtml(m.name||m.id||m)+'</div>'
+          +'<div style="font-size:11px;color:#7090b0;">'+(m.provider||'')+'</div>'
+          +'</div>';
+      }).join('');
+    }
+    modEl.innerHTML=html||'<div style="color:#7090b0;">No model info.</div>';
+  }
+}
+
+async function askUaic(){
+  var inp=document.getElementById('uaic-query');
+  var respEl=document.getElementById('uaic-response');
+  if(!inp||!respEl) return;
+  var q=inp.value.trim();
+  if(!q) return;
+  respEl.style.display='block';
+  respEl.innerHTML='<div class="loader"></div>';
+  var r=await api('POST','/api/admin/uaic/ask',{task:q},true);
+  var reply=r.reply||r.response||r.result||r.answer||JSON.stringify(r);
+  respEl.innerHTML=escHtml(String(reply));
+}
+
+async function loadAdminCRM(){
+  var [deals,leads]=await Promise.all([
+    api('GET','/api/bd/deals',null,true).catch(function(){return {};}),
+    api('GET','/api/bd/leads',null,true).catch(function(){return {};})
+  ]);
+  var dealList=(deals.deals||deals.data||deals||[]);
+  var leadList=(leads.leads||leads.data||leads||[]);
+  if(!Array.isArray(dealList)) dealList=[];
+  if(!Array.isArray(leadList)) leadList=[];
+  var dealsEl=document.getElementById('crm-deals-list');
+  if(dealsEl){
+    dealsEl.innerHTML=dealList.length?dealList.map(function(d){
+      var stage=(d.stage||'lead').toLowerCase();
+      return '<div class="deal-row">'
+        +'<div><div style="font-weight:700;color:#e8f4ff;font-size:13px;">'+escHtml(d.company||d.name||'Deal')+'</div>'
+        +'<div style="font-size:12px;color:#7090b0;margin-top:2px;">'+escHtml(d.notes||d.description||'')+'</div></div>'
+        +'<div style="display:flex;gap:8px;align-items:center;">'
+        +(d.value?'<div style="font-family:Orbitron,monospace;color:#00ffa3;font-size:13px;">$'+Number(d.value).toLocaleString()+'</div>':'')
+        +'<span class="deal-stage '+escAttr(stage)+'">'+escHtml(stage)+'</span>'
+        +'</div></div>';
+    }).join(''):'<div style="padding:16px;text-align:center;color:#7090b0;font-size:13px;">No deals yet. Add your first deal!</div>';
+  }
+  var leadsEl=document.getElementById('crm-leads-list');
+  if(leadsEl){
+    leadsEl.innerHTML=leadList.length?leadList.slice(0,10).map(function(l){
+      return '<div class="deal-row">'
+        +'<div><div style="font-weight:600;color:#e8f4ff;">'+escHtml(l.name||l.company||'Lead')+'</div>'
+        +'<div style="font-size:12px;color:#7090b0;">'+escHtml(l.email||l.contact||'')+'</div></div>'
+        +'<div style="font-size:11px;color:#7090b0;">'+(l.createdAt?new Date(l.createdAt).toLocaleDateString():'—')+'</div>'
+        +'</div>';
+    }).join(''):'<div style="padding:10px 0;color:#7090b0;font-size:13px;">No leads yet.</div>';
+  }
+}
+
+function openAddDealModal(){
+  openModal('add-deal-modal');
+}
+
+async function submitDeal(){
+  var company=document.getElementById('deal-company').value.trim();
+  var value=document.getElementById('deal-value').value;
+  var stage=document.getElementById('deal-stage').value;
+  var notes=document.getElementById('deal-notes').value.trim();
+  var msg=document.getElementById('deal-msg');
+  if(!company){msg.innerHTML='<div class="msg-err">Company name required.</div>';return;}
+  var r=await api('POST','/api/bd/deals',{company:company,value:value?Number(value):0,stage:stage,notes:notes},true);
+  if(r.error){msg.innerHTML='<div class="msg-err">'+escHtml(r.error)+'</div>';return;}
+  toast('Deal added!','ok');
+  closeModal('add-deal-modal');
+  document.getElementById('deal-company').value='';
+  document.getElementById('deal-value').value='';
+  document.getElementById('deal-notes').value='';
+  msg.innerHTML='';
+  loadAdminCRM();
 }
 
 // ================================================================
@@ -1353,13 +2078,69 @@ async function sendChat(){
   }
   appendChatMsg('user',msg);
   STATE.chatHistory.push({role:'user',content:msg});
+  // Try SSE streaming first (logged-in users), fall back to regular POST
+  if(isLoggedIn()){
+    await sendChatStream(msg);
+  } else {
+    await sendChatPost(msg);
+  }
+}
+
+async function sendChatStream(msg){
+  var msgs=document.getElementById('chat-messages');
+  var botEl=document.createElement('div');
+  botEl.className='chat-msg bot';
+  botEl.textContent='';
+  var cursor=document.createElement('span');
+  cursor.className='chat-cursor';
+  botEl.appendChild(cursor);
+  if(msgs){msgs.appendChild(botEl);msgs.scrollTop=msgs.scrollHeight;}
+  var fullText='';
+  try{
+    var params=new URLSearchParams({message:msg});
+    var es=new EventSource('/api/chat/stream?'+params.toString()+'&token='+encodeURIComponent(STATE.token||''));
+    var resolved=false;
+    await new Promise(function(resolve){
+      var timeout=setTimeout(function(){es.close();resolve();},30000);
+      es.onmessage=function(e){
+        try{
+          var data=JSON.parse(e.data);
+          if(data.done||data.finish){
+            clearTimeout(timeout);
+            es.close();
+            resolved=true;
+            resolve();
+            return;
+          }
+          var chunk=data.chunk||data.text||data.content||'';
+          fullText+=chunk;
+          botEl.textContent=fullText;
+          botEl.appendChild(cursor);
+          if(msgs) msgs.scrollTop=msgs.scrollHeight;
+        }catch(ex){}
+      };
+      es.onerror=function(){clearTimeout(timeout);es.close();if(!resolved)resolve();};
+    });
+  }catch(ex){}
+  cursor.remove();
+  if(!fullText){
+    // Fallback to regular POST
+    botEl.remove();
+    await sendChatPost(msg);
+    return;
+  }
+  botEl.textContent=fullText;
+  STATE.chatHistory.push({role:'assistant',content:fullText});
+}
+
+async function sendChatPost(msg){
+  var msgs=document.getElementById('chat-messages');
   var typingEl=document.createElement('div');
   typingEl.className='chat-msg bot';
   typingEl.innerHTML='<span class="loader"></span>';
-  var msgs=document.getElementById('chat-messages');
   if(msgs){msgs.appendChild(typingEl);msgs.scrollTop=msgs.scrollHeight;}
   var r=await api('POST','/api/chat',{message:msg,history:STATE.chatHistory.slice(-10)});
-  if(msgs) msgs.removeChild(typingEl);
+  if(msgs&&typingEl.parentNode===msgs) msgs.removeChild(typingEl);
   var reply=r.reply||r.message||r.response||'I\'m processing your request. Please try again in a moment.';
   appendChatMsg('bot',reply);
   STATE.chatHistory.push({role:'assistant',content:reply});
@@ -1548,6 +2329,11 @@ document.addEventListener('DOMContentLoaded',function(){
       }
     }).catch(function(){});
   },60000);
+  // Notification polling (every 2 min, only when logged in)
+  setInterval(function(){
+    if(isLoggedIn()) pollNotifications();
+  },120000);
+  if(isLoggedIn()) pollNotifications();
   // SSE for live updates
   try{
     var es=new EventSource('/stream');
@@ -1559,6 +2345,14 @@ document.addEventListener('DOMContentLoaded',function(){
     };
     es.onerror=function(){es.close();};
   }catch(e){}
+  // Close notif panel on outside click
+  document.addEventListener('click',function(e){
+    var panel=document.getElementById('notif-panel');
+    var bell=document.getElementById('notif-bell');
+    if(STATE.notifOpen&&panel&&!panel.contains(e.target)&&e.target!==bell&&!bell.contains(e.target)){
+      closeNotifPanel();
+    }
+  });
 });
 window.addEventListener('hashchange',initRouting);
 </script>
