@@ -226,6 +226,48 @@ jobs:
           attach_domain "$SITE_DOMAIN"
           attach_domain "$UNICORN_DOMAIN"
 
+      - name: Alias production deploy → zeusai.pro
+        if: steps.vercel_guard.outputs.ready == 'true' && steps.deploy.outputs.deploy_url != ''
+        continue-on-error: true
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_TEAM_ID: ${{ secrets.VERCEL_TEAM_ID || secrets.VERCEL_ORG_ID }}
+          DEPLOY_URL: ${{ steps.deploy.outputs.deploy_url }}
+          SITE_DOMAIN: ${{ secrets.SITE_DOMAIN || 'zeusai.pro' }}
+        run: |
+          # Set zeusai.pro as production alias so it points to the latest deployment
+          TEAM_PARAM=""
+          [ -n "$VERCEL_TEAM_ID" ] && TEAM_PARAM="--scope ${VERCEL_TEAM_ID}"
+          echo "🔗 Aliasing ${DEPLOY_URL} → ${SITE_DOMAIN}"
+          vercel alias set "${DEPLOY_URL}" "${SITE_DOMAIN}" ${TEAM_PARAM} --token "${VERCEL_TOKEN}" \
+            && echo "✅ zeusai.pro now points to ${DEPLOY_URL}" \
+            || echo "ℹ️  Alias command failed (DNS may not be verified yet; domain is still attached as target)"
+          # Also alias www. subdomain
+          WWW_DOMAIN="www.${SITE_DOMAIN}"
+          vercel alias set "${DEPLOY_URL}" "${WWW_DOMAIN}" ${TEAM_PARAM} --token "${VERCEL_TOKEN}" \
+            && echo "✅ ${WWW_DOMAIN} aliased" \
+            || echo "ℹ️  www alias pending DNS verification"
+
+      - name: Update GitHub repo homepage → https://zeusai.pro
+        if: steps.vercel_guard.outputs.ready == 'true'
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ secrets.GH_PAT || secrets.GITHUB_TOKEN }}
+        run: |
+          echo "🏠 Setting GitHub repo homepage to https://zeusai.pro..."
+          HTTP=$(curl -s -o /dev/null -w "%{http_code}" \
+            -X PATCH "https://api.github.com/repos/ruffy80/ZeusAI" \
+            -H "Authorization: Bearer ${GH_TOKEN}" \
+            -H "Accept: application/vnd.github+json" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            -H "Content-Type: application/json" \
+            -d '{"homepage":"https://zeusai.pro","description":"ZeusAI – Autonomous AI Business Platform"}')
+          if [ "$HTTP" = "200" ]; then
+            echo "✅ GitHub repo homepage updated to https://zeusai.pro (was zeusai-rust.vercel.app)"
+          else
+            echo "ℹ️  Could not update repo homepage (HTTP ${HTTP}) – GH_PAT may need repo scope"
+          fi
+
       - name: Disable Vercel Password Protection
         if: steps.vercel_guard.outputs.ready == 'true'
         continue-on-error: true

@@ -119,6 +119,33 @@ function apiPut(path, body) {
   });
 }
 
+function apiPatch(path, body) {
+  return new Promise((resolve, reject) => {
+    const payload = JSON.stringify(body);
+    const opts = {
+      hostname: 'api.github.com',
+      path,
+      method: 'PATCH',
+      headers: {
+        Authorization: `token ${GITHUB_TOKEN}`,
+        'User-Agent': 'unicorn-setup',
+        Accept: 'application/vnd.github+json',
+        'X-GitHub-Api-Version': '2022-11-28',
+        'Content-Type': 'application/json',
+        'Content-Length': Buffer.byteLength(payload)
+      }
+    };
+    const req = https.request(opts, res => {
+      let data = '';
+      res.on('data', c => data += c);
+      res.on('end', () => resolve({ status: res.statusCode, body: data }));
+    });
+    req.on('error', reject);
+    req.write(payload);
+    req.end();
+  });
+}
+
 async function encryptSecret(publicKey, publicKeyId, secretValue) {
   // Load libsodium for encryption (required by GitHub API)
   let sodium;
@@ -192,6 +219,22 @@ async function run() {
   }
 
   console.log('\n✅ Done. Trigger a deploy by pushing to main.\n');
+
+  // ─── Update GitHub repo homepage to zeusai.pro ──────────────────────────────
+  console.log('🏠 Updating GitHub repo homepage to https://zeusai.pro...');
+  try {
+    const repoRes = await apiPatch(`/repos/${OWNER}/${REPO}`, {
+      homepage: 'https://zeusai.pro',
+      description: 'ZeusAI – Autonomous AI Business Platform'
+    });
+    if (repoRes.status === 200) {
+      console.log('  ✅ GitHub repo homepage set to https://zeusai.pro');
+    } else {
+      console.warn(`  ⚠️  Could not update repo homepage (HTTP ${repoRes.status}). GH_PAT needs repo scope.`);
+    }
+  } catch (err) {
+    console.warn(`  ⚠️  Repo homepage update failed: ${err.message}`);
+  }
 }
 
 run().catch(err => {
