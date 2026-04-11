@@ -2,6 +2,22 @@
 // OWNERSHIP: Acest fișier este proprietatea exclusivă a lui Vladoi Ionut
 // Email: vladoi_ionut@yahoo.com
 // BTC Address: bc1q4f7e66z87mdfj56kz0dj5hvcnpmh0qh4wuv22e
+// Data: 2026-04-11T12:15:50.119Z
+// Orice copiere, modificare sau distribuție neautorizată este interzisă.
+// =====================================================================
+
+// =====================================================================
+// OWNERSHIP: Acest fișier este proprietatea exclusivă a lui Vladoi Ionut
+// Email: vladoi_ionut@yahoo.com
+// BTC Address: bc1q4f7e66z87mdfj56kz0dj5hvcnpmh0qh4wuv22e
+// Data: 2026-04-11T12:11:52.875Z
+// Orice copiere, modificare sau distribuție neautorizată este interzisă.
+// =====================================================================
+
+// =====================================================================
+// OWNERSHIP: Acest fișier este proprietatea exclusivă a lui Vladoi Ionut
+// Email: vladoi_ionut@yahoo.com
+// BTC Address: bc1q4f7e66z87mdfj56kz0dj5hvcnpmh0qh4wuv22e
 // Data: 2026-04-11T11:25:28.348Z
 // Orice copiere, modificare sau distribuție neautorizată este interzisă.
 // =====================================================================
@@ -760,6 +776,13 @@ function apiKeyMiddleware(req, res, next) {
 
 // Create API key (authenticated users)
 app.post('/api/platform/api-keys/create', authMiddleware, (req, res) => {
+  const { name, planId } = req.body || {};
+  const result = dbApiKeys.create({ name: name || 'My API Key', clientId: req.user.id, planId: planId || 'starter' });
+  res.json(result);
+});
+
+// Alias: /generate (used by template.js dashboard)
+app.post('/api/platform/api-keys/generate', authMiddleware, (req, res) => {
   const { name, planId } = req.body || {};
   const result = dbApiKeys.create({ name: name || 'My API Key', clientId: req.user.id, planId: planId || 'starter' });
   res.json(result);
@@ -2424,7 +2447,19 @@ app.get('/api/admin/referrals/all', adminCrudRateLimit, adminTokenMiddleware, (r
 });
 
 // ==================== STREAMING AI CHAT (SSE) ====================
-app.get('/api/chat/stream', authRateLimit(20, 60_000), authMiddleware, async (req, res) => {
+// EventSource (browser SSE) cannot set custom headers, so we accept ?token= query param for auth.
+app.get('/api/chat/stream', authRateLimit(20, 60_000), async (req, res) => {
+  // Authenticate via Bearer header OR ?token= query param (SSE requires query param)
+  const authHeader = req.headers.authorization || '';
+  const rawToken = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : (req.query.token || '');
+  if (!rawToken) return res.status(401).json({ error: 'Unauthorized' });
+  let streamUser;
+  try {
+    streamUser = jwt.verify(rawToken, JWT_SECRET);
+  } catch {
+    return res.status(401).json({ error: 'Invalid token' });
+  }
+
   const { message } = req.query;
   if (!message) return res.status(400).json({ error: 'message query param required' });
 
@@ -2434,6 +2469,7 @@ app.get('/api/chat/stream', authRateLimit(20, 60_000), authMiddleware, async (re
   res.setHeader('X-Accel-Buffering', 'no');
   res.flushHeaders();
 
+  // send helper – uses { chunk } so the SPA's data.chunk||data.text||data.content pattern resolves
   const send = (data) => res.write(`data: ${JSON.stringify(data)}\n\n`);
 
   const openaiKey = process.env.OPENAI_API_KEY;
@@ -2454,24 +2490,26 @@ app.get('/api/chat/stream', authRateLimit(20, 60_000), authMiddleware, async (re
       });
 
       let buffer = '';
-      response.data.on('data', (chunk) => {
-        buffer += chunk.toString();
+      let finished = false;
+      response.data.on('data', (rawChunk) => {
+        if (finished) return;
+        buffer += rawChunk.toString();
         const lines = buffer.split('\n');
         buffer = lines.pop();
         for (const line of lines) {
           if (line.startsWith('data: ')) {
-            const data = line.slice(6);
-            if (data === '[DONE]') { send({ done: true }); res.end(); return; }
+            const payload = line.slice(6);
+            if (payload === '[DONE]') { finished = true; send({ done: true }); res.end(); return; }
             try {
-              const parsed = JSON.parse(data);
+              const parsed = JSON.parse(payload);
               const delta = parsed.choices?.[0]?.delta?.content;
-              if (delta) send({ token: delta });
+              if (delta) send({ chunk: delta });
             } catch { /* ignore parse errors */ }
           }
         }
       });
-      response.data.on('end', () => { send({ done: true }); res.end(); });
-      response.data.on('error', () => { send({ done: true, error: true }); res.end(); });
+      response.data.on('end', () => { if (!finished) { send({ done: true }); res.end(); } });
+      response.data.on('error', () => { if (!finished) { send({ done: true, error: true }); res.end(); } });
       return;
     } catch (err) {
       console.warn('[Stream] OpenAI stream failed:', err.message);
@@ -2483,7 +2521,7 @@ app.get('/api/chat/stream', authRateLimit(20, 60_000), authMiddleware, async (re
     if (cloudResult && cloudResult.reply) {
       const words = cloudResult.reply.split(' ');
       for (const word of words) {
-        send({ token: word + ' ' });
+        send({ chunk: word + ' ' });
         await new Promise(r => setTimeout(r, 20));
       }
       send({ done: true });
@@ -2492,7 +2530,7 @@ app.get('/api/chat/stream', authRateLimit(20, 60_000), authMiddleware, async (re
     }
   } catch { /* ignore */ }
 
-  send({ token: 'Bun venit la Zeus AI! Cum te pot ajuta?' });
+  send({ chunk: 'Bun venit la Zeus AI! Cum te pot ajuta?' });
   send({ done: true });
   res.end();
 });
