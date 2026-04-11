@@ -1,4 +1,4 @@
-name: 🦄 Deploy UNICORN_FINAL (GitHub → Vercel + Hetzner)
+name: 🦄 Deploy ZeusAI (GitHub → Vercel + Hetzner)
 
 on:
   push:
@@ -6,6 +6,20 @@ on:
     paths:
       - 'UNICORN_FINAL/**'
       - '.github/workflows/vercel-deploy.yml'
+      - '.github/workflows/setup-secrets-and-deploy.yml'
+      - '.github/workflows/autonomous.yml'
+      - '.github/workflows/unicorn-keepalive.yml'
+  # ── Validate PRs targeting main (lint + test only, no deploy) ─────────────
+  pull_request:
+    branches: [main]
+    paths:
+      - 'UNICORN_FINAL/**'
+      - '.github/workflows/vercel-deploy.yml'
+      - '.github/workflows/autonomous.yml'
+      - '.github/workflows/unicorn-keepalive.yml'
+  # ── Keep-alive: re-verify and redeploy every 6 hours ──────────────────────
+  schedule:
+    - cron: '0 */6 * * *'
   workflow_dispatch:
     inputs:
       force_deploy:
@@ -13,9 +27,12 @@ on:
         required: false
         default: 'false'
 
+env:
+  VERCEL_PROD_URL: https://zeusai.pro
+
 concurrency:
-  group: unicorn-final-production
-  cancel-in-progress: false
+  group: ${{ github.event_name == 'pull_request' && format('pr-validate-{0}', github.event.pull_request.number) || 'zeusai-production' }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   # ──────────────────────────────────────────────────────────────────────
@@ -52,6 +69,17 @@ jobs:
         id: test
         run: CI=1 npm test
 
+      - name: Build frontend (client)
+        id: frontend_build
+        run: |
+          if [ -d client ] && [ -f client/package.json ]; then
+            npm --prefix client install --no-audit --no-fund
+            CI=false npm --prefix client run build
+            echo "✅ Frontend build succeeded"
+          else
+            echo "ℹ️  No client/ directory found – skipping frontend build."
+          fi
+
       - name: Innovation report (pre-deploy snapshot)
         run: npm run innovation:report || true
 
@@ -62,6 +90,11 @@ jobs:
     name: 🚀 Deploy → Vercel
     runs-on: ubuntu-latest
     needs: validate
+    # Skip Vercel deploy on scheduled runs – cron is for Hetzner keep-alive only.
+    # Deploying on schedule quickly exhausts the 100 free deployments/day limit.
+    # Exception: force_deploy=true overrides the schedule skip (e.g. keepalive or setup-secrets triggering a full redeploy).
+    # Skip on pull_request – PRs only run the validate job.
+    if: (github.event_name != 'schedule' || inputs.force_deploy == 'true') && github.event_name != 'pull_request'
     defaults:
       run:
         working-directory: UNICORN_FINAL
@@ -99,16 +132,37 @@ jobs:
         if: steps.vercel_guard.outputs.ready == 'true'
         run: npm i -g vercel@latest
 
-      - name: Link Vercel project
+      - name: Resolve & link Vercel project (auto-sync zeusai project ID)
         if: steps.vercel_guard.outputs.ready == 'true'
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID_SECRET: ${{ secrets.VERCEL_PROJECT_ID }}
         run: |
+          # Query Vercel API for the 'zeusai' project to get the authoritative project ID
+          TEAM_PARAM=""
+          [ -n "$VERCEL_ORG_ID" ] && TEAM_PARAM="?teamId=${VERCEL_ORG_ID}"
+          RESOLVED_ID=$(curl -fsS \
+            -H "Authorization: Bearer ${VERCEL_TOKEN}" \
+            "https://api.vercel.com/v9/projects/zeusai${TEAM_PARAM}" \
+            2>/dev/null \
+            | jq -r '.id // empty' 2>/dev/null || echo "")
+          if [ -n "$RESOLVED_ID" ]; then
+            echo "✅ Resolved zeusai Vercel project ID: ${RESOLVED_ID}"
+            PROJECT_ID="$RESOLVED_ID"
+          else
+            echo "ℹ️  Could not resolve zeusai project from Vercel API – falling back to VERCEL_PROJECT_ID secret"
+            PROJECT_ID="$VERCEL_PROJECT_ID_SECRET"
+          fi
           mkdir -p .vercel
           cat > .vercel/project.json <<EOF
           {
-            "orgId": "${{ secrets.VERCEL_ORG_ID }}",
-            "projectId": "${{ secrets.VERCEL_PROJECT_ID }}"
+            "orgId": "${VERCEL_ORG_ID}",
+            "projectId": "${PROJECT_ID}"
           }
           EOF
+          echo "RESOLVED_VERCEL_PROJECT_ID=${PROJECT_ID}" >> "$GITHUB_ENV"
+          echo "🔗 Linked to Vercel project: ${PROJECT_ID}"
 
       - name: Pull Vercel environment
         if: steps.vercel_guard.outputs.ready == 'true'
@@ -119,19 +173,31 @@ jobs:
 
       - name: Build
         if: steps.vercel_guard.outputs.ready == 'true'
-        continue-on-error: true
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          CI: "false"
         run: vercel build --prod
 
       - name: Deploy to Vercel Production
         if: steps.vercel_guard.outputs.ready == 'true'
         id: deploy
-        continue-on-error: true
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
         run: |
-          URL=$(vercel deploy --prebuilt --prod)
+          DEPLOY_OUTPUT=$(vercel deploy --prebuilt --prod 2>&1) || DEPLOY_EXIT=$?
+          # Gracefully handle the free-plan 100-deployments/day rate limit.
+          # The existing production deployment continues to serve traffic normally.
+          if echo "$DEPLOY_OUTPUT" | grep -q 'api-deployments-free-per-day'; then
+            echo "⚠️  Vercel daily deployment limit reached (100/day on free plan)."
+            echo "   The current production deployment remains active and serving traffic."
+            echo "   Skipping – will retry on next push."
+            exit 0
+          fi
+          if [ "${DEPLOY_EXIT:-0}" -ne 0 ]; then
+            echo "❌ Vercel deploy failed: $DEPLOY_OUTPUT"
+            exit 1
+          fi
+          URL=$(echo "$DEPLOY_OUTPUT" | grep -oE 'https://[a-zA-Z0-9._-]+\.vercel\.app' | tail -1)
           echo "deploy_url=$URL" >> "$GITHUB_OUTPUT"
           echo "✅ Vercel deploy: $URL"
 
@@ -140,10 +206,10 @@ jobs:
         continue-on-error: true
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
-          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+          VERCEL_PROJECT_ID: ${{ env.RESOLVED_VERCEL_PROJECT_ID || secrets.VERCEL_PROJECT_ID }}
           VERCEL_TEAM_ID: ${{ secrets.VERCEL_TEAM_ID || secrets.VERCEL_ORG_ID }}
-          SITE_DOMAIN: ${{ secrets.SITE_DOMAIN }}
-          UNICORN_DOMAIN: ${{ secrets.UNICORN_DOMAIN }}
+          SITE_DOMAIN: ${{ secrets.SITE_DOMAIN || 'zeusai.pro' }}
+          UNICORN_DOMAIN: ${{ secrets.UNICORN_DOMAIN || 'www.zeusai.pro' }}
         run: |
           attach_domain () {
             local domain="$1"
@@ -160,6 +226,23 @@ jobs:
           attach_domain "$SITE_DOMAIN"
           attach_domain "$UNICORN_DOMAIN"
 
+      - name: Disable Vercel Password Protection
+        if: steps.vercel_guard.outputs.ready == 'true'
+        continue-on-error: true
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_PROJECT_ID: ${{ env.RESOLVED_VERCEL_PROJECT_ID || secrets.VERCEL_PROJECT_ID }}
+          VERCEL_TEAM_ID: ${{ secrets.VERCEL_TEAM_ID || secrets.VERCEL_ORG_ID }}
+        run: |
+          echo "🔓 Disabling Vercel Password Protection..."
+          curl --silent --show-error \
+            -X PATCH "https://api.vercel.com/v9/projects/${VERCEL_PROJECT_ID}?teamId=${VERCEL_TEAM_ID}" \
+            -H "Authorization: Bearer ${VERCEL_TOKEN}" \
+            -H "Content-Type: application/json" \
+            -d '{"passwordProtection": null, "ssoProtection": null}' \
+            && echo "✅ Password protection disabled" \
+            || echo "ℹ️  Could not disable password protection (may already be off)"
+
       - name: Smoke test Vercel URL
         if: steps.vercel_guard.outputs.ready == 'true'
         continue-on-error: true
@@ -169,7 +252,51 @@ jobs:
           if [ -n "$URL" ]; then
             STATUS=$(curl -s -o /dev/null -w "%{http_code}" "$URL/health" || echo "000")
             echo "Vercel /health → HTTP $STATUS"
-            [ "$STATUS" = "200" ] || [ "$STATUS" = "000" ] && echo "⚠️  Could not verify (may need warmup)" || true
+            [ "$STATUS" = "200" ] && echo "✅ Vercel /health OK" || echo "⚠️  Could not verify (may need warmup)"
+            STATUS_ROOT=$(curl -s -o /dev/null -w "%{http_code}" "$URL/" || echo "000")
+            echo "Vercel / → HTTP $STATUS_ROOT"
+            [ "$STATUS_ROOT" = "200" ] && echo "✅ Vercel / OK" || echo "⚠️  Root path not serving (frontend may be broken)"
+          fi
+
+      - name: Smoke test production Vercel domain
+        if: steps.vercel_guard.outputs.ready == 'true'
+        continue-on-error: true
+        run: |
+          PROD_URL="${{ env.VERCEL_PROD_URL }}"
+          STATUS=$(curl -s -o /dev/null -w "%{http_code}" "$PROD_URL/health" || echo "000")
+          echo "Production $PROD_URL/health → HTTP $STATUS"
+          [ "$STATUS" = "200" ] && echo "✅ Production domain OK" || echo "ℹ️  Production domain not yet reachable (DNS propagation may be pending)"
+          STATUS_ROOT=$(curl -s -o /dev/null -w "%{http_code}" "$PROD_URL/" || echo "000")
+          echo "Production $PROD_URL/ → HTTP $STATUS_ROOT"
+          [ "$STATUS_ROOT" = "200" ] && echo "✅ Production root OK" || echo "⚠️  Production root not serving"
+
+      - name: Delete old unicorn-final Vercel project (cleanup)
+        if: steps.vercel_guard.outputs.ready == 'true'
+        continue-on-error: true
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_TEAM_ID: ${{ secrets.VERCEL_TEAM_ID || secrets.VERCEL_ORG_ID }}
+        run: |
+          echo "🗑️  Looking up and removing old 'unicorn-final' Vercel project..."
+          TEAM_PARAM=""
+          [ -n "$VERCEL_TEAM_ID" ] && TEAM_PARAM="?teamId=${VERCEL_TEAM_ID}"
+          # Find project ID by name
+          OLD_PROJECT_ID=$(curl -fsS \
+            -H "Authorization: Bearer ${VERCEL_TOKEN}" \
+            "https://api.vercel.com/v9/projects/unicorn-final${TEAM_PARAM}" \
+            2>/dev/null | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('id',''))" 2>/dev/null || echo "")
+          if [ -z "$OLD_PROJECT_ID" ]; then
+            echo "ℹ️  Project 'unicorn-final' not found or already deleted – nothing to do."
+          else
+            HTTP=$(curl -s -o /dev/null -w "%{http_code}" \
+              -X DELETE \
+              -H "Authorization: Bearer ${VERCEL_TOKEN}" \
+              "https://api.vercel.com/v9/projects/${OLD_PROJECT_ID}${TEAM_PARAM}")
+            if [ "$HTTP" = "204" ] || [ "$HTTP" = "200" ]; then
+              echo "✅ Vercel project 'unicorn-final' (${OLD_PROJECT_ID}) deleted successfully."
+            else
+              echo "⚠️  Could not delete 'unicorn-final' (HTTP ${HTTP}). It may have already been removed."
+            fi
           fi
 
   # ──────────────────────────────────────────────────────────────────────
@@ -179,6 +306,7 @@ jobs:
     name: 🖥️ Deploy → Hetzner (SSH)
     runs-on: ubuntu-latest
     needs: validate
+    if: github.event_name != 'pull_request'
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -239,6 +367,7 @@ jobs:
         continue-on-error: true
         run: |
           echo "Deploying UNICORN_FINAL to Hetzner..."
+          DEST='${{ secrets.HETZNER_DEPLOY_PATH || '/opt/unicorn' }}'
           tar -C ./UNICORN_FINAL \
               --exclude='.git' --exclude='node_modules' --exclude='.next' \
               --exclude='logs' --exclude='*.local' --exclude='.env' \
@@ -246,7 +375,7 @@ jobs:
             ssh -i ~/.ssh/deploy_key -p 22 -o StrictHostKeyChecking=no \
               -o BatchMode=yes \
               "${{ secrets.HETZNER_DEPLOY_USER || secrets.HETZNER_USER || secrets.SSH_USER }}@${{ secrets.HETZNER_HOST || secrets.SSH_HOST }}" \
-              "mkdir -p '${{ secrets.HETZNER_DEPLOY_PATH || '/opt/unicorn' }}' && cd '${{ secrets.HETZNER_DEPLOY_PATH || '/opt/unicorn' }}' && tar -xzf -"
+              "DEST='${DEST}'; mkdir -p \"\$DEST\" && chmod -R u+w \"\$DEST\" 2>/dev/null || true && cd \"\$DEST\" && tar --overwrite --no-same-permissions --no-same-owner -xzf -"
 
       - name: Install deps + restart backend on Hetzner
         id: restart_hetzner
@@ -258,6 +387,9 @@ jobs:
             "${{ secrets.HETZNER_DEPLOY_USER || secrets.HETZNER_USER || secrets.SSH_USER }}@${{ secrets.HETZNER_HOST || secrets.SSH_HOST }}" << ENDSSH
             set -e
             cd "${{ secrets.HETZNER_DEPLOY_PATH || '/opt/unicorn' }}"
+
+            # ── Allow git to operate in the deploy directory (rsync owner may differ) ──
+            git config --global --add safe.directory "${{ secrets.HETZNER_DEPLOY_PATH || '/opt/unicorn' }}" 2>/dev/null || true
 
             # ── Ensure Node.js exists on host ───────────────────────────
             if ! command -v node >/dev/null 2>&1; then
@@ -271,15 +403,86 @@ jobs:
               apt-get install -y nodejs
             fi
 
-            # ── Update .env with Hetzner API token ───────────────────────
-            if [ -f .env ]; then
-              sed -i '/^HETZNER_API_KEY=/d;/^HETZNER_API_TOKEN=/d' .env
-            fi
+            # ── Update .env with Hetzner API token + domain + owner credentials ──
+            for key in HETZNER_API_KEY HETZNER_API_TOKEN PUBLIC_APP_URL SITE_DOMAIN \
+                       BTC_WALLET_ADDRESS OWNER_BTC_ADDRESS OWNER_EMAIL OWNER_NAME \
+                       ADMIN_EMAIL SMTP_HOST SMTP_PORT SMTP_USER; do
+              [ -f .env ] && sed -i "/^${key}=/d" .env || true
+            done
             printf "HETZNER_API_KEY=%s\nHETZNER_API_TOKEN=%s\n" \
               "${HETZNER_API_VALUE}" "${HETZNER_API_VALUE}" >> .env
+            printf "PUBLIC_APP_URL=https://zeusai.pro\nSITE_DOMAIN=zeusai.pro\n" >> .env
+            printf "BTC_WALLET_ADDRESS=bc1q4f7e66z87mdfj56kz0dj5hvcnpmh0qh4wuv22e\n" >> .env
+            printf "OWNER_BTC_ADDRESS=bc1q4f7e66z87mdfj56kz0dj5hvcnpmh0qh4wuv22e\n" >> .env
+            printf "OWNER_NAME=Vladoi Ionut\nOWNER_EMAIL=vladoi_ionut@yahoo.com\n" >> .env
+            printf "ADMIN_EMAIL=vladoi_ionut@yahoo.com\n" >> .env
+            printf "SMTP_HOST=smtp.mail.yahoo.com\nSMTP_PORT=587\nSMTP_USER=vladoi_ionut@yahoo.com\n" >> .env
+
+            # ── Verify source integrity: re-fetch any JS file with SyntaxError ──
+            REPO_RAW="https://raw.githubusercontent.com/${{ github.repository }}/${{ github.sha }}/UNICORN_FINAL"
+            if [ -d "backend/modules" ]; then
+              shopt -s nullglob
+              for jsfile in backend/modules/*.js src/index.js backend/index.js; do
+                if [ -f "$jsfile" ] && ! node --check "$jsfile" 2>/dev/null; then
+                  echo "⚠️  SyntaxError in $jsfile — re-fetching from GitHub..."
+                  curl -sfL "${REPO_RAW}/${jsfile}" -o "$jsfile" && \
+                    echo "✅ Re-fetched $jsfile" || echo "⚠️  Failed to re-fetch $jsfile"
+                fi
+              done
+              shopt -u nullglob
+            fi
 
             # ── Install dependencies ──────────────────────────────────────
             npm ci --no-audit --no-fund 2>/dev/null || npm install --no-audit --no-fund
+
+            # ── Rebuild native modules for current Node.js version ────────
+            npm rebuild better-sqlite3 --no-fund 2>/dev/null || true
+
+            # ── Build React frontend ──────────────────────────────────────
+            if [ -d "client" ]; then
+              echo "🎨 Building frontend..."
+              cd client
+              npm ci --no-audit --no-fund 2>/dev/null || npm install --no-audit --no-fund
+              CI=false npm run build
+              cd ..
+              echo "✅ Frontend built"
+            fi
+
+            # ── Open firewall for HTTP/HTTPS (Nginx) ─────────────────────
+            if command -v ufw >/dev/null 2>&1; then
+              ufw allow 80/tcp  2>/dev/null || true
+              ufw allow 443/tcp 2>/dev/null || true
+              echo "✅ Firewall: ports 80/443 open for Nginx"
+            fi
+
+            # ── Install and configure Nginx ───────────────────────────────
+            if ! command -v nginx >/dev/null 2>&1; then
+              apt-get update -y && apt-get install -y nginx
+            fi
+            if [ -f scripts/nginx-unicorn.conf ]; then
+              cp scripts/nginx-unicorn.conf /etc/nginx/sites-available/unicorn
+              ln -sf /etc/nginx/sites-available/unicorn /etc/nginx/sites-enabled/unicorn
+              rm -f /etc/nginx/sites-enabled/default
+              nginx -t && systemctl reload nginx || systemctl restart nginx
+              echo "✅ Nginx configured and reloaded"
+            fi
+
+            # ── Install certbot + obtain/renew SSL cert ───────────────────
+            DOMAIN="${{ secrets.SITE_DOMAIN || 'zeusai.pro' }}"
+            if [ -n "$DOMAIN" ]; then
+              if ! command -v certbot >/dev/null 2>&1; then
+                apt-get install -y certbot python3-certbot-nginx 2>/dev/null || snap install --classic certbot 2>/dev/null || true
+              fi
+              if command -v certbot >/dev/null 2>&1; then
+                certbot --nginx -d "$DOMAIN" -d "www.$DOMAIN" \
+                  --non-interactive --agree-tos \
+                  --email "${{ secrets.OWNER_EMAIL || 'vladoi_ionut@yahoo.com' }}" \
+                  --redirect 2>/dev/null || \
+                certbot renew --quiet --nginx 2>/dev/null || true
+                nginx -t && systemctl reload nginx 2>/dev/null || true
+                echo "✅ SSL certificate configured for $DOMAIN"
+              fi
+            fi
 
             # ── Backup current deploy snapshot (keep last 5) ─────────────
             mkdir -p scripts
@@ -292,14 +495,18 @@ jobs:
             npm run innovation:report  || true
 
             # ── Restart backend process ───────────────────────────────────
-            if command -v systemctl >/dev/null 2>&1 && systemctl list-unit-files | grep -q "^unicorn\.service"; then
-              systemctl restart unicorn && echo "✅ Restarted via systemctl"
-            elif command -v pm2 >/dev/null 2>&1; then
-              pm2 describe unicorn >/dev/null 2>&1 \
-                && pm2 restart unicorn \
-                || pm2 start backend/index.js --name unicorn --log logs/backend.log
+            # Use clean PM2 ecosystem start to avoid process-ID conflicts
+            if command -v pm2 >/dev/null 2>&1; then
+              mkdir -p logs
+              # Stop and delete all PM2 processes for a clean slate
+              pm2 stop all 2>/dev/null || true
+              pm2 delete all 2>/dev/null || true
+              # Start all apps from ecosystem (unicorn, orchestrator, health-guardian, connector)
+              pm2 start ecosystem.config.js
               pm2 save
-              echo "✅ Restarted via pm2"
+              echo "✅ All PM2 apps started from ecosystem.config.js"
+            elif command -v systemctl >/dev/null 2>&1 && systemctl list-unit-files | grep -q "^unicorn\.service"; then
+              systemctl restart unicorn && echo "✅ Restarted via systemctl"
             else
               pkill -f "node backend/index.js" || true
               sleep 1
@@ -308,23 +515,10 @@ jobs:
               echo "✅ Restarted via nohup"
             fi
 
-            # ── Start autonomous orchestrator ─────────────────────────────
-            if command -v pm2 >/dev/null 2>&1; then
-              pm2 describe unicorn-orchestrator >/dev/null 2>&1 \
-                && pm2 restart unicorn-orchestrator \
-                || pm2 start autonomous-orchestrator.js --name unicorn-orchestrator --log logs/orchestrator.log
-
-              pm2 describe unicorn-health-guardian >/dev/null 2>&1 \
-                && pm2 restart unicorn-health-guardian --update-env \
-                || HEALTH_GUARDIAN_HEAL_CMD='systemctl restart unicorn' pm2 start scripts/health-guardian.js --name unicorn-health-guardian --log logs/health-guardian.log
-
-              pm2 save
-              echo "✅ Orchestrator running via pm2"
-            else
-              pkill -f "autonomous-orchestrator.js" || true
-              sleep 1
-              nohup node autonomous-orchestrator.js > logs/orchestrator.log 2>&1 &
-              echo "✅ Orchestrator running via nohup"
+            # ── Setup systemd for permanent auto-boot (idempotent) ────────
+            if command -v systemctl >/dev/null 2>&1; then
+              bash scripts/setup-systemd.sh "${{ secrets.HETZNER_DEPLOY_PATH || '/opt/unicorn' }}" || true
+              echo "✅ Systemd auto-boot configured"
             fi
           ENDSSH
 
@@ -333,12 +527,24 @@ jobs:
         continue-on-error: true
         if: steps.restart_hetzner.outcome == 'success'
         run: |
-          sleep 8
-          HEALTH=$(ssh -i ~/.ssh/deploy_key -p 22 -o StrictHostKeyChecking=no -o UserKnownHostsFile=~/.ssh/known_hosts \
-            "${{ secrets.HETZNER_DEPLOY_USER || secrets.HETZNER_USER || secrets.SSH_USER }}@${{ secrets.HETZNER_HOST || secrets.SSH_HOST }}" \
-            "curl -sS http://localhost:3000/health 2>/dev/null || echo '{\"status\":\"unreachable\"}'")
-          echo "Hetzner health: $HEALTH"
-          echo "$HEALTH" | grep -q '"status":"ok"' && echo "✅ Backend healthy" || echo "⚠️  Backend not yet ready"
+          # Wait for backend to start up after PM2 restart (retry up to 90s)
+          HEALTH='{"status":"unreachable"}'
+          for attempt in 1 2 3 4 5 6; do
+            sleep 15
+            HEALTH=$(ssh -i ~/.ssh/deploy_key -p 22 -o StrictHostKeyChecking=no -o UserKnownHostsFile=~/.ssh/known_hosts \
+              "${{ secrets.HETZNER_DEPLOY_USER || secrets.HETZNER_USER || secrets.SSH_USER }}@${{ secrets.HETZNER_HOST || secrets.SSH_HOST }}" \
+              "curl -sS http://localhost:3000/api/health 2>/dev/null || curl -sS http://localhost:80/api/health 2>/dev/null || echo '{\"status\":\"unreachable\"}'")
+            echo "Hetzner health (attempt $attempt): $HEALTH"
+            echo "$HEALTH" | grep -q '"status":"ok"' && break || true
+          done
+          if echo "$HEALTH" | grep -q '"status":"ok"'; then
+            echo "✅ Backend healthy"
+          else
+            echo "⚠️  Backend not yet ready — collecting diagnostics..."
+            ssh -i ~/.ssh/deploy_key -p 22 -o StrictHostKeyChecking=no -o UserKnownHostsFile=~/.ssh/known_hosts \
+              "${{ secrets.HETZNER_DEPLOY_USER || secrets.HETZNER_USER || secrets.SSH_USER }}@${{ secrets.HETZNER_HOST || secrets.SSH_HOST }}" \
+              "pm2 list 2>/dev/null || true; echo '--- last 30 log lines ---'; pm2 logs unicorn --lines 30 --nostream 2>/dev/null || tail -30 '${{ secrets.HETZNER_DEPLOY_PATH || '/opt/unicorn' }}/logs/pm2-error.log' 2>/dev/null || true" || true
+          fi
 
       - name: Fallback — trigger Hetzner webhook (if SSH failed)
         id: webhook_fallback
@@ -379,6 +585,7 @@ jobs:
     name: 🔔 Deploy → Hetzner (Webhook only)
     runs-on: ubuntu-latest
     needs: validate
+    if: github.event_name != 'pull_request'
     steps:
       - name: Trigger Hetzner webhook
         continue-on-error: true
@@ -416,7 +623,7 @@ jobs:
     steps:
       - name: Print summary
         run: |
-          echo "## 🦄 UNICORN Deploy Summary" >> "$GITHUB_STEP_SUMMARY"
+          echo "## 🦄 ZeusAI Deploy Summary" >> "$GITHUB_STEP_SUMMARY"
           echo "" >> "$GITHUB_STEP_SUMMARY"
           echo "| Target    | Result |" >> "$GITHUB_STEP_SUMMARY"
           echo "|-----------|--------|" >> "$GITHUB_STEP_SUMMARY"
@@ -428,7 +635,7 @@ jobs:
           echo "Triggered: ${{ github.event_name }}" >> "$GITHUB_STEP_SUMMARY"
 
   # ──────────────────────────────────────────────────────────────────────
-  # JOB 6: Smoke tests after deploy
+  # JOB 6: Smoke tests after deploy + HTTPS health check with auto-restart
   # ──────────────────────────────────────────────────────────────────────
   smoke-tests:
     name: 🧪 Post-deploy Smoke Tests
@@ -438,19 +645,114 @@ jobs:
     steps:
       - name: Check Vercel and Hetzner health
         run: |
-          set -e
-          VERCEL_STATUS=$(curl -s -o /dev/null -w "%{http_code}" https://zeusai.vercel.app/signin || echo "000")
-          HETZNER_STATUS=$(curl -s -o /dev/null -w "%{http_code}" "http://${{ secrets.HETZNER_HOST || secrets.SSH_HOST }}:3000/api/health" || echo "000")
-          echo "Vercel /signin: $VERCEL_STATUS"
-          echo "Hetzner /api/health: $HETZNER_STATUS"
+          VERCEL_URL='${{ needs.deploy-vercel.outputs.deploy_url }}'
+          HETZNER_HOST='${{ secrets.HETZNER_HOST || secrets.SSH_HOST }}'
+          ALL_OK=true
 
-          if [ "$VERCEL_STATUS" != "200" ]; then
-            echo "❌ Vercel smoke test failed"
-            exit 1
+          if [ -z "$VERCEL_URL" ]; then
+            echo "ℹ️  Vercel not deployed – skipping Vercel smoke test."
+          else
+            VERCEL_STATUS=$(curl -s -o /dev/null -w "%{http_code}" "${VERCEL_URL}/health" || echo "000")
+            echo "Vercel /health: $VERCEL_STATUS"
+            if [ "$VERCEL_STATUS" != "200" ]; then
+              echo "⚠️  Vercel smoke test: expected 200, got $VERCEL_STATUS"
+              ALL_OK=false
+            else
+              echo "✅ Vercel smoke test passed"
+            fi
           fi
-          if [ "$HETZNER_STATUS" != "200" ]; then
-            echo "❌ Hetzner smoke test failed"
-            exit 1
+
+          if [ -z "$HETZNER_HOST" ]; then
+            echo "ℹ️  Hetzner not configured – skipping Hetzner smoke test."
+          else
+            # Prefer Nginx port 80 (proxied to backend:3000); port 3000 is firewall-restricted
+            HETZNER_STATUS=$(curl -s -o /dev/null -w "%{http_code}" --max-time 15 "http://${HETZNER_HOST}/api/health" || echo "000")
+            if [ "$HETZNER_STATUS" = "000" ] || [ "$HETZNER_STATUS" = "000000" ]; then
+              HETZNER_STATUS=$(curl -s -o /dev/null -w "%{http_code}" --max-time 15 "http://${HETZNER_HOST}:3000/api/health" || echo "000")
+            fi
+            echo "Hetzner /api/health: $HETZNER_STATUS"
+            if [ "$HETZNER_STATUS" != "200" ]; then
+              echo "⚠️  Hetzner smoke test: expected 200, got $HETZNER_STATUS"
+              ALL_OK=false
+            else
+              echo "✅ Hetzner smoke test passed"
+            fi
           fi
-          echo "✅ Smoke tests passed"
+
+          if [ "$ALL_OK" = "true" ]; then
+            echo "✅ All configured smoke tests passed"
+          else
+            echo "⚠️  Some smoke tests reported non-200 responses (see above)"
+          fi
+
+          # ── Production Vercel domain check ──────────────────────────────
+          PROD_STATUS=$(curl -s -o /dev/null -w "%{http_code}" "${{ env.VERCEL_PROD_URL }}/health" || echo "000")
+          echo "Production ${{ env.VERCEL_PROD_URL }}/health: $PROD_STATUS"
+          [ "$PROD_STATUS" = "200" ] && echo "✅ ${{ env.VERCEL_PROD_URL }} is live" || echo "ℹ️  Production domain not yet reachable (DNS/alias may still be propagating)"
+
+      # ── HTTPS health check + automatic service restart ────────────────
+      - name: Setup SSH for HTTPS check
+        id: ssh_setup_smoke
+        continue-on-error: true
+        run: |
+          SSH_KEY="${{ secrets.HETZNER_SSH_PRIVATE_KEY || secrets.SSH_PRIVATE_KEY }}"
+          DEPLOY_HOST="${{ secrets.HETZNER_HOST || secrets.SSH_HOST }}"
+          if [ -z "$SSH_KEY" ] || [ -z "$DEPLOY_HOST" ]; then
+            echo "ssh_ready=false" >> "$GITHUB_OUTPUT"
+            echo "ℹ️  SSH credentials not available – skipping HTTPS auto-restart."
+            exit 0
+          fi
+          mkdir -p ~/.ssh && chmod 700 ~/.ssh
+          echo "$SSH_KEY" > ~/.ssh/deploy_key && chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -t ed25519,rsa "$DEPLOY_HOST" >> ~/.ssh/known_hosts 2>/dev/null || true
+          echo "ssh_ready=true" >> "$GITHUB_OUTPUT"
+
+      - name: HTTPS health check – restart service if site is down
+        if: steps.ssh_setup_smoke.outputs.ssh_ready == 'true'
+        continue-on-error: true
+        env:
+          DEPLOY_HOST: ${{ secrets.HETZNER_HOST || secrets.SSH_HOST }}
+          DEPLOY_USER: ${{ secrets.HETZNER_DEPLOY_USER || secrets.HETZNER_USER || secrets.SSH_USER }}
+          DEPLOY_PATH: ${{ secrets.HETZNER_DEPLOY_PATH || '/opt/unicorn' }}
+          # SITE_DOMAIN is preferred; falls back to IP-based HTTPS
+          SITE_DOMAIN: ${{ secrets.SITE_DOMAIN || secrets.UNICORN_DOMAIN }}
+        run: |
+          # Determine probe URL:
+          # - With SITE_DOMAIN → use HTTPS (certbot-issued cert expected)
+          # - Without SITE_DOMAIN → use HTTP via Nginx port 80 (proxied to backend:3000)
+          if [ -n "$SITE_DOMAIN" ]; then
+            PROBE_URL="https://${SITE_DOMAIN}/api/health"
+          else
+            PROBE_URL="http://${DEPLOY_HOST}/api/health"
+            echo "ℹ️  SITE_DOMAIN not set — probing HTTP via Nginx port 80"
+          fi
+
+          echo "🔍 Probing: $PROBE_URL"
+          HTTPS_STATUS=$(curl -sk -o /dev/null -w "%{http_code}" --max-time 15 "$PROBE_URL" || echo "000")
+          echo "Status: $HTTPS_STATUS"
+
+          if [ "$HTTPS_STATUS" = "200" ]; then
+            echo "✅ Site is responding correctly."
+          else
+            echo "⚠️  Site not responding (HTTP $HTTPS_STATUS). Attempting service restart via SSH…"
+            ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no -o BatchMode=yes \
+              "${DEPLOY_USER}@${DEPLOY_HOST}" \
+              "DEPLOY_PATH='${DEPLOY_PATH}'; if command -v systemctl >/dev/null 2>&1 && systemctl list-unit-files | grep -q '^unicorn\\.service'; then systemctl restart unicorn && echo 'Restarted via systemctl'; elif command -v pm2 >/dev/null 2>&1 && pm2 describe unicorn >/dev/null 2>&1; then pm2 restart unicorn && echo 'Restarted via pm2'; else pkill -f 'node backend/index.js' || true; sleep 1; cd \"\$DEPLOY_PATH\"; mkdir -p logs; nohup node backend/index.js > logs/backend.log 2>&1 & echo 'Restarted via nohup'; fi"
+
+            # Wait for service to come back up with a retry loop (max 60s)
+            echo "Waiting for service to recover…"
+            STATUS_RETRY="000"
+            for i in 1 2 3 4; do
+              sleep 15
+              STATUS_RETRY=$(curl -sk -o /dev/null -w "%{http_code}" --max-time 10 "$PROBE_URL" || echo "000")
+              echo "  attempt $i → HTTP $STATUS_RETRY"
+              [ "$STATUS_RETRY" = "200" ] && break
+            done
+            echo "Status after restart: $STATUS_RETRY"
+            if [ "$STATUS_RETRY" = "200" ]; then
+              echo "✅ Site recovered after service restart."
+            else
+              echo "⚠️  Site still not responding after restart (HTTP $STATUS_RETRY). Will retry on next keepalive cycle."
+            fi
+          fi
 

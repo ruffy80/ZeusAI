@@ -1,12 +1,141 @@
+// =====================================================================
+// OWNERSHIP: Acest fișier este proprietatea exclusivă a lui Vladoi Ionut
+// Email: vladoi_ionut@yahoo.com
+// BTC Address: bc1q4f7e66z87mdfj56kz0dj5hvcnpmh0qh4wuv22e
+// Data: 2026-04-11T05:45:32.973Z
+// Orice copiere, modificare sau distribuție neautorizată este interzisă.
+// =====================================================================
+
+// =====================================================================
+// OWNERSHIP: Acest fișier este proprietatea exclusivă a lui Vladoi Ionut
+// Email: vladoi_ionut@yahoo.com
+// BTC Address: bc1q4f7e66z87mdfj56kz0dj5hvcnpmh0qh4wuv22e
+// Data: 2026-04-11T05:42:31.050Z
+// Orice copiere, modificare sau distribuție neautorizată este interzisă.
+// =====================================================================
+
+// =====================================================================
+// OWNERSHIP: Acest fișier este proprietatea exclusivă a lui Vladoi Ionut
+// Email: vladoi_ionut@yahoo.com
+// BTC Address: bc1q4f7e66z87mdfj56kz0dj5hvcnpmh0qh4wuv22e
+// Data: 2026-04-11T05:42:10.051Z
+// Orice copiere, modificare sau distribuție neautorizată este interzisă.
+// =====================================================================
+
+// =====================================================================
+// OWNERSHIP: Acest fișier este proprietatea exclusivă a lui Vladoi Ionut
+// Email: vladoi_ionut@yahoo.com
+// BTC Address: bc1q4f7e66z87mdfj56kz0dj5hvcnpmh0qh4wuv22e
+// Data: 2026-04-11T05:40:57.967Z
+// Orice copiere, modificare sau distribuție neautorizată este interzisă.
+// =====================================================================
+
+// =====================================================================
+// OWNERSHIP: Acest fișier este proprietatea exclusivă a lui Vladoi Ionut
+// Email: vladoi_ionut@yahoo.com
+// BTC Address: bc1q4f7e66z87mdfj56kz0dj5hvcnpmh0qh4wuv22e
+// Data: 2026-04-11T05:39:37.160Z
+// Orice copiere, modificare sau distribuție neautorizată este interzisă.
+// =====================================================================
+
+// =====================================================================
+// OWNERSHIP: Acest fișier este proprietatea exclusivă a lui Vladoi Ionut
+// Email: vladoi_ionut@yahoo.com
+// BTC Address: bc1q4f7e66z87mdfj56kz0dj5hvcnpmh0qh4wuv22e
+// Data: 2026-04-10T20:26:26.908Z
+// Orice copiere, modificare sau distribuție neautorizată este interzisă.
+// =====================================================================
+
+// =====================================================================
+// OWNERSHIP: Acest fișier este proprietatea exclusivă a lui Vladoi Ionut
+// Email: vladoi_ionut@yahoo.com
+// BTC Address: bc1q4f7e66z87mdfj56kz0dj5hvcnpmh0qh4wuv22e
+// Data: 2026-04-10T19:17:59.237Z
+// Orice copiere, modificare sau distribuție neautorizată este interzisă.
+// =====================================================================
+
+// =====================================================================
+// OWNERSHIP: Acest fișier este proprietatea exclusivă a lui Vladoi Ionut
+// Email: vladoi_ionut@yahoo.com
+// BTC Address: bc1q4f7e66z87mdfj56kz0dj5hvcnpmh0qh4wuv22e
+// Data: 2026-04-10T19:15:25.095Z
+// Orice copiere, modificare sau distribuție neautorizată este interzisă.
+// =====================================================================
+
+// =====================================================================
+// OWNERSHIP: Acest fișier este proprietatea exclusivă a lui Vladoi Ionut
+// Email: vladoi_ionut@yahoo.com
+// BTC Address: bc1q4f7e66z87mdfj56kz0dj5hvcnpmh0qh4wuv22e
+// Data: 2026-04-10T19:14:20.608Z
+// Orice copiere, modificare sau distribuție neautorizată este interzisă.
+// =====================================================================
+
+// =====================================================================
+// OWNERSHIP: Acest fișier este proprietatea exclusivă a lui Vladoi Ionut
+// Email: vladoi_ionut@yahoo.com
+// BTC Address: bc1q4f7e66z87mdfj56kz0dj5hvcnpmh0qh4wuv22e
+// Data: 2026-04-10T19:10:41.151Z
+// Orice copiere, modificare sau distribuție neautorizată este interzisă.
+// =====================================================================
+
+// =====================================================================
+// OWNERSHIP: Acest fișier este proprietatea exclusivă a lui Vladoi Ionut
+// Email: vladoi_ionut@yahoo.com
+// BTC Address: bc1q4f7e66z87mdfj56kz0dj5hvcnpmh0qh4wuv22e
+// Data: 2026-04-10T19:01:10.452Z
+// Orice copiere, modificare sau distribuție neautorizată este interzisă.
+// =====================================================================
+
+// =====================================================================
+// OWNERSHIP: Acest fișier este proprietatea exclusivă a lui Vladoi Ionut
+// Email: vladoi_ionut@yahoo.com
+// BTC Address: bc1q4f7e66z87mdfj56kz0dj5hvcnpmh0qh4wuv22e
+// Data: 2026-04-10T18:58:03.207Z
+// Orice copiere, modificare sau distribuție neautorizată este interzisă.
+// =====================================================================
+
+// =====================================================================
+// OWNERSHIP: Acest fișier este proprietatea exclusivă a lui Vladoi Ionut
+// Email: vladoi_ionut@yahoo.com
+// BTC Address: bc1q4f7e66z87mdfj56kz0dj5hvcnpmh0qh4wuv22e
+// Data: 2026-04-10T18:53:47.290Z
+// Orice copiere, modificare sau distribuție neautorizată este interzisă.
+// =====================================================================
+
+// =====================================================================
+// OWNERSHIP: Acest fișier este proprietatea exclusivă a lui Vladoi Ionut
+// Email: vladoi_ionut@yahoo.com
+// BTC Address: bc1q4f7e66z87mdfj56kz0dj5hvcnpmh0qh4wuv22e
+// Data: 2026-04-10T18:53:01.154Z
+// Orice copiere, modificare sau distribuție neautorizată este interzisă.
+// =====================================================================
+
+// =====================================================================
+// OWNERSHIP: Acest fișier este proprietatea exclusivă a lui Vladoi Ionut
+// Email: vladoi_ionut@yahoo.com
+// BTC Address: bc1q4f7e66z87mdfj56kz0dj5hvcnpmh0qh4wuv22e
+// Data: 2026-04-10T18:52:08.803Z
+// Orice copiere, modificare sau distribuție neautorizată este interzisă.
+// =====================================================================
+
+// =====================================================================
+// OWNERSHIP: Acest fișier este proprietatea exclusivă a lui Vladoi Ionut
+// Email: vladoi_ionut@yahoo.com
+// BTC Address: bc1q4f7e66z87mdfj56kz0dj5hvcnpmh0qh4wuv22e
+// Data: 2026-04-10T18:51:01.992Z
+// Orice copiere, modificare sau distribuție neautorizată este interzisă.
+// =====================================================================
+
 const fs = require('fs');
 const path = require('path');
 const axios = require('axios');
+const { purchases: dbPurchases } = require('../db');
 
 class ServiceMarketplace {
   constructor() {
+    this.cache = new Map(); this.cacheTTL = 60000; 
     this.services = new Map();
     this.pricingHistory = new Map();
-    this.clientPreferences = new Map();
     this.marketTrends = { lastUpdate: null, trends: {}, globalMultiplier: 1.0 };
     this.discountRate = 0.20;
     this.loadServices();
@@ -152,9 +281,9 @@ class ServiceMarketplace {
     if (!service) return null;
 
     let basePrice = service.currentPrice || service.basePrice;
-    const clientHistory = this.clientPreferences.get(clientId);
-    if (clientHistory) {
-      const loyaltyDiscount = Math.min(clientHistory.purchases * 0.02, 0.15);
+    const stats = dbPurchases.statsForClient(clientId);
+    if (stats && stats.purchases > 0) {
+      const loyaltyDiscount = Math.min(stats.purchases * 0.02, 0.15);
       basePrice *= (1 - loyaltyDiscount);
     }
 
@@ -167,12 +296,9 @@ class ServiceMarketplace {
   }
 
   recordPurchase(serviceId, clientId, price, details = {}) {
-    if (!this.clientPreferences.has(clientId)) {
-      this.clientPreferences.set(clientId, { purchases: 0, totalSpent: 0, services: [], firstPurchase: new Date().toISOString() });
-    }
-    const client = this.clientPreferences.get(clientId);
     const service = this.services.get(serviceId);
-    const purchaseRecord = {
+    dbPurchases.record({
+      clientId,
       serviceId,
       serviceName: details.serviceName || service?.name || serviceId,
       description: details.description || service?.description || '',
@@ -180,21 +306,16 @@ class ServiceMarketplace {
       price: Number(price || 0),
       paymentTxId: details.paymentTxId || null,
       paymentMethod: details.paymentMethod || null,
-      purchasedAt: new Date().toISOString()
-    };
-    client.purchases += 1;
-    client.totalSpent += Number(price || 0);
-    client.services.push(purchaseRecord);
-    client.lastPurchase = new Date().toISOString();
+      purchasedAt: new Date().toISOString(),
+    });
 
     if (service) service.popularity = Math.min(service.popularity + 0.05, 1);
-    return client;
+    const stats = dbPurchases.statsForClient(clientId);
+    return { clientId, purchases: stats.purchases, totalSpent: stats.totalSpent };
   }
 
   getClientPurchases(clientId) {
-    const client = this.clientPreferences.get(clientId);
-    if (!client) return [];
-    return [...client.services].sort((a, b) => new Date(b.purchasedAt) - new Date(a.purchasedAt));
+    return dbPurchases.listByClient(clientId);
   }
 
   getAllServices() {
@@ -214,10 +335,10 @@ class ServiceMarketplace {
   }
 
   getRecommendations(clientId) {
-    const client = this.clientPreferences.get(clientId);
+    const purchasedIds = new Set(dbPurchases.listByClient(clientId).map(p => p.serviceId));
     const recommendations = [];
     for (const service of this.services.values()) {
-      if (!client || !client.services.some(s => s.serviceId === service.id)) {
+      if (!purchasedIds.has(service.id)) {
         recommendations.push({
           serviceId: service.id,
           name: service.name,

@@ -4,7 +4,8 @@
   "version": "1.0.0",
   "scripts": {
     "start": "react-scripts start",
-    "build": "react-scripts build"
+    "build": "react-scripts build",
+    "vercel-build": "react-scripts build"
   },
   "dependencies": {
     "react": "^18.2.0",
@@ -21,6 +22,7 @@
     "react-i18next": "^14.1.2",
     "react-scripts": "^5.0.1"
   },
+  "proxy": "http://localhost:3000",
   "browserslist": {
     "production": [
       ">0.2%",

@@ -1,12 +1,142 @@
+// =====================================================================
+// OWNERSHIP: Acest fișier este proprietatea exclusivă a lui Vladoi Ionut
+// Email: vladoi_ionut@yahoo.com
+// BTC Address: bc1q4f7e66z87mdfj56kz0dj5hvcnpmh0qh4wuv22e
+// Data: 2026-04-11T05:45:32.970Z
+// Orice copiere, modificare sau distribuție neautorizată este interzisă.
+// =====================================================================
+
+// =====================================================================
+// OWNERSHIP: Acest fișier este proprietatea exclusivă a lui Vladoi Ionut
+// Email: vladoi_ionut@yahoo.com
+// BTC Address: bc1q4f7e66z87mdfj56kz0dj5hvcnpmh0qh4wuv22e
+// Data: 2026-04-11T05:42:31.048Z
+// Orice copiere, modificare sau distribuție neautorizată este interzisă.
+// =====================================================================
+
+// =====================================================================
+// OWNERSHIP: Acest fișier este proprietatea exclusivă a lui Vladoi Ionut
+// Email: vladoi_ionut@yahoo.com
+// BTC Address: bc1q4f7e66z87mdfj56kz0dj5hvcnpmh0qh4wuv22e
+// Data: 2026-04-11T05:42:10.049Z
+// Orice copiere, modificare sau distribuție neautorizată este interzisă.
+// =====================================================================
+
+// =====================================================================
+// OWNERSHIP: Acest fișier este proprietatea exclusivă a lui Vladoi Ionut
+// Email: vladoi_ionut@yahoo.com
+// BTC Address: bc1q4f7e66z87mdfj56kz0dj5hvcnpmh0qh4wuv22e
+// Data: 2026-04-11T05:40:57.965Z
+// Orice copiere, modificare sau distribuție neautorizată este interzisă.
+// =====================================================================
+
+// =====================================================================
+// OWNERSHIP: Acest fișier este proprietatea exclusivă a lui Vladoi Ionut
+// Email: vladoi_ionut@yahoo.com
+// BTC Address: bc1q4f7e66z87mdfj56kz0dj5hvcnpmh0qh4wuv22e
+// Data: 2026-04-11T05:39:37.158Z
+// Orice copiere, modificare sau distribuție neautorizată este interzisă.
+// =====================================================================
+
+// =====================================================================
+// OWNERSHIP: Acest fișier este proprietatea exclusivă a lui Vladoi Ionut
+// Email: vladoi_ionut@yahoo.com
+// BTC Address: bc1q4f7e66z87mdfj56kz0dj5hvcnpmh0qh4wuv22e
+// Data: 2026-04-10T20:26:26.906Z
+// Orice copiere, modificare sau distribuție neautorizată este interzisă.
+// =====================================================================
+
+// =====================================================================
+// OWNERSHIP: Acest fișier este proprietatea exclusivă a lui Vladoi Ionut
+// Email: vladoi_ionut@yahoo.com
+// BTC Address: bc1q4f7e66z87mdfj56kz0dj5hvcnpmh0qh4wuv22e
+// Data: 2026-04-10T19:17:59.235Z
+// Orice copiere, modificare sau distribuție neautorizată este interzisă.
+// =====================================================================
+
+// =====================================================================
+// OWNERSHIP: Acest fișier este proprietatea exclusivă a lui Vladoi Ionut
+// Email: vladoi_ionut@yahoo.com
+// BTC Address: bc1q4f7e66z87mdfj56kz0dj5hvcnpmh0qh4wuv22e
+// Data: 2026-04-10T19:15:25.093Z
+// Orice copiere, modificare sau distribuție neautorizată este interzisă.
+// =====================================================================
+
+// =====================================================================
+// OWNERSHIP: Acest fișier este proprietatea exclusivă a lui Vladoi Ionut
+// Email: vladoi_ionut@yahoo.com
+// BTC Address: bc1q4f7e66z87mdfj56kz0dj5hvcnpmh0qh4wuv22e
+// Data: 2026-04-10T19:14:20.606Z
+// Orice copiere, modificare sau distribuție neautorizată este interzisă.
+// =====================================================================
+
+// =====================================================================
+// OWNERSHIP: Acest fișier este proprietatea exclusivă a lui Vladoi Ionut
+// Email: vladoi_ionut@yahoo.com
+// BTC Address: bc1q4f7e66z87mdfj56kz0dj5hvcnpmh0qh4wuv22e
+// Data: 2026-04-10T19:10:41.148Z
+// Orice copiere, modificare sau distribuție neautorizată este interzisă.
+// =====================================================================
+
+// =====================================================================
+// OWNERSHIP: Acest fișier este proprietatea exclusivă a lui Vladoi Ionut
+// Email: vladoi_ionut@yahoo.com
+// BTC Address: bc1q4f7e66z87mdfj56kz0dj5hvcnpmh0qh4wuv22e
+// Data: 2026-04-10T19:01:10.449Z
+// Orice copiere, modificare sau distribuție neautorizată este interzisă.
+// =====================================================================
+
+// =====================================================================
+// OWNERSHIP: Acest fișier este proprietatea exclusivă a lui Vladoi Ionut
+// Email: vladoi_ionut@yahoo.com
+// BTC Address: bc1q4f7e66z87mdfj56kz0dj5hvcnpmh0qh4wuv22e
+// Data: 2026-04-10T18:58:03.204Z
+// Orice copiere, modificare sau distribuție neautorizată este interzisă.
+// =====================================================================
+
+// =====================================================================
+// OWNERSHIP: Acest fișier este proprietatea exclusivă a lui Vladoi Ionut
+// Email: vladoi_ionut@yahoo.com
+// BTC Address: bc1q4f7e66z87mdfj56kz0dj5hvcnpmh0qh4wuv22e
+// Data: 2026-04-10T18:53:47.289Z
+// Orice copiere, modificare sau distribuție neautorizată este interzisă.
+// =====================================================================
+
+// =====================================================================
+// OWNERSHIP: Acest fișier este proprietatea exclusivă a lui Vladoi Ionut
+// Email: vladoi_ionut@yahoo.com
+// BTC Address: bc1q4f7e66z87mdfj56kz0dj5hvcnpmh0qh4wuv22e
+// Data: 2026-04-10T18:53:01.152Z
+// Orice copiere, modificare sau distribuție neautorizată este interzisă.
+// =====================================================================
+
+// =====================================================================
+// OWNERSHIP: Acest fișier este proprietatea exclusivă a lui Vladoi Ionut
+// Email: vladoi_ionut@yahoo.com
+// BTC Address: bc1q4f7e66z87mdfj56kz0dj5hvcnpmh0qh4wuv22e
+// Data: 2026-04-10T18:52:08.801Z
+// Orice copiere, modificare sau distribuție neautorizată este interzisă.
+// =====================================================================
+
+// =====================================================================
+// OWNERSHIP: Acest fișier este proprietatea exclusivă a lui Vladoi Ionut
+// Email: vladoi_ionut@yahoo.com
+// BTC Address: bc1q4f7e66z87mdfj56kz0dj5hvcnpmh0qh4wuv22e
+// Data: 2026-04-10T18:51:01.990Z
+// Orice copiere, modificare sau distribuție neautorizată este interzisă.
+// =====================================================================
+
 const axios = require('axios');
 const QRCode = require('qrcode');
+const { payments: dbPayments } = require('../db');
 
 const DEFAULT_BTC_WALLET_ADDRESS = 'bc1q4f7e66z87mdfj56kz0dj5hvcnpmh0qh4wuv22e';
 const DEFAULT_APP_BASE_URL = 'http://localhost:3000';
 
 class PaymentGateway {
   constructor() {
-    this.payments = new Map();
+    this.cache = new Map(); this.cacheTTL = 60000; 
+    this.payments = new Map(); // session-level cache; durable state lives in SQLite via dbPayments
     this.appBaseUrl = this.normalizeBaseUrl(
       process.env.PUBLIC_APP_URL
       || process.env.APP_BASE_URL
@@ -41,7 +171,7 @@ class PaymentGateway {
   }
 
   normalizeBaseUrl(value) {
-    return String(value || DEFAULT_APP_BASE_URL).replace(//$/, '');
+    return String(value || DEFAULT_APP_BASE_URL).replace(/\/$/, '');
   }
 
   isStripeConfigured() {
@@ -204,6 +334,9 @@ class PaymentGateway {
   }
 
   async capturePayPalOrder(orderId) {
+    if (!orderId || !/^[A-Za-z0-9_-]{1,100}$/.test(orderId)) {
+      throw new Error('Invalid PayPal order ID format');
+    }
     const accessToken = await this.getPayPalAccessToken();
     const response = await axios.post(this.getPayPalBaseUrl() + '/v2/checkout/orders/' + orderId + '/capture', {}, {
       headers: {
@@ -294,15 +427,17 @@ class PaymentGateway {
     }
 
     this.payments.set(txId, payment);
+    dbPayments.save(payment);
     return payment;
   }
 
   getPaymentStatus(txId) {
-    return this.payments.get(txId) || null;
+    // Try in-memory first (fastest), fall back to DB (survives restart)
+    return this.payments.get(txId) || dbPayments.findByTxId(txId) || null;
   }
 
   async processPayment(txId, details = {}) {
-    const payment = this.payments.get(txId);
+    const payment = this.payments.get(txId) || dbPayments.findByTxId(txId);
     if (!payment) {
       throw new Error('Payment not found');
     }
@@ -322,6 +457,7 @@ class PaymentGateway {
       };
 
       this.payments.set(txId, updatedPayment);
+      dbPayments.save(updatedPayment);
       return updatedPayment;
     }
 
@@ -341,6 +477,7 @@ class PaymentGateway {
         };
 
         this.payments.set(txId, updatedPayment);
+        dbPayments.save(updatedPayment);
         return updatedPayment;
       } catch (error) {
         if (error.response?.status === 422 || error.response?.status === 409) {
@@ -356,6 +493,7 @@ class PaymentGateway {
           };
 
           this.payments.set(txId, updatedPayment);
+          dbPayments.save(updatedPayment);
           return updatedPayment;
         }
 
@@ -387,36 +525,30 @@ class PaymentGateway {
     }
 
     this.payments.set(txId, updatedPayment);
+    dbPayments.save(updatedPayment);
     return updatedPayment;
   }
 
   getTransactionHistory(filters = {}) {
-    const { clientId, status, method } = filters;
-    return Array.from(this.payments.values())
-      .filter((payment) => !clientId || payment.clientId === clientId)
-      .filter((payment) => !status || payment.status === status)
-      .filter((payment) => !method || payment.method === method)
-      .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+    return dbPayments.list(filters);
   }
 
   getStats() {
-    const payments = Array.from(this.payments.values());
-    const revenue = payments
-      .filter((payment) => payment.status === 'completed')
-      .reduce((sum, payment) => sum + payment.total, 0);
-
-    const byMethod = payments.reduce((acc, payment) => {
-      acc[payment.method] = (acc[payment.method] || 0) + 1;
+    const allPayments = dbPayments.list();
+    const completed = allPayments.filter(p => p.status === 'completed');
+    const revenue = completed.reduce((sum, p) => sum + p.total, 0);
+    const byMethod = allPayments.reduce((acc, p) => {
+      acc[p.method] = (acc[p.method] || 0) + 1;
       return acc;
     }, {});
 
     return {
-      totalPayments: payments.length,
-      completedPayments: payments.filter((payment) => payment.status === 'completed').length,
-      pendingPayments: payments.filter((payment) => payment.status === 'pending' || payment.status === 'processing').length,
+      totalPayments: allPayments.length,
+      completedPayments: completed.length,
+      pendingPayments: allPayments.filter(p => p.status === 'pending' || p.status === 'processing').length,
       revenue: Number(revenue.toFixed(2)),
       byMethod,
-      activeMethods: this.methods.filter((method) => method.active).length,
+      activeMethods: this.methods.filter(m => m.active).length,
       supportedStatuses: this.statusFlow
     };
   }

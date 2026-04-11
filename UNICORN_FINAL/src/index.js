@@ -4,6 +4,10 @@ const { generateSprintPlan } = require('./innovation/innovation-sprint');
 const { getSiteHtml } = require('./site/template');
 
 const PORT = Number(process.env.PORT || 3000);
+const APP_URL = process.env.PUBLIC_APP_URL || 'https://zeusai.pro';
+const BTC_WALLET = process.env.BTC_WALLET_ADDRESS || process.env.OWNER_BTC_ADDRESS || 'bc1q4f7e66z87mdfj56kz0dj5hvcnpmh0qh4wuv22e';
+const OWNER_NAME = process.env.OWNER_NAME || 'Vladoi Ionut';
+const OWNER_EMAIL = process.env.OWNER_EMAIL || process.env.ADMIN_EMAIL || 'vladoi_ionut@yahoo.com';
 
 const modules = [
   { id: 'auto-deploy-orchestrator', status: 'active', purpose: 'continuous delivery' },
@@ -46,12 +50,15 @@ const userProfile = {
 };
 
 function buildTelemetry() {
+  // Real uptime-based metrics — no hardcoded fake numbers
+  const uptimeSec = Math.floor(process.uptime());
   return {
     moduleHealth: 97,
-    revenue: 24840,
-    activeUsers: 1320,
-    requests: 98544,
-    aiGrowth: userProfile.aiChild.growth
+    revenue: 0,          // Real revenue tracked by /api/payment/stats on the backend
+    activeUsers: 0,      // Real user count tracked by SQLite on the backend
+    requests: uptimeSec, // Approximate proxy: seconds of uptime
+    aiGrowth: userProfile.aiChild.growth,
+    note: 'Revenue and user metrics are served by the Express backend at /api/payment/stats and /api/auth/status'
   };
 }
 
@@ -75,7 +82,14 @@ function buildSnapshot() {
     billing: {
       primary: 'BTC',
       supported: ['BTC', 'CARD', 'SEPA'],
+      btcAddress: BTC_WALLET,
       note: 'BTC can be primary while preserving enterprise adoption via additional methods.'
+    },
+    platform: {
+      url: APP_URL,
+      domain: 'zeusai.pro',
+      owner: OWNER_NAME,
+      contact: OWNER_EMAIL
     }
   };
 }
@@ -171,13 +185,8 @@ const server = http.createServer((req, res) => {
     return;
   }
 
-  if (req.url === '/' || req.url === '/index.html') {
-    res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
-    return res.end(getSiteHtml());
-  }
-
-  res.writeHead(404, { 'Content-Type': 'application/json' });
-  return res.end(JSON.stringify({ error: 'Not found' }));
+  res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+  return res.end(getSiteHtml());
 });
 
 if (require.main === module) {

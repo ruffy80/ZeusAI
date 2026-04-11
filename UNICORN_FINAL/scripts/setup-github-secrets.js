@@ -22,35 +22,56 @@ const GITHUB_TOKEN = process.env.GITHUB_TOKEN;
 const OWNER = 'ruffy80';
 const REPO  = 'ZeusAI';
 
+const VERCEL_ORG_ID = 'team_wes3fQvKjdfOMKXe7f4fFQoL';
+// Fallback project ID (unicorn-final legacy) used only when Vercel API is unavailable
+const VERCEL_PROJECT_ID_FALLBACK = 'prj_YNIHsyltyZUV7HQA3VyQhhGDvKD3';
+
 if (!GITHUB_TOKEN) {
   console.error('❌  Set GITHUB_TOKEN=ghp_... before running this script.');
   process.exit(1);
 }
 
-// ─── Secrets to push ───────────────────────────────────────────────────────────
-const SECRETS = {
-  // Generated — fully autonomous
-  JWT_SECRET:             'c27b85435c110ee2a1ba6a34033071dcf3bd506d9b4ca83b7922b9ccb407ed1a3977618bdbb52eb85e81a7c6070a3ed0',
-  ADMIN_SECRET:           'Utz0qwqFIQy9cAMHM2wdWjyDPfUC9LC1H3n7f38qiSQ',
-  ADMIN_MASTER_PASSWORD:  'Unicorn@uOdy81WP2026!',
-  ADMIN_2FA_CODE:         '941393',
-  WEBHOOK_SECRET:         'euvoqd121ermYxT8hXQwY71PGX5ihYlQ50QEzm8FVpM',
-  HETZNER_WEBHOOK_SECRET: 'euvoqd121ermYxT8hXQwY71PGX5ihYlQ50QEzm8FVpM',
-
-  // Vercel — known from .env.example
-  VERCEL_ORG_ID:          'team_wes3fQvKjdfOMKXe7f4fFQoL',
-  VERCEL_PROJECT_ID:      'prj_HZRAdxaNZf4m5jhkR1gpQLI9FWVu',
-
-  // Fill these in manually if you have Hetzner:
-  // VERCEL_TOKEN:         process.env.VERCEL_TOKEN || '',
-  // HETZNER_HOST:         process.env.HETZNER_HOST || '',
-  // HETZNER_USER:         process.env.HETZNER_USER || 'root',
-  // HETZNER_DEPLOY_USER:  process.env.HETZNER_DEPLOY_USER || 'root',
-  // HETZNER_DEPLOY_PORT:  process.env.HETZNER_DEPLOY_PORT || '22',
-  // HETZNER_DEPLOY_PATH:  process.env.HETZNER_DEPLOY_PATH || '/opt/unicorn',
-  // HETZNER_API_KEY:      process.env.HETZNER_API_TOKEN || '',
-  // HETZNER_SSH_PRIVATE_KEY: process.env.HETZNER_SSH_PRIVATE_KEY || '',
-};
+// ─── Auto-fetch zeusai project ID from Vercel API ─────────────────────────────
+function fetchVercelProjectId(token, orgId) {
+  return new Promise((resolve) => {
+    if (!token) {
+      console.log('  ℹ️  VERCEL_TOKEN not set – using fallback project ID');
+      return resolve(VERCEL_PROJECT_ID_FALLBACK);
+    }
+    const path = `/v9/projects/zeusai?teamId=${orgId}`;
+    const opts = {
+      hostname: 'api.vercel.com',
+      path,
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'User-Agent': 'unicorn-setup',
+        Accept: 'application/json',
+      },
+    };
+    https.get(opts, (res) => {
+      let data = '';
+      res.on('data', (c) => { data += c; });
+      res.on('end', () => {
+        try {
+          const project = JSON.parse(data);
+          if (project.id) {
+            console.log(`  🔍 Vercel zeusai project ID resolved: ${project.id}`);
+            resolve(project.id);
+          } else {
+            console.warn(`  ⚠️  Could not resolve zeusai project ID from Vercel (response: ${data.slice(0, 120)}). Using fallback.`);
+            resolve(VERCEL_PROJECT_ID_FALLBACK);
+          }
+        } catch {
+          console.warn('  ⚠️  Failed to parse Vercel project response. Using fallback project ID.');
+          resolve(VERCEL_PROJECT_ID_FALLBACK);
+        }
+      });
+    }).on('error', (err) => {
+      console.warn(`  ⚠️  Vercel API error: ${err.message}. Using fallback project ID.`);
+      resolve(VERCEL_PROJECT_ID_FALLBACK);
+    });
+  });
+}
 
 // ─── GitHub API helpers ─────────────────────────────────────────────────────────
 function apiGet(path) {
@@ -123,6 +144,42 @@ async function encryptSecret(publicKey, publicKeyId, secretValue) {
 
 async function run() {
   console.log(`\n🔐 Pushing secrets to github.com/${OWNER}/${REPO}\n`);
+
+  // Auto-resolve the zeusai Vercel project ID (replaces any stale unicorn-final ID)
+  const vercelProjectId = await fetchVercelProjectId(process.env.VERCEL_TOKEN, VERCEL_ORG_ID);
+
+  const SECRETS = {
+    // Generated — fully autonomous
+    JWT_SECRET:             'c27b85435c110ee2a1ba6a34033071dcf3bd506d9b4ca83b7922b9ccb407ed1a3977618bdbb52eb85e81a7c6070a3ed0',
+    ADMIN_SECRET:           'Utz0qwqFIQy9cAMHM2wdWjyDPfUC9LC1H3n7f38qiSQ',
+    ADMIN_MASTER_PASSWORD:  'Unicorn@uOdy81WP2026!',
+    ADMIN_2FA_CODE:         '941393',
+    WEBHOOK_SECRET:         'euvoqd121ermYxT8hXQwY71PGX5ihYlQ50QEzm8FVpM',
+    HETZNER_WEBHOOK_SECRET: 'euvoqd121ermYxT8hXQwY71PGX5ihYlQ50QEzm8FVpM',
+
+    // Vercel — project ID auto-resolved from Vercel API at run time
+    VERCEL_ORG_ID:          VERCEL_ORG_ID,
+    VERCEL_PROJECT_ID:      vercelProjectId,
+
+    // Domain — required for SSL/HTTPS health checks and certbot
+    // Can be overridden at runtime via SITE_DOMAIN / UNICORN_DOMAIN env vars
+    // (e.g. when triggered from setup-secrets-and-deploy.yml with custom inputs)
+    SITE_DOMAIN:    process.env.SITE_DOMAIN    || 'zeusai.pro',
+    UNICORN_DOMAIN: process.env.UNICORN_DOMAIN || 'www.zeusai.pro',
+
+    // Hetzner — known from .env.auto-connector.example
+    HETZNER_HOST:           '204.168.230.142',
+    HETZNER_USER:           'root',
+    HETZNER_DEPLOY_USER:    'root',
+    HETZNER_DEPLOY_PORT:    '22',
+    HETZNER_DEPLOY_PATH:    '/root/unicorn-final',
+    HETZNER_APP_PORT:       '3000',
+
+    // Pass-through from environment (must be provided externally if available)
+    ...(process.env.VERCEL_TOKEN            ? { VERCEL_TOKEN:            process.env.VERCEL_TOKEN }            : {}),
+    ...(process.env.HETZNER_API_KEY         ? { HETZNER_API_KEY:         process.env.HETZNER_API_KEY }         : {}),
+    ...(process.env.HETZNER_SSH_PRIVATE_KEY ? { HETZNER_SSH_PRIVATE_KEY: process.env.HETZNER_SSH_PRIVATE_KEY } : {}),
+  };
 
   const { key, key_id } = await apiGet(`/repos/${OWNER}/${REPO}/actions/secrets/public-key`);
 

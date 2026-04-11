@@ -10,7 +10,10 @@
     "unicorn:lint": "npm --prefix UNICORN_FINAL run lint",
     "next:dev": "next dev",
     "next:build": "next build",
-    "next:start": "next start"
+    "next:start": "next start",
+    "deploy": "npm --prefix UNICORN_FINAL run deploy:full",
+    "heal": "npm --prefix UNICORN_FINAL run health:guardian",
+    "evolve": "npm --prefix UNICORN_FINAL run innovation:sprint"
   },
   "dependencies": {
     "next": "14.2.5",

@@ -119,17 +119,17 @@ jobs:
           ssh -p ${{ secrets.HETZNER_DEPLOY_PORT }} -o StrictHostKeyChecking=no ${{ secrets.HETZNER_DEPLOY_USER }}@${{ secrets.HETZNER_HOST }} '
             set -e
             cd "${{ secrets.HETZNER_DEPLOY_PATH }}"
-            if [ -f .env ]; then
-              grep -v "^HETZNER_API_KEY=" .env > .env.tmp || true
-              grep -v "^HETZNER_API_TOKEN=" .env.tmp > .env.clean || true
-              mv .env.clean .env.tmp
-              printf "%s\n" "HETZNER_API_KEY=${HETZNER_API_VALUE}" >> .env.tmp
-              printf "%s\n" "HETZNER_API_TOKEN=${HETZNER_API_VALUE}" >> .env.tmp
-              mv .env.tmp .env
-            else
-              printf "%s\n" "HETZNER_API_KEY=${HETZNER_API_VALUE}" > .env
-              printf "%s\n" "HETZNER_API_TOKEN=${HETZNER_API_VALUE}" >> .env
-            fi
+            for key in HETZNER_API_KEY HETZNER_API_TOKEN PUBLIC_APP_URL SITE_DOMAIN \
+                       BTC_WALLET_ADDRESS OWNER_BTC_ADDRESS OWNER_NAME OWNER_EMAIL ADMIN_EMAIL; do
+              [ -f .env ] && sed -i "/^${key}=/d" .env || true
+            done
+            printf "%s\n" "HETZNER_API_KEY=${HETZNER_API_VALUE}" >> .env
+            printf "%s\n" "HETZNER_API_TOKEN=${HETZNER_API_VALUE}" >> .env
+            printf "PUBLIC_APP_URL=https://zeusai.pro\nSITE_DOMAIN=zeusai.pro\n" >> .env
+            printf "BTC_WALLET_ADDRESS=bc1q4f7e66z87mdfj56kz0dj5hvcnpmh0qh4wuv22e\n" >> .env
+            printf "OWNER_BTC_ADDRESS=bc1q4f7e66z87mdfj56kz0dj5hvcnpmh0qh4wuv22e\n" >> .env
+            printf "OWNER_NAME=Vladoi Ionut\nOWNER_EMAIL=vladoi_ionut@yahoo.com\n" >> .env
+            printf "ADMIN_EMAIL=vladoi_ionut@yahoo.com\n" >> .env
             npm install --no-audit --no-fund
             if [ -f client/package.json ]; then
               cd client
