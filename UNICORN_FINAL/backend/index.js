@@ -193,7 +193,7 @@ app.use((req, res, next) => {
     "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; " +
     "font-src 'self' https://fonts.gstatic.com; " +
     "img-src 'self' data: blob: https:; " +
-    "connect-src 'self' https://api.openai.com https://js.stripe.com; " +
+    "connect-src 'self' https://api.openai.com https://api.deepseek.com https://api.anthropic.com https://generativelanguage.googleapis.com https://api.mistral.ai https://api.cohere.com https://api.x.ai https://js.stripe.com; " +
     "frame-src https://js.stripe.com; " +
     "object-src 'none'; " +
     "base-uri 'self';"
@@ -599,6 +599,15 @@ app.get('/api/health', (req, res) => {
   });
 });
 
+ copilot/feat-multi-provider-ai-cascade-50
+// ==================== AI CHAT ====================
+// Provideri: OpenAI → DeepSeek → Anthropic → Gemini → Mistral → Cohere → xAI Grok → UAIC → Llama → keyword
+const _aiProviders = require('./modules/aiProviders');
+// 🤖 UAIC – Universal AI Connector (rutare inteligentă multi-provider)
+// 🦙 Llama bridge — optional local fallback (Ollama)
+let _uaic;
+try { _uaic = require('./modules/universalAIConnector'); } catch { _uaic = null; }
+=======
 // ==================== UNIVERSAL AI CONNECTOR (UAIC) ====================
 // 🤖 UAIC — orchestrează inteligent toate resursele AI (OpenAI, DeepSeek,
 //           Claude, Gemini, Ollama local). Activat automat la pornire.
@@ -606,6 +615,7 @@ let _uaic = null;
 try { _uaic = require('./modules/universal-ai-connector'); } catch (e) {
   console.warn('[UAIC] Nu s-a putut încărca Universal AI Connector:', e.message);
 }
+ main
 
 // 🦙 Llama bridge — also available standalone via /api/llama/status
 let _llamaBridge = null;
@@ -618,6 +628,14 @@ app.post('/api/chat', authRateLimit(30, 60_000), async (req, res) => {
   const { message, history = [] } = req.body || {};
   if (!message) return res.status(400).json({ error: 'message required' });
 
+copilot/feat-multi-provider-ai-cascade-50
+  // 1️⃣ Cloud AI providers cascade (OpenAI → DeepSeek → Anthropic → Gemini → Mistral → Cohere → xAI Grok)
+  const cloudResult = await _aiProviders.chat(message, history);
+  if (cloudResult) return res.json(cloudResult);
+
+  // 2️⃣ UAIC – routare automată la cel mai bun provider disponibil (cheapest first pentru chat)
+  if (_uaic && _uaic.models.length > 0) {
+
   const messages = [
     ...history.slice(-6).map(m => ({ role: m.role, content: m.content })),
     { role: 'user', content: message },
@@ -625,6 +643,7 @@ app.post('/api/chat', authRateLimit(30, 60_000), async (req, res) => {
 
   // 🤖 Route through UAIC (OpenAI → DeepSeek → Claude → Gemini → Llama)
   if (_uaic) {
+ main
     try {
       const result = await _uaic.ask({
         type: 'chat',
@@ -639,7 +658,29 @@ app.post('/api/chat', authRateLimit(30, 60_000), async (req, res) => {
     }
   }
 
+ copilot/feat-multi-provider-ai-cascade-50
+  // 3️⃣ Llama local fallback (zero-cost, rulează pe Hetzner via Ollama)
+  if (_llamaBridge) {
+    const historyText = history.slice(-4)
+      .map(m => `${m.role === 'user' ? 'User' : 'Assistant'}: ${m.content}`)
+      .join('\n');
+    const prompt = historyText
+      ? `${historyText}\nUser: ${message}\nAssistant:`
+      : message;
+    const llamaReply = await _llamaBridge.generate(
+      prompt,
+      _llamaBridge.PRIORITY.CHAT,
+      CHAT_SYSTEM_PROMPT
+    );
+    if (llamaReply) {
+      return res.json({ reply: llamaReply, model: 'llama-local' });
+    }
+  }
+
+  // 4️⃣ Smart keyword fallback (static — când niciun AI nu e disponibil)
+
   // Smart keyword fallback (static — when all AI models are unavailable)
+ main
   const lower = message.toLowerCase();
   const KEYWORD_RESPONSES = [
     [['payment', 'plat'], 'Zeus AI suportă plăți via Stripe, PayPal, Bitcoin și alte 10+ metode. Accesează /payments pentru a iniția o tranzacție.'],
@@ -666,6 +707,20 @@ app.get('/api/uaic/status', (req, res) => {
 app.get('/api/llama/status', (req, res) => {
   if (!_llamaBridge) return res.json({ available: false, reason: 'bridge_not_loaded' });
   res.json(_llamaBridge.getStatus());
+});
+
+// ==================== AI PROVIDERS STATUS ====================
+app.get('/api/ai/status', (req, res) => {
+  const providers = _aiProviders.getStatus();
+  const llama = _llamaBridge ? _llamaBridge.getStatus() : { available: false, reason: 'bridge_not_loaded' };
+  const activeCount = providers.filter(p => p.configured).length + (llama.available ? 1 : 0);
+  res.json({
+    providers,
+    llama,
+    activeCount,
+    total: providers.length + 1,
+    timestamp: new Date().toISOString(),
+  });
 });
 
 
