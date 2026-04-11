@@ -2,7 +2,7 @@
 // OWNERSHIP: Acest fișier este proprietatea exclusivă a lui Vladoi Ionut
 // Email: vladoi_ionut@yahoo.com
 // BTC Address: bc1q4f7e66z87mdfj56kz0dj5hvcnpmh0qh4wuv22e
-// Data: 2026-04-11T09:27:40.328Z
+// Data: 2026-04-11T09:30:47.496Z
 // Orice copiere, modificare sau distribuție neautorizată este interzisă.
 // =====================================================================
 
@@ -10,15 +10,7 @@
 // OWNERSHIP: Acest fișier este proprietatea exclusivă a lui Vladoi Ionut
 // Email: vladoi_ionut@yahoo.com
 // BTC Address: bc1q4f7e66z87mdfj56kz0dj5hvcnpmh0qh4wuv22e
-// Data: 2026-04-11T09:27:11.185Z
-// Orice copiere, modificare sau distribuție neautorizată este interzisă.
-// =====================================================================
-
-// =====================================================================
-// OWNERSHIP: Acest fișier este proprietatea exclusivă a lui Vladoi Ionut
-// Email: vladoi_ionut@yahoo.com
-// BTC Address: bc1q4f7e66z87mdfj56kz0dj5hvcnpmh0qh4wuv22e
-// Data: 2026-04-11T08:29:23.648Z
+// Data: 2026-04-11T09:29:31.560Z
 // Orice copiere, modificare sau distribuție neautorizată este interzisă.
 // =====================================================================
 
