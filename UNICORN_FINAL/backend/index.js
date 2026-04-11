@@ -2,6 +2,22 @@
 // OWNERSHIP: Acest fișier este proprietatea exclusivă a lui Vladoi Ionut
 // Email: vladoi_ionut@yahoo.com
 // BTC Address: bc1q4f7e66z87mdfj56kz0dj5hvcnpmh0qh4wuv22e
+// Data: 2026-04-11T10:52:40.334Z
+// Orice copiere, modificare sau distribuție neautorizată este interzisă.
+// =====================================================================
+
+// =====================================================================
+// OWNERSHIP: Acest fișier este proprietatea exclusivă a lui Vladoi Ionut
+// Email: vladoi_ionut@yahoo.com
+// BTC Address: bc1q4f7e66z87mdfj56kz0dj5hvcnpmh0qh4wuv22e
+// Data: 2026-04-11T10:50:35.957Z
+// Orice copiere, modificare sau distribuție neautorizată este interzisă.
+// =====================================================================
+
+// =====================================================================
+// OWNERSHIP: Acest fișier este proprietatea exclusivă a lui Vladoi Ionut
+// Email: vladoi_ionut@yahoo.com
+// BTC Address: bc1q4f7e66z87mdfj56kz0dj5hvcnpmh0qh4wuv22e
 // Data: 2026-04-11T09:30:47.847Z
 // Orice copiere, modificare sau distribuție neautorizată este interzisă.
 // =====================================================================
@@ -556,6 +572,69 @@ app.get('/api/health', (req, res) => {
     version: APP_VERSION,
     timestamp: new Date().toISOString(),
   });
+});
+
+// ==================== SNAPSHOT + SSE STREAM (backend mirror) ====================
+const _streamClients = new Set();
+
+function buildBackendSnapshot() {
+  const uptimeSec = Math.floor(process.uptime());
+  return {
+    generatedAt: new Date().toISOString(),
+    health: { ok: true, service: 'unicorn-backend' },
+    telemetry: {
+      uptime: uptimeSec,
+      activeUsers: dbUsers.count(),
+      requests: uptimeSec,
+    },
+    billing: {
+      primary: 'BTC',
+      supported: ['BTC', 'Stripe', 'PayPal'],
+      btcAddress: ADMIN_OWNER_BTC,
+    },
+    platform: {
+      url: process.env.PUBLIC_APP_URL || 'https://zeusai.pro',
+      owner: ADMIN_OWNER_NAME,
+      contact: ADMIN_OWNER_EMAIL,
+      version: APP_VERSION,
+    },
+  };
+}
+
+app.get('/snapshot', (req, res) => {
+  res.json(buildBackendSnapshot());
+});
+
+app.get('/stream', (req, res) => {
+  res.writeHead(200, {
+    'Content-Type': 'text/event-stream',
+    'Cache-Control': 'no-cache, no-transform',
+    Connection: 'keep-alive',
+  });
+  res.write('data: ' + JSON.stringify(buildBackendSnapshot()) + '\n\n');
+  _streamClients.add(res);
+  req.on('close', () => _streamClients.delete(res));
+});
+
+const _streamInterval = setInterval(() => {
+  if (_streamClients.size === 0) return;
+  const payload = 'data: ' + JSON.stringify(buildBackendSnapshot()) + '\n\n';
+  for (const client of _streamClients) client.write(payload);
+}, 5000);
+if (typeof _streamInterval.unref === 'function') _streamInterval.unref();
+
+// ==================== BTC QR CODE ====================
+app.get('/api/payment/btc-qr', async (req, res) => {
+  const address = String(req.query.address || ADMIN_OWNER_BTC).slice(0, 200);
+  const amount  = parseFloat(req.query.amount) || 0;
+  const uri     = amount > 0 ? `bitcoin:${address}?amount=${amount}` : `bitcoin:${address}`;
+  try {
+    const QRCode = require('qrcode');
+    const dataUrl = await QRCode.toDataURL(uri, { width: 256, margin: 2, color: { dark: '#00d4ff', light: '#05060e' } });
+    res.json({ qr: dataUrl, uri });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 // ==================== AI CHAT ====================
