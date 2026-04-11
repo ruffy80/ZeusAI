@@ -15,15 +15,18 @@ jobs:
     name: 🔑 Injectare chei AI pe Hetzner
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    env:
+      DEPLOY_HOST: ${{ secrets.HETZNER_HOST || secrets.SSH_HOST }}
+      DEPLOY_USER: ${{ secrets.HETZNER_DEPLOY_USER || secrets.HETZNER_USER || secrets.SSH_USER }}
+      DEPLOY_PORT: ${{ secrets.HETZNER_DEPLOY_PORT || secrets.SSH_PORT || '22' }}
+      DEPLOY_PATH: ${{ github.event.inputs.deploy_path || secrets.HETZNER_DEPLOY_PATH || '/opt/unicorn' }}
 
     steps:
       - name: Validate SSH prerequisites
         id: ssh_guard
         run: |
-          HOST="${{ secrets.HETZNER_HOST || secrets.SSH_HOST }}"
-          USER="${{ secrets.HETZNER_DEPLOY_USER || secrets.HETZNER_USER || secrets.SSH_USER }}"
           KEY="${{ secrets.HETZNER_SSH_PRIVATE_KEY || secrets.SSH_PRIVATE_KEY }}"
-          if [ -z "$HOST" ] || [ -z "$USER" ] || [ -z "$KEY" ]; then
+          if [ -z "${DEPLOY_HOST}" ] || [ -z "${DEPLOY_USER}" ] || [ -z "$KEY" ]; then
             echo "❌ SSH secrets lipsă (HETZNER_HOST, HETZNER_DEPLOY_USER, HETZNER_SSH_PRIVATE_KEY)"
             exit 1
           fi
@@ -35,17 +38,11 @@ jobs:
           chmod 700 ~/.ssh
           printf '%s\n' "${{ secrets.HETZNER_SSH_PRIVATE_KEY || secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/deploy_key
           chmod 600 ~/.ssh/deploy_key
-          HOST="${{ secrets.HETZNER_HOST || secrets.SSH_HOST }}"
-          PORT="${{ secrets.HETZNER_DEPLOY_PORT || secrets.SSH_PORT || '22' }}"
-          ssh-keyscan -t ed25519,rsa -p "${PORT}" "${HOST}" >> ~/.ssh/known_hosts 2>/dev/null || true
+          ssh-keyscan -t ed25519,rsa -p "${DEPLOY_PORT}" "${DEPLOY_HOST}" >> ~/.ssh/known_hosts 2>/dev/null || true
           echo "✅ SSH configurat"
 
       - name: Run setup-ai-keys.sh on server
         env:
-          DEPLOY_HOST: ${{ secrets.HETZNER_HOST || secrets.SSH_HOST }}
-          DEPLOY_USER: ${{ secrets.HETZNER_DEPLOY_USER || secrets.HETZNER_USER || secrets.SSH_USER }}
-          DEPLOY_PORT: ${{ secrets.HETZNER_DEPLOY_PORT || secrets.SSH_PORT || '22' }}
-          DEPLOY_PATH: ${{ github.event.inputs.deploy_path || secrets.HETZNER_DEPLOY_PATH || '/opt/unicorn' }}
           # Chei AI — setează-le în: GitHub → Settings → Secrets → Actions
           _OPENAI:    ${{ secrets.OPENAI_API_KEY }}
           _DEEPSEEK:  ${{ secrets.DEEPSEEK_API_KEY }}
@@ -70,10 +67,6 @@ jobs:
                bash '${DEPLOY_PATH}/scripts/setup-ai-keys.sh' '${DEPLOY_PATH}'"
 
       - name: Verify AI provider status
-        env:
-          DEPLOY_HOST: ${{ secrets.HETZNER_HOST || secrets.SSH_HOST }}
-          DEPLOY_USER: ${{ secrets.HETZNER_DEPLOY_USER || secrets.HETZNER_USER || secrets.SSH_USER }}
-          DEPLOY_PORT: ${{ secrets.HETZNER_DEPLOY_PORT || secrets.SSH_PORT || '22' }}
         run: |
           sleep 3
           ssh -i ~/.ssh/deploy_key \
