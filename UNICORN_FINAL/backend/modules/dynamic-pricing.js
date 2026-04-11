@@ -204,7 +204,17 @@ function getAllPrices(options = {}) {
   }, {});
 }
 
-function activateSurge(durationMs = 3600000) {
+// Allowed surge durations (whitelisted values to prevent resource exhaustion)
+const ALLOWED_SURGE_DURATIONS_MS = Object.freeze({
+  '30min': 1800000,
+  '1h': 3600000,
+  '2h': 7200000,
+  '6h': 21600000,
+  '24h': 86400000,
+});
+
+function activateSurge(durationKey = '1h') {
+  const durationMs = ALLOWED_SURGE_DURATIONS_MS[durationKey] || ALLOWED_SURGE_DURATIONS_MS['1h'];
   surgeActive = true;
   setTimeout(() => { surgeActive = false; }, durationMs);
   console.log('[DynamicPricing] Surge pricing activated for', durationMs / 60000, 'min');
@@ -228,4 +238,4 @@ function getMarketConditions() {
 setInterval(updateDemandFactor, 5 * 60 * 1000);
 updateDemandFactor(); // initial call
 
-module.exports = { getPrice, getAllPrices, activateSurge, setDiscount, getMarketConditions, BASE_PRICES };
+module.exports = { getPrice, getAllPrices, activateSurge, setDiscount, getMarketConditions, BASE_PRICES, ALLOWED_SURGE_DURATIONS_MS };

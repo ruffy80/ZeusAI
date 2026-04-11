@@ -132,39 +132,12 @@
 const path = require('path');
 const fs = require('fs');
 
-const MODULES_DIR = path.join(__dirname);
+const MODULES_DIR = path.resolve(__dirname);
 const loadedModules = new Map();
 const failedModules = new Map();
 
-function loadModule(name) {
-  if (loadedModules.has(name)) return loadedModules.get(name);
-
-  const filePath = path.join(MODULES_DIR, `${name}.js`);
-  if (!fs.existsSync(filePath)) {
-    console.warn(`[ModuleLoader] Module not found: ${name}`);
-    failedModules.set(name, 'FILE_NOT_FOUND');
-    return null;
-  }
-
-  try {
-    const mod = require(filePath);
-    loadedModules.set(name, mod);
-    console.log(`[ModuleLoader] ✅ Loaded: ${name}`);
-    return mod;
-  } catch (e) {
-    console.error(`[ModuleLoader] ❌ Failed to load ${name}:`, e.message);
-    failedModules.set(name, e.message);
-    return null;
-  }
-}
-
-function loadAll(moduleNames) {
-  const results = {};
-  moduleNames.forEach(name => {
-    results[name] = loadModule(name);
-  });
-  return results;
-}
+// Only allow safe module names: alphanumeric, hyphen, underscore (prevents path traversal)
+const SAFE_NAME_RE = /^[a-zA-Z0-9_-]{1,100}$/;
 
 function getAvailableModules() {
   try {
@@ -174,6 +147,58 @@ function getAvailableModules() {
   } catch {
     return [];
   }
+}
+
+/**
+ * Verify a module name against a server-controlled directory listing (whitelist).
+ * Returns the verified name from the server-controlled list, or null if not found.
+ * Using the returned value (not user input) for path operations prevents path injection.
+ */
+function verifyModuleName(name) {
+  if (!SAFE_NAME_RE.test(name)) {
+    console.warn('[ModuleLoader] Rejected unsafe module name:', String(name).slice(0, 50));
+    return null;
+  }
+  // Whitelist: find in server-controlled directory listing
+  const available = getAvailableModules();
+  const verified = available.find(m => m === name);
+  if (!verified) {
+    console.warn('[ModuleLoader] Module not found in allowed list:', name);
+    return null;
+  }
+  return verified; // value from server-controlled source, not user input
+}
+
+function loadModule(name) {
+  const verified = verifyModuleName(name);
+  if (!verified) {
+    failedModules.set(String(name).slice(0, 100), 'NOT_ALLOWED');
+    return null;
+  }
+  if (loadedModules.has(verified)) return loadedModules.get(verified);
+
+  // Build path from verified (server-controlled) name
+  const filePath = path.join(MODULES_DIR, `${verified}.js`);
+
+  try {
+    const mod = require(filePath);
+    loadedModules.set(verified, mod);
+    console.log(`[ModuleLoader] ✅ Loaded: ${verified}`);
+    return mod;
+  } catch (e) {
+    console.error(`[ModuleLoader] ❌ Failed to load ${verified}:`, e.message);
+    failedModules.set(verified, e.message);
+    return null;
+  }
+}
+
+function loadAll(moduleNames) {
+  const results = {};
+  if (!Array.isArray(moduleNames)) return results;
+  moduleNames.forEach(name => {
+    results[String(name).slice(0, 100)] = loadModule(name);
+  });
+  return results;
 }
 
 function getStatus() {
@@ -187,12 +212,16 @@ function getStatus() {
 }
 
 function reloadModule(name) {
-  if (loadedModules.has(name)) {
-    const filePath = path.join(MODULES_DIR, `${name}.js`);
+  const verified = verifyModuleName(name);
+  if (!verified) return null;
+
+  if (loadedModules.has(verified)) {
+    // Build path from verified (server-controlled) name for cache invalidation
+    const filePath = path.join(MODULES_DIR, `${verified}.js`);
     delete require.cache[require.resolve(filePath)];
-    loadedModules.delete(name);
+    loadedModules.delete(verified);
   }
-  return loadModule(name);
+  return loadModule(verified);
 }
 
 module.exports = { loadModule, loadAll, getAvailableModules, getStatus, reloadModule };
