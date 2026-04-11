@@ -2,7 +2,7 @@
 // OWNERSHIP: Acest fișier este proprietatea exclusivă a lui Vladoi Ionut
 // Email: vladoi_ionut@yahoo.com
 // BTC Address: bc1q4f7e66z87mdfj56kz0dj5hvcnpmh0qh4wuv22e
-// Data: 2026-04-11T08:29:23.996Z
+// Data: 2026-04-11T09:30:47.847Z
 // Orice copiere, modificare sau distribuție neautorizată este interzisă.
 // =====================================================================
 
@@ -10,135 +10,7 @@
 // OWNERSHIP: Acest fișier este proprietatea exclusivă a lui Vladoi Ionut
 // Email: vladoi_ionut@yahoo.com
 // BTC Address: bc1q4f7e66z87mdfj56kz0dj5hvcnpmh0qh4wuv22e
-// Data: 2026-04-11T07:05:35.534Z
-// Orice copiere, modificare sau distribuție neautorizată este interzisă.
-// =====================================================================
-
-// =====================================================================
-// OWNERSHIP: Acest fișier este proprietatea exclusivă a lui Vladoi Ionut
-// Email: vladoi_ionut@yahoo.com
-// BTC Address: bc1q4f7e66z87mdfj56kz0dj5hvcnpmh0qh4wuv22e
-// Data: 2026-04-11T05:45:32.962Z
-// Orice copiere, modificare sau distribuție neautorizată este interzisă.
-// =====================================================================
-
-// =====================================================================
-// OWNERSHIP: Acest fișier este proprietatea exclusivă a lui Vladoi Ionut
-// Email: vladoi_ionut@yahoo.com
-// BTC Address: bc1q4f7e66z87mdfj56kz0dj5hvcnpmh0qh4wuv22e
-// Data: 2026-04-11T05:42:31.042Z
-// Orice copiere, modificare sau distribuție neautorizată este interzisă.
-// =====================================================================
-
-// =====================================================================
-// OWNERSHIP: Acest fișier este proprietatea exclusivă a lui Vladoi Ionut
-// Email: vladoi_ionut@yahoo.com
-// BTC Address: bc1q4f7e66z87mdfj56kz0dj5hvcnpmh0qh4wuv22e
-// Data: 2026-04-11T05:42:10.044Z
-// Orice copiere, modificare sau distribuție neautorizată este interzisă.
-// =====================================================================
-
-// =====================================================================
-// OWNERSHIP: Acest fișier este proprietatea exclusivă a lui Vladoi Ionut
-// Email: vladoi_ionut@yahoo.com
-// BTC Address: bc1q4f7e66z87mdfj56kz0dj5hvcnpmh0qh4wuv22e
-// Data: 2026-04-11T05:40:57.959Z
-// Orice copiere, modificare sau distribuție neautorizată este interzisă.
-// =====================================================================
-
-// =====================================================================
-// OWNERSHIP: Acest fișier este proprietatea exclusivă a lui Vladoi Ionut
-// Email: vladoi_ionut@yahoo.com
-// BTC Address: bc1q4f7e66z87mdfj56kz0dj5hvcnpmh0qh4wuv22e
-// Data: 2026-04-11T05:39:37.152Z
-// Orice copiere, modificare sau distribuție neautorizată este interzisă.
-// =====================================================================
-
-// =====================================================================
-// OWNERSHIP: Acest fișier este proprietatea exclusivă a lui Vladoi Ionut
-// Email: vladoi_ionut@yahoo.com
-// BTC Address: bc1q4f7e66z87mdfj56kz0dj5hvcnpmh0qh4wuv22e
-// Data: 2026-04-10T20:26:26.900Z
-// Orice copiere, modificare sau distribuție neautorizată este interzisă.
-// =====================================================================
-
-// =====================================================================
-// OWNERSHIP: Acest fișier este proprietatea exclusivă a lui Vladoi Ionut
-// Email: vladoi_ionut@yahoo.com
-// BTC Address: bc1q4f7e66z87mdfj56kz0dj5hvcnpmh0qh4wuv22e
-// Data: 2026-04-10T19:17:59.229Z
-// Orice copiere, modificare sau distribuție neautorizată este interzisă.
-// =====================================================================
-
-// =====================================================================
-// OWNERSHIP: Acest fișier este proprietatea exclusivă a lui Vladoi Ionut
-// Email: vladoi_ionut@yahoo.com
-// BTC Address: bc1q4f7e66z87mdfj56kz0dj5hvcnpmh0qh4wuv22e
-// Data: 2026-04-10T19:15:25.088Z
-// Orice copiere, modificare sau distribuție neautorizată este interzisă.
-// =====================================================================
-
-// =====================================================================
-// OWNERSHIP: Acest fișier este proprietatea exclusivă a lui Vladoi Ionut
-// Email: vladoi_ionut@yahoo.com
-// BTC Address: bc1q4f7e66z87mdfj56kz0dj5hvcnpmh0qh4wuv22e
-// Data: 2026-04-10T19:14:20.601Z
-// Orice copiere, modificare sau distribuție neautorizată este interzisă.
-// =====================================================================
-
-// =====================================================================
-// OWNERSHIP: Acest fișier este proprietatea exclusivă a lui Vladoi Ionut
-// Email: vladoi_ionut@yahoo.com
-// BTC Address: bc1q4f7e66z87mdfj56kz0dj5hvcnpmh0qh4wuv22e
-// Data: 2026-04-10T19:10:41.141Z
-// Orice copiere, modificare sau distribuție neautorizată este interzisă.
-// =====================================================================
-
-// =====================================================================
-// OWNERSHIP: Acest fișier este proprietatea exclusivă a lui Vladoi Ionut
-// Email: vladoi_ionut@yahoo.com
-// BTC Address: bc1q4f7e66z87mdfj56kz0dj5hvcnpmh0qh4wuv22e
-// Data: 2026-04-10T19:01:10.442Z
-// Orice copiere, modificare sau distribuție neautorizată este interzisă.
-// =====================================================================
-
-// =====================================================================
-// OWNERSHIP: Acest fișier este proprietatea exclusivă a lui Vladoi Ionut
-// Email: vladoi_ionut@yahoo.com
-// BTC Address: bc1q4f7e66z87mdfj56kz0dj5hvcnpmh0qh4wuv22e
-// Data: 2026-04-10T18:58:03.194Z
-// Orice copiere, modificare sau distribuție neautorizată este interzisă.
-// =====================================================================
-
-// =====================================================================
-// OWNERSHIP: Acest fișier este proprietatea exclusivă a lui Vladoi Ionut
-// Email: vladoi_ionut@yahoo.com
-// BTC Address: bc1q4f7e66z87mdfj56kz0dj5hvcnpmh0qh4wuv22e
-// Data: 2026-04-10T18:53:47.262Z
-// Orice copiere, modificare sau distribuție neautorizată este interzisă.
-// =====================================================================
-
-// =====================================================================
-// OWNERSHIP: Acest fișier este proprietatea exclusivă a lui Vladoi Ionut
-// Email: vladoi_ionut@yahoo.com
-// BTC Address: bc1q4f7e66z87mdfj56kz0dj5hvcnpmh0qh4wuv22e
-// Data: 2026-04-10T18:53:01.123Z
-// Orice copiere, modificare sau distribuție neautorizată este interzisă.
-// =====================================================================
-
-// =====================================================================
-// OWNERSHIP: Acest fișier este proprietatea exclusivă a lui Vladoi Ionut
-// Email: vladoi_ionut@yahoo.com
-// BTC Address: bc1q4f7e66z87mdfj56kz0dj5hvcnpmh0qh4wuv22e
-// Data: 2026-04-10T18:52:08.773Z
-// Orice copiere, modificare sau distribuție neautorizată este interzisă.
-// =====================================================================
-
-// =====================================================================
-// OWNERSHIP: Acest fișier este proprietatea exclusivă a lui Vladoi Ionut
-// Email: vladoi_ionut@yahoo.com
-// BTC Address: bc1q4f7e66z87mdfj56kz0dj5hvcnpmh0qh4wuv22e
-// Data: 2026-04-10T18:51:01.953Z
+// Data: 2026-04-11T09:29:31.906Z
 // Orice copiere, modificare sau distribuție neautorizată este interzisă.
 // =====================================================================
 
@@ -286,6 +158,27 @@ function authMiddleware(req, res, next) {
   } catch {
     res.status(401).json({ error: 'Invalid token' });
   }
+}
+
+// Plan-based feature gating: requirePlan('pro') means user must have pro or enterprise plan
+const PLAN_HIERARCHY = { free: 0, starter: 1, pro: 2, enterprise: 3 };
+function requirePlan(minPlan) {
+  return function planMiddleware(req, res, next) {
+    const user = req.user;
+    if (!user) return res.status(401).json({ error: 'Authentication required' });
+    const { users: dbUsersLocal } = require('./db');
+    const dbUser = dbUsersLocal.findById(user.id);
+    const userPlan = (dbUser && dbUser.planId) || 'free';
+    const userLevel = PLAN_HIERARCHY[userPlan] ?? 0;
+    const requiredLevel = PLAN_HIERARCHY[minPlan] ?? 0;
+    if (userLevel < requiredLevel) {
+      return res.status(403).json({
+        error: `This feature requires ${minPlan} plan or higher. Current plan: ${userPlan}`,
+        upgrade: '/payments'
+      });
+    }
+    return next();
+  };
 }
 
 function extractAdminToken(req) {
@@ -538,6 +431,13 @@ const circuitBreaker   = require('./modules/circuit-breaker');
 const sloTracker       = require('./modules/slo-tracker');
 const profitService    = require('./modules/profit-attribution');
 const shadowTester     = require('./modules/shadow-tester');
+
+// ==================== NEW REVENUE & INNOVATION MODULES ====================
+const creditSystem     = require('./modules/creditSystem');
+const referralEngine   = require('./modules/referralEngine');
+const customerHealth   = require('./modules/customerHealth');
+const workflowEngine   = require('./modules/workflowEngine');
+const whiteLabelEngine = require('./modules/whiteLabelEngine');
 const canaryCtrl       = require('./modules/canary-controller');
 const controlPlane     = require('./modules/control-plane-agent');
 const profitLoop       = require('./modules/profit-control-loop');
@@ -1096,22 +996,28 @@ app.post('/api/payment/webhook/paypal', async (req, res) => {
   res.json({ received: true });
 });
 
-app.get('/api/modules', (req, res) => {
-  const fs = require('fs');
-  const modules = fs.readdirSync(path.join(__dirname, 'modules')).filter(f => f.endsWith('.js')).map(f => f.replace('.js', ''));
-  res.json({ modules });
+app.get('/api/modules', authMiddleware, (req, res) => {
+  const SAFE_MODULE_LIST = [
+    'aiNegotiator','carbonExchange','complianceEngine','riskAnalyzer',
+    'reputationProtocol','opportunityRadar','businessBlueprint','paymentGateway',
+    'aviationModule','paymentSystems','governmentModule','defenseModule',
+    'telecomModule','enterprisePartnership','quantumBlockchain','aiWorkforce',
+    'maAdvisor','legalContract','energyGrid','socialMediaViralizer',
+    'quantumResilienceCore','executiveDashboard'
+  ];
+  res.json({ modules: SAFE_MODULE_LIST });
 });
 
 // ==================== RUTE INOVAȚII ====================
 
 // 1. Quantum-Resistant Digital Identity
-app.post('/api/identity/create', (req, res) => {
+app.post('/api/identity/create', authMiddleware, (req, res) => {
   const { userId, metadata } = req.body;
   if (!userId) return res.status(400).json({ error: 'userId required' });
   res.json(qrIdentity.generateIdentity(userId, metadata));
 });
 
-app.post('/api/identity/sign', (req, res) => {
+app.post('/api/identity/sign', authMiddleware, (req, res) => {
   const { userId, message } = req.body;
   if (!userId || !message) return res.status(400).json({ error: 'userId and message required' });
   try {
@@ -1121,20 +1027,20 @@ app.post('/api/identity/sign', (req, res) => {
   }
 });
 
-app.post('/api/identity/verify', (req, res) => {
+app.post('/api/identity/verify', authMiddleware, (req, res) => {
   const { publicKey, message, signature } = req.body;
   const result = qrIdentity.verify(publicKey, message, signature);
   res.json(result);
 });
 
 // 2. Autonomous AI Negotiator
-app.post('/api/negotiate/start', (req, res) => {
+app.post('/api/negotiate/start', authMiddleware, (req, res) => {
   const { counterparty, topic, initialOffer, targetPrice, maxDiscount, deliveryTime } = req.body;
   if (!counterparty || !topic || !initialOffer) return res.status(400).json({ error: 'counterparty, topic and initialOffer required' });
   res.json(aiNegotiator.startNegotiation({ counterparty, topic, initialOffer, targetPrice, maxDiscount, deliveryTime }));
 });
 
-app.post('/api/negotiate/message/:id', async (req, res) => {
+app.post('/api/negotiate/message/:id', authMiddleware, async (req, res) => {
   const { id } = req.params;
   const { message, userType } = req.body;
   if (!message) return res.status(400).json({ error: 'message required' });
@@ -1145,24 +1051,24 @@ app.post('/api/negotiate/message/:id', async (req, res) => {
   }
 });
 
-app.get('/api/negotiate/:id', (req, res) => {
+app.get('/api/negotiate/:id', authMiddleware, (req, res) => {
   const negotiation = aiNegotiator.getNegotiation(parseInt(req.params.id));
   if (!negotiation) return res.status(404).json({ error: 'Negotiation not found' });
   res.json(negotiation);
 });
 
-app.get('/api/negotiate/stats', (req, res) => {
+app.get('/api/negotiate/stats', authMiddleware, (req, res) => {
   res.json(aiNegotiator.getStats());
 });
 
 // 3. Universal Carbon Credit Exchange
-app.post('/api/carbon/issue', (req, res) => {
+app.post('/api/carbon/issue', authMiddleware, (req, res) => {
   const { owner, amount, type, projectId, vintage } = req.body;
   if (!owner || !amount) return res.status(400).json({ error: 'owner and amount required' });
   res.json(carbonExchange.issueCredits(owner, amount, type, projectId, vintage));
 });
 
-app.post('/api/carbon/trade', async (req, res) => {
+app.post('/api/carbon/trade', authMiddleware, async (req, res) => {
   const { buyer, seller, creditId, amount } = req.body;
   try {
     res.json(await carbonExchange.executeTrade(buyer, seller, creditId, amount));
@@ -1171,7 +1077,7 @@ app.post('/api/carbon/trade', async (req, res) => {
   }
 });
 
-app.post('/api/carbon/order/sell', (req, res) => {
+app.post('/api/carbon/order/sell', authMiddleware, (req, res) => {
   const { seller, creditId, amount, price } = req.body;
   try {
     res.json(carbonExchange.createSellOrder(seller, creditId, amount, price));
@@ -1180,29 +1086,29 @@ app.post('/api/carbon/order/sell', (req, res) => {
   }
 });
 
-app.post('/api/carbon/order/buy', (req, res) => {
+app.post('/api/carbon/order/buy', authMiddleware, (req, res) => {
   const { buyer, creditType, amount, maxPrice } = req.body;
   res.json(carbonExchange.createBuyOrder(buyer, creditType, amount, maxPrice));
 });
 
-app.post('/api/carbon/match', async (req, res) => {
+app.post('/api/carbon/match', authMiddleware, async (req, res) => {
   res.json(await carbonExchange.matchOrders());
 });
 
-app.get('/api/carbon/portfolio/:owner', (req, res) => {
+app.get('/api/carbon/portfolio/:owner', authMiddleware, (req, res) => {
   res.json(carbonExchange.getPortfolio(req.params.owner));
 });
 
-app.get('/api/carbon/stats', (req, res) => {
+app.get('/api/carbon/stats', authMiddleware, (req, res) => {
   res.json(carbonExchange.getMarketStats());
 });
 
-app.get('/api/carbon/transactions/:user', (req, res) => {
+app.get('/api/carbon/transactions/:user', authMiddleware, (req, res) => {
   const { role } = req.query;
   res.json(carbonExchange.getTransactionHistory(req.params.user, role));
 });
 
-app.post('/api/carbon/price', (req, res) => {
+app.post('/api/carbon/price', authMiddleware, (req, res) => {
   const { type, price } = req.body;
   res.json(carbonExchange.updateMarketPrice(type, price));
 });
@@ -1332,7 +1238,7 @@ app.post('/api/admin/payment/activate', (req, res) => {
 // ==================== EXTENDED DOMAIN ROUTES ====================
 
 // Aviation
-app.post('/api/aviation/optimize-routes', async (req, res) => {
+app.post('/api/aviation/optimize-routes', authMiddleware, async (req, res) => {
   try {
     const result = await aviationModule.optimizeRoutes(req.body.airlineId, req.body || {});
     res.json(result);
@@ -1341,17 +1247,17 @@ app.post('/api/aviation/optimize-routes', async (req, res) => {
   }
 });
 
-app.post('/api/aviation/predictive-maintenance', (req, res) => {
+app.post('/api/aviation/predictive-maintenance', authMiddleware, (req, res) => {
   res.json(aviationModule.predictiveMaintenance(req.body || {}));
 });
 
-app.post('/api/aviation/ticket-pricing', (req, res) => {
+app.post('/api/aviation/ticket-pricing', authMiddleware, (req, res) => {
   const { route, demand, competitors } = req.body;
   res.json(aviationModule.optimizeTicketPrices(route || {}, demand || {}, competitors || []));
 });
 
 // Payment Systems
-app.post('/api/payments/cross-border', async (req, res) => {
+app.post('/api/payments/cross-border', authMiddleware, async (req, res) => {
   try {
     const result = await paymentSystems.processCrossBorderPayment(req.body || {});
     res.json(result);
@@ -1360,32 +1266,32 @@ app.post('/api/payments/cross-border', async (req, res) => {
   }
 });
 
-app.post('/api/payments/fraud-detection', (req, res) => {
+app.post('/api/payments/fraud-detection', authMiddleware, (req, res) => {
   res.json(paymentSystems.detectFraud(req.body || {}));
 });
 
-app.post('/api/payments/card', (req, res) => {
+app.post('/api/payments/card', authMiddleware, (req, res) => {
   const { cardDetails, amount } = req.body;
   res.json(paymentSystems.processCardPayment(cardDetails || {}, Number(amount || 0)));
 });
 
 // Government
-app.post('/api/government/compliance', (req, res) => {
+app.post('/api/government/compliance', authMiddleware, (req, res) => {
   const result = governmentModule.checkGovCompliance(req.body.agency, req.body.requirements || []);
   res.json(result);
 });
 
-app.post('/api/government/digitalize-service', (req, res) => {
+app.post('/api/government/digitalize-service', authMiddleware, (req, res) => {
   const { serviceId, params } = req.body;
   res.json(governmentModule.digitalizeService(serviceId, params || {}));
 });
 
-app.post('/api/government/analyze-policy', (req, res) => {
+app.post('/api/government/analyze-policy', authMiddleware, (req, res) => {
   res.json(governmentModule.analyzePolicy(req.body.policyText || ''));
 });
 
 // Defense
-app.post('/api/defense/encrypt', (req, res) => {
+app.post('/api/defense/encrypt', authMiddleware, (req, res) => {
   try {
     const result = defenseModule.quantumEncrypt(req.body.message || '', req.body.recipient);
     res.json(result);
@@ -1394,30 +1300,30 @@ app.post('/api/defense/encrypt', (req, res) => {
   }
 });
 
-app.post('/api/defense/threats', (req, res) => {
+app.post('/api/defense/threats', authMiddleware, (req, res) => {
   res.json(defenseModule.analyzeThreats(req.body || {}));
 });
 
-app.post('/api/defense/secure-infrastructure', (req, res) => {
+app.post('/api/defense/secure-infrastructure', authMiddleware, (req, res) => {
   const { infraId, params } = req.body;
   res.json(defenseModule.secureInfrastructure(infraId, params || {}));
 });
 
 // Telecom
-app.post('/api/telecom/optimize-5g', (req, res) => {
+app.post('/api/telecom/optimize-5g', authMiddleware, (req, res) => {
   res.json(telecomModule.optimize5GNetwork(req.body.networkId, req.body.traffic || {}));
 });
 
-app.post('/api/telecom/predict-failures', (req, res) => {
+app.post('/api/telecom/predict-failures', authMiddleware, (req, res) => {
   res.json(telecomModule.predictFailures(req.body || {}));
 });
 
-app.post('/api/telecom/revenue-assurance', (req, res) => {
+app.post('/api/telecom/revenue-assurance', authMiddleware, (req, res) => {
   res.json(telecomModule.revenueAssurance(req.body.cdrData || []));
 });
 
 // Enterprise Partnership API
-app.post('/api/enterprise/register', async (req, res) => {
+app.post('/api/enterprise/register', authMiddleware, async (req, res) => {
   try {
     const partner = enterprisePartner.registerPartner(req.body || {});
     res.json(partner);
@@ -1426,7 +1332,7 @@ app.post('/api/enterprise/register', async (req, res) => {
   }
 });
 
-app.post('/api/partner/:partnerId/:endpoint', async (req, res) => {
+app.post('/api/partner/:partnerId/:endpoint', authMiddleware, async (req, res) => {
   const { partnerId, endpoint } = req.params;
   const apiKey = req.headers['x-api-key'];
   const partner = enterprisePartner.partners.get(partnerId);
@@ -1443,7 +1349,7 @@ app.post('/api/partner/:partnerId/:endpoint', async (req, res) => {
   }
 });
 
-app.get('/api/partner/:partnerId/dashboard', async (req, res) => {
+app.get('/api/partner/:partnerId/dashboard', authMiddleware, async (req, res) => {
   const { partnerId } = req.params;
   const apiKey = req.headers['x-api-key'];
   const partner = enterprisePartner.partners.get(partnerId);
@@ -1456,7 +1362,7 @@ app.get('/api/partner/:partnerId/dashboard', async (req, res) => {
   res.json(dashboard);
 });
 
-app.get('/api/partner/:partnerId/invoice/:month', async (req, res) => {
+app.get('/api/partner/:partnerId/invoice/:month', authMiddleware, async (req, res) => {
   try {
     const { partnerId, month } = req.params;
     const invoice = enterprisePartner.generateInvoice(partnerId, month);
@@ -1469,24 +1375,24 @@ app.get('/api/partner/:partnerId/invoice/:month', async (req, res) => {
 // ==================== ADVANCED MODULE ROUTES ====================
 
 // Compliance Engine
-app.post('/api/compliance/check', async (req, res) => {
+app.post('/api/compliance/check', authMiddleware, async (req, res) => {
   const { operation, data } = req.body;
   if (!operation) return res.status(400).json({ error: 'operation required' });
   const result = await complianceEngine.checkCompliance(operation, data || {});
   res.json(result);
 });
 
-app.get('/api/compliance/report', (req, res) => {
+app.get('/api/compliance/report', authMiddleware, (req, res) => {
   const { period } = req.query;
   res.json(complianceEngine.generateReport(period || 'month'));
 });
 
-app.get('/api/compliance/stats', (req, res) => {
+app.get('/api/compliance/stats', authMiddleware, (req, res) => {
   res.json(complianceEngine.getStats());
 });
 
 // Risk Analyzer
-app.post('/api/risk/analyze', async (req, res) => {
+app.post('/api/risk/analyze', authMiddleware, async (req, res) => {
   const { type, data } = req.body;
   if (!type) return res.status(400).json({ error: 'type required' });
   try {
@@ -1497,17 +1403,17 @@ app.post('/api/risk/analyze', async (req, res) => {
   }
 });
 
-app.get('/api/risk/history', (req, res) => {
+app.get('/api/risk/history', authMiddleware, (req, res) => {
   const limit = Number(req.query.limit || 100);
   res.json({ history: riskAnalyzer.getHistory(limit) });
 });
 
-app.get('/api/risk/stats', (req, res) => {
+app.get('/api/risk/stats', authMiddleware, (req, res) => {
   res.json(riskAnalyzer.getStats());
 });
 
 // Reputation Protocol
-app.post('/api/reputation/register', (req, res) => {
+app.post('/api/reputation/register', authMiddleware, (req, res) => {
   const { entityId, type, metadata } = req.body;
   if (!entityId || !type) return res.status(400).json({ error: 'entityId and type required' });
   try {
@@ -1517,7 +1423,7 @@ app.post('/api/reputation/register', (req, res) => {
   }
 });
 
-app.post('/api/reputation/review', (req, res) => {
+app.post('/api/reputation/review', authMiddleware, (req, res) => {
   const { reviewerId, targetId, rating, comment, metadata } = req.body;
   try {
     res.json(reputationProtocol.addReview(reviewerId, targetId, rating, comment, metadata || {}));
@@ -1526,7 +1432,7 @@ app.post('/api/reputation/review', (req, res) => {
   }
 });
 
-app.post('/api/reputation/transaction', (req, res) => {
+app.post('/api/reputation/transaction', authMiddleware, (req, res) => {
   const { entityId, counterpartyId, amount, type } = req.body;
   try {
     res.json(reputationProtocol.recordTransaction(entityId, counterpartyId, amount, type || 'payment'));
@@ -1535,24 +1441,24 @@ app.post('/api/reputation/transaction', (req, res) => {
   }
 });
 
-app.get('/api/reputation/:entityId', (req, res) => {
+app.get('/api/reputation/:entityId', authMiddleware, (req, res) => {
   const reputation = reputationProtocol.getReputation(req.params.entityId);
   if (!reputation) return res.status(404).json({ error: 'Entity not found' });
   res.json(reputation);
 });
 
-app.get('/api/reputation/top/list', (req, res) => {
+app.get('/api/reputation/top/list', authMiddleware, (req, res) => {
   const limit = Number(req.query.limit || 10);
   const { type } = req.query;
   res.json({ top: reputationProtocol.getTopEntities(limit, type || null) });
 });
 
-app.get('/api/reputation/stats', (req, res) => {
+app.get('/api/reputation/stats', authMiddleware, (req, res) => {
   res.json(reputationProtocol.getStats());
 });
 
 // Opportunity Radar
-app.get('/api/opportunity/list', (req, res) => {
+app.get('/api/opportunity/list', authMiddleware, (req, res) => {
   const filters = {
     minRelevance: req.query.minRelevance ? Number(req.query.minRelevance) : undefined,
     deadlineBefore: req.query.deadlineBefore
@@ -1560,25 +1466,25 @@ app.get('/api/opportunity/list', (req, res) => {
   res.json({ opportunities: opportunityRadar.getOpportunities(filters) });
 });
 
-app.get('/api/opportunity/alerts/unread', (req, res) => {
+app.get('/api/opportunity/alerts/unread', authMiddleware, (req, res) => {
   res.json({ alerts: opportunityRadar.getUnreadAlerts() });
 });
 
-app.post('/api/opportunity/alerts/read', (req, res) => {
+app.post('/api/opportunity/alerts/read', authMiddleware, (req, res) => {
   const { alertId } = req.body;
   res.json(opportunityRadar.markAlertRead(alertId));
 });
 
-app.post('/api/opportunity/recommendations', (req, res) => {
+app.post('/api/opportunity/recommendations', authMiddleware, (req, res) => {
   res.json({ recommendations: opportunityRadar.getPersonalizedRecommendations(req.body || {}) });
 });
 
-app.get('/api/opportunity/stats', (req, res) => {
+app.get('/api/opportunity/stats', authMiddleware, (req, res) => {
   res.json(opportunityRadar.getStats());
 });
 
 // Business Blueprint
-app.post('/api/blueprint/generate', async (req, res) => {
+app.post('/api/blueprint/generate', authMiddleware, requirePlan('starter'), async (req, res) => {
   try {
     const blueprint = await businessBlueprint.generateBlueprint(req.body || {});
     res.json(blueprint);
@@ -1587,11 +1493,11 @@ app.post('/api/blueprint/generate', async (req, res) => {
   }
 });
 
-app.get('/api/blueprint/list', (req, res) => {
+app.get('/api/blueprint/list', authMiddleware, (req, res) => {
   res.json({ blueprints: businessBlueprint.getAllBlueprints() });
 });
 
-app.get('/api/blueprint/:id', (req, res) => {
+app.get('/api/blueprint/:id', authMiddleware, (req, res) => {
   const blueprint = businessBlueprint.getBlueprint(req.params.id);
   if (!blueprint) return res.status(404).json({ error: 'Blueprint not found' });
   res.json(blueprint);
@@ -1600,26 +1506,26 @@ app.get('/api/blueprint/:id', (req, res) => {
 // ==================== 5 INOVAȚII STRATEGICE ====================
 
 // Quantum Blockchain
-app.get('/api/blockchain/stats', (req, res) => {
+app.get('/api/blockchain/stats', authMiddleware, (req, res) => {
   res.json(quantumChain.getStats());
 });
 
-app.post('/api/blockchain/transaction', (req, res) => {
+app.post('/api/blockchain/transaction', authMiddleware, (req, res) => {
   const tx = quantumChain.addTransaction(req.body || {});
   res.json(tx);
 });
 
-app.post('/api/blockchain/mine', (req, res) => {
+app.post('/api/blockchain/mine', authMiddleware, (req, res) => {
   const block = quantumChain.mineBlock();
   res.json(block);
 });
 
 // AI Workforce Marketplace
-app.get('/api/workforce/agents', (req, res) => {
+app.get('/api/workforce/agents', authMiddleware, requirePlan('starter'), (req, res) => {
   res.json(Array.from(workforce.agents.values()));
 });
 
-app.post('/api/workforce/agent', (req, res) => {
+app.post('/api/workforce/agent', authMiddleware, requirePlan('starter'), (req, res) => {
   try {
     res.json(workforce.registerAgent(req.body || {}));
   } catch (err) {
@@ -1627,7 +1533,7 @@ app.post('/api/workforce/agent', (req, res) => {
   }
 });
 
-app.post('/api/workforce/job', (req, res) => {
+app.post('/api/workforce/job', authMiddleware, requirePlan('starter'), (req, res) => {
   try {
     res.json(workforce.postJob(req.body || {}));
   } catch (err) {
@@ -1635,20 +1541,20 @@ app.post('/api/workforce/job', (req, res) => {
   }
 });
 
-app.get('/api/workforce/job/:id/agents', (req, res) => {
+app.get('/api/workforce/job/:id/agents', authMiddleware, requirePlan('starter'), (req, res) => {
   res.json(workforce.findBestAgents(req.params.id));
 });
 
-app.get('/api/workforce/stats', (req, res) => {
+app.get('/api/workforce/stats', authMiddleware, requirePlan('starter'), (req, res) => {
   res.json(workforce.getStats());
 });
 
 // M&A Advisor
-app.post('/api/ma/targets', (req, res) => {
+app.post('/api/ma/targets', authMiddleware, requirePlan('pro'), (req, res) => {
   res.json(ma.identifyTargets(req.body || {}));
 });
 
-app.post('/api/ma/negotiate', async (req, res) => {
+app.post('/api/ma/negotiate', authMiddleware, requirePlan('pro'), async (req, res) => {
   try {
     const deal = await ma.negotiateTerms(req.body.targetId, Number(req.body.initialOffer || 0), Number(req.body.maxPrice || 0));
     res.json(deal);
@@ -1657,12 +1563,12 @@ app.post('/api/ma/negotiate', async (req, res) => {
   }
 });
 
-app.get('/api/ma/stats', (req, res) => {
+app.get('/api/ma/stats', authMiddleware, requirePlan('pro'), (req, res) => {
   res.json(ma.getStats());
 });
 
 // Legal Contract
-app.post('/api/legal/generate', (req, res) => {
+app.post('/api/legal/generate', authMiddleware, requirePlan('starter'), (req, res) => {
   try {
     res.json(legal.generateContract(req.body.type, req.body.params || {}));
   } catch (err) {
@@ -1670,7 +1576,7 @@ app.post('/api/legal/generate', (req, res) => {
   }
 });
 
-app.post('/api/legal/analyze', (req, res) => {
+app.post('/api/legal/analyze', authMiddleware, (req, res) => {
   try {
     res.json(legal.analyzeContract(req.body.text || ''));
   } catch (err) {
@@ -1678,28 +1584,28 @@ app.post('/api/legal/analyze', (req, res) => {
   }
 });
 
-app.get('/api/legal/stats', (req, res) => {
+app.get('/api/legal/stats', authMiddleware, (req, res) => {
   res.json(legal.getStats());
 });
 
 // Energy Grid
-app.post('/api/energy/producer', (req, res) => {
+app.post('/api/energy/producer', authMiddleware, (req, res) => {
   res.json(energy.registerProducer(req.body || {}));
 });
 
-app.post('/api/energy/consumer', (req, res) => {
+app.post('/api/energy/consumer', authMiddleware, (req, res) => {
   res.json(energy.registerConsumer(req.body || {}));
 });
 
-app.post('/api/energy/optimize', (req, res) => {
+app.post('/api/energy/optimize', authMiddleware, (req, res) => {
   res.json(energy.optimizeFlow());
 });
 
-app.post('/api/energy/trade', async (req, res) => {
+app.post('/api/energy/trade', authMiddleware, async (req, res) => {
   res.json(await energy.tradeExcessEnergy());
 });
 
-app.get('/api/energy/stats', (req, res) => {
+app.get('/api/energy/stats', authMiddleware, (req, res) => {
   res.json(energy.getStats());
 });
 
@@ -2370,6 +2276,254 @@ app.post('/deploy', (req, res) => {
   );
 
   res.json({ ok: true, message: 'Deploy initiated', source, action, timestamp: new Date().toISOString() });
+});
+
+// ==================== CREDIT SYSTEM ROUTES ====================
+app.get('/api/credits/usage', authMiddleware, (req, res) => {
+  const db_ = require('./db');
+  const user = db_.users.findById(req.user.id);
+  const planId = user ? user.planId || 'free' : 'free';
+  res.json(creditSystem.getUsageSummary(req.user.id, planId));
+});
+
+app.get('/api/credits/plans', (req, res) => {
+  res.json({ planCredits: creditSystem.PLAN_CREDITS, creditCosts: creditSystem.CREDIT_COSTS });
+});
+
+app.get('/api/admin/credits/users', adminCrudRateLimit, adminTokenMiddleware, (req, res) => {
+  const db_ = require('./db');
+  const { users } = db_.users.listAll({ page: 1, limit: 100 });
+  const month = creditSystem.getCurrentMonth();
+  const report = users.map(u => ({
+    userId: u.id,
+    name: u.name,
+    email: u.email,
+    planId: u.planId || 'free',
+    ...creditSystem.getUsageSummary(u.id, u.planId || 'free'),
+  }));
+  res.json({ month, users: report });
+});
+
+// ==================== REFERRAL ENGINE ROUTES ====================
+app.post('/api/referrals/create', authMiddleware, (req, res) => {
+  try {
+    const referral = referralEngine.createReferral(req.user.id, req.body.email);
+    res.json(referral);
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+app.get('/api/referrals/mine', authMiddleware, (req, res) => {
+  const refs = referralEngine.listUserReferrals(req.user.id);
+  res.json({ referrals: refs });
+});
+
+app.get('/api/referrals/stats', authMiddleware, (req, res) => {
+  res.json(referralEngine.getAffiliateStats(req.user.id));
+});
+
+app.get('/api/referrals/check/:code', (req, res) => {
+  const ref = referralEngine.getReferralByCode(req.params.code);
+  if (!ref) return res.status(404).json({ error: 'Referral code not found' });
+  res.json({ valid: true, code: ref.code, tier: ref.tier });
+});
+
+app.get('/api/admin/referrals/all', adminCrudRateLimit, adminTokenMiddleware, (req, res) => {
+  const db_ = require('./db');
+  const users = db_.users.listAll({ page: 1, limit: 200 }).users;
+  const allStats = users.map(u => ({ userId: u.id, ...referralEngine.getAffiliateStats(u.id) })).filter(s => s.totalReferrals > 0);
+  res.json({ affiliates: allStats });
+});
+
+// ==================== STREAMING AI CHAT (SSE) ====================
+app.get('/api/chat/stream', authRateLimit(20, 60_000), authMiddleware, async (req, res) => {
+  const { message } = req.query;
+  if (!message) return res.status(400).json({ error: 'message query param required' });
+
+  res.setHeader('Content-Type', 'text/event-stream');
+  res.setHeader('Cache-Control', 'no-cache');
+  res.setHeader('Connection', 'keep-alive');
+  res.setHeader('X-Accel-Buffering', 'no');
+  res.flushHeaders();
+
+  const send = (data) => res.write(`data: ${JSON.stringify(data)}\n\n`);
+
+  const openaiKey = process.env.OPENAI_API_KEY;
+  if (openaiKey) {
+    try {
+      const response = await axios.post('https://api.openai.com/v1/chat/completions', {
+        model: 'gpt-4o-mini',
+        messages: [
+          { role: 'system', content: ZEUS_SYSTEM },
+          { role: 'user', content: message }
+        ],
+        stream: true,
+        max_tokens: 500,
+      }, {
+        headers: { Authorization: `Bearer ${openaiKey}`, 'Content-Type': 'application/json' },
+        responseType: 'stream',
+        timeout: 30000,
+      });
+
+      let buffer = '';
+      response.data.on('data', (chunk) => {
+        buffer += chunk.toString();
+        const lines = buffer.split('\n');
+        buffer = lines.pop();
+        for (const line of lines) {
+          if (line.startsWith('data: ')) {
+            const data = line.slice(6);
+            if (data === '[DONE]') { send({ done: true }); res.end(); return; }
+            try {
+              const parsed = JSON.parse(data);
+              const delta = parsed.choices?.[0]?.delta?.content;
+              if (delta) send({ token: delta });
+            } catch { /* ignore parse errors */ }
+          }
+        }
+      });
+      response.data.on('end', () => { send({ done: true }); res.end(); });
+      response.data.on('error', () => { send({ done: true, error: true }); res.end(); });
+      return;
+    } catch (err) {
+      console.warn('[Stream] OpenAI stream failed:', err.message);
+    }
+  }
+
+  try {
+    const cloudResult = await _aiProviders.chat(message, []);
+    if (cloudResult && cloudResult.reply) {
+      const words = cloudResult.reply.split(' ');
+      for (const word of words) {
+        send({ token: word + ' ' });
+        await new Promise(r => setTimeout(r, 20));
+      }
+      send({ done: true });
+      res.end();
+      return;
+    }
+  } catch { /* ignore */ }
+
+  send({ token: 'Bun venit la Zeus AI! Cum te pot ajuta?' });
+  send({ done: true });
+  res.end();
+});
+
+// ==================== CUSTOMER HEALTH SCORE ROUTES ====================
+app.get('/api/health-score/mine', authMiddleware, (req, res) => {
+  res.json(customerHealth.computeHealthScore(req.user.id));
+});
+
+app.get('/api/admin/health-scores', adminCrudRateLimit, adminTokenMiddleware, (req, res) => {
+  const limit = Math.min(parseInt(req.query.limit) || 50, 200);
+  res.json({ scores: customerHealth.getBulkHealthScores(limit) });
+});
+
+app.get('/api/admin/health-scores/churn-risk', adminCrudRateLimit, adminTokenMiddleware, (req, res) => {
+  const limit = Math.min(parseInt(req.query.limit) || 50, 200);
+  res.json({ atRisk: customerHealth.getChurnRiskUsers(limit) });
+});
+
+// ==================== WORKFLOW AUTOMATION ROUTES ====================
+app.get('/api/workflows', authMiddleware, (req, res) => {
+  res.json({ workflows: workflowEngine.listWorkflows(req.user.id) });
+});
+
+app.post('/api/workflows', authMiddleware, creditSystem.requireCredits('blueprint'), (req, res) => {
+  try {
+    const wf = workflowEngine.createWorkflow(req.user.id, req.body || {});
+    res.json(wf);
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+app.get('/api/workflows/config', (req, res) => {
+  res.json(workflowEngine.getSupportedConfig());
+});
+
+app.get('/api/workflows/:id', authMiddleware, (req, res) => {
+  const wf = workflowEngine.getWorkflow(req.params.id, req.user.id);
+  if (!wf) return res.status(404).json({ error: 'Workflow not found' });
+  res.json(wf);
+});
+
+app.put('/api/workflows/:id', authMiddleware, (req, res) => {
+  try {
+    const wf = workflowEngine.updateWorkflow(req.params.id, req.user.id, req.body || {});
+    res.json(wf);
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+app.delete('/api/workflows/:id', authMiddleware, (req, res) => {
+  try {
+    const ok = workflowEngine.deleteWorkflow(req.params.id, req.user.id);
+    res.json({ success: ok });
+  } catch (err) {
+    res.status(404).json({ error: err.message });
+  }
+});
+
+app.post('/api/workflows/:id/run', authMiddleware, async (req, res) => {
+  const wf = workflowEngine.getWorkflow(req.params.id, req.user.id);
+  if (!wf) return res.status(404).json({ error: 'Workflow not found' });
+  try {
+    const result = await workflowEngine.runWorkflow(req.params.id, {
+      trigger: 'manual',
+      user: req.user,
+      ...req.body
+    });
+    res.json(result);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get('/api/workflows/runs/history', adminCrudRateLimit, adminTokenMiddleware, (req, res) => {
+  const limit = Math.min(parseInt(req.query.limit) || 50, 200);
+  res.json({ history: workflowEngine.getRunHistory(limit) });
+});
+
+// ==================== WHITE-LABEL TENANT ROUTES ====================
+app.post('/api/tenants', authMiddleware, requirePlan('enterprise'), (req, res) => {
+  try {
+    const tenant = whiteLabelEngine.createTenant(req.user.id, req.body || {});
+    res.json(tenant);
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+app.get('/api/tenants/mine', authMiddleware, (req, res) => {
+  const tenants = whiteLabelEngine.getTenantsByOwner(req.user.id);
+  res.json({ tenants });
+});
+
+app.put('/api/tenants/:id/branding', authMiddleware, requirePlan('enterprise'), (req, res) => {
+  try {
+    const tenant = whiteLabelEngine.updateTenantBranding(req.params.id, req.user.id, req.body || {});
+    res.json(tenant);
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+app.get('/api/tenants/branding/:subdomain', (req, res) => {
+  const branding = whiteLabelEngine.getBrandingScript(req.params.subdomain);
+  if (!branding) return res.status(404).json({ error: 'Tenant not found' });
+  res.json(branding);
+});
+
+app.get('/api/admin/tenants', adminCrudRateLimit, adminTokenMiddleware, (req, res) => {
+  const db_ = require('./db');
+  try {
+    const users = db_.users.listAll({ page: 1, limit: 1000 }).users;
+    const allTenants = users.flatMap(u => whiteLabelEngine.getTenantsByOwner(u.id));
+    res.json({ tenants: allTenants, total: allTenants.length });
+  } catch { res.json({ tenants: [], total: 0 }); }
 });
 
 // ==================== SERVIRE FRONTEND ====================
