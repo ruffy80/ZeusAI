@@ -2,6 +2,14 @@
 // OWNERSHIP: Acest fișier este proprietatea exclusivă a lui Vladoi Ionut
 // Email: vladoi_ionut@yahoo.com
 // BTC Address: bc1q4f7e66z87mdfj56kz0dj5hvcnpmh0qh4wuv22e
+// Data: 2026-04-11T07:05:35.534Z
+// Orice copiere, modificare sau distribuție neautorizată este interzisă.
+// =====================================================================
+
+// =====================================================================
+// OWNERSHIP: Acest fișier este proprietatea exclusivă a lui Vladoi Ionut
+// Email: vladoi_ionut@yahoo.com
+// BTC Address: bc1q4f7e66z87mdfj56kz0dj5hvcnpmh0qh4wuv22e
 // Data: 2026-04-11T05:45:32.962Z
 // Orice copiere, modificare sau distribuție neautorizată este interzisă.
 // =====================================================================
@@ -655,9 +663,19 @@ app.get('/api/health', (req, res) => {
 // ==================== AI CHAT ====================
 // Provideri: OpenAI → DeepSeek → Anthropic → Gemini → Mistral → Cohere → xAI Grok → UAIC → Llama → keyword
 const _aiProviders = require('./modules/aiProviders');
+copilot/resolve-all-issues
+// 🤖 UAIC — orchestrează inteligent toate resursele AI (OpenAI, DeepSeek,
+//           Claude, Gemini, Ollama local). Activat automat la pornire.
+let _uaic = null;
+try { _uaic = require('./modules/universal-ai-connector'); } catch (e) {
+  console.warn('[UAIC] Nu s-a putut încărca Universal AI Connector:', e.message);
+}
+
+
 // 🤖 UAIC – Universal AI Connector (rutare inteligentă multi-provider)
 let _uaic = null;
 try { _uaic = require('./modules/universalAIConnector'); } catch { _uaic = null; }
+ main
 // 🦙 Llama bridge — also available standalone via /api/llama/status
 let _llamaBridge = null;
 try { _llamaBridge = require('./modules/llamaBridge'); } catch { /* optional */ }
@@ -672,6 +690,14 @@ app.post('/api/chat', authRateLimit(30, 60_000), async (req, res) => {
   const cloudResult = await _aiProviders.chat(message, history);
   if (cloudResult) return res.json(cloudResult);
 
+ copilot/resolve-all-issues
+  const messages = [
+    ...history.slice(-6).map(m => ({ role: m.role, content: m.content })),
+    { role: 'user', content: message },
+  ];
+
+
+ main
   // 2️⃣ UAIC – routare automată la cel mai bun provider disponibil (cheapest first pentru chat)
   if (_uaic) {
     try {
