@@ -482,6 +482,9 @@ const canaryCtrl       = require('./modules/canary-controller');
 const controlPlane     = require('./modules/control-plane-agent');
 const profitLoop       = require('./modules/profit-control-loop');
 
+// ==================== DYNAMIC PRICING ENGINE ====================
+const dynamicPricing   = require('./modules/dynamic-pricing');
+
 // ==================== MESH ORCHESTRATOR — Swiss-watch inter-module bus ====================
 const meshOrchestrator = require('./modules/unicornMeshOrchestrator');
 
@@ -845,9 +848,27 @@ const BILLING_PLANS = [
   },
 ];
 
-// Public — no auth required
+// Public — no auth required; prices are enriched with live dynamic-pricing factors
 app.get('/api/billing/plans/public', (req, res) => {
-  res.json({ plans: BILLING_PLANS.map(p => ({ ...p, stripePriceIdMonthly: undefined, stripePriceIdYearly: undefined })) });
+  const conditions = dynamicPricing.getMarketConditions();
+  const plans = BILLING_PLANS.map(p => {
+    const dp = dynamicPricing.getPrice(p.id);
+    // Apply demand factor to monthly/yearly prices (keep integer cents-rounded)
+    const factor = dp ? dp.demandFactor : 1;
+    const priceMonthly = p.priceMonthly > 0 ? Math.round(p.priceMonthly * factor * 100) / 100 : 0;
+    const priceYearly  = p.priceYearly  > 0 ? Math.round(p.priceYearly  * factor * 100) / 100 : 0;
+    return {
+      ...p,
+      stripePriceIdMonthly: undefined,
+      stripePriceIdYearly: undefined,
+      priceMonthly,
+      priceYearly,
+      dynamicFactor: Math.round(factor * 1000) / 1000,
+      peakHours: conditions.peakHours,
+      surgeActive: conditions.surgeActive,
+    };
+  });
+  res.json({ plans, marketConditions: conditions });
 });
 
 // Create Stripe subscription checkout session
@@ -1225,7 +1246,15 @@ app.post('/api/carbon/price', authMiddleware, (req, res) => {
 
 // ==================== MARKETPLACE ROUTES ====================
 app.get('/api/marketplace/services', (req, res) => {
-  res.json({ services: marketplace.getAllServices() });
+  const services = marketplace.getAllServices().map(s => {
+    // Enrich with dynamic-pricing data where the module has a matching service ID
+    const dp = dynamicPricing.getPrice(s.id);
+    if (dp) {
+      return { ...s, price: dp.finalPrice, dynamicFactor: dp.demandFactor, surgeActive: dp.surgeActive };
+    }
+    return s;
+  });
+  res.json({ services });
 });
 
 app.get('/api/marketplace/categories', (req, res) => {
@@ -1288,6 +1317,41 @@ app.get('/api/marketplace/purchases/guest', (req, res) => {
     totalRevenue: stats.totalValue || 0,
     popularServices: Object.entries(stats.byCategory || {}).map(([name, count]) => ({ name, count })),
   });
+});
+
+// ==================== DYNAMIC PRICING ROUTES ====================
+
+// Public: current price for all or a specific service
+app.get('/api/pricing/all', (req, res) => {
+  res.json({ prices: dynamicPricing.getAllPrices(), basePrices: dynamicPricing.BASE_PRICES });
+});
+
+app.get('/api/pricing/conditions', (req, res) => {
+  res.json(dynamicPricing.getMarketConditions());
+});
+
+app.get('/api/pricing/:serviceId', (req, res) => {
+  const allowed = Object.keys(dynamicPricing.BASE_PRICES);
+  if (!allowed.includes(req.params.serviceId)) {
+    return res.status(404).json({ error: 'Service not found in pricing engine' });
+  }
+  res.json(dynamicPricing.getPrice(req.params.serviceId, { userId: req.query.userId, coupon: req.query.coupon }));
+});
+
+// Admin: activate surge pricing (duration key: 30min | 1h | 2h | 6h | 24h)
+app.post('/api/pricing/surge', adminTokenMiddleware, (req, res) => {
+  const { durationKey } = req.body || {};
+  const allowed = Object.keys(dynamicPricing.ALLOWED_SURGE_DURATIONS_MS);
+  const key = allowed.includes(durationKey) ? durationKey : '1h';
+  dynamicPricing.activateSurge(key);
+  res.json({ success: true, surgeDuration: key });
+});
+
+// Admin: toggle global 20% discount
+app.post('/api/pricing/discount', adminTokenMiddleware, (req, res) => {
+  const { active } = req.body || {};
+  dynamicPricing.setDiscount(!!active);
+  res.json({ success: true, discountActive: !!active });
 });
 
 // ==================== PAYMENT ROUTES ====================

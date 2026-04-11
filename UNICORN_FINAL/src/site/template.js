@@ -848,6 +848,7 @@ var STATE = {
   services: [],
   filteredServices: [],
   pricingYearly: false,
+  marketConditions: null,
   countdownTimer: null,
   adminTab: 'overview',
   dashTab: 'overview',
@@ -1189,12 +1190,14 @@ function renderServiceGrid(){
   grid.innerHTML=STATE.filteredServices.map(function(s){
     var price=s.price||s.priceUsd||0;
     var btcEq=usdToBtc(price);
+    var surgeBadge=s.surgeActive?'<span style="background:#ff4444;color:#fff;font-size:10px;padding:2px 6px;border-radius:4px;margin-left:6px;">⚡ SURGE</span>':'';
+    var dynamicNote=s.dynamicFactor&&s.dynamicFactor!==1?'<div style="font-size:11px;color:#7090b0;">Demand: ×'+s.dynamicFactor.toFixed(2)+'</div>':'';
     return '<div class="svc-card">'
-      +'<div><span class="svc-cat">'+escHtml(s.category||'Service')+'</span></div>'
+      +'<div><span class="svc-cat">'+escHtml(s.category||'Service')+'</span>'+surgeBadge+'</div>'
       +'<div class="svc-name">'+escHtml(s.name||'Service')+'</div>'
       +'<div class="svc-desc">'+escHtml(s.description||'')+'</div>'
       +'<div><div class="svc-price">$'+price+' <span style="font-size:12px;color:#7090b0;">/ mo</span></div>'
-      +'<div class="svc-btc">≈ '+btcEq+'</div></div>'
+      +'<div class="svc-btc">≈ '+btcEq+'</div>'+dynamicNote+'</div>'
       +'<button class="btn btn-green btn-sm" onclick="openCheckout('+JSON.stringify({id:s.id,name:s.name,priceUsd:price})+')">Buy Now →</button>'
       +'</div>';
   }).join('');
@@ -1212,11 +1215,11 @@ var PLANS=[
 
 async function loadPricing(){
   renderPlanCards();
-  // Try to get live plans from API
+  // Try to get live plans from API (with dynamic pricing applied)
   var r=await api('GET','/api/billing/plans/public');
   if(r.plans&&r.plans.length){
-    // Merge with static data for BTC prices
-    renderPlanCards(r.plans);
+    STATE.marketConditions=r.marketConditions||null;
+    renderPlanCards(r.plans,r.marketConditions);
   }
 }
 
@@ -1226,29 +1229,35 @@ function togglePricing(){
   tog.classList.toggle('on',STATE.pricingYearly);
   document.getElementById('lbl-monthly').classList.toggle('active',!STATE.pricingYearly);
   document.getElementById('lbl-yearly').classList.toggle('active',STATE.pricingYearly);
-  renderPlanCards();
+  renderPlanCards(null,STATE.marketConditions||null);
 }
 
-function renderPlanCards(apiPlans){
+function renderPlanCards(apiPlans,marketConditions){
   var grid=document.getElementById('plans-grid');
   if(!grid) return;
   var plans=PLANS;
   if(apiPlans){
     plans=PLANS.map(function(local){
       var ap=apiPlans.find(function(p){return p.id===local.id||p.name===local.name;});
-      return ap?Object.assign({},local,{monthly:ap.priceMonthly||local.monthly,yearly:ap.priceYearly||local.yearly}):local;
+      return ap?Object.assign({},local,{monthly:ap.priceMonthly||local.monthly,yearly:ap.priceYearly||local.yearly,surgeActive:ap.surgeActive,peakHours:ap.peakHours,dynamicFactor:ap.dynamicFactor}):local;
     });
   }
-  grid.innerHTML=plans.map(function(p){
+  var mc=marketConditions||STATE.marketConditions||null;
+  var marketBanner='';
+  if(mc&&mc.surgeActive){marketBanner='<div style="text-align:center;margin-bottom:12px;padding:8px;background:#ff4444;color:#fff;border-radius:8px;font-weight:700;">⚡ SURGE PRICING ACTIVE — prices temporarily higher</div>';}
+  else if(mc&&mc.peakHours){marketBanner='<div style="text-align:center;margin-bottom:12px;padding:8px;background:#e6a817;color:#000;border-radius:8px;font-weight:700;">🕐 Peak hours — dynamic pricing in effect</div>';}
+  grid.innerHTML=marketBanner+plans.map(function(p){
     var price=STATE.pricingYearly?p.yearly:p.monthly;
     var btcEq=price>0?usdToBtc(price):'Free';
     var feats=(p.features||[]).map(function(f){return '<li>'+escHtml(f)+'</li>';}).join('');
     var noFeats=(p.noFeatures||[]).map(function(f){return '<li class="no">'+escHtml(f)+'</li>';}).join('');
+    var dynamicNote=p.dynamicFactor&&p.dynamicFactor!==1?'<div style="font-size:11px;color:#7090b0;margin-top:4px;">Demand factor: ×'+p.dynamicFactor.toFixed(2)+'</div>':'';
     return '<div class="plan-card'+(p.popular?' popular':'') +'">'
       +(p.popular?'<div class="popular-tag">⭐ Most Popular</div>':'')
       +'<div class="plan-name">'+escHtml(p.name)+'</div>'
       +'<div class="plan-price">'+(price===0?'Free':'$'+price)+'<span>'+(price>0?(STATE.pricingYearly?'/mo, billed yearly':'/mo'):'')+'</span></div>'
       +(price>0?'<div class="plan-btc">≈ '+btcEq+'/mo</div>':'')
+      +dynamicNote
       +'<ul class="plan-features">'+feats+noFeats+'</ul>'
       +(price===0
         ?'<button class="btn btn-outline" onclick="openModal(\'auth-modal\');switchTab(\'tab-register\')">Get Started Free</button>'
