@@ -542,6 +542,9 @@ const canaryCtrl       = require('./modules/canary-controller');
 const controlPlane     = require('./modules/control-plane-agent');
 const profitLoop       = require('./modules/profit-control-loop');
 
+// ==================== MESH ORCHESTRATOR — Swiss-watch inter-module bus ====================
+const meshOrchestrator = require('./modules/unicornMeshOrchestrator');
+
 // SLO middleware — records every API request latency & error status
 app.use((req, res, next) => {
   const start = Date.now();
@@ -602,6 +605,27 @@ console.log('🎯 Profit Control Loop: STARTING');
 console.log('♾️  Unicorn Eternal Engine: STARTING');
 console.log('📱 Social Media Viralizer: STARTING');
 console.log('🌐 Global Digital Standard: STARTING');
+
+// ==================== MESH ORCHESTRATOR — înregistrare & pornire ====================
+// Înregistrăm toate modulele autonome în bus-ul central de comunicare
+meshOrchestrator.register('unicornAutonomousCore',  uac,                { statusFn: 'getStatus' });
+meshOrchestrator.register('unicornEternalEngine',   uee,                { statusFn: 'getStatus' });
+meshOrchestrator.register('controlPlaneAgent',      controlPlane,       { statusFn: 'getStatus' });
+meshOrchestrator.register('profitControlLoop',      profitLoop,         { statusFn: 'getStatus' });
+meshOrchestrator.register('autonomousInnovation',   autonomousInnovation, { statusFn: 'getStatus' });
+meshOrchestrator.register('autoRevenue',            autoRevenue,        { statusFn: 'getRevenueStatus' });
+meshOrchestrator.register('autoViralGrowth',        autoViralGrowth,    { statusFn: 'getViralStatus' });
+meshOrchestrator.register('sloTracker',             sloTracker,         { statusFn: 'getMetrics' });
+meshOrchestrator.register('circuitBreaker',         circuitBreaker,     { statusFn: 'getStatus' });
+meshOrchestrator.register('canaryController',       canaryCtrl,         { statusFn: 'getMetrics' });
+meshOrchestrator.register('shadowTester',           shadowTester,       { statusFn: 'getMetrics' });
+meshOrchestrator.register('profitAttribution',      profitService,      { statusFn: 'getMetrics' });
+meshOrchestrator.register('unicornInnovationSuite', unicornInnovationSuite, { statusFn: null });
+meshOrchestrator.register('ultimateModules',        ultimateModules,    { statusFn: null });
+
+// Pornim orchestratorul — Swiss-watch mode
+meshOrchestrator.start();
+console.log('🕰️  Unicorn Mesh Orchestrator: STARTED — toate modulele conectate');
 
 // ==================== RUTE API ====================
 app.get('/api/health', (req, res) => {
@@ -1717,6 +1741,26 @@ app.post('/api/uac/innovate', async (req, res) => {
 app.post('/api/uac/optimize', async (req, res) => {
   // Mock implementation
   res.json({ success: true, message: 'System optimization triggered' });
+});
+
+// ==================== MESH ORCHESTRATOR — rute Swiss-watch ====================
+app.get('/api/mesh/status', (req, res) => {
+  res.json(meshOrchestrator.getStatus());
+});
+
+app.get('/api/mesh/history', (req, res) => {
+  const limit = Math.min(parseInt(req.query.limit) || 20, 100);
+  res.json({ history: meshOrchestrator.getHealthHistory(limit) });
+});
+
+app.get('/api/mesh/log', adminTokenMiddleware, (req, res) => {
+  const limit = Math.min(parseInt(req.query.limit) || 50, 200);
+  res.json({ log: meshOrchestrator.getEventLog(limit) });
+});
+
+app.post('/api/mesh/sync', adminTokenMiddleware, (req, res) => {
+  meshOrchestrator._syncCycle();
+  res.json({ success: true, message: 'Sincronizare mesh declanșată manual' });
 });
 
 // ==================== CODE SANITY ENGINE ====================
