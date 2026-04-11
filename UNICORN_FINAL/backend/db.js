@@ -2,151 +2,23 @@
 // OWNERSHIP: Acest fișier este proprietatea exclusivă a lui Vladoi Ionut
 // Email: vladoi_ionut@yahoo.com
 // BTC Address: bc1q4f7e66z87mdfj56kz0dj5hvcnpmh0qh4wuv22e
+// Data: 2026-04-11T09:27:40.328Z
+// Orice copiere, modificare sau distribuție neautorizată este interzisă.
+// =====================================================================
+
+// =====================================================================
+// OWNERSHIP: Acest fișier este proprietatea exclusivă a lui Vladoi Ionut
+// Email: vladoi_ionut@yahoo.com
+// BTC Address: bc1q4f7e66z87mdfj56kz0dj5hvcnpmh0qh4wuv22e
+// Data: 2026-04-11T09:27:11.185Z
+// Orice copiere, modificare sau distribuție neautorizată este interzisă.
+// =====================================================================
+
+// =====================================================================
+// OWNERSHIP: Acest fișier este proprietatea exclusivă a lui Vladoi Ionut
+// Email: vladoi_ionut@yahoo.com
+// BTC Address: bc1q4f7e66z87mdfj56kz0dj5hvcnpmh0qh4wuv22e
 // Data: 2026-04-11T08:29:23.648Z
-// Orice copiere, modificare sau distribuție neautorizată este interzisă.
-// =====================================================================
-
-// =====================================================================
-// OWNERSHIP: Acest fișier este proprietatea exclusivă a lui Vladoi Ionut
-// Email: vladoi_ionut@yahoo.com
-// BTC Address: bc1q4f7e66z87mdfj56kz0dj5hvcnpmh0qh4wuv22e
-// Data: 2026-04-11T08:28:58.937Z
-// Orice copiere, modificare sau distribuție neautorizată este interzisă.
-// =====================================================================
-
-// =====================================================================
-// OWNERSHIP: Acest fișier este proprietatea exclusivă a lui Vladoi Ionut
-// Email: vladoi_ionut@yahoo.com
-// BTC Address: bc1q4f7e66z87mdfj56kz0dj5hvcnpmh0qh4wuv22e
-// Data: 2026-04-11T07:05:35.181Z
-// Orice copiere, modificare sau distribuție neautorizată este interzisă.
-// =====================================================================
-
-// =====================================================================
-// OWNERSHIP: Acest fișier este proprietatea exclusivă a lui Vladoi Ionut
-// Email: vladoi_ionut@yahoo.com
-// BTC Address: bc1q4f7e66z87mdfj56kz0dj5hvcnpmh0qh4wuv22e
-// Data: 2026-04-11T05:45:32.614Z
-// Orice copiere, modificare sau distribuție neautorizată este interzisă.
-// =====================================================================
-
-// =====================================================================
-// OWNERSHIP: Acest fișier este proprietatea exclusivă a lui Vladoi Ionut
-// Email: vladoi_ionut@yahoo.com
-// BTC Address: bc1q4f7e66z87mdfj56kz0dj5hvcnpmh0qh4wuv22e
-// Data: 2026-04-11T05:42:30.700Z
-// Orice copiere, modificare sau distribuție neautorizată este interzisă.
-// =====================================================================
-
-// =====================================================================
-// OWNERSHIP: Acest fișier este proprietatea exclusivă a lui Vladoi Ionut
-// Email: vladoi_ionut@yahoo.com
-// BTC Address: bc1q4f7e66z87mdfj56kz0dj5hvcnpmh0qh4wuv22e
-// Data: 2026-04-11T05:42:09.705Z
-// Orice copiere, modificare sau distribuție neautorizată este interzisă.
-// =====================================================================
-
-// =====================================================================
-// OWNERSHIP: Acest fișier este proprietatea exclusivă a lui Vladoi Ionut
-// Email: vladoi_ionut@yahoo.com
-// BTC Address: bc1q4f7e66z87mdfj56kz0dj5hvcnpmh0qh4wuv22e
-// Data: 2026-04-11T05:40:57.620Z
-// Orice copiere, modificare sau distribuție neautorizată este interzisă.
-// =====================================================================
-
-// =====================================================================
-// OWNERSHIP: Acest fișier este proprietatea exclusivă a lui Vladoi Ionut
-// Email: vladoi_ionut@yahoo.com
-// BTC Address: bc1q4f7e66z87mdfj56kz0dj5hvcnpmh0qh4wuv22e
-// Data: 2026-04-11T05:39:36.794Z
-// Orice copiere, modificare sau distribuție neautorizată este interzisă.
-// =====================================================================
-
-// =====================================================================
-// OWNERSHIP: Acest fișier este proprietatea exclusivă a lui Vladoi Ionut
-// Email: vladoi_ionut@yahoo.com
-// BTC Address: bc1q4f7e66z87mdfj56kz0dj5hvcnpmh0qh4wuv22e
-// Data: 2026-04-10T20:26:26.543Z
-// Orice copiere, modificare sau distribuție neautorizată este interzisă.
-// =====================================================================
-
-// =====================================================================
-// OWNERSHIP: Acest fișier este proprietatea exclusivă a lui Vladoi Ionut
-// Email: vladoi_ionut@yahoo.com
-// BTC Address: bc1q4f7e66z87mdfj56kz0dj5hvcnpmh0qh4wuv22e
-// Data: 2026-04-10T19:17:58.868Z
-// Orice copiere, modificare sau distribuție neautorizată este interzisă.
-// =====================================================================
-
-// =====================================================================
-// OWNERSHIP: Acest fișier este proprietatea exclusivă a lui Vladoi Ionut
-// Email: vladoi_ionut@yahoo.com
-// BTC Address: bc1q4f7e66z87mdfj56kz0dj5hvcnpmh0qh4wuv22e
-// Data: 2026-04-10T19:15:24.728Z
-// Orice copiere, modificare sau distribuție neautorizată este interzisă.
-// =====================================================================
-
-// =====================================================================
-// OWNERSHIP: Acest fișier este proprietatea exclusivă a lui Vladoi Ionut
-// Email: vladoi_ionut@yahoo.com
-// BTC Address: bc1q4f7e66z87mdfj56kz0dj5hvcnpmh0qh4wuv22e
-// Data: 2026-04-10T19:14:20.243Z
-// Orice copiere, modificare sau distribuție neautorizată este interzisă.
-// =====================================================================
-
-// =====================================================================
-// OWNERSHIP: Acest fișier este proprietatea exclusivă a lui Vladoi Ionut
-// Email: vladoi_ionut@yahoo.com
-// BTC Address: bc1q4f7e66z87mdfj56kz0dj5hvcnpmh0qh4wuv22e
-// Data: 2026-04-10T19:10:40.779Z
-// Orice copiere, modificare sau distribuție neautorizată este interzisă.
-// =====================================================================
-
-// =====================================================================
-// OWNERSHIP: Acest fișier este proprietatea exclusivă a lui Vladoi Ionut
-// Email: vladoi_ionut@yahoo.com
-// BTC Address: bc1q4f7e66z87mdfj56kz0dj5hvcnpmh0qh4wuv22e
-// Data: 2026-04-10T19:01:10.045Z
-// Orice copiere, modificare sau distribuție neautorizată este interzisă.
-// =====================================================================
-
-// =====================================================================
-// OWNERSHIP: Acest fișier este proprietatea exclusivă a lui Vladoi Ionut
-// Email: vladoi_ionut@yahoo.com
-// BTC Address: bc1q4f7e66z87mdfj56kz0dj5hvcnpmh0qh4wuv22e
-// Data: 2026-04-10T18:58:02.798Z
-// Orice copiere, modificare sau distribuție neautorizată este interzisă.
-// =====================================================================
-
-// =====================================================================
-// OWNERSHIP: Acest fișier este proprietatea exclusivă a lui Vladoi Ionut
-// Email: vladoi_ionut@yahoo.com
-// BTC Address: bc1q4f7e66z87mdfj56kz0dj5hvcnpmh0qh4wuv22e
-// Data: 2026-04-10T18:53:46.889Z
-// Orice copiere, modificare sau distribuție neautorizată este interzisă.
-// =====================================================================
-
-// =====================================================================
-// OWNERSHIP: Acest fișier este proprietatea exclusivă a lui Vladoi Ionut
-// Email: vladoi_ionut@yahoo.com
-// BTC Address: bc1q4f7e66z87mdfj56kz0dj5hvcnpmh0qh4wuv22e
-// Data: 2026-04-10T18:53:00.757Z
-// Orice copiere, modificare sau distribuție neautorizată este interzisă.
-// =====================================================================
-
-// =====================================================================
-// OWNERSHIP: Acest fișier este proprietatea exclusivă a lui Vladoi Ionut
-// Email: vladoi_ionut@yahoo.com
-// BTC Address: bc1q4f7e66z87mdfj56kz0dj5hvcnpmh0qh4wuv22e
-// Data: 2026-04-10T18:52:08.393Z
-// Orice copiere, modificare sau distribuție neautorizată este interzisă.
-// =====================================================================
-
-// =====================================================================
-// OWNERSHIP: Acest fișier este proprietatea exclusivă a lui Vladoi Ionut
-// Email: vladoi_ionut@yahoo.com
-// BTC Address: bc1q4f7e66z87mdfj56kz0dj5hvcnpmh0qh4wuv22e
-// Data: 2026-04-10T18:51:01.559Z
 // Orice copiere, modificare sau distribuție neautorizată este interzisă.
 // =====================================================================
 
@@ -270,6 +142,53 @@ try {
     );
 
     CREATE INDEX IF NOT EXISTS idx_admin_sessions_exp ON admin_sessions(expiresAt);
+
+    CREATE TABLE IF NOT EXISTS monthly_usage (
+      id          TEXT PRIMARY KEY,
+      userId      TEXT NOT NULL,
+      month       TEXT NOT NULL,
+      action      TEXT NOT NULL DEFAULT 'api_call',
+      credits     INTEGER NOT NULL DEFAULT 0,
+      createdAt   TEXT NOT NULL,
+      UNIQUE(userId, month, action)
+    );
+
+    CREATE TABLE IF NOT EXISTS referrals (
+      id          TEXT PRIMARY KEY,
+      referrerId  TEXT NOT NULL,
+      code        TEXT NOT NULL UNIQUE,
+      email       TEXT,
+      convertedUserId TEXT,
+      status      TEXT NOT NULL DEFAULT 'pending',
+      tier        TEXT NOT NULL DEFAULT 'silver',
+      commissionPct REAL NOT NULL DEFAULT 0.20,
+      totalEarned REAL NOT NULL DEFAULT 0,
+      createdAt   TEXT NOT NULL,
+      convertedAt TEXT
+    );
+
+    CREATE TABLE IF NOT EXISTS workflows (
+      id          TEXT PRIMARY KEY,
+      userId      TEXT NOT NULL,
+      name        TEXT NOT NULL,
+      trigger     TEXT NOT NULL,
+      actions     TEXT NOT NULL,
+      enabled     INTEGER NOT NULL DEFAULT 1,
+      runCount    INTEGER NOT NULL DEFAULT 0,
+      lastRunAt   TEXT,
+      createdAt   TEXT NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS tenants (
+      id          TEXT PRIMARY KEY,
+      name        TEXT NOT NULL,
+      subdomain   TEXT NOT NULL UNIQUE,
+      ownerId     TEXT NOT NULL,
+      branding    TEXT NOT NULL DEFAULT '{}',
+      planId      TEXT NOT NULL DEFAULT 'enterprise',
+      active      INTEGER NOT NULL DEFAULT 1,
+      createdAt   TEXT NOT NULL
+    );
   `);
 
   // Migrate: add planId column if not present (idempotent)
@@ -300,6 +219,10 @@ let mem = {
   apiKeys: new Map(),
   apiKeysByHash: new Map(),
   usage: [],
+  monthlyUsage: {},
+  referrals: [],
+  workflows: [],
+  tenants: [],
 };
 
 // ============================================================
@@ -592,4 +515,149 @@ const adminSessions = usingSqlite ? {
 // Prune expired admin sessions hourly
 setInterval(() => adminSessions.prune(), 3_600_000).unref();
 
-module.exports = { db, users, payments, purchases, apiKeys, adminSessions };
+const monthlyUsage = usingSqlite ? {
+  get(userId, month) {
+    const rows = db.prepare('SELECT SUM(credits) as used FROM monthly_usage WHERE userId=? AND month=?').get(userId, month);
+    return rows ? { userId, month, used: rows.used || 0 } : { userId, month, used: 0 };
+  },
+  add(userId, month, credits, action) {
+    const id = `${userId}-${month}-${action}-${Date.now()}`;
+    try {
+      db.prepare('INSERT INTO monthly_usage (id,userId,month,action,credits,createdAt) VALUES (?,?,?,?,?,?)').run(id, userId, month, action||'api_call', credits, new Date().toISOString());
+    } catch { /* ignore duplicate */ }
+  },
+} : {
+  get(userId, month) {
+    const key = `${userId}:${month}`;
+    return mem.monthlyUsage[key] || { userId, month, used: 0 };
+  },
+  add(userId, month, credits, action) {
+    const key = `${userId}:${month}`;
+    const existing = mem.monthlyUsage[key];
+    if (existing) existing.used += credits;
+    else mem.monthlyUsage[key] = { userId, month, used: credits };
+  },
+};
+
+const referrals = usingSqlite ? {
+  create(data) {
+    db.prepare('INSERT INTO referrals (id,referrerId,code,email,status,tier,commissionPct,totalEarned,createdAt) VALUES (?,?,?,?,?,?,?,?,?)').run(
+      data.id, data.referrerId, data.code, data.email||null, data.status||'pending',
+      data.tier||'silver', data.commissionPct||0.20, data.totalEarned||0, data.createdAt
+    );
+    return data;
+  },
+  findByCode(code) {
+    return db.prepare('SELECT * FROM referrals WHERE code=?').get(code)||null;
+  },
+  listByReferrer(referrerId) {
+    return db.prepare('SELECT * FROM referrals WHERE referrerId=? ORDER BY createdAt DESC').all(referrerId);
+  },
+  convert(code, convertedUserId) {
+    db.prepare('UPDATE referrals SET convertedUserId=?,status=?,convertedAt=? WHERE code=?').run(convertedUserId,'converted',new Date().toISOString(),code);
+    return db.prepare('SELECT * FROM referrals WHERE code=?').get(code);
+  },
+  addEarnings(referrerId, amount) {
+    db.prepare('UPDATE referrals SET totalEarned=totalEarned+? WHERE referrerId=?').run(amount, referrerId);
+  },
+} : {
+  create(data) {
+    if (!mem.referrals) mem.referrals = [];
+    mem.referrals.push(data);
+    return data;
+  },
+  findByCode(code) { return (mem.referrals||[]).find(r=>r.code===code)||null; },
+  listByReferrer(referrerId) { return (mem.referrals||[]).filter(r=>r.referrerId===referrerId); },
+  convert(code, convertedUserId) {
+    const r = (mem.referrals||[]).find(r=>r.code===code);
+    if (r) { r.convertedUserId=convertedUserId; r.status='converted'; r.convertedAt=new Date().toISOString(); }
+    return r;
+  },
+  addEarnings(referrerId, amount) {
+    (mem.referrals||[]).filter(r=>r.referrerId===referrerId).forEach(r=>r.totalEarned=(r.totalEarned||0)+amount);
+  },
+};
+
+const workflows = usingSqlite ? {
+  create(data) {
+    db.prepare('INSERT INTO workflows (id,userId,name,trigger,actions,enabled,runCount,createdAt) VALUES (?,?,?,?,?,?,?,?)').run(
+      data.id, data.userId, data.name, data.trigger, JSON.stringify(data.actions||[]), data.enabled?1:0, 0, data.createdAt
+    );
+    return data;
+  },
+  findById(id) {
+    const r = db.prepare('SELECT * FROM workflows WHERE id=?').get(id);
+    if (r) r.actions = JSON.parse(r.actions||'[]');
+    return r||null;
+  },
+  listByUser(userId) {
+    return db.prepare('SELECT * FROM workflows WHERE userId=? ORDER BY createdAt DESC').all(userId).map(r=>({...r,actions:JSON.parse(r.actions||'[]')}));
+  },
+  update(id, updates) {
+    if (updates.actions) updates = { ...updates, actions: JSON.stringify(updates.actions) };
+    const sets = Object.keys(updates).map(k=>`${k}=?`).join(',');
+    db.prepare(`UPDATE workflows SET ${sets} WHERE id=?`).run(...Object.values(updates), id);
+    return this.findById(id);
+  },
+  delete(id) {
+    const r = db.prepare('DELETE FROM workflows WHERE id=?').run(id);
+    return r.changes > 0;
+  },
+} : {
+  create(data) {
+    if (!mem.workflows) mem.workflows = [];
+    mem.workflows.push(data);
+    return data;
+  },
+  findById(id) { return (mem.workflows||[]).find(w=>w.id===id)||null; },
+  listByUser(userId) { return (mem.workflows||[]).filter(w=>w.userId===userId); },
+  update(id, updates) {
+    const w = (mem.workflows||[]).find(w=>w.id===id);
+    if (w) Object.assign(w, updates);
+    return w;
+  },
+  delete(id) {
+    if (!mem.workflows) return false;
+    const idx = mem.workflows.findIndex(w=>w.id===id);
+    if (idx>=0) { mem.workflows.splice(idx,1); return true; }
+    return false;
+  },
+};
+
+const tenants = usingSqlite ? {
+  create(data) {
+    db.prepare('INSERT INTO tenants (id,name,subdomain,ownerId,branding,planId,active,createdAt) VALUES (?,?,?,?,?,?,?,?)').run(
+      data.id, data.name, data.subdomain, data.ownerId, JSON.stringify(data.branding||{}), data.planId||'enterprise', 1, data.createdAt
+    );
+    return data;
+  },
+  findBySubdomain(subdomain) {
+    const r = db.prepare('SELECT * FROM tenants WHERE subdomain=?').get(subdomain);
+    if (r) r.branding = JSON.parse(r.branding||'{}');
+    return r||null;
+  },
+  findByOwner(ownerId) {
+    return db.prepare('SELECT * FROM tenants WHERE ownerId=? ORDER BY createdAt DESC').all(ownerId).map(r=>({...r,branding:JSON.parse(r.branding||'{}')}));
+  },
+  update(id, updates) {
+    if (updates.branding) updates = {...updates, branding: JSON.stringify(updates.branding)};
+    const sets = Object.keys(updates).map(k=>`${k}=?`).join(',');
+    db.prepare(`UPDATE tenants SET ${sets} WHERE id=?`).run(...Object.values(updates), id);
+    return db.prepare('SELECT * FROM tenants WHERE id=?').get(id);
+  },
+} : {
+  create(data) {
+    if (!mem.tenants) mem.tenants = [];
+    mem.tenants.push(data);
+    return data;
+  },
+  findBySubdomain(subdomain) { return (mem.tenants||[]).find(t=>t.subdomain===subdomain)||null; },
+  findByOwner(ownerId) { return (mem.tenants||[]).filter(t=>t.ownerId===ownerId); },
+  update(id, updates) {
+    const t = (mem.tenants||[]).find(t=>t.id===id);
+    if (t) Object.assign(t, updates);
+    return t;
+  },
+};
+
+module.exports = { db, users, payments, purchases, apiKeys, adminSessions, monthlyUsage, referrals, workflows, tenants };
