@@ -438,7 +438,8 @@ select.form-inp option{background:#0a0e24;}
     </div>
 
     <footer class="footer">
-      <p>⚡ ZEUS AI Platform &nbsp;|&nbsp; Owner: Vladoi Ionut &nbsp;|&nbsp; <a href="mailto:vladoi_ionut@yahoo.com">vladoi_ionut@yahoo.com</a></p>
+      <p>🦄 <a href="https://zeusai.pro" target="_blank">zeusai.pro</a> — Universal AI Unicorn Platform</p>
+      <p style="margin-top:4px;">Owner: Vladoi Ionut &nbsp;|&nbsp; <a href="mailto:vladoi_ionut@yahoo.com">vladoi_ionut@yahoo.com</a></p>
       <p style="margin-top:6px;">BTC: <span class="btc-addr" onclick="copyText('bc1q4f7e66z87mdfj56kz0dj5hvcnpmh0qh4wuv22e',this)" title="Click to copy">bc1q4f7e66z87mdfj56kz0dj5hvcnpmh0qh4wuv22e</span></p>
     </footer>
   </div><!-- end #view-home -->
