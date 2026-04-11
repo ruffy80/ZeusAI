@@ -151,8 +151,20 @@ jobs:
             echo "✅ Resolved zeusai Vercel project ID: ${RESOLVED_ID}"
             PROJECT_ID="$RESOLVED_ID"
           else
-            echo "ℹ️  Could not resolve zeusai project from Vercel API – falling back to VERCEL_PROJECT_ID secret"
-            PROJECT_ID="$VERCEL_PROJECT_ID_SECRET"
+            # Fallback: try old project name 'zeusai-rust' (legacy project slug)
+            echo "ℹ️  zeusai project not found – trying legacy name zeusai-rust..."
+            RESOLVED_ID=$(curl -fsS \
+              -H "Authorization: Bearer ${VERCEL_TOKEN}" \
+              "https://api.vercel.com/v9/projects/zeusai-rust${TEAM_PARAM}" \
+              2>/dev/null \
+              | jq -r '.id // empty' 2>/dev/null || echo "")
+            if [ -n "$RESOLVED_ID" ]; then
+              echo "✅ Resolved legacy zeusai-rust project ID: ${RESOLVED_ID}"
+              PROJECT_ID="$RESOLVED_ID"
+            else
+              echo "ℹ️  Could not resolve project from Vercel API – falling back to VERCEL_PROJECT_ID secret"
+              PROJECT_ID="$VERCEL_PROJECT_ID_SECRET"
+            fi
           fi
           mkdir -p .vercel
           cat > .vercel/project.json <<EOF
@@ -163,6 +175,40 @@ jobs:
           EOF
           echo "RESOLVED_VERCEL_PROJECT_ID=${PROJECT_ID}" >> "$GITHUB_ENV"
           echo "🔗 Linked to Vercel project: ${PROJECT_ID}"
+
+      - name: Rename Vercel project to 'zeusai' (fix zeusai-rust.vercel.app URL)
+        if: steps.vercel_guard.outputs.ready == 'true'
+        continue-on-error: true
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_TEAM_ID: ${{ secrets.VERCEL_TEAM_ID || secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ env.RESOLVED_VERCEL_PROJECT_ID || secrets.VERCEL_PROJECT_ID }}
+        run: |
+          TEAM_PARAM=""
+          [ -n "$VERCEL_TEAM_ID" ] && TEAM_PARAM="?teamId=${VERCEL_TEAM_ID}"
+          # Get current project name
+          CURRENT_NAME=$(curl -fsS \
+            -H "Authorization: Bearer ${VERCEL_TOKEN}" \
+            "https://api.vercel.com/v9/projects/${VERCEL_PROJECT_ID}${TEAM_PARAM}" \
+            2>/dev/null | jq -r '.name // empty' 2>/dev/null || echo "")
+          echo "Current Vercel project name: '${CURRENT_NAME}'"
+          if [ "$CURRENT_NAME" = "zeusai" ]; then
+            echo "✅ Project already named 'zeusai' – no rename needed"
+          elif [ -n "$CURRENT_NAME" ]; then
+            HTTP=$(curl -s -o /dev/null -w "%{http_code}" \
+              -X PATCH \
+              "https://api.vercel.com/v9/projects/${VERCEL_PROJECT_ID}${TEAM_PARAM}" \
+              -H "Authorization: Bearer ${VERCEL_TOKEN}" \
+              -H "Content-Type: application/json" \
+              -d '{"name":"zeusai"}')
+            if [ "$HTTP" = "200" ]; then
+              echo "✅ Vercel project renamed from '${CURRENT_NAME}' to 'zeusai' – URL will be zeusai.vercel.app"
+            else
+              echo "⚠️  Could not rename project (HTTP ${HTTP}) – project may already have the name or a conflict exists"
+            fi
+          else
+            echo "⚠️  Could not determine current project name – skipping rename"
+          fi
 
       - name: Pull Vercel environment
         if: steps.vercel_guard.outputs.ready == 'true'
@@ -542,18 +588,31 @@ jobs:
 
             # ── Install certbot + obtain/renew SSL cert ───────────────────
             DOMAIN="${{ secrets.SITE_DOMAIN || 'zeusai.pro' }}"
+            CERT_EMAIL="${{ secrets.OWNER_EMAIL || 'vladoi_ionut@yahoo.com' }}"
             if [ -n "$DOMAIN" ]; then
               if ! command -v certbot >/dev/null 2>&1; then
                 apt-get install -y certbot python3-certbot-nginx 2>/dev/null || snap install --classic certbot 2>/dev/null || true
               fi
               if command -v certbot >/dev/null 2>&1; then
-                certbot --nginx -d "$DOMAIN" -d "www.$DOMAIN" \
-                  --non-interactive --agree-tos \
-                  --email "${{ secrets.OWNER_EMAIL || 'vladoi_ionut@yahoo.com' }}" \
-                  --redirect 2>/dev/null || \
-                certbot renew --quiet --nginx 2>/dev/null || true
+                # Verify DNS resolves to this server before attempting cert (avoid rate-limit burn)
+                SERVER_IP=$(curl -s --max-time 5 https://ifconfig.me || hostname -I | awk '{print $1}')
+                DOMAIN_IP=$(dig +short "$DOMAIN" A 2>/dev/null | tail -1 || true)
+                echo "  Server IP: ${SERVER_IP}  Domain IP: ${DOMAIN_IP}"
+
+                # Try both apex + www first; if www fails (proxy on registrar), fall back to apex only
+                if certbot --nginx -d "$DOMAIN" -d "www.$DOMAIN" \
+                    --non-interactive --agree-tos --email "$CERT_EMAIL" \
+                    --redirect --keep-until-expiring 2>/dev/null; then
+                  echo "✅ SSL certificate (apex + www) configured for $DOMAIN"
+                elif certbot --nginx -d "$DOMAIN" \
+                    --non-interactive --agree-tos --email "$CERT_EMAIL" \
+                    --redirect --keep-until-expiring 2>/dev/null; then
+                  echo "✅ SSL certificate (apex only) configured for $DOMAIN"
+                else
+                  certbot renew --quiet --nginx 2>/dev/null || true
+                  echo "ℹ️  certbot renewal attempted for $DOMAIN (new cert may need DNS propagation)"
+                fi
                 nginx -t && systemctl reload nginx 2>/dev/null || true
-                echo "✅ SSL certificate configured for $DOMAIN"
               fi
             fi
 
