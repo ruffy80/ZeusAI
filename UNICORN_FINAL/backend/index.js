@@ -2,6 +2,14 @@
 // OWNERSHIP: Acest fișier este proprietatea exclusivă a lui Vladoi Ionut
 // Email: vladoi_ionut@yahoo.com
 // BTC Address: bc1q4f7e66z87mdfj56kz0dj5hvcnpmh0qh4wuv22e
+// Data: 2026-04-11T07:05:35.534Z
+// Orice copiere, modificare sau distribuție neautorizată este interzisă.
+// =====================================================================
+
+// =====================================================================
+// OWNERSHIP: Acest fișier este proprietatea exclusivă a lui Vladoi Ionut
+// Email: vladoi_ionut@yahoo.com
+// BTC Address: bc1q4f7e66z87mdfj56kz0dj5hvcnpmh0qh4wuv22e
 // Data: 2026-04-11T05:45:32.962Z
 // Orice copiere, modificare sau distribuție neautorizată este interzisă.
 // =====================================================================
@@ -599,51 +607,37 @@ app.get('/api/health', (req, res) => {
   });
 });
 
- copilot/feat-multi-provider-ai-cascade-50
 // ==================== AI CHAT ====================
 // Provideri: OpenAI → DeepSeek → Anthropic → Gemini → Mistral → Cohere → xAI Grok → UAIC → Llama → keyword
 const _aiProviders = require('./modules/aiProviders');
-// 🤖 UAIC – Universal AI Connector (rutare inteligentă multi-provider)
-// 🦙 Llama bridge — optional local fallback (Ollama)
-let _uaic;
-try { _uaic = require('./modules/universalAIConnector'); } catch { _uaic = null; }
-=======
-// ==================== UNIVERSAL AI CONNECTOR (UAIC) ====================
 // 🤖 UAIC — orchestrează inteligent toate resursele AI (OpenAI, DeepSeek,
 //           Claude, Gemini, Ollama local). Activat automat la pornire.
 let _uaic = null;
 try { _uaic = require('./modules/universal-ai-connector'); } catch (e) {
   console.warn('[UAIC] Nu s-a putut încărca Universal AI Connector:', e.message);
 }
- main
 
 // 🦙 Llama bridge — also available standalone via /api/llama/status
 let _llamaBridge = null;
 try { _llamaBridge = require('./modules/llamaBridge'); } catch { /* optional */ }
 
-// ==================== AI CHAT ====================
 const ZEUS_SYSTEM = 'You are Zeus AI Assistant, an expert in business automation, AI, blockchain, payments, and enterprise solutions. Be concise and helpful. You can also respond in Romanian if the user writes in Romanian.';
 
 app.post('/api/chat', authRateLimit(30, 60_000), async (req, res) => {
   const { message, history = [] } = req.body || {};
   if (!message) return res.status(400).json({ error: 'message required' });
 
-copilot/feat-multi-provider-ai-cascade-50
   // 1️⃣ Cloud AI providers cascade (OpenAI → DeepSeek → Anthropic → Gemini → Mistral → Cohere → xAI Grok)
   const cloudResult = await _aiProviders.chat(message, history);
   if (cloudResult) return res.json(cloudResult);
-
-  // 2️⃣ UAIC – routare automată la cel mai bun provider disponibil (cheapest first pentru chat)
-  if (_uaic && _uaic.models.length > 0) {
 
   const messages = [
     ...history.slice(-6).map(m => ({ role: m.role, content: m.content })),
     { role: 'user', content: message },
   ];
 
-  // 🤖 Route through UAIC (OpenAI → DeepSeek → Claude → Gemini → Llama)
+  // 2️⃣ UAIC – routare automată la cel mai bun provider disponibil (cheapest first pentru chat)
   if (_uaic) {
- main
     try {
       const result = await _uaic.ask({
         type: 'chat',
@@ -658,7 +652,6 @@ copilot/feat-multi-provider-ai-cascade-50
     }
   }
 
- copilot/feat-multi-provider-ai-cascade-50
   // 3️⃣ Llama local fallback (zero-cost, rulează pe Hetzner via Ollama)
   if (_llamaBridge) {
     const historyText = history.slice(-4)
@@ -670,7 +663,7 @@ copilot/feat-multi-provider-ai-cascade-50
     const llamaReply = await _llamaBridge.generate(
       prompt,
       _llamaBridge.PRIORITY.CHAT,
-      CHAT_SYSTEM_PROMPT
+      ZEUS_SYSTEM
     );
     if (llamaReply) {
       return res.json({ reply: llamaReply, model: 'llama-local' });
@@ -678,9 +671,6 @@ copilot/feat-multi-provider-ai-cascade-50
   }
 
   // 4️⃣ Smart keyword fallback (static — când niciun AI nu e disponibil)
-
-  // Smart keyword fallback (static — when all AI models are unavailable)
- main
   const lower = message.toLowerCase();
   const KEYWORD_RESPONSES = [
     [['payment', 'plat'], 'Zeus AI suportă plăți via Stripe, PayPal, Bitcoin și alte 10+ metode. Accesează /payments pentru a iniția o tranzacție.'],
