@@ -142,6 +142,7 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
 const JWT_SECRET = process.env.JWT_SECRET || 'unicorn-jwt-secret-change-in-prod';
+const rateLimit = require('express-rate-limit');
 
 // Raw body buffers needed for webhook signature verification
 app.use('/api/payment/webhook/stripe', express.raw({ type: 'application/json' }));
@@ -176,6 +177,31 @@ app.use(cors({
 
 app.use(express.json());
 
+ copilot/explore-codebase-implementation-plan
+// ==================== RATE LIMITERS ====================
+const globalPublicRateLimit = rateLimit({
+  windowMs: 60_000,
+  max: parseInt(process.env.PUBLIC_RATE_LIMIT || '200', 10),
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Too many requests — try again later' },
+});
+
+const adminCrudRateLimit = rateLimit({
+  windowMs: 60_000,
+  max: parseInt(process.env.ADMIN_RATE_LIMIT || '60', 10),
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Too many requests — try again later' },
+});
+
+// Apply global rate limit to all routes
+app.use(globalPublicRateLimit);
+
+// ==================== AUTH STORE (in-memory) ====================
+const users = [];
+const adminSessions = new Set();
+=======
 // ==================== PERSISTENCE ====================
 const { users: dbUsers, payments: dbPayments, apiKeys: dbApiKeys, adminSessions: dbAdminSessions } = require('./db');
 const emailService = require('./email');
@@ -205,6 +231,7 @@ app.use((req, res, next) => {
 });
 
 // ==================== AUTH STORE (SQLite-backed) ====================
+ main
 const ADMIN_OWNER_NAME = process.env.LEGAL_OWNER_NAME || 'Vladoi Ionut';
 const ADMIN_OWNER_EMAIL = process.env.ADMIN_EMAIL || process.env.LEGAL_OWNER_EMAIL || 'vladoi_ionut@yahoo.com';
 const ADMIN_OWNER_BTC = process.env.LEGAL_OWNER_BTC || 'bc1q4f7e66z87mdfj56kz0dj5hvcnpmh0qh4wuv22e';
@@ -523,6 +550,27 @@ const autonomousInnovation = require('./modules/autonomousInnovation');
 const autoRevenue = require('./modules/autoRevenue');
 const autoViralGrowth = require('./modules/autoViralGrowth');
 
+// ==================== AUTONOMOUS SYSTEM v2 (Self-Healing + Self-Innovation) ====================
+const circuitBreaker   = require('./modules/circuit-breaker');
+const sloTracker       = require('./modules/slo-tracker');
+const profitService    = require('./modules/profit-attribution');
+const shadowTester     = require('./modules/shadow-tester');
+const canaryCtrl       = require('./modules/canary-controller');
+const controlPlane     = require('./modules/control-plane-agent');
+const profitLoop       = require('./modules/profit-control-loop');
+
+// SLO middleware — records every API request latency & error status
+app.use((req, res, next) => {
+  const start = Date.now();
+  res.on('finish', () => {
+    const route = `${req.method} ${req.route ? req.route.path : req.path}`;
+    const dur = Date.now() - start;
+    const isError = res.statusCode >= 500;
+    sloTracker.record(route, dur, isError);
+  });
+  next();
+});
+
 // Pornire module autonome
 selfConstruction.start();
 totalSystemHealer.start();
@@ -564,9 +612,14 @@ app.use('/api/dashboard', executiveDashboard.getRouter(adminSecretMiddleware));
 console.log('🤖 Autonomous Innovation Engine: STARTING');
 console.log('💰 Auto Revenue Engine: STARTING');
 console.log('📣 Auto Viral Growth Engine: STARTING');
+ copilot/explore-codebase-implementation-plan
+console.log('🛡️  Control Plane Agent: STARTING');
+console.log('🎯 Profit Control Loop: STARTING');
+
 console.log('♾️  Unicorn Eternal Engine: STARTING');
 console.log('📱 Social Media Viralizer: STARTING');
 console.log('🌐 Global Digital Standard: STARTING');
+ main
 
 // ==================== RUTE API ====================
 app.get('/api/health', (req, res) => {
@@ -1938,6 +1991,178 @@ app.get('/api/autonomous/platform/status', (req, res) => {
   });
 });
 
+copilot/explore-codebase-implementation-plan
+// ==================== SELF-HEALING: SLO ROUTES ====================
+app.get('/api/slo/status', (req, res) => {
+  res.json({ stats: sloTracker.getAllStats(), routes: sloTracker.getAllRoutes() });
+});
+
+app.get('/api/slo/route', (req, res) => {
+  const route = req.query.route;
+  if (!route) return res.status(400).json({ error: 'route query param required' });
+  res.json(sloTracker.getRouteStats(route));
+});
+
+// ==================== SELF-HEALING: CONTROL PLANE AGENT ROUTES ====================
+app.get('/api/control-plane/status', adminCrudRateLimit, adminTokenMiddleware, (req, res) => {
+  res.json(controlPlane.getStatus());
+});
+
+app.get('/api/control-plane/decisions', adminCrudRateLimit, adminTokenMiddleware, (req, res) => {
+  const limit = parseInt(req.query.limit || '50', 10);
+  res.json({ decisions: controlPlane.getDecisionLog(limit) });
+});
+
+app.get('/api/control-plane/rollback-history', adminCrudRateLimit, adminTokenMiddleware, (req, res) => {
+  const limit = parseInt(req.query.limit || '20', 10);
+  res.json({ history: controlPlane.getRollbackHistory(limit) });
+});
+
+app.post('/api/control-plane/rollback', adminCrudRateLimit, adminTokenMiddleware, async (req, res) => {
+  const { version, reason } = req.body || {};
+  if (!version) return res.status(400).json({ error: 'version required' });
+  await controlPlane.forceRollback(version, reason || 'Manual rollback via API');
+  res.json({ success: true, version });
+});
+
+// ==================== CANARY CONTROLLER ROUTES ====================
+app.get('/api/canary', (req, res) => {
+  res.json({ canaries: canaryCtrl.getAllCanaries() });
+});
+
+app.post('/api/canary/register', adminCrudRateLimit, adminTokenMiddleware, (req, res) => {
+  const { id, version, baseline } = req.body || {};
+  if (!version) return res.status(400).json({ error: 'version required' });
+  const canary = canaryCtrl.register({ id, version, baseline });
+  res.json(canary);
+});
+
+app.post('/api/canary/:id/sample', adminCrudRateLimit, adminTokenMiddleware, (req, res) => {
+  const { isCanary, profit } = req.body || {};
+  if (typeof profit !== 'number') return res.status(400).json({ error: 'profit (number) required' });
+  canaryCtrl.recordSample(req.params.id, Boolean(isCanary), profit);
+  res.json({ success: true });
+});
+
+app.post('/api/canary/:id/evaluate', adminCrudRateLimit, adminTokenMiddleware, (req, res) => {
+  const result = canaryCtrl.evaluate(req.params.id);
+  if (!result) return res.status(404).json({ error: 'Canary not found or not evaluating' });
+  res.json(result);
+});
+
+app.get('/api/canary/decisions', adminCrudRateLimit, adminTokenMiddleware, (req, res) => {
+  const limit = parseInt(req.query.limit || '50', 10);
+  res.json({ decisions: canaryCtrl.getDecisionLog(limit) });
+});
+
+// ==================== PROFIT ATTRIBUTION ROUTES ====================
+app.post('/api/profit/record', authMiddleware, (req, res) => {
+  const { action, value, experimentId, variantId, meta } = req.body || {};
+  if (!action || typeof value !== 'number') return res.status(400).json({ error: 'action and value required' });
+  const attributed = profitService.record({
+    userId: req.user.id,
+    action,
+    value,
+    experimentId: experimentId || null,
+    variantId: variantId || null,
+    meta: meta || {},
+  });
+  res.json({ attributed });
+});
+
+app.get('/api/profit/metrics', adminCrudRateLimit, adminTokenMiddleware, (req, res) => {
+  res.json(profitService.getMetrics());
+});
+
+app.get('/api/profit/reward/:experimentId', adminCrudRateLimit, adminTokenMiddleware, (req, res) => {
+  const windowMs = parseInt(req.query.windowMs || '86400000', 10);
+  const reward = profitService.computeReward(req.params.experimentId, windowMs);
+  res.json({ experimentId: req.params.experimentId, reward });
+});
+
+app.get('/api/profit/compare/:experimentId', adminCrudRateLimit, adminTokenMiddleware, (req, res) => {
+  const { variantId, controlId, windowMs } = req.query;
+  if (!variantId) return res.status(400).json({ error: 'variantId required' });
+  const result = profitService.compareVariants(
+    req.params.experimentId,
+    variantId,
+    controlId || 'control',
+    parseInt(windowMs || '86400000', 10)
+  );
+  if (!result) return res.status(404).json({ error: 'Experiment not found' });
+  res.json(result);
+});
+
+// ==================== SHADOW TESTING ROUTES ====================
+app.get('/api/shadow/variants', adminCrudRateLimit, adminTokenMiddleware, (req, res) => {
+  res.json({ variants: shadowTester.getAllVariants(), metrics: shadowTester.getMetrics() });
+});
+
+app.post('/api/shadow/register', adminCrudRateLimit, adminTokenMiddleware, (req, res) => {
+  const { id, domain, name, description, cost } = req.body || {};
+  if (!id) return res.status(400).json({ error: 'id required' });
+  const variant = shadowTester.registerVariant({ id, domain, name, description, cost: cost || 0 });
+  res.json(variant);
+});
+
+app.post('/api/shadow/run', authMiddleware, (req, res) => {
+  const { action, value, variantId, meta } = req.body || {};
+  if (!action || typeof value !== 'number') return res.status(400).json({ error: 'action and value required' });
+  const controlProfit = shadowTester.runShadow(action, value, req.user.id, { ...meta, variantId });
+  res.json({ controlProfit });
+});
+
+app.get('/api/shadow/variants/:id', adminCrudRateLimit, adminTokenMiddleware, (req, res) => {
+  const status = shadowTester.getVariantStatus(req.params.id);
+  if (!status) return res.status(404).json({ error: 'Variant not found' });
+  res.json(status);
+});
+
+app.post('/api/shadow/variants/:id/promote', adminCrudRateLimit, adminTokenMiddleware, (req, res) => {
+  try {
+    const variant = shadowTester.promoteToAB(req.params.id);
+    res.json({ success: true, variant });
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+app.post('/api/shadow/variants/:id/reject', adminCrudRateLimit, adminTokenMiddleware, (req, res) => {
+  const { reason } = req.body || {};
+  shadowTester.reject(req.params.id, reason || '');
+  res.json({ success: true });
+});
+
+// ==================== CIRCUIT BREAKER ROUTES ====================
+app.get('/api/circuit-breaker/status', (req, res) => {
+  res.json(circuitBreaker.getStatus());
+});
+
+app.post('/api/circuit-breaker/reset', adminCrudRateLimit, adminTokenMiddleware, (req, res) => {
+  circuitBreaker.recordSuccess({ manual: true });
+  res.json({ success: true, status: circuitBreaker.getStatus() });
+});
+
+// ==================== PROFIT CONTROL LOOP ROUTES ====================
+app.get('/api/profit-loop/status', adminCrudRateLimit, adminTokenMiddleware, (req, res) => {
+  res.json(profitLoop.getStatus());
+});
+
+app.get('/api/profit-loop/reward-history', adminCrudRateLimit, adminTokenMiddleware, (req, res) => {
+  const limit = parseInt(req.query.limit || '50', 10);
+  res.json({ history: profitLoop.getRewardHistory(limit) });
+});
+
+// ==================== DECISION PROVENANCE ROUTES ====================
+app.get('/api/decisions', adminCrudRateLimit, adminTokenMiddleware, (req, res) => {
+  const limit = parseInt(req.query.limit || '50', 10);
+  const cpaDecisions    = controlPlane.getDecisionLog(limit);
+  const canaryDecisions = canaryCtrl.getDecisionLog(limit);
+  const all = [...cpaDecisions, ...canaryDecisions]
+    .sort((a, b) => new Date(b.ts) - new Date(a.ts))
+    .slice(0, limit);
+  res.json({ decisions: all, total: all.length });
+
 // ==================== ADMIN USER MANAGEMENT ====================
 // All routes are protected by adminTokenMiddleware (JWT required, admin role).
 // Dedicated rate limiter with isolated store (60 req/min) to prevent brute-force and enumeration
@@ -2091,6 +2316,7 @@ app.post('/api/bd/deals', adminCrudRateLimit, adminTokenMiddleware, (req, res) =
 
 app.get('/api/bd/leads', adminCrudRateLimit, adminTokenMiddleware, (req, res) => {
   res.json(_bdStore.leads);
+ main
 });
 
 // ==================== WEBHOOK DEPLOY (Hetzner fallback) ====================
