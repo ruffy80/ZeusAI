@@ -2,6 +2,14 @@
 // OWNERSHIP: Acest fișier este proprietatea exclusivă a lui Vladoi Ionut
 // Email: vladoi_ionut@yahoo.com
 // BTC Address: bc1q4f7e66z87mdfj56kz0dj5hvcnpmh0qh4wuv22e
+// Data: 2026-04-11T08:29:23.996Z
+// Orice copiere, modificare sau distribuție neautorizată este interzisă.
+// =====================================================================
+
+// =====================================================================
+// OWNERSHIP: Acest fișier este proprietatea exclusivă a lui Vladoi Ionut
+// Email: vladoi_ionut@yahoo.com
+// BTC Address: bc1q4f7e66z87mdfj56kz0dj5hvcnpmh0qh4wuv22e
 // Data: 2026-04-11T07:05:35.534Z
 // Orice copiere, modificare sau distribuție neautorizată este interzisă.
 // =====================================================================
@@ -185,7 +193,6 @@ app.use(cors({
 
 app.use(express.json());
 
- copilot/explore-codebase-implementation-plan
 // ==================== RATE LIMITERS ====================
 const globalPublicRateLimit = rateLimit({
   windowMs: 60_000,
@@ -206,10 +213,6 @@ const adminCrudRateLimit = rateLimit({
 // Apply global rate limit to all routes
 app.use(globalPublicRateLimit);
 
-// ==================== AUTH STORE (in-memory) ====================
-const users = [];
-const adminSessions = new Set();
-=======
 // ==================== PERSISTENCE ====================
 const { users: dbUsers, payments: dbPayments, apiKeys: dbApiKeys, adminSessions: dbAdminSessions } = require('./db');
 const emailService = require('./email');
@@ -239,7 +242,6 @@ app.use((req, res, next) => {
 });
 
 // ==================== AUTH STORE (SQLite-backed) ====================
- main
 const ADMIN_OWNER_NAME = process.env.LEGAL_OWNER_NAME || 'Vladoi Ionut';
 const ADMIN_OWNER_EMAIL = process.env.ADMIN_EMAIL || process.env.LEGAL_OWNER_EMAIL || 'vladoi_ionut@yahoo.com';
 const ADMIN_OWNER_BTC = process.env.LEGAL_OWNER_BTC || 'bc1q4f7e66z87mdfj56kz0dj5hvcnpmh0qh4wuv22e';
@@ -337,34 +339,6 @@ setInterval(() => {
     else authRateLimitStore.set(key, pruned);
   }
 }, 10 * 60 * 1000).unref();
-
-// ==================== GLOBAL PUBLIC RATE LIMITER ====================
-// 200 req/min per IP for all public API endpoints (prevents enumeration/scraping).
-// Uses its own isolated store so it does NOT interfere with per-route auth limiters.
-const globalPublicRateLimit = (function () {
-  const store = new Map();
-  setInterval(() => {
-    const cutoff = Date.now() - 60_000;
-    for (const [key, hits] of store) {
-      const pruned = hits.filter(ts => ts > cutoff);
-      if (pruned.length === 0) store.delete(key);
-      else store.set(key, pruned);
-    }
-  }, 60_000).unref();
-  return function (req, res, next) {
-    if (process.env.NODE_ENV === 'test') return next();
-    const key = req.ip || 'unknown';
-    const now = Date.now();
-    const hits = (store.get(key) || []).filter(ts => ts > now - 60_000);
-    if (hits.length >= 200) {
-      return res.status(429).json({ error: 'Too many requests. Slow down.' });
-    }
-    hits.push(now);
-    store.set(key, hits);
-    return next();
-  };
-}());
-app.use('/api/', globalPublicRateLimit);
 
 // ==================== INPUT VALIDATION HELPERS ====================
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
@@ -518,6 +492,7 @@ app.post('/api/auth/reset-password', async (req, res) => {
 const autoDeploy = require('./modules/autoDeploy');
 const selfConstruction = require('./modules/selfConstruction');
 const totalSystemHealer = require('./modules/totalSystemHealer');
+const codeSanityEngine = require('../src/modules/code-sanity-engine');
 
 // ==================== TOATE MODULELE ====================
 const qrIdentity = require('./modules/qrDigitalIdentity');
@@ -583,6 +558,7 @@ app.use((req, res, next) => {
 selfConstruction.start();
 totalSystemHealer.start();
 autoDeploy.start();
+codeSanityEngine.start();
 
 // Domain automation (only if DOMAIN is configured)
 if (process.env.DOMAIN) {
@@ -620,14 +596,12 @@ app.use('/api/dashboard', executiveDashboard.getRouter(adminSecretMiddleware));
 console.log('🤖 Autonomous Innovation Engine: STARTING');
 console.log('💰 Auto Revenue Engine: STARTING');
 console.log('📣 Auto Viral Growth Engine: STARTING');
- copilot/explore-codebase-implementation-plan
 console.log('🛡️  Control Plane Agent: STARTING');
 console.log('🎯 Profit Control Loop: STARTING');
 
 console.log('♾️  Unicorn Eternal Engine: STARTING');
 console.log('📱 Social Media Viralizer: STARTING');
 console.log('🌐 Global Digital Standard: STARTING');
- main
 
 // ==================== RUTE API ====================
 app.get('/api/health', (req, res) => {
@@ -663,19 +637,13 @@ app.get('/api/health', (req, res) => {
 // ==================== AI CHAT ====================
 // Provideri: OpenAI → DeepSeek → Anthropic → Gemini → Mistral → Cohere → xAI Grok → UAIC → Llama → keyword
 const _aiProviders = require('./modules/aiProviders');
-copilot/resolve-all-issues
 // 🤖 UAIC — orchestrează inteligent toate resursele AI (OpenAI, DeepSeek,
 //           Claude, Gemini, Ollama local). Activat automat la pornire.
 let _uaic = null;
 try { _uaic = require('./modules/universal-ai-connector'); } catch (e) {
-  console.warn('[UAIC] Nu s-a putut încărca Universal AI Connector:', e.message);
+  try { _uaic = require('./modules/universalAIConnector'); } catch { _uaic = null; }
 }
 
-
-// 🤖 UAIC – Universal AI Connector (rutare inteligentă multi-provider)
-let _uaic = null;
-try { _uaic = require('./modules/universalAIConnector'); } catch { _uaic = null; }
- main
 // 🦙 Llama bridge — also available standalone via /api/llama/status
 let _llamaBridge = null;
 try { _llamaBridge = require('./modules/llamaBridge'); } catch { /* optional */ }
@@ -690,14 +658,6 @@ app.post('/api/chat', authRateLimit(30, 60_000), async (req, res) => {
   const cloudResult = await _aiProviders.chat(message, history);
   if (cloudResult) return res.json(cloudResult);
 
- copilot/resolve-all-issues
-  const messages = [
-    ...history.slice(-6).map(m => ({ role: m.role, content: m.content })),
-    { role: 'user', content: message },
-  ];
-
-
- main
   // 2️⃣ UAIC – routare automată la cel mai bun provider disponibil (cheapest first pentru chat)
   if (_uaic) {
     try {
@@ -1759,6 +1719,25 @@ app.post('/api/uac/optimize', async (req, res) => {
   res.json({ success: true, message: 'System optimization triggered' });
 });
 
+// ==================== CODE SANITY ENGINE ====================
+app.get('/api/code-sanity/status', (req, res) => {
+  res.json(codeSanityEngine.getStatus());
+});
+
+app.post('/api/code-sanity/scan', adminTokenMiddleware, async (req, res) => {
+  try {
+    const result = await codeSanityEngine.runFullScanNow();
+    res.json(result);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get('/api/code-sanity/history', adminTokenMiddleware, (req, res) => {
+  const limit = parseInt(req.query.limit) || 10;
+  res.json({ history: codeSanityEngine.getHistory(limit) });
+});
+
 // ==================== ADVANCED MODULES (MOCKED) ====================
 // These routes are mocked to avoid syntax errors in complex innovation modules
 // The autonomous systems (innovation + revenue) are the primary focus
@@ -2017,7 +1996,6 @@ app.get('/api/autonomous/platform/status', (req, res) => {
   });
 });
 
-copilot/explore-codebase-implementation-plan
 // ==================== SELF-HEALING: SLO ROUTES ====================
 app.get('/api/slo/status', (req, res) => {
   res.json({ stats: sloTracker.getAllStats(), routes: sloTracker.getAllRoutes() });
@@ -2188,37 +2166,10 @@ app.get('/api/decisions', adminCrudRateLimit, adminTokenMiddleware, (req, res) =
     .sort((a, b) => new Date(b.ts) - new Date(a.ts))
     .slice(0, limit);
   res.json({ decisions: all, total: all.length });
+});
 
 // ==================== ADMIN USER MANAGEMENT ====================
 // All routes are protected by adminTokenMiddleware (JWT required, admin role).
-// Dedicated rate limiter with isolated store (60 req/min) to prevent brute-force and enumeration
-// on the admin user management API, separate from the auth rate limit store.
-const adminCrudRateLimit = (function () {
-  const store = new Map();
-  setInterval(() => {
-    const cutoff = Date.now() - 60_000;
-    for (const [key, hits] of store) {
-      const pruned = hits.filter(ts => ts > cutoff);
-      if (pruned.length === 0) store.delete(key);
-      else store.set(key, pruned);
-    }
-  }, 60_000).unref();
-  return function (req, res, next) {
-    if (process.env.NODE_ENV === 'test') return next();
-    const key = req.ip || 'unknown';
-    const now = Date.now();
-    const hits = (store.get(key) || []).filter(ts => ts > now - 60_000);
-    if (hits.length >= 60) {
-      return res.status(429).json({ error: 'Too many requests. Slow down.' });
-    }
-    hits.push(now);
-    store.set(key, hits);
-    return next();
-  };
-}());
-
-// ==================== UAIC ADMIN ENDPOINTS ====================
-// Must be placed after adminCrudRateLimit is defined (const — no hoisting)
 app.get('/api/admin/uaic/models', adminCrudRateLimit, adminTokenMiddleware, (req, res) => {
   if (!_uaic) return res.status(503).json({ error: 'UAIC not loaded' });
   res.json(_uaic.getModels());
@@ -2342,7 +2293,6 @@ app.post('/api/bd/deals', adminCrudRateLimit, adminTokenMiddleware, (req, res) =
 
 app.get('/api/bd/leads', adminCrudRateLimit, adminTokenMiddleware, (req, res) => {
   res.json(_bdStore.leads);
- main
 });
 
 // ==================== WEBHOOK DEPLOY (Hetzner fallback) ====================
@@ -2447,6 +2397,7 @@ if (require.main === module) {
     console.log(`🏛️  Legal Fortress: ACTIVE`);
     console.log(`⚡ Quantum Resilience Core: ACTIVE`);
     console.log(`📊 Executive Dashboard: ACTIVE`);
+    console.log(`🔍 Code Sanity Engine: ACTIVE`);
     console.log(`🔗 38+ modules total: CONNECTED`);
   });
 }
