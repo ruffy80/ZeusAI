@@ -2,6 +2,14 @@
 // OWNERSHIP: Acest fișier este proprietatea exclusivă a lui Vladoi Ionut
 // Email: vladoi_ionut@yahoo.com
 // BTC Address: bc1q4f7e66z87mdfj56kz0dj5hvcnpmh0qh4wuv22e
+// Data: 2026-04-11T05:45:32.962Z
+// Orice copiere, modificare sau distribuție neautorizată este interzisă.
+// =====================================================================
+
+// =====================================================================
+// OWNERSHIP: Acest fișier este proprietatea exclusivă a lui Vladoi Ionut
+// Email: vladoi_ionut@yahoo.com
+// BTC Address: bc1q4f7e66z87mdfj56kz0dj5hvcnpmh0qh4wuv22e
 // Data: 2026-04-11T05:42:31.042Z
 // Orice copiere, modificare sau distribuție neautorizată este interzisă.
 // =====================================================================
@@ -652,37 +660,6 @@ app.post('/api/chat', authRateLimit(30, 60_000), async (req, res) => {
 app.get('/api/uaic/status', (req, res) => {
   if (!_uaic) return res.json({ active: false, reason: 'uaic_not_loaded' });
   res.json(_uaic.getStatus());
-});
-
-// Admin UAIC endpoints — rate-limited + admin-token required
-app.get('/api/admin/uaic/models', authRateLimit(60, 60_000), adminTokenMiddleware, (req, res) => {
-  if (!_uaic) return res.status(503).json({ error: 'UAIC not loaded' });
-  res.json(_uaic.getModels());
-});
-
-app.get('/api/admin/uaic/stats', authRateLimit(60, 60_000), adminTokenMiddleware, (req, res) => {
-  if (!_uaic) return res.status(503).json({ error: 'UAIC not loaded' });
-  res.json(_uaic.getStatus());
-});
-
-app.post('/api/admin/uaic/discover', authRateLimit(10, 60_000), adminTokenMiddleware, async (req, res) => {
-  if (!_uaic) return res.status(503).json({ error: 'UAIC not loaded' });
-  await _uaic.discoverNewModels();
-  res.json({ success: true, models: _uaic.getStatus().models });
-});
-
-app.post('/api/admin/uaic/ask', authRateLimit(30, 60_000), adminTokenMiddleware, async (req, res) => {
-  if (!_uaic) return res.status(503).json({ error: 'UAIC not loaded' });
-  const { type = 'simple', prompt, system, maxTokens, messages } = req.body || {};
-  if (!prompt && (!messages || messages.length === 0)) {
-    return res.status(400).json({ error: 'prompt or messages required' });
-  }
-  try {
-    const result = await _uaic.ask({ type, prompt, system, maxTokens, messages });
-    res.json(result);
-  } catch (err) {
-    res.status(503).json({ error: err.message });
-  }
 });
 
 // ==================== LLAMA STATUS ====================
@@ -1961,6 +1938,38 @@ const adminCrudRateLimit = (function () {
     return next();
   };
 }());
+
+// ==================== UAIC ADMIN ENDPOINTS ====================
+// Must be placed after adminCrudRateLimit is defined (const — no hoisting)
+app.get('/api/admin/uaic/models', adminCrudRateLimit, adminTokenMiddleware, (req, res) => {
+  if (!_uaic) return res.status(503).json({ error: 'UAIC not loaded' });
+  res.json(_uaic.getModels());
+});
+
+app.get('/api/admin/uaic/stats', adminCrudRateLimit, adminTokenMiddleware, (req, res) => {
+  if (!_uaic) return res.status(503).json({ error: 'UAIC not loaded' });
+  res.json(_uaic.getStatus());
+});
+
+app.post('/api/admin/uaic/discover', adminCrudRateLimit, adminTokenMiddleware, async (req, res) => {
+  if (!_uaic) return res.status(503).json({ error: 'UAIC not loaded' });
+  await _uaic.discoverNewModels();
+  res.json({ success: true, models: _uaic.getStatus().models });
+});
+
+app.post('/api/admin/uaic/ask', adminCrudRateLimit, adminTokenMiddleware, async (req, res) => {
+  if (!_uaic) return res.status(503).json({ error: 'UAIC not loaded' });
+  const { type = 'simple', prompt, system, maxTokens, messages } = req.body || {};
+  if (!prompt && (!messages || messages.length === 0)) {
+    return res.status(400).json({ error: 'prompt or messages required' });
+  }
+  try {
+    const result = await _uaic.ask({ type, prompt, system, maxTokens, messages });
+    res.json(result);
+  } catch (err) {
+    res.status(503).json({ error: err.message });
+  }
+});
 
 // GET /api/admin/users?page=1&limit=20&search=query
 app.get('/api/admin/users', adminCrudRateLimit, adminTokenMiddleware, (req, res) => {
