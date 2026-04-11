@@ -1,0 +1,75 @@
+# ============================================================
+# CUSTOM RESOURCE DEFINITION — AutoRollback
+# Attach one AutoRollback CR to each Deployment to enable
+# automatic rollback when SLO thresholds are breached.
+# ============================================================
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: autorollbacks.unicorn.io
+spec:
+  group: unicorn.io
+  versions:
+    - name: v1alpha1
+      served: true
+      storage: true
+      schema:
+        openAPIV3Schema:
+          type: object
+          required:
+            - spec
+          properties:
+            spec:
+              type: object
+              required:
+                - deploymentName
+              properties:
+                deploymentName:
+                  type: string
+                  description: Name of the Deployment to watch
+                p99ThresholdMs:
+                  type: integer
+                  default: 500
+                  description: p99 latency threshold in milliseconds
+                errorBudgetMinPct:
+                  type: number
+                  default: 0.0001
+                  description: Minimum error budget remaining before rollback (fraction, e.g. 0.0001 = 0.01%)
+                evaluationWindowSec:
+                  type: integer
+                  default: 300
+                  description: Prometheus query window in seconds
+                rollbackOnBreachCount:
+                  type: integer
+                  default: 3
+                  description: Number of consecutive breaches before triggering rollback
+                prometheusUrl:
+                  type: string
+                  default: "http://prometheus:9090"
+                  description: Prometheus server URL
+            status:
+              type: object
+              x-kubernetes-preserve-unknown-fields: true
+  scope: Namespaced
+  names:
+    plural: autorollbacks
+    singular: autorollback
+    kind: AutoRollback
+    shortNames:
+      - ar
+---
+# ============================================================
+# EXAMPLE AutoRollback CR — attach to unicorn-backend Deployment
+# ============================================================
+apiVersion: unicorn.io/v1alpha1
+kind: AutoRollback
+metadata:
+  name: unicorn-backend-autorollback
+  namespace: production
+spec:
+  deploymentName: unicorn-backend
+  p99ThresholdMs: 500
+  errorBudgetMinPct: 0.0001
+  evaluationWindowSec: 300
+  rollbackOnBreachCount: 3
+  prometheusUrl: "http://prometheus.monitoring.svc.cluster.local:9090"
