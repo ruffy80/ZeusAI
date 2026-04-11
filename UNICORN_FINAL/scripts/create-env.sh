@@ -24,7 +24,7 @@ upsert() {
   local value="$2"
   [ -z "$value" ] && return 0   # nu suprascrie cu gol
   if [ -f "$ENV_FILE" ] && grep -q "^${key}=" "$ENV_FILE"; then
-    # Folosim python3 pentru înlocuire sigură (evită problemele cu / în valori în sed)
+    # Folosim python3 pentru înlocuire sigură (evită problemele cu / | & în valori la sed)
     python3 -c "
 import sys, re
 key, val, path = sys.argv[1], sys.argv[2], sys.argv[3]
@@ -32,8 +32,7 @@ with open(path) as f: content = f.read()
 pattern = re.compile(r'^' + re.escape(key) + r'=.*$', re.MULTILINE)
 new_content = pattern.sub(key + '=' + val, content)
 with open(path, 'w') as f: f.write(new_content)
-" "$key" "$value" "$ENV_FILE" 2>/dev/null || \
-    sed -i "s|^${key}=.*|${key}=${value}|" "$ENV_FILE"
+" "$key" "$value" "$ENV_FILE"
   else
     echo "${key}=${value}" >> "$ENV_FILE"
   fi
