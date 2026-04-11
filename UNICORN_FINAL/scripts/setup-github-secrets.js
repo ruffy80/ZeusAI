@@ -206,6 +206,12 @@ async function run() {
     ...(process.env.VERCEL_TOKEN            ? { VERCEL_TOKEN:            process.env.VERCEL_TOKEN }            : {}),
     ...(process.env.HETZNER_API_KEY         ? { HETZNER_API_KEY:         process.env.HETZNER_API_KEY }         : {}),
     ...(process.env.HETZNER_SSH_PRIVATE_KEY ? { HETZNER_SSH_PRIVATE_KEY: process.env.HETZNER_SSH_PRIVATE_KEY } : {}),
+    // DNS provider credentials (optional — enables automatic DNS setup)
+    ...(process.env.HETZNER_DNS_API_KEY     ? { HETZNER_DNS_API_KEY:     process.env.HETZNER_DNS_API_KEY }     : {}),
+    ...(process.env.CF_TOKEN                ? { CF_TOKEN:                process.env.CF_TOKEN }                : {}),
+    ...(process.env.CLOUDFLARE_API_TOKEN    ? { CF_TOKEN:                process.env.CLOUDFLARE_API_TOKEN }    : {}),
+    ...(process.env.CF_ZONE_ID              ? { CF_ZONE_ID:              process.env.CF_ZONE_ID }              : {}),
+    ...(process.env.CLOUDFLARE_ZONE_ID      ? { CF_ZONE_ID:              process.env.CLOUDFLARE_ZONE_ID }      : {}),
   };
 
   const { key, key_id } = await apiGet(`/repos/${OWNER}/${REPO}/actions/secrets/public-key`);
