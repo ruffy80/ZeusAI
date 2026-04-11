@@ -4371,7 +4371,8 @@ function createStructure() {
     path.join(ROOT, 'logs'),
     path.join(ROOT, 'data'),
     path.join(MODULES, 'auto-deploy-orchestrator'),
-    path.join(MODULES, 'code-sanity-engine')
+    path.join(MODULES, 'code-sanity-engine'),
+    path.join(BACKEND_MODULES, 'universal-ai-connector')
   ].forEach(ensureDir);
 
   writeText(path.join(ROOT, '.gitignore'), '.DS_Store\n.env\nnode_modules/\n.vercel/\n');
@@ -9555,6 +9556,12 @@ module.exports = new UnicornUltimateModules();
   writeText(
     path.join(BACKEND_MODULES, 'autoRevenue.js'),
     fs.readFileSync(path.join(__dirname, 'templates', 'autoRevenue.js'), 'utf8')
+  );
+
+  // ── Universal AI Connector (UAIC) ──────────────────────────────────────────
+  writeText(
+    path.join(BACKEND_MODULES, 'universal-ai-connector', 'index.js'),
+    fs.readFileSync(path.join(__dirname, 'templates', 'universal-ai-connector.js'), 'utf8')
   );
 
   writeText(path.join(ROOT, 'client', 'src', 'components', 'ServiceMarketplace.jsx'), `import React, { useState, useEffect } from 'react';
