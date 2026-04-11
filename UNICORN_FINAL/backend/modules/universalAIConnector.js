@@ -217,8 +217,8 @@ const PROVIDER_CONFIGS = [
 ];
 
 class UniversalAIConnector {
-  constructor()
-    this.cache = new Map(); this.cacheTTL = 60000; {
+  constructor() {
+    this.cache = new Map(); this.cacheTTL = 60000;
     // Lista activă de modele cu cheie API disponibilă
     this.models = [];
     this.stats = { totalCalls: 0, callsByModel: {}, errors: {} };

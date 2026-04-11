@@ -79,7 +79,7 @@ class LegalFortress {
 
     for (const modulePath of modules) {
       const content = fs.readFileSync(modulePath, 'utf8');
-      if (!content.includes('OWNERSHIP: Vladoi Ionut')) {
+      if (!content.includes('proprietatea exclusivă a lui Vladoi Ionut')) {
         await this.addOwnershipWatermark(modulePath);
         allOwned = false;
       }
