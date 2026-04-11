@@ -901,7 +901,7 @@ jobs:
           ssh-keyscan -t ed25519,rsa -p "${DEPLOY_PORT:-22}" "$DEPLOY_HOST" >> ~/.ssh/known_hosts 2>/dev/null || true
           echo "ssh_ready=true" >> "$GITHUB_OUTPUT"
 
-          - name: HTTPS health check – restart service if site is down
+      - name: HTTPS health check – restart service if site is down
         if: steps.ssh_setup_smoke.outputs.ssh_ready == 'true'
         continue-on-error: true
         env:
