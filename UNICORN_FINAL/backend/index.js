@@ -17,6 +17,39 @@ app.use(compression());
 app.use(cors());
 app.use(express.json());
 
+// ==================== RATE LIMITER (in-memory, no external dep) ====================
+function makeRateLimiter(maxRequests, windowMs) {
+  const store = new Map();
+  const cleanup = () => {
+    const now = Date.now();
+    for (const [key, info] of store) {
+      if (now - info.windowStart > windowMs * 2) store.delete(key);
+    }
+  };
+  setInterval(cleanup, windowMs).unref();
+  return (req, res, next) => {
+    const key = (req.ip || 'unknown') + ':' + (req.headers['x-auth-token'] || req.headers.authorization || '');
+    const now = Date.now();
+    const info = store.get(key) || { count: 0, windowStart: now };
+    if (now - info.windowStart > windowMs) {
+      info.count = 0;
+      info.windowStart = now;
+    }
+    info.count++;
+    store.set(key, info);
+    if (info.count > maxRequests) {
+      return res.status(429).json({ error: 'Too many requests — try again later' });
+    }
+    return next();
+  };
+}
+
+const adminCrudRateLimit   = makeRateLimiter(parseInt(process.env.ADMIN_RATE_LIMIT   || '60',  10), 60_000);
+const globalPublicRateLimit = makeRateLimiter(parseInt(process.env.PUBLIC_RATE_LIMIT || '200', 10), 60_000);
+
+// Apply global rate limit to all public routes
+app.use(globalPublicRateLimit);
+
 // ==================== AUTH STORE (in-memory) ====================
 const users = [];
 const adminSessions = new Set();
@@ -1156,21 +1189,21 @@ app.get('/api/slo/route', (req, res) => {
 });
 
 // ==================== SELF-HEALING: CONTROL PLANE AGENT ROUTES ====================
-app.get('/api/control-plane/status', adminTokenMiddleware, (req, res) => {
+app.get('/api/control-plane/status', adminCrudRateLimit, adminTokenMiddleware, (req, res) => {
   res.json(controlPlane.getStatus());
 });
 
-app.get('/api/control-plane/decisions', adminTokenMiddleware, (req, res) => {
+app.get('/api/control-plane/decisions', adminCrudRateLimit, adminTokenMiddleware, (req, res) => {
   const limit = parseInt(req.query.limit || '50', 10);
   res.json({ decisions: controlPlane.getDecisionLog(limit) });
 });
 
-app.get('/api/control-plane/rollback-history', adminTokenMiddleware, (req, res) => {
+app.get('/api/control-plane/rollback-history', adminCrudRateLimit, adminTokenMiddleware, (req, res) => {
   const limit = parseInt(req.query.limit || '20', 10);
   res.json({ history: controlPlane.getRollbackHistory(limit) });
 });
 
-app.post('/api/control-plane/rollback', adminTokenMiddleware, async (req, res) => {
+app.post('/api/control-plane/rollback', adminCrudRateLimit, adminTokenMiddleware, async (req, res) => {
   const { version, reason } = req.body || {};
   if (!version) return res.status(400).json({ error: 'version required' });
   await controlPlane.forceRollback(version, reason || 'Manual rollback via API');
@@ -1182,27 +1215,27 @@ app.get('/api/canary', (req, res) => {
   res.json({ canaries: canaryCtrl.getAllCanaries() });
 });
 
-app.post('/api/canary/register', adminTokenMiddleware, (req, res) => {
+app.post('/api/canary/register', adminCrudRateLimit, adminTokenMiddleware, (req, res) => {
   const { id, version, baseline } = req.body || {};
   if (!version) return res.status(400).json({ error: 'version required' });
   const canary = canaryCtrl.register({ id, version, baseline });
   res.json(canary);
 });
 
-app.post('/api/canary/:id/sample', adminTokenMiddleware, (req, res) => {
+app.post('/api/canary/:id/sample', adminCrudRateLimit, adminTokenMiddleware, (req, res) => {
   const { isCanary, profit } = req.body || {};
   if (typeof profit !== 'number') return res.status(400).json({ error: 'profit (number) required' });
   canaryCtrl.recordSample(req.params.id, Boolean(isCanary), profit);
   res.json({ success: true });
 });
 
-app.post('/api/canary/:id/evaluate', adminTokenMiddleware, (req, res) => {
+app.post('/api/canary/:id/evaluate', adminCrudRateLimit, adminTokenMiddleware, (req, res) => {
   const result = canaryCtrl.evaluate(req.params.id);
   if (!result) return res.status(404).json({ error: 'Canary not found or not evaluating' });
   res.json(result);
 });
 
-app.get('/api/canary/decisions', adminTokenMiddleware, (req, res) => {
+app.get('/api/canary/decisions', adminCrudRateLimit, adminTokenMiddleware, (req, res) => {
   const limit = parseInt(req.query.limit || '50', 10);
   res.json({ decisions: canaryCtrl.getDecisionLog(limit) });
 });
@@ -1222,17 +1255,17 @@ app.post('/api/profit/record', authMiddleware, (req, res) => {
   res.json({ attributed });
 });
 
-app.get('/api/profit/metrics', adminTokenMiddleware, (req, res) => {
+app.get('/api/profit/metrics', adminCrudRateLimit, adminTokenMiddleware, (req, res) => {
   res.json(profitService.getMetrics());
 });
 
-app.get('/api/profit/reward/:experimentId', adminTokenMiddleware, (req, res) => {
+app.get('/api/profit/reward/:experimentId', adminCrudRateLimit, adminTokenMiddleware, (req, res) => {
   const windowMs = parseInt(req.query.windowMs || '86400000', 10);
   const reward = profitService.computeReward(req.params.experimentId, windowMs);
   res.json({ experimentId: req.params.experimentId, reward });
 });
 
-app.get('/api/profit/compare/:experimentId', adminTokenMiddleware, (req, res) => {
+app.get('/api/profit/compare/:experimentId', adminCrudRateLimit, adminTokenMiddleware, (req, res) => {
   const { variantId, controlId, windowMs } = req.query;
   if (!variantId) return res.status(400).json({ error: 'variantId required' });
   const result = profitService.compareVariants(
@@ -1246,11 +1279,11 @@ app.get('/api/profit/compare/:experimentId', adminTokenMiddleware, (req, res) =>
 });
 
 // ==================== SHADOW TESTING ROUTES ====================
-app.get('/api/shadow/variants', adminTokenMiddleware, (req, res) => {
+app.get('/api/shadow/variants', adminCrudRateLimit, adminTokenMiddleware, (req, res) => {
   res.json({ variants: shadowTester.getAllVariants(), metrics: shadowTester.getMetrics() });
 });
 
-app.post('/api/shadow/register', adminTokenMiddleware, (req, res) => {
+app.post('/api/shadow/register', adminCrudRateLimit, adminTokenMiddleware, (req, res) => {
   const { id, domain, name, description, cost } = req.body || {};
   if (!id) return res.status(400).json({ error: 'id required' });
   const variant = shadowTester.registerVariant({ id, domain, name, description, cost: cost || 0 });
@@ -1264,13 +1297,13 @@ app.post('/api/shadow/run', authMiddleware, (req, res) => {
   res.json({ controlProfit });
 });
 
-app.get('/api/shadow/variants/:id', adminTokenMiddleware, (req, res) => {
+app.get('/api/shadow/variants/:id', adminCrudRateLimit, adminTokenMiddleware, (req, res) => {
   const status = shadowTester.getVariantStatus(req.params.id);
   if (!status) return res.status(404).json({ error: 'Variant not found' });
   res.json(status);
 });
 
-app.post('/api/shadow/variants/:id/promote', adminTokenMiddleware, (req, res) => {
+app.post('/api/shadow/variants/:id/promote', adminCrudRateLimit, adminTokenMiddleware, (req, res) => {
   try {
     const variant = shadowTester.promoteToAB(req.params.id);
     res.json({ success: true, variant });
@@ -1279,7 +1312,7 @@ app.post('/api/shadow/variants/:id/promote', adminTokenMiddleware, (req, res) =>
   }
 });
 
-app.post('/api/shadow/variants/:id/reject', adminTokenMiddleware, (req, res) => {
+app.post('/api/shadow/variants/:id/reject', adminCrudRateLimit, adminTokenMiddleware, (req, res) => {
   const { reason } = req.body || {};
   shadowTester.reject(req.params.id, reason || '');
   res.json({ success: true });
@@ -1290,23 +1323,23 @@ app.get('/api/circuit-breaker/status', (req, res) => {
   res.json(circuitBreaker.getStatus());
 });
 
-app.post('/api/circuit-breaker/reset', adminTokenMiddleware, (req, res) => {
+app.post('/api/circuit-breaker/reset', adminCrudRateLimit, adminTokenMiddleware, (req, res) => {
   circuitBreaker.recordSuccess({ manual: true });
   res.json({ success: true, status: circuitBreaker.getStatus() });
 });
 
 // ==================== PROFIT CONTROL LOOP ROUTES ====================
-app.get('/api/profit-loop/status', adminTokenMiddleware, (req, res) => {
+app.get('/api/profit-loop/status', adminCrudRateLimit, adminTokenMiddleware, (req, res) => {
   res.json(profitLoop.getStatus());
 });
 
-app.get('/api/profit-loop/reward-history', adminTokenMiddleware, (req, res) => {
+app.get('/api/profit-loop/reward-history', adminCrudRateLimit, adminTokenMiddleware, (req, res) => {
   const limit = parseInt(req.query.limit || '50', 10);
   res.json({ history: profitLoop.getRewardHistory(limit) });
 });
 
 // ==================== DECISION PROVENANCE ROUTES ====================
-app.get('/api/decisions', adminTokenMiddleware, (req, res) => {
+app.get('/api/decisions', adminCrudRateLimit, adminTokenMiddleware, (req, res) => {
   const limit = parseInt(req.query.limit || '50', 10);
   const cpaDecisions    = controlPlane.getDecisionLog(limit);
   const canaryDecisions = canaryCtrl.getDecisionLog(limit);
