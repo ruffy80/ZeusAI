@@ -529,8 +529,33 @@ jobs:
             fi
 
             # ── Update .env via create-env.sh (upsert, nu suprascrie totul) ──
+            # Toate secretele critice sunt transmise explicit din GitHub Secrets
             if [ -f scripts/create-env.sh ]; then
               chmod +x scripts/create-env.sh
+              JWT_SECRET="${{ secrets.JWT_SECRET }}" \
+              ADMIN_SECRET="${{ secrets.ADMIN_SECRET }}" \
+              ADMIN_MASTER_PASSWORD="${{ secrets.ADMIN_MASTER_PASSWORD }}" \
+              ADMIN_2FA_CODE="${{ secrets.ADMIN_2FA_CODE }}" \
+              WEBHOOK_SECRET="${{ secrets.WEBHOOK_SECRET || secrets.HETZNER_WEBHOOK_SECRET }}" \
+              HETZNER_WEBHOOK_SECRET="${{ secrets.HETZNER_WEBHOOK_SECRET || secrets.WEBHOOK_SECRET }}" \
+              OPENAI_API_KEY="${{ secrets.OPENAI_API_KEY }}" \
+              DEEPSEEK_API_KEY="${{ secrets.DEEPSEEK_API_KEY }}" \
+              ANTHROPIC_API_KEY="${{ secrets.ANTHROPIC_API_KEY }}" \
+              GEMINI_API_KEY="${{ secrets.GEMINI_API_KEY }}" \
+              MISTRAL_API_KEY="${{ secrets.MISTRAL_API_KEY }}" \
+              COHERE_API_KEY="${{ secrets.COHERE_API_KEY }}" \
+              XAI_API_KEY="${{ secrets.XAI_API_KEY }}" \
+              STRIPE_SECRET_KEY="${{ secrets.STRIPE_SECRET_KEY }}" \
+              STRIPE_PUBLISHABLE_KEY="${{ secrets.STRIPE_PUBLISHABLE_KEY }}" \
+              STRIPE_WEBHOOK_SECRET="${{ secrets.STRIPE_WEBHOOK_SECRET }}" \
+              PAYPAL_CLIENT_ID="${{ secrets.PAYPAL_CLIENT_ID }}" \
+              PAYPAL_CLIENT_SECRET="${{ secrets.PAYPAL_CLIENT_SECRET }}" \
+              SMTP_PASS="${{ secrets.SMTP_PASS }}" \
+              SMTP_USER="${{ secrets.SMTP_USER }}" \
+              SMTP_HOST="${{ secrets.SMTP_HOST || 'smtp.mail.yahoo.com' }}" \
+              SMTP_PORT="${{ secrets.SMTP_PORT || '587' }}" \
+              VERCEL_TOKEN="${{ secrets.VERCEL_TOKEN }}" \
+              GITHUB_TOKEN="${{ secrets.GH_PAT || secrets.GITHUB_TOKEN }}" \
               HETZNER_API_KEY="${HETZNER_API_VALUE}" \
               HETZNER_API_TOKEN="${HETZNER_API_VALUE}" \
               PUBLIC_APP_URL="https://${{ secrets.SITE_DOMAIN || 'zeusai.pro' }}" \
@@ -538,24 +563,40 @@ jobs:
               BTC_WALLET_ADDRESS="${{ secrets.BTC_WALLET_ADDRESS || 'bc1q4f7e66z87mdfj56kz0dj5hvcnpmh0qh4wuv22e' }}" \
               OWNER_EMAIL="${{ secrets.SMTP_USER || 'vladoi_ionut@yahoo.com' }}" \
               ADMIN_EMAIL="${{ secrets.SMTP_USER || 'vladoi_ionut@yahoo.com' }}" \
-              SMTP_HOST="${{ secrets.SMTP_HOST || 'smtp.mail.yahoo.com' }}" \
-              SMTP_PORT="${{ secrets.SMTP_PORT || '587' }}" \
-              SMTP_USER="${{ secrets.SMTP_USER || '' }}" \
-              bash scripts/create-env.sh "${{ secrets.HETZNER_DEPLOY_PATH || '/opt/unicorn' }}" || true
+              bash scripts/create-env.sh "${{ secrets.HETZNER_DEPLOY_PATH || '/root/unicorn-final' }}" || true
             else
-              # Fallback: upsert manual
+              # Fallback: upsert manual pentru cheile critice
               for key in HETZNER_API_KEY HETZNER_API_TOKEN PUBLIC_APP_URL SITE_DOMAIN \
+                         JWT_SECRET ADMIN_SECRET ADMIN_MASTER_PASSWORD ADMIN_2FA_CODE \
+                         WEBHOOK_SECRET HETZNER_WEBHOOK_SECRET \
+                         OPENAI_API_KEY DEEPSEEK_API_KEY ANTHROPIC_API_KEY GEMINI_API_KEY \
+                         STRIPE_SECRET_KEY STRIPE_PUBLISHABLE_KEY SMTP_PASS \
                          BTC_WALLET_ADDRESS OWNER_BTC_ADDRESS OWNER_EMAIL OWNER_NAME \
                          ADMIN_EMAIL SMTP_HOST SMTP_PORT SMTP_USER; do
                 [ -f .env ] && sed -i "/^${key}=/d" .env || true
               done
+              printf "JWT_SECRET=%s\nADMIN_SECRET=%s\n" \
+                "${{ secrets.JWT_SECRET }}" "${{ secrets.ADMIN_SECRET }}" >> .env
+              printf "ADMIN_MASTER_PASSWORD=%s\nADMIN_2FA_CODE=%s\n" \
+                "${{ secrets.ADMIN_MASTER_PASSWORD }}" "${{ secrets.ADMIN_2FA_CODE }}" >> .env
+              printf "WEBHOOK_SECRET=%s\nHETZNER_WEBHOOK_SECRET=%s\n" \
+                "${{ secrets.WEBHOOK_SECRET }}" "${{ secrets.HETZNER_WEBHOOK_SECRET || secrets.WEBHOOK_SECRET }}" >> .env
+              printf "OPENAI_API_KEY=%s\nDEEPSEEK_API_KEY=%s\nANTHROPIC_API_KEY=%s\n" \
+                "${{ secrets.OPENAI_API_KEY }}" "${{ secrets.DEEPSEEK_API_KEY }}" "${{ secrets.ANTHROPIC_API_KEY }}" >> .env
+              printf "GEMINI_API_KEY=%s\nMISTRAL_API_KEY=%s\nCOHERE_API_KEY=%s\nXAI_API_KEY=%s\n" \
+                "${{ secrets.GEMINI_API_KEY }}" "${{ secrets.MISTRAL_API_KEY }}" "${{ secrets.COHERE_API_KEY }}" "${{ secrets.XAI_API_KEY }}" >> .env
+              printf "STRIPE_SECRET_KEY=%s\nSTRIPE_PUBLISHABLE_KEY=%s\nSTRIPE_WEBHOOK_SECRET=%s\n" \
+                "${{ secrets.STRIPE_SECRET_KEY }}" "${{ secrets.STRIPE_PUBLISHABLE_KEY }}" "${{ secrets.STRIPE_WEBHOOK_SECRET }}" >> .env
+              printf "PAYPAL_CLIENT_ID=%s\nPAYPAL_CLIENT_SECRET=%s\n" \
+                "${{ secrets.PAYPAL_CLIENT_ID }}" "${{ secrets.PAYPAL_CLIENT_SECRET }}" >> .env
               printf "HETZNER_API_KEY=%s\nHETZNER_API_TOKEN=%s\n" \
                 "${HETZNER_API_VALUE}" "${HETZNER_API_VALUE}" >> .env
               printf "PUBLIC_APP_URL=https://${{ secrets.SITE_DOMAIN || 'zeusai.pro' }}\nSITE_DOMAIN=${{ secrets.SITE_DOMAIN || 'zeusai.pro' }}\n" >> .env
               printf "BTC_WALLET_ADDRESS=${{ secrets.BTC_WALLET_ADDRESS || 'bc1q4f7e66z87mdfj56kz0dj5hvcnpmh0qh4wuv22e' }}\n" >> .env
               printf "OWNER_NAME=Vladoi Ionut\nOWNER_EMAIL=vladoi_ionut@yahoo.com\n" >> .env
               printf "ADMIN_EMAIL=vladoi_ionut@yahoo.com\n" >> .env
-              printf "SMTP_HOST=smtp.mail.yahoo.com\nSMTP_PORT=587\nSMTP_USER=vladoi_ionut@yahoo.com\n" >> .env
+              printf "SMTP_HOST=${{ secrets.SMTP_HOST || 'smtp.mail.yahoo.com' }}\nSMTP_PORT=${{ secrets.SMTP_PORT || '587' }}\n" >> .env
+              printf "SMTP_USER=${{ secrets.SMTP_USER }}\nSMTP_PASS=${{ secrets.SMTP_PASS }}\n" >> .env
             fi
 
             # ── Verify source integrity: re-fetch any JS file with SyntaxError ──

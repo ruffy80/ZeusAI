@@ -212,6 +212,8 @@ jobs:
           SMTP_PORT:             ${{ secrets.SMTP_PORT || '587' }}
           SMTP_USER:             ${{ secrets.SMTP_USER }}
           SMTP_PASS:             ${{ secrets.SMTP_PASS }}
+          WEBHOOK_SECRET:        ${{ secrets.WEBHOOK_SECRET }}
+          HETZNER_WEBHOOK_SECRET: ${{ secrets.HETZNER_WEBHOOK_SECRET || secrets.WEBHOOK_SECRET }}
           HETZNER_API_VALUE:     ${{ secrets.HETZNER_API_KEY || secrets.HETZNER_API_TOKEN }}
           BTC_WALLET:            ${{ secrets.BTC_WALLET_ADDRESS || 'bc1q4f7e66z87mdfj56kz0dj5hvcnpmh0qh4wuv22e' }}
         run: |
@@ -261,8 +263,13 @@ jobs:
           HETZNER_API_KEY=${HETZNER_API_VALUE}
           HETZNER_API_TOKEN=${HETZNER_API_VALUE}
 
+          WEBHOOK_SECRET=${WEBHOOK_SECRET}
+          HETZNER_WEBHOOK_SECRET=${HETZNER_WEBHOOK_SECRET:-${WEBHOOK_SECRET}}
+          DOMAIN=${DOMAIN}
+
           BTC_WALLET_ADDRESS=${BTC_WALLET}
           OWNER_BTC_ADDRESS=${BTC_WALLET}
+          LEGAL_OWNER_BTC=${BTC_WALLET}
           OWNER_NAME=Vladoi Ionut
           OWNER_EMAIL=${SMTP_USER:-vladoi_ionut@yahoo.com}
           LEGAL_OWNER_NAME=Vladoi Ionut

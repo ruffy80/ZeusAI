@@ -12,7 +12,7 @@
 # ============================================================
 set -euo pipefail
 
-DEPLOY_PATH="${1:-/opt/unicorn}"
+DEPLOY_PATH="${1:-/root/unicorn-final}"
 SERVICE_NAME="unicorn"
 PM2_BIN="$(command -v pm2 2>/dev/null || echo '/usr/local/bin/pm2')"
 NODE_BIN="$(command -v node 2>/dev/null || echo '/usr/bin/node')"
