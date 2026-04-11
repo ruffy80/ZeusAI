@@ -205,7 +205,27 @@ async function run() {
     // Pass-through from environment (must be provided externally if available)
     ...(process.env.VERCEL_TOKEN            ? { VERCEL_TOKEN:            process.env.VERCEL_TOKEN }            : {}),
     ...(process.env.HETZNER_API_KEY         ? { HETZNER_API_KEY:         process.env.HETZNER_API_KEY }         : {}),
+    ...(process.env.HETZNER_API_TOKEN       ? { HETZNER_API_TOKEN:       process.env.HETZNER_API_TOKEN }       : {}),
     ...(process.env.HETZNER_SSH_PRIVATE_KEY ? { HETZNER_SSH_PRIVATE_KEY: process.env.HETZNER_SSH_PRIVATE_KEY } : {}),
+    // AI provider keys (pass-through — user must provide these)
+    ...(process.env.OPENAI_API_KEY     ? { OPENAI_API_KEY:     process.env.OPENAI_API_KEY }     : {}),
+    ...(process.env.DEEPSEEK_API_KEY   ? { DEEPSEEK_API_KEY:   process.env.DEEPSEEK_API_KEY }   : {}),
+    ...(process.env.ANTHROPIC_API_KEY  ? { ANTHROPIC_API_KEY:  process.env.ANTHROPIC_API_KEY }  : {}),
+    ...(process.env.GEMINI_API_KEY     ? { GEMINI_API_KEY:     process.env.GEMINI_API_KEY }     : {}),
+    ...(process.env.MISTRAL_API_KEY    ? { MISTRAL_API_KEY:    process.env.MISTRAL_API_KEY }    : {}),
+    ...(process.env.COHERE_API_KEY     ? { COHERE_API_KEY:     process.env.COHERE_API_KEY }     : {}),
+    ...(process.env.XAI_API_KEY        ? { XAI_API_KEY:        process.env.XAI_API_KEY }        : {}),
+    // Payment keys (pass-through — user must provide these)
+    ...(process.env.STRIPE_SECRET_KEY       ? { STRIPE_SECRET_KEY:       process.env.STRIPE_SECRET_KEY }       : {}),
+    ...(process.env.STRIPE_PUBLISHABLE_KEY  ? { STRIPE_PUBLISHABLE_KEY:  process.env.STRIPE_PUBLISHABLE_KEY }  : {}),
+    ...(process.env.STRIPE_WEBHOOK_SECRET   ? { STRIPE_WEBHOOK_SECRET:   process.env.STRIPE_WEBHOOK_SECRET }   : {}),
+    ...(process.env.PAYPAL_CLIENT_ID        ? { PAYPAL_CLIENT_ID:        process.env.PAYPAL_CLIENT_ID }        : {}),
+    ...(process.env.PAYPAL_CLIENT_SECRET    ? { PAYPAL_CLIENT_SECRET:    process.env.PAYPAL_CLIENT_SECRET }    : {}),
+    // Email credentials (pass-through — user must provide these)
+    ...(process.env.SMTP_HOST  ? { SMTP_HOST:  process.env.SMTP_HOST }  : {}),
+    ...(process.env.SMTP_PORT  ? { SMTP_PORT:  process.env.SMTP_PORT }  : {}),
+    ...(process.env.SMTP_USER  ? { SMTP_USER:  process.env.SMTP_USER }  : {}),
+    ...(process.env.SMTP_PASS  ? { SMTP_PASS:  process.env.SMTP_PASS }  : {}),
     // DNS provider credentials (optional — enables automatic DNS setup)
     ...(process.env.HETZNER_DNS_API_KEY     ? { HETZNER_DNS_API_KEY:     process.env.HETZNER_DNS_API_KEY }     : {}),
     ...(process.env.CF_TOKEN                ? { CF_TOKEN:                process.env.CF_TOKEN }                : {}),

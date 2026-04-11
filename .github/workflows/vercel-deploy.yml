@@ -491,7 +491,7 @@ jobs:
               --exclude='.git' --exclude='node_modules' --exclude='.next' \
               --exclude='logs' --exclude='*.local' --exclude='.env' \
               -czf - . | \
-            ssh -i ~/.ssh/deploy_key -p 22 -o StrictHostKeyChecking=no \
+            ssh -i ~/.ssh/deploy_key -p "${DEPLOY_PORT:-22}" -o StrictHostKeyChecking=no \
               -o BatchMode=yes \
               "${{ secrets.HETZNER_DEPLOY_USER || secrets.HETZNER_USER || secrets.SSH_USER }}@${{ secrets.HETZNER_HOST || secrets.SSH_HOST }}" \
               "DEST='${DEST}'; mkdir -p \"\$DEST\" && chmod -R u+w \"\$DEST\" 2>/dev/null || true && cd \"\$DEST\" && tar --overwrite --no-same-permissions --no-same-owner -xzf -"
@@ -502,7 +502,7 @@ jobs:
         continue-on-error: true
         run: |
           echo "DEBUG SSH: Connecting to $DEPLOY_USER@$DEPLOY_HOST:$DEPLOY_PATH"
-          ssh -i ~/.ssh/deploy_key -p 22 -o StrictHostKeyChecking=no -o UserKnownHostsFile=~/.ssh/known_hosts -o BatchMode=yes \
+          ssh -i ~/.ssh/deploy_key -p "${DEPLOY_PORT:-22}" -o StrictHostKeyChecking=no -o UserKnownHostsFile=~/.ssh/known_hosts -o BatchMode=yes \
             "${{ secrets.HETZNER_DEPLOY_USER || secrets.HETZNER_USER || secrets.SSH_USER }}@${{ secrets.HETZNER_HOST || secrets.SSH_HOST }}" << ENDSSH
             set -e
             cd "${{ secrets.HETZNER_DEPLOY_PATH || '/opt/unicorn' }}"
@@ -528,20 +528,76 @@ jobs:
               npm install -g pm2
             fi
 
-            # ── Update .env with Hetzner API token + domain + owner credentials ──
-            for key in HETZNER_API_KEY HETZNER_API_TOKEN PUBLIC_APP_URL SITE_DOMAIN \
-                       BTC_WALLET_ADDRESS OWNER_BTC_ADDRESS OWNER_EMAIL OWNER_NAME \
-                       ADMIN_EMAIL SMTP_HOST SMTP_PORT SMTP_USER; do
-              [ -f .env ] && sed -i "/^${key}=/d" .env || true
-            done
-            printf "HETZNER_API_KEY=%s\nHETZNER_API_TOKEN=%s\n" \
-              "${HETZNER_API_VALUE}" "${HETZNER_API_VALUE}" >> .env
-            printf "PUBLIC_APP_URL=https://zeusai.pro\nSITE_DOMAIN=zeusai.pro\n" >> .env
-            printf "BTC_WALLET_ADDRESS=bc1q4f7e66z87mdfj56kz0dj5hvcnpmh0qh4wuv22e\n" >> .env
-            printf "OWNER_BTC_ADDRESS=bc1q4f7e66z87mdfj56kz0dj5hvcnpmh0qh4wuv22e\n" >> .env
-            printf "OWNER_NAME=Vladoi Ionut\nOWNER_EMAIL=vladoi_ionut@yahoo.com\n" >> .env
-            printf "ADMIN_EMAIL=vladoi_ionut@yahoo.com\n" >> .env
-            printf "SMTP_HOST=smtp.mail.yahoo.com\nSMTP_PORT=587\nSMTP_USER=vladoi_ionut@yahoo.com\n" >> .env
+            # ── Update .env via create-env.sh (upsert, nu suprascrie totul) ──
+            # Toate secretele critice sunt transmise explicit din GitHub Secrets
+            if [ -f scripts/create-env.sh ]; then
+              chmod +x scripts/create-env.sh
+              JWT_SECRET="${{ secrets.JWT_SECRET }}" \
+              ADMIN_SECRET="${{ secrets.ADMIN_SECRET }}" \
+              ADMIN_MASTER_PASSWORD="${{ secrets.ADMIN_MASTER_PASSWORD }}" \
+              ADMIN_2FA_CODE="${{ secrets.ADMIN_2FA_CODE }}" \
+              WEBHOOK_SECRET="${{ secrets.WEBHOOK_SECRET || secrets.HETZNER_WEBHOOK_SECRET }}" \
+              HETZNER_WEBHOOK_SECRET="${{ secrets.HETZNER_WEBHOOK_SECRET || secrets.WEBHOOK_SECRET }}" \
+              OPENAI_API_KEY="${{ secrets.OPENAI_API_KEY }}" \
+              DEEPSEEK_API_KEY="${{ secrets.DEEPSEEK_API_KEY }}" \
+              ANTHROPIC_API_KEY="${{ secrets.ANTHROPIC_API_KEY }}" \
+              GEMINI_API_KEY="${{ secrets.GEMINI_API_KEY }}" \
+              MISTRAL_API_KEY="${{ secrets.MISTRAL_API_KEY }}" \
+              COHERE_API_KEY="${{ secrets.COHERE_API_KEY }}" \
+              XAI_API_KEY="${{ secrets.XAI_API_KEY }}" \
+              STRIPE_SECRET_KEY="${{ secrets.STRIPE_SECRET_KEY }}" \
+              STRIPE_PUBLISHABLE_KEY="${{ secrets.STRIPE_PUBLISHABLE_KEY }}" \
+              STRIPE_WEBHOOK_SECRET="${{ secrets.STRIPE_WEBHOOK_SECRET }}" \
+              PAYPAL_CLIENT_ID="${{ secrets.PAYPAL_CLIENT_ID }}" \
+              PAYPAL_CLIENT_SECRET="${{ secrets.PAYPAL_CLIENT_SECRET }}" \
+              SMTP_PASS="${{ secrets.SMTP_PASS }}" \
+              SMTP_USER="${{ secrets.SMTP_USER }}" \
+              SMTP_HOST="${{ secrets.SMTP_HOST || 'smtp.mail.yahoo.com' }}" \
+              SMTP_PORT="${{ secrets.SMTP_PORT || '587' }}" \
+              VERCEL_TOKEN="${{ secrets.VERCEL_TOKEN }}" \
+              GITHUB_TOKEN="${{ secrets.GH_PAT || secrets.GITHUB_TOKEN }}" \
+              HETZNER_API_KEY="${HETZNER_API_VALUE}" \
+              HETZNER_API_TOKEN="${HETZNER_API_VALUE}" \
+              PUBLIC_APP_URL="https://${{ secrets.SITE_DOMAIN || 'zeusai.pro' }}" \
+              SITE_DOMAIN="${{ secrets.SITE_DOMAIN || 'zeusai.pro' }}" \
+              BTC_WALLET_ADDRESS="${{ secrets.BTC_WALLET_ADDRESS || 'bc1q4f7e66z87mdfj56kz0dj5hvcnpmh0qh4wuv22e' }}" \
+              OWNER_EMAIL="${{ secrets.SMTP_USER || 'vladoi_ionut@yahoo.com' }}" \
+              ADMIN_EMAIL="${{ secrets.SMTP_USER || 'vladoi_ionut@yahoo.com' }}" \
+              bash scripts/create-env.sh "${{ secrets.HETZNER_DEPLOY_PATH || '/root/unicorn-final' }}" || true
+            else
+              # Fallback: upsert manual pentru cheile critice
+              for key in HETZNER_API_KEY HETZNER_API_TOKEN PUBLIC_APP_URL SITE_DOMAIN \
+                         JWT_SECRET ADMIN_SECRET ADMIN_MASTER_PASSWORD ADMIN_2FA_CODE \
+                         WEBHOOK_SECRET HETZNER_WEBHOOK_SECRET \
+                         OPENAI_API_KEY DEEPSEEK_API_KEY ANTHROPIC_API_KEY GEMINI_API_KEY \
+                         STRIPE_SECRET_KEY STRIPE_PUBLISHABLE_KEY SMTP_PASS \
+                         BTC_WALLET_ADDRESS OWNER_BTC_ADDRESS OWNER_EMAIL OWNER_NAME \
+                         ADMIN_EMAIL SMTP_HOST SMTP_PORT SMTP_USER; do
+                [ -f .env ] && sed -i "/^${key}=/d" .env || true
+              done
+              printf "JWT_SECRET=%s\nADMIN_SECRET=%s\n" \
+                "${{ secrets.JWT_SECRET }}" "${{ secrets.ADMIN_SECRET }}" >> .env
+              printf "ADMIN_MASTER_PASSWORD=%s\nADMIN_2FA_CODE=%s\n" \
+                "${{ secrets.ADMIN_MASTER_PASSWORD }}" "${{ secrets.ADMIN_2FA_CODE }}" >> .env
+              printf "WEBHOOK_SECRET=%s\nHETZNER_WEBHOOK_SECRET=%s\n" \
+                "${{ secrets.WEBHOOK_SECRET }}" "${{ secrets.HETZNER_WEBHOOK_SECRET || secrets.WEBHOOK_SECRET }}" >> .env
+              printf "OPENAI_API_KEY=%s\nDEEPSEEK_API_KEY=%s\nANTHROPIC_API_KEY=%s\n" \
+                "${{ secrets.OPENAI_API_KEY }}" "${{ secrets.DEEPSEEK_API_KEY }}" "${{ secrets.ANTHROPIC_API_KEY }}" >> .env
+              printf "GEMINI_API_KEY=%s\nMISTRAL_API_KEY=%s\nCOHERE_API_KEY=%s\nXAI_API_KEY=%s\n" \
+                "${{ secrets.GEMINI_API_KEY }}" "${{ secrets.MISTRAL_API_KEY }}" "${{ secrets.COHERE_API_KEY }}" "${{ secrets.XAI_API_KEY }}" >> .env
+              printf "STRIPE_SECRET_KEY=%s\nSTRIPE_PUBLISHABLE_KEY=%s\nSTRIPE_WEBHOOK_SECRET=%s\n" \
+                "${{ secrets.STRIPE_SECRET_KEY }}" "${{ secrets.STRIPE_PUBLISHABLE_KEY }}" "${{ secrets.STRIPE_WEBHOOK_SECRET }}" >> .env
+              printf "PAYPAL_CLIENT_ID=%s\nPAYPAL_CLIENT_SECRET=%s\n" \
+                "${{ secrets.PAYPAL_CLIENT_ID }}" "${{ secrets.PAYPAL_CLIENT_SECRET }}" >> .env
+              printf "HETZNER_API_KEY=%s\nHETZNER_API_TOKEN=%s\n" \
+                "${HETZNER_API_VALUE}" "${HETZNER_API_VALUE}" >> .env
+              printf "PUBLIC_APP_URL=https://${{ secrets.SITE_DOMAIN || 'zeusai.pro' }}\nSITE_DOMAIN=${{ secrets.SITE_DOMAIN || 'zeusai.pro' }}\n" >> .env
+              printf "BTC_WALLET_ADDRESS=${{ secrets.BTC_WALLET_ADDRESS || 'bc1q4f7e66z87mdfj56kz0dj5hvcnpmh0qh4wuv22e' }}\n" >> .env
+              printf "OWNER_NAME=Vladoi Ionut\nOWNER_EMAIL=vladoi_ionut@yahoo.com\n" >> .env
+              printf "ADMIN_EMAIL=vladoi_ionut@yahoo.com\n" >> .env
+              printf "SMTP_HOST=${{ secrets.SMTP_HOST || 'smtp.mail.yahoo.com' }}\nSMTP_PORT=${{ secrets.SMTP_PORT || '587' }}\n" >> .env
+              printf "SMTP_USER=${{ secrets.SMTP_USER }}\nSMTP_PASS=${{ secrets.SMTP_PASS }}\n" >> .env
+            fi
 
             # ── Verify source integrity: re-fetch any JS file with SyntaxError ──
             REPO_RAW="https://raw.githubusercontent.com/${{ github.repository }}/${{ github.sha }}/UNICORN_FINAL"
@@ -669,7 +725,7 @@ jobs:
           HEALTH='{"status":"unreachable"}'
           for attempt in 1 2 3 4 5 6; do
             sleep 15
-            HEALTH=$(ssh -i ~/.ssh/deploy_key -p 22 -o StrictHostKeyChecking=no -o UserKnownHostsFile=~/.ssh/known_hosts \
+            HEALTH=$(ssh -i ~/.ssh/deploy_key -p "${DEPLOY_PORT:-22}" -o StrictHostKeyChecking=no -o UserKnownHostsFile=~/.ssh/known_hosts \
               "${{ secrets.HETZNER_DEPLOY_USER || secrets.HETZNER_USER || secrets.SSH_USER }}@${{ secrets.HETZNER_HOST || secrets.SSH_HOST }}" \
               "curl -sS http://localhost:3000/api/health 2>/dev/null || curl -sS http://localhost:80/api/health 2>/dev/null || echo '{\"status\":\"unreachable\"}'")
             echo "Hetzner health (attempt $attempt): $HEALTH"
@@ -679,7 +735,7 @@ jobs:
             echo "✅ Backend healthy"
           else
             echo "⚠️  Backend not yet ready — collecting diagnostics..."
-            ssh -i ~/.ssh/deploy_key -p 22 -o StrictHostKeyChecking=no -o UserKnownHostsFile=~/.ssh/known_hosts \
+            ssh -i ~/.ssh/deploy_key -p "${DEPLOY_PORT:-22}" -o StrictHostKeyChecking=no -o UserKnownHostsFile=~/.ssh/known_hosts \
               "${{ secrets.HETZNER_DEPLOY_USER || secrets.HETZNER_USER || secrets.SSH_USER }}@${{ secrets.HETZNER_HOST || secrets.SSH_HOST }}" \
               "pm2 list 2>/dev/null || true; echo '--- last 30 log lines ---'; pm2 logs unicorn --lines 30 --nostream 2>/dev/null || tail -30 '${{ secrets.HETZNER_DEPLOY_PATH || '/opt/unicorn' }}/logs/pm2-error.log' 2>/dev/null || true" || true
           fi
@@ -842,16 +898,17 @@ jobs:
           fi
           mkdir -p ~/.ssh && chmod 700 ~/.ssh
           echo "$SSH_KEY" > ~/.ssh/deploy_key && chmod 600 ~/.ssh/deploy_key
-          ssh-keyscan -t ed25519,rsa "$DEPLOY_HOST" >> ~/.ssh/known_hosts 2>/dev/null || true
+          ssh-keyscan -t ed25519,rsa -p "${DEPLOY_PORT:-22}" "$DEPLOY_HOST" >> ~/.ssh/known_hosts 2>/dev/null || true
           echo "ssh_ready=true" >> "$GITHUB_OUTPUT"
 
-      - name: HTTPS health check – restart service if site is down
+          - name: HTTPS health check – restart service if site is down
         if: steps.ssh_setup_smoke.outputs.ssh_ready == 'true'
         continue-on-error: true
         env:
           DEPLOY_HOST: ${{ secrets.HETZNER_HOST || secrets.SSH_HOST }}
           DEPLOY_USER: ${{ secrets.HETZNER_DEPLOY_USER || secrets.HETZNER_USER || secrets.SSH_USER }}
           DEPLOY_PATH: ${{ secrets.HETZNER_DEPLOY_PATH || '/opt/unicorn' }}
+          DEPLOY_PORT: ${{ secrets.HETZNER_DEPLOY_PORT || secrets.SSH_PORT || '22' }}
           # SITE_DOMAIN is preferred; falls back to IP-based HTTPS
           SITE_DOMAIN: ${{ secrets.SITE_DOMAIN || secrets.UNICORN_DOMAIN }}
         run: |
@@ -873,7 +930,7 @@ jobs:
             echo "✅ Site is responding correctly."
           else
             echo "⚠️  Site not responding (HTTP $HTTPS_STATUS). Attempting service restart via SSH…"
-            ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no -o BatchMode=yes \
+            ssh -i ~/.ssh/deploy_key -p "${DEPLOY_PORT:-22}" -o StrictHostKeyChecking=no -o BatchMode=yes \
               "${DEPLOY_USER}@${DEPLOY_HOST}" \
               "DEPLOY_PATH='${DEPLOY_PATH}'; if command -v systemctl >/dev/null 2>&1 && systemctl list-unit-files | grep -q '^unicorn\\.service'; then systemctl restart unicorn && echo 'Restarted via systemctl'; elif command -v pm2 >/dev/null 2>&1 && pm2 describe unicorn >/dev/null 2>&1; then pm2 restart unicorn && echo 'Restarted via pm2'; else pkill -f 'node backend/index.js' || true; sleep 1; cd \"\$DEPLOY_PATH\"; mkdir -p logs; nohup node backend/index.js > logs/backend.log 2>&1 & echo 'Restarted via nohup'; fi"
 
