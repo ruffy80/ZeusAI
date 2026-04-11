@@ -2,7 +2,7 @@
 // OWNERSHIP: Acest fișier este proprietatea exclusivă a lui Vladoi Ionut
 // Email: vladoi_ionut@yahoo.com
 // BTC Address: bc1q4f7e66z87mdfj56kz0dj5hvcnpmh0qh4wuv22e
-// Data: 2026-04-10T21:38:58.444Z
+// Data: 2026-04-10T22:06:59.268Z
 // Orice copiere, modificare sau distribuție neautorizată este interzisă.
 // =====================================================================
 
@@ -10,7 +10,7 @@
 // OWNERSHIP: Acest fișier este proprietatea exclusivă a lui Vladoi Ionut
 // Email: vladoi_ionut@yahoo.com
 // BTC Address: bc1q4f7e66z87mdfj56kz0dj5hvcnpmh0qh4wuv22e
-// Data: 2026-04-10T21:33:19.616Z
+// Data: 2026-04-10T22:00:22.468Z
 // Orice copiere, modificare sau distribuție neautorizată este interzisă.
 // =====================================================================
 
@@ -18,7 +18,7 @@
 // OWNERSHIP: Acest fișier este proprietatea exclusivă a lui Vladoi Ionut
 // Email: vladoi_ionut@yahoo.com
 // BTC Address: bc1q4f7e66z87mdfj56kz0dj5hvcnpmh0qh4wuv22e
-// Data: 2026-04-10T21:28:24.678Z
+// Data: 2026-04-10T21:57:33.653Z
 // Orice copiere, modificare sau distribuție neautorizată este interzisă.
 // =====================================================================
 
@@ -26,7 +26,23 @@
 // OWNERSHIP: Acest fișier este proprietatea exclusivă a lui Vladoi Ionut
 // Email: vladoi_ionut@yahoo.com
 // BTC Address: bc1q4f7e66z87mdfj56kz0dj5hvcnpmh0qh4wuv22e
-// Data: 2026-04-10T21:27:44.398Z
+// Data: 2026-04-10T21:53:50.307Z
+// Orice copiere, modificare sau distribuție neautorizată este interzisă.
+// =====================================================================
+
+// =====================================================================
+// OWNERSHIP: Acest fișier este proprietatea exclusivă a lui Vladoi Ionut
+// Email: vladoi_ionut@yahoo.com
+// BTC Address: bc1q4f7e66z87mdfj56kz0dj5hvcnpmh0qh4wuv22e
+// Data: 2026-04-10T21:49:07.880Z
+// Orice copiere, modificare sau distribuție neautorizată este interzisă.
+// =====================================================================
+
+// =====================================================================
+// OWNERSHIP: Acest fișier este proprietatea exclusivă a lui Vladoi Ionut
+// Email: vladoi_ionut@yahoo.com
+// BTC Address: bc1q4f7e66z87mdfj56kz0dj5hvcnpmh0qh4wuv22e
+// Data: 2026-04-10T21:43:56.571Z
 // Orice copiere, modificare sau distribuție neautorizată este interzisă.
 // =====================================================================
 
@@ -196,7 +212,17 @@ function getAllPrices(options = {}) {
   }, {});
 }
 
-function activateSurge(durationMs = 3600000) {
+// Allowed surge durations (whitelisted values to prevent resource exhaustion)
+const ALLOWED_SURGE_DURATIONS_MS = Object.freeze({
+  '30min': 1800000,
+  '1h': 3600000,
+  '2h': 7200000,
+  '6h': 21600000,
+  '24h': 86400000,
+});
+
+function activateSurge(durationKey = '1h') {
+  const durationMs = ALLOWED_SURGE_DURATIONS_MS[durationKey] || ALLOWED_SURGE_DURATIONS_MS['1h'];
   surgeActive = true;
   setTimeout(() => { surgeActive = false; }, durationMs);
   console.log('[DynamicPricing] Surge pricing activated for', durationMs / 60000, 'min');
@@ -220,4 +246,4 @@ function getMarketConditions() {
 setInterval(updateDemandFactor, 5 * 60 * 1000);
 updateDemandFactor(); // initial call
 
-module.exports = { getPrice, getAllPrices, activateSurge, setDiscount, getMarketConditions, BASE_PRICES };
+module.exports = { getPrice, getAllPrices, activateSurge, setDiscount, getMarketConditions, BASE_PRICES, ALLOWED_SURGE_DURATIONS_MS };
