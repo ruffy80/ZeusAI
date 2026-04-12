@@ -1,0 +1,60 @@
+{
+  "cycle": {
+    "timestamp": "2026-04-12T15:45:35.577Z",
+    "runId": "24310303524",
+    "runNumber": "154",
+    "actor": "copilot-swe-agent[bot]",
+    "ref": "refs/heads/copilot/fix-unicorn-autonomous-issues",
+    "sha": "ad183993e373734a783a02b05548f64edb42bce4"
+  },
+  "engines": {
+    "innovation": {
+      "timestamp": "2026-04-12T15:45:35.577Z",
+      "state": "AUTONOMOUS_RUNNING",
+      "totalGenerated": 0,
+      "queuedForEvaluation": 0,
+      "completed": 0,
+      "metrics": {
+        "totalInnovationsGenerated": 0,
+        "totalFeaturesDeployed": 0,
+        "deploymentSuccessRate": 100,
+        "averageDeploymentTime": 0,
+        "cumulativeThroughput": 0
+      },
+      "recentDeployments": [],
+      "nextInnovationIn": "30s"
+    },
+    "innovMetrics": {
+      "totalDeployments": 0,
+      "successfulDeployments": 0,
+      "successRate": "0%",
+      "averageDeploymentTime": "0ms",
+      "recentErrors": []
+    },
+    "healer": {
+      "status": "unavailable"
+    },
+    "revenue": {
+      "error": "Cannot read properties of undefined (reading 'revenueStreams')"
+    },
+    "viral": {
+      "error": "Cannot read properties of undefined (reading 'metrics')"
+    },
+    "quantumResilience": {
+      "status": "unavailable"
+    },
+    "controlPlane": {
+      "error": "Cannot read properties of undefined (reading '_healingActive')"
+    },
+    "slo": {
+      "status": "ok"
+    }
+  },
+  "summary": {
+    "innovationsGenerated": 0,
+    "innovationsDeployed": 0,
+    "deploymentSuccessRate": 100,
+    "healerStatus": "ok",
+    "overallStatus": "AUTONOMOUS_RUNNING"
+  }
+}
