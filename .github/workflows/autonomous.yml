@@ -54,7 +54,7 @@ jobs:
 
       - name: Install dependencies
         working-directory: UNICORN_FINAL
-        run: npm ci --no-audit --no-fund
+        run: npm install --legacy-peer-deps --no-audit --no-fund
 
       # ── 3. Lint + test (ne blochează, dar raportăm) ───────────────────────────
       - name: Run lint check
