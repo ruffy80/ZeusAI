@@ -313,14 +313,14 @@ jobs:
           cd "\$DEPLOY_PATH"
           mkdir -p logs data
 
-          npm ci --no-audit --no-fund 2>/dev/null || npm install --no-audit --no-fund
+          npm install --legacy-peer-deps --no-audit --no-fund
           npm rebuild better-sqlite3 --no-fund 2>/dev/null || true
           echo "✅ Backend deps instalate"
 
           if [ -d "client" ] && [ -f "client/package.json" ]; then
             echo "🎨 Build frontend React..."
             cd client
-            npm ci --no-audit --no-fund 2>/dev/null || npm install --no-audit --no-fund
+            npm install --legacy-peer-deps --no-audit --no-fund
             CI=false npm run build
             cd ..
             echo "✅ Frontend built"
