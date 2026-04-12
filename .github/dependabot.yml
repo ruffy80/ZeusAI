@@ -1,0 +1,17 @@
+version: 2
+updates:
+  - package-ecosystem: "npm"
+    directory: "/UNICORN_FINAL"
+    schedule:
+      interval: "weekly"
+    ignore:
+      # undici: vercel pins undici@5.28.4 via @vercel/node; the fix requires
+      # a major bump to 6.x which would break vercel CLI internals. Ignored
+      # until vercel ships a compatible update.
+      - dependency-name: "undici"
+        versions: ["*"]
+      # srvx: vercel pins srvx@0.8.9 via @vercel/backends; the fix requires
+      # bumping to 0.11.x which has breaking API changes incompatible with
+      # the version of @vercel/backends in use.
+      - dependency-name: "srvx"
+        versions: ["*"]
