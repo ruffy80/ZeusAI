@@ -211,6 +211,7 @@
 
 const crypto = require('crypto');
 const os = require('os');
+const { ALL_SECRET_KEYS } = require('../constants/secretKeys');
 
 // Generate a hardware fingerprint (combination of stable machine identifiers)
 function getHardwareFingerprint() {
@@ -347,11 +348,7 @@ function getStatus() {
 
 // Pre-load secrets from environment on startup
 function bootstrap() {
-  const secrets = [
-    'OPENAI_API_KEY', 'DEEPSEEK_API_KEY', 'GITHUB_TOKEN', 'VERCEL_TOKEN',
-    'STRIPE_SECRET_KEY', 'ADMIN_SECRET', 'JWT_SECRET', 'WEBHOOK_SECRET',
-  ];
-  secrets.forEach(k => {
+  ALL_SECRET_KEYS.forEach(k => {
     if (process.env[k]) {
       try {
         store(k, process.env[k]);
@@ -361,8 +358,48 @@ function bootstrap() {
     }
   });
   console.log('[QuantumVault] Bootstrapped with', vaultStore.size, 'secrets from environment.');
+  // Injectare automată înapoi în process.env pentru modulele care citesc direct
+  injectToEnv();
+}
+
+// Injectează toate secretele din vault înapoi în process.env (fără a suprascrie ce există deja)
+function injectToEnv() {
+  let injected = 0;
+  for (const key of vaultStore.keys()) {
+    if (!process.env[key]) {
+      try {
+        const val = retrieve(key);
+        if (val !== null && val !== undefined) {
+          process.env[key] = val;
+          injected++;
+        }
+      } catch {
+        // Skip keys that fail decryption
+      }
+    }
+  }
+  if (injected > 0) {
+    console.log(`[QuantumVault] Injected ${injected} secrets into process.env.`);
+  }
+  return injected;
+}
+
+// Returnează statusul complet al tuturor cheilor cunoscute
+function getAllKeysStatus() {
+  const result = {};
+  ALL_SECRET_KEYS.forEach(k => {
+    result[k] = {
+      inVault: vaultStore.has(k),
+      inEnv: !!process.env[k],
+      set: vaultStore.has(k) || !!process.env[k],
+    };
+  });
+  return result;
 }
 
 bootstrap();
 
-module.exports = { store, retrieve, remove, listKeys, unlock, getStatus, HARDWARE_FP };
+module.exports = {
+  store, retrieve, remove, listKeys, unlock, getStatus, HARDWARE_FP,
+  injectToEnv, getAllKeysStatus, ALL_SECRET_KEYS,
+};
