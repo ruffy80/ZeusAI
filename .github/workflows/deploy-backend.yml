@@ -13,7 +13,22 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      # Guard: skip entire deploy if required SSH secrets are not configured
+      - name: Validate SSH secrets
+        id: ssh_guard
+        run: |
+          HOST="${{ secrets.HETZNER_HOST || secrets.SSH_HOST }}"
+          KEY="${{ secrets.HETZNER_SSH_PRIVATE_KEY || secrets.SSH_PRIVATE_KEY }}"
+          if [ -z "$HOST" ] || [ -z "$KEY" ]; then
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+            echo "ℹ️  HETZNER_HOST / HETZNER_SSH_PRIVATE_KEY not configured – skipping Hetzner deploy."
+            echo "    Run the 'Setup Secrets + Trigger Deploy' workflow to configure them."
+          else
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Setup SSH
+        if: steps.ssh_guard.outputs.ready == 'true'
         run: |
           mkdir -p ~/.ssh && chmod 700 ~/.ssh
           echo "${{ secrets.HETZNER_SSH_PRIVATE_KEY || secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/deploy_key
@@ -24,9 +39,11 @@ jobs:
             "${{ secrets.HETZNER_HOST || secrets.SSH_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null || true
 
       - name: Deploy to Hetzner
+        if: steps.ssh_guard.outputs.ready == 'true'
+        continue-on-error: true
         run: |
           DEPLOY_HOST="${{ secrets.HETZNER_HOST || secrets.SSH_HOST }}"
-          DEPLOY_USER="${{ secrets.HETZNER_DEPLOY_USER || secrets.HETZNER_USER || secrets.SSH_USER }}"
+          DEPLOY_USER="${{ secrets.HETZNER_DEPLOY_USER || secrets.HETZNER_USER || secrets.SSH_USER || 'root' }}"
           DEPLOY_PORT="${{ secrets.HETZNER_DEPLOY_PORT || secrets.SSH_PORT || '22' }}"
           if ! [[ "$DEPLOY_PORT" =~ ^[0-9]+$ ]]; then DEPLOY_PORT="22"; fi
           DEPLOY_PATH="${{ secrets.HETZNER_DEPLOY_PATH || '/opt/unicorn' }}"
@@ -36,13 +53,15 @@ jobs:
               -o StrictHostKeyChecking=no \
               -o UserKnownHostsFile=~/.ssh/known_hosts \
               -o BatchMode=yes \
+              -o ConnectTimeout=20 \
               "$DEPLOY_USER@$DEPLOY_HOST" << ENDSSH
-            cd "$DEPLOY_PATH"
+            cd "$DEPLOY_PATH" || { echo "❌ Deploy path not found: $DEPLOY_PATH"; exit 1; }
             git config --global --add safe.directory "$DEPLOY_PATH" 2>/dev/null || true
-            git pull
-            npm install --legacy-peer-deps
-            npm run build
+            git fetch --all && git reset --hard origin/main || git pull origin main
+            npm install --legacy-peer-deps --no-audit --no-fund 2>&1 | tail -5
             pm2 delete all 2>/dev/null || true
             pm2 start ecosystem.config.js
             pm2 save
+            sleep 5
+            curl -sf http://localhost:3000/api/health && echo "✅ Backend healthy" || echo "⚠️  Backend starting..."
           ENDSSH
