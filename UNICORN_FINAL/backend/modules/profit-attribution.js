@@ -103,6 +103,8 @@ const MAX_EVENTS        = 50000;
 
 class ProfitAttributionService {
   constructor() {
+    this.cache = new Map();
+    this.cacheTTL = 60000;
     this.events       = [];  // all profit events
     this.experiments  = new Map(); // id → { name, cost, samples }
     this.userHistory  = new Map(); // userId → last 100 events
