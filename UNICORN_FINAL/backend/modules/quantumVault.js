@@ -346,12 +346,57 @@ function getStatus() {
 }
 
 // Pre-load secrets from environment on startup
+// Lista completă a tuturor secretelor/cheilor folosite în Unicorn
+const ALL_SECRET_KEYS = [
+  // AI Providers
+  'OPENAI_API_KEY', 'DEEPSEEK_API_KEY', 'ANTHROPIC_API_KEY', 'CLAUDE_API_KEY',
+  'GEMINI_API_KEY', 'MISTRAL_API_KEY', 'COHERE_API_KEY', 'XAI_API_KEY',
+  'GOOGLE_API_KEY', 'AMAZON_API_KEY', 'APPLE_API_KEY',
+  'DEEPSEEK_MODEL', 'GEMINI_MODEL', 'COHERE_MODEL', 'ANTHROPIC_MODEL', 'GROK_MODEL',
+  // Auth & Security
+  'JWT_SECRET', 'ADMIN_SECRET', 'ADMIN_MASTER_PASSWORD', 'ADMIN_2FA_CODE',
+  'VAULT_MASTER_SECRET', 'VAULT_EMERGENCY_CODE', 'WEBHOOK_SECRET',
+  'MASTER_CONFIG_SECRET',
+  // GitHub / Deployment
+  'GITHUB_TOKEN', 'GITHUB_OWNER', 'GITHUB_REPO', 'GITHUB_REPOSITORY', 'GITHUB_REPO_FULL',
+  'VERCEL_TOKEN', 'VERCEL_ORG_ID', 'VERCEL_PROJECT_ID', 'VERCEL_TEAM_ID', 'VERCEL_URL',
+  'VERCEL_FALLBACK_ACTIVE',
+  // Hetzner / Server
+  'HETZNER_HOST', 'HETZNER_USER', 'HETZNER_API_TOKEN', 'HETZNER_BACKEND_URL',
+  'SSH_KEY_PATH', 'DEPLOY_PATH', 'GIT_REMOTE_URL', 'GIT_REPO_URL', 'BRANCH',
+  // Stripe
+  'STRIPE_SECRET_KEY', 'STRIPE_PUBLISHABLE_KEY', 'STRIPE_WEBHOOK_SECRET',
+  'STRIPE_PRICE_STARTER_MONTHLY', 'STRIPE_PRICE_STARTER_YEARLY',
+  'STRIPE_PRICE_PRO_MONTHLY', 'STRIPE_PRICE_PRO_YEARLY',
+  'STRIPE_PRICE_ENTERPRISE_MONTHLY', 'STRIPE_PRICE_ENTERPRISE_YEARLY',
+  // PayPal
+  'PAYPAL_CLIENT_ID', 'PAYPAL_CLIENT_SECRET', 'PAYPAL_WEBHOOK_ID', 'PAYPAL_ENV',
+  // Crypto Wallets
+  'BTC_WALLET_ADDRESS', 'ETH_WALLET_ADDRESS', 'USDC_WALLET_ADDRESS',
+  // Exchanges
+  'BINANCE_API_KEY', 'BINANCE_SECRET', 'BYBIT_API_KEY', 'BYBIT_SECRET',
+  'COINBASE_API_KEY', 'COINBASE_SECRET',
+  // Email / SMTP
+  'SMTP_HOST', 'SMTP_PORT', 'SMTP_USER', 'SMTP_PASS', 'EMAIL_FROM_NAME',
+  // Social Media
+  'TELEGRAM_BOT_TOKEN', 'TELEGRAM_CHAT_ID',
+  'X_BEARER_TOKEN', 'X_ACCESS_TOKEN', 'X_ACCESS_SECRET',
+  'YOUTUBE_API_KEY', 'YOUTUBE_OAUTH_CLIENT_ID',
+  'PINTEREST_TOKEN', 'PINTEREST_BOARD_ID',
+  'PRODUCTHUNT_API_KEY', 'PRODUCTHUNT_API_SECRET', 'PRODUCTHUNT_DEVELOPER_TOKEN',
+  // DNS / Domain
+  'DOMAIN', 'SAV_API_TOKEN', 'PUBLIC_APP_URL', 'APP_BASE_URL', 'FRONTEND_URL',
+  // AWS
+  'AWS_ACCESS_KEY_ID', 'AWS_SECRET_ACCESS_KEY', 'AWS_BACKUP_BUCKET',
+  // Admin / Ownership
+  'ADMIN_EMAIL', 'LEGAL_OWNER_EMAIL', 'LEGAL_OWNER_NAME', 'LEGAL_OWNER_BTC',
+  'OWNER_EMAIL',
+  // Misc operational
+  'DEV_API_KEY', 'EXEC_SERVERS', 'CORS_ORIGINS',
+];
+
 function bootstrap() {
-  const secrets = [
-    'OPENAI_API_KEY', 'DEEPSEEK_API_KEY', 'GITHUB_TOKEN', 'VERCEL_TOKEN',
-    'STRIPE_SECRET_KEY', 'ADMIN_SECRET', 'JWT_SECRET', 'WEBHOOK_SECRET',
-  ];
-  secrets.forEach(k => {
+  ALL_SECRET_KEYS.forEach(k => {
     if (process.env[k]) {
       try {
         store(k, process.env[k]);
@@ -361,8 +406,48 @@ function bootstrap() {
     }
   });
   console.log('[QuantumVault] Bootstrapped with', vaultStore.size, 'secrets from environment.');
+  // Injectare automată înapoi în process.env pentru modulele care citesc direct
+  injectToEnv();
+}
+
+// Injectează toate secretele din vault înapoi în process.env (fără a suprascrie ce există deja)
+function injectToEnv() {
+  let injected = 0;
+  for (const key of vaultStore.keys()) {
+    if (!process.env[key]) {
+      try {
+        const val = retrieve(key);
+        if (val !== null && val !== undefined) {
+          process.env[key] = val;
+          injected++;
+        }
+      } catch {
+        // Skip keys that fail decryption
+      }
+    }
+  }
+  if (injected > 0) {
+    console.log(`[QuantumVault] Injected ${injected} secrets into process.env.`);
+  }
+  return injected;
+}
+
+// Returnează statusul complet al tuturor cheilor cunoscute
+function getAllKeysStatus() {
+  const result = {};
+  ALL_SECRET_KEYS.forEach(k => {
+    result[k] = {
+      inVault: vaultStore.has(k),
+      inEnv: !!process.env[k],
+      set: vaultStore.has(k) || !!process.env[k],
+    };
+  });
+  return result;
 }
 
 bootstrap();
 
-module.exports = { store, retrieve, remove, listKeys, unlock, getStatus, HARDWARE_FP };
+module.exports = {
+  store, retrieve, remove, listKeys, unlock, getStatus, HARDWARE_FP,
+  injectToEnv, getAllKeysStatus, ALL_SECRET_KEYS,
+};

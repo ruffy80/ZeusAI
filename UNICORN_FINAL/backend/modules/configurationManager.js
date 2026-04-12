@@ -252,11 +252,53 @@ function loadConfig() {
     }
   }
 
-  // Merge environment variables
+  // Merge environment variables – lista completă a tuturor cheilor Unicorn
   const envKeys = [
-    'OPENAI_API_KEY', 'DEEPSEEK_API_KEY', 'GITHUB_TOKEN', 'VERCEL_TOKEN',
-    'HETZNER_HOST', 'HETZNER_USER', 'DOMAIN', 'SAV_API_TOKEN', 'ADMIN_SECRET',
-    'BTC_WALLET_ADDRESS', 'JWT_SECRET', 'STRIPE_SECRET_KEY', 'WEBHOOK_SECRET',
+    // AI Providers
+    'OPENAI_API_KEY', 'DEEPSEEK_API_KEY', 'ANTHROPIC_API_KEY', 'CLAUDE_API_KEY',
+    'GEMINI_API_KEY', 'MISTRAL_API_KEY', 'COHERE_API_KEY', 'XAI_API_KEY',
+    'GOOGLE_API_KEY', 'AMAZON_API_KEY', 'APPLE_API_KEY',
+    'DEEPSEEK_MODEL', 'GEMINI_MODEL', 'COHERE_MODEL', 'ANTHROPIC_MODEL', 'GROK_MODEL',
+    // Auth & Security
+    'JWT_SECRET', 'ADMIN_SECRET', 'ADMIN_MASTER_PASSWORD', 'ADMIN_2FA_CODE',
+    'VAULT_MASTER_SECRET', 'VAULT_EMERGENCY_CODE', 'WEBHOOK_SECRET',
+    'MASTER_CONFIG_SECRET',
+    // GitHub / Deployment
+    'GITHUB_TOKEN', 'GITHUB_OWNER', 'GITHUB_REPO', 'GITHUB_REPOSITORY', 'GITHUB_REPO_FULL',
+    'VERCEL_TOKEN', 'VERCEL_ORG_ID', 'VERCEL_PROJECT_ID', 'VERCEL_TEAM_ID', 'VERCEL_URL',
+    'VERCEL_FALLBACK_ACTIVE',
+    // Hetzner / Server
+    'HETZNER_HOST', 'HETZNER_USER', 'HETZNER_API_TOKEN', 'HETZNER_BACKEND_URL',
+    'SSH_KEY_PATH', 'DEPLOY_PATH', 'GIT_REMOTE_URL', 'GIT_REPO_URL', 'BRANCH',
+    // Stripe
+    'STRIPE_SECRET_KEY', 'STRIPE_PUBLISHABLE_KEY', 'STRIPE_WEBHOOK_SECRET',
+    'STRIPE_PRICE_STARTER_MONTHLY', 'STRIPE_PRICE_STARTER_YEARLY',
+    'STRIPE_PRICE_PRO_MONTHLY', 'STRIPE_PRICE_PRO_YEARLY',
+    'STRIPE_PRICE_ENTERPRISE_MONTHLY', 'STRIPE_PRICE_ENTERPRISE_YEARLY',
+    // PayPal
+    'PAYPAL_CLIENT_ID', 'PAYPAL_CLIENT_SECRET', 'PAYPAL_WEBHOOK_ID', 'PAYPAL_ENV',
+    // Crypto Wallets
+    'BTC_WALLET_ADDRESS', 'ETH_WALLET_ADDRESS', 'USDC_WALLET_ADDRESS',
+    // Exchanges
+    'BINANCE_API_KEY', 'BINANCE_SECRET', 'BYBIT_API_KEY', 'BYBIT_SECRET',
+    'COINBASE_API_KEY', 'COINBASE_SECRET',
+    // Email / SMTP
+    'SMTP_HOST', 'SMTP_PORT', 'SMTP_USER', 'SMTP_PASS', 'EMAIL_FROM_NAME',
+    // Social Media
+    'TELEGRAM_BOT_TOKEN', 'TELEGRAM_CHAT_ID',
+    'X_BEARER_TOKEN', 'X_ACCESS_TOKEN', 'X_ACCESS_SECRET',
+    'YOUTUBE_API_KEY', 'YOUTUBE_OAUTH_CLIENT_ID',
+    'PINTEREST_TOKEN', 'PINTEREST_BOARD_ID',
+    'PRODUCTHUNT_API_KEY', 'PRODUCTHUNT_API_SECRET', 'PRODUCTHUNT_DEVELOPER_TOKEN',
+    // DNS / Domain
+    'DOMAIN', 'SAV_API_TOKEN', 'PUBLIC_APP_URL', 'APP_BASE_URL', 'FRONTEND_URL',
+    // AWS
+    'AWS_ACCESS_KEY_ID', 'AWS_SECRET_ACCESS_KEY', 'AWS_BACKUP_BUCKET',
+    // Admin / Ownership
+    'ADMIN_EMAIL', 'LEGAL_OWNER_EMAIL', 'LEGAL_OWNER_NAME', 'LEGAL_OWNER_BTC',
+    'OWNER_EMAIL',
+    // Misc
+    'DEV_API_KEY', 'EXEC_SERVERS', 'CORS_ORIGINS',
   ];
   envKeys.forEach(k => {
     if (process.env[k]) memoryStore[k] = process.env[k];
@@ -330,7 +372,68 @@ function getStatus() {
   };
 }
 
+// Injectează toate valorile din memoryStore înapoi în process.env dacă lipsesc
+function injectToEnv() {
+  if (!initialized) loadConfig();
+  let injected = 0;
+  Object.entries(memoryStore).forEach(([k, v]) => {
+    if (!process.env[k] && v) {
+      process.env[k] = String(v);
+      injected++;
+    }
+  });
+  if (injected > 0) {
+    console.log(`[ConfigManager] Injected ${injected} config values into process.env.`);
+  }
+  return injected;
+}
+
+// Statusul complet al tuturor cheilor cunoscute
+function getAllKeysStatus() {
+  if (!initialized) loadConfig();
+  const ALL_KEYS = [
+    'OPENAI_API_KEY', 'DEEPSEEK_API_KEY', 'ANTHROPIC_API_KEY', 'CLAUDE_API_KEY',
+    'GEMINI_API_KEY', 'MISTRAL_API_KEY', 'COHERE_API_KEY', 'XAI_API_KEY',
+    'GOOGLE_API_KEY', 'AMAZON_API_KEY', 'APPLE_API_KEY',
+    'JWT_SECRET', 'ADMIN_SECRET', 'ADMIN_MASTER_PASSWORD', 'ADMIN_2FA_CODE',
+    'VAULT_MASTER_SECRET', 'VAULT_EMERGENCY_CODE', 'WEBHOOK_SECRET', 'MASTER_CONFIG_SECRET',
+    'GITHUB_TOKEN', 'GITHUB_OWNER', 'GITHUB_REPO', 'GITHUB_REPOSITORY', 'GITHUB_REPO_FULL',
+    'VERCEL_TOKEN', 'VERCEL_ORG_ID', 'VERCEL_PROJECT_ID', 'VERCEL_TEAM_ID',
+    'HETZNER_HOST', 'HETZNER_USER', 'HETZNER_API_TOKEN', 'HETZNER_BACKEND_URL',
+    'SSH_KEY_PATH', 'DEPLOY_PATH', 'GIT_REMOTE_URL', 'GIT_REPO_URL', 'BRANCH',
+    'STRIPE_SECRET_KEY', 'STRIPE_PUBLISHABLE_KEY', 'STRIPE_WEBHOOK_SECRET',
+    'STRIPE_PRICE_STARTER_MONTHLY', 'STRIPE_PRICE_STARTER_YEARLY',
+    'STRIPE_PRICE_PRO_MONTHLY', 'STRIPE_PRICE_PRO_YEARLY',
+    'STRIPE_PRICE_ENTERPRISE_MONTHLY', 'STRIPE_PRICE_ENTERPRISE_YEARLY',
+    'PAYPAL_CLIENT_ID', 'PAYPAL_CLIENT_SECRET', 'PAYPAL_WEBHOOK_ID', 'PAYPAL_ENV',
+    'BTC_WALLET_ADDRESS', 'ETH_WALLET_ADDRESS', 'USDC_WALLET_ADDRESS',
+    'BINANCE_API_KEY', 'BINANCE_SECRET', 'BYBIT_API_KEY', 'BYBIT_SECRET',
+    'COINBASE_API_KEY', 'COINBASE_SECRET',
+    'SMTP_HOST', 'SMTP_PORT', 'SMTP_USER', 'SMTP_PASS', 'EMAIL_FROM_NAME',
+    'TELEGRAM_BOT_TOKEN', 'TELEGRAM_CHAT_ID',
+    'X_BEARER_TOKEN', 'X_ACCESS_TOKEN', 'X_ACCESS_SECRET',
+    'YOUTUBE_API_KEY', 'YOUTUBE_OAUTH_CLIENT_ID',
+    'PINTEREST_TOKEN', 'PINTEREST_BOARD_ID',
+    'PRODUCTHUNT_API_KEY', 'PRODUCTHUNT_API_SECRET', 'PRODUCTHUNT_DEVELOPER_TOKEN',
+    'DOMAIN', 'SAV_API_TOKEN', 'PUBLIC_APP_URL', 'APP_BASE_URL', 'FRONTEND_URL',
+    'AWS_ACCESS_KEY_ID', 'AWS_SECRET_ACCESS_KEY', 'AWS_BACKUP_BUCKET',
+    'ADMIN_EMAIL', 'LEGAL_OWNER_EMAIL', 'LEGAL_OWNER_NAME', 'LEGAL_OWNER_BTC', 'OWNER_EMAIL',
+    'DEV_API_KEY', 'EXEC_SERVERS', 'CORS_ORIGINS',
+  ];
+  const result = {};
+  ALL_KEYS.forEach(k => {
+    result[k] = {
+      inConfig: !!memoryStore[k],
+      inEnv: !!process.env[k],
+      set: !!(memoryStore[k] || process.env[k]),
+    };
+  });
+  return result;
+}
+
 // Auto-load on require
 loadConfig();
+// Auto-inject la startup
+injectToEnv();
 
-module.exports = { get, set, backup, runWizard, getStatus, loadConfig, saveConfig };
+module.exports = { get, set, backup, runWizard, getStatus, loadConfig, saveConfig, injectToEnv, getAllKeysStatus };

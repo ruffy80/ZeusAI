@@ -520,6 +520,9 @@ const temporalProcessor     = require('./modules/TemporalDataProcessor');
 const configManager         = require('./modules/configurationManager');
 const quantumPaymentNexus   = require('./modules/quantumPaymentNexus');
 const quantumVault          = require('./modules/quantumVault');
+// QuantumVault + ConfigManager injectează TOATE secretele în process.env imediat după încărcare
+quantumVault.injectToEnv();
+configManager.injectToEnv();
 const revenueModules        = require('./modules/revenueModules');
 const sovereignGuardian     = require('./modules/sovereignAccessGuardian');
 // ==================== GENERATED FUTURE MODULES ====================
@@ -2859,6 +2862,13 @@ app.post('/api/temporal-processor/process', adminTokenMiddleware, async (req, re
 app.get('/api/config/status', adminTokenMiddleware, (req, res) => {
   res.json(configManager.getStatus());
 });
+app.get('/api/config/all-keys', adminTokenMiddleware, (req, res) => {
+  res.json(configManager.getAllKeysStatus());
+});
+app.post('/api/config/inject', adminTokenMiddleware, (req, res) => {
+  const injected = configManager.injectToEnv();
+  res.json({ ok: true, injected });
+});
 app.get('/api/config/:key', adminTokenMiddleware, (req, res) => {
   const val = configManager.get(req.params.key);
   res.json({ key: req.params.key, value: val !== undefined ? val : null });
@@ -2866,6 +2876,8 @@ app.get('/api/config/:key', adminTokenMiddleware, (req, res) => {
 app.post('/api/config/:key', adminTokenMiddleware, (req, res) => {
   try {
     configManager.set(req.params.key, req.body.value);
+    // Re-inject in process.env immediately after saving
+    if (!process.env[req.params.key]) process.env[req.params.key] = String(req.body.value);
     res.json({ ok: true });
   } catch (e) { res.status(400).json({ error: e.message }); }
 });
@@ -2915,6 +2927,18 @@ app.post('/api/quantum-vault/retrieve', adminTokenMiddleware, async (req, res) =
 });
 app.get('/api/quantum-vault/keys', adminTokenMiddleware, (req, res) => {
   res.json({ keys: quantumVault.listKeys() });
+});
+app.get('/api/quantum-vault/all-keys', adminTokenMiddleware, (req, res) => {
+  res.json(quantumVault.getAllKeysStatus());
+});
+app.post('/api/quantum-vault/inject', adminTokenMiddleware, (req, res) => {
+  const injected = quantumVault.injectToEnv();
+  const cfgInjected = configManager.injectToEnv();
+  res.json({ injected: injected + cfgInjected, vaultInjected: injected, configInjected: cfgInjected });
+});
+app.post('/api/quantum-vault/unlock', adminTokenMiddleware, (req, res) => {
+  const ok = quantumVault.unlock(req.body.emergencyCode);
+  res.json({ success: ok });
 });
 
 // --- Revenue Modules (7 fluxuri de venit) ---
