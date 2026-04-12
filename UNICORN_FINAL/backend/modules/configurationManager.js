@@ -212,6 +212,7 @@
 const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
+const { ALL_SECRET_KEYS } = require('../constants/secretKeys');
 
 const CONFIG_FILE = path.join(__dirname, '../../.config.encrypted');
 const BACKUP_DIR = path.join(__dirname, '../../backups/config');
@@ -252,13 +253,8 @@ function loadConfig() {
     }
   }
 
-  // Merge environment variables
-  const envKeys = [
-    'OPENAI_API_KEY', 'DEEPSEEK_API_KEY', 'GITHUB_TOKEN', 'VERCEL_TOKEN',
-    'HETZNER_HOST', 'HETZNER_USER', 'DOMAIN', 'SAV_API_TOKEN', 'ADMIN_SECRET',
-    'BTC_WALLET_ADDRESS', 'JWT_SECRET', 'STRIPE_SECRET_KEY', 'WEBHOOK_SECRET',
-  ];
-  envKeys.forEach(k => {
+  // Merge environment variables – lista completă a tuturor cheilor Unicorn
+  ALL_SECRET_KEYS.forEach(k => {
     if (process.env[k]) memoryStore[k] = process.env[k];
   });
 
@@ -330,7 +326,39 @@ function getStatus() {
   };
 }
 
+// Injectează toate valorile din memoryStore înapoi în process.env dacă lipsesc
+function injectToEnv() {
+  if (!initialized) loadConfig();
+  let injected = 0;
+  Object.entries(memoryStore).forEach(([k, v]) => {
+    if (!process.env[k] && v) {
+      process.env[k] = String(v);
+      injected++;
+    }
+  });
+  if (injected > 0) {
+    console.log(`[ConfigManager] Injected ${injected} config values into process.env.`);
+  }
+  return injected;
+}
+
+// Statusul complet al tuturor cheilor cunoscute
+function getAllKeysStatus() {
+  if (!initialized) loadConfig();
+  const result = {};
+  ALL_SECRET_KEYS.forEach(k => {
+    result[k] = {
+      inConfig: !!memoryStore[k],
+      inEnv: !!process.env[k],
+      set: !!(memoryStore[k] || process.env[k]),
+    };
+  });
+  return result;
+}
+
 // Auto-load on require
 loadConfig();
+// Auto-inject la startup
+injectToEnv();
 
-module.exports = { get, set, backup, runWizard, getStatus, loadConfig, saveConfig };
+module.exports = { get, set, backup, runWizard, getStatus, loadConfig, saveConfig, injectToEnv, getAllKeysStatus };
