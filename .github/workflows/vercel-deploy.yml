@@ -333,6 +333,33 @@ jobs:
             && echo "✅ Password protection disabled" \
             || echo "ℹ️  Could not disable password protection (may already be off)"
 
+      - name: Set BACKEND_API_URL in Vercel environment (proxy /api/* to Hetzner)
+        if: steps.vercel_guard.outputs.ready == 'true'
+        continue-on-error: true
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_PROJECT_ID: ${{ env.RESOLVED_VERCEL_PROJECT_ID || secrets.VERCEL_PROJECT_ID || 'prj_YNIHsyltyZUV7HQA3VyQhhGDvKD3' }}
+          VERCEL_TEAM_ID: ${{ secrets.VERCEL_TEAM_ID || secrets.VERCEL_ORG_ID || 'team_wes3fQvKjdfOMKXe7f4fFQoL' }}
+          HETZNER_HOST: ${{ secrets.HETZNER_HOST || secrets.SSH_HOST }}
+        run: |
+          if [ -z "$HETZNER_HOST" ]; then
+            echo "ℹ️  HETZNER_HOST not set — skipping BACKEND_API_URL configuration"
+            exit 0
+          fi
+          BACKEND_URL="http://${HETZNER_HOST}"
+          TEAM_PARAM=""
+          [ -n "$VERCEL_TEAM_ID" ] && TEAM_PARAM="?teamId=${VERCEL_TEAM_ID}"
+          HTTP=$(curl -s -o /dev/null -w "%{http_code}" \
+            -X POST "https://api.vercel.com/v10/projects/${VERCEL_PROJECT_ID}/env${TEAM_PARAM}" \
+            -H "Authorization: Bearer ${VERCEL_TOKEN}" \
+            -H "Content-Type: application/json" \
+            -d "{\"key\":\"BACKEND_API_URL\",\"value\":\"${BACKEND_URL}\",\"type\":\"plain\",\"target\":[\"production\"],\"upsert\":true}")
+          if [ "$HTTP" = "200" ] || [ "$HTTP" = "201" ]; then
+            echo "✅ BACKEND_API_URL set to ${BACKEND_URL} (Vercel proxies /api/* to Hetzner)"
+          else
+            echo "⚠️  Could not set BACKEND_API_URL (HTTP ${HTTP}) — site will load but API calls may fail"
+          fi
+
       - name: Smoke test Vercel URL
         if: steps.vercel_guard.outputs.ready == 'true'
         continue-on-error: true
