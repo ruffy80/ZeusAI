@@ -1,0 +1,31 @@
+name: Deploy Backend to Hetzner
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup SSH
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.HETZNERKEY }}" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+          ssh-keyscan -H ${{ secrets.HETZNERHOST }} > ~/.ssh/known_hosts
+
+      - name: Deploy to Hetzner
+        run: |
+          ssh ${{ secrets.HETZNERUSER }}@${{ secrets.HETZNERHOST }} "
+            cd ${{ secrets.BACKEND_PATH }} &&
+            git pull &&
+            npm install --legacy-peer-deps &&
+            npm run build &&
+            pm2 restart unicorn-backend || pm2 start dist/main.js --name unicorn-backend
+          "
