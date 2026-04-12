@@ -409,6 +409,7 @@ jobs:
 
       - name: Configure DNS records (Hetzner DNS → Cloudflare fallback)
         continue-on-error: true
+        id: dns_auto
         env:
           SITE_DOMAIN:           ${{ secrets.SITE_DOMAIN || 'zeusai.pro' }}
           HETZNER_DNS_API_KEY:   ${{ secrets.HETZNER_DNS_API_KEY || secrets.HETZNER_API_KEY }}
@@ -417,6 +418,32 @@ jobs:
           CF_ZONE_ID:            ${{ secrets.CF_ZONE_ID || secrets.CLOUDFLARE_ZONE_ID }}
           VERCEL_IP:             '76.76.21.21'
         run: node scripts/setup-dns.js
+
+      - name: DNS status check + instructions
+        if: always()
+        env:
+          SITE_DOMAIN: ${{ secrets.SITE_DOMAIN || 'zeusai.pro' }}
+        run: |
+          DOMAIN="${SITE_DOMAIN:-zeusai.pro}"
+          echo ""
+          echo "════════════════════════════════════════════════════════════"
+          echo "  DNS STATUS CHECK for $DOMAIN"
+          echo "════════════════════════════════════════════════════════════"
+          RESOLVED=$(dig +short "$DOMAIN" A 2>/dev/null | head -1 || echo "")
+          VERCEL_IP="76.76.21.21"
+          if [ "$RESOLVED" = "$VERCEL_IP" ]; then
+            echo "✅ DNS OK: $DOMAIN → $RESOLVED (Vercel)"
+          elif [ -n "$RESOLVED" ]; then
+            echo "⚠️  DNS MISMATCH: $DOMAIN → $RESOLVED (expected $VERCEL_IP)"
+            echo "  Configurează la provider-ul DNS:"
+            echo "    A     @    76.76.21.21          TTL 300"
+            echo "    CNAME www  cname.vercel-dns.com  TTL 300"
+          else
+            echo "❌ DNS: $DOMAIN nu se rezolvă - adaugă records DNS manual:"
+            echo "    A     @    76.76.21.21          TTL 300"
+            echo "    CNAME www  cname.vercel-dns.com  TTL 300"
+          fi
+          echo "════════════════════════════════════════════════════════════"
 
   # ──────────────────────────────────────────────────────────────────────
   # JOB 3: Deploy to Hetzner via SSH (runs backend/index.js)
@@ -816,6 +843,9 @@ jobs:
     if: always()
     steps:
       - name: Print summary
+        env:
+          DEPLOY_URL: ${{ needs.deploy-vercel.outputs.deploy_url }}
+          SITE_DOMAIN: ${{ secrets.SITE_DOMAIN || 'zeusai.pro' }}
         run: |
           echo "## 🦄 ZeusAI Deploy Summary" >> "$GITHUB_STEP_SUMMARY"
           echo "" >> "$GITHUB_STEP_SUMMARY"
@@ -827,6 +857,32 @@ jobs:
           echo "" >> "$GITHUB_STEP_SUMMARY"
           echo "Commit: \`${{ github.sha }}\` by **${{ github.actor }}**" >> "$GITHUB_STEP_SUMMARY"
           echo "Triggered: ${{ github.event_name }}" >> "$GITHUB_STEP_SUMMARY"
+          if [ -n "$DEPLOY_URL" ]; then
+            echo "" >> "$GITHUB_STEP_SUMMARY"
+            echo "**🔗 Vercel deploy URL:** [$DEPLOY_URL]($DEPLOY_URL)" >> "$GITHUB_STEP_SUMMARY"
+          fi
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+
+          SITE_DOMAIN="${SITE_DOMAIN:-zeusai.pro}"
+          # Check if domain resolves correctly
+          RESOLVED=$(dig +short "$SITE_DOMAIN" A 2>/dev/null | head -1 || echo "")
+          if [ "$RESOLVED" = "76.76.21.21" ]; then
+            echo "✅ **DNS OK** – $SITE_DOMAIN → 76.76.21.21 (Vercel)" >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "### ⚠️ DNS NEFUNCȚIONAL – Acțiune necesară!" >> "$GITHUB_STEP_SUMMARY"
+            echo "" >> "$GITHUB_STEP_SUMMARY"
+            echo "$SITE_DOMAIN ${RESOLVED:+→ $RESOLVED (GREȘIT)} ${RESOLVED:-nu se rezolvă}." >> "$GITHUB_STEP_SUMMARY"
+            echo "" >> "$GITHUB_STEP_SUMMARY"
+            echo "**Adaugă aceste DNS records la provider-ul tău (GoDaddy/Namecheap/etc):**" >> "$GITHUB_STEP_SUMMARY"
+            echo "" >> "$GITHUB_STEP_SUMMARY"
+            echo "\`\`\`" >> "$GITHUB_STEP_SUMMARY"
+            echo "Type   Name   Value                 TTL" >> "$GITHUB_STEP_SUMMARY"
+            echo "A      @      76.76.21.21           300" >> "$GITHUB_STEP_SUMMARY"
+            echo "CNAME  www    cname.vercel-dns.com  300" >> "$GITHUB_STEP_SUMMARY"
+            echo "\`\`\`" >> "$GITHUB_STEP_SUMMARY"
+            echo "" >> "$GITHUB_STEP_SUMMARY"
+            echo "Sau setează în GitHub Secrets: \`HETZNER_DNS_API_KEY\` / \`CF_TOKEN\` + \`CF_ZONE_ID\`" >> "$GITHUB_STEP_SUMMARY"
+          fi
 
   # ──────────────────────────────────────────────────────────────────────
   # JOB 6: Smoke tests after deploy + HTTPS health check with auto-restart
