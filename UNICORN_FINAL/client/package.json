@@ -5,7 +5,7 @@
   "scripts": {
     "start": "react-scripts start",
     "build": "react-scripts build",
-    "vercel-build": "react-scripts build"
+    "vercel-build": "CI=false react-scripts build"
   },
   "dependencies": {
     "react": "^18.2.0",

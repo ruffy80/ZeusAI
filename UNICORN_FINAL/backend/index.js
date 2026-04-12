@@ -624,24 +624,17 @@ meshOrchestrator.start();
 console.log('🕰️  Unicorn Mesh Orchestrator: STARTED — toate modulele conectate');
 
 // ==================== RUTE API ====================
-app.get('/api/health', (req, res) => {
+function buildHealthResponse() {
+  const s = Math.floor(process.uptime());
+  const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), sec = s % 60;
   const mem = process.memoryUsage();
-  res.json({
+  return {
     status: 'ok',
-    uptime: Math.floor(process.uptime()),
-    uptimeHuman: (() => {
-      const s = Math.floor(process.uptime());
-      const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), sec = s % 60;
-      return `${h}h ${m}m ${sec}s`;
-    })(),
+    uptime: s,
+    uptimeHuman: `${h}h ${m}m ${sec}s`,
     users: dbUsers.count(),
     dbConnected: true,
-    engines: {
-      innovation: true,
-      revenue: true,
-      viral: true,
-      eternalEngine: true,
-    },
+    engines: { innovation: true, revenue: true, viral: true, eternalEngine: true },
     memory: {
       rss: Math.round(mem.rss / 1024 / 1024) + 'MB',
       heapUsed: Math.round(mem.heapUsed / 1024 / 1024) + 'MB',
@@ -651,8 +644,13 @@ app.get('/api/health', (req, res) => {
     env: process.env.NODE_ENV || 'development',
     version: APP_VERSION,
     timestamp: new Date().toISOString(),
-  });
-});
+  };
+}
+
+// /health (non-prefixed) — used by Vercel smoke tests and uptime monitors
+app.get('/health', (req, res) => res.json(buildHealthResponse()));
+
+app.get('/api/health', (req, res) => res.json(buildHealthResponse()));
 
 // ==================== SNAPSHOT + SSE STREAM (backend mirror) ====================
 const _streamClients = new Set();
