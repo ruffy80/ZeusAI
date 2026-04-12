@@ -570,12 +570,10 @@ selfHealingEngine.attachOrchestrator(centralOrchestrator);
 // Componenta 3 — Auto-Innovation Loop (analiză cod + PR automate + CI monitoring)
 autoInnovationLoop.start();
 
-// Domain automation (only if DOMAIN is configured)
-if (process.env.DOMAIN) {
-  domainAutomationManager.init().catch(err =>
-    console.warn('[DomainAutomation] init error:', err.message, err.stack)
-  );
-}
+// Domain automation — pornit automat, indiferent de env DOMAIN
+domainAutomationManager.init().catch(err =>
+  console.warn('[DomainAutomation] init error:', err.message, err.stack)
+);
 
 // Pornire module cu cicluri autonome
 uee.startEternalCycle();
@@ -601,6 +599,42 @@ app.use('/api/ultimate', ultimateModules.getRouter(adminSecretMiddleware));
 app.use('/api/legal-fortress', legalFortress.getRouter(adminSecretMiddleware));
 app.use('/api/quantum-resilience', qrc.getRouter(adminSecretMiddleware));
 app.use('/api/dashboard', executiveDashboard.getRouter(adminSecretMiddleware));
+// ── Unicorn Eternal Engine ──────────────────────────────────────────
+app.use('/api/uee', uee.getRouter(adminSecretMiddleware));
+
+// ── Unicorn Auto-Genesis ────────────────────────────────────────────
+{
+  const genesisRouter = require('express').Router();
+  genesisRouter.use(adminSecretMiddleware);
+  genesisRouter.get('/status', (req, res) => {
+    res.json({ module: 'UnicornAutoGenesis', status: 'active', repo: unicornAutoGenesis.repo, branch: unicornAutoGenesis.branch });
+  });
+  genesisRouter.post('/run', async (req, res) => {
+    try {
+      await unicornAutoGenesis.run();
+      res.json({ success: true, message: 'AutoGenesis run completed' });
+    } catch (err) {
+      res.status(500).json({ success: false, error: err.message });
+    }
+  });
+  app.use('/api/auto-genesis', genesisRouter);
+}
+
+// ── Domain Automation Manager ───────────────────────────────────────
+{
+  const damRouter = require('express').Router();
+  damRouter.use(adminSecretMiddleware);
+  damRouter.get('/status', (req, res) => res.json(domainAutomationManager.getStatus()));
+  damRouter.post('/run', async (req, res) => {
+    try {
+      const result = await domainAutomationManager.init();
+      res.json({ success: true, result });
+    } catch (err) {
+      res.status(500).json({ success: false, error: err.message });
+    }
+  });
+  app.use('/api/domain-automation', damRouter);
+}
 
 // Start autonomous systems
 console.log('🤖 Autonomous Innovation Engine: STARTING');
@@ -610,6 +644,9 @@ console.log('🛡️  Control Plane Agent: STARTING');
 console.log('🎯 Profit Control Loop: STARTING');
 
 console.log('♾️  Unicorn Eternal Engine: STARTING');
+console.log('🛡️  Quantum Resilience Core: ACTIVE');
+console.log('🚀 Unicorn Auto-Genesis: READY');
+console.log('🌐 Domain Automation Manager: ACTIVE');
 console.log('📱 Social Media Viralizer: STARTING');
 console.log('🌐 Global Digital Standard: STARTING');
 
