@@ -96,7 +96,8 @@ const RAMP_STEP_MS       = parseInt(process.env.CANARY_RAMP_STEP_MS || '300000',
 const TRAFFIC_RAMP_STEPS = [0.05, 0.20, 0.50, 1.0];
 
 class CanaryController {
-  constructor() {
+  constructor()
+    this.cache = new Map(); this.cacheTTL = 60000; {
     this.canaries    = new Map(); // id → canary state
     this.decisionLog = [];
   }

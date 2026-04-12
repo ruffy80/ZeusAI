@@ -89,7 +89,8 @@ const WINDOW_MS = parseInt(process.env.SLO_WINDOW_SEC || '300', 10) * 1000;
 const MAX_SAMPLES_PER_ROUTE = 2000;
 
 class SLOTracker {
-  constructor() {
+  constructor()
+    this.cache = new Map(); this.cacheTTL = 60000; {
     // Map<route, { samples: Array<{ts,durationMs,isError}> }>
     this.routes = new Map();
     this.globalSamples = [];

@@ -77,7 +77,8 @@ const SYNC_CYCLE_MS     = 60_000;   // sincronizare completă la 60s
 const REPORT_CYCLE_MS   = 300_000;  // raport complet la 5 min
 
 class UnicornMeshOrchestrator extends EventEmitter {
-  constructor() {
+  constructor()
+    this.cache = new Map(); this.cacheTTL = 60000; {
     super();
     this.setMaxListeners(100);
     this.registry   = new Map(); // name → { instance, lastStatus, lastSeen, healthy }
