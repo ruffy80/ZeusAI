@@ -17,10 +17,12 @@ const REVENUE_INTERVAL      = parseInt(process.env.REVENUE_INTERVAL      || '15'
 const VIRAL_INTERVAL        = parseInt(process.env.VIRAL_INTERVAL        || '20',  10) * 1000;
 const DEPLOY_INTERVAL       = parseInt(process.env.DEPLOYMENT_INTERVAL   || '120', 10) * 1000;
 const PLATFORM_INTERVAL     = parseInt(process.env.PLATFORM_INTERVAL     || '300', 10) * 1000;
+const MONITOR_INTERVAL      = parseInt(process.env.MONITOR_INTERVAL      || '60',  10) * 1000;
+const DECISION_INTERVAL     = parseInt(process.env.DECISION_INTERVAL     || '45',  10) * 1000;
 const HEALTH_INTERVAL       = 15 * 1000;
 const BACKEND_HEAL_CMD      = process.env.BACKEND_HEAL_CMD || '';
 
-let innovationEngine, revenueEngine, viralEngine;
+let innovationEngine, revenueEngine, viralEngine, controlPlaneAgent, profitControlLoop;
 
 // ─── Load engines gracefully (modules export singleton instances) ────────────
 try {
@@ -44,6 +46,20 @@ try {
   console.warn('⚠️  [ORCHESTRATOR] Viral Growth Engine unavailable:', e.message);
 }
 
+try {
+  controlPlaneAgent = require(path.join(BASE, 'control-plane-agent'));
+  console.log('🤖 [ORCHESTRATOR] Control Plane Agent (Auto-Decision AI) loaded');
+} catch (e) {
+  console.warn('⚠️  [ORCHESTRATOR] Control Plane Agent unavailable:', e.message);
+}
+
+try {
+  profitControlLoop = require(path.join(BASE, 'profit-control-loop'));
+  console.log('🎯 [ORCHESTRATOR] Profit Control Loop (Auto-Decision AI) loaded');
+} catch (e) {
+  console.warn('⚠️  [ORCHESTRATOR] Profit Control Loop unavailable:', e.message);
+}
+
 // ─── Stats tracking ──────────────────────────────────────────────────────────
 const stats = {
   startTime: new Date(),
@@ -52,6 +68,8 @@ const stats = {
   viralCycles: 0,
   deployCycles: 0,
   platformCycles: 0,
+  monitorCycles: 0,
+  decisionCycles: 0,
   healthChecks: 0,
   errors: 0,
 };
@@ -228,6 +246,61 @@ async function runPlatformCycle() {
   }
 }
 
+// ─── Auto-Monitoring cycle ────────────────────────────────────────────────────
+async function runMonitorCycle() {
+  stats.monitorCycles++;
+  log('📡', `Auto-Monitor cycle #${stats.monitorCycles}`);
+  try {
+    const http = require('http');
+    const endpoints = [
+      { url: 'http://localhost:3000/api/health',                   label: 'health' },
+      { url: 'http://localhost:3000/api/slo/status',               label: 'slo' },
+      { url: 'http://localhost:3000/api/orchestrator/status',      label: 'orchestrator' },
+    ];
+    for (const ep of endpoints) {
+      const status = await new Promise((resolve) => {
+        const req = http.get(ep.url, (res) => { res.resume(); resolve(res.statusCode); });
+        req.on('error', () => resolve(0));
+        req.setTimeout(4000, () => { req.destroy(); resolve(0); });
+      });
+      if (status !== 200) {
+        log('⚠️', `Auto-Monitor: ${ep.label} degraded (HTTP ${status})`);
+      }
+    }
+    log('✅', 'Auto-Monitor cycle complete');
+  } catch (e) {
+    stats.errors++;
+    log('❌', 'Auto-Monitor cycle error:', e.message);
+  }
+}
+
+// ─── Auto-Decision AI cycle ───────────────────────────────────────────────────
+async function runDecisionCycle() {
+  stats.decisionCycles++;
+  log('🤖', `Auto-Decision AI cycle #${stats.decisionCycles}`);
+  try {
+    if (controlPlaneAgent && typeof controlPlaneAgent.getStatus === 'function') {
+      const status = controlPlaneAgent.getStatus();
+      log('✅', 'Auto-Decision AI status', {
+        decisions: status.decisionCount || 0,
+        rollbacks: status.rollbackCount || 0,
+      });
+    } else {
+      log('🤖', 'Auto-Decision AI (mock) — cycle logged');
+    }
+    if (profitControlLoop && typeof profitControlLoop.getStatus === 'function') {
+      const loopStatus = profitControlLoop.getStatus();
+      log('🎯', 'Profit Control Loop status', {
+        cycles: loopStatus.cycleCount || 0,
+        totalReward: loopStatus.totalReward || 0,
+      });
+    }
+  } catch (e) {
+    stats.errors++;
+    log('❌', 'Auto-Decision AI cycle error:', e.message);
+  }
+}
+
 // ─── Health report ────────────────────────────────────────────────────────────
 function printHealthReport() {
   stats.healthChecks++;
@@ -238,16 +311,22 @@ function printHealthReport() {
     viralCycles: stats.viralCycles,
     deployCycles: stats.deployCycles,
     platformCycles: stats.platformCycles,
+    monitorCycles: stats.monitorCycles,
+    decisionCycles: stats.decisionCycles,
     healthChecks: stats.healthChecks,
     errors: stats.errors,
     innovationEngine: innovationEngine ? 'ACTIVE' : 'MOCKED',
     revenueEngine: revenueEngine ? 'ACTIVE' : 'MOCKED',
     viralEngine: viralEngine ? 'ACTIVE' : 'MOCKED',
+    controlPlaneAgent: controlPlaneAgent ? 'ACTIVE' : 'MOCKED',
+    profitControlLoop: profitControlLoop ? 'ACTIVE' : 'MOCKED',
     nextInnovation: `${Math.round(INNOVATION_INTERVAL / 1000)}s`,
     nextRevenue: `${Math.round(REVENUE_INTERVAL / 1000)}s`,
     nextViral: `${Math.round(VIRAL_INTERVAL / 1000)}s`,
     nextDeploy: `${Math.round(DEPLOY_INTERVAL / 1000)}s`,
     nextPlatform: `${Math.round(PLATFORM_INTERVAL / 1000)}s`,
+    nextMonitor: `${Math.round(MONITOR_INTERVAL / 1000)}s`,
+    nextDecision: `${Math.round(DECISION_INTERVAL / 1000)}s`,
   };
   log('📊', '══ ORCHESTRATOR HEALTH REPORT ══', report);
 }
@@ -269,6 +348,8 @@ process.on('uncaughtException', (err) => {
   log('🦄', `  Viral every      ${VIRAL_INTERVAL / 1000}s`);
   log('🦄', `  Deploy check every ${DEPLOY_INTERVAL / 1000}s`);
   log('🦄', `  Platform check every ${PLATFORM_INTERVAL / 1000}s`);
+  log('🦄', `  Auto-Monitor every ${MONITOR_INTERVAL / 1000}s`);
+  log('🦄', `  Auto-Decision AI every ${DECISION_INTERVAL / 1000}s`);
   log('🦄', '══════════════════════════════════════════');
 
   // Immediate first cycles
@@ -277,6 +358,8 @@ process.on('uncaughtException', (err) => {
   await runViralCycle();
   await runDeployCycle();
   await runPlatformCycle();
+  await runMonitorCycle();
+  await runDecisionCycle();
   printHealthReport();
 
   // Schedule recurring cycles
@@ -285,7 +368,9 @@ process.on('uncaughtException', (err) => {
   setInterval(runViralCycle,      VIRAL_INTERVAL);
   setInterval(runDeployCycle,     DEPLOY_INTERVAL);
   setInterval(runPlatformCycle,   PLATFORM_INTERVAL);
+  setInterval(runMonitorCycle,    MONITOR_INTERVAL);
+  setInterval(runDecisionCycle,   DECISION_INTERVAL);
   setInterval(printHealthReport,  HEALTH_INTERVAL);
 
-  log('✅', 'All autonomous cycles scheduled and running 🚀');
+  log('✅', 'All 8 autonomous cycles scheduled and running 🚀');
 })();

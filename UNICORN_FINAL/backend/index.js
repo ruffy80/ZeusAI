@@ -530,7 +530,8 @@ const innovationEngine      = require('../src/innovation/innovation-engine');
 const autoDeployOrchestrator = require('../src/modules/auto-deploy-orchestrator');
 
 // ==================== MESH ORCHESTRATOR — Swiss-watch inter-module bus ====================
-const meshOrchestrator = require('./modules/unicornMeshOrchestrator');
+const meshOrchestrator     = require('./modules/unicornMeshOrchestrator');
+const unicornOrchestrator  = require('./modules/unicornOrchestrator');
 
 // SLO middleware — records every API request latency & error status
 app.use((req, res, next) => {
@@ -618,10 +619,12 @@ meshOrchestrator.register('temporalProcessor',      temporalProcessor,  { status
 meshOrchestrator.register('quantumVault',           quantumVault,       { statusFn: 'getStatus' });
 meshOrchestrator.register('sovereignGuardian',      sovereignGuardian,  { statusFn: 'getStatus' });
 meshOrchestrator.register('revenueModules',         revenueModules,     { statusFn: 'getAllStatus' });
+meshOrchestrator.register('unicornOrchestrator',    unicornOrchestrator, { statusFn: 'getStatus' });
 
 // Pornim orchestratorul — Swiss-watch mode
 meshOrchestrator.start();
 console.log('🕰️  Unicorn Mesh Orchestrator: STARTED — toate modulele conectate');
+console.log('🦄 Unicorn Orchestrator (8 engines): ACTIVE');
 
 // ==================== RUTE API ====================
 function buildHealthResponse() {
@@ -2187,6 +2190,11 @@ app.get('/api/autonomous/platform/status', (req, res) => {
       estimatedReach: autoViralGrowth.metrics.estimatedReach,
     },
   });
+});
+
+// ==================== UNICORN ORCHESTRATOR — STATUS UNIFICAT ====================
+app.get('/api/orchestrator/status', (req, res) => {
+  res.json(unicornOrchestrator.getStatus());
 });
 
 // ==================== SELF-HEALING: SLO ROUTES ====================
