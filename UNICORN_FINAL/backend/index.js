@@ -504,6 +504,11 @@ const canaryCtrl       = require('./modules/canary-controller');
 const controlPlane     = require('./modules/control-plane-agent');
 const profitLoop       = require('./modules/profit-control-loop');
 
+// ==================== 3 COMPONENTE CRITICE AUTONOME ====================
+const centralOrchestrator = require('./modules/central-orchestrator');
+const selfHealingEngine   = require('./modules/self-healing-engine');
+const autoInnovationLoop  = require('./modules/auto-innovation-loop');
+
 // ==================== DYNAMIC PRICING ENGINE ====================
 const dynamicPricing   = require('./modules/dynamic-pricing');
 
@@ -551,6 +556,15 @@ autoDeploy.start();
 codeSanityEngine.start();
 // Pornire module revenue streams (7 fluxuri de venit activate autonom)
 revenueModules.startAutoRevenue();
+
+// ==================== PORNIRE 3 COMPONENTE CRITICE AUTONOME ====================
+// Componenta 1 — Orchestratorul Central (monitorizare Vercel/Hetzner/GitHub/DNS)
+centralOrchestrator.start();
+// Componenta 2 — Self-Healing Engine (auto-repair pe baza evenimentelor orchestratorului)
+selfHealingEngine.start();
+selfHealingEngine.attachOrchestrator(centralOrchestrator);
+// Componenta 3 — Auto-Innovation Loop (analiză cod + PR automate + CI monitoring)
+autoInnovationLoop.start();
 
 // Domain automation (only if DOMAIN is configured)
 if (process.env.DOMAIN) {
@@ -3025,7 +3039,86 @@ app.get('/api/auto-deploy-orchestrator/status', adminTokenMiddleware, (req, res)
   res.json({ module: 'Auto Deploy Orchestrator', status: 'active', ready: true });
 });
 
-// ==================== SERVIRE FRONTEND ====================
+// ==================== CENTRAL ORCHESTRATOR ROUTES ====================
+app.get('/api/orchestrator/status', (req, res) => {
+  res.json(centralOrchestrator.getStatus());
+});
+
+app.get('/api/orchestrator/decisions', adminTokenMiddleware, (req, res) => {
+  const limit = Math.min(parseInt(req.query.limit || '50', 10), 500);
+  res.json(centralOrchestrator.getDecisionLog(limit));
+});
+
+app.get('/api/orchestrator/incidents', adminTokenMiddleware, (req, res) => {
+  const limit = Math.min(parseInt(req.query.limit || '50', 10), 200);
+  res.json(centralOrchestrator.getIncidents(limit));
+});
+
+app.post('/api/orchestrator/check', adminTokenMiddleware, async (req, res) => {
+  try {
+    const status = await centralOrchestrator.forceCheck();
+    res.json({ success: true, status });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// ==================== SELF-HEALING ENGINE ROUTES ====================
+app.get('/api/self-healer/status', (req, res) => {
+  res.json(selfHealingEngine.getStatus());
+});
+
+app.get('/api/self-healer/log', adminTokenMiddleware, (req, res) => {
+  const limit = Math.min(parseInt(req.query.limit || '50', 10), 500);
+  res.json(selfHealingEngine.getHealLog(limit));
+});
+
+app.post('/api/self-healer/restart', adminTokenMiddleware, async (req, res) => {
+  const { processName } = req.body || {};
+  if (!processName) return res.status(400).json({ error: 'processName required' });
+  try {
+    const ok = await selfHealingEngine.manualRestart(processName);
+    res.json({ success: ok, processName });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+app.post('/api/self-healer/redeploy', adminTokenMiddleware, async (req, res) => {
+  try {
+    const ok = await selfHealingEngine.manualRedeploy();
+    res.json({ success: ok });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// ==================== AUTO-INNOVATION LOOP ROUTES ====================
+app.get('/api/innovation-loop/status', (req, res) => {
+  res.json(autoInnovationLoop.getStatus());
+});
+
+app.get('/api/innovation-loop/proposals', adminTokenMiddleware, (req, res) => {
+  const limit = Math.min(parseInt(req.query.limit || '20', 10), 100);
+  res.json(autoInnovationLoop.getProposals(limit));
+});
+
+app.get('/api/innovation-loop/pending-prs', adminTokenMiddleware, (req, res) => {
+  res.json(autoInnovationLoop.getPendingPRs());
+});
+
+app.get('/api/innovation-loop/merged-prs', adminTokenMiddleware, (req, res) => {
+  const limit = Math.min(parseInt(req.query.limit || '20', 10), 100);
+  res.json(autoInnovationLoop.getMergedPRs(limit));
+});
+
+app.get('/api/innovation-loop/log', adminTokenMiddleware, (req, res) => {
+  const limit = Math.min(parseInt(req.query.limit || '50', 10), 500);
+  res.json(autoInnovationLoop.getLog(limit));
+});
+
+app.post('/api/innovation-loop/trigger', adminTokenMiddleware, async (req, res) => {
+  try {
+    await autoInnovationLoop.triggerCycle();
+    res.json({ success: true, status: autoInnovationLoop.getStatus() });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+
 const clientBuildPath = path.join(__dirname, '../client/build');
 const clientIndexPath = path.join(clientBuildPath, 'index.html');
 const fs = require('fs');
