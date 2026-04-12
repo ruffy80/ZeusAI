@@ -1,0 +1,39 @@
+name: Deploy Unicorn
+
+on:
+  push:
+    branches:
+      - main
+
+concurrency:
+  group: deploy-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install dependencies
+        working-directory: UNICORN_FINAL
+        run: npm install --legacy-peer-deps
+
+      - name: Lint
+        working-directory: UNICORN_FINAL
+        run: npm run lint
+
+      - name: Test
+        working-directory: UNICORN_FINAL
+        run: npm test
+
+      - name: Deploy to Vercel
+        working-directory: UNICORN_FINAL
+        run: npx vercel --prod --token ${{ secrets.VERCEL_TOKEN }}
