@@ -519,6 +519,7 @@ const quantumSecurity       = require('./modules/QuantumSecurityLayer');
 const temporalProcessor     = require('./modules/TemporalDataProcessor');
 const configManager         = require('./modules/configurationManager');
 const quantumPaymentNexus   = require('./modules/quantumPaymentNexus');
+// QuantumVault este modulul universal de secrete – auto-bootstrap + auto-inject la require()
 const quantumVault          = require('./modules/quantumVault');
 const revenueModules        = require('./modules/revenueModules');
 const sovereignGuardian     = require('./modules/sovereignAccessGuardian');
@@ -2859,6 +2860,13 @@ app.post('/api/temporal-processor/process', adminTokenMiddleware, async (req, re
 app.get('/api/config/status', adminTokenMiddleware, (req, res) => {
   res.json(configManager.getStatus());
 });
+app.get('/api/config/all-keys', adminTokenMiddleware, (req, res) => {
+  res.json(configManager.getAllKeysStatus());
+});
+app.post('/api/config/inject', adminTokenMiddleware, (req, res) => {
+  const injected = configManager.injectToEnv();
+  res.json({ ok: true, injected });
+});
 app.get('/api/config/:key', adminTokenMiddleware, (req, res) => {
   const val = configManager.get(req.params.key);
   res.json({ key: req.params.key, value: val !== undefined ? val : null });
@@ -2866,6 +2874,7 @@ app.get('/api/config/:key', adminTokenMiddleware, (req, res) => {
 app.post('/api/config/:key', adminTokenMiddleware, (req, res) => {
   try {
     configManager.set(req.params.key, req.body.value);
+    configManager.injectToEnv();
     res.json({ ok: true });
   } catch (e) { res.status(400).json({ error: e.message }); }
 });
@@ -2915,6 +2924,18 @@ app.post('/api/quantum-vault/retrieve', adminTokenMiddleware, async (req, res) =
 });
 app.get('/api/quantum-vault/keys', adminTokenMiddleware, (req, res) => {
   res.json({ keys: quantumVault.listKeys() });
+});
+app.get('/api/quantum-vault/all-keys', adminTokenMiddleware, (req, res) => {
+  res.json(quantumVault.getAllKeysStatus());
+});
+app.post('/api/quantum-vault/inject', adminTokenMiddleware, (req, res) => {
+  const injected = quantumVault.injectToEnv();
+  const cfgInjected = configManager.injectToEnv();
+  res.json({ injected: injected + cfgInjected, vaultInjected: injected, configInjected: cfgInjected });
+});
+app.post('/api/quantum-vault/unlock', adminTokenMiddleware, (req, res) => {
+  const ok = quantumVault.unlock(req.body.emergencyCode);
+  res.json({ success: ok });
 });
 
 // --- Revenue Modules (7 fluxuri de venit) ---
