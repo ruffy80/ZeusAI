@@ -331,6 +331,7 @@ async function sendWelcomeEmail(user) {
 }
 
 async function sendPaymentConfirmation(user, payment) {
+  const { appUrl } = getSmtpConfig();
   const planLabel = { free: 'Free', starter: 'Starter ($29/lună)', pro: 'Pro ($99/lună)', enterprise: 'Enterprise ($499/lună)' };
   const isSubscription = Boolean(payment.planId);
   const subject = isSubscription
@@ -347,13 +348,13 @@ async function sendPaymentConfirmation(user, payment) {
         <h2 style="color:#22d3ee">✅ ${subject}</h2>
         <p>Salut <b>${user.name}</b>,</p>
         ${body}
-        <a href="${process.env.PUBLIC_APP_URL || 'https://zeusai.pro'}/dashboard-client" style="display:inline-block;padding:12px 28px;background:linear-gradient(90deg,#22d3ee,#a855f7);color:#fff;text-decoration:none;border-radius:8px;font-weight:700;margin-top:8px">
+        <a href="${appUrl}/dashboard-client" style="display:inline-block;padding:12px 28px;background:linear-gradient(90deg,#22d3ee,#a855f7);color:#fff;text-decoration:none;border-radius:8px;font-weight:700;margin-top:8px">
           Deschide Dashboard
         </a>
         <hr style="border:none;border-top:1px solid #eee;margin:24px 0">
         <p style="color:#999;font-size:12px">Zeus AI · zeusai.pro</p>
       </div>`,
-    text: subject + ' - ' + (process.env.PUBLIC_APP_URL || 'https://zeusai.pro') + '/dashboard-client',
+    text: subject + ' - ' + appUrl + '/dashboard-client',
   });
 }
 

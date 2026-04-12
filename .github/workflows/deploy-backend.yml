@@ -55,7 +55,7 @@ jobs:
               -o BatchMode=yes \
               -o ConnectTimeout=20 \
               "$DEPLOY_USER@$DEPLOY_HOST" << ENDSSH
-            cd "$DEPLOY_PATH" 2>/dev/null || { echo "❌ Deploy path not found: $DEPLOY_PATH"; exit 1; }
+            cd "$DEPLOY_PATH" || { echo "❌ Deploy path not found: $DEPLOY_PATH"; exit 1; }
             git config --global --add safe.directory "$DEPLOY_PATH" 2>/dev/null || true
             git fetch --all && git reset --hard origin/main || git pull origin main
             npm install --legacy-peer-deps --no-audit --no-fund 2>&1 | tail -5

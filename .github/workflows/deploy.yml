@@ -50,12 +50,15 @@ jobs:
       - name: Deploy to Vercel
         if: steps.vercel_guard.outputs.ready == 'true'
         working-directory: UNICORN_FINAL
-        # continue-on-error: handles Vercel free-plan 100 deploys/day rate limit
-        continue-on-error: true
         run: |
-          npx vercel --prod --yes --token "${{ secrets.VERCEL_TOKEN }}" || {
+          # vercel-deploy.yml is the primary workflow; this is a fallback.
+          # Suppress only the known free-plan 100 deploys/day rate limit error.
+          VERCEL_OUT=$(npx vercel --prod --yes --token "${{ secrets.VERCEL_TOKEN }}" 2>&1) && echo "$VERCEL_OUT" || {
             EXIT=$?
-            echo "⚠️  Vercel deploy failed (exit $EXIT) – may be rate-limited (api-deployments-free-per-day)."
-            echo "    Primary deploy is handled by vercel-deploy.yml. Continuing."
-            exit 0
+            echo "$VERCEL_OUT"
+            if echo "$VERCEL_OUT" | grep -q "api-deployments-free-per-day"; then
+              echo "ℹ️  Vercel rate limit reached (100 deploys/day on free plan). Primary deploy via vercel-deploy.yml."
+              exit 0
+            fi
+            exit $EXIT
           }
