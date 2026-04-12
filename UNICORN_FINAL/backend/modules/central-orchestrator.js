@@ -49,7 +49,8 @@ function getGithubToken() { return process.env.GITHUB_TOKEN || ''; }
 function getGithubRepo()  { return process.env.GITHUB_REPOSITORY || ''; }
 
 class CentralOrchestrator extends EventEmitter {
-  constructor() {
+  constructor()
+    this.cache = new Map(); this.cacheTTL = 60000; {
     super();
     this.startedAt    = Date.now();
     this.decisionLog  = [];
