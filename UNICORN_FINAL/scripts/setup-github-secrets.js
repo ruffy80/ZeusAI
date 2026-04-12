@@ -202,11 +202,29 @@ async function run() {
     HETZNER_DEPLOY_PATH:    '/root/unicorn-final',
     HETZNER_APP_PORT:       '3000',
 
+    // SSH aliases — same values as Hetzner equivalents above (used by deploy-backend.yml, setup-ai-keys.yml)
+    SSH_HOST:               '204.168.230.142',
+    SSH_USER:               'root',
+    SSH_PORT:               '22',
+
+    // Vercel team alias — used by vercel-deploy.yml as VERCEL_TEAM_ID
+    VERCEL_TEAM_ID:         VERCEL_ORG_ID,
+
+    // Health check URL — used by unicorn-keepalive.yml
+    VERCEL_HEALTH_URL:      'https://zeusai.pro/health',
+
+    // Ownership — used by vercel-deploy.yml for certbot and .env injection
+    OWNER_EMAIL:            'vladoi_ionut@yahoo.com',
+    BTC_WALLET_ADDRESS:     'bc1q4f7e66z87mdfj56kz0dj5hvcnpmh0qh4wuv22e',
+
     // Pass-through from environment (must be provided externally if available)
     ...(process.env.VERCEL_TOKEN            ? { VERCEL_TOKEN:            process.env.VERCEL_TOKEN }            : {}),
     ...(process.env.HETZNER_API_KEY         ? { HETZNER_API_KEY:         process.env.HETZNER_API_KEY }         : {}),
     ...(process.env.HETZNER_API_TOKEN       ? { HETZNER_API_TOKEN:       process.env.HETZNER_API_TOKEN }       : {}),
     ...(process.env.HETZNER_SSH_PRIVATE_KEY ? { HETZNER_SSH_PRIVATE_KEY: process.env.HETZNER_SSH_PRIVATE_KEY } : {}),
+    // SSH_PRIVATE_KEY alias (used by deploy-backend.yml, setup-ai-keys.yml as fallback)
+    ...(process.env.HETZNER_SSH_PRIVATE_KEY ? { SSH_PRIVATE_KEY:         process.env.HETZNER_SSH_PRIVATE_KEY } : {}),
+    ...(process.env.SSH_PRIVATE_KEY         ? { SSH_PRIVATE_KEY:         process.env.SSH_PRIVATE_KEY }         : {}),
     // AI provider keys (pass-through — user must provide these)
     ...(process.env.OPENAI_API_KEY     ? { OPENAI_API_KEY:     process.env.OPENAI_API_KEY }     : {}),
     ...(process.env.DEEPSEEK_API_KEY   ? { DEEPSEEK_API_KEY:   process.env.DEEPSEEK_API_KEY }   : {}),
@@ -232,6 +250,10 @@ async function run() {
     ...(process.env.CLOUDFLARE_API_TOKEN    ? { CF_TOKEN:                process.env.CLOUDFLARE_API_TOKEN }    : {}),
     ...(process.env.CF_ZONE_ID              ? { CF_ZONE_ID:              process.env.CF_ZONE_ID }              : {}),
     ...(process.env.CLOUDFLARE_ZONE_ID      ? { CF_ZONE_ID:              process.env.CLOUDFLARE_ZONE_ID }      : {}),
+    // Webhook URLs (optional — used as deploy-webhook fallback targets)
+    ...(process.env.HETZNER_WEBHOOK_URL     ? { HETZNER_WEBHOOK_URL:     process.env.HETZNER_WEBHOOK_URL }     : {}),
+    ...(process.env.GH_WEBHOOK_URL          ? { GH_WEBHOOK_URL:          process.env.GH_WEBHOOK_URL }          : {}),
+    ...(process.env.WEBHOOK_URL             ? { WEBHOOK_URL:             process.env.WEBHOOK_URL }             : {}),
   };
 
   const { key, key_id } = await apiGet(`/repos/${OWNER}/${REPO}/actions/secrets/public-key`);
