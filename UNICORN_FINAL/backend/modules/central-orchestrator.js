@@ -38,11 +38,15 @@ const MAX_INCIDENTS     = 200;
 const ESCALATION_FAILURE_THRESHOLD = 3; // consecutive failures before escalation
 
 // Env-driven targets — safe defaults for when not configured
+// These are read lazily via getters (not cached at module load) to support
+// runtime injection from quantumVault.
 const VERCEL_APP_URL    = process.env.PUBLIC_APP_URL       || process.env.VERCEL_URL || '';
 const HETZNER_URL       = process.env.HETZNER_BACKEND_URL  || '';
 const DOMAIN            = process.env.DOMAIN               || '';
-const GITHUB_TOKEN      = process.env.GITHUB_TOKEN         || '';
-const GITHUB_REPO       = process.env.GITHUB_REPOSITORY    || ''; // "owner/repo"
+// GITHUB_TOKEN și GITHUB_REPO sunt citite din process.env la runtime (nu cached)
+// pentru a permite injectarea secretelor de către quantumVault
+function getGithubToken() { return process.env.GITHUB_TOKEN || ''; }
+function getGithubRepo()  { return process.env.GITHUB_REPOSITORY || ''; }
 
 class CentralOrchestrator extends EventEmitter {
   constructor() {
@@ -157,13 +161,13 @@ class CentralOrchestrator extends EventEmitter {
   // ── Probe: GitHub Actions ─────────────────────────────────────────
 
   async _checkGitHub() {
-    if (!GITHUB_TOKEN || !GITHUB_REPO) {
+    if (!getGithubToken() || !getGithubRepo()) {
       this._updateHealth('github', 'unconfigured');
       return;
     }
 
     try {
-      const [owner, repo] = GITHUB_REPO.split('/');
+      const [owner, repo] = getGithubRepo().split('/');
       if (!owner || !repo) {
         this._updateHealth('github', 'misconfigured');
         return;
@@ -276,7 +280,7 @@ class CentralOrchestrator extends EventEmitter {
         path,
         method:  'GET',
         headers: {
-          'Authorization': `Bearer ${GITHUB_TOKEN}`,
+          'Authorization': `Bearer ${getGithubToken()}`,
           'User-Agent':    'UnicornOrchestrator/1.0',
           'Accept':        'application/vnd.github+json',
         },

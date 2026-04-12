@@ -5,6 +5,8 @@ on:
     branches:
       - main
 
+# Prevent duplicate runs with vercel-deploy.yml (which is the primary deploy workflow).
+# This workflow is kept as a backup/fallback only.
 concurrency:
   group: deploy-${{ github.ref }}
   cancel-in-progress: true
@@ -34,6 +36,29 @@ jobs:
         working-directory: UNICORN_FINAL
         run: npm test
 
+      # Guard: skip Vercel deploy if token is missing
+      - name: Validate Vercel token
+        id: vercel_guard
+        run: |
+          if [ -z "${{ secrets.VERCEL_TOKEN }}" ]; then
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+            echo "ℹ️  VERCEL_TOKEN not configured – skipping Vercel deploy (handled by vercel-deploy.yml)"
+          else
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Deploy to Vercel
+        if: steps.vercel_guard.outputs.ready == 'true'
         working-directory: UNICORN_FINAL
-        run: npx vercel --prod --yes --token ${{ secrets.VERCEL_TOKEN }}
+        run: |
+          # vercel-deploy.yml is the primary workflow; this is a fallback.
+          # Suppress only the known free-plan 100 deploys/day rate limit error.
+          VERCEL_OUT=$(npx vercel --prod --yes --token "${{ secrets.VERCEL_TOKEN }}" 2>&1) && echo "$VERCEL_OUT" || {
+            EXIT=$?
+            echo "$VERCEL_OUT"
+            if echo "$VERCEL_OUT" | grep -q "api-deployments-free-per-day"; then
+              echo "ℹ️  Vercel rate limit reached (100 deploys/day on free plan). Primary deploy via vercel-deploy.yml."
+              exit 0
+            fi
+            exit $EXIT
+          }

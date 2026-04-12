@@ -63,6 +63,9 @@
 // =====================================================================
 
 require('dotenv').config();
+// QuantumVault trebuie să se încarce PRIMUL – bootstrap + inject secrete în process.env
+// înainte ca orice alt modul să citească variabilele de mediu
+const quantumVault = require('./modules/quantumVault');
 const express = require('express');
 const cors = require('cors');
 const compression = require('compression');
@@ -519,8 +522,7 @@ const quantumSecurity       = require('./modules/QuantumSecurityLayer');
 const temporalProcessor     = require('./modules/TemporalDataProcessor');
 const configManager         = require('./modules/configurationManager');
 const quantumPaymentNexus   = require('./modules/quantumPaymentNexus');
-// QuantumVault este modulul universal de secrete – auto-bootstrap + auto-inject la require()
-const quantumVault          = require('./modules/quantumVault');
+// quantumVault este deja încărcat la linia 66 (primul după dotenv)
 const revenueModules        = require('./modules/revenueModules');
 const sovereignGuardian     = require('./modules/sovereignAccessGuardian');
 // ==================== GENERATED FUTURE MODULES ====================
