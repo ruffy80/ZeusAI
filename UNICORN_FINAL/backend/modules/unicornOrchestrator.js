@@ -105,9 +105,12 @@ class UnicornOrchestrator extends EventEmitter {
     }
 
     // Active = engine modules exist OR already loaded in require cache
-    this.stats.selfHealing.active = !!(healer || uee || gdes) ||
-      !!(require.cache[require.resolve(path.join(MODULES_DIR, 'totalSystemHealer'))] ||
-         require.cache[require.resolve(path.join(MODULES_DIR, 'unicornEternalEngine'))]);
+    this.stats.selfHealing.active = !!(healer || uee || gdes) || (() => {
+      try {
+        return !!(require.cache[require.resolve(path.join(MODULES_DIR, 'totalSystemHealer'))] ||
+                  require.cache[require.resolve(path.join(MODULES_DIR, 'unicornEternalEngine'))]);
+      } catch (_) { return false; }
+    })();
     this.stats.selfHealing.lastRun = new Date().toISOString();
     this._log('🛠️ ', 'Self-Healing Engine: ACTIV');
   }
@@ -147,8 +150,11 @@ class UnicornOrchestrator extends EventEmitter {
     }
     // autoDeployOrchestrator auto-inits in constructor
 
-    this.stats.autoDeploy.active = !!(deploy || orch) ||
-      !!(require.cache[require.resolve(path.join(MODULES_DIR, 'autoDeploy'))]);
+    this.stats.autoDeploy.active = !!(deploy || orch) || (() => {
+      try {
+        return !!(require.cache[require.resolve(path.join(MODULES_DIR, 'autoDeploy'))]);
+      } catch (_) { return false; }
+    })();
     this.stats.autoDeploy.lastRun = new Date().toISOString();
     this._log('🚀', 'Auto-Deploy: ACTIV');
   }
@@ -192,8 +198,11 @@ class UnicornOrchestrator extends EventEmitter {
       this.stats.autoScaling.active = !!(status && status.instances);
     }
     if (!this.stats.autoScaling.active) {
-      this.stats.autoScaling.active = !!qrc ||
-        !!(require.cache[require.resolve(path.join(MODULES_DIR, 'quantumResilienceCore'))]);
+      this.stats.autoScaling.active = !!qrc || (() => {
+        try {
+          return !!(require.cache[require.resolve(path.join(MODULES_DIR, 'quantumResilienceCore'))]);
+        } catch (_) { return false; }
+      })();
     }
     this.stats.autoScaling.lastRun = new Date().toISOString();
     this._log('⚖️ ', 'Auto-Scaling: ACTIV');

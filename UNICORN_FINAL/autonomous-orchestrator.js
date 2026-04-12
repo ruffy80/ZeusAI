@@ -12,6 +12,8 @@ const { exec } = require('child_process');
 
 // ─── Config ─────────────────────────────────────────────────────────────────
 const BASE = path.join(__dirname, 'backend/modules');
+const BACKEND_PORT          = parseInt(process.env.PORT || process.env.BACKEND_PORT || '3000', 10);
+const BACKEND_BASE_URL      = process.env.BACKEND_BASE_URL || `http://127.0.0.1:${BACKEND_PORT}`;
 const INNOVATION_INTERVAL   = parseInt(process.env.INNOVATION_INTERVAL   || '30',  10) * 1000;
 const REVENUE_INTERVAL      = parseInt(process.env.REVENUE_INTERVAL      || '15',  10) * 1000;
 const VIRAL_INTERVAL        = parseInt(process.env.VIRAL_INTERVAL        || '20',  10) * 1000;
@@ -161,7 +163,7 @@ async function runDeployCycle() {
     // Lightweight health check against running backend
     const http = require('http');
     const check = () => new Promise((resolve) => {
-      const req = http.get('http://localhost:3000/api/health', (res) => {
+      const req = http.get(`${BACKEND_BASE_URL}/api/health`, (res) => {
         let body = '';
         res.on('data', d => { body += d; });
         res.on('end', () => resolve(JSON.parse(body)));
@@ -215,7 +217,7 @@ async function runPlatformCycle() {
     });
 
     // 1. Local backend health
-    const backendStatus = await ping('http://127.0.0.1:3000/api/health');
+    const backendStatus = await ping(`${BACKEND_BASE_URL}/api/health`);
     if (backendStatus === 200) {
       log('✅', 'Backend reachable');
     } else {
@@ -253,9 +255,9 @@ async function runMonitorCycle() {
   try {
     const http = require('http');
     const endpoints = [
-      { url: 'http://localhost:3000/api/health',                   label: 'health' },
-      { url: 'http://localhost:3000/api/slo/status',               label: 'slo' },
-      { url: 'http://localhost:3000/api/orchestrator/status',      label: 'orchestrator' },
+      { url: `${BACKEND_BASE_URL}/api/health`,               label: 'health' },
+      { url: `${BACKEND_BASE_URL}/api/slo/status`,           label: 'slo' },
+      { url: `${BACKEND_BASE_URL}/api/orchestrator/status`,  label: 'orchestrator' },
     ];
     for (const ep of endpoints) {
       const status = await new Promise((resolve) => {
@@ -281,9 +283,11 @@ async function runDecisionCycle() {
   try {
     if (controlPlaneAgent && typeof controlPlaneAgent.getStatus === 'function') {
       const status = controlPlaneAgent.getStatus();
-      log('✅', 'Auto-Decision AI status', {
+      const rollbacks = status.rollbackCount || 0;
+      const emoji = rollbacks > 0 ? '⚠️' : '✅';
+      log(emoji, 'Auto-Decision AI status', {
         decisions: status.decisionCount || 0,
-        rollbacks: status.rollbackCount || 0,
+        rollbacks,
       });
     } else {
       log('🤖', 'Auto-Decision AI (mock) — cycle logged');
