@@ -44,7 +44,8 @@ function tryRequire(p, label) {
 }
 
 class UnicornOrchestrator extends EventEmitter {
-  constructor() {
+  constructor()
+    this.cache = new Map(); this.cacheTTL = 60000; {
     super();
 
     this.startedAt = null;

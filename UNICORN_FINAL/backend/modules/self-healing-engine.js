@@ -50,7 +50,8 @@ const SAFE_PM2_NAMES = new Set([
 ]);
 
 class SelfHealingEngine {
-  constructor() {
+  constructor()
+    this.cache = new Map(); this.cacheTTL = 60000; {
     this.startedAt      = Date.now();
     this.healLog        = [];
     this.cooldowns      = new Map(); // service → { count, resetAt }
