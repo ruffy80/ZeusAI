@@ -519,10 +519,8 @@ const quantumSecurity       = require('./modules/QuantumSecurityLayer');
 const temporalProcessor     = require('./modules/TemporalDataProcessor');
 const configManager         = require('./modules/configurationManager');
 const quantumPaymentNexus   = require('./modules/quantumPaymentNexus');
+// QuantumVault este modulul universal de secrete – auto-bootstrap + auto-inject la require()
 const quantumVault          = require('./modules/quantumVault');
-// QuantumVault + ConfigManager injectează TOATE secretele în process.env imediat după încărcare
-quantumVault.injectToEnv();
-configManager.injectToEnv();
 const revenueModules        = require('./modules/revenueModules');
 const sovereignGuardian     = require('./modules/sovereignAccessGuardian');
 // ==================== GENERATED FUTURE MODULES ====================
@@ -2876,8 +2874,7 @@ app.get('/api/config/:key', adminTokenMiddleware, (req, res) => {
 app.post('/api/config/:key', adminTokenMiddleware, (req, res) => {
   try {
     configManager.set(req.params.key, req.body.value);
-    // Re-inject in process.env immediately after saving
-    if (!process.env[req.params.key]) process.env[req.params.key] = String(req.body.value);
+    configManager.injectToEnv();
     res.json({ ok: true });
   } catch (e) { res.status(400).json({ error: e.message }); }
 });
