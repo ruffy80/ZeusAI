@@ -3166,7 +3166,7 @@ if (fs.existsSync(clientBuildPath)) {
   }));
 }
 
-app.get('*', (req, res) => {
+app.get('/{*path}', (req, res) => {
   if (fs.existsSync(clientIndexPath)) {
     res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
     return res.sendFile(clientIndexPath);
