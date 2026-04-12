@@ -108,9 +108,11 @@ jobs:
         id: vercel_guard
         run: |
           # Check if secrets exist (not empty string)
-          if [ -z "${{ secrets.VERCEL_TOKEN }}" ] || [ -z "${{ secrets.VERCEL_ORG_ID }}" ] || [ -z "${{ secrets.VERCEL_PROJECT_ID }}" ]; then
+          # VERCEL_ORG_ID and VERCEL_PROJECT_ID have known defaults embedded in the codebase.
+          # Only VERCEL_TOKEN is a true authentication secret that cannot be defaulted.
+          if [ -z "${{ secrets.VERCEL_TOKEN }}" ]; then
             echo "ready=false" >> "$GITHUB_OUTPUT"
-            echo "ℹ️  Missing Vercel secrets. Skipping Vercel deploy job."
+            echo "ℹ️  Missing VERCEL_TOKEN secret. Skipping Vercel deploy job."
             exit 0
           fi
           # Validate token with Vercel API to avoid noisy failures in later steps
@@ -136,8 +138,8 @@ jobs:
         if: steps.vercel_guard.outputs.ready == 'true'
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
-          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
-          VERCEL_PROJECT_ID_SECRET: ${{ secrets.VERCEL_PROJECT_ID }}
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID || 'team_wes3fQvKjdfOMKXe7f4fFQoL' }}
+          VERCEL_PROJECT_ID_SECRET: ${{ secrets.VERCEL_PROJECT_ID || 'prj_YNIHsyltyZUV7HQA3VyQhhGDvKD3' }}
         run: |
           # Query Vercel API for the 'zeusai' project to get the authoritative project ID
           TEAM_PARAM=""
@@ -181,8 +183,8 @@ jobs:
         continue-on-error: true
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
-          VERCEL_TEAM_ID: ${{ secrets.VERCEL_TEAM_ID || secrets.VERCEL_ORG_ID }}
-          VERCEL_PROJECT_ID: ${{ env.RESOLVED_VERCEL_PROJECT_ID || secrets.VERCEL_PROJECT_ID }}
+          VERCEL_TEAM_ID: ${{ secrets.VERCEL_TEAM_ID || secrets.VERCEL_ORG_ID || 'team_wes3fQvKjdfOMKXe7f4fFQoL' }}
+          VERCEL_PROJECT_ID: ${{ env.RESOLVED_VERCEL_PROJECT_ID || secrets.VERCEL_PROJECT_ID || 'prj_YNIHsyltyZUV7HQA3VyQhhGDvKD3' }}
         run: |
           TEAM_PARAM=""
           [ -n "$VERCEL_TEAM_ID" ] && TEAM_PARAM="?teamId=${VERCEL_TEAM_ID}"
@@ -252,8 +254,8 @@ jobs:
         continue-on-error: true
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
-          VERCEL_PROJECT_ID: ${{ env.RESOLVED_VERCEL_PROJECT_ID || secrets.VERCEL_PROJECT_ID }}
-          VERCEL_TEAM_ID: ${{ secrets.VERCEL_TEAM_ID || secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ env.RESOLVED_VERCEL_PROJECT_ID || secrets.VERCEL_PROJECT_ID || 'prj_YNIHsyltyZUV7HQA3VyQhhGDvKD3' }}
+          VERCEL_TEAM_ID: ${{ secrets.VERCEL_TEAM_ID || secrets.VERCEL_ORG_ID || 'team_wes3fQvKjdfOMKXe7f4fFQoL' }}
           SITE_DOMAIN: ${{ secrets.SITE_DOMAIN || 'zeusai.pro' }}
           UNICORN_DOMAIN: ${{ secrets.UNICORN_DOMAIN || 'www.zeusai.pro' }}
         run: |
@@ -277,7 +279,7 @@ jobs:
         continue-on-error: true
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
-          VERCEL_TEAM_ID: ${{ secrets.VERCEL_TEAM_ID || secrets.VERCEL_ORG_ID }}
+          VERCEL_TEAM_ID: ${{ secrets.VERCEL_TEAM_ID || secrets.VERCEL_ORG_ID || 'team_wes3fQvKjdfOMKXe7f4fFQoL' }}
           DEPLOY_URL: ${{ steps.deploy.outputs.deploy_url }}
           SITE_DOMAIN: ${{ secrets.SITE_DOMAIN || 'zeusai.pro' }}
         run: |
@@ -319,8 +321,8 @@ jobs:
         continue-on-error: true
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
-          VERCEL_PROJECT_ID: ${{ env.RESOLVED_VERCEL_PROJECT_ID || secrets.VERCEL_PROJECT_ID }}
-          VERCEL_TEAM_ID: ${{ secrets.VERCEL_TEAM_ID || secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ env.RESOLVED_VERCEL_PROJECT_ID || secrets.VERCEL_PROJECT_ID || 'prj_YNIHsyltyZUV7HQA3VyQhhGDvKD3' }}
+          VERCEL_TEAM_ID: ${{ secrets.VERCEL_TEAM_ID || secrets.VERCEL_ORG_ID || 'team_wes3fQvKjdfOMKXe7f4fFQoL' }}
         run: |
           echo "🔓 Disabling Vercel Password Protection..."
           curl --silent --show-error \
@@ -363,7 +365,7 @@ jobs:
         continue-on-error: true
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
-          VERCEL_TEAM_ID: ${{ secrets.VERCEL_TEAM_ID || secrets.VERCEL_ORG_ID }}
+          VERCEL_TEAM_ID: ${{ secrets.VERCEL_TEAM_ID || secrets.VERCEL_ORG_ID || 'team_wes3fQvKjdfOMKXe7f4fFQoL' }}
         run: |
           echo "🗑️  Looking up and removing old 'unicorn-final' Vercel project..."
           TEAM_PARAM=""
@@ -459,8 +461,8 @@ jobs:
 
       - name: Resolve Hetzner target and channels
         run: |
-          echo "DEPLOY_HOST=${{ secrets.HETZNER_HOST || secrets.SSH_HOST }}" >> "$GITHUB_ENV"
-          echo "DEPLOY_USER=${{ secrets.HETZNER_DEPLOY_USER || secrets.HETZNER_USER || secrets.SSH_USER }}" >> "$GITHUB_ENV"
+          echo "DEPLOY_HOST=${{ secrets.HETZNER_HOST || secrets.SSH_HOST || '204.168.230.142' }}" >> "$GITHUB_ENV"
+          echo "DEPLOY_USER=${{ secrets.HETZNER_DEPLOY_USER || secrets.HETZNER_USER || secrets.SSH_USER || 'root' }}" >> "$GITHUB_ENV"
           DEPLOY_PORT="${{ secrets.HETZNER_DEPLOY_PORT || secrets.SSH_PORT || '22' }}"
           # Ensure DEPLOY_PORT is numeric
           if ! [[ "$DEPLOY_PORT" =~ ^[0-9]+$ ]]; then
@@ -520,7 +522,7 @@ jobs:
               -czf - . | \
             ssh -i ~/.ssh/deploy_key -p "${DEPLOY_PORT:-22}" -o StrictHostKeyChecking=no \
               -o BatchMode=yes \
-              "${{ secrets.HETZNER_DEPLOY_USER || secrets.HETZNER_USER || secrets.SSH_USER }}@${{ secrets.HETZNER_HOST || secrets.SSH_HOST }}" \
+              "${{ secrets.HETZNER_DEPLOY_USER || secrets.HETZNER_USER || secrets.SSH_USER || 'root' }}@${{ secrets.HETZNER_HOST || secrets.SSH_HOST || '204.168.230.142' }}" \
               "DEST='${DEST}'; mkdir -p \"\$DEST\" && chmod -R u+w \"\$DEST\" 2>/dev/null || true && cd \"\$DEST\" && tar --overwrite --no-same-permissions --no-same-owner -xzf -"
 
       - name: Install deps + restart backend on Hetzner
@@ -530,7 +532,7 @@ jobs:
         run: |
           echo "DEBUG SSH: Connecting to $DEPLOY_USER@$DEPLOY_HOST:$DEPLOY_PATH"
           ssh -i ~/.ssh/deploy_key -p "${DEPLOY_PORT:-22}" -o StrictHostKeyChecking=no -o UserKnownHostsFile=~/.ssh/known_hosts -o BatchMode=yes \
-            "${{ secrets.HETZNER_DEPLOY_USER || secrets.HETZNER_USER || secrets.SSH_USER }}@${{ secrets.HETZNER_HOST || secrets.SSH_HOST }}" << ENDSSH
+            "${{ secrets.HETZNER_DEPLOY_USER || secrets.HETZNER_USER || secrets.SSH_USER || 'root' }}@${{ secrets.HETZNER_HOST || secrets.SSH_HOST || '204.168.230.142' }}" << ENDSSH
             set -e
             cd "${{ secrets.HETZNER_DEPLOY_PATH || '/opt/unicorn' }}"
 
@@ -753,7 +755,7 @@ jobs:
           for attempt in 1 2 3 4 5 6; do
             sleep 15
             HEALTH=$(ssh -i ~/.ssh/deploy_key -p "${DEPLOY_PORT:-22}" -o StrictHostKeyChecking=no -o UserKnownHostsFile=~/.ssh/known_hosts \
-              "${{ secrets.HETZNER_DEPLOY_USER || secrets.HETZNER_USER || secrets.SSH_USER }}@${{ secrets.HETZNER_HOST || secrets.SSH_HOST }}" \
+              "${{ secrets.HETZNER_DEPLOY_USER || secrets.HETZNER_USER || secrets.SSH_USER || 'root' }}@${{ secrets.HETZNER_HOST || secrets.SSH_HOST || '204.168.230.142' }}" \
               "curl -sS http://localhost:3000/api/health 2>/dev/null || curl -sS http://localhost:80/api/health 2>/dev/null || echo '{\"status\":\"unreachable\"}'")
             echo "Hetzner health (attempt $attempt): $HEALTH"
             echo "$HEALTH" | grep -q '"status":"ok"' && break || true
@@ -763,7 +765,7 @@ jobs:
           else
             echo "⚠️  Backend not yet ready — collecting diagnostics..."
             ssh -i ~/.ssh/deploy_key -p "${DEPLOY_PORT:-22}" -o StrictHostKeyChecking=no -o UserKnownHostsFile=~/.ssh/known_hosts \
-              "${{ secrets.HETZNER_DEPLOY_USER || secrets.HETZNER_USER || secrets.SSH_USER }}@${{ secrets.HETZNER_HOST || secrets.SSH_HOST }}" \
+              "${{ secrets.HETZNER_DEPLOY_USER || secrets.HETZNER_USER || secrets.SSH_USER || 'root' }}@${{ secrets.HETZNER_HOST || secrets.SSH_HOST || '204.168.230.142' }}" \
               "pm2 list 2>/dev/null || true; echo '--- last 30 log lines ---'; pm2 logs unicorn --lines 30 --nostream 2>/dev/null || tail -30 '${{ secrets.HETZNER_DEPLOY_PATH || '/opt/unicorn' }}/logs/pm2-error.log' 2>/dev/null || true" || true
           fi
 
@@ -896,7 +898,7 @@ jobs:
       - name: Check Vercel and Hetzner health
         run: |
           VERCEL_URL='${{ needs.deploy-vercel.outputs.deploy_url }}'
-          HETZNER_HOST='${{ secrets.HETZNER_HOST || secrets.SSH_HOST }}'
+          HETZNER_HOST="${{ secrets.HETZNER_HOST || secrets.SSH_HOST || '204.168.230.142' }}"
           ALL_OK=true
 
           if [ -z "$VERCEL_URL" ]; then
@@ -946,7 +948,7 @@ jobs:
         continue-on-error: true
         run: |
           SSH_KEY="${{ secrets.HETZNER_SSH_PRIVATE_KEY || secrets.SSH_PRIVATE_KEY }}"
-          DEPLOY_HOST="${{ secrets.HETZNER_HOST || secrets.SSH_HOST }}"
+          DEPLOY_HOST="${{ secrets.HETZNER_HOST || secrets.SSH_HOST || '204.168.230.142' }}"
           if [ -z "$SSH_KEY" ] || [ -z "$DEPLOY_HOST" ]; then
             echo "ssh_ready=false" >> "$GITHUB_OUTPUT"
             echo "ℹ️  SSH credentials not available – skipping HTTPS auto-restart."
@@ -961,8 +963,8 @@ jobs:
         if: steps.ssh_setup_smoke.outputs.ssh_ready == 'true'
         continue-on-error: true
         env:
-          DEPLOY_HOST: ${{ secrets.HETZNER_HOST || secrets.SSH_HOST }}
-          DEPLOY_USER: ${{ secrets.HETZNER_DEPLOY_USER || secrets.HETZNER_USER || secrets.SSH_USER }}
+          DEPLOY_HOST: ${{ secrets.HETZNER_HOST || secrets.SSH_HOST || '204.168.230.142' }}
+          DEPLOY_USER: ${{ secrets.HETZNER_DEPLOY_USER || secrets.HETZNER_USER || secrets.SSH_USER || 'root' }}
           DEPLOY_PATH: ${{ secrets.HETZNER_DEPLOY_PATH || '/opt/unicorn' }}
           DEPLOY_PORT: ${{ secrets.HETZNER_DEPLOY_PORT || secrets.SSH_PORT || '22' }}
           # SITE_DOMAIN is preferred; falls back to IP-based HTTPS
