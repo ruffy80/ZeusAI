@@ -23,7 +23,24 @@
     "sentiment": "^5.0.2",
     "simple-git": "^3.14.0",
     "ssh2": "^1.17.0",
-    "vercel": "^50.41.0"
+    "vercel": "^50.44.0"
+  },
+  "overrides": {
+    "smol-toml": ">=1.6.1",
+    "vercel": {
+      "@vercel/backends": {
+        "path-to-regexp": ">=8.4.0"
+      },
+      "@vercel/express": {
+        "path-to-regexp": ">=8.4.0"
+      },
+      "@vercel/hono": {
+        "path-to-regexp": ">=8.4.0"
+      },
+      "@vercel/fun": {
+        "path-to-regexp": ">=8.4.0"
+      }
+    }
   },
   "scripts": {
     "start": "node backend/index.js",
