@@ -149,7 +149,7 @@ function unicornHandler(req, res) {
   if (backendUrl && (req.url.startsWith('/api/') || req.url === '/deploy')) {
     return proxyToBackend(req, res, backendUrl);
   }
-  if (!backendUrl && (req.url.startsWith('/api/'))) {
+  if (req.url.startsWith('/api/')) {
     res.writeHead(503, { 'Content-Type': 'application/json' });
     return res.end(JSON.stringify({ error: 'API backend not configured on this endpoint. Set BACKEND_API_URL env var.' }));
   }
