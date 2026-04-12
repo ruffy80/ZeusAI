@@ -102,8 +102,9 @@ const CANARY_EVAL_MS     = parseInt(process.env.CANARY_EVAL_MS     || '60000', 1
 const MAX_DECISIONS      = 1000;
 
 class ControlPlaneAgent {
-  constructor()
-    this.cache = new Map(); this.cacheTTL = 60000; {
+  constructor() {
+    this.cache = new Map();
+    this.cacheTTL = 60000;
     this._healingActive  = true; // immutable — NEVER set false
     this.decisionLog     = [];
     this.healthScore     = 100; // 0–100

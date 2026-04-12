@@ -102,8 +102,9 @@ const REWARD_WINDOW_MS  = parseInt(process.env.REWARD_WINDOW_MS || '86400000', 1
 const MIN_REWARD        = parseFloat(process.env.MIN_REWARD || '0');
 
 class ProfitControlLoop {
-  constructor()
-    this.cache = new Map(); this.cacheTTL = 60000; {
+  constructor() {
+    this.cache = new Map();
+    this.cacheTTL = 60000;
     this.rewardHistory  = [];
     this.cycleCount     = 0;
     this.lastCycleAt    = null;

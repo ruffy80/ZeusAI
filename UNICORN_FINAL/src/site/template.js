@@ -1541,7 +1541,7 @@ async function changePassword(){
   if(!cur||!nw||!cf){msg.innerHTML='<div class="msg-err">All fields required.</div>';return;}
   if(nw!==cf){msg.innerHTML='<div class="msg-err">New passwords do not match.</div>';return;}
   if(nw.length<8){msg.innerHTML='<div class="msg-err">Min 8 characters.</div>';return;}
-  var r=await api('POST','/api/auth/change-password',{currentPassword:cur,newPassword:nw});
+  var r=await api('POST','/api/user/change-password',{currentPassword:cur,newPassword:nw});
   if(r.error){msg.innerHTML='<div class="msg-err">'+escHtml(r.error||'Failed')+'</div>';return;}
   msg.innerHTML='<div class="msg-ok">Password changed successfully!</div>';
   document.getElementById('prof-cur-pass').value='';
