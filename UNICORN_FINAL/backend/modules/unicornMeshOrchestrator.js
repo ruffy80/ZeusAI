@@ -79,6 +79,8 @@ const REPORT_CYCLE_MS   = 300_000;  // raport complet la 5 min
 class UnicornMeshOrchestrator extends EventEmitter {
   constructor() {
     super();
+    this.cache = new Map();
+    this.cacheTTL = 60000;
     this.setMaxListeners(100);
     this.registry   = new Map(); // name → { instance, lastStatus, lastSeen, healthy }
     this.eventLog   = [];

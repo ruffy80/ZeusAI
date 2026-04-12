@@ -92,6 +92,8 @@ const UPLIFT_THRESH = parseFloat(process.env.SHADOW_UPLIFT_THRESH || '0.02'); //
 
 class ShadowTester {
   constructor() {
+    this.cache = new Map();
+    this.cacheTTL = 60000;
     this.variants       = new Map(); // variantId → spec
     this.shadowResults  = new Map(); // variantId → Array<{controlProfit, variantProfit, uplift, ts}>
     this.status         = 'ACTIVE';

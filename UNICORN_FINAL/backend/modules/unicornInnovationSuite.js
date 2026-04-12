@@ -236,9 +236,9 @@ class UnicornInnovationSuite {
     this.security = { sessions: [], devices: [] };
     this.onboarding = new Map();
     this.caseStudies = [
-      { id: 'cs-1', company: 'AeroNova', impact: '+31% eficiență operațională', timelineDays: 45 },
-      { id: 'cs-2', company: 'FinPulse', impact: '+22% conversie', timelineDays: 28 },
-      { id: 'cs-3', company: 'GovMesh', impact: '-41% timp procesare', timelineDays: 60 }
+      { id: 'cs-1', company: 'AeroNova', impact: '+31% eficiență operațională', timelineDays: 45, result: '+31% Efficiency', description: 'Automated operational workflows with Zeus AI agents, reducing overhead by 31% in 45 days.' },
+      { id: 'cs-2', company: 'FinPulse', impact: '+22% conversie', timelineDays: 28, result: '+22% Conversion', description: 'AI-powered customer intelligence drove a 22% increase in conversion rate within the first month.' },
+      { id: 'cs-3', company: 'GovMesh', impact: '-41% timp procesare', timelineDays: 60, result: '-41% Processing Time', description: 'Automated document processing cut government approval time by 41%, saving thousands of staff hours.' }
     ];
     this.referrals = new Map();
   }

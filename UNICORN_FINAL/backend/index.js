@@ -403,6 +403,20 @@ app.put('/api/auth/profile', authMiddleware, async (req, res) => {
   res.json({ token, user: { id: user.id, name: newName, email: newEmail } });
 });
 
+// User self-service password change (uses regular user JWT, not admin token)
+app.post('/api/user/change-password', authMiddleware, async (req, res) => {
+  const { currentPassword, newPassword } = req.body || {};
+  if (!currentPassword || !newPassword) return res.status(400).json({ error: 'currentPassword and newPassword required' });
+  if (newPassword.length < 8) return res.status(400).json({ error: 'New password must be at least 8 characters' });
+  const user = dbUsers.findById(req.user.id);
+  if (!user) return res.status(404).json({ error: 'User not found' });
+  const valid = await bcrypt.compare(String(currentPassword), user.passwordHash);
+  if (!valid) return res.status(401).json({ error: 'Current password is incorrect' });
+  const passwordHash = await bcrypt.hash(newPassword, 10);
+  dbUsers.updatePassword(user.id, passwordHash);
+  res.json({ success: true });
+});
+
 app.get('/api/auth/me', authMiddleware, (req, res) => {
   const user = dbUsers.findById(req.user.id);
   if (!user) return res.status(404).json({ error: 'User not found' });
@@ -2060,8 +2074,26 @@ app.get('/api/site/case-studies', (req, res) => {
   res.json({ caseStudies: unicornInnovationSuite.getCaseStudies() });
 });
 
+const ROI_INDUSTRY_MULTIPLIERS = { technology: 0.32, finance: 0.28, healthcare: 0.25, retail: 0.22, manufacturing: 0.20, logistics: 0.18, other: 0.20 };
+const ROI_PLAN_TIERS = [{ maxEmp: 10, monthly: 29 }, { maxEmp: 50, monthly: 99 }, { maxEmp: Infinity, monthly: 499 }];
+
 app.post('/api/site/roi/calculate', (req, res) => {
-  res.json(unicornInnovationSuite.calculateROI(req.body || {}));
+  const { employees = 0, revenue = 0, industry = 'technology', investment, expectedGain } = req.body || {};
+  // Support both frontend params (employees/revenue/industry) and direct params (investment/expectedGain)
+  if (investment != null || expectedGain != null) {
+    return res.json(unicornInnovationSuite.calculateROI({ investment, expectedGain }));
+  }
+  const emp = Number(employees) || 0;
+  const rev = Number(revenue) || 0;
+  if (!emp || !rev) return res.json({ annualSavings: 0, roiPercent: 0, paybackMonths: null });
+  const savingsRate = ROI_INDUSTRY_MULTIPLIERS[industry] || 0.20;
+  const annualSavings = Math.round(rev * savingsRate);
+  const tier = ROI_PLAN_TIERS.find(t => emp <= t.maxEmp);
+  const annualCost = tier.monthly * 12;
+  const netSavings = annualSavings - annualCost;
+  const roiPercent = annualCost > 0 ? Math.round((netSavings / annualCost) * 100) : 0;
+  const paybackMonths = annualSavings > 0 ? Math.ceil(annualCost / (annualSavings / 12)) : null;
+  res.json({ annualSavings, roiPercent, paybackMonths, netSavings, annualCost, savingsRate });
 });
 
 // 10) Partner / affiliate layer

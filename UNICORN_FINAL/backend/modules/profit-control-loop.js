@@ -103,6 +103,8 @@ const MIN_REWARD        = parseFloat(process.env.MIN_REWARD || '0');
 
 class ProfitControlLoop {
   constructor() {
+    this.cache = new Map();
+    this.cacheTTL = 60000;
     this.rewardHistory  = [];
     this.cycleCount     = 0;
     this.lastCycleAt    = null;
