@@ -1,4 +1,5 @@
 const http = require('http');
+const https = require('https');
 const { buildInnovationReport } = require('./innovation/innovation-engine');
 const { generateSprintPlan } = require('./innovation/innovation-sprint');
 const { getSiteHtml } = require('./site/template');
@@ -106,7 +107,53 @@ if (typeof streamTimer.unref === 'function') {
   streamTimer.unref();
 }
 
-const server = http.createServer((req, res) => {
+// Proxy an incoming request to an external backend URL (used for /api/* on Vercel)
+function proxyToBackend(req, res, backendBaseUrl) {
+  try {
+    const target = new URL(req.url, backendBaseUrl);
+    const lib = target.protocol === 'https:' ? https : http;
+    const proxyHeaders = Object.assign({}, req.headers);
+    proxyHeaders['host'] = target.hostname;
+    delete proxyHeaders['connection'];
+    const options = {
+      hostname: target.hostname,
+      port: target.port || (target.protocol === 'https:' ? 443 : 80),
+      path: target.pathname + (target.search || ''),
+      method: req.method,
+      headers: proxyHeaders,
+    };
+    const proxyReq = lib.request(options, (proxyRes) => {
+      const safeHeaders = {};
+      Object.keys(proxyRes.headers).forEach((k) => {
+        if (k !== 'transfer-encoding') safeHeaders[k] = proxyRes.headers[k];
+      });
+      res.writeHead(proxyRes.statusCode, safeHeaders);
+      proxyRes.pipe(res, { end: true });
+    });
+    proxyReq.on('error', (err) => {
+      if (!res.headersSent) {
+        res.writeHead(502, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Backend proxy error', detail: err.message }));
+      }
+    });
+    req.pipe(proxyReq, { end: true });
+  } catch (err) {
+    res.writeHead(502, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ error: 'Proxy configuration error', detail: err.message }));
+  }
+}
+
+function unicornHandler(req, res) {
+  // Forward /api/* and /deploy to the Express backend (Hetzner) if configured
+  const backendUrl = process.env.BACKEND_API_URL;
+  if (backendUrl && (req.url.startsWith('/api/') || req.url === '/deploy')) {
+    return proxyToBackend(req, res, backendUrl);
+  }
+  if (!backendUrl && (req.url.startsWith('/api/'))) {
+    res.writeHead(503, { 'Content-Type': 'application/json' });
+    return res.end(JSON.stringify({ error: 'API backend not configured on this endpoint. Set BACKEND_API_URL env var.' }));
+  }
+
   if (req.url === '/health') {
     res.writeHead(200, { 'Content-Type': 'application/json' });
     return res.end(JSON.stringify({ ok: true, service: 'unicorn-final' }));
@@ -187,7 +234,9 @@ const server = http.createServer((req, res) => {
 
   res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
   return res.end(getSiteHtml());
-});
+}
+
+const server = http.createServer(unicornHandler);
 
 if (require.main === module) {
   server.listen(PORT, () => {
@@ -195,4 +244,8 @@ if (require.main === module) {
   });
 }
 
-module.exports = server;
+module.exports = unicornHandler;
+// Attach server methods so test suite can call server.listen() / server.address() / server.close()
+module.exports.listen = server.listen.bind(server);
+module.exports.address = server.address.bind(server);
+module.exports.close = server.close.bind(server);
