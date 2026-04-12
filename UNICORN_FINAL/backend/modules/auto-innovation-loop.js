@@ -36,8 +36,10 @@ const MAX_PENDING   = parseInt(process.env.INNOV_MAX_PENDING  || '3',        10)
 const MAX_LOOP_LOG  = 500;
 const MAX_PROPOSALS = 100;
 
-const GITHUB_TOKEN  = process.env.GITHUB_TOKEN      || '';
-const GITHUB_REPO   = process.env.GITHUB_REPOSITORY || ''; // "owner/repo"
+// getGithubToken() și getGithubRepo() sunt citite din process.env la fiecare apel
+// pentru a permite injectarea secretelor de către quantumVault la runtime
+function getGithubToken() { return process.env.GITHUB_TOKEN      || ''; }
+function getGithubRepo()  { return process.env.GITHUB_REPOSITORY || ''; }
 const BASE_BRANCH   = process.env.INNOV_BASE_BRANCH || 'main';
 
 // Innovation templates — each describes a category of improvement
@@ -116,7 +118,7 @@ class AutoInnovationLoop {
     this._log('PROPOSAL_GENERATED', `Proposal: ${proposal.title}`);
 
     // 4. Create GitHub PR (if credentials available)
-    if (GITHUB_TOKEN && GITHUB_REPO) {
+    if (getGithubToken() && getGithubRepo()) {
       await this._createPR(proposal);
     } else {
       this._log('PR_SKIP', 'GITHUB_TOKEN or GITHUB_REPOSITORY not configured — PR creation skipped');
@@ -153,9 +155,9 @@ class AutoInnovationLoop {
     }
 
     // Fetch open GitHub issues count
-    if (GITHUB_TOKEN && GITHUB_REPO) {
+    if (getGithubToken() && getGithubRepo()) {
       try {
-        const [owner, repo] = GITHUB_REPO.split('/');
+        const [owner, repo] = getGithubRepo().split('/');
         const data = await this._githubGet(`/repos/${owner}/${repo}/issues?state=open&per_page=1`);
         if (Array.isArray(data)) {
           metrics.openIssues = data.length; // approximation (1 page only)
@@ -240,9 +242,9 @@ class AutoInnovationLoop {
   // ── GitHub PR creation ────────────────────────────────────────────
 
   async _createPR(proposal) {
-    if (!GITHUB_TOKEN || !GITHUB_REPO) return;
+    if (!getGithubToken() || !getGithubRepo()) return;
 
-    const [owner, repo] = GITHUB_REPO.split('/');
+    const [owner, repo] = getGithubRepo().split('/');
     if (!owner || !repo) return;
 
     const branchName = `auto-innovation/${proposal.category}-${proposal.id}`;
@@ -335,9 +337,9 @@ class AutoInnovationLoop {
   // ── PR monitoring ─────────────────────────────────────────────────
 
   async _pollPendingPRs() {
-    if (!GITHUB_TOKEN || !GITHUB_REPO || this.pendingPRs.length === 0) return;
+    if (!getGithubToken() || !getGithubRepo() || this.pendingPRs.length === 0) return;
 
-    const [owner, repo] = GITHUB_REPO.split('/');
+    const [owner, repo] = getGithubRepo().split('/');
     const toRemove = [];
 
     for (const pr of this.pendingPRs) {
@@ -421,7 +423,7 @@ class AutoInnovationLoop {
         path,
         method,
         headers: {
-          'Authorization':   `Bearer ${GITHUB_TOKEN}`,
+          'Authorization':   `Bearer ${getGithubToken()}`,
           'User-Agent':      'UnicornAutoInnovation/1.0',
           'Accept':          'application/vnd.github+json',
           'Content-Type':    'application/json',
@@ -496,7 +498,7 @@ class AutoInnovationLoop {
       mergedPRs:    this.mergedPRs.length,
       rejectedPRs:  this.rejectedPRs.length,
       logCount:     this.loopLog.length,
-      githubEnabled: !!(GITHUB_TOKEN && GITHUB_REPO),
+      githubEnabled: !!(getGithubToken() && getGithubRepo()),
     };
   }
 

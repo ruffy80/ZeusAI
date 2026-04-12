@@ -217,37 +217,51 @@ class PaymentGateway {
   constructor() {
     this.cache = new Map(); this.cacheTTL = 60000; 
     this.payments = new Map(); // session-level cache; durable state lives in SQLite via dbPayments
-    this.appBaseUrl = this.normalizeBaseUrl(
+    this.statusFlow = ['created', 'pending', 'processing', 'completed'];
+  }
+
+  // Lazy getters — citesc din process.env la momentul apelului, nu la construcție.
+  // Astfel, quantumVault poate injecta secretele înainte de primul apel.
+  get appBaseUrl() {
+    return this.normalizeBaseUrl(
       process.env.PUBLIC_APP_URL
       || process.env.APP_BASE_URL
       || process.env.FRONTEND_URL
       || DEFAULT_APP_BASE_URL
     );
-    this.providers = {
+  }
+
+  get providers() {
+    return {
       stripe: {
-        secretKey: process.env.STRIPE_SECRET_KEY || '',
+        secretKey:    process.env.STRIPE_SECRET_KEY        || '',
         publishableKey: process.env.STRIPE_PUBLISHABLE_KEY || '',
-        webhookSecret: process.env.STRIPE_WEBHOOK_SECRET || ''
+        webhookSecret: process.env.STRIPE_WEBHOOK_SECRET   || '',
       },
       paypal: {
-        clientId: process.env.PAYPAL_CLIENT_ID || '',
+        clientId:     process.env.PAYPAL_CLIENT_ID     || '',
         clientSecret: process.env.PAYPAL_CLIENT_SECRET || '',
-        environment: (process.env.PAYPAL_ENV || 'sandbox').toLowerCase()
-      }
+        environment:  (process.env.PAYPAL_ENV || 'sandbox').toLowerCase(),
+      },
     };
-    this.wallets = {
+  }
+
+  get wallets() {
+    return {
       btc: process.env.BTC_WALLET_ADDRESS || DEFAULT_BTC_WALLET_ADDRESS,
-      eth: process.env.ETH_WALLET_ADDRESS || process.env.USDC_WALLET_ADDRESS || ''
+      eth: process.env.ETH_WALLET_ADDRESS || process.env.USDC_WALLET_ADDRESS || '',
     };
-    this.methods = [
-      { id: 'card', name: 'Credit Card', currency: 'USD', active: this.isStripeConfigured(), feePercent: 2.9, settlement: 'instant', provider: 'stripe' },
-      { id: 'paypal', name: 'PayPal', currency: 'USD', active: this.isPayPalConfigured(), feePercent: 3.4, settlement: 'instant', provider: 'paypal' },
-      { id: 'stripe', name: 'Stripe', currency: 'USD', active: this.isStripeConfigured(), feePercent: 2.9, settlement: 'instant', provider: 'stripe' },
-      { id: 'crypto_btc', name: 'Bitcoin', currency: 'BTC', active: true, feePercent: 1.2, settlement: '10-30 min' },
-      { id: 'crypto_eth', name: 'Ethereum', currency: 'ETH', active: true, feePercent: 1.4, settlement: '2-10 min' },
-      { id: 'bank', name: 'Bank Transfer', currency: 'EUR', active: true, feePercent: 0.8, settlement: '1-2 days' }
+  }
+
+  get methods() {
+    return [
+      { id: 'card',       name: 'Credit Card',    currency: 'USD', active: this.isStripeConfigured(), feePercent: 2.9, settlement: 'instant',    provider: 'stripe' },
+      { id: 'paypal',     name: 'PayPal',          currency: 'USD', active: this.isPayPalConfigured(), feePercent: 3.4, settlement: 'instant',    provider: 'paypal' },
+      { id: 'stripe',     name: 'Stripe',          currency: 'USD', active: this.isStripeConfigured(), feePercent: 2.9, settlement: 'instant',    provider: 'stripe' },
+      { id: 'crypto_btc', name: 'Bitcoin',         currency: 'BTC', active: true,                      feePercent: 1.2, settlement: '10-30 min'                     },
+      { id: 'crypto_eth', name: 'Ethereum',        currency: 'ETH', active: true,                      feePercent: 1.4, settlement: '2-10 min'                      },
+      { id: 'bank',       name: 'Bank Transfer',   currency: 'EUR', active: true,                      feePercent: 0.8, settlement: '1-2 days'                      },
     ];
-    this.statusFlow = ['created', 'pending', 'processing', 'completed'];
   }
 
   normalizeBaseUrl(value) {
