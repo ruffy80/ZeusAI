@@ -1,0 +1,140 @@
+name: 🔄 Auto-sync PR branches with main
+
+# Automates the manual steps from the "Checkout via the command line" popup:
+#   1. git pull origin main
+#   2. git checkout <pr-branch>
+#   3. git merge main
+#   4. (fix conflicts)
+#   5. git push
+#
+# Runs automatically whenever main is updated, or manually for a specific PR.
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      pr_number:
+        description: 'PR number to sync (leave empty to sync ALL open PRs)'
+        required: false
+        default: ''
+
+concurrency:
+  group: auto-sync-prs
+  cancel-in-progress: true
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  sync:
+    name: Sync PR branches → main
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Sync open PR branches with main
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const { owner, repo } = context.repo;
+            const prInput = context.payload.inputs?.pr_number?.trim();
+
+            // ── Gather PRs to process ─────────────────────────────────────────
+            let prs = [];
+            if (prInput) {
+              const { data: pr } = await github.rest.pulls.get({
+                owner, repo, pull_number: parseInt(prInput, 10),
+              });
+              prs = [pr];
+              console.log(`Manual run — syncing PR #${pr.number}: ${pr.title}`);
+            } else {
+              const { data } = await github.rest.pulls.list({
+                owner, repo, state: 'open', base: 'main', per_page: 100,
+              });
+              prs = data;
+              console.log(`Push to main detected — found ${prs.length} open PR(s) to check`);
+            }
+
+            // ── Process each PR ───────────────────────────────────────────────
+            const results = [];
+
+            for (const pr of prs) {
+              const tag = `PR #${pr.number} (${pr.head.ref})`;
+              console.log(`\n── ${tag} ────────────────────────────────`);
+              console.log(`   Title : ${pr.title}`);
+              console.log(`   Author: ${pr.user.login}`);
+
+              // Skip draft PRs — they don't need to be kept up to date urgently
+              if (pr.draft) {
+                console.log(`   ⏭️  Draft — skipping`);
+                results.push({ pr: pr.number, ref: pr.head.ref, status: 'skipped_draft' });
+                continue;
+              }
+
+              try {
+                // Call GitHub's "Update a pull request branch" endpoint.
+                // This performs a merge of the base (main) into the head branch
+                // exactly like the manual steps shown in the GitHub UI.
+                await github.rest.pulls.updateBranch({
+                  owner,
+                  repo,
+                  pull_number: pr.number,
+                });
+                console.log(`   ✅ Merged main → ${pr.head.ref} successfully`);
+                results.push({ pr: pr.number, ref: pr.head.ref, status: 'updated' });
+
+              } catch (err) {
+                const status = err.status ?? err.response?.status;
+                const msg    = err.message || String(err);
+
+                if (status === 422 && msg.includes('already up-to-date')) {
+                  console.log(`   ✅ Already up to date — no action needed`);
+                  results.push({ pr: pr.number, ref: pr.head.ref, status: 'up_to_date' });
+                } else if (status === 422 && msg.includes('merge conflict')) {
+                  // Conflicts require human intervention
+                  console.log(`   ⚠️  Merge conflict — needs manual resolution`);
+                  results.push({ pr: pr.number, ref: pr.head.ref, status: 'conflict', error: msg });
+                } else if (status === 403) {
+                  // Branch may be protected or belongs to a fork
+                  console.log(`   ⚠️  Permission denied — branch protected or fork PR`);
+                  results.push({ pr: pr.number, ref: pr.head.ref, status: 'permission_denied', error: msg });
+                } else {
+                  console.log(`   ❌ Unexpected error (${status}): ${msg}`);
+                  results.push({ pr: pr.number, ref: pr.head.ref, status: 'error', error: msg });
+                }
+              }
+
+              // Small delay between API calls to stay within rate limits
+              await new Promise(r => setTimeout(r, 500));
+            }
+
+            // ── Summary ───────────────────────────────────────────────────────
+            console.log('\n══ SYNC SUMMARY ════════════════════════════════════════');
+            for (const r of results) {
+              const icon = {
+                updated:          '✅',
+                up_to_date:       '⏭️ ',
+                skipped_draft:    '📝',
+                conflict:         '⚠️ ',
+                permission_denied:'🔒',
+                error:            '❌',
+              }[r.status] ?? '❓';
+              const extra = r.error ? ` — ${r.error.split('\n')[0]}` : '';
+              console.log(`${icon} PR #${r.pr} (${r.ref}): ${r.status}${extra}`);
+            }
+
+            const updated  = results.filter(r => r.status === 'updated').length;
+            const upToDate = results.filter(r => r.status === 'up_to_date').length;
+            const failed   = results.filter(r => ['conflict', 'permission_denied', 'error'].includes(r.status)).length;
+            const skipped  = results.filter(r => r.status === 'skipped_draft').length;
+
+            console.log(`\nTotal: ${updated} updated · ${upToDate} already in sync · ${failed} need attention · ${skipped} skipped`);
+
+            // Fail the step if any PR had an unexpected error (not just conflicts)
+            const errors = results.filter(r => r.status === 'error');
+            if (errors.length > 0) {
+              core.setFailed(`${errors.length} PR(s) failed to update due to unexpected errors`);
+            }

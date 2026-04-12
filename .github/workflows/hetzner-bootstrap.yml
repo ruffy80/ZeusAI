@@ -1,0 +1,554 @@
+name: 🦄 Hetzner First-Time Bootstrap
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Workflow de bootstrap pentru configurarea INIȚIALĂ a unui server Hetzner nou.
+# Rulează O SINGURĂ DATĂ pe un server proaspăt; deploy-urile ulterioare sunt
+# gestionate automat de vercel-deploy.yml la fiecare push pe main.
+#
+# Secrets necesare în GitHub Settings → Secrets → Actions:
+#   HETZNER_HOST              — IP-ul serverului Hetzner (ex: 204.168.230.142)
+#   HETZNER_SSH_PRIVATE_KEY   — Cheia SSH privată (conținut complet, cu antet/footer)
+#   HETZNER_USER              — Utilizator SSH (default: root)
+#   HETZNER_DEPLOY_PATH       — Calea de deploy (default: /opt/unicorn)
+#   SITE_DOMAIN               — Domeniu (default: zeusai.pro)
+#   JWT_SECRET                — Secret JWT pentru backend
+#   ADMIN_SECRET              — Secret admin
+#   ADMIN_MASTER_PASSWORD     — Parola master admin
+#   VERCEL_TOKEN              — Token Vercel (opțional)
+#   OPENAI_API_KEY            — Cheie OpenAI (opțional)
+#   DEEPSEEK_API_KEY          — Cheie DeepSeek (opțional)
+#   ANTHROPIC_API_KEY         — Cheie Claude (opțional)
+#   GEMINI_API_KEY            — Cheie Gemini (opțional)
+#   STRIPE_SECRET_KEY         — Cheie Stripe (opțional)
+#   SMTP_USER / SMTP_PASS     — Credențiale SMTP (opțional)
+# ─────────────────────────────────────────────────────────────────────────────
+
+on:
+  workflow_dispatch:
+    inputs:
+      force_reinstall:
+        description: 'Reinstalare completă (șterge și reconfigurează totul)'
+        required: false
+        default: 'false'
+        type: choice
+        options:
+          - 'false'
+          - 'true'
+      install_ollama:
+        description: 'Instalare Ollama + model Llama (necesită ~6GB disk)'
+        required: false
+        default: 'false'
+        type: choice
+        options:
+          - 'false'
+          - 'true'
+      skip_ssl:
+        description: 'Sari peste configurarea SSL/certbot (util dacă DNS nu e setat)'
+        required: false
+        default: 'false'
+        type: choice
+        options:
+          - 'false'
+          - 'true'
+
+concurrency:
+  group: hetzner-bootstrap
+  cancel-in-progress: false
+
+jobs:
+  bootstrap:
+    name: 🚀 Bootstrap Server Hetzner
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+
+      - name: Resolve connection parameters
+        id: params
+        run: |
+          HOST="${{ secrets.HETZNER_HOST || secrets.SSH_HOST }}"
+          USER="${{ secrets.HETZNER_DEPLOY_USER || secrets.HETZNER_USER || secrets.SSH_USER || 'root' }}"
+          PORT="${{ secrets.HETZNER_DEPLOY_PORT || secrets.SSH_PORT || '22' }}"
+          DEPLOY_PATH="${{ secrets.HETZNER_DEPLOY_PATH || '/opt/unicorn' }}"
+          DOMAIN="${{ secrets.SITE_DOMAIN || 'zeusai.pro' }}"
+
+          if [ -z "$HOST" ]; then
+            echo "❌ HETZNER_HOST secret nu este configurat!"
+            echo "   Mergi la GitHub → Settings → Secrets → Actions → New repository secret"
+            echo "   Adaugă: HETZNER_HOST = IP-ul serverului tău Hetzner"
+            exit 1
+          fi
+          if [ -z "${{ secrets.HETZNER_SSH_PRIVATE_KEY || secrets.SSH_PRIVATE_KEY }}" ]; then
+            echo "❌ HETZNER_SSH_PRIVATE_KEY secret nu este configurat!"
+            exit 1
+          fi
+
+          echo "host=$HOST"         >> "$GITHUB_OUTPUT"
+          echo "user=$USER"         >> "$GITHUB_OUTPUT"
+          echo "port=$PORT"         >> "$GITHUB_OUTPUT"
+          echo "path=$DEPLOY_PATH"  >> "$GITHUB_OUTPUT"
+          echo "domain=$DOMAIN"     >> "$GITHUB_OUTPUT"
+          echo "✅ Parametri rezolvați: $USER@$HOST:$PORT → $DEPLOY_PATH"
+
+      - name: Setup SSH
+        run: |
+          mkdir -p ~/.ssh && chmod 700 ~/.ssh
+          echo "${{ secrets.HETZNER_SSH_PRIVATE_KEY || secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/bootstrap_key
+          chmod 600 ~/.ssh/bootstrap_key
+          ssh-keyscan -t ed25519,rsa -p "${{ steps.params.outputs.port }}" \
+            "${{ steps.params.outputs.host }}" >> ~/.ssh/known_hosts 2>/dev/null || true
+          echo "✅ SSH key configured"
+
+      - name: Test SSH connection
+        run: |
+          ssh -i ~/.ssh/bootstrap_key \
+              -p "${{ steps.params.outputs.port }}" \
+              -o StrictHostKeyChecking=no \
+              -o BatchMode=yes \
+              -o ConnectTimeout=15 \
+              "${{ steps.params.outputs.user }}@${{ steps.params.outputs.host }}" \
+              "echo '✅ SSH connection OK — server: $(hostname) — OS: $(lsb_release -d 2>/dev/null | cut -f2 || uname -r)'"
+
+      # ── PASUL 1: Instalare sistem ─────────────────────────────────────────────
+      - name: Install system dependencies
+        run: |
+          ssh -i ~/.ssh/bootstrap_key \
+              -p "${{ steps.params.outputs.port }}" \
+              -o StrictHostKeyChecking=no -o BatchMode=yes \
+              "${{ steps.params.outputs.user }}@${{ steps.params.outputs.host }}" << 'ENDSSH'
+          set -e
+          echo "════════════════════════════════════════════════════════"
+          echo "📦 PASUL 1: Instalare dependențe sistem"
+          echo "════════════════════════════════════════════════════════"
+
+          export DEBIAN_FRONTEND=noninteractive
+          apt-get update -y
+          apt-get install -y curl ca-certificates gnupg git rsync nginx ufw build-essential python3
+
+          # Node.js 20
+          if ! command -v node >/dev/null 2>&1 || ! node -e "process.exit(parseInt(process.version.slice(1)) >= 20 ? 0 : 1)" 2>/dev/null; then
+            echo "📦 Instalare Node.js 20..."
+            install -m 0755 -d /etc/apt/keyrings
+            curl -fsSL https://deb.nodesource.com/gpgkey/nodesource-repo.gpg.key \
+              | gpg --dearmor -o /etc/apt/keyrings/nodesource.gpg
+            chmod a+r /etc/apt/keyrings/nodesource.gpg
+            echo "deb [signed-by=/etc/apt/keyrings/nodesource.gpg] https://deb.nodesource.com/node_20.x nodistro main" \
+              > /etc/apt/sources.list.d/nodesource.list
+            apt-get update -y
+            apt-get install -y nodejs
+          fi
+          echo "✅ Node.js: $(node -v)"
+          echo "✅ npm: $(npm -v)"
+
+          # PM2
+          if ! command -v pm2 >/dev/null 2>&1; then
+            echo "📦 Instalare PM2..."
+            npm install -g pm2
+          fi
+          echo "✅ PM2: $(pm2 -v)"
+
+          # SQLite tools (pentru better-sqlite3)
+          apt-get install -y libsqlite3-dev || true
+
+          echo "✅ Sistem pregătit!"
+          ENDSSH
+
+      # ── PASUL 2: Copiere fișiere aplicație ───────────────────────────────────
+      - name: Sync UNICORN_FINAL to server
+        run: |
+          DEPLOY_PATH="${{ steps.params.outputs.path }}"
+          HOST="${{ steps.params.outputs.host }}"
+          USER="${{ steps.params.outputs.user }}"
+          PORT="${{ steps.params.outputs.port }}"
+
+          echo "📁 Creare director deploy: $DEPLOY_PATH"
+          ssh -i ~/.ssh/bootstrap_key -p "$PORT" -o StrictHostKeyChecking=no -o BatchMode=yes \
+            "$USER@$HOST" "mkdir -p '$DEPLOY_PATH' && chmod 755 '$DEPLOY_PATH'"
+
+          echo "📦 Copiere UNICORN_FINAL → $HOST:$DEPLOY_PATH..."
+          tar -C ./UNICORN_FINAL \
+              --exclude='.git' \
+              --exclude='node_modules' \
+              --exclude='.next' \
+              --exclude='logs' \
+              --exclude='*.local' \
+              --exclude='.env' \
+              -czf - . | \
+            ssh -i ~/.ssh/bootstrap_key -p "$PORT" -o StrictHostKeyChecking=no -o BatchMode=yes \
+              "$USER@$HOST" \
+              "cd '$DEPLOY_PATH' && tar --overwrite --no-same-permissions --no-same-owner -xzf -"
+
+          echo "✅ Fișiere copiate pe server"
+
+      # ── PASUL 3: Configurare .env din GitHub Secrets ──────────────────────────
+      - name: Write .env configuration
+        env:
+          DEPLOY_PATH:           ${{ steps.params.outputs.path }}
+          DOMAIN:                ${{ steps.params.outputs.domain }}
+          JWT_SECRET:            ${{ secrets.JWT_SECRET }}
+          ADMIN_SECRET:          ${{ secrets.ADMIN_SECRET }}
+          ADMIN_MASTER_PASSWORD: ${{ secrets.ADMIN_MASTER_PASSWORD }}
+          ADMIN_2FA_CODE:        ${{ secrets.ADMIN_2FA_CODE || '123456' }}
+          GITHUB_TOKEN_SECRET:   ${{ secrets.GH_PAT || secrets.GITHUB_TOKEN }}
+          VERCEL_TOKEN:          ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_ORG_ID:         ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID:     ${{ secrets.VERCEL_PROJECT_ID }}
+          OPENAI_API_KEY:        ${{ secrets.OPENAI_API_KEY }}
+          DEEPSEEK_API_KEY:      ${{ secrets.DEEPSEEK_API_KEY }}
+          ANTHROPIC_API_KEY:     ${{ secrets.ANTHROPIC_API_KEY }}
+          GEMINI_API_KEY:        ${{ secrets.GEMINI_API_KEY }}
+          MISTRAL_API_KEY:       ${{ secrets.MISTRAL_API_KEY }}
+          COHERE_API_KEY:        ${{ secrets.COHERE_API_KEY }}
+          XAI_API_KEY:           ${{ secrets.XAI_API_KEY }}
+          STRIPE_SECRET_KEY:     ${{ secrets.STRIPE_SECRET_KEY }}
+          STRIPE_PUBLISHABLE_KEY: ${{ secrets.STRIPE_PUBLISHABLE_KEY }}
+          STRIPE_WEBHOOK_SECRET: ${{ secrets.STRIPE_WEBHOOK_SECRET }}
+          PAYPAL_CLIENT_ID:      ${{ secrets.PAYPAL_CLIENT_ID }}
+          PAYPAL_CLIENT_SECRET:  ${{ secrets.PAYPAL_CLIENT_SECRET }}
+          SMTP_HOST:             ${{ secrets.SMTP_HOST || 'smtp.mail.yahoo.com' }}
+          SMTP_PORT:             ${{ secrets.SMTP_PORT || '587' }}
+          SMTP_USER:             ${{ secrets.SMTP_USER }}
+          SMTP_PASS:             ${{ secrets.SMTP_PASS }}
+          WEBHOOK_SECRET:        ${{ secrets.WEBHOOK_SECRET }}
+          HETZNER_WEBHOOK_SECRET: ${{ secrets.HETZNER_WEBHOOK_SECRET || secrets.WEBHOOK_SECRET }}
+          HETZNER_API_VALUE:     ${{ secrets.HETZNER_API_KEY || secrets.HETZNER_API_TOKEN }}
+          BTC_WALLET:            ${{ secrets.BTC_WALLET_ADDRESS || 'bc1q4f7e66z87mdfj56kz0dj5hvcnpmh0qh4wuv22e' }}
+        run: |
+          # Generăm .env local, îl trimitem pe server via SSH (fără a expune secretele în loguri)
+          cat > /tmp/unicorn.env << ENVEOF
+          NODE_ENV=production
+          PORT=3000
+          PUBLIC_APP_URL=https://${DOMAIN}
+          SITE_DOMAIN=${DOMAIN}
+          UNICORN_DOMAIN=www.${DOMAIN}
+
+          JWT_SECRET=${JWT_SECRET:-$(openssl rand -hex 32)}
+          ADMIN_SECRET=${ADMIN_SECRET:-$(openssl rand -hex 24)}
+          ADMIN_MASTER_PASSWORD=${ADMIN_MASTER_PASSWORD:-UnicornAdmin2026!}
+          ADMIN_2FA_CODE=${ADMIN_2FA_CODE:-123456}
+
+          GITHUB_TOKEN=${GITHUB_TOKEN_SECRET}
+          GITHUB_OWNER=ruffy80
+          GITHUB_REPO=ZeusAI
+          GIT_REMOTE_URL=https://github.com/ruffy80/ZeusAI.git
+
+          VERCEL_TOKEN=${VERCEL_TOKEN}
+          VERCEL_ORG_ID=${VERCEL_ORG_ID}
+          VERCEL_PROJECT_ID=${VERCEL_PROJECT_ID}
+
+          OPENAI_API_KEY=${OPENAI_API_KEY}
+          DEEPSEEK_API_KEY=${DEEPSEEK_API_KEY}
+          ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+          GEMINI_API_KEY=${GEMINI_API_KEY}
+          MISTRAL_API_KEY=${MISTRAL_API_KEY}
+          COHERE_API_KEY=${COHERE_API_KEY}
+          XAI_API_KEY=${XAI_API_KEY}
+
+          STRIPE_SECRET_KEY=${STRIPE_SECRET_KEY}
+          STRIPE_PUBLISHABLE_KEY=${STRIPE_PUBLISHABLE_KEY}
+          STRIPE_WEBHOOK_SECRET=${STRIPE_WEBHOOK_SECRET}
+          PAYPAL_CLIENT_ID=${PAYPAL_CLIENT_ID}
+          PAYPAL_CLIENT_SECRET=${PAYPAL_CLIENT_SECRET}
+
+          SMTP_HOST=${SMTP_HOST}
+          SMTP_PORT=${SMTP_PORT}
+          SMTP_USER=${SMTP_USER}
+          SMTP_PASS=${SMTP_PASS}
+          EMAIL_FROM_NAME=Zeus AI
+          ADMIN_EMAIL=${SMTP_USER:-vladoi_ionut@yahoo.com}
+
+          HETZNER_API_KEY=${HETZNER_API_VALUE}
+          HETZNER_API_TOKEN=${HETZNER_API_VALUE}
+
+          WEBHOOK_SECRET=${WEBHOOK_SECRET}
+          HETZNER_WEBHOOK_SECRET=${HETZNER_WEBHOOK_SECRET:-${WEBHOOK_SECRET}}
+          DOMAIN=${DOMAIN}
+
+          BTC_WALLET_ADDRESS=${BTC_WALLET}
+          OWNER_BTC_ADDRESS=${BTC_WALLET}
+          LEGAL_OWNER_BTC=${BTC_WALLET}
+          OWNER_NAME=Vladoi Ionut
+          OWNER_EMAIL=${SMTP_USER:-vladoi_ionut@yahoo.com}
+          LEGAL_OWNER_NAME=Vladoi Ionut
+          LEGAL_OWNER_EMAIL=${SMTP_USER:-vladoi_ionut@yahoo.com}
+
+          AUTONOMY_LEVEL=10
+          AUTO_COMMIT_ENABLED=true
+          AUTO_PUSH_ENABLED=false
+          INNOVATION_INTERVAL=60
+          REVENUE_INTERVAL=30
+          DEPLOYMENT_INTERVAL=300
+          ENVEOF
+
+          # Trim indentare din heredoc
+          sed -i 's/^[[:space:]]*//' /tmp/unicorn.env
+          # Elimina liniile goale cu doar =
+          grep -v '^[A-Z_]*=$' /tmp/unicorn.env > /tmp/unicorn.env.clean || true
+          mv /tmp/unicorn.env.clean /tmp/unicorn.env || true
+
+          # Trimite pe server
+          scp -i ~/.ssh/bootstrap_key \
+              -P "${{ steps.params.outputs.port }}" \
+              -o StrictHostKeyChecking=no \
+              /tmp/unicorn.env \
+              "${{ steps.params.outputs.user }}@${{ steps.params.outputs.host }}:${{ steps.params.outputs.path }}/.env"
+          echo "✅ .env configurat pe server"
+          rm -f /tmp/unicorn.env
+
+      # ── PASUL 4: Instalare dependențe npm ────────────────────────────────────
+      - name: Install npm dependencies
+        run: |
+          ssh -i ~/.ssh/bootstrap_key \
+              -p "${{ steps.params.outputs.port }}" \
+              -o StrictHostKeyChecking=no -o BatchMode=yes \
+              "${{ steps.params.outputs.user }}@${{ steps.params.outputs.host }}" << ENDSSH
+          set -e
+          DEPLOY_PATH="${{ steps.params.outputs.path }}"
+          echo "════════════════════════════════════════════════════════"
+          echo "📦 PASUL 4: Instalare dependențe npm"
+          echo "════════════════════════════════════════════════════════"
+          cd "\$DEPLOY_PATH"
+          mkdir -p logs data
+
+          npm ci --no-audit --no-fund 2>/dev/null || npm install --no-audit --no-fund
+          npm rebuild better-sqlite3 --no-fund 2>/dev/null || true
+          echo "✅ Backend deps instalate"
+
+          if [ -d "client" ] && [ -f "client/package.json" ]; then
+            echo "🎨 Build frontend React..."
+            cd client
+            npm ci --no-audit --no-fund 2>/dev/null || npm install --no-audit --no-fund
+            CI=false npm run build
+            cd ..
+            echo "✅ Frontend built"
+          fi
+          ENDSSH
+
+      # ── PASUL 5: Configurare nginx ────────────────────────────────────────────
+      - name: Configure Nginx
+        run: |
+          ssh -i ~/.ssh/bootstrap_key \
+              -p "${{ steps.params.outputs.port }}" \
+              -o StrictHostKeyChecking=no -o BatchMode=yes \
+              "${{ steps.params.outputs.user }}@${{ steps.params.outputs.host }}" << ENDSSH
+          set -e
+          DEPLOY_PATH="${{ steps.params.outputs.path }}"
+          DOMAIN="${{ steps.params.outputs.domain }}"
+          echo "════════════════════════════════════════════════════════"
+          echo "🌐 PASUL 5: Configurare Nginx"
+          echo "════════════════════════════════════════════════════════"
+
+          if [ -f "\$DEPLOY_PATH/scripts/nginx-unicorn.conf" ]; then
+            cp "\$DEPLOY_PATH/scripts/nginx-unicorn.conf" /etc/nginx/sites-available/unicorn
+            ln -sf /etc/nginx/sites-available/unicorn /etc/nginx/sites-enabled/unicorn
+            rm -f /etc/nginx/sites-enabled/default
+            # Actualizează domeniul în config dacă e diferit
+            sed -i "s/zeusai\.pro/\${DOMAIN}/g" /etc/nginx/sites-available/unicorn 2>/dev/null || true
+            nginx -t && systemctl enable nginx && systemctl restart nginx
+            echo "✅ Nginx configurat pentru \$DOMAIN"
+          else
+            echo "⚠️  scripts/nginx-unicorn.conf nu a fost găsit"
+          fi
+
+          # Deschide porturi firewall
+          ufw allow 22/tcp  2>/dev/null || true
+          ufw allow 80/tcp  2>/dev/null || true
+          ufw allow 443/tcp 2>/dev/null || true
+          ufw --force enable 2>/dev/null || true
+          echo "✅ Firewall: porturi 22/80/443 deschise"
+          ENDSSH
+
+      # ── PASUL 6: SSL cu certbot (opțional) ───────────────────────────────────
+      - name: Configure SSL with certbot
+        if: inputs.skip_ssl != 'true'
+        continue-on-error: true
+        run: |
+          ssh -i ~/.ssh/bootstrap_key \
+              -p "${{ steps.params.outputs.port }}" \
+              -o StrictHostKeyChecking=no -o BatchMode=yes \
+              "${{ steps.params.outputs.user }}@${{ steps.params.outputs.host }}" << ENDSSH
+          DOMAIN="${{ steps.params.outputs.domain }}"
+          CERT_EMAIL="${{ secrets.OWNER_EMAIL || secrets.SMTP_USER || 'vladoi_ionut@yahoo.com' }}"
+          echo "════════════════════════════════════════════════════════"
+          echo "🔒 PASUL 6: SSL/certbot pentru \$DOMAIN"
+          echo "════════════════════════════════════════════════════════"
+
+          if ! command -v certbot >/dev/null 2>&1; then
+            apt-get install -y certbot python3-certbot-nginx 2>/dev/null || \
+              snap install --classic certbot 2>/dev/null || true
+          fi
+
+          if command -v certbot >/dev/null 2>&1; then
+            SERVER_IP=\$(curl -s --max-time 5 https://ifconfig.me 2>/dev/null || hostname -I | awk '{print \$1}')
+            DOMAIN_A=\$(dig +short "\$DOMAIN" A 2>/dev/null | tail -1 || true)
+            echo "  Server IP: \${SERVER_IP}  Domain DNS: \${DOMAIN_A}"
+
+            if [ "\$SERVER_IP" = "\$DOMAIN_A" ] || [ -z "\$DOMAIN_A" ]; then
+              if certbot --nginx -d "\$DOMAIN" -d "www.\$DOMAIN" \
+                  --non-interactive --agree-tos --email "\$CERT_EMAIL" \
+                  --redirect --keep-until-expiring 2>/dev/null; then
+                echo "✅ SSL certificate (apex + www) pentru \$DOMAIN"
+              elif certbot --nginx -d "\$DOMAIN" \
+                  --non-interactive --agree-tos --email "\$CERT_EMAIL" \
+                  --redirect --keep-until-expiring 2>/dev/null; then
+                echo "✅ SSL certificate (apex) pentru \$DOMAIN"
+              else
+                echo "ℹ️  certbot nu a putut obține certificat acum (DNS poate nu e propagat)"
+              fi
+              nginx -t && systemctl reload nginx 2>/dev/null || true
+            else
+              echo "ℹ️  IP-ul domeniului (\$DOMAIN_A) ≠ IP serverului (\$SERVER_IP)"
+              echo "   SSL va fi obținut automat la next deploy după propagarea DNS"
+            fi
+          else
+            echo "ℹ️  certbot nu este disponibil"
+          fi
+          ENDSSH
+
+      # ── PASUL 7: Instalare Ollama (opțional) ─────────────────────────────────
+      - name: Install Ollama + Llama model (optional)
+        if: inputs.install_ollama == 'true'
+        continue-on-error: true
+        run: |
+          ssh -i ~/.ssh/bootstrap_key \
+              -p "${{ steps.params.outputs.port }}" \
+              -o StrictHostKeyChecking=no -o BatchMode=yes \
+              "${{ steps.params.outputs.user }}@${{ steps.params.outputs.host }}" << 'ENDSSH'
+          echo "════════════════════════════════════════════════════════"
+          echo "🤖 PASUL 7: Instalare Ollama"
+          echo "════════════════════════════════════════════════════════"
+          if ! command -v ollama >/dev/null 2>&1; then
+            curl -fsSL https://ollama.ai/install.sh | sh
+          fi
+          echo "✅ Ollama instalat: $(ollama --version 2>/dev/null || echo 'ok')"
+          # Pull model (~4GB)
+          ollama pull llama3.2:3b-instruct-q4_K_M 2>/dev/null || \
+            ollama pull llama3.1:8b-instruct-q4_K_M 2>/dev/null || true
+          echo "✅ Model Llama pregătit"
+          ENDSSH
+
+      # ── PASUL 8: Pornire PM2 + systemd auto-boot ─────────────────────────────
+      - name: Start PM2 processes + configure systemd auto-boot
+        run: |
+          ssh -i ~/.ssh/bootstrap_key \
+              -p "${{ steps.params.outputs.port }}" \
+              -o StrictHostKeyChecking=no -o BatchMode=yes \
+              "${{ steps.params.outputs.user }}@${{ steps.params.outputs.host }}" << ENDSSH
+          set -e
+          DEPLOY_PATH="${{ steps.params.outputs.path }}"
+          echo "════════════════════════════════════════════════════════"
+          echo "🚀 PASUL 8: Pornire PM2 + auto-boot systemd"
+          echo "════════════════════════════════════════════════════════"
+          cd "\$DEPLOY_PATH"
+          mkdir -p logs
+
+          # Curăță procesele PM2 existente pentru un start curat
+          pm2 stop all 2>/dev/null || true
+          pm2 delete all 2>/dev/null || true
+
+          # Pornește toate procesele din ecosystem.config.js
+          pm2 start ecosystem.config.js
+          pm2 save
+          echo "✅ Toate procesele PM2 pornite din ecosystem.config.js"
+
+          # Configurează PM2 să pornească automat la reboot
+          if command -v systemctl >/dev/null 2>&1; then
+            bash scripts/setup-systemd.sh "\$DEPLOY_PATH" || true
+            echo "✅ Systemd auto-boot configurat"
+          fi
+
+          # Afișează statusul
+          pm2 list
+          ENDSSH
+
+      # ── PASUL 9: Verificare sănătate ─────────────────────────────────────────
+      - name: Health check
+        id: health_check
+        continue-on-error: true
+        run: |
+          echo "⏳ Așteptare 20s pentru pornirea serviciilor..."
+          sleep 20
+
+          HOST="${{ steps.params.outputs.host }}"
+          DOMAIN="${{ steps.params.outputs.domain }}"
+
+          # Verificare backend local (via SSH)
+          BACKEND_HEALTH=$(ssh -i ~/.ssh/bootstrap_key \
+              -p "${{ steps.params.outputs.port }}" \
+              -o StrictHostKeyChecking=no -o BatchMode=yes \
+              "${{ steps.params.outputs.user }}@$HOST" \
+              "curl -sf http://localhost:3000/api/health 2>/dev/null || echo '{\"status\":\"not_ready\"}'")
+          echo "Backend local health: $BACKEND_HEALTH"
+
+          if echo "$BACKEND_HEALTH" | grep -q '"status":"ok"'; then
+            echo "✅ Backend răspunde corect"
+            echo "backend_ok=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "⚠️  Backend nu răspunde încă. Verifică logurile cu: pm2 logs unicorn"
+            echo "backend_ok=false" >> "$GITHUB_OUTPUT"
+          fi
+
+          # Verificare HTTP public (prin nginx)
+          HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" --max-time 15 "http://$HOST/api/health" || echo "000")
+          echo "HTTP public health (port 80): $HTTP_STATUS"
+          [ "$HTTP_STATUS" = "200" ] && echo "✅ Nginx proxy OK" || echo "ℹ️  Port 80 indisponibil (poate nginx nu e pornit sau firewall)"
+
+          # Verificare HTTPS cu domeniu (dacă SSL a fost configurat)
+          HTTPS_STATUS=$(curl -sk -o /dev/null -w "%{http_code}" --max-time 15 "https://$DOMAIN/api/health" || echo "000")
+          echo "HTTPS $DOMAIN/api/health: $HTTPS_STATUS"
+          [ "$HTTPS_STATUS" = "200" ] && echo "✅ HTTPS OK" || echo "ℹ️  HTTPS nu e disponibil (poate SSL nu e configurat sau DNS nu propagat)"
+
+      # ── PASUL 10: Raport final ────────────────────────────────────────────────
+      - name: Final status report
+        if: always()
+        run: |
+          HOST="${{ steps.params.outputs.host }}"
+          DOMAIN="${{ steps.params.outputs.domain }}"
+          DEPLOY_PATH="${{ steps.params.outputs.path }}"
+
+          echo ""
+          echo "════════════════════════════════════════════════════════"
+          echo "🦄 BOOTSTRAP COMPLET! Unicorn AI pe Hetzner"
+          echo "════════════════════════════════════════════════════════"
+          echo ""
+          echo "📍 Server:       $HOST"
+          echo "🌐 Domeniu:      https://$DOMAIN"
+          echo "📁 Deploy path:  $DEPLOY_PATH"
+          echo ""
+          echo "🔗 URL-uri utile:"
+          echo "   https://$DOMAIN/               — Site principal"
+          echo "   https://$DOMAIN/api/health      — Health check"
+          echo "   https://$DOMAIN/admin/login     — Panel admin"
+          echo "   http://$HOST:3000/api/health    — Backend direct"
+          echo ""
+          echo "🛠️  Comenzi pe server (SSH: ssh root@$HOST):"
+          echo "   pm2 list                        — Status procese"
+          echo "   pm2 logs                        — Loguri live"
+          echo "   pm2 logs unicorn --lines 50     — Loguri backend"
+          echo "   pm2 restart unicorn             — Restart backend"
+          echo "   curl http://localhost:3000/api/autonomous/platform/status"
+          echo ""
+          echo "🔄 Deploy-urile viitoare se fac AUTOMAT la fiecare push pe main!"
+          echo ""
+
+          # Scrie rezumat în GitHub Actions
+          echo "## 🦄 Hetzner Bootstrap Report" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Parametru | Valoare |" >> "$GITHUB_STEP_SUMMARY"
+          echo "|-----------|---------|" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Server    | \`$HOST\` |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Domain    | https://$DOMAIN |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Path      | \`$DEPLOY_PATH\` |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Backend   | ${{ steps.health_check.outputs.backend_ok == 'true' && '✅ OK' || '⚠️ Check logs' }} |" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "### Procese PM2 active" >> "$GITHUB_STEP_SUMMARY"
+          echo "\`\`\`" >> "$GITHUB_STEP_SUMMARY"
+          ssh -i ~/.ssh/bootstrap_key \
+              -p "${{ steps.params.outputs.port }}" \
+              -o StrictHostKeyChecking=no -o BatchMode=yes \
+              "${{ steps.params.outputs.user }}@$HOST" \
+              "pm2 list --no-color 2>/dev/null || echo 'N/A'" >> "$GITHUB_STEP_SUMMARY" 2>/dev/null || echo "SSH unavailable" >> "$GITHUB_STEP_SUMMARY"
+          echo "\`\`\`" >> "$GITHUB_STEP_SUMMARY"

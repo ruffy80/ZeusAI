@@ -1,0 +1,70 @@
+# ============================================================
+# ISTIO VIRTUAL SERVICE — Canary Traffic Split
+# Managed programmatically by CanaryController via K8s API.
+# Initial split: 95% stable / 5% canary.
+# Weights are patched by the Control Plane Agent on each ramp step.
+# ============================================================
+apiVersion: networking.istio.io/v1beta1
+kind: VirtualService
+metadata:
+  name: unicorn-canary
+  namespace: production
+  labels:
+    app: unicorn
+    managed-by: control-plane-agent
+spec:
+  hosts:
+    - unicorn-svc
+  http:
+    # Canary header override — force-routes QA/internal users to canary
+    - name: canary-header-route
+      match:
+        - headers:
+            x-canary:
+              exact: "true"
+      route:
+        - destination:
+            host: unicorn-svc
+            subset: canary
+          weight: 100
+
+    # Stable/canary split — weights managed by CanaryController
+    - name: production-route
+      route:
+        - destination:
+            host: unicorn-svc
+            subset: stable
+          weight: 95
+        - destination:
+            host: unicorn-svc
+            subset: canary
+          weight: 5
+---
+apiVersion: networking.istio.io/v1beta1
+kind: DestinationRule
+metadata:
+  name: unicorn-destination-rule
+  namespace: production
+  labels:
+    app: unicorn
+spec:
+  host: unicorn-svc
+  trafficPolicy:
+    connectionPool:
+      tcp:
+        maxConnections: 1000
+      http:
+        http2MaxRequests: 1000
+        maxRequestsPerConnection: 100
+    outlierDetection:
+      consecutive5xxErrors: 5
+      interval: 10s
+      baseEjectionTime: 30s
+      maxEjectionPercent: 50
+  subsets:
+    - name: stable
+      labels:
+        version: stable
+    - name: canary
+      labels:
+        version: canary

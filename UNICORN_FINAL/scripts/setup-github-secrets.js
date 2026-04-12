@@ -119,6 +119,33 @@ function apiPut(path, body) {
   });
 }
 
+function apiPatch(path, body) {
+  return new Promise((resolve, reject) => {
+    const payload = JSON.stringify(body);
+    const opts = {
+      hostname: 'api.github.com',
+      path,
+      method: 'PATCH',
+      headers: {
+        Authorization: `token ${GITHUB_TOKEN}`,
+        'User-Agent': 'unicorn-setup',
+        Accept: 'application/vnd.github+json',
+        'X-GitHub-Api-Version': '2022-11-28',
+        'Content-Type': 'application/json',
+        'Content-Length': Buffer.byteLength(payload)
+      }
+    };
+    const req = https.request(opts, res => {
+      let data = '';
+      res.on('data', c => data += c);
+      res.on('end', () => resolve({ status: res.statusCode, body: data }));
+    });
+    req.on('error', reject);
+    req.write(payload);
+    req.end();
+  });
+}
+
 async function encryptSecret(publicKey, publicKeyId, secretValue) {
   // Load libsodium for encryption (required by GitHub API)
   let sodium;
@@ -178,7 +205,33 @@ async function run() {
     // Pass-through from environment (must be provided externally if available)
     ...(process.env.VERCEL_TOKEN            ? { VERCEL_TOKEN:            process.env.VERCEL_TOKEN }            : {}),
     ...(process.env.HETZNER_API_KEY         ? { HETZNER_API_KEY:         process.env.HETZNER_API_KEY }         : {}),
+    ...(process.env.HETZNER_API_TOKEN       ? { HETZNER_API_TOKEN:       process.env.HETZNER_API_TOKEN }       : {}),
     ...(process.env.HETZNER_SSH_PRIVATE_KEY ? { HETZNER_SSH_PRIVATE_KEY: process.env.HETZNER_SSH_PRIVATE_KEY } : {}),
+    // AI provider keys (pass-through — user must provide these)
+    ...(process.env.OPENAI_API_KEY     ? { OPENAI_API_KEY:     process.env.OPENAI_API_KEY }     : {}),
+    ...(process.env.DEEPSEEK_API_KEY   ? { DEEPSEEK_API_KEY:   process.env.DEEPSEEK_API_KEY }   : {}),
+    ...(process.env.ANTHROPIC_API_KEY  ? { ANTHROPIC_API_KEY:  process.env.ANTHROPIC_API_KEY }  : {}),
+    ...(process.env.GEMINI_API_KEY     ? { GEMINI_API_KEY:     process.env.GEMINI_API_KEY }     : {}),
+    ...(process.env.MISTRAL_API_KEY    ? { MISTRAL_API_KEY:    process.env.MISTRAL_API_KEY }    : {}),
+    ...(process.env.COHERE_API_KEY     ? { COHERE_API_KEY:     process.env.COHERE_API_KEY }     : {}),
+    ...(process.env.XAI_API_KEY        ? { XAI_API_KEY:        process.env.XAI_API_KEY }        : {}),
+    // Payment keys (pass-through — user must provide these)
+    ...(process.env.STRIPE_SECRET_KEY       ? { STRIPE_SECRET_KEY:       process.env.STRIPE_SECRET_KEY }       : {}),
+    ...(process.env.STRIPE_PUBLISHABLE_KEY  ? { STRIPE_PUBLISHABLE_KEY:  process.env.STRIPE_PUBLISHABLE_KEY }  : {}),
+    ...(process.env.STRIPE_WEBHOOK_SECRET   ? { STRIPE_WEBHOOK_SECRET:   process.env.STRIPE_WEBHOOK_SECRET }   : {}),
+    ...(process.env.PAYPAL_CLIENT_ID        ? { PAYPAL_CLIENT_ID:        process.env.PAYPAL_CLIENT_ID }        : {}),
+    ...(process.env.PAYPAL_CLIENT_SECRET    ? { PAYPAL_CLIENT_SECRET:    process.env.PAYPAL_CLIENT_SECRET }    : {}),
+    // Email credentials (pass-through — user must provide these)
+    ...(process.env.SMTP_HOST  ? { SMTP_HOST:  process.env.SMTP_HOST }  : {}),
+    ...(process.env.SMTP_PORT  ? { SMTP_PORT:  process.env.SMTP_PORT }  : {}),
+    ...(process.env.SMTP_USER  ? { SMTP_USER:  process.env.SMTP_USER }  : {}),
+    ...(process.env.SMTP_PASS  ? { SMTP_PASS:  process.env.SMTP_PASS }  : {}),
+    // DNS provider credentials (optional — enables automatic DNS setup)
+    ...(process.env.HETZNER_DNS_API_KEY     ? { HETZNER_DNS_API_KEY:     process.env.HETZNER_DNS_API_KEY }     : {}),
+    ...(process.env.CF_TOKEN                ? { CF_TOKEN:                process.env.CF_TOKEN }                : {}),
+    ...(process.env.CLOUDFLARE_API_TOKEN    ? { CF_TOKEN:                process.env.CLOUDFLARE_API_TOKEN }    : {}),
+    ...(process.env.CF_ZONE_ID              ? { CF_ZONE_ID:              process.env.CF_ZONE_ID }              : {}),
+    ...(process.env.CLOUDFLARE_ZONE_ID      ? { CF_ZONE_ID:              process.env.CLOUDFLARE_ZONE_ID }      : {}),
   };
 
   const { key, key_id } = await apiGet(`/repos/${OWNER}/${REPO}/actions/secrets/public-key`);
@@ -192,6 +245,22 @@ async function run() {
   }
 
   console.log('\n✅ Done. Trigger a deploy by pushing to main.\n');
+
+  // ─── Update GitHub repo homepage to zeusai.pro ──────────────────────────────
+  console.log('🏠 Updating GitHub repo homepage to https://zeusai.pro...');
+  try {
+    const repoRes = await apiPatch(`/repos/${OWNER}/${REPO}`, {
+      homepage: 'https://zeusai.pro',
+      description: 'ZeusAI – Autonomous AI Business Platform'
+    });
+    if (repoRes.status === 200) {
+      console.log('  ✅ GitHub repo homepage set to https://zeusai.pro');
+    } else {
+      console.warn(`  ⚠️  Could not update repo homepage (HTTP ${repoRes.status}). GH_PAT needs repo scope.`);
+    }
+  } catch (err) {
+    console.warn(`  ⚠️  Repo homepage update failed: ${err.message}`);
+  }
 }
 
 run().catch(err => {

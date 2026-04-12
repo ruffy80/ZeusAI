@@ -234,7 +234,7 @@ async function runTests() {
   // ── Modules ───────────────────────────────────────────────────────────────────
   console.log('\nModules:');
   await test('GET /api/modules → 200 with array', async () => {
-    const r = await apiRequest('GET', '/api/modules');
+    const r = await apiRequest('GET', '/api/modules', null, { Authorization: `Bearer ${userToken}` });
     assert.equal(r.status, 200);
     assert.ok(r.body.modules && r.body.modules.length > 0);
   });
@@ -260,6 +260,7 @@ async function runTests() {
   if (failed > 0) {
     process.exit(1);
   }
+  process.exit(0);
 }
 
 runTests().catch((err) => {
