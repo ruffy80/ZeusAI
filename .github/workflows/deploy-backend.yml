@@ -15,17 +15,34 @@ jobs:
 
       - name: Setup SSH
         run: |
-          mkdir -p ~/.ssh
-          echo "${{ secrets.HETZNERKEY }}" > ~/.ssh/id_rsa
-          chmod 600 ~/.ssh/id_rsa
-          ssh-keyscan -H ${{ secrets.HETZNERHOST }} > ~/.ssh/known_hosts
+          mkdir -p ~/.ssh && chmod 700 ~/.ssh
+          echo "${{ secrets.HETZNER_SSH_PRIVATE_KEY || secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          DEPLOY_PORT="${{ secrets.HETZNER_DEPLOY_PORT || secrets.SSH_PORT || '22' }}"
+          if ! [[ "$DEPLOY_PORT" =~ ^[0-9]+$ ]]; then DEPLOY_PORT="22"; fi
+          ssh-keyscan -t ed25519,rsa -p "$DEPLOY_PORT" \
+            "${{ secrets.HETZNER_HOST || secrets.SSH_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null || true
 
       - name: Deploy to Hetzner
         run: |
-          ssh ${{ secrets.HETZNERUSER }}@${{ secrets.HETZNERHOST }} "
-            cd ${{ secrets.BACKEND_PATH }} &&
-            git pull &&
-            npm install --legacy-peer-deps &&
-            npm run build &&
-            pm2 restart unicorn-backend || pm2 start dist/main.js --name unicorn-backend
-          "
+          DEPLOY_HOST="${{ secrets.HETZNER_HOST || secrets.SSH_HOST }}"
+          DEPLOY_USER="${{ secrets.HETZNER_DEPLOY_USER || secrets.HETZNER_USER || secrets.SSH_USER }}"
+          DEPLOY_PORT="${{ secrets.HETZNER_DEPLOY_PORT || secrets.SSH_PORT || '22' }}"
+          if ! [[ "$DEPLOY_PORT" =~ ^[0-9]+$ ]]; then DEPLOY_PORT="22"; fi
+          DEPLOY_PATH="${{ secrets.HETZNER_DEPLOY_PATH || '/opt/unicorn' }}"
+
+          ssh -i ~/.ssh/deploy_key \
+              -p "$DEPLOY_PORT" \
+              -o StrictHostKeyChecking=no \
+              -o UserKnownHostsFile=~/.ssh/known_hosts \
+              -o BatchMode=yes \
+              "$DEPLOY_USER@$DEPLOY_HOST" << ENDSSH
+            cd "$DEPLOY_PATH"
+            git config --global --add safe.directory "$DEPLOY_PATH" 2>/dev/null || true
+            git pull
+            npm install --legacy-peer-deps
+            npm run build
+            pm2 delete all 2>/dev/null || true
+            pm2 start ecosystem.config.js
+            pm2 save
+          ENDSSH
