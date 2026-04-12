@@ -1,9 +1,31 @@
 version: 2
+ copilot/rezolva-automat-cu-x-rosu
 updates:
+
+
+updates:
+  # ── Root Next.js app ────────────────────────────────────────────────────────
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "09:00"
+      timezone: "Europe/Bucharest"
+    open-pull-requests-limit: 5
+    groups:
+      react:
+        patterns: ["react", "react-dom"]
+      next:
+        patterns: ["next"]
+
+  # ── Main production app (UNICORN_FINAL) ─────────────────────────────────────
+main
   - package-ecosystem: "npm"
     directory: "/UNICORN_FINAL"
     schedule:
       interval: "weekly"
+copilot/rezolva-automat-cu-x-rosu
     ignore:
       # undici: vercel pins undici@5.28.4 via @vercel/node; the fix requires
       # a major bump to 6.x which would break vercel CLI internals. Ignored
@@ -15,3 +37,21 @@ updates:
       # the version of @vercel/backends in use.
       - dependency-name: "srvx"
         versions: ["*"]
+
+      day: "monday"
+      time: "09:00"
+      timezone: "Europe/Bucharest"
+    open-pull-requests-limit: 10
+    groups:
+      security-patches:
+        update-types: ["patch"]
+      minor-updates:
+        update-types: ["minor"]
+    ignore:
+      # ccxt updates are very frequent and breaking — pin manually
+      - dependency-name: "ccxt"
+        update-types: ["version-update:semver-major", "version-update:semver-minor"]
+
+  # NOTE: release/ directory is intentionally excluded — it contains archived
+  # build artifacts and is not a maintained dependency tree.
+ main
