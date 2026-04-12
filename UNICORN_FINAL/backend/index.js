@@ -677,6 +677,7 @@ meshOrchestrator.register('unicornOrchestrator',    unicornOrchestrator, { statu
 
 // Pornim orchestratorul — Swiss-watch mode
 meshOrchestrator.start();
+unicornOrchestrator.start(); // Orchestratorul central al unicornului — activează toate cele 8 motoare autonome
 console.log('🕰️  Unicorn Mesh Orchestrator: STARTED — toate modulele conectate');
 console.log('🦄 Unicorn Orchestrator (8 engines): ACTIVE');
 
