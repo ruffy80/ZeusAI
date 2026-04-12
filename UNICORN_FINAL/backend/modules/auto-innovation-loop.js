@@ -55,6 +55,7 @@ const INNOVATION_CATEGORIES = [
 
 class AutoInnovationLoop {
   constructor() {
+    this.cache = new Map(); this.cacheTTL = 60000;
     this.startedAt    = Date.now();
     this.cycleCount   = 0;
     this.proposals    = [];   // all proposals generated
