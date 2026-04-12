@@ -1,0 +1,13 @@
+name: Skip Dependabot Builds
+
+on:
+  pull_request:
+    types: [opened, synchronize]
+
+jobs:
+  skip:
+    if: github.actor == 'dependabot[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Skip build for Dependabot
+        run: echo "Skipping build for Dependabot PR"
