@@ -5,8 +5,12 @@
   "dependencies": {
     "@octokit/rest": "^20.1.2",
     "axios": "^1.15.0",
+ dependabot/npm_and_yarn/UNICORN_FINAL/better-sqlite3-12.8.0
     "bcryptjs": "^2.4.3",
     "better-sqlite3": "^12.8.0",
+    "bcryptjs": "^3.0.3",
+    "better-sqlite3": "^11.10.0",
+>>> main
     "ccxt": "^4.5.47",
     "chokidar": "^3.5.3",
     "compression": "^1.7.4",
