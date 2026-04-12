@@ -35,6 +35,7 @@ const DNS_CHECK_MS      = parseInt(process.env.ORCHESTRATOR_DNS_MS    || '120000
 const GITHUB_POLL_MS    = parseInt(process.env.ORCHESTRATOR_GH_MS     || '300000', 10); // 5 min
 const MAX_LOG           = 500;
 const MAX_INCIDENTS     = 200;
+const ESCALATION_FAILURE_THRESHOLD = 3; // consecutive failures before escalation
 
 // Env-driven targets — safe defaults for when not configured
 const VERCEL_APP_URL    = process.env.PUBLIC_APP_URL       || process.env.VERCEL_URL || '';
@@ -217,7 +218,7 @@ class CentralOrchestrator extends EventEmitter {
     this.emit('service:degraded', { service, reason, meta, failures: this.health[service].consecutiveFailures });
 
     // Escalate if repeated failures
-    if (this.health[service].consecutiveFailures >= 3) {
+    if (this.health[service].consecutiveFailures >= ESCALATION_FAILURE_THRESHOLD) {
       const escalation = `[ESCALATION] ${service} has failed ${this.health[service].consecutiveFailures} consecutive checks`;
       this._log('ESCALATE', service, escalation, meta);
       this.emit('service:escalated', { service, reason: escalation, failures: this.health[service].consecutiveFailures });

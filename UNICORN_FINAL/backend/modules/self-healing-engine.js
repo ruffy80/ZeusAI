@@ -34,7 +34,11 @@ const crypto  = require('crypto');
 const WATCHDOG_MS    = parseInt(process.env.HEALER_WATCHDOG_MS    || '120000', 10); // 2 min
 const COOLDOWN_MS    = parseInt(process.env.HEALER_COOLDOWN_MS    || '300000', 10); // 5 min per service
 const MAX_HEAL_LOG   = 500;
-const MAX_AUTO_HEALS = 3; // per service per cooldown window
+const MAX_AUTO_HEALS = 3;         // per service per cooldown window
+const MAX_HEAP_MB    = parseInt(process.env.HEALER_MAX_HEAP_MB    || '1500',   10); // memory ceiling
+const UPTIME_WARNING_HOURS  = 72; // log reminder after this many hours
+const REMINDER_INTERVAL_HOURS = 24; // how often to repeat the reminder
+const MAX_STDERR_BYTES = 500;     // truncation limit for exec stderr
 
 // Safe list of PM2 process names that can be restarted
 const SAFE_PM2_NAMES = new Set([
@@ -262,14 +266,14 @@ class SelfHealingEngine {
   async _watchdogTick() {
     // Check Node process health (memory ceiling)
     const memMB = process.memoryUsage().heapUsed / 1024 / 1024;
-    if (memMB > 1500) {
+    if (memMB > MAX_HEAP_MB) {
       this._log('WATCHDOG_MEM', 'system', `Heap usage high: ${memMB.toFixed(0)} MB — triggering GC hint`);
       if (global.gc) global.gc();
     }
 
-    // Check uptime — after 72h, log a reminder for restart
+    // Check uptime — after UPTIME_WARNING_HOURS h, log a reminder for restart
     const uptimeH = (Date.now() - this.startedAt) / 3600000;
-    if (uptimeH > 72 && Math.round(uptimeH) % 24 === 0) {
+    if (uptimeH > UPTIME_WARNING_HOURS && Math.round(uptimeH) % REMINDER_INTERVAL_HOURS === 0) {
       this._log('WATCHDOG_UPTIME', 'system', `Process uptime ${uptimeH.toFixed(1)}h — consider scheduled restart`);
     }
   }
@@ -299,7 +303,7 @@ class SelfHealingEngine {
     return new Promise((resolve) => {
       const proc = spawn(cmd, args, { timeout: 60000, stdio: 'pipe' });
       let stderr = '';
-      proc.stderr && proc.stderr.on('data', d => { stderr += d.toString().slice(0, 500); });
+      proc.stderr && proc.stderr.on('data', d => { stderr += d.toString().slice(0, MAX_STDERR_BYTES); });
       proc.on('close', (code) => {
         if (code === 0) {
           this._log('EXEC_OK', 'system', `${label} exited 0`);
