@@ -169,20 +169,57 @@ async function encryptSecret(publicKey, publicKeyId, secretValue) {
   };
 }
 
+// ─── Random secret generators ──────────────────────────────────────────────────
+function genHex(bytes = 48) { return crypto.randomBytes(bytes).toString('hex'); }
+function genBase64url(bytes = 32) { return crypto.randomBytes(bytes).toString('base64url'); }
+function genPassword() {
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789';
+  const specials = '!@#$%^&*';
+  let pass = 'Unicorn@';
+  for (let i = 0; i < 12; i++) pass += chars[crypto.randomInt(chars.length)];
+  pass += specials[crypto.randomInt(specials.length)];
+  return pass;
+}
+function gen2FA() { return String(crypto.randomInt(100000, 1000000)); }
+
 async function run() {
   console.log(`\n🔐 Pushing secrets to github.com/${OWNER}/${REPO}\n`);
 
   // Auto-resolve the zeusai Vercel project ID (replaces any stale unicorn-final ID)
   const vercelProjectId = await fetchVercelProjectId(process.env.VERCEL_TOKEN, VERCEL_ORG_ID);
 
+  // ─── Auto-generated machine secrets (always fresh) ────────────────────────
+  const jwtSecret     = genHex(48);
+  const adminSecret   = genBase64url(32);
+  const webhookSecret = genBase64url(32);
+
+  // ─── Admin credentials: reuse existing if passed via env, otherwise generate new ──
+  const adminPasswordIsNew = !process.env.ADMIN_MASTER_PASSWORD;
+  const admin2faIsNew      = !process.env.ADMIN_2FA_CODE;
+  const adminPassword = process.env.ADMIN_MASTER_PASSWORD || genPassword();
+  const admin2fa      = process.env.ADMIN_2FA_CODE        || gen2FA();
+
+  // Print newly generated admin credentials so the owner can save them
+  if (adminPasswordIsNew || admin2faIsNew) {
+    console.log('');
+    console.log('╔══════════════════════════════════════════════════════════╗');
+    console.log('║  ⚠️  SAVE THESE ADMIN CREDENTIALS — shown only once!     ║');
+    console.log('╠══════════════════════════════════════════════════════════╣');
+    if (adminPasswordIsNew) console.log(`║  ADMIN_MASTER_PASSWORD : ${adminPassword.padEnd(34)} ║`);
+    if (admin2faIsNew)      console.log(`║  ADMIN_2FA_CODE        : ${admin2fa.padEnd(34)} ║`);
+    console.log('╚══════════════════════════════════════════════════════════╝');
+    console.log('  → Add them as GitHub Secrets so future runs reuse them.');
+    console.log('');
+  }
+
   const SECRETS = {
-    // Generated — fully autonomous
-    JWT_SECRET:             'c27b85435c110ee2a1ba6a34033071dcf3bd506d9b4ca83b7922b9ccb407ed1a3977618bdbb52eb85e81a7c6070a3ed0',
-    ADMIN_SECRET:           'Utz0qwqFIQy9cAMHM2wdWjyDPfUC9LC1H3n7f38qiSQ',
-    ADMIN_MASTER_PASSWORD:  'Unicorn@uOdy81WP2026!',
-    ADMIN_2FA_CODE:         '941393',
-    WEBHOOK_SECRET:         'euvoqd121ermYxT8hXQwY71PGX5ihYlQ50QEzm8FVpM',
-    HETZNER_WEBHOOK_SECRET: 'euvoqd121ermYxT8hXQwY71PGX5ihYlQ50QEzm8FVpM',
+    // Generated — fully autonomous (regenerated every run for maximum security)
+    JWT_SECRET:             jwtSecret,
+    ADMIN_SECRET:           adminSecret,
+    ADMIN_MASTER_PASSWORD:  adminPassword,
+    ADMIN_2FA_CODE:         admin2fa,
+    WEBHOOK_SECRET:         webhookSecret,
+    HETZNER_WEBHOOK_SECRET: webhookSecret,
 
     // Vercel — project ID auto-resolved from Vercel API at run time
     VERCEL_ORG_ID:          VERCEL_ORG_ID,
