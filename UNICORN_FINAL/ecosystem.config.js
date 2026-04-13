@@ -63,6 +63,8 @@ module.exports = {
         REVENUE_INTERVAL: '15',
         VIRAL_INTERVAL: '20',
         DEPLOYMENT_INTERVAL: '120',
+        GH_PULL_INTERVAL: '600',
+        GH_AUTO_ROLLBACK: 'false',
         BACKEND_HEAL_CMD: 'pm2 restart unicorn',
         BACKEND_BASE_URL: 'http://127.0.0.1:3000',
         DOMAIN: SITE_DOMAIN,
@@ -88,7 +90,10 @@ module.exports = {
         NODE_ENV: 'production',
         HEALTH_GUARDIAN_URL: 'http://127.0.0.1:3000/api/health',
         HEALTH_GUARDIAN_SHIELD_URL: 'http://127.0.0.1:3000/api/quantum-integrity/status',
+        HEALTH_GUARDIAN_EXTERNAL_URL: `${PUBLIC_APP_URL}/health`,
+        HEALTH_GUARDIAN_ORCHESTRATOR_URL: 'http://127.0.0.1:3000/api/orchestrator/check',
         HEALTH_GUARDIAN_INTERVAL_MS: '30000',
+        HEALTH_GUARDIAN_EXTERNAL_MS: '120000',
         HEALTH_GUARDIAN_FAIL_THRESHOLD: '3',
         HEALTH_GUARDIAN_HEAL_CMD: `pm2 startOrRestart "${ECOSYSTEM_PATH}" --only unicorn,unicorn-orchestrator,unicorn-health-guardian,unicorn-quantum-watchdog`,
         HEALTH_GUARDIAN_ROLLBACK_CMD: 'bash scripts/rollback-last-backup.sh'
@@ -170,8 +175,35 @@ module.exports = {
       log_date_format: 'YYYY-MM-DD HH:mm:ss'
     },
 
-    // ── 6. Llama Bridge (starts Ollama serve at P4 / nice +10) ────────────────
-    // Prerequisite: `ollama` must be installed on the server.
+    // ── 5b. System Shield (real-time file watch + process monitor + deploy lock) ─
+    {
+      name: 'unicorn-system-shield',
+      script: 'scripts/system-shield.js',
+      cwd: __dirname,
+      instances: 1,
+      autorestart: true,
+      watch: false,
+      max_restarts: 20,
+      min_uptime: '10s',
+      restart_delay: 5000,
+      env: {
+        NODE_ENV: 'production',
+        SHIELD_PORT: '3099',
+        SHIELD_PROCESS_POLL: '30000',
+        SHIELD_FILE_RESTORE: 'true',
+        SHIELD_HEAL_COOLDOWN_MS: '60000',
+        SHIELD_REQUIRED_PROCS: 'unicorn,unicorn-orchestrator,unicorn-health-guardian,unicorn-quantum-watchdog,unicorn-platform-connector,unicorn-uaic',
+        SHIELD_NOTIFY_URL: 'http://127.0.0.1:3000/api/orchestrator/check',
+        SHIELD_LOCK_FILE: '/tmp/unicorn-deploy.lock',
+        DOMAIN: SITE_DOMAIN,
+        PUBLIC_APP_URL
+      },
+      error_file: 'logs/system-shield-error.log',
+      out_file: 'logs/system-shield-out.log',
+      log_date_format: 'YYYY-MM-DD HH:mm:ss'
+    },
+
+    // ── 6. Llama Bridge (starts Ollama serve at P4 / nice +10) ────────────────    // Prerequisite: `ollama` must be installed on the server.
     // Install: curl -fsSL https://ollama.ai/install.sh | sh
     // Pull model: ollama pull llama3.1:8b-instruct-q4_K_M
     {

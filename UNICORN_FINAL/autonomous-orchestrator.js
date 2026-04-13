@@ -24,8 +24,10 @@ const DECISION_INTERVAL     = parseInt(process.env.DECISION_INTERVAL     || '45'
 const HEALTH_INTERVAL       = 15 * 1000;
 const BACKEND_HEAL_CMD      = process.env.BACKEND_HEAL_CMD || '';
 const EDGE_HEALTH_URL       = process.env.EDGE_HEALTH_URL || process.env.PUBLIC_APP_URL || '';
+const GH_PULL_INTERVAL      = parseInt(process.env.GH_PULL_INTERVAL  || '600', 10) * 1000; // 10 min
+const GH_BRANCH             = process.env.GITHUB_DEFAULT_BRANCH || 'main';
 
-let innovationEngine, revenueEngine, viralEngine, controlPlaneAgent, profitControlLoop;
+let innovationEngine, revenueEngine, viralEngine, controlPlaneAgent, profitControlLoop, githubOps;
 
 // ─── Load engines gracefully (modules export singleton instances) ────────────
 try {
@@ -63,6 +65,13 @@ try {
   console.warn('⚠️  [ORCHESTRATOR] Profit Control Loop unavailable:', e.message);
 }
 
+try {
+  githubOps = require(path.join(BASE, 'github-ops'));
+  console.log('🔧 [ORCHESTRATOR] GitHub Ops loaded');
+} catch (e) {
+  console.warn('⚠️  [ORCHESTRATOR] GitHub Ops unavailable:', e.message);
+}
+
 // ─── Stats tracking ──────────────────────────────────────────────────────────
 const stats = {
   startTime: new Date(),
@@ -74,6 +83,7 @@ const stats = {
   monitorCycles: 0,
   decisionCycles: 0,
   healthChecks: 0,
+  githubCycles: 0,
   errors: 0,
 };
 
@@ -305,7 +315,55 @@ async function runDecisionCycle() {
   }
 }
 
-// ─── Health report ────────────────────────────────────────────────────────────
+// ─── GitHub Operations cycle ──────────────────────────────────────────────────
+async function runGithubCycle() {
+  stats.githubCycles++;
+  log('🔧', `GitHub Ops cycle #${stats.githubCycles}`);
+  if (!githubOps) {
+    log('⚠️', 'GitHub Ops not loaded — skipping');
+    return;
+  }
+  try {
+    const status = githubOps.getStatus();
+    if (!status.configured) {
+      log('⚠️', 'GitHub Ops not configured (GITHUB_TOKEN/GITHUB_REPOSITORY missing)');
+      return;
+    }
+
+    // 1. Pull latest from main branch
+    try {
+      const pullResult = await githubOps.pullLatest(GH_BRANCH);
+      log('⬇️', `git pull ${GH_BRANCH}`, { summary: pullResult.summary });
+    } catch (pullErr) {
+      log('⚠️', `git pull failed: ${pullErr.message}`);
+    }
+
+    // 2. Check if last CI workflow run failed → consider rollback
+    try {
+      const runs = await githubOps.getWorkflowRuns('deploy-hetzner.yml', 3);
+      const latestRun = runs[0];
+      if (latestRun && latestRun.conclusion === 'failure') {
+        log('🚨', 'Last deploy workflow FAILED — checking if rollback needed', { run: latestRun.id, sha: latestRun.sha });
+        const GH_AUTO_ROLLBACK = String(process.env.GH_AUTO_ROLLBACK || 'false').toLowerCase() === 'true';
+        if (GH_AUTO_ROLLBACK) {
+          log('⏪', `Auto-rollback enabled — reverting ${latestRun.sha}`);
+          await githubOps.rollback(latestRun.sha, GH_BRANCH);
+        }
+      } else if (latestRun) {
+        log('✅', `Latest workflow run: ${latestRun.status}/${latestRun.conclusion || 'pending'}`, { id: latestRun.id });
+      }
+    } catch (ciErr) {
+      log('⚠️', `CI status check failed: ${ciErr.message}`);
+    }
+
+    log('🔧', 'GitHub Ops cycle complete', githubOps.getStatus().ops);
+  } catch (e) {
+    stats.errors++;
+    log('❌', 'GitHub Ops cycle error:', e.message);
+  }
+}
+
+
 function printHealthReport() {
   stats.healthChecks++;
   const report = {
@@ -318,12 +376,14 @@ function printHealthReport() {
     monitorCycles: stats.monitorCycles,
     decisionCycles: stats.decisionCycles,
     healthChecks: stats.healthChecks,
+    githubCycles: stats.githubCycles,
     errors: stats.errors,
     innovationEngine: innovationEngine ? 'ACTIVE' : 'MOCKED',
     revenueEngine: revenueEngine ? 'ACTIVE' : 'MOCKED',
     viralEngine: viralEngine ? 'ACTIVE' : 'MOCKED',
     controlPlaneAgent: controlPlaneAgent ? 'ACTIVE' : 'MOCKED',
     profitControlLoop: profitControlLoop ? 'ACTIVE' : 'MOCKED',
+    githubOps: githubOps ? 'ACTIVE' : 'UNAVAILABLE',
     nextInnovation: `${Math.round(INNOVATION_INTERVAL / 1000)}s`,
     nextRevenue: `${Math.round(REVENUE_INTERVAL / 1000)}s`,
     nextViral: `${Math.round(VIRAL_INTERVAL / 1000)}s`,
@@ -354,6 +414,7 @@ process.on('uncaughtException', (err) => {
   log('🦄', `  Platform check every ${PLATFORM_INTERVAL / 1000}s`);
   log('🦄', `  Auto-Monitor every ${MONITOR_INTERVAL / 1000}s`);
   log('🦄', `  Auto-Decision AI every ${DECISION_INTERVAL / 1000}s`);
+  log('🦄', `  GitHub pull/rollback every ${GH_PULL_INTERVAL / 1000}s`);
   log('🦄', '══════════════════════════════════════════');
 
   // Immediate first cycles
@@ -364,6 +425,7 @@ process.on('uncaughtException', (err) => {
   await runPlatformCycle();
   await runMonitorCycle();
   await runDecisionCycle();
+  await runGithubCycle();
   printHealthReport();
 
   // Schedule recurring cycles
@@ -374,7 +436,8 @@ process.on('uncaughtException', (err) => {
   setInterval(runPlatformCycle,   PLATFORM_INTERVAL);
   setInterval(runMonitorCycle,    MONITOR_INTERVAL);
   setInterval(runDecisionCycle,   DECISION_INTERVAL);
+  setInterval(runGithubCycle,     GH_PULL_INTERVAL);
   setInterval(printHealthReport,  HEALTH_INTERVAL);
 
-  log('✅', 'All 8 autonomous cycles scheduled and running 🚀');
+  log('✅', 'All 9 autonomous cycles scheduled and running 🚀');
 })();
