@@ -462,6 +462,7 @@ const profitLoop       = require('./modules/profit-control-loop');
 const centralOrchestrator = require('./modules/central-orchestrator');
 const selfHealingEngine   = require('./modules/self-healing-engine');
 const autoInnovationLoop  = require('./modules/auto-innovation-loop');
+const githubOps           = require('./modules/github-ops');
 
 // ==================== DYNAMIC PRICING ENGINE ====================
 const dynamicPricing   = require('./modules/dynamic-pricing');
@@ -3283,6 +3284,40 @@ app.post('/api/innovation-loop/trigger', adminTokenMiddleware, async (req, res) 
   try {
     await autoInnovationLoop.triggerCycle();
     res.json({ success: true, status: autoInnovationLoop.getStatus() });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// ==================== GITHUB OPS ROUTES ====================
+app.get('/api/github-ops/status', (req, res) => {
+  res.json(githubOps.getStatus());
+});
+app.get('/api/github-ops/workflow-runs', adminTokenMiddleware, async (req, res) => {
+  try {
+    const workflowId = req.query.workflow || 'deploy-hetzner.yml';
+    const limit = Math.min(parseInt(req.query.limit || '10', 10), 50);
+    const runs = await githubOps.getWorkflowRuns(workflowId, limit);
+    res.json({ workflowId, runs });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+app.post('/api/github-ops/pull', adminTokenMiddleware, async (req, res) => {
+  try {
+    const branch = req.body.branch || process.env.GITHUB_DEFAULT_BRANCH || 'main';
+    const result = await githubOps.pullLatest(branch);
+    res.json({ success: true, branch, summary: result.summary });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+app.post('/api/github-ops/trigger-workflow', adminTokenMiddleware, async (req, res) => {
+  try {
+    const { workflowId = 'deploy-hetzner.yml', branch, inputs } = req.body;
+    const result = await githubOps.triggerWorkflow(workflowId, branch, inputs);
+    res.json(result);
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+app.post('/api/github-ops/rollback', adminTokenMiddleware, async (req, res) => {
+  try {
+    const { commitSha, branch } = req.body;
+    const result = await githubOps.rollback(commitSha, branch);
+    res.json(result);
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
