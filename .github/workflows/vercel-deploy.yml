@@ -36,6 +36,75 @@ concurrency:
 
 jobs:
   # ──────────────────────────────────────────────────────────────────────
+  # JOB 0: Auto-Refresh GitHub Secrets (rulează pe orice push/schedule, nu pe PR)
+  # Apelează setup-github-secrets.js cu toate secretele disponibile.
+  # continue-on-error: true — eșecul NU blochează deploy-ul.
+  # ──────────────────────────────────────────────────────────────────────
+  refresh-secrets:
+    name: 🔐 Auto-Refresh Secrets
+    runs-on: ubuntu-latest
+    if: github.event_name != 'pull_request'
+    continue-on-error: true
+    defaults:
+      run:
+        working-directory: UNICORN_FINAL
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Setup Node 22
+        uses: actions/setup-node@v5
+        with:
+          node-version: '22'
+
+      - name: Install libsodium-wrappers
+        run: npm install --no-save libsodium-wrappers
+
+      - name: Push all known secrets to GitHub Actions
+        continue-on-error: true
+        env:
+          GITHUB_TOKEN:            ${{ secrets.GH_PAT || secrets.GITHUB_TOKEN }}
+          ADMIN_MASTER_PASSWORD:   ${{ secrets.ADMIN_MASTER_PASSWORD }}
+          ADMIN_2FA_CODE:          ${{ secrets.ADMIN_2FA_CODE }}
+          VERCEL_TOKEN:            ${{ secrets.VERCEL_TOKEN }}
+          HETZNER_API_KEY:         ${{ secrets.HETZNER_API_KEY }}
+          HETZNER_API_TOKEN:       ${{ secrets.HETZNER_API_TOKEN }}
+          HETZNER_SSH_PRIVATE_KEY: ${{ secrets.HETZNER_SSH_PRIVATE_KEY }}
+          SSH_PRIVATE_KEY:         ${{ secrets.SSH_PRIVATE_KEY || secrets.HETZNER_SSH_PRIVATE_KEY }}
+          HETZNER_WEBHOOK_URL:     ${{ secrets.HETZNER_WEBHOOK_URL }}
+          GH_WEBHOOK_URL:          ${{ secrets.GH_WEBHOOK_URL }}
+          WEBHOOK_URL:             ${{ secrets.WEBHOOK_URL }}
+          HETZNER_DNS_API_KEY:     ${{ secrets.HETZNER_DNS_API_KEY }}
+          CF_TOKEN:                ${{ secrets.CF_TOKEN || secrets.CLOUDFLARE_API_TOKEN }}
+          CF_ZONE_ID:              ${{ secrets.CF_ZONE_ID || secrets.CLOUDFLARE_ZONE_ID }}
+          OPENAI_API_KEY:          ${{ secrets.OPENAI_API_KEY }}
+          DEEPSEEK_API_KEY:        ${{ secrets.DEEPSEEK_API_KEY }}
+          ANTHROPIC_API_KEY:       ${{ secrets.ANTHROPIC_API_KEY }}
+          GEMINI_API_KEY:          ${{ secrets.GEMINI_API_KEY }}
+          MISTRAL_API_KEY:         ${{ secrets.MISTRAL_API_KEY }}
+          COHERE_API_KEY:          ${{ secrets.COHERE_API_KEY }}
+          XAI_API_KEY:             ${{ secrets.XAI_API_KEY }}
+          STRIPE_SECRET_KEY:       ${{ secrets.STRIPE_SECRET_KEY }}
+          STRIPE_PUBLISHABLE_KEY:  ${{ secrets.STRIPE_PUBLISHABLE_KEY }}
+          STRIPE_WEBHOOK_SECRET:   ${{ secrets.STRIPE_WEBHOOK_SECRET }}
+          STRIPE_PRICE_STARTER_MONTHLY:    ${{ secrets.STRIPE_PRICE_STARTER_MONTHLY }}
+          STRIPE_PRICE_STARTER_YEARLY:     ${{ secrets.STRIPE_PRICE_STARTER_YEARLY }}
+          STRIPE_PRICE_PRO_MONTHLY:        ${{ secrets.STRIPE_PRICE_PRO_MONTHLY }}
+          STRIPE_PRICE_PRO_YEARLY:         ${{ secrets.STRIPE_PRICE_PRO_YEARLY }}
+          STRIPE_PRICE_ENTERPRISE_MONTHLY: ${{ secrets.STRIPE_PRICE_ENTERPRISE_MONTHLY }}
+          STRIPE_PRICE_ENTERPRISE_YEARLY:  ${{ secrets.STRIPE_PRICE_ENTERPRISE_YEARLY }}
+          PAYPAL_CLIENT_ID:        ${{ secrets.PAYPAL_CLIENT_ID }}
+          PAYPAL_CLIENT_SECRET:    ${{ secrets.PAYPAL_CLIENT_SECRET }}
+          PAYPAL_WEBHOOK_ID:       ${{ secrets.PAYPAL_WEBHOOK_ID }}
+          SMTP_HOST:               ${{ secrets.SMTP_HOST }}
+          SMTP_PORT:               ${{ secrets.SMTP_PORT }}
+          SMTP_USER:               ${{ secrets.SMTP_USER }}
+          SMTP_PASS:               ${{ secrets.SMTP_PASS }}
+          SITE_DOMAIN:             ${{ secrets.SITE_DOMAIN }}
+          UNICORN_DOMAIN:          ${{ secrets.UNICORN_DOMAIN }}
+        run: node scripts/setup-github-secrets.js
+
+  # ──────────────────────────────────────────────────────────────────────
   # JOB 1: Validate (lint + test)
   # ──────────────────────────────────────────────────────────────────────
   validate:
@@ -460,17 +529,20 @@ jobs:
           echo "════════════════════════════════════════════════════════════"
           RESOLVED=$(dig +short "$DOMAIN" A 2>/dev/null | head -1 || echo "")
           VERCEL_IP="76.76.21.21"
+          HETZNER_IP="${{ secrets.HETZNER_HOST || secrets.SSH_HOST || '204.168.230.142' }}"
           if [ "$RESOLVED" = "$VERCEL_IP" ]; then
             echo "✅ DNS OK: $DOMAIN → $RESOLVED (Vercel)"
+          elif [ "$RESOLVED" = "$HETZNER_IP" ]; then
+            echo "✅ DNS OK: $DOMAIN → $RESOLVED (Hetzner direct — Opțiunea A)"
           elif [ -n "$RESOLVED" ]; then
-            echo "⚠️  DNS MISMATCH: $DOMAIN → $RESOLVED (expected $VERCEL_IP)"
+            echo "⚠️  DNS MISMATCH: $DOMAIN → $RESOLVED (expected $VERCEL_IP for Vercel or $HETZNER_IP for Hetzner)"
             echo "  Configurează la provider-ul DNS:"
-            echo "    A     @    76.76.21.21          TTL 300"
-            echo "    CNAME www  cname.vercel-dns.com  TTL 300"
+            echo "    A     @    $HETZNER_IP   TTL 300  (recomandat - direct Hetzner)"
+            echo "    A     www  $HETZNER_IP   TTL 300"
           else
             echo "❌ DNS: $DOMAIN nu se rezolvă - adaugă records DNS manual:"
-            echo "    A     @    76.76.21.21          TTL 300"
-            echo "    CNAME www  cname.vercel-dns.com  TTL 300"
+            echo "    A     @    $HETZNER_IP   TTL 300"
+            echo "    A     www  $HETZNER_IP   TTL 300"
           fi
           echo "════════════════════════════════════════════════════════════"
 
@@ -573,7 +645,7 @@ jobs:
               install -m 0755 -d /etc/apt/keyrings
               curl -fsSL https://deb.nodesource.com/gpgkey/nodesource-repo.gpg.key | gpg --dearmor -o /etc/apt/keyrings/nodesource.gpg
               chmod a+r /etc/apt/keyrings/nodesource.gpg
-              echo "deb [signed-by=/etc/apt/keyrings/nodesource.gpg] https://deb.nodesource.com/node_20.x nodistro main" > /etc/apt/sources.list.d/nodesource.list
+              echo "deb [signed-by=/etc/apt/keyrings/nodesource.gpg] https://deb.nodesource.com/node_22.x nodistro main" > /etc/apt/sources.list.d/nodesource.list
               apt-get update -y
               apt-get install -y nodejs
             fi
@@ -604,8 +676,15 @@ jobs:
               STRIPE_SECRET_KEY="${{ secrets.STRIPE_SECRET_KEY }}" \
               STRIPE_PUBLISHABLE_KEY="${{ secrets.STRIPE_PUBLISHABLE_KEY }}" \
               STRIPE_WEBHOOK_SECRET="${{ secrets.STRIPE_WEBHOOK_SECRET }}" \
+              STRIPE_PRICE_STARTER_MONTHLY="${{ secrets.STRIPE_PRICE_STARTER_MONTHLY }}" \
+              STRIPE_PRICE_STARTER_YEARLY="${{ secrets.STRIPE_PRICE_STARTER_YEARLY }}" \
+              STRIPE_PRICE_PRO_MONTHLY="${{ secrets.STRIPE_PRICE_PRO_MONTHLY }}" \
+              STRIPE_PRICE_PRO_YEARLY="${{ secrets.STRIPE_PRICE_PRO_YEARLY }}" \
+              STRIPE_PRICE_ENTERPRISE_MONTHLY="${{ secrets.STRIPE_PRICE_ENTERPRISE_MONTHLY }}" \
+              STRIPE_PRICE_ENTERPRISE_YEARLY="${{ secrets.STRIPE_PRICE_ENTERPRISE_YEARLY }}" \
               PAYPAL_CLIENT_ID="${{ secrets.PAYPAL_CLIENT_ID }}" \
               PAYPAL_CLIENT_SECRET="${{ secrets.PAYPAL_CLIENT_SECRET }}" \
+              PAYPAL_WEBHOOK_ID="${{ secrets.PAYPAL_WEBHOOK_ID }}" \
               SMTP_PASS="${{ secrets.SMTP_PASS }}" \
               SMTP_USER="${{ secrets.SMTP_USER }}" \
               SMTP_HOST="${{ secrets.SMTP_HOST || 'smtp.mail.yahoo.com' }}" \
@@ -616,6 +695,7 @@ jobs:
               HETZNER_API_TOKEN="${HETZNER_API_VALUE}" \
               PUBLIC_APP_URL="https://${{ secrets.SITE_DOMAIN || 'zeusai.pro' }}" \
               SITE_DOMAIN="${{ secrets.SITE_DOMAIN || 'zeusai.pro' }}" \
+              CORS_ORIGINS="https://${{ secrets.SITE_DOMAIN || 'zeusai.pro' }},https://www.${{ secrets.SITE_DOMAIN || 'zeusai.pro' }}" \
               BTC_WALLET_ADDRESS="${{ secrets.BTC_WALLET_ADDRESS || 'bc1q4f7e66z87mdfj56kz0dj5hvcnpmh0qh4wuv22e' }}" \
               OWNER_EMAIL="${{ secrets.SMTP_USER || 'vladoi_ionut@yahoo.com' }}" \
               ADMIN_EMAIL="${{ secrets.SMTP_USER || 'vladoi_ionut@yahoo.com' }}" \
@@ -643,11 +723,18 @@ jobs:
                 "${{ secrets.GEMINI_API_KEY }}" "${{ secrets.MISTRAL_API_KEY }}" "${{ secrets.COHERE_API_KEY }}" "${{ secrets.XAI_API_KEY }}" >> .env
               printf "STRIPE_SECRET_KEY=%s\nSTRIPE_PUBLISHABLE_KEY=%s\nSTRIPE_WEBHOOK_SECRET=%s\n" \
                 "${{ secrets.STRIPE_SECRET_KEY }}" "${{ secrets.STRIPE_PUBLISHABLE_KEY }}" "${{ secrets.STRIPE_WEBHOOK_SECRET }}" >> .env
-              printf "PAYPAL_CLIENT_ID=%s\nPAYPAL_CLIENT_SECRET=%s\n" \
-                "${{ secrets.PAYPAL_CLIENT_ID }}" "${{ secrets.PAYPAL_CLIENT_SECRET }}" >> .env
+              printf "STRIPE_PRICE_STARTER_MONTHLY=%s\nSTRIPE_PRICE_STARTER_YEARLY=%s\n" \
+                "${{ secrets.STRIPE_PRICE_STARTER_MONTHLY }}" "${{ secrets.STRIPE_PRICE_STARTER_YEARLY }}" >> .env
+              printf "STRIPE_PRICE_PRO_MONTHLY=%s\nSTRIPE_PRICE_PRO_YEARLY=%s\n" \
+                "${{ secrets.STRIPE_PRICE_PRO_MONTHLY }}" "${{ secrets.STRIPE_PRICE_PRO_YEARLY }}" >> .env
+              printf "STRIPE_PRICE_ENTERPRISE_MONTHLY=%s\nSTRIPE_PRICE_ENTERPRISE_YEARLY=%s\n" \
+                "${{ secrets.STRIPE_PRICE_ENTERPRISE_MONTHLY }}" "${{ secrets.STRIPE_PRICE_ENTERPRISE_YEARLY }}" >> .env
+              printf "PAYPAL_CLIENT_ID=%s\nPAYPAL_CLIENT_SECRET=%s\nPAYPAL_WEBHOOK_ID=%s\n" \
+                "${{ secrets.PAYPAL_CLIENT_ID }}" "${{ secrets.PAYPAL_CLIENT_SECRET }}" "${{ secrets.PAYPAL_WEBHOOK_ID }}" >> .env
               printf "HETZNER_API_KEY=%s\nHETZNER_API_TOKEN=%s\n" \
                 "${HETZNER_API_VALUE}" "${HETZNER_API_VALUE}" >> .env
               printf "PUBLIC_APP_URL=https://${{ secrets.SITE_DOMAIN || 'zeusai.pro' }}\nSITE_DOMAIN=${{ secrets.SITE_DOMAIN || 'zeusai.pro' }}\n" >> .env
+              printf "CORS_ORIGINS=https://${{ secrets.SITE_DOMAIN || 'zeusai.pro' }},https://www.${{ secrets.SITE_DOMAIN || 'zeusai.pro' }}\n" >> .env
               printf "BTC_WALLET_ADDRESS=${{ secrets.BTC_WALLET_ADDRESS || 'bc1q4f7e66z87mdfj56kz0dj5hvcnpmh0qh4wuv22e' }}\n" >> .env
               printf "OWNER_NAME=Vladoi Ionut\nOWNER_EMAIL=vladoi_ionut@yahoo.com\n" >> .env
               printf "ADMIN_EMAIL=vladoi_ionut@yahoo.com\n" >> .env
@@ -893,10 +980,13 @@ jobs:
           echo "" >> "$GITHUB_STEP_SUMMARY"
 
           SITE_DOMAIN="${SITE_DOMAIN:-zeusai.pro}"
-          # Check if domain resolves correctly
+          # Check if domain resolves correctly (accepts both Vercel and Hetzner direct IPs)
           RESOLVED=$(dig +short "$SITE_DOMAIN" A 2>/dev/null | head -1 || echo "")
+          HETZNER_IP="${{ secrets.HETZNER_HOST || secrets.SSH_HOST || '204.168.230.142' }}"
           if [ "$RESOLVED" = "76.76.21.21" ]; then
             echo "✅ **DNS OK** – $SITE_DOMAIN → 76.76.21.21 (Vercel)" >> "$GITHUB_STEP_SUMMARY"
+          elif [ "$RESOLVED" = "$HETZNER_IP" ]; then
+            echo "✅ **DNS OK** – $SITE_DOMAIN → $RESOLVED (Hetzner direct)" >> "$GITHUB_STEP_SUMMARY"
           else
             echo "### ⚠️ DNS NEFUNCȚIONAL – Acțiune necesară!" >> "$GITHUB_STEP_SUMMARY"
             echo "" >> "$GITHUB_STEP_SUMMARY"
