@@ -9,8 +9,41 @@ permissions:
   contents: read
 
 jobs:
+  validate:
+    name: ✅ Validate build + tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: |
+            UNICORN_FINAL/package-lock.json
+            UNICORN_FINAL/client/package-lock.json
+
+      - name: Install backend dependencies
+        working-directory: UNICORN_FINAL
+        run: npm install --legacy-peer-deps --no-audit --no-fund
+
+      - name: Lint + tests
+        working-directory: UNICORN_FINAL
+        run: |
+          npm run lint
+          npm test
+
+      - name: Build frontend
+        working-directory: UNICORN_FINAL/client
+        run: |
+          npm install --legacy-peer-deps --no-audit --no-fund
+          npm run build
+
   deploy:
     name: 🖥️ Hetzner SSH Deploy
+    needs: validate
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -60,19 +93,44 @@ jobs:
 
                cd \"\$DEPLOY_PATH\" || { echo '❌ Deploy path not found'; exit 1; }
 
+               rollback_on_error() {
+                 echo '⛑️ Deploy failed. Starting rollback...'
+                 if [ -x scripts/rollback-last-backup.sh ]; then
+                   bash scripts/rollback-last-backup.sh "\$DEPLOY_PATH" || true
+                 fi
+                 if command -v pm2 >/dev/null 2>&1; then
+                   pm2 startOrRestart ecosystem.config.js || true
+                   pm2 save || true
+                 fi
+               }
+               trap rollback_on_error ERR
+
+               echo '💾 Creating backup before update...'
+               if [ -x scripts/create-backup.sh ]; then
+                 bash scripts/create-backup.sh "\$DEPLOY_PATH" || true
+               fi
+
                echo '📥 git pull…'
                git fetch --all && git reset --hard origin/main
 
-               echo '📦 npm install…'
-               npm install --production --no-audit --no-fund 2>&1 | tail -5 || true
+               echo '📦 npm install backend…'
+               npm install --legacy-peer-deps --no-audit --no-fund
+
+               echo '🎨 build frontend…'
+               if [ -d client ]; then
+                 cd client
+                 npm install --legacy-peer-deps --no-audit --no-fund
+                 npm run build
+                 cd ..
+               fi
+
+               echo '🧪 local lint + tests…'
+               npm run lint
+               npm test
 
                echo '♻️  pm2 restart…'
                if command -v pm2 >/dev/null 2>&1; then
-                 if pm2 describe unicorn >/dev/null 2>&1; then
-                   pm2 restart unicorn
-                 else
-                   pm2 start ecosystem.config.js --only unicorn
-                 fi
+                 pm2 startOrRestart ecosystem.config.js
                  pm2 save
                  echo '✅ PM2 restarted'
                else
@@ -81,7 +139,10 @@ jobs:
 
                echo '🛠️  Running server auto-repair (nginx/firewall/ssl)…'
                if [ -f scripts/fix-server.sh ]; then
+                             curl -sf http://localhost:3000/api/quantum-integrity/status >/dev/null && echo '🛡️ Quantum Integrity API: OK' || (echo '❌ Quantum Integrity API failed' && false)
                  chmod +x scripts/fix-server.sh || true
+                             trap - ERR
+                             echo '✅ Deploy complete (idempotent + rollback ready)'
                  bash scripts/fix-server.sh "\$DEPLOY_PATH" "${DOMAIN}" || true
                else
                  echo '⚠️  scripts/fix-server.sh missing — skipping extended repair'

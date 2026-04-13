@@ -6,7 +6,36 @@ on:
       - main
 
 jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: |
+            UNICORN_FINAL/package-lock.json
+            UNICORN_FINAL/client/package-lock.json
+
+      - name: Install + lint + test
+        working-directory: UNICORN_FINAL
+        run: |
+          npm install --legacy-peer-deps --no-audit --no-fund
+          npm run lint
+          npm test
+
+      - name: Build frontend
+        working-directory: UNICORN_FINAL/client
+        run: |
+          npm install --legacy-peer-deps --no-audit --no-fund
+          npm run build
+
   deploy:
+    needs: validate
     runs-on: ubuntu-latest
 
     steps:
@@ -56,15 +85,32 @@ jobs:
               -o BatchMode=yes \
               -o ConnectTimeout=20 \
               "$DEPLOY_USER@$DEPLOY_HOST" << ENDSSH
+            set -e
             cd "$DEPLOY_PATH" || { echo "❌ Deploy path not found: $DEPLOY_PATH"; exit 1; }
+
+            rollback_on_error() {
+              echo "⛑️  Deploy failed. Rolling back..."
+              if [ -x scripts/rollback-last-backup.sh ]; then
+                bash scripts/rollback-last-backup.sh "$DEPLOY_PATH" || true
+              fi
+              pm2 startOrRestart ecosystem.config.js || true
+              pm2 save || true
+            }
+            trap rollback_on_error ERR
+
+            [ -x scripts/create-backup.sh ] && bash scripts/create-backup.sh "$DEPLOY_PATH" || true
             git config --global --add safe.directory "$DEPLOY_PATH" 2>/dev/null || true
             git fetch --all && git reset --hard origin/main || git pull origin main
-            npm install --legacy-peer-deps --no-audit --no-fund 2>&1 | tail -5
-            if pm2 describe unicorn >/dev/null 2>&1; then
-              pm2 restart unicorn
-            else
-              pm2 start ecosystem.config.js --only unicorn
+            npm install --legacy-peer-deps --no-audit --no-fund
+            if [ -d client ]; then
+              cd client
+              npm install --legacy-peer-deps --no-audit --no-fund
+              npm run build
+              cd ..
             fi
+            npm run lint
+            npm test
+            pm2 startOrRestart ecosystem.config.js
             pm2 save
 
             echo "🛠️  Running server auto-repair (nginx/firewall/ssl)…"
@@ -77,5 +123,7 @@ jobs:
 
             sleep 5
             curl -sf http://localhost:3000/api/health && echo "✅ Backend healthy" || echo "⚠️  Backend starting..."
+            curl -sf http://localhost:3000/api/quantum-integrity/status && echo "🛡️ Quantum Integrity healthy" || (echo "❌ Quantum Integrity unhealthy" && false)
             curl -kfsS --resolve "$DOMAIN:443:127.0.0.1" "https://$DOMAIN/health" >/dev/null 2>&1 && echo "🔒 HTTPS local check: OK" || echo "⚠️  HTTPS local check: FAILED"
+            trap - ERR
           ENDSSH
