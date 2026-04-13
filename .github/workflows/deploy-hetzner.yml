@@ -117,14 +117,15 @@ jobs:
                npm install --legacy-peer-deps --no-audit --no-fund
 
                echo '🎨 build frontend…'
-               if [ -d client ]; then
+               if [ -d client ] && [ -f client/package.json ]; then
                  cd client
                  npm install --legacy-peer-deps --no-audit --no-fund
                  npm run build
-                 cd ..
+                 cd "\$DEPLOY_PATH"
                fi
 
                echo '🧪 local lint + tests…'
+               cd "\$DEPLOY_PATH"
                npm run lint
                npm test
 
