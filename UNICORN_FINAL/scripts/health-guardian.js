@@ -110,7 +110,7 @@ function notifyOrchestrator(event, details) {
       headers:  { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(payload) },
       timeout:  5000,
     }, (res) => { res.resume(); });
-    req.on('error', () => { /* silently ignore notification failures */ });
+    req.on('error', (e) => { log(`orchestrator notify failed: ${ORCHESTRATOR_URL}: ${e.message}`); });
     req.write(payload);
     req.end();
   } catch { /* ignore */ }

@@ -85,10 +85,23 @@ function log(type, msg, extra) {
   if (extra !== undefined) entry.extra = typeof extra === 'string' ? extra.slice(0, 300) : extra;
   state.eventLog.push(entry);
   if (state.eventLog.length > MAX_LOG) state.eventLog.shift();
-  console.log(`[SystemShield] ${entry.ts} [${type}] ${msg}`, extra !== undefined ? extra : '');
+  // Use separate args (not template literal format) to avoid tainted-format-string
+  console.log('[SystemShield]', entry.ts, '[' + String(type) + ']', String(msg), extra !== undefined ? extra : '');
 }
 
-// ─── Deploy Lock ──────────────────────────────────────────────────────────────
+// ─── Validation helpers ───────────────────────────────────────────────────────
+
+// PM2 process names: alphanumeric, hyphen, underscore, dot only
+const SAFE_PROC_NAME_RE = /^[a-zA-Z0-9_.\-]+$/;
+function isSafeProcName(name) { return SAFE_PROC_NAME_RE.test(name); }
+
+// Ensure filePath stays within ROOT to prevent path traversal
+function isSafeFilePath(filePath) {
+  const resolved = path.resolve(filePath);
+  return resolved.startsWith(path.resolve(ROOT) + path.sep) || resolved === path.resolve(ROOT);
+}
+
+
 
 function lockDeploy(reason = '') {
   const info = { lockedAt: new Date().toISOString(), reason, pid: process.pid };
@@ -99,7 +112,9 @@ function lockDeploy(reason = '') {
 }
 
 function unlockDeploy() {
-  try { fs.unlinkSync(LOCK_FILE); } catch { /* already removed */ }
+  try { fs.unlinkSync(LOCK_FILE); } catch (e) {
+    if (e.code !== 'ENOENT') log('UNLOCK_ERR', e.message);
+  }
   state.deployLocked   = false;
   state.deployLockInfo = null;
   log('DEPLOY_UNLOCK', 'Deploy deblocat');
@@ -108,7 +123,13 @@ function unlockDeploy() {
 function isDeployLocked() {
   try {
     if (fs.existsSync(LOCK_FILE)) {
-      const info = JSON.parse(fs.readFileSync(LOCK_FILE, 'utf8') || '{}');
+      let info;
+      try {
+        info = JSON.parse(fs.readFileSync(LOCK_FILE, 'utf8') || '{}');
+      } catch (parseErr) {
+        log('LOCK_PARSE_ERR', parseErr.message);
+        info = {};
+      }
       state.deployLocked   = true;
       state.deployLockInfo = info;
       // Auto-expire lock după 30 minute
@@ -120,7 +141,9 @@ function isDeployLocked() {
       }
       return true;
     }
-  } catch { /* ignore */ }
+  } catch (e) {
+    log('LOCK_CHECK_ERR', e.message);
+  }
   state.deployLocked   = false;
   state.deployLockInfo = null;
   return false;
@@ -193,9 +216,19 @@ function _handleMissingFile(filePath) {
 }
 
 function _restoreFileFromGit(filePath) {
+  if (!isSafeFilePath(filePath)) {
+    log('FILE_RESTORE_BLOCKED', `Path unsafe, skipping restore: ${filePath}`);
+    return;
+  }
   const relPath = path.relative(ROOT, filePath);
+  // Validate relPath contains no shell-special characters
+  if (/[;&|`$<>\\]/.test(relPath)) {
+    log('FILE_RESTORE_BLOCKED', `Path contains unsafe characters: ${relPath}`);
+    return;
+  }
   log('FILE_RESTORE', `Restaurare din git: ${relPath}`);
-  exec(`git -C "${ROOT}" checkout -- "${relPath}"`, (err, stdout, stderr) => {
+  const { execFile } = require('child_process');
+  execFile('git', ['-C', ROOT, 'checkout', '--', relPath], (err) => {
     if (err) {
       log('FILE_RESTORE_ERR', relPath, err.message);
       _notify('file_restore_failed', { file: relPath, error: err.message });
@@ -241,6 +274,10 @@ function _checkProcesses() {
 }
 
 function _restartProcess(procName) {
+  if (!isSafeProcName(procName)) {
+    log('RESTART_BLOCKED', `Process name contains unsafe characters: ${procName}`);
+    return;
+  }
   const now = Date.now();
   const last = lastHealAt[procName] || 0;
   if (now - last < HEAL_COOLDOWN_MS) {
@@ -251,18 +288,19 @@ function _restartProcess(procName) {
   state.healCount++;
 
   log('RESTART_PROC', `pm2 restart ${procName}`);
-  exec(`pm2 restart "${procName}"`, { timeout: 15000 }, (err, stdout) => {
+  const { execFile } = require('child_process');
+  execFile('pm2', ['restart', procName], { timeout: 15000 }, (err, stdout) => {
     if (err) {
       log('RESTART_ERR', procName, err.message);
       _notify('process_restart_failed', { process: procName, error: err.message });
-      // Încercare start dacă restart a eşuat
-      exec(`pm2 startOrRestart ecosystem.config.js --only "${procName}"`, { cwd: ROOT, timeout: 20000 }, (err2) => {
+      // Încercare startOrRestart dacă restart a eşuat
+      execFile('pm2', ['startOrRestart', 'ecosystem.config.js', '--only', procName], { cwd: ROOT, timeout: 20000 }, (err2) => {
         if (err2) log('START_ERR', procName, err2.message);
         else { log('START_OK', procName); state.restarted.push({ process: procName, at: new Date().toISOString() }); }
       });
     } else {
       log('RESTART_OK', procName);
-      state.restarted.push({ process: procName, at: new Date().toISOString(), out: stdout.slice(0, 100) });
+      state.restarted.push({ process: procName, at: new Date().toISOString(), out: (stdout || '').slice(0, 100) });
       _notify('process_restarted', { process: procName });
     }
   });
@@ -284,7 +322,7 @@ function _notify(event, data) {
       headers:  { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(payload) },
       timeout:  5000,
     }, (res) => { res.resume(); });
-    req.on('error', () => { /* silently ignore notification failures */ });
+    req.on('error', (e) => { log('NOTIFY_ERR', `${NOTIFY_URL}: ${e.message}`); });
     req.write(payload);
     req.end();
   } catch { /* ignore */ }

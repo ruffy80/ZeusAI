@@ -61,7 +61,8 @@ function _addLog(type, msg, extra) {
   if (extra) entry.extra = typeof extra === 'string' ? extra.slice(0, 300) : extra;
   _log.push(entry);
   if (_log.length > MAX_LOG) _log.shift();
-  console.log(`[GithubOps] ${entry.ts} [${type}] ${msg}`, extra || '');
+  // Use separate args (not template literal format) to avoid tainted-format-string
+  console.log('[GithubOps]', entry.ts, '[' + String(type) + ']', String(msg), extra || '');
 }
 
 // ─── GitHub API helper ────────────────────────────────────────────────────────
@@ -278,7 +279,7 @@ function getStatus() {
     configured: !!(getToken() && getOwner() && getName()),
     owner:      getOwner() || null,
     repo:       getName()  || null,
-    ops:        { ...  _ops },
+    ops:        { ..._ops },
     recentLog:  _log.slice(-20),
   };
 }
