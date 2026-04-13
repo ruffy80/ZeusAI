@@ -514,7 +514,6 @@ jobs:
           HETZNER_HOST:          ${{ secrets.HETZNER_HOST || secrets.SSH_HOST || '204.168.230.142' }}
           CF_TOKEN:              ${{ secrets.CF_TOKEN || secrets.CLOUDFLARE_API_TOKEN }}
           CF_ZONE_ID:            ${{ secrets.CF_ZONE_ID || secrets.CLOUDFLARE_ZONE_ID }}
-          VERCEL_IP:             '76.76.21.21'
         run: node scripts/setup-dns.js
 
       - name: DNS status check + instructions
@@ -528,16 +527,13 @@ jobs:
           echo "  DNS STATUS CHECK for $DOMAIN"
           echo "════════════════════════════════════════════════════════════"
           RESOLVED=$(dig +short "$DOMAIN" A 2>/dev/null | head -1 || echo "")
-          VERCEL_IP="76.76.21.21"
           HETZNER_IP="${{ secrets.HETZNER_HOST || secrets.SSH_HOST || '204.168.230.142' }}"
-          if [ "$RESOLVED" = "$VERCEL_IP" ]; then
-            echo "✅ DNS OK: $DOMAIN → $RESOLVED (Vercel)"
-          elif [ "$RESOLVED" = "$HETZNER_IP" ]; then
-            echo "✅ DNS OK: $DOMAIN → $RESOLVED (Hetzner direct — Opțiunea A)"
+          if [ "$RESOLVED" = "$HETZNER_IP" ]; then
+            echo "✅ DNS OK: $DOMAIN → $RESOLVED (Hetzner)"
           elif [ -n "$RESOLVED" ]; then
-            echo "⚠️  DNS MISMATCH: $DOMAIN → $RESOLVED (expected $VERCEL_IP for Vercel or $HETZNER_IP for Hetzner)"
+            echo "⚠️  DNS MISMATCH: $DOMAIN → $RESOLVED (expected $HETZNER_IP for Hetzner)"
             echo "  Configurează la provider-ul DNS:"
-            echo "    A     @    $HETZNER_IP   TTL 300  (recomandat - direct Hetzner)"
+            echo "    A     @    $HETZNER_IP   TTL 300"
             echo "    A     www  $HETZNER_IP   TTL 300"
           else
             echo "❌ DNS: $DOMAIN nu se rezolvă - adaugă records DNS manual:"
@@ -857,11 +853,14 @@ jobs:
 
             # ── Open firewall for HTTP/HTTPS (Nginx) ─────────────────────
             if command -v ufw >/dev/null 2>&1; then
+              ufw default deny incoming 2>/dev/null || true
+              ufw default allow outgoing 2>/dev/null || true
+              ufw allow 22/tcp  2>/dev/null || true
               ufw allow 80/tcp  2>/dev/null || true
               ufw allow 443/tcp 2>/dev/null || true
-              ufw allow 22/tcp  2>/dev/null || true
+              ufw deny  3000/tcp 2>/dev/null || true
               ufw --force enable 2>/dev/null || true
-              echo "✅ Firewall: ports 22/80/443 open for SSH+Nginx"
+              echo "✅ Firewall: ports 22/80/443 open; port 3000 blocked from outside"
             fi
             # Also open via iptables in case ufw is not available
             iptables -I INPUT -p tcp --dport 80 -j ACCEPT 2>/dev/null || true
@@ -1128,13 +1127,11 @@ jobs:
           echo "" >> "$GITHUB_STEP_SUMMARY"
 
           SITE_DOMAIN="${SITE_DOMAIN:-zeusai.pro}"
-          # Check if domain resolves correctly (accepts both Vercel and Hetzner direct IPs)
+          # Check if domain resolves to Hetzner (the only valid deployment target)
           RESOLVED=$(dig +short "$SITE_DOMAIN" A 2>/dev/null | head -1 || echo "")
           HETZNER_IP="${{ secrets.HETZNER_HOST || secrets.SSH_HOST || '204.168.230.142' }}"
-          if [ "$RESOLVED" = "76.76.21.21" ]; then
-            echo "✅ **DNS OK** – $SITE_DOMAIN → 76.76.21.21 (Vercel)" >> "$GITHUB_STEP_SUMMARY"
-          elif [ "$RESOLVED" = "$HETZNER_IP" ]; then
-            echo "✅ **DNS OK** – $SITE_DOMAIN → $RESOLVED (Hetzner direct)" >> "$GITHUB_STEP_SUMMARY"
+          if [ "$RESOLVED" = "$HETZNER_IP" ]; then
+            echo "✅ **DNS OK** – $SITE_DOMAIN → $RESOLVED (Hetzner)" >> "$GITHUB_STEP_SUMMARY"
           else
             echo "### ⚠️ DNS NEFUNCȚIONAL – Acțiune necesară!" >> "$GITHUB_STEP_SUMMARY"
             echo "" >> "$GITHUB_STEP_SUMMARY"
@@ -1143,9 +1140,9 @@ jobs:
             echo "**Adaugă aceste DNS records la provider-ul tău (GoDaddy/Namecheap/etc):**" >> "$GITHUB_STEP_SUMMARY"
             echo "" >> "$GITHUB_STEP_SUMMARY"
             echo "\`\`\`" >> "$GITHUB_STEP_SUMMARY"
-            echo "Type   Name   Value                 TTL" >> "$GITHUB_STEP_SUMMARY"
-            echo "A      @      76.76.21.21           300" >> "$GITHUB_STEP_SUMMARY"
-            echo "CNAME  www    cname.vercel-dns.com  300" >> "$GITHUB_STEP_SUMMARY"
+            echo "Type   Name   Value           TTL" >> "$GITHUB_STEP_SUMMARY"
+            echo "A      @      $HETZNER_IP     300" >> "$GITHUB_STEP_SUMMARY"
+            echo "A      www    $HETZNER_IP     300" >> "$GITHUB_STEP_SUMMARY"
             echo "\`\`\`" >> "$GITHUB_STEP_SUMMARY"
             echo "" >> "$GITHUB_STEP_SUMMARY"
             echo "Sau setează în GitHub Secrets: \`HETZNER_DNS_API_KEY\` / \`CF_TOKEN\` + \`CF_ZONE_ID\`" >> "$GITHUB_STEP_SUMMARY"
