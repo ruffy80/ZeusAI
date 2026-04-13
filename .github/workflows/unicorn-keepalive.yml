@@ -1,7 +1,7 @@
-name: 🔗 Unicorn Keep-Alive (Platform Health Check)
+name: 🔗 Unicorn Keep-Alive (Hetzner Health Check)
 
-# Runs every 30 minutes to verify Vercel + Hetzner are reachable.
-# If either is down, triggers the main deploy workflow to heal the platform.
+# Runs every 30 minutes to verify Hetzner is reachable.
+# If the server is down, triggers the main deploy workflow to heal the platform.
 
 on:
   schedule:
@@ -26,19 +26,6 @@ jobs:
     outputs:
       healthy: ${{ steps.health.outputs.healthy }}
     steps:
-      - name: Check Vercel health
-        id: vercel_check
-        continue-on-error: true
-        run: |
-          URL="${{ secrets.VERCEL_HEALTH_URL || 'https://zeusai.pro/health' }}"
-          STATUS=$(curl -s -o /dev/null -w "%{http_code}" --max-time 10 "$URL" || echo "000")
-          echo "Vercel health URL → HTTP $STATUS"
-          if [ "$STATUS" = "200" ]; then
-            echo "vercel_ok=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "vercel_ok=false" >> "$GITHUB_OUTPUT"
-          fi
-
       - name: Check Hetzner health
         id: hetzner_check
         continue-on-error: true
@@ -65,16 +52,14 @@ jobs:
       - name: Evaluate platform health
         id: health
         run: |
-          VERCEL="${{ steps.vercel_check.outputs.vercel_ok || 'unknown' }}"
           HETZNER="${{ steps.hetzner_check.outputs.hetzner_ok || 'unknown' }}"
           FORCE="${{ inputs.force_redeploy || 'false' }}"
 
-          echo "Vercel status  : $VERCEL"
           echo "Hetzner status : $HETZNER"
           echo "Force redeploy : $FORCE"
 
-          if [ "$VERCEL" = "true" ] && [ "$HETZNER" = "true" ] && [ "$FORCE" != "true" ]; then
-            echo "✅ Platform fully healthy — no redeploy needed"
+          if [ "$HETZNER" = "true" ] && [ "$FORCE" != "true" ]; then
+            echo "✅ Platform healthy — no redeploy needed"
             echo "healthy=true" >> "$GITHUB_OUTPUT"
           else
             echo "⚠️  Platform needs attention — triggering redeploy"
@@ -88,7 +73,6 @@ jobs:
           echo "" >> "$GITHUB_STEP_SUMMARY"
           echo "| Platform | Status |" >> "$GITHUB_STEP_SUMMARY"
           echo "|----------|--------|" >> "$GITHUB_STEP_SUMMARY"
-          echo "| Vercel   | ${{ steps.vercel_check.outputs.vercel_ok == 'true' && '✅ OK' || '❌ DOWN' }} |" >> "$GITHUB_STEP_SUMMARY"
           echo "| Hetzner  | ${{ steps.hetzner_check.outputs.hetzner_ok == 'true' && '✅ OK' || '❌ DOWN' }} |" >> "$GITHUB_STEP_SUMMARY"
           echo "" >> "$GITHUB_STEP_SUMMARY"
           echo "Checked at: $(date -u +"%Y-%m-%dT%H:%M:%SZ")" >> "$GITHUB_STEP_SUMMARY"
@@ -218,15 +202,13 @@ jobs:
           fi
           # Allow services 30 s more to stabilise after the SSH restart (server-side
           # health probe already ran inside the SSH command; this wait covers propagation
-          # to the public-facing Nginx/Vercel layer before external re-probing).
+          # before external re-probing).
           sleep 30
           HEALTH_TIMEOUT=15
-          # Check both Vercel and Hetzner from the runner
-          VERCEL_URL="${{ secrets.VERCEL_HEALTH_URL || 'https://zeusai.pro/health' }}"
-          VERCEL_STATUS=$(curl -s -o /dev/null -w "%{http_code}" --max-time "$HEALTH_TIMEOUT" "$VERCEL_URL" || echo "000")
+          # Check Hetzner from the runner
           HETZNER_STATUS=$(curl -s -o /dev/null -w "%{http_code}" --max-time "$HEALTH_TIMEOUT" "http://${DEPLOY_HOST}/api/health" || echo "000")
-          echo "Vercel re-check: $VERCEL_STATUS  |  Hetzner re-check: $HETZNER_STATUS"
-          if [ "$VERCEL_STATUS" = "200" ] && [ "$HETZNER_STATUS" = "200" ]; then
+          echo "Hetzner re-check: $HETZNER_STATUS"
+          if [ "$HETZNER_STATUS" = "200" ]; then
             echo "✅ Platform recovered via fast SSH restart — skipping full redeploy"
             echo "recovered=true" >> "$GITHUB_OUTPUT"
           else

@@ -1,4 +1,4 @@
-name: 🦄 Deploy ZeusAI (GitHub → Vercel + Hetzner)
+name: 🦄 Deploy ZeusAI (GitHub → Hetzner)
 
 on:
   push:
@@ -28,7 +28,7 @@ on:
         default: 'false'
 
 env:
-  VERCEL_PROD_URL: https://zeusai.pro
+  SITE_DOMAIN_DEFAULT: zeusai.pro
 
 concurrency:
   group: ${{ github.event_name == 'pull_request' && format('pr-validate-{0}', github.event.pull_request.number) || 'zeusai-production' }}
@@ -153,17 +153,17 @@ jobs:
         run: npm run innovation:report || true
 
   # ──────────────────────────────────────────────────────────────────────
-  # JOB 2: Deploy to Vercel (runs src/index.js - the Node HTTP server)
+  # JOB 2: Vercel deploy — DISABLED (platform runs exclusively on GitHub + Hetzner)
   # ──────────────────────────────────────────────────────────────────────
   deploy-vercel:
-    name: 🚀 Deploy → Vercel
+    name: 🚫 Deploy → Vercel (disabled — Hetzner only)
     runs-on: ubuntu-latest
     needs: validate
-    # Skip Vercel deploy on scheduled runs – cron is for Hetzner keep-alive only.
-    # Deploying on schedule quickly exhausts the 100 free deployments/day limit.
-    # Exception: force_deploy=true overrides the schedule skip (e.g. keepalive or setup-secrets triggering a full redeploy).
-    # Skip on pull_request – PRs only run the validate job.
-    if: (github.event_name != 'schedule' || inputs.force_deploy == 'true') && github.event_name != 'pull_request'
+    # Vercel deployment is permanently disabled — the platform runs exclusively
+    # on GitHub Actions + Hetzner. This stub job is kept so downstream jobs
+    # (deploy-summary, smoke-tests) that reference `needs: deploy-vercel` continue
+    # to resolve without needing YAML surgery.
+    if: false
     defaults:
       run:
         working-directory: UNICORN_FINAL
@@ -1123,23 +1123,17 @@ jobs:
     steps:
       - name: Print summary
         env:
-          DEPLOY_URL: ${{ needs.deploy-vercel.outputs.deploy_url }}
           SITE_DOMAIN: ${{ secrets.SITE_DOMAIN || 'zeusai.pro' }}
         run: |
-          echo "## 🦄 ZeusAI Deploy Summary" >> "$GITHUB_STEP_SUMMARY"
+          echo "## 🦄 ZeusAI Deploy Summary (GitHub → Hetzner)" >> "$GITHUB_STEP_SUMMARY"
           echo "" >> "$GITHUB_STEP_SUMMARY"
           echo "| Target    | Result |" >> "$GITHUB_STEP_SUMMARY"
           echo "|-----------|--------|" >> "$GITHUB_STEP_SUMMARY"
           echo "| Validate  | ${{ needs.validate.result }} |" >> "$GITHUB_STEP_SUMMARY"
-          echo "| Vercel    | ${{ needs.deploy-vercel.result }} |" >> "$GITHUB_STEP_SUMMARY"
           echo "| Hetzner   | ${{ needs.deploy-hetzner.result }} |" >> "$GITHUB_STEP_SUMMARY"
           echo "" >> "$GITHUB_STEP_SUMMARY"
           echo "Commit: \`${{ github.sha }}\` by **${{ github.actor }}**" >> "$GITHUB_STEP_SUMMARY"
           echo "Triggered: ${{ github.event_name }}" >> "$GITHUB_STEP_SUMMARY"
-          if [ -n "$DEPLOY_URL" ]; then
-            echo "" >> "$GITHUB_STEP_SUMMARY"
-            echo "**🔗 Vercel deploy URL:** [$DEPLOY_URL]($DEPLOY_URL)" >> "$GITHUB_STEP_SUMMARY"
-          fi
           echo "" >> "$GITHUB_STEP_SUMMARY"
 
           SITE_DOMAIN="${SITE_DOMAIN:-zeusai.pro}"
@@ -1173,27 +1167,13 @@ jobs:
     needs: [deploy-vercel, deploy-hetzner]
     if: always()
     steps:
-      - name: Check Vercel and Hetzner health
+      - name: Check Hetzner health
         run: |
-          VERCEL_URL='${{ needs.deploy-vercel.outputs.deploy_url }}'
           HETZNER_HOST="${{ secrets.HETZNER_HOST || secrets.SSH_HOST || '204.168.230.142' }}"
           ALL_OK=true
 
-          if [ -z "$VERCEL_URL" ]; then
-            echo "ℹ️  Vercel not deployed – skipping Vercel smoke test."
-          else
-            VERCEL_STATUS=$(curl -s -o /dev/null -w "%{http_code}" "${VERCEL_URL}/health" || echo "000")
-            echo "Vercel /health: $VERCEL_STATUS"
-            if [ "$VERCEL_STATUS" != "200" ]; then
-              echo "⚠️  Vercel smoke test: expected 200, got $VERCEL_STATUS"
-              ALL_OK=false
-            else
-              echo "✅ Vercel smoke test passed"
-            fi
-          fi
-
           if [ -z "$HETZNER_HOST" ]; then
-            echo "ℹ️  Hetzner not configured – skipping Hetzner smoke test."
+            echo "ℹ️  Hetzner not configured – skipping smoke test."
           else
             # Prefer Nginx port 80 (proxied to backend:3000); port 3000 is firewall-restricted
             HETZNER_STATUS=$(curl -s -o /dev/null -w "%{http_code}" --max-time 15 "http://${HETZNER_HOST}/api/health" || echo "000")
@@ -1215,26 +1195,22 @@ jobs:
             echo "⚠️  Some smoke tests reported non-200 responses (see above)"
           fi
 
-          # ── Production Vercel domain check ──────────────────────────────
-          PROD_STATUS=$(curl -s -o /dev/null -w "%{http_code}" "${{ env.VERCEL_PROD_URL }}/health" || echo "000")
-          echo "Production ${{ env.VERCEL_PROD_URL }}/health: $PROD_STATUS"
-          [ "$PROD_STATUS" = "200" ] && echo "✅ ${{ env.VERCEL_PROD_URL }} is live" || echo "ℹ️  Production domain not yet reachable (DNS/alias may still be propagating)"
+          # ── Production domain check ──────────────────────────────────
+          PROD_DOMAIN="${{ secrets.SITE_DOMAIN || env.SITE_DOMAIN_DEFAULT }}"
+          PROD_STATUS=$(curl -s -o /dev/null -w "%{http_code}" "https://${PROD_DOMAIN}/health" || echo "000")
+          echo "Production https://${PROD_DOMAIN}/health: $PROD_STATUS"
+          [ "$PROD_STATUS" = "200" ] && echo "✅ https://${PROD_DOMAIN} is live" || echo "ℹ️  Production domain not yet reachable (DNS/SSL may still be propagating)"
 
       - name: Quantum Integrity Shield check
         continue-on-error: true
         run: |
           HETZNER_HOST="${{ secrets.HETZNER_HOST || secrets.SSH_HOST || '204.168.230.142' }}"
-          VERCEL_URL='${{ needs.deploy-vercel.outputs.deploy_url }}'
 
           QIS_STATUS=""
-          # Try Hetzner first (port 80 via Nginx, fallback to 3000)
+          # Check Hetzner (port 80 via Nginx, fallback to 3000)
           if [ -n "$HETZNER_HOST" ]; then
             QIS_STATUS=$(curl -s --max-time 15 "http://${HETZNER_HOST}/api/quantum-integrity/status" || \
                          curl -s --max-time 15 "http://${HETZNER_HOST}:3000/api/quantum-integrity/status" || echo "")
-          fi
-          # Try Vercel if Hetzner didn't respond
-          if [ -z "$QIS_STATUS" ] && [ -n "$VERCEL_URL" ]; then
-            QIS_STATUS=$(curl -s --max-time 15 "${VERCEL_URL}/api/quantum-integrity/status" || echo "")
           fi
 
           if [ -z "$QIS_STATUS" ]; then
