@@ -9,6 +9,7 @@
 // ── Shared constants (single source of truth) ──────────────────────────────
 const SITE_DOMAIN    = process.env.SITE_DOMAIN    || 'zeusai.pro';
 const PUBLIC_APP_URL = process.env.PUBLIC_APP_URL || `https://${SITE_DOMAIN}`;
+const EDGE_HEALTH_URL = process.env.EDGE_HEALTH_URL || `${PUBLIC_APP_URL}/health`;
 const GH_OWNER       = process.env.GITHUB_REPO_OWNER || 'ruffy80';
 const GH_REPO        = process.env.GITHUB_REPO_NAME  || 'ZeusAI';
 const ECOSYSTEM_PATH = __filename; // absolute path to this config file
@@ -86,12 +87,38 @@ module.exports = {
       env: {
         NODE_ENV: 'production',
         HEALTH_GUARDIAN_URL: 'http://127.0.0.1:3000/api/health',
+        HEALTH_GUARDIAN_SHIELD_URL: 'http://127.0.0.1:3000/api/quantum-integrity/status',
         HEALTH_GUARDIAN_INTERVAL_MS: '30000',
         HEALTH_GUARDIAN_FAIL_THRESHOLD: '3',
-        HEALTH_GUARDIAN_HEAL_CMD: `pm2 startOrRestart "${ECOSYSTEM_PATH}" --only unicorn`
+        HEALTH_GUARDIAN_HEAL_CMD: `pm2 startOrRestart "${ECOSYSTEM_PATH}" --only unicorn,unicorn-orchestrator,unicorn-health-guardian,unicorn-quantum-watchdog`,
+        HEALTH_GUARDIAN_ROLLBACK_CMD: 'bash scripts/rollback-last-backup.sh'
       },
       error_file: 'logs/health-guardian-error.log',
       out_file: 'logs/health-guardian-out.log',
+      log_date_format: 'YYYY-MM-DD HH:mm:ss'
+    },
+
+    // ── 3b. Quantum Integrity Shield Watchdog ───────────────────────────────
+    {
+      name: 'unicorn-quantum-watchdog',
+      script: 'scripts/quantum-shield-watchdog.js',
+      cwd: __dirname,
+      instances: 1,
+      autorestart: true,
+      watch: false,
+      max_restarts: 20,
+      min_uptime: '10s',
+      restart_delay: 5000,
+      env: {
+        NODE_ENV: 'production',
+        QIS_WATCHDOG_URL: 'http://127.0.0.1:3000/api/quantum-integrity/status',
+        QIS_WATCHDOG_INTERVAL_MS: '45000',
+        QIS_WATCHDOG_FAIL_THRESHOLD: '2',
+        QIS_WATCHDOG_REPAIR_CMD: 'pm2 restart unicorn unicorn-orchestrator unicorn-health-guardian',
+        QIS_WATCHDOG_ROLLBACK_CMD: 'bash scripts/rollback-last-backup.sh'
+      },
+      error_file: 'logs/quantum-watchdog-error.log',
+      out_file: 'logs/quantum-watchdog-out.log',
       log_date_format: 'YYYY-MM-DD HH:mm:ss'
     },
 
@@ -109,11 +136,11 @@ module.exports = {
       env: {
         NODE_ENV: 'production',
         PLATFORM_CHECK_INTERVAL_MS: '300000',
-        VERCEL_HEALTH_URL: `${PUBLIC_APP_URL}/health`,
+        EDGE_HEALTH_URL,
         HETZNER_HEALTH_URL: 'http://127.0.0.1:3000/api/health',
         GITHUB_REPO_OWNER: GH_OWNER,
         GITHUB_REPO_NAME: GH_REPO,
-        GITHUB_WORKFLOW_ID: 'vercel-deploy.yml',
+        GITHUB_WORKFLOW_ID: 'deploy-hetzner.yml',
         GITHUB_BRANCH: 'main'
       },
       error_file: 'logs/platform-connector-error.log',

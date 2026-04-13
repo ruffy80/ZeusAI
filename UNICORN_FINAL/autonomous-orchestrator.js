@@ -1,7 +1,7 @@
 /**
  * 🦄 UNICORN AUTONOMOUS ORCHESTRATOR
  * Coordinates: Innovation Engine + Revenue Engine + Deployment Pipeline
- * + Platform Connectivity (GitHub ↔ Vercel ↔ Hetzner keep-alive)
+ * + Platform Connectivity (GitHub ↔ Hetzner keep-alive)
  * Runs independently from the backend HTTP server
  */
 
@@ -23,6 +23,7 @@ const MONITOR_INTERVAL      = parseInt(process.env.MONITOR_INTERVAL      || '60'
 const DECISION_INTERVAL     = parseInt(process.env.DECISION_INTERVAL     || '45',  10) * 1000;
 const HEALTH_INTERVAL       = 15 * 1000;
 const BACKEND_HEAL_CMD      = process.env.BACKEND_HEAL_CMD || '';
+const EDGE_HEALTH_URL       = process.env.EDGE_HEALTH_URL || process.env.PUBLIC_APP_URL || '';
 
 let innovationEngine, revenueEngine, viralEngine, controlPlaneAgent, profitControlLoop;
 
@@ -158,7 +159,7 @@ async function runRevenueCycle() {
 // ─── Deploy cycle ─────────────────────────────────────────────────────────────
 async function runDeployCycle() {
   stats.deployCycles++;
-  log('🚀', `Deploy cycle #${stats.deployCycles} – checking Vercel status...`);
+  log('🚀', `Deploy cycle #${stats.deployCycles} – checking autonomous runtime...`);
   try {
     // Lightweight health check against running backend
     const http = require('http');
@@ -230,14 +231,13 @@ async function runPlatformCycle() {
       }
     }
 
-    // 2. Vercel health (optional)
-    const vercelUrl = process.env.VERCEL_HEALTH_URL || '';
-    if (vercelUrl) {
-      const vercelStatus = await ping(vercelUrl);
-      if (vercelStatus === 200) {
-        log('✅', `Vercel reachable (HTTP ${vercelStatus})`);
+    // 2. Public edge health (optional)
+    if (EDGE_HEALTH_URL) {
+      const edgeStatus = await ping(EDGE_HEALTH_URL);
+      if (edgeStatus === 200) {
+        log('✅', `Edge URL reachable (HTTP ${edgeStatus})`);
       } else {
-        log('⚠️', `Vercel not reachable (HTTP ${vercelStatus})`);
+        log('⚠️', `Edge URL not reachable (HTTP ${edgeStatus})`);
       }
     }
 

@@ -1,22 +1,22 @@
 #!/usr/bin/env node
 /**
  * 🔗 UNICORN PLATFORM CONNECTOR
- * Keeps the GitHub ↔ Vercel ↔ Hetzner triad permanently connected.
+ * Keeps the GitHub ↔ Hetzner autonomous runtime connected.
  *
  * Responsibilities:
- *   1. Periodically verify Vercel deployment is reachable.
+ *   1. Periodically verify public edge endpoint is reachable.
  *   2. Periodically verify local backend (Hetzner) is healthy.
- *   3. If either is unhealthy, trigger a GitHub Actions redeploy via API.
+ *   3. If either is unhealthy, trigger a GitHub Actions Hetzner redeploy via API.
  *   4. Report connectivity status to console (visible in pm2 logs).
  *
  * Env vars:
  *   PLATFORM_CHECK_INTERVAL_MS  — how often to run a full check (default 5 min)
- *   VERCEL_HEALTH_URL           — Vercel deployment health URL
+ *   EDGE_HEALTH_URL             — Public edge health URL (https://zeusai.pro/health)
  *   HETZNER_HEALTH_URL          — local backend health URL (default localhost)
  *   GITHUB_TOKEN                — PAT with `repo` + `workflow` scopes
  *   GITHUB_REPO_OWNER           — e.g. "ruffy80"
  *   GITHUB_REPO_NAME            — e.g. "ZeusAI"
- *   GITHUB_WORKFLOW_ID          — workflow file name (default "vercel-deploy.yml")
+ *   GITHUB_WORKFLOW_ID          — workflow file name (default "deploy-hetzner.yml")
  *   GITHUB_BRANCH               — branch to dispatch on (default "main")
  */
 
@@ -28,23 +28,23 @@ const http  = require('http');
 
 // ─── Config ──────────────────────────────────────────────────────────────────
 const CHECK_INTERVAL  = Math.max(parseInt(process.env.PLATFORM_CHECK_INTERVAL_MS || '300000', 10), 60000);
-const VERCEL_URL      = process.env.VERCEL_HEALTH_URL   || '';
+const EDGE_URL        = process.env.EDGE_HEALTH_URL || process.env.PUBLIC_APP_URL || '';
 const HETZNER_URL     = process.env.HETZNER_HEALTH_URL  || 'http://127.0.0.1:3000/api/health';
 const GH_TOKEN        = process.env.GITHUB_TOKEN        || '';
 const GH_OWNER        = process.env.GITHUB_REPO_OWNER   || '';
 const GH_REPO         = process.env.GITHUB_REPO_NAME    || '';
-const GH_WORKFLOW     = process.env.GITHUB_WORKFLOW_ID  || 'vercel-deploy.yml';
+const GH_WORKFLOW     = process.env.GITHUB_WORKFLOW_ID  || 'deploy-hetzner.yml';
 const GH_BRANCH       = process.env.GITHUB_BRANCH       || 'main';
 
 // ─── State ───────────────────────────────────────────────────────────────────
 const state = {
   startTime:         new Date(),
   checkCount:        0,
-  vercelFailures:    0,
+  edgeFailures:      0,
   hetznerFailures:   0,
   redeployCount:     0,
   lastRedeployAt:    null,
-  lastVercelStatus:  'UNKNOWN',
+  lastEdgeStatus:    'UNKNOWN',
   lastHetznerStatus: 'UNKNOWN',
 };
 
@@ -157,23 +157,23 @@ async function runCheck() {
     }
   }
 
-  // 2. Check Vercel (only if URL is configured)
-  if (VERCEL_URL) {
-    const vercel = await httpGet(VERCEL_URL);
-    if (vercel.ok) {
-      state.vercelFailures = 0;
-      state.lastVercelStatus = 'OK';
-      log('✅', `Vercel deployment healthy (HTTP ${vercel.statusCode})`);
+  // 2. Check public edge endpoint (only if URL is configured)
+  if (EDGE_URL) {
+    const edge = await httpGet(EDGE_URL);
+    if (edge.ok) {
+      state.edgeFailures = 0;
+      state.lastEdgeStatus = 'OK';
+      log('✅', `Public edge healthy (HTTP ${edge.statusCode})`);
     } else {
-      state.vercelFailures++;
-      state.lastVercelStatus = `FAIL(${state.vercelFailures})`;
-      log('⚠️', `Vercel deployment unreachable — ${vercel.body || vercel.statusCode} (failure #${state.vercelFailures})`);
-      if (state.vercelFailures >= 3) {
+      state.edgeFailures++;
+      state.lastEdgeStatus = `FAIL(${state.edgeFailures})`;
+      log('⚠️', `Public edge unreachable — ${edge.body || edge.statusCode} (failure #${state.edgeFailures})`);
+      if (state.edgeFailures >= 3) {
         needRedeploy = true;
       }
     }
   } else {
-    log('ℹ️', 'VERCEL_HEALTH_URL not set — skipping Vercel check');
+    log('ℹ️', 'EDGE_HEALTH_URL/PUBLIC_APP_URL not set — skipping public edge check');
   }
 
   // 3. Trigger redeploy if needed
@@ -183,7 +183,7 @@ async function runCheck() {
     if (result.success) {
       log('✅', `Redeploy triggered: ${result.message}`);
       state.hetznerFailures = 0;
-      state.vercelFailures  = 0;
+      state.edgeFailures    = 0;
     } else {
       log('❌', `Redeploy trigger failed: ${result.message}`);
     }
@@ -194,7 +194,7 @@ async function runCheck() {
   log('📊', 'Platform status', {
     uptime: `${Math.floor(upSecs / 3600)}h ${Math.floor((upSecs % 3600) / 60)}m`,
     hetzner: state.lastHetznerStatus,
-    vercel:  VERCEL_URL ? state.lastVercelStatus : 'UNCONFIGURED',
+    edge:    EDGE_URL ? state.lastEdgeStatus : 'UNCONFIGURED',
     redeployCount: state.redeployCount,
     checkCount: state.checkCount,
   });
@@ -212,7 +212,7 @@ log('🔗', '══════════════════════�
 log('🔗', '  UNICORN PLATFORM CONNECTOR STARTED               ');
 log('🔗', `  Check interval: ${CHECK_INTERVAL / 1000}s         `);
 log('🔗', `  Hetzner URL:    ${HETZNER_URL}                    `);
-log('🔗', `  Vercel URL:     ${VERCEL_URL || '(not configured)'}`);
+log('🔗', `  Edge URL:       ${EDGE_URL || '(not configured)'}`);
 log('🔗', `  GitHub repo:    ${GH_OWNER}/${GH_REPO}            `);
 log('🔗', `  Workflow:       ${GH_WORKFLOW} @ ${GH_BRANCH}     `);
 log('🔗', '══════════════════════════════════════════════════');
