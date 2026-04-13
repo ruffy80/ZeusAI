@@ -109,6 +109,8 @@ jobs:
           DEPLOY_USER: ${{ secrets.HETZNER_DEPLOY_USER || secrets.HETZNER_USER || secrets.SSH_USER || 'root' }}
           DEPLOY_PORT: ${{ secrets.HETZNER_DEPLOY_PORT || secrets.SSH_PORT || '22' }}
           DEPLOY_PATH: ${{ secrets.HETZNER_DEPLOY_PATH || '/opt/unicorn' }}
+          DOMAIN: ${{ secrets.SITE_DOMAIN || 'zeusai.pro' }}
+          CERT_EMAIL: ${{ secrets.OWNER_EMAIL || 'vladoi_ionut@yahoo.com' }}
         run: |
           if [ -z "$DEPLOY_HOST" ] || [ -z "${{ secrets.HETZNER_SSH_PRIVATE_KEY || secrets.SSH_PRIVATE_KEY }}" ]; then
             echo "ℹ️  SSH secrets not configured — skipping fast restart"
@@ -123,10 +125,20 @@ jobs:
             -o StrictHostKeyChecking=no -o BatchMode=yes -o ConnectTimeout=15 \
             "${DEPLOY_USER}@${DEPLOY_HOST}" << ENDSSH
             DEPLOY_PATH="${DEPLOY_PATH:-/opt/unicorn}"
+            DOMAIN="${DOMAIN:-zeusai.pro}"
+            CERT_EMAIL="${CERT_EMAIL:-vladoi_ionut@yahoo.com}"
             cd "\$DEPLOY_PATH" 2>/dev/null || cd "/opt/unicorn" 2>/dev/null || true
+
+            resolve_ipv4() {
+              getent ahostsv4 "$1" 2>/dev/null | awk 'NR==1{print $1}'
+            }
 
             # Ensure nginx is enabled and running
             if command -v nginx >/dev/null 2>&1; then
+              if command -v ufw >/dev/null 2>&1; then
+                ufw allow 80/tcp 2>/dev/null || true
+                ufw allow 443/tcp 2>/dev/null || true
+              fi
               systemctl enable nginx 2>/dev/null || true
               # Test config before starting to avoid silent failures
               if nginx -t 2>/dev/null; then
@@ -138,6 +150,31 @@ jobs:
               sleep 2
               systemctl is-active --quiet nginx && echo "✅ Nginx running" || \
                 { systemctl start nginx 2>/dev/null || true; echo "ℹ️  nginx start attempted"; }
+            fi
+
+            # Attempt HTTPS self-heal if certificate/config is missing.
+            if ! curl -kfsS --resolve "$DOMAIN:443:127.0.0.1" "https://$DOMAIN/health" >/dev/null 2>&1; then
+              echo "ℹ️  HTTPS unhealthy locally for $DOMAIN — attempting certbot repair"
+              if ! command -v certbot >/dev/null 2>&1; then
+                apt-get update -y >/dev/null 2>&1 || true
+                apt-get install -y certbot python3-certbot-nginx >/dev/null 2>&1 || snap install --classic certbot >/dev/null 2>&1 || true
+              fi
+
+              SERVER_IP=$(curl -4 -fsS --max-time 5 https://ifconfig.me 2>/dev/null || hostname -I | awk '{print $1}')
+              DOMAIN_IP=$(resolve_ipv4 "$DOMAIN")
+              WWW_DOMAIN_IP=$(resolve_ipv4 "www.$DOMAIN")
+              echo "Server IP: ${SERVER_IP} | Domain IP: ${DOMAIN_IP:-'(unresolved)'} | WWW IP: ${WWW_DOMAIN_IP:-'(unresolved)'}"
+
+              if command -v certbot >/dev/null 2>&1 && [ -n "$DOMAIN_IP" ] && [ "$DOMAIN_IP" = "$SERVER_IP" ]; then
+                if [ -n "$WWW_DOMAIN_IP" ] && [ "$WWW_DOMAIN_IP" = "$SERVER_IP" ]; then
+                  certbot --nginx -d "$DOMAIN" -d "www.$DOMAIN" --non-interactive --agree-tos --email "$CERT_EMAIL" --redirect --keep-until-expiring || true
+                else
+                  certbot --nginx -d "$DOMAIN" --non-interactive --agree-tos --email "$CERT_EMAIL" --redirect --keep-until-expiring || true
+                fi
+                nginx -t 2>/dev/null && systemctl reload nginx 2>/dev/null || systemctl restart nginx 2>/dev/null || true
+              else
+                echo "⚠️  Skipping certbot repair: DNS mismatch or certbot unavailable"
+              fi
             fi
 
             # Restart PM2 processes — skip resurrect (stale dumps cause silent failures)
@@ -163,6 +200,7 @@ jobs:
             curl -sf http://localhost:3000/api/health && echo "✅ Backend healthy after restart" || echo "⚠️  Backend still starting (may need more time)"
             # Verify nginx port 80 is accessible locally
             curl -sf --max-time 5 http://localhost:80/ >/dev/null 2>&1 && echo "✅ Nginx port 80 responding" || echo "⚠️  Nginx port 80 not responding — check: journalctl -u nginx -n 20"
+            curl -kfsS --resolve "$DOMAIN:443:127.0.0.1" "https://$DOMAIN/health" >/dev/null 2>&1 && echo "✅ Nginx HTTPS responding" || echo "⚠️  Nginx HTTPS still not responding — check certbot/nginx logs"
           ENDSSH
 
       - name: Verify platform recovered after SSH restart

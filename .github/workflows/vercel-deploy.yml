@@ -907,16 +907,25 @@ jobs:
                 apt-get install -y certbot python3-certbot-nginx 2>/dev/null || snap install --classic certbot 2>/dev/null || true
               fi
               if command -v certbot >/dev/null 2>&1; then
-                # Fix 3: Verify DNS resolves to this server before attempting cert.
+                # Verify DNS resolves to this server before attempting cert.
                 # Running certbot when DNS points elsewhere burns Let's Encrypt rate-limit quota.
-                SERVER_IP=$(curl -s --max-time 5 https://ifconfig.me || hostname -I | awk '{print $1}')
-                DOMAIN_IP=$(dig +short "$DOMAIN" A 2>/dev/null | tail -1 || true)
-                echo "  Server IP: ${SERVER_IP}  Domain IP: ${DOMAIN_IP}"
+                resolve_ipv4() {
+                  getent ahostsv4 "$1" 2>/dev/null | awk 'NR==1{print $1}'
+                }
+                SERVER_IP=$(curl -4 -fsS --max-time 5 https://ifconfig.me 2>/dev/null || hostname -I | awk '{print $1}')
+                DOMAIN_IP=$(resolve_ipv4 "$DOMAIN")
+                WWW_DOMAIN_IP=$(resolve_ipv4 "www.$DOMAIN")
+                echo "  Server IP: ${SERVER_IP}  Domain IP: ${DOMAIN_IP:-'(unresolved)'}  WWW IP: ${WWW_DOMAIN_IP:-'(unresolved)'}"
 
                 if [ -n "$DOMAIN_IP" ] && [ "$DOMAIN_IP" = "$SERVER_IP" ]; then
-                  # Fix 2: Run certbot without 2>/dev/null so failures are visible in CI logs.
-                  # Try both apex + www first; if www fails (proxy on registrar), fall back to apex only.
-                  if certbot --nginx -d "$DOMAIN" -d "www.$DOMAIN" \
+                  WANT_WWW=false
+                  if [ -n "$WWW_DOMAIN_IP" ] && [ "$WWW_DOMAIN_IP" = "$SERVER_IP" ]; then
+                    WANT_WWW=true
+                  fi
+
+                  # Run certbot without 2>/dev/null so failures are visible in CI logs.
+                  # Try apex + www only when both hostnames resolve to this server.
+                  if [ "$WANT_WWW" = "true" ] && certbot --nginx -d "$DOMAIN" -d "www.$DOMAIN" \
                       --non-interactive --agree-tos --email "$CERT_EMAIL" \
                       --redirect --keep-until-expiring; then
                     echo "✅ SSL certificate (apex + www) configured for $DOMAIN"
@@ -940,6 +949,13 @@ jobs:
                   echo "✅ Nginx reloaded after certbot"
                 else
                   echo "⚠️  nginx -t failed after certbot — keeping existing nginx config"
+                fi
+
+                # Verify HTTPS locally via nginx using the public hostname.
+                if curl -kfsS --resolve "$DOMAIN:443:127.0.0.1" "https://$DOMAIN/health" >/dev/null 2>&1; then
+                  echo "✅ HTTPS verified locally for $DOMAIN"
+                else
+                  echo "⚠️  HTTPS still unavailable locally for $DOMAIN after certbot attempt"
                 fi
               fi
             fi
