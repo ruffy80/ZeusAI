@@ -857,8 +857,7 @@ jobs:
               pm2 start ecosystem.config.js
               pm2 save
               # Register PM2 in systemd so it starts on reboot
-              pm2 startup systemd --no-daemon 2>/dev/null || \
-                (pm2 startup 2>/dev/null | grep "^sudo" | head -1 | bash) 2>/dev/null || true
+              pm2 startup systemd 2>/dev/null | grep "^sudo" | head -1 | bash 2>/dev/null || true
               pm2 save
               echo "✅ All PM2 apps started from ecosystem.config.js"
             elif command -v systemctl >/dev/null 2>&1 && systemctl list-unit-files | grep -q "^unicorn\.service"; then

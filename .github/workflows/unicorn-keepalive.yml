@@ -140,8 +140,7 @@ jobs:
               pm2 start ecosystem.config.js
               pm2 save
               # Re-register PM2 startup hook so it survives reboots
-              pm2 startup systemd --no-daemon 2>/dev/null || \
-                pm2 startup 2>/dev/null | tail -1 | bash 2>/dev/null || true
+              pm2 startup systemd 2>/dev/null | grep "^sudo" | head -1 | bash 2>/dev/null || true
               echo "✅ PM2 clean start from ecosystem complete"
             elif command -v systemctl >/dev/null 2>&1 && systemctl list-unit-files 2>/dev/null | grep -q '^unicorn\.service'; then
               systemctl restart unicorn && echo "✅ Restarted via systemctl"
@@ -166,7 +165,9 @@ jobs:
             echo "recovered=false" >> "$GITHUB_OUTPUT"
             exit 0
           fi
-          # Allow services 30 s to stabilise after the PM2 clean start before re-probing
+          # Allow services 30 s more to stabilise after the SSH restart (server-side
+          # health probe already ran inside the SSH command; this wait covers propagation
+          # to the public-facing Nginx/Vercel layer before external re-probing).
           sleep 30
           HEALTH_TIMEOUT=15
           # Check both Vercel and Hetzner from the runner
