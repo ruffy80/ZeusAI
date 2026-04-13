@@ -120,6 +120,7 @@ jobs:
                fi
 
                echo '🎨 build frontend…'
+               if [ -d client ] && [ -f client/package.json ]; then
                if [ -d UNICORN_FINAL/client ]; then
                  cd UNICORN_FINAL/client
                  npm install --legacy-peer-deps --no-audit --no-fund
@@ -129,10 +130,13 @@ jobs:
                  cd client
                  npm install --legacy-peer-deps --no-audit --no-fund
                  npm run build
-                 cd ..
+                 cd "\$DEPLOY_PATH"
                fi
 
                echo '🧪 local lint + tests…'
+               cd "\$DEPLOY_PATH"
+               npm run lint
+               npm test
                if [ -d UNICORN_FINAL ]; then
                  npm --prefix UNICORN_FINAL run lint
                  npm --prefix UNICORN_FINAL test

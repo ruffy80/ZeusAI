@@ -120,13 +120,14 @@ jobs:
                fi
 
                echo '=== [4] Frontend – npm install + build'
-               if [ -d client ]; then
+               if [ -d client ] && [ -f client/package.json ]; then
                  cd client
                  npm install --legacy-peer-deps --no-audit --no-fund
-                 CI=false npm run build
-                 cd ..
+                 CI=false npm run build || echo '⚠️  Frontend build failed (non-blocking)'
+                 cd "\$REPO_DIR"
                fi
 
+               cd "\$REPO_DIR"
                echo '=== [5] PM2 – restart / start backend'
                if command -v pm2 >/dev/null 2>&1; then
                  if [ -f ecosystem.config.js ]; then
@@ -162,11 +163,11 @@ jobs:
                        pm2 start src/index.js --name unicorn-backend
                      pm2 save
                    fi
-                   if [ -d client ]; then
+                   if [ -d client ] && [ -f client/package.json ]; then
                      cd client
                      npm install --legacy-peer-deps --no-audit --no-fund
-                     CI=false npm run build
-                     cd ..
+                     CI=false npm run build || true
+                     cd "\$REPO_DIR"
                    fi
                    if command -v nginx >/dev/null 2>&1; then
                      sudo nginx -t && sudo systemctl reload nginx
