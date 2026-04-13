@@ -566,6 +566,14 @@ const autonomousWealthEngine  = require('./modules/autonomous-wealth-engine');
 const autonomousBDEngine      = require('./modules/autonomous-bd-engine');
 const unicornSuperIntelligence = require('./modules/unicorn-super-intelligence');
 
+// ==================== NEW POWER AGENTS (6) ====================
+const predictiveMarketIntelligence = require('./modules/predictive-market-intelligence');
+const aiSalesCloser                = require('./modules/ai-sales-closer');
+const competitorSpyAgent           = require('./modules/competitor-spy-agent');
+const aiCfoAgent                   = require('./modules/ai-cfo-agent');
+const sentimentAnalysisEngine      = require('./modules/sentiment-analysis-engine');
+const aiProductGenerator           = require('./modules/ai-product-generator');
+
 // SLO middleware — records every API request latency & error status
 app.use((req, res, next) => {
   const start = Date.now();
@@ -3272,6 +3280,14 @@ registerModuleRoutes('autonomous-wealth-engine',   autonomousWealthEngine);
 registerModuleRoutes('autonomous-bd-engine',       autonomousBDEngine);
 registerModuleRoutes('unicorn-super-intelligence', unicornSuperIntelligence);
 
+// ==================== NEW POWER AGENTS — ROUTES (6) ====================
+registerModuleRoutes('predictive-market-intelligence', predictiveMarketIntelligence);
+registerModuleRoutes('ai-sales-closer',                aiSalesCloser);
+registerModuleRoutes('competitor-spy-agent',           competitorSpyAgent);
+registerModuleRoutes('ai-cfo-agent',                   aiCfoAgent);
+registerModuleRoutes('sentiment-analysis-engine',      sentimentAnalysisEngine);
+registerModuleRoutes('ai-product-generator',           aiProductGenerator);
+
 
 const clientBuildPath = path.join(__dirname, '../client/build');
 const clientIndexPath = path.join(clientBuildPath, 'index.html');
@@ -3359,7 +3375,7 @@ if (require.main === module) {
     console.log(`⚡ Quantum Resilience Core: ACTIVE`);
     console.log(`📊 Executive Dashboard: ACTIVE`);
     console.log(`🔍 Code Sanity Engine: ACTIVE`);
-    console.log(`🔗 93+ modules total: TOATE CONECTATE & ACTIVE`);
+    console.log(`🔗 99+ modules total: TOATE CONECTATE & ACTIVE`);
   });
 }
 // Export Express app for Vercel serverless and testing
