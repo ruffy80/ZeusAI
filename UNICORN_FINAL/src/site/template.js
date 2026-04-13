@@ -598,6 +598,9 @@ select.form-inp option{background:#0a0e24;}
         <button class="adm-tab-btn" data-atab="system" onclick="switchAdminTab('system')">🛡️ System</button>
         <button class="adm-tab-btn" data-atab="ai" onclick="switchAdminTab('ai')">🤖 AI</button>
         <button class="adm-tab-btn" data-atab="crm" onclick="switchAdminTab('crm')">🤝 CRM</button>
+        <button class="adm-tab-btn" data-atab="viral" onclick="switchAdminTab('viral')">🚀 Viral</button>
+        <button class="adm-tab-btn" data-atab="innovation" onclick="switchAdminTab('innovation')">💡 Innovation</button>
+        <button class="adm-tab-btn" data-atab="pricing" onclick="switchAdminTab('pricing')">🏷️ Pricing</button>
       </div>
       <!-- OVERVIEW TAB -->
       <div class="adm-tab-panel active" id="atab-overview">
@@ -707,6 +710,67 @@ select.form-inp option{background:#0a0e24;}
         <div class="card">
           <div class="dash-section-title">Leads</div>
           <div id="crm-leads-list" style="color:#7090b0;font-size:13px;">Loading...</div>
+        </div>
+      </div>
+      <!-- VIRAL TAB -->
+      <div class="adm-tab-panel" id="atab-viral">
+        <div class="grid-3" style="margin-bottom:16px;">
+          <div class="card card-sm"><div class="label">Viral Score</div><div class="kpi-val cyan" id="viral-score">—</div></div>
+          <div class="card card-sm"><div class="label">Est. Reach</div><div class="kpi-val" id="viral-reach">—</div></div>
+          <div class="card card-sm"><div class="label">Growth Loop</div><div class="kpi-val green" id="viral-loop">—</div></div>
+        </div>
+        <div class="card" style="margin-bottom:16px;">
+          <div class="dash-section-title">Auto Viral Growth Status</div>
+          <div id="viral-status" style="font-size:12px;color:#7090b0;">Loading...</div>
+          <div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap;">
+            <button class="btn btn-primary btn-sm" onclick="triggerViralLoop()">▶ Trigger Growth Loop</button>
+            <button class="btn btn-outline btn-sm" onclick="loadAdminViral()">🔄 Refresh</button>
+          </div>
+        </div>
+        <div class="card">
+          <div class="dash-section-title">Social Viralization</div>
+          <div id="social-viral-status" style="font-size:12px;color:#7090b0;">Loading...</div>
+        </div>
+      </div>
+      <!-- INNOVATION TAB -->
+      <div class="adm-tab-panel" id="atab-innovation">
+        <div class="grid-3" style="margin-bottom:16px;">
+          <div class="card card-sm"><div class="label">Loop Status</div><div class="kpi-val cyan" id="innov-loop-status">—</div></div>
+          <div class="card card-sm"><div class="label">Proposals</div><div class="kpi-val" id="innov-proposals-count">—</div></div>
+          <div class="card card-sm"><div class="label">Auto-Deploy</div><div class="kpi-val green" id="innov-deploy-status">—</div></div>
+        </div>
+        <div class="card" style="margin-bottom:16px;">
+          <div class="dash-section-title">Innovation Loop</div>
+          <div id="innov-loop-detail" style="font-size:12px;color:#7090b0;">Loading...</div>
+          <div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap;">
+            <button class="btn btn-primary btn-sm" onclick="triggerInnovationLoop()">▶ Trigger Innovation Loop</button>
+            <button class="btn btn-outline btn-sm" onclick="loadAdminInnovation()">🔄 Refresh</button>
+          </div>
+        </div>
+        <div class="card" style="margin-bottom:16px;">
+          <div class="dash-section-title">Recent Proposals</div>
+          <div id="innov-proposals-list" style="font-size:12px;color:#7090b0;">Loading...</div>
+        </div>
+        <div class="card">
+          <div class="dash-section-title">Innovation Engine Report</div>
+          <div id="innov-engine-report" style="font-size:12px;color:#7090b0;">Loading...</div>
+        </div>
+      </div>
+      <!-- PRICING TAB -->
+      <div class="adm-tab-panel" id="atab-pricing">
+        <div class="card" style="margin-bottom:16px;">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;">
+            <div class="dash-section-title" style="margin:0;">Dynamic Pricing</div>
+            <div style="display:flex;gap:6px;">
+              <button class="btn btn-primary btn-sm" onclick="activatePricingSurge()">⚡ Activate Surge</button>
+              <button class="btn btn-outline btn-sm" onclick="loadAdminPricing()">🔄 Refresh</button>
+            </div>
+          </div>
+          <div id="pricing-all-list" style="font-size:12px;color:#7090b0;">Loading...</div>
+        </div>
+        <div class="card">
+          <div class="dash-section-title">White Label Tenants</div>
+          <div id="pricing-tenants-list" style="font-size:12px;color:#7090b0;">Loading...</div>
         </div>
       </div>
     </div>
@@ -1644,6 +1708,9 @@ function switchAdminTab(tab){
   else if(tab==='system') loadAdminSystem();
   else if(tab==='ai') loadAdminAI();
   else if(tab==='crm') loadAdminCRM();
+  else if(tab==='viral') loadAdminViral();
+  else if(tab==='innovation') loadAdminInnovation();
+  else if(tab==='pricing') loadAdminPricing();
 }
 
 async function loadAdminData(){
@@ -1905,6 +1972,133 @@ async function submitDeal(){
   document.getElementById('deal-notes').value='';
   msg.innerHTML='';
   loadAdminCRM();
+}
+
+async function loadAdminViral(){
+  var [viralStatus, socialStatus]=await Promise.all([
+    api('GET','/api/autonomous/viral/status').catch(function(){return {};}),
+    api('GET','/api/viral/status',null,true).catch(function(){return {};})
+  ]);
+  var metrics=viralStatus.metrics||viralStatus.data||viralStatus||{};
+  setElText('viral-score',metrics.viralScore!=null?metrics.viralScore.toFixed(2):'—');
+  setElText('viral-reach',metrics.estimatedReach!=null?Number(metrics.estimatedReach).toLocaleString():'—');
+  setElText('viral-loop',(viralStatus.loopActive||viralStatus.active)?'🟢 Active':'⚪ Idle');
+  var stEl=document.getElementById('viral-status');
+  if(stEl){
+    var keys=Object.keys(metrics).filter(function(k){return k!=='viralScore'&&k!=='estimatedReach';});
+    stEl.innerHTML=keys.length?keys.map(function(k){
+      return '<div class="deal-row"><div style="color:#e8f4ff;">'+escHtml(k)+'</div><div class="cyan">'+escHtml(String(metrics[k]))+'</div></div>';
+    }).join(''):'<div style="color:#7090b0;">No viral metrics yet.</div>';
+  }
+  var socialEl=document.getElementById('social-viral-status');
+  if(socialEl){
+    var ss=socialStatus.status||socialStatus.data||socialStatus||{};
+    socialEl.innerHTML='<pre style="font-size:11px;overflow:auto;max-height:140px;">'+escHtml(JSON.stringify(ss,null,2))+'</pre>';
+  }
+}
+
+async function triggerViralLoop(){
+  var r=await api('POST','/api/autonomous/viral/trigger',{},true);
+  if(r.error){toast(r.error,'err');return;}
+  toast('Viral growth loop triggered!','ok');
+  loadAdminViral();
+}
+
+async function loadAdminInnovation(){
+  var [loopStatus, proposals, deployStatus, report]=await Promise.all([
+    api('GET','/api/innovation-loop/status').catch(function(){return {};}),
+    api('GET','/api/innovation-loop/proposals',null,true).catch(function(){return {};}),
+    api('GET','/api/auto-deploy-orchestrator/status',null,true).catch(function(){return {};}),
+    api('GET','/api/innovation-engine/report',null,true).catch(function(){return {};})
+  ]);
+  var ls=loopStatus.status||loopStatus.state||loopStatus||{};
+  var isRunning=loopStatus.running||loopStatus.active||loopStatus.status==='running';
+  setElText('innov-loop-status',isRunning?'🟢 Running':'⚪ Idle');
+  var propList=proposals.proposals||proposals.data||proposals||[];
+  if(!Array.isArray(propList)) propList=[];
+  setElText('innov-proposals-count',propList.length);
+  var depOk=deployStatus.active||deployStatus.status==='ok'||deployStatus.running;
+  setElText('innov-deploy-status',depOk?'🟢 Active':'⚪ Idle');
+  var loopEl=document.getElementById('innov-loop-detail');
+  if(loopEl){
+    loopEl.innerHTML='<pre style="font-size:11px;overflow:auto;max-height:100px;">'+escHtml(JSON.stringify(ls,null,2))+'</pre>';
+  }
+  var propEl=document.getElementById('innov-proposals-list');
+  if(propEl){
+    propEl.innerHTML=propList.length?propList.slice(0,8).map(function(p){
+      return '<div class="deal-row">'
+        +'<div><div style="font-weight:600;color:#e8f4ff;font-size:12px;">'+escHtml(p.title||p.name||p.id||'Proposal')+'</div>'
+        +'<div style="font-size:11px;color:#7090b0;">'+escHtml((p.description||p.summary||'').slice(0,80))+'</div></div>'
+        +'<div><span class="badge '+(p.status==='merged'?'badge-cyan':p.status==='pending'?'badge-purple':'')+'">'+escHtml(p.status||'—')+'</span></div>'
+        +'</div>';
+    }).join(''):'<div style="color:#7090b0;">No proposals yet.</div>';
+  }
+  var repEl=document.getElementById('innov-engine-report');
+  if(repEl){
+    var rep=report.report||report.data||report||{};
+    repEl.innerHTML='<pre style="font-size:11px;overflow:auto;max-height:120px;">'+escHtml(JSON.stringify(rep,null,2))+'</pre>';
+  }
+}
+
+async function triggerInnovationLoop(){
+  var r=await api('POST','/api/innovation-loop/trigger',{},true);
+  if(r.error){toast(r.error,'err');return;}
+  toast('Innovation loop triggered!','ok');
+  loadAdminInnovation();
+}
+
+async function loadAdminPricing(){
+  var [allPricing, tenants]=await Promise.all([
+    api('GET','/api/pricing/all').catch(function(){return {};}),
+    api('GET','/api/tenants/mine').catch(function(){return {};})
+  ]);
+  var pricingEl=document.getElementById('pricing-all-list');
+  if(pricingEl){
+    var items=allPricing.pricing||allPricing.data||allPricing||{};
+    if(typeof items==='object'&&!Array.isArray(items)&&Object.keys(items).length){
+      pricingEl.innerHTML=Object.keys(items).map(function(k){
+        var v=items[k];
+        var price=v.currentPrice||v.price||v.basePrice||v;
+        var surge=v.surgeActive||v.isSurge||false;
+        return '<div class="deal-row">'
+          +'<div><div style="font-weight:600;color:#e8f4ff;">'+escHtml(k)+'</div>'
+          +(surge?'<span class="badge badge-purple" style="font-size:10px;">SURGE</span>':'')+'</div>'
+          +'<div style="font-family:Orbitron,monospace;color:#00d4ff;">$'+escHtml(String(typeof price==='number'?price.toFixed(2):price))+'</div>'
+          +'</div>';
+      }).join('');
+    } else if(Array.isArray(items)&&items.length){
+      pricingEl.innerHTML=items.map(function(p){
+        return '<div class="deal-row">'
+          +'<div style="font-weight:600;color:#e8f4ff;">'+escHtml(p.name||p.id||'Service')+'</div>'
+          +'<div style="font-family:Orbitron,monospace;color:#00d4ff;">$'+escHtml(String(p.price||p.currentPrice||0))+'</div>'
+          +'</div>';
+      }).join('');
+    } else {
+      pricingEl.innerHTML='<div style="color:#7090b0;">No pricing data available.</div>';
+    }
+  }
+  var tenantsEl=document.getElementById('pricing-tenants-list');
+  if(tenantsEl){
+    var tList=tenants.tenants||tenants.data||tenants||[];
+    if(!Array.isArray(tList)) tList=[];
+    tenantsEl.innerHTML=tList.length?tList.map(function(t){
+      return '<div class="deal-row">'
+        +'<div><div style="font-weight:600;color:#e8f4ff;">'+escHtml(t.name||t.subdomain||t.id||'Tenant')+'</div>'
+        +'<div style="font-size:11px;color:#7090b0;">'+escHtml(t.subdomain||t.domain||'')+'</div></div>'
+        +'<span class="badge badge-cyan">'+escHtml(t.plan||'enterprise')+'</span>'
+        +'</div>';
+    }).join(''):'<div style="color:#7090b0;">No white-label tenants yet.</div>';
+  }
+}
+
+async function activatePricingSurge(){
+  var svc=prompt('Service ID for surge (leave blank for all):');
+  var dur=prompt('Duration (30min / 1h / 2h / 6h / 24h):') || '1h';
+  var mult=prompt('Surge multiplier (e.g. 1.5):') || '1.5';
+  var r=await api('POST','/api/pricing/surge',{serviceId:svc||undefined,durationKey:dur,multiplier:parseFloat(mult)||1.5},true);
+  if(r.error){toast(r.error,'err');return;}
+  toast('Surge pricing activated!','ok');
+  loadAdminPricing();
 }
 
 // ================================================================
