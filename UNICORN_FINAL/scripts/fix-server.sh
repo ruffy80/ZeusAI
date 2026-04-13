@@ -318,27 +318,41 @@ ENVFILE
   if [ "$PORT_IN_USE" -eq 1 ]; then
     ok "Portul ${NODE_PORT} este deja ocupat (Node.js probabil rulează) ✓"
   else
-    warn "Portul ${NODE_PORT} nu este ascultat. Se (re)pornesc procesele PM2..."
+    warn "Portul ${NODE_PORT} nu este ascultat. Se încearcă (re)pornirea serviciului..."
     cd "$DEPLOY_PATH"
 
-    # Clean PM2 start (vezi memory: restart eșuează când procesele au crash)
-    pm2 stop all 2>/dev/null || true
-    pm2 delete all 2>/dev/null || true
-
-    if [ -f "$DEPLOY_PATH/ecosystem.config.js" ]; then
-      pm2 start ecosystem.config.js
-      fixed "PM2 pornit din ecosystem.config.js"
-    elif [ -f "$DEPLOY_PATH/backend/index.js" ]; then
-      pm2 start backend/index.js \
-        --name unicorn-backend \
-        --env production \
-        -- PORT="${NODE_PORT}"
-      fixed "PM2 pornit direct din backend/index.js"
-    else
-      ko "Niciun punct de intrare găsit (ecosystem.config.js sau backend/index.js)"
+    # Încearcă mai întâi unicorn.service (dacă există)
+    if systemctl is-enabled --quiet unicorn.service 2>/dev/null; then
+      systemctl restart unicorn.service 2>/dev/null || true
+      sleep 3
+      if ss -tlnp 2>/dev/null | grep -q ":${NODE_PORT}[[:space:]]"; then
+        fixed "unicorn.service (re)pornit cu succes"
+        PORT_IN_USE=1
+      else
+        warn "unicorn.service nu a pornit backend-ul. Se trece la PM2..."
+      fi
     fi
 
-    pm2 save
+    # Fallback: PM2 clean start
+    if [ "$PORT_IN_USE" -eq 0 ]; then
+      pm2 stop all 2>/dev/null || true
+      pm2 delete all 2>/dev/null || true
+
+      if [ -f "$DEPLOY_PATH/ecosystem.config.js" ]; then
+        pm2 start ecosystem.config.js
+        fixed "PM2 pornit din ecosystem.config.js"
+      elif [ -f "$DEPLOY_PATH/backend/index.js" ]; then
+        pm2 start backend/index.js \
+          --name unicorn-backend \
+          --env production \
+          -- PORT="${NODE_PORT}"
+        fixed "PM2 pornit direct din backend/index.js"
+      else
+        ko "Niciun punct de intrare găsit (ecosystem.config.js sau backend/index.js)"
+      fi
+
+      pm2 save
+    fi
   fi
 
   # 3g. Activare PM2 la boot
@@ -473,6 +487,15 @@ if [ -f "/etc/letsencrypt/live/${DOMAIN}/fullchain.pem" ]; then
   echo -e "  ${GREEN}✅ SSL Certbot  → CERTIFICAT EXISTENT${NC}"
 else
   echo -e "  ${YELLOW}⚠️  SSL Certbot  → fără certificat (HTTP only)${NC}"
+fi
+
+# unicorn.service
+if systemctl is-active --quiet unicorn.service 2>/dev/null; then
+  echo -e "  ${GREEN}✅ unicorn.service → ACTIV${NC}"
+elif systemctl is-enabled --quiet unicorn.service 2>/dev/null; then
+  echo -e "  ${GREEN}✅ unicorn.service → enabled (PM2 gestionează procesele)${NC}"
+else
+  echo -e "  ${YELLOW}⚠️  unicorn.service → neinstalat (rulați setup-systemd.sh)${NC}"
 fi
 
 echo ""
