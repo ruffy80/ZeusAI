@@ -853,9 +853,9 @@ jobs:
 
             # ── Open firewall for HTTP/HTTPS (Nginx) ─────────────────────
             if command -v ufw >/dev/null 2>&1; then
+              ufw allow 22/tcp  2>/dev/null || true
               ufw default deny incoming 2>/dev/null || true
               ufw default allow outgoing 2>/dev/null || true
-              ufw allow 22/tcp  2>/dev/null || true
               ufw allow 80/tcp  2>/dev/null || true
               ufw allow 443/tcp 2>/dev/null || true
               ufw deny  3000/tcp 2>/dev/null || true
