@@ -470,6 +470,7 @@ class SocialMediaViralizer {
     const router = require('express').Router();
     router.use(typeof secretMiddleware === 'function' ? secretMiddleware : (req, res, next) => next());
     router.get('/stats', (req, res) => res.json(this.getStats()));
+    router.get('/status', (req, res) => res.json(this.getStats()));
     router.get('/history', (req, res) => res.json(this.postHistory.slice(-50)));
     router.post('/post-now', async (req, res) => res.json(await this.postToAllPlatforms()));
     router.get('/trending-hashtags', async (req, res) => res.json({ hashtags: await this.generateSmartHashtags(['AI', 'Unicorn']) }));
