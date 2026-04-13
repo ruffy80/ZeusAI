@@ -121,11 +121,16 @@ jobs:
 
           ssh -i ~/.ssh/deploy_key -p "${DEPLOY_PORT:-22}" \
             -o StrictHostKeyChecking=no -o BatchMode=yes -o ConnectTimeout=15 \
-            "${DEPLOY_USER}@${DEPLOY_HOST}" << 'ENDSSH'
+            "${DEPLOY_USER}@${DEPLOY_HOST}" << ENDSSH
             # Restart PM2 processes
             if command -v pm2 >/dev/null 2>&1; then
+              cd "${DEPLOY_PATH:-/opt/unicorn}" 2>/dev/null || cd "/opt/unicorn" 2>/dev/null || true
               pm2 resurrect || true
-              pm2 restart unicorn || { echo "pm2 restart failed, starting from ecosystem"; pm2 start ecosystem.config.js; }
+              pm2 restart unicorn 2>/dev/null || { \
+                echo "pm2 restart failed — clean start from ecosystem"; \
+                pm2 delete all 2>/dev/null || true; \
+                pm2 start ecosystem.config.js; \
+              }
               pm2 save || true
               echo "✅ PM2 restart attempted"
             elif command -v systemctl >/dev/null 2>&1 && systemctl list-unit-files | grep -q '^unicorn\.service'; then
