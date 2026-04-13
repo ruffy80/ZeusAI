@@ -37,7 +37,7 @@ NODE_PORT="${NODE_PORT:-3000}"
 SKIP_SSL="${SKIP_SSL:-0}"
 SKIP_FRONTEND="${SKIP_FRONTEND:-0}"
 
-NGINX_SITE="zeusai.pro"
+NGINX_SITE="${DOMAIN}"
 NGINX_AVAILABLE="/etc/nginx/sites-available/${NGINX_SITE}"
 NGINX_ENABLED="/etc/nginx/sites-enabled/${NGINX_SITE}"
 
@@ -293,8 +293,14 @@ if [ -d "$DEPLOY_PATH" ]; then
   # Generare .env dacă lipsește (minim funcțional)
   if [ ! -f ".env" ]; then
     warn ".env lipsește. Se creează cu setări minimale..."
-    JWT_SECRET="$(openssl rand -hex 32)"
-    ADMIN_SECRET="$(openssl rand -hex 24)"
+    JWT_SECRET="$(openssl rand -hex 32)" || die "openssl rand pentru JWT_SECRET a eșuat"
+    ADMIN_SECRET="$(openssl rand -hex 24)" || die "openssl rand pentru ADMIN_SECRET a eșuat"
+    [ -z "$JWT_SECRET" ]   && die "JWT_SECRET generat este gol — verifică openssl"
+    [ -z "$ADMIN_SECRET" ] && die "ADMIN_SECRET generat este gol — verifică openssl"
+    # Owner / payment credentials — configurabile via env vars
+    _OWNER_NAME="${OWNER_NAME:-Vladoi Ionut}"
+    _OWNER_EMAIL="${OWNER_EMAIL:-vladoi_ionut@yahoo.com}"
+    _BTC_ADDR="${BTC_WALLET_ADDRESS:-bc1q4f7e66z87mdfj56kz0dj5hvcnpmh0qh4wuv22e}"
     cat > ".env" <<ENVEOF
 NODE_ENV=production
 PORT=${NODE_PORT}
@@ -305,9 +311,9 @@ CORS_ORIGINS=https://${DOMAIN},https://www.${DOMAIN}
 JWT_SECRET=${JWT_SECRET}
 ADMIN_SECRET=${ADMIN_SECRET}
 ADMIN_EMAIL=${ADMIN_EMAIL}
-BTC_WALLET_ADDRESS=bc1q4f7e66z87mdfj56kz0dj5hvcnpmh0qh4wuv22e
-OWNER_NAME=Vladoi Ionut
-OWNER_EMAIL=vladoi_ionut@yahoo.com
+BTC_WALLET_ADDRESS=${_BTC_ADDR}
+OWNER_NAME=${_OWNER_NAME}
+OWNER_EMAIL=${_OWNER_EMAIL}
 ENVEOF
     chmod 600 ".env"
     fixed ".env minimal creat (editează cu cheile API reale)"
@@ -352,9 +358,14 @@ else
   if [ -f "$CERT_PATH" ]; then
     ok "Certificat SSL deja existent pentru $DOMAIN"
     # Verificare expirare
-    EXPIRY=$(openssl x509 -enddate -noout -in "$CERT_PATH" 2>/dev/null | cut -d= -f2 || echo "")
+    EXPIRY=$(openssl x509 -enddate -noout -in "$CERT_PATH" 2>/dev/null | cut -d= -f2 || true)
     if [ -n "$EXPIRY" ]; then
-      info "Certificat valid până la: $EXPIRY"
+      # Validare minimală: trebuie să conțină o literă (lună) și un an 4 cifre
+      if echo "$EXPIRY" | grep -qE "[A-Za-z].*[0-9]{4}"; then
+        info "Certificat valid până la: $EXPIRY"
+      else
+        warn "Format dată expimare necunoscut: $EXPIRY"
+      fi
     fi
   else
     info "Obținere certificat SSL pentru $DOMAIN și www.$DOMAIN..."
@@ -463,7 +474,7 @@ fi
 
 # Port NODE
 PORT_UP=0
-ss -tlnp 2>/dev/null | grep -q ":${NODE_PORT}[[:space:]]" && PORT_UP=1
+ss -tlnp 2>/dev/null | grep -qE ":${NODE_PORT}[[:space:]]|:${NODE_PORT}$" && PORT_UP=1
 if [ "$PORT_UP" -eq 1 ]; then
   echo -e "  ${GREEN}✅ Port $NODE_PORT    → ASCULTAT${NC}"
 else
