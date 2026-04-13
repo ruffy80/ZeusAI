@@ -541,6 +541,31 @@ const autoDeployOrchestrator = require('../src/modules/auto-deploy-orchestrator'
 const meshOrchestrator     = require('./modules/unicornMeshOrchestrator');
 const unicornOrchestrator  = require('./modules/unicornOrchestrator');
 
+// ==================== NEW ACTIVATED MODULES (23) ====================
+const evolutionCore           = require('./modules/evolution-core');
+const quantumHealing          = require('./modules/quantum-healing');
+const universalAdaptor        = require('./modules/universal-adaptor');
+const siteCreator             = require('./modules/site-creator');
+const abTesting               = require('./modules/ab-testing');
+const seoOptimizer            = require('./modules/seo-optimizer');
+const analyticsEngine         = require('./modules/analytics');
+const contentAI               = require('./modules/content-ai');
+const autoMarketing           = require('./modules/auto-marketing');
+const performanceMonitor      = require('./modules/performance-monitor');
+const unicornRealizationEngine = require('./modules/unicorn-realization-engine');
+const autoTrendAnalyzer       = require('./modules/auto-trend-analyzer');
+const selfAdaptationEngine    = require('./modules/self-adaptation-engine');
+const codeOptimizer           = require('./modules/code-optimizer');
+const selfDocumenter          = require('./modules/self-documenter');
+const uiEvolution             = require('./modules/ui-evolution');
+const securityScanner         = require('./modules/security-scanner');
+const disasterRecovery        = require('./modules/disaster-recovery');
+const swarmIntelligence       = require('./modules/swarm-intelligence');
+const universalInterchainNexus = require('./modules/universal-interchain-nexus');
+const autonomousWealthEngine  = require('./modules/autonomous-wealth-engine');
+const autonomousBDEngine      = require('./modules/autonomous-bd-engine');
+const unicornSuperIntelligence = require('./modules/unicorn-super-intelligence');
+
 // SLO middleware — records every API request latency & error status
 app.use((req, res, next) => {
   const start = Date.now();
@@ -3187,6 +3212,66 @@ app.post('/api/innovation-loop/trigger', adminTokenMiddleware, async (req, res) 
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
+// ==================== SELF CONSTRUCTION & TOTAL SYSTEM HEALER ROUTES ====================
+app.get('/api/self-construction/status', adminTokenMiddleware, (req, res) => {
+  res.json({ module: 'SelfConstruction', status: 'active', hasRun: selfConstruction.hasRun });
+});
+app.post('/api/self-construction/run', adminTokenMiddleware, async (req, res) => {
+  try {
+    await selfConstruction.start();
+    res.json({ success: true, module: 'SelfConstruction', hasRun: selfConstruction.hasRun });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+app.get('/api/total-system-healer/status', adminTokenMiddleware, (req, res) => {
+  res.json({ module: 'TotalSystemHealer', status: 'active' });
+});
+app.post('/api/total-system-healer/heal', adminTokenMiddleware, (req, res) => {
+  totalSystemHealer.heal();
+  res.json({ success: true, module: 'TotalSystemHealer', action: 'heal triggered' });
+});
+app.post('/api/total-system-healer/check-modules', adminTokenMiddleware, (req, res) => {
+  totalSystemHealer.checkModules();
+  res.json({ success: true, module: 'TotalSystemHealer', action: 'checkModules triggered' });
+});
+
+// ==================== NEW ACTIVATED MODULES — ROUTES (23) ====================
+// Helper: generic 2-route handler for new modules
+function registerModuleRoutes(slug, mod) {
+  app.get(`/api/${slug}/status`, (req, res) => {
+    try { res.json(mod.getStatus()); }
+    catch (e) { res.status(500).json({ error: e.message }); }
+  });
+  app.post(`/api/${slug}/process`, authMiddleware, async (req, res) => {
+    try { res.json(await mod.process(req.body || {})); }
+    catch (e) { res.status(500).json({ error: e.message }); }
+  });
+}
+
+registerModuleRoutes('evolution-core',             evolutionCore);
+registerModuleRoutes('quantum-healing',            quantumHealing);
+registerModuleRoutes('universal-adaptor',          universalAdaptor);
+registerModuleRoutes('site-creator',               siteCreator);
+registerModuleRoutes('ab-testing',                 abTesting);
+registerModuleRoutes('seo-optimizer',              seoOptimizer);
+registerModuleRoutes('analytics',                  analyticsEngine);
+registerModuleRoutes('content-ai',                 contentAI);
+registerModuleRoutes('auto-marketing',             autoMarketing);
+registerModuleRoutes('performance-monitor',        performanceMonitor);
+registerModuleRoutes('unicorn-realization-engine', unicornRealizationEngine);
+registerModuleRoutes('auto-trend-analyzer',        autoTrendAnalyzer);
+registerModuleRoutes('self-adaptation-engine',     selfAdaptationEngine);
+registerModuleRoutes('code-optimizer',             codeOptimizer);
+registerModuleRoutes('self-documenter',            selfDocumenter);
+registerModuleRoutes('ui-evolution',               uiEvolution);
+registerModuleRoutes('security-scanner',           securityScanner);
+registerModuleRoutes('disaster-recovery',          disasterRecovery);
+registerModuleRoutes('swarm-intelligence',         swarmIntelligence);
+registerModuleRoutes('universal-interchain-nexus', universalInterchainNexus);
+registerModuleRoutes('autonomous-wealth-engine',   autonomousWealthEngine);
+registerModuleRoutes('autonomous-bd-engine',       autonomousBDEngine);
+registerModuleRoutes('unicorn-super-intelligence', unicornSuperIntelligence);
+
 
 const clientBuildPath = path.join(__dirname, '../client/build');
 const clientIndexPath = path.join(clientBuildPath, 'index.html');
@@ -3274,7 +3359,7 @@ if (require.main === module) {
     console.log(`⚡ Quantum Resilience Core: ACTIVE`);
     console.log(`📊 Executive Dashboard: ACTIVE`);
     console.log(`🔍 Code Sanity Engine: ACTIVE`);
-    console.log(`🔗 68+ modules total: TOATE CONECTATE & ACTIVE`);
+    console.log(`🔗 93+ modules total: TOATE CONECTATE & ACTIVE`);
   });
 }
 // Export Express app for Vercel serverless and testing
