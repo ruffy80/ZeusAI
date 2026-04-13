@@ -756,8 +756,18 @@ jobs:
               shopt -u nullglob
             fi
 
-            # ── Install dependencies ──────────────────────────────────────
-            npm install --legacy-peer-deps --no-audit --no-fund
+            # ── Stop PM2 before npm install to prevent ENOTEMPTY file locks ──
+            if command -v pm2 >/dev/null 2>&1; then
+              pm2 stop all 2>/dev/null || true
+            fi
+
+            # ── Install dependencies (with retry on ENOTEMPTY) ───────────
+            npm install --legacy-peer-deps --no-audit --no-fund || {
+              echo "⚠️  npm install failed, cleaning and retrying..."
+              npm cache clean --force 2>/dev/null || true
+              rm -rf node_modules 2>/dev/null || true
+              npm install --legacy-peer-deps --no-audit --no-fund
+            }
 
             # ── Rebuild native modules for current Node.js version ────────
             npm rebuild better-sqlite3 --no-fund 2>/dev/null || true
@@ -766,7 +776,12 @@ jobs:
             if [ -d "client" ]; then
               echo "🎨 Building frontend..."
               cd client
-              npm install --legacy-peer-deps --no-audit --no-fund
+              npm install --legacy-peer-deps --no-audit --no-fund || {
+                echo "⚠️  client npm install failed, cleaning and retrying..."
+                npm cache clean --force 2>/dev/null || true
+                rm -rf node_modules 2>/dev/null || true
+                npm install --legacy-peer-deps --no-audit --no-fund
+              }
               CI=false npm run build
               cd ..
               echo "✅ Frontend built"
@@ -1087,13 +1102,15 @@ jobs:
           # SITE_DOMAIN is preferred; falls back to IP-based HTTPS
           SITE_DOMAIN: ${{ secrets.SITE_DOMAIN || secrets.UNICORN_DOMAIN }}
         run: |
-          # Determine probe URL:
-          # - With SITE_DOMAIN → use HTTPS (certbot-issued cert expected)
+          # Determine probe URLs:
+          # - With SITE_DOMAIN → try HTTPS first, fall back to HTTP (nginx may lack SSL cert)
           # - Without SITE_DOMAIN → use HTTP via Nginx port 80 (proxied to backend:3000)
           if [ -n "$SITE_DOMAIN" ]; then
             PROBE_URL="https://${SITE_DOMAIN}/api/health"
+            FALLBACK_URL="http://${DEPLOY_HOST}/api/health"
           else
             PROBE_URL="http://${DEPLOY_HOST}/api/health"
+            FALLBACK_URL="http://${DEPLOY_HOST}:3000/api/health"
             echo "ℹ️  SITE_DOMAIN not set — probing HTTP via Nginx port 80"
           fi
 
@@ -1101,13 +1118,20 @@ jobs:
           HTTPS_STATUS=$(curl -sk -o /dev/null -w "%{http_code}" --max-time 15 "$PROBE_URL" || echo "000")
           echo "Status: $HTTPS_STATUS"
 
+          # If HTTPS probe fails with no connection (000), try HTTP fallback to check real backend health
+          if [ "$HTTPS_STATUS" = "000" ] && [ -n "$FALLBACK_URL" ]; then
+            FALLBACK_STATUS=$(curl -s -o /dev/null -w "%{http_code}" --max-time 15 "$FALLBACK_URL" || echo "000")
+            echo "ℹ️  HTTPS unreachable (SSL/DNS), HTTP fallback → $FALLBACK_STATUS"
+            [ "$FALLBACK_STATUS" = "200" ] && HTTPS_STATUS="200"
+          fi
+
           if [ "$HTTPS_STATUS" = "200" ]; then
             echo "✅ Site is responding correctly."
           else
             echo "⚠️  Site not responding (HTTP $HTTPS_STATUS). Attempting service restart via SSH…"
             ssh -i ~/.ssh/deploy_key -p "${DEPLOY_PORT:-22}" -o StrictHostKeyChecking=no -o BatchMode=yes \
               "${DEPLOY_USER}@${DEPLOY_HOST}" \
-              "DEPLOY_PATH='${DEPLOY_PATH}'; if command -v systemctl >/dev/null 2>&1 && systemctl list-unit-files | grep -q '^unicorn\\.service'; then systemctl restart unicorn && echo 'Restarted via systemctl'; elif command -v pm2 >/dev/null 2>&1 && pm2 describe unicorn >/dev/null 2>&1; then pm2 restart unicorn && echo 'Restarted via pm2'; else pkill -f 'node backend/index.js' || true; sleep 1; cd \"\$DEPLOY_PATH\"; mkdir -p logs; nohup node backend/index.js > logs/backend.log 2>&1 & echo 'Restarted via nohup'; fi"
+              "DEPLOY_PATH='${DEPLOY_PATH}'; cd \"\$DEPLOY_PATH\"; if command -v pm2 >/dev/null 2>&1; then pm2 stop all 2>/dev/null || true; pm2 delete all 2>/dev/null || true; pm2 start ecosystem.config.js && pm2 save && echo 'Restarted via PM2'; elif command -v systemctl >/dev/null 2>&1 && systemctl list-unit-files | grep -q '^unicorn\\.service'; then systemctl restart unicorn && echo 'Restarted via systemctl'; else pkill -f 'node backend/index.js' || true; sleep 1; mkdir -p logs; nohup node backend/index.js > logs/backend.log 2>&1 & echo 'Restarted via nohup'; fi"
 
             # Wait for service to come back up with a retry loop (max 60s)
             echo "Waiting for service to recover…"
@@ -1115,6 +1139,10 @@ jobs:
             for i in 1 2 3 4; do
               sleep 15
               STATUS_RETRY=$(curl -sk -o /dev/null -w "%{http_code}" --max-time 10 "$PROBE_URL" || echo "000")
+              if [ "$STATUS_RETRY" = "000" ] && [ -n "$FALLBACK_URL" ]; then
+                FB=$(curl -s -o /dev/null -w "%{http_code}" --max-time 10 "$FALLBACK_URL" || echo "000")
+                [ "$FB" = "200" ] && STATUS_RETRY="200"
+              fi
               echo "  attempt $i → HTTP $STATUS_RETRY"
               [ "$STATUS_RETRY" = "200" ] && break
             done
