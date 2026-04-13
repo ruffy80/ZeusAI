@@ -91,8 +91,8 @@ fi
 if [ -f "$NGINX_CONF_SRC" ]; then
   # Actualizează server_name în config cu domeniul curent
   cp "$NGINX_CONF_SRC" "$NGINX_AVAILABLE"
-  # Înlocuiește server_name dacă domeniul din fișier diferă
-  sed -i "s/server_name .*;/server_name ${DOMAIN} www.${DOMAIN};/" "$NGINX_AVAILABLE"
+  # Înlocuiește server_name cu toate subdomeniile DNS configurate
+  sed -i "s/server_name .*;/server_name ${DOMAIN} www.${DOMAIN} api.${DOMAIN} orchestrator.${DOMAIN};/" "$NGINX_AVAILABLE"
   fixed "Config Nginx instalat la $NGINX_AVAILABLE (domain: $DOMAIN)"
 else
   # Generează config minimal dacă fișierul sursă lipsește
@@ -105,7 +105,7 @@ map \$http_upgrade \$connection_upgrade {
 server {
     listen 80;
     listen [::]:80;
-    server_name ${DOMAIN} www.${DOMAIN};
+    server_name ${DOMAIN} www.${DOMAIN} api.${DOMAIN} orchestrator.${DOMAIN};
 
     location /.well-known/acme-challenge/ {
         root /var/www/certbot;
@@ -318,27 +318,41 @@ ENVFILE
   if [ "$PORT_IN_USE" -eq 1 ]; then
     ok "Portul ${NODE_PORT} este deja ocupat (Node.js probabil rulează) ✓"
   else
-    warn "Portul ${NODE_PORT} nu este ascultat. Se (re)pornesc procesele PM2..."
+    warn "Portul ${NODE_PORT} nu este ascultat. Se încearcă (re)pornirea serviciului..."
     cd "$DEPLOY_PATH"
 
-    # Clean PM2 start (vezi memory: restart eșuează când procesele au crash)
-    pm2 stop all 2>/dev/null || true
-    pm2 delete all 2>/dev/null || true
-
-    if [ -f "$DEPLOY_PATH/ecosystem.config.js" ]; then
-      pm2 start ecosystem.config.js
-      fixed "PM2 pornit din ecosystem.config.js"
-    elif [ -f "$DEPLOY_PATH/backend/index.js" ]; then
-      pm2 start backend/index.js \
-        --name unicorn-backend \
-        --env production \
-        -- PORT="${NODE_PORT}"
-      fixed "PM2 pornit direct din backend/index.js"
-    else
-      ko "Niciun punct de intrare găsit (ecosystem.config.js sau backend/index.js)"
+    # Încearcă mai întâi unicorn.service (dacă există)
+    if systemctl is-enabled --quiet unicorn.service 2>/dev/null; then
+      systemctl restart unicorn.service 2>/dev/null || true
+      sleep 3
+      if ss -tlnp 2>/dev/null | grep -q ":${NODE_PORT}[[:space:]]"; then
+        fixed "unicorn.service (re)pornit cu succes"
+        PORT_IN_USE=1
+      else
+        warn "unicorn.service nu a pornit backend-ul. Se trece la PM2..."
+      fi
     fi
 
-    pm2 save
+    # Fallback: PM2 clean start
+    if [ "$PORT_IN_USE" -eq 0 ]; then
+      pm2 stop all 2>/dev/null || true
+      pm2 delete all 2>/dev/null || true
+
+      if [ -f "$DEPLOY_PATH/ecosystem.config.js" ]; then
+        pm2 start ecosystem.config.js
+        fixed "PM2 pornit din ecosystem.config.js"
+      elif [ -f "$DEPLOY_PATH/backend/index.js" ]; then
+        pm2 start backend/index.js \
+          --name unicorn-backend \
+          --env production \
+          -- PORT="${NODE_PORT}"
+        fixed "PM2 pornit direct din backend/index.js"
+      else
+        ko "Niciun punct de intrare găsit (ecosystem.config.js sau backend/index.js)"
+      fi
+
+      pm2 save
+    fi
   fi
 
   # 3g. Activare PM2 la boot
@@ -413,15 +427,20 @@ if command -v certbot &>/dev/null; then
       fi
     fi
   else
-    warn "Niciun certificat SSL găsit pentru $DOMAIN."
-    info "Dacă vrei SSL automat, rulează:"
-    info "  certbot --nginx -d ${DOMAIN} -d www.${DOMAIN} --non-interactive --agree-tos -m admin@${DOMAIN}"
-    info "Nginx rulează pe HTTP (port 80) — site funcțional fără SSL."
+    warn "Niciun certificat SSL găsit pentru $DOMAIN. Se obține automat..."
+    # SSL off la registrar (sav.com) — certbot gestionează HTTPS direct pe server
+    certbot --nginx \
+      -d "${DOMAIN}" -d "www.${DOMAIN}" -d "api.${DOMAIN}" -d "orchestrator.${DOMAIN}" \
+      --non-interactive --agree-tos -m "admin@${DOMAIN}" --redirect 2>/dev/null && \
+      fixed "Certificat SSL obținut pentru ${DOMAIN} + www + api + orchestrator" || {
+        warn "Certbot a eșuat (DNS poate nu s-a propagat încă). Nginx rulează pe HTTP."
+        info "Reîncearcă manual: certbot --nginx -d ${DOMAIN} -d www.${DOMAIN} -d api.${DOMAIN} -d orchestrator.${DOMAIN}"
+      }
   fi
 else
   warn "Certbot nu este instalat."
   info "Instalează cu: apt-get install -y certbot python3-certbot-nginx"
-  info "Apoi obține certificat: certbot --nginx -d ${DOMAIN} -d www.${DOMAIN}"
+  info "Apoi obține certificat: certbot --nginx -d ${DOMAIN} -d www.${DOMAIN} -d api.${DOMAIN} -d orchestrator.${DOMAIN}"
 fi
 
 # =============================================================================
@@ -468,6 +487,15 @@ if [ -f "/etc/letsencrypt/live/${DOMAIN}/fullchain.pem" ]; then
   echo -e "  ${GREEN}✅ SSL Certbot  → CERTIFICAT EXISTENT${NC}"
 else
   echo -e "  ${YELLOW}⚠️  SSL Certbot  → fără certificat (HTTP only)${NC}"
+fi
+
+# unicorn.service
+if systemctl is-active --quiet unicorn.service 2>/dev/null; then
+  echo -e "  ${GREEN}✅ unicorn.service → ACTIV${NC}"
+elif systemctl is-enabled --quiet unicorn.service 2>/dev/null; then
+  echo -e "  ${GREEN}✅ unicorn.service → enabled (PM2 gestionează procesele)${NC}"
+else
+  echo -e "  ${YELLOW}⚠️  unicorn.service → neinstalat (rulați setup-systemd.sh)${NC}"
 fi
 
 echo ""
