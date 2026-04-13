@@ -50,8 +50,7 @@ class SelfConstruction {
             '  }',
             '};',
             ''
-          ].join('
-');
+          ].join('\n');
           fs.writeFileSync(filePath, content);
         }
       }

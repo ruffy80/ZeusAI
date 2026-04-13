@@ -31,7 +31,6 @@ class QuantumResistantIdentity {
     const expected = crypto.createHmac('sha512', publicKey).update(message).digest('hex');
     return { valid: signature === expected, message: signature === expected ? 'Signature valid' : 'Invalid signature' };
   }
-}
 
   // Obține toate identitățile (doar pentru admin)
   getAllIdentities() {
