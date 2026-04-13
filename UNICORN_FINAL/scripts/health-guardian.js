@@ -149,9 +149,9 @@ function checkNginx() {
 function healNginx() {
   return new Promise((resolve) => {
     const cmd = [
-      'nginx -t 2>/dev/null && systemctl reload nginx 2>/dev/null',
-      'systemctl restart nginx 2>/dev/null',
-      'service nginx restart 2>/dev/null',
+      'nginx -t && systemctl reload nginx',
+      'systemctl restart nginx',
+      'service nginx restart',
     ].join(' || ');
     exec(cmd, { timeout: 20000 }, (err, stdout, stderr) => {
       if (err) {

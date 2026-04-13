@@ -485,7 +485,11 @@ jobs:
               shopt -u nullglob
             fi
 
-            # ── Install dependencies BEFORE stopping PM2 (reduce downtime) ─
+            # ── Stop PM2, install deps, restart immediately (minimize downtime) ─
+            if command -v pm2 >/dev/null 2>&1; then
+              pm2 stop unicorn 2>/dev/null || pm2 stop all 2>/dev/null || true
+            fi
+
             npm install --legacy-peer-deps --no-audit --no-fund || {
               echo "⚠️  npm install failed, cleaning and retrying..."
               npm cache clean --force 2>/dev/null || true
