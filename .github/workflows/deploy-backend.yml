@@ -47,6 +47,7 @@ jobs:
           DEPLOY_PORT="${{ secrets.HETZNER_DEPLOY_PORT || secrets.SSH_PORT || '22' }}"
           if ! [[ "$DEPLOY_PORT" =~ ^[0-9]+$ ]]; then DEPLOY_PORT="22"; fi
           DEPLOY_PATH="${{ secrets.HETZNER_DEPLOY_PATH || '/opt/unicorn' }}"
+          DOMAIN="${{ secrets.SITE_DOMAIN || 'zeusai.pro' }}"
 
           ssh -i ~/.ssh/deploy_key \
               -p "$DEPLOY_PORT" \
@@ -62,6 +63,16 @@ jobs:
             pm2 delete all 2>/dev/null || true
             pm2 start ecosystem.config.js
             pm2 save
+
+            echo "🛠️  Running server auto-repair (nginx/firewall/ssl)…"
+            if [ -f scripts/fix-server.sh ]; then
+              chmod +x scripts/fix-server.sh || true
+              bash scripts/fix-server.sh "$DEPLOY_PATH" "$DOMAIN" || true
+            else
+              echo "⚠️  scripts/fix-server.sh missing — skipping extended repair"
+            fi
+
             sleep 5
             curl -sf http://localhost:3000/api/health && echo "✅ Backend healthy" || echo "⚠️  Backend starting..."
+            curl -kfsS --resolve "$DOMAIN:443:127.0.0.1" "https://$DOMAIN/health" >/dev/null 2>&1 && echo "🔒 HTTPS local check: OK" || echo "⚠️  HTTPS local check: FAILED"
           ENDSSH

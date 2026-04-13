@@ -42,6 +42,7 @@ jobs:
           DEPLOY_USER: ${{ secrets.HETZNER_USER || secrets.SSH_USER || 'root' }}
           DEPLOY_PORT: ${{ secrets.HETZNER_DEPLOY_PORT || secrets.SSH_PORT || '22' }}
           DEPLOY_PATH: ${{ secrets.HETZNER_DEPLOY_PATH || '/opt/unicorn' }}
+          DOMAIN: ${{ secrets.SITE_DOMAIN || 'zeusai.pro' }}
         run: |
           if [ -z "$DEPLOY_HOST" ] || [ ! -f ~/.ssh/deploy_key ]; then
             echo "ℹ️  Hetzner SSH not configured – skipping"
@@ -75,7 +76,16 @@ jobs:
                  systemctl restart unicorn 2>/dev/null && echo '✅ systemctl restart ok' || echo '⚠️  pm2/systemctl not found'
                fi
 
+               echo '🛠️  Running server auto-repair (nginx/firewall/ssl)…'
+               if [ -f scripts/fix-server.sh ]; then
+                 chmod +x scripts/fix-server.sh || true
+                 bash scripts/fix-server.sh "\$DEPLOY_PATH" "${DOMAIN}" || true
+               else
+                 echo '⚠️  scripts/fix-server.sh missing — skipping extended repair'
+               fi
+
                sleep 5
                HEALTH=\$(curl -s http://localhost:3000/api/health 2>/dev/null || echo '{\"status\":\"unreachable\"}')
                echo \"🩺 Health: \$HEALTH\"
+               curl -kfsS --resolve "${DOMAIN}:443:127.0.0.1" "https://${DOMAIN}/health" >/dev/null 2>&1 && echo '🔒 HTTPS local check: OK' || echo '⚠️  HTTPS local check: FAILED'
               "
