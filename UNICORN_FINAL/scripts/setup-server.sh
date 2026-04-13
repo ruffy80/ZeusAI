@@ -344,9 +344,153 @@ else
 fi
 
 # =============================================================================
+# ETAPA 5.5 — Creare și activare unicorn.service (systemd)
+# =============================================================================
+step "5.5. unicorn.service — systemd"
+
+# Dacă există setup-systemd.sh, delegăm configurarea acolo
+if [ -f "${DEPLOY_PATH}/scripts/setup-systemd.sh" ]; then
+  info "Se rulează setup-systemd.sh pentru a crea unicorn.service..."
+  bash "${DEPLOY_PATH}/scripts/setup-systemd.sh" "$DEPLOY_PATH"
+  ok "setup-systemd.sh executat cu succes"
+else
+  # Fallback inline: creare unicorn.service direct
+  NODE_BIN_PATH="$(command -v node 2>/dev/null || echo '/usr/bin/node')"
+  PM2_BIN_PATH="$(command -v pm2 2>/dev/null || echo '/usr/local/bin/pm2')"
+  RUN_USER_SVC="${SUDO_USER:-root}"
+  PM2_HOME_SVC="$(eval echo ~"$RUN_USER_SVC")/.pm2"
+
+  # Serviciu primar PM2 (resurrect la boot)
+  cat > "/etc/systemd/system/pm2-${RUN_USER_SVC}.service" <<PMEOF
+[Unit]
+Description=PM2 process manager for ${RUN_USER_SVC}
+Documentation=https://pm2.keymetrics.io/
+After=network.target
+
+[Service]
+Type=forking
+User=${RUN_USER_SVC}
+LimitNOFILE=infinity
+LimitCORE=infinity
+Environment=PATH=${NODE_BIN_PATH%/node}:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+Environment=PM2_HOME=${PM2_HOME_SVC}
+PIDFile=${PM2_HOME_SVC}/pm2.pid
+Restart=on-failure
+ExecStart=${PM2_BIN_PATH} resurrect
+ExecReload=${PM2_BIN_PATH} reload all
+ExecStop=${PM2_BIN_PATH} kill
+
+[Install]
+WantedBy=multi-user.target
+PMEOF
+
+  # Serviciu fallback unicorn (pornire directă Node dacă PM2 nu e disponibil)
+  mkdir -p "${DEPLOY_PATH}/logs"
+  cat > /etc/systemd/system/unicorn.service <<SVCEOF
+[Unit]
+Description=Unicorn Autonomous Platform (ZeusAI backend)
+Documentation=https://github.com/ruffy80/ZeusAI
+After=network.target pm2-${RUN_USER_SVC}.service
+Wants=pm2-${RUN_USER_SVC}.service
+
+[Service]
+Type=simple
+User=${RUN_USER_SVC}
+WorkingDirectory=${DEPLOY_PATH}
+EnvironmentFile=-${DEPLOY_PATH}/.env
+Environment=NODE_ENV=production
+Environment=PORT=${NODE_PORT}
+ExecStart=${NODE_BIN_PATH} backend/index.js
+Restart=on-failure
+RestartSec=5
+StandardOutput=append:${DEPLOY_PATH}/logs/backend.log
+StandardError=append:${DEPLOY_PATH}/logs/backend-error.log
+
+[Install]
+WantedBy=multi-user.target
+SVCEOF
+
+  systemctl daemon-reload
+  systemctl enable "pm2-${RUN_USER_SVC}.service" || true
+  systemctl enable unicorn.service
+  fixed "unicorn.service și pm2-${RUN_USER_SVC}.service instalate și activate"
+fi
+
+# Pornire unicorn.service dacă backend-ul nu ascultă deja
+sleep 2
+PORT_SVC_UP=0
+ss -tlnp 2>/dev/null | grep -q ":${NODE_PORT}[[:space:]]" && PORT_SVC_UP=1 || true
+if [ "$PORT_SVC_UP" -eq 0 ]; then
+  info "Backend-ul nu ascultă pe portul ${NODE_PORT} — se pornește unicorn.service..."
+  systemctl start unicorn.service 2>/dev/null || true
+fi
+
+# Verificare finală serviciu
+if systemctl is-active --quiet unicorn.service 2>/dev/null; then
+  ok "unicorn.service → ACTIV"
+elif systemctl is-enabled --quiet unicorn.service 2>/dev/null; then
+  ok "unicorn.service → enabled (PM2 gestionează procesele activ)"
+else
+  warn "unicorn.service nu este activ — verifică: systemctl status unicorn"
+fi
+
+# =============================================================================
 # ETAPA 6 — SSL cu Certbot (Let's Encrypt)
 # =============================================================================
 step "6. SSL — Certbot Let's Encrypt"
+
+# ── Validare DNS înainte de Certbot ──────────────────────────────────────────
+dns_ok=1
+if [ "$SKIP_SSL" != "1" ]; then
+  info "Verificare DNS pentru $DOMAIN și www.$DOMAIN..."
+
+  # Obține IP-ul public al serverului curent
+  SERVER_IP=""
+  for _src in \
+    "https://api.ipify.org" \
+    "https://ifconfig.me" \
+    "https://ipecho.net/plain" \
+    "https://icanhazip.com"; do
+    SERVER_IP=$(curl -fsSL --max-time 5 "$_src" 2>/dev/null | tr -d '[:space:]') || true
+    [ -n "$SERVER_IP" ] && break
+  done
+
+  if [ -z "$SERVER_IP" ]; then
+    warn "Nu s-a putut determina IP-ul public al serverului. Se verifică DNS fără comparație."
+  else
+    info "IP server: $SERVER_IP"
+  fi
+
+  for _host in "$DOMAIN" "www.${DOMAIN}"; do
+    RESOLVED_IP=$(getent hosts "$_host" 2>/dev/null | awk '{print $1; exit}' || \
+                  host "$_host" 2>/dev/null | awk '/has address/{print $4; exit}' || \
+                  dig +short "$_host" A 2>/dev/null | grep -E '^[0-9]+\.' | head -1 || echo "")
+
+    if [ -z "$RESOLVED_IP" ]; then
+      warn "DNS: $_host nu se poate rezolva — recordul A lipsește sau nu a propagat."
+      dns_ok=0
+    elif [ -n "$SERVER_IP" ] && [ "$RESOLVED_IP" != "$SERVER_IP" ]; then
+      warn "DNS: $_host → $RESOLVED_IP ≠ IP server ($SERVER_IP)"
+      warn "Adaugă un record A: $_host → $SERVER_IP"
+      dns_ok=0
+    else
+      ok "DNS: $_host → $RESOLVED_IP ✓"
+    fi
+  done
+
+  if [ "$dns_ok" -eq 0 ]; then
+    SKIP_SSL=1
+    warn "DNS-ul nu pointează corect la acest server."
+    warn "SKIP_SSL setat automat la 1 — certbot ar eșua și ar bloca instalarea."
+    info "Acțiune necesară: configurează recordurile A în panoul DNS:"
+    info "   $DOMAIN     → $SERVER_IP"
+    info "   www.$DOMAIN → $SERVER_IP"
+    info "Așteptați propagarea DNS (5–60 minute) apoi rulați:"
+    info "   certbot --nginx -d ${DOMAIN} -d www.${DOMAIN} --non-interactive --agree-tos -m ${ADMIN_EMAIL}"
+  else
+    ok "DNS validat cu succes — certbot poate obține certificatul."
+  fi
+fi
 
 if [ "$SKIP_SSL" = "1" ]; then
   warn "SKIP_SSL=1 — obținere certificat SSL sărită"
@@ -495,6 +639,15 @@ else
   echo -e "  ${YELLOW}⚠️  SSL Certbot  → fără certificat (HTTP only)${NC}"
 fi
 
+# unicorn.service
+if systemctl is-active --quiet unicorn.service 2>/dev/null; then
+  echo -e "  ${GREEN}✅ unicorn.service → ACTIV${NC}"
+elif systemctl is-enabled --quiet unicorn.service 2>/dev/null; then
+  echo -e "  ${GREEN}✅ unicorn.service → enabled (PM2 gestionează procesele)${NC}"
+else
+  echo -e "  ${YELLOW}⚠️  unicorn.service → neinstalat${NC}"
+fi
+
 echo ""
 echo -e "${BOLD}URL-uri:${NC}"
 echo -e "  ${CYAN}http://${DOMAIN}${NC}"
@@ -504,6 +657,7 @@ echo -e "  ${CYAN}http://${DOMAIN}${NC}"
 echo ""
 echo -e "${BOLD}Comenzi utile:${NC}"
 echo "  pm2 list && pm2 logs"
+echo "  systemctl status unicorn"
 echo "  systemctl status nginx"
 echo "  ufw status verbose"
 echo "  curl -I http://localhost:${NODE_PORT}/api/health"
