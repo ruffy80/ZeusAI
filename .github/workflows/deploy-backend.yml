@@ -134,8 +134,7 @@ jobs:
               echo "⚠️  scripts/fix-server.sh missing — skipping extended repair"
             fi
             trap - ERR
-
-            sleep 5
+            echo "✅ Deploy complete"
             curl -sf http://localhost:3000/api/health && echo "✅ Backend healthy" || echo "⚠️  Backend starting..."
             curl -sf http://localhost:3000/api/quantum-integrity/status && echo "🛡️ Quantum Integrity healthy" || echo "⚠️ Quantum Integrity: check manually"
             curl -kfsS --resolve "$DOMAIN:443:127.0.0.1" "https://$DOMAIN/health" >/dev/null 2>&1 && echo "🔒 HTTPS local check: OK" || echo "⚠️  HTTPS local check: FAILED"
