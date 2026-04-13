@@ -30,6 +30,8 @@ jobs:
         node-version: '22'
         cache: 'npm'
     - run: npm install --legacy-peer-deps
+    - name: Install UNICORN_FINAL dependencies
+      run: npm install --prefix UNICORN_FINAL --legacy-peer-deps --no-audit --no-fund
     - run: npm run build --if-present
     - run: npm test
 
