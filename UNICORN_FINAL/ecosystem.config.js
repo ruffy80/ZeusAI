@@ -6,6 +6,13 @@
  * Save startup: pm2 save && pm2 startup
  */
 
+// ── Shared constants (single source of truth) ──────────────────────────────
+const SITE_DOMAIN    = process.env.SITE_DOMAIN    || 'zeusai.pro';
+const PUBLIC_APP_URL = process.env.PUBLIC_APP_URL || `https://${SITE_DOMAIN}`;
+const GH_OWNER       = process.env.GITHUB_REPO_OWNER || 'ruffy80';
+const GH_REPO        = process.env.GITHUB_REPO_NAME  || 'ZeusAI';
+const ECOSYSTEM_PATH = __filename; // absolute path to this config file
+
 module.exports = {
   apps: [
     // ── 1. Backend API server ─────────────────────────────────────────────────
@@ -21,7 +28,16 @@ module.exports = {
       restart_delay: 3000,
       env: {
         NODE_ENV: 'production',
-        PORT: 3000
+        PORT: 3000,
+        DOMAIN: SITE_DOMAIN,
+        SITE_DOMAIN,
+        PUBLIC_APP_URL,
+        CORS_ORIGINS: `https://${SITE_DOMAIN},https://www.${SITE_DOMAIN}`,
+        BTC_WALLET_ADDRESS: 'bc1q4f7e66z87mdfj56kz0dj5hvcnpmh0qh4wuv22e',
+        OWNER_NAME: 'Vladoi Ionut',
+        OWNER_EMAIL: 'vladoi_ionut@yahoo.com',
+        ADMIN_EMAIL: 'vladoi_ionut@yahoo.com',
+        HETZNER_BACKEND_URL: 'http://127.0.0.1:3000'
       },
       error_file: 'logs/pm2-error.log',
       out_file: 'logs/pm2-out.log',
@@ -46,7 +62,10 @@ module.exports = {
         REVENUE_INTERVAL: '15',
         VIRAL_INTERVAL: '20',
         DEPLOYMENT_INTERVAL: '120',
-        BACKEND_HEAL_CMD: 'pm2 restart unicorn'
+        BACKEND_HEAL_CMD: 'pm2 restart unicorn',
+        BACKEND_BASE_URL: 'http://127.0.0.1:3000',
+        DOMAIN: SITE_DOMAIN,
+        PUBLIC_APP_URL
       },
       error_file: 'logs/orchestrator-error.log',
       out_file: 'logs/orchestrator-out.log',
@@ -69,7 +88,7 @@ module.exports = {
         HEALTH_GUARDIAN_URL: 'http://127.0.0.1:3000/api/health',
         HEALTH_GUARDIAN_INTERVAL_MS: '30000',
         HEALTH_GUARDIAN_FAIL_THRESHOLD: '3',
-        HEALTH_GUARDIAN_HEAL_CMD: 'pm2 startOrRestart ecosystem.config.js --only unicorn'
+        HEALTH_GUARDIAN_HEAL_CMD: `pm2 startOrRestart "${ECOSYSTEM_PATH}" --only unicorn`
       },
       error_file: 'logs/health-guardian-error.log',
       out_file: 'logs/health-guardian-out.log',
@@ -89,7 +108,13 @@ module.exports = {
       restart_delay: 10000,
       env: {
         NODE_ENV: 'production',
-        PLATFORM_CHECK_INTERVAL_MS: '300000'
+        PLATFORM_CHECK_INTERVAL_MS: '300000',
+        VERCEL_HEALTH_URL: `${PUBLIC_APP_URL}/health`,
+        HETZNER_HEALTH_URL: 'http://127.0.0.1:3000/api/health',
+        GITHUB_REPO_OWNER: GH_OWNER,
+        GITHUB_REPO_NAME: GH_REPO,
+        GITHUB_WORKFLOW_ID: 'vercel-deploy.yml',
+        GITHUB_BRANCH: 'main'
       },
       error_file: 'logs/platform-connector-error.log',
       out_file: 'logs/platform-connector-out.log',

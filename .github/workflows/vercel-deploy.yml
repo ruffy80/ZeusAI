@@ -798,10 +798,14 @@ jobs:
               printf "HETZNER_API_KEY=%s\nHETZNER_API_TOKEN=%s\n" \
                 "${HETZNER_API_VALUE}" "${HETZNER_API_VALUE}" >> .env
               printf "PUBLIC_APP_URL=https://${{ secrets.SITE_DOMAIN || 'zeusai.pro' }}\nSITE_DOMAIN=${{ secrets.SITE_DOMAIN || 'zeusai.pro' }}\n" >> .env
+              printf "DOMAIN=${{ secrets.SITE_DOMAIN || 'zeusai.pro' }}\n" >> .env
               printf "CORS_ORIGINS=https://${{ secrets.SITE_DOMAIN || 'zeusai.pro' }},https://www.${{ secrets.SITE_DOMAIN || 'zeusai.pro' }}\n" >> .env
               printf "BTC_WALLET_ADDRESS=${{ secrets.BTC_WALLET_ADDRESS || 'bc1q4f7e66z87mdfj56kz0dj5hvcnpmh0qh4wuv22e' }}\n" >> .env
               printf "OWNER_NAME=Vladoi Ionut\nOWNER_EMAIL=vladoi_ionut@yahoo.com\n" >> .env
               printf "ADMIN_EMAIL=vladoi_ionut@yahoo.com\n" >> .env
+              printf "GITHUB_REPO_OWNER=ruffy80\nGITHUB_REPO_NAME=ZeusAI\nGITHUB_BRANCH=main\n" >> .env
+              printf "HETZNER_BACKEND_URL=http://127.0.0.1:3000\n" >> .env
+              printf "VERCEL_HEALTH_URL=https://${{ secrets.SITE_DOMAIN || 'zeusai.pro' }}/health\n" >> .env
               printf "SMTP_HOST=${{ secrets.SMTP_HOST || 'smtp.mail.yahoo.com' }}\nSMTP_PORT=${{ secrets.SMTP_PORT || '587' }}\n" >> .env
               printf "SMTP_USER=${{ secrets.SMTP_USER }}\nSMTP_PASS=${{ secrets.SMTP_PASS }}\n" >> .env
             fi
