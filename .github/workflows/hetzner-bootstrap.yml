@@ -128,14 +128,14 @@ jobs:
           apt-get update -y
           apt-get install -y curl ca-certificates gnupg git rsync nginx ufw build-essential python3
 
-          # Node.js 20
-          if ! command -v node >/dev/null 2>&1 || ! node -e "process.exit(parseInt(process.version.slice(1)) >= 20 ? 0 : 1)" 2>/dev/null; then
-            echo "📦 Instalare Node.js 20..."
+          # Node.js 22
+          if ! command -v node >/dev/null 2>&1 || ! node -e "process.exit(parseInt(process.version.slice(1)) >= 22 ? 0 : 1)" 2>/dev/null; then
+            echo "📦 Instalare Node.js 22..."
             install -m 0755 -d /etc/apt/keyrings
             curl -fsSL https://deb.nodesource.com/gpgkey/nodesource-repo.gpg.key \
               | gpg --dearmor -o /etc/apt/keyrings/nodesource.gpg
             chmod a+r /etc/apt/keyrings/nodesource.gpg
-            echo "deb [signed-by=/etc/apt/keyrings/nodesource.gpg] https://deb.nodesource.com/node_20.x nodistro main" \
+            echo "deb [signed-by=/etc/apt/keyrings/nodesource.gpg] https://deb.nodesource.com/node_22.x nodistro main" \
               > /etc/apt/sources.list.d/nodesource.list
             apt-get update -y
             apt-get install -y nodejs
@@ -206,8 +206,15 @@ jobs:
           STRIPE_SECRET_KEY:     ${{ secrets.STRIPE_SECRET_KEY }}
           STRIPE_PUBLISHABLE_KEY: ${{ secrets.STRIPE_PUBLISHABLE_KEY }}
           STRIPE_WEBHOOK_SECRET: ${{ secrets.STRIPE_WEBHOOK_SECRET }}
+          STRIPE_PRICE_STARTER_MONTHLY:    ${{ secrets.STRIPE_PRICE_STARTER_MONTHLY }}
+          STRIPE_PRICE_STARTER_YEARLY:     ${{ secrets.STRIPE_PRICE_STARTER_YEARLY }}
+          STRIPE_PRICE_PRO_MONTHLY:        ${{ secrets.STRIPE_PRICE_PRO_MONTHLY }}
+          STRIPE_PRICE_PRO_YEARLY:         ${{ secrets.STRIPE_PRICE_PRO_YEARLY }}
+          STRIPE_PRICE_ENTERPRISE_MONTHLY: ${{ secrets.STRIPE_PRICE_ENTERPRISE_MONTHLY }}
+          STRIPE_PRICE_ENTERPRISE_YEARLY:  ${{ secrets.STRIPE_PRICE_ENTERPRISE_YEARLY }}
           PAYPAL_CLIENT_ID:      ${{ secrets.PAYPAL_CLIENT_ID }}
           PAYPAL_CLIENT_SECRET:  ${{ secrets.PAYPAL_CLIENT_SECRET }}
+          PAYPAL_WEBHOOK_ID:     ${{ secrets.PAYPAL_WEBHOOK_ID }}
           SMTP_HOST:             ${{ secrets.SMTP_HOST || 'smtp.mail.yahoo.com' }}
           SMTP_PORT:             ${{ secrets.SMTP_PORT || '587' }}
           SMTP_USER:             ${{ secrets.SMTP_USER }}
@@ -224,6 +231,7 @@ jobs:
           PUBLIC_APP_URL=https://${DOMAIN}
           SITE_DOMAIN=${DOMAIN}
           UNICORN_DOMAIN=www.${DOMAIN}
+          CORS_ORIGINS=https://${DOMAIN},https://www.${DOMAIN}
 
           JWT_SECRET=${JWT_SECRET:-$(openssl rand -hex 32)}
           ADMIN_SECRET=${ADMIN_SECRET:-$(openssl rand -hex 24)}
@@ -250,8 +258,15 @@ jobs:
           STRIPE_SECRET_KEY=${STRIPE_SECRET_KEY}
           STRIPE_PUBLISHABLE_KEY=${STRIPE_PUBLISHABLE_KEY}
           STRIPE_WEBHOOK_SECRET=${STRIPE_WEBHOOK_SECRET}
+          STRIPE_PRICE_STARTER_MONTHLY=${STRIPE_PRICE_STARTER_MONTHLY}
+          STRIPE_PRICE_STARTER_YEARLY=${STRIPE_PRICE_STARTER_YEARLY}
+          STRIPE_PRICE_PRO_MONTHLY=${STRIPE_PRICE_PRO_MONTHLY}
+          STRIPE_PRICE_PRO_YEARLY=${STRIPE_PRICE_PRO_YEARLY}
+          STRIPE_PRICE_ENTERPRISE_MONTHLY=${STRIPE_PRICE_ENTERPRISE_MONTHLY}
+          STRIPE_PRICE_ENTERPRISE_YEARLY=${STRIPE_PRICE_ENTERPRISE_YEARLY}
           PAYPAL_CLIENT_ID=${PAYPAL_CLIENT_ID}
           PAYPAL_CLIENT_SECRET=${PAYPAL_CLIENT_SECRET}
+          PAYPAL_WEBHOOK_ID=${PAYPAL_WEBHOOK_ID}
 
           SMTP_HOST=${SMTP_HOST}
           SMTP_PORT=${SMTP_PORT}
