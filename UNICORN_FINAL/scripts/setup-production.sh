@@ -63,7 +63,7 @@ fi
 echo -e "${BOLD}${GREEN}"
 echo "╔══════════════════════════════════════════════════════════╗"
 echo "║   ZeusAI / Unicorn — Production Setup Script            ║"
-echo "║   $(date '+%Y-%m-%d %H:%M:%S')                                     ║"
+printf "║   %s%-29s║\n" "$(date '+%Y-%m-%d %H:%M:%S')" " "
 echo "╚══════════════════════════════════════════════════════════╝"
 echo -e "${NC}"
 info "Deploy path  : $DEPLOY_PATH"
@@ -271,7 +271,7 @@ ok "Director deploy: $DEPLOY_PATH"
 
 # 5d. Instalare dependențe npm
 cd "$DEPLOY_PATH"
-if [ ! -d "node_modules" ] || [ "package.json" -nt "node_modules/.package-lock.json" ]; then
+if [ ! -d "node_modules" ]; then
   info "Instalare dependențe npm (production)..."
   npm install --production
   ok "Dependențe npm instalate"
