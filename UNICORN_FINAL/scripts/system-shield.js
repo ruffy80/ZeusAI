@@ -32,7 +32,8 @@
 
 const path       = require('path');
 const fs         = require('fs');
-const { exec, execSync } = require('child_process');
+const { execSync } = require('child_process');
+const { execFile }  = require('child_process');
 const http       = require('http');
 
 // ─── Config ───────────────────────────────────────────────────────────────────
@@ -97,8 +98,10 @@ function isSafeProcName(name) { return SAFE_PROC_NAME_RE.test(name); }
 
 // Ensure filePath stays within ROOT to prevent path traversal
 function isSafeFilePath(filePath) {
-  const resolved = path.resolve(filePath);
-  return resolved.startsWith(path.resolve(ROOT) + path.sep) || resolved === path.resolve(ROOT);
+  const resolvedRoot = path.resolve(ROOT);
+  const resolvedFile = path.resolve(filePath);
+  const rel = path.relative(resolvedRoot, resolvedFile);
+  return !!rel && !rel.startsWith('..') && !path.isAbsolute(rel);
 }
 
 
@@ -226,8 +229,7 @@ function _restoreFileFromGit(filePath) {
     log('FILE_RESTORE_BLOCKED', `Path contains unsafe characters: ${relPath}`);
     return;
   }
-  log('FILE_RESTORE', `Restaurare din git: ${relPath}`);
-  const { execFile } = require('child_process');
+  log('FILE_RESTORE', 'Restaurare din git: ' + relPath);
   execFile('git', ['-C', ROOT, 'checkout', '--', relPath], (err) => {
     if (err) {
       log('FILE_RESTORE_ERR', relPath, err.message);
@@ -249,7 +251,7 @@ function startProcessMonitor() {
 }
 
 function _checkProcesses() {
-  exec('pm2 jlist', { timeout: 10000 }, (err, stdout) => {
+  execFile('pm2', ['jlist'], { timeout: 10000 }, (err, stdout) => {
     if (err) {
       log('PM2_UNAVAILABLE', err.message);
       return;
@@ -287,8 +289,7 @@ function _restartProcess(procName) {
   lastHealAt[procName] = now;
   state.healCount++;
 
-  log('RESTART_PROC', `pm2 restart ${procName}`);
-  const { execFile } = require('child_process');
+  log('RESTART_PROC', 'pm2 restart ' + procName);
   execFile('pm2', ['restart', procName], { timeout: 15000 }, (err, stdout) => {
     if (err) {
       log('RESTART_ERR', procName, err.message);

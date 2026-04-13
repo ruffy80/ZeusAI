@@ -24,9 +24,9 @@ let consecutiveExternalFailures  = 0;
 function log(msg, extra) {
   const ts = new Date().toISOString();
   if (extra) {
-    console.log(`[HealthGuardian] ${ts} ${msg}`, extra);
+    console.log('[HealthGuardian]', ts, String(msg), extra);
   } else {
-    console.log(`[HealthGuardian] ${ts} ${msg}`);
+    console.log('[HealthGuardian]', ts, String(msg));
   }
 }
 
