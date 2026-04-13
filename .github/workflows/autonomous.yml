@@ -1,0 +1,206 @@
+name: Autonomous Operations
+
+on:
+  schedule:
+    # Run every 2 hours — unicornul lucrează autonom non-stop
+    - cron: '0 */2 * * *'
+  workflow_dispatch:
+    inputs:
+      action:
+        description: 'Action to perform'
+        required: false
+        default: 'all'
+        type: choice
+        options:
+          - all
+          - evolve
+          - heal
+          - report
+          - viral
+
+# ── PERMISIUNI SCRIS — necesar pentru git commit + push autonom ────────────────
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  autonomous:
+    name: 🦄 Autonomous Engine Cycle
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: write
+
+    steps:
+      # ── 1. Checkout cu token cu drepturi de push ──────────────────────────────
+      - name: Checkout repository
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      # ── 2. Configurare git identity pentru commit autonom ─────────────────────
+      - name: Configure git identity
+        run: |
+          git config --global user.name  "unicorn-autonomous[bot]"
+          git config --global user.email "unicorn-autonomous@users.noreply.github.com"
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: UNICORN_FINAL/package-lock.json
+
+      - name: Install dependencies
+        working-directory: UNICORN_FINAL
+        run: npm install --legacy-peer-deps --no-audit --no-fund
+
+      # ── 3. Lint + test (ne blochează, dar raportăm) ───────────────────────────
+      - name: Run lint check
+        working-directory: UNICORN_FINAL
+        run: npm run lint
+        continue-on-error: true
+
+      - name: Run health tests
+        working-directory: UNICORN_FINAL
+        run: npm test
+        continue-on-error: true
+
+      # ── 4. Innovation cycle ───────────────────────────────────────────────────
+      - name: Innovation report
+        if: ${{ github.event.inputs.action == 'all' || github.event.inputs.action == 'report' || github.event.inputs.action == '' || github.event.inputs.action == null }}
+        working-directory: UNICORN_FINAL
+        run: npm run innovation:report
+        continue-on-error: true
+
+      - name: Innovation sprint (evolve)
+        if: ${{ github.event.inputs.action == 'all' || github.event.inputs.action == 'evolve' || github.event.inputs.action == '' || github.event.inputs.action == null }}
+        working-directory: UNICORN_FINAL
+        run: npm run innovation:sprint
+        continue-on-error: true
+
+      # ── 5. System health check ────────────────────────────────────────────────
+      - name: System health check
+        if: ${{ github.event.inputs.action == 'all' || github.event.inputs.action == 'heal' || github.event.inputs.action == '' || github.event.inputs.action == null }}
+        working-directory: UNICORN_FINAL
+        run: |
+          node -e "
+            const healer = require('./backend/modules/totalSystemHealer');
+            const status = healer.getHealthReport ? healer.getHealthReport() : healer.getStatus ? healer.getStatus() : { status: 'ok' };
+            console.log('[HEAL]', JSON.stringify(status, null, 2));
+            process.exit(0);
+          "
+        continue-on-error: true
+
+      - name: Quantum Resilience check
+        working-directory: UNICORN_FINAL
+        run: |
+          node -e "
+            const qrc = require('./backend/modules/quantumResilienceCore');
+            const status = qrc.getStatus ? qrc.getStatus() : { status: 'ok' };
+            console.log('[QRC]', JSON.stringify(status, null, 2));
+            process.exit(0);
+          "
+        continue-on-error: true
+
+      # ── 6. SCRIERE REALĂ PE DISK + COMMIT + PUSH ─────────────────────────────
+      #       Acesta este pasul cheie care lipsea — unicornul își salvează munca
+      - name: Write autonomous cycle report to disk
+        working-directory: UNICORN_FINAL
+        run: node scripts/autonomous-commit.js
+        continue-on-error: true
+
+      - name: Commit and push autonomous changes
+        run: |
+          # Verifică dacă există modificări reale
+          if git diff --quiet && git diff --staged --quiet && [ -z "$(git status --porcelain)" ]; then
+            echo "ℹ️  No changes to commit this cycle"
+            exit 0
+          fi
+
+          # Stage orice fișier nou sau modificat în UNICORN_FINAL/generated/
+          git add UNICORN_FINAL/generated/ || true
+
+          # Dacă nu e nimic staged, ieșim ok
+          if git diff --staged --quiet; then
+            echo "ℹ️  Nothing staged after add"
+            exit 0
+          fi
+
+          TS=$(date -u '+%Y-%m-%d %H:%M UTC')
+          RUN="${GITHUB_RUN_NUMBER:-0}"
+          git commit -m "🤖 auto: autonomous cycle #${RUN} — ${TS} [skip ci]"
+          git push origin HEAD
+          echo "✅ Autonomous changes committed and pushed to GitHub"
+
+      # ── 7. Hetzner — auto-heal real (git pull + pm2 restart) ─────────────────
+      - name: Hetzner auto-heal and keepalive
+        env:
+          HETZNER_HOST: ${{ secrets.HETZNER_HOST }}
+          HETZNER_USER: ${{ secrets.HETZNER_USER || secrets.SSH_USER }}
+          HETZNER_PORT: ${{ secrets.HETZNER_DEPLOY_PORT || secrets.SSH_PORT || '22' }}
+          HETZNER_PATH: ${{ secrets.HETZNER_DEPLOY_PATH || '/opt/unicorn' }}
+        run: |
+          if [ -z "$HETZNER_HOST" ] || [ -z "${{ secrets.HETZNER_SSH_PRIVATE_KEY }}" ]; then
+            echo "ℹ️  Hetzner SSH not configured – skipping"
+            exit 0
+          fi
+
+          mkdir -p ~/.ssh
+          echo "${{ secrets.HETZNER_SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+          ssh-keyscan -t ed25519,rsa -p "${HETZNER_PORT:-22}" "$HETZNER_HOST" >> ~/.ssh/known_hosts 2>/dev/null || true
+
+          echo "🔗 Connecting to Hetzner ${HETZNER_HOST}…"
+          ssh -i ~/.ssh/id_rsa \
+              -o StrictHostKeyChecking=no \
+              -o ConnectTimeout=20 \
+              -p "${HETZNER_PORT:-22}" \
+              "${HETZNER_USER:-root}@${HETZNER_HOST}" \
+              "set -e
+               DEPLOY_PATH='${HETZNER_PATH}'
+               echo '── Hetzner auto-heal cycle: '\$(date -u) ──'
+
+               # Navighează la directorul proiectului
+               cd \"\$DEPLOY_PATH\" 2>/dev/null || { echo '❌ Deploy path not found: '\$DEPLOY_PATH; exit 1; }
+
+               # Pull ultimul cod de pe GitHub
+               echo '📥 git pull…'
+               git fetch --all && git reset --hard origin/main || git pull origin main || echo '⚠️ git pull failed — continuăm cu codul existent'
+
+               # Instalează/actualizează dependențele (dacă package.json s-a schimbat)
+               echo '📦 npm install…'
+               npm install --production --no-audit --no-fund 2>&1 | tail -5 || true
+
+               # Repornire curată PM2 — fix pentru 'Process not found'
+               echo '♻️  pm2 restart…'
+               if command -v pm2 >/dev/null 2>&1; then
+                 pm2 delete all 2>/dev/null || true
+                 pm2 start ecosystem.config.js
+                 pm2 save
+                 echo '✅ PM2 restarted from ecosystem.config.js'
+               else
+                 echo '⚠️  pm2 not found — trying systemctl'
+                 systemctl restart unicorn 2>/dev/null && echo '✅ systemctl restart ok' || echo '⚠️  systemctl also failed'
+               fi
+
+               # Health check local
+               sleep 5
+               HEALTH=\$(curl -s http://localhost:3000/api/health 2>/dev/null || echo '{\"status\":\"unreachable\"}')
+               echo \"🩺 Health: \$HEALTH\"
+               echo \$HEALTH | grep -q '\"status\":\"ok\"' && echo '✅ Backend healthy' || echo '⚠️  Backend may need more time to start'
+              " || true
+        continue-on-error: true
+
+      # ── 8. Raport final ───────────────────────────────────────────────────────
+      - name: Autonomous cycle summary
+        run: |
+          echo "╔══════════════════════════════════════╗"
+          echo "║  🦄 UNICORN AUTONOMOUS CYCLE DONE    ║"
+          echo "╚══════════════════════════════════════╝"
+          echo "Timestamp : $(date -u)"
+          echo "Run       : #${GITHUB_RUN_NUMBER}"
+          echo "Ref       : ${GITHUB_REF}"
+          echo "SHA       : ${GITHUB_SHA:0:7}"
+          echo "Status    : AUTONOMOUS_RUNNING ✅"

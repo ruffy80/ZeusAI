@@ -1,0 +1,56 @@
+name: Deploy → Vercel
+
+# This workflow triggers the main vercel-deploy.yml pipeline.
+# It exists as an alias so tooling that expects 'deploy-vercel.yml' finds it.
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  deployments: write
+
+jobs:
+  deploy-vercel:
+    name: 🚀 Vercel Deploy
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: UNICORN_FINAL/package-lock.json
+
+      - name: Install dependencies
+        working-directory: UNICORN_FINAL
+        run: npm install --legacy-peer-deps --no-audit --no-fund
+
+      - name: Lint
+        working-directory: UNICORN_FINAL
+        run: npm run lint
+
+      - name: Test
+        working-directory: UNICORN_FINAL
+        run: npm test
+
+      - name: Deploy to Vercel
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+        run: |
+          if [ -z "$VERCEL_TOKEN" ]; then
+            echo "ℹ️  VERCEL_TOKEN not set – skipping Vercel deploy"
+            exit 0
+          fi
+          npm install -g vercel@latest --no-audit --no-fund
+          cd UNICORN_FINAL
+          vercel pull --yes --environment=production --token="$VERCEL_TOKEN"
+          vercel build --prod --token="$VERCEL_TOKEN"
+          vercel deploy --prebuilt --prod --token="$VERCEL_TOKEN"

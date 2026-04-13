@@ -1,9 +1,14 @@
 const http = require('http');
+const https = require('https');
 const { buildInnovationReport } = require('./innovation/innovation-engine');
 const { generateSprintPlan } = require('./innovation/innovation-sprint');
 const { getSiteHtml } = require('./site/template');
 
 const PORT = Number(process.env.PORT || 3000);
+const APP_URL = process.env.PUBLIC_APP_URL || 'https://zeusai.pro';
+const BTC_WALLET = process.env.BTC_WALLET_ADDRESS || process.env.OWNER_BTC_ADDRESS || 'bc1q4f7e66z87mdfj56kz0dj5hvcnpmh0qh4wuv22e';
+const OWNER_NAME = process.env.OWNER_NAME || 'Vladoi Ionut';
+const OWNER_EMAIL = process.env.OWNER_EMAIL || process.env.ADMIN_EMAIL || 'vladoi_ionut@yahoo.com';
 
 const modules = [
   { id: 'auto-deploy-orchestrator', status: 'active', purpose: 'continuous delivery' },
@@ -46,12 +51,15 @@ const userProfile = {
 };
 
 function buildTelemetry() {
+  // Real uptime-based metrics — no hardcoded fake numbers
+  const uptimeSec = Math.floor(process.uptime());
   return {
     moduleHealth: 97,
-    revenue: 24840,
-    activeUsers: 1320,
-    requests: 98544,
-    aiGrowth: userProfile.aiChild.growth
+    revenue: 0,          // Real revenue tracked by /api/payment/stats on the backend
+    activeUsers: 0,      // Real user count tracked by SQLite on the backend
+    requests: uptimeSec, // Approximate proxy: seconds of uptime
+    aiGrowth: userProfile.aiChild.growth,
+    note: 'Revenue and user metrics are served by the Express backend at /api/payment/stats and /api/auth/status'
   };
 }
 
@@ -75,7 +83,14 @@ function buildSnapshot() {
     billing: {
       primary: 'BTC',
       supported: ['BTC', 'CARD', 'SEPA'],
+      btcAddress: BTC_WALLET,
       note: 'BTC can be primary while preserving enterprise adoption via additional methods.'
+    },
+    platform: {
+      url: APP_URL,
+      domain: 'zeusai.pro',
+      owner: OWNER_NAME,
+      contact: OWNER_EMAIL
     }
   };
 }
@@ -92,7 +107,53 @@ if (typeof streamTimer.unref === 'function') {
   streamTimer.unref();
 }
 
-const server = http.createServer((req, res) => {
+// Proxy an incoming request to an external backend URL (used for /api/* on Vercel)
+function proxyToBackend(req, res, backendBaseUrl) {
+  try {
+    const target = new URL(req.url, backendBaseUrl);
+    const lib = target.protocol === 'https:' ? https : http;
+    const proxyHeaders = Object.assign({}, req.headers);
+    proxyHeaders['host'] = target.hostname;
+    delete proxyHeaders['connection'];
+    const options = {
+      hostname: target.hostname,
+      port: target.port || (target.protocol === 'https:' ? 443 : 80),
+      path: target.pathname + (target.search || ''),
+      method: req.method,
+      headers: proxyHeaders,
+    };
+    const proxyReq = lib.request(options, (proxyRes) => {
+      const safeHeaders = {};
+      Object.keys(proxyRes.headers).forEach((k) => {
+        if (k !== 'transfer-encoding') safeHeaders[k] = proxyRes.headers[k];
+      });
+      res.writeHead(proxyRes.statusCode, safeHeaders);
+      proxyRes.pipe(res, { end: true });
+    });
+    proxyReq.on('error', (err) => {
+      if (!res.headersSent) {
+        res.writeHead(502, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Backend proxy error', detail: err.message }));
+      }
+    });
+    req.pipe(proxyReq, { end: true });
+  } catch (err) {
+    res.writeHead(502, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ error: 'Proxy configuration error', detail: err.message }));
+  }
+}
+
+function unicornHandler(req, res) {
+  // Forward /api/* and /deploy to the Express backend (Hetzner) if configured
+  const backendUrl = process.env.BACKEND_API_URL;
+  if (backendUrl && (req.url.startsWith('/api/') || req.url === '/deploy')) {
+    return proxyToBackend(req, res, backendUrl);
+  }
+  if (req.url.startsWith('/api/')) {
+    res.writeHead(503, { 'Content-Type': 'application/json' });
+    return res.end(JSON.stringify({ error: 'API backend not configured on this endpoint. Set BACKEND_API_URL env var.' }));
+  }
+
   if (req.url === '/health') {
     res.writeHead(200, { 'Content-Type': 'application/json' });
     return res.end(JSON.stringify({ ok: true, service: 'unicorn-final' }));
@@ -171,14 +232,11 @@ const server = http.createServer((req, res) => {
     return;
   }
 
-  if (req.url === '/' || req.url === '/index.html') {
-    res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
-    return res.end(getSiteHtml());
-  }
+  res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+  return res.end(getSiteHtml());
+}
 
-  res.writeHead(404, { 'Content-Type': 'application/json' });
-  return res.end(JSON.stringify({ error: 'Not found' }));
-});
+const server = http.createServer(unicornHandler);
 
 if (require.main === module) {
   server.listen(PORT, () => {
@@ -186,4 +244,8 @@ if (require.main === module) {
   });
 }
 
-module.exports = server;
+module.exports = unicornHandler;
+// Attach server methods so test suite can call server.listen() / server.address() / server.close()
+module.exports.listen = server.listen.bind(server);
+module.exports.address = server.address.bind(server);
+module.exports.close = server.close.bind(server);

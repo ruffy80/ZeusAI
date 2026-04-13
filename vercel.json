@@ -1,33 +1,31 @@
 {
   "version": 2,
-  "framework": null,
-  "installCommand": "npm install --no-audit --no-fund",
-  "buildCommand": "npm --prefix UNICORN_FINAL/client install --no-audit --no-fund && npm --prefix UNICORN_FINAL/client run build",
-  "outputDirectory": "UNICORN_FINAL/client/build",
-  "headers": [
+  "name": "zeusai",
+  "builds": [
     {
-      "source": "/index.html",
-      "headers": [
-        {
-          "key": "Cache-Control",
-          "value": "no-store, no-cache, must-revalidate, proxy-revalidate"
-        }
-      ]
+      "src": "UNICORN_FINAL/src/index.js",
+      "use": "@vercel/node"
     },
     {
-      "source": "/static/(.*)",
-      "headers": [
-        {
-          "key": "Cache-Control",
-          "value": "public, max-age=31536000, immutable"
-        }
-      ]
+      "src": "UNICORN_FINAL/backend/index.js",
+      "use": "@vercel/node"
     }
   ],
-  "rewrites": [
-    {
-      "source": "/(.*)",
-      "destination": "/index.html"
-    }
-  ]
+  "routes": [
+    { "src": "/api/(.*)",             "dest": "/UNICORN_FINAL/backend/index.js" },
+    { "src": "/health",               "dest": "/UNICORN_FINAL/src/index.js" },
+    { "src": "/snapshot",             "dest": "/UNICORN_FINAL/src/index.js" },
+    { "src": "/stream",               "dest": "/UNICORN_FINAL/src/index.js" },
+    { "src": "/innovation(.*)",       "dest": "/UNICORN_FINAL/src/index.js" },
+    { "src": "/modules(.*)",          "dest": "/UNICORN_FINAL/src/index.js" },
+    { "src": "/(.*)",                 "headers": { "cache-control": "no-store,no-cache,must-revalidate" }, "dest": "/UNICORN_FINAL/src/index.js" }
+  ],
+  "env": {
+    "NODE_ENV": "production",
+    "PUBLIC_APP_URL": "https://zeusai.pro",
+    "SITE_DOMAIN": "zeusai.pro",
+    "BTC_WALLET_ADDRESS": "bc1q4f7e66z87mdfj56kz0dj5hvcnpmh0qh4wuv22e",
+    "OWNER_NAME": "Vladoi Ionut",
+    "OWNER_EMAIL": "vladoi_ionut@yahoo.com"
+  }
 }

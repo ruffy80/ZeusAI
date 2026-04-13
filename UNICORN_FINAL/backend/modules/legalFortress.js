@@ -7,6 +7,7 @@ const nodemailer = require('nodemailer');
 
 class LegalFortress {
   constructor() {
+    this.cache = new Map(); this.cacheTTL = 60000; 
     this.owner = {
       name: 'Vladoi Ionut',
       email: 'vladoi_ionut@yahoo.com',
@@ -78,7 +79,7 @@ class LegalFortress {
 
     for (const modulePath of modules) {
       const content = fs.readFileSync(modulePath, 'utf8');
-      if (!content.includes('OWNERSHIP: Vladoi Ionut')) {
+      if (!content.includes('proprietatea exclusivă a lui Vladoi Ionut')) {
         await this.addOwnershipWatermark(modulePath);
         allOwned = false;
       }

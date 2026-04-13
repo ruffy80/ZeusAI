@@ -1,0 +1,247 @@
+name: 🔗 Unicorn Keep-Alive (Platform Health Check)
+
+# Runs every 30 minutes to verify Vercel + Hetzner are reachable.
+# If either is down, triggers the main deploy workflow to heal the platform.
+
+on:
+  schedule:
+    - cron: '*/30 * * * *'   # every 30 minutes
+  workflow_dispatch:
+    inputs:
+      force_redeploy:
+        description: 'Force redeploy regardless of health'
+        required: false
+        default: 'false'
+
+concurrency:
+  group: unicorn-keepalive
+  cancel-in-progress: true
+
+jobs:
+  keepalive:
+    name: 🩺 Check Platform Health
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      healthy: ${{ steps.health.outputs.healthy }}
+    steps:
+      - name: Check Vercel health
+        id: vercel_check
+        continue-on-error: true
+        run: |
+          URL="${{ secrets.VERCEL_HEALTH_URL || 'https://zeusai.pro/health' }}"
+          STATUS=$(curl -s -o /dev/null -w "%{http_code}" --max-time 10 "$URL" || echo "000")
+          echo "Vercel health URL → HTTP $STATUS"
+          if [ "$STATUS" = "200" ]; then
+            echo "vercel_ok=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "vercel_ok=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Check Hetzner health
+        id: hetzner_check
+        continue-on-error: true
+        run: |
+          HOST="${{ secrets.HETZNER_HOST || secrets.SSH_HOST }}"
+          if [ -z "$HOST" ]; then
+            echo "ℹ️  HETZNER_HOST not configured — skipping Hetzner health check"
+            echo "hetzner_ok=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          # Prefer Nginx port 80 (proxied to backend:3000); port 3000 is firewall-restricted
+          STATUS=$(curl -s -o /dev/null -w "%{http_code}" --max-time 10 "http://${HOST}/api/health" || echo "000")
+          if [ "$STATUS" = "000" ] || [ "$STATUS" = "000000" ]; then
+            PORT="${{ secrets.HETZNER_APP_PORT || '3000' }}"
+            STATUS=$(curl -s -o /dev/null -w "%{http_code}" --max-time 10 "http://${HOST}:${PORT}/api/health" || echo "000")
+          fi
+          echo "Hetzner /api/health → HTTP $STATUS"
+          if [ "$STATUS" = "200" ]; then
+            echo "hetzner_ok=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "hetzner_ok=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Evaluate platform health
+        id: health
+        run: |
+          VERCEL="${{ steps.vercel_check.outputs.vercel_ok || 'unknown' }}"
+          HETZNER="${{ steps.hetzner_check.outputs.hetzner_ok || 'unknown' }}"
+          FORCE="${{ inputs.force_redeploy || 'false' }}"
+
+          echo "Vercel status  : $VERCEL"
+          echo "Hetzner status : $HETZNER"
+          echo "Force redeploy : $FORCE"
+
+          if [ "$VERCEL" = "true" ] && [ "$HETZNER" = "true" ] && [ "$FORCE" != "true" ]; then
+            echo "✅ Platform fully healthy — no redeploy needed"
+            echo "healthy=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "⚠️  Platform needs attention — triggering redeploy"
+            echo "healthy=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Write job summary
+        if: always()
+        run: |
+          echo "## 🔗 Unicorn Keep-Alive Report" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Platform | Status |" >> "$GITHUB_STEP_SUMMARY"
+          echo "|----------|--------|" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Vercel   | ${{ steps.vercel_check.outputs.vercel_ok == 'true' && '✅ OK' || '❌ DOWN' }} |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Hetzner  | ${{ steps.hetzner_check.outputs.hetzner_ok == 'true' && '✅ OK' || '❌ DOWN' }} |" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "Checked at: $(date -u +"%Y-%m-%dT%H:%M:%SZ")" >> "$GITHUB_STEP_SUMMARY"
+
+  trigger-redeploy:
+    name: 🚀 Trigger Redeploy (if unhealthy)
+    runs-on: ubuntu-latest
+    needs: keepalive
+    if: needs.keepalive.outputs.healthy == 'false'
+    permissions:
+      actions: write
+    steps:
+      - name: Fast SSH restart (before full redeploy)
+        id: ssh_quick_restart
+        continue-on-error: true
+        env:
+          DEPLOY_HOST: ${{ secrets.HETZNER_HOST || secrets.SSH_HOST }}
+          DEPLOY_USER: ${{ secrets.HETZNER_DEPLOY_USER || secrets.HETZNER_USER || secrets.SSH_USER || 'root' }}
+          DEPLOY_PORT: ${{ secrets.HETZNER_DEPLOY_PORT || secrets.SSH_PORT || '22' }}
+          DEPLOY_PATH: ${{ secrets.HETZNER_DEPLOY_PATH || '/opt/unicorn' }}
+          DOMAIN: ${{ secrets.SITE_DOMAIN || 'zeusai.pro' }}
+          CERT_EMAIL: ${{ secrets.OWNER_EMAIL || 'vladoi_ionut@yahoo.com' }}
+        run: |
+          if [ -z "$DEPLOY_HOST" ] || [ -z "${{ secrets.HETZNER_SSH_PRIVATE_KEY || secrets.SSH_PRIVATE_KEY }}" ]; then
+            echo "ℹ️  SSH secrets not configured — skipping fast restart"
+            exit 0
+          fi
+          mkdir -p ~/.ssh && chmod 700 ~/.ssh
+          echo "${{ secrets.HETZNER_SSH_PRIVATE_KEY || secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -t ed25519,rsa -p "${DEPLOY_PORT:-22}" "$DEPLOY_HOST" >> ~/.ssh/known_hosts 2>/dev/null || true
+
+          ssh -i ~/.ssh/deploy_key -p "${DEPLOY_PORT:-22}" \
+            -o StrictHostKeyChecking=no -o BatchMode=yes -o ConnectTimeout=15 \
+            "${DEPLOY_USER}@${DEPLOY_HOST}" << ENDSSH
+            DEPLOY_PATH="${DEPLOY_PATH:-/opt/unicorn}"
+            DOMAIN="${DOMAIN:-zeusai.pro}"
+            CERT_EMAIL="${CERT_EMAIL:-vladoi_ionut@yahoo.com}"
+            cd "\$DEPLOY_PATH" 2>/dev/null || cd "/opt/unicorn" 2>/dev/null || true
+
+            resolve_ipv4() {
+              getent ahostsv4 "$1" 2>/dev/null | awk 'NR==1{print $1}'
+            }
+
+            # Ensure nginx is enabled and running
+            if command -v nginx >/dev/null 2>&1; then
+              if command -v ufw >/dev/null 2>&1; then
+                ufw allow 80/tcp 2>/dev/null || true
+                ufw allow 443/tcp 2>/dev/null || true
+              fi
+              systemctl enable nginx 2>/dev/null || true
+              # Test config before starting to avoid silent failures
+              if nginx -t 2>/dev/null; then
+                systemctl reload nginx 2>/dev/null || systemctl restart nginx 2>/dev/null || service nginx restart 2>/dev/null || true
+              else
+                echo "⚠️  nginx -t failed — forcing restart (will use current on-disk config)"
+                systemctl restart nginx 2>/dev/null || service nginx restart 2>/dev/null || true
+              fi
+              sleep 2
+              systemctl is-active --quiet nginx && echo "✅ Nginx running" || \
+                { systemctl start nginx 2>/dev/null || true; echo "ℹ️  nginx start attempted"; }
+            fi
+
+            # Attempt HTTPS self-heal if certificate/config is missing.
+            if ! curl -kfsS --resolve "$DOMAIN:443:127.0.0.1" "https://$DOMAIN/health" >/dev/null 2>&1; then
+              echo "ℹ️  HTTPS unhealthy locally for $DOMAIN — attempting certbot repair"
+              if ! command -v certbot >/dev/null 2>&1; then
+                apt-get update -y >/dev/null 2>&1 || true
+                apt-get install -y certbot python3-certbot-nginx >/dev/null 2>&1 || snap install --classic certbot >/dev/null 2>&1 || true
+              fi
+
+              SERVER_IP=$(curl -4 -fsS --max-time 5 https://ifconfig.me 2>/dev/null || hostname -I | awk '{print $1}')
+              DOMAIN_IP=$(resolve_ipv4 "$DOMAIN")
+              WWW_DOMAIN_IP=$(resolve_ipv4 "www.$DOMAIN")
+              echo "Server IP: ${SERVER_IP} | Domain IP: ${DOMAIN_IP:-'(unresolved)'} | WWW IP: ${WWW_DOMAIN_IP:-'(unresolved)'}"
+
+              if command -v certbot >/dev/null 2>&1 && [ -n "$DOMAIN_IP" ] && [ "$DOMAIN_IP" = "$SERVER_IP" ]; then
+                if [ -n "$WWW_DOMAIN_IP" ] && [ "$WWW_DOMAIN_IP" = "$SERVER_IP" ]; then
+                  certbot --nginx -d "$DOMAIN" -d "www.$DOMAIN" --non-interactive --agree-tos --email "$CERT_EMAIL" --redirect --keep-until-expiring || true
+                else
+                  certbot --nginx -d "$DOMAIN" --non-interactive --agree-tos --email "$CERT_EMAIL" --redirect --keep-until-expiring || true
+                fi
+                nginx -t 2>/dev/null && systemctl reload nginx 2>/dev/null || systemctl restart nginx 2>/dev/null || true
+              else
+                echo "⚠️  Skipping certbot repair: DNS mismatch or certbot unavailable"
+              fi
+            fi
+
+            # Restart PM2 processes — skip resurrect (stale dumps cause silent failures)
+            # Use clean start from ecosystem: delete all → start fresh → save
+            if command -v pm2 >/dev/null 2>&1; then
+              pm2 stop all 2>/dev/null || true
+              pm2 delete all 2>/dev/null || true
+              pm2 start ecosystem.config.js
+              pm2 save
+              # Re-register PM2 startup hook so it survives reboots
+              pm2 startup systemd 2>/dev/null | grep "^sudo" | head -1 | bash 2>/dev/null || true
+              echo "✅ PM2 clean start from ecosystem complete"
+            elif command -v systemctl >/dev/null 2>&1 && systemctl list-unit-files 2>/dev/null | grep -q '^unicorn\.service'; then
+              systemctl restart unicorn && echo "✅ Restarted via systemctl"
+            else
+              pkill -f "node backend/index.js" 2>/dev/null || true
+              sleep 1
+              nohup node backend/index.js > logs/backend.log 2>&1 &
+              echo "✅ Restarted via nohup fallback"
+            fi
+
+            sleep 10
+            curl -sf http://localhost:3000/api/health && echo "✅ Backend healthy after restart" || echo "⚠️  Backend still starting (may need more time)"
+            # Verify nginx port 80 is accessible locally
+            curl -sf --max-time 5 http://localhost:80/ >/dev/null 2>&1 && echo "✅ Nginx port 80 responding" || echo "⚠️  Nginx port 80 not responding — check: journalctl -u nginx -n 20"
+            curl -kfsS --resolve "$DOMAIN:443:127.0.0.1" "https://$DOMAIN/health" >/dev/null 2>&1 && echo "✅ Nginx HTTPS responding" || echo "⚠️  Nginx HTTPS still not responding — check certbot/nginx logs"
+          ENDSSH
+
+      - name: Verify platform recovered after SSH restart
+        id: verify_recovery
+        continue-on-error: true
+        env:
+          DEPLOY_HOST: ${{ secrets.HETZNER_HOST || secrets.SSH_HOST }}
+        run: |
+          if [ -z "$DEPLOY_HOST" ]; then
+            echo "recovered=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          # Allow services 30 s more to stabilise after the SSH restart (server-side
+          # health probe already ran inside the SSH command; this wait covers propagation
+          # to the public-facing Nginx/Vercel layer before external re-probing).
+          sleep 30
+          HEALTH_TIMEOUT=15
+          # Check both Vercel and Hetzner from the runner
+          VERCEL_URL="${{ secrets.VERCEL_HEALTH_URL || 'https://zeusai.pro/health' }}"
+          VERCEL_STATUS=$(curl -s -o /dev/null -w "%{http_code}" --max-time "$HEALTH_TIMEOUT" "$VERCEL_URL" || echo "000")
+          HETZNER_STATUS=$(curl -s -o /dev/null -w "%{http_code}" --max-time "$HEALTH_TIMEOUT" "http://${DEPLOY_HOST}/api/health" || echo "000")
+          echo "Vercel re-check: $VERCEL_STATUS  |  Hetzner re-check: $HETZNER_STATUS"
+          if [ "$VERCEL_STATUS" = "200" ] && [ "$HETZNER_STATUS" = "200" ]; then
+            echo "✅ Platform recovered via fast SSH restart — skipping full redeploy"
+            echo "recovered=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "⚠️  Platform still unhealthy — full redeploy needed"
+            echo "recovered=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Dispatch main deploy workflow
+        if: steps.verify_recovery.outputs.recovered != 'true'
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            await github.rest.actions.createWorkflowDispatch({
+              owner: context.repo.owner,
+              repo:  context.repo.repo,
+              workflow_id: 'vercel-deploy.yml',
+              ref: 'main',
+              inputs: { force_deploy: 'true' }
+            });
+            console.log('✅ Deploy workflow dispatched successfully');

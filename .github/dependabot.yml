@@ -1,0 +1,56 @@
+version: 2
+updates:
+  # ── Root Next.js app ────────────────────────────────────────────────────────
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "09:00"
+      timezone: "Europe/Bucharest"
+    open-pull-requests-limit: 3
+    labels:
+      - "dependencies"
+    commit-message:
+      prefix: "deps"
+    groups:
+      react:
+        patterns: ["react", "react-dom"]
+      next:
+        patterns: ["next"]
+
+  # ── Main production app (UNICORN_FINAL) ─────────────────────────────────────
+  - package-ecosystem: "npm"
+    directory: "/UNICORN_FINAL"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "09:00"
+      timezone: "Europe/Bucharest"
+    open-pull-requests-limit: 3
+    labels:
+      - "dependencies"
+    commit-message:
+      prefix: "deps"
+    groups:
+      security-patches:
+        update-types: ["patch"]
+      minor-updates:
+        update-types: ["minor"]
+    ignore:
+      # undici: vercel pins undici@5.28.4 via @vercel/node; the fix requires
+      # a major bump to 6.x which would break vercel CLI internals. Ignored
+      # until vercel ships a compatible update.
+      - dependency-name: "undici"
+        versions: ["*"]
+      # srvx: vercel pins srvx@0.8.9 via @vercel/backends; the fix requires
+      # bumping to 0.11.x which has breaking API changes incompatible with
+      # the version of @vercel/backends in use.
+      - dependency-name: "srvx"
+        versions: ["*"]
+      # ccxt updates are very frequent and breaking — pin manually
+      - dependency-name: "ccxt"
+        update-types: ["version-update:semver-major", "version-update:semver-minor"]
+
+  # NOTE: release/ directory is intentionally excluded — it contains archived
+  # build artifacts and is not a maintained dependency tree.

@@ -6,3 +6,12 @@ node_modules/
 
 logs/
 *.local
+data/*.db
+data/*.db-shm
+data/*.db-wal
+
+# Generated innovation/autonomous cycle JSON files (auto-created at runtime)
+generated/innovation_*.json
+generated/autonomous-cycle-*.json
+generated/AUTONOMOUS-STATUS.json
+generated/AUTONOMOUS-STATUS.md

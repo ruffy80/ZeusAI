@@ -1,0 +1,91 @@
+version: '3.9'
+
+services:
+  unicorn:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: production
+    container_name: zeus-ai-unicorn
+    restart: unless-stopped
+    ports:
+      - "${PORT:-3000}:3000"
+    environment:
+      - NODE_ENV=${NODE_ENV:-production}
+      - PORT=3000
+      - JWT_SECRET=${JWT_SECRET}
+      - ADMIN_SECRET=${ADMIN_SECRET}
+      - ADMIN_MASTER_PASSWORD=${ADMIN_MASTER_PASSWORD}
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - DEEPSEEK_API_KEY=${DEEPSEEK_API_KEY}
+      - GITHUB_TOKEN=${GITHUB_TOKEN}
+      - VERCEL_TOKEN=${VERCEL_TOKEN}
+      - VERCEL_PROJECT_ID=${VERCEL_PROJECT_ID}
+      - VERCEL_ORG_ID=${VERCEL_ORG_ID}
+      - HETZNER_HOST=${HETZNER_HOST}
+      - HETZNER_USER=${HETZNER_USER}
+      - DOMAIN=${DOMAIN:-zeusai.pro}
+      - SAV_API_TOKEN=${SAV_API_TOKEN}
+      - BTC_WALLET_ADDRESS=${BTC_WALLET_ADDRESS:-bc1q4f7e66z87mdfj56kz0dj5hvcnpmh0qh4wuv22e}
+      - STRIPE_SECRET_KEY=${STRIPE_SECRET_KEY}
+      - STRIPE_PUBLISHABLE_KEY=${STRIPE_PUBLISHABLE_KEY}
+      - WEBHOOK_SECRET=${WEBHOOK_SECRET}
+      - GIT_REPO_URL=${GIT_REPO_URL}
+      - SMTP_HOST=${SMTP_HOST}
+      - SMTP_USER=${SMTP_USER}
+      - SMTP_PASS=${SMTP_PASS}
+      - LEGAL_OWNER_NAME=${LEGAL_OWNER_NAME:-Vladoi Ionut}
+      - LEGAL_OWNER_EMAIL=${LEGAL_OWNER_EMAIL}
+    volumes:
+      - unicorn_data:/app/data
+      - unicorn_logs:/app/logs
+      - unicorn_backups:/app/backups
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    networks:
+      - unicorn_net
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "50m"
+        max-file: "5"
+
+  nginx:
+    image: nginx:alpine
+    container_name: zeus-ai-nginx
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./scripts/nginx-unicorn.conf:/etc/nginx/conf.d/default.conf:ro
+      - nginx_certs:/etc/letsencrypt:ro
+      - nginx_webroot:/var/www/certbot
+    depends_on:
+      unicorn:
+        condition: service_healthy
+    networks:
+      - unicorn_net
+    profiles:
+      - production
+
+volumes:
+  unicorn_data:
+    name: zeus_unicorn_data
+  unicorn_logs:
+    name: zeus_unicorn_logs
+  unicorn_backups:
+    name: zeus_unicorn_backups
+  nginx_certs:
+    name: zeus_nginx_certs
+  nginx_webroot:
+    name: zeus_nginx_webroot
+
+networks:
+  unicorn_net:
+    name: zeus_network
+    driver: bridge

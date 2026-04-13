@@ -1,0 +1,37 @@
+# CI for the root Next.js shell app.
+# UNICORN_FINAL lint+test is handled by vercel-deploy.yml (runs on every push/PR).
+# This workflow only runs when root app files change, and only on push to main.
+name: Node.js CI
+
+on:
+  push:
+    branches: [ "main" ]
+    paths:
+      - 'app/**'
+      - 'package.json'
+      - 'package-lock.json'
+      - 'next.config.*'
+      - '.github/workflows/node.js.yml'
+
+concurrency:
+  group: node-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Build & Test (Node 22)
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v5
+    - name: Use Node.js 22
+      uses: actions/setup-node@v5
+      with:
+        node-version: '22'
+        cache: 'npm'
+    - run: npm install --legacy-peer-deps
+    - name: Install UNICORN_FINAL dependencies
+      run: npm install --prefix UNICORN_FINAL --legacy-peer-deps --no-audit --no-fund
+    - run: npm run build --if-present
+    - run: npm test
+
