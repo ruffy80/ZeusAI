@@ -111,8 +111,12 @@ apt-get install -y --no-install-recommends \
   build-essential
 ok "Pachete sistem instalate"
 
-# Node.js 20 via NodeSource
-if command -v node &>/dev/null && node --version 2>/dev/null | grep -q "^v20\."; then
+# Node.js >= 20 via NodeSource
+_node_major=0
+if command -v node &>/dev/null; then
+  _node_major=$(node --version 2>/dev/null | sed 's/^v\([0-9]*\).*/\1/' || echo 0)
+fi
+if [ "$_node_major" -ge 20 ] 2>/dev/null; then
   ok "Node.js $(node --version) deja instalat"
 else
   info "Instalare Node.js 20 via NodeSource..."
@@ -260,8 +264,11 @@ else
     fi
   fi
 
-  # Reînnoire automată
-  if ! systemctl is-enabled certbot.timer 2>/dev/null | grep -q "enabled"; then
+  # Reînnoire automată: preferă certbot.timer (systemd), fallback la cron
+  if systemctl list-unit-files certbot.timer &>/dev/null 2>&1 \
+      && systemctl is-enabled certbot.timer 2>/dev/null | grep -q "enabled"; then
+    ok "Reînnoire automată SSL activă (certbot.timer)"
+  else
     if ! crontab -l 2>/dev/null | grep -q "certbot renew"; then
       (crontab -l 2>/dev/null; echo "0 3 * * * certbot renew --quiet --nginx") | crontab -
       fixed "Cron job pentru reînnoire automată SSL (zilnic, 03:00)"
@@ -318,8 +325,14 @@ if [ -d "${DEPLOY_PATH}" ]; then
   # Generare .env dacă lipsește
   if [ ! -f ".env" ]; then
     warn ".env lipsește — se creează cu setări minimale..."
+    command -v openssl &>/dev/null || die "openssl nu este instalat — necesar pentru generarea secretelor"
     JWT_SECRET="$(openssl rand -hex 32)"
     ADMIN_SECRET="$(openssl rand -hex 24)"
+    [ -z "$JWT_SECRET" ]   && die "JWT_SECRET generat este gol — verifică openssl"
+    [ -z "$ADMIN_SECRET" ] && die "ADMIN_SECRET generat este gol — verifică openssl"
+    _BTC_ADDR="${BTC_WALLET_ADDRESS:-bc1q4f7e66z87mdfj56kz0dj5hvcnpmh0qh4wuv22e}"
+    _OWNER_NAME="${OWNER_NAME:-Vladoi Ionut}"
+    _OWNER_EMAIL="${OWNER_EMAIL:-vladoi_ionut@yahoo.com}"
     cat > ".env" <<ENVEOF
 NODE_ENV=production
 PORT=${NODE_PORT}
@@ -330,9 +343,9 @@ CORS_ORIGINS=https://${DOMAIN},https://www.${DOMAIN}
 JWT_SECRET=${JWT_SECRET}
 ADMIN_SECRET=${ADMIN_SECRET}
 ADMIN_EMAIL=${ADMIN_EMAIL}
-BTC_WALLET_ADDRESS=bc1q4f7e66z87mdfj56kz0dj5hvcnpmh0qh4wuv22e
-OWNER_NAME=Vladoi Ionut
-OWNER_EMAIL=vladoi_ionut@yahoo.com
+BTC_WALLET_ADDRESS=${_BTC_ADDR}
+OWNER_NAME=${_OWNER_NAME}
+OWNER_EMAIL=${_OWNER_EMAIL}
 ENVEOF
     chmod 600 ".env"
     fixed ".env minimal creat (editează cu cheile API reale)"
@@ -384,16 +397,21 @@ fi
 step "8. Persistență PM2 la reboot"
 
 RUN_USER="${SUDO_USER:-root}"
-STARTUP_CMD=$(pm2 startup systemd -u "$RUN_USER" --hp "$(eval echo ~"$RUN_USER")" 2>/dev/null \
+# Obține home directory fără eval (evită injecție prin SUDO_USER)
+RUN_HOME="$(getent passwd "$RUN_USER" 2>/dev/null | cut -d: -f6)" \
+  || RUN_HOME="$(cd ~"$RUN_USER" 2>/dev/null && pwd)" \
+  || RUN_HOME="/root"
+
+STARTUP_CMD=$(pm2 startup systemd -u "$RUN_USER" --hp "$RUN_HOME" 2>/dev/null \
   | grep -E "^sudo" | head -1 || true)
 
 if [ -n "$STARTUP_CMD" ]; then
   eval "$STARTUP_CMD"
   fixed "PM2 startup configurat"
 else
-  NODE_BIN="$(command -v node || echo '/usr/bin/node')"
-  PM2_BIN="$(command -v pm2 || echo '/usr/local/bin/pm2')"
-  PM2_HOME="$(eval echo ~"$RUN_USER")/.pm2"
+  NODE_BIN="$(command -v node 2>/dev/null)" || { warn "node nu a fost găsit în PATH"; NODE_BIN="/usr/bin/node"; }
+  PM2_BIN="$(command -v pm2 2>/dev/null)"   || { warn "pm2 nu a fost găsit în PATH";  PM2_BIN="/usr/local/bin/pm2"; }
+  PM2_HOME="${RUN_HOME}/.pm2"
   cat > "/etc/systemd/system/pm2-${RUN_USER}.service" <<UNITEOF
 [Unit]
 Description=PM2 process manager for ${RUN_USER}
