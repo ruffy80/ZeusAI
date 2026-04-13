@@ -124,16 +124,16 @@ jobs:
             "${DEPLOY_USER}@${DEPLOY_HOST}" << 'ENDSSH'
             # Restart PM2 processes
             if command -v pm2 >/dev/null 2>&1; then
-              pm2 resurrect 2>/dev/null || true
-              pm2 restart unicorn 2>/dev/null || pm2 start ecosystem.config.js 2>/dev/null || true
-              pm2 save 2>/dev/null || true
+              pm2 resurrect || true
+              pm2 restart unicorn || { echo "pm2 restart failed, starting from ecosystem"; pm2 start ecosystem.config.js; }
+              pm2 save || true
               echo "✅ PM2 restart attempted"
             elif command -v systemctl >/dev/null 2>&1 && systemctl list-unit-files | grep -q '^unicorn\.service'; then
               systemctl restart unicorn && echo "✅ Restarted via systemctl"
             fi
             # Ensure nginx is running
             if command -v nginx >/dev/null 2>&1; then
-              systemctl start nginx 2>/dev/null || service nginx start 2>/dev/null || true
+              systemctl start nginx || service nginx start || true
               echo "✅ Nginx ensured running"
             fi
             sleep 5
