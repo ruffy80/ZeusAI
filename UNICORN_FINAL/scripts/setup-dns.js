@@ -4,9 +4,11 @@
  * Configureaza automat DNS records pentru zeusai.pro.
  *
  * Records setate:
- *   A     @    76.76.21.21          → Vercel (primary)
- *   CNAME www  cname.vercel-dns.com → Vercel (www)
- *   A     @    204.168.230.142      → Hetzner (backup / round-robin)
+ *   A     @    76.76.21.21          → Vercel (primary, proxied: false)
+ *   CNAME www  cname.vercel-dns.com → Vercel (www, proxied: false)
+ *
+ * Sterge automat orice A @ 204.168.230.142 (Hetzner round-robin) care
+ * impiedica verificarea domeniului de catre Vercel.
  *
  * Provideri suportati (in ordine):
  *   1. Hetzner DNS API (dns.hetzner.com) — cheie: HETZNER_DNS_API_KEY sau HETZNER_API_KEY
@@ -25,12 +27,15 @@ const VERCEL_IP   = process.env.VERCEL_IP         || '76.76.21.21';
 const HETZNER_IP  = process.env.HETZNER_HOST      || '204.168.230.142';
 const VERCEL_CNAME = 'cname.vercel-dns.com';
 
-// DNS records to ensure exist
+// DNS records to ensure exist (Vercel only — no Hetzner round-robin on root,
+// which would cause Vercel domain verification to see the wrong IP intermittently)
 const DESIRED_RECORDS = [
   { type: 'A',     name: '@',   value: VERCEL_IP,    ttl: 300,  comment: 'Vercel primary' },
   { type: 'CNAME', name: 'www', value: VERCEL_CNAME, ttl: 300,  comment: 'Vercel www' },
-  { type: 'A',     name: '@',   value: HETZNER_IP,   ttl: 300,  comment: 'Hetzner backup' },
 ];
+
+// A records with these IPs on the root @ should be removed (stale / conflicting)
+const STALE_A_VALUES = [HETZNER_IP];
 
 // ─── Generic HTTPS helper ────────────────────────────────────────────────────
 function request(opts, body) {
@@ -98,7 +103,22 @@ async function hetznerDns() {
 
   const existing = (recRes.status === 200 && recRes.body.records) ? recRes.body.records : [];
 
-  // 3. Upsert each desired record
+  // 3. Delete stale conflicting A records (e.g. old Hetzner round-robin on root)
+  for (const staleValue of STALE_A_VALUES) {
+    const staleRecs = existing.filter((r) => r.type === 'A' && r.name === '@' && r.value === staleValue);
+    for (const stale of staleRecs) {
+      console.log(`  🗑️  Deleting stale A @ → ${staleValue}`);
+      const delRes = await request({
+        hostname: 'dns.hetzner.com',
+        path: `/api/v1/records/${stale.id}`,
+        method: 'DELETE',
+        headers: baseHeaders,
+      });
+      console.log(`  ${delRes.status < 300 ? '✅' : '❌'} DELETE A @ → HTTP ${delRes.status}`);
+    }
+  }
+
+  // 4. Upsert each desired record
   for (const desired of DESIRED_RECORDS) {
     const match = existing.find(
       (r) => r.type === desired.type && r.name === desired.name && r.value === desired.value
@@ -109,16 +129,13 @@ async function hetznerDns() {
       continue;
     }
 
-    // Check if a conflicting record exists (same type+name but different value — for single-value types)
-    // For A records we allow multiple (round-robin), so we always create.
-    // For CNAME we replace if name conflicts.
+    // For CNAME, replace any conflicting record with same name
     const conflict = existing.find(
-      (r) => r.type === desired.type && r.name === desired.name && desired.type === 'CNAME'
+      (r) => r.type === desired.type && r.name === desired.name
     );
 
     if (conflict) {
-      // Update existing CNAME
-      console.log(`  🔄 Updating CNAME ${desired.name} → ${desired.value} (was: ${conflict.value})`);
+      console.log(`  🔄 Updating ${desired.type} ${desired.name} → ${desired.value} (was: ${conflict.value})`);
       const upRes = await request(
         {
           hostname: 'dns.hetzner.com',
@@ -197,25 +214,65 @@ async function cloudflareDns() {
   // Helper: CF uses 'content' instead of 'value', '@' is root for CF
   const cfName = (n) => (n === '@' ? DOMAIN : `${n}.${DOMAIN}`);
 
-  // 3. Upsert each desired record
+  // 3. Delete stale conflicting A records (e.g. old Hetzner round-robin on root)
+  for (const staleValue of STALE_A_VALUES) {
+    const staleRecs = existing.filter((r) => r.type === 'A' && r.name === DOMAIN && r.content === staleValue);
+    for (const stale of staleRecs) {
+      console.log(`  🗑️  Deleting stale A ${DOMAIN} → ${staleValue}`);
+      const delRes = await request({
+        hostname: 'api.cloudflare.com',
+        path: `/client/v4/zones/${zoneId}/dns_records/${stale.id}`,
+        method: 'DELETE',
+        headers: baseHeaders,
+      });
+      console.log(`  ${delRes.body.success ? '✅' : '❌'} DELETE A ${DOMAIN} → HTTP ${delRes.status}`);
+    }
+  }
+
+  // 4. Upsert each desired record (enforce proxied: false for Vercel compatibility)
   for (const desired of DESIRED_RECORDS) {
     const cfRecordName = cfName(desired.name);
-    const match = existing.find(
-      (r) => r.type === desired.type && r.name === cfRecordName && r.content === desired.value
+
+    // Match on type + name + content + proxied=false (all must be correct)
+    const exactMatch = existing.find(
+      (r) => r.type === desired.type && r.name === cfRecordName && r.content === desired.value && r.proxied === false
     );
 
-    if (match) {
-      console.log(`  ✅ Already exists: ${desired.type} ${cfRecordName} → ${desired.value}`);
+    if (exactMatch) {
+      console.log(`  ✅ Already correct: ${desired.type} ${cfRecordName} → ${desired.value} (proxied: false)`);
       continue;
     }
 
-    // Conflict = same type+name but different content (for CNAME, replace)
+    // Check if record exists with right content but proxied=true (needs proxy disabled)
+    const proxiedMatch = existing.find(
+      (r) => r.type === desired.type && r.name === cfRecordName && r.content === desired.value && r.proxied === true
+    );
+
+    if (proxiedMatch) {
+      console.log(`  🔄 Disabling Cloudflare proxy on ${desired.type} ${cfRecordName} → ${desired.value}`);
+      const upRes = await request(
+        {
+          hostname: 'api.cloudflare.com',
+          path: `/client/v4/zones/${zoneId}/dns_records/${proxiedMatch.id}`,
+          method: 'PUT',
+          headers: baseHeaders,
+        },
+        { type: desired.type, name: cfRecordName, content: desired.value, ttl: desired.ttl, proxied: false }
+      );
+      console.log(`  ${upRes.body.success ? '✅' : '❌'} PUT ${desired.type} ${cfRecordName} proxied→false: HTTP ${upRes.status}`);
+      if (!upRes.body.success) {
+        console.warn('     Errors:', JSON.stringify(upRes.body.errors).slice(0, 200));
+      }
+      continue;
+    }
+
+    // Conflict = same type+name but different content — replace it
     const conflict = existing.find(
-      (r) => r.type === desired.type && r.name === cfRecordName && desired.type === 'CNAME'
+      (r) => r.type === desired.type && r.name === cfRecordName
     );
 
     if (conflict) {
-      console.log(`  🔄 Updating CNAME ${cfRecordName} → ${desired.value}`);
+      console.log(`  🔄 Updating ${desired.type} ${cfRecordName} → ${desired.value} (was: ${conflict.content})`);
       const upRes = await request(
         {
           hostname: 'api.cloudflare.com',
@@ -225,7 +282,10 @@ async function cloudflareDns() {
         },
         { type: desired.type, name: cfRecordName, content: desired.value, ttl: desired.ttl, proxied: false }
       );
-      console.log(`  ${upRes.body.success ? '✅' : '❌'} PUT CNAME ${cfRecordName} → HTTP ${upRes.status}`);
+      console.log(`  ${upRes.body.success ? '✅' : '❌'} PUT ${desired.type} ${cfRecordName} → HTTP ${upRes.status}`);
+      if (!upRes.body.success) {
+        console.warn('     Errors:', JSON.stringify(upRes.body.errors).slice(0, 200));
+      }
     } else {
       console.log(`  ➕ Creating: ${desired.type} ${cfRecordName} → ${desired.value}`);
       const crRes = await request(
