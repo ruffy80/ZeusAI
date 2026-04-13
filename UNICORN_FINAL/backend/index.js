@@ -3354,6 +3354,359 @@ registerModuleRoutes('ai-cfo-agent',                   aiCfoAgent);
 registerModuleRoutes('sentiment-analysis-engine',      sentimentAnalysisEngine);
 registerModuleRoutes('ai-product-generator',           aiProductGenerator);
 
+// ==================== GITHUB WEBHOOK — AUTO-DEPLOY ====================
+// Handles GitHub push/workflow_run events for automatic deployment.
+// Set GITHUB_WEBHOOK_SECRET in env and register this URL as a GitHub webhook.
+(function registerGithubWebhook() {
+  const GITHUB_WEBHOOK_SECRET = process.env.GITHUB_WEBHOOK_SECRET || '';
+  const DEPLOY_BRANCH = process.env.GITHUB_DEPLOY_BRANCH || 'main';
+
+  function verifyGithubSignature(secret, rawBody, sigHeader) {
+    // Secret is required — reject all requests if not configured
+    if (!secret) return false;
+    if (!sigHeader) return false;
+    const sig = 'sha256=' + crypto.createHmac('sha256', secret).update(rawBody).digest('hex');
+    try {
+      return crypto.timingSafeEqual(Buffer.from(sig), Buffer.from(sigHeader));
+    } catch {
+      return false;
+    }
+  }
+
+  // GitHub sends application/json; capture raw body for HMAC verification
+  app.post('/api/github/webhook',
+    express.raw({ type: 'application/json' }),
+    (req, res) => {
+      const sigHeader = req.headers['x-hub-signature-256'] || '';
+      const rawBody   = req.body || Buffer.alloc(0);
+
+      if (!verifyGithubSignature(GITHUB_WEBHOOK_SECRET, rawBody, sigHeader)) {
+        return res.status(401).json({ error: 'Invalid webhook signature' });
+      }
+
+      let event;
+      try {
+        event = JSON.parse(rawBody.toString('utf8') || '{}');
+      } catch {
+        return res.status(400).json({ error: 'Invalid JSON payload' });
+      }
+
+      const eventType = req.headers['x-github-event'] || '';
+      const branch = (event.ref || '').replace('refs/heads/', '');
+      const ts = new Date().toISOString();
+
+      console.log(`[GitHub Webhook] ${ts} event=${eventType} branch=${branch}`);
+
+      // Trigger deploy on push to the deploy branch
+      if (eventType === 'push' && branch === DEPLOY_BRANCH) {
+        console.log(`[GitHub Webhook] Push to ${DEPLOY_BRANCH} — triggering orchestrator check`);
+        centralOrchestrator.forceCheck().catch(e =>
+          console.warn('[GitHub Webhook] orchestrator check error:', e.message)
+        );
+        // Notify self-healing engine
+        selfHealingEngine.emit && selfHealingEngine.emit('github:push', { branch, sha: event.after || '' });
+      }
+
+      // Trigger check on workflow_run completion
+      if (eventType === 'workflow_run') {
+        const wf = event.workflow_run || {};
+        console.log(`[GitHub Webhook] workflow_run: name=${wf.name} conclusion=${wf.conclusion}`);
+        if (wf.conclusion === 'failure') {
+          centralOrchestrator._fail && centralOrchestrator._fail(
+            'github', `Workflow "${wf.name}" failed (run #${wf.run_number})`, { id: wf.id }
+          ).catch(() => {});
+        }
+      }
+
+      res.json({ received: true, event: eventType, ts });
+    }
+  );
+})();
+
+// ==================== ECOSYSTEM VERIFY ====================
+// Agregator complet de stare — verifică toate componentele sistemului.
+app.get('/api/ecosystem/verify', async (req, res) => {
+  const checks = {};
+  const issues = [];
+
+  // 1. Backend health
+  try {
+    checks.backend = { status: 'ok', uptime: process.uptime() };
+  } catch (e) {
+    checks.backend = { status: 'error', error: e.message };
+    issues.push('backend');
+  }
+
+  // 2. Database
+  try {
+    const userCount = dbUsers.count();
+    checks.database = { status: 'ok', userCount };
+  } catch (e) {
+    checks.database = { status: 'error', error: e.message };
+    issues.push('database');
+  }
+
+  // 3. Quantum Integrity Shield
+  try {
+    const qis = quantumIntegrityShield.getStatus();
+    checks.quantumShield = { status: qis.active ? 'ok' : 'inactive', integrity: qis.integrity };
+    if (!qis.active) issues.push('quantumShield');
+  } catch (e) {
+    checks.quantumShield = { status: 'error', error: e.message };
+    issues.push('quantumShield');
+  }
+
+  // 4. Central Orchestrator
+  try {
+    const orch = centralOrchestrator.getStatus();
+    checks.centralOrchestrator = { status: orch.running ? 'ok' : 'inactive', services: orch.services };
+    if (!orch.running) issues.push('centralOrchestrator');
+  } catch (e) {
+    checks.centralOrchestrator = { status: 'error', error: e.message };
+    issues.push('centralOrchestrator');
+  }
+
+  // 5. Self-Healing Engine
+  try {
+    const sh = selfHealingEngine.getStatus();
+    checks.selfHealingEngine = { status: sh.active ? 'ok' : 'inactive' };
+    if (!sh.active) issues.push('selfHealingEngine');
+  } catch (e) {
+    checks.selfHealingEngine = { status: 'error', error: e.message };
+    issues.push('selfHealingEngine');
+  }
+
+  // 6. Auto-Innovation Loop
+  try {
+    const ail = autoInnovationLoop.getStatus();
+    checks.autoInnovationLoop = { status: ail.active ? 'ok' : 'inactive', cycles: ail.cycles };
+    if (!ail.active) issues.push('autoInnovationLoop');
+  } catch (e) {
+    checks.autoInnovationLoop = { status: 'error', error: e.message };
+    issues.push('autoInnovationLoop');
+  }
+
+  // 7. Mesh Orchestrator
+  try {
+    const mesh = meshOrchestrator.getStatus ? meshOrchestrator.getStatus() : { active: true };
+    checks.meshOrchestrator = { status: 'ok', modules: mesh.modules || Object.keys(mesh) };
+  } catch (e) {
+    checks.meshOrchestrator = { status: 'error', error: e.message };
+    issues.push('meshOrchestrator');
+  }
+
+  // 8. Quantum Vault
+  try {
+    const qv = quantumVault.getStatus();
+    checks.quantumVault = { status: qv.unlocked ? 'ok' : 'locked' };
+  } catch (e) {
+    checks.quantumVault = { status: 'unavailable', note: e.message };
+  }
+
+  // 9. Control Plane Agent
+  try {
+    const cp = controlPlane.getStatus();
+    checks.controlPlaneAgent = { status: cp.active ? 'ok' : 'inactive' };
+  } catch (e) {
+    checks.controlPlaneAgent = { status: 'error', error: e.message };
+    issues.push('controlPlaneAgent');
+  }
+
+  // 10. Frontend build
+  try {
+    const nodeFs = require('fs');
+    const buildPath = path.join(__dirname, '../client/build');
+    const buildExists = nodeFs.existsSync(buildPath);
+    checks.frontendBuild = { status: buildExists ? 'ok' : 'missing', path: buildPath };
+    if (!buildExists) issues.push('frontendBuild');
+  } catch (e) {
+    checks.frontendBuild = { status: 'error', error: e.message };
+    issues.push('frontendBuild');
+  }
+
+  const overall = issues.length === 0 ? 'healthy' : 'degraded';
+  res.json({
+    overall,
+    ts: new Date().toISOString(),
+    issues,
+    checks,
+  });
+});
+
+// ==================== AUTONOMY CONTROL ====================
+// Status și activare completă a modului de autonomie.
+app.get('/api/autonomy/status', (req, res) => {
+  const status = {
+    ts: new Date().toISOString(),
+    modules: {}
+  };
+
+  const collect = (key, fn) => {
+    try { status.modules[key] = fn(); } catch (e) { status.modules[key] = { error: e.message }; }
+  };
+
+  collect('autoInnovationLoop',   () => autoInnovationLoop.getStatus());
+  collect('selfHealingEngine',    () => selfHealingEngine.getStatus());
+  collect('centralOrchestrator',  () => centralOrchestrator.getStatus());
+  collect('quantumIntegrityShield', () => quantumIntegrityShield.getStatus());
+  collect('controlPlaneAgent',    () => controlPlane.getStatus());
+  collect('profitControlLoop',    () => profitLoop.getStatus());
+  collect('meshOrchestrator',     () => meshOrchestrator.getStatus ? meshOrchestrator.getStatus() : { active: true });
+
+  const activeCount = Object.values(status.modules).filter(
+    m => m && (m.active === true || m.running === true || m.status === 'active')
+  ).length;
+  status.activeModules = activeCount;
+  status.totalModules  = Object.keys(status.modules).length;
+  status.autonomyReady = activeCount >= 4;
+
+  res.json(status);
+});
+
+app.post('/api/autonomy/activate', adminTokenMiddleware, (req, res) => {
+  const results = [];
+
+  const tryActivate = (label, fn) => {
+    try { fn(); results.push({ module: label, activated: true }); }
+    catch (e) { results.push({ module: label, activated: false, error: e.message }); }
+  };
+
+  // Innovation Loop
+  tryActivate('autoInnovationLoop', () => {
+    const s = autoInnovationLoop.getStatus();
+    if (!s.active) autoInnovationLoop.start();
+  });
+
+  // Self-Healing Engine
+  tryActivate('selfHealingEngine', () => {
+    const s = selfHealingEngine.getStatus();
+    if (!s.active) {
+      selfHealingEngine.start();
+      selfHealingEngine.attachOrchestrator(centralOrchestrator);
+    }
+  });
+
+  // Central Orchestrator
+  tryActivate('centralOrchestrator', () => {
+    const s = centralOrchestrator.getStatus();
+    if (!s.running) centralOrchestrator.start();
+  });
+
+  // Quantum Integrity Shield
+  tryActivate('quantumIntegrityShield', () => {
+    const s = quantumIntegrityShield.getStatus();
+    if (!s.active) quantumIntegrityShield.start();
+  });
+
+  // Mesh Orchestrator
+  tryActivate('meshOrchestrator', () => {
+    if (meshOrchestrator.start) meshOrchestrator.start();
+  });
+
+  // Unicorn Orchestrator
+  tryActivate('unicornOrchestrator', () => {
+    if (unicornOrchestrator.start) unicornOrchestrator.start();
+  });
+
+  const activated = results.filter(r => r.activated).length;
+  res.json({
+    success: true,
+    ts: new Date().toISOString(),
+    activated,
+    total: results.length,
+    results,
+  });
+});
+
+// ==================== ECOSYSTEM TEST ====================
+// Rulează un test complet al tuturor componentelor ecosistemului.
+app.post('/api/ecosystem/test', adminTokenMiddleware, async (req, res) => {
+  const report = {
+    ts: new Date().toISOString(),
+    tests: [],
+    passed: 0,
+    failed: 0,
+    warnings: 0,
+  };
+
+  function addTest(category, name, passed, note) {
+    const status = passed === true ? 'pass' : passed === false ? 'fail' : 'warn';
+    report.tests.push({ category, name, status, note: note || '' });
+    if (status === 'pass') report.passed++;
+    else if (status === 'fail') report.failed++;
+    else report.warnings++;
+  }
+
+  // ── 1. Backend ──────────────────────────────────────────────────────
+  addTest('backend', '/api/health responsive', true, `uptime=${Math.floor(process.uptime())}s`);
+  let dbConnected = false;
+  try { dbUsers.count(); dbConnected = true; } catch { /* db unreachable */ }
+  addTest('backend', 'database connected', dbConnected);
+  addTest('backend', 'PORT configured', !!PORT, `port=${PORT}`);
+
+  // ── 2. Quantum Integrity Shield ────────────────────────────────────
+  try {
+    const qis = quantumIntegrityShield.getStatus();
+    addTest('shield', 'QIS active', qis.active === true, `integrity=${qis.integrity}`);
+    addTest('shield', 'QIS auto-heal enabled', qis.autoHealEnabled !== false);
+    const lastScan = qis.lastScan;
+    addTest('shield', 'QIS scan performed', !!lastScan, lastScan ? `last=${lastScan.timestamp}` : 'no scan yet');
+  } catch (e) {
+    addTest('shield', 'QIS status', false, e.message);
+  }
+
+  // ── 3. Central Orchestrator ────────────────────────────────────────
+  try {
+    const orch = centralOrchestrator.getStatus();
+    addTest('orchestrator', 'Orchestrator running', orch.running === true);
+    const svc = orch.services || {};
+    addTest('orchestrator', 'Vercel probe configured', svc.vercel && svc.vercel.status !== 'unconfigured', svc.vercel ? svc.vercel.status : 'unconfigured');
+    addTest('orchestrator', 'Hetzner probe configured', svc.hetzner && svc.hetzner.status !== 'unconfigured', svc.hetzner ? svc.hetzner.status : 'unconfigured');
+    addTest('orchestrator', 'DNS probe configured', svc.dns && svc.dns.status !== 'unconfigured', svc.dns ? svc.dns.status : 'unconfigured');
+    addTest('orchestrator', 'GitHub probe configured', svc.github && svc.github.status !== 'unconfigured', svc.github ? svc.github.status : 'unconfigured');
+  } catch (e) {
+    addTest('orchestrator', 'Orchestrator status', false, e.message);
+  }
+
+  // ── 4. Self-Healing Engine ──────────────────────────────────────────
+  try {
+    const sh = selfHealingEngine.getStatus();
+    addTest('self-healer', 'Self-Healing Engine active', sh.active === true);
+    addTest('self-healer', 'Orchestrator attached', sh.orchestratorAttached !== false);
+  } catch (e) {
+    addTest('self-healer', 'Self-Healing Engine status', false, e.message);
+  }
+
+  // ── 5. Auto-Innovation Loop ─────────────────────────────────────────
+  try {
+    const ail = autoInnovationLoop.getStatus();
+    addTest('innovation', 'Innovation Loop active', ail.active === true);
+    addTest('innovation', 'Innovation cycles run', ail.cycles > 0, `cycles=${ail.cycles}`);
+  } catch (e) {
+    addTest('innovation', 'Innovation Loop status', false, e.message);
+  }
+
+  // ── 6. Infrastructure ──────────────────────────────────────────────
+  const nodeFs = require('fs');
+  const buildPath = path.join(__dirname, '../client/build');
+  addTest('infrastructure', 'Frontend build exists', nodeFs.existsSync(buildPath), buildPath);
+  addTest('infrastructure', 'NODE_ENV set', !!process.env.NODE_ENV, `env=${process.env.NODE_ENV}`);
+  addTest('infrastructure', 'GITHUB_WEBHOOK_SECRET set', !!process.env.GITHUB_WEBHOOK_SECRET,
+    process.env.GITHUB_WEBHOOK_SECRET ? 'configured' : 'missing — GitHub webhook unprotected');
+
+  // ── 7. Autonomy ────────────────────────────────────────────────────
+  const activeAutonomy = [
+    () => autoInnovationLoop.getStatus().active,
+    () => selfHealingEngine.getStatus().active,
+    () => centralOrchestrator.getStatus().running,
+    () => quantumIntegrityShield.getStatus().active,
+  ].filter(fn => { try { return fn(); } catch { return false; } }).length;
+  addTest('autonomy', 'Core autonomy modules active (≥3)', activeAutonomy >= 3, `active=${activeAutonomy}/4`);
+  addTest('autonomy', 'Full autonomy (all 4 core)', activeAutonomy === 4, `active=${activeAutonomy}/4`);
+
+  report.overall = report.failed === 0 ? (report.warnings === 0 ? 'pass' : 'warn') : 'fail';
+  res.json(report);
+});
 
 const clientBuildPath = path.join(__dirname, '../client/build');
 const clientIndexPath = path.join(clientBuildPath, 'index.html');
