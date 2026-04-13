@@ -16,10 +16,13 @@ const EXTERNAL_INTERVAL_MS = Math.max(parseInt(process.env.HEALTH_GUARDIAN_EXTER
 const FAIL_THRESHOLD     = Math.max(parseInt(process.env.HEALTH_GUARDIAN_FAIL_THRESHOLD || '3', 10), 1);
 const HEAL_CMD           = process.env.HEALTH_GUARDIAN_HEAL_CMD     || 'systemctl restart unicorn';
 const ROLLBACK_CMD       = process.env.HEALTH_GUARDIAN_ROLLBACK_CMD || '';
+// Nginx check interval (default every 60s)
+const NGINX_INTERVAL_MS  = Math.max(parseInt(process.env.HEALTH_GUARDIAN_NGINX_MS || '60000', 10), 15000);
 
 let consecutiveFailures          = 0;
 let consecutiveIntegrityFailures = 0;
 let consecutiveExternalFailures  = 0;
+let consecutiveNginxFailures     = 0;
 
 function log(msg, extra) {
   const ts = new Date().toISOString();
@@ -129,6 +132,38 @@ function heal() {
   });
 }
 
+/** Verifică dacă Nginx răspunde pe portul 80 local */
+function checkNginx() {
+  return new Promise((resolve) => {
+    const req = http.get('http://127.0.0.1:80/', (res) => {
+      // Orice răspuns HTTP (inclusiv 4xx/5xx) înseamnă că Nginx rulează
+      res.resume();
+      resolve({ ok: true, status: res.statusCode });
+    });
+    req.on('error', (err) => resolve({ ok: false, reason: err.message }));
+    req.setTimeout(5000, () => { req.destroy(); resolve({ ok: false, reason: 'timeout' }); });
+  });
+}
+
+/** Repornește Nginx dacă este oprit */
+function healNginx() {
+  return new Promise((resolve) => {
+    const cmd = [
+      'nginx -t && systemctl reload nginx',
+      'systemctl restart nginx',
+      'service nginx restart',
+    ].join(' || ');
+    exec(cmd, { timeout: 20000 }, (err, stdout, stderr) => {
+      if (err) {
+        log('nginx heal failed', { error: err.message, stderr: (stderr || '').slice(0, 200) });
+        return resolve(false);
+      }
+      log('nginx restarted successfully', { stdout: (stdout || '').slice(0, 200) });
+      resolve(true);
+    });
+  });
+}
+
 async function loop() {
   const [result, shield] = await Promise.all([checkHealth(), checkShield()]);
   if (result.ok) {
@@ -211,3 +246,28 @@ if (EXTERNAL_URL) {
   setInterval(externalLoop, EXTERNAL_INTERVAL_MS);
   setTimeout(externalLoop, 10000); // primă verificare externă după 10s
 }
+
+// ── Nginx watchdog ────────────────────────────────────────────────────────────
+async function nginxLoop() {
+  const result = await checkNginx();
+  if (result.ok) {
+    if (consecutiveNginxFailures > 0) {
+      log(`nginx restored after ${consecutiveNginxFailures} failure(s)`);
+      notifyOrchestrator('nginx_restored', {});
+    }
+    consecutiveNginxFailures = 0;
+    return;
+  }
+  consecutiveNginxFailures += 1;
+  log(`nginx health check failed (${consecutiveNginxFailures}/${FAIL_THRESHOLD})`, { reason: result.reason });
+  notifyOrchestrator('nginx_failure', { reason: result.reason, failures: consecutiveNginxFailures });
+
+  if (consecutiveNginxFailures >= FAIL_THRESHOLD) {
+    log('nginx down threshold reached — attempting nginx restart');
+    await healNginx();
+    consecutiveNginxFailures = 0;
+  }
+}
+
+setInterval(nginxLoop, NGINX_INTERVAL_MS);
+setTimeout(nginxLoop, 15000); // primă verificare Nginx după 15s
