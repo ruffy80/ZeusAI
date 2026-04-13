@@ -289,8 +289,8 @@ class AutoDeploy {
   }
 
   async ensureRepo(git) {
-    const gitDir = path.join(__dirname, '../../.git');
-    if (!fs.existsSync(gitDir)) {
+    const alreadyRepo = await git.checkIsRepo().catch(() => false);
+    if (!alreadyRepo) {
       console.log('📁 Inițializare repository git...');
       await git.init();
       const remoteUrl = this.getAuthenticatedRemoteUrl();

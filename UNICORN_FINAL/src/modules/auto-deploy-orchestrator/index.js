@@ -48,10 +48,10 @@ class AutoDeployOrchestrator {
   }
 
   async ensureRepo() {
-    const gitDir = path.join(this.rootPath, '.git');
     const remoteUrl = this.getAuthenticatedRemoteUrl();
 
-    if (!fs.existsSync(gitDir)) {
+    const alreadyRepo = await this.git.checkIsRepo().catch(() => false);
+    if (!alreadyRepo) {
       await this.git.init();
       if (remoteUrl) {
         await this.git.addRemote('origin', remoteUrl);
