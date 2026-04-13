@@ -31,7 +31,7 @@ const FAIL_THRESHOLD    = parseInt(process.env.SHIELD_FAIL_THRESHOLD || '3',    
 const HEALTH_URL        = process.env.SHIELD_HEALTH_URL || 'http://127.0.0.1:3000/api/health';
 const ORCH_URL          = process.env.SHIELD_ORCH_URL   || 'http://127.0.0.1:3000/api/orchestrator/notify';
 const ROLLBACK_CMD      = process.env.SHIELD_ROLLBACK_CMD || 'bash scripts/rollback-last-backup.sh';
-const REPAIR_CMD        = process.env.SHIELD_REPAIR_CMD   || 'pm2 startOrRestart ecosystem.config.js --only unicorn,unicorn-orchestrator,unicorn-health-guardian,unicorn-quantum-watchdog';
+const REPAIR_CMD        = process.env.SHIELD_REPAIR_CMD   || 'pm2 startOrRestart ecosystem.config.js --only unicorn,unicorn-main-orchestrator,unicorn-health-daemon,unicorn-shield,unicorn-quantum-watchdog';
 const MAX_LOG           = 400;
 
 // Critical files that must exist at all times
@@ -54,8 +54,9 @@ const CRITICAL_DIRS = [
 // Required PM2 process names
 const CRITICAL_PROCESSES = [
   'unicorn',
-  'unicorn-orchestrator',
-  'unicorn-health-guardian',
+  'unicorn-main-orchestrator',
+  'unicorn-health-daemon',
+  'unicorn-shield',
   'unicorn-quantum-watchdog',
 ];
 

@@ -30,7 +30,7 @@ const POLL_MS        = parseInt(process.env.ORCH_POLL_MS        || '120000', 10)
 const SHIELD_URL     = process.env.ORCH_SHIELD_URL     || 'http://127.0.0.1:3000/api/quantum-integrity/status';
 const HEALTH_URL     = process.env.ORCH_HEALTH_URL     || 'http://127.0.0.1:3000/api/health';
 const INNOVATION_URL = process.env.ORCH_INNOVATION_URL || 'http://127.0.0.1:3000/api/innovation-loop/status';
-const DEPLOY_CMD     = process.env.ORCH_DEPLOY_CMD     || 'bash scripts/deploy-hetzner.js 2>&1 || bash deploy.sh 2>&1';
+const DEPLOY_CMD     = process.env.ORCH_DEPLOY_CMD     || 'node scripts/deploy-hetzner.js 2>&1 || bash deploy.sh 2>&1';
 const ROLLBACK_CMD   = process.env.ORCH_ROLLBACK_CMD   || 'bash scripts/rollback-last-backup.sh';
 const LINT_CMD       = process.env.ORCH_LINT_CMD       || 'npm run lint --if-present';
 const TEST_CMD       = process.env.ORCH_TEST_CMD       || 'npm test --if-present';
@@ -205,7 +205,7 @@ async function rollback(reason = 'manual') {
     log('WARN', 'rollback — script de rollback a eșuat, încearcă git revert HEAD~1');
     await run('git revert HEAD~1 --no-edit 2>&1 || git reset --hard HEAD~1 2>&1');
     await run('npm install --production 2>&1');
-    await run(`pm2 startOrRestart "${path.join(ROOT, 'ecosystem.config.js')}" --only unicorn,unicorn-orchestrator 2>&1`);
+    await run(`pm2 startOrRestart "${path.join(ROOT, 'ecosystem.config.js')}" --only unicorn,unicorn-main-orchestrator 2>&1`);
   }
 
   await new Promise(r => setTimeout(r, 8000));

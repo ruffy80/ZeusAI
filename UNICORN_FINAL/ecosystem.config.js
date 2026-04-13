@@ -198,7 +198,7 @@ module.exports = {
         SHIELD_HEALTH_URL: 'http://127.0.0.1:3000/api/health',
         SHIELD_ORCH_URL: 'http://127.0.0.1:3000/api/orchestrator/notify',
         SHIELD_ROLLBACK_CMD: 'bash scripts/rollback-last-backup.sh',
-        SHIELD_REPAIR_CMD: `pm2 startOrRestart "${ECOSYSTEM_PATH}" --only unicorn,unicorn-orchestrator,unicorn-health-guardian,unicorn-quantum-watchdog`,
+        SHIELD_REPAIR_CMD: `pm2 startOrRestart "${ECOSYSTEM_PATH}" --only unicorn,unicorn-main-orchestrator,unicorn-health-daemon,unicorn-shield,unicorn-quantum-watchdog`,
       },
       error_file: 'logs/shield-error.log',
       out_file: 'logs/shield-out.log',
