@@ -322,8 +322,7 @@ ENVFILE
     cd "$DEPLOY_PATH"
 
     # Încearcă mai întâi unicorn.service (dacă există)
-    if systemctl list-unit-files unicorn.service &>/dev/null && \
-       systemctl is-enabled --quiet unicorn.service 2>/dev/null; then
+    if systemctl is-enabled --quiet unicorn.service 2>/dev/null; then
       systemctl restart unicorn.service 2>/dev/null || true
       sleep 3
       if ss -tlnp 2>/dev/null | grep -q ":${NODE_PORT}[[:space:]]"; then

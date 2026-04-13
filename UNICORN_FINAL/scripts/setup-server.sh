@@ -357,8 +357,12 @@ else
   # Fallback inline: creare unicorn.service direct
   NODE_BIN_PATH="$(command -v node 2>/dev/null || echo '/usr/bin/node')"
   PM2_BIN_PATH="$(command -v pm2 2>/dev/null || echo '/usr/local/bin/pm2')"
+  # Validate that the binaries are actually present at the resolved paths
+  [ -x "$NODE_BIN_PATH" ] || die "Node.js nu a fost găsit (căutat: $NODE_BIN_PATH). Instalați Node.js și reîncercați."
+  [ -x "$PM2_BIN_PATH" ] || die "PM2 nu a fost găsit (căutat: $PM2_BIN_PATH). Rulați: npm install -g pm2"
   RUN_USER_SVC="${SUDO_USER:-root}"
   PM2_HOME_SVC="$(eval echo ~"$RUN_USER_SVC")/.pm2"
+  NODE_DIR_SVC="$(dirname "$NODE_BIN_PATH")"
 
   # Serviciu primar PM2 (resurrect la boot)
   cat > "/etc/systemd/system/pm2-${RUN_USER_SVC}.service" <<PMEOF
@@ -372,7 +376,7 @@ Type=forking
 User=${RUN_USER_SVC}
 LimitNOFILE=infinity
 LimitCORE=infinity
-Environment=PATH=${NODE_BIN_PATH%/node}:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+Environment=PATH=${NODE_DIR_SVC}:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 Environment=PM2_HOME=${PM2_HOME_SVC}
 PIDFile=${PM2_HOME_SVC}/pm2.pid
 Restart=on-failure
