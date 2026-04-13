@@ -2,63 +2,6 @@
 // OWNERSHIP: Acest fișier este proprietatea exclusivă a lui Vladoi Ionut
 // Email: vladoi_ionut@yahoo.com
 // BTC Address: bc1q4f7e66z87mdfj56kz0dj5hvcnpmh0qh4wuv22e
-// Data: 2026-04-11T20:56:24.784Z
-// Orice copiere, modificare sau distribuție neautorizată este interzisă.
-// =====================================================================
-
-// =====================================================================
-// OWNERSHIP: Acest fișier este proprietatea exclusivă a lui Vladoi Ionut
-// Email: vladoi_ionut@yahoo.com
-// BTC Address: bc1q4f7e66z87mdfj56kz0dj5hvcnpmh0qh4wuv22e
-// Data: 2026-04-11T12:15:50.119Z
-// Orice copiere, modificare sau distribuție neautorizată este interzisă.
-// =====================================================================
-
-// =====================================================================
-// OWNERSHIP: Acest fișier este proprietatea exclusivă a lui Vladoi Ionut
-// Email: vladoi_ionut@yahoo.com
-// BTC Address: bc1q4f7e66z87mdfj56kz0dj5hvcnpmh0qh4wuv22e
-// Data: 2026-04-11T12:11:52.875Z
-// Orice copiere, modificare sau distribuție neautorizată este interzisă.
-// =====================================================================
-
-// =====================================================================
-// OWNERSHIP: Acest fișier este proprietatea exclusivă a lui Vladoi Ionut
-// Email: vladoi_ionut@yahoo.com
-// BTC Address: bc1q4f7e66z87mdfj56kz0dj5hvcnpmh0qh4wuv22e
-// Data: 2026-04-11T11:25:28.348Z
-// Orice copiere, modificare sau distribuție neautorizată este interzisă.
-// =====================================================================
-
-// =====================================================================
-// OWNERSHIP: Acest fișier este proprietatea exclusivă a lui Vladoi Ionut
-// Email: vladoi_ionut@yahoo.com
-// BTC Address: bc1q4f7e66z87mdfj56kz0dj5hvcnpmh0qh4wuv22e
-// Data: 2026-04-11T10:52:40.334Z
-// Orice copiere, modificare sau distribuție neautorizată este interzisă.
-// =====================================================================
-
-// =====================================================================
-// OWNERSHIP: Acest fișier este proprietatea exclusivă a lui Vladoi Ionut
-// Email: vladoi_ionut@yahoo.com
-// BTC Address: bc1q4f7e66z87mdfj56kz0dj5hvcnpmh0qh4wuv22e
-// Data: 2026-04-11T10:50:35.957Z
-// Orice copiere, modificare sau distribuție neautorizată este interzisă.
-// =====================================================================
-
-// =====================================================================
-// OWNERSHIP: Acest fișier este proprietatea exclusivă a lui Vladoi Ionut
-// Email: vladoi_ionut@yahoo.com
-// BTC Address: bc1q4f7e66z87mdfj56kz0dj5hvcnpmh0qh4wuv22e
-// Data: 2026-04-11T09:30:47.847Z
-// Orice copiere, modificare sau distribuție neautorizată este interzisă.
-// =====================================================================
-
-// =====================================================================
-// OWNERSHIP: Acest fișier este proprietatea exclusivă a lui Vladoi Ionut
-// Email: vladoi_ionut@yahoo.com
-// BTC Address: bc1q4f7e66z87mdfj56kz0dj5hvcnpmh0qh4wuv22e
-// Data: 2026-04-11T09:29:31.906Z
 // Orice copiere, modificare sau distribuție neautorizată este interzisă.
 // =====================================================================
 
@@ -423,7 +366,15 @@ app.post('/api/user/change-password', authMiddleware, async (req, res) => {
 app.get('/api/auth/me', authMiddleware, (req, res) => {
   const user = dbUsers.findById(req.user.id);
   if (!user) return res.status(404).json({ error: 'User not found' });
-  res.json({ id: user.id, name: user.name, email: user.email, createdAt: user.createdAt, emailVerified: Boolean(user.emailVerified) });
+  res.json({ id: user.id, name: user.name, email: user.email, planId: user.planId || 'free', createdAt: user.createdAt, emailVerified: Boolean(user.emailVerified) });
+});
+
+// Refresh JWT token — issues a fresh token for the currently authenticated user.
+app.post('/api/auth/refresh', authMiddleware, (req, res) => {
+  const user = dbUsers.findById(req.user.id);
+  if (!user) return res.status(404).json({ error: 'User not found' });
+  const token = jwt.sign({ id: user.id, email: user.email, name: user.name }, JWT_SECRET, { expiresIn: '7d' });
+  res.json({ token, user: { id: user.id, name: user.name, email: user.email, planId: user.planId || 'free', emailVerified: Boolean(user.emailVerified) } });
 });
 
 app.post('/api/auth/forgot-password', authRateLimit(5, 15 * 60 * 1000), async (req, res) => {
@@ -1545,7 +1496,7 @@ app.get('/api/payment/stats', (req, res) => {
   res.json(paymentGateway.getStats());
 });
 
-app.post('/api/admin/payment/activate', (req, res) => {
+app.post('/api/admin/payment/activate', adminCrudRateLimit, adminTokenMiddleware, (req, res) => {
   const { method, active } = req.body;
   try {
     res.json(paymentGateway.activateMethod(method, active));
@@ -2587,6 +2538,24 @@ app.get('/api/bd/leads', adminCrudRateLimit, adminTokenMiddleware, (req, res) =>
   res.json(_bdStore.leads);
 });
 
+app.post('/api/bd/leads', adminCrudRateLimit, adminTokenMiddleware, (req, res) => {
+  const { name, company, email, phone, source, notes } = req.body || {};
+  if (!name) return res.status(400).json({ error: 'name is required' });
+  const lead = {
+    id: `lead-${Date.now()}-${++_bdIdCounter}`,
+    name: String(name),
+    company: String(company || ''),
+    email: String(email || ''),
+    phone: String(phone || ''),
+    source: String(source || 'manual'),
+    notes: String(notes || ''),
+    status: 'new',
+    createdAt: new Date().toISOString(),
+  };
+  _bdStore.leads.push(lead);
+  res.json({ success: true, lead });
+});
+
 // ==================== WEBHOOK DEPLOY (Hetzner fallback) ====================
 // Called by GitHub Actions when SSH deploy fails (HETZNER_WEBHOOK_URL points here)
 app.post('/deploy', (req, res) => {
@@ -3160,7 +3129,7 @@ app.get('/api/auto-deploy-orchestrator/status', adminTokenMiddleware, (req, res)
 });
 
 // ==================== CENTRAL ORCHESTRATOR ROUTES ====================
-app.get('/api/orchestrator/status', (req, res) => {
+app.get('/api/central-orchestrator/status', (req, res) => {
   res.json(centralOrchestrator.getStatus());
 });
 
