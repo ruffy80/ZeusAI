@@ -283,12 +283,16 @@ else
     warn "node_modules lipsesc. Se instalează dependențele..."
     cd "$DEPLOY_PATH"
     npm install --production
+    npm rebuild better-sqlite3 2>/dev/null || true
     fixed "Dependențe npm instalate"
   else
     ok "node_modules există"
+    # Rebuild native modules to match current Node.js ABI
+    cd "$DEPLOY_PATH"
+    npm rebuild better-sqlite3 2>/dev/null || true
   fi
 
-  # 3e. Creare .env dacă lipsește
+  # 3e. Creare .env dacă lipsește sau JWT_SECRET invalid
   if [ ! -f "$DEPLOY_PATH/.env" ]; then
     warn ".env lipsește. Se creează cu setări minimale..."
     JWT_SECRET=$(node -e "console.log(require('crypto').randomBytes(32).toString('hex'))" 2>/dev/null || openssl rand -hex 32)
@@ -304,6 +308,17 @@ ENVFILE
     if ! grep -q "^PORT=" "$DEPLOY_PATH/.env"; then
       echo "PORT=${NODE_PORT}" >> "$DEPLOY_PATH/.env"
       fixed "PORT=${NODE_PORT} adăugat în .env"
+    fi
+    # Asigură că JWT_SECRET este setat și valid (nu valoarea implicită)
+    EXISTING_JWT=$(grep '^JWT_SECRET=' "$DEPLOY_PATH/.env" | cut -d= -f2- | tr -d '"' | tr -d "'" | head -1)
+    if [ -z "$EXISTING_JWT" ] || [ "$EXISTING_JWT" = "unicorn-jwt-secret-change-in-prod" ]; then
+      NEW_JWT=$(node -e "console.log(require('crypto').randomBytes(32).toString('hex'))" 2>/dev/null || openssl rand -hex 32)
+      if grep -q '^JWT_SECRET=' "$DEPLOY_PATH/.env"; then
+        sed -i "s|^JWT_SECRET=.*|JWT_SECRET=${NEW_JWT}|" "$DEPLOY_PATH/.env"
+      else
+        echo "JWT_SECRET=${NEW_JWT}" >> "$DEPLOY_PATH/.env"
+      fi
+      fixed "JWT_SECRET generat și salvat în .env"
     fi
   fi
 
@@ -339,9 +354,15 @@ ENVFILE
       pm2 delete all 2>/dev/null || true
 
       if [ -f "$DEPLOY_PATH/ecosystem.config.js" ]; then
+        cd "$DEPLOY_PATH"
         pm2 start ecosystem.config.js
         fixed "PM2 pornit din ecosystem.config.js"
+      elif [ -f "$DEPLOY_PATH/UNICORN_FINAL/ecosystem.config.js" ]; then
+        cd "$DEPLOY_PATH/UNICORN_FINAL"
+        pm2 start ecosystem.config.js
+        fixed "PM2 pornit din UNICORN_FINAL/ecosystem.config.js"
       elif [ -f "$DEPLOY_PATH/backend/index.js" ]; then
+        cd "$DEPLOY_PATH"
         pm2 start backend/index.js \
           --name unicorn-backend \
           --env production \
@@ -365,7 +386,7 @@ ENVFILE
 fi
 
 # 3h. Verificare finală port 3000
-sleep 3
+sleep 10
 PORT_CHECK=0
 if ss -tlnp 2>/dev/null | grep -q ":${NODE_PORT}[[:space:]]"; then
   PORT_CHECK=1
@@ -378,6 +399,8 @@ if [ "$PORT_CHECK" -eq 1 ]; then
 else
   ko "Backend NU ascultă pe portul ${NODE_PORT}"
   warn "Verifică manual: pm2 logs && pm2 list"
+  # Afișează ultimele loguri PM2 pentru diagnosticare
+  pm2 logs unicorn --lines 30 --nostream 2>/dev/null || true
 fi
 
 # 3i. Test health endpoint
