@@ -42,9 +42,16 @@ const MAX_STDERR_BYTES = 500;     // truncation limit for exec stderr
 
 // Safe list of PM2 process names that can be restarted
 const SAFE_PM2_NAMES = new Set([
+  // Actual PM2 process names from ecosystem.config.js
+  'unicorn',
+  'unicorn-orchestrator',
+  'unicorn-health-guardian',
+  'unicorn-platform-connector',
+  'unicorn-uaic',
+  'unicorn-llama-bridge',
+  // Legacy / alternative names
   'unicorn-backend',
   'unicorn-frontend',
-  'unicorn-llama-bridge',
   'unicorn-worker',
   'zeus-ai',
 ]);
@@ -152,9 +159,9 @@ class SelfHealingEngine {
 
   async _healHetzner(reason) {
     // 1. Try PM2 restart of backend process
-    const restarted = await this._pm2Restart('unicorn-backend');
+    const restarted = await this._pm2Restart('unicorn');
     if (restarted) {
-      this._log('HEAL_DONE', 'hetzner', 'PM2 restart of unicorn-backend issued');
+      this._log('HEAL_DONE', 'hetzner', 'PM2 restart of unicorn issued');
       return;
     }
 
@@ -238,8 +245,8 @@ class SelfHealingEngine {
     if (!sshHost) return false;
 
     const args = sshKey
-      ? ['-i', sshKey, '-o', 'StrictHostKeyChecking=no', `${sshUser}@${sshHost}`, 'pm2 restart unicorn-backend --update-env']
-      : ['-o', 'StrictHostKeyChecking=no', `${sshUser}@${sshHost}`, 'pm2 restart unicorn-backend --update-env'];
+      ? ['-i', sshKey, '-o', 'StrictHostKeyChecking=no', `${sshUser}@${sshHost}`, 'pm2 restart unicorn --update-env']
+      : ['-o', 'StrictHostKeyChecking=no', `${sshUser}@${sshHost}`, 'pm2 restart unicorn --update-env'];
 
     this._log('SSH_RESTART', 'hetzner', `SSH restart attempt: ${sshHost}`);
     const ok = await this._exec('ssh', args, 'SSH restart');

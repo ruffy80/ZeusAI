@@ -21,7 +21,16 @@ module.exports = {
       restart_delay: 3000,
       env: {
         NODE_ENV: 'production',
-        PORT: 3000
+        PORT: 3000,
+        DOMAIN: 'zeusai.pro',
+        SITE_DOMAIN: 'zeusai.pro',
+        PUBLIC_APP_URL: 'https://zeusai.pro',
+        CORS_ORIGINS: 'https://zeusai.pro,https://www.zeusai.pro',
+        BTC_WALLET_ADDRESS: 'bc1q4f7e66z87mdfj56kz0dj5hvcnpmh0qh4wuv22e',
+        OWNER_NAME: 'Vladoi Ionut',
+        OWNER_EMAIL: 'vladoi_ionut@yahoo.com',
+        ADMIN_EMAIL: 'vladoi_ionut@yahoo.com',
+        HETZNER_BACKEND_URL: 'http://127.0.0.1:3000'
       },
       error_file: 'logs/pm2-error.log',
       out_file: 'logs/pm2-out.log',
@@ -46,7 +55,10 @@ module.exports = {
         REVENUE_INTERVAL: '15',
         VIRAL_INTERVAL: '20',
         DEPLOYMENT_INTERVAL: '120',
-        BACKEND_HEAL_CMD: 'pm2 restart unicorn'
+        BACKEND_HEAL_CMD: 'pm2 restart unicorn',
+        BACKEND_BASE_URL: 'http://127.0.0.1:3000',
+        DOMAIN: 'zeusai.pro',
+        PUBLIC_APP_URL: 'https://zeusai.pro'
       },
       error_file: 'logs/orchestrator-error.log',
       out_file: 'logs/orchestrator-out.log',
@@ -69,7 +81,7 @@ module.exports = {
         HEALTH_GUARDIAN_URL: 'http://127.0.0.1:3000/api/health',
         HEALTH_GUARDIAN_INTERVAL_MS: '30000',
         HEALTH_GUARDIAN_FAIL_THRESHOLD: '3',
-        HEALTH_GUARDIAN_HEAL_CMD: 'pm2 startOrRestart ecosystem.config.js --only unicorn'
+        HEALTH_GUARDIAN_HEAL_CMD: 'pm2 startOrRestart /opt/unicorn/ecosystem.config.js --only unicorn'
       },
       error_file: 'logs/health-guardian-error.log',
       out_file: 'logs/health-guardian-out.log',
@@ -89,7 +101,13 @@ module.exports = {
       restart_delay: 10000,
       env: {
         NODE_ENV: 'production',
-        PLATFORM_CHECK_INTERVAL_MS: '300000'
+        PLATFORM_CHECK_INTERVAL_MS: '300000',
+        VERCEL_HEALTH_URL: 'https://zeusai.pro/health',
+        HETZNER_HEALTH_URL: 'http://127.0.0.1:3000/api/health',
+        GITHUB_REPO_OWNER: 'ruffy80',
+        GITHUB_REPO_NAME: 'ZeusAI',
+        GITHUB_WORKFLOW_ID: 'vercel-deploy.yml',
+        GITHUB_BRANCH: 'main'
       },
       error_file: 'logs/platform-connector-error.log',
       out_file: 'logs/platform-connector-out.log',
