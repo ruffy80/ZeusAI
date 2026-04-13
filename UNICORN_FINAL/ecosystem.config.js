@@ -16,9 +16,9 @@ module.exports = {
       instances: 1,
       autorestart: true,
       watch: false,
-      max_restarts: 0,
+      max_restarts: 15,
+      min_uptime: '10s',
       restart_delay: 3000,
-      exp_backoff_restart_delay: 2000,
       env: {
         NODE_ENV: 'production',
         PORT: 3000
@@ -36,7 +36,8 @@ module.exports = {
       instances: 1,
       autorestart: true,
       watch: false,
-      max_restarts: 0,
+      max_restarts: 15,
+      min_uptime: '10s',
       restart_delay: 5000,
       exp_backoff_restart_delay: 2000,
       env: {
@@ -60,14 +61,15 @@ module.exports = {
       instances: 1,
       autorestart: true,
       watch: false,
-      max_restarts: 0,
+      max_restarts: 15,
+      min_uptime: '10s',
       restart_delay: 5000,
       env: {
         NODE_ENV: 'production',
         HEALTH_GUARDIAN_URL: 'http://127.0.0.1:3000/api/health',
         HEALTH_GUARDIAN_INTERVAL_MS: '30000',
         HEALTH_GUARDIAN_FAIL_THRESHOLD: '3',
-        HEALTH_GUARDIAN_HEAL_CMD: 'pm2 restart unicorn'
+        HEALTH_GUARDIAN_HEAL_CMD: 'pm2 restart unicorn 2>/dev/null || (pm2 delete unicorn 2>/dev/null; pm2 start /opt/unicorn/ecosystem.config.js --only unicorn)'
       },
       error_file: 'logs/health-guardian-error.log',
       out_file: 'logs/health-guardian-out.log',
@@ -82,7 +84,8 @@ module.exports = {
       instances: 1,
       autorestart: true,
       watch: false,
-      max_restarts: 0,
+      max_restarts: 15,
+      min_uptime: '10s',
       restart_delay: 10000,
       env: {
         NODE_ENV: 'production',
@@ -103,7 +106,8 @@ module.exports = {
       instances: 1,
       autorestart: true,
       watch: false,
-      max_restarts: 0,
+      max_restarts: 15,
+      min_uptime: '10s',
       restart_delay: 10000,
       exp_backoff_restart_delay: 3000,
       env: {

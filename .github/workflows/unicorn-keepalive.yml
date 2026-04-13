@@ -122,27 +122,38 @@ jobs:
           ssh -i ~/.ssh/deploy_key -p "${DEPLOY_PORT:-22}" \
             -o StrictHostKeyChecking=no -o BatchMode=yes -o ConnectTimeout=15 \
             "${DEPLOY_USER}@${DEPLOY_HOST}" << ENDSSH
-            # Restart PM2 processes
-            if command -v pm2 >/dev/null 2>&1; then
-              cd "${DEPLOY_PATH:-/opt/unicorn}" 2>/dev/null || cd "/opt/unicorn" 2>/dev/null || true
-              pm2 resurrect || true
-              pm2 restart unicorn 2>/dev/null || { \
-                echo "pm2 restart failed — clean start from ecosystem"; \
-                pm2 delete all 2>/dev/null || true; \
-                pm2 start ecosystem.config.js; \
-              }
-              pm2 save || true
-              echo "✅ PM2 restart attempted"
-            elif command -v systemctl >/dev/null 2>&1 && systemctl list-unit-files | grep -q '^unicorn\.service'; then
-              systemctl restart unicorn && echo "✅ Restarted via systemctl"
-            fi
-            # Ensure nginx is running
+            DEPLOY_PATH="${DEPLOY_PATH:-/opt/unicorn}"
+            cd "\$DEPLOY_PATH" 2>/dev/null || cd "/opt/unicorn" 2>/dev/null || true
+
+            # Ensure nginx is enabled and running
             if command -v nginx >/dev/null 2>&1; then
-              systemctl start nginx || service nginx start || true
+              systemctl enable nginx 2>/dev/null || true
+              systemctl start nginx 2>/dev/null || service nginx start 2>/dev/null || true
               echo "✅ Nginx ensured running"
             fi
-            sleep 5
-            curl -sf http://localhost:3000/api/health && echo "✅ Backend healthy after restart" || echo "⚠️  Backend still starting"
+
+            # Restart PM2 processes — skip resurrect (stale dumps cause silent failures)
+            # Use clean start from ecosystem: delete all → start fresh → save
+            if command -v pm2 >/dev/null 2>&1; then
+              pm2 stop all 2>/dev/null || true
+              pm2 delete all 2>/dev/null || true
+              pm2 start ecosystem.config.js
+              pm2 save
+              # Re-register PM2 startup hook so it survives reboots
+              pm2 startup systemd --no-daemon 2>/dev/null || \
+                pm2 startup 2>/dev/null | tail -1 | bash 2>/dev/null || true
+              echo "✅ PM2 clean start from ecosystem complete"
+            elif command -v systemctl >/dev/null 2>&1 && systemctl list-unit-files 2>/dev/null | grep -q '^unicorn\.service'; then
+              systemctl restart unicorn && echo "✅ Restarted via systemctl"
+            else
+              pkill -f "node backend/index.js" 2>/dev/null || true
+              sleep 1
+              nohup node backend/index.js > logs/backend.log 2>&1 &
+              echo "✅ Restarted via nohup fallback"
+            fi
+
+            sleep 10
+            curl -sf http://localhost:3000/api/health && echo "✅ Backend healthy after restart" || echo "⚠️  Backend still starting (may need more time)"
           ENDSSH
 
       - name: Verify platform recovered after SSH restart
@@ -155,8 +166,8 @@ jobs:
             echo "recovered=false" >> "$GITHUB_OUTPUT"
             exit 0
           fi
-          # Allow services 10 s to stabilise after the PM2 restart before re-probing
-          sleep 10
+          # Allow services 30 s to stabilise after the PM2 clean start before re-probing
+          sleep 30
           HEALTH_TIMEOUT=15
           # Check both Vercel and Hetzner from the runner
           VERCEL_URL="${{ secrets.VERCEL_HEALTH_URL || 'https://zeusai.pro/health' }}"

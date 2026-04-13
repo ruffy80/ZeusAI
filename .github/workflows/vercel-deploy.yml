@@ -856,6 +856,10 @@ jobs:
               # Start all apps from ecosystem (unicorn, orchestrator, health-guardian, connector)
               pm2 start ecosystem.config.js
               pm2 save
+              # Register PM2 in systemd so it starts on reboot
+              pm2 startup systemd --no-daemon 2>/dev/null || \
+                (pm2 startup 2>/dev/null | grep "^sudo" | head -1 | bash) 2>/dev/null || true
+              pm2 save
               echo "✅ All PM2 apps started from ecosystem.config.js"
             elif command -v systemctl >/dev/null 2>&1 && systemctl list-unit-files | grep -q "^unicorn\.service"; then
               systemctl restart unicorn && echo "✅ Restarted via systemctl"
@@ -865,6 +869,12 @@ jobs:
               mkdir -p logs
               nohup node backend/index.js > logs/backend.log 2>&1 &
               echo "✅ Restarted via nohup"
+            fi
+
+            # ── Ensure nginx is enabled to start on reboot ────────────────
+            if command -v nginx >/dev/null 2>&1; then
+              systemctl enable nginx 2>/dev/null || true
+              echo "✅ Nginx enabled for auto-start on reboot"
             fi
 
             # ── Setup systemd for permanent auto-boot (idempotent) ────────
