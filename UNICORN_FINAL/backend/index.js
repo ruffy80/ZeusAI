@@ -3243,6 +3243,23 @@ app.use((err, req, res, next) => {
   });
 });
 
+// ==================== PROCESS-LEVEL CRASH GUARD ====================
+// Prevent any unhandled exception or rejected promise from taking down
+// the entire server process. PM2 will still restart it if it truly dies,
+// but logging here lets us diagnose root causes without a hard crash.
+process.on('uncaughtException', (err) => {
+  console.error('[uncaughtException]', new Date().toISOString(), err && err.message ? err.message : err);
+  if (err && err.stack) console.error(err.stack);
+  // Do NOT call process.exit() — keep the server alive
+});
+
+process.on('unhandledRejection', (reason) => {
+  const msg = reason instanceof Error ? reason.message : String(reason);
+  console.error('[unhandledRejection]', new Date().toISOString(), msg);
+  if (reason instanceof Error && reason.stack) console.error(reason.stack);
+  // Do NOT call process.exit() — keep the server alive
+});
+
 // Only bind to a port when run directly (not when imported by Vercel or tests)
 if (require.main === module) {
   app.listen(PORT, () => {

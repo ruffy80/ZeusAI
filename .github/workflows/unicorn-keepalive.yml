@@ -1,11 +1,11 @@
 name: 🔗 Unicorn Keep-Alive (Platform Health Check)
 
-# Runs every 3 hours to verify Vercel + Hetzner are reachable.
+# Runs every 30 minutes to verify Vercel + Hetzner are reachable.
 # If either is down, triggers the main deploy workflow to heal the platform.
 
 on:
   schedule:
-    - cron: '30 */6 * * *'   # every 6 hours at :30
+    - cron: '*/30 * * * *'   # every 30 minutes
   workflow_dispatch:
     inputs:
       force_redeploy:
@@ -101,6 +101,45 @@ jobs:
     permissions:
       actions: write
     steps:
+      - name: Fast SSH restart (before full redeploy)
+        id: ssh_quick_restart
+        continue-on-error: true
+        env:
+          DEPLOY_HOST: ${{ secrets.HETZNER_HOST || secrets.SSH_HOST }}
+          DEPLOY_USER: ${{ secrets.HETZNER_DEPLOY_USER || secrets.HETZNER_USER || secrets.SSH_USER || 'root' }}
+          DEPLOY_PORT: ${{ secrets.HETZNER_DEPLOY_PORT || secrets.SSH_PORT || '22' }}
+          DEPLOY_PATH: ${{ secrets.HETZNER_DEPLOY_PATH || '/opt/unicorn' }}
+        run: |
+          if [ -z "$DEPLOY_HOST" ] || [ -z "${{ secrets.HETZNER_SSH_PRIVATE_KEY || secrets.SSH_PRIVATE_KEY }}" ]; then
+            echo "ℹ️  SSH secrets not configured — skipping fast restart"
+            exit 0
+          fi
+          mkdir -p ~/.ssh && chmod 700 ~/.ssh
+          echo "${{ secrets.HETZNER_SSH_PRIVATE_KEY || secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -t ed25519,rsa -p "${DEPLOY_PORT:-22}" "$DEPLOY_HOST" >> ~/.ssh/known_hosts 2>/dev/null || true
+
+          ssh -i ~/.ssh/deploy_key -p "${DEPLOY_PORT:-22}" \
+            -o StrictHostKeyChecking=no -o BatchMode=yes -o ConnectTimeout=15 \
+            "${DEPLOY_USER}@${DEPLOY_HOST}" << 'ENDSSH'
+            # Restart PM2 processes
+            if command -v pm2 >/dev/null 2>&1; then
+              pm2 resurrect 2>/dev/null || true
+              pm2 restart unicorn 2>/dev/null || pm2 start ecosystem.config.js 2>/dev/null || true
+              pm2 save 2>/dev/null || true
+              echo "✅ PM2 restart attempted"
+            elif command -v systemctl >/dev/null 2>&1 && systemctl list-unit-files | grep -q '^unicorn\.service'; then
+              systemctl restart unicorn && echo "✅ Restarted via systemctl"
+            fi
+            # Ensure nginx is running
+            if command -v nginx >/dev/null 2>&1; then
+              systemctl start nginx 2>/dev/null || service nginx start 2>/dev/null || true
+              echo "✅ Nginx ensured running"
+            fi
+            sleep 5
+            curl -sf http://localhost:3000/api/health && echo "✅ Backend healthy after restart" || echo "⚠️  Backend still starting"
+          ENDSSH
+
       - name: Dispatch main deploy workflow
         uses: actions/github-script@v7
         with:
