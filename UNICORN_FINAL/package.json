@@ -6,7 +6,7 @@
     "@octokit/rest": "^22.0.1",
     "axios": "^1.15.0",
     "bcryptjs": "^3.0.3",
-    "better-sqlite3": "^12.8.0",
+    "better-sqlite3": "^12.9.0",
     "ccxt": "^4.5.48",
     "chokidar": "^5.0.0",
     "compression": "^1.7.4",
