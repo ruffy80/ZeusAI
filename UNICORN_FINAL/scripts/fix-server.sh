@@ -91,8 +91,8 @@ fi
 if [ -f "$NGINX_CONF_SRC" ]; then
   # Actualizează server_name în config cu domeniul curent
   cp "$NGINX_CONF_SRC" "$NGINX_AVAILABLE"
-  # Înlocuiește server_name dacă domeniul din fișier diferă
-  sed -i "s/server_name .*;/server_name ${DOMAIN} www.${DOMAIN};/" "$NGINX_AVAILABLE"
+  # Înlocuiește server_name cu toate subdomeniile DNS configurate
+  sed -i "s/server_name .*;/server_name ${DOMAIN} www.${DOMAIN} api.${DOMAIN} orchestrator.${DOMAIN};/" "$NGINX_AVAILABLE"
   fixed "Config Nginx instalat la $NGINX_AVAILABLE (domain: $DOMAIN)"
 else
   # Generează config minimal dacă fișierul sursă lipsește
@@ -105,7 +105,7 @@ map \$http_upgrade \$connection_upgrade {
 server {
     listen 80;
     listen [::]:80;
-    server_name ${DOMAIN} www.${DOMAIN};
+    server_name ${DOMAIN} www.${DOMAIN} api.${DOMAIN} orchestrator.${DOMAIN};
 
     location /.well-known/acme-challenge/ {
         root /var/www/certbot;
@@ -413,15 +413,20 @@ if command -v certbot &>/dev/null; then
       fi
     fi
   else
-    warn "Niciun certificat SSL găsit pentru $DOMAIN."
-    info "Dacă vrei SSL automat, rulează:"
-    info "  certbot --nginx -d ${DOMAIN} -d www.${DOMAIN} --non-interactive --agree-tos -m admin@${DOMAIN}"
-    info "Nginx rulează pe HTTP (port 80) — site funcțional fără SSL."
+    warn "Niciun certificat SSL găsit pentru $DOMAIN. Se obține automat..."
+    # SSL off la registrar (sav.com) — certbot gestionează HTTPS direct pe server
+    certbot --nginx \
+      -d "${DOMAIN}" -d "www.${DOMAIN}" -d "api.${DOMAIN}" -d "orchestrator.${DOMAIN}" \
+      --non-interactive --agree-tos -m "admin@${DOMAIN}" --redirect 2>/dev/null && \
+      fixed "Certificat SSL obținut pentru ${DOMAIN} + www + api + orchestrator" || {
+        warn "Certbot a eșuat (DNS poate nu s-a propagat încă). Nginx rulează pe HTTP."
+        info "Reîncearcă manual: certbot --nginx -d ${DOMAIN} -d www.${DOMAIN} -d api.${DOMAIN} -d orchestrator.${DOMAIN}"
+      }
   fi
 else
   warn "Certbot nu este instalat."
   info "Instalează cu: apt-get install -y certbot python3-certbot-nginx"
-  info "Apoi obține certificat: certbot --nginx -d ${DOMAIN} -d www.${DOMAIN}"
+  info "Apoi obține certificat: certbot --nginx -d ${DOMAIN} -d www.${DOMAIN} -d api.${DOMAIN} -d orchestrator.${DOMAIN}"
 fi
 
 # =============================================================================
