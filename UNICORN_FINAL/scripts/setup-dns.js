@@ -3,10 +3,14 @@
  * setup-dns.js
  * Configureaza automat DNS records pentru zeusai.pro.
  *
+ * Tot unicornul (site + backend) ruleaza pe Hetzner.
+ * DNS pointeaza DIRECT la serverul Hetzner, nu la Vercel.
+ *
  * Records setate:
- *   A     @    76.76.21.21          → Vercel (primary)
- *   CNAME www  cname.vercel-dns.com → Vercel (www)
- *   A     @    204.168.230.142      → Hetzner (backup / round-robin)
+ *   A     @    <HETZNER_IP>   → Hetzner server (proxied: false)
+ *   A     www  <HETZNER_IP>   → Hetzner server (proxied: false)
+ *
+ * Sterge automat orice record Vercel ramas (76.76.21.21 / cname.vercel-dns.com).
  *
  * Provideri suportati (in ordine):
  *   1. Hetzner DNS API (dns.hetzner.com) — cheie: HETZNER_DNS_API_KEY sau HETZNER_API_KEY
@@ -21,16 +25,19 @@
 const https = require('https');
 
 const DOMAIN      = process.env.SITE_DOMAIN      || 'zeusai.pro';
-const VERCEL_IP   = process.env.VERCEL_IP         || '76.76.21.21';
-const HETZNER_IP  = process.env.HETZNER_HOST      || '204.168.230.142';
+const VERCEL_IP   = '76.76.21.21';
 const VERCEL_CNAME = 'cname.vercel-dns.com';
+const HETZNER_IP  = process.env.HETZNER_HOST      || '204.168.230.142';
 
-// DNS records to ensure exist
+// DNS records to ensure exist — tot unicornul ruleaza pe Hetzner
 const DESIRED_RECORDS = [
-  { type: 'A',     name: '@',   value: VERCEL_IP,    ttl: 300,  comment: 'Vercel primary' },
-  { type: 'CNAME', name: 'www', value: VERCEL_CNAME, ttl: 300,  comment: 'Vercel www' },
-  { type: 'A',     name: '@',   value: HETZNER_IP,   ttl: 300,  comment: 'Hetzner backup' },
+  { type: 'A', name: '@',   value: HETZNER_IP, ttl: 300, comment: 'Hetzner server' },
+  { type: 'A', name: 'www', value: HETZNER_IP, ttl: 300, comment: 'Hetzner server www' },
 ];
+
+// Old Vercel records that must be removed so DNS points only to Hetzner
+const STALE_A_VALUES    = [VERCEL_IP];
+const STALE_CNAME_NAMES = ['www']; // only when its value is the Vercel CNAME
 
 // ─── Generic HTTPS helper ────────────────────────────────────────────────────
 function request(opts, body) {
@@ -98,7 +105,37 @@ async function hetznerDns() {
 
   const existing = (recRes.status === 200 && recRes.body.records) ? recRes.body.records : [];
 
-  // 3. Upsert each desired record
+  // 3. Delete stale Vercel A records
+  for (const staleValue of STALE_A_VALUES) {
+    const staleRecs = existing.filter((r) => r.type === 'A' && r.value === staleValue);
+    for (const stale of staleRecs) {
+      console.log(`  🗑️  Deleting stale Vercel A ${stale.name} → ${staleValue}`);
+      const delRes = await request({
+        hostname: 'dns.hetzner.com',
+        path: `/api/v1/records/${stale.id}`,
+        method: 'DELETE',
+        headers: baseHeaders,
+      });
+      console.log(`  ${delRes.status < 300 ? '✅' : '❌'} DELETE A ${stale.name} → HTTP ${delRes.status}`);
+    }
+  }
+
+  // 4. Delete stale Vercel CNAME records (e.g. www → cname.vercel-dns.com)
+  for (const cname of STALE_CNAME_NAMES) {
+    const staleRecs = existing.filter((r) => r.type === 'CNAME' && r.name === cname && r.value.includes('vercel'));
+    for (const stale of staleRecs) {
+      console.log(`  🗑️  Deleting stale Vercel CNAME ${cname} → ${stale.value}`);
+      const delRes = await request({
+        hostname: 'dns.hetzner.com',
+        path: `/api/v1/records/${stale.id}`,
+        method: 'DELETE',
+        headers: baseHeaders,
+      });
+      console.log(`  ${delRes.status < 300 ? '✅' : '❌'} DELETE CNAME ${cname} → HTTP ${delRes.status}`);
+    }
+  }
+
+  // 5. Upsert each desired record
   for (const desired of DESIRED_RECORDS) {
     const match = existing.find(
       (r) => r.type === desired.type && r.name === desired.name && r.value === desired.value
@@ -109,16 +146,13 @@ async function hetznerDns() {
       continue;
     }
 
-    // Check if a conflicting record exists (same type+name but different value — for single-value types)
-    // For A records we allow multiple (round-robin), so we always create.
-    // For CNAME we replace if name conflicts.
+    // Replace any conflicting record with same type+name
     const conflict = existing.find(
-      (r) => r.type === desired.type && r.name === desired.name && desired.type === 'CNAME'
+      (r) => r.type === desired.type && r.name === desired.name
     );
 
     if (conflict) {
-      // Update existing CNAME
-      console.log(`  🔄 Updating CNAME ${desired.name} → ${desired.value} (was: ${conflict.value})`);
+      console.log(`  🔄 Updating ${desired.type} ${desired.name} → ${desired.value} (was: ${conflict.value})`);
       const upRes = await request(
         {
           hostname: 'dns.hetzner.com',
@@ -197,25 +231,81 @@ async function cloudflareDns() {
   // Helper: CF uses 'content' instead of 'value', '@' is root for CF
   const cfName = (n) => (n === '@' ? DOMAIN : `${n}.${DOMAIN}`);
 
-  // 3. Upsert each desired record
+  // 3. Delete stale Vercel A records (76.76.21.21)
+  for (const staleValue of STALE_A_VALUES) {
+    const staleRecs = existing.filter((r) => r.type === 'A' && r.content === staleValue);
+    for (const stale of staleRecs) {
+      console.log(`  🗑️  Deleting stale Vercel A ${stale.name} → ${staleValue}`);
+      const delRes = await request({
+        hostname: 'api.cloudflare.com',
+        path: `/client/v4/zones/${zoneId}/dns_records/${stale.id}`,
+        method: 'DELETE',
+        headers: baseHeaders,
+      });
+      console.log(`  ${delRes.body.success ? '✅' : '❌'} DELETE A ${stale.name} → HTTP ${delRes.status}`);
+    }
+  }
+
+  // 4. Delete stale Vercel CNAME records (e.g. www → cname.vercel-dns.com)
+  for (const cname of STALE_CNAME_NAMES) {
+    const cfCname = cfName(cname);
+    const staleRecs = existing.filter((r) => r.type === 'CNAME' && r.name === cfCname && r.content.includes('vercel'));
+    for (const stale of staleRecs) {
+      console.log(`  🗑️  Deleting stale Vercel CNAME ${cfCname} → ${stale.content}`);
+      const delRes = await request({
+        hostname: 'api.cloudflare.com',
+        path: `/client/v4/zones/${zoneId}/dns_records/${stale.id}`,
+        method: 'DELETE',
+        headers: baseHeaders,
+      });
+      console.log(`  ${delRes.body.success ? '✅' : '❌'} DELETE CNAME ${cfCname} → HTTP ${delRes.status}`);
+    }
+  }
+
+  // 5. Upsert each desired record (enforce proxied: false — Cloudflare proxy must be off for direct server)
   for (const desired of DESIRED_RECORDS) {
     const cfRecordName = cfName(desired.name);
-    const match = existing.find(
-      (r) => r.type === desired.type && r.name === cfRecordName && r.content === desired.value
+
+    // Match on type + name + content + proxied=false (all must be correct)
+    const exactMatch = existing.find(
+      (r) => r.type === desired.type && r.name === cfRecordName && r.content === desired.value && r.proxied === false
     );
 
-    if (match) {
-      console.log(`  ✅ Already exists: ${desired.type} ${cfRecordName} → ${desired.value}`);
+    if (exactMatch) {
+      console.log(`  ✅ Already correct: ${desired.type} ${cfRecordName} → ${desired.value} (proxied: false)`);
       continue;
     }
 
-    // Conflict = same type+name but different content (for CNAME, replace)
+    // Check if record exists with right content but proxied=true (needs proxy disabled)
+    const proxiedMatch = existing.find(
+      (r) => r.type === desired.type && r.name === cfRecordName && r.content === desired.value && r.proxied === true
+    );
+
+    if (proxiedMatch) {
+      console.log(`  🔄 Disabling Cloudflare proxy on ${desired.type} ${cfRecordName} → ${desired.value}`);
+      const upRes = await request(
+        {
+          hostname: 'api.cloudflare.com',
+          path: `/client/v4/zones/${zoneId}/dns_records/${proxiedMatch.id}`,
+          method: 'PUT',
+          headers: baseHeaders,
+        },
+        { type: desired.type, name: cfRecordName, content: desired.value, ttl: desired.ttl, proxied: false }
+      );
+      console.log(`  ${upRes.body.success ? '✅' : '❌'} PUT ${desired.type} ${cfRecordName} proxied→false: HTTP ${upRes.status}`);
+      if (!upRes.body.success) {
+        console.warn('     Errors:', JSON.stringify(upRes.body.errors).slice(0, 200));
+      }
+      continue;
+    }
+
+    // Conflict = same type+name but different content — replace it
     const conflict = existing.find(
-      (r) => r.type === desired.type && r.name === cfRecordName && desired.type === 'CNAME'
+      (r) => r.type === desired.type && r.name === cfRecordName
     );
 
     if (conflict) {
-      console.log(`  🔄 Updating CNAME ${cfRecordName} → ${desired.value}`);
+      console.log(`  🔄 Updating ${desired.type} ${cfRecordName} → ${desired.value} (was: ${conflict.content})`);
       const upRes = await request(
         {
           hostname: 'api.cloudflare.com',
@@ -225,7 +315,10 @@ async function cloudflareDns() {
         },
         { type: desired.type, name: cfRecordName, content: desired.value, ttl: desired.ttl, proxied: false }
       );
-      console.log(`  ${upRes.body.success ? '✅' : '❌'} PUT CNAME ${cfRecordName} → HTTP ${upRes.status}`);
+      console.log(`  ${upRes.body.success ? '✅' : '❌'} PUT ${desired.type} ${cfRecordName} → HTTP ${upRes.status}`);
+      if (!upRes.body.success) {
+        console.warn('     Errors:', JSON.stringify(upRes.body.errors).slice(0, 200));
+      }
     } else {
       console.log(`  ➕ Creating: ${desired.type} ${cfRecordName} → ${desired.value}`);
       const crRes = await request(
@@ -285,9 +378,10 @@ async function main() {
   console.log('');
   console.log('   Type    Name   Value                    TTL');
   console.log('   ──────────────────────────────────────────────');
-  console.log(`   A       @      ${VERCEL_IP.padEnd(24)} 300`);
-  console.log(`   CNAME   www    ${VERCEL_CNAME.padEnd(24)} 300`);
   console.log(`   A       @      ${HETZNER_IP.padEnd(24)} 300`);
+  console.log(`   A       www    ${HETZNER_IP.padEnd(24)} 300`);
+  console.log('');
+  console.log('   (Tot unicornul ruleaza pe Hetzner — nu mai este nevoie de records Vercel)');
   console.log('');
   console.log('   Pentru configurare automata setati una din variabilele:');
   console.log('   HETZNER_DNS_API_KEY=xxx  (Hetzner DNS token)');
