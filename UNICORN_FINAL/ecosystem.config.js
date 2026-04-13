@@ -148,7 +148,122 @@ module.exports = {
       log_date_format: 'YYYY-MM-DD HH:mm:ss'
     },
 
-    // ── 5. Universal AI Connector — UAIC (model discovery & routing daemon) ──
+    // ── 5. Main Orchestrator (checkRepo / validateCode / deploy / rollback / notify) ─
+    {
+      name: 'unicorn-main-orchestrator',
+      script: 'scripts/unicorn-main-orchestrator.js',
+      cwd: __dirname,
+      instances: 1,
+      autorestart: true,
+      watch: false,
+      max_restarts: 15,
+      min_uptime: '15s',
+      restart_delay: 10000,
+      exp_backoff_restart_delay: 3000,
+      env: {
+        NODE_ENV: 'production',
+        ORCH_POLL_MS: '120000',
+        ORCH_HEALTH_URL: 'http://127.0.0.1:3000/api/health',
+        ORCH_SHIELD_URL: 'http://127.0.0.1:3000/api/quantum-integrity/status',
+        ORCH_INNOVATION_URL: 'http://127.0.0.1:3000/api/innovation-loop/status',
+        ORCH_DEPLOY_CMD: 'bash scripts/deploy-hetzner.js 2>&1 || bash deploy.sh 2>&1',
+        ORCH_ROLLBACK_CMD: 'bash scripts/rollback-last-backup.sh',
+        ORCH_LINT_CMD: 'npm run lint --if-present',
+        ORCH_TEST_CMD: 'npm test --if-present',
+        DOMAIN: SITE_DOMAIN,
+        PUBLIC_APP_URL,
+      },
+      error_file: 'logs/main-orchestrator-error.log',
+      out_file: 'logs/main-orchestrator-out.log',
+      log_date_format: 'YYYY-MM-DD HH:mm:ss'
+    },
+
+    // ── 6. Shield (watchFiles / watchProcesses / autoRepair / emergencyRollback) ─
+    {
+      name: 'unicorn-shield',
+      script: 'scripts/unicorn-shield.js',
+      cwd: __dirname,
+      instances: 1,
+      autorestart: true,
+      watch: false,
+      max_restarts: 20,
+      min_uptime: '10s',
+      restart_delay: 5000,
+      exp_backoff_restart_delay: 2000,
+      env: {
+        NODE_ENV: 'production',
+        SHIELD_INTERVAL_MS: '30000',
+        SHIELD_PROC_MS: '20000',
+        SHIELD_FAIL_THRESHOLD: '3',
+        SHIELD_HEALTH_URL: 'http://127.0.0.1:3000/api/health',
+        SHIELD_ORCH_URL: 'http://127.0.0.1:3000/api/orchestrator/notify',
+        SHIELD_ROLLBACK_CMD: 'bash scripts/rollback-last-backup.sh',
+        SHIELD_REPAIR_CMD: `pm2 startOrRestart "${ECOSYSTEM_PATH}" --only unicorn,unicorn-orchestrator,unicorn-health-guardian,unicorn-quantum-watchdog`,
+      },
+      error_file: 'logs/shield-error.log',
+      out_file: 'logs/shield-out.log',
+      log_date_format: 'YYYY-MM-DD HH:mm:ss'
+    },
+
+    // ── 7. Health Daemon (checkBackend / checkFrontend / checkSSL / checkNginx / checkResources) ─
+    {
+      name: 'unicorn-health-daemon',
+      script: 'scripts/unicorn-health-daemon.js',
+      cwd: __dirname,
+      instances: 1,
+      autorestart: true,
+      watch: false,
+      max_restarts: 15,
+      min_uptime: '10s',
+      restart_delay: 5000,
+      env: {
+        NODE_ENV: 'production',
+        HEALTH_DAEMON_INTERVAL_MS: '60000',
+        HEALTH_BACKEND_URL: 'http://127.0.0.1:3000/api/health',
+        HEALTH_FRONTEND_URL: PUBLIC_APP_URL,
+        SITE_DOMAIN,
+        PUBLIC_APP_URL,
+        HEALTH_REPORT_URL: 'http://127.0.0.1:3000/api/health-daemon/report',
+        HEALTH_ORCH_URL: 'http://127.0.0.1:3000/api/orchestrator/notify',
+        HEALTH_SSL_WARN_DAYS: '14',
+        HEALTH_CPU_WARN: '85',
+        HEALTH_RAM_WARN: '90',
+        HEALTH_DISK_WARN: '85',
+      },
+      error_file: 'logs/health-daemon-error.log',
+      out_file: 'logs/health-daemon-out.log',
+      log_date_format: 'YYYY-MM-DD HH:mm:ss'
+    },
+
+    // ── 8. Auto-Innovation Agent (analyzeCodebase / proposeImprovements / createPR / innovationLoop) ─
+    {
+      name: 'unicorn-innovation-agent',
+      script: 'backend/modules/auto-innovation-loop.js',
+      cwd: __dirname,
+      instances: 1,
+      autorestart: true,
+      watch: false,
+      max_restarts: 10,
+      min_uptime: '15s',
+      restart_delay: 15000,
+      exp_backoff_restart_delay: 5000,
+      env: {
+        NODE_ENV: 'production',
+        INNOV_CYCLE_MS: '3600000',
+        INNOV_PR_POLL_MS: '300000',
+        INNOV_MAX_PENDING: '3',
+        INNOV_BASE_BRANCH: 'main',
+        DOMAIN: SITE_DOMAIN,
+        PUBLIC_APP_URL,
+        GITHUB_REPO_OWNER: GH_OWNER,
+        GITHUB_REPO_NAME: GH_REPO,
+      },
+      error_file: 'logs/innovation-agent-error.log',
+      out_file: 'logs/innovation-agent-out.log',
+      log_date_format: 'YYYY-MM-DD HH:mm:ss'
+    },
+
+    // ── 9. Universal AI Connector — UAIC (model discovery & routing daemon) ──
     // Runs independently to keep the AI model registry fresh.
     // The backend also loads UAIC inline; this process handles cron discovery.
     {
@@ -170,7 +285,7 @@ module.exports = {
       log_date_format: 'YYYY-MM-DD HH:mm:ss'
     },
 
-    // ── 6. Llama Bridge (starts Ollama serve at P4 / nice +10) ────────────────
+    // ── 10. Llama Bridge (starts Ollama serve at P4 / nice +10) ───────────────
     // Prerequisite: `ollama` must be installed on the server.
     // Install: curl -fsSL https://ollama.ai/install.sh | sh
     // Pull model: ollama pull llama3.1:8b-instruct-q4_K_M
