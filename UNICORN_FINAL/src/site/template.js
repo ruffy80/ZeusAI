@@ -548,6 +548,12 @@ select.form-inp option{background:#0a0e24;}
       <button class="dash-tab-btn active" data-dtab="overview" onclick="switchDashTab('overview')">📊 Overview</button>
       <button class="dash-tab-btn" data-dtab="workflows" onclick="switchDashTab('workflows')">⚙️ Workflows</button>
       <button class="dash-tab-btn" data-dtab="alerts" onclick="switchDashTab('alerts')">🔔 Alerts</button>
+      <button class="dash-tab-btn" data-dtab="labs" onclick="switchDashTab('labs')">🔬 Labs</button>
+      <button class="dash-tab-btn" data-dtab="enterprise" onclick="switchDashTab('enterprise')">🏛️ Enterprise</button>
+      <button class="dash-tab-btn" data-dtab="markets" onclick="switchDashTab('markets')">🌐 Markets</button>
+      <button class="dash-tab-btn" data-dtab="tenant" onclick="switchDashTab('tenant')">💎 Tenant</button>
+      <button class="dash-tab-btn" data-dtab="healthscore" onclick="switchDashTab('healthscore')">💊 Health</button>
+      <button class="dash-tab-btn" data-dtab="qpay" onclick="switchDashTab('qpay')">⚛️ Q-Pay</button>
       <button class="dash-tab-btn" data-dtab="profile" onclick="switchDashTab('profile')">👤 Profile</button>
     </div>
     <div class="dash-tab-panel active" id="dtab-overview">
@@ -565,14 +571,30 @@ select.form-inp option{background:#0a0e24;}
         <div style="text-align:center;padding:40px;"><div class="loader"></div></div>
       </div>
     </div>
+    <div class="dash-tab-panel" id="dtab-labs">
+      <div id="labs-content"><div style="text-align:center;padding:40px;"><div class="loader"></div></div></div>
+    </div>
+    <div class="dash-tab-panel" id="dtab-enterprise">
+      <div id="enterprise-content"><div style="text-align:center;padding:40px;"><div class="loader"></div></div></div>
+    </div>
+    <div class="dash-tab-panel" id="dtab-markets">
+      <div id="markets-content"><div style="text-align:center;padding:40px;"><div class="loader"></div></div></div>
+    </div>
+    <div class="dash-tab-panel" id="dtab-tenant">
+      <div id="tenant-content"><div style="text-align:center;padding:40px;"><div class="loader"></div></div></div>
+    </div>
+    <div class="dash-tab-panel" id="dtab-healthscore">
+      <div id="healthscore-content"><div style="text-align:center;padding:40px;"><div class="loader"></div></div></div>
+    </div>
+    <div class="dash-tab-panel" id="dtab-qpay">
+      <div id="qpay-content"><div style="text-align:center;padding:40px;"><div class="loader"></div></div></div>
+    </div>
     <div class="dash-tab-panel" id="dtab-profile">
       <div id="profile-content">
         <div style="text-align:center;padding:40px;"><div class="loader"></div></div>
       </div>
     </div>
   </div><!-- end #view-dashboard -->
-
-  <!-- ADMIN VIEW -->
   <div id="view-admin" class="view">
     <div class="sec-title">⚙️ Admin Panel</div>
     <div id="admin-login-section">
@@ -601,6 +623,9 @@ select.form-inp option{background:#0a0e24;}
         <button class="adm-tab-btn" data-atab="viral" onclick="switchAdminTab('viral')">🚀 Viral</button>
         <button class="adm-tab-btn" data-atab="innovation" onclick="switchAdminTab('innovation')">💡 Innovation</button>
         <button class="adm-tab-btn" data-atab="pricing" onclick="switchAdminTab('pricing')">🏷️ Pricing</button>
+        <button class="adm-tab-btn" data-atab="autonomous" onclick="switchAdminTab('autonomous')">🔄 Autonomous</button>
+        <button class="adm-tab-btn" data-atab="modules" onclick="switchAdminTab('modules')">🔧 Modules</button>
+        <button class="adm-tab-btn" data-atab="advanced" onclick="switchAdminTab('advanced')">🌌 Advanced</button>
       </div>
       <!-- OVERVIEW TAB -->
       <div class="adm-tab-panel active" id="atab-overview">
@@ -643,9 +668,33 @@ select.form-inp option{background:#0a0e24;}
           <div class="dash-section-title">Revenue Breakdown</div>
           <div id="rev-breakdown" style="color:#7090b0;font-size:13px;padding:10px 0;">Loading...</div>
         </div>
-        <div class="card">
+        <div class="card" style="margin-bottom:16px;">
           <div class="dash-section-title">Growth Metrics</div>
           <div id="rev-growth" style="color:#7090b0;font-size:13px;padding:10px 0;">Loading...</div>
+        </div>
+        <div class="card" style="margin-bottom:16px;">
+          <div class="dash-section-title">Wealth Engine Stats</div>
+          <div id="rev-wealth-stats" style="color:#7090b0;font-size:12px;">Loading...</div>
+          <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap;">
+            <button class="btn btn-primary btn-sm" onclick="adminSaveWealthSettings()">💾 Save Wealth Settings</button>
+          </div>
+        </div>
+        <div class="card" style="margin-bottom:16px;">
+          <div class="dash-section-title">Quantum Payment Revenue</div>
+          <div id="rev-qpay-stats" style="color:#7090b0;font-size:12px;">Loading...</div>
+        </div>
+        <div class="card" style="margin-bottom:16px;">
+          <div class="dash-section-title">Executive Modules & Innovations</div>
+          <div id="rev-exec-modules" style="color:#7090b0;font-size:12px;">Loading...</div>
+          <div id="rev-exec-innovations" style="color:#7090b0;font-size:12px;margin-top:8px;"></div>
+        </div>
+        <div class="card">
+          <div class="dash-section-title">Executive AI Copilot</div>
+          <div style="display:flex;gap:8px;margin-bottom:10px;">
+            <input class="inp-field" type="text" id="exec-copilot-inp" placeholder="Ask the Executive AI..." style="flex:1;"/>
+            <button class="btn btn-primary btn-sm" onclick="askExecCopilot()">Ask</button>
+          </div>
+          <div id="exec-copilot-response" style="font-size:13px;color:#e8f4ff;background:rgba(0,212,255,.05);border:1px solid rgba(0,212,255,.1);border-radius:8px;padding:10px;min-height:40px;display:none;"></div>
         </div>
       </div>
       <!-- SYSTEM TAB -->
@@ -667,6 +716,28 @@ select.form-inp option{background:#0a0e24;}
         <div class="card" style="margin-bottom:16px;">
           <div class="dash-section-title">Control Plane Decisions</div>
           <div id="sys-decisions" style="font-size:12px;color:#7090b0;">Loading...</div>
+          <div style="margin-top:8px;"><button class="btn btn-danger btn-sm" onclick="adminControlPlaneRollback()">⏪ Rollback</button></div>
+        </div>
+        <div class="card" style="margin-bottom:16px;">
+          <div class="dash-section-title">Canary Deployments</div>
+          <div id="sys-canary-decisions" style="font-size:12px;color:#7090b0;">Loading...</div>
+          <div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap;">
+            <button class="btn btn-primary btn-sm" onclick="adminRegisterCanary()">+ Register Canary</button>
+          </div>
+        </div>
+        <div class="card" style="margin-bottom:16px;">
+          <div class="dash-section-title">Shadow Test Variants</div>
+          <div id="sys-shadow-variants" style="font-size:12px;color:#7090b0;">Loading...</div>
+          <div style="margin-top:8px;"><button class="btn btn-primary btn-sm" onclick="adminRegisterShadow()">+ Register Shadow</button></div>
+        </div>
+        <div class="card" style="margin-bottom:16px;">
+          <div class="dash-section-title">A/B Experiments</div>
+          <div id="sys-experiments" style="font-size:12px;color:#7090b0;">Loading...</div>
+          <div style="margin-top:8px;"><button class="btn btn-primary btn-sm" onclick="adminAddExperiment()">+ New Experiment</button></div>
+        </div>
+        <div class="card" style="margin-bottom:16px;">
+          <div class="dash-section-title">Profit Attribution Metrics</div>
+          <div id="sys-profit-metrics" style="font-size:12px;color:#7090b0;">Loading...</div>
         </div>
         <div class="card">
           <div class="dash-section-title">Profit Loop Status</div>
@@ -707,9 +778,32 @@ select.form-inp option{background:#0a0e24;}
             <div style="text-align:center;padding:20px;"><div class="loader"></div></div>
           </div>
         </div>
-        <div class="card">
+        <div class="card" style="margin-bottom:16px;">
           <div class="dash-section-title">Leads</div>
           <div id="crm-leads-list" style="color:#7090b0;font-size:13px;">Loading...</div>
+        </div>
+        <div class="card" style="margin-bottom:16px;">
+          <div class="dash-section-title">Affiliate / Referral Stats</div>
+          <div id="crm-affiliate-stats" style="color:#7090b0;font-size:12px;">Loading...</div>
+        </div>
+        <div class="card" style="margin-bottom:16px;">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
+            <div class="dash-section-title" style="margin:0;">All Referrals (Admin)</div>
+            <button class="btn btn-outline btn-sm" onclick="loadAdminCRM()">🔄 Refresh</button>
+          </div>
+          <div id="crm-all-referrals" style="color:#7090b0;font-size:12px;">Loading...</div>
+        </div>
+        <div class="card" style="margin-bottom:16px;">
+          <div class="dash-section-title">Onboarding Flow</div>
+          <div id="crm-onboarding" style="color:#7090b0;font-size:12px;">Loading...</div>
+          <div style="margin-top:8px;">
+            <input class="inp-field" type="text" id="onboard-company-inp" placeholder="Company name..." style="width:100%;margin-bottom:6px;"/>
+            <button class="btn btn-primary btn-sm" onclick="adminStartOnboarding()">🚀 Start Onboarding</button>
+          </div>
+        </div>
+        <div class="card">
+          <div class="dash-section-title">Marketplace Intelligence</div>
+          <div id="crm-mkt-intelligence" style="color:#7090b0;font-size:12px;">Loading...</div>
         </div>
       </div>
       <!-- VIRAL TAB -->
@@ -768,9 +862,255 @@ select.form-inp option{background:#0a0e24;}
           </div>
           <div id="pricing-all-list" style="font-size:12px;color:#7090b0;">Loading...</div>
         </div>
-        <div class="card">
-          <div class="dash-section-title">White Label Tenants</div>
+        <div class="card" style="margin-bottom:16px;">
+          <div class="dash-section-title">White Label Tenants (Admin)</div>
           <div id="pricing-tenants-list" style="font-size:12px;color:#7090b0;">Loading...</div>
+        </div>
+        <div class="card" style="margin-bottom:16px;">
+          <div class="dash-section-title">Credits Plans & Admin</div>
+          <div id="adm-credits-plans" style="font-size:12px;color:#7090b0;">Loading...</div>
+          <div style="margin-top:10px;"><div id="adm-credits-users" style="font-size:12px;color:#7090b0;max-height:180px;overflow-y:auto;"></div></div>
+        </div>
+        <div class="card" style="margin-bottom:16px;">
+          <div class="dash-section-title">Billing Plans (Admin)</div>
+          <div id="adm-billing-plans" style="font-size:12px;color:#7090b0;">Loading...</div>
+        </div>
+        <div class="card" style="margin-bottom:16px;">
+          <div class="dash-section-title">Platform Webhooks</div>
+          <div id="adm-webhooks-list" style="font-size:12px;color:#7090b0;">Loading...</div>
+          <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap;">
+            <button class="btn btn-primary btn-sm" onclick="adminAddWebhook()">+ Add Webhook</button>
+            <button class="btn btn-outline btn-sm" onclick="loadAdminPricing()">🔄 Refresh</button>
+          </div>
+        </div>
+        <div class="card">
+          <div class="dash-section-title">Admin Health Scores</div>
+          <div id="adm-health-scores" style="font-size:12px;color:#7090b0;">Loading...</div>
+          <div style="margin-top:10px;"><div id="adm-churn-risk" style="font-size:12px;color:#7090b0;"></div></div>
+        </div>
+      </div>
+      <!-- AUTONOMOUS TAB -->
+      <div class="adm-tab-panel" id="atab-autonomous">
+        <div class="grid-3" style="margin-bottom:16px;">
+          <div class="card card-sm"><div class="label">Innovation</div><div class="kpi-val cyan" id="auto-innov-status">—</div></div>
+          <div class="card card-sm"><div class="label">Revenue Engine</div><div class="kpi-val green" id="auto-rev-status">—</div></div>
+          <div class="card card-sm"><div class="label">Platform</div><div class="kpi-val" id="auto-platform-status">—</div></div>
+        </div>
+        <div class="card" style="margin-bottom:16px;">
+          <div class="dash-section-title">Autonomous Innovation Status</div>
+          <div id="auto-innov-detail" style="font-size:12px;color:#7090b0;">Loading...</div>
+          <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap;">
+            <button class="btn btn-primary btn-sm" onclick="triggerAutoInnovation()">▶ Trigger Innovation</button>
+            <button class="btn btn-outline btn-sm" onclick="optimizeAutoInnovation()">⚡ Optimize</button>
+            <button class="btn btn-ghost btn-sm" onclick="loadAdminAutonomous()">🔄 Refresh</button>
+          </div>
+        </div>
+        <div class="card" style="margin-bottom:16px;">
+          <div class="dash-section-title">Autonomous Revenue Engine</div>
+          <div id="auto-rev-detail" style="font-size:12px;color:#7090b0;">Loading...</div>
+          <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap;">
+            <button class="btn btn-primary btn-sm" onclick="generateAutoDeals()">💰 Generate Deals</button>
+          </div>
+        </div>
+        <div class="card" style="margin-bottom:16px;">
+          <div class="dash-section-title">Orchestrator</div>
+          <div id="auto-orchestrator-detail" style="font-size:12px;color:#7090b0;">Loading...</div>
+          <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap;">
+            <button class="btn btn-primary btn-sm" onclick="runOrchestratorCheck()">🔍 Run Check</button>
+          </div>
+        </div>
+        <div class="card" style="margin-bottom:16px;">
+          <div class="dash-section-title">Self-Healer</div>
+          <div id="auto-healer-status" style="font-size:12px;color:#7090b0;">Loading...</div>
+          <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap;">
+            <button class="btn btn-outline btn-sm" onclick="adminHealerRestart()">🔁 Restart</button>
+            <button class="btn btn-danger btn-sm" onclick="adminHealerRedeploy()">🚀 Redeploy</button>
+          </div>
+        </div>
+        <div class="card" style="margin-bottom:16px;">
+          <div class="dash-section-title">Innovation Loop Logs</div>
+          <div id="auto-innov-log" style="font-size:11px;color:#7090b0;max-height:150px;overflow-y:auto;">Loading...</div>
+        </div>
+        <div class="card" style="margin-bottom:16px;">
+          <div class="dash-section-title">Pending PRs</div>
+          <div id="auto-pending-prs" style="font-size:12px;color:#7090b0;">Loading...</div>
+        </div>
+        <div class="card" style="margin-bottom:16px;">
+          <div class="dash-section-title">Self-Construction</div>
+          <div id="auto-self-construction" style="font-size:12px;color:#7090b0;">Loading...</div>
+          <div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap;">
+            <button class="btn btn-primary btn-sm" onclick="runSelfConstruction()">🏗️ Run Build</button>
+          </div>
+        </div>
+        <div class="card">
+          <div class="dash-section-title">Total System Healer</div>
+          <div id="auto-total-healer" style="font-size:12px;color:#7090b0;">Loading...</div>
+          <div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap;">
+            <button class="btn btn-primary btn-sm" onclick="runTotalHeal()">🩺 Heal All</button>
+            <button class="btn btn-outline btn-sm" onclick="checkAllModules()">📋 Check Modules</button>
+          </div>
+        </div>
+      </div>
+      <!-- MODULES TAB -->
+      <div class="adm-tab-panel" id="atab-modules">
+        <div class="card" style="margin-bottom:16px;">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
+            <div class="dash-section-title" style="margin:0;">Module Loader</div>
+            <button class="btn btn-outline btn-sm" onclick="loadAdminModules()">🔄 Refresh</button>
+          </div>
+          <div id="mod-loader-status" style="font-size:12px;color:#7090b0;">Loading...</div>
+          <div id="mod-loader-list" style="font-size:12px;color:#7090b0;margin-top:8px;max-height:160px;overflow-y:auto;"></div>
+        </div>
+        <div class="card" style="margin-bottom:16px;">
+          <div class="dash-section-title">Future Compatibility Bridge</div>
+          <div id="mod-future-compat" style="font-size:12px;color:#7090b0;">Loading...</div>
+          <div style="margin-top:8px;"><button class="btn btn-primary btn-sm" onclick="runFutureCompatProcess()">▶ Process</button></div>
+        </div>
+        <div class="card" style="margin-bottom:16px;">
+          <div class="dash-section-title">Configuration Manager</div>
+          <div id="mod-config-status" style="font-size:12px;color:#7090b0;">Loading...</div>
+          <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px;">
+            <input class="inp-field" type="text" id="cfg-key-inp" placeholder="Config key..." style="flex:1;min-width:100px;"/>
+            <input class="inp-field" type="text" id="cfg-val-inp" placeholder="Value..." style="flex:1;min-width:100px;"/>
+            <button class="btn btn-primary btn-sm" onclick="adminSetConfig()">Set</button>
+            <button class="btn btn-outline btn-sm" onclick="adminGetConfig()">Get</button>
+          </div>
+          <div id="cfg-result" style="font-size:12px;color:#00d4ff;margin-top:8px;"></div>
+        </div>
+        <div class="card" style="margin-bottom:16px;">
+          <div class="dash-section-title">Revenue Modules Status</div>
+          <div id="mod-rev-modules" style="font-size:12px;color:#7090b0;">Loading...</div>
+          <div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap;">
+            <button class="btn btn-outline btn-sm" onclick="simTradingRevenue()">📈 Simulate Trading</button>
+            <button class="btn btn-outline btn-sm" onclick="optimizeCloudRevenue()">☁️ Optimize Cloud</button>
+          </div>
+        </div>
+        <div class="card" style="margin-bottom:16px;">
+          <div class="dash-section-title">Quantum Security Layer</div>
+          <div id="mod-qsec-status" style="font-size:12px;color:#7090b0;">Loading...</div>
+          <div style="margin-top:8px;"><button class="btn btn-primary btn-sm" onclick="runQuantumSecurityProcess()">🔐 Process</button></div>
+        </div>
+        <div class="card" style="margin-bottom:16px;">
+          <div class="dash-section-title">Quantum Integrity Shield</div>
+          <div id="mod-qintegrity-status" style="font-size:12px;color:#7090b0;">Loading...</div>
+          <div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap;">
+            <button class="btn btn-primary btn-sm" onclick="runQuantumIntegrityScan()">🛡️ Scan</button>
+          </div>
+          <div id="mod-qintegrity-history" style="font-size:11px;color:#7090b0;margin-top:8px;max-height:100px;overflow-y:auto;"></div>
+        </div>
+        <div class="card" style="margin-bottom:16px;">
+          <div class="dash-section-title">Quantum Vault</div>
+          <div id="mod-qvault-status" style="font-size:12px;color:#7090b0;">Loading...</div>
+          <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px;">
+            <input class="inp-field" type="text" id="vault-key-inp" placeholder="Vault key..." style="flex:1;min-width:100px;"/>
+            <input class="inp-field" type="text" id="vault-val-inp" placeholder="Secret value..." style="flex:1;min-width:100px;"/>
+            <button class="btn btn-primary btn-sm" onclick="adminVaultStore()">Store</button>
+            <button class="btn btn-outline btn-sm" onclick="adminVaultRetrieve()">Retrieve</button>
+            <button class="btn btn-ghost btn-sm" onclick="adminVaultUnlock()">🔓 Unlock</button>
+          </div>
+          <div id="vault-result" style="font-size:12px;color:#00ffa3;margin-top:8px;"></div>
+        </div>
+        <div class="card" style="margin-bottom:16px;">
+          <div class="dash-section-title">Temporal Processor</div>
+          <div id="mod-temporal-status" style="font-size:12px;color:#7090b0;">Loading...</div>
+          <div style="margin-top:8px;"><button class="btn btn-primary btn-sm" onclick="runTemporalProcess()">⏱️ Process</button></div>
+        </div>
+        <div class="card" style="margin-bottom:16px;">
+          <div class="dash-section-title">UAC (Universal Autonomous Controller)</div>
+          <div id="mod-uac-status" style="font-size:12px;color:#7090b0;">Loading...</div>
+          <div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap;">
+            <button class="btn btn-outline btn-sm" onclick="runUacCycle()">🔄 Cycle</button>
+            <button class="btn btn-outline btn-sm" onclick="runUacInnovate()">💡 Innovate</button>
+            <button class="btn btn-outline btn-sm" onclick="runUacOptimize()">⚡ Optimize</button>
+          </div>
+        </div>
+        <div class="card" style="margin-bottom:16px;">
+          <div class="dash-section-title">Mesh Orchestrator</div>
+          <div id="mod-mesh-status" style="font-size:12px;color:#7090b0;">Loading...</div>
+          <div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap;">
+            <button class="btn btn-primary btn-sm" onclick="adminMeshSync()">🔄 Sync</button>
+          </div>
+          <div id="mod-mesh-log" style="font-size:11px;color:#7090b0;margin-top:8px;max-height:100px;overflow-y:auto;"></div>
+        </div>
+        <div class="card" style="margin-bottom:16px;">
+          <div class="dash-section-title">Code Sanity Engine</div>
+          <div id="mod-code-sanity" style="font-size:12px;color:#7090b0;">Loading...</div>
+          <div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap;">
+            <button class="btn btn-primary btn-sm" onclick="runCodeSanityScan()">🔍 Scan</button>
+          </div>
+        </div>
+        <div class="card">
+          <div class="dash-section-title">Trust & Audit</div>
+          <div id="mod-trust-status" style="font-size:12px;color:#7090b0;">Loading...</div>
+          <div id="mod-trust-incidents" style="font-size:12px;color:#7090b0;margin-top:8px;"></div>
+        </div>
+      </div>
+      <!-- ADVANCED TAB -->
+      <div class="adm-tab-panel" id="atab-advanced">
+        <div class="grid-3" style="margin-bottom:16px;">
+          <div class="card card-sm"><div class="label">AGI Engine</div><div class="kpi-val cyan" id="adv-agi-status">—</div></div>
+          <div class="card card-sm"><div class="label">Sovereign</div><div class="kpi-val green" id="adv-sovereign-status">—</div></div>
+          <div class="card card-sm"><div class="label">Quantum ML</div><div class="kpi-val" id="adv-qml-status">—</div></div>
+        </div>
+        <div class="card" style="margin-bottom:16px;">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
+            <div class="dash-section-title" style="margin:0;">AGI Self-Evolution Engine</div>
+            <button class="btn btn-outline btn-sm" onclick="loadAdminAdvanced()">🔄 Refresh</button>
+          </div>
+          <div id="adv-agi-detail" style="font-size:12px;color:#7090b0;">Loading...</div>
+          <div style="margin-top:8px;"><button class="btn btn-primary btn-sm" onclick="runAgiProcess()">▶ Process Task</button>
+          <input class="inp-field" type="text" id="agi-task-inp" placeholder="AGI task..." style="margin-top:6px;width:100%;"/></div>
+          <div id="agi-result" style="font-size:12px;color:#00ffa3;margin-top:8px;"></div>
+        </div>
+        <div class="card" style="margin-bottom:16px;">
+          <div class="dash-section-title">Sovereign Access Guardian</div>
+          <div id="adv-sovereign-detail" style="font-size:12px;color:#7090b0;">Loading...</div>
+          <div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap;">
+            <button class="btn btn-primary btn-sm" onclick="adminSetupTotp()">🔐 Setup TOTP</button>
+          </div>
+          <div id="totp-result" style="font-size:12px;color:#00ffa3;margin-top:8px;word-break:break-all;"></div>
+        </div>
+        <div class="card" style="margin-bottom:16px;">
+          <div class="dash-section-title">Autonomous Space Computing</div>
+          <div id="adv-space-detail" style="font-size:12px;color:#7090b0;">Loading...</div>
+          <div style="margin-top:8px;"><button class="btn btn-outline btn-sm" onclick="runSpaceProcess()">🚀 Process</button>
+          <input class="inp-field" type="text" id="space-task-inp" placeholder="Space computing task..." style="margin-top:6px;width:100%;"/></div>
+          <div id="space-result" style="font-size:12px;color:#00ffa3;margin-top:8px;"></div>
+        </div>
+        <div class="card" style="margin-bottom:16px;">
+          <div class="dash-section-title">Decentralized Digital Twin Network</div>
+          <div id="adv-dtwin-detail" style="font-size:12px;color:#7090b0;">Loading...</div>
+          <div style="margin-top:8px;"><button class="btn btn-outline btn-sm" onclick="runDigitalTwinProcess()">🔄 Process</button>
+          <input class="inp-field" type="text" id="dtwin-task-inp" placeholder="Digital twin task..." style="margin-top:6px;width:100%;"/></div>
+          <div id="dtwin-result" style="font-size:12px;color:#00ffa3;margin-top:8px;"></div>
+        </div>
+        <div class="card" style="margin-bottom:16px;">
+          <div class="dash-section-title">Neural Interface API</div>
+          <div id="adv-neural-detail" style="font-size:12px;color:#7090b0;">Loading...</div>
+          <div style="margin-top:8px;"><button class="btn btn-outline btn-sm" onclick="runNeuralProcess()">🧠 Process</button>
+          <input class="inp-field" type="text" id="neural-task-inp" placeholder="Neural interface task..." style="margin-top:6px;width:100%;"/></div>
+          <div id="neural-result" style="font-size:12px;color:#00ffa3;margin-top:8px;"></div>
+        </div>
+        <div class="card" style="margin-bottom:16px;">
+          <div class="dash-section-title">Quantum Internet Protocol</div>
+          <div id="adv-qinternet-detail" style="font-size:12px;color:#7090b0;">Loading...</div>
+          <div style="margin-top:8px;"><button class="btn btn-outline btn-sm" onclick="runQuantumInternetProcess()">🌐 Process</button>
+          <input class="inp-field" type="text" id="qinternet-task-inp" placeholder="Quantum internet task..." style="margin-top:6px;width:100%;"/></div>
+          <div id="qinternet-result" style="font-size:12px;color:#00ffa3;margin-top:8px;"></div>
+        </div>
+        <div class="card" style="margin-bottom:16px;">
+          <div class="dash-section-title">Quantum ML Core</div>
+          <div id="adv-qml-detail" style="font-size:12px;color:#7090b0;">Loading...</div>
+          <div style="margin-top:8px;"><button class="btn btn-outline btn-sm" onclick="runQuantumMlProcess()">⚛️ Process</button>
+          <input class="inp-field" type="text" id="qml-task-inp" placeholder="Quantum ML task..." style="margin-top:6px;width:100%;"/></div>
+          <div id="qml-result" style="font-size:12px;color:#00ffa3;margin-top:8px;"></div>
+        </div>
+        <div class="card">
+          <div class="dash-section-title">Temporal Data Layer</div>
+          <div id="adv-temporal-detail" style="font-size:12px;color:#7090b0;">Loading...</div>
+          <div style="margin-top:8px;"><button class="btn btn-outline btn-sm" onclick="runTemporalDataProcess()">⏳ Process</button>
+          <input class="inp-field" type="text" id="temporaldata-task-inp" placeholder="Temporal data task..." style="margin-top:6px;width:100%;"/></div>
+          <div id="temporaldata-result" style="font-size:12px;color:#00ffa3;margin-top:8px;"></div>
         </div>
       </div>
     </div>
@@ -1453,6 +1793,12 @@ function switchDashTab(tab){
   if(tab==='overview') loadDashboard();
   else if(tab==='workflows') loadWorkflows();
   else if(tab==='alerts') loadAlerts();
+  else if(tab==='labs') loadDashLabs();
+  else if(tab==='enterprise') loadDashEnterprise();
+  else if(tab==='markets') loadDashMarkets();
+  else if(tab==='tenant') loadDashTenant();
+  else if(tab==='healthscore') loadDashHealthScore();
+  else if(tab==='qpay') loadDashQPay();
   else if(tab==='profile') loadProfile();
 }
 
@@ -1711,6 +2057,9 @@ function switchAdminTab(tab){
   else if(tab==='viral') loadAdminViral();
   else if(tab==='innovation') loadAdminInnovation();
   else if(tab==='pricing') loadAdminPricing();
+  else if(tab==='autonomous') loadAdminAutonomous();
+  else if(tab==='modules') loadAdminModules();
+  else if(tab==='advanced') loadAdminAdvanced();
 }
 
 async function loadAdminData(){
@@ -2101,9 +2450,1539 @@ async function activatePricingSurge(){
   loadAdminPricing();
 }
 
+async function activatePricingSurge(){
+  var svc=prompt('Service ID for surge (leave blank for all):');
+  var dur=prompt('Duration (30min / 1h / 2h / 6h / 24h):') || '1h';
+  var mult=prompt('Surge multiplier (e.g. 1.5):') || '1.5';
+  var r=await api('POST','/api/pricing/surge',{serviceId:svc||undefined,durationKey:dur,multiplier:parseFloat(mult)||1.5},true);
+  if(r.error){toast(r.error,'err');return;}
+  toast('Surge pricing activated!','ok');
+  loadAdminPricing();
+}
+
 // ================================================================
-// CHECKOUT
+// ADMIN REVENUE ENHANCEMENTS
 // ================================================================
+async function loadAdminRevenue(){
+  var [stats,rev,growth,wealth,qpayRev,execModules,execInnovations]=await Promise.all([
+    api('GET','/api/admin/executive/stats',null,true).catch(function(){return {};}),
+    api('GET','/api/admin/executive/revenue',null,true).catch(function(){return {};}),
+    api('GET','/api/admin/executive/growth',null,true).catch(function(){return {};}),
+    api('GET','/api/wealth/stats',null,true).catch(function(){return {};}),
+    api('GET','/api/quantum-payment/revenue',null,true).catch(function(){return {};}),
+    api('GET','/api/admin/executive/modules',null,true).catch(function(){return {};}),
+    api('GET','/api/admin/executive/innovations',null,true).catch(function(){return {};})
+  ]);
+  setElText('rev-total','$'+(stats.totalRevenue||rev.total||0).toLocaleString());
+  setElText('rev-mrr','$'+(stats.mrr||rev.mrr||0).toLocaleString());
+  setElText('rev-margin',(stats.profitMargin||rev.margin||0)+'%');
+  var bkEl=document.getElementById('rev-breakdown');
+  if(bkEl){
+    var src=rev.breakdown||rev.sources||stats.breakdown;
+    if(src&&typeof src==='object'){
+      bkEl.innerHTML=Object.keys(src).map(function(k){
+        return '<div class="deal-row"><div><div style="font-weight:600;color:#e8f4ff;">'+escHtml(k)+'</div></div>'
+          +'<div class="green">$'+Number(src[k]).toLocaleString()+'</div></div>';
+      }).join('');
+    } else {
+      bkEl.innerHTML='<div style="color:#7090b0;">Revenue data loading...</div>';
+    }
+  }
+  var grEl=document.getElementById('rev-growth');
+  if(grEl){
+    var g=growth.metrics||growth.data||growth;
+    if(g&&typeof g==='object'){
+      grEl.innerHTML=Object.keys(g).slice(0,6).map(function(k){
+        var v=g[k];
+        var isPos=typeof v==='number'?v>=0:true;
+        return '<div class="deal-row"><div style="color:#e8f4ff;font-size:13px;">'+escHtml(k)+'</div>'
+          +'<div class="'+(isPos?'green':'')+'">'+escHtml(String(v))+'</div></div>';
+      }).join('');
+    } else {
+      grEl.innerHTML='<div style="color:#7090b0;">Growth data loading...</div>';
+    }
+  }
+  var wEl=document.getElementById('rev-wealth-stats');
+  if(wEl){
+    var ws=wealth.stats||wealth.data||wealth||{};
+    wEl.innerHTML=Object.keys(ws).slice(0,8).map(function(k){
+      return '<div class="deal-row"><div style="color:#e8f4ff;">'+escHtml(k)+'</div><div class="cyan">'+escHtml(String(ws[k]))+'</div></div>';
+    }).join('')||'<div style="color:#7090b0;">No wealth data.</div>';
+  }
+  var qpEl=document.getElementById('rev-qpay-stats');
+  if(qpEl){
+    var qps=qpayRev.revenue||qpayRev.data||qpayRev||{};
+    qpEl.innerHTML=Object.keys(qps).slice(0,6).map(function(k){
+      return '<div class="deal-row"><div style="color:#e8f4ff;">'+escHtml(k)+'</div><div class="green">'+escHtml(String(qps[k]))+'</div></div>';
+    }).join('')||'<div style="color:#7090b0;">No quantum payment revenue yet.</div>';
+  }
+  var emEl=document.getElementById('rev-exec-modules');
+  if(emEl){
+    var mods=execModules.modules||execModules.data||execModules||[];
+    if(Array.isArray(mods)&&mods.length){
+      emEl.innerHTML='<div style="font-weight:600;color:#00d4ff;margin-bottom:6px;">Active Modules ('+mods.length+')</div>'
+        +mods.slice(0,10).map(function(m){return '<span class="badge badge-cyan" style="margin:2px;">'+escHtml(m.name||m.id||m)+'</span>';}).join('');
+    } else if(mods&&typeof mods==='object'){
+      emEl.innerHTML='<pre style="font-size:11px;overflow:auto;max-height:80px;">'+escHtml(JSON.stringify(mods,null,2))+'</pre>';
+    } else {
+      emEl.innerHTML='<div style="color:#7090b0;">No module info.</div>';
+    }
+  }
+  var eiEl=document.getElementById('rev-exec-innovations');
+  if(eiEl){
+    var inns=execInnovations.innovations||execInnovations.data||execInnovations||{};
+    eiEl.innerHTML='<pre style="font-size:11px;overflow:auto;max-height:80px;">'+escHtml(JSON.stringify(inns,null,2))+'</pre>';
+  }
+}
+
+async function adminSaveWealthSettings(){
+  var settings={autoInvest:true,riskTolerance:'medium'};
+  var r=await api('POST','/api/admin/wealth/settings',settings,true);
+  if(r.error){toast(r.error,'err');return;}
+  toast('Wealth settings saved!','ok');
+}
+
+async function askExecCopilot(){
+  var inp=document.getElementById('exec-copilot-inp');
+  var respEl=document.getElementById('exec-copilot-response');
+  if(!inp||!respEl) return;
+  var q=inp.value.trim();
+  if(!q) return;
+  respEl.style.display='block';
+  respEl.innerHTML='<div class="loader"></div>';
+  var r=await api('POST','/api/executive/copilot',{query:q},true);
+  var reply=r.reply||r.response||r.result||r.answer||JSON.stringify(r);
+  respEl.innerHTML=escHtml(String(reply));
+}
+
+// ================================================================
+// ADMIN SYSTEM ENHANCEMENTS
+// ================================================================
+async function loadAdminSystem(){
+  var [slo,cb,canary,decisions,loop,canaryDecs,shadow,experiments,profitMetrics]=await Promise.all([
+    api('GET','/api/slo/status').catch(function(){return {};}),
+    api('GET','/api/circuit-breaker/status').catch(function(){return {};}),
+    api('GET','/api/canary').catch(function(){return {};}),
+    api('GET','/api/control-plane/decisions',null,true).catch(function(){return {};}),
+    api('GET','/api/profit-loop/status',null,true).catch(function(){return {};}),
+    api('GET','/api/canary/decisions',null,true).catch(function(){return {};}),
+    api('GET','/api/shadow/variants',null,true).catch(function(){return {};}),
+    api('GET','/api/experiments',null,true).catch(function(){return {};}),
+    api('GET','/api/profit/metrics',null,true).catch(function(){return {};})
+  ]);
+  var sloOk=(slo.healthy||slo.status==='ok'||slo.all_met);
+  setElText('sys-slo',sloOk?'✅ Healthy':'⚠️ Degraded');
+  var cbOk=cb.state==='closed'||cb.status==='closed'||!cb.open;
+  setElText('sys-cb',cbOk?'✅ Closed':'🔴 Open');
+  var cOk=(canary.active||canary.status==='running');
+  setElText('sys-canary',cOk?'🟡 Active':'⚪ Idle');
+  var decEl=document.getElementById('sys-decisions');
+  if(decEl){
+    var decs=(decisions.decisions||decisions.data||[]);
+    if(Array.isArray(decs)&&decs.length){
+      decEl.innerHTML=decs.slice(0,5).map(function(d){
+        return '<div class="deal-row"><div><div style="font-weight:600;color:#e8f4ff;font-size:12px;">'+escHtml(d.action||d.type||'Decision')+'</div>'
+          +'<div style="font-size:11px;color:#7090b0;">'+escHtml((d.reason||d.description||'').slice(0,80))+'</div></div>'
+          +'<div style="font-size:11px;color:#7090b0;">'+(d.timestamp?new Date(d.timestamp).toLocaleDateString():'')+'</div>'
+          +'</div>';
+      }).join('');
+    } else {
+      decEl.innerHTML='<div style="color:#7090b0;padding:8px 0;">No recent decisions.</div>';
+    }
+  }
+  var loopEl=document.getElementById('sys-profit-loop');
+  if(loopEl){
+    var ls=loop.status||loop.state||loop;
+    loopEl.innerHTML='<pre style="font-size:11px;overflow:auto;max-height:120px;">'+escHtml(JSON.stringify(ls,null,2))+'</pre>';
+  }
+  var cdEl=document.getElementById('sys-canary-decisions');
+  if(cdEl){
+    var cds=canaryDecs.decisions||canaryDecs.data||[];
+    if(Array.isArray(cds)&&cds.length){
+      cdEl.innerHTML=cds.slice(0,5).map(function(d){
+        return '<div class="deal-row"><div style="color:#e8f4ff;font-size:12px;">'+escHtml(d.canaryId||d.id||'Canary')+'</div>'
+          +'<div><span class="badge '+(d.action==='promote'?'badge-cyan':d.action==='rollback'?'badge-purple':'')+'">'+escHtml(d.action||'—')+'</span></div></div>';
+      }).join('');
+    } else {
+      cdEl.innerHTML='<div style="color:#7090b0;">No canary decisions.</div>';
+    }
+  }
+  var svEl=document.getElementById('sys-shadow-variants');
+  if(svEl){
+    var svs=shadow.variants||shadow.data||[];
+    if(Array.isArray(svs)&&svs.length){
+      svEl.innerHTML=svs.slice(0,5).map(function(v){
+        return '<div class="deal-row"><div><div style="font-weight:600;color:#e8f4ff;font-size:12px;">'+escHtml(v.name||v.id||'Variant')+'</div></div>'
+          +'<div><span class="badge '+(v.status==='promoted'?'badge-cyan':v.status==='rejected'?'badge-purple':'')+'">'+escHtml(v.status||'testing')+'</span></div></div>';
+      }).join('');
+    } else {
+      svEl.innerHTML='<div style="color:#7090b0;">No shadow variants.</div>';
+    }
+  }
+  var expEl=document.getElementById('sys-experiments');
+  if(expEl){
+    var exps=experiments.experiments||experiments.data||[];
+    if(Array.isArray(exps)&&exps.length){
+      expEl.innerHTML=exps.slice(0,5).map(function(e){
+        return '<div class="deal-row"><div><div style="font-weight:600;color:#e8f4ff;font-size:12px;">'+escHtml(e.name||e.id||'Experiment')+'</div>'
+          +'<div style="font-size:11px;color:#7090b0;">Traffic: '+(e.trafficSplit||50)+'%</div></div>'
+          +'<div><span class="badge '+(e.status==='running'?'badge-cyan':'')+'">'+escHtml(e.status||'idle')+'</span>'
+          +'<button class="btn btn-ghost btn-sm" style="margin-left:4px;" onclick="evaluateExperiment(\''+escAttr(String(e.id||''))+'\')">Eval</button></div></div>';
+      }).join('');
+    } else {
+      expEl.innerHTML='<div style="color:#7090b0;">No experiments.</div>';
+    }
+  }
+  var pmEl=document.getElementById('sys-profit-metrics');
+  if(pmEl){
+    var pm=profitMetrics.metrics||profitMetrics.data||profitMetrics||{};
+    pmEl.innerHTML=Object.keys(pm).slice(0,6).map(function(k){
+      return '<div class="deal-row"><div style="color:#e8f4ff;font-size:12px;">'+escHtml(k)+'</div><div class="green">'+escHtml(String(pm[k]))+'</div></div>';
+    }).join('')||'<div style="color:#7090b0;">No profit metrics yet.</div>';
+  }
+}
+
+async function adminControlPlaneRollback(){
+  var reason=prompt('Rollback reason:');
+  if(!reason) return;
+  var r=await api('POST','/api/control-plane/rollback',{reason:reason},true);
+  if(r.error){toast(r.error,'err');return;}
+  toast('Rollback initiated!','ok');
+  loadAdminSystem();
+}
+
+async function adminRegisterCanary(){
+  var name=prompt('Canary deployment name:');
+  if(!name) return;
+  var r=await api('POST','/api/canary/register',{name:name,description:'New canary deployment'},true);
+  if(r.error){toast(r.error,'err');return;}
+  toast('Canary registered!','ok');
+  loadAdminSystem();
+}
+
+async function adminRegisterShadow(){
+  var name=prompt('Shadow variant name:');
+  if(!name) return;
+  var r=await api('POST','/api/shadow/register',{name:name,description:'Shadow test variant'},true);
+  if(r.error){toast(r.error,'err');return;}
+  toast('Shadow variant registered!','ok');
+  loadAdminSystem();
+}
+
+async function adminAddExperiment(){
+  var name=prompt('Experiment name:');
+  if(!name) return;
+  var split=prompt('Traffic split % for variant B (default 50):') || '50';
+  var r=await api('POST','/api/experiments',{name:name,trafficSplit:parseInt(split)||50},true);
+  if(r.error){toast(r.error,'err');return;}
+  toast('Experiment created!','ok');
+  loadAdminSystem();
+}
+
+async function evaluateExperiment(id){
+  var r=await api('POST','/api/experiments/'+id+'/evaluate',{},true);
+  if(r.error){toast(r.error,'err');return;}
+  toast('Experiment evaluated!','ok');
+  loadAdminSystem();
+}
+
+// ================================================================
+// ADMIN CRM ENHANCEMENTS
+// ================================================================
+async function loadAdminCRM(){
+  var [deals,leads,affiliateStats,allReferrals,mktIntel]=await Promise.all([
+    api('GET','/api/bd/deals',null,true).catch(function(){return {};}),
+    api('GET','/api/bd/leads',null,true).catch(function(){return {};}),
+    api('GET','/api/partners/affiliate/stats',null,true).catch(function(){return {};}),
+    api('GET','/api/admin/referrals/all',null,true).catch(function(){return {};}),
+    api('GET','/api/marketplace/intelligence').catch(function(){return {};})
+  ]);
+  var dealList=(deals.deals||deals.data||deals||[]);
+  var leadList=(leads.leads||leads.data||leads||[]);
+  if(!Array.isArray(dealList)) dealList=[];
+  if(!Array.isArray(leadList)) leadList=[];
+  var dealsEl=document.getElementById('crm-deals-list');
+  if(dealsEl){
+    dealsEl.innerHTML=dealList.length?dealList.map(function(d){
+      var stage=(d.stage||'lead').toLowerCase();
+      return '<div class="deal-row">'
+        +'<div><div style="font-weight:700;color:#e8f4ff;font-size:13px;">'+escHtml(d.company||d.name||'Deal')+'</div>'
+        +'<div style="font-size:12px;color:#7090b0;margin-top:2px;">'+escHtml(d.notes||d.description||'')+'</div></div>'
+        +'<div style="display:flex;gap:8px;align-items:center;">'
+        +(d.value?'<div style="font-family:Orbitron,monospace;color:#00ffa3;font-size:13px;">$'+Number(d.value).toLocaleString()+'</div>':'')
+        +'<span class="deal-stage '+escAttr(stage)+'">'+escHtml(stage)+'</span>'
+        +'</div></div>';
+    }).join(''):'<div style="padding:16px;text-align:center;color:#7090b0;font-size:13px;">No deals yet. Add your first deal!</div>';
+  }
+  var leadsEl=document.getElementById('crm-leads-list');
+  if(leadsEl){
+    leadsEl.innerHTML=leadList.length?leadList.slice(0,10).map(function(l){
+      return '<div class="deal-row">'
+        +'<div><div style="font-weight:600;color:#e8f4ff;">'+escHtml(l.name||l.company||'Lead')+'</div>'
+        +'<div style="font-size:12px;color:#7090b0;">'+escHtml(l.email||l.contact||'')+'</div></div>'
+        +'<div style="font-size:11px;color:#7090b0;">'+(l.createdAt?new Date(l.createdAt).toLocaleDateString():'—')+'</div>'
+        +'</div>';
+    }).join(''):'<div style="padding:10px 0;color:#7090b0;font-size:13px;">No leads yet.</div>';
+  }
+  var affEl=document.getElementById('crm-affiliate-stats');
+  if(affEl){
+    var aff=affiliateStats.stats||affiliateStats.data||affiliateStats||{};
+    affEl.innerHTML=Object.keys(aff).slice(0,8).map(function(k){
+      return '<div class="deal-row"><div style="color:#e8f4ff;">'+escHtml(k)+'</div><div class="cyan">'+escHtml(String(aff[k]))+'</div></div>';
+    }).join('')||'<div style="color:#7090b0;">No affiliate stats.</div>';
+  }
+  var refEl=document.getElementById('crm-all-referrals');
+  if(refEl){
+    var refs=allReferrals.referrals||allReferrals.data||[];
+    if(!Array.isArray(refs)) refs=[];
+    refEl.innerHTML=refs.length?refs.slice(0,10).map(function(r){
+      return '<div class="deal-row"><div><div style="font-weight:600;color:#e8f4ff;font-size:12px;">'+escHtml(r.code||r.id||'Referral')+'</div>'
+        +'<div style="font-size:11px;color:#7090b0;">'+escHtml(r.referredEmail||r.email||'')+'</div></div>'
+        +'<div style="font-size:12px;color:#00ffa3;">'+escHtml(String(r.reward||r.credits||0))+'</div></div>';
+    }).join(''):'<div style="color:#7090b0;">No referrals yet.</div>';
+  }
+  var mktEl=document.getElementById('crm-mkt-intelligence');
+  if(mktEl){
+    var mi=mktIntel.intelligence||mktIntel.data||mktIntel||{};
+    mktEl.innerHTML='<pre style="font-size:11px;overflow:auto;max-height:100px;">'+escHtml(JSON.stringify(mi,null,2))+'</pre>';
+  }
+}
+
+async function adminStartOnboarding(){
+  var company=document.getElementById('onboard-company-inp').value.trim();
+  var r=await api('POST','/api/onboarding/start',{company:company||'New Company'});
+  if(r.error){toast(r.error,'err');return;}
+  toast('Onboarding started!','ok');
+  var id=r.id||r.sessionId;
+  if(id){
+    var recs=await api('GET','/api/onboarding/recommendations/'+id);
+    var d=document.getElementById('crm-onboarding');
+    if(d){d.innerHTML='<pre style="font-size:11px;overflow:auto;max-height:80px;">'+escHtml(JSON.stringify(recs,null,2))+'</pre>';}
+  }
+}
+
+// ================================================================
+// ADMIN PRICING ENHANCEMENTS
+// ================================================================
+async function loadAdminPricing(){
+  var [allPricing,adminTenants,creditsPlans,creditsUsers,billingPlans,healthScores,churnRisk]=await Promise.all([
+    api('GET','/api/pricing/all').catch(function(){return {};}),
+    api('GET','/api/admin/tenants',null,true).catch(function(){return {};}),
+    api('GET','/api/credits/plans').catch(function(){return {};}),
+    api('GET','/api/admin/credits/users',null,true).catch(function(){return {};}),
+    api('GET','/api/billing/plans',null,true).catch(function(){return {};}),
+    api('GET','/api/admin/health-scores',null,true).catch(function(){return {};}),
+    api('GET','/api/admin/health-scores/churn-risk',null,true).catch(function(){return {};})
+  ]);
+  var pricingEl=document.getElementById('pricing-all-list');
+  if(pricingEl){
+    var items=allPricing.pricing||allPricing.data||allPricing||{};
+    if(typeof items==='object'&&!Array.isArray(items)&&Object.keys(items).length){
+      pricingEl.innerHTML=Object.keys(items).map(function(k){
+        var v=items[k];
+        var price=v.currentPrice||v.price||v.basePrice||v;
+        var surge=v.surgeActive||v.isSurge||false;
+        return '<div class="deal-row">'
+          +'<div><div style="font-weight:600;color:#e8f4ff;">'+escHtml(k)+'</div>'
+          +(surge?'<span class="badge badge-purple" style="font-size:10px;">SURGE</span>':'')+'</div>'
+          +'<div style="font-family:Orbitron,monospace;color:#00d4ff;">$'+escHtml(String(typeof price==='number'?price.toFixed(2):price))+'</div>'
+          +'</div>';
+      }).join('');
+    } else if(Array.isArray(items)&&items.length){
+      pricingEl.innerHTML=items.map(function(p){
+        return '<div class="deal-row">'
+          +'<div style="font-weight:600;color:#e8f4ff;">'+escHtml(p.name||p.id||'Service')+'</div>'
+          +'<div style="font-family:Orbitron,monospace;color:#00d4ff;">$'+escHtml(String(p.price||p.currentPrice||0))+'</div>'
+          +'</div>';
+      }).join('');
+    } else {
+      pricingEl.innerHTML='<div style="color:#7090b0;">No pricing data available.</div>';
+    }
+  }
+  var tenantsEl=document.getElementById('pricing-tenants-list');
+  if(tenantsEl){
+    var tList=adminTenants.tenants||adminTenants.data||adminTenants||[];
+    if(!Array.isArray(tList)) tList=[];
+    tenantsEl.innerHTML=tList.length?tList.map(function(t){
+      return '<div class="deal-row">'
+        +'<div><div style="font-weight:600;color:#e8f4ff;">'+escHtml(t.name||t.subdomain||t.id||'Tenant')+'</div>'
+        +'<div style="font-size:11px;color:#7090b0;">'+escHtml(t.subdomain||t.domain||'')+'</div></div>'
+        +'<div><span class="badge badge-cyan">'+escHtml(t.plan||'enterprise')+'</span>'
+        +'<button class="btn btn-ghost btn-sm" style="margin-left:4px;" onclick="updateTenantBranding(\''+escAttr(String(t.id||''))+'\')">🎨 Brand</button></div>'
+        +'</div>';
+    }).join(''):'<div style="color:#7090b0;">No white-label tenants yet. Enterprise plan required.</div>';
+  }
+  var cpEl=document.getElementById('adm-credits-plans');
+  if(cpEl){
+    var plans=creditsPlans.plans||creditsPlans.data||[];
+    if(!Array.isArray(plans)) plans=Object.values(creditsPlans)||[];
+    cpEl.innerHTML=plans.length?plans.map(function(p){
+      return '<div class="deal-row"><div style="font-weight:600;color:#e8f4ff;">'+escHtml(p.name||p.id||'Plan')+'</div>'
+        +'<div class="cyan">'+escHtml(String(p.credits||p.amount||0))+' credits</div></div>';
+    }).join(''):'<div style="color:#7090b0;">No credit plans defined.</div>';
+  }
+  var cuEl=document.getElementById('adm-credits-users');
+  if(cuEl){
+    var cusers=creditsUsers.users||creditsUsers.data||[];
+    if(!Array.isArray(cusers)) cusers=[];
+    cuEl.innerHTML=cusers.length?cusers.slice(0,10).map(function(u){
+      return '<div class="deal-row"><div style="font-size:12px;color:#e8f4ff;">'+escHtml(u.email||u.id||'User')+'</div>'
+        +'<div class="green">'+escHtml(String(u.credits||u.balance||0))+' credits</div></div>';
+    }).join(''):'<div style="color:#7090b0;">No credit usage data.</div>';
+  }
+  var bpEl=document.getElementById('adm-billing-plans');
+  if(bpEl){
+    var bplans=billingPlans.plans||billingPlans.data||[];
+    if(!Array.isArray(bplans)) bplans=[];
+    bpEl.innerHTML=bplans.length?bplans.map(function(p){
+      return '<div class="deal-row"><div style="font-weight:600;color:#e8f4ff;">'+escHtml(p.name||p.id||'Plan')+'</div>'
+        +'<div><span class="badge">'+escHtml(String(p.priceMonthly||p.price||0))+'/mo</span></div></div>';
+    }).join(''):'<div style="color:#7090b0;">No billing plans.</div>';
+  }
+  var hsEl=document.getElementById('adm-health-scores');
+  if(hsEl){
+    var scores=healthScores.scores||healthScores.data||[];
+    if(!Array.isArray(scores)) scores=[];
+    hsEl.innerHTML=scores.length?scores.slice(0,8).map(function(s){
+      var score=s.score||s.healthScore||0;
+      var cls=score>=80?'green':score>=50?'cyan':'';
+      return '<div class="deal-row"><div style="font-size:12px;color:#e8f4ff;">'+escHtml(s.email||s.userId||'User')+'</div>'
+        +'<div class="'+cls+'">'+escHtml(String(score))+'</div></div>';
+    }).join(''):'<div style="color:#7090b0;">No health scores.</div>';
+  }
+  var crEl=document.getElementById('adm-churn-risk');
+  if(crEl){
+    var churn=churnRisk.users||churnRisk.data||[];
+    if(!Array.isArray(churn)) churn=[];
+    crEl.innerHTML=churn.length?'<div style="color:#ff6060;font-weight:600;margin-bottom:6px;">⚠️ Churn Risk Users</div>'
+      +churn.slice(0,5).map(function(u){
+        return '<div class="deal-row"><div style="font-size:12px;color:#e8f4ff;">'+escHtml(u.email||u.userId||'User')+'</div>'
+          +'<div style="color:#ff6060;">'+escHtml(String(u.churnRisk||u.risk||'High'))+'</div></div>';
+      }).join(''):'';
+  }
+}
+
+async function adminAddWebhook(){
+  var url=prompt('Webhook URL:');
+  if(!url) return;
+  var r=await api('POST','/api/platform/webhooks',{url:url,events:['payment','subscription']},true);
+  if(r.error){toast(r.error,'err');return;}
+  toast('Webhook added!','ok');
+  loadAdminPricing();
+}
+
+async function updateTenantBranding(tenantId){
+  var primaryColor=prompt('Primary color (hex, e.g. #00d4ff):') || '#00d4ff';
+  var logo=prompt('Logo URL (optional):') || '';
+  var r=await api('PUT','/api/tenants/'+tenantId+'/branding',{primaryColor:primaryColor,logo:logo||undefined},true);
+  if(r.error){toast(r.error,'err');return;}
+  toast('Tenant branding updated!','ok');
+  loadAdminPricing();
+}
+
+// ================================================================
+// DASHBOARD LABS TAB
+// ================================================================
+async function loadDashLabs(){
+  if(!isLoggedIn()){switchDashTab('overview');return;}
+  var el=document.getElementById('labs-content');
+  if(!el) return;
+  el.innerHTML='<div style="text-align:center;padding:30px;"><div class="loader"></div></div>';
+  var [carbonStats,blockchainStats,energyStats]=await Promise.all([
+    api('GET','/api/carbon/stats').catch(function(){return {};}),
+    api('GET','/api/blockchain/stats').catch(function(){return {};}),
+    api('GET','/api/energy/stats').catch(function(){return {};})
+  ]);
+  var u=STATE.user||{};
+  el.innerHTML=
+  // Carbon Exchange
+  '<div class="card" style="margin-bottom:16px;">'
+  +'<div class="dash-section-title">🌱 Carbon Exchange</div>'
+  +'<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px;">'
+  +'<button class="btn btn-primary btn-sm" onclick="openCarbonModal(\'issue\')">Issue Credits</button>'
+  +'<button class="btn btn-outline btn-sm" onclick="openCarbonModal(\'trade\')">Trade</button>'
+  +'<button class="btn btn-ghost btn-sm" onclick="openCarbonModal(\'portfolio\')">Portfolio</button>'
+  +'</div>'
+  +'<div id="carbon-stats-disp" style="font-size:12px;color:#7090b0;">'
+  +renderKVObj(carbonStats.stats||carbonStats.data||carbonStats)
+  +'</div></div>'
+  // Blockchain
+  +'<div class="card" style="margin-bottom:16px;">'
+  +'<div class="dash-section-title">⛓️ Quantum Blockchain</div>'
+  +'<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px;">'
+  +'<button class="btn btn-primary btn-sm" onclick="openBlockchainModal()">New Transaction</button>'
+  +'<button class="btn btn-outline btn-sm" onclick="mineBlock()">⛏️ Mine Block</button>'
+  +'</div>'
+  +'<div id="blockchain-stats-disp" style="font-size:12px;color:#7090b0;">'
+  +renderKVObj(blockchainStats.stats||blockchainStats.data||blockchainStats)
+  +'</div></div>'
+  // Energy Grid
+  +'<div class="card" style="margin-bottom:16px;">'
+  +'<div class="dash-section-title">⚡ Energy Grid</div>'
+  +'<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px;">'
+  +'<button class="btn btn-primary btn-sm" onclick="openEnergyModal(\'producer\')">Register Producer</button>'
+  +'<button class="btn btn-outline btn-sm" onclick="openEnergyModal(\'consumer\')">Register Consumer</button>'
+  +'<button class="btn btn-ghost btn-sm" onclick="openEnergyModal(\'optimize\')">⚡ Optimize</button>'
+  +'<button class="btn btn-ghost btn-sm" onclick="openEnergyModal(\'trade\')">Trade Energy</button>'
+  +'</div>'
+  +'<div id="energy-stats-disp" style="font-size:12px;color:#7090b0;">'
+  +renderKVObj(energyStats.stats||energyStats.data||energyStats)
+  +'</div></div>'
+  // Digital Identity
+  +'<div class="card" style="margin-bottom:16px;">'
+  +'<div class="dash-section-title">🪪 Digital Identity (QR)</div>'
+  +'<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px;">'
+  +'<button class="btn btn-primary btn-sm" onclick="createDigitalIdentity()">Create Identity</button>'
+  +'<button class="btn btn-outline btn-sm" onclick="openIdentitySignModal()">Sign Document</button>'
+  +'<button class="btn btn-ghost btn-sm" onclick="openIdentityVerifyModal()">Verify</button>'
+  +'</div>'
+  +'<div id="identity-result" style="font-size:12px;color:#00ffa3;word-break:break-all;"></div>'
+  +'</div>'
+  // Blueprint
+  +'<div class="card">'
+  +'<div class="dash-section-title">📋 Business Blueprint Generator</div>'
+  +'<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px;">'
+  +'<input class="inp-field" type="text" id="blueprint-idea-inp" placeholder="Your business idea..." style="flex:1;min-width:140px;"/>'
+  +'<button class="btn btn-primary btn-sm" onclick="generateBlueprint()">Generate Blueprint</button>'
+  +'</div>'
+  +'<div id="blueprint-list" style="font-size:12px;color:#7090b0;"></div>'
+  +'</div>';
+  loadBlueprintList();
+}
+
+function renderKVObj(obj){
+  if(!obj||typeof obj!=='object') return '<div style="color:#7090b0;">No data yet.</div>';
+  var keys=Object.keys(obj);
+  if(!keys.length) return '<div style="color:#7090b0;">No data yet.</div>';
+  return keys.slice(0,8).map(function(k){
+    return '<div class="deal-row"><div style="color:#e8f4ff;">'+escHtml(k)+'</div><div class="cyan">'+escHtml(String(obj[k]))+'</div></div>';
+  }).join('');
+}
+
+async function openCarbonModal(type){
+  if(type==='issue'){
+    var amount=prompt('Amount of carbon credits to issue:');
+    if(!amount) return;
+    var r=await api('POST','/api/carbon/issue',{amount:parseFloat(amount)||1,vintage:new Date().getFullYear()});
+    toast(r.error?r.error:'Carbon credits issued!',r.error?'err':'ok');
+  } else if(type==='trade'){
+    var to=prompt('Recipient address:');
+    var amt=prompt('Amount to trade:');
+    if(!to||!amt) return;
+    var r=await api('POST','/api/carbon/trade',{to:to,amount:parseFloat(amt)||1});
+    toast(r.error?r.error:'Trade initiated!',r.error?'err':'ok');
+  } else if(type==='portfolio'){
+    var owner=(STATE.user&&STATE.user.id)||'me';
+    var r=await api('GET','/api/carbon/portfolio/'+owner);
+    var d=document.getElementById('carbon-stats-disp');
+    if(d) d.innerHTML=renderKVObj(r.portfolio||r.data||r);
+  }
+}
+
+async function openBlockchainModal(){
+  var to=prompt('Recipient address:');
+  var amount=prompt('Amount:');
+  var data=prompt('Data (optional):') || '';
+  if(!to||!amount) return;
+  var r=await api('POST','/api/blockchain/transaction',{to:to,amount:parseFloat(amount)||1,data:data});
+  toast(r.error?r.error:'Transaction submitted!',r.error?'err':'ok');
+}
+
+async function mineBlock(){
+  var r=await api('POST','/api/blockchain/mine',{});
+  toast(r.error?r.error:'Block mined!',r.error?'err':'ok');
+  if(!r.error){
+    var r2=await api('GET','/api/blockchain/stats');
+    var d=document.getElementById('blockchain-stats-disp');
+    if(d) d.innerHTML=renderKVObj(r2.stats||r2.data||r2);
+  }
+}
+
+async function openEnergyModal(type){
+  if(type==='producer'){
+    var capacity=prompt('Energy capacity (kWh):');
+    if(!capacity) return;
+    var r=await api('POST','/api/energy/producer',{capacity:parseFloat(capacity)||100,source:'solar'});
+    toast(r.error?r.error:'Producer registered!',r.error?'err':'ok');
+  } else if(type==='consumer'){
+    var demand=prompt('Energy demand (kWh):');
+    if(!demand) return;
+    var r=await api('POST','/api/energy/consumer',{demand:parseFloat(demand)||50});
+    toast(r.error?r.error:'Consumer registered!',r.error?'err':'ok');
+  } else if(type==='optimize'){
+    var r=await api('POST','/api/energy/optimize',{});
+    toast(r.error?r.error:'Grid optimized!',r.error?'err':'ok');
+  } else if(type==='trade'){
+    var amount=prompt('Energy amount to trade (kWh):');
+    if(!amount) return;
+    var r=await api('POST','/api/energy/trade',{amount:parseFloat(amount)||10,price:0.12});
+    toast(r.error?r.error:'Energy traded!',r.error?'err':'ok');
+  }
+}
+
+async function createDigitalIdentity(){
+  var name=(STATE.user&&STATE.user.name)||'Zeus User';
+  var r=await api('POST','/api/identity/create',{name:name,email:(STATE.user&&STATE.user.email)||''});
+  var d=document.getElementById('identity-result');
+  if(d){d.innerHTML=r.error?'<span style="color:#ff6060;">'+escHtml(r.error)+'</span>':'<span>✅ Identity created! DID: '+escHtml(r.did||r.id||JSON.stringify(r))+'</span>';}
+}
+
+async function openIdentitySignModal(){
+  var docHash=prompt('Document hash to sign:');
+  if(!docHash) return;
+  var r=await api('POST','/api/identity/sign',{hash:docHash});
+  toast(r.error?r.error:'Document signed!',r.error?'err':'ok');
+  var d=document.getElementById('identity-result');
+  if(d&&!r.error) d.innerHTML='✅ Signature: '+escHtml(r.signature||JSON.stringify(r));
+}
+
+async function openIdentityVerifyModal(){
+  var docHash=prompt('Document hash to verify:');
+  var sig=prompt('Signature:');
+  if(!docHash||!sig) return;
+  var r=await api('POST','/api/identity/verify',{hash:docHash,signature:sig});
+  toast(r.error?r.error:(r.valid?'✅ Valid signature!':'❌ Invalid signature'),r.error||!r.valid?'err':'ok');
+}
+
+async function generateBlueprint(){
+  var idea=document.getElementById('blueprint-idea-inp').value.trim();
+  if(!idea){toast('Enter a business idea','err');return;}
+  var d=document.getElementById('blueprint-list');
+  if(d) d.innerHTML='<div class="loader"></div>';
+  var r=await api('POST','/api/blueprint/generate',{idea:idea,industry:'tech'});
+  if(r.error){toast(r.error,'err');if(d)d.innerHTML='<span style="color:#ff6060;">'+escHtml(r.error)+'</span>';return;}
+  toast('Blueprint generated!','ok');
+  loadBlueprintList();
+}
+
+async function loadBlueprintList(){
+  var d=document.getElementById('blueprint-list');
+  if(!d) return;
+  var r=await api('GET','/api/blueprint/list');
+  var list=r.blueprints||r.data||[];
+  if(!Array.isArray(list)) list=[];
+  d.innerHTML=list.length?list.slice(0,5).map(function(b){
+    return '<div class="deal-row"><div><div style="font-weight:600;color:#e8f4ff;font-size:12px;">'+escHtml(b.title||b.idea||b.id||'Blueprint')+'</div>'
+      +'<div style="font-size:11px;color:#7090b0;">'+(b.createdAt?new Date(b.createdAt).toLocaleDateString():'')+'</div></div>'
+      +'<button class="btn btn-ghost btn-sm" onclick="viewBlueprint(\''+escAttr(String(b.id||''))+'\')">View</button></div>';
+  }).join(''):'<div style="color:#7090b0;margin-top:8px;">No blueprints yet. Generate your first one!</div>';
+}
+
+async function viewBlueprint(id){
+  var r=await api('GET','/api/blueprint/'+id);
+  var bp=r.blueprint||r.data||r;
+  var text=bp.content||bp.plan||bp.description||JSON.stringify(bp,null,2);
+  alert(text.slice(0,1000));
+}
+
+// ================================================================
+// DASHBOARD ENTERPRISE TAB
+// ================================================================
+async function loadDashEnterprise(){
+  if(!isLoggedIn()){switchDashTab('overview');return;}
+  var el=document.getElementById('enterprise-content');
+  if(!el) return;
+  el.innerHTML='<div style="text-align:center;padding:30px;"><div class="loader"></div></div>';
+  var [wfStats,maStats,legalStats,compStats,riskStats,repStats]=await Promise.all([
+    api('GET','/api/workforce/stats').catch(function(){return {};}),
+    api('GET','/api/ma/stats').catch(function(){return {};}),
+    api('GET','/api/legal/stats').catch(function(){return {};}),
+    api('GET','/api/compliance/stats').catch(function(){return {};}),
+    api('GET','/api/risk/stats').catch(function(){return {};}),
+    api('GET','/api/reputation/stats').catch(function(){return {};})
+  ]);
+  el.innerHTML=
+  // Workforce
+  '<div class="card" style="margin-bottom:16px;">'
+  +'<div class="dash-section-title">👥 AI Workforce</div>'
+  +'<div id="wf-agents-list" style="font-size:12px;color:#7090b0;margin-bottom:10px;">'+renderKVObj(wfStats.stats||wfStats.data||wfStats)+'</div>'
+  +'<div style="display:flex;gap:8px;flex-wrap:wrap;">'
+  +'<button class="btn btn-primary btn-sm" onclick="loadWorkforceAgents()">View Agents</button>'
+  +'<button class="btn btn-outline btn-sm" onclick="deployWorkforceAgent()">Deploy Agent</button>'
+  +'<button class="btn btn-ghost btn-sm" onclick="submitWorkforceJob()">Submit Job</button>'
+  +'</div></div>'
+  // M&A Advisor
+  +'<div class="card" style="margin-bottom:16px;">'
+  +'<div class="dash-section-title">🤝 M&A Advisor <span class="badge badge-purple" style="font-size:10px;margin-left:6px;">PRO</span></div>'
+  +'<div id="ma-detail" style="font-size:12px;color:#7090b0;margin-bottom:10px;">'+renderKVObj(maStats.stats||maStats.data||maStats)+'</div>'
+  +'<div style="display:flex;gap:8px;flex-wrap:wrap;">'
+  +'<button class="btn btn-primary btn-sm" onclick="findMaTargets()">Find Targets</button>'
+  +'<button class="btn btn-outline btn-sm" onclick="startMaNegotiation()">Negotiate</button>'
+  +'</div></div>'
+  // Legal
+  +'<div class="card" style="margin-bottom:16px;">'
+  +'<div class="dash-section-title">⚖️ Legal Contracts <span class="badge" style="font-size:10px;margin-left:6px;">STARTER+</span></div>'
+  +'<div id="legal-detail" style="font-size:12px;color:#7090b0;margin-bottom:10px;">'+renderKVObj(legalStats.stats||legalStats.data||legalStats)+'</div>'
+  +'<div style="display:flex;gap:8px;flex-wrap:wrap;">'
+  +'<input class="inp-field" type="text" id="legal-type-inp" placeholder="Contract type (NDA/SaaS/...)..." style="flex:1;min-width:120px;"/>'
+  +'<button class="btn btn-primary btn-sm" onclick="generateLegalContract()">Generate</button>'
+  +'<button class="btn btn-outline btn-sm" onclick="analyzeLegalContract()">Analyze</button>'
+  +'</div>'
+  +'<div id="legal-result" style="font-size:12px;color:#00ffa3;margin-top:8px;"></div>'
+  +'</div>'
+  // Compliance
+  +'<div class="card" style="margin-bottom:16px;">'
+  +'<div class="dash-section-title">✅ Compliance Engine</div>'
+  +'<div id="compliance-detail" style="font-size:12px;color:#7090b0;margin-bottom:10px;">'+renderKVObj(compStats.stats||compStats.data||compStats)+'</div>'
+  +'<div style="display:flex;gap:8px;flex-wrap:wrap;">'
+  +'<input class="inp-field" type="text" id="compliance-domain-inp" placeholder="Domain (GDPR/SOC2/...)..." style="flex:1;min-width:120px;"/>'
+  +'<button class="btn btn-primary btn-sm" onclick="runComplianceCheck()">Check</button>'
+  +'<button class="btn btn-outline btn-sm" onclick="loadComplianceReport()">Report</button>'
+  +'</div>'
+  +'<div id="compliance-result" style="font-size:12px;color:#00d4ff;margin-top:8px;"></div>'
+  +'</div>'
+  // Risk
+  +'<div class="card" style="margin-bottom:16px;">'
+  +'<div class="dash-section-title">⚠️ Risk Analyzer</div>'
+  +'<div id="risk-detail" style="font-size:12px;color:#7090b0;margin-bottom:10px;">'+renderKVObj(riskStats.stats||riskStats.data||riskStats)+'</div>'
+  +'<div style="display:flex;gap:8px;flex-wrap:wrap;">'
+  +'<input class="inp-field" type="text" id="risk-domain-inp" placeholder="Risk domain..." style="flex:1;min-width:120px;"/>'
+  +'<button class="btn btn-primary btn-sm" onclick="analyzeRisk()">Analyze</button>'
+  +'<button class="btn btn-outline btn-sm" onclick="loadRiskHistory()">History</button>'
+  +'</div>'
+  +'<div id="risk-result" style="font-size:12px;color:#00d4ff;margin-top:8px;"></div>'
+  +'</div>'
+  // Reputation
+  +'<div class="card">'
+  +'<div class="dash-section-title">⭐ Reputation Protocol</div>'
+  +'<div id="reputation-detail" style="font-size:12px;color:#7090b0;margin-bottom:10px;">'+renderKVObj(repStats.stats||repStats.data||repStats)+'</div>'
+  +'<div style="display:flex;gap:8px;flex-wrap:wrap;">'
+  +'<button class="btn btn-primary btn-sm" onclick="registerReputation()">Register Entity</button>'
+  +'<button class="btn btn-outline btn-sm" onclick="loadTopReputation()">Top List</button>'
+  +'</div>'
+  +'<div id="reputation-result" style="font-size:12px;color:#00ffa3;margin-top:8px;"></div>'
+  +'</div>';
+}
+
+async function loadWorkforceAgents(){
+  var r=await api('GET','/api/workforce/agents');
+  var agents=r.agents||r.data||[];
+  var d=document.getElementById('wf-agents-list');
+  if(d){
+    d.innerHTML=Array.isArray(agents)&&agents.length?agents.slice(0,6).map(function(a){
+      return '<div class="deal-row"><div style="font-weight:600;color:#e8f4ff;font-size:12px;">'+escHtml(a.name||a.id||'Agent')+'</div>'
+        +'<span class="badge '+(a.status==='active'?'badge-cyan':'')+'">'+escHtml(a.status||'idle')+'</span></div>';
+    }).join(''):'<div style="color:#7090b0;">No agents deployed.</div>';
+  }
+}
+
+async function deployWorkforceAgent(){
+  var name=prompt('Agent name:');
+  var role=prompt('Agent role (e.g. sales/support/analysis):') || 'general';
+  if(!name) return;
+  var r=await api('POST','/api/workforce/agent',{name:name,role:role});
+  toast(r.error?r.error:'Agent deployed!',r.error?'err':'ok');
+  if(!r.error) loadWorkforceAgents();
+}
+
+async function submitWorkforceJob(){
+  var task=prompt('Job task description:');
+  var priority=prompt('Priority (1=high, 5=low):') || '3';
+  if(!task) return;
+  var r=await api('POST','/api/workforce/job',{task:task,priority:parseInt(priority)||3});
+  toast(r.error?r.error:'Job submitted! Job ID: '+(r.jobId||r.id||'—'),r.error?'err':'ok');
+}
+
+async function findMaTargets(){
+  var industry=prompt('Industry to find M&A targets:') || 'tech';
+  var d=document.getElementById('ma-detail');
+  if(d) d.innerHTML='<div class="loader"></div>';
+  var r=await api('POST','/api/ma/targets',{industry:industry,criteria:{minRevenue:1000000}});
+  if(d) d.innerHTML=r.error?'<span style="color:#ff6060;">'+escHtml(r.error)+'</span>':renderKVObj(r.targets||r.data||r);
+}
+
+async function startMaNegotiation(){
+  var target=prompt('Target company name:');
+  var value=prompt('Offer value ($):');
+  if(!target) return;
+  var r=await api('POST','/api/ma/negotiate',{target:target,offerValue:parseFloat(value)||1000000});
+  toast(r.error?r.error:'Negotiation started!',r.error?'err':'ok');
+}
+
+async function generateLegalContract(){
+  var type=document.getElementById('legal-type-inp').value||'NDA';
+  var d=document.getElementById('legal-result');
+  if(d) d.innerHTML='<div class="loader"></div>';
+  var r=await api('POST','/api/legal/generate',{type:type,parties:['Company A','Company B']});
+  if(d){d.innerHTML=r.error?'<span style="color:#ff6060;">'+escHtml(r.error)+'</span>':'✅ Contract: '+escHtml((r.contract||r.content||JSON.stringify(r)).slice(0,200))+'...';}
+}
+
+async function analyzeLegalContract(){
+  var text=prompt('Paste contract text to analyze (first 500 chars):');
+  if(!text) return;
+  var d=document.getElementById('legal-result');
+  if(d) d.innerHTML='<div class="loader"></div>';
+  var r=await api('POST','/api/legal/analyze',{text:text});
+  if(d){d.innerHTML=r.error?'<span style="color:#ff6060;">'+escHtml(r.error)+'</span>':'📊 Analysis: '+escHtml((r.analysis||r.result||JSON.stringify(r)).slice(0,300));}
+}
+
+async function runComplianceCheck(){
+  var domain=document.getElementById('compliance-domain-inp').value||'GDPR';
+  var d=document.getElementById('compliance-result');
+  if(d) d.innerHTML='<div class="loader"></div>';
+  var r=await api('POST','/api/compliance/check',{domain:domain,data:{}});
+  if(d){d.innerHTML=r.error?'<span style="color:#ff6060;">'+escHtml(r.error)+'</span>':renderKVObj(r.result||r.data||r);}
+}
+
+async function loadComplianceReport(){
+  var d=document.getElementById('compliance-result');
+  var r=await api('GET','/api/compliance/report');
+  if(d){d.innerHTML='<pre style="font-size:11px;overflow:auto;max-height:120px;">'+escHtml(JSON.stringify(r.report||r.data||r,null,2))+'</pre>';}
+}
+
+async function analyzeRisk(){
+  var domain=document.getElementById('risk-domain-inp').value||'operational';
+  var d=document.getElementById('risk-result');
+  if(d) d.innerHTML='<div class="loader"></div>';
+  var r=await api('POST','/api/risk/analyze',{domain:domain,factors:{}});
+  if(d){d.innerHTML=r.error?'<span style="color:#ff6060;">'+escHtml(r.error)+'</span>':renderKVObj(r.analysis||r.data||r);}
+}
+
+async function loadRiskHistory(){
+  var d=document.getElementById('risk-result');
+  var r=await api('GET','/api/risk/history');
+  if(d){d.innerHTML='<pre style="font-size:11px;overflow:auto;max-height:100px;">'+escHtml(JSON.stringify(r.history||r.data||r,null,2))+'</pre>';}
+}
+
+async function registerReputation(){
+  var name=(STATE.user&&STATE.user.name)||'My Entity';
+  var r=await api('POST','/api/reputation/register',{name:name,type:'business'});
+  var d=document.getElementById('reputation-result');
+  if(d){d.innerHTML=r.error?'<span style="color:#ff6060;">'+escHtml(r.error)+'</span>':'✅ Entity: '+escHtml(r.entityId||r.id||JSON.stringify(r));}
+}
+
+async function loadTopReputation(){
+  var r=await api('GET','/api/reputation/top/list');
+  var d=document.getElementById('reputation-result');
+  var list=r.entities||r.data||[];
+  if(!Array.isArray(list)) list=[];
+  if(d){d.innerHTML=list.length?list.slice(0,5).map(function(e){
+    return '<div class="deal-row"><div style="font-size:12px;color:#e8f4ff;">'+escHtml(e.name||e.entityId||'Entity')+'</div>'
+      +'<div class="green">'+escHtml(String(e.score||e.reputation||0))+'</div></div>';
+  }).join(''):'<div style="color:#7090b0;">No reputation data.</div>';}
+}
+
+// ================================================================
+// DASHBOARD MARKETS TAB
+// ================================================================
+async function loadDashMarkets(){
+  if(!isLoggedIn()){switchDashTab('overview');return;}
+  var el=document.getElementById('markets-content');
+  if(!el) return;
+  el.innerHTML='<div style="text-align:center;padding:30px;"><div class="loader"></div></div>';
+  el.innerHTML=
+  // Aviation
+  '<div class="card" style="margin-bottom:16px;">'
+  +'<div class="dash-section-title">✈️ Aviation Optimization</div>'
+  +'<div style="display:flex;gap:8px;flex-wrap:wrap;">'
+  +'<button class="btn btn-primary btn-sm" onclick="runAviationRouteOpt()">Optimize Routes</button>'
+  +'<button class="btn btn-outline btn-sm" onclick="runAviationMaintenance()">Predictive Maintenance</button>'
+  +'<button class="btn btn-ghost btn-sm" onclick="runAviationPricing()">Dynamic Ticket Pricing</button>'
+  +'</div>'
+  +'<div id="aviation-result" style="font-size:12px;color:#00d4ff;margin-top:8px;"></div>'
+  +'</div>'
+  // Government
+  +'<div class="card" style="margin-bottom:16px;">'
+  +'<div class="dash-section-title">🏛️ Government Services AI</div>'
+  +'<div style="display:flex;gap:8px;flex-wrap:wrap;">'
+  +'<button class="btn btn-primary btn-sm" onclick="runGovCompliance()">Compliance Check</button>'
+  +'<button class="btn btn-outline btn-sm" onclick="runGovDigitalize()">Digitalize Service</button>'
+  +'<button class="btn btn-ghost btn-sm" onclick="runGovPolicyAnalysis()">Analyze Policy</button>'
+  +'</div>'
+  +'<div id="government-result" style="font-size:12px;color:#00d4ff;margin-top:8px;"></div>'
+  +'</div>'
+  // Defense
+  +'<div class="card" style="margin-bottom:16px;">'
+  +'<div class="dash-section-title">🛡️ Defense & Security</div>'
+  +'<div style="display:flex;gap:8px;flex-wrap:wrap;">'
+  +'<button class="btn btn-primary btn-sm" onclick="runDefenseEncrypt()">Encrypt Data</button>'
+  +'<button class="btn btn-outline btn-sm" onclick="runDefenseThreats()">Threat Analysis</button>'
+  +'<button class="btn btn-ghost btn-sm" onclick="runDefenseSecureInfra()">Secure Infrastructure</button>'
+  +'</div>'
+  +'<div id="defense-result" style="font-size:12px;color:#00d4ff;margin-top:8px;"></div>'
+  +'</div>'
+  // Telecom
+  +'<div class="card" style="margin-bottom:16px;">'
+  +'<div class="dash-section-title">📡 Telecom AI</div>'
+  +'<div style="display:flex;gap:8px;flex-wrap:wrap;">'
+  +'<button class="btn btn-primary btn-sm" onclick="runTelecomOptimize5g()">Optimize 5G</button>'
+  +'<button class="btn btn-outline btn-sm" onclick="runTelecomPredictFailures()">Predict Failures</button>'
+  +'<button class="btn btn-ghost btn-sm" onclick="runTelecomRevenueAssurance()">Revenue Assurance</button>'
+  +'</div>'
+  +'<div id="telecom-result" style="font-size:12px;color:#00d4ff;margin-top:8px;"></div>'
+  +'</div>'
+  // Cross-border Payments
+  +'<div class="card" style="margin-bottom:16px;">'
+  +'<div class="dash-section-title">💸 Cross-Border Payments</div>'
+  +'<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px;">'
+  +'<input class="inp-field" type="number" id="cbp-amount-inp" placeholder="Amount..." style="width:100px;"/>'
+  +'<select class="inp-field" id="cbp-currency-inp" style="width:100px;"><option>USD</option><option>EUR</option><option>GBP</option><option>JPY</option></select>'
+  +'<input class="inp-field" type="text" id="cbp-dest-inp" placeholder="Destination country..." style="flex:1;"/>'
+  +'</div>'
+  +'<div style="display:flex;gap:8px;flex-wrap:wrap;">'
+  +'<button class="btn btn-primary btn-sm" onclick="runCrossBorderPayment()">Send Payment</button>'
+  +'<button class="btn btn-outline btn-sm" onclick="runFraudDetection()">Fraud Check</button>'
+  +'<button class="btn btn-ghost btn-sm" onclick="runCardPayment()">Card Payment</button>'
+  +'</div>'
+  +'<div id="payments-result" style="font-size:12px;color:#00d4ff;margin-top:8px;"></div>'
+  +'</div>'
+  // Enterprise Partner
+  +'<div class="card">'
+  +'<div class="dash-section-title">🤝 Enterprise Partnership</div>'
+  +'<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px;">'
+  +'<input class="inp-field" type="text" id="partner-company-inp" placeholder="Company name..." style="flex:1;"/>'
+  +'<input class="inp-field" type="text" id="partner-domain-inp" placeholder="Domain..." style="width:140px;"/>'
+  +'</div>'
+  +'<div style="display:flex;gap:8px;flex-wrap:wrap;">'
+  +'<button class="btn btn-primary btn-sm" onclick="registerEnterprise()">Register Enterprise</button>'
+  +'</div>'
+  +'<div id="enterprise-result" style="font-size:12px;color:#00ffa3;margin-top:8px;"></div>'
+  +'</div>';
+}
+
+async function runAviationRouteOpt(){
+  var d=document.getElementById('aviation-result');
+  if(d) d.innerHTML='<div class="loader"></div>';
+  var r=await api('POST','/api/aviation/optimize-routes',{routes:[{from:'JFK',to:'LHR'},{from:'CDG',to:'SIN'}]});
+  if(d){d.innerHTML=r.error?'<span style="color:#ff6060;">'+escHtml(r.error)+'</span>':renderKVObj(r.optimized||r.data||r);}
+}
+async function runAviationMaintenance(){
+  var d=document.getElementById('aviation-result');
+  if(d) d.innerHTML='<div class="loader"></div>';
+  var r=await api('POST','/api/aviation/predictive-maintenance',{aircraftId:'AC-'+Math.floor(Math.random()*1000)});
+  if(d){d.innerHTML=r.error?'<span style="color:#ff6060;">'+escHtml(r.error)+'</span>':renderKVObj(r.maintenance||r.data||r);}
+}
+async function runAviationPricing(){
+  var d=document.getElementById('aviation-result');
+  if(d) d.innerHTML='<div class="loader"></div>';
+  var r=await api('POST','/api/aviation/ticket-pricing',{route:'JFK-LHR',date:new Date().toISOString().slice(0,10)});
+  if(d){d.innerHTML=r.error?'<span style="color:#ff6060;">'+escHtml(r.error)+'</span>':renderKVObj(r.pricing||r.data||r);}
+}
+async function runGovCompliance(){
+  var d=document.getElementById('government-result');
+  if(d) d.innerHTML='<div class="loader"></div>';
+  var r=await api('POST','/api/government/compliance',{regulation:'GDPR',scope:'data-processing'});
+  if(d){d.innerHTML=r.error?'<span style="color:#ff6060;">'+escHtml(r.error)+'</span>':renderKVObj(r.result||r.data||r);}
+}
+async function runGovDigitalize(){
+  var service=prompt('Service to digitalize:') || 'Permit Application';
+  var d=document.getElementById('government-result');
+  if(d) d.innerHTML='<div class="loader"></div>';
+  var r=await api('POST','/api/government/digitalize-service',{service:service});
+  if(d){d.innerHTML=r.error?'<span style="color:#ff6060;">'+escHtml(r.error)+'</span>':renderKVObj(r.result||r.data||r);}
+}
+async function runGovPolicyAnalysis(){
+  var policy=prompt('Policy text to analyze (first 200 chars):') || 'National AI Strategy 2025';
+  var d=document.getElementById('government-result');
+  if(d) d.innerHTML='<div class="loader"></div>';
+  var r=await api('POST','/api/government/analyze-policy',{policy:policy});
+  if(d){d.innerHTML=r.error?'<span style="color:#ff6060;">'+escHtml(r.error)+'</span>':renderKVObj(r.analysis||r.data||r);}
+}
+async function runDefenseEncrypt(){
+  var data=prompt('Data to encrypt:') || 'sensitive-payload';
+  var d=document.getElementById('defense-result');
+  if(d) d.innerHTML='<div class="loader"></div>';
+  var r=await api('POST','/api/defense/encrypt',{data:data,level:'top-secret'});
+  if(d){d.innerHTML=r.error?'<span style="color:#ff6060;">'+escHtml(r.error)+'</span>':'🔒 Encrypted: '+escHtml((r.encrypted||r.ciphertext||JSON.stringify(r)).slice(0,80))+'...';}
+}
+async function runDefenseThreats(){
+  var d=document.getElementById('defense-result');
+  if(d) d.innerHTML='<div class="loader"></div>';
+  var r=await api('POST','/api/defense/threats',{network:'corporate',timeframe:'24h'});
+  if(d){d.innerHTML=r.error?'<span style="color:#ff6060;">'+escHtml(r.error)+'</span>':renderKVObj(r.threats||r.data||r);}
+}
+async function runDefenseSecureInfra(){
+  var d=document.getElementById('defense-result');
+  if(d) d.innerHTML='<div class="loader"></div>';
+  var r=await api('POST','/api/defense/secure-infrastructure',{systems:['web','db','api'],level:'high'});
+  if(d){d.innerHTML=r.error?'<span style="color:#ff6060;">'+escHtml(r.error)+'</span>':renderKVObj(r.result||r.data||r);}
+}
+async function runTelecomOptimize5g(){
+  var d=document.getElementById('telecom-result');
+  if(d) d.innerHTML='<div class="loader"></div>';
+  var r=await api('POST','/api/telecom/optimize-5g',{region:'urban',towers:120});
+  if(d){d.innerHTML=r.error?'<span style="color:#ff6060;">'+escHtml(r.error)+'</span>':renderKVObj(r.optimization||r.data||r);}
+}
+async function runTelecomPredictFailures(){
+  var d=document.getElementById('telecom-result');
+  if(d) d.innerHTML='<div class="loader"></div>';
+  var r=await api('POST','/api/telecom/predict-failures',{network:'5g-core',lookAhead:'7d'});
+  if(d){d.innerHTML=r.error?'<span style="color:#ff6060;">'+escHtml(r.error)+'</span>':renderKVObj(r.predictions||r.data||r);}
+}
+async function runTelecomRevenueAssurance(){
+  var d=document.getElementById('telecom-result');
+  if(d) d.innerHTML='<div class="loader"></div>';
+  var r=await api('POST','/api/telecom/revenue-assurance',{period:'monthly'});
+  if(d){d.innerHTML=r.error?'<span style="color:#ff6060;">'+escHtml(r.error)+'</span>':renderKVObj(r.assurance||r.data||r);}
+}
+async function runCrossBorderPayment(){
+  var amount=parseFloat(document.getElementById('cbp-amount-inp').value)||100;
+  var currency=(document.getElementById('cbp-currency-inp')||{}).value||'USD';
+  var destination=(document.getElementById('cbp-dest-inp')||{}).value||'UK';
+  var d=document.getElementById('payments-result');
+  if(d) d.innerHTML='<div class="loader"></div>';
+  var r=await api('POST','/api/payments/cross-border',{amount:amount,currency:currency,destination:destination});
+  if(d){d.innerHTML=r.error?'<span style="color:#ff6060;">'+escHtml(r.error)+'</span>':renderKVObj(r.payment||r.data||r);}
+}
+async function runFraudDetection(){
+  var d=document.getElementById('payments-result');
+  if(d) d.innerHTML='<div class="loader"></div>';
+  var r=await api('POST','/api/payments/fraud-detection',{transaction:{amount:9999,country:'NG',velocity:5}});
+  if(d){d.innerHTML=r.error?'<span style="color:#ff6060;">'+escHtml(r.error)+'</span>':renderKVObj(r.result||r.data||r);}
+}
+async function runCardPayment(){
+  var amount=parseFloat(document.getElementById('cbp-amount-inp').value)||100;
+  var d=document.getElementById('payments-result');
+  if(d) d.innerHTML='<div class="loader"></div>';
+  var r=await api('POST','/api/payments/card',{amount:amount,currency:'USD',last4:'4242'});
+  if(d){d.innerHTML=r.error?'<span style="color:#ff6060;">'+escHtml(r.error)+'</span>':renderKVObj(r.result||r.data||r);}
+}
+async function registerEnterprise(){
+  var company=document.getElementById('partner-company-inp').value.trim();
+  var domain=document.getElementById('partner-domain-inp').value.trim();
+  if(!company){toast('Enter company name','err');return;}
+  var d=document.getElementById('enterprise-result');
+  if(d) d.innerHTML='<div class="loader"></div>';
+  var r=await api('POST','/api/enterprise/register',{company:company,domain:domain||'enterprise.com'});
+  if(d){d.innerHTML=r.error?'<span style="color:#ff6060;">'+escHtml(r.error)+'</span>':'✅ Partner ID: '+escHtml(r.partnerId||r.id||JSON.stringify(r));}
+}
+
+// ================================================================
+// DASHBOARD TENANT TAB
+// ================================================================
+async function loadDashTenant(){
+  if(!isLoggedIn()){switchDashTab('overview');return;}
+  var el=document.getElementById('tenant-content');
+  if(!el) return;
+  el.innerHTML='<div style="text-align:center;padding:30px;"><div class="loader"></div></div>';
+  var r=await api('GET','/api/tenants/mine');
+  var tenants=r.tenants||r.data||[];
+  if(!Array.isArray(tenants)) tenants=[];
+  el.innerHTML='<div class="card" style="margin-bottom:16px;">'
+  +'<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;">'
+  +'<div class="dash-section-title" style="margin:0;">💎 White-Label Tenants <span class="badge badge-purple" style="font-size:10px;margin-left:6px;">ENTERPRISE</span></div>'
+  +'<button class="btn btn-primary btn-sm" onclick="createTenant()">+ Create Tenant</button>'
+  +'</div>'
+  +(tenants.length?tenants.map(function(t){
+    return '<div class="deal-row">'
+      +'<div><div style="font-weight:600;color:#e8f4ff;">'+escHtml(t.name||t.subdomain||t.id||'Tenant')+'</div>'
+      +'<div style="font-size:11px;color:#7090b0;">'+escHtml(t.subdomain||t.domain||'')+'</div></div>'
+      +'<div style="display:flex;gap:6px;align-items:center;">'
+      +'<span class="badge badge-cyan">'+escHtml(t.plan||'enterprise')+'</span>'
+      +'<button class="btn btn-ghost btn-sm" onclick="editTenantBranding(\''+escAttr(String(t.id||''))+'\')">🎨</button>'
+      +'</div></div>';
+  }).join(''):'<div style="text-align:center;padding:30px;color:#7090b0;">'
+  +'<p>No tenants yet. Enterprise plan required.</p>'
+  +'<p style="font-size:12px;margin-top:8px;">Create white-label instances of Zeus AI for your clients.</p>'
+  +'</div>')
+  +'</div>'
+  +'<div class="card">'
+  +'<div class="dash-section-title">Branding Preview</div>'
+  +'<div id="tenant-branding-preview" style="color:#7090b0;font-size:13px;">Select a tenant to see branding.</div>'
+  +'</div>';
+}
+
+async function createTenant(){
+  var name=prompt('Tenant name:');
+  var subdomain=prompt('Subdomain (e.g. client-co):');
+  if(!name||!subdomain){toast('Name and subdomain required','err');return;}
+  var r=await api('POST','/api/tenants',{name:name,subdomain:subdomain,plan:'enterprise'});
+  if(r.error){toast(r.error,'err');return;}
+  toast('Tenant created!','ok');
+  loadDashTenant();
+}
+
+async function editTenantBranding(id){
+  var color=prompt('Primary color (hex):') || '#00d4ff';
+  var logo=prompt('Logo URL (optional):') || '';
+  var r=await api('PUT','/api/tenants/'+id+'/branding',{primaryColor:color,logo:logo||undefined});
+  if(r.error){toast(r.error,'err');return;}
+  toast('Branding updated!','ok');
+  var d=document.getElementById('tenant-branding-preview');
+  if(d) d.innerHTML='<div style="display:flex;align-items:center;gap:12px;">'
+    +(logo?'<img src="'+escAttr(logo)+'" style="height:40px;" alt="logo"/>':'')
+    +'<div style="width:40px;height:40px;border-radius:8px;background:'+escAttr(color)+';"></div>'
+    +'<span style="color:#e8f4ff;">Preview: '+escHtml(color)+'</span>'
+    +'</div>';
+}
+
+// ================================================================
+// DASHBOARD HEALTH SCORE TAB
+// ================================================================
+async function loadDashHealthScore(){
+  if(!isLoggedIn()){switchDashTab('overview');return;}
+  var el=document.getElementById('healthscore-content');
+  if(!el) return;
+  el.innerHTML='<div style="text-align:center;padding:30px;"><div class="loader"></div></div>';
+  var r=await api('GET','/api/health-score/mine');
+  var score=r.score||r.healthScore||r.data||{};
+  var val=typeof score==='number'?score:(score.score||score.overall||0);
+  var cls=val>=80?'green':val>=50?'cyan':'';
+  el.innerHTML='<div class="card" style="margin-bottom:16px;text-align:center;">'
+  +'<div class="dash-section-title">💊 Your Health Score</div>'
+  +'<div class="kpi-val '+cls+'" style="font-size:60px;margin:20px 0;">'+val+'</div>'
+  +'<div class="muted" style="font-size:13px;">'+(val>=80?'🟢 Excellent — keep it up!':val>=60?'🟡 Good — some room for improvement':val>=40?'🟠 Fair — take action to improve':'🔴 At risk — urgent attention needed')+'</div>'
+  +'</div>'
+  +'<div class="card">'
+  +'<div class="dash-section-title">Score Breakdown</div>'
+  +'<div style="font-size:12px;color:#7090b0;">'
+  +(typeof score==='object'?renderKVObj(score):'<div style="color:#7090b0;">No breakdown available.</div>')
+  +'</div>'
+  +'<p class="muted" style="font-size:11px;margin-top:10px;">Health score is based on your platform activity, payment history, and feature usage.</p>'
+  +'</div>';
+}
+
+// ================================================================
+// DASHBOARD Q-PAY TAB
+// ================================================================
+async function loadDashQPay(){
+  if(!isLoggedIn()){switchDashTab('overview');return;}
+  var el=document.getElementById('qpay-content');
+  if(!el) return;
+  el.innerHTML='<div style="text-align:center;padding:30px;"><div class="loader"></div></div>';
+  el.innerHTML='<div class="card" style="margin-bottom:16px;">'
+  +'<div class="dash-section-title">⚛️ Quantum Payment</div>'
+  +'<p class="muted" style="font-size:13px;margin-bottom:16px;">Ultra-secure quantum-encrypted payment processing.</p>'
+  +'<div class="inp-group"><label class="inp-label">Amount (USD)</label>'
+  +'<input class="inp-field" type="number" id="qpay-amount" placeholder="e.g. 100" min="1"/></div>'
+  +'<div class="inp-group"><label class="inp-label">Currency</label>'
+  +'<select class="inp-field" id="qpay-currency"><option>USD</option><option>EUR</option><option>BTC</option></select></div>'
+  +'<div class="inp-group"><label class="inp-label">Description</label>'
+  +'<input class="inp-field" type="text" id="qpay-desc" placeholder="Payment description..."/></div>'
+  +'<div id="qpay-msg"></div>'
+  +'<button class="btn btn-primary" style="width:100%;margin-top:4px;" onclick="processQuantumPayment()">⚛️ Process Quantum Payment</button>'
+  +'</div>'
+  +'<div class="card">'
+  +'<div class="dash-section-title">Quantum Payment History</div>'
+  +'<div id="qpay-history" style="font-size:12px;color:#7090b0;"><div class="loader"></div></div>'
+  +'</div>';
+  loadQPayHistory();
+}
+
+async function processQuantumPayment(){
+  var amount=parseFloat(document.getElementById('qpay-amount').value)||0;
+  var currency=(document.getElementById('qpay-currency')||{}).value||'USD';
+  var desc=(document.getElementById('qpay-desc')||{}).value||'Quantum payment';
+  var msg=document.getElementById('qpay-msg');
+  if(!amount){if(msg)msg.innerHTML='<div class="msg-err">Amount required.</div>';return;}
+  if(msg) msg.innerHTML='<div class="loader"></div>';
+  var r=await api('POST','/api/quantum-payment/process',{amount:amount,currency:currency,description:desc});
+  if(r.error){if(msg)msg.innerHTML='<div class="msg-err">'+escHtml(r.error)+'</div>';return;}
+  if(msg) msg.innerHTML='<div class="msg-ok">✅ Payment ID: '+escHtml(r.paymentId||r.id||'—')+'</div>';
+  toast('Quantum payment initiated!','ok');
+  loadQPayHistory();
+}
+
+async function loadQPayHistory(){
+  var d=document.getElementById('qpay-history');
+  if(!d) return;
+  var r=await api('GET','/api/quantum-payment/history',null,true).catch(function(){return {};});
+  var hist=r.payments||r.history||r.data||[];
+  if(!Array.isArray(hist)) hist=[];
+  d.innerHTML=hist.length?hist.slice(0,8).map(function(p){
+    return '<div class="deal-row">'
+      +'<div><div style="font-weight:600;color:#e8f4ff;font-size:12px;">'+escHtml(p.description||p.id||'Payment')+'</div>'
+      +'<div style="font-size:11px;color:#7090b0;">'+(p.createdAt?new Date(p.createdAt).toLocaleDateString():'—')+'</div></div>'
+      +'<div><div class="green">'+escHtml(String(p.amount||'—'))+' '+escHtml(p.currency||'USD')+'</div>'
+      +'<span class="badge '+(p.status==='confirmed'?'badge-cyan':p.status==='failed'?'badge-purple':'')+'">'+escHtml(p.status||'pending')+'</span></div>'
+      +'</div>';
+  }).join(''):'<div style="color:#7090b0;">No quantum payments yet.</div>';
+}
+
+// ================================================================
+// ADMIN AUTONOMOUS TAB
+// ================================================================
+async function loadAdminAutonomous(){
+  var [innovStatus,innovMetrics,revStatus,revMetrics,platStatus,orchStatus,healerStatus,selfConstr,totalHealer,pendPrs,innovLog]=await Promise.all([
+    api('GET','/api/autonomous/innovation/status').catch(function(){return {};}),
+    api('GET','/api/autonomous/innovation/metrics').catch(function(){return {};}),
+    api('GET','/api/autonomous/revenue/status').catch(function(){return {};}),
+    api('GET','/api/autonomous/revenue/metrics').catch(function(){return {};}),
+    api('GET','/api/autonomous/platform/status').catch(function(){return {};}),
+    api('GET','/api/orchestrator/status').catch(function(){return {};}),
+    api('GET','/api/self-healer/status').catch(function(){return {};}),
+    api('GET','/api/self-construction/status',null,true).catch(function(){return {};}),
+    api('GET','/api/total-system-healer/status',null,true).catch(function(){return {};}),
+    api('GET','/api/innovation-loop/pending-prs',null,true).catch(function(){return {};}),
+    api('GET','/api/innovation-loop/log',null,true).catch(function(){return {};})
+  ]);
+  var innovOk=innovStatus.active||innovStatus.running||innovStatus.status==='active';
+  setElText('auto-innov-status',innovOk?'🟢 Active':'⚪ Idle');
+  var revOk=revStatus.active||revStatus.running||revStatus.status==='active';
+  setElText('auto-rev-status',revOk?'🟢 Active':'⚪ Idle');
+  var platOk=platStatus.active||platStatus.running||platStatus.status==='active';
+  setElText('auto-platform-status',platOk?'🟢 Active':'⚪ Idle');
+  var idEl=document.getElementById('auto-innov-detail');
+  if(idEl){
+    var im=innovMetrics.metrics||innovMetrics.data||innovMetrics||{};
+    idEl.innerHTML=renderKVObj(im)||'<div style="color:#7090b0;">No metrics.</div>';
+  }
+  var rdEl=document.getElementById('auto-rev-detail');
+  if(rdEl){
+    var rm=revMetrics.metrics||revMetrics.data||revMetrics||{};
+    rdEl.innerHTML=renderKVObj(rm)||'<div style="color:#7090b0;">No metrics.</div>';
+  }
+  var odEl=document.getElementById('auto-orchestrator-detail');
+  if(odEl){
+    odEl.innerHTML='<pre style="font-size:11px;overflow:auto;max-height:100px;">'+escHtml(JSON.stringify(orchStatus,null,2))+'</pre>';
+  }
+  var hdEl=document.getElementById('auto-healer-status');
+  if(hdEl){
+    hdEl.innerHTML='<pre style="font-size:11px;overflow:auto;max-height:80px;">'+escHtml(JSON.stringify(healerStatus,null,2))+'</pre>';
+  }
+  var logEl=document.getElementById('auto-innov-log');
+  if(logEl){
+    var log=innovLog.log||innovLog.data||innovLog||[];
+    if(Array.isArray(log)){
+      logEl.innerHTML=log.slice(-10).reverse().map(function(l){
+        return '<div style="border-bottom:1px solid rgba(0,200,255,.05);padding:3px 0;font-size:11px;color:#7090b0;">'+escHtml(typeof l==='string'?l:JSON.stringify(l))+'</div>';
+      }).join('');
+    } else {
+      logEl.innerHTML='<pre>'+escHtml(JSON.stringify(log,null,2))+'</pre>';
+    }
+  }
+  var ppEl=document.getElementById('auto-pending-prs');
+  if(ppEl){
+    var prs=pendPrs.prs||pendPrs.data||pendPrs||[];
+    if(Array.isArray(prs)&&prs.length){
+      ppEl.innerHTML=prs.slice(0,5).map(function(p){
+        return '<div class="deal-row"><div style="font-size:12px;color:#e8f4ff;">'+escHtml(p.title||p.url||p)+'</div>'
+          +'<a href="'+escAttr(p.url||'#')+'" target="_blank" class="btn btn-ghost btn-sm">View PR</a></div>';
+      }).join('');
+    } else {
+      ppEl.innerHTML='<div style="color:#7090b0;">No pending PRs.</div>';
+    }
+  }
+  var scEl=document.getElementById('auto-self-construction');
+  if(scEl){
+    scEl.innerHTML='<pre style="font-size:11px;overflow:auto;max-height:80px;">'+escHtml(JSON.stringify(selfConstr,null,2))+'</pre>';
+  }
+  var thEl=document.getElementById('auto-total-healer');
+  if(thEl){
+    thEl.innerHTML='<pre style="font-size:11px;overflow:auto;max-height:80px;">'+escHtml(JSON.stringify(totalHealer,null,2))+'</pre>';
+  }
+}
+
+async function triggerAutoInnovation(){
+  var r=await api('POST','/api/autonomous/innovation/trigger',{},true);
+  toast(r.error?r.error:'Innovation triggered!',r.error?'err':'ok');
+  loadAdminAutonomous();
+}
+
+async function optimizeAutoInnovation(){
+  var r=await api('POST','/api/autonomous/innovation/optimize',{},true);
+  toast(r.error?r.error:'Optimization started!',r.error?'err':'ok');
+}
+
+async function generateAutoDeals(){
+  var r=await api('POST','/api/autonomous/revenue/generate-deals',{count:5},true);
+  toast(r.error?r.error:'Deals generated!',r.error?'err':'ok');
+  loadAdminAutonomous();
+}
+
+async function runOrchestratorCheck(){
+  var r=await api('POST','/api/orchestrator/check',{},true);
+  toast(r.error?r.error:'Orchestrator check complete!',r.error?'err':'ok');
+  loadAdminAutonomous();
+}
+
+async function adminHealerRestart(){
+  if(!confirm('Restart the self-healer?')) return;
+  var r=await api('POST','/api/self-healer/restart',{},true);
+  toast(r.error?r.error:'Healer restarted!',r.error?'err':'ok');
+  loadAdminAutonomous();
+}
+
+async function adminHealerRedeploy(){
+  if(!confirm('Trigger full redeploy?')) return;
+  var r=await api('POST','/api/self-healer/redeploy',{},true);
+  toast(r.error?r.error:'Redeploy triggered!',r.error?'err':'ok');
+}
+
+async function runSelfConstruction(){
+  var r=await api('POST','/api/self-construction/run',{},true);
+  toast(r.error?r.error:'Self-construction run started!',r.error?'err':'ok');
+  loadAdminAutonomous();
+}
+
+async function runTotalHeal(){
+  var r=await api('POST','/api/total-system-healer/heal',{},true);
+  toast(r.error?r.error:'Total heal started!',r.error?'err':'ok');
+  loadAdminAutonomous();
+}
+
+async function checkAllModules(){
+  var r=await api('POST','/api/total-system-healer/check-modules',{},true);
+  toast(r.error?r.error:'Module check complete!',r.error?'err':'ok');
+  var d=document.getElementById('auto-total-healer');
+  if(d) d.innerHTML='<pre style="font-size:11px;overflow:auto;max-height:80px;">'+escHtml(JSON.stringify(r,null,2))+'</pre>';
+}
+
+// ================================================================
+// ADMIN MODULES TAB
+// ================================================================
+async function loadAdminModules(){
+  var [mlStatus,mlAvail,fcStatus,cfgStatus,revModStatus,qsecStatus,qintStatus,qvaultStatus,tempStatus,uacStatus,meshStatus,codeSanityStatus,trustStatus]=await Promise.all([
+    api('GET','/api/module-loader/status',null,true).catch(function(){return {};}),
+    api('GET','/api/module-loader/available',null,true).catch(function(){return {};}),
+    api('GET','/api/future-compat/status').catch(function(){return {};}),
+    api('GET','/api/config/status',null,true).catch(function(){return {};}),
+    api('GET','/api/revenue-modules/status',null,true).catch(function(){return {};}),
+    api('GET','/api/quantum-security/status').catch(function(){return {};}),
+    api('GET','/api/quantum-integrity/status').catch(function(){return {};}),
+    api('GET','/api/quantum-vault/status',null,true).catch(function(){return {};}),
+    api('GET','/api/temporal-processor/status').catch(function(){return {};}),
+    api('GET','/api/uac/status').catch(function(){return {};}),
+    api('GET','/api/mesh/status').catch(function(){return {};}),
+    api('GET','/api/code-sanity/status').catch(function(){return {};}),
+    api('GET','/api/trust/status').catch(function(){return {};})
+  ]);
+  var mlEl=document.getElementById('mod-loader-status');
+  if(mlEl) mlEl.innerHTML=renderKVObj(mlStatus.status||mlStatus.data||mlStatus);
+  var mlListEl=document.getElementById('mod-loader-list');
+  if(mlListEl){
+    var avail=mlAvail.modules||mlAvail.data||[];
+    if(Array.isArray(avail)&&avail.length){
+      mlListEl.innerHTML=avail.map(function(m){
+        var name=typeof m==='string'?m:(m.name||m.id||'module');
+        return '<div class="deal-row"><div style="font-size:12px;color:#e8f4ff;">'+escHtml(name)+'</div>'
+          +'<button class="btn btn-ghost btn-sm" onclick="adminReloadModule(\''+escAttr(name)+'\')">🔄</button></div>';
+      }).join('');
+    } else {
+      mlListEl.innerHTML='<div style="color:#7090b0;">No modules listed.</div>';
+    }
+  }
+  var fcEl=document.getElementById('mod-future-compat');
+  if(fcEl) fcEl.innerHTML=renderKVObj(fcStatus.status||fcStatus.data||fcStatus);
+  var cfgEl=document.getElementById('mod-config-status');
+  if(cfgEl) cfgEl.innerHTML=renderKVObj(cfgStatus.status||cfgStatus.data||cfgStatus);
+  var rmEl=document.getElementById('mod-rev-modules');
+  if(rmEl){
+    var rmTotal=await api('GET','/api/revenue-modules/total',null,true).catch(function(){return {};});
+    rmEl.innerHTML=renderKVObj(revModStatus.status||revModStatus.data||revModStatus)
+      +'<div class="deal-row" style="margin-top:8px;"><div style="color:#e8f4ff;">Total Revenue (Modules)</div><div class="green">$'+escHtml(String((rmTotal.total||rmTotal.revenue||0).toLocaleString()))+'</div></div>';
+  }
+  var qsEl=document.getElementById('mod-qsec-status');
+  if(qsEl) qsEl.innerHTML=renderKVObj(qsecStatus.status||qsecStatus.data||qsecStatus);
+  var qiEl=document.getElementById('mod-qintegrity-status');
+  if(qiEl) qiEl.innerHTML=renderKVObj(qintStatus.status||qintStatus.data||qintStatus);
+  var qihEl=document.getElementById('mod-qintegrity-history');
+  if(qihEl){
+    var hist=await api('GET','/api/quantum-integrity/history',null,true).catch(function(){return {};});
+    var hl=hist.history||hist.data||[];
+    qihEl.innerHTML=Array.isArray(hl)&&hl.length?hl.slice(0,5).map(function(h){
+      return '<div style="font-size:11px;color:#7090b0;border-bottom:1px solid rgba(0,200,255,.05);padding:2px 0;">'+escHtml(JSON.stringify(h).slice(0,80))+'</div>';
+    }).join(''):'<div style="color:#7090b0;font-size:11px;">No history.</div>';
+  }
+  var qvEl=document.getElementById('mod-qvault-status');
+  if(qvEl) qvEl.innerHTML=renderKVObj(qvaultStatus.status||qvaultStatus.data||qvaultStatus);
+  var tpEl=document.getElementById('mod-temporal-status');
+  if(tpEl) tpEl.innerHTML=renderKVObj(tempStatus.status||tempStatus.data||tempStatus);
+  var uacEl=document.getElementById('mod-uac-status');
+  if(uacEl) uacEl.innerHTML=renderKVObj(uacStatus.status||uacStatus.data||uacStatus);
+  var meshEl=document.getElementById('mod-mesh-status');
+  if(meshEl) meshEl.innerHTML=renderKVObj(meshStatus.status||meshStatus.data||meshStatus);
+  var meshLogEl=document.getElementById('mod-mesh-log');
+  if(meshLogEl){
+    var mlog=await api('GET','/api/mesh/log',null,true).catch(function(){return {};});
+    meshLogEl.innerHTML='<pre style="font-size:11px;overflow:auto;max-height:80px;">'+escHtml(JSON.stringify(mlog,null,2).slice(0,500))+'</pre>';
+  }
+  var csEl=document.getElementById('mod-code-sanity');
+  if(csEl) csEl.innerHTML=renderKVObj(codeSanityStatus.status||codeSanityStatus.data||codeSanityStatus);
+  var tEl=document.getElementById('mod-trust-status');
+  if(tEl) tEl.innerHTML=renderKVObj(trustStatus.status||trustStatus.data||trustStatus);
+  var tiEl=document.getElementById('mod-trust-incidents');
+  if(tiEl){
+    var incs=await api('GET','/api/trust/incidents').catch(function(){return {};});
+    var incList=incs.incidents||incs.data||[];
+    tiEl.innerHTML=Array.isArray(incList)&&incList.length?incList.slice(0,3).map(function(i){
+      return '<div class="deal-row"><div style="font-size:12px;color:#e8f4ff;">'+escHtml(i.type||i.id||'Incident')+'</div>'
+        +'<div style="font-size:11px;color:#7090b0;">'+(i.timestamp?new Date(i.timestamp).toLocaleDateString():'')+'</div></div>';
+    }).join(''):'<div style="color:#7090b0;font-size:11px;">No incidents.</div>';
+  }
+}
+
+async function adminReloadModule(name){
+  var r=await api('POST','/api/module-loader/reload/'+encodeURIComponent(name),{},true);
+  toast(r.error?r.error:'Module '+name+' reloaded!',r.error?'err':'ok');
+}
+
+async function runFutureCompatProcess(){
+  var r=await api('POST','/api/future-compat/process',{},true);
+  toast(r.error?r.error:'Future-compat processed!',r.error?'err':'ok');
+  var d=document.getElementById('mod-future-compat');
+  if(d) d.innerHTML=renderKVObj(r.result||r.data||r);
+}
+
+async function adminSetConfig(){
+  var key=document.getElementById('cfg-key-inp').value.trim();
+  var val=document.getElementById('cfg-val-inp').value.trim();
+  if(!key){toast('Key required','err');return;}
+  var r=await api('POST','/api/config/'+encodeURIComponent(key),{value:val},true);
+  var d=document.getElementById('cfg-result');
+  if(d){d.innerHTML=r.error?'<span style="color:#ff6060;">'+escHtml(r.error)+'</span>':'✅ Set: '+escHtml(key)+' = '+escHtml(val);}
+}
+
+async function adminGetConfig(){
+  var key=document.getElementById('cfg-key-inp').value.trim();
+  if(!key){
+    var r=await api('GET','/api/config/all-keys',null,true);
+    var d=document.getElementById('cfg-result');
+    if(d) d.innerHTML=r.error?'<span style="color:#ff6060;">'+escHtml(r.error)+'</span>':'<pre style="font-size:11px;overflow:auto;max-height:80px;">'+escHtml(JSON.stringify(r.keys||r.data||r,null,2))+'</pre>';
+    return;
+  }
+  var r=await api('GET','/api/config/'+encodeURIComponent(key),null,true);
+  var d=document.getElementById('cfg-result');
+  if(d){d.innerHTML=r.error?'<span style="color:#ff6060;">'+escHtml(r.error)+'</span>':''+escHtml(key)+': '+escHtml(String(r.value||r.data||JSON.stringify(r)));}
+}
+
+async function simTradingRevenue(){
+  var r=await api('POST','/api/revenue-modules/trading/simulate',{amount:10000},true);
+  toast(r.error?r.error:'Trading simulated! Profit: $'+(r.profit||r.data||0),r.error?'err':'ok');
+}
+
+async function optimizeCloudRevenue(){
+  var r=await api('POST','/api/revenue-modules/cloud/optimize',{},true);
+  toast(r.error?r.error:'Cloud optimized! Savings: $'+(r.savings||r.data||0),r.error?'err':'ok');
+}
+
+async function runQuantumSecurityProcess(){
+  var data=prompt('Data/payload to secure:') || 'test-payload';
+  var r=await api('POST','/api/quantum-security/process',{data:data},true);
+  toast(r.error?r.error:'Quantum security processed!',r.error?'err':'ok');
+  var d=document.getElementById('mod-qsec-status');
+  if(d&&!r.error) d.innerHTML=renderKVObj(r.result||r.data||r);
+}
+
+async function runQuantumIntegrityScan(){
+  var r=await api('POST','/api/quantum-integrity/scan',{scope:'full'},true);
+  toast(r.error?r.error:'Integrity scan complete!',r.error?'err':'ok');
+  loadAdminModules();
+}
+
+async function adminVaultStore(){
+  var key=document.getElementById('vault-key-inp').value.trim();
+  var val=document.getElementById('vault-val-inp').value.trim();
+  if(!key||!val){toast('Key and value required','err');return;}
+  var r=await api('POST','/api/quantum-vault/store',{key:key,value:val},true);
+  var d=document.getElementById('vault-result');
+  if(d){d.innerHTML=r.error?'<span style="color:#ff6060;">'+escHtml(r.error)+'</span>':'✅ Stored: '+escHtml(key);}
+}
+
+async function adminVaultRetrieve(){
+  var key=document.getElementById('vault-key-inp').value.trim();
+  if(!key){toast('Key required','err');return;}
+  var r=await api('POST','/api/quantum-vault/retrieve',{key:key},true);
+  var d=document.getElementById('vault-result');
+  if(d){d.innerHTML=r.error?'<span style="color:#ff6060;">'+escHtml(r.error)+'</span>':'🔓 Value: '+escHtml(String(r.value||r.data||JSON.stringify(r)));}
+}
+
+async function adminVaultUnlock(){
+  var pass=prompt('Vault master password:');
+  if(!pass) return;
+  var r=await api('POST','/api/quantum-vault/unlock',{password:pass},true);
+  toast(r.error?r.error:'Vault unlocked!',r.error?'err':'ok');
+}
+
+async function runTemporalProcess(){
+  var data=prompt('Data to process temporally:') || 'timeseries-event';
+  var r=await api('POST','/api/temporal-processor/process',{data:data,timestamp:Date.now()},true);
+  toast(r.error?r.error:'Temporal processing complete!',r.error?'err':'ok');
+  var d=document.getElementById('mod-temporal-status');
+  if(d&&!r.error) d.innerHTML=renderKVObj(r.result||r.data||r);
+}
+
+async function runUacCycle(){
+  var r=await api('POST','/api/uac/cycle',{});
+  toast(r.error?r.error:'UAC cycle complete!',r.error?'err':'ok');
+}
+async function runUacInnovate(){
+  var r=await api('POST','/api/uac/innovate',{});
+  toast(r.error?r.error:'UAC innovation triggered!',r.error?'err':'ok');
+}
+async function runUacOptimize(){
+  var r=await api('POST','/api/uac/optimize',{});
+  toast(r.error?r.error:'UAC optimization complete!',r.error?'err':'ok');
+}
+
+async function adminMeshSync(){
+  var r=await api('POST','/api/mesh/sync',{},true);
+  toast(r.error?r.error:'Mesh synced!',r.error?'err':'ok');
+  loadAdminModules();
+}
+
+async function runCodeSanityScan(){
+  var r=await api('POST','/api/code-sanity/scan',{},true);
+  toast(r.error?r.error:'Code sanity scan started!',r.error?'err':'ok');
+  var d=document.getElementById('mod-code-sanity');
+  if(d&&!r.error) d.innerHTML=renderKVObj(r.result||r.data||r);
+}
+
+// ================================================================
+// ADMIN ADVANCED TAB
+// ================================================================
+async function loadAdminAdvanced(){
+  var [agiSt,sovSt,spaceSt,dtwinSt,neuralSt,qinetSt,qmlSt,tempDataSt]=await Promise.all([
+    api('GET','/api/agi/status',null,true).catch(function(){return {};}),
+    api('GET','/api/sovereign/status',null,true).catch(function(){return {};}),
+    api('GET','/api/space-computing/status').catch(function(){return {};}),
+    api('GET','/api/digital-twin/status').catch(function(){return {};}),
+    api('GET','/api/neural-interface/status').catch(function(){return {};}),
+    api('GET','/api/quantum-internet/status').catch(function(){return {};}),
+    api('GET','/api/quantum-ml/status').catch(function(){return {};}),
+    api('GET','/api/temporal-data/status').catch(function(){return {};})
+  ]);
+  var agiOk=agiSt.active||agiSt.status==='active'||agiSt.running;
+  setElText('adv-agi-status',agiOk?'🟢 Online':'⚪ Offline');
+  var sovOk=sovSt.active||sovSt.status==='active'||sovSt.secured;
+  setElText('adv-sovereign-status',sovOk?'🔒 Secured':'⚠️ Open');
+  var qmlOk=qmlSt.active||qmlSt.status==='active';
+  setElText('adv-qml-status',qmlOk?'⚛️ Active':'⚪ Idle');
+  function setDetail(id,data){
+    var el=document.getElementById(id);
+    if(el) el.innerHTML=renderKVObj(data.status||data.data||data);
+  }
+  setDetail('adv-agi-detail',agiSt);
+  setDetail('adv-sovereign-detail',sovSt);
+  setDetail('adv-space-detail',spaceSt);
+  setDetail('adv-dtwin-detail',dtwinSt);
+  setDetail('adv-neural-detail',neuralSt);
+  setDetail('adv-qinternet-detail',qinetSt);
+  setDetail('adv-qml-detail',qmlSt);
+  setDetail('adv-temporal-detail',tempDataSt);
+}
+
+async function runAgiProcess(){
+  var task=document.getElementById('agi-task-inp').value.trim()||'Analyze system performance';
+  var d=document.getElementById('agi-result');
+  if(d) d.innerHTML='<div class="loader"></div>';
+  var r=await api('POST','/api/agi/process',{task:task},true);
+  if(d){d.innerHTML=r.error?'<span style="color:#ff6060;">'+escHtml(r.error)+'</span>':escHtml(String(r.result||r.response||r.output||JSON.stringify(r)).slice(0,300));}
+}
+
+async function adminSetupTotp(){
+  var r=await api('POST','/api/sovereign/setup-totp',{},true);
+  var d=document.getElementById('totp-result');
+  if(d){d.innerHTML=r.error?'<span style="color:#ff6060;">'+escHtml(r.error)+'</span>'
+    :'✅ TOTP Secret: <span class="badge badge-cyan">'+escHtml(r.secret||r.data||'—')+'</span>'
+    +(r.otpauthUrl?'<br/><small style="color:#7090b0;">URL: '+escHtml(r.otpauthUrl)+'</small>':'');}
+}
+
+function makeAdvancedRunner(apiPath,inputId,resultId,label){
+  return async function(){
+    var task=(document.getElementById(inputId)||{}).value||label;
+    var d=document.getElementById(resultId);
+    if(d) d.innerHTML='<div class="loader"></div>';
+    var r=await api('POST',apiPath,{task:task},true);
+    if(d){d.innerHTML=r.error?'<span style="color:#ff6060;">'+escHtml(r.error)+'</span>':escHtml(String(r.result||r.response||r.output||JSON.stringify(r)).slice(0,300));}
+  };
+}
+var runSpaceProcess=makeAdvancedRunner('/api/space-computing/process','space-task-inp','space-result','compute-orbit');
+var runDigitalTwinProcess=makeAdvancedRunner('/api/digital-twin/process','dtwin-task-inp','dtwin-result','sync-twin');
+var runNeuralProcess=makeAdvancedRunner('/api/neural-interface/process','neural-task-inp','neural-result','neural-signal');
+var runQuantumInternetProcess=makeAdvancedRunner('/api/quantum-internet/process','qinternet-task-inp','qinternet-result','qinternet-route');
+var runQuantumMlProcess=makeAdvancedRunner('/api/quantum-ml/process','qml-task-inp','qml-result','classify');
+var runTemporalDataProcess=makeAdvancedRunner('/api/temporal-data/process','temporaldata-task-inp','temporaldata-result','analyze-temporal');
 function openCheckout(item){
   STATE.checkoutItem=item;
   var title=document.getElementById('checkout-title');
