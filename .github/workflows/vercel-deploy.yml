@@ -608,6 +608,70 @@ jobs:
           ssh-keyscan -t ed25519,rsa -p ${DEPLOY_PORT:-22} ${DEPLOY_HOST} >> ~/.ssh/known_hosts 2>/dev/null || true
           echo "✅ SSH key configured"
 
+      - name: Open Hetzner Cloud Firewall ports 80/443
+        if: steps.hetzner_guard.outputs.ssh_ready == 'true'
+        continue-on-error: true
+        env:
+          HETZNER_API_TOKEN: ${{ secrets.HETZNER_API_KEY || secrets.HETZNER_API_TOKEN }}
+          DEPLOY_HOST: ${{ secrets.HETZNER_HOST || secrets.SSH_HOST || '204.168.230.142' }}
+        run: |
+          if [ -z "$HETZNER_API_TOKEN" ]; then
+            echo "ℹ️  HETZNER_API_KEY not set — skipping cloud firewall rule update"
+            exit 0
+          fi
+          # Replace fragile Python with jq for robustness
+          if ! command -v jq >/dev/null 2>&1; then
+            apt-get install -y jq -qq 2>/dev/null || true
+          fi
+          SERVER_RESP=$(curl -sf -H "Authorization: Bearer ${HETZNER_API_TOKEN}" \
+            "https://api.hetzner.cloud/v1/servers" 2>/dev/null || echo "{}")
+          SERVER_ID=$(echo "$SERVER_RESP" | jq -r \
+            --arg ip "$DEPLOY_HOST" \
+            '.servers[] | select(.public_net.ipv4.ip == $ip) | .id' 2>/dev/null | head -1 || echo "")
+          if [ -z "$SERVER_ID" ]; then
+            echo "ℹ️  Could not find Hetzner server with IP ${DEPLOY_HOST} — skipping cloud firewall update"
+            exit 0
+          fi
+          echo "Found server ID: $SERVER_ID"
+          # Find firewall attached to the server
+          FW_RESP=$(curl -sf -H "Authorization: Bearer ${HETZNER_API_TOKEN}" \
+            "https://api.hetzner.cloud/v1/firewalls" 2>/dev/null || echo "{}")
+          FW_ID=$(echo "$FW_RESP" | jq -r \
+            --argjson sid "$SERVER_ID" \
+            '.firewalls[] | select(.applied_to[]?.server.id == $sid) | .id' 2>/dev/null | head -1 || echo "")
+          if [ -z "$FW_ID" ]; then
+            echo "ℹ️  No cloud firewall found for server ${SERVER_ID} — skipping"
+            exit 0
+          fi
+          echo "Found firewall ID: $FW_ID"
+          # Get current rules and ensure HTTP/HTTPS inbound rules exist
+          FW_DETAIL=$(curl -sf -H "Authorization: Bearer ${HETZNER_API_TOKEN}" \
+            "https://api.hetzner.cloud/v1/firewalls/${FW_ID}" 2>/dev/null || echo "{}")
+          RULES=$(echo "$FW_DETAIL" | jq '
+            .firewall.rules as $existing |
+            ($existing | map(select(.direction == "in" and (.port == "80" or .port == "443"))) | length) as $has_web |
+            if $has_web >= 2 then $existing
+            else
+              $existing +
+              (if ($existing | map(select(.direction=="in" and .port=="80")) | length) == 0
+               then [{"direction":"in","protocol":"tcp","port":"80","source_ips":["0.0.0.0/0","::/0"]}]
+               else [] end) +
+              (if ($existing | map(select(.direction=="in" and .port=="443")) | length) == 0
+               then [{"direction":"in","protocol":"tcp","port":"443","source_ips":["0.0.0.0/0","::/0"]}]
+               else [] end)
+            end' 2>/dev/null || echo "null")
+          if [ "$RULES" = "null" ] || [ -z "$RULES" ]; then
+            echo "ℹ️  Could not determine firewall rules — skipping update"
+            exit 0
+          fi
+          HTTP=$(curl -sf -o /dev/null -w "%{http_code}" \
+            -X POST "https://api.hetzner.cloud/v1/firewalls/${FW_ID}/actions/set_rules" \
+            -H "Authorization: Bearer ${HETZNER_API_TOKEN}" \
+            -H "Content-Type: application/json" \
+            -d "{\"rules\": ${RULES}}" 2>/dev/null || echo "000")
+          echo "Hetzner Cloud Firewall update → HTTP $HTTP"
+          [ "$HTTP" = "201" ] && echo "✅ Cloud firewall ports 80/443 opened" || echo "ℹ️  Firewall update returned $HTTP (may already be open or unchanged)"
+
       - name: Sync UNICORN_FINAL to Hetzner
         id: sync_hetzner
         if: steps.hetzner_guard.outputs.ssh_ready == 'true'
@@ -791,8 +855,15 @@ jobs:
             if command -v ufw >/dev/null 2>&1; then
               ufw allow 80/tcp  2>/dev/null || true
               ufw allow 443/tcp 2>/dev/null || true
-              echo "✅ Firewall: ports 80/443 open for Nginx"
+              ufw allow 22/tcp  2>/dev/null || true
+              ufw --force enable 2>/dev/null || true
+              echo "✅ Firewall: ports 22/80/443 open for SSH+Nginx"
             fi
+            # Also open via iptables in case ufw is not available
+            iptables -I INPUT -p tcp --dport 80 -j ACCEPT 2>/dev/null || true
+            iptables -I INPUT -p tcp --dport 443 -j ACCEPT 2>/dev/null || true
+            ip6tables -I INPUT -p tcp --dport 80 -j ACCEPT 2>/dev/null || true
+            ip6tables -I INPUT -p tcp --dport 443 -j ACCEPT 2>/dev/null || true
 
             # ── Install and configure Nginx ───────────────────────────────
             if ! command -v nginx >/dev/null 2>&1; then
@@ -802,8 +873,19 @@ jobs:
               cp scripts/nginx-unicorn.conf /etc/nginx/sites-available/unicorn
               ln -sf /etc/nginx/sites-available/unicorn /etc/nginx/sites-enabled/unicorn
               rm -f /etc/nginx/sites-enabled/default
-              nginx -t && systemctl reload nginx || systemctl restart nginx
-              echo "✅ Nginx configured and reloaded"
+              # Safe reload: test first; if test fails, log and force-restart with fallback conf
+              if nginx -t 2>&1; then
+                systemctl reload nginx 2>/dev/null || systemctl restart nginx 2>/dev/null || true
+                echo "✅ Nginx configured and reloaded"
+              else
+                echo "⚠️  nginx -t failed — attempting force-restart with current conf"
+                systemctl restart nginx 2>/dev/null || true
+                echo "ℹ️  Nginx restart attempted (check logs: journalctl -u nginx -n 30)"
+              fi
+              # Ensure nginx is enabled on boot and actually running
+              systemctl enable nginx 2>/dev/null || true
+              systemctl is-active --quiet nginx && echo "✅ Nginx is running" || \
+                { systemctl start nginx 2>/dev/null || true; echo "ℹ️  nginx start attempted"; }
             fi
 
             # ── Install certbot + obtain/renew SSL cert ───────────────────
@@ -832,8 +914,29 @@ jobs:
                   certbot renew --quiet --nginx 2>/dev/null || true
                   echo "ℹ️  certbot renewal attempted for $DOMAIN (new cert may need DNS propagation)"
                 fi
-                nginx -t && systemctl reload nginx 2>/dev/null || true
+                # Only reload if config test passes after certbot modifications
+                if nginx -t 2>/dev/null; then
+                  systemctl reload nginx 2>/dev/null || true
+                  echo "✅ Nginx reloaded after certbot"
+                else
+                  echo "⚠️  nginx -t failed after certbot — keeping existing nginx config"
+                fi
               fi
+            fi
+
+            # ── Verify nginx is listening on port 80 ──────────────────────
+            sleep 2
+            if curl -sf --max-time 5 http://localhost/api/health >/dev/null 2>&1 || \
+               curl -sf --max-time 5 http://localhost:80/ >/dev/null 2>&1; then
+              echo "✅ Nginx port 80 verified accessible"
+            else
+              echo "⚠️  Nginx port 80 not responding — attempting nginx restart"
+              nginx -t 2>&1 || true
+              systemctl restart nginx 2>/dev/null || service nginx restart 2>/dev/null || true
+              sleep 3
+              curl -sf --max-time 5 http://localhost:80/ >/dev/null 2>&1 && \
+                echo "✅ Nginx recovered on port 80" || \
+                echo "❌ Nginx still not on port 80 — check: journalctl -u nginx -n 50"
             fi
 
             # ── Backup current deploy snapshot (keep last 5) ─────────────
@@ -1140,7 +1243,17 @@ jobs:
             echo "⚠️  Site not responding (HTTP $HTTPS_STATUS). Attempting service restart via SSH…"
             ssh -i ~/.ssh/deploy_key -p "${DEPLOY_PORT:-22}" -o StrictHostKeyChecking=no -o BatchMode=yes \
               "${DEPLOY_USER}@${DEPLOY_HOST}" \
-              "DEPLOY_PATH='${DEPLOY_PATH}'; cd \"\$DEPLOY_PATH\"; if command -v pm2 >/dev/null 2>&1; then pm2 stop all 2>/dev/null || true; pm2 delete all 2>/dev/null || true; pm2 start ecosystem.config.js && pm2 save && echo 'Restarted via PM2'; elif command -v systemctl >/dev/null 2>&1 && systemctl list-unit-files | grep -q '^unicorn\\.service'; then systemctl restart unicorn && echo 'Restarted via systemctl'; else pkill -f 'node backend/index.js' || true; sleep 1; mkdir -p logs; nohup node backend/index.js > logs/backend.log 2>&1 & echo 'Restarted via nohup'; fi"
+              "DEPLOY_PATH='${DEPLOY_PATH}'; \
+               # 1. Restart Nginx first (most common cause of ERR_CONNECTION_REFUSED)
+               if command -v nginx >/dev/null 2>&1; then \
+                 nginx -t 2>/dev/null && systemctl reload nginx 2>/dev/null || systemctl restart nginx 2>/dev/null || service nginx restart 2>/dev/null || true; \
+                 echo 'Nginx restart attempted'; \
+               fi; \
+               # 2. Restart PM2 backend processes
+               cd \"\$DEPLOY_PATH\" 2>/dev/null || true; \
+               if command -v pm2 >/dev/null 2>&1; then pm2 stop all 2>/dev/null || true; pm2 delete all 2>/dev/null || true; pm2 start ecosystem.config.js && pm2 save && echo 'Restarted via PM2'; \
+               elif command -v systemctl >/dev/null 2>&1 && systemctl list-unit-files | grep -q '^unicorn\\.service'; then systemctl restart unicorn && echo 'Restarted via systemctl'; \
+               else pkill -f 'node backend/index.js' || true; sleep 1; mkdir -p logs; nohup node backend/index.js > logs/backend.log 2>&1 & echo 'Restarted via nohup'; fi"
 
             # Wait for service to come back up with a retry loop (max 60s)
             echo "Waiting for service to recover…"
