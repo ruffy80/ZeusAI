@@ -124,8 +124,7 @@ jobs:
             "${DEPLOY_USER}@${DEPLOY_HOST}" << ENDSSH
             # Restart PM2 processes
             if command -v pm2 >/dev/null 2>&1; then
-              DEPLOY_DIR="${DEPLOY_PATH:-/opt/unicorn}"
-              cd "\$DEPLOY_DIR" 2>/dev/null || cd "/opt/unicorn" 2>/dev/null || true
+              cd "${DEPLOY_PATH:-/opt/unicorn}" 2>/dev/null || cd "/opt/unicorn" 2>/dev/null || true
               pm2 resurrect || true
               pm2 restart unicorn 2>/dev/null || { \
                 echo "pm2 restart failed — clean start from ecosystem"; \
