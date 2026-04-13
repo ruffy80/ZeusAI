@@ -30,6 +30,17 @@ const dns   = require('dns').promises;
 const { EventEmitter } = require('events');
 const crypto = require('crypto');
 
+// Quantum Integrity Shield — monitorizare integritate runtime
+let _qis = null;
+function getQIS() {
+  if (!_qis) {
+    try { _qis = require('./quantumIntegrityShield'); } catch { _qis = null; }
+  }
+  return _qis;
+}
+
+const QIS_POLL_MS = parseInt(process.env.QIS_ORCHESTRATOR_POLL_MS || '300000', 10); // 5 min
+
 const POLL_MS           = parseInt(process.env.ORCHESTRATOR_POLL_MS   || '60000',  10); // 1 min
 const DNS_CHECK_MS      = parseInt(process.env.ORCHESTRATOR_DNS_MS    || '120000', 10); // 2 min
 const GITHUB_POLL_MS    = parseInt(process.env.ORCHESTRATOR_GH_MS     || '300000', 10); // 5 min
@@ -60,6 +71,7 @@ class CentralOrchestrator extends EventEmitter {
       hetzner: { status: 'unknown', lastCheck: null, consecutiveFailures: 0 },
       dns:     { status: 'unknown', lastCheck: null, consecutiveFailures: 0 },
       github:  { status: 'unknown', lastCheck: null, consecutiveFailures: 0 },
+      quantumIntegrity: { status: 'unknown', lastCheck: null, consecutiveFailures: 0 },
     };
     this._timers = [];
     this._running = false;
@@ -72,16 +84,18 @@ class CentralOrchestrator extends EventEmitter {
     this._running = true;
 
     // Stagger initial checks to avoid burst on startup
-    this._schedule(() => this._checkVercel(),  2000);
-    this._schedule(() => this._checkHetzner(), 3000);
-    this._schedule(() => this._checkDNS(),     5000);
-    this._schedule(() => this._checkGitHub(),  8000);
+    this._schedule(() => this._checkVercel(),          2000);
+    this._schedule(() => this._checkHetzner(),         3000);
+    this._schedule(() => this._checkDNS(),             5000);
+    this._schedule(() => this._checkGitHub(),          8000);
+    this._schedule(() => this._checkQuantumIntegrity(), 10000);
 
     // Recurring polls
-    this._timers.push(setInterval(() => this._checkVercel(),  POLL_MS));
-    this._timers.push(setInterval(() => this._checkHetzner(), POLL_MS));
-    this._timers.push(setInterval(() => this._checkDNS(),     DNS_CHECK_MS));
-    this._timers.push(setInterval(() => this._checkGitHub(),  GITHUB_POLL_MS));
+    this._timers.push(setInterval(() => this._checkVercel(),          POLL_MS));
+    this._timers.push(setInterval(() => this._checkHetzner(),         POLL_MS));
+    this._timers.push(setInterval(() => this._checkDNS(),             DNS_CHECK_MS));
+    this._timers.push(setInterval(() => this._checkGitHub(),          GITHUB_POLL_MS));
+    this._timers.push(setInterval(() => this._checkQuantumIntegrity(), QIS_POLL_MS));
 
     console.log('[Orchestrator] 🌐 Central Orchestrator started');
   }
@@ -189,6 +203,29 @@ class CentralOrchestrator extends EventEmitter {
       }
     } catch (err) {
       await this._fail('github', `GitHub API error: ${err.message}`, {});
+    }
+  }
+
+  // ── Probe: Quantum Integrity Shield ──────────────────────────────
+
+  async _checkQuantumIntegrity() {
+    const qis = getQIS();
+    if (!qis) {
+      this._updateHealth('quantumIntegrity', 'unconfigured');
+      return;
+    }
+    try {
+      const result = await qis.scan();
+      if (result.status === 'intact') {
+        this._recover('quantumIntegrity', 'Quantum Integrity Shield: sistem intact');
+      } else {
+        const issueCount = result.issues ? result.issues.length : 0;
+        await this._fail('quantumIntegrity',
+          `Quantum Integrity Shield: ${result.status} (${issueCount} issue(s))`,
+          { issues: result.issues });
+      }
+    } catch (err) {
+      await this._fail('quantumIntegrity', `Quantum Integrity Shield eroare: ${err.message}`, {});
     }
   }
 
@@ -332,6 +369,7 @@ class CentralOrchestrator extends EventEmitter {
       this._checkHetzner(),
       this._checkDNS(),
       this._checkGitHub(),
+      this._checkQuantumIntegrity(),
     ]);
     return this.getStatus();
   }
