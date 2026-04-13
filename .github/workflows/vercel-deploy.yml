@@ -758,7 +758,7 @@ jobs:
 
             # ── Stop PM2 before npm install to prevent ENOTEMPTY file locks ──
             if command -v pm2 >/dev/null 2>&1; then
-              pm2 stop all 2>/dev/null || true
+              pm2 stop unicorn 2>/dev/null || pm2 stop all 2>/dev/null || true
             fi
 
             # ── Install dependencies (with retry on ENOTEMPTY) ───────────
