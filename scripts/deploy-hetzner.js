@@ -7,20 +7,15 @@ const rl = readline.createInterface({ input: process.stdin, output: process.stdo
 const question = (q) => new Promise(resolve => rl.question(q, resolve));
 
 async function main() {
-  console.log('
-🚀 Configurare automată Hetzner pentru Unicorn
-');
-  console.log('Acest script va configura serverul Hetzner de la zero și va porni Unicornul.
-');
+  console.log('\n🚀 Configurare automată Hetzner pentru Unicorn\n');
+  console.log('Acest script va configura serverul Hetzner de la zero și va porni Unicornul.\n');
 
   const host = await question('🌐 IP-ul serverului Hetzner: ');
   const user = await question('👤 Utilizator SSH (default root): ') || 'root';
   const repoUrl = await question('📦 URL repository GitHub: ');
   const deployPath = await question('📁 Calea deploy pe server (default /root/unicorn): ') || '/root/unicorn';
 
-  console.log('
-🔧 Se rulează scriptul de configurare pe server...
-');
+  console.log('\n🔧 Se rulează scriptul de configurare pe server...\n');
 
   const script = `
 echo "═══════════════════════════════════════════════════════════"

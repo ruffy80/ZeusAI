@@ -1,3 +1,7 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
 html, body, #root { margin: 0; min-height: 100%; }
 body { font-family: Inter, system-ui, Arial, sans-serif; background: #0a0f1f; color: #fff; }
 

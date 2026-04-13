@@ -34,6 +34,10 @@
     "deploy:local": "bash deploy_locally.sh",
     "deploy:full": "node deploy-unicorn.js",
     "deploy:run": "bash run.sh",
+    "genesis:run": "node start.js",
+    "health:guardian": "node scripts/health-guardian.js",
+    "backup:create": "bash scripts/create-backup.sh",
+    "backup:rollback": "bash scripts/rollback-last-backup.sh",
     "hetzner:setup": "node scripts/setup-hetzner-auto.js",
     "zip:github": "mkdir -p ../release && zip -r ../release/unicorn-github-deploy.zip . -x '.git/*' 'node_modules/*' 'logs/*' '.next/*' '.env' '.vercel/*'",
     "unzip:github": "mkdir -p ../release/unpacked && unzip -o ../release/unicorn-github-deploy.zip -d ../release/unpacked"

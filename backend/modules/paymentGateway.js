@@ -41,7 +41,7 @@ class PaymentGateway {
   }
 
   normalizeBaseUrl(value) {
-    return String(value || DEFAULT_APP_BASE_URL).replace(//$/, '');
+    return String(value || DEFAULT_APP_BASE_URL).replace(/\/$/, '');
   }
 
   isStripeConfigured() {

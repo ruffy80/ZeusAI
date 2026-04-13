@@ -1,0 +1,109 @@
+/**
+ * AUTO VIRAL GROWTH ENGINE
+ * Simulates autonomous viral loops: referrals, social traction, partner mentions.
+ * Safe mode: no unsolicited outbound actions, metrics-first growth automation.
+ */
+
+'use strict';
+
+class AutoViralGrowth {
+  constructor() {
+    this.events = [];
+    this.referrals = [];
+    this.contentQueue = [];
+
+    this.metrics = {
+      viralScore: 0,
+      referralCodesGenerated: 0,
+      referralSignups: 0,
+      socialMentions: 0,
+      partnerMentions: 0,
+      growthLoopsExecuted: 0,
+      estimatedReach: 0,
+    };
+
+    this.config = {
+      cycleMs: Math.max(parseInt(process.env.VIRAL_CYCLE_MS || '20000', 10), 5000),
+      contentPerCycle: Math.max(parseInt(process.env.VIRAL_CONTENT_PER_CYCLE || '3', 10), 1),
+      referralsPerCycle: Math.max(parseInt(process.env.VIRAL_REFERRALS_PER_CYCLE || '4', 10), 1),
+    };
+
+    this.start();
+  }
+
+  start() {
+    this.stop();
+    this.interval = setInterval(() => this.executeGrowthLoop(), this.config.cycleMs);
+  }
+
+  stop() {
+    if (this.interval) clearInterval(this.interval);
+  }
+
+  executeGrowthLoop() {
+    this.metrics.growthLoopsExecuted += 1;
+
+    for (let i = 0; i < this.config.contentPerCycle; i++) {
+      this.contentQueue.push({
+        id: `CNT-${Date.now()}-${i}`,
+        channel: ['X', 'LinkedIn', 'Reddit', 'Community'][Math.floor(Math.random() * 4)],
+        topic: ['ZEUS AI', 'Unicorn Automation', 'Autonomous Growth', 'Revenue Flywheel'][Math.floor(Math.random() * 4)],
+        createdAt: new Date().toISOString(),
+      });
+    }
+
+    for (let i = 0; i < this.config.referralsPerCycle; i++) {
+      const code = `ZEUS-${Math.random().toString(36).slice(2, 8).toUpperCase()}`;
+      this.referrals.push({
+        code,
+        createdAt: new Date().toISOString(),
+        signups: Math.floor(Math.random() * 4),
+      });
+      this.metrics.referralCodesGenerated += 1;
+      this.metrics.referralSignups += this.referrals[this.referrals.length - 1].signups;
+    }
+
+    const social = Math.floor(Math.random() * 12) + 3;
+    const partner = Math.floor(Math.random() * 5) + 1;
+    const reach = Math.floor(Math.random() * 900) + 200;
+
+    this.metrics.socialMentions += social;
+    this.metrics.partnerMentions += partner;
+    this.metrics.estimatedReach += reach;
+
+    this.events.push({
+      at: new Date().toISOString(),
+      socialMentions: social,
+      partnerMentions: partner,
+      estimatedReach: reach,
+    });
+
+    this.metrics.viralScore = Math.min(
+      100,
+      Math.round(
+        this.metrics.referralSignups * 0.8 +
+        this.metrics.socialMentions * 0.25 +
+        this.metrics.partnerMentions * 0.6
+      )
+    );
+
+    if (this.events.length > 200) this.events = this.events.slice(-200);
+    if (this.referrals.length > 300) this.referrals = this.referrals.slice(-300);
+    if (this.contentQueue.length > 300) this.contentQueue = this.contentQueue.slice(-300);
+
+    return this.getViralStatus();
+  }
+
+  getViralStatus() {
+    return {
+      timestamp: new Date().toISOString(),
+      state: 'AUTONOMOUS_VIRAL_GROWTH_ACTIVE',
+      metrics: this.metrics,
+      nextCycleIn: `${Math.round(this.config.cycleMs / 1000)}s`,
+      recentEvents: this.events.slice(-5),
+      recentReferrals: this.referrals.slice(-5),
+    };
+  }
+}
+
+module.exports = new AutoViralGrowth();
