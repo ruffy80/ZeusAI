@@ -16,7 +16,7 @@ module.exports = {
       instances: 1,
       autorestart: true,
       watch: false,
-      max_restarts: 20,
+      max_restarts: 0,
       restart_delay: 3000,
       exp_backoff_restart_delay: 2000,
       env: {
@@ -36,7 +36,7 @@ module.exports = {
       instances: 1,
       autorestart: true,
       watch: false,
-      max_restarts: 20,
+      max_restarts: 0,
       restart_delay: 5000,
       exp_backoff_restart_delay: 2000,
       env: {
@@ -60,7 +60,7 @@ module.exports = {
       instances: 1,
       autorestart: true,
       watch: false,
-      max_restarts: 20,
+      max_restarts: 0,
       restart_delay: 5000,
       env: {
         NODE_ENV: 'production',
@@ -82,7 +82,7 @@ module.exports = {
       instances: 1,
       autorestart: true,
       watch: false,
-      max_restarts: 20,
+      max_restarts: 0,
       restart_delay: 10000,
       env: {
         NODE_ENV: 'production',
@@ -103,7 +103,7 @@ module.exports = {
       instances: 1,
       autorestart: true,
       watch: false,
-      max_restarts: 20,
+      max_restarts: 0,
       restart_delay: 10000,
       exp_backoff_restart_delay: 3000,
       env: {
