@@ -128,8 +128,16 @@ jobs:
             # Ensure nginx is enabled and running
             if command -v nginx >/dev/null 2>&1; then
               systemctl enable nginx 2>/dev/null || true
-              systemctl start nginx 2>/dev/null || service nginx start 2>/dev/null || true
-              echo "✅ Nginx ensured running"
+              # Test config before starting to avoid silent failures
+              if nginx -t 2>/dev/null; then
+                systemctl reload nginx 2>/dev/null || systemctl restart nginx 2>/dev/null || service nginx restart 2>/dev/null || true
+              else
+                echo "⚠️  nginx -t failed — forcing restart (will use current on-disk config)"
+                systemctl restart nginx 2>/dev/null || service nginx restart 2>/dev/null || true
+              fi
+              sleep 2
+              systemctl is-active --quiet nginx && echo "✅ Nginx running" || \
+                { systemctl start nginx 2>/dev/null || true; echo "ℹ️  nginx start attempted"; }
             fi
 
             # Restart PM2 processes — skip resurrect (stale dumps cause silent failures)
@@ -153,6 +161,8 @@ jobs:
 
             sleep 10
             curl -sf http://localhost:3000/api/health && echo "✅ Backend healthy after restart" || echo "⚠️  Backend still starting (may need more time)"
+            # Verify nginx port 80 is accessible locally
+            curl -sf --max-time 5 http://localhost:80/ >/dev/null 2>&1 && echo "✅ Nginx port 80 responding" || echo "⚠️  Nginx port 80 not responding — check: journalctl -u nginx -n 20"
           ENDSSH
 
       - name: Verify platform recovered after SSH restart
