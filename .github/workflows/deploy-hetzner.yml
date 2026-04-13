@@ -117,10 +117,12 @@ jobs:
                npm install --legacy-peer-deps --no-audit --no-fund
                if [ -d UNICORN_FINAL ]; then
                  npm install --prefix UNICORN_FINAL --legacy-peer-deps --no-audit --no-fund
+                 npm rebuild better-sqlite3 --prefix UNICORN_FINAL 2>/dev/null || true
+               else
+                 npm rebuild better-sqlite3 2>/dev/null || true
                fi
 
                echo '🎨 build frontend…'
-               if [ -d client ] && [ -f client/package.json ]; then
                if [ -d UNICORN_FINAL/client ]; then
                  cd UNICORN_FINAL/client
                  npm install --legacy-peer-deps --no-audit --no-fund
@@ -130,13 +132,10 @@ jobs:
                  cd client
                  npm install --legacy-peer-deps --no-audit --no-fund
                  npm run build
-                 cd "\$DEPLOY_PATH"
+                 cd ..
                fi
 
                echo '🧪 local lint + tests…'
-               cd "\$DEPLOY_PATH"
-               npm run lint
-               npm test
                if [ -d UNICORN_FINAL ]; then
                  npm --prefix UNICORN_FINAL run lint
                  npm --prefix UNICORN_FINAL test
@@ -147,25 +146,38 @@ jobs:
 
                echo '♻️  pm2 restart…'
                if command -v pm2 >/dev/null 2>&1; then
-                 pm2 startOrRestart ecosystem.config.js
+                 pm2 stop all 2>/dev/null || true
+                 pm2 delete all 2>/dev/null || true
+                 if [ -f UNICORN_FINAL/ecosystem.config.js ]; then
+                   pm2 start UNICORN_FINAL/ecosystem.config.js
+                 elif [ -f ecosystem.config.js ]; then
+                   pm2 start ecosystem.config.js
+                 fi
                  pm2 save
-                 echo '✅ PM2 restarted'
+                 echo '✅ PM2 started'
                else
                  systemctl restart unicorn 2>/dev/null && echo '✅ systemctl restart ok' || echo '⚠️  pm2/systemctl not found'
                fi
 
                trap - ERR
                echo '🛠️  Running server auto-repair (nginx/firewall/ssl)…'
-               if [ -f scripts/fix-server.sh ]; then
+               if [ -f UNICORN_FINAL/scripts/fix-server.sh ]; then
+                 chmod +x UNICORN_FINAL/scripts/fix-server.sh || true
+                 bash UNICORN_FINAL/scripts/fix-server.sh "\$DEPLOY_PATH/UNICORN_FINAL" "${DOMAIN}" || true
+               elif [ -f scripts/fix-server.sh ]; then
                  chmod +x scripts/fix-server.sh || true
                  bash scripts/fix-server.sh "\$DEPLOY_PATH" "${DOMAIN}" || true
                else
                  echo '⚠️  scripts/fix-server.sh missing — skipping extended repair'
                fi
 
-               sleep 5
+               sleep 15
                HEALTH=\$(curl -s http://localhost:3000/api/health 2>/dev/null || echo '{\"status\":\"unreachable\"}')
                echo \"🩺 Health: \$HEALTH\"
+               if echo \"\$HEALTH\" | grep -q '\"unreachable\"'; then
+                 echo '⚠️  Backend unreachable — showing PM2 logs:'
+                 pm2 logs unicorn --lines 30 --nostream 2>/dev/null || true
+               fi
                curl -sf http://localhost:3000/api/quantum-integrity/status >/dev/null && echo '🛡️ Quantum Integrity API: OK' || echo '⚠️ Quantum Integrity API: check manually'
                curl -kfsS --resolve "${DOMAIN}:443:127.0.0.1" "https://${DOMAIN}/health" >/dev/null 2>&1 && echo '🔒 HTTPS local check: OK' || echo '⚠️  HTTPS local check: FAILED'
               "
