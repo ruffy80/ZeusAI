@@ -145,7 +145,32 @@ jobs:
             curl -sf http://localhost:3000/api/health && echo "✅ Backend healthy after restart" || echo "⚠️  Backend still starting"
           ENDSSH
 
+      - name: Verify platform recovered after SSH restart
+        id: verify_recovery
+        continue-on-error: true
+        env:
+          DEPLOY_HOST: ${{ secrets.HETZNER_HOST || secrets.SSH_HOST }}
+        run: |
+          if [ -z "$DEPLOY_HOST" ]; then
+            echo "recovered=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          sleep 10
+          # Check both Vercel and Hetzner from the runner
+          VERCEL_URL="${{ secrets.VERCEL_HEALTH_URL || 'https://zeusai.pro/health' }}"
+          VERCEL_STATUS=$(curl -s -o /dev/null -w "%{http_code}" --max-time 15 "$VERCEL_URL" || echo "000")
+          HETZNER_STATUS=$(curl -s -o /dev/null -w "%{http_code}" --max-time 15 "http://${DEPLOY_HOST}/api/health" || echo "000")
+          echo "Vercel re-check: $VERCEL_STATUS  |  Hetzner re-check: $HETZNER_STATUS"
+          if [ "$VERCEL_STATUS" = "200" ] && [ "$HETZNER_STATUS" = "200" ]; then
+            echo "✅ Platform recovered via fast SSH restart — skipping full redeploy"
+            echo "recovered=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "⚠️  Platform still unhealthy — full redeploy needed"
+            echo "recovered=false" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Dispatch main deploy workflow
+        if: steps.verify_recovery.outputs.recovered != 'true'
         uses: actions/github-script@v7
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
