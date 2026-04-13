@@ -519,6 +519,7 @@ const dynamicPricing   = require('./modules/dynamic-pricing');
 const futureCompatBridge    = require('./modules/FutureCompatibilityBridge');
 const moduleLoader          = require('./modules/ModuleLoader');
 const quantumSecurity       = require('./modules/QuantumSecurityLayer');
+const quantumIntegrityShield = require('./modules/quantumIntegrityShield');
 const temporalProcessor     = require('./modules/TemporalDataProcessor');
 const configManager         = require('./modules/configurationManager');
 const quantumPaymentNexus   = require('./modules/quantumPaymentNexus');
@@ -702,6 +703,7 @@ meshOrchestrator.register('ultimateModules',        ultimateModules,    { status
 // Modulele nou activate — înregistrate în mesh
 meshOrchestrator.register('futureCompatBridge',     futureCompatBridge, { statusFn: 'getStatus' });
 meshOrchestrator.register('quantumSecurity',        quantumSecurity,    { statusFn: 'getStatus' });
+meshOrchestrator.register('quantumIntegrityShield', quantumIntegrityShield, { statusFn: 'getStatus' });
 meshOrchestrator.register('temporalProcessor',      temporalProcessor,  { statusFn: 'getStatus' });
 meshOrchestrator.register('quantumVault',           quantumVault,       { statusFn: 'getStatus' });
 meshOrchestrator.register('sovereignGuardian',      sovereignGuardian,  { statusFn: 'getStatus' });
@@ -726,6 +728,7 @@ function buildHealthResponse() {
     users: dbUsers.count(),
     dbConnected: true,
     engines: { innovation: true, revenue: true, viral: true, eternalEngine: true },
+    quantumIntegrityShield: quantumIntegrityShield.getStatus().integrity,
     memory: {
       rss: Math.round(mem.rss / 1024 / 1024) + 'MB',
       heapUsed: Math.round(mem.heapUsed / 1024 / 1024) + 'MB',
@@ -2916,6 +2919,21 @@ app.post('/api/quantum-security/process', adminTokenMiddleware, async (req, res)
     const result = await quantumSecurity.process(req.body || {});
     res.json(result);
   } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// --- Quantum Integrity Shield ---
+app.get('/api/quantum-integrity/status', (req, res) => {
+  res.json(quantumIntegrityShield.getStatus());
+});
+app.post('/api/quantum-integrity/scan', adminTokenMiddleware, async (req, res) => {
+  try {
+    const result = await quantumIntegrityShield.scan();
+    res.json(result);
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+app.get('/api/quantum-integrity/history', adminTokenMiddleware, (req, res) => {
+  const limit = Math.min(parseInt(req.query.limit || '20', 10), 100);
+  res.json({ history: quantumIntegrityShield.getScanHistory(limit) });
 });
 
 // --- Temporal Data Processor ---

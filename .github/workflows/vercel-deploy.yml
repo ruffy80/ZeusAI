@@ -1186,6 +1186,39 @@ jobs:
           echo "Production ${{ env.VERCEL_PROD_URL }}/health: $PROD_STATUS"
           [ "$PROD_STATUS" = "200" ] && echo "✅ ${{ env.VERCEL_PROD_URL }} is live" || echo "ℹ️  Production domain not yet reachable (DNS/alias may still be propagating)"
 
+      - name: Quantum Integrity Shield check
+        continue-on-error: true
+        run: |
+          HETZNER_HOST="${{ secrets.HETZNER_HOST || secrets.SSH_HOST || '204.168.230.142' }}"
+          VERCEL_URL='${{ needs.deploy-vercel.outputs.deploy_url }}'
+
+          QIS_STATUS=""
+          # Try Hetzner first (port 80 via Nginx, fallback to 3000)
+          if [ -n "$HETZNER_HOST" ]; then
+            QIS_STATUS=$(curl -s --max-time 15 "http://${HETZNER_HOST}/api/quantum-integrity/status" || \
+                         curl -s --max-time 15 "http://${HETZNER_HOST}:3000/api/quantum-integrity/status" || echo "")
+          fi
+          # Try Vercel if Hetzner didn't respond
+          if [ -z "$QIS_STATUS" ] && [ -n "$VERCEL_URL" ]; then
+            QIS_STATUS=$(curl -s --max-time 15 "${VERCEL_URL}/api/quantum-integrity/status" || echo "")
+          fi
+
+          if [ -z "$QIS_STATUS" ]; then
+            echo "ℹ️  Quantum Integrity Shield endpoint not reachable — skipping check."
+            exit 0
+          fi
+
+          echo "Quantum Integrity Shield response: $QIS_STATUS"
+          INTEGRITY=$(echo "$QIS_STATUS" | grep -o '"integrity":"[^"]*"' | cut -d'"' -f4 || echo "unknown")
+          echo "Integrity status: $INTEGRITY"
+          case "$INTEGRITY" in
+            intact)     echo "✅ Quantum Integrity Shield: sistem intact" ;;
+            pending)    echo "ℹ️  Quantum Integrity Shield: scan în curs / scan in progress" ;;
+            degraded)   echo "⚠️  Quantum Integrity Shield: degraded — verificați /api/quantum-integrity/history" ;;
+            compromised) echo "❌ Quantum Integrity Shield: COMPROMIS — acțiune imediată necesară!" ;;
+            *)          echo "ℹ️  Quantum Integrity Shield: status necunoscut ($INTEGRITY)" ;;
+          esac
+
       # ── HTTPS health check + automatic service restart ────────────────
       - name: Setup SSH for HTTPS check
         id: ssh_setup_smoke
