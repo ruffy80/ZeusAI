@@ -3,12 +3,14 @@
  * setup-dns.js
  * Configureaza automat DNS records pentru zeusai.pro.
  *
- * Records setate:
- *   A     @    76.76.21.21          → Vercel (primary, proxied: false)
- *   CNAME www  cname.vercel-dns.com → Vercel (www, proxied: false)
+ * Tot unicornul (site + backend) ruleaza pe Hetzner.
+ * DNS pointeaza DIRECT la serverul Hetzner, nu la Vercel.
  *
- * Sterge automat orice A @ 204.168.230.142 (Hetzner round-robin) care
- * impiedica verificarea domeniului de catre Vercel.
+ * Records setate:
+ *   A     @    <HETZNER_IP>   → Hetzner server (proxied: false)
+ *   A     www  <HETZNER_IP>   → Hetzner server (proxied: false)
+ *
+ * Sterge automat orice record Vercel ramas (76.76.21.21 / cname.vercel-dns.com).
  *
  * Provideri suportati (in ordine):
  *   1. Hetzner DNS API (dns.hetzner.com) — cheie: HETZNER_DNS_API_KEY sau HETZNER_API_KEY
@@ -23,19 +25,19 @@
 const https = require('https');
 
 const DOMAIN      = process.env.SITE_DOMAIN      || 'zeusai.pro';
-const VERCEL_IP   = process.env.VERCEL_IP         || '76.76.21.21';
-const HETZNER_IP  = process.env.HETZNER_HOST      || '204.168.230.142';
+const VERCEL_IP   = '76.76.21.21';
 const VERCEL_CNAME = 'cname.vercel-dns.com';
+const HETZNER_IP  = process.env.HETZNER_HOST      || '204.168.230.142';
 
-// DNS records to ensure exist (Vercel only — no Hetzner round-robin on root,
-// which would cause Vercel domain verification to see the wrong IP intermittently)
+// DNS records to ensure exist — tot unicornul ruleaza pe Hetzner
 const DESIRED_RECORDS = [
-  { type: 'A',     name: '@',   value: VERCEL_IP,    ttl: 300,  comment: 'Vercel primary' },
-  { type: 'CNAME', name: 'www', value: VERCEL_CNAME, ttl: 300,  comment: 'Vercel www' },
+  { type: 'A', name: '@',   value: HETZNER_IP, ttl: 300, comment: 'Hetzner server' },
+  { type: 'A', name: 'www', value: HETZNER_IP, ttl: 300, comment: 'Hetzner server www' },
 ];
 
-// A records with these IPs on the root @ should be removed (stale / conflicting)
-const STALE_A_VALUES = [HETZNER_IP];
+// Old Vercel records that must be removed so DNS points only to Hetzner
+const STALE_A_VALUES    = [VERCEL_IP];
+const STALE_CNAME_NAMES = ['www']; // only when its value is the Vercel CNAME
 
 // ─── Generic HTTPS helper ────────────────────────────────────────────────────
 function request(opts, body) {
@@ -103,22 +105,37 @@ async function hetznerDns() {
 
   const existing = (recRes.status === 200 && recRes.body.records) ? recRes.body.records : [];
 
-  // 3. Delete stale conflicting A records (e.g. old Hetzner round-robin on root)
+  // 3. Delete stale Vercel A records
   for (const staleValue of STALE_A_VALUES) {
-    const staleRecs = existing.filter((r) => r.type === 'A' && r.name === '@' && r.value === staleValue);
+    const staleRecs = existing.filter((r) => r.type === 'A' && r.value === staleValue);
     for (const stale of staleRecs) {
-      console.log(`  🗑️  Deleting stale A @ → ${staleValue}`);
+      console.log(`  🗑️  Deleting stale Vercel A ${stale.name} → ${staleValue}`);
       const delRes = await request({
         hostname: 'dns.hetzner.com',
         path: `/api/v1/records/${stale.id}`,
         method: 'DELETE',
         headers: baseHeaders,
       });
-      console.log(`  ${delRes.status < 300 ? '✅' : '❌'} DELETE A @ → HTTP ${delRes.status}`);
+      console.log(`  ${delRes.status < 300 ? '✅' : '❌'} DELETE A ${stale.name} → HTTP ${delRes.status}`);
     }
   }
 
-  // 4. Upsert each desired record
+  // 4. Delete stale Vercel CNAME records (e.g. www → cname.vercel-dns.com)
+  for (const cname of STALE_CNAME_NAMES) {
+    const staleRecs = existing.filter((r) => r.type === 'CNAME' && r.name === cname && r.value.includes('vercel'));
+    for (const stale of staleRecs) {
+      console.log(`  🗑️  Deleting stale Vercel CNAME ${cname} → ${stale.value}`);
+      const delRes = await request({
+        hostname: 'dns.hetzner.com',
+        path: `/api/v1/records/${stale.id}`,
+        method: 'DELETE',
+        headers: baseHeaders,
+      });
+      console.log(`  ${delRes.status < 300 ? '✅' : '❌'} DELETE CNAME ${cname} → HTTP ${delRes.status}`);
+    }
+  }
+
+  // 5. Upsert each desired record
   for (const desired of DESIRED_RECORDS) {
     const match = existing.find(
       (r) => r.type === desired.type && r.name === desired.name && r.value === desired.value
@@ -129,7 +146,7 @@ async function hetznerDns() {
       continue;
     }
 
-    // For CNAME, replace any conflicting record with same name
+    // Replace any conflicting record with same type+name
     const conflict = existing.find(
       (r) => r.type === desired.type && r.name === desired.name
     );
@@ -214,22 +231,38 @@ async function cloudflareDns() {
   // Helper: CF uses 'content' instead of 'value', '@' is root for CF
   const cfName = (n) => (n === '@' ? DOMAIN : `${n}.${DOMAIN}`);
 
-  // 3. Delete stale conflicting A records (e.g. old Hetzner round-robin on root)
+  // 3. Delete stale Vercel A records (76.76.21.21)
   for (const staleValue of STALE_A_VALUES) {
-    const staleRecs = existing.filter((r) => r.type === 'A' && r.name === DOMAIN && r.content === staleValue);
+    const staleRecs = existing.filter((r) => r.type === 'A' && r.content === staleValue);
     for (const stale of staleRecs) {
-      console.log(`  🗑️  Deleting stale A ${DOMAIN} → ${staleValue}`);
+      console.log(`  🗑️  Deleting stale Vercel A ${stale.name} → ${staleValue}`);
       const delRes = await request({
         hostname: 'api.cloudflare.com',
         path: `/client/v4/zones/${zoneId}/dns_records/${stale.id}`,
         method: 'DELETE',
         headers: baseHeaders,
       });
-      console.log(`  ${delRes.body.success ? '✅' : '❌'} DELETE A ${DOMAIN} → HTTP ${delRes.status}`);
+      console.log(`  ${delRes.body.success ? '✅' : '❌'} DELETE A ${stale.name} → HTTP ${delRes.status}`);
     }
   }
 
-  // 4. Upsert each desired record (enforce proxied: false for Vercel compatibility)
+  // 4. Delete stale Vercel CNAME records (e.g. www → cname.vercel-dns.com)
+  for (const cname of STALE_CNAME_NAMES) {
+    const cfCname = cfName(cname);
+    const staleRecs = existing.filter((r) => r.type === 'CNAME' && r.name === cfCname && r.content.includes('vercel'));
+    for (const stale of staleRecs) {
+      console.log(`  🗑️  Deleting stale Vercel CNAME ${cfCname} → ${stale.content}`);
+      const delRes = await request({
+        hostname: 'api.cloudflare.com',
+        path: `/client/v4/zones/${zoneId}/dns_records/${stale.id}`,
+        method: 'DELETE',
+        headers: baseHeaders,
+      });
+      console.log(`  ${delRes.body.success ? '✅' : '❌'} DELETE CNAME ${cfCname} → HTTP ${delRes.status}`);
+    }
+  }
+
+  // 5. Upsert each desired record (enforce proxied: false — Cloudflare proxy must be off for direct server)
   for (const desired of DESIRED_RECORDS) {
     const cfRecordName = cfName(desired.name);
 
@@ -345,9 +378,10 @@ async function main() {
   console.log('');
   console.log('   Type    Name   Value                    TTL');
   console.log('   ──────────────────────────────────────────────');
-  console.log(`   A       @      ${VERCEL_IP.padEnd(24)} 300`);
-  console.log(`   CNAME   www    ${VERCEL_CNAME.padEnd(24)} 300`);
   console.log(`   A       @      ${HETZNER_IP.padEnd(24)} 300`);
+  console.log(`   A       www    ${HETZNER_IP.padEnd(24)} 300`);
+  console.log('');
+  console.log('   (Tot unicornul ruleaza pe Hetzner — nu mai este nevoie de records Vercel)');
   console.log('');
   console.log('   Pentru configurare automata setati una din variabilele:');
   console.log('   HETZNER_DNS_API_KEY=xxx  (Hetzner DNS token)');
