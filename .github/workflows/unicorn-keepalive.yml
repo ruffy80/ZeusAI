@@ -177,16 +177,19 @@ jobs:
               fi
             fi
 
-            # Restart PM2 processes — skip resurrect (stale dumps cause silent failures)
-            # Use clean start from ecosystem: delete all → start fresh → save
+            # Restart PM2 processes safely (avoid delete-all downtime)
             if command -v pm2 >/dev/null 2>&1; then
-              pm2 stop all 2>/dev/null || true
-              pm2 delete all 2>/dev/null || true
-              pm2 start ecosystem.config.js
+              if pm2 describe unicorn >/dev/null 2>&1; then
+                pm2 restart unicorn
+              else
+                pm2 start ecosystem.config.js --only unicorn
+              fi
+              # Keep guardian online if defined
+              pm2 describe unicorn-health-guardian >/dev/null 2>&1 && pm2 restart unicorn-health-guardian || true
               pm2 save
               # Re-register PM2 startup hook so it survives reboots
               pm2 startup systemd 2>/dev/null | grep "^sudo" | head -1 | bash 2>/dev/null || true
-              echo "✅ PM2 clean start from ecosystem complete"
+              echo "✅ PM2 safe restart complete"
             elif command -v systemctl >/dev/null 2>&1 && systemctl list-unit-files 2>/dev/null | grep -q '^unicorn\.service'; then
               systemctl restart unicorn && echo "✅ Restarted via systemctl"
             else

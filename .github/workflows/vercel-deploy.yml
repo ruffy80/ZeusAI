@@ -985,20 +985,20 @@ jobs:
             npm run innovation:sprint  || true
             npm run innovation:report  || true
 
-            # ── Restart backend process ───────────────────────────────────
-            # Use clean PM2 ecosystem start to avoid process-ID conflicts
+            # ── Restart backend process (safe / low-downtime) ─────────────
             if command -v pm2 >/dev/null 2>&1; then
               mkdir -p logs
-              # Stop and delete all PM2 processes for a clean slate
-              pm2 stop all 2>/dev/null || true
-              pm2 delete all 2>/dev/null || true
-              # Start all apps from ecosystem (unicorn, orchestrator, health-guardian, connector)
-              pm2 start ecosystem.config.js
+              if pm2 describe unicorn >/dev/null 2>&1; then
+                pm2 restart unicorn
+              else
+                pm2 start ecosystem.config.js --only unicorn
+              fi
+              pm2 describe unicorn-health-guardian >/dev/null 2>&1 && pm2 restart unicorn-health-guardian || true
               pm2 save
               # Register PM2 in systemd so it starts on reboot
               pm2 startup systemd 2>/dev/null | grep "^sudo" | head -1 | bash 2>/dev/null || true
               pm2 save
-              echo "✅ All PM2 apps started from ecosystem.config.js"
+              echo "✅ PM2 unicorn process healthy"
             elif command -v systemctl >/dev/null 2>&1 && systemctl list-unit-files | grep -q "^unicorn\.service"; then
               systemctl restart unicorn && echo "✅ Restarted via systemctl"
             else
@@ -1316,9 +1316,9 @@ jobs:
                  nginx -t 2>/dev/null && systemctl reload nginx 2>/dev/null || systemctl restart nginx 2>/dev/null || service nginx restart 2>/dev/null || true; \
                  echo 'Nginx restart attempted'; \
                fi; \
-               # 2. Restart PM2 backend processes
+               # 2. Restart PM2 backend process safely (no delete-all)
                cd \"\$DEPLOY_PATH\" 2>/dev/null || true; \
-               if command -v pm2 >/dev/null 2>&1; then pm2 stop all 2>/dev/null || true; pm2 delete all 2>/dev/null || true; pm2 start ecosystem.config.js && pm2 save && echo 'Restarted via PM2'; \
+               if command -v pm2 >/dev/null 2>&1; then if pm2 describe unicorn >/dev/null 2>&1; then pm2 restart unicorn; else pm2 start ecosystem.config.js --only unicorn; fi; pm2 save && echo 'Restarted unicorn via PM2'; \
                elif command -v systemctl >/dev/null 2>&1 && systemctl list-unit-files | grep -q '^unicorn\\.service'; then systemctl restart unicorn && echo 'Restarted via systemctl'; \
                else pkill -f 'node backend/index.js' || true; sleep 1; mkdir -p logs; nohup node backend/index.js > logs/backend.log 2>&1 & echo 'Restarted via nohup'; fi"
 
