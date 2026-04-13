@@ -866,11 +866,21 @@ jobs:
             ip6tables -I INPUT -p tcp --dport 443 -j ACCEPT 2>/dev/null || true
 
             # ── Install and configure Nginx ───────────────────────────────
+            DOMAIN="${{ secrets.SITE_DOMAIN || 'zeusai.pro' }}"
+            CERT_EMAIL="${{ secrets.OWNER_EMAIL || 'vladoi_ionut@yahoo.com' }}"
             if ! command -v nginx >/dev/null 2>&1; then
               apt-get update -y && apt-get install -y nginx
             fi
             if [ -f scripts/nginx-unicorn.conf ]; then
-              cp scripts/nginx-unicorn.conf /etc/nginx/sites-available/unicorn
+              # Fix 1: Only deploy HTTP-only config if no SSL cert exists yet.
+              # If certbot has already configured HTTPS, preserve the nginx config it wrote
+              # (overwriting it would strip the SSL server block and break HTTPS on every deploy).
+              if [ ! -f "/etc/letsencrypt/live/${DOMAIN}/fullchain.pem" ]; then
+                cp scripts/nginx-unicorn.conf /etc/nginx/sites-available/unicorn
+                echo "ℹ️  No SSL cert found — deploying HTTP-only nginx config"
+              else
+                echo "ℹ️  SSL cert exists — preserving existing nginx HTTPS config (not overwriting)"
+              fi
               ln -sf /etc/nginx/sites-available/unicorn /etc/nginx/sites-enabled/unicorn
               rm -f /etc/nginx/sites-enabled/default
               # Safe reload: test first; if test fails, log and force-restart with fallback conf
@@ -889,30 +899,37 @@ jobs:
             fi
 
             # ── Install certbot + obtain/renew SSL cert ───────────────────
-            DOMAIN="${{ secrets.SITE_DOMAIN || 'zeusai.pro' }}"
-            CERT_EMAIL="${{ secrets.OWNER_EMAIL || 'vladoi_ionut@yahoo.com' }}"
             if [ -n "$DOMAIN" ]; then
               if ! command -v certbot >/dev/null 2>&1; then
                 apt-get install -y certbot python3-certbot-nginx 2>/dev/null || snap install --classic certbot 2>/dev/null || true
               fi
               if command -v certbot >/dev/null 2>&1; then
-                # Verify DNS resolves to this server before attempting cert (avoid rate-limit burn)
+                # Fix 3: Verify DNS resolves to this server before attempting cert.
+                # Running certbot when DNS points elsewhere burns Let's Encrypt rate-limit quota.
                 SERVER_IP=$(curl -s --max-time 5 https://ifconfig.me || hostname -I | awk '{print $1}')
                 DOMAIN_IP=$(dig +short "$DOMAIN" A 2>/dev/null | tail -1 || true)
                 echo "  Server IP: ${SERVER_IP}  Domain IP: ${DOMAIN_IP}"
 
-                # Try both apex + www first; if www fails (proxy on registrar), fall back to apex only
-                if certbot --nginx -d "$DOMAIN" -d "www.$DOMAIN" \
-                    --non-interactive --agree-tos --email "$CERT_EMAIL" \
-                    --redirect --keep-until-expiring 2>/dev/null; then
-                  echo "✅ SSL certificate (apex + www) configured for $DOMAIN"
-                elif certbot --nginx -d "$DOMAIN" \
-                    --non-interactive --agree-tos --email "$CERT_EMAIL" \
-                    --redirect --keep-until-expiring 2>/dev/null; then
-                  echo "✅ SSL certificate (apex only) configured for $DOMAIN"
+                if [ -n "$DOMAIN_IP" ] && [ "$DOMAIN_IP" = "$SERVER_IP" ]; then
+                  # Fix 2: Run certbot without 2>/dev/null so failures are visible in CI logs.
+                  # Try both apex + www first; if www fails (proxy on registrar), fall back to apex only.
+                  if certbot --nginx -d "$DOMAIN" -d "www.$DOMAIN" \
+                      --non-interactive --agree-tos --email "$CERT_EMAIL" \
+                      --redirect --keep-until-expiring; then
+                    echo "✅ SSL certificate (apex + www) configured for $DOMAIN"
+                  elif certbot --nginx -d "$DOMAIN" \
+                      --non-interactive --agree-tos --email "$CERT_EMAIL" \
+                      --redirect --keep-until-expiring; then
+                    echo "✅ SSL certificate (apex only) configured for $DOMAIN"
+                  else
+                    echo "⚠️  certbot failed for $DOMAIN — check certbot output above for details"
+                    certbot renew --nginx 2>/dev/null || true
+                    echo "ℹ️  certbot renewal attempted for $DOMAIN"
+                  fi
                 else
-                  certbot renew --quiet --nginx 2>/dev/null || true
-                  echo "ℹ️  certbot renewal attempted for $DOMAIN (new cert may need DNS propagation)"
+                  echo "⚠️  DNS mismatch: $DOMAIN → ${DOMAIN_IP:-'(unresolved)'}, server IP: $SERVER_IP"
+                  echo "    Skipping certbot to avoid Let's Encrypt rate-limit burn."
+                  echo "    Fix DNS to point $DOMAIN → $SERVER_IP, then redeploy."
                 fi
                 # Only reload if config test passes after certbot modifications
                 if nginx -t 2>/dev/null; then
