@@ -223,9 +223,6 @@ class UnicornAutoGenesis {
     this.cache = new Map(); this.cacheTTL = 60000; 
     this.repo = process.env.GITHUB_REPO_FULL || `${process.env.GITHUB_OWNER || 'ruffy80'}/${process.env.GITHUB_REPO || 'ZeusAI'}`;
     this.branch = process.env.BRANCH || 'main';
-    this.vercelToken = process.env.VERCEL_TOKEN || '';
-    this.vercelOrgId = process.env.VERCEL_ORG_ID || process.env.VERCEL_TEAM_ID || '';
-    this.vercelProjectId = process.env.VERCEL_PROJECT_ID || '';
     this.hetznerHost = process.env.HETZNER_HOST || '';
     this.hetznerUser = process.env.HETZNER_USER || process.env.HETZNER_DEPLOY_USER || 'root';
     this.hetznerPassword = process.env.HETZNER_PASSWORD || '';
@@ -276,7 +273,7 @@ class UnicornAutoGenesis {
     console.log(`
 ╔══════════════════════════════════════════════════════════════════╗
 ║   🦄 UNICORN AUTO‑GENESIS (SAFE MODE)                           ║
-║   Configurează GitHub + Vercel + Hetzner fără git rewrite       ║
+║   Configurează GitHub + Hetzner automat                         ║
 ╚══════════════════════════════════════════════════════════════════╝
 `);
 
@@ -288,25 +285,11 @@ class UnicornAutoGenesis {
     }
 
     console.log('🔧 Verific credențiale de bază...');
-    if (!this.vercelToken || !this.vercelOrgId || !this.vercelProjectId) {
-      throw new Error('Lipsesc variabilele VERCEL_TOKEN / VERCEL_ORG_ID / VERCEL_PROJECT_ID');
-    }
     if (!this.hetznerHost) {
       throw new Error('Lipsește HETZNER_HOST');
     }
 
-    if (this.ensure(`curl -fsS -H "Authorization: Bearer ${this.vercelToken}" https://api.vercel.com/v2/user`, true)) {
-      console.log('✅ Vercel token valid');
-    } else {
-      throw new Error('VERCEL_TOKEN invalid');
-    }
-
     console.log('🔧 Setez secrete GitHub Actions...');
-    this.setGhSecret('VERCEL_TOKEN', this.vercelToken);
-    this.setGhSecret('VERCEL_ORG_ID', this.vercelOrgId);
-    this.setGhSecret('VERCEL_PROJECT_ID', this.vercelProjectId);
-    this.setGhSecret('VERCEL_TEAM_ID', this.vercelOrgId);
-
     this.setGhSecret('HETZNER_HOST', this.hetznerHost);
     this.setGhSecret('HETZNER_USER', this.hetznerUser);
     this.setGhSecret('HETZNER_DEPLOY_USER', this.hetznerUser);
@@ -336,11 +319,11 @@ class UnicornAutoGenesis {
     }
 
     console.log('🚀 Declanșez deploy workflow...');
-    this.runCmd(`gh workflow run vercel-deploy.yml --repo ${this.repo} --ref ${this.branch}`);
+    this.runCmd(`gh workflow run hetzner-deploy.yml --repo ${this.repo} --ref ${this.branch}`);
 
     console.log('⏳ Aștept finalizarea...');
     this.runCmd(`sleep 20`);
-    const runId = this.runCmd(`gh run list --repo ${this.repo} --workflow vercel-deploy.yml --limit 1 --json databaseId -q '.[0].databaseId'`, true).trim();
+    const runId = this.runCmd(`gh run list --repo ${this.repo} --workflow hetzner-deploy.yml --limit 1 --json databaseId -q '.[0].databaseId'`, true).trim();
     if (runId) {
       this.runCmd(`gh run watch ${runId} --repo ${this.repo} || true`);
       this.runCmd(`gh run view ${runId} --repo ${this.repo} --json status,conclusion`);

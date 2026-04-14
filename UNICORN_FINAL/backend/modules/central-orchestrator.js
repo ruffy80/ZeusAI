@@ -51,7 +51,7 @@ const ESCALATION_FAILURE_THRESHOLD = 3; // consecutive failures before escalatio
 // Env-driven targets — safe defaults for when not configured
 // These are read lazily via getters (not cached at module load) to support
 // runtime injection from quantumVault.
-const VERCEL_APP_URL    = process.env.PUBLIC_APP_URL       || process.env.VERCEL_URL || '';
+const PUBLIC_APP_URL    = process.env.PUBLIC_APP_URL       || '';
 const HETZNER_URL       = process.env.HETZNER_BACKEND_URL  || '';
 const DOMAIN            = process.env.DOMAIN               || '';
 // GITHUB_TOKEN și GITHUB_REPO sunt citite din process.env la runtime (nu cached)
@@ -67,7 +67,6 @@ class CentralOrchestrator extends EventEmitter {
     this.decisionLog  = [];
     this.incidents    = [];
     this.health       = {
-      vercel:  { status: 'unknown', lastCheck: null, consecutiveFailures: 0 },
       hetzner: { status: 'unknown', lastCheck: null, consecutiveFailures: 0 },
       dns:     { status: 'unknown', lastCheck: null, consecutiveFailures: 0 },
       github:  { status: 'unknown', lastCheck: null, consecutiveFailures: 0 },
@@ -84,14 +83,12 @@ class CentralOrchestrator extends EventEmitter {
     this._running = true;
 
     // Stagger initial checks to avoid burst on startup
-    this._schedule(() => this._checkVercel(),          2000);
     this._schedule(() => this._checkHetzner(),         3000);
     this._schedule(() => this._checkDNS(),             5000);
     this._schedule(() => this._checkGitHub(),          8000);
     this._schedule(() => this._checkQuantumIntegrity(), 10000);
 
     // Recurring polls
-    this._timers.push(setInterval(() => this._checkVercel(),          POLL_MS));
     this._timers.push(setInterval(() => this._checkHetzner(),         POLL_MS));
     this._timers.push(setInterval(() => this._checkDNS(),             DNS_CHECK_MS));
     this._timers.push(setInterval(() => this._checkGitHub(),          GITHUB_POLL_MS));
@@ -111,31 +108,10 @@ class CentralOrchestrator extends EventEmitter {
     this._timers.push(t);
   }
 
-  // ── Probe: Vercel ─────────────────────────────────────────────────
-
-  async _checkVercel() {
-    const target = VERCEL_APP_URL ? `${VERCEL_APP_URL}/health` : null;
-    if (!target) {
-      this._updateHealth('vercel', 'unconfigured');
-      return;
-    }
-
-    try {
-      const code = await this._httpGet(target, 8000);
-      if (code >= 200 && code < 400) {
-        this._recover('vercel', `Vercel responded with HTTP ${code}`);
-      } else {
-        await this._fail('vercel', `Vercel health returned HTTP ${code}`, { target, code });
-      }
-    } catch (err) {
-      await this._fail('vercel', `Vercel unreachable: ${err.message}`, { target });
-    }
-  }
-
   // ── Probe: Hetzner ────────────────────────────────────────────────
 
   async _checkHetzner() {
-    const target = HETZNER_URL ? `${HETZNER_URL}/health` : null;
+    const target = PUBLIC_APP_URL ? `${PUBLIC_APP_URL}/health` : (HETZNER_URL ? `${HETZNER_URL}/health` : null);
     if (!target) {
       this._updateHealth('hetzner', 'unconfigured');
       return;

@@ -118,9 +118,6 @@ class SelfHealingEngine {
     this._log('HEAL_START', service, `Degradation detected (${failures} failures): ${reason}`);
 
     switch (service) {
-      case 'vercel':
-        await this._healVercel(reason);
-        break;
       case 'hetzner':
         await this._healHetzner(reason);
         break;
@@ -140,22 +137,10 @@ class SelfHealingEngine {
     // On escalation, try full re-deploy regardless of cooldown
     if (service === 'hetzner') {
       await this._fullRedeploy('hetzner', reason);
-    } else if (service === 'vercel') {
-      // Cannot re-deploy Vercel programmatically without Vercel CLI + token
-      // Log and emit notification instead
-      this._log('ESCALATION_NOTIFY', service, 'Vercel rate-limited or down — flagged for manual intervention or Hetzner fallback activation');
-      await this._activateHetznerFallback(reason);
     }
   }
 
   // ── Heal strategies ───────────────────────────────────────────────
-
-  async _healVercel(reason) {
-    // 1. Ping a second time to confirm (may be transient)
-    this._log('VERIFY', 'vercel', 'Confirming Vercel degradation before acting...');
-    // 2. If confirmed: activate Hetzner as primary (via env-level feature flag)
-    await this._activateHetznerFallback(reason);
-  }
 
   async _healHetzner(reason) {
     // 1. Try PM2 restart of backend process
@@ -192,14 +177,6 @@ class SelfHealingEngine {
     // Nothing executable without GitHub App credentials,
     // but we record the incident for the Auto-Innovation Loop to process
     this._log('GITHUB_HEAL_NOTED', 'github', 'Failure recorded — Auto-Innovation Loop will analyze and create fix PR');
-  }
-
-  async _activateHetznerFallback(reason) {
-    this._log('FALLBACK_ACTIVATE', 'vercel', `Activating Hetzner fallback: ${reason}`);
-    // In a real setup this would update a load-balancer or DNS CNAME.
-    // Here we set an in-memory flag readable by other modules.
-    process.env.VERCEL_FALLBACK_ACTIVE = '1';
-    this._log('FALLBACK_ACTIVE', 'vercel', 'Hetzner fallback flag set (VERCEL_FALLBACK_ACTIVE=1)');
   }
 
   async _fullRedeploy(service, reason) {
