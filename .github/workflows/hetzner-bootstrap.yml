@@ -9,7 +9,7 @@ name: 🦄 Hetzner First-Time Bootstrap
 #   HETZNER_HOST              — IP-ul serverului Hetzner (ex: 204.168.230.142)
 #   HETZNER_SSH_PRIVATE_KEY   — Cheia SSH privată (conținut complet, cu antet/footer)
 #   HETZNER_USER              — Utilizator SSH (default: root)
-#   HETZNER_DEPLOY_PATH       — Calea de deploy (default: /opt/unicorn)
+#   HETZNER_DEPLOY_PATH       — Calea de deploy (default: /var/www/unicorn)
 #   SITE_DOMAIN               — Domeniu (default: zeusai.pro)
 #   JWT_SECRET                — Secret JWT pentru backend
 #   ADMIN_SECRET              — Secret admin
@@ -71,7 +71,7 @@ jobs:
           HOST="${{ secrets.HETZNER_HOST || secrets.SSH_HOST }}"
           USER="${{ secrets.HETZNER_DEPLOY_USER || secrets.HETZNER_USER || secrets.SSH_USER || 'root' }}"
           PORT="${{ secrets.HETZNER_DEPLOY_PORT || secrets.SSH_PORT || '22' }}"
-          DEPLOY_PATH="${{ secrets.HETZNER_DEPLOY_PATH || '/opt/unicorn' }}"
+          DEPLOY_PATH="${{ secrets.HETZNER_DEPLOY_PATH || '/var/www/unicorn' }}"
           DOMAIN="${{ secrets.SITE_DOMAIN || 'zeusai.pro' }}"
 
           if [ -z "$HOST" ]; then
@@ -125,7 +125,7 @@ jobs:
 
           export DEBIAN_FRONTEND=noninteractive
           apt-get update -y
-          apt-get install -y curl ca-certificates gnupg git rsync nginx ufw build-essential python3
+          apt-get install -y curl ca-certificates gnupg git rsync nginx ufw fail2ban build-essential python3
 
           # Node.js 22
           if ! command -v node >/dev/null 2>&1 || ! node -e "process.exit(parseInt(process.version.slice(1)) >= 22 ? 0 : 1)" 2>/dev/null; then
@@ -412,6 +412,63 @@ jobs:
             fi
           else
             echo "ℹ️  certbot nu este disponibil"
+          fi
+          ENDSSH
+
+      # ── PASUL 6b: Configurare Fail2ban ───────────────────────────────────────
+      - name: Configure Fail2ban
+        continue-on-error: true
+        run: |
+          ssh -i ~/.ssh/bootstrap_key \
+              -p "${{ steps.params.outputs.port }}" \
+              -o StrictHostKeyChecking=no -o BatchMode=yes \
+              "${{ steps.params.outputs.user }}@${{ steps.params.outputs.host }}" << 'ENDSSH'
+          echo "════════════════════════════════════════════════════════"
+          echo "🛡️  Configurare Fail2ban"
+          echo "════════════════════════════════════════════════════════"
+          if command -v fail2ban-server >/dev/null 2>&1; then
+            cat > /etc/fail2ban/jail.d/unicorn.conf <<'F2B'
+[DEFAULT]
+bantime  = 3600
+findtime = 600
+maxretry = 5
+
+[sshd]
+enabled  = true
+port     = ssh
+maxretry = 3
+
+[nginx-http-auth]
+enabled  = true
+
+[nginx-botsearch]
+enabled  = true
+logpath  = /var/log/nginx/access.log
+maxretry = 2
+
+[nginx-badbots]
+enabled  = true
+logpath  = /var/log/nginx/access.log
+maxretry = 1
+F2B
+            systemctl enable fail2ban 2>/dev/null || true
+            systemctl restart fail2ban 2>/dev/null || service fail2ban restart 2>/dev/null || true
+            echo "✅ Fail2ban configurat (SSH + nginx jails)"
+          else
+            echo "ℹ️  fail2ban nu este instalat — se ignoră"
+          fi
+          # Certbot auto-renew
+          mkdir -p /var/www/certbot
+          if systemctl list-unit-files | grep -q "certbot.timer"; then
+            systemctl enable certbot.timer 2>/dev/null || true
+            systemctl start  certbot.timer 2>/dev/null || true
+            echo "✅ Certbot auto-renew via systemd timer activat"
+          else
+            cat > /etc/cron.d/unicorn-certbot-renew <<'CERTCRON'
+0 3,15 * * * root certbot renew --nginx --quiet --post-hook "systemctl reload nginx" >> /var/log/certbot-renew.log 2>&1
+CERTCRON
+            chmod 644 /etc/cron.d/unicorn-certbot-renew
+            echo "✅ Certbot auto-renew cron instalat"
           fi
           ENDSSH
 

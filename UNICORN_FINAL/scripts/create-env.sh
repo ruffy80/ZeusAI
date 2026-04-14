@@ -51,7 +51,7 @@ upsert UNICORN_DOMAIN   "${UNICORN_DOMAIN:-www.zeusai.pro}"
 upsert DOMAIN           "${DOMAIN:-${SITE_DOMAIN:-zeusai.pro}}"
 # CORS: permite cereri de la ambele variante ale domeniului
 _DOMAIN="${SITE_DOMAIN:-zeusai.pro}"
-upsert CORS_ORIGINS     "${CORS_ORIGINS:-https://${_DOMAIN},https://www.${_DOMAIN}}"
+upsert CORS_ORIGINS     "${CORS_ORIGINS:-https://${_DOMAIN},https://www.${_DOMAIN},https://api.${_DOMAIN},https://orchestrator.${_DOMAIN}}"
 
 # ── Auth Secrets (CRITICE - backend nu pornește corect fără acestea) ──────────
 upsert JWT_SECRET            "${JWT_SECRET:-}"

@@ -182,7 +182,7 @@ async function run() {
     HETZNER_USER:           'root',
     HETZNER_DEPLOY_USER:    'root',
     HETZNER_DEPLOY_PORT:    '22',
-    HETZNER_DEPLOY_PATH:    '/root/unicorn-final',
+    HETZNER_DEPLOY_PATH:    '/var/www/unicorn',
     HETZNER_APP_PORT:       '3000',
 
     // SSH aliases — same values as Hetzner equivalents above (used by deploy-backend.yml, setup-ai-keys.yml)

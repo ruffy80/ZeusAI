@@ -228,7 +228,7 @@ jobs:
             DEPLOY_PORT="22"
           fi
           echo "DEPLOY_PORT=$DEPLOY_PORT" >> "$GITHUB_ENV"
-          echo "DEPLOY_PATH=${{ secrets.HETZNER_DEPLOY_PATH || '/opt/unicorn' }}" >> "$GITHUB_ENV"
+          echo "DEPLOY_PATH=${{ secrets.HETZNER_DEPLOY_PATH || '/var/www/unicorn' }}" >> "$GITHUB_ENV"
           echo "WEBHOOK_URL=${{ secrets.HETZNER_WEBHOOK_URL || secrets.GH_WEBHOOK_URL || secrets.WEBHOOK_URL }}" >> "$GITHUB_ENV"
 
       - name: Validate Hetzner SSH prerequisites
@@ -338,7 +338,7 @@ jobs:
         continue-on-error: true
         run: |
           echo "Deploying UNICORN_FINAL to Hetzner..."
-          DEST='${{ secrets.HETZNER_DEPLOY_PATH || '/opt/unicorn' }}'
+          DEST='${{ secrets.HETZNER_DEPLOY_PATH || '/var/www/unicorn' }}'
           tar -C ./UNICORN_FINAL \
               --exclude='.git' --exclude='node_modules' --exclude='.next' \
               --exclude='logs' --exclude='*.local' --exclude='.env' \
@@ -357,10 +357,10 @@ jobs:
           ssh -i ~/.ssh/deploy_key -p "${DEPLOY_PORT:-22}" -o StrictHostKeyChecking=no -o UserKnownHostsFile=~/.ssh/known_hosts -o BatchMode=yes \
             "${{ secrets.HETZNER_DEPLOY_USER || secrets.HETZNER_USER || secrets.SSH_USER || 'root' }}@${{ secrets.HETZNER_HOST || secrets.SSH_HOST || '204.168.230.142' }}" << ENDSSH
             set -e
-            cd "${{ secrets.HETZNER_DEPLOY_PATH || '/opt/unicorn' }}"
+            cd "${{ secrets.HETZNER_DEPLOY_PATH || '/var/www/unicorn' }}"
 
             # ── Allow git to operate in the deploy directory (rsync owner may differ) ──
-            git config --global --add safe.directory "${{ secrets.HETZNER_DEPLOY_PATH || '/opt/unicorn' }}" 2>/dev/null || true
+            git config --global --add safe.directory "${{ secrets.HETZNER_DEPLOY_PATH || '/var/www/unicorn' }}" 2>/dev/null || true
 
             # ── Ensure Node.js exists on host ───────────────────────────
             if ! command -v node >/dev/null 2>&1; then
@@ -418,11 +418,11 @@ jobs:
               HETZNER_API_TOKEN="${HETZNER_API_VALUE}" \
               PUBLIC_APP_URL="https://${{ secrets.SITE_DOMAIN || 'zeusai.pro' }}" \
               SITE_DOMAIN="${{ secrets.SITE_DOMAIN || 'zeusai.pro' }}" \
-              CORS_ORIGINS="https://${{ secrets.SITE_DOMAIN || 'zeusai.pro' }},https://www.${{ secrets.SITE_DOMAIN || 'zeusai.pro' }}" \
+              CORS_ORIGINS="https://${{ secrets.SITE_DOMAIN || 'zeusai.pro' }},https://www.${{ secrets.SITE_DOMAIN || 'zeusai.pro' }},https://api.${{ secrets.SITE_DOMAIN || 'zeusai.pro' }},https://orchestrator.${{ secrets.SITE_DOMAIN || 'zeusai.pro' }}" \
               BTC_WALLET_ADDRESS="${{ secrets.BTC_WALLET_ADDRESS || 'bc1q4f7e66z87mdfj56kz0dj5hvcnpmh0qh4wuv22e' }}" \
               OWNER_EMAIL="${{ secrets.SMTP_USER || 'vladoi_ionut@yahoo.com' }}" \
               ADMIN_EMAIL="${{ secrets.SMTP_USER || 'vladoi_ionut@yahoo.com' }}" \
-              bash scripts/create-env.sh "${{ secrets.HETZNER_DEPLOY_PATH || '/root/unicorn-final' }}" || true
+              bash scripts/create-env.sh "${{ secrets.HETZNER_DEPLOY_PATH || '/var/www/unicorn' }}" || true
             else
               # Fallback: upsert manual pentru cheile critice
               for key in HETZNER_API_KEY HETZNER_API_TOKEN PUBLIC_APP_URL SITE_DOMAIN \
@@ -458,7 +458,7 @@ jobs:
                 "${HETZNER_API_VALUE}" "${HETZNER_API_VALUE}" >> .env
               printf "PUBLIC_APP_URL=https://${{ secrets.SITE_DOMAIN || 'zeusai.pro' }}\nSITE_DOMAIN=${{ secrets.SITE_DOMAIN || 'zeusai.pro' }}\n" >> .env
               printf "DOMAIN=${{ secrets.SITE_DOMAIN || 'zeusai.pro' }}\n" >> .env
-              printf "CORS_ORIGINS=https://${{ secrets.SITE_DOMAIN || 'zeusai.pro' }},https://www.${{ secrets.SITE_DOMAIN || 'zeusai.pro' }}\n" >> .env
+              printf "CORS_ORIGINS=https://${{ secrets.SITE_DOMAIN || 'zeusai.pro' }},https://www.${{ secrets.SITE_DOMAIN || 'zeusai.pro' }},https://api.${{ secrets.SITE_DOMAIN || 'zeusai.pro' }},https://orchestrator.${{ secrets.SITE_DOMAIN || 'zeusai.pro' }}\n" >> .env
               printf "BTC_WALLET_ADDRESS=${{ secrets.BTC_WALLET_ADDRESS || 'bc1q4f7e66z87mdfj56kz0dj5hvcnpmh0qh4wuv22e' }}\n" >> .env
               printf "OWNER_NAME=Vladoi Ionut\nOWNER_EMAIL=vladoi_ionut@yahoo.com\n" >> .env
               printf "ADMIN_EMAIL=vladoi_ionut@yahoo.com\n" >> .env
@@ -639,7 +639,7 @@ jobs:
             # ── Backup current deploy snapshot (keep last 5) ─────────────
             mkdir -p scripts
             if [ -f scripts/create-backup.sh ]; then
-              bash scripts/create-backup.sh "${{ secrets.HETZNER_DEPLOY_PATH || '/opt/unicorn' }}" || true
+              bash scripts/create-backup.sh "${{ secrets.HETZNER_DEPLOY_PATH || '/var/www/unicorn' }}" || true
             fi
 
             # ── Run innovation sprint + report ────────────────────────────
@@ -678,12 +678,12 @@ jobs:
 
             # ── Setup systemd for permanent auto-boot (idempotent) ────────
             if command -v systemctl >/dev/null 2>&1; then
-              bash scripts/setup-systemd.sh "${{ secrets.HETZNER_DEPLOY_PATH || '/opt/unicorn' }}" || true
+              bash scripts/setup-systemd.sh "${{ secrets.HETZNER_DEPLOY_PATH || '/var/www/unicorn' }}" || true
               echo "✅ Systemd auto-boot configured"
             fi
 
             # ── Install server-side self-healing cron (every 5 min) ───────
-            _CRON_DEPLOY="${{ secrets.HETZNER_DEPLOY_PATH || '/opt/unicorn' }}"
+            _CRON_DEPLOY="${{ secrets.HETZNER_DEPLOY_PATH || '/var/www/unicorn' }}"
             _CRON_DOMAIN="${{ secrets.SITE_DOMAIN || 'zeusai.pro' }}"
             mkdir -p "${_CRON_DEPLOY}/logs"
             cat > /etc/cron.d/unicorn-self-heal <<CRONEOF
@@ -694,6 +694,59 @@ PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 CRONEOF
             chmod 644 /etc/cron.d/unicorn-self-heal
             echo "✅ Self-healing cron installed (/etc/cron.d/unicorn-self-heal, every 5 min)"
+
+            # ── Fail2ban: install + nginx jail ────────────────────────────
+            if ! command -v fail2ban-server >/dev/null 2>&1; then
+              apt-get update -y -qq && apt-get install -y -qq fail2ban 2>/dev/null || true
+            fi
+            if command -v fail2ban-server >/dev/null 2>&1; then
+              cat > /etc/fail2ban/jail.d/unicorn.conf <<'F2B'
+[DEFAULT]
+bantime  = 3600
+findtime = 600
+maxretry = 5
+
+[sshd]
+enabled  = true
+port     = ssh
+maxretry = 3
+
+[nginx-http-auth]
+enabled  = true
+
+[nginx-botsearch]
+enabled  = true
+logpath  = /var/log/nginx/access.log
+maxretry = 2
+
+[nginx-badbots]
+enabled  = true
+logpath  = /var/log/nginx/access.log
+maxretry = 1
+F2B
+              systemctl enable fail2ban 2>/dev/null || true
+              systemctl restart fail2ban 2>/dev/null || service fail2ban restart 2>/dev/null || true
+              echo "✅ Fail2ban activat (SSH + nginx jails)"
+            fi
+
+            # ── Certbot auto-renew: systemd timer (preferabil) sau cron ──
+            if systemctl list-unit-files | grep -q "certbot.timer"; then
+              systemctl enable certbot.timer 2>/dev/null || true
+              systemctl start  certbot.timer 2>/dev/null || true
+              echo "✅ Certbot auto-renew via systemd timer activat"
+            else
+              # Fallback: cron twice daily (Let's Encrypt recomandat)
+              cat > /etc/cron.d/unicorn-certbot-renew <<'CERTCRON'
+# Auto-renew SSL certificate — twice daily
+0 3,15 * * * root certbot renew --nginx --quiet --post-hook "systemctl reload nginx" >> /var/log/certbot-renew.log 2>&1
+CERTCRON
+              chmod 644 /etc/cron.d/unicorn-certbot-renew
+              echo "✅ Certbot auto-renew cron instalat (02:00 + 14:00 daily)"
+            fi
+
+            # ── Creaza /var/www/certbot dir pentru ACME challenge ─────────
+            mkdir -p /var/www/certbot
+            echo "✅ /var/www/certbot creat"
           ENDSSH
 
       - name: Health check Hetzner backend
@@ -717,7 +770,7 @@ CRONEOF
             echo "⚠️  Backend not yet ready — collecting diagnostics..."
             ssh -i ~/.ssh/deploy_key -p "${DEPLOY_PORT:-22}" -o StrictHostKeyChecking=no -o UserKnownHostsFile=~/.ssh/known_hosts \
               "${{ secrets.HETZNER_DEPLOY_USER || secrets.HETZNER_USER || secrets.SSH_USER || 'root' }}@${{ secrets.HETZNER_HOST || secrets.SSH_HOST || '204.168.230.142' }}" \
-              "pm2 list 2>/dev/null || true; echo '--- last 30 log lines ---'; pm2 logs unicorn --lines 30 --nostream 2>/dev/null || tail -30 '${{ secrets.HETZNER_DEPLOY_PATH || '/opt/unicorn' }}/logs/pm2-error.log' 2>/dev/null || true" || true
+              "pm2 list 2>/dev/null || true; echo '--- last 30 log lines ---'; pm2 logs unicorn --lines 30 --nostream 2>/dev/null || tail -30 '${{ secrets.HETZNER_DEPLOY_PATH || '/var/www/unicorn' }}/logs/pm2-error.log' 2>/dev/null || true" || true
           fi
 
       - name: Fallback — trigger Hetzner webhook (if SSH failed)
@@ -926,7 +979,7 @@ CRONEOF
         env:
           DEPLOY_HOST: ${{ secrets.HETZNER_HOST || secrets.SSH_HOST || '204.168.230.142' }}
           DEPLOY_USER: ${{ secrets.HETZNER_DEPLOY_USER || secrets.HETZNER_USER || secrets.SSH_USER || 'root' }}
-          DEPLOY_PATH: ${{ secrets.HETZNER_DEPLOY_PATH || '/opt/unicorn' }}
+          DEPLOY_PATH: ${{ secrets.HETZNER_DEPLOY_PATH || '/var/www/unicorn' }}
           DEPLOY_PORT: ${{ secrets.HETZNER_DEPLOY_PORT || secrets.SSH_PORT || '22' }}
           # SITE_DOMAIN is preferred; falls back to IP-based HTTPS
           SITE_DOMAIN: ${{ secrets.SITE_DOMAIN || secrets.UNICORN_DOMAIN }}
