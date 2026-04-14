@@ -362,7 +362,7 @@ app.put('/api/auth/profile', authMiddleware, async (req, res) => {
     if (!isValidEmail(newEmail)) return res.status(400).json({ error: 'Invalid email address' });
     if (dbUsers.findByEmail(newEmail)) return res.status(409).json({ error: 'Email already in use' });
   }
-  if (!newName) return res.status(400).json({ error: 'name cannot be empty' });
+  if (!newName) return res.status(400).json({ error: 'Name cannot be empty' });
   dbUsers.updateProfile(user.id, newName, newEmail);
   const token = jwt.sign({ id: user.id, email: newEmail, name: newName }, JWT_SECRET, { expiresIn: '7d' });
   res.json({ token, user: { id: user.id, name: newName, email: newEmail } });
