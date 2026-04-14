@@ -1,5 +1,5 @@
 # CI for the root Next.js shell app.
-# UNICORN_FINAL lint+test is handled by vercel-deploy.yml (runs on every push/PR).
+# UNICORN_FINAL lint+test is handled by hetzner-deploy.yml (runs on every push/PR).
 # This workflow only runs when root app files change, and only on push to main.
 name: Node.js CI
 

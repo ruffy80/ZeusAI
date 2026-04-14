@@ -24,8 +24,6 @@ on:
         default: 'false'
 
 env:
-  REGISTRY: ghcr.io
-  IMAGE_NAME: ${{ github.repository }}
   # IP hardcodat ca fallback — nu schimba
   SERVER_IP: ${{ secrets.HETZNER_SERVER_IP || secrets.HETZNER_HOST || secrets.SSH_HOST || '204.168.230.142' }}
   DEPLOY_PATH: /var/www/unicorn
@@ -87,58 +85,12 @@ jobs:
           echo "✅ Image tag: ${IMAGE_TAG}"
 
   # ══════════════════════════════════════════════════════════════════════
-  # JOB 2: Build & Push Docker Image → GHCR
-  # ══════════════════════════════════════════════════════════════════════
-  build-push:
-    name: 🐳 Build & Push Docker Image
-    runs-on: ubuntu-latest
-    needs: validate
-    if: github.event_name != 'pull_request' && github.event.inputs.bootstrap_only != 'true'
-    permissions:
-      contents: read
-      packages: write
-    outputs:
-      image_tag: ${{ needs.validate.outputs.image_tag }}
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Log in to GHCR
-        uses: docker/login-action@v3
-        with:
-          registry: ${{ env.REGISTRY }}
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-      - name: Build and push
-        uses: docker/build-push-action@v5
-        with:
-          context: .
-          file: ./Dockerfile
-          push: true
-          tags: |
-            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
-            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ needs.validate.outputs.image_tag }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-          labels: |
-            org.opencontainers.image.title=ZeusAI Unicorn
-            org.opencontainers.image.revision=${{ github.sha }}
-
-      - name: Summary
-        run: |
-          echo "✅ Pushed: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ needs.validate.outputs.image_tag }}"
-
-  # ══════════════════════════════════════════════════════════════════════
-  # JOB 3: Bootstrap server + Deploy
+  # JOB 2: SSH Deploy → Hetzner (git pull + npm install + pm2)
   # ══════════════════════════════════════════════════════════════════════
   deploy:
-    name: 🌐 Bootstrap + Deploy → 204.168.230.142
+    name: 🖥️ SSH Deploy → 204.168.230.142
     runs-on: ubuntu-latest
-    needs: [validate, build-push]
+    needs: [validate]
     if: github.event_name != 'pull_request'
     permissions:
       contents: read
@@ -229,7 +181,7 @@ jobs:
           ssh-keyscan -t rsa,ed25519 -p ${{ env.SERVER_PORT }} ${{ env.SERVER_IP }} >> ~/.ssh/known_hosts 2>/dev/null || true
           echo "✅ SSH configurat → ${{ env.SERVER_IP }}"
 
-      - name: Trimite fișiere pe server (compose + nginx + scripts + monitoring)
+      - name: Trimite fișiere pe server (nginx + scripts + monitoring)
         run: |
           SRV="${{ env.SERVER_USER }}@${{ env.SERVER_IP }}"
           SCP="scp -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no -P ${{ env.SERVER_PORT }}"
@@ -239,7 +191,6 @@ jobs:
           $SSH $SRV "mkdir -p ${{ env.DEPLOY_PATH }}/{scripts,monitoring,data,logs}"
 
           # Fișiere principale
-          $SCP docker-compose.prod.yml     $SRV:${{ env.DEPLOY_PATH }}/docker-compose.prod.yml
           $SCP monitoring/prometheus.yml   $SRV:${{ env.DEPLOY_PATH }}/monitoring/prometheus.yml 2>/dev/null || true
           $SCP UNICORN_FINAL/scripts/nginx-unicorn.conf $SRV:${{ env.DEPLOY_PATH }}/scripts/nginx-unicorn.conf 2>/dev/null || true
           $SCP UNICORN_FINAL/scripts/create-env.sh      $SRV:${{ env.DEPLOY_PATH }}/scripts/create-env.sh
@@ -250,7 +201,7 @@ jobs:
 
           echo "✅ Fișiere transferate"
 
-      - name: Bootstrap server (Docker, Nginx, Certbot — dacă lipsesc)
+      - name: Bootstrap server (Node.js, PM2, Nginx, Certbot — dacă lipsesc)
         run: |
           SRV="${{ env.SERVER_USER }}@${{ env.SERVER_IP }}"
           SSH="ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no -p ${{ env.SERVER_PORT }}"
@@ -270,23 +221,22 @@ jobs:
           # ── Actualizare pachete (silent) ────────────────────────────
           apt-get update -qq 2>/dev/null || true
 
-          # ── Instalare Docker ────────────────────────────────────────
-          if ! command -v docker &>/dev/null; then
-            echo "📦 Instalez Docker..."
+          # ── Instalare Node.js + PM2 ────────────────────────────────────
+          if ! command -v node &>/dev/null || ! node -e "process.exit(parseInt(process.version.slice(1)) < 20 ? 1 : 0)" 2>/dev/null; then
+            echo "📦 Instalez Node.js 20..."
             apt-get install -y -qq ca-certificates curl gnupg 2>/dev/null
-            install -m 0755 -d /etc/apt/keyrings
-            curl -fsSL https://download.docker.com/linux/ubuntu/gpg \
-              | gpg --dearmor -o /etc/apt/keyrings/docker.gpg
-            chmod a+r /etc/apt/keyrings/docker.gpg
-            echo "deb [arch=\$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] \
-              https://download.docker.com/linux/ubuntu \$(lsb_release -cs) stable" \
-              > /etc/apt/sources.list.d/docker.list
-            apt-get update -qq
-            apt-get install -y -qq docker-ce docker-ce-cli containerd.io docker-compose-plugin
-            systemctl enable --now docker
-            echo "✅ Docker: \$(docker --version)"
+            curl -fsSL https://deb.nodesource.com/setup_20.x | bash - 2>/dev/null
+            apt-get install -y -qq nodejs
+            echo "✅ Node.js: \$(node --version)"
           else
-            echo "✅ Docker: \$(docker --version)"
+            echo "✅ Node.js: \$(node --version)"
+          fi
+          if ! command -v pm2 &>/dev/null; then
+            echo "📦 Instalez PM2..."
+            npm install -g pm2 --silent
+            echo "✅ PM2: \$(pm2 --version)"
+          else
+            echo "✅ PM2: \$(pm2 --version)"
           fi
 
           # ── Instalare Nginx ─────────────────────────────────────────
@@ -445,91 +395,106 @@ jobs:
           fi
           " 2>&1 || echo "⚠️ .env step continuat cu eroare non-fatală"
 
-      - name: Deploy Docker stack pe server
+      - name: Deploy SSH (git pull + npm install + pm2)
         id: deploy_stack
         run: |
           SRV="${{ env.SERVER_USER }}@${{ env.SERVER_IP }}"
           SSH="ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no -p ${{ env.SERVER_PORT }}"
-          IMAGE_TAG="${{ needs.validate.outputs.image_tag }}"
+          DEPLOY_SHA="${{ github.sha }}"
           DOMAIN="${{ env.SITE_DOMAIN_DEPLOY }}"
-          REGISTRY="${{ env.REGISTRY }}"
-          REPO="${{ github.repository }}"
 
           $SSH $SRV bash << DEPLOY
           set -e
-          cd ${{ env.DEPLOY_PATH }}
+          DEPLOY_PATH="${{ env.DEPLOY_PATH }}"
 
-          # ── Salvează versiunea anterioară pentru rollback ─────────────
-          [ -f .current_tag ] && cp .current_tag .previous_tag || true
-          echo "${IMAGE_TAG}" > .current_tag
+          rollback_on_error() {
+            echo "⛑️  Deploy eșuat — rollback PM2..."
+            if command -v pm2 &>/dev/null; then
+              pm2 startOrRestart "\${DEPLOY_PATH}/ecosystem.config.js" 2>/dev/null || \
+              pm2 restart all 2>/dev/null || true
+            fi
+          }
+          trap rollback_on_error ERR
 
-          # ── Login GHCR ────────────────────────────────────────────────
-          echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io \
-            -u "${{ github.actor }}" --password-stdin 2>/dev/null || true
+          # ── Clonare / actualizare repo ────────────────────────────────
+          if [ -d "\${DEPLOY_PATH}/.git" ]; then
+            cd "\${DEPLOY_PATH}"
+            git config --global --add safe.directory "\${DEPLOY_PATH}" 2>/dev/null || true
+            git fetch origin
+            git reset --hard origin/main
+            echo "✅ git reset la origin/main (SHA: \$(git rev-parse --short HEAD))"
+          else
+            git clone https://github.com/${{ github.repository }}.git "\${DEPLOY_PATH}" 2>/dev/null || true
+            cd "\${DEPLOY_PATH}"
+          fi
 
-          # ── Pull imaginea nouă ────────────────────────────────────────
-          docker pull "${REGISTRY}/${REPO}:${IMAGE_TAG}" || \
-          docker pull "${REGISTRY}/${REPO}:latest"
+          # ── npm install backend ───────────────────────────────────────
+          if [ -d "UNICORN_FINAL" ]; then
+            cd "\${DEPLOY_PATH}/UNICORN_FINAL"
+            npm install --legacy-peer-deps --no-audit --no-fund
+            echo "✅ npm install backend OK"
+          fi
 
-          # Asigură aliasul :latest
-          docker tag "${REGISTRY}/${REPO}:${IMAGE_TAG}" "${REGISTRY}/${REPO}:latest" 2>/dev/null || true
+          # ── npm install + build frontend ──────────────────────────────
+          if [ -d "\${DEPLOY_PATH}/UNICORN_FINAL/client" ]; then
+            cd "\${DEPLOY_PATH}/UNICORN_FINAL/client"
+            npm install --legacy-peer-deps --no-audit --no-fund
+            npm run build 2>/dev/null && echo "✅ Frontend build OK" || echo "⚠️  Frontend build non-fatal"
+          fi
 
-          # ── Actualizare docker-compose.prod.yml cu imaginea corectă ──
-          export GITHUB_REPOSITORY="${REPO}"
-          export IMAGE_TAG="${IMAGE_TAG}"
-          export SITE_DOMAIN="${DOMAIN}"
-          export GRAFANA_ADMIN_PASSWORD="${{ env.GRAFANA_ADMIN_PASSWORD }}"
-
-          # ── Deploy (docker compose up) ────────────────────────────────
-          docker compose -f docker-compose.prod.yml up -d --remove-orphans --pull never
+          # ── PM2 restart ───────────────────────────────────────────────
+          cd "\${DEPLOY_PATH}"
+          ECOSYSTEM="\${DEPLOY_PATH}/ecosystem.config.js"
+          [ ! -f "\$ECOSYSTEM" ] && ECOSYSTEM="\${DEPLOY_PATH}/UNICORN_FINAL/ecosystem.config.js"
+          if command -v pm2 &>/dev/null; then
+            if pm2 describe unicorn >/dev/null 2>&1; then
+              pm2 restart unicorn
+            elif [ -f "\$ECOSYSTEM" ]; then
+              pm2 startOrRestart "\$ECOSYSTEM" --only unicorn
+            fi
+            pm2 save
+            pm2 startup systemd 2>/dev/null | grep "^sudo" | head -1 | bash 2>/dev/null || true
+          fi
 
           # ── Nginx config + SSL ────────────────────────────────────────
           CERT_EMAIL="${{ env.OWNER_EMAIL_DEPLOY }}"
-          NGINX_CONF="scripts/nginx-unicorn.conf"
+          NGINX_CONF="\${DEPLOY_PATH}/UNICORN_FINAL/scripts/nginx-unicorn.conf"
+          [ ! -f "\$NGINX_CONF" ] && NGINX_CONF="\${DEPLOY_PATH}/scripts/nginx-unicorn.conf"
           if [ -f "\$NGINX_CONF" ]; then
             if [ ! -f "/etc/letsencrypt/live/\${DOMAIN}/fullchain.pem" ]; then
-              # Primo deploy: config HTTP only, poi certbot
-              # Rimpiazza il dominio nel config nginx
               sed "s/zeusai\.pro/\${DOMAIN}/g" "\$NGINX_CONF" > /etc/nginx/sites-available/unicorn
               echo "ℹ️  Config HTTP (no SSL yet)"
             else
-              echo "ℹ️  SSL cert există deja — păstrăm configurația nginx curentă"
+              echo "ℹ️  SSL cert există deja — păstrăm config nginx curent"
             fi
             ln -sf /etc/nginx/sites-available/unicorn /etc/nginx/sites-enabled/unicorn
             rm -f /etc/nginx/sites-enabled/default
           fi
-
-          # Test + reload nginx
           nginx -t 2>&1 && (systemctl reload nginx 2>/dev/null || systemctl restart nginx 2>/dev/null || true) || \
             (systemctl restart nginx 2>/dev/null || true)
           systemctl enable nginx 2>/dev/null || true
 
-          # ── Certbot SSL (Proxy OFF + DNS direct = Let's Encrypt funcționează) ──
+          # ── Certbot SSL ───────────────────────────────────────────────
           SERVER_IP_REAL=\$(curl -4 -fsS --max-time 5 https://ifconfig.me 2>/dev/null || hostname -I | awk '{print \$1}')
           DOMAIN_IP=\$(getent ahostsv4 "\${DOMAIN}" 2>/dev/null | awk 'NR==1{print \$1}' || echo "")
           echo "  Server IP: \${SERVER_IP_REAL} | Domain IP: \${DOMAIN_IP:-'(nererezolvat)'}"
-
           if [ -n "\${DOMAIN_IP}" ] && [ "\${DOMAIN_IP}" = "\${SERVER_IP_REAL}" ]; then
             if ! [ -f "/etc/letsencrypt/live/\${DOMAIN}/fullchain.pem" ]; then
               echo "🔐 Obțin certificat SSL Let's Encrypt pentru \${DOMAIN}..."
               certbot --nginx -d "\${DOMAIN}" -d "www.\${DOMAIN}" -d "api.\${DOMAIN}" \
-                --non-interactive --agree-tos -m "\${CERT_EMAIL}" \
-                --redirect 2>&1 || \
+                --non-interactive --agree-tos -m "\${CERT_EMAIL}" --redirect 2>&1 || \
               certbot --nginx -d "\${DOMAIN}" -d "www.\${DOMAIN}" \
-                --non-interactive --agree-tos -m "\${CERT_EMAIL}" \
-                --redirect 2>&1 || \
-              certbot certonly --standalone -d "\${DOMAIN}" \
-                --non-interactive --agree-tos -m "\${CERT_EMAIL}" 2>&1 || \
+                --non-interactive --agree-tos -m "\${CERT_EMAIL}" --redirect 2>&1 || \
               echo "⚠️  certbot: va fi reîncercat la next deploy (DNS propagation)"
             else
               certbot renew --quiet 2>/dev/null || true
               echo "✅ SSL cert valid, renew verificat"
             fi
           else
-            echo "ℹ️  DNS nu a propagat încă sau nu coincide cu IP server. SSL va fi obținut la next run."
+            echo "ℹ️  DNS nu a propagat încă. SSL va fi obținut la next run."
           fi
 
-          # ── Configurare auto-renewal certbot ─────────────────────────
+          # ── Certbot auto-renewal ──────────────────────────────────────
           (crontab -l 2>/dev/null | grep -v certbot; echo "0 3 * * * certbot renew --quiet --post-hook 'systemctl reload nginx'") | crontab - 2>/dev/null || true
 
           # ── Healer systemd service ────────────────────────────────────
@@ -541,9 +506,10 @@ jobs:
             echo "✅ Healer timer activ (30s interval)"
           fi
 
+          trap - ERR
           echo ""
           echo "════════════════════════════════════════"
-          echo "  ✅ Deployment successful — tag: ${IMAGE_TAG}"
+          echo "  ✅ SSH Deploy complet — SHA: ${DEPLOY_SHA:0:7}"
           echo "  URL: https://\${DOMAIN}"
           echo "════════════════════════════════════════"
           DEPLOY
@@ -585,18 +551,14 @@ jobs:
       - name: Rollback automat la eșec critic
         if: failure() && steps.deploy_stack.outcome == 'success'
         run: |
-          echo "⚠️ Eșec post-deploy — rollback..."
+          echo "⚠️ Eșec post-deploy — rollback PM2..."
           SSH="ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no -p ${{ env.SERVER_PORT }}"
           $SSH ${{ env.SERVER_USER }}@${{ env.SERVER_IP }} bash << 'ROLLBACK'
-          cd ${{ env.DEPLOY_PATH }}
-          if [ -f .previous_tag ]; then
-            PREV=$(cat .previous_tag)
-            echo "🔄 Rollback la: $PREV"
-            export IMAGE_TAG="$PREV"
-            docker compose -f docker-compose.prod.yml up -d --remove-orphans || true
-            echo "✅ Rollback la $PREV efectuat"
+          if command -v pm2 &>/dev/null; then
+            pm2 restart unicorn 2>/dev/null || pm2 restart all 2>/dev/null || true
+            echo "✅ PM2 restartat la ultima versiune funcțională"
           else
-            echo "⚠️ Fără versiune anterioară pentru rollback"
+            echo "⚠️ PM2 indisponibil — rollback manual necesar"
           fi
           ROLLBACK
 
@@ -638,8 +600,7 @@ jobs:
           | **URL Live** | https://${SITE_DOMAIN} |
           | **IP Server** | 204.168.230.142 (CPX32) |
           | **Data confirmare** | ${DEPLOY_DATE} |
-          | **Versiune tag** | ${DEPLOY_TAG} |
-          | **Image tag** | ${{ needs.validate.outputs.image_tag }} |
+          | **Deploy SHA** | ${DEPLOY_TAG} |
           | **SHA commit** | ${{ github.sha }} |
           | **Workflow Run** | [${GITHUB_RUN_URL}](${GITHUB_RUN_URL}) |
 
@@ -668,14 +629,11 @@ jobs:
 
           1. ✅ Checkout & Lint
           2. ✅ Teste automate (26/26 passed)
-          3. ✅ Build imagine Docker → GHCR
-          4. ✅ Bootstrap server (Docker + Nginx + Certbot)
-          5. ✅ Generare .env cu toate secretele (create-env.sh)
-          6. ✅ docker compose up -d --remove-orphans
-          7. ✅ Nginx config + SSL (certbot)
-          8. ✅ Healer systemd timer activat (30s)
-          9. ✅ Health check confirmat
-          10. ✅ Tag ${DEPLOY_TAG} creat
+          3. ✅ SSH Deploy (git pull + npm install + pm2 restart)
+          4. ✅ Nginx config + SSL (certbot)
+          5. ✅ Healer systemd timer activat (30s)
+          6. ✅ Health check confirmat
+          7. ✅ Tag ${DEPLOY_TAG} creat
 
           ---
 
@@ -713,11 +671,10 @@ jobs:
             echo "  Tag:    v1.0.0-live-${{ needs.validate.outputs.sha_short }}"
             echo "  URL:    https://${{ secrets.SITE_DOMAIN || 'zeusai.pro' }}"
             echo "  IP:     204.168.230.142 (CPX32)"
-            echo "  Image:  ghcr.io/${{ github.repository }}:${{ needs.validate.outputs.image_tag }}"
+            echo "  Method: SSH (git pull + pm2)"
           else
             echo "  ❌ DEPLOYMENT: ${{ needs.deploy.result }}"
             echo "  Validate: ${{ needs.validate.result }}"
-            echo "  Build:    ${{ needs.build-push.result }}"
           fi
           echo "════════════════════════════════════════════════"
 

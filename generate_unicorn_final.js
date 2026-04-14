@@ -880,7 +880,6 @@ GITHUB_REPO_NAME=ZeusAI
 GITHUB_TOKEN=ghp_YOUR_PERSONAL_ACCESS_TOKEN_HERE
 GITHUB_WEBHOOK_URL=http://204.168.230.142:3001/webhook/github
 HETZNER_WEBHOOK_URL=http://204.168.230.142:3001/webhook/update
-VERCEL_DEPLOY_HOOK_URL=
 WEBHOOK_URL=http://204.168.230.142:3001/webhook/github
 HETZNER_WEBHOOK_SECRET=secretpentruwebhook
 WEBHOOK_SECRET=secretpentruwebhook
@@ -891,9 +890,6 @@ GITHUB_TOKEN=ghp_YOUR_PERSONAL_ACCESS_TOKEN_HERE
 GIT_REMOTE_URL=https://github.com/ruffy80/ZeusAI.git
 GIT_BRANCH=main
 GITHUB_USERNAME=ruffy80
-
-# Vercel
-
 
 # Hetzner
 HETZNER_SSH_HOST=204.168.230.142
@@ -2612,7 +2608,6 @@ const fs = require('fs');
 const path = require('path');
 
 function detectPlatform() {
-  if (process.env.VERCEL) return 'vercel';
   if (fs.existsSync('/.dockerenv')) return 'docker';
   if (process.env.HETZNER) return 'hetzner';
   return 'local';
@@ -2632,9 +2627,7 @@ function adaptConfig() {
   const load = getSystemLoad();
   const config = {};
 
-  if (platform === 'vercel') {
-    config.maxInstances = 10;
-  } else if (platform === 'docker') {
+  if (platform === 'docker') {
     config.maxInstances = 2;
     config.restartPolicy = 'always';
   } else if (platform === 'hetzner') {
@@ -4179,12 +4172,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
-      - uses: amondnet/vercel-action@v20
-        with:
-          vercel-org-id: \${{ secrets.ORG_ID }}
-          vercel-project-id: \${{ secrets.PROJECT_ID }}
-          vercel-args: '--prod'
-      - name: Trigger Hetzner
+      - name: Trigger Hetzner deploy
         run: curl -X POST http://\${{ secrets.HETZNER_HOST }}:3001/webhook/update -H "X-Webhook-Secret: \${{ secrets.HETZNER_WEBHOOK_SECRET }}"
 `);
 
@@ -4326,7 +4314,7 @@ function createStructure() {
     path.join(BACKEND_MODULES, 'universal-ai-connector')
   ].forEach(ensureDir);
 
-  writeText(path.join(ROOT, '.gitignore'), '.DS_Store\n.env\nnode_modules/\n.vercel/\n');
+  writeText(path.join(ROOT, '.gitignore'), '.DS_Store\n.env\nnode_modules/\n');
 
   writeText(path.join(ROOT, '.env.example'), [
     'NODE_ENV=development',
@@ -4426,12 +4414,6 @@ function createStructure() {
   for (const asset of portableAssets) {
     copyPathIfExists(path.join(__dirname, asset.from), path.join(ROOT, asset.to));
   }
-
-  writeText(path.join(ROOT, 'vercel.json'), JSON.stringify({
-    version: 2,
-    builds: [{ src: 'src/index.js', use: '@vercel/node' }],
-    routes: [{ src: '/(.*)', dest: '/src/index.js' }]
-  }, null, 2) + '\n');
 
   // ==================== BACKEND COMPLET ====================
   writeText(path.join(BACKEND, 'package.json'), JSON.stringify({
