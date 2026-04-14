@@ -97,6 +97,7 @@ jobs:
               "${SERVER_USER}@${SERVER_IP}" \
               "set -e
                REPO_DIR='${DEPLOY_PATH}'
+               APP_DIR=\$([ -d \"\$REPO_DIR/UNICORN_FINAL\" ] && echo \"\$REPO_DIR/UNICORN_FINAL\" || echo \"\$REPO_DIR\")
                BRANCH='main'
 
                echo '=== [1] Salvez versiunea curentă pentru rollback'
@@ -107,6 +108,7 @@ jobs:
                  CURRENT_COMMIT='none'
                fi
                echo \"Current commit: \$CURRENT_COMMIT\"
+               echo \"App directory: \$APP_DIR\"
 
                echo '=== [2] Pull din GitHub'
                git fetch origin
@@ -114,6 +116,7 @@ jobs:
                git clean -fd
 
                echo '=== [3] Backend – npm install + build'
+               cd \"\$APP_DIR\" || { echo '❌ App dir not found: \$APP_DIR'; exit 1; }
                npm install --legacy-peer-deps --no-audit --no-fund
                if [ -f build.sh ]; then
                  bash build.sh
@@ -124,18 +127,18 @@ jobs:
                  cd client
                  npm install --legacy-peer-deps --no-audit --no-fund
                  CI=false npm run build || echo '⚠️  Frontend build failed (non-blocking)'
-                 cd "\$REPO_DIR"
+                 cd \"\$APP_DIR\"
                fi
 
-               cd "\$REPO_DIR"
+               cd \"\$APP_DIR\"
                echo '=== [5] PM2 – restart / start backend'
                if command -v pm2 >/dev/null 2>&1; then
                  if [ -f ecosystem.config.js ]; then
                    pm2 startOrRestart ecosystem.config.js
-                 elif pm2 list | grep -q 'unicorn-backend'; then
-                   pm2 restart unicorn-backend
+                 elif pm2 list | grep -q 'unicorn'; then
+                   pm2 restart unicorn
                  else
-                   pm2 start src/index.js --name unicorn-backend
+                   pm2 start backend/index.js --name unicorn
                  fi
                  pm2 save
                else
@@ -154,20 +157,22 @@ jobs:
                if ! curl -fsS http://localhost:3000/api/health >/dev/null 2>&1; then
                  echo '❌ Backend health check FAILED – încerc rollback...'
                  if [ \"\$CURRENT_COMMIT\" != 'none' ]; then
+                   cd \"\$REPO_DIR\"
                    git reset --hard \"\$CURRENT_COMMIT\"
                    git clean -fd
+                   cd \"\$APP_DIR\"
                    npm install --legacy-peer-deps --no-audit --no-fund
                    if command -v pm2 >/dev/null 2>&1; then
                      pm2 startOrRestart ecosystem.config.js 2>/dev/null || \
-                       pm2 restart unicorn-backend 2>/dev/null || \
-                       pm2 start src/index.js --name unicorn-backend
+                       pm2 restart unicorn 2>/dev/null || \
+                       pm2 start backend/index.js --name unicorn
                      pm2 save
                    fi
                    if [ -d client ] && [ -f client/package.json ]; then
                      cd client
                      npm install --legacy-peer-deps --no-audit --no-fund
                      CI=false npm run build || true
-                     cd "\$REPO_DIR"
+                     cd \"\$APP_DIR\"
                    fi
                    if command -v nginx >/dev/null 2>&1; then
                      sudo nginx -t && sudo systemctl reload nginx
