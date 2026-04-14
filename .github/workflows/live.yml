@@ -8,6 +8,11 @@ name: 🚀 LIVE Deploy — ZeusAI Unicorn (Hetzner CPX32)
 # ═══════════════════════════════════════════════════════════════════════
 
 on:
+  push:
+    branches: [main]
+    paths:
+      - 'UNICORN_FINAL/**'
+      - '.github/workflows/live.yml'
   schedule:
     - cron: '0 */6 * * *'
   workflow_dispatch:
