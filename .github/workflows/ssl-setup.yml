@@ -45,7 +45,7 @@ env:
 
 jobs:
   ssl-setup:
-    name: 🔒 HTTPS Setup → ${{ secrets.HETZNER_SERVER_IP || '204.168.230.142' }}
+    name: 🔒 HTTPS Setup → zeusai.pro
     runs-on: ubuntu-latest
     permissions:
       contents: read
