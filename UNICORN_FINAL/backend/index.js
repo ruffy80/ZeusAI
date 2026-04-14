@@ -89,7 +89,7 @@ app.use(helmet({
   contentSecurityPolicy: {
     directives: {
       defaultSrc: ["'self'"],
-      scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'", 'https://js.stripe.com'],
+      scriptSrc: ["'self'", "'unsafe-inline'", 'https://js.stripe.com'],
       styleSrc: ["'self'", "'unsafe-inline'", 'https://fonts.googleapis.com'],
       fontSrc: ["'self'", 'https://fonts.gstatic.com'],
       imgSrc: ["'self'", 'data:', 'blob:', 'https:'],
@@ -974,15 +974,18 @@ const ZEUS_SYSTEM = 'You are Zeus AI Assistant, an expert in business automation
 app.post('/api/chat', authRateLimit(30, 60_000), async (req, res) => {
   const { message, history = [] } = req.body || {};
   if (!message) return res.status(400).json({ error: 'message required' });
+  const cleanMessage = sanitizeString(message, 2000);
+  if (!cleanMessage) return res.status(400).json({ error: 'message required' });
+  if (!Array.isArray(history)) return res.status(400).json({ error: 'history must be an array' });
 
   // 1️⃣ Cloud AI providers cascade (OpenAI → DeepSeek → Anthropic → Gemini → Mistral → Cohere → xAI Grok)
-  const cloudResult = await _aiProviders.chat(message, history);
+  const cloudResult = await _aiProviders.chat(cleanMessage, history);
   if (cloudResult) return res.json(cloudResult);
 
   // 2️⃣ UAIC – routare automată la cel mai bun provider disponibil (cheapest first pentru chat)
   if (_uaic) {
     try {
-      const result = await _uaic.ask(message, {
+      const result = await _uaic.ask(cleanMessage, {
         taskType: 'simple',
         systemPrompt: ZEUS_SYSTEM,
         maxTokens: 400,
@@ -1000,8 +1003,8 @@ app.post('/api/chat', authRateLimit(30, 60_000), async (req, res) => {
       .map(m => `${m.role === 'user' ? 'User' : 'Assistant'}: ${m.content}`)
       .join('\n');
     const prompt = historyText
-      ? `${historyText}\nUser: ${message}\nAssistant:`
-      : message;
+      ? `${historyText}\nUser: ${cleanMessage}\nAssistant:`
+      : cleanMessage;
     const llamaReply = await _llamaBridge.generate(
       prompt,
       _llamaBridge.PRIORITY.CHAT,
@@ -1013,7 +1016,7 @@ app.post('/api/chat', authRateLimit(30, 60_000), async (req, res) => {
   }
 
   // 4️⃣ Smart keyword fallback (static — când niciun AI nu e disponibil)
-  const lower = message.toLowerCase();
+  const lower = cleanMessage.toLowerCase();
   const KEYWORD_RESPONSES = [
     [['payment', 'plat'], 'Zeus AI suportă plăți via Stripe, PayPal, Bitcoin și alte 10+ metode. Accesează /payments pentru a iniția o tranzacție.'],
     [['marketplace'], 'Marketplace-ul Zeus AI oferă 50+ servicii AI specializate. Explorează /marketplace pentru prețuri personalizate.'],
@@ -1560,19 +1563,26 @@ app.get('/api/marketplace/categories', (req, res) => {
 });
 
 app.post('/api/marketplace/price', (req, res) => {
-  const { serviceId, clientId, clientData } = req.body;
-  const price = marketplace.getPersonalizedPrice(serviceId, clientId, clientData);
+  const { serviceId, clientId, clientData } = req.body || {};
+  const cleanServiceId = sanitizeString(serviceId, 100);
+  if (!cleanServiceId) return res.status(400).json({ error: 'serviceId required' });
+  const price = marketplace.getPersonalizedPrice(cleanServiceId, sanitizeString(clientId, 100), clientData);
   if (!price) return res.status(404).json({ error: 'Service not found' });
-  res.json({ serviceId, personalizedPrice: price });
+  res.json({ serviceId: cleanServiceId, personalizedPrice: price });
 });
 
 app.post('/api/marketplace/purchase', (req, res) => {
-  const { serviceId, clientId, price, paymentTxId, paymentMethod, serviceName, description } = req.body;
-  const client = marketplace.recordPurchase(serviceId, clientId, price, {
-    paymentTxId,
-    paymentMethod,
-    serviceName,
-    description
+  const { serviceId, clientId, price, paymentTxId, paymentMethod, serviceName, description } = req.body || {};
+  const cleanServiceId = sanitizeString(serviceId, 100);
+  const cleanClientId = sanitizeString(clientId, 100);
+  if (!cleanServiceId || !cleanClientId) return res.status(400).json({ error: 'serviceId and clientId required' });
+  const numericPrice = typeof price === 'number' ? price : parseFloat(price);
+  if (isNaN(numericPrice) || numericPrice < 0) return res.status(400).json({ error: 'price must be a non-negative number' });
+  const client = marketplace.recordPurchase(cleanServiceId, cleanClientId, numericPrice, {
+    paymentTxId: sanitizeString(paymentTxId, 100),
+    paymentMethod: sanitizeString(paymentMethod, 50),
+    serviceName: sanitizeString(serviceName, 200),
+    description: sanitizeString(description, 500),
   });
   res.json({ success: true, client });
 });
@@ -1591,14 +1601,23 @@ app.get('/api/marketplace/stats', (req, res) => {
 });
 
 app.post('/api/marketplace/discount', (req, res) => {
-  const { clientId, serviceId, discountPercent } = req.body;
-  const offer = marketplace.applySpecialDiscount(clientId, serviceId, discountPercent / 100);
+  const { clientId, serviceId, discountPercent } = req.body || {};
+  const cleanClientId = sanitizeString(clientId, 100);
+  const cleanServiceId = sanitizeString(serviceId, 100);
+  if (!cleanClientId || !cleanServiceId) return res.status(400).json({ error: 'clientId and serviceId required' });
+  const pct = typeof discountPercent === 'number' ? discountPercent : parseFloat(discountPercent);
+  if (isNaN(pct) || pct < 0 || pct > 100) return res.status(400).json({ error: 'discountPercent must be between 0 and 100' });
+  const offer = marketplace.applySpecialDiscount(cleanClientId, cleanServiceId, pct / 100);
   res.json(offer);
 });
 
 app.post('/api/marketplace/demand', (req, res) => {
-  const { serviceId, delta } = req.body;
-  marketplace.updateDemand(serviceId, delta);
+  const { serviceId, delta } = req.body || {};
+  const cleanServiceId = sanitizeString(serviceId, 100);
+  if (!cleanServiceId) return res.status(400).json({ error: 'serviceId required' });
+  const numericDelta = typeof delta === 'number' ? delta : parseFloat(delta);
+  if (isNaN(numericDelta)) return res.status(400).json({ error: 'delta must be a number' });
+  marketplace.updateDemand(cleanServiceId, numericDelta);
   res.json({ success: true });
 });
 
@@ -1891,9 +1910,13 @@ app.post('/api/reputation/register', authMiddleware, (req, res) => {
 });
 
 app.post('/api/reputation/review', authMiddleware, (req, res) => {
-  const { reviewerId, targetId, rating, comment, metadata } = req.body;
+  const { reviewerId, targetId, rating, comment, metadata } = req.body || {};
+  if (!reviewerId || !targetId) return res.status(400).json({ error: 'reviewerId and targetId required' });
+  const numericRating = typeof rating === 'number' ? rating : parseFloat(rating);
+  if (isNaN(numericRating) || numericRating < 1 || numericRating > 5) return res.status(400).json({ error: 'rating must be between 1 and 5' });
+  const cleanComment = sanitizeString(comment, 1000);
   try {
-    res.json(reputationProtocol.addReview(reviewerId, targetId, rating, comment, metadata || {}));
+    res.json(reputationProtocol.addReview(sanitizeString(reviewerId, 100), sanitizeString(targetId, 100), numericRating, cleanComment, metadata || {}));
   } catch (err) {
     res.status(400).json({ error: err.message });
   }
@@ -2491,7 +2514,16 @@ app.post('/api/security/device/check', adminTokenMiddleware, (req, res) => {
 
 // 8) Onboarding wizard
 app.post('/api/onboarding/start', (req, res) => {
-  res.json(unicornInnovationSuite.startOnboarding(req.body || {}));
+  const body = req.body || {};
+  const sanitized = {
+    name: sanitizeString(body.name, 100),
+    email: body.email ? sanitizeString(body.email, 254) : undefined,
+    company: sanitizeString(body.company, 200),
+    industry: sanitizeString(body.industry, 100),
+    plan: sanitizeString(body.plan, 50),
+  };
+  if (sanitized.email && !isValidEmail(sanitized.email)) return res.status(400).json({ error: 'Invalid email address' });
+  res.json(unicornInnovationSuite.startOnboarding(sanitized));
 });
 
 app.get('/api/onboarding/recommendations/:id', (req, res) => {
@@ -2514,12 +2546,17 @@ app.post('/api/site/roi/calculate', (req, res) => {
   const { employees = 0, revenue = 0, industry = 'technology', investment, expectedGain } = req.body || {};
   // Support both frontend params (employees/revenue/industry) and direct params (investment/expectedGain)
   if (investment != null || expectedGain != null) {
-    return res.json(unicornInnovationSuite.calculateROI({ investment, expectedGain }));
+    const inv = parseFloat(investment);
+    const gain = parseFloat(expectedGain);
+    if (isNaN(inv) || isNaN(gain)) return res.status(400).json({ error: 'investment and expectedGain must be numbers' });
+    return res.json(unicornInnovationSuite.calculateROI({ investment: inv, expectedGain: gain }));
   }
-  const emp = Number(employees) || 0;
-  const rev = Number(revenue) || 0;
+  const emp = Math.abs(Number(employees)) || 0;
+  const rev = Math.abs(Number(revenue)) || 0;
   if (!emp || !rev) return res.json({ annualSavings: 0, roiPercent: 0, paybackMonths: null });
-  const savingsRate = ROI_INDUSTRY_MULTIPLIERS[industry] || 0.20;
+  const allowedIndustries = Object.keys(ROI_INDUSTRY_MULTIPLIERS);
+  const safeIndustry = allowedIndustries.includes(String(industry)) ? String(industry) : 'other';
+  const savingsRate = ROI_INDUSTRY_MULTIPLIERS[safeIndustry];
   const annualSavings = Math.round(rev * savingsRate);
   const tier = ROI_PLAN_TIERS.find(t => emp <= t.maxEmp);
   const annualCost = tier.monthly * 12;
@@ -3033,8 +3070,8 @@ app.post('/deploy', (req, res) => {
   if (!expectedSecret || incomingSecret !== expectedSecret) {
     return res.status(403).json({ error: 'Forbidden', detail: 'Invalid webhook secret' });
   }
-  const source = (req.body && req.body.source) || 'unknown';
-  const action = (req.body && req.body.action) || 'deploy';
+  const source = sanitizeString((req.body && req.body.source) || 'unknown', 100);
+  const action = sanitizeString((req.body && req.body.action) || 'deploy', 50);
   console.log(`🚀 [WEBHOOK] Deploy triggered — source: ${source}, action: ${action}`);
 
   // Pull latest code and restart via child_process (non-blocking)
@@ -3489,13 +3526,17 @@ app.get('/api/sovereign/status', adminTokenMiddleware, (req, res) => {
 });
 app.post('/api/sovereign/authenticate', async (req, res) => {
   try {
-    const result = await sovereignGuardian.authenticate(req.body.userId, req.body.credential, req.body.method || 'password');
+    const { userId, credential, method } = req.body || {};
+    if (!userId || !credential) return res.status(400).json({ error: 'userId and credential required' });
+    const result = await sovereignGuardian.authenticate(sanitizeString(String(userId), 100), credential, sanitizeString(method || 'password', 50));
     res.json(result);
   } catch (e) { res.status(401).json({ error: e.message }); }
 });
 app.post('/api/sovereign/verify', (req, res) => {
   try {
-    const session = sovereignGuardian.verifySession(req.body.sessionToken);
+    const { sessionToken } = req.body || {};
+    if (!sessionToken) return res.status(400).json({ error: 'sessionToken required' });
+    const session = sovereignGuardian.verifySession(sanitizeString(String(sessionToken), 500));
     if (!session) return res.status(401).json({ error: 'Invalid or expired session' });
     res.json({ ok: true, session });
   } catch (e) { res.status(401).json({ error: e.message }); }
