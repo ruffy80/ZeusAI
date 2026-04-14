@@ -184,6 +184,12 @@ jobs:
           fi
           printf '%s\n' "$SSH_KEY" > ~/.ssh/deploy_key
           chmod 600 ~/.ssh/deploy_key
+          # Test TCP connectivity before proceeding — avoids hard failure when server is unreachable
+          if ! nc -z -w 15 "${{ env.SERVER_IP }}" "${{ env.SERVER_PORT }}" 2>/dev/null; then
+            echo "⚠️  Server ${{ env.SERVER_IP }}:${{ env.SERVER_PORT }} nu răspunde — deploy SSH sărit (no-op)"
+            echo "ssh_ready=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
           ssh-keyscan -t rsa,ed25519 -p ${{ env.SERVER_PORT }} ${{ env.SERVER_IP }} >> ~/.ssh/known_hosts 2>/dev/null || true
           echo "ssh_ready=true" >> "$GITHUB_OUTPUT"
           echo "✅ SSH configurat → ${{ env.SERVER_IP }}"

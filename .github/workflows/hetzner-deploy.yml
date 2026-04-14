@@ -4,11 +4,10 @@ on:
   push:
     branches: [main]
     paths:
-      - 'UNICORN_FINAL/**'
+      # Rulează la push doar când fișierul de workflow însuși se schimbă.
+      # Deploy-ul la push pe UNICORN_FINAL/** este gestionat exclusiv de live.yml
+      # pentru a evita duplicarea și emailuri duble de failure.
       - '.github/workflows/hetzner-deploy.yml'
-      - '.github/workflows/setup-secrets-and-deploy.yml'
-      - '.github/workflows/autonomous.yml'
-      - '.github/workflows/unicorn-keepalive.yml'
   # ── Validate PRs targeting main (lint + test only, no deploy) ─────────────
   pull_request:
     branches: [main]
@@ -1232,6 +1231,7 @@ jobs:
     if: |
       github.event_name != 'pull_request' &&
       needs.deploy-hetzner.result == 'success'
+    continue-on-error: true
     permissions: {}
     uses: ./.github/workflows/ssl-setup.yml
     secrets: inherit
