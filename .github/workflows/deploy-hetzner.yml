@@ -91,7 +91,12 @@ jobs:
                DEPLOY_PATH='${DEPLOY_PATH}'
                echo '🚀 Hetzner deploy: '\$(date -u)
 
-               cd \"\$DEPLOY_PATH\" || { echo '❌ Deploy path not found'; exit 1; }
+               if [ ! -d \"\$DEPLOY_PATH/.git\" ]; then
+                 echo '📁 Deploy path not found — cloning repo for first-time setup...'
+                 mkdir -p \"\$(dirname \$DEPLOY_PATH)\"
+                 git clone https://github.com/ruffy80/ZeusAI.git \"\$DEPLOY_PATH\"
+               fi
+               cd \"\$DEPLOY_PATH\" || { echo '❌ Cannot change to deploy path'; exit 1; }
 
                rollback_on_error() {
                  echo '⛑️ Deploy failed. Starting rollback...'

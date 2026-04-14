@@ -102,7 +102,12 @@ jobs:
                BRANCH='main'
 
                echo '=== [1] Salvez versiunea curentă pentru rollback'
-               cd \"\$REPO_DIR\" || { echo '❌ Deploy path not found'; exit 1; }
+               if [ ! -d \"\$REPO_DIR/.git\" ]; then
+                 echo '📁 Deploy path not found — cloning repo for first-time setup...'
+                 mkdir -p \"\$(dirname \$REPO_DIR)\"
+                 git clone https://github.com/ruffy80/ZeusAI.git \"\$REPO_DIR\"
+               fi
+               cd \"\$REPO_DIR\" || { echo '❌ Cannot change to deploy path'; exit 1; }
                if [ -d .git ]; then
                  CURRENT_COMMIT=\$(git rev-parse HEAD 2>/dev/null || echo 'none')
                else
@@ -199,7 +204,7 @@ jobs:
 
           WEBHOOK="${{ secrets.DEPLOY_WEBHOOK_URL || secrets.HETZNER_WEBHOOK_URL || secrets.WEBHOOK_URL }}"
           if [ -n "$WEBHOOK" ]; then
-            curl -X POST \
+            curl -X POST --max-time 15 \
               -H "Content-Type: application/json" \
               -d "{\"text\": \"🦄 Unicorn deploy: $STATUS pe ${DOMAIN} (commit ${{ github.sha }})\"}" \
               "$WEBHOOK" || echo "⚠️  Webhook notification failed (non-blocking)"
