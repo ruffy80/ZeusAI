@@ -448,8 +448,43 @@ fi
 # =============================================================================
 section "4. SSL Certificate (Certbot)"
 
+# Email pentru Let's Encrypt (prioritate: env > fallback hardcodat)
+CERT_EMAIL="${OWNER_EMAIL:-${CERT_EMAIL:-vladoi_ionut@yahoo.com}}"
+
+# Funcție helper: încearcă să obțină cert via certbot --nginx, cu fallback --standalone
+_certbot_obtain() {
+  local domains="$1"
+  local email="$2"
+  # Încearcă mai întâi cu plugin-ul nginx (fără downtime)
+  if certbot --nginx ${domains} \
+      --non-interactive --agree-tos -m "${email}" --redirect \
+      --keep-until-expiring 2>&1; then
+    return 0
+  fi
+  # Fallback: standalone (oprire temporară nginx, obținere cert, repornire nginx)
+  warn "Plugin nginx a eșuat — se încearcă metoda standalone (nginx oprit temporar)..."
+  systemctl stop nginx 2>/dev/null || service nginx stop 2>/dev/null || true
+  if certbot certonly --standalone ${domains} \
+      --non-interactive --agree-tos -m "${email}" \
+      --keep-until-expiring 2>&1; then
+    systemctl start nginx 2>/dev/null || service nginx start 2>/dev/null || true
+    # Generează/actualizează blocurile SSL în nginx cu certbot --nginx (cert există acum)
+    certbot --nginx ${domains} --non-interactive --agree-tos -m "${email}" \
+      --redirect --keep-until-expiring 2>/dev/null || true
+    nginx -t 2>/dev/null && systemctl reload nginx 2>/dev/null || systemctl restart nginx 2>/dev/null || true
+    return 0
+  fi
+  systemctl start nginx 2>/dev/null || service nginx start 2>/dev/null || true
+  return 1
+}
+
 if command -v certbot &>/dev/null; then
   ok "Certbot instalat"
+
+  # Instalează python3-certbot-nginx dacă lipsește (necesar pentru plugin --nginx)
+  if ! python3 -c "import certbot_nginx" 2>/dev/null; then
+    apt-get install -y -qq python3-certbot-nginx 2>/dev/null || true
+  fi
 
   # Verifică certificatul pentru domeniu
   CERT_PATH="/etc/letsencrypt/live/${DOMAIN}/fullchain.pem"
@@ -463,33 +498,49 @@ if command -v certbot &>/dev/null; then
 
       if [ "$DAYS_LEFT" -gt 30 ]; then
         ok "Certificat SSL valid — expiră în ${DAYS_LEFT} zile ($EXPIRY_DATE)"
+        # Verifică dacă nginx ascultă pe 443; dacă nu, reaplică configurația SSL
+        if ! ss -tlnp 2>/dev/null | grep -q ':443 ' && ! netstat -tlnp 2>/dev/null | grep -q ':443 '; then
+          warn "Nginx nu ascultă pe 443 — se reaplicā configurația SSL..."
+          certbot --nginx -d "${DOMAIN}" -d "www.${DOMAIN}" -d "api.${DOMAIN}" \
+            -d "orchestrator.${DOMAIN}" --non-interactive --agree-tos -m "${CERT_EMAIL}" \
+            --redirect --keep-until-expiring 2>&1 || true
+          nginx -t 2>/dev/null && systemctl reload nginx 2>/dev/null || true
+        fi
       elif [ "$DAYS_LEFT" -gt 0 ]; then
         warn "Certificat SSL expiră în ${DAYS_LEFT} zile. Se încearcă reînnoirea..."
-        certbot renew --nginx --non-interactive --quiet 2>/dev/null && \
+        certbot renew --nginx --non-interactive 2>&1 && \
           fixed "Certificat SSL reînnoit cu succes" || \
           warn "Reînnoirea automată a eșuat — rulează manual: certbot renew --nginx"
       else
         warn "Certificat SSL EXPIRAT. Se încearcă reînnoirea..."
-        certbot renew --nginx --non-interactive --quiet 2>/dev/null && \
+        certbot renew --nginx --non-interactive --force-renewal 2>&1 && \
           fixed "Certificat SSL reînnoit cu succes" || \
-          ko "Reînnoire SSL eșuată — rulează manual: certbot renew --nginx"
+          ko "Reînnoire SSL eșuată — rulează manual: certbot renew --nginx --force-renewal"
       fi
     fi
   else
     warn "Niciun certificat SSL găsit pentru $DOMAIN. Se obține automat..."
-    # SSL off la registrar (sav.com) — certbot gestionează HTTPS direct pe server
-    certbot --nginx \
-      -d "${DOMAIN}" -d "www.${DOMAIN}" -d "api.${DOMAIN}" -d "orchestrator.${DOMAIN}" \
-      --non-interactive --agree-tos -m "admin@${DOMAIN}" --redirect 2>/dev/null && \
-      fixed "Certificat SSL obținut pentru ${DOMAIN} + www + api + orchestrator" || {
-        warn "Certbot a eșuat (DNS poate nu s-a propagat încă). Nginx rulează pe HTTP."
-        info "Reîncearcă manual: certbot --nginx -d ${DOMAIN} -d www.${DOMAIN} -d api.${DOMAIN} -d orchestrator.${DOMAIN}"
-      }
+    # Construiește lista de domenii ce se pot rezolva la IP-ul acestui server
+    SERVER_IP=$(curl -4 -fsS --max-time 5 https://ifconfig.me 2>/dev/null || hostname -I | awk '{print $1}')
+    CERT_DOMAINS="-d ${DOMAIN}"
+    for sub in "www.${DOMAIN}" "api.${DOMAIN}" "orchestrator.${DOMAIN}"; do
+      SUB_IP=$(getent ahostsv4 "$sub" 2>/dev/null | awk 'NR==1{print $1}' || true)
+      [ -n "$SUB_IP" ] && [ "$SUB_IP" = "$SERVER_IP" ] && CERT_DOMAINS="$CERT_DOMAINS -d $sub"
+    done
+    info "Domenii pentru cert: $CERT_DOMAINS"
+    # Încearcă obținerea certificatului (cu fallback standalone)
+    if _certbot_obtain "$CERT_DOMAINS" "$CERT_EMAIL"; then
+      nginx -t 2>/dev/null && systemctl reload nginx 2>/dev/null || systemctl restart nginx 2>/dev/null || true
+      fixed "Certificat SSL obținut și nginx reîncărcat"
+    else
+      warn "Certbot a eșuat (DNS poate nu s-a propagat încă sau rate-limit activ). Nginx rulează pe HTTP."
+      info "Reîncearcă manual: certbot --nginx -d ${DOMAIN} -d www.${DOMAIN} -d api.${DOMAIN} -d orchestrator.${DOMAIN} --email ${CERT_EMAIL}"
+    fi
   fi
 else
   warn "Certbot nu este instalat."
   info "Instalează cu: apt-get install -y certbot python3-certbot-nginx"
-  info "Apoi obține certificat: certbot --nginx -d ${DOMAIN} -d www.${DOMAIN} -d api.${DOMAIN} -d orchestrator.${DOMAIN}"
+  info "Apoi obține certificat: certbot --nginx -d ${DOMAIN} -d www.${DOMAIN} -d api.${DOMAIN} -d orchestrator.${DOMAIN} --email ${CERT_EMAIL}"
 fi
 
 # =============================================================================

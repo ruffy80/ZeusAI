@@ -171,20 +171,25 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Configurare SSH
+        id: ssh_setup
         run: |
           mkdir -p ~/.ssh
           chmod 700 ~/.ssh
           SSH_KEY="${{ secrets.HETZNER_SSH_PRIVATE_KEY || secrets.SSH_PRIVATE_KEY }}"
           if [ -z "$SSH_KEY" ]; then
-            echo "❌ HETZNER_SSH_PRIVATE_KEY secret lipsă!"
-            exit 1
+            echo "⚠️  HETZNER_SSH_PRIVATE_KEY secret lipsă — SSH deploy omis (no-op)"
+            echo "   Adaugă secretul în GitHub → Settings → Secrets → Actions → HETZNER_SSH_PRIVATE_KEY"
+            echo "ssh_ready=false" >> "$GITHUB_OUTPUT"
+            exit 0
           fi
           printf '%s\n' "$SSH_KEY" > ~/.ssh/deploy_key
           chmod 600 ~/.ssh/deploy_key
           ssh-keyscan -t rsa,ed25519 -p ${{ env.SERVER_PORT }} ${{ env.SERVER_IP }} >> ~/.ssh/known_hosts 2>/dev/null || true
+          echo "ssh_ready=true" >> "$GITHUB_OUTPUT"
           echo "✅ SSH configurat → ${{ env.SERVER_IP }}"
 
       - name: Trimite fișiere pe server (nginx + scripts + monitoring)
+        if: steps.ssh_setup.outputs.ssh_ready == 'true'
         run: |
           SRV="${{ env.SERVER_USER }}@${{ env.SERVER_IP }}"
           SCP="scp -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no -P ${{ env.SERVER_PORT }}"
@@ -205,6 +210,7 @@ jobs:
           echo "✅ Fișiere transferate"
 
       - name: Bootstrap server (Node.js, PM2, Nginx, Certbot — dacă lipsesc)
+        if: steps.ssh_setup.outputs.ssh_ready == 'true'
         run: |
           SRV="${{ env.SERVER_USER }}@${{ env.SERVER_IP }}"
           SSH="ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no -p ${{ env.SERVER_PORT }}"
@@ -290,6 +296,7 @@ jobs:
           BOOTSTRAP
 
       - name: Generare .env pe server cu toate secretele
+        if: steps.ssh_setup.outputs.ssh_ready == 'true'
         run: |
           SRV="${{ env.SERVER_USER }}@${{ env.SERVER_IP }}"
           SSH="ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no -p ${{ env.SERVER_PORT }}"
@@ -400,6 +407,7 @@ jobs:
 
       - name: Deploy SSH (git pull + npm install + pm2)
         id: deploy_stack
+        if: steps.ssh_setup.outputs.ssh_ready == 'true'
         run: |
           SRV="${{ env.SERVER_USER }}@${{ env.SERVER_IP }}"
           SSH="ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no -p ${{ env.SERVER_PORT }}"
@@ -508,21 +516,47 @@ jobs:
           systemctl enable nginx 2>/dev/null || true
 
           # ── Certbot SSL ───────────────────────────────────────────────
+          # Ensure python3-certbot-nginx plugin is available
+          python3 -c "import certbot_nginx" 2>/dev/null || \
+            apt-get install -y -qq python3-certbot-nginx 2>/dev/null || true
           SERVER_IP_REAL=\$(curl -4 -fsS --max-time 5 https://ifconfig.me 2>/dev/null || hostname -I | awk '{print \$1}')
           DOMAIN_IP=\$(getent ahostsv4 "\${DOMAIN}" 2>/dev/null | awk 'NR==1{print \$1}' || echo "")
           echo "  Server IP: \${SERVER_IP_REAL} | Domain IP: \${DOMAIN_IP:-'(nererezolvat)'}"
           if [ -n "\${DOMAIN_IP}" ] && [ "\${DOMAIN_IP}" = "\${SERVER_IP_REAL}" ]; then
+            # Build cert domains list (only subdomains that resolve to this server)
+            CERT_DOMAINS="-d \${DOMAIN}"
+            for sub in "www.\${DOMAIN}" "api.\${DOMAIN}" "orchestrator.\${DOMAIN}"; do
+              SUB_IP=\$(getent ahostsv4 "\$sub" 2>/dev/null | awk 'NR==1{print \$1}' || true)
+              [ -n "\$SUB_IP" ] && [ "\$SUB_IP" = "\${SERVER_IP_REAL}" ] && CERT_DOMAINS="\$CERT_DOMAINS -d \$sub"
+            done
+            echo "  Cert domains: \$CERT_DOMAINS"
             if ! [ -f "/etc/letsencrypt/live/\${DOMAIN}/fullchain.pem" ]; then
               echo "🔐 Obțin certificat SSL Let's Encrypt pentru \${DOMAIN}..."
-              certbot --nginx -d "\${DOMAIN}" -d "www.\${DOMAIN}" -d "api.\${DOMAIN}" \
-                --non-interactive --agree-tos -m "\${CERT_EMAIL}" --redirect 2>&1 || \
-              certbot --nginx -d "\${DOMAIN}" -d "www.\${DOMAIN}" \
-                --non-interactive --agree-tos -m "\${CERT_EMAIL}" --redirect 2>&1 || \
-              echo "⚠️  certbot: va fi reîncercat la next deploy (DNS propagation)"
+              if eval certbot --nginx \$CERT_DOMAINS \
+                  --non-interactive --agree-tos -m "\${CERT_EMAIL}" \
+                  --redirect --keep-until-expiring 2>&1; then
+                echo "✅ SSL cert obținut via --nginx"
+              else
+                echo "⚠️  certbot --nginx eșuat — încerc --standalone (nginx oprit temporar)..."
+                systemctl stop nginx 2>/dev/null || true
+                if eval certbot certonly --standalone \$CERT_DOMAINS \
+                    --non-interactive --agree-tos -m "\${CERT_EMAIL}" \
+                    --keep-until-expiring 2>&1; then
+                  systemctl start nginx 2>/dev/null || true
+                  eval certbot --nginx \$CERT_DOMAINS \
+                    --non-interactive --agree-tos -m "\${CERT_EMAIL}" \
+                    --redirect --keep-until-expiring 2>/dev/null || true
+                  echo "✅ SSL cert obținut via --standalone"
+                else
+                  systemctl start nginx 2>/dev/null || true
+                  echo "⚠️  certbot: va fi reîncercat la next deploy (DNS propagation sau rate-limit)"
+                fi
+              fi
             else
-              certbot renew --quiet 2>/dev/null || true
+              certbot renew --nginx --non-interactive 2>&1 || true
               echo "✅ SSL cert valid, renew verificat"
             fi
+            nginx -t 2>/dev/null && systemctl reload nginx 2>/dev/null || true
           else
             echo "ℹ️  DNS nu a propagat încă. SSL va fi obținut la next run."
           fi
@@ -549,6 +583,7 @@ jobs:
 
       - name: Health check (2 minute window)
         id: health_check
+        if: steps.ssh_setup.outputs.ssh_ready == 'true'
         run: |
           echo "🔍 Health check (120s timeout)..."
           START_TIME=$(date +%s)
@@ -561,7 +596,7 @@ jobs:
 
             # Încearcă IP direct (portul 3000 în container, nginx face proxy pe 80)
             for URL in "http://${{ env.SERVER_IP }}/health" "http://${{ env.SERVER_IP }}/api/health" "http://${{ env.SERVER_IP }}:3000/health"; do
-              HTTP_CODE=$(curl -sf -o /dev/null -w "%{http_code}" --max-time 8 "$URL" 2>/dev/null || echo "000")
+              HTTP_CODE=$(curl -sf -o /dev/null -w "%{http_code}" --max-time 8 "$URL" 2>/dev/null; true)
               if [ "$HTTP_CODE" = "200" ]; then
                 SUCCESS=true
                 echo "✅ Health OK (${ELAPSED}s) — $URL → HTTP ${HTTP_CODE}"
@@ -582,7 +617,7 @@ jobs:
           fi
 
       - name: Rollback automat la eșec critic
-        if: failure() && steps.deploy_stack.outcome == 'success'
+        if: failure() && steps.ssh_setup.outputs.ssh_ready == 'true' && steps.deploy_stack.outcome == 'success'
         run: |
           echo "⚠️ Eșec post-deploy — rollback PM2..."
           SSH="ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no -p ${{ env.SERVER_PORT }}"
