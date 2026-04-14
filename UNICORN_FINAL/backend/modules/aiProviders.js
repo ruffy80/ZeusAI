@@ -293,6 +293,83 @@ async function tryGroq(message, history) {
 }
 
 // ─── 9. OpenRouter (multi-model gateway, OpenAI-compatible) ──────────────
+// ─── 8. Groq (LLaMA ultra-rapid) ─────────────────────────────────────────
+async function tryGroq(message, history) {
+  const key = process.env.GROQ_API_KEY;
+  if (!key || key.startsWith('your_')) return null;
+
+  const resp = await axios.post(
+    'https://api.groq.com/openai/v1/chat/completions',
+    { model: process.env.GROQ_MODEL || 'llama-3.1-70b-versatile', messages: buildMessages(message, history), max_tokens: 500, temperature: 0.7 },
+    { headers: { Authorization: 'Bearer ' + key, 'Content-Type': 'application/json' }, timeout: 15000 }
+  );
+  return { reply: resp.data.choices[0].message.content, model: 'groq-llama3.1-70b' };
+}
+
+// ─── 9. Together AI (OpenAI-compatible) ──────────────────────────────────
+async function tryTogether(message, history) {
+  const key = process.env.TOGETHER_API_KEY;
+  if (!key || key.startsWith('your_')) return null;
+
+  const resp = await axios.post(
+    'https://api.together.xyz/v1/chat/completions',
+    { model: process.env.TOGETHER_MODEL || 'meta-llama/Llama-3-8b-chat-hf', messages: buildMessages(message, history), max_tokens: 500, temperature: 0.7 },
+    { headers: { Authorization: 'Bearer ' + key, 'Content-Type': 'application/json' }, timeout: 30000 }
+  );
+  return { reply: resp.data.choices[0].message.content, model: 'together-llama3-8b' };
+}
+
+// ─── 10. Fireworks AI (OpenAI-compatible) ────────────────────────────────
+async function tryFireworks(message, history) {
+  const key = process.env.FIREWORKS_API_KEY;
+  if (!key || key.startsWith('your_')) return null;
+
+  const resp = await axios.post(
+    'https://api.fireworks.ai/inference/v1/chat/completions',
+    { model: process.env.FIREWORKS_MODEL || 'accounts/fireworks/models/llama-v3p1-8b-instruct', messages: buildMessages(message, history), max_tokens: 500, temperature: 0.7 },
+    { headers: { Authorization: 'Bearer ' + key, 'Content-Type': 'application/json' }, timeout: 20000 }
+  );
+  return { reply: resp.data.choices[0].message.content, model: 'fireworks-llama3.1-8b' };
+}
+
+// ─── 11. SambaNova (OpenAI-compatible) ───────────────────────────────────
+async function trySambaNova(message, history) {
+  const key = process.env.SAMBANOVA_API_KEY;
+  if (!key || key.startsWith('your_')) return null;
+
+  const resp = await axios.post(
+    'https://api.sambanova.ai/v1/chat/completions',
+    { model: process.env.SAMBANOVA_MODEL || 'Meta-Llama-3.1-8B-Instruct', messages: buildMessages(message, history), max_tokens: 500, temperature: 0.7 },
+    { headers: { Authorization: 'Bearer ' + key, 'Content-Type': 'application/json' }, timeout: 20000 }
+  );
+  return { reply: resp.data.choices[0].message.content, model: 'sambanova-llama3.1-8b' };
+}
+
+// ─── 12. NVIDIA NIM (OpenAI-compatible) ──────────────────────────────────
+async function tryNvidiaNim(message, history) {
+  const key = process.env.NVIDIA_NIM_API_KEY;
+  if (!key || key.startsWith('your_')) return null;
+
+  const resp = await axios.post(
+    'https://integrate.api.nvidia.com/v1/chat/completions',
+    { model: process.env.NVIDIA_NIM_MODEL || 'meta/llama-3.1-8b-instruct', messages: buildMessages(message, history), max_tokens: 500, temperature: 0.7 },
+    { headers: { Authorization: 'Bearer ' + key, 'Content-Type': 'application/json' }, timeout: 20000 }
+  );
+  return { reply: resp.data.choices[0].message.content, model: 'nvidia-nim-llama3.1-8b' };
+// ─── 8. Groq (OpenAI-compatible, ultra-fast inference) ───────────────────
+async function tryGroq(message, history) {
+  const key = process.env.GROQ_API_KEY;
+  if (!key || key === 'your_groq_api_key_here') return null;
+
+  const resp = await axios.post(
+    'https://api.groq.com/openai/v1/chat/completions',
+    { model: process.env.GROQ_MODEL || 'llama3-70b-8192', messages: buildMessages(message, history), max_tokens: 500, temperature: 0.7 },
+    { headers: { Authorization: 'Bearer ' + key, 'Content-Type': 'application/json' }, timeout: 20000 }
+  );
+  return { reply: resp.data.choices[0].message.content, model: 'groq-llama3-70b' };
+}
+
+// ─── 9. OpenRouter (multi-model gateway) ─────────────────────────────────
 async function tryOpenRouter(message, history) {
   const key = process.env.OPENROUTER_API_KEY;
   if (!key || key === 'your_openrouter_api_key_here') return null;
@@ -305,6 +382,7 @@ async function tryOpenRouter(message, history) {
       max_tokens: 500,
       temperature: 0.7,
     },
+    { model: process.env.OPENROUTER_MODEL || 'openai/gpt-4o-mini', messages: buildMessages(message, history), max_tokens: 500, temperature: 0.7 },
     {
       headers: {
         Authorization: 'Bearer ' + key,
@@ -320,6 +398,16 @@ async function tryOpenRouter(message, history) {
 }
 
 // ─── 10. Perplexity (search-augmented reasoning, OpenAI-compatible) ───────
+        'HTTP-Referer': process.env.PUBLIC_APP_URL || 'https://zeus-ai.app',
+        'X-Title': 'Zeus AI Unicorn',
+      },
+      timeout: 25000,
+    }
+  );
+  return { reply: resp.data.choices[0].message.content, model: 'openrouter' };
+}
+
+// ─── 10. Perplexity AI (OpenAI-compatible) ───────────────────────────────
 async function tryPerplexity(message, history) {
   const key = process.env.PERPLEXITY_API_KEY;
   if (!key || key === 'your_perplexity_api_key_here') return null;
@@ -333,11 +421,36 @@ async function tryPerplexity(message, history) {
       temperature: 0.7,
     },
     { headers: { Authorization: 'Bearer ' + key, 'Content-Type': 'application/json' }, timeout: 30000 }
+    { model: process.env.PERPLEXITY_MODEL || 'llama-3.1-sonar-small-128k-online', messages: buildMessages(message, history), max_tokens: 500, temperature: 0.7 },
+    { headers: { Authorization: 'Bearer ' + key, 'Content-Type': 'application/json' }, timeout: 25000 }
   );
   return { reply: resp.data.choices[0].message.content, model: 'perplexity-sonar' };
 }
 
 // ─── 11. Together AI (fine-tuning + open-source, OpenAI-compatible) ───────
+// ─── 11. HuggingFace Inference API ───────────────────────────────────────
+async function tryHuggingFace(message, history) {
+  const key = process.env.HUGGINGFACE_API_KEY;
+  if (!key || key === 'your_huggingface_api_key_here') return null;
+
+  const model = process.env.HUGGINGFACE_MODEL || 'mistralai/Mistral-7B-Instruct-v0.3';
+  // Build a simple prompt string for HF text-generation models
+  const prompt = buildMessages(message, history)
+    .map(m => `${m.role === 'system' ? '' : m.role + ': '}${m.content}`)
+    .join('\n') + '\nassistant:';
+
+  const resp = await axios.post(
+    `https://api-inference.huggingface.co/models/${model}`,
+    { inputs: prompt, parameters: { max_new_tokens: 500, temperature: 0.7, return_full_text: false } },
+    { headers: { Authorization: 'Bearer ' + key, 'Content-Type': 'application/json' }, timeout: 30000 }
+  );
+  const text = Array.isArray(resp.data)
+    ? (resp.data[0]?.generated_text || '')
+    : (resp.data?.generated_text || '');
+  return { reply: text.trim(), model: 'huggingface' };
+}
+
+// ─── 12. Together AI (OpenAI-compatible) ─────────────────────────────────
 async function tryTogether(message, history) {
   const key = process.env.TOGETHER_API_KEY;
   if (!key || key === 'your_together_api_key_here') return null;
@@ -356,6 +469,13 @@ async function tryTogether(message, history) {
 }
 
 // ─── 12. Fireworks AI (fast inference, OpenAI-compatible) ─────────────────
+    { model: process.env.TOGETHER_MODEL || 'meta-llama/Llama-3.2-11B-Vision-Instruct-Turbo', messages: buildMessages(message, history), max_tokens: 500, temperature: 0.7 },
+    { headers: { Authorization: 'Bearer ' + key, 'Content-Type': 'application/json' }, timeout: 25000 }
+  );
+  return { reply: resp.data.choices[0].message.content, model: 'together-llama3' };
+}
+
+// ─── 13. Fireworks AI (OpenAI-compatible) ────────────────────────────────
 async function tryFireworks(message, history) {
   const key = process.env.FIREWORKS_API_KEY;
   if (!key || key === 'your_fireworks_api_key_here') return null;
@@ -374,6 +494,13 @@ async function tryFireworks(message, history) {
 }
 
 // ─── 13. SambaNova (LLaMA 3.1, OpenAI-compatible) ─────────────────────────
+    { model: process.env.FIREWORKS_MODEL || 'accounts/fireworks/models/llama-v3p1-70b-instruct', messages: buildMessages(message, history), max_tokens: 500, temperature: 0.7 },
+    { headers: { Authorization: 'Bearer ' + key, 'Content-Type': 'application/json' }, timeout: 25000 }
+  );
+  return { reply: resp.data.choices[0].message.content, model: 'fireworks-llama3' };
+}
+
+// ─── 14. SambaNova Cloud (OpenAI-compatible) ─────────────────────────────
 async function trySambaNova(message, history) {
   const key = process.env.SAMBANOVA_API_KEY;
   if (!key || key === 'your_sambanova_api_key_here') return null;
@@ -393,6 +520,14 @@ async function trySambaNova(message, history) {
 
 // ─── 14. NVIDIA NIM (GPU-accelerated inference, OpenAI-compatible) ────────
 async function tryNvidiaNim(message, history) {
+    { model: process.env.SAMBANOVA_MODEL || 'Meta-Llama-3.3-70B-Instruct', messages: buildMessages(message, history), max_tokens: 500, temperature: 0.7 },
+    { headers: { Authorization: 'Bearer ' + key, 'Content-Type': 'application/json' }, timeout: 25000 }
+  );
+  return { reply: resp.data.choices[0].message.content, model: 'sambanova-llama3' };
+}
+
+// ─── 15. NVIDIA NIM (OpenAI-compatible) ──────────────────────────────────
+async function tryNVIDIANIM(message, history) {
   const key = process.env.NVIDIA_NIM_API_KEY;
   if (!key || key === 'your_nvidia_nim_api_key_here') return null;
 
@@ -444,39 +579,178 @@ const PROVIDERS = [
   { name: 'sambanova',  envKey: 'SAMBANOVA_API_KEY',    placeholder: 'your_sambanova_api_key_here',   fn: trySambaNova,  costTier: 1, speedTier: 1 },
   { name: 'nvidia_nim', envKey: 'NVIDIA_NIM_API_KEY',   placeholder: 'your_nvidia_nim_api_key_here',  fn: tryNvidiaNim,  costTier: 1, speedTier: 1 },
   { name: 'xai',        envKey: 'XAI_API_KEY',           placeholder: 'your_xai_api_key_here',        fn: tryGrok,       costTier: 3, speedTier: 2 },
+    { model: process.env.NVIDIA_NIM_MODEL || 'meta/llama-3.1-70b-instruct', messages: buildMessages(message, history), max_tokens: 500, temperature: 0.7 },
+    { headers: { Authorization: 'Bearer ' + key, 'Content-Type': 'application/json' }, timeout: 25000 }
+  );
+  return { reply: resp.data.choices[0].message.content, model: 'nvidia-nim' };
+}
+
+// ─── Provider registry ────────────────────────────────────────────────────
+// Ordine fallback: DeepSeek → Groq → Mistral → Gemini → Claude → Cohere → OpenAI
+//                 → xAI → Together → Fireworks → SambaNova → NVIDIA NIM
+const PROVIDERS = [
+  { name: 'deepseek',   envKey: 'DEEPSEEK_API_KEY',   placeholder: 'your_deepseek_api_key_here',   fn: tryDeepSeek },
+  { name: 'groq',       envKey: 'GROQ_API_KEY',        placeholder: 'your_groq_api_key_here',       fn: tryGroq },
+  { name: 'mistral',    envKey: 'MISTRAL_API_KEY',     placeholder: 'your_mistral_api_key_here',    fn: tryMistral },
+  { name: 'gemini',     envKey: 'GEMINI_API_KEY',      placeholder: 'your_gemini_api_key_here',     fn: tryGemini },
+  { name: 'anthropic',  envKey: 'ANTHROPIC_API_KEY',   placeholder: 'your_anthropic_api_key_here',  fn: tryAnthropic },
+  { name: 'cohere',     envKey: 'COHERE_API_KEY',      placeholder: 'your_cohere_api_key_here',     fn: tryCohere },
+  { name: 'openai',     envKey: 'OPENAI_API_KEY',      placeholder: 'your_openai_api_key_here',     fn: tryOpenAI },
+  { name: 'xai',        envKey: 'XAI_API_KEY',         placeholder: 'your_xai_api_key_here',        fn: tryGrok },
+  { name: 'together',   envKey: 'TOGETHER_API_KEY',    placeholder: 'your_together_api_key_here',   fn: tryTogether },
+  { name: 'fireworks',  envKey: 'FIREWORKS_API_KEY',   placeholder: 'your_fireworks_api_key_here',  fn: tryFireworks },
+  { name: 'sambanova',  envKey: 'SAMBANOVA_API_KEY',   placeholder: 'your_sambanova_api_key_here',  fn: trySambaNova },
+  { name: 'nvidia-nim', envKey: 'NVIDIA_NIM_API_KEY',  placeholder: 'your_nvidia_nim_api_key_here', fn: tryNvidiaNim },
+  { name: 'deepseek',   envKey: 'DEEPSEEK_API_KEY',    placeholder: 'your_deepseek_api_key_here',    fn: tryDeepSeek,   tier: 'standard' },
+  { name: 'mistral',    envKey: 'MISTRAL_API_KEY',      placeholder: 'your_mistral_api_key_here',     fn: tryMistral,    tier: 'standard' },
+  { name: 'groq',       envKey: 'GROQ_API_KEY',         placeholder: 'your_groq_api_key_here',        fn: tryGroq,       tier: 'standard' },
+  { name: 'gemini',     envKey: 'GEMINI_API_KEY',       placeholder: 'your_gemini_api_key_here',      fn: tryGemini,     tier: 'standard' },
+  { name: 'anthropic',  envKey: 'ANTHROPIC_API_KEY',    placeholder: 'your_anthropic_api_key_here',   fn: tryAnthropic,  tier: 'premium'  },
+  { name: 'cohere',     envKey: 'COHERE_API_KEY',       placeholder: 'your_cohere_api_key_here',      fn: tryCohere,     tier: 'standard' },
+  { name: 'openai',     envKey: 'OPENAI_API_KEY',       placeholder: 'your_openai_api_key_here',      fn: tryOpenAI,     tier: 'premium'  },
+  { name: 'openrouter', envKey: 'OPENROUTER_API_KEY',   placeholder: 'your_openrouter_api_key_here',  fn: tryOpenRouter, tier: 'standard' },
+  { name: 'perplexity', envKey: 'PERPLEXITY_API_KEY',   placeholder: 'your_perplexity_api_key_here',  fn: tryPerplexity, tier: 'standard' },
+  { name: 'huggingface',envKey: 'HUGGINGFACE_API_KEY',  placeholder: 'your_huggingface_api_key_here', fn: tryHuggingFace,tier: 'standard' },
+  { name: 'together',   envKey: 'TOGETHER_API_KEY',     placeholder: 'your_together_api_key_here',    fn: tryTogether,   tier: 'standard' },
+  { name: 'fireworks',  envKey: 'FIREWORKS_API_KEY',    placeholder: 'your_fireworks_api_key_here',   fn: tryFireworks,  tier: 'standard' },
+  { name: 'sambanova',  envKey: 'SAMBANOVA_API_KEY',    placeholder: 'your_sambanova_api_key_here',   fn: trySambaNova,  tier: 'standard' },
+  { name: 'nvidia',     envKey: 'NVIDIA_NIM_API_KEY',   placeholder: 'your_nvidia_nim_api_key_here',  fn: tryNVIDIANIM,  tier: 'standard' },
+  { name: 'xai',        envKey: 'XAI_API_KEY',          placeholder: 'your_xai_api_key_here',         fn: tryGrok,       tier: 'standard' },
 ];
+
+// ─── Per-provider health state (self-healing support) ────────────────────
+// Tracks consecutive failures and cooldown windows per provider.
+const PROVIDER_HEALTH = new Map(); // name → { failures, unstableUntil, totalErrors, lastError }
+const UNSTABLE_COOLDOWN_MS  = parseInt(process.env.AI_UNSTABLE_COOLDOWN_MS  || '300000', 10); // 5 min
+const UNSTABLE_FAIL_THRESH  = parseInt(process.env.AI_UNSTABLE_FAIL_THRESH  || '3',      10); // failures before marking unstable
+
+function _getHealth(name) {
+  if (!PROVIDER_HEALTH.has(name)) {
+    PROVIDER_HEALTH.set(name, { failures: 0, unstableUntil: 0, totalErrors: 0, lastError: null });
+  }
+  return PROVIDER_HEALTH.get(name);
+}
+
+/** Mark a successful call — reset failure counter and reintegrate if back online. */
+function _recordSuccess(name) {
+  const h = _getHealth(name);
+  const wasUnstable = h.unstableUntil > Date.now();
+  h.failures = 0;
+  h.unstableUntil = 0;
+  if (wasUnstable) {
+    console.log(`[AIProviders] ✅ ${name} reintegrat automat după recuperare.`);
+  }
+}
+
+/** Mark a failed call — increment counter, potentially mark unstable. */
+function _recordFailure(name, errMsg) {
+  const h = _getHealth(name);
+  h.failures++;
+  h.totalErrors++;
+  h.lastError = errMsg;
+  if (h.failures >= UNSTABLE_FAIL_THRESH) {
+    h.unstableUntil = Date.now() + UNSTABLE_COOLDOWN_MS;
+    console.warn(`[AIProviders] ⚠️  ${name} marcat ca instabil pentru ${UNSTABLE_COOLDOWN_MS / 1000}s (${h.failures} erori consecutive).`);
+  }
+}
+
+/** Check whether a provider is currently considered unstable and should be skipped. */
+function isProviderUnstable(name) {
+  const h = _getHealth(name);
+  if (h.unstableUntil > Date.now()) return true;
+  // Auto-clear expired cooldown
+  if (h.unstableUntil > 0 && h.unstableUntil <= Date.now()) {
+    h.failures = 0;
+    h.unstableUntil = 0;
+  }
+  return false;
+}
+
+/** Force-reintegrate a provider (clear its health state). */
+function reintegrateProvider(name) {
+  const h = _getHealth(name);
+  h.failures = 0;
+  h.unstableUntil = 0;
+  console.log(`[AIProviders] 🔄 ${name} reintegrat manual.`);
+}
+
+/** Force-mark a provider as unstable for the configured cooldown window. */
+function markProviderUnstable(name) {
+  const h = _getHealth(name);
+  h.unstableUntil = Date.now() + UNSTABLE_COOLDOWN_MS;
+  console.warn(`[AIProviders] 🔴 ${name} marcat manual ca instabil.`);
+}
 
 /**
  * Cascade through all configured providers and return the first successful response.
+ * Skips providers that are marked unstable (self-healing: auto-avoidance).
  * @param {string} message
  * @param {Array}  history  [{ role, content }, ...]
+ * @param {Object} [opts]   { premiumOnly: bool, skipUnstable: bool }
  * @returns {Promise<{reply: string, model: string}|null>}
  */
-async function chat(message, history = []) {
-  for (const provider of PROVIDERS) {
+async function chat(message, history = [], opts = {}) {
+  const { premiumOnly = false, skipUnstable = true } = opts;
+  const candidates = premiumOnly
+    ? PROVIDERS.filter(p => p.tier === 'premium')
+    : PROVIDERS;
+
+  for (const provider of candidates) {
     const val = process.env[provider.envKey];
     if (!val || val === provider.placeholder) continue; // not configured
+
+    // Self-healing: skip providers currently in unstable cooldown
+    if (skipUnstable && isProviderUnstable(provider.name)) {
+      console.warn(`[AIProviders] ⏭️  ${provider.name} sărit (instabil).`);
+      continue;
+    }
+
     try {
       const result = await withBackoff(() => provider.fn(message, history), RETRY_MAX, RETRY_BASE_MS);
       if (result && result.reply) {
+        _recordSuccess(provider.name);
         return result;
       }
     } catch (err) {
-      console.error(`[AIProviders] ${provider.name} error:`, err.response?.data?.error?.message || err.message);
+      const errMsg = err.response?.data?.error?.message || err.message;
+      console.error(`[AIProviders] ${provider.name} error:`, errMsg);
+      _recordFailure(provider.name, errMsg);
     }
   }
+
+  // Last resort: retry all providers including unstable ones (ignore skipUnstable)
+  if (skipUnstable) {
+    return chat(message, history, { premiumOnly, skipUnstable: false });
+  }
+
   return null; // all providers failed or unconfigured
 }
 
 /**
- * Returns status of every provider (configured, active).
+ * Returns status of every provider (configured, active, health).
  */
 function getStatus() {
   return PROVIDERS.map(p => {
     const val = process.env[p.envKey];
     const configured = Boolean(val && val !== p.placeholder);
-    return { provider: p.name, envKey: p.envKey, configured };
+    const h = _getHealth(p.name);
+    const unstable = isProviderUnstable(p.name);
+    return {
+      provider: p.name,
+      envKey: p.envKey,
+      tier: p.tier,
+      configured,
+      unstable,
+      failures: h.failures,
+      totalErrors: h.totalErrors,
+      lastError: h.lastError,
+      unstableUntil: unstable ? new Date(h.unstableUntil).toISOString() : null,
+    };
   });
 }
 
-module.exports = { chat, getStatus, PROVIDERS };
+module.exports = {
+  chat, getStatus, PROVIDERS,
+  isProviderUnstable, reintegrateProvider, markProviderUnstable,
+  _recordSuccess, _recordFailure,
+};
