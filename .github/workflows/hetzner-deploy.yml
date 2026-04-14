@@ -101,6 +101,31 @@ jobs:
           SMTP_PASS:               ${{ secrets.SMTP_PASS }}
           SITE_DOMAIN:             ${{ secrets.SITE_DOMAIN }}
           UNICORN_DOMAIN:          ${{ secrets.UNICORN_DOMAIN }}
+          VAULT_MASTER_SECRET:     ${{ secrets.VAULT_MASTER_SECRET }}
+          VAULT_EMERGENCY_CODE:    ${{ secrets.VAULT_EMERGENCY_CODE }}
+          MASTER_CONFIG_SECRET:    ${{ secrets.MASTER_CONFIG_SECRET }}
+          SAV_API_TOKEN:           ${{ secrets.SAV_API_TOKEN }}
+          TELEGRAM_BOT_TOKEN:      ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID:        ${{ secrets.TELEGRAM_CHAT_ID }}
+          X_BEARER_TOKEN:          ${{ secrets.X_BEARER_TOKEN }}
+          X_ACCESS_TOKEN:          ${{ secrets.X_ACCESS_TOKEN }}
+          X_ACCESS_SECRET:         ${{ secrets.X_ACCESS_SECRET }}
+          YOUTUBE_API_KEY:         ${{ secrets.YOUTUBE_API_KEY }}
+          META_API_KEY:            ${{ secrets.META_API_KEY }}
+          GOOGLE_API_KEY:          ${{ secrets.GOOGLE_API_KEY }}
+          ETH_WALLET_ADDRESS:      ${{ secrets.ETH_WALLET_ADDRESS }}
+          USDC_WALLET_ADDRESS:     ${{ secrets.USDC_WALLET_ADDRESS }}
+          BINANCE_API_KEY:         ${{ secrets.BINANCE_API_KEY }}
+          BINANCE_SECRET:          ${{ secrets.BINANCE_SECRET }}
+          COINBASE_API_KEY:        ${{ secrets.COINBASE_API_KEY }}
+          COINBASE_SECRET:         ${{ secrets.COINBASE_SECRET }}
+          KRAKEN_API_KEY:          ${{ secrets.KRAKEN_API_KEY }}
+          KRAKEN_SECRET:           ${{ secrets.KRAKEN_SECRET }}
+          BYBIT_API_KEY:           ${{ secrets.BYBIT_API_KEY }}
+          BYBIT_SECRET:            ${{ secrets.BYBIT_SECRET }}
+          OKX_API_KEY:             ${{ secrets.OKX_API_KEY }}
+          OKX_SECRET:              ${{ secrets.OKX_SECRET }}
+          OKX_PASSWORD:            ${{ secrets.OKX_PASSWORD }}
         run: node scripts/setup-github-secrets.js
 
   # ──────────────────────────────────────────────────────────────────────
@@ -422,6 +447,31 @@ jobs:
               BTC_WALLET_ADDRESS="${{ secrets.BTC_WALLET_ADDRESS || 'bc1q4f7e66z87mdfj56kz0dj5hvcnpmh0qh4wuv22e' }}" \
               OWNER_EMAIL="${{ secrets.SMTP_USER || 'vladoi_ionut@yahoo.com' }}" \
               ADMIN_EMAIL="${{ secrets.SMTP_USER || 'vladoi_ionut@yahoo.com' }}" \
+              VAULT_MASTER_SECRET="${{ secrets.VAULT_MASTER_SECRET }}" \
+              VAULT_EMERGENCY_CODE="${{ secrets.VAULT_EMERGENCY_CODE }}" \
+              MASTER_CONFIG_SECRET="${{ secrets.MASTER_CONFIG_SECRET }}" \
+              SAV_API_TOKEN="${{ secrets.SAV_API_TOKEN }}" \
+              TELEGRAM_BOT_TOKEN="${{ secrets.TELEGRAM_BOT_TOKEN }}" \
+              TELEGRAM_CHAT_ID="${{ secrets.TELEGRAM_CHAT_ID }}" \
+              X_BEARER_TOKEN="${{ secrets.X_BEARER_TOKEN }}" \
+              X_ACCESS_TOKEN="${{ secrets.X_ACCESS_TOKEN }}" \
+              X_ACCESS_SECRET="${{ secrets.X_ACCESS_SECRET }}" \
+              YOUTUBE_API_KEY="${{ secrets.YOUTUBE_API_KEY }}" \
+              META_API_KEY="${{ secrets.META_API_KEY }}" \
+              GOOGLE_API_KEY="${{ secrets.GOOGLE_API_KEY }}" \
+              ETH_WALLET_ADDRESS="${{ secrets.ETH_WALLET_ADDRESS }}" \
+              USDC_WALLET_ADDRESS="${{ secrets.USDC_WALLET_ADDRESS }}" \
+              BINANCE_API_KEY="${{ secrets.BINANCE_API_KEY }}" \
+              BINANCE_SECRET="${{ secrets.BINANCE_SECRET }}" \
+              COINBASE_API_KEY="${{ secrets.COINBASE_API_KEY }}" \
+              COINBASE_SECRET="${{ secrets.COINBASE_SECRET }}" \
+              KRAKEN_API_KEY="${{ secrets.KRAKEN_API_KEY }}" \
+              KRAKEN_SECRET="${{ secrets.KRAKEN_SECRET }}" \
+              BYBIT_API_KEY="${{ secrets.BYBIT_API_KEY }}" \
+              BYBIT_SECRET="${{ secrets.BYBIT_SECRET }}" \
+              OKX_API_KEY="${{ secrets.OKX_API_KEY }}" \
+              OKX_SECRET="${{ secrets.OKX_SECRET }}" \
+              OKX_PASSWORD="${{ secrets.OKX_PASSWORD }}" \
               bash scripts/create-env.sh "${{ secrets.HETZNER_DEPLOY_PATH || '/var/www/unicorn' }}" || true
             else
               # Fallback: upsert manual pentru cheile critice
