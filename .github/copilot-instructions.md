@@ -1,9 +1,8 @@
 # Copilot instructions for generate-unicorn
 
 ## Big picture architecture
-- This repo has two active layers:
-  - Root Next.js shell (`app/`, `package.json`) used for simple frontend bootstrapping.
-  - `UNICORN_FINAL/` generated product, validated/deployed in CI and containing most business logic.
+- This repo has one active production layer:
+  - `UNICORN_FINAL/` — the generated product, validated/deployed in CI and containing all business logic. Runs on Hetzner via PM2.
 - `generate_unicorn_final.js` is the canonical generator (explicitly documented in file header); use it for durable template-level changes.
 - `UNICORN_FINAL/src/index.js` is a standalone Node HTTP server (no Express) that serves:
   - JSON APIs like `/health`, `/snapshot`, `/innovation`
@@ -13,14 +12,17 @@
 
 ## Critical workflows
 - Root app:
-  - `npm run dev` (Next dev), `npm run build`, `npm run start`
+  - `npm run dev` / `npm run start` → `node UNICORN_FINAL/src/index.js`
+  - `npm run build` → UNICORN_FINAL lint + test
+  - `npm test` → UNICORN_FINAL test suite
 - Main generated app (`UNICORN_FINAL/`):
   - `npm run start` → `node src/index.js`
-  - `npm test` → `node test/health.test.js` (uses Node 20 global `fetch`)
+  - `npm test` → `node test/health.test.js && node test/api.test.js` (Node 20+ global `fetch`)
   - `npm run lint` → syntax checks via `node --check` (not ESLint)
   - `npm run innovation:report`, `npm run innovation:sprint`
 - CI deploy path is centered on `UNICORN_FINAL/`:
-  - Root workflow `.github/workflows/vercel-deploy.yml` runs lint/test with `working-directory: UNICORN_FINAL`.
+  - `.github/workflows/hetzner-deploy.yml` — canonical push-to-main deploy, runs lint/test, SSH-deploys to Hetzner.
+  - `.github/workflows/live.yml` — full bootstrap + deploy + SSL + health check (schedule + workflow_dispatch).
 
 ## Project-specific coding conventions
 - Prefer plain Node + in-memory state for features unless persistence is already introduced:
@@ -31,9 +33,9 @@
 
 ## Integration boundaries and external systems
 - Deployment automation is first-class:
-  - `github-vercel-hetzner-connector.js` orchestrates GitHub repo setup, Vercel linking, and Hetzner SSH deployment.
+  - `github-vercel-hetzner-connector.js` — historical connector script (Vercel is no longer used; Hetzner is the sole deployment target).
   - `setup-platform-auto-connect.sh` validates `.env.auto-connector` and bootstraps Hetzner runtime.
-- GitHub Actions deploy both Vercel and Hetzner from secrets (`VERCEL_*`, `HETZNER_*`); keep secret names unchanged when editing workflows/scripts.
+- GitHub Actions deploy only to Hetzner from secrets (`HETZNER_*`). Vercel integration is disabled (`vercel.json` sets `"github": { "enabled": false }`).
 - Auto-sync scripts (`scripts/start-auto-sync.sh`, `scripts/auto-sync-push.sh`) continuously `git add/commit/push`; avoid enabling/changing them unintentionally during feature work.
 
 ## Practical change strategy for AI agents
