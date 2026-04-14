@@ -10,7 +10,6 @@
  *   WEBHOOK_SECRET, HETZNER_WEBHOOK_SECRET
  *
  * Secrets pe care TREBUIE sa le ai deja:
- *   VERCEL_TOKEN     → vercel.com/account/tokens
  *   HETZNER_*        → Hetzner Cloud Console + SSH key
  */
 
@@ -22,55 +21,9 @@ const GITHUB_TOKEN = process.env.GITHUB_TOKEN;
 const OWNER = 'ruffy80';
 const REPO  = 'ZeusAI';
 
-const VERCEL_ORG_ID = 'team_wes3fQvKjdfOMKXe7f4fFQoL';
-// Fallback project ID (unicorn-final legacy) used only when Vercel API is unavailable
-const VERCEL_PROJECT_ID_FALLBACK = 'prj_YNIHsyltyZUV7HQA3VyQhhGDvKD3';
-
 if (!GITHUB_TOKEN) {
   console.error('❌  Set GITHUB_TOKEN=ghp_... before running this script.');
   process.exit(1);
-}
-
-// ─── Auto-fetch zeusai project ID from Vercel API ─────────────────────────────
-function fetchVercelProjectId(token, orgId) {
-  return new Promise((resolve) => {
-    if (!token) {
-      console.log('  ℹ️  VERCEL_TOKEN not set – using fallback project ID');
-      return resolve(VERCEL_PROJECT_ID_FALLBACK);
-    }
-    const path = `/v9/projects/zeusai?teamId=${orgId}`;
-    const opts = {
-      hostname: 'api.vercel.com',
-      path,
-      headers: {
-        Authorization: `Bearer ${token}`,
-        'User-Agent': 'unicorn-setup',
-        Accept: 'application/json',
-      },
-    };
-    https.get(opts, (res) => {
-      let data = '';
-      res.on('data', (c) => { data += c; });
-      res.on('end', () => {
-        try {
-          const project = JSON.parse(data);
-          if (project.id) {
-            console.log(`  🔍 Vercel zeusai project ID resolved: ${project.id}`);
-            resolve(project.id);
-          } else {
-            console.warn(`  ⚠️  Could not resolve zeusai project ID from Vercel (response: ${data.slice(0, 120)}). Using fallback.`);
-            resolve(VERCEL_PROJECT_ID_FALLBACK);
-          }
-        } catch {
-          console.warn('  ⚠️  Failed to parse Vercel project response. Using fallback project ID.');
-          resolve(VERCEL_PROJECT_ID_FALLBACK);
-        }
-      });
-    }).on('error', (err) => {
-      console.warn(`  ⚠️  Vercel API error: ${err.message}. Using fallback project ID.`);
-      resolve(VERCEL_PROJECT_ID_FALLBACK);
-    });
-  });
 }
 
 // ─── GitHub API helpers ─────────────────────────────────────────────────────────
@@ -185,9 +138,6 @@ function gen2FA() { return String(crypto.randomInt(100000, 1000000)); }
 async function run() {
   console.log(`\n🔐 Pushing secrets to github.com/${OWNER}/${REPO}\n`);
 
-  // Auto-resolve the zeusai Vercel project ID (replaces any stale unicorn-final ID)
-  const vercelProjectId = await fetchVercelProjectId(process.env.VERCEL_TOKEN, VERCEL_ORG_ID);
-
   // ─── Auto-generated machine secrets (always fresh) ────────────────────────
   const jwtSecret     = genHex(48);
   const adminSecret   = genBase64url(32);
@@ -221,10 +171,6 @@ async function run() {
     WEBHOOK_SECRET:         webhookSecret,
     HETZNER_WEBHOOK_SECRET: webhookSecret,
 
-    // Vercel — project ID auto-resolved from Vercel API at run time
-    VERCEL_ORG_ID:          VERCEL_ORG_ID,
-    VERCEL_PROJECT_ID:      vercelProjectId,
-
     // Domain — required for SSL/HTTPS health checks and certbot
     // Can be overridden at runtime via SITE_DOMAIN / UNICORN_DOMAIN env vars
     // (e.g. when triggered from setup-secrets-and-deploy.yml with custom inputs)
@@ -236,7 +182,7 @@ async function run() {
     HETZNER_USER:           'root',
     HETZNER_DEPLOY_USER:    'root',
     HETZNER_DEPLOY_PORT:    '22',
-    HETZNER_DEPLOY_PATH:    '/root/unicorn-final',
+    HETZNER_DEPLOY_PATH:    '/var/www/unicorn',
     HETZNER_APP_PORT:       '3000',
 
     // SSH aliases — same values as Hetzner equivalents above (used by deploy-backend.yml, setup-ai-keys.yml)
@@ -244,18 +190,14 @@ async function run() {
     SSH_USER:               'root',
     SSH_PORT:               '22',
 
-    // Vercel team alias — used by vercel-deploy.yml as VERCEL_TEAM_ID
-    VERCEL_TEAM_ID:         VERCEL_ORG_ID,
-
     // Health check URL — used by unicorn-keepalive.yml
-    VERCEL_HEALTH_URL:      'https://zeusai.pro/health',
+    SITE_HEALTH_URL:        'https://zeusai.pro/health',
 
-    // Ownership — used by vercel-deploy.yml for certbot and .env injection
+    // Ownership — used by hetzner-deploy.yml for certbot and .env injection
     OWNER_EMAIL:            'vladoi_ionut@yahoo.com',
     BTC_WALLET_ADDRESS:     'bc1q4f7e66z87mdfj56kz0dj5hvcnpmh0qh4wuv22e',
 
     // Pass-through from environment (must be provided externally if available)
-    ...(process.env.VERCEL_TOKEN            ? { VERCEL_TOKEN:            process.env.VERCEL_TOKEN }            : {}),
     ...(process.env.HETZNER_API_KEY         ? { HETZNER_API_KEY:         process.env.HETZNER_API_KEY }         : {}),
     ...(process.env.HETZNER_API_TOKEN       ? { HETZNER_API_TOKEN:       process.env.HETZNER_API_TOKEN }       : {}),
     ...(process.env.HETZNER_SSH_PRIVATE_KEY ? { HETZNER_SSH_PRIVATE_KEY: process.env.HETZNER_SSH_PRIVATE_KEY } : {}),
@@ -298,6 +240,75 @@ async function run() {
     ...(process.env.HETZNER_WEBHOOK_URL     ? { HETZNER_WEBHOOK_URL:     process.env.HETZNER_WEBHOOK_URL }     : {}),
     ...(process.env.GH_WEBHOOK_URL          ? { GH_WEBHOOK_URL:          process.env.GH_WEBHOOK_URL }          : {}),
     ...(process.env.WEBHOOK_URL             ? { WEBHOOK_URL:             process.env.WEBHOOK_URL }             : {}),
+    // ── Static app/runtime defaults (known values — always written) ─────────────
+    GITHUB_REPO_OWNER:     'ruffy80',
+    GITHUB_REPO_NAME:      'ZeusAI',
+    GITHUB_REPO_FULL:      'ruffy80/ZeusAI',
+    GITHUB_REPOSITORY:     'ruffy80/ZeusAI',
+    GITHUB_DEFAULT_BRANCH: 'main',
+    GITHUB_BRANCH:         'main',
+    BRANCH:                'main',
+    INNOV_BASE_BRANCH:     'main',
+    GIT_REPO_URL:          'https://github.com/ruffy80/ZeusAI.git',
+    HETZNER_BACKEND_URL:   'http://127.0.0.1:3000',
+    HETZNER_APP_PORT:      '3000',
+    OLLAMA_URL:            process.env.OLLAMA_URL  || 'http://localhost:11434',
+    OLLAMA_MODEL:          process.env.OLLAMA_MODEL || 'llama3.2:3b-instruct-q4_K_M',
+    OPENAI_MODEL:          process.env.OPENAI_MODEL    || 'gpt-4o-mini',
+    DEEPSEEK_MODEL:        process.env.DEEPSEEK_MODEL  || 'deepseek-chat',
+    ANTHROPIC_MODEL:       process.env.ANTHROPIC_MODEL || 'claude-3-haiku-20240307',
+    GEMINI_MODEL:          process.env.GEMINI_MODEL    || 'gemini-1.5-flash',
+    MISTRAL_MODEL:         process.env.MISTRAL_MODEL   || 'mistral-small-latest',
+    COHERE_MODEL:          process.env.COHERE_MODEL    || 'command-r',
+    GROK_MODEL:            process.env.GROK_MODEL      || 'grok-beta',
+    PAYPAL_ENV:            process.env.PAYPAL_ENV      || 'sandbox',
+    ADMIN_EMAIL:           process.env.SMTP_USER       || 'vladoi_ionut@yahoo.com',
+    OWNER_EMAIL:           process.env.SMTP_USER       || 'vladoi_ionut@yahoo.com',
+    SITE_HEALTH_URL:       `https://${process.env.SITE_DOMAIN || 'zeusai.pro'}/health`,
+    APP_BASE_URL:          `https://${process.env.SITE_DOMAIN || 'zeusai.pro'}`,
+    FRONTEND_URL:          `https://${process.env.SITE_DOMAIN || 'zeusai.pro'}`,
+    DOMAIN:                process.env.SITE_DOMAIN || 'zeusai.pro',
+    EXEC_SERVERS:          '204.168.230.142',
+    // ── User-provided secrets (pass-through — optional, write only if present) ──
+    // Vault / config
+    ...(process.env.VAULT_MASTER_SECRET  ? { VAULT_MASTER_SECRET:  process.env.VAULT_MASTER_SECRET }  : {}),
+    ...(process.env.VAULT_EMERGENCY_CODE ? { VAULT_EMERGENCY_CODE: process.env.VAULT_EMERGENCY_CODE } : {}),
+    ...(process.env.MASTER_CONFIG_SECRET ? { MASTER_CONFIG_SECRET: process.env.MASTER_CONFIG_SECRET } : {}),
+    // DNS providers
+    ...(process.env.SAV_API_TOKEN ? { SAV_API_TOKEN: process.env.SAV_API_TOKEN } : {}),
+    // Social / marketing
+    ...(process.env.TELEGRAM_BOT_TOKEN           ? { TELEGRAM_BOT_TOKEN:           process.env.TELEGRAM_BOT_TOKEN }           : {}),
+    ...(process.env.TELEGRAM_CHAT_ID             ? { TELEGRAM_CHAT_ID:             process.env.TELEGRAM_CHAT_ID }             : {}),
+    ...(process.env.X_BEARER_TOKEN               ? { X_BEARER_TOKEN:               process.env.X_BEARER_TOKEN }               : {}),
+    ...(process.env.X_ACCESS_TOKEN               ? { X_ACCESS_TOKEN:               process.env.X_ACCESS_TOKEN }               : {}),
+    ...(process.env.X_ACCESS_SECRET              ? { X_ACCESS_SECRET:              process.env.X_ACCESS_SECRET }              : {}),
+    ...(process.env.YOUTUBE_API_KEY              ? { YOUTUBE_API_KEY:              process.env.YOUTUBE_API_KEY }              : {}),
+    ...(process.env.YOUTUBE_OAUTH_CLIENT_ID      ? { YOUTUBE_OAUTH_CLIENT_ID:      process.env.YOUTUBE_OAUTH_CLIENT_ID }      : {}),
+    ...(process.env.PINTEREST_TOKEN              ? { PINTEREST_TOKEN:              process.env.PINTEREST_TOKEN }              : {}),
+    ...(process.env.PINTEREST_BOARD_ID           ? { PINTEREST_BOARD_ID:           process.env.PINTEREST_BOARD_ID }           : {}),
+    ...(process.env.PRODUCTHUNT_API_KEY          ? { PRODUCTHUNT_API_KEY:          process.env.PRODUCTHUNT_API_KEY }          : {}),
+    ...(process.env.PRODUCTHUNT_API_SECRET       ? { PRODUCTHUNT_API_SECRET:       process.env.PRODUCTHUNT_API_SECRET }       : {}),
+    ...(process.env.PRODUCTHUNT_DEVELOPER_TOKEN  ? { PRODUCTHUNT_DEVELOPER_TOKEN:  process.env.PRODUCTHUNT_DEVELOPER_TOKEN }  : {}),
+    ...(process.env.META_API_KEY                 ? { META_API_KEY:                 process.env.META_API_KEY }                 : {}),
+    ...(process.env.GOOGLE_API_KEY               ? { GOOGLE_API_KEY:               process.env.GOOGLE_API_KEY }               : {}),
+    ...(process.env.MICROSOFT_API_KEY            ? { MICROSOFT_API_KEY:            process.env.MICROSOFT_API_KEY }            : {}),
+    ...(process.env.AMAZON_API_KEY               ? { AMAZON_API_KEY:               process.env.AMAZON_API_KEY }               : {}),
+    ...(process.env.APPLE_API_KEY                ? { APPLE_API_KEY:                process.env.APPLE_API_KEY }                : {}),
+    // Crypto wallets
+    ...(process.env.ETH_WALLET_ADDRESS   ? { ETH_WALLET_ADDRESS:   process.env.ETH_WALLET_ADDRESS }   : {}),
+    ...(process.env.USDC_WALLET_ADDRESS  ? { USDC_WALLET_ADDRESS:  process.env.USDC_WALLET_ADDRESS }  : {}),
+    // Crypto exchanges
+    ...(process.env.BINANCE_API_KEY  ? { BINANCE_API_KEY:  process.env.BINANCE_API_KEY }  : {}),
+    ...(process.env.BINANCE_SECRET   ? { BINANCE_SECRET:   process.env.BINANCE_SECRET }   : {}),
+    ...(process.env.COINBASE_API_KEY ? { COINBASE_API_KEY: process.env.COINBASE_API_KEY } : {}),
+    ...(process.env.COINBASE_SECRET  ? { COINBASE_SECRET:  process.env.COINBASE_SECRET }  : {}),
+    ...(process.env.KRAKEN_API_KEY   ? { KRAKEN_API_KEY:   process.env.KRAKEN_API_KEY }   : {}),
+    ...(process.env.KRAKEN_SECRET    ? { KRAKEN_SECRET:    process.env.KRAKEN_SECRET }    : {}),
+    ...(process.env.BYBIT_API_KEY    ? { BYBIT_API_KEY:    process.env.BYBIT_API_KEY }    : {}),
+    ...(process.env.BYBIT_SECRET     ? { BYBIT_SECRET:     process.env.BYBIT_SECRET }     : {}),
+    ...(process.env.OKX_API_KEY      ? { OKX_API_KEY:      process.env.OKX_API_KEY }      : {}),
+    ...(process.env.OKX_SECRET       ? { OKX_SECRET:       process.env.OKX_SECRET }       : {}),
+    ...(process.env.OKX_PASSWORD     ? { OKX_PASSWORD:     process.env.OKX_PASSWORD }     : {}),
   };
 
   const { key, key_id } = await apiGet(`/repos/${OWNER}/${REPO}/actions/secrets/public-key`);

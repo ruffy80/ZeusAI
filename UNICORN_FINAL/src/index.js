@@ -107,7 +107,7 @@ if (typeof streamTimer.unref === 'function') {
   streamTimer.unref();
 }
 
-// Proxy an incoming request to an external backend URL (used for /api/* on Vercel)
+// Proxy an incoming request to an external backend URL
 function proxyToBackend(req, res, backendBaseUrl) {
   try {
     const target = new URL(req.url, backendBaseUrl);
