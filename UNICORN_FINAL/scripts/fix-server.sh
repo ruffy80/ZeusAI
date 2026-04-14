@@ -88,6 +88,16 @@ else
 fi
 
 # 1b. Instalare configurație site Unicorn
+# IMPORTANT: dacă certificatul SSL există, Certbot a injectat deja blocuri listen 443 ssl
+# în config — NU suprascrie, altfel HTTPS se sparge la fiecare rulare a scriptului.
+if [ -f "$NGINX_CONF_SRC" ]; then
+  if [ ! -f "/etc/letsencrypt/live/${DOMAIN}/fullchain.pem" ]; then
+    cp "$NGINX_CONF_SRC" "$NGINX_AVAILABLE"
+    sed -i "s/server_name .*;/server_name ${DOMAIN} www.${DOMAIN} api.${DOMAIN} orchestrator.${DOMAIN};/" "$NGINX_AVAILABLE"
+    fixed "Config Nginx instalat la $NGINX_AVAILABLE (domain: $DOMAIN)"
+  else
+    ok "SSL cert există — config Nginx cu HTTPS păstrat (nu suprascris)"
+  fi
 SSL_CERT="/etc/letsencrypt/live/${DOMAIN}/fullchain.pem"
 if [ -f "$NGINX_CONF_SRC" ]; then
   # ── Nu suprascrie config-ul nginx dacă certbot a adăugat deja blocurile HTTPS.
