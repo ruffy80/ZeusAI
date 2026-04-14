@@ -104,6 +104,32 @@
 
 const axios = require('axios');
 
+const RETRY_MAX     = parseInt(process.env.AI_RETRY_MAX     || '3',   10);
+const RETRY_BASE_MS = parseInt(process.env.AI_RETRY_BASE_MS || '500', 10);
+
+/**
+ * Retry an async function with exponential back-off.
+ * Retries only on transient errors: network failures, 429, 5xx.
+ */
+async function withBackoff(fn, maxAttempts, baseMs) {
+  let lastErr;
+  for (let attempt = 0; attempt < maxAttempts; attempt++) {
+    try {
+      return await fn();
+    } catch (err) {
+      lastErr = err;
+      const status = err.response?.status;
+      // Don't retry on auth/client errors (4xx except 429 rate-limit)
+      if (status && status >= 400 && status < 500 && status !== 429) throw err;
+      if (attempt < maxAttempts - 1) {
+        const delay = baseMs * Math.pow(2, attempt) + Math.random() * 100;
+        await new Promise(r => setTimeout(r, delay));
+      }
+    }
+  }
+  throw lastErr;
+}
+
 const SYSTEM_PROMPT =
   'You are Zeus AI Assistant, an expert in business automation, AI, blockchain, ' +
   'payments, and enterprise solutions. Be concise and helpful. ' +
@@ -275,7 +301,7 @@ async function chat(message, history = []) {
     const val = process.env[provider.envKey];
     if (!val || val === provider.placeholder) continue; // not configured
     try {
-      const result = await provider.fn(message, history);
+      const result = await withBackoff(() => provider.fn(message, history), RETRY_MAX, RETRY_BASE_MS);
       if (result && result.reply) {
         return result;
       }

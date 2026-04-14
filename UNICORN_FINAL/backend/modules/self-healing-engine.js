@@ -39,6 +39,7 @@ const MAX_HEAP_MB    = parseInt(process.env.HEALER_MAX_HEAP_MB    || '1500',   1
 const UPTIME_WARNING_HOURS  = 72; // log reminder after this many hours
 const REMINDER_INTERVAL_HOURS = 24; // how often to repeat the reminder
 const MAX_STDERR_BYTES = 500;     // truncation limit for exec stderr
+const HEALTH_FAIL_THRESHOLD = parseInt(process.env.HEALER_HEALTH_FAIL_THRESHOLD || '3', 10); // consecutive failures before restart
 
 // Safe list of PM2 process names that can be restarted
 const SAFE_PM2_NAMES = new Set([
@@ -65,6 +66,7 @@ class SelfHealingEngine {
     this._watchdogTimer = null;
     this._running       = false;
     this._orchestrator  = null; // injected via attachOrchestrator()
+    this._healthFailures = 0;   // consecutive /api/health probe failures
   }
 
   // ── Lifecycle ─────────────────────────────────────────────────────
@@ -256,10 +258,62 @@ class SelfHealingEngine {
       if (global.gc) global.gc();
     }
 
+    // Active health-check probe → restart if service is degraded
+    await this._probeHealth();
+
     // Check uptime — after UPTIME_WARNING_HOURS h, log a reminder for restart
     const uptimeH = (Date.now() - this.startedAt) / 3600000;
     if (uptimeH > UPTIME_WARNING_HOURS && Math.round(uptimeH) % REMINDER_INTERVAL_HOURS === 0) {
       this._log('WATCHDOG_UPTIME', 'system', `Process uptime ${uptimeH.toFixed(1)}h — consider scheduled restart`);
+    }
+  }
+
+  // ── Health-check probe ────────────────────────────────────────────
+
+  _probeHealth() {
+    const http = require('http');
+    const port = process.env.PORT || 3000;
+    return new Promise((resolve) => {
+      const req = http.get(
+        `http://127.0.0.1:${port}/api/health`,
+        { timeout: 5000 },
+        (res) => {
+          let body = '';
+          res.on('data', c => { body += c; });
+          res.on('end', () => {
+            try {
+              const json = JSON.parse(body);
+              if (json.status === 'ok') {
+                this._healthFailures = 0;
+              } else {
+                this._onHealthDegraded(`status=${json.status}`);
+              }
+            } catch {
+              this._onHealthDegraded('invalid JSON response');
+            }
+            resolve();
+          });
+        }
+      );
+      req.on('error', (err) => { this._onHealthDegraded(err.message); resolve(); });
+      req.on('timeout', () => { req.destroy(); this._onHealthDegraded('request timeout'); resolve(); });
+    });
+  }
+
+  _onHealthDegraded(reason) {
+    this._healthFailures++;
+    this._log(
+      'WATCHDOG_HEALTH', 'backend',
+      `Health probe failed (${this._healthFailures}/${HEALTH_FAIL_THRESHOLD}): ${reason}`
+    );
+    if (this._healthFailures >= HEALTH_FAIL_THRESHOLD && this._checkCooldown('backend')) {
+      this._log('WATCHDOG_RESTART', 'backend', 'Health threshold exceeded — triggering PM2 restart');
+      this._pm2Restart('unicorn').then(ok => {
+        if (ok) {
+          this._healthFailures = 0;
+          this._log('HEAL_DONE', 'backend', 'PM2 restart triggered by health watchdog');
+        }
+      });
     }
   }
 
