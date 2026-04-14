@@ -279,6 +279,69 @@ async function tryGrok(message, history) {
   return { reply: resp.data.choices[0].message.content, model: 'grok-3-mini' };
 }
 
+// ─── 8. Groq (LLaMA ultra-rapid) ─────────────────────────────────────────
+async function tryGroq(message, history) {
+  const key = process.env.GROQ_API_KEY;
+  if (!key || key.startsWith('your_')) return null;
+
+  const resp = await axios.post(
+    'https://api.groq.com/openai/v1/chat/completions',
+    { model: process.env.GROQ_MODEL || 'llama-3.1-70b-versatile', messages: buildMessages(message, history), max_tokens: 500, temperature: 0.7 },
+    { headers: { Authorization: 'Bearer ' + key, 'Content-Type': 'application/json' }, timeout: 15000 }
+  );
+  return { reply: resp.data.choices[0].message.content, model: 'groq-llama3.1-70b' };
+}
+
+// ─── 9. Together AI (OpenAI-compatible) ──────────────────────────────────
+async function tryTogether(message, history) {
+  const key = process.env.TOGETHER_API_KEY;
+  if (!key || key.startsWith('your_')) return null;
+
+  const resp = await axios.post(
+    'https://api.together.xyz/v1/chat/completions',
+    { model: process.env.TOGETHER_MODEL || 'meta-llama/Llama-3-8b-chat-hf', messages: buildMessages(message, history), max_tokens: 500, temperature: 0.7 },
+    { headers: { Authorization: 'Bearer ' + key, 'Content-Type': 'application/json' }, timeout: 30000 }
+  );
+  return { reply: resp.data.choices[0].message.content, model: 'together-llama3-8b' };
+}
+
+// ─── 10. Fireworks AI (OpenAI-compatible) ────────────────────────────────
+async function tryFireworks(message, history) {
+  const key = process.env.FIREWORKS_API_KEY;
+  if (!key || key.startsWith('your_')) return null;
+
+  const resp = await axios.post(
+    'https://api.fireworks.ai/inference/v1/chat/completions',
+    { model: process.env.FIREWORKS_MODEL || 'accounts/fireworks/models/llama-v3p1-8b-instruct', messages: buildMessages(message, history), max_tokens: 500, temperature: 0.7 },
+    { headers: { Authorization: 'Bearer ' + key, 'Content-Type': 'application/json' }, timeout: 20000 }
+  );
+  return { reply: resp.data.choices[0].message.content, model: 'fireworks-llama3.1-8b' };
+}
+
+// ─── 11. SambaNova (OpenAI-compatible) ───────────────────────────────────
+async function trySambaNova(message, history) {
+  const key = process.env.SAMBANOVA_API_KEY;
+  if (!key || key.startsWith('your_')) return null;
+
+  const resp = await axios.post(
+    'https://api.sambanova.ai/v1/chat/completions',
+    { model: process.env.SAMBANOVA_MODEL || 'Meta-Llama-3.1-8B-Instruct', messages: buildMessages(message, history), max_tokens: 500, temperature: 0.7 },
+    { headers: { Authorization: 'Bearer ' + key, 'Content-Type': 'application/json' }, timeout: 20000 }
+  );
+  return { reply: resp.data.choices[0].message.content, model: 'sambanova-llama3.1-8b' };
+}
+
+// ─── 12. NVIDIA NIM (OpenAI-compatible) ──────────────────────────────────
+async function tryNvidiaNim(message, history) {
+  const key = process.env.NVIDIA_NIM_API_KEY;
+  if (!key || key.startsWith('your_')) return null;
+
+  const resp = await axios.post(
+    'https://integrate.api.nvidia.com/v1/chat/completions',
+    { model: process.env.NVIDIA_NIM_MODEL || 'meta/llama-3.1-8b-instruct', messages: buildMessages(message, history), max_tokens: 500, temperature: 0.7 },
+    { headers: { Authorization: 'Bearer ' + key, 'Content-Type': 'application/json' }, timeout: 20000 }
+  );
+  return { reply: resp.data.choices[0].message.content, model: 'nvidia-nim-llama3.1-8b' };
 // ─── 8. Groq (OpenAI-compatible, ultra-fast inference) ───────────────────
 async function tryGroq(message, history) {
   const key = process.env.GROQ_API_KEY;
@@ -401,7 +464,21 @@ async function tryNVIDIANIM(message, history) {
 }
 
 // ─── Provider registry ────────────────────────────────────────────────────
+// Ordine fallback: DeepSeek → Groq → Mistral → Gemini → Claude → Cohere → OpenAI
+//                 → xAI → Together → Fireworks → SambaNova → NVIDIA NIM
 const PROVIDERS = [
+  { name: 'deepseek',   envKey: 'DEEPSEEK_API_KEY',   placeholder: 'your_deepseek_api_key_here',   fn: tryDeepSeek },
+  { name: 'groq',       envKey: 'GROQ_API_KEY',        placeholder: 'your_groq_api_key_here',       fn: tryGroq },
+  { name: 'mistral',    envKey: 'MISTRAL_API_KEY',     placeholder: 'your_mistral_api_key_here',    fn: tryMistral },
+  { name: 'gemini',     envKey: 'GEMINI_API_KEY',      placeholder: 'your_gemini_api_key_here',     fn: tryGemini },
+  { name: 'anthropic',  envKey: 'ANTHROPIC_API_KEY',   placeholder: 'your_anthropic_api_key_here',  fn: tryAnthropic },
+  { name: 'cohere',     envKey: 'COHERE_API_KEY',      placeholder: 'your_cohere_api_key_here',     fn: tryCohere },
+  { name: 'openai',     envKey: 'OPENAI_API_KEY',      placeholder: 'your_openai_api_key_here',     fn: tryOpenAI },
+  { name: 'xai',        envKey: 'XAI_API_KEY',         placeholder: 'your_xai_api_key_here',        fn: tryGrok },
+  { name: 'together',   envKey: 'TOGETHER_API_KEY',    placeholder: 'your_together_api_key_here',   fn: tryTogether },
+  { name: 'fireworks',  envKey: 'FIREWORKS_API_KEY',   placeholder: 'your_fireworks_api_key_here',  fn: tryFireworks },
+  { name: 'sambanova',  envKey: 'SAMBANOVA_API_KEY',   placeholder: 'your_sambanova_api_key_here',  fn: trySambaNova },
+  { name: 'nvidia-nim', envKey: 'NVIDIA_NIM_API_KEY',  placeholder: 'your_nvidia_nim_api_key_here', fn: tryNvidiaNim },
   { name: 'deepseek',   envKey: 'DEEPSEEK_API_KEY',    placeholder: 'your_deepseek_api_key_here',    fn: tryDeepSeek,   tier: 'standard' },
   { name: 'mistral',    envKey: 'MISTRAL_API_KEY',      placeholder: 'your_mistral_api_key_here',     fn: tryMistral,    tier: 'standard' },
   { name: 'groq',       envKey: 'GROQ_API_KEY',         placeholder: 'your_groq_api_key_here',        fn: tryGroq,       tier: 'standard' },
