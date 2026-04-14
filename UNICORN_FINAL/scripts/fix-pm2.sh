@@ -10,7 +10,7 @@
 #
 # Exemple:
 #   bash scripts/fix-pm2.sh
-#   bash scripts/fix-pm2.sh /root/unicorn-final
+#   bash scripts/fix-pm2.sh /var/www/unicorn
 #
 # Ce face:
 #   1. Verifică instalarea PM2 (reinstalează dacă este corupt)
@@ -25,7 +25,7 @@
 set -euo pipefail
 
 # ─── Parametri ───────────────────────────────────────────────────────────────
-DEPLOY_PATH="${1:-/root/unicorn-final}"
+DEPLOY_PATH="${1:-/var/www/unicorn}"
 NODE_PORT="${NODE_PORT:-3000}"
 LOG_DIR="${DEPLOY_PATH}/logs"
 LOG_FILE="${LOG_DIR}/fix-pm2-$(date +%Y%m%d-%H%M%S).log"
