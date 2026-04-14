@@ -526,6 +526,11 @@ const competitorSpyAgent           = require('./modules/competitor-spy-agent');
 const aiCfoAgent                   = require('./modules/ai-cfo-agent');
 const sentimentAnalysisEngine      = require('./modules/sentiment-analysis-engine');
 const aiProductGenerator           = require('./modules/ai-product-generator');
+const ale                          = require('./modules/autonomousLegalEntity');
+const gect                         = require('./modules/globalEnergyCarbonTrader');
+const qrBaaS                       = require('./modules/quantumResistantBaaS');
+const amaa                         = require('./modules/autonomousMAdvisor');
+const uaitm                        = require('./modules/universalAITrainingMarketplace');
 
 // ==================== ADAPTIVE MODULES (82) — REQUIRES ====================
 const adaptiveMod01 = require('./modules/AdaptiveModule01');
@@ -1988,6 +1993,199 @@ app.post('/api/ma/negotiate', authMiddleware, requirePlan('pro'), async (req, re
 
 app.get('/api/ma/stats', authMiddleware, requirePlan('pro'), (req, res) => {
   res.json(ma.getStats());
+});
+
+// ==================== AUTONOMOUS LEGAL ENTITY (ALE) ROUTES ====================
+app.post('/api/ale/register', authMiddleware, requirePlan('starter'), (req, res) => {
+  try {
+    res.json(ale.register(req.body || {}));
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+app.get('/api/ale/status/:id', authMiddleware, (req, res) => {
+  try {
+    res.json(ale.getStatus(req.params.id));
+  } catch (err) {
+    res.status(404).json({ error: err.message });
+  }
+});
+
+app.post('/api/ale/tax/:id', authMiddleware, requirePlan('starter'), (req, res) => {
+  try {
+    res.json(ale.calculateTax(req.params.id, req.body || {}));
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+app.get('/api/ale/countries', (req, res) => {
+  res.json(ale.getSupportedCountries());
+});
+
+app.get('/api/ale/registrations', adminTokenMiddleware, (req, res) => {
+  res.json(ale.listAll());
+});
+
+// ==================== GLOBAL ENERGY & CARBON TRADER (GECT) ROUTES ====================
+app.get('/api/gect/energy/price/:region', (req, res) => {
+  try {
+    res.json(gect.getCurrentPrice(req.params.region));
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+app.post('/api/gect/energy/trade', authMiddleware, requirePlan('starter'), (req, res) => {
+  try {
+    const trade = gect.tradeEnergy({ userId: req.user.id, ...req.body });
+    res.json(trade);
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+app.post('/api/gect/carbon/trade', authMiddleware, requirePlan('starter'), (req, res) => {
+  try {
+    const result = gect.tradeCarbonCredits({ userId: req.user.id, ...req.body, carbonExchangeModule: carbonExchange });
+    res.json(result);
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+app.get('/api/gect/portfolio/:userId', authMiddleware, (req, res) => {
+  res.json(gect.getPortfolio(req.params.userId));
+});
+
+app.get('/api/gect/regions', (req, res) => {
+  res.json(gect.getSupportedRegions());
+});
+
+// ==================== QR-BaaS ROUTES ====================
+app.post('/api/baas/create', authMiddleware, requirePlan('pro'), (req, res) => {
+  try {
+    res.json(qrBaaS.createChain(req.body || {}));
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+app.get('/api/baas/status/:id', authMiddleware, (req, res) => {
+  try {
+    res.json(qrBaaS.getStatus(req.params.id));
+  } catch (err) {
+    res.status(404).json({ error: err.message });
+  }
+});
+
+app.post('/api/baas/deploy-contract', authMiddleware, requirePlan('pro'), (req, res) => {
+  try {
+    const { chainId, ...contractParams } = req.body || {};
+    if (!chainId) return res.status(400).json({ error: 'chainId is required' });
+    res.json(qrBaaS.deployContract(chainId, contractParams));
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+app.post('/api/baas/transaction', authMiddleware, requirePlan('pro'), (req, res) => {
+  try {
+    const { chainId, ...tx } = req.body || {};
+    if (!chainId) return res.status(400).json({ error: 'chainId is required' });
+    res.json(qrBaaS.addTransaction(chainId, tx));
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+app.get('/api/baas/chains', adminTokenMiddleware, (req, res) => {
+  res.json(qrBaaS.listChains());
+});
+
+app.get('/api/baas/consensus', (req, res) => {
+  res.json(qrBaaS.getSupportedConsensus());
+});
+
+// ==================== AUTONOMOUS M&A ADVISOR (AMAA) ROUTES ====================
+app.post('/api/amaa/targets', authMiddleware, requirePlan('pro'), (req, res) => {
+  try {
+    res.json(amaa.findTargets(req.body || {}));
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+app.get('/api/amaa/analysis/:targetId', authMiddleware, requirePlan('pro'), (req, res) => {
+  try {
+    res.json(amaa.analyzeTarget(req.params.targetId));
+  } catch (err) {
+    res.status(404).json({ error: err.message });
+  }
+});
+
+app.post('/api/amaa/negotiate', authMiddleware, requirePlan('pro'), (req, res) => {
+  try {
+    const result = amaa.startNegotiation({ ...req.body, acquirerId: req.user.id, aiNegotiatorModule: aiNegotiator });
+    res.json(result);
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+app.get('/api/amaa/negotiation/:id', authMiddleware, requirePlan('pro'), (req, res) => {
+  try {
+    res.json(amaa.getNegotiation(req.params.id));
+  } catch (err) {
+    res.status(404).json({ error: err.message });
+  }
+});
+
+app.get('/api/amaa/stats', authMiddleware, requirePlan('pro'), (req, res) => {
+  res.json(amaa.getStats());
+});
+
+// ==================== UNIVERSAL AI TRAINING MARKETPLACE (UAITM) ROUTES ====================
+app.post('/api/aimarket/list', authMiddleware, (req, res) => {
+  try {
+    res.json(uaitm.listModel({ seller: req.user.id, ...req.body }));
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+app.get('/api/aimarket/models', (req, res) => {
+  try {
+    const { category, maxPrice, search, seller } = req.query;
+    res.json(uaitm.getModels({ category, maxPrice: maxPrice ? Number(maxPrice) : undefined, search, seller }));
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+app.get('/api/aimarket/models/:id', (req, res) => {
+  try {
+    res.json(uaitm.getModel(req.params.id));
+  } catch (err) {
+    res.status(404).json({ error: err.message });
+  }
+});
+
+app.post('/api/aimarket/buy', authMiddleware, (req, res) => {
+  try {
+    res.json(uaitm.buyModel({ buyerId: req.user.id, ...req.body }));
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+app.get('/api/aimarket/purchases', authMiddleware, (req, res) => {
+  res.json(uaitm.getPurchases(req.user.id));
+});
+
+app.get('/api/aimarket/stats', adminTokenMiddleware, (req, res) => {
+  res.json(uaitm.getStats());
 });
 
 // Legal Contract
