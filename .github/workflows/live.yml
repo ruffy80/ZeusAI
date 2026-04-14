@@ -462,12 +462,10 @@ jobs:
           NGINX_CONF="\${DEPLOY_PATH}/UNICORN_FINAL/scripts/nginx-unicorn.conf"
           [ ! -f "\$NGINX_CONF" ] && NGINX_CONF="\${DEPLOY_PATH}/scripts/nginx-unicorn.conf"
           if [ -f "\$NGINX_CONF" ]; then
-            if [ ! -f "/etc/letsencrypt/live/\${DOMAIN}/fullchain.pem" ]; then
-              sed "s/zeusai\.pro/\${DOMAIN}/g" "\$NGINX_CONF" > /etc/nginx/sites-available/unicorn
-              echo "ℹ️  Config HTTP (no SSL yet)"
-            else
-              echo "ℹ️  SSL cert există deja — păstrăm config nginx curent"
-            fi
+            # Always deploy the updated nginx config (safe: certbot only modifies domain-specific blocks,
+            # not the default_server catch-all or wildcard blocks we maintain)
+            sed "s/zeusai\.pro/\${DOMAIN}/g" "\$NGINX_CONF" > /etc/nginx/sites-available/unicorn
+            echo "ℹ️  Nginx config actualizat (deploy complet)"
             ln -sf /etc/nginx/sites-available/unicorn /etc/nginx/sites-enabled/unicorn
             rm -f /etc/nginx/sites-enabled/default
           fi
