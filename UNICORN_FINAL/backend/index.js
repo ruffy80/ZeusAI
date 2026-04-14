@@ -956,8 +956,13 @@ app.get('/api/payment/btc-qr', async (req, res) => {
 });
 
 // ==================== AI CHAT ====================
-// Provideri: OpenAI → DeepSeek → Anthropic → Gemini → Mistral → Cohere → xAI Grok → UAIC → Llama → keyword
+// Provideri: MultiModelRouter (14 AI) → OpenAI → DeepSeek → Anthropic → Gemini → Mistral → Cohere → xAI Grok → UAIC → Llama → keyword
 const _aiProviders = require('./modules/aiProviders');
+// 🌐 Multi-Model Router — fallback automat între 14 provideri AI cu routing inteligent și optimizare cost
+let _multiRouter = null;
+try { _multiRouter = require('./modules/multi-model-router'); } catch (e) {
+  console.warn('[MultiRouter] Nu s-a putut încărca:', e.message);
+}
 // 🤖 UAIC — orchestrează inteligent toate resursele AI (OpenAI, DeepSeek,
 //           Claude, Gemini, Ollama local). Activat automat la pornire.
 let _uaic = null;
@@ -972,8 +977,23 @@ try { _llamaBridge = require('./modules/llamaBridge'); } catch { /* optional */ 
 const ZEUS_SYSTEM = 'You are Zeus AI Assistant, an expert in business automation, AI, blockchain, payments, and enterprise solutions. Be concise and helpful. You can also respond in Romanian if the user writes in Romanian.';
 
 app.post('/api/chat', authRateLimit(30, 60_000), async (req, res) => {
-  const { message, history = [] } = req.body || {};
+  const { message, history = [], taskType = 'chat' } = req.body || {};
   if (!message) return res.status(400).json({ error: 'message required' });
+
+  // 0️⃣ Multi-Model Router — fallback automat între 14 provideri AI (prioritate maximă)
+  if (_multiRouter) {
+    try {
+      const mrResult = await _multiRouter.ask(message, {
+        taskType: taskType || 'chat',
+        systemPrompt: ZEUS_SYSTEM,
+        maxTokens: 500,
+        history,
+      });
+      if (mrResult && mrResult.reply) return res.json({ reply: mrResult.reply, model: mrResult.model, provider: mrResult.provider, latencyMs: mrResult.latencyMs });
+    } catch (err) {
+      console.warn('[Chat] MultiRouter a eșuat:', err.message);
+    }
+  }
 
   // 1️⃣ Cloud AI providers cascade (OpenAI → DeepSeek → Anthropic → Gemini → Mistral → Cohere → xAI Grok)
   const cloudResult = await _aiProviders.chat(message, history);
@@ -1045,14 +1065,50 @@ app.get('/api/llama/status', (req, res) => {
 app.get('/api/ai/status', (req, res) => {
   const providers = _aiProviders.getStatus();
   const llama = _llamaBridge ? _llamaBridge.getStatus() : { available: false, reason: 'bridge_not_loaded' };
+  const multiRouter = _multiRouter ? _multiRouter.getStatus() : { active: false };
   const activeCount = providers.filter(p => p.configured).length + (llama.available ? 1 : 0);
   res.json({
     providers,
     llama,
+    multiRouter,
     activeCount,
     total: providers.length + 1,
     timestamp: new Date().toISOString(),
   });
+});
+
+// ==================== MULTI-MODEL ROUTER ROUTES ====================
+// GET /api/ai/multi-router/status — starea tuturor celor 14 provideri
+app.get('/api/ai/multi-router/status', (req, res) => {
+  if (!_multiRouter) return res.status(503).json({ error: 'multi-model-router not loaded' });
+  res.json(_multiRouter.getStatus());
+});
+
+// GET /api/ai/multi-router/report — raport detaliat de performanță
+app.get('/api/ai/multi-router/report', (req, res) => {
+  if (!_multiRouter) return res.status(503).json({ error: 'multi-model-router not loaded' });
+  res.json(_multiRouter.getPerformanceReport());
+});
+
+// POST /api/ai/multi-router/ask — ask direct cu routing inteligent
+app.post('/api/ai/multi-router/ask', authRateLimit(30, 60_000), async (req, res) => {
+  if (!_multiRouter) return res.status(503).json({ error: 'multi-model-router not loaded' });
+  const { message, taskType = 'chat', systemPrompt, maxTokens = 500, history = [] } = req.body || {};
+  if (!message) return res.status(400).json({ error: 'message required' });
+  try {
+    const result = await _multiRouter.ask(message, { taskType, systemPrompt, maxTokens, history });
+    if (!result) return res.status(503).json({ error: 'all providers failed' });
+    res.json(result);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/admin/multi-router/reset — resetare statistici (admin only)
+app.post('/api/admin/multi-router/reset', adminCrudRateLimit, adminTokenMiddleware, (req, res) => {
+  if (!_multiRouter) return res.status(503).json({ error: 'multi-model-router not loaded' });
+  _multiRouter.resetStats();
+  res.json({ success: true, message: 'Statistici resetate' });
 });
 
 
@@ -4560,6 +4616,7 @@ if (require.main === module) {
   app.listen(PORT, () => {
     console.log(`🚀 Unicorn autonom rulând pe portul ${PORT}`);
     console.log(`🤖 Universal AI Connector (UAIC): ${_uaic ? 'ACTIVE' : 'DISABLED'}`);
+    console.log(`🌐 Multi-Model Router (14 AI): ${_multiRouter ? 'ACTIVE' : 'DISABLED'}`);
     console.log(`✨ Autonomous Innovation Engine: ACTIVE`);
     console.log(`💰 Auto Revenue Generation: ACTIVE`);
     console.log(`♾️  Unicorn Eternal Engine: ACTIVE`);
