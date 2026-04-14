@@ -60,22 +60,27 @@ jobs:
 
       # ── SSH setup ────────────────────────────────────────────────────────
       - name: Configurare SSH
+        id: ssh_setup
         run: |
           mkdir -p ~/.ssh
           chmod 700 ~/.ssh
           SSH_KEY="${{ secrets.HETZNER_SSH_PRIVATE_KEY || secrets.SSH_PRIVATE_KEY }}"
           if [ -z "$SSH_KEY" ]; then
-            echo "❌ HETZNER_SSH_PRIVATE_KEY sau SSH_PRIVATE_KEY secret lipsă!"
-            exit 1
+            echo "⚠️  HETZNER_SSH_PRIVATE_KEY sau SSH_PRIVATE_KEY secret lipsă — SSL setup omis (no-op)"
+            echo "   Adaugă secretul în GitHub → Settings → Secrets → Actions → HETZNER_SSH_PRIVATE_KEY"
+            echo "ssh_ready=false" >> "$GITHUB_OUTPUT"
+            exit 0
           fi
           printf '%s\n' "$SSH_KEY" > ~/.ssh/deploy_key
           chmod 600 ~/.ssh/deploy_key
           ssh-keyscan -t rsa,ed25519 -p "${{ env.SERVER_PORT }}" "${{ env.SERVER_IP }}" \
             >> ~/.ssh/known_hosts 2>/dev/null || true
+          echo "ssh_ready=true" >> "$GITHUB_OUTPUT"
           echo "✅ SSH configurat → ${{ env.SERVER_IP }}"
 
       # ── Deschide portul 443 prin Hetzner Cloud API (dacă există firewall) ─
       - name: Deschide portul 443 în Hetzner Cloud Firewall
+        if: steps.ssh_setup.outputs.ssh_ready == 'true'
         continue-on-error: true
         env:
           HETZNER_API_TOKEN: ${{ secrets.HETZNER_API_KEY || secrets.HETZNER_API_TOKEN }}
@@ -143,6 +148,7 @@ jobs:
 
       # ── Transferă setup-ssl.sh pe server ─────────────────────────────────
       - name: Transferă setup-ssl.sh pe server
+        if: steps.ssh_setup.outputs.ssh_ready == 'true'
         run: |
           scp -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no \
             -P "${{ env.SERVER_PORT }}" \
@@ -152,6 +158,7 @@ jobs:
 
       # ── Rulează setup-ssl.sh pe server ───────────────────────────────────
       - name: Rulează setup-ssl.sh (Nginx + UFW port 443 + Certbot)
+        if: steps.ssh_setup.outputs.ssh_ready == 'true'
         id: ssl_run
         env:
           FORCE_CERTBOT: ${{ inputs.force_certbot || 'no' }}
