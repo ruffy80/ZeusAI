@@ -1065,8 +1065,6 @@ app.post('/api/chat', authRateLimit(30, 60_000), async (req, res) => {
 
   // 4️⃣ Smart keyword fallback (static — când niciun AI nu e disponibil)
   const lower = cleanMessage.toLowerCase();
-  // 5️⃣ Smart keyword fallback (static — când niciun AI nu e disponibil)
-  const lower = message.toLowerCase();
   const KEYWORD_RESPONSES = [
     [['payment', 'plat'], 'Zeus AI suportă plăți via Stripe, PayPal, Bitcoin și alte 10+ metode. Accesează /payments pentru a iniția o tranzacție.'],
     [['marketplace'], 'Marketplace-ul Zeus AI oferă 50+ servicii AI specializate. Explorează /marketplace pentru prețuri personalizate.'],
