@@ -204,14 +204,19 @@ async function run() {
     // SSH_PRIVATE_KEY alias (used by deploy-backend.yml, setup-ai-keys.yml as fallback)
     ...(process.env.HETZNER_SSH_PRIVATE_KEY ? { SSH_PRIVATE_KEY:         process.env.HETZNER_SSH_PRIVATE_KEY } : {}),
     ...(process.env.SSH_PRIVATE_KEY         ? { SSH_PRIVATE_KEY:         process.env.SSH_PRIVATE_KEY }         : {}),
-    // AI provider keys (pass-through — user must provide these)
-    ...(process.env.OPENAI_API_KEY     ? { OPENAI_API_KEY:     process.env.OPENAI_API_KEY }     : {}),
-    ...(process.env.DEEPSEEK_API_KEY   ? { DEEPSEEK_API_KEY:   process.env.DEEPSEEK_API_KEY }   : {}),
-    ...(process.env.ANTHROPIC_API_KEY  ? { ANTHROPIC_API_KEY:  process.env.ANTHROPIC_API_KEY }  : {}),
-    ...(process.env.GEMINI_API_KEY     ? { GEMINI_API_KEY:     process.env.GEMINI_API_KEY }     : {}),
-    ...(process.env.MISTRAL_API_KEY    ? { MISTRAL_API_KEY:    process.env.MISTRAL_API_KEY }    : {}),
-    ...(process.env.COHERE_API_KEY     ? { COHERE_API_KEY:     process.env.COHERE_API_KEY }     : {}),
-    ...(process.env.XAI_API_KEY        ? { XAI_API_KEY:        process.env.XAI_API_KEY }        : {}),
+    // AI provider keys — întotdeauna scrise în GitHub Secrets.
+    // Dacă cheia nu este furnizată, se scrie valoarea placeholder din .env.example
+    // (ex: 'your_anthropic_api_key_here'). aiProviders.js și universalAIConnector.js
+    // recunosc aceste placeholder-uri și sar provider-ul — fără crash, fără fallback greșit.
+    // Când userul adaugă cheia reală în GitHub Secrets, la next auto-refresh
+    // valoarea reală suprascrie placeholder-ul automat.
+    OPENAI_API_KEY:    process.env.OPENAI_API_KEY    || 'your_openai_api_key_here',
+    DEEPSEEK_API_KEY:  process.env.DEEPSEEK_API_KEY  || 'your_deepseek_api_key_here',
+    ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY || 'your_anthropic_api_key_here',
+    GEMINI_API_KEY:    process.env.GEMINI_API_KEY    || 'your_gemini_api_key_here',
+    MISTRAL_API_KEY:   process.env.MISTRAL_API_KEY   || 'your_mistral_api_key_here',
+    COHERE_API_KEY:    process.env.COHERE_API_KEY    || 'your_cohere_api_key_here',
+    XAI_API_KEY:       process.env.XAI_API_KEY       || 'your_xai_api_key_here',
     // Payment keys (pass-through — user must provide these)
     ...(process.env.STRIPE_SECRET_KEY       ? { STRIPE_SECRET_KEY:       process.env.STRIPE_SECRET_KEY }       : {}),
     ...(process.env.STRIPE_PUBLISHABLE_KEY  ? { STRIPE_PUBLISHABLE_KEY:  process.env.STRIPE_PUBLISHABLE_KEY }  : {}),
