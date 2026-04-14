@@ -445,11 +445,9 @@ jobs:
           ECOSYSTEM="\${DEPLOY_PATH}/ecosystem.config.js"
           [ ! -f "\$ECOSYSTEM" ] && ECOSYSTEM="\${DEPLOY_PATH}/UNICORN_FINAL/ecosystem.config.js"
           if command -v pm2 &>/dev/null; then
-            if pm2 describe unicorn >/dev/null 2>&1; then
-              pm2 restart unicorn
-            elif [ -f "\$ECOSYSTEM" ]; then
-              pm2 startOrRestart "\$ECOSYSTEM" --only unicorn
-            fi
+            # startOrRestart handles both first-time start AND restart robustly
+            pm2 startOrRestart "\$ECOSYSTEM" --only unicorn 2>/dev/null || \
+              pm2 start "\$ECOSYSTEM" --only unicorn
             pm2 save
             pm2 startup systemd 2>/dev/null | grep "^sudo" | head -1 | bash 2>/dev/null || true
           fi
@@ -553,7 +551,11 @@ jobs:
           SSH="ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no -p ${{ env.SERVER_PORT }}"
           $SSH ${{ env.SERVER_USER }}@${{ env.SERVER_IP }} bash << 'ROLLBACK'
           if command -v pm2 &>/dev/null; then
-            pm2 restart unicorn 2>/dev/null || pm2 restart all 2>/dev/null || true
+            ECOSYSTEM="${{ env.DEPLOY_PATH }}/ecosystem.config.js"
+            [ ! -f "$ECOSYSTEM" ] && ECOSYSTEM="${{ env.DEPLOY_PATH }}/UNICORN_FINAL/ecosystem.config.js"
+            pm2 startOrRestart "$ECOSYSTEM" --only unicorn 2>/dev/null || \
+              pm2 start "$ECOSYSTEM" --only unicorn 2>/dev/null || \
+              pm2 restart all 2>/dev/null || true
             echo "✅ PM2 restartat la ultima versiune funcțională"
           else
             echo "⚠️ PM2 indisponibil — rollback manual necesar"
