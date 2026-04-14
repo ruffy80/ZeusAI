@@ -529,6 +529,32 @@ module.exports = {
       error_file: 'logs/recovery-engine-error.log',
       out_file: 'logs/recovery-engine-out.log',
       log_date_format: 'YYYY-MM-DD HH:mm:ss'
+    },
+
+    // ── 19. AI Self-Healing — monitorizare și auto-reparare provideri AI ─────
+    {
+      name: 'unicorn-ai-self-healing',
+      script: 'backend/index.js',
+      cwd: __dirname,
+      instances: 1,
+      autorestart: true,
+      watch: false,
+      max_restarts: 20,
+      min_uptime: '15s',
+      restart_delay: 5000,
+      env: {
+        NODE_ENV: 'production',
+        AI_HEAL_PROBE_MS:          '60000',
+        AI_HEAL_MODULE_WATCH_MS:   '120000',
+        AI_UNSTABLE_COOLDOWN_MS:   '300000',
+        AI_UNSTABLE_FAIL_THRESH:   '3',
+        AI_HEAL_MAX_RETRIES:       '3',
+        DOMAIN: SITE_DOMAIN,
+        PUBLIC_APP_URL,
+      },
+      error_file: 'logs/ai-self-healing-error.log',
+      out_file: 'logs/ai-self-healing-out.log',
+      log_date_format: 'YYYY-MM-DD HH:mm:ss'
     }
   ]
 };
