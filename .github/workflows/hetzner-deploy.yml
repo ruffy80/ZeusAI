@@ -363,29 +363,91 @@ jobs:
         continue-on-error: true
         run: |
           echo "Deploying UNICORN_FINAL to Hetzner..."
-          DEST='${{ secrets.HETZNER_DEPLOY_PATH || '/var/www/unicorn' }}'
+          DEST="${DEPLOY_PATH}"
           tar -C ./UNICORN_FINAL \
               --exclude='.git' --exclude='node_modules' --exclude='.next' \
               --exclude='logs' --exclude='*.local' --exclude='.env' \
               -czf - . | \
             ssh -i ~/.ssh/deploy_key -p "${DEPLOY_PORT:-22}" -o StrictHostKeyChecking=no \
               -o BatchMode=yes \
-              "${{ secrets.HETZNER_DEPLOY_USER || secrets.HETZNER_USER || secrets.SSH_USER || 'root' }}@${{ secrets.HETZNER_HOST || secrets.SSH_HOST || '204.168.230.142' }}" \
+              "${DEPLOY_USER}@${DEPLOY_HOST}" \
               "DEST='${DEST}'; mkdir -p \"\$DEST\" && chmod -R u+w \"\$DEST\" 2>/dev/null || true && cd \"\$DEST\" && tar --overwrite --no-same-permissions --no-same-owner -xzf -"
 
       - name: Install deps + restart backend on Hetzner
         id: restart_hetzner
         if: steps.hetzner_guard.outputs.ssh_ready == 'true'
         continue-on-error: true
+        env:
+          JWT_SECRET:                      ${{ secrets.JWT_SECRET }}
+          ADMIN_SECRET:                    ${{ secrets.ADMIN_SECRET }}
+          ADMIN_MASTER_PASSWORD:           ${{ secrets.ADMIN_MASTER_PASSWORD }}
+          ADMIN_2FA_CODE:                  ${{ secrets.ADMIN_2FA_CODE }}
+          WEBHOOK_SECRET_DEPLOY:           ${{ secrets.WEBHOOK_SECRET || secrets.HETZNER_WEBHOOK_SECRET }}
+          HETZNER_WEBHOOK_SECRET_DEPLOY:   ${{ secrets.HETZNER_WEBHOOK_SECRET || secrets.WEBHOOK_SECRET }}
+          OPENAI_API_KEY:                  ${{ secrets.OPENAI_API_KEY }}
+          DEEPSEEK_API_KEY:                ${{ secrets.DEEPSEEK_API_KEY }}
+          ANTHROPIC_API_KEY:               ${{ secrets.ANTHROPIC_API_KEY }}
+          GEMINI_API_KEY:                  ${{ secrets.GEMINI_API_KEY }}
+          MISTRAL_API_KEY:                 ${{ secrets.MISTRAL_API_KEY }}
+          COHERE_API_KEY:                  ${{ secrets.COHERE_API_KEY }}
+          XAI_API_KEY:                     ${{ secrets.XAI_API_KEY }}
+          STRIPE_SECRET_KEY:               ${{ secrets.STRIPE_SECRET_KEY }}
+          STRIPE_PUBLISHABLE_KEY:          ${{ secrets.STRIPE_PUBLISHABLE_KEY }}
+          STRIPE_WEBHOOK_SECRET:           ${{ secrets.STRIPE_WEBHOOK_SECRET }}
+          STRIPE_PRICE_STARTER_MONTHLY:    ${{ secrets.STRIPE_PRICE_STARTER_MONTHLY }}
+          STRIPE_PRICE_STARTER_YEARLY:     ${{ secrets.STRIPE_PRICE_STARTER_YEARLY }}
+          STRIPE_PRICE_PRO_MONTHLY:        ${{ secrets.STRIPE_PRICE_PRO_MONTHLY }}
+          STRIPE_PRICE_PRO_YEARLY:         ${{ secrets.STRIPE_PRICE_PRO_YEARLY }}
+          STRIPE_PRICE_ENTERPRISE_MONTHLY: ${{ secrets.STRIPE_PRICE_ENTERPRISE_MONTHLY }}
+          STRIPE_PRICE_ENTERPRISE_YEARLY:  ${{ secrets.STRIPE_PRICE_ENTERPRISE_YEARLY }}
+          PAYPAL_CLIENT_ID:                ${{ secrets.PAYPAL_CLIENT_ID }}
+          PAYPAL_CLIENT_SECRET:            ${{ secrets.PAYPAL_CLIENT_SECRET }}
+          PAYPAL_WEBHOOK_ID:               ${{ secrets.PAYPAL_WEBHOOK_ID }}
+          SMTP_HOST_DEPLOY:                ${{ secrets.SMTP_HOST || 'smtp.mail.yahoo.com' }}
+          SMTP_PORT_DEPLOY:                ${{ secrets.SMTP_PORT || '587' }}
+          SMTP_USER:                       ${{ secrets.SMTP_USER }}
+          SMTP_PASS:                       ${{ secrets.SMTP_PASS }}
+          GH_TOKEN_DEPLOY:                 ${{ secrets.GH_PAT || secrets.GITHUB_TOKEN }}
+          SITE_DOMAIN_DEPLOY:              ${{ secrets.SITE_DOMAIN || 'zeusai.pro' }}
+          BTC_WALLET_ADDRESS:              ${{ secrets.BTC_WALLET_ADDRESS || 'bc1q4f7e66z87mdfj56kz0dj5hvcnpmh0qh4wuv22e' }}
+          OWNER_EMAIL_DEPLOY:              ${{ secrets.OWNER_EMAIL || secrets.SMTP_USER || 'vladoi_ionut@yahoo.com' }}
+          VAULT_MASTER_SECRET:             ${{ secrets.VAULT_MASTER_SECRET }}
+          VAULT_EMERGENCY_CODE:            ${{ secrets.VAULT_EMERGENCY_CODE }}
+          MASTER_CONFIG_SECRET:            ${{ secrets.MASTER_CONFIG_SECRET }}
+          SAV_API_TOKEN:                   ${{ secrets.SAV_API_TOKEN }}
+          TELEGRAM_BOT_TOKEN:              ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID:                ${{ secrets.TELEGRAM_CHAT_ID }}
+          X_BEARER_TOKEN:                  ${{ secrets.X_BEARER_TOKEN }}
+          X_ACCESS_TOKEN:                  ${{ secrets.X_ACCESS_TOKEN }}
+          X_ACCESS_SECRET:                 ${{ secrets.X_ACCESS_SECRET }}
+          YOUTUBE_API_KEY:                 ${{ secrets.YOUTUBE_API_KEY }}
+          META_API_KEY:                    ${{ secrets.META_API_KEY }}
+          GOOGLE_API_KEY:                  ${{ secrets.GOOGLE_API_KEY }}
+          ETH_WALLET_ADDRESS:              ${{ secrets.ETH_WALLET_ADDRESS }}
+          USDC_WALLET_ADDRESS:             ${{ secrets.USDC_WALLET_ADDRESS }}
+          BINANCE_API_KEY:                 ${{ secrets.BINANCE_API_KEY }}
+          BINANCE_SECRET:                  ${{ secrets.BINANCE_SECRET }}
+          COINBASE_API_KEY:                ${{ secrets.COINBASE_API_KEY }}
+          COINBASE_SECRET:                 ${{ secrets.COINBASE_SECRET }}
+          KRAKEN_API_KEY:                  ${{ secrets.KRAKEN_API_KEY }}
+          KRAKEN_SECRET:                   ${{ secrets.KRAKEN_SECRET }}
+          BYBIT_API_KEY:                   ${{ secrets.BYBIT_API_KEY }}
+          BYBIT_SECRET:                    ${{ secrets.BYBIT_SECRET }}
+          OKX_API_KEY:                     ${{ secrets.OKX_API_KEY }}
+          OKX_SECRET:                      ${{ secrets.OKX_SECRET }}
+          OKX_PASSWORD:                    ${{ secrets.OKX_PASSWORD }}
+          HETZNER_API_VALUE:               ${{ env.HETZNER_API_VALUE }}
+          DEPLOY_GITHUB_SHA:               ${{ github.sha }}
+          DEPLOY_GITHUB_REPO:              ${{ github.repository }}
         run: |
           echo "DEBUG SSH: Connecting to $DEPLOY_USER@$DEPLOY_HOST:$DEPLOY_PATH"
           ssh -i ~/.ssh/deploy_key -p "${DEPLOY_PORT:-22}" -o StrictHostKeyChecking=no -o UserKnownHostsFile=~/.ssh/known_hosts -o BatchMode=yes \
-            "${{ secrets.HETZNER_DEPLOY_USER || secrets.HETZNER_USER || secrets.SSH_USER || 'root' }}@${{ secrets.HETZNER_HOST || secrets.SSH_HOST || '204.168.230.142' }}" << ENDSSH
+            "${DEPLOY_USER}@${DEPLOY_HOST}" << ENDSSH
             set -e
-            cd "${{ secrets.HETZNER_DEPLOY_PATH || '/var/www/unicorn' }}"
+            cd "${DEPLOY_PATH}"
 
             # ── Allow git to operate in the deploy directory (rsync owner may differ) ──
-            git config --global --add safe.directory "${{ secrets.HETZNER_DEPLOY_PATH || '/var/www/unicorn' }}" 2>/dev/null || true
+            git config --global --add safe.directory "${DEPLOY_PATH}" 2>/dev/null || true
 
             # ── Ensure Node.js exists on host ───────────────────────────
             if ! command -v node >/dev/null 2>&1; then
@@ -409,70 +471,70 @@ jobs:
             # Toate secretele critice sunt transmise explicit din GitHub Secrets
             if [ -f scripts/create-env.sh ]; then
               chmod +x scripts/create-env.sh
-              JWT_SECRET="${{ secrets.JWT_SECRET }}" \
-              ADMIN_SECRET="${{ secrets.ADMIN_SECRET }}" \
-              ADMIN_MASTER_PASSWORD="${{ secrets.ADMIN_MASTER_PASSWORD }}" \
-              ADMIN_2FA_CODE="${{ secrets.ADMIN_2FA_CODE }}" \
-              WEBHOOK_SECRET="${{ secrets.WEBHOOK_SECRET || secrets.HETZNER_WEBHOOK_SECRET }}" \
-              HETZNER_WEBHOOK_SECRET="${{ secrets.HETZNER_WEBHOOK_SECRET || secrets.WEBHOOK_SECRET }}" \
-              OPENAI_API_KEY="${{ secrets.OPENAI_API_KEY }}" \
-              DEEPSEEK_API_KEY="${{ secrets.DEEPSEEK_API_KEY }}" \
-              ANTHROPIC_API_KEY="${{ secrets.ANTHROPIC_API_KEY }}" \
-              GEMINI_API_KEY="${{ secrets.GEMINI_API_KEY }}" \
-              MISTRAL_API_KEY="${{ secrets.MISTRAL_API_KEY }}" \
-              COHERE_API_KEY="${{ secrets.COHERE_API_KEY }}" \
-              XAI_API_KEY="${{ secrets.XAI_API_KEY }}" \
-              STRIPE_SECRET_KEY="${{ secrets.STRIPE_SECRET_KEY }}" \
-              STRIPE_PUBLISHABLE_KEY="${{ secrets.STRIPE_PUBLISHABLE_KEY }}" \
-              STRIPE_WEBHOOK_SECRET="${{ secrets.STRIPE_WEBHOOK_SECRET }}" \
-              STRIPE_PRICE_STARTER_MONTHLY="${{ secrets.STRIPE_PRICE_STARTER_MONTHLY }}" \
-              STRIPE_PRICE_STARTER_YEARLY="${{ secrets.STRIPE_PRICE_STARTER_YEARLY }}" \
-              STRIPE_PRICE_PRO_MONTHLY="${{ secrets.STRIPE_PRICE_PRO_MONTHLY }}" \
-              STRIPE_PRICE_PRO_YEARLY="${{ secrets.STRIPE_PRICE_PRO_YEARLY }}" \
-              STRIPE_PRICE_ENTERPRISE_MONTHLY="${{ secrets.STRIPE_PRICE_ENTERPRISE_MONTHLY }}" \
-              STRIPE_PRICE_ENTERPRISE_YEARLY="${{ secrets.STRIPE_PRICE_ENTERPRISE_YEARLY }}" \
-              PAYPAL_CLIENT_ID="${{ secrets.PAYPAL_CLIENT_ID }}" \
-              PAYPAL_CLIENT_SECRET="${{ secrets.PAYPAL_CLIENT_SECRET }}" \
-              PAYPAL_WEBHOOK_ID="${{ secrets.PAYPAL_WEBHOOK_ID }}" \
-              SMTP_PASS="${{ secrets.SMTP_PASS }}" \
-              SMTP_USER="${{ secrets.SMTP_USER }}" \
-              SMTP_HOST="${{ secrets.SMTP_HOST || 'smtp.mail.yahoo.com' }}" \
-              SMTP_PORT="${{ secrets.SMTP_PORT || '587' }}" \
-              GITHUB_TOKEN="${{ secrets.GH_PAT || secrets.GITHUB_TOKEN }}" \
+              JWT_SECRET="${JWT_SECRET}" \
+              ADMIN_SECRET="${ADMIN_SECRET}" \
+              ADMIN_MASTER_PASSWORD="${ADMIN_MASTER_PASSWORD}" \
+              ADMIN_2FA_CODE="${ADMIN_2FA_CODE}" \
+              WEBHOOK_SECRET="${WEBHOOK_SECRET_DEPLOY}" \
+              HETZNER_WEBHOOK_SECRET="${HETZNER_WEBHOOK_SECRET_DEPLOY}" \
+              OPENAI_API_KEY="${OPENAI_API_KEY}" \
+              DEEPSEEK_API_KEY="${DEEPSEEK_API_KEY}" \
+              ANTHROPIC_API_KEY="${ANTHROPIC_API_KEY}" \
+              GEMINI_API_KEY="${GEMINI_API_KEY}" \
+              MISTRAL_API_KEY="${MISTRAL_API_KEY}" \
+              COHERE_API_KEY="${COHERE_API_KEY}" \
+              XAI_API_KEY="${XAI_API_KEY}" \
+              STRIPE_SECRET_KEY="${STRIPE_SECRET_KEY}" \
+              STRIPE_PUBLISHABLE_KEY="${STRIPE_PUBLISHABLE_KEY}" \
+              STRIPE_WEBHOOK_SECRET="${STRIPE_WEBHOOK_SECRET}" \
+              STRIPE_PRICE_STARTER_MONTHLY="${STRIPE_PRICE_STARTER_MONTHLY}" \
+              STRIPE_PRICE_STARTER_YEARLY="${STRIPE_PRICE_STARTER_YEARLY}" \
+              STRIPE_PRICE_PRO_MONTHLY="${STRIPE_PRICE_PRO_MONTHLY}" \
+              STRIPE_PRICE_PRO_YEARLY="${STRIPE_PRICE_PRO_YEARLY}" \
+              STRIPE_PRICE_ENTERPRISE_MONTHLY="${STRIPE_PRICE_ENTERPRISE_MONTHLY}" \
+              STRIPE_PRICE_ENTERPRISE_YEARLY="${STRIPE_PRICE_ENTERPRISE_YEARLY}" \
+              PAYPAL_CLIENT_ID="${PAYPAL_CLIENT_ID}" \
+              PAYPAL_CLIENT_SECRET="${PAYPAL_CLIENT_SECRET}" \
+              PAYPAL_WEBHOOK_ID="${PAYPAL_WEBHOOK_ID}" \
+              SMTP_PASS="${SMTP_PASS}" \
+              SMTP_USER="${SMTP_USER}" \
+              SMTP_HOST="${SMTP_HOST_DEPLOY}" \
+              SMTP_PORT="${SMTP_PORT_DEPLOY}" \
+              GITHUB_TOKEN="${GH_TOKEN_DEPLOY}" \
               HETZNER_API_KEY="${HETZNER_API_VALUE}" \
               HETZNER_API_TOKEN="${HETZNER_API_VALUE}" \
-              PUBLIC_APP_URL="https://${{ secrets.SITE_DOMAIN || 'zeusai.pro' }}" \
-              SITE_DOMAIN="${{ secrets.SITE_DOMAIN || 'zeusai.pro' }}" \
-              CORS_ORIGINS="https://${{ secrets.SITE_DOMAIN || 'zeusai.pro' }},https://www.${{ secrets.SITE_DOMAIN || 'zeusai.pro' }},https://api.${{ secrets.SITE_DOMAIN || 'zeusai.pro' }},https://orchestrator.${{ secrets.SITE_DOMAIN || 'zeusai.pro' }}" \
-              BTC_WALLET_ADDRESS="${{ secrets.BTC_WALLET_ADDRESS || 'bc1q4f7e66z87mdfj56kz0dj5hvcnpmh0qh4wuv22e' }}" \
-              OWNER_EMAIL="${{ secrets.SMTP_USER || 'vladoi_ionut@yahoo.com' }}" \
-              ADMIN_EMAIL="${{ secrets.SMTP_USER || 'vladoi_ionut@yahoo.com' }}" \
-              VAULT_MASTER_SECRET="${{ secrets.VAULT_MASTER_SECRET }}" \
-              VAULT_EMERGENCY_CODE="${{ secrets.VAULT_EMERGENCY_CODE }}" \
-              MASTER_CONFIG_SECRET="${{ secrets.MASTER_CONFIG_SECRET }}" \
-              SAV_API_TOKEN="${{ secrets.SAV_API_TOKEN }}" \
-              TELEGRAM_BOT_TOKEN="${{ secrets.TELEGRAM_BOT_TOKEN }}" \
-              TELEGRAM_CHAT_ID="${{ secrets.TELEGRAM_CHAT_ID }}" \
-              X_BEARER_TOKEN="${{ secrets.X_BEARER_TOKEN }}" \
-              X_ACCESS_TOKEN="${{ secrets.X_ACCESS_TOKEN }}" \
-              X_ACCESS_SECRET="${{ secrets.X_ACCESS_SECRET }}" \
-              YOUTUBE_API_KEY="${{ secrets.YOUTUBE_API_KEY }}" \
-              META_API_KEY="${{ secrets.META_API_KEY }}" \
-              GOOGLE_API_KEY="${{ secrets.GOOGLE_API_KEY }}" \
-              ETH_WALLET_ADDRESS="${{ secrets.ETH_WALLET_ADDRESS }}" \
-              USDC_WALLET_ADDRESS="${{ secrets.USDC_WALLET_ADDRESS }}" \
-              BINANCE_API_KEY="${{ secrets.BINANCE_API_KEY }}" \
-              BINANCE_SECRET="${{ secrets.BINANCE_SECRET }}" \
-              COINBASE_API_KEY="${{ secrets.COINBASE_API_KEY }}" \
-              COINBASE_SECRET="${{ secrets.COINBASE_SECRET }}" \
-              KRAKEN_API_KEY="${{ secrets.KRAKEN_API_KEY }}" \
-              KRAKEN_SECRET="${{ secrets.KRAKEN_SECRET }}" \
-              BYBIT_API_KEY="${{ secrets.BYBIT_API_KEY }}" \
-              BYBIT_SECRET="${{ secrets.BYBIT_SECRET }}" \
-              OKX_API_KEY="${{ secrets.OKX_API_KEY }}" \
-              OKX_SECRET="${{ secrets.OKX_SECRET }}" \
-              OKX_PASSWORD="${{ secrets.OKX_PASSWORD }}" \
-              bash scripts/create-env.sh "${{ secrets.HETZNER_DEPLOY_PATH || '/var/www/unicorn' }}" || true
+              PUBLIC_APP_URL="https://${SITE_DOMAIN_DEPLOY}" \
+              SITE_DOMAIN="${SITE_DOMAIN_DEPLOY}" \
+              CORS_ORIGINS="https://${SITE_DOMAIN_DEPLOY},https://www.${SITE_DOMAIN_DEPLOY},https://api.${SITE_DOMAIN_DEPLOY},https://orchestrator.${SITE_DOMAIN_DEPLOY}" \
+              BTC_WALLET_ADDRESS="${BTC_WALLET_ADDRESS}" \
+              OWNER_EMAIL="${OWNER_EMAIL_DEPLOY}" \
+              ADMIN_EMAIL="${OWNER_EMAIL_DEPLOY}" \
+              VAULT_MASTER_SECRET="${VAULT_MASTER_SECRET}" \
+              VAULT_EMERGENCY_CODE="${VAULT_EMERGENCY_CODE}" \
+              MASTER_CONFIG_SECRET="${MASTER_CONFIG_SECRET}" \
+              SAV_API_TOKEN="${SAV_API_TOKEN}" \
+              TELEGRAM_BOT_TOKEN="${TELEGRAM_BOT_TOKEN}" \
+              TELEGRAM_CHAT_ID="${TELEGRAM_CHAT_ID}" \
+              X_BEARER_TOKEN="${X_BEARER_TOKEN}" \
+              X_ACCESS_TOKEN="${X_ACCESS_TOKEN}" \
+              X_ACCESS_SECRET="${X_ACCESS_SECRET}" \
+              YOUTUBE_API_KEY="${YOUTUBE_API_KEY}" \
+              META_API_KEY="${META_API_KEY}" \
+              GOOGLE_API_KEY="${GOOGLE_API_KEY}" \
+              ETH_WALLET_ADDRESS="${ETH_WALLET_ADDRESS}" \
+              USDC_WALLET_ADDRESS="${USDC_WALLET_ADDRESS}" \
+              BINANCE_API_KEY="${BINANCE_API_KEY}" \
+              BINANCE_SECRET="${BINANCE_SECRET}" \
+              COINBASE_API_KEY="${COINBASE_API_KEY}" \
+              COINBASE_SECRET="${COINBASE_SECRET}" \
+              KRAKEN_API_KEY="${KRAKEN_API_KEY}" \
+              KRAKEN_SECRET="${KRAKEN_SECRET}" \
+              BYBIT_API_KEY="${BYBIT_API_KEY}" \
+              BYBIT_SECRET="${BYBIT_SECRET}" \
+              OKX_API_KEY="${OKX_API_KEY}" \
+              OKX_SECRET="${OKX_SECRET}" \
+              OKX_PASSWORD="${OKX_PASSWORD}" \
+              bash scripts/create-env.sh "${DEPLOY_PATH}" || true
             else
               # Fallback: upsert manual pentru cheile critice
               for key in HETZNER_API_KEY HETZNER_API_TOKEN PUBLIC_APP_URL SITE_DOMAIN \
@@ -485,41 +547,41 @@ jobs:
                 [ -f .env ] && sed -i "/^${key}=/d" .env || true
               done
               printf "JWT_SECRET=%s\nADMIN_SECRET=%s\n" \
-                "${{ secrets.JWT_SECRET }}" "${{ secrets.ADMIN_SECRET }}" >> .env
+                "${JWT_SECRET}" "${ADMIN_SECRET}" >> .env
               printf "ADMIN_MASTER_PASSWORD=%s\nADMIN_2FA_CODE=%s\n" \
-                "${{ secrets.ADMIN_MASTER_PASSWORD }}" "${{ secrets.ADMIN_2FA_CODE }}" >> .env
+                "${ADMIN_MASTER_PASSWORD}" "${ADMIN_2FA_CODE}" >> .env
               printf "WEBHOOK_SECRET=%s\nHETZNER_WEBHOOK_SECRET=%s\n" \
-                "${{ secrets.WEBHOOK_SECRET }}" "${{ secrets.HETZNER_WEBHOOK_SECRET || secrets.WEBHOOK_SECRET }}" >> .env
+                "${WEBHOOK_SECRET_DEPLOY}" "${HETZNER_WEBHOOK_SECRET_DEPLOY}" >> .env
               printf "OPENAI_API_KEY=%s\nDEEPSEEK_API_KEY=%s\nANTHROPIC_API_KEY=%s\n" \
-                "${{ secrets.OPENAI_API_KEY }}" "${{ secrets.DEEPSEEK_API_KEY }}" "${{ secrets.ANTHROPIC_API_KEY }}" >> .env
+                "${OPENAI_API_KEY}" "${DEEPSEEK_API_KEY}" "${ANTHROPIC_API_KEY}" >> .env
               printf "GEMINI_API_KEY=%s\nMISTRAL_API_KEY=%s\nCOHERE_API_KEY=%s\nXAI_API_KEY=%s\n" \
-                "${{ secrets.GEMINI_API_KEY }}" "${{ secrets.MISTRAL_API_KEY }}" "${{ secrets.COHERE_API_KEY }}" "${{ secrets.XAI_API_KEY }}" >> .env
+                "${GEMINI_API_KEY}" "${MISTRAL_API_KEY}" "${COHERE_API_KEY}" "${XAI_API_KEY}" >> .env
               printf "STRIPE_SECRET_KEY=%s\nSTRIPE_PUBLISHABLE_KEY=%s\nSTRIPE_WEBHOOK_SECRET=%s\n" \
-                "${{ secrets.STRIPE_SECRET_KEY }}" "${{ secrets.STRIPE_PUBLISHABLE_KEY }}" "${{ secrets.STRIPE_WEBHOOK_SECRET }}" >> .env
+                "${STRIPE_SECRET_KEY}" "${STRIPE_PUBLISHABLE_KEY}" "${STRIPE_WEBHOOK_SECRET}" >> .env
               printf "STRIPE_PRICE_STARTER_MONTHLY=%s\nSTRIPE_PRICE_STARTER_YEARLY=%s\n" \
-                "${{ secrets.STRIPE_PRICE_STARTER_MONTHLY }}" "${{ secrets.STRIPE_PRICE_STARTER_YEARLY }}" >> .env
+                "${STRIPE_PRICE_STARTER_MONTHLY}" "${STRIPE_PRICE_STARTER_YEARLY}" >> .env
               printf "STRIPE_PRICE_PRO_MONTHLY=%s\nSTRIPE_PRICE_PRO_YEARLY=%s\n" \
-                "${{ secrets.STRIPE_PRICE_PRO_MONTHLY }}" "${{ secrets.STRIPE_PRICE_PRO_YEARLY }}" >> .env
+                "${STRIPE_PRICE_PRO_MONTHLY}" "${STRIPE_PRICE_PRO_YEARLY}" >> .env
               printf "STRIPE_PRICE_ENTERPRISE_MONTHLY=%s\nSTRIPE_PRICE_ENTERPRISE_YEARLY=%s\n" \
-                "${{ secrets.STRIPE_PRICE_ENTERPRISE_MONTHLY }}" "${{ secrets.STRIPE_PRICE_ENTERPRISE_YEARLY }}" >> .env
+                "${STRIPE_PRICE_ENTERPRISE_MONTHLY}" "${STRIPE_PRICE_ENTERPRISE_YEARLY}" >> .env
               printf "PAYPAL_CLIENT_ID=%s\nPAYPAL_CLIENT_SECRET=%s\nPAYPAL_WEBHOOK_ID=%s\n" \
-                "${{ secrets.PAYPAL_CLIENT_ID }}" "${{ secrets.PAYPAL_CLIENT_SECRET }}" "${{ secrets.PAYPAL_WEBHOOK_ID }}" >> .env
+                "${PAYPAL_CLIENT_ID}" "${PAYPAL_CLIENT_SECRET}" "${PAYPAL_WEBHOOK_ID}" >> .env
               printf "HETZNER_API_KEY=%s\nHETZNER_API_TOKEN=%s\n" \
                 "${HETZNER_API_VALUE}" "${HETZNER_API_VALUE}" >> .env
-              printf "PUBLIC_APP_URL=https://${{ secrets.SITE_DOMAIN || 'zeusai.pro' }}\nSITE_DOMAIN=${{ secrets.SITE_DOMAIN || 'zeusai.pro' }}\n" >> .env
-              printf "DOMAIN=${{ secrets.SITE_DOMAIN || 'zeusai.pro' }}\n" >> .env
-              printf "CORS_ORIGINS=https://${{ secrets.SITE_DOMAIN || 'zeusai.pro' }},https://www.${{ secrets.SITE_DOMAIN || 'zeusai.pro' }},https://api.${{ secrets.SITE_DOMAIN || 'zeusai.pro' }},https://orchestrator.${{ secrets.SITE_DOMAIN || 'zeusai.pro' }}\n" >> .env
-              printf "BTC_WALLET_ADDRESS=${{ secrets.BTC_WALLET_ADDRESS || 'bc1q4f7e66z87mdfj56kz0dj5hvcnpmh0qh4wuv22e' }}\n" >> .env
+              printf "PUBLIC_APP_URL=https://${SITE_DOMAIN_DEPLOY}\nSITE_DOMAIN=${SITE_DOMAIN_DEPLOY}\n" >> .env
+              printf "DOMAIN=${SITE_DOMAIN_DEPLOY}\n" >> .env
+              printf "CORS_ORIGINS=https://${SITE_DOMAIN_DEPLOY},https://www.${SITE_DOMAIN_DEPLOY},https://api.${SITE_DOMAIN_DEPLOY},https://orchestrator.${SITE_DOMAIN_DEPLOY}\n" >> .env
+              printf "BTC_WALLET_ADDRESS=${BTC_WALLET_ADDRESS}\n" >> .env
               printf "OWNER_NAME=Vladoi Ionut\nOWNER_EMAIL=vladoi_ionut@yahoo.com\n" >> .env
               printf "ADMIN_EMAIL=vladoi_ionut@yahoo.com\n" >> .env
               printf "GITHUB_REPO_OWNER=ruffy80\nGITHUB_REPO_NAME=ZeusAI\nGITHUB_BRANCH=main\n" >> .env
               printf "HETZNER_BACKEND_URL=http://127.0.0.1:3000\n" >> .env
-              printf "SMTP_HOST=${{ secrets.SMTP_HOST || 'smtp.mail.yahoo.com' }}\nSMTP_PORT=${{ secrets.SMTP_PORT || '587' }}\n" >> .env
-              printf "SMTP_USER=${{ secrets.SMTP_USER }}\nSMTP_PASS=${{ secrets.SMTP_PASS }}\n" >> .env
+              printf "SMTP_HOST=${SMTP_HOST_DEPLOY}\nSMTP_PORT=${SMTP_PORT_DEPLOY}\n" >> .env
+              printf "SMTP_USER=${SMTP_USER}\nSMTP_PASS=${SMTP_PASS}\n" >> .env
             fi
 
             # ── Verify source integrity: re-fetch any JS file with SyntaxError ──
-            REPO_RAW="https://raw.githubusercontent.com/${{ github.repository }}/${{ github.sha }}/UNICORN_FINAL"
+            REPO_RAW="https://raw.githubusercontent.com/${DEPLOY_GITHUB_REPO}/${DEPLOY_GITHUB_SHA}/UNICORN_FINAL"
             if [ -d "backend/modules" ]; then
               shopt -s nullglob
               for jsfile in backend/modules/*.js src/index.js backend/index.js; do
@@ -580,8 +642,8 @@ jobs:
             ip6tables -I INPUT -p tcp --dport 443 -j ACCEPT 2>/dev/null || true
 
             # ── Install and configure Nginx ───────────────────────────────
-            DOMAIN="${{ secrets.SITE_DOMAIN || 'zeusai.pro' }}"
-            CERT_EMAIL="${{ secrets.OWNER_EMAIL || 'vladoi_ionut@yahoo.com' }}"
+            DOMAIN="${SITE_DOMAIN_DEPLOY}"
+            CERT_EMAIL="${OWNER_EMAIL_DEPLOY}"
             if ! command -v nginx >/dev/null 2>&1; then
               apt-get update -y && apt-get install -y nginx
             fi
@@ -689,7 +751,7 @@ jobs:
             # ── Backup current deploy snapshot (keep last 5) ─────────────
             mkdir -p scripts
             if [ -f scripts/create-backup.sh ]; then
-              bash scripts/create-backup.sh "${{ secrets.HETZNER_DEPLOY_PATH || '/var/www/unicorn' }}" || true
+              bash scripts/create-backup.sh "${DEPLOY_PATH}" || true
             fi
 
             # ── Run innovation sprint + report ────────────────────────────
@@ -728,13 +790,13 @@ jobs:
 
             # ── Setup systemd for permanent auto-boot (idempotent) ────────
             if command -v systemctl >/dev/null 2>&1; then
-              bash scripts/setup-systemd.sh "${{ secrets.HETZNER_DEPLOY_PATH || '/var/www/unicorn' }}" || true
+              bash scripts/setup-systemd.sh "${DEPLOY_PATH}" || true
               echo "✅ Systemd auto-boot configured"
             fi
 
             # ── Install server-side self-healing cron (every 5 min) ───────
-            _CRON_DEPLOY="${{ secrets.HETZNER_DEPLOY_PATH || '/var/www/unicorn' }}"
-            _CRON_DOMAIN="${{ secrets.SITE_DOMAIN || 'zeusai.pro' }}"
+            _CRON_DEPLOY="${DEPLOY_PATH}"
+            _CRON_DOMAIN="${SITE_DOMAIN_DEPLOY}"
             mkdir -p "${_CRON_DEPLOY}/logs"
             {
               echo '# Auto-generated by ZeusAI deploy — heals Nginx/PM2/firewall every 5 minutes'
@@ -809,7 +871,7 @@ jobs:
           for attempt in 1 2 3 4 5 6; do
             sleep 15
             HEALTH=$(ssh -i ~/.ssh/deploy_key -p "${DEPLOY_PORT:-22}" -o StrictHostKeyChecking=no -o UserKnownHostsFile=~/.ssh/known_hosts \
-              "${{ secrets.HETZNER_DEPLOY_USER || secrets.HETZNER_USER || secrets.SSH_USER || 'root' }}@${{ secrets.HETZNER_HOST || secrets.SSH_HOST || '204.168.230.142' }}" \
+              "${DEPLOY_USER}@${DEPLOY_HOST}" \
               "curl -sS http://localhost:3000/api/health 2>/dev/null || curl -sS http://localhost:80/api/health 2>/dev/null || echo '{\"status\":\"unreachable\"}'")
             echo "Hetzner health (attempt $attempt): $HEALTH"
             echo "$HEALTH" | grep -q '"status":"ok"' && break || true
@@ -819,8 +881,8 @@ jobs:
           else
             echo "⚠️  Backend not yet ready — collecting diagnostics..."
             ssh -i ~/.ssh/deploy_key -p "${DEPLOY_PORT:-22}" -o StrictHostKeyChecking=no -o UserKnownHostsFile=~/.ssh/known_hosts \
-              "${{ secrets.HETZNER_DEPLOY_USER || secrets.HETZNER_USER || secrets.SSH_USER || 'root' }}@${{ secrets.HETZNER_HOST || secrets.SSH_HOST || '204.168.230.142' }}" \
-              "pm2 list 2>/dev/null || true; echo '--- last 30 log lines ---'; pm2 logs unicorn --lines 30 --nostream 2>/dev/null || tail -30 '${{ secrets.HETZNER_DEPLOY_PATH || '/var/www/unicorn' }}/logs/pm2-error.log' 2>/dev/null || true" || true
+              "${DEPLOY_USER}@${DEPLOY_HOST}" \
+              "pm2 list 2>/dev/null || true; echo '--- last 30 log lines ---'; pm2 logs unicorn --lines 30 --nostream 2>/dev/null || tail -30 '${DEPLOY_PATH}/logs/pm2-error.log' 2>/dev/null || true" || true
           fi
 
       - name: Fallback — trigger Hetzner webhook (if SSH failed)
