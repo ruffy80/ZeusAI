@@ -8,8 +8,6 @@ name: 🚀 LIVE Deploy — ZeusAI Unicorn (Hetzner CPX32)
 # ═══════════════════════════════════════════════════════════════════════
 
 on:
-  push:
-    branches: [main]
   schedule:
     - cron: '0 */6 * * *'
   workflow_dispatch:

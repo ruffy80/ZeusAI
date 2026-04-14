@@ -1,9 +1,7 @@
 name: 🦄 Unicorn Auto-Deploy Advanced
 
 on:
-  push:
-    branches:
-      - main
+  workflow_dispatch:
 
 concurrency:
   group: unicorn-auto-deploy-advanced
