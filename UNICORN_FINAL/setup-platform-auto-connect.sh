@@ -25,9 +25,6 @@ required=(
   GITHUB_OWNER
   GITHUB_REPO
   ADMIN_SECRET
-  VERCEL_TOKEN
-  VERCEL_ORG_ID
-  VERCEL_PROJECT_ID
   HETZNER_HOST
   HETZNER_USER
   HETZNER_DEPLOY_USER
@@ -93,9 +90,6 @@ cat <<EOF
 
 Add these repository secrets in GitHub:
 
-- VERCEL_TOKEN=${VERCEL_TOKEN}
-- VERCEL_ORG_ID=${VERCEL_ORG_ID}
-- VERCEL_PROJECT_ID=${VERCEL_PROJECT_ID}
 - HETZNER_HOST=${HETZNER_HOST}
 - HETZNER_USER=${HETZNER_USER}
 - HETZNER_DEPLOY_USER=${HETZNER_DEPLOY_USER}
@@ -110,7 +104,6 @@ Add these repository secrets in GitHub:
 - WEBHOOK_SECRET=${WEBHOOK_SECRET}
 - HETZNER_WEBHOOK_SECRET=${HETZNER_WEBHOOK_SECRET:-${WEBHOOK_SECRET}}
 - ADMIN_SECRET=${ADMIN_SECRET}
-- VERCEL_DEPLOY_HOOK_URL=${VERCEL_DEPLOY_HOOK_URL:-}
 
 GitHub secrets page:
 https://github.com/${GITHUB_OWNER}/${GITHUB_REPO}/settings/secrets/actions
@@ -118,7 +111,7 @@ https://github.com/${GITHUB_OWNER}/${GITHUB_REPO}/settings/secrets/actions
 EOF
 
 echo -e "${YELLOW}[4/4] Final checks...${NC}"
-echo "- Workflow file: .github/workflows/vercel-deploy.yml"
+echo "- Workflow file: .github/workflows/hetzner-deploy.yml"
 echo "- Deployment app path: UNICORN_FINAL"
 
 echo -e "\n${GREEN}✅ Bootstrap complete.${NC}"

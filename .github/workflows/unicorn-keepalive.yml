@@ -238,7 +238,7 @@ CRONEOF
             await github.rest.actions.createWorkflowDispatch({
               owner: context.repo.owner,
               repo:  context.repo.repo,
-              workflow_id: 'vercel-deploy.yml',
+              workflow_id: 'hetzner-deploy.yml',
               ref: 'main',
               inputs: { force_deploy: 'true' }
             });

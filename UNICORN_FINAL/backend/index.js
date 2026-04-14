@@ -548,7 +548,7 @@ codeSanityEngine.start();
 revenueModules.startAutoRevenue();
 
 // ==================== PORNIRE 3 COMPONENTE CRITICE AUTONOME ====================
-// Componenta 1 — Orchestratorul Central (monitorizare Vercel/Hetzner/GitHub/DNS)
+// Componenta 1 — Orchestratorul Central (monitorizare Hetzner/GitHub/DNS)
 centralOrchestrator.start();
 // Componenta 2 — Self-Healing Engine (auto-repair pe baza evenimentelor orchestratorului)
 selfHealingEngine.start();
@@ -693,7 +693,7 @@ function buildHealthResponse() {
   };
 }
 
-// /health (non-prefixed) — used by Vercel smoke tests and uptime monitors
+// /health (non-prefixed) — used by uptime monitors
 app.get('/health', (req, res) => res.json(buildHealthResponse()));
 
 app.get('/api/health', (req, res) => res.json(buildHealthResponse()));
@@ -3695,7 +3695,6 @@ app.post('/api/ecosystem/test', adminTokenMiddleware, async (req, res) => {
     const orch = centralOrchestrator.getStatus();
     addTest('orchestrator', 'Orchestrator running', orch.running === true);
     const svc = orch.services || {};
-    addTest('orchestrator', 'Vercel probe configured', svc.vercel && svc.vercel.status !== 'unconfigured', svc.vercel ? svc.vercel.status : 'unconfigured');
     addTest('orchestrator', 'Hetzner probe configured', svc.hetzner && svc.hetzner.status !== 'unconfigured', svc.hetzner ? svc.hetzner.status : 'unconfigured');
     addTest('orchestrator', 'DNS probe configured', svc.dns && svc.dns.status !== 'unconfigured', svc.dns ? svc.dns.status : 'unconfigured');
     addTest('orchestrator', 'GitHub probe configured', svc.github && svc.github.status !== 'unconfigured', svc.github ? svc.github.status : 'unconfigured');
@@ -3815,7 +3814,7 @@ process.on('unhandledRejection', (reason) => {
   // Do NOT call process.exit() — keep the server alive
 });
 
-// Only bind to a port when run directly (not when imported by Vercel or tests)
+// Only bind to a port when run directly (not when imported by tests)
 if (require.main === module) {
   app.listen(PORT, () => {
     console.log(`🚀 Unicorn autonom rulând pe portul ${PORT}`);
@@ -3832,5 +3831,5 @@ if (require.main === module) {
     console.log(`🔗 99+ modules total: TOATE CONECTATE & ACTIVE`);
   });
 }
-// Export Express app for Vercel serverless and testing
+// Export Express app for testing
 module.exports = app;

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # ============================================================
 # UNICORN — Generare .env pe server din variabile de mediu CI
-# Folosit de hetzner-bootstrap.yml și vercel-deploy.yml
+# Folosit de hetzner-bootstrap.yml și hetzner-deploy.yml
 #
 # Utilizare:
 #   DEPLOY_PATH=/root/unicorn-final bash scripts/create-env.sh
@@ -84,11 +84,6 @@ upsert GITHUB_REPO        "${GITHUB_REPO:-ZeusAI}"
 upsert GIT_REMOTE_URL     "${GIT_REMOTE_URL:-https://github.com/ruffy80/ZeusAI.git}"
 upsert GITHUB_TOKEN       "${GITHUB_TOKEN:-}"
 upsert GH_PAT             "${GH_PAT:-${GITHUB_TOKEN:-}}"
-
-# ── Vercel ─────────────────────────────────────────────────────────────────────
-upsert VERCEL_TOKEN       "${VERCEL_TOKEN:-}"
-upsert VERCEL_ORG_ID      "${VERCEL_ORG_ID:-team_wes3fQvKjdfOMKXe7f4fFQoL}"
-upsert VERCEL_PROJECT_ID  "${VERCEL_PROJECT_ID:-}"
 
 # ── AI Providers ───────────────────────────────────────────────────────────────
 upsert OPENAI_API_KEY     "${OPENAI_API_KEY:-}"

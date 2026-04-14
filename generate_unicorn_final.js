@@ -411,9 +411,6 @@ class AutoDeployOrchestratorUltra {
         secret: process.env.HETZNER_WEBHOOK_SECRET
       });
     }
-    if (process.env.VERCEL_TOKEN && process.env.VERCEL_PROJECT_ID) {
-      results.vercel = await this.triggerVercel();
-    }
     return results;
   }
 
@@ -427,26 +424,6 @@ class AutoDeployOrchestratorUltra {
       return { success: true, status: res.status };
     } catch (err) {
       this.log(\`❌ Webhook \${url} failed: \${err.message}\`, 'error');
-      return { success: false, error: err.message };
-    }
-  }
-
-  async triggerVercel() {
-    try {
-      const res = await axios.post('https://api.vercel.com/v1/deployments', {
-        name: 'unicorn-final',
-        projectId: process.env.VERCEL_PROJECT_ID,
-        target: 'production'
-      }, {
-        headers: {
-          'Authorization': \`Bearer \${process.env.VERCEL_TOKEN}\`,
-          'Content-Type': 'application/json'
-        }
-      });
-      this.log(\`✅ Vercel deploy triggered: \${res.data.id}\`);
-      return { success: true, deploymentId: res.data.id };
-    } catch (err) {
-      this.log(\`❌ Vercel trigger failed: \${err.message}\`, 'error');
       return { success: false, error: err.message };
     }
   }
@@ -787,10 +764,7 @@ GITHUB_REPO_NAME=ZeusAI
 GITHUB_TOKEN=ghp_YOUR_PERSONAL_ACCESS_TOKEN_HERE
 GIT_REMOTE_URL=https://github.com/ruffy80/ZeusAI.git
 GIT_BRANCH=main
-VERCEL_TOKEN=vcp_YOUR_VERCEL_TOKEN_HERE
-VERCEL_ORG_ID=team_wes3fQvKjdfOMKXe7f4fFQoL
 VERCEL_TEAM_ID=team_wes3fQvKjdfOMKXe7f4fFQoL
-VERCEL_PROJECT_ID=prj_YNIHsyltyZUV7HQA3VyQhhGDvKD3
 HETZNER_SSH_HOST=204.168.230.142
 HETZNER_SSH_USER=root
 HETZNER_SSH_KEY_PATH=~/.ssh/id_rsa
@@ -869,10 +843,7 @@ GITHUB_REPO_NAME=ZeusAI
 GITHUB_TOKEN=ghp_YOUR_PERSONAL_ACCESS_TOKEN_HERE
 GIT_REMOTE_URL=https://github.com/ruffy80/ZeusAI.git
 GIT_BRANCH=main
-VERCEL_TOKEN=vcp_YOUR_VERCEL_TOKEN_HERE
-VERCEL_ORG_ID=team_wes3fQvKjdfOMKXe7f4fFQoL
 VERCEL_TEAM_ID=team_wes3fQvKjdfOMKXe7f4fFQoL
-VERCEL_PROJECT_ID=prj_YNIHsyltyZUV7HQA3VyQhhGDvKD3
 HETZNER_SSH_HOST=204.168.230.142
 HETZNER_SSH_USER=root
 HETZNER_SSH_KEY_PATH=~/.ssh/id_rsa
@@ -909,10 +880,7 @@ GIT_BRANCH=main
 GITHUB_OWNER=ruffy80
 GITHUB_REPO_NAME=ZeusAI
 GITHUB_TOKEN=ghp_YOUR_PERSONAL_ACCESS_TOKEN_HERE
-VERCEL_TOKEN=vcp_YOUR_VERCEL_TOKEN_HERE
-VERCEL_ORG_ID=team_wes3fQvKjdfOMKXe7f4fFQoL
 VERCEL_TEAM_ID=team_wes3fQvKjdfOMKXe7f4fFQoL
-VERCEL_PROJECT_ID=prj_YNIHsyltyZUV7HQA3VyQhhGDvKD3
 GITHUB_WEBHOOK_URL=http://204.168.230.142:3001/webhook/github
 HETZNER_WEBHOOK_URL=http://204.168.230.142:3001/webhook/update
 VERCEL_DEPLOY_HOOK_URL=
@@ -928,11 +896,8 @@ GIT_BRANCH=main
 GITHUB_USERNAME=ruffy80
 
 # Vercel
-VERCEL_TOKEN=vcp_YOUR_VERCEL_TOKEN_HERE
 
-VERCEL_ORG_ID=team_wes3fQvKjdfOMKXe7f4fFQoL
 VERCEL_TEAM_ID=team_wes3fQvKjdfOMKXe7f4fFQoL
-VERCEL_PROJECT_ID=prj_YNIHsyltyZUV7HQA3VyQhhGDvKD3
 
 # Hetzner
 HETZNER_SSH_HOST=204.168.230.142
@@ -2950,18 +2915,9 @@ async function checkAndPush() {
       }
       await git.push('origin', process.env.GIT_BRANCH || 'main');
       console.log('🚀 Push pe GitHub.');
-      deployToVercel();
       deployToHetzner();
     }
   } catch (err) { console.error('❌ Eroare auto-deploy:', err.message); }
-}
-
-function deployToVercel() {
-  if (!process.env.VERCEL_TOKEN) return;
-  exec('npx vercel --prod --token=' + process.env.VERCEL_TOKEN, (err) => {
-    if (err) console.error('Eroare Vercel');
-    else console.log('✅ Deploy Vercel');
-  });
 }
 
 function deployToHetzner() {
@@ -4229,7 +4185,6 @@ jobs:
       - uses: actions/checkout@v2
       - uses: amondnet/vercel-action@v20
         with:
-          vercel-token: \${{ secrets.VERCEL_TOKEN }}
           vercel-org-id: \${{ secrets.ORG_ID }}
           vercel-project-id: \${{ secrets.PROJECT_ID }}
           vercel-args: '--prod'
@@ -4385,11 +4340,8 @@ function createStructure() {
     'GITHUB_REPO_NAME=ZeusAI',
     'GITHUB_TOKEN=ghp_YOUR_PERSONAL_ACCESS_TOKEN_HERE',
     'GIT_REMOTE_URL=https://github.com/ruffy80/ZeusAI.git',
-    'VERCEL_TOKEN=vcp_YOUR_VERCEL_TOKEN_HERE',
-    'VERCEL_ORG_ID=team_wes3fQvKjdfOMKXe7f4fFQoL',
-    'VERCEL_TEAM_ID=team_wes3fQvKjdfOMKXe7f4fFQoL',
-    'VERCEL_PROJECT_ID=prj_YNIHsyltyZUV7HQA3VyQhhGDvKD3',
-    'YOUTUBE_API_KEY=YOUR_YOUTUBE_API_KEY_HERE',
+    '    '    'VERCEL_TEAM_ID=team_wes3fQvKjdfOMKXe7f4fFQoL',
+    '    'YOUTUBE_API_KEY=YOUR_YOUTUBE_API_KEY_HERE',
     'YOUTUBE_OAUTH_CLIENT_ID=YOUR_YOUTUBE_OAUTH_CLIENT_ID_HERE',
     'PINTEREST_TOKEN=',
     'X_BEARER_TOKEN=',
@@ -12950,18 +12902,12 @@ const axios = require('axios');
 const httpCalls = [];
 axios.post = async (url, payload, options) => {
   httpCalls.push({ url, payload, headers: options?.headers || null });
-  if (url.includes('vercel.com')) {
-    return { status: 200, data: { id: 'mock-vercel-deploy-123' } };
-  }
   return { status: 202, data: { ok: true } };
 };
 
 process.env.GITHUB_TOKEN = 'ghp_test_token_123';
 process.env.GIT_REMOTE_URL = 'https://github.com/ruffy80/ZeusAI.git';
 process.env.GIT_BRANCH = 'main';
-process.env.VERCEL_TOKEN = 'vcp_test_token_456';
-process.env.VERCEL_PROJECT_ID = 'prj_test_789';
-process.env.VERCEL_PROJECT = 'zeusaisynexai';
 process.env.HETZNER_WEBHOOK_URL = 'https://mock-hetzner.example/webhook/update';
 process.env.HETZNER_WEBHOOK_SECRET = 'mock-secret';
 
@@ -12980,19 +12926,14 @@ async function run() {
   assert.equal(remoteUrl, 'https://x-access-token:ghp_test_token_123@github.com/ruffy80/ZeusAI.git');
   assert.equal(deployResult.ok, true);
   assert.equal(deployResult.repo, 'https://github.com/ruffy80/ZeusAI.git');
-  assert.equal(deployResult.vercel?.success, true);
-  assert.equal(deployResult.vercel?.deploymentId, 'mock-vercel-deploy-123');
   assert.equal(deployResult.hetzner?.success, true);
   assert.equal(deployResult.hetzner?.status, 202);
   assert.ok(gitCalls.some((entry) => entry[0] === 'addRemote' || entry[0] === 'remote'));
-  assert.equal(httpCalls.length, 2);
-  assert.equal(httpCalls[0].url, 'https://api.vercel.com/v1/deployments');
-  assert.equal(httpCalls[0].payload.name, 'zeusaisynexai');
-  assert.equal(httpCalls[0].payload.projectId, 'prj_test_789');
-  assert.equal(httpCalls[1].url, 'https://mock-hetzner.example/webhook/update');
-  assert.equal(httpCalls[1].payload.repo, 'https://github.com/ruffy80/ZeusAI.git');
-  assert.equal(httpCalls[1].payload.branch, 'main');
-  assert.equal(httpCalls[1].payload.secret, 'mock-secret');
+  assert.equal(httpCalls.length, 1);
+  assert.equal(httpCalls[0].url, 'https://mock-hetzner.example/webhook/update');
+  assert.equal(httpCalls[0].payload.repo, 'https://github.com/ruffy80/ZeusAI.git');
+  assert.equal(httpCalls[0].payload.branch, 'main');
+  assert.equal(httpCalls[0].payload.secret, 'mock-secret');
 
   console.log('deploy smoke test passed');
 }
@@ -13071,25 +13012,6 @@ class AutoDeployOrchestrator {
     }
   }
 
-  async triggerVercel() {
-    if (!process.env.VERCEL_TOKEN || !process.env.VERCEL_PROJECT_ID) {
-      return { success: false, reason: 'missing_vercel_credentials' };
-    }
-
-    const response = await axios.post('https://api.vercel.com/v1/deployments', {
-      name: process.env.VERCEL_PROJECT || 'unicorn-final',
-      projectId: process.env.VERCEL_PROJECT_ID,
-      target: 'production'
-    }, {
-      headers: {
-        Authorization: \`Bearer \${process.env.VERCEL_TOKEN}\`,
-        'Content-Type': 'application/json'
-      }
-    });
-
-    return { success: true, deploymentId: response.data.id };
-  }
-
   async triggerHetznerWebhook() {
     if (!process.env.HETZNER_WEBHOOK_URL) {
       return { success: false, reason: 'missing_hetzner_webhook' };
@@ -13112,13 +13034,8 @@ class AutoDeployOrchestrator {
     const result = {
       ok: true,
       repo: this.getRepositoryUrl(),
-      vercel: null,
       hetzner: null
     };
-
-    if (process.env.VERCEL_TOKEN && process.env.VERCEL_PROJECT_ID) {
-      result.vercel = await this.triggerVercel();
-    }
 
     if (process.env.HETZNER_WEBHOOK_URL) {
       result.hetzner = await this.triggerHetznerWebhook();

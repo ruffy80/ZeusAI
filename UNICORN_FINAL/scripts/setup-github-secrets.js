@@ -10,7 +10,6 @@
  *   WEBHOOK_SECRET, HETZNER_WEBHOOK_SECRET
  *
  * Secrets pe care TREBUIE sa le ai deja:
- *   VERCEL_TOKEN     → vercel.com/account/tokens
  *   HETZNER_*        → Hetzner Cloud Console + SSH key
  */
 
@@ -22,55 +21,9 @@ const GITHUB_TOKEN = process.env.GITHUB_TOKEN;
 const OWNER = 'ruffy80';
 const REPO  = 'ZeusAI';
 
-const VERCEL_ORG_ID = 'team_wes3fQvKjdfOMKXe7f4fFQoL';
-// Fallback project ID (unicorn-final legacy) used only when Vercel API is unavailable
-const VERCEL_PROJECT_ID_FALLBACK = 'prj_YNIHsyltyZUV7HQA3VyQhhGDvKD3';
-
 if (!GITHUB_TOKEN) {
   console.error('❌  Set GITHUB_TOKEN=ghp_... before running this script.');
   process.exit(1);
-}
-
-// ─── Auto-fetch zeusai project ID from Vercel API ─────────────────────────────
-function fetchVercelProjectId(token, orgId) {
-  return new Promise((resolve) => {
-    if (!token) {
-      console.log('  ℹ️  VERCEL_TOKEN not set – using fallback project ID');
-      return resolve(VERCEL_PROJECT_ID_FALLBACK);
-    }
-    const path = `/v9/projects/zeusai?teamId=${orgId}`;
-    const opts = {
-      hostname: 'api.vercel.com',
-      path,
-      headers: {
-        Authorization: `Bearer ${token}`,
-        'User-Agent': 'unicorn-setup',
-        Accept: 'application/json',
-      },
-    };
-    https.get(opts, (res) => {
-      let data = '';
-      res.on('data', (c) => { data += c; });
-      res.on('end', () => {
-        try {
-          const project = JSON.parse(data);
-          if (project.id) {
-            console.log(`  🔍 Vercel zeusai project ID resolved: ${project.id}`);
-            resolve(project.id);
-          } else {
-            console.warn(`  ⚠️  Could not resolve zeusai project ID from Vercel (response: ${data.slice(0, 120)}). Using fallback.`);
-            resolve(VERCEL_PROJECT_ID_FALLBACK);
-          }
-        } catch {
-          console.warn('  ⚠️  Failed to parse Vercel project response. Using fallback project ID.');
-          resolve(VERCEL_PROJECT_ID_FALLBACK);
-        }
-      });
-    }).on('error', (err) => {
-      console.warn(`  ⚠️  Vercel API error: ${err.message}. Using fallback project ID.`);
-      resolve(VERCEL_PROJECT_ID_FALLBACK);
-    });
-  });
 }
 
 // ─── GitHub API helpers ─────────────────────────────────────────────────────────
@@ -185,9 +138,6 @@ function gen2FA() { return String(crypto.randomInt(100000, 1000000)); }
 async function run() {
   console.log(`\n🔐 Pushing secrets to github.com/${OWNER}/${REPO}\n`);
 
-  // Auto-resolve the zeusai Vercel project ID (replaces any stale unicorn-final ID)
-  const vercelProjectId = await fetchVercelProjectId(process.env.VERCEL_TOKEN, VERCEL_ORG_ID);
-
   // ─── Auto-generated machine secrets (always fresh) ────────────────────────
   const jwtSecret     = genHex(48);
   const adminSecret   = genBase64url(32);
@@ -221,10 +171,6 @@ async function run() {
     WEBHOOK_SECRET:         webhookSecret,
     HETZNER_WEBHOOK_SECRET: webhookSecret,
 
-    // Vercel — project ID auto-resolved from Vercel API at run time
-    VERCEL_ORG_ID:          VERCEL_ORG_ID,
-    VERCEL_PROJECT_ID:      vercelProjectId,
-
     // Domain — required for SSL/HTTPS health checks and certbot
     // Can be overridden at runtime via SITE_DOMAIN / UNICORN_DOMAIN env vars
     // (e.g. when triggered from setup-secrets-and-deploy.yml with custom inputs)
@@ -244,18 +190,14 @@ async function run() {
     SSH_USER:               'root',
     SSH_PORT:               '22',
 
-    // Vercel team alias — used by vercel-deploy.yml as VERCEL_TEAM_ID
-    VERCEL_TEAM_ID:         VERCEL_ORG_ID,
-
     // Health check URL — used by unicorn-keepalive.yml
-    VERCEL_HEALTH_URL:      'https://zeusai.pro/health',
+    SITE_HEALTH_URL:        'https://zeusai.pro/health',
 
-    // Ownership — used by vercel-deploy.yml for certbot and .env injection
+    // Ownership — used by hetzner-deploy.yml for certbot and .env injection
     OWNER_EMAIL:            'vladoi_ionut@yahoo.com',
     BTC_WALLET_ADDRESS:     'bc1q4f7e66z87mdfj56kz0dj5hvcnpmh0qh4wuv22e',
 
     // Pass-through from environment (must be provided externally if available)
-    ...(process.env.VERCEL_TOKEN            ? { VERCEL_TOKEN:            process.env.VERCEL_TOKEN }            : {}),
     ...(process.env.HETZNER_API_KEY         ? { HETZNER_API_KEY:         process.env.HETZNER_API_KEY }         : {}),
     ...(process.env.HETZNER_API_TOKEN       ? { HETZNER_API_TOKEN:       process.env.HETZNER_API_TOKEN }       : {}),
     ...(process.env.HETZNER_SSH_PRIVATE_KEY ? { HETZNER_SSH_PRIVATE_KEY: process.env.HETZNER_SSH_PRIVATE_KEY } : {}),
