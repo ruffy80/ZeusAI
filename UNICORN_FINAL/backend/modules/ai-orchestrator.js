@@ -67,16 +67,17 @@ const TASK_ROUTING = {
 };
 
 // ─── Per-provider state (circuit breaker + stats) ─────────────────────────
-const providerState = {};
+// Use Map to prevent prototype pollution via malicious provider name strings
+const providerState = new Map();
 function getState(name) {
-  if (!providerState[name]) {
-    providerState[name] = {
+  if (!providerState.has(name)) {
+    providerState.set(name, {
       errors: 0, lastError: 0, circuitOpen: false,
       totalRequests: 0, totalErrors: 0, totalLatencyMs: 0,
       lastLatencyMs: 0, consecutiveSuccesses: 0,
-    };
+    });
   }
-  return providerState[name];
+  return providerState.get(name);
 }
 
 function recordSuccess(name, latencyMs) {
@@ -374,6 +375,9 @@ function isConfigured(name) {
   return Boolean(v && v !== e.placeholder);
 }
 
+// ─── Validated set of known provider names ────────────────────────────────
+const KNOWN_PROVIDERS = new Set(Object.keys(PROVIDER_ENV));
+
 // ─── Core: ask() with intelligent routing ─────────────────────────────────
 /**
  * Route a request to the best available AI provider.
@@ -384,7 +388,6 @@ function isConfigured(name) {
  * @param {string}  [opts.preferProvider]       - force a specific provider first
  * @param {boolean} [opts.useCache=true]
  * @param {Array}   [opts.history=[]]
- * @param {string}  [opts.systemPrompt]         - override system prompt
  * @returns {Promise<{reply:string, model:string, provider:string, latencyMs:number, cached:boolean}>}
  */
 async function ask(message, opts = {}) {
@@ -395,17 +398,23 @@ async function ask(message, opts = {}) {
     history      = [],
   } = opts;
 
+  // Validate preferProvider to prevent prototype pollution / unvalidated dispatch
+  const safePrefer = (preferProvider && KNOWN_PROVIDERS.has(preferProvider)) ? preferProvider : null;
+
   // Build ordered provider list for this task
   const baseList  = TASK_ROUTING[taskType] || TASK_ROUTING.default;
-  const orderList = preferProvider
-    ? [preferProvider, ...baseList.filter(p => p !== preferProvider)]
+  const orderList = safePrefer
+    ? [safePrefer, ...baseList.filter(p => p !== safePrefer)]
     : baseList;
 
   for (const name of orderList) {
+    // Only dispatch to known, validated provider names
+    if (!KNOWN_PROVIDERS.has(name)) continue;
     if (!isConfigured(name))  continue;
     if (!isAvailable(name))   continue;
+    // Safe: name is validated against KNOWN_PROVIDERS set
     const fn = PROVIDER_FNS[name];
-    if (!fn) continue;
+    if (typeof fn !== 'function') continue;
 
     // Cache lookup
     if (useCache) {
