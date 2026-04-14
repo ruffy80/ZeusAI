@@ -711,6 +711,16 @@ const engine62 = require('./modules/Engine62');
 const unicornExecutionEngine = require('./modules/unicorn-execution-engine');
 const predictiveHealing      = require('./modules/predictive-healing');
 
+// ==================== AUTONOMOUS SYSTEM MODULES ====================
+const autoRepair           = require('./modules/auto-repair');
+const autoRestart          = require('./modules/auto-restart');
+const autoOptimize         = require('./modules/auto-optimize');
+const autoEvolve           = require('./modules/auto-evolve');
+const logMonitor           = require('./modules/log-monitor');
+const resourceMonitor      = require('./modules/resource-monitor');
+const errorPatternDetector = require('./modules/error-pattern-detector');
+const recoveryEngine       = require('./modules/recovery-engine');
+
 // SLO middleware — records every API request latency & error status
 app.use((req, res, next) => {
   const start = Date.now();
@@ -1415,7 +1425,9 @@ app.get('/api/modules', authMiddleware, (req, res) => {
     'aviationModule','paymentSystems','governmentModule','defenseModule',
     'telecomModule','enterprisePartnership','quantumBlockchain','aiWorkforce',
     'maAdvisor','legalContract','energyGrid','socialMediaViralizer',
-    'quantumResilienceCore','executiveDashboard'
+    'quantumResilienceCore','executiveDashboard',
+    'auto-repair','auto-restart','auto-optimize','auto-evolve',
+    'log-monitor','resource-monitor','error-pattern-detector','recovery-engine',
   ];
   res.json({ modules: SAFE_MODULE_LIST });
 });
@@ -4375,6 +4387,102 @@ app.post('/api/ecosystem/test', adminTokenMiddleware, async (req, res) => {
   res.json(report);
 });
 
+// ==================== AUTONOMOUS SYSTEM MODULES — API ROUTES ====================
+
+// ── Auto-Repair ───────────────────────────────────────────────────────────────
+app.get('/api/auto-repair/status', adminTokenMiddleware, (req, res) => {
+  res.json(autoRepair.getStatus());
+});
+app.post('/api/auto-repair/run', adminTokenMiddleware, async (req, res) => {
+  try { res.json(await autoRepair.run(req.body || {})); }
+  catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// ── Auto-Restart ──────────────────────────────────────────────────────────────
+app.get('/api/auto-restart/status', adminTokenMiddleware, (req, res) => {
+  res.json(autoRestart.getStatus());
+});
+app.post('/api/auto-restart/run', adminTokenMiddleware, async (req, res) => {
+  try { res.json(await autoRestart.run(req.body || {})); }
+  catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// ── Auto-Optimize ─────────────────────────────────────────────────────────────
+app.get('/api/auto-optimize/status', adminTokenMiddleware, (req, res) => {
+  res.json(autoOptimize.getStatus());
+});
+app.post('/api/auto-optimize/run', adminTokenMiddleware, async (req, res) => {
+  try { res.json(await autoOptimize.run(req.body || {})); }
+  catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// ── Auto-Evolve ───────────────────────────────────────────────────────────────
+app.get('/api/auto-evolve/status', adminTokenMiddleware, (req, res) => {
+  res.json(autoEvolve.getStatus());
+});
+app.post('/api/auto-evolve/run', adminTokenMiddleware, async (req, res) => {
+  try { res.json(await autoEvolve.run(req.body || {})); }
+  catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// ── Log Monitor ───────────────────────────────────────────────────────────────
+app.get('/api/log-monitor/status', adminTokenMiddleware, (req, res) => {
+  res.json(logMonitor.getStatus());
+});
+app.post('/api/log-monitor/reset', adminTokenMiddleware, (req, res) => {
+  logMonitor.resetStats();
+  res.json({ ok: true, msg: 'Statistici log-monitor resetate' });
+});
+
+// ── Resource Monitor ──────────────────────────────────────────────────────────
+app.get('/api/resource-monitor/status', adminTokenMiddleware, (req, res) => {
+  res.json(resourceMonitor.getStatus());
+});
+app.get('/api/resource-monitor/metrics', adminTokenMiddleware, (req, res) => {
+  res.json(resourceMonitor.getMetrics());
+});
+
+// ── Error Pattern Detector ────────────────────────────────────────────────────
+app.get('/api/error-pattern/status', adminTokenMiddleware, (req, res) => {
+  res.json(errorPatternDetector.getStatus());
+});
+app.post('/api/error-pattern/record', adminTokenMiddleware, (req, res) => {
+  const { source = 'api', error, level = 'error' } = req.body || {};
+  if (!error) return res.status(400).json({ error: 'Câmpul error este obligatoriu' });
+  errorPatternDetector.recordError(source, error, level);
+  res.json({ ok: true });
+});
+app.post('/api/error-pattern/analyze', adminTokenMiddleware, (req, res) => {
+  const patterns = errorPatternDetector.analyze();
+  res.json({ patterns, ts: new Date().toISOString() });
+});
+
+// ── Recovery Engine ───────────────────────────────────────────────────────────
+app.get('/api/recovery/status', adminTokenMiddleware, (req, res) => {
+  res.json(recoveryEngine.getStatus());
+});
+app.post('/api/recovery/execute', adminTokenMiddleware, async (req, res) => {
+  const { trigger = 'manual', plan = 'backend_down' } = req.body || {};
+  try {
+    const result = await recoveryEngine.run({ trigger, plan });
+    res.json(result);
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// ── Health-Daemon report endpoint (receptează rapoarte de la health-daemon) ──
+app.post('/api/health-daemon/report', adminTokenMiddleware, (req, res) => {
+  const report = req.body || {};
+  // Dacă e raport de eroare critică → declanșăm recovery
+  if (report.critical) {
+    recoveryEngine.executeRecovery('health-daemon', report.plan || 'backend_down').catch(() => {});
+  }
+  // Dacă e eroare → o înregistrăm în error-pattern-detector
+  if (report.error) {
+    errorPatternDetector.recordError(report.source || 'health-daemon', report.error);
+  }
+  res.json({ ok: true, received: new Date().toISOString() });
+});
+
 const clientBuildPath = path.join(__dirname, '../client/build');
 const clientIndexPath = path.join(clientBuildPath, 'index.html');
 const fs = require('fs');
@@ -4462,6 +4570,14 @@ if (require.main === module) {
     console.log(`📊 Executive Dashboard: ACTIVE`);
     console.log(`🔍 Code Sanity Engine: ACTIVE`);
     console.log(`🔗 99+ modules total: TOATE CONECTATE & ACTIVE`);
+    console.log(`🔧 Auto-Repair: ACTIVE`);
+    console.log(`🔁 Auto-Restart: ACTIVE`);
+    console.log(`⚡ Auto-Optimize: ACTIVE`);
+    console.log(`🧬 Auto-Evolve: ACTIVE`);
+    console.log(`📋 Log-Monitor: ACTIVE`);
+    console.log(`📊 Resource-Monitor: ACTIVE`);
+    console.log(`🔎 Error-Pattern-Detector: ACTIVE`);
+    console.log(`🚑 Recovery-Engine: ACTIVE`);
   });
 }
 // Export Express app for testing

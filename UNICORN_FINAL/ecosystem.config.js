@@ -342,6 +342,193 @@ module.exports = {
       error_file: 'logs/llama-bridge-error.log',
       out_file: 'logs/llama-bridge-out.log',
       log_date_format: 'YYYY-MM-DD HH:mm:ss'
+    },
+
+    // ── 11. Auto-Repair — reparații automate sistem ───────────────────────────
+    {
+      name: 'unicorn-auto-repair',
+      script: 'backend/modules/auto-repair.js',
+      cwd: __dirname,
+      instances: 1,
+      autorestart: true,
+      watch: false,
+      max_restarts: 20,
+      min_uptime: '10s',
+      restart_delay: 10000,
+      env: {
+        NODE_ENV: 'production',
+        AUTO_REPAIR_INTERVAL_MS: '60000',
+        SHIELD_REQUIRED_PROCS: 'unicorn,unicorn-orchestrator,unicorn-health-guardian,unicorn-quantum-watchdog,unicorn-shield,unicorn-health-daemon',
+        DOMAIN: SITE_DOMAIN,
+        PUBLIC_APP_URL,
+      },
+      error_file: 'logs/auto-repair-error.log',
+      out_file: 'logs/auto-repair-out.log',
+      log_date_format: 'YYYY-MM-DD HH:mm:ss'
+    },
+
+    // ── 12. Auto-Restart — repornire automată procese critice ─────────────────
+    {
+      name: 'unicorn-auto-restart',
+      script: 'backend/modules/auto-restart.js',
+      cwd: __dirname,
+      instances: 1,
+      autorestart: true,
+      watch: false,
+      max_restarts: 20,
+      min_uptime: '10s',
+      restart_delay: 10000,
+      env: {
+        NODE_ENV: 'production',
+        AUTO_RESTART_INTERVAL_MS: '30000',
+        SHIELD_REQUIRED_PROCS: 'unicorn,unicorn-orchestrator,unicorn-health-guardian,unicorn-quantum-watchdog,unicorn-shield,unicorn-health-daemon',
+        DOMAIN: SITE_DOMAIN,
+        PUBLIC_APP_URL,
+      },
+      error_file: 'logs/auto-restart-error.log',
+      out_file: 'logs/auto-restart-out.log',
+      log_date_format: 'YYYY-MM-DD HH:mm:ss'
+    },
+
+    // ── 13. Auto-Optimize — optimizare automată performanță ───────────────────
+    {
+      name: 'unicorn-auto-optimize',
+      script: 'backend/modules/auto-optimize.js',
+      cwd: __dirname,
+      instances: 1,
+      autorestart: true,
+      watch: false,
+      max_restarts: 15,
+      min_uptime: '10s',
+      restart_delay: 10000,
+      env: {
+        NODE_ENV: 'production',
+        AUTO_OPTIMIZE_INTERVAL_MS: '300000',
+        AUTO_OPTIMIZE_LOG_MAX_MB:  '50',
+        AUTO_OPTIMIZE_LOG_AGE_DAYS: '7',
+        DOMAIN: SITE_DOMAIN,
+        PUBLIC_APP_URL,
+      },
+      error_file: 'logs/auto-optimize-error.log',
+      out_file: 'logs/auto-optimize-out.log',
+      log_date_format: 'YYYY-MM-DD HH:mm:ss'
+    },
+
+    // ── 14. Auto-Evolve — evoluție autonomă sistem ────────────────────────────
+    {
+      name: 'unicorn-auto-evolve',
+      script: 'backend/modules/auto-evolve.js',
+      cwd: __dirname,
+      instances: 1,
+      autorestart: true,
+      watch: false,
+      max_restarts: 15,
+      min_uptime: '10s',
+      restart_delay: 15000,
+      env: {
+        NODE_ENV: 'production',
+        AUTO_EVOLVE_INTERVAL_MS: '600000',
+        DOMAIN: SITE_DOMAIN,
+        PUBLIC_APP_URL,
+        BACKEND_BASE_URL: 'http://127.0.0.1:3000',
+      },
+      error_file: 'logs/auto-evolve-error.log',
+      out_file: 'logs/auto-evolve-out.log',
+      log_date_format: 'YYYY-MM-DD HH:mm:ss'
+    },
+
+    // ── 15. Log Monitor — monitorizare log-uri sistem ─────────────────────────
+    {
+      name: 'unicorn-log-monitor',
+      script: 'backend/modules/log-monitor.js',
+      cwd: __dirname,
+      instances: 1,
+      autorestart: true,
+      watch: false,
+      max_restarts: 15,
+      min_uptime: '10s',
+      restart_delay: 5000,
+      env: {
+        NODE_ENV: 'production',
+        LOG_MONITOR_INTERVAL_MS: '30000',
+        LOG_MONITOR_ERROR_THRESH: '10',
+        DOMAIN: SITE_DOMAIN,
+        PUBLIC_APP_URL,
+      },
+      error_file: 'logs/log-monitor-error.log',
+      out_file: 'logs/log-monitor-out.log',
+      log_date_format: 'YYYY-MM-DD HH:mm:ss'
+    },
+
+    // ── 16. Resource Monitor — monitorizare CPU/RAM/Disk ─────────────────────
+    {
+      name: 'unicorn-resource-monitor',
+      script: 'backend/modules/resource-monitor.js',
+      cwd: __dirname,
+      instances: 1,
+      autorestart: true,
+      watch: false,
+      max_restarts: 15,
+      min_uptime: '10s',
+      restart_delay: 5000,
+      env: {
+        NODE_ENV: 'production',
+        RESOURCE_MONITOR_INTERVAL_MS: '15000',
+        HEALTH_CPU_WARN:  '85',
+        HEALTH_RAM_WARN:  '90',
+        HEALTH_DISK_WARN: '85',
+        DOMAIN: SITE_DOMAIN,
+        PUBLIC_APP_URL,
+      },
+      error_file: 'logs/resource-monitor-error.log',
+      out_file: 'logs/resource-monitor-out.log',
+      log_date_format: 'YYYY-MM-DD HH:mm:ss'
+    },
+
+    // ── 17. Error Pattern Detector — detectare tipare erori ──────────────────
+    {
+      name: 'unicorn-error-pattern',
+      script: 'backend/modules/error-pattern-detector.js',
+      cwd: __dirname,
+      instances: 1,
+      autorestart: true,
+      watch: false,
+      max_restarts: 15,
+      min_uptime: '10s',
+      restart_delay: 5000,
+      env: {
+        NODE_ENV: 'production',
+        ERROR_PATTERN_INTERVAL_MS: '60000',
+        DOMAIN: SITE_DOMAIN,
+        PUBLIC_APP_URL,
+      },
+      error_file: 'logs/error-pattern-error.log',
+      out_file: 'logs/error-pattern-out.log',
+      log_date_format: 'YYYY-MM-DD HH:mm:ss'
+    },
+
+    // ── 18. Recovery Engine — motor central recuperare sistem ─────────────────
+    {
+      name: 'unicorn-recovery-engine',
+      script: 'backend/modules/recovery-engine.js',
+      cwd: __dirname,
+      instances: 1,
+      autorestart: true,
+      watch: false,
+      max_restarts: 20,
+      min_uptime: '10s',
+      restart_delay: 5000,
+      env: {
+        NODE_ENV: 'production',
+        RECOVERY_COOLDOWN_MS: '120000',
+        RECOVERY_MAX: '50',
+        ORCH_HEALTH_URL: 'http://127.0.0.1:3000/api/health',
+        DOMAIN: SITE_DOMAIN,
+        PUBLIC_APP_URL,
+      },
+      error_file: 'logs/recovery-engine-error.log',
+      out_file: 'logs/recovery-engine-out.log',
+      log_date_format: 'YYYY-MM-DD HH:mm:ss'
     }
   ]
 };
