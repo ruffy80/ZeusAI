@@ -427,30 +427,30 @@ jobs:
           echo "🛡️  Configurare Fail2ban"
           echo "════════════════════════════════════════════════════════"
           if command -v fail2ban-server >/dev/null 2>&1; then
-            cat > /etc/fail2ban/jail.d/unicorn.conf <<'F2B'
-[DEFAULT]
-bantime  = 3600
-findtime = 600
-maxretry = 5
-
-[sshd]
-enabled  = true
-port     = ssh
-maxretry = 3
-
-[nginx-http-auth]
-enabled  = true
-
-[nginx-botsearch]
-enabled  = true
-logpath  = /var/log/nginx/access.log
-maxretry = 2
-
-[nginx-badbots]
-enabled  = true
-logpath  = /var/log/nginx/access.log
-maxretry = 1
-F2B
+            {
+              echo '[DEFAULT]'
+              echo 'bantime  = 3600'
+              echo 'findtime = 600'
+              echo 'maxretry = 5'
+              echo ''
+              echo '[sshd]'
+              echo 'enabled  = true'
+              echo 'port     = ssh'
+              echo 'maxretry = 3'
+              echo ''
+              echo '[nginx-http-auth]'
+              echo 'enabled  = true'
+              echo ''
+              echo '[nginx-botsearch]'
+              echo 'enabled  = true'
+              echo 'logpath  = /var/log/nginx/access.log'
+              echo 'maxretry = 2'
+              echo ''
+              echo '[nginx-badbots]'
+              echo 'enabled  = true'
+              echo 'logpath  = /var/log/nginx/access.log'
+              echo 'maxretry = 1'
+            } > /etc/fail2ban/jail.d/unicorn.conf
             systemctl enable fail2ban 2>/dev/null || true
             systemctl restart fail2ban 2>/dev/null || service fail2ban restart 2>/dev/null || true
             echo "✅ Fail2ban configurat (SSH + nginx jails)"
@@ -464,9 +464,9 @@ F2B
             systemctl start  certbot.timer 2>/dev/null || true
             echo "✅ Certbot auto-renew via systemd timer activat"
           else
-            cat > /etc/cron.d/unicorn-certbot-renew <<'CERTCRON'
-0 3,15 * * * root certbot renew --nginx --quiet --post-hook "systemctl reload nginx" >> /var/log/certbot-renew.log 2>&1
-CERTCRON
+            {
+              echo '0 3,15 * * * root certbot renew --nginx --quiet --post-hook "systemctl reload nginx" >> /var/log/certbot-renew.log 2>&1'
+            } > /etc/cron.d/unicorn-certbot-renew
             chmod 644 /etc/cron.d/unicorn-certbot-renew
             echo "✅ Certbot auto-renew cron instalat"
           fi
