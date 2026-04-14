@@ -5,6 +5,9 @@ on:
     branches:
       - main
 
+permissions:
+  contents: read
+
 # Share the same concurrency group as the primary deploy workflow (hetzner-deploy.yml)
 # so that simultaneous Hetzner SSH runs are serialised and never race each other.
 concurrency:
