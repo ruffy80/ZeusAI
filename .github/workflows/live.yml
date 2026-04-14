@@ -496,6 +496,10 @@ jobs:
               cp "\$NGINX_CONF" /etc/nginx/sites-available/unicorn
               echo "ℹ️  Config HTTP deploiat (certbot va adăuga HTTPS)"
             fi
+            # Always deploy the updated nginx config (safe: certbot only modifies domain-specific blocks,
+            # not the default_server catch-all or wildcard blocks we maintain)
+            sed "s/zeusai\.pro/\${DOMAIN}/g" "\$NGINX_CONF" > /etc/nginx/sites-available/unicorn
+            echo "ℹ️  Nginx config actualizat (deploy complet)"
             ln -sf /etc/nginx/sites-available/unicorn /etc/nginx/sites-enabled/unicorn
             rm -f /etc/nginx/sites-enabled/default
           fi

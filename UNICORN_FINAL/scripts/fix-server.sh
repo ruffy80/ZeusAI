@@ -101,6 +101,15 @@ if [ -f "$NGINX_CONF_SRC" ]; then
     cp "$NGINX_CONF_SRC" "$NGINX_AVAILABLE"
     fixed "Config Nginx instalat la $NGINX_AVAILABLE (HTTP; certbot va adăuga HTTPS)"
   fi
+  # Copy the base config
+  cp "$NGINX_CONF_SRC" "$NGINX_AVAILABLE"
+  # Replace only the explicit domain server_name lines (not the default_server catch-all: server_name _)
+  # Targets lines like: server_name zeusai.pro www.zeusai.pro;
+  sed -i "s/server_name zeusai\.pro.*;/server_name ${DOMAIN} www.${DOMAIN};/" "$NGINX_AVAILABLE"
+  sed -i "s/server_name api\.zeusai\.pro.*;/server_name api.${DOMAIN};/" "$NGINX_AVAILABLE"
+  sed -i "s/server_name orchestrator\.zeusai\.pro.*;/server_name orchestrator.${DOMAIN};/" "$NGINX_AVAILABLE"
+  sed -i "s/server_name \*\.zeusai\.pro.*;/server_name *.${DOMAIN};/" "$NGINX_AVAILABLE"
+  fixed "Config Nginx instalat la $NGINX_AVAILABLE (domain: $DOMAIN)"
 else
   # Generează config minimal dacă fișierul sursă lipsește
   warn "nginx-unicorn.conf lipsește din repo. Se generează config minim..."

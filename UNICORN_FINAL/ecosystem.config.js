@@ -16,17 +16,23 @@ const ECOSYSTEM_PATH = __filename; // absolute path to this config file
 
 module.exports = {
   apps: [
-    // ── 1. Backend API server ─────────────────────────────────────────────────
+    // ── 1. Backend API server — cluster mode pentru Zero Downtime ────────────
     {
       name: 'unicorn',
       script: 'backend/index.js',
       cwd: __dirname,
-      instances: 1,
+      // Cluster mode: fork-uri multiple partajează port-ul 3000 fără downtime la reload
+      exec_mode: 'cluster',
+      instances: parseInt(process.env.UNICORN_INSTANCES || '2', 10),
       autorestart: true,
       watch: false,
-      max_restarts: 15,
-      min_uptime: '10s',
-      restart_delay: 3000,
+      max_restarts: 20,
+      min_uptime: '15s',
+      restart_delay: 2000,
+      kill_timeout: 8000,        // ms să așteptăm SIGTERM înainte de SIGKILL
+      listen_timeout: 10000,     // ms să așteptăm portul disponibil
+      wait_ready: false,         // backend nu trimite process.send('ready')
+      exp_backoff_restart_delay: 1500,
       env: {
         NODE_ENV: 'production',
         PORT: 3000,
@@ -56,6 +62,12 @@ module.exports = {
         FIREWORKS_API_KEY:    process.env.FIREWORKS_API_KEY    || '',
         SAMBANOVA_API_KEY:    process.env.SAMBANOVA_API_KEY    || '',
         NVIDIA_NIM_API_KEY:   process.env.NVIDIA_NIM_API_KEY   || '',
+        // ── AI Smart Cache ──────────────────────────────────────────────────
+        AI_CACHE_TTL_MS:         process.env.AI_CACHE_TTL_MS         || '120000',
+        AI_CACHE_MAX_ENTRIES:    process.env.AI_CACHE_MAX_ENTRIES     || '1000',
+        AI_CACHE_MAX_BYTES:      process.env.AI_CACHE_MAX_BYTES       || '52428800',
+        AI_CACHE_TTL_EMBEDDING:  process.env.AI_CACHE_TTL_EMBEDDING   || '3600000',
+        AI_CACHE_TTL_REASONING:  process.env.AI_CACHE_TTL_REASONING   || '300000',
       },
       error_file: 'logs/pm2-error.log',
       out_file: 'logs/pm2-out.log',
@@ -587,6 +599,34 @@ module.exports = {
       },
       error_file: 'logs/ai-self-healing-error.log',
       out_file: 'logs/ai-self-healing-out.log',
+      log_date_format: 'YYYY-MM-DD HH:mm:ss'
+    },
+
+    // ── 20. Zero-Downtime Controller — graceful reload fără întreruperi ───────
+    {
+      name: 'unicorn-zero-downtime',
+      script: 'scripts/zero-downtime-controller.js',
+      cwd: __dirname,
+      instances: 1,
+      autorestart: true,
+      watch: false,
+      max_restarts: 20,
+      min_uptime: '10s',
+      restart_delay: 5000,
+      kill_timeout: 5000,
+      env: {
+        NODE_ENV: 'production',
+        ZDT_HEALTH_URL:      'http://127.0.0.1:3000/api/health',
+        ZDT_INTERVAL_MS:     '20000',
+        ZDT_RELOAD_TIMEOUT:  '30000',
+        ZDT_FAIL_THRESHOLD:  '3',
+        ZDT_HEALTH_OK_AFTER: '3',
+        ZDT_CRITICAL_PROCS:  'unicorn,unicorn-orchestrator,unicorn-health-guardian,unicorn-quantum-watchdog',
+        DOMAIN: SITE_DOMAIN,
+        PUBLIC_APP_URL,
+      },
+      error_file: 'logs/zero-downtime-error.log',
+      out_file: 'logs/zero-downtime-out.log',
       log_date_format: 'YYYY-MM-DD HH:mm:ss'
     }
   ]
