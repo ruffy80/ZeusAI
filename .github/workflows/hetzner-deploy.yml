@@ -1204,3 +1204,18 @@ jobs:
             fi
           fi
 
+  # ──────────────────────────────────────────────────────────────────────
+  # JOB 7: SSL Auto-Fix — apelează ssl-setup.yml dacă HTTPS nu funcționează
+  # Rulează după smoke-tests, numai pe push/schedule/dispatch (nu pe PR)
+  # ──────────────────────────────────────────────────────────────────────
+  ssl-auto-fix:
+    name: 🔒 SSL Auto-Fix (dacă HTTPS e down)
+    needs: [deploy-hetzner, smoke-tests]
+    if: |
+      github.event_name != 'pull_request' &&
+      needs.deploy-hetzner.result == 'success'
+    uses: ./.github/workflows/ssl-setup.yml
+    secrets: inherit
+    with:
+      domain: ${{ vars.SITE_DOMAIN || 'zeusai.pro' }}
+

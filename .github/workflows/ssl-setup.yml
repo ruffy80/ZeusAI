@@ -1,0 +1,236 @@
+name: 🔒 SSL Setup & Auto-Fix — zeusai.pro
+
+# ═══════════════════════════════════════════════════════════════════════
+# Workflow dedicat activării și reparării automate a HTTPS pe Hetzner.
+#
+# Execută în ordine exactă (problem statement):
+#   1. Verifică Nginx + bloc HTTPS activ
+#   2. Deschide portul 443 (UFW + Hetzner Cloud Firewall)
+#   3. Verifică firewall
+#   4. Rulează Certbot --nginx
+#
+# Triggere:
+#   - workflow_dispatch  : pornire manuală imediată
+#   - workflow_call      : apelabil din hetzner-deploy.yml după deploy
+#   - schedule           : verificare automată zilnică la 04:00 UTC
+# ═══════════════════════════════════════════════════════════════════════
+
+on:
+  workflow_dispatch:
+    inputs:
+      domain:
+        description: 'Domeniu (default: zeusai.pro)'
+        required: false
+        default: 'zeusai.pro'
+      force_certbot:
+        description: 'Forțează certbot chiar dacă cert există (yes/no)'
+        required: false
+        default: 'no'
+  workflow_call:
+    inputs:
+      domain:
+        type: string
+        required: false
+        default: 'zeusai.pro'
+  schedule:
+    - cron: '0 4 * * *'
+
+env:
+  SERVER_IP:   ${{ secrets.HETZNER_SERVER_IP || secrets.HETZNER_HOST || secrets.SSH_HOST || '204.168.230.142' }}
+  SERVER_USER: ${{ secrets.HETZNER_DEPLOY_USER || secrets.HETZNER_USER || secrets.SSH_USER || 'root' }}
+  SERVER_PORT: ${{ secrets.HETZNER_DEPLOY_PORT || secrets.SSH_PORT || '22' }}
+  DEPLOY_PATH: ${{ secrets.HETZNER_DEPLOY_PATH || '/var/www/unicorn' }}
+  SITE_DOMAIN: ${{ secrets.SITE_DOMAIN || inputs.domain || 'zeusai.pro' }}
+  OWNER_EMAIL: ${{ secrets.OWNER_EMAIL || secrets.SMTP_USER || 'vladoi_ionut@yahoo.com' }}
+
+jobs:
+  ssl-setup:
+    name: 🔒 HTTPS Setup → ${{ secrets.HETZNER_SERVER_IP || '204.168.230.142' }}
+    runs-on: ubuntu-latest
+    concurrency:
+      group: ssl-setup-production
+      cancel-in-progress: false
+
+    steps:
+      # ── Checkout (pentru a transfera setup-ssl.sh pe server) ────────────
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      # ── SSH setup ────────────────────────────────────────────────────────
+      - name: Configurare SSH
+        run: |
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+          SSH_KEY="${{ secrets.HETZNER_SSH_PRIVATE_KEY || secrets.SSH_PRIVATE_KEY }}"
+          if [ -z "$SSH_KEY" ]; then
+            echo "❌ HETZNER_SSH_PRIVATE_KEY sau SSH_PRIVATE_KEY secret lipsă!"
+            exit 1
+          fi
+          printf '%s\n' "$SSH_KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -t rsa,ed25519 -p "${{ env.SERVER_PORT }}" "${{ env.SERVER_IP }}" \
+            >> ~/.ssh/known_hosts 2>/dev/null || true
+          echo "✅ SSH configurat → ${{ env.SERVER_IP }}"
+
+      # ── Deschide portul 443 prin Hetzner Cloud API (dacă există firewall) ─
+      - name: Deschide portul 443 în Hetzner Cloud Firewall
+        continue-on-error: true
+        env:
+          HETZNER_API_TOKEN: ${{ secrets.HETZNER_API_KEY || secrets.HETZNER_API_TOKEN }}
+          DEPLOY_HOST:       ${{ env.SERVER_IP }}
+        run: |
+          if [ -z "$HETZNER_API_TOKEN" ]; then
+            echo "ℹ️  HETZNER_API_KEY nu e setat — saltăm actualizarea cloud firewall"
+            exit 0
+          fi
+          command -v jq >/dev/null 2>&1 || apt-get install -y jq -qq 2>/dev/null || true
+
+          SERVER_RESP=$(curl -sf -H "Authorization: Bearer ${HETZNER_API_TOKEN}" \
+            "https://api.hetzner.cloud/v1/servers" 2>/dev/null || echo "{}")
+          SERVER_ID=$(echo "$SERVER_RESP" | jq -r \
+            --arg ip "$DEPLOY_HOST" \
+            '.servers[] | select(.public_net.ipv4.ip == $ip) | .id' 2>/dev/null | head -1 || echo "")
+
+          if [ -z "$SERVER_ID" ]; then
+            echo "ℹ️  Serverul Hetzner cu IP ${DEPLOY_HOST} nu a fost găsit — salt firewall cloud"
+            exit 0
+          fi
+          echo "Server ID: $SERVER_ID"
+
+          FW_RESP=$(curl -sf -H "Authorization: Bearer ${HETZNER_API_TOKEN}" \
+            "https://api.hetzner.cloud/v1/firewalls" 2>/dev/null || echo "{}")
+          FW_ID=$(echo "$FW_RESP" | jq -r \
+            --argjson sid "$SERVER_ID" \
+            '.firewalls[] | select(.applied_to[]?.server.id == $sid) | .id' 2>/dev/null | head -1 || echo "")
+
+          if [ -z "$FW_ID" ]; then
+            echo "ℹ️  Niciun cloud firewall găsit pentru server — salt"
+            exit 0
+          fi
+          echo "Firewall ID: $FW_ID"
+
+          FW_DETAIL=$(curl -sf -H "Authorization: Bearer ${HETZNER_API_TOKEN}" \
+            "https://api.hetzner.cloud/v1/firewalls/${FW_ID}" 2>/dev/null || echo "{}")
+          RULES=$(echo "$FW_DETAIL" | jq '
+            .firewall.rules as $existing |
+            ($existing | map(select(.direction == "in" and (.port == "80" or .port == "443"))) | length) as $has_web |
+            if $has_web >= 2 then $existing
+            else
+              $existing +
+              (if ($existing | map(select(.direction=="in" and .port=="80")) | length) == 0
+               then [{"direction":"in","protocol":"tcp","port":"80","source_ips":["0.0.0.0/0","::/0"]}]
+               else [] end) +
+              (if ($existing | map(select(.direction=="in" and .port=="443")) | length) == 0
+               then [{"direction":"in","protocol":"tcp","port":"443","source_ips":["0.0.0.0/0","::/0"]}]
+               else [] end)
+            end' 2>/dev/null || echo "null")
+
+          if [ "$RULES" = "null" ] || [ -z "$RULES" ]; then
+            echo "ℹ️  Nu se pot determina regulile firewall — salt"
+            exit 0
+          fi
+
+          HTTP=$(curl -sf -o /dev/null -w "%{http_code}" \
+            -X POST "https://api.hetzner.cloud/v1/firewalls/${FW_ID}/actions/set_rules" \
+            -H "Authorization: Bearer ${HETZNER_API_TOKEN}" \
+            -H "Content-Type: application/json" \
+            -d "{\"rules\": ${RULES}}" 2>/dev/null || echo "000")
+          [ "$HTTP" = "201" ] && \
+            echo "✅ Hetzner Cloud Firewall: porturile 80/443 deschise" || \
+            echo "ℹ️  Firewall update → HTTP $HTTP (poate deja deschise)"
+
+      # ── Transferă setup-ssl.sh pe server ─────────────────────────────────
+      - name: Transferă setup-ssl.sh pe server
+        run: |
+          scp -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no \
+            -P "${{ env.SERVER_PORT }}" \
+            UNICORN_FINAL/scripts/setup-ssl.sh \
+            "${{ env.SERVER_USER }}@${{ env.SERVER_IP }}:/tmp/setup-ssl.sh"
+          echo "✅ setup-ssl.sh transferat"
+
+      # ── Rulează setup-ssl.sh pe server ───────────────────────────────────
+      - name: Rulează setup-ssl.sh (Nginx + UFW port 443 + Certbot)
+        id: ssl_run
+        env:
+          FORCE_CERTBOT: ${{ inputs.force_certbot || 'no' }}
+        run: |
+          ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no \
+            -p "${{ env.SERVER_PORT }}" \
+            "${{ env.SERVER_USER }}@${{ env.SERVER_IP }}" \
+            bash << SSLEOF
+          chmod +x /tmp/setup-ssl.sh
+          DEPLOY_PATH="${{ env.DEPLOY_PATH }}"
+          DOMAIN="${{ env.SITE_DOMAIN }}"
+          EMAIL="${{ env.OWNER_EMAIL }}"
+
+          # Dacă cert există și nu se forțează → cleanup și re-run pentru renew
+          if [ "$FORCE_CERTBOT" = "yes" ] && [ -f "/etc/letsencrypt/live/\${DOMAIN}/fullchain.pem" ]; then
+            echo "⚠️  force_certbot=yes: șterg certificatul curent pentru a re-emite..."
+            certbot delete --cert-name "\${DOMAIN}" --non-interactive 2>/dev/null || true
+          fi
+
+          bash /tmp/setup-ssl.sh "\${DOMAIN}" "\${EMAIL}" "\${DEPLOY_PATH}"
+          SSLEOF
+
+      # ── Verificare HTTPS extern ───────────────────────────────────────────
+      - name: Verificare HTTPS extern
+        id: https_check
+        continue-on-error: true
+        run: |
+          DOMAIN="${{ env.SITE_DOMAIN }}"
+          SERVER_IP="${{ env.SERVER_IP }}"
+
+          echo "🔍 Verificare HTTPS extern (60s timeout)..."
+          SUCCESS=false
+          START=$(date +%s)
+
+          while true; do
+            ELAPSED=$(( $(date +%s) - START ))
+            [ "$ELAPSED" -gt 60 ] && break
+
+            CODE=$(curl -kfsS -o /dev/null -w "%{http_code}" \
+              --max-time 8 "https://${SERVER_IP}/health" 2>/dev/null || echo "000")
+            if [ "$CODE" = "200" ]; then
+              SUCCESS=true
+              echo "✅ HTTPS via IP → HTTP $CODE (${ELAPSED}s)"
+              break
+            fi
+
+            CODE=$(curl -fsS -o /dev/null -w "%{http_code}" \
+              --max-time 8 "https://${DOMAIN}/health" 2>/dev/null || echo "000")
+            if [ "$CODE" = "200" ]; then
+              SUCCESS=true
+              echo "✅ HTTPS via domeniu → HTTP $CODE (${ELAPSED}s)"
+              break
+            fi
+
+            echo "⏳ ${ELAPSED}s — HTTPS code: ${CODE}"
+            sleep 10
+          done
+
+          if [ "$SUCCESS" = "true" ]; then
+            echo "https_ok=true"  >> "$GITHUB_OUTPUT"
+          else
+            echo "⚠️  HTTPS nu răspunde 200 în 60s (DNS poate nu a propagat)"
+            echo "https_ok=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      # ── Raport final în CI ────────────────────────────────────────────────
+      - name: Raport HTTPS status
+        if: always()
+        run: |
+          DOMAIN="${{ env.SITE_DOMAIN }}"
+          echo "════════════════════════════════════════════════════"
+          echo "  🔒 SSL SETUP REPORT — ${DOMAIN}"
+          echo "════════════════════════════════════════════════════"
+          if [ "${{ steps.https_check.outputs.https_ok }}" = "true" ]; then
+            echo "  ✅ HTTPS ACTIV: https://${DOMAIN}"
+          else
+            echo "  ⚠️  HTTPS neconfigurat sau DNS nepropagat"
+            echo "  Verifică manual pe server:"
+            echo "    sudo nginx -T | grep -A5 'server_name ${DOMAIN}'"
+            echo "    sudo ss -tulpn | grep nginx"
+            echo "    sudo ufw status"
+            echo "    sudo certbot certificates"
+          fi
+          echo "════════════════════════════════════════════════════"
