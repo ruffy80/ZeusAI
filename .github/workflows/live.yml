@@ -420,30 +420,56 @@ jobs:
           trap rollback_on_error ERR
 
           # ── Clonare / actualizare repo ────────────────────────────────
+          # Detectăm tipul de deployment:
+          #   - git repo (clone complet): .git există → git fetch + reset
+          #   - rsync deploy (UNICORN_FINAL content la root): ecosystem.config.js la root → skip git
           if [ -d "\${DEPLOY_PATH}/.git" ]; then
             cd "\${DEPLOY_PATH}"
             git config --global --add safe.directory "\${DEPLOY_PATH}" 2>/dev/null || true
             git fetch origin
             git reset --hard origin/main
             echo "✅ git reset la origin/main (SHA: \$(git rev-parse --short HEAD))"
+          elif [ -f "\${DEPLOY_PATH}/ecosystem.config.js" ] || [ -f "\${DEPLOY_PATH}/backend/index.js" ]; then
+            # Directorul conține UNICORN_FINAL content (rsync via hetzner-deploy.yml)
+            # Codul este deja actualizat de hetzner-deploy.yml — nu facem git clone
+            echo "ℹ️  Detectat deploy rsync (UNICORN_FINAL content la root) — git clone sărit"
+            cd "\${DEPLOY_PATH}"
           else
-            git clone https://github.com/${{ github.repository }}.git "\${DEPLOY_PATH}" 2>/dev/null || true
+            # Prima instalare — clonăm repo-ul și copiem UNICORN_FINAL
+            mkdir -p "\${DEPLOY_PATH}"
+            TMP_CLONE=\$(mktemp -d)
+            git clone --depth=1 https://github.com/${{ github.repository }}.git "\${TMP_CLONE}" 2>/dev/null || true
+            if [ -d "\${TMP_CLONE}/UNICORN_FINAL" ]; then
+              cp -a "\${TMP_CLONE}/UNICORN_FINAL/." "\${DEPLOY_PATH}/"
+              echo "✅ UNICORN_FINAL clonat și copiat la \${DEPLOY_PATH}"
+            fi
+            rm -rf "\${TMP_CLONE}"
             cd "\${DEPLOY_PATH}"
           fi
 
           # ── npm install backend ───────────────────────────────────────
-          if [ -d "UNICORN_FINAL" ]; then
+          # Caută package.json la root (rsync deploy) sau în UNICORN_FINAL/
+          if [ -f "\${DEPLOY_PATH}/package.json" ]; then
+            cd "\${DEPLOY_PATH}"
+            npm install --legacy-peer-deps --no-audit --no-fund
+            npm rebuild better-sqlite3 --no-fund 2>/dev/null || true
+            echo "✅ npm install backend OK"
+          elif [ -d "\${DEPLOY_PATH}/UNICORN_FINAL" ] && [ -f "\${DEPLOY_PATH}/UNICORN_FINAL/package.json" ]; then
             cd "\${DEPLOY_PATH}/UNICORN_FINAL"
             npm install --legacy-peer-deps --no-audit --no-fund
-            echo "✅ npm install backend OK"
+            npm rebuild better-sqlite3 --no-fund 2>/dev/null || true
+            echo "✅ npm install backend OK (UNICORN_FINAL/)"
           fi
 
           # ── npm install + build frontend ──────────────────────────────
-          if [ -d "\${DEPLOY_PATH}/UNICORN_FINAL/client" ]; then
-            cd "\${DEPLOY_PATH}/UNICORN_FINAL/client"
-            npm install --legacy-peer-deps --no-audit --no-fund
-            npm run build 2>/dev/null && echo "✅ Frontend build OK" || echo "⚠️  Frontend build non-fatal"
-          fi
+          for CLIENT_DIR in "\${DEPLOY_PATH}/client" "\${DEPLOY_PATH}/UNICORN_FINAL/client"; do
+            if [ -d "\$CLIENT_DIR" ] && [ -f "\${CLIENT_DIR}/package.json" ]; then
+              cd "\$CLIENT_DIR"
+              npm install --legacy-peer-deps --no-audit --no-fund
+              npm run build 2>/dev/null && echo "✅ Frontend build OK (\$CLIENT_DIR)" || echo "⚠️  Frontend build non-fatal"
+              break
+            fi
+          done
 
           # ── PM2 restart ───────────────────────────────────────────────
           cd "\${DEPLOY_PATH}"
@@ -459,14 +485,16 @@ jobs:
 
           # ── Nginx config + SSL ────────────────────────────────────────
           CERT_EMAIL="${{ env.OWNER_EMAIL_DEPLOY }}"
-          NGINX_CONF="\${DEPLOY_PATH}/UNICORN_FINAL/scripts/nginx-unicorn.conf"
-          [ ! -f "\$NGINX_CONF" ] && NGINX_CONF="\${DEPLOY_PATH}/scripts/nginx-unicorn.conf"
+          NGINX_CONF="\${DEPLOY_PATH}/scripts/nginx-unicorn.conf"
+          [ ! -f "\$NGINX_CONF" ] && NGINX_CONF="\${DEPLOY_PATH}/UNICORN_FINAL/scripts/nginx-unicorn.conf"
           if [ -f "\$NGINX_CONF" ]; then
-            if [ ! -f "/etc/letsencrypt/live/\${DOMAIN}/fullchain.pem" ]; then
-              sed "s/zeusai\.pro/\${DOMAIN}/g" "\$NGINX_CONF" > /etc/nginx/sites-available/unicorn
-              echo "ℹ️  Config HTTP (no SSL yet)"
+            # ── Nu suprascrie config-ul nginx dacă certbot a adăugat HTTPS ──
+            SSL_CERT="/etc/letsencrypt/live/\${DOMAIN}/fullchain.pem"
+            if [ -f "\$SSL_CERT" ] && grep -q "ssl_certificate" /etc/nginx/sites-available/unicorn 2>/dev/null; then
+              echo "ℹ️  SSL cert există — păstrăm config nginx curent cu HTTPS"
             else
-              echo "ℹ️  SSL cert există deja — păstrăm config nginx curent"
+              cp "\$NGINX_CONF" /etc/nginx/sites-available/unicorn
+              echo "ℹ️  Config HTTP deploiat (certbot va adăuga HTTPS)"
             fi
             ln -sf /etc/nginx/sites-available/unicorn /etc/nginx/sites-enabled/unicorn
             rm -f /etc/nginx/sites-enabled/default
