@@ -6,7 +6,8 @@ on:
       - main
 
 concurrency:
-  group: unicorn-auto-deploy-advanced
+  # Same group as hetzner-deploy.yml — ensures only one Hetzner SSH deploy runs at a time.
+  group: zeusai-production
   cancel-in-progress: true
 
 permissions:

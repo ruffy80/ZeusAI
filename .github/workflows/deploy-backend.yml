@@ -5,6 +5,12 @@ on:
     branches:
       - main
 
+# Share the same concurrency group as the primary deploy workflow (hetzner-deploy.yml)
+# so that simultaneous Hetzner SSH runs are serialised and never race each other.
+concurrency:
+  group: zeusai-production
+  cancel-in-progress: true
+
 jobs:
   validate:
     runs-on: ubuntu-latest
@@ -35,6 +41,9 @@ jobs:
           npm run build
 
   deploy:
+    # Disabled: hetzner-deploy.yml is the primary SSH deploy workflow.
+    # This job is kept for reference only and will never execute.
+    if: false
     needs: validate
     runs-on: ubuntu-latest
 

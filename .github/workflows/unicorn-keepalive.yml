@@ -14,8 +14,12 @@ on:
         default: 'false'
 
 concurrency:
-  group: unicorn-keepalive
-  cancel-in-progress: true
+  # Shared with all Hetzner deploy workflows to prevent SSH race conditions.
+  # cancel-in-progress: false → this run queues behind a running deploy instead of
+  # cancelling it. If two keepalive runs queue up, only the latest waits (the earlier
+  # pending one is superseded because keepalive has its own inner guard logic).
+  group: zeusai-production
+  cancel-in-progress: false
 
 jobs:
   keepalive:

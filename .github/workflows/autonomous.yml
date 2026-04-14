@@ -23,6 +23,13 @@ permissions:
   contents: write
   pull-requests: write
 
+# Prevent the scheduled autonomous healer from SSH-ing into Hetzner at the same
+# time as a push-triggered deploy. cancel-in-progress: false means it queues
+# instead of being cancelled, so autonomous work is never silently skipped.
+concurrency:
+  group: zeusai-production
+  cancel-in-progress: false
+
 jobs:
   autonomous:
     name: 🦄 Autonomous Engine Cycle

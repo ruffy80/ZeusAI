@@ -31,7 +31,8 @@ env:
   SERVER_PORT: 22
 
 concurrency:
-  group: live-deploy-production
+  # Same group as hetzner-deploy.yml — ensures only one Hetzner SSH deploy runs at a time.
+  group: zeusai-production
   cancel-in-progress: false
 
 jobs:

@@ -5,10 +5,10 @@ on:
     branches:
       - main
 
-# Prevent duplicate runs with hetzner-deploy.yml (which is the primary deploy workflow).
-# This workflow is kept as a backup/fallback only.
+# This workflow runs lint + test only (no SSH deploy).
+# It uses its own concurrency group so it does not interfere with hetzner-deploy.yml.
 concurrency:
-  group: deploy-${{ github.ref }}
+  group: ci-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
