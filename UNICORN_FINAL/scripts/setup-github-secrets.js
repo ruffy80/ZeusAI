@@ -204,14 +204,44 @@ async function run() {
     // SSH_PRIVATE_KEY alias (used by deploy-backend.yml, setup-ai-keys.yml as fallback)
     ...(process.env.HETZNER_SSH_PRIVATE_KEY ? { SSH_PRIVATE_KEY:         process.env.HETZNER_SSH_PRIVATE_KEY } : {}),
     ...(process.env.SSH_PRIVATE_KEY         ? { SSH_PRIVATE_KEY:         process.env.SSH_PRIVATE_KEY }         : {}),
-    // AI provider keys (pass-through — user must provide these)
-    ...(process.env.OPENAI_API_KEY     ? { OPENAI_API_KEY:     process.env.OPENAI_API_KEY }     : {}),
-    ...(process.env.DEEPSEEK_API_KEY   ? { DEEPSEEK_API_KEY:   process.env.DEEPSEEK_API_KEY }   : {}),
-    ...(process.env.ANTHROPIC_API_KEY  ? { ANTHROPIC_API_KEY:  process.env.ANTHROPIC_API_KEY }  : {}),
-    ...(process.env.GEMINI_API_KEY     ? { GEMINI_API_KEY:     process.env.GEMINI_API_KEY }     : {}),
-    ...(process.env.MISTRAL_API_KEY    ? { MISTRAL_API_KEY:    process.env.MISTRAL_API_KEY }    : {}),
-    ...(process.env.COHERE_API_KEY     ? { COHERE_API_KEY:     process.env.COHERE_API_KEY }     : {}),
-    ...(process.env.XAI_API_KEY        ? { XAI_API_KEY:        process.env.XAI_API_KEY }        : {}),
+    // AI provider keys — întotdeauna scrise în GitHub Secrets.
+    // Dacă cheia nu este furnizată, se scrie valoarea placeholder din .env.example
+    // (ex: 'your_anthropic_api_key_here'). aiProviders.js și universalAIConnector.js
+    // recunosc aceste placeholder-uri și sar provider-ul — fără crash, fără fallback greșit.
+    // Când userul adaugă cheia reală în GitHub Secrets, la next auto-refresh
+    // valoarea reală suprascrie placeholder-ul automat.
+    OPENAI_API_KEY:    process.env.OPENAI_API_KEY    || 'your_openai_api_key_here',
+    DEEPSEEK_API_KEY:  process.env.DEEPSEEK_API_KEY  || 'your_deepseek_api_key_here',
+    ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY || 'your_anthropic_api_key_here',
+    GEMINI_API_KEY:    process.env.GEMINI_API_KEY    || 'your_gemini_api_key_here',
+    MISTRAL_API_KEY:   process.env.MISTRAL_API_KEY   || 'your_mistral_api_key_here',
+    COHERE_API_KEY:    process.env.COHERE_API_KEY    || 'your_cohere_api_key_here',
+    XAI_API_KEY:       process.env.XAI_API_KEY       || 'your_xai_api_key_here',
+    // Extended AI providers (pass-through — user must provide API keys)
+    ...(process.env.GROQ_API_KEY        ? { GROQ_API_KEY:        process.env.GROQ_API_KEY }        : {}),
+    ...(process.env.OPENROUTER_API_KEY  ? { OPENROUTER_API_KEY:  process.env.OPENROUTER_API_KEY }  : {}),
+    ...(process.env.PERPLEXITY_API_KEY  ? { PERPLEXITY_API_KEY:  process.env.PERPLEXITY_API_KEY }  : {}),
+    ...(process.env.TOGETHER_API_KEY    ? { TOGETHER_API_KEY:    process.env.TOGETHER_API_KEY }    : {}),
+    ...(process.env.FIREWORKS_API_KEY   ? { FIREWORKS_API_KEY:   process.env.FIREWORKS_API_KEY }   : {}),
+    ...(process.env.SAMBANOVA_API_KEY   ? { SAMBANOVA_API_KEY:   process.env.SAMBANOVA_API_KEY }   : {}),
+    ...(process.env.NVIDIA_NIM_API_KEY  ? { NVIDIA_NIM_API_KEY:  process.env.NVIDIA_NIM_API_KEY }  : {}),
+    ...(process.env.HF_API_KEY          ? { HF_API_KEY:          process.env.HF_API_KEY }          : {}),
+    OPENAI_API_KEY:       process.env.OPENAI_API_KEY       || 'your_openai_api_key_here',
+    DEEPSEEK_API_KEY:     process.env.DEEPSEEK_API_KEY     || 'your_deepseek_api_key_here',
+    ANTHROPIC_API_KEY:    process.env.ANTHROPIC_API_KEY    || 'your_anthropic_api_key_here',
+    GEMINI_API_KEY:       process.env.GEMINI_API_KEY       || 'your_gemini_api_key_here',
+    MISTRAL_API_KEY:      process.env.MISTRAL_API_KEY      || 'your_mistral_api_key_here',
+    COHERE_API_KEY:       process.env.COHERE_API_KEY       || 'your_cohere_api_key_here',
+    XAI_API_KEY:          process.env.XAI_API_KEY          || 'your_xai_api_key_here',
+    // Multi-Model Router — provideri extinși (opționali, activi când cheia e setată)
+    GROQ_API_KEY:         process.env.GROQ_API_KEY         || 'your_groq_api_key_here',
+    PERPLEXITY_API_KEY:   process.env.PERPLEXITY_API_KEY   || 'your_perplexity_api_key_here',
+    OPENROUTER_API_KEY:   process.env.OPENROUTER_API_KEY   || 'your_openrouter_api_key_here',
+    HUGGINGFACE_API_KEY:  process.env.HUGGINGFACE_API_KEY  || 'your_huggingface_api_key_here',
+    TOGETHER_API_KEY:     process.env.TOGETHER_API_KEY     || 'your_together_api_key_here',
+    FIREWORKS_API_KEY:    process.env.FIREWORKS_API_KEY    || 'your_fireworks_api_key_here',
+    SAMBANOVA_API_KEY:    process.env.SAMBANOVA_API_KEY    || 'your_sambanova_api_key_here',
+    NVIDIA_NIM_API_KEY:   process.env.NVIDIA_NIM_API_KEY   || 'your_nvidia_nim_api_key_here',
     // Payment keys (pass-through — user must provide these)
     ...(process.env.STRIPE_SECRET_KEY       ? { STRIPE_SECRET_KEY:       process.env.STRIPE_SECRET_KEY }       : {}),
     ...(process.env.STRIPE_PUBLISHABLE_KEY  ? { STRIPE_PUBLISHABLE_KEY:  process.env.STRIPE_PUBLISHABLE_KEY }  : {}),
@@ -261,6 +291,14 @@ async function run() {
     MISTRAL_MODEL:         process.env.MISTRAL_MODEL   || 'mistral-small-latest',
     COHERE_MODEL:          process.env.COHERE_MODEL    || 'command-r',
     GROK_MODEL:            process.env.GROK_MODEL      || 'grok-beta',
+    GROQ_MODEL:            process.env.GROQ_MODEL      || 'llama-3.3-70b-versatile',
+    OPENROUTER_MODEL:      process.env.OPENROUTER_MODEL || 'mistralai/mistral-7b-instruct:free',
+    PERPLEXITY_MODEL:      process.env.PERPLEXITY_MODEL || 'llama-3.1-sonar-small-128k-online',
+    TOGETHER_MODEL:        process.env.TOGETHER_MODEL   || 'meta-llama/Meta-Llama-3.1-8B-Instruct-Turbo',
+    FIREWORKS_MODEL:       process.env.FIREWORKS_MODEL  || 'accounts/fireworks/models/llama-v3p1-8b-instruct',
+    SAMBANOVA_MODEL:       process.env.SAMBANOVA_MODEL  || 'Meta-Llama-3.1-8B-Instruct',
+    NVIDIA_NIM_MODEL:      process.env.NVIDIA_NIM_MODEL || 'meta/llama-3.1-8b-instruct',
+    HF_MODEL:              process.env.HF_MODEL         || 'mistralai/Mistral-7B-Instruct-v0.3',
     PAYPAL_ENV:            process.env.PAYPAL_ENV      || 'sandbox',
     ADMIN_EMAIL:           process.env.SMTP_USER       || 'vladoi_ionut@yahoo.com',
     OWNER_EMAIL:           process.env.SMTP_USER       || 'vladoi_ionut@yahoo.com',

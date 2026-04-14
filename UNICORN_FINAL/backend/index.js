@@ -18,6 +18,7 @@ const { version: APP_VERSION } = require('../package.json');
 // const cron = require('node-cron'); // Optional scheduling
 const simpleGit = require('simple-git');
 const axios = require('axios');
+const routeCache = require('./modules/route-cache');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -120,6 +121,10 @@ app.use((req, res, next) => {
   res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
   next();
 });
+
+// ==================== ROUTE PROFILER (PR #194 — Performance Optimization) ====================
+// Înregistrează timpii de răspuns pentru toate rutele → expus la /api/perf/stats
+app.use(routeCache.profilerMiddleware());
 
 // ==================== AUTH STORE (SQLite-backed) ====================
 const ADMIN_OWNER_NAME = process.env.LEGAL_OWNER_NAME || 'Vladoi Ionut';
@@ -483,6 +488,7 @@ const profitLoop       = require('./modules/profit-control-loop');
 // ==================== 3 COMPONENTE CRITICE AUTONOME ====================
 const centralOrchestrator = require('./modules/central-orchestrator');
 const selfHealingEngine   = require('./modules/self-healing-engine');
+const aiSelfHealing       = require('./modules/ai-self-healing');
 const autoInnovationLoop  = require('./modules/auto-innovation-loop');
 const githubOps           = require('./modules/github-ops');
 
@@ -747,6 +753,8 @@ centralOrchestrator.start();
 // Componenta 2 — Self-Healing Engine (auto-repair pe baza evenimentelor orchestratorului)
 selfHealingEngine.start();
 selfHealingEngine.attachOrchestrator(centralOrchestrator);
+// Componenta AI Self-Healing — monitorizare și auto-reparare provideri AI + module
+aiSelfHealing.init();
 // Componenta 3 — Auto-Innovation Loop (analiză cod + PR automate + CI monitoring)
 autoInnovationLoop.start();
 
@@ -919,7 +927,7 @@ function buildBackendSnapshot() {
   };
 }
 
-app.get('/snapshot', (req, res) => {
+app.get('/snapshot', routeCache.cacheMiddleware(), (req, res) => {
   res.json(buildBackendSnapshot());
 });
 
@@ -956,8 +964,19 @@ app.get('/api/payment/btc-qr', async (req, res) => {
 });
 
 // ==================== AI CHAT ====================
-// Provideri: OpenAI → DeepSeek → Anthropic → Gemini → Mistral → Cohere → xAI Grok → UAIC → Llama → keyword
+// Provideri: AIOrchestrator (15 providers) → aiProviders → UAIC → Llama → keyword
 const _aiProviders = require('./modules/aiProviders');
+// 🧠 AI Orchestrator — routing inteligent per task-type, fallback multi-model,
+//    cost optimizer, health monitor, load balancer, caching, circuit breaker
+let _aiOrchestrator = null;
+try { _aiOrchestrator = require('./modules/ai-orchestrator'); } catch (e) {
+  console.warn('[Backend] ai-orchestrator not loaded:', e.message);
+}
+// 🌐 Multi-Model Router — fallback automat între 14 provideri AI cu routing inteligent și optimizare cost
+let _multiRouter = null;
+try { _multiRouter = require('./modules/multi-model-router'); } catch (e) {
+  console.warn('[MultiRouter] Nu s-a putut încărca:', e.message);
+}
 // 🤖 UAIC — orchestrează inteligent toate resursele AI (OpenAI, DeepSeek,
 //           Claude, Gemini, Ollama local). Activat automat la pornire.
 let _uaic = null;
@@ -972,17 +991,46 @@ try { _llamaBridge = require('./modules/llamaBridge'); } catch { /* optional */ 
 const ZEUS_SYSTEM = 'You are Zeus AI Assistant, an expert in business automation, AI, blockchain, payments, and enterprise solutions. Be concise and helpful. You can also respond in Romanian if the user writes in Romanian.';
 
 app.post('/api/chat', authRateLimit(30, 60_000), async (req, res) => {
-  const { message, history = [] } = req.body || {};
+  const { message, history = [], taskType = 'chat' } = req.body || {};
   if (!message) return res.status(400).json({ error: 'message required' });
   const cleanMessage = sanitizeString(message, 2000);
   if (!cleanMessage) return res.status(400).json({ error: 'message required' });
   if (!Array.isArray(history)) return res.status(400).json({ error: 'history must be an array' });
 
+  // 1️⃣ AI Orchestrator — routing inteligent (15 providers, fallback automat, cost optimizer)
+  if (_aiOrchestrator) {
+    try {
+      const orchResult = await _aiOrchestrator.ask(message, {
+        taskType: taskType || 'chat',
+        history,
+        useCache: true,
+      });
+      if (orchResult && orchResult.reply) return res.json(orchResult);
+    } catch (err) {
+      console.warn('[Chat] AIOrchestrator eșuat:', err.message);
+    }
+  }
+
+  // 2️⃣ Multi-Model Router — fallback automat între 14 provideri AI
+  if (_multiRouter) {
+    try {
+      const mrResult = await _multiRouter.ask(message, {
+        taskType: taskType || 'chat',
+        systemPrompt: ZEUS_SYSTEM,
+        maxTokens: 500,
+        history,
+      });
+      if (mrResult && mrResult.reply) return res.json({ reply: mrResult.reply, model: mrResult.model, provider: mrResult.provider, latencyMs: mrResult.latencyMs });
+    } catch (err) {
+      console.warn('[Chat] MultiRouter a eșuat:', err.message);
+    }
+  }
+
   // 1️⃣ Cloud AI providers cascade (OpenAI → DeepSeek → Anthropic → Gemini → Mistral → Cohere → xAI Grok)
   const cloudResult = await _aiProviders.chat(cleanMessage, history);
   if (cloudResult) return res.json(cloudResult);
 
-  // 2️⃣ UAIC – routare automată la cel mai bun provider disponibil (cheapest first pentru chat)
+  // 3️⃣ UAIC – routare automată la cel mai bun provider disponibil (cheapest first pentru chat)
   if (_uaic) {
     try {
       const result = await _uaic.ask(cleanMessage, {
@@ -997,7 +1045,7 @@ app.post('/api/chat', authRateLimit(30, 60_000), async (req, res) => {
     }
   }
 
-  // 3️⃣ Llama local fallback (zero-cost, rulează pe Hetzner via Ollama)
+  // 4️⃣ Llama local fallback (zero-cost, rulează pe Hetzner via Ollama)
   if (_llamaBridge) {
     const historyText = history.slice(-4)
       .map(m => `${m.role === 'user' ? 'User' : 'Assistant'}: ${m.content}`)
@@ -1017,6 +1065,8 @@ app.post('/api/chat', authRateLimit(30, 60_000), async (req, res) => {
 
   // 4️⃣ Smart keyword fallback (static — când niciun AI nu e disponibil)
   const lower = cleanMessage.toLowerCase();
+  // 5️⃣ Smart keyword fallback (static — când niciun AI nu e disponibil)
+  const lower = message.toLowerCase();
   const KEYWORD_RESPONSES = [
     [['payment', 'plat'], 'Zeus AI suportă plăți via Stripe, PayPal, Bitcoin și alte 10+ metode. Accesează /payments pentru a iniția o tranzacție.'],
     [['marketplace'], 'Marketplace-ul Zeus AI oferă 50+ servicii AI specializate. Explorează /marketplace pentru prețuri personalizate.'],
@@ -1045,17 +1095,110 @@ app.get('/api/llama/status', (req, res) => {
 });
 
 // ==================== AI PROVIDERS STATUS ====================
-app.get('/api/ai/status', (req, res) => {
+app.get('/api/ai/status', routeCache.cacheMiddleware(), (req, res) => {
   const providers = _aiProviders.getStatus();
   const llama = _llamaBridge ? _llamaBridge.getStatus() : { available: false, reason: 'bridge_not_loaded' };
+  const orchStatus = _aiOrchestrator ? _aiOrchestrator.getStatus() : { active: false };
+  const multiRouter = _multiRouter ? _multiRouter.getStatus() : { active: false };
   const activeCount = providers.filter(p => p.configured).length + (llama.available ? 1 : 0);
   res.json({
     providers,
     llama,
+    orchestrator: orchStatus,
+    multiRouter,
     activeCount,
     total: providers.length + 1,
     timestamp: new Date().toISOString(),
   });
+});
+
+// ==================== AI ORCHESTRATOR ENDPOINTS ====================
+app.get('/api/ai/orchestrator/status', routeCache.cacheMiddleware(), (req, res) => {
+  if (!_aiOrchestrator) return res.json({ active: false, reason: 'orchestrator_not_loaded' });
+  res.json(_aiOrchestrator.getStatus());
+});
+
+app.get('/api/ai/orchestrator/report', routeCache.cacheMiddleware(), (req, res) => {
+  if (!_aiOrchestrator) return res.json({ active: false, reason: 'orchestrator_not_loaded' });
+  res.json(_aiOrchestrator.getPerformanceReport());
+});
+
+app.get('/api/ai/orchestrator/health', (req, res) => {
+  if (!_aiOrchestrator) return res.json({ active: false, reason: 'orchestrator_not_loaded' });
+  res.json(_aiOrchestrator.getHealthReport());
+});
+
+app.post('/api/ai/orchestrator/ask', authMiddleware, async (req, res) => {
+  if (!_aiOrchestrator) return res.status(503).json({ error: 'orchestrator_not_loaded' });
+  const { message, taskType = 'default', history = [], preferProvider, useCache = true } = req.body || {};
+  if (!message) return res.status(400).json({ error: 'message required' });
+  try {
+    const result = await _aiOrchestrator.ask(message, { taskType, history, preferProvider, useCache });
+    if (!result) return res.status(503).json({ error: 'All AI providers unavailable' });
+    return res.json(result);
+  } catch (err) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/ai/orchestrator/repair', adminTokenMiddleware, (req, res) => {
+  if (!_aiOrchestrator) return res.json({ active: false });
+  const repaired = _aiOrchestrator.autoRepair();
+  res.json({ repaired, timestamp: new Date().toISOString() });
+});
+
+app.get('/api/ai/orchestrator/routing', (req, res) => {
+  if (!_aiOrchestrator) return res.json({ active: false });
+  res.json({ taskRouting: _aiOrchestrator.TASK_ROUTING, timestamp: new Date().toISOString() });
+});
+// ==================== MULTI-MODEL ROUTER ROUTES ====================
+// GET /api/ai/multi-router/status — starea tuturor celor 14 provideri
+app.get('/api/ai/multi-router/status', routeCache.cacheMiddleware(), (req, res) => {
+  if (!_multiRouter) return res.status(503).json({ error: 'multi-model-router not loaded' });
+  res.json(_multiRouter.getStatus());
+});
+
+// GET /api/ai/multi-router/report — raport detaliat de performanță
+app.get('/api/ai/multi-router/report', (req, res) => {
+  if (!_multiRouter) return res.status(503).json({ error: 'multi-model-router not loaded' });
+  res.json(_multiRouter.getPerformanceReport());
+});
+
+// POST /api/ai/multi-router/ask — ask direct cu routing inteligent
+app.post('/api/ai/multi-router/ask', authRateLimit(30, 60_000), async (req, res) => {
+  if (!_multiRouter) return res.status(503).json({ error: 'multi-model-router not loaded' });
+  const { message, taskType = 'chat', systemPrompt, maxTokens = 500, history = [] } = req.body || {};
+  if (!message) return res.status(400).json({ error: 'message required' });
+  try {
+    const result = await _multiRouter.ask(message, { taskType, systemPrompt, maxTokens, history });
+    if (!result) return res.status(503).json({ error: 'all providers failed' });
+    res.json(result);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/admin/multi-router/reset — resetare statistici (admin only)
+app.post('/api/admin/multi-router/reset', adminCrudRateLimit, adminTokenMiddleware, (req, res) => {
+  if (!_multiRouter) return res.status(503).json({ error: 'multi-model-router not loaded' });
+  _multiRouter.resetStats();
+  res.json({ success: true, message: 'Statistici resetate' });
+});
+
+// ==================== ROUTE PERFORMANCE & CACHE API (PR #194) ====================
+// GET /api/perf/stats — top-5 cele mai lente rute + cache stats
+app.get('/api/perf/stats', (req, res) => {
+  res.json(routeCache.getStats());
+});
+
+// GET /api/perf/cache — starea detaliată a cache-ului LRU
+app.get('/api/perf/cache', (req, res) => {
+  res.json(routeCache.getCacheStatus());
+});
+
+// POST /api/admin/perf/cache/clear — golire cache (admin only)
+app.post('/api/admin/perf/cache/clear', adminCrudRateLimit, adminTokenMiddleware, (req, res) => {
+  res.json(routeCache.clearCache());
 });
 
 
@@ -3691,6 +3834,48 @@ app.get('/api/self-healer/status', (req, res) => {
   res.json(selfHealingEngine.getStatus());
 });
 
+// ==================== AI SELF-HEALING ROUTES ====================
+app.get('/api/ai-self-healing/status', (req, res) => {
+  res.json(aiSelfHealing.getStatus());
+});
+
+app.get('/api/ai-self-healing/incidents', adminTokenMiddleware, (req, res) => {
+  const limit = Math.min(parseInt(req.query.limit || '50', 10), 500);
+  res.json({ incidents: aiSelfHealing.getIncidentLog(limit), total: aiSelfHealing.getIncidentLog(500).length });
+});
+
+app.post('/api/ai-self-healing/report-failure', adminTokenMiddleware, (req, res) => {
+  const { provider, reason } = req.body || {};
+  if (!provider) return res.status(400).json({ error: 'provider required' });
+  aiSelfHealing.reportProviderFailure(String(provider).slice(0, 50), String(reason || 'manual').slice(0, 200));
+  res.json({ ok: true, provider });
+});
+
+app.post('/api/ai-self-healing/report-recovery', adminTokenMiddleware, (req, res) => {
+  const { provider } = req.body || {};
+  if (!provider) return res.status(400).json({ error: 'provider required' });
+  aiSelfHealing.reportProviderRecovery(String(provider).slice(0, 50));
+  res.json({ ok: true, provider });
+});
+
+app.post('/api/ai-self-healing/simulate', adminTokenMiddleware, async (req, res) => {
+  const { scenario, payload } = req.body || {};
+  if (!scenario) return res.status(400).json({ error: 'scenario required' });
+  try {
+    const results = await aiSelfHealing.simulateFailure(String(scenario).slice(0, 50), payload || {});
+    res.json({ ok: true, results });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+app.post('/api/ai-self-healing/ask', adminTokenMiddleware, async (req, res) => {
+  const { message, history } = req.body || {};
+  if (!message) return res.status(400).json({ error: 'message required' });
+  try {
+    const result = await aiSelfHealing.askWithHealing(String(message).slice(0, 2000), Array.isArray(history) ? history : []);
+    res.json(result);
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
 app.get('/api/self-healer/log', adminTokenMiddleware, (req, res) => {
   const limit = Math.min(parseInt(req.query.limit || '50', 10), 500);
   res.json(selfHealingEngine.getHealLog(limit));
@@ -4601,6 +4786,7 @@ if (require.main === module) {
   app.listen(PORT, () => {
     console.log(`🚀 Unicorn autonom rulând pe portul ${PORT}`);
     console.log(`🤖 Universal AI Connector (UAIC): ${_uaic ? 'ACTIVE' : 'DISABLED'}`);
+    console.log(`🌐 Multi-Model Router (14 AI): ${_multiRouter ? 'ACTIVE' : 'DISABLED'}`);
     console.log(`✨ Autonomous Innovation Engine: ACTIVE`);
     console.log(`💰 Auto Revenue Generation: ACTIVE`);
     console.log(`♾️  Unicorn Eternal Engine: ACTIVE`);
@@ -4619,6 +4805,7 @@ if (require.main === module) {
     console.log(`📊 Resource-Monitor: ACTIVE`);
     console.log(`🔎 Error-Pattern-Detector: ACTIVE`);
     console.log(`🚑 Recovery-Engine: ACTIVE`);
+    console.log(`🛡️  AI Self-Healing: ACTIVE (15 provideri monitorizați: DeepSeek/Mistral/Groq/Gemini/Claude/Cohere/OpenAI/OpenRouter/Perplexity/HuggingFace/Together/Fireworks/SambaNova/NVIDIA/xAI)`);
   });
 }
 // Export Express app for testing
