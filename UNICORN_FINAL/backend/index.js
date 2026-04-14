@@ -483,6 +483,7 @@ const profitLoop       = require('./modules/profit-control-loop');
 // ==================== 3 COMPONENTE CRITICE AUTONOME ====================
 const centralOrchestrator = require('./modules/central-orchestrator');
 const selfHealingEngine   = require('./modules/self-healing-engine');
+const aiSelfHealing       = require('./modules/ai-self-healing');
 const autoInnovationLoop  = require('./modules/auto-innovation-loop');
 const githubOps           = require('./modules/github-ops');
 
@@ -747,6 +748,8 @@ centralOrchestrator.start();
 // Componenta 2 — Self-Healing Engine (auto-repair pe baza evenimentelor orchestratorului)
 selfHealingEngine.start();
 selfHealingEngine.attachOrchestrator(centralOrchestrator);
+// Componenta AI Self-Healing — monitorizare și auto-reparare provideri AI + module
+aiSelfHealing.init();
 // Componenta 3 — Auto-Innovation Loop (analiză cod + PR automate + CI monitoring)
 autoInnovationLoop.start();
 
@@ -3650,6 +3653,48 @@ app.get('/api/self-healer/status', (req, res) => {
   res.json(selfHealingEngine.getStatus());
 });
 
+// ==================== AI SELF-HEALING ROUTES ====================
+app.get('/api/ai-self-healing/status', (req, res) => {
+  res.json(aiSelfHealing.getStatus());
+});
+
+app.get('/api/ai-self-healing/incidents', adminTokenMiddleware, (req, res) => {
+  const limit = Math.min(parseInt(req.query.limit || '50', 10), 500);
+  res.json({ incidents: aiSelfHealing.getIncidentLog(limit), total: aiSelfHealing.getIncidentLog(500).length });
+});
+
+app.post('/api/ai-self-healing/report-failure', adminTokenMiddleware, (req, res) => {
+  const { provider, reason } = req.body || {};
+  if (!provider) return res.status(400).json({ error: 'provider required' });
+  aiSelfHealing.reportProviderFailure(String(provider).slice(0, 50), String(reason || 'manual').slice(0, 200));
+  res.json({ ok: true, provider });
+});
+
+app.post('/api/ai-self-healing/report-recovery', adminTokenMiddleware, (req, res) => {
+  const { provider } = req.body || {};
+  if (!provider) return res.status(400).json({ error: 'provider required' });
+  aiSelfHealing.reportProviderRecovery(String(provider).slice(0, 50));
+  res.json({ ok: true, provider });
+});
+
+app.post('/api/ai-self-healing/simulate', adminTokenMiddleware, async (req, res) => {
+  const { scenario, payload } = req.body || {};
+  if (!scenario) return res.status(400).json({ error: 'scenario required' });
+  try {
+    const results = await aiSelfHealing.simulateFailure(String(scenario).slice(0, 50), payload || {});
+    res.json({ ok: true, results });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+app.post('/api/ai-self-healing/ask', adminTokenMiddleware, async (req, res) => {
+  const { message, history } = req.body || {};
+  if (!message) return res.status(400).json({ error: 'message required' });
+  try {
+    const result = await aiSelfHealing.askWithHealing(String(message).slice(0, 2000), Array.isArray(history) ? history : []);
+    res.json(result);
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
 app.get('/api/self-healer/log', adminTokenMiddleware, (req, res) => {
   const limit = Math.min(parseInt(req.query.limit || '50', 10), 500);
   res.json(selfHealingEngine.getHealLog(limit));
@@ -4578,6 +4623,7 @@ if (require.main === module) {
     console.log(`📊 Resource-Monitor: ACTIVE`);
     console.log(`🔎 Error-Pattern-Detector: ACTIVE`);
     console.log(`🚑 Recovery-Engine: ACTIVE`);
+    console.log(`🛡️  AI Self-Healing: ACTIVE (15 provideri monitorizați: DeepSeek/Mistral/Groq/Gemini/Claude/Cohere/OpenAI/OpenRouter/Perplexity/HuggingFace/Together/Fireworks/SambaNova/NVIDIA/xAI)`);
   });
 }
 // Export Express app for testing

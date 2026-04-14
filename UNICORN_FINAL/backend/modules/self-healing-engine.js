@@ -50,6 +50,7 @@ const SAFE_PM2_NAMES = new Set([
   'unicorn-platform-connector',
   'unicorn-uaic',
   'unicorn-llama-bridge',
+  'unicorn-ai-self-healing',
   // Legacy / alternative names
   'unicorn-backend',
   'unicorn-frontend',
