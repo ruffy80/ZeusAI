@@ -1,6 +1,9 @@
 # LIVE-CERTIFICATE.md — ZeusAI / Unicorn
 
-> Acest fișier este generat automat la fiecare deploy reușit de workflow-ul live.yml.
+> **TEMPLATE FILE** — Variabilele `${...}` sunt înlocuite automat de workflow-ul
+> `.github/workflows/live.yml` (job `tag-and-certify`) la fiecare deploy reușit.
+> Nu edita manual — acest fișier este suprascris la fiecare deployment.
+>
 > Ultima actualizare: ${DEPLOY_DATE}
 
 ---
