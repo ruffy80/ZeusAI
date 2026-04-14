@@ -14,21 +14,46 @@ set -euo pipefail
 
 DEPLOY_PATH="${1:-/root/unicorn-final}"
 SERVICE_NAME="unicorn"
-PM2_BIN="$(command -v pm2 2>/dev/null || echo '/usr/local/bin/pm2')"
-NODE_BIN="$(command -v node 2>/dev/null || echo '/usr/bin/node')"
 RUN_USER="${SUDO_USER:-root}"
+RUN_HOME="$(eval echo ~$RUN_USER)"
+
+# ── Resolve Node.js binary (supports NVM and system-wide installs) ─────────
+_find_node_bin() {
+  for candidate in \
+    "$(command -v node 2>/dev/null || true)" \
+    /usr/local/bin/node \
+    /usr/bin/node \
+    "${RUN_HOME}/.nvm/versions/node/"*/bin/node \
+    /root/.nvm/versions/node/*/bin/node; do
+    # shellcheck disable=SC2086
+    candidate=$(ls -1 $candidate 2>/dev/null | sort -V | tail -1 || true)
+    [ -x "$candidate" ] 2>/dev/null && echo "$candidate" && return
+  done
+  echo ""
+}
+
+NODE_BIN="$(_find_node_bin)"
+if [ -z "$NODE_BIN" ]; then
+  echo "❌ Node.js not found — install it first." >&2
+  exit 1
+fi
+NODE_DIR="$(dirname "$NODE_BIN")"
+export PATH="${NODE_DIR}:${PATH}"
+
+PM2_BIN="$(command -v pm2 2>/dev/null || echo "${NODE_DIR}/pm2")"
 
 echo "⚙️  Setting up systemd service for UNICORN"
 echo "   Deploy path : $DEPLOY_PATH"
 echo "   PM2 binary  : $PM2_BIN"
 echo "   Node binary : $NODE_BIN"
 echo "   Run as user : $RUN_USER"
+echo "   Home        : $RUN_HOME"
 
 # ── Install PM2 if not present ────────────────────────────────────────────────
-if ! command -v pm2 &>/dev/null; then
+if ! "$PM2_BIN" --version >/dev/null 2>&1; then
   echo "📦 Installing PM2 globally..."
-  npm install -g pm2
-  PM2_BIN="$(command -v pm2)"
+  "${NODE_DIR}/npm" install -g pm2
+  PM2_BIN="$(command -v pm2 2>/dev/null || "${NODE_DIR}/pm2")"
 fi
 
 # ── Ensure logs directory exists ──────────────────────────────────────────────
@@ -43,15 +68,15 @@ cd "$DEPLOY_PATH"
 
 # ── Generate systemd unit via pm2 startup ─────────────────────────────────────
 echo "🔧 Configuring PM2 to start on system boot..."
-STARTUP_CMD=$("$PM2_BIN" startup systemd -u "$RUN_USER" --hp "$(eval echo ~$RUN_USER)" | \
-  grep -E "^sudo" | head -1 || true)
+STARTUP_CMD=$("$PM2_BIN" startup systemd -u "$RUN_USER" --hp "$RUN_HOME" | \
+  grep -E "^sudo |^env " | head -1 || true)
 
 if [ -n "$STARTUP_CMD" ]; then
   echo "   Running: $STARTUP_CMD"
   eval "$STARTUP_CMD"
 else
   # Fallback: write the unit file directly
-  PM2_HOME="$(eval echo ~$RUN_USER)/.pm2"
+  PM2_HOME="${RUN_HOME}/.pm2"
   cat > /etc/systemd/system/pm2-${RUN_USER}.service <<EOF
 [Unit]
 Description=PM2 process manager for user ${RUN_USER}

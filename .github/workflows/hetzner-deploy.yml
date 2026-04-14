@@ -804,7 +804,7 @@ jobs:
                 (pm2 startOrRestart ecosystem.config.js --only unicorn-health-guardian 2>/dev/null || true)
               pm2 save
               # Register PM2 in systemd so it starts on reboot
-              pm2 startup systemd 2>/dev/null | grep "^sudo" | head -1 | bash 2>/dev/null || true
+              pm2 startup systemd 2>/dev/null | grep -E "^sudo |^env " | head -1 | bash 2>/dev/null || true
               pm2 save
               echo "✅ PM2 unicorn process healthy"
             elif command -v systemctl >/dev/null 2>&1 && systemctl list-unit-files | grep -q "^unicorn\.service"; then
@@ -823,10 +823,19 @@ jobs:
               echo "✅ Nginx enabled for auto-start on reboot"
             fi
 
-            # ── Setup systemd for permanent auto-boot (idempotent) ────────
-            if command -v systemctl >/dev/null 2>&1; then
-              bash scripts/setup-systemd.sh "${DEPLOY_PATH}" || true
-              echo "✅ Systemd auto-boot configured"
+            # ── Reparare completă PM2 + autostart (fix-pm2.sh) ───────────
+            # Acoperă: pm2 startup systemd, pm2 save, servicii systemd,
+            # procese critice, fallback unicorn.service.
+            if [ -f scripts/fix-pm2.sh ]; then
+              chmod +x scripts/fix-pm2.sh
+              bash scripts/fix-pm2.sh "${DEPLOY_PATH}" || true
+              echo "✅ fix-pm2.sh: PM2 autostart complet configurat"
+            else
+              # Fallback minimal dacă fix-pm2.sh lipsește
+              if command -v systemctl >/dev/null 2>&1; then
+                bash scripts/setup-systemd.sh "${DEPLOY_PATH}" || true
+                echo "✅ Systemd auto-boot configured (setup-systemd.sh)"
+              fi
             fi
 
             # ── Install server-side self-healing cron (every 5 min) ───────
@@ -838,9 +847,11 @@ jobs:
               echo 'SHELL=/bin/bash'
               echo 'PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'
               echo "*/5 * * * * root bash ${_CRON_DEPLOY}/scripts/fix-server.sh ${_CRON_DEPLOY} ${_CRON_DOMAIN} >> ${_CRON_DEPLOY}/logs/fix-server-cron.log 2>&1"
+              echo "# PM2 autostart re-verificat la fiecare 15 minute"
+              echo "*/15 * * * * root bash ${_CRON_DEPLOY}/scripts/fix-pm2.sh ${_CRON_DEPLOY} >> ${_CRON_DEPLOY}/logs/fix-pm2-cron.log 2>&1"
             } > /etc/cron.d/unicorn-self-heal
             chmod 644 /etc/cron.d/unicorn-self-heal
-            echo "✅ Self-healing cron installed (/etc/cron.d/unicorn-self-heal, every 5 min)"
+            echo "✅ Self-healing cron installed (/etc/cron.d/unicorn-self-heal, fix-server every 5 min + fix-pm2 every 15 min)"
 
             # ── Fail2ban: install + nginx jail ────────────────────────────
             if ! command -v fail2ban-server >/dev/null 2>&1; then
