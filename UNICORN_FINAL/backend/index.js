@@ -3609,6 +3609,30 @@ app.post('/api/orchestrator/check', adminTokenMiddleware, async (req, res) => {
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
+// POST /api/orchestrator/notify — primit de shield, health-daemon și alte procese PM2
+// pentru a raporta incidente, erori sau stări de alarmă.
+// Nu necesită autentificare (procese locale, localhost-only prin Nginx).
+const _orchNotifications = [];
+app.post('/api/orchestrator/notify', (req, res) => {
+  const body = req.body || {};
+  const entry = {
+    ts: new Date().toISOString(),
+    source: sanitizeString(String(body.source || 'unknown')),
+    level: sanitizeString(String(body.level || 'info')),
+    message: sanitizeString(String(body.message || '')),
+    data: body.data || null,
+  };
+  _orchNotifications.unshift(entry);
+  if (_orchNotifications.length > 500) _orchNotifications.length = 500;
+  console.log(`[orchestrator/notify] [${entry.level}] ${entry.source}: ${entry.message}`);
+  res.json({ received: true, ts: entry.ts });
+});
+
+app.get('/api/orchestrator/notifications', adminTokenMiddleware, (req, res) => {
+  const limit = Math.min(parseInt(req.query.limit || '100', 10), 500);
+  res.json({ notifications: _orchNotifications.slice(0, limit), total: _orchNotifications.length });
+});
+
 // ==================== SELF-HEALING ENGINE ROUTES ====================
 app.get('/api/self-healer/status', (req, res) => {
   res.json(selfHealingEngine.getStatus());
@@ -3633,6 +3657,41 @@ app.post('/api/self-healer/redeploy', adminTokenMiddleware, async (req, res) => 
     const ok = await selfHealingEngine.manualRedeploy();
     res.json({ success: ok });
   } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// ==================== HEALTH DAEMON ROUTES ====================
+// POST /api/health-daemon/report — primit periodic de la unicorn-health-daemon
+// pentru a raporta starea backend, frontend, SSL, Nginx, resurse.
+const _healthDaemonReports = [];
+app.post('/api/health-daemon/report', (req, res) => {
+  const body = req.body || {};
+  const report = {
+    ts: new Date().toISOString(),
+    cycle: body.cycle || 0,
+    overall: sanitizeString(String(body.overall || 'unknown')),
+    backend: body.backend || null,
+    frontend: body.frontend || null,
+    ssl: body.ssl || null,
+    nginx: body.nginx || null,
+    resources: body.resources || null,
+    issues: Array.isArray(body.issues) ? body.issues : [],
+  };
+  _healthDaemonReports.unshift(report);
+  if (_healthDaemonReports.length > 200) _healthDaemonReports.length = 200;
+  if (report.overall !== 'healthy') {
+    console.warn(`[health-daemon/report] overall=${report.overall} issues=${report.issues.join(',')}`);
+  }
+  res.json({ received: true, ts: report.ts });
+});
+
+app.get('/api/health-daemon/reports', adminTokenMiddleware, (req, res) => {
+  const limit = Math.min(parseInt(req.query.limit || '50', 10), 200);
+  res.json({ reports: _healthDaemonReports.slice(0, limit), total: _healthDaemonReports.length });
+});
+
+app.get('/api/health-daemon/latest', (req, res) => {
+  const latest = _healthDaemonReports[0] || null;
+  res.json({ latest });
 });
 
 // ==================== AUTO-INNOVATION LOOP ROUTES ====================
@@ -4101,6 +4160,44 @@ app.get('/api/ecosystem/verify', async (req, res) => {
     ts: new Date().toISOString(),
     issues,
     checks,
+  });
+});
+
+// ==================== PRODUCTION STATUS ====================
+// GET /api/production/status — verificare rapidă pentru PRODUCTION_LIVE checklist.
+// Returnează: versiune, uptime, module active, ultimul raport health-daemon,
+// ultimele notificări orchestrator, și starea PM2 (dacă e disponibilă).
+app.get('/api/production/status', adminTokenMiddleware, (req, res) => {
+  const pjson = (() => { try { return require('../package.json'); } catch { return {}; } })();
+  const latestDaemonReport = _healthDaemonReports[0] || null;
+  const recentNotifications = _orchNotifications.slice(0, 20);
+
+  const moduleStatuses = {};
+  const collect = (key, fn) => { try { moduleStatuses[key] = fn(); } catch (e) { moduleStatuses[key] = { error: e.message }; } };
+  collect('centralOrchestrator',    () => centralOrchestrator.getStatus());
+  collect('quantumIntegrityShield', () => quantumIntegrityShield.getStatus());
+  collect('selfHealingEngine',      () => selfHealingEngine.getStatus());
+  collect('autoInnovationLoop',     () => autoInnovationLoop.getStatus());
+  collect('controlPlane',           () => controlPlane.getStatus());
+  collect('profitLoop',             () => profitLoop.getStatus());
+
+  const activeModules = Object.values(moduleStatuses).filter(
+    m => m && !m.error && (m.active === true || m.running === true || m.status === 'active')
+  ).length;
+
+  res.json({
+    status: 'PRODUCTION_LIVE',
+    ts: new Date().toISOString(),
+    version: pjson.version || '?',
+    uptime: Math.floor(process.uptime()),
+    nodeVersion: process.version,
+    env: process.env.NODE_ENV || 'unknown',
+    port: PORT,
+    activeModules,
+    totalModules: Object.keys(moduleStatuses).length,
+    latestDaemonReport,
+    recentNotifications,
+    modules: moduleStatuses,
   });
 });
 
