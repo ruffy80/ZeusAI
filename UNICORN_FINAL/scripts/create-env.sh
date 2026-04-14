@@ -10,7 +10,7 @@
 # ============================================================
 set -euo pipefail
 
-DEPLOY_PATH="${1:-${DEPLOY_PATH:-/root/unicorn-final}}"
+DEPLOY_PATH="${1:-${DEPLOY_PATH:-/var/www/unicorn}}"
 ENV_FILE="$DEPLOY_PATH/.env"
 
 if [ -f "$ENV_FILE" ]; then
