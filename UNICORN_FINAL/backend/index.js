@@ -1288,7 +1288,7 @@ const BILLING_PLANS = [
 ];
 
 // Public — no auth required; prices are enriched with live dynamic-pricing factors
-app.get('/api/billing/plans/public', (req, res) => {
+app.get('/api/billing/plans/public', routeCache.cacheMiddleware(), (req, res) => {
   const conditions = dynamicPricing.getMarketConditions();
   const plans = BILLING_PLANS.map(p => {
     const dp = dynamicPricing.getPrice(p.id);
@@ -1686,7 +1686,7 @@ app.post('/api/carbon/price', authMiddleware, (req, res) => {
 });
 
 // ==================== MARKETPLACE ROUTES ====================
-app.get('/api/marketplace/services', (req, res) => {
+app.get('/api/marketplace/services', routeCache.cacheMiddleware(), (req, res) => {
   const services = marketplace.getAllServices().map(s => {
     // Enrich with dynamic-pricing data where the module has a matching service ID
     const dp = dynamicPricing.getPrice(s.id);
@@ -1698,7 +1698,7 @@ app.get('/api/marketplace/services', (req, res) => {
   res.json({ services });
 });
 
-app.get('/api/marketplace/categories', (req, res) => {
+app.get('/api/marketplace/categories', routeCache.cacheMiddleware(), (req, res) => {
   const categories = {};
   for (const service of marketplace.getAllServices()) {
     if (!categories[service.category]) categories[service.category] = [];
@@ -1779,11 +1779,11 @@ app.get('/api/marketplace/purchases/guest', (req, res) => {
 // ==================== DYNAMIC PRICING ROUTES ====================
 
 // Public: current price for all or a specific service
-app.get('/api/pricing/all', (req, res) => {
+app.get('/api/pricing/all', routeCache.cacheMiddleware(), (req, res) => {
   res.json({ prices: dynamicPricing.getAllPrices(), basePrices: dynamicPricing.BASE_PRICES });
 });
 
-app.get('/api/pricing/conditions', (req, res) => {
+app.get('/api/pricing/conditions', routeCache.cacheMiddleware(), (req, res) => {
   res.json(dynamicPricing.getMarketConditions());
 });
 
