@@ -518,6 +518,11 @@ const universalInterchainNexus = require('./modules/universal-interchain-nexus')
 const autonomousWealthEngine  = require('./modules/autonomous-wealth-engine');
 const autonomousBDEngine      = require('./modules/autonomous-bd-engine');
 const unicornSuperIntelligence = require('./modules/unicorn-super-intelligence');
+// USI Sub-modules
+const usiMemory      = require('./modules/unicorn-super-intelligence/memory');
+const usiSkills      = require('./modules/unicorn-super-intelligence/skills');
+const usiReasoning   = require('./modules/unicorn-super-intelligence/reasoning');
+const usiPersonality = require('./modules/unicorn-super-intelligence/personality');
 
 // ==================== NEW POWER AGENTS (6) ====================
 const predictiveMarketIntelligence = require('./modules/predictive-market-intelligence');
@@ -3532,6 +3537,11 @@ registerModuleRoutes('universal-interchain-nexus', universalInterchainNexus);
 registerModuleRoutes('autonomous-wealth-engine',   autonomousWealthEngine);
 registerModuleRoutes('autonomous-bd-engine',       autonomousBDEngine);
 registerModuleRoutes('unicorn-super-intelligence', unicornSuperIntelligence);
+// USI Sub-modules
+registerModuleRoutes('usi-memory',      usiMemory);
+registerModuleRoutes('usi-skills',      usiSkills);
+registerModuleRoutes('usi-reasoning',   usiReasoning);
+registerModuleRoutes('usi-personality', usiPersonality);
 
 // ==================== NEW POWER AGENTS — ROUTES (6) ====================
 registerModuleRoutes('predictive-market-intelligence', predictiveMarketIntelligence);
