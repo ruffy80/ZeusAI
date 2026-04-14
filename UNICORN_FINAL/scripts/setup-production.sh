@@ -101,10 +101,15 @@ fi
 # Copiază configurația site din repo (sau generează una minimală)
 NGINX_CONF_SRC="${DEPLOY_PATH}/scripts/nginx-unicorn.conf"
 if [ -f "$NGINX_CONF_SRC" ]; then
-  cp "$NGINX_CONF_SRC" "$NGINX_AVAILABLE"
-  # Actualizează server_name cu domeniul curent
-  sed -i "s/server_name .*;/server_name ${DOMAIN} www.${DOMAIN};/" "$NGINX_AVAILABLE"
-  ok "Config Nginx instalat din repo → $NGINX_AVAILABLE (domain: $DOMAIN)"
+  # IMPORTANT: dacă certificatul SSL există, Certbot a injectat deja blocuri listen 443 ssl
+  # în config — NU suprascrie, altfel HTTPS se sparge.
+  if [ ! -f "/etc/letsencrypt/live/${DOMAIN}/fullchain.pem" ]; then
+    cp "$NGINX_CONF_SRC" "$NGINX_AVAILABLE"
+    sed -i "s/server_name .*;/server_name ${DOMAIN} www.${DOMAIN};/" "$NGINX_AVAILABLE"
+    ok "Config Nginx instalat din repo → $NGINX_AVAILABLE (domain: $DOMAIN)"
+  else
+    ok "SSL cert există — config Nginx cu HTTPS păstrat (nu suprascris)"
+  fi
 else
   warn "nginx-unicorn.conf nu a fost găsit în repo. Se generează config minimal..."
   mkdir -p /var/www/certbot
