@@ -959,6 +959,13 @@ app.get('/api/payment/btc-qr', async (req, res) => {
 });
 
 // ==================== AI CHAT ====================
+// Provideri: AIOrchestrator (15 providers) → aiProviders → UAIC → Llama → keyword
+const _aiProviders = require('./modules/aiProviders');
+// 🧠 AI Orchestrator — routing inteligent per task-type, fallback multi-model,
+//    cost optimizer, health monitor, load balancer, caching, circuit breaker
+let _aiOrchestrator = null;
+try { _aiOrchestrator = require('./modules/ai-orchestrator'); } catch (e) {
+  console.warn('[Backend] ai-orchestrator not loaded:', e.message);
 // Provideri: MultiModelRouter (14 AI) → OpenAI → DeepSeek → Anthropic → Gemini → Mistral → Cohere → xAI Grok → UAIC → Llama → keyword
 const _aiProviders = require('./modules/aiProviders');
 // 🌐 Multi-Model Router — fallback automat între 14 provideri AI cu routing inteligent și optimizare cost
@@ -980,6 +987,24 @@ try { _llamaBridge = require('./modules/llamaBridge'); } catch { /* optional */ 
 const ZEUS_SYSTEM = 'You are Zeus AI Assistant, an expert in business automation, AI, blockchain, payments, and enterprise solutions. Be concise and helpful. You can also respond in Romanian if the user writes in Romanian.';
 
 app.post('/api/chat', authRateLimit(30, 60_000), async (req, res) => {
+  const { message, history = [], taskType } = req.body || {};
+  if (!message) return res.status(400).json({ error: 'message required' });
+
+  // 1️⃣ AI Orchestrator — routing inteligent (15 providers, fallback automat, cost optimizer)
+  if (_aiOrchestrator) {
+    try {
+      const orchResult = await _aiOrchestrator.ask(message, {
+        taskType: taskType || 'chat',
+        history,
+        useCache: true,
+      });
+      if (orchResult && orchResult.reply) return res.json(orchResult);
+    } catch (err) {
+      console.warn('[Chat] AIOrchestrator eșuat:', err.message);
+    }
+  }
+
+  // 2️⃣ aiProviders cascade fallback (DeepSeek → Mistral → Gemini → Claude → Cohere → OpenAI → ...)
   const { message, history = [], taskType = 'chat' } = req.body || {};
   if (!message) return res.status(400).json({ error: 'message required' });
 
@@ -1002,7 +1027,7 @@ app.post('/api/chat', authRateLimit(30, 60_000), async (req, res) => {
   const cloudResult = await _aiProviders.chat(message, history);
   if (cloudResult) return res.json(cloudResult);
 
-  // 2️⃣ UAIC – routare automată la cel mai bun provider disponibil (cheapest first pentru chat)
+  // 3️⃣ UAIC – routare automată la cel mai bun provider disponibil (cheapest first pentru chat)
   if (_uaic) {
     try {
       const result = await _uaic.ask(message, {
@@ -1017,7 +1042,7 @@ app.post('/api/chat', authRateLimit(30, 60_000), async (req, res) => {
     }
   }
 
-  // 3️⃣ Llama local fallback (zero-cost, rulează pe Hetzner via Ollama)
+  // 4️⃣ Llama local fallback (zero-cost, rulează pe Hetzner via Ollama)
   if (_llamaBridge) {
     const historyText = history.slice(-4)
       .map(m => `${m.role === 'user' ? 'User' : 'Assistant'}: ${m.content}`)
@@ -1035,7 +1060,7 @@ app.post('/api/chat', authRateLimit(30, 60_000), async (req, res) => {
     }
   }
 
-  // 4️⃣ Smart keyword fallback (static — când niciun AI nu e disponibil)
+  // 5️⃣ Smart keyword fallback (static — când niciun AI nu e disponibil)
   const lower = message.toLowerCase();
   const KEYWORD_RESPONSES = [
     [['payment', 'plat'], 'Zeus AI suportă plăți via Stripe, PayPal, Bitcoin și alte 10+ metode. Accesează /payments pentru a iniția o tranzacție.'],
@@ -1068,6 +1093,12 @@ app.get('/api/llama/status', (req, res) => {
 app.get('/api/ai/status', (req, res) => {
   const providers = _aiProviders.getStatus();
   const llama = _llamaBridge ? _llamaBridge.getStatus() : { available: false, reason: 'bridge_not_loaded' };
+  const orchStatus = _aiOrchestrator ? _aiOrchestrator.getStatus() : { active: false };
+  const activeCount = orchStatus.configuredCount || providers.filter(p => p.configured).length + (llama.available ? 1 : 0);
+  res.json({
+    providers,
+    llama,
+    orchestrator: orchStatus,
   const multiRouter = _multiRouter ? _multiRouter.getStatus() : { active: false };
   const activeCount = providers.filter(p => p.configured).length + (llama.available ? 1 : 0);
   res.json({
@@ -1080,6 +1111,44 @@ app.get('/api/ai/status', (req, res) => {
   });
 });
 
+// ==================== AI ORCHESTRATOR ENDPOINTS ====================
+app.get('/api/ai/orchestrator/status', (req, res) => {
+  if (!_aiOrchestrator) return res.json({ active: false, reason: 'orchestrator_not_loaded' });
+  res.json(_aiOrchestrator.getStatus());
+});
+
+app.get('/api/ai/orchestrator/report', (req, res) => {
+  if (!_aiOrchestrator) return res.json({ active: false, reason: 'orchestrator_not_loaded' });
+  res.json(_aiOrchestrator.getPerformanceReport());
+});
+
+app.get('/api/ai/orchestrator/health', (req, res) => {
+  if (!_aiOrchestrator) return res.json({ active: false, reason: 'orchestrator_not_loaded' });
+  res.json(_aiOrchestrator.getHealthReport());
+});
+
+app.post('/api/ai/orchestrator/ask', authMiddleware, async (req, res) => {
+  if (!_aiOrchestrator) return res.status(503).json({ error: 'orchestrator_not_loaded' });
+  const { message, taskType = 'default', history = [], preferProvider, useCache = true } = req.body || {};
+  if (!message) return res.status(400).json({ error: 'message required' });
+  try {
+    const result = await _aiOrchestrator.ask(message, { taskType, history, preferProvider, useCache });
+    if (!result) return res.status(503).json({ error: 'All AI providers unavailable' });
+    return res.json(result);
+  } catch (err) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/ai/orchestrator/repair', adminTokenMiddleware, (req, res) => {
+  if (!_aiOrchestrator) return res.json({ active: false });
+  const repaired = _aiOrchestrator.autoRepair();
+  res.json({ repaired, timestamp: new Date().toISOString() });
+});
+
+app.get('/api/ai/orchestrator/routing', (req, res) => {
+  if (!_aiOrchestrator) return res.json({ active: false });
+  res.json({ taskRouting: _aiOrchestrator.TASK_ROUTING, timestamp: new Date().toISOString() });
 // ==================== MULTI-MODEL ROUTER ROUTES ====================
 // GET /api/ai/multi-router/status — starea tuturor celor 14 provideri
 app.get('/api/ai/multi-router/status', (req, res) => {
