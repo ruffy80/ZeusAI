@@ -436,6 +436,9 @@ jobs:
           OKX_API_KEY:                     ${{ secrets.OKX_API_KEY }}
           OKX_SECRET:                      ${{ secrets.OKX_SECRET }}
           OKX_PASSWORD:                    ${{ secrets.OKX_PASSWORD }}
+          HETZNER_API_VALUE:               ${{ env.HETZNER_API_VALUE }}
+          DEPLOY_GITHUB_SHA:               ${{ github.sha }}
+          DEPLOY_GITHUB_REPO:              ${{ github.repository }}
         run: |
           echo "DEBUG SSH: Connecting to $DEPLOY_USER@$DEPLOY_HOST:$DEPLOY_PATH"
           ssh -i ~/.ssh/deploy_key -p "${DEPLOY_PORT:-22}" -o StrictHostKeyChecking=no -o UserKnownHostsFile=~/.ssh/known_hosts -o BatchMode=yes \
@@ -578,7 +581,7 @@ jobs:
             fi
 
             # ── Verify source integrity: re-fetch any JS file with SyntaxError ──
-            REPO_RAW="https://raw.githubusercontent.com/${GITHUB_REPOSITORY}/${GITHUB_SHA}/UNICORN_FINAL"
+            REPO_RAW="https://raw.githubusercontent.com/${DEPLOY_GITHUB_REPO}/${DEPLOY_GITHUB_SHA}/UNICORN_FINAL"
             if [ -d "backend/modules" ]; then
               shopt -s nullglob
               for jsfile in backend/modules/*.js src/index.js backend/index.js; do
