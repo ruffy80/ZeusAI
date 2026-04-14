@@ -359,14 +359,18 @@ module.exports = {
     {
       name: 'unicorn-llama-bridge',
       script: 'sh',
-      args: '-c "nice -n 10 ollama serve"',
+      // Wrapper: only start ollama if the binary exists; exit 0 cleanly otherwise.
+      // stop_exit_codes: [0] prevents PM2 from restarting on a clean (0) exit,
+      // avoiding the restart loop when ollama is not installed on the server.
+      args: '-c "command -v ollama >/dev/null 2>&1 && exec nice -n 10 ollama serve || { echo \'[llama-bridge] ollama not installed — skipping\'; exit 0; }"',
       cwd: __dirname,
       instances: 1,
       autorestart: true,
       watch: false,
-      max_restarts: 10,
-      restart_delay: 15000,
-      exp_backoff_restart_delay: 5000,
+      max_restarts: 5,
+      stop_exit_codes: [0],
+      restart_delay: 30000,
+      exp_backoff_restart_delay: 10000,
       env: {
         OLLAMA_HOST: '127.0.0.1:11434',
         OLLAMA_NUM_PARALLEL: '1',

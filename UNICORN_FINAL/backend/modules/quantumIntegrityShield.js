@@ -226,10 +226,16 @@ class QuantumIntegrityShield {
     // 4. Verificare procese PM2 critice
     const pm2State = this._checkPm2Processes();
     if (!pm2State.ok) {
+      // When running inside a PM2-managed process, pm2 jlist may be unavailable
+      // (IPC channel not accessible from cluster workers). Treat as warning, not error,
+      // to avoid false 'compromised' state when all services are actually healthy.
+      const severity = pm2State.error === 'pm2_unavailable' ? 'warning' : 'error';
       issues.push({
         type: 'pm2_process_missing',
-        severity: 'error',
-        detail: `Procese PM2 lipsă: ${(pm2State.missing || []).join(', ') || 'unknown'}`,
+        severity,
+        detail: pm2State.error === 'pm2_unavailable'
+          ? 'PM2 IPC indisponibil din contextul procesului curent (non-fatal)'
+          : `Procese PM2 lipsă: ${(pm2State.missing || []).join(', ') || 'unknown'}`,
       });
     }
 

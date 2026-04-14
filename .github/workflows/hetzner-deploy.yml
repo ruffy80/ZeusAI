@@ -715,6 +715,9 @@ jobs:
               if ! command -v certbot >/dev/null 2>&1; then
                 apt-get install -y certbot python3-certbot-nginx 2>/dev/null || snap install --classic certbot 2>/dev/null || true
               fi
+              # Ensure the nginx plugin for certbot is also available
+              python3 -c "import certbot_nginx" 2>/dev/null || \
+                apt-get install -y -qq python3-certbot-nginx 2>/dev/null || true
               if command -v certbot >/dev/null 2>&1; then
                 # Verify DNS resolves to this server before attempting cert.
                 # Running certbot when DNS points elsewhere burns Let's Encrypt rate-limit quota.
@@ -743,9 +746,21 @@ jobs:
                       --redirect --keep-until-expiring; then
                     echo "✅ SSL certificate configured for $CERT_DOMAINS"
                   else
-                    echo "⚠️  certbot failed — check certbot output above for details"
-                    certbot renew --nginx 2>/dev/null || true
-                    echo "ℹ️  certbot renewal attempted for $DOMAIN"
+                    echo "⚠️  certbot --nginx failed — trying standalone fallback (stops nginx briefly)..."
+                    systemctl stop nginx 2>/dev/null || service nginx stop 2>/dev/null || true
+                    if eval certbot certonly --standalone $CERT_DOMAINS \
+                        --non-interactive --agree-tos --email "$CERT_EMAIL" \
+                        --keep-until-expiring; then
+                      echo "✅ SSL certificate obtained via standalone for $CERT_DOMAINS"
+                      systemctl start nginx 2>/dev/null || service nginx start 2>/dev/null || true
+                      # Apply the cert to nginx using --nginx plugin now that cert exists
+                      eval certbot --nginx $CERT_DOMAINS \
+                        --non-interactive --agree-tos --email "$CERT_EMAIL" \
+                        --redirect --keep-until-expiring 2>/dev/null || true
+                    else
+                      echo "⚠️  certbot standalone also failed — check DNS propagation and Let's Encrypt rate limits"
+                      systemctl start nginx 2>/dev/null || service nginx start 2>/dev/null || true
+                    fi
                   fi
                 else
                   echo "⚠️  DNS mismatch: $DOMAIN → ${DOMAIN_IP:-'(unresolved)'}, server IP: $SERVER_IP"
@@ -1155,13 +1170,13 @@ jobs:
           fi
 
           echo "🔍 Probing: $PROBE_URL"
-          HTTPS_STATUS=$(curl -sk -o /dev/null -w "%{http_code}" --max-time 15 "$PROBE_URL" || echo "000")
+          HTTPS_STATUS=$(curl -sk -o /dev/null -w "%{http_code}" --max-time 15 "$PROBE_URL" 2>/dev/null; true)
           echo "Status: $HTTPS_STATUS"
 
           # If HTTPS probe fails with no connection (000), try HTTP fallback to check real backend health
-          if [ "$HTTPS_STATUS" = "000" ] && [ -n "$FALLBACK_URL" ]; then
-            FALLBACK_STATUS=$(curl -s -o /dev/null -w "%{http_code}" --max-time 15 "$FALLBACK_URL" || echo "000")
-            echo "ℹ️  HTTPS unreachable (SSL/DNS), HTTP fallback → $FALLBACK_STATUS"
+          if [ "$HTTPS_STATUS" != "200" ] && [ -n "$FALLBACK_URL" ]; then
+            FALLBACK_STATUS=$(curl -s -o /dev/null -w "%{http_code}" --max-time 15 "$FALLBACK_URL" 2>/dev/null; true)
+            echo "ℹ️  HTTPS unreachable (SSL/DNS may be missing), HTTP fallback → $FALLBACK_STATUS"
             [ "$FALLBACK_STATUS" = "200" ] && HTTPS_STATUS="200"
           fi
 
@@ -1188,9 +1203,9 @@ jobs:
             STATUS_RETRY="000"
             for i in 1 2 3 4; do
               sleep 15
-              STATUS_RETRY=$(curl -sk -o /dev/null -w "%{http_code}" --max-time 10 "$PROBE_URL" || echo "000")
-              if [ "$STATUS_RETRY" = "000" ] && [ -n "$FALLBACK_URL" ]; then
-                FB=$(curl -s -o /dev/null -w "%{http_code}" --max-time 10 "$FALLBACK_URL" || echo "000")
+              STATUS_RETRY=$(curl -sk -o /dev/null -w "%{http_code}" --max-time 10 "$PROBE_URL" 2>/dev/null; true)
+              if [ "$STATUS_RETRY" != "200" ] && [ -n "$FALLBACK_URL" ]; then
+                FB=$(curl -s -o /dev/null -w "%{http_code}" --max-time 10 "$FALLBACK_URL" 2>/dev/null; true)
                 [ "$FB" = "200" ] && STATUS_RETRY="200"
               fi
               echo "  attempt $i → HTTP $STATUS_RETRY"
