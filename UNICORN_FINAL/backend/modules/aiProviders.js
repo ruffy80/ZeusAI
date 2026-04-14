@@ -279,6 +279,20 @@ async function tryGrok(message, history) {
   return { reply: resp.data.choices[0].message.content, model: 'grok-3-mini' };
 }
 
+// ─── 8. Groq (LLaMA ultra-fast, OpenAI-compatible) ───────────────────────
+async function tryGroq(message, history) {
+  const key = process.env.GROQ_API_KEY;
+  if (!key || key === 'your_groq_api_key_here') return null;
+
+  const resp = await axios.post(
+    'https://api.groq.com/openai/v1/chat/completions',
+    { model: process.env.GROQ_MODEL || 'llama-3.3-70b-versatile', messages: buildMessages(message, history), max_tokens: 500, temperature: 0.7 },
+    { headers: { Authorization: 'Bearer ' + key, 'Content-Type': 'application/json' }, timeout: 15000 }
+  );
+  return { reply: resp.data.choices[0].message.content, model: 'groq-llama3.3-70b' };
+}
+
+// ─── 9. OpenRouter (multi-model gateway, OpenAI-compatible) ──────────────
 // ─── 8. Groq (LLaMA ultra-rapid) ─────────────────────────────────────────
 async function tryGroq(message, history) {
   const key = process.env.GROQ_API_KEY;
@@ -362,11 +376,28 @@ async function tryOpenRouter(message, history) {
 
   const resp = await axios.post(
     'https://openrouter.ai/api/v1/chat/completions',
+    {
+      model: process.env.OPENROUTER_MODEL || 'mistralai/mistral-7b-instruct:free',
+      messages: buildMessages(message, history),
+      max_tokens: 500,
+      temperature: 0.7,
+    },
     { model: process.env.OPENROUTER_MODEL || 'openai/gpt-4o-mini', messages: buildMessages(message, history), max_tokens: 500, temperature: 0.7 },
     {
       headers: {
         Authorization: 'Bearer ' + key,
         'Content-Type': 'application/json',
+        'HTTP-Referer': process.env.SITE_URL || 'https://zeus-ai.app',
+        'X-Title': 'Zeus AI Unicorn',
+      },
+      timeout: 30000,
+    }
+  );
+  const model = resp.data.model || 'openrouter';
+  return { reply: resp.data.choices[0].message.content, model: `openrouter-${model}` };
+}
+
+// ─── 10. Perplexity (search-augmented reasoning, OpenAI-compatible) ───────
         'HTTP-Referer': process.env.PUBLIC_APP_URL || 'https://zeus-ai.app',
         'X-Title': 'Zeus AI Unicorn',
       },
@@ -383,12 +414,20 @@ async function tryPerplexity(message, history) {
 
   const resp = await axios.post(
     'https://api.perplexity.ai/chat/completions',
+    {
+      model: process.env.PERPLEXITY_MODEL || 'llama-3.1-sonar-small-128k-online',
+      messages: buildMessages(message, history),
+      max_tokens: 500,
+      temperature: 0.7,
+    },
+    { headers: { Authorization: 'Bearer ' + key, 'Content-Type': 'application/json' }, timeout: 30000 }
     { model: process.env.PERPLEXITY_MODEL || 'llama-3.1-sonar-small-128k-online', messages: buildMessages(message, history), max_tokens: 500, temperature: 0.7 },
     { headers: { Authorization: 'Bearer ' + key, 'Content-Type': 'application/json' }, timeout: 25000 }
   );
   return { reply: resp.data.choices[0].message.content, model: 'perplexity-sonar' };
 }
 
+// ─── 11. Together AI (fine-tuning + open-source, OpenAI-compatible) ───────
 // ─── 11. HuggingFace Inference API ───────────────────────────────────────
 async function tryHuggingFace(message, history) {
   const key = process.env.HUGGINGFACE_API_KEY;
@@ -418,6 +457,18 @@ async function tryTogether(message, history) {
 
   const resp = await axios.post(
     'https://api.together.xyz/v1/chat/completions',
+    {
+      model: process.env.TOGETHER_MODEL || 'meta-llama/Meta-Llama-3.1-8B-Instruct-Turbo',
+      messages: buildMessages(message, history),
+      max_tokens: 500,
+      temperature: 0.7,
+    },
+    { headers: { Authorization: 'Bearer ' + key, 'Content-Type': 'application/json' }, timeout: 30000 }
+  );
+  return { reply: resp.data.choices[0].message.content, model: 'together-llama3.1-8b' };
+}
+
+// ─── 12. Fireworks AI (fast inference, OpenAI-compatible) ─────────────────
     { model: process.env.TOGETHER_MODEL || 'meta-llama/Llama-3.2-11B-Vision-Instruct-Turbo', messages: buildMessages(message, history), max_tokens: 500, temperature: 0.7 },
     { headers: { Authorization: 'Bearer ' + key, 'Content-Type': 'application/json' }, timeout: 25000 }
   );
@@ -431,6 +482,18 @@ async function tryFireworks(message, history) {
 
   const resp = await axios.post(
     'https://api.fireworks.ai/inference/v1/chat/completions',
+    {
+      model: process.env.FIREWORKS_MODEL || 'accounts/fireworks/models/llama-v3p1-8b-instruct',
+      messages: buildMessages(message, history),
+      max_tokens: 500,
+      temperature: 0.7,
+    },
+    { headers: { Authorization: 'Bearer ' + key, 'Content-Type': 'application/json' }, timeout: 20000 }
+  );
+  return { reply: resp.data.choices[0].message.content, model: 'fireworks-llama3.1-8b' };
+}
+
+// ─── 13. SambaNova (LLaMA 3.1, OpenAI-compatible) ─────────────────────────
     { model: process.env.FIREWORKS_MODEL || 'accounts/fireworks/models/llama-v3p1-70b-instruct', messages: buildMessages(message, history), max_tokens: 500, temperature: 0.7 },
     { headers: { Authorization: 'Bearer ' + key, 'Content-Type': 'application/json' }, timeout: 25000 }
   );
@@ -444,6 +507,19 @@ async function trySambaNova(message, history) {
 
   const resp = await axios.post(
     'https://api.sambanova.ai/v1/chat/completions',
+    {
+      model: process.env.SAMBANOVA_MODEL || 'Meta-Llama-3.1-8B-Instruct',
+      messages: buildMessages(message, history),
+      max_tokens: 500,
+      temperature: 0.7,
+    },
+    { headers: { Authorization: 'Bearer ' + key, 'Content-Type': 'application/json' }, timeout: 25000 }
+  );
+  return { reply: resp.data.choices[0].message.content, model: 'sambanova-llama3.1-8b' };
+}
+
+// ─── 14. NVIDIA NIM (GPU-accelerated inference, OpenAI-compatible) ────────
+async function tryNvidiaNim(message, history) {
     { model: process.env.SAMBANOVA_MODEL || 'Meta-Llama-3.3-70B-Instruct', messages: buildMessages(message, history), max_tokens: 500, temperature: 0.7 },
     { headers: { Authorization: 'Bearer ' + key, 'Content-Type': 'application/json' }, timeout: 25000 }
   );
@@ -457,6 +533,52 @@ async function tryNVIDIANIM(message, history) {
 
   const resp = await axios.post(
     'https://integrate.api.nvidia.com/v1/chat/completions',
+    {
+      model: process.env.NVIDIA_NIM_MODEL || 'meta/llama-3.1-8b-instruct',
+      messages: buildMessages(message, history),
+      max_tokens: 500,
+      temperature: 0.7,
+    },
+    { headers: { Authorization: 'Bearer ' + key, 'Content-Type': 'application/json' }, timeout: 25000 }
+  );
+  return { reply: resp.data.choices[0].message.content, model: 'nvidia-nim-llama3.1-8b' };
+}
+
+// ─── 15. HuggingFace Inference API ────────────────────────────────────────
+async function tryHuggingFace(message, history) {
+  const key = process.env.HF_API_KEY;
+  if (!key || key === 'your_hf_api_key_here') return null;
+
+  const model = process.env.HF_MODEL || 'mistralai/Mistral-7B-Instruct-v0.3';
+  // HF uses the messages API for chat models
+  const resp = await axios.post(
+    `https://api-inference.huggingface.co/models/${model}/v1/chat/completions`,
+    { model, messages: buildMessages(message, history), max_tokens: 500, temperature: 0.7 },
+    { headers: { Authorization: 'Bearer ' + key, 'Content-Type': 'application/json' }, timeout: 30000 }
+  );
+  return { reply: resp.data.choices[0].message.content, model: `hf-${model.split('/').pop()}` };
+}
+
+// ─── Provider registry ────────────────────────────────────────────────────
+// Priority order: DeepSeek (cheap+fast) → Mistral → Groq → Gemini → Claude →
+//   Cohere → OpenAI → OpenRouter → Perplexity → HF → Together → Fireworks →
+//   SambaNova → NVIDIA NIM → xAI Grok
+const PROVIDERS = [
+  { name: 'deepseek',   envKey: 'DEEPSEEK_API_KEY',    placeholder: 'your_deepseek_api_key_here',    fn: tryDeepSeek,   costTier: 1, speedTier: 1 },
+  { name: 'mistral',    envKey: 'MISTRAL_API_KEY',      placeholder: 'your_mistral_api_key_here',     fn: tryMistral,    costTier: 2, speedTier: 1 },
+  { name: 'groq',       envKey: 'GROQ_API_KEY',         placeholder: 'your_groq_api_key_here',        fn: tryGroq,       costTier: 1, speedTier: 0 },
+  { name: 'gemini',     envKey: 'GEMINI_API_KEY',        placeholder: 'your_gemini_api_key_here',     fn: tryGemini,     costTier: 2, speedTier: 1 },
+  { name: 'anthropic',  envKey: 'ANTHROPIC_API_KEY',    placeholder: 'your_anthropic_api_key_here',   fn: tryAnthropic,  costTier: 3, speedTier: 2 },
+  { name: 'cohere',     envKey: 'COHERE_API_KEY',        placeholder: 'your_cohere_api_key_here',     fn: tryCohere,     costTier: 2, speedTier: 1 },
+  { name: 'openai',     envKey: 'OPENAI_API_KEY',        placeholder: 'your_openai_api_key_here',     fn: tryOpenAI,     costTier: 3, speedTier: 2 },
+  { name: 'openrouter', envKey: 'OPENROUTER_API_KEY',   placeholder: 'your_openrouter_api_key_here',  fn: tryOpenRouter, costTier: 2, speedTier: 1 },
+  { name: 'perplexity', envKey: 'PERPLEXITY_API_KEY',   placeholder: 'your_perplexity_api_key_here',  fn: tryPerplexity, costTier: 2, speedTier: 1 },
+  { name: 'huggingface',envKey: 'HF_API_KEY',            placeholder: 'your_hf_api_key_here',         fn: tryHuggingFace,costTier: 1, speedTier: 2 },
+  { name: 'together',   envKey: 'TOGETHER_API_KEY',     placeholder: 'your_together_api_key_here',    fn: tryTogether,   costTier: 1, speedTier: 1 },
+  { name: 'fireworks',  envKey: 'FIREWORKS_API_KEY',    placeholder: 'your_fireworks_api_key_here',   fn: tryFireworks,  costTier: 1, speedTier: 1 },
+  { name: 'sambanova',  envKey: 'SAMBANOVA_API_KEY',    placeholder: 'your_sambanova_api_key_here',   fn: trySambaNova,  costTier: 1, speedTier: 1 },
+  { name: 'nvidia_nim', envKey: 'NVIDIA_NIM_API_KEY',   placeholder: 'your_nvidia_nim_api_key_here',  fn: tryNvidiaNim,  costTier: 1, speedTier: 1 },
+  { name: 'xai',        envKey: 'XAI_API_KEY',           placeholder: 'your_xai_api_key_here',        fn: tryGrok,       costTier: 3, speedTier: 2 },
     { model: process.env.NVIDIA_NIM_MODEL || 'meta/llama-3.1-70b-instruct', messages: buildMessages(message, history), max_tokens: 500, temperature: 0.7 },
     { headers: { Authorization: 'Bearer ' + key, 'Content-Type': 'application/json' }, timeout: 25000 }
   );
