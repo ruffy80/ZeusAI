@@ -1,0 +1,32 @@
+# /etc/systemd/system/healer.service
+# ZeusAI / Unicorn — Self-Healing Systemd Service
+#
+# Instalare:
+#   sudo cp healer.service /etc/systemd/system/healer.service
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable healer.timer
+#   sudo systemctl start healer.timer
+#
+# Verificare:
+#   systemctl status healer.timer
+#   journalctl -u healer.service -f
+
+[Unit]
+Description=ZeusAI Unicorn Self-Healer
+After=docker.service network-online.target
+Requires=docker.service
+
+[Service]
+Type=oneshot
+EnvironmentFile=-/var/www/unicorn/.env
+Environment=HEALTH_URL=http://127.0.0.1:3000/health
+Environment=CONTAINER_NAME=unicorn-app
+Environment=COMPOSE_FILE=/var/www/unicorn/docker-compose.prod.yml
+Environment=LOG_FILE=/var/log/healer.log
+Environment=FAIL_THRESHOLD=3
+Environment=FAIL_WINDOW_SEC=300
+Environment=CHECK_TIMEOUT_SEC=5
+ExecStart=/usr/local/bin/healer.sh
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=healer
