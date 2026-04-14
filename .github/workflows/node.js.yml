@@ -1,16 +1,14 @@
-# CI for the root Next.js shell app.
-# UNICORN_FINAL lint+test is handled by hetzner-deploy.yml (runs on every push/PR).
-# This workflow only runs when root app files change, and only on push to main.
+# CI for UNICORN_FINAL (lint + test) on push to main.
+# Runs only when non-UNICORN_FINAL root files change (e.g. package.json, workflows).
+# Full UNICORN_FINAL CI is also handled by hetzner-deploy.yml (push + PR).
 name: Node.js CI
 
 on:
   push:
     branches: [ "main" ]
     paths:
-      - 'app/**'
       - 'package.json'
       - 'package-lock.json'
-      - 'next.config.*'
       - '.github/workflows/node.js.yml'
 
 concurrency:
@@ -19,8 +17,11 @@ concurrency:
 
 jobs:
   build:
-    name: Build & Test (Node 22)
+    name: Lint & Test UNICORN_FINAL (Node 22)
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: UNICORN_FINAL
 
     steps:
     - uses: actions/checkout@v5
@@ -29,9 +30,13 @@ jobs:
       with:
         node-version: '22'
         cache: 'npm'
-    - run: npm install --legacy-peer-deps
-    - name: Install UNICORN_FINAL dependencies
-      run: npm install --prefix UNICORN_FINAL --legacy-peer-deps --no-audit --no-fund
-    - run: npm run build --if-present
-    - run: npm test
+        cache-dependency-path: UNICORN_FINAL/package-lock.json
+    - run: npm ci --legacy-peer-deps --no-audit --no-fund
+    - run: npm run lint
+    - name: Test
+      run: |
+        export NODE_ENV=test
+        export DB_PATH=:memory:
+        npm test
+
 

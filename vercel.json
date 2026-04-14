@@ -1,7 +1,5 @@
 {
-  "framework": "nextjs",
-  "buildCommand": "next build",
-  "outputDirectory": ".next",
-  "installCommand": "npm install --legacy-peer-deps",
-  "ignoreCommand": "git diff --quiet HEAD^ HEAD -- app/ package.json next.config.*"
+  "github": {
+    "enabled": false
+  }
 }
