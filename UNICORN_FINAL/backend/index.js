@@ -18,6 +18,7 @@ const { version: APP_VERSION } = require('../package.json');
 // const cron = require('node-cron'); // Optional scheduling
 const simpleGit = require('simple-git');
 const axios = require('axios');
+const routeCache = require('./modules/route-cache');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -120,6 +121,10 @@ app.use((req, res, next) => {
   res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
   next();
 });
+
+// ==================== ROUTE PROFILER (PR #194 — Performance Optimization) ====================
+// Înregistrează timpii de răspuns pentru toate rutele → expus la /api/perf/stats
+app.use(routeCache.profilerMiddleware());
 
 // ==================== AUTH STORE (SQLite-backed) ====================
 const ADMIN_OWNER_NAME = process.env.LEGAL_OWNER_NAME || 'Vladoi Ionut';
@@ -922,7 +927,7 @@ function buildBackendSnapshot() {
   };
 }
 
-app.get('/snapshot', (req, res) => {
+app.get('/snapshot', routeCache.cacheMiddleware(), (req, res) => {
   res.json(buildBackendSnapshot());
 });
 
@@ -966,8 +971,7 @@ const _aiProviders = require('./modules/aiProviders');
 let _aiOrchestrator = null;
 try { _aiOrchestrator = require('./modules/ai-orchestrator'); } catch (e) {
   console.warn('[Backend] ai-orchestrator not loaded:', e.message);
-// Provideri: MultiModelRouter (14 AI) → OpenAI → DeepSeek → Anthropic → Gemini → Mistral → Cohere → xAI Grok → UAIC → Llama → keyword
-const _aiProviders = require('./modules/aiProviders');
+}
 // 🌐 Multi-Model Router — fallback automat între 14 provideri AI cu routing inteligent și optimizare cost
 let _multiRouter = null;
 try { _multiRouter = require('./modules/multi-model-router'); } catch (e) {
@@ -987,7 +991,7 @@ try { _llamaBridge = require('./modules/llamaBridge'); } catch { /* optional */ 
 const ZEUS_SYSTEM = 'You are Zeus AI Assistant, an expert in business automation, AI, blockchain, payments, and enterprise solutions. Be concise and helpful. You can also respond in Romanian if the user writes in Romanian.';
 
 app.post('/api/chat', authRateLimit(30, 60_000), async (req, res) => {
-  const { message, history = [], taskType } = req.body || {};
+  const { message, history = [], taskType = 'chat' } = req.body || {};
   if (!message) return res.status(400).json({ error: 'message required' });
 
   // 1️⃣ AI Orchestrator — routing inteligent (15 providers, fallback automat, cost optimizer)
@@ -1004,11 +1008,7 @@ app.post('/api/chat', authRateLimit(30, 60_000), async (req, res) => {
     }
   }
 
-  // 2️⃣ aiProviders cascade fallback (DeepSeek → Mistral → Gemini → Claude → Cohere → OpenAI → ...)
-  const { message, history = [], taskType = 'chat' } = req.body || {};
-  if (!message) return res.status(400).json({ error: 'message required' });
-
-  // 0️⃣ Multi-Model Router — fallback automat între 14 provideri AI (prioritate maximă)
+  // 2️⃣ Multi-Model Router — fallback automat între 14 provideri AI
   if (_multiRouter) {
     try {
       const mrResult = await _multiRouter.ask(message, {
@@ -1090,20 +1090,16 @@ app.get('/api/llama/status', (req, res) => {
 });
 
 // ==================== AI PROVIDERS STATUS ====================
-app.get('/api/ai/status', (req, res) => {
+app.get('/api/ai/status', routeCache.cacheMiddleware(), (req, res) => {
   const providers = _aiProviders.getStatus();
   const llama = _llamaBridge ? _llamaBridge.getStatus() : { available: false, reason: 'bridge_not_loaded' };
   const orchStatus = _aiOrchestrator ? _aiOrchestrator.getStatus() : { active: false };
-  const activeCount = orchStatus.configuredCount || providers.filter(p => p.configured).length + (llama.available ? 1 : 0);
-  res.json({
-    providers,
-    llama,
-    orchestrator: orchStatus,
   const multiRouter = _multiRouter ? _multiRouter.getStatus() : { active: false };
   const activeCount = providers.filter(p => p.configured).length + (llama.available ? 1 : 0);
   res.json({
     providers,
     llama,
+    orchestrator: orchStatus,
     multiRouter,
     activeCount,
     total: providers.length + 1,
@@ -1112,12 +1108,12 @@ app.get('/api/ai/status', (req, res) => {
 });
 
 // ==================== AI ORCHESTRATOR ENDPOINTS ====================
-app.get('/api/ai/orchestrator/status', (req, res) => {
+app.get('/api/ai/orchestrator/status', routeCache.cacheMiddleware(), (req, res) => {
   if (!_aiOrchestrator) return res.json({ active: false, reason: 'orchestrator_not_loaded' });
   res.json(_aiOrchestrator.getStatus());
 });
 
-app.get('/api/ai/orchestrator/report', (req, res) => {
+app.get('/api/ai/orchestrator/report', routeCache.cacheMiddleware(), (req, res) => {
   if (!_aiOrchestrator) return res.json({ active: false, reason: 'orchestrator_not_loaded' });
   res.json(_aiOrchestrator.getPerformanceReport());
 });
@@ -1149,9 +1145,10 @@ app.post('/api/ai/orchestrator/repair', adminTokenMiddleware, (req, res) => {
 app.get('/api/ai/orchestrator/routing', (req, res) => {
   if (!_aiOrchestrator) return res.json({ active: false });
   res.json({ taskRouting: _aiOrchestrator.TASK_ROUTING, timestamp: new Date().toISOString() });
+});
 // ==================== MULTI-MODEL ROUTER ROUTES ====================
 // GET /api/ai/multi-router/status — starea tuturor celor 14 provideri
-app.get('/api/ai/multi-router/status', (req, res) => {
+app.get('/api/ai/multi-router/status', routeCache.cacheMiddleware(), (req, res) => {
   if (!_multiRouter) return res.status(503).json({ error: 'multi-model-router not loaded' });
   res.json(_multiRouter.getStatus());
 });
@@ -1181,6 +1178,22 @@ app.post('/api/admin/multi-router/reset', adminCrudRateLimit, adminTokenMiddlewa
   if (!_multiRouter) return res.status(503).json({ error: 'multi-model-router not loaded' });
   _multiRouter.resetStats();
   res.json({ success: true, message: 'Statistici resetate' });
+});
+
+// ==================== ROUTE PERFORMANCE & CACHE API (PR #194) ====================
+// GET /api/perf/stats — top-5 cele mai lente rute + cache stats
+app.get('/api/perf/stats', (req, res) => {
+  res.json(routeCache.getStats());
+});
+
+// GET /api/perf/cache — starea detaliată a cache-ului LRU
+app.get('/api/perf/cache', (req, res) => {
+  res.json(routeCache.getCacheStatus());
+});
+
+// POST /api/admin/perf/cache/clear — golire cache (admin only)
+app.post('/api/admin/perf/cache/clear', adminCrudRateLimit, adminTokenMiddleware, (req, res) => {
+  res.json(routeCache.clearCache());
 });
 
 

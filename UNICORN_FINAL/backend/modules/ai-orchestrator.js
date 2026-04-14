@@ -1,4 +1,12 @@
 // =====================================================================
+// OWNERSHIP: Acest fișier este proprietatea exclusivă a lui Vladoi Ionut
+// Email: vladoi_ionut@yahoo.com
+// BTC Address: bc1q4f7e66z87mdfj56kz0dj5hvcnpmh0qh4wuv22e
+// Data: 2026-04-14T18:12:01.137Z
+// Orice copiere, modificare sau distribuție neautorizată este interzisă.
+// =====================================================================
+
+// =====================================================================
 // AI ORCHESTRATOR — Zeus AI Unicorn
 // Modul central de orchestrare AI cu:
 //   - Routing inteligent per tip task
