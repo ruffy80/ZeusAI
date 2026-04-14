@@ -727,6 +727,10 @@ const resourceMonitor      = require('./modules/resource-monitor');
 const errorPatternDetector = require('./modules/error-pattern-detector');
 const recoveryEngine       = require('./modules/recovery-engine');
 
+// ==================== ZERO DOWNTIME + AI SMART CACHE ====================
+const zeroDT        = require('../scripts/zero-downtime-controller');
+const aiSmartCache  = require('./modules/ai-smart-cache');
+
 // SLO middleware — records every API request latency & error status
 app.use((req, res, next) => {
   const start = Date.now();
@@ -4707,6 +4711,47 @@ app.post('/api/health-daemon/report', adminTokenMiddleware, (req, res) => {
   res.json({ ok: true, received: new Date().toISOString() });
 });
 
+// ==================== ZERO DOWNTIME CONTROLLER ROUTES ====================
+app.get('/api/zero-downtime/status', adminTokenMiddleware, (req, res) => {
+  res.json(zeroDT.getStatus());
+});
+
+app.get('/api/zero-downtime/log', adminTokenMiddleware, (req, res) => {
+  const limit = Math.min(parseInt(req.query.limit || '50', 10), 200);
+  res.json({ log: zeroDT.getLog(limit) });
+});
+
+app.post('/api/zero-downtime/rolling-restart', adminTokenMiddleware, async (req, res) => {
+  try {
+    const result = await zeroDT.rollingRestart();
+    res.json(result);
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+app.post('/api/zero-downtime/emergency-recovery', adminTokenMiddleware, async (req, res) => {
+  try {
+    const result = await zeroDT.emergencyRecovery();
+    res.json(result);
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// ==================== AI SMART CACHE ROUTES ====================
+app.get('/api/ai-cache/stats', adminTokenMiddleware, (req, res) => {
+  res.json(aiSmartCache.getStats());
+});
+
+app.post('/api/ai-cache/clear', adminTokenMiddleware, (req, res) => {
+  aiSmartCache.clear();
+  res.json({ ok: true, cleared: true, ts: new Date().toISOString() });
+});
+
+app.post('/api/ai-cache/invalidate', adminTokenMiddleware, (req, res) => {
+  const { message, opts } = req.body || {};
+  if (!message) return res.status(400).json({ error: 'message required' });
+  const ok = aiSmartCache.invalidate(message, opts || {});
+  res.json({ ok, ts: new Date().toISOString() });
+});
+
 const clientBuildPath = path.join(__dirname, '../client/build');
 const clientIndexPath = path.join(clientBuildPath, 'index.html');
 const fs = require('fs');
@@ -4804,6 +4849,10 @@ if (require.main === module) {
     console.log(`🔎 Error-Pattern-Detector: ACTIVE`);
     console.log(`🚑 Recovery-Engine: ACTIVE`);
     console.log(`🛡️  AI Self-Healing: ACTIVE (15 provideri monitorizați: DeepSeek/Mistral/Groq/Gemini/Claude/Cohere/OpenAI/OpenRouter/Perplexity/HuggingFace/Together/Fireworks/SambaNova/NVIDIA/xAI)`);
+    console.log(`🟢 Zero-Downtime Controller: ACTIVE`);
+    console.log(`💾 AI Smart Cache: ACTIVE (LRU, cost tracking, TTL per task)`);
+    // Pornire Zero-Downtime Controller în-process (monitorizare health locală)
+    zeroDT.init();
   });
 }
 // Export Express app for testing
