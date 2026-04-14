@@ -34,6 +34,8 @@ jobs:
   validate:
     name: ✅ Lint & Test
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     defaults:
       run:
         working-directory: UNICORN_FINAL
@@ -130,6 +132,8 @@ jobs:
     runs-on: ubuntu-latest
     needs: [validate, build-push]
     if: github.event_name != 'pull_request'
+    permissions:
+      contents: read
     environment:
       name: production
       url: https://${{ secrets.SITE_DOMAIN || 'zeusai.pro' }}
@@ -150,7 +154,7 @@ jobs:
 
       - name: Prepare deployment files
         run: |
-          # Trimitre docker-compose.prod.yml și monitoring/ pe server
+          # Trimite docker-compose.prod.yml și monitoring/ pe server
           scp -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa \
             docker-compose.prod.yml \
             root@${{ secrets.HETZNER_SERVER_IP }}:${{ env.DEPLOY_PATH }}/docker-compose.prod.yml
@@ -406,6 +410,7 @@ jobs:
     runs-on: ubuntu-latest
     needs: [validate, deploy, tag-and-certify]
     if: always()
+    permissions: {}
     steps:
       - name: Summarize deployment
         run: |
