@@ -149,6 +149,7 @@ jobs:
       # ── Transferă setup-ssl.sh pe server ─────────────────────────────────
       - name: Transferă setup-ssl.sh pe server
         if: steps.ssh_setup.outputs.ssh_ready == 'true'
+        continue-on-error: true
         run: |
           scp -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no \
             -P "${{ env.SERVER_PORT }}" \
@@ -160,6 +161,7 @@ jobs:
       - name: Rulează setup-ssl.sh (Nginx + UFW port 443 + Certbot)
         if: steps.ssh_setup.outputs.ssh_ready == 'true'
         id: ssl_run
+        continue-on-error: true
         env:
           FORCE_CERTBOT: ${{ inputs.force_certbot || 'no' }}
         run: |
