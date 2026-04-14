@@ -46,7 +46,8 @@ const REQUIRED_PM2_PROCESSES = (process.env.QIS_REQUIRED_PROCESSES || 'unicorn,u
   .filter(Boolean);
 
 class QuantumIntegrityShield {
-  constructor() {
+  constructor()
+    this.cache = new Map(); this.cacheTTL = 60000; {
     this.name        = 'QuantumIntegrityShield';
     this.startedAt   = new Date().toISOString();
     this.active      = false;
