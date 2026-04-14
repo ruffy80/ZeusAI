@@ -9,16 +9,16 @@
 #   4. SSL Certbot — certificat valid sau reînnoit
 #
 # Utilizare (pe serverul Hetzner, ca root):
-#   bash /root/unicorn-final/scripts/fix-server.sh [DEPLOY_PATH] [DOMAIN]
+#   bash /var/www/unicorn/scripts/fix-server.sh [DEPLOY_PATH] [DOMAIN]
 #
 # Exemple:
-#   bash /root/unicorn-final/scripts/fix-server.sh
-#   bash /root/unicorn-final/scripts/fix-server.sh /root/unicorn-final zeusai.pro
+#   bash /var/www/unicorn/scripts/fix-server.sh
+#   bash /var/www/unicorn/scripts/fix-server.sh /var/www/unicorn zeusai.pro
 # =============================================================================
 set -euo pipefail
 
 # ─── Parametri configurabili ──────────────────────────────────────────────────
-DEPLOY_PATH="${1:-/root/unicorn-final}"
+DEPLOY_PATH="${1:-/var/www/unicorn}"
 DOMAIN="${2:-zeusai.pro}"
 NODE_PORT="${NODE_PORT:-3000}"
 NGINX_SITE="unicorn"
@@ -88,11 +88,37 @@ else
 fi
 
 # 1b. Instalare configurație site Unicorn
+# IMPORTANT: dacă certificatul SSL există, Certbot a injectat deja blocuri listen 443 ssl
+# în config — NU suprascrie, altfel HTTPS se sparge la fiecare rulare a scriptului.
 if [ -f "$NGINX_CONF_SRC" ]; then
-  # Actualizează server_name în config cu domeniul curent
+  if [ ! -f "/etc/letsencrypt/live/${DOMAIN}/fullchain.pem" ]; then
+    cp "$NGINX_CONF_SRC" "$NGINX_AVAILABLE"
+    sed -i "s/server_name .*;/server_name ${DOMAIN} www.${DOMAIN} api.${DOMAIN} orchestrator.${DOMAIN};/" "$NGINX_AVAILABLE"
+    fixed "Config Nginx instalat la $NGINX_AVAILABLE (domain: $DOMAIN)"
+  else
+    ok "SSL cert există — config Nginx cu HTTPS păstrat (nu suprascris)"
+  fi
+SSL_CERT="/etc/letsencrypt/live/${DOMAIN}/fullchain.pem"
+if [ -f "$NGINX_CONF_SRC" ]; then
+  # ── Nu suprascrie config-ul nginx dacă certbot a adăugat deja blocurile HTTPS.
+  # Suprascrierea ar elimina blocurile SSL și ar strica HTTPS la fiecare run al cron-ului.
+  if [ -f "$SSL_CERT" ] && grep -q "ssl_certificate" "$NGINX_AVAILABLE" 2>/dev/null; then
+    ok "Config Nginx cu SSL deja existent — nu se suprascrie (certbot a configurat HTTPS)"
+  else
+    # Copiază config HTTP-only dacă nu există SSL sau config-ul nu are blocuri SSL.
+    # NU folosim sed pentru a înlocui server_name — nginx-unicorn.conf are deja structura
+    # corectă cu blocuri separate per subdomain; o înlocuire globală ar corupe config-ul.
+    cp "$NGINX_CONF_SRC" "$NGINX_AVAILABLE"
+    fixed "Config Nginx instalat la $NGINX_AVAILABLE (HTTP; certbot va adăuga HTTPS)"
+  fi
+  # Copy the base config
   cp "$NGINX_CONF_SRC" "$NGINX_AVAILABLE"
-  # Înlocuiește server_name cu toate subdomeniile DNS configurate
-  sed -i "s/server_name .*;/server_name ${DOMAIN} www.${DOMAIN} api.${DOMAIN} orchestrator.${DOMAIN};/" "$NGINX_AVAILABLE"
+  # Replace only the explicit domain server_name lines (not the default_server catch-all: server_name _)
+  # Targets lines like: server_name zeusai.pro www.zeusai.pro;
+  sed -i "s/server_name zeusai\.pro.*;/server_name ${DOMAIN} www.${DOMAIN};/" "$NGINX_AVAILABLE"
+  sed -i "s/server_name api\.zeusai\.pro.*;/server_name api.${DOMAIN};/" "$NGINX_AVAILABLE"
+  sed -i "s/server_name orchestrator\.zeusai\.pro.*;/server_name orchestrator.${DOMAIN};/" "$NGINX_AVAILABLE"
+  sed -i "s/server_name \*\.zeusai\.pro.*;/server_name *.${DOMAIN};/" "$NGINX_AVAILABLE"
   fixed "Config Nginx instalat la $NGINX_AVAILABLE (domain: $DOMAIN)"
 else
   # Generează config minimal dacă fișierul sursă lipsește

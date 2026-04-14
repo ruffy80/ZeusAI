@@ -36,14 +36,49 @@ jobs:
             echo "hetzner_ok=true" >> "$GITHUB_OUTPUT"
             exit 0
           fi
-          # Prefer Nginx port 80 (proxied to backend:3000); port 3000 is firewall-restricted
-          STATUS=$(curl -s -o /dev/null -w "%{http_code}" --max-time 10 "http://${HOST}/api/health" || echo "000")
-          if [ "$STATUS" = "000" ] || [ "$STATUS" = "000000" ]; then
-            PORT="${{ secrets.HETZNER_APP_PORT || '3000' }}"
-            STATUS=$(curl -s -o /dev/null -w "%{http_code}" --max-time 10 "http://${HOST}:${PORT}/api/health" || echo "000")
+          DOMAIN="${{ secrets.SITE_DOMAIN || 'zeusai.pro' }}"
+          OK=false
+
+          # 1. Try HTTPS first (best signal — SSL + backend both working)
+          HTTPS_STATUS=$(curl -sk -o /dev/null -w "%{http_code}" --max-time 10 "https://${DOMAIN}/api/health" || echo "000")
+          echo "HTTPS /api/health → HTTP $HTTPS_STATUS"
+          if [ "$HTTPS_STATUS" = "200" ]; then
+            OK=true
+            echo "✅ Platform fully healthy (HTTPS 200)"
           fi
-          echo "Hetzner /api/health → HTTP $STATUS"
-          if [ "$STATUS" = "200" ]; then
+
+          # 2. Fall back to HTTP — follow redirects (301 = nginx up, redirecting to HTTPS)
+          if [ "$OK" = "false" ]; then
+            HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" --max-time 10 "http://${HOST}/health" || echo "000")
+            echo "HTTP /health → HTTP $HTTP_STATUS"
+            # 200 or 301/302 = Nginx is responding (redirect to HTTPS is expected behavior)
+            if [ "$HTTP_STATUS" = "200" ] || [ "$HTTP_STATUS" = "301" ] || [ "$HTTP_STATUS" = "302" ]; then
+              # Nginx is up; check if backend is actually reachable via HTTPS (follow redirect)
+              FOLLOW_STATUS=$(curl -skL -o /dev/null -w "%{http_code}" --max-time 15 "http://${HOST}/api/health" || echo "000")
+              echo "HTTP→HTTPS /api/health (follow redirect) → HTTP $FOLLOW_STATUS"
+              if [ "$FOLLOW_STATUS" = "200" ]; then
+                OK=true
+                echo "✅ Platform healthy (HTTP→HTTPS redirect → 200)"
+              else
+                echo "⚠️  Nginx up (${HTTP_STATUS}) but HTTPS backend not reachable — SSL issue likely"
+                # Nginx is running; HTTPS/SSL needs repair but not a full redeploy
+                OK=false
+              fi
+            fi
+          fi
+
+          # 3. Last resort: try direct port 3000 (firewall may allow it in some configs)
+          if [ "$OK" = "false" ]; then
+            PORT="${{ secrets.HETZNER_APP_PORT || '3000' }}"
+            PORT_STATUS=$(curl -s -o /dev/null -w "%{http_code}" --max-time 10 "http://${HOST}:${PORT}/api/health" || echo "000")
+            echo "Direct port ${PORT} /api/health → HTTP $PORT_STATUS"
+            if [ "$PORT_STATUS" = "200" ]; then
+              OK=true
+              echo "✅ Backend reachable on port ${PORT} (Nginx SSL issue, but backend OK)"
+            fi
+          fi
+
+          if [ "$OK" = "true" ]; then
             echo "hetzner_ok=true" >> "$GITHUB_OUTPUT"
           else
             echo "hetzner_ok=false" >> "$GITHUB_OUTPUT"
@@ -69,11 +104,12 @@ jobs:
       - name: Write job summary
         if: always()
         run: |
+          HETZNER_STATUS="${{ steps.hetzner_check.outputs.hetzner_ok == 'true' && '✅ OK' || '❌ DOWN / SSL issue' }}"
           echo "## 🔗 Unicorn Keep-Alive Report" >> "$GITHUB_STEP_SUMMARY"
           echo "" >> "$GITHUB_STEP_SUMMARY"
           echo "| Platform | Status |" >> "$GITHUB_STEP_SUMMARY"
           echo "|----------|--------|" >> "$GITHUB_STEP_SUMMARY"
-          echo "| Hetzner  | ${{ steps.hetzner_check.outputs.hetzner_ok == 'true' && '✅ OK' || '❌ DOWN' }} |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Hetzner  | ${HETZNER_STATUS} |" >> "$GITHUB_STEP_SUMMARY"
           echo "" >> "$GITHUB_STEP_SUMMARY"
           echo "Checked at: $(date -u +"%Y-%m-%dT%H:%M:%SZ")" >> "$GITHUB_STEP_SUMMARY"
 
@@ -218,10 +254,22 @@ jobs:
           # before external re-probing).
           sleep 30
           HEALTH_TIMEOUT=15
-          # Check Hetzner from the runner
-          HETZNER_STATUS=$(curl -s -o /dev/null -w "%{http_code}" --max-time "$HEALTH_TIMEOUT" "http://${DEPLOY_HOST}/api/health" || echo "000")
-          echo "Hetzner re-check: $HETZNER_STATUS"
-          if [ "$HETZNER_STATUS" = "200" ]; then
+          DOMAIN="${{ secrets.SITE_DOMAIN || 'zeusai.pro' }}"
+          RECOVERED=false
+
+          # Check HTTPS first (best signal)
+          HTTPS_S=$(curl -sk -o /dev/null -w "%{http_code}" --max-time "$HEALTH_TIMEOUT" "https://${DOMAIN}/api/health" || echo "000")
+          echo "Hetzner HTTPS re-check: $HTTPS_S"
+          [ "$HTTPS_S" = "200" ] && RECOVERED=true
+
+          # Fall back: HTTP with redirect follow
+          if [ "$RECOVERED" = "false" ]; then
+            HTTP_S=$(curl -skL -o /dev/null -w "%{http_code}" --max-time "$HEALTH_TIMEOUT" "http://${DEPLOY_HOST}/api/health" || echo "000")
+            echo "Hetzner HTTP re-check (follow): $HTTP_S"
+            [ "$HTTP_S" = "200" ] && RECOVERED=true
+          fi
+
+          if [ "$RECOVERED" = "true" ]; then
             echo "✅ Platform recovered via fast SSH restart — skipping full redeploy"
             echo "recovered=true" >> "$GITHUB_OUTPUT"
           else

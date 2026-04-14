@@ -389,7 +389,10 @@ function _recordError(name, errMsg) {
   s.errorRate = s.errors / s.calls;
 }
 
-// ─── Cache inteligent ──────────────────────────────────────────────────────────
+// ─── Cache inteligent (enhanced via ai-smart-cache) ──────────────────────────
+let _smartCache = null;
+try { _smartCache = require('./ai-smart-cache'); } catch { /* fallback la cache local */ }
+
 const _cache = new Map();
 
 function _cacheKey(message, taskType) {
@@ -467,9 +470,15 @@ async function ask(message, options = {}) {
 
   // Cache check (doar pentru răspunsuri non-history)
   if (useCache && history.length === 0) {
-    const ck = _cacheKey(message, taskType);
-    const cached = _getCache(ck);
-    if (cached) return { ...cached, fromCache: true };
+    // Prefer smart cache (mai inteligent + LRU + cost tracking)
+    if (_smartCache) {
+      const sc = _smartCache.get(message, { taskType });
+      if (sc) return { ...sc, fromCache: true };
+    } else {
+      const ck = _cacheKey(message, taskType);
+      const cached = _getCache(ck);
+      if (cached) return { ...cached, fromCache: true };
+    }
   }
 
   const providers = _getOrderedProviders(taskType);
@@ -519,7 +528,14 @@ async function ask(message, options = {}) {
 
       // Pune în cache dacă nu are history
       if (useCache && history.length === 0) {
-        _setCache(_cacheKey(message, taskType), response);
+        if (_smartCache) {
+          _smartCache.set(message, { taskType }, response, {
+            costUsd:   estimatedCost,
+            latencyMs: latencyMs,
+          });
+        } else {
+          _setCache(_cacheKey(message, taskType), response);
+        }
       }
 
       return response;
