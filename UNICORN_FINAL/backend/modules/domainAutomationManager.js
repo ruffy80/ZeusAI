@@ -206,7 +206,7 @@
 // Orice copiere, modificare sau distribuție neautorizată este interzisă.
 // =====================================================================
 
-// domainAutomationManager.js – Auto-configure DNS (Sav.com), Vercel, Nginx, SSL, GitHub webhook
+// domainAutomationManager.js – Auto-configure DNS (Sav.com), Nginx, SSL, GitHub webhook
 'use strict';
 
 const https = require('https');
@@ -216,7 +216,6 @@ const configuredDomains = [];
 const status = {
   domain: null,
   dns: 'not_configured',
-  vercel: 'not_configured',
   nginx: 'not_configured',
   ssl: 'not_configured',
   webhook: 'not_configured',
@@ -273,47 +272,20 @@ async function configureSavDNS(domain) {
   }
 
   try {
-    // Sav.com API: update DNS A record for root domain and www
-    const vercelIp = '76.76.21.21'; // Vercel's IP for custom domains
-
+    const hetznerIp = process.env.HETZNER_HOST || '';
     const records = [
-      { type: 'A', host: '@', value: vercelIp, ttl: 300 },
-      { type: 'CNAME', host: 'www', value: 'cname.vercel-dns.com', ttl: 300 },
+      { type: 'A', host: '@', value: hetznerIp, ttl: 300 },
+      { type: 'A', host: 'www', value: hetznerIp, ttl: 300 },
       { type: 'TXT', host: '@', value: 'v=spf1 include:sendgrid.net ~all', ttl: 300 },
     ];
 
-    console.log(`[DomainAutomation] Configuring DNS for ${domain} via Sav.com`);
+    console.log(`[DomainAutomation] Configuring DNS for ${domain} via Sav.com → Hetzner (${hetznerIp})`);
     status.dns = 'configured';
     configuredDomains.push(domain);
     return { ok: true, domain, records };
   } catch (e) {
     status.dns = 'error';
     console.error('[DomainAutomation] DNS config error:', e.message);
-    return { ok: false, error: e.message };
-  }
-}
-
-async function configureVercelDomain(domain) {
-  const vercelToken = process.env.VERCEL_TOKEN;
-  const vercelProjectId = process.env.VERCEL_PROJECT_ID;
-
-  if (!vercelToken || !vercelProjectId) {
-    status.vercel = 'skipped_no_token';
-    return { ok: false, reason: 'VERCEL_TOKEN or VERCEL_PROJECT_ID not configured' };
-  }
-
-  try {
-    const result = await httpsPost(
-      `https://api.vercel.com/v10/projects/${vercelProjectId}/domains`,
-      { name: domain },
-      { headers: { Authorization: `Bearer ${vercelToken}` } }
-    );
-    status.vercel = 'configured';
-    console.log(`[DomainAutomation] Vercel domain configured: ${domain}`);
-    return { ok: true, domain, vercel: result };
-  } catch (e) {
-    status.vercel = 'error';
-    console.error('[DomainAutomation] Vercel domain error:', e.message);
     return { ok: false, error: e.message };
   }
 }
@@ -373,7 +345,6 @@ async function init() {
   // Run all configurations in parallel
   const results = await Promise.allSettled([
     configureSavDNS(domain),
-    configureVercelDomain(domain),
     setupGitHubWebhook(
       process.env.GIT_REPO_URL,
       process.env.HETZNER_WEBHOOK_URL || `https://${domain}/deploy`
@@ -394,4 +365,4 @@ function getStatus() {
   return { ...status, configuredDomains };
 }
 
-module.exports = { init, configureSavDNS, configureVercelDomain, setupGitHubWebhook, getStatus };
+module.exports = { init, configureSavDNS, setupGitHubWebhook, getStatus };

@@ -22,25 +22,10 @@
     "qrcode": "^1.5.4",
     "sentiment": "^5.0.2",
     "simple-git": "^3.36.0",
-    "ssh2": "^1.17.0",
-    "vercel": "^50.44.0"
+    "ssh2": "^1.17.0"
   },
   "overrides": {
-    "smol-toml": ">=1.6.1",
-    "vercel": {
-      "@vercel/backends": {
-        "path-to-regexp": ">=8.4.0"
-      },
-      "@vercel/express": {
-        "path-to-regexp": ">=8.4.0"
-      },
-      "@vercel/hono": {
-        "path-to-regexp": ">=8.4.0"
-      },
-      "@vercel/fun": {
-        "path-to-regexp": ">=8.4.0"
-      }
-    }
+    "smol-toml": ">=1.6.1"
   },
   "scripts": {
     "start": "node backend/index.js",

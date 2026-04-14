@@ -66,25 +66,6 @@ class AutoDeployOrchestrator {
     }
   }
 
-  async triggerVercel() {
-    if (!process.env.VERCEL_TOKEN || !process.env.VERCEL_PROJECT_ID) {
-      return { success: false, reason: 'missing_vercel_credentials' };
-    }
-
-    const response = await axios.post('https://api.vercel.com/v1/deployments', {
-      name: process.env.VERCEL_PROJECT || 'unicorn-final',
-      projectId: process.env.VERCEL_PROJECT_ID,
-      target: 'production'
-    }, {
-      headers: {
-        Authorization: `Bearer ${process.env.VERCEL_TOKEN}`,
-        'Content-Type': 'application/json'
-      }
-    });
-
-    return { success: true, deploymentId: response.data.id };
-  }
-
   async triggerHetznerWebhook() {
     if (!process.env.HETZNER_WEBHOOK_URL) {
       return { success: false, reason: 'missing_hetzner_webhook' };
@@ -107,13 +88,8 @@ class AutoDeployOrchestrator {
     const result = {
       ok: true,
       repo: this.getRepositoryUrl(),
-      vercel: null,
       hetzner: null
     };
-
-    if (process.env.VERCEL_TOKEN && process.env.VERCEL_PROJECT_ID) {
-      result.vercel = await this.triggerVercel();
-    }
 
     if (process.env.HETZNER_WEBHOOK_URL) {
       result.hetzner = await this.triggerHetznerWebhook();
