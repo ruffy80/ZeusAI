@@ -1,0 +1,20 @@
+# /etc/systemd/system/healer.timer
+# ZeusAI / Unicorn — Self-Healing Timer (rulează healer.service la fiecare 30 de secunde)
+#
+# Instalare:
+#   sudo cp healer.timer /etc/systemd/system/healer.timer
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable --now healer.timer
+
+[Unit]
+Description=ZeusAI Unicorn Self-Healer Timer
+Requires=healer.service
+
+[Timer]
+OnBootSec=60
+OnUnitInactiveSec=30
+AccuracySec=5
+Unit=healer.service
+
+[Install]
+WantedBy=timers.target
