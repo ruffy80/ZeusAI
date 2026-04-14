@@ -31,8 +31,8 @@ const _priceUpdateInterval = setInterval(() => {
 const energyTrades = new Map();
 
 class GlobalEnergyCarbonTrader {
-  constructor()
-    this.cache = new Map(); this.cacheTTL = 60000; {
+  constructor() {
+    this.cache = new Map(); this.cacheTTL = 60000;
     this.portfolio = new Map(); // userId -> { energy: {}, carbonCredits: {} }
   }
 
