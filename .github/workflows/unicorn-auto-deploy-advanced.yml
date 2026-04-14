@@ -84,6 +84,7 @@ jobs:
 
       # ── 6. Deploy with rollback ────────────────────────────────────────────
       - name: Deploy to Hetzner with rollback
+        continue-on-error: true
         run: |
           if [ ! -f ~/.ssh/deploy_key ]; then
             echo "ℹ️  SSH key not present – skipping deploy"
