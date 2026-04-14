@@ -10,6 +10,7 @@ require('dotenv').config();
 // înainte ca orice alt modul să citească variabilele de mediu
 const quantumVault = require('./modules/quantumVault');
 const express = require('express');
+const helmet = require('helmet');
 const cors = require('cors');
 const compression = require('compression');
 const path = require('path');
@@ -83,27 +84,40 @@ app.use(globalPublicRateLimit);
 const { users: dbUsers, payments: dbPayments, apiKeys: dbApiKeys, adminSessions: dbAdminSessions } = require('./db');
 const emailService = require('./email');
 
-// ==================== SECURITY HEADERS ====================
+// ==================== SECURITY HEADERS (Helmet) ====================
+app.use(helmet({
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'", 'https://js.stripe.com'],
+      styleSrc: ["'self'", "'unsafe-inline'", 'https://fonts.googleapis.com'],
+      fontSrc: ["'self'", 'https://fonts.gstatic.com'],
+      imgSrc: ["'self'", 'data:', 'blob:', 'https:'],
+      connectSrc: [
+        "'self'",
+        'https://api.openai.com',
+        'https://api.deepseek.com',
+        'https://api.anthropic.com',
+        'https://generativelanguage.googleapis.com',
+        'https://api.mistral.ai',
+        'https://api.cohere.com',
+        'https://api.x.ai',
+        'https://js.stripe.com',
+      ],
+      frameSrc: ['https://js.stripe.com'],
+      objectSrc: ["'none'"],
+      baseUri: ["'self'"],
+    },
+  },
+  hsts: process.env.NODE_ENV === 'production'
+    ? { maxAge: 63072000, includeSubDomains: true, preload: true }
+    : false,
+  referrerPolicy: { policy: 'strict-origin-when-cross-origin' },
+  permittedCrossDomainPolicies: { permittedPolicies: 'none' },
+}));
+// Permissions-Policy is not yet in Helmet — set manually
 app.use((req, res, next) => {
-  res.setHeader('X-Content-Type-Options', 'nosniff');
-  res.setHeader('X-Frame-Options', 'SAMEORIGIN');
-  res.setHeader('X-XSS-Protection', '1; mode=block');
-  res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
   res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
-  res.setHeader('Content-Security-Policy',
-    "default-src 'self'; " +
-    "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://js.stripe.com; " +
-    "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; " +
-    "font-src 'self' https://fonts.gstatic.com; " +
-    "img-src 'self' data: blob: https:; " +
-    "connect-src 'self' https://api.openai.com https://api.deepseek.com https://api.anthropic.com https://generativelanguage.googleapis.com https://api.mistral.ai https://api.cohere.com https://api.x.ai https://js.stripe.com; " +
-    "frame-src https://js.stripe.com; " +
-    "object-src 'none'; " +
-    "base-uri 'self';"
-  );
-  if (process.env.NODE_ENV === 'production') {
-    res.setHeader('Strict-Transport-Security', 'max-age=63072000; includeSubDomains; preload');
-  }
   next();
 });
 
@@ -339,11 +353,16 @@ app.post('/api/auth/biometric/enroll', adminTokenMiddleware, (req, res) => {
 });
 
 app.put('/api/auth/profile', authMiddleware, async (req, res) => {
-  const { name, email } = req.body;
+  const { name, email } = req.body || {};
   const user = dbUsers.findById(req.user.id);
   if (!user) return res.status(404).json({ error: 'User not found' });
-  const newName = name || user.name;
-  const newEmail = email || user.email;
+  const newName = name ? sanitizeString(name, 100) : user.name;
+  const newEmail = email ? sanitizeString(email, 254) : user.email;
+  if (newEmail !== user.email) {
+    if (!isValidEmail(newEmail)) return res.status(400).json({ error: 'Invalid email address' });
+    if (dbUsers.findByEmail(newEmail)) return res.status(409).json({ error: 'Email already in use' });
+  }
+  if (!newName) return res.status(400).json({ error: 'Name cannot be empty' });
   dbUsers.updateProfile(user.id, newName, newEmail);
   const token = jwt.sign({ id: user.id, email: newEmail, name: newName }, JWT_SECRET, { expiresIn: '7d' });
   res.json({ token, user: { id: user.id, name: newName, email: newEmail } });
@@ -378,8 +397,10 @@ app.post('/api/auth/refresh', authMiddleware, (req, res) => {
 });
 
 app.post('/api/auth/forgot-password', authRateLimit(5, 15 * 60 * 1000), async (req, res) => {
-  const { email } = req.body;
-  const user = dbUsers.findByEmail(email);
+  const { email } = req.body || {};
+  const cleanEmail = sanitizeString(email, 254);
+  if (!cleanEmail || !isValidEmail(cleanEmail)) return res.status(400).json({ error: 'Valid email required' });
+  const user = dbUsers.findByEmail(cleanEmail);
   if (!user) return res.status(404).json({ error: 'User not found' });
   const resetToken = crypto.randomBytes(32).toString('hex');
   dbUsers.setResetToken(user.id, resetToken, Date.now() + 3600000);
@@ -388,8 +409,9 @@ app.post('/api/auth/forgot-password', authRateLimit(5, 15 * 60 * 1000), async (r
 });
 
 app.post('/api/auth/reset-password', async (req, res) => {
-  const { token, newPassword } = req.body;
+  const { token, newPassword } = req.body || {};
   if (!token || !newPassword) return res.status(400).json({ error: 'token and newPassword required' });
+  if (typeof newPassword !== 'string' || newPassword.length < 8) return res.status(400).json({ error: 'Password must be at least 8 characters' });
   const user = dbUsers.findByResetToken(token);
   if (!user) return res.status(400).json({ error: 'Invalid or expired token' });
   const passwordHash = await bcrypt.hash(newPassword, 10);
@@ -3052,8 +3074,10 @@ app.get('/api/admin/credits/users', adminCrudRateLimit, adminTokenMiddleware, (r
 
 // ==================== REFERRAL ENGINE ROUTES ====================
 app.post('/api/referrals/create', authMiddleware, (req, res) => {
+  const cleanEmail = sanitizeString((req.body || {}).email, 254);
+  if (!cleanEmail || !isValidEmail(cleanEmail)) return res.status(400).json({ error: 'Valid email required' });
   try {
-    const referral = referralEngine.createReferral(req.user.id, req.body.email);
+    const referral = referralEngine.createReferral(req.user.id, cleanEmail);
     res.json(referral);
   } catch (err) {
     res.status(400).json({ error: err.message });
