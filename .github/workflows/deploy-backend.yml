@@ -1,9 +1,7 @@
 name: Deploy Backend to Hetzner
 
 on:
-  push:
-    branches:
-      - main
+  workflow_dispatch:
 
 jobs:
   validate:
