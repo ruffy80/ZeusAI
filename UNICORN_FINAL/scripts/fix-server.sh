@@ -89,10 +89,14 @@ fi
 
 # 1b. Instalare configurație site Unicorn
 if [ -f "$NGINX_CONF_SRC" ]; then
-  # Actualizează server_name în config cu domeniul curent
+  # Copy the base config
   cp "$NGINX_CONF_SRC" "$NGINX_AVAILABLE"
-  # Înlocuiește server_name cu toate subdomeniile DNS configurate
-  sed -i "s/server_name .*;/server_name ${DOMAIN} www.${DOMAIN} api.${DOMAIN} orchestrator.${DOMAIN};/" "$NGINX_AVAILABLE"
+  # Replace only the explicit domain server_name lines (not the default_server catch-all: server_name _)
+  # Targets lines like: server_name zeusai.pro www.zeusai.pro;
+  sed -i "s/server_name zeusai\.pro.*;/server_name ${DOMAIN} www.${DOMAIN};/" "$NGINX_AVAILABLE"
+  sed -i "s/server_name api\.zeusai\.pro.*;/server_name api.${DOMAIN};/" "$NGINX_AVAILABLE"
+  sed -i "s/server_name orchestrator\.zeusai\.pro.*;/server_name orchestrator.${DOMAIN};/" "$NGINX_AVAILABLE"
+  sed -i "s/server_name \*\.zeusai\.pro.*;/server_name *.${DOMAIN};/" "$NGINX_AVAILABLE"
   fixed "Config Nginx instalat la $NGINX_AVAILABLE (domain: $DOMAIN)"
 else
   # Generează config minimal dacă fișierul sursă lipsește
