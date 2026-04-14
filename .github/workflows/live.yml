@@ -210,7 +210,7 @@ jobs:
       OKX_API_KEY:              ${{ secrets.OKX_API_KEY }}
       OKX_SECRET:               ${{ secrets.OKX_SECRET }}
       OKX_PASSWORD:             ${{ secrets.OKX_PASSWORD }}
-      GRAFANA_ADMIN_PASSWORD:   ${{ secrets.GRAFANA_ADMIN_PASSWORD || 'ZeusAI_Grafana_2026' }}
+      GRAFANA_ADMIN_PASSWORD:   ${{ secrets.GRAFANA_ADMIN_PASSWORD }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -416,7 +416,7 @@ jobs:
             echo '✅ .env generat via create-env.sh'
           else
             # Fallback direct
-            cat > '${{ env.DEPLOY_PATH }}/.env' << EOF2
+            cat > '${{ env.DEPLOY_PATH }}/.env' << DOTENV_FALLBACK_EOF
           NODE_ENV=production
           PORT=3000
           SITE_DOMAIN=\${SITE_DOMAIN_DEPLOY}
@@ -439,7 +439,7 @@ jobs:
           BTC_WALLET_ADDRESS=\${BTC_WALLET_ADDRESS}
           GRAFANA_ADMIN_PASSWORD=\${GRAFANA_ADMIN_PASSWORD}
           HETZNER_BACKEND_URL=http://127.0.0.1:3000
-          EOF2
+          DOTENV_FALLBACK_EOF
             chmod 600 '${{ env.DEPLOY_PATH }}/.env'
             echo '✅ .env generat (fallback direct)'
           fi
