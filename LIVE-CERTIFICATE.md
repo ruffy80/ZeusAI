@@ -1,7 +1,7 @@
 # LIVE-CERTIFICATE.md — ZeusAI / Unicorn
 
 > Generat automat de workflow-ul live.yml la deploy reușit.
-> Ultima actualizare: 2026-04-15 08:12:03 UTC
+> Ultima actualizare: 2026-04-15 09:55:11 UTC
 
 ---
 
@@ -11,10 +11,10 @@
 |-------------|---------|
 | **URL Live** | https://zeusai.pro |
 | **IP Server** | 204.168.230.142 (CPX32) |
-| **Data confirmare** | 2026-04-15 08:12:03 UTC |
-| **Deploy SHA** | v1.0.0-live-246082e |
-| **SHA commit** | 246082e4c99332869188a21a518d28f2b2c9f6c9 |
-| **Workflow Run** | [https://github.com/ruffy80/ZeusAI/actions/runs/24443543915](https://github.com/ruffy80/ZeusAI/actions/runs/24443543915) |
+| **Data confirmare** | 2026-04-15 09:55:11 UTC |
+| **Deploy SHA** | v1.0.0-live-ebd7b2b |
+| **SHA commit** | ebd7b2b34e04c7a6224f186c81d34044bc456221 |
+| **Workflow Run** | [https://github.com/ruffy80/ZeusAI/actions/runs/24447929490](https://github.com/ruffy80/ZeusAI/actions/runs/24447929490) |
 
 ---
 
@@ -45,8 +45,8 @@
 4. ✅ Nginx config + SSL (certbot)
 5. ✅ Healer systemd timer activat (30s)
 6. ✅ Health check confirmat
-7. ✅ Tag v1.0.0-live-246082e creat
+7. ✅ Tag v1.0.0-live-ebd7b2b creat
 
 ---
 
-*Certificat generat de ZeusAI Autonomous Deploy Agent — 2026-04-15 08:12:03 UTC*
+*Certificat generat de ZeusAI Autonomous Deploy Agent — 2026-04-15 09:55:11 UTC*
