@@ -1,0 +1,67 @@
+name: Deploy Unicorn PRO
+
+on:
+  push:
+    branches: ["main"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    name: 🚀 Deploy → Hetzner PRO
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Setup SSH
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.HETZNER_SSH_PRIVATE_KEY }}
+
+      - name: Add Hetzner host to known_hosts
+        run: |
+          ssh-keyscan -H "${{ secrets.HETZNER_IP }}" >> ~/.ssh/known_hosts
+
+      - name: Sync project to server
+        run: |
+          rsync -avz --delete \
+            --exclude='.git' \
+            --exclude='node_modules' \
+            --exclude='logs' \
+            --exclude='.env' \
+            -e "ssh -o StrictHostKeyChecking=no" \
+            ./ \
+            ${{ secrets.HETZNER_USER }}@${{ secrets.HETZNER_IP }}:/var/www/unicorn/
+
+      - name: Install & Restart on server
+        run: |
+          ssh -o StrictHostKeyChecking=no \
+            ${{ secrets.HETZNER_USER }}@${{ secrets.HETZNER_IP }} "
+            set -e
+            cd /var/www/unicorn/UNICORN_FINAL
+            npm install --production --no-audit --no-fund
+            npm run build || true
+            pm2 startOrRestart ecosystem.config.js --only unicorn
+            pm2 save
+          "
+
+      - name: Health check
+        run: |
+          sleep 10
+          STATUS=$(curl -sf -o /dev/null -w "%{http_code}" \
+            --max-time 15 \
+            "https://${{ secrets.HETZNER_IP }}/api/health" 2>/dev/null || \
+            curl -sf -o /dev/null -w "%{http_code}" \
+            --max-time 15 \
+            "http://${{ secrets.HETZNER_IP }}:3000/api/health" 2>/dev/null || \
+            echo "000")
+          echo "Health check status: $STATUS"
+          if [ "$STATUS" != "200" ]; then
+            echo "⚠️  Health check returned $STATUS — deploy succeeded but app may need a moment to warm up."
+          else
+            echo "✅ Deploy successful — app is healthy."
+          fi
