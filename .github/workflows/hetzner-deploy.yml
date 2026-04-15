@@ -1229,11 +1229,8 @@ jobs:
   ssl-auto-fix:
     name: 🔒 SSL Auto-Fix (dacă HTTPS e down)
     needs: [deploy-hetzner, smoke-tests]
-    if: |
-      github.event_name != 'pull_request' &&
-      needs.deploy-hetzner.result == 'success'
-    continue-on-error: true
     if: github.event_name != 'pull_request' && needs.deploy-hetzner.result == 'success'
+    continue-on-error: true
     permissions: {}
     uses: ./.github/workflows/ssl-setup.yml
     secrets: inherit
