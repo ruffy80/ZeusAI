@@ -836,11 +836,13 @@ const MODULE_REGISTRY = {
     'evolution-core',
     'self-adaptation-engine',
   ],
+  // 82 dynamically-generated AdaptiveModule files (AdaptiveModule01.js … AdaptiveModule82.js)
   dynamic: (function buildAdaptiveList() {
     const modules = [];
     for (let i = 1; i <= 82; i++) modules.push(`AdaptiveModule${String(i).padStart(2, '0')}`);
     return modules;
   })(),
+  // 62 Engine files (Engine1.js … Engine62.js)
   engines: (function buildEngineList() {
     const engines = [];
     for (let i = 1; i <= 62; i++) engines.push(`Engine${i}`);
