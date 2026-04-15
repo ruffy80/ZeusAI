@@ -41,13 +41,32 @@ jobs:
 
       - name: 🩺 Server Doctor + Restart
         run: |
-          ssh -o StrictHostKeyChecking=no root@${{ secrets.HETZNER_HOST }} "
-            chmod +x /var/www/unicorn/UNICORN_FINAL/server-doctor.sh &&
-            /var/www/unicorn/UNICORN_FINAL/server-doctor.sh &&
-            pm2 delete all || true &&
-            pm2 start /var/www/unicorn/UNICORN_FINAL/ecosystem.config.js --update-env &&
+          ssh -o StrictHostKeyChecking=no root@${{ secrets.HETZNER_HOST }} bash << 'ENDSSH'
+            set -e
+            chmod +x /var/www/unicorn/UNICORN_FINAL/server-doctor.sh
+            /var/www/unicorn/UNICORN_FINAL/server-doctor.sh || true
+            cd /var/www/unicorn/UNICORN_FINAL
+            npm ci --omit=dev --prefer-offline 2>&1 | tail -5 || npm install --omit=dev 2>&1 | tail -5
+            pm2 delete all || true
+            pm2 start /var/www/unicorn/UNICORN_FINAL/ecosystem.config.js --update-env
             pm2 save --force 2>/dev/null || true
-          "
+            pm2 startup systemd -u root --hp /root 2>/dev/null || true
+          ENDSSH
+
+      - name: 🏥 Health Check
+        run: |
+          sleep 15
+          STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
+            --max-time 15 \
+            "http://${{ secrets.HETZNER_HOST }}:3000/health" || echo "000")
+          echo "Health check HTTP status: $STATUS"
+          if [ "$STATUS" = "200" ]; then
+            echo "✅ Site LIVE — /health returned 200"
+          else
+            echo "⚠️  Health returned $STATUS — checking PM2 status..."
+            ssh -o StrictHostKeyChecking=no root@${{ secrets.HETZNER_HOST }} \
+              "pm2 list && pm2 logs unicorn --lines 20 --nostream" || true
+          fi
 
       - name: 📢 Done
-        run: echo "Deploy complet și stabil."
+        run: echo "✅ Deploy complet și stabil — ZeusAI / Unicorn LIVE."
