@@ -1114,6 +1114,42 @@ app.get('/api/ai/status', routeCache.cacheMiddleware(), (req, res) => {
   });
 });
 
+// ==================== AI CONNECTIVITY CHECK ====================
+app.get('/api/ai/connectivity-check', async (req, res) => {
+  const AI_PROVIDERS = [
+    { name: 'OpenAI',        key: 'OPENAI_API_KEY' },
+    { name: 'DeepSeek',      key: 'DEEPSEEK_API_KEY' },
+    { name: 'Anthropic',     key: 'ANTHROPIC_API_KEY' },
+    { name: 'Gemini',        key: 'GEMINI_API_KEY' },
+    { name: 'Mistral',       key: 'MISTRAL_API_KEY' },
+    { name: 'Cohere',        key: 'COHERE_API_KEY' },
+    { name: 'xAI Grok',     key: 'XAI_API_KEY' },
+    { name: 'Groq',          key: 'GROQ_API_KEY' },
+    { name: 'OpenRouter',    key: 'OPENROUTER_API_KEY' },
+    { name: 'Perplexity',    key: 'PERPLEXITY_API_KEY' },
+    { name: 'HuggingFace',   key: 'HF_API_KEY' },
+    { name: 'Together AI',   key: 'TOGETHER_API_KEY' },
+    { name: 'Fireworks AI',  key: 'FIREWORKS_API_KEY' },
+    { name: 'SambaNova',     key: 'SAMBANOVA_API_KEY' },
+    { name: 'NVIDIA NIM',    key: 'NVIDIA_NIM_API_KEY' },
+  ];
+  const results = AI_PROVIDERS.map(p => {
+    const val = process.env[p.key];
+    const configured = !!(val && val.length > 8 && !val.startsWith('your_'));
+    return { provider: p.name, envKey: p.key, configured, keyPresent: !!val };
+  });
+  const configuredCount = results.filter(r => r.configured).length;
+  const uaicStatus = _uaic ? _uaic.getStatus() : null;
+  res.json({
+    summary: { total: results.length, configured: configuredCount, missing: results.length - configuredCount },
+    providers: results,
+    uaic: uaicStatus ? { active: true, models: uaicStatus.models, providers: uaicStatus.providers } : { active: false },
+    orchestrator: _aiOrchestrator ? _aiOrchestrator.getStatus() : { active: false },
+    multiRouter: _multiRouter ? _multiRouter.getStatus() : { active: false },
+    timestamp: new Date().toISOString(),
+  });
+});
+
 // ==================== AI ORCHESTRATOR ENDPOINTS ====================
 app.get('/api/ai/orchestrator/status', routeCache.cacheMiddleware(), (req, res) => {
   if (!_aiOrchestrator) return res.json({ active: false, reason: 'orchestrator_not_loaded' });

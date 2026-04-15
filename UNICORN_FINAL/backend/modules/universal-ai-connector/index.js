@@ -135,9 +135,19 @@
  * Provideri suportați:
  *   - OpenAI GPT-4o / GPT-4o-mini   (OPENAI_API_KEY)
  *   - DeepSeek Chat / R1             (DEEPSEEK_API_KEY)
- *   - Anthropic Claude               (CLAUDE_API_KEY)
+ *   - Anthropic Claude               (ANTHROPIC_API_KEY | CLAUDE_API_KEY)
  *   - Google Gemini                  (GEMINI_API_KEY)
- *   - Local Ollama via LlamaBridge   (zero-cost, fallback)
+ *   - Mistral AI                     (MISTRAL_API_KEY)
+ *   - Groq                           (GROQ_API_KEY)
+ *   - Cohere                         (COHERE_API_KEY)
+ *   - xAI Grok                       (XAI_API_KEY)
+ *   - OpenRouter                     (OPENROUTER_API_KEY)
+ *   - Perplexity                     (PERPLEXITY_API_KEY)
+ *   - HuggingFace                    (HF_API_KEY | HUGGINGFACE_API_KEY)
+ *   - Together AI                    (TOGETHER_API_KEY)
+ *   - Fireworks AI                   (FIREWORKS_API_KEY)
+ *   - SambaNova                      (SAMBANOVA_API_KEY)
+ *   - NVIDIA NIM                     (NVIDIA_NIM_API_KEY)
  *
  * Strategii de rutare:
  *   simple   → cel mai ieftin model disponibil
@@ -216,11 +226,12 @@ function loadKnownModels() {
   }
 
   // Anthropic Claude
-  if (process.env.CLAUDE_API_KEY) {
+  const _anthropicKey = process.env.ANTHROPIC_API_KEY || process.env.CLAUDE_API_KEY;
+  if (_anthropicKey) {
     models.set('claude-3-haiku', {
       type: 'anthropic',
       endpoint: 'https://api.anthropic.com/v1/messages',
-      apiKey: process.env.CLAUDE_API_KEY,
+      apiKey: _anthropicKey,
       modelName: 'claude-3-haiku-20240307',
       capabilities: ['text-generation', 'reasoning', 'creative'],
       cost: 0.00025,
@@ -237,6 +248,150 @@ function loadKnownModels() {
       capabilities: ['text-generation', 'reasoning', 'creative'],
       cost: 0.000075,
       performance: { speed: 0.93, accuracy: 0.91 },
+    });
+  }
+
+  // Mistral
+  if (process.env.MISTRAL_API_KEY) {
+    models.set('mistral-small', {
+      type: 'openai-compat',
+      endpoint: 'https://api.mistral.ai/v1/chat/completions',
+      apiKey: process.env.MISTRAL_API_KEY,
+      modelName: 'mistral-small-latest',
+      capabilities: ['text-generation', 'chat', 'code'],
+      cost: 0.0002,
+      performance: { speed: 0.90, accuracy: 0.90 },
+    });
+  }
+
+  // Groq
+  if (process.env.GROQ_API_KEY) {
+    models.set('groq-llama3', {
+      type: 'openai-compat',
+      endpoint: 'https://api.groq.com/openai/v1/chat/completions',
+      apiKey: process.env.GROQ_API_KEY,
+      modelName: 'llama3-8b-8192',
+      capabilities: ['text-generation', 'chat', 'fast'],
+      cost: 0.00007,
+      performance: { speed: 0.99, accuracy: 0.88 },
+    });
+  }
+
+  // Cohere
+  if (process.env.COHERE_API_KEY) {
+    models.set('cohere-command', {
+      type: 'cohere',
+      endpoint: 'https://api.cohere.ai/v1/chat',
+      apiKey: process.env.COHERE_API_KEY,
+      modelName: 'command-r',
+      capabilities: ['text-generation', 'chat', 'search'],
+      cost: 0.0003,
+      performance: { speed: 0.85, accuracy: 0.89 },
+    });
+  }
+
+  // xAI Grok
+  if (process.env.XAI_API_KEY) {
+    models.set('grok-beta', {
+      type: 'openai-compat',
+      endpoint: 'https://api.x.ai/v1/chat/completions',
+      apiKey: process.env.XAI_API_KEY,
+      modelName: 'grok-beta',
+      capabilities: ['text-generation', 'chat', 'reasoning'],
+      cost: 0.0005,
+      performance: { speed: 0.87, accuracy: 0.92 },
+    });
+  }
+
+  // OpenRouter
+  if (process.env.OPENROUTER_API_KEY) {
+    models.set('openrouter-auto', {
+      type: 'openai-compat',
+      endpoint: 'https://openrouter.ai/api/v1/chat/completions',
+      apiKey: process.env.OPENROUTER_API_KEY,
+      modelName: 'openai/gpt-4o-mini',
+      capabilities: ['text-generation', 'chat', 'code'],
+      cost: 0.00015,
+      performance: { speed: 0.88, accuracy: 0.93 },
+    });
+  }
+
+  // Perplexity
+  if (process.env.PERPLEXITY_API_KEY) {
+    models.set('perplexity-sonar', {
+      type: 'openai-compat',
+      endpoint: 'https://api.perplexity.ai/chat/completions',
+      apiKey: process.env.PERPLEXITY_API_KEY,
+      modelName: 'llama-3.1-sonar-small-128k-online',
+      capabilities: ['text-generation', 'search', 'chat'],
+      cost: 0.0002,
+      performance: { speed: 0.85, accuracy: 0.90 },
+    });
+  }
+
+  // HuggingFace
+  const _hfKey = process.env.HF_API_KEY || process.env.HUGGINGFACE_API_KEY;
+  if (_hfKey) {
+    models.set('hf-mistral', {
+      type: 'openai-compat',
+      endpoint: 'https://api-inference.huggingface.co/models/mistralai/Mistral-7B-Instruct-v0.3/v1/chat/completions',
+      apiKey: _hfKey,
+      modelName: 'mistralai/Mistral-7B-Instruct-v0.3',
+      capabilities: ['text-generation', 'chat'],
+      cost: 0.00005,
+      performance: { speed: 0.80, accuracy: 0.83 },
+    });
+  }
+
+  // Together AI
+  if (process.env.TOGETHER_API_KEY) {
+    models.set('together-llama', {
+      type: 'openai-compat',
+      endpoint: 'https://api.together.xyz/v1/chat/completions',
+      apiKey: process.env.TOGETHER_API_KEY,
+      modelName: 'meta-llama/Meta-Llama-3.1-8B-Instruct-Turbo',
+      capabilities: ['text-generation', 'chat', 'code'],
+      cost: 0.00018,
+      performance: { speed: 0.88, accuracy: 0.87 },
+    });
+  }
+
+  // Fireworks AI
+  if (process.env.FIREWORKS_API_KEY) {
+    models.set('fireworks-llama', {
+      type: 'openai-compat',
+      endpoint: 'https://api.fireworks.ai/inference/v1/chat/completions',
+      apiKey: process.env.FIREWORKS_API_KEY,
+      modelName: 'accounts/fireworks/models/llama-v3p1-8b-instruct',
+      capabilities: ['text-generation', 'chat'],
+      cost: 0.0002,
+      performance: { speed: 0.90, accuracy: 0.86 },
+    });
+  }
+
+  // SambaNova
+  if (process.env.SAMBANOVA_API_KEY) {
+    models.set('sambanova-llama', {
+      type: 'openai-compat',
+      endpoint: 'https://api.sambanova.ai/v1/chat/completions',
+      apiKey: process.env.SAMBANOVA_API_KEY,
+      modelName: 'Meta-Llama-3.1-8B-Instruct',
+      capabilities: ['text-generation', 'chat'],
+      cost: 0.00018,
+      performance: { speed: 0.92, accuracy: 0.85 },
+    });
+  }
+
+  // NVIDIA NIM
+  if (process.env.NVIDIA_NIM_API_KEY) {
+    models.set('nvidia-llama', {
+      type: 'openai-compat',
+      endpoint: 'https://integrate.api.nvidia.com/v1/chat/completions',
+      apiKey: process.env.NVIDIA_NIM_API_KEY,
+      modelName: 'meta/llama-3.1-8b-instruct',
+      capabilities: ['text-generation', 'chat', 'reasoning'],
+      cost: 0.0002,
+      performance: { speed: 0.91, accuracy: 0.88 },
     });
   }
 
@@ -353,8 +508,8 @@ async function callModel(model, task) {
   const messages  = task.messages || [{ role: 'user', content: prompt }];
   const system    = task.system   || null;
 
-  // ── OpenAI-compatible (OpenAI, DeepSeek) ──────────────────────────────────
-  if (type === 'openai' || type === 'deepseek') {
+  // ── OpenAI-compatible (OpenAI, DeepSeek, Mistral, Groq, xAI, OpenRouter, Perplexity, HuggingFace, Together, Fireworks, SambaNova, NVIDIA NIM) ──
+  if (type === 'openai' || type === 'deepseek' || type === 'openai-compat') {
     const payload = {
       model: modelName || (type === 'openai' ? 'gpt-4o-mini' : 'deepseek-chat'),
       messages: system ? [{ role: 'system', content: system }, ...messages] : messages,
@@ -366,6 +521,27 @@ async function callModel(model, task) {
       timeout: 25000,
     });
     return resp.data.choices[0].message.content;
+  }
+
+  // ── Cohere ────────────────────────────────────────────────────────────────
+  if (type === 'cohere') {
+    const chatHistory = messages.slice(0, -1).map(m => ({
+      role: m.role === 'assistant' ? 'CHATBOT' : 'USER',
+      message: m.content,
+    }));
+    const lastMsg = messages[messages.length - 1];
+    const resp = await axios.post(endpoint, {
+      model: modelName || 'command-r',
+      message: lastMsg ? lastMsg.content : prompt,
+      chat_history: chatHistory,
+      preamble: system || undefined,
+      max_tokens: maxTokens,
+      temperature: task.temperature || 0.7,
+    }, {
+      headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
+      timeout: 25000,
+    });
+    return resp.data.text;
   }
 
   // ── Anthropic Claude ──────────────────────────────────────────────────────
@@ -519,7 +695,7 @@ async function start() {
 
   console.log(`[UAIC] ✅ Universal AI Connector activ. Modele încărcate: ${models.size}`);
   if (models.size === 0) {
-    console.warn('[UAIC] ⚠️  Nicio cheie API configurată. Setează OPENAI_API_KEY / DEEPSEEK_API_KEY / CLAUDE_API_KEY / GEMINI_API_KEY în .env');
+    console.warn('[UAIC] ⚠️  Nicio cheie API configurată. Setează OPENAI_API_KEY / ANTHROPIC_API_KEY / DEEPSEEK_API_KEY / GEMINI_API_KEY / MISTRAL_API_KEY / GROQ_API_KEY etc. în .env');
   }
 }
 
