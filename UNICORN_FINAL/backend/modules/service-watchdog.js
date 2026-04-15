@@ -273,4 +273,6 @@ async function withRetry(fn, opts = {}) {
   throw lastErr;
 }
 
+start();
+
 module.exports = { start, stop, getStatus, withRetry };
