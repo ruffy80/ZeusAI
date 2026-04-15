@@ -175,8 +175,14 @@ jobs:
         id: frontend_build
         run: |
           if [ -d client ] && [ -f client/package.json ]; then
-            npm --prefix client install --no-audit --no-fund
-            CI=false npm --prefix client run build
+            cd client
+            npm ci
+            npm run build --if-present
+            if [ $? -ne 0 ]; then
+              echo "❌ Build React FAILED — oprire deploy"
+              exit 1
+            fi
+            cd ..
             echo "✅ Frontend build succeeded"
           else
             echo "ℹ️  No client/ directory found – skipping frontend build."
@@ -651,21 +657,21 @@ jobs:
             npm rebuild better-sqlite3 --no-fund 2>/dev/null || true
 
             # ── Build React frontend ──────────────────────────────────────
-            if [ -d "client" ]; then
-              echo "🎨 Building frontend..."
+            # Skip rebuild if client/build was already synced from CI (avoids
+            # webpack/react-scripts version mismatches on the server).
+            if [ -d "client" ] && [ ! -f "client/build/index.html" ]; then
+              echo "🎨 Building frontend (no pre-built files found)..."
               cd client
-              rm -rf node_modules 2>/dev/null || \
-                find node_modules -mindepth 1 -maxdepth 1 -exec rm -rf {} \; 2>/dev/null || true
-              npm install --legacy-peer-deps --no-audit --no-fund || {
-                echo "⚠️  client npm install failed, cleaning and retrying..."
-                npm cache clean --force 2>/dev/null || true
-                rm -rf node_modules 2>/dev/null || \
-                  find node_modules -mindepth 1 -maxdepth 1 -exec rm -rf {} \; 2>/dev/null || true
-                npm install --legacy-peer-deps --no-audit --no-fund
-              }
-              CI=false npm run build
+              npm ci
+              npm run build --if-present
+              if [ $? -ne 0 ]; then
+                echo "❌ Build React FAILED — oprire deploy"
+                exit 1
+              fi
               cd ..
               echo "✅ Frontend built"
+            else
+              echo "ℹ️  Frontend already built (synced from CI) — skipping server rebuild"
             fi
 
             # ── Open firewall for HTTP/HTTPS (Nginx) ─────────────────────
@@ -742,14 +748,12 @@ jobs:
               if command -v certbot >/dev/null 2>&1; then
                 # Verify DNS resolves to this server before attempting cert.
                 # Running certbot when DNS points elsewhere burns Let's Encrypt rate-limit quota.
-                resolve_ipv4() {
-                  getent ahostsv4 "$1" 2>/dev/null | awk 'NR==1{print $1}'
-                }
-                SERVER_IP=$(curl -4 -fsS --max-time 5 https://ifconfig.me 2>/dev/null || hostname -I | awk '{print $1}')
-                DOMAIN_IP=$(resolve_ipv4 "$DOMAIN")
-                WWW_DOMAIN_IP=$(resolve_ipv4 "www.$DOMAIN")
-                API_DOMAIN_IP=$(resolve_ipv4 "api.$DOMAIN")
-                ORCH_DOMAIN_IP=$(resolve_ipv4 "orchestrator.$DOMAIN")
+                # NOTE: heredoc is unquoted so \$() prevents local runner expansion.
+                SERVER_IP=\$(curl -4 -fsS --max-time 5 https://ifconfig.me 2>/dev/null || hostname -I | awk '{print \$1}')
+                DOMAIN_IP=\$(getent ahostsv4 "\${DOMAIN}" 2>/dev/null | awk 'NR==1{print \$1}')
+                WWW_DOMAIN_IP=\$(getent ahostsv4 "www.\${DOMAIN}" 2>/dev/null | awk 'NR==1{print \$1}')
+                API_DOMAIN_IP=\$(getent ahostsv4 "api.\${DOMAIN}" 2>/dev/null | awk 'NR==1{print \$1}')
+                ORCH_DOMAIN_IP=\$(getent ahostsv4 "orchestrator.\${DOMAIN}" 2>/dev/null | awk 'NR==1{print \$1}')
                 echo "  Server IP: ${SERVER_IP}"
                 echo "  Domain IPs: @ → ${DOMAIN_IP:-'(unresolved)'}  www → ${WWW_DOMAIN_IP:-'(unresolved)'}  api → ${API_DOMAIN_IP:-'(unresolved)'}  orchestrator → ${ORCH_DOMAIN_IP:-'(unresolved)'}"
 
@@ -838,29 +842,17 @@ jobs:
             npm run innovation:sprint  || true
             npm run innovation:report  || true
 
-            # ── Restart backend process (safe / low-downtime) ─────────────
-            if command -v pm2 >/dev/null 2>&1; then
-              mkdir -p logs
-              # startOrRestart handles both first-time start AND restart robustly
-              pm2 startOrRestart ecosystem.config.js --only unicorn 2>/dev/null || \
-                pm2 start ecosystem.config.js --only unicorn
-              # Start ALL autonomous modules (orchestrator, shield, health-daemon,
-              # auto-repair, auto-restart, auto-optimize, recovery, watchdog, etc.)
-              pm2 startOrRestart ecosystem.config.js || true
-              pm2 save
-              # Register PM2 in systemd so it starts on reboot
-              pm2 startup systemd 2>/dev/null | grep -E "^sudo |^env " | head -1 | bash 2>/dev/null || true
-              pm2 save
-              echo "✅ PM2 unicorn process healthy"
-            elif command -v systemctl >/dev/null 2>&1 && systemctl list-unit-files | grep -q "^unicorn\.service"; then
-              systemctl restart unicorn && echo "✅ Restarted via systemctl"
-            else
-              pkill -f "node backend/index.js" || true
-              sleep 1
-              mkdir -p logs
-              nohup node backend/index.js > logs/backend.log 2>&1 &
-              echo "✅ Restarted via nohup"
-            fi
+            # ── Server Doctor: diagnosticare și reparare completă ─────────
+            mkdir -p logs
+            chmod +x "${DEPLOY_PATH}/server-doctor.sh"
+            "${DEPLOY_PATH}/server-doctor.sh" "${DEPLOY_PATH}" "${SITE_DOMAIN_DEPLOY}" || true
+            echo "✅ server-doctor.sh completat"
+
+            # ── Restart PM2 clean cu env actualizat ───────────────────────
+            pm2 delete all || true
+            pm2 start ecosystem.config.js --update-env
+            pm2 save
+            echo "✅ PM2 restart complet (delete all + start --update-env + save)"
 
             # ── Ensure nginx is enabled to start on reboot ────────────────
             if command -v nginx >/dev/null 2>&1; then

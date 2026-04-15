@@ -147,11 +147,10 @@ jobs:
             CERT_EMAIL="${CERT_EMAIL:-vladoi_ionut@yahoo.com}"
             cd "\$DEPLOY_PATH" 2>/dev/null || cd "/opt/unicorn" 2>/dev/null || true
 
-            resolve_ipv4() {
-              getent ahostsv4 "$1" 2>/dev/null | awk 'NR==1{print $1}'
-            }
-
-            # Ensure nginx is enabled and running
+            # NOTE: heredoc is unquoted so \$() prevents local runner expansion.
+            SERVER_IP=\$(curl -4 -fsS --max-time 5 https://ifconfig.me 2>/dev/null || hostname -I | awk '{print \$1}')
+            DOMAIN_IP=\$(getent ahostsv4 "\${DOMAIN}" 2>/dev/null | awk 'NR==1{print \$1}')
+            WWW_DOMAIN_IP=\$(getent ahostsv4 "www.\${DOMAIN}" 2>/dev/null | awk 'NR==1{print \$1}')
             if command -v nginx >/dev/null 2>&1; then
               if command -v ufw >/dev/null 2>&1; then
                 ufw allow 80/tcp 2>/dev/null || true
@@ -191,9 +190,7 @@ jobs:
                 apt-get install -y certbot python3-certbot-nginx >/dev/null 2>&1 || snap install --classic certbot >/dev/null 2>&1 || true
               fi
 
-              SERVER_IP=$(curl -4 -fsS --max-time 5 https://ifconfig.me 2>/dev/null || hostname -I | awk '{print $1}')
-              DOMAIN_IP=$(resolve_ipv4 "$DOMAIN")
-              WWW_DOMAIN_IP=$(resolve_ipv4 "www.$DOMAIN")
+              # Variables SERVER_IP, DOMAIN_IP, WWW_DOMAIN_IP already set above.
               echo "Server IP: ${SERVER_IP} | Domain IP: ${DOMAIN_IP:-'(unresolved)'} | WWW IP: ${WWW_DOMAIN_IP:-'(unresolved)'}"
 
               if command -v certbot >/dev/null 2>&1 && [ -n "$DOMAIN_IP" ] && [ "$DOMAIN_IP" = "$SERVER_IP" ]; then

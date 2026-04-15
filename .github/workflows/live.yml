@@ -56,10 +56,10 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v5
 
-      - name: Setup Node 20
+      - name: Setup Node 22
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '22'
           cache: 'npm'
           cache-dependency-path: UNICORN_FINAL/package-lock.json
 
@@ -438,6 +438,7 @@ jobs:
           if [ -d "\${DEPLOY_PATH}/.git" ]; then
             cd "\${DEPLOY_PATH}"
             git config --global --add safe.directory "\${DEPLOY_PATH}" 2>/dev/null || true
+            git remote set-url origin "https://x-access-token:${{ env.GH_TOKEN_DEPLOY }}@github.com/${{ github.repository }}.git"
             git fetch origin
             git reset --hard origin/main
             echo "✅ git reset la origin/main (SHA: \$(git rev-parse --short HEAD))"
@@ -450,7 +451,7 @@ jobs:
             # Prima instalare — clonăm repo-ul și copiem UNICORN_FINAL
             mkdir -p "\${DEPLOY_PATH}"
             TMP_CLONE=\$(mktemp -d)
-            git clone --depth=1 https://github.com/${{ github.repository }}.git "\${TMP_CLONE}" 2>/dev/null || true
+            git clone --depth=1 "https://x-access-token:${{ env.GH_TOKEN_DEPLOY }}@github.com/${{ github.repository }}.git" "\${TMP_CLONE}" 2>/dev/null || true
             if [ -d "\${TMP_CLONE}/UNICORN_FINAL" ]; then
               cp -a "\${TMP_CLONE}/UNICORN_FINAL/." "\${DEPLOY_PATH}/"
               echo "✅ UNICORN_FINAL clonat și copiat la \${DEPLOY_PATH}"
@@ -473,12 +474,17 @@ jobs:
             echo "✅ npm install backend OK (UNICORN_FINAL/)"
           fi
 
-          # ── npm install + build frontend ──────────────────────────────
+          # ── npm ci + build frontend ──────────────────────────────
           for CLIENT_DIR in "\${DEPLOY_PATH}/client" "\${DEPLOY_PATH}/UNICORN_FINAL/client"; do
             if [ -d "\$CLIENT_DIR" ] && [ -f "\${CLIENT_DIR}/package.json" ]; then
               cd "\$CLIENT_DIR"
-              npm install --legacy-peer-deps --no-audit --no-fund
-              npm run build 2>/dev/null && echo "✅ Frontend build OK (\$CLIENT_DIR)" || echo "⚠️  Frontend build non-fatal"
+              npm ci
+              npm run build --if-present
+              if [ \$? -ne 0 ]; then
+                echo "❌ Build React FAILED — oprire deploy"
+                exit 1
+              fi
+              echo "✅ Frontend build OK (\$CLIENT_DIR)"
               break
             fi
           done

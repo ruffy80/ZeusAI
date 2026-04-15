@@ -327,8 +327,12 @@ jobs:
           if [ -d "client" ] && [ -f "client/package.json" ]; then
             echo "🎨 Build frontend React..."
             cd client
-            npm install --legacy-peer-deps --no-audit --no-fund
-            CI=false npm run build
+            npm ci
+            npm run build --if-present
+            if [ $? -ne 0 ]; then
+              echo "❌ Build React FAILED — oprire deploy"
+              exit 1
+            fi
             cd ..
             echo "✅ Frontend built"
           fi
