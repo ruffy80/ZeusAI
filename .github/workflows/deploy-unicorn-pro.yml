@@ -19,7 +19,7 @@ jobs:
 
     steps:
       - name: Checkout repo
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Setup SSH
         uses: webfactory/ssh-agent@v0.9.0
@@ -47,6 +47,11 @@ jobs:
             "$DEPLOY_USER@$DEPLOY_HOST" "
             set -e
             cd /var/www/unicorn/UNICORN_FINAL
+            rm -rf node_modules || true
+            npm install --production --legacy-peer-deps --no-audit --no-fund
+            npm run build || true
+            pm2 startOrRestart ecosystem.config.js --only unicorn
+            pm2 startOrRestart ecosystem.config.js || true
             npm install --production --no-audit --no-fund || {
               echo "⚠️  npm install failed, cleaning node_modules and retrying..."
               npm cache clean --force 2>/dev/null || true
