@@ -1230,10 +1230,23 @@ jobs:
     name: 🔒 SSL Auto-Fix (dacă HTTPS e down)
     needs: [deploy-hetzner, smoke-tests]
     if: github.event_name != 'pull_request' && needs.deploy-hetzner.result == 'success'
+    runs-on: ubuntu-latest
     continue-on-error: true
-    permissions: {}
-    uses: ./.github/workflows/ssl-setup.yml
-    secrets: inherit
-    with:
-      domain: ${{ vars.SITE_DOMAIN || 'zeusai.pro' }}
+    permissions:
+      actions: write
+      contents: read
+    steps:
+      - name: Trigger SSL Setup workflow
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const domain = '${{ vars.SITE_DOMAIN || 'zeusai.pro' }}';
+            await github.rest.actions.createWorkflowDispatch({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              workflow_id: 'ssl-setup.yml',
+              ref: context.ref,
+              inputs: { domain: domain }
+            });
+            console.log(`✅ Triggered ssl-setup.yml for domain: ${domain}`);
 
