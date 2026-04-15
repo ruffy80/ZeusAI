@@ -1,0 +1,129 @@
+name: Deploy Unicorn PRO
+
+on:
+  push:
+    branches: ["main"]
+  workflow_dispatch:
+
+permissions: write-all
+
+jobs:
+  deploy:
+    name: 🚀 Deploy → Hetzner PRO
+    runs-on: ubuntu-latest
+
+    env:
+      DEPLOY_HOST: ${{ secrets.HETZNER_HOST || secrets.SSH_HOST || '204.168.230.142' }}
+      DEPLOY_USER: ${{ secrets.HETZNER_DEPLOY_USER || secrets.HETZNER_USER || secrets.SSH_USER || 'root' }}
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v5
+
+      - name: Setup SSH
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.HETZNER_SSH_PRIVATE_KEY || secrets.SSH_PRIVATE_KEY }}
+
+      - name: Add Hetzner host to known_hosts
+        run: |
+          ssh-keyscan -t ed25519,rsa -H "$DEPLOY_HOST" >> ~/.ssh/known_hosts 2>/dev/null || true
+
+      - name: Ensure deploy directory exists on server
+        run: |
+          ssh -o StrictHostKeyChecking=no \
+            "$DEPLOY_USER@$DEPLOY_HOST" \
+            "mkdir -p /var/www/unicorn/UNICORN_FINAL"
+
+      - name: Sync project to server
+        run: |
+          rsync -avz --delete \
+            --exclude='.git' \
+            --exclude='node_modules' \
+            --exclude='logs' \
+            --exclude='.env' \
+            -e "ssh -o StrictHostKeyChecking=no" \
+            ./ \
+            "$DEPLOY_USER@$DEPLOY_HOST":/var/www/unicorn/
+
+      - name: Install & Restart on server
+        run: |
+          ssh -o StrictHostKeyChecking=no \
+            "$DEPLOY_USER@$DEPLOY_HOST" "
+            set -e
+            cd /var/www/unicorn/UNICORN_FINAL
+            rm -rf node_modules || true
+            npm install --production --legacy-peer-deps --no-audit --no-fund
+            npm run build || true
+            pm2 startOrRestart ecosystem.config.js --only unicorn
+            pm2 startOrRestart ecosystem.config.js || true
+            npm install --production --no-audit --no-fund || {
+              echo "⚠️  npm install failed, cleaning node_modules and retrying..."
+              npm cache clean --force 2>/dev/null || true
+              rm -rf node_modules 2>/dev/null || true
+              npm install --production --no-audit --no-fund
+            }
+
+            # ── Restart unicorn cleanly (handles crash-loop / waiting state) ──
+            pm2 stop unicorn 2>/dev/null || true
+            pm2 delete unicorn 2>/dev/null || true
+            pm2 start ecosystem.config.js --only unicorn
+
+            # ── Fix llama-bridge crash loop (apply stop_exit_codes: [0]) ──────
+            pm2 delete unicorn-llama-bridge 2>/dev/null || true
+            pm2 start ecosystem.config.js --only unicorn-llama-bridge
+
+            # ── Fix other crash-looping processes ─────────────────────────────
+            for proc in unicorn-main-orchestrator unicorn-ai-self-healing; do
+              pm2 restart \"\$proc\" 2>/dev/null || \
+                (pm2 delete \"\$proc\" 2>/dev/null || true; pm2 start ecosystem.config.js --only \"\$proc\" || true)
+            done
+
+            # ── Fix nginx wildcard if corrupted (server_name *.; → *.domain.tld;) ──
+            if command -v nginx &>/dev/null && nginx -t 2>&1 | grep -qF '"*."'; then
+              echo "🔧 Patching broken nginx wildcard server_name..."
+              sed -i 's/server_name \*\.\;/server_name *.zeusai.pro;/' /etc/nginx/sites-available/unicorn 2>/dev/null || true
+              echo "  Fixed: server_name *.zeusai.pro"
+            fi
+
+            # ── Ensure Nginx is running (fixes external HTTPS access) ─────────
+            if systemctl reload nginx 2>&1; then
+              echo "✅ Nginx reloaded successfully"
+            elif nginx -s reload 2>&1; then
+              echo "✅ Nginx reloaded via nginx -s reload"
+            elif systemctl restart nginx 2>&1; then
+              echo "✅ Nginx restarted"
+            else
+              echo "⚠️  Could not reload/restart Nginx — check nginx config: nginx -t"
+            fi
+
+            pm2 save
+          "
+
+      - name: Health check
+        env:
+          SITE_DOMAIN: ${{ secrets.SITE_DOMAIN || 'zeusai.pro' }}
+        run: |
+          sleep 15
+          # Check internal via SSH first (most reliable)
+          INTERNAL=$(ssh -o StrictHostKeyChecking=no "$DEPLOY_USER@$DEPLOY_HOST" \
+            "curl -sf --max-time 10 http://localhost:3000/api/health > /dev/null && echo 200 || echo 000" 2>/dev/null || echo "000")
+          echo "Internal health (localhost:3000): $INTERNAL"
+
+          # Check external HTTPS
+          HTTPS_STATUS=$(curl -sf -o /dev/null -w "%{http_code}" \
+            --max-time 15 \
+            "https://${SITE_DOMAIN}/api/health" 2>/dev/null || echo "000")
+          echo "External health (https://${SITE_DOMAIN}): $HTTPS_STATUS"
+
+          if [ "$INTERNAL" = "200" ]; then
+            echo "✅ Backend is healthy (internal OK)"
+          else
+            echo "❌ Backend not responding internally — check PM2 logs"
+            exit 1
+          fi
+          if [ "$HTTPS_STATUS" = "200" ]; then
+            echo "✅ Site is live and accessible via HTTPS"
+          else
+            echo "⚠️  HTTPS external check returned $HTTPS_STATUS — Nginx/SSL may need attention (backend itself is OK)"
+          fi

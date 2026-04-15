@@ -1,0 +1,151 @@
+name: Deploy to Hetzner
+
+on:
+  push:
+    branches: [ "main" ]
+  workflow_dispatch:
+
+permissions: write-all
+
+env:
+  SERVER_IP:   ${{ secrets.HETZNER_SERVER_IP || secrets.HETZNER_HOST || secrets.SSH_HOST || '204.168.230.142' }}
+  SERVER_USER: ${{ secrets.HETZNER_USER || secrets.SSH_USER || 'root' }}
+  SERVER_PORT: ${{ secrets.HETZNER_DEPLOY_PORT || secrets.SSH_PORT || '22' }}
+  DEPLOY_PATH: /var/www/unicorn
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    env:
+      # ── Toate secretele pentru create-env.sh ──────────────────────────
+      NODE_ENV: production
+      SITE_DOMAIN:              ${{ secrets.SITE_DOMAIN || 'zeusai.pro' }}
+      JWT_SECRET:               ${{ secrets.JWT_SECRET }}
+      ADMIN_SECRET:             ${{ secrets.ADMIN_SECRET || secrets.JWT_SECRET }}
+      ADMIN_MASTER_PASSWORD:    ${{ secrets.ADMIN_MASTER_PASSWORD }}
+      ADMIN_2FA_CODE:           ${{ secrets.ADMIN_2FA_CODE }}
+      WEBHOOK_SECRET:           ${{ secrets.WEBHOOK_SECRET }}
+      HETZNER_WEBHOOK_SECRET:   ${{ secrets.HETZNER_WEBHOOK_SECRET }}
+      OPENAI_API_KEY:           ${{ secrets.OPENAI_API_KEY }}
+      DEEPSEEK_API_KEY:         ${{ secrets.DEEPSEEK_API_KEY }}
+      ANTHROPIC_API_KEY:        ${{ secrets.ANTHROPIC_API_KEY }}
+      GEMINI_API_KEY:           ${{ secrets.GEMINI_API_KEY }}
+      MISTRAL_API_KEY:          ${{ secrets.MISTRAL_API_KEY }}
+      COHERE_API_KEY:           ${{ secrets.COHERE_API_KEY }}
+      XAI_API_KEY:              ${{ secrets.XAI_API_KEY }}
+      GROQ_API_KEY:             ${{ secrets.GROQ_API_KEY }}
+      OPENROUTER_API_KEY:       ${{ secrets.OPENROUTER_API_KEY }}
+      HF_API_KEY:               ${{ secrets.HF_API_KEY }}
+      PERPLEXITY_API_KEY:       ${{ secrets.PERPLEXITY_API_KEY }}
+      TOGETHER_API_KEY:         ${{ secrets.TOGETHER_API_KEY }}
+      FIREWORKS_API_KEY:        ${{ secrets.FIREWORKS_API_KEY }}
+      SAMBANOVA_API_KEY:        ${{ secrets.SAMBANOVA_API_KEY }}
+      NVIDIA_NIM_API_KEY:       ${{ secrets.NVIDIA_NIM_API_KEY }}
+      STRIPE_SECRET_KEY:               ${{ secrets.STRIPE_SECRET_KEY }}
+      STRIPE_PUBLISHABLE_KEY:          ${{ secrets.STRIPE_PUBLISHABLE_KEY }}
+      STRIPE_WEBHOOK_SECRET:           ${{ secrets.STRIPE_WEBHOOK_SECRET }}
+      STRIPE_PRICE_STARTER_MONTHLY:    ${{ secrets.STRIPE_PRICE_STARTER_MONTHLY }}
+      STRIPE_PRICE_STARTER_YEARLY:     ${{ secrets.STRIPE_PRICE_STARTER_YEARLY }}
+      STRIPE_PRICE_PRO_MONTHLY:        ${{ secrets.STRIPE_PRICE_PRO_MONTHLY }}
+      STRIPE_PRICE_PRO_YEARLY:         ${{ secrets.STRIPE_PRICE_PRO_YEARLY }}
+      STRIPE_PRICE_ENTERPRISE_MONTHLY: ${{ secrets.STRIPE_PRICE_ENTERPRISE_MONTHLY }}
+      STRIPE_PRICE_ENTERPRISE_YEARLY:  ${{ secrets.STRIPE_PRICE_ENTERPRISE_YEARLY }}
+      PAYPAL_CLIENT_ID:         ${{ secrets.PAYPAL_CLIENT_ID }}
+      PAYPAL_CLIENT_SECRET:     ${{ secrets.PAYPAL_CLIENT_SECRET }}
+      PAYPAL_WEBHOOK_ID:        ${{ secrets.PAYPAL_WEBHOOK_ID }}
+      SMTP_HOST:                ${{ secrets.SMTP_HOST }}
+      SMTP_PORT:                ${{ secrets.SMTP_PORT || '587' }}
+      SMTP_USER:                ${{ secrets.SMTP_USER }}
+      SMTP_PASS:                ${{ secrets.SMTP_PASS }}
+      HETZNER_API_KEY:          ${{ secrets.HETZNER_API_KEY || secrets.HETZNER_API_TOKEN }}
+      GITHUB_TOKEN:             ${{ secrets.GH_PAT || secrets.GITHUB_TOKEN }}
+      GH_PAT:                   ${{ secrets.GH_PAT }}
+      BTC_WALLET_ADDRESS:       ${{ secrets.BTC_WALLET_ADDRESS }}
+      ETH_WALLET_ADDRESS:       ${{ secrets.ETH_WALLET_ADDRESS }}
+      USDC_WALLET_ADDRESS:      ${{ secrets.USDC_WALLET_ADDRESS }}
+      VAULT_MASTER_SECRET:      ${{ secrets.VAULT_MASTER_SECRET }}
+      VAULT_EMERGENCY_CODE:     ${{ secrets.VAULT_EMERGENCY_CODE }}
+      MASTER_CONFIG_SECRET:     ${{ secrets.MASTER_CONFIG_SECRET }}
+      TELEGRAM_BOT_TOKEN:       ${{ secrets.TELEGRAM_BOT_TOKEN }}
+      TELEGRAM_CHAT_ID:         ${{ secrets.TELEGRAM_CHAT_ID }}
+      BINANCE_API_KEY:          ${{ secrets.BINANCE_API_KEY }}
+      BINANCE_SECRET:           ${{ secrets.BINANCE_SECRET }}
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v5
+
+      - name: Setup SSH
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.HETZNER_SSH_PRIVATE_KEY || secrets.SSH_PRIVATE_KEY }}
+
+      - name: Ensure deploy directory exists on server
+        run: |
+          ssh -o StrictHostKeyChecking=no \
+              -p ${{ env.SERVER_PORT }} \
+              ${{ env.SERVER_USER }}@${{ env.SERVER_IP }} \
+              "mkdir -p ${{ env.DEPLOY_PATH }}/UNICORN_FINAL"
+
+      - name: Copy project to server
+        run: |
+          rsync -avz --delete \
+            -e "ssh -o StrictHostKeyChecking=no -p ${{ env.SERVER_PORT }}" \
+            ./ \
+            ${{ env.SERVER_USER }}@${{ env.SERVER_IP }}:${{ env.DEPLOY_PATH }}/
+
+      - name: Generate .env on server
+        run: |
+          ssh -o StrictHostKeyChecking=no \
+              -p ${{ env.SERVER_PORT }} \
+              ${{ env.SERVER_USER }}@${{ env.SERVER_IP }} \
+              "DEPLOY_PATH=${{ env.DEPLOY_PATH }} bash ${{ env.DEPLOY_PATH }}/UNICORN_FINAL/scripts/create-env.sh"
+
+      - name: Install & Restart on server
+        run: |
+          ssh -o StrictHostKeyChecking=no \
+              -p ${{ env.SERVER_PORT }} \
+              ${{ env.SERVER_USER }}@${{ env.SERVER_IP }} "
+            set -e
+            cd ${{ env.DEPLOY_PATH }}/UNICORN_FINAL &&
+            rm -rf node_modules || true
+            npm install --production --legacy-peer-deps --no-audit --no-fund &&
+            pm2 startOrRestart ecosystem.config.js --only unicorn &&
+            pm2 startOrRestart ecosystem.config.js || true &&
+
+            # ── Restart unicorn cleanly (handles crash-loop / waiting state) ──
+            pm2 stop unicorn 2>/dev/null || true &&
+            pm2 delete unicorn 2>/dev/null || true &&
+            pm2 start ecosystem.config.js --only unicorn &&
+
+            # ── Fix llama-bridge crash loop (apply stop_exit_codes: [0]) ──────
+            pm2 delete unicorn-llama-bridge 2>/dev/null || true &&
+            pm2 start ecosystem.config.js --only unicorn-llama-bridge &&
+
+            # ── Fix other crash-looping processes ─────────────────────────────
+            for proc in unicorn-main-orchestrator unicorn-ai-self-healing; do
+              pm2 restart \"\$proc\" 2>/dev/null || \
+                (pm2 delete \"\$proc\" 2>/dev/null || true; pm2 start ecosystem.config.js --only \"\$proc\" || true)
+            done &&
+
+            # ── Ensure Nginx is running (fixes external HTTPS access) ─────────
+            if systemctl reload nginx 2>&1; then
+              echo "✅ Nginx reloaded successfully"
+            elif nginx -s reload 2>&1; then
+              echo "✅ Nginx reloaded via nginx -s reload"
+            elif systemctl restart nginx 2>&1; then
+              echo "✅ Nginx restarted"
+            else
+              echo "⚠️  Could not reload/restart Nginx — check nginx config: nginx -t"
+            fi &&
+
+            pm2 save
+          "
+
+      - name: Health check
+        run: |
+          sleep 10
+          ssh -o StrictHostKeyChecking=no \
+              -p ${{ env.SERVER_PORT }} \
+              ${{ env.SERVER_USER }}@${{ env.SERVER_IP }} \
+              "curl -sf http://localhost:3000/health && echo '✅ Health OK' || (pm2 logs unicorn --lines 20 --nostream; exit 1)"
