@@ -380,3 +380,13 @@ class AISelfHealingEngine extends EventEmitter {
 // ── Singleton export ──────────────────────────────────────────────────────────
 const engine = new AISelfHealingEngine();
 module.exports = engine;
+
+// ── Standalone execution (when run directly as a PM2 process) ─────────────────
+if (require.main === module) {
+  engine.init();
+  console.log('[ai-self-healing] Engine started in standalone mode');
+  process.on('SIGTERM', () => { engine.stop(); process.exit(0); });
+  process.on('SIGINT',  () => { engine.stop(); process.exit(0); });
+  // Keep process alive
+  setInterval(() => {}, 60000);
+}
