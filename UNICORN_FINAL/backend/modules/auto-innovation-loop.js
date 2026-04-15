@@ -30,6 +30,8 @@ const crypto = require('crypto');
 const path   = require('path');
 const fs     = require('fs');
 
+const STATE_FILE = path.join(__dirname, '../../generated/innovation-state.json');
+
 const CYCLE_MS      = parseInt(process.env.INNOV_CYCLE_MS     || '3600000',  10); // 1h
 const PR_POLL_MS    = parseInt(process.env.INNOV_PR_POLL_MS   || '300000',   10); // 5 min
 const MAX_PENDING   = parseInt(process.env.INNOV_MAX_PENDING  || '3',        10);
@@ -57,9 +59,12 @@ class AutoInnovationLoop {
   constructor() {
     this.cache = new Map(); this.cacheTTL = 60000;
     this.startedAt    = Date.now();
-    this.cycleCount   = 0;
-    this.proposals    = [];   // all proposals generated
-    this.pendingPRs   = [];   // PRs created, waiting for CI
+
+    // Load persisted state so cycleCount and pendingPRs survive restarts
+    const saved       = this._loadState();
+    this.cycleCount   = saved.cycleCount  || 0;
+    this.pendingPRs   = saved.pendingPRs  || [];   // PRs created, waiting for CI
+    this.proposals    = [];   // all proposals generated (not persisted — recent only)
     this.mergedPRs    = [];   // successfully merged
     this.rejectedPRs  = [];   // CI failed or manually rejected
     this.loopLog      = [];
@@ -68,6 +73,25 @@ class AutoInnovationLoop {
     this._prPollTimer = null;
     this._running     = false;
     this._aiModule    = null; // injected lazy
+  }
+
+  // ── State persistence ─────────────────────────────────────────────
+
+  _loadState() {
+    try {
+      const raw = fs.readFileSync(STATE_FILE, 'utf8');
+      return JSON.parse(raw);
+    } catch {
+      return {};
+    }
+  }
+
+  _saveState() {
+    const dir = path.dirname(STATE_FILE);
+    const data = JSON.stringify({ cycleCount: this.cycleCount, pendingPRs: this.pendingPRs });
+    fs.promises.mkdir(dir, { recursive: true })
+      .then(() => fs.promises.writeFile(STATE_FILE, data, 'utf8'))
+      .catch(() => { /* non-fatal */ });
   }
 
   // ── Lifecycle ─────────────────────────────────────────────────────
@@ -97,6 +121,7 @@ class AutoInnovationLoop {
 
   async _runCycle() {
     this.cycleCount++;
+    this._saveState(); // persist immediately so restarts resume from the right count
     this._log('CYCLE_START', `Starting innovation cycle #${this.cycleCount}`);
 
     // Skip if too many pending PRs
@@ -113,12 +138,21 @@ class AutoInnovationLoop {
     const category = this._selectCategory(metrics);
     this._log('CATEGORY_SELECTED', `Selected innovation category: ${category.label} (${category.type})`);
 
-    // 3. Generate proposal via AI
+    // 3. Skip if an open PR for this category already exists (deduplication)
+    if (getGithubToken() && getGithubRepo()) {
+      const duplicate = await this._findOpenPRForCategory(category.type);
+      if (duplicate) {
+        this._log('PR_DUPLICATE', `Open PR #${duplicate.number} already exists for category "${category.type}" — skipping cycle`);
+        return;
+      }
+    }
+
+    // 4. Generate proposal via AI
     const proposal = await this._generateProposal(category, metrics);
     this._addProposal(proposal);
     this._log('PROPOSAL_GENERATED', `Proposal: ${proposal.title}`);
 
-    // 4. Create GitHub PR (if credentials available)
+    // 5. Create GitHub PR (if credentials available)
     if (getGithubToken() && getGithubRepo()) {
       await this._createPR(proposal);
     } else {
@@ -291,7 +325,7 @@ class AutoInnovationLoop {
       } catch { /* file doesn't exist yet */ }
 
       const fileBody = {
-        message: `[AutoInnovation] ${proposal.title}`,
+        message: proposal.title,
         content: Buffer.from(logContent).toString('base64'),
         branch:  branchName,
       };
@@ -328,6 +362,7 @@ class AutoInnovationLoop {
         proposal.prUrl    = pr.html_url;
         proposal.status   = 'pr_open';
         this.pendingPRs.push({ ...proposal, prNumber: pr.number, branchName, createdAt: Date.now() });
+        this._saveState();
         this._log('PR_CREATED', `PR #${pr.number} created: ${pr.html_url}`);
       }
     } catch (err) {
@@ -384,6 +419,7 @@ class AutoInnovationLoop {
     }
 
     this.pendingPRs = this.pendingPRs.filter(p => !toRemove.includes(p.prNumber));
+    if (toRemove.length > 0) this._saveState();
   }
 
   async _autoMerge(owner, repo, prNumber) {
@@ -405,6 +441,26 @@ class AutoInnovationLoop {
       await this._githubPost(`/repos/${owner}/${repo}/issues/${prNumber}/comments`, { body: reason });
       await this._githubPatch(`/repos/${owner}/${repo}/pulls/${prNumber}`, { state: 'closed' });
     } catch { /* non-fatal */ }
+  }
+
+  /** Returns the first open PR whose head branch matches this category, or null. */
+  async _findOpenPRForCategory(categoryType) {
+    try {
+      const [owner, repo] = getGithubRepo().split('/');
+      const prefix = `auto-innovation/${categoryType}-`;
+      let page = 1;
+      while (page <= 3) {
+        const prs = await this._githubGet(
+          `/repos/${owner}/${repo}/pulls?state=open&base=${BASE_BRANCH}&per_page=50&page=${page}`
+        );
+        if (!Array.isArray(prs) || prs.length === 0) break;
+        const found = prs.find(p => p.head && p.head.ref && p.head.ref.startsWith(prefix));
+        if (found) return found;
+        if (prs.length < 50) break;
+        page++;
+      }
+    } catch { /* non-fatal */ }
+    return null;
   }
 
   // ── Proposal store ────────────────────────────────────────────────
