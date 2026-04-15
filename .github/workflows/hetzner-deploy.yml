@@ -1,13 +1,12 @@
 name: 🦄 Deploy ZeusAI (GitHub → Hetzner)
 
 on:
-  push:
-    branches: [main]
-    paths:
-      # Rulează la push doar când fișierul de workflow însuși se schimbă.
-      # Deploy-ul la push pe UNICORN_FINAL/** este gestionat exclusiv de live.yml
-      # pentru a evita duplicarea și emailuri duble de failure.
-      - '.github/workflows/hetzner-deploy.yml'
+  # ── push trigger intentionally removed:
+  # Deploying on every change to this file caused a feedback loop where
+  # live.yml's force-push (which rebased on an older commit) reverted
+  # workflow fixes and re-triggered this workflow with a broken YAML
+  # (0 jobs, immediate failure).  Deploy on UNICORN_FINAL/** is handled
+  # exclusively by live.yml and deploy.yml to avoid duplication.
   # ── Validate PRs targeting main (lint + test only, no deploy) ─────────────
   pull_request:
     branches: [main]
