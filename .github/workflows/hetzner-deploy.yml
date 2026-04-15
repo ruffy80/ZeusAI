@@ -699,14 +699,31 @@ jobs:
               echo "ℹ️  Nginx config updated from nginx-unicorn.conf"
               ln -sf /etc/nginx/sites-available/unicorn /etc/nginx/sites-enabled/unicorn
               rm -f /etc/nginx/sites-enabled/default
-              # Safe reload: test first; if test fails, log and force-restart with fallback conf
+              # Safe reload: test first; if test fails, reset to minimal HTTP config so nginx can start
               if nginx -t 2>&1; then
                 systemctl reload nginx 2>/dev/null || systemctl restart nginx 2>/dev/null || true
                 echo "✅ Nginx configured and reloaded"
               else
-                echo "⚠️  nginx -t failed — attempting force-restart with current conf"
-                systemctl restart nginx 2>/dev/null || true
-                echo "ℹ️  Nginx restart attempted (check logs: journalctl -u nginx -n 30)"
+                echo "⚠️  nginx -t failed — SSL cert may be missing; resetting to minimal HTTP config"
+                nginx -t 2>&1 || true
+                # Minimal HTTP-only config: guarantees nginx starts so certbot can issue the cert
+                mkdir -p /var/www/certbot
+                MINIMAL_SRC="scripts/nginx-minimal-http.conf"
+                if [ -f "$MINIMAL_SRC" ]; then
+                  cp "$MINIMAL_SRC" /etc/nginx/sites-available/unicorn
+                  echo "ℹ️  Copied minimal HTTP config from $MINIMAL_SRC"
+                else
+                  # Inline fallback if file not found
+                  printf 'server {\n    listen 80 default_server;\n    listen [::]:80 default_server;\n    server_name _;\n    location /.well-known/acme-challenge/ { root /var/www/certbot; }\n    location = /health { proxy_pass http://127.0.0.1:3000; }\n    location = /api/health { proxy_pass http://127.0.0.1:3000; }\n    location / { proxy_pass http://127.0.0.1:3000; proxy_http_version 1.1; proxy_set_header Host $host; proxy_set_header X-Real-IP $remote_addr; }\n}\n' > /etc/nginx/sites-available/unicorn
+                  echo "ℹ️  Inline minimal HTTP config written (fallback)"
+                fi
+                if nginx -t 2>&1; then
+                  systemctl restart nginx 2>/dev/null || service nginx restart 2>/dev/null || true
+                  echo "✅ Nginx started with minimal config (HTTP only until certbot runs)"
+                else
+                  echo "⚠️  Minimal config also failed nginx -t (check nginx install)"
+                  nginx -t 2>&1 || true
+                fi
               fi
               # Ensure nginx is enabled on boot and actually running
               systemctl enable nginx 2>/dev/null || true
