@@ -194,11 +194,13 @@ jobs:
       - name: 🔄 Switch LIVE to GREEN (ZERO‑DOWNTIME)
         run: |
           ssh -o StrictHostKeyChecking=no root@${{ secrets.HETZNER_HOST }} "
+            pm2 delete unicorn_canary_10 2>/dev/null || true &&
+            pm2 delete unicorn_canary_50 2>/dev/null || true &&
             rm -rf /var/www/unicorn_blue &&
             mv /var/www/unicorn /var/www/unicorn_blue || true &&
             mv /var/www/unicorn_green /var/www/unicorn &&
-            pm2 delete all || true &&
             pm2 start /var/www/unicorn/UNICORN_FINAL/ecosystem.config.js --update-env &&
+            pm2 delete unicorn_blue 2>/dev/null || true &&
             pm2 save
           "
 
@@ -231,8 +233,9 @@ jobs:
           ssh -o StrictHostKeyChecking=no root@${{ secrets.HETZNER_HOST }} "
             DOCTOR=/var/www/unicorn/UNICORN_FINAL/scripts/server-doctor.sh
             [ -f \"\$DOCTOR\" ] && chmod +x \"\$DOCTOR\" && \"\$DOCTOR\" || true
-            pm2 delete all || true &&
-            pm2 start /var/www/unicorn/UNICORN_FINAL/ecosystem.config.js --update-env &&
+            pm2 delete unicorn_canary_10 2>/dev/null || true &&
+            pm2 delete unicorn_canary_50 2>/dev/null || true &&
+            pm2 reload unicorn 2>/dev/null || pm2 start /var/www/unicorn/UNICORN_FINAL/ecosystem.config.js --update-env &&
             pm2 save
           "
 

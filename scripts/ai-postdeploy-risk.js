@@ -25,7 +25,7 @@ function aiRequest(apiKey, baseUrl, model, messages) {
       let raw = '';
       res.on('data', (d) => { raw += d; });
       res.on('end', () => {
-        try { resolve(JSON.parse(raw)); } catch { reject(new Error('JSON parse error: ' + raw.slice(0, 200))); }
+        try { resolve(JSON.parse(raw)); } catch { reject(new Error(`[${baseUrl}] JSON parse error: ` + raw.slice(0, 200))); }
       });
     });
     req.on('error', reject);
