@@ -820,7 +820,7 @@ jobs:
                 pm2 start ecosystem.config.js --only unicorn
               # Start ALL autonomous modules (orchestrator, shield, health-daemon,
               # auto-repair, auto-restart, auto-optimize, recovery, watchdog, etc.)
-              pm2 startOrRestart ecosystem.config.js 2>/dev/null || true
+              pm2 startOrRestart ecosystem.config.js || true
               pm2 save
               # Register PM2 in systemd so it starts on reboot
               pm2 startup systemd 2>/dev/null | grep -E "^sudo |^env " | head -1 | bash 2>/dev/null || true
@@ -1198,7 +1198,7 @@ jobs:
                fi; \
                # 2. Restart PM2 backend process safely (no delete-all)
                cd \"\$DEPLOY_PATH\" 2>/dev/null || true; \
-               if command -v pm2 >/dev/null 2>&1; then pm2 startOrRestart ecosystem.config.js --only unicorn 2>/dev/null || pm2 start ecosystem.config.js --only unicorn; pm2 startOrRestart ecosystem.config.js 2>/dev/null || true; pm2 save && echo 'Restarted all PM2 processes'; \
+               if command -v pm2 >/dev/null 2>&1; then pm2 startOrRestart ecosystem.config.js --only unicorn 2>/dev/null || pm2 start ecosystem.config.js --only unicorn; pm2 startOrRestart ecosystem.config.js || true; pm2 save && echo 'Restarted all PM2 processes'; \
                elif command -v systemctl >/dev/null 2>&1 && systemctl list-unit-files | grep -q '^unicorn\\.service'; then systemctl restart unicorn && echo 'Restarted via systemctl'; \
                else pkill -f 'node backend/index.js' || true; sleep 1; mkdir -p logs; nohup node backend/index.js > logs/backend.log 2>&1 & echo 'Restarted via nohup'; fi"
 
