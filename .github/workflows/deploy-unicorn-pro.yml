@@ -29,6 +29,12 @@ jobs:
         run: |
           ssh-keyscan -t ed25519,rsa -H "$DEPLOY_HOST" >> ~/.ssh/known_hosts 2>/dev/null || true
 
+      - name: Ensure deploy directory exists on server
+        run: |
+          ssh -o StrictHostKeyChecking=no \
+            "$DEPLOY_USER@$DEPLOY_HOST" \
+            "mkdir -p /var/www/unicorn/UNICORN_FINAL"
+
       - name: Sync project to server
         run: |
           rsync -avz --delete \
