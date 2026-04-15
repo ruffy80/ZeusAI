@@ -1,0 +1,142 @@
+name: Server Doctor Autonomy
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths:
+      - '.github/workflows/server-doctor-autonomy.yml'
+
+jobs:
+  install-server-doctor:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Configure Server Doctor on Hetzner
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.HETZNER_HOST }}
+          username: ${{ secrets.HETZNER_USER }}
+          key: ${{ secrets.HETZNER_SSH_KEY }}
+          script: |
+            mkdir -p /var/www/unicorn
+            mkdir -p /var/www/unicorn/logs
+
+            cat > /var/www/unicorn/server-doctor.sh << 'EOF'
+            #!/bin/bash
+
+            echo "======================================="
+            echo "      UNICORN SERVER DOCTOR v1.0"
+            echo "======================================="
+
+            cd /var/www/unicorn || exit 1
+
+            echo "[1] Detectare foldere corupte..."
+            if [ -d "UNICORN_FINAL" ]; then
+              echo " - UNICORN_FINAL gasit -> STERGERE"
+              rm -rf UNICORN_FINAL
+            else
+              echo " - UNICORN_FINAL nu exista -> OK"
+            fi
+
+            echo "[2] Detectare node_modules corupt..."
+            if [ ! -d "node_modules" ] || [ ! -f "node_modules/.bin/pm2" ]; then
+              echo " - node_modules corupt -> STERGERE"
+              rm -rf node_modules
+            else
+              echo " - node_modules OK"
+            fi
+
+            echo "[3] Reconstruire structura Unicorn..."
+            mkdir -p logs
+            chmod -R 755 /var/www/unicorn
+
+            echo "[4] Reinstalare dependente..."
+            npm install --legacy-peer-deps || npm install || true
+
+            echo "[5] Rebuild Unicorn..."
+            npm run build || echo " - Build FAILED, continui oricum"
+
+            echo "[6] Oprire procese PM2 vechi..."
+            pm2 delete unicorn || true
+            pm2 delete orchestrator || true
+            pm2 delete shield || true
+            pm2 delete health-daemon || true
+
+            echo "[7] Pornire procese PM2..."
+            if [ -f "ecosystem.config.js" ]; then
+              pm2 start ecosystem.config.js
+            else
+              echo " - ecosystem.config.js lipseste -> pornire manuala"
+              pm2 start server.js --name unicorn || true
+            fi
+
+            pm2 save
+
+            echo "[8] Verificare porturi..."
+            netstat -tlnp | grep -E ':80|:443|:3000' || echo " - Porturi lipsa"
+
+            echo "[9] Verificare health endpoint..."
+            curl -f http://localhost:3000/api/health \
+              && echo " - HEALTH OK" \
+              || echo " - HEALTH FAIL"
+
+            echo "[10] Verificare Nginx..."
+            nginx -t && systemctl restart nginx && echo " - Nginx OK" || echo " - Nginx FAIL"
+
+            echo "[11] Verificare SSL..."
+            if [ -d "/etc/letsencrypt/live" ]; then
+              echo " - SSL gasit"
+            else
+              echo " - SSL lipsa -> trebuie reinnoit"
+            fi
+
+            echo "======================================="
+            echo "   SERVER DOCTOR: FINALIZAT COMPLET"
+            echo "======================================="
+            EOF
+
+            chmod +x /var/www/unicorn/server-doctor.sh
+
+            cat > /etc/systemd/system/server-doctor.service << 'EOF'
+            [Unit]
+            Description=Unicorn Server Doctor
+
+            [Service]
+            Type=oneshot
+            ExecStart=/var/www/unicorn/server-doctor.sh
+            WorkingDirectory=/var/www/unicorn
+            StandardOutput=append:/var/www/unicorn/logs/server-doctor-systemd.log
+            StandardError=append:/var/www/unicorn/logs/server-doctor-systemd.log
+            User=root
+            Group=root
+            EOF
+
+            cat > /etc/systemd/system/server-doctor.timer << 'EOF'
+            [Unit]
+            Description=Run Unicorn Server Doctor every 30 minutes
+
+            [Timer]
+            OnBootSec=5min
+            OnUnitActiveSec=30min
+            Unit=server-doctor.service
+
+            [Install]
+            WantedBy=timers.target
+            EOF
+
+            systemctl daemon-reload
+            systemctl enable --now server-doctor.timer
+            systemctl start server-doctor.service
+
+      - name: Check Server Doctor status
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.HETZNER_HOST }}
+          username: ${{ secrets.HETZNER_USER }}
+          key: ${{ secrets.HETZNER_SSH_KEY }}
+          script: |
+            systemctl status server-doctor.timer --no-pager || true
+            systemctl status server-doctor.service --no-pager || true
+            tail -n 80 /var/www/unicorn/logs/server-doctor-systemd.log || true
