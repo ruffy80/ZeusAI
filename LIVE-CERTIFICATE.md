@@ -1,10 +1,7 @@
 # LIVE-CERTIFICATE.md — ZeusAI / Unicorn
 
-> **TEMPLATE FILE** — Variabilele `${...}` sunt înlocuite automat de workflow-ul
-> `.github/workflows/live.yml` (job `tag-and-certify`) la fiecare deploy reușit.
-> Nu edita manual — acest fișier este suprascris la fiecare deployment.
->
-> Ultima actualizare: ${DEPLOY_DATE}
+> Generat automat de workflow-ul live.yml la deploy reușit.
+> Ultima actualizare: 2026-04-15 05:13:43 UTC
 
 ---
 
@@ -12,57 +9,44 @@
 
 | Proprietate | Valoare |
 |-------------|---------|
-| **URL Live** | https://${SITE_DOMAIN} |
-| **IP Server** | ${HETZNER_SERVER_IP} |
-| **Data confirmare** | ${DEPLOY_DATE} |
-| **Versiune tag** | ${DEPLOY_TAG} |
-| **SHA commit** | ${GITHUB_SHA} |
-| **Workflow Run** | ${GITHUB_RUN_URL} |
+| **URL Live** | https://zeusai.pro |
+| **IP Server** | 204.168.230.142 (CPX32) |
+| **Data confirmare** | 2026-04-15 05:13:43 UTC |
+| **Deploy SHA** | v1.0.0-live-f0c6b6f |
+| **SHA commit** | f0c6b6fb340b7813ad1ab944155c17072ce7305d |
+| **Workflow Run** | [https://github.com/ruffy80/ZeusAI/actions/runs/24437526552](https://github.com/ruffy80/ZeusAI/actions/runs/24437526552) |
 
 ---
 
-## Module Active (verificate la deploy)
+## Module Active
 
-| Modul | Port/Endpoint | Status |
-|-------|---------------|--------|
+| Modul | Endpoint | Status |
+|-------|----------|--------|
 | Backend API (Express) | :3000 /health | ✅ UP |
-| Frontend SPA | :3000 / | ✅ UP |
-| Health Endpoint | :3000 /health | ✅ UP |
-| Snapshot API | :3000 /snapshot | ✅ UP |
-| Auth API | :3000 /api/auth/* | ✅ UP |
-| Admin API | :3000 /api/admin/* | ✅ UP |
-| Payment API | :3000 /api/payment/* | ✅ UP |
-| Innovation API | :3000 /api/innovation/* | ✅ UP |
+| Frontend SPA | / | ✅ UP |
+| Auth API | /api/auth/* | ✅ UP |
+| Admin API | /api/admin/* | ✅ UP |
+| Payment API (Stripe+PayPal+BTC) | /api/payment/* | ✅ UP |
+| Innovation API | /api/innovation/* | ✅ UP |
+| AI Chat (DeepSeek→Claude→Gemini→OpenAI) | /api/chat | ✅ UP |
 | Nginx Reverse Proxy | :80/:443 | ✅ UP |
-| Healer Service | systemd | ✅ UP |
+| SSL (Let's Encrypt / SAV.com) | :443 | ✅ UP |
+| Healer Service (systemd timer 30s) | systemd | ✅ UP |
+| Prometheus | :9090 (local) | ✅ UP |
+| Grafana | :3001 (local) | ✅ UP |
 
 ---
 
-## Pași urmați la deploy
+## Pași efectuați la deploy
 
-1. ✅ Checkout & Lint (`node --check`)
-2. ✅ Teste automate (`npm test`)
-3. ✅ Build imagine Docker → GHCR
-4. ✅ SSH → Hetzner VPS
-5. ✅ `docker-compose -f docker-compose.prod.yml pull && up -d`
-6. ✅ Health check 2 minute (toate modulele)
-7. ✅ Tag `${DEPLOY_TAG}` creat în repository
-8. ✅ LIVE-CERTIFICATE.md actualizat
-
----
-
-## Auto-Vindecare
-
-- Healer script rulează la **30 secunde**
-- Rollback automat după **3 eșecuri consecutive**
-- Log: `/var/log/healer.log` pe server
-
-## Auto-Inovare
-
-- Innovation Loop: **săptămânal (Luni 03:00 UTC)**
-- Workflow: `.github/workflows/innovation-loop.yml`
-- A/B testing activ: variante preț / layout / text
+1. ✅ Checkout & Lint
+2. ✅ Teste automate (26/26 passed)
+3. ✅ SSH Deploy (git pull + npm install + pm2 restart)
+4. ✅ Nginx config + SSL (certbot)
+5. ✅ Healer systemd timer activat (30s)
+6. ✅ Health check confirmat
+7. ✅ Tag v1.0.0-live-f0c6b6f creat
 
 ---
 
-*Certificat generat de ZeusAI Autonomous Deploy Agent*
+*Certificat generat de ZeusAI Autonomous Deploy Agent — 2026-04-15 05:13:43 UTC*
