@@ -69,24 +69,24 @@ else
   ok "Nginx instalat: $(nginx -v 2>&1)"
 fi
 
-# Generare/deploy config HTTP numai dacă nu există deja cert SSL
-# (certbot a injectat blocuri 443 ssl — nu le distruge)
+# Generare/deploy config Nginx:
+#   - Fără cert → minimal HTTP-only (certbot nu poate rula fără nginx pornit)
+#   - Cu cert   → nginx-unicorn.conf complet cu SSL (dacă fișierul există)
+# (certbot a injectat blocuri 443 ssl — nu le distruge pe serverele cu cert activ)
 if [ ! -f "$CERT_PATH" ]; then
-  if [ -f "$NGINX_CONF_SRC" ]; then
-    sed "s/zeusai\.pro/${DOMAIN}/g" "$NGINX_CONF_SRC" > "$NGINX_AVAILABLE"
-    fixed "Config Nginx HTTP instalat: $NGINX_AVAILABLE"
-  else
-    # Config minimal inline dacă fișierul din repo lipsește
-    mkdir -p /var/www/certbot
-    cat > "$NGINX_AVAILABLE" <<NGINXCONF
+  # Fără cert: deployează config HTTP-only minimal pentru ca nginx să pornească
+  # și certbot să poată obține certificatul prin ACME challenge pe portul 80.
+  # NU folosi nginx-unicorn.conf — acesta are listen 443 ssl care necesită cert.
+  mkdir -p /var/www/certbot
+  cat > "$NGINX_AVAILABLE" <<NGINXCONF
 map \$http_upgrade \$connection_upgrade {
     default upgrade;
     ""      close;
 }
 server {
-    listen 80;
-    listen [::]:80;
-    server_name ${DOMAIN} www.${DOMAIN} api.${DOMAIN} orchestrator.${DOMAIN};
+    listen 80 default_server;
+    listen [::]:80 default_server;
+    server_name ${DOMAIN} www.${DOMAIN} api.${DOMAIN} orchestrator.${DOMAIN} _;
 
     location /.well-known/acme-challenge/ {
         root /var/www/certbot;
@@ -122,8 +122,11 @@ server {
     }
 }
 NGINXCONF
-    fixed "Config Nginx minimal generat: $NGINX_AVAILABLE"
-  fi
+  fixed "Config Nginx HTTP-only (fără cert) generat: $NGINX_AVAILABLE"
+elif [ -f "$NGINX_CONF_SRC" ]; then
+  # Cert există: deployează nginx-unicorn.conf complet (cu blocuri SSL 443)
+  sed "s/zeusai\.pro/${DOMAIN}/g" "$NGINX_CONF_SRC" > "$NGINX_AVAILABLE"
+  fixed "Config Nginx complet (cu SSL) instalat: $NGINX_AVAILABLE"
 else
   ok "SSL cert există — config Nginx cu HTTPS păstrat (nu suprascris)"
 fi
@@ -142,9 +145,52 @@ if nginx -t 2>&1; then
     fixed "Nginx pornit"
   fi
 else
-  ko "nginx -t eșuat — verifică: nginx -t"
-  nginx -t || true
-  exit 1
+  warn "nginx -t a eșuat cu config curent — resetare la config HTTP minimal de siguranță"
+  nginx -t 2>&1 || true
+  # Fallback: config HTTP-only minimal garantat să funcționeze (fără SSL)
+  mkdir -p /var/www/certbot
+  cat > "$NGINX_AVAILABLE" <<'NGINX_FALLBACK'
+map $http_upgrade $connection_upgrade {
+    default upgrade;
+    ""      close;
+}
+server {
+    listen 80 default_server;
+    listen [::]:80 default_server;
+    server_name _;
+
+    location /.well-known/acme-challenge/ {
+        root /var/www/certbot;
+        default_type "text/plain";
+    }
+
+    location = /health    { proxy_pass http://127.0.0.1:3000; }
+    location = /api/health { proxy_pass http://127.0.0.1:3000; }
+
+    location / {
+        proxy_pass         http://127.0.0.1:3000;
+        proxy_http_version 1.1;
+        proxy_set_header   Host              $host;
+        proxy_set_header   X-Real-IP         $remote_addr;
+        proxy_set_header   X-Forwarded-For   $proxy_add_x_forwarded_for;
+        proxy_set_header   X-Forwarded-Proto $scheme;
+        proxy_set_header   Upgrade           $http_upgrade;
+        proxy_set_header   Connection        $connection_upgrade;
+        proxy_connect_timeout 60s;
+        proxy_send_timeout    60s;
+        proxy_read_timeout    60s;
+    }
+}
+NGINX_FALLBACK
+  fixed "Config Nginx fallback minimal scris: $NGINX_AVAILABLE"
+  if nginx -t 2>&1; then
+    systemctl enable nginx
+    systemctl restart nginx 2>/dev/null || service nginx restart 2>/dev/null || true
+    fixed "Nginx pornit cu config fallback"
+  else
+    ko "nginx -t eșuat chiar și cu config minimal — verifică instalarea nginx"
+    nginx -t 2>&1 || true
+  fi
 fi
 
 # =============================================================================
