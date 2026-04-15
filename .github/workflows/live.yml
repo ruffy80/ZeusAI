@@ -99,7 +99,7 @@ jobs:
       contents: read
     environment:
       name: production
-      url: https://${{ secrets.SITE_DOMAIN || 'zeusai.pro' }}
+      url: https://zeusai.pro
     outputs:
       deploy_success: ${{ steps.health_check.outputs.success }}
       deployed_tag: ${{ needs.validate.outputs.image_tag }}
