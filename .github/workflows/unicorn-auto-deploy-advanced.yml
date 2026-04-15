@@ -62,8 +62,12 @@ jobs:
       - name: Build frontend
         working-directory: UNICORN_FINAL/client
         run: |
-          npm install --legacy-peer-deps --no-audit --no-fund
-          npm run build || echo "⚠️  Frontend build failed (non-blocking)"
+          npm ci
+          npm run build --if-present
+          if [ $? -ne 0 ]; then
+            echo "❌ Build React FAILED — oprire deploy"
+            exit 1
+          fi
 
       # ── 5. SSH setup ───────────────────────────────────────────────────────
       - name: Set up SSH key
@@ -125,11 +129,15 @@ jobs:
                  bash build.sh
                fi
 
-               echo '=== [4] Frontend – npm install + build'
+               echo '=== [4] Frontend – npm ci + build'
                if [ -d client ] && [ -f client/package.json ]; then
                  cd client
-                 npm install --legacy-peer-deps --no-audit --no-fund
-                 CI=false npm run build || echo '⚠️  Frontend build failed (non-blocking)'
+                 npm ci
+                 npm run build --if-present
+                 if [ \$? -ne 0 ]; then
+                   echo '❌ Build React FAILED — oprire deploy'
+                   exit 1
+                 fi
                  cd \"\$APP_DIR\"
                fi
 
