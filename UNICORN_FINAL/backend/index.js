@@ -62,11 +62,16 @@ app.use(cors({
 app.use(express.json());
 
 // ==================== GLOBAL BODY SANITIZATION (AutoInnovation Security #13) ====================
-// Recursively trim & truncate all string values in req.body to guard against
-// oversized or injection-prone payloads.  Applied before route handlers.
+// Recursively trim, strip control characters, and truncate all string values in req.body
+// to guard against oversized, null-byte, or control-character injection payloads.
+// 4096-char limit per field covers all realistic input; reduces risk of payload flooding.
+// Applied before any route handler.
 function _sanitizeValue(v, depth) {
   if (depth > 10) return v; // guard against very deep nesting
-  if (typeof v === 'string') return v.replace(/\0/g, '').trim().slice(0, 4096);
+  if (typeof v === 'string') {
+    // Strip null bytes and non-printable control characters (except common whitespace)
+    return v.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, '').trim().slice(0, 4096);
+  }
   if (Array.isArray(v))      return v.map(item => _sanitizeValue(item, depth + 1));
   if (v && typeof v === 'object') {
     const out = {};

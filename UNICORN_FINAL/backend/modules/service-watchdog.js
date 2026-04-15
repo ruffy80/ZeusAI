@@ -144,7 +144,7 @@ function _pm2Restart(pm2Name) {
 async function _checkService(svc) {
   _state.totalChecks++;
   if (_isBackedOff(svc.name)) {
-    _log('backed-off', svc.name, true, `next try in ${Math.ceil((_counter(svc.name).backoffUntil - Date.now()) / 1000)}s`);
+    _log('backed-off', svc.name, false, `next try in ${Math.ceil((_counter(svc.name).backoffUntil - Date.now()) / 1000)}s`);
     return;
   }
 
@@ -156,7 +156,8 @@ async function _checkService(svc) {
     ok = probe.ok;
     reason = probe.reason || '';
   } else if (svc.pm2) {
-    // If no URL, assume healthy (PM2 health checked separately by health-guardian)
+    // No URL to probe — PM2 process-level liveness is handled by unicorn-health-guardian.
+    // Treat as healthy here; the guardian will restart it if PM2 reports the process down.
     ok = true;
   }
 
@@ -265,7 +266,7 @@ async function withRetry(fn, opts = {}) {
       lastErr = err;
       if (attempt === maxAttempts || !shouldRetry(err)) throw err;
       const delay = Math.min(maxMs, baseMs * Math.pow(2, attempt - 1));
-      console.warn(`⏳ [withRetry] attempt ${attempt}/${maxAttempts} failed (${err.message}), retrying in ${delay}ms`);
+      console.warn(`⏳ [withRetry] attempt ${attempt}/${maxAttempts} for ${fn.name || 'anonymous'} failed (${err.message}), retrying in ${delay}ms`);
       await new Promise(r => setTimeout(r, delay));
     }
   }
