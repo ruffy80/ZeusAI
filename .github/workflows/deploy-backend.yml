@@ -3,6 +3,8 @@ name: Deploy Backend to Hetzner
 on:
   workflow_dispatch:
 
+permissions: write-all
+
 jobs:
   validate:
     runs-on: ubuntu-latest

@@ -15,6 +15,8 @@ concurrency:
   group: node-ci-${{ github.ref }}
   cancel-in-progress: true
 
+permissions: write-all
+
 jobs:
   build:
     name: Lint & Test UNICORN_FINAL (Node 22)

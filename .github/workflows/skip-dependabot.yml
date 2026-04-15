@@ -4,6 +4,8 @@ on:
   pull_request:
     types: [opened, synchronize]
 
+permissions: write-all
+
 jobs:
   skip:
     if: github.actor == 'dependabot[bot]'
