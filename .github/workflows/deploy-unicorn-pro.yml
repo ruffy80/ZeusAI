@@ -13,6 +13,10 @@ jobs:
     name: 🚀 Deploy → Hetzner PRO
     runs-on: ubuntu-latest
 
+    env:
+      DEPLOY_HOST: ${{ secrets.HETZNER_HOST || secrets.SSH_HOST || '204.168.230.142' }}
+      DEPLOY_USER: ${{ secrets.HETZNER_DEPLOY_USER || secrets.HETZNER_USER || secrets.SSH_USER || 'root' }}
+
     steps:
       - name: Checkout repo
         uses: actions/checkout@v4
@@ -20,11 +24,11 @@ jobs:
       - name: Setup SSH
         uses: webfactory/ssh-agent@v0.9.0
         with:
-          ssh-private-key: ${{ secrets.HETZNER_SSH_PRIVATE_KEY }}
+          ssh-private-key: ${{ secrets.HETZNER_SSH_PRIVATE_KEY || secrets.SSH_PRIVATE_KEY }}
 
       - name: Add Hetzner host to known_hosts
         run: |
-          ssh-keyscan -H "${{ secrets.HETZNER_IP }}" >> ~/.ssh/known_hosts
+          ssh-keyscan -t ed25519,rsa -H "$DEPLOY_HOST" >> ~/.ssh/known_hosts 2>/dev/null || true
 
       - name: Sync project to server
         run: |
@@ -35,12 +39,12 @@ jobs:
             --exclude='.env' \
             -e "ssh -o StrictHostKeyChecking=no" \
             ./ \
-            ${{ secrets.HETZNER_USER }}@${{ secrets.HETZNER_IP }}:/var/www/unicorn/
+            "$DEPLOY_USER@$DEPLOY_HOST:/var/www/unicorn/"
 
       - name: Install & Restart on server
         run: |
           ssh -o StrictHostKeyChecking=no \
-            ${{ secrets.HETZNER_USER }}@${{ secrets.HETZNER_IP }} "
+            "$DEPLOY_USER@$DEPLOY_HOST" "
             set -e
             cd /var/www/unicorn/UNICORN_FINAL
             npm install --production --no-audit --no-fund
@@ -54,10 +58,10 @@ jobs:
           sleep 10
           STATUS=$(curl -sf -o /dev/null -w "%{http_code}" \
             --max-time 15 \
-            "https://${{ secrets.HETZNER_IP }}/api/health" 2>/dev/null || \
+            "https://$DEPLOY_HOST/api/health" 2>/dev/null || \
             curl -sf -o /dev/null -w "%{http_code}" \
             --max-time 15 \
-            "http://${{ secrets.HETZNER_IP }}:3000/api/health" 2>/dev/null || \
+            "http://$DEPLOY_HOST:3000/api/health" 2>/dev/null || \
             echo "000")
           echo "Health check status: $STATUS"
           if [ "$STATUS" != "200" ]; then
