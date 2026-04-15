@@ -757,6 +757,7 @@ jobs:
                     else
                       echo "⚠️  certbot standalone also failed — check DNS propagation and Let's Encrypt rate limits"
                       systemctl start nginx 2>/dev/null || service nginx start 2>/dev/null || true
+                    fi
                     echo "⚠️  certbot failed — check certbot output above for details"
                     # If cert already exists, try 'certonly --webroot' to renew without modifying nginx
                     if [ -f "/etc/letsencrypt/live/${DOMAIN}/fullchain.pem" ]; then
@@ -1228,6 +1229,10 @@ jobs:
   ssl-auto-fix:
     name: 🔒 SSL Auto-Fix (dacă HTTPS e down)
     needs: [deploy-hetzner, smoke-tests]
+    if: |
+      github.event_name != 'pull_request' &&
+      needs.deploy-hetzner.result == 'success'
+    continue-on-error: true
     if: github.event_name != 'pull_request' && needs.deploy-hetzner.result == 'success'
     permissions: {}
     uses: ./.github/workflows/ssl-setup.yml
