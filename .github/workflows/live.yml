@@ -724,10 +724,15 @@ jobs:
           git config user.name "ZeusAI Deploy Bot"
           git config user.email "vladoi_ionut@yahoo.com"
           DEPLOY_TAG="v1.0.0-live-${{ needs.validate.outputs.sha_short }}"
+          # Fetch latest main and rebase our working-tree changes on top of it.
+          # This prevents force-push from reverting workflow fixes that landed after
+          # the triggering commit was checked out (e.g. concurrent Copilot-agent PRs).
+          git fetch origin main --quiet
+          git reset --mixed origin/main
           git add LIVE-CERTIFICATE.md README-LIVE.md 2>/dev/null || true
           git diff --cached --quiet || git commit -m "🚀 deploy: LIVE certificate ${DEPLOY_TAG} — $(date -u '+%Y-%m-%d %H:%M UTC')"
           git tag -f "${DEPLOY_TAG}" -m "Live deployment: ${{ github.sha }}"
-          git push origin HEAD:main --force-with-lease 2>/dev/null || true
+          git push origin HEAD:main 2>/dev/null || true
           git push origin "${DEPLOY_TAG}" --force 2>/dev/null || true
           echo "✅ Tag ${DEPLOY_TAG} creat și push-at"
 
