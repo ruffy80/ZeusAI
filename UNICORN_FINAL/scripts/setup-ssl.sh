@@ -70,65 +70,34 @@ else
 fi
 
 # Generare/deploy config Nginx:
-#   - Fără cert → minimal HTTP-only (certbot nu poate rula fără nginx pornit)
-#   - Cu cert   → nginx-unicorn.conf complet cu SSL (dacă fișierul există)
-# (certbot a injectat blocuri 443 ssl — nu le distruge pe serverele cu cert activ)
-if [ ! -f "$CERT_PATH" ]; then
-  # Fără cert: deployează config HTTP-only minimal pentru ca nginx să pornească
-  # și certbot să poată obține certificatul prin ACME challenge pe portul 80.
-  # NU folosi nginx-unicorn.conf — acesta are listen 443 ssl care necesită cert.
-  mkdir -p /var/www/certbot
-  cat > "$NGINX_AVAILABLE" <<NGINXCONF
-map \$http_upgrade \$connection_upgrade {
-    default upgrade;
-    ""      close;
-}
+#   nginx-unicorn.conf conține DOAR blocuri HTTP (portul 80).
+#   Blocurile HTTPS (listen 443 ssl) sunt adăugate exclusiv de certbot --nginx.
+#   NU adăuga listen 443 ssl fără ssl_certificate — nginx refuză să pornească!
+mkdir -p /var/www/certbot
+if [ -f "$NGINX_CONF_SRC" ]; then
+  sed "s/zeusai\.pro/${DOMAIN}/g" "$NGINX_CONF_SRC" > "$NGINX_AVAILABLE"
+  fixed "Config Nginx instalat: $NGINX_AVAILABLE"
+else
+  # Fallback: nginx-minimal-http.conf dacă nginx-unicorn.conf lipsește
+  MINIMAL_SRC="${DEPLOY_PATH}/scripts/nginx-minimal-http.conf"
+  if [ -f "$MINIMAL_SRC" ]; then
+    sed "s/zeusai\.pro/${DOMAIN}/g" "$MINIMAL_SRC" > "$NGINX_AVAILABLE"
+    fixed "Config Nginx minimal instalat (fallback): $NGINX_AVAILABLE"
+  else
+    warn "Nici nginx-unicorn.conf, nici nginx-minimal-http.conf nu au fost găsite — se generează config inline"
+    cat > "$NGINX_AVAILABLE" <<NGINXCONF
 server {
     listen 80 default_server;
     listen [::]:80 default_server;
-    server_name ${DOMAIN} www.${DOMAIN} api.${DOMAIN} orchestrator.${DOMAIN} _;
-
-    location /.well-known/acme-challenge/ {
-        root /var/www/certbot;
-        default_type "text/plain";
-    }
-
-    location /stream {
-        proxy_pass         http://127.0.0.1:3000;
-        proxy_http_version 1.1;
-        proxy_set_header   Host              \$host;
-        proxy_set_header   X-Real-IP         \$remote_addr;
-        proxy_set_header   X-Forwarded-For   \$proxy_add_x_forwarded_for;
-        proxy_set_header   X-Forwarded-Proto \$scheme;
-        proxy_set_header   Connection        '';
-        proxy_buffering    off;
-        proxy_cache        off;
-        proxy_read_timeout 3600s;
-        chunked_transfer_encoding on;
-    }
-
-    location / {
-        proxy_pass         http://127.0.0.1:3000;
-        proxy_http_version 1.1;
-        proxy_set_header   Host              \$host;
-        proxy_set_header   X-Real-IP         \$remote_addr;
-        proxy_set_header   X-Forwarded-For   \$proxy_add_x_forwarded_for;
-        proxy_set_header   X-Forwarded-Proto \$scheme;
-        proxy_set_header   Upgrade           \$http_upgrade;
-        proxy_set_header   Connection        \$connection_upgrade;
-        proxy_connect_timeout 60s;
-        proxy_send_timeout    60s;
-        proxy_read_timeout    60s;
-    }
+    server_name _;
+    location /.well-known/acme-challenge/ { root /var/www/certbot; default_type "text/plain"; }
+    location = /health     { proxy_pass http://127.0.0.1:3000; }
+    location = /api/health { proxy_pass http://127.0.0.1:3000; }
+    location / { proxy_pass http://127.0.0.1:3000; proxy_http_version 1.1; proxy_set_header Host \$host; proxy_set_header X-Real-IP \$remote_addr; proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for; proxy_set_header X-Forwarded-Proto \$scheme; }
 }
 NGINXCONF
-  fixed "Config Nginx HTTP-only (fără cert) generat: $NGINX_AVAILABLE"
-elif [ -f "$NGINX_CONF_SRC" ]; then
-  # Cert există: deployează nginx-unicorn.conf complet (cu blocuri SSL 443)
-  sed "s/zeusai\.pro/${DOMAIN}/g" "$NGINX_CONF_SRC" > "$NGINX_AVAILABLE"
-  fixed "Config Nginx complet (cu SSL) instalat: $NGINX_AVAILABLE"
-else
-  ok "SSL cert există — config Nginx cu HTTPS păstrat (nu suprascris)"
+    fixed "Config Nginx inline generat: $NGINX_AVAILABLE"
+  fi
 fi
 
 # Activare symlink
@@ -147,42 +116,16 @@ if nginx -t 2>&1; then
 else
   warn "nginx -t a eșuat cu config curent — resetare la config HTTP minimal de siguranță"
   nginx -t 2>&1 || true
-  # Fallback: config HTTP-only minimal garantat să funcționeze (fără SSL)
+  # Fallback: folosește nginx-minimal-http.conf din repo (HTTP-only, garantat fără SSL)
   mkdir -p /var/www/certbot
-  cat > "$NGINX_AVAILABLE" <<'NGINX_FALLBACK'
-map $http_upgrade $connection_upgrade {
-    default upgrade;
-    ""      close;
-}
-server {
-    listen 80 default_server;
-    listen [::]:80 default_server;
-    server_name _;
-
-    location /.well-known/acme-challenge/ {
-        root /var/www/certbot;
-        default_type "text/plain";
-    }
-
-    location = /health    { proxy_pass http://127.0.0.1:3000; }
-    location = /api/health { proxy_pass http://127.0.0.1:3000; }
-
-    location / {
-        proxy_pass         http://127.0.0.1:3000;
-        proxy_http_version 1.1;
-        proxy_set_header   Host              $host;
-        proxy_set_header   X-Real-IP         $remote_addr;
-        proxy_set_header   X-Forwarded-For   $proxy_add_x_forwarded_for;
-        proxy_set_header   X-Forwarded-Proto $scheme;
-        proxy_set_header   Upgrade           $http_upgrade;
-        proxy_set_header   Connection        $connection_upgrade;
-        proxy_connect_timeout 60s;
-        proxy_send_timeout    60s;
-        proxy_read_timeout    60s;
-    }
-}
-NGINX_FALLBACK
-  fixed "Config Nginx fallback minimal scris: $NGINX_AVAILABLE"
+  MINIMAL_SRC="${DEPLOY_PATH}/scripts/nginx-minimal-http.conf"
+  if [ -f "$MINIMAL_SRC" ]; then
+    cp "$MINIMAL_SRC" "$NGINX_AVAILABLE"
+    fixed "Config Nginx minimal copiat din $MINIMAL_SRC"
+  else
+    printf 'server {\n    listen 80 default_server;\n    listen [::]:80 default_server;\n    server_name _;\n    location /.well-known/acme-challenge/ { root /var/www/certbot; }\n    location = /health { proxy_pass http://127.0.0.1:3000; }\n    location = /api/health { proxy_pass http://127.0.0.1:3000; }\n    location / { proxy_pass http://127.0.0.1:3000; proxy_http_version 1.1; proxy_set_header Host $host; proxy_set_header X-Real-IP $remote_addr; }\n}\n' > "$NGINX_AVAILABLE"
+    fixed "Config Nginx inline generat: $NGINX_AVAILABLE"
+  fi
   if nginx -t 2>&1; then
     systemctl enable nginx
     systemctl restart nginx 2>/dev/null || service nginx restart 2>/dev/null || true
