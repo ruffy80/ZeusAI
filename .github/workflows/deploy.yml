@@ -103,7 +103,33 @@ jobs:
             set -e
             cd ${{ env.DEPLOY_PATH }}/UNICORN_FINAL &&
             npm install --production --legacy-peer-deps --no-audit --no-fund &&
-            pm2 startOrRestart ecosystem.config.js --only unicorn &&
+
+            # ── Restart unicorn cleanly (handles crash-loop / waiting state) ──
+            pm2 stop unicorn 2>/dev/null || true &&
+            pm2 delete unicorn 2>/dev/null || true &&
+            pm2 start ecosystem.config.js --only unicorn &&
+
+            # ── Fix llama-bridge crash loop (apply stop_exit_codes: [0]) ──────
+            pm2 delete unicorn-llama-bridge 2>/dev/null || true &&
+            pm2 start ecosystem.config.js --only unicorn-llama-bridge &&
+
+            # ── Fix other crash-looping processes ─────────────────────────────
+            for proc in unicorn-main-orchestrator unicorn-ai-self-healing; do
+              pm2 restart \"\$proc\" 2>/dev/null || \
+                (pm2 delete \"\$proc\" 2>/dev/null || true; pm2 start ecosystem.config.js --only \"\$proc\" || true)
+            done &&
+
+            # ── Ensure Nginx is running (fixes external HTTPS access) ─────────
+            if systemctl reload nginx 2>&1; then
+              echo "✅ Nginx reloaded successfully"
+            elif nginx -s reload 2>&1; then
+              echo "✅ Nginx reloaded via nginx -s reload"
+            elif systemctl restart nginx 2>&1; then
+              echo "✅ Nginx restarted"
+            else
+              echo "⚠️  Could not reload/restart Nginx — check nginx config: nginx -t"
+            fi &&
+
             pm2 save
           "
 
