@@ -57,7 +57,7 @@ for arg in "$@"; do
     --skip-ssl)     SKIP_SSL=1 ;;
     --restart-only) RESTART_ONLY=1; SKIP_RSYNC=1 ;;
     -h|--help)
-      sed -n '3,30p' "$0"
+      sed -n '2,27p' "$0"
       exit 0
       ;;
     *)
@@ -461,7 +461,7 @@ ssh_run "
     fi
   done
   if [ -z \"\$HEALTH\" ]; then
-    echo '⚠️  /api/health nu a raspuns dupa \$MAX_RETRIES incercari'
+    echo \"⚠️  /api/health nu a raspuns dupa \$MAX_RETRIES incercari\"
     echo 'Verificand portul...'
     ss -tlnp 2>/dev/null | grep ':${NODE_PORT}' || netstat -tlnp 2>/dev/null | grep ':${NODE_PORT}' || echo 'Portul ${NODE_PORT} nu asculta'
     echo 'Logs PM2:'
