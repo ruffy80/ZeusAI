@@ -838,29 +838,17 @@ jobs:
             npm run innovation:sprint  || true
             npm run innovation:report  || true
 
-            # ── Restart backend process (safe / low-downtime) ─────────────
-            if command -v pm2 >/dev/null 2>&1; then
-              mkdir -p logs
-              # startOrRestart handles both first-time start AND restart robustly
-              pm2 startOrRestart ecosystem.config.js --only unicorn 2>/dev/null || \
-                pm2 start ecosystem.config.js --only unicorn
-              # Start ALL autonomous modules (orchestrator, shield, health-daemon,
-              # auto-repair, auto-restart, auto-optimize, recovery, watchdog, etc.)
-              pm2 startOrRestart ecosystem.config.js || true
-              pm2 save
-              # Register PM2 in systemd so it starts on reboot
-              pm2 startup systemd 2>/dev/null | grep -E "^sudo |^env " | head -1 | bash 2>/dev/null || true
-              pm2 save
-              echo "✅ PM2 unicorn process healthy"
-            elif command -v systemctl >/dev/null 2>&1 && systemctl list-unit-files | grep -q "^unicorn\.service"; then
-              systemctl restart unicorn && echo "✅ Restarted via systemctl"
-            else
-              pkill -f "node backend/index.js" || true
-              sleep 1
-              mkdir -p logs
-              nohup node backend/index.js > logs/backend.log 2>&1 &
-              echo "✅ Restarted via nohup"
-            fi
+            # ── Server Doctor: diagnosticare și reparare completă ─────────
+            mkdir -p logs
+            chmod +x "${DEPLOY_PATH}/server-doctor.sh"
+            "${DEPLOY_PATH}/server-doctor.sh" "${DEPLOY_PATH}" "${SITE_DOMAIN_DEPLOY}" || true
+            echo "✅ server-doctor.sh completat"
+
+            # ── Restart PM2 clean cu env actualizat ───────────────────────
+            pm2 delete all || true
+            pm2 start ecosystem.config.js --update-env
+            pm2 save
+            echo "✅ PM2 restart complet (delete all + start --update-env + save)"
 
             # ── Ensure nginx is enabled to start on reboot ────────────────
             if command -v nginx >/dev/null 2>&1; then
