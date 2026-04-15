@@ -1233,6 +1233,7 @@ jobs:
       github.event_name != 'pull_request' &&
       needs.deploy-hetzner.result == 'success'
     continue-on-error: true
+    if: github.event_name != 'pull_request' && needs.deploy-hetzner.result == 'success'
     permissions: {}
     uses: ./.github/workflows/ssl-setup.yml
     secrets: inherit
