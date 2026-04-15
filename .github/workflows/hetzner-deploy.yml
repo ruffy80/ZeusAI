@@ -633,10 +633,15 @@ jobs:
               pm2 stop unicorn 2>/dev/null || pm2 stop all 2>/dev/null || true
             fi
 
+            # ── Pre-clean node_modules to prevent ENOTEMPTY errors ───────────
+            rm -rf node_modules 2>/dev/null || \
+              find node_modules -mindepth 1 -maxdepth 1 -exec rm -rf {} \; 2>/dev/null || true
+
             npm install --legacy-peer-deps --no-audit --no-fund || {
               echo "⚠️  npm install failed, cleaning and retrying..."
               npm cache clean --force 2>/dev/null || true
-              rm -rf node_modules 2>/dev/null || true
+              rm -rf node_modules 2>/dev/null || \
+                find node_modules -mindepth 1 -maxdepth 1 -exec rm -rf {} \; 2>/dev/null || true
               npm install --legacy-peer-deps --no-audit --no-fund
             }
 
@@ -647,10 +652,13 @@ jobs:
             if [ -d "client" ]; then
               echo "🎨 Building frontend..."
               cd client
+              rm -rf node_modules 2>/dev/null || \
+                find node_modules -mindepth 1 -maxdepth 1 -exec rm -rf {} \; 2>/dev/null || true
               npm install --legacy-peer-deps --no-audit --no-fund || {
                 echo "⚠️  client npm install failed, cleaning and retrying..."
                 npm cache clean --force 2>/dev/null || true
-                rm -rf node_modules 2>/dev/null || true
+                rm -rf node_modules 2>/dev/null || \
+                  find node_modules -mindepth 1 -maxdepth 1 -exec rm -rf {} \; 2>/dev/null || true
                 npm install --legacy-peer-deps --no-audit --no-fund
               }
               CI=false npm run build
