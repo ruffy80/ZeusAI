@@ -176,7 +176,7 @@ jobs:
         run: |
           if [ -d client ] && [ -f client/package.json ]; then
             cd client
-            npm ci
+            npm install --legacy-peer-deps --no-audit --no-fund
             npm run build --if-present
             if [ $? -ne 0 ]; then
               echo "❌ Build React FAILED — oprire deploy"

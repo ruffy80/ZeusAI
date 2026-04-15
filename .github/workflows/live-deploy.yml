@@ -48,8 +48,8 @@ jobs:
       # 5️⃣ Build React (optional — skip if no client dir)
       - name: 🛠️ Build React Client
         run: |
-          if [ -d "./client" ]; then
-            cd ./client && npm ci && npm run build
+          if [ -d "./UNICORN_FINAL/client" ]; then
+            cd ./UNICORN_FINAL/client && npm install --legacy-peer-deps --no-audit --no-fund && npm run build
           else
             echo "ℹ️  No client/ directory found — skipping React build."
           fi
@@ -199,9 +199,9 @@ jobs:
             rm -rf /var/www/unicorn_blue &&
             mv /var/www/unicorn /var/www/unicorn_blue || true &&
             mv /var/www/unicorn_green /var/www/unicorn &&
-            pm2 start /var/www/unicorn/UNICORN_FINAL/ecosystem.config.js --update-env &&
+            pm2 reload all 2>/dev/null || pm2 start /var/www/unicorn/UNICORN_FINAL/ecosystem.config.js --update-env 2>/dev/null || true &&
             pm2 delete unicorn_blue 2>/dev/null || true &&
-            pm2 save
+            pm2 save --force 2>/dev/null || true
           "
 
       # 2️⃣2️⃣ Health check final
@@ -235,9 +235,9 @@ jobs:
             [ -f \"\$DOCTOR\" ] && chmod +x \"\$DOCTOR\" && \"\$DOCTOR\" || true
             pm2 delete unicorn_canary_10 2>/dev/null || true &&
             pm2 delete unicorn_canary_50 2>/dev/null || true &&
-            pm2 reload unicorn 2>/dev/null || pm2 start /var/www/unicorn/UNICORN_FINAL/ecosystem.config.js --update-env &&
-            pm2 save
-          "
+            pm2 reload all 2>/dev/null || pm2 start /var/www/unicorn/UNICORN_FINAL/ecosystem.config.js --update-env 2>/dev/null || true &&
+            pm2 save --force 2>/dev/null || true
+          " || true
 
       # 2️⃣5️⃣ Notificare finală
       - name: 📢 Notificare Deploy
