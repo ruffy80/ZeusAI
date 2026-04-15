@@ -64,6 +64,13 @@ jobs:
                 (pm2 delete \"\$proc\" 2>/dev/null || true; pm2 start ecosystem.config.js --only \"\$proc\" || true)
             done
 
+            # ── Fix nginx wildcard if corrupted (server_name *.; → *.domain.tld;) ──
+            if command -v nginx &>/dev/null && nginx -t 2>&1 | grep -qF '"*."'; then
+              echo "🔧 Patching broken nginx wildcard server_name..."
+              sed -i 's/server_name \*\.\;/server_name *.zeusai.pro;/' /etc/nginx/sites-available/unicorn 2>/dev/null || true
+              echo "  Fixed: server_name *.zeusai.pro"
+            fi
+
             # ── Ensure Nginx is running (fixes external HTTPS access) ─────────
             if systemctl reload nginx 2>&1; then
               echo "✅ Nginx reloaded successfully"
