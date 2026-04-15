@@ -54,7 +54,7 @@ jobs:
       image_tag: ${{ steps.meta.outputs.image_tag }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Setup Node 20
         uses: actions/setup-node@v4
@@ -168,7 +168,7 @@ jobs:
       GRAFANA_ADMIN_PASSWORD:   ${{ secrets.GRAFANA_ADMIN_PASSWORD }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Configurare SSH
         id: ssh_setup
@@ -493,6 +493,7 @@ jobs:
             # startOrRestart handles both first-time start AND restart robustly
             pm2 startOrRestart "\$ECOSYSTEM" --only unicorn 2>/dev/null || \
               pm2 start "\$ECOSYSTEM" --only unicorn
+            pm2 startOrRestart "\$ECOSYSTEM" || true
             pm2 save
             pm2 startup systemd 2>/dev/null | grep "^sudo" | head -1 | bash 2>/dev/null || true
           fi
@@ -655,7 +656,7 @@ jobs:
       contents: write
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           token: ${{ secrets.GH_PAT || secrets.GITHUB_TOKEN }}
 
