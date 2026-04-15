@@ -118,14 +118,26 @@ jobs:
             ./ root@${{ secrets.HETZNER_HOST }}:/var/www/unicorn/
 
       - name: 🩺 Server Doctor + Restart
+        env:
+          ADMIN_EMAIL: ${{ secrets.SMTP_USER }}
+          SITE_DOMAIN: zeusai.pro
         run: |
-          ssh -o StrictHostKeyChecking=no root@${{ secrets.HETZNER_HOST }} "
-            chmod +x /var/www/unicorn/UNICORN_FINAL/server-doctor.sh &&
-            /var/www/unicorn/UNICORN_FINAL/server-doctor.sh &&
-            pm2 delete all || true &&
-            pm2 start /var/www/unicorn/UNICORN_FINAL/ecosystem.config.js --update-env &&
-            pm2 save --force 2>/dev/null || true
-          "
+          ssh -o StrictHostKeyChecking=no root@${{ secrets.HETZNER_HOST }} bash -s << 'SSHEOF'
+          set -euo pipefail
+          DEPLOY_PATH=/var/www/unicorn/UNICORN_FINAL
+          DOMAIN=zeusai.pro
+          # Make all scripts executable
+          find "$DEPLOY_PATH" -name "*.sh" -type f -exec chmod +x {} \; 2>/dev/null || true
+          # Run server-doctor with correct DEPLOY_PATH so it finds ecosystem.config.js,
+          # .env, nginx-unicorn.conf and runs npm ci in the right directory
+          bash "$DEPLOY_PATH/server-doctor.sh" "$DEPLOY_PATH" "$DOMAIN" || true
+          # Ensure SSL / HTTPS is active (idempotent — no-op when cert already valid)
+          ADMIN_EMAIL="${SMTP_USER:-admin@zeusai.pro}"
+          bash "$DEPLOY_PATH/scripts/setup-ssl.sh" "$DOMAIN" "$ADMIN_EMAIL" "$DEPLOY_PATH" || true
+          # Final pm2 save (server-doctor already started all processes)
+          pm2 save --force 2>/dev/null || true
+          echo "✅ Deploy complet: $(pm2 list 2>/dev/null | grep -c online || echo '?') procese PM2 online"
+          SSHEOF
 
       - name: 📢 Done
         run: echo "Deploy complet și stabil."
