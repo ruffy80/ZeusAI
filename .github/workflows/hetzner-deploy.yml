@@ -32,6 +32,8 @@ concurrency:
   group: ${{ github.event_name == 'pull_request' && format('pr-validate-{0}', github.event.pull_request.number) || 'zeusai-production' }}
   cancel-in-progress: true
 
+permissions: write-all
+
 jobs:
   # ──────────────────────────────────────────────────────────────────────
   # JOB 0: Auto-Refresh GitHub Secrets (rulează pe orice push/schedule, nu pe PR)
@@ -1240,9 +1242,6 @@ jobs:
     if: github.event_name != 'pull_request' && needs.deploy-hetzner.result == 'success'
     runs-on: ubuntu-latest
     continue-on-error: true
-    permissions:
-      actions: write
-      contents: read
     steps:
       - name: Trigger SSL Setup workflow
         uses: actions/github-script@v7

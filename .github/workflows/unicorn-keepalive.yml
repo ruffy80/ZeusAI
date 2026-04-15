@@ -17,12 +17,12 @@ concurrency:
   group: unicorn-keepalive
   cancel-in-progress: true
 
+permissions: write-all
+
 jobs:
   keepalive:
     name: 🩺 Check Platform Health
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
     outputs:
       healthy: ${{ steps.health.outputs.healthy }}
     steps:
@@ -118,8 +118,6 @@ jobs:
     runs-on: ubuntu-latest
     needs: keepalive
     if: needs.keepalive.outputs.healthy == 'false'
-    permissions:
-      actions: write
     steps:
       - name: Fast SSH restart (before full redeploy)
         id: ssh_quick_restart
