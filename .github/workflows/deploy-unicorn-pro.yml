@@ -60,16 +60,20 @@ jobs:
 
             # ── Fix other crash-looping processes ─────────────────────────────
             for proc in unicorn-main-orchestrator unicorn-ai-self-healing; do
-              STATUS=\$(pm2 describe \"\$proc\" 2>/dev/null | grep -E 'status.*waiting|status.*errored' | wc -l || echo 0)
-              if [ \"\$STATUS\" -gt 0 ]; then
-                pm2 delete \"\$proc\" 2>/dev/null || true
-                pm2 start ecosystem.config.js --only \"\$proc\" || true
-              fi
+              pm2 restart \"\$proc\" 2>/dev/null || \
+                (pm2 delete \"\$proc\" 2>/dev/null || true; pm2 start ecosystem.config.js --only \"\$proc\" || true)
             done
 
             # ── Ensure Nginx is running (fixes external HTTPS access) ─────────
-            systemctl reload nginx 2>/dev/null || nginx -s reload 2>/dev/null || \
-              systemctl restart nginx 2>/dev/null || true
+            if systemctl reload nginx 2>&1; then
+              echo "✅ Nginx reloaded successfully"
+            elif nginx -s reload 2>&1; then
+              echo "✅ Nginx reloaded via nginx -s reload"
+            elif systemctl restart nginx 2>&1; then
+              echo "✅ Nginx restarted"
+            else
+              echo "⚠️  Could not reload/restart Nginx — check nginx config: nginx -t"
+            fi
 
             pm2 save
           "
