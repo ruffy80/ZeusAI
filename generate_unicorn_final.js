@@ -1672,11 +1672,12 @@ class UniversalAIConnector {
         performance: { speed: 0.95, accuracy: 0.92 },
       });
     }
-    if (process.env.CLAUDE_API_KEY) {
+    const _anthropicKey1 = process.env.ANTHROPIC_API_KEY || process.env.CLAUDE_API_KEY;
+    if (_anthropicKey1) {
       this.models.set('claude-3', {
         type: 'anthropic',
         endpoint: 'https://api.anthropic.com/v1/messages',
-        apiKey: process.env.CLAUDE_API_KEY,
+        apiKey: _anthropicKey1,
         capabilities: ['text-generation', 'reasoning'],
         cost: 0.015,
         performance: { speed: 0.85, accuracy: 0.94 },
@@ -1947,11 +1948,12 @@ class UniversalAIConnector {
         performance: { speed: 0.95, accuracy: 0.92 },
       });
     }
-    if (process.env.CLAUDE_API_KEY) {
+    const _anthropicKey2 = process.env.ANTHROPIC_API_KEY || process.env.CLAUDE_API_KEY;
+    if (_anthropicKey2) {
       this.models.set('claude-3', {
         type: 'anthropic',
         endpoint: 'https://api.anthropic.com/v1/messages',
-        apiKey: process.env.CLAUDE_API_KEY,
+        apiKey: _anthropicKey2,
         capabilities: ['text-generation', 'reasoning'],
         cost: 0.015,
         performance: { speed: 0.85, accuracy: 0.94 },

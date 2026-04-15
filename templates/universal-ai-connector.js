@@ -88,11 +88,12 @@ function loadKnownModels() {
   }
 
   // Anthropic Claude
-  if (process.env.CLAUDE_API_KEY) {
+  const _anthropicKey = process.env.ANTHROPIC_API_KEY || process.env.CLAUDE_API_KEY;
+  if (_anthropicKey) {
     models.set('claude-3-haiku', {
       type: 'anthropic',
       endpoint: 'https://api.anthropic.com/v1/messages',
-      apiKey: process.env.CLAUDE_API_KEY,
+      apiKey: _anthropicKey,
       modelName: 'claude-3-haiku-20240307',
       capabilities: ['text-generation', 'reasoning', 'creative'],
       cost: 0.00025,
