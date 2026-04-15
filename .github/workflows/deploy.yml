@@ -9,12 +9,86 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
 
+    # ── All GitHub Secrets injected as env vars for create-env.sh ──────────
+    env:
+      # Auth
+      JWT_SECRET:                         ${{ secrets.JWT_SECRET }}
+      ADMIN_SECRET:                       ${{ secrets.ADMIN_SECRET }}
+      ADMIN_MASTER_PASSWORD:              ${{ secrets.ADMIN_MASTER_PASSWORD }}
+      ADMIN_2FA_CODE:                     ${{ secrets.ADMIN_2FA_CODE }}
+      WEBHOOK_SECRET:                     ${{ secrets.WEBHOOK_SECRET }}
+      HETZNER_WEBHOOK_SECRET:             ${{ secrets.HETZNER_WEBHOOK_SECRET }}
+      # GitHub
+      GITHUB_TOKEN:                       ${{ secrets.GH_PAT || secrets.GITHUB_TOKEN }}
+      GH_PAT:                             ${{ secrets.GH_PAT }}
+      # AI Providers
+      OPENAI_API_KEY:                     ${{ secrets.OPENAI_API_KEY }}
+      DEEPSEEK_API_KEY:                   ${{ secrets.DEEPSEEK_API_KEY }}
+      ANTHROPIC_API_KEY:                  ${{ secrets.ANTHROPIC_API_KEY }}
+      GEMINI_API_KEY:                     ${{ secrets.GEMINI_API_KEY }}
+      MISTRAL_API_KEY:                    ${{ secrets.MISTRAL_API_KEY }}
+      COHERE_API_KEY:                     ${{ secrets.COHERE_API_KEY }}
+      XAI_API_KEY:                        ${{ secrets.XAI_API_KEY }}
+      GROQ_API_KEY:                       ${{ secrets.GROQ_API_KEY }}
+      OPENROUTER_API_KEY:                 ${{ secrets.OPENROUTER_API_KEY }}
+      HF_API_KEY:                         ${{ secrets.HF_API_KEY }}
+      HUGGINGFACE_API_KEY:                ${{ secrets.HUGGINGFACE_API_KEY }}
+      PERPLEXITY_API_KEY:                 ${{ secrets.PERPLEXITY_API_KEY }}
+      TOGETHER_API_KEY:                   ${{ secrets.TOGETHER_API_KEY }}
+      FIREWORKS_API_KEY:                  ${{ secrets.FIREWORKS_API_KEY }}
+      SAMBANOVA_API_KEY:                  ${{ secrets.SAMBANOVA_API_KEY }}
+      NVIDIA_NIM_API_KEY:                 ${{ secrets.NVIDIA_NIM_API_KEY }}
+      # Stripe
+      STRIPE_SECRET_KEY:                  ${{ secrets.STRIPE_SECRET_KEY }}
+      STRIPE_PUBLISHABLE_KEY:             ${{ secrets.STRIPE_PUBLISHABLE_KEY }}
+      STRIPE_WEBHOOK_SECRET:              ${{ secrets.STRIPE_WEBHOOK_SECRET }}
+      STRIPE_PRICE_STARTER_MONTHLY:       ${{ secrets.STRIPE_PRICE_STARTER_MONTHLY }}
+      STRIPE_PRICE_STARTER_YEARLY:        ${{ secrets.STRIPE_PRICE_STARTER_YEARLY }}
+      STRIPE_PRICE_PRO_MONTHLY:           ${{ secrets.STRIPE_PRICE_PRO_MONTHLY }}
+      STRIPE_PRICE_PRO_YEARLY:            ${{ secrets.STRIPE_PRICE_PRO_YEARLY }}
+      STRIPE_PRICE_ENTERPRISE_MONTHLY:    ${{ secrets.STRIPE_PRICE_ENTERPRISE_MONTHLY }}
+      STRIPE_PRICE_ENTERPRISE_YEARLY:     ${{ secrets.STRIPE_PRICE_ENTERPRISE_YEARLY }}
+      # PayPal
+      PAYPAL_CLIENT_ID:                   ${{ secrets.PAYPAL_CLIENT_ID }}
+      PAYPAL_CLIENT_SECRET:               ${{ secrets.PAYPAL_CLIENT_SECRET }}
+      PAYPAL_WEBHOOK_ID:                  ${{ secrets.PAYPAL_WEBHOOK_ID }}
+      # Email / SMTP
+      SMTP_HOST:                          ${{ secrets.SMTP_HOST }}
+      SMTP_PORT:                          ${{ secrets.SMTP_PORT }}
+      SMTP_USER:                          ${{ secrets.SMTP_USER }}
+      SMTP_PASS:                          ${{ secrets.SMTP_PASS }}
+      # Hetzner
+      HETZNER_API_KEY:                    ${{ secrets.HETZNER_API_KEY }}
+      HETZNER_API_TOKEN:                  ${{ secrets.HETZNER_API_TOKEN }}
+      HETZNER_HOST:                       ${{ secrets.HETZNER_HOST }}
+      HETZNER_PASSWORD:                   ${{ secrets.HETZNER_PASSWORD }}
+      HETZNER_DNS_API_KEY:                ${{ secrets.HETZNER_DNS_API_KEY }}
+      # Vault
+      VAULT_MASTER_SECRET:                ${{ secrets.VAULT_MASTER_SECRET }}
+      VAULT_EMERGENCY_CODE:               ${{ secrets.VAULT_EMERGENCY_CODE }}
+      MASTER_CONFIG_SECRET:               ${{ secrets.MASTER_CONFIG_SECRET }}
+      # Social / marketing
+      TELEGRAM_BOT_TOKEN:                 ${{ secrets.TELEGRAM_BOT_TOKEN }}
+      TELEGRAM_CHAT_ID:                   ${{ secrets.TELEGRAM_CHAT_ID }}
+      # Crypto exchanges
+      BINANCE_API_KEY:                    ${{ secrets.BINANCE_API_KEY }}
+      BINANCE_SECRET:                     ${{ secrets.BINANCE_SECRET }}
+      COINBASE_API_KEY:                   ${{ secrets.COINBASE_API_KEY }}
+      COINBASE_SECRET:                    ${{ secrets.COINBASE_SECRET }}
+      KRAKEN_API_KEY:                     ${{ secrets.KRAKEN_API_KEY }}
+      KRAKEN_SECRET:                      ${{ secrets.KRAKEN_SECRET }}
+      BYBIT_API_KEY:                      ${{ secrets.BYBIT_API_KEY }}
+      BYBIT_SECRET:                       ${{ secrets.BYBIT_SECRET }}
+      OKX_API_KEY:                        ${{ secrets.OKX_API_KEY }}
+      OKX_SECRET:                         ${{ secrets.OKX_SECRET }}
+      OKX_PASSWORD:                       ${{ secrets.OKX_PASSWORD }}
+
     steps:
       - name: 📥 Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: 🟦 Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: 20
 
@@ -25,10 +99,14 @@ jobs:
           npm run lint
           npm test --if-present
 
+      - name: ⚙️ Generate .env with all secrets
+        run: |
+          bash UNICORN_FINAL/scripts/create-env.sh UNICORN_FINAL
+
       - name: 🔐 Setup SSH
-        uses: webfactory/ssh-agent@v0.9.0
+        uses: webfactory/ssh-agent@v0.10.0
         with:
-          ssh-private-key: ${{ secrets.HETZNER_SSH_KEY }}
+          ssh-private-key: ${{ secrets.HETZNER_SSH_PRIVATE_KEY }}
 
       - name: 📦 Deploy to Server
         run: |
@@ -40,7 +118,26 @@ jobs:
             ./ root@${{ secrets.HETZNER_HOST }}:/var/www/unicorn/
 
       - name: 🩺 Server Doctor + Restart
+        env:
+          ADMIN_EMAIL: ${{ secrets.SMTP_USER }}
+          SITE_DOMAIN: zeusai.pro
         run: |
+          ssh -o StrictHostKeyChecking=no root@${{ secrets.HETZNER_HOST }} bash -s << 'SSHEOF'
+          set -euo pipefail
+          DEPLOY_PATH=/var/www/unicorn/UNICORN_FINAL
+          DOMAIN=zeusai.pro
+          # Make all scripts executable
+          find "$DEPLOY_PATH" -name "*.sh" -type f -exec chmod +x {} \; 2>/dev/null || true
+          # Run server-doctor with correct DEPLOY_PATH so it finds ecosystem.config.js,
+          # .env, nginx-unicorn.conf and runs npm ci in the right directory
+          bash "$DEPLOY_PATH/server-doctor.sh" "$DEPLOY_PATH" "$DOMAIN" || true
+          # Ensure SSL / HTTPS is active (idempotent — no-op when cert already valid)
+          ADMIN_EMAIL="${SMTP_USER:-admin@zeusai.pro}"
+          bash "$DEPLOY_PATH/scripts/setup-ssl.sh" "$DOMAIN" "$ADMIN_EMAIL" "$DEPLOY_PATH" || true
+          # Final pm2 save (server-doctor already started all processes)
+          pm2 save --force 2>/dev/null || true
+          echo "✅ Deploy complet: $(pm2 list 2>/dev/null | grep -c online || echo '?') procese PM2 online"
+          SSHEOF
           ssh -o StrictHostKeyChecking=no root@${{ secrets.HETZNER_HOST }} bash << 'ENDSSH'
             set -e
             chmod +x /var/www/unicorn/UNICORN_FINAL/server-doctor.sh
