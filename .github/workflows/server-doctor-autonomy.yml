@@ -214,7 +214,7 @@ jobs:
             TMP_CLONE=\$(mktemp -d)
             git clone --depth=1 https://github.com/\${GH_REPO}.git "\${TMP_CLONE}" 2>/dev/null || true
             if [ -d "\${TMP_CLONE}/UNICORN_FINAL" ]; then
-              rsync -a --delete \
+              rsync -a --delete --backup --suffix=.bak \
                 --exclude='.env' --exclude='node_modules' --exclude='data' \
                 --exclude='logs' --exclude='.git' \
                 "\${TMP_CLONE}/UNICORN_FINAL/" "\${DEPLOY_PATH}/"
@@ -313,7 +313,7 @@ jobs:
           SRV="${{ env.DEPLOY_USER }}@${{ env.SERVER_IP }}"
           DOMAIN="${{ env.SITE_DOMAIN }}"
 
-          $SSH -t $SRV "
+          $SSH $SRV bash << ENVEOF
           export NODE_ENV=production
           export PORT=3000
           export SITE_DOMAIN='${DOMAIN}'
@@ -408,7 +408,8 @@ jobs:
             chmod 600 '${{ env.DEPLOY_PATH }}/.env'
             echo '✅ .env generat (fallback)'
           fi
-          " 2>&1 || echo "⚠️ .env step continuat cu eroare non-fatală"
+          ENVEOF
+          [ $? -eq 0 ] || echo "⚠️ .env step continuat cu eroare non-fatală"
 
       # ── 5. npm install (+ force reinstall dacă cerut) ─────────────
       - name: npm install backend
@@ -492,7 +493,7 @@ jobs:
               echo "ℹ️  SSL activ — config nginx păstrat"
               # Repară wildcard server_name dacă e stricat
               if nginx -t 2>&1 | grep -qF '"*."'; then
-                sed -i "s/server_name \*\.\;/server_name *.\${DOMAIN};/" \
+                sed -i "s/server_name \*\.[^;]*/server_name *.${DOMAIN}/" \
                   /etc/nginx/sites-available/unicorn 2>/dev/null || true
               fi
             else
@@ -548,11 +549,11 @@ jobs:
             done
             if ! [ -f "\$SSL_CERT" ]; then
               echo "🔐 Obțin certificat SSL pentru \${DOMAIN}..."
-              eval certbot --nginx \$CERT_DOMAINS \
+              certbot --nginx \$CERT_DOMAINS \
                 --non-interactive --agree-tos -m "\${EMAIL}" \
                 --redirect --keep-until-expiring 2>&1 || \
               (systemctl stop nginx && \
-               eval certbot certonly --standalone \$CERT_DOMAINS \
+               certbot certonly --standalone \$CERT_DOMAINS \
                  --non-interactive --agree-tos -m "\${EMAIL}" \
                  --keep-until-expiring 2>&1 && \
                systemctl start nginx) || \
@@ -586,7 +587,6 @@ jobs:
           $SSH $SRV bash << 'TIMEREOF'
           set -euo pipefail
           DEPLOY_PATH="/var/www/unicorn"
-          DOMAIN_VAL="PLACEHOLDER_DOMAIN"
           DOCTOR_SCRIPT="${DEPLOY_PATH}/server-doctor.sh"
 
           # Script de auto-healing on-server (PM2 + Nginx watch)
