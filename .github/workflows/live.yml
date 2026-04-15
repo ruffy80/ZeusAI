@@ -506,17 +506,20 @@ jobs:
             # ── Nu suprascrie config-ul nginx dacă certbot a adăugat HTTPS ──
             SSL_CERT="/etc/letsencrypt/live/\${DOMAIN}/fullchain.pem"
             if [ -f "\$SSL_CERT" ] && grep -q "ssl_certificate" /etc/nginx/sites-available/unicorn 2>/dev/null; then
-              echo "ℹ️  SSL cert există — păstrăm config nginx curent cu HTTPS"
+              # SSL cert exists — preserve certbot SSL directives; only patch broken wildcards
+              echo "ℹ️  SSL cert există — config nginx păstrat, aplicat patch wildcard dacă e nevoie"
+              if nginx -t 2>&1 | grep -qF '"*."'; then
+                sed -i "s/server_name \*\.\;/server_name *.${DOMAIN};/" /etc/nginx/sites-available/unicorn 2>/dev/null || true
+                echo "🔧 Fixed: nginx wildcard server_name restored to *.${DOMAIN}"
+              fi
             else
-              cp "\$NGINX_CONF" /etc/nginx/sites-available/unicorn
-              echo "ℹ️  Config HTTP deploiat (certbot va adăuga HTTPS)"
+              # No SSL cert yet — deploy full config with domain substitution
+              # NOTE: use ${DOMAIN} (no backslash) so it expands in this heredoc to the correct value
+              sed "s/zeusai\.pro/${DOMAIN}/g" "\$NGINX_CONF" > /etc/nginx/sites-available/unicorn
+              echo "ℹ️  Nginx config actualizat cu domeniu: ${DOMAIN}"
+              ln -sf /etc/nginx/sites-available/unicorn /etc/nginx/sites-enabled/unicorn
+              rm -f /etc/nginx/sites-enabled/default
             fi
-            # Always deploy the updated nginx config (safe: certbot only modifies domain-specific blocks,
-            # not the default_server catch-all or wildcard blocks we maintain)
-            sed "s/zeusai\.pro/\${DOMAIN}/g" "\$NGINX_CONF" > /etc/nginx/sites-available/unicorn
-            echo "ℹ️  Nginx config actualizat (deploy complet)"
-            ln -sf /etc/nginx/sites-available/unicorn /etc/nginx/sites-enabled/unicorn
-            rm -f /etc/nginx/sites-enabled/default
           fi
           nginx -t 2>&1 && (systemctl reload nginx 2>/dev/null || systemctl restart nginx 2>/dev/null || true) || \
             (systemctl restart nginx 2>/dev/null || true)

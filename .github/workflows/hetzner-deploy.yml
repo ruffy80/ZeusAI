@@ -30,7 +30,7 @@ env:
 
 concurrency:
   group: ${{ github.event_name == 'pull_request' && format('pr-validate-{0}', github.event.pull_request.number) || 'zeusai-production' }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+  cancel-in-progress: true
 
 jobs:
   # ──────────────────────────────────────────────────────────────────────
@@ -48,10 +48,10 @@ jobs:
         working-directory: UNICORN_FINAL
     steps:
       - name: Checkout
-        uses: actions/checkout@v5
+        uses: actions/checkout@v4
 
       - name: Setup Node 22
-        uses: actions/setup-node@v5
+        uses: actions/setup-node@v4
         with:
           node-version: '22'
 
@@ -149,10 +149,10 @@ jobs:
       test_ok: ${{ steps.test.outcome }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v5
+        uses: actions/checkout@v4
 
       - name: Setup Node 22
-        uses: actions/setup-node@v5
+        uses: actions/setup-node@v4
         with:
           node-version: '22'
           cache: 'npm'
@@ -194,10 +194,10 @@ jobs:
         working-directory: UNICORN_FINAL
     steps:
       - name: Checkout
-        uses: actions/checkout@v5
+        uses: actions/checkout@v4
 
       - name: Setup Node 22
-        uses: actions/setup-node@v5
+        uses: actions/setup-node@v4
         with:
           node-version: '22'
 
@@ -248,7 +248,7 @@ jobs:
     if: github.event_name != 'pull_request'
     steps:
       - name: Checkout
-        uses: actions/checkout@v5
+        uses: actions/checkout@v4
 
       - name: Resolve Hetzner target and channels
         run: |
@@ -633,10 +633,15 @@ jobs:
               pm2 stop unicorn 2>/dev/null || pm2 stop all 2>/dev/null || true
             fi
 
+            # ── Pre-clean node_modules to prevent ENOTEMPTY errors ───────────
+            rm -rf node_modules 2>/dev/null || \
+              find node_modules -mindepth 1 -maxdepth 1 -exec rm -rf {} \; 2>/dev/null || true
+
             npm install --legacy-peer-deps --no-audit --no-fund || {
               echo "⚠️  npm install failed, cleaning and retrying..."
               npm cache clean --force 2>/dev/null || true
-              rm -rf node_modules 2>/dev/null || true
+              rm -rf node_modules 2>/dev/null || \
+                find node_modules -mindepth 1 -maxdepth 1 -exec rm -rf {} \; 2>/dev/null || true
               npm install --legacy-peer-deps --no-audit --no-fund
             }
 
@@ -647,10 +652,13 @@ jobs:
             if [ -d "client" ]; then
               echo "🎨 Building frontend..."
               cd client
+              rm -rf node_modules 2>/dev/null || \
+                find node_modules -mindepth 1 -maxdepth 1 -exec rm -rf {} \; 2>/dev/null || true
               npm install --legacy-peer-deps --no-audit --no-fund || {
                 echo "⚠️  client npm install failed, cleaning and retrying..."
                 npm cache clean --force 2>/dev/null || true
-                rm -rf node_modules 2>/dev/null || true
+                rm -rf node_modules 2>/dev/null || \
+                  find node_modules -mindepth 1 -maxdepth 1 -exec rm -rf {} \; 2>/dev/null || true
                 npm install --legacy-peer-deps --no-audit --no-fund
               }
               CI=false npm run build
@@ -1230,10 +1238,23 @@ jobs:
     name: 🔒 SSL Auto-Fix (dacă HTTPS e down)
     needs: [deploy-hetzner, smoke-tests]
     if: github.event_name != 'pull_request' && needs.deploy-hetzner.result == 'success'
+    runs-on: ubuntu-latest
     continue-on-error: true
-    permissions: {}
-    uses: ./.github/workflows/ssl-setup.yml
-    secrets: inherit
-    with:
-      domain: ${{ vars.SITE_DOMAIN || 'zeusai.pro' }}
+    permissions:
+      actions: write
+      contents: read
+    steps:
+      - name: Trigger SSL Setup workflow
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const domain = '${{ vars.SITE_DOMAIN || 'zeusai.pro' }}';
+            await github.rest.actions.createWorkflowDispatch({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              workflow_id: 'ssl-setup.yml',
+              ref: context.ref,
+              inputs: { domain: domain }
+            });
+            console.log(`✅ Triggered ssl-setup.yml for domain: ${domain}`);
 
