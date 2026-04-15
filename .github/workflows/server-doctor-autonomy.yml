@@ -457,11 +457,11 @@ jobs:
               pm2 startOrRestart src/index.js --name unicorn 2>/dev/null || true
           else
             pm2 startOrRestart "\$ECOSYSTEM" --only unicorn 2>/dev/null || \
-              pm2 start "\$ECOSYSTEM" --only unicorn
+              pm2 start "\$ECOSYSTEM" --only unicorn 2>/dev/null || true
             pm2 startOrRestart "\$ECOSYSTEM" 2>/dev/null || true
           fi
 
-          pm2 save
+          pm2 save --force 2>/dev/null || true
           # Activează PM2 la boot
           pm2 startup systemd 2>/dev/null | grep "^sudo" | head -1 | bash 2>/dev/null || true
 
