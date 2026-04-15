@@ -1,144 +1,805 @@
-name: Server Doctor Autonomy
+name: 🩺 Server Doctor Autonomy — ZeusAI Full Auto-Repair & Deploy
+
+# ═══════════════════════════════════════════════════════════════════════
+# Workflow complet de auto-diagnosticare, auto-reparare și re-deploy.
+# Poate fi declanșat manual (workflow_dispatch), la push, sau la fiecare
+# 30 de minute (schedule). Rezolvă automat orice problemă pe serverul
+# Hetzner și aduce unicornul + site-ul la 100% funcțional.
+# ═══════════════════════════════════════════════════════════════════════
 
 on:
   workflow_dispatch:
+    inputs:
+      force_reinstall:
+        description: 'Forțează ștergerea node_modules și reinstalarea completă'
+        required: false
+        default: 'false'
+      skip_validate:
+        description: 'Sare peste lint/test (use only if CI is broken)'
+        required: false
+        default: 'false'
   push:
-    branches:
-      - main
+    branches: [main]
     paths:
+      - 'UNICORN_FINAL/**'
       - '.github/workflows/server-doctor-autonomy.yml'
+  schedule:
+    - cron: '*/30 * * * *'
+
+env:
+  DEPLOY_PATH: /var/www/unicorn
+  DEPLOY_USER: root
+  DEPLOY_PORT: 22
+  SERVER_IP:   ${{ secrets.HETZNER_HOST || secrets.SSH_HOST || '204.168.230.142' }}
+  SITE_DOMAIN: ${{ secrets.SITE_DOMAIN || 'zeusai.pro' }}
+  OWNER_EMAIL: ${{ secrets.OWNER_EMAIL || 'vladoi_ionut@yahoo.com' }}
+  GH_REPO:     ruffy80/ZeusAI
+
+concurrency:
+  group: server-doctor-autonomy
+  cancel-in-progress: false
 
 permissions: write-all
 
 jobs:
-  install-server-doctor:
+  # ════════════════════════════════════════════════════════════════════
+  # JOB 1 — Validate (lint + test)
+  # ════════════════════════════════════════════════════════════════════
+  validate:
+    name: ✅ Lint & Test UNICORN_FINAL
     runs-on: ubuntu-latest
-
+    if: inputs.skip_validate != 'true'
+    defaults:
+      run:
+        working-directory: UNICORN_FINAL
+    outputs:
+      sha_short: ${{ steps.meta.outputs.sha_short }}
     steps:
-      - name: Configure Server Doctor on Hetzner
-        uses: appleboy/ssh-action@v1.0.3
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node 20
+        uses: actions/setup-node@v4
         with:
-          host: ${{ secrets.HETZNER_HOST || secrets.SSH_HOST }}
-          username: ${{ secrets.HETZNER_USER || secrets.SSH_USER || 'root' }}
-          key: ${{ secrets.HETZNER_SSH_PRIVATE_KEY || secrets.SSH_PRIVATE_KEY }}
-          script: |
-            mkdir -p /var/www/unicorn
-            mkdir -p /var/www/unicorn/logs
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: UNICORN_FINAL/package-lock.json
 
-            cat > /var/www/unicorn/server-doctor.sh << 'EOF'
-            #!/bin/bash
+      - name: Install dependencies
+        run: npm install --legacy-peer-deps --no-audit --no-fund
 
-            echo "======================================="
-            echo "      UNICORN SERVER DOCTOR v1.0"
-            echo "======================================="
+      - name: Lint
+        run: npm run lint
 
-            cd /var/www/unicorn || exit 1
+      - name: Test
+        run: |
+          export NODE_ENV=test
+          export DB_PATH=:memory:
+          npm test
 
-            echo "[1] Detectare foldere corupte..."
-            if [ -d "UNICORN_FINAL" ]; then
-              echo " - UNICORN_FINAL gasit -> STERGERE"
-              rm -rf UNICORN_FINAL
-            else
-              echo " - UNICORN_FINAL nu exista -> OK"
+      - name: SHA metadata
+        id: meta
+        run: echo "sha_short=$(echo '${{ github.sha }}' | cut -c1-7)" >> "$GITHUB_OUTPUT"
+
+  # ════════════════════════════════════════════════════════════════════
+  # JOB 2 — Server Doctor: auto-repair + full deploy pe Hetzner
+  # ════════════════════════════════════════════════════════════════════
+  server-doctor:
+    name: 🩺 Server Doctor → Hetzner
+    runs-on: ubuntu-latest
+    needs: [validate]
+    if: always() && (needs.validate.result == 'success' || needs.validate.result == 'skipped')
+    outputs:
+      health_ok: ${{ steps.healthcheck.outputs.ok }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # ── Configurare SSH ────────────────────────────────────────────
+      - name: Configurare SSH
+        id: ssh_setup
+        run: |
+          mkdir -p ~/.ssh && chmod 700 ~/.ssh
+          SSH_KEY="${{ secrets.HETZNER_SSH_PRIVATE_KEY || secrets.SSH_PRIVATE_KEY }}"
+          if [ -z "$SSH_KEY" ]; then
+            echo "⚠️  SSH key lipsă (HETZNER_SSH_PRIVATE_KEY / SSH_PRIVATE_KEY) — doctor sărit"
+            echo "ssh_ready=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          printf '%s\n' "$SSH_KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          if ! nc -z -w 20 "${{ env.SERVER_IP }}" "${{ env.DEPLOY_PORT }}" 2>/dev/null; then
+            echo "⚠️  Server ${{ env.SERVER_IP }}:${{ env.DEPLOY_PORT }} nu răspunde — doctor sărit"
+            echo "ssh_ready=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          ssh-keyscan -t rsa,ed25519 -p ${{ env.DEPLOY_PORT }} ${{ env.SERVER_IP }} \
+            >> ~/.ssh/known_hosts 2>/dev/null || true
+          echo "ssh_ready=true" >> "$GITHUB_OUTPUT"
+          echo "✅ SSH configurat → ${{ env.SERVER_IP }}"
+
+      # ── 1. Bootstrap: instalare Node/PM2/Nginx/Certbot ────────────
+      - name: Bootstrap server (Node 20, PM2, Nginx, Certbot, jq, UFW)
+        if: steps.ssh_setup.outputs.ssh_ready == 'true'
+        run: |
+          SSH="ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no -p ${{ env.DEPLOY_PORT }}"
+          SRV="${{ env.DEPLOY_USER }}@${{ env.SERVER_IP }}"
+          $SSH $SRV bash << 'BOOTSTRAP'
+          set -euo pipefail
+          export DEBIAN_FRONTEND=noninteractive
+
+          echo "════════════════════════════════════════"
+          echo "  🩺 ZeusAI Server Doctor Bootstrap"
+          echo "  $(date)"
+          echo "════════════════════════════════════════"
+
+          apt-get update -qq 2>/dev/null || true
+
+          # Node.js 20
+          if ! command -v node &>/dev/null || ! node -e "process.exit(parseInt(process.version.slice(1))<20?1:0)" 2>/dev/null; then
+            echo "📦 Instalez Node.js 20..."
+            apt-get install -y -qq ca-certificates curl gnupg 2>/dev/null
+            curl -fsSL https://deb.nodesource.com/setup_20.x | bash - 2>/dev/null
+            apt-get install -y -qq nodejs
+          fi
+          echo "✅ Node.js: $(node --version)"
+
+          # PM2
+          if ! command -v pm2 &>/dev/null; then
+            echo "📦 Instalez PM2..."
+            npm install -g pm2 --silent
+          fi
+          echo "✅ PM2: $(pm2 --version)"
+
+          # Nginx
+          if ! command -v nginx &>/dev/null; then
+            echo "📦 Instalez Nginx..."
+            apt-get install -y -qq nginx
+            systemctl enable nginx
+          fi
+          echo "✅ Nginx: $(nginx -v 2>&1)"
+
+          # Certbot
+          if ! command -v certbot &>/dev/null; then
+            echo "📦 Instalez Certbot..."
+            apt-get install -y -qq certbot python3-certbot-nginx 2>/dev/null || \
+              snap install --classic certbot 2>/dev/null || true
+          fi
+          echo "✅ Certbot: $(certbot --version 2>&1 || echo installed)"
+
+          # jq, git, curl
+          command -v jq  &>/dev/null || apt-get install -y -qq jq  2>/dev/null || true
+          command -v git &>/dev/null || apt-get install -y -qq git 2>/dev/null || true
+
+          # Firewall
+          if command -v ufw &>/dev/null; then
+            ufw allow 22/tcp  2>/dev/null || true
+            ufw allow 80/tcp  2>/dev/null || true
+            ufw allow 443/tcp 2>/dev/null || true
+            ufw deny  3000/tcp 2>/dev/null || true
+            ufw --force enable 2>/dev/null || true
+          fi
+          iptables -I INPUT -p tcp --dport 80  -j ACCEPT 2>/dev/null || true
+          iptables -I INPUT -p tcp --dport 443 -j ACCEPT 2>/dev/null || true
+
+          mkdir -p /var/www/unicorn/{logs,scripts,data,monitoring}
+          chmod -R 750 /var/www/unicorn
+
+          echo "✅ Bootstrap complet"
+          BOOTSTRAP
+
+      # ── 2. Actualizare cod (clone sau git pull) ────────────────────
+      - name: Actualizare cod pe server (clone / git pull)
+        if: steps.ssh_setup.outputs.ssh_ready == 'true'
+        run: |
+          SSH="ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no -p ${{ env.DEPLOY_PORT }}"
+          SRV="${{ env.DEPLOY_USER }}@${{ env.SERVER_IP }}"
+          DEPLOY_PATH="${{ env.DEPLOY_PATH }}"
+          GH_REPO="${{ env.GH_REPO }}"
+
+          $SSH $SRV bash << PULLEOF
+          set -euo pipefail
+          DEPLOY_PATH="${DEPLOY_PATH}"
+          GH_REPO="${GH_REPO}"
+
+          if [ -d "\${DEPLOY_PATH}/.git" ]; then
+            cd "\${DEPLOY_PATH}"
+            git config --global --add safe.directory "\${DEPLOY_PATH}" 2>/dev/null || true
+            git fetch origin main
+            git reset --hard origin/main
+            echo "✅ git reset → origin/main (SHA: \$(git rev-parse --short HEAD))"
+
+          elif [ -f "\${DEPLOY_PATH}/package.json" ] || [ -f "\${DEPLOY_PATH}/ecosystem.config.js" ]; then
+            # rsync-style deploy — codul deja existent; actualizăm via clone temp
+            TMP_CLONE=\$(mktemp -d)
+            git clone --depth=1 https://github.com/\${GH_REPO}.git "\${TMP_CLONE}" 2>/dev/null || true
+            if [ -d "\${TMP_CLONE}/UNICORN_FINAL" ]; then
+              rsync -a --delete --backup --suffix=.bak \
+                --exclude='.env' --exclude='node_modules' --exclude='data' \
+                --exclude='logs' --exclude='.git' \
+                "\${TMP_CLONE}/UNICORN_FINAL/" "\${DEPLOY_PATH}/"
+              echo "✅ Cod actualizat via rsync din clone temp"
             fi
+            rm -rf "\${TMP_CLONE}"
 
-            echo "[2] Detectare node_modules corupt..."
-            if [ ! -d "node_modules" ] || [ ! -f "node_modules/.bin/pm2" ]; then
-              echo " - node_modules corupt -> STERGERE"
-              rm -rf node_modules
-            else
-              echo " - node_modules OK"
+          else
+            # Prima instalare
+            mkdir -p "\${DEPLOY_PATH}"
+            TMP_CLONE=\$(mktemp -d)
+            git clone --depth=1 https://github.com/\${GH_REPO}.git "\${TMP_CLONE}" 2>/dev/null || true
+            if [ -d "\${TMP_CLONE}/UNICORN_FINAL" ]; then
+              cp -a "\${TMP_CLONE}/UNICORN_FINAL/." "\${DEPLOY_PATH}/"
+              echo "✅ UNICORN_FINAL clonat la \${DEPLOY_PATH}"
             fi
+            rm -rf "\${TMP_CLONE}"
+          fi
+          PULLEOF
 
-            echo "[3] Reconstruire structura Unicorn..."
-            mkdir -p logs
-            chmod -R 755 /var/www/unicorn
+      # ── 3. Trimite fișiere auxiliare ───────────────────────────────
+      - name: Trimite scripts/nginx conf pe server
+        if: steps.ssh_setup.outputs.ssh_ready == 'true'
+        run: |
+          SCP="scp -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no -P ${{ env.DEPLOY_PORT }}"
+          SRV="${{ env.DEPLOY_USER }}@${{ env.SERVER_IP }}"
+          $SCP UNICORN_FINAL/scripts/create-env.sh \
+               $SRV:${{ env.DEPLOY_PATH }}/scripts/create-env.sh 2>/dev/null || true
+          $SCP UNICORN_FINAL/scripts/nginx-unicorn.conf \
+               $SRV:${{ env.DEPLOY_PATH }}/scripts/nginx-unicorn.conf 2>/dev/null || true
+          $SCP UNICORN_FINAL/scripts/healer.sh \
+               $SRV:/usr/local/bin/healer.sh 2>/dev/null || true
+          $SCP UNICORN_FINAL/scripts/healer.service \
+               $SRV:/etc/systemd/system/healer.service 2>/dev/null || true
+          $SCP UNICORN_FINAL/scripts/healer.timer \
+               $SRV:/etc/systemd/system/healer.timer 2>/dev/null || true
+          echo "✅ Fișiere auxiliare transferate"
 
-            echo "[4] Reinstalare dependente..."
-            npm install --legacy-peer-deps || npm install || true
+      # ── 4. Generare .env cu toate secretele ───────────────────────
+      - name: Generare .env pe server
+        if: steps.ssh_setup.outputs.ssh_ready == 'true'
+        env:
+          NODE_ENV: production
+          JWT_SECRET:                      ${{ secrets.JWT_SECRET }}
+          ADMIN_SECRET:                    ${{ secrets.ADMIN_SECRET || secrets.JWT_SECRET }}
+          ADMIN_MASTER_PASSWORD:           ${{ secrets.ADMIN_MASTER_PASSWORD }}
+          ADMIN_2FA_CODE:                  ${{ secrets.ADMIN_2FA_CODE }}
+          OPENAI_API_KEY:                  ${{ secrets.OPENAI_API_KEY }}
+          DEEPSEEK_API_KEY:                ${{ secrets.DEEPSEEK_API_KEY }}
+          ANTHROPIC_API_KEY:               ${{ secrets.ANTHROPIC_API_KEY }}
+          GEMINI_API_KEY:                  ${{ secrets.GEMINI_API_KEY }}
+          MISTRAL_API_KEY:                 ${{ secrets.MISTRAL_API_KEY }}
+          COHERE_API_KEY:                  ${{ secrets.COHERE_API_KEY }}
+          XAI_API_KEY:                     ${{ secrets.XAI_API_KEY }}
+          GROQ_API_KEY:                    ${{ secrets.GROQ_API_KEY }}
+          OPENROUTER_API_KEY:              ${{ secrets.OPENROUTER_API_KEY }}
+          PERPLEXITY_API_KEY:              ${{ secrets.PERPLEXITY_API_KEY }}
+          HF_API_KEY:                      ${{ secrets.HF_API_KEY }}
+          TOGETHER_API_KEY:                ${{ secrets.TOGETHER_API_KEY }}
+          FIREWORKS_API_KEY:               ${{ secrets.FIREWORKS_API_KEY }}
+          SAMBANOVA_API_KEY:               ${{ secrets.SAMBANOVA_API_KEY }}
+          NVIDIA_NIM_API_KEY:              ${{ secrets.NVIDIA_NIM_API_KEY }}
+          STRIPE_SECRET_KEY:               ${{ secrets.STRIPE_SECRET_KEY }}
+          STRIPE_PUBLISHABLE_KEY:          ${{ secrets.STRIPE_PUBLISHABLE_KEY }}
+          STRIPE_WEBHOOK_SECRET:           ${{ secrets.STRIPE_WEBHOOK_SECRET }}
+          STRIPE_PRICE_STARTER_MONTHLY:    ${{ secrets.STRIPE_PRICE_STARTER_MONTHLY }}
+          STRIPE_PRICE_STARTER_YEARLY:     ${{ secrets.STRIPE_PRICE_STARTER_YEARLY }}
+          STRIPE_PRICE_PRO_MONTHLY:        ${{ secrets.STRIPE_PRICE_PRO_MONTHLY }}
+          STRIPE_PRICE_PRO_YEARLY:         ${{ secrets.STRIPE_PRICE_PRO_YEARLY }}
+          STRIPE_PRICE_ENTERPRISE_MONTHLY: ${{ secrets.STRIPE_PRICE_ENTERPRISE_MONTHLY }}
+          STRIPE_PRICE_ENTERPRISE_YEARLY:  ${{ secrets.STRIPE_PRICE_ENTERPRISE_YEARLY }}
+          PAYPAL_CLIENT_ID:                ${{ secrets.PAYPAL_CLIENT_ID }}
+          PAYPAL_CLIENT_SECRET:            ${{ secrets.PAYPAL_CLIENT_SECRET }}
+          PAYPAL_WEBHOOK_ID:               ${{ secrets.PAYPAL_WEBHOOK_ID }}
+          SMTP_HOST:                       ${{ secrets.SMTP_HOST }}
+          SMTP_PORT:                       ${{ secrets.SMTP_PORT || '587' }}
+          SMTP_USER:                       ${{ secrets.SMTP_USER }}
+          SMTP_PASS:                       ${{ secrets.SMTP_PASS }}
+          HETZNER_API_VALUE:               ${{ secrets.HETZNER_API_KEY || secrets.HETZNER_API_TOKEN }}
+          GH_TOKEN_DEPLOY:                 ${{ secrets.GH_PAT || secrets.GITHUB_TOKEN }}
+          BTC_WALLET_ADDRESS:              ${{ secrets.BTC_WALLET_ADDRESS }}
+          ETH_WALLET_ADDRESS:              ${{ secrets.ETH_WALLET_ADDRESS }}
+          USDC_WALLET_ADDRESS:             ${{ secrets.USDC_WALLET_ADDRESS }}
+          BINANCE_API_KEY:                 ${{ secrets.BINANCE_API_KEY }}
+          BINANCE_SECRET:                  ${{ secrets.BINANCE_SECRET }}
+          VAULT_MASTER_SECRET:             ${{ secrets.VAULT_MASTER_SECRET }}
+          VAULT_EMERGENCY_CODE:            ${{ secrets.VAULT_EMERGENCY_CODE }}
+          MASTER_CONFIG_SECRET:            ${{ secrets.MASTER_CONFIG_SECRET }}
+          SAV_API_TOKEN:                   ${{ secrets.SAV_API_TOKEN }}
+          TELEGRAM_BOT_TOKEN:              ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID:                ${{ secrets.TELEGRAM_CHAT_ID }}
+          WEBHOOK_SECRET:                  ${{ secrets.WEBHOOK_SECRET }}
+          GRAFANA_ADMIN_PASSWORD:          ${{ secrets.GRAFANA_ADMIN_PASSWORD }}
+        run: |
+          SSH="ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no -p ${{ env.DEPLOY_PORT }}"
+          SRV="${{ env.DEPLOY_USER }}@${{ env.SERVER_IP }}"
+          DOMAIN="${{ env.SITE_DOMAIN }}"
 
-            echo "[5] Rebuild Unicorn..."
-            npm run build || echo " - Build FAILED, continui oricum"
+          $SSH $SRV bash << ENVEOF
+          export NODE_ENV=production
+          export PORT=3000
+          export SITE_DOMAIN='${DOMAIN}'
+          export UNICORN_DOMAIN='www.${DOMAIN}'
+          export PUBLIC_APP_URL='https://${DOMAIN}'
+          export CORS_ORIGINS='https://${DOMAIN},https://www.${DOMAIN},https://api.${DOMAIN}'
+          export JWT_SECRET='${JWT_SECRET}'
+          export ADMIN_SECRET='${ADMIN_SECRET}'
+          export ADMIN_MASTER_PASSWORD='${ADMIN_MASTER_PASSWORD}'
+          export ADMIN_2FA_CODE='${ADMIN_2FA_CODE}'
+          export OPENAI_API_KEY='${OPENAI_API_KEY}'
+          export DEEPSEEK_API_KEY='${DEEPSEEK_API_KEY}'
+          export ANTHROPIC_API_KEY='${ANTHROPIC_API_KEY}'
+          export GEMINI_API_KEY='${GEMINI_API_KEY}'
+          export MISTRAL_API_KEY='${MISTRAL_API_KEY}'
+          export COHERE_API_KEY='${COHERE_API_KEY}'
+          export XAI_API_KEY='${XAI_API_KEY}'
+          export GROQ_API_KEY='${GROQ_API_KEY}'
+          export OPENROUTER_API_KEY='${OPENROUTER_API_KEY}'
+          export PERPLEXITY_API_KEY='${PERPLEXITY_API_KEY}'
+          export HUGGINGFACE_API_KEY='${HF_API_KEY}'
+          export HF_API_KEY='${HF_API_KEY}'
+          export TOGETHER_API_KEY='${TOGETHER_API_KEY}'
+          export FIREWORKS_API_KEY='${FIREWORKS_API_KEY}'
+          export SAMBANOVA_API_KEY='${SAMBANOVA_API_KEY}'
+          export NVIDIA_NIM_API_KEY='${NVIDIA_NIM_API_KEY}'
+          export STRIPE_SECRET_KEY='${STRIPE_SECRET_KEY}'
+          export STRIPE_PUBLISHABLE_KEY='${STRIPE_PUBLISHABLE_KEY}'
+          export STRIPE_WEBHOOK_SECRET='${STRIPE_WEBHOOK_SECRET}'
+          export STRIPE_PRICE_STARTER_MONTHLY='${STRIPE_PRICE_STARTER_MONTHLY}'
+          export STRIPE_PRICE_STARTER_YEARLY='${STRIPE_PRICE_STARTER_YEARLY}'
+          export STRIPE_PRICE_PRO_MONTHLY='${STRIPE_PRICE_PRO_MONTHLY}'
+          export STRIPE_PRICE_PRO_YEARLY='${STRIPE_PRICE_PRO_YEARLY}'
+          export STRIPE_PRICE_ENTERPRISE_MONTHLY='${STRIPE_PRICE_ENTERPRISE_MONTHLY}'
+          export STRIPE_PRICE_ENTERPRISE_YEARLY='${STRIPE_PRICE_ENTERPRISE_YEARLY}'
+          export PAYPAL_CLIENT_ID='${PAYPAL_CLIENT_ID}'
+          export PAYPAL_CLIENT_SECRET='${PAYPAL_CLIENT_SECRET}'
+          export PAYPAL_WEBHOOK_ID='${PAYPAL_WEBHOOK_ID}'
+          export SMTP_HOST='${SMTP_HOST}'
+          export SMTP_PORT='${SMTP_PORT}'
+          export SMTP_USER='${SMTP_USER}'
+          export SMTP_PASS='${SMTP_PASS}'
+          export HETZNER_API_KEY='${HETZNER_API_VALUE}'
+          export HETZNER_API_TOKEN='${HETZNER_API_VALUE}'
+          export GITHUB_TOKEN='${GH_TOKEN_DEPLOY}'
+          export BTC_WALLET_ADDRESS='${BTC_WALLET_ADDRESS}'
+          export ETH_WALLET_ADDRESS='${ETH_WALLET_ADDRESS}'
+          export USDC_WALLET_ADDRESS='${USDC_WALLET_ADDRESS}'
+          export BINANCE_API_KEY='${BINANCE_API_KEY}'
+          export BINANCE_SECRET='${BINANCE_SECRET}'
+          export VAULT_MASTER_SECRET='${VAULT_MASTER_SECRET}'
+          export VAULT_EMERGENCY_CODE='${VAULT_EMERGENCY_CODE}'
+          export MASTER_CONFIG_SECRET='${MASTER_CONFIG_SECRET}'
+          export SAV_API_TOKEN='${SAV_API_TOKEN}'
+          export TELEGRAM_BOT_TOKEN='${TELEGRAM_BOT_TOKEN}'
+          export TELEGRAM_CHAT_ID='${TELEGRAM_CHAT_ID}'
+          export WEBHOOK_SECRET='${WEBHOOK_SECRET}'
+          export GRAFANA_ADMIN_PASSWORD='${GRAFANA_ADMIN_PASSWORD}'
+          export GITHUB_REPO_OWNER=ruffy80
+          export GITHUB_REPO_NAME=ZeusAI
+          export GITHUB_BRANCH=main
+          export HETZNER_BACKEND_URL=http://127.0.0.1:3000
+          export OWNER_EMAIL='${OWNER_EMAIL}'
+          export ADMIN_EMAIL='${OWNER_EMAIL}'
+          export OWNER_NAME='Vladoi Ionut'
 
-            echo "[6] Oprire procese PM2 vechi..."
-            pm2 delete unicorn || true
-            pm2 delete orchestrator || true
-            pm2 delete shield || true
-            pm2 delete health-daemon || true
+          if [ -f '${{ env.DEPLOY_PATH }}/scripts/create-env.sh' ]; then
+            bash '${{ env.DEPLOY_PATH }}/scripts/create-env.sh' '${{ env.DEPLOY_PATH }}'
+            echo '✅ .env generat via create-env.sh'
+          else
+            cat > '${{ env.DEPLOY_PATH }}/.env' << DOTENV_EOF
+          NODE_ENV=production
+          PORT=3000
+          SITE_DOMAIN=${DOMAIN}
+          PUBLIC_APP_URL=https://${DOMAIN}
+          JWT_SECRET=${JWT_SECRET}
+          ADMIN_SECRET=${ADMIN_SECRET}
+          OPENAI_API_KEY=${OPENAI_API_KEY}
+          DEEPSEEK_API_KEY=${DEEPSEEK_API_KEY}
+          GROQ_API_KEY=${GROQ_API_KEY}
+          STRIPE_SECRET_KEY=${STRIPE_SECRET_KEY}
+          STRIPE_PUBLISHABLE_KEY=${STRIPE_PUBLISHABLE_KEY}
+          SMTP_HOST=${SMTP_HOST}
+          SMTP_PORT=${SMTP_PORT}
+          SMTP_USER=${SMTP_USER}
+          SMTP_PASS=${SMTP_PASS}
+          GITHUB_TOKEN=${GH_TOKEN_DEPLOY}
+          OWNER_EMAIL=${OWNER_EMAIL}
+          OWNER_NAME=Vladoi Ionut
+          BTC_WALLET_ADDRESS=${BTC_WALLET_ADDRESS}
+          DOTENV_EOF
+            chmod 600 '${{ env.DEPLOY_PATH }}/.env'
+            echo '✅ .env generat (fallback)'
+          fi
+          ENVEOF
+          [ $? -eq 0 ] || echo "⚠️ .env step continuat cu eroare non-fatală"
 
-            echo "[7] Pornire procese PM2..."
-            if [ -f "ecosystem.config.js" ]; then
-              pm2 start ecosystem.config.js
+      # ── 5. npm install (+ force reinstall dacă cerut) ─────────────
+      - name: npm install backend
+        if: steps.ssh_setup.outputs.ssh_ready == 'true'
+        run: |
+          SSH="ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no -p ${{ env.DEPLOY_PORT }}"
+          SRV="${{ env.DEPLOY_USER }}@${{ env.SERVER_IP }}"
+          FORCE="${{ inputs.force_reinstall }}"
+          DEPLOY_PATH="${{ env.DEPLOY_PATH }}"
+
+          $SSH $SRV bash << NPMEOF
+          set -euo pipefail
+          cd "${DEPLOY_PATH}"
+
+          # Verificare node_modules corupt
+          if [ "${FORCE}" = "true" ]; then
+            echo "🗑️  force_reinstall=true — șterg node_modules"
+            rm -rf node_modules
+          elif [ ! -d "node_modules" ] || [ ! -f "node_modules/.package-lock.json" ]; then
+            echo "⚠️  node_modules lipsă sau corupt — reinstalare forțată"
+            rm -rf node_modules
+          fi
+
+          npm install --legacy-peer-deps --no-audit --no-fund 2>&1
+          npm rebuild better-sqlite3 --no-fund 2>/dev/null || true
+          echo "✅ npm install OK"
+          NPMEOF
+
+      # ── 6. PM2 start / restart ─────────────────────────────────────
+      - name: PM2 restart (ecosystem.config.js)
+        if: steps.ssh_setup.outputs.ssh_ready == 'true'
+        run: |
+          SSH="ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no -p ${{ env.DEPLOY_PORT }}"
+          SRV="${{ env.DEPLOY_USER }}@${{ env.SERVER_IP }}"
+          DEPLOY_PATH="${{ env.DEPLOY_PATH }}"
+
+          $SSH $SRV bash << PM2EOF
+          set -euo pipefail
+          cd "${DEPLOY_PATH}"
+          ECOSYSTEM="${DEPLOY_PATH}/ecosystem.config.js"
+
+          if [ ! -f "\$ECOSYSTEM" ]; then
+            echo "⚠️  ecosystem.config.js lipsă — pornire manuală backend"
+            pm2 startOrRestart backend/index.js --name unicorn 2>/dev/null || \
+              pm2 startOrRestart src/index.js --name unicorn 2>/dev/null || true
+          else
+            pm2 startOrRestart "\$ECOSYSTEM" --only unicorn 2>/dev/null || \
+              pm2 start "\$ECOSYSTEM" --only unicorn
+            pm2 startOrRestart "\$ECOSYSTEM" 2>/dev/null || true
+          fi
+
+          pm2 save
+          # Activează PM2 la boot
+          pm2 startup systemd 2>/dev/null | grep "^sudo" | head -1 | bash 2>/dev/null || true
+
+          echo "✅ PM2 status:"
+          pm2 list --no-color 2>/dev/null || true
+          PM2EOF
+
+      # ── 7. Nginx config + SSL ───────────────────────────────────────
+      - name: Nginx config + SSL (certbot)
+        if: steps.ssh_setup.outputs.ssh_ready == 'true'
+        run: |
+          SSH="ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no -p ${{ env.DEPLOY_PORT }}"
+          SRV="${{ env.DEPLOY_USER }}@${{ env.SERVER_IP }}"
+          DOMAIN="${{ env.SITE_DOMAIN }}"
+          EMAIL="${{ env.OWNER_EMAIL }}"
+          DEPLOY_PATH="${{ env.DEPLOY_PATH }}"
+
+          $SSH $SRV bash << NGINXEOF
+          set -euo pipefail
+          DOMAIN="${DOMAIN}"
+          EMAIL="${EMAIL}"
+          DEPLOY_PATH="${DEPLOY_PATH}"
+          NGINX_CONF="${DEPLOY_PATH}/scripts/nginx-unicorn.conf"
+          SSL_CERT="/etc/letsencrypt/live/\${DOMAIN}/fullchain.pem"
+
+          # Configurare Nginx (nu suprascrie dacă SSL deja activ)
+          if [ -f "\$NGINX_CONF" ]; then
+            if [ -f "\$SSL_CERT" ] && grep -q "ssl_certificate" /etc/nginx/sites-available/unicorn 2>/dev/null; then
+              echo "ℹ️  SSL activ — config nginx păstrat"
+              # Repară wildcard server_name dacă e stricat
+              if nginx -t 2>&1 | grep -qF '"*."'; then
+                sed -i "s/server_name \*\.[^;]*/server_name *.${DOMAIN}/" \
+                  /etc/nginx/sites-available/unicorn 2>/dev/null || true
+              fi
             else
-              echo " - ecosystem.config.js lipseste -> pornire manuala"
-              pm2 start server.js --name unicorn || true
+              sed "s/zeusai\.pro/\${DOMAIN}/g" "\$NGINX_CONF" \
+                > /etc/nginx/sites-available/unicorn
+              ln -sf /etc/nginx/sites-available/unicorn \
+                     /etc/nginx/sites-enabled/unicorn
+              rm -f /etc/nginx/sites-enabled/default
+              echo "✅ Config Nginx aplicat pentru \${DOMAIN}"
             fi
+          else
+            # Config minimal de urgență
+            cat > /etc/nginx/sites-available/unicorn << MINCONF
+          server {
+            listen 80;
+            server_name \${DOMAIN} www.\${DOMAIN};
+            location / {
+              proxy_pass         http://127.0.0.1:3000;
+              proxy_http_version 1.1;
+              proxy_set_header   Upgrade \\\$http_upgrade;
+              proxy_set_header   Connection 'upgrade';
+              proxy_set_header   Host \\\$host;
+              proxy_cache_bypass \\\$http_upgrade;
+            }
+          }
+          MINCONF
+            ln -sf /etc/nginx/sites-available/unicorn \
+                   /etc/nginx/sites-enabled/unicorn
+            rm -f /etc/nginx/sites-enabled/default
+            echo "⚠️  Config nginx minimal creat (urgență)"
+          fi
 
-            pm2 save
+          nginx -t 2>&1 && \
+            (systemctl reload nginx 2>/dev/null || systemctl restart nginx 2>/dev/null || true) || \
+            (systemctl restart nginx 2>/dev/null || true)
+          systemctl enable nginx 2>/dev/null || true
 
-            echo "[8] Verificare porturi..."
-            netstat -tlnp | grep -E ':80|:443|:3000' || echo " - Porturi lipsa"
+          # SSL via Certbot
+          python3 -c "import certbot_nginx" 2>/dev/null || \
+            apt-get install -y -qq python3-certbot-nginx 2>/dev/null || true
 
-            echo "[9] Verificare health endpoint..."
-            curl -f http://localhost:3000/api/health \
-              && echo " - HEALTH OK" \
-              || echo " - HEALTH FAIL"
+          SERVER_IP_REAL=\$(curl -4 -fsS --max-time 5 https://ifconfig.me 2>/dev/null \
+            || hostname -I | awk '{print \$1}')
+          DOMAIN_IP=\$(getent ahostsv4 "\${DOMAIN}" 2>/dev/null | awk 'NR==1{print \$1}' || true)
+          echo "  Server IP: \${SERVER_IP_REAL} | Domain IP: \${DOMAIN_IP:-nererezolvat}"
 
-            echo "[10] Verificare Nginx..."
-            nginx -t && systemctl restart nginx && echo " - Nginx OK" || echo " - Nginx FAIL"
-
-            echo "[11] Verificare SSL..."
-            if [ -d "/etc/letsencrypt/live" ]; then
-              echo " - SSL gasit"
+          if [ -n "\${DOMAIN_IP}" ] && [ "\${DOMAIN_IP}" = "\${SERVER_IP_REAL}" ]; then
+            CERT_DOMAINS="-d \${DOMAIN}"
+            for sub in "www.\${DOMAIN}" "api.\${DOMAIN}" "orchestrator.\${DOMAIN}"; do
+              SUB_IP=\$(getent ahostsv4 "\$sub" 2>/dev/null | awk 'NR==1{print \$1}' || true)
+              [ -n "\$SUB_IP" ] && [ "\$SUB_IP" = "\${SERVER_IP_REAL}" ] && \
+                CERT_DOMAINS="\$CERT_DOMAINS -d \$sub"
+            done
+            if ! [ -f "\$SSL_CERT" ]; then
+              echo "🔐 Obțin certificat SSL pentru \${DOMAIN}..."
+              certbot --nginx \$CERT_DOMAINS \
+                --non-interactive --agree-tos -m "\${EMAIL}" \
+                --redirect --keep-until-expiring 2>&1 || \
+              (systemctl stop nginx && \
+               certbot certonly --standalone \$CERT_DOMAINS \
+                 --non-interactive --agree-tos -m "\${EMAIL}" \
+                 --keep-until-expiring 2>&1 && \
+               systemctl start nginx) || \
+              (systemctl start nginx 2>/dev/null || true && \
+               echo "⚠️  Certbot va fi reîncercat la next run")
             else
-              echo " - SSL lipsa -> trebuie reinnoit"
+              certbot renew --nginx --non-interactive 2>&1 || true
+              echo "✅ SSL valid, renew verificat"
             fi
+            nginx -t 2>/dev/null && systemctl reload nginx 2>/dev/null || true
+          else
+            echo "ℹ️  DNS nu a propagat — SSL obținut la next run"
+          fi
 
-            echo "======================================="
-            echo "   SERVER DOCTOR: FINALIZAT COMPLET"
-            echo "======================================="
-            EOF
+          # Auto-renewal cron
+          (crontab -l 2>/dev/null | grep -v certbot; \
+           echo "0 3 * * * certbot renew --quiet --post-hook 'systemctl reload nginx'") \
+           | crontab - 2>/dev/null || true
+          echo "✅ Nginx + SSL finalizat"
+          NGINXEOF
 
-            chmod +x /var/www/unicorn/server-doctor.sh
+      # ── 8. Instalare systemd server-doctor timer ────────────────────
+      - name: Instalare systemd server-doctor timer (auto-heal la 30 min)
+        if: steps.ssh_setup.outputs.ssh_ready == 'true'
+        run: |
+          SSH="ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no -p ${{ env.DEPLOY_PORT }}"
+          SRV="${{ env.DEPLOY_USER }}@${{ env.SERVER_IP }}"
+          DEPLOY_PATH="${{ env.DEPLOY_PATH }}"
+          DOMAIN="${{ env.SITE_DOMAIN }}"
 
-            cat > /etc/systemd/system/server-doctor.service << 'EOF'
-            [Unit]
-            Description=Unicorn Server Doctor
+          $SSH $SRV bash << 'TIMEREOF'
+          set -euo pipefail
+          DEPLOY_PATH="/var/www/unicorn"
+          DOCTOR_SCRIPT="${DEPLOY_PATH}/server-doctor.sh"
 
-            [Service]
-            Type=oneshot
-            ExecStart=/var/www/unicorn/server-doctor.sh
-            WorkingDirectory=/var/www/unicorn
-            StandardOutput=append:/var/www/unicorn/logs/server-doctor-systemd.log
-            StandardError=append:/var/www/unicorn/logs/server-doctor-systemd.log
-            User=root
-            Group=root
-            EOF
+          # Script de auto-healing on-server (PM2 + Nginx watch)
+          cat > "${DOCTOR_SCRIPT}" << 'DOCEOF'
+          #!/usr/bin/env bash
+          # server-doctor.sh — ZeusAI on-server self-healing (rulat de systemd la 30 min)
+          set -euo pipefail
+          DEPLOY_PATH="/var/www/unicorn"
+          LOG="${DEPLOY_PATH}/logs/server-doctor-systemd.log"
+          mkdir -p "${DEPLOY_PATH}/logs"
+          exec >> "${LOG}" 2>&1
+          echo "======================================================="
+          echo "  🩺 UNICORN SERVER DOCTOR — $(date)"
+          echo "======================================================="
 
-            cat > /etc/systemd/system/server-doctor.timer << 'EOF'
-            [Unit]
-            Description=Run Unicorn Server Doctor every 30 minutes
+          cd "${DEPLOY_PATH}" || exit 1
 
-            [Timer]
-            OnBootSec=5min
-            OnUnitActiveSec=30min
-            Unit=server-doctor.service
+          # 1. PM2 — asigură că unicorn rulează
+          if command -v pm2 &>/dev/null; then
+            RUNNING=$(pm2 list --no-color 2>/dev/null | grep -c "online" || echo 0)
+            if [ "${RUNNING}" -lt 1 ]; then
+              echo "[PM2] Niciun proces online — repornire..."
+              ECOSYSTEM="${DEPLOY_PATH}/ecosystem.config.js"
+              if [ -f "${ECOSYSTEM}" ]; then
+                pm2 startOrRestart "${ECOSYSTEM}" || true
+              else
+                pm2 start backend/index.js --name unicorn 2>/dev/null || \
+                pm2 start src/index.js --name unicorn 2>/dev/null || true
+              fi
+              pm2 save 2>/dev/null || true
+              echo "[PM2] ✅ Procese repornite"
+            else
+              echo "[PM2] ✅ ${RUNNING} procese online"
+            fi
+          fi
 
-            [Install]
-            WantedBy=timers.target
-            EOF
+          # 2. Nginx — asigură că rulează
+          if command -v nginx &>/dev/null; then
+            if ! systemctl is-active --quiet nginx 2>/dev/null; then
+              echo "[NGINX] Nginx oprit — repornire..."
+              nginx -t 2>&1 && systemctl start nginx && echo "[NGINX] ✅ Nginx pornit" || \
+                echo "[NGINX] ❌ Nginx nu a pornit — verificare manuală necesară"
+            else
+              echo "[NGINX] ✅ Nginx activ"
+            fi
+          fi
 
-            systemctl daemon-reload
-            systemctl enable --now server-doctor.timer
-            systemctl start server-doctor.service
+          # 3. Health check
+          HEALTH_CODE=$(curl -sf -o /dev/null -w "%{http_code}" \
+            --max-time 10 http://127.0.0.1:3000/health 2>/dev/null || echo "000")
+          if [ "${HEALTH_CODE}" = "200" ]; then
+            echo "[HEALTH] ✅ HTTP 200 — Unicorn OK"
+          else
+            echo "[HEALTH] ⚠️  HTTP ${HEALTH_CODE} — încerc repornire PM2..."
+            pm2 restart unicorn 2>/dev/null || pm2 restart all 2>/dev/null || true
+            sleep 10
+            RETRY=$(curl -sf -o /dev/null -w "%{http_code}" \
+              --max-time 10 http://127.0.0.1:3000/health 2>/dev/null || echo "000")
+            echo "[HEALTH] Retry: HTTP ${RETRY}"
+          fi
 
-      - name: Check Server Doctor status
-        uses: appleboy/ssh-action@v1.0.3
-        with:
-          host: ${{ secrets.HETZNER_HOST || secrets.SSH_HOST }}
-          username: ${{ secrets.HETZNER_USER || secrets.SSH_USER || 'root' }}
-          key: ${{ secrets.HETZNER_SSH_PRIVATE_KEY || secrets.SSH_PRIVATE_KEY }}
-          script: |
-            systemctl status server-doctor.timer --no-pager || true
-            systemctl status server-doctor.service --no-pager || true
-            tail -n 80 /var/www/unicorn/logs/server-doctor-systemd.log || true
+          echo "======================================================="
+          echo "  ✅ Server Doctor complet — $(date)"
+          echo "======================================================="
+          DOCEOF
+
+          chmod +x "${DOCTOR_SCRIPT}"
+
+          # Serviciu systemd
+          cat > /etc/systemd/system/server-doctor.service << 'SVCEOF'
+          [Unit]
+          Description=ZeusAI Unicorn Server Doctor (auto-heal)
+          After=network.target
+
+          [Service]
+          Type=oneshot
+          ExecStart=/var/www/unicorn/server-doctor.sh
+          WorkingDirectory=/var/www/unicorn
+          StandardOutput=append:/var/www/unicorn/logs/server-doctor-systemd.log
+          StandardError=append:/var/www/unicorn/logs/server-doctor-systemd.log
+          User=root
+          Group=root
+          SVCEOF
+
+          # Timer systemd (la 30 min)
+          cat > /etc/systemd/system/server-doctor.timer << 'TMREOF'
+          [Unit]
+          Description=Run ZeusAI Server Doctor every 30 minutes
+
+          [Timer]
+          OnBootSec=2min
+          OnUnitActiveSec=30min
+          Unit=server-doctor.service
+
+          [Install]
+          WantedBy=timers.target
+          TMREOF
+
+          # Healer timer (dacă există scriptul)
+          if [ -f /usr/local/bin/healer.sh ]; then
+            chmod +x /usr/local/bin/healer.sh
+          fi
+
+          systemctl daemon-reload
+          systemctl enable --now server-doctor.timer
+          systemctl enable healer.timer 2>/dev/null || true
+          systemctl restart healer.timer 2>/dev/null || true
+          echo "✅ server-doctor.timer activ (30 min interval)"
+          TIMEREOF
+
+      # ── 9. Health check final ──────────────────────────────────────
+      - name: Health check final (120s)
+        id: healthcheck
+        if: steps.ssh_setup.outputs.ssh_ready == 'true'
+        run: |
+          echo "🔍 Health check (120s timeout)..."
+          START=$(date +%s)
+          SUCCESS=false
+          SERVER="${{ env.SERVER_IP }}"
+
+          while true; do
+            ELAPSED=$(( $(date +%s) - START ))
+            [ "$ELAPSED" -gt 120 ] && { echo "❌ Timeout 120s"; break; }
+
+            for URL in \
+              "http://${SERVER}/health" \
+              "http://${SERVER}/api/health" \
+              "http://${SERVER}:3000/health" \
+              "http://${SERVER}:3000/api/health"; do
+              CODE=$(curl -sf -o /dev/null -w "%{http_code}" --max-time 8 "$URL" 2>/dev/null || true)
+              if [ "$CODE" = "200" ]; then
+                SUCCESS=true
+                echo "✅ Health OK (${ELAPSED}s) — $URL → HTTP 200"
+                break 2
+              fi
+            done
+            echo "⏳ Aștept... (${ELAPSED}s)"
+            sleep 10
+          done
+
+          if [ "$SUCCESS" = "true" ]; then
+            echo "ok=true"  >> "$GITHUB_OUTPUT"
+            echo "🎉 Unicorn este 100% LIVE și funcțional!"
+          else
+            echo "ok=false" >> "$GITHUB_OUTPUT"
+            echo "⚠️  Health check nu a returnat 200 în 120s"
+            echo "   Verificare manuală: ssh root@${SERVER} 'pm2 list && curl http://localhost:3000/health'"
+          fi
+
+      # ── 10. Status final server ────────────────────────────────────
+      - name: Status final (PM2 + Nginx + logs)
+        if: steps.ssh_setup.outputs.ssh_ready == 'true' && always()
+        run: |
+          SSH="ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no -p ${{ env.DEPLOY_PORT }}"
+          SRV="${{ env.DEPLOY_USER }}@${{ env.SERVER_IP }}"
+          $SSH $SRV bash << 'STATUSEOF'
+          echo "════════ PM2 STATUS ════════"
+          pm2 list --no-color 2>/dev/null || true
+          echo ""
+          echo "════════ NGINX STATUS ══════"
+          systemctl status nginx --no-pager --lines=5 2>/dev/null || true
+          echo ""
+          echo "════════ SERVER DOCTOR TIMER ════"
+          systemctl status server-doctor.timer --no-pager 2>/dev/null || true
+          echo ""
+          echo "════════ LOGS (ultimele 30 rânduri) ═══"
+          tail -n 30 /var/www/unicorn/logs/server-doctor-systemd.log 2>/dev/null || true
+          STATUSEOF
+
+  # ════════════════════════════════════════════════════════════════════
+  # JOB 3 — Raport final + notificare Telegram
+  # ════════════════════════════════════════════════════════════════════
+  notify:
+    name: 📢 Raport Doctor + Notificare
+    runs-on: ubuntu-latest
+    needs: [validate, server-doctor]
+    if: always()
+    steps:
+      - name: Rezumat
+        run: |
+          DOCTOR="${{ needs.server-doctor.result }}"
+          VALIDATE="${{ needs.validate.result }}"
+          HEALTH="${{ needs.server-doctor.outputs.health_ok }}"
+          DOMAIN="${{ secrets.SITE_DOMAIN || 'zeusai.pro' }}"
+          IP="${{ secrets.HETZNER_HOST || secrets.SSH_HOST || '204.168.230.142' }}"
+          echo "════════════════════════════════════════════════════"
+          if [ "$DOCTOR" = "success" ] && [ "$HEALTH" = "true" ]; then
+            echo "  ✅ SERVER DOCTOR: SUCCES — Unicorn 100% LIVE"
+            echo "  URL  : https://${DOMAIN}"
+            echo "  IP   : ${IP}"
+          else
+            echo "  ⚠️  SERVER DOCTOR: ${DOCTOR} | Health: ${HEALTH}"
+            echo "  Validate: ${VALIDATE}"
+          fi
+          echo "  Run  : https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          echo "════════════════════════════════════════════════════"
+
+      - name: Notificare Telegram
+        if: env.TELEGRAM_BOT_TOKEN != '' && env.TELEGRAM_CHAT_ID != ''
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID:   ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: |
+          DOCTOR="${{ needs.server-doctor.result }}"
+          HEALTH="${{ needs.server-doctor.outputs.health_ok }}"
+          DOMAIN="${{ secrets.SITE_DOMAIN || 'zeusai.pro' }}"
+          if [ "$DOCTOR" = "success" ] && [ "$HEALTH" = "true" ]; then
+            ICON="✅"
+            STATUS="SUCCES — Unicorn 100%25 LIVE"
+          else
+            ICON="⚠️"
+            STATUS="Doctor: ${DOCTOR} | Health: ${HEALTH}"
+          fi
+          MSG="${ICON} ZeusAI Server Doctor%0A${STATUS}%0AURL: https://${DOMAIN}%0ARun: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          curl -sf "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" \
+            -d "chat_id=${TELEGRAM_CHAT_ID}&text=${MSG}" --max-time 10 2>/dev/null || true
