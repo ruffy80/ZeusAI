@@ -411,7 +411,7 @@ select.form-inp option{background:#0a0e24;}
           <div class="zeus-ring"></div>
           <div class="zeus-ring2"></div>
           <div class="zeus-scan"></div>
-          <div class="zeus-label">ZEUS AI CORE v3.9</div>
+          <div class="zeus-label">ZEUS AI CORE v4.0</div>
           <div class="zeus-status"><div class="zeus-dot"></div>ONLINE</div>
         </div>
       </div>
@@ -953,11 +953,17 @@ select.form-inp option{background:#0a0e24;}
       </div>
       <!-- MODULES TAB -->
       <div class="adm-tab-panel" id="atab-modules">
-        <div class="card" style="margin-bottom:16px;">
+        <!-- MODULE REGISTRY (292+ modules) -->
+        <div class="card card-glow" style="margin-bottom:16px;">
           <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
-            <div class="dash-section-title" style="margin:0;">Module Loader</div>
+            <div class="dash-section-title" style="margin:0;">🔗 Module Registry</div>
             <button class="btn btn-outline btn-sm" onclick="loadAdminModules()">🔄 Refresh</button>
           </div>
+          <div id="mod-registry-total" style="font-family:'Orbitron',monospace;font-size:28px;font-weight:700;color:#00d4ff;margin-bottom:8px;">—</div>
+          <div id="mod-registry-categories" style="display:flex;flex-wrap:wrap;gap:8px;"></div>
+        </div>
+        <div class="card" style="margin-bottom:16px;">
+          <div class="dash-section-title">Module Loader</div>
           <div id="mod-loader-status" style="font-size:12px;color:#7090b0;">Loading...</div>
           <div id="mod-loader-list" style="font-size:12px;color:#7090b0;margin-top:8px;max-height:160px;overflow-y:auto;"></div>
         </div>
@@ -1470,10 +1476,15 @@ async function loadHomeData(){
     var up=snap.telemetry&&snap.telemetry.uptime;
     setElText('stat-uptime',up?fmtMs(up*1000):'99.9%');
     setElText('kpi-sprint',(snap.sprint&&snap.sprint.current)||'42');
-    setElText('kpi-modules',(snap.modules&&snap.modules.length)||'18');
     setElText('kpi-services',(snap.marketplace&&snap.marketplace.length)||'24');
     setElText('kpi-innov',(snap.innovations&&snap.innovations.count)||'7');
   }catch(e){}
+  // Module Registry — fetch real count from public endpoint
+  try{
+    var mreg=await fetch('/api/module-registry').then(function(r){return r.json();}).catch(function(){return {};});
+    var mcount=mreg.total;
+    setElText('kpi-modules',mcount!=null?mcount+'':'?');
+  }catch(e){setElText('kpi-modules','?');}
   // BTC rate
   try{
     var br=await fetch('/api/payment/btc-rate').then(function(r){return r.json();}).catch(function(){return {};});
@@ -3722,6 +3733,24 @@ async function checkAllModules(){
 // ADMIN MODULES TAB
 // ================================================================
 async function loadAdminModules(){
+  // Fetch module registry first (public endpoint — no auth needed)
+  var regData=await fetch('/api/module-registry').then(function(r){return r.json();}).catch(function(){return {};});
+  var regTotalEl=document.getElementById('mod-registry-total');
+  if(regTotalEl) regTotalEl.textContent=(regData.total||'—')+' modules';
+  var regCatEl=document.getElementById('mod-registry-categories');
+  if(regCatEl){
+    var cats=regData.categories||{};
+    var catEmoji={orchestrator:'🎛️',shield:'🛡️',healthDaemon:'💊',watchdog:'🐕',ai:'🤖',dynamic:'⚙️',engines:'🔧',generated:'🔮',internal:'🏠',external:'🌐'};
+    regCatEl.innerHTML=Object.keys(cats).map(function(cat){
+      var info=cats[cat];
+      var count=info.count||0;
+      var em=catEmoji[cat]||'📦';
+      return '<div style="background:rgba(0,212,255,.08);border:1px solid rgba(0,212,255,.2);border-radius:10px;padding:6px 12px;font-size:12px;color:#e8f4ff;">'
+        +em+' <strong style="color:#00d4ff;">'+escHtml(cat)+'</strong><br/>'
+        +'<span style="color:#7090b0;">'+count+' modules</span></div>';
+    }).join('');
+  }
+
   var [mlStatus,mlAvail,fcStatus,cfgStatus,revModStatus,qsecStatus,qintStatus,qvaultStatus,tempStatus,uacStatus,meshStatus,codeSanityStatus,trustStatus]=await Promise.all([
     api('GET','/api/module-loader/status',null,true).catch(function(){return {};}),
     api('GET','/api/module-loader/available',null,true).catch(function(){return {};}),
