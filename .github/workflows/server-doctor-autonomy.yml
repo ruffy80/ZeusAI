@@ -18,9 +18,9 @@ jobs:
       - name: Configure Server Doctor on Hetzner
         uses: appleboy/ssh-action@v1.0.3
         with:
-          host: ${{ secrets.HETZNER_HOST }}
-          username: ${{ secrets.HETZNER_USER }}
-          key: ${{ secrets.HETZNER_SSH_KEY }}
+          host: ${{ secrets.HETZNER_HOST || secrets.SSH_HOST }}
+          username: ${{ secrets.HETZNER_USER || secrets.SSH_USER || 'root' }}
+          key: ${{ secrets.HETZNER_SSH_PRIVATE_KEY || secrets.SSH_PRIVATE_KEY }}
           script: |
             mkdir -p /var/www/unicorn
             mkdir -p /var/www/unicorn/logs
@@ -135,9 +135,9 @@ jobs:
       - name: Check Server Doctor status
         uses: appleboy/ssh-action@v1.0.3
         with:
-          host: ${{ secrets.HETZNER_HOST }}
-          username: ${{ secrets.HETZNER_USER }}
-          key: ${{ secrets.HETZNER_SSH_KEY }}
+          host: ${{ secrets.HETZNER_HOST || secrets.SSH_HOST }}
+          username: ${{ secrets.HETZNER_USER || secrets.SSH_USER || 'root' }}
+          key: ${{ secrets.HETZNER_SSH_PRIVATE_KEY || secrets.SSH_PRIVATE_KEY }}
           script: |
             systemctl status server-doctor.timer --no-pager || true
             systemctl status server-doctor.service --no-pager || true
