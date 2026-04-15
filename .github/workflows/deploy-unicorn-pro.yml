@@ -39,7 +39,7 @@ jobs:
             --exclude='.env' \
             -e "ssh -o StrictHostKeyChecking=no" \
             ./ \
-            "$DEPLOY_USER@$DEPLOY_HOST:/var/www/unicorn/"
+            "$DEPLOY_USER@$DEPLOY_HOST":/var/www/unicorn/
 
       - name: Install & Restart on server
         run: |
