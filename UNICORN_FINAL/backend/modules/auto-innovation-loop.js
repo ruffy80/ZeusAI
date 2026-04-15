@@ -87,14 +87,11 @@ class AutoInnovationLoop {
   }
 
   _saveState() {
-    try {
-      const dir = path.dirname(STATE_FILE);
-      if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-      fs.writeFileSync(STATE_FILE, JSON.stringify({
-        cycleCount: this.cycleCount,
-        pendingPRs: this.pendingPRs,
-      }), 'utf8');
-    } catch { /* non-fatal */ }
+    const dir = path.dirname(STATE_FILE);
+    const data = JSON.stringify({ cycleCount: this.cycleCount, pendingPRs: this.pendingPRs });
+    fs.promises.mkdir(dir, { recursive: true })
+      .then(() => fs.promises.writeFile(STATE_FILE, data, 'utf8'))
+      .catch(() => { /* non-fatal */ });
   }
 
   // ── Lifecycle ─────────────────────────────────────────────────────
