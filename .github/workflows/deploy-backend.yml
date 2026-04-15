@@ -3,12 +3,14 @@ name: Deploy Backend to Hetzner
 on:
   workflow_dispatch:
 
+permissions: write-all
+
 jobs:
   validate:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Setup Node.js
         uses: actions/setup-node@v5
@@ -38,7 +40,7 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       # Guard: skip entire deploy if required SSH secrets are not configured
       - name: Validate SSH secrets

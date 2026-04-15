@@ -10,6 +10,8 @@ on:
         required: false
         default: '/opt/unicorn'
 
+permissions: write-all
+
 jobs:
   setup-ai-keys:
     name: 🔑 Injectare chei AI pe Hetzner

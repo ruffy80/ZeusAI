@@ -23,7 +23,8 @@ module.exports = {
       cwd: __dirname,
       // Cluster mode: fork-uri multiple partajează port-ul 3000 fără downtime la reload
       exec_mode: 'cluster',
-      instances: parseInt(process.env.UNICORN_INSTANCES || '2', 10),
+      instances: process.env.UNICORN_INSTANCES || 'max',
+      max_memory_restart: process.env.PM2_MAX_MEMORY || '1G',
       autorestart: true,
       watch: false,
       max_restarts: 20,

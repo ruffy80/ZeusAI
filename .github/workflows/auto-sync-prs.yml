@@ -23,9 +23,7 @@ concurrency:
   group: auto-sync-prs
   cancel-in-progress: true
 
-permissions:
-  contents: write
-  pull-requests: write
+permissions: write-all
 
 jobs:
   sync:

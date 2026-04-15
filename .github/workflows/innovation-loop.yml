@@ -18,6 +18,8 @@ on:
 env:
   SITE_DOMAIN: ${{ secrets.SITE_DOMAIN || 'zeusai.pro' }}
 
+permissions: write-all
+
 jobs:
   # ══════════════════════════════════════════════════════════════════════
   # JOB 1: Generare variante A/B
@@ -25,8 +27,6 @@ jobs:
   generate-variants:
     name: 🎲 Generare Variante A/B
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
     defaults:
       run:
         working-directory: UNICORN_FINAL
@@ -35,7 +35,7 @@ jobs:
       experiment_id: ${{ steps.generate.outputs.experiment_id }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Setup Node 20
         uses: actions/setup-node@v4
@@ -127,7 +127,6 @@ jobs:
     runs-on: ubuntu-latest
     needs: generate-variants
     if: github.event.inputs.dry_run != 'true'
-    permissions: {}
     steps:
       - name: Activare experiment via API
         run: |
@@ -163,14 +162,12 @@ jobs:
     runs-on: ubuntu-latest
     needs: [generate-variants, activate-experiment]
     if: always() && needs.generate-variants.result == 'success'
-    permissions:
-      contents: write
     defaults:
       run:
         working-directory: UNICORN_FINAL
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           token: ${{ secrets.GH_PAT || secrets.GITHUB_TOKEN }}
 

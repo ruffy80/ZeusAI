@@ -43,12 +43,12 @@ env:
   SITE_DOMAIN: ${{ secrets.SITE_DOMAIN || inputs.domain || 'zeusai.pro' }}
   OWNER_EMAIL: ${{ secrets.OWNER_EMAIL || secrets.SMTP_USER || 'vladoi_ionut@yahoo.com' }}
 
+permissions: write-all
+
 jobs:
   ssl-setup:
     name: 🔒 HTTPS Setup → zeusai.pro
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
     concurrency:
       group: ssl-setup-production
       cancel-in-progress: false

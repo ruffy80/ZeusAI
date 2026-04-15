@@ -1,13 +1,12 @@
 name: 🦄 Deploy ZeusAI (GitHub → Hetzner)
 
 on:
-  push:
-    branches: [main]
-    paths:
-      # Rulează la push doar când fișierul de workflow însuși se schimbă.
-      # Deploy-ul la push pe UNICORN_FINAL/** este gestionat exclusiv de live.yml
-      # pentru a evita duplicarea și emailuri duble de failure.
-      - '.github/workflows/hetzner-deploy.yml'
+  # ── push trigger intentionally removed:
+  # Deploying on every change to this file caused a feedback loop where
+  # live.yml's force-push (which rebased on an older commit) reverted
+  # workflow fixes and re-triggered this workflow with a broken YAML
+  # (0 jobs, immediate failure).  Deploy on UNICORN_FINAL/** is handled
+  # exclusively by live.yml and deploy.yml to avoid duplication.
   # ── Validate PRs targeting main (lint + test only, no deploy) ─────────────
   pull_request:
     branches: [main]
@@ -31,7 +30,9 @@ env:
 
 concurrency:
   group: ${{ github.event_name == 'pull_request' && format('pr-validate-{0}', github.event.pull_request.number) || 'zeusai-production' }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+  cancel-in-progress: true
+
+permissions: write-all
 
 jobs:
   # ──────────────────────────────────────────────────────────────────────
@@ -49,10 +50,10 @@ jobs:
         working-directory: UNICORN_FINAL
     steps:
       - name: Checkout
-        uses: actions/checkout@v5
+        uses: actions/checkout@v4
 
       - name: Setup Node 22
-        uses: actions/setup-node@v5
+        uses: actions/setup-node@v4
         with:
           node-version: '22'
 
@@ -150,10 +151,10 @@ jobs:
       test_ok: ${{ steps.test.outcome }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v5
+        uses: actions/checkout@v4
 
       - name: Setup Node 22
-        uses: actions/setup-node@v5
+        uses: actions/setup-node@v4
         with:
           node-version: '22'
           cache: 'npm'
@@ -195,10 +196,10 @@ jobs:
         working-directory: UNICORN_FINAL
     steps:
       - name: Checkout
-        uses: actions/checkout@v5
+        uses: actions/checkout@v4
 
       - name: Setup Node 22
-        uses: actions/setup-node@v5
+        uses: actions/setup-node@v4
         with:
           node-version: '22'
 
@@ -249,7 +250,7 @@ jobs:
     if: github.event_name != 'pull_request'
     steps:
       - name: Checkout
-        uses: actions/checkout@v5
+        uses: actions/checkout@v4
 
       - name: Resolve Hetzner target and channels
         run: |
@@ -634,10 +635,15 @@ jobs:
               pm2 stop unicorn 2>/dev/null || pm2 stop all 2>/dev/null || true
             fi
 
+            # ── Pre-clean node_modules to prevent ENOTEMPTY errors ───────────
+            rm -rf node_modules 2>/dev/null || \
+              find node_modules -mindepth 1 -maxdepth 1 -exec rm -rf {} \; 2>/dev/null || true
+
             npm install --legacy-peer-deps --no-audit --no-fund || {
               echo "⚠️  npm install failed, cleaning and retrying..."
               npm cache clean --force 2>/dev/null || true
-              rm -rf node_modules 2>/dev/null || true
+              rm -rf node_modules 2>/dev/null || \
+                find node_modules -mindepth 1 -maxdepth 1 -exec rm -rf {} \; 2>/dev/null || true
               npm install --legacy-peer-deps --no-audit --no-fund
             }
 
@@ -648,10 +654,13 @@ jobs:
             if [ -d "client" ]; then
               echo "🎨 Building frontend..."
               cd client
+              rm -rf node_modules 2>/dev/null || \
+                find node_modules -mindepth 1 -maxdepth 1 -exec rm -rf {} \; 2>/dev/null || true
               npm install --legacy-peer-deps --no-audit --no-fund || {
                 echo "⚠️  client npm install failed, cleaning and retrying..."
                 npm cache clean --force 2>/dev/null || true
-                rm -rf node_modules 2>/dev/null || true
+                rm -rf node_modules 2>/dev/null || \
+                  find node_modules -mindepth 1 -maxdepth 1 -exec rm -rf {} \; 2>/dev/null || true
                 npm install --legacy-peer-deps --no-audit --no-fund
               }
               CI=false npm run build
@@ -818,8 +827,9 @@ jobs:
               # startOrRestart handles both first-time start AND restart robustly
               pm2 startOrRestart ecosystem.config.js --only unicorn 2>/dev/null || \
                 pm2 start ecosystem.config.js --only unicorn
-              pm2 describe unicorn-health-guardian >/dev/null 2>&1 && \
-                (pm2 startOrRestart ecosystem.config.js --only unicorn-health-guardian 2>/dev/null || true)
+              # Start ALL autonomous modules (orchestrator, shield, health-daemon,
+              # auto-repair, auto-restart, auto-optimize, recovery, watchdog, etc.)
+              pm2 startOrRestart ecosystem.config.js || true
               pm2 save
               # Register PM2 in systemd so it starts on reboot
               pm2 startup systemd 2>/dev/null | grep -E "^sudo |^env " | head -1 | bash 2>/dev/null || true
@@ -1197,7 +1207,7 @@ jobs:
                fi; \
                # 2. Restart PM2 backend process safely (no delete-all)
                cd \"\$DEPLOY_PATH\" 2>/dev/null || true; \
-               if command -v pm2 >/dev/null 2>&1; then pm2 startOrRestart ecosystem.config.js --only unicorn 2>/dev/null || pm2 start ecosystem.config.js --only unicorn; pm2 save && echo 'Restarted unicorn via PM2'; \
+               if command -v pm2 >/dev/null 2>&1; then pm2 startOrRestart ecosystem.config.js --only unicorn 2>/dev/null || pm2 start ecosystem.config.js --only unicorn; pm2 startOrRestart ecosystem.config.js || true; pm2 save && echo 'Restarted all PM2 processes'; \
                elif command -v systemctl >/dev/null 2>&1 && systemctl list-unit-files | grep -q '^unicorn\\.service'; then systemctl restart unicorn && echo 'Restarted via systemctl'; \
                else pkill -f 'node backend/index.js' || true; sleep 1; mkdir -p logs; nohup node backend/index.js > logs/backend.log 2>&1 & echo 'Restarted via nohup'; fi"
 
@@ -1229,14 +1239,21 @@ jobs:
   ssl-auto-fix:
     name: 🔒 SSL Auto-Fix (dacă HTTPS e down)
     needs: [deploy-hetzner, smoke-tests]
-    if: |
-      github.event_name != 'pull_request' &&
-      needs.deploy-hetzner.result == 'success'
-    continue-on-error: true
     if: github.event_name != 'pull_request' && needs.deploy-hetzner.result == 'success'
-    permissions: {}
-    uses: ./.github/workflows/ssl-setup.yml
-    secrets: inherit
-    with:
-      domain: ${{ vars.SITE_DOMAIN || 'zeusai.pro' }}
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - name: Trigger SSL Setup workflow
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const domain = '${{ vars.SITE_DOMAIN || 'zeusai.pro' }}';
+            await github.rest.actions.createWorkflowDispatch({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              workflow_id: 'ssl-setup.yml',
+              ref: context.ref,
+              inputs: { domain: domain }
+            });
+            console.log(`✅ Triggered ssl-setup.yml for domain: ${domain}`);
 
