@@ -175,8 +175,14 @@ jobs:
         id: frontend_build
         run: |
           if [ -d client ] && [ -f client/package.json ]; then
-            npm --prefix client install --no-audit --no-fund
-            CI=false npm --prefix client run build
+            cd client
+            npm ci
+            npm run build --if-present
+            if [ $? -ne 0 ]; then
+              echo "❌ Build React FAILED — oprire deploy"
+              exit 1
+            fi
+            cd ..
             echo "✅ Frontend build succeeded"
           else
             echo "ℹ️  No client/ directory found – skipping frontend build."
@@ -654,16 +660,12 @@ jobs:
             if [ -d "client" ]; then
               echo "🎨 Building frontend..."
               cd client
-              rm -rf node_modules 2>/dev/null || \
-                find node_modules -mindepth 1 -maxdepth 1 -exec rm -rf {} \; 2>/dev/null || true
-              npm install --legacy-peer-deps --no-audit --no-fund || {
-                echo "⚠️  client npm install failed, cleaning and retrying..."
-                npm cache clean --force 2>/dev/null || true
-                rm -rf node_modules 2>/dev/null || \
-                  find node_modules -mindepth 1 -maxdepth 1 -exec rm -rf {} \; 2>/dev/null || true
-                npm install --legacy-peer-deps --no-audit --no-fund
-              }
-              CI=false npm run build
+              npm ci
+              npm run build --if-present
+              if [ $? -ne 0 ]; then
+                echo "❌ Build React FAILED — oprire deploy"
+                exit 1
+              fi
               cd ..
               echo "✅ Frontend built"
             fi
