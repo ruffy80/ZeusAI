@@ -9,7 +9,10 @@
 #   4. Directoare esențiale — logs/, data/, db/
 #   5. Nginx — instalat, configurat, pornit
 #   6. Firewall UFW — porturi 22/80/443/3000 deschise
-#   7. PM2 — instalat și funcțional (NU repornește procesele — face deploy-ul)
+#   7. PM2 — instalat și funcțional
+#   8. Permisiuni fișiere critice — scripts/*.sh executabile
+#   9. PM2 startup systemd — autostart la boot
+#  10. PM2 restart — delete all + start ecosystem + save
 #   8. Permisiuni fișiere critice — scripts/*.sh executabile
 #
 # Utilizare (ca root pe serverul Hetzner):
@@ -19,7 +22,7 @@
 #   bash /var/www/unicorn/server-doctor.sh
 #   bash /var/www/unicorn/server-doctor.sh /var/www/unicorn zeusai.pro
 #
-# NOTĂ: Acest script NU repornește PM2. Restartul se face explicit după:
+# NOTĂ: La final scriptul repornește automat PM2:
 #   pm2 delete all || true
 #   pm2 start ecosystem.config.js --update-env
 #   pm2 save
@@ -392,8 +395,28 @@ systemctl enable "pm2-${RUN_USER}.service" 2>/dev/null || true
 ok "pm2-${RUN_USER}.service enabled pentru autostart la boot"
 
 # =============================================================================
-# RAPORT FINAL
+# SECȚIUNEA 10 — PM2 RESTART (delete all + start ecosystem + save)
 # =============================================================================
+section "10. PM2 restart — delete all + start + save"
+
+if [ ! -f "${DEPLOY_PATH}/ecosystem.config.js" ]; then
+  ko "ecosystem.config.js LIPSĂ din $DEPLOY_PATH — nu se poate porni PM2"
+else
+  info "Ștergere procese PM2 existente..."
+  "$PM2_BIN" delete all 2>/dev/null || true
+  fixed "pm2 delete all executat"
+
+  info "Pornire procese din ecosystem.config.js..."
+  if "$PM2_BIN" start "${DEPLOY_PATH}/ecosystem.config.js" --update-env 2>&1 | tee -a "$LOG_FILE"; then
+    ok "pm2 start ecosystem.config.js --update-env — OK"
+  else
+    ko "pm2 start a eșuat — verificați log-ul PM2: pm2 logs"
+  fi
+
+  info "Salvare listă procese PM2..."
+  "$PM2_BIN" save 2>/dev/null || true
+  ok "pm2 save executat"
+fi
 section "✅ Raport final Server Doctor"
 
 echo ""
@@ -404,14 +427,13 @@ echo -e "  ${RED}Eșuat:    $FAIL${NC}"
 echo ""
 
 if [ "$FAIL" -eq 0 ]; then
-  echo -e "${GREEN}${BOLD}✅ Server sănătos! Gata pentru pm2 start.${NC}"
+  echo -e "${GREEN}${BOLD}✅ Server sănătos! PM2 pornit cu succes.${NC}"
 else
   echo -e "${YELLOW}${BOLD}⚠️  $FAIL probleme detectate — verificați log-ul: ${LOG_FILE}${NC}"
 fi
 
 echo ""
-echo -e "${BLUE}Pasii următori (executați automat de deploy):${NC}"
-echo "  pm2 delete all || true"
-echo "  pm2 start ecosystem.config.js --update-env"
-echo "  pm2 save"
+echo -e "${BLUE}Verificați starea proceselor PM2:${NC}"
+echo "  pm2 list"
+echo "  pm2 logs"
 echo ""
