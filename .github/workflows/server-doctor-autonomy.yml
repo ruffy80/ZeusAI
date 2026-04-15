@@ -85,7 +85,7 @@ jobs:
   # JOB 2 — Server Doctor: auto-repair + full deploy pe Hetzner
   # ════════════════════════════════════════════════════════════════════
   server-doctor:
-    name: 🩺 Server Doctor → ${{ secrets.HETZNER_HOST || '204.168.230.142' }}
+    name: 🩺 Server Doctor → Hetzner
     runs-on: ubuntu-latest
     needs: [validate]
     if: always() && (needs.validate.result == 'success' || needs.validate.result == 'skipped')

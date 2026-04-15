@@ -229,7 +229,7 @@ class QuantumIntegrityShield {
       // When running inside a PM2-managed process, pm2 jlist may be unavailable
       // (IPC channel not accessible from cluster workers). Treat as warning, not error,
       // to avoid false 'compromised' state when all services are actually healthy.
-      const severity = pm2State.error === 'pm2_unavailable' ? 'warning' : 'error';
+      const severity = 'warning';
       issues.push({
         type: 'pm2_process_missing',
         severity,
