@@ -19,17 +19,13 @@ on:
           - viral
 
 # ── PERMISIUNI SCRIS — necesar pentru git commit + push autonom ────────────────
-permissions:
-  contents: write
-  pull-requests: write
+permissions: write-all
 
 jobs:
   autonomous:
     name: 🦄 Autonomous Engine Cycle
     runs-on: ubuntu-latest
     timeout-minutes: 30
-    permissions:
-      contents: write
 
     steps:
       # ── 1. Checkout cu token cu drepturi de push ──────────────────────────────

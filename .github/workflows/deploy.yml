@@ -5,8 +5,7 @@ on:
     branches: [ "main" ]
   workflow_dispatch:
 
-permissions:
-  contents: read
+permissions: write-all
 
 env:
   SERVER_IP:   ${{ secrets.HETZNER_SERVER_IP || secrets.HETZNER_HOST || secrets.SSH_HOST || '204.168.230.142' }}
