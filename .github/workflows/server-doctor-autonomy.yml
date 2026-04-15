@@ -8,6 +8,9 @@ on:
     paths:
       - '.github/workflows/server-doctor-autonomy.yml'
 
+permissions:
+  contents: read
+
 jobs:
   install-server-doctor:
     runs-on: ubuntu-latest
