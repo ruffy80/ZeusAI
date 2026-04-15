@@ -387,6 +387,4 @@ if (require.main === module) {
   console.log('[ai-self-healing] Engine started in standalone mode');
   process.on('SIGTERM', () => { engine.stop(); process.exit(0); });
   process.on('SIGINT',  () => { engine.stop(); process.exit(0); });
-  // Keep process alive
-  setInterval(() => {}, 60000);
 }
