@@ -632,6 +632,31 @@ module.exports = {
       error_file: 'logs/zero-downtime-error.log',
       out_file: 'logs/zero-downtime-out.log',
       log_date_format: 'YYYY-MM-DD HH:mm:ss'
+    },
+
+    // ── 21. Service Watchdog — health-check + exponential backoff (Reliability #11 & #14) ──
+    {
+      name: 'unicorn-service-watchdog',
+      script: 'backend/modules/service-watchdog.js',
+      cwd: __dirname,
+      instances: 1,
+      autorestart: true,
+      watch: false,
+      max_restarts: 20,
+      min_uptime: '10s',
+      restart_delay: 5000,
+      env: {
+        NODE_ENV: 'production',
+        WATCHDOG_INTERVAL_MS:    '30000',
+        WATCHDOG_FAIL_THRESHOLD: '3',
+        WATCHDOG_BASE_BACKOFF_MS:'2000',
+        WATCHDOG_MAX_BACKOFF_MS: '300000',
+        DOMAIN: SITE_DOMAIN,
+        PUBLIC_APP_URL,
+      },
+      error_file: 'logs/service-watchdog-error.log',
+      out_file: 'logs/service-watchdog-out.log',
+      log_date_format: 'YYYY-MM-DD HH:mm:ss'
     }
   ]
 };

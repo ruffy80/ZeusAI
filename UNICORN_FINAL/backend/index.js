@@ -61,6 +61,34 @@ app.use(cors({
 
 app.use(express.json());
 
+// ==================== GLOBAL BODY SANITIZATION (AutoInnovation Security #13) ====================
+// Recursively trim, strip control characters, and truncate all string values in req.body
+// to guard against oversized, null-byte, or control-character injection payloads.
+// 4096-char limit per field covers all realistic input; reduces risk of payload flooding.
+// Applied before any route handler.
+function _sanitizeValue(v, depth) {
+  if (depth > 10) return v; // guard against very deep nesting
+  if (typeof v === 'string') {
+    // Strip null bytes and non-printable control characters (except common whitespace)
+    return v.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, '').trim().slice(0, 4096);
+  }
+  if (Array.isArray(v))      return v.map(item => _sanitizeValue(item, depth + 1));
+  if (v && typeof v === 'object') {
+    const out = {};
+    for (const k of Object.keys(v)) {
+      out[k] = _sanitizeValue(v[k], depth + 1);
+    }
+    return out;
+  }
+  return v;
+}
+app.use((req, res, next) => {
+  if (req.body && typeof req.body === 'object') {
+    req.body = _sanitizeValue(req.body, 0);
+  }
+  next();
+});
+
 // ==================== RATE LIMITERS ====================
 const globalPublicRateLimit = rateLimit({
   windowMs: 60_000,
@@ -726,6 +754,7 @@ const logMonitor           = require('./modules/log-monitor');
 const resourceMonitor      = require('./modules/resource-monitor');
 const errorPatternDetector = require('./modules/error-pattern-detector');
 const recoveryEngine       = require('./modules/recovery-engine');
+const serviceWatchdog      = require('./modules/service-watchdog');
 
 // ==================== ZERO DOWNTIME + AI SMART CACHE ====================
 const zeroDT        = require('../scripts/zero-downtime-controller');
@@ -4733,6 +4762,19 @@ app.post('/api/recovery/execute', adminTokenMiddleware, async (req, res) => {
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
+// ── Service Watchdog routes (AutoInnovation Reliability #11 & #14) ────────────
+app.get('/api/watchdog/status', adminTokenMiddleware, (req, res) => {
+  res.json(serviceWatchdog.getStatus());
+});
+app.post('/api/watchdog/start', adminTokenMiddleware, (req, res) => {
+  serviceWatchdog.start();
+  res.json({ ok: true, message: 'Service watchdog started' });
+});
+app.post('/api/watchdog/stop', adminTokenMiddleware, (req, res) => {
+  serviceWatchdog.stop();
+  res.json({ ok: true, message: 'Service watchdog stopped' });
+});
+
 // ── Health-Daemon report endpoint (receptează rapoarte de la health-daemon) ──
 app.post('/api/health-daemon/report', adminTokenMiddleware, (req, res) => {
   const report = req.body || {};
@@ -4887,8 +4929,11 @@ if (require.main === module) {
     console.log(`🛡️  AI Self-Healing: ACTIVE (15 provideri monitorizați: DeepSeek/Mistral/Groq/Gemini/Claude/Cohere/OpenAI/OpenRouter/Perplexity/HuggingFace/Together/Fireworks/SambaNova/NVIDIA/xAI)`);
     console.log(`🟢 Zero-Downtime Controller: ACTIVE`);
     console.log(`💾 AI Smart Cache: ACTIVE (LRU, cost tracking, TTL per task)`);
+    console.log(`🐕 Service Watchdog: ACTIVE (reliability cycles #11 & #14)`);
     // Pornire Zero-Downtime Controller în-process (monitorizare health locală)
     zeroDT.init();
+    // Pornire Service Watchdog (reliability: health-check + exponential backoff)
+    serviceWatchdog.start();
   });
 }
 // Export Express app for testing
