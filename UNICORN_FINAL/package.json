@@ -23,7 +23,8 @@
     "qrcode": "^1.5.4",
     "sentiment": "^5.0.2",
     "simple-git": "^3.36.0",
-    "ssh2": "^1.17.0"
+    "ssh2": "^1.17.0",
+    "stripe": "^17.7.0"
   },
   "overrides": {
     "smol-toml": ">=1.6.1"
@@ -65,6 +66,9 @@
     "lint-staged": "^16.4.0"
   },
   "lint-staged": {
-    "*.js": ["eslint --fix", "git add"]
+    "*.js": [
+      "eslint --fix",
+      "git add"
+    ]
   }
 }
