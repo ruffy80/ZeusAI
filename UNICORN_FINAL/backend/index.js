@@ -789,7 +789,6 @@ try { _aiAutoDispatcher = require('./modules/ai-auto-dispatcher'); } catch (e) {
 
 // ==================== GLOBAL SAAS PLATFORM MODULES ====================
 // tenantManager already required above; avoid duplicate
-const globalApiGateway   = require('./modules/global-api-gateway');
 // billingEngine already required above (line ~587); avoid duplicate
 const globalApiGateway   = require('./modules/global-api-gateway');
 const provisioningEngine = require('./modules/provisioning-engine');

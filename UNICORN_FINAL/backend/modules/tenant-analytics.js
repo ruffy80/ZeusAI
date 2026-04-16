@@ -184,7 +184,8 @@ function getTenantDashboard(tenantId) {
 // ── Global SaaS admin dashboard ───────────────────────────────────────────────
 
 function getGlobalDashboard() {
-  const tenants = tenantManager.listTenants();
+  const _tmResult = tenantManager.listTenants();
+  const tenants = Array.isArray(_tmResult) ? _tmResult : (_tmResult && Array.isArray(_tmResult.tenants) ? _tmResult.tenants : []);
   let totalApiCalls = 0;
   let totalErrors = 0;
   let totalUsers = 0;
@@ -226,7 +227,8 @@ function getGlobalDashboard() {
 // ── Leaderboard ───────────────────────────────────────────────────────────────
 
 function getLeaderboard(metric = 'apiCalls', limit = 10) {
-  const tenants = tenantManager.listTenants();
+  const _tmResult = tenantManager.listTenants();
+  const tenants = Array.isArray(_tmResult) ? _tmResult : (_tmResult && Array.isArray(_tmResult.tenants) ? _tmResult.tenants : []);
   const rows = tenants.map(t => {
     const m = _metrics.get(t.id);
     const val = m ? (m.totals[metric] || 0) : 0;
