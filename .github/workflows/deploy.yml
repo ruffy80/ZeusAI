@@ -161,6 +161,15 @@ jobs:
             --max-time 15 \
             "http://${{ secrets.HETZNER_HOST }}/health" || echo "000")
           echo "Health check Nginx port 80: $NGINX_STATUS"
+          # Verificare domeniu real (zeusai.pro) — HTTP și HTTPS
+          DOMAIN_HTTP=$(curl -s -o /dev/null -w "%{http_code}" \
+            --max-time 15 \
+            "http://zeusai.pro/health" || echo "000")
+          echo "Health check domain HTTP zeusai.pro: $DOMAIN_HTTP"
+          DOMAIN_HTTPS=$(curl -sk -o /dev/null -w "%{http_code}" \
+            --max-time 15 \
+            "https://zeusai.pro/health" || echo "000")
+          echo "Health check domain HTTPS zeusai.pro: $DOMAIN_HTTPS"
           if [ "$STATUS" = "200" ] && [ "$NGINX_STATUS" = "200" ]; then
             echo "✅ Site LIVE — Node.js și Nginx funcționează corect"
           elif [ "$STATUS" = "200" ]; then
@@ -171,6 +180,13 @@ jobs:
             echo "⚠️  Health returned Node=$STATUS Nginx=$NGINX_STATUS — checking PM2 status..."
             ssh -o StrictHostKeyChecking=no root@${{ secrets.HETZNER_HOST }} \
               "pm2 list && pm2 logs unicorn --lines 30 --nostream" || true
+          fi
+          if [ "$DOMAIN_HTTP" = "200" ] || [ "$DOMAIN_HTTPS" = "200" ]; then
+            echo "✅ Domeniu zeusai.pro accesibil (HTTP=$DOMAIN_HTTP HTTPS=$DOMAIN_HTTPS)"
+          else
+            echo "⚠️  zeusai.pro NU răspunde (HTTP=$DOMAIN_HTTP HTTPS=$DOMAIN_HTTPS) — DNS sau SSL poate fi neconfigurate"
+            ssh -o StrictHostKeyChecking=no root@${{ secrets.HETZNER_HOST }} \
+              "certbot certificates 2>/dev/null || true; ss -tlnp | grep ':80\|:443' || true; nginx -T 2>/dev/null | grep -E 'server_name|listen|ssl_certificate' || true" || true
           fi
 
       - name: 📢 Done
