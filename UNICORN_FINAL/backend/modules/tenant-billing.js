@@ -305,7 +305,9 @@ function getStatus() {
 
 // Auto-init: create free subscriptions for existing tenants that have none
 function initBilling() {
-  const tenants = tenantManager.listTenants();
+  const result = tenantManager.listTenants();
+  // listTenants() may return an array (plain-module style) or { tenants, total, ... } (class style)
+  const tenants = Array.isArray(result) ? result : (result && Array.isArray(result.tenants) ? result.tenants : []);
   for (const t of tenants) {
     if (!_subscriptions.has(t.id)) {
       createSubscription(t.id, { plan: t.plan || 'free', trialOverride: 0 });
