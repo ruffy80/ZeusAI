@@ -54,7 +54,7 @@ function _trackStat(tenantId, field) {
   stats[field] = (stats[field] || 0) + 1;
   if (tenantId) {
     if (!stats.byTenant[tenantId]) {
-      stats.byTenant[tenantId] = { requests: 0, blocked: 0, rateLimited: 0 };
+      stats.byTenant[tenantId] = { totalRequests: 0, blocked: 0, rateLimited: 0 };
     }
     stats.byTenant[tenantId][field] = (stats.byTenant[tenantId][field] || 0) + 1;
   }
@@ -101,13 +101,11 @@ function _extractPathSlug(originalPath) {
 }
 
 // ---------------------------------------------------------------------------
-// Per-tenant rate limiter middleware / Middleware rate limiter per tenant
-// Sliding window: count requests in last RATE_WINDOW_MS per tenant
+// Shared rate-limit helper — returns retryAfter seconds or 0 if allowed
+// Helper comun pentru rate limit — returnează retryAfter sau 0 dacă e permis
+// Side-effect: records the timestamp when allowed
 // ---------------------------------------------------------------------------
-function tenantRateLimit(req, res, next) {
-  const tenantId = req.tenantId;
-  if (!tenantId) return next(); // No tenant yet — let gateway handle it
-
+function _checkRateLimit(tenantId) {
   const now = Date.now();
   const windowStart = now - RATE_WINDOW_MS;
 
@@ -116,19 +114,29 @@ function tenantRateLimit(req, res, next) {
   timestamps = timestamps.filter(ts => ts > windowStart);
 
   if (timestamps.length >= RATE_LIMIT_RPM) {
-    // Calculate when oldest request falls out of window
-    // Calculează când cea mai veche cerere iese din fereastră
-    const retryAfter = Math.ceil((timestamps[0] + RATE_WINDOW_MS - now) / 1000);
-    _trackStat(tenantId, 'rateLimited');
-    stats.rateLimited += 1; // already bumped via _trackStat but keep top-level in sync
-    return res.status(429).json({
-      error: 'Rate limit exceeded',
-      retryAfter,
-    });
+    // How many seconds until the oldest request leaves the window
+    // Câte secunde până când cea mai veche cerere iese din fereastră
+    return { allowed: false, retryAfter: Math.ceil((timestamps[0] + RATE_WINDOW_MS - now) / 1000) };
   }
 
   timestamps.push(now);
   rateLimitStore.set(tenantId, timestamps);
+  return { allowed: true, retryAfter: 0 };
+}
+
+// ---------------------------------------------------------------------------
+// Per-tenant rate limiter middleware / Middleware rate limiter per tenant
+// Sliding window: count requests in last RATE_WINDOW_MS per tenant
+// ---------------------------------------------------------------------------
+function tenantRateLimit(req, res, next) {
+  const tenantId = req.tenantId;
+  if (!tenantId) return next(); // No tenant yet — let gateway handle it
+
+  const result = _checkRateLimit(tenantId);
+  if (!result.allowed) {
+    _trackStat(tenantId, 'rateLimited');
+    return res.status(429).json({ error: 'Rate limit exceeded', retryAfter: result.retryAfter });
+  }
   next();
 }
 
@@ -140,8 +148,6 @@ async function tenantGateway(req, res, next) {
 
   // Skip public routes / Sare peste rute publice
   if (_isPublicRoute(path)) return next();
-
-  stats.totalRequests += 1;
 
   let tenantId = null;
   let tenant = null;
@@ -231,19 +237,11 @@ async function tenantGateway(req, res, next) {
     // 4. Per-tenant Rate Limiting / Limitare rată per tenant
     // ------------------------------------------------------------------
 
-    const now = Date.now();
-    const windowStart = now - RATE_WINDOW_MS;
-    let timestamps = rateLimitStore.get(tenantId) || [];
-    timestamps = timestamps.filter(ts => ts > windowStart);
-
-    if (timestamps.length >= RATE_LIMIT_RPM) {
-      const retryAfter = Math.ceil((timestamps[0] + RATE_WINDOW_MS - now) / 1000);
+    const rl = _checkRateLimit(tenantId);
+    if (!rl.allowed) {
       _trackStat(tenantId, 'rateLimited');
-      return res.status(429).json({ error: 'Rate limit exceeded', retryAfter });
+      return res.status(429).json({ error: 'Rate limit exceeded', retryAfter: rl.retryAfter });
     }
-
-    timestamps.push(now);
-    rateLimitStore.set(tenantId, timestamps);
 
     // ------------------------------------------------------------------
     // 7. Tenant Context Injection / Injectare context tenant
@@ -280,7 +278,7 @@ async function tenantGateway(req, res, next) {
       }
     });
 
-    _trackStat(tenantId, 'requests');
+    _trackStat(tenantId, 'totalRequests');
     next();
   } catch (err) {
     // Unexpected error in gateway / Eroare neașteptată în gateway
