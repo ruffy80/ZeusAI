@@ -263,7 +263,8 @@ else
   ok "Nginx instalat: $(nginx -v 2>&1 | head -1)"
 fi
 
-# Asigură directorul cache nginx există — nginx -t eșuează dacă proxy_cache_path nu poate fi creat
+# Asigură directorul cache nginx există — proxy_cache_path din nginx-unicorn.conf necesită acest dir
+# /var/www/certbot este necesar pentru blocul location /.well-known/acme-challenge/ din nginx config
 mkdir -p /var/cache/nginx/unicorn /var/www/certbot 2>/dev/null || true
 chown -R www-data:www-data /var/cache/nginx 2>/dev/null || true
 
@@ -303,9 +304,10 @@ if [ -f "$NGINX_CONF_SRC" ]; then
   else
     nginx -t 2>&1 || true
     ko "Nginx: configurație INVALIDĂ — se resetează la config HTTP minimal de siguranță"
-    # Fallback: șterge SSL blocks corupți și reinstalează config HTTP-only
-    sed "s/zeusai\.pro/${DOMAIN}/g" "$NGINX_CONF_SRC" > "$NGINX_AVAILABLE" 2>/dev/null || \
-      cp "$NGINX_CONF_SRC" "$NGINX_AVAILABLE" 2>/dev/null || true
+    # Fallback: reinstalează config HTTP-only (fără blocuri SSL) aplicând substituțiile de domeniu
+    cp "$NGINX_CONF_SRC" "$NGINX_AVAILABLE" 2>/dev/null || true
+    sed -i "s|zeusai\.pro|${DOMAIN}|g; s|__DOMAIN__|${DOMAIN}|g; s|__PORT__|${NODE_PORT}|g" \
+      "$NGINX_AVAILABLE" 2>/dev/null || true
     if nginx -t 2>/dev/null; then
       systemctl start nginx 2>/dev/null || systemctl restart nginx 2>/dev/null || true
       fixed "Nginx: repornit cu config HTTP (SSL va fi reinstalat de setup-ssl.sh)"

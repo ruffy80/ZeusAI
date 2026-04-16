@@ -123,6 +123,9 @@ jobs:
           SITE_DOMAIN: zeusai.pro
         run: |
           ssh -o StrictHostKeyChecking=no root@${{ secrets.HETZNER_HOST }} bash -s << 'SSHEOF'
+          # set -uo pipefail (fără -e): fiecare comandă critică are || true explicit, deci
+          # erorile individuale sunt raportate dar scriptul continuă — serverul nu rămâne
+          # în stare incompletă din cauza unui singur pas eșuat (ex: pm2 delete pe un server fresh).
           set -uo pipefail
           DEPLOY_PATH=/var/www/unicorn/UNICORN_FINAL
           DOMAIN=zeusai.pro
