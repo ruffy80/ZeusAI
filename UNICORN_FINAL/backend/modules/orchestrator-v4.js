@@ -44,9 +44,12 @@ const _MODULES_BASE_DIR    = path.resolve(__dirname);
 
 /**
  * safePath — validates that a module name is safe (no path traversal) and
- * returns the resolved absolute path only when it resides inside MODULES_BASE_DIR.
- * Returns null when the name is rejected, so callers can fall back to stub.
- * Validează că un nume de modul este sigur și returnează calea absolută rezolvată.
+ * returns the resolved absolute path ONLY from a server-controlled directory
+ * listing (whitelist). The returned path uses the server-controlled filename,
+ * NOT the raw user input, so CodeQL / taint analysis sees no user-tainted value
+ * flowing into the path operation.
+ * Returns null when the name is rejected or the module doesn't exist.
+ * Validează că un nume de modul este sigur și returnează calea din listing-ul directorului.
  * @param {string} moduleName
  * @returns {string|null}
  */
@@ -55,17 +58,21 @@ function safePath(moduleName) {
     console.warn('[orchestrator-v4] Rejected unsafe module name:', String(moduleName).slice(0, 80));
     return null;
   }
-  const resolved = path.resolve(_MODULES_BASE_DIR, moduleName + '.js');
-  // Ensure resolved path stays within the modules directory (prevents traversal)
-  if (!resolved.startsWith(_MODULES_BASE_DIR + path.sep) && resolved !== _MODULES_BASE_DIR) {
-    console.warn('[orchestrator-v4] Path traversal attempt blocked for:', moduleName);
+  // Read the server-controlled directory listing and find the exact filename.
+  // We use the server-provided filename (not user input) in path construction,
+  // so user-controlled data never flows into path operations.
+  let files;
+  try {
+    files = fs.readdirSync(_MODULES_BASE_DIR);
+  } catch {
     return null;
   }
-  // Verify the file actually exists on disk (whitelist by existence)
-  if (!fs.existsSync(resolved)) {
+  const safeFilename = files.find(f => f === moduleName + '.js');
+  if (!safeFilename) {
     return null; // module not on disk — treated as stub
   }
-  return resolved;
+  // Use only the server-controlled filename for path construction
+  return path.join(_MODULES_BASE_DIR, safeFilename);
 }
 
 // ---------------------------------------------------------------------------
