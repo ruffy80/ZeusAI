@@ -765,6 +765,7 @@ const resourceMonitor      = require('./modules/resource-monitor');
 const errorPatternDetector = require('./modules/error-pattern-detector');
 const recoveryEngine       = require('./modules/recovery-engine');
 const serviceWatchdog      = require('./modules/service-watchdog');
+const uiAutoBuilder        = require('./modules/ui-auto-builder');
 
 // ==================== MULTI-TENANT SAAS PLATFORM ====================
 const tenantManager      = require('./modules/tenant-manager');
@@ -1090,6 +1091,8 @@ app.use('/api/ultimate', ultimateModules.getRouter(adminSecretMiddleware));
 app.use('/api/legal-fortress', legalFortress.getRouter(adminSecretMiddleware));
 app.use('/api/quantum-resilience', qrc.getRouter(adminSecretMiddleware));
 app.use('/api/dashboard', executiveDashboard.getRouter(adminSecretMiddleware));
+// ── UI Auto-Builder internal health routes ──────────────────────────
+app.use('/internal/ui-builder', uiAutoBuilder.getRouter());
 // ── Unicorn Eternal Engine ──────────────────────────────────────────
 app.use('/api/uee', uee.getRouter(adminSecretMiddleware));
 
@@ -1178,6 +1181,7 @@ meshOrchestrator.register('tenantBilling',          tenantBilling,       { statu
 meshOrchestrator.register('tenantAnalytics',        tenantAnalytics,     { statusFn: 'getStatus' });
 meshOrchestrator.register('tenantManager',          tenantManager,       { statusFn: 'getStatus' });
 meshOrchestrator.register('globalLoadBalancer',     globalLBModule.globalLB, { statusFn: 'getStatus' });
+meshOrchestrator.register('uiAutoBuilder',          uiAutoBuilder,       { statusFn: 'getStatus' });
 
 // Pornim orchestratorul — Swiss-watch mode
 meshOrchestrator.start();
