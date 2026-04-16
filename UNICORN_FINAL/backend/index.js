@@ -787,7 +787,6 @@ try { _aiAutoDispatcher = require('./modules/ai-auto-dispatcher'); } catch (e) {
 }
 
 // ==================== GLOBAL SAAS PLATFORM MODULES ====================
-const tenantManager      = require('./modules/tenant-manager');
 const globalApiGateway   = require('./modules/global-api-gateway');
 const billingEngine      = require('./modules/billing-engine');
 const provisioningEngine = require('./modules/provisioning-engine');
@@ -5572,6 +5571,11 @@ app.post('/api/saas/tenants', adminCrudRateLimit, adminTokenMiddleware, (req, re
       metadata,
     });
     res.status(201).json(tenant);
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
 // ==================== GLOBAL SAAS PLATFORM API ROUTES ====================
 
 // ── Tenant Manager ────────────────────────────────────────────────────────────
@@ -5622,6 +5626,11 @@ app.post('/api/saas/tenants/:id/activate', adminCrudRateLimit, adminTokenMiddlew
   try {
     const tenant = tenantEngine.activateTenant(req.params.id, 'admin');
     res.json(tenant);
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
 app.get('/api/saas/tenants', adminTokenMiddleware, (req, res) => {
   const { status, plan, region, page, limit } = req.query;
   res.json(tenantManager.listTenants({
@@ -5924,6 +5933,8 @@ app.get('/api/saas/global/health', adminTokenMiddleware, (req, res) => {
 
 app.get('/api/saas/regions', routeCache.cacheMiddleware(), (req, res) => {
   res.json({ regions: tenantEngine.getRegionStatus() });
+});
+
 app.post('/api/saas/tenants/:id/suspend', adminTokenMiddleware, (req, res) => {
   try {
     res.json(tenantManager.suspendTenant(req.params.id, (req.body || {}).reason));
