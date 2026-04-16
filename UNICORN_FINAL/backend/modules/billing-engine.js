@@ -1154,6 +1154,8 @@ module.exports = {
  * - Stripe-compatible payment intent abstraction
  */
 
+// crypto and EventEmitter already required at top of file; avoid duplicate declarations
+
 // ─── Plans ───────────────────────────────────────────────────────────────────
 const PLANS = {
   free:       { name: 'Free',       price: 0,    currency: 'usd', interval: 'month', trialDays: 0  },
@@ -1385,3 +1387,5 @@ class BillingEngine extends EventEmitter {
 module.exports = new BillingEngine();
 module.exports.BillingEngine = BillingEngine;
 module.exports.PLANS = PLANS;
+// Attach legacy createExpressRouter from first implementation so index.js routes work
+module.exports.createExpressRouter = createExpressRouter;

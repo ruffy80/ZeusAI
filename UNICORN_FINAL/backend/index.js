@@ -582,6 +582,7 @@ const usiReasoning   = require('./modules/unicorn-super-intelligence/reasoning')
 const usiPersonality = require('./modules/unicorn-super-intelligence/personality');
 
 // ==================== MULTI-TENANT ENGINE v4 ====================
+// tenantEngine already required above (line ~512); avoid duplicate const declaration
 const { requireFeature, requirePlan: requireTenantPlan, getGatewayStats } = require('./modules/tenant-gateway');
 const billingEngine      = require('./modules/billing-engine');
 const orchestratorV4     = require('./modules/orchestrator-v4');
@@ -770,6 +771,8 @@ const tenantGateway      = require('./modules/tenant-gateway');
 const tenantProvisioning = require('./modules/tenant-provisioning');
 const tenantBilling      = require('./modules/tenant-billing');
 const tenantAnalytics    = require('./modules/tenant-analytics');
+// orchestratorV4 already required above (line ~588); avoid duplicate const declaration
+// const orchestratorV4  = require('./modules/orchestrator-v4');
 const globalLBModule     = require('./modules/global-load-balancer');
 
 // Apply tenant analytics middleware (auto-track after tenant context attached)
@@ -785,6 +788,9 @@ try { _aiAutoDispatcher = require('./modules/ai-auto-dispatcher'); } catch (e) {
 }
 
 // ==================== GLOBAL SAAS PLATFORM MODULES ====================
+// tenantManager already required above; avoid duplicate
+const globalApiGateway   = require('./modules/global-api-gateway');
+// billingEngine already required above (line ~587); avoid duplicate
 const globalApiGateway   = require('./modules/global-api-gateway');
 const provisioningEngine = require('./modules/provisioning-engine');
 const globalFailover     = require('./modules/global-failover');
