@@ -661,6 +661,10 @@ module.exports = {
       log_date_format: 'YYYY-MM-DD HH:mm:ss'
     },
 
+    // ── 22. Orchestrator V4 — per-tenant execution + scaling ──────────────────
+    {
+      name: 'unicorn-orchestrator-v4',
+      script: 'backend/modules/orchestrator-v4.js',
     // ── 22. SaaS Orchestrator v4 — multi-tenant AI & workflow orchestration ──
     {
       name: 'unicorn-saas-orchestrator-v4',
@@ -671,6 +675,23 @@ module.exports = {
       watch: false,
       max_restarts: 20,
       min_uptime: '10s',
+      restart_delay: 3000,
+      env: {
+        NODE_ENV: 'production',
+        ORCH_V4_STALL_MS:  '30000',
+        ORCH_V4_HEALTH_MS: '15000',
+        DOMAIN: SITE_DOMAIN,
+        PUBLIC_APP_URL,
+      },
+      error_file: 'logs/orchestrator-v4-error.log',
+      out_file: 'logs/orchestrator-v4-out.log',
+      log_date_format: 'YYYY-MM-DD HH:mm:ss'
+    },
+
+    // ── 23. Global Load Balancer — multi-region failover + circuit breaker ────
+    {
+      name: 'unicorn-global-lb',
+      script: 'backend/modules/global-load-balancer.js',
       restart_delay: 5000,
       env: {
         NODE_ENV: 'production',
@@ -693,6 +714,19 @@ module.exports = {
       watch: false,
       max_restarts: 20,
       min_uptime: '10s',
+      restart_delay: 3000,
+      env: {
+        NODE_ENV: 'production',
+        GLB_PROBE_MS:        '30000',
+        GLB_CIRCUIT_OPEN_MS: '60000',
+        GLB_FAIL_THRESHOLD:  '3',
+        GLB_SUCCESS_THRESH:  '2',
+        GLB_STRATEGY:        'latency',
+        DOMAIN: SITE_DOMAIN,
+        PUBLIC_APP_URL,
+      },
+      error_file: 'logs/global-lb-error.log',
+      out_file: 'logs/global-lb-out.log',
       restart_delay: 5000,
       env: {
         NODE_ENV: 'production',
