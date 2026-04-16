@@ -546,6 +546,7 @@ const temporalDataLayer     = require('./generated/TemporalDataLayer');
 // ==================== SRC INNOVATION & DEPLOY MODULES ====================
 const innovationEngine      = require('../src/innovation/innovation-engine');
 const autoDeployOrchestrator = require('../src/modules/auto-deploy-orchestrator');
+const { getSiteHtml }       = require('../src/site/template');
 
 // ==================== MESH ORCHESTRATOR — Swiss-watch inter-module bus ====================
 const meshOrchestrator     = require('./modules/unicornMeshOrchestrator');
@@ -5548,20 +5549,10 @@ app.get('/{*path}', (req, res) => {
     return res.sendFile(clientIndexPath);
   }
   // Serve the full unicorn HTML template when no React client build is present
-  // (e.g. Vercel serverless deploy or fresh Hetzner setup)
-  try {
-    const { getSiteHtml } = require('../src/site/template');
-    res.setHeader('Content-Type', 'text/html; charset=utf-8');
-    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
-    return res.send(getSiteHtml());
-  } catch (_) {
-    res.json({
-      service: 'unicorn-autonomous',
-      status: 'running',
-      note: 'UI build not found. Run: cd client && npm install && npm run build',
-      api: '/api/health'
-    });
-  }
+  // (e.g. fresh Hetzner setup without client build)
+  res.setHeader('Content-Type', 'text/html; charset=utf-8');
+  res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+  return res.send(getSiteHtml());
 });
 
 // ==================== MULTI-TENANT SAAS PLATFORM ROUTES ====================
