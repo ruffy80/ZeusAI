@@ -580,6 +580,14 @@ const usiSkills      = require('./modules/unicorn-super-intelligence/skills');
 const usiReasoning   = require('./modules/unicorn-super-intelligence/reasoning');
 const usiPersonality = require('./modules/unicorn-super-intelligence/personality');
 
+// ==================== MULTI-TENANT ENGINE v4 ====================
+const tenantEngine       = require('./modules/tenant-engine');
+const { tenantGateway, requireFeature, requirePlan: requireTenantPlan, getGatewayStats } = require('./modules/tenant-gateway');
+const billingEngine      = require('./modules/billing-engine');
+const orchestratorV4     = require('./modules/orchestrator-v4');
+const seeEngine          = require('./modules/self-evolving-engine');
+const { createExpressRouter: createAdminPanelRouter, createProvisioningRouter } = require('./modules/admin-panel');
+
 // ==================== NEW POWER AGENTS (6) ====================
 const predictiveMarketIntelligence = require('./modules/predictive-market-intelligence');
 const aiSalesCloser                = require('./modules/ai-sales-closer');
@@ -5094,6 +5102,31 @@ app.post('/api/ai-cache/invalidate', adminTokenMiddleware, (req, res) => {
   res.json({ ok, ts: new Date().toISOString() });
 });
 
+// ==================== MULTI-TENANT v4 ROUTES ====================
+// Public provisioning routes (signup, plan list) — no auth required
+app.use('/api', createProvisioningRouter());
+
+// Billing engine routes (webhook + subscription management)
+app.use('/api/billing', billingEngine.createExpressRouter());
+
+// Orchestrator v4 routes (TCL, MSE, AHE, WDS, GOB, Scheduler)
+app.use('/api/orchestrator/v4', adminTokenMiddleware, orchestratorV4.createExpressRouter());
+
+// Self-Evolving Engine routes
+app.use('/api/see', adminTokenMiddleware, seeEngine.createExpressRouter());
+
+// Global Admin Panel (protected)
+app.use('/api/admin', adminTokenMiddleware, createAdminPanelRouter(adminTokenMiddleware));
+
+// Per-tenant API gateway status
+app.get('/api/tenant/gateway/stats', adminTokenMiddleware, (req, res) => {
+  res.json(getGatewayStats());
+});
+
+// Init orchestrator v4 + SEE on startup
+orchestratorV4.init();
+seeEngine.init();
+
 const clientBuildPath = path.join(__dirname, '../client/build');
 const clientIndexPath = path.join(clientBuildPath, 'index.html');
 const fs = require('fs');
@@ -5205,6 +5238,12 @@ if (require.main === module) {
     console.log(`🟢 Zero-Downtime Controller: ACTIVE`);
     console.log(`💾 AI Smart Cache: ACTIVE (LRU, cost tracking, TTL per task)`);
     console.log(`🐕 Service Watchdog: ACTIVE (reliability cycles #11 & #14)`);
+    console.log(`🏢 Multi-Tenant Engine v4: ACTIVE (tenants, plans, subscriptions, API keys, configs, feature flags)`);
+    console.log(`🌐 Tenant API Gateway: ACTIVE (subdomain/header/path detection, rate limiting, feature enforcement)`);
+    console.log(`💳 Billing & Subscription Engine: ACTIVE (plans, subscriptions, invoices, Stripe/PayPal stubs)`);
+    console.log(`🎛️  Orchestrator v4: ACTIVE (TCL, MSE, Scheduler, AHE, WDS, GOB)`);
+    console.log(`🧬 Self-Evolving Engine: ACTIVE (Analyzer, Profiler, Planner, CodeGen, Validator, Deploy)`);
+    console.log(`🖥️  Global Admin Panel: ACTIVE (/api/admin/*)`);
     // Pornire Zero-Downtime Controller în-process (monitorizare health locală)
     zeroDT.init();
     // Pornire Service Watchdog (reliability: health-check + exponential backoff)
