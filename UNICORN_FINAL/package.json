@@ -37,8 +37,11 @@
     "test": "node test/health.test.js && node test/api.test.js",
     "test:health": "node test/health.test.js",
     "test:api": "node test/api.test.js",
-    "lint": "node --check backend/index.js && node --check src/index.js",
+    "lint": "eslint backend/**/*.js src/**/*.js --max-warnings=0",
+    "lint:fix": "eslint --fix backend/**/*.js src/**/*.js",
+    "lint:syntax": "node --check backend/index.js && node --check src/index.js",
     "lint:all": "node --check backend/index.js && node --check src/index.js",
+    "prepare": "cd .. && git config core.hooksPath .husky && echo 'husky hooks configured'",
     "innovation:add": "node add_innovations.js",
     "innovation:sprint": "node -e \"const ai = require('./backend/modules/autonomousInnovation'); console.log('[SPRINT]', JSON.stringify(ai.getStatus())); if (typeof ai.stopInnovationCycle === 'function') ai.stopInnovationCycle(); process.exit(0);\"",
     "innovation:report": "node -e \"const ai = require('./backend/modules/autonomousInnovation'); const m = ai.getDeploymentMetrics(); console.log('[REPORT] innovations:', m.totalInnovationsGenerated, '| deployed:', m.totalFeaturesDeployed, '| rate:', m.deploymentSuccessRate + '%'); if (typeof ai.stopInnovationCycle === 'function') ai.stopInnovationCycle(); process.exit(0);\"",
@@ -55,5 +58,13 @@
     "hetzner:setup": "node scripts/setup-hetzner-auto.js",
     "zip:github": "mkdir -p ../release && zip -r ../release/unicorn-github-deploy.zip . -x '.git/*' 'node_modules/*' 'logs/*' '.next/*' '.env' '.vercel/*'",
     "unzip:github": "mkdir -p ../release/unpacked && unzip -o ../release/unicorn-github-deploy.zip -d ../release/unpacked"
+  },
+  "devDependencies": {
+    "eslint": "^8.57.1",
+    "husky": "^9.1.7",
+    "lint-staged": "^16.4.0"
+  },
+  "lint-staged": {
+    "*.js": ["eslint --fix", "git add"]
   }
 }

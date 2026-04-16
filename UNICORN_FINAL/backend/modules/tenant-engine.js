@@ -229,7 +229,7 @@ function _determineInitialStatus(planId) {
 }
 
 /** Build a slug from a name string */
-function _slugify(name) {
+function _slugifyV1(name) {
   return name
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, '-')
@@ -238,7 +238,7 @@ function _slugify(name) {
 }
 
 /** Ensure slug uniqueness by appending counter if needed */
-function _uniqueSlug(base) {
+function _uniqueSlugV1(base) {
   let slug = base;
   let counter = 1;
   while ([...tenants.values()].some(t => t.slug === slug)) {
@@ -284,14 +284,13 @@ const LIMIT_KEY_MAP = {
  * @param {object} data - { name, email, planId?, slug? }
  * @returns {object} created tenant
  */
-function createTenant(data) {
-  const { name, email, planId = 'plan_free', slug: slugHint } = data || {};
+function createTenantV1(data) {
   if (!name) throw new Error('Tenant name is required / Numele tenantului este obligatoriu');
   if (!email) throw new Error('Tenant email is required / Email-ul tenantului este obligatoriu');
   if (!plans.has(planId)) throw new Error(`Plan not found: ${planId}`);
 
   const tenantId = crypto.randomUUID();
-  const slug = _uniqueSlug(slugHint ? _slugify(slugHint) : _slugify(name));
+  const slug = _uniqueSlugV1(slugHint ? _slugifyV1(slugHint) : _slugifyV1(name));
   const now = new Date().toISOString();
 
   const initialStatus = _determineInitialStatus(planId);
@@ -804,7 +803,7 @@ function updateTenant(tenantId, updates = {}, actorId = 'system') {
  * getTenant — returns tenant enriched with plan and active subscription
  * Returnează tenantul îmbogățit cu planul și abonamentul activ
  */
-function getTenant(tenantId) {
+function getTenantV1(tenantId) {
   const tenant = tenants.get(tenantId);
   if (!tenant) return null;
   const plan = plans.get(tenant.planId) || null;
@@ -816,10 +815,10 @@ function getTenant(tenantId) {
  * getTenantBySlug — lookup by URL-friendly slug
  * Caută tenant după slug
  */
-function getTenantBySlug(slug) {
+function getTenantBySlugV1(slug) {
   const tenant = [...tenants.values()].find(t => t.slug === slug);
   if (!tenant) return null;
-  return getTenant(tenant.id);
+  return getTenantV1(tenant.id);
 }
 
 /**
@@ -845,9 +844,7 @@ function getTenantByApiKey(rawKey) {
  * suspendTenant — suspends a tenant and their subscription
  * Suspendă un tenant și abonamentul său
  */
-function suspendTenant(tenantId, reason = '') {
-  const tenant = tenants.get(tenantId);
-  if (!tenant) throw new Error(`Tenant not found: ${tenantId}`);
+function suspendTenantV1(tenantId, reason = '') {
   tenant.status = 'suspended';
   const sub = [...subscriptions.values()].find(s => s.tenantId === tenantId);
   if (sub) sub.status = 'suspended';
@@ -873,8 +870,7 @@ function reactivateTenant(tenantId) {
  * deleteTenant — cascading removal of all tenant data
  * Ștergere în cascadă a tuturor datelor unui tenant
  */
-function deleteTenant(tenantId) {
-  if (!tenants.has(tenantId)) throw new Error(`Tenant not found: ${tenantId}`);
+function deleteTenantV1(tenantId) {
 
   // Remove subscriptions / Elimină abonamentele
   for (const [id, sub] of subscriptions) {
