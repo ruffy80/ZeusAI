@@ -204,7 +204,7 @@ async function run() {
     // SSH_PRIVATE_KEY alias (used by deploy-backend.yml, setup-ai-keys.yml as fallback)
     ...(process.env.HETZNER_SSH_PRIVATE_KEY ? { SSH_PRIVATE_KEY:         process.env.HETZNER_SSH_PRIVATE_KEY } : {}),
     ...(process.env.SSH_PRIVATE_KEY         ? { SSH_PRIVATE_KEY:         process.env.SSH_PRIVATE_KEY }         : {}),
-    // AI provider keys — sempre scrise în GitHub Secrets.
+    // AI provider keys — întotdeauna scrise în GitHub Secrets.
     // Dacă cheia nu este furnizată, se scrie valoarea placeholder din .env.example
     // (ex: 'your_anthropic_api_key_here'). Toate modulele AI recunosc
     // aceste placeholder-uri și sar provider-ul — fără crash, fără fallback greșit.
