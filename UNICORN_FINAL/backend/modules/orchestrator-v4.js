@@ -163,11 +163,14 @@ class OrchestratorV4 extends EventEmitter {
     const ctx = this._getContext(tenantId);
     this._globalStats.totalTasksDispatched++;
 
+    // Clamp timeout to prevent resource exhaustion from caller-controlled durations
+    const safeTimeout = Math.min(Math.max(parseInt(timeout, 10) || 60_000, 1_000), 300_000);
+
     return new Promise((resolve, reject) => {
       const wrappedFn = () => {
         const timer = setTimeout(() => {
-          reject(new Error(`[OrchestratorV4] Task timeout (${timeout}ms) for tenant ${tenantId}`));
-        }, timeout);
+          reject(new Error(`[OrchestratorV4] Task timeout (${safeTimeout}ms) for tenant ${tenantId}`));
+        }, safeTimeout);
 
         return Promise.resolve()
           .then(() => fn())

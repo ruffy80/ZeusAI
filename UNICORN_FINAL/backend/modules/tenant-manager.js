@@ -369,6 +369,9 @@ function rotateApiKey(tenantId, oldKey) {
 function setFeatureFlag(tenantId, flag, value) {
   const tenant = _tenants.get(tenantId);
   if (!tenant) throw new Error(`Tenant not found: ${tenantId}`);
+  if (typeof flag !== 'string' || flag === '__proto__' || flag === 'constructor' || flag === 'prototype') {
+    throw new Error(`Invalid feature flag name: ${flag}`);
+  }
   tenant.featureFlags[flag] = value;
   tenant.updatedAt = new Date().toISOString();
   _audit(tenant, 'feature_flag', { flag, value });
@@ -403,7 +406,14 @@ function setEnvironmentVars(tenantId, envName, vars = {}) {
   const tenant = _tenants.get(tenantId);
   if (!tenant) throw new Error(`Tenant not found: ${tenantId}`);
   if (!tenant.environments[envName]) throw new Error(`Environment not found: ${envName}`);
-  tenant.environments[envName].vars = { ...tenant.environments[envName].vars, ...vars };
+  // Guard against prototype pollution: skip dangerous keys
+  const safeVars = {};
+  for (const [k, v] of Object.entries(vars)) {
+    if (k !== '__proto__' && k !== 'constructor' && k !== 'prototype') {
+      safeVars[k] = v;
+    }
+  }
+  tenant.environments[envName].vars = { ...tenant.environments[envName].vars, ...safeVars };
   tenant.updatedAt = new Date().toISOString();
   _audit(tenant, 'env_vars_update', { envName, keys: Object.keys(vars) });
   return tenant.environments[envName];

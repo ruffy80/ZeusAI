@@ -43,6 +43,15 @@ function _parseRegionsFromEnv() {
 
 function registerRegion({ name, url, weight = 1, region = 'default', metadata = {} } = {}) {
   if (!name || !url) throw new Error('name and url are required');
+  // Validate URL scheme to prevent SSRF
+  try {
+    const parsed = new URL(url);
+    if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+      throw new Error(`Only http/https URLs are allowed; got: ${parsed.protocol}`);
+    }
+  } catch (e) {
+    throw new Error(`Invalid region URL: ${e.message}`);
+  }
   _regions.set(name, {
     name,
     url,
@@ -105,12 +114,35 @@ function _recordFailure(r) {
 
 // ── Health probing ────────────────────────────────────────────────────────────
 
+// ── Allowed probe URL schemes ─────────────────────────────────────────────────
+// Only probe http/https URLs to prevent SSRF via file://, ftp://, etc.
+function _validateProbeUrl(url) {
+  try {
+    const parsed = new URL(url);
+    if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+      throw new Error(`Unsupported protocol: ${parsed.protocol}`);
+    }
+    return parsed.href;
+  } catch (e) {
+    throw new Error(`Invalid region URL: ${e.message}`);
+  }
+}
+
 async function probeRegion(name) {
   const r = _regions.get(name);
   if (!r) throw new Error(`Region not found: ${name}`);
   if (_isCircuitOpen(r)) return r;
 
-  const healthUrl = r.url.replace(/\/$/, '') + '/health';
+  let healthUrl;
+  try {
+    const base = _validateProbeUrl(r.url);
+    healthUrl = base.replace(/\/$/, '') + '/health';
+  } catch (e) {
+    console.warn(`[GlobalLoadBalancer] Skipping probe for "${name}": ${e.message}`);
+    _recordFailure(r);
+    return r;
+  }
+
   const start = Date.now();
   try {
     const resp = await axios.get(healthUrl, { timeout: 5000, validateStatus: s => s < 500 });
@@ -251,13 +283,13 @@ class GlobalLoadBalancer extends EventEmitter {
     return {
       module: 'GlobalLoadBalancer',
       status: this._running ? 'active' : 'stopped',
-      regions: regions.length,
+      regionCount: regions.length,
       healthy: regions.filter(r => r.status === 'healthy').length,
       unhealthy: regions.filter(r => r.status === 'unhealthy' || r.status === 'circuit_open').length,
       splits: _splits.size,
       strategy: process.env.GLB_STRATEGY || 'latency',
       stats: this._stats,
-      regions: regions,
+      regions,
     };
   }
 }

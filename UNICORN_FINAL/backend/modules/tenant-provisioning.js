@@ -49,10 +49,11 @@ async function _step_generate_api_keys(tenant) {
 }
 
 async function _step_setup_environments(tenant) {
-  const environments = ['staging'];
+  const environments = [];
   const maxEnv = tenant.customLimits?.maxEnvironments ?? tenant.limits.maxEnvironments;
   if (maxEnv === -1 || maxEnv >= 2) {
     tenantManager.addEnvironment(tenant.id, 'staging', {});
+    environments.push('staging');
   }
   if (maxEnv === -1 || maxEnv >= 3) {
     tenantManager.addEnvironment(tenant.id, 'development', {});
