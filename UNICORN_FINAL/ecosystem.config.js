@@ -69,6 +69,12 @@ module.exports = {
         AI_CACHE_MAX_BYTES:      process.env.AI_CACHE_MAX_BYTES       || '52428800',
         AI_CACHE_TTL_EMBEDDING:  process.env.AI_CACHE_TTL_EMBEDDING   || '3600000',
         AI_CACHE_TTL_REASONING:  process.env.AI_CACHE_TTL_REASONING   || '300000',
+        // ── Payment — PayPal + BTC ──────────────────────────────────────────
+        PAYPAL_CLIENT_ID:        process.env.PAYPAL_CLIENT_ID        || '',
+        PAYPAL_CLIENT_SECRET:    process.env.PAYPAL_CLIENT_SECRET    || '',
+        PAYPAL_ENV:              process.env.PAYPAL_ENV              || 'sandbox',
+        PAYPAL_WEBHOOK_ID:       process.env.PAYPAL_WEBHOOK_ID       || '',
+        LEGAL_OWNER_BTC:         process.env.LEGAL_OWNER_BTC         || 'bc1q4f7e66z87mdfj56kz0dj5hvcnpmh0qh4wuv22e',
       },
       error_file: 'logs/pm2-error.log',
       out_file: 'logs/pm2-out.log',
