@@ -509,6 +509,7 @@ const referralEngine   = require('./modules/referralEngine');
 const customerHealth   = require('./modules/customerHealth');
 const workflowEngine   = require('./modules/workflowEngine');
 const whiteLabelEngine = require('./modules/whiteLabelEngine');
+const tenantEngine     = require('./modules/tenant-engine');
 const canaryCtrl       = require('./modules/canary-controller');
 const controlPlane     = require('./modules/control-plane-agent');
 const profitLoop       = require('./modules/profit-control-loop');
@@ -777,6 +778,13 @@ const aiAutoDispatcher   = require('./modules/ai-auto-dispatcher');
 
 // ==================== MODULE REGISTRY (292+ modules) ====================
 // Registru complet al tuturor modulelor încărcate, organizate pe categorii.
+// ==================== MULTI-TENANT ENGINE INIT ====================
+// Must run after all requires. Initializes default tenant and self-healer.
+// Middleware populates req.tenantId / req.tenantContext on every request.
+// Falls back to DEFAULT_TENANT_ID for existing single-tenant routes (backward-compat).
+tenantEngine.init();
+app.use(tenantEngine.tenantMiddleware);
+app.use(tenantEngine.tenantRateLimitMiddleware);
 const MODULE_REGISTRY = {
   orchestrator: [
     'unicorn-orchestrator',
@@ -5166,6 +5174,38 @@ app.get('/{*path}', (req, res) => {
   }
 });
 
+// ==================== MULTI-TENANT SAAS PLATFORM ROUTES ====================
+
+// --- SaaS Plans (public) ---
+app.get('/api/saas/plans', routeCache.cacheMiddleware(), (req, res) => {
+  res.json({ plans: tenantEngine.getSaasPlans() });
+});
+
+// --- Tenant CRUD (super-admin) ---
+app.get('/api/saas/tenants', adminCrudRateLimit, adminTokenMiddleware, (req, res) => {
+  const { page, limit, status, planId, search } = req.query;
+  const result = tenantEngine.listTenants({
+    page: parseInt(page, 10) || 1,
+    limit: parseInt(limit, 10) || 50,
+    status: status || undefined,
+    planId: planId || undefined,
+    search: search || undefined,
+  });
+  res.json(result);
+});
+
+app.post('/api/saas/tenants', adminCrudRateLimit, adminTokenMiddleware, (req, res) => {
+  try {
+    const { name, planId, billingInterval, config, metadata } = req.body || {};
+    const tenant = tenantEngine.createTenant({
+      name,
+      ownerId: (req.user && req.user.id) || 'admin',
+      planId: planId || 'free',
+      billingInterval,
+      config,
+      metadata,
+    });
+    res.status(201).json(tenant);
 // ==================== GLOBAL SAAS PLATFORM API ROUTES ====================
 
 // ── Tenant Manager ────────────────────────────────────────────────────────────
@@ -5187,6 +5227,35 @@ app.post('/api/saas/tenants', authMiddleware, async (req, res) => {
   }
 });
 
+app.get('/api/saas/tenants/:id', adminCrudRateLimit, adminTokenMiddleware, (req, res) => {
+  const tenant = tenantEngine.getTenant(req.params.id);
+  if (!tenant) return res.status(404).json({ error: 'Tenant not found' });
+  res.json(tenant);
+});
+
+app.put('/api/saas/tenants/:id', adminCrudRateLimit, adminTokenMiddleware, (req, res) => {
+  try {
+    const tenant = tenantEngine.updateTenant(req.params.id, req.body || {}, 'admin');
+    res.json(tenant);
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+app.post('/api/saas/tenants/:id/suspend', adminCrudRateLimit, adminTokenMiddleware, (req, res) => {
+  try {
+    const { reason } = req.body || {};
+    const tenant = tenantEngine.suspendTenant(req.params.id, reason || 'admin_action', 'admin');
+    res.json(tenant);
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+app.post('/api/saas/tenants/:id/activate', adminCrudRateLimit, adminTokenMiddleware, (req, res) => {
+  try {
+    const tenant = tenantEngine.activateTenant(req.params.id, 'admin');
+    res.json(tenant);
 app.get('/api/saas/tenants', adminTokenMiddleware, (req, res) => {
   const { status, plan, region, page, limit } = req.query;
   res.json(tenantManager.listTenants({
@@ -5215,6 +5284,280 @@ app.put('/api/saas/tenants/:id', authMiddleware, (req, res) => {
   }
 });
 
+app.delete('/api/saas/tenants/:id', adminCrudRateLimit, adminTokenMiddleware, (req, res) => {
+  try {
+    tenantEngine.deleteTenant(req.params.id, 'admin');
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+// --- Tenant plan / subscription ---
+app.post('/api/saas/tenants/:id/subscribe', adminCrudRateLimit, adminTokenMiddleware, (req, res) => {
+  try {
+    const { planId, interval, subscriptionId, customerId } = req.body || {};
+    const tenant = tenantEngine.subscribeTenant(req.params.id, { planId, interval, subscriptionId, customerId }, 'admin');
+    res.json(tenant);
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+app.post('/api/saas/tenants/:id/change-plan', adminCrudRateLimit, adminTokenMiddleware, (req, res) => {
+  try {
+    const { planId } = req.body || {};
+    if (!planId) return res.status(400).json({ error: 'planId required' });
+    const tenant = tenantEngine.changePlan(req.params.id, planId, 'admin');
+    res.json(tenant);
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+// --- Tenant config ---
+app.get('/api/saas/tenants/:id/config', adminTokenMiddleware, (req, res) => {
+  try {
+    res.json(tenantEngine.getTenantConfig(req.params.id));
+  } catch (err) {
+    res.status(404).json({ error: err.message });
+  }
+});
+
+app.put('/api/saas/tenants/:id/config', adminCrudRateLimit, adminTokenMiddleware, (req, res) => {
+  try {
+    const config = tenantEngine.setTenantConfig(req.params.id, req.body || {}, 'admin');
+    res.json(config);
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+// --- Tenant feature flags ---
+app.get('/api/saas/tenants/:id/features', adminTokenMiddleware, (req, res) => {
+  try {
+    res.json(tenantEngine.getTenantFeatures(req.params.id));
+  } catch (err) {
+    res.status(404).json({ error: err.message });
+  }
+});
+
+app.put('/api/saas/tenants/:id/features/:key', adminCrudRateLimit, adminTokenMiddleware, (req, res) => {
+  try {
+    const { value } = req.body || {};
+    const features = tenantEngine.setTenantFeature(req.params.id, req.params.key, value, 'admin');
+    res.json(features);
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+// --- Tenant API keys ---
+app.get('/api/saas/tenants/:id/apikeys', adminTokenMiddleware, (req, res) => {
+  try {
+    res.json({ keys: tenantEngine.listTenantApiKeys(req.params.id) });
+  } catch (err) {
+    res.status(404).json({ error: err.message });
+  }
+});
+
+app.post('/api/saas/tenants/:id/apikeys', adminCrudRateLimit, adminTokenMiddleware, (req, res) => {
+  try {
+    const { name, scopes } = req.body || {};
+    const key = tenantEngine.createTenantApiKey(req.params.id, { name, scopes }, 'admin');
+    res.status(201).json(key);
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+app.delete('/api/saas/tenants/:id/apikeys/:keyId', adminCrudRateLimit, adminTokenMiddleware, (req, res) => {
+  try {
+    tenantEngine.revokeTenantApiKey(req.params.id, req.params.keyId, 'admin');
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+// --- Tenant usage ---
+app.get('/api/saas/tenants/:id/usage', adminTokenMiddleware, (req, res) => {
+  try {
+    res.json(tenantEngine.getTenantUsage(req.params.id));
+  } catch (err) {
+    res.status(404).json({ error: err.message });
+  }
+});
+
+// --- Tenant billing ---
+app.get('/api/saas/tenants/:id/billing', adminTokenMiddleware, (req, res) => {
+  try {
+    res.json(tenantEngine.getTenantBillingStatus(req.params.id));
+  } catch (err) {
+    res.status(404).json({ error: err.message });
+  }
+});
+
+app.get('/api/saas/tenants/:id/invoices', adminTokenMiddleware, (req, res) => {
+  try {
+    res.json({ invoices: tenantEngine.listTenantInvoices(req.params.id) });
+  } catch (err) {
+    res.status(404).json({ error: err.message });
+  }
+});
+
+app.post('/api/saas/tenants/:id/invoices/generate', adminCrudRateLimit, adminTokenMiddleware, (req, res) => {
+  try {
+    const invoice = tenantEngine.generateInvoice(req.params.id);
+    res.status(201).json(invoice);
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+// --- Tenant analytics ---
+app.get('/api/saas/tenants/:id/analytics', adminTokenMiddleware, (req, res) => {
+  try {
+    res.json(tenantEngine.getTenantAnalytics(req.params.id));
+  } catch (err) {
+    res.status(404).json({ error: err.message });
+  }
+});
+
+// --- Tenant provisioning status ---
+app.get('/api/saas/tenants/:id/provision', adminTokenMiddleware, (req, res) => {
+  const status = tenantEngine.getProvisioningStatus(req.params.id);
+  if (!status) return res.status(404).json({ error: 'No provisioning record found' });
+  res.json(status);
+});
+
+// --- Tenant AI config ---
+app.get('/api/saas/tenants/:id/ai-config', adminTokenMiddleware, (req, res) => {
+  try {
+    res.json(tenantEngine.getTenantAIConfig(req.params.id));
+  } catch (err) {
+    res.status(404).json({ error: err.message });
+  }
+});
+
+app.put('/api/saas/tenants/:id/ai-config', adminCrudRateLimit, adminTokenMiddleware, (req, res) => {
+  try {
+    const config = tenantEngine.setTenantAIConfig(req.params.id, req.body || {}, 'admin');
+    res.json(config);
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+// --- Tenant audit log ---
+app.get('/api/saas/tenants/:id/audit', adminTokenMiddleware, (req, res) => {
+  try {
+    const { limit, action } = req.query;
+    const logs = tenantEngine.getAuditLog(req.params.id, {
+      limit: parseInt(limit, 10) || 100,
+      action: action || undefined,
+    });
+    res.json({ logs });
+  } catch (err) {
+    res.status(404).json({ error: err.message });
+  }
+});
+
+// --- Tenant regions ---
+app.post('/api/saas/tenants/:id/regions', adminCrudRateLimit, adminTokenMiddleware, (req, res) => {
+  try {
+    const { region } = req.body || {};
+    const tenant = tenantEngine.assignTenantRegion(req.params.id, region, 'admin');
+    res.json(tenant);
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+// --- Tenant self-service (authenticated tenant owner) ---
+app.get('/api/saas/my-tenant', authMiddleware, (req, res) => {
+  const tenantId = req.tenantId || tenantEngine.DEFAULT_TENANT_ID;
+  const tenant = tenantEngine.getTenant(tenantId);
+  if (!tenant) return res.status(404).json({ error: 'No tenant context' });
+  res.json(tenant);
+});
+
+app.get('/api/saas/my-tenant/usage', authMiddleware, (req, res) => {
+  const tenantId = req.tenantId || tenantEngine.DEFAULT_TENANT_ID;
+  try {
+    res.json(tenantEngine.getTenantUsage(tenantId));
+  } catch (err) {
+    res.status(404).json({ error: err.message });
+  }
+});
+
+app.get('/api/saas/my-tenant/billing', authMiddleware, (req, res) => {
+  const tenantId = req.tenantId || tenantEngine.DEFAULT_TENANT_ID;
+  try {
+    res.json(tenantEngine.getTenantBillingStatus(tenantId));
+  } catch (err) {
+    res.status(404).json({ error: err.message });
+  }
+});
+
+app.get('/api/saas/my-tenant/invoices', authMiddleware, (req, res) => {
+  const tenantId = req.tenantId || tenantEngine.DEFAULT_TENANT_ID;
+  try {
+    res.json({ invoices: tenantEngine.listTenantInvoices(tenantId) });
+  } catch (err) {
+    res.status(404).json({ error: err.message });
+  }
+});
+
+app.get('/api/saas/my-tenant/analytics', authMiddleware, (req, res) => {
+  const tenantId = req.tenantId || tenantEngine.DEFAULT_TENANT_ID;
+  try {
+    res.json(tenantEngine.getTenantAnalytics(tenantId));
+  } catch (err) {
+    res.status(404).json({ error: err.message });
+  }
+});
+
+app.get('/api/saas/my-tenant/apikeys', authMiddleware, (req, res) => {
+  const tenantId = req.tenantId || tenantEngine.DEFAULT_TENANT_ID;
+  try {
+    res.json({ keys: tenantEngine.listTenantApiKeys(tenantId) });
+  } catch (err) {
+    res.status(404).json({ error: err.message });
+  }
+});
+
+app.post('/api/saas/my-tenant/apikeys', authRateLimit(10, 60_000), authMiddleware, (req, res) => {
+  const tenantId = req.tenantId || tenantEngine.DEFAULT_TENANT_ID;
+  try {
+    const { name, scopes } = req.body || {};
+    const key = tenantEngine.createTenantApiKey(tenantId, { name, scopes }, req.user.id);
+    res.status(201).json(key);
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+// --- Global SaaS Gateway & Health ---
+app.get('/api/saas/gateway/status', routeCache.cacheMiddleware(), (req, res) => {
+  res.json({
+    status: 'active',
+    tenantId: req.tenantId || tenantEngine.DEFAULT_TENANT_ID,
+    regions: tenantEngine.getRegionStatus(),
+    health: tenantEngine.getHealthSummary(),
+  });
+});
+
+app.get('/api/saas/global/analytics', adminCrudRateLimit, adminTokenMiddleware, (req, res) => {
+  res.json(tenantEngine.getGlobalAnalytics());
+});
+
+app.get('/api/saas/global/health', adminTokenMiddleware, (req, res) => {
+  res.json(tenantEngine.getHealthSummary());
+});
+
+app.get('/api/saas/regions', routeCache.cacheMiddleware(), (req, res) => {
+  res.json({ regions: tenantEngine.getRegionStatus() });
 app.post('/api/saas/tenants/:id/suspend', adminTokenMiddleware, (req, res) => {
   try {
     res.json(tenantManager.suspendTenant(req.params.id, (req.body || {}).reason));
