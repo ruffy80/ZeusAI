@@ -52,6 +52,7 @@ class UnicornOrchestrator extends EventEmitter {
     this.cycles    = {};
     this._running  = false;
     this._monitors = [];
+    this.mode      = null;
 
     // Inițializare statistici pentru fiecare motor
     this.stats = {
@@ -66,17 +67,25 @@ class UnicornOrchestrator extends EventEmitter {
     };
 
     // Auto-start imediat la require()
-    this.start();
+    this.start('full');
   }
 
   // ─── Start ─────────────────────────────────────────────────────────────────
-  start() {
-    if (this._running) return this;
+  start(mode) {
+    if (this._running) {
+      // Allow upgrade from standard to full without full restart
+      if (mode === 'full' && this.mode !== 'full') {
+        this.mode = 'full';
+        this._activateFullMode();
+      }
+      return this;
+    }
     this._running  = true;
     this.startedAt = Date.now();
+    this.mode      = mode || 'standard';
 
     console.log('🦄 [UnicornOrchestrator] ══════════════════════════════════');
-    console.log('🦄 [UnicornOrchestrator]  ORCHESTRATOR UNICORN — PORNIT');
+    console.log(`🦄 [UnicornOrchestrator]  ORCHESTRATOR UNICORN — PORNIT [mode: ${this.mode}]`);
     console.log('🦄 [UnicornOrchestrator]  Activez toate cele 8 motoare...');
     console.log('🦄 [UnicornOrchestrator] ══════════════════════════════════');
 
@@ -89,12 +98,125 @@ class UnicornOrchestrator extends EventEmitter {
     this._activateAutoMonitoring();
     this._activateAutoDecisionAI();
 
+    if (this.mode === 'full') {
+      this._activateFullMode();
+    }
+
     // Ciclu de supraveghere globală — verifică starea fiecărui motor la fiecare 30s
     this._monitors.push(setInterval(() => this._guardianCycle(), 30_000));
 
-    console.log('🦄 [UnicornOrchestrator] ✅ Toate cele 8 motoare ACTIVE');
-    this.emit('orchestrator:started', { ts: new Date().toISOString() });
+    console.log(`🦄 [UnicornOrchestrator] ✅ Toate motoarele ACTIVE [mode: ${this.mode}]`);
+    this.emit('orchestrator:started', { ts: new Date().toISOString(), mode: this.mode });
     return this;
+  }
+
+  // ─── Full Mode — activează toate modulele suplimentare ──────────────────────
+  _activateFullMode() {
+    this._log('🚀', 'Full Mode: activare motoare suplimentare...');
+
+    // Central Orchestrator
+    const centralOrch = tryRequire(path.join(MODULES_DIR, 'central-orchestrator'), 'CentralOrchestrator');
+    if (centralOrch && typeof centralOrch.start === 'function') {
+      try {
+        const s = typeof centralOrch.getStatus === 'function' ? centralOrch.getStatus() : {};
+        if (!s.running) centralOrch.start();
+      } catch (_) {}
+    }
+
+    // SaaS Orchestrator V4
+    const saasOrch = tryRequire(path.join(MODULES_DIR, 'saas-orchestrator-v4'), 'SaaSOrchestratorV4');
+    if (saasOrch && typeof saasOrch.start === 'function') {
+      try {
+        const s = typeof saasOrch.getStatus === 'function' ? saasOrch.getStatus() : {};
+        if (!s.running) saasOrch.start();
+      } catch (_) {}
+    }
+
+    // Unicorn Execution Engine
+    const uee2 = tryRequire(path.join(MODULES_DIR, 'unicorn-execution-engine'), 'UnicornExecutionEngine');
+    if (uee2 && typeof uee2.start === 'function') {
+      try { uee2.start(); } catch (_) {}
+    }
+
+    // Auto-Repair / Auto-Optimize
+    const autoOptimize = tryRequire(path.join(MODULES_DIR, 'auto-optimize'), 'AutoOptimize');
+    if (autoOptimize && typeof autoOptimize.start === 'function') {
+      try { autoOptimize.start(); } catch (_) {}
+    }
+    const autoRepairMod = tryRequire(path.join(MODULES_DIR, 'auto-repair'), 'AutoRepair');
+    if (autoRepairMod && typeof autoRepairMod.start === 'function') {
+      try { autoRepairMod.start(); } catch (_) {}
+    }
+
+    // Auto-Evolution
+    const autoEvolve = tryRequire(path.join(MODULES_DIR, 'auto-evolve'), 'AutoEvolve');
+    if (autoEvolve && typeof autoEvolve.start === 'function') {
+      try { autoEvolve.start(); } catch (_) {}
+    }
+    const selfEvolvingEng = tryRequire(path.join(MODULES_DIR, 'self-evolving-engine'), 'SelfEvolvingEngine');
+    if (selfEvolvingEng && typeof selfEvolvingEng.start === 'function') {
+      try { selfEvolvingEng.start(); } catch (_) {}
+    }
+    const selfAdaptEng = tryRequire(path.join(MODULES_DIR, 'self-adaptation-engine'), 'SelfAdaptationEngine');
+    if (selfAdaptEng && typeof selfAdaptEng.start === 'function') {
+      try { selfAdaptEng.start(); } catch (_) {}
+    }
+
+    // Auto-Innovation Loop
+    const innovLoop = tryRequire(path.join(MODULES_DIR, 'auto-innovation-loop'), 'AutoInnovationLoop');
+    if (innovLoop && typeof innovLoop.start === 'function') {
+      try {
+        const s = typeof innovLoop.getStatus === 'function' ? innovLoop.getStatus() : {};
+        if (!s.active) innovLoop.start();
+      } catch (_) {}
+    }
+
+    // Auto-Marketing / Viral Growth
+    const autoMarketing = tryRequire(path.join(MODULES_DIR, 'auto-marketing'), 'AutoMarketing');
+    if (autoMarketing && typeof autoMarketing.start === 'function') {
+      try { autoMarketing.start(); } catch (_) {}
+    }
+    const viralGrowth = tryRequire(path.join(MODULES_DIR, 'autoViralGrowth'), 'AutoViralGrowth');
+    if (viralGrowth && typeof viralGrowth.start === 'function') {
+      try { viralGrowth.start(); } catch (_) {}
+    }
+
+    // Auto-Revenue
+    const autoRev = tryRequire(path.join(MODULES_DIR, 'autoRevenue'), 'AutoRevenue');
+    if (autoRev && typeof autoRev.start === 'function') {
+      try { autoRev.start(); } catch (_) {}
+    }
+
+    // Disaster Recovery / Global Failover
+    const disasterRec = tryRequire(path.join(MODULES_DIR, 'disaster-recovery'), 'DisasterRecovery');
+    if (disasterRec && typeof disasterRec.start === 'function') {
+      try { disasterRec.start(); } catch (_) {}
+    }
+    const globalFailover = tryRequire(path.join(MODULES_DIR, 'global-failover'), 'GlobalFailover');
+    if (globalFailover && typeof globalFailover.start === 'function') {
+      try { globalFailover.start(); } catch (_) {}
+    }
+
+    // Predictive Healing
+    const predHealing = tryRequire(path.join(MODULES_DIR, 'predictive-healing'), 'PredictiveHealing');
+    if (predHealing && typeof predHealing.start === 'function') {
+      try { predHealing.start(); } catch (_) {}
+    }
+
+    // Swarm Intelligence
+    const swarm = tryRequire(path.join(MODULES_DIR, 'swarm-intelligence'), 'SwarmIntelligence');
+    if (swarm && typeof swarm.start === 'function') {
+      try { swarm.start(); } catch (_) {}
+    }
+
+    // Quantum Resilience Core
+    const qrc2 = tryRequire(path.join(MODULES_DIR, 'quantumResilienceCore'), 'QuantumResilienceCore');
+    if (qrc2 && typeof qrc2.startAutoScaler === 'function') {
+      try { qrc2.startAutoScaler(); } catch (_) {}
+    }
+
+    this._log('✅', 'Full Mode: toate modulele suplimentare ACTIVE');
+    this.emit('orchestrator:full', { ts: new Date().toISOString() });
   }
 
   // ─── 1. Self-Healing Engine ─────────────────────────────────────────────────
@@ -296,6 +418,7 @@ class UnicornOrchestrator extends EventEmitter {
     const allActive = Object.values(this.stats).every(s => s.active);
     return {
       status: allActive ? 'FULLY_AUTONOMOUS' : 'PARTIAL',
+      mode: this.mode || 'standard',
       uptime: Math.floor(upMs / 1000),
       uptimeHuman: this._formatUptime(upMs),
       startedAt: this.startedAt ? new Date(this.startedAt).toISOString() : null,

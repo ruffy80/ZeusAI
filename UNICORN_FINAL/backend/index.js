@@ -1168,7 +1168,7 @@ meshOrchestrator.register('unicornOrchestrator',    unicornOrchestrator, { statu
 
 // Pornim orchestratorul — Swiss-watch mode
 meshOrchestrator.start();
-unicornOrchestrator.start(); // Orchestratorul central al unicornului — activează toate cele 8 motoare autonome
+unicornOrchestrator.start('full'); // Orchestratorul central al unicornului — activează toate motoarele autonome (full mode)
 console.log('🕰️  Unicorn Mesh Orchestrator: STARTED — toate modulele conectate');
 console.log('🦄 Unicorn Orchestrator (8 engines): ACTIVE');
 
@@ -3282,6 +3282,17 @@ app.get('/api/orchestrator/status', (req, res) => {
   res.json(unicornOrchestrator.getStatus());
 });
 
+// POST /api/orchestrator/start — pornește orchestratorul în modul specificat (default: full)
+app.post('/api/orchestrator/start', adminTokenMiddleware, (req, res) => {
+  const mode = (req.body && req.body.mode) || 'full';
+  try {
+    unicornOrchestrator.start(mode);
+    res.json({ success: true, mode, status: unicornOrchestrator.getStatus() });
+  } catch (e) {
+    res.status(500).json({ success: false, error: e.message });
+  }
+});
+
 // ==================== SELF-HEALING: SLO ROUTES ====================
 app.get('/api/slo/status', (req, res) => {
   res.json({ stats: sloTracker.getAllStats(), routes: sloTracker.getAllRoutes() });
@@ -5226,7 +5237,7 @@ app.post('/api/autonomy/activate', adminTokenMiddleware, (req, res) => {
 
   // Unicorn Orchestrator
   tryActivate('unicornOrchestrator', () => {
-    if (unicornOrchestrator.start) unicornOrchestrator.start();
+    if (unicornOrchestrator.start) unicornOrchestrator.start('full');
   });
 
   const activated = results.filter(r => r.activated).length;
