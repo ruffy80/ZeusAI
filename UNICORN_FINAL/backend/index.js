@@ -988,13 +988,15 @@ app.use((req, res, next) => {
     const dur = Date.now() - start;
     const isError = res.statusCode >= 500;
     sloTracker.record(route, dur, isError);
-    // Feed latency & error data into KPI analytics
+    // Feed request & error data into KPI analytics
     kpiAnalytics.increment('apiCallsToday');
     if (isError) {
-      const currentErrors = kpiAnalytics.get('apiCallsToday') > 0
-        ? (kpiAnalytics.get('errorRate') * (kpiAnalytics.get('apiCallsToday') - 1) + 1) / kpiAnalytics.get('apiCallsToday')
-        : 0;
-      kpiAnalytics.set('errorRate', parseFloat(currentErrors.toFixed(2)));
+      kpiAnalytics.increment('_errorCountToday');
+      const totalCalls  = kpiAnalytics.get('apiCallsToday');
+      const totalErrors = kpiAnalytics.get('_errorCountToday');
+      if (totalCalls > 0) {
+        kpiAnalytics.set('errorRate', parseFloat(((totalErrors / totalCalls) * 100).toFixed(2)));
+      }
     }
   });
   next();
@@ -5111,7 +5113,7 @@ app.post('/api/saas/tenants', authMiddleware, async (req, res) => {
     // Auto-provision the new tenant
     provisioningEngine.provisionTenant(tenant.id, tenant.plan).catch(() => {});
     // Auto-create billing subscription
-    billingEngine.createSubscription(tenant.id, tenant.plan).catch ? billingEngine.createSubscription(tenant.id, tenant.plan) : null;
+    billingEngine.createSubscription(tenant.id, tenant.plan).catch(() => {});
     // Register with SaaS orchestrator v4
     saasOrchestratorV4.registerTenant(tenant.id, tenant.plan);
     // Track KPI
@@ -5170,7 +5172,7 @@ app.delete('/api/saas/tenants/:id', adminTokenMiddleware, async (req, res) => {
   } catch (err) { res.status(400).json({ error: err.message }); }
 });
 
-app.get('/api/saas/tenants/status', (req, res) => {
+app.get('/api/saas/tenants/status', adminTokenMiddleware, (req, res) => {
   res.json(tenantManager.getStatus());
 });
 
