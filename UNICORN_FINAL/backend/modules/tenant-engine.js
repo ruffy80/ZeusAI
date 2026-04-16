@@ -37,6 +37,16 @@ const TENANT_STATUS = {
   TRIAL: 'trial',
 };
 
+// Named limits / thresholds (extracted from magic numbers for maintainability)
+const MAX_SLUG_LENGTH             = 63;
+const MAX_TENANT_NAME_LENGTH      = 128;
+const MAX_API_KEY_NAME_LENGTH     = 64;
+const MAX_ANALYTICS_EVENTS        = 1000;
+const MAX_AUDIT_LOG_ENTRIES       = 5000;
+const UNLIMITED_USERS_FALLBACK    = 9999;
+const HEALTH_CHECK_INTERVAL_MS    = 60_000;
+const OVERAGE_PRICE_PER_1000_CALLS = 0.5; // USD per 1,000 API calls over plan limit
+
 const PROVISION_STEPS = [
   'create_record',
   'assign_plan',
@@ -263,7 +273,7 @@ function _monthKey() {
 }
 
 function _slugify(name) {
-  return name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 63);
+  return name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, MAX_SLUG_LENGTH);
 }
 
 function _getPlan(planId) {
@@ -382,7 +392,7 @@ function createTenant(opts = {}) {
 
   const tenant = {
     id,
-    name: name.trim().slice(0, 128),
+    name: name.trim().slice(0, MAX_TENANT_NAME_LENGTH),
     slug,
     status: TENANT_STATUS.PROVISIONING,
     planId,
@@ -392,7 +402,7 @@ function createTenant(opts = {}) {
       locale: 'en',
       customDomain: '',
       theme: 'default',
-      maxUsers: plan.limits.seats === Infinity ? 9999 : plan.limits.seats,
+      maxUsers: plan.limits.seats === Infinity ? UNLIMITED_USERS_FALLBACK : plan.limits.seats,
       ...config,
     },
     features: { ...plan.features },
@@ -556,7 +566,7 @@ function _changePlan(tenant, newPlanId, actorId) {
   tenant.planId = newPlanId;
   tenant.features = { ...plan.features };
   tenant.limits = { ...plan.limits };
-  tenant.config.maxUsers = plan.limits.seats === Infinity ? 9999 : plan.limits.seats;
+  tenant.config.maxUsers = plan.limits.seats === Infinity ? UNLIMITED_USERS_FALLBACK : plan.limits.seats;
   tenant.billing.status = plan.trialDays > 0 && oldPlanId === 'free' ? 'trial' : 'active';
   tenant.billing.trialEndsAt = plan.trialDays > 0 && oldPlanId === 'free'
     ? new Date(Date.now() + plan.trialDays * 86400000).toISOString()
@@ -626,7 +636,7 @@ function createTenantApiKey(tenantId, { name = 'Default Key', scopes = ['read', 
   const key = {
     id: _generateId('key'),
     tenantId,
-    name: name.slice(0, 64),
+    name: name.slice(0, MAX_API_KEY_NAME_LENGTH),
     key: _generateApiKey(tenantId),
     scopes,
     createdAt: _now(),
@@ -791,11 +801,11 @@ function generateInvoice(tenantId) {
   // Usage overages (overage pricing for exceeding limits)
   if (plan.limits.apiCallsPerMonth !== Infinity && usage.apiCalls > plan.limits.apiCallsPerMonth) {
     const overage = usage.apiCalls - plan.limits.apiCallsPerMonth;
-    const overageCharge = Math.ceil(overage / 1000) * 0.5; // $0.50 per 1000 extra calls
+    const overageCharge = Math.ceil(overage / 1000) * OVERAGE_PRICE_PER_1000_CALLS;
     invoice.lineItems.push({
       description: `API Overage — ${overage.toLocaleString()} extra calls`,
       quantity: Math.ceil(overage / 1000),
-      unitPrice: 0.5,
+      unitPrice: OVERAGE_PRICE_PER_1000_CALLS,
       total: overageCharge,
     });
     invoice.subtotal += overageCharge;
@@ -885,7 +895,6 @@ async function _runProvisioningFlow(tenantId) {
 
     // Step 4: configure limits
     setStep('configure_limits', 'in_progress');
-    await _sleep(50); // simulate async I/O
     setStep('configure_limits', 'done');
 
     // Step 5: configure features
@@ -944,7 +953,7 @@ function recordAnalyticsEvent(tenantId, event = {}) {
   const analytics = _tenantAnalytics.get(tenantId);
   if (!analytics) return;
   analytics.events.push({ ...event, ts: _now() });
-  if (analytics.events.length > 1000) analytics.events.shift();
+  if (analytics.events.length > MAX_ANALYTICS_EVENTS) analytics.events.shift();
   if (event.type === 'error') analytics.kpis.errorCount24h++;
   if (event.type === 'user_active') analytics.kpis.dau = (analytics.kpis.dau || 0) + 1;
 }
@@ -1112,7 +1121,7 @@ function tenantAiRateLimitMiddleware(req, res, next) {
 function _auditLog(tenantId, action, data = {}, actorId = 'system') {
   const logs = _tenantAuditLogs.get(tenantId) || [];
   logs.push({ id: _generateId('log'), tenantId, action, data, actorId, ts: _now() });
-  if (logs.length > 5000) logs.shift();
+  if (logs.length > MAX_AUDIT_LOG_ENTRIES) logs.shift();
   _tenantAuditLogs.set(tenantId, logs);
 }
 
@@ -1159,7 +1168,7 @@ function _startSelfHealer() {
   if (_healerInterval) return;
   _healerInterval = setInterval(() => {
     _runHealthChecks();
-  }, 60_000); // every 60s
+  }, HEALTH_CHECK_INTERVAL_MS);
   if (_healerInterval.unref) _healerInterval.unref();
 }
 
@@ -1225,10 +1234,6 @@ function _uniqueSlug(base) {
     slug = `${base}-${i++}`;
   }
   return slug;
-}
-
-function _sleep(ms) {
-  return new Promise(resolve => setTimeout(resolve, ms));
 }
 
 // ==================== MODULE INIT ====================
