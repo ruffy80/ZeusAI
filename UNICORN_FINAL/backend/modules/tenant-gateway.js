@@ -311,7 +311,7 @@ async function tenantGateway(req, res, next) {
 // requireFeature(featureName) — middleware factory
 // Fabrică de middleware pentru verificarea unui feature flag
 // ---------------------------------------------------------------------------
-function requireFeature(featureName) {
+function requireFeatureV1(featureName) {
   return function featureGuard(req, res, next) {
     const tenantId = req.tenantId;
     if (!tenantId) {
@@ -363,16 +363,16 @@ function requirePlan(minPlan) {
 // ---------------------------------------------------------------------------
 // getGatewayStats() — basic stats helper used in module.exports below
 // ---------------------------------------------------------------------------
-function getGatewayStats() {
+function getGatewayStatsV1() {
   return { activeWindows: _minuteWindows ? _minuteWindows.size : 0 };
 }
 
 module.exports = {
   tenantGateway,
-  requireFeature,
+  requireFeature: requireFeatureV1,
   requirePlan,
   tenantRateLimit,
-  getGatewayStats,
+  getGatewayStats: getGatewayStatsV1,
 };
 
 /* ============================================================================
