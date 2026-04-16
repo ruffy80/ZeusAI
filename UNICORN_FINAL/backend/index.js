@@ -1165,6 +1165,18 @@ meshOrchestrator.register('quantumVault',           quantumVault,       { status
 meshOrchestrator.register('sovereignGuardian',      sovereignGuardian,  { statusFn: 'getStatus' });
 meshOrchestrator.register('revenueModules',         revenueModules,     { statusFn: 'getAllStatus' });
 meshOrchestrator.register('unicornOrchestrator',    unicornOrchestrator, { statusFn: 'getStatus' });
+// ── SaaS Platform modules — înregistrate în mesh pentru comunicare autonomă ──
+meshOrchestrator.register('billingEngine',          billingEngine,       { statusFn: 'getStatus' });
+meshOrchestrator.register('saasOrchestratorV4',     saasOrchestratorV4,  { statusFn: 'getStatus' });
+meshOrchestrator.register('kpiAnalytics',           kpiAnalytics,        { statusFn: 'getStatus' });
+meshOrchestrator.register('aiAutoDispatcher',       aiAutoDispatcher,    { statusFn: 'getStatus' });
+meshOrchestrator.register('provisioningEngine',     provisioningEngine,  { statusFn: 'getStatus' });
+meshOrchestrator.register('globalFailover',         globalFailover,      { statusFn: 'getStatus' });
+meshOrchestrator.register('globalApiGateway',       globalApiGateway,    { statusFn: 'getStatus' });
+meshOrchestrator.register('tenantBilling',          tenantBilling,       { statusFn: 'getStatus' });
+meshOrchestrator.register('tenantAnalytics',        tenantAnalytics,     { statusFn: 'getStatus' });
+meshOrchestrator.register('tenantManager',          tenantManager,       { statusFn: 'getStatus' });
+meshOrchestrator.register('globalLoadBalancer',     globalLBModule.globalLB, { statusFn: 'getStatus' });
 
 // Pornim orchestratorul — Swiss-watch mode
 meshOrchestrator.start();
