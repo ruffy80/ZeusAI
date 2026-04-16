@@ -665,10 +665,6 @@ module.exports = {
     {
       name: 'unicorn-orchestrator-v4',
       script: 'backend/modules/orchestrator-v4.js',
-    // ── 22. SaaS Orchestrator v4 — multi-tenant AI & workflow orchestration ──
-    {
-      name: 'unicorn-saas-orchestrator-v4',
-      script: 'backend/modules/saas-orchestrator-v4.js',
       cwd: __dirname,
       instances: 1,
       autorestart: true,
@@ -688,14 +684,21 @@ module.exports = {
       log_date_format: 'YYYY-MM-DD HH:mm:ss'
     },
 
-    // ── 23. Global Load Balancer — multi-region failover + circuit breaker ────
+    // ── 22b. SaaS Orchestrator v4 — multi-tenant AI & workflow orchestration ──
     {
-      name: 'unicorn-global-lb',
-      script: 'backend/modules/global-load-balancer.js',
-      restart_delay: 5000,
+      name: 'unicorn-saas-orchestrator-v4',
+      script: 'backend/modules/saas-orchestrator-v4.js',
+      cwd: __dirname,
+      instances: 1,
+      autorestart: true,
+      watch: false,
+      max_restarts: 20,
+      min_uptime: '10s',
+      restart_delay: 3000,
       env: {
         NODE_ENV: 'production',
-        ORCHESTRATOR_MAX_CONCURRENT: '20',
+        ORCH_V4_STALL_MS:  '30000',
+        ORCH_V4_HEALTH_MS: '15000',
         DOMAIN: SITE_DOMAIN,
         PUBLIC_APP_URL,
       },
@@ -704,7 +707,30 @@ module.exports = {
       log_date_format: 'YYYY-MM-DD HH:mm:ss'
     },
 
-    // ── 23. Global Failover Controller — multi-region health + auto-scaling ──
+    // ── 23. Global Load Balancer — multi-region failover + circuit breaker ────
+    {
+      name: 'unicorn-global-lb',
+      script: 'backend/modules/global-load-balancer.js',
+      cwd: __dirname,
+      instances: 1,
+      autorestart: true,
+      watch: false,
+      max_restarts: 20,
+      min_uptime: '10s',
+      restart_delay: 5000,
+      env: {
+        NODE_ENV: 'production',
+        GLB_STRATEGY:                'latency',
+        ORCHESTRATOR_MAX_CONCURRENT: '20',
+        DOMAIN: SITE_DOMAIN,
+        PUBLIC_APP_URL,
+      },
+      error_file: 'logs/global-lb-error.log',
+      out_file: 'logs/global-lb-out.log',
+      log_date_format: 'YYYY-MM-DD HH:mm:ss'
+    },
+
+    // ── 24. Global Failover Controller — multi-region health + auto-scaling ──
     {
       name: 'unicorn-global-failover',
       script: 'backend/modules/global-failover.js',
@@ -722,15 +748,7 @@ module.exports = {
         GLB_FAIL_THRESHOLD:  '3',
         GLB_SUCCESS_THRESH:  '2',
         GLB_STRATEGY:        'latency',
-        DOMAIN: SITE_DOMAIN,
-        PUBLIC_APP_URL,
-      },
-      error_file: 'logs/global-lb-error.log',
-      out_file: 'logs/global-lb-out.log',
-      restart_delay: 5000,
-      env: {
-        NODE_ENV: 'production',
-        MAX_INSTANCES: '20',
+        MAX_INSTANCES:       '20',
         DOMAIN: SITE_DOMAIN,
         PUBLIC_APP_URL,
       },
