@@ -102,6 +102,12 @@ jobs:
         working-directory: ./UNICORN_FINAL
         run: npm test --if-present
 
+      - name: 🏗️ Build React client UI
+        working-directory: ./UNICORN_FINAL/client
+        run: |
+          npm ci
+          CI=false npm run build
+
       - name: ⚙️ Generate .env with all secrets
         run: |
           bash UNICORN_FINAL/scripts/create-env.sh UNICORN_FINAL
