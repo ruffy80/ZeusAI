@@ -5550,9 +5550,15 @@ app.get('/{*path}', (req, res) => {
   }
   // Serve the full unicorn HTML template when no React client build is present
   // (e.g. fresh Hetzner setup without client build)
-  res.setHeader('Content-Type', 'text/html; charset=utf-8');
-  res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
-  return res.send(getSiteHtml());
+  try {
+    res.setHeader('Content-Type', 'text/html; charset=utf-8');
+    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+    return res.send(getSiteHtml());
+  } catch (err) {
+    console.error('[unicorn] getSiteHtml failed:', err);
+    res.setHeader('Content-Type', 'text/html; charset=utf-8');
+    return res.status(500).send('<!doctype html><html><head><title>ZEUS AI</title></head><body style="background:#05060e;color:#e8f4ff;font-family:sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;margin:0"><div style="text-align:center"><h1 style="color:#00d4ff">ZEUS AI</h1><p>Service starting — please refresh in a moment.</p></div></body></html>');
+  }
 });
 
 // ==================== MULTI-TENANT SAAS PLATFORM ROUTES ====================
