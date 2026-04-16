@@ -155,12 +155,13 @@ async function dispatch(message, opts = {}) {
         preferProvider,
       });
       if (result && result.reply) {
-        _recordStat(result.detectedTaskType || resolvedType, result.provider);
+        const finalTaskType = result.detectedTaskType || resolvedType;
+        _recordStat(finalTaskType, result.provider);
         return {
           reply:    result.reply,
           model:    result.model,
           provider: result.provider,
-          taskType: result.detectedTaskType || resolvedType,
+          taskType: finalTaskType,
           latencyMs: result.latencyMs,
           cached:   result.cached,
           source:   'orchestrator',

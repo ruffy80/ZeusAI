@@ -387,6 +387,17 @@ function isConfigured(name) {
 const KNOWN_PROVIDERS = new Set(Object.keys(PROVIDER_ENV));
 
 // ─── Auto task-type detection ──────────────────────────────────────────────
+// Keyword sets used to identify task types from message content
+const DETECT_PATTERNS = {
+  coding:          /\b(code|coding|program|function|bug|debug|script|python|javascript|typescript|java|rust|golang|sql|html|css|api|implement|refactor|unit\s*test)\b/,
+  embeddings:      /\b(embed|embedding|vector|similarity|semantic\s+search|nearest\s+neighbor|cosine)\b/,
+  search_reasoning:/\b(search|find|latest|news|current|today|trending|what\s+happened|who\s+is|where\s+is)\b/,
+  tool_use:        /\b(automate|execute|schedule|trigger|workflow|action|tool|agent)\b/,
+  analysis:        /\b(analy[sz]e|analiz[aă]|report|raport|audit|review|evaluat|assess|compare|compar|benchmark|breakdown)\b/,
+  reasoning:       /\b(explain|why|how\s+does|reason|logic|think|deduce|infer|proof|math|calculate|formula|strateg)\b/,
+  optimization:    /\b(optimi[sz]e|optimi[sz]ă|improve|improv|boost|enhance|efficient|performance|speed\s+up)\b/,
+};
+
 /**
  * Automatically detect the best task type from message content.
  * Returns a key from TASK_ROUTING.
@@ -394,31 +405,14 @@ const KNOWN_PROVIDERS = new Set(Object.keys(PROVIDER_ENV));
 function autoDetectTaskType(message) {
   const m = String(message || '').toLowerCase();
 
-  // Coding / programming
-  if (/\b(code|coding|program|function|bug|debug|script|python|javascript|typescript|java|c\+\+|rust|golang|sql|html|css|api|implement|refactor|test|unit test)\b/.test(m)) return 'coding';
+  for (const [taskType, pattern] of Object.entries(DETECT_PATTERNS)) {
+    if (pattern.test(m)) return taskType;
+  }
 
-  // Embeddings / vector search
-  if (/\b(embed|embedding|vector|similarity|semantic search|nearest neighbor|cosine)\b/.test(m)) return 'embeddings';
-
-  // Search / web / news
-  if (/\b(search|find|latest|news|current|today|2024|2025|2026|trending|what happened|who is|where is)\b/.test(m)) return 'search_reasoning';
-
-  // Tool use / actions / automation
-  if (/\b(automate|run|execute|schedule|trigger|workflow|action|tool|agent|task)\b/.test(m)) return 'tool_use';
-
-  // Deep analysis
-  if (/\b(analy[sz]e|analiz[aă]|report|raport|audit|review|evaluat|assess|compare|compar|benchmark|breakdown)\b/.test(m)) return 'analysis';
-
-  // Reasoning / complex questions
-  if (/\b(explain|why|how does|reason|logic|think|deduce|infer|proov|proof|math|calculate|formula|strateg)\b/.test(m)) return 'reasoning';
-
-  // Optimization
-  if (/\b(optimi[sz]e|optimi[sz]ă|improve|improv|reduc|cresc|boost|enhance|efficient|performance|speed up)\b/.test(m)) return 'optimization';
-
-  // Fast / simple
+  // Fast / simple — short messages need minimal processing
   if (m.length < 60) return 'fast';
 
-  // Default: text generation / chat
+  // Default: conversational chat
   return 'chat';
 }
 
