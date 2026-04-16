@@ -509,6 +509,7 @@ const referralEngine   = require('./modules/referralEngine');
 const customerHealth   = require('./modules/customerHealth');
 const workflowEngine   = require('./modules/workflowEngine');
 const whiteLabelEngine = require('./modules/whiteLabelEngine');
+const tenantEngine     = require('./modules/tenant-engine');
 const canaryCtrl       = require('./modules/canary-controller');
 const controlPlane     = require('./modules/control-plane-agent');
 const profitLoop       = require('./modules/profit-control-loop');
@@ -764,6 +765,18 @@ const errorPatternDetector = require('./modules/error-pattern-detector');
 const recoveryEngine       = require('./modules/recovery-engine');
 const serviceWatchdog      = require('./modules/service-watchdog');
 
+// ==================== MULTI-TENANT SAAS PLATFORM ====================
+const tenantManager      = require('./modules/tenant-manager');
+const tenantGateway      = require('./modules/tenant-gateway');
+const tenantProvisioning = require('./modules/tenant-provisioning');
+const tenantBilling      = require('./modules/tenant-billing');
+const tenantAnalytics    = require('./modules/tenant-analytics');
+const orchestratorV4     = require('./modules/orchestrator-v4');
+const globalLBModule     = require('./modules/global-load-balancer');
+
+// Apply tenant analytics middleware (auto-track after tenant context attached)
+app.use(tenantAnalytics.analyticsMiddleware);
+
 // ==================== ZERO DOWNTIME + AI SMART CACHE ====================
 const zeroDT        = require('../scripts/zero-downtime-controller');
 const aiSmartCache  = require('./modules/ai-smart-cache');
@@ -773,8 +786,25 @@ try { _aiAutoDispatcher = require('./modules/ai-auto-dispatcher'); } catch (e) {
   console.warn('[Backend] ai-auto-dispatcher not loaded:', e.message);
 }
 
+// ==================== GLOBAL SAAS PLATFORM MODULES ====================
+const tenantManager      = require('./modules/tenant-manager');
+const globalApiGateway   = require('./modules/global-api-gateway');
+const billingEngine      = require('./modules/billing-engine');
+const provisioningEngine = require('./modules/provisioning-engine');
+const globalFailover     = require('./modules/global-failover');
+const saasOrchestratorV4 = require('./modules/saas-orchestrator-v4');
+const kpiAnalytics       = require('./modules/kpi-analytics');
+const aiAutoDispatcher   = require('./modules/ai-auto-dispatcher');
+
 // ==================== MODULE REGISTRY (292+ modules) ====================
 // Registru complet al tuturor modulelor încărcate, organizate pe categorii.
+// ==================== MULTI-TENANT ENGINE INIT ====================
+// Must run after all requires. Initializes default tenant and self-healer.
+// Middleware populates req.tenantId / req.tenantContext on every request.
+// Falls back to DEFAULT_TENANT_ID for existing single-tenant routes (backward-compat).
+tenantEngine.init();
+app.use(tenantEngine.tenantMiddleware);
+app.use(tenantEngine.tenantRateLimitMiddleware);
 const MODULE_REGISTRY = {
   orchestrator: [
     'unicorn-orchestrator',
@@ -954,6 +984,16 @@ const MODULE_REGISTRY = {
     'innovationEngine',
     'autoDeployOrchestrator',
   ],
+  saas: [
+    'tenant-manager',
+    'global-api-gateway',
+    'billing-engine',
+    'provisioning-engine',
+    'global-failover',
+    'saas-orchestrator-v4',
+    'kpi-analytics',
+    'ai-auto-dispatcher',
+  ],
 };
 
 // Calculează totalul și construiește lista plată pentru interogări rapide
@@ -982,9 +1022,23 @@ app.use((req, res, next) => {
     const dur = Date.now() - start;
     const isError = res.statusCode >= 500;
     sloTracker.record(route, dur, isError);
+    // Feed request & error data into KPI analytics
+    kpiAnalytics.increment('apiCallsToday');
+    if (isError) {
+      kpiAnalytics.increment('_errorCountToday');
+      const totalCalls  = kpiAnalytics.get('apiCallsToday');
+      const totalErrors = kpiAnalytics.get('_errorCountToday');
+      if (totalCalls > 0) {
+        kpiAnalytics.set('errorRate', parseFloat(((totalErrors / totalCalls) * 100).toFixed(2)));
+      }
+    }
   });
   next();
 });
+
+// Global API Gateway middleware — tenant resolution + rate limiting
+app.use(tenantManager.middleware());
+app.use(globalApiGateway.middleware());
 
 // Pornire module autonome
 selfConstruction.start();
@@ -4561,6 +4615,327 @@ registerModuleRoutes('engine-62', engine62);
 registerModuleRoutes('unicorn-execution-engine', unicornExecutionEngine);
 registerModuleRoutes('predictive-healing',        predictiveHealing);
 
+// ==================== MULTI-TENANT SAAS PLATFORM — ROUTES ====================
+
+// ── Tenant Manager ─────────────────────────────────────────────────────────
+app.get('/api/tenant/status', (req, res) => {
+  res.json(tenantManager.getStatus());
+});
+
+app.get('/api/tenant/list', adminTokenMiddleware, (req, res) => {
+  const includeDeleted = req.query.includeDeleted === 'true';
+  res.json(tenantManager.listTenants({ includeDeleted }));
+});
+
+app.post('/api/tenant/create', adminTokenMiddleware, (req, res) => {
+  try {
+    const { name, slug, plan, ownerEmail, ownerId, metadata } = req.body || {};
+    const tenant = tenantManager.createTenant({ name, slug, plan, ownerEmail, ownerId, metadata });
+    res.json(tenantManager.getTenantSafe(tenant.id));
+  } catch (e) { res.status(400).json({ error: e.message }); }
+});
+
+app.get('/api/tenant/:tenantId', adminTokenMiddleware, (req, res) => {
+  const t = tenantManager.getTenantSafe(req.params.tenantId);
+  if (!t) return res.status(404).json({ error: 'Tenant not found' });
+  res.json(t);
+});
+
+app.patch('/api/tenant/:tenantId', adminTokenMiddleware, (req, res) => {
+  try {
+    const t = tenantManager.updateTenant(req.params.tenantId, req.body || {});
+    res.json(tenantManager.getTenantSafe(t.id));
+  } catch (e) { res.status(400).json({ error: e.message }); }
+});
+
+app.post('/api/tenant/:tenantId/suspend', adminTokenMiddleware, (req, res) => {
+  try {
+    const { reason } = req.body || {};
+    tenantManager.suspendTenant(req.params.tenantId, reason);
+    res.json({ success: true, status: 'suspended' });
+  } catch (e) { res.status(400).json({ error: e.message }); }
+});
+
+app.post('/api/tenant/:tenantId/reactivate', adminTokenMiddleware, (req, res) => {
+  try {
+    tenantManager.reactivateTenant(req.params.tenantId);
+    res.json({ success: true, status: 'active' });
+  } catch (e) { res.status(400).json({ error: e.message }); }
+});
+
+app.delete('/api/tenant/:tenantId', adminTokenMiddleware, (req, res) => {
+  try {
+    const hard = req.query.hard === 'true';
+    const result = tenantManager.deleteTenant(req.params.tenantId, { hard });
+    res.json({ success: true, result });
+  } catch (e) { res.status(400).json({ error: e.message }); }
+});
+
+// ── Tenant API Keys ────────────────────────────────────────────────────────
+app.get('/api/tenant/:tenantId/apikeys', adminTokenMiddleware, (req, res) => {
+  const t = tenantManager.getTenant(req.params.tenantId);
+  if (!t) return res.status(404).json({ error: 'Tenant not found' });
+  res.json(t.apiKeys.map(k => ({ key: k.key.slice(0, 8) + '***', label: k.label, active: k.active, createdAt: k.createdAt, lastUsedAt: k.lastUsedAt, scopes: k.scopes })));
+});
+
+app.post('/api/tenant/:tenantId/apikeys', adminTokenMiddleware, (req, res) => {
+  try {
+    const { label, scopes } = req.body || {};
+    const key = tenantManager.createApiKey(req.params.tenantId, { label, scopes });
+    res.json(key);  // return full key only on creation
+  } catch (e) { res.status(400).json({ error: e.message }); }
+});
+
+app.post('/api/tenant/:tenantId/apikeys/rotate', adminTokenMiddleware, (req, res) => {
+  try {
+    const { key } = req.body || {};
+    const newKey = tenantManager.rotateApiKey(req.params.tenantId, key);
+    res.json(newKey);
+  } catch (e) { res.status(400).json({ error: e.message }); }
+});
+
+app.delete('/api/tenant/:tenantId/apikeys/:key', adminTokenMiddleware, (req, res) => {
+  try {
+    const result = tenantManager.revokeApiKey(req.params.tenantId, req.params.key);
+    res.json(result);
+  } catch (e) { res.status(400).json({ error: e.message }); }
+});
+
+// ── Feature Flags ──────────────────────────────────────────────────────────
+app.get('/api/tenant/:tenantId/flags', adminTokenMiddleware, (req, res) => {
+  const t = tenantManager.getTenant(req.params.tenantId);
+  if (!t) return res.status(404).json({ error: 'Tenant not found' });
+  res.json(t.featureFlags);
+});
+
+app.post('/api/tenant/:tenantId/flags', adminTokenMiddleware, (req, res) => {
+  try {
+    const { flag, value } = req.body || {};
+    const flags = tenantManager.setFeatureFlag(req.params.tenantId, flag, value);
+    res.json(flags);
+  } catch (e) { res.status(400).json({ error: e.message }); }
+});
+
+// ── Environments ───────────────────────────────────────────────────────────
+app.post('/api/tenant/:tenantId/environments', adminTokenMiddleware, (req, res) => {
+  try {
+    const { name, vars } = req.body || {};
+    const envs = tenantManager.addEnvironment(req.params.tenantId, name, vars || {});
+    res.json(envs);
+  } catch (e) { res.status(400).json({ error: e.message }); }
+});
+
+app.patch('/api/tenant/:tenantId/environments/:envName', adminTokenMiddleware, (req, res) => {
+  try {
+    const env = tenantManager.setEnvironmentVars(req.params.tenantId, req.params.envName, req.body || {});
+    res.json(env);
+  } catch (e) { res.status(400).json({ error: e.message }); }
+});
+
+// ── Audit Log ──────────────────────────────────────────────────────────────
+app.get('/api/tenant/:tenantId/audit', adminTokenMiddleware, (req, res) => {
+  try {
+    const limit = Math.min(parseInt(req.query.limit || '100', 10), 500);
+    res.json(tenantManager.getAuditLog(req.params.tenantId, limit));
+  } catch (e) { res.status(400).json({ error: e.message }); }
+});
+
+// ── Usage ──────────────────────────────────────────────────────────────────
+app.get('/api/tenant/:tenantId/usage', adminTokenMiddleware, (req, res) => {
+  try {
+    res.json(tenantManager.getUsage(req.params.tenantId));
+  } catch (e) { res.status(400).json({ error: e.message }); }
+});
+
+// ── Plans ──────────────────────────────────────────────────────────────────
+app.get('/api/tenant/plans', (req, res) => {
+  res.json(tenantManager.PLANS);
+});
+
+// ── Gateway ────────────────────────────────────────────────────────────────
+app.get('/api/tenant/gateway/status', (req, res) => {
+  res.json(tenantGateway.getStatus());
+});
+
+// ── Provisioning ───────────────────────────────────────────────────────────
+app.get('/api/tenant/provision/status', adminTokenMiddleware, (req, res) => {
+  res.json(tenantProvisioning.getStatus());
+});
+
+app.get('/api/tenant/provision/list', adminTokenMiddleware, (req, res) => {
+  res.json(tenantProvisioning.listProvisions());
+});
+
+app.get('/api/tenant/provision/status/:id', adminTokenMiddleware, (req, res) => {
+  res.json(tenantProvisioning.getProvisionStatus(req.params.id));
+});
+
+app.post('/api/tenant/provision', adminTokenMiddleware, async (req, res) => {
+  try {
+    const result = await tenantProvisioning.provision(req.body || {});
+    res.json(result);
+  } catch (e) { res.status(400).json({ error: e.message }); }
+});
+
+// ── Billing ────────────────────────────────────────────────────────────────
+app.get('/api/tenant/billing/status', (req, res) => {
+  res.json(tenantBilling.getStatus());
+});
+
+app.get('/api/tenant/billing/plans', (req, res) => {
+  res.json(tenantBilling.getPlanCatalog());
+});
+
+app.get('/api/tenant/:tenantId/billing/subscription', adminTokenMiddleware, (req, res) => {
+  const sub = tenantBilling.getSubscription(req.params.tenantId);
+  if (!sub) return res.status(404).json({ error: 'No subscription found' });
+  res.json(sub);
+});
+
+app.post('/api/tenant/:tenantId/billing/subscribe', adminTokenMiddleware, (req, res) => {
+  try {
+    const { plan, paymentMethod } = req.body || {};
+    res.json(tenantBilling.createSubscription(req.params.tenantId, { plan, paymentMethod }));
+  } catch (e) { res.status(400).json({ error: e.message }); }
+});
+
+app.post('/api/tenant/:tenantId/billing/upgrade', adminTokenMiddleware, (req, res) => {
+  try {
+    const { plan } = req.body || {};
+    res.json(tenantBilling.upgradeSubscription(req.params.tenantId, plan));
+  } catch (e) { res.status(400).json({ error: e.message }); }
+});
+
+app.post('/api/tenant/:tenantId/billing/cancel', adminTokenMiddleware, (req, res) => {
+  try {
+    const { immediate } = req.body || {};
+    res.json(tenantBilling.cancelSubscription(req.params.tenantId, { immediate }));
+  } catch (e) { res.status(400).json({ error: e.message }); }
+});
+
+app.get('/api/tenant/:tenantId/billing/invoices', adminTokenMiddleware, (req, res) => {
+  try {
+    res.json(tenantBilling.listInvoices(req.params.tenantId));
+  } catch (e) { res.status(400).json({ error: e.message }); }
+});
+
+app.post('/api/tenant/:tenantId/billing/invoice/generate', adminTokenMiddleware, (req, res) => {
+  try {
+    res.json(tenantBilling.generateInvoice(req.params.tenantId));
+  } catch (e) { res.status(400).json({ error: e.message }); }
+});
+
+app.post('/api/tenant/billing/invoice/:invoiceId/pay', adminTokenMiddleware, (req, res) => {
+  try {
+    res.json(tenantBilling.markInvoicePaid(req.params.invoiceId));
+  } catch (e) { res.status(400).json({ error: e.message }); }
+});
+
+app.post('/api/tenant/billing/dunning/run', adminTokenMiddleware, (req, res) => {
+  res.json(tenantBilling.runDunning());
+});
+
+// ── Analytics ──────────────────────────────────────────────────────────────
+app.get('/api/tenant/analytics/status', (req, res) => {
+  res.json(tenantAnalytics.getStatus());
+});
+
+app.get('/api/tenant/analytics/global', adminTokenMiddleware, (req, res) => {
+  res.json(tenantAnalytics.getGlobalDashboard());
+});
+
+app.get('/api/tenant/analytics/leaderboard', adminTokenMiddleware, (req, res) => {
+  const metric = req.query.metric || 'apiCalls';
+  const limit  = Math.min(parseInt(req.query.limit || '10', 10), 50);
+  res.json(tenantAnalytics.getLeaderboard(metric, limit));
+});
+
+app.get('/api/tenant/:tenantId/analytics/dashboard', adminTokenMiddleware, (req, res) => {
+  try {
+    res.json(tenantAnalytics.getTenantDashboard(req.params.tenantId));
+  } catch (e) { res.status(400).json({ error: e.message }); }
+});
+
+// ── Orchestrator V4 ────────────────────────────────────────────────────────
+app.get('/api/orchestrator/v4/status', (req, res) => {
+  res.json(orchestratorV4.getStatus());
+});
+
+app.get('/api/orchestrator/v4/context/:tenantId', adminTokenMiddleware, (req, res) => {
+  const stats = orchestratorV4.getContextStats(req.params.tenantId);
+  if (!stats) return res.status(404).json({ error: 'No execution context for tenant' });
+  res.json(stats);
+});
+
+app.post('/api/orchestrator/v4/dispatch', adminTokenMiddleware, async (req, res) => {
+  try {
+    const { tenantId, task, timeout } = req.body || {};
+    if (!tenantId || !task) return res.status(400).json({ error: 'tenantId and task are required' });
+    const result = await orchestratorV4.dispatch(tenantId, () => Promise.resolve({ executed: task }), { timeout: timeout || 60000 });
+    res.json(result);
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// ── Global Load Balancer ───────────────────────────────────────────────────
+app.get('/api/glb/status', (req, res) => {
+  res.json(globalLBModule.globalLB.getStatus());
+});
+
+app.get('/api/glb/regions', adminTokenMiddleware, (req, res) => {
+  res.json(globalLBModule.listRegions());
+});
+
+app.post('/api/glb/regions', adminTokenMiddleware, (req, res) => {
+  try {
+    const { name, url, weight, region, metadata } = req.body || {};
+    globalLBModule.registerRegion({ name, url, weight, region, metadata });
+    res.json({ success: true, regions: globalLBModule.listRegions() });
+  } catch (e) { res.status(400).json({ error: e.message }); }
+});
+
+app.delete('/api/glb/regions/:name', adminTokenMiddleware, (req, res) => {
+  globalLBModule.removeRegion(req.params.name);
+  res.json({ success: true });
+});
+
+app.post('/api/glb/regions/:name/probe', adminTokenMiddleware, async (req, res) => {
+  try {
+    const r = await globalLBModule.probeRegion(req.params.name);
+    res.json(r);
+  } catch (e) { res.status(400).json({ error: e.message }); }
+});
+
+app.post('/api/glb/probe/all', adminTokenMiddleware, async (req, res) => {
+  const results = await globalLBModule.probeAll();
+  res.json(results);
+});
+
+app.post('/api/glb/splits', adminTokenMiddleware, (req, res) => {
+  const { name, primary, canary, canaryPct } = req.body || {};
+  globalLBModule.setSplit(name, { primary, canary, canaryPct });
+  res.json({ success: true });
+});
+
+app.delete('/api/glb/splits/:name', adminTokenMiddleware, (req, res) => {
+  globalLBModule.removeSplit(req.params.name);
+  res.json({ success: true });
+});
+
+// ── Tenant-scoped self-service (gateway-protected) ─────────────────────────
+app.get('/api/me/tenant', tenantGateway.gatewayMiddleware, (req, res) => {
+  res.json(tenantManager.getTenantSafe(req.tenantId));
+});
+
+app.get('/api/me/usage', tenantGateway.gatewayMiddleware, (req, res) => {
+  res.json(tenantManager.getUsage(req.tenantId));
+});
+
+app.get('/api/me/dashboard', tenantGateway.gatewayMiddleware, (req, res) => {
+  try {
+    res.json(tenantAnalytics.getTenantDashboard(req.tenantId));
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
 // ==================== GITHUB WEBHOOK — AUTO-DEPLOY ====================
 // Handles GitHub push/workflow_run events for automatic deployment.
 // Set GITHUB_WEBHOOK_SECRET in env and register this URL as a GitHub webhook.
@@ -5165,6 +5540,643 @@ app.get('/{*path}', (req, res) => {
   }
 });
 
+// ==================== MULTI-TENANT SAAS PLATFORM ROUTES ====================
+
+// --- SaaS Plans (public) ---
+app.get('/api/saas/plans', routeCache.cacheMiddleware(), (req, res) => {
+  res.json({ plans: tenantEngine.getSaasPlans() });
+});
+
+// --- Tenant CRUD (super-admin) ---
+app.get('/api/saas/tenants', adminCrudRateLimit, adminTokenMiddleware, (req, res) => {
+  const { page, limit, status, planId, search } = req.query;
+  const result = tenantEngine.listTenants({
+    page: parseInt(page, 10) || 1,
+    limit: parseInt(limit, 10) || 50,
+    status: status || undefined,
+    planId: planId || undefined,
+    search: search || undefined,
+  });
+  res.json(result);
+});
+
+app.post('/api/saas/tenants', adminCrudRateLimit, adminTokenMiddleware, (req, res) => {
+  try {
+    const { name, planId, billingInterval, config, metadata } = req.body || {};
+    const tenant = tenantEngine.createTenant({
+      name,
+      ownerId: (req.user && req.user.id) || 'admin',
+      planId: planId || 'free',
+      billingInterval,
+      config,
+      metadata,
+    });
+    res.status(201).json(tenant);
+// ==================== GLOBAL SAAS PLATFORM API ROUTES ====================
+
+// ── Tenant Manager ────────────────────────────────────────────────────────────
+app.post('/api/saas/tenants', authMiddleware, async (req, res) => {
+  try {
+    const tenant = tenantManager.createTenant({ ...req.body, ownerId: req.user.id });
+    // Auto-provision the new tenant
+    provisioningEngine.provisionTenant(tenant.id, tenant.plan).catch(() => {});
+    // Auto-create billing subscription
+    billingEngine.createSubscription(tenant.id, tenant.plan).catch(() => {});
+    // Register with SaaS orchestrator v4
+    saasOrchestratorV4.registerTenant(tenant.id, tenant.plan);
+    // Track KPI
+    kpiAnalytics.increment('totalTenants');
+    kpiAnalytics.increment('newTenants');
+    res.json(tenant);
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+app.get('/api/saas/tenants/:id', adminCrudRateLimit, adminTokenMiddleware, (req, res) => {
+  const tenant = tenantEngine.getTenant(req.params.id);
+  if (!tenant) return res.status(404).json({ error: 'Tenant not found' });
+  res.json(tenant);
+});
+
+app.put('/api/saas/tenants/:id', adminCrudRateLimit, adminTokenMiddleware, (req, res) => {
+  try {
+    const tenant = tenantEngine.updateTenant(req.params.id, req.body || {}, 'admin');
+    res.json(tenant);
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+app.post('/api/saas/tenants/:id/suspend', adminCrudRateLimit, adminTokenMiddleware, (req, res) => {
+  try {
+    const { reason } = req.body || {};
+    const tenant = tenantEngine.suspendTenant(req.params.id, reason || 'admin_action', 'admin');
+    res.json(tenant);
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+app.post('/api/saas/tenants/:id/activate', adminCrudRateLimit, adminTokenMiddleware, (req, res) => {
+  try {
+    const tenant = tenantEngine.activateTenant(req.params.id, 'admin');
+    res.json(tenant);
+app.get('/api/saas/tenants', adminTokenMiddleware, (req, res) => {
+  const { status, plan, region, page, limit } = req.query;
+  res.json(tenantManager.listTenants({
+    status, plan, region,
+    page: page ? parseInt(page) : 1,
+    limit: limit ? parseInt(limit) : 50,
+  }));
+});
+
+app.get('/api/saas/tenants/mine', authMiddleware, (req, res) => {
+  res.json({ tenants: tenantManager.getTenantsByOwner(req.user.id) });
+});
+
+app.get('/api/saas/tenants/:id', adminTokenMiddleware, (req, res) => {
+  const t = tenantManager.getTenant(req.params.id);
+  if (!t) return res.status(404).json({ error: 'Tenant not found' });
+  res.json(t);
+});
+
+app.put('/api/saas/tenants/:id', authMiddleware, (req, res) => {
+  try {
+    const t = tenantManager.updateTenant(req.params.id, req.body || {});
+    res.json(t);
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+app.delete('/api/saas/tenants/:id', adminCrudRateLimit, adminTokenMiddleware, (req, res) => {
+  try {
+    tenantEngine.deleteTenant(req.params.id, 'admin');
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+// --- Tenant plan / subscription ---
+app.post('/api/saas/tenants/:id/subscribe', adminCrudRateLimit, adminTokenMiddleware, (req, res) => {
+  try {
+    const { planId, interval, subscriptionId, customerId } = req.body || {};
+    const tenant = tenantEngine.subscribeTenant(req.params.id, { planId, interval, subscriptionId, customerId }, 'admin');
+    res.json(tenant);
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+app.post('/api/saas/tenants/:id/change-plan', adminCrudRateLimit, adminTokenMiddleware, (req, res) => {
+  try {
+    const { planId } = req.body || {};
+    if (!planId) return res.status(400).json({ error: 'planId required' });
+    const tenant = tenantEngine.changePlan(req.params.id, planId, 'admin');
+    res.json(tenant);
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+// --- Tenant config ---
+app.get('/api/saas/tenants/:id/config', adminTokenMiddleware, (req, res) => {
+  try {
+    res.json(tenantEngine.getTenantConfig(req.params.id));
+  } catch (err) {
+    res.status(404).json({ error: err.message });
+  }
+});
+
+app.put('/api/saas/tenants/:id/config', adminCrudRateLimit, adminTokenMiddleware, (req, res) => {
+  try {
+    const config = tenantEngine.setTenantConfig(req.params.id, req.body || {}, 'admin');
+    res.json(config);
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+// --- Tenant feature flags ---
+app.get('/api/saas/tenants/:id/features', adminTokenMiddleware, (req, res) => {
+  try {
+    res.json(tenantEngine.getTenantFeatures(req.params.id));
+  } catch (err) {
+    res.status(404).json({ error: err.message });
+  }
+});
+
+app.put('/api/saas/tenants/:id/features/:key', adminCrudRateLimit, adminTokenMiddleware, (req, res) => {
+  try {
+    const { value } = req.body || {};
+    const features = tenantEngine.setTenantFeature(req.params.id, req.params.key, value, 'admin');
+    res.json(features);
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+// --- Tenant API keys ---
+app.get('/api/saas/tenants/:id/apikeys', adminTokenMiddleware, (req, res) => {
+  try {
+    res.json({ keys: tenantEngine.listTenantApiKeys(req.params.id) });
+  } catch (err) {
+    res.status(404).json({ error: err.message });
+  }
+});
+
+app.post('/api/saas/tenants/:id/apikeys', adminCrudRateLimit, adminTokenMiddleware, (req, res) => {
+  try {
+    const { name, scopes } = req.body || {};
+    const key = tenantEngine.createTenantApiKey(req.params.id, { name, scopes }, 'admin');
+    res.status(201).json(key);
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+app.delete('/api/saas/tenants/:id/apikeys/:keyId', adminCrudRateLimit, adminTokenMiddleware, (req, res) => {
+  try {
+    tenantEngine.revokeTenantApiKey(req.params.id, req.params.keyId, 'admin');
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+// --- Tenant usage ---
+app.get('/api/saas/tenants/:id/usage', adminTokenMiddleware, (req, res) => {
+  try {
+    res.json(tenantEngine.getTenantUsage(req.params.id));
+  } catch (err) {
+    res.status(404).json({ error: err.message });
+  }
+});
+
+// --- Tenant billing ---
+app.get('/api/saas/tenants/:id/billing', adminTokenMiddleware, (req, res) => {
+  try {
+    res.json(tenantEngine.getTenantBillingStatus(req.params.id));
+  } catch (err) {
+    res.status(404).json({ error: err.message });
+  }
+});
+
+app.get('/api/saas/tenants/:id/invoices', adminTokenMiddleware, (req, res) => {
+  try {
+    res.json({ invoices: tenantEngine.listTenantInvoices(req.params.id) });
+  } catch (err) {
+    res.status(404).json({ error: err.message });
+  }
+});
+
+app.post('/api/saas/tenants/:id/invoices/generate', adminCrudRateLimit, adminTokenMiddleware, (req, res) => {
+  try {
+    const invoice = tenantEngine.generateInvoice(req.params.id);
+    res.status(201).json(invoice);
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+// --- Tenant analytics ---
+app.get('/api/saas/tenants/:id/analytics', adminTokenMiddleware, (req, res) => {
+  try {
+    res.json(tenantEngine.getTenantAnalytics(req.params.id));
+  } catch (err) {
+    res.status(404).json({ error: err.message });
+  }
+});
+
+// --- Tenant provisioning status ---
+app.get('/api/saas/tenants/:id/provision', adminTokenMiddleware, (req, res) => {
+  const status = tenantEngine.getProvisioningStatus(req.params.id);
+  if (!status) return res.status(404).json({ error: 'No provisioning record found' });
+  res.json(status);
+});
+
+// --- Tenant AI config ---
+app.get('/api/saas/tenants/:id/ai-config', adminTokenMiddleware, (req, res) => {
+  try {
+    res.json(tenantEngine.getTenantAIConfig(req.params.id));
+  } catch (err) {
+    res.status(404).json({ error: err.message });
+  }
+});
+
+app.put('/api/saas/tenants/:id/ai-config', adminCrudRateLimit, adminTokenMiddleware, (req, res) => {
+  try {
+    const config = tenantEngine.setTenantAIConfig(req.params.id, req.body || {}, 'admin');
+    res.json(config);
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+// --- Tenant audit log ---
+app.get('/api/saas/tenants/:id/audit', adminTokenMiddleware, (req, res) => {
+  try {
+    const { limit, action } = req.query;
+    const logs = tenantEngine.getAuditLog(req.params.id, {
+      limit: parseInt(limit, 10) || 100,
+      action: action || undefined,
+    });
+    res.json({ logs });
+  } catch (err) {
+    res.status(404).json({ error: err.message });
+  }
+});
+
+// --- Tenant regions ---
+app.post('/api/saas/tenants/:id/regions', adminCrudRateLimit, adminTokenMiddleware, (req, res) => {
+  try {
+    const { region } = req.body || {};
+    const tenant = tenantEngine.assignTenantRegion(req.params.id, region, 'admin');
+    res.json(tenant);
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+// --- Tenant self-service (authenticated tenant owner) ---
+app.get('/api/saas/my-tenant', authMiddleware, (req, res) => {
+  const tenantId = req.tenantId || tenantEngine.DEFAULT_TENANT_ID;
+  const tenant = tenantEngine.getTenant(tenantId);
+  if (!tenant) return res.status(404).json({ error: 'No tenant context' });
+  res.json(tenant);
+});
+
+app.get('/api/saas/my-tenant/usage', authMiddleware, (req, res) => {
+  const tenantId = req.tenantId || tenantEngine.DEFAULT_TENANT_ID;
+  try {
+    res.json(tenantEngine.getTenantUsage(tenantId));
+  } catch (err) {
+    res.status(404).json({ error: err.message });
+  }
+});
+
+app.get('/api/saas/my-tenant/billing', authMiddleware, (req, res) => {
+  const tenantId = req.tenantId || tenantEngine.DEFAULT_TENANT_ID;
+  try {
+    res.json(tenantEngine.getTenantBillingStatus(tenantId));
+  } catch (err) {
+    res.status(404).json({ error: err.message });
+  }
+});
+
+app.get('/api/saas/my-tenant/invoices', authMiddleware, (req, res) => {
+  const tenantId = req.tenantId || tenantEngine.DEFAULT_TENANT_ID;
+  try {
+    res.json({ invoices: tenantEngine.listTenantInvoices(tenantId) });
+  } catch (err) {
+    res.status(404).json({ error: err.message });
+  }
+});
+
+app.get('/api/saas/my-tenant/analytics', authMiddleware, (req, res) => {
+  const tenantId = req.tenantId || tenantEngine.DEFAULT_TENANT_ID;
+  try {
+    res.json(tenantEngine.getTenantAnalytics(tenantId));
+  } catch (err) {
+    res.status(404).json({ error: err.message });
+  }
+});
+
+app.get('/api/saas/my-tenant/apikeys', authMiddleware, (req, res) => {
+  const tenantId = req.tenantId || tenantEngine.DEFAULT_TENANT_ID;
+  try {
+    res.json({ keys: tenantEngine.listTenantApiKeys(tenantId) });
+  } catch (err) {
+    res.status(404).json({ error: err.message });
+  }
+});
+
+app.post('/api/saas/my-tenant/apikeys', authRateLimit(10, 60_000), authMiddleware, (req, res) => {
+  const tenantId = req.tenantId || tenantEngine.DEFAULT_TENANT_ID;
+  try {
+    const { name, scopes } = req.body || {};
+    const key = tenantEngine.createTenantApiKey(tenantId, { name, scopes }, req.user.id);
+    res.status(201).json(key);
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+// --- Global SaaS Gateway & Health ---
+app.get('/api/saas/gateway/status', routeCache.cacheMiddleware(), (req, res) => {
+  res.json({
+    status: 'active',
+    tenantId: req.tenantId || tenantEngine.DEFAULT_TENANT_ID,
+    regions: tenantEngine.getRegionStatus(),
+    health: tenantEngine.getHealthSummary(),
+  });
+});
+
+app.get('/api/saas/global/analytics', adminCrudRateLimit, adminTokenMiddleware, (req, res) => {
+  res.json(tenantEngine.getGlobalAnalytics());
+});
+
+app.get('/api/saas/global/health', adminTokenMiddleware, (req, res) => {
+  res.json(tenantEngine.getHealthSummary());
+});
+
+app.get('/api/saas/regions', routeCache.cacheMiddleware(), (req, res) => {
+  res.json({ regions: tenantEngine.getRegionStatus() });
+app.post('/api/saas/tenants/:id/suspend', adminTokenMiddleware, (req, res) => {
+  try {
+    res.json(tenantManager.suspendTenant(req.params.id, (req.body || {}).reason));
+  } catch (err) { res.status(400).json({ error: err.message }); }
+});
+
+app.post('/api/saas/tenants/:id/reactivate', adminTokenMiddleware, (req, res) => {
+  try {
+    res.json(tenantManager.reactivateTenant(req.params.id));
+  } catch (err) { res.status(400).json({ error: err.message }); }
+});
+
+app.delete('/api/saas/tenants/:id', adminTokenMiddleware, async (req, res) => {
+  try {
+    await provisioningEngine.deprovisionTenant(req.params.id);
+    res.json(tenantManager.deleteTenant(req.params.id));
+  } catch (err) { res.status(400).json({ error: err.message }); }
+});
+
+app.get('/api/saas/tenants/status', adminTokenMiddleware, (req, res) => {
+  res.json(tenantManager.getStatus());
+});
+
+app.get('/api/saas/plans', (req, res) => {
+  res.json({ plans: tenantManager.getPlans() });
+});
+
+// ── Billing Engine ────────────────────────────────────────────────────────────
+app.get('/api/saas/billing/plans', (req, res) => {
+  res.json({ plans: billingEngine.getPlans() });
+});
+
+app.get('/api/saas/billing/status', adminTokenMiddleware, (req, res) => {
+  res.json(billingEngine.getStatus());
+});
+
+app.post('/api/saas/billing/subscribe', authMiddleware, (req, res) => {
+  try {
+    const { tenantId, plan } = req.body || {};
+    if (!tenantId || !plan) return res.status(400).json({ error: 'tenantId and plan required' });
+    const sub = billingEngine.createSubscription(tenantId, plan);
+    kpiAnalytics.increment('newSubscriptions');
+    res.json(sub);
+  } catch (err) { res.status(400).json({ error: err.message }); }
+});
+
+app.post('/api/saas/billing/change-plan', authMiddleware, (req, res) => {
+  try {
+    const { tenantId, plan } = req.body || {};
+    if (!tenantId || !plan) return res.status(400).json({ error: 'tenantId and plan required' });
+    res.json(billingEngine.changePlan(tenantId, plan));
+  } catch (err) { res.status(400).json({ error: err.message }); }
+});
+
+app.post('/api/saas/billing/cancel', authMiddleware, (req, res) => {
+  try {
+    const { tenantId, atPeriodEnd } = req.body || {};
+    if (!tenantId) return res.status(400).json({ error: 'tenantId required' });
+    const sub = billingEngine.cancelSubscription(tenantId, atPeriodEnd !== false);
+    kpiAnalytics.increment('churnedSubs');
+    res.json(sub);
+  } catch (err) { res.status(400).json({ error: err.message }); }
+});
+
+app.get('/api/saas/billing/subscription/:tenantId', adminTokenMiddleware, (req, res) => {
+  const sub = billingEngine.getSubscription(req.params.tenantId);
+  if (!sub) return res.status(404).json({ error: 'No subscription found' });
+  res.json(sub);
+});
+
+app.get('/api/saas/billing/invoices/:tenantId', adminTokenMiddleware, (req, res) => {
+  res.json({ invoices: billingEngine.listInvoices(req.params.tenantId) });
+});
+
+app.post('/api/saas/billing/invoice', adminTokenMiddleware, (req, res) => {
+  try {
+    const { tenantId } = req.body || {};
+    if (!tenantId) return res.status(400).json({ error: 'tenantId required' });
+    res.json(billingEngine.generateInvoice(tenantId));
+  } catch (err) { res.status(400).json({ error: err.message }); }
+});
+
+app.post('/api/saas/billing/usage', adminTokenMiddleware, (req, res) => {
+  try {
+    const { tenantId, metric, quantity } = req.body || {};
+    if (!tenantId || !metric) return res.status(400).json({ error: 'tenantId and metric required' });
+    res.json(billingEngine.recordUsage(tenantId, metric, quantity || 1));
+  } catch (err) { res.status(400).json({ error: err.message }); }
+});
+
+// ── Provisioning Engine ───────────────────────────────────────────────────────
+app.post('/api/saas/provision', adminTokenMiddleware, async (req, res) => {
+  try {
+    const { tenantId, plan, opts } = req.body || {};
+    if (!tenantId) return res.status(400).json({ error: 'tenantId required' });
+    const result = await provisioningEngine.provisionTenant(tenantId, plan || 'free', opts || {});
+    res.json(result);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.get('/api/saas/provision/job/:jobId', adminTokenMiddleware, (req, res) => {
+  const job = provisioningEngine.getJob(req.params.jobId);
+  if (!job) return res.status(404).json({ error: 'Job not found' });
+  res.json(job);
+});
+
+app.get('/api/saas/provision/tenant/:tenantId', adminTokenMiddleware, (req, res) => {
+  res.json({ jobs: provisioningEngine.getTenantJobs(req.params.tenantId) });
+});
+
+app.get('/api/saas/provision/status', adminTokenMiddleware, (req, res) => {
+  res.json(provisioningEngine.getStatus());
+});
+
+// ── Global Failover ────────────────────────────────────────────────────────────
+app.get('/api/saas/failover/status', adminTokenMiddleware, (req, res) => {
+  res.json(globalFailover.getStatus());
+});
+
+app.get('/api/saas/failover/log', adminTokenMiddleware, (req, res) => {
+  const limit = parseInt(req.query.limit || '50');
+  res.json({ log: globalFailover.getEventLog(limit) });
+});
+
+app.post('/api/saas/failover/force', adminTokenMiddleware, (req, res) => {
+  try {
+    const { region } = req.body || {};
+    if (!region) return res.status(400).json({ error: 'region required' });
+    res.json(globalFailover.forceFailover(region));
+  } catch (err) { res.status(400).json({ error: err.message }); }
+});
+
+app.post('/api/saas/failover/load', adminTokenMiddleware, (req, res) => {
+  const { cpu, mem } = req.body || {};
+  const event = globalFailover.reportLoad(cpu || 0, mem || 0);
+  res.json({ event: event || null, scaling: globalFailover.getStatus().scaling });
+});
+
+// ── SaaS Orchestrator v4 ──────────────────────────────────────────────────────
+app.get('/api/saas/orchestrator/status', adminTokenMiddleware, (req, res) => {
+  res.json(saasOrchestratorV4.getStatus());
+});
+
+app.get('/api/saas/orchestrator/health', (req, res) => {
+  res.json(saasOrchestratorV4.getHealthReport());
+});
+
+app.post('/api/saas/orchestrator/task', authMiddleware, (req, res) => {
+  try {
+    const { tenantId, taskType, payload, opts } = req.body || {};
+    if (!tenantId || !taskType) return res.status(400).json({ error: 'tenantId and taskType required' });
+    const task = saasOrchestratorV4.submitTask(tenantId, taskType, payload || {}, opts || {});
+    res.json(task);
+  } catch (err) { res.status(400).json({ error: err.message }); }
+});
+
+app.get('/api/saas/orchestrator/audit/:tenantId', adminTokenMiddleware, (req, res) => {
+  const limit = parseInt(req.query.limit || '50');
+  res.json({ log: saasOrchestratorV4.getAuditLog(req.params.tenantId, limit) });
+});
+
+app.get('/api/saas/orchestrator/tenant/:tenantId', adminTokenMiddleware, (req, res) => {
+  res.json(saasOrchestratorV4.getTenantStats(req.params.tenantId));
+});
+
+// ── KPI Analytics ─────────────────────────────────────────────────────────────
+app.get('/api/saas/kpi', adminTokenMiddleware, (req, res) => {
+  res.json(kpiAnalytics.getAdminBreakdown());
+});
+
+app.get('/api/saas/kpi/status', adminTokenMiddleware, (req, res) => {
+  res.json(kpiAnalytics.getStatus());
+});
+
+app.get('/api/saas/kpi/timeseries/:kpi', adminTokenMiddleware, (req, res) => {
+  const points = parseInt(req.query.points || '60');
+  res.json({ kpi: req.params.kpi, series: kpiAnalytics.getTimeSeries(req.params.kpi, points) });
+});
+
+app.get('/api/saas/kpi/alerts', adminTokenMiddleware, (req, res) => {
+  res.json({ alerts: kpiAnalytics.getAlerts(req.query.level) });
+});
+
+app.get('/api/saas/kpi/tenants/top', adminTokenMiddleware, (req, res) => {
+  const metric = req.query.metric || 'apiCalls';
+  const limit  = parseInt(req.query.limit || '10');
+  res.json({ top: kpiAnalytics.getTopTenants(metric, limit) });
+});
+
+app.get('/api/saas/kpi/tenant/:tenantId', adminTokenMiddleware, (req, res) => {
+  res.json(kpiAnalytics.getTenantMetrics(req.params.tenantId));
+});
+
+// ── AI Auto Dispatcher ────────────────────────────────────────────────────────
+app.post('/api/ai/dispatch', authMiddleware, async (req, res) => {
+  try {
+    const { message, context, taskType, plan } = req.body || {};
+    if (!message) return res.status(400).json({ error: 'message required' });
+    const tenantId = req.tenant ? req.tenant.id : (req.user ? req.user.id : 'anonymous');
+    const result = await aiAutoDispatcher.dispatch(message, { context, taskType, plan, tenantId });
+    kpiAnalytics.recordTenantActivity(tenantId, 'ai_task');
+    res.json(result);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.post('/api/ai/dispatch/batch', authMiddleware, async (req, res) => {
+  try {
+    const { tasks } = req.body || {};
+    if (!Array.isArray(tasks)) return res.status(400).json({ error: 'tasks array required' });
+    const results = await aiAutoDispatcher.dispatchBatch(tasks);
+    res.json({ results });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.get('/api/ai/dispatch/status', adminTokenMiddleware, (req, res) => {
+  res.json(aiAutoDispatcher.getStatus());
+});
+
+app.get('/api/ai/dispatch/task/:taskId', authMiddleware, (req, res) => {
+  const task = aiAutoDispatcher.getTask(req.params.taskId);
+  if (!task) return res.status(404).json({ error: 'Task not found' });
+  res.json(task);
+});
+
+// ── Global API Gateway status ─────────────────────────────────────────────────
+app.get('/api/gateway/status', adminTokenMiddleware, (req, res) => {
+  res.json(globalApiGateway.getStatus());
+});
+
+app.get('/api/gateway/logs', adminTokenMiddleware, (req, res) => {
+  const limit = parseInt(req.query.limit || '50');
+  res.json({ logs: globalApiGateway.getRecentLogs(limit) });
+});
+
+app.get('/api/gateway/routes', adminTokenMiddleware, (req, res) => {
+  res.json({ routes: globalApiGateway.getRoutes() });
+});
+
+// ── SaaS Admin Overview ────────────────────────────────────────────────────────
+app.get('/api/saas/overview', adminTokenMiddleware, (req, res) => {
+  res.json({
+    tenants:        tenantManager.getStatus(),
+    billing:        billingEngine.getStatus(),
+    provisioning:   provisioningEngine.getStatus(),
+    failover:       globalFailover.getStatus(),
+    orchestratorV4: saasOrchestratorV4.getStatus(),
+    kpi:            kpiAnalytics.getStatus(),
+    aiDispatcher:   aiAutoDispatcher.getStatus(),
+    gateway:        globalApiGateway.getStatus(),
+    generatedAt:    new Date().toISOString(),
+  });
+});
+
 // ==================== GLOBAL ERROR HANDLER ====================
 // Catches any unhandled errors thrown in route handlers.
 // In production, never expose the stack trace to the client.
@@ -5244,6 +6256,17 @@ if (require.main === module) {
     console.log(`🎛️  Orchestrator v4: ACTIVE (TCL, MSE, Scheduler, AHE, WDS, GOB)`);
     console.log(`🧬 Self-Evolving Engine: ACTIVE (Analyzer, Profiler, Planner, CodeGen, Validator, Deploy)`);
     console.log(`🖥️  Global Admin Panel: ACTIVE (/api/admin/*)`);
+    console.log(`🏢 Multi-Tenant SaaS Platform: ACTIVE (tenant-manager, gateway, provisioning, billing, analytics)`);
+    console.log(`🌐 Orchestrator V4: ACTIVE (per-tenant execution, priority scheduling, self-healing)`);
+    console.log(`🌍 Global Load Balancer: ACTIVE (multi-region, circuit breaker, failover, canary splits)`);
+    console.log(`🏢 Tenant Manager: ACTIVE (multi-tenant SaaS)`);
+    console.log(`🌐 Global API Gateway: ACTIVE (rate limiting, tenant routing)`);
+    console.log(`💳 Billing Engine: ACTIVE (subscriptions, invoicing, MRR)`);
+    console.log(`⚙️  Provisioning Engine: ACTIVE (onboarding automation)`);
+    console.log(`🌍 Global Failover: ACTIVE (multi-region, auto-scaling)`);
+    console.log(`🎯 SaaS Orchestrator v4: ACTIVE (multi-tenant AI routing)`);
+    console.log(`📊 KPI Analytics: ACTIVE (real-time metrics, admin breakdown)`);
+    console.log(`🤖 AI Auto Dispatcher: ACTIVE (smart task routing for all tenants)`);
     // Pornire Zero-Downtime Controller în-process (monitorizare health locală)
     zeroDT.init();
     // Pornire Service Watchdog (reliability: health-check + exponential backoff)

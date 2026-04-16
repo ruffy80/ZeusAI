@@ -1,0 +1,13 @@
+# ─── Merge strategy overrides ────────────────────────────────────────────────
+#
+# INNOVATION_LOG.md is an append-only log written by autonomous auto-innovation
+# branches.  Multiple branches can land concurrently and both write to this
+# file, producing repeated merge conflicts.
+# The `union` driver resolves conflicts by keeping all unique lines from both
+# sides — exactly the right behaviour for an append-only log file.
+# This means git NEVER produces a conflict marker for this file again.
+INNOVATION_LOG.md merge=union
+
+# Same strategy for any individual innovation proposal files that may accumulate
+# in the innovations/ directory.
+innovations/*.md merge=union
