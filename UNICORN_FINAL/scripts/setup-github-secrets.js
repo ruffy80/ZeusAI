@@ -242,10 +242,10 @@ async function run() {
     ...(process.env.PAYPAL_CLIENT_ID        ? { PAYPAL_CLIENT_ID:        process.env.PAYPAL_CLIENT_ID }        : {}),
     ...(process.env.PAYPAL_CLIENT_SECRET    ? { PAYPAL_CLIENT_SECRET:    process.env.PAYPAL_CLIENT_SECRET }    : {}),
     ...(process.env.PAYPAL_WEBHOOK_ID       ? { PAYPAL_WEBHOOK_ID:       process.env.PAYPAL_WEBHOOK_ID }       : {}),
-    // Email credentials (pass-through — user must provide these)
-    ...(process.env.SMTP_HOST  ? { SMTP_HOST:  process.env.SMTP_HOST }  : {}),
-    ...(process.env.SMTP_PORT  ? { SMTP_PORT:  process.env.SMTP_PORT }  : {}),
-    ...(process.env.SMTP_USER  ? { SMTP_USER:  process.env.SMTP_USER }  : {}),
+    // Email credentials — host/port/user are known static values; SMTP_PASS is pass-through
+    SMTP_HOST:  process.env.SMTP_HOST  || 'smtp.mail.yahoo.com',
+    SMTP_PORT:  process.env.SMTP_PORT  || '587',
+    SMTP_USER:  process.env.SMTP_USER  || 'vladoi_ionut@yahoo.com',
     ...(process.env.SMTP_PASS  ? { SMTP_PASS:  process.env.SMTP_PASS }  : {}),
     // DNS provider credentials (optional — enables automatic DNS setup)
     ...(process.env.HETZNER_DNS_API_KEY     ? { HETZNER_DNS_API_KEY:     process.env.HETZNER_DNS_API_KEY }     : {}),
@@ -294,6 +294,12 @@ async function run() {
     FRONTEND_URL:          `https://${process.env.SITE_DOMAIN || 'zeusai.pro'}`,
     DOMAIN:                process.env.SITE_DOMAIN || 'zeusai.pro',
     EXEC_SERVERS:          '204.168.230.142',
+    // ── Legal owner info (static known values) ───────────────────────────────
+    LEGAL_OWNER_NAME:      process.env.LEGAL_OWNER_NAME  || 'Vladoi Ionut',
+    LEGAL_OWNER_EMAIL:     process.env.LEGAL_OWNER_EMAIL || 'vladoi_ionut@yahoo.com',
+    LEGAL_OWNER_BTC:       process.env.LEGAL_OWNER_BTC   || 'bc1q4f7e66z87mdfj56kz0dj5hvcnpmh0qh4wuv22e',
+    // ── Social defaults (known static) ──────────────────────────────────────
+    TELEGRAM_CHAT_ID:      process.env.TELEGRAM_CHAT_ID  || '@unicorn_ai_channel',
     // ── User-provided secrets (pass-through — optional, write only if present) ──
     // Vault / config
     ...(process.env.VAULT_MASTER_SECRET  ? { VAULT_MASTER_SECRET:  process.env.VAULT_MASTER_SECRET }  : {}),
@@ -303,7 +309,6 @@ async function run() {
     ...(process.env.SAV_API_TOKEN ? { SAV_API_TOKEN: process.env.SAV_API_TOKEN } : {}),
     // Social / marketing
     ...(process.env.TELEGRAM_BOT_TOKEN           ? { TELEGRAM_BOT_TOKEN:           process.env.TELEGRAM_BOT_TOKEN }           : {}),
-    ...(process.env.TELEGRAM_CHAT_ID             ? { TELEGRAM_CHAT_ID:             process.env.TELEGRAM_CHAT_ID }             : {}),
     ...(process.env.X_BEARER_TOKEN               ? { X_BEARER_TOKEN:               process.env.X_BEARER_TOKEN }               : {}),
     ...(process.env.X_ACCESS_TOKEN               ? { X_ACCESS_TOKEN:               process.env.X_ACCESS_TOKEN }               : {}),
     ...(process.env.X_ACCESS_SECRET              ? { X_ACCESS_SECRET:              process.env.X_ACCESS_SECRET }              : {}),
