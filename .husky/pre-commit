@@ -1,0 +1,2 @@
+#!/usr/bin/env sh
+cd UNICORN_FINAL && npx lint-staged

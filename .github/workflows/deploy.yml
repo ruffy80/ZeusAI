@@ -92,12 +92,15 @@ jobs:
         with:
           node-version: 20
 
-      - name: 🛠️ Build & Test UNICORN_FINAL
+      - name: 🔍 Run Linter (ESLint)
         working-directory: ./UNICORN_FINAL
         run: |
           npm ci
           npm run lint
-          npm test --if-present
+
+      - name: 🛠️ Test UNICORN_FINAL
+        working-directory: ./UNICORN_FINAL
+        run: npm test --if-present
 
       - name: ⚙️ Generate .env with all secrets
         run: |

@@ -1,0 +1,19 @@
+{
+  "env": {
+    "node": true,
+    "es2021": true
+  },
+  "extends": ["eslint:recommended"],
+  "parserOptions": {
+    "ecmaVersion": 2021
+  },
+  "rules": {
+    "no-redeclare": "error",
+    "no-unused-vars": "off",
+    "no-undef": "off",
+    "no-control-regex": "off",
+    "no-empty": "off",
+    "no-inner-declarations": "off",
+    "no-useless-escape": "off"
+  }
+}
