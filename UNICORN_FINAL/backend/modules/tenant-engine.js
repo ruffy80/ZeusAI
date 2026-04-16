@@ -197,6 +197,14 @@ function _keyPrefix(rawKey) {
   return rawKey.slice(0, 11);
 }
 
+/** Trial period in days / Durata perioadei de probă în zile */
+const TRIAL_DAYS = 14;
+
+/** Determine the initial tenant/subscription status based on planId */
+function _determineInitialStatus(planId) {
+  return planId === 'plan_free' ? 'trial' : 'active';
+}
+
 /** Build a slug from a name string */
 function _slugify(name) {
   return name
@@ -263,12 +271,14 @@ function createTenant(data) {
   const slug = _uniqueSlug(slugHint ? _slugify(slugHint) : _slugify(name));
   const now = new Date().toISOString();
 
+  const initialStatus = _determineInitialStatus(planId);
+
   const tenant = {
     id: tenantId,
     slug,
     name,
     email,
-    status: planId === 'plan_free' ? 'trial' : 'active',
+    status: initialStatus,
     planId,
     createdAt: now,
     dataPrefix: `tenant_${slug}_`,
@@ -278,15 +288,15 @@ function createTenant(data) {
 
   // Create subscription / Creează abonamentul
   const subscriptionId = crypto.randomUUID();
-  const trialEnd = planId === 'plan_free'
-    ? new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString()
+  const trialEnd = initialStatus === 'trial'
+    ? new Date(Date.now() + TRIAL_DAYS * 24 * 60 * 60 * 1000).toISOString()
     : null;
 
   const subscription = {
     id: subscriptionId,
     tenantId,
     planId,
-    status: planId === 'plan_free' ? 'trial' : 'active',
+    status: initialStatus,
     startDate: now,
     endDate: null,
     trialEnd,
@@ -427,10 +437,16 @@ function deleteTenant(tenantId) {
  * Raw key is returned ONCE and never stored.
  * Cheia brută este returnată o singură dată și nu este stocată.
  *
+ * @param {string} tenantId
+ * @param {string} name - human-readable label for this key
+ * @param {string[]} permissions - array of permission strings e.g. ['read', 'write']
  * @returns {{ id, key, keyPrefix }}
  */
 function generateApiKey(tenantId, name = 'default', permissions = ['read']) {
   if (!tenants.has(tenantId)) throw new Error(`Tenant not found: ${tenantId}`);
+  if (!Array.isArray(permissions)) {
+    throw new TypeError('permissions must be an array of strings, e.g. ["read", "write"]');
+  }
   const rawKey = _generateRawKey();
   const keyId = crypto.randomUUID();
   const now = new Date().toISOString();
@@ -441,7 +457,7 @@ function generateApiKey(tenantId, name = 'default', permissions = ['read']) {
     keyHash: _hashKey(rawKey),
     keyPrefix: _keyPrefix(rawKey),
     name,
-    permissions: Array.isArray(permissions) ? [...permissions] : [permissions],
+    permissions: [...permissions],
     createdAt: now,
     lastUsedAt: null,
     isActive: true,
