@@ -1154,9 +1154,6 @@ module.exports = {
  * - Stripe-compatible payment intent abstraction
  */
 
-const crypto = require('crypto');
-const { EventEmitter } = require('events');
-
 // ─── Plans ───────────────────────────────────────────────────────────────────
 const PLANS = {
   free:       { name: 'Free',       price: 0,    currency: 'usd', interval: 'month', trialDays: 0  },
