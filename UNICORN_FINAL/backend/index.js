@@ -546,6 +546,7 @@ const temporalDataLayer     = require('./generated/TemporalDataLayer');
 // ==================== SRC INNOVATION & DEPLOY MODULES ====================
 const innovationEngine      = require('../src/innovation/innovation-engine');
 const autoDeployOrchestrator = require('../src/modules/auto-deploy-orchestrator');
+const { getSiteHtml }       = require('../src/site/template');
 
 // ==================== MESH ORCHESTRATOR — Swiss-watch inter-module bus ====================
 const meshOrchestrator     = require('./modules/unicornMeshOrchestrator');
@@ -764,6 +765,7 @@ const resourceMonitor      = require('./modules/resource-monitor');
 const errorPatternDetector = require('./modules/error-pattern-detector');
 const recoveryEngine       = require('./modules/recovery-engine');
 const serviceWatchdog      = require('./modules/service-watchdog');
+const uiAutoBuilder        = require('./modules/ui-auto-builder');
 
 // ==================== MULTI-TENANT SAAS PLATFORM ====================
 const tenantManager      = require('./modules/tenant-manager');
@@ -1089,6 +1091,8 @@ app.use('/api/ultimate', ultimateModules.getRouter(adminSecretMiddleware));
 app.use('/api/legal-fortress', legalFortress.getRouter(adminSecretMiddleware));
 app.use('/api/quantum-resilience', qrc.getRouter(adminSecretMiddleware));
 app.use('/api/dashboard', executiveDashboard.getRouter(adminSecretMiddleware));
+// ── UI Auto-Builder internal health routes ──────────────────────────
+app.use('/internal/ui-builder', uiAutoBuilder.getRouter());
 // ── Unicorn Eternal Engine ──────────────────────────────────────────
 app.use('/api/uee', uee.getRouter(adminSecretMiddleware));
 
@@ -1177,6 +1181,7 @@ meshOrchestrator.register('tenantBilling',          tenantBilling,       { statu
 meshOrchestrator.register('tenantAnalytics',        tenantAnalytics,     { statusFn: 'getStatus' });
 meshOrchestrator.register('tenantManager',          tenantManager,       { statusFn: 'getStatus' });
 meshOrchestrator.register('globalLoadBalancer',     globalLBModule.globalLB, { statusFn: 'getStatus' });
+meshOrchestrator.register('uiAutoBuilder',          uiAutoBuilder,       { statusFn: 'getStatus' });
 
 // Pornim orchestratorul — Swiss-watch mode
 meshOrchestrator.start();
@@ -5548,19 +5553,15 @@ app.get('/{*path}', (req, res) => {
     return res.sendFile(clientIndexPath);
   }
   // Serve the full unicorn HTML template when no React client build is present
-  // (e.g. Vercel serverless deploy or fresh Hetzner setup)
+  // (e.g. fresh Hetzner setup without client build)
   try {
-    const { getSiteHtml } = require('../src/site/template');
     res.setHeader('Content-Type', 'text/html; charset=utf-8');
     res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
     return res.send(getSiteHtml());
-  } catch (_) {
-    res.json({
-      service: 'unicorn-autonomous',
-      status: 'running',
-      note: 'UI build not found. Run: cd client && npm install && npm run build',
-      api: '/api/health'
-    });
+  } catch (err) {
+    console.error('[unicorn] getSiteHtml failed:', err);
+    res.setHeader('Content-Type', 'text/html; charset=utf-8');
+    return res.status(500).send('<!doctype html><html><head><title>ZEUS AI</title></head><body style="background:#05060e;color:#e8f4ff;font-family:sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;margin:0"><div style="text-align:center"><h1 style="color:#00d4ff">ZEUS AI</h1><p>Service starting — please refresh in a moment.</p></div></body></html>');
   }
 });
 
