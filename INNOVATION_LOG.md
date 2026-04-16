@@ -1,5 +1,7 @@
-# Auto-Innovation Proposal
+# Innovation Log
 
+This directory (`innovations/`) contains per-proposal auto-innovation files.
+Each PR writes to a unique `innovations/<category>-<id>.md` file to avoid merge conflicts.
 **ID:** 78428ab4109d
 **Category:** security
 **Generated:** 2026-04-16T11:12:43.183Z

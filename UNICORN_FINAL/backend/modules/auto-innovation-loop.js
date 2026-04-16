@@ -37,6 +37,9 @@ const PR_POLL_MS    = parseInt(process.env.INNOV_PR_POLL_MS   || '300000',   10)
 const MAX_PENDING   = parseInt(process.env.INNOV_MAX_PENDING  || '3',        10);
 const MAX_LOOP_LOG  = 500;
 const MAX_PROPOSALS = 100;
+// Each proposal is stored in its own file under this directory.
+// GitHub's Contents API creates parent directories automatically.
+const INNOVATIONS_DIR = 'innovations';
 
 // getGithubToken() și getGithubRepo() sunt citite din process.env la fiecare apel
 // pentru a permite injectarea secretelor de către quantumVault la runtime
@@ -299,7 +302,10 @@ class AutoInnovationLoop {
         sha: baseSha,
       });
 
-      // 3. Create/update INNOVATION_LOG.md in the new branch
+      // 3. Create a unique per-proposal file to avoid merge conflicts with main.
+      // Each PR writes to innovations/<category>-<id>.md — a brand-new file that
+      // does not exist on any other branch, so conflicts are structurally impossible.
+      const proposalFilePath = `${INNOVATIONS_DIR}/${proposal.category}-${proposal.id}.md`;
       const logContent = [
         `# Auto-Innovation Proposal`,
         ``,
@@ -317,21 +323,13 @@ class AutoInnovationLoop {
         `Cycle: #${proposal.cycleId}`,
       ].join('\n');
 
-      // Get existing file SHA if present (to update, not create)
-      let fileSha;
-      try {
-        const existing = await this._githubGet(`/repos/${owner}/${repo}/contents/INNOVATION_LOG.md?ref=${branchName}`);
-        if (existing && existing.sha) fileSha = existing.sha;
-      } catch { /* file doesn't exist yet */ }
-
       const fileBody = {
         message: proposal.title,
         content: Buffer.from(logContent).toString('base64'),
         branch:  branchName,
       };
-      if (fileSha) fileBody.sha = fileSha;
 
-      await this._githubPut(`/repos/${owner}/${repo}/contents/INNOVATION_LOG.md`, fileBody);
+      await this._githubPut(`/repos/${owner}/${repo}/contents/${proposalFilePath}`, fileBody);
 
       // 4. Open PR
       const prBody = {
