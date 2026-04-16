@@ -162,11 +162,8 @@ jobs:
             echo "✅ Site LIVE — Node.js și Nginx funcționează corect"
           elif [ "$STATUS" = "200" ]; then
             echo "⚠️  Node.js OK dar Nginx NU răspunde pe port 80 (status: $NGINX_STATUS) — auto-recovery..."
-            ssh -o StrictHostKeyChecking=no root@${{ secrets.HETZNER_HOST }} bash << 'HEALSH'
-              nginx -t 2>&1 && systemctl restart nginx && echo "✅ Nginx restarted" || true
-              ss -tlnp | grep ':80\|:443' || true
-              pm2 list 2>/dev/null | tail -5 || true
-            HEALSH
+            ssh -o StrictHostKeyChecking=no root@${{ secrets.HETZNER_HOST }} \
+              "nginx -t 2>&1 && systemctl restart nginx && echo '✅ Nginx restarted' || true; ss -tlnp | grep ':80\|:443' || true; pm2 list 2>/dev/null | tail -5 || true"
           else
             echo "⚠️  Health returned Node=$STATUS Nginx=$NGINX_STATUS — checking PM2 status..."
             ssh -o StrictHostKeyChecking=no root@${{ secrets.HETZNER_HOST }} \
