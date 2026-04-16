@@ -665,6 +665,10 @@ module.exports = {
     {
       name: 'unicorn-orchestrator-v4',
       script: 'backend/modules/orchestrator-v4.js',
+    // ── 22. SaaS Orchestrator v4 — multi-tenant AI & workflow orchestration ──
+    {
+      name: 'unicorn-saas-orchestrator-v4',
+      script: 'backend/modules/saas-orchestrator-v4.js',
       cwd: __dirname,
       instances: 1,
       autorestart: true,
@@ -688,6 +692,22 @@ module.exports = {
     {
       name: 'unicorn-global-lb',
       script: 'backend/modules/global-load-balancer.js',
+      restart_delay: 5000,
+      env: {
+        NODE_ENV: 'production',
+        ORCHESTRATOR_MAX_CONCURRENT: '20',
+        DOMAIN: SITE_DOMAIN,
+        PUBLIC_APP_URL,
+      },
+      error_file: 'logs/saas-orchestrator-v4-error.log',
+      out_file: 'logs/saas-orchestrator-v4-out.log',
+      log_date_format: 'YYYY-MM-DD HH:mm:ss'
+    },
+
+    // ── 23. Global Failover Controller — multi-region health + auto-scaling ──
+    {
+      name: 'unicorn-global-failover',
+      script: 'backend/modules/global-failover.js',
       cwd: __dirname,
       instances: 1,
       autorestart: true,
@@ -707,6 +727,15 @@ module.exports = {
       },
       error_file: 'logs/global-lb-error.log',
       out_file: 'logs/global-lb-out.log',
+      restart_delay: 5000,
+      env: {
+        NODE_ENV: 'production',
+        MAX_INSTANCES: '20',
+        DOMAIN: SITE_DOMAIN,
+        PUBLIC_APP_URL,
+      },
+      error_file: 'logs/global-failover-error.log',
+      out_file: 'logs/global-failover-out.log',
       log_date_format: 'YYYY-MM-DD HH:mm:ss'
     }
   ]
