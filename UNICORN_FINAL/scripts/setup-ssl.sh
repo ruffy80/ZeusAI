@@ -240,7 +240,7 @@ if [ "$DNS_OK" = "true" ]; then
       certbot --nginx -d "${DOMAIN}" --non-interactive --agree-tos \
         --email "${ADMIN_EMAIL}" --keep-until-expiring 2>&1 && \
         fixed "Certbot: blocuri SSL reinstalate în nginx" || \
-        warn "Certbot reinstall a eșuat — verificați: certbot certificates"
+        warn "Certbot reinstall a eșuat — verificați: certbot certificates && journalctl -u nginx"
     fi
     certbot renew --nginx --non-interactive --quiet \
       --post-hook "systemctl reload nginx" 2>&1 && \

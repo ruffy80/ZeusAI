@@ -268,8 +268,8 @@ if [ -f "$NGINX_CONF_SRC" ]; then
   # Nu suprascrie config-ul nginx dacă certificatul SSL și blocurile ssl_certificate
   # sunt deja prezente — certbot le-a adăugat și o suprascriere le-ar distruge,
   # lăsând portul 443 fără listener (ERR_CONNECTION_REFUSED pe domeniu).
-  _CERT_LIVE="/etc/letsencrypt/live/${DOMAIN}/fullchain.pem"
-  if [ -f "$_CERT_LIVE" ] && grep -q "ssl_certificate" "${NGINX_AVAILABLE}" 2>/dev/null; then
+  CERT_LIVE_PATH="/etc/letsencrypt/live/${DOMAIN}/fullchain.pem"
+  if [ -f "$CERT_LIVE_PATH" ] && grep -q "ssl_certificate" "${NGINX_AVAILABLE}" 2>/dev/null; then
     info "Nginx: certificat SSL activ detectat — config existent păstrat (suprascriere HTTP-only sărită)"
   else
     cp "$NGINX_CONF_SRC" "$NGINX_AVAILABLE"

@@ -166,7 +166,7 @@ jobs:
           elif [ "$STATUS" = "200" ]; then
             echo "⚠️  Node.js OK dar Nginx NU răspunde pe port 80 (status: $NGINX_STATUS)"
             ssh -o StrictHostKeyChecking=no root@${{ secrets.HETZNER_HOST }} \
-              "systemctl status nginx --no-pager; nginx -t 2>&1; pm2 list" || true
+              "systemctl status nginx --no-pager; nginx -t 2>&1; ss -tlnp | grep ':80\|:443'; pm2 list" || true
           else
             echo "⚠️  Health returned Node=$STATUS Nginx=$NGINX_STATUS — checking PM2 status..."
             ssh -o StrictHostKeyChecking=no root@${{ secrets.HETZNER_HOST }} \
