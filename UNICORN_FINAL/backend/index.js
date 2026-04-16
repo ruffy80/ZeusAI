@@ -1072,7 +1072,10 @@ console.log('📱 Social Media Viralizer: STARTING');
 console.log('🌐 Global Digital Standard: STARTING');
 
 // ==================== MESH ORCHESTRATOR — înregistrare & pornire ====================
-// Înregistrăm toate modulele autonome în bus-ul central de comunicare
+// Înregistrăm TOATE modulele unicornului în bus-ul central de comunicare
+// Swiss-watch mode: fiecare modul este monitorizat, sincronizat și auto-vindecat
+
+// ── Modulele orchestratoare ──────────────────────────────────────────────────
 meshOrchestrator.register('unicornAutonomousCore',  uac,                { statusFn: 'getStatus' });
 meshOrchestrator.register('unicornEternalEngine',   uee,                { statusFn: 'getStatus' });
 meshOrchestrator.register('controlPlaneAgent',      controlPlane,       { statusFn: 'getStatus' });
@@ -1087,7 +1090,6 @@ meshOrchestrator.register('shadowTester',           shadowTester,       { status
 meshOrchestrator.register('profitAttribution',      profitService,      { statusFn: 'getMetrics' });
 meshOrchestrator.register('unicornInnovationSuite', unicornInnovationSuite, { statusFn: null });
 meshOrchestrator.register('ultimateModules',        ultimateModules,    { statusFn: null });
-// Modulele nou activate — înregistrate în mesh
 meshOrchestrator.register('futureCompatBridge',     futureCompatBridge, { statusFn: 'getStatus' });
 meshOrchestrator.register('quantumSecurity',        quantumSecurity,    { statusFn: 'getStatus' });
 meshOrchestrator.register('quantumIntegrityShield', quantumIntegrityShield, { statusFn: 'getStatus' });
@@ -1097,11 +1099,169 @@ meshOrchestrator.register('sovereignGuardian',      sovereignGuardian,  { status
 meshOrchestrator.register('revenueModules',         revenueModules,     { statusFn: 'getAllStatus' });
 meshOrchestrator.register('unicornOrchestrator',    unicornOrchestrator, { statusFn: 'getStatus' });
 
-// Pornim orchestratorul — Swiss-watch mode
+// ── Orchestratori & healing core ─────────────────────────────────────────────
+meshOrchestrator.register('centralOrchestrator',       centralOrchestrator,       { statusFn: 'getStatus' });
+meshOrchestrator.register('selfHealingEngine',          selfHealingEngine,          { statusFn: 'getStatus' });
+meshOrchestrator.register('aiSelfHealing',              aiSelfHealing,              { statusFn: 'getStatus' });
+meshOrchestrator.register('autoInnovationLoop',         autoInnovationLoop,         { statusFn: 'getStatus' });
+meshOrchestrator.register('githubOps',                  githubOps,                  { statusFn: 'getStatus' });
+meshOrchestrator.register('dynamicPricing',             dynamicPricing,             { statusFn: 'getStatus' });
+meshOrchestrator.register('quantumPaymentNexus',        quantumPaymentNexus,        { statusFn: 'getStatus' });
+meshOrchestrator.register('configManager',              configManager,              { statusFn: 'getStatus' });
+
+// ── AI stack ─────────────────────────────────────────────────────────────────
+meshOrchestrator.register('aiProviders',                _aiProviders,               { statusFn: 'getStatus' });
+if (_aiOrchestrator) meshOrchestrator.register('aiOrchestrator', _aiOrchestrator,   { statusFn: 'getStatus' });
+if (_multiRouter)    meshOrchestrator.register('multiModelRouter', _multiRouter,     { statusFn: 'getStatus' });
+if (_uaic)           meshOrchestrator.register('universalAIConnector', _uaic,        { statusFn: 'getStatus' });
+meshOrchestrator.register('aiSmartCache',               aiSmartCache,               { statusFn: 'getStats' });
+meshOrchestrator.register('evolutionCore',              evolutionCore,              { statusFn: 'getStatus' });
+meshOrchestrator.register('quantumHealing',             quantumHealing,             { statusFn: 'getStatus' });
+meshOrchestrator.register('universalAdaptor',           universalAdaptor,           { statusFn: 'getStatus' });
+meshOrchestrator.register('selfAdaptationEngine',       selfAdaptationEngine,       { statusFn: 'getStatus' });
+meshOrchestrator.register('unicornRealizationEngine',   unicornRealizationEngine,   { statusFn: 'getStatus' });
+meshOrchestrator.register('unicornExecutionEngine',     unicornExecutionEngine,     { statusFn: 'getStatus' });
+meshOrchestrator.register('unicornSuperIntelligence',   unicornSuperIntelligence,   { statusFn: 'getStatus' });
+meshOrchestrator.register('usiMemory',                  usiMemory,                  { statusFn: 'getStatus' });
+meshOrchestrator.register('usiSkills',                  usiSkills,                  { statusFn: 'getStatus' });
+meshOrchestrator.register('usiReasoning',               usiReasoning,               { statusFn: 'getStatus' });
+meshOrchestrator.register('usiPersonality',             usiPersonality,             { statusFn: 'getStatus' });
+meshOrchestrator.register('swarmIntelligence',          swarmIntelligence,          { statusFn: 'getStatus' });
+meshOrchestrator.register('predictiveHealing',          predictiveHealing,          { statusFn: 'getStatus' });
+meshOrchestrator.register('predictiveMarketIntel',      predictiveMarketIntelligence, { statusFn: 'getStatus' });
+meshOrchestrator.register('aiSalesCloser',              aiSalesCloser,              { statusFn: 'getStatus' });
+meshOrchestrator.register('competitorSpyAgent',         competitorSpyAgent,         { statusFn: 'getStatus' });
+meshOrchestrator.register('aiCfoAgent',                 aiCfoAgent,                 { statusFn: 'getStatus' });
+meshOrchestrator.register('sentimentAnalysisEngine',    sentimentAnalysisEngine,    { statusFn: 'getStatus' });
+meshOrchestrator.register('aiProductGenerator',         aiProductGenerator,         { statusFn: 'getStatus' });
+
+// ── Autonome & revenue ────────────────────────────────────────────────────────
+meshOrchestrator.register('autoRepair',                 autoRepair,                 { statusFn: 'getStatus' });
+meshOrchestrator.register('autoRestart',                autoRestart,                { statusFn: 'getStatus' });
+meshOrchestrator.register('autoOptimize',               autoOptimize,               { statusFn: 'getStatus' });
+meshOrchestrator.register('autoEvolve',                 autoEvolve,                 { statusFn: 'getStatus' });
+meshOrchestrator.register('logMonitor',                 logMonitor,                 { statusFn: 'getStatus' });
+meshOrchestrator.register('resourceMonitor',            resourceMonitor,            { statusFn: 'getStatus' });
+meshOrchestrator.register('errorPatternDetector',       errorPatternDetector,       { statusFn: 'getStatus' });
+meshOrchestrator.register('recoveryEngine',             recoveryEngine,             { statusFn: 'getStatus' });
+meshOrchestrator.register('serviceWatchdog',            serviceWatchdog,            { statusFn: 'getStatus' });
+meshOrchestrator.register('zeroDT',                     zeroDT,                     { statusFn: 'getStatus' });
+meshOrchestrator.register('disasterRecovery',           disasterRecovery,           { statusFn: 'getStatus' });
+meshOrchestrator.register('autoTrendAnalyzer',          autoTrendAnalyzer,          { statusFn: 'getStatus' });
+meshOrchestrator.register('autoMarketing',              autoMarketing,              { statusFn: 'getStatus' });
+meshOrchestrator.register('autonomousWealthEngine',     autonomousWealthEngine,     { statusFn: 'getStatus' });
+meshOrchestrator.register('autonomousBDEngine',         autonomousBDEngine,         { statusFn: 'getStatus' });
+
+// ── Analytics, SEO, UI, code ─────────────────────────────────────────────────
+meshOrchestrator.register('analyticsEngine',            analyticsEngine,            { statusFn: 'getStatus' });
+meshOrchestrator.register('contentAI',                  contentAI,                  { statusFn: 'getStatus' });
+meshOrchestrator.register('seoOptimizer',               seoOptimizer,               { statusFn: 'getStatus' });
+meshOrchestrator.register('siteCreator',                siteCreator,                { statusFn: 'getStatus' });
+meshOrchestrator.register('abTesting',                  abTesting,                  { statusFn: 'getStatus' });
+meshOrchestrator.register('uiEvolution',                uiEvolution,                { statusFn: 'getStatus' });
+meshOrchestrator.register('codeOptimizer',              codeOptimizer,              { statusFn: 'getStatus' });
+meshOrchestrator.register('selfDocumenter',             selfDocumenter,             { statusFn: 'getStatus' });
+meshOrchestrator.register('securityScanner',            securityScanner,            { statusFn: 'getStatus' });
+meshOrchestrator.register('performanceMonitor',         performanceMonitor,         { statusFn: 'getStatus' });
+meshOrchestrator.register('universalInterchainNexus',   universalInterchainNexus,   { statusFn: 'getStatus' });
+
+// ── Business, legal, payments ─────────────────────────────────────────────────
+meshOrchestrator.register('autoDeploy',                 autoDeploy,                 { statusFn: 'getStatus' });
+meshOrchestrator.register('selfConstruction',           selfConstruction,           { statusFn: 'getStatus' });
+meshOrchestrator.register('totalSystemHealer',          totalSystemHealer,          { statusFn: 'getStatus' });
+meshOrchestrator.register('codeSanityEngine',           codeSanityEngine,           { statusFn: 'getStatus' });
+meshOrchestrator.register('qrIdentity',                 qrIdentity,                 { statusFn: 'getStatus' });
+meshOrchestrator.register('aiNegotiator',               aiNegotiator,               { statusFn: 'getStatus' });
+meshOrchestrator.register('carbonExchange',             carbonExchange,             { statusFn: 'getStatus' });
+meshOrchestrator.register('marketplace',                marketplace,                { statusFn: 'getStatus' });
+meshOrchestrator.register('complianceEngine',           complianceEngine,           { statusFn: 'getStatus' });
+meshOrchestrator.register('riskAnalyzer',               riskAnalyzer,               { statusFn: 'getStatus' });
+meshOrchestrator.register('reputationProtocol',         reputationProtocol,         { statusFn: 'getStatus' });
+meshOrchestrator.register('opportunityRadar',           opportunityRadar,           { statusFn: 'getStatus' });
+meshOrchestrator.register('businessBlueprint',          businessBlueprint,          { statusFn: 'getStatus' });
+meshOrchestrator.register('paymentGateway',             paymentGateway,             { statusFn: 'getStatus' });
+meshOrchestrator.register('paymentSystems',             paymentSystems,             { statusFn: 'getStatus' });
+meshOrchestrator.register('aviationModule',             aviationModule,             { statusFn: 'getStatus' });
+meshOrchestrator.register('governmentModule',           governmentModule,           { statusFn: 'getStatus' });
+meshOrchestrator.register('defenseModule',              defenseModule,              { statusFn: 'getStatus' });
+meshOrchestrator.register('telecomModule',              telecomModule,              { statusFn: 'getStatus' });
+meshOrchestrator.register('enterprisePartner',          enterprisePartner,          { statusFn: 'getStatus' });
+meshOrchestrator.register('quantumChain',               quantumChain,               { statusFn: 'getStatus' });
+meshOrchestrator.register('workforce',                  workforce,                  { statusFn: 'getStatus' });
+meshOrchestrator.register('maAdvisor',                  ma,                         { statusFn: 'getStatus' });
+meshOrchestrator.register('legalContract',              legal,                      { statusFn: 'getStatus' });
+meshOrchestrator.register('energyGrid',                 energy,                     { statusFn: 'getStatus' });
+meshOrchestrator.register('legalFortress',              legalFortress,              { statusFn: null });
+meshOrchestrator.register('quantumResilienceCore',      qrc,                        { statusFn: null });
+meshOrchestrator.register('executiveDashboard',         executiveDashboard,         { statusFn: null });
+meshOrchestrator.register('unicornAutoGenesis',         unicornAutoGenesis,         { statusFn: null });
+meshOrchestrator.register('domainAutomationManager',    domainAutomationManager,    { statusFn: 'getStatus' });
+meshOrchestrator.register('creditSystem',               creditSystem,               { statusFn: 'getStatus' });
+meshOrchestrator.register('referralEngine',             referralEngine,             { statusFn: 'getStatus' });
+meshOrchestrator.register('customerHealth',             customerHealth,             { statusFn: 'getStatus' });
+meshOrchestrator.register('workflowEngine',             workflowEngine,             { statusFn: 'getStatus' });
+meshOrchestrator.register('whiteLabelEngine',           whiteLabelEngine,           { statusFn: 'getStatus' });
+meshOrchestrator.register('socialViralizer',            socialViralizer,            { statusFn: null });
+meshOrchestrator.register('universalMarketNexus',       umn,                        { statusFn: null });
+meshOrchestrator.register('globalDigitalStandard',      gdes,                       { statusFn: null });
+meshOrchestrator.register('ale',                        ale,                        { statusFn: 'getStatus' });
+meshOrchestrator.register('gect',                       gect,                       { statusFn: 'getStatus' });
+meshOrchestrator.register('qrBaaS',                     qrBaaS,                     { statusFn: 'getStatus' });
+meshOrchestrator.register('autonomousMAdvisor',         amaa,                       { statusFn: 'getStatus' });
+meshOrchestrator.register('universalAITrainingMarket',  uaitm,                      { statusFn: 'getStatus' });
+meshOrchestrator.register('autoDeployOrchestrator',     autoDeployOrchestrator,     { statusFn: 'getStatus' });
+meshOrchestrator.register('moduleLoader',               moduleLoader,               { statusFn: 'getStatus' });
+
+// ── AdaptiveModules (82) — pornire + înregistrare în mesh ────────────────────
+const _adaptiveModules = [
+  adaptiveMod01, adaptiveMod02, adaptiveMod03, adaptiveMod04, adaptiveMod05,
+  adaptiveMod06, adaptiveMod07, adaptiveMod08, adaptiveMod09, adaptiveMod10,
+  adaptiveMod11, adaptiveMod12, adaptiveMod13, adaptiveMod14, adaptiveMod15,
+  adaptiveMod16, adaptiveMod17, adaptiveMod18, adaptiveMod19, adaptiveMod20,
+  adaptiveMod21, adaptiveMod22, adaptiveMod23, adaptiveMod24, adaptiveMod25,
+  adaptiveMod26, adaptiveMod27, adaptiveMod28, adaptiveMod29, adaptiveMod30,
+  adaptiveMod31, adaptiveMod32, adaptiveMod33, adaptiveMod34, adaptiveMod35,
+  adaptiveMod36, adaptiveMod37, adaptiveMod38, adaptiveMod39, adaptiveMod40,
+  adaptiveMod41, adaptiveMod42, adaptiveMod43, adaptiveMod44, adaptiveMod45,
+  adaptiveMod46, adaptiveMod47, adaptiveMod48, adaptiveMod49, adaptiveMod50,
+  adaptiveMod51, adaptiveMod52, adaptiveMod53, adaptiveMod54, adaptiveMod55,
+  adaptiveMod56, adaptiveMod57, adaptiveMod58, adaptiveMod59, adaptiveMod60,
+  adaptiveMod61, adaptiveMod62, adaptiveMod63, adaptiveMod64, adaptiveMod65,
+  adaptiveMod66, adaptiveMod67, adaptiveMod68, adaptiveMod69, adaptiveMod70,
+  adaptiveMod71, adaptiveMod72, adaptiveMod73, adaptiveMod74, adaptiveMod75,
+  adaptiveMod76, adaptiveMod77, adaptiveMod78, adaptiveMod79, adaptiveMod80,
+  adaptiveMod81, adaptiveMod82,
+];
+_adaptiveModules.forEach((mod, i) => {
+  const num = String(i + 1).padStart(2, '0');
+  const name = `AdaptiveModule${num}`;
+  try { if (typeof mod.start === 'function') mod.start(); } catch (err) { console.warn(`[Mesh] ${name} start:`, err.message); }
+  meshOrchestrator.register(name, mod, { statusFn: 'getStatus' });
+});
+
+// ── Engines (62) — pornire + înregistrare în mesh ────────────────────────────
+const _engines = [
+  engine1,  engine2,  engine3,  engine4,  engine5,  engine6,  engine7,  engine8,
+  engine9,  engine10, engine11, engine12, engine13, engine14, engine15, engine16,
+  engine17, engine18, engine19, engine20, engine21, engine22, engine23, engine24,
+  engine25, engine26, engine27, engine28, engine29, engine30, engine31, engine32,
+  engine33, engine34, engine35, engine36, engine37, engine38, engine39, engine40,
+  engine41, engine42, engine43, engine44, engine45, engine46, engine47, engine48,
+  engine49, engine50, engine51, engine52, engine53, engine54, engine55, engine56,
+  engine57, engine58, engine59, engine60, engine61, engine62,
+];
+_engines.forEach((mod, i) => {
+  const name = `Engine${i + 1}`;
+  try { if (typeof mod.start === 'function') mod.start(); } catch (err) { console.warn(`[Mesh] ${name} start:`, err.message); }
+  meshOrchestrator.register(name, mod, { statusFn: 'getStatus' });
+});
+
+// Pornim orchestratorul — Swiss-watch mode (toate 270 module conectate)
 meshOrchestrator.start();
 unicornOrchestrator.start(); // Orchestratorul central al unicornului — activează toate cele 8 motoare autonome
 console.log('🕰️  Unicorn Mesh Orchestrator: STARTED — toate modulele conectate');
 console.log('🦄 Unicorn Orchestrator (8 engines): ACTIVE');
+console.log(`🔗 TOTAL module în mesh: ${meshOrchestrator.registry ? meshOrchestrator.registry.size : 0}`);
 
 // ==================== RUTE API ====================
 function buildHealthResponse() {
@@ -5120,7 +5280,8 @@ if (require.main === module) {
     console.log(`⚡ Quantum Resilience Core: ACTIVE`);
     console.log(`📊 Executive Dashboard: ACTIVE`);
     console.log(`🔍 Code Sanity Engine: ACTIVE`);
-    console.log(`🔗 ${reg.total}+ module total: TOATE CONECTATE & ACTIVE`);
+    const meshSize = meshOrchestrator.registry ? meshOrchestrator.registry.size : reg.total;
+    console.log(`🔗 ${meshSize} module în mesh (${reg.total}+ în registry): TOATE CONECTATE & ACTIVE`);
     console.log(`  ├─ 🎛️  Orchestrator:   ${reg.categories.orchestrator.count} module`);
     console.log(`  ├─ 🛡️  Shield:         ${reg.categories.shield.count} module`);
     console.log(`  ├─ 💊  Health-Daemon:  ${reg.categories.healthDaemon.count} module`);
