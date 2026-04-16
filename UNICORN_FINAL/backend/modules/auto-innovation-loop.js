@@ -37,6 +37,9 @@ const PR_POLL_MS    = parseInt(process.env.INNOV_PR_POLL_MS   || '300000',   10)
 const MAX_PENDING   = parseInt(process.env.INNOV_MAX_PENDING  || '3',        10);
 const MAX_LOOP_LOG  = 500;
 const MAX_PROPOSALS = 100;
+// Each proposal is stored in its own file under this directory.
+// GitHub's Contents API creates parent directories automatically.
+const INNOVATIONS_DIR = 'innovations';
 
 // getGithubToken() și getGithubRepo() sunt citite din process.env la fiecare apel
 // pentru a permite injectarea secretelor de către quantumVault la runtime
@@ -302,7 +305,7 @@ class AutoInnovationLoop {
       // 3. Create a unique per-proposal file to avoid merge conflicts with main.
       // Each PR writes to innovations/<category>-<id>.md — a brand-new file that
       // does not exist on any other branch, so conflicts are structurally impossible.
-      const proposalFilePath = `innovations/${proposal.category}-${proposal.id}.md`;
+      const proposalFilePath = `${INNOVATIONS_DIR}/${proposal.category}-${proposal.id}.md`;
       const logContent = [
         `# Auto-Innovation Proposal`,
         ``,
