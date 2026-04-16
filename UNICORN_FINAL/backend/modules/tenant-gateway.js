@@ -190,8 +190,10 @@ async function tenantGateway(req, res, next) {
         tenant = tenantEngine.getTenantBySlug(pathInfo.slug);
         if (tenant) {
           tenantId = tenant.id;
-          // Rewrite path so downstream handlers see clean path
-          // Rescrie calea astfel încât handler-ele downstream văd calea curată
+          // Rewrite req.url (used by Express routing) and req.path (if defined).
+          // req.url is directly assignable; req.path is a getter on Express req
+          // so Object.defineProperty is needed to override it.
+          // Rescrie req.url (folosit de Express) și req.path (dacă e definit).
           req.url = pathInfo.rewrittenPath;
           if (req.path !== undefined) {
             Object.defineProperty(req, 'path', { value: pathInfo.rewrittenPath, writable: true, configurable: true });
@@ -226,12 +228,12 @@ async function tenantGateway(req, res, next) {
     }
 
     // ------------------------------------------------------------------
-    // 3. API Key Validation note
-    // Validare cheie API — getTenantByApiKey already verified active key
-    // and updated lastUsedAt. Additional guard for non-API-key paths done
-    // via tenant status check above.
+    // 3. API Key Validation
+    // Validare cheie API — getTenantByApiKey already verified the key is
+    // active and updated lastUsedAt. Tenant status check above covers the
+    // remaining guard.
     // ------------------------------------------------------------------
-    // (handled inline in step 1b via getTenantByApiKey)
+    // (resolved inline at step 1b via getTenantByApiKey)
 
     // ------------------------------------------------------------------
     // 4. Per-tenant Rate Limiting / Limitare rată per tenant
@@ -244,11 +246,34 @@ async function tenantGateway(req, res, next) {
     }
 
     // ------------------------------------------------------------------
+    // 5. Feature Flag Enforcement — delegated to requireFeature() factory
+    // Aplicarea flag-urilor de funcționalitate — delegată fabricii requireFeature()
+    // ------------------------------------------------------------------
+
+    // ------------------------------------------------------------------
+    // 6. Usage Tracking after response / Tracking utilizare după răspuns
+    // ------------------------------------------------------------------
+
+    res.on('finish', () => {
+      try {
+        tenantEngine.incrementUsage(tenantId, 'requests', 1);
+      } catch (_e) {
+        // Silent — don't crash the app on usage tracking failures
+        // Silențios — nu oprimi aplicația din cauza erorilor de tracking
+      }
+    });
+
+    // ------------------------------------------------------------------
     // 7. Tenant Context Injection / Injectare context tenant
     // ------------------------------------------------------------------
 
     req.tenantId = tenantId;
     req.tenantContext = tenantEngine.getTenantContext(tenantId);
+
+    // ------------------------------------------------------------------
+    // 8 & 9. Exports & Bypass — handled at module level (see exports below)
+    // Exporturi & bypass — gestionate la nivel de modul (vezi exporturi)
+    // ------------------------------------------------------------------
 
     // ------------------------------------------------------------------
     // 10. Logging / Jurnalizare
@@ -264,19 +289,6 @@ async function tenantGateway(req, res, next) {
     } catch (_logErr) {
       // Non-fatal / Non-fatal
     }
-
-    // ------------------------------------------------------------------
-    // 6. Usage Tracking after response / Tracking utilizare după răspuns
-    // ------------------------------------------------------------------
-
-    res.on('finish', () => {
-      try {
-        tenantEngine.incrementUsage(tenantId, 'requests', 1);
-      } catch (_e) {
-        // Silent — don't crash the app on usage tracking failures
-        // Silențios — nu oprimi aplicația din cauza erorilor de tracking
-      }
-    });
 
     _trackStat(tenantId, 'totalRequests');
     next();
