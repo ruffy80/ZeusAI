@@ -349,6 +349,9 @@ function createTenant(data) {
   // Log creation event / Înregistrează evenimentul de creare
   logEvent(tenantId, 'tenant.created', { slug, planId, email });
 
+  return { ...tenant };
+}
+
 const EventEmitter = require('events');
 
 // ==================== CONSTANTS ====================
@@ -1245,6 +1248,9 @@ module.exports = {
   // Admin / Administrare
   getAllTenants,
   getStats,
+};
+
+/**
  * Suspend tenant — blocks all API requests for this tenant.
  */
 function suspendTenant(tenantId, reason = 'admin_action', actorId = 'system') {

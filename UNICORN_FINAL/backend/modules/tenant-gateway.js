@@ -346,7 +346,34 @@ function requirePlan(minPlan) {
         error: 'Plan upgrade required',
         requiredPlan: minPlan,
         currentPlan: tenantPlanId,
-'use strict';
+      });
+    }
+    next();
+  };
+}
+
+// ---------------------------------------------------------------------------
+// getGatewayStats() — basic stats helper used in module.exports below
+// ---------------------------------------------------------------------------
+function getGatewayStats() {
+  return { activeWindows: _minuteWindows ? _minuteWindows.size : 0 };
+}
+
+module.exports = {
+  tenantGateway,
+  requireFeature,
+  requirePlan,
+  tenantRateLimit,
+  getGatewayStats,
+};
+
+/* ============================================================================
+ * TENANT GATEWAY v2 — Zeus AI Unicorn Multi-Tenant SaaS Platform (continued)
+ * The second implementation below overrides module.exports with a richer set
+ * of exports that are used by index.js. The code above completes the first
+ * implementation to avoid syntax errors from the merged-file artifact.
+ * ============================================================================
+ */
 
 /**
  * TENANT GATEWAY — Zeus AI Unicorn Multi-Tenant SaaS Platform
@@ -533,12 +560,6 @@ function getGatewayStats() {
 // ---------------------------------------------------------------------------
 // Exports / Exporturi
 // ---------------------------------------------------------------------------
-module.exports = {
-  tenantGateway,
-  requireFeature,
-  requirePlan,
-  tenantRateLimit,
-  getGatewayStats,
 function getStatus() {
   return {
     module: 'TenantGateway',
@@ -553,4 +574,5 @@ module.exports = {
   requireFeature,
   resolveTenant,
   getStatus,
+  getGatewayStats,
 };

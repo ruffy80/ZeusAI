@@ -582,8 +582,8 @@ const usiReasoning   = require('./modules/unicorn-super-intelligence/reasoning')
 const usiPersonality = require('./modules/unicorn-super-intelligence/personality');
 
 // ==================== MULTI-TENANT ENGINE v4 ====================
-const tenantEngine       = require('./modules/tenant-engine');
-const { tenantGateway, requireFeature, requirePlan: requireTenantPlan, getGatewayStats } = require('./modules/tenant-gateway');
+// tenantEngine already required above (line ~512); avoid duplicate const declaration
+const { requireFeature, requirePlan: requireTenantPlan, getGatewayStats } = require('./modules/tenant-gateway');
 const billingEngine      = require('./modules/billing-engine');
 const orchestratorV4     = require('./modules/orchestrator-v4');
 const seeEngine          = require('./modules/self-evolving-engine');
@@ -771,7 +771,8 @@ const tenantGateway      = require('./modules/tenant-gateway');
 const tenantProvisioning = require('./modules/tenant-provisioning');
 const tenantBilling      = require('./modules/tenant-billing');
 const tenantAnalytics    = require('./modules/tenant-analytics');
-const orchestratorV4     = require('./modules/orchestrator-v4');
+// orchestratorV4 already required above (line ~588); avoid duplicate const declaration
+// const orchestratorV4  = require('./modules/orchestrator-v4');
 const globalLBModule     = require('./modules/global-load-balancer');
 
 // Apply tenant analytics middleware (auto-track after tenant context attached)
@@ -787,9 +788,9 @@ try { _aiAutoDispatcher = require('./modules/ai-auto-dispatcher'); } catch (e) {
 }
 
 // ==================== GLOBAL SAAS PLATFORM MODULES ====================
-const tenantManager      = require('./modules/tenant-manager');
+// tenantManager already required above; avoid duplicate
 const globalApiGateway   = require('./modules/global-api-gateway');
-const billingEngine      = require('./modules/billing-engine');
+// billingEngine already required above (line ~587); avoid duplicate
 const provisioningEngine = require('./modules/provisioning-engine');
 const globalFailover     = require('./modules/global-failover');
 const saasOrchestratorV4 = require('./modules/saas-orchestrator-v4');
@@ -5572,6 +5573,11 @@ app.post('/api/saas/tenants', adminCrudRateLimit, adminTokenMiddleware, (req, re
       metadata,
     });
     res.status(201).json(tenant);
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
 // ==================== GLOBAL SAAS PLATFORM API ROUTES ====================
 
 // ── Tenant Manager ────────────────────────────────────────────────────────────
@@ -5622,6 +5628,11 @@ app.post('/api/saas/tenants/:id/activate', adminCrudRateLimit, adminTokenMiddlew
   try {
     const tenant = tenantEngine.activateTenant(req.params.id, 'admin');
     res.json(tenant);
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
 app.get('/api/saas/tenants', adminTokenMiddleware, (req, res) => {
   const { status, plan, region, page, limit } = req.query;
   res.json(tenantManager.listTenants({
@@ -5924,6 +5935,8 @@ app.get('/api/saas/global/health', adminTokenMiddleware, (req, res) => {
 
 app.get('/api/saas/regions', routeCache.cacheMiddleware(), (req, res) => {
   res.json({ regions: tenantEngine.getRegionStatus() });
+});
+
 app.post('/api/saas/tenants/:id/suspend', adminTokenMiddleware, (req, res) => {
   try {
     res.json(tenantManager.suspendTenant(req.params.id, (req.body || {}).reason));

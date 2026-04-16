@@ -1,3 +1,11 @@
+// =====================================================================
+// OWNERSHIP: Acest fișier este proprietatea exclusivă a lui Vladoi Ionut
+// Email: vladoi_ionut@yahoo.com
+// BTC Address: bc1q4f7e66z87mdfj56kz0dj5hvcnpmh0qh4wuv22e
+// Data: 2026-04-16T13:16:24.270Z
+// Orice copiere, modificare sau distribuție neautorizată este interzisă.
+// =====================================================================
+
 'use strict';
 
 /**
@@ -544,7 +552,7 @@ module.exports = {
  * Each tenant gets its own namespace, resource limits, and AI config.
  */
 
-const crypto = require('crypto');
+// crypto already required at top of file (line 16); avoid duplicate declaration
 const { EventEmitter } = require('events');
 
 // ─── In-memory tenant store ───────────────────────────────────────────────────
@@ -553,7 +561,7 @@ const subdomainIndex = new Map(); // subdomain → tenantId
 const apiKeyIndex = new Map();    // apiKey → tenantId
 
 // ─── Default plans ───────────────────────────────────────────────────────────
-const PLANS = {
+const _TENANT_PLANS = {
   free: {
     name: 'Free',
     maxUsers: 5,
@@ -646,7 +654,7 @@ class TenantManager extends EventEmitter {
         users: 0,
         lastResetAt: now,
       },
-      limits: { ...PLANS[plan] || PLANS.free },
+      limits: { ..._TENANT_PLANS[plan] || _TENANT_PLANS.free },
       createdAt: now,
       updatedAt: now,
     };
@@ -707,8 +715,8 @@ class TenantManager extends EventEmitter {
         }
       }
     }
-    if (updates.plan && PLANS[updates.plan]) {
-      tenant.limits = { ...PLANS[updates.plan] };
+    if (updates.plan && _TENANT_PLANS[updates.plan]) {
+      tenant.limits = { ..._TENANT_PLANS[updates.plan] };
     }
     tenant.updatedAt = new Date().toISOString();
     this.emit('tenant:updated', { tenantId, updates });
@@ -825,14 +833,14 @@ class TenantManager extends EventEmitter {
       total: tenants.length,
       byStatus,
       byPlan,
-      plans: Object.keys(PLANS),
+      plans: Object.keys(_TENANT_PLANS),
       uptime: Math.floor((Date.now() - this.startTime) / 1000),
     };
   }
 
-  getPlans() { return PLANS; }
+  getPlans() { return _TENANT_PLANS; }
 }
 
 module.exports = new TenantManager();
 module.exports.TenantManager = TenantManager;
-module.exports.PLANS = PLANS;
+module.exports._TENANT_PLANS = _TENANT_PLANS;

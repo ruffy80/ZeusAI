@@ -12,7 +12,7 @@ const { EventEmitter } = require('events');
 const crypto = require('crypto');
 
 // ─── Module context → task type mapping ───────────────────────────────────────
-const MODULE_CONTEXT_MAP = {
+const _MODULE_CONTEXT_MAP_V1 = {
   'billing':    'reasoning',
   'analytics':  'analysis',
   'code':       'coding',
@@ -45,11 +45,9 @@ class AIAutoDispatcher extends EventEmitter {
   // ── Resolve task type from context & message ──────────────────────────────
   resolveTaskType(context, message) {
     // First try context map
-    for (const [key, type] of Object.entries(MODULE_CONTEXT_MAP)) {
+    for (const [key, type] of Object.entries(_MODULE_CONTEXT_MAP_V1)) {
       if (context && context.toLowerCase().includes(key)) return type;
     }
-
-    // Then try auto-detection via ai-orchestrator
     try {
       const orch = require('./ai-orchestrator');
       if (orch && typeof orch.autoDetectTaskType === 'function') {

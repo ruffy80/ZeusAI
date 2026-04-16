@@ -21,6 +21,8 @@
 'use strict';
 
 const crypto       = require('crypto');
+const fs           = require('fs');
+const path         = require('path');
 const cron         = require('node-cron');
 const express      = require('express');
 const tenantEngine = require('./tenant-engine');
@@ -31,6 +33,40 @@ const billingEngine = require('./billing-engine');
 // ---------------------------------------------------------------------------
 const MODULE_TIMEOUT_MS = parseInt(process.env.MODULE_TIMEOUT_MS, 10) || 30_000;
 const TCL_TTL_MS        = 30_000; // 30 s context cache TTL
+
+// ---------------------------------------------------------------------------
+// Security: safe module-name validation and path resolver
+// Securitate: validare sigură a numelui de modul și resolver de cale
+// ---------------------------------------------------------------------------
+// Only allow simple names: alphanumeric, hyphens, underscores, no path separators
+const _SAFE_MODULE_NAME_RE = /^[a-zA-Z0-9_-]{1,100}$/;
+const _MODULES_BASE_DIR    = path.resolve(__dirname);
+
+/**
+ * safePath — validates that a module name is safe (no path traversal) and
+ * returns the resolved absolute path only when it resides inside MODULES_BASE_DIR.
+ * Returns null when the name is rejected, so callers can fall back to stub.
+ * Validează că un nume de modul este sigur și returnează calea absolută rezolvată.
+ * @param {string} moduleName
+ * @returns {string|null}
+ */
+function safePath(moduleName) {
+  if (typeof moduleName !== 'string' || !_SAFE_MODULE_NAME_RE.test(moduleName)) {
+    console.warn('[orchestrator-v4] Rejected unsafe module name:', String(moduleName).slice(0, 80));
+    return null;
+  }
+  const resolved = path.resolve(_MODULES_BASE_DIR, moduleName + '.js');
+  // Ensure resolved path stays within the modules directory (prevents traversal)
+  if (!resolved.startsWith(_MODULES_BASE_DIR + path.sep) && resolved !== _MODULES_BASE_DIR) {
+    console.warn('[orchestrator-v4] Path traversal attempt blocked for:', moduleName);
+    return null;
+  }
+  // Verify the file actually exists on disk (whitelist by existence)
+  if (!fs.existsSync(resolved)) {
+    return null; // module not on disk — treated as stub
+  }
+  return resolved;
+}
 
 // ---------------------------------------------------------------------------
 // Utility: promisified timeout wrapper
@@ -127,9 +163,12 @@ async function executeModuleForTenant(tenantId, moduleName, input, opts = {}) {
     result = await _withTimeout(() => {
       // Attempt to require the module if it exists, else call a stub
       // Încearcă să încarce modulul dacă există, altfel apelează un stub
+      // safePath() validates the name against a strict regex and ensures the
+      // resolved path stays inside __dirname (prevents path traversal / injection).
       let mod;
+      const resolvedPath = safePath(moduleName);
       try {
-        mod = require(`./${moduleName}`);
+        mod = resolvedPath ? require(resolvedPath) : null;
       } catch (_) {
         mod = null;
       }
@@ -690,11 +729,11 @@ let _cronWds    = null;
 let _cronGob    = null;
 
 // =============================================================================
-// Singleton orchestratorV4 export
-// Export singleton orchestratorV4
+// Legacy subsystem methods (TCL / MSE / SCH / AHE / WDS / GOB)
+// Metode subsistem vechi — delegate-uri din instanța OrchestratorV4 de mai jos
 // =============================================================================
 
-const orchestratorV4 = {
+const _legacyOrch = {
   // ------- TCL -------
   loadTenantContext,
   invalidateTenantContext,
@@ -1167,5 +1206,21 @@ class OrchestratorV4 extends EventEmitter {
 // ── Singleton ─────────────────────────────────────────────────────────────────
 const orchestratorV4 = new OrchestratorV4();
 orchestratorV4.start();
+
+// Attach legacy subsystem methods not present on OrchestratorV4 class
+// Atașare metode subsistem vechi care nu există pe clasa OrchestratorV4
+orchestratorV4.init               = () => _legacyOrch.init();
+orchestratorV4.createExpressRouter = () => _legacyOrch.createExpressRouter();
+orchestratorV4.executeModuleForTenant = _legacyOrch.executeModuleForTenant;
+orchestratorV4.scheduleJob            = _legacyOrch.scheduleJob;
+orchestratorV4.cancelJob              = _legacyOrch.cancelJob;
+orchestratorV4.getJobs                = _legacyOrch.getJobs;
+orchestratorV4.runJob                 = _legacyOrch.runJob;
+orchestratorV4.getSchedulerStatus     = _legacyOrch.getSchedulerStatus;
+orchestratorV4.repairModule           = _legacyOrch.repairModule;
+orchestratorV4.getHealHistory         = _legacyOrch.getHealHistory;
+orchestratorV4.getShieldStatus        = _legacyOrch.getShieldStatus;
+orchestratorV4.loadTenantContext      = _legacyOrch.loadTenantContext;
+orchestratorV4.invalidateTenantContext = _legacyOrch.invalidateTenantContext;
 
 module.exports = orchestratorV4;
