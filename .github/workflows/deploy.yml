@@ -145,6 +145,25 @@ jobs:
           #   - obtains new cert on fresh install
           ADMIN_EMAIL="${SMTP_USER:-admin@zeusai.pro}"
           bash "$DEPLOY_PATH/scripts/setup-ssl.sh" "$DOMAIN" "$ADMIN_EMAIL" "$DEPLOY_PATH" || true
+          # HTTPS recovery: dacă portul 443 nu ascultă după setup-ssl.sh, forțează certbot reinstall
+          echo "--- Verificare port 443 post-SSL ---"
+          if ! ss -tlnp 2>/dev/null | grep -q ':443'; then
+            echo "⚠️  Port 443 inactiv — forțez certbot reinstall nginx SSL..."
+            certbot --nginx -d "${DOMAIN}" \
+              --non-interactive --agree-tos --email "${ADMIN_EMAIL}" \
+              --redirect --keep-until-expiring 2>&1 | tail -20 || \
+            certbot --nginx -d "${DOMAIN}" \
+              --non-interactive --agree-tos --email "admin@${DOMAIN}" \
+              --keep-until-expiring 2>&1 | tail -20 || true
+            systemctl reload nginx 2>/dev/null || service nginx reload 2>/dev/null || true
+            if ss -tlnp 2>/dev/null | grep -q ':443'; then
+              echo "✅ Port 443 activ după certbot reinstall"
+            else
+              echo "⚠️  Port 443 tot inactiv — verificați DNS și certbot: certbot certificates"
+            fi
+          else
+            echo "✅ Port 443 activ"
+          fi
           # Persist PM2 process list for systemd resurrection at boot
           pm2 save --force 2>/dev/null || true
           echo "✅ Deploy complet: $(pm2 list 2>/dev/null | grep -c online || echo '?') procese PM2 online"
@@ -155,20 +174,22 @@ jobs:
           sleep 20
           STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
             --max-time 15 \
-            "http://${{ secrets.HETZNER_HOST }}:3000/health" || echo "000")
+            "http://${{ secrets.HETZNER_HOST }}:3000/health" 2>/dev/null || true)
           echo "Health check Node.js port 3000: $STATUS"
           NGINX_STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
             --max-time 15 \
-            "http://${{ secrets.HETZNER_HOST }}/health" || echo "000")
+            "http://${{ secrets.HETZNER_HOST }}/health" 2>/dev/null || true)
           echo "Health check Nginx port 80: $NGINX_STATUS"
           # Verificare domeniu real (zeusai.pro) — HTTP și HTTPS
-          DOMAIN_HTTP=$(curl -s -o /dev/null -w "%{http_code}" \
+          # Notă: nu folosi || echo "000" cu %{http_code} — curl scrie deja 000 pe stdout
+          # la eroare de conectare, iar || echo "000" ar adăuga un al doilea 000 → "000000"
+          DOMAIN_HTTP=$(curl -sL -o /dev/null -w "%{http_code}" \
             --max-time 15 \
-            "http://zeusai.pro/health" || echo "000")
+            "http://zeusai.pro/health" 2>/dev/null || true)
           echo "Health check domain HTTP zeusai.pro: $DOMAIN_HTTP"
-          DOMAIN_HTTPS=$(curl -sk -o /dev/null -w "%{http_code}" \
+          DOMAIN_HTTPS=$(curl -skL -o /dev/null -w "%{http_code}" \
             --max-time 15 \
-            "https://zeusai.pro/health" || echo "000")
+            "https://zeusai.pro/health" 2>/dev/null || true)
           echo "Health check domain HTTPS zeusai.pro: $DOMAIN_HTTPS"
           if [ "$STATUS" = "200" ] && [ "$NGINX_STATUS" = "200" ]; then
             echo "✅ Site LIVE — Node.js și Nginx funcționează corect"
@@ -184,9 +205,21 @@ jobs:
           if [ "$DOMAIN_HTTP" = "200" ] || [ "$DOMAIN_HTTPS" = "200" ]; then
             echo "✅ Domeniu zeusai.pro accesibil (HTTP=$DOMAIN_HTTP HTTPS=$DOMAIN_HTTPS)"
           else
-            echo "⚠️  zeusai.pro NU răspunde (HTTP=$DOMAIN_HTTP HTTPS=$DOMAIN_HTTPS) — DNS sau SSL poate fi neconfigurate"
+            echo "⚠️  zeusai.pro NU răspunde (HTTP=$DOMAIN_HTTP HTTPS=$DOMAIN_HTTPS) — forțez recovery SSL remote..."
             ssh -o StrictHostKeyChecking=no root@${{ secrets.HETZNER_HOST }} \
-              "certbot certificates 2>/dev/null || true; ss -tlnp | grep ':80\|:443' || true; nginx -T 2>/dev/null | grep -E 'server_name|listen|ssl_certificate' || true" || true
+              "certbot certificates 2>/dev/null || true; ss -tlnp | grep ':80\|:443' || true; \
+               if ! ss -tlnp | grep -q ':443'; then \
+                 certbot --nginx -d zeusai.pro --non-interactive --agree-tos --email admin@zeusai.pro --redirect --keep-until-expiring 2>&1 | tail -20 || true; \
+                 systemctl reload nginx 2>/dev/null || true; \
+                 echo 'Post-recovery HTTPS:'; curl -sk -o /dev/null -w '%{http_code}' https://zeusai.pro/health 2>/dev/null; echo ''; \
+               fi; \
+               nginx -T 2>/dev/null | grep -E 'server_name|listen|ssl_certificate' | head -10 || true" || true
+          fi
+          # Raport final HTTPS
+          if [ "$DOMAIN_HTTPS" = "200" ]; then
+            echo "✅ HTTPS zeusai.pro funcțional"
+          else
+            echo "⚠️  HTTPS zeusai.pro: $DOMAIN_HTTPS — SSL necesită verificare manuală dacă DNS e greșit"
           fi
 
       - name: 📢 Done
