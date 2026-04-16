@@ -123,46 +123,54 @@ jobs:
           SITE_DOMAIN: zeusai.pro
         run: |
           ssh -o StrictHostKeyChecking=no root@${{ secrets.HETZNER_HOST }} bash -s << 'SSHEOF'
-          set -euo pipefail
+          # set -uo pipefail (fără -e): fiecare comandă critică are || true explicit, deci
+          # erorile individuale sunt raportate dar scriptul continuă — serverul nu rămâne
+          # în stare incompletă din cauza unui singur pas eșuat (ex: pm2 delete pe un server fresh).
+          set -uo pipefail
           DEPLOY_PATH=/var/www/unicorn/UNICORN_FINAL
           DOMAIN=zeusai.pro
           # Make all scripts executable
           find "$DEPLOY_PATH" -name "*.sh" -type f -exec chmod +x {} \; 2>/dev/null || true
           # Run server-doctor with correct DEPLOY_PATH so it finds ecosystem.config.js,
-          # .env, nginx-unicorn.conf and runs npm ci in the right directory
+          # .env, nginx-unicorn.conf, runs npm ci and restarts PM2 in the right directory.
+          # server-doctor.sh handles: Node.js install, pm2 install, npm ci, nginx, firewall,
+          # pm2 startup systemd, pm2 delete all + start ecosystem.config.js + pm2 save.
           bash "$DEPLOY_PATH/server-doctor.sh" "$DEPLOY_PATH" "$DOMAIN" || true
-          # Ensure SSL / HTTPS is active (idempotent — no-op when cert already valid)
+          # Ensure SSL / HTTPS is active:
+          #   - preserves certbot SSL blocks if already present
+          #   - reinstalls SSL blocks if cert exists but blocks were wiped (recovery)
+          #   - obtains new cert on fresh install
           ADMIN_EMAIL="${SMTP_USER:-admin@zeusai.pro}"
           bash "$DEPLOY_PATH/scripts/setup-ssl.sh" "$DOMAIN" "$ADMIN_EMAIL" "$DEPLOY_PATH" || true
-          # Final pm2 save (server-doctor already started all processes)
+          # Persist PM2 process list for systemd resurrection at boot
           pm2 save --force 2>/dev/null || true
           echo "✅ Deploy complet: $(pm2 list 2>/dev/null | grep -c online || echo '?') procese PM2 online"
           SSHEOF
-          ssh -o StrictHostKeyChecking=no root@${{ secrets.HETZNER_HOST }} bash << 'ENDSSH'
-            set -e
-            chmod +x /var/www/unicorn/UNICORN_FINAL/server-doctor.sh
-            /var/www/unicorn/UNICORN_FINAL/server-doctor.sh || true
-            cd /var/www/unicorn/UNICORN_FINAL
-            npm ci --omit=dev --prefer-offline 2>&1 | tail -5 || npm install --omit=dev 2>&1 | tail -5
-            pm2 delete all || true
-            pm2 start /var/www/unicorn/UNICORN_FINAL/ecosystem.config.js --update-env
-            pm2 save --force 2>/dev/null || true
-            pm2 startup systemd -u root --hp /root 2>/dev/null || true
-          ENDSSH
 
       - name: 🏥 Health Check
         run: |
-          sleep 15
+          sleep 20
           STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
             --max-time 15 \
             "http://${{ secrets.HETZNER_HOST }}:3000/health" || echo "000")
-          echo "Health check HTTP status: $STATUS"
-          if [ "$STATUS" = "200" ]; then
-            echo "✅ Site LIVE — /health returned 200"
+          echo "Health check Node.js port 3000: $STATUS"
+          NGINX_STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
+            --max-time 15 \
+            "http://${{ secrets.HETZNER_HOST }}/health" || echo "000")
+          echo "Health check Nginx port 80: $NGINX_STATUS"
+          if [ "$STATUS" = "200" ] && [ "$NGINX_STATUS" = "200" ]; then
+            echo "✅ Site LIVE — Node.js și Nginx funcționează corect"
+          elif [ "$STATUS" = "200" ]; then
+            echo "⚠️  Node.js OK dar Nginx NU răspunde pe port 80 (status: $NGINX_STATUS) — auto-recovery..."
+            ssh -o StrictHostKeyChecking=no root@${{ secrets.HETZNER_HOST }} bash << 'HEALSH'
+              nginx -t 2>&1 && systemctl restart nginx && echo "✅ Nginx restarted" || true
+              ss -tlnp | grep ':80\|:443' || true
+              pm2 list 2>/dev/null | tail -5 || true
+            HEALSH
           else
-            echo "⚠️  Health returned $STATUS — checking PM2 status..."
+            echo "⚠️  Health returned Node=$STATUS Nginx=$NGINX_STATUS — checking PM2 status..."
             ssh -o StrictHostKeyChecking=no root@${{ secrets.HETZNER_HOST }} \
-              "pm2 list && pm2 logs unicorn --lines 20 --nostream" || true
+              "pm2 list && pm2 logs unicorn --lines 30 --nostream" || true
           fi
 
       - name: 📢 Done
