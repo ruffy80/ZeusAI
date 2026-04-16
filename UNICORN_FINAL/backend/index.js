@@ -759,6 +759,11 @@ const serviceWatchdog      = require('./modules/service-watchdog');
 // ==================== ZERO DOWNTIME + AI SMART CACHE ====================
 const zeroDT        = require('../scripts/zero-downtime-controller');
 const aiSmartCache  = require('./modules/ai-smart-cache');
+// 🤖 AI Auto Dispatcher — conectează automat toate modulele unicornului la AI-ul potrivit
+let _aiAutoDispatcher = null;
+try { _aiAutoDispatcher = require('./modules/ai-auto-dispatcher'); } catch (e) {
+  console.warn('[Backend] ai-auto-dispatcher not loaded:', e.message);
+}
 
 // ==================== MODULE REGISTRY (292+ modules) ====================
 // Registru complet al tuturor modulelor încărcate, organizate pe categorii.
@@ -814,6 +819,7 @@ const MODULE_REGISTRY = {
     'aiProviders',
     'multi-model-router',
     'ai-orchestrator',
+    'ai-auto-dispatcher',
     'ai-self-healing',
     'ai-smart-cache',
     'ai-sales-closer',
@@ -1224,17 +1230,32 @@ try { _llamaBridge = require('./modules/llamaBridge'); } catch { /* optional */ 
 const ZEUS_SYSTEM = 'You are Zeus AI Assistant, an expert in business automation, AI, blockchain, payments, and enterprise solutions. Be concise and helpful. You can also respond in Romanian if the user writes in Romanian.';
 
 app.post('/api/chat', authRateLimit(30, 60_000), async (req, res) => {
-  const { message, history = [], taskType = 'chat' } = req.body || {};
+  const { message, history = [], taskType = 'auto' } = req.body || {};
   if (!message) return res.status(400).json({ error: 'message required' });
   const cleanMessage = sanitizeString(message, 2000);
   if (!cleanMessage) return res.status(400).json({ error: 'message required' });
   if (!Array.isArray(history)) return res.status(400).json({ error: 'history must be an array' });
 
-  // 1️⃣ AI Orchestrator — routing inteligent (15 providers, fallback automat, cost optimizer)
+  // 1️⃣ AI Auto Dispatcher — detecție automată tip task + routing la cel mai bun AI
+  if (_aiAutoDispatcher) {
+    try {
+      const dispResult = await _aiAutoDispatcher.dispatch(cleanMessage, {
+        context: 'chat',
+        taskType: taskType === 'auto' ? null : taskType,
+        history,
+        useCache: true,
+      });
+      if (dispResult && dispResult.reply) return res.json(dispResult);
+    } catch (err) {
+      console.warn('[Chat] AIAutoDispatcher eșuat:', err.message);
+    }
+  }
+
+  // 2️⃣ AI Orchestrator — routing inteligent (15 providers, fallback automat, cost optimizer)
   if (_aiOrchestrator) {
     try {
       const orchResult = await _aiOrchestrator.ask(message, {
-        taskType: taskType || 'chat',
+        taskType: taskType === 'auto' ? 'auto' : (taskType || 'auto'),
         history,
         useCache: true,
       });
@@ -1450,6 +1471,47 @@ app.post('/api/admin/multi-router/reset', adminCrudRateLimit, adminTokenMiddlewa
   if (!_multiRouter) return res.status(503).json({ error: 'multi-model-router not loaded' });
   _multiRouter.resetStats();
   res.json({ success: true, message: 'Statistici resetate' });
+});
+
+// ==================== AI AUTO DISPATCHER API ====================
+// GET /api/ai/dispatch/status — status dispatcher + statistici routing automat
+app.get('/api/ai/dispatch/status', routeCache.cacheMiddleware(), (req, res) => {
+  if (!_aiAutoDispatcher) return res.status(503).json({ error: 'ai-auto-dispatcher not loaded' });
+  res.json(_aiAutoDispatcher.getStatus());
+});
+
+// POST /api/ai/dispatch — dispatch automat: detectează tipul task-ului și rutează la cel mai bun AI
+app.post('/api/ai/dispatch', authRateLimit(30, 60_000), async (req, res) => {
+  if (!_aiAutoDispatcher) return res.status(503).json({ error: 'ai-auto-dispatcher not loaded' });
+  const { message, context = 'default', taskType, history = [], systemPrompt, preferProvider } = req.body || {};
+  if (!message) return res.status(400).json({ error: 'message required' });
+  const cleanMessage = sanitizeString(message, 2000);
+  if (!cleanMessage) return res.status(400).json({ error: 'message required' });
+  try {
+    const result = await _aiAutoDispatcher.dispatch(cleanMessage, {
+      context, taskType, history, systemPrompt, preferProvider,
+    });
+    if (!result) return res.status(503).json({ error: 'all AI providers failed' });
+    res.json(result);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/ai/dispatch/batch — dispatch multiple task-uri în paralel
+app.post('/api/ai/dispatch/batch', authRateLimit(10, 60_000), async (req, res) => {
+  if (!_aiAutoDispatcher) return res.status(503).json({ error: 'ai-auto-dispatcher not loaded' });
+  const { tasks } = req.body || {};
+  if (!Array.isArray(tasks) || tasks.length === 0) return res.status(400).json({ error: 'tasks array required' });
+  if (tasks.length > 10) return res.status(400).json({ error: 'max 10 tasks per batch' });
+  try {
+    const results = await _aiAutoDispatcher.dispatchBatch(
+      tasks.map(t => ({ ...t, message: sanitizeString(t.message, 2000) }))
+    );
+    res.json({ results, total: tasks.length, timestamp: new Date().toISOString() });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 // ==================== ROUTE PERFORMANCE & CACHE API (PR #194) ====================
