@@ -290,8 +290,8 @@ const PROVIDER_FNS = {
   },
 
   huggingface: async (message, history) => {
-    const key = process.env.HF_API_KEY;
-    if (!key || key === 'your_hf_api_key_here') return null;
+    const key = process.env.HUGGINGFACE_API_KEY || process.env.HF_API_KEY;
+    if (!key || key.startsWith('your_')) return null;
     const model = process.env.HF_MODEL || 'mistralai/Mistral-7B-Instruct-v0.3';
     const resp = await axios.post(
       `https://api-inference.huggingface.co/models/${model}/v1/chat/completions`,
@@ -368,7 +368,7 @@ const PROVIDER_ENV = {
   openai:      { key: 'OPENAI_API_KEY',      placeholder: 'your_openai_api_key_here' },
   openrouter:  { key: 'OPENROUTER_API_KEY',  placeholder: 'your_openrouter_api_key_here' },
   perplexity:  { key: 'PERPLEXITY_API_KEY',  placeholder: 'your_perplexity_api_key_here' },
-  huggingface: { key: 'HF_API_KEY',          placeholder: 'your_hf_api_key_here' },
+  huggingface: { key: 'HUGGINGFACE_API_KEY',  placeholder: 'your_huggingface_api_key_here' },
   together:    { key: 'TOGETHER_API_KEY',    placeholder: 'your_together_api_key_here' },
   fireworks:   { key: 'FIREWORKS_API_KEY',   placeholder: 'your_fireworks_api_key_here' },
   sambanova:   { key: 'SAMBANOVA_API_KEY',   placeholder: 'your_sambanova_api_key_here' },
@@ -386,34 +386,72 @@ function isConfigured(name) {
 // ─── Validated set of known provider names ────────────────────────────────
 const KNOWN_PROVIDERS = new Set(Object.keys(PROVIDER_ENV));
 
+// ─── Auto task-type detection ──────────────────────────────────────────────
+// Keyword sets used to identify task types from message content
+const DETECT_PATTERNS = {
+  coding:          /\b(code|coding|program|function|bug|debug|script|python|javascript|typescript|java|rust|golang|sql|html|css|api|implement|refactor|unit\s*test)\b/,
+  embeddings:      /\b(embed|embedding|vector|similarity|semantic\s+search|nearest\s+neighbor|cosine)\b/,
+  search_reasoning:/\b(search|find|latest|news|current|today|trending|what\s+happened|who\s+is|where\s+is)\b/,
+  tool_use:        /\b(automate|execute|schedule|trigger|workflow|action|tool|agent)\b/,
+  analysis:        /\b(analy[sz]e|analiz[aă]|report|raport|audit|review|evaluat|assess|compare|compar|benchmark|breakdown)\b/,
+  reasoning:       /\b(explain|why|how\s+does|reason|logic|think|deduce|infer|proof|math|calculate|formula|strateg)\b/,
+  optimization:    /\b(optimi[sz]e|optimi[sz]ă|improve|improv|boost|enhance|efficient|performance|speed\s+up)\b/,
+};
+
+/**
+ * Automatically detect the best task type from message content.
+ * Returns a key from TASK_ROUTING.
+ */
+function autoDetectTaskType(message) {
+  const m = String(message || '').toLowerCase();
+
+  for (const [taskType, pattern] of Object.entries(DETECT_PATTERNS)) {
+    if (pattern.test(m)) return taskType;
+  }
+
+  // Fast / simple — short messages need minimal processing
+  if (m.length < 60) return 'fast';
+
+  // Default: conversational chat
+  return 'chat';
+}
+
 // ─── Core: ask() with intelligent routing ─────────────────────────────────
 /**
  * Route a request to the best available AI provider.
+ * taskType is auto-detected from message content when set to 'auto', 'default', or 'chat'.
  *
  * @param {string} message
  * @param {object} opts
- * @param {string}  [opts.taskType='default']   - coding|reasoning|embeddings|search_reasoning|tool_use|text_generation|analysis|optimization|chat|fast|cheap|premium|open_source|default
- * @param {string}  [opts.preferProvider]       - force a specific provider first
+ * @param {string}  [opts.taskType='auto']       - auto|coding|reasoning|embeddings|search_reasoning|tool_use|text_generation|analysis|optimization|chat|fast|cheap|premium|open_source|default
+ * @param {string}  [opts.preferProvider]        - force a specific provider first
  * @param {boolean} [opts.useCache=true]
  * @param {Array}   [opts.history=[]]
- * @returns {Promise<{reply:string, model:string, provider:string, latencyMs:number, cached:boolean}>}
+ * @returns {Promise<{reply:string, model:string, provider:string, latencyMs:number, cached:boolean, detectedTaskType:string}>}
  */
 async function ask(message, opts = {}) {
   const {
-    taskType     = 'default',
+    taskType     = 'auto',
     preferProvider = null,
     useCache     = true,
     history      = [],
   } = opts;
 
+  // Auto-detect task type when not explicitly specified
+  const resolvedTaskType = (taskType === 'auto' || taskType === 'default' || taskType === 'chat')
+    ? autoDetectTaskType(message)
+    : taskType;
+
   // Validate preferProvider to prevent prototype pollution / unvalidated dispatch
   const safePrefer = (preferProvider && KNOWN_PROVIDERS.has(preferProvider)) ? preferProvider : null;
 
   // Build ordered provider list for this task
-  const baseList  = TASK_ROUTING[taskType] || TASK_ROUTING.default;
+  const baseList  = TASK_ROUTING[resolvedTaskType] || TASK_ROUTING.default;
   const orderList = safePrefer
     ? [safePrefer, ...baseList.filter(p => p !== safePrefer)]
     : baseList;
+
+  console.info(`[AIOrchestrator] taskType=${resolvedTaskType} (requested=${taskType}) — providers: ${orderList.slice(0,4).join(', ')}...`);
 
   for (const name of orderList) {
     // Only dispatch to known, validated provider names
@@ -429,7 +467,7 @@ async function ask(message, opts = {}) {
       const cached = fromCache(name, message);
       if (cached) {
         console.info(`[AIOrchestrator] Cache hit — ${name}`);
-        return { ...cached, provider: name, cached: true };
+        return { ...cached, provider: name, cached: true, detectedTaskType: resolvedTaskType };
       }
     }
 
@@ -442,8 +480,8 @@ async function ask(message, opts = {}) {
       recordSuccess(name, latencyMs);
       if (useCache) toCache(name, message, { reply: result.reply, model: result.model, latencyMs });
 
-      console.info(`[AIOrchestrator] OK — ${name} / ${result.model} — ${latencyMs}ms`);
-      return { reply: result.reply, model: result.model, provider: name, latencyMs, cached: false };
+      console.info(`[AIOrchestrator] OK — ${name} / ${result.model} — ${latencyMs}ms [task=${resolvedTaskType}]`);
+      return { reply: result.reply, model: result.model, provider: name, latencyMs, cached: false, detectedTaskType: resolvedTaskType };
     } catch (err) {
       recordError(name);
       console.error(`[AIOrchestrator] FAIL — ${name}: ${err.response?.data?.error?.message || err.message}`);
@@ -567,4 +605,4 @@ function autoRepair() {
 // Run auto-repair every minute
 setInterval(autoRepair, 60_000);
 
-module.exports = { ask, getStatus, getHealthReport, getPerformanceReport, autoRepair, TASK_ROUTING, PROVIDER_ENV };
+module.exports = { ask, autoDetectTaskType, getStatus, getHealthReport, getPerformanceReport, autoRepair, TASK_ROUTING, PROVIDER_ENV };
