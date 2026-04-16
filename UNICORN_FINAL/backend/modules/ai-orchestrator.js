@@ -386,34 +386,78 @@ function isConfigured(name) {
 // ─── Validated set of known provider names ────────────────────────────────
 const KNOWN_PROVIDERS = new Set(Object.keys(PROVIDER_ENV));
 
+// ─── Auto task-type detection ──────────────────────────────────────────────
+/**
+ * Automatically detect the best task type from message content.
+ * Returns a key from TASK_ROUTING.
+ */
+function autoDetectTaskType(message) {
+  const m = String(message || '').toLowerCase();
+
+  // Coding / programming
+  if (/\b(code|coding|program|function|bug|debug|script|python|javascript|typescript|java|c\+\+|rust|golang|sql|html|css|api|implement|refactor|test|unit test)\b/.test(m)) return 'coding';
+
+  // Embeddings / vector search
+  if (/\b(embed|embedding|vector|similarity|semantic search|nearest neighbor|cosine)\b/.test(m)) return 'embeddings';
+
+  // Search / web / news
+  if (/\b(search|find|latest|news|current|today|2024|2025|2026|trending|what happened|who is|where is)\b/.test(m)) return 'search_reasoning';
+
+  // Tool use / actions / automation
+  if (/\b(automate|run|execute|schedule|trigger|workflow|action|tool|agent|task)\b/.test(m)) return 'tool_use';
+
+  // Deep analysis
+  if (/\b(analy[sz]e|analiz[aă]|report|raport|audit|review|evaluat|assess|compare|compar|benchmark|breakdown)\b/.test(m)) return 'analysis';
+
+  // Reasoning / complex questions
+  if (/\b(explain|why|how does|reason|logic|think|deduce|infer|proov|proof|math|calculate|formula|strateg)\b/.test(m)) return 'reasoning';
+
+  // Optimization
+  if (/\b(optimi[sz]e|optimi[sz]ă|improve|improv|reduc|cresc|boost|enhance|efficient|performance|speed up)\b/.test(m)) return 'optimization';
+
+  // Fast / simple
+  if (m.length < 60) return 'fast';
+
+  // Default: text generation / chat
+  return 'chat';
+}
+
 // ─── Core: ask() with intelligent routing ─────────────────────────────────
 /**
  * Route a request to the best available AI provider.
+ * taskType is auto-detected from message content when set to 'auto', 'default', or 'chat'.
  *
  * @param {string} message
  * @param {object} opts
- * @param {string}  [opts.taskType='default']   - coding|reasoning|embeddings|search_reasoning|tool_use|text_generation|analysis|optimization|chat|fast|cheap|premium|open_source|default
- * @param {string}  [opts.preferProvider]       - force a specific provider first
+ * @param {string}  [opts.taskType='auto']       - auto|coding|reasoning|embeddings|search_reasoning|tool_use|text_generation|analysis|optimization|chat|fast|cheap|premium|open_source|default
+ * @param {string}  [opts.preferProvider]        - force a specific provider first
  * @param {boolean} [opts.useCache=true]
  * @param {Array}   [opts.history=[]]
- * @returns {Promise<{reply:string, model:string, provider:string, latencyMs:number, cached:boolean}>}
+ * @returns {Promise<{reply:string, model:string, provider:string, latencyMs:number, cached:boolean, detectedTaskType:string}>}
  */
 async function ask(message, opts = {}) {
   const {
-    taskType     = 'default',
+    taskType     = 'auto',
     preferProvider = null,
     useCache     = true,
     history      = [],
   } = opts;
 
+  // Auto-detect task type when not explicitly specified
+  const resolvedTaskType = (taskType === 'auto' || taskType === 'default' || taskType === 'chat')
+    ? autoDetectTaskType(message)
+    : taskType;
+
   // Validate preferProvider to prevent prototype pollution / unvalidated dispatch
   const safePrefer = (preferProvider && KNOWN_PROVIDERS.has(preferProvider)) ? preferProvider : null;
 
   // Build ordered provider list for this task
-  const baseList  = TASK_ROUTING[taskType] || TASK_ROUTING.default;
+  const baseList  = TASK_ROUTING[resolvedTaskType] || TASK_ROUTING.default;
   const orderList = safePrefer
     ? [safePrefer, ...baseList.filter(p => p !== safePrefer)]
     : baseList;
+
+  console.info(`[AIOrchestrator] taskType=${resolvedTaskType} (requested=${taskType}) — providers: ${orderList.slice(0,4).join(', ')}...`);
 
   for (const name of orderList) {
     // Only dispatch to known, validated provider names
@@ -429,7 +473,7 @@ async function ask(message, opts = {}) {
       const cached = fromCache(name, message);
       if (cached) {
         console.info(`[AIOrchestrator] Cache hit — ${name}`);
-        return { ...cached, provider: name, cached: true };
+        return { ...cached, provider: name, cached: true, detectedTaskType: resolvedTaskType };
       }
     }
 
@@ -442,8 +486,8 @@ async function ask(message, opts = {}) {
       recordSuccess(name, latencyMs);
       if (useCache) toCache(name, message, { reply: result.reply, model: result.model, latencyMs });
 
-      console.info(`[AIOrchestrator] OK — ${name} / ${result.model} — ${latencyMs}ms`);
-      return { reply: result.reply, model: result.model, provider: name, latencyMs, cached: false };
+      console.info(`[AIOrchestrator] OK — ${name} / ${result.model} — ${latencyMs}ms [task=${resolvedTaskType}]`);
+      return { reply: result.reply, model: result.model, provider: name, latencyMs, cached: false, detectedTaskType: resolvedTaskType };
     } catch (err) {
       recordError(name);
       console.error(`[AIOrchestrator] FAIL — ${name}: ${err.response?.data?.error?.message || err.message}`);
@@ -567,4 +611,4 @@ function autoRepair() {
 // Run auto-repair every minute
 setInterval(autoRepair, 60_000);
 
-module.exports = { ask, getStatus, getHealthReport, getPerformanceReport, autoRepair, TASK_ROUTING, PROVIDER_ENV };
+module.exports = { ask, autoDetectTaskType, getStatus, getHealthReport, getPerformanceReport, autoRepair, TASK_ROUTING, PROVIDER_ENV };
