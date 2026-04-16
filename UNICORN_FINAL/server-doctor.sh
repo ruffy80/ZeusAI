@@ -263,6 +263,10 @@ else
   ok "Nginx instalat: $(nginx -v 2>&1 | head -1)"
 fi
 
+# Asigură directorul cache nginx există — nginx -t eșuează dacă proxy_cache_path nu poate fi creat
+mkdir -p /var/cache/nginx/unicorn /var/www/certbot 2>/dev/null || true
+chown -R www-data:www-data /var/cache/nginx 2>/dev/null || true
+
 # Configurare site
 if [ -f "$NGINX_CONF_SRC" ]; then
   # Nu suprascrie config-ul nginx dacă certificatul SSL și blocurile ssl_certificate
@@ -297,7 +301,15 @@ if [ -f "$NGINX_CONF_SRC" ]; then
       fixed "Nginx: pornit"
     fi
   else
-    ko "Nginx: configurație INVALIDĂ — verificați $NGINX_AVAILABLE"
+    nginx -t 2>&1 || true
+    ko "Nginx: configurație INVALIDĂ — se resetează la config HTTP minimal de siguranță"
+    # Fallback: șterge SSL blocks corupți și reinstalează config HTTP-only
+    sed "s/zeusai\.pro/${DOMAIN}/g" "$NGINX_CONF_SRC" > "$NGINX_AVAILABLE" 2>/dev/null || \
+      cp "$NGINX_CONF_SRC" "$NGINX_AVAILABLE" 2>/dev/null || true
+    if nginx -t 2>/dev/null; then
+      systemctl start nginx 2>/dev/null || systemctl restart nginx 2>/dev/null || true
+      fixed "Nginx: repornit cu config HTTP (SSL va fi reinstalat de setup-ssl.sh)"
+    fi
   fi
 else
   warn "nginx-unicorn.conf lipsește din scripts/"
@@ -423,7 +435,7 @@ else
   fi
 
   info "Salvare listă procese PM2..."
-  "$PM2_BIN" save 2>/dev/null || true
+  "$PM2_BIN" save --force 2>/dev/null || true
   ok "pm2 save executat"
 fi
 section "✅ Raport final Server Doctor"

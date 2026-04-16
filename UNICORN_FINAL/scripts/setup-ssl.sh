@@ -74,6 +74,9 @@ fi
 #   Blocurile HTTPS (listen 443 ssl) sunt adăugate exclusiv de certbot --nginx.
 #   NU adăuga listen 443 ssl fără ssl_certificate — nginx refuză să pornească!
 mkdir -p /var/www/certbot
+# Asigură directorul cache nginx există — proxy_cache_path din nginx-unicorn.conf necesită acest dir
+mkdir -p /var/cache/nginx/unicorn 2>/dev/null || true
+chown -R www-data:www-data /var/cache/nginx 2>/dev/null || true
 if [ -f "$NGINX_CONF_SRC" ]; then
   # Nu suprascrie dacă certificatul SSL și blocurile ssl_certificate sunt deja active.
   # Fiecare deploy copiaza nginx-unicorn.conf (HTTP-only) din repo, distrugand blocurile
