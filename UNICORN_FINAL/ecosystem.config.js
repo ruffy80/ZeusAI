@@ -659,6 +659,50 @@ module.exports = {
       error_file: 'logs/service-watchdog-error.log',
       out_file: 'logs/service-watchdog-out.log',
       log_date_format: 'YYYY-MM-DD HH:mm:ss'
+    },
+
+    // ── 22. SaaS Orchestrator v4 — multi-tenant AI & workflow orchestration ──
+    {
+      name: 'unicorn-saas-orchestrator-v4',
+      script: 'backend/modules/saas-orchestrator-v4.js',
+      cwd: __dirname,
+      instances: 1,
+      autorestart: true,
+      watch: false,
+      max_restarts: 20,
+      min_uptime: '10s',
+      restart_delay: 5000,
+      env: {
+        NODE_ENV: 'production',
+        ORCHESTRATOR_MAX_CONCURRENT: '20',
+        DOMAIN: SITE_DOMAIN,
+        PUBLIC_APP_URL,
+      },
+      error_file: 'logs/saas-orchestrator-v4-error.log',
+      out_file: 'logs/saas-orchestrator-v4-out.log',
+      log_date_format: 'YYYY-MM-DD HH:mm:ss'
+    },
+
+    // ── 23. Global Failover Controller — multi-region health + auto-scaling ──
+    {
+      name: 'unicorn-global-failover',
+      script: 'backend/modules/global-failover.js',
+      cwd: __dirname,
+      instances: 1,
+      autorestart: true,
+      watch: false,
+      max_restarts: 20,
+      min_uptime: '10s',
+      restart_delay: 5000,
+      env: {
+        NODE_ENV: 'production',
+        MAX_INSTANCES: '20',
+        DOMAIN: SITE_DOMAIN,
+        PUBLIC_APP_URL,
+      },
+      error_file: 'logs/global-failover-error.log',
+      out_file: 'logs/global-failover-out.log',
+      log_date_format: 'YYYY-MM-DD HH:mm:ss'
     }
   ]
 };
