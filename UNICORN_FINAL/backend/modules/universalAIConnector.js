@@ -276,7 +276,7 @@ const PROVIDER_CONFIGS = [
     type: 'huggingface',
     endpoint: 'https://api-inference.huggingface.co/models/mistralai/Mistral-7B-Instruct-v0.3',
     model: process.env.HF_MODEL || 'mistralai/Mistral-7B-Instruct-v0.3',
-    apiKeyEnv: 'HF_API_KEY',
+    apiKeyEnv: 'HUGGINGFACE_API_KEY',
     capabilities: ['general'],
     cost: 0.0005,
     performance: { speed: 0.70, accuracy: 0.82 },

@@ -290,8 +290,8 @@ const PROVIDER_FNS = {
   },
 
   huggingface: async (message, history) => {
-    const key = process.env.HF_API_KEY;
-    if (!key || key === 'your_hf_api_key_here') return null;
+    const key = process.env.HUGGINGFACE_API_KEY || process.env.HF_API_KEY;
+    if (!key || key.startsWith('your_')) return null;
     const model = process.env.HF_MODEL || 'mistralai/Mistral-7B-Instruct-v0.3';
     const resp = await axios.post(
       `https://api-inference.huggingface.co/models/${model}/v1/chat/completions`,
@@ -368,7 +368,7 @@ const PROVIDER_ENV = {
   openai:      { key: 'OPENAI_API_KEY',      placeholder: 'your_openai_api_key_here' },
   openrouter:  { key: 'OPENROUTER_API_KEY',  placeholder: 'your_openrouter_api_key_here' },
   perplexity:  { key: 'PERPLEXITY_API_KEY',  placeholder: 'your_perplexity_api_key_here' },
-  huggingface: { key: 'HF_API_KEY',          placeholder: 'your_hf_api_key_here' },
+  huggingface: { key: 'HUGGINGFACE_API_KEY',  placeholder: 'your_huggingface_api_key_here' },
   together:    { key: 'TOGETHER_API_KEY',    placeholder: 'your_together_api_key_here' },
   fireworks:   { key: 'FIREWORKS_API_KEY',   placeholder: 'your_fireworks_api_key_here' },
   sambanova:   { key: 'SAMBANOVA_API_KEY',   placeholder: 'your_sambanova_api_key_here' },
