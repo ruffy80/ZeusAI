@@ -3,6 +3,7 @@
 // Email: vladoi_ionut@yahoo.com
 // BTC Address: bc1q4f7e66z87mdfj56kz0dj5hvcnpmh0qh4wuv22e
 // Data: 2026-04-16T13:16:24.270Z
+// Data: 2026-04-16T12:40:29.174Z
 // Orice copiere, modificare sau distribuție neautorizată este interzisă.
 // =====================================================================
 
@@ -514,6 +515,39 @@ function getStatus() {
   };
 }
 
+// ── Missing helpers (needed by backend/index.js) ──────────────────────────────
+
+function getTenantsByOwner(ownerId) {
+  const result = [];
+  for (const t of _tenants.values()) {
+    if (t.ownerId === ownerId && t.status !== 'deleted') result.push(t);
+  }
+  return result;
+}
+
+function getPlans() { return PLANS; }
+
+function middleware() {
+  return (req, res, next) => {
+    const tenantId = req.headers['x-tenant-id'];
+    const apiKey   = req.headers['x-tenant-api-key'] || req.headers['x-api-key'];
+    let tenant = null;
+    if (tenantId) {
+      tenant = _tenants.get(tenantId) || null;
+    } else if (apiKey) {
+      const tid = _apiKeyIndex.get(apiKey);
+      tenant = tid ? (_tenants.get(tid) || null) : null;
+    }
+    if (!tenant) return next();
+    if (isRateLimited(tenant.id)) {
+      return res.status(429).json({ error: 'Tenant quota exceeded' });
+    }
+    recordApiCall(tenant.id);
+    req.tenant = tenant;
+    next();
+  };
+}
+
 // ── Init on load ──────────────────────────────────────────────────────────────
 init();
 
@@ -526,6 +560,7 @@ module.exports = {
   getTenantSafe,
   getTenantBySlug,
   getTenantByApiKey,
+  getTenantsByOwner,
   listTenants,
   updateTenant,
   suspendTenant,
@@ -545,6 +580,8 @@ module.exports = {
   getTenantLogPrefix,
   getAuditLog,
   getStatus,
+  getPlans,
+  middleware,
 };
 /**
  * Tenant Manager — Global SaaS Multi-Tenant Engine
