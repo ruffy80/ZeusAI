@@ -1154,8 +1154,7 @@ module.exports = {
  * - Stripe-compatible payment intent abstraction
  */
 
-const crypto = require('crypto');
-const { EventEmitter } = require('events');
+// crypto and EventEmitter already required at top of file; avoid duplicate declarations
 
 // ─── Plans ───────────────────────────────────────────────────────────────────
 const PLANS = {
@@ -1388,3 +1387,5 @@ class BillingEngine extends EventEmitter {
 module.exports = new BillingEngine();
 module.exports.BillingEngine = BillingEngine;
 module.exports.PLANS = PLANS;
+// Attach legacy createExpressRouter from first implementation so index.js routes work
+module.exports.createExpressRouter = createExpressRouter;
