@@ -75,8 +75,15 @@ fi
 #   NU adăuga listen 443 ssl fără ssl_certificate — nginx refuză să pornească!
 mkdir -p /var/www/certbot
 if [ -f "$NGINX_CONF_SRC" ]; then
-  sed "s/zeusai\.pro/${DOMAIN}/g" "$NGINX_CONF_SRC" > "$NGINX_AVAILABLE"
-  fixed "Config Nginx instalat: $NGINX_AVAILABLE"
+  # Nu suprascrie dacă certificatul SSL și blocurile ssl_certificate sunt deja active.
+  # Fiecare deploy copiaza nginx-unicorn.conf (HTTP-only) din repo, distrugand blocurile
+  # SSL injectate de certbot. Pastrarea config-ului existent previne ERR_CONNECTION_REFUSED.
+  if [ -f "$CERT_PATH" ] && grep -q "ssl_certificate" "$NGINX_AVAILABLE" 2>/dev/null; then
+    info "Config Nginx SSL existent păstrat (certificat valid + blocuri SSL prezente)"
+  else
+    sed "s/zeusai\.pro/${DOMAIN}/g" "$NGINX_CONF_SRC" > "$NGINX_AVAILABLE"
+    fixed "Config Nginx HTTP instalat: $NGINX_AVAILABLE"
+  fi
 else
   # Fallback: nginx-minimal-http.conf dacă nginx-unicorn.conf lipsește
   MINIMAL_SRC="${DEPLOY_PATH}/scripts/nginx-minimal-http.conf"
@@ -224,9 +231,17 @@ ok "Certbot disponibil: $(certbot --version 2>&1)"
 
 if [ "$DNS_OK" = "true" ]; then
   if [ -f "$CERT_PATH" ]; then
-    # Cert există — doar reînnoire
+    # Cert există — verifică că nginx are blocurile SSL; dacă nu, reinstalează certbot config
     EXPIRY=$(openssl x509 -enddate -noout -in "$CERT_PATH" 2>/dev/null | cut -d= -f2 || echo "necunoscut")
-    info "Certificat existent (expiră: $EXPIRY) — se verifică reînnoirea..."
+    info "Certificat existent (expiră: $EXPIRY) — verificare blocuri SSL în nginx..."
+    if ! grep -q "ssl_certificate" "$NGINX_AVAILABLE" 2>/dev/null; then
+      # Config nginx a fost suprascris (HTTP-only) dar cert există — forțează reinstalare SSL în nginx
+      warn "Blocuri SSL lipsesc din nginx (config suprascris) — reinstalare certbot → nginx..."
+      certbot --nginx -d "${DOMAIN}" --non-interactive --agree-tos \
+        --email "${ADMIN_EMAIL}" --keep-until-expiring 2>&1 && \
+        fixed "Certbot: blocuri SSL reinstalate în nginx" || \
+        warn "Certbot reinstall a eșuat — verificați: certbot certificates"
+    fi
     certbot renew --nginx --non-interactive --quiet \
       --post-hook "systemctl reload nginx" 2>&1 && \
       ok "Certbot renew verificat" || \
