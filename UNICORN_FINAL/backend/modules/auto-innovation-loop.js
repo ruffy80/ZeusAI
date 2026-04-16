@@ -299,7 +299,10 @@ class AutoInnovationLoop {
         sha: baseSha,
       });
 
-      // 3. Create/update INNOVATION_LOG.md in the new branch
+      // 3. Create a unique per-proposal file to avoid merge conflicts with main.
+      // Each PR writes to innovations/<category>-<id>.md — a brand-new file that
+      // does not exist on any other branch, so conflicts are structurally impossible.
+      const proposalFilePath = `innovations/${proposal.category}-${proposal.id}.md`;
       const logContent = [
         `# Auto-Innovation Proposal`,
         ``,
@@ -317,21 +320,13 @@ class AutoInnovationLoop {
         `Cycle: #${proposal.cycleId}`,
       ].join('\n');
 
-      // Get existing file SHA if present (to update, not create)
-      let fileSha;
-      try {
-        const existing = await this._githubGet(`/repos/${owner}/${repo}/contents/INNOVATION_LOG.md?ref=${branchName}`);
-        if (existing && existing.sha) fileSha = existing.sha;
-      } catch { /* file doesn't exist yet */ }
-
       const fileBody = {
         message: proposal.title,
         content: Buffer.from(logContent).toString('base64'),
         branch:  branchName,
       };
-      if (fileSha) fileBody.sha = fileSha;
 
-      await this._githubPut(`/repos/${owner}/${repo}/contents/INNOVATION_LOG.md`, fileBody);
+      await this._githubPut(`/repos/${owner}/${repo}/contents/${proposalFilePath}`, fileBody);
 
       // 4. Open PR
       const prBody = {
