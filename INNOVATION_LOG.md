@@ -1,14 +1,14 @@
 # Auto-Innovation Proposal
 
-**ID:** d4711110de38
-**Category:** performance
-**Generated:** 2026-04-17T08:54:16.455Z
+**ID:** 891ea309a443
+**Category:** security
+**Generated:** 2026-04-17T09:54:16.368Z
 **AI Generated:** false
 
 ## Description
 
-Reduce API response times by adding in-memory caching for frequent read endpoints. Profile the top-5 slowest routes and introduce LRU cache with TTL=60s. Expected impact: 30-50% latency reduction.
+Add input validation and sanitization to all POST/PUT endpoints that currently lack it. Introduce Helmet.js headers update and review CORS policy. Expected impact: eliminates injection attack surface.
 
 ## Metrics at Generation Time
 
-Cycle: #69
+Cycle: #70
