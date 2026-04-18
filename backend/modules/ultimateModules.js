@@ -1,3 +1,5 @@
+// Alias pentru orchestrator: statusFn
+module.exports.statusFn = module.exports.getStatus;
 // =====================================================================
 // OWNERSHIP: Acest fișier este proprietatea exclusivă a lui Vladoi Ionut
 // Email: vladoi_ionut@yahoo.com

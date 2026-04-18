@@ -1,3 +1,5 @@
+// Alias pentru orchestrator: statusFn
+module.exports.statusFn = module.exports.getStatus;
 // MeshOrchestrator expects a status function (getStatus)
 module.exports.getStatus = function() {
   if (typeof this.getAffiliateStats === 'function') {
