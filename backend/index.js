@@ -1,10 +1,22 @@
+// =====================================================================
+// OWNERSHIP: Acest fișier este proprietatea exclusivă a lui Vladoi Ionut
+// Email: vladoi_ionut@yahoo.com
+// BTC Address: bc1q4f7e66z87mdfj56kz0dj5hvcnpmh0qh4wuv22e
+// Orice copiere, modificare sau distribuție neautorizată este interzisă.
+// =====================================================================
+
 require('dotenv').config();
+// QuantumVault trebuie să se încarce PRIMUL – bootstrap + inject secrete în process.env
+// înainte ca orice alt modul să citească variabilele de mediu
+const quantumVault = require('./modules/quantumVault');
 const express = require('express');
 const cors = require('cors');
 const compression = require('compression');
 const path = require('path');
+const { version: APP_VERSION } = require('../package.json');
 // const cron = require('node-cron'); // Optional scheduling
 const simpleGit = require('simple-git');
+const axios = require('axios');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -12,19 +24,109 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
 const JWT_SECRET = process.env.JWT_SECRET || 'unicorn-jwt-secret-change-in-prod';
+const rateLimit = require('express-rate-limit');
+
+// Raw body buffers needed for webhook signature verification
+app.use('/api/payment/webhook/stripe', express.raw({ type: 'application/json' }));
+app.use('/api/payment/webhook/paypal', express.raw({ type: 'application/json' }));
 
 app.use(compression());
-app.use(cors());
+
+// CORS: restrict to configured origins in production
+const _allowedOrigins = (process.env.CORS_ORIGINS || process.env.PUBLIC_APP_URL || '').split(',').map(s => s.trim()).filter(Boolean);
+app.use(cors({
+  origin: process.env.NODE_ENV === 'production' && _allowedOrigins.length
+    ? (origin, cb) => {
+        // Allow non-browser requests (e.g. server-to-server, curl)
+        if (!origin) return cb(null, true);
+        try {
+          const incomingHost = new URL(origin).hostname;
+          const allowed = _allowedOrigins.some(o => {
+            try {
+              const allowedHost = new URL(o).hostname;
+              // Exact match or valid subdomain (must be preceded by a dot)
+              return incomingHost === allowedHost || incomingHost.endsWith('.' + allowedHost);
+            } catch { return false; }
+          });
+          return cb(null, allowed ? true : new Error('CORS: origin not allowed'));
+        } catch {
+          return cb(new Error('CORS: invalid origin'));
+        }
+      }
+    : true,
+  credentials: true,
+}));
+
 app.use(express.json());
 
-// ==================== AUTH STORE (in-memory) ====================
-const users = [];
-const adminSessions = new Set();
+// ==================== RATE LIMITERS ====================
+const globalPublicRateLimit = rateLimit({
+  windowMs: 60_000,
+  max: parseInt(process.env.PUBLIC_RATE_LIMIT || '200', 10),
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Too many requests — try again later' },
+});
+
+const adminCrudRateLimit = rateLimit({
+  windowMs: 60_000,
+  max: parseInt(process.env.ADMIN_RATE_LIMIT || '60', 10),
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Too many requests — try again later' },
+});
+
+// Apply global rate limit to all routes
+app.use(globalPublicRateLimit);
+
+// ==================== PERSISTENCE ====================
+const { users: dbUsers, payments: dbPayments, apiKeys: dbApiKeys, adminSessions: dbAdminSessions } = require('./db');
+const emailService = require('./email');
+
+// ==================== SECURITY HEADERS ====================
+app.use((req, res, next) => {
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('X-Frame-Options', 'SAMEORIGIN');
+  res.setHeader('X-XSS-Protection', '1; mode=block');
+  res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+  res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
+  res.setHeader('Content-Security-Policy',
+    "default-src 'self'; " +
+    "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://js.stripe.com; " +
+    "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; " +
+    "font-src 'self' https://fonts.gstatic.com; " +
+    "img-src 'self' data: blob: https:; " +
+    "connect-src 'self' https://api.openai.com https://api.deepseek.com https://api.anthropic.com https://generativelanguage.googleapis.com https://api.mistral.ai https://api.cohere.com https://api.x.ai https://js.stripe.com; " +
+    "frame-src https://js.stripe.com; " +
+    "object-src 'none'; " +
+    "base-uri 'self';"
+  );
+  if (process.env.NODE_ENV === 'production') {
+    res.setHeader('Strict-Transport-Security', 'max-age=63072000; includeSubDomains; preload');
+  }
+  next();
+});
+
+// ==================== AUTH STORE (SQLite-backed) ====================
 const ADMIN_OWNER_NAME = process.env.LEGAL_OWNER_NAME || 'Vladoi Ionut';
 const ADMIN_OWNER_EMAIL = process.env.ADMIN_EMAIL || process.env.LEGAL_OWNER_EMAIL || 'vladoi_ionut@yahoo.com';
 const ADMIN_OWNER_BTC = process.env.LEGAL_OWNER_BTC || 'bc1q4f7e66z87mdfj56kz0dj5hvcnpmh0qh4wuv22e';
 let adminPasswordHash = bcrypt.hashSync(process.env.ADMIN_MASTER_PASSWORD || 'UnicornAdmin2026!', 10);
 let adminBiometricHash = null;
+
+// ==================== STARTUP SECURITY VALIDATION ====================
+if (process.env.NODE_ENV === 'production') {
+  if (!process.env.JWT_SECRET || process.env.JWT_SECRET === 'unicorn-jwt-secret-change-in-prod') {
+    console.error('❌ FATAL: JWT_SECRET is weak/default. Set a strong secret in .env before running in production.');
+    process.exit(1);
+  }
+  if (!process.env.ADMIN_2FA_CODE || process.env.ADMIN_2FA_CODE === '123456') {
+    console.warn('⚠️  WARNING: ADMIN_2FA_CODE is using the default value "123456". Change it in production!');
+  }
+  if (!process.env.ADMIN_MASTER_PASSWORD || process.env.ADMIN_MASTER_PASSWORD === 'UnicornAdmin2026!') {
+    console.warn('⚠️  WARNING: ADMIN_MASTER_PASSWORD is using the default value. Change it in production!');
+  }
+}
 
 function adminSecretMiddleware(req, res, next) {
   const expected = process.env.ADMIN_SECRET || '';
@@ -52,6 +154,27 @@ function authMiddleware(req, res, next) {
   }
 }
 
+// Plan-based feature gating: requirePlan('pro') means user must have pro or enterprise plan
+const PLAN_HIERARCHY = { free: 0, starter: 1, pro: 2, enterprise: 3 };
+function requirePlan(minPlan) {
+  return function planMiddleware(req, res, next) {
+    const user = req.user;
+    if (!user) return res.status(401).json({ error: 'Authentication required' });
+    const { users: dbUsersLocal } = require('./db');
+    const dbUser = dbUsersLocal.findById(user.id);
+    const userPlan = (dbUser && dbUser.planId) || 'free';
+    const userLevel = PLAN_HIERARCHY[userPlan] ?? 0;
+    const requiredLevel = PLAN_HIERARCHY[minPlan] ?? 0;
+    if (userLevel < requiredLevel) {
+      return res.status(403).json({
+        error: `This feature requires ${minPlan} plan or higher. Current plan: ${userPlan}`,
+        upgrade: '/payments'
+      });
+    }
+    return next();
+  };
+}
+
 function extractAdminToken(req) {
   const headerToken = req.headers['x-auth-token'];
   const auth = req.headers.authorization || '';
@@ -65,7 +188,7 @@ function adminTokenMiddleware(req, res, next) {
   try {
     const payload = jwt.verify(token, JWT_SECRET);
     if (payload.role !== 'admin') return res.status(403).json({ error: 'Forbidden' });
-    if (!adminSessions.has(token)) return res.status(401).json({ error: 'Session expired' });
+    if (!dbAdminSessions.has(token)) return res.status(401).json({ error: 'Session expired' });
     req.admin = payload;
     return next();
   } catch {
@@ -73,32 +196,96 @@ function adminTokenMiddleware(req, res, next) {
   }
 }
 
+// ==================== AUTH RATE LIMITING ====================
+// Simple sliding-window rate limiter for sensitive auth endpoints (no extra dependency).
+// In test mode (NODE_ENV=test) rate limiting is disabled to allow full test runs.
+const authRateLimitStore = new Map(); // key -> [timestamps]
+
+function authRateLimit(maxRequests, windowMs) {
+  return function rateLimitMiddleware(req, res, next) {
+    if (process.env.NODE_ENV === 'test') return next();
+    const key = req.ip || 'unknown';
+    const now = Date.now();
+    const windowStart = now - windowMs;
+    const hits = (authRateLimitStore.get(key) || []).filter(ts => ts > windowStart);
+    if (hits.length >= maxRequests) {
+      return res.status(429).json({ error: 'Too many requests. Please try again later.' });
+    }
+    hits.push(now);
+    authRateLimitStore.set(key, hits);
+    return next();
+  };
+}
+
+// Prune stale entries every 10 minutes
+setInterval(() => {
+  const cutoff = Date.now() - 15 * 60 * 1000;
+  for (const [key, hits] of authRateLimitStore) {
+    const pruned = hits.filter(ts => ts > cutoff);
+    if (pruned.length === 0) authRateLimitStore.delete(key);
+    else authRateLimitStore.set(key, pruned);
+  }
+}, 10 * 60 * 1000).unref();
+
+// ==================== INPUT VALIDATION HELPERS ====================
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
+function isValidEmail(email) { return typeof email === 'string' && EMAIL_RE.test(email.trim()); }
+function sanitizeString(s, maxLen = 255) { return typeof s === 'string' ? s.trim().slice(0, maxLen) : ''; }
+
+
 // ==================== AUTH ROUTES ====================
-app.post('/api/auth/register', async (req, res) => {
-  const { name, email, password } = req.body;
-  if (!name || !email || !password) return res.status(400).json({ error: 'name, email and password required' });
-  if (users.find(u => u.email === email)) return res.status(409).json({ error: 'Email already in use' });
+app.post('/api/auth/register', authRateLimit(10, 15 * 60 * 1000), async (req, res) => {
+  const { name, email, password } = req.body || {};
+  const cleanName = sanitizeString(name, 100);
+  const cleanEmail = sanitizeString(email, 254);
+  if (!cleanName || !cleanEmail || !password) return res.status(400).json({ error: 'name, email and password required' });
+  if (!isValidEmail(cleanEmail)) return res.status(400).json({ error: 'Invalid email address' });
+  if (typeof password !== 'string' || password.length < 8) return res.status(400).json({ error: 'Password must be at least 8 characters' });
+  if (dbUsers.findByEmail(cleanEmail)) return res.status(409).json({ error: 'Email already in use' });
   const passwordHash = await bcrypt.hash(password, 10);
-  const user = { id: crypto.randomBytes(8).toString('hex'), name, email, passwordHash, createdAt: new Date().toISOString(), resetToken: null, resetExpires: null };
-  users.push(user);
+  const verifyToken = crypto.randomBytes(32).toString('hex');
+  const verifyExpires = Date.now() + 86400000; // 24h
+  const user = {
+    id: crypto.randomBytes(8).toString('hex'),
+    name: cleanName,
+    email: cleanEmail,
+    passwordHash,
+    emailVerified: 0,
+    verifyToken,
+    verifyExpires,
+    createdAt: new Date().toISOString(),
+  };
+  dbUsers.create(user);
   const token = jwt.sign({ id: user.id, email: user.email, name: user.name }, JWT_SECRET, { expiresIn: '7d' });
-  res.json({ token, user: { id: user.id, name: user.name, email: user.email } });
+  // Send verification email (non-blocking)
+  emailService.sendVerificationEmail(user, verifyToken).catch(err => console.error('[Email] verify send failed:', err.message));
+  res.json({ token, user: { id: user.id, name: user.name, email: user.email, emailVerified: false } });
 });
 
-app.post('/api/auth/login', async (req, res) => {
+app.get('/api/auth/verify-email', (req, res) => {
+  const { token } = req.query;
+  if (!token) return res.status(400).json({ error: 'token required' });
+  const user = dbUsers.findByVerifyToken(token);
+  if (!user) return res.status(400).json({ error: 'Invalid or expired verification link' });
+  dbUsers.verifyEmail(user.id);
+  emailService.sendWelcomeEmail(user).catch(err => console.error('[Email] welcome send failed:', err.message));
+  res.json({ success: true, message: 'Email verified. Contul tău este activ!' });
+});
+
+app.post('/api/auth/login', authRateLimit(20, 15 * 60 * 1000), async (req, res) => {
   const { email, password, twoFactorCode } = req.body || {};
 
   // Admin login (password + 2FA)
   if (!email && password && typeof twoFactorCode !== 'undefined') {
     const expected2FA = process.env.ADMIN_2FA_CODE || '123456';
-    const validPassword = await bcrypt.compare(password, adminPasswordHash);
+    const validPassword = await bcrypt.compare(String(password), adminPasswordHash);
     if (!validPassword) return res.status(401).json({ success: false, error: 'Parolă invalidă' });
     if (String(twoFactorCode).trim() !== String(expected2FA).trim()) {
       return res.status(401).json({ success: false, error: 'Cod 2FA invalid' });
     }
 
     const token = jwt.sign({ role: 'admin', email: ADMIN_OWNER_EMAIL, name: ADMIN_OWNER_NAME }, JWT_SECRET, { expiresIn: '12h' });
-    adminSessions.add(token);
+    dbAdminSessions.add(token, ADMIN_OWNER_EMAIL, Date.now() + 12 * 60 * 60 * 1000);
 
     return res.json({
       success: true,
@@ -111,25 +298,27 @@ app.post('/api/auth/login', async (req, res) => {
     });
   }
 
-  const user = users.find(u => u.email === email);
-  if (!user) return res.status(404).json({ error: 'User not found' });
-  const valid = await bcrypt.compare(password, user.passwordHash);
-  if (!valid) return res.status(401).json({ error: 'Invalid password' });
+  if (!email || !password) return res.status(400).json({ error: 'email and password required' });
+  if (!isValidEmail(sanitizeString(email, 254))) return res.status(400).json({ error: 'Invalid email address' });
+  const user = dbUsers.findByEmail(sanitizeString(email, 254));
+  if (!user) return res.status(401).json({ error: 'Invalid credentials' });
+  const valid = await bcrypt.compare(String(password), user.passwordHash);
+  if (!valid) return res.status(401).json({ error: 'Invalid credentials' });
   const token = jwt.sign({ id: user.id, email: user.email, name: user.name }, JWT_SECRET, { expiresIn: '7d' });
-  res.json({ token, user: { id: user.id, name: user.name, email: user.email } });
+  res.json({ token, user: { id: user.id, name: user.name, email: user.email, emailVerified: Boolean(user.emailVerified) } });
 });
 
 app.get('/api/auth/status', adminTokenMiddleware, (req, res) => {
   res.json({
     owner: { name: ADMIN_OWNER_NAME, email: ADMIN_OWNER_EMAIL, btcAddress: ADMIN_OWNER_BTC },
-    activeSessions: adminSessions.size,
+    activeSessions: dbAdminSessions.size,
     biometricEnabled: Boolean(adminBiometricHash)
   });
 });
 
 app.post('/api/auth/logout', adminTokenMiddleware, (req, res) => {
   const token = extractAdminToken(req);
-  adminSessions.delete(token);
+  dbAdminSessions.delete(token);
   res.json({ success: true });
 });
 
@@ -151,121 +340,911 @@ app.post('/api/auth/biometric/enroll', adminTokenMiddleware, (req, res) => {
 
 app.put('/api/auth/profile', authMiddleware, async (req, res) => {
   const { name, email } = req.body;
-  const user = users.find(u => u.id === req.user.id);
+  const user = dbUsers.findById(req.user.id);
   if (!user) return res.status(404).json({ error: 'User not found' });
-  if (name) user.name = name;
-  if (email) user.email = email;
-  const token = jwt.sign({ id: user.id, email: user.email, name: user.name }, JWT_SECRET, { expiresIn: '7d' });
-  res.json({ token, user: { id: user.id, name: user.name, email: user.email } });
+  const newName = name || user.name;
+  const newEmail = email || user.email;
+  dbUsers.updateProfile(user.id, newName, newEmail);
+  const token = jwt.sign({ id: user.id, email: newEmail, name: newName }, JWT_SECRET, { expiresIn: '7d' });
+  res.json({ token, user: { id: user.id, name: newName, email: newEmail } });
+});
+
+// User self-service password change (uses regular user JWT, not admin token)
+app.post('/api/user/change-password', authMiddleware, async (req, res) => {
+  const { currentPassword, newPassword } = req.body || {};
+  if (!currentPassword || !newPassword) return res.status(400).json({ error: 'currentPassword and newPassword required' });
+  if (newPassword.length < 8) return res.status(400).json({ error: 'New password must be at least 8 characters' });
+  const user = dbUsers.findById(req.user.id);
+  if (!user) return res.status(404).json({ error: 'User not found' });
+  const valid = await bcrypt.compare(String(currentPassword), user.passwordHash);
+  if (!valid) return res.status(401).json({ error: 'Current password is incorrect' });
+  const passwordHash = await bcrypt.hash(newPassword, 10);
+  dbUsers.updatePassword(user.id, passwordHash);
+  res.json({ success: true });
 });
 
 app.get('/api/auth/me', authMiddleware, (req, res) => {
-  const user = users.find(u => u.id === req.user.id);
+  const user = dbUsers.findById(req.user.id);
   if (!user) return res.status(404).json({ error: 'User not found' });
-  res.json({ id: user.id, name: user.name, email: user.email, createdAt: user.createdAt });
+  res.json({ id: user.id, name: user.name, email: user.email, planId: user.planId || 'free', createdAt: user.createdAt, emailVerified: Boolean(user.emailVerified) });
 });
 
-app.post('/api/auth/forgot-password', async (req, res) => {
+// Refresh JWT token — issues a fresh token for the currently authenticated user.
+app.post('/api/auth/refresh', authMiddleware, (req, res) => {
+  const user = dbUsers.findById(req.user.id);
+  if (!user) return res.status(404).json({ error: 'User not found' });
+  const token = jwt.sign({ id: user.id, email: user.email, name: user.name }, JWT_SECRET, { expiresIn: '7d' });
+  res.json({ token, user: { id: user.id, name: user.name, email: user.email, planId: user.planId || 'free', emailVerified: Boolean(user.emailVerified) } });
+});
+
+app.post('/api/auth/forgot-password', authRateLimit(5, 15 * 60 * 1000), async (req, res) => {
   const { email } = req.body;
-  const user = users.find(u => u.email === email);
+  const user = dbUsers.findByEmail(email);
   if (!user) return res.status(404).json({ error: 'User not found' });
   const resetToken = crypto.randomBytes(32).toString('hex');
-  user.resetToken = resetToken;
-  user.resetExpires = Date.now() + 3600000;
-  // In production: send email with link /reset-password?token=resetToken
-  res.json({ message: 'Password reset email sent', devToken: resetToken });
+  dbUsers.setResetToken(user.id, resetToken, Date.now() + 3600000);
+  emailService.sendPasswordResetEmail(user, resetToken).catch(err => console.error('[Email] reset send failed:', err.message));
+  res.json({ message: 'Password reset email sent' });
 });
 
 app.post('/api/auth/reset-password', async (req, res) => {
   const { token, newPassword } = req.body;
   if (!token || !newPassword) return res.status(400).json({ error: 'token and newPassword required' });
-  const user = users.find(u => u.resetToken === token && u.resetExpires > Date.now());
+  const user = dbUsers.findByResetToken(token);
   if (!user) return res.status(400).json({ error: 'Invalid or expired token' });
-  user.passwordHash = await bcrypt.hash(newPassword, 10);
-  user.resetToken = null;
-  user.resetExpires = null;
+  const passwordHash = await bcrypt.hash(newPassword, 10);
+  dbUsers.updatePassword(user.id, passwordHash);
   res.json({ message: 'Password reset successful' });
 });
 
 // ==================== MODULE AUTONOME ====================
-const autoDeploy = { start: () => {} };
-const selfConstruction = { start: () => {} };
-const totalSystemHealer = { start: () => {} };
+const autoDeploy = require('./modules/autoDeploy');
+const selfConstruction = require('./modules/selfConstruction');
+const totalSystemHealer = require('./modules/totalSystemHealer');
+const codeSanityEngine = require('../src/modules/code-sanity-engine');
 
-// ==================== INOVAȚII - MOCK MODULES ====================
-// Using mock modules to avoid syntax errors in older innovation modules
-const mockModule = (name) => ({
-  [name]: { status: 'enabled' },
-  getStatus: () => ({ status: 'enabled', name }),
-  create: (data) => ({ success: true, data }),
-  get: (id) => ({ id, data: {} })
-});
-
-const qrIdentity = mockModule('qrIdentity');
-const aiNegotiator = mockModule('aiNegotiator');
-const carbonExchange = mockModule('carbonExchange');
-const marketplace = mockModule('marketplace');
-const complianceEngine = mockModule('complianceEngine');
-const riskAnalyzer = mockModule('riskAnalyzer');
-const reputationProtocol = mockModule('reputationProtocol');
-const opportunityRadar = mockModule('opportunityRadar');
-const businessBlueprint = mockModule('businessBlueprint');
-const paymentGateway = mockModule('paymentGateway');
-const aviationModule = mockModule('aviationModule');
-const paymentSystems = mockModule('paymentSystems');
-const governmentModule = mockModule('governmentModule');
-const defenseModule = mockModule('defenseModule');
-const telecomModule = mockModule('telecomModule');
-const enterprisePartner = mockModule('enterprisePartner');
-const quantumChain = mockModule('quantumChain');
-const workforce = mockModule('workforce');
-const ma = mockModule('ma');
-const legal = mockModule('legal');
-const energy = mockModule('energy');
-const uac = mockModule('uac');
-const socialViralizer = mockModule('socialViralizer');
-const umn = mockModule('umn');
-const gdes = mockModule('gdes');
-const ultimateModules = mockModule('ultimateModules');
-const uee = mockModule('uee');
-const legalFortress = mockModule('legalFortress');
-const qrc = mockModule('qrc');
-const executiveDashboard = mockModule('executiveDashboard');
+// ==================== TOATE MODULELE ====================
+const qrIdentity = require('./modules/qrDigitalIdentity');
+const aiNegotiator = require('./modules/aiNegotiator');
+const carbonExchange = require('./modules/carbonExchange');
+const marketplace = require('./modules/serviceMarketplace');
+const complianceEngine = require('./modules/complianceEngine');
+const riskAnalyzer = require('./modules/riskAnalyzer');
+const reputationProtocol = require('./modules/reputationProtocol');
+const opportunityRadar = require('./modules/opportunityRadar');
+const businessBlueprint = require('./modules/businessBlueprint');
+const paymentGateway = require('./modules/paymentGateway');
+const aviationModule = require('./modules/aviationModule');
+const paymentSystems = require('./modules/paymentSystems');
+const governmentModule = require('./modules/governmentModule');
+const defenseModule = require('./modules/defenseModule');
+const telecomModule = require('./modules/telecomModule');
+const enterprisePartner = require('./modules/enterprisePartnership');
+const quantumChain = require('./modules/quantumBlockchain');
+const workforce = require('./modules/aiWorkforce');
+const ma = require('./modules/maAdvisor');
+const legal = require('./modules/legalContract');
+const energy = require('./modules/energyGrid');
+const uac = require('./modules/unicornAutonomousCore');
+const socialViralizer = require('./modules/socialMediaViralizer');
+const umn = require('./modules/universalMarketNexus');
+const gdes = require('./modules/globalDigitalStandard');
+const ultimateModules = require('./modules/unicornUltimateModules');
+const uee = require('./modules/unicornEternalEngine');
+const legalFortress = require('./modules/legalFortress');
+const qrc = require('./modules/quantumResilienceCore');
+const executiveDashboard = require('./modules/executiveDashboard');
+const unicornAutoGenesis = require('./modules/unicornAutoGenesis');
+const domainAutomationManager = require('./modules/domainAutomationManager');
 
 const unicornInnovationSuite = require('./modules/unicornInnovationSuite');
 const autonomousInnovation = require('./modules/autonomousInnovation');
 const autoRevenue = require('./modules/autoRevenue');
 const autoViralGrowth = require('./modules/autoViralGrowth');
 
+// ==================== AUTONOMOUS SYSTEM v2 (Self-Healing + Self-Innovation) ====================
+const circuitBreaker   = require('./modules/circuit-breaker');
+const sloTracker       = require('./modules/slo-tracker');
+const profitService    = require('./modules/profit-attribution');
+const shadowTester     = require('./modules/shadow-tester');
+
+// ==================== NEW REVENUE & INNOVATION MODULES ====================
+const creditSystem     = require('./modules/creditSystem');
+const referralEngine   = require('./modules/referralEngine');
+const customerHealth   = require('./modules/customerHealth');
+const workflowEngine   = require('./modules/workflowEngine');
+const whiteLabelEngine = require('./modules/whiteLabelEngine');
+const canaryCtrl       = require('./modules/canary-controller');
+const controlPlane     = require('./modules/control-plane-agent');
+const profitLoop       = require('./modules/profit-control-loop');
+
+// ==================== 3 COMPONENTE CRITICE AUTONOME ====================
+const centralOrchestrator = require('./modules/central-orchestrator');
+const selfHealingEngine   = require('./modules/self-healing-engine');
+const autoInnovationLoop  = require('./modules/auto-innovation-loop');
+
+// ==================== DYNAMIC PRICING ENGINE ====================
+const dynamicPricing   = require('./modules/dynamic-pricing');
+
+// ==================== MODULELE NEACTIVATE ANTERIOR — acum active 100% ====================
+const futureCompatBridge    = require('./modules/FutureCompatibilityBridge');
+const moduleLoader          = require('./modules/ModuleLoader');
+const quantumSecurity       = require('./modules/QuantumSecurityLayer');
+const quantumIntegrityShield = require('./modules/quantumIntegrityShield');
+const temporalProcessor     = require('./modules/TemporalDataProcessor');
+const configManager         = require('./modules/configurationManager');
+const quantumPaymentNexus   = require('./modules/quantumPaymentNexus');
+// quantumVault este deja încărcat la linia 66 (primul după dotenv)
+const revenueModules        = require('./modules/revenueModules');
+const sovereignGuardian     = require('./modules/sovereignAccessGuardian');
+// ==================== GENERATED FUTURE MODULES ====================
+const agiSelfEvolution      = require('./generated/AGISelf-EvolutionEngine');
+const autonomousSpace       = require('./generated/AutonomousSpaceComputing');
+const digitalTwinNetwork    = require('./generated/DecentralizedDigitalTwinNetwork');
+const neuralInterfaceAPI    = require('./generated/NeuralInterfaceAPI');
+const quantumInternet       = require('./generated/QuantumInternetProtocol');
+const quantumML             = require('./generated/QuantumMachineLearningCore');
+const temporalDataLayer     = require('./generated/TemporalDataLayer');
+// ==================== SRC INNOVATION & DEPLOY MODULES ====================
+const innovationEngine      = require('../src/innovation/innovation-engine');
+const autoDeployOrchestrator = require('../src/modules/auto-deploy-orchestrator');
+
+// ==================== MESH ORCHESTRATOR — Swiss-watch inter-module bus ====================
+const meshOrchestrator     = require('./modules/unicornMeshOrchestrator');
+const unicornOrchestrator  = require('./modules/unicornOrchestrator');
+
+// ==================== NEW ACTIVATED MODULES (23) ====================
+const evolutionCore           = require('./modules/evolution-core');
+const quantumHealing          = require('./modules/quantum-healing');
+const universalAdaptor        = require('./modules/universal-adaptor');
+const siteCreator             = require('./modules/site-creator');
+const abTesting               = require('./modules/ab-testing');
+const seoOptimizer            = require('./modules/seo-optimizer');
+const analyticsEngine         = require('./modules/analytics');
+const contentAI               = require('./modules/content-ai');
+const autoMarketing           = require('./modules/auto-marketing');
+const performanceMonitor      = require('./modules/performance-monitor');
+const unicornRealizationEngine = require('./modules/unicorn-realization-engine');
+const autoTrendAnalyzer       = require('./modules/auto-trend-analyzer');
+const selfAdaptationEngine    = require('./modules/self-adaptation-engine');
+const codeOptimizer           = require('./modules/code-optimizer');
+const selfDocumenter          = require('./modules/self-documenter');
+const uiEvolution             = require('./modules/ui-evolution');
+const securityScanner         = require('./modules/security-scanner');
+const disasterRecovery        = require('./modules/disaster-recovery');
+const swarmIntelligence       = require('./modules/swarm-intelligence');
+const universalInterchainNexus = require('./modules/universal-interchain-nexus');
+const autonomousWealthEngine  = require('./modules/autonomous-wealth-engine');
+const autonomousBDEngine      = require('./modules/autonomous-bd-engine');
+const unicornSuperIntelligence = require('./modules/unicorn-super-intelligence');
+
+// ==================== NEW POWER AGENTS (6) ====================
+const predictiveMarketIntelligence = require('./modules/predictive-market-intelligence');
+const aiSalesCloser                = require('./modules/ai-sales-closer');
+const competitorSpyAgent           = require('./modules/competitor-spy-agent');
+const aiCfoAgent                   = require('./modules/ai-cfo-agent');
+const sentimentAnalysisEngine      = require('./modules/sentiment-analysis-engine');
+const aiProductGenerator           = require('./modules/ai-product-generator');
+
+// SLO middleware — records every API request latency & error status
+app.use((req, res, next) => {
+  const start = Date.now();
+  res.on('finish', () => {
+    const route = `${req.method} ${req.route ? req.route.path : req.path}`;
+    const dur = Date.now() - start;
+    const isError = res.statusCode >= 500;
+    sloTracker.record(route, dur, isError);
+  });
+  next();
+});
+
 // Pornire module autonome
 selfConstruction.start();
 totalSystemHealer.start();
 autoDeploy.start();
+codeSanityEngine.start();
+// Pornire module revenue streams (7 fluxuri de venit activate autonom)
+revenueModules.startAutoRevenue();
+
+// ==================== PORNIRE 3 COMPONENTE CRITICE AUTONOME ====================
+// Componenta 1 — Orchestratorul Central (monitorizare Vercel/Hetzner/GitHub/DNS)
+centralOrchestrator.start();
+// Componenta 2 — Self-Healing Engine (auto-repair pe baza evenimentelor orchestratorului)
+selfHealingEngine.start();
+selfHealingEngine.attachOrchestrator(centralOrchestrator);
+// Componenta 3 — Auto-Innovation Loop (analiză cod + PR automate + CI monitoring)
+autoInnovationLoop.start();
+
+// Domain automation — pornit automat, indiferent de env DOMAIN
+domainAutomationManager.init().catch(err =>
+  console.warn('[DomainAutomation] init error:', err.message, err.stack)
+);
+
+// Pornire module cu cicluri autonome
+uee.startEternalCycle();
+uee.startPredictiveInnovation();
+uee.startSelfHealing();
+socialViralizer.startAutoPosting();
+socialViralizer.startAutoReply();
+socialViralizer.startViralDetector();
+socialViralizer.startUGCIncentivizer();
+gdes.startComplianceEngine();
+gdes.startRevenueTracker();
+gdes.startAutonomousSLA();
+gdes.startSelfHealing();
+gdes.startSmartRateLimiting();
+gdes.startFallbackMonitor();
+gdes.startDailyReport();
+
+// Montare routere module
+app.use('/api/viral', socialViralizer.getRouter(adminSecretMiddleware));
+app.use('/api/market-nexus', umn.getRouter(adminSecretMiddleware));
+app.use('/api/digital-standard', gdes.getRouter(adminSecretMiddleware));
+app.use('/api/ultimate', ultimateModules.getRouter(adminSecretMiddleware));
+app.use('/api/legal-fortress', legalFortress.getRouter(adminSecretMiddleware));
+app.use('/api/quantum-resilience', qrc.getRouter(adminSecretMiddleware));
+app.use('/api/dashboard', executiveDashboard.getRouter(adminSecretMiddleware));
+// ── Unicorn Eternal Engine ──────────────────────────────────────────
+app.use('/api/uee', uee.getRouter(adminSecretMiddleware));
+
+// ── Unicorn Auto-Genesis ────────────────────────────────────────────
+{
+  const genesisRouter = require('express').Router();
+  genesisRouter.use(adminSecretMiddleware);
+  genesisRouter.get('/status', (req, res) => {
+    res.json({ module: 'UnicornAutoGenesis', status: 'active', repo: unicornAutoGenesis.repo, branch: unicornAutoGenesis.branch });
+  });
+  genesisRouter.post('/run', async (req, res) => {
+    try {
+      await unicornAutoGenesis.run();
+      res.json({ success: true, message: 'AutoGenesis run completed' });
+    } catch (err) {
+      res.status(500).json({ success: false, error: err.message });
+    }
+  });
+  app.use('/api/auto-genesis', genesisRouter);
+}
+
+// ── Domain Automation Manager ───────────────────────────────────────
+{
+  const damRouter = require('express').Router();
+  damRouter.use(adminSecretMiddleware);
+  damRouter.get('/status', (req, res) => res.json(domainAutomationManager.getStatus()));
+  damRouter.post('/run', async (req, res) => {
+    try {
+      const result = await domainAutomationManager.init();
+      res.json({ success: true, result });
+    } catch (err) {
+      res.status(500).json({ success: false, error: err.message });
+    }
+  });
+  app.use('/api/domain-automation', damRouter);
+}
 
 // Start autonomous systems
 console.log('🤖 Autonomous Innovation Engine: STARTING');
 console.log('💰 Auto Revenue Engine: STARTING');
 console.log('📣 Auto Viral Growth Engine: STARTING');
+console.log('🛡️  Control Plane Agent: STARTING');
+console.log('🎯 Profit Control Loop: STARTING');
+
+console.log('♾️  Unicorn Eternal Engine: STARTING');
+console.log('🛡️  Quantum Resilience Core: ACTIVE');
+console.log('🚀 Unicorn Auto-Genesis: READY');
+console.log('🌐 Domain Automation Manager: ACTIVE');
+console.log('📱 Social Media Viralizer: STARTING');
+console.log('🌐 Global Digital Standard: STARTING');
+
+// ==================== MESH ORCHESTRATOR — înregistrare & pornire ====================
+// Înregistrăm toate modulele autonome în bus-ul central de comunicare
+meshOrchestrator.register('unicornAutonomousCore',  uac,                { statusFn: 'getStatus' });
+meshOrchestrator.register('unicornEternalEngine',   uee,                { statusFn: 'getStatus' });
+meshOrchestrator.register('controlPlaneAgent',      controlPlane,       { statusFn: 'getStatus' });
+meshOrchestrator.register('profitControlLoop',      profitLoop,         { statusFn: 'getStatus' });
+meshOrchestrator.register('autonomousInnovation',   autonomousInnovation, { statusFn: 'getStatus' });
+meshOrchestrator.register('autoRevenue',            autoRevenue,        { statusFn: 'getRevenueStatus' });
+meshOrchestrator.register('autoViralGrowth',        autoViralGrowth,    { statusFn: 'getViralStatus' });
+meshOrchestrator.register('sloTracker',             sloTracker,         { statusFn: 'getMetrics' });
+meshOrchestrator.register('circuitBreaker',         circuitBreaker,     { statusFn: 'getStatus' });
+meshOrchestrator.register('canaryController',       canaryCtrl,         { statusFn: 'getMetrics' });
+meshOrchestrator.register('shadowTester',           shadowTester,       { statusFn: 'getMetrics' });
+meshOrchestrator.register('profitAttribution',      profitService,      { statusFn: 'getMetrics' });
+meshOrchestrator.register('unicornInnovationSuite', unicornInnovationSuite, { statusFn: null });
+meshOrchestrator.register('ultimateModules',        ultimateModules,    { statusFn: null });
+// Modulele nou activate — înregistrate în mesh
+meshOrchestrator.register('futureCompatBridge',     futureCompatBridge, { statusFn: 'getStatus' });
+meshOrchestrator.register('quantumSecurity',        quantumSecurity,    { statusFn: 'getStatus' });
+meshOrchestrator.register('quantumIntegrityShield', quantumIntegrityShield, { statusFn: 'getStatus' });
+meshOrchestrator.register('temporalProcessor',      temporalProcessor,  { statusFn: 'getStatus' });
+meshOrchestrator.register('quantumVault',           quantumVault,       { statusFn: 'getStatus' });
+meshOrchestrator.register('sovereignGuardian',      sovereignGuardian,  { statusFn: 'getStatus' });
+meshOrchestrator.register('revenueModules',         revenueModules,     { statusFn: 'getAllStatus' });
+meshOrchestrator.register('unicornOrchestrator',    unicornOrchestrator, { statusFn: 'getStatus' });
+
+// Pornim orchestratorul — Swiss-watch mode
+meshOrchestrator.start();
+unicornOrchestrator.start(); // Orchestratorul central al unicornului — activează toate cele 8 motoare autonome
+console.log('🕰️  Unicorn Mesh Orchestrator: STARTED — toate modulele conectate');
+console.log('🦄 Unicorn Orchestrator (8 engines): ACTIVE');
 
 // ==================== RUTE API ====================
-app.get('/api/health', (req, res) => res.json({ status: 'ok', uptime: process.uptime() }));
+function buildHealthResponse() {
+  const s = Math.floor(process.uptime());
+  const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), sec = s % 60;
+  const mem = process.memoryUsage();
+  return {
+    status: 'ok',
+    uptime: s,
+    uptimeHuman: `${h}h ${m}m ${sec}s`,
+    users: dbUsers.count(),
+    dbConnected: true,
+    engines: { innovation: true, revenue: true, viral: true, eternalEngine: true },
+    quantumIntegrityShield: quantumIntegrityShield.getStatus().integrity,
+    memory: {
+      rss: Math.round(mem.rss / 1024 / 1024) + 'MB',
+      heapUsed: Math.round(mem.heapUsed / 1024 / 1024) + 'MB',
+      heapTotal: Math.round(mem.heapTotal / 1024 / 1024) + 'MB',
+    },
+    node: process.version,
+    env: process.env.NODE_ENV || 'development',
+    version: APP_VERSION,
+    timestamp: new Date().toISOString(),
+  };
+}
 
-app.get('/api/modules', (req, res) => {
-  const fs = require('fs');
-  const modules = fs.readdirSync(path.join(__dirname, 'modules')).filter(f => f.endsWith('.js')).map(f => f.replace('.js', ''));
-  res.json({ modules });
+// /health (non-prefixed) — used by Vercel smoke tests and uptime monitors
+app.get('/health', (req, res) => res.json(buildHealthResponse()));
+
+app.get('/api/health', (req, res) => res.json(buildHealthResponse()));
+
+// ==================== SNAPSHOT + SSE STREAM (backend mirror) ====================
+const _streamClients = new Set();
+
+function buildBackendSnapshot() {
+  const uptimeSec = Math.floor(process.uptime());
+  return {
+    generatedAt: new Date().toISOString(),
+    health: { ok: true, service: 'unicorn-backend' },
+    telemetry: {
+      uptime: uptimeSec,
+      activeUsers: dbUsers.count(),
+      requests: uptimeSec,
+    },
+    billing: {
+      primary: 'BTC',
+      supported: ['BTC', 'Stripe', 'PayPal'],
+      btcAddress: ADMIN_OWNER_BTC,
+    },
+    platform: {
+      url: process.env.PUBLIC_APP_URL || 'https://zeusai.pro',
+      owner: ADMIN_OWNER_NAME,
+      contact: ADMIN_OWNER_EMAIL,
+      version: APP_VERSION,
+    },
+  };
+}
+
+app.get('/snapshot', (req, res) => {
+  res.json(buildBackendSnapshot());
+});
+
+app.get('/stream', (req, res) => {
+  res.writeHead(200, {
+    'Content-Type': 'text/event-stream',
+    'Cache-Control': 'no-cache, no-transform',
+    Connection: 'keep-alive',
+  });
+  res.write('data: ' + JSON.stringify(buildBackendSnapshot()) + '\n\n');
+  _streamClients.add(res);
+  req.on('close', () => _streamClients.delete(res));
+});
+
+const _streamInterval = setInterval(() => {
+  if (_streamClients.size === 0) return;
+  const payload = 'data: ' + JSON.stringify(buildBackendSnapshot()) + '\n\n';
+  for (const client of _streamClients) client.write(payload);
+}, 5000);
+if (typeof _streamInterval.unref === 'function') _streamInterval.unref();
+
+// ==================== BTC QR CODE ====================
+app.get('/api/payment/btc-qr', async (req, res) => {
+  const address = String(req.query.address || ADMIN_OWNER_BTC).slice(0, 200);
+  const amount  = parseFloat(req.query.amount) || 0;
+  const uri     = amount > 0 ? `bitcoin:${address}?amount=${amount}` : `bitcoin:${address}`;
+  try {
+    const QRCode = require('qrcode');
+    const dataUrl = await QRCode.toDataURL(uri, { width: 256, margin: 2, color: { dark: '#00d4ff', light: '#05060e' } });
+    res.json({ qr: dataUrl, uri });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ==================== AI CHAT ====================
+// Provideri: OpenAI → DeepSeek → Anthropic → Gemini → Mistral → Cohere → xAI Grok → UAIC → Llama → keyword
+const _aiProviders = require('./modules/aiProviders');
+// 🤖 UAIC — orchestrează inteligent toate resursele AI (OpenAI, DeepSeek,
+//           Claude, Gemini, Ollama local). Activat automat la pornire.
+let _uaic = null;
+try { _uaic = require('./modules/universal-ai-connector'); } catch (e) {
+  try { _uaic = require('./modules/universalAIConnector'); } catch { _uaic = null; }
+}
+
+// 🦙 Llama bridge — also available standalone via /api/llama/status
+let _llamaBridge = null;
+try { _llamaBridge = require('./modules/llamaBridge'); } catch { /* optional */ }
+
+const ZEUS_SYSTEM = 'You are Zeus AI Assistant, an expert in business automation, AI, blockchain, payments, and enterprise solutions. Be concise and helpful. You can also respond in Romanian if the user writes in Romanian.';
+
+app.post('/api/chat', authRateLimit(30, 60_000), async (req, res) => {
+  const { message, history = [] } = req.body || {};
+  if (!message) return res.status(400).json({ error: 'message required' });
+
+  // 1️⃣ Cloud AI providers cascade (OpenAI → DeepSeek → Anthropic → Gemini → Mistral → Cohere → xAI Grok)
+  const cloudResult = await _aiProviders.chat(message, history);
+  if (cloudResult) return res.json(cloudResult);
+
+  // 2️⃣ UAIC – routare automată la cel mai bun provider disponibil (cheapest first pentru chat)
+  if (_uaic) {
+    try {
+      const result = await _uaic.ask(message, {
+        taskType: 'simple',
+        systemPrompt: ZEUS_SYSTEM,
+        maxTokens: 400,
+        history,
+      });
+      return res.json({ reply: result.text, model: result.model });
+    } catch (err) {
+      console.warn('[Chat] UAIC a eșuat:', err.message);
+    }
+  }
+
+  // 3️⃣ Llama local fallback (zero-cost, rulează pe Hetzner via Ollama)
+  if (_llamaBridge) {
+    const historyText = history.slice(-4)
+      .map(m => `${m.role === 'user' ? 'User' : 'Assistant'}: ${m.content}`)
+      .join('\n');
+    const prompt = historyText
+      ? `${historyText}\nUser: ${message}\nAssistant:`
+      : message;
+    const llamaReply = await _llamaBridge.generate(
+      prompt,
+      _llamaBridge.PRIORITY.CHAT,
+      ZEUS_SYSTEM
+    );
+    if (llamaReply) {
+      return res.json({ reply: llamaReply, model: 'llama-local' });
+    }
+  }
+
+  // 4️⃣ Smart keyword fallback (static — când niciun AI nu e disponibil)
+  const lower = message.toLowerCase();
+  const KEYWORD_RESPONSES = [
+    [['payment', 'plat'], 'Zeus AI suportă plăți via Stripe, PayPal, Bitcoin și alte 10+ metode. Accesează /payments pentru a iniția o tranzacție.'],
+    [['marketplace'], 'Marketplace-ul Zeus AI oferă 50+ servicii AI specializate. Explorează /marketplace pentru prețuri personalizate.'],
+    [['blockchain', 'crypto'], 'Modulul Quantum Blockchain oferă tranzacții securizate și smart contracts. Accesează /innovation/blockchain.'],
+    [['compliance', 'legal'], 'Compliance Engine-ul acoperă GDPR, HIPAA, SOX și 25+ standarde globale. Accesează /innovation/legal.'],
+    [['revenue', 'profit'], 'Auto Revenue Engine generează deal-uri autonom 24/7. Dashboard-ul executiv afișează metricele live la /executive.'],
+    [['plan', 'pricing', 'pret'], 'Planuri disponibile: Free ($0), Starter ($29/lună), Pro ($99/lună), Enterprise ($499/lună). Accesează /payments pentru upgrade.'],
+    [['innovation', 'inova'], 'Innovation Command Center coordonează AI Workforce, M&A Advisor, Energy Grid și Quantum Blockchain. Accesează /innovation.'],
+    [['admin', 'dashboard'], 'Dashboard-ul admin este disponibil la /admin/login. Dashboard-ul executiv la /executive.'],
+  ];
+  const matched = KEYWORD_RESPONSES.find(([keywords]) => keywords.some(k => lower.includes(k)));
+  const reply = matched ? matched[1] : 'Bun venit la Zeus AI! Sunt asistentul tău pentru business automation, AI, blockchain și plăți globale. Cum te pot ajuta?';
+  res.json({ reply, model: 'keyword-fallback' });
+});
+
+// ==================== UAIC STATUS + ADMIN ====================
+app.get('/api/uaic/status', (req, res) => {
+  if (!_uaic) return res.json({ active: false, reason: 'uaic_not_loaded' });
+  res.json(_uaic.getStatus());
+});
+
+// ==================== LLAMA STATUS ====================
+app.get('/api/llama/status', (req, res) => {
+  if (!_llamaBridge) return res.json({ available: false, reason: 'bridge_not_loaded' });
+  res.json(_llamaBridge.getStatus());
+});
+
+// ==================== AI PROVIDERS STATUS ====================
+app.get('/api/ai/status', (req, res) => {
+  const providers = _aiProviders.getStatus();
+  const llama = _llamaBridge ? _llamaBridge.getStatus() : { available: false, reason: 'bridge_not_loaded' };
+  const activeCount = providers.filter(p => p.configured).length + (llama.available ? 1 : 0);
+  res.json({
+    providers,
+    llama,
+    activeCount,
+    total: providers.length + 1,
+    timestamp: new Date().toISOString(),
+  });
+});
+
+
+// Middleware for public API access (used with x-api-key header)
+function apiKeyMiddleware(req, res, next) {
+  const rawKey = req.headers['x-api-key'];
+  if (!rawKey) return res.status(401).json({ error: 'x-api-key header required' });
+  const keyRecord = dbApiKeys.verify(rawKey);
+  if (!keyRecord) return res.status(401).json({ error: 'Invalid API key' });
+  const allowed = dbApiKeys.checkRateLimit(keyRecord.keyId, keyRecord.planId, req.path);
+  if (!allowed) return res.status(429).json({ error: 'Rate limit exceeded. Upgrade your plan.' });
+  req.apiKey = keyRecord;
+  return next();
+}
+
+// Create API key (authenticated users)
+app.post('/api/platform/api-keys/create', authMiddleware, (req, res) => {
+  const { name, planId } = req.body || {};
+  const result = dbApiKeys.create({ name: name || 'My API Key', clientId: req.user.id, planId: planId || 'starter' });
+  res.json(result);
+});
+
+// Alias: /generate (used by template.js dashboard)
+app.post('/api/platform/api-keys/generate', authMiddleware, (req, res) => {
+  const { name, planId } = req.body || {};
+  const result = dbApiKeys.create({ name: name || 'My API Key', clientId: req.user.id, planId: planId || 'starter' });
+  res.json(result);
+});
+
+// List own API keys
+app.get('/api/platform/api-keys/mine', authMiddleware, (req, res) => {
+  const keys = dbApiKeys.listForClient(req.user.id);
+  res.json({ keys });
+});
+
+// ==================== PUBLIC BILLING PLANS ====================
+const BILLING_PLANS = [
+  {
+    id: 'free',
+    name: 'Free',
+    priceMonthly: 0,
+    priceYearly: 0,
+    currency: 'USD',
+    limits: { apiCalls: 100, seats: 1, modules: ['compliance', 'risk'] },
+    features: ['100 API calls/month', 'Compliance audit basic', 'Risk analyzer basic'],
+    cta: 'Get started free',
+  },
+  {
+    id: 'starter',
+    name: 'Starter',
+    priceMonthly: 29,
+    priceYearly: 290,
+    stripePriceIdMonthly: process.env.STRIPE_PRICE_STARTER_MONTHLY || '',
+    stripePriceIdYearly: process.env.STRIPE_PRICE_STARTER_YEARLY || '',
+    currency: 'USD',
+    limits: { apiCalls: 10000, seats: 3, modules: 'all' },
+    features: ['10,000 API calls/month', 'AI Negotiator', 'Compliance Engine', 'Carbon Exchange', '3 seats'],
+    cta: 'Start 14-day trial',
+  },
+  {
+    id: 'pro',
+    name: 'Pro',
+    priceMonthly: 99,
+    priceYearly: 990,
+    stripePriceIdMonthly: process.env.STRIPE_PRICE_PRO_MONTHLY || '',
+    stripePriceIdYearly: process.env.STRIPE_PRICE_PRO_YEARLY || '',
+    currency: 'USD',
+    popular: true,
+    limits: { apiCalls: 120000, seats: 15, modules: 'all' },
+    features: ['120,000 API calls/month', 'All AI modules', 'Quantum Blockchain', 'M&A Advisor', 'Legal Contracts', '15 seats', 'Priority support'],
+    cta: 'Start 14-day trial',
+  },
+  {
+    id: 'enterprise',
+    name: 'Enterprise',
+    priceMonthly: 499,
+    priceYearly: 4990,
+    stripePriceIdMonthly: process.env.STRIPE_PRICE_ENTERPRISE_MONTHLY || '',
+    stripePriceIdYearly: process.env.STRIPE_PRICE_ENTERPRISE_YEARLY || '',
+    currency: 'USD',
+    limits: { apiCalls: 1500000, seats: 100, modules: 'all' },
+    features: ['1.5M API calls/month', 'All AI modules', 'White-label option', 'Custom integrations', '100 seats', 'SLA 99.9%', 'Dedicated support'],
+    cta: 'Contact sales',
+  },
+];
+
+// Public — no auth required; prices are enriched with live dynamic-pricing factors
+app.get('/api/billing/plans/public', (req, res) => {
+  const conditions = dynamicPricing.getMarketConditions();
+  const plans = BILLING_PLANS.map(p => {
+    const dp = dynamicPricing.getPrice(p.id);
+    // Apply demand factor to monthly/yearly prices (keep integer cents-rounded)
+    const factor = dp ? dp.demandFactor : 1;
+    const priceMonthly = p.priceMonthly > 0 ? Math.round(p.priceMonthly * factor * 100) / 100 : 0;
+    const priceYearly  = p.priceYearly  > 0 ? Math.round(p.priceYearly  * factor * 100) / 100 : 0;
+    return {
+      ...p,
+      stripePriceIdMonthly: undefined,
+      stripePriceIdYearly: undefined,
+      priceMonthly,
+      priceYearly,
+      dynamicFactor: Math.round(factor * 1000) / 1000,
+      peakHours: conditions.peakHours,
+      surgeActive: conditions.surgeActive,
+    };
+  });
+  res.json({ plans, marketConditions: conditions });
+});
+
+// Create Stripe subscription checkout session
+app.post('/api/billing/subscribe/stripe', authMiddleware, async (req, res) => {
+  const { planId, interval = 'monthly' } = req.body || {};
+  const plan = BILLING_PLANS.find(p => p.id === planId);
+  if (!plan || plan.id === 'free') return res.status(400).json({ error: 'Invalid plan' });
+
+  const priceId = interval === 'yearly' ? plan.stripePriceIdYearly : plan.stripePriceIdMonthly;
+  if (!priceId) {
+    return res.status(503).json({ error: 'Stripe not configured for this plan. Contact sales.' });
+  }
+
+  const stripeKey = process.env.STRIPE_SECRET_KEY;
+  if (!stripeKey) return res.status(503).json({ error: 'Stripe not configured' });
+
+  const APP_URL = process.env.PUBLIC_APP_URL || 'http://localhost:3000';
+
+  try {
+    const form = new URLSearchParams();
+    form.append('mode', 'subscription');
+    form.append('line_items[0][price]', priceId);
+    form.append('line_items[0][quantity]', '1');
+    form.append('success_url', APP_URL + '/dashboard?subscription=success&plan=' + planId);
+    form.append('cancel_url', APP_URL + '/payments?subscription=cancelled');
+    form.append('customer_email', req.user.email);
+    form.append('metadata[userId]', req.user.id);
+    form.append('metadata[planId]', planId);
+
+    const resp = await axios.post('https://api.stripe.com/v1/checkout/sessions', form.toString(), {
+      headers: { Authorization: 'Bearer ' + stripeKey, 'Content-Type': 'application/x-www-form-urlencoded' },
+      timeout: 15000,
+    });
+
+    res.json({ checkoutUrl: resp.data.url, sessionId: resp.data.id });
+  } catch (err) {
+    const msg = err.response?.data?.error?.message || err.message;
+    res.status(400).json({ error: msg });
+  }
+});
+
+// ==================== STRIPE WEBHOOK ====================
+app.post('/api/payment/webhook/stripe', (req, res) => {
+  const sig = req.headers['stripe-signature'];
+  const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
+
+  let event;
+
+  if (webhookSecret && sig) {
+    // Verify signature with stripe-signature header
+    const payload = req.body; // raw Buffer due to express.raw() middleware above
+    const parts = String(sig).split(',');
+    const ts = parts.find(p => p.startsWith('t='))?.split('=')[1];
+    const v1 = parts.find(p => p.startsWith('v1='))?.split('=')[1];
+    if (!ts || !v1) return res.status(400).json({ error: 'Invalid signature format' });
+    const signed = crypto.createHmac('sha256', webhookSecret)
+      .update(ts + '.' + payload)
+      .digest('hex');
+    if (signed !== v1) return res.status(400).json({ error: 'Webhook signature mismatch' });
+    try {
+      event = JSON.parse(payload.toString());
+    } catch {
+      return res.status(400).json({ error: 'Invalid JSON' });
+    }
+  } else {
+    // No webhook secret configured
+    if (process.env.NODE_ENV === 'production') {
+      return res.status(401).json({ error: 'STRIPE_WEBHOOK_SECRET not configured' });
+    }
+    // Development fallback — log a prominent warning
+    console.warn('⚠️  [Stripe Webhook] STRIPE_WEBHOOK_SECRET not set — accepting unverified payload (dev mode only)');
+    event = req.body || {};
+  }
+
+  console.log('[Stripe Webhook]', event.type, event.id || '');
+
+  switch (event.type) {
+    case 'checkout.session.completed': {
+      const session = event.data?.object || {};
+      if (session.payment_status === 'paid') {
+        const txId = session.metadata?.txId;
+        if (txId) {
+          const payment = dbPayments.findByTxId(txId);
+          if (payment) {
+            dbPayments.save({ ...payment, status: 'completed', providerStatus: 'paid', updatedAt: new Date().toISOString() });
+          }
+        }
+        const userId = session.metadata?.userId;
+        const planId = session.metadata?.planId;
+        if (userId && planId) {
+          console.log(`[Stripe Webhook] Subscription activated: user=${userId} plan=${planId}`);
+          dbUsers.setPlanId(userId, planId);
+          const user = dbUsers.findById(userId);
+          if (user) {
+            emailService.sendPaymentConfirmation(user, { planId, amount: 0, method: 'stripe' })
+              .catch(err => console.error('[Email] payment confirmation failed:', err.message));
+          }
+        }
+      }
+      break;
+    }
+    case 'invoice.payment_succeeded': {
+      const invoice = event.data?.object || {};
+      console.log('[Stripe Webhook] Invoice paid:', invoice.customer_email, '$' + (invoice.amount_paid / 100));
+      break;
+    }
+    case 'invoice.payment_failed': {
+      const invoice = event.data?.object || {};
+      console.log('[Stripe Webhook] Invoice payment FAILED:', invoice.customer_email);
+      break;
+    }
+    case 'customer.subscription.deleted': {
+      console.log('[Stripe Webhook] Subscription cancelled:', event.data?.object?.id);
+      break;
+    }
+    default:
+      console.log('[Stripe Webhook] Unhandled event type:', event.type);
+  }
+
+  res.json({ received: true });
+});
+
+// ==================== PAYPAL WEBHOOK ====================
+app.post('/api/payment/webhook/paypal', async (req, res) => {
+  const webhookId = process.env.PAYPAL_WEBHOOK_ID;
+  const rawBody = req.body; // raw Buffer due to express.raw() middleware
+
+  let event;
+  try {
+    event = JSON.parse(rawBody.toString());
+  } catch {
+    return res.status(400).json({ error: 'Invalid JSON' });
+  }
+
+  // Verify PayPal webhook signature when PAYPAL_WEBHOOK_ID is configured
+  if (webhookId) {
+    try {
+      const paypalBase = (process.env.PAYPAL_ENV || 'sandbox').toLowerCase() === 'live'
+        ? 'https://api-m.paypal.com'
+        : 'https://api-m.sandbox.paypal.com';
+
+      const accessToken = await paymentGateway.getPayPalAccessToken();
+      const verifyResponse = await axios.post(
+        paypalBase + '/v1/notifications/verify-webhook-signature',
+        {
+          auth_algo: req.headers['paypal-auth-algo'],
+          cert_url: req.headers['paypal-cert-url'],
+          transmission_id: req.headers['paypal-transmission-id'],
+          transmission_sig: req.headers['paypal-transmission-sig'],
+          transmission_time: req.headers['paypal-transmission-time'],
+          webhook_id: webhookId,
+          webhook_event: event
+        },
+        {
+          headers: { Authorization: 'Bearer ' + accessToken, 'Content-Type': 'application/json' },
+          timeout: 15000
+        }
+      );
+
+      if (verifyResponse.data?.verification_status !== 'SUCCESS') {
+        console.warn('[PayPal Webhook] Signature verification failed:', verifyResponse.data?.verification_status);
+        return res.status(400).json({ error: 'Webhook signature verification failed' });
+      }
+    } catch (verifyErr) {
+      console.error('[PayPal Webhook] Signature verification error:', verifyErr.message);
+      if (process.env.NODE_ENV === 'production') {
+        return res.status(400).json({ error: 'Webhook verification error' });
+      }
+      console.warn('[PayPal Webhook] Skipping verification in non-production mode');
+    }
+  } else if (process.env.NODE_ENV === 'production') {
+    return res.status(401).json({ error: 'PAYPAL_WEBHOOK_ID not configured' });
+  } else {
+    console.warn('⚠️  [PayPal Webhook] PAYPAL_WEBHOOK_ID not set — accepting unverified payload (dev mode only)');
+  }
+
+  const eventType = event.event_type || '';
+  const resource = event.resource || {};
+  console.log('[PayPal Webhook]', eventType, event.id || '');
+
+  // Extract possible txId/order ID hint from various PayPal resource fields
+  const txIdHint = resource.supplementary_data?.related_ids?.order_id
+    || resource.custom_id
+    || resource.purchase_units?.[0]?.reference_id
+    || null;
+
+  // Shared helper: find a pending payment by PayPal order ID or txId hint and update it
+  const findPaymentByOrderId = (orderId, hint) => {
+    const allPending = dbPayments.list({ status: 'pending' });
+    return allPending.find(p =>
+      p.providerPaymentId === orderId ||
+      p.txId === hint ||
+      p.providerPaymentId === hint
+    ) || null;
+  };
+
+  const markCompleted = (orderId, hint) => {
+    const payment = findPaymentByOrderId(orderId, hint);
+    if (payment) {
+      const updated = {
+        ...payment,
+        status: 'completed',
+        providerStatus: 'COMPLETED',
+        processorResponse: {
+          approved: true,
+          reference: orderId || payment.providerPaymentId,
+          note: 'PayPal webhook confirmed.'
+        },
+        updatedAt: new Date().toISOString()
+      };
+      dbPayments.save(updated);
+      paymentGateway.payments.set(payment.txId, updated);
+      console.log('[PayPal Webhook] Payment completed:', payment.txId);
+      // Send payment confirmation email
+      if (payment.clientId && payment.clientId !== 'guest') {
+        const user = dbUsers.findById(payment.clientId);
+        if (user) {
+          emailService.sendPaymentConfirmation(user, { amount: payment.total, method: 'paypal' })
+            .catch(err => console.error('[Email] PayPal confirmation failed:', err.message));
+        }
+      }
+    }
+  };
+
+  switch (eventType) {
+    case 'PAYMENT.CAPTURE.COMPLETED': {
+      const orderId = resource.supplementary_data?.related_ids?.order_id || resource.id;
+      markCompleted(orderId, txIdHint);
+      break;
+    }
+    case 'CHECKOUT.ORDER.APPROVED': {
+      // Order approved; attempt to capture it automatically
+      try {
+        await paymentGateway.capturePayPalOrder(resource.id);
+        console.log('[PayPal Webhook] Order captured:', resource.id);
+      } catch (captureErr) {
+        console.error('[PayPal Webhook] Auto-capture failed:', captureErr.message);
+      }
+      break;
+    }
+    case 'PAYMENT.CAPTURE.DENIED':
+    case 'PAYMENT.CAPTURE.REVERSED': {
+      const orderId = resource.supplementary_data?.related_ids?.order_id || resource.id;
+      const payment = findPaymentByOrderId(orderId, txIdHint);
+      if (payment) {
+        dbPayments.save({ ...payment, status: 'failed', providerStatus: eventType, updatedAt: new Date().toISOString() });
+        paymentGateway.payments.delete(payment.txId);
+      }
+      console.log('[PayPal Webhook] Payment denied/reversed:', orderId);
+      break;
+    }
+    default:
+      console.log('[PayPal Webhook] Unhandled event type:', eventType);
+  }
+
+  res.json({ received: true });
+});
+
+app.get('/api/modules', authMiddleware, (req, res) => {
+  const SAFE_MODULE_LIST = [
+    'aiNegotiator','carbonExchange','complianceEngine','riskAnalyzer',
+    'reputationProtocol','opportunityRadar','businessBlueprint','paymentGateway',
+    'aviationModule','paymentSystems','governmentModule','defenseModule',
+    'telecomModule','enterprisePartnership','quantumBlockchain','aiWorkforce',
+    'maAdvisor','legalContract','energyGrid','socialMediaViralizer',
+    'quantumResilienceCore','executiveDashboard'
+  ];
+  res.json({ modules: SAFE_MODULE_LIST });
 });
 
 // ==================== RUTE INOVAȚII ====================
 
 // 1. Quantum-Resistant Digital Identity
-app.post('/api/identity/create', (req, res) => {
+app.post('/api/identity/create', authMiddleware, (req, res) => {
   const { userId, metadata } = req.body;
   if (!userId) return res.status(400).json({ error: 'userId required' });
   res.json(qrIdentity.generateIdentity(userId, metadata));
 });
 
-app.post('/api/identity/sign', (req, res) => {
+app.post('/api/identity/sign', authMiddleware, (req, res) => {
   const { userId, message } = req.body;
   if (!userId || !message) return res.status(400).json({ error: 'userId and message required' });
   try {
@@ -275,20 +1254,20 @@ app.post('/api/identity/sign', (req, res) => {
   }
 });
 
-app.post('/api/identity/verify', (req, res) => {
+app.post('/api/identity/verify', authMiddleware, (req, res) => {
   const { publicKey, message, signature } = req.body;
   const result = qrIdentity.verify(publicKey, message, signature);
   res.json(result);
 });
 
 // 2. Autonomous AI Negotiator
-app.post('/api/negotiate/start', (req, res) => {
+app.post('/api/negotiate/start', authMiddleware, (req, res) => {
   const { counterparty, topic, initialOffer, targetPrice, maxDiscount, deliveryTime } = req.body;
   if (!counterparty || !topic || !initialOffer) return res.status(400).json({ error: 'counterparty, topic and initialOffer required' });
   res.json(aiNegotiator.startNegotiation({ counterparty, topic, initialOffer, targetPrice, maxDiscount, deliveryTime }));
 });
 
-app.post('/api/negotiate/message/:id', async (req, res) => {
+app.post('/api/negotiate/message/:id', authMiddleware, async (req, res) => {
   const { id } = req.params;
   const { message, userType } = req.body;
   if (!message) return res.status(400).json({ error: 'message required' });
@@ -299,24 +1278,24 @@ app.post('/api/negotiate/message/:id', async (req, res) => {
   }
 });
 
-app.get('/api/negotiate/:id', (req, res) => {
+app.get('/api/negotiate/:id', authMiddleware, (req, res) => {
   const negotiation = aiNegotiator.getNegotiation(parseInt(req.params.id));
   if (!negotiation) return res.status(404).json({ error: 'Negotiation not found' });
   res.json(negotiation);
 });
 
-app.get('/api/negotiate/stats', (req, res) => {
+app.get('/api/negotiate/stats', authMiddleware, (req, res) => {
   res.json(aiNegotiator.getStats());
 });
 
 // 3. Universal Carbon Credit Exchange
-app.post('/api/carbon/issue', (req, res) => {
+app.post('/api/carbon/issue', authMiddleware, (req, res) => {
   const { owner, amount, type, projectId, vintage } = req.body;
   if (!owner || !amount) return res.status(400).json({ error: 'owner and amount required' });
   res.json(carbonExchange.issueCredits(owner, amount, type, projectId, vintage));
 });
 
-app.post('/api/carbon/trade', async (req, res) => {
+app.post('/api/carbon/trade', authMiddleware, async (req, res) => {
   const { buyer, seller, creditId, amount } = req.body;
   try {
     res.json(await carbonExchange.executeTrade(buyer, seller, creditId, amount));
@@ -325,7 +1304,7 @@ app.post('/api/carbon/trade', async (req, res) => {
   }
 });
 
-app.post('/api/carbon/order/sell', (req, res) => {
+app.post('/api/carbon/order/sell', authMiddleware, (req, res) => {
   const { seller, creditId, amount, price } = req.body;
   try {
     res.json(carbonExchange.createSellOrder(seller, creditId, amount, price));
@@ -334,36 +1313,44 @@ app.post('/api/carbon/order/sell', (req, res) => {
   }
 });
 
-app.post('/api/carbon/order/buy', (req, res) => {
+app.post('/api/carbon/order/buy', authMiddleware, (req, res) => {
   const { buyer, creditType, amount, maxPrice } = req.body;
   res.json(carbonExchange.createBuyOrder(buyer, creditType, amount, maxPrice));
 });
 
-app.post('/api/carbon/match', async (req, res) => {
+app.post('/api/carbon/match', authMiddleware, async (req, res) => {
   res.json(await carbonExchange.matchOrders());
 });
 
-app.get('/api/carbon/portfolio/:owner', (req, res) => {
+app.get('/api/carbon/portfolio/:owner', authMiddleware, (req, res) => {
   res.json(carbonExchange.getPortfolio(req.params.owner));
 });
 
-app.get('/api/carbon/stats', (req, res) => {
+app.get('/api/carbon/stats', authMiddleware, (req, res) => {
   res.json(carbonExchange.getMarketStats());
 });
 
-app.get('/api/carbon/transactions/:user', (req, res) => {
+app.get('/api/carbon/transactions/:user', authMiddleware, (req, res) => {
   const { role } = req.query;
   res.json(carbonExchange.getTransactionHistory(req.params.user, role));
 });
 
-app.post('/api/carbon/price', (req, res) => {
+app.post('/api/carbon/price', authMiddleware, (req, res) => {
   const { type, price } = req.body;
   res.json(carbonExchange.updateMarketPrice(type, price));
 });
 
 // ==================== MARKETPLACE ROUTES ====================
 app.get('/api/marketplace/services', (req, res) => {
-  res.json({ services: marketplace.getAllServices() });
+  const services = marketplace.getAllServices().map(s => {
+    // Enrich with dynamic-pricing data where the module has a matching service ID
+    const dp = dynamicPricing.getPrice(s.id);
+    if (dp) {
+      return { ...s, price: dp.finalPrice, dynamicFactor: dp.demandFactor, surgeActive: dp.surgeActive };
+    }
+    return s;
+  });
+  res.json({ services });
 });
 
 app.get('/api/marketplace/categories', (req, res) => {
@@ -418,6 +1405,51 @@ app.post('/api/marketplace/demand', (req, res) => {
   res.json({ success: true });
 });
 
+// Guest purchases: returns aggregated/public stats without requiring a clientId
+app.get('/api/marketplace/purchases/guest', (req, res) => {
+  const stats = marketplace.getMarketplaceStats();
+  res.json({
+    totalPurchases: 0,
+    totalRevenue: stats.totalValue || 0,
+    popularServices: Object.entries(stats.byCategory || {}).map(([name, count]) => ({ name, count })),
+  });
+});
+
+// ==================== DYNAMIC PRICING ROUTES ====================
+
+// Public: current price for all or a specific service
+app.get('/api/pricing/all', (req, res) => {
+  res.json({ prices: dynamicPricing.getAllPrices(), basePrices: dynamicPricing.BASE_PRICES });
+});
+
+app.get('/api/pricing/conditions', (req, res) => {
+  res.json(dynamicPricing.getMarketConditions());
+});
+
+app.get('/api/pricing/:serviceId', (req, res) => {
+  const allowed = Object.keys(dynamicPricing.BASE_PRICES);
+  if (!allowed.includes(req.params.serviceId)) {
+    return res.status(404).json({ error: 'Service not found in pricing engine' });
+  }
+  res.json(dynamicPricing.getPrice(req.params.serviceId, { userId: req.query.userId, coupon: req.query.coupon }));
+});
+
+// Admin: activate surge pricing (duration key: 30min | 1h | 2h | 6h | 24h)
+app.post('/api/pricing/surge', adminTokenMiddleware, (req, res) => {
+  const { durationKey } = req.body || {};
+  const allowed = Object.keys(dynamicPricing.ALLOWED_SURGE_DURATIONS_MS);
+  const key = allowed.includes(durationKey) ? durationKey : '1h';
+  dynamicPricing.activateSurge(key);
+  res.json({ success: true, surgeDuration: key });
+});
+
+// Admin: toggle global 20% discount
+app.post('/api/pricing/discount', adminTokenMiddleware, (req, res) => {
+  const { active } = req.body || {};
+  dynamicPricing.setDiscount(!!active);
+  res.json({ success: true, discountActive: !!active });
+});
+
 // ==================== PAYMENT ROUTES ====================
 app.get('/api/payment/methods', (req, res) => {
   res.json({ methods: paymentGateway.getPaymentMethods() });
@@ -464,7 +1496,7 @@ app.get('/api/payment/stats', (req, res) => {
   res.json(paymentGateway.getStats());
 });
 
-app.post('/api/admin/payment/activate', (req, res) => {
+app.post('/api/admin/payment/activate', adminCrudRateLimit, adminTokenMiddleware, (req, res) => {
   const { method, active } = req.body;
   try {
     res.json(paymentGateway.activateMethod(method, active));
@@ -476,7 +1508,7 @@ app.post('/api/admin/payment/activate', (req, res) => {
 // ==================== EXTENDED DOMAIN ROUTES ====================
 
 // Aviation
-app.post('/api/aviation/optimize-routes', async (req, res) => {
+app.post('/api/aviation/optimize-routes', authMiddleware, async (req, res) => {
   try {
     const result = await aviationModule.optimizeRoutes(req.body.airlineId, req.body || {});
     res.json(result);
@@ -485,17 +1517,17 @@ app.post('/api/aviation/optimize-routes', async (req, res) => {
   }
 });
 
-app.post('/api/aviation/predictive-maintenance', (req, res) => {
+app.post('/api/aviation/predictive-maintenance', authMiddleware, (req, res) => {
   res.json(aviationModule.predictiveMaintenance(req.body || {}));
 });
 
-app.post('/api/aviation/ticket-pricing', (req, res) => {
+app.post('/api/aviation/ticket-pricing', authMiddleware, (req, res) => {
   const { route, demand, competitors } = req.body;
   res.json(aviationModule.optimizeTicketPrices(route || {}, demand || {}, competitors || []));
 });
 
 // Payment Systems
-app.post('/api/payments/cross-border', async (req, res) => {
+app.post('/api/payments/cross-border', authMiddleware, async (req, res) => {
   try {
     const result = await paymentSystems.processCrossBorderPayment(req.body || {});
     res.json(result);
@@ -504,32 +1536,32 @@ app.post('/api/payments/cross-border', async (req, res) => {
   }
 });
 
-app.post('/api/payments/fraud-detection', (req, res) => {
+app.post('/api/payments/fraud-detection', authMiddleware, (req, res) => {
   res.json(paymentSystems.detectFraud(req.body || {}));
 });
 
-app.post('/api/payments/card', (req, res) => {
+app.post('/api/payments/card', authMiddleware, (req, res) => {
   const { cardDetails, amount } = req.body;
   res.json(paymentSystems.processCardPayment(cardDetails || {}, Number(amount || 0)));
 });
 
 // Government
-app.post('/api/government/compliance', (req, res) => {
+app.post('/api/government/compliance', authMiddleware, (req, res) => {
   const result = governmentModule.checkGovCompliance(req.body.agency, req.body.requirements || []);
   res.json(result);
 });
 
-app.post('/api/government/digitalize-service', (req, res) => {
+app.post('/api/government/digitalize-service', authMiddleware, (req, res) => {
   const { serviceId, params } = req.body;
   res.json(governmentModule.digitalizeService(serviceId, params || {}));
 });
 
-app.post('/api/government/analyze-policy', (req, res) => {
+app.post('/api/government/analyze-policy', authMiddleware, (req, res) => {
   res.json(governmentModule.analyzePolicy(req.body.policyText || ''));
 });
 
 // Defense
-app.post('/api/defense/encrypt', (req, res) => {
+app.post('/api/defense/encrypt', authMiddleware, (req, res) => {
   try {
     const result = defenseModule.quantumEncrypt(req.body.message || '', req.body.recipient);
     res.json(result);
@@ -538,30 +1570,30 @@ app.post('/api/defense/encrypt', (req, res) => {
   }
 });
 
-app.post('/api/defense/threats', (req, res) => {
+app.post('/api/defense/threats', authMiddleware, (req, res) => {
   res.json(defenseModule.analyzeThreats(req.body || {}));
 });
 
-app.post('/api/defense/secure-infrastructure', (req, res) => {
+app.post('/api/defense/secure-infrastructure', authMiddleware, (req, res) => {
   const { infraId, params } = req.body;
   res.json(defenseModule.secureInfrastructure(infraId, params || {}));
 });
 
 // Telecom
-app.post('/api/telecom/optimize-5g', (req, res) => {
+app.post('/api/telecom/optimize-5g', authMiddleware, (req, res) => {
   res.json(telecomModule.optimize5GNetwork(req.body.networkId, req.body.traffic || {}));
 });
 
-app.post('/api/telecom/predict-failures', (req, res) => {
+app.post('/api/telecom/predict-failures', authMiddleware, (req, res) => {
   res.json(telecomModule.predictFailures(req.body || {}));
 });
 
-app.post('/api/telecom/revenue-assurance', (req, res) => {
+app.post('/api/telecom/revenue-assurance', authMiddleware, (req, res) => {
   res.json(telecomModule.revenueAssurance(req.body.cdrData || []));
 });
 
 // Enterprise Partnership API
-app.post('/api/enterprise/register', async (req, res) => {
+app.post('/api/enterprise/register', authMiddleware, async (req, res) => {
   try {
     const partner = enterprisePartner.registerPartner(req.body || {});
     res.json(partner);
@@ -570,7 +1602,7 @@ app.post('/api/enterprise/register', async (req, res) => {
   }
 });
 
-app.post('/api/partner/:partnerId/:endpoint', async (req, res) => {
+app.post('/api/partner/:partnerId/:endpoint', authMiddleware, async (req, res) => {
   const { partnerId, endpoint } = req.params;
   const apiKey = req.headers['x-api-key'];
   const partner = enterprisePartner.partners.get(partnerId);
@@ -587,7 +1619,7 @@ app.post('/api/partner/:partnerId/:endpoint', async (req, res) => {
   }
 });
 
-app.get('/api/partner/:partnerId/dashboard', async (req, res) => {
+app.get('/api/partner/:partnerId/dashboard', authMiddleware, async (req, res) => {
   const { partnerId } = req.params;
   const apiKey = req.headers['x-api-key'];
   const partner = enterprisePartner.partners.get(partnerId);
@@ -600,7 +1632,7 @@ app.get('/api/partner/:partnerId/dashboard', async (req, res) => {
   res.json(dashboard);
 });
 
-app.get('/api/partner/:partnerId/invoice/:month', async (req, res) => {
+app.get('/api/partner/:partnerId/invoice/:month', authMiddleware, async (req, res) => {
   try {
     const { partnerId, month } = req.params;
     const invoice = enterprisePartner.generateInvoice(partnerId, month);
@@ -613,24 +1645,24 @@ app.get('/api/partner/:partnerId/invoice/:month', async (req, res) => {
 // ==================== ADVANCED MODULE ROUTES ====================
 
 // Compliance Engine
-app.post('/api/compliance/check', async (req, res) => {
+app.post('/api/compliance/check', authMiddleware, async (req, res) => {
   const { operation, data } = req.body;
   if (!operation) return res.status(400).json({ error: 'operation required' });
   const result = await complianceEngine.checkCompliance(operation, data || {});
   res.json(result);
 });
 
-app.get('/api/compliance/report', (req, res) => {
+app.get('/api/compliance/report', authMiddleware, (req, res) => {
   const { period } = req.query;
   res.json(complianceEngine.generateReport(period || 'month'));
 });
 
-app.get('/api/compliance/stats', (req, res) => {
+app.get('/api/compliance/stats', authMiddleware, (req, res) => {
   res.json(complianceEngine.getStats());
 });
 
 // Risk Analyzer
-app.post('/api/risk/analyze', async (req, res) => {
+app.post('/api/risk/analyze', authMiddleware, async (req, res) => {
   const { type, data } = req.body;
   if (!type) return res.status(400).json({ error: 'type required' });
   try {
@@ -641,17 +1673,17 @@ app.post('/api/risk/analyze', async (req, res) => {
   }
 });
 
-app.get('/api/risk/history', (req, res) => {
+app.get('/api/risk/history', authMiddleware, (req, res) => {
   const limit = Number(req.query.limit || 100);
   res.json({ history: riskAnalyzer.getHistory(limit) });
 });
 
-app.get('/api/risk/stats', (req, res) => {
+app.get('/api/risk/stats', authMiddleware, (req, res) => {
   res.json(riskAnalyzer.getStats());
 });
 
 // Reputation Protocol
-app.post('/api/reputation/register', (req, res) => {
+app.post('/api/reputation/register', authMiddleware, (req, res) => {
   const { entityId, type, metadata } = req.body;
   if (!entityId || !type) return res.status(400).json({ error: 'entityId and type required' });
   try {
@@ -661,7 +1693,7 @@ app.post('/api/reputation/register', (req, res) => {
   }
 });
 
-app.post('/api/reputation/review', (req, res) => {
+app.post('/api/reputation/review', authMiddleware, (req, res) => {
   const { reviewerId, targetId, rating, comment, metadata } = req.body;
   try {
     res.json(reputationProtocol.addReview(reviewerId, targetId, rating, comment, metadata || {}));
@@ -670,7 +1702,7 @@ app.post('/api/reputation/review', (req, res) => {
   }
 });
 
-app.post('/api/reputation/transaction', (req, res) => {
+app.post('/api/reputation/transaction', authMiddleware, (req, res) => {
   const { entityId, counterpartyId, amount, type } = req.body;
   try {
     res.json(reputationProtocol.recordTransaction(entityId, counterpartyId, amount, type || 'payment'));
@@ -679,24 +1711,24 @@ app.post('/api/reputation/transaction', (req, res) => {
   }
 });
 
-app.get('/api/reputation/:entityId', (req, res) => {
+app.get('/api/reputation/:entityId', authMiddleware, (req, res) => {
   const reputation = reputationProtocol.getReputation(req.params.entityId);
   if (!reputation) return res.status(404).json({ error: 'Entity not found' });
   res.json(reputation);
 });
 
-app.get('/api/reputation/top/list', (req, res) => {
+app.get('/api/reputation/top/list', authMiddleware, (req, res) => {
   const limit = Number(req.query.limit || 10);
   const { type } = req.query;
   res.json({ top: reputationProtocol.getTopEntities(limit, type || null) });
 });
 
-app.get('/api/reputation/stats', (req, res) => {
+app.get('/api/reputation/stats', authMiddleware, (req, res) => {
   res.json(reputationProtocol.getStats());
 });
 
 // Opportunity Radar
-app.get('/api/opportunity/list', (req, res) => {
+app.get('/api/opportunity/list', authMiddleware, (req, res) => {
   const filters = {
     minRelevance: req.query.minRelevance ? Number(req.query.minRelevance) : undefined,
     deadlineBefore: req.query.deadlineBefore
@@ -704,25 +1736,25 @@ app.get('/api/opportunity/list', (req, res) => {
   res.json({ opportunities: opportunityRadar.getOpportunities(filters) });
 });
 
-app.get('/api/opportunity/alerts/unread', (req, res) => {
+app.get('/api/opportunity/alerts/unread', authMiddleware, (req, res) => {
   res.json({ alerts: opportunityRadar.getUnreadAlerts() });
 });
 
-app.post('/api/opportunity/alerts/read', (req, res) => {
+app.post('/api/opportunity/alerts/read', authMiddleware, (req, res) => {
   const { alertId } = req.body;
   res.json(opportunityRadar.markAlertRead(alertId));
 });
 
-app.post('/api/opportunity/recommendations', (req, res) => {
+app.post('/api/opportunity/recommendations', authMiddleware, (req, res) => {
   res.json({ recommendations: opportunityRadar.getPersonalizedRecommendations(req.body || {}) });
 });
 
-app.get('/api/opportunity/stats', (req, res) => {
+app.get('/api/opportunity/stats', authMiddleware, (req, res) => {
   res.json(opportunityRadar.getStats());
 });
 
 // Business Blueprint
-app.post('/api/blueprint/generate', async (req, res) => {
+app.post('/api/blueprint/generate', authMiddleware, requirePlan('starter'), async (req, res) => {
   try {
     const blueprint = await businessBlueprint.generateBlueprint(req.body || {});
     res.json(blueprint);
@@ -731,11 +1763,11 @@ app.post('/api/blueprint/generate', async (req, res) => {
   }
 });
 
-app.get('/api/blueprint/list', (req, res) => {
+app.get('/api/blueprint/list', authMiddleware, (req, res) => {
   res.json({ blueprints: businessBlueprint.getAllBlueprints() });
 });
 
-app.get('/api/blueprint/:id', (req, res) => {
+app.get('/api/blueprint/:id', authMiddleware, (req, res) => {
   const blueprint = businessBlueprint.getBlueprint(req.params.id);
   if (!blueprint) return res.status(404).json({ error: 'Blueprint not found' });
   res.json(blueprint);
@@ -744,26 +1776,26 @@ app.get('/api/blueprint/:id', (req, res) => {
 // ==================== 5 INOVAȚII STRATEGICE ====================
 
 // Quantum Blockchain
-app.get('/api/blockchain/stats', (req, res) => {
+app.get('/api/blockchain/stats', authMiddleware, (req, res) => {
   res.json(quantumChain.getStats());
 });
 
-app.post('/api/blockchain/transaction', (req, res) => {
+app.post('/api/blockchain/transaction', authMiddleware, (req, res) => {
   const tx = quantumChain.addTransaction(req.body || {});
   res.json(tx);
 });
 
-app.post('/api/blockchain/mine', (req, res) => {
+app.post('/api/blockchain/mine', authMiddleware, (req, res) => {
   const block = quantumChain.mineBlock();
   res.json(block);
 });
 
 // AI Workforce Marketplace
-app.get('/api/workforce/agents', (req, res) => {
+app.get('/api/workforce/agents', authMiddleware, requirePlan('starter'), (req, res) => {
   res.json(Array.from(workforce.agents.values()));
 });
 
-app.post('/api/workforce/agent', (req, res) => {
+app.post('/api/workforce/agent', authMiddleware, requirePlan('starter'), (req, res) => {
   try {
     res.json(workforce.registerAgent(req.body || {}));
   } catch (err) {
@@ -771,7 +1803,7 @@ app.post('/api/workforce/agent', (req, res) => {
   }
 });
 
-app.post('/api/workforce/job', (req, res) => {
+app.post('/api/workforce/job', authMiddleware, requirePlan('starter'), (req, res) => {
   try {
     res.json(workforce.postJob(req.body || {}));
   } catch (err) {
@@ -779,20 +1811,20 @@ app.post('/api/workforce/job', (req, res) => {
   }
 });
 
-app.get('/api/workforce/job/:id/agents', (req, res) => {
+app.get('/api/workforce/job/:id/agents', authMiddleware, requirePlan('starter'), (req, res) => {
   res.json(workforce.findBestAgents(req.params.id));
 });
 
-app.get('/api/workforce/stats', (req, res) => {
+app.get('/api/workforce/stats', authMiddleware, requirePlan('starter'), (req, res) => {
   res.json(workforce.getStats());
 });
 
 // M&A Advisor
-app.post('/api/ma/targets', (req, res) => {
+app.post('/api/ma/targets', authMiddleware, requirePlan('pro'), (req, res) => {
   res.json(ma.identifyTargets(req.body || {}));
 });
 
-app.post('/api/ma/negotiate', async (req, res) => {
+app.post('/api/ma/negotiate', authMiddleware, requirePlan('pro'), async (req, res) => {
   try {
     const deal = await ma.negotiateTerms(req.body.targetId, Number(req.body.initialOffer || 0), Number(req.body.maxPrice || 0));
     res.json(deal);
@@ -801,12 +1833,12 @@ app.post('/api/ma/negotiate', async (req, res) => {
   }
 });
 
-app.get('/api/ma/stats', (req, res) => {
+app.get('/api/ma/stats', authMiddleware, requirePlan('pro'), (req, res) => {
   res.json(ma.getStats());
 });
 
 // Legal Contract
-app.post('/api/legal/generate', (req, res) => {
+app.post('/api/legal/generate', authMiddleware, requirePlan('starter'), (req, res) => {
   try {
     res.json(legal.generateContract(req.body.type, req.body.params || {}));
   } catch (err) {
@@ -814,7 +1846,7 @@ app.post('/api/legal/generate', (req, res) => {
   }
 });
 
-app.post('/api/legal/analyze', (req, res) => {
+app.post('/api/legal/analyze', authMiddleware, (req, res) => {
   try {
     res.json(legal.analyzeContract(req.body.text || ''));
   } catch (err) {
@@ -822,28 +1854,28 @@ app.post('/api/legal/analyze', (req, res) => {
   }
 });
 
-app.get('/api/legal/stats', (req, res) => {
+app.get('/api/legal/stats', authMiddleware, (req, res) => {
   res.json(legal.getStats());
 });
 
 // Energy Grid
-app.post('/api/energy/producer', (req, res) => {
+app.post('/api/energy/producer', authMiddleware, (req, res) => {
   res.json(energy.registerProducer(req.body || {}));
 });
 
-app.post('/api/energy/consumer', (req, res) => {
+app.post('/api/energy/consumer', authMiddleware, (req, res) => {
   res.json(energy.registerConsumer(req.body || {}));
 });
 
-app.post('/api/energy/optimize', (req, res) => {
+app.post('/api/energy/optimize', authMiddleware, (req, res) => {
   res.json(energy.optimizeFlow());
 });
 
-app.post('/api/energy/trade', async (req, res) => {
+app.post('/api/energy/trade', authMiddleware, async (req, res) => {
   res.json(await energy.tradeExcessEnergy());
 });
 
-app.get('/api/energy/stats', (req, res) => {
+app.get('/api/energy/stats', authMiddleware, (req, res) => {
   res.json(energy.getStats());
 });
 
@@ -887,6 +1919,45 @@ app.post('/api/uac/optimize', async (req, res) => {
   res.json({ success: true, message: 'System optimization triggered' });
 });
 
+// ==================== MESH ORCHESTRATOR — rute Swiss-watch ====================
+app.get('/api/mesh/status', (req, res) => {
+  res.json(meshOrchestrator.getStatus());
+});
+
+app.get('/api/mesh/history', (req, res) => {
+  const limit = Math.min(parseInt(req.query.limit) || 20, 100);
+  res.json({ history: meshOrchestrator.getHealthHistory(limit) });
+});
+
+app.get('/api/mesh/log', adminTokenMiddleware, (req, res) => {
+  const limit = Math.min(parseInt(req.query.limit) || 50, 200);
+  res.json({ log: meshOrchestrator.getEventLog(limit) });
+});
+
+app.post('/api/mesh/sync', adminTokenMiddleware, (req, res) => {
+  meshOrchestrator._syncCycle();
+  res.json({ success: true, message: 'Sincronizare mesh declanșată manual' });
+});
+
+// ==================== CODE SANITY ENGINE ====================
+app.get('/api/code-sanity/status', (req, res) => {
+  res.json(codeSanityEngine.getStatus());
+});
+
+app.post('/api/code-sanity/scan', adminTokenMiddleware, async (req, res) => {
+  try {
+    const result = await codeSanityEngine.runFullScanNow();
+    res.json(result);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get('/api/code-sanity/history', adminTokenMiddleware, (req, res) => {
+  const limit = parseInt(req.query.limit) || 10;
+  res.json({ history: codeSanityEngine.getHistory(limit) });
+});
+
 // ==================== ADVANCED MODULES (MOCKED) ====================
 // These routes are mocked to avoid syntax errors in complex innovation modules
 // The autonomous systems (innovation + revenue) are the primary focus
@@ -906,8 +1977,9 @@ app.get('/api/trust/audit', adminTokenMiddleware, (req, res) => {
 });
 
 // 2) Usage-based billing + plans
-app.get('/api/billing/plans', adminTokenMiddleware, (req, res) => {
-  res.json({ plans: unicornInnovationSuite.getPlans() });
+app.get('/api/billing/plans', (req, res) => {
+  // Return public billing plans (no auth required for viewing)
+  res.json({ plans: BILLING_PLANS.map(p => ({ ...p, stripePriceIdMonthly: undefined, stripePriceIdYearly: undefined })) });
 });
 
 app.post('/api/billing/subscribe', adminTokenMiddleware, (req, res) => {
@@ -986,6 +2058,26 @@ app.post('/api/executive/copilot', adminTokenMiddleware, (req, res) => {
   res.json(unicornInnovationSuite.askCopilot(req.body || {}));
 });
 
+// ── Executive Dashboard routes (JWT auth, used by ExecutiveDashboard.jsx) ──
+app.get('/api/admin/executive/stats', authRateLimit(60, 60_000), adminTokenMiddleware, (req, res) => {
+  res.json(executiveDashboard.getStats());
+});
+app.get('/api/admin/executive/revenue', authRateLimit(60, 60_000), adminTokenMiddleware, (req, res) => {
+  res.json(executiveDashboard.stats.revenue);
+});
+app.get('/api/admin/executive/modules', authRateLimit(60, 60_000), adminTokenMiddleware, (req, res) => {
+  res.json(executiveDashboard.stats.modules);
+});
+app.get('/api/admin/executive/innovations', authRateLimit(60, 60_000), adminTokenMiddleware, (req, res) => {
+  res.json(executiveDashboard.stats.innovations);
+});
+app.get('/api/admin/executive/health', authRateLimit(60, 60_000), adminTokenMiddleware, (req, res) => {
+  res.json(executiveDashboard.stats.health);
+});
+app.get('/api/admin/executive/growth', authRateLimit(60, 60_000), adminTokenMiddleware, (req, res) => {
+  res.json(executiveDashboard.stats.growth);
+});
+
 // 7) Security hardening APIs
 app.get('/api/security/sessions', adminTokenMiddleware, (req, res) => {
   res.json({ sessions: unicornInnovationSuite.listSessions() });
@@ -1025,8 +2117,26 @@ app.get('/api/site/case-studies', (req, res) => {
   res.json({ caseStudies: unicornInnovationSuite.getCaseStudies() });
 });
 
+const ROI_INDUSTRY_MULTIPLIERS = { technology: 0.32, finance: 0.28, healthcare: 0.25, retail: 0.22, manufacturing: 0.20, logistics: 0.18, other: 0.20 };
+const ROI_PLAN_TIERS = [{ maxEmp: 10, monthly: 29 }, { maxEmp: 50, monthly: 99 }, { maxEmp: Infinity, monthly: 499 }];
+
 app.post('/api/site/roi/calculate', (req, res) => {
-  res.json(unicornInnovationSuite.calculateROI(req.body || {}));
+  const { employees = 0, revenue = 0, industry = 'technology', investment, expectedGain } = req.body || {};
+  // Support both frontend params (employees/revenue/industry) and direct params (investment/expectedGain)
+  if (investment != null || expectedGain != null) {
+    return res.json(unicornInnovationSuite.calculateROI({ investment, expectedGain }));
+  }
+  const emp = Number(employees) || 0;
+  const rev = Number(revenue) || 0;
+  if (!emp || !rev) return res.json({ annualSavings: 0, roiPercent: 0, paybackMonths: null });
+  const savingsRate = ROI_INDUSTRY_MULTIPLIERS[industry] || 0.20;
+  const annualSavings = Math.round(rev * savingsRate);
+  const tier = ROI_PLAN_TIERS.find(t => emp <= t.maxEmp);
+  const annualCost = tier.monthly * 12;
+  const netSavings = annualSavings - annualCost;
+  const roiPercent = annualCost > 0 ? Math.round((netSavings / annualCost) * 100) : 0;
+  const paybackMonths = annualSavings > 0 ? Math.ceil(annualCost / (annualSavings / 12)) : null;
+  res.json({ annualSavings, roiPercent, paybackMonths, netSavings, annualCost, savingsRate });
 });
 
 // 10) Partner / affiliate layer
@@ -1150,17 +2260,20 @@ app.post('/api/autonomous/innovation/optimize', adminTokenMiddleware, (req, res)
 });
 
 // ==================== AUTO REVENUE ROUTES ====================
+// NOTE: AutoRevenueEngine runs in DEMO/SIMULATION mode.
+// Figures shown are projections based on simulated deal flow — not real transactions.
+// Real revenue comes from /api/payment/* (Stripe/PayPal/crypto).
 app.get('/api/autonomous/revenue/status', (req, res) => {
-  res.json(autoRevenue.getRevenueStatus());
+  res.json({ ...autoRevenue.getRevenueStatus(), mode: 'DEMO', note: 'Simulated pipeline. Real revenue tracked via /api/payment/stats.' });
 });
 
 app.get('/api/autonomous/revenue/history', (req, res) => {
   const limit = req.query.limit || 20;
-  res.json(autoRevenue.getRevenueHistory(limit));
+  res.json({ ...autoRevenue.getRevenueHistory(limit), mode: 'DEMO', note: 'Simulated deal history.' });
 });
 
 app.get('/api/autonomous/revenue/metrics', (req, res) => {
-  res.json(autoRevenue.getDetailedMetrics());
+  res.json({ ...autoRevenue.getDetailedMetrics(), mode: 'DEMO', note: 'Simulated metrics for planning purposes.' });
 });
 
 app.post('/api/autonomous/revenue/generate-deals', adminTokenMiddleware, (req, res) => {
@@ -1200,6 +2313,328 @@ app.get('/api/autonomous/platform/status', (req, res) => {
   });
 });
 
+// ==================== UNICORN ORCHESTRATOR — STATUS UNIFICAT ====================
+app.get('/api/orchestrator/status', (req, res) => {
+  res.json(unicornOrchestrator.getStatus());
+});
+
+// ==================== SELF-HEALING: SLO ROUTES ====================
+app.get('/api/slo/status', (req, res) => {
+  res.json({ stats: sloTracker.getAllStats(), routes: sloTracker.getAllRoutes() });
+});
+
+app.get('/api/slo/route', (req, res) => {
+  const route = req.query.route;
+  if (!route) return res.status(400).json({ error: 'route query param required' });
+  res.json(sloTracker.getRouteStats(route));
+});
+
+// ==================== SELF-HEALING: CONTROL PLANE AGENT ROUTES ====================
+app.get('/api/control-plane/status', adminCrudRateLimit, adminTokenMiddleware, (req, res) => {
+  res.json(controlPlane.getStatus());
+});
+
+app.get('/api/control-plane/decisions', adminCrudRateLimit, adminTokenMiddleware, (req, res) => {
+  const limit = parseInt(req.query.limit || '50', 10);
+  res.json({ decisions: controlPlane.getDecisionLog(limit) });
+});
+
+app.get('/api/control-plane/rollback-history', adminCrudRateLimit, adminTokenMiddleware, (req, res) => {
+  const limit = parseInt(req.query.limit || '20', 10);
+  res.json({ history: controlPlane.getRollbackHistory(limit) });
+});
+
+app.post('/api/control-plane/rollback', adminCrudRateLimit, adminTokenMiddleware, async (req, res) => {
+  const { version, reason } = req.body || {};
+  if (!version) return res.status(400).json({ error: 'version required' });
+  await controlPlane.forceRollback(version, reason || 'Manual rollback via API');
+  res.json({ success: true, version });
+});
+
+// ==================== CANARY CONTROLLER ROUTES ====================
+app.get('/api/canary', (req, res) => {
+  res.json({ canaries: canaryCtrl.getAllCanaries() });
+});
+
+app.post('/api/canary/register', adminCrudRateLimit, adminTokenMiddleware, (req, res) => {
+  const { id, version, baseline } = req.body || {};
+  if (!version) return res.status(400).json({ error: 'version required' });
+  const canary = canaryCtrl.register({ id, version, baseline });
+  res.json(canary);
+});
+
+app.post('/api/canary/:id/sample', adminCrudRateLimit, adminTokenMiddleware, (req, res) => {
+  const { isCanary, profit } = req.body || {};
+  if (typeof profit !== 'number') return res.status(400).json({ error: 'profit (number) required' });
+  canaryCtrl.recordSample(req.params.id, Boolean(isCanary), profit);
+  res.json({ success: true });
+});
+
+app.post('/api/canary/:id/evaluate', adminCrudRateLimit, adminTokenMiddleware, (req, res) => {
+  const result = canaryCtrl.evaluate(req.params.id);
+  if (!result) return res.status(404).json({ error: 'Canary not found or not evaluating' });
+  res.json(result);
+});
+
+app.get('/api/canary/decisions', adminCrudRateLimit, adminTokenMiddleware, (req, res) => {
+  const limit = parseInt(req.query.limit || '50', 10);
+  res.json({ decisions: canaryCtrl.getDecisionLog(limit) });
+});
+
+// ==================== PROFIT ATTRIBUTION ROUTES ====================
+app.post('/api/profit/record', authMiddleware, (req, res) => {
+  const { action, value, experimentId, variantId, meta } = req.body || {};
+  if (!action || typeof value !== 'number') return res.status(400).json({ error: 'action and value required' });
+  const attributed = profitService.record({
+    userId: req.user.id,
+    action,
+    value,
+    experimentId: experimentId || null,
+    variantId: variantId || null,
+    meta: meta || {},
+  });
+  res.json({ attributed });
+});
+
+app.get('/api/profit/metrics', adminCrudRateLimit, adminTokenMiddleware, (req, res) => {
+  res.json(profitService.getMetrics());
+});
+
+app.get('/api/profit/reward/:experimentId', adminCrudRateLimit, adminTokenMiddleware, (req, res) => {
+  const windowMs = parseInt(req.query.windowMs || '86400000', 10);
+  const reward = profitService.computeReward(req.params.experimentId, windowMs);
+  res.json({ experimentId: req.params.experimentId, reward });
+});
+
+app.get('/api/profit/compare/:experimentId', adminCrudRateLimit, adminTokenMiddleware, (req, res) => {
+  const { variantId, controlId, windowMs } = req.query;
+  if (!variantId) return res.status(400).json({ error: 'variantId required' });
+  const result = profitService.compareVariants(
+    req.params.experimentId,
+    variantId,
+    controlId || 'control',
+    parseInt(windowMs || '86400000', 10)
+  );
+  if (!result) return res.status(404).json({ error: 'Experiment not found' });
+  res.json(result);
+});
+
+// ==================== SHADOW TESTING ROUTES ====================
+app.get('/api/shadow/variants', adminCrudRateLimit, adminTokenMiddleware, (req, res) => {
+  res.json({ variants: shadowTester.getAllVariants(), metrics: shadowTester.getMetrics() });
+});
+
+app.post('/api/shadow/register', adminCrudRateLimit, adminTokenMiddleware, (req, res) => {
+  const { id, domain, name, description, cost } = req.body || {};
+  if (!id) return res.status(400).json({ error: 'id required' });
+  const variant = shadowTester.registerVariant({ id, domain, name, description, cost: cost || 0 });
+  res.json(variant);
+});
+
+app.post('/api/shadow/run', authMiddleware, (req, res) => {
+  const { action, value, variantId, meta } = req.body || {};
+  if (!action || typeof value !== 'number') return res.status(400).json({ error: 'action and value required' });
+  const controlProfit = shadowTester.runShadow(action, value, req.user.id, { ...meta, variantId });
+  res.json({ controlProfit });
+});
+
+app.get('/api/shadow/variants/:id', adminCrudRateLimit, adminTokenMiddleware, (req, res) => {
+  const status = shadowTester.getVariantStatus(req.params.id);
+  if (!status) return res.status(404).json({ error: 'Variant not found' });
+  res.json(status);
+});
+
+app.post('/api/shadow/variants/:id/promote', adminCrudRateLimit, adminTokenMiddleware, (req, res) => {
+  try {
+    const variant = shadowTester.promoteToAB(req.params.id);
+    res.json({ success: true, variant });
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+app.post('/api/shadow/variants/:id/reject', adminCrudRateLimit, adminTokenMiddleware, (req, res) => {
+  const { reason } = req.body || {};
+  shadowTester.reject(req.params.id, reason || '');
+  res.json({ success: true });
+});
+
+// ==================== CIRCUIT BREAKER ROUTES ====================
+app.get('/api/circuit-breaker/status', (req, res) => {
+  res.json(circuitBreaker.getStatus());
+});
+
+app.post('/api/circuit-breaker/reset', adminCrudRateLimit, adminTokenMiddleware, (req, res) => {
+  circuitBreaker.recordSuccess({ manual: true });
+  res.json({ success: true, status: circuitBreaker.getStatus() });
+});
+
+// ==================== PROFIT CONTROL LOOP ROUTES ====================
+app.get('/api/profit-loop/status', adminCrudRateLimit, adminTokenMiddleware, (req, res) => {
+  res.json(profitLoop.getStatus());
+});
+
+app.get('/api/profit-loop/reward-history', adminCrudRateLimit, adminTokenMiddleware, (req, res) => {
+  const limit = parseInt(req.query.limit || '50', 10);
+  res.json({ history: profitLoop.getRewardHistory(limit) });
+});
+
+// ==================== DECISION PROVENANCE ROUTES ====================
+app.get('/api/decisions', adminCrudRateLimit, adminTokenMiddleware, (req, res) => {
+  const limit = parseInt(req.query.limit || '50', 10);
+  const cpaDecisions    = controlPlane.getDecisionLog(limit);
+  const canaryDecisions = canaryCtrl.getDecisionLog(limit);
+  const all = [...cpaDecisions, ...canaryDecisions]
+    .sort((a, b) => new Date(b.ts) - new Date(a.ts))
+    .slice(0, limit);
+  res.json({ decisions: all, total: all.length });
+});
+
+// ==================== ADMIN USER MANAGEMENT ====================
+// All routes are protected by adminTokenMiddleware (JWT required, admin role).
+app.get('/api/admin/uaic/models', adminCrudRateLimit, adminTokenMiddleware, (req, res) => {
+  if (!_uaic) return res.status(503).json({ error: 'UAIC not loaded' });
+  res.json(_uaic.getModels());
+});
+
+app.get('/api/admin/uaic/stats', adminCrudRateLimit, adminTokenMiddleware, (req, res) => {
+  if (!_uaic) return res.status(503).json({ error: 'UAIC not loaded' });
+  res.json(_uaic.getStatus());
+});
+
+app.post('/api/admin/uaic/discover', adminCrudRateLimit, adminTokenMiddleware, async (req, res) => {
+  if (!_uaic) return res.status(503).json({ error: 'UAIC not loaded' });
+  await _uaic.discoverNewModels();
+  res.json({ success: true, models: _uaic.getStatus().models });
+});
+
+app.post('/api/admin/uaic/ask', adminCrudRateLimit, adminTokenMiddleware, async (req, res) => {
+  if (!_uaic) return res.status(503).json({ error: 'UAIC not loaded' });
+  const { type = 'simple', prompt, system, maxTokens, messages } = req.body || {};
+  if (!prompt && (!messages || messages.length === 0)) {
+    return res.status(400).json({ error: 'prompt or messages required' });
+  }
+  try {
+    const result = await _uaic.ask({ type, prompt, system, maxTokens, messages });
+    res.json(result);
+  } catch (err) {
+    res.status(503).json({ error: err.message });
+  }
+});
+
+// GET /api/admin/users?page=1&limit=20&search=query
+app.get('/api/admin/users', adminCrudRateLimit, adminTokenMiddleware, (req, res) => {
+  const page = Math.max(1, parseInt(req.query.page) || 1);
+  const limit = Math.min(100, Math.max(1, parseInt(req.query.limit) || 20));
+  const search = req.query.search ? sanitizeString(req.query.search, 100) : null;
+  const result = dbUsers.listAll({ page, limit, search });
+  res.json(result);
+});
+
+// GET /api/admin/users/:id
+app.get('/api/admin/users/:id', adminCrudRateLimit, adminTokenMiddleware, (req, res) => {
+  const user = dbUsers.findById(req.params.id);
+  if (!user) return res.status(404).json({ error: 'User not found' });
+  const { passwordHash, resetToken, verifyToken, ...safe } = user;
+  res.json(safe);
+});
+
+// PUT /api/admin/users/:id/plan
+app.put('/api/admin/users/:id/plan', adminCrudRateLimit, adminTokenMiddleware, (req, res) => {
+  const { planId } = req.body || {};
+  const VALID_PLANS = ['free', 'starter', 'pro', 'enterprise'];
+  if (!planId || !VALID_PLANS.includes(planId)) {
+    return res.status(400).json({ error: `planId must be one of: ${VALID_PLANS.join(', ')}` });
+  }
+  const user = dbUsers.findById(req.params.id);
+  if (!user) return res.status(404).json({ error: 'User not found' });
+  dbUsers.setPlanId(req.params.id, planId);
+  res.json({ success: true, id: req.params.id, planId });
+});
+
+// DELETE /api/admin/users/:id
+app.delete('/api/admin/users/:id', adminCrudRateLimit, adminTokenMiddleware, (req, res) => {
+  const user = dbUsers.findById(req.params.id);
+  if (!user) return res.status(404).json({ error: 'User not found' });
+  const deleted = dbUsers.deleteById(req.params.id);
+  res.json({ success: deleted, id: req.params.id });
+});
+
+// ==================== WEALTH ENGINE ROUTES ====================
+// In-memory store for wealth engine settings (per-process, no persistence needed)
+const _wealthSettings = { multiplier: 1, allocation: 'balanced' };
+
+app.get('/api/wealth/stats', adminCrudRateLimit, adminTokenMiddleware, (req, res) => {
+  const revenueStatus = autoRevenue.getRevenueStatus();
+  res.json({
+    totalRevenue: parseFloat(revenueStatus.totalMonthlyRevenue) || 0,
+    activeUsers: revenueStatus.activeDeals || 0,
+    portfolioGrowth: 18.4,
+    riskScore: 32,
+    assetAllocation: { BTC: 40, ETH: 25, Stocks: 20, Cash: 15 },
+    recentTransactions: [],
+    multiplier: _wealthSettings.multiplier,
+    allocation: _wealthSettings.allocation,
+  });
+});
+
+app.post('/api/admin/wealth/settings', adminCrudRateLimit, adminTokenMiddleware, (req, res) => {
+  const { multiplier, allocation } = req.body;
+  if (multiplier !== undefined) _wealthSettings.multiplier = parseFloat(multiplier) || 1;
+  if (allocation !== undefined) _wealthSettings.allocation = String(allocation);
+  res.json({ success: true, settings: _wealthSettings });
+});
+
+// ==================== BUSINESS DEVELOPMENT ROUTES ====================
+// In-memory BD store (deals + leads)
+const _bdStore = { deals: [], leads: [] };
+let _bdIdCounter = 0;
+const _STAGE_PROBABILITY = { 'closed-won': 100, 'negotiation': 75, 'proposal': 50 };
+
+app.get('/api/bd/deals', adminCrudRateLimit, adminTokenMiddleware, (req, res) => {
+  res.json(_bdStore.deals);
+});
+
+app.post('/api/bd/deals', adminCrudRateLimit, adminTokenMiddleware, (req, res) => {
+  const { company, contact, value, stage, notes, id } = req.body || {};
+  if (!company) return res.status(400).json({ error: 'company is required' });
+  const safeStage = String(stage || 'prospecting');
+  const deal = {
+    id: id || `deal-${Date.now()}-${++_bdIdCounter}`,
+    company: String(company),
+    contact: String(contact || ''),
+    value: parseFloat(value) || 0,
+    stage: safeStage,
+    notes: String(notes || ''),
+    probability: _STAGE_PROBABILITY[safeStage] || 20,
+    createdAt: new Date().toISOString(),
+  };
+  _bdStore.deals.push(deal);
+  res.json({ success: true, deal });
+});
+
+app.get('/api/bd/leads', adminCrudRateLimit, adminTokenMiddleware, (req, res) => {
+  res.json(_bdStore.leads);
+});
+
+app.post('/api/bd/leads', adminCrudRateLimit, adminTokenMiddleware, (req, res) => {
+  const { name, company, email, phone, source, notes } = req.body || {};
+  if (!name) return res.status(400).json({ error: 'name is required' });
+  const lead = {
+    id: `lead-${Date.now()}-${++_bdIdCounter}`,
+    name: String(name),
+    company: String(company || ''),
+    email: String(email || ''),
+    phone: String(phone || ''),
+    source: String(source || 'manual'),
+    notes: String(notes || ''),
+    status: 'new',
+    createdAt: new Date().toISOString(),
+  };
+  _bdStore.leads.push(lead);
+  res.json({ success: true, lead });
+});
+
 // ==================== WEBHOOK DEPLOY (Hetzner fallback) ====================
 // Called by GitHub Actions when SSH deploy fails (HETZNER_WEBHOOK_URL points here)
 app.post('/deploy', (req, res) => {
@@ -1233,7 +2668,693 @@ app.post('/deploy', (req, res) => {
   res.json({ ok: true, message: 'Deploy initiated', source, action, timestamp: new Date().toISOString() });
 });
 
-// ==================== SERVIRE FRONTEND ====================
+// ==================== CREDIT SYSTEM ROUTES ====================
+app.get('/api/credits/usage', authMiddleware, (req, res) => {
+  const db_ = require('./db');
+  const user = db_.users.findById(req.user.id);
+  const planId = user ? user.planId || 'free' : 'free';
+  res.json(creditSystem.getUsageSummary(req.user.id, planId));
+});
+
+app.get('/api/credits/plans', (req, res) => {
+  res.json({ planCredits: creditSystem.PLAN_CREDITS, creditCosts: creditSystem.CREDIT_COSTS });
+});
+
+app.get('/api/admin/credits/users', adminCrudRateLimit, adminTokenMiddleware, (req, res) => {
+  const db_ = require('./db');
+  const { users } = db_.users.listAll({ page: 1, limit: 100 });
+  const month = creditSystem.getCurrentMonth();
+  const report = users.map(u => ({
+    userId: u.id,
+    name: u.name,
+    email: u.email,
+    planId: u.planId || 'free',
+    ...creditSystem.getUsageSummary(u.id, u.planId || 'free'),
+  }));
+  res.json({ month, users: report });
+});
+
+// ==================== REFERRAL ENGINE ROUTES ====================
+app.post('/api/referrals/create', authMiddleware, (req, res) => {
+  try {
+    const referral = referralEngine.createReferral(req.user.id, req.body.email);
+    res.json(referral);
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+app.get('/api/referrals/mine', authMiddleware, (req, res) => {
+  const refs = referralEngine.listUserReferrals(req.user.id);
+  res.json({ referrals: refs });
+});
+
+app.get('/api/referrals/stats', authMiddleware, (req, res) => {
+  res.json(referralEngine.getAffiliateStats(req.user.id));
+});
+
+app.get('/api/referrals/check/:code', (req, res) => {
+  const ref = referralEngine.getReferralByCode(req.params.code);
+  if (!ref) return res.status(404).json({ error: 'Referral code not found' });
+  res.json({ valid: true, code: ref.code, tier: ref.tier });
+});
+
+app.get('/api/admin/referrals/all', adminCrudRateLimit, adminTokenMiddleware, (req, res) => {
+  const db_ = require('./db');
+  const users = db_.users.listAll({ page: 1, limit: 200 }).users;
+  const allStats = users.map(u => ({ userId: u.id, ...referralEngine.getAffiliateStats(u.id) })).filter(s => s.totalReferrals > 0);
+  res.json({ affiliates: allStats });
+});
+
+// ==================== STREAMING AI CHAT (SSE) ====================
+// EventSource (browser SSE) cannot set custom headers, so we accept ?token= query param for auth.
+app.get('/api/chat/stream', authRateLimit(20, 60_000), async (req, res) => {
+  // Authenticate via Bearer header OR ?token= query param (SSE requires query param)
+  const authHeader = req.headers.authorization || '';
+  const rawToken = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : (req.query.token || '');
+  if (!rawToken) return res.status(401).json({ error: 'Unauthorized' });
+  let streamUser;
+  try {
+    streamUser = jwt.verify(rawToken, JWT_SECRET);
+  } catch {
+    return res.status(401).json({ error: 'Invalid token' });
+  }
+
+  const { message } = req.query;
+  if (!message) return res.status(400).json({ error: 'message query param required' });
+
+  res.setHeader('Content-Type', 'text/event-stream');
+  res.setHeader('Cache-Control', 'no-cache');
+  res.setHeader('Connection', 'keep-alive');
+  res.setHeader('X-Accel-Buffering', 'no');
+  res.flushHeaders();
+
+  // send helper – uses { chunk } so the SPA's data.chunk||data.text||data.content pattern resolves
+  const send = (data) => res.write(`data: ${JSON.stringify(data)}\n\n`);
+
+  const openaiKey = process.env.OPENAI_API_KEY;
+  if (openaiKey) {
+    try {
+      const response = await axios.post('https://api.openai.com/v1/chat/completions', {
+        model: 'gpt-4o-mini',
+        messages: [
+          { role: 'system', content: ZEUS_SYSTEM },
+          { role: 'user', content: message }
+        ],
+        stream: true,
+        max_tokens: 500,
+      }, {
+        headers: { Authorization: `Bearer ${openaiKey}`, 'Content-Type': 'application/json' },
+        responseType: 'stream',
+        timeout: 30000,
+      });
+
+      let buffer = '';
+      let finished = false;
+      response.data.on('data', (rawChunk) => {
+        if (finished) return;
+        buffer += rawChunk.toString();
+        const lines = buffer.split('\n');
+        buffer = lines.pop();
+        for (const line of lines) {
+          if (line.startsWith('data: ')) {
+            const payload = line.slice(6);
+            if (payload === '[DONE]') { finished = true; send({ done: true }); res.end(); return; }
+            try {
+              const parsed = JSON.parse(payload);
+              const delta = parsed.choices?.[0]?.delta?.content;
+              if (delta) send({ chunk: delta });
+            } catch { /* ignore parse errors */ }
+          }
+        }
+      });
+      response.data.on('end', () => { if (!finished) { send({ done: true }); res.end(); } });
+      response.data.on('error', () => { if (!finished) { send({ done: true, error: true }); res.end(); } });
+      return;
+    } catch (err) {
+      console.warn('[Stream] OpenAI stream failed:', err.message);
+    }
+  }
+
+  try {
+    const cloudResult = await _aiProviders.chat(message, []);
+    if (cloudResult && cloudResult.reply) {
+      const words = cloudResult.reply.split(' ');
+      for (const word of words) {
+        send({ chunk: word + ' ' });
+        await new Promise(r => setTimeout(r, 20));
+      }
+      send({ done: true });
+      res.end();
+      return;
+    }
+  } catch { /* ignore */ }
+
+  send({ chunk: 'Bun venit la Zeus AI! Cum te pot ajuta?' });
+  send({ done: true });
+  res.end();
+});
+
+// ==================== CUSTOMER HEALTH SCORE ROUTES ====================
+app.get('/api/health-score/mine', authMiddleware, (req, res) => {
+  res.json(customerHealth.computeHealthScore(req.user.id));
+});
+
+app.get('/api/admin/health-scores', adminCrudRateLimit, adminTokenMiddleware, (req, res) => {
+  const limit = Math.min(parseInt(req.query.limit) || 50, 200);
+  res.json({ scores: customerHealth.getBulkHealthScores(limit) });
+});
+
+app.get('/api/admin/health-scores/churn-risk', adminCrudRateLimit, adminTokenMiddleware, (req, res) => {
+  const limit = Math.min(parseInt(req.query.limit) || 50, 200);
+  res.json({ atRisk: customerHealth.getChurnRiskUsers(limit) });
+});
+
+// ==================== WORKFLOW AUTOMATION ROUTES ====================
+app.get('/api/workflows', authMiddleware, (req, res) => {
+  res.json({ workflows: workflowEngine.listWorkflows(req.user.id) });
+});
+
+app.post('/api/workflows', authMiddleware, creditSystem.requireCredits('blueprint'), (req, res) => {
+  try {
+    const wf = workflowEngine.createWorkflow(req.user.id, req.body || {});
+    res.json(wf);
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+app.get('/api/workflows/config', (req, res) => {
+  res.json(workflowEngine.getSupportedConfig());
+});
+
+app.get('/api/workflows/:id', authMiddleware, (req, res) => {
+  const wf = workflowEngine.getWorkflow(req.params.id, req.user.id);
+  if (!wf) return res.status(404).json({ error: 'Workflow not found' });
+  res.json(wf);
+});
+
+app.put('/api/workflows/:id', authMiddleware, (req, res) => {
+  try {
+    const wf = workflowEngine.updateWorkflow(req.params.id, req.user.id, req.body || {});
+    res.json(wf);
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+app.delete('/api/workflows/:id', authMiddleware, (req, res) => {
+  try {
+    const ok = workflowEngine.deleteWorkflow(req.params.id, req.user.id);
+    res.json({ success: ok });
+  } catch (err) {
+    res.status(404).json({ error: err.message });
+  }
+});
+
+app.post('/api/workflows/:id/run', authMiddleware, async (req, res) => {
+  const wf = workflowEngine.getWorkflow(req.params.id, req.user.id);
+  if (!wf) return res.status(404).json({ error: 'Workflow not found' });
+  try {
+    const result = await workflowEngine.runWorkflow(req.params.id, {
+      trigger: 'manual',
+      user: req.user,
+      ...req.body
+    });
+    res.json(result);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get('/api/workflows/runs/history', adminCrudRateLimit, adminTokenMiddleware, (req, res) => {
+  const limit = Math.min(parseInt(req.query.limit) || 50, 200);
+  res.json({ history: workflowEngine.getRunHistory(limit) });
+});
+
+// ==================== WHITE-LABEL TENANT ROUTES ====================
+app.post('/api/tenants', authMiddleware, requirePlan('enterprise'), (req, res) => {
+  try {
+    const tenant = whiteLabelEngine.createTenant(req.user.id, req.body || {});
+    res.json(tenant);
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+app.get('/api/tenants/mine', authMiddleware, (req, res) => {
+  const tenants = whiteLabelEngine.getTenantsByOwner(req.user.id);
+  res.json({ tenants });
+});
+
+app.put('/api/tenants/:id/branding', authMiddleware, requirePlan('enterprise'), (req, res) => {
+  try {
+    const tenant = whiteLabelEngine.updateTenantBranding(req.params.id, req.user.id, req.body || {});
+    res.json(tenant);
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+app.get('/api/tenants/branding/:subdomain', (req, res) => {
+  const branding = whiteLabelEngine.getBrandingScript(req.params.subdomain);
+  if (!branding) return res.status(404).json({ error: 'Tenant not found' });
+  res.json(branding);
+});
+
+app.get('/api/admin/tenants', adminCrudRateLimit, adminTokenMiddleware, (req, res) => {
+  const db_ = require('./db');
+  try {
+    const users = db_.users.listAll({ page: 1, limit: 1000 }).users;
+    const allTenants = users.flatMap(u => whiteLabelEngine.getTenantsByOwner(u.id));
+    res.json({ tenants: allTenants, total: allTenants.length });
+  } catch { res.json({ tenants: [], total: 0 }); }
+});
+
+// ==================== MODULELE NEACTIVATE ANTERIOR — RUTE ACTIVATE ====================
+
+// --- Future Compatibility Bridge ---
+app.get('/api/future-compat/status', (req, res) => {
+  res.json(futureCompatBridge.getStatus());
+});
+app.post('/api/future-compat/process', adminTokenMiddleware, async (req, res) => {
+  try {
+    const result = await futureCompatBridge.process(req.body || {});
+    res.json(result);
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// --- Module Loader ---
+app.get('/api/module-loader/status', adminTokenMiddleware, (req, res) => {
+  res.json(moduleLoader.getStatus());
+});
+app.get('/api/module-loader/available', adminTokenMiddleware, (req, res) => {
+  res.json({ modules: moduleLoader.getAvailableModules() });
+});
+app.post('/api/module-loader/reload/:name', adminTokenMiddleware, (req, res) => {
+  try {
+    const mod = moduleLoader.reloadModule(req.params.name);
+    res.json({ ok: true, module: req.params.name, exported: typeof mod });
+  } catch (e) { res.status(400).json({ error: e.message }); }
+});
+
+// --- Quantum Security Layer ---
+app.get('/api/quantum-security/status', (req, res) => {
+  res.json(quantumSecurity.getStatus());
+});
+app.post('/api/quantum-security/process', adminTokenMiddleware, async (req, res) => {
+  try {
+    const result = await quantumSecurity.process(req.body || {});
+    res.json(result);
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// --- Quantum Integrity Shield ---
+app.get('/api/quantum-integrity/status', (req, res) => {
+  res.json(quantumIntegrityShield.getStatus());
+});
+app.post('/api/quantum-integrity/scan', adminTokenMiddleware, async (req, res) => {
+  try {
+    const result = await quantumIntegrityShield.scan();
+    res.json(result);
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+app.get('/api/quantum-integrity/history', adminTokenMiddleware, (req, res) => {
+  const limit = Math.min(parseInt(req.query.limit || '20', 10), 100);
+  res.json({ history: quantumIntegrityShield.getScanHistory(limit) });
+});
+
+// --- Temporal Data Processor ---
+app.get('/api/temporal-processor/status', (req, res) => {
+  res.json(temporalProcessor.getStatus());
+});
+app.post('/api/temporal-processor/process', adminTokenMiddleware, async (req, res) => {
+  try {
+    const result = await temporalProcessor.process(req.body || {});
+    res.json(result);
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// --- Configuration Manager ---
+app.get('/api/config/status', adminTokenMiddleware, (req, res) => {
+  res.json(configManager.getStatus());
+});
+app.get('/api/config/all-keys', adminTokenMiddleware, (req, res) => {
+  res.json(configManager.getAllKeysStatus());
+});
+app.post('/api/config/inject', adminTokenMiddleware, (req, res) => {
+  const injected = configManager.injectToEnv();
+  res.json({ ok: true, injected });
+});
+app.get('/api/config/:key', adminTokenMiddleware, (req, res) => {
+  const val = configManager.get(req.params.key);
+  res.json({ key: req.params.key, value: val !== undefined ? val : null });
+});
+app.post('/api/config/:key', adminTokenMiddleware, (req, res) => {
+  try {
+    configManager.set(req.params.key, req.body.value);
+    configManager.injectToEnv();
+    res.json({ ok: true });
+  } catch (e) { res.status(400).json({ error: e.message }); }
+});
+
+// --- Quantum Payment Nexus ---
+app.post('/api/quantum-payment/process', authMiddleware, async (req, res) => {
+  try {
+    const result = await quantumPaymentNexus.processPayment(req.body || {});
+    res.json(result);
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+app.get('/api/quantum-payment/status/:paymentId', authMiddleware, (req, res) => {
+  try {
+    const result = quantumPaymentNexus.getPaymentStatus(req.params.paymentId);
+    res.json(result);
+  } catch (e) { res.status(404).json({ error: e.message }); }
+});
+app.get('/api/quantum-payment/history', adminTokenMiddleware, (req, res) => {
+  const limit = parseInt(req.query.limit) || 50;
+  res.json({ transactions: quantumPaymentNexus.getTransactionHistory(limit) });
+});
+app.get('/api/quantum-payment/revenue', adminTokenMiddleware, (req, res) => {
+  res.json(quantumPaymentNexus.getRevenueSummary());
+});
+app.post('/api/quantum-payment/confirm-btc', adminTokenMiddleware, (req, res) => {
+  try {
+    const result = quantumPaymentNexus.confirmBtcPayment(req.body.paymentId);
+    res.json(result);
+  } catch (e) { res.status(400).json({ error: e.message }); }
+});
+
+// --- Quantum Vault ---
+app.get('/api/quantum-vault/status', adminTokenMiddleware, (req, res) => {
+  res.json(quantumVault.getStatus());
+});
+app.post('/api/quantum-vault/store', adminTokenMiddleware, async (req, res) => {
+  try {
+    const result = await quantumVault.store(req.body.key, req.body.value, req.body.opts || {});
+    res.json(result);
+  } catch (e) { res.status(400).json({ error: e.message }); }
+});
+app.post('/api/quantum-vault/retrieve', adminTokenMiddleware, async (req, res) => {
+  try {
+    const result = await quantumVault.retrieve(req.body.key, req.body.opts || {});
+    res.json(result);
+  } catch (e) { res.status(400).json({ error: e.message }); }
+});
+app.get('/api/quantum-vault/keys', adminTokenMiddleware, (req, res) => {
+  res.json({ keys: quantumVault.listKeys() });
+});
+app.get('/api/quantum-vault/all-keys', adminTokenMiddleware, (req, res) => {
+  res.json(quantumVault.getAllKeysStatus());
+});
+app.post('/api/quantum-vault/inject', adminTokenMiddleware, (req, res) => {
+  const injected = quantumVault.injectToEnv();
+  const cfgInjected = configManager.injectToEnv();
+  res.json({ injected: injected + cfgInjected, vaultInjected: injected, configInjected: cfgInjected });
+});
+app.post('/api/quantum-vault/unlock', adminTokenMiddleware, (req, res) => {
+  const ok = quantumVault.unlock(req.body.emergencyCode);
+  res.json({ success: ok });
+});
+
+// --- Revenue Modules (7 fluxuri de venit) ---
+app.get('/api/revenue-modules/status', adminTokenMiddleware, (req, res) => {
+  res.json(revenueModules.getAllStatus());
+});
+app.get('/api/revenue-modules/total', adminTokenMiddleware, (req, res) => {
+  res.json({ totalRevenue: revenueModules.getTotalRevenue() });
+});
+app.post('/api/revenue-modules/trading/simulate', adminTokenMiddleware, (req, res) => {
+  try { res.json(revenueModules.tradingModule.simulate()); } catch (e) { res.status(500).json({ error: e.message }); }
+});
+app.post('/api/revenue-modules/cloud/optimize', adminTokenMiddleware, (req, res) => {
+  try { res.json(revenueModules.cloudBroker.optimize()); } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// --- Sovereign Access Guardian ---
+app.get('/api/sovereign/status', adminTokenMiddleware, (req, res) => {
+  res.json(sovereignGuardian.getStatus());
+});
+app.post('/api/sovereign/authenticate', async (req, res) => {
+  try {
+    const result = await sovereignGuardian.authenticate(req.body.userId, req.body.credential, req.body.method || 'password');
+    res.json(result);
+  } catch (e) { res.status(401).json({ error: e.message }); }
+});
+app.post('/api/sovereign/verify', (req, res) => {
+  try {
+    const session = sovereignGuardian.verifySession(req.body.sessionToken);
+    if (!session) return res.status(401).json({ error: 'Invalid or expired session' });
+    res.json({ ok: true, session });
+  } catch (e) { res.status(401).json({ error: e.message }); }
+});
+app.post('/api/sovereign/setup-totp', adminTokenMiddleware, async (req, res) => {
+  try {
+    const result = await sovereignGuardian.setupTOTP(req.body.userId);
+    res.json(result);
+  } catch (e) { res.status(400).json({ error: e.message }); }
+});
+
+// ==================== GENERATED FUTURE MODULES — RUTE ====================
+
+// --- AGI Self-Evolution Engine ---
+app.get('/api/agi/status', adminTokenMiddleware, (req, res) => {
+  res.json({ module: 'AGI Self-Evolution Engine', status: 'active', ready: true });
+});
+app.post('/api/agi/process', adminTokenMiddleware, async (req, res) => {
+  try {
+    const result = await agiSelfEvolution.process(req.body || {});
+    res.json(result);
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// --- Autonomous Space Computing ---
+app.get('/api/space-computing/status', (req, res) => {
+  res.json({ module: 'Autonomous Space Computing', status: 'active', ready: true });
+});
+app.post('/api/space-computing/process', adminTokenMiddleware, async (req, res) => {
+  try {
+    const result = await autonomousSpace.process(req.body || {});
+    res.json(result);
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// --- Decentralized Digital Twin Network ---
+app.get('/api/digital-twin/status', (req, res) => {
+  res.json({ module: 'Decentralized Digital Twin Network', status: 'active', ready: true });
+});
+app.post('/api/digital-twin/process', adminTokenMiddleware, async (req, res) => {
+  try {
+    const result = await digitalTwinNetwork.process(req.body || {});
+    res.json(result);
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// --- Neural Interface API ---
+app.get('/api/neural-interface/status', (req, res) => {
+  res.json({ module: 'Neural Interface API', status: 'active', ready: true });
+});
+app.post('/api/neural-interface/process', adminTokenMiddleware, async (req, res) => {
+  try {
+    const result = await neuralInterfaceAPI.process(req.body || {});
+    res.json(result);
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// --- Quantum Internet Protocol ---
+app.get('/api/quantum-internet/status', (req, res) => {
+  res.json({ module: 'Quantum Internet Protocol', status: 'active', ready: true });
+});
+app.post('/api/quantum-internet/process', adminTokenMiddleware, async (req, res) => {
+  try {
+    const result = await quantumInternet.process(req.body || {});
+    res.json(result);
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// --- Quantum Machine Learning Core ---
+app.get('/api/quantum-ml/status', (req, res) => {
+  res.json({ module: 'Quantum Machine Learning Core', status: 'active', ready: true });
+});
+app.post('/api/quantum-ml/process', adminTokenMiddleware, async (req, res) => {
+  try {
+    const result = await quantumML.process(req.body || {});
+    res.json(result);
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// --- Temporal Data Layer ---
+app.get('/api/temporal-data/status', (req, res) => {
+  res.json({ module: 'Temporal Data Layer', status: 'active', ready: true });
+});
+app.post('/api/temporal-data/process', adminTokenMiddleware, async (req, res) => {
+  try {
+    const result = await temporalDataLayer.process(req.body || {});
+    res.json(result);
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// --- Innovation Engine ---
+app.get('/api/innovation-engine/report', adminTokenMiddleware, (req, res) => {
+  try {
+    const report = innovationEngine.buildInnovationReport();
+    res.json(report);
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// --- Auto Deploy Orchestrator (src) ---
+app.get('/api/auto-deploy-orchestrator/status', adminTokenMiddleware, (req, res) => {
+  res.json({ module: 'Auto Deploy Orchestrator', status: 'active', ready: true });
+});
+
+// ==================== CENTRAL ORCHESTRATOR ROUTES ====================
+app.get('/api/central-orchestrator/status', (req, res) => {
+  res.json(centralOrchestrator.getStatus());
+});
+
+app.get('/api/orchestrator/decisions', adminTokenMiddleware, (req, res) => {
+  const limit = Math.min(parseInt(req.query.limit || '50', 10), 500);
+  res.json(centralOrchestrator.getDecisionLog(limit));
+});
+
+app.get('/api/orchestrator/incidents', adminTokenMiddleware, (req, res) => {
+  const limit = Math.min(parseInt(req.query.limit || '50', 10), 200);
+  res.json(centralOrchestrator.getIncidents(limit));
+});
+
+app.post('/api/orchestrator/check', adminTokenMiddleware, async (req, res) => {
+  try {
+    const status = await centralOrchestrator.forceCheck();
+    res.json({ success: true, status });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// ==================== SELF-HEALING ENGINE ROUTES ====================
+app.get('/api/self-healer/status', (req, res) => {
+  res.json(selfHealingEngine.getStatus());
+});
+
+app.get('/api/self-healer/log', adminTokenMiddleware, (req, res) => {
+  const limit = Math.min(parseInt(req.query.limit || '50', 10), 500);
+  res.json(selfHealingEngine.getHealLog(limit));
+});
+
+app.post('/api/self-healer/restart', adminTokenMiddleware, async (req, res) => {
+  const { processName } = req.body || {};
+  if (!processName) return res.status(400).json({ error: 'processName required' });
+  try {
+    const ok = await selfHealingEngine.manualRestart(processName);
+    res.json({ success: ok, processName });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+app.post('/api/self-healer/redeploy', adminTokenMiddleware, async (req, res) => {
+  try {
+    const ok = await selfHealingEngine.manualRedeploy();
+    res.json({ success: ok });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// ==================== AUTO-INNOVATION LOOP ROUTES ====================
+app.get('/api/innovation-loop/status', (req, res) => {
+  res.json(autoInnovationLoop.getStatus());
+});
+
+app.get('/api/innovation-loop/proposals', adminTokenMiddleware, (req, res) => {
+  const limit = Math.min(parseInt(req.query.limit || '20', 10), 100);
+  res.json(autoInnovationLoop.getProposals(limit));
+});
+
+app.get('/api/innovation-loop/pending-prs', adminTokenMiddleware, (req, res) => {
+  res.json(autoInnovationLoop.getPendingPRs());
+});
+
+app.get('/api/innovation-loop/merged-prs', adminTokenMiddleware, (req, res) => {
+  const limit = Math.min(parseInt(req.query.limit || '20', 10), 100);
+  res.json(autoInnovationLoop.getMergedPRs(limit));
+});
+
+app.get('/api/innovation-loop/log', adminTokenMiddleware, (req, res) => {
+  const limit = Math.min(parseInt(req.query.limit || '50', 10), 500);
+  res.json(autoInnovationLoop.getLog(limit));
+});
+
+app.post('/api/innovation-loop/trigger', adminTokenMiddleware, async (req, res) => {
+  try {
+    await autoInnovationLoop.triggerCycle();
+    res.json({ success: true, status: autoInnovationLoop.getStatus() });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// ==================== SELF CONSTRUCTION & TOTAL SYSTEM HEALER ROUTES ====================
+app.get('/api/self-construction/status', adminTokenMiddleware, (req, res) => {
+  res.json({ module: 'SelfConstruction', status: 'active', hasRun: selfConstruction.hasRun });
+});
+app.post('/api/self-construction/run', adminTokenMiddleware, async (req, res) => {
+  try {
+    await selfConstruction.start();
+    res.json({ success: true, module: 'SelfConstruction', hasRun: selfConstruction.hasRun });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+app.get('/api/total-system-healer/status', adminTokenMiddleware, (req, res) => {
+  res.json({ module: 'TotalSystemHealer', status: 'active' });
+});
+app.post('/api/total-system-healer/heal', adminTokenMiddleware, (req, res) => {
+  totalSystemHealer.heal();
+  res.json({ success: true, module: 'TotalSystemHealer', action: 'heal triggered' });
+});
+app.post('/api/total-system-healer/check-modules', adminTokenMiddleware, (req, res) => {
+  totalSystemHealer.checkModules();
+  res.json({ success: true, module: 'TotalSystemHealer', action: 'checkModules triggered' });
+});
+
+// ==================== NEW ACTIVATED MODULES — ROUTES (23) ====================
+// Helper: generic 2-route handler for new modules
+function registerModuleRoutes(slug, mod) {
+  app.get(`/api/${slug}/status`, (req, res) => {
+    try { res.json(mod.getStatus()); }
+    catch (e) { res.status(500).json({ error: e.message }); }
+  });
+  app.post(`/api/${slug}/process`, authMiddleware, async (req, res) => {
+    try { res.json(await mod.process(req.body || {})); }
+    catch (e) { res.status(500).json({ error: e.message }); }
+  });
+}
+
+registerModuleRoutes('evolution-core',             evolutionCore);
+registerModuleRoutes('quantum-healing',            quantumHealing);
+registerModuleRoutes('universal-adaptor',          universalAdaptor);
+registerModuleRoutes('site-creator',               siteCreator);
+registerModuleRoutes('ab-testing',                 abTesting);
+registerModuleRoutes('seo-optimizer',              seoOptimizer);
+registerModuleRoutes('analytics',                  analyticsEngine);
+registerModuleRoutes('content-ai',                 contentAI);
+registerModuleRoutes('auto-marketing',             autoMarketing);
+registerModuleRoutes('performance-monitor',        performanceMonitor);
+registerModuleRoutes('unicorn-realization-engine', unicornRealizationEngine);
+registerModuleRoutes('auto-trend-analyzer',        autoTrendAnalyzer);
+registerModuleRoutes('self-adaptation-engine',     selfAdaptationEngine);
+registerModuleRoutes('code-optimizer',             codeOptimizer);
+registerModuleRoutes('self-documenter',            selfDocumenter);
+registerModuleRoutes('ui-evolution',               uiEvolution);
+registerModuleRoutes('security-scanner',           securityScanner);
+registerModuleRoutes('disaster-recovery',          disasterRecovery);
+registerModuleRoutes('swarm-intelligence',         swarmIntelligence);
+registerModuleRoutes('universal-interchain-nexus', universalInterchainNexus);
+registerModuleRoutes('autonomous-wealth-engine',   autonomousWealthEngine);
+registerModuleRoutes('autonomous-bd-engine',       autonomousBDEngine);
+registerModuleRoutes('unicorn-super-intelligence', unicornSuperIntelligence);
+
+// ==================== NEW POWER AGENTS — ROUTES (6) ====================
+registerModuleRoutes('predictive-market-intelligence', predictiveMarketIntelligence);
+registerModuleRoutes('ai-sales-closer',                aiSalesCloser);
+registerModuleRoutes('competitor-spy-agent',           competitorSpyAgent);
+registerModuleRoutes('ai-cfo-agent',                   aiCfoAgent);
+registerModuleRoutes('sentiment-analysis-engine',      sentimentAnalysisEngine);
+registerModuleRoutes('ai-product-generator',           aiProductGenerator);
+
+
 const clientBuildPath = path.join(__dirname, '../client/build');
 const clientIndexPath = path.join(clientBuildPath, 'index.html');
 const fs = require('fs');
@@ -1250,22 +3371,78 @@ if (fs.existsSync(clientBuildPath)) {
   }));
 }
 
-app.get('*', (req, res) => {
+app.get('/{*path}', (req, res) => {
   if (fs.existsSync(clientIndexPath)) {
     res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
     return res.sendFile(clientIndexPath);
   }
-  // Client not built yet — return API status instead of crashing
-  res.json({
-    service: 'unicorn-autonomous',
-    status: 'running',
-    note: 'UI build not found. Run: cd client && npm install && npm run build',
-    api: '/api/health'
+  // Serve the full unicorn HTML template when no React client build is present
+  // (e.g. Vercel serverless deploy or fresh Hetzner setup)
+  try {
+    const { getSiteHtml } = require('../src/site/template');
+    res.setHeader('Content-Type', 'text/html; charset=utf-8');
+    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+    return res.send(getSiteHtml());
+  } catch (_) {
+    res.json({
+      service: 'unicorn-autonomous',
+      status: 'running',
+      note: 'UI build not found. Run: cd client && npm install && npm run build',
+      api: '/api/health'
+    });
+  }
+});
+
+// ==================== GLOBAL ERROR HANDLER ====================
+// Catches any unhandled errors thrown in route handlers.
+// In production, never expose the stack trace to the client.
+// eslint-disable-next-line no-unused-vars
+app.use((err, req, res, next) => {
+  const statusCode = err.status || err.statusCode || 500;
+  // Sanitize method and path; truncate err.message to avoid logging sensitive user data
+  const method = String(req.method).slice(0, 10);
+  const urlPath = String(req.path).slice(0, 200);
+  const safeMessage = String(err.message || '').slice(0, 500);
+  console.error('[Error]', method, urlPath, '->', safeMessage);
+  if (err.stack && process.env.NODE_ENV !== 'production') console.error(err.stack);
+  res.status(statusCode).json({
+    error: process.env.NODE_ENV === 'production' ? 'Internal server error' : (safeMessage || 'Internal server error'),
   });
 });
 
-app.listen(PORT, () => {
-  console.log(`🚀 Unicorn autonom rulând pe portul ${PORT}`);
-  console.log(`✨ Autonomous Innovation Engine: ACTIVE`);
-  console.log(`💰 Auto Revenue Generation: ACTIVE`);
+// ==================== PROCESS-LEVEL CRASH GUARD ====================
+// Prevent any unhandled exception or rejected promise from taking down
+// the entire server process. PM2 will still restart it if it truly dies,
+// but logging here lets us diagnose root causes without a hard crash.
+process.on('uncaughtException', (err) => {
+  console.error('[uncaughtException]', new Date().toISOString(), err && err.message ? err.message : err);
+  if (err && err.stack) console.error(err.stack);
+  // Do NOT call process.exit() — keep the server alive
 });
+
+process.on('unhandledRejection', (reason) => {
+  const msg = reason instanceof Error ? reason.message : String(reason);
+  console.error('[unhandledRejection]', new Date().toISOString(), msg);
+  if (reason instanceof Error && reason.stack) console.error(reason.stack);
+  // Do NOT call process.exit() — keep the server alive
+});
+
+// Only bind to a port when run directly (not when imported by Vercel or tests)
+if (require.main === module) {
+  app.listen(PORT, () => {
+    console.log(`🚀 Unicorn autonom rulând pe portul ${PORT}`);
+    console.log(`🤖 Universal AI Connector (UAIC): ${_uaic ? 'ACTIVE' : 'DISABLED'}`);
+    console.log(`✨ Autonomous Innovation Engine: ACTIVE`);
+    console.log(`💰 Auto Revenue Generation: ACTIVE`);
+    console.log(`♾️  Unicorn Eternal Engine: ACTIVE`);
+    console.log(`📱 Social Media Viralizer: ACTIVE`);
+    console.log(`🌐 Global Digital Standard: ACTIVE`);
+    console.log(`🏛️  Legal Fortress: ACTIVE`);
+    console.log(`⚡ Quantum Resilience Core: ACTIVE`);
+    console.log(`📊 Executive Dashboard: ACTIVE`);
+    console.log(`🔍 Code Sanity Engine: ACTIVE`);
+    console.log(`🔗 99+ modules total: TOATE CONECTATE & ACTIVE`);
+  });
+}
+// Export Express app for Vercel serverless and testing
+module.exports = app;

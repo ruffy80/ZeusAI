@@ -9,6 +9,11 @@ const question = (q) => new Promise(resolve => rl.question(q, resolve));
 async function main() {
   console.log('\n🚀 Configurare automată Hetzner pentru Unicorn\n');
   console.log('Acest script va configura serverul Hetzner de la zero și va porni Unicornul.\n');
+  console.log(`
+🚀 Configurare automată Hetzner pentru Unicorn
+`);
+  console.log(`Acest script va configura serverul Hetzner de la zero și va porni Unicornul.
+`);
 
   const host = await question('🌐 IP-ul serverului Hetzner: ');
   const user = await question('👤 Utilizator SSH (default root): ') || 'root';
@@ -16,6 +21,9 @@ async function main() {
   const deployPath = await question('📁 Calea deploy pe server (default /root/unicorn): ') || '/root/unicorn';
 
   console.log('\n🔧 Se rulează scriptul de configurare pe server...\n');
+  console.log(`
+🔧 Se rulează scriptul de configurare pe server...
+`);
 
   const script = `
 echo "═══════════════════════════════════════════════════════════"
