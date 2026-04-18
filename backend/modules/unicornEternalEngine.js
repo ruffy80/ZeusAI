@@ -1,3 +1,11 @@
+// MeshOrchestrator expects a status function (getStatus)
+module.exports.getStatus = function() {
+  return {
+    status: 'active',
+    readiness: typeof this.verifySiteFutureReadiness === 'function' ? this.verifySiteFutureReadiness() : undefined,
+    time: new Date().toISOString()
+  };
+};
 // =====================================================================
 // OWNERSHIP: Acest fișier este proprietatea exclusivă a lui Vladoi Ionut
 // Email: vladoi_ionut@yahoo.com

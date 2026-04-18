@@ -1,3 +1,4 @@
+
 // =====================================================================
 // OWNERSHIP: Acest fișier este proprietatea exclusivă a lui Vladoi Ionut
 // Email: vladoi_ionut@yahoo.com
@@ -280,3 +281,13 @@ class CanaryController {
 const controller = new CanaryController();
 module.exports = controller;
 module.exports.CanaryController = CanaryController;
+
+// Attach getStatus after controller is defined
+controller.getStatus = function() {
+  return {
+    status: 'active',
+    logLength: this.decisionLog.length,
+    lastDecision: this.decisionLog[this.decisionLog.length - 1] || null,
+    time: new Date().toISOString()
+  };
+};

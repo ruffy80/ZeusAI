@@ -114,6 +114,10 @@ class QuantumIntegrityShield {
     try {
       const raw = execSync('pm2 jlist', { stdio: ['ignore', 'pipe', 'ignore'] }).toString('utf8');
       const list = JSON.parse(raw || '[]');
+      if (!Array.isArray(list) || list.length === 0) {
+        console.warn('[QuantumIntegrityShield] pm2 jlist returned no processes. Auto-heal will be skipped.');
+        return { ok: false, missing: REQUIRED_PM2_PROCESSES.slice(), error: 'pm2_no_processes' };
+      }
       const online = new Set(
         list
           .filter((p) => p?.pm2_env?.status === 'online')
@@ -122,7 +126,8 @@ class QuantumIntegrityShield {
       );
       const missing = REQUIRED_PM2_PROCESSES.filter((name) => !online.has(name));
       return { ok: missing.length === 0, missing };
-    } catch {
+    } catch (err) {
+      console.warn('[QuantumIntegrityShield] pm2 check failed:', err.message);
       return { ok: false, missing: REQUIRED_PM2_PROCESSES.slice(), error: 'pm2_unavailable' };
     }
   }
@@ -130,6 +135,13 @@ class QuantumIntegrityShield {
   _attemptSelfHeal(status, issues) {
     if (!AUTO_HEAL_ENABLED) return;
     if (status !== 'compromised' && status !== 'degraded') return;
+
+    // Skip auto-heal if pm2 is not running or no processes are found
+    const pm2State = this._checkPm2Processes();
+    if (pm2State.error === 'pm2_no_processes' || pm2State.error === 'pm2_unavailable') {
+      console.warn('[QuantumIntegrityShield] Auto-heal skipped: pm2 not running or no processes found.');
+      return;
+    }
 
     const now = Date.now();
     if (this.lastSelfHealAt && now - this.lastSelfHealAt < AUTO_HEAL_COOLDOWN_MS) return;
