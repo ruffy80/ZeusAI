@@ -114,6 +114,21 @@ jobs:
         run: |
           bash UNICORN_FINAL/scripts/create-env.sh UNICORN_FINAL
 
+      - name: 🔐 Ensure SSH access (unicorn secrets module auto-bootstrap)
+        env:
+          HETZNER_SSH_PRIVATE_KEY: ${{ secrets.HETZNER_SSH_PRIVATE_KEY }}
+          HETZNER_HOST:            ${{ secrets.HETZNER_HOST }}
+          HETZNER_DEPLOY_PORT:     ${{ secrets.HETZNER_DEPLOY_PORT || '22' }}
+          HETZNER_DEPLOY_USER:     ${{ secrets.HETZNER_DEPLOY_USER || 'root' }}
+          HETZNER_PASSWORD:        ${{ secrets.HETZNER_PASSWORD }}
+        run: |
+          # Folosește modulul unicorn de secrets pentru a garanta că key-auth
+          # funcționează înainte de rsync/ssh-agent. Dacă cheia nu e deja
+          # autorizată pe server, instalează public key-ul derivat din privata
+          # furnizată, folosind HETZNER_PASSWORD ca trust-anchor.
+          chmod +x UNICORN_FINAL/scripts/ensure-ssh-access.sh
+          bash UNICORN_FINAL/scripts/ensure-ssh-access.sh
+
       - name: 🔐 Setup SSH
         uses: webfactory/ssh-agent@v0.10.0
         with:
