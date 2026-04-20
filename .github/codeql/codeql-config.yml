@@ -1,9 +1,1 @@
-# CodeQL configuration for ZeusAI
-# Excludes GitHub Actions workflow files from the 'actions' language analysis
-# because complex bash scripts with Unicode emoji characters (e.g. 📦, 🚀)
-# cause a fatal CatastrophicError in the CodeQL engine:
-#   "String is not valid Unicode"
-# This is a known CodeQL engine bug with multi-byte Unicode in bash cmdsubs.
-paths-ignore:
-  - '.github/workflows/**'
-  - '.github/scripts/**'
+# CodeQL disabled

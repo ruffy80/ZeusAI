@@ -1,28 +1,4 @@
 version: 2
-updates:
-  # ── Main production app (UNICORN_FINAL) ─────────────────────────────────────
-  - package-ecosystem: "npm"
-    directory: "/UNICORN_FINAL"
-    schedule:
-      interval: "weekly"
-      day: "monday"
-      time: "09:00"
-      timezone: "Europe/Bucharest"
-    open-pull-requests-limit: 3
-    labels:
-      - "dependencies"
-    commit-message:
-      prefix: "deps"
-    groups:
-      security-patches:
-        update-types: ["patch"]
-      minor-updates:
-        update-types: ["minor"]
-    ignore:
-      # ccxt updates are very frequent and breaking — pin manually
-      - dependency-name: "ccxt"
-        update-types: ["version-update:semver-major", "version-update:semver-minor"]
-
-  # NOTE: release/ directory is intentionally excluded — it contains archived
-  # build artifacts and is not a maintained dependency tree.
+updates: []
+# Dependabot disabled
 
