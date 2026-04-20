@@ -2,8 +2,9 @@ name: 🚀 Unicorn Stable Deploy
 
 on:
   workflow_dispatch:
-  push:
-    branches: [ "main" ]
+  # push dezactivat — deploy se face manual din GitHub UI sau VSCode (Actions → Run workflow)
+  # push:
+  #   branches: [ "main" ]
 
 jobs:
   deploy:
