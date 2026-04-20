@@ -42,6 +42,13 @@ import AdminWealth from './pages/AdminWealth';
 import AdminBD from './pages/AdminBD';
 import VerifyEmail from './pages/VerifyEmail';
 import ResetPassword from './pages/ResetPassword';
+import Services from './pages/Services';
+import Pricing from './pages/Pricing';
+import About from './pages/About';
+import HowItWorks from './pages/HowItWorks';
+import Terms from './pages/Terms';
+import Privacy from './pages/Privacy';
+import Checkout from './pages/Checkout';
 import toast, { Toaster } from 'react-hot-toast';
 
 function App() {
@@ -49,6 +56,7 @@ function App() {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
   const [healthData, setHealthData] = useState([]);
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
 
   useEffect(() => {
     const token = localStorage.getItem('token');
@@ -72,31 +80,77 @@ function App() {
 
   if (loading) return <QuantumLoader loading={true} />;
 
+  const NAV_LINKS = [
+    { to: '/', label: 'Home' },
+    { to: '/services', label: 'Services' },
+    { to: '/pricing', label: 'Pricing' },
+    { to: '/how-it-works', label: 'How It Works' },
+    { to: '/about', label: 'About' },
+    { to: '/marketplace', label: 'Marketplace' },
+    { to: '/dashboard', label: 'Dashboard' },
+  ];
+
   return (
-    <div style={{ minHeight: '100vh', background: 'linear-gradient(135deg,#111827,#4c1d95,#0f172a)', position: 'relative', overflowX: 'hidden' }}>
+    <div style={{ minHeight: '100vh', background: 'var(--color-bg)', position: 'relative', overflowX: 'hidden' }}>
       <ParticlesBackground3D />
       <QuantumLoader loading={false} />
       <Toaster position="top-right" />
 
-      <header style={{ position: 'sticky', top: 0, zIndex: 50, backdropFilter: 'blur(16px)', background: 'rgba(0,0,0,.3)', borderBottom: '1px solid rgba(255,255,255,.1)' }}>
-        <nav style={{ maxWidth: 1200, margin: '0 auto', padding: '16px 24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <Link to="/" style={{ fontSize: 28, fontWeight: 700, textDecoration: 'none', background: 'linear-gradient(90deg,#22d3ee,#a855f7)', WebkitBackgroundClip: 'text', color: 'transparent' }}>
-            ✦ ZEUS & AI ✦
+      {/* ── HEADER ─────────────────────────────────────────────────── */}
+      <header style={{
+        position: 'sticky', top: 0, zIndex: 50,
+        backdropFilter: 'blur(18px)',
+        background: 'rgba(5,6,14,0.75)',
+        borderBottom: '1px solid rgba(0,212,255,0.1)',
+      }}>
+        <nav style={{
+          maxWidth: 1280, margin: '0 auto',
+          padding: '0 24px',
+          display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+          height: 64,
+        }}>
+          {/* Logo */}
+          <Link to="/" style={{
+            fontSize: 22, fontWeight: 800, textDecoration: 'none',
+            background: 'linear-gradient(90deg,#00d4ff,#c084fc)',
+            WebkitBackgroundClip: 'text', color: 'transparent',
+            fontFamily: 'var(--font-heading)', letterSpacing: '0.06em',
+            flexShrink: 0,
+          }}>
+            ✦ ZEUS & AI
           </Link>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
-            {['/', '/codex', '/dashboard', '/industries', '/capabilities', '/wealth', '/marketplace', '/payments', '/enterprise', '/innovation', '/innovation/blockchain', '/innovation/workforce', '/innovation/ma', '/innovation/legal', '/innovation/energy'].map((path, i) => (
-              <Link key={path} to={path} style={{ color: '#e2e8f0', textDecoration: 'none' }}>
-                {['Home', 'Codex', 'Dashboard', 'Industries', 'Capabilities', 'Wealth', 'Marketplace', 'Payments', 'Enterprise', 'Innovation', 'Blockchain', 'Workforce', 'M&A', 'Legal', 'Energy'][i]}
+
+          {/* Desktop nav links */}
+          <div style={{
+            display: 'flex', alignItems: 'center', gap: 2,
+            '@media (max-width: 900px)': { display: 'none' },
+          }} className="desktop-nav">
+            {NAV_LINKS.map(({ to, label }) => (
+              <Link key={to} to={to} style={{
+                color: '#94a3b8', textDecoration: 'none',
+                fontSize: 13, fontFamily: 'var(--font-heading)',
+                letterSpacing: '0.05em', padding: '6px 10px', borderRadius: 8,
+                transition: 'color 0.2s, background 0.2s',
+              }}
+                onMouseEnter={e => { e.currentTarget.style.color = '#00d4ff'; e.currentTarget.style.background = 'rgba(0,212,255,0.07)'; }}
+                onMouseLeave={e => { e.currentTarget.style.color = '#94a3b8'; e.currentTarget.style.background = 'transparent'; }}
+              >
+                {label}
               </Link>
             ))}
-            <Link to="/admin/login" style={{ color: '#facc15', textDecoration: 'none' }}>🔐 Admin</Link>
-            <Link to="/executive" style={{ color: '#22d3ee', textDecoration: 'none' }}>📊 Exec Dashboard</Link>
-            <Link to="/unicorn-lab" style={{ color: '#a78bfa', textDecoration: 'none' }}>🦄 Lab</Link>
+            <Link to="/admin/login" style={{ color: '#facc15', textDecoration: 'none', fontSize: 12, fontFamily: 'var(--font-heading)', padding: '6px 10px' }}>🔐 Admin</Link>
+            <Link to="/checkout" style={{ textDecoration: 'none' }}>
+              <button style={{ background: 'linear-gradient(135deg,#00d4ff,#c084fc)', color: '#05060e', fontWeight: 700, padding: '8px 20px', borderRadius: 10, border: 'none', cursor: 'pointer', fontFamily: 'var(--font-heading)', letterSpacing: '0.04em' }}>
+                Buy Now
+              </button>
+            </Link>
           </div>
+
+          {/* Auth + utilities */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             {user ? (
               <>
-                <span style={{ color: '#67e8f9' }}>{user.name}</span>
+                <span style={{ color: '#67e8f9', fontSize: 13, fontFamily: 'var(--font-heading)' }}>{user.name}</span>
                 <NeonPulseButton onClick={() => navigate('/profile')} color="#22d3ee" className="!px-4 !py-1 !text-sm">Profile</NeonPulseButton>
                 <NeonPulseButton onClick={handleLogout} color="#ff4444" className="!px-4 !py-1 !text-sm">Logout</NeonPulseButton>
               </>
@@ -108,13 +162,59 @@ function App() {
             )}
             <LanguageSwitcher />
             <ThemeToggle />
+            {/* Hamburger */}
+            <button
+              onClick={() => setMobileNavOpen(o => !o)}
+              style={{
+                background: 'none', border: '1px solid rgba(255,255,255,0.1)',
+                borderRadius: 8, color: '#94a3b8', cursor: 'pointer',
+                padding: '6px 10px', fontSize: 18, lineHeight: 1,
+                display: 'none',
+              }}
+              className="hamburger-btn"
+              aria-label="Toggle navigation"
+            >
+              {mobileNavOpen ? '✕' : '☰'}
+            </button>
           </div>
         </nav>
+
+        {/* Mobile nav dropdown */}
+        {mobileNavOpen && (
+          <div style={{
+            background: 'rgba(5,6,14,0.97)',
+            borderTop: '1px solid rgba(0,212,255,0.1)',
+            padding: '1rem 24px',
+            display: 'flex', flexDirection: 'column', gap: 4,
+          }}>
+            {NAV_LINKS.map(({ to, label }) => (
+              <Link
+                key={to} to={to}
+                onClick={() => setMobileNavOpen(false)}
+                style={{
+                  color: '#94a3b8', textDecoration: 'none',
+                  fontSize: 14, fontFamily: 'var(--font-heading)',
+                  letterSpacing: '0.06em', padding: '10px 0',
+                  borderBottom: '1px solid rgba(255,255,255,0.04)',
+                }}
+              >
+                {label}
+              </Link>
+            ))}
+          </div>
+        )}
       </header>
 
-      <main style={{ maxWidth: 1200, margin: '0 auto', padding: '48px 24px' }}>
+      {/* ── MAIN ───────────────────────────────────────────────────── */}
+      <main style={{ maxWidth: 1280, margin: '0 auto', padding: '48px 24px' }}>
         <Routes>
           <Route path="/" element={<ScrollReveal><Home /></ScrollReveal>} />
+          <Route path="/services" element={<ScrollReveal delay={0.1}><Services /></ScrollReveal>} />
+          <Route path="/pricing" element={<ScrollReveal delay={0.1}><Pricing /></ScrollReveal>} />
+          <Route path="/about" element={<ScrollReveal delay={0.1}><About /></ScrollReveal>} />
+          <Route path="/how-it-works" element={<ScrollReveal delay={0.1}><HowItWorks /></ScrollReveal>} />
+          <Route path="/legal/terms" element={<ScrollReveal delay={0.1}><Terms /></ScrollReveal>} />
+          <Route path="/legal/privacy" element={<ScrollReveal delay={0.1}><Privacy /></ScrollReveal>} />
           <Route path="/codex" element={<ScrollReveal delay={0.1}><Codex /></ScrollReveal>} />
           <Route path="/dashboard" element={<ScrollReveal delay={0.2}><Dashboard healthData={healthData} /></ScrollReveal>} />
           <Route path="/industries" element={<ScrollReveal delay={0.1}><Industries /></ScrollReveal>} />
@@ -147,8 +247,116 @@ function App() {
           <Route path="/executive" element={<ExecutiveDashboard />} />
           <Route path="/unicorn-lab" element={<UnicornLab />} />
           <Route path="/landing-generator" element={<LandingPageGenerator />} />
+          <Route path="/checkout" element={<ScrollReveal><Checkout /></ScrollReveal>} />
         </Routes>
       </main>
+
+      {/* ── FOOTER ─────────────────────────────────────────────────── */}
+      <footer style={{
+        borderTop: '1px solid rgba(0,212,255,0.08)',
+        background: 'rgba(5,6,14,0.9)',
+        backdropFilter: 'blur(12px)',
+        padding: '3rem 24px 2rem',
+        marginTop: '4rem',
+      }}>
+        <div style={{ maxWidth: 1280, margin: '0 auto' }}>
+          <div style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))',
+            gap: '2rem',
+            marginBottom: '2.5rem',
+          }}>
+            {/* Brand */}
+            <div>
+              <div style={{
+                fontFamily: 'var(--font-heading)',
+                fontSize: 20, fontWeight: 800,
+                background: 'linear-gradient(90deg,#00d4ff,#c084fc)',
+                WebkitBackgroundClip: 'text', color: 'transparent',
+                marginBottom: '0.75rem',
+              }}>✦ ZEUS & AI</div>
+              <p style={{ fontSize: 13, color: '#475569', lineHeight: 1.6, margin: '0 0 0.75rem' }}>
+                Autonomous AI platform for enterprise operations.
+              </p>
+              <div style={{ fontSize: 12, color: '#334155', fontFamily: 'var(--font-heading)', letterSpacing: '0.04em' }}>
+                ₿ bc1q4f7e66z87mdfj56kz0dj5hvcnpmh0qh4wuv22e
+              </div>
+            </div>
+
+            {/* Platform */}
+            <div>
+              <div style={{ fontFamily: 'var(--font-heading)', fontSize: 12, fontWeight: 700, color: '#00d4ff', letterSpacing: '0.1em', marginBottom: '0.75rem' }}>PLATFORM</div>
+              {[
+                { to: '/services', label: 'Services' },
+                { to: '/pricing', label: 'Pricing' },
+                { to: '/how-it-works', label: 'How It Works' },
+                { to: '/marketplace', label: 'Marketplace' },
+                { to: '/capabilities', label: 'Capabilities' },
+              ].map(({ to, label }) => (
+                <Link key={to} to={to} style={{ display: 'block', color: '#475569', textDecoration: 'none', fontSize: 13, marginBottom: 6, transition: 'color 0.2s' }}
+                  onMouseEnter={e => { e.currentTarget.style.color = '#94a3b8'; }}
+                  onMouseLeave={e => { e.currentTarget.style.color = '#475569'; }}
+                >{label}</Link>
+              ))}
+            </div>
+
+            {/* Company */}
+            <div>
+              <div style={{ fontFamily: 'var(--font-heading)', fontSize: 12, fontWeight: 700, color: '#c084fc', letterSpacing: '0.1em', marginBottom: '0.75rem' }}>COMPANY</div>
+              {[
+                { to: '/about', label: 'About' },
+                { to: '/codex', label: 'Codex' },
+                { to: '/innovation', label: 'Innovation' },
+                { to: '/enterprise', label: 'Enterprise' },
+              ].map(({ to, label }) => (
+                <Link key={to} to={to} style={{ display: 'block', color: '#475569', textDecoration: 'none', fontSize: 13, marginBottom: 6, transition: 'color 0.2s' }}
+                  onMouseEnter={e => { e.currentTarget.style.color = '#94a3b8'; }}
+                  onMouseLeave={e => { e.currentTarget.style.color = '#475569'; }}
+                >{label}</Link>
+              ))}
+            </div>
+
+            {/* Legal */}
+            <div>
+              <div style={{ fontFamily: 'var(--font-heading)', fontSize: 12, fontWeight: 700, color: '#00ffa3', letterSpacing: '0.1em', marginBottom: '0.75rem' }}>LEGAL</div>
+              {[
+                { to: '/legal/terms', label: 'Terms of Service' },
+                { to: '/legal/privacy', label: 'Privacy Policy & GDPR' },
+              ].map(({ to, label }) => (
+                <Link key={to} to={to} style={{ display: 'block', color: '#475569', textDecoration: 'none', fontSize: 13, marginBottom: 6, transition: 'color 0.2s' }}
+                  onMouseEnter={e => { e.currentTarget.style.color = '#94a3b8'; }}
+                  onMouseLeave={e => { e.currentTarget.style.color = '#475569'; }}
+                >{label}</Link>
+              ))}
+            </div>
+          </div>
+
+          <div style={{
+            borderTop: '1px solid rgba(255,255,255,0.05)',
+            paddingTop: '1.5rem',
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            flexWrap: 'wrap',
+            gap: 12,
+          }}>
+            <div style={{ fontSize: 12, color: '#334155' }}>
+              © {new Date().getFullYear()} ZEUS & AI · Vladoi Ionut · All rights reserved.
+            </div>
+            <div style={{ display: 'flex', gap: 16 }}>
+              {[
+                { to: '/legal/terms', label: 'Terms' },
+                { to: '/legal/privacy', label: 'Privacy' },
+              ].map(({ to, label }) => (
+                <Link key={to} to={to} style={{ fontSize: 12, color: '#334155', textDecoration: 'none', transition: 'color 0.2s' }}
+                  onMouseEnter={e => { e.currentTarget.style.color = '#64748b'; }}
+                  onMouseLeave={e => { e.currentTarget.style.color = '#334155'; }}
+                >{label}</Link>
+              ))}
+            </div>
+          </div>
+        </div>
+      </footer>
 
       <div style={{ position: 'fixed', left: 16, bottom: 16, width: 320, zIndex: 40 }}>
         <AnimatedDataStream data={healthData} title="Real-time Analytics" unit="%" />
