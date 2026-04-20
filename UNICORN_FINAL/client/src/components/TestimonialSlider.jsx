@@ -11,7 +11,7 @@ const TESTIMONIALS = [
   },
   {
     quote:
-      'The multi-tenant architecture is flawless. We spun up 40 white-label instances for our portfolio companies in under a week. The isolation, security, and performance are at a level we\'ve never seen from any vendor.',
+      "The multi-tenant architecture is flawless. We spun up 40 white-label instances for our portfolio companies in under a week. The isolation, security, and performance are at a level we've never seen from any vendor.",
     author: 'Marcus Reinholt',
     role: 'VP of Platform Engineering',
     company: 'Apex Ventures',
@@ -32,7 +32,7 @@ const TESTIMONIALS = [
   },
   {
     quote:
-      'Real-time analytics across 200+ data sources with zero-latency SSE streams. Our ops team now responds to incidents before customers notice them. That\'s a capability we could never build in-house.',
+      "Real-time analytics across 200+ data sources with zero-latency SSE streams. Our ops team now responds to incidents before customers notice them. That's a capability we could never build in-house.",
     author: 'Sophie Laurent',
     role: 'Head of Operations',
     company: 'CloudStream EMEA',
