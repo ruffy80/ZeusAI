@@ -48,6 +48,7 @@ import About from './pages/About';
 import HowItWorks from './pages/HowItWorks';
 import Terms from './pages/Terms';
 import Privacy from './pages/Privacy';
+import Checkout from './pages/Checkout';
 import toast, { Toaster } from 'react-hot-toast';
 
 function App() {
@@ -138,6 +139,11 @@ function App() {
               </Link>
             ))}
             <Link to="/admin/login" style={{ color: '#facc15', textDecoration: 'none', fontSize: 12, fontFamily: 'var(--font-heading)', padding: '6px 10px' }}>🔐 Admin</Link>
+            <Link to="/checkout" style={{ textDecoration: 'none' }}>
+              <button style={{ background: 'linear-gradient(135deg,#00d4ff,#c084fc)', color: '#05060e', fontWeight: 700, padding: '8px 20px', borderRadius: 10, border: 'none', cursor: 'pointer', fontFamily: 'var(--font-heading)', letterSpacing: '0.04em' }}>
+                Buy Now
+              </button>
+            </Link>
           </div>
 
           {/* Auth + utilities */}
@@ -241,6 +247,7 @@ function App() {
           <Route path="/executive" element={<ExecutiveDashboard />} />
           <Route path="/unicorn-lab" element={<UnicornLab />} />
           <Route path="/landing-generator" element={<LandingPageGenerator />} />
+          <Route path="/checkout" element={<ScrollReveal><Checkout /></ScrollReveal>} />
         </Routes>
       </main>
 
