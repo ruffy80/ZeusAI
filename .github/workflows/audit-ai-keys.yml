@@ -53,9 +53,18 @@ jobs:
           set +e
           pick() { # $1=label $2=primary $3=fallback
             local L=$1 V="$2" F="$3"
-            # placeholder filter
-            case "$V" in ''|your_*_here|skip|changeme|todo|placeholder|XXX*|***) V="$F" ;; esac
-            case "$V" in ''|your_*_here|skip|changeme|todo|placeholder|XXX*|***) V="" ;; esac
+            # placeholder filter — explicit list (NO globs with *)
+            is_placeholder() {
+              case "$1" in
+                ''|skip|changeme|todo|placeholder) return 0 ;;
+                your_*_here) return 0 ;;
+              esac
+              # "xxx" (3+ x), too-short (<10 chars) are rejected
+              [ ${#1} -lt 10 ] && return 0
+              return 1
+            }
+            if is_placeholder "$V"; then V="$F"; fi
+            if is_placeholder "$V"; then V=""; fi
             echo "$V"
           }
           probe_bearer() { # name url key
