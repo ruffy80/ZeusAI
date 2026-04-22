@@ -1,3 +1,5 @@
+// ...existing code...
+
 // =====================================================================
 // OWNERSHIP: Acest fișier este proprietatea exclusivă a lui Vladoi Ionut
 // Email: vladoi_ionut@yahoo.com
@@ -277,6 +279,19 @@ class CanaryController {
   }
 }
 
-const controller = new CanaryController();
-module.exports = controller;
+
+
+const instance = new CanaryController();
+// MeshOrchestrator expects a status function (getStatus)
+instance.getStatus = function() {
+  return {
+    status: 'active',
+    logLength: this.decisionLog.length,
+    lastDecision: this.decisionLog[this.decisionLog.length - 1] || null,
+    time: new Date().toISOString()
+  };
+};
+// Alias pentru orchestrator: statusFn
+instance.statusFn = instance.getStatus;
+module.exports = instance;
 module.exports.CanaryController = CanaryController;

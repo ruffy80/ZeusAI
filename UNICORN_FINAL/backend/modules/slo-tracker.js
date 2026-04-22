@@ -1,3 +1,5 @@
+// MeshOrchestrator expects a status function (getMetrics)
+
 // =====================================================================
 // OWNERSHIP: Acest fișier este proprietatea exclusivă a lui Vladoi Ionut
 // Email: vladoi_ionut@yahoo.com
@@ -186,3 +188,15 @@ class SLOTracker {
 const tracker = new SLOTracker();
 module.exports = tracker;
 module.exports.SLOTracker = SLOTracker;
+
+// Attach getMetrics after tracker is defined
+tracker.getMetrics = function() {
+  return {
+    allStats: this.getAllStats(),
+    globalSamples: this.globalSamples.length,
+    routes: Array.from(this.routes.keys()),
+    p99ThresholdMs: P99_THRESHOLD_MS,
+    errorBudget: ERROR_BUDGET,
+    windowMs: WINDOW_MS
+  };
+};

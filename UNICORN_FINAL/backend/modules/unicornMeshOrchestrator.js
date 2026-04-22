@@ -228,8 +228,13 @@ class UnicornMeshOrchestrator extends EventEmitter {
 
   _isHealthy(status) {
     if (!status) return false;
-    if (status.health && status.health !== 'good' && status.health !== 'excellent' && status.health !== 'ok' && status.health !== 'active') return false;
-    if (status.status && status.status !== 'ok' && status.status !== 'active' && status.status !== 'running') return false;
+    // Blacklist approach: only flag unhealthy when there is an explicit negative signal.
+    // Modules use different vocabulary (FULLY_AUTONOMOUS, intact, degraded, PARTIAL, etc.)
+    // so a strict whitelist causes false degraded reports.
+    const BAD_HEALTH  = new Set(['error', 'failed', 'down', 'critical', 'compromised', 'crashed', 'unknown']);
+    const BAD_STATUS  = new Set(['error', 'failed', 'down', 'compromised', 'crashed']);
+    if (status.health && typeof status.health === 'string' && BAD_HEALTH.has(status.health.toLowerCase())) return false;
+    if (status.status && typeof status.status === 'string' && BAD_STATUS.has(status.status.toLowerCase())) return false;
     return true;
   }
 

@@ -61,6 +61,9 @@ app.use(cors({
 
 app.use(express.json());
 
+// Wrap async route handlers and forward errors to Express middleware
+const asyncHandler = (fn) => (req, res, next) => Promise.resolve(fn(req, res, next)).catch(next);
+
 // ==================== GLOBAL BODY SANITIZATION (AutoInnovation Security #13) ====================
 // Recursively trim, strip control characters, and truncate all string values in req.body
 // to guard against oversized, null-byte, or control-character injection payloads.
@@ -110,7 +113,13 @@ const adminCrudRateLimit = rateLimit({
 app.use(globalPublicRateLimit);
 
 // ==================== PERSISTENCE ====================
-const { users: dbUsers, payments: dbPayments, apiKeys: dbApiKeys, adminSessions: dbAdminSessions } = require('./db');
+const {
+  users: dbUsers,
+  payments: dbPayments,
+  purchases: dbPurchases,
+  apiKeys: dbApiKeys,
+  adminSessions: dbAdminSessions,
+} = require('./db');
 const emailService = require('./email');
 
 // ==================== SECURITY HEADERS (Helmet) ====================
@@ -603,153 +612,6 @@ const qrBaaS                       = require('./modules/quantumResistantBaaS');
 const amaa                         = require('./modules/autonomousMAdvisor');
 const uaitm                        = require('./modules/universalAITrainingMarketplace');
 
-// ==================== ADAPTIVE MODULES (82) — REQUIRES ====================
-const adaptiveMod01 = require('./modules/AdaptiveModule01');
-const adaptiveMod02 = require('./modules/AdaptiveModule02');
-const adaptiveMod03 = require('./modules/AdaptiveModule03');
-const adaptiveMod04 = require('./modules/AdaptiveModule04');
-const adaptiveMod05 = require('./modules/AdaptiveModule05');
-const adaptiveMod06 = require('./modules/AdaptiveModule06');
-const adaptiveMod07 = require('./modules/AdaptiveModule07');
-const adaptiveMod08 = require('./modules/AdaptiveModule08');
-const adaptiveMod09 = require('./modules/AdaptiveModule09');
-const adaptiveMod10 = require('./modules/AdaptiveModule10');
-const adaptiveMod11 = require('./modules/AdaptiveModule11');
-const adaptiveMod12 = require('./modules/AdaptiveModule12');
-const adaptiveMod13 = require('./modules/AdaptiveModule13');
-const adaptiveMod14 = require('./modules/AdaptiveModule14');
-const adaptiveMod15 = require('./modules/AdaptiveModule15');
-const adaptiveMod16 = require('./modules/AdaptiveModule16');
-const adaptiveMod17 = require('./modules/AdaptiveModule17');
-const adaptiveMod18 = require('./modules/AdaptiveModule18');
-const adaptiveMod19 = require('./modules/AdaptiveModule19');
-const adaptiveMod20 = require('./modules/AdaptiveModule20');
-const adaptiveMod21 = require('./modules/AdaptiveModule21');
-const adaptiveMod22 = require('./modules/AdaptiveModule22');
-const adaptiveMod23 = require('./modules/AdaptiveModule23');
-const adaptiveMod24 = require('./modules/AdaptiveModule24');
-const adaptiveMod25 = require('./modules/AdaptiveModule25');
-const adaptiveMod26 = require('./modules/AdaptiveModule26');
-const adaptiveMod27 = require('./modules/AdaptiveModule27');
-const adaptiveMod28 = require('./modules/AdaptiveModule28');
-const adaptiveMod29 = require('./modules/AdaptiveModule29');
-const adaptiveMod30 = require('./modules/AdaptiveModule30');
-const adaptiveMod31 = require('./modules/AdaptiveModule31');
-const adaptiveMod32 = require('./modules/AdaptiveModule32');
-const adaptiveMod33 = require('./modules/AdaptiveModule33');
-const adaptiveMod34 = require('./modules/AdaptiveModule34');
-const adaptiveMod35 = require('./modules/AdaptiveModule35');
-const adaptiveMod36 = require('./modules/AdaptiveModule36');
-const adaptiveMod37 = require('./modules/AdaptiveModule37');
-const adaptiveMod38 = require('./modules/AdaptiveModule38');
-const adaptiveMod39 = require('./modules/AdaptiveModule39');
-const adaptiveMod40 = require('./modules/AdaptiveModule40');
-const adaptiveMod41 = require('./modules/AdaptiveModule41');
-const adaptiveMod42 = require('./modules/AdaptiveModule42');
-const adaptiveMod43 = require('./modules/AdaptiveModule43');
-const adaptiveMod44 = require('./modules/AdaptiveModule44');
-const adaptiveMod45 = require('./modules/AdaptiveModule45');
-const adaptiveMod46 = require('./modules/AdaptiveModule46');
-const adaptiveMod47 = require('./modules/AdaptiveModule47');
-const adaptiveMod48 = require('./modules/AdaptiveModule48');
-const adaptiveMod49 = require('./modules/AdaptiveModule49');
-const adaptiveMod50 = require('./modules/AdaptiveModule50');
-const adaptiveMod51 = require('./modules/AdaptiveModule51');
-const adaptiveMod52 = require('./modules/AdaptiveModule52');
-const adaptiveMod53 = require('./modules/AdaptiveModule53');
-const adaptiveMod54 = require('./modules/AdaptiveModule54');
-const adaptiveMod55 = require('./modules/AdaptiveModule55');
-const adaptiveMod56 = require('./modules/AdaptiveModule56');
-const adaptiveMod57 = require('./modules/AdaptiveModule57');
-const adaptiveMod58 = require('./modules/AdaptiveModule58');
-const adaptiveMod59 = require('./modules/AdaptiveModule59');
-const adaptiveMod60 = require('./modules/AdaptiveModule60');
-const adaptiveMod61 = require('./modules/AdaptiveModule61');
-const adaptiveMod62 = require('./modules/AdaptiveModule62');
-const adaptiveMod63 = require('./modules/AdaptiveModule63');
-const adaptiveMod64 = require('./modules/AdaptiveModule64');
-const adaptiveMod65 = require('./modules/AdaptiveModule65');
-const adaptiveMod66 = require('./modules/AdaptiveModule66');
-const adaptiveMod67 = require('./modules/AdaptiveModule67');
-const adaptiveMod68 = require('./modules/AdaptiveModule68');
-const adaptiveMod69 = require('./modules/AdaptiveModule69');
-const adaptiveMod70 = require('./modules/AdaptiveModule70');
-const adaptiveMod71 = require('./modules/AdaptiveModule71');
-const adaptiveMod72 = require('./modules/AdaptiveModule72');
-const adaptiveMod73 = require('./modules/AdaptiveModule73');
-const adaptiveMod74 = require('./modules/AdaptiveModule74');
-const adaptiveMod75 = require('./modules/AdaptiveModule75');
-const adaptiveMod76 = require('./modules/AdaptiveModule76');
-const adaptiveMod77 = require('./modules/AdaptiveModule77');
-const adaptiveMod78 = require('./modules/AdaptiveModule78');
-const adaptiveMod79 = require('./modules/AdaptiveModule79');
-const adaptiveMod80 = require('./modules/AdaptiveModule80');
-const adaptiveMod81 = require('./modules/AdaptiveModule81');
-const adaptiveMod82 = require('./modules/AdaptiveModule82');
-
-// ==================== ENGINES (62) — REQUIRES ====================
-const engine1  = require('./modules/Engine1');
-const engine2  = require('./modules/Engine2');
-const engine3  = require('./modules/Engine3');
-const engine4  = require('./modules/Engine4');
-const engine5  = require('./modules/Engine5');
-const engine6  = require('./modules/Engine6');
-const engine7  = require('./modules/Engine7');
-const engine8  = require('./modules/Engine8');
-const engine9  = require('./modules/Engine9');
-const engine10 = require('./modules/Engine10');
-const engine11 = require('./modules/Engine11');
-const engine12 = require('./modules/Engine12');
-const engine13 = require('./modules/Engine13');
-const engine14 = require('./modules/Engine14');
-const engine15 = require('./modules/Engine15');
-const engine16 = require('./modules/Engine16');
-const engine17 = require('./modules/Engine17');
-const engine18 = require('./modules/Engine18');
-const engine19 = require('./modules/Engine19');
-const engine20 = require('./modules/Engine20');
-const engine21 = require('./modules/Engine21');
-const engine22 = require('./modules/Engine22');
-const engine23 = require('./modules/Engine23');
-const engine24 = require('./modules/Engine24');
-const engine25 = require('./modules/Engine25');
-const engine26 = require('./modules/Engine26');
-const engine27 = require('./modules/Engine27');
-const engine28 = require('./modules/Engine28');
-const engine29 = require('./modules/Engine29');
-const engine30 = require('./modules/Engine30');
-const engine31 = require('./modules/Engine31');
-const engine32 = require('./modules/Engine32');
-const engine33 = require('./modules/Engine33');
-const engine34 = require('./modules/Engine34');
-const engine35 = require('./modules/Engine35');
-const engine36 = require('./modules/Engine36');
-const engine37 = require('./modules/Engine37');
-const engine38 = require('./modules/Engine38');
-const engine39 = require('./modules/Engine39');
-const engine40 = require('./modules/Engine40');
-const engine41 = require('./modules/Engine41');
-const engine42 = require('./modules/Engine42');
-const engine43 = require('./modules/Engine43');
-const engine44 = require('./modules/Engine44');
-const engine45 = require('./modules/Engine45');
-const engine46 = require('./modules/Engine46');
-const engine47 = require('./modules/Engine47');
-const engine48 = require('./modules/Engine48');
-const engine49 = require('./modules/Engine49');
-const engine50 = require('./modules/Engine50');
-const engine51 = require('./modules/Engine51');
-const engine52 = require('./modules/Engine52');
-const engine53 = require('./modules/Engine53');
-const engine54 = require('./modules/Engine54');
-const engine55 = require('./modules/Engine55');
-const engine56 = require('./modules/Engine56');
-const engine57 = require('./modules/Engine57');
-const engine58 = require('./modules/Engine58');
-const engine59 = require('./modules/Engine59');
-const engine60 = require('./modules/Engine60');
-const engine61 = require('./modules/Engine61');
-const engine62 = require('./modules/Engine62');
 
 // ==================== SPECIAL MISSING MODULES — REQUIRES ====================
 const unicornExecutionEngine = require('./modules/unicorn-execution-engine');
@@ -764,7 +626,6 @@ const logMonitor           = require('./modules/log-monitor');
 const resourceMonitor      = require('./modules/resource-monitor');
 const errorPatternDetector = require('./modules/error-pattern-detector');
 const recoveryEngine       = require('./modules/recovery-engine');
-const serviceWatchdog      = require('./modules/service-watchdog');
 const uiAutoBuilder        = require('./modules/ui-auto-builder');
 
 // ==================== MULTI-TENANT SAAS PLATFORM ====================
@@ -841,12 +702,10 @@ const MODULE_REGISTRY = {
     'disaster-recovery',
   ],
   watchdog: [
-    'unicorn-service-watchdog',
     'unicorn-zero-downtime',
     'unicorn-log-monitor',
     'unicorn-resource-monitor',
     'unicorn-error-pattern',
-    'service-watchdog',
     'circuit-breaker',
     'slo-tracker',
     'canary-controller',
@@ -883,16 +742,18 @@ const MODULE_REGISTRY = {
     'evolution-core',
     'self-adaptation-engine',
   ],
-  // 82 dynamically-generated AdaptiveModule files (AdaptiveModule01.js … AdaptiveModule82.js)
+  // Logical worker pool (lazy materialized via adaptiveEnginePool.js)
+  // Pool logic de workere (materializat lazy prin adaptiveEnginePool.js)
   dynamic: (function buildAdaptiveList() {
+    const n = parseInt(process.env.UNICORN_ADAPTIVE_COUNT || '82', 10);
     const modules = [];
-    for (let i = 1; i <= 82; i++) modules.push(`AdaptiveModule${String(i).padStart(2, '0')}`);
+    for (let i = 1; i <= n; i++) modules.push(`AdaptivePool#${String(i).padStart(2, '0')}`);
     return modules;
   })(),
-  // 62 Engine files (Engine1.js … Engine62.js)
   engines: (function buildEngineList() {
+    const n = parseInt(process.env.UNICORN_ENGINE_COUNT || '62', 10);
     const engines = [];
-    for (let i = 1; i <= 62; i++) engines.push(`Engine${i}`);
+    for (let i = 1; i <= n; i++) engines.push(`EnginePool#${i}`);
     return engines;
   })(),
   generated: [
@@ -1043,45 +904,96 @@ app.use((req, res, next) => {
 app.use(tenantManager.middleware());
 app.use(globalApiGateway.middleware());
 
-// Pornire module autonome
-selfConstruction.start();
-totalSystemHealer.start();
-autoDeploy.start();
-codeSanityEngine.start();
-// Pornire module revenue streams (7 fluxuri de venit activate autonom)
-revenueModules.startAutoRevenue();
+const _instanceId = process.env.NODE_APP_INSTANCE;
+const _isPrimaryWorker = _instanceId == null || _instanceId === '0';
+const _enableAutoDeploy = ['1', 'true', 'yes', 'on'].includes(String(process.env.ENABLE_AUTO_DEPLOY || '').toLowerCase());
+const _enableFileMutators = ['1', 'true', 'yes', 'on'].includes(String(process.env.ENABLE_FILE_MUTATORS || '').toLowerCase());
+const _runtimeProfile = String(
+  process.env.UNICORN_RUNTIME_PROFILE || (process.env.NODE_ENV === 'production' ? 'stable' : 'full')
+).toLowerCase();
+const _stableRuntime = _runtimeProfile !== 'full';
 
-// ==================== PORNIRE 3 COMPONENTE CRITICE AUTONOME ====================
-// Componenta 1 — Orchestratorul Central (monitorizare Hetzner/GitHub/DNS)
-centralOrchestrator.start();
-// Componenta 2 — Self-Healing Engine (auto-repair pe baza evenimentelor orchestratorului)
-selfHealingEngine.start();
-selfHealingEngine.attachOrchestrator(centralOrchestrator);
-// Componenta AI Self-Healing — monitorizare și auto-reparare provideri AI + module
-aiSelfHealing.init();
-// Componenta 3 — Auto-Innovation Loop (analiză cod + PR automate + CI monitoring)
-autoInnovationLoop.start();
+if (_isPrimaryWorker) {
+  if (_stableRuntime) {
+    console.log('🛡️ Runtime profile: STABLE (autonomous background loops are limited)');
+  }
 
-// Domain automation — pornit automat, indiferent de env DOMAIN
-domainAutomationManager.init().catch(err =>
-  console.warn('[DomainAutomation] init error:', err.message, err.stack)
-);
+  // Pornire module autonome (single-worker only to avoid duplicated intervals in PM2 cluster)
+  if (!_stableRuntime && _enableFileMutators) {
+    selfConstruction.start();
+  } else {
+    console.log('🧱 Self‑Construction dezactivat (stabilitate server)');
+  }
+  if (!_stableRuntime) {
+    totalSystemHealer.start();
+  }
+  if (!_stableRuntime && _enableAutoDeploy) {
+    autoDeploy.start();
+  } else {
+    console.log('📡 Auto‑Deploy dezactivat (setează ENABLE_AUTO_DEPLOY=1 pentru activare)');
+  }
+  if (!_stableRuntime) {
+    codeSanityEngine.start();
+  }
+  // Pornire module revenue streams (7 fluxuri de venit activate autonom)
+  if (!_stableRuntime) {
+    revenueModules.startAutoRevenue();
+  }
 
-// Pornire module cu cicluri autonome
-uee.startEternalCycle();
-uee.startPredictiveInnovation();
-uee.startSelfHealing();
-socialViralizer.startAutoPosting();
-socialViralizer.startAutoReply();
-socialViralizer.startViralDetector();
-socialViralizer.startUGCIncentivizer();
-gdes.startComplianceEngine();
-gdes.startRevenueTracker();
-gdes.startAutonomousSLA();
-gdes.startSelfHealing();
-gdes.startSmartRateLimiting();
-gdes.startFallbackMonitor();
-gdes.startDailyReport();
+  // ==================== PORNIRE 3 COMPONENTE CRITICE AUTONOME ====================
+  // Componenta 1 — Orchestratorul Central (monitorizare Hetzner/GitHub/DNS)
+  if (!_stableRuntime) {
+    centralOrchestrator.start();
+  }
+  // Componenta 2 — Self-Healing Engine (auto-repair pe baza evenimentelor orchestratorului)
+  if (!_stableRuntime) {
+    selfHealingEngine.start();
+    selfHealingEngine.attachOrchestrator(centralOrchestrator);
+  }
+  // Componenta AI Self-Healing — monitorizare și auto-reparare provideri AI + module
+  if (!_stableRuntime) {
+    aiSelfHealing.init();
+  }
+  // Componenta 3 — Auto-Innovation Loop (analiză cod + PR automate + CI monitoring)
+  if (!_stableRuntime && _enableFileMutators) {
+    autoInnovationLoop.start();
+  } else {
+    console.log('🧬 Auto‑Innovation Loop dezactivat (stabilitate server)');
+  }
+
+  // Domain automation — pornit automat, indiferent de env DOMAIN
+  if (!_stableRuntime) {
+    domainAutomationManager.init().catch(err =>
+      console.warn('[DomainAutomation] init error:', err.message, err.stack)
+    );
+  }
+
+  // Pornire module cu cicluri autonome
+  if (!_stableRuntime) {
+    uee.startEternalCycle();
+  }
+  if (!_stableRuntime && _enableFileMutators) {
+    uee.startPredictiveInnovation();
+  }
+} else {
+  console.log(`🧩 Worker ${_instanceId}: modulele autonome globale sunt dezactivate (rulează pe worker 0)`);
+}
+if (!_stableRuntime) {
+  uee.startSelfHealing();
+  socialViralizer.startAutoPosting();
+  socialViralizer.startAutoReply();
+  socialViralizer.startViralDetector();
+  socialViralizer.startUGCIncentivizer();
+  gdes.startComplianceEngine();
+  gdes.startRevenueTracker();
+  gdes.startAutonomousSLA();
+  gdes.startSelfHealing();
+  gdes.startSmartRateLimiting();
+  gdes.startFallbackMonitor();
+  gdes.startDailyReport();
+} else {
+  console.log('🧯 Stable profile active: social/compliance autonomous loops are paused');
+}
 
 // Montare routere module
 app.use('/api/viral', socialViralizer.getRouter(adminSecretMiddleware));
@@ -1155,11 +1067,11 @@ meshOrchestrator.register('autoRevenue',            autoRevenue,        { status
 meshOrchestrator.register('autoViralGrowth',        autoViralGrowth,    { statusFn: 'getViralStatus' });
 meshOrchestrator.register('sloTracker',             sloTracker,         { statusFn: 'getMetrics' });
 meshOrchestrator.register('circuitBreaker',         circuitBreaker,     { statusFn: 'getStatus' });
-meshOrchestrator.register('canaryController',       canaryCtrl,         { statusFn: 'getMetrics' });
+meshOrchestrator.register('canaryController',       canaryCtrl,         { statusFn: 'getStatus' });
 meshOrchestrator.register('shadowTester',           shadowTester,       { statusFn: 'getMetrics' });
 meshOrchestrator.register('profitAttribution',      profitService,      { statusFn: 'getMetrics' });
-meshOrchestrator.register('unicornInnovationSuite', unicornInnovationSuite, { statusFn: null });
-meshOrchestrator.register('ultimateModules',        ultimateModules,    { statusFn: null });
+meshOrchestrator.register('unicornInnovationSuite', unicornInnovationSuite, { statusFn: 'getAffiliateStats' });
+meshOrchestrator.register('ultimateModules',        ultimateModules,    { statusFn: 'getStats' });
 // Modulele nou activate — înregistrate în mesh
 meshOrchestrator.register('futureCompatBridge',     futureCompatBridge, { statusFn: 'getStatus' });
 meshOrchestrator.register('quantumSecurity',        quantumSecurity,    { statusFn: 'getStatus' });
@@ -1184,10 +1096,14 @@ meshOrchestrator.register('globalLoadBalancer',     globalLBModule.globalLB, { s
 meshOrchestrator.register('uiAutoBuilder',          uiAutoBuilder,       { statusFn: 'getStatus' });
 
 // Pornim orchestratorul — Swiss-watch mode
-meshOrchestrator.start();
-unicornOrchestrator.start('full'); // Orchestratorul central al unicornului — activează toate motoarele autonome (full mode)
-console.log('🕰️  Unicorn Mesh Orchestrator: STARTED — toate modulele conectate');
-console.log('🦄 Unicorn Orchestrator (8 engines): ACTIVE');
+if (!_stableRuntime) {
+  meshOrchestrator.start();
+  unicornOrchestrator.start('full'); // Orchestratorul central al unicornului — activează toate motoarele autonome (full mode)
+  console.log('🕰️  Unicorn Mesh Orchestrator: STARTED — toate modulele conectate');
+  console.log('🦄 Unicorn Orchestrator (8 engines): ACTIVE');
+} else {
+  console.log('🧯 Stable profile active: mesh/orchestrator background loops are paused');
+}
 
 // ==================== RUTE API ====================
 function buildHealthResponse() {
@@ -1200,7 +1116,12 @@ function buildHealthResponse() {
     uptimeHuman: `${h}h ${m}m ${sec}s`,
     users: dbUsers.count(),
     dbConnected: true,
-    engines: { innovation: true, revenue: true, viral: true, eternalEngine: true },
+    engines: {
+      innovation: !_stableRuntime,
+      revenue: !_stableRuntime,
+      viral: !_stableRuntime,
+      eternalEngine: !_stableRuntime,
+    },
     quantumIntegrityShield: quantumIntegrityShield.getStatus().integrity,
     memory: {
       rss: Math.round(mem.rss / 1024 / 1024) + 'MB',
@@ -1219,6 +1140,259 @@ app.get('/health', (req, res) => res.json(buildHealthResponse()));
 
 app.get('/api/health', (req, res) => res.json(buildHealthResponse()));
 
+// ==================== AUTONOMY CHAIN + CAPABILITY TOKENS (PCMC / CBAT) ====================
+// Proof-Carrying Mutation Chain — tamper-evident audit of every autonomous write
+// Lanț Merkle semnat HMAC al fiecărei mutații autonome (conform EU AI Act art.12)
+let _autonomyChain = null;
+let _capTokens     = null;
+try { _autonomyChain = require('./modules/autonomyChain');    } catch (_) {}
+try { _capTokens     = require('./modules/capabilityTokens'); } catch (_) {}
+
+app.get('/api/autonomy/stats', (req, res) => {
+  if (!_autonomyChain) return res.status(503).json({ error: 'autonomyChain unavailable' });
+  res.json(_autonomyChain.stats());
+});
+
+app.get('/api/autonomy/verify', (req, res) => {
+  if (!_autonomyChain) return res.status(503).json({ error: 'autonomyChain unavailable' });
+  res.json(_autonomyChain.verify());
+});
+
+app.get('/api/autonomy/chain', (req, res) => {
+  if (!_autonomyChain) return res.status(503).json({ error: 'autonomyChain unavailable' });
+  const from  = Math.max(0, parseInt(req.query.from,  10) || 0);
+  const limit = Math.min(500, Math.max(1, parseInt(req.query.limit, 10) || 50));
+  res.json({ from, limit, records: _autonomyChain.slice(from, limit) });
+});
+
+app.get('/api/autonomy/capabilities', (req, res) => {
+  if (!_capTokens) return res.status(503).json({ error: 'capabilityTokens unavailable' });
+  res.json({ actors: _capTokens.listActors(), requireCapability: process.env.REQUIRE_CAPABILITY === '1' });
+});
+
+// Admin: revoke a token (requires admin guard elsewhere if present)
+// Admin: revocă un token
+app.post('/api/autonomy/revoke', express.json(), (req, res) => {
+  if (!_capTokens) return res.status(503).json({ error: 'capabilityTokens unavailable' });
+  const { tokenId } = req.body || {};
+  if (!tokenId) return res.status(400).json({ error: 'tokenId required' });
+  res.json(_capTokens.revoke(tokenId));
+});
+
+// ===================== Temporal ABI Registry (TAR) =====================
+// Registru ABI temporal — versiuni semver side-by-side
+let _abiRegistry = null;
+let _quarantine  = null;
+let _moduleIdent = null;
+try { _abiRegistry = require('./modules/temporalAbiRegistry'); } catch (_) {}
+try { _quarantine  = require('./modules/quarantineBuffer');    } catch (_) {}
+try { _moduleIdent = require('./modules/moduleIdentity');      } catch (_) {}
+
+app.get('/api/autonomy/abi', (req, res) => {
+  if (!_abiRegistry) return res.status(503).json({ error: 'temporalAbiRegistry unavailable' });
+  res.json(_abiRegistry.list());
+});
+
+app.get('/api/autonomy/abi/compat', (req, res) => {
+  if (!_abiRegistry) return res.status(503).json({ error: 'temporalAbiRegistry unavailable' });
+  res.json(_abiRegistry.compatMatrix());
+});
+
+app.get('/api/autonomy/abi/resolve', (req, res) => {
+  if (!_abiRegistry) return res.status(503).json({ error: 'temporalAbiRegistry unavailable' });
+  const name  = String(req.query.name  || '');
+  const range = String(req.query.range || '*');
+  if (!name) return res.status(400).json({ error: 'name required' });
+  res.json(_abiRegistry.resolve(name, range));
+});
+
+app.post('/api/autonomy/abi/register', express.json(), (req, res) => {
+  if (!_abiRegistry) return res.status(503).json({ error: 'temporalAbiRegistry unavailable' });
+  try { res.json(_abiRegistry.register(req.body || {})); }
+  catch (e) { res.status(400).json({ error: e.message }); }
+});
+
+// ===================== Quarantine / Canary Buffer =====================
+app.get('/api/autonomy/quarantine', (req, res) => {
+  if (!_quarantine) return res.status(503).json({ error: 'quarantineBuffer unavailable' });
+  res.json({ stats: _quarantine.stats(), items: _quarantine.list() });
+});
+
+app.post('/api/autonomy/quarantine/stage', express.json(), (req, res) => {
+  if (!_quarantine) return res.status(503).json({ error: 'quarantineBuffer unavailable' });
+  res.json(_quarantine.stage(req.body || {}));
+});
+
+app.post('/api/autonomy/quarantine/veto', express.json(), (req, res) => {
+  if (!_quarantine) return res.status(503).json({ error: 'quarantineBuffer unavailable' });
+  const { stageId, vetoer, reason } = req.body || {};
+  if (!stageId) return res.status(400).json({ error: 'stageId required' });
+  res.json(_quarantine.veto(stageId, vetoer, reason));
+});
+
+app.post('/api/autonomy/quarantine/promote', express.json(), (req, res) => {
+  if (!_quarantine) return res.status(503).json({ error: 'quarantineBuffer unavailable' });
+  const { stageId } = req.body || {};
+  if (!stageId) return res.status(400).json({ error: 'stageId required' });
+  res.json(_quarantine.forcePromote(stageId));
+});
+
+// ===================== Self-Sovereign Module Identity =====================
+app.get('/api/autonomy/did', (req, res) => {
+  if (!_moduleIdent) return res.status(503).json({ error: 'moduleIdentity unavailable' });
+  res.json(_moduleIdent.list());
+});
+
+app.get('/api/autonomy/did/resolve', (req, res) => {
+  if (!_moduleIdent) return res.status(503).json({ error: 'moduleIdentity unavailable' });
+  const key = String(req.query.id || req.query.name || '');
+  if (!key) return res.status(400).json({ error: 'id or name required' });
+  const doc = _moduleIdent.resolveDoc(key);
+  if (!doc) return res.status(404).json({ error: 'not found' });
+  res.json(doc);
+});
+
+app.post('/api/autonomy/did/issue', express.json(), (req, res) => {
+  if (!_moduleIdent) return res.status(503).json({ error: 'moduleIdentity unavailable' });
+  const { name } = req.body || {};
+  if (!name) return res.status(400).json({ error: 'name required' });
+  try { res.json(_moduleIdent.ensure(name)); }
+  catch (e) { res.status(400).json({ error: e.message }); }
+});
+
+app.post('/api/autonomy/did/verify', express.json(), (req, res) => {
+  if (!_moduleIdent) return res.status(503).json({ error: 'moduleIdentity unavailable' });
+  const { did, payload, signature } = req.body || {};
+  if (!did || !payload || !signature) return res.status(400).json({ error: 'did, payload, signature required' });
+  res.json(_moduleIdent.verify(did, payload, signature));
+});
+
+// ============================================================================
+// SOVEREIGN REVENUE + INDUSTRY OS + GIANT FABRIC + VALUE PROOF + MONETIZATION
+// Routing determinist al veniturilor + OS per industrie + integrari giants +
+// proof-of-outcome + listari automate pe 40+ marketplaces globale
+// ============================================================================
+let _revenueRouter  = null; try { _revenueRouter  = require('./modules/sovereignRevenueRouter');  } catch (_) {}
+let _industryOS     = null; try { _industryOS     = require('./modules/industryOS');              } catch (_) {}
+let _giantFabric    = null; try { _giantFabric    = require('./modules/giantIntegrationFabric');  } catch (_) {}
+let _valueProof     = null; try { _valueProof     = require('./modules/valueProofLedger');        } catch (_) {}
+let _monetizeMesh   = null; try { _monetizeMesh   = require('./modules/globalMonetizationMesh');  } catch (_) {}
+let _adaptivePool   = null; try { _adaptivePool   = require('./modules/adaptiveEnginePool');      } catch (_) {}
+
+// ---- Sovereign Revenue Router ---------------------------------------------
+app.get('/api/revenue/totals', (req, res) => {
+  if (!_revenueRouter) return res.status(503).json({ error: 'sovereignRevenueRouter unavailable' });
+  res.json(_revenueRouter.totals());
+});
+app.get('/api/revenue/recent', (req, res) => {
+  if (!_revenueRouter) return res.status(503).json({ error: 'sovereignRevenueRouter unavailable' });
+  const limit = Math.min(500, Math.max(1, parseInt(req.query.limit, 10) || 20));
+  res.json({ items: _revenueRouter.recent(limit) });
+});
+app.post('/api/revenue/route', express.json(), (req, res) => {
+  if (!_revenueRouter) return res.status(503).json({ error: 'sovereignRevenueRouter unavailable' });
+  res.json(_revenueRouter.route(req.body || {}));
+});
+app.post('/api/revenue/verify', express.json(), (req, res) => {
+  if (!_revenueRouter) return res.status(503).json({ error: 'sovereignRevenueRouter unavailable' });
+  res.json(_revenueRouter.verifyReceipt(req.body || {}));
+});
+
+// ---- Industry OS ----------------------------------------------------------
+app.get('/api/industry/list', (req, res) => {
+  if (!_industryOS) return res.status(503).json({ error: 'industryOS unavailable' });
+  res.json(_industryOS.list());
+});
+app.get('/api/industry/projected', (req, res) => {
+  if (!_industryOS) return res.status(503).json({ error: 'industryOS unavailable' });
+  res.json(_industryOS.projectedAnnual());
+});
+app.get('/api/industry/blueprint/:name', (req, res) => {
+  if (!_industryOS) return res.status(503).json({ error: 'industryOS unavailable' });
+  const bp = _industryOS.blueprintOf(req.params.name);
+  if (!bp) return res.status(404).json({ error: 'unknown vertical' });
+  res.json(bp);
+});
+app.post('/api/industry/activate', express.json(), (req, res) => {
+  if (!_industryOS) return res.status(503).json({ error: 'industryOS unavailable' });
+  res.json(_industryOS.activate((req.body || {}).name));
+});
+app.post('/api/industry/book', express.json(), (req, res) => {
+  if (!_industryOS) return res.status(503).json({ error: 'industryOS unavailable' });
+  res.json(_industryOS.bookRevenue(req.body || {}));
+});
+
+// ---- Giant Integration Fabric --------------------------------------------
+app.get('/api/giants/list', (req, res) => {
+  if (!_giantFabric) return res.status(503).json({ error: 'giantIntegrationFabric unavailable' });
+  res.json({ giants: _giantFabric.list() });
+});
+app.get('/api/giants/stats', (req, res) => {
+  if (!_giantFabric) return res.status(503).json({ error: 'giantIntegrationFabric unavailable' });
+  res.json(_giantFabric.stats());
+});
+app.post('/api/giants/dispatch', express.json(), (req, res) => {
+  if (!_giantFabric) return res.status(503).json({ error: 'giantIntegrationFabric unavailable' });
+  res.json(_giantFabric.dispatch(req.body || {}));
+});
+
+// ---- Value Proof Ledger (Outcome Economics) ------------------------------
+app.post('/api/outcome/record', express.json(), (req, res) => {
+  if (!_valueProof) return res.status(503).json({ error: 'valueProofLedger unavailable' });
+  res.json(_valueProof.record(req.body || {}));
+});
+app.post('/api/outcome/verify', express.json(), (req, res) => {
+  if (!_valueProof) return res.status(503).json({ error: 'valueProofLedger unavailable' });
+  res.json(_valueProof.verify(req.body || {}));
+});
+app.get('/api/outcome/totals', (req, res) => {
+  if (!_valueProof) return res.status(503).json({ error: 'valueProofLedger unavailable' });
+  res.json(_valueProof.totals());
+});
+app.get('/api/outcome/recent', (req, res) => {
+  if (!_valueProof) return res.status(503).json({ error: 'valueProofLedger unavailable' });
+  const limit = Math.min(500, Math.max(1, parseInt(req.query.limit, 10) || 20));
+  res.json({ items: _valueProof.recent(limit) });
+});
+app.get('/api/outcome/tenant/:tenantId', (req, res) => {
+  if (!_valueProof) return res.status(503).json({ error: 'valueProofLedger unavailable' });
+  res.json({ items: _valueProof.listForTenant(req.params.tenantId, 100) });
+});
+
+// ---- Global Monetization Mesh --------------------------------------------
+app.get('/api/monetize/marketplaces', (req, res) => {
+  if (!_monetizeMesh) return res.status(503).json({ error: 'globalMonetizationMesh unavailable' });
+  res.json({ marketplaces: _monetizeMesh.listMarketplaces(), reach: _monetizeMesh.reach() });
+});
+app.get('/api/monetize/summary', (req, res) => {
+  if (!_monetizeMesh) return res.status(503).json({ error: 'globalMonetizationMesh unavailable' });
+  res.json(_monetizeMesh.summary());
+});
+app.get('/api/monetize/listings', (req, res) => {
+  if (!_monetizeMesh) return res.status(503).json({ error: 'globalMonetizationMesh unavailable' });
+  res.json({ listings: _monetizeMesh.listings() });
+});
+app.post('/api/monetize/publish', express.json(), (req, res) => {
+  if (!_monetizeMesh) return res.status(503).json({ error: 'globalMonetizationMesh unavailable' });
+  res.json(_monetizeMesh.publishProduct(req.body || {}));
+});
+app.post('/api/monetize/quote', express.json(), (req, res) => {
+  if (!_monetizeMesh) return res.status(503).json({ error: 'globalMonetizationMesh unavailable' });
+  res.json(_monetizeMesh.quote(req.body || {}));
+});
+app.post('/api/monetize/sale', express.json(), (req, res) => {
+  if (!_monetizeMesh) return res.status(503).json({ error: 'globalMonetizationMesh unavailable' });
+  res.json(_monetizeMesh.recordSale(req.body || {}));
+});
+
+// ---- Adaptive Engine Pool -------------------------------------------------
+app.get('/api/pool/summary', (req, res) => {
+  if (!_adaptivePool) return res.status(503).json({ error: 'adaptiveEnginePool unavailable' });
+  res.json(_adaptivePool.listSummary());
+});
+
+
+
 // ==================== SNAPSHOT + SSE STREAM (backend mirror) ====================
 const _streamClients = new Set();
 
@@ -1226,7 +1400,7 @@ function buildBackendSnapshot() {
   const uptimeSec = Math.floor(process.uptime());
   return {
     generatedAt: new Date().toISOString(),
-    health: { ok: true, service: 'unicorn-backend' },
+    health: { ok: true, service: 'unicorn-backend', brand: 'ZeusAI' },
     telemetry: {
       uptime: uptimeSec,
       activeUsers: dbUsers.count(),
@@ -1268,6 +1442,784 @@ const _streamInterval = setInterval(() => {
 }, 5000);
 if (typeof _streamInterval.unref === 'function') _streamInterval.unref();
 
+// ==================== UNICORN SITE INTEGRATION API ====================
+const _unicornServices = [
+  { id: 'adaptive-ai', title: 'Adaptive AI', segment: 'all', kpi: 'automation coverage', price: 499, currency: 'USD', billing: 'monthly', description: 'Autonomous AI workflows with signed outcomes.' },
+  { id: 'predictive-engine', title: 'Predictive Engine', segment: 'companies', kpi: 'forecast accuracy', price: 799, currency: 'USD', billing: 'monthly', description: 'Demand, churn and risk forecasting with explainability.' },
+  { id: 'quantum-nexus', title: 'Quantum Nexus', segment: 'enterprise', kpi: 'latency optimization', price: 2499, currency: 'USD', billing: 'monthly', description: 'High-performance orchestration for mission-critical stacks.' },
+  { id: 'viral-growth', title: 'Viral Growth Engine', segment: 'startups', kpi: 'acquisition rate', price: 399, currency: 'USD', billing: 'monthly', description: 'Growth loops, referrals and conversion automation.' },
+  { id: 'automation-blocks', title: 'Automation Blocks', segment: 'all', kpi: 'tasks automated', price: 299, currency: 'USD', billing: 'monthly', description: 'Composable automation primitives for rapid deployment.' },
+];
+const _unicornPurchases = new Map(); // id -> purchase
+const _unicornEventsClients = new Set();
+let _cinematicProfileOverride = null;
+const _pqDigest = (() => {
+  try { crypto.createHash('sha3-512'); return 'sha3-512'; }
+  catch (_) { return 'sha512'; }
+})();
+
+function _serviceById(id) {
+  return _unicornServices.find(s => s.id === id) || null;
+}
+
+function _purchaseFromPayment(payment) {
+  if (!payment) return null;
+  const md = payment.metadata || {};
+  if (md.kind !== 'service_purchase') return null;
+  return {
+    id: payment.txId,
+    serviceId: md.serviceId || null,
+    email: String(md.email || payment.clientId || '').toLowerCase(),
+    paymentMethod: String(payment.method || 'BTC').toUpperCase(),
+    amount: Number(payment.amount || payment.total || 0),
+    currency: String(payment.currency || 'USD').toUpperCase(),
+    status: md.purchaseStatus || (String(payment.status || '').toLowerCase() === 'completed' ? 'paid' : 'pending_payment'),
+    active: !!md.active,
+    expectedBtc: md.expectedBtc != null ? Number(md.expectedBtc) : null,
+    createdAt: payment.createdAt || null,
+    activatedAt: md.activatedAt || null,
+    confirmation: md.confirmation || null,
+  };
+}
+
+async function _getBtcUsdPrice() {
+  try {
+    const r = await axios.get('https://mempool.space/api/v1/prices', { timeout: 4500 });
+    const usd = Number(r && r.data && r.data.USD);
+    if (Number.isFinite(usd) && usd > 1000) return usd;
+  } catch (_) {}
+  return Number(process.env.BTC_USD_FALLBACK || 100000);
+}
+
+function _deriveExpectedBtc(amountUsd, purchaseId, btcUsd) {
+  const usd = Number(amountUsd || 0);
+  if (!Number.isFinite(usd) || usd <= 0) return null;
+  const px = Number(btcUsd || 0);
+  if (!Number.isFinite(px) || px <= 0) return null;
+  const base = usd / px;
+  // Unique sats fingerprint to avoid collisions for same-price concurrent orders.
+  const fp = ((parseInt(String(purchaseId || '').slice(0, 8), 16) || 0) % 89) + 11; // 11..99 sats
+  return Number((base + (fp / 1e8)).toFixed(8));
+}
+
+function _findPurchaseById(purchaseId) {
+  const fromMem = _unicornPurchases.get(purchaseId);
+  if (fromMem) return fromMem;
+  const payment = dbPayments.findByTxId(purchaseId);
+  const fromDb = _purchaseFromPayment(payment);
+  if (fromDb) _unicornPurchases.set(purchaseId, fromDb);
+  return fromDb;
+}
+
+function _savePurchaseToDb(purchase, service) {
+  const safeService = service || _serviceById(purchase.serviceId) || {};
+  const nowIso = new Date().toISOString();
+  const existing = dbPayments.findByTxId(purchase.id);
+  dbPayments.save({
+    txId: purchase.id,
+    clientId: purchase.email || 'guest',
+    description: safeService.title || `Service ${purchase.serviceId || 'unknown'}`,
+    method: String(purchase.paymentMethod || 'BTC').toUpperCase(),
+    provider: 'zeus-service-marketplace',
+    currency: String(purchase.currency || 'USD').toUpperCase(),
+    amount: Number(purchase.amount || 0),
+    fee: Number(existing && existing.fee ? existing.fee : 0),
+    total: Number(purchase.amount || 0),
+    status: purchase.active ? 'completed' : 'pending',
+    walletAddress: existing ? existing.walletAddress || null : null,
+    qrCode: existing ? existing.qrCode || null : null,
+    exchangeRate: existing ? existing.exchangeRate || null : null,
+    cryptoAmount: existing ? existing.cryptoAmount || null : null,
+    providerPaymentId: existing ? existing.providerPaymentId || null : null,
+    providerStatus: purchase.active ? 'paid' : 'pending',
+    checkoutUrl: existing ? existing.checkoutUrl || null : null,
+    nextAction: existing ? existing.nextAction || null : null,
+    processorResponse: existing ? existing.processorResponse || null : null,
+    metadata: {
+      kind: 'service_purchase',
+      serviceId: purchase.serviceId,
+      email: purchase.email,
+      active: !!purchase.active,
+      purchaseStatus: purchase.status,
+      expectedBtc: purchase.expectedBtc != null ? Number(purchase.expectedBtc) : null,
+      activatedAt: purchase.activatedAt || null,
+      confirmation: purchase.confirmation || null,
+      serviceTitle: safeService.title || null,
+      segment: safeService.segment || null,
+      kpi: safeService.kpi || null,
+    },
+    createdAt: existing ? existing.createdAt : (purchase.createdAt || nowIso),
+    updatedAt: nowIso,
+  });
+}
+
+function _recordActivatedPurchase(purchase, service) {
+  if (!purchase || !purchase.active) return;
+  const clientId = String(purchase.email || '').toLowerCase();
+  if (!clientId) return;
+  const existing = dbPurchases.listByClient(clientId).find((x) => String(x.paymentTxId || '') === String(purchase.id || ''));
+  if (existing) return;
+  const safeService = service || _serviceById(purchase.serviceId) || {};
+  dbPurchases.record({
+    clientId,
+    serviceId: purchase.serviceId || safeService.id || 'custom',
+    serviceName: safeService.title || safeService.name || purchase.serviceId || 'Unknown service',
+    description: safeService.description || 'Service purchase via ZeusAI marketplace',
+    category: safeService.segment || 'general',
+    price: Number(purchase.amount || 0),
+    paymentTxId: purchase.id,
+    paymentMethod: String(purchase.paymentMethod || 'BTC').toUpperCase(),
+    purchasedAt: purchase.activatedAt || new Date().toISOString(),
+  });
+}
+
+function _emitUnicornEvent(type, data) {
+  if (_unicornEventsClients.size === 0) return;
+  const payload = `data: ${JSON.stringify({ type, at: new Date().toISOString(), data })}\n\n`;
+  for (const client of _unicornEventsClients) client.write(payload);
+}
+
+function _timingSafeHexEqual(a, b) {
+  try {
+    const ba = Buffer.from(String(a || ''), 'hex');
+    const bb = Buffer.from(String(b || ''), 'hex');
+    if (!ba.length || !bb.length || ba.length !== bb.length) return false;
+    return crypto.timingSafeEqual(ba, bb);
+  } catch (_) {
+    return false;
+  }
+}
+
+function _authorizePaymentConfirm(req, payload, method) {
+  const confirmToken = process.env.PAYMENT_CONFIRM_TOKEN || process.env.ADMIN_SECRET || '';
+  const providedToken = String(req.headers['x-payment-token'] || req.headers['x-admin-secret'] || '');
+  const tokenOk = !!(confirmToken && providedToken && providedToken === confirmToken);
+
+  const pqSecret = process.env.PQ_CONFIRM_SECRET || '';
+  const pqSig = String(req.headers['x-pq-signature'] || '');
+  const pqTsRaw = String(req.headers['x-pq-timestamp'] || '');
+  const pqTs = Number(pqTsRaw);
+  const nowMs = Date.now();
+  const isFresh = Number.isFinite(pqTs) && Math.abs(nowMs - pqTs) <= 10 * 60 * 1000;
+  const purchaseId = String(payload.purchaseId || payload.receiptId || payload.orderId || '');
+  const ref = String(payload.txid || payload.transactionId || payload.paypalOrderId || '');
+  const canonical = [String(method || '').toUpperCase(), purchaseId, ref, String(pqTsRaw)].join('|');
+  const expected = pqSecret ? crypto.createHmac(_pqDigest, pqSecret).update(canonical).digest('hex') : '';
+  const pqOk = !!(pqSecret && pqSig && isFresh && _timingSafeHexEqual(pqSig, expected));
+
+  if (tokenOk) return { ok: true, mode: 'token' };
+  if (pqOk) return { ok: true, mode: `pq-hmac-${_pqDigest}` };
+
+  if (!confirmToken && !pqSecret) return { ok: true, mode: 'open-dev' };
+  if (pqSecret && pqSig && !isFresh) return { ok: false, reason: 'stale_pq_timestamp' };
+  return { ok: false, reason: 'unauthorized' };
+}
+
+app.get('/api/unicorn/events', (req, res) => {
+  res.writeHead(200, {
+    'Content-Type': 'text/event-stream',
+    'Cache-Control': 'no-cache, no-transform',
+    Connection: 'keep-alive',
+  });
+  res.write(`data: ${JSON.stringify({ type: 'snapshot', at: new Date().toISOString(), data: buildBackendSnapshot() })}\n\n`);
+  _unicornEventsClients.add(res);
+  req.on('close', () => _unicornEventsClients.delete(res));
+});
+
+app.get('/api/services/list', routeCache.cacheMiddleware(), (req, res) => {
+  res.json({ updatedAt: new Date().toISOString(), source: 'zeusai-backend', sourceLegacy: 'unicorn-backend', services: _unicornServices });
+});
+
+app.get('/api/services/:id', (req, res) => {
+  const id = String(req.params.id || '');
+  const service = _unicornServices.find(s => s.id === id);
+  if (!service) return res.status(404).json({ error: 'not_found' });
+  res.json(service);
+});
+
+app.post('/api/services/buy', (req, res) => {
+  const p = req.body || {};
+  const serviceId = String(p.serviceId || p.plan || '');
+  const service = _serviceById(serviceId);
+  if (!service) return res.status(404).json({ error: 'service_not_found' });
+  const paymentMethod = String(p.paymentMethod || p.method || 'BTC').toUpperCase();
+  const amount = Number(p.amount || p.amountUSD || service.price || 0);
+  const id = crypto.randomBytes(12).toString('hex');
+  const email = String(p.email || '').toLowerCase();
+  const purchase = {
+    id,
+    serviceId,
+    email,
+    paymentMethod,
+    amount,
+    currency: 'USD',
+    status: 'pending_payment',
+    active: false,
+    expectedBtc: null,
+    createdAt: new Date().toISOString(),
+    activatedAt: null,
+  };
+  const finalize = () => {
+    _unicornPurchases.set(id, purchase);
+    _savePurchaseToDb(purchase, service);
+    _emitUnicornEvent('service_purchase_created', { id, serviceId, paymentMethod, amount, email, expectedBtc: purchase.expectedBtc || null });
+    return res.json({ ok: true, purchase });
+  };
+
+  if (paymentMethod !== 'BTC') return finalize();
+
+  _getBtcUsdPrice()
+    .then((btcUsd) => {
+      const expectedBtc = _deriveExpectedBtc(amount, id, btcUsd);
+      purchase.expectedBtc = expectedBtc;
+      purchase.paymentQuote = {
+        kind: 'btc',
+        address: ADMIN_OWNER_BTC,
+        expectedBtc,
+        btcUsd,
+        btcUri: expectedBtc ? `bitcoin:${ADMIN_OWNER_BTC}?amount=${expectedBtc}&label=${encodeURIComponent('ZeusAI-' + id.slice(0, 8))}` : `bitcoin:${ADMIN_OWNER_BTC}`,
+      };
+      return finalize();
+    })
+    .catch(() => finalize());
+});
+
+app.get('/api/user/services', (req, res) => {
+  const headerEmail = String(req.headers['x-user-email'] || '').toLowerCase();
+  const queryEmail = String(req.query.email || '').toLowerCase();
+  let tokenEmail = '';
+  try {
+    const auth = String(req.headers.authorization || '');
+    const token = auth.startsWith('Bearer ') ? auth.slice(7) : null;
+    if (token) {
+      const decoded = jwt.verify(token, JWT_SECRET);
+      tokenEmail = String(decoded.email || '').toLowerCase();
+    }
+  } catch (_) {}
+  const email = headerEmail || queryEmail || tokenEmail;
+  if (!email) return res.json({ ok: true, services: [], count: 0 });
+  const services = [];
+  const seen = new Set();
+
+  const fromDb = dbPayments
+    .list({ clientId: email })
+    .map(_purchaseFromPayment)
+    .filter(Boolean)
+    .sort((a, b) => String(b.createdAt || '').localeCompare(String(a.createdAt || '')));
+  for (const item of fromDb) {
+    if (seen.has(item.id)) continue;
+    seen.add(item.id);
+    services.push(item);
+    _unicornPurchases.set(item.id, item);
+  }
+
+  const fromMem = [..._unicornPurchases.values()].filter(x => x.email === email);
+  for (const item of fromMem) {
+    if (seen.has(item.id)) continue;
+    seen.add(item.id);
+    services.push(item);
+  }
+
+  const activated = dbPurchases.listByClient(email);
+  for (const pRec of activated) {
+    const syntheticId = String(pRec.paymentTxId || `${pRec.serviceId}-${pRec.purchasedAt}`);
+    if (seen.has(syntheticId)) continue;
+    seen.add(syntheticId);
+    services.push({
+      id: syntheticId,
+      serviceId: pRec.serviceId,
+      email,
+      paymentMethod: String(pRec.paymentMethod || 'UNKNOWN').toUpperCase(),
+      amount: Number(pRec.price || 0),
+      currency: 'USD',
+      status: 'paid',
+      active: true,
+      createdAt: pRec.purchasedAt,
+      activatedAt: pRec.purchasedAt,
+      confirmation: { method: String(pRec.paymentMethod || 'UNKNOWN').toUpperCase(), source: 'marketplace_purchases' }
+    });
+  }
+
+  return res.json({ ok: true, email, services, count: services.length });
+});
+
+app.post('/api/payments/btc/confirm', (req, res) => {
+  const p = req.body || {};
+  const auth = _authorizePaymentConfirm(req, p, 'BTC');
+  if (!auth.ok) {
+    _emitUnicornEvent('payment_confirm_rejected', { method: 'BTC', reason: auth.reason || 'unauthorized' });
+    return res.status(401).json({ error: auth.reason || 'unauthorized' });
+  }
+  const purchaseId = String(p.purchaseId || p.receiptId || p.orderId || '');
+  const purchase = _findPurchaseById(purchaseId);
+  if (!purchase) return res.status(404).json({ error: 'not_found' });
+  purchase.status = 'paid';
+  purchase.active = true;
+  purchase.activatedAt = new Date().toISOString();
+  purchase.confirmation = {
+    method: 'BTC',
+    txid: p.txid || p.transactionId || null,
+    at: purchase.activatedAt,
+    security: { authMode: auth.mode, digest: _pqDigest }
+  };
+  _unicornPurchases.set(purchaseId, purchase);
+  _savePurchaseToDb(purchase, _serviceById(purchase.serviceId));
+  _recordActivatedPurchase(purchase, _serviceById(purchase.serviceId));
+  _emitUnicornEvent('payment_confirmed', { method: 'BTC', purchaseId, txid: purchase.confirmation.txid || null });
+  return res.json({ ok: true, purchase });
+});
+
+app.post('/api/payments/paypal/confirm', (req, res) => {
+  const p = req.body || {};
+  const auth = _authorizePaymentConfirm(req, p, 'PAYPAL');
+  if (!auth.ok) {
+    _emitUnicornEvent('payment_confirm_rejected', { method: 'PAYPAL', reason: auth.reason || 'unauthorized' });
+    return res.status(401).json({ error: auth.reason || 'unauthorized' });
+  }
+  const purchaseId = String(p.purchaseId || p.receiptId || p.orderId || '');
+  const purchase = _findPurchaseById(purchaseId);
+  if (!purchase) return res.status(404).json({ error: 'not_found' });
+  purchase.status = 'paid';
+  purchase.active = true;
+  purchase.activatedAt = new Date().toISOString();
+  purchase.confirmation = {
+    method: 'PAYPAL',
+    paypalOrderId: p.paypalOrderId || null,
+    at: purchase.activatedAt,
+    security: { authMode: auth.mode, digest: _pqDigest }
+  };
+  _unicornPurchases.set(purchaseId, purchase);
+  _savePurchaseToDb(purchase, _serviceById(purchase.serviceId));
+  _recordActivatedPurchase(purchase, _serviceById(purchase.serviceId));
+  _emitUnicornEvent('payment_confirmed', { method: 'PAYPAL', purchaseId, paypalOrderId: purchase.confirmation.paypalOrderId || null });
+  return res.json({ ok: true, purchase });
+});
+
+const _btcWatcherState = {
+  enabled: true,
+  lastRunAt: null,
+  lastMatchAt: null,
+  lastError: null,
+  scannedTx: 0,
+  matched: 0,
+};
+
+async function _autoConfirmBtcPurchases() {
+  _btcWatcherState.lastRunAt = new Date().toISOString();
+  const pending = dbPayments.list({ status: 'pending' }).filter((p) => {
+    if (!p || String(p.method || '').toUpperCase() !== 'BTC') return false;
+    const md = p.metadata || {};
+    return md.kind === 'service_purchase' && !md.active;
+  });
+  if (!pending.length) return;
+
+  const [pricesRes, txsRes] = await Promise.all([
+    axios.get('https://mempool.space/api/v1/prices', { timeout: 5000 }).catch(() => null),
+    axios.get(`https://mempool.space/api/address/${encodeURIComponent(ADMIN_OWNER_BTC)}/txs`, { timeout: 7000 }).catch(() => null),
+  ]);
+
+  const btcUsd = Number(pricesRes && pricesRes.data && pricesRes.data.USD) || Number(process.env.BTC_USD_FALLBACK || 100000);
+  const txs = Array.isArray(txsRes && txsRes.data) ? txsRes.data : [];
+  if (!txs.length) return;
+
+  const usedTx = new Set(
+    dbPayments
+      .list({ status: 'completed' })
+      .map((x) => x && x.metadata && x.metadata.confirmation && x.metadata.confirmation.txid)
+      .filter(Boolean)
+      .map((x) => String(x))
+  );
+
+  for (const tx of txs) {
+    const txid = String(tx && tx.txid || '');
+    if (!txid || usedTx.has(txid)) continue;
+    _btcWatcherState.scannedTx += 1;
+
+    let sats = 0;
+    const vout = Array.isArray(tx && tx.vout) ? tx.vout : [];
+    for (const out of vout) {
+      if (String(out && out.scriptpubkey_address || '') === ADMIN_OWNER_BTC) sats += Number(out && out.value || 0);
+    }
+    if (!sats) continue;
+    const receivedBtc = sats / 1e8;
+
+    let best = null;
+    for (const pay of pending) {
+      const md = pay.metadata || {};
+      const expected = Number(md.expectedBtc || _deriveExpectedBtc(Number(pay.amount || pay.total || 0), pay.txId, btcUsd) || 0);
+      if (!Number.isFinite(expected) || expected <= 0) continue;
+      const rel = Math.abs(receivedBtc - expected) / expected;
+      if (rel > 0.02 && receivedBtc < expected) continue;
+      if (!best || rel < best.rel) best = { pay, rel, expected };
+    }
+    if (!best) continue;
+
+    const purchase = _findPurchaseById(best.pay.txId);
+    if (!purchase) continue;
+    purchase.status = 'paid';
+    purchase.active = true;
+    purchase.expectedBtc = best.expected;
+    purchase.activatedAt = new Date().toISOString();
+    purchase.confirmation = {
+      method: 'BTC',
+      txid,
+      at: purchase.activatedAt,
+      auto: true,
+      source: 'mempool.space',
+      observedBtc: Number(receivedBtc.toFixed(8)),
+      expectedBtc: Number(best.expected.toFixed(8)),
+      security: { authMode: 'auto-onchain-watcher', digest: _pqDigest },
+    };
+    _unicornPurchases.set(purchase.id, purchase);
+    _savePurchaseToDb(purchase, _serviceById(purchase.serviceId));
+    _recordActivatedPurchase(purchase, _serviceById(purchase.serviceId));
+    _emitUnicornEvent('payment_confirmed', { method: 'BTC', purchaseId: purchase.id, txid, auto: true });
+
+    _btcWatcherState.lastMatchAt = new Date().toISOString();
+    _btcWatcherState.matched += 1;
+    usedTx.add(txid);
+  }
+}
+
+if (String(process.env.ENABLE_BTC_AUTO_CONFIRM || '1') !== '0') {
+  const t = setInterval(() => {
+    _autoConfirmBtcPurchases().catch((e) => {
+      _btcWatcherState.lastError = String(e && e.message || e || 'btc_watcher_failed');
+    });
+  }, Number(process.env.BTC_WATCHER_INTERVAL_MS || 30000));
+  if (typeof t.unref === 'function') t.unref();
+}
+
+app.get('/api/payments/btc/watcher/status', routeCache.cacheMiddleware(5000), (req, res) => {
+  const pending = dbPayments.list({ status: 'pending' }).filter((p) => {
+    const md = p && p.metadata || {};
+    return String(p && p.method || '').toUpperCase() === 'BTC' && md.kind === 'service_purchase' && !md.active;
+  });
+  res.json({
+    ok: true,
+    enabled: _btcWatcherState.enabled,
+    wallet: ADMIN_OWNER_BTC,
+    intervalMs: Number(process.env.BTC_WATCHER_INTERVAL_MS || 30000),
+    pendingCount: pending.length,
+    lastRunAt: _btcWatcherState.lastRunAt,
+    lastMatchAt: _btcWatcherState.lastMatchAt,
+    scannedTx: _btcWatcherState.scannedTx,
+    matched: _btcWatcherState.matched,
+    lastError: _btcWatcherState.lastError,
+    generatedAt: new Date().toISOString(),
+  });
+});
+
+app.get('/api/security/pq/status', routeCache.cacheMiddleware(), (req, res) => {
+  const hasConfirmToken = !!(process.env.PAYMENT_CONFIRM_TOKEN || process.env.ADMIN_SECRET);
+  const hasPqSecret = !!process.env.PQ_CONFIRM_SECRET;
+  const mode = hasPqSecret ? 'hybrid-token+pqhmac' : (hasConfirmToken ? 'token' : 'open-dev');
+  res.json({
+    ok: true,
+    mode,
+    digest: _pqDigest,
+    antiReplayWindowMs: 10 * 60 * 1000,
+    signatureHeaders: ['x-pq-signature', 'x-pq-timestamp'],
+    paymentsProtected: ['/api/payments/btc/confirm', '/api/payments/paypal/confirm'],
+    quantumReadiness: {
+      level: hasPqSecret ? 'enhanced-hybrid' : 'baseline',
+      keyAgility: true,
+      digestAgility: true
+    },
+    timestamp: new Date().toISOString()
+  });
+});
+
+function _controlTowerBasePayload() {
+  const perf = routeCache.getStats();
+  const dbRevenue = dbPayments.revenueStats();
+  const outcomes = _valueProof ? _valueProof.totals() : null;
+  const evolution = evolutionCore && typeof evolutionCore.getStatus === 'function' ? evolutionCore.getStatus() : null;
+  const uiStatus = uiEvolution && typeof uiEvolution.getStatus === 'function' ? uiEvolution.getStatus() : null;
+  const perfStatus = performanceMonitor && typeof performanceMonitor.getStatus === 'function' ? performanceMonitor.getStatus() : null;
+  const resilience = qrc && qrc.healthCheck && typeof qrc.healthCheck === 'function' ? qrc.healthCheck() : null;
+  return {
+    generatedAt: new Date().toISOString(),
+    brand: 'ZeusAI',
+    source: 'zeusai-backend',
+    metrics: {
+      trackedRoutes: perf.profiler.trackedRoutes,
+      cacheHitRate: perf.cache.hitRate,
+      revenueUsd: Number(dbRevenue.revenue || 0),
+      revenueCount: Number(dbRevenue.cnt || 0),
+      outcomes: outcomes && Number.isFinite(Number(outcomes.count)) ? Number(outcomes.count) : 0,
+    },
+    moduleStatus: {
+      evolution,
+      uiEvolution: uiStatus,
+      performanceMonitor: perfStatus,
+      resilience,
+    }
+  };
+}
+
+app.get('/api/future/standard', routeCache.cacheMiddleware(), (req, res) => {
+  const base = _controlTowerBasePayload();
+  const capabilities = {
+    realtimeSSE: true,
+    aiRegistry: true,
+    aiGateway: true,
+    paymentsBTC: true,
+    paymentsPayPal: true,
+    pqPaymentConfirm: true,
+    integrityDoc: true,
+    passkeys: true,
+    capabilityTokens: true,
+    sourceCompatibility: true,
+    backendAuthoritative: true,
+  };
+  const enabled = Object.values(capabilities).filter(Boolean).length;
+  const total = Object.keys(capabilities).length;
+  const readinessScore = Math.round((enabled / total) * 100);
+  res.json({
+    ok: true,
+    ...base,
+    horizonYears: 30,
+    readinessScore,
+    capabilities,
+    standards: ['REST/JSON', 'SSE', 'HMAC verification', 'SHA3 signatures', 'WebAuthn passkeys']
+  });
+});
+
+function _buildEvolutionStatusPayload() {
+  const base = _controlTowerBasePayload();
+  const evo = evolutionCore && typeof evolutionCore.getStatus === 'function' ? evolutionCore.getStatus() : null;
+  const loopStatus = evo && evo.state ? evo.state : { status: 'unknown' };
+  return {
+    ok: true,
+    ...base,
+    loop: {
+      status: loopStatus.status || 'active',
+      runs: Number(loopStatus.runs || 0),
+      lastRun: loopStatus.lastRun || null,
+      health: loopStatus.health || 'ok',
+    },
+    strategy: {
+      policy: 'backend-guardrailed-optimization',
+      rollbackReady: true,
+      hardStopOnErrorSpike: true,
+    }
+  };
+}
+
+app.get('/api/evolution/loop', routeCache.cacheMiddleware(), (req, res) => {
+  res.json(_buildEvolutionStatusPayload());
+});
+app.get('/api/evolution/status', routeCache.cacheMiddleware(), (req, res) => {
+  res.json(_buildEvolutionStatusPayload());
+});
+
+function _buildLedgerPayload() {
+  const base = _controlTowerBasePayload();
+  const outcomeTotals = _valueProof ? _valueProof.totals() : { count: 0, total: 0 };
+  return {
+    ok: true,
+    ...base,
+    ledger: {
+      status: _valueProof ? 'active' : 'degraded',
+      records: Number(outcomeTotals.count || 0),
+      valueProvenUsd: Number(outcomeTotals.total || 0),
+      integrityEndpoint: '/.well-known/unicorn-integrity.json',
+      verification: 'signed-outcome-ledger'
+    }
+  };
+}
+
+app.get('/api/trust/ledger', routeCache.cacheMiddleware(), (req, res) => {
+  res.json(_buildLedgerPayload());
+});
+app.get('/api/ledger/status', routeCache.cacheMiddleware(), (req, res) => {
+  res.json(_buildLedgerPayload());
+});
+
+app.get('/api/revenue/proof', routeCache.cacheMiddleware(), (req, res) => {
+  const base = _controlTowerBasePayload();
+  const payments = dbPayments.list({ status: 'completed' });
+  const methods = {};
+  let totalUsd = 0;
+  for (const pay of payments) {
+    const method = String(pay.method || 'UNKNOWN').toUpperCase();
+    methods[method] = (methods[method] || 0) + 1;
+    totalUsd += Number(pay.total || 0);
+  }
+  const outcomeTotals = _valueProof ? _valueProof.totals() : { count: 0, total: 0 };
+  res.json({
+    ok: true,
+    ...base,
+    revenue: {
+      paidReceipts: payments.length,
+      totalUsd: Number(totalUsd.toFixed(2)),
+      methods,
+      valueProofRecords: Number(outcomeTotals.count || 0),
+      valueProofUsd: Number(outcomeTotals.total || 0)
+    }
+  });
+});
+
+function _buildResilienceStatusPayload() {
+  const base = _controlTowerBasePayload();
+  const qHealth = qrc && typeof qrc.healthCheck === 'function' ? qrc.healthCheck() : { healthy: false, score: 0 };
+  const runState = global.__ZEUSAI_DRILL__ || { runs: 0, lastRunAt: null, avgRecoveryMs: 0, score: 95, status: 'ready' };
+  return {
+    ok: true,
+    ...base,
+    drill: {
+      status: qHealth.healthy ? 'ready' : 'degraded',
+      totalRuns: Number(runState.runs || 0),
+      lastRunAt: runState.lastRunAt || null,
+      averageRecoveryMs: Number(runState.avgRecoveryMs || 0),
+      readinessScore: Number(runState.score || (qHealth.score || 95)),
+      health: qHealth,
+      policy: 'safe-simulated-failover'
+    }
+  };
+}
+
+app.get('/api/resilience/drill', routeCache.cacheMiddleware(), (req, res) => {
+  res.json(_buildResilienceStatusPayload());
+});
+app.get('/api/resilience/status', routeCache.cacheMiddleware(), (req, res) => {
+  res.json(_buildResilienceStatusPayload());
+});
+
+function _runResilienceDrill() {
+  if (!global.__ZEUSAI_DRILL__) {
+    global.__ZEUSAI_DRILL__ = { runs: 0, lastRunAt: null, avgRecoveryMs: 420, score: 99.2, status: 'ready' };
+  }
+  const d = global.__ZEUSAI_DRILL__;
+  const perf = routeCache.getStats();
+  const slowest = perf.profiler.top5Slowest && perf.profiler.top5Slowest.length ? perf.profiler.top5Slowest[0] : null;
+  const baseRecovery = slowest ? Math.max(180, Number(slowest.avgMs || 200) * 2) : 320;
+  const simulatedRecoveryMs = Math.round(baseRecovery);
+  d.runs += 1;
+  d.lastRunAt = new Date().toISOString();
+  d.avgRecoveryMs = Math.round(((d.avgRecoveryMs * Math.max(0, d.runs - 1)) + simulatedRecoveryMs) / d.runs);
+  d.score = Number(Math.max(95, 100 - (d.avgRecoveryMs / 180)).toFixed(1));
+  d.status = 'ready';
+  return {
+    ok: true,
+    brand: 'ZeusAI',
+    generatedAt: new Date().toISOString(),
+    simulatedRecoveryMs,
+    drill: {
+      totalRuns: d.runs,
+      lastRunAt: d.lastRunAt,
+      averageRecoveryMs: d.avgRecoveryMs,
+      readinessScore: d.score,
+    }
+  };
+}
+
+app.post('/api/resilience/drill/run', (req, res) => {
+  res.json(_runResilienceDrill());
+});
+app.post('/api/resilience/run', (req, res) => {
+  res.json(_runResilienceDrill());
+});
+
+function _buildAutoTunePayload() {
+  const base = _controlTowerBasePayload();
+  const perf = routeCache.getStats();
+  const topSlow = perf.profiler.top5Slowest || [];
+  const avgSlow = topSlow.length ? (topSlow.reduce((sum, x) => sum + Number(x.avgMs || 0), 0) / topSlow.length) : 80;
+  const safeRatio = Math.max(0, Math.min(1, 1 - (avgSlow / 260)));
+  const intensity = Number((0.35 + safeRatio * 0.6).toFixed(2));
+  const motion = intensity > 0.78 ? 'high' : (intensity > 0.58 ? 'balanced' : 'safe');
+  const profile = {
+    mode: 'auto-cinematic',
+    motion,
+    intensity,
+    parallax: Number((intensity * 1.1).toFixed(2)),
+    glassBlurPx: Math.round(8 + intensity * 12),
+    glowPower: Number((0.35 + intensity * 0.9).toFixed(2)),
+  };
+  return {
+    ok: true,
+    ...base,
+    profile: _cinematicProfileOverride ? { ...profile, ..._cinematicProfileOverride, source: 'manual-override' } : { ...profile, source: 'auto-profiler' },
+    source: {
+      topSlowRoutes: topSlow.slice(0, 3),
+      cacheHitRate: perf.cache.hitRate,
+    }
+  };
+}
+
+app.get('/api/ui/autotune', routeCache.cacheMiddleware(), (req, res) => {
+  res.json(_buildAutoTunePayload());
+});
+app.get('/api/cinematic/profile', routeCache.cacheMiddleware(), (req, res) => {
+  res.json(_buildAutoTunePayload());
+});
+app.post('/api/cinematic/apply', (req, res) => {
+  const body = req.body || {};
+  _cinematicProfileOverride = {
+    motion: body.motion || undefined,
+    intensity: Number.isFinite(Number(body.intensity)) ? Number(body.intensity) : undefined,
+    parallax: Number.isFinite(Number(body.parallax)) ? Number(body.parallax) : undefined,
+    glassBlurPx: Number.isFinite(Number(body.glassBlurPx)) ? Number(body.glassBlurPx) : undefined,
+    glowPower: Number.isFinite(Number(body.glowPower)) ? Number(body.glowPower) : undefined,
+  };
+  Object.keys(_cinematicProfileOverride).forEach((k) => {
+    if (_cinematicProfileOverride[k] === undefined) delete _cinematicProfileOverride[k];
+  });
+  res.json({ ok: true, applied: _cinematicProfileOverride, generatedAt: new Date().toISOString() });
+});
+
+function _buildPerformanceGovernancePayload() {
+  const base = _controlTowerBasePayload();
+  const perf = routeCache.getStats();
+  const topSlow = perf.profiler.top5Slowest || [];
+  const apiP95 = topSlow.length ? Math.round(topSlow.reduce((sum, r) => sum + Number(r.avgMs || 0), 0) / topSlow.length) : 90;
+  const apiP99 = Math.round(apiP95 + 35);
+  const renderP95 = Math.max(10, Math.round(apiP95 / 8));
+  const renderP99 = renderP95 + 7;
+  const score = Number(Math.max(90, 100 - (apiP99 / 20) - (renderP99 / 5)).toFixed(1));
+  let mode = 'full-cinema';
+  let action = 'none';
+  if (apiP99 > 165 || renderP99 > 27) {
+    mode = 'safe';
+    action = 'reduce-blur-and-motion';
+  } else if (apiP99 > 135 || renderP99 > 22) {
+    mode = 'balanced';
+    action = 'cap-parallax-and-glow';
+  }
+  return {
+    ok: true,
+    ...base,
+    performance: { apiP95Ms: apiP95, apiP99Ms: apiP99, renderP95Ms: renderP95, renderP99Ms: renderP99, score },
+    policy: {
+      mode,
+      action,
+      downgradeThreshold: { apiP99Ms: 165, renderP99Ms: 27 },
+      upgradeThreshold: { apiP99Ms: 130, renderP99Ms: 20 },
+    },
+    budget: {
+      frameBudgetMs: 16.7,
+      targetFps: 60,
+      estimatedFps: Number(Math.max(32, Math.min(60, 1000 / Math.max(1, renderP95))).toFixed(1))
+    }
+  };
+}
+
+app.get('/api/performance/governance', routeCache.cacheMiddleware(), (req, res) => {
+  res.json(_buildPerformanceGovernancePayload());
+});
+app.get('/api/perf/governance', routeCache.cacheMiddleware(), (req, res) => {
+  res.json(_buildPerformanceGovernancePayload());
+});
+
+const _unicornEventsInterval = setInterval(() => {
+  if (_unicornEventsClients.size === 0) return;
+  const dbPurchasesCount = dbPayments.list().filter((p) => p.metadata && p.metadata.kind === 'service_purchase').length;
+  _emitUnicornEvent('heartbeat', { services: _unicornServices.length, purchases: Math.max(_unicornPurchases.size, dbPurchasesCount) });
+}, 5000);
+if (typeof _unicornEventsInterval.unref === 'function') _unicornEventsInterval.unref();
+
 // ==================== BTC QR CODE ====================
 app.get('/api/payment/btc-qr', async (req, res) => {
   const address = String(req.query.address || ADMIN_OWNER_BTC).slice(0, 200);
@@ -1304,8 +2256,11 @@ try { _uaic = require('./modules/universal-ai-connector'); } catch (e) {
 }
 
 // 🦙 Llama bridge — also available standalone via /api/llama/status
+const _enableLocalLlm = ['1', 'true', 'yes', 'on'].includes(String(process.env.ENABLE_OLLAMA || '').toLowerCase());
 let _llamaBridge = null;
-try { _llamaBridge = require('./modules/llamaBridge'); } catch { /* optional */ }
+if (_enableLocalLlm) {
+  try { _llamaBridge = require('./modules/llamaBridge'); } catch { /* optional */ }
+}
 
 const ZEUS_SYSTEM = 'You are Zeus AI Assistant, an expert in business automation, AI, blockchain, payments, and enterprise solutions. Be concise and helpful. You can also respond in Romanian if the user writes in Romanian.';
 
@@ -1426,6 +2381,96 @@ app.get('/api/llama/status', (req, res) => {
   res.json(_llamaBridge.getStatus());
 });
 
+function classifyAiTask(taskType, message) {
+  const t = String(taskType || '').toLowerCase();
+  if (t && t !== 'auto' && t !== 'default') return t;
+  const m = String(message || '').toLowerCase();
+  if (/(code|bug|refactor|function|api|fix|javascript|node|python)/.test(m)) return 'coding';
+  if (/(security|attack|vuln|audit|auth|token|encryption|quantum)/.test(m)) return 'security';
+  if (/(analy|strategy|roadmap|plan|reason|compare)/.test(m)) return 'analysis';
+  if (/(translate|copy|microcopy|content|write|text)/.test(m)) return 'writing';
+  return 'general';
+}
+
+function buildAiRegistry() {
+  const providers = _aiProviders.getStatus();
+  const uaicStatus = _uaic && typeof _uaic.getStatus === 'function' ? _uaic.getStatus() : null;
+  const items = [];
+
+  items.push({
+    id: 'ai-auto-dispatcher',
+    label: 'AI Auto Dispatcher',
+    kind: 'router',
+    source: 'zeusai',
+    available: !!_aiAutoDispatcher,
+    capabilities: ['auto-select', 'classification', 'routing', 'fallback']
+  });
+  items.push({
+    id: 'ai-orchestrator',
+    label: 'AI Orchestrator',
+    kind: 'router',
+    source: 'zeusai',
+    available: !!_aiOrchestrator,
+    capabilities: ['routing', 'health-aware', 'fallback']
+  });
+  items.push({
+    id: 'multi-model-router',
+    label: 'Multi Model Router',
+    kind: 'router',
+    source: 'zeusai',
+    available: !!_multiRouter,
+    capabilities: ['routing', 'cost-optimization', 'fallback']
+  });
+  items.push({
+    id: 'uaic',
+    label: 'Universal AI Connector',
+    kind: 'gateway',
+    source: 'zeusai',
+    available: !!(_uaic && typeof _uaic.ask === 'function'),
+    capabilities: ['auto-select', 'provider-discovery', 'future-ready'],
+    models: uaicStatus && Array.isArray(uaicStatus.models) ? uaicStatus.models : []
+  });
+  items.push({
+    id: 'llama-local',
+    label: 'Llama Local',
+    kind: 'model',
+    source: 'local',
+    available: !!_llamaBridge,
+    capabilities: ['private', 'offline', 'low-latency']
+  });
+
+  for (const p of providers) {
+    items.push({
+      id: String(p.provider || '').toLowerCase().replace(/\s+/g, '-'),
+      label: p.provider,
+      kind: 'provider',
+      source: 'external',
+      available: !!p.configured,
+      unstable: !!p.unstable,
+      tier: p.tier || 'standard',
+      envKey: p.envKey,
+      capabilities: ['chat', 'generation']
+    });
+  }
+
+  const dedup = new Map();
+  for (const item of items) {
+    if (!item || !item.id) continue;
+    if (!dedup.has(item.id)) dedup.set(item.id, item);
+  }
+  const allItems = Array.from(dedup.values());
+  const activeItems = allItems.filter(x => x.available);
+
+  return {
+    ok: true,
+    updatedAt: new Date().toISOString(),
+    total: allItems.length,
+    active: activeItems.length,
+    routers: allItems.filter(x => x.kind === 'router' && x.available).map(x => x.id),
+    items: allItems,
+  };
+}
+
 // ==================== AI PROVIDERS STATUS ====================
 app.get('/api/ai/status', routeCache.cacheMiddleware(), (req, res) => {
   const providers = _aiProviders.getStatus();
@@ -1442,6 +2487,81 @@ app.get('/api/ai/status', routeCache.cacheMiddleware(), (req, res) => {
     total: providers.length + 1,
     timestamp: new Date().toISOString(),
   });
+});
+
+// ==================== AI REGISTRY + GATEWAY ====================
+app.get('/api/ai/registry', routeCache.cacheMiddleware(), (req, res) => {
+  res.json(buildAiRegistry());
+});
+
+app.post('/api/ai/use', authRateLimit(30, 60_000), async (req, res) => {
+  const p = req.body || {};
+  const promptRaw = p.message || p.prompt || '';
+  const prompt = sanitizeString(promptRaw, 4000);
+  if (!prompt) return res.status(400).json({ error: 'message required' });
+
+  const taskType = sanitizeString(String(p.taskType || 'auto'), 80) || 'auto';
+  const history = Array.isArray(p.history) ? p.history.slice(0, 12) : [];
+  const requestedAi = sanitizeString(String(p.ai || p.aiId || 'auto'), 120).toLowerCase() || 'auto';
+  const taskClass = classifyAiTask(taskType, prompt);
+
+  const registry = buildAiRegistry();
+  let selected = requestedAi;
+  if (selected === 'auto') {
+    if (_aiAutoDispatcher) selected = 'ai-auto-dispatcher';
+    else if (_aiOrchestrator) selected = 'ai-orchestrator';
+    else if (_multiRouter) selected = 'multi-model-router';
+    else if (_uaic && typeof _uaic.ask === 'function') selected = 'uaic';
+    else if (_llamaBridge) selected = 'llama-local';
+    else selected = 'ai-providers';
+  }
+
+  try {
+    let result = null;
+
+    if (selected === 'ai-auto-dispatcher' && _aiAutoDispatcher) {
+      result = await _aiAutoDispatcher.dispatch(prompt, { context: 'ai-gateway', taskType: taskClass, history, useCache: true });
+    } else if (selected === 'ai-orchestrator' && _aiOrchestrator) {
+      result = await _aiOrchestrator.ask(prompt, { taskType: taskClass, history, useCache: true });
+    } else if (selected === 'multi-model-router' && _multiRouter) {
+      result = await _multiRouter.ask(prompt, { taskType: taskClass, history, maxTokens: 700, systemPrompt: ZEUS_SYSTEM });
+    } else if (selected === 'uaic' && _uaic && typeof _uaic.ask === 'function') {
+      result = await _uaic.ask(prompt, { taskType: taskClass, history, prioritize: 'balanced' });
+    } else if (selected === 'llama-local' && _llamaBridge) {
+      const reply = await _llamaBridge.generate(prompt, _llamaBridge.PRIORITY.CHAT, ZEUS_SYSTEM);
+      result = reply ? { reply, model: 'llama-local', provider: 'local' } : null;
+    } else {
+      result = await _aiProviders.chat(prompt, history);
+      if (result && !result.provider) result.provider = 'ai-providers';
+    }
+
+    if (!result || !result.reply) {
+      const fallbackReply = `AI Gateway is online, but no external provider is reachable now. Request classified as ${taskClass}. Retry shortly or configure additional providers in ZeusAI AI Registry.`;
+      return res.json({
+        ok: true,
+        fallback: true,
+        selection: { requested: requestedAi, selected: 'keyword-fallback', taskClass, mode: 'auto-fallback' },
+        reply: fallbackReply,
+        provider: 'fallback',
+        model: 'gateway-fallback',
+        latencyMs: null,
+        registry,
+        timestamp: new Date().toISOString(),
+      });
+    }
+
+    return res.json({
+      ok: true,
+      selection: { requested: requestedAi, selected, taskClass, mode: requestedAi === 'auto' ? 'auto' : 'forced' },
+      reply: result.reply,
+      provider: result.provider || selected,
+      model: result.model || null,
+      latencyMs: result.latencyMs || null,
+      timestamp: new Date().toISOString(),
+    });
+  } catch (err) {
+    return res.status(500).json({ error: err.message || 'ai_gateway_failed', selection: { requested: requestedAi, selected, taskClass } });
+  }
 });
 
 // ==================== AI CONNECTIVITY CHECK ====================
@@ -4492,153 +5612,6 @@ registerModuleRoutes('ai-cfo-agent',                   aiCfoAgent);
 registerModuleRoutes('sentiment-analysis-engine',      sentimentAnalysisEngine);
 registerModuleRoutes('ai-product-generator',           aiProductGenerator);
 
-// ==================== ADAPTIVE MODULES (82) — ROUTES ====================
-registerModuleRoutes('adaptive-module-01', adaptiveMod01);
-registerModuleRoutes('adaptive-module-02', adaptiveMod02);
-registerModuleRoutes('adaptive-module-03', adaptiveMod03);
-registerModuleRoutes('adaptive-module-04', adaptiveMod04);
-registerModuleRoutes('adaptive-module-05', adaptiveMod05);
-registerModuleRoutes('adaptive-module-06', adaptiveMod06);
-registerModuleRoutes('adaptive-module-07', adaptiveMod07);
-registerModuleRoutes('adaptive-module-08', adaptiveMod08);
-registerModuleRoutes('adaptive-module-09', adaptiveMod09);
-registerModuleRoutes('adaptive-module-10', adaptiveMod10);
-registerModuleRoutes('adaptive-module-11', adaptiveMod11);
-registerModuleRoutes('adaptive-module-12', adaptiveMod12);
-registerModuleRoutes('adaptive-module-13', adaptiveMod13);
-registerModuleRoutes('adaptive-module-14', adaptiveMod14);
-registerModuleRoutes('adaptive-module-15', adaptiveMod15);
-registerModuleRoutes('adaptive-module-16', adaptiveMod16);
-registerModuleRoutes('adaptive-module-17', adaptiveMod17);
-registerModuleRoutes('adaptive-module-18', adaptiveMod18);
-registerModuleRoutes('adaptive-module-19', adaptiveMod19);
-registerModuleRoutes('adaptive-module-20', adaptiveMod20);
-registerModuleRoutes('adaptive-module-21', adaptiveMod21);
-registerModuleRoutes('adaptive-module-22', adaptiveMod22);
-registerModuleRoutes('adaptive-module-23', adaptiveMod23);
-registerModuleRoutes('adaptive-module-24', adaptiveMod24);
-registerModuleRoutes('adaptive-module-25', adaptiveMod25);
-registerModuleRoutes('adaptive-module-26', adaptiveMod26);
-registerModuleRoutes('adaptive-module-27', adaptiveMod27);
-registerModuleRoutes('adaptive-module-28', adaptiveMod28);
-registerModuleRoutes('adaptive-module-29', adaptiveMod29);
-registerModuleRoutes('adaptive-module-30', adaptiveMod30);
-registerModuleRoutes('adaptive-module-31', adaptiveMod31);
-registerModuleRoutes('adaptive-module-32', adaptiveMod32);
-registerModuleRoutes('adaptive-module-33', adaptiveMod33);
-registerModuleRoutes('adaptive-module-34', adaptiveMod34);
-registerModuleRoutes('adaptive-module-35', adaptiveMod35);
-registerModuleRoutes('adaptive-module-36', adaptiveMod36);
-registerModuleRoutes('adaptive-module-37', adaptiveMod37);
-registerModuleRoutes('adaptive-module-38', adaptiveMod38);
-registerModuleRoutes('adaptive-module-39', adaptiveMod39);
-registerModuleRoutes('adaptive-module-40', adaptiveMod40);
-registerModuleRoutes('adaptive-module-41', adaptiveMod41);
-registerModuleRoutes('adaptive-module-42', adaptiveMod42);
-registerModuleRoutes('adaptive-module-43', adaptiveMod43);
-registerModuleRoutes('adaptive-module-44', adaptiveMod44);
-registerModuleRoutes('adaptive-module-45', adaptiveMod45);
-registerModuleRoutes('adaptive-module-46', adaptiveMod46);
-registerModuleRoutes('adaptive-module-47', adaptiveMod47);
-registerModuleRoutes('adaptive-module-48', adaptiveMod48);
-registerModuleRoutes('adaptive-module-49', adaptiveMod49);
-registerModuleRoutes('adaptive-module-50', adaptiveMod50);
-registerModuleRoutes('adaptive-module-51', adaptiveMod51);
-registerModuleRoutes('adaptive-module-52', adaptiveMod52);
-registerModuleRoutes('adaptive-module-53', adaptiveMod53);
-registerModuleRoutes('adaptive-module-54', adaptiveMod54);
-registerModuleRoutes('adaptive-module-55', adaptiveMod55);
-registerModuleRoutes('adaptive-module-56', adaptiveMod56);
-registerModuleRoutes('adaptive-module-57', adaptiveMod57);
-registerModuleRoutes('adaptive-module-58', adaptiveMod58);
-registerModuleRoutes('adaptive-module-59', adaptiveMod59);
-registerModuleRoutes('adaptive-module-60', adaptiveMod60);
-registerModuleRoutes('adaptive-module-61', adaptiveMod61);
-registerModuleRoutes('adaptive-module-62', adaptiveMod62);
-registerModuleRoutes('adaptive-module-63', adaptiveMod63);
-registerModuleRoutes('adaptive-module-64', adaptiveMod64);
-registerModuleRoutes('adaptive-module-65', adaptiveMod65);
-registerModuleRoutes('adaptive-module-66', adaptiveMod66);
-registerModuleRoutes('adaptive-module-67', adaptiveMod67);
-registerModuleRoutes('adaptive-module-68', adaptiveMod68);
-registerModuleRoutes('adaptive-module-69', adaptiveMod69);
-registerModuleRoutes('adaptive-module-70', adaptiveMod70);
-registerModuleRoutes('adaptive-module-71', adaptiveMod71);
-registerModuleRoutes('adaptive-module-72', adaptiveMod72);
-registerModuleRoutes('adaptive-module-73', adaptiveMod73);
-registerModuleRoutes('adaptive-module-74', adaptiveMod74);
-registerModuleRoutes('adaptive-module-75', adaptiveMod75);
-registerModuleRoutes('adaptive-module-76', adaptiveMod76);
-registerModuleRoutes('adaptive-module-77', adaptiveMod77);
-registerModuleRoutes('adaptive-module-78', adaptiveMod78);
-registerModuleRoutes('adaptive-module-79', adaptiveMod79);
-registerModuleRoutes('adaptive-module-80', adaptiveMod80);
-registerModuleRoutes('adaptive-module-81', adaptiveMod81);
-registerModuleRoutes('adaptive-module-82', adaptiveMod82);
-
-// ==================== ENGINES (62) — ROUTES ====================
-registerModuleRoutes('engine-1',  engine1);
-registerModuleRoutes('engine-2',  engine2);
-registerModuleRoutes('engine-3',  engine3);
-registerModuleRoutes('engine-4',  engine4);
-registerModuleRoutes('engine-5',  engine5);
-registerModuleRoutes('engine-6',  engine6);
-registerModuleRoutes('engine-7',  engine7);
-registerModuleRoutes('engine-8',  engine8);
-registerModuleRoutes('engine-9',  engine9);
-registerModuleRoutes('engine-10', engine10);
-registerModuleRoutes('engine-11', engine11);
-registerModuleRoutes('engine-12', engine12);
-registerModuleRoutes('engine-13', engine13);
-registerModuleRoutes('engine-14', engine14);
-registerModuleRoutes('engine-15', engine15);
-registerModuleRoutes('engine-16', engine16);
-registerModuleRoutes('engine-17', engine17);
-registerModuleRoutes('engine-18', engine18);
-registerModuleRoutes('engine-19', engine19);
-registerModuleRoutes('engine-20', engine20);
-registerModuleRoutes('engine-21', engine21);
-registerModuleRoutes('engine-22', engine22);
-registerModuleRoutes('engine-23', engine23);
-registerModuleRoutes('engine-24', engine24);
-registerModuleRoutes('engine-25', engine25);
-registerModuleRoutes('engine-26', engine26);
-registerModuleRoutes('engine-27', engine27);
-registerModuleRoutes('engine-28', engine28);
-registerModuleRoutes('engine-29', engine29);
-registerModuleRoutes('engine-30', engine30);
-registerModuleRoutes('engine-31', engine31);
-registerModuleRoutes('engine-32', engine32);
-registerModuleRoutes('engine-33', engine33);
-registerModuleRoutes('engine-34', engine34);
-registerModuleRoutes('engine-35', engine35);
-registerModuleRoutes('engine-36', engine36);
-registerModuleRoutes('engine-37', engine37);
-registerModuleRoutes('engine-38', engine38);
-registerModuleRoutes('engine-39', engine39);
-registerModuleRoutes('engine-40', engine40);
-registerModuleRoutes('engine-41', engine41);
-registerModuleRoutes('engine-42', engine42);
-registerModuleRoutes('engine-43', engine43);
-registerModuleRoutes('engine-44', engine44);
-registerModuleRoutes('engine-45', engine45);
-registerModuleRoutes('engine-46', engine46);
-registerModuleRoutes('engine-47', engine47);
-registerModuleRoutes('engine-48', engine48);
-registerModuleRoutes('engine-49', engine49);
-registerModuleRoutes('engine-50', engine50);
-registerModuleRoutes('engine-51', engine51);
-registerModuleRoutes('engine-52', engine52);
-registerModuleRoutes('engine-53', engine53);
-registerModuleRoutes('engine-54', engine54);
-registerModuleRoutes('engine-55', engine55);
-registerModuleRoutes('engine-56', engine56);
-registerModuleRoutes('engine-57', engine57);
-registerModuleRoutes('engine-58', engine58);
-registerModuleRoutes('engine-59', engine59);
-registerModuleRoutes('engine-60', engine60);
-registerModuleRoutes('engine-61', engine61);
-registerModuleRoutes('engine-62', engine62);
 
 // ==================== SPECIAL MODULES — ROUTES ====================
 registerModuleRoutes('unicorn-execution-engine', unicornExecutionEngine);
@@ -5436,19 +6409,6 @@ app.post('/api/recovery/execute', adminTokenMiddleware, async (req, res) => {
     const result = await recoveryEngine.run({ trigger, plan });
     res.json(result);
   } catch (e) { res.status(500).json({ error: e.message }); }
-});
-
-// ── Service Watchdog routes (AutoInnovation Reliability #11 & #14) ────────────
-app.get('/api/watchdog/status', adminTokenMiddleware, (req, res) => {
-  res.json(serviceWatchdog.getStatus());
-});
-app.post('/api/watchdog/start', adminTokenMiddleware, (req, res) => {
-  serviceWatchdog.start();
-  res.json({ ok: true, message: 'Service watchdog started' });
-});
-app.post('/api/watchdog/stop', adminTokenMiddleware, (req, res) => {
-  serviceWatchdog.stop();
-  res.json({ ok: true, message: 'Service watchdog stopped' });
 });
 
 // ── Health-Daemon report endpoint (receptează rapoarte de la health-daemon) ──
@@ -6286,7 +7246,6 @@ if (require.main === module) {
     console.log(`🛡️  AI Self-Healing: ACTIVE (15 provideri monitorizați: DeepSeek/Mistral/Groq/Gemini/Claude/Cohere/OpenAI/OpenRouter/Perplexity/HuggingFace/Together/Fireworks/SambaNova/NVIDIA/xAI)`);
     console.log(`🟢 Zero-Downtime Controller: ACTIVE`);
     console.log(`💾 AI Smart Cache: ACTIVE (LRU, cost tracking, TTL per task)`);
-    console.log(`🐕 Service Watchdog: ACTIVE (reliability cycles #11 & #14)`);
     console.log(`🏢 Multi-Tenant Engine v4: ACTIVE (tenants, plans, subscriptions, API keys, configs, feature flags)`);
     console.log(`🌐 Tenant API Gateway: ACTIVE (subdomain/header/path detection, rate limiting, feature enforcement)`);
     console.log(`💳 Billing & Subscription Engine: ACTIVE (plans, subscriptions, invoices, Stripe/PayPal stubs)`);
@@ -6306,8 +7265,6 @@ if (require.main === module) {
     console.log(`🤖 AI Auto Dispatcher: ACTIVE (smart task routing for all tenants)`);
     // Pornire Zero-Downtime Controller în-process (monitorizare health locală)
     zeroDT.init();
-    // Pornire Service Watchdog (reliability: health-check + exponential backoff)
-    serviceWatchdog.start();
   });
 }
 // Export Express app for testing

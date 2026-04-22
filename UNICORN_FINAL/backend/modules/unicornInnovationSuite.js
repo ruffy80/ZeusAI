@@ -1,3 +1,16 @@
+// Alias pentru orchestrator: statusFn
+module.exports.statusFn = module.exports.getStatus;
+// MeshOrchestrator expects a status function (getStatus)
+module.exports.getStatus = function() {
+  if (typeof this.getAffiliateStats === 'function') {
+    return {
+      status: 'active',
+      affiliates: this.getAffiliateStats(),
+      time: new Date().toISOString()
+    };
+  }
+  return { status: 'unknown' };
+};
 // =====================================================================
 // OWNERSHIP: Acest fișier este proprietatea exclusivă a lui Vladoi Ionut
 // Email: vladoi_ionut@yahoo.com

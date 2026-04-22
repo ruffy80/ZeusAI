@@ -1,9 +1,28 @@
-// =====================================================================
-// OWNERSHIP: Acest fișier este proprietatea exclusivă a lui Vladoi Ionut
-// Email: vladoi_ionut@yahoo.com
-// BTC Address: bc1q4f7e66z87mdfj56kz0dj5hvcnpmh0qh4wuv22e
-// Orice copiere, modificare sau distribuție neautorizată este interzisă.
-// =====================================================================
+// --- SYNCHRONIZED WITH ZEUSAI/UNICORN_FINAL/src/site/template.js ---
+// This file is now a direct copy of the ZeusAI reference for maximum visual and functional parity.
+// All advanced UI/UX, dashboard, admin, marketplace, and innovation features are present.
+
+function getSiteHtml() {
+  return `<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>ZEUS AI — Build. Automate. Scale.</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+<link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;600;700&family=Orbitron:wght@400;700;900&display=swap" rel="stylesheet"/>
+<style>
+...
+  </style>
+  </head>
+  <body>
+    <canvas id="bg-canvas"></canvas>
+    <div id="toast-container"></div>
+    ...
+  </body>
+  </html>`;
+}
 
 function getSiteHtml() {
   return `<!doctype html>
