@@ -120,7 +120,7 @@ export default function ClientDashboard() {
       <div style={box}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
           <h3 style={{ margin: 0, color: '#f59e0b' }}>🔑 API Keys</h3>
-          <button onClick={createApiKey} style={{ padding: '6px 16px', borderRadius: 10, border: 0, background: 'rgba(245,158,11,.2)', color: '#f59e0b', fontWeight: 700, cursor: 'pointer', border: '1px solid rgba(245,158,11,.3)' }}>+ Cheie nouă</button>
+          <button onClick={createApiKey} style={{ padding: '6px 16px', borderRadius: 10, background: 'rgba(245,158,11,.2)', color: '#f59e0b', fontWeight: 700, cursor: 'pointer', border: '1px solid rgba(245,158,11,.3)' }}>+ Cheie nouă</button>
         </div>
         {apiKeys.length === 0 ? (
           <p style={{ color: '#64748b', fontSize: 14 }}>Nicio cheie API. Creează una pentru acces programatic.</p>
