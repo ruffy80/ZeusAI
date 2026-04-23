@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import axios from 'axios';
 import SEOMeta from '../components/SEOMeta';
 // PaymentModal is imported per checkout spec; Step 3 renders its payment logic inline
@@ -238,7 +238,7 @@ function InlinePaymentForm({ service, billing, price, onSuccess, onBack }) {
   const [payment, setPayment] = useState(null);
   const [form, setForm] = useState({
     amount: price,
-    method: 'card',
+    method: 'crypto_btc',
     description: `${service.name} — ${billing === 'annual' ? 'Annual' : 'Monthly'} Plan`,
   });
 
@@ -247,7 +247,10 @@ function InlinePaymentForm({ service, billing, price, onSuccess, onBack }) {
       .then(res => {
         const available = res.data.methods || [];
         setMethods(available);
-        if (available.length) setForm(prev => ({ ...prev, method: available[0].id }));
+        const hasBtc = available.find(m => m.id === 'crypto_btc');
+        if (!hasBtc && available.length) {
+          setForm(prev => ({ ...prev, method: available[0].id }));
+        }
       })
       .catch(() => setMethods([]));
   }, []);
@@ -457,9 +460,22 @@ function StepSuccess({ service, billing, txResult, onDashboard, onBuyAnother }) 
 /* ── Main Checkout Page ──────────────────────────────────────────── */
 export default function Checkout() {
   const navigate = useNavigate();
-  const [step, setStep] = useState(0);
-  const [selectedService, setSelectedService] = useState(null);
-  const [configData, setConfigData] = useState({ billing: 'monthly', price: 0 });
+  const location = useLocation();
+
+  const preselectedPlan = location.state?.plan || null;
+  const preselectedService = preselectedPlan
+    ? {
+        id: preselectedPlan.id || preselectedPlan.name?.toLowerCase() || 'custom',
+        name: preselectedPlan.name,
+        description: preselectedPlan.description || '',
+        price: Number(preselectedPlan.price) || 0,
+        tier: preselectedPlan.tier || preselectedPlan.name,
+      }
+    : null;
+
+  const [step, setStep] = useState(preselectedService ? 1 : 0);
+  const [selectedService, setSelectedService] = useState(preselectedService);
+  const [configData, setConfigData] = useState({ billing: 'monthly', price: preselectedService?.price || 0 });
   const [txResult, setTxResult] = useState(null);
 
   const handleServiceSelect = (svc) => {

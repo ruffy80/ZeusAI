@@ -16,6 +16,24 @@ export default function PricingCard({ plan = {} }) {
 
   const navigate = useNavigate();
 
+  const handleCta = () => {
+    if (ctaPath === '/checkout') {
+      navigate(ctaPath, {
+        state: {
+          plan: {
+            id: plan.id || name.toLowerCase(),
+            name,
+            description,
+            price: Number(price),
+            tier: name,
+          },
+        },
+      });
+    } else {
+      navigate(ctaPath);
+    }
+  };
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 32 }}
@@ -124,7 +142,7 @@ export default function PricingCard({ plan = {} }) {
 
         {/* CTA */}
         <button
-          onClick={() => navigate(ctaPath)}
+          onClick={handleCta}
           style={{
             width: '100%',
             padding: '0.75rem',
