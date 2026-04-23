@@ -4068,6 +4068,8 @@ function renderCheckoutStep1(){
   var showPaypal=methods.indexOf('paypal')>=0;
   var showNow=!!STATE.nowPaymentsReady;
   var buttons='';
+  // Sovereign direct BTC (non-custodial, real on-chain settlement to owner wallet)
+  buttons+='<button class="pay-method-btn pay-method-featured" onclick="checkoutSovereignBtc()" style="grid-column:1/-1;background:linear-gradient(135deg,#0a2818 0%,#0f4428 100%);border:1.5px solid #00ffa3;position:relative;"><div style="position:absolute;top:4px;right:6px;background:#00ffa3;color:#000;font-size:9px;font-weight:700;padding:1px 5px;border-radius:3px;">DIRECT</div><div class="pay-method-icon">⚡</div><div style="font-weight:600;">Pay direct to BTC wallet</div><div style="font-size:10px;color:#7090b0;">Non-custodial · on-chain · instant access</div></button>';
   if(showNow){
     buttons+='<button class="pay-method-btn pay-method-featured" onclick="checkoutNowPayments()" style="grid-column:1/-1;background:linear-gradient(135deg,#0a1628 0%,#112244 100%);border:1.5px solid #00d4ff;position:relative;"><div style="position:absolute;top:4px;right:6px;background:#00d4ff;color:#000;font-size:9px;font-weight:700;padding:1px 5px;border-radius:3px;">GLOBAL</div><div class="pay-method-icon">🌍</div><div style="font-weight:600;">Pay with Any Currency</div><div style="font-size:10px;color:#7090b0;">300+ crypto · cards · bank · worldwide → auto BTC</div></button>';
   }
@@ -4084,6 +4086,28 @@ function renderCheckoutStep1(){
     +'</div>'
     +'<div style="font-size:13px;color:#7090b0;text-align:center;margin-bottom:16px;">Select payment method:</div>'
     +'<div class="pay-methods">'+buttons+'</div>';
+}
+
+// Sovereign direct-on-chain checkout: creates a REAL order bound to the owner's
+// BTC wallet with a unique sat-amount for automatic matching. The buyer is
+// navigated to /checkout/:orderId where a background watcher confirms payment
+// (0-conf or N-conf configurable) and grants service access automatically.
+// Fully non-custodial. All funds settle directly on-chain.
+async function checkoutSovereignBtc(){
+  var body=document.getElementById('checkout-body');
+  var item=STATE.checkoutItem||{};
+  body.innerHTML='<div style="text-align:center;margin-bottom:10px;"><div class="loader"></div><p class="muted" style="margin-top:8px;">Preparing non-custodial BTC checkout…</p></div>';
+  try{
+    var r=await fetch('/api/checkout/create',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({serviceId:item.serviceId||item.id,qty:1,currency:'USD',email:(STATE.user&&STATE.user.email)||''})});
+    var j=await r.json();
+    if(!r.ok||!j||!j.checkout_url){
+      body.innerHTML='<div style="color:#ff7070;text-align:center;padding:16px;">Could not create checkout.<br><small>'+escHtml(j&&j.error||('HTTP '+r.status))+'</small></div>';
+      return;
+    }
+    window.location.href=j.checkout_url;
+  }catch(e){
+    body.innerHTML='<div style="color:#ff7070;text-align:center;padding:16px;">Network error.<br><small>'+escHtml(String(e))+'</small></div>';
+  }
 }
 
 async function checkoutBtc(){

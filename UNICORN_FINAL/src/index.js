@@ -39,6 +39,7 @@ const { generateSprintPlan } = require('./innovation/innovation-sprint');
 const { getSiteHtml } = require('./site/template');
 const v2 = require('./site/v2/shell');
 let sovereign = null; try { sovereign = require('./site/sovereign-extensions'); } catch (e) { console.warn('[sovereign] not loaded:', e.message); }
+let commerce = null; try { commerce = require('./site/sovereign-commerce'); } catch (e) { console.warn('[commerce] not loaded:', e.message); }
 const V2_CLIENT_PATH = path.join(__dirname, 'site', 'v2', 'client.js');
 let qrMod = null; try { qrMod = require('./site/v2/qr'); } catch (_) {}
 let uaic = null; try { uaic = require('./commerce/uaic'); } catch (e) { console.warn('[UAIC] not loaded:', e.message); }
@@ -806,6 +807,16 @@ function proxyToBackend(req, res, backendBaseUrl) {
 }
 
 async function unicornHandler(req, res) {
+  // ── SOVEREIGN COMMERCE — REAL BTC sales (checkout, watcher, delivery) ───
+  // Handles: /api/checkout/create, /checkout/:orderId, /api/order/:id/status,
+  // /api/entitlements/:token, /api/commerce/price|health|reconcile.
+  if (commerce) {
+    try {
+      const handled = await commerce.handle(req, res, { buildSnapshot });
+      if (handled) return;
+    } catch (e) { console.warn('[commerce] handler error:', e.message); }
+  }
+
   // ── SOVEREIGN EXTENSIONS (30Y-LTS) — first-dispatch layer ───────────────
   // Handles: /robots.txt, /sitemap.xml, /manifest.webmanifest, /metrics,
   // /green, /archive, /api/intent, /api/pay/route, /api/receipt/:id,
