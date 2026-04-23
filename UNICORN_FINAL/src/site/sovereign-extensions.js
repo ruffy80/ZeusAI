@@ -776,17 +776,38 @@ ${all.map(u => `  <url><loc>${OWNER.domain}${u}</loc><lastmod>${now}</lastmod><c
     if (!rec) return (sendJson(res, 404, { error: 'quote_not_found_or_expired', quoteId }), true);
     if (rec.expiresAt < Date.now()) { QUOTES.delete(quoteId); return (sendJson(res, 410, { error: 'quote_expired', quoteId }), true); }
     const buyer = body.buyer || { type: 'anonymous-agent' };
+    // Create a REAL checkout order (BTC on-chain, non-custodial) if commerce layer is available
+    let realCheckout = null;
+    try {
+      const commerce = require('./sovereign-commerce');
+      if (commerce && typeof commerce.createOrder === 'function') {
+        const r = await commerce.createOrder(ctx, {
+          serviceId: rec.quote.serviceId,
+          qty: rec.quote.qty,
+          currency: rec.quote.currency,
+          email: (buyer && buyer.email) || '',
+        });
+        if (r && r.order) realCheckout = r.order;
+      }
+    } catch (_) {}
     const order = {
-      orderId: 'o-' + crypto.randomBytes(8).toString('hex'),
+      orderId: realCheckout ? realCheckout.orderId : ('o-' + crypto.randomBytes(8).toString('hex')),
       quote: rec.quote,
       buyer,
-      status: 'awaiting_payment',
+      status: realCheckout ? realCheckout.status : 'awaiting_payment',
       payment_instructions: selectRail(rec.quote.subtotal, rec.quote.currency),
+      checkout_url:  realCheckout ? realCheckout.checkout_url  : null,
+      status_url:    realCheckout ? realCheckout.status_url    : null,
+      btc_address:   realCheckout ? realCheckout.receive_address : null,
+      btc_amount:    realCheckout ? realCheckout.amount_btc    : null,
+      btc_bip21:     realCheckout ? realCheckout.bip21         : null,
+      access_token:  realCheckout ? realCheckout.access_token  : null,
+      expires_at:    realCheckout ? realCheckout.expires_at    : null,
     };
     const { id: receiptId, vc } = mintReceipt({ order });
     order.receipt = { id: receiptId, url: `${OWNER.domain}/api/receipt/${receiptId}` };
     archivePush({ kind: 'agent_order', order });
-    res.setHeader('Location', `/api/receipt/${receiptId}`);
+    res.setHeader('Location', order.checkout_url || `/api/receipt/${receiptId}`);
     return (sendJson(res, 201, { order, vc }), true);
   }
 
@@ -819,6 +840,15 @@ ${all.map(u => `  <url><loc>${OWNER.domain}${u}</loc><lastmod>${now}</lastmod><c
       did: '/.well-known/did.json',
       structured_data: '/structured-data.json',
       agent_commerce: { catalog: '/api/agent/catalog', quote: '/api/agent/quote', order: '/api/agent/order' },
+      commerce: {
+        checkout_create: '/api/checkout/create',
+        checkout_page:   '/checkout/:orderId',
+        order_status:    '/api/order/:orderId/status',
+        entitlement:     '/api/entitlements/:token',
+        price:           '/api/commerce/price',
+        health:          '/api/commerce/health',
+        settlement:      'on-chain direct to owner wallet (non-custodial)',
+      },
       status_page: '/status',
       generated_at: new Date().toISOString(),
     };
