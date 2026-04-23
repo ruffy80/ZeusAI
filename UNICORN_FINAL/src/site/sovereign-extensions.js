@@ -196,6 +196,18 @@ async function handle(req, res, ctx) {
       'Disallow: /dashboard',
       'Disallow: /account',
       '',
+      '# AI agents — we welcome indexing and autonomous purchase',
+      'User-agent: GPTBot',
+      'Allow: /',
+      'User-agent: ClaudeBot',
+      'Allow: /',
+      'User-agent: PerplexityBot',
+      'Allow: /',
+      'User-agent: CCBot',
+      'Allow: /',
+      'User-agent: Google-Extended',
+      'Allow: /',
+      '',
       `Sitemap: ${OWNER.domain}/sitemap.xml`,
       `Host: ${OWNER.domain.replace(/^https?:\/\//, '')}`,
     ].join('\n');
@@ -410,6 +422,374 @@ ${all.map(u => `  <url><loc>${OWNER.domain}${u}</loc><lastmod>${now}</lastmod><c
     return true;
   }
 
+  // ══════════════════════════════════════════════════════════════════════
+  // AUTONOMOUS COMMERCE SURFACE — added 2026-04-24
+  // Goal: make every current & future Unicorn service discoverable and
+  // purchasable by humans AND autonomous AI agents, worldwide, zero touch.
+  // ══════════════════════════════════════════════════════════════════════
+
+  // ── /llms.txt — LLM discovery index (Perplexity/Claude/ChatGPT crawlers) ──
+  if (urlPath === '/llms.txt') {
+    const body = [
+      '# ZeusAI',
+      '',
+      `> Autonomous AI operating system by ${OWNER.name}. 169+ modules, 18 verticals, 41 marketplaces. Sells globally, settles in BTC/Lightning/SEPA/USDC.`,
+      '',
+      '## Machine-readable surfaces',
+      `- [Service catalog (signed)](${OWNER.domain}/catalog.json)`,
+      `- [Agent catalog](${OWNER.domain}/api/agent/catalog)`,
+      `- [OpenAPI spec](${OWNER.domain}/openapi.json)`,
+      `- [AI plugin manifest](${OWNER.domain}/.well-known/ai-plugin.json)`,
+      `- [MCP manifest](${OWNER.domain}/.well-known/mcp.json)`,
+      `- [JSON Feed](${OWNER.domain}/feed.json)`,
+      `- [Sitemap](${OWNER.domain}/sitemap.xml)`,
+      '',
+      '## Commerce endpoints (for AI agents)',
+      `- POST ${OWNER.domain}/api/agent/quote  — get signed price quote`,
+      `- POST ${OWNER.domain}/api/agent/order  — create order, returns VC receipt`,
+      `- POST ${OWNER.domain}/api/pay/route    — payment rail recommendation`,
+      '',
+      '## Trust',
+      `- DID: did:web:${OWNER.domain.replace(/^https?:\/\//, '')} — [${OWNER.domain}/.well-known/did.json]`,
+      `- Security: ${OWNER.domain}/.well-known/security.txt`,
+      `- Receipts are W3C Verifiable Credentials signed Ed25519`,
+    ].join('\n');
+    res.writeHead(200, { 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': 'public, max-age=600' });
+    res.end(body);
+    recordMetric(urlPath, 200, body.length);
+    return true;
+  }
+
+  // ── /.well-known/security.txt (RFC 9116) ──────────────────────────────────
+  if (urlPath === '/.well-known/security.txt' || urlPath === '/security.txt') {
+    const expires = new Date(Date.now() + 365 * 24 * 3600 * 1000).toISOString();
+    const body = [
+      `Contact: mailto:${OWNER.email}`,
+      `Expires: ${expires}`,
+      `Preferred-Languages: en, ro`,
+      `Canonical: ${OWNER.domain}/.well-known/security.txt`,
+      `Policy: ${OWNER.domain}/legal`,
+      '',
+    ].join('\n');
+    res.writeHead(200, { 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': 'public, max-age=86400' });
+    res.end(body);
+    recordMetric(urlPath, 200, body.length);
+    return true;
+  }
+
+  // ── /.well-known/did.json — DID Web document ─────────────────────────────
+  if (urlPath === '/.well-known/did.json' || urlPath === '/did.json') {
+    const host = OWNER.domain.replace(/^https?:\/\//, '');
+    // Derive the public key from our signing keypair (Ed25519)
+    let pubB64 = null;
+    try {
+      const priv = getSigningKey();
+      if (priv) {
+        const pub = crypto.createPublicKey(priv);
+        const der = pub.export({ type: 'spki', format: 'der' });
+        pubB64 = der.toString('base64');
+      }
+    } catch (_) {}
+    const doc = {
+      '@context': ['https://www.w3.org/ns/did/v1', 'https://w3id.org/security/suites/ed25519-2020/v1'],
+      id: `did:web:${host}`,
+      verificationMethod: [{
+        id: `did:web:${host}#sig-1`,
+        type: 'Ed25519VerificationKey2020',
+        controller: `did:web:${host}`,
+        publicKeyBase64: pubB64,
+      }],
+      assertionMethod: [`did:web:${host}#sig-1`],
+      service: [
+        { id: `did:web:${host}#catalog`, type: 'ServiceCatalog', serviceEndpoint: `${OWNER.domain}/catalog.json` },
+        { id: `did:web:${host}#commerce`, type: 'AgentCommerce', serviceEndpoint: `${OWNER.domain}/api/agent/catalog` },
+      ],
+    };
+    return (sendJson(res, 200, doc), true);
+  }
+
+  // ── /.well-known/ai-plugin.json — OpenAI/Claude plugin manifest ──────────
+  if (urlPath === '/.well-known/ai-plugin.json' || urlPath === '/ai-plugin.json') {
+    return (sendJson(res, 200, {
+      schema_version: 'v1',
+      name_for_human: 'ZeusAI',
+      name_for_model: 'zeusai',
+      description_for_human: 'Browse and buy 169+ Unicorn services autonomously.',
+      description_for_model: 'Lets an AI agent discover, quote and purchase Unicorn services. Supports BTC, Lightning, USDC, SEPA. Returns Ed25519-signed Verifiable Credential receipts.',
+      auth: { type: 'none' },
+      api: { type: 'openapi', url: `${OWNER.domain}/openapi.json` },
+      logo_url: `${OWNER.domain}/assets/zeus/brand.jpg`,
+      contact_email: OWNER.email,
+      legal_info_url: `${OWNER.domain}/legal`,
+    }), true);
+  }
+
+  // ── /.well-known/mcp.json — Model Context Protocol discovery ─────────────
+  if (urlPath === '/.well-known/mcp.json' || urlPath === '/mcp.json') {
+    return (sendJson(res, 200, {
+      mcpVersion: '2025-03-26',
+      server: { name: 'zeusai', version: '1.0.0', vendor: OWNER.name },
+      capabilities: { tools: true, resources: true, prompts: false },
+      tools: [
+        { name: 'catalog_list',   description: 'List available Unicorn services with current prices', endpoint: `${OWNER.domain}/api/agent/catalog`, method: 'GET' },
+        { name: 'service_quote',  description: 'Get signed quote for a specific service', endpoint: `${OWNER.domain}/api/agent/quote`, method: 'POST' },
+        { name: 'service_order',  description: 'Place an order; returns W3C Verifiable Credential receipt', endpoint: `${OWNER.domain}/api/agent/order`, method: 'POST' },
+        { name: 'payment_route',  description: 'Recommend cheapest/fastest payment rail', endpoint: `${OWNER.domain}/api/pay/route`, method: 'POST' },
+      ],
+      resources: [
+        { uri: `${OWNER.domain}/catalog.json`, name: 'Signed service catalog', mimeType: 'application/json' },
+        { uri: `${OWNER.domain}/feed.json`, name: 'Service update feed (JSON Feed 1.1)', mimeType: 'application/feed+json' },
+      ],
+    }), true);
+  }
+
+  // ── /openapi.json — public OpenAPI 3.1 spec ──────────────────────────────
+  if (urlPath === '/openapi.json' || urlPath === '/api/openapi.json') {
+    return (sendJson(res, 200, {
+      openapi: '3.1.0',
+      info: { title: 'ZeusAI Sovereign API', version: '1.0.0', description: 'Autonomous commerce for Unicorn services.', contact: { name: OWNER.name, email: OWNER.email } },
+      servers: [{ url: OWNER.domain }],
+      paths: {
+        '/api/agent/catalog': { get: { operationId: 'listCatalog', summary: 'List all sellable services', responses: { '200': { description: 'Catalog', content: { 'application/json': {} } } } } },
+        '/api/agent/quote':   { post: { operationId: 'quoteService', summary: 'Get signed quote', requestBody: { required: true, content: { 'application/json': { schema: { type: 'object', properties: { serviceId: { type: 'string' }, currency: { type: 'string' }, qty: { type: 'number' } }, required: ['serviceId'] } } } }, responses: { '200': { description: 'Signed quote' } } } },
+        '/api/agent/order':   { post: { operationId: 'orderService', summary: 'Place order, receive VC receipt', requestBody: { required: true, content: { 'application/json': { schema: { type: 'object', properties: { quoteId: { type: 'string' }, buyer: { type: 'object' } }, required: ['quoteId'] } } } }, responses: { '201': { description: 'Receipt minted' } } } },
+        '/api/pay/route':     { post: { operationId: 'routePayment', summary: 'Pick best payment rail', requestBody: { content: { 'application/json': { schema: { type: 'object', properties: { amount: { type: 'number' }, currency: { type: 'string' } } } } } }, responses: { '200': { description: 'Recommendation' } } } },
+        '/api/i18n/detect':   { get: { operationId: 'detectLang', summary: 'Detect language from Accept-Language', responses: { '200': { description: 'Lang' } } } },
+        '/api/sovereign/status': { get: { operationId: 'status', summary: 'Signed sovereign status', responses: { '200': { description: 'Status' } } } },
+        '/api/receipt/{id}':  { get: { operationId: 'getReceipt', parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }], responses: { '200': { description: 'VC' }, '404': { description: 'Not found' } } } },
+        '/catalog.json':      { get: { operationId: 'signedCatalog', summary: 'Ed25519-signed full catalog', responses: { '200': { description: 'Signed catalog' } } } },
+        '/feed.json':         { get: { operationId: 'feed', summary: 'JSON Feed 1.1', responses: { '200': { description: 'Feed' } } } },
+      },
+    }), true);
+  }
+
+  // ── /feed.json — JSON Feed 1.1 of recent services/updates ────────────────
+  if (urlPath === '/feed.json') {
+    const items = [];
+    try {
+      if (ctx && typeof ctx.buildSnapshot === 'function') {
+        const snap = ctx.buildSnapshot();
+        const all = [].concat(snap.marketplace || [], snap.services || []).filter(s => s && s.id);
+        for (const s of all.slice(0, 100)) {
+          items.push({
+            id: `${OWNER.domain}/services/${s.id}`,
+            url: `${OWNER.domain}/services/${s.id}`,
+            title: s.name || s.title || s.id,
+            content_text: s.description || s.summary || `Unicorn service ${s.id}`,
+            date_published: new Date().toISOString(),
+            tags: s.tags || s.categories || undefined,
+          });
+        }
+      }
+    } catch (_) {}
+    const feed = {
+      version: 'https://jsonfeed.org/version/1.1',
+      title: 'ZeusAI Service Feed',
+      home_page_url: OWNER.domain,
+      feed_url: `${OWNER.domain}/feed.json`,
+      description: 'Current catalog of Unicorn services.',
+      language: lang,
+      authors: [{ name: OWNER.name, url: OWNER.domain }],
+      items,
+    };
+    res.writeHead(200, { 'Content-Type': 'application/feed+json; charset=utf-8', 'Cache-Control': 'public, max-age=120, stale-while-revalidate=600' });
+    const body = JSON.stringify(feed);
+    res.end(body);
+    recordMetric(urlPath, 200, body.length);
+    return true;
+  }
+
+  // ── /catalog.json — signed machine-readable catalog ──────────────────────
+  if (urlPath === '/catalog.json') {
+    const items = [];
+    try {
+      if (ctx && typeof ctx.buildSnapshot === 'function') {
+        const snap = ctx.buildSnapshot();
+        const all = [].concat(snap.marketplace || [], snap.services || []).filter(s => s && s.id);
+        for (const s of all) {
+          items.push({
+            id: s.id,
+            name: s.name || s.title || s.id,
+            description: s.description || s.summary || null,
+            price: s.price != null ? Number(s.price) : null,
+            currency: s.currency || 'USD',
+            unit: s.unit || 'one-time',
+            url: `${OWNER.domain}/services/${encodeURIComponent(s.id)}`,
+            category: s.category || s.vertical || null,
+          });
+        }
+      }
+    } catch (_) {}
+    const payload = {
+      '@context': 'https://schema.org',
+      '@type': 'OfferCatalog',
+      name: 'ZeusAI Unicorn Services',
+      provider: { '@type': 'Organization', name: OWNER.name, url: OWNER.domain, email: OWNER.email },
+      url: OWNER.domain,
+      generated_at: new Date().toISOString(),
+      count: items.length,
+      items,
+    };
+    payload.signature = signPayload({ count: payload.count, generated_at: payload.generated_at, items });
+    const body = JSON.stringify(payload);
+    const etag = '"' + crypto.createHash('sha1').update(body).digest('base64').slice(0, 22) + '"';
+    if (req.headers['if-none-match'] === etag) {
+      res.writeHead(304, { ETag: etag, 'Cache-Control': 'public, max-age=60, stale-while-revalidate=600' });
+      res.end(); recordMetric(urlPath, 304, 0); return true;
+    }
+    res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8', ETag: etag, 'Cache-Control': 'public, max-age=60, stale-while-revalidate=600', 'X-Unicorn-Sovereign': '1' });
+    res.end(body);
+    recordMetric(urlPath, 200, body.length);
+    return true;
+  }
+
+  // ── /structured-data.json — JSON-LD Organization + Website ──────────────
+  if (urlPath === '/structured-data.json') {
+    return (sendJson(res, 200, [
+      {
+        '@context': 'https://schema.org',
+        '@type': 'Organization',
+        '@id': `${OWNER.domain}#org`,
+        name: 'ZeusAI',
+        legalName: OWNER.name,
+        url: OWNER.domain,
+        logo: `${OWNER.domain}/assets/zeus/brand.jpg`,
+        email: OWNER.email,
+        sameAs: [],
+        founder: { '@type': 'Person', name: OWNER.name },
+      },
+      {
+        '@context': 'https://schema.org',
+        '@type': 'WebSite',
+        '@id': `${OWNER.domain}#website`,
+        url: OWNER.domain,
+        name: 'ZeusAI',
+        publisher: { '@id': `${OWNER.domain}#org` },
+        potentialAction: { '@type': 'SearchAction', target: `${OWNER.domain}/services?q={query}`, 'query-input': 'required name=query' },
+        inLanguage: SUPPORTED_LANGS,
+      },
+      {
+        '@context': 'https://schema.org',
+        '@type': 'OfferCatalog',
+        name: 'ZeusAI Unicorn Services',
+        url: `${OWNER.domain}/catalog.json`,
+      },
+    ]), true);
+  }
+
+  // ── /status — public uptime/health (no internals leaked) ─────────────────
+  if (urlPath === '/status') {
+    const uptimeSec = (Date.now() - METRICS.startedAt) / 1000;
+    const health = {
+      status: 'operational',
+      uptime_seconds: Number(uptimeSec.toFixed(2)),
+      requests_total: METRICS.requests.total,
+      green: { gco2e_total: Number(METRICS.gco2.toFixed(6)), verdict: METRICS.gco2 < 1 ? 'A+' : METRICS.gco2 < 10 ? 'A' : 'B' },
+      pay_rails_live: PAY_RAILS.filter(r => r.live).map(r => r.id),
+      features: { agent_commerce: true, verifiable_receipts: true, mcp: true, ai_plugin: true, llms_txt: true, json_feed: true, did_web: true },
+      updated_at: new Date().toISOString(),
+    };
+    return (sendJson(res, 200, health), true);
+  }
+
+  // ══════════════════════════════════════════════════════════════════════
+  // AGENT COMMERCE PROTOCOL — quote → order → signed receipt
+  // ══════════════════════════════════════════════════════════════════════
+  const QUOTES = (global.__AGENT_QUOTES__ = global.__AGENT_QUOTES__ || new Map());
+
+  // ── /api/agent/catalog — machine buyer view ──────────────────────────────
+  if (urlPath === '/api/agent/catalog') {
+    const items = [];
+    try {
+      if (ctx && typeof ctx.buildSnapshot === 'function') {
+        const snap = ctx.buildSnapshot();
+        const all = [].concat(snap.marketplace || [], snap.services || []).filter(s => s && s.id);
+        for (const s of all) {
+          items.push({
+            serviceId: s.id,
+            name: s.name || s.title || s.id,
+            price: s.price != null ? Number(s.price) : null,
+            currency: s.currency || 'USD',
+            unit: s.unit || 'one-time',
+            category: s.category || s.vertical || null,
+            quote: `POST ${OWNER.domain}/api/agent/quote`,
+            order: `POST ${OWNER.domain}/api/agent/order`,
+          });
+        }
+      }
+    } catch (_) {}
+    return (sendJson(res, 200, {
+      protocol: 'agent-commerce/1.0',
+      provider: { did: `did:web:${OWNER.domain.replace(/^https?:\/\//, '')}`, name: OWNER.name },
+      count: items.length,
+      items,
+      flow: ['POST /api/agent/quote {serviceId, qty?, currency?}', 'POST /api/agent/order {quoteId, buyer?}', 'GET  /api/receipt/{id}'],
+    }), true);
+  }
+
+  // ── /api/agent/quote — signed price quote (TTL 10 min) ───────────────────
+  if (urlPath === '/api/agent/quote' && req.method === 'POST') {
+    const body = await readBody(req);
+    const serviceId = String(body.serviceId || body.id || '').trim();
+    if (!serviceId) return (sendJson(res, 400, { error: 'serviceId_required' }), true);
+    const qty = Math.max(1, Number(body.qty || 1));
+    const currency = String(body.currency || 'USD').toUpperCase();
+    // Locate service in current snapshot
+    let svc = null;
+    try {
+      if (ctx && typeof ctx.buildSnapshot === 'function') {
+        const snap = ctx.buildSnapshot();
+        const all = [].concat(snap.marketplace || [], snap.services || []).filter(s => s && s.id);
+        svc = all.find(s => String(s.id) === serviceId) || null;
+      }
+    } catch (_) {}
+    if (!svc) return (sendJson(res, 404, { error: 'service_not_found', serviceId }), true);
+    const unit = svc.price != null ? Number(svc.price) : 0;
+    const subtotal = Number((unit * qty).toFixed(2));
+    const rail = selectRail(subtotal, currency);
+    const quoteId = 'q-' + crypto.randomBytes(8).toString('hex');
+    const quote = {
+      quoteId,
+      serviceId,
+      serviceName: svc.name || svc.title || serviceId,
+      qty,
+      unit_price: unit,
+      subtotal,
+      currency,
+      recommended_rail: rail.recommended ? rail.recommended.id : null,
+      expires_at: new Date(Date.now() + 10 * 60 * 1000).toISOString(),
+      provider: { did: `did:web:${OWNER.domain.replace(/^https?:\/\//, '')}`, name: OWNER.name },
+      issued_at: new Date().toISOString(),
+    };
+    quote.signature = signPayload(quote);
+    QUOTES.set(quoteId, { quote, expiresAt: Date.now() + 10 * 60 * 1000 });
+    // Cleanup expired
+    if (QUOTES.size > 5000) { for (const [k, v] of QUOTES) { if (v.expiresAt < Date.now()) QUOTES.delete(k); } }
+    return (sendJson(res, 200, quote), true);
+  }
+
+  // ── /api/agent/order — accept quote, mint VC receipt ─────────────────────
+  if (urlPath === '/api/agent/order' && req.method === 'POST') {
+    const body = await readBody(req);
+    const quoteId = String(body.quoteId || '').trim();
+    const rec = QUOTES.get(quoteId);
+    if (!rec) return (sendJson(res, 404, { error: 'quote_not_found_or_expired', quoteId }), true);
+    if (rec.expiresAt < Date.now()) { QUOTES.delete(quoteId); return (sendJson(res, 410, { error: 'quote_expired', quoteId }), true); }
+    const buyer = body.buyer || { type: 'anonymous-agent' };
+    const order = {
+      orderId: 'o-' + crypto.randomBytes(8).toString('hex'),
+      quote: rec.quote,
+      buyer,
+      status: 'awaiting_payment',
+      payment_instructions: selectRail(rec.quote.subtotal, rec.quote.currency),
+    };
+    const { id: receiptId, vc } = mintReceipt({ order });
+    order.receipt = { id: receiptId, url: `${OWNER.domain}/api/receipt/${receiptId}` };
+    archivePush({ kind: 'agent_order', order });
+    res.setHeader('Location', `/api/receipt/${receiptId}`);
+    return (sendJson(res, 201, { order, vc }), true);
+  }
+
   // ── /api/sovereign/status — public manifesto ───────────────────────────
   if (urlPath === '/api/sovereign/status') {
     const uptimeSec = (Date.now() - METRICS.startedAt) / 1000;
@@ -430,6 +810,16 @@ ${all.map(u => `  <url><loc>${OWNER.domain}${u}</loc><lastmod>${now}</lastmod><c
       archive: '/archive',
       intent_bus: '/api/intent',
       payments: '/api/pay/route',
+      llms_txt: '/llms.txt',
+      ai_plugin: '/.well-known/ai-plugin.json',
+      mcp: '/.well-known/mcp.json',
+      openapi: '/openapi.json',
+      catalog_signed: '/catalog.json',
+      feed: '/feed.json',
+      did: '/.well-known/did.json',
+      structured_data: '/structured-data.json',
+      agent_commerce: { catalog: '/api/agent/catalog', quote: '/api/agent/quote', order: '/api/agent/order' },
+      status_page: '/status',
       generated_at: new Date().toISOString(),
     };
     status.signature = signPayload(status);
