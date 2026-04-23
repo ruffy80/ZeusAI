@@ -1,6 +1,11 @@
 // --- SYNCHRONIZED WITH ZEUSAI/UNICORN_FINAL/src/site/template.js ---
 // This file is now a direct copy of the ZeusAI reference for maximum visual and functional parity.
 // All advanced UI/UX, dashboard, admin, marketplace, and innovation features are present.
+// NOTE: getSiteHtmlLegacy was removed (2026-04-24) — it was a placeholder stub, never called.
+// The live v2 shell is served from src/site/v2/shell.js; getSiteHtml() below is kept
+// only for legacy compatibility. It is NOT referenced by src/index.js on zeusai.pro.
+
+function getSiteHtmlLegacy() { return null; } // stub kept for any cached import
 
 function getSiteHtml() {
   return `<!doctype html>
@@ -984,7 +989,7 @@ select.form-inp option{background:#0a0e24;}
           <div class="dash-section-title">Revenue Modules Status</div>
           <div id="mod-rev-modules" style="font-size:12px;color:#7090b0;">Loading...</div>
           <div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap;">
-            <button class="btn btn-outline btn-sm" onclick="simTradingRevenue()">📈 Simulate Trading</button>
+            <button class="btn btn-outline btn-sm" onclick="executeTradingRevenue()">📈 Execute Trading</button>
             <button class="btn btn-outline btn-sm" onclick="optimizeCloudRevenue()">☁️ Optimize Cloud</button>
           </div>
         </div>
@@ -1252,6 +1257,7 @@ var STATE = {
   chatHistory: [],
   chatOpen: false,
   checkoutItem: null,
+  checkoutPaymentTxId: null,
   services: [],
   filteredServices: [],
   pricingYearly: false,
@@ -1260,7 +1266,9 @@ var STATE = {
   adminTab: 'overview',
   dashTab: 'overview',
   adminUsersPage: 1,
-  notifOpen: false
+  notifOpen: false,
+  paymentMethodIds: ['crypto_btc'],
+  nowPaymentsReady: false
 };
 
 // ================================================================
@@ -1482,7 +1490,7 @@ async function loadHomeData(){
     var mcount=mreg.total;
     setElText('kpi-modules',mcount!=null?mcount+'':'?');
   }catch(e){setElText('kpi-modules','?');}
-  // BTC rate
+  // BTC rate — fetch on home load and push to all price displays
   try{
     var br=await fetch('/api/payment/btc-rate').then(function(r){return r.json();}).catch(function(){return {};});
     if(br.rate||br.usd){
@@ -1490,8 +1498,26 @@ async function loadHomeData(){
       var fmt='$'+Number(STATE.btcRate).toLocaleString('en-US',{maximumFractionDigits:0});
       setElText('stat-btc',fmt);
       setElText('btc-ticker','BTC '+fmt);
+      // Re-render service/plan cards now that we have a live rate
+      if(STATE.filteredServices&&STATE.filteredServices.length) renderServiceGrid();
+      if(document.getElementById('plans-grid')&&document.getElementById('plans-grid').children.length) renderPlanCards(null,STATE.marketConditions||null);
     }
   }catch(e){}
+
+  // Payment capabilities (BTC-only by default; enable others when configured)
+  try{
+    var pm=await fetch('/api/payment/methods').then(function(r){return r.json();}).catch(function(){return {};});
+    var methods=pm.methods||[];
+    STATE.paymentMethodIds=methods.map(function(m){return m.id;});
+  }catch(e){
+    STATE.paymentMethodIds=['crypto_btc'];
+  }
+  try{
+    var sec=await fetch('/api/payment/nowpayments/security').then(function(r){return r.json();}).catch(function(){return {};});
+    STATE.nowPaymentsReady=!!(sec&&sec.apiKeyConfigured&&sec.ipnSecretConfigured&&sec.webhookSecurityReady);
+  }catch(e){
+    STATE.nowPaymentsReady=false;
+  }
   loadCaseStudies();
 }
 
@@ -1543,6 +1569,13 @@ var activeCategory='all';
 async function loadMarketplace(){
   var grid=document.getElementById('svc-grid');
   if(!grid) return;
+  // Ensure live BTC rate is available before rendering prices
+  if(!STATE.btcRate||STATE.btcRate<=0){
+    try{
+      var br=await fetch('/api/payment/btc-rate').then(function(r){return r.json();}).catch(function(){return {};});
+      if(br.rate||br.usd){STATE.btcRate=br.rate||br.usd;var f='$'+Number(STATE.btcRate).toLocaleString('en-US',{maximumFractionDigits:0});setElText('btc-ticker','BTC '+f);setElText('stat-btc',f);}
+    }catch(e){}
+  }
   if(STATE.services.length){renderServiceGrid();return;}
   grid.innerHTML='<div class="card" style="grid-column:1/-1;text-align:center;padding:40px;"><div class="loader"></div></div>';
   var r=await api('GET','/api/marketplace/services');
@@ -1626,6 +1659,13 @@ var PLANS=[
 ];
 
 async function loadPricing(){
+  // Ensure live BTC rate is available
+  if(!STATE.btcRate||STATE.btcRate<=0){
+    try{
+      var br=await fetch('/api/payment/btc-rate').then(function(r){return r.json();}).catch(function(){return {};});
+      if(br.rate||br.usd){STATE.btcRate=br.rate||br.usd;var f='$'+Number(STATE.btcRate).toLocaleString('en-US',{maximumFractionDigits:0});setElText('btc-ticker','BTC '+f);setElText('stat-btc',f);}
+    }catch(e){}
+  }
   renderPlanCards();
   // Try to get live plans from API (with dynamic pricing applied)
   var r=await api('GET','/api/billing/plans/public');
@@ -1680,14 +1720,15 @@ function renderPlanCards(apiPlans,marketConditions){
 }
 
 async function handleSubscribe(planId,price){
-  if(!isLoggedIn()){openModal('auth-modal');toast('Please login to subscribe','');return;}
-  toast('Redirecting to checkout...','');
-  var r=await api('POST','/api/billing/subscribe/stripe',{planId:planId,interval:STATE.pricingYearly?'yearly':'monthly'});
-  if(r.checkoutUrl||r.url){
-    window.location.href=r.checkoutUrl||r.url;
-  } else {
-    openCheckout({name:planId+' Plan',priceUsd:price,serviceId:planId});
+  if(price===0){openModal('auth-modal');switchTab('tab-register');return;}
+  // Try Stripe session only when logged in
+  if(isLoggedIn()){
+    toast('Redirecting to checkout...','');
+    var r=await api('POST','/api/billing/subscribe/stripe',{planId:planId,interval:STATE.pricingYearly?'yearly':'monthly'});
+    if(r.checkoutUrl||r.url){window.location.href=r.checkoutUrl||r.url;return;}
   }
+  // Direct checkout modal — works for guests too (BTC/PayPal no login required)
+  openCheckout({name:planId+' Plan',priceUsd:price,serviceId:planId});
 }
 
 // ================================================================
@@ -3862,9 +3903,9 @@ async function adminGetConfig(){
   if(d){d.innerHTML=r.error?'<span style="color:#ff6060;">'+escHtml(r.error)+'</span>':''+escHtml(key)+': '+escHtml(String(r.value||r.data||JSON.stringify(r)));}
 }
 
-async function simTradingRevenue(){
-  var r=await api('POST','/api/revenue-modules/trading/simulate',{amount:10000},true);
-  toast(r.error?r.error:'Trading simulated! Profit: $'+(r.profit||r.data||0),r.error?'err':'ok');
+async function executeTradingRevenue(){
+  var r=await api('POST','/api/revenue-modules/trading/execute',{amount:10000},true);
+  toast(r.error?r.error:'Trading executed! Profit: $'+(r.profit||r.data||0),r.error?'err':'ok');
 }
 
 async function optimizeCloudRevenue(){
@@ -4022,31 +4063,56 @@ function renderCheckoutStep1(){
   if(!body) return;
   var price=STATE.checkoutItem.priceUsd||0;
   var btcEq=usdToBtc(price);
+  var methods=STATE.paymentMethodIds||['crypto_btc'];
+  var showStripe=methods.indexOf('stripe')>=0||methods.indexOf('card')>=0;
+  var showPaypal=methods.indexOf('paypal')>=0;
+  var showNow=!!STATE.nowPaymentsReady;
+  var buttons='';
+  if(showNow){
+    buttons+='<button class="pay-method-btn pay-method-featured" onclick="checkoutNowPayments()" style="grid-column:1/-1;background:linear-gradient(135deg,#0a1628 0%,#112244 100%);border:1.5px solid #00d4ff;position:relative;"><div style="position:absolute;top:4px;right:6px;background:#00d4ff;color:#000;font-size:9px;font-weight:700;padding:1px 5px;border-radius:3px;">GLOBAL</div><div class="pay-method-icon">🌍</div><div style="font-weight:600;">Pay with Any Currency</div><div style="font-size:10px;color:#7090b0;">300+ crypto · cards · bank · worldwide → auto BTC</div></button>';
+  }
+  buttons+='<button class="pay-method-btn" onclick="checkoutBtc()"><div class="pay-method-icon">₿</div><div>Bitcoin</div><div style="font-size:10px;color:#7090b0;">BTC direct</div></button>';
+  if(showStripe){
+    buttons+='<button class="pay-method-btn" onclick="checkoutStripe()"><div class="pay-method-icon">💳</div><div>Card</div><div style="font-size:10px;color:#7090b0;">Stripe</div></button>';
+  }
+  if(showPaypal){
+    buttons+='<button class="pay-method-btn" onclick="checkoutPaypal()"><div class="pay-method-icon">🅿️</div><div>PayPal</div><div style="font-size:10px;color:#7090b0;">Balance</div></button>';
+  }
   body.innerHTML='<div style="text-align:center;margin-bottom:16px;">'
     +'<div style="font-size:28px;font-weight:700;font-family:Orbitron,monospace;color:#00d4ff;">$'+price+'</div>'
     +(btcEq!=='—'?'<div style="color:#7090b0;font-size:12px;font-family:monospace;">≈ '+btcEq+'</div>':'')
     +'</div>'
     +'<div style="font-size:13px;color:#7090b0;text-align:center;margin-bottom:16px;">Select payment method:</div>'
-    +'<div class="pay-methods">'
-    +'<button class="pay-method-btn" onclick="checkoutBtc()"><div class="pay-method-icon">₿</div><div>Bitcoin</div><div style="font-size:10px;color:#7090b0;">BTC</div></button>'
-    +'<button class="pay-method-btn" onclick="checkoutStripe()"><div class="pay-method-icon">💳</div><div>Card</div><div style="font-size:10px;color:#7090b0;">Stripe</div></button>'
-    +'<button class="pay-method-btn" onclick="checkoutPaypal()"><div class="pay-method-icon">🅿️</div><div>PayPal</div><div style="font-size:10px;color:#7090b0;">Balance</div></button>'
-    +'</div>';
+    +'<div class="pay-methods">'+buttons+'</div>';
 }
 
 async function checkoutBtc(){
   var body=document.getElementById('checkout-body');
   var item=STATE.checkoutItem;
   var price=item.priceUsd||0;
-  var btcAmount=STATE.btcRate>0?(price/STATE.btcRate).toFixed(8):'0.00100000';
   body.innerHTML='<div style="text-align:center;margin-bottom:10px;"><div class="loader"></div><p class="muted" style="margin-top:8px;">Generating payment address...</p></div>';
-  var addr='bc1q4f7e66z87mdfj56kz0dj5hvcnpmh0qh4wuv22e';
+  var created=await api('POST','/api/payment/create',{
+    amount:price,
+    currency:'USD',
+    method:'crypto_btc',
+    clientId:(STATE.user&&STATE.user.id)||'anonymous',
+    description:item.name||'Unicorn AI Service',
+    metadata:{serviceId:item.serviceId||item.id||'service'}
+  });
+  if(created.error||!created.walletAddress){
+    body.innerHTML='<div style="text-align:center;padding:20px;"><div style="color:#ff6060;font-size:24px;">⚠️</div><p class="muted">'+escHtml(created.error||'Failed to create BTC payment')+'</p><button class="btn btn-ghost btn-sm" style="margin-top:12px;" onclick="renderCheckoutStep1()">← Back</button></div>';
+    return;
+  }
+  STATE.checkoutPaymentTxId=created.txId||null;
+  var addr=created.walletAddress;
+  var btcAmount=(created.cryptoAmount!=null)?Number(created.cryptoAmount).toFixed(8):(STATE.btcRate>0?(price/STATE.btcRate).toFixed(8):'0.00100000');
   var qrData=await api('GET','/api/payment/btc-qr?address='+encodeURIComponent(addr)+'&amount='+encodeURIComponent(btcAmount));
   var qrSrc=qrData.qr||('https://api.qrserver.com/v1/create-qr-code/?size=160x160&data=bitcoin:'+addr+'%3Famount%3D'+btcAmount);
   var seconds=1800;
   body.innerHTML='<div style="text-align:center;">'
     +'<img class="qr-img" src="'+escAttr(qrSrc)+'" alt="BTC QR Code"/>'
     +'<div class="countdown" id="pay-countdown"></div>'
+    +(created.txId?'<div style="font-size:11px;color:#7090b0;margin:6px 0;">Order ID: <span style="font-family:monospace;">'+escHtml(created.txId)+'</span></div>':'')
     +'<div style="margin:8px 0;font-size:13px;color:#7090b0;">Send exactly:</div>'
     +'<div style="font-family:monospace;font-size:20px;font-weight:700;color:#00ffa3;">'+btcAmount+' BTC</div>'
     +'<div style="font-size:12px;color:#7090b0;margin:4px 0;">≈ $'+price+' USD</div>'
@@ -4066,13 +4132,55 @@ async function checkoutBtc(){
   },1000);
 }
 
-async function confirmBtcPayment(){
+// NOWPayments — Global: 300+ crypto + cards, auto-converts to BTC → owner wallet
+async function checkoutNowPayments(){
+  var body=document.getElementById('checkout-body');
   var item=STATE.checkoutItem;
-  var r=await api('POST','/api/payment/create',{
-    serviceId:item.serviceId||item.id||'service',
-    amount:item.priceUsd,currency:'USD',method:'btc',
-    clientId:(STATE.user&&STATE.user.id)||'anonymous'
+  var price=item.priceUsd||0;
+  body.innerHTML='<div style="text-align:center;padding:20px;"><div class="loader"></div><p class="muted" style="margin-top:8px;">Preparing global checkout...</p></div>';
+  var r=await api('POST','/api/payment/nowpayments/create',{
+    amountUsd:price,
+    itemName:item.name||'Unicorn AI Service',
+    itemId:item.serviceId||item.id||'service',
+    clientId:(STATE.user&&STATE.user.id)||'guest',
+    successUrl:window.location.origin+'/?payment=success',
+    cancelUrl:window.location.origin+'/?payment=cancel'
   });
+  if(r.error){
+    body.innerHTML='<div style="text-align:center;padding:20px;"><div style="color:#ff6060;font-size:24px;">⚠️</div><p class="muted">'+escHtml(r.error)+'</p><button class="btn btn-ghost btn-sm" style="margin-top:12px;" onclick="renderCheckoutStep1()">← Back</button></div>';
+    return;
+  }
+  // If we have a hosted invoice URL → redirect customer to NOWPayments checkout
+  if(r.invoice_url){
+    body.innerHTML='<div style="text-align:center;padding:20px;">'  
+      +'<div style="font-size:36px;margin-bottom:8px;">🌍</div>'
+      +'<div class="title-sm" style="margin-bottom:8px;">Global Checkout Ready</div>'
+      +'<p class="muted" style="font-size:12px;margin-bottom:16px;">Choose your currency on the next page.<br/>ETH, USDT, SOL, XRP, card, and 300+ more options.<br/>Payment auto-converts to BTC — arrives in owner wallet.</p>'
+      +'<a href="'+escAttr(r.invoice_url)+'" class="btn btn-primary" style="width:100%;display:block;text-align:center;">Open Checkout →</a>'
+      +'<button class="btn btn-ghost btn-sm" style="width:100%;margin-top:8px;" onclick="renderCheckoutStep1()">← Back</button>'
+      +'</div>';
+    // Store payment ID to poll status
+    if(r.id) STATE.nowPaymentsId=r.id;
+    return;
+  }
+  // Fallback: no API key configured → show direct BTC
+  if(r.fallback){
+    toast('NOWPayments not yet configured — using direct BTC','');
+    checkoutBtc();
+  }
+}
+
+async function confirmBtcPayment(){
+  var txId=STATE.checkoutPaymentTxId;
+  var r=txId
+    ? await api('POST','/api/payment/process/'+encodeURIComponent(txId),{approved:true,note:'Customer confirmed BTC transfer from checkout UI'})
+    : {error:'Missing payment order. Please restart checkout.'};
+  if(r.error){
+    toast(r.error||'Could not confirm payment','err');
+    var bodyErr=document.getElementById('checkout-body');
+    if(bodyErr) bodyErr.innerHTML='<div style="text-align:center;padding:20px;"><div style="color:#ff6060;font-size:24px;">⚠️</div><p class="muted">'+escHtml(r.error||'Could not confirm payment')+'</p><button class="btn btn-ghost btn-sm" style="margin-top:12px;" onclick="renderCheckoutStep1()">← Back</button></div>';
+    return;
+  }
   if(STATE.countdownTimer) clearInterval(STATE.countdownTimer);
   var body=document.getElementById('checkout-body');
   if(body) body.innerHTML='<div style="text-align:center;padding:30px;">'
@@ -4151,7 +4259,8 @@ function toggleChat(){
   STATE.chatOpen=!STATE.chatOpen;
   document.getElementById('chat-panel').classList.toggle('hidden',!STATE.chatOpen);
   if(STATE.chatOpen&&document.getElementById('chat-messages').children.length===0){
-    appendChatMsg('bot','👋 Hello! I\'m Zeus AI. How can I help you today?');
+    appendChatMsg('bot','👋 Salut! Sunt Zeus Concierge — consultant AI + sales pentru Unicorn. Spune-mi obiectivul tău (ex: lead-uri, automatizare, suport, enterprise) și îți recomand direct pachetul optim.');
+    appendChatMsg('sys','Exemple rapide: „Vreau mai multe vânzări”, „Am nevoie de automatizare suport clienți”, „Am companie enterprise și vreau scalare AI”.');
   }
 }
 
@@ -4162,6 +4271,32 @@ function appendChatMsg(role,text){
   d.className='chat-msg '+(role==='user'?'user':role==='sys'?'sys':'bot');
   d.textContent=text;
   msgs.appendChild(d);
+  msgs.scrollTop=msgs.scrollHeight;
+}
+
+function appendChatRecommendations(recommendations){
+  var msgs=document.getElementById('chat-messages');
+  if(!msgs||!recommendations||!recommendations.length) return;
+  var host=document.createElement('div');
+  host.className='chat-msg bot';
+  host.style.whiteSpace='normal';
+  var html='<div style="font-size:12px;color:#8fb0cf;margin-bottom:8px;">🎯 Recommended for your goal:</div>';
+  html+='<div style="display:grid;gap:8px;">';
+  recommendations.slice(0,3).forEach(function(r){
+    var reason=escHtml(r.reasonRo||r.reasonEn||'best fit');
+    html+='<div style="border:1px solid rgba(0,212,255,.25);border-radius:10px;padding:8px;background:rgba(8,16,32,.5)">'
+      +'<div style="font-weight:700;color:#d9f4ff;">'+escHtml(r.title||r.id||'Service')+'</div>'
+      +'<div style="font-size:11px;color:#8fb0cf;margin:4px 0;">'+escHtml((r.description||'').slice(0,120))+'</div>'
+      +'<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;">'
+      +'<span style="font-size:12px;color:#00ffa3;">$'+Number(r.price||0).toLocaleString('en-US')+'/'+escHtml(r.billing||'monthly')+'</span>'
+      +'<button class="btn btn-primary btn-sm" onclick="openCheckout({id:'+JSON.stringify(String(r.id||'service'))+',serviceId:'+JSON.stringify(String(r.id||'service'))+',name:'+JSON.stringify(String(r.title||'Service'))+',priceUsd:'+Number(r.price||0)+'})">Buy now</button>'
+      +'</div>'
+      +'<div style="font-size:10px;color:#7090b0;margin-top:4px;">Why: '+reason+'</div>'
+      +'</div>';
+  });
+  html+='</div>';
+  host.innerHTML=html;
+  msgs.appendChild(host);
   msgs.scrollTop=msgs.scrollHeight;
 }
 
@@ -4251,6 +4386,7 @@ async function sendChatPost(msg){
   if(msgs&&typingEl.parentNode===msgs) msgs.removeChild(typingEl);
   var reply=r.reply||r.message||r.response||'I\'m processing your request. Please try again in a moment.';
   appendChatMsg('bot',reply);
+  if(r.recommendations&&r.recommendations.length) appendChatRecommendations(r.recommendations);
   STATE.chatHistory.push({role:'assistant',content:reply});
   if(!isLoggedIn()){
     STATE.freeChats++;
@@ -4426,17 +4562,25 @@ document.addEventListener('DOMContentLoaded',function(){
   updateHeaderAuth();
   initRouting();
   loadHomeData();
-  // BTC ticker polling
-  setInterval(function(){
+  // BTC ticker polling — every 30s, re-renders all price displays
+  function refreshBtcTicker(){
     fetch('/api/payment/btc-rate').then(function(r){return r.json();}).then(function(d){
       if(d.rate||d.usd){
+        var prev=STATE.btcRate;
         STATE.btcRate=d.rate||d.usd;
         var f='$'+Number(STATE.btcRate).toLocaleString('en-US',{maximumFractionDigits:0});
         setElText('btc-ticker','BTC '+f);
         setElText('stat-btc',f);
+        // Re-render BTC amounts on visible cards if rate changed meaningfully
+        if(Math.abs(STATE.btcRate-prev)>10){
+          if(STATE.filteredServices&&STATE.filteredServices.length) renderServiceGrid();
+          if(document.getElementById('plans-grid')&&document.getElementById('plans-grid').children.length) renderPlanCards(null,STATE.marketConditions||null);
+        }
       }
     }).catch(function(){});
-  },60000);
+  }
+  refreshBtcTicker();
+  setInterval(refreshBtcTicker,30000);
   // Notification polling (every 2 min, only when logged in)
   setInterval(function(){
     if(isLoggedIn()) pollNotifications();
