@@ -89,6 +89,33 @@ module.exports = {
       "error_file": "logs/site-error.log",
       "out_file": "logs/site-out.log",
       "log_date_format": "YYYY-MM-DD HH:mm:ss"
+    },
+    {
+      "_comment": "Sole watchdog: no-regression gate + automatic rollback + backend/site health check every 45s. Replaces all prior shields, health-daemons, auto-repair/restart, recovery, zero-downtime and orchestrator PM2 entries — those live as in-process modules inside unicorn-backend (see backend/index.js lines 590/661/684/691/708/722).",
+      "name": "unicorn-guardian",
+      "script": "/root/.unicorn_temp/unicorn-guardian.js",
+      "cwd": "/root",
+      "instances": 1,
+      "exec_mode": "fork",
+      "autorestart": true,
+      "watch": false,
+      "max_restarts": 10,
+      "min_uptime": "30s",
+      "restart_delay": 5000,
+      "env": {
+        "NODE_ENV": "production",
+        "APP_DIR": "/root/.unicorn_temp/UNICORN_FINAL/UNICORN_FINAL",
+        "SNAP_DIR": "/root/.unicorn_temp/snapshots",
+        "CHECK_MS": "45000",
+        "BACKEND": "http://127.0.0.1:3000/api/health",
+        "SITE": "http://127.0.0.1:3001/",
+        "SITE_HEAL": "http://127.0.0.1:3001/health",
+        "MIN_RATIO": "0.98",
+        "PM2_APPS": "unicorn-backend unicorn-site"
+      },
+      "error_file": "logs/guardian-error.log",
+      "out_file": "logs/guardian-out.log",
+      "log_date_format": "YYYY-MM-DD HH:mm:ss"
     }
   ]
 };
