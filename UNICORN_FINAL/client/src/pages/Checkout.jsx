@@ -247,8 +247,7 @@ function InlinePaymentForm({ service, billing, price, onSuccess, onBack }) {
       .then(res => {
         const available = res.data.methods || [];
         setMethods(available);
-        const hasBtc = available.find(m => m.id === 'crypto_btc');
-        if (!hasBtc && available.length) {
+        if (available.length && !available.find(m => m.id === form.method)) {
           setForm(prev => ({ ...prev, method: available[0].id }));
         }
       })
@@ -465,7 +464,7 @@ export default function Checkout() {
   const preselectedPlan = location.state?.plan || null;
   const preselectedService = preselectedPlan
     ? {
-        id: preselectedPlan.id || preselectedPlan.name?.toLowerCase() || 'custom',
+        id: preselectedPlan.id || preselectedPlan.name?.toLowerCase().replace(/\s+/g, '-') || 'custom',
         name: preselectedPlan.name,
         description: preselectedPlan.description || '',
         price: Number(preselectedPlan.price) || 0,

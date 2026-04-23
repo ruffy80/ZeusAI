@@ -34,8 +34,7 @@ export default function PaymentModal({ isOpen, onClose, presetAmount = 199, pres
       .then((res) => {
         const available = res.data.methods || [];
         setMethods(available);
-        const hasBtc = available.find((item) => item.id === 'crypto_btc');
-        if (!hasBtc && available.length && !available.find((item) => item.id === form.method)) {
+        if (available.length && !available.find((item) => item.id === form.method)) {
           setForm((prev) => ({ ...prev, method: available[0].id }));
         }
       })

@@ -21,7 +21,7 @@ export default function PricingCard({ plan = {} }) {
       navigate(ctaPath, {
         state: {
           plan: {
-            id: plan.id || name.toLowerCase(),
+            id: plan.id || name.toLowerCase().replace(/\s+/g, '-'),
             name,
             description,
             price: Number(price),
