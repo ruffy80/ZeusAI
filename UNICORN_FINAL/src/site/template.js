@@ -13,28 +13,6 @@ function getSiteHtml() {
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
 <link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;600;700&family=Orbitron:wght@400;700;900&display=swap" rel="stylesheet"/>
 <style>
-...
-  </style>
-  </head>
-  <body>
-    <canvas id="bg-canvas"></canvas>
-    <div id="toast-container"></div>
-    ...
-  </body>
-  </html>`;
-}
-
-function getSiteHtml() {
-  return `<!doctype html>
-<html lang="en">
-<head>
-<meta charset="utf-8"/>
-<meta name="viewport" content="width=device-width,initial-scale=1"/>
-<title>ZEUS AI — Build. Automate. Scale.</title>
-<link rel="preconnect" href="https://fonts.googleapis.com"/>
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
-<link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;600;700&family=Orbitron:wght@400;700;900&display=swap" rel="stylesheet"/>
-<style>
 :root{color-scheme:dark;}
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
 body{font-family:'Rajdhani',system-ui,Arial;color:#e8f4ff;background:#05060e;overflow-x:hidden;min-height:100vh;}
