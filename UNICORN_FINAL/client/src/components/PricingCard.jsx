@@ -147,7 +147,6 @@ export default function PricingCard({ plan = {} }) {
             width: '100%',
             padding: '0.75rem',
             borderRadius: 12,
-            border: 'none',
             cursor: 'pointer',
             fontFamily: 'var(--font-heading)',
             fontSize: 14,
