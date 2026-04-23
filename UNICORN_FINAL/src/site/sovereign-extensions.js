@@ -162,6 +162,31 @@ async function handle(req, res, ctx) {
   res.setHeader('X-Green-GCO2', METRICS.gco2.toFixed(6));
   res.setHeader('X-Unicorn-Lang', lang);
 
+  // ── /snapshot — ETag + short cache (intercept to add caching) ──────────
+  if (urlPath === '/snapshot' && ctx && typeof ctx.buildSnapshot === 'function') {
+    try {
+      const snap = ctx.buildSnapshot();
+      const body = JSON.stringify(snap);
+      const etag = '"' + crypto.createHash('sha1').update(body).digest('base64').slice(0, 22) + '"';
+      if (req.headers['if-none-match'] === etag) {
+        res.writeHead(304, { 'ETag': etag, 'Cache-Control': 'public, max-age=15, stale-while-revalidate=60' });
+        res.end();
+        recordMetric(urlPath, 304, 0);
+        return true;
+      }
+      res.writeHead(200, {
+        'Content-Type': 'application/json; charset=utf-8',
+        'Cache-Control': 'public, max-age=15, stale-while-revalidate=60',
+        'ETag': etag,
+        'Vary': 'Accept-Encoding',
+        'X-Unicorn-Sovereign': '1',
+      });
+      res.end(body);
+      recordMetric(urlPath, 200, body.length);
+      return true;
+    } catch (_) { /* fall through to legacy */ }
+  }
+
   // ── /robots.txt ────────────────────────────────────────────────────────
   if (urlPath === '/robots.txt') {
     const body = [
@@ -311,35 +336,45 @@ ${all.map(u => `  <url><loc>${OWNER.domain}${u}</loc><lastmod>${now}</lastmod><c
   }
 
   // ── /api/intent — Universal Intent Bus ─────────────────────────────────
-  if (urlPath === '/api/intent' && req.method === 'POST') {
-    const body = await readBody(req);
-    const intent = String(body.intent || body.action || '').toLowerCase();
-    const args = body.args || body.params || {};
-    let response = { intent, args, handled: false, next: null };
-
-    // Intent vocabulary
-    if (/^(explore|browse|discover)(_services)?$/.test(intent)) {
-      response.handled = true;
-      response.next = { route: '/services', method: 'GET' };
-    } else if (/^(buy|purchase|checkout)$/.test(intent)) {
-      response.handled = true;
-      response.next = { route: '/api/services/buy', method: 'POST', body: args };
-    } else if (/^price|quote$/.test(intent)) {
-      response.handled = true;
-      response.next = { route: `/api/billing/plans/public`, method: 'GET' };
-    } else if (/^dashboard|portal$/.test(intent)) {
-      response.handled = true;
-      response.next = { route: '/dashboard', method: 'GET' };
-    } else if (/^pay|route_payment$/.test(intent)) {
-      response.handled = true;
-      response.next = { route: '/api/pay/route', method: 'POST', body: args };
-    } else {
-      response.hint = 'Supported intents: explore, buy, price, dashboard, pay';
+  if (urlPath === '/api/intent') {
+    if (req.method === 'GET') {
+      sendJson(res, 200, {
+        name: 'Universal Intent Bus',
+        doc: 'POST {intent, args} → returns {next: {route, method, body?}}',
+        supported_intents: [
+          { intent: 'explore', aliases: ['browse', 'discover', 'explore_services'], next: 'GET /services' },
+          { intent: 'buy',     aliases: ['purchase', 'checkout'], next: 'POST /api/services/buy' },
+          { intent: 'price',   aliases: ['quote'], next: 'GET /api/billing/plans/public' },
+          { intent: 'dashboard', aliases: ['portal'], next: 'GET /dashboard' },
+          { intent: 'pay',     aliases: ['route_payment'], next: 'POST /api/pay/route' },
+        ],
+      });
+      return true;
     }
-    const archived = archivePush({ kind: 'intent', intent, args, ts: new Date().toISOString() });
-    response.archiveId = archived.id;
-    sendJson(res, 200, response);
-    return true;
+    if (req.method === 'POST') {
+      const body = await readBody(req);
+      const intent = String(body.intent || body.action || '').toLowerCase();
+      const args = body.args || body.params || {};
+      let response = { intent, args, handled: false, next: null };
+
+      if (/^(explore|browse|discover)(_services)?$/.test(intent)) {
+        response.handled = true; response.next = { route: '/services', method: 'GET' };
+      } else if (/^(buy|purchase|checkout)$/.test(intent)) {
+        response.handled = true; response.next = { route: '/api/services/buy', method: 'POST', body: args };
+      } else if (/^price|quote$/.test(intent)) {
+        response.handled = true; response.next = { route: '/api/billing/plans/public', method: 'GET' };
+      } else if (/^dashboard|portal$/.test(intent)) {
+        response.handled = true; response.next = { route: '/dashboard', method: 'GET' };
+      } else if (/^pay|route_payment$/.test(intent)) {
+        response.handled = true; response.next = { route: '/api/pay/route', method: 'POST', body: args };
+      } else {
+        response.hint = 'Supported intents: explore, buy, price, dashboard, pay';
+      }
+      const archived = archivePush({ kind: 'intent', intent, args, ts: new Date().toISOString() });
+      response.archiveId = archived.id;
+      sendJson(res, 200, response);
+      return true;
+    }
   }
 
   // ── /api/receipt/:id ───────────────────────────────────────────────────

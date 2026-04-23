@@ -3057,29 +3057,21 @@ ${invoice.payer ? `<h2>Payer</h2><table><tr><th>Legal entity</th><td>${esc(invoi
   const v2Routes = ['/', '/services', '/pricing', '/checkout', '/dashboard', '/how', '/docs', '/about', '/legal', '/enterprise', '/store', '/account'];
   const isV2Route = v2Routes.includes(req.url.split('?')[0]) || req.url.startsWith('/services/');
   if (isV2Route) {
-    const csp = [
-      "default-src 'self'",
-      "script-src 'self' 'unsafe-inline' https://unpkg.com",
-      "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
-      "font-src 'self' https://fonts.gstatic.com data:",
-      "img-src 'self' data: blob: https:",
-      "connect-src 'self' https:",
-      "frame-ancestors 'none'",
-      "base-uri 'self'",
-      "form-action 'self'"
-    ].join('; ');
+    // Security headers are emitted ONCE by Nginx (zeusai.conf). Node only sets
+    // app-specific headers to avoid duplicate/conflicting CSP/HSTS/XFO.
+    const html = v2.getHtml(req.url.split('?')[0]);
+    const etag = '"' + crypto.createHash('sha1').update(html).digest('base64').slice(0, 22) + '"';
+    if (req.headers['if-none-match'] === etag) {
+      res.writeHead(304, { 'ETag': etag, 'Cache-Control': 'public, max-age=60, stale-while-revalidate=600' });
+      return res.end();
+    }
     res.writeHead(200, {
       'Content-Type': 'text/html; charset=utf-8',
-      'Cache-Control':'no-store',
-      'Content-Security-Policy': csp,
-      'Strict-Transport-Security': 'max-age=63072000; includeSubDomains; preload',
-      'X-Content-Type-Options': 'nosniff',
-      'X-Frame-Options': 'DENY',
-      'Referrer-Policy': 'strict-origin-when-cross-origin',
-      'Permissions-Policy': 'interest-cohort=(), browsing-topics=(), camera=(), microphone=(), geolocation=()',
-      'Cross-Origin-Opener-Policy': 'same-origin'
+      'Cache-Control': 'public, max-age=60, stale-while-revalidate=600',
+      'ETag': etag,
+      'Vary': 'Accept-Language, Accept-Encoding'
     });
-    return res.end(v2.getHtml(req.url.split('?')[0]));
+    return res.end(html);
   }
 
   // Legacy fallback
