@@ -25,7 +25,7 @@ export default function PaymentModal({ isOpen, onClose, presetAmount = 199, pres
   const [methods, setMethods] = useState([]);
   const [loading, setLoading] = useState(false);
   const [payment, setPayment] = useState(null);
-  const [form, setForm] = useState({ amount: presetAmount, method: 'card', description: presetDescription });
+  const [form, setForm] = useState({ amount: presetAmount, method: 'crypto_btc', description: presetDescription });
 
   useEffect(() => {
     if (!isOpen) return;

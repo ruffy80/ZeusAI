@@ -6,6 +6,7 @@ import PricingCard from '../components/PricingCard';
 
 const PLANS_MONTHLY = [
   {
+    id: 'free',
     name: 'Free',
     price: '0',
     period: 'mo',
@@ -22,6 +23,7 @@ const PLANS_MONTHLY = [
     ctaPath: '/register',
   },
   {
+    id: 'starter',
     name: 'Starter',
     price: '49',
     period: 'mo',
@@ -35,10 +37,11 @@ const PLANS_MONTHLY = [
       'REST API access',
     ],
     highlighted: false,
-    ctaLabel: 'Get Starter',
-    ctaPath: '/register',
+    ctaLabel: 'Buy Starter',
+    ctaPath: '/checkout',
   },
   {
+    id: 'pro',
     name: 'Pro',
     price: '199',
     period: 'mo',
@@ -54,10 +57,11 @@ const PLANS_MONTHLY = [
       'Advanced analytics & exports',
     ],
     highlighted: true,
-    ctaLabel: 'Get Pro',
-    ctaPath: '/register',
+    ctaLabel: 'Buy Pro',
+    ctaPath: '/checkout',
   },
   {
+    id: 'enterprise',
     name: 'Enterprise',
     price: '499',
     period: 'mo',
@@ -73,8 +77,8 @@ const PLANS_MONTHLY = [
       'Compliance reporting (SOC2, GDPR)',
     ],
     highlighted: false,
-    ctaLabel: 'Contact Sales',
-    ctaPath: '/about',
+    ctaLabel: 'Buy Enterprise',
+    ctaPath: '/checkout',
   },
 ];
 
