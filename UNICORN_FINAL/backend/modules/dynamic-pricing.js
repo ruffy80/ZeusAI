@@ -227,6 +227,18 @@ let peakHoursActive = false;
 let surgeActive = false;
 let discountActive = true; // 20% discount as per spec
 
+// Per-service noise: stable per (serviceId, hour) so prices differ between
+// products but don't flicker on every request. Hash of serviceId + hour bucket
+// yields deterministic ±15% variance per service.
+const crypto = require('crypto');
+function perServiceFactor(serviceId) {
+  const hour = Math.floor(Date.now() / 3600000); // hourly bucket
+  const h = crypto.createHash('sha256').update(String(serviceId) + ':' + hour).digest();
+  // Normalize first 4 bytes to 0..1, then map to 0.85..1.15
+  const raw = h.readUInt32BE(0) / 0xffffffff;
+  return 0.85 + raw * 0.30;
+}
+
 function updateDemandFactor() {
   const hour = new Date().getHours();
   // Peak hours: 9-12 and 14-18 (European business hours)
@@ -244,7 +256,9 @@ function getPrice(serviceId, options = {}) {
   const base = BASE_PRICES[serviceId] ?? 99;
   const { userId, quantity = 1, coupon } = options;
 
-  let price = base * currentDemandFactor;
+  const svcFactor = perServiceFactor(serviceId);
+  const effectiveDemand = currentDemandFactor * svcFactor;
+  let price = base * effectiveDemand;
 
   // Volume discounts
   if (quantity >= 10) price *= 0.85;
@@ -267,7 +281,9 @@ function getPrice(serviceId, options = {}) {
     serviceId,
     basePrice: base,
     finalPrice: Math.max(0.01, Math.round(price * 100) / 100),
-    demandFactor: currentDemandFactor,
+    demandFactor: Math.round(effectiveDemand * 1000) / 1000,
+    globalDemand: Math.round(currentDemandFactor * 1000) / 1000,
+    serviceFactor: Math.round(svcFactor * 1000) / 1000,
     discountApplied: discountActive,
     surgeActive,
     peakHours: peakHoursActive,
