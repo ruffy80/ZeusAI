@@ -37,7 +37,14 @@ try {
 const { buildInnovationReport } = require('./innovation/innovation-engine');
 const { generateSprintPlan } = require('./innovation/innovation-sprint');
 const { getSiteHtml } = require('./site/template');
-const v2 = require('./site/v2/shell');
+let v2 = null; try { v2 = require('./site/v2/shell'); } catch (e) { console.warn('[site/v2/shell] not loaded:', e.message); }
+// Fallback shim so downstream code never dereferences null.
+if (!v2 || typeof v2.getHtml !== 'function') {
+  v2 = {
+    CSS: (v2 && v2.CSS) || '',
+    getHtml: (url) => getSiteHtml(url || '/')
+  };
+}
 let sovereign = null; try { sovereign = require('./site/sovereign-extensions'); } catch (e) { console.warn('[sovereign] not loaded:', e.message); }
 let commerce = null; try { commerce = require('./site/sovereign-commerce'); } catch (e) { console.warn('[commerce] not loaded:', e.message); }
 const V2_CLIENT_PATH = path.join(__dirname, 'site', 'v2', 'client.js');
