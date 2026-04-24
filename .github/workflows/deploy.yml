@@ -203,6 +203,11 @@ jobs:
             --max-time 15 \
             "http://${{ secrets.HETZNER_HOST }}/health" 2>/dev/null || true)
           echo "Health check Nginx port 80: $NGINX_STATUS"
+          # 301/302/308 pe :80 sunt healthy — nginx face redirect HTTP→HTTPS (comportament dorit)
+          case "$NGINX_STATUS" in
+            200|301|302|308) NGINX_OK=1 ;;
+            *)               NGINX_OK=0 ;;
+          esac
           # Verificare domeniu real (zeusai.pro) — HTTP și HTTPS
           # Notă: nu folosi || echo "000" cu %{http_code} — curl scrie deja 000 pe stdout
           # la eroare de conectare, iar || echo "000" ar adăuga un al doilea 000 → "000000"
@@ -214,8 +219,8 @@ jobs:
             --max-time 15 \
             "https://zeusai.pro/health" 2>/dev/null || true)
           echo "Health check domain HTTPS zeusai.pro: $DOMAIN_HTTPS"
-          if [ "$STATUS" = "200" ] && [ "$NGINX_STATUS" = "200" ]; then
-            echo "✅ Site LIVE — Node.js și Nginx funcționează corect"
+          if [ "$STATUS" = "200" ] && [ "$NGINX_OK" = "1" ]; then
+            echo "✅ Site LIVE — Node.js și Nginx funcționează corect (Nginx=$NGINX_STATUS)"
           elif [ "$STATUS" = "200" ]; then
             echo "⚠️  Node.js OK dar Nginx NU răspunde pe port 80 (status: $NGINX_STATUS) — auto-recovery..."
             ssh -o StrictHostKeyChecking=no root@${{ secrets.HETZNER_HOST }} \
