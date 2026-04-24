@@ -3105,15 +3105,19 @@ ${invoice.payer ? `<h2>Payer</h2><table><tr><th>Legal entity</th><td>${esc(invoi
     if (html.indexOf('x-zeus-build') === -1) {
       html = html.replace('<head>', '<head>' + buildMeta);
     }
-    const etag = '"' + crypto.createHash('sha1').update(html).digest('base64').slice(0, 22) + '"';
-    if (req.headers['if-none-match'] === etag) {
-      res.writeHead(304, { 'ETag': etag, 'Cache-Control': 'no-cache, must-revalidate', 'X-Zeus-Build': ZEUS_BUILD.sha });
-      return res.end();
+    // Inject a small visible build badge (bottom-right, unobtrusive) so the
+    // operator can verify at a glance which SHA is running without dev tools.
+    const badge = '<div id="zeus-build-badge" style="position:fixed;bottom:8px;right:8px;z-index:99999;font:11px/1.2 ui-monospace,monospace;background:rgba(0,0,0,0.72);color:#7fffd4;padding:4px 8px;border-radius:4px;pointer-events:none;opacity:0.8;">build ' + ZEUS_BUILD.sha + '</div>';
+    if (html.indexOf('id="zeus-build-badge"') === -1) {
+      html = html.replace('</body>', badge + '</body>');
     }
+    // Hard cache-bust: no ETag so every reload forces a fresh 200 while we
+    // stabilize. We can reintroduce ETag once user confirms content.
     res.writeHead(200, {
       'Content-Type': 'text/html; charset=utf-8',
-      'Cache-Control': 'no-cache, must-revalidate',
-      'ETag': etag,
+      'Cache-Control': 'no-store, no-cache, must-revalidate, max-age=0',
+      'Pragma': 'no-cache',
+      'Expires': '0',
       'X-Zeus-Build': ZEUS_BUILD.sha,
       'X-Zeus-Built-At': ZEUS_BUILD.ts,
       'Vary': 'Accept-Language, Accept-Encoding'
