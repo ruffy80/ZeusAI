@@ -292,6 +292,31 @@ if [ -f "$NGINX_CONF_SRC" ]; then
     fixed "Nginx: config default eliminat"
   fi
 
+  # Dedupe `default_server` pe portul 80: dacă alt site activat (ex. zeusai.conf
+  # orphan lăsat de instalări anterioare) deține deja flag-ul `default_server`,
+  # scoatem flag-ul din fișierul nostru `unicorn` ca să evităm eroarea
+  # `[emerg] a duplicate default server for 0.0.0.0:80`. Nu ștergem nimic —
+  # doar renunțăm la flag; configul SSL și toate blocurile server rămân intacte.
+  NGINX_CANONICAL="$(readlink -f "$NGINX_ENABLED" 2>/dev/null || echo "$NGINX_ENABLED")"
+  CONFLICT_FILE=""
+  for other in /etc/nginx/sites-enabled/*; do
+    [ -f "$other" ] || continue
+    other_canonical="$(readlink -f "$other" 2>/dev/null || echo "$other")"
+    [ "$other_canonical" = "$NGINX_CANONICAL" ] && continue
+    if grep -qE '^[[:space:]]*listen[[:space:]]+(\[::\]:)?80[[:space:]]+default_server' "$other" 2>/dev/null; then
+      CONFLICT_FILE="$other"
+      break
+    fi
+  done
+  if [ -n "$CONFLICT_FILE" ] && \
+     grep -qE '^[[:space:]]*listen[[:space:]]+(\[::\]:)?80[[:space:]]+default_server' "$NGINX_AVAILABLE" 2>/dev/null; then
+    if sed -i -E 's|^([[:space:]]*listen[[:space:]]+(\[::\]:)?80)[[:space:]]+default_server|\1|g' "$NGINX_AVAILABLE" 2>/dev/null; then
+      fixed "Nginx: flag default_server eliminat din unicorn (deținut deja de $CONFLICT_FILE)"
+    else
+      warn "Nginx: nu am putut scoate default_server din $NGINX_AVAILABLE (permisiuni?) — conflictul cu $CONFLICT_FILE persistă"
+    fi
+  fi
+
   if nginx -t 2>/dev/null; then
     ok "Nginx: configurație validă"
     if systemctl is-active nginx >/dev/null 2>&1; then
