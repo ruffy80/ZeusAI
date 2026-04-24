@@ -1,0 +1,32 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 1000" role="img" aria-label="Zeus placeholder">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#090b1a"/>
+      <stop offset="45%" stop-color="#14132b"/>
+      <stop offset="100%" stop-color="#05060d"/>
+    </linearGradient>
+    <radialGradient id="halo" cx="50%" cy="22%" r="45%">
+      <stop offset="0%" stop-color="#ffd890" stop-opacity="0.75"/>
+      <stop offset="65%" stop-color="#ffd890" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="txt" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#8a5cff"/>
+      <stop offset="50%" stop-color="#6fd3ff"/>
+      <stop offset="100%" stop-color="#ffd36a"/>
+    </linearGradient>
+  </defs>
+  <rect width="1600" height="1000" fill="url(#bg)"/>
+  <rect width="1600" height="1000" fill="url(#halo)"/>
+  <g opacity="0.5">
+    <circle cx="180" cy="180" r="2" fill="#fff"/><circle cx="320" cy="120" r="1.5" fill="#fff"/><circle cx="1420" cy="130" r="2" fill="#fff"/>
+    <circle cx="1260" cy="200" r="1.4" fill="#fff"/><circle cx="250" cy="640" r="1.8" fill="#fff"/><circle cx="1380" cy="720" r="1.6" fill="#fff"/>
+  </g>
+  <g transform="translate(800 530)">
+    <ellipse cx="0" cy="-220" rx="250" ry="170" fill="#11182c" opacity="0.8"/>
+    <path d="M-140 140C-120-20 120-20 140 140L120 300H-120Z" fill="#0d1324"/>
+    <path d="M-120-40C-90-170 90-170 120-40C60-90-60-90-120-40Z" fill="#141e35"/>
+    <rect x="-45" y="-35" width="90" height="40" rx="20" fill="#0a0f1f"/>
+  </g>
+  <text x="800" y="860" text-anchor="middle" font-family="Space Grotesk, Arial, sans-serif" font-size="76" font-weight="700" fill="url(#txt)">ZEUS AI</text>
+  <text x="800" y="915" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="22" fill="#b9c6ff" opacity="0.85">Add image at /assets/zeus/hero.jpg to replace placeholder</text>
+</svg>
