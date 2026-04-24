@@ -1557,7 +1557,7 @@ async function calcRoi(){
     +'<div><div class="label">Annual Savings</div><div class="kpi-val green" style="font-size:20px;">$'+Number(savings).toLocaleString('en-US',{maximumFractionDigits:0})+'</div></div>'
     +'<div><div class="label">ROI</div><div class="kpi-val" style="font-size:20px;">'+roiPct+'%</div></div>'
     +'<div><div class="label">Payback</div><div class="kpi-val purple" style="font-size:20px;">'+payback+' mo</div></div>'
-    +'</div><p class="muted" style="font-size:12px;margin-top:10px;text-align:center;">Based on '+ind+' industry benchmarks. <a href="#" onclick="openModal(\'auth-modal\');return false;" style="color:#00d4ff;">Get detailed report →</a></p>';
+    +'</div><p class="muted" style="font-size:12px;margin-top:10px;text-align:center;">Based on '+ind+' industry benchmarks. <a href="#" onclick="openModal(\\'auth-modal\\');return false;" style="color:#00d4ff;">Get detailed report →</a></p>';
 }
 
 // ================================================================
@@ -1604,7 +1604,7 @@ function renderCatFilters(){
   var el=document.getElementById('cat-filters');
   if(!el) return;
   el.innerHTML=allCategories.map(function(c){
-    return '<button class="filter-btn'+(c===activeCategory?' active':'')+'" onclick="setCat(\''+escHtml(c)+'\')">'+escHtml(c==='all'?'All':c)+'</button>';
+    return '<button class="filter-btn'+(c===activeCategory?' active':'')+'" onclick="setCat(\\''+escHtml(c)+'\\')">'+escHtml(c==='all'?'All':c)+'</button>';
   }).join('');
 }
 
@@ -1712,8 +1712,8 @@ function renderPlanCards(apiPlans,marketConditions){
       +dynamicNote
       +'<ul class="plan-features">'+feats+noFeats+'</ul>'
       +(price===0
-        ?'<button class="btn btn-outline" onclick="openModal(\'auth-modal\');switchTab(\'tab-register\')">Get Started Free</button>'
-        :'<button class="btn '+(p.popular?'btn-primary':'btn-outline')+'" onclick="handleSubscribe(\''+p.id+'\','+price+')">Subscribe</button>'
+        ?'<button class="btn btn-outline" onclick="openModal(\\'auth-modal\\');switchTab(\\'tab-register\\')">Get Started Free</button>'
+        :'<button class="btn '+(p.popular?'btn-primary':'btn-outline')+'" onclick="handleSubscribe(\\''+p.id+'\\','+price+')">Subscribe</button>'
       )
       +'</div>';
   }).join('');
@@ -1764,7 +1764,7 @@ async function loadDashboard(){
   +'<div><div style="font-family:Orbitron,monospace;font-size:16px;font-weight:700;color:#e8f4ff;">'+escHtml(u.name||'Zeus User')+'</div>'
   +'<div style="font-size:13px;color:#7090b0;">'+escHtml(u.email||'')+'</div>'
   +'<div style="margin-top:4px;"><span class="badge">'+plan+'</span></div></div></div>'
-  +'<button class="btn btn-primary btn-sm" onclick="navigate(\'pricing\')">⚡ Upgrade Plan</button>'
+  +'<button class="btn btn-primary btn-sm" onclick="navigate(\\'pricing\\')">⚡ Upgrade Plan</button>'
   +'</div>'
   // Credits
   +'<div class="card" style="margin-bottom:16px;">'
@@ -1785,7 +1785,7 @@ async function loadDashboard(){
       +'<div style="text-align:right;"><div class="green">$'+escHtml(String(p.amount||p.total||'—'))+'</div>'
       +'<div><span class="badge '+(p.status==='failed'?'badge-red':p.status==='pending'?'badge-purple':'')+'">'+escHtml(p.status||'paid')+'</span></div></div>'
       +'</div>';
-  }).join(''):'<p class="muted" style="font-size:13px;">No payments yet. <a href="#" onclick="navigate(\'marketplace\');return false;" style="color:#00d4ff;">Browse services →</a></p>')
+  }).join(''):'<p class="muted" style="font-size:13px;">No payments yet. <a href="#" onclick="navigate(\\'marketplace\\');return false;" style="color:#00d4ff;">Browse services →</a></p>')
   +'</div>'
   +'</div>'
   // RIGHT COLUMN
@@ -1797,7 +1797,7 @@ async function loadDashboard(){
     var kval=k.key||k.apiKey||'•••••••••••••••';
     var short=kval.length>20?kval.slice(0,8)+'...'+kval.slice(-6):kval;
     return '<div class="key-row"><div><div style="font-size:12px;font-weight:600;">'+escHtml(k.name||'API Key')+'</div><div class="key-val">'+escHtml(short)+'</div></div>'
-      +'<button class="btn btn-ghost btn-sm" onclick="copyText(\''+escHtml(kval)+'\',this)">Copy</button></div>';
+      +'<button class="btn btn-ghost btn-sm" onclick="copyText(\\''+escHtml(kval)+'\\',this)">Copy</button></div>';
   }).join(''):'<p class="muted" style="font-size:12px;">No API keys yet.</p>')
   +'<button class="btn btn-outline btn-sm" style="margin-top:10px;width:100%;" onclick="generateApiKey()">+ Generate Key</button>'
   +'</div>'
@@ -1805,7 +1805,7 @@ async function loadDashboard(){
   +'<div class="card">'
   +'<div class="dash-section-title">Referrals</div>'
   +'<p class="muted" style="font-size:12px;margin-bottom:8px;">Earn credits for every referral. Share your link:</p>'
-  +'<div class="ref-link-box" onclick="copyText(\''+refLink+'\',this)" title="Click to copy">'+escHtml(refLink)+'</div>'
+  +'<div class="ref-link-box" onclick="copyText(\\''+refLink+'\\',this)" title="Click to copy">'+escHtml(refLink)+'</div>'
   +'<p class="muted" style="font-size:11px;margin-top:6px;">Code: <span style="color:#00d4ff;">'+escHtml(refCode)+'</span></p>'
   +(referral.count!=null?'<p class="muted" style="font-size:12px;margin-top:8px;"><span class="green">'+referral.count+'</span> referrals so far</p>':'')
   +'<button class="btn btn-ghost btn-sm" style="margin-top:10px;width:100%;" onclick="generateReferral()">Generate New Code</button>'
@@ -1871,8 +1871,8 @@ async function loadWorkflows(){
         +' | Runs: '+(w.runs||w.runCount||0)+'</div></div>'
         +'<div style="display:flex;gap:6px;align-items:center;">'
         +'<span class="workflow-status '+statusCls+'">'+(w.status||'inactive')+'</span>'
-        +'<button class="btn btn-ghost btn-sm" onclick="runWorkflow(\''+escAttr(String(w.id||''))+'\')" title="Run">▶</button>'
-        +'<button class="btn btn-danger btn-sm" onclick="deleteWorkflow(\''+escAttr(String(w.id||''))+'\')" title="Delete">✕</button>'
+        +'<button class="btn btn-ghost btn-sm" onclick="runWorkflow(\\''+escAttr(String(w.id||''))+'\\')" title="Run">▶</button>'
+        +'<button class="btn btn-danger btn-sm" onclick="deleteWorkflow(\\''+escAttr(String(w.id||''))+'\\')" title="Delete">✕</button>'
         +'</div></div>';
     }).join(''):'<div class="card" style="text-align:center;padding:40px;color:#7090b0;"><p>No workflows yet.</p><button class="btn btn-outline" style="margin-top:12px;" onclick="openCreateWorkflowModal()">Create your first workflow</button></div>');
 }
@@ -2049,7 +2049,7 @@ async function pollNotifications(){
     return;
   }
   list.innerHTML=items.slice(0,8).map(function(a){
-    return '<div style="padding:10px 12px;border-bottom:1px solid rgba(0,200,255,.1);cursor:pointer;" onclick="switchDashTab(\'alerts\');closeNotifPanel();navigate(\'dashboard\')">'
+    return '<div style="padding:10px 12px;border-bottom:1px solid rgba(0,200,255,.1);cursor:pointer;" onclick="switchDashTab(\\'alerts\\');closeNotifPanel();navigate(\\'dashboard\\')">'
       +'<div style="font-size:13px;font-weight:600;color:#e8f4ff;">'+escHtml(a.title||a.type||'Alert')+'</div>'
       +'<div style="font-size:11px;color:#7090b0;margin-top:2px;">'+escHtml((a.description||a.message||'').slice(0,80))+'</div>'
       +'</div>';
@@ -2144,8 +2144,8 @@ async function loadAdminUsers(){
         +'<td><span class="badge '+(u.plan==='enterprise'?'badge-purple':u.plan==='pro'?'badge-cyan':'')+'">'+escHtml((u.plan||'free').toUpperCase())+'</span></td>'
         +'<td style="font-size:11px;color:#7090b0;">'+(u.createdAt?new Date(u.createdAt).toLocaleDateString():'—')+'</td>'
         +'<td><div style="display:flex;gap:4px;">'
-        +'<button class="btn btn-ghost btn-sm" onclick="adminChangePlan(\''+escAttr(String(u.id||u._id||''))+'\',\''+escAttr(u.email||'')+'\')">Plan</button>'
-        +'<button class="btn btn-danger btn-sm" onclick="adminDeleteUser(\''+escAttr(String(u.id||u._id||''))+'\',\''+escAttr(u.email||'')+'\')">Del</button>'
+        +'<button class="btn btn-ghost btn-sm" onclick="adminChangePlan(\\''+escAttr(String(u.id||u._id||''))+'\\',\\''+escAttr(u.email||'')+'\\')">Plan</button>'
+        +'<button class="btn btn-danger btn-sm" onclick="adminDeleteUser(\\''+escAttr(String(u.id||u._id||''))+'\\',\\''+escAttr(u.email||'')+'\\')">Del</button>'
         +'</div></td>'
         +'</tr>';
     }).join('')+'</tbody></table>';
@@ -2676,7 +2676,7 @@ async function loadAdminSystem(){
         return '<div class="deal-row"><div><div style="font-weight:600;color:#e8f4ff;font-size:12px;">'+escHtml(e.name||e.id||'Experiment')+'</div>'
           +'<div style="font-size:11px;color:#7090b0;">Traffic: '+(e.trafficSplit||50)+'%</div></div>'
           +'<div><span class="badge '+(e.status==='running'?'badge-cyan':'')+'">'+escHtml(e.status||'idle')+'</span>'
-          +'<button class="btn btn-ghost btn-sm" style="margin-left:4px;" onclick="evaluateExperiment(\''+escAttr(String(e.id||''))+'\')">Eval</button></div></div>';
+          +'<button class="btn btn-ghost btn-sm" style="margin-left:4px;" onclick="evaluateExperiment(\\''+escAttr(String(e.id||''))+'\\')">Eval</button></div></div>';
       }).join('');
     } else {
       expEl.innerHTML='<div style="color:#7090b0;">No experiments.</div>';
@@ -2857,7 +2857,7 @@ async function loadAdminPricing(){
         +'<div><div style="font-weight:600;color:#e8f4ff;">'+escHtml(t.name||t.subdomain||t.id||'Tenant')+'</div>'
         +'<div style="font-size:11px;color:#7090b0;">'+escHtml(t.subdomain||t.domain||'')+'</div></div>'
         +'<div><span class="badge badge-cyan">'+escHtml(t.plan||'enterprise')+'</span>'
-        +'<button class="btn btn-ghost btn-sm" style="margin-left:4px;" onclick="updateTenantBranding(\''+escAttr(String(t.id||''))+'\')">🎨 Brand</button></div>'
+        +'<button class="btn btn-ghost btn-sm" style="margin-left:4px;" onclick="updateTenantBranding(\\''+escAttr(String(t.id||''))+'\\')">🎨 Brand</button></div>'
         +'</div>';
     }).join(''):'<div style="color:#7090b0;">No white-label tenants yet. Enterprise plan required.</div>';
   }
@@ -2948,9 +2948,9 @@ async function loadDashLabs(){
   '<div class="card" style="margin-bottom:16px;">'
   +'<div class="dash-section-title">🌱 Carbon Exchange</div>'
   +'<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px;">'
-  +'<button class="btn btn-primary btn-sm" onclick="openCarbonModal(\'issue\')">Issue Credits</button>'
-  +'<button class="btn btn-outline btn-sm" onclick="openCarbonModal(\'trade\')">Trade</button>'
-  +'<button class="btn btn-ghost btn-sm" onclick="openCarbonModal(\'portfolio\')">Portfolio</button>'
+  +'<button class="btn btn-primary btn-sm" onclick="openCarbonModal(\\'issue\\')">Issue Credits</button>'
+  +'<button class="btn btn-outline btn-sm" onclick="openCarbonModal(\\'trade\\')">Trade</button>'
+  +'<button class="btn btn-ghost btn-sm" onclick="openCarbonModal(\\'portfolio\\')">Portfolio</button>'
   +'</div>'
   +'<div id="carbon-stats-disp" style="font-size:12px;color:#7090b0;">'
   +renderKVObj(carbonStats.stats||carbonStats.data||carbonStats)
@@ -2969,10 +2969,10 @@ async function loadDashLabs(){
   +'<div class="card" style="margin-bottom:16px;">'
   +'<div class="dash-section-title">⚡ Energy Grid</div>'
   +'<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px;">'
-  +'<button class="btn btn-primary btn-sm" onclick="openEnergyModal(\'producer\')">Register Producer</button>'
-  +'<button class="btn btn-outline btn-sm" onclick="openEnergyModal(\'consumer\')">Register Consumer</button>'
-  +'<button class="btn btn-ghost btn-sm" onclick="openEnergyModal(\'optimize\')">⚡ Optimize</button>'
-  +'<button class="btn btn-ghost btn-sm" onclick="openEnergyModal(\'trade\')">Trade Energy</button>'
+  +'<button class="btn btn-primary btn-sm" onclick="openEnergyModal(\\'producer\\')">Register Producer</button>'
+  +'<button class="btn btn-outline btn-sm" onclick="openEnergyModal(\\'consumer\\')">Register Consumer</button>'
+  +'<button class="btn btn-ghost btn-sm" onclick="openEnergyModal(\\'optimize\\')">⚡ Optimize</button>'
+  +'<button class="btn btn-ghost btn-sm" onclick="openEnergyModal(\\'trade\\')">Trade Energy</button>'
   +'</div>'
   +'<div id="energy-stats-disp" style="font-size:12px;color:#7090b0;">'
   +renderKVObj(energyStats.stats||energyStats.data||energyStats)
@@ -3113,7 +3113,7 @@ async function loadBlueprintList(){
   d.innerHTML=list.length?list.slice(0,5).map(function(b){
     return '<div class="deal-row"><div><div style="font-weight:600;color:#e8f4ff;font-size:12px;">'+escHtml(b.title||b.idea||b.id||'Blueprint')+'</div>'
       +'<div style="font-size:11px;color:#7090b0;">'+(b.createdAt?new Date(b.createdAt).toLocaleDateString():'')+'</div></div>'
-      +'<button class="btn btn-ghost btn-sm" onclick="viewBlueprint(\''+escAttr(String(b.id||''))+'\')">View</button></div>';
+      +'<button class="btn btn-ghost btn-sm" onclick="viewBlueprint(\\''+escAttr(String(b.id||''))+'\\')">View</button></div>';
   }).join(''):'<div style="color:#7090b0;margin-top:8px;">No blueprints yet. Generate your first one!</div>';
 }
 
@@ -3518,7 +3518,7 @@ async function loadDashTenant(){
       +'<div style="font-size:11px;color:#7090b0;">'+escHtml(t.subdomain||t.domain||'')+'</div></div>'
       +'<div style="display:flex;gap:6px;align-items:center;">'
       +'<span class="badge badge-cyan">'+escHtml(t.plan||'enterprise')+'</span>'
-      +'<button class="btn btn-ghost btn-sm" onclick="editTenantBranding(\''+escAttr(String(t.id||''))+'\')">🎨</button>'
+      +'<button class="btn btn-ghost btn-sm" onclick="editTenantBranding(\\''+escAttr(String(t.id||''))+'\\')">🎨</button>'
       +'</div></div>';
   }).join(''):'<div style="text-align:center;padding:30px;color:#7090b0;">'
   +'<p>No tenants yet. Enterprise plan required.</p>'
@@ -3813,7 +3813,7 @@ async function loadAdminModules(){
       mlListEl.innerHTML=avail.map(function(m){
         var name=typeof m==='string'?m:(m.name||m.id||'module');
         return '<div class="deal-row"><div style="font-size:12px;color:#e8f4ff;">'+escHtml(name)+'</div>'
-          +'<button class="btn btn-ghost btn-sm" onclick="adminReloadModule(\''+escAttr(name)+'\')">🔄</button></div>';
+          +'<button class="btn btn-ghost btn-sm" onclick="adminReloadModule(\\''+escAttr(name)+'\\')">🔄</button></div>';
       }).join('');
     } else {
       mlListEl.innerHTML='<div style="color:#7090b0;">No modules listed.</div>';
@@ -4141,8 +4141,8 @@ async function checkoutBtc(){
     +'<div style="font-family:monospace;font-size:20px;font-weight:700;color:#00ffa3;">'+btcAmount+' BTC</div>'
     +'<div style="font-size:12px;color:#7090b0;margin:4px 0;">≈ $'+price+' USD</div>'
     +'<div style="font-size:12px;color:#7090b0;margin-bottom:4px;">To address:</div>'
-    +'<div class="btc-addr" onclick="copyText(\''+addr+'\',this)" style="text-align:left;">'+addr+'</div>'
-    +'<button class="btn btn-green" style="width:100%;margin-top:16px;" onclick="confirmBtcPayment()">✓ I\'ve Sent the Payment</button>'
+    +'<div class="btc-addr" onclick="copyText(\\''+addr+'\\',this)" style="text-align:left;">'+addr+'</div>'
+    +'<button class="btn btn-green" style="width:100%;margin-top:16px;" onclick="confirmBtcPayment()">✓ I\\'ve Sent the Payment</button>'
     +'<button class="btn btn-ghost btn-sm" style="width:100%;margin-top:8px;" onclick="renderCheckoutStep1()">← Back</button>'
     +'</div>';
   if(STATE.countdownTimer) clearInterval(STATE.countdownTimer);
@@ -4210,8 +4210,8 @@ async function confirmBtcPayment(){
   if(body) body.innerHTML='<div style="text-align:center;padding:30px;">'
     +'<div style="font-size:48px;margin-bottom:12px;">✅</div>'
     +'<div class="title-sm">Payment Received!</div>'
-    +'<p class="muted" style="margin-top:8px;font-size:13px;">Your payment is being confirmed on the blockchain.<br/>We\'ll activate your service within 15 minutes.</p>'
-    +'<button class="btn btn-primary" style="margin-top:16px;" onclick="closeModal(\'checkout-modal\')">Done</button>'
+    +'<p class="muted" style="margin-top:8px;font-size:13px;">Your payment is being confirmed on the blockchain.<br/>We\\'ll activate your service within 15 minutes.</p>'
+    +'<button class="btn btn-primary" style="margin-top:16px;" onclick="closeModal(\\'checkout-modal\\')">Done</button>'
     +'</div>';
   toast('BTC payment recorded!','ok');
 }
@@ -4241,7 +4241,7 @@ async function checkoutStripe(){
     +'<div style="font-size:48px;margin-bottom:12px;">💳</div>'
     +'<div class="title-sm">Stripe Checkout</div>'
     +'<p class="muted" style="margin-top:8px;font-size:13px;">Please contact <a href="mailto:vladoi_ionut@yahoo.com" style="color:#00d4ff;">vladoi_ionut@yahoo.com</a> to complete your purchase of <strong>'+escHtml(item.name)+'</strong> for $'+item.priceUsd+'.</p>'
-    +'<button class="btn btn-primary" style="margin-top:16px;" onclick="closeModal(\'checkout-modal\')">OK</button>'
+    +'<button class="btn btn-primary" style="margin-top:16px;" onclick="closeModal(\\'checkout-modal\\')">OK</button>'
     +'</div>';
 }
 
@@ -4252,9 +4252,9 @@ function checkoutPaypal(){
     +'<div style="font-size:40px;margin-bottom:12px;">🅿️</div>'
     +'<div class="title-sm">Pay via PayPal</div>'
     +'<p class="muted" style="font-size:13px;margin:12px 0;">Send $'+item.priceUsd+' USD for <strong>'+escHtml(item.name)+'</strong><br/>to PayPal account:</p>'
-    +'<div class="btc-addr" onclick="copyText(\'vladoi_ionut@yahoo.com\',this)">vladoi_ionut@yahoo.com</div>'
+    +'<div class="btc-addr" onclick="copyText(\\'vladoi_ionut@yahoo.com\\',this)">vladoi_ionut@yahoo.com</div>'
     +'<p class="muted" style="font-size:11px;margin-top:8px;">Include your email in payment note for faster activation.</p>'
-    +'<button class="btn btn-primary" style="width:100%;margin-top:16px;" onclick="confirmPaypalPayment()">✓ I\'ve Sent the Payment</button>'
+    +'<button class="btn btn-primary" style="width:100%;margin-top:16px;" onclick="confirmPaypalPayment()">✓ I\\'ve Sent the Payment</button>'
     +'<button class="btn btn-ghost btn-sm" style="width:100%;margin-top:8px;" onclick="renderCheckoutStep1()">← Back</button>'
     +'</div>';
 }
@@ -4270,8 +4270,8 @@ async function confirmPaypalPayment(){
   if(body) body.innerHTML='<div style="text-align:center;padding:30px;">'
     +'<div style="font-size:48px;margin-bottom:12px;">✅</div>'
     +'<div class="title-sm">Payment Recorded!</div>'
-    +'<p class="muted" style="font-size:13px;margin-top:8px;">We\'ll verify and activate your service within 24 hours.</p>'
-    +'<button class="btn btn-primary" style="margin-top:16px;" onclick="closeModal(\'checkout-modal\')">Done</button>'
+    +'<p class="muted" style="font-size:13px;margin-top:8px;">We\\'ll verify and activate your service within 24 hours.</p>'
+    +'<button class="btn btn-primary" style="margin-top:16px;" onclick="closeModal(\\'checkout-modal\\')">Done</button>'
     +'</div>';
   toast('PayPal payment recorded!','ok');
 }
@@ -4331,13 +4331,13 @@ async function sendChat(){
   if(!msg) return;
   inp.value='';
   if(!isLoggedIn()&&STATE.freeChats>=3){
-    appendChatMsg('sys','You\'ve used your 3 free messages. Create a free account to continue!');
+    appendChatMsg('sys','You\\'ve used your 3 free messages. Create a free account to continue!');
     var msgs=document.getElementById('chat-messages');
     if(msgs){
       var d=document.createElement('div');
       d.style.cssText='display:flex;gap:8px;justify-content:center;margin:8px 0;';
-      d.innerHTML='<button class="btn btn-primary btn-sm" onclick="openModal(\'auth-modal\');switchTab(\'tab-register\')">Register Free</button>'
-        +'<button class="btn btn-outline btn-sm" onclick="openModal(\'auth-modal\')">Login</button>';
+      d.innerHTML='<button class="btn btn-primary btn-sm" onclick="openModal(\\'auth-modal\\');switchTab(\\'tab-register\\')">Register Free</button>'
+        +'<button class="btn btn-outline btn-sm" onclick="openModal(\\'auth-modal\\')">Login</button>';
       msgs.appendChild(d);
       msgs.scrollTop=msgs.scrollHeight;
     }
@@ -4408,7 +4408,7 @@ async function sendChatPost(msg){
   if(msgs){msgs.appendChild(typingEl);msgs.scrollTop=msgs.scrollHeight;}
   var r=await api('POST','/api/chat',{message:msg,history:STATE.chatHistory.slice(-10)});
   if(msgs&&typingEl.parentNode===msgs) msgs.removeChild(typingEl);
-  var reply=r.reply||r.message||r.response||'I\'m processing your request. Please try again in a moment.';
+  var reply=r.reply||r.message||r.response||'I\\'m processing your request. Please try again in a moment.';
   appendChatMsg('bot',reply);
   if(r.recommendations&&r.recommendations.length) appendChatRecommendations(r.recommendations);
   STATE.chatHistory.push({role:'assistant',content:reply});
