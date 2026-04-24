@@ -132,6 +132,10 @@ class ControlPlaneAgent {
 
   start() {
     if (this._healInterval) return; // already running
+    if (process.env.DISABLE_SELF_MUTATION === '1') {
+      console.log('[CPA] disabled via DISABLE_SELF_MUTATION=1');
+      return;
+    }
     this._healInterval = setInterval(() => this._healTick().catch(e => console.error('[CPA] heal error:', e)), HEAL_INTERVAL_MS);
     this._canaryInterval = setInterval(() => this._canaryTick().catch(e => console.error('[CPA] canary error:', e)), CANARY_EVAL_MS);
     console.log(`[CPA] 🛡️  Control Plane Agent started (heal every ${HEAL_INTERVAL_MS / 1000}s)`);
@@ -261,6 +265,10 @@ class ControlPlaneAgent {
 }
 
 const agent = new ControlPlaneAgent();
-agent.start();
+if (process.env.DISABLE_SELF_MUTATION !== '1') {
+  agent.start();
+} else {
+  console.log('[CPA] module-level auto-start suppressed (DISABLE_SELF_MUTATION=1)');
+}
 module.exports = agent;
 module.exports.ControlPlaneAgent = ControlPlaneAgent;

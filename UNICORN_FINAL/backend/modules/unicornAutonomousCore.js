@@ -245,6 +245,10 @@ class UnicornAutonomousCore {
 
   start() {
     if (this.status.isRunning) return;
+    if (process.env.DISABLE_SELF_MUTATION === '1') {
+      console.log('🧠 UAC: disabled via DISABLE_SELF_MUTATION=1 (no autonomous cycles)');
+      return;
+    }
     this.status.isRunning = true;
     this.log('🚀 Unicorn Autonomous Core pornit');
     setTimeout(() => this.fullAutonomousCycle(), 5000);

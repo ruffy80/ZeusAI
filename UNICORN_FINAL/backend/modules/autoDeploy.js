@@ -245,6 +245,10 @@ class AutoDeploy {
   }
 
   start() {
+    if (process.env.DISABLE_SELF_MUTATION === '1' || process.env.ENABLE_AUTO_DEPLOY !== '1') {
+      console.log('📡 Auto‑Deploy disabled (DISABLE_SELF_MUTATION=1 or ENABLE_AUTO_DEPLOY!=1)');
+      return;
+    }
     const git = simpleGit(path.join(__dirname, '../..'));
     let timeout = null;
 

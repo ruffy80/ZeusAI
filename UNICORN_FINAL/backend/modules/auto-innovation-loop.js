@@ -101,6 +101,10 @@ class AutoInnovationLoop {
 
   start() {
     if (this._running) return;
+    if (process.env.DISABLE_SELF_MUTATION === '1') {
+      console.log('[InnovLoop] disabled via DISABLE_SELF_MUTATION=1 (no PRs will be created)');
+      return;
+    }
     this._running = true;
 
     // First cycle after short delay

@@ -116,6 +116,10 @@ function _scanAllLogs() {
 
 function start() {
   if (_state.running) return;
+  if (process.env.DISABLE_SELF_MUTATION === '1') {
+    console.log('[log-monitor] disabled via DISABLE_SELF_MUTATION=1');
+    return;
+  }
   _state.running      = true;
   _state.startedAt    = new Date().toISOString();
   _state.intervalHandle = setInterval(() => {

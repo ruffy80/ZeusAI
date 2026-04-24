@@ -64,6 +64,10 @@ class QuantumIntegrityShield {
 
   start() {
     if (this.active) return;
+    if (process.env.DISABLE_SELF_MUTATION === '1') {
+      console.log('[QuantumIntegrityShield] disabled via DISABLE_SELF_MUTATION=1');
+      return;
+    }
     this.active = true;
     this._computeBaselineHashes();
     this._computeBaselineFileHashes();
