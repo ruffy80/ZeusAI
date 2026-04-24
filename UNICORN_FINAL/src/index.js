@@ -6,6 +6,27 @@ const path = require('path');
 // 30Y-LTS: load .env before any other module touches process.env.
 // Safe no-op if dotenv is absent or no .env file exists.
 try { require('dotenv').config(); } catch (_) {}
+// --- Build identity (verifiable public marker; prevents "stale variant" confusion) ---
+const ZEUS_BUILD = (() => {
+  let sha = process.env.ZEUS_BUILD_SHA || '';
+  if (!sha) {
+    try {
+      const headFile = path.join(__dirname, '..', '.git', 'HEAD');
+      if (fs.existsSync(headFile)) {
+        const head = fs.readFileSync(headFile, 'utf8').trim();
+        if (head.startsWith('ref: ')) {
+          const ref = head.slice(5);
+          const refFile = path.join(__dirname, '..', '.git', ref);
+          if (fs.existsSync(refFile)) sha = fs.readFileSync(refFile, 'utf8').trim().slice(0, 7);
+        } else { sha = head.slice(0, 7); }
+      }
+    } catch (_) {}
+    if (!sha) { try { sha = require('child_process').execSync('git -C ' + path.join(__dirname, '..') + ' rev-parse --short HEAD 2>/dev/null').toString().trim(); } catch (_) {} }
+    if (!sha) sha = 'unknown';
+  }
+  return { sha, ts: new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19) + 'Z', bootAt: Date.now() };
+})();
+console.log('[zeus-build]', ZEUS_BUILD.sha, ZEUS_BUILD.ts);
 // --- Unified secrets bootstrap (loads .env + normalizes aliases before anything else) ---
 let SECRETS_BOOT = { loaded: [], resolved: {}, features: {}, summary: {} };
 try { SECRETS_BOOT = require('./config/secrets').bootstrap({ log: true }); } catch (e) { console.warn('[secrets] bootstrap failed:', e.message); }
@@ -3077,16 +3098,24 @@ ${invoice.payer ? `<h2>Payer</h2><table><tr><th>Legal entity</th><td>${esc(invoi
   if (isV2Route) {
     // Security headers are emitted ONCE by Nginx (zeusai.conf). Node only sets
     // app-specific headers to avoid duplicate/conflicting CSP/HSTS/XFO.
-    const html = v2.getHtml(req.url.split('?')[0]);
+    let html = v2.getHtml(req.url.split('?')[0]);
+    // Inject verifiable build marker so the freshly deployed variant is
+    // always distinguishable from any stale browser cache.
+    const buildMeta = '<meta name="x-zeus-build" content="' + ZEUS_BUILD.sha + '"><meta name="x-zeus-built-at" content="' + ZEUS_BUILD.ts + '">';
+    if (html.indexOf('x-zeus-build') === -1) {
+      html = html.replace('<head>', '<head>' + buildMeta);
+    }
     const etag = '"' + crypto.createHash('sha1').update(html).digest('base64').slice(0, 22) + '"';
     if (req.headers['if-none-match'] === etag) {
-      res.writeHead(304, { 'ETag': etag, 'Cache-Control': 'public, max-age=60, stale-while-revalidate=600' });
+      res.writeHead(304, { 'ETag': etag, 'Cache-Control': 'no-cache, must-revalidate', 'X-Zeus-Build': ZEUS_BUILD.sha });
       return res.end();
     }
     res.writeHead(200, {
       'Content-Type': 'text/html; charset=utf-8',
-      'Cache-Control': 'public, max-age=60, stale-while-revalidate=600',
+      'Cache-Control': 'no-cache, must-revalidate',
       'ETag': etag,
+      'X-Zeus-Build': ZEUS_BUILD.sha,
+      'X-Zeus-Built-At': ZEUS_BUILD.ts,
       'Vary': 'Accept-Language, Accept-Encoding'
     });
     return res.end(html);
