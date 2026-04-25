@@ -51,6 +51,10 @@ body::before{content:"";position:fixed;inset:0;pointer-events:none;z-index:1;bac
 .nav-links a{color:var(--ink);padding:9px 14px;border-radius:12px;font-size:14px;font-weight:500;opacity:.8;transition:all .2s}
 .nav-links a:hover,.nav-links a.active{background:rgba(138,92,255,.12);opacity:1;color:var(--violet2)}
 .nav-cta{display:flex;gap:10px;align-items:center}
+.lang-switch{display:inline-flex;border:1px solid rgba(160,200,255,.18);border-radius:8px;overflow:hidden;font:600 11px/1 'JetBrains Mono',monospace}
+.lang-switch .lang-btn{background:transparent;color:var(--ink-dim);border:none;padding:6px 9px;cursor:pointer;letter-spacing:.5px;transition:background .15s,color .15s}
+.lang-switch .lang-btn:hover{background:rgba(62,160,255,.08);color:var(--ink)}
+.lang-switch .lang-btn.active{background:linear-gradient(135deg,#3ea0ff,#8a5cff);color:#fff}
 
 .btn{display:inline-flex;align-items:center;gap:8px;padding:11px 18px;border-radius:14px;border:1px solid var(--stroke);background:var(--glass);color:var(--ink);font-weight:600;font-size:14px;cursor:pointer;transition:all .2s;text-decoration:none}
 .btn:hover{border-color:var(--stroke-hot);transform:translateY(-1px);box-shadow:0 10px 30px -10px rgba(138,92,255,.4)}
