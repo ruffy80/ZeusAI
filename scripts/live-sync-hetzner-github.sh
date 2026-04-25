@@ -62,7 +62,22 @@ while true; do
       log "Nothing staged after add"
     else
       git commit -m "live-sync: $(date '+%Y-%m-%d %H:%M:%S')" >> "$LOG_FILE" 2>&1
-      git push origin "$BRANCH" >> "$LOG_FILE" 2>&1
+      if ! git fetch origin "$BRANCH" >> "$LOG_FILE" 2>&1; then
+        log "Fetch failed; will retry"
+        sleep "$INTERVAL"
+        continue
+      fi
+      if ! git rebase "origin/$BRANCH" >> "$LOG_FILE" 2>&1; then
+        log "Rebase failed; aborting rebase and retrying later"
+        git rebase --abort >> "$LOG_FILE" 2>&1 || true
+        sleep "$INTERVAL"
+        continue
+      fi
+      if ! git push origin "$BRANCH" >> "$LOG_FILE" 2>&1; then
+        log "Push failed after rebase; will retry"
+        sleep "$INTERVAL"
+        continue
+      fi
       changed_files="$(git diff-tree --no-commit-id --name-only -r HEAD -- ${SYNC_SCOPE[@]} || true)"
       if echo "$changed_files" | grep -q '^UNICORN_FINAL/'; then
         sync_server "$changed_files"
