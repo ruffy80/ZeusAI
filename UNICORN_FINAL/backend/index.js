@@ -240,15 +240,16 @@ function extractAdminToken(req) {
 
 function adminTokenMiddleware(req, res, next) {
   const token = extractAdminToken(req);
-  if (!token) return res.status(401).json({ error: 'Admin token missing' });
+  if (!token) return res.status(401).json({ authenticated: false, reason: 'no_token', error: 'Admin token missing' });
   try {
     const payload = jwt.verify(token, JWT_SECRET);
-    if (payload.role !== 'admin') return res.status(403).json({ error: 'Forbidden' });
-    if (!dbAdminSessions.has(token)) return res.status(401).json({ error: 'Session expired' });
+    if (payload.role !== 'admin') return res.status(403).json({ authenticated: false, reason: 'forbidden', error: 'Forbidden' });
+    if (!dbAdminSessions.has(token)) return res.status(401).json({ authenticated: false, reason: 'session_expired', error: 'Session expired' });
     req.admin = payload;
     return next();
-  } catch {
-    return res.status(401).json({ error: 'Invalid admin token' });
+  } catch (e) {
+    const reason = (e && e.name === 'TokenExpiredError') ? 'token_expired' : 'token_invalid';
+    return res.status(401).json({ authenticated: false, reason, error: 'Invalid admin token' });
   }
 }
 

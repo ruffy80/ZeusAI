@@ -1,6 +1,10 @@
 #!/bin/zsh
 set -euo pipefail
 
+# 30Y-LTS — ensure PATH includes Node/npm/npx so husky pre-commit hooks work
+# even when the daemon is launched from a minimal launchd / cron environment.
+export PATH="/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin:$PATH"
+
 REPO_DIR="/Users/ionutvladoi/Desktop/generate-unicorn"
 LOG_DIR="$REPO_DIR/logs"
 LOG_FILE="$LOG_DIR/live-sync-hetzner-github.log"
@@ -15,6 +19,8 @@ SYNC_SCOPE=(
   "UNICORN_FINAL"
   "scripts/live-sync-hetzner-github.sh"
   "scripts/start-live-sync-hetzner-github.sh"
+  "scripts/stop-live-sync-hetzner-github.sh"
+  "scripts/backup-secrets.sh"
   "scripts/ssh-zeusai.sh"
 )
 
@@ -28,6 +34,12 @@ log() {
 sync_server() {
   local changed="$1"
   log "Deploying UNICORN_FINAL to $SYNC_HOST:$REMOTE_APP_DIR"
+  # 30Y-LTS — write a stable .build-sha file before rsync so the deployed
+  # server (which has no .git tree) can show a real short SHA in
+  # /status, X-Zeus-Build header and the on-page build badge.
+  local short_sha
+  short_sha="$(git -C "$REPO_DIR" rev-parse --short=12 HEAD 2>/dev/null || echo unknown)"
+  echo "$short_sha" > "$REPO_DIR/UNICORN_FINAL/.build-sha"
   rsync -az --delete \
     --exclude '.git/' \
     --exclude 'node_modules/' \

@@ -612,6 +612,17 @@ if (typeof streamTimer.unref === 'function') {
   streamTimer.unref();
 }
 
+// 30Y-LTS — SSE comment-level heartbeat every 15s.
+// Keeps proxies (Nginx, Cloudflare) from closing idle long-poll connections;
+// snapshot ticker (every 5s) already produces traffic but during quiet periods
+// (after first push) the comment line `: keepalive\n\n` is a zero-cost ping.
+const sseHeartbeat = setInterval(() => {
+  const ping = ': keepalive ' + Date.now() + '\n\n';
+  for (const c of streamClients)         { try { c.write(ping); } catch (_) {} }
+  for (const c of unicornEventClients)   { try { c.write(ping); } catch (_) {} }
+}, 15 * 1000);
+if (typeof sseHeartbeat.unref === 'function') sseHeartbeat.unref();
+
 // ==============================================================
 // Zeus-30Y concierge helpers: language detect, intent, compose
 // ==============================================================
@@ -3106,6 +3117,76 @@ ${invoice.payer ? `<h2>Payer</h2><table><tr><th>Legal entity</th><td>${esc(invoi
   if (req.url.startsWith('/api/')) {
     res.writeHead(404, { 'Content-Type': 'application/json' });
     return res.end(JSON.stringify({ error: 'not_found', path: req.url }));
+  }
+
+  // 30Y-LTS — CSP violation reporter. Browsers POST here when a directive is breached.
+  if (req.url === '/csp-violations' && req.method === 'POST') {
+    let body=''; req.on('data', c => { body += c; if (body.length > 16*1024) req.destroy(); });
+    req.on('end', () => {
+      try {
+        const logDir = path.join(__dirname, '..', 'logs');
+        const logFile = path.join(logDir, 'csp-violations.log');
+        try { fs.mkdirSync(logDir, { recursive: true }); } catch(_){}
+        const line = JSON.stringify({ at: new Date().toISOString(), ip: req.headers['x-forwarded-for'] || req.socket.remoteAddress || '?', report: (() => { try { return JSON.parse(body || '{}'); } catch(_) { return { raw: body.slice(0, 2000) }; } })() }) + '\n';
+        try {
+          const stat = fs.existsSync(logFile) ? fs.statSync(logFile) : null;
+          if (stat && stat.size > 200 * 1024) {
+            const tail = fs.readFileSync(logFile).slice(-100 * 1024);
+            fs.writeFileSync(logFile, tail);
+          }
+          fs.appendFileSync(logFile, line);
+        } catch(_) {}
+      } catch(_) {}
+      res.writeHead(204); res.end();
+    });
+    return;
+  }
+
+  // 30Y-LTS — public status endpoint. JSON for monitors, pretty HTML for browsers.
+  if (req.url === '/status' || req.url === '/status.json') {
+    const wantHtml = req.url !== '/status.json' && /text\/html/.test(String(req.headers.accept || ''));
+    let snap = {};
+    try { snap = buildSnapshot(); } catch (_) {}
+    let comm = null;
+    try { if (commerce && typeof commerce.health === 'function') comm = commerce.health(); } catch (_) {}
+    const payload = {
+      status: 'ok',
+      service: 'zeusai-site',
+      build: { sha: ZEUS_BUILD.sha, builtAt: ZEUS_BUILD.ts },
+      uptimeSec: Math.round(process.uptime()),
+      memoryRssMb: Math.round(process.memoryUsage().rss / 1024 / 1024),
+      pid: process.pid,
+      now: new Date().toISOString(),
+      sse: { snapshotClients: streamClients.size, eventClients: unicornEventClients.size },
+      commerce: comm,
+      counts: {
+        modules: (snap.modules || []).length,
+        marketplace: (snap.marketplace || []).length,
+        services: (snap.services || []).length
+      }
+    };
+    if (wantHtml) {
+      const html = `<!doctype html><html lang="en"><head><meta charset="utf-8"/><title>Status — ZeusAI</title>
+<style>body{font:14px/1.4 ui-monospace,SFMono-Regular,Menlo,monospace;background:#05040a;color:#cbd5e1;padding:24px;max-width:760px;margin:0 auto}h1{color:#7fffd4;font-weight:700;letter-spacing:.5px}table{width:100%;border-collapse:collapse;margin:12px 0}td{padding:8px 12px;border-bottom:1px solid #1f2937}td:first-child{color:#94a3b8;width:200px}a{color:#3ea0ff}</style>
+</head><body>
+<h1>● ZeusAI status — <span style="color:#0f0">OK</span></h1>
+<table>
+<tr><td>Build</td><td>${ZEUS_BUILD.sha} <small>(${ZEUS_BUILD.ts})</small></td></tr>
+<tr><td>Uptime</td><td>${payload.uptimeSec}s</td></tr>
+<tr><td>Memory RSS</td><td>${payload.memoryRssMb} MB</td></tr>
+<tr><td>SSE clients</td><td>${payload.sse.snapshotClients} snapshot · ${payload.sse.eventClients} events</td></tr>
+<tr><td>Commerce</td><td>${comm ? (comm.status + ' · ' + comm.orders.total + ' orders') : 'n/a'}</td></tr>
+<tr><td>Modules</td><td>${payload.counts.modules}</td></tr>
+<tr><td>Marketplace</td><td>${payload.counts.marketplace}</td></tr>
+</table>
+<p>Endpoints: <a href="/health">/health</a> · <a href="/snapshot">/snapshot</a> · <a href="/metrics">/metrics</a> · <a href="/status.json">/status.json</a></p>
+<p style="color:#64748b">Generated ${payload.now}</p>
+</body></html>`;
+      res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'public, max-age=10, stale-while-revalidate=60' });
+      return res.end(html);
+    }
+    res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'public, max-age=10, stale-while-revalidate=60' });
+    return res.end(JSON.stringify(payload));
   }
 
   // Any SPA route → v2 shell
