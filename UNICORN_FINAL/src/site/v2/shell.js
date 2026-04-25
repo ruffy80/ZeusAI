@@ -366,6 +366,20 @@ function pageServices() {
     <div><span class="kicker">Marketplace</span><h2>Every ZeusAI service, <span class="grad">one sovereign storefront.</span></h2></div>
     <p>All services below are synced live from the ZeusAI backend. Buy with BTC or PayPal — activation is automatic and cryptographically receipted.</p>
   </div>
+  <div class="card" style="margin:16px 0 22px;background:linear-gradient(135deg,rgba(247,147,26,.10),rgba(127,90,240,.10));border:1px solid rgba(247,147,26,.45)">
+    <div style="display:flex;flex-wrap:wrap;gap:18px;align-items:center;justify-content:space-between">
+      <div style="flex:1;min-width:280px">
+        <span class="kicker">₿ Native Bitcoin commerce</span>
+        <h3 style="margin:8px 0;font-size:22px">Pay any service direct in BTC. No middleman. Instant signed receipt.</h3>
+        <p style="color:var(--ink-dim);margin:0;font-size:14px">Owner wallet routes 100% of revenue. Each invoice generates an Ed25519 receipt + on-chain proof.</p>
+        <div class="btc-addr" id="svcHeroBtcAddr" data-copy="${CFG.btc}" title="Click to copy">${CFG.btc}</div>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:8px;min-width:180px">
+        <a class="btn btn-primary" href="/checkout?plan=custom&amount=99" data-link>Quick BTC checkout →</a>
+        <a class="btn" href="/api/commerce/health" target="_blank" rel="noopener" style="font-size:12px">Verify commerce engine</a>
+      </div>
+    </div>
+  </div>
   <div class="filters" id="svcFilters"></div>
   <div class="grid" id="servicesGrid"><div class="card"><p>Loading…</p></div></div>
 </section>`;

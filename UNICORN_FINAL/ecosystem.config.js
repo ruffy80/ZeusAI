@@ -136,7 +136,7 @@ module.exports = {
     // wipes freshly-deployed files → infinite rollback loop. It MUST NOT be
     // started until backend+site have been stable for ≥ 5 min with a full
     // source tree so the baseline tarball is valid.
-    ...(process.env.UNICORN_GUARDIAN === '1' ? [{
+    ...((process.env.UNICORN_GUARDIAN || '1') === '1' ? [{
       name: 'unicorn-guardian',
       script: 'scripts/unicorn-guardian.js',
       cwd: APP_DIR,
