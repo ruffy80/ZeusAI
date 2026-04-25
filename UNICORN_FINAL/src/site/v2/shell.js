@@ -109,8 +109,8 @@ function footer(route, opts) {
 </footer>
 ${concierge()}
 <noscript><div style="position:fixed;bottom:0;left:0;right:0;padding:14px 18px;background:#05040a;color:#e8f0ff;border-top:1px solid #3ea0ff;font:14px/1.4 system-ui;z-index:99">This site works fully without JavaScript. Cinematic effects are disabled in no-JS mode; all services, pricing and APIs remain reachable.</div></noscript>
-<script>window.__UNICORN__=${JSON.stringify({ owner: OWNER, route })};</script>
-<script data-local-three-version="r160">
+<script${N}>window.__UNICORN__=${JSON.stringify({ owner: OWNER, route })};</script>
+<script${N} data-local-three-version="r160">
 // 30Y-LTS: try locally vendored Three.js first, fall back to CDN only when absent.
 (function loadThree(){
   var s=document.createElement('script');
@@ -118,6 +118,43 @@ ${concierge()}
   s.onerror=function(){var f=document.createElement('script');f.src='https://unpkg.com/three@0.160.0/build/three.min.js';f.defer=true;document.head.appendChild(f);};
   document.head.appendChild(s);
 })();
+</script>
+<script${N}>
+// 30Y-LTS — language switcher (cookie-based, no reload-flicker)
+(function(){
+  document.addEventListener('click', function(ev){
+    var b = ev.target && ev.target.closest && ev.target.closest('.lang-btn');
+    if (!b) return;
+    var code = b.getAttribute('data-lang');
+    if (!code) return;
+    document.cookie = 'lang=' + code + '; path=/; max-age=31536000; samesite=lax';
+    document.documentElement.setAttribute('lang', code);
+    document.querySelectorAll('.lang-btn').forEach(function(x){ x.classList.toggle('active', x===b); });
+    location.reload();
+  }, false);
+})();
+// Service worker registration (offline-first)
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', function(){
+    navigator.serviceWorker.register('/sw.js').catch(function(){});
+  });
+}
+// CSP violation reporter (defensive)
+window.addEventListener('securitypolicyviolation', function(e){
+  try{
+    fetch('/csp-violations', { method:'POST', headers:{'Content-Type':'application/csp-report'}, body: JSON.stringify({
+      'csp-report': {
+        'document-uri': location.href,
+        'violated-directive': e.violatedDirective,
+        'effective-directive': e.effectiveDirective,
+        'blocked-uri': e.blockedURI,
+        'source-file': e.sourceFile,
+        'line-number': e.lineNumber,
+        'status-code': e.statusCode || 0
+      }
+    })}).catch(function(){});
+  }catch(_){ }
+});
 </script>
 <script src="/assets/aeon.js" defer></script>
 <script src="/assets/app.js" defer></script>
