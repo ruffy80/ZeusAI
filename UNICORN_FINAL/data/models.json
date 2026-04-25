@@ -1,0 +1,142 @@
+[
+  {
+    "name": "Qwen/Qwen3-0.6B",
+    "type": "huggingface",
+    "modelName": "Qwen/Qwen3-0.6B",
+    "capabilities": [
+      "text-generation"
+    ],
+    "cost": 0,
+    "performance": {
+      "speed": 0.5,
+      "accuracy": 0.5
+    },
+    "requiresKey": true
+  },
+  {
+    "name": "openai-community/gpt2",
+    "type": "huggingface",
+    "modelName": "openai-community/gpt2",
+    "capabilities": [
+      "text-generation"
+    ],
+    "cost": 0,
+    "performance": {
+      "speed": 0.5,
+      "accuracy": 0.5
+    },
+    "requiresKey": true
+  },
+  {
+    "name": "Qwen/Qwen2.5-7B-Instruct",
+    "type": "huggingface",
+    "modelName": "Qwen/Qwen2.5-7B-Instruct",
+    "capabilities": [
+      "text-generation"
+    ],
+    "cost": 0,
+    "performance": {
+      "speed": 0.5,
+      "accuracy": 0.5
+    },
+    "requiresKey": true
+  },
+  {
+    "name": "deepseek-ai/DeepSeek-V3.2",
+    "type": "huggingface",
+    "modelName": "deepseek-ai/DeepSeek-V3.2",
+    "capabilities": [
+      "text-generation"
+    ],
+    "cost": 0,
+    "performance": {
+      "speed": 0.5,
+      "accuracy": 0.5
+    },
+    "requiresKey": true
+  },
+  {
+    "name": "Qwen/Qwen2.5-1.5B-Instruct",
+    "type": "huggingface",
+    "modelName": "Qwen/Qwen2.5-1.5B-Instruct",
+    "capabilities": [
+      "text-generation"
+    ],
+    "cost": 0,
+    "performance": {
+      "speed": 0.5,
+      "accuracy": 0.5
+    },
+    "requiresKey": true
+  },
+  {
+    "name": "Qwen/Qwen3-4B-Instruct-2507",
+    "type": "huggingface",
+    "modelName": "Qwen/Qwen3-4B-Instruct-2507",
+    "capabilities": [
+      "text-generation"
+    ],
+    "cost": 0,
+    "performance": {
+      "speed": 0.5,
+      "accuracy": 0.5
+    },
+    "requiresKey": true
+  },
+  {
+    "name": "meta-llama/Llama-3.1-8B-Instruct",
+    "type": "huggingface",
+    "modelName": "meta-llama/Llama-3.1-8B-Instruct",
+    "capabilities": [
+      "text-generation"
+    ],
+    "cost": 0,
+    "performance": {
+      "speed": 0.5,
+      "accuracy": 0.5
+    },
+    "requiresKey": true
+  },
+  {
+    "name": "Qwen/Qwen2.5-3B-Instruct",
+    "type": "huggingface",
+    "modelName": "Qwen/Qwen2.5-3B-Instruct",
+    "capabilities": [
+      "text-generation"
+    ],
+    "cost": 0,
+    "performance": {
+      "speed": 0.5,
+      "accuracy": 0.5
+    },
+    "requiresKey": true
+  },
+  {
+    "name": "Qwen/Qwen3-8B",
+    "type": "huggingface",
+    "modelName": "Qwen/Qwen3-8B",
+    "capabilities": [
+      "text-generation"
+    ],
+    "cost": 0,
+    "performance": {
+      "speed": 0.5,
+      "accuracy": 0.5
+    },
+    "requiresKey": true
+  },
+  {
+    "name": "trl-internal-testing/tiny-Qwen2ForCausalLM-2.5",
+    "type": "huggingface",
+    "modelName": "trl-internal-testing/tiny-Qwen2ForCausalLM-2.5",
+    "capabilities": [
+      "text-generation"
+    ],
+    "cost": 0,
+    "performance": {
+      "speed": 0.5,
+      "accuracy": 0.5
+    },
+    "requiresKey": true
+  }
+]
