@@ -506,7 +506,15 @@ setTimeout(() => { try { startBackendEventBridge(); } catch (e) { console.warn('
     if (!process.env.BTC_WALLET_ADDRESS && !process.env.OWNER_BTC_ADDRESS) {
       warn('No BTC_WALLET_ADDRESS configured — falling back to repo default. Set it explicitly.');
     }
-    if (!process.env.SITE_SIGN_KEY) {
+    // 30Y-LTS: accept any of three persistence modes (inline PEM, file path, default on-disk path).
+    const fs = require('fs');
+    const path = require('path');
+    const defaultKeyPath = path.join(__dirname, '..', '.unicorn-site-sign.key');
+    const hasPersistentKey =
+      !!process.env.SITE_SIGN_KEY ||
+      (process.env.SITE_SIGN_KEY_FILE && fs.existsSync(process.env.SITE_SIGN_KEY_FILE)) ||
+      fs.existsSync(defaultKeyPath);
+    if (!hasPersistentKey) {
       warn('SITE_SIGN_KEY not provided — ephemeral Ed25519 key is generated per boot. Persist a key for long-term receipt verification.');
     }
   }
