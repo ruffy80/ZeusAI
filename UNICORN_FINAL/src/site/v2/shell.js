@@ -703,7 +703,8 @@ function routeTitle(route) {
 }
 
 function getHtml(route = '/', params = {}) {
-  return head(routeTitle(route), route) + renderRoute(route, params) + footer(route);
+  // Backward-compat: accept either getHtml(url) or getHtml(url, { lang, nonce })
+  return head(routeTitle(route), route, params) + renderRoute(route, params) + footer(route, params);
 }
 
 module.exports = { getHtml, CSS, OWNER };
