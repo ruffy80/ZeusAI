@@ -372,7 +372,7 @@ function pageServices() {
         <span class="kicker">₿ Native Bitcoin commerce</span>
         <h3 style="margin:8px 0;font-size:22px">Pay any service direct in BTC. No middleman. Instant signed receipt.</h3>
         <p style="color:var(--ink-dim);margin:0;font-size:14px">Owner wallet routes 100% of revenue. Each invoice generates an Ed25519 receipt + on-chain proof.</p>
-        <div class="btc-addr" id="svcHeroBtcAddr" data-copy="${CFG.btc}" title="Click to copy">${CFG.btc}</div>
+        <div class="btc-addr" id="svcHeroBtcAddr" data-copy="${OWNER.btc}" title="Click to copy">${OWNER.btc}</div>
       </div>
       <div style="display:flex;flex-direction:column;gap:8px;min-width:180px">
         <a class="btn btn-primary" href="/checkout?plan=custom&amount=99" data-link>Quick BTC checkout →</a>
