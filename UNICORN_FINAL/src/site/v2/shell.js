@@ -12,19 +12,35 @@ const OWNER = {
   domain: process.env.PUBLIC_APP_URL || 'https://zeusai.pro'
 };
 
-function head(title, route) {
+function head(title, route, opts) {
+  opts = opts || {};
+  const lang = opts.lang || 'en';
+  const nonce = opts.nonce || '';
+  const nonceAttr = nonce ? ` nonce="${nonce}"` : '';
+  const canonical = (OWNER.domain.replace(/\/$/, '')) + (route || '/');
+  const ogImage = (OWNER.domain.replace(/\/$/, '')) + '/assets/zeus/brand.jpg';
   return `<!doctype html>
-<html lang="en" data-route="${route}">
+<html lang="${lang}" data-route="${route}">
 <head>
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"/>
 <meta name="theme-color" content="#05040a"/>
 <title>${title} — ZEUSAI</title>
 <meta name="description" content="ZeusAI — autonomous AI operating system. Cinematic, sovereign, self-evolving. Every outcome signed, every cent routed."/>
+<link rel="canonical" href="${canonical}"/>
+<meta property="og:site_name" content="ZeusAI — Sovereign AI OS"/>
 <meta property="og:title" content="${title} — ZeusAI"/>
 <meta property="og:description" content="Autonomous SaaS operating system. 18 verticals, 41 marketplaces, cryptographic receipts."/>
 <meta property="og:type" content="website"/>
-<meta property="og:url" content="${OWNER.domain}"/>
+<meta property="og:url" content="${canonical}"/>
+<meta property="og:image" content="${ogImage}"/>
+<meta property="og:image:width" content="1200"/>
+<meta property="og:image:height" content="630"/>
+<meta name="twitter:card" content="summary_large_image"/>
+<meta name="twitter:title" content="${title} — ZeusAI"/>
+<meta name="twitter:description" content="Sovereign AI Operating System. Cryptographic receipts, BTC-native commerce."/>
+<meta name="twitter:image" content="${ogImage}"/>
+<link rel="manifest" href="/manifest.webmanifest"/>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap"/>
