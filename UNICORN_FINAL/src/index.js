@@ -9,6 +9,14 @@ try { require('dotenv').config(); } catch (_) {}
 // --- Build identity (verifiable public marker; prevents "stale variant" confusion) ---
 const ZEUS_BUILD = (() => {
   let sha = process.env.ZEUS_BUILD_SHA || '';
+  // 30Y-LTS: the live-sync daemon writes .build-sha at the app root before rsync,
+  // so the deployed server (which has no .git) still gets a real short SHA.
+  if (!sha) {
+    try {
+      const buildShaFile = path.join(__dirname, '..', '.build-sha');
+      if (fs.existsSync(buildShaFile)) sha = fs.readFileSync(buildShaFile, 'utf8').trim().slice(0, 12);
+    } catch (_) {}
+  }
   if (!sha) {
     try {
       const headFile = path.join(__dirname, '..', '.git', 'HEAD');
