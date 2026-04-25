@@ -54,14 +54,18 @@ ${navBar(route)}
 <main id="app">`;
 }
 
-function navBar(route) {
+function navBar(route, opts) {
+  opts = opts || {};
+  const curLang = opts.lang || 'en';
   const L = (href, label) => `<a href="${href}" data-link${route === href ? ' class="active"' : ''}>${label}</a>`;
+  const langBtn = (code, label) => `<button class="lang-btn${curLang===code?' active':''}" data-lang="${code}" type="button" aria-label="${label}">${code.toUpperCase()}</button>`;
   return `<nav class="nav">
 <div class="brand"><div class="brand-logo brand-logo-photo"><img src="/assets/zeus/brand.jpg" alt="Zeus" onerror="this.style.display='none'"/></div><div>ZeusAI<small>SOVEREIGN OS</small></div></div>
 <div class="nav-links">
 ${L('/', 'Home')}${L('/services', 'Marketplace')}${L('/store', 'Instant Store')}${L('/enterprise', 'Enterprise')}${L('/pricing', 'Pricing')}${L('/how', 'How it works')}${L('/docs', 'API')}${L('/account', 'Account')}
 </div>
 <div class="nav-cta">
+<div class="lang-switch" role="group" aria-label="Language">${langBtn('en','English')}${langBtn('ro','Română')}${langBtn('es','Español')}</div>
 <a class="btn btn-ghost" href="/dashboard" data-link>Dashboard</a>
 <a class="btn btn-primary" href="/services" data-link>Explore Services</a>
 </div>
