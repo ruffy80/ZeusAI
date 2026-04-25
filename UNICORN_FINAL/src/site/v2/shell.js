@@ -50,7 +50,7 @@ function head(title, route, opts) {
 <body>
 <div class="galaxy-bg" id="zeusCanvas" aria-hidden="true"></div>
 <div class="toasts" id="toasts"></div>
-${navBar(route)}
+${navBar(route, opts)}
 <main id="app">`;
 }
 
