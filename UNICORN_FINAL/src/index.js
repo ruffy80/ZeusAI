@@ -3112,9 +3112,25 @@ ${invoice.payer ? `<h2>Payer</h2><table><tr><th>Legal entity</th><td>${esc(invoi
   const v2Routes = ['/', '/services', '/pricing', '/checkout', '/dashboard', '/how', '/docs', '/about', '/legal', '/enterprise', '/store', '/account'];
   const isV2Route = v2Routes.includes(req.url.split('?')[0]) || req.url.startsWith('/services/');
   if (isV2Route) {
-    // Security headers are emitted ONCE by Nginx (zeusai.conf). Node only sets
-    // app-specific headers to avoid duplicate/conflicting CSP/HSTS/XFO.
-    let html = v2.getHtml(req.url.split('?')[0]);
+    const route = req.url.split('?')[0];
+    // 30Y-LTS: per-request CSP nonce (Nginx forwards X-CSP-Nonce as $request_id;
+    // if absent — local dev — we generate one. Inline scripts get this nonce.
+    const nonce = String(req.headers['x-csp-nonce'] || crypto.randomBytes(12).toString('base64'));
+    // 30Y-LTS: language preference — cookie lang=xx wins, else Accept-Language.
+    const cookieLang = (() => {
+      const ck = String(req.headers.cookie || '');
+      const m = ck.match(/(?:^|;\s*)lang=([a-z]{2})/i);
+      return m ? m[1].toLowerCase() : '';
+    })();
+    const acceptLang = (() => {
+      const al = String(req.headers['accept-language'] || '').toLowerCase();
+      const m = al.match(/^([a-z]{2})/);
+      return m ? m[1] : 'en';
+    })();
+    const lang = cookieLang || acceptLang || 'en';
+    // Public cacheable routes vs private routes
+    const isPrivate = /^\/(account|dashboard|checkout)(\/|$)/.test(route);
+    let html = v2.getHtml(route, { lang, nonce });
     // Inject verifiable build marker so the freshly deployed variant is
     // always distinguishable from any stale browser cache.
     const buildMeta = '<meta name="x-zeus-build" content="' + ZEUS_BUILD.sha + '"><meta name="x-zeus-built-at" content="' + ZEUS_BUILD.ts + '">';
@@ -3127,16 +3143,20 @@ ${invoice.payer ? `<h2>Payer</h2><table><tr><th>Legal entity</th><td>${esc(invoi
     if (html.indexOf('id="zeus-build-badge"') === -1) {
       html = html.replace('</body>', badge + '</body>');
     }
-    // Hard cache-bust: no ETag so every reload forces a fresh 200 while we
-    // stabilize. We can reintroduce ETag once user confirms content.
+    // 30Y-LTS Cache-Control diff:
+    //   Public pages → 5min cache + SWR (browsers/CDNs may revalidate)
+    //   Private pages → no-store (auth, dashboard, checkout)
+    const cache = isPrivate
+      ? 'no-store, no-cache, must-revalidate, max-age=0'
+      : 'public, max-age=300, stale-while-revalidate=600';
     res.writeHead(200, {
       'Content-Type': 'text/html; charset=utf-8',
-      'Cache-Control': 'no-store, no-cache, must-revalidate, max-age=0',
-      'Pragma': 'no-cache',
-      'Expires': '0',
+      'Cache-Control': cache,
       'X-Zeus-Build': ZEUS_BUILD.sha,
       'X-Zeus-Built-At': ZEUS_BUILD.ts,
-      'Vary': 'Accept-Language, Accept-Encoding'
+      'X-CSP-Nonce': nonce,
+      'Vary': 'Accept-Language, Accept-Encoding, Cookie',
+      'Content-Language': lang
     });
     return res.end(html);
   }
