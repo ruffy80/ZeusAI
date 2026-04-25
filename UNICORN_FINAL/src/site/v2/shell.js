@@ -72,7 +72,10 @@ ${L('/', 'Home')}${L('/services', 'Marketplace')}${L('/store', 'Instant Store')}
 </nav>`;
 }
 
-function footer(route) {
+function footer(route, opts) {
+  opts = opts || {};
+  const nonce = opts.nonce || '';
+  const N = nonce ? ` nonce="${nonce}"` : '';
   return `</main>
 <footer>
   <div class="foot-grid">
