@@ -92,6 +92,13 @@ async function run() {
       '/aura': 'Live Conversion Aura — ZEUSAI',
       '/api-explorer': 'API Explorer — ZEUSAI',
       '/transparency': 'Pricing Bandit Transparency — ZEUSAI',
+      '/trust': 'Trust Center — ZEUSAI',
+      '/security': 'Security — ZEUSAI',
+      '/responsible-ai': 'Responsible AI — ZEUSAI',
+      '/dpa': 'Data Processing Agreement — ZEUSAI',
+      '/payment-terms': 'Payment Terms — ZEUSAI',
+      '/operator': 'Operator Console — ZEUSAI',
+      '/observability': 'Observability — ZEUSAI',
       '/changelog': 'Changelog — ZEUSAI'
     };
     for (const [path, title] of Object.entries(routeExpectations)) {
@@ -112,6 +119,12 @@ async function run() {
     const integrity = await request('/.well-known/unicorn-integrity.json');
     assert.equal(integrity.status, 200, '/.well-known/unicorn-integrity.json should return 200');
     assert.equal(integrity.body.alg, 'Ed25519');
+
+    for (const path of ['/api/trust/center', '/api/operator/console', '/api/observability/status', '/api/secret-sync/status', '/api/payments/config/status', '/api/security/pq/status', '/api/commerce/protocol', '/api/checkout/synthetic-probe', '/api/capability/credential/smoke']) {
+      const r = await request(path);
+      assert.equal(r.status, 200, `${path} should return 200`);
+      assert.equal(r.body.ok, true, `${path} should return ok:true`);
+    }
 
     // Test query-string resilience on critical endpoints
     const healthWithQuery = await request('/health?cachebuster=123&debug=1');

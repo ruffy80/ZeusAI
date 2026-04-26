@@ -189,6 +189,16 @@ async function runTests() {
     assert.equal(r.body.fallback, true);
   });
 
+  console.log('\nQuantum Integrity Shield:');
+  await test('GET /api/quantum-integrity/status → diagnostics without false PM2 names', async () => {
+    const r = await apiRequest('GET', '/api/quantum-integrity/status');
+    assert.equal(r.status, 200);
+    assert.ok(r.body.diagnostics);
+    assert.ok(Array.isArray(r.body.diagnostics.requiredPm2Processes));
+    assert.ok(r.body.diagnostics.requiredPm2Processes.includes('unicorn-backend'));
+    assert.ok(!r.body.diagnostics.requiredPm2Processes.includes('unicorn-orchestrator'));
+  });
+
   // ── Admin User Management ────────────────────────────────────────────────────
   console.log('\nAdmin - User Management:');
   await test('GET /api/admin/users - no token → 401', async () => {

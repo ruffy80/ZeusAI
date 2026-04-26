@@ -221,7 +221,8 @@ async function handle(req, res, ctx) {
   if (urlPath === '/sitemap.xml') {
     const baseUrls = [
       '/', '/services', '/store', '/enterprise', '/pricing', '/checkout', '/dashboard', '/how', '/docs',
-      '/about', '/legal', '/innovations', '/wizard', '/status', '/changelog', '/terms', '/privacy',
+      '/about', '/legal', '/trust', '/security', '/responsible-ai', '/dpa', '/payment-terms', '/operator',
+      '/observability', '/innovations', '/wizard', '/status', '/changelog', '/terms', '/privacy',
       '/refund', '/sla', '/pledge', '/cancel', '/gift', '/aura', '/api-explorer', '/transparency', '/frontier'
     ];
     const now = new Date().toISOString();

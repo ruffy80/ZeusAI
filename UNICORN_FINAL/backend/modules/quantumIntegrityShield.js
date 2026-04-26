@@ -19,9 +19,11 @@ const { execSync } = require('child_process');
 const SCAN_INTERVAL_MS  = parseInt(process.env.QIS_SCAN_INTERVAL_MS  || '300000',  10); // 5 min
 const MAX_SCAN_HISTORY  = 100;
 const AUTO_HEAL_ENABLED = String(process.env.QIS_AUTO_HEAL_ENABLED || 'true').toLowerCase() !== 'false';
-const AUTO_HEAL_CMD     = process.env.QIS_AUTO_HEAL_CMD || 'pm2 restart unicorn unicorn-orchestrator unicorn-health-guardian';
+const AUTO_HEAL_CMD     = process.env.QIS_AUTO_HEAL_CMD || 'pm2 reload ecosystem.config.js --update-env || pm2 reload unicorn-backend unicorn-site unicorn-guardian --update-env';
 const AUTO_ROLLBACK_CMD = process.env.QIS_AUTO_ROLLBACK_CMD || '';
 const AUTO_HEAL_COOLDOWN_MS = parseInt(process.env.QIS_AUTO_HEAL_COOLDOWN_MS || '180000', 10);
+const HEAP_WARN_PCT = Number(process.env.QIS_HEAP_WARN_PCT || '0.98');
+const HEAP_WARN_MIN_MB = Number(process.env.QIS_HEAP_WARN_MIN_MB || '512');
 
 // Module critice care trebuie verificate / Critical modules to verify
 const CRITICAL_MODULES = [
@@ -40,9 +42,15 @@ const CRITICAL_FILES = [
   path.join(__dirname, '../../scripts/rollback-last-backup.sh'),
 ];
 
-const REQUIRED_PM2_PROCESSES = (process.env.QIS_REQUIRED_PROCESSES || 'unicorn,unicorn-orchestrator,unicorn-health-guardian')
+const LEGACY_PM2_NAME_MAP = {
+  unicorn: 'unicorn-backend',
+  'unicorn-orchestrator': 'unicorn-site',
+  'unicorn-health-guardian': 'unicorn-guardian',
+  'unicorn-quantum-watchdog': 'unicorn-guardian',
+};
+const REQUIRED_PM2_PROCESSES = (process.env.QIS_REQUIRED_PROCESSES || 'unicorn-backend,unicorn-site,unicorn-guardian')
   .split(',')
-  .map((s) => s.trim())
+  .map((s) => LEGACY_PM2_NAME_MAP[s.trim()] || s.trim())
   .filter(Boolean);
 
 class QuantumIntegrityShield {
@@ -222,9 +230,11 @@ class QuantumIntegrityShield {
     // 3. Verificare memorie (alertă dacă > 90% heap)
     const mem = process.memoryUsage();
     const heapPct = mem.heapUsed / mem.heapTotal;
-    if (heapPct > 0.9) {
+    const heapUsedMb = Math.round(mem.heapUsed / 1024 / 1024);
+    const heapTotalMb = Math.round(mem.heapTotal / 1024 / 1024);
+    if (heapPct > HEAP_WARN_PCT && heapUsedMb >= HEAP_WARN_MIN_MB) {
       issues.push({ type: 'memory_pressure', severity: 'warning',
-        detail: `Heap utilizat ${Math.round(heapPct * 100)}% (${Math.round(mem.heapUsed / 1024 / 1024)}MB / ${Math.round(mem.heapTotal / 1024 / 1024)}MB)` });
+        detail: `Heap utilizat ${Math.round(heapPct * 100)}% (${heapUsedMb}MB / ${heapTotalMb}MB)` });
     }
 
     // 4. Verificare procese PM2 critice
@@ -278,7 +288,35 @@ class QuantumIntegrityShield {
       autoHealEnabled: AUTO_HEAL_ENABLED,
       lastSelfHealAt: this.lastSelfHealAt ? new Date(this.lastSelfHealAt).toISOString() : null,
       lastSelfHealResult: this.lastSelfHealResult,
+      diagnostics: this._diagnostics(),
     };
+  }
+
+  _diagnostics() {
+    const scan = this.lastScan;
+    const issues = scan && Array.isArray(scan.issues) ? scan.issues : [];
+    return {
+      health: scan ? scan.status : 'pending',
+      issues,
+      rootCauses: issues.map((issue) => ({
+        type: issue.type,
+        severity: issue.severity,
+        detail: issue.detail,
+        fix: this._recommendedFix(issue),
+      })),
+      requiredPm2Processes: REQUIRED_PM2_PROCESSES,
+      heapPolicy: { warnPct: HEAP_WARN_PCT, warnMinMb: HEAP_WARN_MIN_MB },
+    };
+  }
+
+  _recommendedFix(issue) {
+    if (!issue || !issue.type) return 'No action required.';
+    if (issue.type === 'pm2_process_missing') return 'Verify PM2 ecosystem names match QIS_REQUIRED_PROCESSES and reload ecosystem.config.js.';
+    if (issue.type === 'memory_pressure') return 'Inspect heap growth; warning is ignored below QIS_HEAP_WARN_MIN_MB to avoid false positives on small Node heaps.';
+    if (issue.type === 'critical_file_missing') return 'Restore required deployment script or remove stale critical-file entry if retired.';
+    if (issue.type === 'module_missing') return 'Restore the critical module file or remove retired module from the critical set.';
+    if (issue.type === 'hash_mismatch' || issue.type === 'critical_file_changed') return 'Confirm deploy provenance, then restart service to establish a fresh boot baseline.';
+    return 'Review the issue and apply the documented operational runbook.';
   }
 
   /** Forțează un scan imediat / Force an immediate scan */

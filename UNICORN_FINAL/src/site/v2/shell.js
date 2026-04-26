@@ -62,6 +62,7 @@ function head(title, route, opts) {
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' x2='1' y1='0' y2='1'%3E%3Cstop offset='0' stop-color='%238a5cff'/%3E%3Cstop offset='0.5' stop-color='%233ea0ff'/%3E%3Cstop offset='1' stop-color='%23ffd36a'/%3E%3C/linearGradient%3E%3C/defs%3E%3Cpath fill='url(%23g)' d='M32 4l8 14h14l-12 10 5 18-15-10-15 10 5-18L10 18h14z'/%3E%3C/svg%3E"/>
 </head>
 <body>
+<a href="#app" style="position:absolute;left:-999px;top:10px;background:#fff;color:#05040a;padding:10px 14px;border-radius:10px;z-index:9999" onfocus="this.style.left='10px'" onblur="this.style.left='-999px'">Skip to content</a>
 <div class="galaxy-bg" id="zeusCanvas" aria-hidden="true"></div>
 <div class="toasts" id="toasts"></div>
 ${navBar(route, opts)}
@@ -119,6 +120,9 @@ function footer(route, opts) {
       <li><a href="/health">/health</a></li>
     </ul></div>
     <div><h5>Trust</h5><ul>
+      <li><a href="/trust" data-link>Trust Center</a></li>
+      <li><a href="/security" data-link>Security</a></li>
+      <li><a href="/responsible-ai" data-link>Responsible AI</a></li>
       <li><a href="/refund" data-link>Refund Guarantee</a></li>
       <li><a href="/sla" data-link>SLA</a></li>
       <li><a href="/pledge" data-link>Anti-Dark-Pattern Pledge</a></li>
@@ -135,6 +139,9 @@ function footer(route, opts) {
       <li><a href="/legal" data-link>Legal</a></li>
       <li><a href="/terms" data-link>Terms</a></li>
       <li><a href="/privacy" data-link>Privacy</a></li>
+      <li><a href="/dpa" data-link>DPA</a></li>
+      <li><a href="/payment-terms" data-link>Payment Terms</a></li>
+      <li><a href="/operator" data-link>Operator Console</a></li>
       <li><a href="mailto:${OWNER.email}">${OWNER.email}</a></li>
       <li><a href="${OWNER.domain}">${OWNER.domain.replace(/^https?:\/\//,'')}</a></li>
     </ul></div>
@@ -694,6 +701,11 @@ function pageCheckout() {
     <div><span class="kicker">Checkout</span><h2>Pay in BTC or PayPal. <span class="grad">Activation is automatic.</span></h2></div>
     <p>Every payment generates an Ed25519‑signed receipt appended to the Merkle chain. No middlemen, no custody.</p>
   </div>
+  <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px;margin:0 0 22px">
+    <div class="card"><span class="tag">Step 1</span><h3>Select service</h3><p style="color:var(--ink-dim)">Choose plan/product and email so delivery can issue the entitlement.</p></div>
+    <div class="card"><span class="tag">Step 2</span><h3>Quote / invoice</h3><p style="color:var(--ink-dim)">BTC quote, NOWPayments fallback path and owner wallet are shown before payment.</p></div>
+    <div class="card"><span class="tag">Step 3</span><h3>Delivery / license</h3><p style="color:var(--ink-dim)">After settlement, receipt, license token, API key and onboarding delivery become available.</p></div>
+  </div>
   <div class="checkout">
     <div class="co-box">
       <div class="co-method">
@@ -703,10 +715,10 @@ function pageCheckout() {
       <div id="coPanelBtc">
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:18px;align-items:start">
           <div>
-            <div class="field"><label>Amount (USD)</label><input id="coAmount" type="number" min="1" step="1" value="49"/></div>
-            <div class="field"><label>Plan / product</label><input id="coPlan" value="starter"/></div>
-            <div class="field"><label>Email for activation</label><input id="coEmail" type="email" placeholder="you@company.com"/></div>
-            <div class="field"><label>BTC quote</label><input id="coBtc" readonly value="computing…"/></div>
+            <div class="field"><label for="coAmount">Amount (USD)</label><input id="coAmount" type="number" min="1" step="1" value="49"/></div>
+            <div class="field"><label for="coPlan">Plan / product</label><input id="coPlan" value="starter"/></div>
+            <div class="field"><label for="coEmail">Email for activation</label><input id="coEmail" type="email" placeholder="you@company.com"/></div>
+            <div class="field"><label for="coBtc">BTC quote</label><input id="coBtc" readonly value="computing…"/></div>
             <div class="btc-addr" id="btcAddr">${OWNER.btc}</div>
             <div id="coFxStrip" style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px"></div>
             <button class="btn btn-primary" id="coPay" style="margin-top:14px;width:100%;justify-content:center">Create order & watch blockchain</button>
@@ -717,9 +729,9 @@ function pageCheckout() {
         <div id="coStatus"></div>
       </div>
       <div id="coPanelPaypal" style="display:none">
-        <div class="field"><label>Amount (USD)</label><input id="coAmountPP" type="number" min="1" step="1" value="49"/></div>
-        <div class="field"><label>Plan / product</label><input id="coPlanPP" value="starter"/></div>
-        <div class="field"><label>Email for activation</label><input id="coEmailPP" type="email" placeholder="you@company.com"/></div>
+        <div class="field"><label for="coAmountPP">Amount (USD)</label><input id="coAmountPP" type="number" min="1" step="1" value="49"/></div>
+        <div class="field"><label for="coPlanPP">Plan / product</label><input id="coPlanPP" value="starter"/></div>
+        <div class="field"><label for="coEmailPP">Email for activation</label><input id="coEmailPP" type="email" placeholder="you@company.com"/></div>
         <button class="btn btn-primary" id="coPayPP" style="width:100%;justify-content:center;margin-bottom:8px">Start PayPal payment →</button>
         <a class="btn btn-gold" id="coPaypal" style="width:100%;justify-content:center" target="_blank" rel="noopener">Or tip via paypal.me</a>
         <p style="color:var(--ink-dim);font-size:13px;margin-top:14px">Start PayPal payment uses the real PayPal Orders API when credentials are configured, otherwise falls back to paypal.me. The server auto‑captures the order and issues a signed license token.</p>
@@ -846,6 +858,28 @@ function pageDocs() {
   <pre class="code">curl -s -X POST https://zeusai.pro/api/checkout/btc \\
   -H 'Content-Type: application/json' \\
   -d '{"amount":49,"currency":"USD","plan":"starter","email":"you@company.com"}'</pre>
+  <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:14px;margin-top:22px">
+    <div class="card"><span class="tag">Node SDK quickstart</span><pre class="code">const order = await fetch('https://zeusai.pro/api/checkout/btc', {
+  method: 'POST', headers: {'Content-Type':'application/json'},
+  body: JSON.stringify({ plan:'starter', amountUSD:49, customer:{ email:'you@company.com' } })
+}).then(r => r.json());
+console.log(order.receipt.id, order.btcUri);</pre></div>
+    <div class="card"><span class="tag">Python SDK quickstart</span><pre class="code">import requests
+order = requests.post('https://zeusai.pro/api/checkout/btc', json={
+  'plan':'starter', 'amountUSD':49, 'customer':{'email':'you@company.com'}
+}).json()
+print(order['receipt']['id'], order.get('btcUri'))</pre></div>
+    <div class="card"><span class="tag">Webhook verification</span><pre class="code"># NOWPayments IPN
+GET  /api/payment/nowpayments/security
+POST /api/payment/nowpayments/webhook
+
+# The webhook is HMAC-SHA512 verified when
+# NOWPAYMENTS_IPN_SECRET is configured.</pre></div>
+    <div class="card"><span class="tag">Agent-to-agent checkout</span><pre class="code">GET  /openapi.json
+POST /api/checkout/cascade
+GET  /api/capability/credential/{receiptId}
+GET  /api/delivery/{receiptId}</pre></div>
+  </div>
 </section>`;
 }
 
@@ -873,6 +907,116 @@ function pageLegal() {
   <h3>Payments</h3>
   <p style="color:var(--ink-dim);font-size:15px;line-height:1.7">Payments are routed directly to owner‑controlled wallets (BTC) and accounts (PayPal). There are no custodians, no payment processors keeping a balance.</p>
   <p style="color:var(--ink-dim);font-size:13.5px;margin-top:30px">Last updated: ${new Date().toISOString().slice(0,10)} · Jurisdiction: owner of record.</p>
+</section>`;
+}
+
+function pageTrustCenter() {
+  return `<section style="padding-top:140px;max-width:1180px">
+  <span class="kicker">Trust Center · public proofs</span>
+  <h1 style="font-size:clamp(34px,4.4vw,58px);margin:10px 0 18px">Operational trust, <span class="grad">signed and inspectable.</span></h1>
+  <p style="color:var(--ink-dim);font-size:16px;line-height:1.7;max-width:860px">This page combines uptime, deploy identity, integrity signatures, owner BTC routing, payment readiness, security posture, audit logs and incident history. No private secrets are exposed.</p>
+  <div class="grid" id="trustGrid" style="margin-top:22px"><div class="card"><p>Loading trust center…</p></div></div>
+  <div class="card" style="padding:22px;margin-top:18px"><span class="kicker">Integrity document</span><pre class="code" id="trustRaw">Loading…</pre></div>
+  <script>
+  (async function(){
+    const grid=document.getElementById('trustGrid'), raw=document.getElementById('trustRaw');
+    try {
+      const [tc, integ] = await Promise.all([
+        fetch('/api/trust/center').then(r=>r.json()),
+        fetch('/.well-known/unicorn-integrity.json').then(r=>r.json())
+      ]);
+      const cards = [
+        ['Health', tc.health.status, tc.health.summary],
+        ['Deploy SHA', tc.deploy.sha, tc.deploy.generatedAt],
+        ['Integrity', integ.alg, 'Public key + signature live'],
+        ['BTC proof', tc.owner.btc.slice(0,18)+'…', '100% owner-routed wallet'],
+        ['Payments', tc.payments.mode, tc.payments.action],
+        ['Security', tc.security.posture, tc.security.summary],
+        ['Incidents', tc.incidents.count+' sealed', tc.incidents.status],
+        ['SLO', tc.slo.uptimeTarget, tc.slo.probe]
+      ];
+      grid.innerHTML = cards.map(c=>'<div class="card"><span class="tag">'+c[0]+'</span><h3>'+c[1]+'</h3><p style="color:var(--ink-dim)">'+c[2]+'</p></div>').join('');
+      raw.textContent = JSON.stringify({ trustCenter: tc, integrity: integ }, null, 2);
+    } catch(e) { grid.innerHTML='<div class="card"><p style="color:var(--danger)">Trust center unavailable: '+e.message+'</p></div>'; }
+  })();
+  </script>
+</section>`;
+}
+
+function pageSecurity() {
+  return _policyPage('Security', 'Security posture', [
+    ['Runtime hardening', 'Helmet CSP, HSTS in production, CORS allow-listing, rate limits and body sanitization protect public APIs.'],
+    ['Secrets', 'GitHub Actions can sync secrets to Hetzner .env with masked values, SSH validation and PM2 reload. Missing payment secrets are reported, not hidden.'],
+    ['Payments', 'BTC fallback works without custodians. NOWPayments uses HMAC IPN verification when NOWPAYMENTS_IPN_SECRET is configured.'],
+    ['Integrity', 'The site publishes Ed25519-signed integrity at /.well-known/unicorn-integrity.json and DID discovery at /.well-known/did.json.'],
+    ['QuantumIntegrityShield', 'The backend exposes exact diagnostics at /api/quantum-integrity/status and avoids false degraded state from retired PM2 process names.'],
+    ['Incident handling', 'Incidents are sealed publicly and linked from /status and /trust.']
+  ]);
+}
+
+function pageResponsibleAi() {
+  return _policyPage('Responsible AI', 'Responsible AI controls', [
+    ['Human sovereignty', 'High-risk actions remain owner-approved through admin gates, kill-switch policy and capability boundaries.'],
+    ['No dark patterns', 'The anti-dark-pattern pledge forbids fake scarcity, forced accounts, drip pricing and retention traps.'],
+    ['Transparency', 'Pricing experiments publish public aggregate metrics at /transparency.'],
+    ['Data minimization', 'Personal data is limited to activation, receipts, support and delivery records.'],
+    ['Agent boundaries', 'Agent-to-agent checkout uses signed receipts and endpoint-scoped capability credentials.'],
+    ['Rollback', 'Temporal product memory records deploy identity, risk and rollback-ready status.']
+  ]);
+}
+
+function pageDpa() {
+  return _policyPage('Data Processing Agreement', 'Data Processing Agreement', [
+    ['Controller / Processor', `${OWNER.name} operates ZeusAI as owner. Customer-specific processing is limited to service activation, delivery, support and billing.`],
+    ['Data categories', 'Email, plan, order intent, receipt metadata, delivery entitlements, API keys and support messages.'],
+    ['Security measures', 'TLS, signed receipts, access tokens, admin authorization, body sanitization, operational logging and least-data retention.'],
+    ['Sub-processors', 'Payment and infrastructure subprocessors are disclosed through compliance attestation endpoints when configured.'],
+    ['Retention', 'Receipts and integrity logs are append-only for auditability; user support data can be exported or deleted where legally allowed.'],
+    ['International transfers', 'Transfers are limited to configured infrastructure/payment providers and documented in the customer agreement.']
+  ]);
+}
+
+function pagePaymentTerms() {
+  return _policyPage('Payment Terms', 'Payment Terms', [
+    ['Supported rails', 'BTC direct wallet, PayPal where configured and NOWPayments global crypto rails when secrets are installed.'],
+    ['Fallback policy', 'If NOWPayments is not configured or unavailable, checkout falls back to direct BTC without losing order intent.'],
+    ['Settlement', 'Paid receipts issue delivery/license credentials after confirmation or admin settlement.'],
+    ['Refunds', 'Refund guarantee and SLA breach logic are documented at /refund and /sla.'],
+    ['Taxes', 'Customer is responsible for applicable taxes unless an enterprise contract states otherwise.'],
+    ['Receipts', 'Every order is recorded with signed receipt metadata and owner-routed payout destination.']
+  ]);
+}
+
+function pageOperator() {
+  return `<section style="padding-top:140px;max-width:1180px">
+  <span class="kicker">Operator Console · public-safe</span>
+  <h1 style="font-size:clamp(34px,4.4vw,58px);margin:10px 0 18px">Commerce, health and deploy <span class="grad">in one cockpit.</span></h1>
+  <p style="color:var(--ink-dim);font-size:16px;line-height:1.7;max-width:860px">Sanitized operator view for orders, payments, leads, AI provider readiness, errors, revenue proof, deploy health and webhook failures. Admin-only actions remain protected.</p>
+  <div class="grid" id="opGrid" style="margin-top:22px"><div class="card"><p>Loading operator snapshot…</p></div></div>
+  <pre class="code" id="opRaw" style="margin-top:18px;max-height:420px;overflow:auto">Loading…</pre>
+  <script>
+  fetch('/api/operator/console').then(r=>r.json()).then(d=>{
+    const cards=[['Orders', d.orders.total], ['Paid', d.orders.paid], ['Revenue', '$'+d.revenue.totalUsd], ['Payment rail', d.payments.mode], ['AI providers', d.ai.active+'/'+d.ai.total], ['Deploy', d.deploy.sha], ['Errors', d.errors.count], ['Webhooks', d.webhooks.status]];
+    opGrid.innerHTML=cards.map(c=>'<div class="card"><span class="tag">'+c[0]+'</span><h3>'+c[1]+'</h3></div>').join('');
+    opRaw.textContent=JSON.stringify(d,null,2);
+  }).catch(e=>{opRaw.textContent=e.message});
+  </script>
+</section>`;
+}
+
+function pageObservability() {
+  return `<section style="padding-top:140px;max-width:1120px">
+  <span class="kicker">Observability</span>
+  <h1 style="font-size:clamp(34px,4.4vw,58px);margin:10px 0 18px">SLOs, probes and <span class="grad">self-healing signals.</span></h1>
+  <p style="color:var(--ink-dim);font-size:16px;line-height:1.7;max-width:820px">Public status page foundation for synthetic checkout probes, robots/sitemap/payment monitoring, SLO budgets and alert readiness.</p>
+  <div class="grid" id="obsGrid" style="margin-top:22px"><div class="card"><p>Loading observability…</p></div></div>
+  <pre class="code" id="obsRaw" style="margin-top:18px">Loading…</pre>
+  <script>
+  fetch('/api/observability/status').then(r=>r.json()).then(d=>{
+    obsGrid.innerHTML=d.probes.map(p=>'<div class="card"><span class="tag">'+p.status+'</span><h3>'+p.name+'</h3><p style="color:var(--ink-dim)">'+p.target+' · '+p.interval+'</p></div>').join('');
+    obsRaw.textContent=JSON.stringify(d,null,2);
+  }).catch(e=>{obsRaw.textContent=e.message});
+  </script>
 </section>`;
 }
 
@@ -940,6 +1084,13 @@ function renderRoute(route, params = {}) {
     case '/docs': return pageDocs();
     case '/about': return pageAbout();
     case '/legal': return pageLegal();
+    case '/trust': return pageTrustCenter();
+    case '/security': return pageSecurity();
+    case '/responsible-ai': return pageResponsibleAi();
+    case '/dpa': return pageDpa();
+    case '/payment-terms': return pagePaymentTerms();
+    case '/operator': return pageOperator();
+    case '/observability': return pageObservability();
     case '/enterprise': return pageEnterprise();
     case '/store': return pageStore();
     case '/innovations': return pageInnovations();
@@ -1378,6 +1529,17 @@ function pageNotFound(route) {
 </section>`;
 }
 
+function _policyPage(kicker, title, rows) {
+  return `<section style="padding-top:140px;max-width:980px">
+  <span class="kicker">${kicker}</span>
+  <h1 style="font-size:clamp(34px,4.4vw,56px);margin:10px 0 22px">${title}</h1>
+  <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:14px">
+    ${rows.map(([heading, body]) => `<div class="card"><span class="tag">${heading}</span><p style="color:var(--ink-dim);font-size:15px;line-height:1.7;margin:12px 0 0">${body}</p></div>`).join('')}
+  </div>
+  <p style="color:var(--ink-dim);font-size:13.5px;margin-top:28px">Last updated: ${new Date().toISOString().slice(0,10)} · Owner: ${OWNER.name} · Contact: <a href="mailto:${OWNER.email}">${OWNER.email}</a></p>
+</section>`;
+}
+
 function _legalSub(title, body) {
   return `<section style="padding-top:140px;max-width:880px">
   <span class="kicker">Legal</span>
@@ -1390,7 +1552,7 @@ function _legalSub(title, body) {
 function routeTitle(route) {
   if (route === '/') return 'Sovereign AI OS';
   if (route.startsWith('/services/')) return 'Service';
-  const map = { '/services':'Marketplace', '/pricing':'Pricing', '/checkout':'Checkout', '/dashboard':'Dashboard', '/how':'How it works', '/docs':'API & Docs', '/about':'About', '/legal':'Legal', '/enterprise':'Enterprise Licenses', '/store':'Instant Store', '/account':'Account', '/innovations':'30Y Cryptographic Durability', '/wizard':'Find my plan', '/status':'Live status', '/changelog':'Changelog', '/terms':'Terms of Service', '/privacy':'Privacy Policy', '/refund':'Refund Guarantee', '/sla':'SLA', '/pledge':'Anti-Dark-Pattern Pledge', '/cancel':'Universal Cancel', '/gift':'Gift-as-Capability', '/aura':'Live Conversion Aura', '/api-explorer':'API Explorer', '/transparency':'Pricing Bandit Transparency', '/frontier':'Frontier Inventions' };
+  const map = { '/services':'Marketplace', '/pricing':'Pricing', '/checkout':'Checkout', '/dashboard':'Dashboard', '/how':'How it works', '/docs':'API & Docs', '/about':'About', '/legal':'Legal', '/trust':'Trust Center', '/security':'Security', '/responsible-ai':'Responsible AI', '/dpa':'Data Processing Agreement', '/payment-terms':'Payment Terms', '/operator':'Operator Console', '/observability':'Observability', '/enterprise':'Enterprise Licenses', '/store':'Instant Store', '/account':'Account', '/innovations':'30Y Cryptographic Durability', '/wizard':'Find my plan', '/status':'Live status', '/changelog':'Changelog', '/terms':'Terms of Service', '/privacy':'Privacy Policy', '/refund':'Refund Guarantee', '/sla':'SLA', '/pledge':'Anti-Dark-Pattern Pledge', '/cancel':'Universal Cancel', '/gift':'Gift-as-Capability', '/aura':'Live Conversion Aura', '/api-explorer':'API Explorer', '/transparency':'Pricing Bandit Transparency', '/frontier':'Frontier Inventions' };
   return map[route] || 'ZeusAI';
 }
 
@@ -1405,6 +1567,13 @@ function routeDescription(route) {
     '/docs': 'ZeusAI API documentation, OpenAPI endpoints, signed catalog, receipts and agent-to-agent commerce examples.',
     '/about': 'The story and ownership model behind ZeusAI, built as a sovereign AI OS by Vladoi Ionut.',
     '/legal': 'Legal terms, ownership, payments and usage rules for ZeusAI services and autonomous AI commerce.',
+    '/trust': 'Public ZeusAI Trust Center with uptime, deploy SHA, integrity signature, BTC wallet proof, audit logs and security posture.',
+    '/security': 'ZeusAI security posture covering CSP, secrets, payments, signed integrity, incident handling and QuantumIntegrityShield diagnostics.',
+    '/responsible-ai': 'Responsible AI controls for ZeusAI: human sovereignty, no dark patterns, transparency, capability boundaries and rollback.',
+    '/dpa': 'ZeusAI Data Processing Agreement with data categories, security measures, subprocessors, retention and transfer terms.',
+    '/payment-terms': 'Payment terms for ZeusAI BTC, PayPal and NOWPayments checkout, settlement, refunds, taxes and signed receipts.',
+    '/operator': 'Public-safe ZeusAI operator console for orders, payments, leads, AI readiness, errors, revenue and deploy health.',
+    '/observability': 'ZeusAI observability page for SLOs, synthetic probes, status checks, payment monitoring and alert readiness.',
     '/enterprise': 'Enterprise licenses for AI automation, vertical operating systems, signed outcomes and custom deployment.',
     '/store': 'Instant ZeusAI store for buying autonomous AI services with BTC, signed receipts and delivery proof.',
     '/account': 'Manage your ZeusAI account, services, receipts, licenses and delivery credentials.',
