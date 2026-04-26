@@ -257,6 +257,72 @@ async function runTests() {
     assert.equal(r.body.user.email, 'zeus@test.com');
   });
 
+  console.log('\nAutonomous Money Machine:');
+  await test('GET /api/money-machine/status → 200 with all revenue modules', async () => {
+    const r = await apiRequest('GET', '/api/money-machine/status');
+    assert.equal(r.status, 200);
+    assert.equal(r.body.ok, true);
+    assert.ok(r.body.modules.includes('Autonomous Revenue Commander'));
+    assert.ok(r.body.modules.includes('Customer Success Autopilot'));
+  });
+
+  await test('GET /api/revenue/commander → autonomous decision', async () => {
+    const r = await apiRequest('GET', '/api/revenue/commander');
+    assert.equal(r.status, 200);
+    assert.equal(r.body.ok, true);
+    assert.ok(Array.isArray(r.body.decision.actions));
+  });
+
+  await test('POST /api/offers/factory → generates checkout-ready offers', async () => {
+    const r = await apiRequest('POST', '/api/offers/factory', { industry: 'fintech', segment: 'enterprise', budgetUsd: 5000 });
+    assert.equal(r.status, 200);
+    assert.equal(r.body.ok, true);
+    assert.ok(r.body.offers.length >= 4);
+    assert.ok(r.body.offers[0].checkoutPath.includes('/checkout'));
+  });
+
+  await test('POST /api/conversion/event + GET intelligence → records funnel data', async () => {
+    const event = await apiRequest('POST', '/api/conversion/event', { type: 'checkout_started', path: '/checkout', valueUsd: 299 });
+    assert.equal(event.status, 200);
+    assert.equal(event.body.ok, true);
+    const r = await apiRequest('GET', '/api/conversion/intelligence');
+    assert.equal(r.status, 200);
+    assert.equal(r.body.ok, true);
+    assert.ok(r.body.eventCount >= 1);
+  });
+
+  await test('POST /api/checkout/recovery → queues recovery sequence', async () => {
+    const r = await apiRequest('POST', '/api/checkout/recovery', { email: 'buyer@test.com', plan: 'money-machine-pro', amountUsd: 1499 });
+    assert.equal(r.status, 200);
+    assert.equal(r.body.ok, true);
+    assert.equal(r.body.recovery.status, 'queued');
+  });
+
+  await test('POST /api/sales/sdr/lead → qualifies B2B lead', async () => {
+    const r = await apiRequest('POST', '/api/sales/sdr/lead', { company: 'Acme SaaS', industry: 'SaaS', employeeCount: 42, budgetUsd: 2500, pain: 'need autonomous lead generation and checkout recovery' });
+    assert.equal(r.status, 200);
+    assert.equal(r.body.ok, true);
+    assert.ok(r.body.lead.score >= 70);
+  });
+
+  await test('POST /api/sales/closer/answer → returns CTA answer', async () => {
+    const r = await apiRequest('POST', '/api/sales/closer/answer', { objection: 'price', plan: 'money-machine-pro' });
+    assert.equal(r.status, 200);
+    assert.equal(r.body.ok, true);
+    assert.ok(r.body.cta.includes('/checkout'));
+  });
+
+  await test('SEO and customer success APIs → live foundations', async () => {
+    const seo = await apiRequest('GET', '/api/seo/programmatic/status');
+    assert.equal(seo.status, 200);
+    assert.equal(seo.body.ok, true);
+    assert.ok(seo.body.pageTemplates >= 10);
+    const success = await apiRequest('POST', '/api/customer-success/analyze', { paid: true, usage: 500, daysInactive: 0 });
+    assert.equal(success.status, 200);
+    assert.equal(success.body.ok, true);
+    assert.equal(success.body.action, 'upsell-expansion');
+  });
+
   // ── Admin User Management ────────────────────────────────────────────────────
   console.log('\nAdmin - User Management:');
   await test('GET /api/admin/users - no token → 401', async () => {

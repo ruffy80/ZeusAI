@@ -126,6 +126,7 @@ const {
 } = require('./db');
 const emailService = require('./email');
 const worldStandard = require('./modules/worldStandard');
+const moneyMachine = require('./modules/autonomousMoneyMachine');
 
 let webauthnModulePromise;
 const getWebAuthn = () => {
@@ -640,6 +641,22 @@ app.get('/api/compliance/autopilot', (req, res) => res.json(worldStandard.compli
 app.get('/api/privacy/export', authMiddleware, (req, res) => res.json(worldStandard.privacyExport(req.user)));
 app.post('/api/privacy/delete-request', authMiddleware, (req, res) => res.json({ ok: true, requestId: worldStandard.appendLedger('privacy.delete.requested', { userId: req.user.id, email: req.user.email }).id, status: 'queued-for-owner-review' }));
 
+app.get('/api/money-machine/status', (req, res) => res.json(moneyMachine.status()));
+app.get('/api/revenue/commander', (req, res) => res.json(moneyMachine.revenueCommander()));
+app.post('/api/revenue/commander/run', adminTokenMiddleware, (req, res) => res.json({ ok: true, run: moneyMachine.revenueCommander() }));
+app.get('/api/offers/factory', (req, res) => res.json(moneyMachine.offerFactory({ industry: req.query.industry, segment: req.query.segment, budgetUsd: req.query.budgetUsd })));
+app.post('/api/offers/factory', (req, res) => res.json(moneyMachine.offerFactory(req.body || {})));
+app.post('/api/conversion/event', (req, res) => res.json(moneyMachine.recordConversionEvent(req.body || {})));
+app.get('/api/conversion/intelligence', (req, res) => res.json(moneyMachine.conversionIntelligence()));
+app.post('/api/checkout/recovery', (req, res) => res.json(moneyMachine.queueCheckoutRecovery(req.body || {})));
+app.get('/api/checkout/recovery/status', (req, res) => res.json(moneyMachine.recoveryStatus()));
+app.post('/api/sales/sdr/lead', (req, res) => res.json(moneyMachine.qualifyLead(req.body || {})));
+app.post('/api/sales/closer/answer', (req, res) => res.json(moneyMachine.closerAnswer(req.body || {})));
+app.get('/api/seo/programmatic/status', (req, res) => res.json(moneyMachine.programmaticSeoStatus()));
+app.post('/api/seo/programmatic/generate', (req, res) => res.json(moneyMachine.generateSeoPages(req.body || {})));
+app.get('/api/customer-success/status', (req, res) => res.json(moneyMachine.customerSuccessStatus()));
+app.post('/api/customer-success/analyze', (req, res) => res.json(moneyMachine.analyzeCustomer(req.body || {})));
+
 // ==================== MODULE AUTONOME ====================
 const autoDeploy = require('./modules/autoDeploy');
 const selfConstruction = require('./modules/selfConstruction');
@@ -959,6 +976,15 @@ const MODULE_REGISTRY = {
     'whiteLabelEngine',
     'profit-attribution',
     'profit-control-loop',
+    'autonomous-money-machine',
+    'autonomous-revenue-commander',
+    'offer-factory',
+    'conversion-intelligence-layer',
+    'checkout-recovery-agent',
+    'ai-sdr-agent',
+    'ai-sales-closer-pro',
+    'programmatic-seo-engine',
+    'customer-success-autopilot',
     'dynamic-pricing',
     'auto-repair',
     'auto-restart',

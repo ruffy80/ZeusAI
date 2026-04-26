@@ -148,6 +148,7 @@ async function run() {
     assert.ok(coverage.body.items.some(item => item.id === 'passkey-auth' && item.status === 'live-100-api'));
     assert.ok(coverage.body.items.some(item => item.id === 'transparency-ledger' && item.status === 'live-100-api'));
     assert.ok(coverage.body.items.some(item => item.id === 'global-compliance-autopilot' && item.status === 'live-foundation'));
+    assert.ok(coverage.body.items.some(item => item.id === 'autonomous-money-machine' && item.status === 'live-100-api'));
     assert.ok(coverage.body.items.some(item => item.id === 'nowpayments' && item.status.includes('optional-later')));
     assert.ok(coverage.body.secrets.featureSummary.totalKnownSecrets >= 1);
 

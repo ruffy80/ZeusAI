@@ -260,6 +260,7 @@ function buildInnovationCoverage() {
     { id: 'third-party-module-marketplace', title: 'Third-Party Module Marketplace + Quarantine + Revenue Share', status: 'live-foundation', evidence: ['/api/vendor/marketplace/policy', '/api/vendor/marketplace/submit', '/api/vendor/marketplace/modules'], userAction: 'formal vendor legal terms remain business/legal work before public onboarding' },
     { id: 'personal-child-agent-os', title: 'Personal Child-Agent OS', status: 'foundation-not-full-product', evidence: ['/api/commerce/protocol', '/api/capability/credential/{receiptId}', '/responsible-ai'], userAction: 'requires product decisions: user accounts, consent model, data retention and agent permissions' },
     { id: 'global-compliance-autopilot', title: 'Global Compliance Autopilot + Privacy Export/Delete Flow', status: 'live-foundation', evidence: ['/api/compliance/autopilot', '/api/privacy/export', '/api/privacy/delete-request', '/dpa', '/responsible-ai'], userAction: 'formal legal audit and jurisdiction-specific certification remain external/legal work' },
+    { id: 'autonomous-money-machine', title: 'Autonomous Money Machine: Revenue Commander + Offer Factory + Conversion + Recovery + SDR + SEO + Success', status: 'live-100-api', evidence: ['/api/money-machine/status', '/api/revenue/commander', '/api/offers/factory', '/api/conversion/intelligence', '/api/checkout/recovery/status', '/api/sales/sdr/lead', '/api/seo/programmatic/status', '/api/customer-success/status'], userAction: 'none for foundation; connect paid outbound channels only after owner approval and budget limits' },
   ];
   const counts = items.reduce((acc, item) => {
     acc[item.status] = (acc[item.status] || 0) + 1;
@@ -1665,6 +1666,7 @@ async function unicornHandler(req, res) {
   const isUaic = !!(uaic && uaic.matches(urlPath)) && urlPath !== '/api/uaic/status';
   const isUse  = !!(USE && USE.matches(urlPath)) && !urlPath.startsWith('/api/user/') && !urlPath.startsWith('/api/ai/');
   const backendUrl = process.env.BACKEND_API_URL;
+  const isBackendMoneyMachineApi = urlPath.startsWith('/api/checkout/recovery');
 
   // Universal Site Engine: security gate + perf telemetry on every request
   if (USE) { const blocked = USE.observe(req, res, process.hrtime.bigint()); if (blocked) return; }
@@ -1913,7 +1915,7 @@ async function unicornHandler(req, res) {
 
   // Forward /api/* and /deploy to the Express backend (Hetzner) if configured,
   // EXCEPT the v2 local APIs which we serve in this process.
-  if (backendUrl && !isLocalV2Api && !isUaic && (urlPath.startsWith('/api/') || urlPath === '/deploy')) {
+  if (backendUrl && (isBackendMoneyMachineApi || (!isLocalV2Api && !isUaic && (urlPath.startsWith('/api/') || urlPath === '/deploy')))) {
     return proxyToBackend(req, res, backendUrl);
   }
   if (urlPath.startsWith('/api/') && !isLocalV2Api && !isUaic) {
