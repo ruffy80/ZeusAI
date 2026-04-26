@@ -177,24 +177,27 @@ function getPaymentConfigStatus() {
   const paypalConfigured = isConfiguredSecret('PAYPAL_CLIENT_ID') && isConfiguredSecret('PAYPAL_CLIENT_SECRET');
   const btcpayConfigured = isConfiguredSecret('BTCPAY_SERVER_URL') && isConfiguredSecret('BTCPAY_API_KEY') && isConfiguredSecret('BTCPAY_STORE_ID');
   const rails = [
-    { id: 'btc-direct', configured: true, active: true, mode: 'fallback-primary', action: 'none' },
-    { id: 'btcpay', configured: btcpayConfigured, active: btcpayConfigured, mode: btcpayConfigured ? 'invoice-api' : 'optional', action: btcpayConfigured ? 'none' : 'set BTCPAY_SERVER_URL, BTCPAY_API_KEY, BTCPAY_STORE_ID' },
-    { id: 'paypal', configured: paypalConfigured, active: paypalConfigured, mode: paypalConfigured ? 'orders-api' : 'paypal-me-fallback', action: paypalConfigured ? 'none' : 'set PAYPAL_CLIENT_ID and PAYPAL_CLIENT_SECRET' },
-    { id: 'nowpayments', configured: nowConfigured, active: nowConfigured, mode: nowConfigured ? 'global-crypto' : 'btc-fallback', action: nowConfigured && nowIpnConfigured ? 'none' : 'set NOWPAYMENTS_API_KEY and NOWPAYMENTS_IPN_SECRET' },
+    { id: 'btc-direct', configured: true, active: true, primary: true, mode: 'owner-wallet-primary', payoutDestination: BTC_WALLET, action: 'none' },
+    { id: 'btcpay', configured: btcpayConfigured, active: btcpayConfigured, primary: false, mode: btcpayConfigured ? 'invoice-api' : 'optional-later', action: btcpayConfigured ? 'none' : 'optional: configure BTCPAY_SERVER_URL, BTCPAY_API_KEY, BTCPAY_STORE_ID later' },
+    { id: 'paypal', configured: paypalConfigured, active: paypalConfigured, primary: false, mode: paypalConfigured ? 'orders-api' : 'optional-later', action: paypalConfigured ? 'none' : 'optional: configure PAYPAL_CLIENT_ID and PAYPAL_CLIENT_SECRET later' },
+    { id: 'nowpayments', configured: nowConfigured, active: nowConfigured, primary: false, mode: nowConfigured ? 'global-crypto' : 'optional-later', action: nowConfigured && nowIpnConfigured ? 'none' : 'optional: configure NOWPAYMENTS_API_KEY and NOWPAYMENTS_IPN_SECRET later' },
   ];
   return {
     ok: true,
     generatedAt: new Date().toISOString(),
-    mode: nowConfigured ? 'NOWPayments global crypto + BTC fallback' : 'BTC fallback active; NOWPayments pending secrets',
+    mode: 'BTC direct owner-wallet primary; external providers optional later',
+    primaryRail: 'btc-direct',
+    primaryPayout: { currency: 'BTC', address: BTC_WALLET, owner: OWNER_NAME, automatic: true, custody: 'owner-controlled-wallet' },
     nowpayments: {
       apiKeyConfigured: nowConfigured,
       ipnSecretConfigured: nowIpnConfigured,
       webhookSecurityReady: nowIpnConfigured,
       sandbox: process.env.NOWPAYMENTS_SANDBOX === '1',
-      requiredSecrets: ['NOWPAYMENTS_API_KEY', 'NOWPAYMENTS_IPN_SECRET'],
+      optionalSecrets: ['NOWPAYMENTS_API_KEY', 'NOWPAYMENTS_IPN_SECRET'],
+      requiredForCurrentMode: false,
     },
     rails,
-    action: nowConfigured && nowIpnConfigured ? 'Payments globally configured.' : 'Add NOWPayments secrets in GitHub/Hetzner; direct BTC checkout remains live until then.',
+    action: 'No action needed for current mode: revenue routes directly to the configured BTC owner wallet. NOWPayments/PayPal can be enabled later as optional rails.',
   };
 }
 function buildPublicSecurityPosture() {
@@ -203,7 +206,7 @@ function buildPublicSecurityPosture() {
   const configured = required.filter(isConfiguredSecret);
   return {
     posture: configured.length >= 3 ? 'hardened' : 'partially-configured',
-    summary: `${configured.length}/${required.length} core controls configured; ${payment.nowpayments.webhookSecurityReady ? 'NOWPayments webhook HMAC ready' : 'NOWPayments webhook HMAC pending'}`,
+    summary: `${configured.length}/${required.length} core controls configured; BTC direct owner-wallet payouts active; NOWPayments/PayPal optional later`,
     controls: {
       csp: true,
       hstsProduction: process.env.NODE_ENV === 'production',
@@ -1717,7 +1720,7 @@ async function unicornHandler(req, res) {
       status: 'hybrid-ready',
       current: { signatures: 'Ed25519', receipts: 'Ed25519 + Merkle-compatible', webhooks: 'HMAC-SHA512 where provider supports it' },
       next: { mldsa: !!innov30, kyber: 'roadmap', receiptDualSign: !!innov30 },
-      paymentConfirmationSecurity: getPaymentConfigStatus().nowpayments.webhookSecurityReady ? 'HMAC verified' : 'BTC fallback + NOWPayments HMAC pending secret',
+      paymentConfirmationSecurity: getPaymentConfigStatus().nowpayments.webhookSecurityReady ? 'HMAC verified for optional NOWPayments rail; BTC direct remains primary' : 'BTC direct primary with on-chain/self-service confirmation; external HMAC rails optional later',
       endpoints: ['/.well-known/unicorn-integrity.json', '/.well-known/did.json', '/api/receipts/root', '/api/receipt/nft/{id}']
     };
     res.writeHead(200, { 'Content-Type':'application/json', 'Cache-Control':'no-cache' });
@@ -1738,8 +1741,9 @@ async function unicornHandler(req, res) {
         pm2Reload: 'pm2 reload ecosystem.config.js --update-env || pm2 reload unicorn-backend unicorn-site unicorn-guardian --update-env'
       },
       canonicalSecrets: { path: 'UNICORN_FINAL/backend/constants/secretKeys.js', present: fs.existsSync(canonicalPath), nowpaymentsIncluded: true },
-      requiredOperationalSecrets: ['HETZNER_HOST', 'HETZNER_DEPLOY_USER', 'HETZNER_SSH_PRIVATE_KEY', 'JWT_SECRET', 'ADMIN_SECRET', 'NOWPAYMENTS_API_KEY', 'NOWPAYMENTS_IPN_SECRET'],
-      configured: ['JWT_SECRET', 'ADMIN_SECRET', 'NOWPAYMENTS_API_KEY', 'NOWPAYMENTS_IPN_SECRET', 'BTC_WALLET_ADDRESS'].map((name) => ({ name, configured: isConfiguredSecret(name) })),
+      requiredOperationalSecrets: ['HETZNER_HOST', 'HETZNER_DEPLOY_USER', 'HETZNER_SSH_PRIVATE_KEY', 'JWT_SECRET', 'ADMIN_SECRET', 'BTC_WALLET_ADDRESS'],
+      optionalProviderSecrets: ['NOWPAYMENTS_API_KEY', 'NOWPAYMENTS_IPN_SECRET', 'PAYPAL_CLIENT_ID', 'PAYPAL_CLIENT_SECRET'],
+      configured: ['JWT_SECRET', 'ADMIN_SECRET', 'BTC_WALLET_ADDRESS', 'NOWPAYMENTS_API_KEY', 'NOWPAYMENTS_IPN_SECRET', 'PAYPAL_CLIENT_ID', 'PAYPAL_CLIENT_SECRET'].map((name) => ({ name, configured: isConfiguredSecret(name) })),
       note: 'GitHub Actions secrets cannot be read by the app; this endpoint verifies code readiness and runtime env presence only.'
     };
     res.writeHead(200, { 'Content-Type':'application/json', 'Cache-Control':'no-cache' });
@@ -1784,7 +1788,7 @@ async function unicornHandler(req, res) {
       ai: { active: activeAi, total: aiProviders.length, providers: aiProviders.map(name => ({ name, configured: isConfiguredSecret(name) })) },
       deploy: { sha: ZEUS_BUILD.sha, build: ZEUS_BUILD.ts },
       errors: { count: 0, source: 'public-safe aggregate' },
-      webhooks: { status: payment.nowpayments.webhookSecurityReady ? 'ready' : 'pending-nowpayments-ipn-secret' },
+      webhooks: { status: payment.nowpayments.webhookSecurityReady ? 'optional-nowpayments-ready' : 'btc-direct-primary-no-provider-webhook-required' },
       links: { health: '/health', trust: '/api/trust/center', payments: '/api/payments/config/status', observability: '/api/observability/status' }
     };
     res.writeHead(200, { 'Content-Type':'application/json', 'Cache-Control':'no-cache' });

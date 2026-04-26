@@ -1174,7 +1174,7 @@ function initFinalLive(services){
     if (trustOut) {
       const endpoint = trust && trust.ledger && trust.ledger.integrityEndpoint;
       const paid = rev && rev.revenue && rev.revenue.paidReceipts;
-      trustOut.textContent = 'Integrity: ' + (endpoint || 'n/a') + ' · paid receipts: ' + (paid != null ? paid : 'n/a') + ' · routing: BTC + PayPal';
+      trustOut.textContent = 'Integrity: ' + (endpoint || 'n/a') + ' · paid receipts: ' + (paid != null ? paid : 'n/a') + ' · routing: direct BTC';
     }
   }).catch(function(){
     if (trustOut) trustOut.textContent = 'Trust snapshot unavailable.';

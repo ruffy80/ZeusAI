@@ -240,7 +240,7 @@ function concierge() {
   <div class="concierge-panel" id="conciergePanel" role="dialog" aria-label="Zeus AI Sales Agent">
     <div class="concierge-head"><span class="dot"></span> Zeus · <span style="color:var(--violet2);font-weight:700">30Y</span> AI<span class="meta" id="conciergeMeta">zeus-30y</span></div>
     <div class="concierge-body" id="conciergeBody" aria-live="polite">
-      <div class="msg bot"><div class="msg-body">Salut! Sunt <b>Zeus-30Y</b> — standardul AI sales pentru următorii 30 de ani. Streaming, voce, memorie, recomandări live, checkout BTC/PayPal și activare instant.\n\nHi! I'm <b>Zeus-30Y</b> — the 30-year AI sales standard. Streaming, voice, memory, live recs, BTC/PayPal checkout, instant activation.</div></div>
+      <div class="msg bot"><div class="msg-body">Salut! Sunt <b>Zeus-30Y</b> — standardul AI sales pentru următorii 30 de ani. Streaming, voce, memorie, recomandări live, checkout BTC direct și activare instant.\n\nHi! I'm <b>Zeus-30Y</b> — the 30-year AI sales standard. Streaming, voice, memory, live recs, direct BTC checkout, instant activation.</div></div>
     </div>
     <div class="chips" id="conciergeChips">
       <button class="chip" data-q="Ce servicii ai și ce prețuri?">💰 Prețuri</button>
@@ -265,7 +265,7 @@ function globalChrome() {
   <div class="zeus-cookie-cta"><button id="zeus-cookie-accept" class="btn btn-primary btn-sm">Accept</button><button id="zeus-cookie-deny" class="btn btn-ghost btn-sm">Deny</button></div>
 </div>
 <div id="zeus-buy-bar" class="zeus-buy-bar" hidden>
-  <div class="zeus-buy-text"><b>Ready to deploy ZeusAI?</b><span>30-day refund · BTC + Stripe + PayPal · cancel any time</span></div>
+  <div class="zeus-buy-text"><b>Ready to deploy ZeusAI?</b><span>30-day refund · direct BTC owner wallet · cancel any time</span></div>
   <div class="zeus-buy-cta"><a class="btn btn-ghost btn-sm" href="/wizard" data-link>Find my plan</a><a class="btn btn-primary btn-sm" href="/services" data-link>Buy now →</a></div>
 </div>
 <div id="zeus-exit" class="zeus-exit" hidden>
@@ -586,7 +586,7 @@ function pageHome() {
     <div class="panel pillar" data-pillar="autonomy" tabindex="0" role="button" aria-label="Open Zeus Orchestrator live view"><div class="ic">⚡</div><h4>Zeus Orchestrator</h4><p>Autonomy chain (PCMC) + capability tokens (CBAT). Every decision append-only, every action capability-bound.</p><span class="pillar-cta">Open live chain →</span></div>
     <div class="panel pillar" data-pillar="quarantine" tabindex="0" role="button" aria-label="Open Quarantine Buffer live view"><div class="ic">🛡️</div><h4>Quarantine Buffer</h4><p>Quantum Integrity Shield isolates suspect modules before they touch the core. Safe‑code‑writer enforces review gates.</p><span class="pillar-cta">Open live quarantine →</span></div>
     <div class="panel pillar" data-pillar="did" tabindex="0" role="button" aria-label="Open Self-Sovereign DIDs live view"><div class="ic">🪪</div><h4>Self‑Sovereign DIDs</h4><p>Ed25519 identities per module. Every receipt, every invoice, every module action is independently verifiable.</p><span class="pillar-cta">Resolve & verify →</span></div>
-    <div class="panel pillar" data-pillar="outcome" tabindex="0" role="button" aria-label="Open Outcome Economics live view"><div class="ic">💎</div><h4>Outcome Economics</h4><p>Value‑Proof Ledger meters delivered value in $. Auto‑invoices a share. Owner keeps sovereignty on BTC + PayPal.</p><span class="pillar-cta">Record outcome →</span></div>
+    <div class="panel pillar" data-pillar="outcome" tabindex="0" role="button" aria-label="Open Outcome Economics live view"><div class="ic">💎</div><h4>Outcome Economics</h4><p>Value‑Proof Ledger meters delivered value in $. Auto‑invoices a share. Owner keeps sovereignty through direct BTC settlement.</p><span class="pillar-cta">Record outcome →</span></div>
     <div class="panel pillar" data-pillar="giants" tabindex="0" role="button" aria-label="Open Giant Integration Fabric live view"><div class="ic">🌐</div><h4>Giant Integration Fabric</h4><p>42 hyperscalers and enterprise giants (AWS, Azure, GCP, SF, SAP, SNOW, OpenAI, NVIDIA…) behind a single markup‑aware bus.</p><span class="pillar-cta">Dispatch to giants →</span></div>
     <div class="panel pillar" data-pillar="monetize" tabindex="0" role="button" aria-label="Open Global Monetization Mesh live view"><div class="ic">🚀</div><h4>Global Monetization Mesh</h4><p>41 marketplaces, multi‑armed bandit pricing. 572M+ reach. Publish once, sell everywhere.</p><span class="pillar-cta">Publish listing →</span></div></div>
   <div id="pillarLive" class="pillar-live" aria-live="polite"></div>
@@ -660,7 +660,7 @@ function pagePricing() {
       <ul>
         <li>Up to 5 active modules</li>
         <li>100k module executions / month</li>
-        <li>BTC & PayPal checkout</li>
+        <li>Direct BTC checkout</li>
         <li>Community support</li>
       </ul>
       <a class="btn" href="/checkout?plan=starter&amount=49" data-link>Start Starter</a>
@@ -698,19 +698,18 @@ function pagePricing() {
 function pageCheckout() {
   return `<section style="padding-top:140px">
   <div class="section-title">
-    <div><span class="kicker">Checkout</span><h2>Pay in BTC or PayPal. <span class="grad">Activation is automatic.</span></h2></div>
+    <div><span class="kicker">Checkout</span><h2>Pay direct in BTC. <span class="grad">Activation is automatic.</span></h2></div>
     <p>Every payment generates an Ed25519‑signed receipt appended to the Merkle chain. No middlemen, no custody.</p>
   </div>
   <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px;margin:0 0 22px">
     <div class="card"><span class="tag">Step 1</span><h3>Select service</h3><p style="color:var(--ink-dim)">Choose plan/product and email so delivery can issue the entitlement.</p></div>
-    <div class="card"><span class="tag">Step 2</span><h3>Quote / invoice</h3><p style="color:var(--ink-dim)">BTC quote, NOWPayments fallback path and owner wallet are shown before payment.</p></div>
+    <div class="card"><span class="tag">Step 2</span><h3>Quote / invoice</h3><p style="color:var(--ink-dim)">BTC quote and owner wallet are shown before payment. NOWPayments and PayPal are optional later rails.</p></div>
     <div class="card"><span class="tag">Step 3</span><h3>Delivery / license</h3><p style="color:var(--ink-dim)">After settlement, receipt, license token, API key and onboarding delivery become available.</p></div>
   </div>
   <div class="checkout">
     <div class="co-box">
       <div class="co-method">
         <button class="chip on" data-method="btc">₿ Bitcoin</button>
-        <button class="chip" data-method="paypal">PayPal</button>
       </div>
       <div id="coPanelBtc">
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:18px;align-items:start">
@@ -734,7 +733,7 @@ function pageCheckout() {
         <div class="field"><label for="coEmailPP">Email for activation</label><input id="coEmailPP" type="email" placeholder="you@company.com"/></div>
         <button class="btn btn-primary" id="coPayPP" style="width:100%;justify-content:center;margin-bottom:8px">Start PayPal payment →</button>
         <a class="btn btn-gold" id="coPaypal" style="width:100%;justify-content:center" target="_blank" rel="noopener">Or tip via paypal.me</a>
-        <p style="color:var(--ink-dim);font-size:13px;margin-top:14px">Start PayPal payment uses the real PayPal Orders API when credentials are configured, otherwise falls back to paypal.me. The server auto‑captures the order and issues a signed license token.</p>
+        <p style="color:var(--ink-dim);font-size:13px;margin-top:14px">PayPal is intentionally parked for later configuration. Current production checkout routes revenue directly to the BTC owner wallet.</p>
       </div>
     </div>
     <aside class="co-box">
@@ -946,8 +945,8 @@ function pageTrustCenter() {
 function pageSecurity() {
   return _policyPage('Security', 'Security posture', [
     ['Runtime hardening', 'Helmet CSP, HSTS in production, CORS allow-listing, rate limits and body sanitization protect public APIs.'],
-    ['Secrets', 'GitHub Actions can sync secrets to Hetzner .env with masked values, SSH validation and PM2 reload. Missing payment secrets are reported, not hidden.'],
-    ['Payments', 'BTC fallback works without custodians. NOWPayments uses HMAC IPN verification when NOWPAYMENTS_IPN_SECRET is configured.'],
+    ['Secrets', 'GitHub Actions can sync secrets to Hetzner .env with masked values, SSH validation and PM2 reload. External provider secrets are optional until enabled.'],
+    ['Payments', 'Direct BTC owner-wallet checkout is the current production rail. NOWPayments uses HMAC IPN verification only when enabled later.'],
     ['Integrity', 'The site publishes Ed25519-signed integrity at /.well-known/unicorn-integrity.json and DID discovery at /.well-known/did.json.'],
     ['QuantumIntegrityShield', 'The backend exposes exact diagnostics at /api/quantum-integrity/status and avoids false degraded state from retired PM2 process names.'],
     ['Incident handling', 'Incidents are sealed publicly and linked from /status and /trust.']
@@ -978,8 +977,8 @@ function pageDpa() {
 
 function pagePaymentTerms() {
   return _policyPage('Payment Terms', 'Payment Terms', [
-    ['Supported rails', 'BTC direct wallet, PayPal where configured and NOWPayments global crypto rails when secrets are installed.'],
-    ['Fallback policy', 'If NOWPayments is not configured or unavailable, checkout falls back to direct BTC without losing order intent.'],
+    ['Current rail', 'BTC direct wallet is the active production payout path; revenue goes to the owner-controlled BTC address.'],
+    ['Later rails', 'PayPal and NOWPayments are optional integrations that can be configured later without changing the BTC primary path.'],
     ['Settlement', 'Paid receipts issue delivery/license credentials after confirmation or admin settlement.'],
     ['Refunds', 'Refund guarantee and SLA breach logic are documented at /refund and /sla.'],
     ['Taxes', 'Customer is responsible for applicable taxes unless an enterprise contract states otherwise.'],
@@ -1571,7 +1570,7 @@ function routeDescription(route) {
     '/security': 'ZeusAI security posture covering CSP, secrets, payments, signed integrity, incident handling and QuantumIntegrityShield diagnostics.',
     '/responsible-ai': 'Responsible AI controls for ZeusAI: human sovereignty, no dark patterns, transparency, capability boundaries and rollback.',
     '/dpa': 'ZeusAI Data Processing Agreement with data categories, security measures, subprocessors, retention and transfer terms.',
-    '/payment-terms': 'Payment terms for ZeusAI BTC, PayPal and NOWPayments checkout, settlement, refunds, taxes and signed receipts.',
+    '/payment-terms': 'Payment terms for ZeusAI direct BTC checkout, settlement, refunds, taxes and optional future payment rails.',
     '/operator': 'Public-safe ZeusAI operator console for orders, payments, leads, AI readiness, errors, revenue and deploy health.',
     '/observability': 'ZeusAI observability page for SLOs, synthetic probes, status checks, payment monitoring and alert readiness.',
     '/enterprise': 'Enterprise licenses for AI automation, vertical operating systems, signed outcomes and custom deployment.',

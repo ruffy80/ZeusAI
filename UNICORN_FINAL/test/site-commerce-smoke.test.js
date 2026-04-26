@@ -126,6 +126,16 @@ async function run() {
       assert.equal(r.body.ok, true, `${path} should return ok:true`);
     }
 
+    const paymentStatus = await request('/api/payments/config/status');
+    assert.equal(paymentStatus.body.primaryRail, 'btc-direct');
+    assert.equal(paymentStatus.body.primaryPayout.address, wallet);
+    assert.equal(paymentStatus.body.nowpayments.requiredForCurrentMode, false);
+
+    const secretStatus = await request('/api/secret-sync/status');
+    assert.ok(secretStatus.body.requiredOperationalSecrets.includes('BTC_WALLET_ADDRESS'));
+    assert.ok(!secretStatus.body.requiredOperationalSecrets.includes('NOWPAYMENTS_API_KEY'));
+    assert.ok(secretStatus.body.optionalProviderSecrets.includes('NOWPAYMENTS_API_KEY'));
+
     // Test query-string resilience on critical endpoints
     const healthWithQuery = await request('/health?cachebuster=123&debug=1');
     assert.equal(healthWithQuery.status, 200, '/health with query params should return 200');
