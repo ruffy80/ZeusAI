@@ -212,6 +212,7 @@
 const crypto = require('crypto');
 const os = require('os');
 const { ALL_SECRET_KEYS } = require('../constants/secretKeys');
+const secretBootstrap = require('../../src/config/secrets');
 
 // Generate a hardware fingerprint (combination of stable machine identifiers)
 function getHardwareFingerprint() {
@@ -348,6 +349,11 @@ function getStatus() {
 
 // Pre-load secrets from environment on startup
 function bootstrap() {
+  try {
+    secretBootstrap.bootstrap({ log: false, persistGenerated: process.env.NODE_ENV === 'production' });
+  } catch (e) {
+    console.warn('[QuantumVault] Secret auto-populate skipped:', e.message);
+  }
   ALL_SECRET_KEYS.forEach(k => {
     if (process.env[k]) {
       try {
@@ -364,6 +370,11 @@ function bootstrap() {
 
 // Injectează toate secretele din vault înapoi în process.env (fără a suprascrie ce există deja)
 function injectToEnv() {
+  try {
+    secretBootstrap.bootstrap({ log: false, persistGenerated: process.env.NODE_ENV === 'production' });
+  } catch {
+    // Secret bootstrap is best-effort; vault injection still proceeds.
+  }
   let injected = 0;
   for (const key of vaultStore.keys()) {
     if (!process.env[key]) {

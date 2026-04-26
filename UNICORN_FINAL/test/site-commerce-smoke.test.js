@@ -135,6 +135,11 @@ async function run() {
     assert.ok(secretStatus.body.requiredOperationalSecrets.includes('BTC_WALLET_ADDRESS'));
     assert.ok(!secretStatus.body.requiredOperationalSecrets.includes('NOWPAYMENTS_API_KEY'));
     assert.ok(secretStatus.body.optionalProviderSecrets.includes('NOWPAYMENTS_API_KEY'));
+    assert.equal(secretStatus.body.autoPopulate.enabled, true);
+    assert.equal(secretStatus.body.autoPopulate.fillsAliases, true);
+    assert.equal(secretStatus.body.autoPopulate.generatesInternalRuntimeSecrets, true);
+    assert.ok(secretStatus.body.configured.some(item => item.name === 'OWNER_BTC_ADDRESS' && item.configured));
+    assert.ok(secretStatus.body.configured.some(item => item.name === 'ADMIN_TOKEN' && item.configured));
 
     const coverage = await request('/api/innovation/coverage');
     assert.equal(coverage.status, 200);

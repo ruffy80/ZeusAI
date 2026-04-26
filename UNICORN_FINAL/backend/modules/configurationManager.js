@@ -213,6 +213,7 @@ const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
 const { ALL_SECRET_KEYS } = require('../constants/secretKeys');
+const secretBootstrap = require('../../src/config/secrets');
 
 const CONFIG_FILE = path.join(__dirname, '../../.config.encrypted');
 const BACKUP_DIR = path.join(__dirname, '../../backups/config');
@@ -242,6 +243,11 @@ function decrypt(data, secret) {
 }
 
 function loadConfig() {
+  try {
+    secretBootstrap.bootstrap({ log: false, persistGenerated: process.env.NODE_ENV === 'production' });
+  } catch (e) {
+    console.warn('[ConfigManager] Secret auto-populate skipped:', e.message);
+  }
   const masterSecret = process.env.MASTER_CONFIG_SECRET || 'unicorn-config-secret';
   if (fs.existsSync(CONFIG_FILE)) {
     try {
@@ -329,6 +335,11 @@ function getStatus() {
 // Injectează toate valorile din memoryStore înapoi în process.env dacă lipsesc
 function injectToEnv() {
   if (!initialized) loadConfig();
+  try {
+    secretBootstrap.bootstrap({ log: false, persistGenerated: process.env.NODE_ENV === 'production' });
+  } catch {
+    // Best-effort auto-population only.
+  }
   let injected = 0;
   Object.entries(memoryStore).forEach(([k, v]) => {
     if (!process.env[k] && v) {

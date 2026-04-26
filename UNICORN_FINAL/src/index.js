@@ -1790,7 +1790,15 @@ async function unicornHandler(req, res) {
       canonicalSecrets: { path: 'UNICORN_FINAL/backend/constants/secretKeys.js', present: fs.existsSync(canonicalPath), nowpaymentsIncluded: true },
       requiredOperationalSecrets: ['HETZNER_HOST', 'HETZNER_DEPLOY_USER', 'HETZNER_SSH_PRIVATE_KEY', 'JWT_SECRET', 'ADMIN_SECRET', 'BTC_WALLET_ADDRESS'],
       optionalProviderSecrets: ['NOWPAYMENTS_API_KEY', 'NOWPAYMENTS_IPN_SECRET', 'PAYPAL_CLIENT_ID', 'PAYPAL_CLIENT_SECRET'],
-      configured: ['JWT_SECRET', 'ADMIN_SECRET', 'BTC_WALLET_ADDRESS', 'NOWPAYMENTS_API_KEY', 'NOWPAYMENTS_IPN_SECRET', 'PAYPAL_CLIENT_ID', 'PAYPAL_CLIENT_SECRET'].map((name) => ({ name, configured: isConfiguredSecret(name) })),
+      autoPopulate: {
+        enabled: true,
+        resolvedCount: Object.keys(SECRETS_BOOT.resolved || {}).length,
+        fillsAliases: true,
+        fillsDefaults: true,
+        generatesInternalRuntimeSecrets: true,
+        doesNotGenerateExternalProviderKeys: true
+      },
+      configured: ['JWT_SECRET', 'ADMIN_SECRET', 'ADMIN_TOKEN', 'HETZNER_WEBHOOK_SECRET', 'COMMERCE_ADMIN_SECRET', 'ANCHOR_WEBHOOK_TOKEN', 'BTC_WALLET_ADDRESS', 'OWNER_BTC_ADDRESS', 'LEGAL_OWNER_BTC', 'PUBLIC_APP_URL', 'APP_BASE_URL', 'FRONTEND_URL', 'NOWPAYMENTS_API_KEY', 'NOWPAYMENTS_IPN_SECRET', 'PAYPAL_CLIENT_ID', 'PAYPAL_CLIENT_SECRET'].map((name) => ({ name, configured: isConfiguredSecret(name) })),
       note: 'GitHub Actions secrets cannot be read by the app; this endpoint verifies code readiness and runtime env presence only.'
     };
     res.writeHead(200, { 'Content-Type':'application/json', 'Cache-Control':'no-cache' });
