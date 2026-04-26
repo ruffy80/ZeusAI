@@ -149,6 +149,8 @@ async function run() {
     assert.ok(coverage.body.items.some(item => item.id === 'transparency-ledger' && item.status === 'live-100-api'));
     assert.ok(coverage.body.items.some(item => item.id === 'global-compliance-autopilot' && item.status === 'live-foundation'));
     assert.ok(coverage.body.items.some(item => item.id === 'autonomous-money-machine' && item.status === 'live-100-api'));
+    assert.ok(coverage.body.items.some(item => item.id === 'unicorn-commerce-connector' && item.status === 'live-100-api'));
+    assert.ok(coverage.body.items.some(item => item.id === 'future-invention-foundry' && item.status === 'live-rd-foundation'));
     assert.ok(coverage.body.items.some(item => item.id === 'nowpayments' && item.status.includes('optional-later')));
     assert.ok(coverage.body.secrets.featureSummary.totalKnownSecrets >= 1);
 
@@ -172,6 +174,21 @@ async function run() {
       catalog.body.items.length >= expectedMinCatalogItems,
       `master catalog must expose at least ${expectedMinCatalogItems} service deliverables`
     );
+    assert.equal(catalog.body.connector.payout.btcAddress, wallet);
+    assert.ok(catalog.body.counts.unicornAuto >= 1, 'catalog must auto-commercialize Unicorn modules');
+    assert.ok(catalog.body.counts.futurePrimitives >= 7, 'catalog must expose future invention primitives');
+    assert.ok(catalog.body.items.some(item => item.group === 'future-invention' && item.checkout.btcAddress === wallet));
+
+    const commerceStatus = await request('/api/unicorn-commerce/status');
+    assert.equal(commerceStatus.status, 200);
+    assert.equal(commerceStatus.body.ok, true);
+    assert.equal(commerceStatus.body.payout.btcAddress, wallet);
+    assert.ok(commerceStatus.body.sellsFuturePrimitives >= 7);
+
+    const futurePrimitives = await request('/api/unicorn-commerce/future-primitives');
+    assert.equal(futurePrimitives.status, 200);
+    assert.equal(futurePrimitives.body.ok, true);
+    assert.ok(futurePrimitives.body.items.every(item => item.autonomy.claimsGuardrail));
 
     const btcSpot = await request('/api/btc/spot');
     assert.equal(btcSpot.status, 200);

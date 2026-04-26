@@ -65,6 +65,7 @@ try {
 } catch (e) { console.warn('[site-sign] boot failed:', e.message); }
 const { buildInnovationReport } = require('./innovation/innovation-engine');
 const { generateSprintPlan } = require('./innovation/innovation-sprint');
+const unicornCommerceConnector = require('./modules/unicornCommerceConnector');
 const { getSiteHtml } = require('./site/template');
 let v2 = null; try { v2 = require('./site/v2/shell'); } catch (e) { console.warn('[site/v2/shell] not loaded:', e.message); }
 // Fallback shim so downstream code never dereferences null.
@@ -261,6 +262,8 @@ function buildInnovationCoverage() {
     { id: 'personal-child-agent-os', title: 'Personal Child-Agent OS', status: 'foundation-not-full-product', evidence: ['/api/commerce/protocol', '/api/capability/credential/{receiptId}', '/responsible-ai'], userAction: 'requires product decisions: user accounts, consent model, data retention and agent permissions' },
     { id: 'global-compliance-autopilot', title: 'Global Compliance Autopilot + Privacy Export/Delete Flow', status: 'live-foundation', evidence: ['/api/compliance/autopilot', '/api/privacy/export', '/api/privacy/delete-request', '/dpa', '/responsible-ai'], userAction: 'formal legal audit and jurisdiction-specific certification remain external/legal work' },
     { id: 'autonomous-money-machine', title: 'Autonomous Money Machine: Revenue Commander + Offer Factory + Conversion + Recovery + SDR + SEO + Success', status: 'live-100-api', evidence: ['/api/money-machine/status', '/api/revenue/commander', '/api/offers/factory', '/api/conversion/intelligence', '/api/checkout/recovery/status', '/api/sales/sdr/lead', '/api/seo/programmatic/status', '/api/customer-success/status'], userAction: 'none for foundation; connect paid outbound channels only after owner approval and budget limits' },
+    { id: 'unicorn-commerce-connector', title: 'Unicorn Commerce Connector: Module Registry → Catalog → BTC Checkout → Delivery', status: 'live-100-api', evidence: ['/api/unicorn-commerce/status', '/api/unicorn-commerce/catalog', '/api/catalog/master', '/api/checkout/btc', '/api/delivery/{receiptId}'], userAction: 'none; every current/future module becomes a BTC-sellable service manifest automatically' },
+    { id: 'future-invention-foundry', title: 'Future Invention Foundry: Not-Yet-Invented Service Primitives', status: 'live-rd-foundation', evidence: ['/api/unicorn-commerce/future-primitives', '/api/unicorn-commerce/catalog'], userAction: 'none; speculative primitives are sold as labeled R&D foundations with owner payout guardrails' },
   ];
   const counts = items.reduce((acc, item) => {
     acc[item.status] = (acc[item.status] || 0) + 1;
@@ -413,6 +416,18 @@ const CATALOG_EXPANSION_DELIVERABLES = [
   ['social-viralizer', 'Social Viralizer', 199, 'viral reach'], ['unicorn-realization', 'Unicorn Realization Engine', 799, 'execution certainty'], ['customer-portal-plus', 'Customer Portal Plus', 299, 'customer success']
 ].map(([id, title, priceUsd, kpi]) => ({ id, title, priceUsd, group: 'marketplace', kpi, segment: 'modules', description: title + ' — production-ready ZeusAI module, BTC/BTCPay-ready, auto-delivered after payment.' }));
 
+function getSiteFallbackModuleRegistry() {
+  return {
+    total: CATALOG_EXPANSION_DELIVERABLES.length + modules.length,
+    categories: {
+      internal: { count: CATALOG_EXPANSION_DELIVERABLES.length, modules: CATALOG_EXPANSION_DELIVERABLES.map((item) => item.id) },
+      orchestrator: { count: modules.length, modules: modules.map((item) => item.id) },
+    },
+    generatedAt: new Date().toISOString(),
+    source: 'site-fallback',
+  };
+}
+
 async function buildMasterCatalog() {
   const usdPerBtc = await getBtcUsdSpot().catch(() => 95000);
   const sources = getRuntimeDataSources();
@@ -430,7 +445,8 @@ async function buildMasterCatalog() {
   })) : [];
   const frontierItems = frontier ? FRONTIER_DELIVERABLES.map(x => ({ ...x, segment: 'frontier' })) : [];
   const verticals = VERTICAL_OS_DELIVERABLES.map(x => ({ ...x, segment: 'enterprise' }));
-  const all = [...strategic, ...frontierItems, ...verticals, ...marketplace, ...CATALOG_EXPANSION_DELIVERABLES];
+  const connectorCatalog = unicornCommerceConnector.buildCommerceCatalog({ registry: sources.moduleRegistry || getSiteFallbackModuleRegistry(), btcWallet: BTC_WALLET, ownerName: OWNER_NAME });
+  const all = [...strategic, ...frontierItems, ...verticals, ...marketplace, ...CATALOG_EXPANSION_DELIVERABLES, ...connectorCatalog.items];
   // attach btc fields
   for (const item of all) {
     item.priceBtc = usdToBtc(item.priceUsd, usdPerBtc);
@@ -445,8 +461,9 @@ async function buildMasterCatalog() {
     updatedAt: new Date().toISOString(),
     owner: { name: OWNER_NAME, btcAddress: BTC_WALLET },
     btcSpot: { usdPerBtc, fetchedAt: new Date(_btcSpotCache.fetchedAt).toISOString() },
-    counts: { total: out.length, strategic: strategic.length, frontier: frontierItems.length, vertical: verticals.length, marketplace: marketplace.length + CATALOG_EXPANSION_DELIVERABLES.length },
-    groups: ['strategic', 'frontier', 'vertical', 'marketplace'],
+    counts: { total: out.length, strategic: strategic.length, frontier: frontierItems.length, vertical: verticals.length, marketplace: marketplace.length + CATALOG_EXPANSION_DELIVERABLES.length, unicornAuto: connectorCatalog.counts.registry, futurePrimitives: connectorCatalog.counts.futurePrimitives },
+    groups: ['strategic', 'frontier', 'vertical', 'marketplace', 'unicorn-auto-module', 'future-invention'],
+    connector: { source: connectorCatalog.source, payout: connectorCatalog.payout, counts: connectorCatalog.counts },
     items: out
   };
 }
@@ -501,7 +518,8 @@ const runtimeSyncState = {
   pricing: null,
   industries: null,
   launchpadStatus: null,
-  launchpadPlan: null
+  launchpadPlan: null,
+  moduleRegistry: null
 };
 
 function titleCase(value) {
@@ -645,9 +663,10 @@ function refreshBackendRuntimeState(force) {
     fetchBackendJson(backendUrl, '/api/pricing/all'),
     fetchBackendJson(backendUrl, '/api/industry/list'),
     fetchBackendJson(backendUrl, '/api/revenue/launchpad/status'),
-    fetchBackendJson(backendUrl, '/api/revenue/launchpad/plan')
+    fetchBackendJson(backendUrl, '/api/revenue/launchpad/plan'),
+    fetchBackendJson(backendUrl, '/api/module-registry')
   ]).then((results) => {
-    const [snapshotRes, servicesRes, marketplaceRes, pricingRes, industriesRes, launchpadStatusRes, launchpadPlanRes] = results;
+    const [snapshotRes, servicesRes, marketplaceRes, pricingRes, industriesRes, launchpadStatusRes, launchpadPlanRes, moduleRegistryRes] = results;
     if (snapshotRes.status === 'fulfilled') runtimeSyncState.backendSnapshot = snapshotRes.value;
     if (pricingRes.status === 'fulfilled') runtimeSyncState.pricing = normalizePricingMap(pricingRes.value);
     if (marketplaceRes.status === 'fulfilled') {
@@ -675,6 +694,7 @@ function refreshBackendRuntimeState(force) {
     if (industriesRes.status === 'fulfilled') runtimeSyncState.industries = normalizeIndustryState(industriesRes.value) || runtimeSyncState.industries;
     if (launchpadStatusRes.status === 'fulfilled') runtimeSyncState.launchpadStatus = launchpadStatusRes.value;
     if (launchpadPlanRes.status === 'fulfilled') runtimeSyncState.launchpadPlan = launchpadPlanRes.value;
+    if (moduleRegistryRes.status === 'fulfilled') runtimeSyncState.moduleRegistry = moduleRegistryRes.value;
     runtimeSyncState.lastError = results
       .filter((entry) => entry.status === 'rejected')
       .map((entry) => entry.reason && entry.reason.message)
@@ -700,6 +720,7 @@ function getRuntimeDataSources() {
     industries: runtimeSyncState.industries || industries,
     pricing: runtimeSyncState.pricing,
     backendSnapshot: runtimeSyncState.backendSnapshot,
+    moduleRegistry: runtimeSyncState.moduleRegistry,
     launchpadStatus: runtimeSyncState.launchpadStatus,
     launchpadPlan: runtimeSyncState.launchpadPlan,
     sourceMode: hasBackend ? (runtimeSyncState.lastSyncAt ? 'backend-live' : 'backend-warming') : 'local-fallback'
@@ -1662,7 +1683,7 @@ async function unicornHandler(req, res) {
   // 30Y-LTS: local-first routes served by this site process (not proxied to backend).
   // Only routes that are implemented locally in this file are matched here;
   // backend-only endpoints (/api/v1/deprecations, /api/v1/events/*) keep flowing to the backend.
-  const isLts = /^\/api\/(v1\/)?(contract|i18n\/|crypto\/public-keys|succession\/attestation|anchors)(\/|$|\.)/.test(urlPath) || urlPath === '/api/v1/contract' || urlPath === '/api/contract';  const isLocalV2Api = isLts || LOCAL_V2_API.has(urlPath) || urlPath.startsWith('/api/services/') || urlPath.startsWith('/api/enterprise/') || urlPath.startsWith('/api/outreach/') || urlPath.startsWith('/api/vault/') || urlPath.startsWith('/api/governance/') || urlPath.startsWith('/api/whales/') || urlPath.startsWith('/api/webhooks/') || urlPath.startsWith('/api/admin/') || urlPath.startsWith('/api/instant/') || urlPath.startsWith('/api/customer/') || urlPath.startsWith('/api/user/') || urlPath.startsWith('/api/unicorn-ai/') || urlPath.startsWith('/api/checkout/') || urlPath.startsWith('/api/uaic/') || urlPath.startsWith('/api/receipt/') || urlPath.startsWith('/api/invoice/') || urlPath.startsWith('/api/license/') || urlPath.startsWith('/api/delivery/') || urlPath.startsWith('/api/wire/') || urlPath === '/api/payments/btc/confirm' || urlPath === '/api/payments/paypal/confirm' || urlPath === '/api/payments/config/status' || urlPath === '/api/checkout/synthetic-probe' || urlPath === '/api/qr' || urlPath.startsWith('/api/cart/') || urlPath.startsWith('/api/coupons') || urlPath.startsWith('/api/leads') || urlPath.startsWith('/api/keys') || urlPath.startsWith('/api/newsletter/') || urlPath.startsWith('/api/wizard/') || urlPath.startsWith('/api/fx/') || urlPath.startsWith('/api/tax/') || urlPath.startsWith('/api/webhooks/') || urlPath === '/api/status' || urlPath === '/api/track' || urlPath.startsWith('/api/analytics/') || urlPath.startsWith('/api/refund/') || urlPath === '/api/aura' || urlPath.startsWith('/api/outcome/') || urlPath.startsWith('/api/discount/') || urlPath.startsWith('/api/receipt/nft/') || urlPath.startsWith('/api/capability/') || urlPath.startsWith('/api/email/proof') || urlPath.startsWith('/api/gift/') || urlPath.startsWith('/api/pledge') || urlPath.startsWith('/api/cancel/') || urlPath.startsWith('/api/bandit/') || urlPath.startsWith('/api/carbon/') || urlPath.startsWith('/api/abandon-cart') || urlPath === '/api/frontier/status' || urlPath === '/api/trust/center' || urlPath === '/api/operator/console' || urlPath === '/api/observability/status' || urlPath === '/api/secret-sync/status' || urlPath === '/api/security/pq/status' || urlPath === '/api/commerce/protocol' || urlPath === '/api/innovation/coverage' || urlPath === '/openapi.json' || urlPath === '/api/openapi' || urlPath === '/seo/sitemap.xml' || urlPath === '/seo/robots.txt' || urlPath === '/api/catalog/master' || urlPath === '/api/btc/spot' || urlPath.startsWith('/api/payments/btc/verify/');
+  const isLts = /^\/api\/(v1\/)?(contract|i18n\/|crypto\/public-keys|succession\/attestation|anchors)(\/|$|\.)/.test(urlPath) || urlPath === '/api/v1/contract' || urlPath === '/api/contract';  const isLocalV2Api = isLts || LOCAL_V2_API.has(urlPath) || urlPath.startsWith('/api/services/') || urlPath.startsWith('/api/enterprise/') || urlPath.startsWith('/api/outreach/') || urlPath.startsWith('/api/vault/') || urlPath.startsWith('/api/governance/') || urlPath.startsWith('/api/whales/') || urlPath.startsWith('/api/webhooks/') || urlPath.startsWith('/api/admin/') || urlPath.startsWith('/api/instant/') || urlPath.startsWith('/api/customer/') || urlPath.startsWith('/api/user/') || urlPath.startsWith('/api/unicorn-ai/') || urlPath.startsWith('/api/unicorn-commerce/') || urlPath.startsWith('/api/checkout/') || urlPath.startsWith('/api/uaic/') || urlPath.startsWith('/api/receipt/') || urlPath.startsWith('/api/invoice/') || urlPath.startsWith('/api/license/') || urlPath.startsWith('/api/delivery/') || urlPath.startsWith('/api/wire/') || urlPath === '/api/payments/btc/confirm' || urlPath === '/api/payments/paypal/confirm' || urlPath === '/api/payments/config/status' || urlPath === '/api/checkout/synthetic-probe' || urlPath === '/api/qr' || urlPath.startsWith('/api/cart/') || urlPath.startsWith('/api/coupons') || urlPath.startsWith('/api/leads') || urlPath.startsWith('/api/keys') || urlPath.startsWith('/api/newsletter/') || urlPath.startsWith('/api/wizard/') || urlPath.startsWith('/api/fx/') || urlPath.startsWith('/api/tax/') || urlPath.startsWith('/api/webhooks/') || urlPath === '/api/status' || urlPath === '/api/track' || urlPath.startsWith('/api/analytics/') || urlPath.startsWith('/api/refund/') || urlPath === '/api/aura' || urlPath.startsWith('/api/outcome/') || urlPath.startsWith('/api/discount/') || urlPath.startsWith('/api/receipt/nft/') || urlPath.startsWith('/api/capability/') || urlPath.startsWith('/api/email/proof') || urlPath.startsWith('/api/gift/') || urlPath.startsWith('/api/pledge') || urlPath.startsWith('/api/cancel/') || urlPath.startsWith('/api/bandit/') || urlPath.startsWith('/api/carbon/') || urlPath.startsWith('/api/abandon-cart') || urlPath === '/api/frontier/status' || urlPath === '/api/trust/center' || urlPath === '/api/operator/console' || urlPath === '/api/observability/status' || urlPath === '/api/secret-sync/status' || urlPath === '/api/security/pq/status' || urlPath === '/api/commerce/protocol' || urlPath === '/api/innovation/coverage' || urlPath === '/openapi.json' || urlPath === '/api/openapi' || urlPath === '/seo/sitemap.xml' || urlPath === '/seo/robots.txt' || urlPath === '/api/catalog/master' || urlPath === '/api/btc/spot' || urlPath.startsWith('/api/payments/btc/verify/');
   const isUaic = !!(uaic && uaic.matches(urlPath)) && urlPath !== '/api/uaic/status';
   const isUse  = !!(USE && USE.matches(urlPath)) && !urlPath.startsWith('/api/user/') && !urlPath.startsWith('/api/ai/');
   const backendUrl = process.env.BACKEND_API_URL;
@@ -2615,6 +2636,26 @@ async function unicornHandler(req, res) {
     const services = getRuntimeDataSources().services;
     res.writeHead(200, { 'Content-Type':'application/json' });
     return res.end(JSON.stringify({ updatedAt: new Date().toISOString(), services }));
+  }
+
+  if (urlPath === '/api/unicorn-commerce/status') {
+    const sources = getRuntimeDataSources();
+    const payload = unicornCommerceConnector.status({ registry: sources.moduleRegistry || getSiteFallbackModuleRegistry(), btcWallet: BTC_WALLET, ownerName: OWNER_NAME });
+    res.writeHead(200, { 'Content-Type':'application/json', 'Cache-Control':'no-cache' });
+    return res.end(JSON.stringify(payload));
+  }
+
+  if (urlPath === '/api/unicorn-commerce/future-primitives') {
+    const items = unicornCommerceConnector.buildFuturePrimitiveServices({ btcWallet: BTC_WALLET, ownerName: OWNER_NAME });
+    res.writeHead(200, { 'Content-Type':'application/json', 'Cache-Control':'public, max-age=60' });
+    return res.end(JSON.stringify({ ok: true, generatedAt: new Date().toISOString(), count: items.length, items }));
+  }
+
+  if (urlPath === '/api/unicorn-commerce/catalog') {
+    const sources = getRuntimeDataSources();
+    const payload = unicornCommerceConnector.buildCommerceCatalog({ registry: sources.moduleRegistry || getSiteFallbackModuleRegistry(), btcWallet: BTC_WALLET, ownerName: OWNER_NAME });
+    res.writeHead(200, { 'Content-Type':'application/json', 'Cache-Control':'public, max-age=30' });
+    return res.end(JSON.stringify(payload));
   }
 
   // ===================================================================

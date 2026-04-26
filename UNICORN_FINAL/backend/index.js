@@ -127,6 +127,7 @@ const {
 const emailService = require('./email');
 const worldStandard = require('./modules/worldStandard');
 const moneyMachine = require('./modules/autonomousMoneyMachine');
+const unicornCommerceConnector = require('../src/modules/unicornCommerceConnector');
 
 let webauthnModulePromise;
 const getWebAuthn = () => {
@@ -985,6 +986,11 @@ const MODULE_REGISTRY = {
     'ai-sales-closer-pro',
     'programmatic-seo-engine',
     'customer-success-autopilot',
+    'unicorn-commerce-connector',
+    'auto-service-manifest-engine',
+    'module-to-marketplace-sync',
+    'future-invention-foundry',
+    'sovereign-btc-commerce-bridge',
     'dynamic-pricing',
     'auto-repair',
     'auto-restart',
@@ -3333,6 +3339,19 @@ app.get('/api/modules', authMiddleware, (req, res) => {
 app.get('/api/module-registry', (req, res) => {
   const registry = getModuleRegistryStatus();
   res.json(registry);
+});
+
+app.get('/api/unicorn-commerce/status', (req, res) => {
+  res.json(unicornCommerceConnector.status({ registry: getModuleRegistryStatus(), btcWallet: ADMIN_OWNER_BTC, ownerName: ADMIN_OWNER_NAME }));
+});
+
+app.get('/api/unicorn-commerce/catalog', (req, res) => {
+  res.json(unicornCommerceConnector.buildCommerceCatalog({ registry: getModuleRegistryStatus(), btcWallet: ADMIN_OWNER_BTC, ownerName: ADMIN_OWNER_NAME }));
+});
+
+app.get('/api/unicorn-commerce/future-primitives', (req, res) => {
+  const items = unicornCommerceConnector.buildFuturePrimitiveServices({ btcWallet: ADMIN_OWNER_BTC, ownerName: ADMIN_OWNER_NAME });
+  res.json({ ok: true, generatedAt: new Date().toISOString(), count: items.length, items });
 });
 
 // ==================== RUTE INOVAȚII ====================

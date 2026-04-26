@@ -323,6 +323,35 @@ async function runTests() {
     assert.equal(success.body.action, 'upsell-expansion');
   });
 
+  console.log('\nUnicorn Commerce Connector:');
+  await test('GET /api/unicorn-commerce/status → module registry becomes sellable BTC catalog', async () => {
+    const r = await apiRequest('GET', '/api/unicorn-commerce/status');
+    assert.equal(r.status, 200);
+    assert.equal(r.body.ok, true);
+    assert.equal(r.body.payout.rail, 'btc-direct');
+    assert.equal(r.body.payout.btcAddress, 'bc1q4f7e66z87mdfj56kz0dj5hvcnpmh0qh4wuv22e');
+    assert.ok(r.body.sellsCurrentModules >= 300);
+    assert.ok(r.body.sellsFuturePrimitives >= 7);
+  });
+
+  await test('GET /api/unicorn-commerce/catalog → all current modules have checkout manifests', async () => {
+    const r = await apiRequest('GET', '/api/unicorn-commerce/catalog');
+    assert.equal(r.status, 200);
+    assert.equal(r.body.ok, true);
+    assert.ok(r.body.counts.registry >= 300);
+    assert.ok(r.body.items.some(item => item.id === 'unicorn-module-autonomous-money-machine' && item.buyUrl.includes('/checkout')));
+    assert.ok(r.body.items.every(item => item.checkout && item.checkout.btcAddress === 'bc1q4f7e66z87mdfj56kz0dj5hvcnpmh0qh4wuv22e'));
+  });
+
+  await test('GET /api/unicorn-commerce/future-primitives → labeled R&D innovations', async () => {
+    const r = await apiRequest('GET', '/api/unicorn-commerce/future-primitives');
+    assert.equal(r.status, 200);
+    assert.equal(r.body.ok, true);
+    assert.ok(r.body.count >= 7);
+    assert.ok(r.body.items.some(item => item.id === 'intent-to-revenue-compiler'));
+    assert.ok(r.body.items.every(item => item.autonomy.claimsGuardrail));
+  });
+
   // ── Admin User Management ────────────────────────────────────────────────────
   console.log('\nAdmin - User Management:');
   await test('GET /api/admin/users - no token → 401', async () => {
