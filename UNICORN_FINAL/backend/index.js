@@ -3547,7 +3547,7 @@ function _onPaidInvoice(invoice) {
   try { meshOrchestrator.broadcast && meshOrchestrator.broadcast('btc.invoice.paid', invoice); } catch (_) {}
 }
 
-if (!_stableRuntime && process.env.BTC_VERIFIER_DISABLE !== '1') {
+if (process.env.BTC_VERIFIER_DISABLE !== '1') {
   _btcVerifier = btcVerifier.createPaymentVerifier({
     address: btcLedger.PAYOUT_ADDRESS,
     onPaid:  _onPaidInvoice,
