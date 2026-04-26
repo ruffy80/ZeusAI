@@ -74,6 +74,9 @@ const ADAPTIVE        = process.env.GUARDIAN_ADAPTIVE !== '0';
 const ADAPTIVE_P      = Math.min(0.99, Math.max(0.5, +(process.env.GUARDIAN_ADAPTIVE_P || 0.95)));
 const ADAPTIVE_N      = Math.max(20, +(process.env.GUARDIAN_ADAPTIVE_N || 100));
 const BAD_SNAPS_FILE  = process.env.GUARDIAN_BAD_SNAPSHOTS_FILE || path.join(SNAP_DIR, '.bad-snapshots.json');
+const PRESERVED_RUNTIME_ENTRIES = new Set([
+  'node_modules', '.env', 'data', 'db', 'backups', 'snapshots', 'logs', '.archive'
+]);
 const BISECT_ENABLED  = process.env.GUARDIAN_BISECT !== '0';
 const LOG_FILE        = process.env.GUARDIAN_LOG_FILE || path.join(SNAP_DIR, 'guardian.log.jsonl');
 const LOCK_FILE       = path.join(SNAP_DIR, '.guardian.lock');
@@ -337,7 +340,7 @@ function rollbackTo(snapshot, traceId) {
   const envPath = path.join(APP_DIR, '.env');
   const envBak  = fs.existsSync(envPath) ? fs.readFileSync(envPath) : null;
   for (const entry of fs.readdirSync(APP_DIR)) {
-    if (entry === 'node_modules' || entry === '.env') continue;
+    if (PRESERVED_RUNTIME_ENTRIES.has(entry)) continue;
     try { fs.rmSync(path.join(APP_DIR, entry), { recursive: true, force: true }); } catch {}
   }
   const r = spawnSync('tar', ['-xzf', snapshot, '-C', APP_DIR], { encoding: 'utf8' });

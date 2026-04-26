@@ -245,6 +245,10 @@ try {
   console.log('✅ SQLite database connected:', DB_PATH);
 } catch (err) {
   console.warn('⚠️  SQLite unavailable – using in-memory store (data will not persist across restarts):', err.message);
+  if (process.env.NODE_ENV === 'production' && process.env.ALLOW_IN_MEMORY_DB !== '1' && DB_PATH !== ':memory:') {
+    console.error('❌ FATAL: Durable SQLite is required in production. Refusing to accept users with volatile in-memory storage.');
+    process.exit(1);
+  }
   db = null;
 }
 
@@ -700,4 +704,14 @@ const tenants = usingSqlite ? {
   },
 };
 
-module.exports = { db, users, payments, purchases, apiKeys, adminSessions, monthlyUsage, referrals, workflows, tenants };
+function meta() {
+  return {
+    usingSqlite,
+    durable: usingSqlite && DB_PATH !== ':memory:',
+    dbPath: DB_PATH,
+    userCount: users.count(),
+    mode: usingSqlite ? (DB_PATH === ':memory:' ? 'sqlite-memory' : 'sqlite-file') : 'in-memory-fallback',
+  };
+}
+
+module.exports = { db, users, payments, purchases, apiKeys, adminSessions, monthlyUsage, referrals, workflows, tenants, meta };

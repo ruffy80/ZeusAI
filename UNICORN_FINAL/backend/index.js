@@ -121,6 +121,7 @@ const {
   purchases: dbPurchases,
   apiKeys: dbApiKeys,
   adminSessions: dbAdminSessions,
+  meta: dbMeta,
 } = require('./db');
 const emailService = require('./email');
 
@@ -1114,12 +1115,18 @@ function buildHealthResponse() {
   const s = Math.floor(process.uptime());
   const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), sec = s % 60;
   const mem = process.memoryUsage();
+  const persistence = dbMeta();
   return {
     status: 'ok',
     uptime: s,
     uptimeHuman: `${h}h ${m}m ${sec}s`,
     users: dbUsers.count(),
     dbConnected: true,
+    persistence: {
+      durable: persistence.durable,
+      mode: persistence.mode,
+      userCount: persistence.userCount,
+    },
     engines: {
       innovation: !_stableRuntime,
       revenue: !_stableRuntime,
@@ -1143,6 +1150,20 @@ function buildHealthResponse() {
 app.get('/health', (req, res) => res.json(buildHealthResponse()));
 
 app.get('/api/health', (req, res) => res.json(buildHealthResponse()));
+
+app.get('/api/persistence/status', (req, res) => {
+  const persistence = dbMeta();
+  res.json({
+    ok: persistence.durable,
+    durable: persistence.durable,
+    mode: persistence.mode,
+    userCount: persistence.userCount,
+    storage: persistence.durable ? 'sqlite-file' : persistence.mode,
+    note: persistence.durable
+      ? 'User accounts persist across PM2 reloads, deploys and restarts.'
+      : 'Persistence is not durable; production refuses this mode unless explicitly overridden.',
+  });
+});
 
 // ==================== AUTONOMY CHAIN + CAPABILITY TOKENS (PCMC / CBAT) ====================
 // Proof-Carrying Mutation Chain — tamper-evident audit of every autonomous write
