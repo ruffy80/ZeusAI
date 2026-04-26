@@ -107,6 +107,7 @@ jobs:
         # CI=false: react-scripts treats warnings as errors when CI=true (GitHub Actions default).
         # The project already uses this flag in the vercel-build script for the same reason.
         run: |
+          rm -rf node_modules
           npm ci
           CI=false npm run build
 
