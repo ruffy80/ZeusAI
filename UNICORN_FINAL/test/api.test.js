@@ -411,6 +411,36 @@ async function runTests() {
     assert.ok(r.body.pages.some(page => page.slug.includes('fintech-autonomous-revenue-machine')));
   });
 
+  await test('GET /api/billion-scale/activation/status → existing modules are activated', async () => {
+    const r = await apiRequest('GET', '/api/billion-scale/activation/status');
+    assert.equal(r.status, 200);
+    assert.equal(r.body.ok, true);
+    assert.equal(r.body.status, 'unicorn-billion-scale-modules-activated');
+    assert.equal(r.body.payout.btcAddress, 'bc1q4f7e66z87mdfj56kz0dj5hvcnpmh0qh4wuv22e');
+    assert.ok(r.body.summary.capabilityCount >= 8);
+    assert.ok(r.body.summary.activatedExistingModules >= 20);
+    assert.ok(r.body.summary.generatedControlModules >= 4);
+  });
+
+  await test('GET /api/billion-scale/activation/modules → capability graph maps Unicorn modules', async () => {
+    const r = await apiRequest('GET', '/api/billion-scale/activation/modules');
+    assert.equal(r.status, 200);
+    assert.equal(r.body.ok, true);
+    assert.ok(r.body.capabilities.some(item => item.id === 'btc-revenue-settlement' && item.activeExisting.includes('billing-engine')));
+    assert.ok(r.body.capabilities.some(item => item.id === 'marketplace-take-rate' && item.activeExisting.includes('serviceMarketplace')));
+    assert.ok(r.body.generatedControlModules.some(item => item.id === 'billion-scale-activation-orchestrator'));
+  });
+
+  await test('POST /api/billion-scale/activation/run → activation plan with BTC payout', async () => {
+    const r = await apiRequest('POST', '/api/billion-scale/activation/run', { packageId: 'zeusai-sovereign-ai-private-deployment', company: 'Global Buyer' });
+    assert.equal(r.status, 200);
+    assert.equal(r.body.ok, true);
+    assert.equal(r.body.status, 'activation-plan-ready');
+    assert.equal(r.body.company, 'Global Buyer');
+    assert.equal(r.body.payout.btcAddress, 'bc1q4f7e66z87mdfj56kz0dj5hvcnpmh0qh4wuv22e');
+    assert.ok(r.body.steps.length >= 6);
+  });
+
   // ── Admin User Management ────────────────────────────────────────────────────
   console.log('\nAdmin - User Management:');
   await test('GET /api/admin/users - no token → 401', async () => {

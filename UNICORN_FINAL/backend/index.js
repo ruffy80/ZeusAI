@@ -129,6 +129,7 @@ const worldStandard = require('./modules/worldStandard');
 const moneyMachine = require('./modules/autonomousMoneyMachine');
 const unicornCommerceConnector = require('../src/modules/unicornCommerceConnector');
 const billionScaleRevenueEngine = require('../src/modules/billionScaleRevenueEngine');
+const billionScaleActivationOrchestrator = require('../src/modules/billionScaleActivationOrchestrator');
 
 let webauthnModulePromise;
 const getWebAuthn = () => {
@@ -998,6 +999,10 @@ const MODULE_REGISTRY = {
     'marketplace-economics-engine',
     'strategic-package-engine',
     'vertical-growth-page-engine',
+    'billion-scale-activation-orchestrator',
+    'unicorn-capability-router',
+    'unicorn-case-study-proof-engine',
+    'unicorn-vertical-demand-engine',
     'dynamic-pricing',
     'auto-repair',
     'auto-restart',
@@ -3385,6 +3390,23 @@ app.post('/api/billion-scale/deal-desk/proposal', (req, res) => {
 
 app.get('/api/billion-scale/vertical-pages', (req, res) => {
   res.json(billionScaleRevenueEngine.verticalGrowthPages());
+});
+
+app.get('/api/billion-scale/activation/status', (req, res) => {
+  res.json(billionScaleActivationOrchestrator.activationStatus({ registry: getModuleRegistryStatus(), btcWallet: ADMIN_OWNER_BTC, ownerName: ADMIN_OWNER_NAME }));
+});
+
+app.get('/api/billion-scale/activation/modules', (req, res) => {
+  res.json(billionScaleActivationOrchestrator.buildActivationGraph({ registry: getModuleRegistryStatus(), btcWallet: ADMIN_OWNER_BTC, ownerName: ADMIN_OWNER_NAME }));
+});
+
+app.get('/api/billion-scale/activation/missing', (req, res) => {
+  const graph = billionScaleActivationOrchestrator.buildActivationGraph({ registry: getModuleRegistryStatus(), btcWallet: ADMIN_OWNER_BTC, ownerName: ADMIN_OWNER_NAME });
+  res.json({ ok: true, generatedAt: graph.generatedAt, missingExistingModules: graph.missingExistingModules, generatedControlModules: graph.generatedControlModules });
+});
+
+app.post('/api/billion-scale/activation/run', (req, res) => {
+  res.json(billionScaleActivationOrchestrator.activationRun(req.body || {}, { registry: getModuleRegistryStatus(), btcWallet: ADMIN_OWNER_BTC, ownerName: ADMIN_OWNER_NAME }));
 });
 
 // ==================== RUTE INOVAȚII ====================

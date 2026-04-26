@@ -67,6 +67,7 @@ const { buildInnovationReport } = require('./innovation/innovation-engine');
 const { generateSprintPlan } = require('./innovation/innovation-sprint');
 const unicornCommerceConnector = require('./modules/unicornCommerceConnector');
 const billionScaleRevenueEngine = require('./modules/billionScaleRevenueEngine');
+const billionScaleActivationOrchestrator = require('./modules/billionScaleActivationOrchestrator');
 const { getSiteHtml } = require('./site/template');
 let v2 = null; try { v2 = require('./site/v2/shell'); } catch (e) { console.warn('[site/v2/shell] not loaded:', e.message); }
 // Fallback shim so downstream code never dereferences null.
@@ -266,6 +267,7 @@ function buildInnovationCoverage() {
     { id: 'unicorn-commerce-connector', title: 'Unicorn Commerce Connector: Module Registry → Catalog → BTC Checkout → Delivery', status: 'live-100-api', evidence: ['/api/unicorn-commerce/status', '/api/unicorn-commerce/catalog', '/api/catalog/master', '/api/checkout/btc', '/api/delivery/{receiptId}'], userAction: 'none; every current/future module becomes a BTC-sellable service manifest automatically' },
     { id: 'future-invention-foundry', title: 'Future Invention Foundry: Not-Yet-Invented Service Primitives', status: 'live-rd-foundation', evidence: ['/api/unicorn-commerce/future-primitives', '/api/unicorn-commerce/catalog'], userAction: 'none; speculative primitives are sold as labeled R&D foundations with owner payout guardrails' },
     { id: 'billion-scale-revenue-foundation', title: 'Billion-Scale Revenue Foundation: Packages + Deal Desk + KPI + Marketplace Economics', status: 'live-foundation-api', evidence: ['/api/billion-scale/status', '/api/billion-scale/packages', '/api/billion-scale/owner-dashboard', '/api/billion-scale/marketplace-economics', '/api/billion-scale/deal-desk/proposal'], userAction: 'requires real customers, distribution, proof and delivery; infrastructure is live' },
+    { id: 'billion-scale-activation-orchestrator', title: 'Billion-Scale Activation Orchestrator: Existing Module Graph + Missing Control Modules', status: 'live-activation-api', evidence: ['/api/billion-scale/activation/status', '/api/billion-scale/activation/modules', '/api/billion-scale/activation/run', '/api/catalog/master'], userAction: 'none for activation graph; customer acquisition and delivery proof remain real-world execution' },
   ];
   const counts = items.reduce((acc, item) => {
     acc[item.status] = (acc[item.status] || 0) + 1;
@@ -450,7 +452,8 @@ async function buildMasterCatalog() {
   const verticals = VERTICAL_OS_DELIVERABLES.map(x => ({ ...x, segment: 'enterprise' }));
   const connectorCatalog = unicornCommerceConnector.buildCommerceCatalog({ registry: sources.moduleRegistry || getSiteFallbackModuleRegistry(), btcWallet: BTC_WALLET, ownerName: OWNER_NAME });
   const strategicPackages = billionScaleRevenueEngine.buildStrategicPackages({ btcWallet: BTC_WALLET, ownerName: OWNER_NAME });
-  const all = [...strategicPackages, ...strategic, ...frontierItems, ...verticals, ...marketplace, ...CATALOG_EXPANSION_DELIVERABLES, ...connectorCatalog.items];
+  const activationProducts = billionScaleActivationOrchestrator.buildActivationProducts({ btcWallet: BTC_WALLET, ownerName: OWNER_NAME });
+  const all = [...activationProducts, ...strategicPackages, ...strategic, ...frontierItems, ...verticals, ...marketplace, ...CATALOG_EXPANSION_DELIVERABLES, ...connectorCatalog.items];
   // attach btc fields
   for (const item of all) {
     item.priceBtc = usdToBtc(item.priceUsd, usdPerBtc);
@@ -465,8 +468,8 @@ async function buildMasterCatalog() {
     updatedAt: new Date().toISOString(),
     owner: { name: OWNER_NAME, btcAddress: BTC_WALLET },
     btcSpot: { usdPerBtc, fetchedAt: new Date(_btcSpotCache.fetchedAt).toISOString() },
-    counts: { total: out.length, strategic: strategic.length, strategicPackages: strategicPackages.length, frontier: frontierItems.length, vertical: verticals.length, marketplace: marketplace.length + CATALOG_EXPANSION_DELIVERABLES.length, unicornAuto: connectorCatalog.counts.registry, futurePrimitives: connectorCatalog.counts.futurePrimitives },
-    groups: ['billion-scale-package', 'strategic', 'frontier', 'vertical', 'marketplace', 'unicorn-auto-module', 'future-invention'],
+    counts: { total: out.length, strategic: strategic.length, strategicPackages: strategicPackages.length, activationProducts: activationProducts.length, frontier: frontierItems.length, vertical: verticals.length, marketplace: marketplace.length + CATALOG_EXPANSION_DELIVERABLES.length, unicornAuto: connectorCatalog.counts.registry, futurePrimitives: connectorCatalog.counts.futurePrimitives },
+    groups: ['billion-scale-activation', 'billion-scale-package', 'strategic', 'frontier', 'vertical', 'marketplace', 'unicorn-auto-module', 'future-invention'],
     connector: { source: connectorCatalog.source, payout: connectorCatalog.payout, counts: connectorCatalog.counts },
     items: out
   };
@@ -2710,6 +2713,44 @@ async function unicornHandler(req, res) {
     const payload = billionScaleRevenueEngine.verticalGrowthPages();
     res.writeHead(200, { 'Content-Type':'application/json', 'Cache-Control':'public, max-age=300' });
     return res.end(JSON.stringify(payload));
+  }
+
+  if (urlPath === '/api/billion-scale/activation/status') {
+    const sources = getRuntimeDataSources();
+    const payload = billionScaleActivationOrchestrator.activationStatus({ registry: sources.moduleRegistry || getSiteFallbackModuleRegistry(), btcWallet: BTC_WALLET, ownerName: OWNER_NAME });
+    res.writeHead(200, { 'Content-Type':'application/json', 'Cache-Control':'no-cache' });
+    return res.end(JSON.stringify(payload));
+  }
+
+  if (urlPath === '/api/billion-scale/activation/modules') {
+    const sources = getRuntimeDataSources();
+    const payload = billionScaleActivationOrchestrator.buildActivationGraph({ registry: sources.moduleRegistry || getSiteFallbackModuleRegistry(), btcWallet: BTC_WALLET, ownerName: OWNER_NAME });
+    res.writeHead(200, { 'Content-Type':'application/json', 'Cache-Control':'no-cache' });
+    return res.end(JSON.stringify(payload));
+  }
+
+  if (urlPath === '/api/billion-scale/activation/missing') {
+    const sources = getRuntimeDataSources();
+    const graph = billionScaleActivationOrchestrator.buildActivationGraph({ registry: sources.moduleRegistry || getSiteFallbackModuleRegistry(), btcWallet: BTC_WALLET, ownerName: OWNER_NAME });
+    res.writeHead(200, { 'Content-Type':'application/json', 'Cache-Control':'no-cache' });
+    return res.end(JSON.stringify({ ok: true, generatedAt: graph.generatedAt, missingExistingModules: graph.missingExistingModules, generatedControlModules: graph.generatedControlModules }));
+  }
+
+  if (urlPath === '/api/billion-scale/activation/run' && req.method === 'POST') {
+    let body=''; req.on('data', c=>{ body+=c; if(body.length>32*1024) req.destroy(); });
+    req.on('end', () => {
+      try {
+        const sources = getRuntimeDataSources();
+        const input = JSON.parse(body || '{}');
+        const payload = billionScaleActivationOrchestrator.activationRun(input, { registry: sources.moduleRegistry || getSiteFallbackModuleRegistry(), btcWallet: BTC_WALLET, ownerName: OWNER_NAME });
+        res.writeHead(200, { 'Content-Type':'application/json', 'Cache-Control':'no-cache' });
+        return res.end(JSON.stringify(payload));
+      } catch (e) {
+        res.writeHead(400, { 'Content-Type':'application/json' });
+        return res.end(JSON.stringify({ error: 'bad_json', message: e.message }));
+      }
+    });
+    return;
   }
 
   // ===================================================================
