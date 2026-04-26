@@ -430,6 +430,7 @@ function getSiteFallbackModuleRegistry() {
 
 async function buildMasterCatalog() {
   const usdPerBtc = await getBtcUsdSpot().catch(() => 95000);
+  if (process.env.BACKEND_API_URL) await refreshBackendRuntimeState(true).catch(() => {});
   const sources = getRuntimeDataSources();
   const strategic = (sources.services || []).map(s => ({
     id: s.id, title: s.title, group: 'strategic',
@@ -2639,6 +2640,7 @@ async function unicornHandler(req, res) {
   }
 
   if (urlPath === '/api/unicorn-commerce/status') {
+    if (process.env.BACKEND_API_URL) await refreshBackendRuntimeState(true).catch(() => {});
     const sources = getRuntimeDataSources();
     const payload = unicornCommerceConnector.status({ registry: sources.moduleRegistry || getSiteFallbackModuleRegistry(), btcWallet: BTC_WALLET, ownerName: OWNER_NAME });
     res.writeHead(200, { 'Content-Type':'application/json', 'Cache-Control':'no-cache' });
@@ -2652,6 +2654,7 @@ async function unicornHandler(req, res) {
   }
 
   if (urlPath === '/api/unicorn-commerce/catalog') {
+    if (process.env.BACKEND_API_URL) await refreshBackendRuntimeState(true).catch(() => {});
     const sources = getRuntimeDataSources();
     const payload = unicornCommerceConnector.buildCommerceCatalog({ registry: sources.moduleRegistry || getSiteFallbackModuleRegistry(), btcWallet: BTC_WALLET, ownerName: OWNER_NAME });
     res.writeHead(200, { 'Content-Type':'application/json', 'Cache-Control':'public, max-age=30' });
