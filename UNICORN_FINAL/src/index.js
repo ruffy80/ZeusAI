@@ -78,6 +78,7 @@ let sovereign = null; try { sovereign = require('./site/sovereign-extensions'); 
 let commerce = null; try { commerce = require('./site/sovereign-commerce'); } catch (e) { console.warn('[commerce] not loaded:', e.message); }
 const V2_CLIENT_PATH = path.join(__dirname, 'site', 'v2', 'client.js');
 let qrMod = null; try { qrMod = require('./site/v2/qr'); } catch (_) {}
+let deliveryRegistry = null; try { deliveryRegistry = require('./site/v2/delivery-registry'); } catch (e) { console.warn('[delivery] not loaded:', e.message); }
 let uaic = null; try { uaic = require('./commerce/uaic'); } catch (e) { console.warn('[UAIC] not loaded:', e.message); }
 let USE = null; try { USE = require('./engine/universal-site-engine').create({ sources: null }); } catch (e) { console.warn('[USE] not loaded:', e.message); }
 let entCatalog = null; try { entCatalog = require('./commerce/enterprise-catalog'); } catch (e) { console.warn('[enterprise-catalog] not loaded:', e.message); }
@@ -93,14 +94,242 @@ let unifiedCatalog = null; try { unifiedCatalog = require('./commerce/unified-ca
 let productEngine = null; try { productEngine = require('./commerce/product-engine'); } catch (e) { console.warn('[product-engine] not loaded:', e.message); }
 let portal = null; try { portal = require('./commerce/customer-portal'); } catch (e) { console.warn('[portal] not loaded:', e.message); }
 let provisioner = null; try { provisioner = require('./commerce/provisioner'); } catch (e) { console.warn('[provisioner] not loaded:', e.message); }
+let innov30 = null; try { innov30 = require('./innovations-30y'); console.log('[innovations-30y] loaded · constitution', innov30.getConstitution().hashShort); } catch (e) { console.warn('[innovations-30y] not loaded:', e.message); }
+let innov30v2 = null; try { innov30v2 = require('./innovations-30y-v2'); console.log('[innovations-30y-v2] loaded · 15 primitives'); } catch (e) { console.warn('[innovations-30y-v2] not loaded:', e.message); }
+let frontier = null; try { frontier = require('./frontier-engine'); console.log('[frontier] loaded · 12 sovereign inventions + commerce suite'); } catch (e) { console.warn('[frontier] not loaded:', e.message); }
 
 const PORT = Number(process.env.PORT || 3000);
 const APP_URL = process.env.PUBLIC_APP_URL || 'https://zeusai.pro';
 const BTC_WALLET = process.env.BTC_WALLET_ADDRESS || process.env.OWNER_BTC_ADDRESS || 'bc1q4f7e66z87mdfj56kz0dj5hvcnpmh0qh4wuv22e';
+const BTC_PAYMENT_PROVIDER = process.env.BTCPAY_SERVER_URL ? 'btcpay' : (process.env.BTC_XPUB ? 'xpub-ready' : 'static-wallet');
 const OWNER_NAME = process.env.OWNER_NAME || 'Vladoi Ionut';
 const OWNER_EMAIL = process.env.OWNER_EMAIL || process.env.ADMIN_EMAIL || 'vladoi_ionut@yahoo.com';
 const BACKEND_SYNC_INTERVAL_MS = Number(process.env.SITE_BACKEND_SYNC_INTERVAL_MS || 30000);
 const BACKEND_SYNC_TIMEOUT_MS = Number(process.env.SITE_BACKEND_SYNC_TIMEOUT_MS || 5000);
+
+// ===================================================================
+// FALLBACK COMMERCE LEDGER — persistent receipts when UAIC is absent
+// ===================================================================
+const FALLBACK_RECEIPTS_FILE = path.join(__dirname, '..', 'data', 'commerce-receipts.json');
+function loadFallbackReceipts() {
+  try {
+    if (!fs.existsSync(FALLBACK_RECEIPTS_FILE)) return [];
+    const parsed = JSON.parse(fs.readFileSync(FALLBACK_RECEIPTS_FILE, 'utf8'));
+    return Array.isArray(parsed) ? parsed : [];
+  } catch (_) { return []; }
+}
+function saveFallbackReceipts(receipts) {
+  try {
+    fs.mkdirSync(path.dirname(FALLBACK_RECEIPTS_FILE), { recursive: true });
+    fs.writeFileSync(FALLBACK_RECEIPTS_FILE, JSON.stringify(receipts, null, 2));
+  } catch (e) { console.warn('[commerce-ledger] save failed:', e.message); }
+}
+function persistFallbackReceipt(receipt) {
+  const receipts = loadFallbackReceipts();
+  const idx = receipts.findIndex(r => r && r.id === receipt.id);
+  if (idx >= 0) receipts[idx] = receipt; else receipts.push(receipt);
+  saveFallbackReceipts(receipts);
+  return receipt;
+}
+function getAllReceipts() {
+  if (uaic && typeof uaic.getReceipts === 'function') return uaic.getReceipts();
+  return loadFallbackReceipts();
+}
+function findReceipt(id) {
+  return getAllReceipts().find(r => r && r.id === id) || null;
+}
+function issueFallbackLicense(receipt) {
+  const body = {
+    iss: 'ZeusAI',
+    sub: receipt.email || receipt.customerId || 'anonymous',
+    receiptId: receipt.id,
+    plan: receipt.plan || 'starter',
+    serviceIds: receipt.services || [receipt.plan || '*'],
+    seats: Number(receipt.seats || 1),
+    issuedAt: new Date().toISOString(),
+    expiresAt: new Date(Date.now() + 365 * 24 * 3600 * 1000).toISOString(),
+    owner: OWNER_NAME
+  };
+  const payload = Buffer.from(JSON.stringify(body)).toString('base64url');
+  let signature = '';
+  try { signature = crypto.sign(null, Buffer.from(payload), global.__SITE_SIGN_KEY__).toString('base64url'); }
+  catch (_) { signature = crypto.createHash('sha256').update(payload + String(receipt.id)).digest('base64url'); }
+  return { body, token: payload + '.' + signature, alg: 'Ed25519' };
+}
+function buildPaymentDestination(extra) {
+  return {
+    kind: 'btc',
+    address: BTC_WALLET,
+    owner: OWNER_NAME,
+    provider: BTC_PAYMENT_PROVIDER,
+    btcpayServerUrl: process.env.BTCPAY_SERVER_URL || null,
+    btcXpubConfigured: !!process.env.BTC_XPUB,
+    ...extra
+  };
+}
+async function createBtcpayInvoice(receipt) {
+  const serverUrl = String(process.env.BTCPAY_SERVER_URL || '').replace(/\/$/, '');
+  const apiKey = process.env.BTCPAY_API_KEY || process.env.BTCPAY_TOKEN || '';
+  const storeId = process.env.BTCPAY_STORE_ID || '';
+  if (!serverUrl || !apiKey || !storeId || !receipt) return null;
+  try {
+    const response = await fetch(`${serverUrl}/api/v1/stores/${encodeURIComponent(storeId)}/invoices`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `token ${apiKey}` },
+      body: JSON.stringify({
+        amount: String(Number(receipt.amount || 0).toFixed(2)),
+        currency: receipt.currency || 'USD',
+        metadata: {
+          orderId: receipt.id,
+          receiptId: receipt.id,
+          buyerEmail: receipt.email || '',
+          itemDesc: `ZeusAI ${receipt.plan || 'service'}`,
+          serviceIds: receipt.services || [receipt.plan || 'starter']
+        },
+        checkout: {
+          redirectURL: `${process.env.PUBLIC_APP_URL || 'https://zeusai.pro'}/receipt/${encodeURIComponent(receipt.id)}`,
+          redirectAutomatically: false
+        }
+      })
+    });
+    const data = await response.json().catch(() => null);
+    if (!response.ok || !data) throw new Error(`btcpay_${response.status}`);
+    return {
+      provider: 'btcpay',
+      invoiceId: data.id || null,
+      checkoutUrl: data.checkoutLink || data.url || null,
+      status: data.status || 'New',
+      storeId,
+      createdAt: data.createdTime || new Date().toISOString()
+    };
+  } catch (e) {
+    console.warn('[btcpay] invoice fallback to static wallet:', e.message);
+    return { provider: 'static-wallet-fallback', error: e.message };
+  }
+}
+function runDeliveryForReceipt(receipt, opts) {
+  if (!receipt || !deliveryRegistry || typeof deliveryRegistry.deliver !== 'function') return null;
+  try {
+    const delivery = deliveryRegistry.deliver(receipt, opts || {});
+    receipt.delivery = delivery;
+    receipt.deliveryStatus = delivery.status;
+    receipt.deliverables = delivery.items.flatMap(item => item.files || []);
+    return delivery;
+  } catch (e) {
+    receipt.deliveryStatus = 'failed';
+    receipt.deliveryError = e.message;
+    console.warn('[delivery] failed for receipt=' + receipt.id + ':', e.message);
+    return null;
+  }
+}
+
+// ===================================================================
+// BTC SPOT — live USD/BTC rate cache (60s) for checkout amount math
+// ===================================================================
+const _btcSpotCache = { usdPerBtc: 95000, fetchedAt: 0 };
+async function getBtcUsdSpot() {
+  const now = Date.now();
+  if (now - _btcSpotCache.fetchedAt < 60000) return _btcSpotCache.usdPerBtc;
+  const sources = [
+    { url: 'https://api.coinbase.com/v2/prices/BTC-USD/spot', pick: j => Number(j && j.data && j.data.amount) },
+    { url: 'https://api.kraken.com/0/public/Ticker?pair=XBTUSD', pick: j => { try { const k = Object.keys(j.result)[0]; return Number(j.result[k].c[0]); } catch(_){ return null; } } },
+    { url: 'https://www.bitstamp.net/api/v2/ticker/btcusd/', pick: j => Number(j && j.last) }
+  ];
+  for (const s of sources) {
+    try {
+      const r = await fetch(s.url, { headers: { 'User-Agent': 'ZeusAI/1.0' } });
+      if (!r.ok) continue;
+      const j = await r.json();
+      const p = s.pick(j);
+      if (p && p > 1000 && p < 10000000) { _btcSpotCache.usdPerBtc = p; _btcSpotCache.fetchedAt = now; return p; }
+    } catch (_) {}
+  }
+  _btcSpotCache.fetchedAt = now;
+  return _btcSpotCache.usdPerBtc;
+}
+function usdToBtc(usd, spot) { const p = Number(spot) || 95000; return Number((Number(usd || 0) / p).toFixed(8)); }
+function buildBtcUri(address, btcAmount, label) {
+  const lab = label ? `&label=${encodeURIComponent(label)}` : '';
+  return `bitcoin:${address}?amount=${btcAmount}${lab}`;
+}
+
+// ===================================================================
+// MASTER CATALOG — every deliverable Unicorn can sell, unified
+// Aggregates: strategic services + dynamic marketplace modules +
+// frontier inventions + vertical OSes. All BTC-priced live.
+// ===================================================================
+const FRONTIER_DELIVERABLES = [
+  { id: 'frontier-refund-shield', title: 'Crypto Refund Guarantee Shield', priceUsd: 199, group: 'frontier', kpi: 'refund-trust', description: 'Cryptographic refund guarantee — escrow-free, BTC-native, signed receipts.' },
+  { id: 'frontier-aura-feed',     title: 'Live Conversion Aura Feed',      priceUsd: 149, group: 'frontier', kpi: 'social-proof',  description: 'Signed real-time KPI ticker (orders, refunds, GMV) for any storefront.' },
+  { id: 'frontier-outcome-pricing', title: 'Outcome-Anchored Pricing Engine', priceUsd: 399, group: 'frontier', kpi: 'value-share', description: 'Auto-prices each unit by measured outcome, not flat seats.' },
+  { id: 'frontier-checkout-cascade', title: 'Self-Healing Checkout Cascade', priceUsd: 249, group: 'frontier', kpi: 'conversion',  description: 'BTC → Lightning → Stripe → PayPal → Wire fallback chain.' },
+  { id: 'frontier-timelock-discounts', title: 'Time-Locked Discount Vault', priceUsd: 99,  group: 'frontier', kpi: 'urgency',     description: 'Bitcoin-anchored expiry discounts, verifiable & non-fakeable.' },
+  { id: 'frontier-receipt-nft',   title: 'Sovereign Receipt NFT Issuer',   priceUsd: 299, group: 'frontier', kpi: 'audit-trail', description: 'Mints owner-signed receipt NFTs per sale with proof-of-revenue.' },
+  { id: 'frontier-email-proof',   title: 'Provable Email Delivery',         priceUsd: 79,  group: 'frontier', kpi: 'deliverability', description: 'Cryptographic proof of email send + open with DKIM-anchored signature.' },
+  { id: 'frontier-gift-capability', title: 'Gift-as-Capability Token',     priceUsd: 49,  group: 'frontier', kpi: 'virality',    description: 'Transferable, redeemable capability tokens — gift any service in 1 click.' },
+  { id: 'frontier-pledge-pack',   title: 'Anti-Dark-Pattern Pledge Pack',  priceUsd: 0,   group: 'frontier', kpi: 'trust',       description: 'Public pledge + audit endpoint guaranteeing zero dark patterns. Free forever.' },
+  { id: 'frontier-universal-cancel', title: 'Universal 1-Click Cancel',    priceUsd: 0,   group: 'frontier', kpi: 'retention',   description: 'GDPR-grade cancellation + signed acknowledgement. Always free.' },
+  { id: 'frontier-bandit-transparency', title: 'Pricing Bandit Transparency Console', priceUsd: 179, group: 'frontier', kpi: 'fairness', description: 'Live multi-armed bandit pricing log — every customer sees the math.' },
+  { id: 'frontier-carbon-checkout', title: 'Carbon-Inclusive Checkout',   priceUsd: 39,  group: 'frontier', kpi: 'esg',         description: 'Auto-prices and offsets gCO2 per transaction. BTC-settled.' }
+];
+const VERTICAL_OS_DELIVERABLES = [
+  ['fintech-os', 'Fintech OS', 4999], ['health-os', 'HealthTech OS', 4999], ['retail-os', 'Retail OS', 3499],
+  ['logistics-os', 'Logistics OS', 3999], ['manufacturing-os', 'Manufacturing OS', 4499], ['energy-os', 'Energy OS', 4499],
+  ['agri-os', 'AgriTech OS', 2999], ['edu-os', 'EduTech OS', 2499], ['govtech-os', 'GovTech OS', 5999],
+  ['legaltech-os', 'LegalTech OS', 3499], ['hospitality-os', 'Hospitality OS', 2799], ['media-os', 'Media OS', 2499],
+  ['gaming-os', 'Gaming OS', 2999], ['realestate-os', 'RealEstate OS', 3299], ['mobility-os', 'Mobility OS', 3499],
+  ['biotech-os', 'BioTech OS', 5499], ['security-os', 'Security OS', 4999], ['climate-os', 'ClimateTech OS', 3999]
+].map(([id, title, priceUsd]) => ({ id, title, priceUsd, group: 'vertical', kpi: 'industry adoption', description: title + ' — turn-key vertical AI OS, signed-outcome billing, BTC settled.' }));
+const CATALOG_EXPANSION_DELIVERABLES = [
+  ['ai-sales-closer', 'AI Sales Closer', 299, 'conversion'], ['ai-cfo-agent', 'AI CFO Agent', 399, 'profit control'], ['auto-marketing-engine', 'Auto Marketing Engine', 249, 'campaign velocity'],
+  ['competitor-spy-agent', 'Competitor Spy Agent', 199, 'market intelligence'], ['seo-optimizer', 'SEO Optimizer', 149, 'organic growth'], ['content-ai-studio', 'Content AI Studio', 179, 'content throughput'],
+  ['analytics-engine', 'Analytics Engine', 129, 'decision speed'], ['security-scanner', 'Security Scanner', 199, 'risk reduction'], ['self-healing-engine', 'Self-Healing Engine', 349, 'uptime'],
+  ['domain-automation-manager', 'Domain Automation Manager', 149, 'launch speed'], ['global-api-gateway', 'Global API Gateway', 399, 'integration reach'], ['tenant-billing-engine', 'Tenant Billing Engine', 299, 'billing automation'],
+  ['provisioning-engine', 'Provisioning Engine', 349, 'delivery automation'], ['kpi-analytics-suite', 'KPI Analytics Suite', 229, 'KPI clarity'], ['ai-auto-dispatcher', 'AI Auto Dispatcher', 279, 'routing accuracy'],
+  ['global-failover-pack', 'Global Failover Pack', 499, 'resilience'], ['slo-tracker', 'SLO Tracker', 129, 'reliability'], ['canary-controller', 'Canary Controller', 249, 'safe deployment'],
+  ['shadow-tester', 'Shadow Tester', 249, 'release confidence'], ['profit-attribution', 'Profit Attribution', 299, 'revenue clarity'], ['billing-engine', 'Billing Engine', 249, 'payment ops'],
+  ['saas-orchestrator', 'SaaS Orchestrator', 599, 'multi-tenant scale'], ['ui-auto-builder', 'UI Auto Builder', 349, 'shipping speed'], ['sovereign-guardian', 'Sovereign Guardian', 399, 'ownership protection'],
+  ['quantum-vault', 'Quantum Vault', 499, 'secret safety'], ['temporal-processor', 'Temporal Processor', 349, 'future-proofing'], ['revenue-modules-pack', 'Revenue Modules Pack', 699, 'revenue streams'],
+  ['social-viralizer', 'Social Viralizer', 199, 'viral reach'], ['unicorn-realization', 'Unicorn Realization Engine', 799, 'execution certainty'], ['customer-portal-plus', 'Customer Portal Plus', 299, 'customer success']
+].map(([id, title, priceUsd, kpi]) => ({ id, title, priceUsd, group: 'marketplace', kpi, segment: 'modules', description: title + ' — production-ready ZeusAI module, BTC/BTCPay-ready, auto-delivered after payment.' }));
+
+async function buildMasterCatalog() {
+  const usdPerBtc = await getBtcUsdSpot().catch(() => 95000);
+  const sources = getRuntimeDataSources();
+  const strategic = (sources.services || []).map(s => ({
+    id: s.id, title: s.title, group: 'strategic',
+    priceUsd: Number(s.price || 0), kpi: s.kpi || 'automation',
+    description: s.description || ('Sovereign service: ' + (s.title || s.id)),
+    segment: s.segment || s.category || 'all'
+  }));
+  const marketplace = Array.isArray(sources.marketplace) ? sources.marketplace.slice(0, 30).map(m => ({
+    id: m.id, title: m.title || m.name || m.id, group: 'marketplace',
+    priceUsd: Number(m.price || m.basePrice || 0), kpi: m.kpi || m.category || 'module',
+    description: m.description || 'Adaptive AI module — dynamic-priced, BTC settled.',
+    segment: m.category || 'modules'
+  })) : [];
+  const frontierItems = frontier ? FRONTIER_DELIVERABLES.map(x => ({ ...x, segment: 'frontier' })) : [];
+  const verticals = VERTICAL_OS_DELIVERABLES.map(x => ({ ...x, segment: 'enterprise' }));
+  const all = [...strategic, ...frontierItems, ...verticals, ...marketplace, ...CATALOG_EXPANSION_DELIVERABLES];
+  // attach btc fields
+  for (const item of all) {
+    item.priceBtc = usdToBtc(item.priceUsd, usdPerBtc);
+    item.currency = 'USD';
+    item.buyUrl = `/checkout?serviceId=${encodeURIComponent(item.id)}&amount=${item.priceUsd}&plan=${encodeURIComponent(item.id)}`;
+    item.btcUri = item.priceUsd > 0 ? buildBtcUri(BTC_WALLET, item.priceBtc, 'ZeusAI-' + item.id) : null;
+  }
+  // dedupe by id
+  const seen = new Set(); const out = [];
+  for (const it of all) { if (!seen.has(it.id)) { seen.add(it.id); out.push(it); } }
+  return {
+    updatedAt: new Date().toISOString(),
+    owner: { name: OWNER_NAME, btcAddress: BTC_WALLET },
+    btcSpot: { usdPerBtc, fetchedAt: new Date(_btcSpotCache.fetchedAt).toISOString() },
+    counts: { total: out.length, strategic: strategic.length, frontier: frontierItems.length, vertical: verticals.length, marketplace: marketplace.length + CATALOG_EXPANSION_DELIVERABLES.length },
+    groups: ['strategic', 'frontier', 'vertical', 'marketplace'],
+    items: out
+  };
+}
 
 const modules = [
   { id: 'auto-deploy-orchestrator', status: 'active', purpose: 'continuous delivery' },
@@ -862,6 +1091,46 @@ function proxyToBackend(req, res, backendBaseUrl) {
 }
 
 async function unicornHandler(req, res) {
+  const requestUrl = new URL(req.url || '/', 'http://local');
+  const urlPath = requestUrl.pathname;
+  const earlyPath = urlPath;
+  if (earlyPath === '/api/uaic/receipts') {
+    const email = String(requestUrl.searchParams.get('email') || '').toLowerCase();
+    const receipts = getAllReceipts().filter(r => !email || String(r.email || '').toLowerCase() === email);
+    res.writeHead(200, { 'Content-Type':'application/json', 'Cache-Control':'no-cache' });
+    return res.end(JSON.stringify({ ok:true, receipts }));
+  }
+  if (earlyPath.startsWith('/api/uaic/receipt/') || earlyPath.startsWith('/api/receipt/') || earlyPath.startsWith('/api/invoice/')) {
+    const prefix = earlyPath.startsWith('/api/uaic/receipt/') ? '/api/uaic/receipt/' : (earlyPath.startsWith('/api/receipt/') ? '/api/receipt/' : '/api/invoice/');
+    const id = decodeURIComponent(earlyPath.slice(prefix.length));
+    const receipt = findReceipt(id);
+    if (!receipt) { res.writeHead(404, { 'Content-Type':'application/json' }); return res.end(JSON.stringify({ error:'receipt_not_found' })); }
+    res.writeHead(200, { 'Content-Type':'application/json', 'Cache-Control':'no-cache' });
+    return res.end(JSON.stringify({ ok:true, receipt }));
+  }
+  if (earlyPath.startsWith('/api/license/')) {
+    const id = decodeURIComponent(earlyPath.slice('/api/license/'.length));
+    const receipt = findReceipt(id);
+    if (!receipt) { res.writeHead(404, { 'Content-Type':'application/json' }); return res.end(JSON.stringify({ error:'receipt_not_found' })); }
+    if (receipt.status !== 'paid') { res.writeHead(202, { 'Content-Type':'application/json' }); return res.end(JSON.stringify({ ok:false, status:receipt.status, error:'payment_pending' })); }
+    receipt.license = receipt.license || issueFallbackLicense(receipt);
+    receipt.delivery = receipt.delivery || runDeliveryForReceipt(receipt);
+    if (!uaic) persistFallbackReceipt(receipt);
+    res.writeHead(200, { 'Content-Type':'application/json', 'Cache-Control':'no-cache' });
+    return res.end(JSON.stringify({ ok:true, license: receipt.license }));
+  }
+  if (earlyPath.startsWith('/api/delivery/')) {
+    const id = decodeURIComponent(earlyPath.slice('/api/delivery/'.length));
+    const params = requestUrl.searchParams;
+    const delivery = deliveryRegistry && deliveryRegistry.get ? deliveryRegistry.get(id) : null;
+    const payload = deliveryRegistry && deliveryRegistry.renderPayload
+      ? deliveryRegistry.renderPayload(delivery, params.get('format'), params.get('serviceId'))
+      : delivery;
+    if (!payload) { res.writeHead(404, { 'Content-Type':'application/json' }); return res.end(JSON.stringify({ error:'delivery_not_found' })); }
+    res.writeHead(200, { 'Content-Type':'application/json', 'Cache-Control':'no-cache' });
+    return res.end(JSON.stringify({ ok:true, delivery: payload }));
+  }
+
   // ── SOVEREIGN COMMERCE — REAL BTC sales (checkout, watcher, delivery) ───
   // Handles: /api/checkout/create, /checkout/:orderId, /api/order/:id/status,
   // /api/entitlements/:token, /api/commerce/price|health|reconcile.
@@ -883,17 +1152,278 @@ async function unicornHandler(req, res) {
     } catch (e) { console.warn('[sovereign] handler error:', e.message); }
   }
 
+  // ── 30-YEAR CRYPTOGRAPHIC DURABILITY LAYER (innovations-30y) ────────────
+  // Adds: X-Constitution-Hash header, /api/innovations/*, /api/btc/twap,
+  // /api/receipts/*, /api/audit/me, /api/incidents, /api/sbom,
+  // /api/archive/manifest, /.well-known/ai-attestation, /api/constitution.
+  if (innov30) {
+    try {
+      // Stamp constitution hash on every response (best-effort header)
+      const origWrite = res.writeHead.bind(res);
+      res.writeHead = function (status, headers) {
+        try {
+          if (!res.getHeader('X-Constitution-Hash')) {
+            res.setHeader('X-Constitution-Hash', innov30.getConstitution().hashShort);
+          }
+        } catch (_) {}
+        return origWrite(status, headers);
+      };
+
+      const u = req.url.split('?')[0];
+      const send = (code, obj) => { res.writeHead(code, { 'Content-Type': 'application/json; charset=utf-8' }); res.end(JSON.stringify(obj, null, 2)); };
+
+      if (u === '/api/constitution')             { return send(200, innov30.getConstitution()); }
+      if (u === '/.well-known/ai-attestation')   { return send(200, { constitution: innov30.getConstitution(), models: innov30.MODELS, archive: innov30.archiveManifest() }); }
+      if (u === '/api/innovations/status')       {
+        const arch = innov30.archiveManifest();
+        return send(200, {
+          version: '30Y-LTS · v3.7.0',
+          constitution: innov30.getConstitution(),
+          models: innov30.MODELS,
+          archive: arch,
+          features: ['merkle-receipts','pq-hybrid-sign','constitution','model-provenance','btc-twap','differential-privacy','self-sovereign-audit','time-capsule','honeytoken','sealed-incidents','reproducible-sbom','permanent-archive']
+        });
+      }
+      if (u === '/api/btc/twap')                 { try { return send(200, await innov30.getBtcTwap()); } catch (e) { return send(503, { error: 'twap_unavailable', message: e.message }); } }
+      if (u === '/api/sbom')                     { return send(200, innov30.buildSBOM()); }
+      if (u === '/api/innovations/archive')      { return send(200, innov30.archiveManifest()); }
+      if (u === '/api/incidents')                { return send(200, innov30.listIncidentsPublic()); }
+      if (u === '/api/receipts/root')            { return send(200, innov30.getRoot() || { error: 'no_root_yet' }); }
+      if (u.startsWith('/api/receipts/proof/')) {
+        const id = decodeURIComponent(u.slice('/api/receipts/proof/'.length));
+        try { return send(200, innov30.getProof(id)); }
+        catch (e) { return send(404, { error: 'proof_not_found', message: e.message }); }
+      }
+      if (u === '/api/audit/me') {
+        // Dev-friendly: accept user from ?u= or header x-user; production should require auth
+        const uid = (req.headers['x-user'] || (req.url.split('?')[1]||'').match(/(?:^|&)u=([^&]+)/)?.[1] || 'demo-user').toString();
+        try { return send(200, innov30.getUserAuditMerkle(decodeURIComponent(uid))); }
+        catch (e) { return send(404, { error: 'no_audit', message: e.message }); }
+      }
+      if (u === '/api/innovations/receipt' && req.method === 'POST') {
+        let body=''; req.on('data', c=>{ body+=c; if (body.length>16384) req.destroy(); });
+        return req.on('end', () => {
+          try {
+            const r = innov30.appendReceipt(JSON.parse(body || '{}'));
+            return send(200, r);
+          } catch (e) { return send(400, { error: 'bad_receipt', message: e.message }); }
+        });
+      }
+      if (u === '/api/innovations/roll-root' && req.method === 'POST') {
+        try { return send(200, innov30.rollDailyRoot()); }
+        catch (e) { return send(500, { error: 'roll_failed', message: e.message }); }
+      }
+
+      // Honeytoken sprinkle on selected JSON responses (non-invasive: handled by callers if desired).
+      // We expose a helper via res.locals-style: attach for downstream code.
+      res.injectHoneytoken = (obj, userId='anon') => innov30.injectHoneytoken(obj, userId);
+    } catch (e) { console.warn('[innovations-30y] handler error:', e.message); }
+  }
+
+  // ── 30Y-LTS v2 — Second batch (15 more primitives) ─────────────────────
+  // ZK commits, threshold keys, FL, VRF, VDF, k-anon, relay, reputation,
+  // compliance, DR drills, carbon, bug bounty, DID resolver.
+  if (innov30v2) {
+    try {
+      const v2u = req.url.split('?')[0];
+      const v2send = (code, obj) => { res.writeHead(code, { 'Content-Type': 'application/json; charset=utf-8' }); res.end(JSON.stringify(obj, null, 2)); };
+      const v2body = (cb) => { let b=''; req.on('data', c=>{ b+=c; if (b.length>32768) req.destroy(); }); req.on('end', ()=>{ try { cb(JSON.parse(b||'{}')); } catch (e) { v2send(400, { error: 'bad_json', message: e.message }); } }); };
+
+      if (v2u === '/api/v2/status')                        { return v2send(200, innov30v2.v2Status()); }
+
+      // ZK commit/reveal
+      if (v2u === '/api/v2/zk/commit' && req.method === 'POST') { return v2body(p => v2send(200, innov30v2.commitValue(p.value))); }
+      if (v2u === '/api/v2/zk/verify' && req.method === 'POST') { return v2body(p => v2send(200, { valid: innov30v2.verifyCommitment(p.value, p.blinding, p.commitment) })); }
+
+      // Threshold keys
+      if (v2u === '/api/v2/threshold/keygen' && req.method === 'POST') { return v2body(p => v2send(200, innov30v2.thresholdKeygen({ n: p.n, t: p.t }))); }
+      if (v2u === '/api/v2/threshold/list')                 { return v2send(200, innov30v2.listThresholdKeys()); }
+
+      // Federated learning
+      if (v2u === '/api/v2/fl/submit' && req.method === 'POST') { return v2body(p => { try { return v2send(200, innov30v2.flSubmit(p)); } catch (e) { return v2send(400, { error: 'bad_submit', message: e.message }); } }); }
+      if (v2u === '/api/v2/fl/close' && req.method === 'POST') { return v2body(p => { try { return v2send(200, innov30v2.flCloseRound(p.roundId)); } catch (e) { return v2send(400, { error: 'close_failed', message: e.message }); } }); }
+      if (v2u === '/api/v2/fl/rounds')                      { return v2send(200, innov30v2.flListRounds()); }
+
+      // VRF
+      if (v2u === '/api/v2/vrf/prove' && req.method === 'POST') { return v2body(p => v2send(200, innov30v2.vrfProve(String(p.input || '')))); }
+      if (v2u === '/api/v2/vrf/verify' && req.method === 'POST') { return v2body(p => v2send(200, { valid: innov30v2.vrfVerify(p.input, p.y, p.proof, p.pk) })); }
+
+      // Token bucket
+      if (v2u.startsWith('/api/v2/bucket/take/')) { const key = decodeURIComponent(v2u.slice('/api/v2/bucket/take/'.length)); return v2send(200, innov30v2.tokenBucketTake(key)); }
+
+      // Relay
+      if (v2u === '/api/v2/relay')                          { return v2send(200, innov30v2.relayDescriptor()); }
+
+      // VDF
+      if (v2u === '/api/v2/vdf/eval' && req.method === 'POST') { return v2body(p => { try { return v2send(200, innov30v2.vdfEvaluate(p.seed, Math.min(Number(p.t)||1000, 100000))); } catch (e) { return v2send(400, { error: 'vdf_failed', message: e.message }); } }); }
+      if (v2u === '/api/v2/vdf/verify' && req.method === 'POST') { return v2body(p => v2send(200, { valid: innov30v2.vdfVerify(p.seed, Number(p.t), p.y) })); }
+
+      // Reputation
+      if (v2u === '/api/v2/reputation' && req.method === 'POST') { return v2body(p => { try { return v2send(200, innov30v2.reputationClaim(p)); } catch (e) { return v2send(400, { error: 'bad_claim', message: e.message }); } }); }
+      if (v2u.startsWith('/api/v2/reputation/')) { const did = decodeURIComponent(v2u.slice('/api/v2/reputation/'.length)); return v2send(200, innov30v2.reputationFor(did)); }
+
+      // Compliance
+      if (v2u === '/api/compliance/attestation')            { return v2send(200, innov30v2.complianceAttestation()); }
+
+      // DR drills
+      if (v2u === '/api/v2/dr/record' && req.method === 'POST') { return v2body(p => v2send(200, innov30v2.drDrillRecord(p))); }
+      if (v2u === '/api/v2/dr/list')                        { return v2send(200, innov30v2.drDrillList()); }
+
+      // Carbon
+      if (v2u === '/api/v2/carbon/record' && req.method === 'POST') { return v2body(p => v2send(200, innov30v2.carbonRecord(p))); }
+      if (v2u === '/api/v2/carbon/attest')                  { return v2send(200, innov30v2.carbonAttest((req.url.split('?')[1]||'').match(/(?:^|&)day=([^&]+)/)?.[1])); }
+
+      // Bug bounty
+      if (v2u === '/api/v2/bounty/add' && req.method === 'POST') { return v2body(p => v2send(200, innov30v2.bountyAdd(p))); }
+      if (v2u === '/api/v2/bounty/list')                    { return v2send(200, innov30v2.bountyList()); }
+      if (v2u === '/api/v2/bounty/total')                   { return v2send(200, innov30v2.bountyTotal()); }
+
+      // DID
+      if (v2u === '/.well-known/did.json')                  { return v2send(200, innov30v2.didDocumentSelf()); }
+      if (v2u === '/api/v2/did/self')                       { return v2send(200, innov30v2.didDocumentSelf()); }
+      if (v2u.startsWith('/api/v2/did/resolve/')) { const did = decodeURIComponent(v2u.slice('/api/v2/did/resolve/'.length)); try { return v2send(200, innov30v2.didResolve(did)); } catch (e) { return v2send(400, { error: 'unsupported_did', message: e.message }); } }
+    } catch (e) { console.warn('[innovations-30y-v2] handler error:', e.message); }
+  }
+
+  // ── FRONTIER ENGINE — autonomous sales fabric + 12 brand-new inventions ──
+  if (frontier) {
+    try {
+      const fu = req.url.split('?')[0];
+      const fq = (req.url.split('?')[1]) || '';
+      const fparam = (k) => { const m = fq.match(new RegExp('(?:^|&)'+k+'=([^&]+)')); return m ? decodeURIComponent(m[1]) : null; };
+      const fsend = (code, obj, ct='application/json; charset=utf-8') => { res.writeHead(code, { 'Content-Type': ct }); res.end(typeof obj === 'string' ? obj : JSON.stringify(obj, null, 2)); };
+      const ftext = (code, txt, ct='text/plain; charset=utf-8') => { res.writeHead(code, { 'Content-Type': ct }); res.end(txt); };
+      const fbody = (cb) => { let b=''; req.on('data', c=>{ b+=c; if (b.length>65536) req.destroy(); }); req.on('end', ()=>{ try { cb(JSON.parse(b||'{}')); } catch (e) { fsend(400, { error: 'bad_json', message: e.message }); } }); };
+
+      // Status / inventory
+      if (fu === '/api/frontier/status') return fsend(200, frontier.frontierStatus());
+
+      // Sitemap + robots + openapi
+      if (fu === '/sitemap.xml' || fu === '/seo/sitemap.xml')   return ftext(200, frontier.sitemapXml(APP_URL), 'application/xml; charset=utf-8');
+      if (fu === '/robots.txt'  || fu === '/seo/robots.txt')    return ftext(200, frontier.robotsTxt(APP_URL));
+      if (fu === '/openapi.json' || fu === '/api/openapi')  return fsend(200, frontier.openApiSpec());
+
+      // Cart engine
+      if (fu === '/api/cart/create' && req.method === 'POST') return fbody(p => fsend(200, frontier.cartCreate(p)));
+      if (fu.match(/^\/api\/cart\/[^/]+$/) && req.method === 'GET') {
+        const id = fu.split('/').pop(); const c = frontier.cartGet(id);
+        return c ? fsend(200, c) : fsend(404, { error:'not_found' });
+      }
+      if (fu.match(/^\/api\/cart\/[^/]+\/add$/) && req.method === 'POST') {
+        const id = fu.split('/')[3]; return fbody(p => { try { return fsend(200, frontier.cartAdd(id, p)); } catch (e) { return fsend(400, { error: e.message }); } });
+      }
+      if (fu.match(/^\/api\/cart\/[^/]+\/remove$/) && req.method === 'POST') {
+        const id = fu.split('/')[3]; return fbody(p => { try { return fsend(200, frontier.cartRemove(id, p.sku)); } catch (e) { return fsend(400, { error: e.message }); } });
+      }
+      if (fu.match(/^\/api\/cart\/[^/]+\/coupon$/) && req.method === 'POST') {
+        const id = fu.split('/')[3]; return fbody(p => { try { return fsend(200, frontier.cartApplyCoupon(id, p.code)); } catch (e) { return fsend(400, { error: e.message }); } });
+      }
+      if (fu.match(/^\/api\/cart\/[^/]+\/checkout$/) && req.method === 'POST') {
+        const id = fu.split('/')[3]; return fbody(p => { try { return fsend(200, frontier.cartCheckout(id, p)); } catch (e) { return fsend(400, { error: e.message }); } });
+      }
+
+      // Coupons
+      if (fu === '/api/coupons' && req.method === 'GET')  return fsend(200, frontier.couponList());
+      if (fu === '/api/coupons' && req.method === 'POST') return fbody(p => { try { return fsend(200, frontier.couponCreate(p)); } catch (e) { return fsend(400, { error: e.message }); } });
+
+      // Leads
+      if (fu === '/api/leads' && req.method === 'POST') return fbody(p => { try { return fsend(200, frontier.leadCapture(p)); } catch (e) { return fsend(400, { error: e.message }); } });
+      if (fu === '/api/leads' && req.method === 'GET')  return fsend(200, frontier.leadList(200));
+      if (fu === '/api/abandon-cart' && req.method === 'POST') return fbody(p => fsend(200, frontier.abandonCartPing(p)));
+
+      // API keys
+      if (fu === '/api/keys' && req.method === 'POST') return fbody(p => { try { return fsend(200, frontier.apiKeyCreate(p)); } catch (e) { return fsend(400, { error: e.message }); } });
+      if (fu === '/api/keys' && req.method === 'GET')  return fsend(200, frontier.apiKeyList(fparam('email')));
+      if (fu.match(/^\/api\/keys\/[^/]+\/revoke$/) && req.method === 'POST') {
+        const id = fu.split('/')[3]; try { return fsend(200, frontier.apiKeyRevoke(id)); } catch (e) { return fsend(400, { error: e.message }); }
+      }
+
+      // Newsletter
+      if (fu === '/api/newsletter/subscribe' && req.method === 'POST') return fbody(p => { try { return fsend(200, frontier.newsletterSubscribe(p)); } catch (e) { return fsend(400, { error: e.message }); } });
+      if (fu === '/api/newsletter/unsub' && req.method === 'POST') return fbody(p => fsend(200, frontier.newsletterUnsub(p.token)));
+      if (fu === '/api/newsletter/stats') return fsend(200, frontier.newsletterStats());
+
+      // Plan wizard
+      if (fu === '/api/wizard/recommend' && req.method === 'POST') return fbody(p => fsend(200, frontier.wizardRecommend(p || {})));
+
+      // FX + Tax
+      if (fu === '/api/fx/rates') return fsend(200, frontier.fxRates());
+      if (fu === '/api/fx/convert') return fsend(200, frontier.fxConvert(Number(fparam('usd'))||0, fparam('to')||'EUR'));
+      if (fu === '/api/tax/lookup') return fsend(200, frontier.taxLookup(fparam('country')||'US'));
+
+      // Webhooks
+      if (fu === '/api/webhooks/subscribe' && req.method === 'POST') return fbody(p => { try { return fsend(200, frontier.webhookSubscribe(p)); } catch (e) { return fsend(400, { error: e.message }); } });
+      if (fu === '/api/webhooks/list') return fsend(200, frontier.webhookList(fparam('email')));
+
+      // Status page
+      if (fu === '/api/status') return fsend(200, frontier.statusSnapshot());
+
+      // Analytics
+      if (fu === '/api/track' && req.method === 'POST') return fbody(p => { try { return fsend(200, frontier.trackEvent(p)); } catch (e) { return fsend(400, { error: e.message }); } });
+      if (fu === '/api/analytics/summary') return fsend(200, frontier.analyticsSummary());
+
+      // F1 — Refund guarantee
+      if (fu === '/api/refund/guarantee') return fsend(200, frontier.refundGuarantee());
+      if (fu === '/api/refund/audit')     return fsend(200, frontier.refundAudit());
+
+      // F2 — Live Aura
+      if (fu === '/api/aura') return fsend(200, frontier.liveAura());
+
+      // F3 — Outcome anchor
+      if (fu === '/api/outcome/anchor' && req.method === 'POST') return fbody(p => { try { return fsend(200, frontier.outcomeAnchor(p)); } catch (e) { return fsend(400, { error: e.message }); } });
+      if (fu === '/api/outcome/list')    return fsend(200, frontier.outcomeList(fparam('customer')));
+
+      // F4 — Self-healing checkout cascade
+      if (fu === '/api/checkout/cascade' && req.method === 'POST') return fbody(p => fsend(200, frontier.checkoutCascade(p)));
+
+      // F5 — Time-locked discount
+      if (fu === '/api/discount/timelocked' && req.method === 'POST') return fbody(p => fsend(200, frontier.timeLockedDiscount(p)));
+      if (fu === '/api/discount/timelocked/redeem') return fsend(200, frontier.timeLockedRedeem(fparam('code')));
+
+      // F6 — Sovereign Receipt NFT
+      if (fu.startsWith('/api/receipt/nft/')) {
+        const id = decodeURIComponent(fu.slice('/api/receipt/nft/'.length));
+        const nft = frontier.receiptNft(id);
+        return nft ? fsend(200, nft) : fsend(404, { error: 'not_found' });
+      }
+
+      // F7 — Provable email delivery
+      if (fu === '/api/email/proof' && req.method === 'POST') return fbody(p => { try { return fsend(200, frontier.emailProof(p)); } catch (e) { return fsend(400, { error: e.message }); } });
+      if (fu === '/api/email/proof/list') return fsend(200, frontier.emailProofList(50));
+
+      // F8 — Gift-as-Capability
+      if (fu === '/api/gift/mint' && req.method === 'POST') return fbody(p => fsend(200, frontier.giftMint(p)));
+      if (fu === '/api/gift/redeem' && req.method === 'POST') return fbody(p => fsend(200, frontier.giftRedeem(p)));
+
+      // F9 — Pledge
+      if (fu === '/api/pledge') return fsend(200, frontier.pledge());
+      if (fu === '/api/pledge/report' && req.method === 'POST') return fbody(p => fsend(200, frontier.pledgeReport(p)));
+
+      // F10 — Universal cancel
+      if (fu === '/api/cancel/universal' && req.method === 'POST') return fbody(p => { try { return fsend(200, frontier.universalCancel(p)); } catch (e) { return fsend(400, { error: e.message }); } });
+
+      // F11 — Bandit transparency
+      if (fu === '/api/bandit/transparency') return fsend(200, frontier.banditTransparency());
+
+      // F12 — Carbon
+      if (fu === '/api/carbon/cart') {
+        const id = fparam('orderId'); const c = id ? frontier.carbonForOrder(id) : null;
+        return c ? fsend(200, c) : fsend(404, { error: 'not_found' });
+      }
+    } catch (e) { console.warn('[frontier] handler error:', e.message); }
+  }
+
   // Local v2 site APIs — handled by this server even when a backend is configured
   const LOCAL_V2_API = new Set([
     '/api/services', '/api/services/list', '/api/services/buy', '/api/user/services', '/api/unicorn/events', '/api/qr', '/api/checkout/btc', '/api/checkout/paypal',
+    '/api/uaic/order', '/api/uaic/receipts',
     '/api/ai/registry', '/api/ai/use',
     '/api/payments/btc/confirm', '/api/payments/paypal/confirm',
     '/api/activate', '/api/concierge', '/api/concierge/stream', '/api/concierge/feedback',
     '/api/auth/passkey/challenge', '/api/auth/passkey/register', '/api/auth/passkey/assert',
-    '/api/secrets/status'
+    '/api/secrets/status',
+    '/api/catalog/master', '/api/btc/spot'
   ]);
-  const urlPath = req.url.split('?')[0];
-
   // ================== ADMIN SESSION (cookie-based, stateless HMAC) ==================
   // Flow: POST /api/admin/login {password} → verify vs backend → Set-Cookie admin_session=ts.hmac
   // Subsequent /api/admin/* requests with valid cookie auto-inject x-admin-token header.
@@ -964,10 +1494,56 @@ async function unicornHandler(req, res) {
     return proxyToBackend(req, res, process.env.BACKEND_API_URL);
   }
 
+  const isAdminAuthorized = () => {
+    const secret = getAdminSecret();
+    const provided = String(req.headers['x-admin-token'] || req.headers['x-payment-token'] || '');
+    return verifyAdminCookie(req) || (!!secret && provided === secret);
+  };
+  if (urlPath === '/api/admin/commerce' && req.method === 'GET') {
+    if (!isAdminAuthorized()) { res.writeHead(401, { 'Content-Type':'application/json' }); return res.end(JSON.stringify({ error:'unauthorized' })); }
+    const receipts = getAllReceipts();
+    const deliveries = deliveryRegistry && deliveryRegistry.all ? deliveryRegistry.all() : [];
+    const paid = receipts.filter(r => r.status === 'paid');
+    const pending = receipts.filter(r => r.status !== 'paid');
+    const totalUsd = paid.reduce((sum, r) => sum + Number(r.amount || 0), 0);
+    res.writeHead(200, { 'Content-Type':'application/json', 'Cache-Control':'no-cache' });
+    return res.end(JSON.stringify({ ok:true, counts:{ total:receipts.length, paid:paid.length, pending:pending.length, deliveries:deliveries.length }, totalUsd:Number(totalUsd.toFixed(2)), receipts, deliveries }));
+  }
+  if ((urlPath === '/api/admin/commerce/retry-delivery' || urlPath === '/api/admin/commerce/resend-license' || urlPath === '/api/admin/commerce/confirm' || urlPath === '/api/admin/commerce/refund') && req.method === 'POST') {
+    if (!isAdminAuthorized()) { res.writeHead(401, { 'Content-Type':'application/json' }); return res.end(JSON.stringify({ error:'unauthorized' })); }
+    let body = ''; req.on('data', c => { body += c; if (body.length > 16*1024) req.destroy(); });
+    req.on('end', () => {
+      try {
+        const p = JSON.parse(body || '{}');
+        const receipt = findReceipt(String(p.receiptId || ''));
+        if (!receipt) { res.writeHead(404, { 'Content-Type':'application/json' }); return res.end(JSON.stringify({ error:'receipt_not_found' })); }
+        if (urlPath === '/api/admin/commerce/refund') {
+          receipt.status = 'refunded';
+          receipt.refundedAt = new Date().toISOString();
+          receipt.refund = { amount: Number(p.amount || receipt.amount || 0), currency: receipt.currency || 'USD', reason: p.reason || 'admin_refund', by: 'admin', at: receipt.refundedAt };
+          if (!uaic) persistFallbackReceipt(receipt); else if (uaic.persistReceipt) uaic.persistReceipt(receipt);
+          res.writeHead(200, { 'Content-Type':'application/json' });
+          return res.end(JSON.stringify({ ok:true, receipt }));
+        }
+        if (urlPath === '/api/admin/commerce/confirm' && receipt.status !== 'paid') {
+          receipt.status = 'paid';
+          receipt.paidAt = new Date().toISOString();
+          receipt.confirmation = { txid: p.txid || p.transactionId || null, network: p.network || String(receipt.method || 'manual').toLowerCase(), amount: Number(p.amount || receipt.amount || 0), by: 'admin', at: new Date().toISOString() };
+        }
+        receipt.license = receipt.license || (uaic && uaic.issueLicense ? uaic.issueLicense(receipt) : issueFallbackLicense(receipt));
+        const delivery = runDeliveryForReceipt(receipt, { force: urlPath === '/api/admin/commerce/retry-delivery' });
+        if (!uaic) persistFallbackReceipt(receipt); else if (uaic.persistReceipt) uaic.persistReceipt(receipt);
+        res.writeHead(200, { 'Content-Type':'application/json' });
+        return res.end(JSON.stringify({ ok:true, receipt, delivery }));
+      } catch (e) { res.writeHead(400, { 'Content-Type':'application/json' }); return res.end(JSON.stringify({ error:'bad_request', detail:e.message })); }
+    });
+    return;
+  }
+
   // 30Y-LTS: local-first routes served by this site process (not proxied to backend).
   // Only routes that are implemented locally in this file are matched here;
   // backend-only endpoints (/api/v1/deprecations, /api/v1/events/*) keep flowing to the backend.
-  const isLts = /^\/api\/(v1\/)?(contract|i18n\/|crypto\/public-keys|succession\/attestation|anchors)(\/|$|\.)/.test(urlPath) || urlPath === '/api/v1/contract' || urlPath === '/api/contract';  const isLocalV2Api = isLts || LOCAL_V2_API.has(urlPath) || urlPath.startsWith('/api/services/') || urlPath.startsWith('/api/enterprise/') || urlPath.startsWith('/api/outreach/') || urlPath.startsWith('/api/vault/') || urlPath.startsWith('/api/governance/') || urlPath.startsWith('/api/whales/') || urlPath.startsWith('/api/webhooks/') || urlPath.startsWith('/api/admin/') || urlPath.startsWith('/api/instant/') || urlPath.startsWith('/api/customer/') || urlPath.startsWith('/api/user/') || urlPath.startsWith('/api/unicorn-ai/') || urlPath.startsWith('/api/checkout/') || urlPath.startsWith('/api/wire/') || urlPath === '/api/payments/btc/confirm' || urlPath === '/api/payments/paypal/confirm' || urlPath === '/api/qr';
+  const isLts = /^\/api\/(v1\/)?(contract|i18n\/|crypto\/public-keys|succession\/attestation|anchors)(\/|$|\.)/.test(urlPath) || urlPath === '/api/v1/contract' || urlPath === '/api/contract';  const isLocalV2Api = isLts || LOCAL_V2_API.has(urlPath) || urlPath.startsWith('/api/services/') || urlPath.startsWith('/api/enterprise/') || urlPath.startsWith('/api/outreach/') || urlPath.startsWith('/api/vault/') || urlPath.startsWith('/api/governance/') || urlPath.startsWith('/api/whales/') || urlPath.startsWith('/api/webhooks/') || urlPath.startsWith('/api/admin/') || urlPath.startsWith('/api/instant/') || urlPath.startsWith('/api/customer/') || urlPath.startsWith('/api/user/') || urlPath.startsWith('/api/unicorn-ai/') || urlPath.startsWith('/api/checkout/') || urlPath.startsWith('/api/uaic/') || urlPath.startsWith('/api/receipt/') || urlPath.startsWith('/api/invoice/') || urlPath.startsWith('/api/license/') || urlPath.startsWith('/api/delivery/') || urlPath.startsWith('/api/wire/') || urlPath === '/api/payments/btc/confirm' || urlPath === '/api/payments/paypal/confirm' || urlPath === '/api/qr' || urlPath.startsWith('/api/cart/') || urlPath.startsWith('/api/coupons') || urlPath.startsWith('/api/leads') || urlPath.startsWith('/api/keys') || urlPath.startsWith('/api/newsletter/') || urlPath.startsWith('/api/wizard/') || urlPath.startsWith('/api/fx/') || urlPath.startsWith('/api/tax/') || urlPath.startsWith('/api/webhooks/') || urlPath === '/api/status' || urlPath === '/api/track' || urlPath.startsWith('/api/analytics/') || urlPath.startsWith('/api/refund/') || urlPath === '/api/aura' || urlPath.startsWith('/api/outcome/') || urlPath.startsWith('/api/discount/') || urlPath.startsWith('/api/receipt/nft/') || urlPath.startsWith('/api/email/proof') || urlPath.startsWith('/api/gift/') || urlPath.startsWith('/api/pledge') || urlPath.startsWith('/api/cancel/') || urlPath.startsWith('/api/bandit/') || urlPath.startsWith('/api/carbon/') || urlPath.startsWith('/api/abandon-cart') || urlPath === '/api/frontier/status' || urlPath === '/openapi.json' || urlPath === '/api/openapi' || urlPath === '/seo/sitemap.xml' || urlPath === '/seo/robots.txt' || urlPath === '/api/catalog/master' || urlPath === '/api/btc/spot' || urlPath.startsWith('/api/payments/btc/verify/');
   const isUaic = !!(uaic && uaic.matches(urlPath)) && urlPath !== '/api/uaic/status';
   const isUse  = !!(USE && USE.matches(urlPath)) && !urlPath.startsWith('/api/user/') && !urlPath.startsWith('/api/ai/');
   const backendUrl = process.env.BACKEND_API_URL;
@@ -1065,10 +1641,10 @@ async function unicornHandler(req, res) {
 
   // Forward /api/* and /deploy to the Express backend (Hetzner) if configured,
   // EXCEPT the v2 local APIs which we serve in this process.
-  if (backendUrl && !isLocalV2Api && !isUaic && (req.url.startsWith('/api/') || req.url === '/deploy')) {
+  if (backendUrl && !isLocalV2Api && !isUaic && (urlPath.startsWith('/api/') || urlPath === '/deploy')) {
     return proxyToBackend(req, res, backendUrl);
   }
-  if (req.url.startsWith('/api/') && !isLocalV2Api && !isUaic) {
+  if (urlPath.startsWith('/api/') && !isLocalV2Api && !isUaic) {
     res.writeHead(503, { 'Content-Type': 'application/json' });
     return res.end(JSON.stringify({ error: 'API backend not configured on this endpoint. Set BACKEND_API_URL env var.' }));
   }
@@ -1081,12 +1657,12 @@ async function unicornHandler(req, res) {
     });
   }
 
-  if (req.url === '/health') {
+  if (urlPath === '/health') {
     res.writeHead(200, { 'Content-Type': 'application/json' });
     return res.end(JSON.stringify({ ok: true, service: 'unicorn-final', brand: 'ZeusAI' }));
   }
 
-  if (req.url === '/api/secrets/status') {
+  if (urlPath === '/api/secrets/status') {
     // Public feature-flag status; NO values leaked.
     const admin = (req.headers['x-admin-token'] || '') === (process.env.ADMIN_TOKEN || '__no_admin__');
     // Re-evaluate features live (ed25519 key is lazily generated on first integrity request)
@@ -1104,64 +1680,64 @@ async function unicornHandler(req, res) {
     }));
   }
 
-  if (req.url === '/innovation') {
+  if (urlPath === '/innovation') {
     const report = buildInnovationReport();
     res.writeHead(200, { 'Content-Type': 'application/json' });
     return res.end(JSON.stringify(report));
   }
 
-  if (req.url === '/innovation/sprint') {
+  if (urlPath === '/innovation/sprint') {
     const sprint = generateSprintPlan();
     res.writeHead(200, { 'Content-Type': 'application/json' });
     return res.end(JSON.stringify(sprint));
   }
 
-  if (req.url === '/modules') {
+  if (urlPath === '/modules') {
     res.writeHead(200, { 'Content-Type': 'application/json' });
     return res.end(JSON.stringify({ updatedAt: new Date().toISOString(), modules }));
   }
 
-  if (req.url === '/marketplace') {
+  if (urlPath === '/marketplace') {
     res.writeHead(200, { 'Content-Type': 'application/json' });
     return res.end(JSON.stringify({ updatedAt: new Date().toISOString(), modules: getRuntimeDataSources().marketplace }));
   }
 
-  if (req.url === '/codex') {
+  if (urlPath === '/codex') {
     res.writeHead(200, { 'Content-Type': 'application/json' });
     return res.end(JSON.stringify({ updatedAt: new Date().toISOString(), sections: codexSections }));
   }
 
-  if (req.url === '/me') {
+  if (urlPath === '/me') {
     res.writeHead(200, { 'Content-Type': 'application/json' });
     return res.end(JSON.stringify(userProfile));
   }
 
-  if (req.url === '/telemetry') {
+  if (urlPath === '/telemetry') {
     res.writeHead(200, { 'Content-Type': 'application/json' });
     return res.end(JSON.stringify(buildSnapshot().telemetry));
   }
 
-  if (req.url === '/recommendations') {
+  if (urlPath === '/recommendations') {
     res.writeHead(200, { 'Content-Type': 'application/json' });
     return res.end(JSON.stringify({ items: buildSnapshot().recommendations }));
   }
 
-  if (req.url === '/industries') {
+  if (urlPath === '/industries') {
     res.writeHead(200, { 'Content-Type': 'application/json' });
     return res.end(JSON.stringify({ items: getRuntimeDataSources().industries }));
   }
 
-  if (req.url === '/billing') {
+  if (urlPath === '/billing') {
     res.writeHead(200, { 'Content-Type': 'application/json' });
     return res.end(JSON.stringify(buildSnapshot().billing));
   }
 
-  if (req.url === '/snapshot') {
+  if (urlPath === '/snapshot') {
     res.writeHead(200, { 'Content-Type': 'application/json' });
     return res.end(JSON.stringify(buildSnapshot()));
   }
 
-  if (req.url === '/stream') {
+  if (urlPath === '/stream') {
     res.writeHead(200, {
       'Content-Type': 'text/event-stream',
       'Cache-Control': 'no-cache, no-transform',
@@ -1178,7 +1754,7 @@ async function unicornHandler(req, res) {
   }
 
   // SSE alias dedicated for frontend real-time Unicorn sync
-  if (req.url === '/api/unicorn/events') {
+  if (urlPath === '/api/unicorn/events') {
     res.writeHead(200, {
       'Content-Type': 'text/event-stream',
       'Cache-Control': 'no-cache, no-transform',
@@ -1195,7 +1771,7 @@ async function unicornHandler(req, res) {
   }
 
   // AI Registry proxy (or local fallback) — lists present and future AI adapters
-  if (req.url === '/api/ai/registry') {
+  if (urlPath === '/api/ai/registry') {
     if (backendUrl) return proxyToBackend(req, res, backendUrl);
     const providerKeys = [
       ['openai', 'OPENAI_API_KEY'], ['deepseek', 'DEEPSEEK_API_KEY'], ['anthropic', 'ANTHROPIC_API_KEY'],
@@ -1217,7 +1793,7 @@ async function unicornHandler(req, res) {
   }
 
   // Unified AI Gateway endpoint for frontend usage
-  if (req.url === '/api/ai/use' && req.method === 'POST') {
+  if (urlPath === '/api/ai/use' && req.method === 'POST') {
     if (backendUrl) return proxyToBackend(req, res, backendUrl);
     let body = '';
     req.on('data', c => { body += c; if (body.length > 128*1024) req.destroy(); });
@@ -1250,7 +1826,7 @@ async function unicornHandler(req, res) {
   }
 
   // 30-year standard capsule: long-horizon architecture and portability manifest
-  if (req.url === '/api/future/standard') {
+  if (urlPath === '/api/future/standard') {
     const featureFlags = {
       realtimeSSE: true,
       aiRegistry: true,
@@ -1297,7 +1873,7 @@ async function unicornHandler(req, res) {
     return res.end(JSON.stringify(manifest));
   }
 
-  if (req.url === '/api/evolution/loop') {
+  if (urlPath === '/api/evolution/loop') {
     const now = Date.now();
     const uptime = Math.floor(process.uptime());
     const cycle = Math.max(1, Math.floor(uptime / 45));
@@ -1337,9 +1913,9 @@ async function unicornHandler(req, res) {
     return res.end(JSON.stringify(payload));
   }
 
-  if (req.url === '/api/trust/ledger') {
+  if (urlPath === '/api/trust/ledger') {
     const snap = buildSnapshot();
-    const receipts = (uaic && typeof uaic.getReceipts === 'function') ? uaic.getReceipts() : [];
+    const receipts = getAllReceipts();
     const signedReceipts = receipts.filter(r => !!(r && r.id)).length;
     const paidReceipts = receipts.filter(r => String(r && r.status || '').toLowerCase() === 'paid').length;
     const chainLength = snap && snap.autonomy && snap.autonomy.chain && snap.autonomy.chain.length ? snap.autonomy.chain.length : 0;
@@ -1365,8 +1941,8 @@ async function unicornHandler(req, res) {
     return res.end(JSON.stringify(payload));
   }
 
-  if (req.url === '/api/revenue/proof') {
-    const receipts = (uaic && typeof uaic.getReceipts === 'function') ? uaic.getReceipts() : [];
+  if (urlPath === '/api/revenue/proof') {
+    const receipts = getAllReceipts();
     const paid = receipts.filter(r => String(r && r.status || '').toLowerCase() === 'paid');
     const byMethod = {};
     let totalUsd = 0;
@@ -1395,7 +1971,32 @@ async function unicornHandler(req, res) {
     return res.end(JSON.stringify(payload));
   }
 
-  if (req.url === '/api/resilience/drill') {
+  if (urlPath === '/api/uaic/receipts') {
+    const email = String(new URL(req.url, 'http://local').searchParams.get('email') || '').toLowerCase();
+    const receipts = getAllReceipts().filter(r => !email || String(r.email || '').toLowerCase() === email);
+    res.writeHead(200, { 'Content-Type':'application/json', 'Cache-Control':'no-cache' });
+    return res.end(JSON.stringify({ ok:true, receipts }));
+  }
+  if (urlPath.startsWith('/api/uaic/receipt/') || urlPath.startsWith('/api/receipt/') || urlPath.startsWith('/api/invoice/')) {
+    const prefix = urlPath.startsWith('/api/uaic/receipt/') ? '/api/uaic/receipt/' : (urlPath.startsWith('/api/receipt/') ? '/api/receipt/' : '/api/invoice/');
+    const id = decodeURIComponent(urlPath.slice(prefix.length));
+    const receipt = findReceipt(id);
+    if (!receipt) { res.writeHead(404, { 'Content-Type':'application/json' }); return res.end(JSON.stringify({ error:'receipt_not_found' })); }
+    res.writeHead(200, { 'Content-Type':'application/json', 'Cache-Control':'no-cache' });
+    return res.end(JSON.stringify({ ok:true, receipt }));
+  }
+  if (urlPath.startsWith('/api/license/')) {
+    const id = decodeURIComponent(urlPath.slice('/api/license/'.length));
+    const receipt = findReceipt(id);
+    if (!receipt) { res.writeHead(404, { 'Content-Type':'application/json' }); return res.end(JSON.stringify({ error:'receipt_not_found' })); }
+    if (receipt.status !== 'paid') { res.writeHead(202, { 'Content-Type':'application/json' }); return res.end(JSON.stringify({ ok:false, status:receipt.status, error:'payment_pending' })); }
+    receipt.license = receipt.license || issueFallbackLicense(receipt);
+    if (!uaic) persistFallbackReceipt(receipt);
+    res.writeHead(200, { 'Content-Type':'application/json', 'Cache-Control':'no-cache' });
+    return res.end(JSON.stringify({ ok:true, license: receipt.license }));
+  }
+
+  if (urlPath === '/api/resilience/drill') {
     if (!global.__ZEUSAI_DRILL__) {
       global.__ZEUSAI_DRILL__ = {
         runs: 0,
@@ -1423,7 +2024,7 @@ async function unicornHandler(req, res) {
     return res.end(JSON.stringify(payload));
   }
 
-  if (req.url === '/api/resilience/drill/run' && req.method === 'POST') {
+  if (urlPath === '/api/resilience/drill/run' && req.method === 'POST') {
     if (!global.__ZEUSAI_DRILL__) {
       global.__ZEUSAI_DRILL__ = { runs: 0, lastRunAt: null, avgRecoveryMs: 420, score: 99.2, status: 'ready' };
     }
@@ -1449,7 +2050,7 @@ async function unicornHandler(req, res) {
     return res.end(JSON.stringify(payload));
   }
 
-  if (req.url === '/api/ui/autotune') {
+  if (urlPath === '/api/ui/autotune') {
     const snap = buildSnapshot();
     const chainLen = snap && snap.autonomy && snap.autonomy.chain ? (snap.autonomy.chain.length || 0) : 0;
     const moduleCount = snap && Array.isArray(snap.modules) ? snap.modules.length : 0;
@@ -1483,7 +2084,7 @@ async function unicornHandler(req, res) {
     return res.end(JSON.stringify(payload));
   }
 
-  if (req.url === '/api/performance/governance') {
+  if (urlPath === '/api/performance/governance') {
     const now = Date.now();
     const uptime = Math.max(1, Math.floor(process.uptime()));
     const snap = buildSnapshot();
@@ -1550,9 +2151,9 @@ async function unicornHandler(req, res) {
 
   // ================= UNICORN V2 SITE =================
   // Static assets
-  if (req.url.startsWith('/assets/zeus/')) {
+  if (urlPath.startsWith('/assets/zeus/')) {
     try {
-      const rel = req.url.replace('/assets/zeus/', '').replace(/\.\./g, '');
+      const rel = urlPath.replace('/assets/zeus/', '').replace(/\.\./g, '');
       const filePath = path.join(__dirname, 'site', 'v2', 'assets', rel);
       const ext = path.extname(filePath).toLowerCase();
       const type = ext === '.jpg' || ext === '.jpeg' ? 'image/jpeg'
@@ -1569,24 +2170,30 @@ async function unicornHandler(req, res) {
       return res.end(JSON.stringify({ error: 'asset_not_found' }));
     }
   }
-  if (req.url === '/assets/app.css') {
-    res.writeHead(200, { 'Content-Type':'text/css; charset=utf-8', 'Cache-Control':'public, max-age=300' });
+  if (urlPath === '/assets/app.css') {
+    const hasV = requestUrl.searchParams.has('v');
+    const cc = hasV ? 'public, max-age=31536000, immutable' : 'public, max-age=60, must-revalidate';
+    res.writeHead(200, { 'Content-Type':'text/css; charset=utf-8', 'Cache-Control': cc });
     return res.end(v2.CSS);
   }
-  if (req.url === '/assets/app.js') {
-    res.writeHead(200, { 'Content-Type':'application/javascript; charset=utf-8', 'Cache-Control':'public, max-age=300' });
+  if (urlPath === '/assets/app.js') {
+    const hasV = requestUrl.searchParams.has('v');
+    const cc = hasV ? 'public, max-age=31536000, immutable' : 'public, max-age=60, must-revalidate';
+    res.writeHead(200, { 'Content-Type':'application/javascript; charset=utf-8', 'Cache-Control': cc });
     try { return res.end(fs.readFileSync(V2_CLIENT_PATH, 'utf8')); }
     catch (e) { return res.end('console.error("v2 client missing")'); }
   }
-  if (req.url === '/assets/aeon.js') {
-    res.writeHead(200, { 'Content-Type':'application/javascript; charset=utf-8', 'Cache-Control':'public, max-age=300' });
+  if (urlPath === '/assets/aeon.js') {
+    const hasV = requestUrl.searchParams.has('v');
+    const cc = hasV ? 'public, max-age=31536000, immutable' : 'public, max-age=60, must-revalidate';
+    res.writeHead(200, { 'Content-Type':'application/javascript; charset=utf-8', 'Cache-Control': cc });
     try { return res.end(fs.readFileSync(path.join(__dirname,'site','v2','aeon.js'),'utf8')); }
     catch(_) { return res.end('/* aeon missing */'); }
   }
   // Locally-vendored third-party libs (30Y-LTS: no CDN dependency when file is present).
-  if (req.url.startsWith('/assets/vendor/')) {
+  if (urlPath.startsWith('/assets/vendor/')) {
     try {
-      const rel = req.url.replace('/assets/vendor/', '').replace(/\.\./g, '').split('?')[0];
+      const rel = urlPath.replace('/assets/vendor/', '').replace(/\.\./g, '');
       const filePath = path.join(__dirname, 'site', 'v2', 'assets', 'vendor', rel);
       const ext = path.extname(filePath).toLowerCase();
       const type = ext === '.js' ? 'application/javascript; charset=utf-8'
@@ -1603,7 +2210,7 @@ async function unicornHandler(req, res) {
     }
   }
   // i18n catalogue — static JSON, ETag-cached for long-term portability.
-  if (req.url === '/api/v1/i18n/available' || req.url === '/api/i18n/available') {
+  if (urlPath === '/api/v1/i18n/available' || urlPath === '/api/i18n/available') {
     try {
       const i18n = require('./lib/i18n');
       res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'public, max-age=3600' });
@@ -1614,7 +2221,7 @@ async function unicornHandler(req, res) {
     }
   }
   {
-    const m = req.url.match(/^\/api\/(?:v1\/)?i18n\/([a-z]{2})(?:\.json)?$/i);
+    const m = urlPath.match(/^\/api\/(?:v1\/)?i18n\/([a-z]{2})(?:\.json)?$/i);
     if (m) {
       try {
         const i18n = require('./lib/i18n');
@@ -1627,7 +2234,7 @@ async function unicornHandler(req, res) {
     }
   }
   // Succession plan attestation (no secrets leaked).
-  if (req.url === '/api/v1/succession/attestation' || req.url === '/api/succession/attestation') {
+  if (urlPath === '/api/v1/succession/attestation' || urlPath === '/api/succession/attestation') {
     try {
       const succession = require('../backend/modules/succession');
       res.writeHead(200, { 'Content-Type': 'application/json' });
@@ -1638,7 +2245,7 @@ async function unicornHandler(req, res) {
     }
   }
   // Crypto provider public keys — for third-party receipt verification.
-  if (req.url === '/api/v1/crypto/public-keys' || req.url === '/api/crypto/public-keys') {
+  if (urlPath === '/api/v1/crypto/public-keys' || urlPath === '/api/crypto/public-keys') {
     try {
       const cp = require('./lib/crypto-provider');
       res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'public, max-age=300' });
@@ -1649,7 +2256,7 @@ async function unicornHandler(req, res) {
     }
   }
   // Merkle external anchors feed.
-  if (req.url === '/api/v1/anchors' || req.url === '/api/anchors') {
+  if (urlPath === '/api/v1/anchors' || urlPath === '/api/anchors') {
     try {
       const anchor = require('../backend/modules/merkle-anchor');
       res.writeHead(200, { 'Content-Type': 'application/json' });
@@ -1661,7 +2268,7 @@ async function unicornHandler(req, res) {
   }
   // Anchor webhook ingest (self-hosted target for ANCHOR_WEBHOOK_URL).
   // Appends every posted anchor to data/anchors-received.ndjson (append-only).
-  if ((req.url === '/api/v1/anchors/ingest' || req.url === '/api/anchors/ingest') && req.method === 'POST') {
+  if ((urlPath === '/api/v1/anchors/ingest' || urlPath === '/api/anchors/ingest') && req.method === 'POST') {
     const expected = process.env.ANCHOR_WEBHOOK_TOKEN || '';
     const provided = (req.headers['authorization'] || '').replace(/^Bearer\s+/i, '');
     if (expected && provided !== expected) {
@@ -1687,7 +2294,7 @@ async function unicornHandler(req, res) {
     return;
   }
   // LTS contract surface (compat window + route count from local site).
-  if (req.url === '/api/v1/contract' || req.url === '/api/contract') {
+  if (urlPath === '/api/v1/contract' || urlPath === '/api/contract') {
     res.writeHead(200, { 'Content-Type': 'application/json' });
     return res.end(JSON.stringify({
       apiVersion: '2026.1',
@@ -1701,15 +2308,21 @@ async function unicornHandler(req, res) {
       ]
     }));
   }
-  if (req.url === '/sw.js') {
+  if (urlPath === '/sw.js') {
     try {
-      const swSrc = fs.readFileSync(path.join(__dirname,'site','v2','sw.js'),'utf8').replace('__VERSION__', process.env.SW_VERSION || String(Math.floor(Date.now()/3600000)));
-      res.writeHead(200, { 'Content-Type':'application/javascript; charset=utf-8', 'Service-Worker-Allowed':'/', 'Cache-Control':'no-cache' });
+      const { BUILD_ID } = require('./site/v2/build-id');
+      const swSrc = fs.readFileSync(path.join(__dirname,'site','v2','sw.js'),'utf8').replace('__VERSION__', process.env.SW_VERSION || BUILD_ID);
+      res.writeHead(200, { 'Content-Type':'application/javascript; charset=utf-8', 'Service-Worker-Allowed':'/', 'Cache-Control':'no-cache, no-store, must-revalidate' });
       return res.end(swSrc);
     } catch(_) { res.writeHead(404); return res.end(); }
   }
-  if (req.url === '/.well-known/unicorn-integrity.json' || req.url === '/integrity.json') {
-    const payload = { site:'unicorn-v2', version: process.env.SW_VERSION || String(Math.floor(Date.now()/3600000)), generatedAt: new Date().toISOString(), owner: OWNER_NAME, domain: APP_URL, btc: BTC_WALLET };
+  // Emergency SW kill-switch: visit /sw-reset to unregister all service workers + purge caches.
+  if (urlPath === '/sw-reset' || urlPath === '/sw-reset.html') {
+    res.writeHead(200, { 'Content-Type':'text/html; charset=utf-8', 'Cache-Control':'no-store' });
+    return res.end('<!doctype html><meta charset=utf-8><title>SW reset</title><body style="font-family:system-ui;background:#05040a;color:#eee;padding:40px"><h1>Resetting service worker…</h1><p id=s>Working…</p><script>(async()=>{try{const rs=await navigator.serviceWorker.getRegistrations();for(const r of rs){await r.unregister();}const ks=await caches.keys();for(const k of ks){await caches.delete(k);}document.getElementById("s").textContent="Done. Reloading home…";setTimeout(()=>location.replace("/"),700);}catch(e){document.getElementById("s").textContent="Error: "+e.message;}})();</script></body>');
+  }
+  if (urlPath === '/.well-known/unicorn-integrity.json' || urlPath === '/integrity.json') {
+    const payload = { site:'unicorn-v2', version: process.env.SW_VERSION || require('./site/v2/build-id').BUILD_ID, generatedAt: new Date().toISOString(), owner: OWNER_NAME, domain: APP_URL, btc: BTC_WALLET };
     const key = process.env.SITE_SIGN_KEY || (global.__SITE_SIGN_KEY__ || (global.__SITE_SIGN_KEY__ = crypto.generateKeyPairSync('ed25519').privateKey));
     let signature = null, publicKey = null;
     try { const keyObj = typeof key === 'string' ? crypto.createPrivateKey(key) : key; signature = crypto.sign(null, Buffer.from(JSON.stringify(payload)), keyObj).toString('base64'); publicKey = crypto.createPublicKey(keyObj).export({ format:'pem', type:'spki' }); } catch(_) {}
@@ -1718,23 +2331,69 @@ async function unicornHandler(req, res) {
   }
 
   // Unified service catalogue for the v2 site (marketplace + verticals → service objects)
-  if (req.url === '/api/services/list') {
+  if (urlPath === '/api/services/list') {
     const snapshot = buildSnapshot();
     const services = snapshot.services || [];
     res.writeHead(200, { 'Content-Type':'application/json' });
     return res.end(JSON.stringify({ updatedAt: new Date().toISOString(), source: 'zeusai', sourceLegacy: 'unicorn', sync: snapshot.source, services }));
   }
-  if (req.url === '/api/services') {
+  if (urlPath === '/api/services') {
     const services = getRuntimeDataSources().services;
     res.writeHead(200, { 'Content-Type':'application/json' });
     return res.end(JSON.stringify({ updatedAt: new Date().toISOString(), services }));
+  }
+
+  // ===================================================================
+  // /api/catalog/master — every deliverable Unicorn can sell, BTC-priced
+  // ===================================================================
+  if (urlPath === '/api/catalog/master') {
+    try {
+      const cat = await buildMasterCatalog();
+      res.writeHead(200, { 'Content-Type':'application/json', 'Cache-Control':'public, max-age=30' });
+      return res.end(JSON.stringify(cat));
+    } catch (e) {
+      res.writeHead(500, { 'Content-Type':'application/json' });
+      return res.end(JSON.stringify({ error: 'catalog_failed', detail: e.message }));
+    }
+  }
+
+  // /api/btc/spot — live USD/BTC rate (cached 60s)
+  if (urlPath === '/api/btc/spot') {
+    try {
+      const usdPerBtc = await getBtcUsdSpot();
+      res.writeHead(200, { 'Content-Type':'application/json', 'Cache-Control':'public, max-age=60' });
+      return res.end(JSON.stringify({ usdPerBtc, fetchedAt: new Date(_btcSpotCache.fetchedAt).toISOString(), btcAddress: BTC_WALLET, owner: OWNER_NAME }));
+    } catch (e) {
+      res.writeHead(503, { 'Content-Type':'application/json' });
+      return res.end(JSON.stringify({ error: 'spot_unavailable' }));
+    }
+  }
+
+  // /api/payments/btc/verify/:address?amount=X — checks mempool.space for incoming tx
+  if (urlPath.startsWith('/api/payments/btc/verify/')) {
+    try {
+      const addr = decodeURIComponent(urlPath.slice('/api/payments/btc/verify/'.length));
+      const params = requestUrl.searchParams;
+      const minBtc = Number(params.get('amount') || 0);
+      const r = await fetch(`https://mempool.space/api/address/${addr}`);
+      if (!r.ok) { res.writeHead(502, { 'Content-Type':'application/json' }); return res.end(JSON.stringify({ ok:false, error:'mempool_offline' })); }
+      const j = await r.json();
+      const funded = (j.chain_stats && j.chain_stats.funded_txo_sum) || 0;
+      const fundedBtc = funded / 1e8;
+      const confirmed = minBtc > 0 ? fundedBtc >= minBtc : fundedBtc > 0;
+      res.writeHead(200, { 'Content-Type':'application/json' });
+      return res.end(JSON.stringify({ ok:true, address: addr, fundedBtc, txCount: (j.chain_stats && j.chain_stats.tx_count) || 0, requestedMinBtc: minBtc, confirmed }));
+    } catch (e) {
+      res.writeHead(500, { 'Content-Type':'application/json' });
+      return res.end(JSON.stringify({ ok:false, error: e.message }));
+    }
   }
 
   // Unified buy endpoint for marketplace + vertical services.
   // Service-agnostic: any current or future serviceId automatically inherits
   // the full real-money flow (quote → BTC/PayPal checkout → on-chain/capture
   // verification → auto-entitlement → SSE service.activated event).
-  if (req.url === '/api/services/buy' && req.method === 'POST') {
+  if (urlPath === '/api/services/buy' && req.method === 'POST') {
     let body = '';
     req.on('data', c => { body += c; if (body.length > 64*1024) req.destroy(); });
     req.on('end', async () => {
@@ -1787,6 +2446,8 @@ async function unicornHandler(req, res) {
               btcAddress: rec.btcAddress || process.env.BTC_WALLET_ADDRESS || process.env.OWNER_BTC_ADDRESS || null,
               btcAmount: rec.btcAmount || rec.amount_btc || null,
               btcUri: rec.btcUri || (rec.btcAddress && rec.btcAmount ? `bitcoin:${rec.btcAddress}?amount=${rec.btcAmount}` : null),
+              btcpayCheckoutUrl: rec.btcpayCheckoutUrl || rec.btcpay?.checkoutUrl || rec.destination?.btcpayCheckoutUrl || null,
+              provider: rec.destination?.provider || rec.btcpay?.provider || 'static-wallet',
               amountUsd: rec.amount, currency: rec.currency || 'USD',
               note: 'Send the exact BTC amount. Auto-confirm runs every 30s or call /api/payments/btc/confirm with {receiptId} to force verify.'
             };
@@ -1820,8 +2481,8 @@ async function unicornHandler(req, res) {
     return;
   }
 
-  if (req.url.startsWith('/api/services/')) {
-    const id = decodeURIComponent(req.url.slice('/api/services/'.length).split('?')[0]);
+  if (urlPath.startsWith('/api/services/')) {
+    const id = decodeURIComponent(urlPath.slice('/api/services/'.length));
     const service = getRuntimeDataSources().services.find((entry) => entry.id === id);
     if (service) {
       res.writeHead(200, { 'Content-Type':'application/json' });
@@ -1831,33 +2492,33 @@ async function unicornHandler(req, res) {
   }
 
   // ===================== ENTERPRISE (FAANG / hyperscaler) =====================
-  if (req.url === '/api/enterprise/catalog') {
+  if (urlPath === '/api/enterprise/catalog') {
     if (!entCatalog) { res.writeHead(503, { 'Content-Type':'application/json' }); return res.end(JSON.stringify({ error:'catalog_offline' })); }
     res.writeHead(200, { 'Content-Type':'application/json', 'Cache-Control':'public, max-age=120' });
     return res.end(JSON.stringify({ updatedAt: new Date().toISOString(), summary: entCatalog.summarize(), products: entCatalog.publicView() }));
   }
-  if (req.url.startsWith('/api/enterprise/product/')) {
+  if (urlPath.startsWith('/api/enterprise/product/')) {
     if (!entCatalog) { res.writeHead(503); return res.end('{}'); }
-    const id = decodeURIComponent(req.url.slice('/api/enterprise/product/'.length).split('?')[0]);
+    const id = decodeURIComponent(urlPath.slice('/api/enterprise/product/'.length));
     const p = entCatalog.byId(id);
     if (!p) { res.writeHead(404, { 'Content-Type':'application/json' }); return res.end(JSON.stringify({ error:'not_found' })); }
     res.writeHead(200, { 'Content-Type':'application/json' });
     return res.end(JSON.stringify(p));
   }
-  if (req.url === '/api/enterprise/deals') {
+  if (urlPath === '/api/enterprise/deals') {
     if (!negotiator) { res.writeHead(503); return res.end('{}'); }
     res.writeHead(200, { 'Content-Type':'application/json' });
     return res.end(JSON.stringify(negotiator.listDeals()));
   }
-  if (req.url.startsWith('/api/enterprise/deal/') && req.method === 'GET') {
+  if (urlPath.startsWith('/api/enterprise/deal/') && req.method === 'GET') {
     if (!negotiator) { res.writeHead(503); return res.end('{}'); }
-    const id = decodeURIComponent(req.url.slice('/api/enterprise/deal/'.length).split('?')[0]);
+    const id = decodeURIComponent(urlPath.slice('/api/enterprise/deal/'.length));
     const d = negotiator.getDeal(id);
     if (!d) { res.writeHead(404, { 'Content-Type':'application/json' }); return res.end(JSON.stringify({ error:'not_found' })); }
     res.writeHead(200, { 'Content-Type':'application/json' });
     return res.end(JSON.stringify(d));
   }
-  if (req.url === '/api/enterprise/negotiate/start' && req.method === 'POST') {
+  if (urlPath === '/api/enterprise/negotiate/start' && req.method === 'POST') {
     if (!negotiator) { res.writeHead(503); return res.end('{}'); }
     let body=''; req.on('data', c=>{ body+=c; if(body.length>32*1024) req.destroy(); });
     req.on('end', () => {
@@ -1870,7 +2531,7 @@ async function unicornHandler(req, res) {
     });
     return;
   }
-  if (req.url === '/api/enterprise/negotiate/counter' && req.method === 'POST') {
+  if (urlPath === '/api/enterprise/negotiate/counter' && req.method === 'POST') {
     if (!negotiator) { res.writeHead(503); return res.end('{}'); }
     let body=''; req.on('data', c=>{ body+=c; if(body.length>32*1024) req.destroy(); });
     req.on('end', () => {
@@ -1883,7 +2544,7 @@ async function unicornHandler(req, res) {
     });
     return;
   }
-  if (req.url === '/api/enterprise/negotiate/accept' && req.method === 'POST') {
+  if (urlPath === '/api/enterprise/negotiate/accept' && req.method === 'POST') {
     if (!negotiator) { res.writeHead(503); return res.end('{}'); }
     let body=''; req.on('data', c=>{ body+=c; if(body.length>16*1024) req.destroy(); });
     req.on('end', () => {
@@ -1898,7 +2559,7 @@ async function unicornHandler(req, res) {
   }
 
   // Governance OTP confirm (release pending_governance deals)
-  if (req.url === '/api/enterprise/negotiate/confirm' && req.method === 'POST') {
+  if (urlPath === '/api/enterprise/negotiate/confirm' && req.method === 'POST') {
     if (!negotiator) { res.writeHead(503); return res.end('{}'); }
     let body=''; req.on('data', c=>{ body+=c; if(body.length>16*1024) req.destroy(); });
     req.on('end', () => {
@@ -1913,9 +2574,9 @@ async function unicornHandler(req, res) {
   }
 
   // Contract HTML (signed Ed25519)
-  if (req.url.startsWith('/api/enterprise/contract/')) {
+  if (urlPath.startsWith('/api/enterprise/contract/')) {
     if (!contractGen) { res.writeHead(503); return res.end('contracts offline'); }
-    const dealId = decodeURIComponent(req.url.slice('/api/enterprise/contract/'.length).split('?')[0]);
+    const dealId = decodeURIComponent(urlPath.slice('/api/enterprise/contract/'.length));
     const c = contractGen.byDealId(dealId) || contractGen.byId(dealId);
     if (!c) { res.writeHead(404, { 'Content-Type':'text/html' }); return res.end('<h1>Contract not found</h1>'); }
     res.writeHead(200, { 'Content-Type':'text/html; charset=utf-8', 'Cache-Control':'no-cache' });
@@ -1923,11 +2584,11 @@ async function unicornHandler(req, res) {
   }
 
   // Outreach engine
-  if (req.url === '/api/outreach/snapshot') {
+  if (urlPath === '/api/outreach/snapshot') {
     if (!outreach) { res.writeHead(503); return res.end('{}'); }
     res.writeHead(200, { 'Content-Type':'application/json' }); return res.end(JSON.stringify(outreach.snapshot()));
   }
-  if (req.url === '/api/outreach/campaign' && req.method === 'POST') {
+  if (urlPath === '/api/outreach/campaign' && req.method === 'POST') {
     if (!outreach) { res.writeHead(503); return res.end('{}'); }
     let body=''; req.on('data', c=>{ body+=c; if(body.length>16*1024) req.destroy(); });
     req.on('end', () => {
@@ -1939,30 +2600,30 @@ async function unicornHandler(req, res) {
     });
     return;
   }
-  if (req.url === '/api/outreach/tick' && req.method === 'POST') {
+  if (urlPath === '/api/outreach/tick' && req.method === 'POST') {
     if (!outreach) { res.writeHead(503); return res.end('{}'); }
     const r = outreach.tick();
     res.writeHead(200, { 'Content-Type':'application/json' }); return res.end(JSON.stringify({ ok:true, ...r }));
   }
 
   // Revenue vault
-  if (req.url === '/api/vault/snapshot') {
+  if (urlPath === '/api/vault/snapshot') {
     if (!vault) { res.writeHead(503); return res.end('{}'); }
     res.writeHead(200, { 'Content-Type':'application/json' }); return res.end(JSON.stringify(vault.snapshot()));
   }
 
   // Governance
-  if (req.url === '/api/governance/snapshot') {
+  if (urlPath === '/api/governance/snapshot') {
     if (!governance) { res.writeHead(503); return res.end('{}'); }
     res.writeHead(200, { 'Content-Type':'application/json' }); return res.end(JSON.stringify(governance.snapshot()));
   }
 
   // Whale tracker
-  if (req.url === '/api/whales/snapshot') {
+  if (urlPath === '/api/whales/snapshot') {
     if (!whales) { res.writeHead(503); return res.end('{}'); }
     res.writeHead(200, { 'Content-Type':'application/json' }); return res.end(JSON.stringify(whales.snapshot()));
   }
-  if (req.url === '/api/whales/scan' && req.method === 'POST') {
+  if (urlPath === '/api/whales/scan' && req.method === 'POST') {
     if (!whales) { res.writeHead(503); return res.end('{}'); }
     whales.scan(6).then(r => { res.writeHead(200, { 'Content-Type':'application/json' }); res.end(JSON.stringify({ ok:true, ...r })); })
       .catch(e => { res.writeHead(500, { 'Content-Type':'application/json' }); res.end(JSON.stringify({ error: e.message })); });
@@ -1972,8 +2633,8 @@ async function unicornHandler(req, res) {
   // Payment webhooks — auto-settle vault splits on verified incoming tx notifications.
   // Payload shape: { dealId?, allocId?, splitId?, channel?, txRef, amountUSD? }
   // Auth: HMAC-SHA256 of raw body in `x-unicorn-signature` header using channel secret.
-  if (req.url.startsWith('/api/webhooks/') && req.method === 'POST') {
-    const channelName = req.url.split('/')[3] || '';
+  if (urlPath.startsWith('/api/webhooks/') && req.method === 'POST') {
+    const channelName = urlPath.split('/')[3] || '';
     // Stripe webhook has a different signing scheme → handle separately
     if (channelName === 'stripe') {
       let raw = ''; req.on('data', c => { raw += c; if (raw.length > 256*1024) req.destroy(); });
@@ -2085,7 +2746,7 @@ async function unicornHandler(req, res) {
   // Admin: inject env keys at runtime (auth: x-admin-token header must match ADMIN_TOKEN env)
   // POST /api/admin/config  { "keys": { "RESEND_API_KEY": "...", "LINKEDIN_ACCESS_TOKEN": "..." } }
   // Writes to .env.unicorn (creates if missing), updates process.env in-place, no restart needed.
-  if (req.url === '/api/admin/config' && req.method === 'POST') {
+  if (urlPath === '/api/admin/config' && req.method === 'POST') {
     const adminToken = process.env.ADMIN_TOKEN;
     if (!adminToken) { res.writeHead(503, {'Content-Type':'application/json'}); return res.end('{"error":"ADMIN_TOKEN not set — configure via .env.unicorn first"}'); }
     if (String(req.headers['x-admin-token'] || '') !== adminToken) { res.writeHead(401, {'Content-Type':'application/json'}); return res.end('{"error":"unauthorized"}'); }
@@ -2119,7 +2780,7 @@ async function unicornHandler(req, res) {
   }
 
   // Admin: test email delivery with whatever provider is configured
-  if (req.url === '/api/admin/test-email' && req.method === 'POST') {
+  if (urlPath === '/api/admin/test-email' && req.method === 'POST') {
     const adminToken = process.env.ADMIN_TOKEN;
     if (!adminToken || String(req.headers['x-admin-token'] || '') !== adminToken) { res.writeHead(401); return res.end('{}'); }
     let body=''; req.on('data', c=>{ body+=c; if(body.length>8*1024) req.destroy(); });
@@ -2135,7 +2796,7 @@ async function unicornHandler(req, res) {
   }
 
   // Admin: status snapshot — which providers are configured
-  if (req.url === '/api/admin/status') {
+  if (urlPath === '/api/admin/status') {
     const adminToken = process.env.ADMIN_TOKEN;
     if (!adminToken || String(req.headers['x-admin-token'] || '') !== adminToken) { res.writeHead(401); return res.end('{}'); }
     const mask = (k) => process.env[k] ? (String(process.env[k]).slice(0,4) + '…' + String(process.env[k]).slice(-4)) : null;
@@ -2160,10 +2821,9 @@ async function unicornHandler(req, res) {
   // ============================================================
 
   // List catalog (supports ?tier=instant|professional|enterprise)
-  if (req.url === '/api/instant/catalog' || req.url.startsWith('/api/instant/catalog?')) {
+  if (urlPath === '/api/instant/catalog') {
     if (!instantCatalog) { res.writeHead(503); return res.end('{}'); }
-    const u = new URL(req.url, 'http://local');
-    const tier = u.searchParams.get('tier');
+    const tier = requestUrl.searchParams.get('tier');
     const cat = unifiedCatalog || instantCatalog;
     let products = cat.publicView();
     if (tier && Array.isArray(products)) products = products.filter(p => (p.tier||'instant') === tier);
@@ -2173,7 +2833,7 @@ async function unicornHandler(req, res) {
 
   // Create order → returns BTC invoice
   // POST /api/instant/purchase  { productId, inputs, customerToken? }
-  if (req.url === '/api/instant/purchase' && req.method === 'POST') {
+  if (urlPath === '/api/instant/purchase' && req.method === 'POST') {
     if (!instantCatalog || !portal) { res.writeHead(503); return res.end('{}'); }
     let body=''; req.on('data', c=>{ body+=c; if(body.length>32*1024) req.destroy(); });
     req.on('end', () => {
@@ -2244,9 +2904,9 @@ async function unicornHandler(req, res) {
   }
 
   // Order status (public — client polls)
-  if (req.url.startsWith('/api/instant/order/') && req.method === 'GET') {
+  if (urlPath.startsWith('/api/instant/order/') && req.method === 'GET') {
     if (!portal) { res.writeHead(503); return res.end('{}'); }
-    const id = req.url.split('/').pop().split('?')[0];
+    const id = urlPath.split('/').pop();
     const order = portal.getOrder(id);
     if (!order) { res.writeHead(404, {'Content-Type':'application/json'}); return res.end('{"error":"order_not_found"}'); }
     const view = {
@@ -2260,7 +2920,7 @@ async function unicornHandler(req, res) {
   }
 
   // ----- Stripe Checkout session (card payment for instant + professional) -----
-  if (req.url === '/api/checkout/stripe' && req.method === 'POST') {
+  if (urlPath === '/api/checkout/stripe' && req.method === 'POST') {
     let body=''; req.on('data', c=>{ body+=c; if(body.length>8*1024) req.destroy(); });
     req.on('end', () => {
       try {
@@ -2309,7 +2969,7 @@ async function unicornHandler(req, res) {
   }
 
   // ----- Wire transfer invoice (enterprise) — generates signed pro-forma with unique reference -----
-  if (req.url === '/api/wire/request' && req.method === 'POST') {
+  if (urlPath === '/api/wire/request' && req.method === 'POST') {
     let body=''; req.on('data', c=>{ body+=c; if(body.length>8*1024) req.destroy(); });
     req.on('end', () => {
       try {
@@ -2396,7 +3056,7 @@ ${invoice.payer ? `<h2>Payer</h2><table><tr><th>Legal entity</th><td>${esc(invoi
   }
 
   // Admin: manually fulfill order (dev/testing + manual refunds)
-  if (req.url === '/api/admin/fulfill-order' && req.method === 'POST') {
+  if (urlPath === '/api/admin/fulfill-order' && req.method === 'POST') {
     const adminToken = process.env.ADMIN_TOKEN;
     if (!adminToken || String(req.headers['x-admin-token'] || '') !== adminToken) { res.writeHead(401); return res.end('{}'); }
     let body=''; req.on('data', c=>{ body+=c; if(body.length>8*1024) req.destroy(); });
@@ -2414,7 +3074,7 @@ ${invoice.payer ? `<h2>Payer</h2><table><tr><th>Legal entity</th><td>${esc(invoi
   // ============================================================
   // CUSTOMER PORTAL  (unified auth: site + backend bridge)
   // ============================================================
-  if (req.url === '/api/customer/signup' && req.method === 'POST') {
+  if (urlPath === '/api/customer/signup' && req.method === 'POST') {
     if (!portal) { res.writeHead(503); return res.end('{}'); }
     let body=''; req.on('data', c=>{ body+=c; if(body.length>8*1024) req.destroy(); });
     req.on('end', async () => {
@@ -2458,7 +3118,7 @@ ${invoice.payer ? `<h2>Payer</h2><table><tr><th>Legal entity</th><td>${esc(invoi
     return;
   }
 
-  if (req.url === '/api/customer/login' && req.method === 'POST') {
+  if (urlPath === '/api/customer/login' && req.method === 'POST') {
     if (!portal) { res.writeHead(503); return res.end('{}'); }
     let body=''; req.on('data', c=>{ body+=c; if(body.length>8*1024) req.destroy(); });
     req.on('end', async () => {
@@ -2514,8 +3174,24 @@ ${invoice.payer ? `<h2>Payer</h2><table><tr><th>Legal entity</th><td>${esc(invoi
     });
     return;
   }
-  if (req.url === '/api/customer/me') {
-    if (!portal) { res.writeHead(503); return res.end('{}'); }
+  if (urlPath === '/api/customer/me') {
+    if (!portal) {
+      const email = String(req.headers['x-user-email'] || '').toLowerCase();
+      if (!email) { res.writeHead(401, {'Content-Type':'application/json'}); return res.end('{"error":"unauthorized","hint":"x-user-email required when portal is unavailable"}'); }
+      const receipts = getAllReceipts().filter(r => String(r.email || '').toLowerCase() === email);
+      const deliveries = deliveryRegistry && deliveryRegistry.list ? deliveryRegistry.list({ email }) : [];
+      const activeServices = receipts.filter(r => r.status === 'paid').flatMap(r => (Array.isArray(r.services) && r.services.length ? r.services : [r.plan || 'starter']).map(serviceId => ({
+        receiptId: r.id, serviceId, title: serviceId, plan: r.plan, amount: r.amount, currency: r.currency,
+        invoiceUrl: `/api/invoice/${r.id}`, licenseUrl: `/api/license/${r.id}`, deliveryUrl: `/api/delivery/${r.id}`, useUrl: `/api/services/${encodeURIComponent(serviceId)}/use`
+      })));
+      const pendingOrders = receipts.filter(r => r.status !== 'paid').map(r => ({
+        receiptId: r.id, plan: r.plan, amount: r.amount, method: r.method, btcAmount: r.btcAmount,
+        btcAddress: r.destination && r.destination.address, btcUri: r.btcUri, approveHref: r.approveHref,
+        createdAt: r.createdAt, statusUrl: `/api/receipt/${r.id}`, invoiceUrl: `/api/invoice/${r.id}`
+      }));
+      res.writeHead(200, {'Content-Type':'application/json'});
+      return res.end(JSON.stringify({ customer:{ email }, apiKeys:[], orders:receipts, activeServices, pendingOrders, deliveries }));
+    }
     const tok = req.headers['x-customer-token'] || '';
     const cid = portal.verifyToken(tok);
     if (!cid) { res.writeHead(401, {'Content-Type':'application/json'}); return res.end('{"error":"unauthorized"}'); }
@@ -2563,24 +3239,52 @@ ${invoice.payer ? `<h2>Payer</h2><table><tr><th>Legal entity</th><td>${esc(invoi
       }));
     }
 
+    const fallbackReceipts = getAllReceipts().filter(r => String(r.email || '').toLowerCase() === String(c.email || '').toLowerCase());
+    const fallbackDeliveries = deliveryRegistry && deliveryRegistry.list ? deliveryRegistry.list({ email: c.email }) : [];
+    for (const r of fallbackReceipts.filter(r => r.status === 'paid')) {
+      const ids = Array.isArray(r.services) && r.services.length ? r.services : [r.plan || 'starter'];
+      for (const serviceId of ids) {
+        activeServices.push({
+          id: `${r.id}:${serviceId}`,
+          receiptId: r.id,
+          serviceId,
+          title: serviceId,
+          plan: r.plan,
+          amount: r.amount,
+          currency: r.currency,
+          invoiceUrl: `/api/invoice/${r.id}`,
+          licenseUrl: `/api/license/${r.id}`,
+          deliveryUrl: `/api/delivery/${r.id}`,
+          useUrl: `/api/services/${encodeURIComponent(serviceId)}/use`
+        });
+      }
+    }
+    pendingOrders.push(...fallbackReceipts.filter(r => r.status !== 'paid').map(r => ({
+      receiptId: r.id, plan: r.plan, amount: r.amount, method: r.method,
+      btcAmount: r.btcAmount, btcAddress: r.destination && r.destination.address,
+      btcUri: r.btcUri, approveHref: r.approveHref, createdAt: r.createdAt,
+      statusUrl: `/api/receipt/${r.id}`, invoiceUrl: `/api/invoice/${r.id}`
+    })));
+
     res.writeHead(200, {'Content-Type':'application/json'});
     res.end(JSON.stringify({
       customer: portal.publicCustomer(c),
       apiKeys: (c.apiKeys||[]).map(k => ({ productId:k.productId, orderId:k.orderId, issuedAt:k.issuedAt, keyPreview: k.key.slice(0,16)+'…', active:k.active })),
       orders,
       activeServices,   // NEW
-      pendingOrders     // NEW
+      pendingOrders,    // NEW
+      deliveries: fallbackDeliveries
     }));
     return;
   }
 
   // Deliverable download (customer-token protected OR public if order id + filename match)
-  if (req.url.startsWith('/api/customer/deliverable/')) {
+  if (urlPath.startsWith('/api/customer/deliverable/')) {
     if (!portal || !productEngine) { res.writeHead(503); return res.end(); }
     try {
-      const parts = req.url.replace(/^\/api\/customer\/deliverable\//,'').split('/');
+      const parts = urlPath.replace(/^\/api\/customer\/deliverable\//,'').split('/');
       const orderId = parts[0];
-      const filename = decodeURIComponent((parts[1]||'').split('?')[0]);
+      const filename = decodeURIComponent(parts[1] || '');
       const order = portal.getOrder(orderId);
       if (!order || order.status !== 'delivered') { res.writeHead(404); return res.end('not ready'); }
       // If customer-token provided, require it matches; otherwise allow (deliverables are unguessable by order-id + filename)
@@ -2600,17 +3304,17 @@ ${invoice.payer ? `<h2>Payer</h2><table><tr><th>Legal entity</th><td>${esc(invoi
   }
 
   // Live API gateway for provisioned API keys (demo endpoint)
-  if (req.url.startsWith('/api/unicorn-ai/v1/')) {
+  if (urlPath.startsWith('/api/unicorn-ai/v1/')) {
     const auth = String(req.headers['authorization'] || '');
     const key = auth.startsWith('Bearer ') ? auth.slice(7) : '';
     if (!portal) { res.writeHead(503); return res.end('{}'); }
     const found = portal.findByApiKey(key);
     if (!found) { res.writeHead(401, {'Content-Type':'application/json'}); return res.end('{"error":"invalid_api_key"}'); }
-    if (req.url === '/api/unicorn-ai/v1/health') {
+    if (urlPath === '/api/unicorn-ai/v1/health') {
       res.writeHead(200, {'Content-Type':'application/json'});
       return res.end(JSON.stringify({ ok:true, customer: found.customer.email, product: found.key.productId, issuedAt: found.key.issuedAt }));
     }
-    if (req.url === '/api/unicorn-ai/v1/complete' && req.method === 'POST') {
+    if (urlPath === '/api/unicorn-ai/v1/complete' && req.method === 'POST') {
       let body=''; req.on('data', c=>{ body+=c; if(body.length>32*1024) req.destroy(); });
       req.on('end', () => {
         try { const p = JSON.parse(body||'{}'); const out = { id:'cmpl_'+require('crypto').randomBytes(6).toString('hex'), model:'unicorn-1', prompt: String(p.prompt||'').slice(0,200), completion: 'Unicorn AI acknowledges: "' + String(p.prompt||'').slice(0,80) + '". Structured response pipeline ready.', tokens: { prompt: String(p.prompt||'').length, completion: 120 } }; res.writeHead(200, {'Content-Type':'application/json'}); res.end(JSON.stringify(out)); }
@@ -2622,9 +3326,9 @@ ${invoice.payer ? `<h2>Payer</h2><table><tr><th>Legal entity</th><td>${esc(invoi
   }
 
   // QR rendering (PNG) for BTC URIs
-  if (req.url.startsWith('/api/qr')) {
+  if (urlPath === '/api/qr') {
     try {
-      const u = new URL(req.url, 'http://local'); const data = u.searchParams.get('d') || '';
+      const data = requestUrl.searchParams.get('d') || '';
       if (!qrMod) { res.writeHead(204); return res.end(); }
       Promise.resolve(qrMod.qrPng(data)).then(buf => {
         res.writeHead(200, { 'Content-Type':'image/png', 'Cache-Control':'public, max-age=300' });
@@ -2635,7 +3339,56 @@ ${invoice.payer ? `<h2>Payer</h2><table><tr><th>Legal entity</th><td>${esc(invoi
   }
 
   // Checkout (BTC) — create signed receipt + proxy to backend revenue router if configured
-  if (req.url === '/api/checkout/btc' && req.method === 'POST') {
+  if (urlPath === '/api/uaic/order' && req.method === 'POST') {
+    let body = '';
+    req.on('data', c => { body += c; if (body.length > 64*1024) req.destroy(); });
+    req.on('end', async () => {
+      try {
+        const p = JSON.parse(body || '{}');
+        const method = String(p.method || 'BTC').toUpperCase();
+        const amount = Number(p.amount || p.amount_usd || p.amountUSD || p.priceUSD || 0);
+        const plan = String(p.plan || p.serviceId || 'starter');
+        const email = String(p.email || (p.customer && p.customer.email) || '');
+        const receiptId = crypto.randomBytes(16).toString('hex');
+        if (method === 'PAYPAL') {
+          const receipt = {
+            id: receiptId, method: 'PAYPAL', plan, amount, currency: p.currency || 'USD',
+            email, createdAt: new Date().toISOString(), status: 'pending',
+            destination: { kind: 'paypal', owner: OWNER_NAME, account: process.env.PAYPAL_ME || process.env.PAYPAL_EMAIL || '' },
+            approveHref: process.env.PAYPAL_ME || process.env.PAYPAL_EMAIL || null
+          };
+          res.writeHead(200, { 'Content-Type':'application/json' });
+          return res.end(JSON.stringify({ ok:true, receipt }));
+        }
+        const usdPerBtc = await getBtcUsdSpot().catch(() => 95000);
+        const btcAmount = usdToBtc(amount, usdPerBtc);
+        const receipt = {
+          id: receiptId, method: 'BTC', plan, amount, currency: p.currency || 'USD',
+          email, services: p.services || [plan], createdAt: new Date().toISOString(), status: 'pending',
+          destination: buildPaymentDestination(),
+          btcAddress: BTC_WALLET,
+          btcAmount,
+          btcUri: amount > 0 ? buildBtcUri(BTC_WALLET, btcAmount, 'ZeusAI-' + plan + '-' + receiptId.slice(0, 8)) : null,
+          usdPerBtc,
+          statusUrl: `/api/payments/btc/verify/${BTC_WALLET}?amount=${btcAmount}`
+        };
+        const btcpay = await createBtcpayInvoice(receipt);
+        if (btcpay) {
+          receipt.btcpay = btcpay;
+          receipt.destination = buildPaymentDestination({ provider: btcpay.provider === 'btcpay' ? 'btcpay' : BTC_PAYMENT_PROVIDER, btcpayInvoiceId: btcpay.invoiceId || null, btcpayCheckoutUrl: btcpay.checkoutUrl || null });
+        }
+        if (!uaic) persistFallbackReceipt(receipt);
+        res.writeHead(200, { 'Content-Type':'application/json' });
+        return res.end(JSON.stringify({ ok:true, receipt }));
+      } catch (e) {
+        res.writeHead(400, { 'Content-Type':'application/json' });
+        return res.end(JSON.stringify({ error:'bad_request', detail:e.message }));
+      }
+    });
+    return;
+  }
+
+  if (urlPath === '/api/checkout/btc' && req.method === 'POST') {
     let body = '';
     req.on('data', c => { body += c; if (body.length > 64*1024) req.destroy(); });
     req.on('end', async () => {
@@ -2643,13 +3396,13 @@ ${invoice.payer ? `<h2>Payer</h2><table><tr><th>Legal entity</th><td>${esc(invoi
         const p = JSON.parse(body || '{}');
         // Delegate to UAIC for persistent, watched, license-issuing receipts
         if (uaic) {
-          const amount = Number(p.amount) || 0;
+          const amount = Number(p.amount || p.amount_usd || p.amountUSD || p.priceUSD || 0);
           const btcAmount = uaic.convert(amount, 'BTC');
           const receiptId = crypto.randomBytes(16).toString('hex');
           // Thread customer identity so /account activeServices and dashboard show it
           const custTok = String(req.headers['x-customer-token'] || p.customerToken || '');
           const cid = portal && custTok ? portal.verifyToken(custTok) : null;
-          let email = p.email || '';
+          let email = p.email || (p.customer && p.customer.email) || '';
           if (cid && portal) { const c = portal.getById(cid); if (c && c.email) email = email || c.email; }
           const receipt = {
             id: receiptId, method: 'BTC', plan: p.plan || 'starter', amount, currency: p.currency || 'USD',
@@ -2660,12 +3413,17 @@ ${invoice.payer ? `<h2>Payer</h2><table><tr><th>Legal entity</th><td>${esc(invoi
             btcUri: `bitcoin:${BTC_WALLET}?amount=${btcAmount}&label=${encodeURIComponent('Unicorn-' + (p.plan || 'starter') + '-' + receiptId.slice(0, 8))}`,
             createdAt: new Date().toISOString(),
             status: 'pending',
-            destination: { kind: 'btc', address: BTC_WALLET, owner: OWNER_NAME },
+            destination: buildPaymentDestination(),
             affiliate: p.ref ? { ref: p.ref, split: 0.1 } : null,
             did: p.did || null
           };
+          const btcpay = await createBtcpayInvoice(receipt);
+          if (btcpay) {
+            receipt.btcpay = btcpay;
+            receipt.destination = buildPaymentDestination({ provider: btcpay.provider === 'btcpay' ? 'btcpay' : BTC_PAYMENT_PROVIDER, btcpayInvoiceId: btcpay.invoiceId || null, btcpayCheckoutUrl: btcpay.checkoutUrl || null });
+          }
           uaic.persistReceipt(receipt);
-          const out = { ok: true, receiptId, method: 'BTC', amount, currency: receipt.currency, plan: receipt.plan, email: receipt.email, createdAt: receipt.createdAt, destination: receipt.destination, btcAmount, btcUri: receipt.btcUri, status: 'pending', invoiceUrl: `/api/invoice/${receiptId}`, statusUrl: `/api/receipt/${receiptId}`, licenseUrl: `/api/license/${receiptId}` };
+          const out = { ok: true, receiptId, method: 'BTC', amount, currency: receipt.currency, plan: receipt.plan, email: receipt.email, createdAt: receipt.createdAt, destination: receipt.destination, btcAmount, btcUri: receipt.btcUri, btcpay: receipt.btcpay || null, btcpayCheckoutUrl: receipt.btcpay && receipt.btcpay.checkoutUrl || null, status: 'pending', invoiceUrl: `/api/invoice/${receiptId}`, statusUrl: `/api/receipt/${receiptId}`, licenseUrl: `/api/license/${receiptId}` };
           // optional backend revenue router
           const backendUrl = process.env.BACKEND_API_URL;
           if (backendUrl) {
@@ -2680,13 +3438,29 @@ ${invoice.payer ? `<h2>Payer</h2><table><tr><th>Legal entity</th><td>${esc(invoi
           res.writeHead(200, { 'Content-Type': 'application/json' });
           return res.end(JSON.stringify(out));
         }
-        // Fallback (no uaic)
+        // Fallback (no uaic) — still compute live btcAmount + btcUri so frontend QR works
         const receiptId = crypto.randomBytes(16).toString('hex');
+        const amountUsdF = Number(p.amount || p.amount_usd || p.amountUSD || p.priceUSD || 0);
+        const usdPerBtcF = await getBtcUsdSpot().catch(() => 95000);
+        const btcAmountF = usdToBtc(amountUsdF, usdPerBtcF);
+        const planF = p.plan || 'starter';
+        const btcUriF = amountUsdF > 0 ? buildBtcUri(BTC_WALLET, btcAmountF, 'ZeusAI-' + planF + '-' + receiptId.slice(0, 8)) : null;
         const invoice = {
-          receiptId, method: 'BTC', amount: Number(p.amount) || 0, currency: p.currency || 'USD',
-          plan: p.plan || 'starter', email: p.email || '', createdAt: new Date().toISOString(),
-          destination: { kind: 'btc', address: BTC_WALLET, owner: OWNER_NAME }
+          receiptId, method: 'BTC', amount: amountUsdF, currency: p.currency || 'USD',
+          id: receiptId,
+          plan: planF, email: p.email || (p.customer && p.customer.email) || '', createdAt: new Date().toISOString(),
+          destination: buildPaymentDestination(),
+          btcAddress: BTC_WALLET, btcAmount: btcAmountF, btcUri: btcUriF,
+          usdPerBtc: usdPerBtcF,
+          status: 'pending',
+          statusUrl: `/api/payments/btc/verify/${BTC_WALLET}?amount=${btcAmountF}`
         };
+        const btcpay = await createBtcpayInvoice(invoice);
+        if (btcpay) {
+          invoice.btcpay = btcpay;
+          invoice.destination = buildPaymentDestination({ provider: btcpay.provider === 'btcpay' ? 'btcpay' : BTC_PAYMENT_PROVIDER, btcpayInvoiceId: btcpay.invoiceId || null, btcpayCheckoutUrl: btcpay.checkoutUrl || null });
+        }
+        persistFallbackReceipt(invoice);
         res.writeHead(200, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ ok: true, ...invoice }));
       } catch (e) {
@@ -2697,7 +3471,7 @@ ${invoice.payer ? `<h2>Payer</h2><table><tr><th>Legal entity</th><td>${esc(invoi
   }
 
   // Checkout (PayPal) — real Orders API when credentials set, paypal.me fallback
-  if (req.url === '/api/checkout/paypal' && req.method === 'POST') {
+  if (urlPath === '/api/checkout/paypal' && req.method === 'POST') {
     let body = ''; req.on('data', c => { body += c; if (body.length > 64*1024) req.destroy(); });
     req.on('end', async () => {
       try {
@@ -2746,6 +3520,12 @@ ${invoice.payer ? `<h2>Payer</h2><table><tr><th>Legal entity</th><td>${esc(invoi
         else if (handle && !handle.includes('@')) href = `https://paypal.me/${encodeURIComponent(handle)}/${Number(p.amount) || 0}`;
         else href = `mailto:${encodeURIComponent(handle)}?subject=Unicorn%20-%20${encodeURIComponent(p.plan || 'starter')}%20%24${Number(p.amount) || 0}`;
         const receiptId = crypto.randomBytes(16).toString('hex');
+        persistFallbackReceipt({
+          id: receiptId, receiptId, method: 'PAYPAL', amount: Number(p.amount) || 0, currency: 'USD',
+          plan: p.plan || 'starter', email: p.email || '', services: p.services || [p.plan || 'starter'],
+          createdAt: new Date().toISOString(), status: 'pending', approveHref: href,
+          destination: { kind: 'paypal', handle, owner: OWNER_NAME }
+        });
         res.writeHead(200, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ ok: true, href, receiptId, method: 'PAYPAL', amount: Number(p.amount) || 0, plan: p.plan || 'starter' }));
       } catch (_) { res.writeHead(400); res.end('{}'); }
@@ -2758,7 +3538,7 @@ ${invoice.payer ? `<h2>Payer</h2><table><tr><th>Legal entity</th><td>${esc(invoi
   // - Without auth: SELF-SERVICE mode — verifies against mempool.space (BTC) or
   //   PayPal capture. Safe because the backing UAIC receipt already carries the
   //   expected address/amount; we only accept proof of real on-chain payment.
-  if ((req.url === '/api/payments/btc/confirm' || req.url === '/api/payments/paypal/confirm') && req.method === 'POST') {
+  if ((urlPath === '/api/payments/btc/confirm' || urlPath === '/api/payments/paypal/confirm') && req.method === 'POST') {
     let body = ''; req.on('data', c => { body += c; if (body.length > 64*1024) req.destroy(); });
     req.on('end', async () => {
       try {
@@ -2768,17 +3548,55 @@ ${invoice.payer ? `<h2>Payer</h2><table><tr><th>Legal entity</th><td>${esc(invoi
         const loopback = ip === '127.0.0.1' || ip === '::1' || ip === '::ffff:127.0.0.1';
         const trusted = loopback || (confirmToken && provided === confirmToken);
 
-        if (!uaic) {
-          res.writeHead(503, { 'Content-Type':'application/json' });
-          return res.end(JSON.stringify({ error: 'uaic_unavailable' }));
-        }
-
         const p = JSON.parse(body || '{}');
         const receiptId = String(p.receiptId || '');
         if (!receiptId) {
           res.writeHead(400, { 'Content-Type':'application/json' });
           return res.end(JSON.stringify({ error: 'receiptId_required' }));
         }
+        if (!uaic) {
+          const receipt = findReceipt(receiptId);
+          if (!receipt) { res.writeHead(404, { 'Content-Type':'application/json' }); return res.end(JSON.stringify({ error: 'receipt_not_found' })); }
+          if (urlPath === '/api/payments/btc/confirm' && receipt.status !== 'paid' && !trusted) {
+            const addr = receipt.btcAddress || BTC_WALLET;
+            const expectedBtc = Number(receipt.btcAmount || 0);
+            const txs = await new Promise((resolve) => {
+              const r = https.get('https://mempool.space/api/address/' + encodeURIComponent(addr) + '/txs', { timeout: 6000, headers: { 'User-Agent': 'ZeusAICommerce/1.0' } }, (rr) => {
+                let d = ''; rr.on('data', c => d += c); rr.on('end', () => { try { resolve(JSON.parse(d)); } catch (_) { resolve(null); } });
+              });
+              r.on('timeout', () => r.destroy());
+              r.on('error', () => resolve(null));
+            });
+            let matched = null;
+            if (Array.isArray(txs)) {
+              for (const tx of txs) {
+                let sats = 0;
+                for (const o of (tx.vout || [])) { if (o.scriptpubkey_address === addr) sats += Number(o.value || 0); }
+                if (!sats) continue;
+                const btc = sats / 1e8;
+                if (expectedBtc > 0 && (Math.abs(btc - expectedBtc) / expectedBtc <= 0.15 || btc >= expectedBtc)) { matched = { txid: tx.txid, btc, confirmations: tx.status && tx.status.confirmed ? 1 : 0 }; break; }
+              }
+            }
+            if (!matched) { res.writeHead(202, { 'Content-Type':'application/json' }); return res.end(JSON.stringify({ ok:false, status:'awaiting_payment', receiptId, btcAddress: addr, btcAmount: expectedBtc })); }
+            receipt.txid = matched.txid;
+            receipt.confirmedAmountBtc = matched.btc;
+          } else if (!trusted) {
+            res.writeHead(401, { 'Content-Type':'application/json' });
+            return res.end(JSON.stringify({ error: 'unauthorized', hint: 'provide x-payment-token or verified BTC proof' }));
+          }
+          if (receipt.status !== 'paid') {
+            receipt.status = 'paid';
+            receipt.paidAt = new Date().toISOString();
+            receipt.confirmation = { txid: p.txid || p.transactionId || receipt.txid || null, network: urlPath.includes('/btc/') ? 'btc' : 'paypal', amount: Number(p.amount || receipt.amount || 0), by: trusted ? (loopback ? 'loopback' : 'token') : 'self-service', at: new Date().toISOString() };
+            receipt.license = receipt.license || issueFallbackLicense(receipt);
+            runDeliveryForReceipt(receipt);
+            persistFallbackReceipt(receipt);
+            try { emitServiceActivated(receipt); } catch (_) {}
+          }
+          res.writeHead(200, { 'Content-Type':'application/json' });
+          return res.end(JSON.stringify({ ok:true, method:urlPath.includes('/btc/') ? 'BTC' : 'PAYPAL', receipt }));
+        }
+
         const receipt = uaic.getReceipts().find(r => r.id === receiptId);
         if (!receipt) {
           res.writeHead(404, { 'Content-Type':'application/json' });
@@ -2786,7 +3604,7 @@ ${invoice.payer ? `<h2>Payer</h2><table><tr><th>Legal entity</th><td>${esc(invoi
         }
 
         // PayPal capture path (any caller): PayPal capture API itself is the proof
-        if (req.url === '/api/payments/paypal/confirm' && receipt.paypalOrderId && receipt.status !== 'paid') {
+        if (urlPath === '/api/payments/paypal/confirm' && receipt.paypalOrderId && receipt.status !== 'paid') {
           const uaicCapture = await new Promise((resolve) => {
             const fakeRes = {
               writeHead: () => fakeRes,
@@ -2812,7 +3630,7 @@ ${invoice.payer ? `<h2>Payer</h2><table><tr><th>Legal entity</th><td>${esc(invoi
         }
 
         // BTC self-service verification: query mempool.space for matching tx
-        if (req.url === '/api/payments/btc/confirm' && receipt.status !== 'paid' && !trusted) {
+        if (urlPath === '/api/payments/btc/confirm' && receipt.status !== 'paid' && !trusted) {
           const addr = receipt.btcAddress || process.env.BTC_WALLET_ADDRESS || process.env.OWNER_BTC_ADDRESS;
           const expectedBtc = Number(receipt.btcAmount || receipt.amount_btc || 0);
           if (!addr || !expectedBtc) {
@@ -2850,6 +3668,7 @@ ${invoice.payer ? `<h2>Payer</h2><table><tr><th>Legal entity</th><td>${esc(invoi
           receipt.btcStatus = 'matched';
           receipt.confirmation = { txid: matched.txid, network: 'btc', amount: matched.btc, by: 'self-service', at: new Date().toISOString() };
           receipt.license = receipt.license || uaic.issueLicense(receipt);
+          runDeliveryForReceipt(receipt);
           uaic.persistReceipt(receipt);
           res.writeHead(200, { 'Content-Type':'application/json' });
           return res.end(JSON.stringify({ ok: true, method: 'BTC', mode: 'self-service', match: matched, receipt }));
@@ -2865,17 +3684,18 @@ ${invoice.payer ? `<h2>Payer</h2><table><tr><th>Legal entity</th><td>${esc(invoi
           receipt.paidAt = new Date().toISOString();
           receipt.confirmation = {
             txid: p.txid || p.transactionId || null,
-            network: p.network || (req.url.includes('/btc/') ? 'btc' : 'paypal'),
+            network: p.network || (urlPath.includes('/btc/') ? 'btc' : 'paypal'),
             amount: Number(p.amount || receipt.amount || 0),
             by: loopback ? 'loopback' : 'token',
             at: new Date().toISOString()
           };
           receipt.license = receipt.license || uaic.issueLicense(receipt);
+          runDeliveryForReceipt(receipt);
           uaic.persistReceipt(receipt);
         }
 
         res.writeHead(200, { 'Content-Type':'application/json' });
-        return res.end(JSON.stringify({ ok: true, method: req.url.includes('/btc/') ? 'BTC' : 'PAYPAL', receipt }));
+        return res.end(JSON.stringify({ ok: true, method: urlPath.includes('/btc/') ? 'BTC' : 'PAYPAL', receipt }));
       } catch (e) {
         res.writeHead(400, { 'Content-Type':'application/json' });
         res.end(JSON.stringify({ error: 'bad_request', detail: e.message }));
@@ -2885,7 +3705,7 @@ ${invoice.payer ? `<h2>Payer</h2><table><tr><th>Legal entity</th><td>${esc(invoi
   }
 
   // Service activation (idempotent)
-  if (req.url === '/api/activate' && req.method === 'POST') {
+  if (urlPath === '/api/activate' && req.method === 'POST') {
     let body=''; req.on('data', c=>{ body+=c; if(body.length>64*1024) req.destroy(); });
     req.on('end', () => {
       try {
@@ -2902,8 +3722,8 @@ ${invoice.payer ? `<h2>Payer</h2><table><tr><th>Legal entity</th><td>${esc(invoi
   // Streaming SSE, tool-actions, memory, personalization, multi-language,
   // markdown, recommendations, cards, quick-replies, feedback ledger.
   // ==================================================================
-  if ((req.url === '/api/concierge' || req.url === '/api/concierge/stream') && req.method === 'POST') {
-    const isStream = req.url === '/api/concierge/stream';
+  if ((urlPath === '/api/concierge' || urlPath === '/api/concierge/stream') && req.method === 'POST') {
+    const isStream = urlPath === '/api/concierge/stream';
     let body=''; req.on('data', c=>{ body+=c; if(body.length>64*1024) req.destroy(); });
     req.on('end', async () => {
       try {
@@ -3014,7 +3834,7 @@ ${invoice.payer ? `<h2>Payer</h2><table><tr><th>Legal entity</th><td>${esc(invoi
   }
 
   // Concierge feedback ledger
-  if (req.url === '/api/concierge/feedback' && req.method === 'POST') {
+  if (urlPath === '/api/concierge/feedback' && req.method === 'POST') {
     let body=''; req.on('data', c=>{ body+=c; if(body.length>32*1024) req.destroy(); });
     req.on('end', () => {
       try {
@@ -3045,7 +3865,7 @@ ${invoice.payer ? `<h2>Payer</h2><table><tr><th>Legal entity</th><td>${esc(invoi
   }
 
   // Revenue recent (passthrough or empty list)
-  if (req.url === '/api/revenue/recent') {
+  if (urlPath === '/api/revenue/recent') {
     const backendUrl = process.env.BACKEND_API_URL;
     if (backendUrl) return proxyToBackend(req, res, backendUrl);
     res.writeHead(200,{'Content-Type':'application/json'}); return res.end(JSON.stringify({ items: [] }));
@@ -3057,7 +3877,7 @@ ${invoice.payer ? `<h2>Payer</h2><table><tr><th>Legal entity</th><td>${esc(invoi
   const PK = global.__UNICORN_PK__;
   const rpId = (function(){ try { return new URL(APP_URL).hostname; } catch(_) { return 'zeusai.pro'; } })();
   function b64u(buf){ return Buffer.from(buf).toString('base64').replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,''); }
-  if (req.url === '/api/auth/passkey/challenge' && req.method === 'POST') {
+  if (urlPath === '/api/auth/passkey/challenge' && req.method === 'POST') {
     let body=''; req.on('data', c=>{ body+=c; if(body.length>16*1024) req.destroy(); });
     req.on('end', () => {
       try {
@@ -3084,7 +3904,7 @@ ${invoice.payer ? `<h2>Payer</h2><table><tr><th>Legal entity</th><td>${esc(invoi
     });
     return;
   }
-  if (req.url === '/api/auth/passkey/register' && req.method === 'POST') {
+  if (urlPath === '/api/auth/passkey/register' && req.method === 'POST') {
     let body=''; req.on('data', c=>{ body+=c; if(body.length>16*1024) req.destroy(); });
     req.on('end', () => {
       try {
@@ -3097,7 +3917,7 @@ ${invoice.payer ? `<h2>Payer</h2><table><tr><th>Legal entity</th><td>${esc(invoi
     });
     return;
   }
-  if (req.url === '/api/auth/passkey/assert' && req.method === 'POST') {
+  if (urlPath === '/api/auth/passkey/assert' && req.method === 'POST') {
     let body=''; req.on('data', c=>{ body+=c; if(body.length>16*1024) req.destroy(); });
     req.on('end', () => {
       try {
@@ -3114,13 +3934,13 @@ ${invoice.payer ? `<h2>Payer</h2><table><tr><th>Legal entity</th><td>${esc(invoi
   }
 
   // Never fall through to HTML for API paths
-  if (req.url.startsWith('/api/')) {
+  if (urlPath.startsWith('/api/')) {
     res.writeHead(404, { 'Content-Type': 'application/json' });
     return res.end(JSON.stringify({ error: 'not_found', path: req.url }));
   }
 
   // 30Y-LTS — CSP violation reporter. Browsers POST here when a directive is breached.
-  if (req.url === '/csp-violations' && req.method === 'POST') {
+  if (urlPath === '/csp-violations' && req.method === 'POST') {
     let body=''; req.on('data', c => { body += c; if (body.length > 16*1024) req.destroy(); });
     req.on('end', () => {
       try {
@@ -3143,8 +3963,8 @@ ${invoice.payer ? `<h2>Payer</h2><table><tr><th>Legal entity</th><td>${esc(invoi
   }
 
   // 30Y-LTS — public status endpoint. JSON for monitors, pretty HTML for browsers.
-  if (req.url === '/status' || req.url === '/status.json') {
-    const wantHtml = req.url !== '/status.json' && /text\/html/.test(String(req.headers.accept || ''));
+  if (urlPath === '/status' || urlPath === '/status.json') {
+    const wantHtml = urlPath !== '/status.json' && /text\/html/.test(String(req.headers.accept || ''));
     let snap = {};
     try { snap = buildSnapshot(); } catch (_) {}
     let comm = null;
@@ -3190,10 +4010,10 @@ ${invoice.payer ? `<h2>Payer</h2><table><tr><th>Legal entity</th><td>${esc(invoi
   }
 
   // Any SPA route → v2 shell
-  const v2Routes = ['/', '/services', '/pricing', '/checkout', '/dashboard', '/how', '/docs', '/about', '/legal', '/enterprise', '/store', '/account'];
-  const isV2Route = v2Routes.includes(req.url.split('?')[0]) || req.url.startsWith('/services/');
+  const v2Routes = ['/', '/services', '/pricing', '/checkout', '/dashboard', '/how', '/docs', '/about', '/legal', '/enterprise', '/store', '/account', '/innovations'];
+  const isV2Route = v2Routes.includes(urlPath) || urlPath.startsWith('/services/');
   if (isV2Route) {
-    const route = req.url.split('?')[0];
+    const route = urlPath;
     // 30Y-LTS: per-request CSP nonce (Nginx forwards X-CSP-Nonce as $request_id;
     // if absent — local dev — we generate one. Inline scripts get this nonce.
     const nonce = String(req.headers['x-csp-nonce'] || crypto.randomBytes(12).toString('base64'));

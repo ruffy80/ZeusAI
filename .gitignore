@@ -14,3 +14,7 @@ run-platform-setup.js
 *.log
 .vercel/
 *.pid
+UNICORN_FINAL/data/innovations-30y/
+UNICORN_FINAL/data/innovations-30y-v2/
+UNICORN_FINAL/data/**/pq-keys.json
+UNICORN_FINAL/data/**/vrf-key.json

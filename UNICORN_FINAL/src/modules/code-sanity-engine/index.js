@@ -13,7 +13,15 @@ const SCAN_DIRS = [
   path.join(ROOT, 'backend'),
   path.join(ROOT, 'src'),
 ];
+// Excludem fisiere care NU sunt module Node (browser code, service workers, generatoare HTML inline)
 const EXCLUDE_FILES = new Set(['code-sanity-engine']);
+const EXCLUDE_PATH_FRAGMENTS = [
+  path.sep + 'site' + path.sep + 'v2' + path.sep,   // browser bundle (sw.js, client.js, shell.js, styles.js)
+  path.sep + 'site' + path.sep,                     // template.js — HTML inline
+  path.sep + 'innovation' + path.sep,               // CLI scripts
+  path.sep + '.archive' + path.sep,
+  path.sep + 'backups' + path.sep,
+];
 const SCAN_INTERVAL_MS = 5 * 60 * 1000; // 5 minute
 
 class CodeSanityEngine {
@@ -41,8 +49,9 @@ class CodeSanityEngine {
         if (entry === 'node_modules' || entry === '.git') continue;
         this._collectJsFiles(full, files);
       } else if (entry.endsWith('.js')) {
-        const skip = [...EXCLUDE_FILES].some(ex => full.includes(ex));
-        if (!skip) files.push(full);
+        const skipName = [...EXCLUDE_FILES].some(ex => full.includes(ex));
+        const skipPath = EXCLUDE_PATH_FRAGMENTS.some(frag => full.includes(frag));
+        if (!skipName && !skipPath) files.push(full);
       }
     }
     return files;

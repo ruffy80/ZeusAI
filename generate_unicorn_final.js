@@ -4291,7 +4291,26 @@ function copyPathIfExists(fromAbs, toAbs) {
   fs.cpSync(fromAbs, toAbs, { recursive: true, force: true });
 }
 
+function snapshotActiveProductionRoot() {
+  if (process.env.UNICORN_FORCE_REGENERATE === '1') return null;
+  if (!fs.existsSync(ROOT)) return null;
+  const sentinel = path.join(ROOT, 'src', 'site', 'v2', 'shell.js');
+  if (!fs.existsSync(sentinel)) return null;
+  const snapshotDir = path.join(__dirname, `.unicorn_active_snapshot_${Date.now()}`);
+  fs.cpSync(ROOT, snapshotDir, { recursive: true, force: true });
+  return snapshotDir;
+}
+
+function restoreActiveProductionRoot(snapshotDir) {
+  if (!snapshotDir || !fs.existsSync(snapshotDir)) return;
+  fs.rmSync(ROOT, { recursive: true, force: true });
+  fs.cpSync(snapshotDir, ROOT, { recursive: true, force: true });
+  fs.rmSync(snapshotDir, { recursive: true, force: true });
+  console.log('🛡️ Active UNICORN_FINAL production layer preserved (set UNICORN_FORCE_REGENERATE=1 to overwrite).');
+}
+
 function createStructure() {
+  const activeProductionSnapshot = snapshotActiveProductionRoot();
   if (fs.existsSync(ROOT)) {
     fs.rmSync(ROOT, { recursive: true, force: true });
   }
@@ -13055,6 +13074,8 @@ jobs:
       - run: npm run lint
       - run: npm test
 `);
+
+  restoreActiveProductionRoot(activeProductionSnapshot);
 }
 
 function zipOutput() {

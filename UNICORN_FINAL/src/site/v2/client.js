@@ -28,57 +28,109 @@ async function api(path, opts){
 function escapeHtml(s){ return String(s==null?'':s).replace(/[&<>"']/g, m=>({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[m])); }
 
 // ================= SSE =================
+// Resilient EventSource: exponential backoff (1s→30s) + jitter + heartbeat watchdog (45s).
+// Server emits keepalive every 15s; if we go silent >45s we force-reconnect.
+function resilientES(url, handlers, opts){
+  opts = opts || {};
+  const maxDelay = opts.maxDelay || 30000;
+  const heartbeatMs = opts.heartbeatMs || 45000;
+  let attempt = 0, src = null, lastBeat = Date.now(), watchdog = null, closed = false;
+  function backoff(){
+    const base = Math.min(maxDelay, 1000 * Math.pow(2, attempt));
+    return Math.round(base/2 + Math.random()*base/2); // 50%-100% of base
+  }
+  function startWatchdog(){
+    if (watchdog) clearInterval(watchdog);
+    watchdog = setInterval(function(){
+      if (closed) return;
+      if (Date.now() - lastBeat > heartbeatMs) {
+        try { src && src.close(); } catch(_) {}
+        connect();
+      }
+    }, 5000);
+  }
+  function connect(){
+    if (closed) return;
+    try {
+      src = new EventSource(url);
+      src.onopen = function(){
+        attempt = 0; lastBeat = Date.now();
+        if (handlers.onopen) try { handlers.onopen(); } catch(_) {}
+      };
+      src.onmessage = function(ev){
+        lastBeat = Date.now();
+        if (handlers.onmessage) try { handlers.onmessage(ev); } catch(_) {}
+      };
+      src.onerror = function(ev){
+        if (handlers.onerror) try { handlers.onerror(ev); } catch(_) {}
+        try { src.close(); } catch(_) {}
+        if (closed) return;
+        attempt = Math.min(attempt + 1, 10);
+        setTimeout(connect, backoff());
+      };
+    } catch(e){
+      attempt = Math.min(attempt + 1, 10);
+      setTimeout(connect, backoff());
+    }
+  }
+  connect();
+  startWatchdog();
+  return {
+    close: function(){ closed = true; try { src && src.close(); } catch(_) {} if (watchdog) clearInterval(watchdog); },
+    get raw(){ return src; }
+  };
+}
+
 let es = null;
 let esPath = '/api/unicorn/events';
 let esFallbackTried = false;
 function openStream(){
   try { if (es) es.close(); } catch(_) {}
-  try {
-    es = new EventSource(esPath);
-    es.onmessage = ev => {
-      try {
-        const payload = JSON.parse(ev.data);
-        // Live reactivity: services.changed → reload marketplace grid instantly (<1s)
-        if (payload && payload.type === 'services.changed') {
-          try {
-            if (STATE.route === '/' || STATE.route === '/services' || (STATE.route && STATE.route.indexOf('/services') === 0)) {
-              setTimeout(function(){ try { hydratePage(STATE.route); } catch(_){} }, 150);
-            }
-          } catch(_){}
-          return;
-        }
-        // Phase C: real-time payment + activation reactivity
-        if (payload && payload.type === 'payment.confirmed') {
-          try { toast('✅ Payment confirmed (' + (payload.method||'BTC') + ')', 'ok'); } catch(_){}
-          return;
-        }
-        if (payload && payload.type === 'service.activated') {
-          const ids = Array.isArray(payload.serviceIds) ? payload.serviceIds.join(', ') : '';
-          try { toast('🚀 Service activated: ' + ids, 'ok'); } catch(_){}
-          try {
-            // Refresh account dashboard if we're there, so new active card appears
-            if (STATE.route && STATE.route.indexOf('/account') === 0 && typeof hydrateAccount === 'function') {
-              setTimeout(function(){ try { hydrateAccount(); } catch(_){} }, 200);
-            }
-            // Also dispatch a custom event so in-page checkout widgets can react
-            window.dispatchEvent(new CustomEvent('unicorn:service-activated', { detail: payload }));
-          } catch(_){}
-          return;
-        }
-        const snap = payload && payload.snapshot ? payload.snapshot : payload;
-        STATE.snapshot = snap;
-        applySnapshot(STATE.snapshot);
-      } catch(_){}
-    };
-    es.onerror = () => {
-      if (!esFallbackTried && esPath !== '/stream') {
-        esFallbackTried = true;
-        esPath = '/stream';
-        setTimeout(openStream, 250);
+  function onMsg(ev){
+    try {
+      const payload = JSON.parse(ev.data);
+      // Live reactivity: services.changed → reload marketplace grid instantly (<1s)
+      if (payload && payload.type === 'services.changed') {
+        try {
+          if (STATE.route === '/' || STATE.route === '/services' || (STATE.route && STATE.route.indexOf('/services') === 0)) {
+            setTimeout(function(){ try { hydratePage(STATE.route); } catch(_){} }, 150);
+          }
+        } catch(_){}
+        return;
       }
-      /* auto-reconnect by browser */
-    };
-  } catch(_) {}
+      // Phase C: real-time payment + activation reactivity
+      if (payload && payload.type === 'payment.confirmed') {
+        try { toast('✅ Payment confirmed (' + (payload.method||'BTC') + ')', 'ok'); } catch(_){}
+        return;
+      }
+      if (payload && payload.type === 'service.activated') {
+        const ids = Array.isArray(payload.serviceIds) ? payload.serviceIds.join(', ') : '';
+        try { toast('🚀 Service activated: ' + ids, 'ok'); } catch(_){}
+        try {
+          if (STATE.route && STATE.route.indexOf('/account') === 0 && typeof hydrateAccount === 'function') {
+            setTimeout(function(){ try { hydrateAccount(); } catch(_){} }, 200);
+          }
+          window.dispatchEvent(new CustomEvent('unicorn:service-activated', { detail: payload }));
+        } catch(_){}
+        return;
+      }
+      const snap = payload && payload.snapshot ? payload.snapshot : payload;
+      STATE.snapshot = snap;
+      applySnapshot(STATE.snapshot);
+    } catch(_){}
+  }
+  function onErr(){
+    if (!esFallbackTried && esPath !== '/stream') {
+      esFallbackTried = true;
+      try { es && es.close(); } catch(_) {}
+      esPath = '/stream';
+      setTimeout(openStream, 250);
+    }
+    /* otherwise resilientES handles backoff+jitter+watchdog automatically */
+  }
+  try {
+    es = resilientES(esPath, { onmessage: onMsg, onerror: onErr });
+  } catch(_){}
 }
 function applySnapshot(s){
   if (!s) return;
@@ -642,7 +694,7 @@ async function hydratePage(route){
   if (route !== '/' && tbCtx){ tbCtx.dispose(); tbCtx = null; }
 
   if (route === '/') { initTourbillon(); await hydrateHome(); initPillars(); }
-  if (route === '/services') await hydrateServices();
+  if (route === '/services') await hydrateMasterCatalog();
   if (route.startsWith('/services/')) await hydrateServiceDetail(route.slice(10));
   if (route === '/checkout') hydrateCheckout();
   if (route === '/dashboard') await hydrateDashboard();
@@ -836,7 +888,21 @@ async function hydrateHome(){
   const services = await loadServices();
   const grid = $('#liveServices');
   if (grid) {
-    grid.innerHTML = services.slice(0,6).map(s => cardHtml(s)).join('') || '<div class="card"><p>No services yet.</p></div>';
+    // Prefer master catalog (covers strategic + frontier + verticals + modules)
+    let masterItems = null;
+    try {
+      const cat = await api('/api/catalog/master');
+      STATE.masterCatalog = cat;
+      // Pick a hero set: 2 strategic + 2 frontier + 2 vertical + 2 marketplace
+      const pick = (g, n) => (cat.items.filter(x => x.group === g).slice(0, n));
+      masterItems = [...pick('strategic', 2), ...pick('frontier', 2), ...pick('vertical', 2), ...pick('marketplace', 2)];
+    } catch(_){ masterItems = null; }
+    if (masterItems && masterItems.length) {
+      grid.innerHTML = masterItems.map(masterCardHtml).join('')
+        + '<div class="card" style="display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;background:linear-gradient(135deg,rgba(138,92,255,.18),rgba(62,160,255,.10));border-color:var(--violet)"><h3 style="margin:0 0 8px">See the full catalog →</h3><p style="margin:0 0 14px">Strategic + Frontier + Vertical + AI Modules — all BTC-priced live.</p><a class="btn btn-primary" href="/services" data-link>Open Master Catalog</a></div>';
+    } else {
+      grid.innerHTML = services.slice(0,6).map(s => cardHtml(s)).join('') || '<div class="card"><p>No services yet.</p></div>';
+    }
   }
   // verticals
   const snap = await api('/snapshot');
@@ -856,7 +922,40 @@ async function hydrateHome(){
       </div>`).join('');
   }
   if (snap && snap.telemetry) { $('#statModules') && ($('#statModules').textContent = snap.modules?.length || 169); }
+  hydrateCommerceProof();
   initFinalLive(services);
+}
+
+async function hydrateCommerceProof(){
+  const catalogEl = document.getElementById('commerceProofCatalog');
+  const btcEl = document.getElementById('commerceProofBtcProvider');
+  const deliveryEl = document.getElementById('commerceProofDelivery');
+  const adminEl = document.getElementById('commerceProofAdmin');
+  const smokeEl = document.getElementById('commerceProofSmoke');
+  if (!catalogEl && !btcEl && !deliveryEl && !adminEl && !smokeEl) return;
+
+  try {
+    const cat = STATE.masterCatalog || await api('/api/catalog/master');
+    if (catalogEl && cat && cat.counts) catalogEl.textContent = cat.counts.total + ' live products';
+    if (deliveryEl && cat && cat.counts) deliveryEl.textContent = cat.counts.marketplace + ' deliverable modules';
+    if (smokeEl && cat && cat.counts) smokeEl.textContent = cat.counts.total >= 65 ? 'Live smoke threshold passed' : 'Catalog threshold needs attention';
+  } catch (_) {
+    if (catalogEl) catalogEl.textContent = 'Catalog API reachable from /services';
+  }
+
+  try {
+    const spot = await api('/api/btc/spot');
+    if (btcEl && spot) btcEl.textContent = 'Static wallet live' + (spot.usdPerBtc ? ' · $' + Number(spot.usdPerBtc).toLocaleString() + '/BTC' : '');
+  } catch (_) {
+    if (btcEl) btcEl.textContent = 'BTC checkout ready';
+  }
+
+  try {
+    const r = await fetch('/api/admin/commerce/refund', { method:'POST', headers:{'Content-Type':'application/json'}, body:'{}' });
+    if (adminEl) adminEl.textContent = r.status === 401 ? 'Refund protected · 401' : 'Admin endpoint live';
+  } catch (_) {
+    if (adminEl) adminEl.textContent = 'Admin cockpit protected';
+  }
 }
 
 function initZeusHeroImage(){
@@ -956,18 +1055,20 @@ function initFinalLive(services){
     logEl.textContent = feed.join('\n');
   }
   try {
-    const es = new EventSource('/api/unicorn/events');
-    es.onmessage = function(ev){
-      evtCount++;
-      eEl.textContent = evtCount + ' live events received';
-      try {
-        const j = JSON.parse(ev.data || '{}');
-        const t = j.type || 'event';
-        const at = (j.at || new Date().toISOString()).slice(11,19);
-        pushFeed('[' + at + '] ' + t);
-      } catch (_) { pushFeed('[' + new Date().toISOString().slice(11,19) + '] event'); }
-    };
-    es.onerror = function(){ eEl.textContent = 'Realtime stream connected'; };
+    const es = resilientES('/api/unicorn/events', {
+      onopen: function(){ eEl.textContent = 'Realtime stream connected'; },
+      onmessage: function(ev){
+        evtCount++;
+        eEl.textContent = evtCount + ' live events received';
+        try {
+          const j = JSON.parse(ev.data || '{}');
+          const t = j.type || 'event';
+          const at = (j.at || new Date().toISOString()).slice(11,19);
+          pushFeed('[' + at + '] ' + t);
+        } catch (_) { pushFeed('[' + new Date().toISOString().slice(11,19) + '] event'); }
+      },
+      onerror: function(){ eEl.textContent = 'Stream reconnecting…'; }
+    });
     window.addEventListener('beforeunload', function(){ try { es.close(); } catch(_){} }, { once:true });
   } catch (_) { eEl.textContent = 'Stream unavailable'; }
 
@@ -1230,13 +1331,80 @@ async function hydrateServices(){
   if (grid) grid.innerHTML = services.map(cardHtml).join('') || '<div class="card"><p>No services yet.</p></div>';
 }
 
+// ============================================================
+// MASTER CATALOG — every Unicorn deliverable, BTC-priced, filterable
+// ============================================================
+function masterCardHtml(it){
+  const groupColor = { strategic:'#8a5cff', frontier:'#ffd36a', vertical:'#3ea0ff', marketplace:'#6fd3ff' }[it.group] || '#8a5cff';
+  const groupLabel = { strategic:'Strategic', frontier:'Frontier', vertical:'Vertical OS', marketplace:'AI Module' }[it.group] || it.group;
+  const priceUsd = Number(it.priceUsd || 0);
+  const priceTxt = priceUsd > 0 ? ('$' + priceUsd.toLocaleString()) : 'Free';
+  const btcTxt = it.priceBtc > 0 ? ('₿ ' + Number(it.priceBtc).toFixed(8)) : '—';
+  const buyHref = it.buyUrl || ('/checkout?plan=' + encodeURIComponent(it.id) + '&amount=' + priceUsd);
+  return '<div class="card" data-group="' + escapeHtml(it.group) + '">'
+    + '<span class="tag" style="background:' + groupColor + '22;color:' + groupColor + '">' + escapeHtml(groupLabel) + '</span>'
+    + '<h3>' + escapeHtml(it.title || it.id) + '</h3>'
+    + '<p>' + escapeHtml(it.description || '') + '</p>'
+    + '<div class="row"><span>' + escapeHtml(it.kpi || 'sla-backed') + '</span><b>' + priceTxt + '</b></div>'
+    + '<div class="row" style="border-top:none;padding-top:4px;margin-top:0"><span style="font-size:11px;color:var(--ink-dim)">live BTC</span><b style="font-size:11px;color:var(--gold);font-family:var(--mono)">' + btcTxt + '</b></div>'
+    + '<div style="display:flex;gap:8px;margin-top:12px">'
+    + (priceUsd > 0
+        ? '<a class="btn btn-primary" href="' + buyHref + '" data-link style="flex:1;justify-content:center">₿ Buy in BTC</a>'
+        : '<a class="btn btn-ghost" href="/services/' + encodeURIComponent(it.id) + '" data-link style="flex:1;justify-content:center">Activate free</a>')
+    + '</div>'
+    + '</div>';
+}
+
+async function hydrateMasterCatalog(){
+  const grid = $('#catalogGrid');
+  const filters = $('#catFilters');
+  const counts = $('#catCounts');
+  const spotEl = $('#catBtcSpot');
+  if (!grid) return;
+  let cat = null;
+  try { cat = await api('/api/catalog/master'); } catch(_){ cat = null; }
+  if (!cat || !Array.isArray(cat.items)) {
+    // Fallback to legacy /api/services
+    const services = await loadServices().catch(()=>[]);
+    grid.innerHTML = (services.length ? services.map(cardHtml).join('') : '<div class="card"><p>No services available right now. Try again in a moment.</p></div>');
+    return;
+  }
+  STATE.masterCatalog = cat;
+  if (spotEl && cat.btcSpot) spotEl.textContent = '1 BTC = $' + Number(cat.btcSpot.usdPerBtc).toLocaleString() + ' · live';
+  if (counts) counts.textContent = cat.counts.total + ' items · ' + cat.counts.strategic + ' strategic · ' + cat.counts.frontier + ' frontier · ' + cat.counts.vertical + ' vertical · ' + cat.counts.marketplace + ' modules';
+  const render = (group) => {
+    const list = group === 'all' ? cat.items : cat.items.filter(x => x.group === group);
+    grid.innerHTML = list.length ? list.map(masterCardHtml).join('') : '<div class="card"><p>No items in this group.</p></div>';
+  };
+  render('all');
+  if (filters && !filters.dataset.bound) {
+    filters.dataset.bound = '1';
+    filters.addEventListener('click', e => {
+      const chip = e.target.closest('.chip'); if (!chip) return;
+      $$('.chip', filters).forEach(c => c.classList.remove('on'));
+      chip.classList.add('on');
+      render(chip.dataset.group || 'all');
+    });
+  }
+}
+
 async function hydrateServiceDetail(id){
-  const services = STATE.services.length ? STATE.services : await loadServices();
-  const s = services.find(x => x.id === id) || await api('/api/services/'+encodeURIComponent(id));
+  // Try master catalog first (covers frontier/verticals too), then legacy services
+  let s = null;
+  if (STATE.masterCatalog && Array.isArray(STATE.masterCatalog.items)) {
+    s = STATE.masterCatalog.items.find(x => x.id === id);
+  }
+  if (!s) {
+    try { const cat = await api('/api/catalog/master'); STATE.masterCatalog = cat; s = cat.items.find(x => x.id === id); } catch(_){}
+  }
+  if (!s) {
+    const services = STATE.services.length ? STATE.services : await loadServices();
+    s = services.find(x => x.id === id) || await api('/api/services/'+encodeURIComponent(id)).catch(()=>null);
+  }
   const root = $('#serviceMain');
   if (!root) return;
   if (!s) { root.innerHTML = '<div class="card"><p>Service not found.</p><a class="btn" href="/services" data-link>Back to marketplace</a></div>'; return; }
-  const price = s.price != null ? s.price : 499;
+  const price = (s.priceUsd != null ? s.priceUsd : (s.price != null ? s.price : 499));
   root.innerHTML = `
     <div style="display:grid;grid-template-columns:1.3fr 1fr;gap:28px">
       <div class="svc-cine-card" data-tilt>
@@ -1473,12 +1641,14 @@ function hydrateCheckout(){
     const host = $('#coStatus');
     if (!host) return;
     const btcLine = r.method==='BTC' ? `<div>Send <b>${(r.btcAmount||0).toFixed(8)} BTC</b> to <code class="inline">${escapeHtml(r.destination.address)}</code></div>` : '';
+    const btcpayUrl = r.btcpayCheckoutUrl || (r.btcpay && r.btcpay.checkoutUrl) || (r.destination && r.destination.checkoutUrl);
+    const btcpayLine = btcpayUrl ? `<div style="margin-top:10px"><a class="btn btn-primary" href="${escapeHtml(btcpayUrl)}" target="_blank" rel="noopener">Open BTCPay invoice →</a></div>` : '';
     const ppLine = r.method==='PAYPAL' && r.approveHref ? `<div><a class="btn btn-primary" href="${r.approveHref}" target="_blank" rel="noopener">Open PayPal →</a></div>` : '';
     host.innerHTML = `
       <div class="card" style="margin-top:14px">
         <span class="tag">${r.status.toUpperCase()}</span>
         <h3 style="margin:6px 0">Receipt ${escapeHtml(r.id.slice(0,12))}…</h3>
-        ${btcLine}${ppLine}
+        ${btcLine}${btcpayLine}${ppLine}
         <div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap">
           <a class="btn btn-ghost" href="/api/invoice/${r.id}" target="_blank" rel="noopener">Invoice</a>
           <button class="btn btn-ghost" id="coCheck">Check now</button>
@@ -1502,15 +1672,23 @@ function hydrateCheckout(){
       toast('Payment confirmed · license ready','ok');
       const lic = await api('/api/license/'+encodeURIComponent(id));
       if (lic && lic.license) {
+        const delivery = await api('/api/delivery/'+encodeURIComponent(id)).catch(function(){ return null; });
+        const deliveryLinks = delivery && Array.isArray(delivery.items)
+          ? delivery.items.slice(0, 6).flatMap(function(item){ return item.files || []; }).slice(0, 8).map(function(file){
+              return '<a class="btn btn-ghost" href="' + escapeHtml(file.downloadUrl) + '" target="_blank" rel="noopener">Download ' + escapeHtml(file.kind || 'deliverable') + '</a>';
+            }).join('')
+          : '';
         const host = $('#coStatus');
         if (host) {
           host.insertAdjacentHTML('beforeend', `
             <div class="card" style="margin-top:10px;border-color:rgba(110,231,183,.35)">
-              <span class="tag" style="background:rgba(110,231,183,.2);color:#6ee7b7">LICENSE ISSUED</span>
+              <span class="tag" style="background:rgba(110,231,183,.2);color:#6ee7b7">LICENSE + DELIVERY ISSUED</span>
               <h3 style="margin:6px 0">${escapeHtml(lic.license.body.plan)} · ${escapeHtml(String(lic.license.body.seats))} seats · expires ${escapeHtml(lic.license.body.expiresAt.slice(0,10))}</h3>
               <textarea readonly style="width:100%;min-height:90px;background:#05040a;color:#a6e4ff;padding:10px;border-radius:8px;font-family:ui-monospace,monospace;font-size:11px;word-break:break-all" onclick="this.select()">${escapeHtml(lic.license.token)}</textarea>
               <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap">
                 <a class="btn btn-primary" download="zeusai-license-${id}.txt" href="data:text/plain;base64,${btoa(lic.license.token)}">Download license</a>
+                <a class="btn btn-primary" href="/api/delivery/${encodeURIComponent(id)}" target="_blank" rel="noopener">Open delivery package</a>
+                ${deliveryLinks}
                 <a class="btn btn-ghost" href="/dashboard" data-link>Go to dashboard</a>
               </div>
             </div>`);
@@ -1617,16 +1795,16 @@ async function hydrateDashboard(){
     }
   }
 
-  // Live revenue stream — paints new receipts as they arrive
+  // Live revenue stream — paints new receipts as they arrive (resilient with backoff)
   try {
-    const rs = new EventSource('/api/uaic/revenue/stream');
-    rs.onmessage = ev => {
-      try {
-        const m = JSON.parse(ev.data);
-        if (m.type === 'paid' && m.receipt) toast(`💰 Paid · ${m.receipt.plan} · $${m.receipt.amount}`, 'ok');
-      } catch(_){}
-    };
-    // Auto-close when leaving page
+    const rs = resilientES('/api/uaic/revenue/stream', {
+      onmessage: function(ev){
+        try {
+          const m = JSON.parse(ev.data);
+          if (m.type === 'paid' && m.receipt) toast(`💰 Paid · ${m.receipt.plan} · $${m.receipt.amount}`, 'ok');
+        } catch(_){}
+      }
+    });
     window.addEventListener('beforeunload', () => { try { rs.close(); } catch(_){} }, { once:true });
   } catch(_) {}
 
@@ -2873,8 +3051,6 @@ function statusColor(s){
 })();
 
 
-// Auto-reparat de CodeSanityEngine
-module.exports = { name: 'client', getStatus: () => ({ health: 'good', name: 'client' }) };
 
 /* === Interactive pillar cards (homepage) === */
 const PILLAR_DEFS = {

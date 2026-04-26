@@ -16,7 +16,10 @@ self.addEventListener('activate', e => {
   e.waitUntil((async () => {
     const keys = await caches.keys();
     await Promise.all(keys.filter(k => k !== V).map(k => caches.delete(k)));
-    self.clients.claim();
+    await self.clients.claim();
+    // Notify all open clients that a new SW took control so they can refresh.
+    const cs = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
+    cs.forEach(c => { try { c.postMessage({ type: 'sw-updated', version: V }); } catch(_){} });
   })());
 });
 
@@ -60,15 +63,19 @@ self.addEventListener('fetch', e => {
     })());
     return;
   }
-  // static assets: cache-first
+  // static assets: network-first with cache fallback (so new deploys land instantly,
+  // but offline mode still works). Versioned URLs (?v=BUILD_ID) make this safe & fast.
   if (u.pathname.startsWith('/assets/')) {
     e.respondWith((async () => {
       const c = await caches.open(V);
-      const hit = await c.match(req);
-      if (hit) return hit;
-      const net = await fetch(req);
-      c.put(req, net.clone()).catch(()=>{});
-      return net;
+      try {
+        const net = await fetch(req);
+        if (net && net.ok) c.put(req, net.clone()).catch(()=>{});
+        return net;
+      } catch (_) {
+        const hit = await c.match(req);
+        return hit || new Response('', { status: 504 });
+      }
     })());
   }
 });

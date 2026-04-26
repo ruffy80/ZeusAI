@@ -1,0 +1,90 @@
+#!/bin/zsh
+# zeusai — helper pentru lucrul pe Hetzner și push automat pe GitHub
+# Usage:
+#   ./scripts/zeusai ssh                  → conectare SSH la server (root@204.168.230.142)
+#   ./scripts/zeusai logs                 → pm2 logs live pentru unicorn
+#   ./scripts/zeusai status               → pm2 status + /health local + domain
+#   ./scripts/zeusai deploy               → git add/commit/push → triggerează hetzner-deploy.yml
+#   ./scripts/zeusai restart              → pm2 restart unicorn pe server
+#   ./scripts/zeusai exec '<cmd>'         → rulează comandă ad-hoc pe server
+#   ./scripts/zeusai health               → verifică /health pe server + domain HTTPS
+#
+# Presupune:
+#   - ~/.ssh/config conține alias-ul `hetzner-unicorn` (Host hetzner-unicorn → 204.168.230.142)
+#   - `gh auth status` funcțional (pentru push HTTPS fără parolă)
+
+set -euo pipefail
+
+REPO_DIR="/Users/ionutvladoi/Desktop/generate-unicorn"
+SSH_HOST="hetzner-unicorn"
+DEPLOY_PATH="/var/www/unicorn/UNICORN_FINAL"
+DOMAIN="zeusai.pro"
+
+cmd="${1:-help}"
+shift || true
+
+case "$cmd" in
+  ssh)
+    exec ssh "$SSH_HOST"
+    ;;
+
+  logs)
+    exec ssh "$SSH_HOST" "pm2 logs unicorn-site unicorn-backend unicorn-guardian --lines 100"
+    ;;
+
+  status)
+    ssh "$SSH_HOST" "pm2 list && echo '--- /health local ---' && curl -s http://localhost:3000/health || true"
+    echo "--- /health domain ---"
+    curl -sk "https://$DOMAIN/health" || true
+    echo
+    ;;
+
+  restart)
+    exec ssh "$SSH_HOST" "cd $DEPLOY_PATH && pm2 reload ecosystem.config.js --update-env && pm2 save"
+    ;;
+
+  exec)
+    [[ $# -lt 1 ]] && { echo "Usage: zeusai exec '<cmd>'"; exit 1; }
+    exec ssh "$SSH_HOST" "$*"
+    ;;
+
+  health)
+    echo "HTTP  $DOMAIN → $(curl -sL -o /dev/null -w '%{http_code}' http://$DOMAIN/health || echo 000)"
+    echo "HTTPS $DOMAIN → $(curl -skL -o /dev/null -w '%{http_code}' https://$DOMAIN/health || echo 000)"
+    ssh "$SSH_HOST" "pm2 list | head -20"
+    ;;
+
+  deploy)
+    cd "$REPO_DIR"
+    MSG="${*:-deploy: $(date '+%Y-%m-%d %H:%M:%S')}"
+    git add -A -- . ':!ZeusAI'
+    if git diff --cached --quiet; then
+      echo "Nimic de commit. Trigger deploy manual:"
+      gh workflow run hetzner-deploy.yml --repo ruffy80/ZeusAI || true
+    else
+      git commit -m "$MSG"
+      git push origin main
+    fi
+    echo "--- Ultimul run pe GitHub Actions ---"
+    gh run list --repo ruffy80/ZeusAI --limit 3 || true
+    ;;
+
+  pull)
+    cd "$REPO_DIR"
+    git pull --rebase origin main
+    ;;
+
+  help|*)
+    cat <<USAGE
+zeusai — comenzi disponibile:
+  ssh               Conectare SSH la Hetzner (root@204.168.230.142)
+  logs              pm2 logs live pentru procesul unicorn
+  status            pm2 list + /health local + /health domain
+  restart           pm2 restart unicorn + pm2 save
+  exec '<cmd>'      Rulează o comandă arbitrară pe server
+  health            Check rapid HTTP/HTTPS zeusai.pro + pm2
+  deploy [msg]      git add/commit/push pe main (trigger deploy CI/CD)
+  pull              git pull --rebase origin main
+USAGE
+    ;;
+esac

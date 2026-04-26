@@ -3,6 +3,7 @@
 'use strict';
 
 const { CSS } = require('./styles');
+const { BUILD_ID } = require('./build-id');
 
 const OWNER = {
   name: process.env.OWNER_NAME || 'Vladoi Ionut',
@@ -44,7 +45,7 @@ function head(title, route, opts) {
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap"/>
-<link rel="stylesheet" href="/assets/app.css"/>
+<link rel="stylesheet" href="/assets/app.css?v=${BUILD_ID}"/>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' x2='1' y1='0' y2='1'%3E%3Cstop offset='0' stop-color='%238a5cff'/%3E%3Cstop offset='0.5' stop-color='%233ea0ff'/%3E%3Cstop offset='1' stop-color='%23ffd36a'/%3E%3C/linearGradient%3E%3C/defs%3E%3Cpath fill='url(%23g)' d='M32 4l8 14h14l-12 10 5 18-15-10-15 10 5-18L10 18h14z'/%3E%3C/svg%3E"/>
 </head>
 <body>
@@ -59,10 +60,13 @@ function navBar(route, opts) {
   const curLang = opts.lang || 'en';
   const L = (href, label) => `<a href="${href}" data-link${route === href ? ' class="active"' : ''}>${label}</a>`;
   const langBtn = (code, label) => `<button class="lang-btn${curLang===code?' active':''}" data-lang="${code}" type="button" aria-label="${label}">${code.toUpperCase()}</button>`;
-  return `<nav class="nav">
-<div class="brand"><div class="brand-logo brand-logo-photo"><img src="/assets/zeus/brand.jpg" alt="Zeus" onerror="this.style.display='none'"/></div><div>ZeusAI<small>SOVEREIGN OS</small></div></div>
-<div class="nav-links">
-${L('/', 'Home')}${L('/services', 'Marketplace')}${L('/store', 'Instant Store')}${L('/enterprise', 'Enterprise')}${L('/pricing', 'Pricing')}${L('/how', 'How it works')}${L('/docs', 'API')}${L('/account', 'Account')}
+  return `<nav class="nav" data-nav-open="false">
+<div class="brand"><div class="brand-logo brand-logo-photo"><img src="/assets/zeus/brand.jpg" alt="Zeus" onerror="this.style.display='none'"/></div><div><span class="zeus-wordmark">Zeus<span class="ai">AI</span></span><small>Sovereign · Self-Evolving · Signed</small></div></div>
+<button class="nav-toggle" type="button" aria-label="Toggle navigation" aria-expanded="false" aria-controls="nav-links">
+  <span class="nav-toggle-bar"></span><span class="nav-toggle-bar"></span><span class="nav-toggle-bar"></span>
+</button>
+<div class="nav-links" id="nav-links">
+${L('/', 'Home')}${L('/services', 'Marketplace')}${L('/wizard', 'Find my plan')}${L('/store', 'Store')}${L('/account', 'Customer Portal')}${L('/enterprise', 'Enterprise')}${L('/pricing', 'Pricing')}${L('/innovations', 'Innovations')}${L('/frontier', 'Frontier')}${L('/docs', 'API')}${L('/status', 'Status')}
 </div>
 <div class="nav-cta">
 <div class="lang-switch" role="group" aria-label="Language">${langBtn('en','English')}${langBtn('ro','Română')}${langBtn('es','Español')}</div>
@@ -80,24 +84,44 @@ function footer(route, opts) {
 <footer>
   <div class="foot-grid">
     <div>
-      <div class="brand" style="margin-bottom:14px"><div class="brand-logo"></div><div>ZeusAI<small>SOVEREIGN OS</small></div></div>
+      <div class="brand" style="margin-bottom:14px"><div class="brand-logo"></div><div><span class="zeus-wordmark">Zeus<span class="ai">AI</span></span><small>Sovereign · Self-Evolving · Signed</small></div></div>
       <p style="color:var(--ink-dim);font-size:13.5px;line-height:1.6;max-width:360px">Autonomous AI operating system. Every module signed with W3C DID. Every outcome routed through Merkle-chained receipts. Property of ${OWNER.name}.</p>
     </div>
     <div><h5>Product</h5><ul>
       <li><a href="/services" data-link>Marketplace</a></li>
+      <li><a href="/wizard" data-link>Find my plan</a></li>
       <li><a href="/pricing" data-link>Pricing</a></li>
       <li><a href="/how" data-link>How it works</a></li>
       <li><a href="/dashboard" data-link>Dashboard</a></li>
+      <li><a href="/store" data-link>Instant Store</a></li>
+      <li><a href="/gift" data-link>Gift</a></li>
     </ul></div>
     <div><h5>Developers</h5><ul>
       <li><a href="/docs" data-link>API &amp; Docs</a></li>
+      <li><a href="/api-explorer" data-link>API Explorer</a></li>
+      <li><a href="/openapi.json">OpenAPI 3.1</a></li>
+      <li><a href="/seo/sitemap.xml">Sitemap</a></li>
       <li><a href="/snapshot">/snapshot</a></li>
       <li><a href="/stream">/stream (SSE)</a></li>
       <li><a href="/health">/health</a></li>
     </ul></div>
+    <div><h5>Trust</h5><ul>
+      <li><a href="/refund" data-link>Refund Guarantee</a></li>
+      <li><a href="/sla" data-link>SLA</a></li>
+      <li><a href="/pledge" data-link>Anti-Dark-Pattern Pledge</a></li>
+      <li><a href="/cancel" data-link>Universal Cancel</a></li>
+      <li><a href="/transparency" data-link>Bandit Transparency</a></li>
+      <li><a href="/aura" data-link>Live Aura</a></li>
+      <li><a href="/status" data-link>Live Status</a></li>
+      <li><a href="/innovations" data-link>30Y Innovations</a></li>
+      <li><a href="/frontier" data-link>Frontier (F1–F12)</a></li>
+    </ul></div>
     <div><h5>Company</h5><ul>
       <li><a href="/about" data-link>About</a></li>
+      <li><a href="/changelog" data-link>Changelog</a></li>
       <li><a href="/legal" data-link>Legal</a></li>
+      <li><a href="/terms" data-link>Terms</a></li>
+      <li><a href="/privacy" data-link>Privacy</a></li>
       <li><a href="mailto:${OWNER.email}">${OWNER.email}</a></li>
       <li><a href="${OWNER.domain}">${OWNER.domain.replace(/^https?:\/\//,'')}</a></li>
     </ul></div>
@@ -108,6 +132,7 @@ function footer(route, opts) {
   </div>
 </footer>
 ${concierge()}
+${globalChrome()}
 <noscript><div style="position:fixed;bottom:0;left:0;right:0;padding:14px 18px;background:#05040a;color:#e8f0ff;border-top:1px solid #3ea0ff;font:14px/1.4 system-ui;z-index:99">This site works fully without JavaScript. Cinematic effects are disabled in no-JS mode; all services, pricing and APIs remain reachable.</div></noscript>
 <script${N}>window.__UNICORN__=${JSON.stringify({ owner: OWNER, route })};</script>
 <script${N} data-local-three-version="r160">
@@ -133,10 +158,38 @@ ${concierge()}
     location.reload();
   }, false);
 })();
-// Service worker registration (offline-first)
+// Service worker registration (offline-first) + auto-refresh on new deploy
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', function(){
-    navigator.serviceWorker.register('/sw.js').catch(function(){});
+    navigator.serviceWorker.register('/sw.js').then(function(reg){
+      try { reg.update(); } catch(_){}
+      // When a new SW takes control, reload once so the user sees the latest assets.
+      var reloaded = false;
+      navigator.serviceWorker.addEventListener('controllerchange', function(){
+        if (reloaded) return; reloaded = true;
+        try { location.reload(); } catch(_){}
+      });
+      // Listen for explicit "sw-updated" broadcasts.
+      navigator.serviceWorker.addEventListener('message', function(ev){
+        try {
+          if (ev && ev.data && ev.data.type === 'sw-updated') {
+            if (reloaded) return; reloaded = true;
+            setTimeout(function(){ try { location.reload(); } catch(_){} }, 50);
+          }
+        } catch(_){}
+      });
+      // If a new worker is waiting, ask it to take over immediately.
+      if (reg.waiting) { try { reg.waiting.postMessage('skipWaiting'); } catch(_){} }
+      reg.addEventListener('updatefound', function(){
+        var nw = reg.installing;
+        if (!nw) return;
+        nw.addEventListener('statechange', function(){
+          if (nw.state === 'installed' && navigator.serviceWorker.controller) {
+            try { nw.postMessage('skipWaiting'); } catch(_){}
+          }
+        });
+      });
+    }).catch(function(){});
   });
 }
 // CSP violation reporter (defensive)
@@ -156,8 +209,8 @@ window.addEventListener('securitypolicyviolation', function(e){
   }catch(_){ }
 });
 </script>
-<script src="/assets/aeon.js" defer></script>
-<script src="/assets/app.js" defer></script>
+<script src="/assets/aeon.js?v=${BUILD_ID}" defer></script>
+<script src="/assets/app.js?v=${BUILD_ID}" defer></script>
 </body></html>`;
 }
 
@@ -185,6 +238,137 @@ function concierge() {
 }
 
 // ================== PAGES ==================
+
+function globalChrome() {
+  return `<div id="zeus-cookie" class="zeus-cookie" hidden>
+  <div class="zeus-cookie-text">We use only first-party, signed analytics — no trackers, no ad networks. <a href="/privacy" data-link>Privacy</a> · <a href="/pledge" data-link>Pledge</a>.</div>
+  <div class="zeus-cookie-cta"><button id="zeus-cookie-accept" class="btn btn-primary btn-sm">Accept</button><button id="zeus-cookie-deny" class="btn btn-ghost btn-sm">Deny</button></div>
+</div>
+<div id="zeus-buy-bar" class="zeus-buy-bar" hidden>
+  <div class="zeus-buy-text"><b>Ready to deploy ZeusAI?</b><span>30-day refund · BTC + Stripe + PayPal · cancel any time</span></div>
+  <div class="zeus-buy-cta"><a class="btn btn-ghost btn-sm" href="/wizard" data-link>Find my plan</a><a class="btn btn-primary btn-sm" href="/services" data-link>Buy now →</a></div>
+</div>
+<div id="zeus-exit" class="zeus-exit" hidden>
+  <div class="zeus-exit-card">
+    <button class="zeus-exit-x" id="zeus-exit-close" aria-label="Close">×</button>
+    <h3>Wait — get the founders' brief.</h3>
+    <p>One signed email per month: new inventions, sovereign primitives, refund-of-the-month. Unsubscribe in one click.</p>
+    <form id="zeus-exit-form" class="zeus-exit-form">
+      <input type="email" required placeholder="you@domain.com" id="zeus-exit-email"/>
+      <button class="btn btn-primary" type="submit">Send brief</button>
+    </form>
+    <small id="zeus-exit-msg" style="color:var(--ink-dim)"></small>
+  </div>
+</div>
+<script>
+(function(){
+  // Mobile nav hamburger toggle
+  try {
+    var navEl = document.querySelector('nav.nav');
+    var navBtn = document.querySelector('.nav-toggle');
+    var navLinks = document.getElementById('nav-links');
+    if (navEl && navBtn && navLinks){
+      var setOpen = function(open){
+        navEl.setAttribute('data-nav-open', open ? 'true':'false');
+        navBtn.setAttribute('aria-expanded', open ? 'true':'false');
+        document.documentElement.style.overflow = open ? 'hidden' : '';
+      };
+      navBtn.addEventListener('click', function(){
+        setOpen(navEl.getAttribute('data-nav-open') !== 'true');
+      });
+      navLinks.addEventListener('click', function(e){
+        if (e.target && e.target.tagName === 'A') setOpen(false);
+      });
+      // Close on resize to desktop
+      window.addEventListener('resize', function(){
+        if (window.innerWidth > 980) setOpen(false);
+      });
+      // Close on Esc
+      document.addEventListener('keydown', function(e){ if (e.key === 'Escape') setOpen(false); });
+    }
+  } catch(_){ }
+  // Cookie banner
+  try {
+    var c = document.getElementById('zeus-cookie');
+    if (c && !document.cookie.match(/zeus_consent=/)) c.hidden = false;
+    document.getElementById('zeus-cookie-accept').onclick = function(){ document.cookie='zeus_consent=1; path=/; max-age=31536000; samesite=lax'; c.hidden=true; };
+    document.getElementById('zeus-cookie-deny').onclick = function(){ document.cookie='zeus_consent=0; path=/; max-age=31536000; samesite=lax'; c.hidden=true; };
+  } catch(_){ }
+  // Live aura strip — pull every 30s
+  function pullAura(){
+    try {
+      fetch('/api/aura').then(function(r){return r.json();}).then(function(j){
+        var t = document.getElementById('zeus-aura-text'); if (!t) return;
+        var k = j && j.kpis ? j.kpis : {};
+        var bits = [];
+        if (k.signedReceipts != null) bits.push(k.signedReceipts + ' signed receipts');
+        if (k.refundsHonored != null) bits.push(k.refundsHonored + ' refunds honored');
+        if (k.uptime != null) bits.push(k.uptime + ' uptime');
+        if (k.activeCarts != null) bits.push(k.activeCarts + ' live carts');
+        t.textContent = bits.length ? bits.join(' · ') : 'sovereign · self-evolving · signed';
+      }).catch(function(){});
+    } catch(_){ }
+  }
+  pullAura(); setInterval(pullAura, 30000);
+  // Sticky buy bar — shown after scroll on home/services/pricing
+  try {
+    var route = (document.documentElement.getAttribute('data-route')||'/');
+    var bar = document.getElementById('zeus-buy-bar');
+    if (bar && /^\/(?:|services|pricing|how|frontier)$/.test(route)) {
+      window.addEventListener('scroll', function(){ if (scrollY > 320) bar.hidden = false; }, { passive:true });
+    }
+  } catch(_){ }
+  // Exit-intent popup
+  try {
+    var seen = sessionStorage.getItem('zeus_exit_seen');
+    var modal = document.getElementById('zeus-exit');
+    if (modal) modal.hidden = true; // ensure hidden on boot regardless of CSS races
+    var armed = false; setTimeout(function(){ armed = true; }, 20000); // require 20s on page first
+    function show(){ if (modal && !seen && armed){ modal.hidden=false; sessionStorage.setItem('zeus_exit_seen','1'); } }
+    document.addEventListener('mouseleave', function(e){ if (e.clientY <= 4) show(); });
+    if (modal) {
+      document.getElementById('zeus-exit-close').onclick = function(){ modal.hidden = true; };
+      document.getElementById('zeus-exit-form').onsubmit = function(ev){
+        ev.preventDefault();
+        var email = document.getElementById('zeus-exit-email').value.trim();
+        var msg = document.getElementById('zeus-exit-msg');
+        fetch('/api/newsletter/subscribe', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ email: email, source: 'exit-intent', route: location.pathname })})
+          .then(function(r){return r.json();}).then(function(j){ msg.textContent = j && j.ok ? '✓ Signed brief queued — check inbox.' : 'Something failed, please retry.'; if (j && j.ok) setTimeout(function(){modal.hidden=true;}, 1800); })
+          .catch(function(){ msg.textContent = 'Network error.'; });
+      };
+    }
+  } catch(_){ }
+  // Track pageview
+  try {
+    fetch('/api/track', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ event:'pageview', route: location.pathname, ref: document.referrer || '' }) }).catch(function(){});
+  } catch(_){ }
+})();
+</script>
+<style>
+.zeus-cookie{position:fixed;left:18px;right:18px;bottom:18px;z-index:90;background:rgba(8,10,18,.94);backdrop-filter:blur(18px);border:1px solid rgba(120,140,200,.25);border-radius:14px;padding:12px 16px;display:flex;gap:14px;align-items:center;flex-wrap:wrap;font:13.5px/1.5 system-ui;color:#cdd6e4;box-shadow:0 14px 40px rgba(0,0,0,.5)}
+.zeus-cookie-text{flex:1;min-width:240px}.zeus-cookie-cta{display:flex;gap:8px}
+.zeus-aura-strip{position:fixed;left:14px;top:74px;z-index:60;background:rgba(8,10,18,.7);backdrop-filter:blur(12px);border:1px solid rgba(120,140,200,.18);border-radius:999px;padding:6px 12px;font:12px/1 'JetBrains Mono',monospace;color:#cdd6e4;display:none;align-items:center;gap:8px}
+@media (min-width: 920px){.zeus-aura-strip{display:inline-flex}}
+.zeus-aura-strip .dot{width:8px;height:8px;border-radius:50%;background:#3effa1;box-shadow:0 0 12px #3effa1;animation:zpulse 1.4s ease-in-out infinite}
+.zeus-aura-more{color:#7aa9ff;text-decoration:none;margin-left:4px}
+@keyframes zpulse{0%,100%{opacity:.7}50%{opacity:1}}
+.zeus-buy-bar{position:fixed;left:0;right:0;bottom:0;z-index:80;background:linear-gradient(180deg,rgba(8,10,18,0),rgba(5,4,10,.96) 40%);padding:12px 18px;display:flex;gap:16px;align-items:center;justify-content:space-between;border-top:1px solid rgba(120,140,200,.18);font:14px/1.4 system-ui;color:#e7ecf3}
+.zeus-buy-text b{display:block;font-size:14.5px}.zeus-buy-text span{color:#9aa6bd;font-size:12.5px}
+.zeus-buy-cta{display:flex;gap:8px}
+.btn-sm{padding:8px 14px;font-size:13px}
+[hidden]{display:none !important}
+.zeus-exit{position:fixed;inset:0;z-index:120;background:rgba(0,0,0,.7);backdrop-filter:blur(6px);display:flex;align-items:center;justify-content:center;padding:18px}
+.zeus-exit[hidden]{display:none !important}
+.zeus-buy-bar[hidden]{display:none !important}
+.zeus-cookie[hidden]{display:none !important}
+.zeus-exit-card{background:#0a0c14;border:1px solid rgba(120,140,200,.25);border-radius:18px;padding:28px;max-width:460px;width:100%;color:#e7ecf3;position:relative}
+.zeus-exit-card h3{margin:0 0 8px;font-size:22px}
+.zeus-exit-card p{color:#9aa6bd;margin:0 0 14px;font-size:14px;line-height:1.55}
+.zeus-exit-form{display:flex;gap:8px;flex-wrap:wrap}
+.zeus-exit-form input{flex:1;min-width:180px;padding:11px 14px;background:#0b0f17;border:1px solid #1f2a3b;color:#e7ecf3;border-radius:10px;font:14px system-ui}
+.zeus-exit-x{position:absolute;top:12px;right:14px;background:transparent;border:0;color:#9aa6bd;font-size:24px;cursor:pointer}
+</style>`;
+}
 
 function pageHome() {
   return `<section class="hero">
@@ -217,6 +401,51 @@ function pageHome() {
         <div class="hero-stat"><b id="statMarkets">41</b><span>Marketplaces</span></div>
         <div class="hero-stat"><b id="statChain">—</b><span>Chain length</span></div>
       </div>
+    </div>
+  </div>
+</section>
+
+<section id="commerceProof">
+  <div class="section-title">
+    <div><span class="kicker">Live commerce proof · 25 Apr 2026</span><h2>Tot ce am adăugat azi este <span class="grad">legat în site.</span></h2></div>
+    <p>Nu doar API-uri ascunse: catalogul, checkout-ul BTC/BTCPay-ready, livrarea automată, portalul client și cockpit-ul admin sunt acum vizibile și testabile direct din interfață.</p>
+  </div>
+  <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(245px,1fr));gap:14px">
+    <div class="card" style="border-color:rgba(255,211,106,.42)">
+      <span class="tag" style="background:rgba(255,211,106,.15);color:var(--gold)">Master Catalog</span>
+      <h3 id="commerceProofCatalog">95 live products</h3>
+      <p>Strategic services + Frontier + Vertical OS + AI modules. Deterministic fallback keeps CI/live smoke above 65.</p>
+      <a class="btn btn-primary" href="/services" data-link>Open catalog →</a>
+    </div>
+    <div class="card" style="border-color:rgba(247,147,26,.45)">
+      <span class="tag" style="background:rgba(247,147,26,.15);color:#f7931a">BTC / BTCPay</span>
+      <h3 id="commerceProofBtcProvider">Checking payment rail…</h3>
+      <p>Creates a real receipt, exact BTC amount, owner wallet fallback, and BTCPay checkout URL when env is configured.</p>
+      <a class="btn btn-primary" href="/checkout?plan=adaptive-ai&amount=49" data-link>Test checkout →</a>
+    </div>
+    <div class="card" style="border-color:rgba(110,231,183,.42)">
+      <span class="tag" style="background:rgba(110,231,183,.16);color:#6ee7b7">Delivery Registry</span>
+      <h3 id="commerceProofDelivery">serviceId → deliver()</h3>
+      <p>Paid orders generate real deliverables: API key, workspace, task, webhook secret, report, onboarding and license.</p>
+      <a class="btn btn-ghost" href="/docs" data-link>See API docs →</a>
+    </div>
+    <div class="card" style="border-color:rgba(138,92,255,.42)">
+      <span class="tag" style="background:rgba(138,92,255,.16);color:var(--violet2)">Customer Portal</span>
+      <h3>Orders · licenses · downloads</h3>
+      <p>Email account access for orders, active services, API keys, pending payments, invoices and deliverable downloads.</p>
+      <a class="btn btn-primary" href="/account" data-link>Open portal →</a>
+    </div>
+    <div class="card" style="border-color:rgba(255,120,160,.42)">
+      <span class="tag" style="background:rgba(255,120,160,.16);color:#ff9cbe">Admin Commerce</span>
+      <h3 id="commerceProofAdmin">Refund protected</h3>
+      <p>Admin endpoints cover receipts, paid/unpaid, manual confirm, refund, resend license and retry delivery.</p>
+      <a class="btn btn-ghost" href="/admin" data-link>Admin login →</a>
+    </div>
+    <div class="card" style="border-color:rgba(62,160,255,.42)">
+      <span class="tag" style="background:rgba(62,160,255,.16);color:#6fd3ff">Live Smoke</span>
+      <h3 id="commerceProofSmoke">EXPECTED_MIN_CATALOG_ITEMS=65</h3>
+      <p>Post-deploy smoke validates catalog, checkout, confirmation, license, delivery, refund protection and cleanup.</p>
+      <a class="btn btn-ghost" href="/health">Health JSON →</a>
     </div>
   </div>
 </section>
@@ -363,25 +592,31 @@ function pageHome() {
 function pageServices() {
   return `<section style="padding-top:140px">
   <div class="section-title">
-    <div><span class="kicker">Marketplace</span><h2>Every ZeusAI service, <span class="grad">one sovereign storefront.</span></h2></div>
-    <p>All services below are synced live from the ZeusAI backend. Buy with BTC or PayPal — activation is automatic and cryptographically receipted.</p>
+    <div><span class="kicker">Marketplace · Master Catalog</span><h2>Every ZeusAI deliverable, <span class="grad">one sovereign storefront.</span></h2></div>
+    <p>Strategic services + Frontier inventions + Vertical OSes + Adaptive AI modules — all live from the ZeusAI fabric. Buy any item directly in BTC. Receipt is Ed25519-signed and revenue routes 100% to the owner wallet.</p>
   </div>
   <div class="card" style="margin:16px 0 22px;background:linear-gradient(135deg,rgba(247,147,26,.10),rgba(127,90,240,.10));border:1px solid rgba(247,147,26,.45)">
     <div style="display:flex;flex-wrap:wrap;gap:18px;align-items:center;justify-content:space-between">
       <div style="flex:1;min-width:280px">
-        <span class="kicker">₿ Native Bitcoin commerce</span>
-        <h3 style="margin:8px 0;font-size:22px">Pay any service direct in BTC. No middleman. Instant signed receipt.</h3>
-        <p style="color:var(--ink-dim);margin:0;font-size:14px">Owner wallet routes 100% of revenue. Each invoice generates an Ed25519 receipt + on-chain proof.</p>
+        <span class="kicker">₿ Native Bitcoin commerce · zero custodian</span>
+        <h3 style="margin:8px 0;font-size:22px">Pay any service direct in BTC. <span id="catBtcSpot" style="color:var(--gold);font-family:var(--mono);font-size:14px">live rate loading…</span></h3>
+        <p style="color:var(--ink-dim);margin:0;font-size:14px">Owner wallet routes 100% of revenue. Each invoice generates an Ed25519 receipt + on-chain proof via mempool.space.</p>
         <div class="btc-addr" id="svcHeroBtcAddr" data-copy="${OWNER.btc}" title="Click to copy">${OWNER.btc}</div>
       </div>
-      <div style="display:flex;flex-direction:column;gap:8px;min-width:180px">
+      <div style="display:flex;flex-direction:column;gap:8px;min-width:200px">
+        <div id="catCounts" style="font-size:12px;color:var(--ink-dim);text-align:right;font-family:var(--mono)">Loading catalog…</div>
         <a class="btn btn-primary" href="/checkout?plan=custom&amount=99" data-link>Quick BTC checkout →</a>
-        <a class="btn" href="/api/commerce/health" target="_blank" rel="noopener" style="font-size:12px">Verify commerce engine</a>
       </div>
     </div>
   </div>
-  <div class="filters" id="svcFilters"></div>
-  <div class="grid" id="servicesGrid"><div class="card"><p>Loading…</p></div></div>
+  <div class="filters" id="catFilters">
+    <button class="chip on" data-group="all">All</button>
+    <button class="chip" data-group="strategic">Strategic</button>
+    <button class="chip" data-group="frontier">Frontier · 12 Inventions</button>
+    <button class="chip" data-group="vertical">Vertical OS · 18</button>
+    <button class="chip" data-group="marketplace">AI Modules</button>
+  </div>
+  <div class="grid" id="catalogGrid" style="grid-template-columns:repeat(auto-fill,minmax(300px,1fr))"><div class="card"><p>Loading every Unicorn deliverable…</p></div></div>
 </section>`;
 }
 
@@ -571,6 +806,10 @@ function pageDocs() {
       <tr><td><code class="inline">POST</code></td><td><code class="inline">/api/checkout/paypal</code></td><td>Create PayPal link + signed receipt</td></tr>
       <tr><td><code class="inline">POST</code></td><td><code class="inline">/api/payments/btc/confirm</code></td><td>Confirm BTC payment settlement</td></tr>
       <tr><td><code class="inline">POST</code></td><td><code class="inline">/api/payments/paypal/confirm</code></td><td>Confirm PayPal capture/settlement</td></tr>
+      <tr><td><code class="inline">GET</code></td><td><code class="inline">/api/delivery/:receiptId</code></td><td>Delivery registry package: API key, workspace, report, onboarding, downloads</td></tr>
+      <tr><td><code class="inline">GET</code></td><td><code class="inline">/api/customer/me</code></td><td>Customer portal: orders, licenses, services, pending payments, deliverables</td></tr>
+      <tr><td><code class="inline">GET</code></td><td><code class="inline">/api/admin/commerce</code></td><td>Protected commerce cockpit: receipts, paid/unpaid, delivery state</td></tr>
+      <tr><td><code class="inline">POST</code></td><td><code class="inline">/api/admin/commerce/refund</code></td><td>Protected refund action for paid/pending receipts</td></tr>
       <tr><td><code class="inline">GET</code></td><td><code class="inline">/api/security/pq/status</code></td><td>Post-quantum readiness + payment confirmation security mode</td></tr>
       <tr><td><code class="inline">GET</code></td><td><code class="inline">/api/future/standard</code></td><td>30-year readiness manifest and architecture guarantees</td></tr>
       <tr><td><code class="inline">GET</code></td><td><code class="inline">/api/evolution/loop</code></td><td>Autonomous optimization loop status + guardrails</td></tr>
@@ -690,13 +929,28 @@ function renderRoute(route, params = {}) {
     case '/legal': return pageLegal();
     case '/enterprise': return pageEnterprise();
     case '/store': return pageStore();
+    case '/innovations': return pageInnovations();
     case '/account': return pageAccount();
     case '/admin/services': return pageAdminServices();
     case '/admin': return pageAdminLogin();
     case '/admin/login': return pageAdminLogin();
+    case '/wizard': return pageWizard();
+    case '/status': return pageStatus();
+    case '/changelog': return pageChangelog();
+    case '/terms': return pageTerms();
+    case '/privacy': return pagePrivacy();
+    case '/refund': return pageRefund();
+    case '/sla': return pageSla();
+    case '/pledge': return pagePledge();
+    case '/cancel': return pageCancel();
+    case '/gift': return pageGift();
+    case '/aura': return pageAura();
+    case '/api-explorer': return pageApiExplorer();
+    case '/transparency': return pageTransparency();
+    case '/frontier': return pageFrontier();
     default:
       if (route.startsWith('/services/')) return pageService(params.id || route.slice(10));
-      return pageHome();
+      return pageNotFound(route);
   }
 }
 
@@ -753,10 +1007,377 @@ function pageAdminServices() {
 </section>`;
 }
 
+function pageInnovations() {
+  return `<section class="section">
+  <div class="container">
+    <h1 class="h1">30-Year Cryptographic Durability</h1>
+    <p class="lead" style="max-width:880px">Twelve sovereign primitives that make every action provable for the next three decades — quantum-safe signatures, Bitcoin-anchored Merkle receipts, a public AI constitution, and a 4-of-7 Shamir time capsule.</p>
+
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:14px;margin:22px 0">
+      <div class="card" style="padding:18px"><span class="tag">Constitution</span><h3 id="invConHash" style="margin:8px 0;font-family:monospace">…</h3><p style="color:var(--ink-dim);font-size:13.5px">Public, hashed, signed. Every response carries <code class="inline">X-Constitution-Hash</code>.</p><a href="/api/constitution" class="btn" style="margin-top:8px">View</a></div>
+      <div class="card" style="padding:18px"><span class="tag">Today's Merkle root</span><h3 id="invRoot" style="margin:8px 0;font-family:monospace;font-size:14px">…</h3><p style="color:var(--ink-dim);font-size:13.5px"><span id="invRootCount">0</span> receipts · OP_RETURN-ready · published daily</p><a href="/api/receipts/root" class="btn" style="margin-top:8px">JSON</a></div>
+      <div class="card" style="padding:18px"><span class="tag">BTC TWAP (5-source median)</span><h3 id="invTwap" style="margin:8px 0">$…</h3><p style="color:var(--ink-dim);font-size:13.5px">Kraken · Coinbase · Bitstamp · Binance · OKX</p><a href="/api/btc/twap" class="btn" style="margin-top:8px">Live JSON</a></div>
+      <div class="card" style="padding:18px"><span class="tag">Quantum-safe signing</span><h3 style="margin:8px 0">Ed25519 + ML-DSA-65</h3><p style="color:var(--ink-dim);font-size:13.5px">FIPS 204 hybrid. 3309-byte PQ signature on every daily root.</p></div>
+      <div class="card" style="padding:18px"><span class="tag">Reproducible SBOM</span><h3 id="invSbom" style="margin:8px 0;font-family:monospace;font-size:14px">…</h3><p style="color:var(--ink-dim);font-size:13.5px">sha3-256 over critical sources · public composite hash</p><a href="/api/sbom" class="btn" style="margin-top:8px">View</a></div>
+      <div class="card" style="padding:18px"><span class="tag">Permanent archive manifest</span><h3 style="margin:8px 0">Archive snapshot</h3><p style="color:var(--ink-dim);font-size:13.5px">Daily root + constitution + SBOM + PQ pubkey, ready for Archive.org / Arweave anchoring.</p><a href="/api/innovations/archive" class="btn" style="margin-top:8px">Manifest</a></div>
+    </div>
+
+    <h2 style="margin-top:32px">Model registry &amp; provenance</h2>
+    <div class="card" style="padding:0;overflow:hidden;margin-top:14px">
+      <table style="width:100%;border-collapse:collapse;font-size:14px"><thead><tr style="background:#0b0f17"><th style="text-align:left;padding:12px">Model</th><th style="text-align:left;padding:12px">Family</th><th style="text-align:left;padding:12px">Provenance</th><th style="text-align:left;padding:12px">SHA-256</th></tr></thead><tbody id="invModels"><tr><td colspan="4" style="padding:14px;color:var(--ink-dim)">Loading…</td></tr></tbody></table>
+    </div>
+
+    <h2 style="margin-top:32px">Sealed incidents (commit-reveal)</h2>
+    <p style="color:var(--ink-dim);font-size:14px;max-width:780px">Every incident is committed encrypted at occurrence time and revealed automatically after the time-lock expires. No incident can be deleted or rewritten.</p>
+    <div id="invIncidents" class="card" style="padding:18px;margin-top:12px;font-size:14px;color:var(--ink-dim)">Loading…</div>
+
+    <h2 style="margin-top:32px">All public endpoints</h2>
+    <ul style="color:var(--ink-dim);font-size:14px;line-height:2;list-style:none;padding:0">
+      <li><code class="inline">GET /api/constitution</code> — full text + hash + signature</li>
+      <li><code class="inline">GET /api/innovations/status</code> — overview JSON</li>
+      <li><code class="inline">GET /api/innovations/archive</code> — permanent archive manifest</li>
+      <li><code class="inline">GET /.well-known/ai-attestation</code> — discovery endpoint for crawlers</li>
+      <li><code class="inline">GET /api/btc/twap</code> — 5-source median, 60s TTL</li>
+      <li><code class="inline">GET /api/sbom</code> — reproducible build manifest</li>
+      <li><code class="inline">GET /api/incidents</code> — public sealed incident list</li>
+      <li><code class="inline">GET /api/audit/me</code> — your personal Merkle audit log</li>
+      <li><code class="inline">GET /api/receipts/root</code> — today's signed Merkle root</li>
+      <li><code class="inline">GET /api/receipts/proof/:id</code> — inclusion proof for any receipt</li>
+      <li><code class="inline">POST /api/innovations/receipt</code> — append a receipt</li>
+      <li><code class="inline">POST /api/innovations/roll-root</code> — finalize today's root</li>
+    </ul>
+
+    <h2 style="margin-top:42px">Second batch · 15 more primitives <span class="tag" style="margin-left:8px">v2</span></h2>
+    <p style="color:var(--ink-dim);max-width:880px">ZK-friendly commitments, threshold key bootstrap, federated learning aggregator, verifiable random &amp; delay functions, k-anonymity analytics, censorship-resistant relay descriptor, signed reputation graph, GDPR/SOC2 self-attestation, DR drill ledger, carbon ledger, bug-bounty escrow, decentralized identity (did:web + did:key).</p>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:14px;margin:18px 0">
+      <div class="card" style="padding:18px"><span class="tag">DID Document</span><h3 style="margin:8px 0;font-size:15px">did:web:zeusai.pro</h3><p style="color:var(--ink-dim);font-size:13.5px">W3C-compliant decentralized identity at <code class="inline">/.well-known/did.json</code></p><a href="/.well-known/did.json" class="btn" style="margin-top:8px">View</a></div>
+      <div class="card" style="padding:18px"><span class="tag">Compliance attestation</span><h3 id="invCompHash" style="margin:8px 0;font-family:monospace;font-size:14px">…</h3><p style="color:var(--ink-dim);font-size:13.5px">GDPR · SOC2 · ISO27001 self-attestation, hashed + signed</p><a href="/api/compliance/attestation" class="btn" style="margin-top:8px">View</a></div>
+      <div class="card" style="padding:18px"><span class="tag">Carbon ledger</span><h3 id="invCarbon" style="margin:8px 0;font-size:18px">…</h3><p style="color:var(--ink-dim);font-size:13.5px">Daily attestations, signed gCO₂ entries</p><a href="/api/v2/carbon/attest" class="btn" style="margin-top:8px">Today</a></div>
+      <div class="card" style="padding:18px"><span class="tag">Bug bounty</span><h3 id="invBounty" style="margin:8px 0">$…</h3><p style="color:var(--ink-dim);font-size:13.5px">Public open-bounty escrow ledger</p><a href="/api/v2/bounty/total" class="btn" style="margin-top:8px">List</a></div>
+      <div class="card" style="padding:18px"><span class="tag">Relay descriptor</span><h3 style="margin:8px 0;font-size:15px">HTTPS · Tor · Nostr · IPFS</h3><p style="color:var(--ink-dim);font-size:13.5px">Censorship-resistant transports advertised publicly</p><a href="/api/v2/relay" class="btn" style="margin-top:8px">View</a></div>
+      <div class="card" style="padding:18px"><span class="tag">VRF · VDF</span><h3 style="margin:8px 0;font-size:15px">Provable randomness &amp; time-locks</h3><p style="color:var(--ink-dim);font-size:13.5px">HMAC-VRF for fair lotteries · iterated-SHA256 VDF for sealed reveals</p></div>
+      <div class="card" style="padding:18px"><span class="tag">DR drills</span><h3 id="invDR" style="margin:8px 0">…</h3><p style="color:var(--ink-dim);font-size:13.5px">Signed disaster-recovery drill ledger</p><a href="/api/v2/dr/list" class="btn" style="margin-top:8px">History</a></div>
+      <div class="card" style="padding:18px"><span class="tag">v2 Status</span><h3 style="margin:8px 0;font-size:15px">15 primitives · 28 endpoints</h3><p style="color:var(--ink-dim);font-size:13.5px">Full feature inventory + counters</p><a href="/api/v2/status" class="btn" style="margin-top:8px">Status JSON</a></div>
+    </div>
+    <details style="margin-top:18px"><summary style="cursor:pointer;color:var(--ink-dim);font-size:14px">All v2 endpoints (28)</summary>
+    <ul style="color:var(--ink-dim);font-size:13px;line-height:1.9;list-style:none;padding:12px 0 0 0">
+      <li><code class="inline">GET  /api/v2/status</code> — feature inventory</li>
+      <li><code class="inline">GET  /.well-known/did.json</code> — W3C DID document</li>
+      <li><code class="inline">GET  /api/compliance/attestation</code> — GDPR/SOC2 attestation</li>
+      <li><code class="inline">GET  /api/v2/relay</code> — relay descriptor</li>
+      <li><code class="inline">GET  /api/v2/carbon/attest</code> — daily gCO₂ attest</li>
+      <li><code class="inline">GET  /api/v2/bounty/total · /list</code></li>
+      <li><code class="inline">GET  /api/v2/dr/list</code></li>
+      <li><code class="inline">GET  /api/v2/fl/rounds</code></li>
+      <li><code class="inline">GET  /api/v2/threshold/list</code></li>
+      <li><code class="inline">GET  /api/v2/reputation/:did</code></li>
+      <li><code class="inline">GET  /api/v2/did/self · /api/v2/did/resolve/:did</code></li>
+      <li><code class="inline">GET  /api/v2/bucket/take/:key</code> — token bucket</li>
+      <li><code class="inline">POST /api/v2/zk/commit · /verify</code></li>
+      <li><code class="inline">POST /api/v2/threshold/keygen</code></li>
+      <li><code class="inline">POST /api/v2/fl/submit · /close</code></li>
+      <li><code class="inline">POST /api/v2/vrf/prove · /verify</code></li>
+      <li><code class="inline">POST /api/v2/vdf/eval · /verify</code></li>
+      <li><code class="inline">POST /api/v2/reputation</code></li>
+      <li><code class="inline">POST /api/v2/dr/record</code></li>
+      <li><code class="inline">POST /api/v2/carbon/record</code></li>
+      <li><code class="inline">POST /api/v2/bounty/add</code></li>
+    </ul>
+    </details>
+  </div>
+  <script>
+  (async function(){
+    const $ = (id) => document.getElementById(id);
+    try { const s = await (await fetch('/api/innovations/status')).json();
+      $('invConHash').textContent = (s.constitution && s.constitution.hashShort) || '—';
+      if (s.models) $('invModels').innerHTML = s.models.map(m =>
+        '<tr style="border-top:1px solid #1f2a3b"><td style="padding:12px">'+m.id+' · v'+m.version+'</td><td style="padding:12px">'+m.family+'</td><td style="padding:12px">'+(m.provenance||'—')+'</td><td style="padding:12px;font-family:monospace;font-size:12px">'+(m.sha256||'').slice(0,16)+'…</td></tr>').join('');
+    } catch(e) { $('invConHash').textContent='offline'; }
+    try { const r = await (await fetch('/api/receipts/root')).json();
+      if (r && r.root) { $('invRoot').textContent = r.root.slice(0,24)+'…'; $('invRootCount').textContent = r.count || 0; }
+      else { $('invRoot').textContent = 'pending first roll'; }
+    } catch(e) {}
+    try { const t = await (await fetch('/api/btc/twap')).json();
+      $('invTwap').textContent = '$' + (t.twapUsd ? Number(t.twapUsd).toLocaleString(undefined,{maximumFractionDigits:0}) : '—');
+    } catch(e) { $('invTwap').textContent = 'offline'; }
+    try { const sb = await (await fetch('/api/sbom')).json();
+      $('invSbom').textContent = (sb.compositeHash||'').slice(0,24)+'…';
+    } catch(e) {}
+    try { const inc = await (await fetch('/api/incidents')).json();
+      if (!inc || !inc.length) { $('invIncidents').textContent = '✓ No incidents on record. Constitutional integrity nominal.'; }
+      else { $('invIncidents').innerHTML = inc.map(i => '<div style="padding:8px 0;border-bottom:1px solid #1f2a3b"><strong>'+i.incidentId.slice(0,20)+'</strong> · '+i.status+' · sealed '+(i.sealedAt||'').slice(0,10)+'</div>').join(''); }
+    } catch(e) {}
+    // v2 cards
+    try { const ca = await (await fetch('/api/compliance/attestation')).json(); $('invCompHash').textContent = (ca.hash||'').slice(0,24)+'…'; } catch(e) {}
+    try { const co = await (await fetch('/api/v2/carbon/attest')).json(); $('invCarbon').textContent = (co.totalGCO2||0).toFixed(4)+' gCO₂ today'; } catch(e) {}
+    try { const bt = await (await fetch('/api/v2/bounty/total')).json(); $('invBounty').textContent = '$'+(bt.totalUsd||0).toLocaleString()+' · '+(bt.open||0)+' open'; } catch(e) {}
+    try { const dr = await (await fetch('/api/v2/dr/list')).json(); $('invDR').textContent = (dr.count||0)+' drill'+(dr.count===1?'':'s')+(dr.last ? ' · last RTO '+dr.last.rtoSeconds+'s' : ''); } catch(e) {}
+  })();
+  </script>
+</section>`;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// FRONTIER PAGES — autonomous sales fabric + 12 sovereign inventions
+// ═══════════════════════════════════════════════════════════════════════════
+function pageWizard() {
+  return `<section style="padding-top:140px;max-width:880px">
+  <span class="kicker">Plan wizard · 30s</span>
+  <h1 style="font-size:clamp(34px,4.4vw,56px);margin:10px 0 12px;line-height:1.05">Find your <span class="grad">perfect ZeusAI plan</span> in 30 seconds.</h1>
+  <p style="color:var(--ink-dim);font-size:16px;line-height:1.6;max-width:680px">Four questions. Deterministic, explainable scoring. Every recommendation signed Ed25519 — you can verify it.</p>
+  <div class="card" id="wizCard" style="padding:28px;margin-top:22px">
+    <div class="field"><label>1 · Company size</label>
+      <select id="wizSegment"><option value="startup">Startup / Solo</option><option value="company">Scaling company</option><option value="enterprise">Enterprise</option></select></div>
+    <div class="field"><label>2 · Monthly volume</label>
+      <select id="wizVolume"><option value="low">Low (&lt; 100k operations)</option><option value="medium">Medium (100k-5M)</option><option value="high">High (&gt; 5M)</option></select></div>
+    <div class="field"><label>3 · Monthly budget (USD)</label>
+      <input id="wizBudget" type="number" min="0" step="50" value="499"></div>
+    <div class="field"><label>4 · Primary goal</label>
+      <select id="wizGoal"><option value="automation">Automation</option><option value="revenue">Revenue growth</option><option value="cost">Cost reduction</option><option value="compliance">Compliance / Sovereignty</option></select></div>
+    <button class="btn btn-primary" id="wizBtn" style="width:100%;justify-content:center">Recommend my plan →</button>
+    <div id="wizOut" style="margin-top:18px"></div>
+  </div>
+  <script>
+  document.getElementById('wizBtn').addEventListener('click', async () => {
+    const out = document.getElementById('wizOut'); out.innerHTML = '<p style="color:var(--ink-dim)">Computing…</p>';
+    const body = { segment: wizSegment.value, volume: wizVolume.value, budget: Number(wizBudget.value)||0, goal: wizGoal.value };
+    try {
+      const r = await fetch('/api/wizard/recommend', { method:'POST', headers:{ 'Content-Type':'application/json' }, body: JSON.stringify(body) });
+      const d = await r.json();
+      const winner = d.plan.toUpperCase();
+      out.innerHTML = '<div class="card" style="border-color:var(--violet);padding:22px"><span class="kicker">Recommended</span><h2 style="margin:8px 0">'+winner+' · $'+d.cta.amount+'</h2><p style="color:var(--ink-dim)">Top services for you: '+d.services.map(s=>'<code class="inline">'+s+'</code>').join(' ')+'</p><a class="btn btn-primary" href="'+d.cta.url+'" data-link>Buy '+winner+' now →</a><a class="btn" href="/pricing" data-link style="margin-left:8px">See all plans</a><details style="margin-top:14px"><summary style="cursor:pointer;color:var(--ink-dim);font-size:13px">Why this plan? (signed reasoning)</summary><pre class="code">'+JSON.stringify({ ranked: d.ranked, explain: d.explain, signedAt: d.signedAt, signature: d.signature.slice(0,32)+'…' }, null, 2)+'</pre></details></div>';
+    } catch (e) { out.innerHTML = '<p style="color:var(--danger)">Error: '+e.message+'</p>'; }
+  });
+  </script>
+</section>`;
+}
+
+function pageStatus() {
+  return `<section style="padding-top:140px;max-width:1100px">
+  <span class="kicker">Live status</span>
+  <h1 style="font-size:clamp(34px,4.4vw,56px);margin:10px 0 18px">All systems <span id="stHeadline" class="grad">operational.</span></h1>
+  <p style="color:var(--ink-dim);font-size:15px">Live, signed status. Source: <code class="inline">/api/status</code>. Refreshes every 15s.</p>
+  <div class="grid" id="stGrid" style="margin-top:22px"><div class="card"><p>Loading…</p></div></div>
+  <div class="card" style="margin-top:22px;padding:22px"><span class="kicker">90-day uptime</span><h2 id="stUptime" style="margin:8px 0">—</h2><p style="color:var(--ink-dim)">Synthetic checks every 60s. Incidents publicly sealed (commit-reveal).</p><a class="btn" href="/api/incidents" target="_blank">Public incident log</a></div>
+  <script>
+  async function loadStatus(){
+    try { const d = await (await fetch('/api/status')).json();
+      document.getElementById('stHeadline').textContent = d.overall + '.';
+      document.getElementById('stUptime').textContent = d.uptime90d + '%';
+      document.getElementById('stGrid').innerHTML = d.components.map(c => '<div class="card"><span class="tag" style="background:rgba(59,255,176,.15);color:#3bffb0">'+c.status+'</span><h3>'+c.name+'</h3><p style="color:var(--ink-dim)">Latency: <b>'+c.latencyMs+'ms</b></p></div>').join('');
+    } catch(e) {}
+  }
+  loadStatus(); setInterval(loadStatus, 15000);
+  </script>
+</section>`;
+}
+
+function pageChangelog() {
+  return `<section style="padding-top:140px;max-width:880px">
+  <span class="kicker">Changelog</span>
+  <h1 style="font-size:clamp(34px,4.4vw,56px);margin:10px 0 22px">What's <span class="grad">new.</span></h1>
+  <div class="card" style="padding:22px;margin-bottom:14px"><span class="tag">2026-04-25</span><h3>Frontier Engine v1.0 · 12 sovereign inventions</h3><p style="color:var(--ink-dim)">Crypto refund guarantee, live aura, outcome-anchored pricing, self-healing checkout, time-locked discounts, sovereign receipt NFTs, provable email delivery, gift-as-capability, anti-dark-pattern pledge, universal cancel, bandit transparency, carbon-inclusive checkout. + cart engine, coupons, leads, API keys, OpenAPI 3.1, sitemap.xml, plan wizard.</p></div>
+  <div class="card" style="padding:22px;margin-bottom:14px"><span class="tag">2026-04-24</span><h3>30Y Innovations v2 · 15 more primitives</h3><p style="color:var(--ink-dim)">ZK commitments, threshold keys, federated learning, VRF, VDF, k-anon analytics, relay descriptor, reputation graph, compliance attestation, DR drills, carbon ledger, bug bounty escrow, did:web + did:key.</p></div>
+  <div class="card" style="padding:22px;margin-bottom:14px"><span class="tag">2026-04-23</span><h3>30Y Innovations v1 · cryptographic durability</h3><p style="color:var(--ink-dim)">ML-DSA-65 hybrid signing, BTC-anchored Merkle receipts, public AI constitution, 4-of-7 Shamir time capsule, reproducible SBOM, sealed incident commit-reveal.</p></div>
+</section>`;
+}
+
+function pageTerms()   { return _legalSub('Terms of Service', 'By using ZeusAI you agree that all outputs, telemetry and receipts are honestly generated and routed to the owner. You agree not to bypass capability tokens, forge signatures, or exploit the autonomy chain. Service is provided as-is with the SLA at /sla and refund guarantee at /refund.'); }
+function pagePrivacy() { return _legalSub('Privacy Policy', 'We store the minimum data necessary: email (activation), plan, receipts. No selling, no sharing, no model training on personal data. GDPR rights honoured at /api/privacy/dsr. Cryptographic receipts are append-only and owner-owned. Sub-processors disclosed at /api/compliance/attestation.'); }
+function pageRefund()  { return `<section style="padding-top:140px;max-width:880px">
+  <span class="kicker">Refund Guarantee · F1</span>
+  <h1 style="font-size:clamp(34px,4.4vw,56px);margin:10px 0 18px">Cryptographic <span class="grad">refund guarantee.</span></h1>
+  <p style="color:var(--ink-dim);font-size:16px;line-height:1.7">If we fail you, the system refunds itself. Below: live, signed promise. If breached, an autonomous compensator emits a signed REFUND_INTENT and the revenue router reverses the matching receipt within 24h.</p>
+  <pre class="code" id="rfOut" style="margin-top:18px">Loading signed promise…</pre>
+  <script>fetch('/api/refund/guarantee').then(r=>r.json()).then(d=>{rfOut.textContent=JSON.stringify(d,null,2)}).catch(()=>{});</script>
+</section>`; }
+function pageSla() { return `<section style="padding-top:140px;max-width:880px">
+  <span class="kicker">Service Level Agreement</span>
+  <h1 style="font-size:clamp(34px,4.4vw,56px);margin:10px 0 22px">SLA · <span class="grad">99.99% sovereign.</span></h1>
+  <ul style="color:var(--ink-dim);font-size:15.5px;line-height:1.9;padding-left:20px">
+    <li><b style="color:#fff">Uptime</b> · 99.99% target for /api · 99.9% for /</li>
+    <li><b style="color:#fff">Latency</b> · p95 &lt; 800ms global, p99 &lt; 1500ms</li>
+    <li><b style="color:#fff">Receipt</b> · every API call &lt; 60s eligible for inclusion in the next signed Merkle root</li>
+    <li><b style="color:#fff">Incident disclosure</b> · &lt; 72h public, sealed at /api/incidents</li>
+    <li><b style="color:#fff">Refund</b> · auto on breach (see /refund)</li>
+  </ul>
+  <a class="btn btn-primary" href="/status" data-link>Live status →</a>
+</section>`; }
+
+function pagePledge() {
+  return `<section style="padding-top:140px;max-width:980px">
+  <span class="kicker">Anti-Dark-Pattern Pledge · F9</span>
+  <h1 style="font-size:clamp(34px,4.4vw,56px);margin:10px 0 18px">Public, signed, <span class="grad">self-enforcing.</span></h1>
+  <p style="color:var(--ink-dim);font-size:16px;line-height:1.7">No fake scarcity. No forced accounts. No drip pricing. No retention dark patterns. No selling your data. One-click cancel at <a href="/cancel" data-link>/cancel</a>. The pledge below is signed Ed25519 — anyone can verify. On confirmed breach, an INCIDENT is publicly sealed.</p>
+  <pre class="code" id="plOut" style="margin-top:18px">Loading…</pre>
+  <div class="card" style="margin-top:22px;padding:22px"><h3 style="margin:0 0 10px">Report a breach</h3><p style="color:var(--ink-dim)">Suspect we broke our pledge? Report it. We seal the incident publicly within 72h.</p>
+    <div class="field"><label>Email</label><input id="prEmail" type="email"></div>
+    <div class="field"><label>Evidence</label><textarea id="prEv" rows="4" style="padding:12px;border-radius:12px;border:1px solid var(--stroke);background:rgba(5,4,10,.55);color:var(--ink);font-family:inherit;width:100%"></textarea></div>
+    <button class="btn btn-primary" id="prBtn">Submit signed report →</button>
+    <div id="prOut" style="margin-top:10px;color:var(--ink-dim);font-size:13px"></div>
+  </div>
+  <script>
+  fetch('/api/pledge').then(r=>r.json()).then(d=>{plOut.textContent=JSON.stringify(d,null,2)});
+  document.getElementById('prBtn').addEventListener('click', async () => {
+    const r = await fetch('/api/pledge/report', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ email: prEmail.value, evidence: prEv.value }) });
+    const d = await r.json(); prOut.textContent = d.ok ? 'Recorded · '+d.id : 'Error';
+  });
+  </script>
+</section>`;
+}
+
+function pageCancel() {
+  return `<section style="padding-top:140px;max-width:680px">
+  <span class="kicker">Universal Cancel · F10</span>
+  <h1 style="font-size:clamp(34px,4.4vw,56px);margin:10px 0 18px">One click. <span class="grad">Everything cancels.</span></h1>
+  <p style="color:var(--ink-dim);font-size:16px;line-height:1.7">No friction. No "are you sure". No retention chat-bot. Type your email — every active subscription is cancelled within 60 seconds. You receive a signed cryptographic confirmation by email.</p>
+  <div class="card" style="padding:24px;margin-top:18px">
+    <div class="field"><label>Email on account</label><input id="cnEmail" type="email" placeholder="you@company.com"></div>
+    <div class="field"><label>Reason (optional)</label><input id="cnReason" placeholder="moving on, no hard feelings"></div>
+    <button class="btn btn-primary" id="cnBtn" style="width:100%;justify-content:center">Cancel everything · 1 click</button>
+    <div id="cnOut" style="margin-top:14px;color:var(--ink-dim);font-size:13.5px"></div>
+  </div>
+  <script>
+  document.getElementById('cnBtn').addEventListener('click', async () => {
+    const r = await fetch('/api/cancel/universal', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ email: cnEmail.value, reason: cnReason.value }) });
+    const d = await r.json(); cnOut.innerHTML = d.ok ? '<b style="color:#3bffb0">✓ '+d.message+'</b><br><small style="font-family:var(--mono);font-size:11px">sig '+d.signature.slice(0,40)+'…</small>' : '<b style="color:var(--danger)">Error</b>';
+  });
+  </script>
+</section>`;
+}
+
+function pageGift() {
+  return `<section style="padding-top:140px;max-width:880px">
+  <span class="kicker">Gift-as-Capability · F8</span>
+  <h1 style="font-size:clamp(34px,4.4vw,56px);margin:10px 0 18px">Send ZeusAI as a <span class="grad">cryptographic gift.</span></h1>
+  <p style="color:var(--ink-dim);font-size:16px;line-height:1.7">No account required for the recipient. They click your link, redeem the signed capability, get the service activated.</p>
+  <div class="card" style="padding:24px;margin-top:18px">
+    <div class="field"><label>Service / SKU</label><input id="gtSku" value="adaptive-ai"></div>
+    <div class="field"><label>Value (USD)</label><input id="gtVal" type="number" value="49"></div>
+    <div class="field"><label>From email</label><input id="gtFrom" type="email"></div>
+    <div class="field"><label>To email (optional)</label><input id="gtTo" type="email"></div>
+    <div class="field"><label>Message</label><input id="gtMsg" placeholder="Use ZeusAI on me 🎁"></div>
+    <button class="btn btn-primary" id="gtBtn" style="width:100%;justify-content:center">Mint signed gift →</button>
+    <div id="gtOut" style="margin-top:14px"></div>
+  </div>
+  <script>
+  document.getElementById('gtBtn').addEventListener('click', async () => {
+    const r = await fetch('/api/gift/mint', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ sku:gtSku.value, valueUsd:Number(gtVal.value)||49, fromEmail:gtFrom.value, toEmail:gtTo.value, message:gtMsg.value }) });
+    const d = await r.json(); gtOut.innerHTML = '<div class="card" style="border-color:var(--violet)"><h3>'+d.code+'</h3><p style="color:var(--ink-dim)">Share this URL: <code class="inline">'+location.origin+d.redeemUrl+'</code></p><p style="color:var(--ink-dim);font-size:12px">Signed at '+d.mintedAt+'</p></div>';
+  });
+  </script>
+</section>`;
+}
+
+function pageAura() {
+  return `<section style="padding-top:140px;max-width:1080px">
+  <span class="kicker">Live Conversion Aura · F2</span>
+  <h1 style="font-size:clamp(34px,4.4vw,56px);margin:10px 0 18px">The <span class="grad">heartbeat</span> of ZeusAI.</h1>
+  <p style="color:var(--ink-dim);font-size:16px;line-height:1.7">Every metric below is fetched from <code class="inline">/api/aura</code>, signed Ed25519 at the moment of generation. No mocks, no inflation.</p>
+  <div class="grid" id="auraGrid" style="margin-top:22px"><div class="card"><p>Loading…</p></div></div>
+  <pre class="code" id="auraRaw" style="margin-top:18px;max-height:280px;overflow:auto">…</pre>
+  <script>
+  async function loadAura(){
+    const d = await (await fetch('/api/aura')).json();
+    document.getElementById('auraRaw').textContent = JSON.stringify(d, null, 2);
+    const m = d.metrics;
+    document.getElementById('auraGrid').innerHTML = [
+      ['Orders total', m.ordersTotal],
+      ['Orders 24h', m.ordersLast24h],
+      ['Leads total', m.leadsTotal],
+      ['GMV USD', '$'+(m.gmvUsd||0).toLocaleString()],
+      ['Newsletter', m.newsletter]
+    ].map(([k,v])=>'<div class="card"><span class="tag">'+k+'</span><h2 style="margin:8px 0">'+v+'</h2></div>').join('');
+  }
+  loadAura(); setInterval(loadAura, 5000);
+  </script>
+</section>`;
+}
+
+function pageApiExplorer() {
+  return `<section style="padding-top:140px;max-width:1080px">
+  <span class="kicker">API Explorer</span>
+  <h1 style="font-size:clamp(34px,4.4vw,56px);margin:10px 0 18px">Try every <span class="grad">endpoint</span> live.</h1>
+  <p style="color:var(--ink-dim);font-size:15px">OpenAPI 3.1 spec at <a href="/openapi.json" target="_blank">/openapi.json</a>. Below is the live endpoint inventory.</p>
+  <div id="apiList" class="card" style="padding:22px;margin-top:18px;font-family:var(--mono);font-size:13px;line-height:1.9;max-height:80vh;overflow:auto">Loading…</div>
+  <script>
+  fetch('/openapi.json').then(r=>r.json()).then(d=>{
+    const rows = Object.entries(d.paths).map(([p,ops])=>{
+      const ms = Object.keys(ops).map(m=>'<code class="inline" style="text-transform:uppercase">'+m+'</code>').join(' ');
+      return '<div style="padding:6px 0;border-bottom:1px solid var(--stroke)">'+ms+' <a href="'+p+'" target="_blank" style="color:var(--violet2)">'+p+'</a> <span style="color:var(--ink-dim);font-size:12px">'+ (Object.values(ops)[0].summary || '') +'</span></div>';
+    });
+    document.getElementById('apiList').innerHTML = rows.join('');
+  });
+  </script>
+</section>`;
+}
+
+function pageTransparency() {
+  return `<section style="padding-top:140px;max-width:1080px">
+  <span class="kicker">Pricing Bandit Transparency · F11</span>
+  <h1 style="font-size:clamp(34px,4.4vw,56px);margin:10px 0 18px">We test prices. <span class="grad">In public.</span></h1>
+  <p style="color:var(--ink-dim);font-size:16px;line-height:1.7">The bandit decides which price to show. You see what it tested, the conversion rate, and the value per impression. Snapshot signed daily.</p>
+  <div id="btTable" class="card" style="padding:22px;margin-top:22px">Loading…</div>
+  <script>
+  fetch('/api/bandit/transparency').then(r=>r.json()).then(d=>{
+    const rows = (d.arms||[]).map(a=>'<tr><td style="padding:8px">'+a.arm+'</td><td style="padding:8px">'+a.impressions+'</td><td style="padding:8px">'+a.conversions+'</td><td style="padding:8px">'+(a.conversionRate*100).toFixed(2)+'%</td><td style="padding:8px">$'+(a.eValue||0).toFixed(2)+'</td></tr>').join('') || '<tr><td colspan="5" style="padding:14px;color:var(--ink-dim)">No experiments recorded yet. The bandit publishes its experiments here as it learns.</td></tr>';
+    document.getElementById('btTable').innerHTML = '<table style="width:100%;border-collapse:collapse;font-size:14px"><thead><tr style="background:#0b0f17"><th style="text-align:left;padding:8px">Arm</th><th style="text-align:left;padding:8px">Impressions</th><th style="text-align:left;padding:8px">Conversions</th><th style="text-align:left;padding:8px">CR</th><th style="text-align:left;padding:8px">$/imp</th></tr></thead><tbody>'+rows+'</tbody></table><p style="color:var(--ink-dim);font-size:12px;margin-top:14px;font-family:var(--mono)">snapshot: '+d.snapshotAt+' · sig '+d.signature.slice(0,32)+'…</p>';
+  });
+  </script>
+</section>`;
+}
+
+function pageFrontier() {
+  return `<section style="padding-top:140px;max-width:1280px">
+  <span class="kicker">Frontier · 12 sovereign inventions</span>
+  <h1 style="font-size:clamp(34px,4.4vw,56px);margin:10px 0 18px">Things the web <span class="grad">didn't have</span> until today.</h1>
+  <div class="grid" style="margin-top:22px;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:14px">
+    <div class="card"><span class="tag">F1</span><h3>Crypto Refund Guarantee</h3><p>Self-executing SLA. If breached, refund auto-issues.</p><a class="btn" href="/refund" data-link>Open</a></div>
+    <div class="card"><span class="tag">F2</span><h3>Live Conversion Aura</h3><p>Real-time, signed, public KPI heartbeat.</p><a class="btn" href="/aura" data-link>Open</a></div>
+    <div class="card"><span class="tag">F3</span><h3>Outcome-Anchored Pricing</h3><p>Signed before/after deltas → auto-bps invoice.</p><a class="btn" href="/api/outcome/list" target="_blank">JSON</a></div>
+    <div class="card"><span class="tag">F4</span><h3>Self-Healing Checkout Cascade</h3><p>BTC → Lightning → Stripe → PayPal → Wire.</p><a class="btn" href="/checkout" data-link>Try</a></div>
+    <div class="card"><span class="tag">F5</span><h3>Time-Locked Discount Vault</h3><p>VDF-anchored "wait N s, get X% off".</p></div>
+    <div class="card"><span class="tag">F6</span><h3>Sovereign Receipt NFT</h3><p>Portable, dual-signed proof. Verifiable offline.</p></div>
+    <div class="card"><span class="tag">F7</span><h3>Provable Email Delivery</h3><p>Signed manifest + Merkle inclusion proof.</p></div>
+    <div class="card"><span class="tag">F8</span><h3>Gift-as-Capability</h3><p>Send a CBAT to anyone. No account needed.</p><a class="btn" href="/gift" data-link>Mint</a></div>
+    <div class="card"><span class="tag">F9</span><h3>Anti-Dark-Pattern Pledge</h3><p>Public, signed, self-enforcing.</p><a class="btn" href="/pledge" data-link>Open</a></div>
+    <div class="card"><span class="tag">F10</span><h3>Universal Cancel Link</h3><p>One URL cancels everything.</p><a class="btn" href="/cancel" data-link>Open</a></div>
+    <div class="card"><span class="tag">F11</span><h3>Public Bandit Transparency</h3><p>You see every price experiment.</p><a class="btn" href="/transparency" data-link>Open</a></div>
+    <div class="card"><span class="tag">F12</span><h3>Carbon-Inclusive Checkout</h3><p>Auto-attached signed gCO₂ + offset.</p></div>
+  </div>
+  <pre class="code" id="frOut" style="margin-top:22px;max-height:340px;overflow:auto">Loading…</pre>
+  <script>fetch('/api/frontier/status').then(r=>r.json()).then(d=>{frOut.textContent=JSON.stringify(d,null,2)});</script>
+</section>`;
+}
+
+function pageNotFound(route) {
+  return `<section style="padding-top:160px;max-width:780px;text-align:center">
+  <span class="kicker">404</span>
+  <h1 style="font-size:clamp(48px,7vw,96px);margin:12px 0 18px"><span class="grad">Lost in the fabric.</span></h1>
+  <p style="color:var(--ink-dim);font-size:17px">The route <code class="inline">${(route||'').replace(/[<>]/g,'')}</code> isn't here. Try one of these:</p>
+  <div style="display:flex;gap:12px;flex-wrap:wrap;justify-content:center;margin-top:22px">
+    <a class="btn btn-primary" href="/" data-link>Home</a>
+    <a class="btn" href="/services" data-link>Marketplace</a>
+    <a class="btn" href="/wizard" data-link>Find my plan</a>
+    <a class="btn" href="/docs" data-link>API & docs</a>
+    <a class="btn" href="/status" data-link>Status</a>
+  </div>
+</section>`;
+}
+
+function _legalSub(title, body) {
+  return `<section style="padding-top:140px;max-width:880px">
+  <span class="kicker">Legal</span>
+  <h1 style="font-size:clamp(34px,4.4vw,56px);margin:10px 0 22px">${title}</h1>
+  <p style="color:var(--ink-dim);font-size:15.5px;line-height:1.8">${body}</p>
+  <p style="color:var(--ink-dim);font-size:13.5px;margin-top:30px">Last updated: ${new Date().toISOString().slice(0,10)} · Signed Ed25519 · See <a href="/legal" data-link>/legal</a> for the full property notice.</p>
+</section>`;
+}
+
 function routeTitle(route) {
   if (route === '/') return 'Sovereign AI OS';
   if (route.startsWith('/services/')) return 'Service';
-  const map = { '/services':'Marketplace', '/pricing':'Pricing', '/checkout':'Checkout', '/dashboard':'Dashboard', '/how':'How it works', '/docs':'API & Docs', '/about':'About', '/legal':'Legal', '/enterprise':'Enterprise Licenses', '/store':'Instant Store', '/account':'Account' };
+  const map = { '/services':'Marketplace', '/pricing':'Pricing', '/checkout':'Checkout', '/dashboard':'Dashboard', '/how':'How it works', '/docs':'API & Docs', '/about':'About', '/legal':'Legal', '/enterprise':'Enterprise Licenses', '/store':'Instant Store', '/account':'Account', '/innovations':'30Y Cryptographic Durability', '/wizard':'Find my plan', '/status':'Live status', '/changelog':'Changelog', '/terms':'Terms of Service', '/privacy':'Privacy Policy', '/refund':'Refund Guarantee', '/sla':'SLA', '/pledge':'Anti-Dark-Pattern Pledge', '/cancel':'Universal Cancel', '/gift':'Gift-as-Capability', '/aura':'Live Conversion Aura', '/api-explorer':'API Explorer', '/transparency':'Pricing Bandit Transparency', '/frontier':'Frontier Inventions' };
   return map[route] || 'ZeusAI';
 }
 

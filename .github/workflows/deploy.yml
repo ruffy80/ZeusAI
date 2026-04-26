@@ -250,5 +250,33 @@ jobs:
             echo "⚠️  HTTPS zeusai.pro: $DOMAIN_HTTPS — SSL necesită verificare manuală dacă DNS e greșit"
           fi
 
+      - name: 🧪 Commerce Smoke (catalog + delivery)
+        run: |
+          ssh -o StrictHostKeyChecking=no root@${{ secrets.HETZNER_HOST }} bash -s << 'SSHEOF'
+          set -uo pipefail
+          DEPLOY_PATH=/var/www/unicorn/UNICORN_FINAL
+          cd "$DEPLOY_PATH"
+          echo "--- Remote syntax check ---"
+          node --check src/index.js
+          node --check src/site/v2/delivery-registry.js
+          node --check test/site-commerce-smoke.test.js
+          echo "--- Remote commerce smoke (self-cleaning) ---"
+          EXPECTED_MIN_CATALOG_ITEMS=65 PORT=31992 npm run test:site-commerce
+          echo "--- Smoke ledger cleanup proof ---"
+          grep -R "smoke@zeusai.pro\|smoke-test-loopback" data/commerce-*.json 2>/dev/null && exit 1 || true
+          SSHEOF
+          echo "--- Live domain catalog count ---"
+          node - <<'NODE'
+          const min = 65;
+          fetch('https://zeusai.pro/api/catalog/master')
+            .then(r => r.json().then(j => ({ status: r.status, body: j })))
+            .then(({ status, body }) => {
+              const count = Array.isArray(body.items) ? body.items.length : 0;
+              console.log(`catalog status=${status} count=${count}`);
+              if (status !== 200 || count < min) process.exit(1);
+            })
+            .catch((err) => { console.error(err); process.exit(1); });
+          NODE
+
       - name: 📢 Done
         run: echo "✅ Deploy complet și stabil — ZeusAI / Unicorn LIVE."
