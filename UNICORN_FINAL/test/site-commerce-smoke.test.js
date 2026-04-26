@@ -151,6 +151,7 @@ async function run() {
     assert.ok(coverage.body.items.some(item => item.id === 'autonomous-money-machine' && item.status === 'live-100-api'));
     assert.ok(coverage.body.items.some(item => item.id === 'unicorn-commerce-connector' && item.status === 'live-100-api'));
     assert.ok(coverage.body.items.some(item => item.id === 'future-invention-foundry' && item.status === 'live-rd-foundation'));
+    assert.ok(coverage.body.items.some(item => item.id === 'billion-scale-revenue-foundation' && item.status === 'live-foundation-api'));
     assert.ok(coverage.body.items.some(item => item.id === 'nowpayments' && item.status.includes('optional-later')));
     assert.ok(coverage.body.secrets.featureSummary.totalKnownSecrets >= 1);
 
@@ -175,9 +176,45 @@ async function run() {
       `master catalog must expose at least ${expectedMinCatalogItems} service deliverables`
     );
     assert.equal(catalog.body.connector.payout.btcAddress, wallet);
+    assert.ok(catalog.body.counts.strategicPackages >= 5, 'catalog must expose billion-scale strategic packages');
     assert.ok(catalog.body.counts.unicornAuto >= 1, 'catalog must auto-commercialize Unicorn modules');
     assert.ok(catalog.body.counts.futurePrimitives >= 7, 'catalog must expose future invention primitives');
+    assert.ok(catalog.body.items.some(item => item.group === 'billion-scale-package' && item.checkout.btcAddress === wallet));
     assert.ok(catalog.body.items.some(item => item.group === 'future-invention' && item.checkout.btcAddress === wallet));
+
+    const billionStatus = await request('/api/billion-scale/status');
+    assert.equal(billionStatus.status, 200);
+    assert.equal(billionStatus.body.ok, true);
+    assert.equal(billionStatus.body.payout.btcAddress, wallet);
+    assert.ok(billionStatus.body.maxPackageUsd >= 1000000);
+
+    const billionPackages = await request('/api/billion-scale/packages');
+    assert.equal(billionPackages.status, 200);
+    assert.equal(billionPackages.body.ok, true);
+    assert.ok(billionPackages.body.items.every(item => item.checkout.btcAddress === wallet));
+
+    const billionDashboard = await request('/api/billion-scale/dashboard');
+    assert.equal(billionDashboard.status, 200);
+    assert.equal(billionDashboard.body.ok, true);
+    assert.equal(billionDashboard.body.payout.btcAddress, wallet);
+
+    const billionEconomics = await request('/api/billion-scale/marketplace-economics');
+    assert.equal(billionEconomics.status, 200);
+    assert.equal(billionEconomics.body.ok, true);
+    assert.ok(billionEconomics.body.annualRevenueUsd >= 1000000000);
+
+    const billionProposal = await request('/api/billion-scale/deal-desk/proposal', {
+      method: 'POST',
+      body: JSON.stringify({ packageId: 'zeusai-sovereign-ai-private-deployment', company: 'Smoke Enterprise' })
+    });
+    assert.equal(billionProposal.status, 200);
+    assert.equal(billionProposal.body.ok, true);
+    assert.equal(billionProposal.body.btcCheckout.btcAddress, wallet);
+
+    const billionVerticalPages = await request('/api/billion-scale/vertical-pages');
+    assert.equal(billionVerticalPages.status, 200);
+    assert.equal(billionVerticalPages.body.ok, true);
+    assert.ok(billionVerticalPages.body.count >= 10);
 
     const commerceStatus = await request('/api/unicorn-commerce/status');
     assert.equal(commerceStatus.status, 200);

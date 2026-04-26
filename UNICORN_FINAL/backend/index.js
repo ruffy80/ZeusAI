@@ -128,6 +128,7 @@ const emailService = require('./email');
 const worldStandard = require('./modules/worldStandard');
 const moneyMachine = require('./modules/autonomousMoneyMachine');
 const unicornCommerceConnector = require('../src/modules/unicornCommerceConnector');
+const billionScaleRevenueEngine = require('../src/modules/billionScaleRevenueEngine');
 
 let webauthnModulePromise;
 const getWebAuthn = () => {
@@ -991,6 +992,12 @@ const MODULE_REGISTRY = {
     'module-to-marketplace-sync',
     'future-invention-foundry',
     'sovereign-btc-commerce-bridge',
+    'billion-scale-revenue-engine',
+    'enterprise-deal-desk',
+    'owner-revenue-dashboard',
+    'marketplace-economics-engine',
+    'strategic-package-engine',
+    'vertical-growth-page-engine',
     'dynamic-pricing',
     'auto-repair',
     'auto-restart',
@@ -3352,6 +3359,32 @@ app.get('/api/unicorn-commerce/catalog', (req, res) => {
 app.get('/api/unicorn-commerce/future-primitives', (req, res) => {
   const items = unicornCommerceConnector.buildFuturePrimitiveServices({ btcWallet: ADMIN_OWNER_BTC, ownerName: ADMIN_OWNER_NAME });
   res.json({ ok: true, generatedAt: new Date().toISOString(), count: items.length, items });
+});
+
+app.get('/api/billion-scale/status', (req, res) => {
+  res.json(billionScaleRevenueEngine.status({ btcWallet: ADMIN_OWNER_BTC, ownerName: ADMIN_OWNER_NAME }));
+});
+
+app.get('/api/billion-scale/packages', (req, res) => {
+  const items = billionScaleRevenueEngine.buildStrategicPackages({ btcWallet: ADMIN_OWNER_BTC, ownerName: ADMIN_OWNER_NAME });
+  res.json({ ok: true, generatedAt: new Date().toISOString(), count: items.length, items });
+});
+
+app.get(['/api/billion-scale/owner-dashboard', '/api/billion-scale/dashboard'], (req, res) => {
+  const registry = getModuleRegistryStatus();
+  res.json(billionScaleRevenueEngine.ownerRevenueDashboard({ btcWallet: ADMIN_OWNER_BTC, catalogCount: registry.total + 99, registryCount: registry.total }));
+});
+
+app.get('/api/billion-scale/marketplace-economics', (req, res) => {
+  res.json(billionScaleRevenueEngine.marketplaceEconomics(req.query || {}));
+});
+
+app.post('/api/billion-scale/deal-desk/proposal', (req, res) => {
+  res.json(billionScaleRevenueEngine.dealDeskProposal(req.body || {}, { btcWallet: ADMIN_OWNER_BTC, ownerName: ADMIN_OWNER_NAME }));
+});
+
+app.get('/api/billion-scale/vertical-pages', (req, res) => {
+  res.json(billionScaleRevenueEngine.verticalGrowthPages());
 });
 
 // ==================== RUTE INOVAȚII ====================

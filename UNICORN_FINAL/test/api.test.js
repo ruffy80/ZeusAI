@@ -352,6 +352,65 @@ async function runTests() {
     assert.ok(r.body.items.every(item => item.autonomy.claimsGuardrail));
   });
 
+  console.log('\nBillion-Scale Revenue Foundation:');
+  await test('GET /api/billion-scale/status → high-ticket revenue layer is live', async () => {
+    const r = await apiRequest('GET', '/api/billion-scale/status');
+    assert.equal(r.status, 200);
+    assert.equal(r.body.ok, true);
+    assert.equal(r.body.status, 'billion-scale-foundation-live');
+    assert.equal(r.body.payout.rail, 'btc-direct');
+    assert.equal(r.body.payout.btcAddress, 'bc1q4f7e66z87mdfj56kz0dj5hvcnpmh0qh4wuv22e');
+    assert.ok(r.body.packageCount >= 5);
+    assert.ok(r.body.maxPackageUsd >= 1000000);
+    assert.ok(r.body.caveat.includes('actual revenue requires customers'));
+  });
+
+  await test('GET /api/billion-scale/packages → strategic BTC packages', async () => {
+    const r = await apiRequest('GET', '/api/billion-scale/packages');
+    assert.equal(r.status, 200);
+    assert.equal(r.body.ok, true);
+    assert.ok(r.body.count >= 5);
+    assert.ok(r.body.items.some(item => item.id === 'zeusai-sovereign-ai-private-deployment' && item.priceUsd >= 1000000));
+    assert.ok(r.body.items.every(item => item.group === 'billion-scale-package'));
+    assert.ok(r.body.items.every(item => item.checkout.btcAddress === 'bc1q4f7e66z87mdfj56kz0dj5hvcnpmh0qh4wuv22e'));
+  });
+
+  await test('GET /api/billion-scale/dashboard → owner KPI and pipeline math', async () => {
+    const r = await apiRequest('GET', '/api/billion-scale/dashboard');
+    assert.equal(r.status, 200);
+    assert.equal(r.body.ok, true);
+    assert.equal(r.body.payout.btcAddress, 'bc1q4f7e66z87mdfj56kz0dj5hvcnpmh0qh4wuv22e');
+    assert.ok(r.body.pipelineMath.some(row => row.targetDealsFor1B >= 1));
+    assert.ok(r.body.kpisNeeded.includes('ARR'));
+  });
+
+  await test('GET /api/billion-scale/marketplace-economics → billion take-rate model', async () => {
+    const r = await apiRequest('GET', '/api/billion-scale/marketplace-economics');
+    assert.equal(r.status, 200);
+    assert.equal(r.body.ok, true);
+    assert.equal(r.body.model, 'marketplace-gmv-take-rate');
+    assert.ok(r.body.annualRevenueUsd >= 1000000000);
+    assert.equal(r.body.pathToBillionUsd, 'achieved-at-this-scale');
+  });
+
+  await test('POST /api/billion-scale/deal-desk/proposal → enterprise BTC proposal', async () => {
+    const r = await apiRequest('POST', '/api/billion-scale/deal-desk/proposal', { packageId: 'zeusai-autonomous-saas-os', company: 'Acme Enterprise', seats: 3 });
+    assert.equal(r.status, 200);
+    assert.equal(r.body.ok, true);
+    assert.equal(r.body.company, 'Acme Enterprise');
+    assert.ok(r.body.proposedUsd >= 75000);
+    assert.equal(r.body.btcCheckout.btcAddress, 'bc1q4f7e66z87mdfj56kz0dj5hvcnpmh0qh4wuv22e');
+    assert.ok(r.body.btcCheckout.checkoutUrl.includes('/checkout'));
+  });
+
+  await test('GET /api/billion-scale/vertical-pages → enterprise SEO expansion', async () => {
+    const r = await apiRequest('GET', '/api/billion-scale/vertical-pages');
+    assert.equal(r.status, 200);
+    assert.equal(r.body.ok, true);
+    assert.ok(r.body.count >= 10);
+    assert.ok(r.body.pages.some(page => page.slug.includes('fintech-autonomous-revenue-machine')));
+  });
+
   // ── Admin User Management ────────────────────────────────────────────────────
   console.log('\nAdmin - User Management:');
   await test('GET /api/admin/users - no token → 401', async () => {
