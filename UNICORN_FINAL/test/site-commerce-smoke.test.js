@@ -120,7 +120,7 @@ async function run() {
     assert.equal(integrity.status, 200, '/.well-known/unicorn-integrity.json should return 200');
     assert.equal(integrity.body.alg, 'Ed25519');
 
-    for (const path of ['/api/trust/center', '/api/operator/console', '/api/observability/status', '/api/secret-sync/status', '/api/payments/config/status', '/api/security/pq/status', '/api/commerce/protocol', '/api/checkout/synthetic-probe', '/api/capability/credential/smoke']) {
+    for (const path of ['/api/trust/center', '/api/operator/console', '/api/observability/status', '/api/secret-sync/status', '/api/payments/config/status', '/api/security/pq/status', '/api/commerce/protocol', '/api/innovation/coverage', '/api/checkout/synthetic-probe', '/api/capability/credential/smoke']) {
       const r = await request(path);
       assert.equal(r.status, 200, `${path} should return 200`);
       assert.equal(r.body.ok, true, `${path} should return ok:true`);
@@ -135,6 +135,13 @@ async function run() {
     assert.ok(secretStatus.body.requiredOperationalSecrets.includes('BTC_WALLET_ADDRESS'));
     assert.ok(!secretStatus.body.requiredOperationalSecrets.includes('NOWPAYMENTS_API_KEY'));
     assert.ok(secretStatus.body.optionalProviderSecrets.includes('NOWPAYMENTS_API_KEY'));
+
+    const coverage = await request('/api/innovation/coverage');
+    assert.equal(coverage.status, 200);
+    assert.ok(coverage.body.summary.total >= 12);
+    assert.ok(coverage.body.items.some(item => item.id === 'frontier-f1-f12' && item.status.startsWith('live')));
+    assert.ok(coverage.body.items.some(item => item.id === 'nowpayments' && item.status.includes('optional-later')));
+    assert.ok(coverage.body.secrets.featureSummary.totalKnownSecrets >= 1);
 
     // Test query-string resilience on critical endpoints
     const healthWithQuery = await request('/health?cachebuster=123&debug=1');

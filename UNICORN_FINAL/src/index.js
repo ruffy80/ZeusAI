@@ -236,6 +236,53 @@ function buildSignedCapabilityCredential(receipt) {
   try { signature = crypto.sign(null, Buffer.from(encoded), global.__SITE_SIGN_KEY__).toString('base64url'); } catch (_) {}
   return { payload, proof: { type: 'Ed25519Signature2020', created: payload.issuanceDate, proofPurpose: 'assertionMethod', signature } };
 }
+
+function buildInnovationCoverage() {
+  const payment = getPaymentConfigStatus();
+  const secretFeatures = SECRETS_BOOT.features || {};
+  const items = [
+    { id: 'direct-btc-revenue', title: 'Direct BTC Revenue Rail', status: payment.primaryRail === 'btc-direct' ? 'live-100' : 'needs-review', evidence: ['/checkout', '/api/payments/config/status'], userAction: 'none-current-mode' },
+    { id: 'trust-legal-seo', title: 'Trust, Legal, SEO, Well-Known Discovery', status: 'live-100', evidence: ['/trust', '/security', '/responsible-ai', '/dpa', '/payment-terms', '/robots.txt', '/sitemap.xml', '/.well-known/unicorn-integrity.json'], userAction: 'none' },
+    { id: 'quantum-integrity-shield', title: 'QuantumIntegrityShield Diagnostics', status: 'live-100', evidence: ['/api/quantum-integrity/status', '/api/security/pq/status'], userAction: 'none' },
+    { id: 'frontier-f1-f12', title: 'Frontier F1-F12 Commerce Inventions', status: frontier ? 'live-100-api' : 'not-loaded', evidence: ['/api/frontier/status', '/api/refund/guarantee', '/api/aura', '/api/checkout/cascade', '/api/receipt/nft/{id}', '/api/gift/mint', '/api/bandit/transparency'], userAction: frontier ? 'none' : 'check frontier-engine load errors' },
+    { id: 'innovations-30y', title: '30Y Cryptographic Durability Layer', status: innov30 ? 'live-100-api' : 'not-loaded', evidence: ['/api/innovations/status', '/api/constitution', '/api/sbom', '/api/receipts/root'], userAction: innov30 ? 'none' : 'check innovations-30y module load errors' },
+    { id: 'innovations-30y-v2', title: '30Y V2 ZK/VRF/VDF/Compliance/DID Primitives', status: innov30v2 ? 'live-100-api' : 'not-loaded', evidence: ['/api/v2/status', '/api/v2/zk/commit', '/api/v2/vrf/prove', '/api/compliance/attestation', '/api/v2/did/self'], userAction: innov30v2 ? 'none' : 'check innovations-30y-v2 module load errors' },
+    { id: 'capability-credentials', title: 'Capability Credential / Verifiable Receipt Foundation', status: 'live-foundation', evidence: ['/api/capability/credential/{receiptId}', '/api/receipt/nft/{id}', '/api/commerce/protocol'], userAction: 'none for current delivery; add third-party wallet/NFT anchor provider only if desired later' },
+    { id: 'agent-to-agent-commerce', title: 'Agent-to-Agent Commerce Protocol', status: 'live-foundation', evidence: ['/openapi.json', '/api/commerce/protocol', '/api/agent/catalog', '/api/agent/quote', '/api/agent/order'], userAction: 'none for discovery/order protocol; external agent marketplace partnerships are business/config work' },
+    { id: 'observability-otel', title: 'Observability + OpenTelemetry Export', status: process.env.OTEL_EXPORTER_OTLP_ENDPOINT ? 'live-100' : 'live-foundation-needs-secret', evidence: ['/observability', '/api/observability/status'], userAction: process.env.OTEL_EXPORTER_OTLP_ENDPOINT ? 'none' : 'set OTEL_EXPORTER_OTLP_ENDPOINT if you want external tracing export' },
+    { id: 'nowpayments', title: 'NOWPayments Optional Global Crypto Rail', status: payment.nowpayments.apiKeyConfigured && payment.nowpayments.ipnSecretConfigured ? 'live-100' : 'optional-later-needs-secrets', evidence: ['/api/payment/nowpayments/security', '/api/payment/nowpayments/create'], userAction: 'when desired, set NOWPAYMENTS_API_KEY and NOWPAYMENTS_IPN_SECRET; not required for current BTC direct revenue' },
+    { id: 'paypal', title: 'PayPal Optional Rail', status: isConfiguredSecret('PAYPAL_CLIENT_ID') && isConfiguredSecret('PAYPAL_CLIENT_SECRET') ? 'live-100' : 'optional-later-needs-secrets', evidence: ['/api/checkout/paypal', '/api/payments/paypal/confirm'], userAction: 'when desired, set PAYPAL_CLIENT_ID, PAYPAL_CLIENT_SECRET, PAYPAL_WEBHOOK_ID and PAYPAL_ENV' },
+    { id: 'smtp-email', title: 'Email Delivery / SMTP', status: isConfiguredSecret('SMTP_PASS') ? 'live-100' : 'optional-later-needs-secret', evidence: ['backend email module', 'registration verification logs'], userAction: isConfiguredSecret('SMTP_PASS') ? 'none' : 'set SMTP_PASS/app password if you want real outbound email' },
+    { id: 'ai-router', title: 'Multi-Provider AI Router', status: (secretFeatures.aiRouter && secretFeatures.aiRouter.configured > 0) ? 'live-partial-by-configured-providers' : 'needs-provider-keys', evidence: ['/api/operator/console'], userAction: 'add more provider API keys only if you want more model coverage; current configured providers remain usable' },
+    { id: 'third-party-module-marketplace', title: 'Third-Party Module Marketplace + Quarantine + Revenue Share', status: 'foundation-not-full-product', evidence: ['/api/frontier/status', '/api/commerce/protocol', '/api/quantum-integrity/status'], userAction: 'requires product policy: vendor onboarding rules, revenue-share percentages, legal terms and moderation workflow' },
+    { id: 'personal-child-agent-os', title: 'Personal Child-Agent OS', status: 'foundation-not-full-product', evidence: ['/api/commerce/protocol', '/api/capability/credential/{receiptId}', '/responsible-ai'], userAction: 'requires product decisions: user accounts, consent model, data retention and agent permissions' },
+    { id: 'global-compliance-autopilot', title: 'Global Compliance Autopilot', status: 'foundation-not-full-product', evidence: ['/api/compliance/attestation', '/dpa', '/responsible-ai'], userAction: 'requires target jurisdictions, legal review and subprocessors list' },
+  ];
+  const counts = items.reduce((acc, item) => {
+    acc[item.status] = (acc[item.status] || 0) + 1;
+    return acc;
+  }, {});
+  return {
+    ok: true,
+    generatedAt: new Date().toISOString(),
+    summary: {
+      total: items.length,
+      live: items.filter((item) => item.status.startsWith('live-100')).length,
+      foundation: items.filter((item) => item.status.includes('foundation')).length,
+      optionalNeedsSecrets: items.filter((item) => item.status.includes('needs-secret')).length,
+      counts,
+    },
+    secrets: {
+      bootstrapLoaded: !!SECRETS_BOOT,
+      loadedFiles: SECRETS_BOOT.loaded || [],
+      resolvedAliases: SECRETS_BOOT.resolved || {},
+      featureSummary: SECRETS_BOOT.summary || {},
+      features: SECRETS_BOOT.features || {},
+    },
+    items,
+    userMustProvide: items.filter((item) => item.status.includes('needs-secret') || item.status.includes('not-full-product') || item.status === 'needs-provider-keys').map((item) => ({ id: item.id, action: item.userAction })),
+  };
+}
 async function createBtcpayInvoice(receipt) {
   const serverUrl = String(process.env.BTCPAY_SERVER_URL || '').replace(/\/$/, '');
   const apiKey = process.env.BTCPAY_API_KEY || process.env.BTCPAY_TOKEN || '';
@@ -1612,7 +1659,7 @@ async function unicornHandler(req, res) {
   // 30Y-LTS: local-first routes served by this site process (not proxied to backend).
   // Only routes that are implemented locally in this file are matched here;
   // backend-only endpoints (/api/v1/deprecations, /api/v1/events/*) keep flowing to the backend.
-  const isLts = /^\/api\/(v1\/)?(contract|i18n\/|crypto\/public-keys|succession\/attestation|anchors)(\/|$|\.)/.test(urlPath) || urlPath === '/api/v1/contract' || urlPath === '/api/contract';  const isLocalV2Api = isLts || LOCAL_V2_API.has(urlPath) || urlPath.startsWith('/api/services/') || urlPath.startsWith('/api/enterprise/') || urlPath.startsWith('/api/outreach/') || urlPath.startsWith('/api/vault/') || urlPath.startsWith('/api/governance/') || urlPath.startsWith('/api/whales/') || urlPath.startsWith('/api/webhooks/') || urlPath.startsWith('/api/admin/') || urlPath.startsWith('/api/instant/') || urlPath.startsWith('/api/customer/') || urlPath.startsWith('/api/user/') || urlPath.startsWith('/api/unicorn-ai/') || urlPath.startsWith('/api/checkout/') || urlPath.startsWith('/api/uaic/') || urlPath.startsWith('/api/receipt/') || urlPath.startsWith('/api/invoice/') || urlPath.startsWith('/api/license/') || urlPath.startsWith('/api/delivery/') || urlPath.startsWith('/api/wire/') || urlPath === '/api/payments/btc/confirm' || urlPath === '/api/payments/paypal/confirm' || urlPath === '/api/payments/config/status' || urlPath === '/api/checkout/synthetic-probe' || urlPath === '/api/qr' || urlPath.startsWith('/api/cart/') || urlPath.startsWith('/api/coupons') || urlPath.startsWith('/api/leads') || urlPath.startsWith('/api/keys') || urlPath.startsWith('/api/newsletter/') || urlPath.startsWith('/api/wizard/') || urlPath.startsWith('/api/fx/') || urlPath.startsWith('/api/tax/') || urlPath.startsWith('/api/webhooks/') || urlPath === '/api/status' || urlPath === '/api/track' || urlPath.startsWith('/api/analytics/') || urlPath.startsWith('/api/refund/') || urlPath === '/api/aura' || urlPath.startsWith('/api/outcome/') || urlPath.startsWith('/api/discount/') || urlPath.startsWith('/api/receipt/nft/') || urlPath.startsWith('/api/capability/') || urlPath.startsWith('/api/email/proof') || urlPath.startsWith('/api/gift/') || urlPath.startsWith('/api/pledge') || urlPath.startsWith('/api/cancel/') || urlPath.startsWith('/api/bandit/') || urlPath.startsWith('/api/carbon/') || urlPath.startsWith('/api/abandon-cart') || urlPath === '/api/frontier/status' || urlPath === '/api/trust/center' || urlPath === '/api/operator/console' || urlPath === '/api/observability/status' || urlPath === '/api/secret-sync/status' || urlPath === '/api/security/pq/status' || urlPath === '/api/commerce/protocol' || urlPath === '/openapi.json' || urlPath === '/api/openapi' || urlPath === '/seo/sitemap.xml' || urlPath === '/seo/robots.txt' || urlPath === '/api/catalog/master' || urlPath === '/api/btc/spot' || urlPath.startsWith('/api/payments/btc/verify/');
+  const isLts = /^\/api\/(v1\/)?(contract|i18n\/|crypto\/public-keys|succession\/attestation|anchors)(\/|$|\.)/.test(urlPath) || urlPath === '/api/v1/contract' || urlPath === '/api/contract';  const isLocalV2Api = isLts || LOCAL_V2_API.has(urlPath) || urlPath.startsWith('/api/services/') || urlPath.startsWith('/api/enterprise/') || urlPath.startsWith('/api/outreach/') || urlPath.startsWith('/api/vault/') || urlPath.startsWith('/api/governance/') || urlPath.startsWith('/api/whales/') || urlPath.startsWith('/api/webhooks/') || urlPath.startsWith('/api/admin/') || urlPath.startsWith('/api/instant/') || urlPath.startsWith('/api/customer/') || urlPath.startsWith('/api/user/') || urlPath.startsWith('/api/unicorn-ai/') || urlPath.startsWith('/api/checkout/') || urlPath.startsWith('/api/uaic/') || urlPath.startsWith('/api/receipt/') || urlPath.startsWith('/api/invoice/') || urlPath.startsWith('/api/license/') || urlPath.startsWith('/api/delivery/') || urlPath.startsWith('/api/wire/') || urlPath === '/api/payments/btc/confirm' || urlPath === '/api/payments/paypal/confirm' || urlPath === '/api/payments/config/status' || urlPath === '/api/checkout/synthetic-probe' || urlPath === '/api/qr' || urlPath.startsWith('/api/cart/') || urlPath.startsWith('/api/coupons') || urlPath.startsWith('/api/leads') || urlPath.startsWith('/api/keys') || urlPath.startsWith('/api/newsletter/') || urlPath.startsWith('/api/wizard/') || urlPath.startsWith('/api/fx/') || urlPath.startsWith('/api/tax/') || urlPath.startsWith('/api/webhooks/') || urlPath === '/api/status' || urlPath === '/api/track' || urlPath.startsWith('/api/analytics/') || urlPath.startsWith('/api/refund/') || urlPath === '/api/aura' || urlPath.startsWith('/api/outcome/') || urlPath.startsWith('/api/discount/') || urlPath.startsWith('/api/receipt/nft/') || urlPath.startsWith('/api/capability/') || urlPath.startsWith('/api/email/proof') || urlPath.startsWith('/api/gift/') || urlPath.startsWith('/api/pledge') || urlPath.startsWith('/api/cancel/') || urlPath.startsWith('/api/bandit/') || urlPath.startsWith('/api/carbon/') || urlPath.startsWith('/api/abandon-cart') || urlPath === '/api/frontier/status' || urlPath === '/api/trust/center' || urlPath === '/api/operator/console' || urlPath === '/api/observability/status' || urlPath === '/api/secret-sync/status' || urlPath === '/api/security/pq/status' || urlPath === '/api/commerce/protocol' || urlPath === '/api/innovation/coverage' || urlPath === '/openapi.json' || urlPath === '/api/openapi' || urlPath === '/seo/sitemap.xml' || urlPath === '/seo/robots.txt' || urlPath === '/api/catalog/master' || urlPath === '/api/btc/spot' || urlPath.startsWith('/api/payments/btc/verify/');
   const isUaic = !!(uaic && uaic.matches(urlPath)) && urlPath !== '/api/uaic/status';
   const isUse  = !!(USE && USE.matches(urlPath)) && !urlPath.startsWith('/api/user/') && !urlPath.startsWith('/api/ai/');
   const backendUrl = process.env.BACKEND_API_URL;
@@ -1840,6 +1887,11 @@ async function unicornHandler(req, res) {
     };
     res.writeHead(200, { 'Content-Type':'application/json', 'Cache-Control':'no-cache' });
     return res.end(JSON.stringify(payload));
+  }
+
+  if (urlPath === '/api/innovation/coverage') {
+    res.writeHead(200, { 'Content-Type':'application/json', 'Cache-Control':'no-cache' });
+    return res.end(JSON.stringify(buildInnovationCoverage()));
   }
 
   if (urlPath.startsWith('/api/capability/credential/')) {
