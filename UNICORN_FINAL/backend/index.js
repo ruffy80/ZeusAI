@@ -1081,6 +1081,8 @@ const MODULE_REGISTRY = {
     'saas-orchestrator-v4',
     'kpi-analytics',
     'ai-auto-dispatcher',
+    'tenantBilling',
+    'tenantProvisioning',
   ],
 };
 
