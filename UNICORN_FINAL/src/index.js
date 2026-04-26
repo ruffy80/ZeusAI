@@ -2716,6 +2716,7 @@ async function unicornHandler(req, res) {
   }
 
   if (urlPath === '/api/billion-scale/activation/status') {
+    if (process.env.BACKEND_API_URL) await refreshBackendRuntimeState(true).catch(() => {});
     const sources = getRuntimeDataSources();
     const payload = billionScaleActivationOrchestrator.activationStatus({ registry: sources.moduleRegistry || getSiteFallbackModuleRegistry(), btcWallet: BTC_WALLET, ownerName: OWNER_NAME });
     res.writeHead(200, { 'Content-Type':'application/json', 'Cache-Control':'no-cache' });
@@ -2723,6 +2724,7 @@ async function unicornHandler(req, res) {
   }
 
   if (urlPath === '/api/billion-scale/activation/modules') {
+    if (process.env.BACKEND_API_URL) await refreshBackendRuntimeState(true).catch(() => {});
     const sources = getRuntimeDataSources();
     const payload = billionScaleActivationOrchestrator.buildActivationGraph({ registry: sources.moduleRegistry || getSiteFallbackModuleRegistry(), btcWallet: BTC_WALLET, ownerName: OWNER_NAME });
     res.writeHead(200, { 'Content-Type':'application/json', 'Cache-Control':'no-cache' });
@@ -2730,6 +2732,7 @@ async function unicornHandler(req, res) {
   }
 
   if (urlPath === '/api/billion-scale/activation/missing') {
+    if (process.env.BACKEND_API_URL) await refreshBackendRuntimeState(true).catch(() => {});
     const sources = getRuntimeDataSources();
     const graph = billionScaleActivationOrchestrator.buildActivationGraph({ registry: sources.moduleRegistry || getSiteFallbackModuleRegistry(), btcWallet: BTC_WALLET, ownerName: OWNER_NAME });
     res.writeHead(200, { 'Content-Type':'application/json', 'Cache-Control':'no-cache' });
@@ -2738,8 +2741,9 @@ async function unicornHandler(req, res) {
 
   if (urlPath === '/api/billion-scale/activation/run' && req.method === 'POST') {
     let body=''; req.on('data', c=>{ body+=c; if(body.length>32*1024) req.destroy(); });
-    req.on('end', () => {
+    req.on('end', async () => {
       try {
+        if (process.env.BACKEND_API_URL) await refreshBackendRuntimeState(true).catch(() => {});
         const sources = getRuntimeDataSources();
         const input = JSON.parse(body || '{}');
         const payload = billionScaleActivationOrchestrator.activationRun(input, { registry: sources.moduleRegistry || getSiteFallbackModuleRegistry(), btcWallet: BTC_WALLET, ownerName: OWNER_NAME });
