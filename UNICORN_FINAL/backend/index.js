@@ -31,6 +31,7 @@ const rateLimit = require('express-rate-limit');
 // Raw body buffers needed for webhook signature verification
 app.use('/api/payment/webhook/stripe', express.raw({ type: 'application/json' }));
 app.use('/api/payment/webhook/paypal', express.raw({ type: 'application/json' }));
+app.use('/api/payment/nowpayments/webhook', express.raw({ type: 'application/json' }));
 
 app.use(compression());
 
@@ -71,6 +72,7 @@ const asyncHandler = (fn) => (req, res, next) => Promise.resolve(fn(req, res, ne
 // Applied before any route handler.
 function _sanitizeValue(v, depth) {
   if (depth > 10) return v; // guard against very deep nesting
+  if (Buffer.isBuffer(v)) return v;
   if (typeof v === 'string') {
     // Strip null bytes and non-printable control characters (except common whitespace)
     return v.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, '').trim().slice(0, 4096);
@@ -86,7 +88,7 @@ function _sanitizeValue(v, depth) {
   return v;
 }
 app.use((req, res, next) => {
-  if (req.body && typeof req.body === 'object') {
+  if (req.body && typeof req.body === 'object' && !Buffer.isBuffer(req.body)) {
     req.body = _sanitizeValue(req.body, 0);
   }
   next();
@@ -479,6 +481,7 @@ const reputationProtocol = require('./modules/reputationProtocol');
 const opportunityRadar = require('./modules/opportunityRadar');
 const businessBlueprint = require('./modules/businessBlueprint');
 const paymentGateway = require('./modules/paymentGateway');
+const nowPayments = require('./modules/nowPayments');
 const aviationModule = require('./modules/aviationModule');
 const paymentSystems = require('./modules/paymentSystems');
 const governmentModule = require('./modules/governmentModule');
@@ -3342,6 +3345,63 @@ app.post('/api/pricing/discount', adminTokenMiddleware, (req, res) => {
 });
 
 // ==================== PAYMENT ROUTES ====================
+// ── NOWPayments — Global Universal Payment (300+ coins + cards → auto BTC) ──
+app.post('/api/payment/nowpayments/create', asyncHandler(async (req, res) => {
+  const { amountUsd, itemName, itemId, clientId, successUrl, cancelUrl } = req.body || {};
+  const normalizedAmount = Number(amountUsd);
+  if (!Number.isFinite(normalizedAmount) || normalizedAmount <= 0) {
+    return res.status(400).json({ error: 'amountUsd required' });
+  }
+
+  const invoice = await nowPayments.createInvoice({
+    amountUsd: normalizedAmount,
+    itemName,
+    itemId,
+    clientId,
+    successUrl,
+    cancelUrl,
+  });
+  res.json(invoice);
+}));
+
+app.get('/api/payment/nowpayments/status/:id', asyncHandler(async (req, res) => {
+  res.json(await nowPayments.getPaymentStatus(req.params.id));
+}));
+
+app.post('/api/payment/nowpayments/webhook', (req, res) => {
+  try {
+    if (!nowPayments.isWebhookSecurityReady()) {
+      return res.status(503).json({ error: 'NOWPayments webhook disabled: missing NOWPAYMENTS_IPN_SECRET' });
+    }
+
+    const rawBody = req.body instanceof Buffer ? req.body.toString() : JSON.stringify(req.body || {});
+    const sig = req.headers['x-nowpayments-sig'] || '';
+    if (!sig) return res.status(401).json({ error: 'Missing NOWPayments signature header' });
+    if (!nowPayments.verifyWebhookSignature(rawBody, sig)) return res.status(401).json({ error: 'Invalid signature' });
+
+    const result = nowPayments.processWebhook(JSON.parse(rawBody));
+    res.json({ ok: true, status: result.status, result });
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+app.get('/api/payment/nowpayments/currencies', asyncHandler(async (req, res) => {
+  res.json(await nowPayments.getSupportedCurrencies());
+}));
+
+app.get('/api/payment/nowpayments/minimum/:currency', asyncHandler(async (req, res) => {
+  res.json(await nowPayments.getMinimumPayment(req.params.currency));
+}));
+
+app.get('/api/payment/nowpayments/ping', asyncHandler(async (req, res) => {
+  res.json(await nowPayments.ping());
+}));
+
+app.get('/api/payment/nowpayments/security', (req, res) => {
+  res.json(nowPayments.getSecurityStatus());
+});
+
 app.get('/api/payment/methods', (req, res) => {
   res.json({ methods: paymentGateway.getPaymentMethods() });
 });

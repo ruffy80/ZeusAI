@@ -166,6 +166,29 @@ async function runTests() {
     assert.ok(Array.isArray(r.body) || (r.body && Array.isArray(r.body.plans)));
   });
 
+  console.log('\nNOWPayments:');
+  await test('GET /api/payment/nowpayments/security → 200 with provider status', async () => {
+    const r = await apiRequest('GET', '/api/payment/nowpayments/security');
+    assert.equal(r.status, 200);
+    assert.equal(r.body.provider, 'nowpayments');
+    assert.equal(typeof r.body.apiKeyConfigured, 'boolean');
+    assert.equal(typeof r.body.webhookSecurityReady, 'boolean');
+  });
+
+  await test('POST /api/payment/nowpayments/create → fallback BTC invoice when API key absent', async () => {
+    const r = await apiRequest('POST', '/api/payment/nowpayments/create', {
+      amountUsd: 49,
+      itemName: 'Smoke Service',
+      itemId: 'smoke-service',
+      clientId: 'test-client'
+    });
+    assert.equal(r.status, 200);
+    assert.ok(r.body.id);
+    assert.equal(r.body.pay_currency, 'btc');
+    assert.ok(r.body.pay_address);
+    assert.equal(r.body.fallback, true);
+  });
+
   // ── Admin User Management ────────────────────────────────────────────────────
   console.log('\nAdmin - User Management:');
   await test('GET /api/admin/users - no token → 401', async () => {
