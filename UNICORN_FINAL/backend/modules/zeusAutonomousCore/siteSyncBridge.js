@@ -118,6 +118,15 @@ function createSiteSyncBridge({
     server.on('error', (e) => {
       // eslint-disable-next-line no-console
       console.warn('[ZAC/Bridge] HTTP error:', e.message);
+      if (e.code === 'EADDRINUSE') {
+        // Another ZAC instance owns the port — disable bridge gracefully and keep ZAC alive.
+        try { wss && wss.close(); } catch (_) {}
+        try { server.close(); } catch (_) {}
+        wss = null;
+        server = null;
+        if (pollTimer) { clearInterval(pollTimer); pollTimer = null; }
+        if (heartbeatTimer) { clearInterval(heartbeatTimer); heartbeatTimer = null; }
+      }
     });
 
     pollTimer = setInterval(() => { pollBackend().catch(() => {}); }, pollMs);

@@ -207,6 +207,10 @@ module.exports = {
 
 // Standalone mode (systemd entrypoint)
 if (require.main === module) {
+  // Survive transient errors so systemd doesn't churn restart-loops.
+  process.on('uncaughtException',  (e) => { try { recordAlert({ kind: 'uncaughtException',  error: e.message }); } catch (_) {} });
+  process.on('unhandledRejection', (e) => { try { recordAlert({ kind: 'unhandledRejection', error: (e && e.message) || String(e) }); } catch (_) {} });
+
   bootstrap();
   // Keep alive forever
   const _keepalive = setInterval(() => writeHeartbeat(), 60_000);
