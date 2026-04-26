@@ -3525,6 +3525,87 @@ app.post('/api/zac/dev/generate-module', (req, res) => {
   } catch (e) { res.status(500).json({ ok: false, error: e.message }); }
 });
 
+// ==================== BTC INVOICING (single-address ledger) ====================
+const btcLedger   = require('./modules/btcInvoiceLedger');
+const btcVerifier = require('./modules/btcPaymentVerifier');
+const zacAlerts   = require('./modules/zacAlertChannel');
+
+let _btcVerifier = null;
+let _firstSaleNotified = false;
+
+function _onPaidInvoice(invoice) {
+  // Fire the appropriate Discord/Telegram alert. First sale gets a special banner.
+  try {
+    if (!_firstSaleNotified) {
+      _firstSaleNotified = true;
+      zacAlerts.notifyFirstSale(invoice).catch(() => {});
+    } else {
+      zacAlerts.notifySale(invoice).catch(() => {});
+    }
+  } catch (_) {}
+  // Mesh broadcast so other modules can react (e.g., service activation).
+  try { meshOrchestrator.broadcast && meshOrchestrator.broadcast('btc.invoice.paid', invoice); } catch (_) {}
+}
+
+if (!_stableRuntime && process.env.BTC_VERIFIER_DISABLE !== '1') {
+  _btcVerifier = btcVerifier.createPaymentVerifier({
+    address: btcLedger.PAYOUT_ADDRESS,
+    onPaid:  _onPaidInvoice,
+    onError: (e) => console.warn('[BTC/Verifier]', (e && e.message) || e),
+  });
+  _btcVerifier.start();
+}
+
+app.post('/api/invoice/create', async (req, res) => {
+  try {
+    const { service, priceUsd, customerEmail, metadata } = req.body || {};
+    const inv = await btcLedger.createInvoice({ service, priceUsd, customerEmail, metadata });
+    res.json({ ok: true, invoice: inv });
+  } catch (e) { res.status(400).json({ ok: false, error: e.message }); }
+});
+
+app.get('/api/invoice/list', (req, res) => {
+  res.json({ ok: true, invoices: btcLedger.listInvoices({ status: req.query.status, limit: parseInt(req.query.limit || '50', 10) }) });
+});
+
+app.get('/api/invoice/status', (req, res) => {
+  res.json({
+    ok: true,
+    ledger: btcLedger.getStatus(),
+    verifier: _btcVerifier ? _btcVerifier.getStatus() : { running: false, reason: 'disabled' },
+    alerts: zacAlerts.getStatus(),
+  });
+});
+
+app.get('/api/invoice/:id', (req, res) => {
+  const inv = btcLedger.getInvoice(req.params.id);
+  if (!inv) return res.status(404).json({ ok: false, error: 'not-found' });
+  res.json({ ok: true, invoice: inv });
+});
+
+app.get('/api/invoice/:id/qr', async (req, res) => {
+  const inv = btcLedger.getInvoice(req.params.id);
+  if (!inv) return res.status(404).json({ ok: false, error: 'not-found' });
+  const uri = `bitcoin:${inv.payoutAddress}?amount=${inv.amountBtc}&label=Invoice%20${inv.id}`;
+  try {
+    const QRCode = require('qrcode');
+    const qr = await QRCode.toDataURL(uri, { width: 320, margin: 2, color: { dark: '#00d4ff', light: '#05060e' } });
+    res.json({ ok: true, qr, uri, invoice: inv });
+  } catch (e) { res.status(500).json({ ok: false, error: e.message }); }
+});
+
+app.post('/api/invoice/verify-now', async (req, res) => {
+  if (!_btcVerifier) return res.status(503).json({ ok: false, error: 'verifier-disabled' });
+  try { await _btcVerifier.tick(); res.json({ ok: true, status: _btcVerifier.getStatus() }); }
+  catch (e) { res.status(500).json({ ok: false, error: e.message }); }
+});
+
+app.post('/api/alerts/test', async (req, res) => {
+  const text = (req.body && req.body.message) || `ZAC alert test @ ${new Date().toISOString()}`;
+  const r = await zacAlerts.broadcast(text);
+  res.json({ ok: true, ...r });
+});
+
 // ==================== RUTE INOVAȚII ====================
 
 // 1. Quantum-Resistant Digital Identity

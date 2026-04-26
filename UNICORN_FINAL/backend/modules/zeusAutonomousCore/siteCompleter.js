@@ -85,14 +85,34 @@ const PAGE_BODIES = {
     </script>`,
   'checkout.html': () => `
     <div class="card">
-      <p>Pay any service via Bitcoin direct.</p>
-      <p>Address: <code id="btc">…</code></p>
-      <p><a href="/btc.html">Open BTC payment page →</a></p>
+      <h3>Bitcoin checkout</h3>
+      <p>Service: <input id="svc" placeholder="e.g. unicorn-pro" style="width:60%"/></p>
+      <p>Price (USD): <input id="usd" type="number" value="49" style="width:120px"/></p>
+      <p><button id="go">Generate invoice</button></p>
+      <div id="out"></div>
     </div>
     <script>
-      fetch('/api/payment/btc-address').then(r=>r.json()).then(d=>{
-        document.getElementById('btc').textContent = d.address || d.btc || 'bc1q4f7e66z87mdfj56kz0dj5hvcnpmh0qh4wuv22e';
-      }).catch(()=>{document.getElementById('btc').textContent='bc1q4f7e66z87mdfj56kz0dj5hvcnpmh0qh4wuv22e';});
+      document.getElementById('go').onclick = async () => {
+        const service = document.getElementById('svc').value || 'service';
+        const priceUsd = parseFloat(document.getElementById('usd').value || '49');
+        const r = await fetch('/api/invoice/create', { method:'POST', headers:{'content-type':'application/json'}, body: JSON.stringify({ service, priceUsd })});
+        const d = await r.json();
+        if (!d.ok) { document.getElementById('out').textContent = 'error: '+d.error; return; }
+        const inv = d.invoice;
+        const qr  = await fetch('/api/invoice/'+inv.id+'/qr').then(x=>x.json()).catch(()=>({}));
+        document.getElementById('out').innerHTML =
+          '<p>Invoice <strong>#'+inv.id+'</strong> — send <strong>'+inv.amountBtc+' BTC</strong></p>'+
+          '<p>Address: <code>'+inv.payoutAddress+'</code></p>'+
+          (qr.qr ? '<img src="'+qr.qr+'" style="max-width:280px"/>' : '')+
+          '<p>Status: <span id="st">pending</span></p>';
+        const poll = setInterval(async () => {
+          const u = await fetch('/api/invoice/'+inv.id).then(x=>x.json()).catch(()=>({}));
+          if (u && u.invoice && u.invoice.status === 'paid') {
+            document.getElementById('st').textContent = '✅ PAID — tx '+u.invoice.txid;
+            clearInterval(poll);
+          }
+        }, 15000);
+      };
     </script>`,
   'dashboard.html': () => `
     <div class="card" id="snap">Loading snapshot…</div>
