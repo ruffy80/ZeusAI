@@ -7,7 +7,7 @@ on:
 
 concurrency:
   group: unicorn-stable-deploy-main
-  cancel-in-progress: false
+  cancel-in-progress: true
 
 jobs:
   deploy:
@@ -141,12 +141,22 @@ jobs:
         with:
           ssh-private-key: ${{ secrets.HETZNER_SSH_PRIVATE_KEY }}
 
-      - name: 🧷 Anti-downgrade guard
+      - name: 🧷 Freshness + anti-downgrade guard
         run: |
+          git fetch origin main --quiet
+          LATEST_SHA=$(git rev-parse origin/main)
+          echo "Latest origin/main commit: $LATEST_SHA"
+          echo "Candidate commit: $GITHUB_SHA"
+          if [ "$GITHUB_SHA" != "$LATEST_SHA" ]; then
+            echo "❌ Refuz deploy stale: acest workflow nu mai este ultimul commit de pe main."
+            echo "   Candidate=$GITHUB_SHA"
+            echo "   Latest=$LATEST_SHA"
+            exit 1
+          fi
+
           DEPLOYED_SHA=$(ssh -o StrictHostKeyChecking=no root@${{ secrets.HETZNER_HOST }} \
             "cat /var/www/unicorn/UNICORN_FINAL/.deployed-commit 2>/dev/null || true" | tr -d '[:space:]')
           echo "Server deployed commit: ${DEPLOYED_SHA:-none}"
-          echo "Candidate commit: $GITHUB_SHA"
           if [ -n "$DEPLOYED_SHA" ] && git cat-file -e "${DEPLOYED_SHA}^{commit}" 2>/dev/null; then
             if ! git merge-base --is-ancestor "$DEPLOYED_SHA" "$GITHUB_SHA"; then
               echo "❌ Refuz deploy: candidate-ul nu conține commitul deja deployat pe server (posibil downgrade/rollback)."
