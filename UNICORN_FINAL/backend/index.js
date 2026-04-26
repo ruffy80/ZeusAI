@@ -3472,6 +3472,59 @@ app.post('/api/billion-scale/activation/run', (req, res) => {
   res.json(billionScaleActivationOrchestrator.activationRun(req.body || {}, { registry: getModuleRegistryStatus(), btcWallet: ADMIN_OWNER_BTC, ownerName: ADMIN_OWNER_NAME }));
 });
 
+// ==================== ZEUS AUTONOMOUS CORE (ZAC) ====================
+// In-process loader. Standalone systemd mode lives in
+// backend/modules/zeusAutonomousCore/index.js (run via `node` directly).
+let _zac = null;
+try { _zac = require('./modules/zeusAutonomousCore'); }
+catch (e) { console.warn('[ZAC] Module not loaded:', e.message); }
+
+if (_zac && process.env.ZAC_INPROCESS === '1' && !_stableRuntime) {
+  try { _zac.bootstrap(); }
+  catch (e) { console.warn('[ZAC] In-process bootstrap failed:', e.message); }
+}
+
+app.get('/api/zac/status', (req, res) => {
+  if (!_zac) return res.status(503).json({ ok: false, error: 'zac-not-loaded' });
+  res.json({ ok: true, ...(_zac.getStatus() || {}) });
+});
+
+app.get('/api/zac/scan', (req, res) => {
+  if (!_zac) return res.status(503).json({ ok: false, error: 'zac-not-loaded' });
+  try { res.json({ ok: true, scan: _zac.scan({}) }); }
+  catch (e) { res.status(500).json({ ok: false, error: e.message }); }
+});
+
+app.post('/api/zac/start', (req, res) => {
+  if (!_zac) return res.status(503).json({ ok: false, error: 'zac-not-loaded' });
+  try { res.json({ ok: true, status: _zac.bootstrap(req.body || {}) }); }
+  catch (e) { res.status(500).json({ ok: false, error: e.message }); }
+});
+
+app.post('/api/zac/stop', (req, res) => {
+  if (!_zac) return res.status(503).json({ ok: false, error: 'zac-not-loaded' });
+  try { res.json({ ok: true, ...(_zac.shutdown() || {}) }); }
+  catch (e) { res.status(500).json({ ok: false, error: e.message }); }
+});
+
+app.post('/api/zac/site-complete', (req, res) => {
+  if (!_zac) return res.status(503).json({ ok: false, error: 'zac-not-loaded' });
+  try {
+    const r = _zac.completeSite({ unicornRoot: require('path').resolve(__dirname, '..'), dryRun: !!(req.body && req.body.dryRun) });
+    res.json({ ok: true, ...r });
+  } catch (e) { res.status(500).json({ ok: false, error: e.message }); }
+});
+
+app.post('/api/zac/dev/generate-module', (req, res) => {
+  if (!_zac) return res.status(503).json({ ok: false, error: 'zac-not-loaded' });
+  const { name, description } = (req.body || {});
+  if (!name) return res.status(400).json({ ok: false, error: 'name required' });
+  try {
+    const dev = _zac.createSelfDeveloper();
+    res.json({ ok: true, ...dev.generateModule({ name, description }) });
+  } catch (e) { res.status(500).json({ ok: false, error: e.message }); }
+});
+
 // ==================== RUTE INOVAȚII ====================
 
 // 1. Quantum-Resistant Digital Identity

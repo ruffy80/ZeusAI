@@ -1,0 +1,25 @@
+[Unit]
+Description=Zeus Autonomous Core (ZAC) — UNICORN_FINAL central brain
+After=network.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/var/www/unicorn/UNICORN_FINAL
+Environment=NODE_ENV=production
+Environment=ZAC_BACKEND_BASE=http://127.0.0.1:3000
+Environment=ZAC_BRIDGE_PORT=4444
+ExecStart=/usr/bin/node backend/modules/zeusAutonomousCore/index.js
+Restart=always
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+LimitNOFILE=65536
+
+# Resource limits — keep ZAC well under 50% CPU on CPX32
+CPUQuota=50%
+MemoryMax=1G
+
+[Install]
+WantedBy=multi-user.target
