@@ -194,6 +194,23 @@ jobs:
           ssh -o StrictHostKeyChecking=no root@${{ secrets.HETZNER_HOST }} \
             "printf '%s\n' '${{ github.sha }}' > /var/www/unicorn/UNICORN_FINAL/.deployed-commit"
 
+      - name: 🔬 Verify rsync replicated source
+        # Catch silent rsync failures: pick a few canonical files from the
+        # repo and confirm the deployed copy has the exact same SHA-256.
+        run: |
+          set -e
+          for rel in UNICORN_FINAL/backend/index.js UNICORN_FINAL/package.json; do
+            LOCAL_HASH=$(sha256sum "$rel" | awk '{print $1}')
+            REMOTE_HASH=$(ssh -o StrictHostKeyChecking=no root@${{ secrets.HETZNER_HOST }} \
+              "sha256sum /var/www/unicorn/$rel 2>/dev/null | awk '{print \$1}'" || true)
+            echo "$rel  local=$LOCAL_HASH  remote=$REMOTE_HASH"
+            if [ "$LOCAL_HASH" != "$REMOTE_HASH" ]; then
+              echo "❌ Deploy mismatch for $rel — rsync did not replicate the file."
+              exit 1
+            fi
+          done
+          echo "✅ rsync replication verified."
+
       - name: 🩺 Server Doctor + Restart
         env:
           ADMIN_EMAIL: ${{ secrets.SMTP_USER }}
@@ -219,6 +236,9 @@ jobs:
           #   - obtains new cert on fresh install
           ADMIN_EMAIL="${SMTP_USER:-admin@zeusai.pro}"
           bash "$DEPLOY_PATH/scripts/setup-ssl.sh" "$DOMAIN" "$ADMIN_EMAIL" "$DEPLOY_PATH" || true
+          # Garantează că nginx rutează /api/invoice/* și /api/alerts/* către backend:3000
+          # (idempotent — dacă blocurile sunt deja injectate, scriptul iese fără să modifice).
+          bash "$DEPLOY_PATH/scripts/ensure-btc-routes.sh" "$DOMAIN" || true
           # HTTPS recovery: dacă portul 443 nu ascultă după setup-ssl.sh, forțează certbot reinstall
           echo "--- Verificare port 443 post-SSL ---"
           if ! ss -tlnp 2>/dev/null | grep -q ':443'; then

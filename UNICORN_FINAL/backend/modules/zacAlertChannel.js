@@ -63,8 +63,12 @@ async function sendDiscord(message) {
 }
 
 async function sendTelegram(message) {
-  const token  = process.env.ZAC_TELEGRAM_TOKEN;
-  const chatId = process.env.ZAC_TELEGRAM_CHAT_ID;
+  // Prefer ZAC_-prefixed env (explicit ZAC config) but fall back to the
+  // generic TELEGRAM_BOT_TOKEN / TELEGRAM_CHAT_ID secrets that the deploy
+  // workflow already injects on the server, so first-sale alerts work
+  // out of the box without extra configuration.
+  const token  = process.env.ZAC_TELEGRAM_TOKEN  || process.env.TELEGRAM_BOT_TOKEN;
+  const chatId = process.env.ZAC_TELEGRAM_CHAT_ID || process.env.TELEGRAM_CHAT_ID;
   if (!token || !chatId) return { ok: false, skipped: 'no-config' };
   const url = `https://api.telegram.org/bot${token}/sendMessage`;
   return postJSON(url, { chat_id: chatId, text: String(message).slice(0, 4000), parse_mode: 'Markdown' });
@@ -107,7 +111,8 @@ function notifyAlert(alert) {
 function getStatus() {
   return {
     discordConfigured:  !!process.env.ZAC_DISCORD_WEBHOOK,
-    telegramConfigured: !!(process.env.ZAC_TELEGRAM_TOKEN && process.env.ZAC_TELEGRAM_CHAT_ID),
+    telegramConfigured: !!((process.env.ZAC_TELEGRAM_TOKEN  || process.env.TELEGRAM_BOT_TOKEN) &&
+                            (process.env.ZAC_TELEGRAM_CHAT_ID || process.env.TELEGRAM_CHAT_ID)),
     rateWindowMs: RATE_WINDOW_MS,
     maxPerWindow: MAX_PER_WINDOW,
     sentInWindow: _bucket.length,
