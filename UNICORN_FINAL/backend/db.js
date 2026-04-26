@@ -229,6 +229,31 @@ try {
       active      INTEGER NOT NULL DEFAULT 1,
       createdAt   TEXT NOT NULL
     );
+
+    CREATE TABLE IF NOT EXISTS passkey_challenges (
+      id          TEXT PRIMARY KEY,
+      email       TEXT NOT NULL,
+      userId      TEXT,
+      mode        TEXT NOT NULL,
+      challenge   TEXT NOT NULL,
+      createdAt   INTEGER NOT NULL,
+      expiresAt   INTEGER NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS passkey_credentials (
+      credentialId TEXT PRIMARY KEY,
+      userId       TEXT NOT NULL,
+      email        TEXT NOT NULL,
+      publicKey    TEXT NOT NULL,
+      counter      INTEGER NOT NULL DEFAULT 0,
+      transports   TEXT NOT NULL DEFAULT '[]',
+      createdAt    TEXT NOT NULL,
+      lastUsedAt   TEXT,
+      active       INTEGER NOT NULL DEFAULT 1
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_passkey_challenges_email ON passkey_challenges(email, mode, expiresAt);
+    CREATE INDEX IF NOT EXISTS idx_passkey_credentials_user ON passkey_credentials(userId, active);
   `);
 
   // Migrate: add planId column if not present (idempotent)
@@ -267,6 +292,8 @@ let mem = {
   referrals: [],
   workflows: [],
   tenants: [],
+  passkeyChallenges: new Map(),
+  passkeyCredentials: new Map(),
 };
 
 // ============================================================
@@ -345,6 +372,16 @@ if (usingSqlite) {
     deleteAdminSession: db.prepare('DELETE FROM admin_sessions WHERE token = ?'),
     countAdminSessions: db.prepare('SELECT COUNT(*) as cnt FROM admin_sessions WHERE expiresAt > ?'),
     pruneAdminSessions: db.prepare('DELETE FROM admin_sessions WHERE expiresAt <= ?'),
+
+    upsertPasskeyChallenge: db.prepare('INSERT OR REPLACE INTO passkey_challenges (id,email,userId,mode,challenge,createdAt,expiresAt) VALUES (@id,@email,@userId,@mode,@challenge,@createdAt,@expiresAt)'),
+    findPasskeyChallenge: db.prepare('SELECT * FROM passkey_challenges WHERE email = ? AND mode = ? AND expiresAt > ? ORDER BY createdAt DESC LIMIT 1'),
+    deletePasskeyChallenge: db.prepare('DELETE FROM passkey_challenges WHERE id = ?'),
+    insertPasskeyCredential: db.prepare('INSERT OR REPLACE INTO passkey_credentials (credentialId,userId,email,publicKey,counter,transports,createdAt,lastUsedAt,active) VALUES (@credentialId,@userId,@email,@publicKey,@counter,@transports,@createdAt,@lastUsedAt,@active)'),
+    findPasskeyCredential: db.prepare('SELECT * FROM passkey_credentials WHERE credentialId = ? AND active = 1'),
+    listPasskeyCredentialsByUser: db.prepare('SELECT credentialId,email,counter,transports,createdAt,lastUsedAt,active FROM passkey_credentials WHERE userId = ? AND active = 1 ORDER BY createdAt DESC'),
+    listPasskeyCredentialsByEmail: db.prepare('SELECT * FROM passkey_credentials WHERE email = ? AND active = 1 ORDER BY createdAt DESC'),
+    updatePasskeyCounter: db.prepare('UPDATE passkey_credentials SET counter = @counter, lastUsedAt = @lastUsedAt WHERE credentialId = @credentialId'),
+    revokePasskeyCredential: db.prepare('UPDATE passkey_credentials SET active = 0 WHERE credentialId = ?'),
   };
 }
 
@@ -704,6 +741,34 @@ const tenants = usingSqlite ? {
   },
 };
 
+const passkeys = usingSqlite ? {
+  saveChallenge(data) { stmts.upsertPasskeyChallenge.run(data); return data; },
+  findChallenge(email, mode) { return stmts.findPasskeyChallenge.get(email, mode, Date.now()) || null; },
+  deleteChallenge(id) { if (id) stmts.deletePasskeyChallenge.run(id); },
+  saveCredential(data) { stmts.insertPasskeyCredential.run({ ...data, transports: JSON.stringify(data.transports || []), active: data.active === 0 ? 0 : 1 }); return data; },
+  findCredential(credentialId) {
+    const row = stmts.findPasskeyCredential.get(credentialId);
+    return row ? { ...row, transports: JSON.parse(row.transports || '[]') } : null;
+  },
+  listByUser(userId) { return stmts.listPasskeyCredentialsByUser.all(userId).map(row => ({ ...row, transports: JSON.parse(row.transports || '[]') })); },
+  listByEmail(email) { return stmts.listPasskeyCredentialsByEmail.all(email).map(row => ({ ...row, transports: JSON.parse(row.transports || '[]') })); },
+  updateCounter(credentialId, counter) { stmts.updatePasskeyCounter.run({ credentialId, counter, lastUsedAt: new Date().toISOString() }); },
+  revoke(credentialId) { return stmts.revokePasskeyCredential.run(credentialId).changes > 0; },
+} : {
+  saveChallenge(data) { mem.passkeyChallenges.set(data.id, { ...data }); return data; },
+  findChallenge(email, mode) {
+    const now = Date.now();
+    return Array.from(mem.passkeyChallenges.values()).filter(c => c.email === email && c.mode === mode && c.expiresAt > now).sort((a,b)=>b.createdAt-a.createdAt)[0] || null;
+  },
+  deleteChallenge(id) { mem.passkeyChallenges.delete(id); },
+  saveCredential(data) { mem.passkeyCredentials.set(data.credentialId, { ...data, active: data.active === 0 ? 0 : 1 }); return data; },
+  findCredential(credentialId) { const c = mem.passkeyCredentials.get(credentialId); return c && c.active !== 0 ? c : null; },
+  listByUser(userId) { return Array.from(mem.passkeyCredentials.values()).filter(c => c.userId === userId && c.active !== 0); },
+  listByEmail(email) { return Array.from(mem.passkeyCredentials.values()).filter(c => c.email === email && c.active !== 0); },
+  updateCounter(credentialId, counter) { const c = mem.passkeyCredentials.get(credentialId); if (c) { c.counter = counter; c.lastUsedAt = new Date().toISOString(); } },
+  revoke(credentialId) { const c = mem.passkeyCredentials.get(credentialId); if (!c) return false; c.active = 0; return true; },
+};
+
 function meta() {
   return {
     usingSqlite,
@@ -714,4 +779,4 @@ function meta() {
   };
 }
 
-module.exports = { db, users, payments, purchases, apiKeys, adminSessions, monthlyUsage, referrals, workflows, tenants, meta };
+module.exports = { db, users, payments, purchases, apiKeys, adminSessions, monthlyUsage, referrals, workflows, tenants, passkeys, meta };

@@ -121,9 +121,53 @@ const {
   purchases: dbPurchases,
   apiKeys: dbApiKeys,
   adminSessions: dbAdminSessions,
+  passkeys: dbPasskeys,
   meta: dbMeta,
 } = require('./db');
 const emailService = require('./email');
+const worldStandard = require('./modules/worldStandard');
+
+let webauthnModulePromise;
+const getWebAuthn = () => {
+  if (!webauthnModulePromise) webauthnModulePromise = import('@simplewebauthn/server');
+  return webauthnModulePromise;
+};
+
+function getPublicOrigin(req) {
+  const configured = process.env.PUBLIC_APP_URL || process.env.FRONTEND_URL || process.env.APP_BASE_URL || process.env.BASE_URL;
+  if (configured) return configured.replace(/\/$/, '');
+  const proto = req.headers['x-forwarded-proto'] || req.protocol || 'http';
+  const host = req.headers['x-forwarded-host'] || req.headers.host || `localhost:${PORT}`;
+  return `${proto}://${host}`;
+}
+
+function getWebAuthnContext(req) {
+  const origin = getPublicOrigin(req);
+  const hostname = new URL(origin).hostname;
+  const rpID = process.env.WEBAUTHN_RP_ID || hostname;
+  const rpName = process.env.WEBAUTHN_RP_NAME || 'ZeusAI';
+  return { origin, rpID, rpName };
+}
+
+function normalizeEmail(value) {
+  return sanitizeString(String(value || '').toLowerCase(), 254);
+}
+
+function b64u(input) {
+  if (!input) return '';
+  if (typeof input === 'string') return input;
+  return Buffer.from(input).toString('base64url');
+}
+
+function b64uBuffer(value) {
+  return Buffer.from(String(value || ''), 'base64url');
+}
+
+function bearerUser(req) {
+  const auth = req.headers.authorization || '';
+  if (!auth.startsWith('Bearer ')) return null;
+  try { return jwt.verify(auth.slice(7), JWT_SECRET); } catch (_) { return null; }
+}
 
 // ==================== SECURITY HEADERS (Helmet) ====================
 app.use(helmet({
@@ -391,6 +435,126 @@ app.post('/api/auth/change-password', adminTokenMiddleware, async (req, res) => 
   res.json({ success: true });
 });
 
+app.post('/api/auth/passkey/challenge', authRateLimit(20, 15 * 60 * 1000), asyncHandler(async (req, res) => {
+  const { mode = 'assert' } = req.body || {};
+  const email = normalizeEmail(req.body?.email);
+  if (!email || !isValidEmail(email)) return res.status(400).json({ error: 'Valid email required' });
+  if (!['register', 'assert'].includes(mode)) return res.status(400).json({ error: 'mode must be register or assert' });
+  const user = dbUsers.findByEmail(email);
+  if (!user) return res.status(404).json({ error: 'User not found' });
+  const { rpID, rpName } = getWebAuthnContext(req);
+  const { generateRegistrationOptions, generateAuthenticationOptions } = await getWebAuthn();
+  let publicKey;
+  if (mode === 'register') {
+    const existing = dbPasskeys.listByUser(user.id);
+    publicKey = await generateRegistrationOptions({
+      rpName,
+      rpID,
+      userName: user.email,
+      userDisplayName: user.name,
+      userID: Buffer.from(user.id),
+      attestationType: 'none',
+      authenticatorSelection: { residentKey: 'preferred', userVerification: 'preferred' },
+      excludeCredentials: existing.map((cred) => ({ id: cred.credentialId, type: 'public-key', transports: cred.transports || [] })),
+    });
+  } else {
+    const credentials = dbPasskeys.listByEmail(email);
+    if (!credentials.length) return res.status(404).json({ error: 'No passkey registered for this account' });
+    publicKey = await generateAuthenticationOptions({
+      rpID,
+      userVerification: 'preferred',
+      allowCredentials: credentials.map((cred) => ({ id: cred.credentialId, type: 'public-key', transports: cred.transports || [] })),
+    });
+  }
+  dbPasskeys.saveChallenge({
+    id: crypto.randomBytes(12).toString('hex'),
+    email,
+    userId: user.id,
+    mode,
+    challenge: publicKey.challenge,
+    createdAt: Date.now(),
+    expiresAt: Date.now() + 5 * 60 * 1000,
+  });
+  res.json({ ok: true, publicKey, rpID, mode });
+}));
+
+app.post('/api/auth/passkey/register', authRateLimit(10, 15 * 60 * 1000), asyncHandler(async (req, res) => {
+  const email = normalizeEmail(req.body?.email);
+  const { credential, password } = req.body || {};
+  if (!email || !credential) return res.status(400).json({ error: 'email and credential required' });
+  const user = dbUsers.findByEmail(email);
+  if (!user) return res.status(404).json({ error: 'User not found' });
+  const authUser = bearerUser(req);
+  const passwordOk = password ? await bcrypt.compare(String(password), user.passwordHash) : false;
+  if (!passwordOk && (!authUser || authUser.id !== user.id)) return res.status(401).json({ error: 'Existing login or password required to enroll passkey' });
+  const challenge = dbPasskeys.findChallenge(email, 'register');
+  if (!challenge) return res.status(400).json({ error: 'Passkey challenge expired' });
+  const { origin, rpID } = getWebAuthnContext(req);
+  const { verifyRegistrationResponse } = await getWebAuthn();
+  const verification = await verifyRegistrationResponse({ response: credential, expectedChallenge: challenge.challenge, expectedOrigin: origin, expectedRPID: rpID, requireUserVerification: false });
+  dbPasskeys.deleteChallenge(challenge.id);
+  if (!verification.verified || !verification.registrationInfo) return res.status(400).json({ error: 'Passkey registration failed' });
+  const info = verification.registrationInfo;
+  const storedCredential = info.credential || info;
+  const credentialId = b64u(storedCredential.id || info.credentialID || credential.id || credential.rawId);
+  const publicKey = b64u(storedCredential.publicKey || info.credentialPublicKey);
+  if (!credentialId || !publicKey) return res.status(400).json({ error: 'Passkey credential incomplete' });
+  dbPasskeys.saveCredential({
+    credentialId,
+    userId: user.id,
+    email: user.email,
+    publicKey,
+    counter: Number(storedCredential.counter || info.counter || 0),
+    transports: credential.response?.transports || credential.transports || [],
+    createdAt: new Date().toISOString(),
+    lastUsedAt: null,
+    active: 1,
+  });
+  worldStandard.appendLedger('identity.passkey.enrolled', { userId: user.id, email: user.email, credentialIdHash: crypto.createHash('sha256').update(credentialId).digest('hex') });
+  res.json({ ok: true, credentialId, user: { id: user.id, email: user.email, name: user.name } });
+}));
+
+app.post('/api/auth/passkey/assert', authRateLimit(20, 15 * 60 * 1000), asyncHandler(async (req, res) => {
+  const email = normalizeEmail(req.body?.email);
+  const { credential } = req.body || {};
+  if (!email || !credential) return res.status(400).json({ error: 'email and credential required' });
+  const user = dbUsers.findByEmail(email);
+  if (!user) return res.status(404).json({ error: 'User not found' });
+  const challenge = dbPasskeys.findChallenge(email, 'assert');
+  if (!challenge) return res.status(400).json({ error: 'Passkey challenge expired' });
+  const credentialId = b64u(credential.id || credential.rawId);
+  const stored = dbPasskeys.findCredential(credentialId);
+  if (!stored || stored.userId !== user.id) return res.status(401).json({ error: 'Passkey not recognized' });
+  const { origin, rpID } = getWebAuthnContext(req);
+  const { verifyAuthenticationResponse } = await getWebAuthn();
+  const verification = await verifyAuthenticationResponse({
+    response: credential,
+    expectedChallenge: challenge.challenge,
+    expectedOrigin: origin,
+    expectedRPID: rpID,
+    credential: { id: stored.credentialId, publicKey: b64uBuffer(stored.publicKey), counter: Number(stored.counter || 0), transports: stored.transports || [] },
+    requireUserVerification: false,
+  });
+  dbPasskeys.deleteChallenge(challenge.id);
+  if (!verification.verified) return res.status(401).json({ error: 'Passkey verification failed' });
+  dbPasskeys.updateCounter(stored.credentialId, Number(verification.authenticationInfo?.newCounter || stored.counter || 0));
+  const token = jwt.sign({ id: user.id, email: user.email, name: user.name }, JWT_SECRET, { expiresIn: '7d' });
+  worldStandard.appendLedger('identity.passkey.login', { userId: user.id, email: user.email, credentialIdHash: crypto.createHash('sha256').update(stored.credentialId).digest('hex') });
+  res.json({ token, user: { id: user.id, name: user.name, email: user.email, emailVerified: Boolean(user.emailVerified) } });
+}));
+
+app.get('/api/auth/passkey/list', authMiddleware, (req, res) => {
+  res.json({ ok: true, credentials: dbPasskeys.listByUser(req.user.id) });
+});
+
+app.post('/api/auth/passkey/revoke', authMiddleware, (req, res) => {
+  const credentialId = sanitizeString(req.body?.credentialId, 256);
+  if (!credentialId) return res.status(400).json({ error: 'credentialId required' });
+  const stored = dbPasskeys.findCredential(credentialId);
+  if (!stored || stored.userId !== req.user.id) return res.status(404).json({ error: 'Passkey not found' });
+  res.json({ ok: dbPasskeys.revoke(credentialId) });
+});
+
 app.post('/api/auth/biometric/enroll', adminTokenMiddleware, (req, res) => {
   const { sample } = req.body || {};
   if (!sample) return res.status(400).json({ error: 'sample required' });
@@ -464,6 +628,17 @@ app.post('/api/auth/reset-password', async (req, res) => {
   dbUsers.updatePassword(user.id, passwordHash);
   res.json({ message: 'Password reset successful' });
 });
+
+app.get('/api/transparency/ledger', (req, res) => res.json(worldStandard.ledgerStatus(Number(req.query.limit || 25))));
+app.post('/api/transparency/ledger', adminTokenMiddleware, (req, res) => res.json({ ok: true, entry: worldStandard.appendLedger(req.body?.type || 'operator.note', req.body?.payload || {}) }));
+app.get('/api/resilience/backup/status', (req, res) => res.json(worldStandard.backupStatus()));
+app.post('/api/resilience/backup/create', adminTokenMiddleware, asyncHandler(async (req, res) => res.json(worldStandard.createBackup(req.body?.reason || 'manual'))));
+app.get('/api/vendor/marketplace/policy', (req, res) => res.json(worldStandard.vendorPolicy));
+app.post('/api/vendor/marketplace/submit', asyncHandler(async (req, res) => res.json(worldStandard.submitVendorModule(req.body || {}))));
+app.get('/api/vendor/marketplace/modules', (req, res) => res.json(worldStandard.listVendorModules()));
+app.get('/api/compliance/autopilot', (req, res) => res.json(worldStandard.complianceAutopilot()));
+app.get('/api/privacy/export', authMiddleware, (req, res) => res.json(worldStandard.privacyExport(req.user)));
+app.post('/api/privacy/delete-request', authMiddleware, (req, res) => res.json({ ok: true, requestId: worldStandard.appendLedger('privacy.delete.requested', { userId: req.user.id, email: req.user.email }).id, status: 'queued-for-owner-review' }));
 
 // ==================== MODULE AUTONOME ====================
 const autoDeploy = require('./modules/autoDeploy');
@@ -7294,6 +7469,7 @@ process.on('unhandledRejection', (reason) => {
 if (require.main === module) {
   app.listen(PORT, () => {
     const reg = getModuleRegistryStatus();
+    worldStandard.startupSeal({ appVersion: APP_VERSION, port: PORT, modules: reg.total, pid: process.pid });
     console.log(`🚀 Unicorn autonom rulând pe portul ${PORT}`);
     console.log(`🤖 Universal AI Connector (UAIC): ${_uaic ? 'ACTIVE' : 'DISABLED'}`);
     console.log(`🌐 Multi-Model Router (14 AI): ${_multiRouter ? 'ACTIVE' : 'DISABLED'}`);

@@ -158,6 +158,19 @@ async function runTests() {
     assert.ok(!r.body.passwordHash, 'passwordHash must not be exposed');
   });
 
+  await test('POST /api/auth/passkey/challenge register → 200 with publicKey', async () => {
+    const r = await apiRequest('POST', '/api/auth/passkey/challenge', { email: 'zeus@test.com', mode: 'register' });
+    assert.equal(r.status, 200);
+    assert.equal(r.body.ok, true);
+    assert.ok(r.body.publicKey.challenge);
+    assert.ok(r.body.publicKey.rp);
+  });
+
+  await test('POST /api/auth/passkey/register without proof → 401', async () => {
+    const r = await apiRequest('POST', '/api/auth/passkey/register', { email: 'zeus@test.com', credential: { id: 'fake' } });
+    assert.equal(r.status, 401);
+  });
+
   // ── Billing Plans ────────────────────────────────────────────────────────────
   console.log('\nBilling:');
   await test('GET /api/billing/plans/public → 200 with plans array', async () => {
@@ -197,6 +210,51 @@ async function runTests() {
     assert.ok(Array.isArray(r.body.diagnostics.requiredPm2Processes));
     assert.ok(r.body.diagnostics.requiredPm2Processes.includes('unicorn-backend'));
     assert.ok(!r.body.diagnostics.requiredPm2Processes.includes('unicorn-orchestrator'));
+  });
+
+  console.log('\nWorld Standard APIs:');
+  await test('GET /api/transparency/ledger → 200 with hash-chain status', async () => {
+    const r = await apiRequest('GET', '/api/transparency/ledger');
+    assert.equal(r.status, 200);
+    assert.equal(r.body.ok, true);
+    assert.equal(r.body.anchors.localHashChain, true);
+  });
+
+  await test('GET /api/resilience/backup/status → 200 with durable backup metadata', async () => {
+    const r = await apiRequest('GET', '/api/resilience/backup/status');
+    assert.equal(r.status, 200);
+    assert.equal(r.body.ok, true);
+    assert.ok(r.body.protects.includes('user sqlite database'));
+  });
+
+  await test('GET /api/vendor/marketplace/policy → 200 with quarantine policy', async () => {
+    const r = await apiRequest('GET', '/api/vendor/marketplace/policy');
+    assert.equal(r.status, 200);
+    assert.equal(r.body.ok, true);
+    assert.ok(r.body.onboarding.includes('signed module manifest'));
+  });
+
+  await test('POST /api/vendor/marketplace/submit → quarantines module', async () => {
+    const r = await apiRequest('POST', '/api/vendor/marketplace/submit', { name: 'Smoke Vendor Module', vendor: 'Smoke Labs', manifest: { version: '1.0.0' } });
+    assert.equal(r.status, 200);
+    assert.equal(r.body.ok, true);
+    assert.equal(r.body.module.status, 'quarantined-pending-review');
+  });
+
+  await test('GET /api/compliance/autopilot → 200 with privacy controls', async () => {
+    const r = await apiRequest('GET', '/api/compliance/autopilot');
+    assert.equal(r.status, 200);
+    assert.equal(r.body.ok, true);
+    assert.ok(r.body.controls.includes('export/delete workflow'));
+  });
+
+  await test('GET /api/privacy/export requires auth and returns portable export', async () => {
+    const denied = await apiRequest('GET', '/api/privacy/export');
+    assert.equal(denied.status, 401);
+    const r = await apiRequest('GET', '/api/privacy/export', null, { Authorization: `Bearer ${userToken}` });
+    assert.equal(r.status, 200);
+    assert.equal(r.body.ok, true);
+    assert.equal(r.body.user.email, 'zeus@test.com');
   });
 
   // ── Admin User Management ────────────────────────────────────────────────────

@@ -163,9 +163,15 @@ window.__UNICORN_VT_WRAP__ = function(swap){
 // ================= Passkey (WebAuthn) =================
 window.__UNICORN_PASSKEY__ = {
   supported: !!(window.PublicKeyCredential && navigator.credentials && navigator.credentials.create),
-  async register(email){
+  async register(email, password){
+    const authHeaders = {'Content-Type':'application/json'};
+    try {
+      const token = localStorage.getItem('token') || localStorage.getItem('customerToken') || localStorage.getItem('authToken');
+      if (token) authHeaders.Authorization = `Bearer ${token}`;
+    } catch(_) {}
     const r = await fetch('/api/auth/passkey/challenge', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ email, mode:'register' }) });
     const j = await r.json();
+    if (!r.ok) return j;
     const pk = j.publicKey;
     pk.challenge = b64uToBuf(pk.challenge); pk.user.id = b64uToBuf(pk.user.id);
     const cred = await navigator.credentials.create({ publicKey: pk });
@@ -176,7 +182,7 @@ window.__UNICORN_PASSKEY__ = {
         attestationObject: bufToB64u(cred.response.attestationObject)
       }
     };
-    const v = await fetch('/api/auth/passkey/register', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ email, credential: att }) });
+    const v = await fetch('/api/auth/passkey/register', { method:'POST', headers:authHeaders, body: JSON.stringify({ email, password, credential: att }) });
     return v.json();
   },
   async login(email){

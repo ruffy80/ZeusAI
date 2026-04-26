@@ -250,13 +250,16 @@ function buildInnovationCoverage() {
     { id: 'capability-credentials', title: 'Capability Credential / Verifiable Receipt Foundation', status: 'live-foundation', evidence: ['/api/capability/credential/{receiptId}', '/api/receipt/nft/{id}', '/api/commerce/protocol'], userAction: 'none for current delivery; add third-party wallet/NFT anchor provider only if desired later' },
     { id: 'agent-to-agent-commerce', title: 'Agent-to-Agent Commerce Protocol', status: 'live-foundation', evidence: ['/openapi.json', '/api/commerce/protocol', '/api/agent/catalog', '/api/agent/quote', '/api/agent/order'], userAction: 'none for discovery/order protocol; external agent marketplace partnerships are business/config work' },
     { id: 'observability-otel', title: 'Observability + OpenTelemetry Export', status: process.env.OTEL_EXPORTER_OTLP_ENDPOINT ? 'live-100' : 'live-foundation-needs-secret', evidence: ['/observability', '/api/observability/status'], userAction: process.env.OTEL_EXPORTER_OTLP_ENDPOINT ? 'none' : 'set OTEL_EXPORTER_OTLP_ENDPOINT if you want external tracing export' },
+    { id: 'passkey-auth', title: 'Passwordless Passkey / WebAuthn Identity', status: 'live-100-api', evidence: ['/api/auth/passkey/challenge', '/api/auth/passkey/register', '/api/auth/passkey/assert', '/api/auth/passkey/list'], userAction: 'none; users enroll after normal login or with password confirmation' },
+    { id: 'transparency-ledger', title: 'Append-Only Transparency Ledger', status: 'live-100-api', evidence: ['/api/transparency/ledger'], userAction: 'none; optional external BTC/IPFS/Arweave anchoring can be configured later' },
+    { id: 'resilience-backup-proof', title: 'Backup Proof + Restore-Readiness API', status: 'live-100-api', evidence: ['/api/resilience/backup/status', '/api/resilience/backup/create', '/api/persistence/status'], userAction: 'none for local proof; configure offsite backup target later if desired' },
     { id: 'nowpayments', title: 'NOWPayments Optional Global Crypto Rail', status: payment.nowpayments.apiKeyConfigured && payment.nowpayments.ipnSecretConfigured ? 'live-100' : 'optional-later-needs-secrets', evidence: ['/api/payment/nowpayments/security', '/api/payment/nowpayments/create'], userAction: 'when desired, set NOWPAYMENTS_API_KEY and NOWPAYMENTS_IPN_SECRET; not required for current BTC direct revenue' },
     { id: 'paypal', title: 'PayPal Optional Rail', status: isConfiguredSecret('PAYPAL_CLIENT_ID') && isConfiguredSecret('PAYPAL_CLIENT_SECRET') ? 'live-100' : 'optional-later-needs-secrets', evidence: ['/api/checkout/paypal', '/api/payments/paypal/confirm'], userAction: 'when desired, set PAYPAL_CLIENT_ID, PAYPAL_CLIENT_SECRET, PAYPAL_WEBHOOK_ID and PAYPAL_ENV' },
     { id: 'smtp-email', title: 'Email Delivery / SMTP', status: isConfiguredSecret('SMTP_PASS') ? 'live-100' : 'optional-later-needs-secret', evidence: ['backend email module', 'registration verification logs'], userAction: isConfiguredSecret('SMTP_PASS') ? 'none' : 'set SMTP_PASS/app password if you want real outbound email' },
     { id: 'ai-router', title: 'Multi-Provider AI Router', status: (secretFeatures.aiRouter && secretFeatures.aiRouter.configured > 0) ? 'live-partial-by-configured-providers' : 'needs-provider-keys', evidence: ['/api/operator/console'], userAction: 'add more provider API keys only if you want more model coverage; current configured providers remain usable' },
-    { id: 'third-party-module-marketplace', title: 'Third-Party Module Marketplace + Quarantine + Revenue Share', status: 'foundation-not-full-product', evidence: ['/api/frontier/status', '/api/commerce/protocol', '/api/quantum-integrity/status'], userAction: 'requires product policy: vendor onboarding rules, revenue-share percentages, legal terms and moderation workflow' },
+    { id: 'third-party-module-marketplace', title: 'Third-Party Module Marketplace + Quarantine + Revenue Share', status: 'live-foundation', evidence: ['/api/vendor/marketplace/policy', '/api/vendor/marketplace/submit', '/api/vendor/marketplace/modules'], userAction: 'formal vendor legal terms remain business/legal work before public onboarding' },
     { id: 'personal-child-agent-os', title: 'Personal Child-Agent OS', status: 'foundation-not-full-product', evidence: ['/api/commerce/protocol', '/api/capability/credential/{receiptId}', '/responsible-ai'], userAction: 'requires product decisions: user accounts, consent model, data retention and agent permissions' },
-    { id: 'global-compliance-autopilot', title: 'Global Compliance Autopilot', status: 'foundation-not-full-product', evidence: ['/api/compliance/attestation', '/dpa', '/responsible-ai'], userAction: 'requires target jurisdictions, legal review and subprocessors list' },
+    { id: 'global-compliance-autopilot', title: 'Global Compliance Autopilot + Privacy Export/Delete Flow', status: 'live-foundation', evidence: ['/api/compliance/autopilot', '/api/privacy/export', '/api/privacy/delete-request', '/dpa', '/responsible-ai'], userAction: 'formal legal audit and jurisdiction-specific certification remain external/legal work' },
   ];
   const counts = items.reduce((acc, item) => {
     acc[item.status] = (acc[item.status] || 0) + 1;
@@ -1536,7 +1539,6 @@ async function unicornHandler(req, res) {
     '/api/ai/registry', '/api/ai/use',
     '/api/payments/btc/confirm', '/api/payments/paypal/confirm',
     '/api/activate', '/api/concierge', '/api/concierge/stream', '/api/concierge/feedback',
-    '/api/auth/passkey/challenge', '/api/auth/passkey/register', '/api/auth/passkey/assert',
     '/api/secrets/status',
     '/api/catalog/master', '/api/btc/spot'
   ]);
@@ -4139,68 +4141,6 @@ ${invoice.payer ? `<h2>Payer</h2><table><tr><th>Legal entity</th><td>${esc(invoi
     const backendUrl = process.env.BACKEND_API_URL;
     if (backendUrl) return proxyToBackend(req, res, backendUrl);
     res.writeHead(200,{'Content-Type':'application/json'}); return res.end(JSON.stringify({ items: [] }));
-  }
-
-  // --- WebAuthn / Passkey (stateless stubs) ---
-  // In-memory store for demo; replace with persistent backend when BACKEND_API_URL is set.
-  if (!global.__UNICORN_PK__) global.__UNICORN_PK__ = { challenges: new Map(), users: new Map() };
-  const PK = global.__UNICORN_PK__;
-  const rpId = (function(){ try { return new URL(APP_URL).hostname; } catch(_) { return 'zeusai.pro'; } })();
-  function b64u(buf){ return Buffer.from(buf).toString('base64').replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,''); }
-  if (urlPath === '/api/auth/passkey/challenge' && req.method === 'POST') {
-    let body=''; req.on('data', c=>{ body+=c; if(body.length>16*1024) req.destroy(); });
-    req.on('end', () => {
-      try {
-        const { email, mode } = JSON.parse(body||'{}');
-        const challenge = crypto.randomBytes(32);
-        PK.challenges.set(email||'_', { challenge, mode, at: Date.now() });
-        const common = { challenge: b64u(challenge), rp: { id: rpId, name: 'Unicorn · ZeusAI' }, timeout: 60000 };
-        if (mode === 'register') {
-          const userId = crypto.createHash('sha256').update(String(email||'anon')).digest();
-          res.writeHead(200, { 'Content-Type':'application/json' });
-          return res.end(JSON.stringify({ publicKey: { ...common,
-            user: { id: b64u(userId), name: email||'user', displayName: email||'user' },
-            pubKeyCredParams: [ { type:'public-key', alg:-7 }, { type:'public-key', alg:-257 } ],
-            authenticatorSelection: { residentKey:'preferred', userVerification:'preferred' },
-            attestation: 'none'
-          }}));
-        } else {
-          const user = PK.users.get(email||'_');
-          const allow = user ? [{ type:'public-key', id: user.credentialId }] : [];
-          res.writeHead(200, { 'Content-Type':'application/json' });
-          return res.end(JSON.stringify({ publicKey: { ...common, rpId, allowCredentials: allow, userVerification:'preferred' } }));
-        }
-      } catch(_) { res.writeHead(400); res.end('{}'); }
-    });
-    return;
-  }
-  if (urlPath === '/api/auth/passkey/register' && req.method === 'POST') {
-    let body=''; req.on('data', c=>{ body+=c; if(body.length>16*1024) req.destroy(); });
-    req.on('end', () => {
-      try {
-        const { email, credential } = JSON.parse(body||'{}');
-        if (!credential || !credential.rawId) { res.writeHead(400); return res.end('{}'); }
-        PK.users.set(email||'_', { email, credentialId: credential.rawId, createdAt: new Date().toISOString(), did: 'did:unicorn:passkey:' + crypto.createHash('sha256').update(credential.rawId).digest('hex').slice(0,32) });
-        res.writeHead(200, { 'Content-Type':'application/json' });
-        res.end(JSON.stringify({ ok:true, email, did: PK.users.get(email||'_').did }));
-      } catch(_) { res.writeHead(400); res.end('{}'); }
-    });
-    return;
-  }
-  if (urlPath === '/api/auth/passkey/assert' && req.method === 'POST') {
-    let body=''; req.on('data', c=>{ body+=c; if(body.length>16*1024) req.destroy(); });
-    req.on('end', () => {
-      try {
-        const { email, credential } = JSON.parse(body||'{}');
-        const user = PK.users.get(email||'_');
-        if (!user || !credential) { res.writeHead(401); return res.end('{"ok":false}'); }
-        // Note: full signature verification requires public key storage; stub returns ok if credential id matches
-        const ok = credential.rawId === user.credentialId;
-        res.writeHead(ok?200:401, { 'Content-Type':'application/json' });
-        res.end(JSON.stringify({ ok, email: ok?email:undefined, did: ok?user.did:undefined }));
-      } catch(_) { res.writeHead(400); res.end('{}'); }
-    });
-    return;
   }
 
   // Never fall through to HTML for API paths
