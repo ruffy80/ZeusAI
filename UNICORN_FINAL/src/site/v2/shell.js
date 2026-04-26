@@ -20,6 +20,18 @@ function head(title, route, opts) {
   const nonceAttr = nonce ? ` nonce="${nonce}"` : '';
   const canonical = (OWNER.domain.replace(/\/$/, '')) + (route || '/');
   const ogImage = (OWNER.domain.replace(/\/$/, '')) + '/assets/zeus/brand.jpg';
+  const desc = routeDescription(route);
+  const jsonLd = JSON.stringify({
+    '@context': 'https://schema.org',
+    '@type': route === '/pricing' || route === '/services' ? 'Product' : 'SoftwareApplication',
+    name: 'ZeusAI',
+    applicationCategory: 'BusinessApplication',
+    operatingSystem: 'Web',
+    url: canonical,
+    description: desc,
+    creator: { '@type': 'Person', name: OWNER.name, email: OWNER.email },
+    offers: { '@type': 'Offer', priceCurrency: 'USD', availability: 'https://schema.org/InStock' }
+  });
   return `<!doctype html>
 <html lang="${lang}" data-route="${route}">
 <head>
@@ -27,11 +39,11 @@ function head(title, route, opts) {
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"/>
 <meta name="theme-color" content="#05040a"/>
 <title>${title} — ZEUSAI</title>
-<meta name="description" content="ZeusAI — autonomous AI operating system. Cinematic, sovereign, self-evolving. Every outcome signed, every cent routed."/>
+<meta name="description" content="${desc}"/>
 <link rel="canonical" href="${canonical}"/>
 <meta property="og:site_name" content="ZeusAI — Sovereign AI OS"/>
 <meta property="og:title" content="${title} — ZeusAI"/>
-<meta property="og:description" content="Autonomous SaaS operating system. 18 verticals, 41 marketplaces, cryptographic receipts."/>
+<meta property="og:description" content="${desc}"/>
 <meta property="og:type" content="website"/>
 <meta property="og:url" content="${canonical}"/>
 <meta property="og:image" content="${ogImage}"/>
@@ -39,8 +51,9 @@ function head(title, route, opts) {
 <meta property="og:image:height" content="630"/>
 <meta name="twitter:card" content="summary_large_image"/>
 <meta name="twitter:title" content="${title} — ZeusAI"/>
-<meta name="twitter:description" content="Sovereign AI Operating System. Cryptographic receipts, BTC-native commerce."/>
+<meta name="twitter:description" content="${desc}"/>
 <meta name="twitter:image" content="${ogImage}"/>
+<script type="application/ld+json"${nonceAttr}>${jsonLd}</script>
 <link rel="manifest" href="/manifest.webmanifest"/>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -1379,6 +1392,39 @@ function routeTitle(route) {
   if (route.startsWith('/services/')) return 'Service';
   const map = { '/services':'Marketplace', '/pricing':'Pricing', '/checkout':'Checkout', '/dashboard':'Dashboard', '/how':'How it works', '/docs':'API & Docs', '/about':'About', '/legal':'Legal', '/enterprise':'Enterprise Licenses', '/store':'Instant Store', '/account':'Account', '/innovations':'30Y Cryptographic Durability', '/wizard':'Find my plan', '/status':'Live status', '/changelog':'Changelog', '/terms':'Terms of Service', '/privacy':'Privacy Policy', '/refund':'Refund Guarantee', '/sla':'SLA', '/pledge':'Anti-Dark-Pattern Pledge', '/cancel':'Universal Cancel', '/gift':'Gift-as-Capability', '/aura':'Live Conversion Aura', '/api-explorer':'API Explorer', '/transparency':'Pricing Bandit Transparency', '/frontier':'Frontier Inventions' };
   return map[route] || 'ZeusAI';
+}
+
+function routeDescription(route) {
+  const map = {
+    '/': 'ZeusAI is a sovereign autonomous AI operating system with signed outcomes, BTC-native commerce and self-healing automation.',
+    '/services': 'Browse ZeusAI services, frontier inventions and vertical AI operating systems with instant BTC checkout.',
+    '/pricing': 'Transparent ZeusAI pricing with signed receipts, BTC checkout, refund guarantees and enterprise licensing.',
+    '/checkout': 'Create a ZeusAI invoice, pay with BTC or supported rails, and receive signed delivery credentials instantly.',
+    '/dashboard': 'Operator dashboard for ZeusAI receipts, services, revenue proof, system health and live commerce telemetry.',
+    '/how': 'How ZeusAI routes quotes, invoices, receipts, AI modules and delivery through verifiable autonomous workflows.',
+    '/docs': 'ZeusAI API documentation, OpenAPI endpoints, signed catalog, receipts and agent-to-agent commerce examples.',
+    '/about': 'The story and ownership model behind ZeusAI, built as a sovereign AI OS by Vladoi Ionut.',
+    '/legal': 'Legal terms, ownership, payments and usage rules for ZeusAI services and autonomous AI commerce.',
+    '/enterprise': 'Enterprise licenses for AI automation, vertical operating systems, signed outcomes and custom deployment.',
+    '/store': 'Instant ZeusAI store for buying autonomous AI services with BTC, signed receipts and delivery proof.',
+    '/account': 'Manage your ZeusAI account, services, receipts, licenses and delivery credentials.',
+    '/innovations': '30-year cryptographic durability, post-quantum readiness and frontier ZeusAI inventions.',
+    '/wizard': 'Plan wizard that maps your business goal to the right ZeusAI service, price and delivery path.',
+    '/status': 'Live ZeusAI status, uptime, build health and production service checks.',
+    '/changelog': 'Latest ZeusAI product changes, frontier releases, security upgrades and commerce improvements.',
+    '/terms': 'Terms of Service for ZeusAI, including capability tokens, signed outputs, SLA and refund references.',
+    '/privacy': 'Privacy Policy for ZeusAI: minimal data, no resale, no model training on personal data and GDPR rights.',
+    '/refund': 'Cryptographic refund guarantee for ZeusAI purchases when a signed service promise is breached.',
+    '/sla': 'ZeusAI service-level agreement for uptime, delivery, support, refund windows and verification.',
+    '/pledge': 'Anti-dark-pattern pledge: transparent pricing, cancellation, refund logic and user-owned receipts.',
+    '/cancel': 'Universal cancellation page for ZeusAI subscriptions, services and autonomous order intents.',
+    '/gift': 'Gift ZeusAI as a signed capability credential with redeemable delivery and verifiable ownership.',
+    '/aura': 'Live conversion aura showing signed ZeusAI commerce, delivery and trust metrics in real time.',
+    '/api-explorer': 'Explore ZeusAI OpenAPI, signed catalog, payment routes, receipts and agent commerce endpoints.',
+    '/transparency': 'Public pricing bandit transparency for ZeusAI experiments, offers and conversion governance.',
+    '/frontier': 'Frontier ZeusAI inventions: refund guarantee, live aura, self-healing checkout and verifiable receipts.'
+  };
+  return map[route] || 'ZeusAI sovereign AI operating system with verifiable commerce and autonomous delivery.';
 }
 
 function getHtml(route = '/', params = {}) {

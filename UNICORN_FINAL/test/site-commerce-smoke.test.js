@@ -83,6 +83,36 @@ async function run() {
       assert.equal(r.status, 200, `${path} should return 200`);
     }
 
+    const routeExpectations = {
+      '/terms': 'Terms of Service — ZEUSAI',
+      '/privacy': 'Privacy Policy — ZEUSAI',
+      '/refund': 'Refund Guarantee — ZEUSAI',
+      '/sla': 'SLA — ZEUSAI',
+      '/gift': 'Gift-as-Capability — ZEUSAI',
+      '/aura': 'Live Conversion Aura — ZEUSAI',
+      '/api-explorer': 'API Explorer — ZEUSAI',
+      '/transparency': 'Pricing Bandit Transparency — ZEUSAI',
+      '/changelog': 'Changelog — ZEUSAI'
+    };
+    for (const [path, title] of Object.entries(routeExpectations)) {
+      const r = await request(path);
+      assert.equal(r.status, 200, `${path} should return 200`);
+      assert.ok(r.text.includes(`<title>${title}</title>`), `${path} should render its own title`);
+      assert.ok(!r.text.includes('<title>Sovereign AI OS — ZEUSAI</title>'), `${path} must not fall back to homepage title`);
+    }
+
+    const robots = await request('/robots.txt');
+    assert.equal(robots.status, 200, '/robots.txt should return 200');
+    assert.match(robots.text, /Sitemap:\s*https:\/\/zeusai\.pro\/sitemap\.xml/);
+
+    const sitemap = await request('/sitemap.xml');
+    assert.equal(sitemap.status, 200, '/sitemap.xml should return 200');
+    assert.match(sitemap.text, /<loc>https:\/\/zeusai\.pro\/terms<\/loc>/);
+
+    const integrity = await request('/.well-known/unicorn-integrity.json');
+    assert.equal(integrity.status, 200, '/.well-known/unicorn-integrity.json should return 200');
+    assert.equal(integrity.body.alg, 'Ed25519');
+
     // Test query-string resilience on critical endpoints
     const healthWithQuery = await request('/health?cachebuster=123&debug=1');
     assert.equal(healthWithQuery.status, 200, '/health with query params should return 200');

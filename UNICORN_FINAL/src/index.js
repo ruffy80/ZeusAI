@@ -4010,7 +4010,12 @@ ${invoice.payer ? `<h2>Payer</h2><table><tr><th>Legal entity</th><td>${esc(invoi
   }
 
   // Any SPA route → v2 shell
-  const v2Routes = ['/', '/services', '/pricing', '/checkout', '/dashboard', '/how', '/docs', '/about', '/legal', '/enterprise', '/store', '/account', '/innovations'];
+  const v2Routes = [
+    '/', '/services', '/pricing', '/checkout', '/dashboard', '/how', '/docs', '/about', '/legal',
+    '/enterprise', '/store', '/account', '/innovations', '/wizard', '/status', '/changelog',
+    '/terms', '/privacy', '/refund', '/sla', '/pledge', '/cancel', '/gift', '/aura',
+    '/api-explorer', '/transparency', '/frontier'
+  ];
   const isV2Route = v2Routes.includes(urlPath) || urlPath.startsWith('/services/');
   if (isV2Route) {
     const route = urlPath;

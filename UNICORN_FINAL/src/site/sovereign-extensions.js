@@ -219,7 +219,11 @@ async function handle(req, res, ctx) {
 
   // ── /sitemap.xml ───────────────────────────────────────────────────────
   if (urlPath === '/sitemap.xml') {
-    const baseUrls = ['/', '/services', '/store', '/enterprise', '/pricing', '/how', '/docs', '/about', '/legal'];
+    const baseUrls = [
+      '/', '/services', '/store', '/enterprise', '/pricing', '/checkout', '/dashboard', '/how', '/docs',
+      '/about', '/legal', '/innovations', '/wizard', '/status', '/changelog', '/terms', '/privacy',
+      '/refund', '/sla', '/pledge', '/cancel', '/gift', '/aura', '/api-explorer', '/transparency', '/frontier'
+    ];
     const now = new Date().toISOString();
     // Auto-discover all services from live snapshot so every current AND future
     // service is indexed by Google/Bing the moment it appears in /snapshot.
