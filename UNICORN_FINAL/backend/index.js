@@ -1071,6 +1071,24 @@ const MODULE_REGISTRY = {
     'unicornMeshOrchestrator',
     'innovationEngine',
     'autoDeployOrchestrator',
+    'universalAIConnector',
+    'globalMonetizationMesh',
+    'sovereignRevenueRouter',
+    'ai-orchestrator',
+    'ai-cfo-agent',
+    'central-orchestrator',
+    'control-plane-agent',
+    'competitor-spy-agent',
+    'predictive-market-intelligence',
+    'ai-sales-closer',
+    'profit-attribution',
+    'profit-control-loop',
+    'self-adaptation-engine',
+    'selfConstruction',
+    'self-healing-engine',
+    'ai-self-healing',
+    'quantum-healing',
+    'predictive-healing',
   ],
   saas: [
     'tenant-manager',
@@ -1083,6 +1101,20 @@ const MODULE_REGISTRY = {
     'ai-auto-dispatcher',
     'tenantBilling',
     'tenantProvisioning',
+    'autonomousMoneyMachine',
+    'nowPayments',
+    'orchestrator-v4',
+    'self-evolving-engine',
+    'tenant-analytics',
+    'tenant-engine',
+    'tenant-gateway',
+    'tenant-billing',
+    'tenant-provisioning',
+    'domainAutomationManager',
+    'auto-marketing',
+    'provisioning-engine',
+    'saas-orchestrator-v4',
+    'autonomousWealthEngine',
   ],
 };
 
@@ -1320,6 +1352,29 @@ meshOrchestrator.register('tenantAnalytics',        tenantAnalytics,     { statu
 meshOrchestrator.register('tenantManager',          tenantManager,       { statusFn: 'getStatus' });
 meshOrchestrator.register('globalLoadBalancer',     globalLBModule.globalLB, { statusFn: 'getStatus' });
 meshOrchestrator.register('uiAutoBuilder',          uiAutoBuilder,       { statusFn: 'getStatus' });
+// ── Profit & Revenue modules — înregistrate pentru monetizare autonomă ──
+meshOrchestrator.register('autonomousMoneyMachine', moneyMachine,        { statusFn: 'getStatus' });
+meshOrchestrator.register('nowPayments',            nowPayments,         { statusFn: 'getStatus' });
+meshOrchestrator.register('orchestratorV4',         orchestratorV4,      { statusFn: 'getStatus' });
+meshOrchestrator.register('selfEvolvingEngine',     seeEngine,           { statusFn: 'getStatus' });
+meshOrchestrator.register('tenantGateway',          tenantGateway,       { statusFn: 'getStatus' });
+meshOrchestrator.register('predictiveMarketIntel',  predictiveMarketIntelligence, { statusFn: 'getStatus' });
+meshOrchestrator.register('aiSalesCloser',          aiSalesCloser,       { statusFn: 'getStatus' });
+meshOrchestrator.register('competitorSpy',          competitorSpyAgent,  { statusFn: 'getStatus' });
+meshOrchestrator.register('aiCfoAgent',             aiCfoAgent,          { statusFn: 'getStatus' });
+meshOrchestrator.register('autonomousLegalEntity',  ale,                 { statusFn: 'getStatus' });
+meshOrchestrator.register('globalEnergyCarbonTrade',gect,                { statusFn: 'getStatus' });
+meshOrchestrator.register('autonomousMAdvisor',     amaa,                { statusFn: 'getStatus' });
+meshOrchestrator.register('universalAITrainingMkt', uaitm,               { statusFn: 'getStatus' });
+meshOrchestrator.register('predictiveHealing',      predictiveHealing,   { statusFn: 'getStatus' });
+meshOrchestrator.register('selfAdaptationEngine',   selfAdaptationEngine, { statusFn: 'getStatus' });
+meshOrchestrator.register('selfHealingEngine',      selfHealingEngine,   { statusFn: 'getStatus' });
+meshOrchestrator.register('aiSelfHealing',          aiSelfHealing,       { statusFn: 'getStatus' });
+meshOrchestrator.register('quantumHealing',         quantumHealing,      { statusFn: 'getStatus' });
+meshOrchestrator.register('autonomousBDEngine',     autonomousBDEngine,  { statusFn: 'getStatus' });
+meshOrchestrator.register('autoMarketing',          autoMarketing,       { statusFn: 'getStatus' });
+meshOrchestrator.register('domainAutomationMgr',    domainAutomationManager, { statusFn: 'getStatus' });
+meshOrchestrator.register('centralOrchestrator',    centralOrchestrator, { statusFn: 'getStatus' });
 
 // Pornim orchestratorul — Swiss-watch mode
 if (!_stableRuntime) {
@@ -2507,6 +2562,12 @@ let _llamaBridge = null;
 if (_enableLocalLlm) {
   try { _llamaBridge = require('./modules/llamaBridge'); } catch { /* optional */ }
 }
+
+// ── Register optional profit & orchestration modules in mesh ──
+if (_aiOrchestrator) meshOrchestrator.register('aiOrchestrator', _aiOrchestrator, { statusFn: 'getStatus' });
+if (_revenueRouter) meshOrchestrator.register('sovereignRevenueRouter', _revenueRouter, { statusFn: 'getStatus' });
+if (_monetizeMesh) meshOrchestrator.register('globalMonetizationMesh', _monetizeMesh, { statusFn: 'getStatus' });
+if (_uaic) meshOrchestrator.register('universalAIConnector', _uaic, { statusFn: 'getStatus' });
 
 const ZEUS_SYSTEM = 'You are Zeus AI Assistant, an expert in business automation, AI, blockchain, payments, and enterprise solutions. Be concise and helpful. You can also respond in Romanian if the user writes in Romanian.';
 
