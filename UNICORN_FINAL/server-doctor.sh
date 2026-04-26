@@ -454,6 +454,22 @@ else
   "$PM2_BIN" delete all 2>/dev/null || true
   fixed "pm2 delete all executat"
 
+  # ── Sursă .env în shell înainte de pm2 start ─────────────────────────────
+  # ecosystem.config.js citește process.env.OPENAI_API_KEY, etc. din shell-ul
+  # care lansează PM2. Fără export-ul .env, toate cheile AI ar fi goale și
+  # router-ul multi-provider ar rula complet ne-configurat. Sursa cu set -a
+  # garantează că orice variabilă din .env devine variabilă de mediu exportată.
+  if [ -f "${DEPLOY_PATH}/.env" ]; then
+    info "Export .env în shell pentru pm2 start (AI keys, Stripe, SMTP etc.)..."
+    set -a
+    # shellcheck disable=SC1091
+    source "${DEPLOY_PATH}/.env"
+    set +a
+    fixed ".env exportat ($(grep -c '^[A-Z]' "${DEPLOY_PATH}/.env" 2>/dev/null || echo '?') variabile)"
+  else
+    warn ".env LIPSĂ — PM2 va porni fără cheile AI/Stripe/SMTP exportate"
+  fi
+
   info "Pornire procese din ecosystem.config.js..."
   if "$PM2_BIN" start "${DEPLOY_PATH}/ecosystem.config.js" --update-env 2>&1 | tee -a "$LOG_FILE"; then
     ok "pm2 start ecosystem.config.js --update-env — OK"

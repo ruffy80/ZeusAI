@@ -123,6 +123,27 @@ module.exports = {
         DOMAIN: 'zeusai.pro',
         SITE_DOMAIN: 'zeusai.pro',
         PUBLIC_APP_URL: 'https://zeusai.pro',
+        // ── AI Provider API Keys — site needs them too because /api/ai/registry
+        // and /api/ai/use have local fallbacks in src/index.js when the backend
+        // is unreachable, and because some site-layer modules (UAIC, USE) read
+        // process.env.<PROVIDER>_API_KEY directly. Mirror everything from the
+        // backend block so site has full 24/7 access to the same providers.
+        OPENAI_API_KEY:      process.env.OPENAI_API_KEY      || '',
+        DEEPSEEK_API_KEY:    process.env.DEEPSEEK_API_KEY    || '',
+        ANTHROPIC_API_KEY:   process.env.ANTHROPIC_API_KEY   || '',
+        GEMINI_API_KEY:      process.env.GEMINI_API_KEY      || '',
+        MISTRAL_API_KEY:     process.env.MISTRAL_API_KEY     || '',
+        COHERE_API_KEY:      process.env.COHERE_API_KEY      || '',
+        XAI_API_KEY:         process.env.XAI_API_KEY         || '',
+        GROQ_API_KEY:        process.env.GROQ_API_KEY        || '',
+        OPENROUTER_API_KEY:  process.env.OPENROUTER_API_KEY  || '',
+        HF_API_KEY:          process.env.HF_API_KEY          || '',
+        HUGGINGFACE_API_KEY: process.env.HUGGINGFACE_API_KEY || process.env.HF_API_KEY || '',
+        PERPLEXITY_API_KEY:  process.env.PERPLEXITY_API_KEY  || '',
+        TOGETHER_API_KEY:    process.env.TOGETHER_API_KEY    || '',
+        FIREWORKS_API_KEY:   process.env.FIREWORKS_API_KEY   || '',
+        SAMBANOVA_API_KEY:   process.env.SAMBANOVA_API_KEY   || '',
+        NVIDIA_NIM_API_KEY:  process.env.NVIDIA_NIM_API_KEY  || '',
       },
       error_file: 'logs/site-error.log',
       out_file:   'logs/site-out.log',

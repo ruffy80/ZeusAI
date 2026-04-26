@@ -1,7 +1,9 @@
 #!/usr/bin/env bash
 # ensure-btc-routes.sh
-# Idempotent: ensures Nginx routes /api/invoice/ and /api/alerts/ to the
-# backend on port 3000 (otherwise the site server on 3001 swallows them).
+# Idempotent: ensures Nginx routes /api/invoice/, /api/alerts/ and /api/ai/
+# to the backend on port 3000 (otherwise the site server on 3001 swallows
+# them and you get the site-layer fallback instead of the real multi-router
+# orchestrator with all 14 AI providers).
 #
 # Safe to re-run; survives re-runs of setup-ssl.sh / certbot --nginx.
 # Usage: bash scripts/ensure-btc-routes.sh [domain]
@@ -24,9 +26,34 @@ if [ -z "$CONF" ]; then
   exit 0
 fi
 
-if grep -q "BTC invoice + ZAC alerts API" "$CONF"; then
-  echo "[ensure-btc-routes] Already present in $CONF — skipping."
+if grep -q "BTC invoice + ZAC alerts + AI multi-router" "$CONF"; then
+  echo "[ensure-btc-routes] Already up to date in $CONF — skipping."
   exit 0
+fi
+
+# Upgrade path: an older version of this script may have injected a block
+# with marker "BTC invoice + ZAC alerts API" (no /api/ai/). Strip it so the
+# new injection adds the full /api/ai/ + /api/invoice/ + /api/alerts/ block.
+if grep -q "BTC invoice + ZAC alerts API" "$CONF"; then
+  echo "[ensure-btc-routes] Older marker found in $CONF — removing legacy block before re-injecting."
+  TS_PRE=$(date +%s)
+  cp "$CONF" "/var/backups/$(basename "$CONF").pre-upgrade.${TS_PRE}" 2>/dev/null || true
+  python3 - "$CONF" <<'PYSTRIP'
+import sys, re
+path = sys.argv[1]
+with open(path) as f:
+    txt = f.read()
+# Remove the legacy block: from the marker comment up to (and including)
+# the second `}` that closes location ^~ /api/alerts/.
+pat = re.compile(
+    r'\n?\s*#\s*BTC invoice \+ ZAC alerts API[^\n]*\n'
+    r'(?:.*\n){1,40}?\s*location \^~ /api/alerts/[^{]*\{[^}]*\}\s*\n',
+    re.MULTILINE
+)
+new = pat.sub('\n', txt, count=1)
+with open(path, 'w') as f:
+    f.write(new)
+PYSTRIP
 fi
 
 echo "[ensure-btc-routes] Patching $CONF …"
@@ -42,7 +69,7 @@ with open(path) as f:
     txt = f.read()
 
 inject = """
-    # BTC invoice + ZAC alerts API → backend on 3000 (managed by ensure-btc-routes.sh)
+    # BTC invoice + ZAC alerts + AI multi-router → backend on 3000 (managed by ensure-btc-routes.sh)
     location ^~ /api/invoice/ {
         proxy_pass         http://127.0.0.1:3000;
         proxy_http_version 1.1;
@@ -58,6 +85,21 @@ inject = """
         proxy_set_header   Host              $host;
         proxy_set_header   X-Real-IP         $remote_addr;
         proxy_set_header   X-Forwarded-Proto $scheme;
+    }
+
+    location ^~ /api/ai/ {
+        proxy_pass         http://127.0.0.1:3000;
+        proxy_http_version 1.1;
+        proxy_set_header   Host              $host;
+        proxy_set_header   X-Real-IP         $remote_addr;
+        proxy_set_header   X-Forwarded-For   $proxy_add_x_forwarded_for;
+        proxy_set_header   X-Forwarded-Proto $scheme;
+        # AI calls can take longer than the default 60s nginx timeout.
+        proxy_read_timeout 300s;
+        proxy_send_timeout 300s;
+        # Stream tokens as they arrive (no buffering for SSE / chunked replies).
+        proxy_buffering    off;
+        proxy_cache        off;
     }
 
 """
