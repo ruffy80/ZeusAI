@@ -24,6 +24,28 @@ for arg in "$@"; do
 done
 
 cd "$REPO_ROOT"
+CURRENT_BRANCH="$(git branch --show-current)"
+
+require_current_source() {
+  local head_sha origin_sha deployed_sha
+  head_sha="$(git rev-parse HEAD)"
+  git fetch origin "$CURRENT_BRANCH" --quiet || true
+  if git rev-parse --verify "origin/${CURRENT_BRANCH}" >/dev/null 2>&1; then
+    origin_sha="$(git rev-parse "origin/${CURRENT_BRANCH}")"
+    if [[ "$head_sha" != "$origin_sha" ]]; then
+      echo "[error] Refuz deploy stale: HEAD=$head_sha, origin/${CURRENT_BRANCH}=$origin_sha" >&2
+      echo "        Rulează git pull --ff-only sau împinge commitul curent înainte de sync." >&2
+      exit 1
+    fi
+  fi
+  deployed_sha="$(ssh "$SSH_HOST" "cat '${REMOTE_PATH}/.deployed-commit' 2>/dev/null || true" | tr -d '[:space:]')"
+  if [[ -n "$deployed_sha" ]] && git cat-file -e "${deployed_sha}^{commit}" 2>/dev/null; then
+    if ! git merge-base --is-ancestor "$deployed_sha" "$head_sha"; then
+      echo "[error] Refuz posibil downgrade: server=$deployed_sha nu este ancestor pentru local=$head_sha" >&2
+      exit 1
+    fi
+  fi
+}
 
 # 1) Local commit + push to GitHub
 if [[ "$DO_COMMIT" == "1" ]]; then
@@ -36,8 +58,15 @@ if [[ "$DO_COMMIT" == "1" ]]; then
     echo "==> nothing to commit"
   fi
   echo "==> git push origin"
-  git push origin "$(git branch --show-current)" || echo "[warn] push failed"
+  git push origin "$CURRENT_BRANCH" || echo "[warn] push failed"
+else
+  if [[ -n "$(git status --porcelain)" ]]; then
+    echo "[error] Refuz --no-commit cu modificări locale necommitate; commit/push întâi ca GitHub să fie sursa la zi." >&2
+    exit 1
+  fi
 fi
+
+require_current_source
 
 # 2) Rsync UNICORN_FINAL → server
 echo "==> rsync ${LOCAL_PATH}/ → ${SSH_HOST}:${REMOTE_PATH}/"
@@ -45,6 +74,15 @@ rsync -az --delete \
   --exclude '.git/' \
   --exclude 'node_modules/' \
   --exclude '.env' \
+  --exclude '.env.*' \
+  --exclude '.env.auto-connector' \
+  --exclude '.deployed-commit' \
+  --exclude '.unicorn-backups/' \
+  --exclude '.vercel/' \
+  --exclude 'client/build/' \
+  --exclude 'client/build_mirror/' \
+  --exclude 'generated/' \
+  --exclude 'public/' \
   --exclude 'data/' \
   --exclude 'db/' \
   --exclude 'backups/' \
@@ -55,6 +93,9 @@ rsync -az --delete \
   --exclude '.DS_Store' \
   --exclude '._*' \
   "${LOCAL_PATH}/" "${SSH_HOST}:${REMOTE_PATH}/"
+
+DEPLOY_COMMIT="$(git rev-parse HEAD)"
+ssh "$SSH_HOST" "printf '%s\n' '${DEPLOY_COMMIT}' > '${REMOTE_PATH}/.deployed-commit'"
 
 # 3) Install deps if package.json changed (cheap heuristic) + reload PM2
 if [[ "$DO_RESTART" == "1" ]]; then
@@ -68,3 +109,4 @@ fi
 
 echo "==> done. health:"
 ssh "$SSH_HOST" "curl -fsS http://localhost:3000/health 2>/dev/null || curl -fsS http://localhost:3001/health 2>/dev/null || echo '[health unreachable]'; echo"
+echo "==> deployed commit: ${DEPLOY_COMMIT}"

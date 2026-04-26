@@ -5,6 +5,10 @@ on:
   push:
     branches: [ "main" ]
 
+concurrency:
+  group: unicorn-stable-deploy-main
+  cancel-in-progress: false
+
 jobs:
   deploy:
     runs-on: ubuntu-latest
@@ -86,6 +90,8 @@ jobs:
     steps:
       - name: 📥 Checkout
         uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
 
       - name: 🟦 Setup Node.js
         uses: actions/setup-node@v6
@@ -135,14 +141,48 @@ jobs:
         with:
           ssh-private-key: ${{ secrets.HETZNER_SSH_PRIVATE_KEY }}
 
+      - name: 🧷 Anti-downgrade guard
+        run: |
+          DEPLOYED_SHA=$(ssh -o StrictHostKeyChecking=no root@${{ secrets.HETZNER_HOST }} \
+            "cat /var/www/unicorn/UNICORN_FINAL/.deployed-commit 2>/dev/null || true" | tr -d '[:space:]')
+          echo "Server deployed commit: ${DEPLOYED_SHA:-none}"
+          echo "Candidate commit: $GITHUB_SHA"
+          if [ -n "$DEPLOYED_SHA" ] && git cat-file -e "${DEPLOYED_SHA}^{commit}" 2>/dev/null; then
+            if ! git merge-base --is-ancestor "$DEPLOYED_SHA" "$GITHUB_SHA"; then
+              echo "❌ Refuz deploy: candidate-ul nu conține commitul deja deployat pe server (posibil downgrade/rollback)."
+              exit 1
+            fi
+          fi
+
       - name: 📦 Deploy to Server
         run: |
           rsync -avz --delete \
             --exclude='.git' \
             --exclude='node_modules' \
+            --exclude='/.env*' \
+            --exclude='/logs' \
+            --exclude='/backups' \
+            --exclude='/snapshots' \
+            --exclude='/.archive' \
+            --exclude='UNICORN_FINAL/node_modules' \
+            --exclude='UNICORN_FINAL/data' \
+            --exclude='UNICORN_FINAL/db' \
+            --exclude='UNICORN_FINAL/backups' \
+            --exclude='UNICORN_FINAL/snapshots' \
+            --exclude='UNICORN_FINAL/logs' \
+            --exclude='UNICORN_FINAL/.archive' \
+            --exclude='UNICORN_FINAL/.unicorn-backups' \
+            --exclude='UNICORN_FINAL/.vercel' \
+            --exclude='UNICORN_FINAL/generated' \
+            --exclude='UNICORN_FINAL/public' \
+            --exclude='UNICORN_FINAL/*.log' \
+            --exclude='UNICORN_FINAL/.DS_Store' \
+            --exclude='UNICORN_FINAL/._*' \
             --exclude='*.zip' \
             -e "ssh -o StrictHostKeyChecking=no" \
             ./ root@${{ secrets.HETZNER_HOST }}:/var/www/unicorn/
+          ssh -o StrictHostKeyChecking=no root@${{ secrets.HETZNER_HOST }} \
+            "printf '%s\n' '${{ github.sha }}' > /var/www/unicorn/UNICORN_FINAL/.deployed-commit"
 
       - name: 🩺 Server Doctor + Restart
         env:
