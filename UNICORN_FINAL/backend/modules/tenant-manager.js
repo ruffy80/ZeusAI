@@ -641,6 +641,8 @@ const _TENANT_PLANS = {
 class TenantManager extends EventEmitter {
   constructor() {
     super();
+    this.cache = new Map();
+    this.cacheTTL = 60000;
     this.startTime = Date.now();
     this._usageResetTimer = setInterval(() => this._resetDailyUsage(), 24 * 60 * 60 * 1000);
     this._usageResetTimer.unref?.();

@@ -54,6 +54,8 @@ const stats = {
 class SaaSOrchestratorV4 extends EventEmitter {
   constructor() {
     super();
+    this.cache = new Map();
+    this.cacheTTL = 60000;
     this.version = '4.0.0';
     this.active = false;
     this.workerInterval = null;

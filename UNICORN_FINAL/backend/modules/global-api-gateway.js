@@ -45,6 +45,8 @@ const stats = {
 class GlobalApiGateway extends EventEmitter {
   constructor() {
     super();
+    this.cache = new Map();
+    this.cacheTTL = 60000;
     this.defaultWindowMs = 60 * 1000; // 1 min
     this.circuitOpenDurationMs = 30 * 1000;
     this.circuitFailThreshold = 5;

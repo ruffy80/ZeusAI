@@ -1957,6 +1957,12 @@ app.get('/api/services/list', routeCache.cacheMiddleware(), (req, res) => {
   res.json({ updatedAt: new Date().toISOString(), source: 'zeusai-backend', sourceLegacy: 'unicorn-backend', services: _unicornServices });
 });
 
+// Additive public alias — matches the canonical smoke-test contract (GET /api/services).
+// Returns the same payload shape as /api/services/list to keep backward compatibility.
+app.get('/api/services', routeCache.cacheMiddleware(), (req, res) => {
+  res.json({ updatedAt: new Date().toISOString(), source: 'zeusai-backend', sourceLegacy: 'unicorn-backend', services: _unicornServices });
+});
+
 app.get('/api/services/:id', (req, res) => {
   const id = String(req.params.id || '');
   const service = _unicornServices.find(s => s.id === id);
@@ -3926,6 +3932,16 @@ app.get('/api/payment/methods', (req, res) => {
 });
 
 app.get('/api/payment/btc-rate', async (req, res) => {
+  try {
+    res.json(await paymentGateway.getBitcoinRate());
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Additive public alias — matches smoke-test contract (GET /api/btc/rate).
+// Returns the same payload as /api/payment/btc-rate.
+app.get('/api/btc/rate', async (req, res) => {
   try {
     res.json(await paymentGateway.getBitcoinRate());
   } catch (err) {

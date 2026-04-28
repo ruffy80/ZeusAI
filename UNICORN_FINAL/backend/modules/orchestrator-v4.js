@@ -1081,6 +1081,8 @@ class TenantExecutionContext {
 class OrchestratorV4 extends EventEmitter {
   constructor() {
     super();
+    this.cache = new Map();
+    this.cacheTTL = 60000;
     this._contexts = new Map(); // Map<tenantId, TenantExecutionContext>
     this._running  = false;
     this._healthTimer = null;

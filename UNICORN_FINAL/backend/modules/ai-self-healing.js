@@ -49,6 +49,8 @@ const INTERNAL_MODULES = [
 class AISelfHealingEngine extends EventEmitter {
   constructor() {
     super();
+    this.cache = new Map();
+    this.cacheTTL = 60000;
     this._running       = false;
     this._probeTimer    = null;
     this._moduleTimer   = null;

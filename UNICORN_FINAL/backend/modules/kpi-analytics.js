@@ -55,6 +55,8 @@ for (const key of Object.keys(KPI_DEFS)) kpiValues.set(key, 0);
 class KPIAnalyticsEngine extends EventEmitter {
   constructor() {
     super();
+    this.cache = new Map();
+    this.cacheTTL = 60000;
     this.startTime = Date.now();
     this._snapshotTimer = setInterval(() => this._snapshot(), 60 * 1000);
     this._snapshotTimer.unref?.();

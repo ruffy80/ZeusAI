@@ -56,6 +56,8 @@ const MAX_LOG = 200;
 class GlobalFailover extends EventEmitter {
   constructor() {
     super();
+    this.cache = new Map();
+    this.cacheTTL = 60000;
     this.active = false;
     this.primaryRegion = 'us-east';
     this.startTime = Date.now();
