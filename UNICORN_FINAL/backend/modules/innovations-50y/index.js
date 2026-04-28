@@ -175,6 +175,35 @@ async function handle(req, res, _ctx) {
     } catch (e) { _send(res, 500, { error: 'append_failed', message: e.message }); }
     return true;
   }
+  // Rotate the live audit log into an archive (50Y · #3). Token-gated,
+  // mirrors /audit/append. Signs the anchor with the current Ed25519 key
+  // when available; otherwise produces an unsigned anchor (still tamper-
+  // evident via root+lastHash).
+  if (urlPath === '/api/v50/audit/rotate' && req.method === 'POST') {
+    try {
+      const requiredToken = process.env.AUDIT_50Y_TOKEN || '';
+      if (requiredToken) {
+        const tok = (req.headers && (req.headers['x-audit-token'] || req.headers['authorization'] || ''));
+        const provided = String(tok).replace(/^Bearer\s+/i, '');
+        if (provided !== requiredToken) { _send(res, 401, { error: 'unauthorized' }); return true; }
+      }
+      const signWith = (rootHex) => {
+        try {
+          const keys = cryptoAgility.getOrCreateAnchorKey ? cryptoAgility.getOrCreateAnchorKey() : null;
+          if (!keys || !keys.privateKey) return null;
+          const sig = cryptoAgility.sign(rootHex, { alg: 'ed25519', privateKey: keys.privateKey });
+          return { signature: sig, alg: 'ed25519', kid: keys.kid || null };
+        } catch (_) { return null; }
+      };
+      const result = audit.rotate({ signWith });
+      _send(res, 200, { ok: true, result });
+    } catch (e) { _send(res, 500, { error: 'rotate_failed', message: e.message }); }
+    return true;
+  }
+  if (urlPath === '/api/v50/audit/anchors' && (req.method === 'GET' || req.method === 'HEAD')) {
+    _send(res, 200, { anchors: audit.loadAnchors() });
+    return true;
+  }
 
   // OTel
   if (urlPath === '/api/v50/otel/status') {
