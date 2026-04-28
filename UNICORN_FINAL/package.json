@@ -28,7 +28,7 @@
     "sentiment": "^5.0.2",
     "simple-git": "^3.36.0",
     "ssh2": "^1.17.0",
-    "stripe": "^17.7.0"
+    "stripe": "^22.1.0"
   },
   "overrides": {
     "smol-toml": ">=1.6.1"
