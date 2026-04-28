@@ -9,6 +9,8 @@ logs/
 data/*.db
 data/*.db-shm
 data/*.db-wal
+# Sovereign-commerce runtime state (orders, signing key, catalog-seen, txid cache)
+data/commerce/
 
 # Generated innovation/autonomous cycle JSON files (auto-created at runtime)
 generated/innovation_*.json
