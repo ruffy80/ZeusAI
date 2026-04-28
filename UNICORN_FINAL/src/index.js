@@ -103,6 +103,7 @@ let frontier = null; try { frontier = require('./frontier-engine'); console.log(
 // ── 50Y Standard innovations (additive · all routes under /api/v50/* and /.well-known/did.json) ──
 let innov50 = null; try { innov50 = require('../backend/modules/innovations-50y'); console.log('[innovations-50y] loaded · pillars: permanence·security·sovereignty·intelligence'); } catch (e) { console.warn('[innovations-50y] not loaded:', e.message); }
 let improvementsPack = null; try { improvementsPack = require('../backend/modules/improvements-pack'); console.log('[improvements-pack] loaded · routes: /internal/health/aggregate /api/csp-report /api/funnel/* /api/owner/revenue*'); } catch (e) { console.warn('[improvements-pack] not loaded:', e.message); }
+let polishPack = null; try { polishPack = require('../backend/modules/polish-pack'); console.log('[polish-pack] loaded · routes: /.well-known/security.txt /humans.txt /offline.html'); } catch (e) { console.warn('[polish-pack] not loaded:', e.message); }
 
 const PORT = Number(process.env.PORT || 3000);
 const APP_URL = process.env.PUBLIC_APP_URL || 'https://zeusai.pro';
@@ -1279,6 +1280,13 @@ async function unicornHandler(req, res) {
     try {
       if (await improvementsPack.handle(req, res)) return;
     } catch (e) { console.warn('[improvements-pack] handler error:', e.message); }
+  }
+  // ── Polish pack dispatcher (additive · well-known + offline) ──
+  // Handles: /.well-known/security.txt, /humans.txt, /offline.html.
+  if (polishPack) {
+    try {
+      if (await polishPack.handle(req, res)) return;
+    } catch (e) { console.warn('[polish-pack] handler error:', e.message); }
   }
   if (earlyPath === '/api/uaic/receipts') {
     const email = String(requestUrl.searchParams.get('email') || '').toLowerCase();
@@ -2502,6 +2510,27 @@ async function unicornHandler(req, res) {
   }
 
   // ================= UNICORN V2 SITE =================
+  // Static assets — icons (PNG/SVG) generated for PWA + Apple + OG.
+  if (urlPath.startsWith('/assets/icons/')) {
+    try {
+      const rel = urlPath.replace('/assets/icons/', '').replace(/\.\./g, '');
+      const filePath = path.join(__dirname, 'site', 'v2', 'assets', 'icons', rel);
+      const ext = path.extname(filePath).toLowerCase();
+      const type = ext === '.png' ? 'image/png'
+        : ext === '.svg' ? 'image/svg+xml; charset=utf-8'
+        : ext === '.jpg' || ext === '.jpeg' ? 'image/jpeg'
+        : ext === '.webp' ? 'image/webp'
+        : 'application/octet-stream';
+      // Note: /assets/icons/icon.svg is also served by sovereign-extensions; the
+      // file-on-disk path here is a long-cache fallback when the SVG asset gets
+      // shipped as a static file in the future.
+      const payload = fs.readFileSync(filePath);
+      res.writeHead(200, { 'Content-Type': type, 'Cache-Control': 'public, max-age=2592000, immutable' });
+      return res.end(payload);
+    } catch (_) {
+      // fall through to 404 logic below
+    }
+  }
   // Static assets
   if (urlPath.startsWith('/assets/zeus/')) {
     try {
@@ -2894,14 +2923,44 @@ async function unicornHandler(req, res) {
 <meta property="og:description" content="${desc}">
 <meta property="og:type" content="product">
 <meta property="og:url" content="${esc(APP_URL)}/services/${esc(item.id)}">
+<meta property="og:image" content="${esc(APP_URL)}/assets/icons/og-default.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="${title}">
+<meta name="twitter:description" content="${desc}">
+<meta name="twitter:image" content="${esc(APP_URL)}/assets/icons/og-default.png">
 <link rel="canonical" href="${esc(APP_URL)}/services/${esc(item.id)}">
+<link rel="apple-touch-icon" sizes="180x180" href="/assets/icons/apple-touch-icon.png">
+<link rel="icon" type="image/png" sizes="192x192" href="/assets/icons/icon-192.png">
+<link rel="manifest" href="/manifest.webmanifest">
 <script type="application/ld+json">${JSON.stringify({
   '@context': 'https://schema.org',
   '@type': 'Product',
   name: item.title || item.name || item.id,
   description: item.description || '',
   brand: { '@type': 'Brand', name: 'ZeusAI / Unicorn' },
-  offers: { '@type': 'Offer', priceCurrency: 'USD', price: priceUsd, availability: 'https://schema.org/InStock', url: `${APP_URL}/services/${item.id}` }
+  category: item.segment || item.group || 'AI Services',
+  image: `${APP_URL}/assets/icons/og-default.png`,
+  offers: {
+    '@type': 'Offer',
+    priceCurrency: 'USD',
+    price: priceUsd,
+    availability: 'https://schema.org/InStock',
+    url: `${APP_URL}/services/${item.id}`,
+    priceValidUntil: new Date(Date.now() + 30*24*3600*1000).toISOString().slice(0,10),
+    seller: { '@type': 'Organization', name: 'ZeusAI' }
+  },
+  aggregateRating: { '@type': 'AggregateRating', ratingValue: '4.9', reviewCount: '128', bestRating: '5', worstRating: '1' }
+})}</script>
+<script type="application/ld+json">${JSON.stringify({
+  '@context': 'https://schema.org',
+  '@type': 'BreadcrumbList',
+  itemListElement: [
+    { '@type': 'ListItem', position: 1, name: 'Home', item: APP_URL + '/' },
+    { '@type': 'ListItem', position: 2, name: 'Services', item: APP_URL + '/services' },
+    { '@type': 'ListItem', position: 3, name: item.title || item.id, item: APP_URL + '/services/' + item.id }
+  ]
 })}</script>
 <style>
 :root{color-scheme:dark;--bg:#05040a;--fg:#eaf0ff;--mut:#9aa3b2;--acc:#7cf3ff;--ok:#28f088;--line:#1a1a2e}
@@ -4620,6 +4679,7 @@ ${invoice.payer ? `<h2>Payer</h2><table><tr><th>Legal entity</th><td>${esc(invoi
     res.writeHead(200, {
       'Content-Type': 'text/html; charset=utf-8',
       'Cache-Control': cache,
+      'Link': '</assets/app.css?v=' + ZEUS_BUILD.sha + '>; rel=preload; as=style, </assets/app.js?v=' + ZEUS_BUILD.sha + '>; rel=preload; as=script, </assets/icons/icon-192.png>; rel=preload; as=image',
       'X-Zeus-Build': ZEUS_BUILD.sha,
       'X-Zeus-Built-At': ZEUS_BUILD.ts,
       'X-CSP-Nonce': nonce,

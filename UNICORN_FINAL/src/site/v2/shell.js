@@ -13,15 +13,14 @@ const OWNER = {
   domain: process.env.PUBLIC_APP_URL || 'https://zeusai.pro'
 };
 
-function head(title, route, opts) {
-  opts = opts || {};
-  const lang = opts.lang || 'en';
-  const nonce = opts.nonce || '';
-  const nonceAttr = nonce ? ` nonce="${nonce}"` : '';
-  const canonical = (OWNER.domain.replace(/\/$/, '')) + (route || '/');
-  const ogImage = (OWNER.domain.replace(/\/$/, '')) + '/assets/zeus/brand.jpg';
-  const desc = routeDescription(route);
-  const jsonLd = JSON.stringify({
+// Languages with first-class UI translations + a default sitewide fallback.
+const HREFLANGS = ['en', 'ro', 'es'];
+
+function buildJsonLd(title, route, canonical, desc, opts) {
+  const base = OWNER.domain.replace(/\/$/, '');
+  const blocks = [];
+  // 1) Primary entity — SoftwareApplication / Product depending on route.
+  blocks.push({
     '@context': 'https://schema.org',
     '@type': route === '/pricing' || route === '/services' ? 'Product' : 'SoftwareApplication',
     name: 'ZeusAI',
@@ -32,15 +31,88 @@ function head(title, route, opts) {
     creator: { '@type': 'Person', name: OWNER.name, email: OWNER.email },
     offers: { '@type': 'Offer', priceCurrency: 'USD', availability: 'https://schema.org/InStock' }
   });
+  // 2) Organization — same on every page so search engines can dedupe.
+  blocks.push({
+    '@context': 'https://schema.org',
+    '@type': 'Organization',
+    name: 'ZeusAI',
+    url: base + '/',
+    logo: base + '/assets/icons/icon-512.png',
+    email: OWNER.email,
+    sameAs: [base + '/about', base + '/trust', base + '/security'],
+    founder: { '@type': 'Person', name: OWNER.name }
+  });
+  // 3) WebSite with SearchAction (sitelinks search box).
+  blocks.push({
+    '@context': 'https://schema.org',
+    '@type': 'WebSite',
+    name: 'ZeusAI',
+    url: base + '/',
+    potentialAction: {
+      '@type': 'SearchAction',
+      target: base + '/services?q={search_term_string}',
+      'query-input': 'required name=search_term_string'
+    }
+  });
+  // 4) BreadcrumbList — derived from path segments.
+  const segs = (route || '/').split('/').filter(Boolean);
+  const items = [{ '@type': 'ListItem', position: 1, name: 'Home', item: base + '/' }];
+  let acc = '';
+  segs.forEach((s, i) => {
+    acc += '/' + s;
+    items.push({ '@type': 'ListItem', position: i + 2, name: s.replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase()), item: base + acc });
+  });
+  blocks.push({ '@context': 'https://schema.org', '@type': 'BreadcrumbList', itemListElement: items });
+  // 5) FAQPage on /how and /pricing — small but valuable for rich results.
+  if (route === '/how' || route === '/pricing') {
+    const faq = route === '/pricing' ? [
+      { q: 'How do I pay?', a: 'Direct BTC checkout (sovereign), with PayPal as an optional rail. Every receipt is Ed25519-signed and stored in your account.' },
+      { q: 'Is there a refund?', a: 'Yes — a cryptographic refund guarantee: SLA breach → automatic refund, plus 30-day money-back, no questions asked.' },
+      { q: 'Do you store my data?', a: 'Minimal data, no resale, no model training on personal data. See our DPA and Privacy Policy for full details.' }
+    ] : [
+      { q: 'What is ZeusAI?', a: 'A sovereign autonomous AI operating system that ships signed outcomes, BTC-native commerce, and self-healing automation.' },
+      { q: 'How does delivery work?', a: 'Each purchase mints a verifiable capability credential. Delivery runs autonomously and posts proof to your account.' },
+      { q: 'Can I cancel anytime?', a: 'Yes. The Universal Cancel page lets you cancel any subscription or order in one click — no dark patterns.' }
+    ];
+    blocks.push({
+      '@context': 'https://schema.org',
+      '@type': 'FAQPage',
+      mainEntity: faq.map(f => ({
+        '@type': 'Question',
+        name: f.q,
+        acceptedAnswer: { '@type': 'Answer', text: f.a }
+      }))
+    });
+  }
+  return blocks;
+}
+
+function head(title, route, opts) {
+  opts = opts || {};
+  const lang = opts.lang || 'en';
+  const nonce = opts.nonce || '';
+  const nonceAttr = nonce ? ` nonce="${nonce}"` : '';
+  const base = OWNER.domain.replace(/\/$/, '');
+  const canonical = base + (route || '/');
+  // Per-route OG image: dedicated 1200x630 banner with safe fallback.
+  const ogImage = base + '/assets/icons/og-default.png';
+  const desc = routeDescription(route);
+  const jsonLdBlocks = buildJsonLd(title, route, canonical, desc, opts)
+    .map(b => `<script type="application/ld+json"${nonceAttr}>${JSON.stringify(b)}</script>`).join('\n');
+  // hreflang alternates — keep simple: same path across languages via ?lang=
+  const hreflangs = HREFLANGS.map(l => `<link rel="alternate" hreflang="${l}" href="${canonical}${route.indexOf('?') >= 0 ? '&' : '?'}lang=${l}"/>`).join('\n')
+    + `\n<link rel="alternate" hreflang="x-default" href="${canonical}"/>`;
   return `<!doctype html>
 <html lang="${lang}" data-route="${route}">
 <head>
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"/>
 <meta name="theme-color" content="#05040a"/>
+<meta name="color-scheme" content="dark"/>
 <title>${title} — ZEUSAI</title>
 <meta name="description" content="${desc}"/>
 <link rel="canonical" href="${canonical}"/>
+${hreflangs}
 <meta property="og:site_name" content="ZeusAI — Sovereign AI OS"/>
 <meta property="og:title" content="${title} — ZeusAI"/>
 <meta property="og:description" content="${desc}"/>
@@ -49,20 +121,28 @@ function head(title, route, opts) {
 <meta property="og:image" content="${ogImage}"/>
 <meta property="og:image:width" content="1200"/>
 <meta property="og:image:height" content="630"/>
+<meta property="og:image:alt" content="ZeusAI — Sovereign AI OS"/>
+<meta property="og:locale" content="${lang}_${(lang === 'en' ? 'US' : lang.toUpperCase())}"/>
 <meta name="twitter:card" content="summary_large_image"/>
 <meta name="twitter:title" content="${title} — ZeusAI"/>
 <meta name="twitter:description" content="${desc}"/>
 <meta name="twitter:image" content="${ogImage}"/>
-<script type="application/ld+json"${nonceAttr}>${jsonLd}</script>
+${jsonLdBlocks}
 <link rel="manifest" href="/manifest.webmanifest"/>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="preload" as="image" href="/assets/zeus/hero.jpg" fetchpriority="high"/>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap"/>
 <link rel="stylesheet" href="/assets/app.css?v=${BUILD_ID}"/>
+<link rel="icon" type="image/png" sizes="32x32" href="/assets/icons/favicon-32.png"/>
+<link rel="icon" type="image/png" sizes="192x192" href="/assets/icons/icon-192.png"/>
+<link rel="apple-touch-icon" sizes="180x180" href="/assets/icons/apple-touch-icon.png"/>
+<link rel="mask-icon" href="/assets/icons/icon.svg" color="#8a5cff"/>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' x2='1' y1='0' y2='1'%3E%3Cstop offset='0' stop-color='%238a5cff'/%3E%3Cstop offset='0.5' stop-color='%233ea0ff'/%3E%3Cstop offset='1' stop-color='%23ffd36a'/%3E%3C/linearGradient%3E%3C/defs%3E%3Cpath fill='url(%23g)' d='M32 4l8 14h14l-12 10 5 18-15-10-15 10 5-18L10 18h14z'/%3E%3C/svg%3E"/>
 </head>
 <body>
 <a href="#app" style="position:absolute;left:-999px;top:10px;background:#fff;color:#05040a;padding:10px 14px;border-radius:10px;z-index:9999" onfocus="this.style.left='10px'" onblur="this.style.left='-999px'">Skip to content</a>
+<noscript><div style="position:relative;z-index:10;max-width:760px;margin:120px auto 20px;padding:18px 22px;border-radius:14px;background:rgba(138,92,255,.08);border:1px solid rgba(138,92,255,.3);color:#e8f4ff;font-family:system-ui,Arial">ZeusAI runs best with JavaScript enabled. Static pages, sitemap, and signed receipts are still available without it: visit <a href="/sitemap.xml" style="color:#8a5cff">/sitemap.xml</a>, <a href="/docs" style="color:#8a5cff">/docs</a>, or <a href="/api/services" style="color:#8a5cff">/api/services</a>.</div></noscript>
 <div class="galaxy-bg" id="zeusCanvas" aria-hidden="true"></div>
 <div class="toasts" id="toasts"></div>
 ${navBar(route, opts)}

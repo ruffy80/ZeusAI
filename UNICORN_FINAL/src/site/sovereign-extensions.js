@@ -209,6 +209,7 @@ async function handle(req, res, ctx) {
       'Allow: /',
       '',
       `Sitemap: ${OWNER.domain}/sitemap.xml`,
+      `Sitemap: ${OWNER.domain}/seo/sitemap-services.xml`,
       `Host: ${OWNER.domain.replace(/^https?:\/\//, '')}`,
     ].join('\n');
     res.writeHead(200, { 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': 'public, max-age=3600' });
@@ -267,15 +268,51 @@ ${all.map(u => `  <url><loc>${OWNER.domain}${u}</loc><lastmod>${now}</lastmod><c
       lang,
       scope: '/',
       icons: [
-        { src: '/assets/zeus/brand.jpg', sizes: '192x192', type: 'image/jpeg', purpose: 'any' },
-        { src: '/assets/zeus/brand.jpg', sizes: '512x512', type: 'image/jpeg', purpose: 'any' }
+        { src: '/assets/icons/icon-192.png', sizes: '192x192', type: 'image/png', purpose: 'any' },
+        { src: '/assets/icons/icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'any' },
+        { src: '/assets/icons/icon-maskable-512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
+        { src: '/assets/icons/icon.svg', sizes: 'any', type: 'image/svg+xml', purpose: 'any' }
       ],
+      screenshots: [
+        { src: '/assets/icons/og-default.png', sizes: '1200x630', type: 'image/png', form_factor: 'wide', label: 'ZeusAI Sovereign AI OS' }
+      ],
+      shortcuts: [
+        { name: 'Marketplace', short_name: 'Services', url: '/services', description: 'Browse the ZeusAI service marketplace' },
+        { name: 'Pricing', short_name: 'Pricing', url: '/pricing', description: 'Transparent pricing with signed receipts' },
+        { name: 'Dashboard', short_name: 'Dashboard', url: '/dashboard', description: 'Operator dashboard' },
+        { name: 'Innovations', short_name: 'Innovations', url: '/innovations', description: '30-year cryptographic durability' }
+      ],
+      share_target: {
+        action: '/services',
+        method: 'GET',
+        params: { title: 'q', text: 'q', url: 'url' }
+      },
       categories: ['business', 'productivity', 'finance', 'ai']
     };
     res.writeHead(200, { 'Content-Type': 'application/manifest+json; charset=utf-8', 'Cache-Control': 'public, max-age=3600' });
     const body = JSON.stringify(manifest, null, 2);
     res.end(body);
     recordMetric(urlPath, 200, body.length);
+    return true;
+  }
+
+  // ── /assets/icons/icon.svg — solid SVG icon used by mask-icon and PWA ─
+  if (urlPath === '/assets/icons/icon.svg') {
+    const svg = `<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <defs>
+    <linearGradient id="g" x1="0" x2="1" y1="0" y2="1">
+      <stop offset="0" stop-color="#8a5cff"/>
+      <stop offset="0.5" stop-color="#3ea0ff"/>
+      <stop offset="1" stop-color="#ffd36a"/>
+    </linearGradient>
+  </defs>
+  <rect width="512" height="512" fill="#05040a"/>
+  <path fill="url(#g)" d="M256 56 l64 112 h112 L336 248 l40 144 -120 -80 -120 80 40 -144 -96 -80 h112 z"/>
+</svg>`;
+    res.writeHead(200, { 'Content-Type': 'image/svg+xml; charset=utf-8', 'Cache-Control': 'public, max-age=86400' });
+    res.end(svg);
+    recordMetric(urlPath, 200, svg.length);
     return true;
   }
 
