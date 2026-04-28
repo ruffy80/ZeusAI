@@ -38,9 +38,11 @@ const seo     = require('./seo-engine');
 const attrib  = require('./attribution');
 const affil   = require('./affiliate-revenue');
 const outreach = require('./outreach-sentiment');
+const viral   = require('./viral-amplifier');
+const innovationLoop = require('./self-innovation-loop');
 
 const DISABLED = process.env.MARKETING_PACK_DISABLED === '1';
-const VERSION = '1.0.0';
+const VERSION = '1.1.0';
 
 function _ownerOk(req) {
   const required = process.env.AUDIT_50Y_TOKEN || process.env.OWNER_DASHBOARD_TOKEN || '';
@@ -110,6 +112,10 @@ function _status() {
     affiliates: affil.listAffiliates().length,
     experiments: outreach.listExperiments().length,
     ownerBtcAddress: process.env.LEGAL_OWNER_BTC || 'bc1q4f7e66z87mdfj56kz0dj5hvcnpmh0qh4wuv22e',
+    // ── Additive fields (v1.1) ─────────────────────────────────────
+    viralBoostFactor: viral.boostFactor(),
+    viralLoops: viral.listLoops().length,
+    innovation: innovationLoop.getStatus(),
   };
 }
 
@@ -337,6 +343,88 @@ async function handle(req, res, _ctx) {
       _send(res, 200, outreach.closeExperiment(b.id, b.status));
       return true;
     }
+
+    // ── /api/marketing/viral/* — viral amplifier ────────────────────
+    if (urlPath === '/api/marketing/viral/status' && req.method === 'GET') {
+      _send(res, 200, viral.getStatus());
+      return true;
+    }
+    if (urlPath === '/api/marketing/viral/boost' && req.method === 'GET') {
+      _send(res, 200, viral.boostFactor());
+      return true;
+    }
+    if (urlPath === '/api/marketing/viral/amplify' && req.method === 'POST') {
+      const b = await _parseBody(req);
+      _send(res, 200, viral.launchAmplify(b));
+      return true;
+    }
+    if (urlPath === '/api/marketing/viral/share-assets' && req.method === 'POST') {
+      const b = await _parseBody(req);
+      _send(res, 200, viral.buildShareAssets(b));
+      return true;
+    }
+    if (urlPath === '/api/marketing/viral/social-proof' && req.method === 'GET') {
+      _send(res, 200, viral.socialProof({
+        users: params.get('users'),
+        referralSignups: params.get('referralSignups'),
+        partnerMentions: params.get('partnerMentions'),
+        estimatedReach: params.get('estimatedReach'),
+        satsPaid: params.get('satsPaid'),
+        kFactor: params.get('kFactor'),
+      }));
+      return true;
+    }
+    if (urlPath === '/api/marketing/viral/loops' && req.method === 'GET') {
+      _send(res, 200, { loops: viral.listLoops() });
+      return true;
+    }
+    if (urlPath === '/api/marketing/viral/loops/register' && req.method === 'POST') {
+      if (!_ownerOk(req)) { _send(res, 401, { error: 'unauthorized' }); return true; }
+      const b = await _parseBody(req);
+      _send(res, 200, viral.registerLoop(b));
+      return true;
+    }
+    if (urlPath === '/api/marketing/viral/loops/observe' && req.method === 'POST') {
+      const b = await _parseBody(req);
+      _send(res, 200, viral.recordLoopOutcome(b));
+      return true;
+    }
+    if (urlPath === '/api/marketing/viral/recent' && req.method === 'GET') {
+      _send(res, 200, { recent: viral.recentAmplifications(Number(params.get('limit')) || 20) });
+      return true;
+    }
+
+    // ── /api/marketing/innovation/* — self-innovation loop ──────────
+    if (urlPath === '/api/marketing/innovation/status' && req.method === 'GET') {
+      _send(res, 200, innovationLoop.getStatus());
+      return true;
+    }
+    if (urlPath === '/api/marketing/innovation/strategies' && req.method === 'GET') {
+      _send(res, 200, {
+        strategies: innovationLoop.listStrategies({
+          status: params.get('status'),
+          limit: Number(params.get('limit')) || 100,
+        }),
+      });
+      return true;
+    }
+    if (urlPath === '/api/marketing/innovation/observe' && req.method === 'POST') {
+      const b = await _parseBody(req);
+      _send(res, 200, innovationLoop.observe(b.id, b));
+      return true;
+    }
+    if (urlPath === '/api/marketing/innovation/tick' && req.method === 'POST') {
+      if (!_ownerOk(req)) { _send(res, 401, { error: 'unauthorized' }); return true; }
+      const b = await _parseBody(req);
+      _send(res, 200, innovationLoop.tick(b));
+      return true;
+    }
+    if (urlPath === '/api/marketing/innovation/strategies/add' && req.method === 'POST') {
+      if (!_ownerOk(req)) { _send(res, 401, { error: 'unauthorized' }); return true; }
+      const b = await _parseBody(req);
+      _send(res, 200, innovationLoop.addStrategy(b));
+      return true;
+    }
   } catch (e) {
     try { console.warn('[marketing-pack] dispatcher error:', e && e.message); } catch (_) {}
     _send(res, 500, { error: 'marketing_pack_failure' });
@@ -375,6 +463,8 @@ module.exports = {
   attribution: attrib,
   affiliate: affil,
   outreach,
+  viral,
+  innovationLoop,
   DISABLED,
   VERSION,
 };

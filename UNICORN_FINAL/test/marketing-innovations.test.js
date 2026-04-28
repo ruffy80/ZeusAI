@@ -28,6 +28,10 @@ process.env.MARKETING_BTC_USD = '50000';
 process.env.PLATFORM_FEE_PCT = '0.3';
 process.env.AUDIT_50Y_TOKEN = 'mkt-token-' + process.pid;
 process.env.LEGAL_OWNER_BTC = 'bc1qowner_test_address';
+process.env.MARKETING_INNOVATION_LEDGER = path.join(tmpRoot, 'innovation-ledger.jsonl');
+// Disable the auto-running self-innovation loop during tests; we drive
+// it manually via tick() to keep results deterministic.
+process.env.MARKETING_INNOVATION_LOOP_DISABLED = '1';
 delete process.env.MARKETING_PACK_DISABLED;
 
 const mkt = require('../backend/modules/marketing-innovations');
@@ -271,6 +275,181 @@ async function run() {
     console.log('[OK] HTTP dispatcher integration');
   }
 
+  // ── 9. Viral amplifier ──────────────────────────────────────────────
+  {
+    mkt.viral._resetForTests();
+    const loops = mkt.viral.listLoops();
+    assert.ok(loops.length >= 6, 'default viral loops should be seeded');
+    for (const l of loops) {
+      assert.ok(l.id && l.name && typeof l.healthScore === 'number');
+    }
+
+    const newLoop = mkt.viral.registerLoop({ name: 'Test loop', kind: 'custom', strength: 0.9, kFactorTarget: 1.5 });
+    assert.ok(newLoop.id);
+    const upd = mkt.viral.recordLoopOutcome({ id: newLoop.id, kFactor: 1.4, ctr: 0.12, shares: 10 });
+    assert.ok(upd.ok);
+    assert.strictEqual(upd.loop.observations, 1);
+
+    const sa = mkt.viral.buildShareAssets({ url: 'https://unicorn.example/launch', title: 'Try Unicorn', hashtag: 'UnicornTest' });
+    assert.ok(sa.id.startsWith('SH-'));
+    assert.ok(sa.channels.length >= 8);
+    const xShare = sa.channels.find((c) => c.channel === 'X');
+    assert.ok(xShare.shareUrl.includes('twitter.com/intent/tweet'));
+    assert.ok(xShare.shareUrl.includes('hashtags=UnicornTest'));
+
+    const proof = mkt.viral.socialProof({ users: 1234, kFactor: 1.2, satsPaid: 9999999 });
+    assert.ok(proof.badges.length >= 3);
+    assert.ok(proof.badges.some((b) => b.label.includes('self-sustaining')));
+
+    const ampl = mkt.viral.launchAmplify({
+      topic: 'Launch Day',
+      url: 'https://unicorn.example/launch',
+      channels: ['X', 'LinkedIn'],
+      perChannel: 2,
+      affiliateCode: '',
+    });
+    assert.ok(ampl.id.startsWith('AMPL-'));
+    assert.strictEqual(ampl.variants.length, 4);
+    assert.ok(ampl.shareBundle.id);
+    assert.ok(ampl.boost.factor >= 0 && ampl.boost.factor <= 10);
+
+    const recent = mkt.viral.recentAmplifications(5);
+    assert.ok(recent.length === 1);
+    assert.strictEqual(recent[0].id, ampl.id);
+
+    const boost = mkt.viral.boostFactor();
+    assert.ok(boost.factor >= 0 && boost.factor <= 10);
+    console.log(`[OK] viral-amplifier · boost ${boost.factor}/10`);
+  }
+
+  // ── 10. Self-innovation loop ────────────────────────────────────────
+  {
+    mkt.innovationLoop._resetForTests();
+    const seedStatus = mkt.innovationLoop.getStatus();
+    assert.ok(seedStatus.totalStrategies >= 6, 'should seed >=6 initial strategies');
+    assert.strictEqual(seedStatus.cyclesRun, 0);
+
+    const all = mkt.innovationLoop.listStrategies({});
+    assert.ok(all.length >= 6);
+    // Feed observations to ALL seeds: a steep gradient so retire/spawn logic kicks in.
+    for (let i = 0; i < all.length; i++) {
+      const quality = 1 - i / all.length; // 1.0 → ~0
+      for (let j = 0; j < 8; j++) {
+        mkt.innovationLoop.observe(all[i].id, {
+          kFactor: 0.05 + quality * 1.4,
+          ctr: 0.005 + quality * 0.18,
+          revenueUsd: quality * 500,
+          shares: Math.round(quality * 50),
+        });
+      }
+    }
+
+    const cycle = mkt.innovationLoop.tick({ spawn: 4 });
+    assert.ok(cycle.id.startsWith('CYC-'));
+    assert.ok(cycle.spawned.length === 4, 'should spawn 4 candidates');
+    assert.ok(cycle.totalStrategies >= all.length + 4);
+    assert.ok(cycle.topScore >= cycle.medianScore, 'top must be at least the median');
+    assert.ok(cycle.topScore > 0, 'top score should be > 0 with observations');
+    assert.ok(cycle.retired.length >= 0);
+
+    // Loser must have been retired (it's the strategy with lowest score and >=5 obs).
+    const retiredList = mkt.innovationLoop.listStrategies({ status: 'retired' });
+    // With 6 eligible @ 10% retire rate the floor is 0 — so retirement may
+    // not occur in the first cycle. Run an additional cycle with more
+    // observations to ensure retirement logic functions at scale.
+    for (let extra = 0; extra < 15; extra++) {
+      mkt.innovationLoop.addStrategy({});
+      mkt.innovationLoop.observe(mkt.innovationLoop.listStrategies({})[mkt.innovationLoop.listStrategies({}).length - 1].id, { kFactor: 0.01 });
+    }
+    // Bring all newly-added strategies up to >=5 observations so they are eligible.
+    const newcomers = mkt.innovationLoop.listStrategies({}).filter((s) => s.observations.length < 5 && s.status === 'active');
+    for (const n of newcomers) {
+      for (let j = 0; j < 6; j++) mkt.innovationLoop.observe(n.id, { kFactor: 0.02, ctr: 0.001 });
+    }
+    const cycleScale = mkt.innovationLoop.tick({ spawn: 2 });
+    assert.ok(cycleScale.retired.length >= 1, 'with >=20 eligible strategies retirement must occur');
+    assert.ok(retiredList.length >= 0);
+
+    // Candidates exist with parentId pointing at top performer.
+    const candidates = mkt.innovationLoop.listStrategies({ status: 'candidate' });
+    assert.ok(candidates.length >= 4);
+    assert.ok(candidates.every((c) => c.parentId), 'candidates must reference parent');
+    assert.ok(candidates.every((c) => c.generation >= 1), 'candidates must have generation >= 1');
+
+    // Run a second cycle to verify monotonic operation.
+    const cycle2 = mkt.innovationLoop.tick({ spawn: 2 });
+    assert.ok(mkt.innovationLoop.getStatus().cyclesRun >= 3);
+    assert.ok(cycle2.spawned.length === 2);
+
+    // observe() flips a candidate to active.
+    const cand = candidates[0];
+    mkt.innovationLoop.observe(cand.id, { kFactor: 1.0, ctr: 0.1 });
+    const after = mkt.innovationLoop.listStrategies({}).find((s) => s.id === cand.id);
+    assert.strictEqual(after.status, 'active');
+
+    console.log(`[OK] self-innovation-loop · ${seedStatus.totalStrategies}→${cycle2.totalStrategies} strategies, 2 cycles, top ${cycle2.topScore}`);
+  }
+
+  // ── 11. Pack getStatus() exposes new additive fields ────────────────
+  {
+    const s = mkt.getStatus();
+    // Existing fields preserved.
+    for (const k of ['pack', 'version', 'channels', 'bandits', 'affiliates', 'experiments', 'ownerBtcAddress']) {
+      assert.ok(k in s, 'getStatus must keep field: ' + k);
+    }
+    // New additive fields present.
+    assert.ok('viralBoostFactor' in s, 'viralBoostFactor must be exposed');
+    assert.ok('viralLoops' in s);
+    assert.ok('innovation' in s);
+    assert.ok(typeof s.viralBoostFactor.factor === 'number');
+    assert.ok(typeof s.innovation.totalStrategies === 'number');
+    console.log('[OK] pack status exposes viral + innovation fields');
+  }
+
+  // ── 12. HTTP integration for new routes ─────────────────────────────
+  {
+    const server = http.createServer(async (req, res) => {
+      if (await mkt.handle(req, res)) return;
+      res.writeHead(404); res.end('not found');
+    });
+    await new Promise((r) => server.listen(0, '127.0.0.1', r));
+
+    const v = await reqJson(server, 'GET', '/api/marketing/viral/status');
+    assert.strictEqual(v.status, 200);
+    assert.ok(v.body.boost && typeof v.body.boost.factor === 'number');
+
+    const sa = await reqJson(server, 'POST', '/api/marketing/viral/share-assets',
+      { url: 'https://unicorn.example/p', title: 'Hello' });
+    assert.strictEqual(sa.status, 200);
+    assert.ok(Array.isArray(sa.body.channels));
+
+    const ampl = await reqJson(server, 'POST', '/api/marketing/viral/amplify',
+      { topic: 'HTTP Launch', url: 'https://unicorn.example/p', channels: ['X'], perChannel: 1 });
+    assert.strictEqual(ampl.status, 200);
+    assert.ok(ampl.body.id.startsWith('AMPL-'));
+
+    const proof = await reqJson(server, 'GET', '/api/marketing/viral/social-proof?users=1000&kFactor=1.5&satsPaid=12345');
+    assert.strictEqual(proof.status, 200);
+    assert.ok(proof.body.badges.length >= 2);
+
+    const denied = await reqJson(server, 'POST', '/api/marketing/innovation/tick', {});
+    assert.strictEqual(denied.status, 401);
+
+    const tick = await reqJson(server, 'POST', '/api/marketing/innovation/tick', { spawn: 2 },
+      { 'x-owner-token': process.env.AUDIT_50Y_TOKEN });
+    assert.strictEqual(tick.status, 200);
+    assert.ok(tick.body.id.startsWith('CYC-'));
+
+    const innStatus = await reqJson(server, 'GET', '/api/marketing/innovation/status');
+    assert.strictEqual(innStatus.status, 200);
+    assert.ok(innStatus.body.cyclesRun >= 1);
+
+    server.close();
+    console.log('[OK] HTTP integration · viral + innovation routes');
+  }
+
+  // Stop the self-innovation loop interval if any test enabled it.
+  try { mkt.innovationLoop.stop(); } catch (_) {}
   // Stop autoViralGrowth interval so the test process can exit.
   try { autoViralGrowth.stop(); } catch (_) {}
   console.log('\n✅ marketing-innovations.test.js — all checks passed');

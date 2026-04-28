@@ -27,6 +27,8 @@ Owner's BTC payout address (default): `bc1q4f7e66z87mdfj56kz0dj5hvcnpmh0qh4wuv22
 | `attribution.js` | Multi-touch attribution under 5 models (`first_touch`, `last_touch`, `linear`, `time_decay`, `position`/U-shape), LTV/CAC calculator with verdict (healthy / borderline / unsustainable), viral coefficient (k-factor) with 90-day projection. |
 | `affiliate-revenue.js` | Affiliate program with HMAC-signed codes, UTM/short-link builder (`/go/<id>`), click & conversion ledger persisted to `data/marketing/affiliate-ledger.jsonl`. Computes commissions in USD → BTC → sats. **Owner platform fee** (`PLATFORM_FEE_PCT`, default 30%) is sent to `LEGAL_OWNER_BTC`. |
 | `outreach-sentiment.js` | Influencer/PR/sales **outreach drafts** (never auto-sent), sentiment scoring (uses installed `sentiment` package or built-in mini-lexicon), growth-experiments registry. |
+| `viral-amplifier.js` | **Maximum-force virality** booster: viral-loop registry (referral / content / marketplace / network / FOMO / BTC-payout), share-asset bundle (one-tap URLs for X / LinkedIn / Facebook / Reddit / Telegram / WhatsApp / Email / HackerNews), social-proof badges, computed `viralBoostFactor` (0–10), one-shot launch amplifier that wires content + bandit + affiliate + share assets together. |
+| `self-innovation-loop.js` | **Permanent self-innovation engine.** Maintains a registry of viral strategies (channel × hook × CTA × incentive). Every cycle (`MARKETING_INNOVATION_CYCLE_MS`, default 60s) it scores all strategies (k-factor × revenue × CTR × shares), retires the bottom 10%, and spawns new candidate strategies via genetic-style mutation of top performers. Persists to `data/marketing/innovation-ledger.jsonl`. Auto-starts on require, disable with `MARKETING_INNOVATION_LOOP_DISABLED=1`. |
 
 ## HTTP routes
 All token-gated routes accept `X-Owner-Token: <AUDIT_50Y_TOKEN>` or the same value via `Authorization: Bearer …`.
@@ -63,6 +65,22 @@ All token-gated routes accept `X-Owner-Token: <AUDIT_50Y_TOKEN>` or the same val
 - `GET  /api/marketing/owner/payout`
 - `POST /api/marketing/experiments/register`
 - `POST /api/marketing/experiments/close`
+- `POST /api/marketing/viral/loops/register`
+- `POST /api/marketing/innovation/tick` — manually run one self-innovation cycle
+- `POST /api/marketing/innovation/strategies/add`
+
+### Viral & innovation (additive in v1.1)
+- `GET  /api/marketing/viral/status`
+- `GET  /api/marketing/viral/boost`
+- `POST /api/marketing/viral/amplify` — body: `{topic, url, channels?, perChannel?, affiliateCode?}` → returns variants + tracked links + share-bundle + boost
+- `POST /api/marketing/viral/share-assets` — body: `{url, title, hashtag?}` → one-tap share URLs
+- `GET  /api/marketing/viral/social-proof?users=&kFactor=&satsPaid=&...`
+- `GET  /api/marketing/viral/loops`
+- `POST /api/marketing/viral/loops/observe` — body: `{id, kFactor?, ctr?, shares?}`
+- `GET  /api/marketing/viral/recent[?limit=20]`
+- `GET  /api/marketing/innovation/status`
+- `GET  /api/marketing/innovation/strategies[?status=&limit=]`
+- `POST /api/marketing/innovation/observe` — body: `{id, kFactor?, ctr?, revenueUsd?, shares?}`
 
 ## Wiring (already done in `backend/index.js`)
 ```js
@@ -80,6 +98,9 @@ if (await _marketingPack.handle(req, res)) return;
 | Var | Default | Purpose |
 |---|---|---|
 | `MARKETING_PACK_DISABLED` | `0` | Set `1` to disable globally. |
+| `MARKETING_INNOVATION_LOOP_DISABLED` | `0` | Set `1` to disable the auto-running self-innovation cycle. |
+| `MARKETING_INNOVATION_CYCLE_MS` | `60000` | Self-innovation cycle interval (min 5000). |
+| `MARKETING_INNOVATION_LEDGER` | `data/marketing/innovation-ledger.jsonl` | Innovation cycle persistence. |
 | `MARKETING_AFFILIATE_SECRET` | `AUDIT_50Y_TOKEN` or built-in | HMAC secret for signed codes. |
 | `MARKETING_BTC_USD` | `65000` | Default BTC/USD rate when no live rate is supplied. |
 | `LEGAL_OWNER_BTC` | `bc1q4f7e66z87mdfj56kz0dj5hvcnpmh0qh4wuv22e` | Owner BTC payout address. |
