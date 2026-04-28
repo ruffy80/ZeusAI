@@ -17,24 +17,47 @@ if [ -f "$ENV_FILE" ]; then
   echo "ℹ️  .env există deja la $ENV_FILE — actualizare variabile noi fără a șterge valorile existente"
 fi
 
+# Citează o valoare astfel încât să fie sigură atât pentru `bash source` cât și
+# pentru parserul `dotenv` din Node. Folosim ghilimele simple — bash nu mai
+# interpretează spațiile/`$`/backtick/etc., iar dotenv strip-uie ghilimelele
+# (single & double) automat. Singurul caracter pe care trebuie să-l escape-ăm
+# este `'` (închiderea ghilimelei), folosind secvența standard `'\''`.
+# Fără asta, valori cu spații (ex. EMAIL_FROM_NAME="Zeus AI", OWNER_NAME="Vladoi Ionut")
+# transformau .env într-un fișier care, sourced de server-doctor.sh sub `set -e`,
+# trigger-uia "AI: command not found" și bloca `pm2 start ecosystem.config.js`.
+_env_quote() {
+  local v="$1"
+  local escaped
+  # Escape orice apostrof intern folosind idiom-ul standard bash: `'\''`
+  # = închidere ghilimea simplă, apostrof escape-uit cu backslash, redeschidere
+  # ghilimea simplă. În sed, fiecare `\` și fiecare `'` din replacement trebuie
+  # dublate la nivelul shell + sed, de unde cei 4 backslash-uri din pattern.
+  escaped=$(printf '%s' "$v" | sed "s/'/'\\\\''/g")
+  printf "'%s'" "$escaped"
+}
+
 # Funcție pentru upsert: adaugă sau actualizează o variabilă în .env
 # Sare dacă valoarea este goală (nu suprascrie cu gol)
 upsert() {
   local key="$1"
   local value="$2"
   [ -z "$value" ] && return 0   # nu suprascrie cu gol
+  local quoted
+  quoted=$(_env_quote "$value")
   if [ -f "$ENV_FILE" ] && grep -q "^${key}=" "$ENV_FILE"; then
     # Folosim python3 pentru înlocuire sigură (evită problemele cu / | & în valori la sed)
+    # Folosim lambda în re.sub ca să tratăm valoarea ca literal (nu ca replacement
+    # template cu \1, \g<...> etc.).
     python3 -c "
 import sys, re
 key, val, path = sys.argv[1], sys.argv[2], sys.argv[3]
 with open(path) as f: content = f.read()
 pattern = re.compile(r'^' + re.escape(key) + r'=.*$', re.MULTILINE)
-new_content = pattern.sub(key + '=' + val, content)
+new_content = pattern.sub(lambda _m: key + '=' + val, content)
 with open(path, 'w') as f: f.write(new_content)
-" "$key" "$value" "$ENV_FILE"
+" "$key" "$quoted" "$ENV_FILE"
   else
-    echo "${key}=${value}" >> "$ENV_FILE"
+    echo "${key}=${quoted}" >> "$ENV_FILE"
   fi
 }
 
