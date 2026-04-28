@@ -4,6 +4,7 @@ import { motion } from 'framer-motion';
 import axios from 'axios';
 import SEOMeta from '../components/SEOMeta';
 import PaymentModal from '../components/PaymentModal';
+import useLivePricing from '../hooks/useLivePricing';
 
 const CATEGORY_COLORS = {
   Revenue: '#00ffa3',
@@ -23,6 +24,11 @@ export default function Services() {
   const [error, setError] = useState(null);
   const [selectedService, setSelectedService] = useState(null);
   const [showPayment, setShowPayment] = useState(false);
+
+  // Live pricing broker — additive overlay: refreshes USD prices proposed by
+  // the AI negotiator + dynamic-pricing engine and provides BTC equivalents
+  // computed against the live BTC/USD rate.
+  const livePricing = useLivePricing();
 
   useEffect(() => {
     const fetchData = async () => {
@@ -98,6 +104,26 @@ export default function Services() {
         <p style={{ fontSize: 17, color: '#94a3b8', maxWidth: 560, margin: '0 auto' }}>
           Plug-and-play modules that activate in seconds. No infrastructure required.
         </p>
+
+        {/* Live BTC rate badge — driven by /api/pricing/live[/stream] */}
+        {livePricing.btcRate && Number(livePricing.btcRate.rate) > 0 && (
+          <div style={{
+            marginTop: 18, display: 'inline-flex', alignItems: 'center', gap: 10,
+            background: 'rgba(247,147,26,0.08)',
+            border: '1px solid rgba(247,147,26,0.35)',
+            borderRadius: 999, padding: '6px 14px',
+            fontFamily: 'var(--font-heading)', fontSize: 12,
+            color: '#f7931a', letterSpacing: '0.08em',
+          }}>
+            <span style={{
+              width: 8, height: 8, borderRadius: '50%',
+              background: livePricing.status === 'live' ? '#00ffa3' : '#f7931a',
+              boxShadow: livePricing.status === 'live' ? '0 0 8px #00ffa3' : 'none',
+            }} />
+            ₿ LIVE · 1 BTC = ${Number(livePricing.btcRate.rate).toLocaleString('en-US', { maximumFractionDigits: 0 })}
+            <span style={{ color: '#94a3b8', textTransform: 'lowercase' }}>· {livePricing.btcRate.source || 'live'}</span>
+          </div>
+        )}
       </motion.section>
 
       {/* Category filter tabs */}
@@ -163,6 +189,12 @@ export default function Services() {
         }}>
           {filtered.map((svc, i) => {
             const catColor = CATEGORY_COLORS[svc.category] || '#00d4ff';
+            // Merge in the live-priced entry from the broker (matched by id).
+            const live = livePricing.byId[svc.id] || livePricing.byId[String(svc.id)];
+            const displayUsd = live && Number.isFinite(live.usd) ? live.usd : svc.price;
+            const displayBtc = live && Number.isFinite(live.btc) ? live.btc : null;
+            const displaySats = live && Number.isFinite(live.sats) ? live.sats : null;
+            const delta = live && Number.isFinite(live.deltaPct) ? live.deltaPct : null;
             return (
               <motion.div
                 key={svc.id || i}
@@ -186,14 +218,36 @@ export default function Services() {
                   }}>
                     {svc.category || 'AI'}
                   </span>
-                  <span style={{
-                    fontFamily: 'var(--font-heading)',
-                    color: '#00ffa3',
-                    fontSize: 15,
-                    fontWeight: 700,
-                  }}>
-                    {svc.price ? `$${svc.price}/mo` : 'Free'}
-                  </span>
+                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 2 }}>
+                    <span style={{
+                      fontFamily: 'var(--font-heading)',
+                      color: '#00ffa3',
+                      fontSize: 15,
+                      fontWeight: 700,
+                    }}>
+                      {displayUsd ? `$${Number(displayUsd).toFixed(2)}/mo` : 'Free'}
+                    </span>
+                    {displayBtc != null && (
+                      <span style={{
+                        fontFamily: 'var(--font-heading)',
+                        color: '#f7931a',
+                        fontSize: 11,
+                        letterSpacing: '0.04em',
+                      }}>
+                        ≈ ₿{displayBtc.toFixed(8)}{displaySats != null ? ` · ${displaySats.toLocaleString('en-US')} sats` : ''}
+                      </span>
+                    )}
+                    {delta != null && Math.abs(delta) >= 0.5 && (
+                      <span style={{
+                        fontSize: 10,
+                        color: delta < 0 ? '#34d399' : '#f59e0b',
+                        fontFamily: 'var(--font-heading)',
+                        letterSpacing: '0.06em',
+                      }}>
+                        {delta > 0 ? '▲' : '▼'} {Math.abs(delta).toFixed(1)}% live
+                      </span>
+                    )}
+                  </div>
                 </div>
                 <h3 style={{
                   fontFamily: 'var(--font-heading)',

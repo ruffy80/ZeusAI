@@ -1,0 +1,5 @@
+node_modules
+# client/ has its own ESLint config (CRA's react-app). The root config does
+# not declare sourceType=module so it can't parse import/export. The client
+# bundle's own linter runs during `react-scripts build`.
+client

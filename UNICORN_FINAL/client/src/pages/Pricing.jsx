@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import SEOMeta from '../components/SEOMeta';
 import PricingCard from '../components/PricingCard';
+import useLivePricing from '../hooks/useLivePricing';
 
 const PLANS_MONTHLY = [
   {
@@ -184,9 +185,20 @@ export default function Pricing() {
   const [annual, setAnnual] = useState(false);
   const navigate = useNavigate();
 
+  // Live pricing broker — additive overlay so each plan also shows the BTC
+  // equivalent against the live BTC/USD rate. Plans without a matching id in
+  // the broker fall back to their displayed USD price unchanged.
+  const livePricing = useLivePricing();
+
   const plans = annual
     ? PLANS_MONTHLY.map(p => ({ ...p, price: applyDiscount(p.price), period: 'mo (billed annually)' }))
     : PLANS_MONTHLY;
+
+  const enrichedPlans = plans.map(p => {
+    const live = livePricing.byId[p.id];
+    if (!live || !Number.isFinite(live.btc)) return p;
+    return { ...p, btc: live.btc, sats: live.sats, livePriced: true };
+  });
 
   return (
     <>
@@ -287,10 +299,36 @@ export default function Pricing() {
         padding: '1rem 0 4rem',
         alignItems: 'stretch',
       }}>
-        {plans.map((plan, i) => (
+        {enrichedPlans.map((plan, i) => (
           <PricingCard key={plan.name} plan={plan} />
         ))}
       </div>
+
+      {/* Live BTC rate strip */}
+      {livePricing.btcRate && Number(livePricing.btcRate.rate) > 0 && (
+        <div style={{
+          display: 'flex', justifyContent: 'center', marginTop: '-2rem', marginBottom: '3rem',
+        }}>
+          <div style={{
+            display: 'inline-flex', alignItems: 'center', gap: 12,
+            background: 'rgba(247,147,26,0.06)',
+            border: '1px solid rgba(247,147,26,0.3)',
+            borderRadius: 16, padding: '8px 18px',
+            fontFamily: 'var(--font-heading)', fontSize: 12,
+            color: '#f7931a', letterSpacing: '0.08em',
+          }}>
+            <span style={{
+              width: 8, height: 8, borderRadius: '50%',
+              background: livePricing.status === 'live' ? '#00ffa3' : '#f7931a',
+              boxShadow: livePricing.status === 'live' ? '0 0 8px #00ffa3' : 'none',
+            }} />
+            ₿ LIVE · 1 BTC = ${Number(livePricing.btcRate.rate).toLocaleString('en-US', { maximumFractionDigits: 0 })}
+            <span style={{ color: '#94a3b8', textTransform: 'lowercase' }}>
+              · prices auto-update via /api/pricing/live
+            </span>
+          </div>
+        </div>
+      )}
 
       {/* All plans include */}
       <motion.section
