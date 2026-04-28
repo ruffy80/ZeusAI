@@ -1,0 +1,102 @@
+# marketing-innovations — World-Standard Marketing Layer
+
+Additive overlay on top of `autoViralGrowth` that turns the Unicorn into a
+self-running, revenue-generating marketing agent more capable than most
+mid-tier agencies.
+
+> **Stability contract:** every route is **new** and lives under
+> `/api/marketing/*` (plus `/go/<id>` for short-link redirects). The
+> existing `autoViralGrowth` module, its `/api/autonomous/viral/*` routes,
+> and all `/snapshot`/`/health`/`/stream` payload shapes are **untouched**.
+> Disable globally with `MARKETING_PACK_DISABLED=1`.
+
+## Why
+The user request: *"adaugă inovații la acest modul să fie cel mai eficient,
+inovativ și puternic agent de marketing al unicornului… să devină standard
+mondial și să producă venituri pentru mine."*
+
+Owner's BTC payout address (default): `bc1q4f7e66z87mdfj56kz0dj5hvcnpmh0qh4wuv22e`
+(overridable via `LEGAL_OWNER_BTC`).
+
+## Sub-engines
+| File | Capability |
+|---|---|
+| `content-multichannel.js` | Generates platform-tailored variants for X / LinkedIn / Reddit / TikTok / YouTube / Instagram / Email / SMS / Push / Facebook with deterministic seeded hooks, hashtags and CTAs. |
+| `bandit-optimizer.js` | Multi-armed bandit (Thompson Sampling on Beta(α,β)) per campaign — picks the variant with the best posterior CTR. Records impressions, clicks, conversions, revenue. Persists to `data/marketing/bandit.jsonl`. |
+| `seo-engine.js` | Long-tail keyword expansion, OG/Twitter meta tags, JSON-LD schema.org for Product / Organization / FAQPage / BreadcrumbList / WebSite. |
+| `attribution.js` | Multi-touch attribution under 5 models (`first_touch`, `last_touch`, `linear`, `time_decay`, `position`/U-shape), LTV/CAC calculator with verdict (healthy / borderline / unsustainable), viral coefficient (k-factor) with 90-day projection. |
+| `affiliate-revenue.js` | Affiliate program with HMAC-signed codes, UTM/short-link builder (`/go/<id>`), click & conversion ledger persisted to `data/marketing/affiliate-ledger.jsonl`. Computes commissions in USD → BTC → sats. **Owner platform fee** (`PLATFORM_FEE_PCT`, default 30%) is sent to `LEGAL_OWNER_BTC`. |
+| `outreach-sentiment.js` | Influencer/PR/sales **outreach drafts** (never auto-sent), sentiment scoring (uses installed `sentiment` package or built-in mini-lexicon), growth-experiments registry. |
+
+## HTTP routes
+All token-gated routes accept `X-Owner-Token: <AUDIT_50Y_TOKEN>` or the same value via `Authorization: Bearer …`.
+
+### Public
+- `GET  /api/marketing/status`
+- `GET  /api/marketing/channels`
+- `GET  /api/marketing/content/variants?topic=&channels=X,LinkedIn&perChannel=2`
+- `POST /api/marketing/content/variants`
+- `GET  /api/marketing/bandit/best?campaign=launch1`
+- `GET  /api/marketing/bandit/summary[?campaign=launch1]`
+- `POST /api/marketing/bandit/track` — body: `{campaign, armId, event: impression|click|no_click|conversion, n?, revenueUsd?}`
+- `GET  /api/marketing/seo/keywords?seed=AI%20automation&max=30`
+- `GET  /api/marketing/seo/meta?title=&description=&url=`
+- `POST /api/marketing/seo/jsonld` — body: `{type, data}`
+- `POST /api/marketing/seo/page-bundle`
+- `POST /api/marketing/attribution/touch` — body: `{sessionId, channel, campaign?, source?, medium?}`
+- `POST /api/marketing/attribution/conversion` — body: `{sessionId, value}`
+- `GET  /api/marketing/attribution/summary?model=time_decay&halfLifeMs=&sinceMs=`
+- `POST /api/marketing/ltv-cac`
+- `GET  /api/marketing/viral/k-factor?users=&invitesSent=&invitesAccepted=&cycleDays=`
+- `POST /api/marketing/affiliate/link`
+- `POST /api/marketing/affiliate/track` — body: `{event: click|conversion, code, amountUsd?}`
+- `POST /api/marketing/outreach/{email,dm,press-release}`
+- `POST /api/marketing/sentiment`
+- `GET  /api/marketing/experiments`
+- `POST /api/marketing/experiments/observe`
+- `GET  /go/:shortId` → 302 redirect
+
+### Owner-only (token-gated)
+- `POST /api/marketing/affiliate/create`
+- `GET  /api/marketing/affiliate/list`
+- `GET  /api/marketing/affiliate/ledger`
+- `GET  /api/marketing/owner/payout`
+- `POST /api/marketing/experiments/register`
+- `POST /api/marketing/experiments/close`
+
+## Wiring (already done in `backend/index.js`)
+```js
+let _marketingPack = null;
+try { _marketingPack = require('./modules/marketing-innovations'); }
+catch (e) { console.warn('[marketing-pack] not loaded:', e.message); }
+if (_marketingPack) app.use(_marketingPack.middleware());
+```
+For raw http servers (e.g. `src/index.js`):
+```js
+if (await _marketingPack.handle(req, res)) return;
+```
+
+## Environment variables
+| Var | Default | Purpose |
+|---|---|---|
+| `MARKETING_PACK_DISABLED` | `0` | Set `1` to disable globally. |
+| `MARKETING_AFFILIATE_SECRET` | `AUDIT_50Y_TOKEN` or built-in | HMAC secret for signed codes. |
+| `MARKETING_BTC_USD` | `65000` | Default BTC/USD rate when no live rate is supplied. |
+| `LEGAL_OWNER_BTC` | `bc1q4f7e66z87mdfj56kz0dj5hvcnpmh0qh4wuv22e` | Owner BTC payout address. |
+| `PLATFORM_FEE_PCT` | `0.3` | Owner cut on every conversion (0..1). |
+| `MARKETING_BANDIT_FILE` | `data/marketing/bandit.jsonl` | Bandit event persistence. |
+| `MARKETING_TOUCH_FILE` | `data/marketing/touchpoints.jsonl` | Attribution event persistence. |
+| `MARKETING_AFFILIATE_FILE` | `data/marketing/affiliate-ledger.jsonl` | Affiliate ledger persistence. |
+| `AUDIT_50Y_TOKEN` (or `OWNER_DASHBOARD_TOKEN`) | _(unset)_ | Required to access owner-only endpoints. |
+
+## Tests
+`npm test` (in `UNICORN_FINAL/`) runs `test/marketing-innovations.test.js`,
+which exercises every sub-engine and verifies that `autoViralGrowth.getViralStatus()`
+shape is preserved (no regression).
+
+## Revenue path (TL;DR)
+1. Generate variants → `POST /api/marketing/content/variants`.
+2. Build affiliate links → `POST /api/marketing/affiliate/link`.
+3. Track clicks/conversions → `POST /api/marketing/affiliate/track`.
+4. Owner reads `/api/marketing/owner/payout` → totals in USD/BTC/sats sent to `LEGAL_OWNER_BTC`.
+5. Bandit auto-promotes the highest-converting variants over time.

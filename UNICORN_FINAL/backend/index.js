@@ -236,6 +236,18 @@ if (_improvementsPack) {
   });
 }
 
+// ── Marketing-innovations pack (additive · world-standard marketing layer) ──
+// Routes: /api/marketing/* (content variants, bandit, SEO, attribution,
+//   LTV/CAC, viral k-factor, affiliate program, outreach drafts, sentiment,
+//   experiments registry) and /go/:id (short-link redirect).
+// Owner-only routes are gated by AUDIT_50Y_TOKEN. Disable with
+// MARKETING_PACK_DISABLED=1. Does not modify autoViralGrowth or any
+// existing endpoint — strictly additive.
+let _marketingPack = null;
+try { _marketingPack = require('./modules/marketing-innovations'); console.log('[marketing-pack] loaded · v' + _marketingPack.VERSION); }
+catch (e) { console.warn('[marketing-pack] not loaded:', e.message); }
+if (_marketingPack) app.use(_marketingPack.middleware());
+
 // ==================== ROUTE PROFILER (PR #194 — Performance Optimization) ====================
 // Înregistrează timpii de răspuns pentru toate rutele → expus la /api/perf/stats
 app.use(routeCache.profilerMiddleware());
