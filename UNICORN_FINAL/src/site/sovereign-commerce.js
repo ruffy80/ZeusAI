@@ -295,13 +295,28 @@ async function resolveService(ctx, serviceId) {
 }
 
 // ── Order creation ──────────────────────────────────────────────────────────
+// Sovereign discount applied to ALL BTC checkouts ("Pay with BTC, save 10%").
+// Configurable via COMMERCE_BTC_DISCOUNT_PCT; default 10%. Strictly additive
+// price reduction — never increases the quoted amount.
+const BTC_DISCOUNT_PCT = Math.max(0, Math.min(50, +(process.env.COMMERCE_BTC_DISCOUNT_PCT || 10)));
+// Pre-order discount (percent of full price the buyer pays now). E.g. 30 means
+// pay 30% now, lock the future-primitive at this price for COMMERCE_PREORDER_DAYS.
+const PREORDER_PCT  = Math.max(5, Math.min(90, +(process.env.COMMERCE_PREORDER_PCT  || 30)));
+const PREORDER_DAYS = Math.max(7, Math.min(3650, +(process.env.COMMERCE_PREORDER_DAYS || 365)));
+
 async function createOrder(ctx, input) {
-  const { serviceId, qty = 1, email = '', currency = 'USD' } = input || {};
+  const { serviceId, qty = 1, email = '', currency = 'USD', preorder = false } = input || {};
   if (!serviceId) return { error: 'serviceId_required', status: 400 };
   const svc = await resolveService(ctx, serviceId);
   if (!svc) return { error: 'service_not_found', serviceId, status: 404 };
 
-  const unit = svc.price != null ? Number(svc.price) : 0;
+  const unitFull = svc.price != null ? Number(svc.price) : 0;
+  // Pre-orders pay only PREORDER_PCT of full price; everyone gets BTC_DISCOUNT_PCT off.
+  // Both factors are multiplicative so a pre-order also benefits from BTC discount.
+  const isPreorder = !!preorder;
+  const preorderFactor = isPreorder ? (PREORDER_PCT / 100) : 1;
+  const btcFactor      = (100 - BTC_DISCOUNT_PCT) / 100;
+  const unit           = Number((unitFull * preorderFactor * btcFactor).toFixed(2));
   const q = Math.max(1, Math.min(100, Number(qty) || 1));
   const subtotalFiat = Number((unit * q).toFixed(2));
   if (!(subtotalFiat > 0)) return { error: 'service_not_priced', status: 409 };
@@ -317,6 +332,9 @@ async function createOrder(ctx, input) {
   const orderId = 'ord_' + crypto.randomBytes(9).toString('hex');
   const accessToken = 't_' + crypto.randomBytes(16).toString('hex');
   const nowMs = Date.now();
+  const validUntilIso = isPreorder
+    ? new Date(nowMs + PREORDER_DAYS * 24 * 3600 * 1000).toISOString()
+    : null;
   const order = {
     orderId,
     serviceId,
@@ -324,7 +342,12 @@ async function createOrder(ctx, input) {
     qty: q,
     currency: String(currency).toUpperCase(),
     unit_price_fiat: unit,
+    unit_price_full_fiat: unitFull,
     subtotal_fiat: subtotalFiat,
+    btc_discount_pct: BTC_DISCOUNT_PCT,
+    preorder: isPreorder,
+    preorder_pct: isPreorder ? PREORDER_PCT : null,
+    valid_until: validUntilIso,
     btc_price_at_quote: fiatPerBtc,
     price_source: price.source,
     amount_sats: alloc.amount_sats,
@@ -402,7 +425,8 @@ async function scanIncoming() {
           serviceName: order.serviceName,
           buyer: order.buyer,
           granted_at: new Date().toISOString(),
-          valid_until: null, // perpetual by default; services can override
+          valid_until: order.valid_until || null, // pre-orders carry an expiry; perpetual otherwise
+          preorder: !!order.preorder,
           txid: tx.txid,
           amount_sats: outSats,
         };
@@ -500,6 +524,8 @@ a{color:var(--acc)}
   <div class="row"><span class="k">Entitlement</span><span class="v mono" id="ent">—</span></div>
   <div class="row"><span class="k">Txid</span><span class="v mono" id="tx">—</span></div>
   <p class="note">A W3C Verifiable Credential receipt has been issued. Verify at <a href="/api/entitlements/">/api/entitlements/{token}</a>.</p>
+  <p style="margin-top:10px"><a class="cta" id="walletDl" download="zeusai-entitlement.json" href="#" style="background:#f7931a;color:#05040a">💼 Add to wallet (VC)</a>
+  <a class="cta" style="background:#14132a;color:#eaf0ff;border:1px solid var(--line)" id="verifyLink" href="#">🔎 Verify entitlement</a></p>
 </div>
 
 <footer>Settlement: direct on-chain to owner wallet · No custodian · 30Y-LTS sovereign commerce · ${OWNER_DOMAIN}</footer>
@@ -520,6 +546,8 @@ async function poll(){
       document.getElementById('tok').textContent=TOK;
       document.getElementById('ent').textContent=j.entitlement_id||'—';
       document.getElementById('tx').textContent=(j.txids&&j.txids[0])||'—';
+      var dl=document.getElementById('walletDl');if(dl){dl.href='/api/entitlements/'+TOK+'/wallet.json';}
+      var v=document.getElementById('verifyLink');if(v){v.href='/api/entitlements/'+TOK;}
       return;
     }
     if(j.status==='expired')return;
@@ -605,10 +633,67 @@ async function handle(req, res, ctx) {
       buyer: found.buyer,
       granted_at: found.paid_at,
       entitlement_id: found.entitlement_id,
+      valid_until: found.valid_until || null,
+      preorder: !!found.preorder,
       txid: (found.txids || [])[0] || null,
       signature: found.signature,
       issuer: { did: `did:web:${OWNER_DOMAIN.replace(/^https?:\/\//, '')}`, name: OWNER_NAME },
+      // Discoverability — wallet-importable W3C VC + Apple Wallet/Google Wallet pass.
+      add_to_wallet_url: `${OWNER_DOMAIN}/api/entitlements/${token}/wallet.json`,
     }), true;
+  }
+
+  // --- /api/entitlements/:token/wallet.json — W3C VC download ("Add to wallet") --
+  // Returns a Verifiable Credential (JSON-LD) with Content-Disposition: attachment
+  // so any wallet that supports VC import (or even the OS download dialog) can
+  // store the proof-of-purchase off-server. Includes Ed25519 proof from the order.
+  const mWallet = url.match(/^\/api\/entitlements\/([a-zA-Z0-9_-]{8,128})\/wallet\.json$/);
+  if (mWallet && req.method === 'GET') {
+    const token = mWallet[1];
+    let found = null;
+    for (const o of ORDERS.values()) {
+      if (o.access_token === token && o.status === 'paid') { found = o; break; }
+    }
+    if (!found) { res.writeHead(404, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ error: 'not_found_or_unpaid' })); return true; }
+    const issuerDid = `did:web:${OWNER_DOMAIN.replace(/^https?:\/\//, '')}`;
+    const txid = (found.txids || [])[0] || null;
+    const vc = {
+      '@context': ['https://www.w3.org/2018/credentials/v1'],
+      type: ['VerifiableCredential', 'ProofOfPurchaseCredential'],
+      id: `urn:zeusai:entitlement:${found.entitlement_id}`,
+      issuer: { id: issuerDid, name: OWNER_NAME },
+      issuanceDate: found.paid_at || new Date().toISOString(),
+      expirationDate: found.valid_until || undefined,
+      credentialSubject: {
+        id: `urn:zeusai:order:${found.orderId}`,
+        accessToken: token,
+        service: { id: found.serviceId, name: found.serviceName },
+        preorder: !!found.preorder,
+        amount_sats: found.amount_sats,
+        amount_btc: found.amount_btc,
+        currency: found.currency,
+        subtotal_fiat: found.subtotal_fiat,
+        bitcoinTxId: txid,
+        proofUrl: txid ? `https://mempool.space/tx/${txid}` : null,
+        receiveAddress: found.receive_address,
+      },
+      proof: {
+        type: 'Ed25519Signature2020',
+        created: found.created_at,
+        proofPurpose: 'assertionMethod',
+        verificationMethod: `${issuerDid}#owner-ed25519`,
+        proofValue: found.signature,
+      },
+    };
+    if (!vc.expirationDate) delete vc.expirationDate;
+    const filename = `zeusai-entitlement-${found.entitlement_id}.json`;
+    res.writeHead(200, {
+      'Content-Type': 'application/ld+json; charset=utf-8',
+      'Content-Disposition': `attachment; filename="${filename}"`,
+      'Cache-Control': 'no-store',
+    });
+    res.end(JSON.stringify(vc, null, 2));
+    return true;
   }
 
   // --- /api/commerce/price -------------------------------------------------
@@ -619,6 +704,71 @@ async function handle(req, res, ctx) {
       fetched_at: new Date(p.fetchedAt).toISOString(),
       fresh_seconds: Math.round((Date.now() - p.fetchedAt) / 1000),
     }, { 'Cache-Control': 'public, max-age=60' }), true;
+  }
+
+  // --- /api/admin/owner-revenue --------------------------------------------
+  // Live owner-wallet revenue dashboard data: queries mempool.space directly
+  // for confirmed balance + last 50 transactions to bc1q4f… and merges with
+  // local order ledger so the dashboard tab can show "received vs invoiced".
+  // Public-readable (the address is published on the trust page anyway) but
+  // contains no buyer PII — only on-chain data + service ids from local orders.
+  if (url === '/api/admin/owner-revenue' && req.method === 'GET') {
+    let chain = null;
+    let txs = [];
+    try {
+      const stats = await httpJson(`${MEMPOOL_BASE}/address/${OWNER_BTC}`, 6000).catch(() => null);
+      if (stats && stats.chain_stats) {
+        chain = {
+          confirmed_received_sats: Number(stats.chain_stats.funded_txo_sum || 0),
+          confirmed_spent_sats:    Number(stats.chain_stats.spent_txo_sum  || 0),
+          confirmed_balance_sats:  Number(stats.chain_stats.funded_txo_sum || 0) - Number(stats.chain_stats.spent_txo_sum || 0),
+          tx_count:                Number(stats.chain_stats.tx_count      || 0),
+          mempool_received_sats:   Number((stats.mempool_stats || {}).funded_txo_sum || 0),
+        };
+      }
+      const list = await httpJson(`${MEMPOOL_BASE}/address/${OWNER_BTC}/txs`, 8000).catch(() => null);
+      if (Array.isArray(list)) {
+        txs = list.slice(0, 50).map((tx) => {
+          let inSats = 0;
+          for (const v of (tx.vout || [])) { if (v && v.scriptpubkey_address === OWNER_BTC) inSats += Number(v.value || 0); }
+          // Cross-reference with local order ledger to attribute sales by service.
+          let attribution = null;
+          for (const o of ORDERS.values()) {
+            if (o.txids && o.txids.includes(tx.txid)) {
+              attribution = { orderId: o.orderId, serviceId: o.serviceId, serviceName: o.serviceName, preorder: !!o.preorder };
+              break;
+            }
+          }
+          return {
+            txid: tx.txid,
+            confirmed: !!(tx.status && tx.status.confirmed),
+            block_height: (tx.status && tx.status.block_height) || null,
+            block_time: (tx.status && tx.status.block_time) || null,
+            received_sats: inSats,
+            attribution,
+            proof_url: `https://mempool.space/tx/${tx.txid}`,
+          };
+        });
+      }
+    } catch (_) { /* mempool.space outage — return what we have */ }
+    // Local ledger summary (always available even if mempool.space is unreachable).
+    const orders = Array.from(ORDERS.values());
+    const ledger = {
+      total_orders:    orders.length,
+      paid_orders:     orders.filter((o) => o.status === 'paid').length,
+      pending_orders:  orders.filter((o) => o.status === 'pending').length,
+      preorders_paid:  orders.filter((o) => o.status === 'paid' && o.preorder).length,
+      paid_sats:       orders.filter((o) => o.status === 'paid').reduce((s, o) => s + (o.paid_sats_observed || o.amount_sats || 0), 0),
+    };
+    return sendJson(res, 200, {
+      receive_address: OWNER_BTC,
+      owner: OWNER_NAME,
+      mempool_base: MEMPOOL_BASE,
+      chain,
+      ledger,
+      transactions: txs,
+      generated_at: new Date().toISOString(),
+    }, { 'Cache-Control': 'no-store' }), true;
   }
 
   // --- /api/commerce/recent-sales ------------------------------------------

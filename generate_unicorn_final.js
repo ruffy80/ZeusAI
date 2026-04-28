@@ -615,6 +615,24 @@ module.exports = {
 // ---------------------------------------------------------
 // 7. SERVER PRINCIPAL (src/index.js)
 // ---------------------------------------------------------
+//
+// CANONICAL / DO-NOT-OVERWRITE LIST (sovereign commerce — added 2026-04):
+//   • UNICORN_FINAL/src/index.js
+//   • UNICORN_FINAL/src/site/sovereign-commerce.js
+//   • UNICORN_FINAL/src/site/sovereign-extensions.js
+//   • UNICORN_FINAL/src/site/v2/client.js
+//   • UNICORN_FINAL/src/site/v2/shell.js
+//   • UNICORN_FINAL/src/site/template.js
+//   • UNICORN_FINAL/scripts/backup-signing-key.sh
+// These files implement the live BTC-direct checkout flow (resolveCatalogItem,
+// preorder mode, /api/admin/owner-revenue, /api/entitlements/:token/wallet.json,
+// /.well-known/{ai-plugin,mcp,agents}.json, /api/catalog/diff, /seo/sitemap-services.xml,
+// per-service /services/:id pages, "Pay with BTC, save 10%" badge) and must be
+// preserved across regenerations. The generator below is a historical scaffold
+// kept as documentation only — its src/index.js writeFileSync line is a
+// placeholder ('...') and is not used to produce the live site. If you ever
+// re-enable this generator, gate file writes with `if (!fs.existsSync(...))`.
+//
 fs.writeFileSync(path.join(SRC, 'index.js'), `...`);THUB_WORKFLOWS,
   BACKUP,
   LOGS,
