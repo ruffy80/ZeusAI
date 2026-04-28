@@ -50,12 +50,26 @@ function _ownerOk(req) {
   return provided === required;
 }
 
+// Safe JSON serializer: escapes HTML-significant characters so that a
+// response body can never be reinterpreted as HTML even if a downstream
+// proxy strips Content-Type. The output is still valid JSON.
+function _safeJsonStringify(payload) {
+  return JSON.stringify(payload, null, 2)
+    .replace(/</g, '\\u003c')
+    .replace(/>/g, '\\u003e')
+    .replace(/&/g, '\\u0026')
+    .replace(/'/g, '\\u0027')
+    .replace(/\u2028/g, '\\u2028')
+    .replace(/\u2029/g, '\\u2029');
+}
+
 function _send(res, status, payload, headers) {
   if (res.headersSent) return;
-  const body = (typeof payload === 'string') ? payload : JSON.stringify(payload, null, 2);
+  const body = (typeof payload === 'string') ? payload : _safeJsonStringify(payload);
   res.writeHead(status, Object.assign({
     'Content-Type': 'application/json; charset=utf-8',
     'Cache-Control': 'no-store',
+    'X-Content-Type-Options': 'nosniff',
     'X-Marketing-Pack': VERSION,
   }, headers || {}));
   res.end(body);
@@ -324,7 +338,8 @@ async function handle(req, res, _ctx) {
       return true;
     }
   } catch (e) {
-    _send(res, 500, { error: 'marketing_pack_failure', message: e && e.message });
+    try { console.warn('[marketing-pack] dispatcher error:', e && e.message); } catch (_) {}
+    _send(res, 500, { error: 'marketing_pack_failure' });
     return true;
   }
 

@@ -94,10 +94,12 @@ const TOPICS_DEFAULTS = {
 };
 
 function _rng(seed) {
-  // xmur3 + sfc32 deterministic PRNG.
-  let s = String(seed || crypto.randomBytes(4).toString('hex'));
+  // xmur3 + sfc32 deterministic PRNG. Bound seed length to avoid loop-bound
+  // injection from arbitrarily long user-controlled inputs.
+  let s = String(seed || crypto.randomBytes(4).toString('hex')).slice(0, 256);
   let h = 1779033703 ^ s.length;
-  for (let i = 0; i < s.length; i++) {
+  const len = Math.min(s.length, 256);
+  for (let i = 0; i < len; i++) {
     h = Math.imul(h ^ s.charCodeAt(i), 3432918353);
     h = (h << 13) | (h >>> 19);
   }
