@@ -475,6 +475,25 @@ async function buildMasterCatalog() {
   };
 }
 
+// 60-second LRU-style cache for master catalog. Used by:
+//   • commerce.resolveCatalogItem (sovereign BTC checkout for any catalog id)
+//   • /services/:id detail pages
+//   • /seo/sitemap-services.xml
+// Avoids paying the full buildMasterCatalog cost on every page hit.
+const _masterCatalogCache = { catalog: null, fetchedAt: 0 };
+async function getCachedMasterCatalog() {
+  const now = Date.now();
+  if (_masterCatalogCache.catalog && now - _masterCatalogCache.fetchedAt < 60000) {
+    return _masterCatalogCache.catalog;
+  }
+  const cat = await buildMasterCatalog();
+  _masterCatalogCache.catalog = cat;
+  _masterCatalogCache.fetchedAt = now;
+  // Track first-seen ids so /api/catalog/diff can return "🆕 new this week".
+  try { if (commerce && typeof commerce.recordCatalogItems === 'function') commerce.recordCatalogItems(cat.items); } catch (_) {}
+  return cat;
+}
+
 const modules = [
   { id: 'auto-deploy-orchestrator', status: 'active', purpose: 'continuous delivery' },
   { id: 'code-sanity-engine', status: 'active', purpose: 'quality and safety checks' },
@@ -1281,10 +1300,22 @@ async function unicornHandler(req, res) {
 
   // ── SOVEREIGN COMMERCE — REAL BTC sales (checkout, watcher, delivery) ───
   // Handles: /api/checkout/create, /checkout/:orderId, /api/order/:id/status,
-  // /api/entitlements/:token, /api/commerce/price|health|reconcile.
+  // /api/entitlements/:token, /api/commerce/price|health|reconcile|recent-sales,
+  // /api/catalog/diff.
   if (commerce) {
     try {
-      const handled = await commerce.handle(req, res, { buildSnapshot });
+      const handled = await commerce.handle(req, res, {
+        buildSnapshot,
+        // Allow sovereign-commerce to resolve any item from /api/catalog/master
+        // (Vertical OS, Frontier, Activation packages, Future R&D primitives,
+        // auto-discovered modules) so the buyer pays directly to the owner BTC
+        // wallet without going through Stripe/PayPal. Cached 60s via _masterCatalogCache.
+        resolveCatalogItem: async (id) => {
+          const cat = await getCachedMasterCatalog().catch(() => null);
+          if (!cat || !Array.isArray(cat.items)) return null;
+          return cat.items.find((it) => String(it.id) === String(id)) || null;
+        }
+      });
       if (handled) return;
     } catch (e) { console.warn('[commerce] handler error:', e.message); }
   }
@@ -1690,7 +1721,7 @@ async function unicornHandler(req, res) {
   // 30Y-LTS: local-first routes served by this site process (not proxied to backend).
   // Only routes that are implemented locally in this file are matched here;
   // backend-only endpoints (/api/v1/deprecations, /api/v1/events/*) keep flowing to the backend.
-  const isLts = /^\/api\/(v1\/)?(contract|i18n\/|crypto\/public-keys|succession\/attestation|anchors)(\/|$|\.)/.test(urlPath) || urlPath === '/api/v1/contract' || urlPath === '/api/contract';  const isLocalV2Api = isLts || LOCAL_V2_API.has(urlPath) || urlPath.startsWith('/api/services/') || urlPath.startsWith('/api/enterprise/') || urlPath.startsWith('/api/outreach/') || urlPath.startsWith('/api/vault/') || urlPath.startsWith('/api/governance/') || urlPath.startsWith('/api/whales/') || urlPath.startsWith('/api/webhooks/') || urlPath.startsWith('/api/admin/') || urlPath.startsWith('/api/instant/') || urlPath.startsWith('/api/customer/') || urlPath.startsWith('/api/user/') || urlPath.startsWith('/api/unicorn-ai/') || urlPath.startsWith('/api/unicorn-commerce/') || urlPath.startsWith('/api/billion-scale/') || urlPath.startsWith('/api/checkout/') || urlPath.startsWith('/api/uaic/') || urlPath.startsWith('/api/receipt/') || urlPath.startsWith('/api/invoice/') || urlPath.startsWith('/api/license/') || urlPath.startsWith('/api/delivery/') || urlPath.startsWith('/api/wire/') || urlPath === '/api/payments/btc/confirm' || urlPath === '/api/payments/paypal/confirm' || urlPath === '/api/payments/config/status' || urlPath === '/api/checkout/synthetic-probe' || urlPath === '/api/qr' || urlPath.startsWith('/api/cart/') || urlPath.startsWith('/api/coupons') || urlPath.startsWith('/api/leads') || urlPath.startsWith('/api/keys') || urlPath.startsWith('/api/newsletter/') || urlPath.startsWith('/api/wizard/') || urlPath.startsWith('/api/fx/') || urlPath.startsWith('/api/tax/') || urlPath.startsWith('/api/webhooks/') || urlPath === '/api/status' || urlPath === '/api/track' || urlPath.startsWith('/api/analytics/') || urlPath.startsWith('/api/refund/') || urlPath === '/api/aura' || urlPath.startsWith('/api/outcome/') || urlPath.startsWith('/api/discount/') || urlPath.startsWith('/api/receipt/nft/') || urlPath.startsWith('/api/capability/') || urlPath.startsWith('/api/email/proof') || urlPath.startsWith('/api/gift/') || urlPath.startsWith('/api/pledge') || urlPath.startsWith('/api/cancel/') || urlPath.startsWith('/api/bandit/') || urlPath.startsWith('/api/carbon/') || urlPath.startsWith('/api/abandon-cart') || urlPath === '/api/frontier/status' || urlPath === '/api/trust/center' || urlPath === '/api/operator/console' || urlPath === '/api/observability/status' || urlPath === '/api/secret-sync/status' || urlPath === '/api/security/pq/status' || urlPath === '/api/commerce/protocol' || urlPath === '/api/innovation/coverage' || urlPath === '/openapi.json' || urlPath === '/api/openapi' || urlPath === '/seo/sitemap.xml' || urlPath === '/seo/robots.txt' || urlPath === '/api/catalog/master' || urlPath === '/api/btc/spot' || urlPath.startsWith('/api/payments/btc/verify/');
+  const isLts = /^\/api\/(v1\/)?(contract|i18n\/|crypto\/public-keys|succession\/attestation|anchors)(\/|$|\.)/.test(urlPath) || urlPath === '/api/v1/contract' || urlPath === '/api/contract';  const isLocalV2Api = isLts || LOCAL_V2_API.has(urlPath) || urlPath.startsWith('/api/services/') || urlPath.startsWith('/services/') || urlPath.startsWith('/api/enterprise/') || urlPath.startsWith('/api/outreach/') || urlPath.startsWith('/api/vault/') || urlPath.startsWith('/api/governance/') || urlPath.startsWith('/api/whales/') || urlPath.startsWith('/api/webhooks/') || urlPath.startsWith('/api/admin/') || urlPath.startsWith('/api/instant/') || urlPath.startsWith('/api/customer/') || urlPath.startsWith('/api/user/') || urlPath.startsWith('/api/unicorn-ai/') || urlPath.startsWith('/api/unicorn-commerce/') || urlPath.startsWith('/api/billion-scale/') || urlPath.startsWith('/api/checkout/') || urlPath.startsWith('/api/uaic/') || urlPath.startsWith('/api/receipt/') || urlPath.startsWith('/api/invoice/') || urlPath.startsWith('/api/license/') || urlPath.startsWith('/api/delivery/') || urlPath.startsWith('/api/wire/') || urlPath === '/api/payments/btc/confirm' || urlPath === '/api/payments/paypal/confirm' || urlPath === '/api/payments/config/status' || urlPath === '/api/checkout/synthetic-probe' || urlPath === '/api/qr' || urlPath.startsWith('/api/cart/') || urlPath.startsWith('/api/coupons') || urlPath.startsWith('/api/leads') || urlPath.startsWith('/api/keys') || urlPath.startsWith('/api/newsletter/') || urlPath.startsWith('/api/wizard/') || urlPath.startsWith('/api/fx/') || urlPath.startsWith('/api/tax/') || urlPath.startsWith('/api/webhooks/') || urlPath === '/api/status' || urlPath === '/api/track' || urlPath.startsWith('/api/analytics/') || urlPath.startsWith('/api/refund/') || urlPath === '/api/aura' || urlPath.startsWith('/api/outcome/') || urlPath.startsWith('/api/discount/') || urlPath.startsWith('/api/receipt/nft/') || urlPath.startsWith('/api/capability/') || urlPath.startsWith('/api/email/proof') || urlPath.startsWith('/api/gift/') || urlPath.startsWith('/api/pledge') || urlPath.startsWith('/api/cancel/') || urlPath.startsWith('/api/bandit/') || urlPath.startsWith('/api/carbon/') || urlPath.startsWith('/api/abandon-cart') || urlPath === '/api/frontier/status' || urlPath === '/api/trust/center' || urlPath === '/api/operator/console' || urlPath === '/api/observability/status' || urlPath === '/api/secret-sync/status' || urlPath === '/api/security/pq/status' || urlPath === '/api/commerce/protocol' || urlPath === '/api/innovation/coverage' || urlPath === '/openapi.json' || urlPath === '/api/openapi' || urlPath === '/seo/sitemap.xml' || urlPath === '/seo/sitemap-services.xml' || urlPath === '/seo/robots.txt' || urlPath === '/api/catalog/master' || urlPath === '/api/catalog/diff' || urlPath === '/api/commerce/recent-sales' || urlPath === '/api/admin/owner-revenue' || urlPath === '/agents.json' || urlPath === '/.well-known/agents.json' || urlPath === '/api/btc/spot' || urlPath.startsWith('/api/payments/btc/verify/');
   const isUaic = !!(uaic && uaic.matches(urlPath)) && urlPath !== '/api/uaic/status';
   const isUse  = !!(USE && USE.matches(urlPath)) && !urlPath.startsWith('/api/user/') && !urlPath.startsWith('/api/ai/');
   const backendUrl = process.env.BACKEND_API_URL;
@@ -2632,6 +2663,49 @@ async function unicornHandler(req, res) {
     return res.end(JSON.stringify({ payload, signature, publicKey, alg:'Ed25519' }));
   }
 
+  // ── Agent-marketplace ACP discovery manifest ─────────────────────────────
+  // Static, additive descriptor so external Agent-Commerce-Protocol catalogs
+  // can list ZeusAI's APIs automatically. Companion to the existing
+  // /.well-known/ai-plugin.json (OpenAI plugin spec) and /.well-known/mcp.json
+  // (Model Context Protocol) that sovereign-extensions.js already serves.
+  // No PII, no secrets — just public discovery pointing at endpoints that
+  // already exist (/openapi.json, /api/agent/*, /api/commerce/protocol).
+  if (urlPath === '/agents.json' || urlPath === '/.well-known/agents.json') {
+    res.writeHead(200, { 'Content-Type':'application/json; charset=utf-8', 'Cache-Control':'public, max-age=3600' });
+    return res.end(JSON.stringify({
+      acpVersion: '1.0',
+      agent: {
+        id: 'zeusai',
+        name: 'ZeusAI Sovereign Commerce Agent',
+        owner: OWNER_NAME,
+        homepage: APP_URL,
+        did: `did:web:${APP_URL.replace(/^https?:\/\//, '')}`,
+      },
+      payment: {
+        rails: ['bitcoin'],
+        receive_address: BTC_WALLET,
+        currencies: ['BTC', 'USD', 'EUR'],
+        custodian: 'none',
+      },
+      discovery: {
+        catalog:        '/api/catalog/master',
+        catalog_diff:   '/api/catalog/diff',
+        protocol:       '/api/commerce/protocol',
+        openapi:        '/openapi.json',
+        ai_plugin:      '/.well-known/ai-plugin.json',
+        mcp:            '/.well-known/mcp.json',
+      },
+      transactions: {
+        quote:   { method: 'POST', endpoint: '/api/agent/quote' },
+        order:   { method: 'POST', endpoint: '/api/agent/order' },
+        checkout:{ method: 'POST', endpoint: '/api/checkout/create' },
+        verify:  { method: 'GET',  endpoint: '/api/entitlements/{token}' },
+      },
+      receipts: { format: 'w3c-vc', wallet_export: '/api/entitlements/{token}/wallet.json' },
+      generatedAt: new Date().toISOString(),
+    }, null, 2));
+  }
+
   // Unified service catalogue for the v2 site (marketplace + verticals → service objects)
   if (urlPath === '/api/services/list') {
     const snapshot = buildSnapshot();
@@ -2762,12 +2836,128 @@ async function unicornHandler(req, res) {
   // ===================================================================
   if (urlPath === '/api/catalog/master') {
     try {
-      const cat = await buildMasterCatalog();
+      const cat = await getCachedMasterCatalog();
       res.writeHead(200, { 'Content-Type':'application/json', 'Cache-Control':'public, max-age=30' });
       return res.end(JSON.stringify(cat));
     } catch (e) {
       res.writeHead(500, { 'Content-Type':'application/json' });
       return res.end(JSON.stringify({ error: 'catalog_failed', detail: e.message }));
+    }
+  }
+
+  // /services/:id — public detail page for any catalog item (auto-generated).
+  // Renders a self-contained HTML page from buildMasterCatalog() metadata so
+  // every current AND future Unicorn deliverable becomes presentable + sellable
+  // with zero per-service work. Buy button routes to sovereign BTC checkout
+  // (/api/checkout/create), which settles directly on-chain to BTC_WALLET.
+  if (req.method === 'GET' && /^\/services\/[A-Za-z0-9_\-:.]{1,80}$/.test(urlPath)) {
+    try {
+      const id = urlPath.slice('/services/'.length);
+      const cat = await getCachedMasterCatalog();
+      const item = (cat.items || []).find((it) => String(it.id) === String(id));
+      if (!item) {
+        res.writeHead(404, { 'Content-Type': 'text/html; charset=utf-8' });
+        return res.end('<!doctype html><meta charset="utf-8"><title>Not found</title><h1>Service not found</h1><p><a href="/">← Home</a></p>');
+      }
+      const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
+      const title = esc(item.title || item.name || item.id);
+      const desc  = esc(item.description || ('Sovereign Unicorn service: ' + (item.title || item.id)));
+      const seg   = esc(item.segment || item.group || 'unicorn');
+      const kpi   = esc(item.kpi || '');
+      const priceUsd = Number(item.priceUsd || 0);
+      const priceBtc = Number(item.priceBtc || 0).toFixed(8);
+      const html = `<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>${title} · ZeusAI</title>
+<meta name="description" content="${desc}">
+<meta property="og:title" content="${title}">
+<meta property="og:description" content="${desc}">
+<meta property="og:type" content="product">
+<meta property="og:url" content="${esc(APP_URL)}/services/${esc(item.id)}">
+<link rel="canonical" href="${esc(APP_URL)}/services/${esc(item.id)}">
+<script type="application/ld+json">${JSON.stringify({
+  '@context': 'https://schema.org',
+  '@type': 'Product',
+  name: item.title || item.name || item.id,
+  description: item.description || '',
+  brand: { '@type': 'Brand', name: 'ZeusAI / Unicorn' },
+  offers: { '@type': 'Offer', priceCurrency: 'USD', price: priceUsd, availability: 'https://schema.org/InStock', url: `${APP_URL}/services/${item.id}` }
+})}</script>
+<style>
+:root{color-scheme:dark;--bg:#05040a;--fg:#eaf0ff;--mut:#9aa3b2;--acc:#7cf3ff;--ok:#28f088;--line:#1a1a2e}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--fg);font:15px/1.55 ui-sans-serif,system-ui,Segoe UI,Inter,sans-serif}
+.wrap{max-width:880px;margin:0 auto;padding:32px 20px}
+a{color:var(--acc)}h1{font-size:28px;margin:0 0 6px}.sub{color:var(--mut);margin:0 0 20px}
+.card{background:#0b0a15;border:1px solid var(--line);border-radius:14px;padding:22px;margin:14px 0}
+.row{display:flex;justify-content:space-between;gap:12px;padding:8px 0;border-bottom:1px dashed var(--line)}
+.row:last-child{border-bottom:0}.k{color:var(--mut)}.v{font-weight:600}.mono{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:13px}
+.cta{display:inline-block;background:var(--ok);color:#05040a;font-weight:800;padding:12px 22px;border-radius:10px;text-decoration:none;border:0;cursor:pointer;font-size:16px}
+.cta.alt{background:#14132a;color:var(--fg);border:1px solid var(--line);margin-left:8px}
+.tag{display:inline-block;background:#14132a;border:1px solid var(--line);color:var(--acc);padding:3px 10px;border-radius:999px;font-size:12px;margin-right:6px}
+footer{color:var(--mut);font-size:12px;margin-top:40px;text-align:center}
+.err{background:#2a0f0f;border:1px solid #663;border-radius:10px;padding:12px;margin-top:12px;color:#ffb;display:none}
+.err.on{display:block}
+</style></head><body><div class="wrap">
+<p class="sub"><a href="/">← All services</a></p>
+<h1>${title}</h1>
+<p class="sub"><span class="tag">${seg}</span>${kpi ? '<span class="tag">KPI: '+kpi+'</span>' : ''}</p>
+<div class="card">
+  <p>${desc}</p>
+  <div class="row"><span class="k">Price (USD)</span><span class="v">$${priceUsd.toLocaleString()}</span></div>
+  <div class="row"><span class="k">Price (BTC, live)</span><span class="v mono">${priceBtc} BTC</span></div>
+  <div class="row"><span class="k">Settlement</span><span class="v">Direct on-chain → owner wallet · non-custodial</span></div>
+  <div class="row"><span class="k">Receipt</span><span class="v">W3C Verifiable Credential (Ed25519)</span></div>
+  <p style="margin-top:20px">
+    <button class="cta" id="buyBtn">Buy now → BTC checkout</button>
+    <a class="cta alt" href="/api/catalog/master#${esc(item.id)}">Inspect raw JSON</a>
+  </p>
+  <div id="err" class="err"></div>
+</div>
+<footer>Settlement: direct on-chain to owner wallet · No custodian · Sovereign commerce · ${esc(APP_URL)}</footer>
+</div>
+<script>
+document.getElementById('buyBtn').addEventListener('click', async function(){
+  var err = document.getElementById('err'); err.classList.remove('on'); err.textContent='';
+  this.disabled = true; this.textContent = 'Preparing checkout…';
+  try {
+    var r = await fetch('/api/checkout/create', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ serviceId: ${JSON.stringify(item.id)}, qty: 1, currency: 'USD' }) });
+    var j = await r.json();
+    if (!r.ok || !j || !j.checkout_url) { throw new Error((j && j.error) || ('HTTP '+r.status)); }
+    window.location.href = j.checkout_url;
+  } catch (e) {
+    err.classList.add('on'); err.textContent = 'Could not create checkout: '+ (e && e.message ? e.message : e);
+    this.disabled = false; this.textContent = 'Buy now → BTC checkout';
+  }
+});
+</script></body></html>`;
+      res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'public, max-age=60', 'X-Unicorn-Service': '1' });
+      return res.end(html);
+    } catch (e) {
+      res.writeHead(500, { 'Content-Type':'text/html; charset=utf-8' });
+      return res.end('<!doctype html><meta charset="utf-8"><title>Error</title><h1>Service page error</h1><pre>'+ String(e && e.message || e).replace(/[<>&]/g,'') +'</pre>');
+    }
+  }
+
+  // /seo/sitemap-services.xml — XML sitemap of every service detail page.
+  // Additive: /sitemap.xml continues to be served by frontier-engine; this
+  // is a separate file dedicated to the auto-generated /services/:id pages
+  // so search engines can index every current AND future Unicorn deliverable.
+  if (urlPath === '/seo/sitemap-services.xml' && req.method === 'GET') {
+    try {
+      const cat = await getCachedMasterCatalog();
+      const base = APP_URL.replace(/\/+$/, '');
+      const items = (cat.items || []).filter((it) => it && it.id);
+      const lastmod = (cat.updatedAt || new Date().toISOString()).slice(0, 10);
+      const xml = ['<?xml version="1.0" encoding="UTF-8"?>',
+        '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">',
+        ...items.map((it) => `<url><loc>${base}/services/${encodeURIComponent(it.id)}</loc><lastmod>${lastmod}</lastmod><changefreq>weekly</changefreq><priority>0.7</priority></url>`),
+        '</urlset>'].join('\n');
+      res.writeHead(200, { 'Content-Type': 'application/xml; charset=utf-8', 'Cache-Control': 'public, max-age=300' });
+      return res.end(xml);
+    } catch (e) {
+      res.writeHead(500, { 'Content-Type': 'application/xml; charset=utf-8' });
+      return res.end('<?xml version="1.0"?><error>'+ String(e && e.message || e).replace(/[<>&]/g,'') +'</error>');
     }
   }
 

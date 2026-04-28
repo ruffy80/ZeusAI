@@ -1335,24 +1335,81 @@ async function hydrateServices(){
 // MASTER CATALOG — every Unicorn deliverable, BTC-priced, filterable
 // ============================================================
 function masterCardHtml(it){
-  const groupColor = { strategic:'#8a5cff', frontier:'#ffd36a', vertical:'#3ea0ff', marketplace:'#6fd3ff' }[it.group] || '#8a5cff';
-  const groupLabel = { strategic:'Strategic', frontier:'Frontier', vertical:'Vertical OS', marketplace:'AI Module' }[it.group] || it.group;
+  const groupColor = {
+    strategic:'#8a5cff', frontier:'#ffd36a', vertical:'#3ea0ff', marketplace:'#6fd3ff',
+    'unicorn-auto-module':'#a3ffce', 'billion-scale-activation':'#ff8aab',
+    'billion-scale-package':'#ff5cd1', 'future-invention':'#7cf3ff'
+  }[it.group] || '#8a5cff';
+  const groupLabel = {
+    strategic:'Strategic', frontier:'Frontier', vertical:'Vertical OS', marketplace:'AI Module',
+    'unicorn-auto-module':'Auto-Discovered', 'billion-scale-activation':'Activation',
+    'billion-scale-package':'Strategic Package', 'future-invention':'Future R&D'
+  }[it.group] || it.group;
   const priceUsd = Number(it.priceUsd || 0);
   const priceTxt = priceUsd > 0 ? ('$' + priceUsd.toLocaleString()) : 'Free';
   const btcTxt = it.priceBtc > 0 ? ('₿ ' + Number(it.priceBtc).toFixed(8)) : '—';
-  const buyHref = it.buyUrl || ('/checkout?plan=' + encodeURIComponent(it.id) + '&amount=' + priceUsd);
+  const idAttr = escapeHtml(it.id);
+  // Pre-order eligible: speculative R&D primitives are sold as forward-locks
+  // at 30% of the listed price (configurable server-side via COMMERCE_PREORDER_PCT).
+  const isPreorderEligible = it.group === 'future-invention' && priceUsd > 0;
+  // "Pay with BTC, save 10%" — strictly truthful: every BTC checkout applies
+  // the COMMERCE_BTC_DISCOUNT_PCT factor to subtotal_fiat before sat conversion.
+  const btcSaveBadge = priceUsd > 0
+    ? '<span class="tag" style="background:rgba(247,147,26,.15);color:#f7931a;border:1px solid rgba(247,147,26,.35);font-size:10px;margin-left:6px" title="Sovereign BTC checkout applies a 10% discount vs the USD list price">₿ save 10%</span>'
+    : '';
   return '<div class="card" data-group="' + escapeHtml(it.group) + '">'
     + '<span class="tag" style="background:' + groupColor + '22;color:' + groupColor + '">' + escapeHtml(groupLabel) + '</span>'
+    + btcSaveBadge
     + '<h3>' + escapeHtml(it.title || it.id) + '</h3>'
     + '<p>' + escapeHtml(it.description || '') + '</p>'
     + '<div class="row"><span>' + escapeHtml(it.kpi || 'sla-backed') + '</span><b>' + priceTxt + '</b></div>'
     + '<div class="row" style="border-top:none;padding-top:4px;margin-top:0"><span style="font-size:11px;color:var(--ink-dim)">live BTC</span><b style="font-size:11px;color:var(--gold);font-family:var(--mono)">' + btcTxt + '</b></div>'
-    + '<div style="display:flex;gap:8px;margin-top:12px">'
+    + '<div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap">'
     + (priceUsd > 0
-        ? '<a class="btn btn-primary" href="' + buyHref + '" data-link style="flex:1;justify-content:center">₿ Buy in BTC</a>'
-        : '<a class="btn btn-ghost" href="/services/' + encodeURIComponent(it.id) + '" data-link style="flex:1;justify-content:center">Activate free</a>')
+        ? '<button type="button" class="btn btn-primary" data-sovereign-buy="' + idAttr + '" style="flex:1;justify-content:center;min-width:140px">₿ Buy in BTC</button>'
+        : '<a class="btn btn-ghost" href="/services/' + idAttr + '" data-link style="flex:1;justify-content:center">Activate free</a>')
+    + (isPreorderEligible
+        ? ' <button type="button" class="btn btn-ghost" data-sovereign-buy="' + idAttr + '" data-sovereign-preorder="1" style="justify-content:center;border-color:#7cf3ff66;color:#7cf3ff" title="Reserve early access at 30% now — locks the price for 365 days">⏳ Reserve 30%</button>'
+        : '')
+    + ' <a class="btn btn-ghost" href="/services/' + idAttr + '" data-link style="justify-content:center" title="Service details">Details →</a>'
     + '</div>'
     + '</div>';
+}
+
+// Sovereign BTC checkout: creates a non-custodial order on the server and
+// redirects the buyer to /checkout/:orderId. The watcher matches the unique
+// sat-amount on-chain and issues an Ed25519 entitlement automatically. Funds
+// settle directly to the owner's wallet — no Stripe/PayPal in the loop.
+async function sovereignBuy(serviceId, opts){
+  try {
+    const preorder = !!(opts && opts.preorder);
+    const r = await fetch('/api/checkout/create', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ serviceId, qty: 1, currency: 'USD', preorder }) });
+    const j = await r.json();
+    if (!r.ok || !j || !j.checkout_url) {
+      alert('Could not create checkout: ' + ((j && j.error) || ('HTTP ' + r.status)));
+      return;
+    }
+    window.location.href = j.checkout_url;
+  } catch (e) {
+    alert('Network error creating checkout: ' + (e && e.message ? e.message : e));
+  }
+}
+if (typeof window !== 'undefined') {
+  window.sovereignBuy = sovereignBuy;
+  // Delegated click handler — avoids inline event handlers on dynamically
+  // generated HTML and keeps the surface safe even if a service id ever
+  // contains characters that would interact poorly with attribute parsing.
+  if (!window.__sovereignBuyBound) {
+    window.__sovereignBuyBound = true;
+    document.addEventListener('click', function(ev){
+      const t = ev.target && ev.target.closest && ev.target.closest('[data-sovereign-buy]');
+      if (!t) return;
+      ev.preventDefault();
+      const id = t.getAttribute('data-sovereign-buy');
+      const preorder = t.getAttribute('data-sovereign-preorder') === '1';
+      if (id) sovereignBuy(id, { preorder });
+    });
+  }
 }
 
 async function hydrateMasterCatalog(){
@@ -1372,11 +1429,33 @@ async function hydrateMasterCatalog(){
   STATE.masterCatalog = cat;
   if (spotEl && cat.btcSpot) spotEl.textContent = '1 BTC = $' + Number(cat.btcSpot.usdPerBtc).toLocaleString() + ' · live';
   if (counts) counts.textContent = cat.counts.total + ' items · ' + cat.counts.strategic + ' strategic · ' + cat.counts.frontier + ' frontier · ' + cat.counts.vertical + ' vertical · ' + cat.counts.marketplace + ' modules';
+  // Auto-extend chip filters to cover every group present in the live catalog
+  // (Activation, Auto-Discovered, Future R&D, etc.) without removing the
+  // existing 5 chips defined in shell.js. Idempotent on hydrate.
+  if (filters) {
+    const groupLabel = {
+      strategic:'Strategic', frontier:'Frontier · 12 Inventions', vertical:'Vertical OS · 18', marketplace:'AI Modules',
+      'unicorn-auto-module':'Auto-Discovered', 'billion-scale-activation':'Activation',
+      'billion-scale-package':'Strategic Packages', 'future-invention':'Future R&D'
+    };
+    const present = new Set();
+    cat.items.forEach(function(it){ if (it && it.group) present.add(it.group); });
+    present.forEach(function(g){
+      if (filters.querySelector('[data-group="' + g + '"]')) return;
+      const b = document.createElement('button');
+      b.className = 'chip'; b.dataset.group = g;
+      b.textContent = groupLabel[g] || g.replace(/-/g, ' ');
+      filters.appendChild(b);
+    });
+  }
   const render = (group) => {
     const list = group === 'all' ? cat.items : cat.items.filter(x => x.group === group);
     grid.innerHTML = list.length ? list.map(masterCardHtml).join('') : '<div class="card"><p>No items in this group.</p></div>';
   };
   render('all');
+  // Live on-chain settlements ticker (real paid orders → mempool.space proof).
+  // Injected as an additive panel above the grid; non-fatal if endpoint absent.
+  hydrateLiveSales(grid).catch(function(){});
   if (filters && !filters.dataset.bound) {
     filters.dataset.bound = '1';
     filters.addEventListener('click', e => {
@@ -1386,6 +1465,47 @@ async function hydrateMasterCatalog(){
       render(chip.dataset.group || 'all');
     });
   }
+}
+
+// Live on-chain revenue ticker. Public endpoint /api/commerce/recent-sales
+// returns the most recent paid orders with mempool.space proof URLs. We
+// render a thin panel ABOVE the catalog grid as a real social-proof signal:
+// every entry is a verifiable on-chain settlement directly to the owner wallet.
+async function hydrateLiveSales(gridEl){
+  if (!gridEl || !gridEl.parentNode) return;
+  let panel = document.getElementById('liveSalesPanel');
+  if (!panel) {
+    panel = document.createElement('div');
+    panel.id = 'liveSalesPanel';
+    panel.className = 'card';
+    panel.style.cssText = 'margin:0 0 16px;background:linear-gradient(135deg,rgba(0,255,163,.06),rgba(0,212,255,.06));border:1px solid rgba(0,255,163,.30)';
+    panel.innerHTML = '<div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px"><span class="kicker" style="color:#00ffa3">⚡ Live on-chain settlements</span><span style="font-size:11px;color:var(--ink-dim)">Verifiable on <a href="https://mempool.space" target="_blank" rel="noopener" style="color:#00ffa3">mempool.space</a></span></div><div id="liveSalesBody" style="margin-top:10px;font-family:var(--mono);font-size:12.5px;line-height:1.7;color:var(--ink-dim)">Loading…</div>';
+    gridEl.parentNode.insertBefore(panel, gridEl);
+  }
+  let r;
+  try { r = await api('/api/commerce/recent-sales?limit=8'); }
+  catch (_) { r = null; }
+  const body = document.getElementById('liveSalesBody');
+  if (!body) return;
+  if (!r || !Array.isArray(r.sales) || !r.sales.length) {
+    body.innerHTML = '<span style="color:var(--ink-dim)">No on-chain settlements yet — be the first. Every paid order will appear here with a mempool.space proof link.</span>';
+    return;
+  }
+  const fmtTime = (iso) => {
+    try {
+      const d = new Date(iso); const diff = (Date.now() - d.getTime()) / 1000;
+      if (diff < 60) return Math.floor(diff) + 's ago';
+      if (diff < 3600) return Math.floor(diff/60) + 'm ago';
+      if (diff < 86400) return Math.floor(diff/3600) + 'h ago';
+      return Math.floor(diff/86400) + 'd ago';
+    } catch (_) { return ''; }
+  };
+  body.innerHTML = r.sales.map(function(s){
+    const name = escapeHtml((s.service && (s.service.name || s.service.id)) || 'service');
+    const sats = (s.amount_sats || 0).toLocaleString();
+    const proof = s.proof_url ? ' · <a href="' + escapeHtml(s.proof_url) + '" target="_blank" rel="noopener" style="color:#00ffa3">tx ' + escapeHtml(String(s.txid||'').slice(0,10)) + '…</a>' : '';
+    return '<div>✓ <b style="color:var(--ink)">' + name + '</b> · ' + sats + ' sats · ' + escapeHtml(fmtTime(s.paid_at)) + proof + '</div>';
+  }).join('');
 }
 
 async function hydrateServiceDetail(id){
@@ -1435,7 +1555,7 @@ async function hydrateServiceDetail(id){
         <h3 style="margin:6px 0 10px">${escapeHtml(s.title||s.id)}</h3>
         <div class="price" style="font-size:42px;font-weight:700;background:linear-gradient(120deg,#fff,var(--violet2));-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent">$${price}<small style="font-size:14px;color:var(--ink-dim);-webkit-text-fill-color:var(--ink-dim)">/mo</small></div>
         <p style="color:var(--ink-dim);font-size:13.5px">Activate instantly. Cancel anytime. Signed receipt on every invoice.</p>
-        <a class="btn btn-primary" id="svcBuyBtn" href="/checkout?plan=${encodeURIComponent(s.id)}&amount=${price}" data-link style="width:100%;justify-content:center;margin-top:10px">Buy now →</a>
+        <button type="button" class="btn btn-primary" id="svcBuyBtn" data-sovereign-buy="${escapeHtml(s.id)}" style="width:100%;justify-content:center;margin-top:10px">₿ Buy now → BTC checkout</button>
         <a class="btn" href="/services" data-link style="width:100%;justify-content:center;margin-top:8px">← All services</a>
       </aside>
     </div>`;
@@ -1808,11 +1928,78 @@ async function hydrateDashboard(){
     window.addEventListener('beforeunload', () => { try { rs.close(); } catch(_){} }, { once:true });
   } catch(_) {}
 
+  // Owner Revenue panel — live mempool.space balance + last 50 confirmed tx
+  // to bc1q4f… cross-referenced with the local sovereign-commerce ledger.
+  // Inserted as an additive panel below receipts; no-op if endpoint absent.
+  hydrateOwnerRevenue().catch(function(){});
+
   // Affiliate link for the visitor
   const aff = $('#affLink');
   if (aff) {
     const ref = localStorage.getItem('u_ref_mine') || (()=>{ const r = 'U' + Math.random().toString(36).slice(2,10).toUpperCase(); localStorage.setItem('u_ref_mine', r); return r; })();
     aff.value = location.origin + '/?ref=' + ref;
+  }
+}
+
+// Owner Revenue tab — appended below #dashReceipts. Reads /api/admin/owner-revenue
+// which itself queries mempool.space for confirmed balance + last 50 tx to the
+// owner BTC address, cross-referenced with the local order ledger so each
+// settlement can be attributed to a specific service id when known. Public-safe:
+// the address is on /trust anyway and no buyer PII is rendered here.
+async function hydrateOwnerRevenue(){
+  const receiptsRoot = document.getElementById('dashReceipts');
+  if (!receiptsRoot || !receiptsRoot.parentNode) return;
+  let panel = document.getElementById('ownerRevenuePanel');
+  if (!panel) {
+    panel = document.createElement('div');
+    panel.id = 'ownerRevenuePanel';
+    panel.className = 'card';
+    panel.style.cssText = 'margin-top:22px;background:linear-gradient(135deg,rgba(247,147,26,.05),rgba(0,255,163,.05));border:1px solid rgba(247,147,26,.30)';
+    panel.innerHTML = '<div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px"><div><span class="kicker" style="color:#f7931a">💎 Owner Revenue · Live on-chain</span><h3 style="margin:6px 0 0;font-size:18px">Sovereign wallet ledger</h3></div><span id="ownerRevenueAddr" style="font-family:var(--mono);font-size:11px;color:var(--ink-dim)">…</span></div><div id="ownerRevenueKpis" class="dash-grid" style="margin-top:14px"></div><div id="ownerRevenueTx" style="margin-top:14px"></div>';
+    receiptsRoot.parentNode.insertBefore(panel, receiptsRoot.nextSibling);
+  }
+  let r;
+  try { r = await api('/api/admin/owner-revenue'); }
+  catch(_) { r = null; }
+  if (!r) {
+    document.getElementById('ownerRevenueTx').innerHTML = '<p style="color:var(--ink-dim)">Live wallet data unavailable. Try again in a moment.</p>';
+    return;
+  }
+  const addrEl = document.getElementById('ownerRevenueAddr');
+  if (addrEl && r.receive_address) addrEl.textContent = r.receive_address;
+  const kpisEl = document.getElementById('ownerRevenueKpis');
+  if (kpisEl) {
+    const c = r.chain || {};
+    const l = r.ledger || {};
+    const sats = (n) => Number(n || 0).toLocaleString() + ' sats';
+    const btc  = (n) => (Number(n || 0) / 1e8).toFixed(8) + ' BTC';
+    kpisEl.innerHTML = [
+      ['Confirmed balance', c.confirmed_balance_sats != null ? btc(c.confirmed_balance_sats) : '—'],
+      ['Total received', c.confirmed_received_sats != null ? sats(c.confirmed_received_sats) : '—'],
+      ['On-chain tx count', c.tx_count != null ? Number(c.tx_count).toLocaleString() : '—'],
+      ['Local paid orders', String(l.paid_orders != null ? l.paid_orders : '—')],
+      ['Pre-orders paid', String(l.preorders_paid != null ? l.preorders_paid : 0)],
+    ].map(([k,v]) => `<div class="kpi"><small>${escapeHtml(k)}</small><b>${escapeHtml(String(v))}</b></div>`).join('');
+  }
+  const txEl = document.getElementById('ownerRevenueTx');
+  const txs = Array.isArray(r.transactions) ? r.transactions : [];
+  if (txEl) {
+    if (!txs.length) {
+      txEl.innerHTML = '<p style="color:var(--ink-dim);font-size:13px">No on-chain transactions yet.</p>';
+    } else {
+      txEl.innerHTML = '<div style="font-size:12px;color:var(--ink-dim);margin-bottom:6px">Last ' + txs.length + ' tx · cross-referenced with local order ledger</div>'
+        + '<table class="doc"><thead><tr><th>Tx</th><th>Confirmed</th><th>Amount</th><th>Service</th><th>Block</th></tr></thead><tbody>'
+        + txs.slice(0, 50).map(function(t){
+            const id = String(t.txid || '').slice(0, 12) + '…';
+            const amt = Number(t.received_sats || 0).toLocaleString() + ' sats';
+            const svc = t.attribution ? (escapeHtml(t.attribution.serviceName || t.attribution.serviceId) + (t.attribution.preorder ? ' <span class="chip">pre-order</span>' : '')) : '<span style="color:var(--ink-dim)">unattributed</span>';
+            const block = t.block_height ? ('#' + t.block_height) : '<span style="color:var(--ink-dim)">mempool</span>';
+            const conf = t.confirmed ? '<span class="chip on" style="background:rgba(110,231,183,.2);color:#6ee7b7">✓</span>' : '<span class="chip">…</span>';
+            const proof = t.proof_url ? ('<a href="' + escapeHtml(t.proof_url) + '" target="_blank" rel="noopener" style="color:#f7931a">' + escapeHtml(id) + '</a>') : escapeHtml(id);
+            return '<tr><td><code class="inline">' + proof + '</code></td><td>' + conf + '</td><td style="font-family:var(--mono)">' + amt + '</td><td>' + svc + '</td><td>' + block + '</td></tr>';
+          }).join('')
+        + '</tbody></table>';
+    }
   }
 }
 
