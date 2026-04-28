@@ -324,6 +324,27 @@ jobs:
             echo "⚠️  HTTPS zeusai.pro: $DOMAIN_HTTPS — SSL necesită verificare manuală dacă DNS e greșit"
           fi
 
+      - name: 🧪 Public smoke tests (api/health, api/services, api/modules, api/btc/rate)
+        # Rulează scripts/smoke-tests.sh ÎN PROCES PE SERVER, contra 127.0.0.1:3000
+        # (bypass nginx/SSL), pentru cele 4 endpoint-uri publice care garantează
+        # că backend-ul a pornit și frontend-ul nu mai rămâne pe loading. Pasul
+        # este non-fatal: deploy-ul continuă, dar în log apare un raport clar.
+        run: |
+          ssh -o StrictHostKeyChecking=no root@${{ secrets.HETZNER_HOST }} bash -s << 'SSHEOF' || echo "⚠️  smoke tests step exited non-zero (non-fatal)"
+          set -uo pipefail
+          DEPLOY_PATH=/var/www/unicorn/UNICORN_FINAL
+          cd "$DEPLOY_PATH"
+          # Așteaptă PM2 warmup pentru ca primul request să nu lovească cold-start
+          sleep 5
+          chmod +x scripts/smoke-tests.sh 2>/dev/null || true
+          echo "--- Public smoke tests: backend-direct (127.0.0.1:3000) ---"
+          BASE_URL=http://127.0.0.1:3000 SMOKE_RETRIES=8 SMOKE_SLEEP=4 \
+            bash scripts/smoke-tests.sh || echo "⚠️  backend-direct smoke had failures"
+          echo "--- Public smoke tests: via nginx (https://zeusai.pro) ---"
+          BASE_URL=https://zeusai.pro SMOKE_RETRIES=4 SMOKE_SLEEP=3 \
+            bash scripts/smoke-tests.sh || echo "⚠️  nginx-front smoke had failures (poate fi cache/SSL warmup)"
+          SSHEOF
+
       - name: 🧪 Commerce Smoke (catalog + delivery)
         run: |
           ssh -o StrictHostKeyChecking=no root@${{ secrets.HETZNER_HOST }} bash -s << 'SSHEOF'
