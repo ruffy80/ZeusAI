@@ -291,7 +291,13 @@ async function handle(req, res, ctx) {
 _hydrateReceipts();
 _hydrateEntitlements();
 // Best-effort BTC rate refresh (non-blocking, only if fetch is available).
-if (typeof fetch === 'function') { refreshBtcRate().catch(()=>{}); setInterval(() => refreshBtcRate().catch(()=>{}), 5*60*1000).unref?.(); }
+// Track the interval handle so _resetForTests can clear it and re-requires don't stack timers.
+let _btcRateInterval = null;
+if (typeof fetch === 'function') {
+  refreshBtcRate().catch(()=>{});
+  _btcRateInterval = setInterval(() => refreshBtcRate().catch(()=>{}), 5*60*1000);
+  if (_btcRateInterval && typeof _btcRateInterval.unref === 'function') _btcRateInterval.unref();
+}
 
 module.exports = {
   matches, handle,
@@ -301,5 +307,5 @@ module.exports = {
   listEntitlementsByEmail, listEntitlementsByCustomer,
   buildCatalog,
   // for tests
-  _resetForTests: () => { _receipts.length = 0; _receiptsById.clear(); _entitlements.length = 0; try { fs.rmSync(RECEIPTS_FILE, { force: true }); fs.rmSync(ENTITLEMENTS_FILE, { force: true }); } catch (_) {} }
+  _resetForTests: () => { _receipts.length = 0; _receiptsById.clear(); _entitlements.length = 0; if (_btcRateInterval) { clearInterval(_btcRateInterval); _btcRateInterval = null; } try { fs.rmSync(RECEIPTS_FILE, { force: true }); fs.rmSync(ENTITLEMENTS_FILE, { force: true }); } catch (_) {} }
 };

@@ -81,7 +81,15 @@ async function handleWebhookSettle(opts) {
   try {
     const hook = global.__USE_ON_RECEIPT__;
     if (typeof hook === 'function') {
-      hook({ id: order.id, status: order.status, plan: order.productId, services: [order.productId], customerId: order.customerId, email: order.customerEmail || '', amount: order.priceUSD, currency: 'USD', method: 'WEBHOOK', txid: order.txRef });
+      // Resolve customer email via the portal (orders only carry customerId).
+      let custEmail = '';
+      try {
+        if (order.customerId) {
+          const c = portal.getById(order.customerId);
+          if (c && c.email) custEmail = c.email;
+        }
+      } catch (_) {}
+      hook({ id: order.id, status: order.status, plan: order.productId, services: [order.productId], customerId: order.customerId, email: custEmail, amount: order.priceUSD, currency: 'USD', method: 'WEBHOOK', txid: order.txRef });
     }
   } catch (_) {}
   // Best-effort owner notification.

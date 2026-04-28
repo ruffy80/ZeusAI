@@ -11,6 +11,8 @@ data/*.db-shm
 data/*.db-wal
 # Sovereign-commerce runtime state (orders, signing key, catalog-seen, txid cache)
 data/commerce/
+# Owner notifications (audit log written at runtime — not committed)
+data/notifications.jsonl
 
 # Generated innovation/autonomous cycle JSON files (auto-created at runtime)
 generated/innovation_*.json
