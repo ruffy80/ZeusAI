@@ -2950,8 +2950,10 @@ async function unicornHandler(req, res) {
     url: `${APP_URL}/services/${item.id}`,
     priceValidUntil: new Date(Date.now() + 30*24*3600*1000).toISOString().slice(0,10),
     seller: { '@type': 'Organization', name: 'ZeusAI' }
-  },
-  aggregateRating: { '@type': 'AggregateRating', ratingValue: '4.9', reviewCount: '128', bestRating: '5', worstRating: '1' }
+  }
+  // NOTE: aggregateRating intentionally omitted — Google Search Console flags
+  // placeholder/fabricated review counts. Add it back only when real
+  // verifiable review data is wired through (e.g. from /api/reviews).
 })}</script>
 <script type="application/ld+json">${JSON.stringify({
   '@context': 'https://schema.org',
