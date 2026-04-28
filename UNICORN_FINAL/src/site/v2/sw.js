@@ -2,7 +2,7 @@
 // Original work, © Vladoi Ionut
 /* eslint-disable no-restricted-globals */
 const V = 'unicorn-v2-__VERSION__';
-const PRECACHE = ['/', '/services', '/pricing', '/how', '/about', '/legal', '/assets/app.css', '/assets/app.js'];
+const PRECACHE = ['/', '/services', '/pricing', '/how', '/about', '/legal', '/offline.html', '/assets/app.css', '/assets/app.js', '/assets/icons/icon-192.png', '/assets/icons/icon-512.png'];
 
 self.addEventListener('install', e => {
   e.waitUntil((async () => {
@@ -48,7 +48,7 @@ self.addEventListener('fetch', e => {
         return net;
       } catch (_) {
         const c = await caches.open(V);
-        return (await c.match(req)) || (await c.match('/')) || new Response('offline', { status: 503 });
+        return (await c.match(req)) || (await c.match('/offline.html')) || (await c.match('/')) || new Response('offline', { status: 503 });
       }
     })());
     return;

@@ -411,14 +411,14 @@ function openApiSpec(extraPaths={}) {
 // ═══════════════════════════════════════════════════════════════════════════
 // SITEMAP + ROBOTS
 // ═══════════════════════════════════════════════════════════════════════════
-const SITE_ROUTES = ['/', '/services', '/pricing', '/checkout', '/dashboard', '/how', '/docs', '/about', '/legal', '/store', '/enterprise', '/account', '/innovations', '/wizard', '/status', '/changelog', '/terms', '/privacy', '/refund', '/sla', '/pledge', '/cancel', '/gift', '/aura', '/api-explorer', '/transparency'];
+const SITE_ROUTES = ['/', '/services', '/pricing', '/checkout', '/dashboard', '/how', '/docs', '/about', '/legal', '/store', '/enterprise', '/account', '/innovations', '/wizard', '/status', '/changelog', '/terms', '/privacy', '/refund', '/sla', '/pledge', '/cancel', '/gift', '/aura', '/api-explorer', '/transparency', '/trust', '/security', '/responsible-ai', '/dpa', '/payment-terms', '/frontier'];
 function sitemapXml(base='https://zeusai.pro') {
   const lastmod = nowIso().slice(0,10);
   const urls = SITE_ROUTES.map(r => `<url><loc>${base}${r}</loc><lastmod>${lastmod}</lastmod><changefreq>weekly</changefreq><priority>${r==='/'?'1.0':'0.7'}</priority></url>`).join('');
   return `<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">${urls}</urlset>`;
 }
 function robotsTxt(base='https://zeusai.pro') {
-  return `User-agent: *\nAllow: /\nDisallow: /admin\nDisallow: /api/admin\nSitemap: ${base}/sitemap.xml\n`;
+  return `User-agent: *\nAllow: /\nDisallow: /admin\nDisallow: /api/admin\nSitemap: ${base}/sitemap.xml\nSitemap: ${base}/seo/sitemap-services.xml\n`;
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
