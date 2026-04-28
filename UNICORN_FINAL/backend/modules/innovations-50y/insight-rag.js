@@ -123,7 +123,7 @@ function _bm25Rank(docs, query, opts) {
   }
   const ranked = [];
   for (let i = 0; i < N; i++) if (scores[i] > 0) ranked.push({ idx: i, score: scores[i] });
-  ranked.sort((a, b2) => b2.score - a.score);
+  ranked.sort((a, b) => b.score - a.score);
   return ranked;
 }
 

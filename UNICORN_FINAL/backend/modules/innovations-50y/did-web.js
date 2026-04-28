@@ -86,8 +86,14 @@ function _ensureKey() {
  * Build a DID document for did:web:<host> (host may include URL-encoded `:port`).
  */
 function buildDidDocument(host) {
-  const h = String(host || process.env.UNICORN_DID_HOST || 'zeusai.pro')
-    .replace(/^https?:\/\//, '').replace(/\/.*$/, '');
+  // Sanitize host without regex (ReDoS-safe). Strip optional scheme + path.
+  let h = String(host || process.env.UNICORN_DID_HOST || 'zeusai.pro');
+  if (h.startsWith('https://')) h = h.slice(8);
+  else if (h.startsWith('http://')) h = h.slice(7);
+  const slash = h.indexOf('/');
+  if (slash >= 0) h = h.slice(0, slash);
+  h = h.trim();
+  if (!h) h = 'zeusai.pro';
   const did = 'did:web:' + h;
   const key = _ensureKey();
   const verificationMethod = {
