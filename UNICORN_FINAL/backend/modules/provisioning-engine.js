@@ -68,6 +68,8 @@ const ONBOARDING_TEMPLATES = {
 class ProvisioningEngine extends EventEmitter {
   constructor() {
     super();
+    this.cache = new Map();
+    this.cacheTTL = 60000;
     this.startTime = Date.now();
   }
 

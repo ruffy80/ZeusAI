@@ -1,0 +1,138 @@
+name: 🩺 Diagnose & Repair (Hetzner)
+
+# Manual-only workflow that SSHes to the live Hetzner host, prints a full
+# diagnostic report (PM2, ports, nginx), self-heals the backend (PM2 restart,
+# nginx reload, pm2 save) and runs the canonical smoke tests.
+#
+# This workflow is purely additive and does NOT modify any code or config on
+# the server. It only touches PM2/nginx process state to recover from a
+# stuck/down service. Safe to run any time.
+
+on:
+  workflow_dispatch:
+    inputs:
+      do_repair:
+        description: 'Run self-heal actions (pm2 restart, nginx reload, pm2 save). If false, only diagnose.'
+        type: boolean
+        default: true
+
+concurrency:
+  group: zeusai-diagnose-repair
+  cancel-in-progress: false
+
+jobs:
+  diagnose-and-repair:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Bootstrap SSH access
+        env:
+          HETZNER_SSH_PRIVATE_KEY: ${{ secrets.HETZNER_SSH_PRIVATE_KEY }}
+          HETZNER_HOST:            ${{ secrets.HETZNER_HOST }}
+          HETZNER_PASSWORD:        ${{ secrets.HETZNER_PASSWORD }}
+        run: |
+          chmod +x UNICORN_FINAL/scripts/ensure-ssh-access.sh
+          bash UNICORN_FINAL/scripts/ensure-ssh-access.sh
+
+      - name: Install SSH key
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.HETZNER_SSH_PRIVATE_KEY }}
+
+      - name: Add Hetzner host to known_hosts
+        env:
+          HETZNER_HOST: ${{ secrets.HETZNER_HOST }}
+        run: |
+          mkdir -p ~/.ssh
+          ssh-keyscan -H "$HETZNER_HOST" >> ~/.ssh/known_hosts 2>/dev/null || true
+
+      - name: Diagnostic report
+        env:
+          HETZNER_HOST: ${{ secrets.HETZNER_HOST }}
+        run: |
+          echo "::group::PM2 list"
+          ssh -o StrictHostKeyChecking=no root@"$HETZNER_HOST" 'pm2 list || echo "[pm2] not available"' || true
+          echo "::endgroup::"
+
+          echo "::group::Listening ports (3000 / 80 / 443)"
+          ssh -o StrictHostKeyChecking=no root@"$HETZNER_HOST" "ss -tlnp 2>/dev/null | grep -E ':3000|:80|:443' || echo '[ss] no matches'" || true
+          echo "::endgroup::"
+
+          echo "::group::Nginx config test"
+          ssh -o StrictHostKeyChecking=no root@"$HETZNER_HOST" 'nginx -t 2>&1 || echo "[nginx] -t failed"' || true
+          echo "::endgroup::"
+
+          echo "::group::PM2 last 80 log lines (unicorn)"
+          ssh -o StrictHostKeyChecking=no root@"$HETZNER_HOST" 'pm2 logs unicorn --lines 80 --nostream 2>&1 || echo "[pm2 logs] not available"' || true
+          echo "::endgroup::"
+
+          echo "::group::Backend-direct probes (127.0.0.1:3000)"
+          ssh -o StrictHostKeyChecking=no root@"$HETZNER_HOST" bash -s <<'SSHEOF' || true
+            for ep in /health /api/health /api/services /api/btc/rate /api/module-registry; do
+              code=$(curl -sS -o /dev/null -m 5 -w '%{http_code}' "http://127.0.0.1:3000${ep}" || echo "000")
+              printf '  %-22s -> %s\n' "$ep" "$code"
+            done
+          SSHEOF
+          echo "::endgroup::"
+
+      - name: Self-heal (PM2 restart + nginx reload + pm2 save)
+        if: ${{ inputs.do_repair == true }}
+        env:
+          HETZNER_HOST: ${{ secrets.HETZNER_HOST }}
+        run: |
+          ssh -o StrictHostKeyChecking=no root@"$HETZNER_HOST" bash -s <<'SSHEOF'
+            set +e
+            echo '[heal] PM2 restart unicorn (fall back to start ecosystem.config.js)'
+            cd /var/www/unicorn 2>/dev/null || true
+            pm2 restart unicorn --update-env 2>/dev/null \
+              || pm2 start ecosystem.config.js --only unicorn --update-env 2>/dev/null \
+              || pm2 start ecosystem.config.js --update-env 2>/dev/null \
+              || echo '[heal] pm2 start failed (no ecosystem.config.js?)'
+
+            echo '[heal] nginx -t && systemctl reload nginx'
+            if nginx -t 2>&1; then
+              systemctl reload nginx 2>&1 || systemctl restart nginx 2>&1 || echo '[heal] nginx reload failed'
+            else
+              echo '[heal] nginx config invalid — skipping reload'
+            fi
+
+            echo '[heal] pm2 save'
+            pm2 save 2>&1 || echo '[heal] pm2 save failed'
+
+            echo '[heal] waiting 6s for backend warmup...'
+            sleep 6
+            pm2 list || true
+          SSHEOF
+
+      - name: Smoke tests (backend-direct, then nginx)
+        env:
+          HETZNER_HOST: ${{ secrets.HETZNER_HOST }}
+        run: |
+          chmod +x UNICORN_FINAL/scripts/smoke-tests.sh
+
+          echo "::group::Smoke (backend-direct via SSH on 127.0.0.1:3000)"
+          # Run the smoke script *on the server* so it hits localhost (bypassing
+          # any nginx/firewall complications). We pipe the script via stdin.
+          ssh -o StrictHostKeyChecking=no root@"$HETZNER_HOST" 'bash -s -- http://127.0.0.1:3000' \
+            < UNICORN_FINAL/scripts/smoke-tests.sh \
+            && echo "[backend-direct] PASS" \
+            || echo "[backend-direct] FAIL"
+          echo "::endgroup::"
+
+          echo "::group::Smoke (public via nginx)"
+          BASE_URL="http://$HETZNER_HOST" SMOKE_RETRIES=4 SMOKE_SLEEP=4 \
+            bash UNICORN_FINAL/scripts/smoke-tests.sh \
+            && echo "[public] PASS" \
+            || echo "[public] FAIL"
+          echo "::endgroup::"
+
+      - name: Final summary
+        if: always()
+        run: |
+          echo "Diagnostic & repair pass complete."
+          echo "If smoke still failing: inspect the 'Diagnostic report' group above for PM2/nginx/log details."

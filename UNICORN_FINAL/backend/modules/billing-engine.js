@@ -1174,6 +1174,8 @@ const tenantSub     = new Map(); // tenantId → subId
 class BillingEngine extends EventEmitter {
   constructor() {
     super();
+    this.cache = new Map();
+    this.cacheTTL = 60000;
     this.startTime = Date.now();
     // Renewal check every hour
     this._renewalTimer = setInterval(() => this._processDueRenewals(), 60 * 60 * 1000);

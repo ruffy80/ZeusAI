@@ -253,6 +253,8 @@ function resolveTarget(splitName) {
 class GlobalLoadBalancer extends EventEmitter {
   constructor() {
     super();
+    this.cache = new Map();
+    this.cacheTTL = 60000;
     this._running = false;
     this._probeTimer = null;
     this._stats = { totalProbes: 0, failovers: 0, recoveries: 0 };

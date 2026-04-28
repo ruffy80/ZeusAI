@@ -4900,6 +4900,15 @@ app.get('/api/payment/btc-rate', async (req, res) => {
   }
 });
 
+// Additive public alias — matches smoke-test contract (GET /api/btc/rate).
+app.get('/api/btc/rate', async (req, res) => {
+  try {
+    res.json(await paymentGateway.getBitcoinRate());
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 app.post('/api/payment/create', async (req, res) => {
   try {
     const payment = await paymentGateway.createPayment(req.body || {});
