@@ -1,0 +1,17 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "unicorn/health",
+  "title": "Unicorn /health response envelope",
+  "x-schema-version": "1.0.0",
+  "x-anchor": "https://www.iso.org/standard/77258.html",
+  "type": "object",
+  "required": ["ok"],
+  "additionalProperties": true,
+  "properties": {
+    "ok": { "type": "boolean", "description": "True when service is responsive." },
+    "service": { "type": "string" },
+    "version": { "type": "string" },
+    "uptime": { "type": "number", "minimum": 0 },
+    "timestamp": { "type": "string", "format": "date-time" }
+  }
+}

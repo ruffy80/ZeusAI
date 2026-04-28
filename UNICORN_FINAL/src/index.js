@@ -100,6 +100,8 @@ let provisioner = null; try { provisioner = require('./commerce/provisioner'); }
 let innov30 = null; try { innov30 = require('./innovations-30y'); console.log('[innovations-30y] loaded · constitution', innov30.getConstitution().hashShort); } catch (e) { console.warn('[innovations-30y] not loaded:', e.message); }
 let innov30v2 = null; try { innov30v2 = require('./innovations-30y-v2'); console.log('[innovations-30y-v2] loaded · 15 primitives'); } catch (e) { console.warn('[innovations-30y-v2] not loaded:', e.message); }
 let frontier = null; try { frontier = require('./frontier-engine'); console.log('[frontier] loaded · 12 sovereign inventions + commerce suite'); } catch (e) { console.warn('[frontier] not loaded:', e.message); }
+// ── 50Y Standard innovations (additive · all routes under /api/v50/* and /.well-known/did.json) ──
+let innov50 = null; try { innov50 = require('../backend/modules/innovations-50y'); console.log('[innovations-50y] loaded · pillars: permanence·security·sovereignty·intelligence'); } catch (e) { console.warn('[innovations-50y] not loaded:', e.message); }
 
 const PORT = Number(process.env.PORT || 3000);
 const APP_URL = process.env.PUBLIC_APP_URL || 'https://zeusai.pro';
@@ -1261,6 +1263,14 @@ async function unicornHandler(req, res) {
   const requestUrl = new URL(req.url || '/', 'http://local');
   const urlPath = requestUrl.pathname;
   const earlyPath = urlPath;
+
+  // ── 50Y Standard dispatcher (zero overlap with existing routes) ──
+  // Handles: /.well-known/did.json + /api/v50/*. Returns true if handled.
+  if (innov50) {
+    try {
+      if (await innov50.handle(req, res)) return;
+    } catch (e) { console.warn('[innovations-50y] handler error:', e.message); }
+  }
   if (earlyPath === '/api/uaic/receipts') {
     const email = String(requestUrl.searchParams.get('email') || '').toLowerCase();
     const receipts = getAllReceipts().filter(r => !email || String(r.email || '').toLowerCase() === email);
