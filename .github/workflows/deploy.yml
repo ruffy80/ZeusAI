@@ -412,3 +412,65 @@ jobs:
 
       - name: 📢 Done
         run: echo "✅ Deploy complet și stabil — ZeusAI / Unicorn LIVE."
+
+      - name: 🪙 Sovereign checkout smoke (BTC self-custody)
+        # Verifică non-blocking că /api/checkout/create răspunde cu un ordin
+        # legat direct de wallet-ul owner-ului (bc1q4f7e66z…) și că suma este
+        # validă în sats. Eșuarea NU pică deploy-ul (continue-on-error) — este
+        # un canary preventiv pentru rail-ul sovereign-commerce.
+        continue-on-error: true
+        run: |
+          set -uo pipefail
+          export HETZNER_HOST_ENV='${{ secrets.HETZNER_HOST }}'
+          node - <<'NODE'
+          const HETZNER_HOST = process.env.HETZNER_HOST_ENV || '';
+          const EXPECTED_BTC = 'bc1q4f7e66z87mdfj56kz0dj5hvcnpmh0qh4wuv22e';
+          const targets = [
+            { url: 'https://zeusai.pro/api/checkout/create', label: 'public-https' },
+          ];
+          if (HETZNER_HOST) {
+            targets.push({ url: `http://${HETZNER_HOST}:3000/api/checkout/create`, label: 'backend-direct' });
+          }
+          const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+          async function pickServiceId(host) {
+            try {
+              const r = await fetch(host + '/api/catalog/master', { headers: { 'Cache-Control': 'no-cache' } });
+              const j = await r.json();
+              const it = (j.items || []).find((x) => x && x.priceUsd && x.priceUsd > 0);
+              return it && it.id || null;
+            } catch (_) { return null; }
+          }
+          async function probe(target) {
+            const host = target.url.replace(/\/api\/checkout\/create$/, '');
+            const serviceId = await pickServiceId(host);
+            if (!serviceId) return { ok: false, reason: 'no_service_id', target };
+            try {
+              const r = await fetch(target.url, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'User-Agent': 'unicorn-deploy-verify/1.0' },
+                body: JSON.stringify({ serviceId, qty: 1, currency: 'USD' }),
+              });
+              const text = await r.text();
+              let body = null; try { body = JSON.parse(text); } catch (_) {}
+              const addrOk = body && body.receive_address === EXPECTED_BTC;
+              const satsOk = body && Number(body.amount_sats) > 0;
+              const ok = (r.status === 200 || r.status === 201) && addrOk && satsOk;
+              return { ok, status: r.status, addrOk, satsOk, sats: body && body.amount_sats, addr: body && body.receive_address, preview: text.slice(0, 200), target };
+            } catch (e) {
+              return { ok: false, status: 0, preview: String(e && e.message || e), target };
+            }
+          }
+          (async () => {
+            for (let attempt = 1; attempt <= 4; attempt++) {
+              for (const t of targets) {
+                const r = await probe(t);
+                console.log(`sovereign-checkout attempt=${attempt} target=${t.label} status=${r.status||0} addr_ok=${!!r.addrOk} sats_ok=${!!r.satsOk} sats=${r.sats||0}`);
+                if (r.ok) { console.log(`✅ sovereign checkout OK via ${t.label} → addr=${r.addr} sats=${r.sats}`); process.exit(0); }
+                if (r.preview) console.log(`   preview: ${String(r.preview).replace(/\s+/g,' ').slice(0,200)}`);
+              }
+              if (attempt < 4) await sleep(5000);
+            }
+            console.error('⚠️  sovereign checkout smoke failed (non-fatal). Inspect /api/checkout/create on the live host.');
+            process.exit(1);
+          })();
+          NODE

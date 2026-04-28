@@ -469,6 +469,18 @@ select.form-inp option{background:#0a0e24;}
       <div class="card card-sm"><div class="label">Innovations</div><div class="kpi-val" id="kpi-innov" style="font-size:18px">—</div></div>
     </div>
 
+    <!-- Live BTC revenue ticker (real on-chain settlements) -->
+    <div class="sec-title" style="margin-top:28px;">⚡ Live On-Chain Sales</div>
+    <div class="card" id="live-sales-card" style="max-width:880px;">
+      <div style="font-size:12px;color:#7090b0;margin-bottom:8px;">
+        Direct-to-wallet BTC settlements · non-custodial · verifiable on
+        <a href="https://mempool.space" target="_blank" rel="noopener" style="color:#00ffa3;">mempool.space</a>
+      </div>
+      <div id="live-sales-list" style="font-family:monospace;font-size:12px;line-height:1.7;color:#aab8cc;">
+        <div class="muted">Loading recent settlements…</div>
+      </div>
+    </div>
+
     <!-- Case Studies -->
     <div class="sec-title" style="margin-top:28px;">Success Stories</div>
     <div class="grid-3" id="case-studies-grid">
@@ -1578,8 +1590,39 @@ async function loadMarketplace(){
   }
   if(STATE.services.length){renderServiceGrid();return;}
   grid.innerHTML='<div class="card" style="grid-column:1/-1;text-align:center;padding:40px;"><div class="loader"></div></div>';
-  var r=await api('GET','/api/marketplace/services');
-  var svcs=r.services||r.data||[];
+
+  // 1) Prefer /api/catalog/master — aggregates EVERY deliverable Unicorn can
+  //    sell (strategic, frontier F1-F12, vertical OS, activation packages,
+  //    marketplace, connector items, future R&D primitives). This is the
+  //    single source of truth that gets shipped to buyers via sovereign
+  //    BTC checkout (/api/checkout/create → on-chain to owner wallet).
+  var svcs=null;
+  try{
+    var cm=await fetch('/api/catalog/master',{cache:'no-store'}).then(function(r){return r.ok?r.json():null;}).catch(function(){return null;});
+    if(cm && Array.isArray(cm.items) && cm.items.length){
+      svcs = cm.items.map(function(it){
+        return {
+          id: it.id,
+          name: it.title || it.name || it.id,
+          description: it.description || '',
+          price: Number(it.priceUsd || 0),
+          priceUsd: Number(it.priceUsd || 0),
+          priceBtc: it.priceBtc,
+          category: prettySegment(it.segment || it.group || 'all'),
+          group: it.group || it.segment || 'all',
+          serviceId: it.id
+        };
+      }).filter(function(s){ return s.price>0; });
+    }
+  }catch(e){ /* fall through to legacy endpoint */ }
+
+  // 2) Legacy fallback: /api/marketplace/services + hardcoded demo set.
+  //    Keeps backward compat if /api/catalog/master is unavailable for any
+  //    reason (e.g. transient error during a deploy warmup).
+  if(!svcs){
+    var r=await api('GET','/api/marketplace/services');
+    svcs=r.services||r.data||[];
+  }
   if(!svcs.length){
     svcs=[
       {id:'svc-1',name:'AI Automation Suite',description:'Full workflow automation powered by advanced AI models. Deploy bots that handle tasks 24/7.',price:299,category:'Automation'},
@@ -1598,6 +1641,27 @@ async function loadMarketplace(){
   svcs.forEach(function(s){if(s.category&&allCategories.indexOf(s.category)<0)allCategories.push(s.category);});
   renderCatFilters();
   renderServiceGrid();
+}
+
+// Map raw catalog group/segment ids ("vertical","frontier","marketplace",
+// "billion-scale-activation","unicorn-auto-module","future-invention",...)
+// to friendly chip labels. Unknown values are title-cased.
+function prettySegment(s){
+  var map={
+    'strategic':'Strategic',
+    'frontier':'Frontier',
+    'vertical':'Vertical OS',
+    'enterprise':'Vertical OS',
+    'marketplace':'Marketplace',
+    'modules':'Marketplace',
+    'unicorn-auto-module':'Auto-Discovered',
+    'billion-scale-activation':'Activation',
+    'billion-scale-package':'Strategic Package',
+    'future-invention':'Future R&D',
+    'all':'All'
+  };
+  if(map[s]) return map[s];
+  return String(s||'All').replace(/[-_]/g,' ').replace(/\\b\\w/g,function(c){return c.toUpperCase();});
 }
 
 function renderCatFilters(){

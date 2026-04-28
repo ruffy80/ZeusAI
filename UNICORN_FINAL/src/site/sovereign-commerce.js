@@ -62,12 +62,14 @@ const MIN_CONFS    = Math.max(0, +(process.env.COMMERCE_MIN_CONFS || 0));
 const ADMIN_SECRET = process.env.COMMERCE_ADMIN_SECRET || '';
 const MEMPOOL_BASE = (process.env.COMMERCE_MEMPOOL_BASE || 'https://mempool.space/api').replace(/\/+$/, '');
 const PRICE_FALLBACK_USD = +(process.env.COMMERCE_PRICE_FALLBACK_USD || 60000);
+const CATALOG_SEEN_FILE = path.join(process.env.COMMERCE_DATA_DIR || path.join(process.cwd(), 'data', 'commerce'), 'catalog-seen.json');
 
 // ── Storage ─────────────────────────────────────────────────────────────────
 fs.mkdirSync(DATA_DIR, { recursive: true });
 const ORDERS = new Map();     // orderId -> order (in-memory; persisted on change)
 const AMT_INDEX = new Map();  // amountSats -> orderId (pending only; fast match)
 const SEEN_TXIDS = new Set(); // crediting txs already applied (from state file)
+const CATALOG_SEEN = new Map(); // serviceId -> firstSeenAtMs (for /api/catalog/diff)
 
 function loadState() {
   try {
@@ -108,6 +110,39 @@ function persistState() {
     const keep = Array.from(SEEN_TXIDS).slice(-5000);
     fs.writeFileSync(STATE_FILE, JSON.stringify({ seenTxids: keep, updatedAt: new Date().toISOString() }));
   } catch {}
+}
+
+// ── Catalog diff tracking (first-seen timestamp per item id) ────────────────
+function loadCatalogSeen() {
+  try {
+    if (fs.existsSync(CATALOG_SEEN_FILE)) {
+      const data = JSON.parse(fs.readFileSync(CATALOG_SEEN_FILE, 'utf8'));
+      for (const [id, ts] of Object.entries(data || {})) {
+        if (typeof ts === 'number' && ts > 0) CATALOG_SEEN.set(id, ts);
+      }
+    }
+  } catch {}
+}
+function persistCatalogSeen() {
+  try {
+    const obj = {};
+    for (const [id, ts] of CATALOG_SEEN) obj[id] = ts;
+    fs.writeFileSync(CATALOG_SEEN_FILE, JSON.stringify(obj));
+  } catch {}
+}
+// Mark every catalog item with a first-seen timestamp (idempotent).
+function recordCatalogItems(items) {
+  if (!Array.isArray(items)) return 0;
+  const now = Date.now();
+  let added = 0;
+  for (const it of items) {
+    const id = it && it.id;
+    if (!id || CATALOG_SEEN.has(id)) continue;
+    CATALOG_SEEN.set(id, now);
+    added++;
+  }
+  if (added > 0) persistCatalogSeen();
+  return added;
 }
 
 // ── Crypto helpers (Ed25519 signing for entitlements) ───────────────────────
@@ -224,13 +259,36 @@ function timingSafeEqHex(a, b) {
   catch { return false; }
 }
 
-// ── Service resolution (from live snapshot) ─────────────────────────────────
-function resolveService(ctx, serviceId) {
+// ── Service resolution (from live snapshot OR full master catalog) ─────────
+// Supports two ctx accessors so any service from `/api/catalog/master`
+// (Vertical OS, Frontier F1-F12, Activation packages, Future R&D primitives,
+// auto-discovered connector modules, …) becomes purchasable via sovereign BTC.
+async function resolveService(ctx, serviceId) {
+  // 1) Fast path: live snapshot (existing behavior, kept for backwards compat)
   try {
     if (ctx && typeof ctx.buildSnapshot === 'function') {
       const snap = ctx.buildSnapshot();
       const all = [].concat(snap.marketplace || [], snap.services || []).filter((s) => s && s.id);
-      return all.find((s) => String(s.id) === String(serviceId)) || null;
+      const hit = all.find((s) => String(s.id) === String(serviceId));
+      if (hit) return hit;
+    }
+  } catch {}
+  // 2) Master catalog path: any deliverable Unicorn can sell
+  try {
+    if (ctx && typeof ctx.resolveCatalogItem === 'function') {
+      const item = await ctx.resolveCatalogItem(serviceId);
+      if (item && item.id) {
+        // Normalize to the shape resolveService callers expect (.name + .price)
+        return {
+          id: item.id,
+          name: item.title || item.name || item.id,
+          title: item.title || item.name || item.id,
+          price: Number(item.priceUsd != null ? item.priceUsd : (item.price || 0)),
+          description: item.description || '',
+          segment: item.segment || item.group || 'unicorn',
+          kpi: item.kpi || ''
+        };
+      }
     }
   } catch {}
   return null;
@@ -240,7 +298,7 @@ function resolveService(ctx, serviceId) {
 async function createOrder(ctx, input) {
   const { serviceId, qty = 1, email = '', currency = 'USD' } = input || {};
   if (!serviceId) return { error: 'serviceId_required', status: 400 };
-  const svc = resolveService(ctx, serviceId);
+  const svc = await resolveService(ctx, serviceId);
   if (!svc) return { error: 'service_not_found', serviceId, status: 404 };
 
   const unit = svc.price != null ? Number(svc.price) : 0;
@@ -563,6 +621,62 @@ async function handle(req, res, ctx) {
     }, { 'Cache-Control': 'public, max-age=60' }), true;
   }
 
+  // --- /api/commerce/recent-sales ------------------------------------------
+  // Public, anonymized list of paid orders for the home-page revenue ticker.
+  // Each entry includes a mempool.space tx proof URL so buyers can verify
+  // settlement on-chain. No buyer email or PII is exposed.
+  if (url === '/api/commerce/recent-sales' && req.method === 'GET') {
+    const qs = (req.url.split('?')[1] || '');
+    const lm = qs.match(/limit=(\d+)/);
+    const limit = Math.max(1, Math.min(50, lm ? +lm[1] : 10));
+    const paid = [];
+    for (const o of ORDERS.values()) {
+      if (o.status !== 'paid') continue;
+      const txid = (o.txids || [])[0] || null;
+      paid.push({
+        orderId: o.orderId,
+        service: { id: o.serviceId, name: o.serviceName },
+        paid_at: o.paid_at,
+        amount_btc: o.amount_btc,
+        amount_sats: o.amount_sats,
+        currency: o.currency,
+        subtotal_fiat: o.subtotal_fiat,
+        txid,
+        proof_url: txid ? `https://mempool.space/tx/${txid}` : null,
+      });
+    }
+    paid.sort((a, b) => String(b.paid_at || '').localeCompare(String(a.paid_at || '')));
+    return sendJson(res, 200, {
+      receive_address: OWNER_BTC,
+      total_paid: paid.length,
+      sales: paid.slice(0, limit),
+    }, { 'Cache-Control': 'public, max-age=15' }), true;
+  }
+
+  // --- /api/catalog/diff?since_hours=168 -----------------------------------
+  // Returns catalog item ids first observed in the last N hours so the UI
+  // can surface a "🆕 New this week" section. The watcher updates first-seen
+  // timestamps every time a snapshot or master catalog is fetched (see
+  // `commerce.recordCatalogItems`). Default window: 7 days.
+  if (url === '/api/catalog/diff' && req.method === 'GET') {
+    const params = (req.url.split('?')[1] || '');
+    const m = params.match(/since_hours=(\d+)/);
+    const sinceHours = Math.max(1, Math.min(24 * 30, m ? +m[1] : 168));
+    const cutoff = Date.now() - sinceHours * 3600 * 1000;
+    const newIds = [];
+    for (const [id, ts] of CATALOG_SEEN) {
+      if (ts >= cutoff) newIds.push({ id, firstSeenAt: new Date(ts).toISOString() });
+    }
+    newIds.sort((a, b) => String(b.firstSeenAt).localeCompare(String(a.firstSeenAt)));
+    return sendJson(res, 200, {
+      sinceHours,
+      cutoff: new Date(cutoff).toISOString(),
+      total_known: CATALOG_SEEN.size,
+      newCount: newIds.length,
+      items: newIds,
+    }, { 'Cache-Control': 'public, max-age=60' }), true;
+  }
+
   // --- /api/commerce/health -----------------------------------------------
   if (url === '/api/commerce/health' && req.method === 'GET') {
     const pending = Array.from(ORDERS.values()).filter((o) => o.status === 'pending').length;
@@ -596,6 +710,7 @@ async function handle(req, res, ctx) {
 
 // ── Boot ────────────────────────────────────────────────────────────────────
 loadState();
+loadCatalogSeen();
 // Initial non-blocking price warm-up + first scan
 setTimeout(() => { getBtcPrice().catch(() => {}); scanIncoming().catch(() => {}); }, 3000);
 // Recurring watcher
@@ -605,4 +720,4 @@ setInterval(() => { getBtcPrice().catch(() => {}); }, 5 * 60 * 1000).unref();
 
 console.log('[commerce] ready · addr=' + OWNER_BTC + ' · data=' + DATA_DIR + ' · watch=' + WATCH_MS + 'ms · min_confs=' + MIN_CONFS);
 
-module.exports = { handle, scanIncoming, getBtcPrice, createOrder, ORDERS, WATCH_STATE };
+module.exports = { handle, scanIncoming, getBtcPrice, createOrder, ORDERS, WATCH_STATE, recordCatalogItems };

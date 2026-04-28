@@ -1335,12 +1335,20 @@ async function hydrateServices(){
 // MASTER CATALOG — every Unicorn deliverable, BTC-priced, filterable
 // ============================================================
 function masterCardHtml(it){
-  const groupColor = { strategic:'#8a5cff', frontier:'#ffd36a', vertical:'#3ea0ff', marketplace:'#6fd3ff' }[it.group] || '#8a5cff';
-  const groupLabel = { strategic:'Strategic', frontier:'Frontier', vertical:'Vertical OS', marketplace:'AI Module' }[it.group] || it.group;
+  const groupColor = {
+    strategic:'#8a5cff', frontier:'#ffd36a', vertical:'#3ea0ff', marketplace:'#6fd3ff',
+    'unicorn-auto-module':'#a3ffce', 'billion-scale-activation':'#ff8aab',
+    'billion-scale-package':'#ff5cd1', 'future-invention':'#7cf3ff'
+  }[it.group] || '#8a5cff';
+  const groupLabel = {
+    strategic:'Strategic', frontier:'Frontier', vertical:'Vertical OS', marketplace:'AI Module',
+    'unicorn-auto-module':'Auto-Discovered', 'billion-scale-activation':'Activation',
+    'billion-scale-package':'Strategic Package', 'future-invention':'Future R&D'
+  }[it.group] || it.group;
   const priceUsd = Number(it.priceUsd || 0);
   const priceTxt = priceUsd > 0 ? ('$' + priceUsd.toLocaleString()) : 'Free';
   const btcTxt = it.priceBtc > 0 ? ('₿ ' + Number(it.priceBtc).toFixed(8)) : '—';
-  const buyHref = it.buyUrl || ('/checkout?plan=' + encodeURIComponent(it.id) + '&amount=' + priceUsd);
+  const idAttr = escapeHtml(it.id);
   return '<div class="card" data-group="' + escapeHtml(it.group) + '">'
     + '<span class="tag" style="background:' + groupColor + '22;color:' + groupColor + '">' + escapeHtml(groupLabel) + '</span>'
     + '<h3>' + escapeHtml(it.title || it.id) + '</h3>'
@@ -1349,10 +1357,45 @@ function masterCardHtml(it){
     + '<div class="row" style="border-top:none;padding-top:4px;margin-top:0"><span style="font-size:11px;color:var(--ink-dim)">live BTC</span><b style="font-size:11px;color:var(--gold);font-family:var(--mono)">' + btcTxt + '</b></div>'
     + '<div style="display:flex;gap:8px;margin-top:12px">'
     + (priceUsd > 0
-        ? '<a class="btn btn-primary" href="' + buyHref + '" data-link style="flex:1;justify-content:center">₿ Buy in BTC</a>'
-        : '<a class="btn btn-ghost" href="/services/' + encodeURIComponent(it.id) + '" data-link style="flex:1;justify-content:center">Activate free</a>')
+        ? '<button type="button" class="btn btn-primary" data-sovereign-buy="' + idAttr + '" style="flex:1;justify-content:center">₿ Buy in BTC</button>'
+        : '<a class="btn btn-ghost" href="/services/' + idAttr + '" data-link style="flex:1;justify-content:center">Activate free</a>')
+    + ' <a class="btn btn-ghost" href="/services/' + idAttr + '" data-link style="justify-content:center" title="Service details">Details →</a>'
     + '</div>'
     + '</div>';
+}
+
+// Sovereign BTC checkout: creates a non-custodial order on the server and
+// redirects the buyer to /checkout/:orderId. The watcher matches the unique
+// sat-amount on-chain and issues an Ed25519 entitlement automatically. Funds
+// settle directly to the owner's wallet — no Stripe/PayPal in the loop.
+async function sovereignBuy(serviceId){
+  try {
+    const r = await fetch('/api/checkout/create', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ serviceId, qty: 1, currency: 'USD' }) });
+    const j = await r.json();
+    if (!r.ok || !j || !j.checkout_url) {
+      alert('Could not create checkout: ' + ((j && j.error) || ('HTTP ' + r.status)));
+      return;
+    }
+    window.location.href = j.checkout_url;
+  } catch (e) {
+    alert('Network error creating checkout: ' + (e && e.message ? e.message : e));
+  }
+}
+if (typeof window !== 'undefined') {
+  window.sovereignBuy = sovereignBuy;
+  // Delegated click handler — avoids inline event handlers on dynamically
+  // generated HTML and keeps the surface safe even if a service id ever
+  // contains characters that would interact poorly with attribute parsing.
+  if (!window.__sovereignBuyBound) {
+    window.__sovereignBuyBound = true;
+    document.addEventListener('click', function(ev){
+      const t = ev.target && ev.target.closest && ev.target.closest('[data-sovereign-buy]');
+      if (!t) return;
+      ev.preventDefault();
+      const id = t.getAttribute('data-sovereign-buy');
+      if (id) sovereignBuy(id);
+    });
+  }
 }
 
 async function hydrateMasterCatalog(){
@@ -1372,11 +1415,33 @@ async function hydrateMasterCatalog(){
   STATE.masterCatalog = cat;
   if (spotEl && cat.btcSpot) spotEl.textContent = '1 BTC = $' + Number(cat.btcSpot.usdPerBtc).toLocaleString() + ' · live';
   if (counts) counts.textContent = cat.counts.total + ' items · ' + cat.counts.strategic + ' strategic · ' + cat.counts.frontier + ' frontier · ' + cat.counts.vertical + ' vertical · ' + cat.counts.marketplace + ' modules';
+  // Auto-extend chip filters to cover every group present in the live catalog
+  // (Activation, Auto-Discovered, Future R&D, etc.) without removing the
+  // existing 5 chips defined in shell.js. Idempotent on hydrate.
+  if (filters) {
+    const groupLabel = {
+      strategic:'Strategic', frontier:'Frontier · 12 Inventions', vertical:'Vertical OS · 18', marketplace:'AI Modules',
+      'unicorn-auto-module':'Auto-Discovered', 'billion-scale-activation':'Activation',
+      'billion-scale-package':'Strategic Packages', 'future-invention':'Future R&D'
+    };
+    const present = new Set();
+    cat.items.forEach(function(it){ if (it && it.group) present.add(it.group); });
+    present.forEach(function(g){
+      if (filters.querySelector('[data-group="' + g + '"]')) return;
+      const b = document.createElement('button');
+      b.className = 'chip'; b.dataset.group = g;
+      b.textContent = groupLabel[g] || g.replace(/-/g, ' ');
+      filters.appendChild(b);
+    });
+  }
   const render = (group) => {
     const list = group === 'all' ? cat.items : cat.items.filter(x => x.group === group);
     grid.innerHTML = list.length ? list.map(masterCardHtml).join('') : '<div class="card"><p>No items in this group.</p></div>';
   };
   render('all');
+  // Live on-chain settlements ticker (real paid orders → mempool.space proof).
+  // Injected as an additive panel above the grid; non-fatal if endpoint absent.
+  hydrateLiveSales(grid).catch(function(){});
   if (filters && !filters.dataset.bound) {
     filters.dataset.bound = '1';
     filters.addEventListener('click', e => {
@@ -1386,6 +1451,47 @@ async function hydrateMasterCatalog(){
       render(chip.dataset.group || 'all');
     });
   }
+}
+
+// Live on-chain revenue ticker. Public endpoint /api/commerce/recent-sales
+// returns the most recent paid orders with mempool.space proof URLs. We
+// render a thin panel ABOVE the catalog grid as a real social-proof signal:
+// every entry is a verifiable on-chain settlement directly to the owner wallet.
+async function hydrateLiveSales(gridEl){
+  if (!gridEl || !gridEl.parentNode) return;
+  let panel = document.getElementById('liveSalesPanel');
+  if (!panel) {
+    panel = document.createElement('div');
+    panel.id = 'liveSalesPanel';
+    panel.className = 'card';
+    panel.style.cssText = 'margin:0 0 16px;background:linear-gradient(135deg,rgba(0,255,163,.06),rgba(0,212,255,.06));border:1px solid rgba(0,255,163,.30)';
+    panel.innerHTML = '<div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px"><span class="kicker" style="color:#00ffa3">⚡ Live on-chain settlements</span><span style="font-size:11px;color:var(--ink-dim)">Verifiable on <a href="https://mempool.space" target="_blank" rel="noopener" style="color:#00ffa3">mempool.space</a></span></div><div id="liveSalesBody" style="margin-top:10px;font-family:var(--mono);font-size:12.5px;line-height:1.7;color:var(--ink-dim)">Loading…</div>';
+    gridEl.parentNode.insertBefore(panel, gridEl);
+  }
+  let r;
+  try { r = await api('/api/commerce/recent-sales?limit=8'); }
+  catch (_) { r = null; }
+  const body = document.getElementById('liveSalesBody');
+  if (!body) return;
+  if (!r || !Array.isArray(r.sales) || !r.sales.length) {
+    body.innerHTML = '<span style="color:var(--ink-dim)">No on-chain settlements yet — be the first. Every paid order will appear here with a mempool.space proof link.</span>';
+    return;
+  }
+  const fmtTime = (iso) => {
+    try {
+      const d = new Date(iso); const diff = (Date.now() - d.getTime()) / 1000;
+      if (diff < 60) return Math.floor(diff) + 's ago';
+      if (diff < 3600) return Math.floor(diff/60) + 'm ago';
+      if (diff < 86400) return Math.floor(diff/3600) + 'h ago';
+      return Math.floor(diff/86400) + 'd ago';
+    } catch (_) { return ''; }
+  };
+  body.innerHTML = r.sales.map(function(s){
+    const name = escapeHtml((s.service && (s.service.name || s.service.id)) || 'service');
+    const sats = (s.amount_sats || 0).toLocaleString();
+    const proof = s.proof_url ? ' · <a href="' + escapeHtml(s.proof_url) + '" target="_blank" rel="noopener" style="color:#00ffa3">tx ' + escapeHtml(String(s.txid||'').slice(0,10)) + '…</a>' : '';
+    return '<div>✓ <b style="color:var(--ink)">' + name + '</b> · ' + sats + ' sats · ' + escapeHtml(fmtTime(s.paid_at)) + proof + '</div>';
+  }).join('');
 }
 
 async function hydrateServiceDetail(id){
@@ -1435,7 +1541,7 @@ async function hydrateServiceDetail(id){
         <h3 style="margin:6px 0 10px">${escapeHtml(s.title||s.id)}</h3>
         <div class="price" style="font-size:42px;font-weight:700;background:linear-gradient(120deg,#fff,var(--violet2));-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent">$${price}<small style="font-size:14px;color:var(--ink-dim);-webkit-text-fill-color:var(--ink-dim)">/mo</small></div>
         <p style="color:var(--ink-dim);font-size:13.5px">Activate instantly. Cancel anytime. Signed receipt on every invoice.</p>
-        <a class="btn btn-primary" id="svcBuyBtn" href="/checkout?plan=${encodeURIComponent(s.id)}&amount=${price}" data-link style="width:100%;justify-content:center;margin-top:10px">Buy now →</a>
+        <button type="button" class="btn btn-primary" id="svcBuyBtn" data-sovereign-buy="${escapeHtml(s.id)}" style="width:100%;justify-content:center;margin-top:10px">₿ Buy now → BTC checkout</button>
         <a class="btn" href="/services" data-link style="width:100%;justify-content:center;margin-top:8px">← All services</a>
       </aside>
     </div>`;
