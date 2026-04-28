@@ -94,11 +94,15 @@ const TOPICS_DEFAULTS = {
 };
 
 function _rng(seed) {
-  // xmur3 + sfc32 deterministic PRNG. Bound seed length to avoid loop-bound
-  // injection from arbitrarily long user-controlled inputs.
-  let s = String(seed || crypto.randomBytes(4).toString('hex')).slice(0, 256);
+  // xmur3 + sfc32 deterministic PRNG. Seed is hard-bounded to 256 chars to
+  // prevent loop-bound injection from arbitrarily long user-controlled inputs.
+  const MAX_SEED_LEN = 256;
+  const raw = String(seed || crypto.randomBytes(4).toString('hex'));
+  const s = raw.slice(0, MAX_SEED_LEN);
   let h = 1779033703 ^ s.length;
-  for (let i = 0; i < s.length; i++) {
+  // Use the constant MAX_SEED_LEN as the loop bound so static analyzers
+  // (e.g. CodeQL) can prove the loop is bounded regardless of input.
+  for (let i = 0; i < MAX_SEED_LEN && i < s.length; i++) {
     h = Math.imul(h ^ s.charCodeAt(i), 3432918353);
     h = (h << 13) | (h >>> 19);
   }

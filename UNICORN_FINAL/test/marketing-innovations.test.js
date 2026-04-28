@@ -360,7 +360,8 @@ async function run() {
     // observations to ensure retirement logic functions at scale.
     for (let extra = 0; extra < 15; extra++) {
       mkt.innovationLoop.addStrategy({});
-      mkt.innovationLoop.observe(mkt.innovationLoop.listStrategies({})[mkt.innovationLoop.listStrategies({}).length - 1].id, { kFactor: 0.01 });
+      const all2 = mkt.innovationLoop.listStrategies({});
+      mkt.innovationLoop.observe(all2[all2.length - 1].id, { kFactor: 0.01 });
     }
     // Bring all newly-added strategies up to >=5 observations so they are eligible.
     const newcomers = mkt.innovationLoop.listStrategies({}).filter((s) => s.observations.length < 5 && s.status === 'active');
