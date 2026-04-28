@@ -274,6 +274,14 @@ function _resetForTests() {
 _seedInitialStrategies();
 start();
 
+// Best-effort cleanup on process exit so the final cycle ledger entry is flushed.
+function _onExit() { try { stop(); } catch (_) {} }
+try {
+  process.once('SIGINT', _onExit);
+  process.once('SIGTERM', _onExit);
+  process.once('beforeExit', _onExit);
+} catch (_) {}
+
 module.exports = {
   addStrategy,
   observe,

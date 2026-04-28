@@ -98,8 +98,7 @@ function _rng(seed) {
   // injection from arbitrarily long user-controlled inputs.
   let s = String(seed || crypto.randomBytes(4).toString('hex')).slice(0, 256);
   let h = 1779033703 ^ s.length;
-  const len = Math.min(s.length, 256);
-  for (let i = 0; i < len; i++) {
+  for (let i = 0; i < s.length; i++) {
     h = Math.imul(h ^ s.charCodeAt(i), 3432918353);
     h = (h << 13) | (h >>> 19);
   }

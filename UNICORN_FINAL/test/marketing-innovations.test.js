@@ -354,6 +354,7 @@ async function run() {
 
     // Loser must have been retired (it's the strategy with lowest score and >=5 obs).
     const retiredList = mkt.innovationLoop.listStrategies({ status: 'retired' });
+    assert.ok(Array.isArray(retiredList));
     // With 6 eligible @ 10% retire rate the floor is 0 — so retirement may
     // not occur in the first cycle. Run an additional cycle with more
     // observations to ensure retirement logic functions at scale.
@@ -368,7 +369,9 @@ async function run() {
     }
     const cycleScale = mkt.innovationLoop.tick({ spawn: 2 });
     assert.ok(cycleScale.retired.length >= 1, 'with >=20 eligible strategies retirement must occur');
-    assert.ok(retiredList.length >= 0);
+    const retiredAfter = mkt.innovationLoop.listStrategies({ status: 'retired' });
+    assert.ok(retiredAfter.length >= retiredList.length + cycleScale.retired.length,
+      'retired list must grow by the number of strategies retired this cycle');
 
     // Candidates exist with parentId pointing at top performer.
     const candidates = mkt.innovationLoop.listStrategies({ status: 'candidate' });

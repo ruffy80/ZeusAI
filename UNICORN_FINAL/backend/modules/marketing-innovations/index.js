@@ -55,19 +55,25 @@ function _ownerOk(req) {
 // Safe JSON serializer: escapes HTML-significant characters so that a
 // response body can never be reinterpreted as HTML even if a downstream
 // proxy strips Content-Type. The output is still valid JSON.
+const _ESCAPE_MAP = {
+  '<': '\\u003c',
+  '>': '\\u003e',
+  '&': '\\u0026',
+  '\'': '\\u0027',
+  '\u2028': '\\u2028',
+  '\u2029': '\\u2029',
+};
 function _safeJsonStringify(payload) {
   return JSON.stringify(payload, null, 2)
-    .replace(/</g, '\\u003c')
-    .replace(/>/g, '\\u003e')
-    .replace(/&/g, '\\u0026')
-    .replace(/'/g, '\\u0027')
-    .replace(/\u2028/g, '\\u2028')
-    .replace(/\u2029/g, '\\u2029');
+    .replace(/[<>&'\u2028\u2029]/g, (ch) => _ESCAPE_MAP[ch]);
 }
 
 function _send(res, status, payload, headers) {
   if (res.headersSent) return;
-  const body = (typeof payload === 'string') ? payload : _safeJsonStringify(payload);
+  // Always serialize through the safe JSON path so that any user-controlled
+  // input that flows into `payload` is unicode-escaped and can never be
+  // interpreted as HTML even if Content-Type is stripped by a proxy.
+  const body = _safeJsonStringify(payload);
   res.writeHead(status, Object.assign({
     'Content-Type': 'application/json; charset=utf-8',
     'Cache-Control': 'no-store',
