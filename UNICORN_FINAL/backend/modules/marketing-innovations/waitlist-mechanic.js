@@ -45,7 +45,11 @@ function _isValidEmail(e) {
   const domain = e.slice(at + 1);
   if (!local || !domain) return false;
   if (local.length > 64 || domain.length > 253) return false;
-  if (/\s/.test(local) || /\s/.test(domain)) return false;
+  // No whitespace anywhere (no regex, for ReDoS-free consistency).
+  for (let i = 0; i < e.length; i++) {
+    const c = e.charCodeAt(i);
+    if (c === 0x20 || c === 0x09 || c === 0x0a || c === 0x0d) return false;
+  }
   const dot = domain.lastIndexOf('.');
   if (dot <= 0 || dot >= domain.length - 1) return false;
   return true;
