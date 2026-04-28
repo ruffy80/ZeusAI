@@ -99,7 +99,7 @@ export default function PricingCard({ plan = {} }) {
         </div>
 
         {/* Price */}
-        <div style={{ display: 'flex', alignItems: 'flex-end', gap: 4, marginBottom: '1.5rem' }}>
+        <div style={{ display: 'flex', alignItems: 'flex-end', gap: 4, marginBottom: plan.btc != null ? '0.4rem' : '1.5rem' }}>
           <span style={{
             fontFamily: 'var(--font-heading)',
             fontSize: 42,
@@ -116,6 +116,27 @@ export default function PricingCard({ plan = {} }) {
             <span style={{ color: '#64748b', fontSize: 14, marginBottom: 6 }}>free forever</span>
           )}
         </div>
+
+        {/* Live BTC equivalent (additive) */}
+        {plan.btc != null && Number(plan.btc) > 0 && (
+          <div style={{
+            display: 'flex', alignItems: 'center', gap: 8,
+            marginBottom: '1.25rem',
+            fontFamily: 'var(--font-heading)',
+            fontSize: 12,
+            color: '#f7931a',
+            letterSpacing: '0.04em',
+          }}>
+            <span style={{
+              width: 6, height: 6, borderRadius: '50%',
+              background: '#00ffa3', boxShadow: '0 0 6px #00ffa3',
+            }} />
+            ≈ ₿{Number(plan.btc).toFixed(8)}
+            {Number.isFinite(plan.sats) && (
+              <span style={{ color: '#94a3b8', fontSize: 11 }}>· {Number(plan.sats).toLocaleString('en-US')} sats</span>
+            )}
+          </div>
+        )}
 
         {/* Features */}
         <ul style={{ listStyle: 'none', padding: 0, margin: '0 0 2rem', flex: 1 }}>

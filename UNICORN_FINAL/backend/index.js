@@ -759,6 +759,13 @@ const githubOps           = require('./modules/github-ops');
 // ==================== DYNAMIC PRICING ENGINE ====================
 const dynamicPricing   = require('./modules/dynamic-pricing');
 
+// ==================== LIVE PRICING BROKER (additive) ====================
+// Combines marketplace catalogue + dynamic-pricing proposals + live BTC rate
+// into a unified snapshot. Powers /api/pricing/live and /api/pricing/live/stream.
+let livePricingBroker = null;
+try { livePricingBroker = require('./modules/live-pricing-broker'); }
+catch (e) { console.warn('[live-pricing-broker] disabled:', e && e.message); }
+
 // ==================== MODULELE NEACTIVATE ANTERIOR — acum active 100% ====================
 const futureCompatBridge    = require('./modules/FutureCompatibilityBridge');
 const moduleLoader          = require('./modules/ModuleLoader');
@@ -3843,6 +3850,52 @@ app.get('/api/pricing/all', routeCache.cacheMiddleware(), (req, res) => {
 
 app.get('/api/pricing/conditions', routeCache.cacheMiddleware(), (req, res) => {
   res.json(dynamicPricing.getMarketConditions());
+});
+
+// ==================== LIVE PRICING (additive) ====================
+// Snapshot of live prices for every service: USD (proposed by the dynamic-pricing
+// engine + AI negotiator) + BTC equivalent computed against the live BTC rate.
+app.get('/api/pricing/live', (req, res) => {
+  if (!livePricingBroker) {
+    return res.status(503).json({ error: 'live pricing broker disabled' });
+  }
+  res.set('Cache-Control', 'no-store');
+  res.json(livePricingBroker.getSnapshot());
+});
+
+// SSE stream that pushes a fresh snapshot on every refresh (~60s by default).
+// Clients also receive an initial snapshot immediately on connect.
+app.get('/api/pricing/live/stream', (req, res) => {
+  if (!livePricingBroker) {
+    return res.status(503).json({ error: 'live pricing broker disabled' });
+  }
+  res.set({
+    'Content-Type': 'text/event-stream',
+    'Cache-Control': 'no-store, no-transform',
+    'Connection': 'keep-alive',
+    'X-Accel-Buffering': 'no',
+  });
+  if (typeof res.flushHeaders === 'function') res.flushHeaders();
+
+  const send = (snap) => {
+    try {
+      res.write(`event: pricing\n`);
+      res.write(`data: ${JSON.stringify(snap)}\n\n`);
+    } catch (_) { /* client gone */ }
+  };
+
+  const unsubscribe = livePricingBroker.subscribe(send);
+  // Heartbeat to keep proxies happy
+  const heartbeat = setInterval(() => {
+    try { res.write(`: ping ${Date.now()}\n\n`); } catch (_) {}
+  }, 25_000);
+  if (typeof heartbeat.unref === 'function') heartbeat.unref();
+
+  req.on('close', () => {
+    clearInterval(heartbeat);
+    try { unsubscribe(); } catch (_) {}
+    try { res.end(); } catch (_) {}
+  });
 });
 
 app.get('/api/pricing/:serviceId', (req, res) => {
