@@ -155,7 +155,7 @@ async function _publishBluesky(intent) {
       }),
     });
     return { ok: r.ok, status: r.status };
-  } catch (e) { return { ok: false, error: String((e && e.message) || e) }; }
+  } catch (e) { return { ok: false, error: 'bluesky_publish_failed' }; }
 }
 
 async function _publishGeneric(intent) {
@@ -190,7 +190,7 @@ function _publishRss(intent) {
     const next = cur.replace('</channel></rss>', item + '</channel></rss>');
     fs.writeFileSync(RSS_FILE, next);
     return { ok: true, file: RSS_FILE };
-  } catch (e) { return { ok: false, error: String((e && e.message) || e) }; }
+  } catch (e) { return { ok: false, error: 'rss_write_failed' }; }
 }
 
 function _escapeXml(s) {
@@ -224,7 +224,7 @@ async function publish(intent) {
     return { ok: false, reason: 'rate_limited', evtTs: evt.ts };
   }
   let result;
-  try { result = await adapter(intent); } catch (e) { result = { ok: false, error: String((e && e.message) || e) }; }
+  try { result = await adapter(intent); } catch (e) { result = { ok: false, error: 'adapter_failed' }; }
   if (result && result.ok) _onSuccess(platform); else _onFailure(platform);
   const evt = _record(platform, intent, result || { ok: false });
   return { ...(result || {}), evtTs: evt.ts };

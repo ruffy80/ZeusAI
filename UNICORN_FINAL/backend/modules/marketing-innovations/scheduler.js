@@ -143,7 +143,7 @@ async function _drainOnce() {
     item.sentAt = new Date().toISOString();
     if (pub && pub.publish) {
       try { item.result = await pub.publish(item.intent); }
-      catch (e) { item.result = { ok: false, error: String((e && e.message) || e) }; }
+      catch (e) { item.result = { ok: false, error: 'send_failed' }; }
     } else {
       item.result = { ok: false, reason: 'publisher_unavailable' };
     }

@@ -114,7 +114,13 @@ async function indexNowPing(opts) {
   const o = opts || {};
   const key = process.env.MARKETING_INDEXNOW_KEY || '';
   if (!key) return { ok: false, reason: 'no_key', urls: o.urls || [] };
-  const host = String(o.host || 'unicorn.local').replace(/^https?:\/\//, '').replace(/\/.*$/, '');
+  const rawHost = String(o.host || 'unicorn.local');
+  // Strip optional scheme + any path, without using regex (avoids polynomial-redos).
+  let host = rawHost;
+  const schemeIdx = host.indexOf('://');
+  if (schemeIdx !== -1) host = host.slice(schemeIdx + 3);
+  const slashIdx = host.indexOf('/');
+  if (slashIdx !== -1) host = host.slice(0, slashIdx);
   const payload = { host, key, urlList: (o.urls || []).slice(0, 10000) };
   if (process.env.MARKETING_INDEXNOW_PING !== '1' || typeof fetch !== 'function') {
     return { ok: true, dryRun: true, payload };
@@ -127,7 +133,7 @@ async function indexNowPing(opts) {
     });
     return { ok: r.ok, status: r.status, payload };
   } catch (e) {
-    return { ok: false, error: String((e && e.message) || e), payload };
+    return { ok: false, error: 'indexnow_request_failed', payload };
   }
 }
 

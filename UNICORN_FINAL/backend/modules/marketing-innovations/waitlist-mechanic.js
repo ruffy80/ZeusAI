@@ -33,13 +33,29 @@ const _byCode = new Map();
 function _ensure() { try { fs.mkdirSync(path.dirname(FILE), { recursive: true }); } catch (_) {} }
 function _persist(evt) { try { _ensure(); fs.appendFileSync(FILE, JSON.stringify(evt) + '\n'); } catch (_) {} }
 
-function _normEmail(e) { return String(e || '').trim().toLowerCase(); }
+function _normEmail(e) { return String(e || '').trim().slice(0, 254).toLowerCase(); }
+
+function _isValidEmail(e) {
+  // Length-bounded validation without regex (avoids polynomial-redos).
+  if (typeof e !== 'string') return false;
+  if (e.length < 3 || e.length > 254) return false;
+  const at = e.indexOf('@');
+  if (at <= 0 || at !== e.lastIndexOf('@') || at >= e.length - 3) return false;
+  const local = e.slice(0, at);
+  const domain = e.slice(at + 1);
+  if (!local || !domain) return false;
+  if (local.length > 64 || domain.length > 253) return false;
+  if (/\s/.test(local) || /\s/.test(domain)) return false;
+  const dot = domain.lastIndexOf('.');
+  if (dot <= 0 || dot >= domain.length - 1) return false;
+  return true;
+}
 
 function join(opts) {
   if (DISABLED) return { ok: false, reason: 'disabled' };
   const o = opts || {};
   const email = _normEmail(o.email);
-  if (!email || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return { ok: false, error: 'invalid_email' };
+  if (!_isValidEmail(email)) return { ok: false, error: 'invalid_email' };
   if (_entries.size >= MAX) return { ok: false, error: 'waitlist_full' };
   const existing = Array.from(_entries.values()).find((e) => e.email === email);
   if (existing) return { ok: true, entry: existing, duplicate: true };
