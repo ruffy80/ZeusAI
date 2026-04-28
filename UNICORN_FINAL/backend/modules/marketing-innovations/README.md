@@ -30,6 +30,27 @@ Owner's BTC payout address (default): `bc1q4f7e66z87mdfj56kz0dj5hvcnpmh0qh4wuv22
 | `viral-amplifier.js` | **Maximum-force virality** booster: viral-loop registry (referral / content / marketplace / network / FOMO / BTC-payout), share-asset bundle (one-tap URLs for X / LinkedIn / Facebook / Reddit / Telegram / WhatsApp / Email / HackerNews), social-proof badges, computed `viralBoostFactor` (0–10), one-shot launch amplifier that wires content + bandit + affiliate + share assets together. |
 | `self-innovation-loop.js` | **Permanent self-innovation engine.** Maintains a registry of viral strategies (channel × hook × CTA × incentive). Every cycle (`MARKETING_INNOVATION_CYCLE_MS`, default 60s) it scores all strategies (k-factor × revenue × CTR × shares), retires the bottom 10%, and spawns new candidate strategies via genetic-style mutation of top performers. Persists to `data/marketing/innovation-ledger.jsonl`. Auto-starts on require, disable with `MARKETING_INNOVATION_LOOP_DISABLED=1`. |
 
+### v1.2 sub-engines (additive)
+
+| File | Capability |
+|---|---|
+| `outbound-publisher.js` | Real outbound publishing adapters: Telegram / Discord / Mastodon / Bluesky / RSS / generic webhook. **Default dry-run** (`MARKETING_OUTBOUND_DRYRUN=1`); set to `0` to emit real traffic. Per-platform rate limit + circuit breaker. JSONL ledger at `data/marketing/outbound-ledger.jsonl`. |
+| `ai-copywriter.js` | LLM-backed copy generator with deterministic fallback. If `OPENAI_API_KEY` or `ANTHROPIC_API_KEY` is set, calls the provider; otherwise uses seeded variants from `content-multichannel`. SHA-256 prompt cache. |
+| `media-forge.js` | Pure-SVG OG / social card generator (no native deps). Disk cache at `data/marketing/og-cache/<hash>.svg`. |
+| `scheduler.js` | Best-time-to-post heuristics per channel (24h × 16 channels weight matrix) + drip queue. A single timer drains due items via `outbound-publisher`. Disable with `MARKETING_SCHEDULER_DISABLED=1`. |
+| `engagement-bot.js` | Auto-engagement layer: drafts replies for inbound mentions/DMs, gated by sentiment score. Negative items are escalated (`escalate_owner`) instead of auto-replied. Whitelist / blacklist support. |
+| `growth-experiments.js` | Landing-page A/B coordinator riding on `bandit-optimizer`. `create()` registers variants, `pickVariant()` returns Thompson-Sampled winner, `track()` forwards events. |
+| `viral-coefficient-monitor.js` | Watchdog that samples k-factor and accelerates `self-innovation-loop` mutation when k drops below `MARKETING_VIRAL_K_FLOOR` for `MARKETING_VIRAL_WINDOW` consecutive samples. |
+| `waitlist-mechanic.js` | Robinhood/Dropbox-style referral waitlist: each referral promotes the referrer by `MARKETING_WAITLIST_JUMP` slots. |
+| `programmatic-seo.js` | Long-tail page generator (category × region grid) + sitemap.xml + IndexNow ping payload. |
+| `influencer-crm.js` | Creator scoring (audience × engagement × fit → 0..100) with bronze / silver / gold / platinum tiers and tier-based commission. |
+| `abuse-shield.js` | Self-referral / click-farm detection. Computes a per-key risk score 0..1 from fingerprint concentration, burstiness and self-referral rate. |
+| `i18n-amplifier.js` | RO / EN / ES / FR / DE / IT / PT translation layer for marketing copy with `Accept-Language` parsing. |
+| `metrics.js` | Prometheus-style text metrics aggregator at `/api/marketing/metrics?format=prom`. |
+| `dashboard.js` | Server-rendered HTML dashboard at `/internal/marketing/dashboard` (token-gated). |
+| `viral-feed-sse.js` | Server-Sent Events stream at `/api/marketing/viral/stream` for real-time event fanout. |
+| `admin-toggle.js` | Runtime feature-flag store overriding env-var kill-switches. Routes `/api/marketing/admin/{toggle,flags}`. |
+
 ## HTTP routes
 All token-gated routes accept `X-Owner-Token: <AUDIT_50Y_TOKEN>` or the same value via `Authorization: Bearer …`.
 

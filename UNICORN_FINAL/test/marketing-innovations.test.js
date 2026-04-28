@@ -32,6 +32,18 @@ process.env.MARKETING_INNOVATION_LEDGER = path.join(tmpRoot, 'innovation-ledger.
 // Disable the auto-running self-innovation loop during tests; we drive
 // it manually via tick() to keep results deterministic.
 process.env.MARKETING_INNOVATION_LOOP_DISABLED = '1';
+// Disable v1.2 background timers so tests don't keep the process alive.
+process.env.MARKETING_SCHEDULER_DISABLED = '1';
+process.env.MARKETING_VIRAL_MONITOR_DISABLED = '1';
+// Use tmp paths for v1.2 ledgers.
+process.env.MARKETING_OUTBOUND_LEDGER = path.join(tmpRoot, 'outbound-ledger.jsonl');
+process.env.MARKETING_OUTBOUND_RSS = path.join(tmpRoot, 'rss.xml');
+process.env.MARKETING_OG_CACHE = path.join(tmpRoot, 'og-cache');
+process.env.MARKETING_SCHEDULER_QUEUE = path.join(tmpRoot, 'scheduler-queue.jsonl');
+process.env.MARKETING_ENGAGEMENT_LEDGER = path.join(tmpRoot, 'engagement-ledger.jsonl');
+process.env.MARKETING_WAITLIST_FILE = path.join(tmpRoot, 'waitlist.jsonl');
+process.env.MARKETING_PSEO_SITEMAP = path.join(tmpRoot, 'pseo-sitemap.xml');
+process.env.MARKETING_INFLUENCER_FILE = path.join(tmpRoot, 'influencer.jsonl');
 delete process.env.MARKETING_PACK_DISABLED;
 
 const mkt = require('../backend/modules/marketing-innovations');
@@ -452,10 +464,261 @@ async function run() {
     console.log('[OK] HTTP integration · viral + innovation routes');
   }
 
+  // ── 13. v1.2 — outbound publisher (dry-run) ─────────────────────────
+  {
+    mkt.outbound._resetForTests();
+    const r = await mkt.outbound.publish({ platform: 'rss', body: 'Hello world', title: 'Test' });
+    assert.ok(r.ok, 'rss publish must succeed');
+    const r2 = await mkt.outbound.publish({ platform: 'unknown' });
+    assert.ok(!r2.ok && r2.reason === 'unknown_platform');
+    const b = await mkt.outbound.broadcast({ platforms: ['rss'], body: 'B', title: 'T' });
+    assert.ok(b.ok && b.dryRun);
+    const st = mkt.outbound.status();
+    assert.ok(Array.isArray(st.adapters) && st.adapters.includes('rss'));
+    console.log('[OK] outbound-publisher · dry-run safe');
+  }
+
+  // ── 14. v1.2 — AI copywriter fallback ───────────────────────────────
+  {
+    delete process.env.OPENAI_API_KEY;
+    delete process.env.ANTHROPIC_API_KEY;
+    mkt.aiCopy._resetForTests();
+    const out = await mkt.aiCopy.generate({ topic: 'Unicorn', channels: ['X'], perChannel: 2, seed: 'fixed' });
+    assert.strictEqual(out.provider, 'fallback');
+    assert.ok(typeof out.text === 'string' && out.text.length > 0);
+    assert.ok(Array.isArray(out.variants) && out.variants.length === 2);
+    const out2 = await mkt.aiCopy.generate({ topic: 'Unicorn', channels: ['X'], perChannel: 2, seed: 'fixed' });
+    assert.ok(out2.cached, 'second call must hit cache');
+    console.log('[OK] ai-copywriter · fallback + cache');
+  }
+
+  // ── 15. v1.2 — media forge SVG ──────────────────────────────────────
+  {
+    const r = mkt.mediaForge.buildAndCache({ title: 'Unicorn', subtitle: 'Hello', cta: 'Try' });
+    assert.ok(r.ok && r.svg.includes('<svg') && r.svg.includes('</svg>'));
+    assert.ok(r.svg.includes('Unicorn'));
+    const cached = mkt.mediaForge.loadCached(r.hash);
+    assert.strictEqual(cached, r.svg);
+    console.log('[OK] media-forge · SVG cached');
+  }
+
+  // ── 16. v1.2 — scheduler best-time + queue ──────────────────────────
+  {
+    mkt.scheduler._resetForTests();
+    const slot = mkt.scheduler.bestNextSlot('LinkedIn', Date.now());
+    assert.ok(slot.atMs > Date.now());
+    assert.ok(slot.hourUtc >= 0 && slot.hourUtc <= 23);
+    const item = mkt.scheduler.schedule({ platform: 'rss', body: 'x', atMs: Date.now() + 60_000 });
+    assert.ok(item.id.startsWith('SCH-'));
+    const drip = mkt.scheduler.scheduleDrip({ platforms: ['rss'], body: 'dr', steps: 3, everyMs: 60_000 });
+    assert.ok(drip.ok && drip.count === 3);
+    const cancelled = mkt.scheduler.cancel(item.id);
+    assert.ok(cancelled.ok);
+    console.log('[OK] scheduler · best-time + drip + cancel');
+  }
+
+  // ── 17. v1.2 — engagement-bot sentiment routing ─────────────────────
+  {
+    mkt.engagement._resetForTests();
+    const pos = mkt.engagement.processInbound({ platform: 'X', actor: 'a', text: 'I love it, amazing job!' });
+    assert.ok(pos.ok && pos.action.startsWith('auto_reply'));
+    assert.ok(typeof pos.reply === 'string' && pos.reply.length > 0);
+    const neg = mkt.engagement.processInbound({ platform: 'X', actor: 'b', text: 'This is awful and horrible terrible bad' });
+    assert.ok(neg.ok && neg.action === 'escalate_owner' && neg.reply === null);
+    mkt.engagement.blacklist('spammer');
+    const blk = mkt.engagement.processInbound({ platform: 'X', actor: 'spammer', text: 'I love this' });
+    assert.strictEqual(blk.action, 'ignore');
+    console.log('[OK] engagement-bot · sentiment + escalation + blacklist');
+  }
+
+  // ── 18. v1.2 — growth-experiments ───────────────────────────────────
+  {
+    mkt.growthExperiments._resetForTests();
+    const ex = mkt.growthExperiments.create({ name: 'hero', variants: [{ armId: 'A', payload: { h: 'a' } }, { armId: 'B', payload: { h: 'b' } }] });
+    assert.ok(ex.ok && ex.experiment.id);
+    const id = ex.experiment.id;
+    for (let i = 0; i < 30; i++) mkt.growthExperiments.track(id, { armId: 'A', event: 'click' });
+    for (let i = 0; i < 30; i++) mkt.growthExperiments.track(id, { armId: 'A', event: 'no_click' });
+    for (let i = 0; i < 30; i++) mkt.growthExperiments.track(id, { armId: 'B', event: 'no_click' });
+    const pick = mkt.growthExperiments.pickVariant(id);
+    assert.ok(pick.ok);
+    const close = mkt.growthExperiments.close(id);
+    assert.ok(close.ok && close.experiment.status === 'closed');
+    console.log('[OK] growth-experiments · A/B with bandit');
+  }
+
+  // ── 19. v1.2 — viral-coefficient-monitor ────────────────────────────
+  {
+    mkt.viralMonitor._resetForTests();
+    mkt.viralMonitor.sampleNow();
+    mkt.viralMonitor.sampleNow();
+    mkt.viralMonitor.sampleNow();
+    const e = mkt.viralMonitor.evaluate();
+    assert.ok(typeof e.triggered === 'boolean');
+    assert.ok(typeof mkt.viralMonitor.status().samples === 'number');
+    console.log('[OK] viral-coefficient-monitor');
+  }
+
+  // ── 20. v1.2 — waitlist mechanic with referral jump ─────────────────
+  {
+    mkt.waitlist._resetForTests();
+    const a = mkt.waitlist.join({ email: 'a@example.com' });
+    assert.ok(a.ok && a.entry.position === 1);
+    const b = mkt.waitlist.join({ email: 'b@example.com' });
+    assert.ok(b.entry.position === 2);
+    const c = mkt.waitlist.join({ email: 'c@example.com', referredByCode: a.entry.code });
+    assert.ok(c.ok);
+    const lookup = mkt.waitlist.lookup(a.entry.code);
+    assert.ok(lookup.ok && lookup.entry.referrals === 1);
+    const lb = mkt.waitlist.leaderboard(10);
+    assert.ok(Array.isArray(lb) && lb.length >= 3);
+    const dup = mkt.waitlist.join({ email: 'A@example.com' });
+    assert.ok(dup.duplicate);
+    const bad = mkt.waitlist.join({ email: 'not-an-email' });
+    assert.ok(!bad.ok);
+    console.log('[OK] waitlist-mechanic · referral jump + dedup');
+  }
+
+  // ── 21. v1.2 — programmatic SEO ─────────────────────────────────────
+  {
+    const p = mkt.pseo.buildPage({ category: 'Email Marketing', region: 'București' });
+    assert.ok(p.ok && p.slug.includes('email-marketing'));
+    assert.ok(p.jsonLd.mainEntity.length === 3);
+    const batch = mkt.pseo.buildBatch({ categories: ['Email', 'SEO'], regions: ['București', 'Cluj'] });
+    assert.ok(batch.ok && batch.count === 4);
+    const sm = mkt.pseo.buildSitemap(batch.pages);
+    assert.ok(sm.ok && sm.xml.includes('<urlset'));
+    const idx = await mkt.pseo.indexNowPing({ host: 'unicorn.example', urls: ['https://unicorn.example/'] });
+    assert.ok(idx.ok === false || idx.dryRun === true);
+    console.log('[OK] programmatic-seo · pages + sitemap + indexnow');
+  }
+
+  // ── 22. v1.2 — influencer CRM ───────────────────────────────────────
+  {
+    mkt.influencer._resetForTests();
+    const r = mkt.influencer.add({ handle: '@vip', platform: 'X', audience: 5_000_000, engagement: 0.08, fit: 0.9 });
+    assert.ok(r.ok);
+    assert.ok(r.record.score > 50);
+    const small = mkt.influencer.add({ handle: '@small', platform: 'X', audience: 100, engagement: 0.05, fit: 0.5 });
+    assert.ok(small.record.tier === 'bronze');
+    const upd = mkt.influencer.setStatus(r.record.id, 'contacted');
+    assert.ok(upd.ok && upd.record.status === 'contacted');
+    const draft = mkt.influencer.draftOutreach(r.record.id, { topic: 'launch' });
+    assert.ok(draft.ok && draft.draft);
+    const list = mkt.influencer.list({});
+    assert.ok(list.length === 2);
+    console.log('[OK] influencer-crm · scoring + tiers + outreach');
+  }
+
+  // ── 23. v1.2 — abuse shield ─────────────────────────────────────────
+  {
+    mkt.abuseShield._resetForTests();
+    for (let i = 0; i < 30; i++) mkt.abuseShield.record({ kind: 'click', code: 'C1', ip: '1.2.3.4', ua: 'bot/1.0' });
+    const r = mkt.abuseShield.risk({ code: 'C1', ip: '1.2.3.4', ua: 'bot/1.0' });
+    assert.ok(r.score >= 0.4, 'high concentration should flag risk: ' + r.score);
+    assert.ok(r.reasons.includes('high_fp_concentration'));
+    const self = mkt.abuseShield.record({
+      kind: 'conversion', code: 'C2', ip: '5.6.7.8', ua: 'mozilla', signupIp: '5.6.7.8', signupUa: 'mozilla',
+    });
+    assert.ok(self.suspect && self.reason === 'self_referral');
+    console.log('[OK] abuse-shield · concentration + self-referral');
+  }
+
+  // ── 24. v1.2 — i18n amplifier ───────────────────────────────────────
+  {
+    assert.strictEqual(mkt.i18n.t('sign_up_free', 'ro'), 'Înregistrează-te gratuit');
+    assert.strictEqual(mkt.i18n.t('try_now', 'fr'), 'Essayer maintenant');
+    assert.strictEqual(mkt.i18n.t('unknown_key', 'ro'), 'unknown_key');
+    assert.strictEqual(mkt.i18n.pickLocale('ro,en;q=0.5'), 'ro');
+    assert.strictEqual(mkt.i18n.pickLocale('xx,en;q=0.8'), 'en');
+    const v = mkt.i18n.localizeVariant({ cta: 'Try Now', body: 'hello' }, 'es');
+    assert.strictEqual(v.cta, 'Pruébalo ahora');
+    assert.strictEqual(v.body, 'hello');
+    console.log('[OK] i18n-amplifier · 7 locales');
+  }
+
+  // ── 25. v1.2 — metrics + dashboard + admin-toggle ──────────────────
+  {
+    const snap = mkt.metricsEngine.snapshot();
+    assert.ok(snap.metrics && typeof snap.metrics.viral_loops === 'number');
+    const prom = mkt.metricsEngine.toProm(snap);
+    assert.ok(prom.includes('marketing_viral_loops') && prom.includes('# TYPE'));
+    const html = mkt.dashboard.render();
+    assert.ok(html.includes('<table') && html.includes('Unicorn Marketing Dashboard'));
+    mkt.adminToggle._resetForTests();
+    const set1 = mkt.adminToggle.set('outbound', false);
+    assert.ok(set1.ok);
+    assert.strictEqual(mkt.adminToggle.get('outbound'), false);
+    assert.strictEqual(mkt.adminToggle.isEnabled('outbound', false), false);
+    const setBad = mkt.adminToggle.set('nope', true);
+    assert.ok(!setBad.ok);
+    console.log('[OK] metrics + dashboard + admin-toggle');
+  }
+
+  // ── 26. v1.2 — HTTP integration sample for new routes ──────────────
+  {
+    const server = http.createServer(async (req, res) => {
+      if (await mkt.handle(req, res)) return;
+      res.writeHead(404); res.end('not found');
+    });
+    await new Promise((r) => server.listen(0, '127.0.0.1', r));
+
+    // Public route: copy/generate via fallback.
+    const cg = await reqJson(server, 'POST', '/api/marketing/copy/generate', { topic: 'X', channels: ['X'], perChannel: 1, seed: 'k' });
+    assert.strictEqual(cg.status, 200);
+    assert.strictEqual(cg.body.provider, 'fallback');
+
+    // Public route: waitlist join.
+    const wj = await reqJson(server, 'POST', '/api/marketing/waitlist/join', { email: 'http-' + process.pid + '@example.com' });
+    assert.strictEqual(wj.status, 200);
+    assert.ok(wj.body.entry && wj.body.entry.code);
+
+    // Public route: i18n translate.
+    const tr = await reqJson(server, 'GET', '/api/marketing/i18n/translate?key=try_now&locale=ro');
+    assert.strictEqual(tr.status, 200);
+    assert.strictEqual(tr.body.text, 'Încearcă acum');
+
+    // Owner-only route: outbound publish denied without token.
+    const opub = await reqJson(server, 'POST', '/api/marketing/outbound/publish', { platform: 'rss', body: 'x' });
+    assert.strictEqual(opub.status, 401);
+    const opubOk = await reqJson(server, 'POST', '/api/marketing/outbound/publish',
+      { platform: 'rss', body: 'x', title: 't' },
+      { 'x-owner-token': process.env.AUDIT_50Y_TOKEN });
+    assert.strictEqual(opubOk.status, 200);
+
+    // Public: prom metrics text.
+    const m = await new Promise((resolve, reject) => {
+      const r = http.request({ host: '127.0.0.1', port: server.address().port, path: '/api/marketing/metrics?format=prom', method: 'GET' }, (res) => {
+        let buf = ''; res.on('data', (c) => { buf += c; }); res.on('end', () => resolve({ status: res.statusCode, headers: res.headers, body: buf }));
+      }); r.on('error', reject); r.end();
+    });
+    assert.strictEqual(m.status, 200);
+    assert.ok(/^text\/plain/.test(m.headers['content-type'] || ''));
+    assert.ok(m.body.includes('marketing_'));
+
+    // Owner-only: dashboard.
+    const dash = await new Promise((resolve, reject) => {
+      const r = http.request({
+        host: '127.0.0.1', port: server.address().port, path: '/internal/marketing/dashboard',
+        method: 'GET', headers: { 'x-owner-token': process.env.AUDIT_50Y_TOKEN },
+      }, (res) => { let buf = ''; res.on('data', (c) => { buf += c; }); res.on('end', () => resolve({ status: res.statusCode, body: buf, headers: res.headers })); });
+      r.on('error', reject); r.end();
+    });
+    assert.strictEqual(dash.status, 200);
+    assert.ok(/^text\/html/.test(dash.headers['content-type'] || ''));
+    assert.ok(dash.body.includes('<table'));
+
+    server.close();
+    console.log('[OK] HTTP integration · v1.2 routes');
+  }
+
   // Stop the self-innovation loop interval if any test enabled it.
   try { mkt.innovationLoop.stop(); } catch (_) {}
   // Stop autoViralGrowth interval so the test process can exit.
   try { autoViralGrowth.stop(); } catch (_) {}
+  // v1.2 background timers (already disabled via env).
+  try { mkt.scheduler.stop(); } catch (_) {}
+  try { mkt.viralMonitor.stop(); } catch (_) {}
   console.log('\n✅ marketing-innovations.test.js — all checks passed');
 }
 
