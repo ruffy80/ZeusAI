@@ -4645,6 +4645,13 @@ if (require.main === module) {
         USE.start(Number(process.env.USE_TICK_MS || 30000));
       }
     } catch (e) { console.warn('[USE] start failed:', e.message); }
+    // Unified catalog runtime hydration — feeds marketplace + industries from runtime sources.
+    try {
+      if (unifiedCatalog && typeof unifiedCatalog.setRuntimeSources === 'function') {
+        const rs = getRuntimeDataSources();
+        unifiedCatalog.setRuntimeSources({ marketplace: rs.marketplace, industries: rs.industries });
+      }
+    } catch (e) { console.warn('[unified-catalog] runtime sync failed:', e.message); }
     // Outreach flush worker — every 60s
     try {
       if (outreach) {
