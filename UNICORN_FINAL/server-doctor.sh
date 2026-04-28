@@ -462,9 +462,21 @@ else
   if [ -f "${DEPLOY_PATH}/.env" ]; then
     info "Export .env în shell pentru pm2 start (AI keys, Stripe, SMTP etc.)..."
     set -a
+    # Defense-in-depth: chiar și dacă .env conține o linie malformată (ex. o
+    # valoare neghilimelată cu spațiu care declanșează "command not found"),
+    # NU vrem să oprim server-doctor.sh înainte de `pm2 start` — altfel rămânem
+    # fără proces unicorn pe :3000 și nginx returnează 502.
+    # Dezactivăm temporar `set -e` pe durata source-ului, ca să capturăm exit-code-ul
+    # fără a ucide întreg scriptul. Erorile sunt logate ca warning.
+    set +e
     # shellcheck disable=SC1091
     source "${DEPLOY_PATH}/.env"
+    _env_src_status=$?
+    set -e
     set +a
+    if [ "$_env_src_status" -ne 0 ]; then
+      warn ".env source exit=$_env_src_status (linie malformată ignorată) — continui cu pm2 start"
+    fi
     fixed ".env exportat ($(grep -c '^[A-Z]' "${DEPLOY_PATH}/.env" 2>/dev/null || echo '?') variabile)"
   else
     warn ".env LIPSĂ — PM2 va porni fără cheile AI/Stripe/SMTP exportate"
