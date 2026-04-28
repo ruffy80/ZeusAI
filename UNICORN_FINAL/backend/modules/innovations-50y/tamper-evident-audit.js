@@ -206,6 +206,98 @@ function listRecent(limit) {
 
 function _resetForTests() { _cache = null; }
 
+// =====================================================================
+// Rotation (50Y · additive · #3)
+//
+// Move the current audit chain to an archive file timestamped with the
+// current Merkle root and reset the live log to empty (with a "genesis"
+// link back to the archived root so verifiers can stitch the segments).
+//
+// IMPORTANT: This is purely additive — `append` / `proof` / `verifyChain`
+// continue to work for the live segment exactly as before. Old archived
+// segments remain on disk and can be inspected with `loadArchive(file)`.
+//
+// File names: <LOG_FILE>.<treeSize>.<rootShort>.YYYYMMDDHHMMSS.archive
+// Anchor file: <LOG_FILE>.anchors.jsonl  (one JSON line per rotation)
+// =====================================================================
+
+function _archivePath(treeSize, rootHash) {
+  const ts = new Date().toISOString().replace(/[-:T.]/g, '').slice(0, 14);
+  const short = String(rootHash || '').slice(0, 12);
+  return LOG_FILE + '.' + String(treeSize) + '.' + short + '.' + ts + '.archive';
+}
+
+function _anchorPath() { return LOG_FILE + '.anchors.jsonl'; }
+
+/**
+ * Rotate the live audit log into an archive file.
+ *
+ * Optional `signWith` callback: `(rootHex) => { signature, alg, kid? }`
+ * is invoked to produce a signed anchor; if not provided the anchor is
+ * unsigned but still tamper-evident (it captures the Merkle root + last
+ * line hash + tree size).
+ *
+ * After rotation the live log starts empty and the next `append` will
+ * have prev_hash equal to the archived `lastHash` (chain stitching), so
+ * the full chain remains end-to-end verifiable across rotations.
+ *
+ * @param {object} [opts]
+ * @param {(rootHex:string)=>{signature:string,alg:string,kid?:string}} [opts.signWith]
+ * @returns {{archived:boolean, file?:string, root:string, treeSize:number, anchor:object}}
+ */
+function rotate(opts) {
+  const cache = _readAll();
+  const treeSize = cache.lines.length;
+  if (treeSize === 0) {
+    return { archived: false, root: ZERO_HASH, treeSize: 0, anchor: null };
+  }
+  const rootInfo = root();
+  const archive = _archivePath(treeSize, rootInfo.root);
+  // Move file (atomic on same filesystem); fall back to copy+truncate.
+  _ensureDir();
+  try { fs.renameSync(LOG_FILE, archive); }
+  catch (_) {
+    try {
+      const txt = fs.readFileSync(LOG_FILE, 'utf8');
+      fs.writeFileSync(archive, txt, 'utf8');
+      fs.writeFileSync(LOG_FILE, '', 'utf8');
+    } catch (e) { return { archived: false, root: rootInfo.root, treeSize, error: e.message }; }
+  }
+
+  let signed = null;
+  if (opts && typeof opts.signWith === 'function') {
+    try { signed = opts.signWith(rootInfo.root) || null; } catch (_) { signed = null; }
+  }
+  const anchor = {
+    ts: new Date().toISOString(),
+    archiveFile: archive,
+    treeSize,
+    root: rootInfo.root,
+    lastHash: rootInfo.lastHash,
+    algorithm: rootInfo.algorithm,
+    signature: signed
+  };
+  try { fs.appendFileSync(_anchorPath(), JSON.stringify(anchor) + '\n', 'utf8'); } catch (_) {}
+
+  // Reset cache: next append starts a NEW segment whose prev_hash is the
+  // archived lastHash (chain stitching across rotations).
+  _cache = { lines: [], lastHash: rootInfo.lastHash };
+
+  return { archived: true, file: archive, root: rootInfo.root, treeSize, anchor };
+}
+
+function loadAnchors() {
+  try {
+    const txt = fs.readFileSync(_anchorPath(), 'utf8');
+    const out = [];
+    for (const line of txt.split('\n')) {
+      if (!line) continue;
+      try { out.push(JSON.parse(line)); } catch (_) {}
+    }
+    return out;
+  } catch (_) { return []; }
+}
+
 module.exports = {
   append,
   proof,
@@ -213,6 +305,8 @@ module.exports = {
   verifyChain,
   root,
   listRecent,
+  rotate,
+  loadAnchors,
   LOG_FILE,
   _resetForTests
 };

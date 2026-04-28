@@ -102,6 +102,7 @@ let innov30v2 = null; try { innov30v2 = require('./innovations-30y-v2'); console
 let frontier = null; try { frontier = require('./frontier-engine'); console.log('[frontier] loaded · 12 sovereign inventions + commerce suite'); } catch (e) { console.warn('[frontier] not loaded:', e.message); }
 // ── 50Y Standard innovations (additive · all routes under /api/v50/* and /.well-known/did.json) ──
 let innov50 = null; try { innov50 = require('../backend/modules/innovations-50y'); console.log('[innovations-50y] loaded · pillars: permanence·security·sovereignty·intelligence'); } catch (e) { console.warn('[innovations-50y] not loaded:', e.message); }
+let improvementsPack = null; try { improvementsPack = require('../backend/modules/improvements-pack'); console.log('[improvements-pack] loaded · routes: /internal/health/aggregate /api/csp-report /api/funnel/* /api/owner/revenue*'); } catch (e) { console.warn('[improvements-pack] not loaded:', e.message); }
 
 const PORT = Number(process.env.PORT || 3000);
 const APP_URL = process.env.PUBLIC_APP_URL || 'https://zeusai.pro';
@@ -1270,6 +1271,14 @@ async function unicornHandler(req, res) {
     try {
       if (await innov50.handle(req, res)) return;
     } catch (e) { console.warn('[innovations-50y] handler error:', e.message); }
+  }
+  // ── Improvements pack dispatcher (additive · zero overlap) ──
+  // Handles: /internal/health/aggregate, /api/csp-report, /csp-violations,
+  // /api/owner/revenue[.csv], /api/funnel/*. Returns true if handled.
+  if (improvementsPack) {
+    try {
+      if (await improvementsPack.handle(req, res)) return;
+    } catch (e) { console.warn('[improvements-pack] handler error:', e.message); }
   }
   if (earlyPath === '/api/uaic/receipts') {
     const email = String(requestUrl.searchParams.get('email') || '').toLowerCase();

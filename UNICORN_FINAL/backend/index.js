@@ -222,6 +222,20 @@ if (_innov50) {
   });
 }
 
+// ── Improvements pack dispatcher (additive · zero overlap with existing) ──
+// Routes: /internal/health/aggregate, /api/csp-report, /csp-violations,
+// /api/owner/revenue[.csv] (token-gated), /api/funnel/{summary,track}.
+let _improvementsPack = null; try { _improvementsPack = require('./modules/improvements-pack'); console.log('[improvements-pack] loaded · additive layer active'); } catch (e) { console.warn('[improvements-pack] not loaded:', e.message); }
+if (_improvementsPack) {
+  app.use(async (req, res, next) => {
+    try {
+      const handled = await _improvementsPack.handle(req, res);
+      if (handled) return;
+    } catch (e) { console.warn('[improvements-pack] handler error:', e.message); }
+    next();
+  });
+}
+
 // ==================== ROUTE PROFILER (PR #194 — Performance Optimization) ====================
 // Înregistrează timpii de răspuns pentru toate rutele → expus la /api/perf/stats
 app.use(routeCache.profilerMiddleware());

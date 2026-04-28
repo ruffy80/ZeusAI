@@ -1,0 +1,60 @@
+name: 🧬 Generator Drift Check
+
+# Compares the output of `generate_unicorn_final.js` against the current
+# state of `UNICORN_FINAL/` to detect drift between the canonical generator
+# and the live baseline. Purely informational: ALWAYS continue-on-error so
+# it can never block a deploy or merge.
+
+on:
+  pull_request:
+    paths:
+      - 'generate_unicorn_final.js'
+      - 'UNICORN_FINAL/**'
+  workflow_dispatch:
+  schedule:
+    - cron: '0 5 * * 1'   # Monday 05:00 UTC
+
+permissions:
+  contents: read
+
+jobs:
+  drift:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: ✏️ Compute generator vs UNICORN_FINAL drift
+        run: |
+          set -uo pipefail
+          if [ ! -f generate_unicorn_final.js ]; then
+            echo "::warning::generate_unicorn_final.js missing — drift check skipped"
+            exit 0
+          fi
+          mkdir -p /tmp/gen-out
+          # Run the generator into an isolated directory. The generator
+          # currently writes into the cwd by default, so we sandbox it.
+          cp generate_unicorn_final.js /tmp/gen-out/
+          cd /tmp/gen-out
+          node generate_unicorn_final.js >/tmp/gen-stdout.log 2>&1 || \
+            echo "::warning::Generator exited non-zero — see /tmp/gen-stdout.log"
+
+          GEN_DIR=""
+          if [ -d /tmp/gen-out/UNICORN_FINAL ]; then GEN_DIR=/tmp/gen-out/UNICORN_FINAL; fi
+          if [ -z "$GEN_DIR" ]; then
+            echo "::warning::Generator did not produce a UNICORN_FINAL/ folder — likely templated; skipping diff"
+            head -50 /tmp/gen-stdout.log || true
+            exit 0
+          fi
+
+          DIFF_FILES=$(diff -qr "$GITHUB_WORKSPACE/UNICORN_FINAL" "$GEN_DIR" 2>/dev/null | wc -l || echo 0)
+          echo "::notice::generator drift files differing: $DIFF_FILES"
+          if [ "$DIFF_FILES" -gt 0 ]; then
+            echo "First 50 differences:"
+            diff -qr "$GITHUB_WORKSPACE/UNICORN_FINAL" "$GEN_DIR" 2>/dev/null | head -50 || true
+          fi

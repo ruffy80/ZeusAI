@@ -410,6 +410,102 @@ jobs:
           })();
           NODE
 
+      - name: 🛡️  50Y smoke (additive · non-fatal)
+        # Verifică reziliența noului layer 50Y: /.well-known/did.json + /api/v50/*.
+        # NU pică deploy-ul (continue-on-error). Toate rutele sunt ADITIVE — nu
+        # ating endpoint-urile existente. Acest pas este protecția pentru
+        # regresii pe layer-ul 50Y care altfel ar trece neobservate.
+        continue-on-error: true
+        run: |
+          set -uo pipefail
+          export HETZNER_HOST_ENV='${{ secrets.HETZNER_HOST }}'
+          node - <<'NODE'
+          const HETZNER_HOST = process.env.HETZNER_HOST_ENV || '';
+          const targets = [{ url: 'https://zeusai.pro', label: 'public-https' }];
+          if (HETZNER_HOST) targets.push({ url: `http://${HETZNER_HOST}:3000`, label: 'backend-direct' });
+          const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+          async function check(base) {
+            const out = { base, did: null, status: null, sbom: null, audit: null };
+            try {
+              const r1 = await fetch(base + '/.well-known/did.json', { headers: { 'Cache-Control': 'no-cache' } });
+              out.did = { status: r1.status, ok: r1.status === 200 };
+            } catch (e) { out.did = { ok: false, err: String(e && e.message) }; }
+            try {
+              const r2 = await fetch(base + '/api/v50/status', { headers: { 'Cache-Control': 'no-cache' } });
+              const j = await r2.json().catch(() => null);
+              out.status = { status: r2.status, hasPillars: !!(j && j.pillars), version: j && j.version };
+            } catch (e) { out.status = { ok: false, err: String(e && e.message) }; }
+            try {
+              const r3 = await fetch(base + '/api/v50/sbom/cyclonedx', { headers: { 'Cache-Control': 'no-cache' } });
+              out.sbom = { status: r3.status, sha256: r3.headers.get('x-sbom-sha256') || null, bytes: r3.headers.get('x-sbom-bytes') || null };
+            } catch (e) { out.sbom = { ok: false, err: String(e && e.message) }; }
+            try {
+              const r4 = await fetch(base + '/api/v50/audit/root', { headers: { 'Cache-Control': 'no-cache' } });
+              const j = await r4.json().catch(() => null);
+              out.audit = { status: r4.status, treeSize: j && j.treeSize, root: j && (j.root || '').slice(0, 16) };
+            } catch (e) { out.audit = { ok: false, err: String(e && e.message) }; }
+            return out;
+          }
+          (async () => {
+            let allOk = true;
+            for (let attempt = 1; attempt <= 4; attempt++) {
+              allOk = true;
+              for (const t of targets) {
+                const r = await check(t.url);
+                console.log(`50y-smoke attempt=${attempt} target=${t.label} did=${r.did&&r.did.status} status=${r.status&&r.status.status}/${!!(r.status&&r.status.hasPillars)} sbom=${r.sbom&&r.sbom.status}/sha=${(r.sbom&&r.sbom.sha256||'').slice(0,12)} audit=${r.audit&&r.audit.status}/size=${r.audit&&r.audit.treeSize}`);
+                const ok = r.did && r.did.ok && r.status && r.status.hasPillars && r.sbom && r.sbom.status === 200 && r.audit && r.audit.status === 200;
+                if (!ok) allOk = false;
+              }
+              if (allOk) { console.log('✅ 50Y smoke OK on all targets'); process.exit(0); }
+              if (attempt < 4) await sleep(5000);
+            }
+            console.error('⚠️  50Y smoke incomplete (non-fatal).');
+            process.exit(1);
+          })();
+          NODE
+
+      - name: 🧾 SBOM determinism (additive · non-fatal)
+        # Generează SBOM-ul de două ori local (din UNICORN_FINAL/) și verifică
+        # că hash-urile sunt identice. Detectează drift de dependențe sau
+        # ne-determinism introdus accidental în sbom-cyclonedx.js.
+        continue-on-error: true
+        run: |
+          set -uo pipefail
+          cd UNICORN_FINAL
+          if [ ! -d node_modules ]; then npm install --no-audit --no-fund --silent || true; fi
+          node - <<'NODE'
+          const sbom = require('./backend/modules/innovations-50y/sbom-cyclonedx');
+          const a = sbom.buildSbom();
+          const b = sbom.buildSbom();
+          const ja = JSON.stringify(a);
+          const jb = JSON.stringify(b);
+          const da = sbom.digest(a);
+          const db = sbom.digest(b);
+          console.log('sbom1 sha256=' + da.sha256 + ' bytes=' + da.bytes);
+          console.log('sbom2 sha256=' + db.sha256 + ' bytes=' + db.bytes);
+          // We exclude metadata.timestamp and serialNumber from the equality
+          // check (they intentionally vary per build); everything else MUST
+          // match byte-for-byte for a deterministic build.
+          function strip(o) { const c = JSON.parse(JSON.stringify(o)); if (c.metadata) { delete c.metadata.timestamp; } delete c.serialNumber; return c; }
+          const ea = JSON.stringify(strip(a));
+          const eb = JSON.stringify(strip(b));
+          if (ea !== eb) {
+            console.error('❌ SBOM is non-deterministic (excluding timestamp/serialNumber).');
+            process.exit(1);
+          }
+          console.log('✅ SBOM deterministic (excluding timestamp/serialNumber)');
+          NODE
+
+      - name: 🔒 Secret-leak scan (additive · non-fatal)
+        # Boots the server with canary secret values and ensures none of them
+        # appear in startup logs (catches accidental console.log of secrets).
+        continue-on-error: true
+        run: |
+          set -uo pipefail
+          cd UNICORN_FINAL
+          if [ ! -d node_modules ]; then npm install --no-audit --no-fund --silent || true; fi
+          npm run test:secret-leak
+
       - name: 📢 Done
         run: echo "✅ Deploy complet și stabil — ZeusAI / Unicorn LIVE."
 
