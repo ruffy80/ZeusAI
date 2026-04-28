@@ -210,6 +210,18 @@ app.use((req, res, next) => {
   next();
 });
 
+// ── 50Y Standard dispatcher (additive · /.well-known/did.json + /api/v50/*) ──
+let _innov50 = null; try { _innov50 = require('./modules/innovations-50y'); console.log('[innovations-50y] loaded · backend dispatcher active'); } catch (e) { console.warn('[innovations-50y] not loaded:', e.message); }
+if (_innov50) {
+  app.use(async (req, res, next) => {
+    try {
+      const handled = await _innov50.handle(req, res);
+      if (handled) return;
+    } catch (e) { console.warn('[innovations-50y] handler error:', e.message); }
+    next();
+  });
+}
+
 // ==================== ROUTE PROFILER (PR #194 — Performance Optimization) ====================
 // Înregistrează timpii de răspuns pentru toate rutele → expus la /api/perf/stats
 app.use(routeCache.profilerMiddleware());

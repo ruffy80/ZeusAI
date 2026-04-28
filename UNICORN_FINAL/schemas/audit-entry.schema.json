@@ -1,0 +1,18 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "unicorn/audit-entry",
+  "title": "Unicorn 50Y tamper-evident audit entry",
+  "x-schema-version": "1.0.0",
+  "x-standards": ["RFC-6962", "NIST-FIPS-180-4"],
+  "type": "object",
+  "required": ["ts", "prev_hash"],
+  "additionalProperties": true,
+  "properties": {
+    "ts":        { "type": "string", "format": "date-time" },
+    "prev_hash": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "actor":     { "type": "string" },
+    "action":    { "type": "string" },
+    "subject":   { "type": "string" },
+    "context":   { "type": "object", "additionalProperties": true }
+  }
+}

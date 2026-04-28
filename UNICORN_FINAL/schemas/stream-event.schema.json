@@ -1,0 +1,13 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "unicorn/stream-event",
+  "title": "Unicorn /stream Server-Sent Events payload (per-event JSON shape)",
+  "x-schema-version": "1.0.0",
+  "type": "object",
+  "additionalProperties": true,
+  "properties": {
+    "type": { "type": "string", "description": "Event channel name" },
+    "ts":   { "type": "string", "format": "date-time" },
+    "data": {}
+  }
+}

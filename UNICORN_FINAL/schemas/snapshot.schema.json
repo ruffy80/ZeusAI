@@ -1,0 +1,27 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "unicorn/snapshot",
+  "title": "Unicorn /snapshot response envelope (50Y stable contract)",
+  "x-schema-version": "1.0.0",
+  "x-stability": "additive-only",
+  "type": "object",
+  "additionalProperties": true,
+  "properties": {
+    "ok": { "type": "boolean" },
+    "ts": { "type": "string", "format": "date-time" },
+    "build": {
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {
+        "sha": { "type": "string" },
+        "ts":  { "type": "string" }
+      }
+    },
+    "modules": {
+      "type": "array",
+      "items": { "type": "object" }
+    },
+    "telemetry": { "type": "object", "additionalProperties": true },
+    "innovation": { "type": "object", "additionalProperties": true }
+  }
+}
