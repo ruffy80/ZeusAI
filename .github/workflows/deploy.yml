@@ -113,8 +113,11 @@ jobs:
         # CI=false: react-scripts treats warnings as errors when CI=true (GitHub Actions default).
         # The project already uses this flag in the vercel-build script for the same reason.
         run: |
-          rm -rf node_modules
-          npm ci
+          # Tolerate orphaned npm install racing on node_modules (e.g. from ui-auto-builder
+          # GODMODE loop loaded by the previous test step). npm ci itself wipes node_modules,
+          # so the explicit rm is best-effort only.
+          rm -rf node_modules || true
+          npm ci || (sleep 3 && rm -rf node_modules || true && npm ci)
           CI=false npm run build
 
       - name: ⚙️ Generate .env with all secrets
