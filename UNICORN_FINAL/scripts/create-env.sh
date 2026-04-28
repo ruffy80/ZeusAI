@@ -61,13 +61,38 @@ with open(path, 'w') as f: f.write(new_content)
   fi
 }
 
+# force_upsert: ca upsert, dar suprascrie ÎNTOTDEAUNA dacă valoarea curentă din
+# .env este diferită de cea cerută. Folosit pentru chei critice (LEGAL_OWNER_BTC,
+# NODE_ENV, PORT, BTC_WALLET_ADDRESS) unde o valoare stale pe server (ex. PORT=80
+# moștenit dintr-un deploy vechi sau LEGAL_OWNER_BTC gol) ar bloca backend-ul
+# să pornească corect și ar lăsa frontend-ul pe loading.
+force_upsert() {
+  local key="$1"
+  local value="$2"
+  [ -z "$value" ] && return 0
+  local quoted
+  quoted=$(_env_quote "$value")
+  if [ -f "$ENV_FILE" ] && grep -q "^${key}=" "$ENV_FILE"; then
+    python3 -c "
+import sys, re
+key, val, path = sys.argv[1], sys.argv[2], sys.argv[3]
+with open(path) as f: content = f.read()
+pattern = re.compile(r'^' + re.escape(key) + r'=.*$', re.MULTILINE)
+new_content = pattern.sub(lambda _m: key + '=' + val, content)
+with open(path, 'w') as f: f.write(new_content)
+" "$key" "$quoted" "$ENV_FILE"
+  else
+    echo "${key}=${quoted}" >> "$ENV_FILE"
+  fi
+}
+
 # Creează fișierul dacă nu există
 touch "$ENV_FILE"
 chmod 600 "$ENV_FILE"
 
-# ── Core ──────────────────────────────────────────────────────────────────────
-upsert NODE_ENV         "${NODE_ENV:-production}"
-upsert PORT             "${PORT:-3000}"
+# ── Core (FORCE — backend nu pornește corect dacă acestea sunt stale) ────────
+force_upsert NODE_ENV         "${NODE_ENV:-production}"
+force_upsert PORT             "${PORT:-3000}"
 upsert PUBLIC_APP_URL   "${PUBLIC_APP_URL:-https://zeusai.pro}"
 upsert SITE_DOMAIN      "${SITE_DOMAIN:-zeusai.pro}"
 upsert UNICORN_DOMAIN   "${UNICORN_DOMAIN:-www.zeusai.pro}"
@@ -173,11 +198,11 @@ HETZ_VAL="${HETZNER_API_KEY:-${HETZNER_API_TOKEN:-}}"
 upsert HETZNER_API_KEY   "$HETZ_VAL"
 upsert HETZNER_API_TOKEN "$HETZ_VAL"
 
-# ── Owner / BTC ────────────────────────────────────────────────────────────────
+# ── Owner / BTC (FORCE — sovereign checkout smoke verifică EXPECTED_BTC) ─────
 BTC="${BTC_WALLET_ADDRESS:-bc1q4f7e66z87mdfj56kz0dj5hvcnpmh0qh4wuv22e}"
-upsert BTC_WALLET_ADDRESS  "$BTC"
-upsert OWNER_BTC_ADDRESS   "$BTC"
-upsert LEGAL_OWNER_BTC     "$BTC"
+force_upsert BTC_WALLET_ADDRESS  "$BTC"
+force_upsert OWNER_BTC_ADDRESS   "$BTC"
+force_upsert LEGAL_OWNER_BTC     "$BTC"
 upsert OWNER_NAME          "${OWNER_NAME:-Vladoi Ionut}"
 upsert OWNER_EMAIL         "${OWNER_EMAIL:-vladoi_ionut@yahoo.com}"
 upsert LEGAL_OWNER_NAME    "${OWNER_NAME:-Vladoi Ionut}"
