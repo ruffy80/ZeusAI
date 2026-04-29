@@ -1582,26 +1582,21 @@ async function loadMarketplace(){
   // --- Failsafe fetch for /api/catalog with 5s timeout and fallback ---
   let svcs = [];
   try {
-    svcs = await (async function() {
-      const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 5000);
-      try {
-        const resp = await fetch('/api/catalog', { signal: controller.signal });
-        clearTimeout(timeout);
-        if (resp.ok) {
-          const data = await resp.json();
-          if (Array.isArray(data)) return data.map((n,i) => ({ id: 'svc-'+(i+1), name: n, description: '', price: 99, category: 'AI' }));
-        }
-      } catch (e) {
-        clearTimeout(timeout);
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 5000);
+    const resp = await fetch('/api/catalog', { signal: controller.signal });
+    clearTimeout(timeout);
+    if (resp.ok) {
+      const data = await resp.json();
+      if (Array.isArray(data) && data.length && typeof data[0] === 'object' && data[0].name) {
+        svcs = data;
+      } else if (Array.isArray(data)) {
+        // fallback: array of names
+        svcs = data.map((n,i) => ({ id: 'svc-'+(i+1), name: n, description: '', price: 99, category: 'AI' }));
       }
-      // fallback mock
-      return [
-        {id:'svc-1',name:'AI Website Generator',description:'Generate websites with AI.',price:99,category:'AI'},
-        {id:'svc-2',name:'AI Trading Bot',description:'Automated trading with AI.',price:149,category:'AI'}
-      ];
-    })();
+    }
   } catch (e) {
+    // fallback mock
     svcs = [
       {id:'svc-1',name:'AI Website Generator',description:'Generate websites with AI.',price:99,category:'AI'},
       {id:'svc-2',name:'AI Trading Bot',description:'Automated trading with AI.',price:149,category:'AI'}

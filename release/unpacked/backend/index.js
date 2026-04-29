@@ -1,3 +1,46 @@
+// --- UNICORN PROXY/FALLBACK CONFIG ---
+const axios = require('axios');
+const UNICORN_URL = process.env.UNICORN_URL || 'http://localhost:3001';
+function logProxyFail(endpoint, err) {
+  console.warn(`[UNICORN_PROXY_FAIL] ${endpoint}:`, err && err.message ? err.message : err);
+}
+
+// --- MOCKS ---
+const MOCK_INDUSTRY_LIST = [
+  { id: 'industry-1', name: 'Fintech', description: 'Financial technology and banking automation.' },
+  { id: 'industry-2', name: 'HealthTech', description: 'Healthcare automation and diagnostics.' },
+  { id: 'industry-3', name: 'Retail', description: 'Retail, e-commerce, and logistics.' }
+];
+const MOCK_CONTROL_STATS = { uptime: 123456, status: 'ok', modules: 42, users: 17 };
+const MOCK_EVOLUTION_SNAPSHOT = { timestamp: Date.now(), evolution: 'stable', version: '1.0.0', notes: 'Mock snapshot.' };
+
+// --- PROXY + FALLBACK HANDLER ---
+async function proxyToUnicorn(path, fallback) {
+  try {
+    const res = await axios.get(UNICORN_URL + path, { timeout: 2000 });
+    if (res && res.data) return res.data;
+    logProxyFail(path, 'Empty response');
+  } catch (err) {
+    logProxyFail(path, err);
+  }
+  return fallback;
+}
+
+// --- ENDPOINTS ---
+app.get('/api/industry/list', async (req, res) => {
+  const data = await proxyToUnicorn('/api/industry/list', MOCK_INDUSTRY_LIST);
+  res.json(data);
+});
+
+app.get('/api/control/stats', async (req, res) => {
+  const data = await proxyToUnicorn('/api/control/stats', MOCK_CONTROL_STATS);
+  res.json(data);
+});
+
+app.get('/api/evolution/snapshot', async (req, res) => {
+  const data = await proxyToUnicorn('/api/evolution/snapshot', MOCK_EVOLUTION_SNAPSHOT);
+  res.json(data);
+});
 require('dotenv').config();
 const express = require('express');
 const cors = require('cors');

@@ -1,3 +1,4 @@
+import { retryAxios } from '../utils/retryFetch';
 import React, { useEffect, useMemo, useState } from 'react';
 import axios from 'axios';
 
@@ -14,11 +15,11 @@ export default function Dashboard({ healthData = [] }) {
     const load = async () => {
       try {
         const [paymentRes, marketplaceRes, complianceRes, riskRes, opportunityRes] = await Promise.all([
-          axios.get('/api/payment/stats'),
-          axios.get('/api/marketplace/stats'),
-          axios.get('/api/compliance/stats'),
-          axios.get('/api/risk/stats'),
-          axios.get('/api/opportunity/stats')
+          retryAxios({ method: 'get', url: '/api/payment/stats' }),
+          retryAxios({ method: 'get', url: '/api/marketplace/stats' }),
+          retryAxios({ method: 'get', url: '/api/compliance/stats' }),
+          retryAxios({ method: 'get', url: '/api/risk/stats' }),
+          retryAxios({ method: 'get', url: '/api/opportunity/stats' })
         ]);
 
         setStats({
@@ -26,9 +27,10 @@ export default function Dashboard({ healthData = [] }) {
           marketplace: marketplaceRes.data,
           compliance: complianceRes.data,
           risk: riskRes.data,
-          opportunity: opportunityRes.data
-        });
-      } catch (err) {
+        const [error, setError] = useState(null);
+        const [loading, setLoading] = useState(true);
+        const [stats, setStats] = useState({});
+        const [healthData, setHealthData] = useState([]);
         console.error('Dashboard load failed', err);
       }
     };
@@ -48,8 +50,14 @@ export default function Dashboard({ healthData = [] }) {
     { label: 'Risk Analyses', value: stats.risk?.totalAnalyses || 0, sub: 'High risk ' + Number(stats.risk?.highRiskCount || 0), accent: '#f87171' },
     { label: 'Opportunities', value: stats.opportunity?.totalOpportunities || 0, sub: 'Unread alerts ' + Number(stats.opportunity?.unreadAlerts || 0), accent: '#f59e0b' },
     { label: 'Live Analytics', value: Number(analyticsAverage).toFixed(1) + '%', sub: healthData.length + ' datapoints', accent: '#38bdf8' }
-  ];
-
+            } catch (err) {
+              setError('Live stats unavailable. Showing last known data.');
+              const lastStats = localStorage.getItem('lastStats');
+              if (lastStats) {
+                setStats(JSON.parse(lastStats));
+              } else {
+                setStats({});
+              }
   return (
     <div style={{ display: 'grid', gap: 24 }}>
       <section style={{ padding: 28, borderRadius: 28, background: 'rgba(15,23,42,.72)', border: '1px solid rgba(34,211,238,.18)' }}>
