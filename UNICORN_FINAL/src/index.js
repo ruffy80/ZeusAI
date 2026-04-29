@@ -317,7 +317,10 @@ function createServer() {
   return http.createServer((req, res) => {
     const method = String(req.method || 'GET').toUpperCase();
     const earlyPath = new URL(req.url || '/', 'http://local').pathname;
-    if (process.env.BACKEND_API_URL && earlyPath.startsWith('/api/') && !['GET', 'HEAD', 'OPTIONS'].includes(method)) {
+    if (shouldBypassExpressForSiteMutation(earlyPath, method)) {
+      return unicornHandler(req, res);
+    }
+    if (process.env.BACKEND_API_URL && shouldProxyBeforeExpress(earlyPath, method)) {
       return edgeProxyApi(req, res, earlyPath);
     }
     app.handle(req, res, (err) => {
@@ -331,6 +334,31 @@ function createServer() {
       }
     });
   });
+}
+
+const SITE_OWNED_MUTATIONS = [
+  '/api/checkout/create',
+  '/api/checkout/btc',
+  '/api/checkout/paypal',
+  '/api/checkout/stripe',
+  '/api/concierge',
+  '/api/concierge/stream',
+  '/api/concierge/feedback',
+  '/api/services/buy',
+  '/api/ai/use',
+  '/api/uaic/order',
+  '/api/payments/btc/confirm',
+  '/api/payments/paypal/confirm'
+];
+
+function shouldBypassExpressForSiteMutation(pathname, method) {
+  return !['GET', 'HEAD', 'OPTIONS'].includes(method) && SITE_OWNED_MUTATIONS.includes(pathname);
+}
+
+function shouldProxyBeforeExpress(pathname, method) {
+  if (!pathname.startsWith('/api/') || ['GET', 'HEAD', 'OPTIONS'].includes(method)) return false;
+  if (SITE_OWNED_MUTATIONS.includes(pathname)) return false;
+  return true;
 }
 const APP_URL = process.env.PUBLIC_APP_URL || 'https://zeusai.pro';
 const BTC_WALLET = process.env.BTC_WALLET_ADDRESS || process.env.OWNER_BTC_ADDRESS || 'bc1q4f7e66z87mdfj56kz0dj5hvcnpmh0qh4wuv22e';
