@@ -12025,11 +12025,11 @@ const modules = [
 ];
 
 const marketplace = [
-  { id: 'adaptive-ai', title: 'Adaptive AI', segment: 'all', kpi: 'automation coverage' },
-  { id: 'predictive-engine', title: 'Predictive Engine', segment: 'companies', kpi: 'forecast accuracy' },
-  { id: 'quantum-nexus', title: 'Quantum Nexus', segment: 'enterprise', kpi: 'latency optimization' },
-  { id: 'viral-growth', title: 'Viral Growth Engine', segment: 'startups', kpi: 'acquisition rate' },
-  { id: 'automation-blocks', title: 'Automation Blocks', segment: 'all', kpi: 'tasks automated' }
+  { id: 'adaptive-ai', title: 'Adaptive AI', segment: 'all', kpi: 'automation coverage', price: 499, currency: 'USD', billing: 'monthly' },
+  { id: 'predictive-engine', title: 'Predictive Engine', segment: 'companies', kpi: 'forecast accuracy', price: 799, currency: 'USD', billing: 'monthly' },
+  { id: 'quantum-nexus', title: 'Quantum Nexus', segment: 'enterprise', kpi: 'latency optimization', price: 2499, currency: 'USD', billing: 'monthly' },
+  { id: 'viral-growth', title: 'Viral Growth Engine', segment: 'startups', kpi: 'acquisition rate', price: 399, currency: 'USD', billing: 'monthly' },
+  { id: 'automation-blocks', title: 'Automation Blocks', segment: 'all', kpi: 'tasks automated', price: 299, currency: 'USD', billing: 'monthly' }
 ];
 
 const codexSections = [
@@ -12090,6 +12090,51 @@ function buildSnapshot() {
   };
 }
 
+function buildStorefront() {
+  const items = marketplace.map((item) => ({
+    id: item.id,
+    title: item.title,
+    segment: item.segment,
+    kpi: item.kpi,
+    price: { usd: item.price || 0, currency: item.currency || 'USD', billing: item.billing || 'monthly' },
+    buy: { instant: '/api/services/buy', method: 'POST', body: { serviceId: item.id, paymentMethod: 'BTC' } }
+  }));
+  const generatedAt = new Date().toISOString();
+  return { generatedAt, source: 'generated-site', count: items.length, items };
+}
+
+function proxyUnhandledApi(req, res) {
+  const backendUrl = process.env.BACKEND_API_URL;
+  if (!backendUrl || !req.url.startsWith('/api/')) return false;
+  try {
+    const target = new URL(req.url, backendUrl);
+    const lib = target.protocol === 'https:' ? require('https') : require('http');
+    const headers = Object.assign({}, req.headers, { host: target.hostname });
+    delete headers.connection;
+    const upstream = lib.request({ hostname: target.hostname, port: target.port || (target.protocol === 'https:' ? 443 : 80), path: target.pathname + target.search, method: req.method, headers, timeout: 5000 }, (up) => {
+      const safeHeaders = {};
+      Object.keys(up.headers).forEach((k) => { if (k !== 'transfer-encoding') safeHeaders[k] = up.headers[k]; });
+      safeHeaders['x-edge-source'] = 'backend-proxy';
+      res.writeHead(up.statusCode || 502, safeHeaders);
+      up.pipe(res, { end: true });
+    });
+    upstream.on('timeout', () => upstream.destroy(new Error('upstream_timeout')));
+    upstream.on('error', (err) => {
+      if (!res.headersSent) {
+        res.writeHead(502, { 'Content-Type': 'application/json', 'X-Edge-Source': 'proxy-error' });
+        res.end(JSON.stringify({ error: 'edge_proxy_error', detail: err.message }));
+      }
+    });
+    if (req.method === 'GET' || req.method === 'HEAD') upstream.end();
+    else req.pipe(upstream, { end: true });
+    return true;
+  } catch (err) {
+    res.writeHead(502, { 'Content-Type': 'application/json', 'X-Edge-Source': 'proxy-config-error' });
+    res.end(JSON.stringify({ error: 'edge_proxy_config_error', detail: err.message }));
+    return true;
+  }
+}
+
 const streamClients = new Set();
 const streamTimer = setInterval(() => {
   const payload = 'data: ' + JSON.stringify(buildSnapshot()) + '\\n\\n';
@@ -12128,6 +12173,16 @@ const server = http.createServer((req, res) => {
   if (req.url === '/marketplace') {
     res.writeHead(200, { 'Content-Type': 'application/json' });
     return res.end(JSON.stringify({ updatedAt: new Date().toISOString(), modules: marketplace }));
+  }
+
+  if (req.url === '/api/services' || req.url === '/api/services/list') {
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    return res.end(JSON.stringify({ updatedAt: new Date().toISOString(), source: 'generated-site', services: marketplace }));
+  }
+
+  if (req.url === '/api/storefront') {
+    res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'public, max-age=20, stale-while-revalidate=60' });
+    return res.end(JSON.stringify(buildStorefront()));
   }
 
   if (req.url === '/codex') {
@@ -12185,6 +12240,8 @@ const server = http.createServer((req, res) => {
     res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
     return res.end(getSiteHtml());
   }
+
+  if (proxyUnhandledApi(req, res)) return;
 
   res.writeHead(404, { 'Content-Type': 'application/json' });
   return res.end(JSON.stringify({ error: 'Not found' }));

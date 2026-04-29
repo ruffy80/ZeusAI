@@ -1,11 +1,3 @@
-// --- API: Metrics (CPU, RAM, uptime) ---
-app.get('/api/metrics', (req, res) => {
-  res.json({
-    cpu: process.cpuUsage(),
-    memory: process.memoryUsage(),
-    uptime: process.uptime()
-  });
-});
 // --- SaaS Catalog Mock (for /api/catalog fallback) ---
 const SAAS_CATALOG_MOCK = [
   {
@@ -60,6 +52,16 @@ const routeCache = require('./modules/route-cache');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
+
+// --- API: Metrics (CPU, RAM, uptime) ---
+app.get('/api/metrics', (req, res) => {
+  res.json({
+    cpu: process.cpuUsage(),
+    memory: process.memoryUsage(),
+    uptime: process.uptime()
+  });
+});
+
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
@@ -2017,7 +2019,7 @@ function _authorizePaymentConfirm(req, payload, method) {
   return { ok: false, reason: 'unauthorized' };
 }
 
-app.get('/api/unicorn/events', (req, res) => {
+function _handleUnicornEvents(req, res) {
   res.writeHead(200, {
     'Content-Type': 'text/event-stream',
     'Cache-Control': 'no-cache, no-transform',
@@ -2026,7 +2028,10 @@ app.get('/api/unicorn/events', (req, res) => {
   res.write(`data: ${JSON.stringify({ type: 'snapshot', at: new Date().toISOString(), data: buildBackendSnapshot() })}\n\n`);
   _unicornEventsClients.add(res);
   req.on('close', () => _unicornEventsClients.delete(res));
-});
+}
+
+app.get('/api/unicorn/events', _handleUnicornEvents);
+app.get('/api/events', _handleUnicornEvents);
 
 app.get('/api/services/list', routeCache.cacheMiddleware(), (req, res) => {
   res.json({ updatedAt: new Date().toISOString(), source: 'zeusai-backend', sourceLegacy: 'unicorn-backend', services: _unicornServices });
@@ -2043,6 +2048,98 @@ app.get('/api/services/:id', (req, res) => {
   const service = _unicornServices.find(s => s.id === id);
   if (!service) return res.status(404).json({ error: 'not_found' });
   res.json(service);
+});
+
+// ====================================================================
+// 🦄 LIVING STOREFRONT — Auto-Vending Innovation
+// --------------------------------------------------------------------
+// One endpoint that the site renders and that auto-includes EVERY
+// service the unicorn currently sells AND every future one — with:
+//  • live USD price
+//  • indicative BTC quote (best-effort, cached)
+//  • signed manifest hash so the site can verify catalog integrity
+//  • one-shot "instant buy" URL pre-bound to BTC checkout
+// New services appearing in _unicornServices are emitted via
+// 'service.added' on /api/unicorn/events so the browser sees them
+// in <1s without reload (bridged through the site SSE).
+// ====================================================================
+let _storefrontBtcRateUsd = 0;
+let _storefrontBtcRateAt = 0;
+const _STOREFRONT_BTC_TTL_MS = 5 * 60 * 1000;
+function _storefrontFetchBtcRate() {
+  if (Date.now() - _storefrontBtcRateAt < _STOREFRONT_BTC_TTL_MS && _storefrontBtcRateUsd > 0) return Promise.resolve(_storefrontBtcRateUsd);
+  return new Promise((resolve) => {
+    try {
+      const httpsLib = require('https');
+      const r = httpsLib.request({ hostname: 'api.coinbase.com', path: '/v2/prices/BTC-USD/spot', method: 'GET', timeout: 3000 }, (resp) => {
+        const buf = []; resp.on('data', (c) => buf.push(c));
+        resp.on('end', () => {
+          try {
+            const j = JSON.parse(Buffer.concat(buf).toString('utf8'));
+            const v = parseFloat(j && j.data && j.data.amount);
+            if (v > 0) { _storefrontBtcRateUsd = v; _storefrontBtcRateAt = Date.now(); }
+            resolve(_storefrontBtcRateUsd || 0);
+          } catch (_) { resolve(_storefrontBtcRateUsd || 0); }
+        });
+      });
+      r.on('error', () => resolve(_storefrontBtcRateUsd || 0));
+      r.on('timeout', () => { r.destroy(); resolve(_storefrontBtcRateUsd || 0); });
+      r.end();
+    } catch (_) { resolve(_storefrontBtcRateUsd || 0); }
+  });
+}
+function _storefrontHash(payload) {
+  try { return crypto.createHash('sha256').update(JSON.stringify(payload)).digest('hex'); }
+  catch (_) { return ''; }
+}
+app.get('/api/storefront', async (req, res) => {
+  const btcUsd = await _storefrontFetchBtcRate().catch(() => 0);
+  const items = _unicornServices.map((s) => {
+    const usd = Number(s.price || 0);
+    const btc = btcUsd > 0 && usd > 0 ? +(usd / btcUsd).toFixed(8) : null;
+    return {
+      id: s.id,
+      title: s.title,
+      segment: s.segment || 'all',
+      kpi: s.kpi || null,
+      description: s.description || '',
+      price: { usd, btc, currency: s.currency || 'USD', billing: s.billing || 'monthly' },
+      buy: {
+        instant: '/api/services/buy',
+        method: 'POST',
+        body: { serviceId: s.id, paymentMethod: 'BTC' },
+        cta: 'Buy now with BTC'
+      }
+    };
+  });
+  const generatedAt = new Date().toISOString();
+  const payload = { generatedAt, btcUsd, count: items.length, items };
+  payload.integrityHash = _storefrontHash({ generatedAt, items });
+  res.set('Cache-Control', 'public, max-age=20, stale-while-revalidate=60');
+  res.json(payload);
+});
+
+// Allow new services to be registered live (in-memory) — fires SSE event so
+// browsers get a real-time "🆕 new service" notification with zero reload.
+app.post('/api/services/register', (req, res) => {
+  const auth = req.headers['x-admin-token'] || '';
+  const requiredSecret = process.env.ADMIN_SECRET || process.env.ADMIN_2FA_CODE || '';
+  if (!requiredSecret) return res.status(503).json({ error: 'admin_secret_not_configured' });
+  if (auth !== requiredSecret) {
+    return res.status(401).json({ error: 'unauthorized' });
+  }
+  const s = req.body || {};
+  if (!s.id || !s.title || !s.price) return res.status(400).json({ error: 'id,title,price required' });
+  if (_unicornServices.some(x => x.id === s.id)) return res.status(409).json({ error: 'service_exists' });
+  const item = {
+    id: String(s.id), title: String(s.title), segment: String(s.segment || 'all'),
+    kpi: String(s.kpi || ''), price: Number(s.price), currency: String(s.currency || 'USD'),
+    billing: String(s.billing || 'monthly'), description: String(s.description || '')
+  };
+  _unicornServices.push(item);
+  _emitUnicornEvent('service.added', { service: item });
+  _emitUnicornEvent('services.changed', { action: 'added', service: item });
+  res.json({ ok: true, service: item });
 });
 
 app.post('/api/services/buy', (req, res) => {

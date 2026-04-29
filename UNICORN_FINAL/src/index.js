@@ -315,6 +315,11 @@ const PORT = Number(process.env.PORT || 3000);
 
 function createServer() {
   return http.createServer((req, res) => {
+    const method = String(req.method || 'GET').toUpperCase();
+    const earlyPath = new URL(req.url || '/', 'http://local').pathname;
+    if (process.env.BACKEND_API_URL && earlyPath.startsWith('/api/') && !['GET', 'HEAD', 'OPTIONS'].includes(method)) {
+      return edgeProxyApi(req, res, earlyPath);
+    }
     app.handle(req, res, (err) => {
       if (err) {
         res.statusCode = 500;
@@ -4912,9 +4917,138 @@ ${invoice.payer ? `<h2>Payer</h2><table><tr><th>Legal entity</th><td>${esc(invoi
     return res.end(html);
   }
 
+  // ===================================================================
+  // EDGE PROXY (Living Storefront): any unhandled /api/* request is
+  // transparently forwarded to the Unicorn backend so the site is always
+  // perfectly aligned with current AND future services it sells.
+  // - Circuit breaker: after consecutive failures we fail-fast for 30s.
+  // - Cached GET fallback: last-known-good JSON (60s TTL) is served on
+  //   breaker open or upstream timeout, so the storefront never goes blank.
+  // ===================================================================
+  if (urlPath.startsWith('/api/') && process.env.BACKEND_API_URL) {
+    return edgeProxyApi(req, res, urlPath);
+  }
+
   // Legacy fallback
   res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
   return res.end(v2.getHtml('/'));
+}
+
+// ===================================================================
+// Edge proxy state (module-scoped, lives in unicorn-site cluster worker)
+// ===================================================================
+const __EDGE_BREAKER__ = { fails: 0, openedAt: 0, threshold: 5, cooldownMs: 30000 };
+const __EDGE_CACHE__ = new Map(); // key: METHOD + path → { body, headers, status, ts }
+const EDGE_CACHE_TTL_MS = 60000;
+
+function __edgeBreakerOpen() {
+  if (__EDGE_BREAKER__.openedAt === 0) return false;
+  if (Date.now() - __EDGE_BREAKER__.openedAt < __EDGE_BREAKER__.cooldownMs) return true;
+  // half-open: clear and allow one probe
+  __EDGE_BREAKER__.openedAt = 0;
+  __EDGE_BREAKER__.fails = 0;
+  return false;
+}
+function __edgeBreakerFail() {
+  __EDGE_BREAKER__.fails += 1;
+  if (__EDGE_BREAKER__.fails >= __EDGE_BREAKER__.threshold && __EDGE_BREAKER__.openedAt === 0) {
+    __EDGE_BREAKER__.openedAt = Date.now();
+    console.warn('[edge-proxy] circuit breaker OPEN for ' + __EDGE_BREAKER__.cooldownMs + 'ms');
+  }
+}
+function __edgeBreakerOk() {
+  __EDGE_BREAKER__.fails = 0;
+  __EDGE_BREAKER__.openedAt = 0;
+}
+
+function edgeProxyApi(req, res, urlPath) {
+  const method = (req.method || 'GET').toUpperCase();
+  const cacheKey = method + ' ' + (req.url || urlPath);
+  // Serve from cache when breaker is open (GET only)
+  if (method === 'GET' && __edgeBreakerOpen()) {
+    const cached = __EDGE_CACHE__.get(cacheKey);
+    if (cached && (Date.now() - cached.ts) < (EDGE_CACHE_TTL_MS * 5)) {
+      res.writeHead(cached.status || 200, Object.assign({}, cached.headers || {}, {
+        'X-Edge-Source': 'cache-breaker-open',
+        'X-Edge-Cache-Age-Ms': String(Date.now() - cached.ts)
+      }));
+      return res.end(cached.body);
+    }
+    res.writeHead(503, { 'Content-Type': 'application/json', 'X-Edge-Source': 'breaker-open' });
+    return res.end(JSON.stringify({ error: 'backend_unavailable', breakerOpen: true, retryAfterMs: __EDGE_BREAKER__.cooldownMs }));
+  }
+  try {
+    const target = new URL(urlPath + (req.url.indexOf('?') > -1 ? req.url.slice(req.url.indexOf('?')) : ''), process.env.BACKEND_API_URL);
+    const lib = target.protocol === 'https:' ? https : http;
+    const headers = Object.assign({}, req.headers);
+    headers['host'] = target.hostname;
+    delete headers['connection'];
+    const hasParsedBody = req.body && typeof req.body === 'object' && Object.keys(req.body).length > 0;
+    const parsedBodyBuffer = hasParsedBody ? Buffer.from(JSON.stringify(req.body)) : null;
+    if (parsedBodyBuffer) {
+      headers['content-type'] = headers['content-type'] || 'application/json';
+      headers['content-length'] = String(parsedBodyBuffer.length);
+    }
+    const opts = {
+      hostname: target.hostname,
+      port: target.port || (target.protocol === 'https:' ? 443 : 80),
+      path: target.pathname + (target.search || ''),
+      method,
+      headers,
+      timeout: 5000,
+    };
+    const upstream = lib.request(opts, (up) => {
+      const chunks = [];
+      const safeHeaders = {};
+      Object.keys(up.headers).forEach((k) => { if (k !== 'transfer-encoding') safeHeaders[k] = up.headers[k]; });
+      safeHeaders['x-edge-source'] = 'live';
+      up.on('data', (c) => chunks.push(c));
+      up.on('end', () => {
+        const body = Buffer.concat(chunks);
+        if (up.statusCode >= 500) {
+          __edgeBreakerFail();
+        } else {
+          __edgeBreakerOk();
+          // Cache successful idempotent GETs only
+          if (method === 'GET' && up.statusCode < 400) {
+            __EDGE_CACHE__.set(cacheKey, { body, headers: safeHeaders, status: up.statusCode, ts: Date.now() });
+            // Soft cap to avoid unbounded growth
+            if (__EDGE_CACHE__.size > 500) {
+              const firstKey = __EDGE_CACHE__.keys().next().value;
+              __EDGE_CACHE__.delete(firstKey);
+            }
+          }
+        }
+        res.writeHead(up.statusCode, safeHeaders);
+        res.end(body);
+      });
+    });
+    upstream.on('timeout', () => { upstream.destroy(new Error('upstream_timeout')); });
+    upstream.on('error', (err) => {
+      __edgeBreakerFail();
+      const cached = method === 'GET' ? __EDGE_CACHE__.get(cacheKey) : null;
+      if (cached && !res.headersSent) {
+        res.writeHead(cached.status || 200, Object.assign({}, cached.headers || {}, { 'X-Edge-Source': 'cache-fallback' }));
+        return res.end(cached.body);
+      }
+      if (!res.headersSent) {
+        res.writeHead(502, { 'Content-Type': 'application/json', 'X-Edge-Source': 'error' });
+        res.end(JSON.stringify({ error: 'edge_proxy_error', detail: err.message }));
+      }
+    });
+    if (parsedBodyBuffer) {
+      upstream.end(parsedBodyBuffer);
+    } else if (method !== 'GET' && method !== 'HEAD') {
+      req.pipe(upstream, { end: true });
+    } else {
+      upstream.end();
+    }
+  } catch (err) {
+    if (!res.headersSent) {
+      res.writeHead(502, { 'Content-Type': 'application/json', 'X-Edge-Source': 'config-error' });
+      res.end(JSON.stringify({ error: 'edge_proxy_config_error', detail: err.message }));
+    }
+  }
 }
 
 
