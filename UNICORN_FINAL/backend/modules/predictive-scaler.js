@@ -15,6 +15,7 @@ const { execSync } = require('child_process');
 let lastScale = Date.now();
 let lastProcs = 1;
 let pm2Available;
+const PM2_SCALE_APP = process.env.PREDICTIVE_SCALER_APP || process.env.PM2_SCALE_APP || 'unicorn-site';
 
 function hasPm2() {
   if (pm2Available !== undefined) return pm2Available;
@@ -51,16 +52,18 @@ function autoScale() {
   if (needed !== lastProcs && Date.now() - lastScale > 60000) {
     try {
       if (!hasPm2()) return;
-      // Verifică dacă unicorn există în PM2
+      // Verifică dacă aplicația scalabilă există în PM2
       const list = execSync('pm2 jlist').toString();
-      if (!list.includes('"name":"unicorn"')) {
-        console.warn('[predictive-scaler] PM2: unicorn app not found, skipping scaling.');
+      const apps = JSON.parse(list || '[]');
+      const target = apps.find(app => app && app.name === PM2_SCALE_APP);
+      if (!target) {
+        console.warn(`[predictive-scaler] PM2: ${PM2_SCALE_APP} app not found, skipping scaling.`);
         return;
       }
-      execSync(`pm2 scale unicorn ${needed}`);
+      execSync(`pm2 scale ${PM2_SCALE_APP} ${needed}`);
       lastProcs = needed;
       lastScale = Date.now();
-      console.log(`[predictive-scaler] Scaled unicorn to ${needed} procs (rps=${metrics.rps}, cpu=${metrics.cpu.toFixed(1)}%)`);
+      console.log(`[predictive-scaler] Scaled ${PM2_SCALE_APP} to ${needed} procs (rps=${metrics.rps}, cpu=${metrics.cpu.toFixed(1)}%)`);
     } catch (e) {
       console.warn('[predictive-scaler] Scaling failed:', e.message);
     }
