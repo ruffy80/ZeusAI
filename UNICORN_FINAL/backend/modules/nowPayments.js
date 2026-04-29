@@ -237,6 +237,9 @@ function isWebhookSecurityReady() {
   return !!NOWPAYMENTS_IPN_SECRET;
 }
 
+// MeshOrchestrator expects a status function (getStatus)
+function getStatus() { return getSecurityStatus(); }
+
 module.exports = {
   createInvoice,
   getPaymentStatus,
@@ -246,6 +249,7 @@ module.exports = {
   getMinimumPayment,
   ping,
   getSecurityStatus,
+  getStatus,
   isWebhookSecurityReady,
   pendingPayments,
   OWNER_BTC_ADDRESS

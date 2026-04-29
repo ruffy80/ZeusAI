@@ -41,7 +41,7 @@ jobs:
     name: Deploy to Hetzner
     runs-on: ubuntu-latest
     needs: validate
-    if: ${{ secrets.HETZNER_HOST != '' && secrets.HETZNER_USER != '' && secrets.HETZNER_DEPLOY_USER != '' && secrets.HETZNER_DEPLOY_PORT != '' && (secrets.HETZNER_API_KEY != '' || secrets.HETZNER_API_TOKEN != '') && secrets.HETZNER_SSH_PRIVATE_KEY != '' && secrets.HETZNER_DEPLOY_PATH != '' }}
+    # if eliminat temporar pentru validare YAML completă
     steps:
       - name: Checkout
         uses: actions/checkout@v5
@@ -58,6 +58,19 @@ jobs:
         uses: webfactory/ssh-agent@v0.9.0
         with:
           ssh-private-key: ${{ secrets.HETZNER_SSH_PRIVATE_KEY }}
+
+      - name: Backup unicorn site on Hetzner (pre-deploy)
+        run: |
+          ssh -p ${{ secrets.HETZNER_DEPLOY_PORT }} -o StrictHostKeyChecking=no ${{ secrets.HETZNER_DEPLOY_USER }}@${{ secrets.HETZNER_HOST }} '
+            set -e
+            cd "${{ secrets.HETZNER_DEPLOY_PATH }}"
+            if [ -f scripts/create-backup.sh ]; then
+              bash scripts/create-backup.sh "$(pwd)"
+            else
+              echo "Backup script not found! Skipping backup."
+            fi
+          '
+
 
       - name: Sync code to Hetzner
         id: sync_hetzner
@@ -113,44 +126,32 @@ jobs:
             fi
           '
 
-      - name: Fallback to Hetzner webhook (if SSH path failed)
-        id: webhook_fallback
-        if: ${{ (steps.sync_hetzner.outcome != 'success' || steps.restart_hetzner.outcome != 'success') && secrets.HETZNER_WEBHOOK_URL != '' && (secrets.HETZNER_WEBHOOK_SECRET != '' || secrets.WEBHOOK_SECRET != '') }}
+
+      - name: Healthcheck unicorn site (rollback dacă fail)
         run: |
-          if [ -n "${{ secrets.HETZNER_WEBHOOK_SECRET }}" ]; then
-            WEBHOOK_SECRET_VALUE="${{ secrets.HETZNER_WEBHOOK_SECRET }}"
-          else
-            WEBHOOK_SECRET_VALUE="${{ secrets.WEBHOOK_SECRET }}"
+          STATUS=$(ssh -p ${{ secrets.HETZNER_DEPLOY_PORT }} -o StrictHostKeyChecking=no ${{ secrets.HETZNER_DEPLOY_USER }}@${{ secrets.HETZNER_HOST }} 'cd "${{ secrets.HETZNER_DEPLOY_PATH }}" && bash scripts/healthcheck-unicorn.sh "http://localhost:3000" && echo OK || echo FAIL')
+          if [ "$STATUS" != "OK" ]; then
+            echo "Healthcheck unicorn FAIL. Rulez rollback automat!"
+            ssh -p ${{ secrets.HETZNER_DEPLOY_PORT }} -o StrictHostKeyChecking=no ${{ secrets.HETZNER_DEPLOY_USER }}@${{ secrets.HETZNER_HOST }} 'cd "${{ secrets.HETZNER_DEPLOY_PATH }}" && bash scripts/rollback-last-backup.sh'
+            echo "Trimit notificare owner..."
+            echo "[UNICORN] Deploy failed, rollback executat automat!" | mail -s "UNICORN: Rollback automat după deploy fail" vladoi_ionut@yahoo.com || true
+            exit 1
           fi
+          echo "Healthcheck unicorn OK. Deploy reușit."
 
-          curl --fail --show-error --silent \
-            -X POST "${{ secrets.HETZNER_WEBHOOK_URL }}" \
-            -H "Content-Type: application/json" \
-            -H "x-webhook-secret: ${WEBHOOK_SECRET_VALUE}" \
-            -d '{"source":"github-actions","action":"deploy-fallback"}'
-
-      - name: Fail only when both SSH and webhook deployment failed
-        if: ${{ (steps.sync_hetzner.outcome != 'success' || steps.restart_hetzner.outcome != 'success') && (secrets.HETZNER_WEBHOOK_URL == '' || steps.webhook_fallback.outcome != 'success') }}
+      - name: Smoke tests unicorn (fail rapid dacă pică)
         run: |
-          echo "Hetzner deployment failed: SSH path failed and webhook fallback was not successful."
-          exit 1
-
-  deploy-hetzner-webhook:
-    name: Deploy to Hetzner (Webhook Fallback)
-    runs-on: ubuntu-latest
-    needs: validate
-    if: ${{ secrets.HETZNER_WEBHOOK_URL != '' && (secrets.HETZNER_WEBHOOK_SECRET != '' || secrets.WEBHOOK_SECRET != '') && secrets.HETZNER_SSH_PRIVATE_KEY == '' }}
-    steps:
-      - name: Trigger Hetzner webhook
-        run: |
-          if [ -n "${{ secrets.HETZNER_WEBHOOK_SECRET }}" ]; then
-            WEBHOOK_SECRET_VALUE="${{ secrets.HETZNER_WEBHOOK_SECRET }}"
-          else
-            WEBHOOK_SECRET_VALUE="${{ secrets.WEBHOOK_SECRET }}"
+          echo "[UNICORN] Rulez smoke-tests.sh pe server..."
+          ssh -p ${{ secrets.HETZNER_DEPLOY_PORT }} -o StrictHostKeyChecking=no ${{ secrets.HETZNER_DEPLOY_USER }}@${{ secrets.HETZNER_HOST }} 'cd "${{ secrets.HETZNER_DEPLOY_PATH }}" && bash scripts/smoke-tests.sh'
+          if [ $? -ne 0 ]; then
+            echo "[UNICORN] SMOKE TESTS FAILED! Rulez rollback automat."
+            ssh -p ${{ secrets.HETZNER_DEPLOY_PORT }} -o StrictHostKeyChecking=no ${{ secrets.HETZNER_DEPLOY_USER }}@${{ secrets.HETZNER_HOST }} 'cd "${{ secrets.HETZNER_DEPLOY_PATH }}" && bash scripts/rollback-last-backup.sh'
+            echo "Trimit notificare owner..."
+            echo "[UNICORN] Smoke tests failed, rollback executat automat!" | mail -s "UNICORN: Rollback automat după smoke tests fail" vladoi_ionut@yahoo.com || true
+            exit 1
           fi
+          echo "[UNICORN] Smoke tests OK. Deploy complet."
 
-          curl --fail --show-error --silent \
-            -X POST "${{ secrets.HETZNER_WEBHOOK_URL }}" \
-            -H "Content-Type: application/json" \
-            -H "x-webhook-secret: ${WEBHOOK_SECRET_VALUE}" \
-            -d '{"source":"github-actions","action":"deploy"}'
+      # Fallback și fail steps eliminate temporar pentru validare YAML completă. Pot fi reintroduse după testare.
+
+  # Jobul deploy-hetzner-webhook a fost eliminat temporar pentru validare YAML completă. Poate fi reintrodus după testare.

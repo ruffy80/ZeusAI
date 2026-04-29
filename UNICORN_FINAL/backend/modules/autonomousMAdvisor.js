@@ -36,6 +36,7 @@ const INDUSTRY_MULTIPLES = {
 // Formula: adjustedMultiple = baseMultiple * (1 + growthRate * GROWTH_RATE_AMPLIFIER)
 const GROWTH_RATE_AMPLIFIER = 10;
 const negotiations = new Map();
+const analyses = new Map();
 
 class AutonomousMAdvisor {
   findTargets({ industry, minRevenue = 0, maxRevenue = Infinity, region, minGrowthRate = 0 }) {
@@ -185,4 +186,7 @@ class AutonomousMAdvisor {
   }
 }
 
-module.exports = new AutonomousMAdvisor();
+// MeshOrchestrator expects a status function (getStatus)
+const instance = new AutonomousMAdvisor();
+instance.getStatus = function() { return this.getStats(); };
+module.exports = instance;

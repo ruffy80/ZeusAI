@@ -190,8 +190,31 @@ function getStats() {
   };
 }
 
-// ── Curățare periodică a entărilor expirate (la fiecare 5 min) ───────────────
+
+// ── Self-tuning: auto-optimizare TTL și dimensiune cache ────────────────────
+function _autoTune() {
+  const stats = getStats();
+  const hitRate = parseFloat(stats.hitRate);
+  // Dacă hit rate < 60% și entries aproape de max, crește TTL și mărimea
+  if (hitRate < 60 && _stats.entries > MAX_ENTRIES * 0.8) {
+    for (const t in TTL_BY_TASK) TTL_BY_TASK[t] = Math.min(TTL_BY_TASK[t] * 1.2, 3600000 * 6); // max 6h
+    global.AI_CACHE_MAX_ENTRIES = (global.AI_CACHE_MAX_ENTRIES || MAX_ENTRIES) + 200;
+    global.AI_CACHE_MAX_BYTES = (global.AI_CACHE_MAX_BYTES || MAX_SIZE_BYTES) + 10485760; // +10MB
+  }
+  // Dacă hit rate > 90% și costSaved mare, scade TTL și mărimea (optimizare cost)
+  if (hitRate > 90 && _stats.costSaved > 10) {
+    for (const t in TTL_BY_TASK) TTL_BY_TASK[t] = Math.max(TTL_BY_TASK[t] * 0.8, 60000); // min 1m
+    global.AI_CACHE_MAX_ENTRIES = Math.max((global.AI_CACHE_MAX_ENTRIES || MAX_ENTRIES) - 100, 200);
+    global.AI_CACHE_MAX_BYTES = Math.max((global.AI_CACHE_MAX_BYTES || MAX_SIZE_BYTES) - 5242880, 1048576); // -5MB
+  }
+}
+
+// Curățare periodică a entărilor expirate (la fiecare 5 min)
 const _cleanupHandle = setInterval(_evictExpired, 300000);
 if (_cleanupHandle.unref) _cleanupHandle.unref();
+
+// Self-tuning periodic (la fiecare 10 min)
+const _tuneHandle = setInterval(_autoTune, 600000);
+if (_tuneHandle.unref) _tuneHandle.unref();
 
 module.exports = { get, set, invalidate, clear, getStats };

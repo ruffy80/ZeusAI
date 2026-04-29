@@ -217,8 +217,12 @@ function status() {
   };
 }
 
+// MeshOrchestrator expects a status function (getStatus)
+function getStatus() { return status(); }
+
 module.exports = {
   status,
+  getStatus,
   revenueCommander,
   offerFactory,
   recordConversionEvent,

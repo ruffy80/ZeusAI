@@ -70,6 +70,10 @@ class ProvisioningEngine extends EventEmitter {
     super();
     this.cache = new Map();
     this.cacheTTL = 60000;
+    this._running = false;
+    this._provisionTimer = null;
+    this._provisioned = new Map();
+    this._stats = { total: 0, errors: 0, last: null };
     this.startTime = Date.now();
   }
 

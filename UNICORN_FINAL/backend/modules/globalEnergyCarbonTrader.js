@@ -138,4 +138,19 @@ class GlobalEnergyCarbonTrader {
   }
 }
 
-module.exports = new GlobalEnergyCarbonTrader();
+
+const instance = new GlobalEnergyCarbonTrader();
+// Mesh orchestrator expects getStatus and statusFn
+instance.getStatus = function() {
+  return {
+    ok: true,
+    module: 'globalEnergyCarbonTrader',
+    portfolioCount: instance.portfolio.size,
+    energyTrades: energyTrades.size,
+    supportedRegions: instance.getSupportedRegions(),
+    timestamp: Date.now(),
+  };
+};
+// Alias for orchestrator
+instance.statusFn = instance.getStatus;
+module.exports = instance;

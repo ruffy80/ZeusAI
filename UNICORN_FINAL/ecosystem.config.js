@@ -103,19 +103,19 @@ module.exports = {
       log_date_format: 'YYYY-MM-DD HH:mm:ss',
     },
 
-    // ── 2. Static/SSR site (serves HTML portal + SSE) ─────────────────────────
+    // ── 2. Static/SSR site (serves HTML portal + SSE, CLUSTER MODE) ────────────
     {
       name: 'unicorn-site',
       script: 'src/index.js',
       cwd: APP_DIR,
-      instances: 1,
-      exec_mode: 'fork',
-      max_memory_restart: '384M',
+      instances: 'max',
+      exec_mode: 'cluster',
       autorestart: true,
+      max_memory_restart: '384M',
+      max_restarts: 10,
+      restart_delay: 5000,
       watch: false,
-      max_restarts: 20,
       min_uptime: '10s',
-      restart_delay: 2000,
       env: {
         NODE_ENV: 'production',
         PORT: 3001,
@@ -147,6 +147,25 @@ module.exports = {
       },
       error_file: 'logs/site-error.log',
       out_file:   'logs/site-out.log',
+      log_date_format: 'YYYY-MM-DD HH:mm:ss',
+    },
+
+    // ── 4. Autoscaler (auto-restart, log scaling) ─────────────────────────────
+    {
+      name: 'autoscaler',
+      script: 'scripts/autoscale.js',
+      cwd: APP_DIR,
+      instances: 1,
+      exec_mode: 'fork',
+      autorestart: true,
+      max_restarts: 10,
+      restart_delay: 5000,
+      watch: false,
+      env: {
+        NODE_ENV: 'production',
+      },
+      error_file: 'logs/autoscale-error.log',
+      out_file:   'logs/autoscale-out.log',
       log_date_format: 'YYYY-MM-DD HH:mm:ss',
     },
 

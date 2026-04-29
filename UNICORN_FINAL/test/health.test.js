@@ -1,7 +1,8 @@
 const assert = require('assert');
-const server = require('../src/index');
+const { createServer } = require('../src/index');
 
 async function run() {
+  const server = createServer();
   await new Promise((resolve) => server.listen(0, resolve));
   const { port } = server.address();
 

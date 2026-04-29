@@ -180,4 +180,7 @@ class UniversalAITrainingMarketplace {
   }
 }
 
-module.exports = new UniversalAITrainingMarketplace();
+// MeshOrchestrator expects a status function (getStatus)
+const instance = new UniversalAITrainingMarketplace();
+instance.getStatus = function() { return this.getStats(); };
+module.exports = instance;

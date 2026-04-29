@@ -117,4 +117,11 @@ class AutonomousLegalEntity {
   }
 }
 
-module.exports = new AutonomousLegalEntity();
+// MeshOrchestrator expects a status function (getStatus)
+const instance = new AutonomousLegalEntity();
+instance.getStatus = function() {
+  // Return all registrations, or supported countries if none
+  const regs = this.listAll();
+  return regs.length ? regs : { supportedCountries: this.getSupportedCountries() };
+};
+module.exports = instance;

@@ -1,3 +1,40 @@
+// --- API: Metrics (CPU, RAM, uptime) ---
+app.get('/api/metrics', (req, res) => {
+  res.json({
+    cpu: process.cpuUsage(),
+    memory: process.memoryUsage(),
+    uptime: process.uptime()
+  });
+});
+// --- SaaS Catalog Mock (for /api/catalog fallback) ---
+const SAAS_CATALOG_MOCK = [
+  {
+    id: 'svc-1',
+    name: 'AI Website Generator',
+    description: 'Generează site-uri web complet automatizat cu AI. Include hosting, SEO, și template-uri moderne.',
+    price: 99,
+    category: 'Web',
+    demoUrl: '/demo/ai-website',
+    features: ['Hosting inclus', 'SEO automat', 'Design responsive'],
+    faq: [
+      {q:'Ce include pachetul?',a:'Site complet, găzduire, SEO, template-uri.'},
+      {q:'Pot personaliza designul?',a:'Da, poți alege din mai multe template-uri.'}
+    ]
+  },
+  {
+    id: 'svc-2',
+    name: 'AI Trading Bot',
+    description: 'Trading automat pe burse crypto/forex cu AI. Strategie adaptivă, backtesting, alertare.',
+    price: 149,
+    category: 'Finanțe',
+    demoUrl: '/demo/trading-bot',
+    features: ['Strategii AI', 'Backtesting', 'Alertare SMS/email'],
+    faq: [
+      {q:'Ce burse sunt suportate?',a:'Binance, Coinbase, Kraken, Forex.'},
+      {q:'Pot seta reguli proprii?',a:'Da, poți personaliza strategia.'}
+    ]
+  }
+];
 // =====================================================================
 // OWNERSHIP: Acest fișier este proprietatea exclusivă a lui Vladoi Ionut
 // Email: vladoi_ionut@yahoo.com
@@ -20,6 +57,7 @@ const simpleGit = require('simple-git');
 const axios = require('axios');
 const routeCache = require('./modules/route-cache');
 
+
 const app = express();
 const PORT = process.env.PORT || 3000;
 const bcrypt = require('bcryptjs');
@@ -27,6 +65,14 @@ const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
 const JWT_SECRET = process.env.JWT_SECRET || 'unicorn-jwt-secret-change-in-prod';
 const rateLimit = require('express-rate-limit');
+
+// --- DEBUG RAPID: Log ENV critice și path logs PM2 la startup ---
+console.log('[UNICORN] Startup backend index.js');
+console.log('[UNICORN] ENV PORT:', process.env.PORT);
+console.log('[UNICORN] ENV NODE_ENV:', process.env.NODE_ENV);
+console.log('[UNICORN] ENV UNICORN_RUNTIME_PROFILE:', process.env.UNICORN_RUNTIME_PROFILE);
+console.log('[UNICORN] PM2 logs: logs/pm2-error.log, logs/pm2-out.log');
+console.log('[UNICORN] Pentru debug rapid: dacă backend nu pornește, verifică logs/pm2-error.log și logs/pm2-out.log, plus ENV lipsă.');
 
 // Raw body buffers needed for webhook signature verification
 app.use('/api/payment/webhook/stripe', express.raw({ type: 'application/json' }));
@@ -1432,6 +1478,16 @@ if (!_stableRuntime) {
 }
 
 // ==================== RUTE API ====================
+
+// --- API: SaaS Catalog ---
+app.get('/api/catalog', async (req, res) => {
+  try {
+    res.json(SAAS_CATALOG_MOCK);
+  } catch (err) {
+    res.json(SAAS_CATALOG_MOCK);
+  }
+});
+
 function buildHealthResponse() {
   const s = Math.floor(process.uptime());
   const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), sec = s % 60;
