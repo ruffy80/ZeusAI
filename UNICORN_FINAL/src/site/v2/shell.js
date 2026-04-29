@@ -1015,7 +1015,7 @@ function pageTrustCenter() {
         ['SLO', tc.slo.uptimeTarget, tc.slo.probe]
       ];
       grid.innerHTML = cards.map(c=>'<div class="card"><span class="tag">'+c[0]+'</span><h3>'+c[1]+'</h3><p style="color:var(--ink-dim)">'+c[2]+'</p></div>').join('');
-      raw.textContent = JSON.stringify({ trustCenter: tc, integrity: integ }, null, 2);
+      raw.textContent = 'health: '+(tc.health && tc.health.status || 'ok')+' · deploy: '+(tc.deploy && tc.deploy.sha || '—')+' · integrity: '+(integ && integ.alg || 'ed25519')+' · incidents: '+(tc.incidents && tc.incidents.count || 0);
     } catch(e) { grid.innerHTML='<div class="card"><p style="color:var(--danger)">Trust center unavailable: '+e.message+'</p></div>'; }
   })();
   </script>
@@ -1071,14 +1071,14 @@ function pageOperator() {
   <span class="kicker">Operator Console · public-safe</span>
   <h1 style="font-size:clamp(34px,4.4vw,58px);margin:10px 0 18px">Commerce, health and deploy <span class="grad">in one cockpit.</span></h1>
   <p style="color:var(--ink-dim);font-size:16px;line-height:1.7;max-width:860px">Sanitized operator view for orders, payments, leads, AI provider readiness, errors, revenue proof, deploy health and webhook failures. Admin-only actions remain protected.</p>
-  <div class="grid" id="opGrid" style="margin-top:22px"><div class="card"><p>Loading operator snapshot…</p></div></div>
-  <pre class="code" id="opRaw" style="margin-top:18px;max-height:420px;overflow:auto">Loading…</pre>
+  <div class="grid" id="opGrid" style="margin-top:22px"><div class="card"><p>Operator snapshot will appear here.</p></div></div>
+  <pre class="code" id="opRaw" style="margin-top:18px;max-height:420px;overflow:auto">Operator summary will appear here.</pre>
   <script>
   fetch('/api/operator/console').then(r=>r.json()).then(d=>{
     const cards=[['Orders', d.orders.total], ['Paid', d.orders.paid], ['Revenue', '$'+d.revenue.totalUsd], ['Payment rail', d.payments.mode], ['AI providers', d.ai.active+'/'+d.ai.total], ['Deploy', d.deploy.sha], ['Errors', d.errors.count], ['Webhooks', d.webhooks.status]];
-    opGrid.innerHTML=cards.map(c=>'<div class="card"><span class="tag">'+c[0]+'</span><h3>'+c[1]+'</h3></div>').join('');
-    opRaw.textContent=JSON.stringify(d,null,2);
-  }).catch(e=>{opRaw.textContent=e.message});
+    document.getElementById('opGrid').innerHTML=cards.map(c=>'<div class="card"><span class="tag">'+c[0]+'</span><h3>'+c[1]+'</h3></div>').join('');
+    document.getElementById('opRaw').textContent='deploy '+(d.deploy.sha||'—')+' · payments '+(d.payments.mode||'—')+' · revenue $'+(d.revenue.totalUsd||0).toLocaleString();
+  }).catch(e=>{ document.getElementById('opRaw').textContent=e.message; });
   </script>
 </section>`;
 }
@@ -1088,13 +1088,13 @@ function pageObservability() {
   <span class="kicker">Observability</span>
   <h1 style="font-size:clamp(34px,4.4vw,58px);margin:10px 0 18px">SLOs, probes and <span class="grad">self-healing signals.</span></h1>
   <p style="color:var(--ink-dim);font-size:16px;line-height:1.7;max-width:820px">Public status page foundation for synthetic checkout probes, robots/sitemap/payment monitoring, SLO budgets and alert readiness.</p>
-  <div class="grid" id="obsGrid" style="margin-top:22px"><div class="card"><p>Loading observability…</p></div></div>
-  <pre class="code" id="obsRaw" style="margin-top:18px">Loading…</pre>
+  <div class="grid" id="obsGrid" style="margin-top:22px"><div class="card"><p>Observability probes will appear here.</p></div></div>
+  <pre class="code" id="obsRaw" style="margin-top:18px">Observability summary will appear here.</pre>
   <script>
   fetch('/api/observability/status').then(r=>r.json()).then(d=>{
-    obsGrid.innerHTML=d.probes.map(p=>'<div class="card"><span class="tag">'+p.status+'</span><h3>'+p.name+'</h3><p style="color:var(--ink-dim)">'+p.target+' · '+p.interval+'</p></div>').join('');
-    obsRaw.textContent=JSON.stringify(d,null,2);
-  }).catch(e=>{obsRaw.textContent=e.message});
+    document.getElementById('obsGrid').innerHTML=(d.probes||[]).map(p=>'<div class="card"><span class="tag">'+p.status+'</span><h3>'+p.name+'</h3><p style="color:var(--ink-dim)">'+p.target+' · '+p.interval+'</p></div>').join('');
+    document.getElementById('obsRaw').textContent='probes: '+((d.probes||[]).length)+' · last update: '+(d.generatedAt||new Date().toISOString());
+  }).catch(e=>{ document.getElementById('obsRaw').textContent=e.message; });
   </script>
 </section>`;
 }
@@ -1257,22 +1257,22 @@ function pageInnovations() {
     <p class="lead" style="max-width:880px">Twelve sovereign primitives that make every action provable for the next three decades — quantum-safe signatures, Bitcoin-anchored Merkle receipts, a public AI constitution, and a 4-of-7 Shamir time capsule.</p>
 
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:14px;margin:22px 0">
-      <div class="card" style="padding:18px"><span class="tag">Constitution</span><h3 id="invConHash" style="margin:8px 0;font-family:monospace">…</h3><p style="color:var(--ink-dim);font-size:13.5px">Public, hashed, signed. Every response carries <code class="inline">X-Constitution-Hash</code>.</p><a href="/api/constitution" class="btn" style="margin-top:8px">View</a></div>
-      <div class="card" style="padding:18px"><span class="tag">Today's Merkle root</span><h3 id="invRoot" style="margin:8px 0;font-family:monospace;font-size:14px">…</h3><p style="color:var(--ink-dim);font-size:13.5px"><span id="invRootCount">0</span> receipts · OP_RETURN-ready · published daily</p><a href="/api/receipts/root" class="btn" style="margin-top:8px">JSON</a></div>
-      <div class="card" style="padding:18px"><span class="tag">BTC TWAP (5-source median)</span><h3 id="invTwap" style="margin:8px 0">$…</h3><p style="color:var(--ink-dim);font-size:13.5px">Kraken · Coinbase · Bitstamp · Binance · OKX</p><a href="/api/btc/twap" class="btn" style="margin-top:8px">Live JSON</a></div>
+      <div class="card" style="padding:18px"><span class="tag">Constitution</span><h3 id="invConHash" style="margin:8px 0;font-family:monospace">…</h3><p style="color:var(--ink-dim);font-size:13.5px">Public, hashed, signed. Every response carries <code class="inline">X-Constitution-Hash</code>.</p><a href="/api/constitution" target="_blank" rel="noopener" class="btn" style="margin-top:8px">View JSON</a></div>
+      <div class="card" style="padding:18px"><span class="tag">Today's Merkle root</span><h3 id="invRoot" style="margin:8px 0;font-family:monospace;font-size:14px">…</h3><p style="color:var(--ink-dim);font-size:13.5px"><span id="invRootCount">0</span> receipts · OP_RETURN-ready · published daily</p><a href="/api/receipts/root" target="_blank" rel="noopener" class="btn" style="margin-top:8px">Open JSON</a></div>
+      <div class="card" style="padding:18px"><span class="tag">BTC TWAP (5-source median)</span><h3 id="invTwap" style="margin:8px 0">$…</h3><p style="color:var(--ink-dim);font-size:13.5px">Kraken · Coinbase · Bitstamp · Binance · OKX</p><a href="/api/btc/twap" target="_blank" rel="noopener" class="btn" style="margin-top:8px">Open JSON</a></div>
       <div class="card" style="padding:18px"><span class="tag">Quantum-safe signing</span><h3 style="margin:8px 0">Ed25519 + ML-DSA-65</h3><p style="color:var(--ink-dim);font-size:13.5px">FIPS 204 hybrid. 3309-byte PQ signature on every daily root.</p></div>
-      <div class="card" style="padding:18px"><span class="tag">Reproducible SBOM</span><h3 id="invSbom" style="margin:8px 0;font-family:monospace;font-size:14px">…</h3><p style="color:var(--ink-dim);font-size:13.5px">sha3-256 over critical sources · public composite hash</p><a href="/api/sbom" class="btn" style="margin-top:8px">View</a></div>
-      <div class="card" style="padding:18px"><span class="tag">Permanent archive manifest</span><h3 style="margin:8px 0">Archive snapshot</h3><p style="color:var(--ink-dim);font-size:13.5px">Daily root + constitution + SBOM + PQ pubkey, ready for Archive.org / Arweave anchoring.</p><a href="/api/innovations/archive" class="btn" style="margin-top:8px">Manifest</a></div>
+      <div class="card" style="padding:18px"><span class="tag">Reproducible SBOM</span><h3 id="invSbom" style="margin:8px 0;font-family:monospace;font-size:14px">…</h3><p style="color:var(--ink-dim);font-size:13.5px">sha3-256 over critical sources · public composite hash</p><a href="/api/sbom" target="_blank" rel="noopener" class="btn" style="margin-top:8px">View JSON</a></div>
+      <div class="card" style="padding:18px"><span class="tag">Permanent archive manifest</span><h3 style="margin:8px 0">Archive snapshot</h3><p style="color:var(--ink-dim);font-size:13.5px">Daily root + constitution + SBOM + PQ pubkey, ready for Archive.org / Arweave anchoring.</p><a href="/api/innovations/archive" target="_blank" rel="noopener" class="btn" style="margin-top:8px">Open JSON</a></div>
     </div>
 
     <h2 style="margin-top:32px">Model registry &amp; provenance</h2>
     <div class="card" style="padding:0;overflow:hidden;margin-top:14px">
-      <table style="width:100%;border-collapse:collapse;font-size:14px"><thead><tr style="background:#0b0f17"><th style="text-align:left;padding:12px">Model</th><th style="text-align:left;padding:12px">Family</th><th style="text-align:left;padding:12px">Provenance</th><th style="text-align:left;padding:12px">SHA-256</th></tr></thead><tbody id="invModels"><tr><td colspan="4" style="padding:14px;color:var(--ink-dim)">Loading…</td></tr></tbody></table>
+      <table style="width:100%;border-collapse:collapse;font-size:14px"><thead><tr style="background:#0b0f17"><th style="text-align:left;padding:12px">Model</th><th style="text-align:left;padding:12px">Family</th><th style="text-align:left;padding:12px">Provenance</th><th style="text-align:left;padding:12px">SHA-256</th></tr></thead><tbody id="invModels"><tr><td colspan="4" style="padding:14px;color:var(--ink-dim)">Model registry will appear here.</td></tr></tbody></table>
     </div>
 
     <h2 style="margin-top:32px">Sealed incidents (commit-reveal)</h2>
     <p style="color:var(--ink-dim);font-size:14px;max-width:780px">Every incident is committed encrypted at occurrence time and revealed automatically after the time-lock expires. No incident can be deleted or rewritten.</p>
-    <div id="invIncidents" class="card" style="padding:18px;margin-top:12px;font-size:14px;color:var(--ink-dim)">Loading…</div>
+    <div id="invIncidents" class="card" style="padding:18px;margin-top:12px;font-size:14px;color:var(--ink-dim)">Incident timeline will appear here.</div>
 
     <h2 style="margin-top:32px">All public endpoints</h2>
     <ul style="color:var(--ink-dim);font-size:14px;line-height:2;list-style:none;padding:0">
@@ -1293,14 +1293,14 @@ function pageInnovations() {
     <h2 style="margin-top:42px">Second batch · 15 more primitives <span class="tag" style="margin-left:8px">v2</span></h2>
     <p style="color:var(--ink-dim);max-width:880px">ZK-friendly commitments, threshold key bootstrap, federated learning aggregator, verifiable random &amp; delay functions, k-anonymity analytics, censorship-resistant relay descriptor, signed reputation graph, GDPR/SOC2 self-attestation, DR drill ledger, carbon ledger, bug-bounty escrow, decentralized identity (did:web + did:key).</p>
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:14px;margin:18px 0">
-      <div class="card" style="padding:18px"><span class="tag">DID Document</span><h3 style="margin:8px 0;font-size:15px">did:web:zeusai.pro</h3><p style="color:var(--ink-dim);font-size:13.5px">W3C-compliant decentralized identity at <code class="inline">/.well-known/did.json</code></p><a href="/.well-known/did.json" class="btn" style="margin-top:8px">View</a></div>
-      <div class="card" style="padding:18px"><span class="tag">Compliance attestation</span><h3 id="invCompHash" style="margin:8px 0;font-family:monospace;font-size:14px">…</h3><p style="color:var(--ink-dim);font-size:13.5px">GDPR · SOC2 · ISO27001 self-attestation, hashed + signed</p><a href="/api/compliance/attestation" class="btn" style="margin-top:8px">View</a></div>
-      <div class="card" style="padding:18px"><span class="tag">Carbon ledger</span><h3 id="invCarbon" style="margin:8px 0;font-size:18px">…</h3><p style="color:var(--ink-dim);font-size:13.5px">Daily attestations, signed gCO₂ entries</p><a href="/api/v2/carbon/attest" class="btn" style="margin-top:8px">Today</a></div>
-      <div class="card" style="padding:18px"><span class="tag">Bug bounty</span><h3 id="invBounty" style="margin:8px 0">$…</h3><p style="color:var(--ink-dim);font-size:13.5px">Public open-bounty escrow ledger</p><a href="/api/v2/bounty/total" class="btn" style="margin-top:8px">List</a></div>
-      <div class="card" style="padding:18px"><span class="tag">Relay descriptor</span><h3 style="margin:8px 0;font-size:15px">HTTPS · Tor · Nostr · IPFS</h3><p style="color:var(--ink-dim);font-size:13.5px">Censorship-resistant transports advertised publicly</p><a href="/api/v2/relay" class="btn" style="margin-top:8px">View</a></div>
+      <div class="card" style="padding:18px"><span class="tag">DID Document</span><h3 style="margin:8px 0;font-size:15px">did:web:zeusai.pro</h3><p style="color:var(--ink-dim);font-size:13.5px">W3C-compliant decentralized identity at <code class="inline">/.well-known/did.json</code></p><a href="/.well-known/did.json" target="_blank" rel="noopener" class="btn" style="margin-top:8px">View JSON</a></div>
+      <div class="card" style="padding:18px"><span class="tag">Compliance attestation</span><h3 id="invCompHash" style="margin:8px 0;font-family:monospace;font-size:14px">…</h3><p style="color:var(--ink-dim);font-size:13.5px">GDPR · SOC2 · ISO27001 self-attestation, hashed + signed</p><a href="/api/compliance/attestation" target="_blank" rel="noopener" class="btn" style="margin-top:8px">View JSON</a></div>
+      <div class="card" style="padding:18px"><span class="tag">Carbon ledger</span><h3 id="invCarbon" style="margin:8px 0;font-size:18px">…</h3><p style="color:var(--ink-dim);font-size:13.5px">Daily attestations, signed gCO₂ entries</p><a href="/api/v2/carbon/attest" target="_blank" rel="noopener" class="btn" style="margin-top:8px">Open JSON</a></div>
+      <div class="card" style="padding:18px"><span class="tag">Bug bounty</span><h3 id="invBounty" style="margin:8px 0">$…</h3><p style="color:var(--ink-dim);font-size:13.5px">Public open-bounty escrow ledger</p><a href="/api/v2/bounty/total" target="_blank" rel="noopener" class="btn" style="margin-top:8px">Open JSON</a></div>
+      <div class="card" style="padding:18px"><span class="tag">Relay descriptor</span><h3 style="margin:8px 0;font-size:15px">HTTPS · Tor · Nostr · IPFS</h3><p style="color:var(--ink-dim);font-size:13.5px">Censorship-resistant transports advertised publicly</p><a href="/api/v2/relay" target="_blank" rel="noopener" class="btn" style="margin-top:8px">Open JSON</a></div>
       <div class="card" style="padding:18px"><span class="tag">VRF · VDF</span><h3 style="margin:8px 0;font-size:15px">Provable randomness &amp; time-locks</h3><p style="color:var(--ink-dim);font-size:13.5px">HMAC-VRF for fair lotteries · iterated-SHA256 VDF for sealed reveals</p></div>
-      <div class="card" style="padding:18px"><span class="tag">DR drills</span><h3 id="invDR" style="margin:8px 0">…</h3><p style="color:var(--ink-dim);font-size:13.5px">Signed disaster-recovery drill ledger</p><a href="/api/v2/dr/list" class="btn" style="margin-top:8px">History</a></div>
-      <div class="card" style="padding:18px"><span class="tag">v2 Status</span><h3 style="margin:8px 0;font-size:15px">15 primitives · 28 endpoints</h3><p style="color:var(--ink-dim);font-size:13.5px">Full feature inventory + counters</p><a href="/api/v2/status" class="btn" style="margin-top:8px">Status JSON</a></div>
+      <div class="card" style="padding:18px"><span class="tag">DR drills</span><h3 id="invDR" style="margin:8px 0">…</h3><p style="color:var(--ink-dim);font-size:13.5px">Signed disaster-recovery drill ledger</p><a href="/api/v2/dr/list" target="_blank" rel="noopener" class="btn" style="margin-top:8px">Open JSON</a></div>
+      <div class="card" style="padding:18px"><span class="tag">v2 Status</span><h3 style="margin:8px 0;font-size:15px">15 primitives · 28 endpoints</h3><p style="color:var(--ink-dim);font-size:13.5px">Full feature inventory + counters</p><a href="/api/v2/status" target="_blank" rel="noopener" class="btn" style="margin-top:8px">Open JSON</a></div>
     </div>
     <details style="margin-top:18px"><summary style="cursor:pointer;color:var(--ink-dim);font-size:14px">All v2 endpoints (28)</summary>
     <ul style="color:var(--ink-dim);font-size:13px;line-height:1.9;list-style:none;padding:12px 0 0 0">
@@ -1383,7 +1383,12 @@ function pageWizard() {
   <script>
   document.getElementById('wizBtn').addEventListener('click', async () => {
     const out = document.getElementById('wizOut'); out.innerHTML = '<p style="color:var(--ink-dim)">Computing…</p>';
-    const body = { segment: wizSegment.value, volume: wizVolume.value, budget: Number(wizBudget.value)||0, goal: wizGoal.value };
+    const body = {
+      segment: document.getElementById('wizSegment').value,
+      volume: document.getElementById('wizVolume').value,
+      budget: Number(document.getElementById('wizBudget').value)||0,
+      goal: document.getElementById('wizGoal').value
+    };
     try {
       const r = await fetch('/api/wizard/recommend', { method:'POST', headers:{ 'Content-Type':'application/json' }, body: JSON.stringify(body) });
       const d = await r.json();
@@ -1431,8 +1436,17 @@ function pageRefund()  { return `<section style="padding-top:140px;max-width:880
   <span class="kicker">Refund Guarantee · F1</span>
   <h1 style="font-size:clamp(34px,4.4vw,56px);margin:10px 0 18px">Cryptographic <span class="grad">refund guarantee.</span></h1>
   <p style="color:var(--ink-dim);font-size:16px;line-height:1.7">If we fail you, the system refunds itself. Below: live, signed promise. If breached, an autonomous compensator emits a signed REFUND_INTENT and the revenue router reverses the matching receipt within 24h.</p>
-  <pre class="code" id="rfOut" style="margin-top:18px">Loading signed promise…</pre>
-  <script>fetch('/api/refund/guarantee').then(r=>r.json()).then(d=>{rfOut.textContent=JSON.stringify(d,null,2)}).catch(()=>{});</script>
+  <pre class="code" id="rfOut" style="margin-top:18px">Signed promise will appear here.</pre>
+  <script>
+  fetch('/api/refund/guarantee').then(r=>r.json()).then(d=>{
+    const out = document.getElementById('rfOut');
+    if (!out) return;
+    const mode = d && (d.mode || d.status || 'active');
+    const windowH = d && (d.refundWindowHours || d.windowHours || 24);
+    const sig = d && d.signature ? String(d.signature).slice(0,18)+'…' : 'n/a';
+    out.textContent = 'Mode: '+mode+'\nRefund window: '+windowH+'h\nSignature: '+sig;
+  }).catch(()=>{});
+  </script>
 </section>`; }
 function pageSla() { return `<section style="padding-top:140px;max-width:880px">
   <span class="kicker">Service Level Agreement</span>
@@ -1452,7 +1466,7 @@ function pagePledge() {
   <span class="kicker">Anti-Dark-Pattern Pledge · F9</span>
   <h1 style="font-size:clamp(34px,4.4vw,56px);margin:10px 0 18px">Public, signed, <span class="grad">self-enforcing.</span></h1>
   <p style="color:var(--ink-dim);font-size:16px;line-height:1.7">No fake scarcity. No forced accounts. No drip pricing. No retention dark patterns. No selling your data. One-click cancel at <a href="/cancel" data-link>/cancel</a>. The pledge below is signed Ed25519 — anyone can verify. On confirmed breach, an INCIDENT is publicly sealed.</p>
-  <pre class="code" id="plOut" style="margin-top:18px">Loading…</pre>
+  <pre class="code" id="plOut" style="margin-top:18px">Pledge summary will appear here.</pre>
   <div class="card" style="margin-top:22px;padding:22px"><h3 style="margin:0 0 10px">Report a breach</h3><p style="color:var(--ink-dim)">Suspect we broke our pledge? Report it. We seal the incident publicly within 72h.</p>
     <div class="field"><label>Email</label><input id="prEmail" type="email"></div>
     <div class="field"><label>Evidence</label><textarea id="prEv" rows="4" style="padding:12px;border-radius:12px;border:1px solid var(--stroke);background:rgba(5,4,10,.55);color:var(--ink);font-family:inherit;width:100%"></textarea></div>
@@ -1460,10 +1474,19 @@ function pagePledge() {
     <div id="prOut" style="margin-top:10px;color:var(--ink-dim);font-size:13px"></div>
   </div>
   <script>
-  fetch('/api/pledge').then(r=>r.json()).then(d=>{plOut.textContent=JSON.stringify(d,null,2)});
+  fetch('/api/pledge').then(r=>r.json()).then(d=>{
+    const out = document.getElementById('plOut');
+    if (!out) return;
+    const principles = Array.isArray(d && d.principles) ? d.principles.slice(0,4) : [];
+    const sig = d && d.signature ? String(d.signature).slice(0,18)+'…' : 'n/a';
+    out.textContent = 'Pledge active\nPrinciples: '+(principles.length ? principles.join(' | ') : 'available')+'\nSignature: '+sig;
+  });
   document.getElementById('prBtn').addEventListener('click', async () => {
-    const r = await fetch('/api/pledge/report', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ email: prEmail.value, evidence: prEv.value }) });
-    const d = await r.json(); prOut.textContent = d.ok ? 'Recorded · '+d.id : 'Error';
+    const email = document.getElementById('prEmail').value;
+    const evidence = document.getElementById('prEv').value;
+    const r = await fetch('/api/pledge/report', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ email, evidence }) });
+    const d = await r.json();
+    document.getElementById('prOut').textContent = d.ok ? 'Recorded · '+d.id : 'Error';
   });
   </script>
 </section>`;
@@ -1482,8 +1505,14 @@ function pageCancel() {
   </div>
   <script>
   document.getElementById('cnBtn').addEventListener('click', async () => {
-    const r = await fetch('/api/cancel/universal', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ email: cnEmail.value, reason: cnReason.value }) });
-    const d = await r.json(); cnOut.innerHTML = d.ok ? '<b style="color:#3bffb0">✓ '+d.message+'</b><br><small style="font-family:var(--mono);font-size:11px">sig '+d.signature.slice(0,40)+'…</small>' : '<b style="color:var(--danger)">Error</b>';
+    const email = document.getElementById('cnEmail').value;
+    const reason = document.getElementById('cnReason').value;
+    const r = await fetch('/api/cancel/universal', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ email, reason }) });
+    const d = await r.json();
+    const sig = d && d.signature ? String(d.signature).slice(0,22)+'…' : '';
+    document.getElementById('cnOut').innerHTML = d.ok
+      ? '<b style="color:#3bffb0">✓ '+d.message+'</b>' + (sig ? '<br><small style="font-family:var(--mono);font-size:11px">sig '+sig+'</small>' : '')
+      : '<b style="color:var(--danger)">Error</b>';
   });
   </script>
 </section>`;
@@ -1505,8 +1534,16 @@ function pageGift() {
   </div>
   <script>
   document.getElementById('gtBtn').addEventListener('click', async () => {
-    const r = await fetch('/api/gift/mint', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ sku:gtSku.value, valueUsd:Number(gtVal.value)||49, fromEmail:gtFrom.value, toEmail:gtTo.value, message:gtMsg.value }) });
-    const d = await r.json(); gtOut.innerHTML = '<div class="card" style="border-color:var(--violet)"><h3>'+d.code+'</h3><p style="color:var(--ink-dim)">Share this URL: <code class="inline">'+location.origin+d.redeemUrl+'</code></p><p style="color:var(--ink-dim);font-size:12px">Signed at '+d.mintedAt+'</p></div>';
+    const payload = {
+      sku: document.getElementById('gtSku').value,
+      valueUsd: Number(document.getElementById('gtVal').value)||49,
+      fromEmail: document.getElementById('gtFrom').value,
+      toEmail: document.getElementById('gtTo').value,
+      message: document.getElementById('gtMsg').value
+    };
+    const r = await fetch('/api/gift/mint', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) });
+    const d = await r.json();
+    document.getElementById('gtOut').innerHTML = '<div class="card" style="border-color:var(--violet)"><h3>'+d.code+'</h3><p style="color:var(--ink-dim)">Share this URL: <code class="inline">'+location.origin+d.redeemUrl+'</code></p><p style="color:var(--ink-dim);font-size:12px">Signed at '+d.mintedAt+'</p></div>';
   });
   </script>
 </section>`;
@@ -1517,12 +1554,13 @@ function pageAura() {
   <span class="kicker">Live Conversion Aura · F2</span>
   <h1 style="font-size:clamp(34px,4.4vw,56px);margin:10px 0 18px">The <span class="grad">heartbeat</span> of ZeusAI.</h1>
   <p style="color:var(--ink-dim);font-size:16px;line-height:1.7">Every metric below is fetched from <code class="inline">/api/aura</code>, signed Ed25519 at the moment of generation. No mocks, no inflation.</p>
-  <div class="grid" id="auraGrid" style="margin-top:22px"><div class="card"><p>Loading…</p></div></div>
+  <div class="grid" id="auraGrid" style="margin-top:22px"><div class="card"><p>Live metrics will appear here.</p></div></div>
   <pre class="code" id="auraRaw" style="margin-top:18px;max-height:280px;overflow:auto">…</pre>
   <script>
   async function loadAura(){
     const d = await (await fetch('/api/aura')).json();
-    document.getElementById('auraRaw').textContent = JSON.stringify(d, null, 2);
+    const sig = d && d.signature ? String(d.signature).slice(0,24)+'…' : 'n/a';
+    document.getElementById('auraRaw').textContent = 'Updated: '+(d.generatedAt||new Date().toISOString())+' · signature: '+sig;
     const m = d.metrics;
     document.getElementById('auraGrid').innerHTML = [
       ['Orders total', m.ordersTotal],
@@ -1542,7 +1580,7 @@ function pageApiExplorer() {
   <span class="kicker">API Explorer</span>
   <h1 style="font-size:clamp(34px,4.4vw,56px);margin:10px 0 18px">Try every <span class="grad">endpoint</span> live.</h1>
   <p style="color:var(--ink-dim);font-size:15px">OpenAPI 3.1 spec at <a href="/openapi.json" target="_blank">/openapi.json</a>. Below is the live endpoint inventory.</p>
-  <div id="apiList" class="card" style="padding:22px;margin-top:18px;font-family:var(--mono);font-size:13px;line-height:1.9;max-height:80vh;overflow:auto">Loading…</div>
+  <div id="apiList" class="card" style="padding:22px;margin-top:18px;font-family:var(--mono);font-size:13px;line-height:1.9;max-height:80vh;overflow:auto">Endpoint inventory will appear here.</div>
   <script>
   fetch('/openapi.json').then(r=>r.json()).then(d=>{
     const rows = Object.entries(d.paths).map(([p,ops])=>{
@@ -1560,11 +1598,12 @@ function pageTransparency() {
   <span class="kicker">Pricing Bandit Transparency · F11</span>
   <h1 style="font-size:clamp(34px,4.4vw,56px);margin:10px 0 18px">We test prices. <span class="grad">In public.</span></h1>
   <p style="color:var(--ink-dim);font-size:16px;line-height:1.7">The bandit decides which price to show. You see what it tested, the conversion rate, and the value per impression. Snapshot signed daily.</p>
-  <div id="btTable" class="card" style="padding:22px;margin-top:22px">Loading…</div>
+  <div id="btTable" class="card" style="padding:22px;margin-top:22px">Bandit snapshot will appear here.</div>
   <script>
   fetch('/api/bandit/transparency').then(r=>r.json()).then(d=>{
     const rows = (d.arms||[]).map(a=>'<tr><td style="padding:8px">'+a.arm+'</td><td style="padding:8px">'+a.impressions+'</td><td style="padding:8px">'+a.conversions+'</td><td style="padding:8px">'+(a.conversionRate*100).toFixed(2)+'%</td><td style="padding:8px">$'+(a.eValue||0).toFixed(2)+'</td></tr>').join('') || '<tr><td colspan="5" style="padding:14px;color:var(--ink-dim)">No experiments recorded yet. The bandit publishes its experiments here as it learns.</td></tr>';
-    document.getElementById('btTable').innerHTML = '<table style="width:100%;border-collapse:collapse;font-size:14px"><thead><tr style="background:#0b0f17"><th style="text-align:left;padding:8px">Arm</th><th style="text-align:left;padding:8px">Impressions</th><th style="text-align:left;padding:8px">Conversions</th><th style="text-align:left;padding:8px">CR</th><th style="text-align:left;padding:8px">$/imp</th></tr></thead><tbody>'+rows+'</tbody></table><p style="color:var(--ink-dim);font-size:12px;margin-top:14px;font-family:var(--mono)">snapshot: '+d.snapshotAt+' · sig '+d.signature.slice(0,32)+'…</p>';
+    const sig = d && d.signature ? String(d.signature).slice(0,32)+'…' : 'n/a';
+    document.getElementById('btTable').innerHTML = '<table style="width:100%;border-collapse:collapse;font-size:14px"><thead><tr style="background:#0b0f17"><th style="text-align:left;padding:8px">Arm</th><th style="text-align:left;padding:8px">Impressions</th><th style="text-align:left;padding:8px">Conversions</th><th style="text-align:left;padding:8px">CR</th><th style="text-align:left;padding:8px">$/imp</th></tr></thead><tbody>'+rows+'</tbody></table><p style="color:var(--ink-dim);font-size:12px;margin-top:14px;font-family:var(--mono)">snapshot: '+(d.snapshotAt||'—')+' · sig '+sig+'</p>';
   });
   </script>
 </section>`;
@@ -1588,8 +1627,21 @@ function pageFrontier() {
     <div class="card"><span class="tag">F11</span><h3>Public Bandit Transparency</h3><p>You see every price experiment.</p><a class="btn" href="/transparency" data-link>Open</a></div>
     <div class="card"><span class="tag">F12</span><h3>Carbon-Inclusive Checkout</h3><p>Auto-attached signed gCO₂ + offset.</p></div>
   </div>
-  <pre class="code" id="frOut" style="margin-top:22px;max-height:340px;overflow:auto">Loading…</pre>
-  <script>fetch('/api/frontier/status').then(r=>r.json()).then(d=>{frOut.textContent=JSON.stringify(d,null,2)});</script>
+  <pre class="code" id="frOut" style="margin-top:22px;max-height:340px;overflow:auto">Frontier status will appear here.</pre>
+  <script>
+  fetch('/api/frontier/status').then(r=>r.json()).then(d=>{
+    const out = document.getElementById('frOut');
+    if (!out) return;
+    const inv = d && (d.inventions || d.items || []);
+    const cnt = Array.isArray(inv) ? inv.length : (d && d.count) || 0;
+    const mode = d && (d.mode || d.status || 'active');
+    const updated = d && (d.generatedAt || d.updatedAt || new Date().toISOString());
+    out.textContent = 'Frontier status: '+mode+'\nInventions available: '+cnt+'\nUpdated: '+updated;
+  }).catch((e)=>{
+    const out = document.getElementById('frOut');
+    if (out) out.textContent = 'Frontier status unavailable: '+(e.message||e);
+  });
+  </script>
 </section>`;
 }
 

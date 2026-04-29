@@ -283,7 +283,7 @@ async function resolveService(ctx, serviceId) {
           id: item.id,
           name: item.title || item.name || item.id,
           title: item.title || item.name || item.id,
-          price: Number(item.priceUsd != null ? item.priceUsd : (item.price || 0)),
+          price: Number(item.priceUsd != null ? item.priceUsd : (item.priceUSD != null ? item.priceUSD : (item.price || 0))),
           description: item.description || '',
           segment: item.segment || item.group || 'unicorn',
           kpi: item.kpi || ''

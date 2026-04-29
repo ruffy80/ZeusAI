@@ -13,10 +13,17 @@
 
 function extractRoutes(app) {
   const routes = [];
-  app._router.stack.forEach(mw => {
-    if (mw.route && mw.route.path) {
-      const methods = Object.keys(mw.route.methods).map(m => m.toUpperCase());
-      routes.push({ path: mw.route.path, methods });
+  // Express 5 expune router-ul ca `app.router`; Express 4 ca `app._router`.
+  const router = (app && (app.router || app._router)) || null;
+  const stack = (router && router.stack) || [];
+  stack.forEach(mw => {
+    if (mw && mw.route && mw.route.path) {
+      const methodsObj = mw.route.methods || (mw.route.methods === undefined && mw.route.stack
+        ? mw.route.stack.reduce((acc, l) => { if (l && l.method) acc[l.method] = true; return acc; }, {})
+        : {});
+      const methods = Object.keys(methodsObj).map(m => m.toUpperCase());
+      const paths = Array.isArray(mw.route.path) ? mw.route.path : [mw.route.path];
+      paths.forEach(p => routes.push({ path: p, methods }));
     }
   });
   return routes;

@@ -341,6 +341,10 @@ const SITE_OWNED_MUTATIONS = [
   '/api/checkout/btc',
   '/api/checkout/paypal',
   '/api/checkout/stripe',
+  '/api/instant/purchase',
+  '/api/customer/signup',
+  '/api/customer/login',
+  '/api/customer/logout',
   '/api/concierge',
   '/api/concierge/stream',
   '/api/concierge/feedback',
@@ -1302,6 +1306,7 @@ function classifyIntent(text) {
   if (has(/\b(my|mele|meu|mein|mi)\b.*\b(service|serviciu|servizi|dienst)|activ(e|e-uri|os)|my services|serviciile mele/)) return 'my_services';
   if (has(/activate|activar|activer|activa|attiv|activezi|activare/)) return 'activate';
   if (has(/price|cost|plan|pret|preț|tari|cat|cost|prezzo|prix|preis/)) return 'pricing';
+  if (has(/catalog|catalogue|servicii|serviciu|services?|produse|products?|instant|ofert|oferi/)) return 'catalog';
   if (has(/btc|bitcoin|crypto|wallet|portof/)) return 'btc_howto';
   if (has(/paypal/)) return 'paypal_howto';
   if (has(/buy|cump|pay|plat|achat|comprar|kaufen/)) return 'buy';
@@ -1332,6 +1337,7 @@ function composeReply({ message, intent, lang, services, customer, activeService
   else if (intent === 'forecast') recIds = ['predictive-engine'];
   else if (intent === 'enterprise') recIds = ['quantum-nexus'];
   else if (intent === 'my_services' || intent === 'activate') recIds = [];
+  else if (intent === 'catalog') recIds = catalog.slice(0,3).map(s => s.id);
   else recIds = catalog.slice(0,3).map(s => s.id);
   const recsRaw = pick(recIds).slice(0, 3);
   const recommendations = recsRaw.map(s => ({
@@ -1405,6 +1411,23 @@ function composeReply({ message, intent, lang, services, customer, activeService
       });
       actions.push({ type:'navigate', label: T({ro:'Vezi servicii',en:'Browse services',es:'Ver',fr:'Voir',de:'Ansehen',pt:'Ver',it:'Vedi'}), url: '/services' });
       quickReplies.push({ label: T({ro:'Recomandă-mi',en:'Recommend for me'}), q: T({ro:'Recomandă-mi pachetul optim',en:'Recommend me the best package'}) });
+      break;
+    }
+    case 'catalog': {
+      const lines = catalog.map(s => {
+        const desc = s.description ? ` — ${String(s.description).slice(0, 110)}` : '';
+        return `• **${s.title}** — ${fmtPrice(s)}${desc}`;
+      }).join('\n');
+      reply = personalHeader + T({
+        ro: `**Servicii instant disponibile acum:**\n\n${lines}\n\nToate se pot cumpăra direct din /services și se activează automat după plată. Spune-mi obiectivul tău și îți recomand varianta potrivită.`,
+        en: `**Instant services available now:**\n\n${lines}\n\nYou can buy them directly from /services and they activate automatically after payment. Tell me your goal and I’ll recommend the right one.`
+      });
+      actions.push({ type:'navigate', label: T({ro:'Vezi toate serviciile',en:'Browse all services'}), url: '/services' });
+      if (catalog[0]) actions.push({ type:'navigate', label: T({ro:`Cumpără ${catalog[0].title}`,en:`Buy ${catalog[0].title}`}), url: '/checkout?service=' + encodeURIComponent(catalog[0].id) });
+      quickReplies.push(
+        { label: T({ro:'Recomandă-mi',en:'Recommend for me'}), q: T({ro:'Recomandă-mi pachetul optim',en:'Recommend me the best package'}) },
+        { label: T({ro:'Prețuri',en:'Prices'}), q: T({ro:'Ce prețuri ai?',en:'What are the prices?'}) }
+      );
       break;
     }
     case 'btc_howto': {
@@ -1592,6 +1615,20 @@ async function unicornHandler(req, res) {
         // auto-discovered modules) so the buyer pays directly to the owner BTC
         // wallet without going through Stripe/PayPal. Cached 60s via _masterCatalogCache.
         resolveCatalogItem: async (id) => {
+          if (unifiedCatalog && typeof unifiedCatalog.byId === 'function') {
+            const u = unifiedCatalog.byId(id);
+            if (u && u.id) {
+              return {
+                id: u.id,
+                title: u.title || u.name || u.id,
+                priceUsd: Number(u.priceUSD != null ? u.priceUSD : (u.priceUsd != null ? u.priceUsd : (u.price || 0))),
+                description: u.description || '',
+                group: u.group || u.tier || 'service',
+                segment: u.tier || u.group || 'service',
+                kpi: u.kpi || ''
+              };
+            }
+          }
           const cat = await getCachedMasterCatalog().catch(() => null);
           if (!cat || !Array.isArray(cat.items)) return null;
           return cat.items.find((it) => String(it.id) === String(id)) || null;
@@ -1915,6 +1952,16 @@ async function unicornHandler(req, res) {
       return require('crypto').timingSafeEqual(a, b);
     } catch (_) { return false; }
   };
+  const CUSTOMER_SESSION_COOKIE = 'customer_session';
+  const readCustomerToken = (req, fallbackToken) => {
+    const headerTok = String((req && req.headers && req.headers['x-customer-token']) || '').trim();
+    if (headerTok) return headerTok;
+    const bodyTok = String(fallbackToken || '').trim();
+    if (bodyTok) return bodyTok;
+    const c = parseCookies((req && req.headers && req.headers.cookie) || '');
+    return String(c[CUSTOMER_SESSION_COOKIE] || '').trim();
+  };
+  const customerSessionCookie = (token, maxAgeSec) => `${CUSTOMER_SESSION_COOKIE}=${encodeURIComponent(String(token || ''))}; HttpOnly; Secure; SameSite=Lax; Path=/; Max-Age=${maxAgeSec}`;
 
   // Login: validate password against backend /api/services/list (cheap) with token as admin header
   if (urlPath === '/api/admin/login' && req.method === 'POST') {
@@ -2021,7 +2068,7 @@ async function unicornHandler(req, res) {
   if (urlPath === '/api/user/services' || urlPath === '/api/user/services/') {
     // NEVER proxy — local is the authoritative view (portal orders + UAIC
     // receipts + UAIC entitlements). Backend has no visibility into UAIC state.
-    const tok = req.headers['x-customer-token'] || '';
+    const tok = readCustomerToken(req);
     const cid = portal && tok ? portal.verifyToken(tok) : null;
     const customer = cid && portal ? portal.getById(cid) : null;
     const email = String(req.headers['x-user-email'] || (customer && customer.email) || '').toLowerCase();
@@ -2255,10 +2302,11 @@ async function unicornHandler(req, res) {
 
   // Forward /api/* and /deploy to the Express backend (Hetzner) if configured,
   // EXCEPT the v2 local APIs which we serve in this process.
-  if (backendUrl && (isBackendMoneyMachineApi || (!isLocalV2Api && !isUaic && (urlPath.startsWith('/api/') || urlPath === '/deploy')))) {
+  const forceLocalApi = urlPath.startsWith('/api/onboarding/recommendations/');
+  if (backendUrl && (isBackendMoneyMachineApi || (!forceLocalApi && !isLocalV2Api && !isUaic && (urlPath.startsWith('/api/') || urlPath === '/deploy')))) {
     return proxyToBackend(req, res, backendUrl);
   }
-  if (urlPath.startsWith('/api/') && !isLocalV2Api && !isUaic) {
+  if (urlPath.startsWith('/api/') && !forceLocalApi && !isLocalV2Api && !isUaic) {
     res.writeHead(503, { 'Content-Type': 'application/json' });
     return res.end(JSON.stringify({ error: 'API backend not configured on this endpoint. Set BACKEND_API_URL env var.' }));
   }
@@ -2368,7 +2416,7 @@ async function unicornHandler(req, res) {
   }
 
   // SSE alias dedicated for frontend real-time Unicorn sync
-  if (urlPath === '/api/unicorn/events') {
+  if (urlPath === '/api/unicorn/events' || urlPath === '/api/uaic/revenue/stream') {
     res.writeHead(200, {
       'Content-Type': 'text/event-stream',
       'Cache-Control': 'no-cache, no-transform',
@@ -2382,6 +2430,71 @@ async function unicornHandler(req, res) {
       unicornEventClients.delete(res);
     });
     return;
+  }
+
+  // FX helper used by checkout UX strip (USD base + BTC live spot-derived)
+  if (urlPath === '/api/uaic/fx') {
+    const usdPerBtc = _btcSpotCache && _btcSpotCache.usdPerBtc ? Number(_btcSpotCache.usdPerBtc) : 95000;
+    const btcPerUsd = usdPerBtc > 0 ? Number((1 / usdPerBtc).toFixed(10)) : 0.0000095;
+    res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
+    return res.end(JSON.stringify({
+      ok: true,
+      base: 'USD',
+      rates: { USD: 1, EUR: 0.92, RON: 4.55, BTC: btcPerUsd },
+      source: 'site-fx',
+      fetchedAt: new Date().toISOString()
+    }));
+  }
+
+  // Affiliate track beacon (fire-and-forget from frontend)
+  if (urlPath === '/api/uaic/affiliate/track') {
+    const ref = String(requestUrl.searchParams.get('ref') || '').trim().slice(0, 64);
+    try {
+      const dir = path.join(__dirname, '..', 'data');
+      if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+      fs.appendFileSync(path.join(dir, 'affiliate-track.jsonl'), JSON.stringify({
+        at: new Date().toISOString(),
+        ref,
+        ip: req.headers['x-forwarded-for'] || req.socket.remoteAddress || null,
+        ua: req.headers['user-agent'] || null
+      }) + '\n');
+    } catch (_) {}
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    return res.end(JSON.stringify({ ok: true, tracked: !!ref, ref: ref || null }));
+  }
+
+  // Onboarding recommendations must be resilient in UI even if session id expired.
+  if (urlPath.startsWith('/api/onboarding/recommendations/') && req.method === 'GET') {
+    const sessionId = decodeURIComponent(urlPath.split('/').pop() || '').trim();
+    const fallback = {
+      ok: true,
+      id: sessionId || null,
+      recommendations: [
+        { id: 'positioning', title: 'Define unique positioning', priority: 'high' },
+        { id: 'pricing', title: 'Set initial pricing tier', priority: 'high' },
+        { id: 'distribution', title: 'Enable at least 2 acquisition channels', priority: 'medium' }
+      ],
+      source: 'site-fallback'
+    };
+    if (!process.env.BACKEND_API_URL) {
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      return res.end(JSON.stringify(fallback));
+    }
+    const target = process.env.BACKEND_API_URL.replace(/\/$/, '') + req.url;
+    return fetch(target, { method: 'GET', headers: { Accept: 'application/json' } })
+      .then(async (r) => {
+        const txt = await r.text();
+        if (r.ok) {
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          return res.end(txt);
+        }
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        return res.end(JSON.stringify(fallback));
+      })
+      .catch(() => {
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        return res.end(JSON.stringify(fallback));
+      });
   }
 
   // AI Registry proxy (or local fallback) — lists present and future AI adapters
@@ -3155,8 +3268,26 @@ async function unicornHandler(req, res) {
   if (req.method === 'GET' && /^\/services\/[A-Za-z0-9_\-:.]{1,80}$/.test(urlPath)) {
     try {
       const id = urlPath.slice('/services/'.length);
-      const cat = await getCachedMasterCatalog();
-      const item = (cat.items || []).find((it) => String(it.id) === String(id));
+      let item = null;
+      if (unifiedCatalog && typeof unifiedCatalog.byId === 'function') {
+        const u = unifiedCatalog.byId(id);
+        if (u && u.id) {
+          item = {
+            id: u.id,
+            title: u.title || u.name || u.id,
+            description: u.description || '',
+            segment: u.tier || u.group || 'service',
+            group: u.group || u.tier || 'service',
+            kpi: u.kpi || '',
+            priceUsd: Number(u.priceUSD != null ? u.priceUSD : (u.priceUsd != null ? u.priceUsd : (u.price || 0))),
+            priceBtc: 0
+          };
+        }
+      }
+      if (!item) {
+        const cat = await getCachedMasterCatalog();
+        item = (cat.items || []).find((it) => String(it.id) === String(id));
+      }
       if (!item) {
         res.writeHead(404, { 'Content-Type': 'text/html; charset=utf-8' });
         return res.end('<!doctype html><meta charset="utf-8"><title>Not found</title><h1>Service not found</h1><p><a href="/">← Home</a></p>');
@@ -3167,7 +3298,14 @@ async function unicornHandler(req, res) {
       const seg   = esc(item.segment || item.group || 'unicorn');
       const kpi   = esc(item.kpi || '');
       const priceUsd = Number(item.priceUsd || 0);
-      const priceBtc = Number(item.priceBtc || 0).toFixed(8);
+      let priceBtcNum = Number(item.priceBtc || 0);
+      if (!(priceBtcNum > 0) && priceUsd > 0) {
+        try {
+          const spot = await getBtcUsdSpot();
+          if (spot > 0) priceBtcNum = priceUsd / spot;
+        } catch (_) {}
+      }
+      const priceBtc = Number(priceBtcNum || 0).toFixed(8);
       const html = `<!doctype html>
 <html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
@@ -3340,7 +3478,7 @@ document.getElementById('buyBtn').addEventListener('click', async function(){
         const serviceId = String(p.serviceId || p.service_id || p.plan || 'starter');
         const paymentMethod = String(p.paymentMethod || p.payment_method || p.method || 'BTC').toUpperCase();
         const amount = Number(p.amount || p.amountUSD || p.priceUSD || 0);
-        const customerToken = String(req.headers['x-customer-token'] || p.customerToken || p.user_id || '');
+        const customerToken = readCustomerToken(req, p.customerToken || p.user_id);
         let email = p.email || '';
         if (!email && portal && customerToken) {
           const cid = portal.verifyToken(customerToken);
@@ -3786,7 +3924,7 @@ document.getElementById('buyBtn').addEventListener('click', async function(){
         }
         // Customer binding (from token or guest email)
         let customerId = null;
-        const tok = p.customerToken || (req.headers['x-customer-token']||'');
+        const tok = readCustomerToken(req, p.customerToken);
         if (tok) customerId = portal.verifyToken(tok);
         if (!customerId && p.guestEmail) {
           let cust = portal.byEmail(p.guestEmail);
@@ -4046,7 +4184,10 @@ ${invoice.payer ? `<h2>Payer</h2><table><tr><th>Legal entity</th><td>${esc(invoi
           } catch(e) { console.warn('[customer.signup] backend mirror failed:', e.message); }
         }
 
-        res.writeHead(200, {'Content-Type':'application/json'});
+        res.writeHead(200, {
+          'Content-Type':'application/json',
+          'Set-Cookie': customerSessionCookie(r.token, 30 * 24 * 3600)
+        });
         res.end(JSON.stringify(r));
       } catch (e) {
         res.writeHead(400, {'Content-Type':'application/json'});
@@ -4069,7 +4210,10 @@ ${invoice.payer ? `<h2>Payer</h2><table><tr><th>Legal entity</th><td>${esc(invoi
         // 1) Try site-local portal first.
         try {
           const r = portal.login(email, password);
-          res.writeHead(200, {'Content-Type':'application/json'});
+          res.writeHead(200, {
+            'Content-Type':'application/json',
+            'Set-Cookie': customerSessionCookie(r.token, 30 * 24 * 3600)
+          });
           return res.end(JSON.stringify(r));
         } catch (e) {
           const code = e.code || e.message;
@@ -4095,7 +4239,10 @@ ${invoice.payer ? `<h2>Payer</h2><table><tr><th>Legal entity</th><td>${esc(invoi
               if (bj && bj.user && bj.token) {
                 // Mirror to local portal so next login is instant + orders link up.
                 const r = portal.upsertFromBackend({ email: bj.user.email, name: bj.user.name, password });
-                res.writeHead(200, {'Content-Type':'application/json'});
+                res.writeHead(200, {
+                  'Content-Type':'application/json',
+                  'Set-Cookie': customerSessionCookie(r.token, 30 * 24 * 3600)
+                });
                 return res.end(JSON.stringify({ ...r, bridged: true }));
               }
             }
@@ -4111,6 +4258,13 @@ ${invoice.payer ? `<h2>Payer</h2><table><tr><th>Legal entity</th><td>${esc(invoi
       }
     });
     return;
+  }
+  if (urlPath === '/api/customer/logout' && req.method === 'POST') {
+    res.writeHead(200, {
+      'Content-Type':'application/json',
+      'Set-Cookie': customerSessionCookie('', 0)
+    });
+    return res.end(JSON.stringify({ ok: true }));
   }
   if (urlPath === '/api/customer/me') {
     if (!portal) {
@@ -4130,7 +4284,7 @@ ${invoice.payer ? `<h2>Payer</h2><table><tr><th>Legal entity</th><td>${esc(invoi
       res.writeHead(200, {'Content-Type':'application/json'});
       return res.end(JSON.stringify({ customer:{ email }, apiKeys:[], orders:receipts, activeServices, pendingOrders, deliveries }));
     }
-    const tok = req.headers['x-customer-token'] || '';
+    const tok = readCustomerToken(req);
     const cid = portal.verifyToken(tok);
     if (!cid) { res.writeHead(401, {'Content-Type':'application/json'}); return res.end('{"error":"unauthorized"}'); }
     const c = portal.getById(cid);
@@ -4207,6 +4361,7 @@ ${invoice.payer ? `<h2>Payer</h2><table><tr><th>Legal entity</th><td>${esc(invoi
     res.writeHead(200, {'Content-Type':'application/json'});
     res.end(JSON.stringify({
       customer: portal.publicCustomer(c),
+      token: tok || undefined,
       apiKeys: (c.apiKeys||[]).map(k => ({ productId:k.productId, orderId:k.orderId, issuedAt:k.issuedAt, keyPreview: k.key.slice(0,16)+'…', active:k.active })),
       orders,
       activeServices,   // NEW
@@ -4226,7 +4381,7 @@ ${invoice.payer ? `<h2>Payer</h2><table><tr><th>Legal entity</th><td>${esc(invoi
       const order = portal.getOrder(orderId);
       if (!order || order.status !== 'delivered') { res.writeHead(404); return res.end('not ready'); }
       // If customer-token provided, require it matches; otherwise allow (deliverables are unguessable by order-id + filename)
-      const tok = req.headers['x-customer-token'] || '';
+      const tok = readCustomerToken(req);
       if (tok) {
         const cid = portal.verifyToken(tok);
         if (cid && order.customerId && cid !== order.customerId) { res.writeHead(403); return res.end('forbidden'); }
@@ -4338,7 +4493,7 @@ ${invoice.payer ? `<h2>Payer</h2><table><tr><th>Legal entity</th><td>${esc(invoi
           const btcAmount = uaic.convert(amount, 'BTC');
           const receiptId = crypto.randomBytes(16).toString('hex');
           // Thread customer identity so /account activeServices and dashboard show it
-          const custTok = String(req.headers['x-customer-token'] || p.customerToken || '');
+          const custTok = readCustomerToken(req, p.customerToken);
           const cid = portal && custTok ? portal.verifyToken(custTok) : null;
           let email = p.email || (p.customer && p.customer.email) || '';
           if (cid && portal) { const c = portal.getById(cid); if (c && c.email) email = email || c.email; }
@@ -4668,7 +4823,7 @@ ${invoice.payer ? `<h2>Payer</h2><table><tr><th>Legal entity</th><td>${esc(invoi
         const payload = JSON.parse(body||'{}');
         const message = String(payload.message || payload.q || '').slice(0, 2000);
         const history = Array.isArray(payload.history) ? payload.history.slice(-10) : [];
-        const customerToken = String(payload.customerToken || req.headers['x-customer-token'] || '');
+        const customerToken = readCustomerToken(req, payload.customerToken);
         const messageId = 'msg_' + crypto.randomBytes(8).toString('hex');
         if (!message) {
           if (isStream) { res.writeHead(400); return res.end(); }
@@ -4698,7 +4853,10 @@ ${invoice.payer ? `<h2>Payer</h2><table><tr><th>Legal entity</th><td>${esc(invoi
 
         // ---- Live catalog
         const sources = (typeof getRuntimeDataSources === 'function') ? getRuntimeDataSources() : { services: [] };
-        const services = (sources.services || []);
+        const unifiedServices = (unifiedCatalog && typeof unifiedCatalog.publicView === 'function')
+          ? unifiedCatalog.publicView().map(s => ({ ...s, price: Number(s.price || s.priceUSD || s.priceUsd || 0), billing: s.billing || (s.tier === 'enterprise' ? 'project' : 'one-time'), segment: s.segment || s.tier || s.group }))
+          : [];
+        const services = unifiedServices.length ? unifiedServices : (sources.services || []);
 
         // ---- Intent + slot extraction
         const intent = classifyIntent(message);
@@ -4709,7 +4867,7 @@ ${invoice.payer ? `<h2>Payer</h2><table><tr><th>Legal entity</th><td>${esc(invoi
         // ---- Try backend first for richer AI if configured (non-stream)
         const backendUrl = process.env.BACKEND_API_URL;
         let finalReply = reply, finalProvider = 'zeus-local-v30y', finalModel = 'zeus-30y';
-        if (backendUrl) {
+        if (backendUrl && intent !== 'catalog') {
           try {
             const controller = new AbortController();
             const to = setTimeout(()=>controller.abort(), 8000);
@@ -4787,7 +4945,7 @@ ${invoice.payer ? `<h2>Payer</h2><table><tr><th>Legal entity</th><td>${esc(invoi
           customerId: null
         };
         try {
-          const tok = String(p.customerToken || req.headers['x-customer-token'] || '');
+          const tok = readCustomerToken(req, p.customerToken);
           if (tok && portal) entry.customerId = portal.verifyToken(tok) || null;
         } catch(_) {}
         try {
@@ -4809,8 +4967,12 @@ ${invoice.payer ? `<h2>Payer</h2><table><tr><th>Legal entity</th><td>${esc(invoi
     res.writeHead(200,{'Content-Type':'application/json'}); return res.end(JSON.stringify({ items: [] }));
   }
 
-  // Never fall through to HTML for API paths
+  // Final API fallback: if site runtime doesn't implement the route,
+  // transparently forward to backend (when configured).
   if (urlPath.startsWith('/api/')) {
+    if (process.env.BACKEND_API_URL) {
+      return edgeProxyApi(req, res, urlPath);
+    }
     res.writeHead(404, { 'Content-Type': 'application/json' });
     return res.end(JSON.stringify({ error: 'not_found', path: req.url }));
   }
@@ -4943,18 +5105,6 @@ ${invoice.payer ? `<h2>Payer</h2><table><tr><th>Legal entity</th><td>${esc(invoi
       'Content-Language': lang
     });
     return res.end(html);
-  }
-
-  // ===================================================================
-  // EDGE PROXY (Living Storefront): any unhandled /api/* request is
-  // transparently forwarded to the Unicorn backend so the site is always
-  // perfectly aligned with current AND future services it sells.
-  // - Circuit breaker: after consecutive failures we fail-fast for 30s.
-  // - Cached GET fallback: last-known-good JSON (60s TTL) is served on
-  //   breaker open or upstream timeout, so the storefront never goes blank.
-  // ===================================================================
-  if (urlPath.startsWith('/api/') && process.env.BACKEND_API_URL) {
-    return edgeProxyApi(req, res, urlPath);
   }
 
   // Legacy fallback

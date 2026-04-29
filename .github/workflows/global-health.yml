@@ -1,0 +1,35 @@
+name: 🌍 Global Availability Probe
+
+on:
+  workflow_dispatch:
+  schedule:
+    # Every 30 minutes. Keeps worldwide reachability visible without requiring secrets.
+    - cron: '*/30 * * * *'
+
+concurrency:
+  group: global-availability-probe
+  cancel-in-progress: true
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    permissions:
+      contents: read
+
+    steps:
+      - name: 📥 Checkout
+        uses: actions/checkout@v6
+
+      - name: 🟦 Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 20
+
+      - name: 🌍 Probe zeusai.pro globally
+        env:
+          GLOBAL_HEALTH_BASE_URL: https://zeusai.pro
+          GLOBAL_HEALTH_TIMEOUT_MS: '15000'
+          GLOBAL_HEALTH_CHECK_HOST_NODES: '10'
+          GLOBAL_HEALTH_CHECK_HOST_MIN_OK: '3'
+        run: node scripts/global-health-probe.js

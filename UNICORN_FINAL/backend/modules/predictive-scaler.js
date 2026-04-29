@@ -14,6 +14,19 @@
 const { execSync } = require('child_process');
 let lastScale = Date.now();
 let lastProcs = 1;
+let pm2Available;
+
+function hasPm2() {
+  if (pm2Available !== undefined) return pm2Available;
+  try {
+    execSync('command -v pm2', { stdio: 'ignore' });
+    pm2Available = true;
+  } catch (_) {
+    pm2Available = false;
+    console.warn('[predictive-scaler] PM2 unavailable, autoscaling disabled for this runtime.');
+  }
+  return pm2Available;
+}
 
 function getTrafficMetrics() {
   // Exemplu: folosește metrici reali din logs, API sau random pentru demo
@@ -37,6 +50,7 @@ function autoScale() {
   const needed = predictNeededProcs(metrics);
   if (needed !== lastProcs && Date.now() - lastScale > 60000) {
     try {
+      if (!hasPm2()) return;
       // Verifică dacă unicorn există în PM2
       const list = execSync('pm2 jlist').toString();
       if (!list.includes('"name":"unicorn"')) {

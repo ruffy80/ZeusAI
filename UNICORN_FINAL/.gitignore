@@ -9,6 +9,9 @@ logs/
 data/*.db
 data/*.db-shm
 data/*.db-wal
+data/runtime-secrets.json
+data/**/*.secret
+data/**/secrets*.json
 # Sovereign-commerce runtime state (orders, signing key, catalog-seen, txid cache)
 data/commerce/
 # Owner notifications (audit log written at runtime — not committed)

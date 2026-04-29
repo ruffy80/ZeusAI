@@ -25,8 +25,22 @@ try { bcrypt = require('bcryptjs'); } catch (_) { bcrypt = null; }
 
 const DATA_DIR = process.env.UNICORN_COMMERCE_DIR || path.join(__dirname, '..', '..', 'data', 'commerce');
 const STORE_FILE = path.join(DATA_DIR, 'portal.json');
+const SECRET_FILE = path.join(DATA_DIR, 'portal.secret');
 
 function ensureDir() { try { fs.mkdirSync(DATA_DIR, { recursive: true }); } catch (_) {} }
+
+function loadOrCreateSecret() {
+  ensureDir();
+  try {
+    if (fs.existsSync(SECRET_FILE)) {
+      const s = String(fs.readFileSync(SECRET_FILE, 'utf8') || '').trim();
+      if (s.length >= 32) return s;
+    }
+  } catch (_) {}
+  const s = crypto.randomBytes(32).toString('hex');
+  try { fs.writeFileSync(SECRET_FILE, s + '\n', { mode: 0o600 }); } catch (_) {}
+  return s;
+}
 
 function load() {
   try {
@@ -53,10 +67,10 @@ const state = load();
 // ── Token (HMAC, JWT-like, no external dep) ─────────────────────────────
 function tokenSecret() {
   if (process.env.JWT_SECRET) return process.env.JWT_SECRET;
-  if (!global.__PORTAL_BOOT_SECRET__) {
-    global.__PORTAL_BOOT_SECRET__ = crypto.randomBytes(32).toString('hex');
+  if (!global.__PORTAL_STABLE_SECRET__) {
+    global.__PORTAL_STABLE_SECRET__ = loadOrCreateSecret();
   }
-  return global.__PORTAL_BOOT_SECRET__;
+  return global.__PORTAL_STABLE_SECRET__;
 }
 function b64url(buf) { return Buffer.from(buf).toString('base64').replace(/=+$/,'').replace(/\+/g,'-').replace(/\//g,'_'); }
 function fromB64url(s) { return Buffer.from(String(s||'').replace(/-/g,'+').replace(/_/g,'/'), 'base64'); }

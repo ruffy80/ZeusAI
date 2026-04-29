@@ -11,6 +11,7 @@
     "unicorn:lint": "npm --prefix UNICORN_FINAL run lint",
     "deploy": "npm --prefix UNICORN_FINAL run deploy:full",
     "heal": "npm --prefix UNICORN_FINAL run health:guardian",
+    "health:global": "node scripts/global-health-probe.js",
     "evolve": "npm --prefix UNICORN_FINAL run innovation:sprint",
     "test": "npm --prefix UNICORN_FINAL test"
   }

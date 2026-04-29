@@ -701,11 +701,11 @@ app.post('/api/auth/forgot-password', authRateLimit(5, 15 * 60 * 1000), async (r
   const cleanEmail = sanitizeString(email, 254);
   if (!cleanEmail || !isValidEmail(cleanEmail)) return res.status(400).json({ error: 'Valid email required' });
   const user = dbUsers.findByEmail(cleanEmail);
-  if (!user) return res.status(404).json({ error: 'User not found' });
+  if (!user) return res.json({ message: 'If the account exists, a reset email was sent' });
   const resetToken = crypto.randomBytes(32).toString('hex');
   dbUsers.setResetToken(user.id, resetToken, Date.now() + 3600000);
   emailService.sendPasswordResetEmail(user, resetToken).catch(err => console.error('[Email] reset send failed:', err.message));
-  res.json({ message: 'Password reset email sent' });
+  res.json({ message: 'If the account exists, a reset email was sent' });
 });
 
 app.post('/api/auth/reset-password', async (req, res) => {

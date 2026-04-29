@@ -27,6 +27,37 @@ async function api(path, opts){
 }
 function escapeHtml(s){ return String(s==null?'':s).replace(/[&<>"']/g, m=>({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[m])); }
 
+function clearStaleLoadingPlaceholders(){
+  const nodes = Array.from(document.querySelectorAll('p, h3, pre, div, span, td'));
+  nodes.forEach((el) => {
+    const t = (el.textContent || '').trim();
+    if (!t) return;
+    const isLoading = /^Loading(\.{3}|…)?$/i.test(t) || /^Loading\s+.+/i.test(t);
+    if (!isLoading) return;
+    if (el.dataset.loadingResolved === '1') return;
+    el.dataset.loadingResolved = '1';
+    el.textContent = 'Data unavailable temporarily. Refreshing...';
+    el.style.color = 'var(--ink-dim)';
+  });
+}
+
+function runAppInlineScripts(root){
+  if (!root) return;
+  const scripts = Array.from(root.querySelectorAll('script'));
+  if (!scripts.length) return;
+  const nonceSource = document.querySelector('script[nonce]');
+  const defaultNonce = nonceSource ? nonceSource.getAttribute('nonce') : '';
+  scripts.forEach((oldScript) => {
+    const s = document.createElement('script');
+    for (const attr of Array.from(oldScript.attributes || [])) {
+      s.setAttribute(attr.name, attr.value);
+    }
+    if (!s.getAttribute('nonce') && defaultNonce) s.setAttribute('nonce', defaultNonce);
+    s.textContent = oldScript.textContent || '';
+    oldScript.parentNode && oldScript.parentNode.replaceChild(s, oldScript);
+  });
+}
+
 // ================= SSE =================
 // Resilient EventSource: exponential backoff (1s→30s) + jitter + heartbeat watchdog (45s).
 // Server emits keepalive every 15s; if we go silent >45s we force-reconnect.
@@ -166,6 +197,7 @@ document.addEventListener('click', e => {
     }
     const swap = () => {
       $('#app').innerHTML = newApp.innerHTML;
+      runAppInlineScripts($('#app'));
       $$('.nav-links a').forEach(x=>x.classList.toggle('active', x.getAttribute('href')===href));
       history.pushState({}, '', href);
       STATE.route = href;
@@ -688,22 +720,27 @@ function initTourbillon(){
 
 // ================= PAGE HYDRATION =================
 async function hydratePage(route){
-  // Galaxy is a universal background — keep it alive across all routes.
-  if (!zeusCtx) initZeus();
-  // Tear down tourbillon if leaving home
-  if (route !== '/' && tbCtx){ tbCtx.dispose(); tbCtx = null; }
+  try {
+    // Galaxy is a universal background — keep it alive across all routes.
+    if (!zeusCtx) initZeus();
+  } catch (e) { console.warn('hydratePage:initZeus', e && e.message); }
+  try {
+    // Tear down tourbillon if leaving home
+    if (route !== '/' && tbCtx){ tbCtx.dispose(); tbCtx = null; }
+  } catch (e) { console.warn('hydratePage:tbDispose', e && e.message); }
 
-  if (route === '/') { initTourbillon(); await hydrateHome(); initPillars(); }
-  if (route === '/services') await hydrateMasterCatalog();
-  if (route.startsWith('/services/')) await hydrateServiceDetail(route.slice(10));
-  if (route === '/checkout') hydrateCheckout();
-  if (route === '/dashboard') await hydrateDashboard();
-  if (route === '/enterprise') await hydrateEnterprise();
-  if (route === '/store') await hydrateStore();
-  if (route === '/account') await hydrateAccount();
-  if (route === '/admin/services') await hydrateAdminServices();
-  if (route === '/admin' || route === '/admin/login') await hydrateAdminLogin();
-  initCinematicInteractions();
+  try { if (route === '/') { initTourbillon(); await hydrateHome(); initPillars(); } } catch (e) { console.warn('hydratePage:home', e && e.message); }
+  try { if (route === '/services') await hydrateMasterCatalog(); } catch (e) { console.warn('hydratePage:services', e && e.message); }
+  try { if (route.startsWith('/services/')) await hydrateServiceDetail(route.slice(10)); } catch (e) { console.warn('hydratePage:serviceDetail', e && e.message); }
+  try { if (route === '/checkout') hydrateCheckout(); } catch (e) { console.warn('hydratePage:checkout', e && e.message); }
+  try { if (route === '/dashboard') await hydrateDashboard(); } catch (e) { console.warn('hydratePage:dashboard', e && e.message); }
+  try { if (route === '/enterprise') await hydrateEnterprise(); } catch (e) { console.warn('hydratePage:enterprise', e && e.message); }
+  try { if (route === '/store') await hydrateStore(); } catch (e) { console.warn('hydratePage:store', e && e.message); }
+  try { if (route === '/account') await hydrateAccount(); } catch (e) { console.warn('hydratePage:account', e && e.message); }
+  try { if (route === '/admin/services') await hydrateAdminServices(); } catch (e) { console.warn('hydratePage:adminServices', e && e.message); }
+  try { if (route === '/admin' || route === '/admin/login') await hydrateAdminLogin(); } catch (e) { console.warn('hydratePage:adminLogin', e && e.message); }
+  try { initCinematicInteractions(); } catch (e) { console.warn('hydratePage:cinematic', e && e.message); }
+  setTimeout(clearStaleLoadingPlaceholders, 6500);
 }
 
 let cinematicBound = false;
@@ -1336,12 +1373,14 @@ async function hydrateServices(){
 // ============================================================
 function masterCardHtml(it){
   const groupColor = {
-    strategic:'#8a5cff', frontier:'#ffd36a', vertical:'#3ea0ff', marketplace:'#6fd3ff',
+    instant:'#8a5cff', professional:'#3ea0ff', enterprise:'#ffd36a', industry:'#ff8aab', marketplace:'#6fd3ff',
+    strategic:'#8a5cff', frontier:'#ffd36a', vertical:'#3ea0ff',
     'unicorn-auto-module':'#a3ffce', 'billion-scale-activation':'#ff8aab',
     'billion-scale-package':'#ff5cd1', 'future-invention':'#7cf3ff'
   }[it.group] || '#8a5cff';
   const groupLabel = {
-    strategic:'Strategic', frontier:'Frontier', vertical:'Vertical OS', marketplace:'AI Module',
+    instant:'Instant', professional:'Professional', enterprise:'Enterprise', industry:'Industry', marketplace:'AI Module',
+    strategic:'Strategic', frontier:'Frontier', vertical:'Vertical OS',
     'unicorn-auto-module':'Auto-Discovered', 'billion-scale-activation':'Activation',
     'billion-scale-package':'Strategic Package', 'future-invention':'Future R&D'
   }[it.group] || it.group;
@@ -1419,7 +1458,43 @@ async function hydrateMasterCatalog(){
   const spotEl = $('#catBtcSpot');
   if (!grid) return;
   let cat = null;
-  try { cat = await api('/api/catalog/master'); } catch(_){ cat = null; }
+  try {
+    const j = await api('/api/instant/catalog');
+    const products = Array.isArray(j && j.products) ? j.products : [];
+    let btcSpot = null;
+    try {
+      const spot = await api('/api/btc/spot');
+      btcSpot = spot && Number(spot.usdPerBtc) > 0 ? { usdPerBtc: Number(spot.usdPerBtc), fetchedAt: spot.fetchedAt || null } : null;
+    } catch (_) {}
+    const normalizeGroup = function(p){
+      const g = String((p && p.group) || '').toLowerCase();
+      const t = String((p && p.tier) || '').toLowerCase();
+      if (g === 'instant' || t === 'instant') return 'instant';
+      if (g === 'enterprise' || t === 'enterprise' || t === 'industry') return 'enterprise';
+      if (g === 'professional' || t === 'professional') return 'professional';
+      if (g === 'marketplace' || t === 'marketplace') return 'marketplace';
+      return 'professional';
+    };
+    const items = products.map(function(p){
+      const priceUsd = Number(p && (p.priceUSD != null ? p.priceUSD : (p.priceUsd != null ? p.priceUsd : p.price)) || 0);
+      return {
+        id: p.id,
+        title: p.title || p.name || p.id,
+        description: p.description || p.tagline || 'ZeusAI service, immediately purchasable and auto-delivered after payment confirmation.',
+        group: normalizeGroup(p),
+        segment: p.tier || p.group || 'service',
+        kpi: p.deliverable || ((p.tier || 'instant') + ' delivery'),
+        priceUsd,
+        priceBtc: btcSpot && btcSpot.usdPerBtc ? Number((priceUsd / btcSpot.usdPerBtc).toFixed(8)) : 0
+      };
+    });
+    const counts = items.reduce(function(acc, it){
+      acc.total += 1;
+      acc[it.group] = (acc[it.group] || 0) + 1;
+      return acc;
+    }, { total: 0, instant: 0, professional: 0, enterprise: 0, marketplace: 0 });
+    cat = { items, counts, btcSpot, summary: j && j.summary ? j.summary : null };
+  } catch(_){ cat = null; }
   if (!cat || !Array.isArray(cat.items)) {
     // Fallback to legacy /api/services
     const services = await loadServices().catch(()=>[]);
@@ -1428,20 +1503,20 @@ async function hydrateMasterCatalog(){
   }
   STATE.masterCatalog = cat;
   if (spotEl && cat.btcSpot) spotEl.textContent = '1 BTC = $' + Number(cat.btcSpot.usdPerBtc).toLocaleString() + ' · live';
-  if (counts) counts.textContent = cat.counts.total + ' items · ' + cat.counts.strategic + ' strategic · ' + cat.counts.frontier + ' frontier · ' + cat.counts.vertical + ' vertical · ' + cat.counts.marketplace + ' modules';
+  if (counts) counts.textContent = cat.counts.total + ' real services · ' + (cat.counts.instant || 0) + ' instant · ' + (cat.counts.professional || 0) + ' professional · ' + (cat.counts.enterprise || 0) + ' enterprise · ' + (cat.counts.marketplace || 0) + ' modules';
   // Auto-extend chip filters to cover every group present in the live catalog
   // (Activation, Auto-Discovered, Future R&D, etc.) without removing the
   // existing 5 chips defined in shell.js. Idempotent on hydrate.
   if (filters) {
     const groupLabel = {
-      strategic:'Strategic', frontier:'Frontier · 12 Inventions', vertical:'Vertical OS · 18', marketplace:'AI Modules',
+      instant:'Instant', professional:'Professional', enterprise:'Enterprise', marketplace:'AI Modules', industry:'Industry',
+      strategic:'Strategic', frontier:'Frontier', vertical:'Vertical OS',
       'unicorn-auto-module':'Auto-Discovered', 'billion-scale-activation':'Activation',
       'billion-scale-package':'Strategic Packages', 'future-invention':'Future R&D'
     };
-    const present = new Set();
-    cat.items.forEach(function(it){ if (it && it.group) present.add(it.group); });
+    const present = Array.from(new Set(cat.items.map(function(it){ return it && it.group; }).filter(Boolean)));
+    filters.innerHTML = '<button class="chip on" data-group="all">All</button>';
     present.forEach(function(g){
-      if (filters.querySelector('[data-group="' + g + '"]')) return;
       const b = document.createElement('button');
       b.className = 'chip'; b.dataset.group = g;
       b.textContent = groupLabel[g] || g.replace(/-/g, ' ');
@@ -1515,7 +1590,22 @@ async function hydrateServiceDetail(id){
     s = STATE.masterCatalog.items.find(x => x.id === id);
   }
   if (!s) {
-    try { const cat = await api('/api/catalog/master'); STATE.masterCatalog = cat; s = cat.items.find(x => x.id === id); } catch(_){}
+    try {
+      const j = await api('/api/instant/catalog');
+      const products = Array.isArray(j && j.products) ? j.products : [];
+      const items = products.map(function(p){
+        return {
+          id: p.id,
+          title: p.title || p.name || p.id,
+          description: p.description || p.tagline || '',
+          segment: p.tier || p.group || 'service',
+          group: p.group || p.tier || 'instant',
+          priceUsd: Number(p && (p.priceUSD != null ? p.priceUSD : (p.priceUsd != null ? p.priceUsd : p.price)) || 0)
+        };
+      });
+      STATE.masterCatalog = { items };
+      s = items.find(x => x.id === id);
+    } catch(_){}
   }
   if (!s) {
     const services = STATE.services.length ? STATE.services : await loadServices();
@@ -2012,7 +2102,7 @@ async function hydrateOwnerRevenue(){
   const sendBtn = document.getElementById('conciergeSend');
   const chipsBox = document.getElementById('conciergeChips');
   const metaEl = document.getElementById('conciergeMeta');
-  if (!btn || !bodyEl || !inp) return;
+  if (!btn || !panel || !bodyEl || !inp) return;
 
   const STORE = 'zeus_chat_v30y';
   const MAX_MEM = 40;
@@ -2212,9 +2302,11 @@ async function hydrateOwnerRevenue(){
     const typing = showTyping();
     const tok = (typeof getCustToken === 'function') ? getCustToken() : '';
     let assistantMsg = null, buf = '', messageId = '', gotRecs = null, gotCards = null, gotActions = null, gotQR = null;
+    const controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
+    const streamTimeout = setTimeout(() => { try { controller && controller.abort(); } catch(_){} }, 12000);
     try {
       const resp = await fetch('/api/concierge/stream', {
-        method:'POST', headers: {'content-type':'application/json','x-customer-token': tok},
+        method:'POST', credentials:'same-origin', signal: controller ? controller.signal : undefined, headers: {'content-type':'application/json','x-customer-token': tok},
         body: JSON.stringify({ message: q, history: history.slice(-10), taskType:'sales', customerToken: tok })
       });
       if (!resp.ok || !resp.body) throw new Error('stream_failed');
@@ -2274,8 +2366,10 @@ async function hydrateOwnerRevenue(){
       history.push({ role:'user', content:q }, { role:'assistant', content: buf });
       saveHistory();
       maybeSpeak(buf);
+      clearTimeout(streamTimeout);
       return true;
     } catch(e) {
+      clearTimeout(streamTimeout);
       try { typing.remove(); } catch(_){}
       return false;
     }
@@ -2803,8 +2897,25 @@ async function hydrateStore(){
   const grid = document.getElementById('storeGrid');
   if (!grid) return;
   const j = await fetch('/api/instant/catalog').then(r=>r.json()).catch(()=>({products:[], summary:null}));
-  const products = j.products || [];
-  const summary = j.summary || null;
+  const rawProducts = Array.isArray(j.products) ? j.products : [];
+  const normTier = (t) => {
+    if (t === 'instant' || t === 'professional' || t === 'enterprise') return t;
+    if (t === 'industry') return 'enterprise';
+    return 'professional';
+  };
+  const products = rawProducts.map(p => Object.assign({}, p, {
+    tier: normTier(p && p.tier),
+    tagline: p && p.tagline ? p.tagline : (p && p.description ? String(p.description).slice(0, 120) : 'Production-ready ZeusAI service'),
+    deliverable: p && p.deliverable ? p.deliverable : 'Signed deliverable package'
+  }));
+  const summary = {
+    counts: {
+      total: products.length,
+      instant: products.filter(p => p.tier === 'instant').length,
+      professional: products.filter(p => p.tier === 'professional').length,
+      enterprise: products.filter(p => p.tier === 'enterprise').length
+    }
+  };
   window.__UNICORN_STORE_PRODUCTS__ = products;
 
   // Stats strip
@@ -3019,14 +3130,29 @@ async function hydrateAccount(){
   const root = document.getElementById('accountRoot');
   if (!root) return;
   const tok = getCustToken();
-  if (!tok) { renderAccountAuth(root); return; }
-  const me = await fetch('/api/customer/me', { headers: { 'x-customer-token': tok } }).then(r => r.ok ? r.json() : null).catch(()=>null);
-  if (!me) { setCustToken(''); renderAccountAuth(root); return; }
+  const headers = tok ? { 'x-customer-token': tok } : {};
+  const resp = await fetch('/api/customer/me', { headers, credentials: 'same-origin', cache: 'no-store' }).catch(() => null);
+  if (!resp) {
+    renderAccountAuth(root, 'Rețea indisponibilă temporar. Reîncearcă în câteva secunde. / Temporary network issue. Please retry.');
+    return;
+  }
+  if (resp.status === 401) {
+    setCustToken('');
+    renderAccountAuth(root);
+    return;
+  }
+  const me = resp.ok ? await resp.json().catch(()=>null) : null;
+  if (!me) {
+    renderAccountAuth(root, 'Contul nu poate fi încărcat acum. / Could not load account right now.');
+    return;
+  }
+  if (!tok && me.token) setCustToken(me.token);
   renderAccountDashboard(root, me);
 }
 
-function renderAccountAuth(root){
+function renderAccountAuth(root, topError){
   root.innerHTML = `
+    ${topError ? `<div class="card" style="padding:14px 18px;margin-bottom:16px;border:1px solid rgba(255,80,80,.35);background:rgba(255,60,60,.08);color:#ffb7b7;font-size:13px">${escStore(topError)}</div>` : ''}
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:28px">
       <div class="card" style="padding:28px">
         <h3 style="margin:0 0 6px">Log in / Conectare</h3>
@@ -3057,7 +3183,7 @@ function renderAccountAuth(root){
     if (!email || !password) { errEl.textContent = 'Completează email și parolă. / Fill in email and password.'; return; }
     btn.disabled = true; btn.textContent = 'Logging in…';
     try {
-      const r = await fetch('/api/customer/login', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ email, password }) }).then(x=>x.json());
+      const r = await fetch('/api/customer/login', { method:'POST', credentials:'same-origin', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ email, password }) }).then(x=>x.json());
       if (r.token) {
         setCustToken(r.token);
         if (typeof toast === 'function') toast('Bine ai revenit! / Welcome back!', 'ok');
@@ -3091,7 +3217,7 @@ function renderAccountAuth(root){
     if (password.length < 8) { errEl.textContent = 'Parola trebuie să aibă minim 8 caractere. / Password must be at least 8 characters.'; return; }
     btn.disabled = true; btn.textContent = 'Creating…';
     try {
-      const r = await fetch('/api/customer/signup', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ name, email, password }) }).then(x=>x.json());
+      const r = await fetch('/api/customer/signup', { method:'POST', credentials:'same-origin', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ name, email, password }) }).then(x=>x.json());
       if (r.token) {
         setCustToken(r.token);
         if (typeof toast === 'function') toast('Cont creat! Ești conectat. / Account created — you are logged in.', 'ok');
@@ -3195,7 +3321,11 @@ function renderAccountDashboard(root, me){
         ${o.status === 'awaiting_payment' ? `<div style="margin-top:12px;font-size:12px;color:var(--ink-dim);font-family:monospace;padding:8px;background:rgba(0,0,0,.25);border-radius:4px;word-break:break-all">Pay ${escStore(o.btcAmount)} BTC to ${escStore(o.btcAddress||'')}</div>` : ''}
       </div>`).join('')}</div>` : '<div style="color:var(--ink-dim);font-size:14px">No orders yet. Visit the <a href="/store">store</a> to buy your first product.</div>'}
     `;
-  root.querySelector('#acLogoutBtn').addEventListener('click', () => { setCustToken(''); hydrateAccount(); });
+  root.querySelector('#acLogoutBtn').addEventListener('click', async () => {
+    try { await fetch('/api/customer/logout', { method:'POST', credentials:'same-origin' }); } catch(_) {}
+    setCustToken('');
+    hydrateAccount();
+  });
 
   // "Use now →" handlers for active services
   root.querySelectorAll('.svc-use').forEach(btn => {

@@ -16,5 +16,8 @@ run-platform-setup.js
 *.pid
 UNICORN_FINAL/data/innovations-30y/
 UNICORN_FINAL/data/innovations-30y-v2/
+UNICORN_FINAL/data/runtime-secrets.json
+UNICORN_FINAL/data/**/*.secret
+UNICORN_FINAL/data/**/secrets*.json
 UNICORN_FINAL/data/**/pq-keys.json
 UNICORN_FINAL/data/**/vrf-key.json
