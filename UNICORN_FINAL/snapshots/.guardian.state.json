@@ -2,23 +2,23 @@
   "lastGood": "/Users/ionutvladoi/Desktop/generate-unicorn/UNICORN_FINAL/snapshots/unicorn-2026-04-26-18-06-17-known-good.tgz",
   "htmlBytes": 39547,
   "ts": "2026-04-26T18:06:17.220Z",
-  "_signature": "woGgjwS0Dn0TBnml8bVvpiPJE3za94Aexi6Y4/JUE/cFIrEJi/B7R9NLdUdHIqNkOyXqzKXg4p9QZIXdbrjoBA==",
+  "_signature": "l42qHKy/9sJrvuZvV4KphtlB/i4DHtZn0wahdLBB3DBb4Y+P7DSY+WBjeQJ2zPTiBNW05EJW1S/5lM71GqnVBg==",
   "pmSnap": {
     "pm2-logrotate": {
       "rt": 0,
-      "ts": 1777489954503
+      "ts": 1777488606625
     },
     "unicorn-backend": {
       "rt": 17,
-      "ts": 1777489954503
+      "ts": 1777488606625
     },
     "unicorn-site": {
       "rt": 16,
-      "ts": 1777489954503
+      "ts": 1777488606625
     },
     "unicorn-guardian": {
       "rt": 16,
-      "ts": 1777489954503
+      "ts": 1777488606625
     }
   },
   "stoppedAt": "2026-04-29T18:03:12.880Z"
