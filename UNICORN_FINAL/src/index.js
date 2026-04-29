@@ -5,6 +5,70 @@ const app = express();
 app.get('/health', (req, res) => {
   res.json({ ok: true, status: 'healthy', ts: new Date().toISOString() });
 });
+
+// === Site → Unicorn proxy with 2s timeout + mock fallback ===
+// Adds /api/industry/list, /api/control/stats, /api/evolution/snapshot.
+// Never crashes: on any failure (timeout / 5xx / network) returns mock JSON.
+const SITE_PROXY_TIMEOUT_MS = Number(process.env.SITE_PROXY_TIMEOUT_MS || 2000);
+const SITE_FALLBACK_MOCKS = {
+  '/api/industry/list': {
+    industries: [
+      { id: 'industry-1', name: 'Fintech', description: 'Financial technology and banking automation.', status: 'active' },
+      { id: 'industry-2', name: 'HealthTech', description: 'Healthcare automation and diagnostics.', status: 'active' },
+      { id: 'industry-3', name: 'Retail', description: 'Retail, e-commerce, and logistics.', status: 'active' },
+      { id: 'industry-4', name: 'Energy', description: 'Smart energy grids and sustainability.', status: 'active' },
+      { id: 'industry-5', name: 'Education', description: 'Personalized learning and edtech.', status: 'active' }
+    ],
+    source: 'site-fallback-mock'
+  },
+  '/api/control/stats': {
+    uptime: Math.floor(process.uptime()),
+    status: 'ok',
+    modules: 42,
+    activeUsers: 0,
+    requestsPerMin: 0,
+    source: 'site-fallback-mock'
+  },
+  '/api/evolution/snapshot': {
+    timestamp: new Date().toISOString(),
+    evolution: 'stable',
+    version: '1.0.0',
+    metrics: { generations: 0, successRate: 1, mutations: 0 },
+    notes: 'Mock snapshot served by site fallback while Unicorn backend is unreachable.',
+    source: 'site-fallback-mock'
+  }
+};
+function siteProxyToUnicorn(routePath) {
+  return async (req, res) => {
+    const backendUrl = process.env.BACKEND_API_URL;
+    const fallback = SITE_FALLBACK_MOCKS[routePath];
+    if (backendUrl) {
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), SITE_PROXY_TIMEOUT_MS);
+      try {
+        const target = backendUrl.replace(/\/$/, '') + routePath;
+        const r = await fetch(target, { headers: { Accept: 'application/json' }, signal: controller.signal });
+        clearTimeout(timer);
+        if (r.ok) {
+          const data = await r.json();
+          return res.json(data);
+        }
+        console.warn('[site-proxy] ' + routePath + ' upstream ' + r.status + ' → fallback mock');
+      } catch (err) {
+        clearTimeout(timer);
+        console.warn('[site-proxy] ' + routePath + ' failed: ' + (err && err.message) + ' → fallback mock');
+      }
+    } else {
+      console.warn('[site-proxy] BACKEND_API_URL not set, serving mock for ' + routePath);
+    }
+    res.set('X-Source', 'site-fallback-mock');
+    return res.json(fallback);
+  };
+}
+app.get('/api/industry/list', siteProxyToUnicorn('/api/industry/list'));
+app.get('/api/control/stats', siteProxyToUnicorn('/api/control/stats'));
+app.get('/api/evolution/snapshot', siteProxyToUnicorn('/api/evolution/snapshot'));
+
 // === Audit trail blockchain ===
 const blockchainAudit = require('./../backend/modules/blockchain-audit');
 // Exemplu: logare acțiuni critice

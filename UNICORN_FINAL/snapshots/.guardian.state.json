@@ -2,32 +2,28 @@
   "lastGood": "/Users/ionutvladoi/Desktop/generate-unicorn/UNICORN_FINAL/snapshots/unicorn-2026-04-29-19-32-42-known-good.tgz",
   "htmlBytes": 41927,
   "ts": "2026-04-29T19:32:42.073Z",
-  "_signature": "JzH7e9EkMmwRJz5jXDyGvIc2J6M0L+WH/EzthNnj4jrenzLW34iOxfkBBkiqmU2kIzMPE/dJIrM+O1+iAjShDg==",
+  "_signature": "9dhw5yCHmAERV6W48g/QFnf5vbFb32hIY4d9Qry4SXm4SHvJkEtxuoKJC7TEId1b4T+pxWTTOF8nyyvactigBw==",
   "pmSnap": {
     "pm2-logrotate": {
       "rt": 0,
-      "ts": 1777494081880
+      "ts": 1777494294635
     },
     "unicorn-backend": {
-      "rt": 68,
-      "ts": 1777494081880
+      "rt": 16,
+      "ts": 1777494294635
     },
     "unicorn-site": {
-      "rt": 21,
-      "ts": 1777494081880
-    },
-    "unicorn-guardian": {
-      "rt": 19,
-      "ts": 1777494081880
-    },
-    "unicorn": {
-      "rt": 30,
-      "ts": 1777494081880
+      "rt": 0,
+      "ts": 1777494294635
     },
     "autoscaler": {
       "rt": 0,
-      "ts": 1777494081880
+      "ts": 1777494294635
+    },
+    "unicorn-guardian": {
+      "rt": 0,
+      "ts": 1777494294635
     }
   },
-  "stoppedAt": "2026-04-29T20:20:45.665Z"
+  "stoppedAt": "2026-04-29T20:21:29.799Z"
 }
