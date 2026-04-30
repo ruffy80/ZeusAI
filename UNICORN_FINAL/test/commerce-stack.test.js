@@ -37,6 +37,23 @@ async function run() {
   const cid = portal.verifyToken(log1.token);
   assert.equal(cid, log1.customer.id);
 
+  // PM2 cluster regression: another worker can write portal.json while this
+  // process has stale in-memory state; login must refresh from disk first.
+  const portalFile = path.join(DATA_DIR, 'portal.json');
+  const diskState = JSON.parse(fs.readFileSync(portalFile, 'utf8'));
+  const aliceRaw = diskState.customers.find(c => c.email === 'alice@example.com');
+  diskState.customers.push({
+    id: 'cust_external_worker',
+    email: 'external-worker@example.com',
+    name: 'External Worker',
+    passwordHash: aliceRaw.passwordHash,
+    createdAt: new Date().toISOString(),
+    apiKeys: []
+  });
+  fs.writeFileSync(portalFile, JSON.stringify(diskState, null, 2));
+  const externalLogin = portal.login('external-worker@example.com', 'hunter1234');
+  assert.equal(externalLogin.customer.id, 'cust_external_worker');
+
   // wrong password / unknown email
   assert.throws(() => portal.login('alice@example.com', 'wrong'), /wrong_password/);
   assert.throws(() => portal.login('nobody@example.com', 'hunter1234'), /email_not_found/);

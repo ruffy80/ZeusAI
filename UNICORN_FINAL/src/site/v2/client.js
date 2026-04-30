@@ -2974,14 +2974,53 @@ window.addEventListener('DOMContentLoaded', () => {
   } catch(_){}
   // Remember email typed at checkout
   document.addEventListener('change', e => { if (e.target && e.target.id === 'coEmail' && e.target.value) { try { localStorage.setItem('u_email', e.target.value); } catch(_){} } });
+  refreshCustomerNav();
   openStream();
   hydratePage(STATE.route);
 });
 
 // ===== Instant Store =====
 const STORE_TOKEN_KEY = 'u_cust_token';
+const STORE_CUSTOMER_KEY = 'u_customer_profile';
 function getCustToken(){ try { return localStorage.getItem(STORE_TOKEN_KEY) || ''; } catch(_) { return ''; } }
-function setCustToken(t){ try { if (t) localStorage.setItem(STORE_TOKEN_KEY, t); else localStorage.removeItem(STORE_TOKEN_KEY); } catch(_){} }
+function setCustToken(t){
+  try {
+    if (t) {
+      localStorage.setItem(STORE_TOKEN_KEY, t);
+      localStorage.setItem('customerToken', t);
+      localStorage.setItem('authToken', t);
+    } else {
+      localStorage.removeItem(STORE_TOKEN_KEY);
+      localStorage.removeItem('customerToken');
+      localStorage.removeItem('authToken');
+    }
+  } catch(_){}
+  refreshCustomerNav();
+}
+function getCustProfile(){ try { return JSON.parse(localStorage.getItem(STORE_CUSTOMER_KEY) || 'null'); } catch(_) { return null; } }
+function setCustProfile(customer){
+  try {
+    if (customer && customer.email) localStorage.setItem(STORE_CUSTOMER_KEY, JSON.stringify({ email: customer.email, name: customer.name || '', id: customer.id || '' }));
+    else localStorage.removeItem(STORE_CUSTOMER_KEY);
+  } catch(_){}
+  refreshCustomerNav();
+}
+function refreshCustomerNav(){
+  try {
+    const token = getCustToken();
+    const customer = getCustProfile();
+    const active = !!(token || (customer && customer.email));
+    document.documentElement.setAttribute('data-customer-authenticated', active ? '1' : '0');
+    document.querySelectorAll('[data-customer-link]').forEach((el) => {
+      el.textContent = active ? 'My Account' : 'Create Account';
+      if (customer && customer.email) el.setAttribute('title', customer.email);
+    });
+    document.querySelectorAll('[data-customer-cta]').forEach((el) => {
+      el.textContent = active ? 'My Account' : 'Sign in';
+      if (customer && customer.email) el.setAttribute('title', customer.email);
+    });
+  } catch(_) {}
+}
 function escStore(s){ return String(s==null?'':s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
 
 async function hydrateStore(){
@@ -3229,6 +3268,7 @@ async function hydrateAccount(){
   }
   if (resp.status === 401) {
     setCustToken('');
+    setCustProfile(null);
     renderAccountAuth(root);
     return;
   }
@@ -3238,6 +3278,7 @@ async function hydrateAccount(){
     return;
   }
   if (!tok && me.token) setCustToken(me.token);
+  if (me.customer) setCustProfile(me.customer);
   renderAccountDashboard(root, me);
 }
 
@@ -3277,6 +3318,7 @@ function renderAccountAuth(root, topError){
       const r = await fetch('/api/customer/login', { method:'POST', credentials:'same-origin', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ email, password }) }).then(x=>x.json());
       if (r.token) {
         setCustToken(r.token);
+        if (r.customer) setCustProfile(r.customer);
         if (typeof toast === 'function') toast('Bine ai revenit! / Welcome back!', 'ok');
         hydrateAccount();
         return;
@@ -3311,6 +3353,7 @@ function renderAccountAuth(root, topError){
       const r = await fetch('/api/customer/signup', { method:'POST', credentials:'same-origin', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ name, email, password }) }).then(x=>x.json());
       if (r.token) {
         setCustToken(r.token);
+        if (r.customer) setCustProfile(r.customer);
         if (typeof toast === 'function') toast('Cont creat! Ești conectat. / Account created — you are logged in.', 'ok');
         hydrateAccount();
         return;
@@ -3415,6 +3458,7 @@ function renderAccountDashboard(root, me){
   root.querySelector('#acLogoutBtn').addEventListener('click', async () => {
     try { await fetch('/api/customer/logout', { method:'POST', credentials:'same-origin' }); } catch(_) {}
     setCustToken('');
+    setCustProfile(null);
     hydrateAccount();
   });
 

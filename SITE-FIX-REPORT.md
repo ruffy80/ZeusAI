@@ -44,9 +44,24 @@ Data: 2026-04-30
 - Funcția centrală `api(method,path,...)` folosește automat acest wrapper, deci toate apelurile UI trec prin retry/fallback.
 - Fetch-urile directe din pagină (`/snapshot`, `/api/payment/btc-rate`, `/api/catalog`, `/api/module-registry`, etc.) sunt acoperite de același wrapper global.
 
+## 4.1. Cont client real — signup/login/session cap-coadă
+- Endpointuri site active pentru client:
+  - `POST /api/customer/signup` — creează cont real în portalul site, setează cookie `customer_session`, returnează token + profil public.
+  - `POST /api/customer/login` — autentifică local, setează `customer_session`; fallback bridge către backend auth doar pentru utilizatori existenți acolo.
+  - `GET /api/customer/me` — profil, token, comenzi, servicii active, pending payments, deliveries, API keys.
+  - `POST /api/customer/logout` — șterge sesiunea.
+- Bug găsit live: în PM2 cluster, signup putea ajunge pe un worker, iar login pe alt worker cu memorie stale; al doilea worker nu vedea imediat `portal.json` și putea crea/întoarce alt customer prin bridge.
+- Fix backend: `src/commerce/customer-portal.js` reîncarcă starea persistentă din `data/commerce/portal.json` înainte de lookup/login/signup/order/API-key reads/writes, astfel toți workerii văd conturile reale imediat.
+- Fix frontend activ v2:
+  - navbar-ul expune acum clar `Account` / `Create Account` / `My Account`;
+  - pagina `/account` explică explicit că acolo se creează cont real și se gestionează servicii, comenzi, facturi, licențe, livrabile și API keys;
+  - după signup/login se sincronizează profilul clientului și tokenul în localStorage (`u_cust_token`, `customerToken`, `authToken`) și cookie-ul server rămâne sursa sigură;
+  - după logout se curăță tokenul/profilul și UI-ul revine la formularul de autentificare.
+
 ## 5. Verificare locală
 - `npm run lint` în `UNICORN_FINAL/` a trecut.
 - VS Code Problems: fără erori în `UNICORN_FINAL/src/site/template.js` și `UNICORN_FINAL/src/index.js`.
+- Test de regresie adăugat în `UNICORN_FINAL/test/commerce-stack.test.js`: simulează un alt worker care scrie un customer direct în `portal.json`; procesul curent trebuie să îl poată autentifica fără restart.
 
 ## 6. Verificare live înainte de deploy-ul frontend resilience
 Comenzi rulate pe `https://zeusai.pro`:

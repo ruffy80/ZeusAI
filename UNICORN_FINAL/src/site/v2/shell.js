@@ -160,11 +160,11 @@ function navBar(route, opts) {
   <span class="nav-toggle-bar"></span><span class="nav-toggle-bar"></span><span class="nav-toggle-bar"></span>
 </button>
 <div class="nav-links" id="nav-links">
-${L('/', 'Home')}${L('/services', 'Marketplace')}${L('/wizard', 'Find my plan')}${L('/store', 'Store')}${L('/account', 'Customer Portal')}${L('/enterprise', 'Enterprise')}${L('/pricing', 'Pricing')}${L('/innovations', 'Innovations')}${L('/frontier', 'Frontier')}${L('/docs', 'API')}${L('/status', 'Status')}
+${L('/', 'Home')}${L('/services', 'Marketplace')}${L('/wizard', 'Find my plan')}${L('/store', 'Store')}<a href="/account" data-link data-customer-link${route === '/account' ? ' class="active"' : ''}>Account</a>${L('/enterprise', 'Enterprise')}${L('/pricing', 'Pricing')}${L('/innovations', 'Innovations')}${L('/frontier', 'Frontier')}${L('/docs', 'API')}${L('/status', 'Status')}
 </div>
 <div class="nav-cta">
 <div class="lang-switch" role="group" aria-label="Language">${langBtn('en','English')}${langBtn('ro','Română')}${langBtn('es','Español')}</div>
-<a class="btn btn-ghost" href="/dashboard" data-link>Dashboard</a>
+<a class="btn btn-ghost" href="/account" data-link data-customer-cta>Sign in</a>
 <a class="btn btn-primary" href="/services" data-link>Explore Services</a>
 </div>
 </nav>`;
@@ -1168,7 +1168,8 @@ function pageAccount() {
   return `<section class="enterprise-hero" style="padding-top:120px">
   <div style="max-width:1100px;margin:0 auto;padding:0 28px">
     <span class="kicker" style="color:#8a5cff">Customer Portal</span>
-    <h1 style="font-size:clamp(36px,4.5vw,56px);line-height:1.04;margin:14px 0 30px;letter-spacing:-0.02em">Your account</h1>
+    <h1 style="font-size:clamp(36px,4.5vw,56px);line-height:1.04;margin:14px 0 12px;letter-spacing:-0.02em">Your account</h1>
+    <p style="color:var(--ink-dim);font-size:17px;line-height:1.55;max-width:820px;margin:0 0 30px">Create a real ZeusAI customer account, then manage services, orders, invoices, licenses, deliverables and API keys from one secure portal.</p>
     <div id="accountRoot"></div>
   </div>
 </section>`;

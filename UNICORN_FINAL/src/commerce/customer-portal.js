@@ -64,6 +64,15 @@ function save(state) {
 
 const state = load();
 
+function refreshStateFromDisk() {
+  try {
+    if (!fs.existsSync(STORE_FILE)) return;
+    const raw = JSON.parse(fs.readFileSync(STORE_FILE, 'utf8'));
+    if (Array.isArray(raw.customers)) state.customers.splice(0, state.customers.length, ...raw.customers);
+    if (Array.isArray(raw.orders)) state.orders.splice(0, state.orders.length, ...raw.orders);
+  } catch (e) { console.warn('[portal] refresh failed:', e.message); }
+}
+
 // ── Token (HMAC, JWT-like, no external dep) ─────────────────────────────
 function tokenSecret() {
   if (process.env.JWT_SECRET) return process.env.JWT_SECRET;
@@ -132,10 +141,14 @@ function publicCustomer(c) {
 }
 
 function byEmail(email) {
+  refreshStateFromDisk();
   const e = String(email || '').trim().toLowerCase();
   return state.customers.find(c => String(c.email||'').toLowerCase() === e) || null;
 }
-function getById(id) { return state.customers.find(c => c.id === id) || null; }
+function getById(id) {
+  refreshStateFromDisk();
+  return state.customers.find(c => c.id === id) || null;
+}
 
 function makeAuthResult(customer) {
   const token = signToken({ cid: customer.id, iat: Date.now(), exp: Date.now() + 30*24*3600*1000 });
@@ -196,6 +209,7 @@ function upsertFromBackend({ email, name, password }) {
 
 // ── Orders ───────────────────────────────────────────────────────────────
 function createOrder(fields) {
+  refreshStateFromDisk();
   const now = new Date().toISOString();
   const order = {
     id: 'ord_' + crypto.randomBytes(8).toString('hex'),
@@ -218,7 +232,10 @@ function createOrder(fields) {
   save(state);
   return order;
 }
-function getOrder(id) { return state.orders.find(o => o.id === id) || null; }
+function getOrder(id) {
+  refreshStateFromDisk();
+  return state.orders.find(o => o.id === id) || null;
+}
 function updateOrder(id, patch) {
   const o = getOrder(id);
   if (!o) return null;
@@ -227,12 +244,14 @@ function updateOrder(id, patch) {
   return o;
 }
 function listOrdersByCustomer(cid) {
+  refreshStateFromDisk();
   if (!cid) return [];
   return state.orders.filter(o => o.customerId === cid).sort((a,b) => (b.createdAt||'').localeCompare(a.createdAt||''));
 }
 
 // ── API keys ─────────────────────────────────────────────────────────────
 function issueApiKey(customerId, productId, orderId) {
+  refreshStateFromDisk();
   const c = getById(customerId);
   if (!c) return null;
   const key = 'unc_' + crypto.randomBytes(24).toString('hex');
@@ -243,6 +262,7 @@ function issueApiKey(customerId, productId, orderId) {
   return entry;
 }
 function findByApiKey(key) {
+  refreshStateFromDisk();
   if (!key) return null;
   for (const c of state.customers) {
     for (const k of (c.apiKeys || [])) {
@@ -266,5 +286,5 @@ module.exports = {
   issueApiKey, findByApiKey,
   _resetForTests,
   // expose counts for diagnostics
-  _stats: () => ({ customers: state.customers.length, orders: state.orders.length })
+  _stats: () => { refreshStateFromDisk(); return { customers: state.customers.length, orders: state.orders.length }; }
 };
