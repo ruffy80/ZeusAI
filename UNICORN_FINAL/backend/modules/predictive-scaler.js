@@ -75,7 +75,12 @@ function autoScale() {
 // In production the HTTP server keeps the loop active, so scaling still runs;
 // in test/CLI contexts the process can exit cleanly once its work is done
 // (otherwise tests that load src/index.js hang forever and CI deploys time out).
-const _scalerTimer = setInterval(autoScale, 120000);
-if (typeof _scalerTimer.unref === 'function') _scalerTimer.unref();
+// Replica workers in PM2 cluster mode set PREDICTIVE_SCALER_DISABLED=1 so only
+// instance 0 issues `pm2 scale` (avoid N workers racing on the same command).
+let _scalerTimer = null;
+if (process.env.PREDICTIVE_SCALER_DISABLED !== '1') {
+  _scalerTimer = setInterval(autoScale, 120000);
+  if (typeof _scalerTimer.unref === 'function') _scalerTimer.unref();
+}
 
 module.exports = { autoScale };

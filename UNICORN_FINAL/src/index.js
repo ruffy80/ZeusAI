@@ -1,3 +1,34 @@
+// ==================== CLUSTER SINGLETON GUARD (site worker, PM2 cluster mode) ====================
+// `unicorn-site` runs in PM2 cluster mode (instances:'max'); every worker re-runs
+// this require chain. Modules with global write side-effects (PM2 scaling,
+// JSONL ledgers, audit logs, outreach ticker, whale scan, marketing innovation
+// loop, autoViral loop, USE tick) MUST run only once per host or they race on
+// shared files / multiply external traffic. PM2 sets NODE_APP_INSTANCE='0','1',
+// '2',...; we elect worker 0 as the singleton and disable side-effects on the
+// rest while still serving HTTP/SSE/HTML normally so cluster scaling still works.
+// Strictly additive — workerless contexts (NODE_APP_INSTANCE unset) keep legacy
+// behavior. Override with SITE_CLUSTER_SINGLETON_DISABLED=1 to bypass entirely.
+(function clusterSingletonGuard() {
+  try {
+    if (process.env.SITE_CLUSTER_SINGLETON_DISABLED === '1') return;
+    const inst = process.env.NODE_APP_INSTANCE;
+    if (inst === undefined || inst === null || inst === '' || inst === '0') return;
+    const flags = [
+      'MARKETING_PACK_DISABLED',
+      'MARKETING_INNOVATION_LOOP_DISABLED',
+      'PREDICTIVE_SCALER_DISABLED',
+      'OUTREACH_TICKER_DISABLED',
+      'WHALES_TICKER_DISABLED',
+      'USE_AUTOSTART_DISABLED',
+      'AUTOVIRAL_DISABLED',
+      'MESH_AUTOSTART_DISABLED',
+    ];
+    for (const k of flags) if (!process.env[k]) process.env[k] = '1';
+    process.env.SITE_CLUSTER_WORKER_ROLE = 'replica';
+    try { console.log('[site-cluster] worker NODE_APP_INSTANCE=' + inst + ' running as REPLICA (read/proxy only; write loops gated to instance 0)'); } catch (_) {}
+  } catch (_) { /* never let the guard itself crash */ }
+})();
+
 // ==================== PROCESS-LEVEL CRASH GUARD (site worker) ====================
 // Mirror of the guard already in backend/index.js. The site worker
 // (PM2 app `unicorn-site`, port 3001) loads many auto-starting modules
@@ -5364,7 +5395,9 @@ if (require.main === module) {
           try { USE.onPayment(r); } catch (_) {}
           try { if (prevHook) prevHook(r); } catch (_) {}
         };
-        USE.start(Number(process.env.USE_TICK_MS || 30000));
+        if (process.env.USE_AUTOSTART_DISABLED !== '1') {
+          USE.start(Number(process.env.USE_TICK_MS || 30000));
+        }
       }
     } catch (e) { console.warn('[USE] start failed:', e.message); }
     // Unified catalog runtime hydration — feeds marketplace + industries from runtime sources.
@@ -5376,7 +5409,7 @@ if (require.main === module) {
     } catch (e) { console.warn('[unified-catalog] runtime sync failed:', e.message); }
     // Outreach flush worker — every 60s
     try {
-      if (outreach) {
+      if (outreach && process.env.OUTREACH_TICKER_DISABLED !== '1') {
         const t = setInterval(() => { try { outreach.tick(); } catch(_){} }, 60*1000);
         if (t.unref) t.unref();
         console.log('[outreach] flush ticker online (60s)');
@@ -5384,7 +5417,7 @@ if (require.main === module) {
     } catch(e) { console.warn('[outreach] ticker failed:', e.message); }
     // Whale tracker — scan every 6h, initial scan after 30s
     try {
-      if (whales) {
+      if (whales && process.env.WHALES_TICKER_DISABLED !== '1') {
         setTimeout(() => { whales.scan(6).then(r => console.log('[whales] initial scan:', r)).catch(()=>{}); }, 30*1000).unref?.();
         const t = setInterval(() => { whales.scan(6).catch(()=>{}); }, 6*3600*1000);
         if (t.unref) t.unref();
