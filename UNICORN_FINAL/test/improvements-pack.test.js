@@ -155,7 +155,8 @@ async function run() {
 
   // ── 8. HTTP integration: existing endpoints + new endpoints ───────────
   {
-    const server = require('../src/index');
+    const { createServer } = require('../src/index');
+    const server = createServer();
     await new Promise((resolve) => server.listen(0, resolve));
     const { port } = server.address();
     const base = 'http://127.0.0.1:' + port;

@@ -18,7 +18,8 @@ const tmpAudit = path.join(os.tmpdir(), `unicorn-50y-audit-${process.pid}-${Date
 process.env.AUDIT_50Y_LOG = tmpAudit;
 
 const innov50 = require('../backend/modules/innovations-50y');
-const server = require('../src/index');
+const { createServer } = require('../src/index');
+const server = createServer();
 
 async function run() {
   // ── 1. Module-level invariants (no HTTP yet) ─────────────────────────
@@ -192,4 +193,4 @@ async function run() {
   console.log('✅ innovations-50y.test.js passed');
 }
 
-run().catch((e) => { console.error('❌ innovations-50y.test.js failed:', e); process.exit(1); });
+run().then(() => process.exit(0)).catch((e) => { console.error('❌ innovations-50y.test.js failed:', e); process.exit(1); });

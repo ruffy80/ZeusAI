@@ -9,7 +9,8 @@ process.env.PORT = process.env.PORT || '31991';
 process.env.PUBLIC_APP_URL = process.env.PUBLIC_APP_URL || 'https://zeusai.pro';
 process.env.BTC_WALLET_ADDRESS = process.env.BTC_WALLET_ADDRESS || 'bc1q4f7e66z87mdfj56kz0dj5hvcnpmh0qh4wuv22e';
 
-const app = require('../src/index');
+const { createServer } = require('../src/index');
+const app = createServer();
 const port = Number(process.env.PORT);
 const base = `http://127.0.0.1:${port}`;
 const wallet = process.env.BTC_WALLET_ADDRESS;
