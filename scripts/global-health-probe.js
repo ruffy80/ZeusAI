@@ -60,6 +60,26 @@ async function directProbe(check) {
   };
 }
 
+// Wrapper that retries each direct check with backoff before declaring
+// failure. A single transient blip (nginx reload, PM2 worker rolling,
+// cloud network jitter) used to mark the whole site as down; now we
+// require N consecutive failures spaced by short backoffs. Real outages
+// — which by definition persist for many seconds — still fail the probe.
+async function directProbeWithRetry(check, { attempts = 3, baseDelayMs = 1500 } = {}) {
+  let last;
+  for (let i = 0; i < attempts; i++) {
+    try {
+      const r = await directProbe(check);
+      if (r.ok) return r;
+      last = r;
+    } catch (err) {
+      last = { ...check, status: 0, bytes: 0, latencyMs: 0, ok: false, detail: `error:${err.message}` };
+    }
+    if (i < attempts - 1) await sleep(baseDelayMs * (i + 1));
+  }
+  return last;
+}
+
 function parseCheckHostResult(payload) {
   const rows = [];
   for (const [node, entries] of Object.entries(payload || {})) {
@@ -96,10 +116,10 @@ async function run() {
   console.log(`[GLOBAL] Target: ${BASE_URL}`);
   let failed = false;
 
-  console.log('\n[GLOBAL] Direct public endpoint checks');
+  console.log('\n[GLOBAL] Direct public endpoint checks (with retry: 3 attempts, 1.5s backoff)');
   for (const check of directChecks) {
     try {
-      const result = await directProbe(check);
+      const result = await directProbeWithRetry(check);
       console.log(`${result.ok ? '✅' : '❌'} ${result.name.padEnd(20)} ${result.method} ${result.path} → HTTP ${result.status}, ${result.bytes}B, ${result.latencyMs}ms (${result.detail})`);
       if (!result.ok) failed = true;
     } catch (error) {

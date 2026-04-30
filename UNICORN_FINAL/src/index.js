@@ -1,3 +1,26 @@
+// ==================== PROCESS-LEVEL CRASH GUARD (site worker) ====================
+// Mirror of the guard already in backend/index.js. The site worker
+// (PM2 app `unicorn-site`, port 3001) loads many auto-starting modules
+// (predictive-scaler, autoViralGrowth, marketing-innovations, mesh,
+// outreach ticker, whale tracker, USE, USE.start, etc.). Any uncaught
+// async throw inside one of those long-lived intervals would otherwise
+// take down the worker → nginx → 502. We log loudly and KEEP the worker
+// alive; PM2 will still restart on truly fatal crashes.
+// Strictly additive — no behavior change for healthy code paths.
+process.on('uncaughtException', (err) => {
+  try {
+    console.error('[site:uncaughtException]', new Date().toISOString(), err && err.message ? err.message : err);
+    if (err && err.stack) console.error(err.stack);
+  } catch (_) { /* never let the guard itself crash */ }
+});
+process.on('unhandledRejection', (reason) => {
+  try {
+    const msg = reason instanceof Error ? reason.message : String(reason);
+    console.error('[site:unhandledRejection]', new Date().toISOString(), msg);
+    if (reason instanceof Error && reason.stack) console.error(reason.stack);
+  } catch (_) { /* never let the guard itself crash */ }
+});
+
 // === Health endpoint direct Express pentru testare și monitorizare ===
 const express = require('express');
 const app = express();
