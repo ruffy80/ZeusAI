@@ -362,6 +362,49 @@ function globalChrome() {
 </div>
 <script>
 (function(){
+  // Early resilient fetch: applies before /assets/app.js loads, so inline
+  // telemetry/aura/newsletter requests also get 3x retry + last-good fallback.
+  try {
+    if (!window.__zeusResilientFetchInstalled && window.fetch) {
+      window.__zeusResilientFetchInstalled = true;
+      var nativeFetch = window.fetch.bind(window);
+      var cachePrefix = 'zeus_last_good_response:';
+      var wait = function(ms){ return new Promise(function(resolve){ setTimeout(resolve, ms); }); };
+      var methodOf = function(input, init){ return String((init && init.method) || (input && input.method) || 'GET').toUpperCase(); };
+      var urlOf = function(input){ try { return new URL((typeof input === 'string' ? input : input.url), location.origin).href; } catch(_) { return String(input || ''); } };
+      var sameSite = function(url){ try { return new URL(url, location.origin).origin === location.origin; } catch(_) { return false; } };
+      var keyOf = function(method, url){ return cachePrefix + method + ':' + url; };
+      var remember = function(method, url, response){
+        if (method !== 'GET' || !sameSite(url) || !response || !response.ok) return;
+        try { response.clone().text().then(function(body){
+          if (!body || body.length > 250000) return;
+          localStorage.setItem(keyOf(method, url), JSON.stringify({ body: body, type: response.headers.get('content-type') || 'application/json', status: response.status, ts: Date.now() }));
+        }).catch(function(){}); } catch(_) {}
+      };
+      var cached = function(method, url){
+        if (method !== 'GET' || !sameSite(url)) return null;
+        try {
+          var item = JSON.parse(localStorage.getItem(keyOf(method, url)) || 'null');
+          if (!item || typeof item.body !== 'string') return null;
+          document.documentElement.setAttribute('data-zeus-api-fallback','1');
+          return new Response(item.body, { status: 200, statusText: 'OK (cached)', headers: { 'Content-Type': item.type || 'application/json', 'X-Zeus-Cache-Fallback': '1', 'X-Zeus-Cache-Ts': String(item.ts || '') } });
+        } catch(_) { return null; }
+      };
+      window.fetch = async function zeusResilientFetch(input, init){
+        var method = methodOf(input, init), url = urlOf(input), lastError = null, lastResponse = null;
+        for (var attempt = 1; attempt <= 3; attempt++) {
+          try {
+            var response = await nativeFetch(input, init);
+            if (response.ok) { remember(method, url, response); return response; }
+            lastResponse = response;
+            if (response.status < 500) return response;
+          } catch(err) { lastError = err; if (init && init.signal && init.signal.aborted) break; }
+          if (attempt < 3) await wait(250 * attempt);
+        }
+        return cached(method, url) || lastResponse || Promise.reject(lastError || new Error('Network error'));
+      };
+    }
+  } catch(_){ }
   // Mobile nav hamburger toggle
   try {
     var navEl = document.querySelector('nav.nav');

@@ -3,6 +3,65 @@
 (function(){
 'use strict';
 
+function installResilientFetch(){
+  if (window.__zeusResilientFetchInstalled || !window.fetch) return;
+  window.__zeusResilientFetchInstalled = true;
+  const nativeFetch = window.fetch.bind(window);
+  const cachePrefix = 'zeus_last_good_response:';
+  const methodOf = (input, init) => String((init && init.method) || (input && input.method) || 'GET').toUpperCase();
+  const urlOf = (input) => { try { return new URL((typeof input === 'string' ? input : input.url), location.origin).href; } catch (_) { return String(input || ''); } };
+  const sameSite = (url) => { try { return new URL(url, location.origin).origin === location.origin; } catch (_) { return false; } };
+  const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+  const keyOf = (method, url) => cachePrefix + method + ':' + url;
+  function clearLoading(){ try { if (typeof clearStaleLoadingPlaceholders === 'function') clearStaleLoadingPlaceholders(); } catch (_) {} }
+  function remember(method, url, response){
+    if (method !== 'GET' || !sameSite(url) || !response || !response.ok) return;
+    try {
+      response.clone().text().then((body) => {
+        if (!body || body.length > 250000) return;
+        const type = response.headers && response.headers.get ? (response.headers.get('content-type') || 'application/json') : 'application/json';
+        localStorage.setItem(keyOf(method, url), JSON.stringify({ body, type, status: response.status, ts: Date.now() }));
+      }).catch(() => {});
+    } catch (_) {}
+  }
+  function cached(method, url){
+    if (method !== 'GET' || !sameSite(url)) return null;
+    try {
+      const raw = localStorage.getItem(keyOf(method, url));
+      if (!raw) return null;
+      const item = JSON.parse(raw);
+      if (!item || typeof item.body !== 'string') return null;
+      document.documentElement.setAttribute('data-zeus-api-fallback', '1');
+      clearLoading();
+      return new Response(item.body, { status: 200, statusText: 'OK (cached)', headers: { 'Content-Type': item.type || 'application/json', 'X-Zeus-Cache-Fallback': '1', 'X-Zeus-Cache-Ts': String(item.ts || '') } });
+    } catch (_) { return null; }
+  }
+  window.fetch = async function zeusResilientFetch(input, init){
+    const method = methodOf(input, init);
+    const url = urlOf(input);
+    let lastError = null;
+    let lastResponse = null;
+    for (let attempt = 1; attempt <= 3; attempt++) {
+      try {
+        const response = await nativeFetch(input, init);
+        if (response.ok) { remember(method, url, response); return response; }
+        lastResponse = response;
+        if (response.status < 500) return response;
+      } catch (err) {
+        lastError = err;
+        if (init && init.signal && init.signal.aborted) break;
+      }
+      if (attempt < 3) await wait(250 * attempt);
+    }
+    const fallback = cached(method, url);
+    if (fallback) return fallback;
+    clearLoading();
+    if (lastResponse) return lastResponse;
+    throw lastError || new Error('Network error');
+  };
+}
+installResilientFetch();
+
 const THREE = window.THREE;
 const STATE = { route: location.pathname, snapshot: null, services: [], pricingArms: {}, paymentMethods: [{ id:'crypto_btc', active:true }] };
 const cfg = window.__UNICORN__ || {};

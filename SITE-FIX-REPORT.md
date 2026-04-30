@@ -3,7 +3,7 @@
 Data: 2026-04-30
 
 ## Scope
-- Am lucrat doar pe layer-ul site `zeusai.pro`: `UNICORN_FINAL/src/index.js` (site backend) și `UNICORN_FINAL/src/site/template.js` (frontend inline).
+- Am lucrat doar pe layer-ul site `zeusai.pro`: `UNICORN_FINAL/src/index.js` (site backend), `UNICORN_FINAL/src/site/template.js` (frontend legacy inline) și frontend-ul activ v2 (`UNICORN_FINAL/src/site/v2/shell.js`, `UNICORN_FINAL/src/site/v2/client.js`).
 - Nu am modificat modulele Unicorn / engine-ul din `UNICORN_FINAL/backend/modules/`.
 
 ## 1. Endpointuri expuse de backend-ul site-ului
@@ -33,7 +33,10 @@ Data: 2026-04-30
   - `/api/evolution/snapshot`: snapshot evoluție/stabilitate.
 
 ## 4. Frontend resilience adăugat
-- În `UNICORN_FINAL/src/site/template.js` am instalat un wrapper global peste `window.fetch`:
+- În frontend-ul activ v2 am instalat wrapper global peste `window.fetch` în două puncte:
+  - `UNICORN_FINAL/src/site/v2/shell.js`: bootstrap inline timpuriu, înainte de requesturile din shell (`/api/aura`, newsletter, tracking etc.).
+  - `UNICORN_FINAL/src/site/v2/client.js`: protecție în `/assets/app.js` pentru SPA/router/dashboard/checkout/admin/customer portal.
+- În `UNICORN_FINAL/src/site/template.js` am păstrat aceeași protecție pentru shell-ul legacy inline:
   - retry automat de 3 ori pentru requesturi eșuate / 5xx;
   - cache localStorage pentru ultimul răspuns bun `GET` same-origin;
   - dacă datele live nu vin, returnează un `Response` din cache cu header `X-Zeus-Cache-Fallback: 1`;
