@@ -1170,7 +1170,27 @@ function pageAccount() {
     <span class="kicker" style="color:#8a5cff">Customer Portal</span>
     <h1 style="font-size:clamp(36px,4.5vw,56px);line-height:1.04;margin:14px 0 12px;letter-spacing:-0.02em">Your account</h1>
     <p style="color:var(--ink-dim);font-size:17px;line-height:1.55;max-width:820px;margin:0 0 30px">Create a real ZeusAI customer account, then manage services, orders, invoices, licenses, deliverables and API keys from one secure portal.</p>
-    <div id="accountRoot"></div>
+    <div id="accountRoot">
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:28px">
+        <div class="card" style="padding:28px">
+          <h3 style="margin:0 0 6px">Log in / Conectare</h3>
+          <div style="color:var(--ink-dim);font-size:13px;margin-bottom:14px">Dacă ai deja un cont — intră aici. / If you already have an account — log in here.</div>
+          <input id="acLoginEmail" type="email" placeholder="email" autocomplete="email" style="width:100%;padding:10px 12px;border-radius:6px;border:1px solid rgba(138,92,255,.3);background:rgba(10,8,30,.4);color:#fff;margin-bottom:10px">
+          <input id="acLoginPass" type="password" placeholder="password / parolă" autocomplete="current-password" style="width:100%;padding:10px 12px;border-radius:6px;border:1px solid rgba(138,92,255,.3);background:rgba(10,8,30,.4);color:#fff;margin-bottom:14px">
+          <button id="acLoginBtn" class="btn btn-primary" style="width:100%">Log in →</button>
+          <div id="acLoginErr" style="color:#ff9c9c;font-size:13px;margin-top:10px;line-height:1.5"></div>
+        </div>
+        <div class="card" style="padding:28px">
+          <h3 style="margin:0 0 6px">Create account / Cont nou</h3>
+          <div style="color:var(--ink-dim);font-size:13px;margin-bottom:14px">Doar dacă nu ai încă cont. / Only if you don't have an account yet.</div>
+          <input id="acSignupName" placeholder="name / nume (optional)" autocomplete="name" style="width:100%;padding:10px 12px;border-radius:6px;border:1px solid rgba(138,92,255,.3);background:rgba(10,8,30,.4);color:#fff;margin-bottom:10px">
+          <input id="acSignupEmail" type="email" placeholder="email" autocomplete="email" style="width:100%;padding:10px 12px;border-radius:6px;border:1px solid rgba(138,92,255,.3);background:rgba(10,8,30,.4);color:#fff;margin-bottom:10px">
+          <input id="acSignupPass" type="password" placeholder="password (min 8 chars) / parolă (min 8 caractere)" autocomplete="new-password" style="width:100%;padding:10px 12px;border-radius:6px;border:1px solid rgba(138,92,255,.3);background:rgba(10,8,30,.4);color:#fff;margin-bottom:14px">
+          <button id="acSignupBtn" class="btn btn-primary" style="width:100%">Sign up →</button>
+          <div id="acSignupErr" style="color:#ff9c9c;font-size:13px;margin-top:10px;line-height:1.5"></div>
+        </div>
+      </div>
+    </div>
   </div>
 </section>`;
 }

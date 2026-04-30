@@ -263,10 +263,13 @@ function applySnapshot(s){
 }
 
 // ================= ROUTER =================
+function routePath(value){
+  try { return new URL(String(value || '/'), location.origin).pathname.replace(/\/$/, '') || '/'; } catch (_) { return String(value || '/').split('?')[0].replace(/\/$/, '') || '/'; }
+}
 function navigate(to, push=true){
   if (push) history.pushState({}, '', to);
-  STATE.route = to;
-  hydratePage(to);
+  STATE.route = routePath(to);
+  hydratePage(STATE.route);
 }
 document.addEventListener('click', e => {
   const a = e.target.closest('a[data-link]');
@@ -290,9 +293,9 @@ document.addEventListener('click', e => {
       runAppInlineScripts($('#app'));
       $$('.nav-links a').forEach(x=>x.classList.toggle('active', x.getAttribute('href')===href));
       history.pushState({}, '', href);
-      STATE.route = href;
+      STATE.route = routePath(href);
       window.scrollTo(0,0);
-      hydratePage(href);
+      hydratePage(STATE.route);
     };
     if (window.__UNICORN_VT_WRAP__) window.__UNICORN_VT_WRAP__(swap); else swap();
   }).catch(()=>{ location.href = href; });
@@ -810,6 +813,7 @@ function initTourbillon(){
 
 // ================= PAGE HYDRATION =================
 async function hydratePage(route){
+  route = routePath(route);
   try {
     // Galaxy is a universal background — keep it alive across all routes.
     if (!zeusCtx) initZeus();
@@ -831,6 +835,7 @@ async function hydratePage(route){
   try { if (route === '/admin' || route === '/admin/login') await hydrateAdminLogin(); } catch (e) { console.warn('hydratePage:adminLogin', e && e.message); }
   try { initCinematicInteractions(); } catch (e) { console.warn('hydratePage:cinematic', e && e.message); }
   setTimeout(clearStaleLoadingPlaceholders, 6500);
+  setTimeout(wireExistingAccountAuth, 500);
 }
 
 let cinematicBound = false;
@@ -3375,6 +3380,14 @@ function renderAccountAuth(root, topError){
   root.querySelector('#acSignupBtn').addEventListener('click', doSignup);
   root.querySelector('#acLoginPass').addEventListener('keydown', e => { if (e.key === 'Enter') doLogin(); });
   root.querySelector('#acSignupPass').addEventListener('keydown', e => { if (e.key === 'Enter') doSignup(); });
+}
+
+function wireExistingAccountAuth(){
+  const root = document.getElementById('accountRoot');
+  if (!root || root.dataset.accountWired === '1') return;
+  if (!root.querySelector('#acLoginBtn') || !root.querySelector('#acSignupBtn')) return;
+  root.dataset.accountWired = '1';
+  renderAccountAuth(root);
 }
 
 function renderAccountDashboard(root, me){
