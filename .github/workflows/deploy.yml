@@ -253,6 +253,24 @@ jobs:
           # Garantează că nginx rutează /api/invoice/* și /api/alerts/* către backend:3000
           # (idempotent — dacă blocurile sunt deja injectate, scriptul iese fără să modifice).
           bash "$DEPLOY_PATH/scripts/ensure-btc-routes.sh" "$DOMAIN" || true
+          # Patch nginx pentru public-discovery (idempotent): drop snippet în
+          # /etc/nginx/snippets/ și injectează `include` în server-blocurile
+          # zeusai.pro (HTTP+HTTPS) ca să iasă /.well-known/*, /humans.txt,
+          # /agents.json, /offline.html de sub regula default `location ~ /\.`
+          # care altfel returnează 403 la nginx-level. Restoră backup la
+          # validation failure. Pe sisteme cu SSL configurat, server-doctor.sh
+          # nu suprascrie /etc/nginx/sites-available/unicorn pentru a nu sparge
+          # certbot — patcher-ul ăsta este complementul sigur.
+          if command -v python3 >/dev/null 2>&1; then
+            python3 "$DEPLOY_PATH/scripts/nginx-patch-public-discovery.py" \
+              --snippet "$DEPLOY_PATH/scripts/nginx-public-discovery.snippet.conf" \
+              --site /etc/nginx/sites-available/unicorn \
+              --target /etc/nginx/snippets/zeus-public-discovery.conf \
+              --domain "$DOMAIN" || \
+            echo "[nginx-patch] continuat — eșecul nu blochează deploy-ul (public-discovery rămâne degraded)"
+          else
+            echo "[nginx-patch] python3 indisponibil pe host — sărit (instalează-l ca să activezi /.well-known/*)"
+          fi
           # HTTPS recovery: dacă portul 443 nu ascultă după setup-ssl.sh, forțează certbot reinstall
           echo "--- Verificare port 443 post-SSL ---"
           if ! ss -tlnp 2>/dev/null | grep -q ':443'; then
