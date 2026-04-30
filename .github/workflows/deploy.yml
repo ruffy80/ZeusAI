@@ -262,12 +262,22 @@ jobs:
           # nu suprascrie /etc/nginx/sites-available/unicorn pentru a nu sparge
           # certbot — patcher-ul ăsta este complementul sigur.
           if command -v python3 >/dev/null 2>&1; then
-            python3 "$DEPLOY_PATH/scripts/nginx-patch-public-discovery.py" \
-              --snippet "$DEPLOY_PATH/scripts/nginx-public-discovery.snippet.conf" \
-              --site /etc/nginx/sites-available/unicorn \
-              --target /etc/nginx/snippets/zeus-public-discovery.conf \
-              --domain "$DOMAIN" || \
-            echo "[nginx-patch] continuat — eșecul nu blochează deploy-ul (public-discovery rămâne degraded)"
+            # Patch every active sites-enabled file that owns a server_name for our
+            # domain. Active vhost is typically /etc/nginx/sites-enabled/zeusai.conf
+            # (with HTTP+HTTPS blocks); sites-available/unicorn is also patched as a
+            # belt-and-braces fallback in case the active symlink ever flips.
+            for SITE in /etc/nginx/sites-enabled/zeusai.conf /etc/nginx/sites-enabled/unicorn /etc/nginx/sites-available/unicorn; do
+              [ -f "$SITE" ] || continue
+              # Resolve symlinks → patch the underlying real file once.
+              REAL=$(readlink -f "$SITE")
+              echo "[nginx-patch] target site → $SITE (real: $REAL)"
+              python3 "$DEPLOY_PATH/scripts/nginx-patch-public-discovery.py" \
+                --snippet "$DEPLOY_PATH/scripts/nginx-public-discovery.snippet.conf" \
+                --site "$REAL" \
+                --target /etc/nginx/snippets/zeus-public-discovery.conf \
+                --domain "$DOMAIN" || \
+              echo "[nginx-patch] $REAL — patch a eșuat (continuă)"
+            done
           else
             echo "[nginx-patch] python3 indisponibil pe host — sărit (instalează-l ca să activezi /.well-known/*)"
           fi
