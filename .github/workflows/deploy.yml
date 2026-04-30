@@ -262,6 +262,12 @@ jobs:
           # nu suprascrie /etc/nginx/sites-available/unicorn pentru a nu sparge
           # certbot — patcher-ul ăsta este complementul sigur.
           if command -v python3 >/dev/null 2>&1; then
+            # Clean old backups accidentally left inside sites-enabled. nginx
+            # includes every file there; *.bak.* can duplicate limit_req_zone
+            # and make `nginx -t` fail even when the live config is correct.
+            mkdir -p /var/backups/zeus-nginx-public-discovery
+            find /etc/nginx/sites-enabled -maxdepth 1 -type f -name '*.bak.*' \
+              -exec mv -f {} /var/backups/zeus-nginx-public-discovery/ \; 2>/dev/null || true
             # Patch every active sites-enabled file that owns a server_name for our
             # domain. Active vhost is typically /etc/nginx/sites-enabled/zeusai.conf
             # (with HTTP+HTTPS blocks); sites-available/unicorn is also patched as a

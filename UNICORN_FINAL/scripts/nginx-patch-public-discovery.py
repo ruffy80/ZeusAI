@@ -135,6 +135,23 @@ def nginx_reload():
     )
 
 
+def make_backup(site_path):
+    """Create backups outside nginx include directories.
+
+    Ubuntu nginx normally includes `/etc/nginx/sites-enabled/*`; a backup named
+    `zeusai.conf.bak.<timestamp>` inside that directory is therefore parsed as a
+    second site config and can duplicate top-level directives like
+    `limit_req_zone`, making `nginx -t` fail. Keep backups in /var/backups.
+    """
+    ts = datetime.datetime.utcnow().strftime("%Y%m%dT%H%M%SZ")
+    backup_dir = "/var/backups/zeus-nginx-public-discovery"
+    os.makedirs(backup_dir, exist_ok=True)
+    backup_name = os.path.basename(site_path).replace(os.sep, "_")
+    backup = os.path.join(backup_dir, f"{backup_name}.bak.{ts}")
+    shutil.copyfile(site_path, backup)
+    return backup
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument(
@@ -187,9 +204,7 @@ def main():
         sys.exit(0)
 
     # 2) Backup and patch
-    ts = datetime.datetime.utcnow().strftime("%Y%m%dT%H%M%SZ")
-    backup = f"{args.site}.bak.{ts}"
-    shutil.copyfile(args.site, backup)
+    backup = make_backup(args.site)
     print(f"[nginx-patch] backup → {backup}")
 
     new_text, edits = patch_site_config(args.site, args.target, args.domain)
