@@ -84,6 +84,28 @@ const GENERATED_CONTROL_MODULES = [
   },
 ];
 
+function _kebabToCamel(name) {
+  return String(name).replace(/-([a-zA-Z])/g, (_, c) => c.toUpperCase());
+}
+
+function _camelToKebab(name) {
+  return String(name).replace(/([a-z0-9])([A-Z])/g, '$1-$2').toLowerCase();
+}
+
+function _canonicalAliases(name) {
+  // Returns the set of name variants we accept as equivalent: original, lower,
+  // kebab-case form, camelCase form. Lets the orchestrator stop falsely
+  // reporting modules as missing when they exist under a different naming
+  // convention (kebab vs camel). Additive — never narrows previous matches.
+  const out = new Set();
+  const s = String(name);
+  out.add(s);
+  out.add(s.toLowerCase());
+  out.add(_camelToKebab(s));
+  out.add(_kebabToCamel(s));
+  return out;
+}
+
 function normalizeRegistry(registry = {}) {
   const categories = registry.categories || {};
   const modules = new Map();
@@ -96,9 +118,13 @@ function normalizeRegistry(registry = {}) {
 
 function moduleActive(moduleName, registryMap) {
   if (registryMap.has(moduleName)) return true;
-  const normalized = String(moduleName).toLowerCase();
+  const aliases = _canonicalAliases(moduleName);
   for (const existingName of registryMap.keys()) {
-    if (String(existingName).toLowerCase() === normalized) return true;
+    if (aliases.has(existingName)) return true;
+    if (aliases.has(String(existingName).toLowerCase())) return true;
+    // also expand registry side
+    const existingAliases = _canonicalAliases(existingName);
+    for (const a of aliases) if (existingAliases.has(a)) return true;
   }
   return false;
 }
