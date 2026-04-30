@@ -112,10 +112,19 @@ module.exports = {
       exec_mode: 'cluster',
       autorestart: true,
       max_memory_restart: '384M',
-      max_restarts: 10,
+      // Match the resilience profile of unicorn-backend: PM2 must not give
+      // up on the site after a transient flap. The site has its own
+      // uncaughtException/unhandledRejection guards in src/index.js so true
+      // crashes are rare; what we want here is enough headroom that a noisy
+      // upstream (e.g. backend boot in progress, AI provider 5xx) cannot
+      // exhaust the restart budget and leave the worker permanently stopped.
+      max_restarts: 30,
       restart_delay: 5000,
+      exp_backoff_restart_delay: 2000,
       watch: false,
-      min_uptime: '10s',
+      min_uptime: '30s',
+      kill_timeout: 8000,
+      listen_timeout: 10000,
       env: {
         NODE_ENV: 'production',
         PORT: 3001,

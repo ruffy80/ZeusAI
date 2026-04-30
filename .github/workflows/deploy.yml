@@ -12,6 +12,11 @@ concurrency:
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    # Hard ceiling so a hung step (e.g. an interval that forgets process.exit)
+    # cannot burn 6h of CI again the way it did 2026-04-29 (8 cancelled runs
+    # in a row → live PM2 stack drifted → 502 outage). The job normally
+    # completes in ~7-9 minutes; 30 minutes is generous headroom.
+    timeout-minutes: 45
 
     # ── All GitHub Secrets injected as env vars for create-env.sh ──────────
     env:
@@ -100,12 +105,18 @@ jobs:
 
       - name: 🔍 Run Linter (ESLint)
         working-directory: ./UNICORN_FINAL
+        timeout-minutes: 10
         run: |
           npm ci
           npm run lint
 
       - name: 🛠️ Test UNICORN_FINAL
         working-directory: ./UNICORN_FINAL
+        # Hard timeout so a hung test (e.g. one that forgets process.exit
+        # while production modules keep intervals alive) fails fast instead
+        # of consuming the full 6h GitHub Actions ceiling and silently
+        # blocking deploys, the way it did on 2026-04-29.
+        timeout-minutes: 12
         run: npm test --if-present
 
       - name: 🏗️ Build React client UI
