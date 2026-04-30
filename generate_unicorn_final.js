@@ -624,6 +624,13 @@ module.exports = {
 //   • UNICORN_FINAL/src/site/v2/shell.js
 //   • UNICORN_FINAL/src/site/template.js
 //   • UNICORN_FINAL/scripts/backup-signing-key.sh
+//   • UNICORN_FINAL/scripts/nginx-unicorn.conf  (split routing: unicorn_backend
+//     for /api/*,/internal/*,/.well-known/*,/health; unicorn_site for /,/stream,
+//     /snapshot,/robots.txt,/sitemap.xml,/assets/*,/icons/*,/manifest.json,/sw.js
+//     with backup→backend fallback so site outages degrade to getSiteHtml())
+//   • UNICORN_FINAL/ecosystem.config.js  (PM2 cluster mode for unicorn-site;
+//     backend singleton fork; cluster singleton guard in src/index.js gates
+//     write loops to NODE_APP_INSTANCE='0' on replicas)
 // These files implement the live BTC-direct checkout flow (resolveCatalogItem,
 // preorder mode, /api/admin/owner-revenue, /api/entitlements/:token/wallet.json,
 // /.well-known/{ai-plugin,mcp,agents}.json, /api/catalog/diff, /seo/sitemap-services.xml,
