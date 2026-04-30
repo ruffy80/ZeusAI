@@ -9550,6 +9550,36 @@ module.exports = new UnicornUltimateModules();
     fs.readFileSync(path.join(__dirname, 'templates', 'universal-ai-connector.js'), 'utf8')
   );
 
+  // ── SaaS Finalization Pack 2026-04-29 (additive, never remove) ────────────
+  // Modules added during the SaaS/E2E finalization batch. They are wired from
+  // src/index.js and backend/index.js; copy them through any regeneration so
+  // `UNICORN_FORCE_REGENERATE=1` does not strip them and break boot.
+  const SAAS_2026_MODULES = [
+    'FeatureFlagManager.js',
+    'ai-crisis-anticipator.js',
+    'ai-crisis-forecast.js',
+    'ai-digital-ethics.js',
+    'ai-ethics.js',
+    'ai-marketplace.js',
+    'api-docs.js',
+    'blockchain-audit.js',
+    'feedback-ai.js',
+    'future-state-ai.js',
+    'globalEnergyCarbonTrade.js',
+    'observability.js',
+    'predictive-scaler.js',
+    'recovery-orchestrator.js'
+  ];
+  for (const moduleFile of SAAS_2026_MODULES) {
+    const sourcePath = path.join(__dirname, 'templates_saas_2026', moduleFile);
+    if (fs.existsSync(sourcePath)) {
+      writeText(
+        path.join(BACKEND_MODULES, moduleFile),
+        fs.readFileSync(sourcePath, 'utf8')
+      );
+    }
+  }
+
   writeText(path.join(ROOT, 'client', 'src', 'components', 'ServiceMarketplace.jsx'), `import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import PaymentModal from './PaymentModal';

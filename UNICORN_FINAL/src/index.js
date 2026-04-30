@@ -150,6 +150,36 @@ try {
   app.get('/api/ethics/principles', aiEthics.principles);
 } catch (e) { console.warn('[ai-ethics] not loaded:', e.message); }
 
+// Additive sibling APIs — function-style variants from the SaaS pack
+try {
+  const aiCrisisAnticipator = require('./../backend/modules/ai-crisis-anticipator');
+  app.get('/api/crisis/scenarios', (req, res) => {
+    try { res.json({ ok: true, scenarios: aiCrisisAnticipator.getCrisisForecast() }); }
+    catch (err) { res.status(500).json({ ok: false, error: err.message }); }
+  });
+  app.get('/api/crisis/simulate', (req, res) => {
+    try {
+      const { scenario, exposure } = req.query || {};
+      const exp = Number(exposure) || 1;
+      res.json({ ok: true, result: aiCrisisAnticipator.simulateImpact(scenario, exp) });
+    } catch (err) { res.status(500).json({ ok: false, error: err.message }); }
+  });
+} catch (e) { console.warn('[ai-crisis-anticipator] not loaded:', e.message); }
+
+try {
+  const aiDigitalEthics = require('./../backend/modules/ai-digital-ethics');
+  app.get('/api/ethics/digital-principles', (req, res) => {
+    try { res.json({ ok: true, principles: aiDigitalEthics.getPrinciples() }); }
+    catch (err) { res.status(500).json({ ok: false, error: err.message }); }
+  });
+  app.post('/api/ethics/audit-decision', express.json(), (req, res) => {
+    try {
+      const decision = (req.body && req.body.decision) || '';
+      res.json({ ok: true, audit: aiDigitalEthics.auditDecision(decision) });
+    } catch (err) { res.status(500).json({ ok: false, error: err.message }); }
+  });
+} catch (e) { console.warn('[ai-digital-ethics] not loaded:', e.message); }
+
 // Loghează metrici cheie periodic
 setInterval(() => {
   observability.logMetric('latency', Math.random() * 2000);
