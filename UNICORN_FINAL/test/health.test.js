@@ -20,6 +20,19 @@ async function run() {
   const siteResponse = await fetch('http://127.0.0.1:' + port + '/');
   const siteHtml = await siteResponse.text();
 
+  // ── Autoviralization: site worker must answer the admin Viral tab even
+  // when the backend is unreachable (BACKEND_API_URL unset → fallback mock).
+  const viralAutonomousRes = await fetch('http://127.0.0.1:' + port + '/api/autonomous/viral/status');
+  const viralAutonomousBody = await viralAutonomousRes.json();
+  const viralSocialRes = await fetch('http://127.0.0.1:' + port + '/api/viral/status');
+  const viralSocialBody = await viralSocialRes.json();
+  const viralTriggerRes = await fetch('http://127.0.0.1:' + port + '/api/autonomous/viral/trigger', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: '{}'
+  });
+  const viralTriggerBody = await viralTriggerRes.json();
+
   assert.equal(response.status, 200);
   assert.equal(body.ok, true);
   assert.equal(innovationResponse.status, 200);
@@ -42,6 +55,17 @@ async function run() {
   assert.equal(siteResponse.status, 200);
   assert.ok(siteHtml.includes('ZEUS'));
   assert.ok(siteHtml.includes('zeusai.pro'));
+
+  // Autoviralization endpoints respond on the site worker (proxy → backend
+  // with shape-preserving fallback mock when BACKEND_API_URL is unset).
+  assert.equal(viralAutonomousRes.status, 200);
+  assert.ok(viralAutonomousBody && viralAutonomousBody.metrics, 'autonomous viral status must return metrics');
+  assert.ok('viralScore' in viralAutonomousBody.metrics, 'metrics must include viralScore');
+  assert.ok('estimatedReach' in viralAutonomousBody.metrics, 'metrics must include estimatedReach');
+  assert.equal(viralSocialRes.status, 200);
+  assert.ok(viralSocialBody && 'totalPosts' in viralSocialBody, 'viral status must include totalPosts');
+  assert.equal(viralTriggerRes.status, 200);
+  assert.ok(viralTriggerBody && typeof viralTriggerBody === 'object', 'viral trigger must return JSON');
 
   await new Promise((resolve, reject) => {
     server.close((err) => (err ? reject(err) : resolve()));

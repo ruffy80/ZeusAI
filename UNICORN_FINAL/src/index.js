@@ -59,9 +59,48 @@ const SITE_FALLBACK_MOCKS = {
     metrics: { generations: 0, successRate: 1, mutations: 0 },
     notes: 'Mock snapshot served by site fallback while Unicorn backend is unreachable.',
     source: 'site-fallback-mock'
+  },
+  // ── Autoviralization (autoViralGrowth + socialMediaViralizer) ───────────
+  // The autoviralization module runs in unicorn-backend (port 3000) where
+  // autoViralGrowth auto-starts on require. The site worker (cluster mode)
+  // intentionally does not start its own viral loops to avoid N parallel
+  // intervals; instead we proxy reads/triggers to the backend and fall back
+  // to a safe, shape-preserving mock so the admin Viral tab keeps rendering
+  // even when the backend is briefly unreachable (boot, restart, network).
+  '/api/autonomous/viral/status': {
+    timestamp: new Date().toISOString(),
+    state: 'AUTONOMOUS_VIRAL_GROWTH_ACTIVE',
+    metrics: {
+      viralScore: 0,
+      referralCodesGenerated: 0,
+      referralSignups: 0,
+      socialMentions: 0,
+      partnerMentions: 0,
+      growthLoopsExecuted: 0,
+      estimatedReach: 0
+    },
+    nextCycleIn: '20s',
+    recentEvents: [],
+    recentReferrals: [],
+    llamaCopy: null,
+    source: 'site-fallback-mock'
+  },
+  '/api/viral/status': {
+    totalPosts: 0,
+    postsLast24h: 0,
+    costTracking: { totalSpent: 0, totalRevenue: 0, posts: 0 },
+    lastPost: null,
+    source: 'site-fallback-mock'
+  },
+  '/api/autonomous/viral/trigger': {
+    ok: true,
+    triggered: false,
+    note: 'Backend unreachable — trigger queued client-side; backend will run its own scheduled growth loop.',
+    source: 'site-fallback-mock'
   }
 };
-function siteProxyToUnicorn(routePath) {
+function siteProxyToUnicorn(routePath, opts) {
+  const method = (opts && opts.method) || 'GET';
   return async (req, res) => {
     const backendUrl = process.env.BACKEND_API_URL;
     const fallback = SITE_FALLBACK_MOCKS[routePath];
@@ -70,16 +109,30 @@ function siteProxyToUnicorn(routePath) {
       const timer = setTimeout(() => controller.abort(), SITE_PROXY_TIMEOUT_MS);
       try {
         const target = backendUrl.replace(/\/$/, '') + routePath;
-        const r = await fetch(target, { headers: { Accept: 'application/json' }, signal: controller.signal });
+        const init = {
+          method,
+          headers: { Accept: 'application/json' },
+          signal: controller.signal
+        };
+        // Forward bearer token (admin trigger needs ADMIN_SECRET) and
+        // request body for POST proxies.
+        if (req.headers && req.headers.authorization) {
+          init.headers.Authorization = req.headers.authorization;
+        }
+        if (method !== 'GET' && method !== 'HEAD') {
+          init.headers['Content-Type'] = 'application/json';
+          init.body = JSON.stringify(req.body || {});
+        }
+        const r = await fetch(target, init);
         clearTimeout(timer);
         if (r.ok) {
           const data = await r.json();
           return res.json(data);
         }
-        console.warn('[site-proxy] ' + routePath + ' upstream ' + r.status + ' → fallback mock');
+        console.warn('[site-proxy] ' + method + ' ' + routePath + ' upstream ' + r.status + ' → fallback mock');
       } catch (err) {
         clearTimeout(timer);
-        console.warn('[site-proxy] ' + routePath + ' failed: ' + (err && err.message) + ' → fallback mock');
+        console.warn('[site-proxy] ' + method + ' ' + routePath + ' failed: ' + (err && err.message) + ' → fallback mock');
       }
     } else {
       console.warn('[site-proxy] BACKEND_API_URL not set, serving mock for ' + routePath);
@@ -91,6 +144,13 @@ function siteProxyToUnicorn(routePath) {
 app.get('/api/industry/list', siteProxyToUnicorn('/api/industry/list'));
 app.get('/api/control/stats', siteProxyToUnicorn('/api/control/stats'));
 app.get('/api/evolution/snapshot', siteProxyToUnicorn('/api/evolution/snapshot'));
+// Autoviralization — read-only status proxies are public; the trigger POST
+// is admin-gated by the backend (adminTokenMiddleware on /api/autonomous/viral/trigger
+// and adminSecretMiddleware on the /api/viral/* router). The site only forwards
+// the Authorization header and request body — no extra trust is granted here.
+app.get('/api/autonomous/viral/status', siteProxyToUnicorn('/api/autonomous/viral/status'));
+app.post('/api/autonomous/viral/trigger', express.json(), siteProxyToUnicorn('/api/autonomous/viral/trigger', { method: 'POST' }));
+app.get('/api/viral/status', siteProxyToUnicorn('/api/viral/status'));
 
 // === Audit trail blockchain ===
 const blockchainAudit = require('./../backend/modules/blockchain-audit');
