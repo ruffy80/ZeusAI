@@ -127,6 +127,48 @@ jobs:
           '
 
 
+      - name: Sync nginx config to Hetzner (atomic + nginx -t guard)
+        id: sync_nginx
+        continue-on-error: true
+        run: |
+          # Copy the canonical config to a staging path on the server, validate
+          # with `nginx -t`, then atomically swap into sites-available and
+          # reload. Never breaks live nginx — if validation fails we abort.
+          scp -P ${{ secrets.HETZNER_DEPLOY_PORT }} -o StrictHostKeyChecking=no \
+            ./UNICORN_FINAL/scripts/nginx-unicorn.conf \
+            ${{ secrets.HETZNER_DEPLOY_USER }}@${{ secrets.HETZNER_HOST }}:/tmp/nginx-unicorn.conf.staging
+          ssh -p ${{ secrets.HETZNER_DEPLOY_PORT }} -o StrictHostKeyChecking=no \
+            ${{ secrets.HETZNER_DEPLOY_USER }}@${{ secrets.HETZNER_HOST }} '
+              set -e
+              SITE_AVAIL=/etc/nginx/sites-available/unicorn
+              SITE_ENABLED=/etc/nginx/sites-enabled/unicorn
+              # Backup current config (timestamped) before any swap
+              if [ -f "$SITE_AVAIL" ]; then
+                sudo cp "$SITE_AVAIL" "${SITE_AVAIL}.bak.$(date -u +%Y%m%dT%H%M%SZ)"
+              fi
+              # Stage the new config in-place and validate
+              sudo mv /tmp/nginx-unicorn.conf.staging "${SITE_AVAIL}.new"
+              sudo cp "${SITE_AVAIL}.new" "$SITE_AVAIL"
+              # Make sure the symlink is enabled
+              if [ ! -L "$SITE_ENABLED" ]; then
+                sudo ln -sf "$SITE_AVAIL" "$SITE_ENABLED"
+              fi
+              # Validate full nginx config (includes default deny rules from nginx.conf)
+              if sudo nginx -t; then
+                sudo systemctl reload nginx
+                echo "[nginx] reloaded OK"
+              else
+                echo "[nginx] VALIDATION FAILED — restoring last backup"
+                LAST_BAK=$(ls -1t ${SITE_AVAIL}.bak.* 2>/dev/null | head -1)
+                if [ -n "$LAST_BAK" ]; then
+                  sudo cp "$LAST_BAK" "$SITE_AVAIL"
+                  sudo nginx -t && sudo systemctl reload nginx || true
+                fi
+                exit 1
+              fi
+              sudo rm -f "${SITE_AVAIL}.new"
+            '
+
       - name: Healthcheck unicorn site (rollback dacă fail)
         run: |
           STATUS=$(ssh -p ${{ secrets.HETZNER_DEPLOY_PORT }} -o StrictHostKeyChecking=no ${{ secrets.HETZNER_DEPLOY_USER }}@${{ secrets.HETZNER_HOST }} 'cd "${{ secrets.HETZNER_DEPLOY_PATH }}" && bash scripts/healthcheck-unicorn.sh "http://localhost:3000" && echo OK || echo FAIL')
