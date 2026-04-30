@@ -97,57 +97,98 @@ function parseCheckHostResult(payload) {
   return rows;
 }
 
+// Spacing between consecutive check-host.net requests. Their free public
+// API throttles aggressive callers (HTTP 429), and a 429 here was
+// previously interpreted as "site down" — a false positive that woke up
+// the owner with bogus outage emails while zeusai.pro itself was 100% up.
+const CHECK_HOST_SPACING_MS = Number(process.env.GLOBAL_HEALTH_CHECK_HOST_SPACING_MS || 9000);
+const CHECK_HOST_RETRY_ATTEMPTS = Number(process.env.GLOBAL_HEALTH_CHECK_HOST_RETRY_ATTEMPTS || process.env.GLOBAL_HEALTH_CHECK_HOST_RETRY || 3);
+const CHECK_HOST_RETRY_BASE_MS = Number(process.env.GLOBAL_HEALTH_CHECK_HOST_RETRY_BASE_MS || 5000);
+
+async function checkHostFetchJson(url, label) {
+  // Retry on HTTP 429 / 5xx / network errors with exponential backoff,
+  // because check-host.net rate-limits anonymous callers and returns 429
+  // during normal operation.
+  let lastErr;
+  for (let attempt = 0; attempt < CHECK_HOST_RETRY_ATTEMPTS; attempt++) {
+    try {
+      const r = await fetchWithTimeout(url, { headers: { accept: 'application/json' } });
+      if (r.ok) return await r.json();
+      if (r.status !== 429 && r.status < 500) {
+        throw new Error(`check-host ${label} failed: HTTP ${r.status}`);
+      }
+      lastErr = new Error(`check-host ${label} failed: HTTP ${r.status}`);
+    } catch (err) {
+      lastErr = err;
+    }
+    if (attempt < CHECK_HOST_RETRY_ATTEMPTS - 1) {
+      await sleep(CHECK_HOST_RETRY_BASE_MS * Math.pow(2, attempt));
+    }
+  }
+  throw lastErr || new Error(`check-host ${label} failed: unknown`);
+}
+
 async function checkHostProbe(pathname) {
   const target = BASE_URL + pathname;
   const url = 'https://check-host.net/check-http?max_nodes=' + encodeURIComponent(CHECK_HOST_NODES) + '&host=' + encodeURIComponent(target);
-  const request = await fetchWithTimeout(url, { headers: { accept: 'application/json' } });
-  if (!request.ok) throw new Error(`check-host request failed: HTTP ${request.status}`);
-  const meta = await request.json();
+  const meta = await checkHostFetchJson(url, 'request');
   if (!meta.request_id) throw new Error('check-host request_id missing');
   await sleep(7000);
-  const result = await fetchWithTimeout('https://check-host.net/check-result/' + encodeURIComponent(meta.request_id), { headers: { accept: 'application/json' } });
-  if (!result.ok) throw new Error(`check-host result failed: HTTP ${result.status}`);
-  const rows = parseCheckHostResult(await result.json());
+  const payload = await checkHostFetchJson('https://check-host.net/check-result/' + encodeURIComponent(meta.request_id), 'result');
+  const rows = parseCheckHostResult(payload);
   const okRows = rows.filter((row) => row.ok);
   return { pathname, target, nodes: rows.length, okNodes: okRows.length, rows, ok: okRows.length >= Math.min(CHECK_HOST_MIN_OK, Math.max(1, rows.length)) };
 }
 
 async function run() {
   console.log(`[GLOBAL] Target: ${BASE_URL}`);
-  let failed = false;
+  let directFailed = false;
+  let globalRealFailures = 0;   // genuine "majority of nodes can't reach the site" signals
+  let globalInconclusive = 0;   // throttling / network errors talking to check-host.net itself
 
   console.log('\n[GLOBAL] Direct public endpoint checks (with retry: 3 attempts, 1.5s backoff)');
   for (const check of directChecks) {
     try {
       const result = await directProbeWithRetry(check);
       console.log(`${result.ok ? '✅' : '❌'} ${result.name.padEnd(20)} ${result.method} ${result.path} → HTTP ${result.status}, ${result.bytes}B, ${result.latencyMs}ms (${result.detail})`);
-      if (!result.ok) failed = true;
+      if (!result.ok) directFailed = true;
     } catch (error) {
-      failed = true;
+      directFailed = true;
       console.log(`❌ ${check.name.padEnd(20)} ${check.method} ${check.path} → ${error.message}`);
     }
   }
 
-  console.log('\n[GLOBAL] External global node checks via check-host.net');
-  for (const pathname of globalPaths) {
+  console.log('\n[GLOBAL] External global node checks via check-host.net (best-effort)');
+  for (let i = 0; i < globalPaths.length; i++) {
+    const pathname = globalPaths[i];
+    if (i > 0) await sleep(CHECK_HOST_SPACING_MS);
     try {
       const result = await checkHostProbe(pathname);
       console.log(`${result.ok ? '✅' : '❌'} ${pathname.padEnd(20)} ${result.okNodes}/${result.nodes} nodes reachable`);
       for (const row of result.rows.slice(0, CHECK_HOST_NODES)) {
         console.log(`   - ${row.ok ? 'ok ' : 'bad'} ${row.node}: HTTP ${row.status || 'n/a'}${row.latency != null ? `, ${row.latency}s` : ''}`);
       }
-      if (!result.ok) failed = true;
+      if (!result.ok) globalRealFailures += 1;
     } catch (error) {
-      failed = true;
-      console.log(`❌ ${pathname.padEnd(20)} global probe failed: ${error.message}`);
+      // check-host.net itself failed (HTTP 429, network blip, timeout).
+      // This tells us nothing about the site — treat as inconclusive.
+      globalInconclusive += 1;
+      console.log(`⚠️  ${pathname.padEnd(20)} external probe inconclusive: ${error.message}`);
     }
   }
 
-  if (failed) {
+  // Decision matrix:
+  //  - Direct checks failed         → real outage from the runner's POV → fail.
+  //  - check-host reports majority of nodes can't reach the site for a path → fail.
+  //  - Only check-host *itself* hiccupped (429/timeout) but direct succeeded → site IS up, warn only.
+  if (directFailed || globalRealFailures > 0) {
     console.error('\n[GLOBAL] ❌ Worldwide availability check failed.');
     process.exit(1);
   }
-  console.log('\n[GLOBAL] ✅ Site and core Unicorn services are publicly reachable from direct and external global probes.');
+  if (globalInconclusive > 0) {
+    console.warn(`\n[GLOBAL] ⚠️  ${globalInconclusive}/${globalPaths.length} external probes inconclusive (check-host.net throttled or unreachable). Direct checks all passed — site is up.`);
+  }
+  console.log('\n[GLOBAL] ✅ Site and core Unicorn services are publicly reachable.');
 }
 
 run().catch((error) => {
