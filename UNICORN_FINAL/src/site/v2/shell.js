@@ -1171,6 +1171,21 @@ function pageAccount() {
     <h1 style="font-size:clamp(36px,4.5vw,56px);line-height:1.04;margin:14px 0 12px;letter-spacing:-0.02em">Your account</h1>
     <p style="color:var(--ink-dim);font-size:17px;line-height:1.55;max-width:820px;margin:0 0 30px">Create a real ZeusAI customer account, then manage services, orders, invoices, licenses, deliverables and API keys from one secure portal.</p>
     <div id="accountRoot">
+      <div class="card" style="padding:24px;margin-bottom:24px;border:1px solid rgba(124,255,184,.26);background:linear-gradient(135deg,rgba(124,255,184,.08),rgba(138,92,255,.08))">
+        <div style="display:flex;justify-content:space-between;gap:18px;align-items:center;flex-wrap:wrap">
+          <div style="max-width:640px">
+            <span class="kicker" style="color:#7cffb8">Device Key · Passkey</span>
+            <h3 style="margin:6px 0 6px">Revolutionary sign in: your device creates the private key</h3>
+            <p style="color:var(--ink-dim);font-size:13.5px;line-height:1.55;margin:0">WebAuthn/FIDO2: cheia privată rămâne în Secure Enclave/TPM/browser. ZeusAI păstrează doar cheia publică și creează sesiunea client după semnătura device-ului.</p>
+          </div>
+          <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;min-width:280px">
+            <input id="acPasskeyEmail" type="email" placeholder="email pentru device key" autocomplete="email" style="flex:1;min-width:220px;padding:10px 12px;border-radius:6px;border:1px solid rgba(124,255,184,.3);background:rgba(10,8,30,.4);color:#fff">
+            <button id="acPasskeyLoginBtn" class="btn btn-primary">Sign in with device</button>
+            <button id="acPasskeyCreateBtn" class="btn">Create device key</button>
+          </div>
+        </div>
+        <div id="acPasskeyMsg" style="font-size:13px;margin-top:12px;color:var(--ink-dim);line-height:1.5"></div>
+      </div>
       <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:28px">
         <div class="card" style="padding:28px">
           <h3 style="margin:0 0 6px">Log in / Conectare</h3>

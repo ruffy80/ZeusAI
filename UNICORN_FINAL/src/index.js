@@ -2516,6 +2516,61 @@ async function unicornHandler(req, res) {
     return res.end(JSON.stringify({ ok:true, credential: buildSignedCapabilityCredential(receipt) }));
   }
 
+  if (urlPath.startsWith('/api/auth/passkey/') && ['POST', 'GET'].includes(req.method)) {
+    const passkeyJson = async (targetPath, payload, extraHeaders) => {
+      const target = backendUrl && backendUrl.replace(/\/$/,'') + targetPath;
+      if (!target) return { status: 503, body: { error: 'passkey_backend_not_configured' } };
+      const headers = Object.assign({
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+        'X-Forwarded-Proto': String(req.headers['x-forwarded-proto'] || 'https'),
+        'X-Forwarded-Host': String(req.headers['x-forwarded-host'] || req.headers.host || 'zeusai.pro')
+      }, extraHeaders || {});
+      const r = await fetch(target, {
+        method: req.method,
+        headers,
+        body: req.method === 'GET' ? undefined : JSON.stringify(payload || {})
+      });
+      const body = await r.json().catch(() => ({}));
+      return { status: r.status, body };
+    };
+    const readBody = (cb) => {
+      let body=''; req.on('data', c=>{ body+=c; if(body.length>64*1024) req.destroy(); });
+      req.on('end', async () => { try { await cb(body ? JSON.parse(body) : {}); } catch (e) { res.writeHead(400, {'Content-Type':'application/json'}); res.end(JSON.stringify({ error:'bad_json', message:e.message })); } });
+    };
+    if (req.method === 'GET' && urlPath === '/api/auth/passkey/list') {
+      const auth = req.headers.authorization ? { Authorization: req.headers.authorization } : {};
+      const result = await passkeyJson(urlPath, null, auth);
+      res.writeHead(result.status, { 'Content-Type':'application/json', 'Cache-Control':'no-cache' });
+      return res.end(JSON.stringify(result.body));
+    }
+    if (req.method === 'POST' && (urlPath === '/api/auth/passkey/challenge' || urlPath === '/api/auth/passkey/register')) {
+      return readBody(async (payload) => {
+        const auth = req.headers.authorization ? { Authorization: req.headers.authorization } : {};
+        const result = await passkeyJson(urlPath, payload, auth);
+        res.writeHead(result.status, { 'Content-Type':'application/json', 'Cache-Control':'no-cache' });
+        return res.end(JSON.stringify(result.body));
+      });
+    }
+    if (req.method === 'POST' && urlPath === '/api/auth/passkey/assert') {
+      return readBody(async (payload) => {
+        const result = await passkeyJson(urlPath, payload);
+        if (result.status >= 200 && result.status < 300 && result.body && result.body.user && portal) {
+          const user = result.body.user;
+          const local = portal.upsertFromBackend({ email: user.email, name: user.name, password: null });
+          res.writeHead(200, {
+            'Content-Type':'application/json',
+            'Cache-Control':'no-cache',
+            'Set-Cookie': customerSessionCookie(local.token, 30 * 24 * 3600)
+          });
+          return res.end(JSON.stringify({ ok:true, passkey:true, customer: local.customer, token: local.token, backendUser: user }));
+        }
+        res.writeHead(result.status, { 'Content-Type':'application/json', 'Cache-Control':'no-cache' });
+        return res.end(JSON.stringify(result.body));
+      });
+    }
+  }
+
   // Forward /api/* and /deploy to the Express backend (Hetzner) if configured,
   // EXCEPT the v2 local APIs which we serve in this process.
   const forceLocalApi = urlPath.startsWith('/api/onboarding/recommendations/');

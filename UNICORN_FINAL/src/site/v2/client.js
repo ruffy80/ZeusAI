@@ -3290,6 +3290,21 @@ async function hydrateAccount(){
 function renderAccountAuth(root, topError){
   root.innerHTML = `
     ${topError ? `<div class="card" style="padding:14px 18px;margin-bottom:16px;border:1px solid rgba(255,80,80,.35);background:rgba(255,60,60,.08);color:#ffb7b7;font-size:13px">${escStore(topError)}</div>` : ''}
+    <div class="card" style="padding:24px;margin-bottom:24px;border:1px solid rgba(124,255,184,.26);background:linear-gradient(135deg,rgba(124,255,184,.08),rgba(138,92,255,.08))">
+      <div style="display:flex;justify-content:space-between;gap:18px;align-items:center;flex-wrap:wrap">
+        <div style="max-width:640px">
+          <span class="kicker" style="color:#7cffb8">Device Key · Passkey</span>
+          <h3 style="margin:6px 0 6px">Revolutionary sign in: your device creates the private key</h3>
+          <p style="color:var(--ink-dim);font-size:13.5px;line-height:1.55;margin:0">WebAuthn/FIDO2: cheia privată rămâne în Secure Enclave/TPM/browser. ZeusAI păstrează doar cheia publică și creează sesiunea client după semnătura device-ului.</p>
+        </div>
+        <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;min-width:280px">
+          <input id="acPasskeyEmail" type="email" placeholder="email pentru device key" autocomplete="email" style="flex:1;min-width:220px;padding:10px 12px;border-radius:6px;border:1px solid rgba(124,255,184,.3);background:rgba(10,8,30,.4);color:#fff">
+          <button id="acPasskeyLoginBtn" class="btn btn-primary">Sign in with device</button>
+          <button id="acPasskeyCreateBtn" class="btn">Create device key</button>
+        </div>
+      </div>
+      <div id="acPasskeyMsg" style="font-size:13px;margin-top:12px;color:var(--ink-dim);line-height:1.5"></div>
+    </div>
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:28px">
       <div class="card" style="padding:28px">
         <h3 style="margin:0 0 6px">Log in / Conectare</h3>
@@ -3311,12 +3326,67 @@ function renderAccountAuth(root, topError){
       </div>
     </div>`;
 
+  const passkeyMsg = root.querySelector('#acPasskeyMsg');
+  const passkeyEmail = root.querySelector('#acPasskeyEmail');
+  const passkeyLoginBtn = root.querySelector('#acPasskeyLoginBtn');
+  const passkeyCreateBtn = root.querySelector('#acPasskeyCreateBtn');
+  function syncPasskeyEmail(email){ if (passkeyEmail && email) passkeyEmail.value = email; }
+  function passkeySupported(){ return !!(window.__UNICORN_PASSKEY__ && window.__UNICORN_PASSKEY__.supported); }
+  function setPasskeyMsg(message, kind){
+    if (!passkeyMsg) return;
+    passkeyMsg.style.color = kind === 'err' ? '#ff9c9c' : (kind === 'ok' ? '#7cffb8' : 'var(--ink-dim)');
+    passkeyMsg.textContent = message || '';
+  }
+  async function enrollDeviceKey(email, password){
+    if (!passkeySupported()) { setPasskeyMsg('Acest browser/device nu suportă passkeys. Folosește email + parolă sau Safari/Chrome/Edge actualizat.', 'err'); return null; }
+    if (!email) { setPasskeyMsg('Completează emailul pentru device key.', 'err'); return null; }
+    if (!password) { setPasskeyMsg('Pentru prima creare a cheii pe device, introdu parola contului o singură dată.', 'err'); return null; }
+    setPasskeyMsg('Se creează cheia pe device… confirmă în browser/sistem.', 'info');
+    const result = await window.__UNICORN_PASSKEY__.register(email, password);
+    if (result && result.ok) setPasskeyMsg('Device key creată. De acum te poți loga fără parolă de pe acest device.', 'ok');
+    else setPasskeyMsg((result && (result.message || result.error)) || 'Device key nu a putut fi creată.', 'err');
+    return result;
+  }
+  async function loginWithDeviceKey(email){
+    if (!passkeySupported()) { setPasskeyMsg('Acest browser/device nu suportă passkeys.', 'err'); return null; }
+    if (!email) { setPasskeyMsg('Completează emailul pentru login cu device key.', 'err'); return null; }
+    setPasskeyMsg('Aștept semnătura device-ului…', 'info');
+    const result = await window.__UNICORN_PASSKEY__.login(email);
+    if (result && result.token && result.customer) {
+      setCustToken(result.token);
+      setCustProfile(result.customer);
+      setPasskeyMsg('Autentificat cu device key. Cheia privată nu a părăsit device-ul.', 'ok');
+      if (typeof toast === 'function') toast('Signed in with device key', 'ok');
+      hydrateAccount();
+      return result;
+    }
+    setPasskeyMsg((result && (result.message || result.error)) || 'Login cu device key eșuat.', 'err');
+    return result;
+  }
+  if (passkeyLoginBtn && !passkeySupported()) {
+    passkeyLoginBtn.disabled = true;
+    passkeyCreateBtn.disabled = true;
+    setPasskeyMsg('Device key indisponibil pe acest browser. Password login rămâne disponibil.', 'err');
+  }
+  passkeyLoginBtn?.addEventListener('click', async () => {
+    try { await loginWithDeviceKey((passkeyEmail.value || root.querySelector('#acLoginEmail').value || root.querySelector('#acSignupEmail').value || '').trim()); }
+    catch (e) { setPasskeyMsg('Operațiune anulată sau refuzată de device.', 'err'); }
+  });
+  passkeyCreateBtn?.addEventListener('click', async () => {
+    try {
+      const email = (passkeyEmail.value || root.querySelector('#acLoginEmail').value || root.querySelector('#acSignupEmail').value || '').trim();
+      const password = root.querySelector('#acLoginPass').value || root.querySelector('#acSignupPass').value;
+      await enrollDeviceKey(email, password);
+    } catch (e) { setPasskeyMsg('Crearea cheii a fost anulată sau refuzată de device.', 'err'); }
+  });
+
   async function doLogin(){
     const email = root.querySelector('#acLoginEmail').value.trim();
     const password = root.querySelector('#acLoginPass').value;
     const errEl = root.querySelector('#acLoginErr');
     const btn = root.querySelector('#acLoginBtn');
     errEl.textContent = '';
+    syncPasskeyEmail(email);
     if (!email || !password) { errEl.textContent = 'Completează email și parolă. / Fill in email and password.'; return; }
     btn.disabled = true; btn.textContent = 'Logging in…';
     try {
@@ -3325,6 +3395,7 @@ function renderAccountAuth(root, topError){
         setCustToken(r.token);
         if (r.customer) setCustProfile(r.customer);
         if (typeof toast === 'function') toast('Bine ai revenit! / Welcome back!', 'ok');
+        setPasskeyMsg('Login reușit. Poți apăsa “Create device key” ca să activezi login fără parolă pe acest device.', 'ok');
         hydrateAccount();
         return;
       }
@@ -3351,6 +3422,7 @@ function renderAccountAuth(root, topError){
     const errEl = root.querySelector('#acSignupErr');
     const btn = root.querySelector('#acSignupBtn');
     errEl.textContent = '';
+    syncPasskeyEmail(email);
     if (!email || !password) { errEl.textContent = 'Email și parolă obligatorii. / Email and password required.'; return; }
     if (password.length < 8) { errEl.textContent = 'Parola trebuie să aibă minim 8 caractere. / Password must be at least 8 characters.'; return; }
     btn.disabled = true; btn.textContent = 'Creating…';
@@ -3360,6 +3432,9 @@ function renderAccountAuth(root, topError){
         setCustToken(r.token);
         if (r.customer) setCustProfile(r.customer);
         if (typeof toast === 'function') toast('Cont creat! Ești conectat. / Account created — you are logged in.', 'ok');
+        if (passkeySupported()) {
+          try { await enrollDeviceKey(email, password); } catch (_) { setPasskeyMsg('Cont creat. Device key poate fi creată manual cu butonul de sus.', 'info'); }
+        }
         hydrateAccount();
         return;
       }
@@ -3380,6 +3455,8 @@ function renderAccountAuth(root, topError){
   root.querySelector('#acSignupBtn').addEventListener('click', doSignup);
   root.querySelector('#acLoginPass').addEventListener('keydown', e => { if (e.key === 'Enter') doLogin(); });
   root.querySelector('#acSignupPass').addEventListener('keydown', e => { if (e.key === 'Enter') doSignup(); });
+  root.querySelector('#acLoginEmail').addEventListener('input', e => syncPasskeyEmail(e.target.value.trim()));
+  root.querySelector('#acSignupEmail').addEventListener('input', e => syncPasskeyEmail(e.target.value.trim()));
 }
 
 function wireExistingAccountAuth(){

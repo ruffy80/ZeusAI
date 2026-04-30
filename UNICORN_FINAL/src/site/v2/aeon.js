@@ -182,7 +182,7 @@ window.__UNICORN_PASSKEY__ = {
         attestationObject: bufToB64u(cred.response.attestationObject)
       }
     };
-    const v = await fetch('/api/auth/passkey/register', { method:'POST', headers:authHeaders, body: JSON.stringify({ email, password, credential: att }) });
+    const v = await fetch('/api/auth/passkey/register', { method:'POST', credentials:'same-origin', headers:authHeaders, body: JSON.stringify({ email, password, credential: att }) });
     return v.json();
   },
   async login(email){
@@ -201,7 +201,7 @@ window.__UNICORN_PASSKEY__ = {
         userHandle: cred.response.userHandle ? bufToB64u(cred.response.userHandle) : null
       }
     };
-    const v = await fetch('/api/auth/passkey/assert', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ email, credential: att }) });
+    const v = await fetch('/api/auth/passkey/assert', { method:'POST', credentials:'same-origin', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ email, credential: att }) });
     return v.json();
   }
 };
