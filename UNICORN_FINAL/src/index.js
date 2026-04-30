@@ -519,7 +519,11 @@ const EXPRESS_OWNED_MUTATIONS = new Set([
   '/api/marketplace/module',
   '/api/marketplace/review',
   '/api/feedback',
-  '/api/ethics/audit'
+  '/api/ethics/audit',
+  // Autoviralization trigger is registered on Express (with a fallback mock
+  // when BACKEND_API_URL is unset). It must NOT bypass Express, otherwise
+  // unicornHandler returns 503 in CI (no backend reachable).
+  '/api/autonomous/viral/trigger'
 ]);
 
 function shouldBypassExpressForSiteMutation(pathname, method) {
