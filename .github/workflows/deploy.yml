@@ -268,6 +268,18 @@ jobs:
             mkdir -p /var/backups/zeus-nginx-public-discovery
             find /etc/nginx/sites-enabled -maxdepth 1 -type f -name '*.bak.*' \
               -exec mv -f {} /var/backups/zeus-nginx-public-discovery/ \; 2>/dev/null || true
+            # Some legacy/certbot-generated configs can leave more than one
+            # `listen 80 default_server;` across enabled vhosts. nginx keeps
+            # serving the last loaded config, but every future `nginx -t`/reload
+            # fails. We do not need zeusai.conf to be the default vhost; remove
+            # only the default_server flag and leave the listener/domain intact.
+            for CONF in /etc/nginx/sites-enabled/* /etc/nginx/sites-available/unicorn; do
+              [ -f "$CONF" ] || continue
+              sed -i \
+                -e 's/listen 80 default_server;/listen 80;/g' \
+                -e 's/listen \[::\]:80 default_server;/listen [::]:80;/g' \
+                "$CONF" 2>/dev/null || true
+            done
             # Patch every active sites-enabled file that owns a server_name for our
             # domain. Active vhost is typically /etc/nginx/sites-enabled/zeusai.conf
             # (with HTTP+HTTPS blocks); sites-available/unicorn is also patched as a
