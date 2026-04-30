@@ -181,7 +181,7 @@ jobs:
       - name: 📦 Deploy to Server
         run: |
           ssh -o StrictHostKeyChecking=no root@${{ secrets.HETZNER_HOST }} \
-            "pm2 delete unicorn-guardian 2>/dev/null || true; pm2 save --force 2>/dev/null || true"
+            "systemctl disable --now zac.service 2>/dev/null || true; systemctl reset-failed zac.service 2>/dev/null || true; pm2 delete unicorn-guardian 2>/dev/null || true; pm2 save --force 2>/dev/null || true"
           rsync -avz --delete \
             --exclude='.git' \
             --exclude='node_modules' \
@@ -246,6 +246,8 @@ jobs:
           # server-doctor.sh handles: Node.js install, pm2 install, npm ci, nginx, firewall,
           # pm2 startup systemd, pm2 delete all + start ecosystem.config.js + pm2 save.
           export UNICORN_GUARDIAN=0
+          systemctl disable --now zac.service 2>/dev/null || true
+          systemctl reset-failed zac.service 2>/dev/null || true
           pm2 delete unicorn-guardian 2>/dev/null || true
           pm2 save --force 2>/dev/null || true
           bash "$DEPLOY_PATH/server-doctor.sh" "$DEPLOY_PATH" "$DOMAIN" || true

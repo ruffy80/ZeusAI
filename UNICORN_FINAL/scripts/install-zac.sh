@@ -29,6 +29,13 @@ install -m 0644 "$UNIT_SRC" "$UNIT_DST"
 echo "🔄 systemctl daemon-reload"
 systemctl daemon-reload
 
+if [[ "${ZAC_ENABLE_SERVICE:-0}" != "1" ]]; then
+  echo "✅ Installed zac.service but left it disabled (set ZAC_ENABLE_SERVICE=1 to enable)."
+  systemctl disable zac.service >/dev/null 2>&1 || true
+  systemctl stop zac.service >/dev/null 2>&1 || true
+  exit 0
+fi
+
 echo "✅ Enabling zac.service (start at boot)"
 systemctl enable zac.service
 

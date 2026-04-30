@@ -42,6 +42,10 @@ const { completeSite } = require('./siteCompleter');
 
 const VERSION = '1.0.0';
 const STARTED_AT = new Date().toISOString();
+const SELF_HEALER_ENABLED = process.env.ZAC_ENABLE_HEALER === '1'
+  && process.env.ZAC_DISABLE_HEALER !== '1'
+  && process.env.DISABLE_SELF_MUTATION !== '1'
+  && process.env.UNICORN_RUNTIME_PROFILE !== 'safe';
 
 const state = {
   startedAt: STARTED_AT,
@@ -66,7 +70,7 @@ function recordAlert(a) {
 function bootstrap({
   unicornRoot = path.resolve(__dirname, '../../..'),
   enableBridge = process.env.ZAC_DISABLE_BRIDGE !== '1',
-  enableHealer = process.env.ZAC_DISABLE_HEALER !== '1',
+  enableHealer = SELF_HEALER_ENABLED,
   enableInnovator = process.env.ZAC_DISABLE_INNOVATOR !== '1',
   enableProfit = process.env.ZAC_DISABLE_PROFIT !== '1',
   completeSiteOnBoot = process.env.ZAC_DISABLE_SITE_COMPLETE !== '1',

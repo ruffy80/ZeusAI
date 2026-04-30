@@ -10,8 +10,10 @@ WorkingDirectory=/var/www/unicorn/UNICORN_FINAL
 Environment=NODE_ENV=production
 Environment=ZAC_BACKEND_BASE=http://127.0.0.1:3000
 Environment=ZAC_BRIDGE_PORT=4444
+Environment=ZAC_DISABLE_HEALER=1
+Environment=ZAC_DISABLE_SITE_COMPLETE=1
 ExecStart=/usr/bin/node backend/modules/zeusAutonomousCore/index.js
-Restart=always
+Restart=on-failure
 RestartSec=10
 StandardOutput=journal
 StandardError=journal
