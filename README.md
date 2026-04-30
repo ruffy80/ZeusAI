@@ -1,8 +1,8 @@
 # 🦄 Zeus AI — Unicorn Platform
 
-> **Autonomous AI-powered business platform** with ZEUS 3D avatar, quantum payments, self-healing, infinite scalability and 44-year autonomous evolution.
+> **Autonomous AI-powered business platform** with ZeusAI commerce, BTC-first checkout, live service marketplace, self-healing APIs and Hetzner/PM2 production deployment.
 
-[![Deploy on Vercel](https://vercel.com/button)](https://vercel.com/import/project?template=https://github.com/ruffy80/ZeusAI)
+[![Hetzner Live](https://img.shields.io/badge/deploy-Hetzner-blue.svg)](./README-LIVE.md)
 [![License](https://img.shields.io/badge/license-Proprietary-gold.svg)](./SECURITY.md)
 
 ---
@@ -28,7 +28,7 @@ cp .env.example .env
 # Main platform
 cd UNICORN_FINAL && npm install
 
-# React frontend (optional — SSR fallback works without it)
+# Optional React client build; live site is served by UNICORN_FINAL/src/index.js
 cd client && npm install && npm run build && cd ..
 ```
 
@@ -41,6 +41,19 @@ cd UNICORN_FINAL && npm start
 ```
 
 The platform starts at **http://localhost:3000**.
+
+### 4. Validate current live contracts
+```bash
+cd UNICORN_FINAL
+npm run lint
+npm test
+```
+
+Key public contracts used by the live site:
+- `/health`, `/snapshot`, `/stream`
+- `/api/catalog` and `/api/catalog/master` for the 100+ service marketplace
+- `/api/payment/btc-rate`, `/api/btc/rate`, `/api/payment/methods`
+- `/api/payments/config/status` for BTC-primary and optional provider readiness
 
 ---
 
@@ -59,22 +72,23 @@ docker compose logs -f unicorn
 
 ---
 
-## ☁️ Deploy on Vercel
+## 💳 Payments
 
-1. Import the repo in [Vercel](https://vercel.com/import).
-2. Set **Root Directory** → `UNICORN_FINAL`
-3. Add all environment variables from `.env.example`.
-4. Deploy — Vercel auto-builds the React client and deploys the Node server.
+Production is **BTC-first**: revenue routes directly to the owner wallet configured by `BTC_WALLET_ADDRESS` or `OWNER_BTC_ADDRESS`. The site exposes the wallet in the UI from runtime env/config and refreshes it from `/api/payment/btc-rate`.
 
-CI/CD: every push to `main` triggers `.github/workflows/vercel-deploy.yml`.
+Optional rails are shown only when configured in runtime env:
+- Stripe/Card: `STRIPE_SECRET_KEY`
+- PayPal: `PAYPAL_CLIENT_ID` + `PAYPAL_CLIENT_SECRET`
+- NOWPayments: `NOWPAYMENTS_API_KEY` + `NOWPAYMENTS_IPN_SECRET`
 
 ---
 
 ## 🖥️ Deploy on Hetzner
 
 ### Automated (CI/CD)
-Push to `main` — the workflow `.github/workflows/vercel-deploy.yml` SSHs into Hetzner,
-pulls the latest code, runs `pm2 delete all && pm2 start ecosystem.config.js`.
+Push to `main` — `.github/workflows/hetzner-deploy.yml` validates `UNICORN_FINAL`, SSHs into Hetzner, pulls the latest code and reloads PM2.
+
+The broader live bootstrap flow is `.github/workflows/live.yml` for scheduled/manual SSL, health and deployment checks.
 
 ### Manual
 ```bash
@@ -99,12 +113,13 @@ ZeusAI/
 │   │   ├── index.js         # 50+ API endpoints
 │   │   ├── db.js            # SQLite database layer
 │   │   └── modules/         # 60+ autonomous modules
-│   ├── client/              # React SPA
+│   ├── client/              # Optional React SPA/build assets
 │   │   └── src/
 │   │       ├── components/  # ZEUS3D, LuxuryClock, HolographicVoice…
 │   │       └── pages/       # Home, Dashboard, Marketplace…
 │   ├── src/
-│   │   └── index.js         # Lightweight Node HTTP server (Vercel/SSR)
+│   │   ├── index.js         # Live Node HTTP server (site + local APIs)
+│   │   └── site/template.js # Legacy inline UI template compatibility
 │   ├── scripts/             # Hetzner, DNS, GitHub setup scripts
 │   ├── test/                # Health + API tests
 │   └── package.json

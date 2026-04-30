@@ -7,7 +7,16 @@
 
 function getSiteHtmlLegacy() { return null; } // stub kept for any cached import
 
+function escapeTemplateValue(value) {
+  return String(value || '').replace(/[&<>"']/g, function(ch) {
+    return ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[ch];
+  });
+}
+
 function getSiteHtml() {
+  const btcWallet = escapeTemplateValue(process.env.BTC_WALLET_ADDRESS || process.env.OWNER_BTC_ADDRESS || 'bc1q4f7e66z87mdfj56kz0dj5hvcnpmh0qh4wuv22e');
+  const ownerName = escapeTemplateValue(process.env.OWNER_NAME || 'Vladoi Ionut');
+  const ownerEmail = escapeTemplateValue(process.env.OWNER_EMAIL || process.env.ADMIN_EMAIL || 'vladoi_ionut@yahoo.com');
   return `<!doctype html>
 <html lang="en">
 <head>
@@ -456,7 +465,7 @@ select.form-inp option{background:#0a0e24;}
       <div class="card card-hover">
         <div class="step-num">03</div>
         <div class="step-title">Pay &amp; Activate</div>
-        <div class="step-desc">Pay with BTC, Stripe, or PayPal. Your service activates instantly with enterprise-grade reliability.</div>
+        <div class="step-desc" id="payment-step-desc">Pay direct by BTC owner wallet. Card, PayPal, and global crypto rails appear only when configured live.</div>
       </div>
     </div>
 
@@ -509,8 +518,8 @@ select.form-inp option{background:#0a0e24;}
 
     <footer class="footer">
       <p>🦄 <a href="https://zeusai.pro" target="_blank">zeusai.pro</a> — Universal AI Unicorn Platform</p>
-      <p style="margin-top:4px;">Owner: Vladoi Ionut &nbsp;|&nbsp; <a href="mailto:vladoi_ionut@yahoo.com">vladoi_ionut@yahoo.com</a></p>
-      <p style="margin-top:6px;">BTC: <span class="btc-addr" onclick="copyText('bc1q4f7e66z87mdfj56kz0dj5hvcnpmh0qh4wuv22e',this)" title="Click to copy">bc1q4f7e66z87mdfj56kz0dj5hvcnpmh0qh4wuv22e</span></p>
+      <p style="margin-top:4px;">Owner: ${ownerName} &nbsp;|&nbsp; <a href="mailto:${ownerEmail}">${ownerEmail}</a></p>
+      <p style="margin-top:6px;">BTC: <span class="btc-addr" data-btc-address="1" onclick="copyText(this.textContent,this)" title="Click to copy">${btcWallet}</span></p>
     </footer>
   </div><!-- end #view-home -->
 
@@ -539,7 +548,7 @@ select.form-inp option{background:#0a0e24;}
     </div>
     <div style="text-align:center;margin-top:24px;color:#7090b0;font-size:13px;">
       All plans include: SSL, 99.9% uptime SLA, 24/7 monitoring.<br/>
-      Payments via BTC, Stripe, or PayPal. Cancel anytime.
+      <span id="pricing-payment-copy">Payments via BTC direct owner wallet. Optional providers appear only when configured.</span> Cancel anytime.
     </div>
   </div><!-- end #view-pricing -->
 
@@ -638,8 +647,8 @@ select.form-inp option{background:#0a0e24;}
         </div>
         <div class="card" style="margin-bottom:20px;">
           <div class="dash-section-title">BTC Collection Address</div>
-          <div class="btc-addr" onclick="copyText('bc1q4f7e66z87mdfj56kz0dj5hvcnpmh0qh4wuv22e',this)">bc1q4f7e66z87mdfj56kz0dj5hvcnpmh0qh4wuv22e</div>
-          <p class="muted" style="font-size:12px;margin-top:8px;">Owner: Vladoi Ionut | vladoi_ionut@yahoo.com</p>
+          <div class="btc-addr" data-btc-address="1" onclick="copyText(this.textContent,this)">${btcWallet}</div>
+          <p class="muted" style="font-size:12px;margin-top:8px;">Owner: ${ownerName} | ${ownerEmail}</p>
         </div>
         <div class="card" style="margin-bottom:20px;">
           <div class="dash-section-title">Platform Snapshot</div>
@@ -1268,7 +1277,9 @@ var STATE = {
   adminUsersPage: 1,
   notifOpen: false,
   paymentMethodIds: ['crypto_btc'],
-  nowPaymentsReady: false
+  paymentMethods: [{ id: 'crypto_btc', name: 'Bitcoin', active: true }],
+  nowPaymentsReady: false,
+  btcAddress: '${btcWallet}'
 };
 
 // ================================================================
@@ -1330,6 +1341,27 @@ function fmtMs(ms){
 }
 
 function setElText(id,val){var e=document.getElementById(id);if(e)e.textContent=val;}
+
+function syncBtcAddress(address){
+  if(!address) return;
+  STATE.btcAddress=String(address);
+  document.querySelectorAll('[data-btc-address]').forEach(function(el){el.textContent=STATE.btcAddress;});
+}
+
+function activePaymentLabels(){
+  var ids=STATE.paymentMethodIds||['crypto_btc'];
+  var labels=['BTC direct'];
+  if(ids.indexOf('stripe')>=0||ids.indexOf('card')>=0) labels.push('Card/Stripe');
+  if(ids.indexOf('paypal')>=0) labels.push('PayPal');
+  if(STATE.nowPaymentsReady||ids.indexOf('nowpayments')>=0) labels.push('global crypto');
+  return labels;
+}
+
+function updatePaymentCopy(){
+  var labels=activePaymentLabels();
+  setElText('payment-step-desc','Pay with '+labels.join(', ')+'. Optional external rails are shown only when configured live; service activation stays automatic.');
+  setElText('pricing-payment-copy','Payments via '+labels.join(', ')+'.');
+}
 
 // ================================================================
 // NAVIGATION
@@ -1493,6 +1525,7 @@ async function loadHomeData(){
   // BTC rate — fetch on home load and push to all price displays
   try{
     var br=await fetch('/api/payment/btc-rate').then(function(r){return r.json();}).catch(function(){return {};});
+    if(br.btcAddress) syncBtcAddress(br.btcAddress);
     if(br.rate||br.usd){
       STATE.btcRate=br.rate||br.usd||0;
       var fmt='$'+Number(STATE.btcRate).toLocaleString('en-US',{maximumFractionDigits:0});
@@ -1507,10 +1540,12 @@ async function loadHomeData(){
   // Payment capabilities (BTC-only by default; enable others when configured)
   try{
     var pm=await fetch('/api/payment/methods').then(function(r){return r.json();}).catch(function(){return {};});
-    var methods=pm.methods||[];
-    STATE.paymentMethodIds=methods.map(function(m){return m.id;});
+    var methods=(pm.methods||[]).filter(function(m){return m&&m.active!==false;});
+    STATE.paymentMethods=methods.length?methods:[{id:'crypto_btc',name:'Bitcoin',active:true}];
+    STATE.paymentMethodIds=STATE.paymentMethods.map(function(m){return m.id;});
   }catch(e){
     STATE.paymentMethodIds=['crypto_btc'];
+    STATE.paymentMethods=[{id:'crypto_btc',name:'Bitcoin',active:true}];
   }
   try{
     var sec=await fetch('/api/payment/nowpayments/security').then(function(r){return r.json();}).catch(function(){return {};});
@@ -1518,6 +1553,7 @@ async function loadHomeData(){
   }catch(e){
     STATE.nowPaymentsReady=false;
   }
+  updatePaymentCopy();
   loadCaseStudies();
 }
 

@@ -15,7 +15,7 @@
  *   - The verifier matches incoming on-chain transactions by exact sats value,
  *     so we always know which invoice was paid — without managing keys/xpubs.
  *
- * Persistence: data/invoices/<id>.json + data/invoices/_index.jsonl
+ * Persistence: BTC_INVOICE_DATA_DIR or data/invoices/<id>.json + _index.jsonl
  *
  * Env:
  *   ADMIN_OWNER_BTC    — payout address (same as backend/index.js)
@@ -25,7 +25,7 @@ const fs = require('fs');
 const path = require('path');
 const https = require('https');
 
-const DATA_DIR    = path.join(__dirname, '..', '..', 'data', 'invoices');
+const DATA_DIR    = process.env.BTC_INVOICE_DATA_DIR || path.join(__dirname, '..', '..', 'data', 'invoices');
 const INDEX_FILE  = path.join(DATA_DIR, '_index.jsonl');
 const COUNTER_FILE = path.join(DATA_DIR, '_counter.json');
 

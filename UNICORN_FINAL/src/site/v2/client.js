@@ -4,7 +4,7 @@
 'use strict';
 
 const THREE = window.THREE;
-const STATE = { route: location.pathname, snapshot: null, services: [], pricingArms: {} };
+const STATE = { route: location.pathname, snapshot: null, services: [], pricingArms: {}, paymentMethods: [{ id:'crypto_btc', active:true }] };
 const cfg = window.__UNICORN__ || {};
 
 // ================= UTIL =================
@@ -26,6 +26,37 @@ async function api(path, opts){
   } catch (e) { console.warn('api', path, e.message); return null; }
 }
 function escapeHtml(s){ return String(s==null?'':s).replace(/[&<>"']/g, m=>({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[m])); }
+
+function paymentLabels(){
+  const ids = (STATE.paymentMethods || []).filter(m => m && m.active !== false).map(m => m.id || m.provider || '');
+  const labels = ['BTC direct'];
+  if (ids.includes('card') || ids.includes('stripe')) labels.push('Card/Stripe');
+  if (ids.includes('paypal')) labels.push('PayPal');
+  if (ids.includes('nowpayments')) labels.push('global crypto');
+  return labels;
+}
+
+async function hydratePaymentRails(){
+  try {
+    const payload = await api('/api/payment/methods');
+    const methods = payload && Array.isArray(payload.methods) ? payload.methods.filter(m => m && m.active !== false) : [];
+    STATE.paymentMethods = methods.length ? methods : [{ id:'crypto_btc', active:true }];
+  } catch (_) {
+    STATE.paymentMethods = [{ id:'crypto_btc', active:true }];
+  }
+  const labels = paymentLabels();
+  const copy = 'Live payment rails: ' + labels.join(' · ') + '. Optional external providers appear only when configured.';
+  const setText = (id, value) => { const el = document.getElementById(id); if (el) el.textContent = value; };
+  setText('commerceProofPaymentCopy', copy);
+  setText('pricingPaymentRail', labels.join(' · ') + ' · automatic activation');
+  setText('checkoutPaymentRailCopy', copy + ' BTC quote and owner wallet are always shown before payment.');
+  setText('paypalRailCopy', labels.includes('PayPal') ? 'PayPal is configured live and available for eligible orders.' : 'PayPal is hidden/parked until runtime credentials are configured; BTC direct remains live.');
+  const paypalPanel = document.getElementById('coPanelPaypal');
+  const paypalChip = document.querySelector('.co-method .chip[data-method="paypal"]');
+  const paypalActive = labels.includes('PayPal');
+  if (paypalPanel && !paypalActive) paypalPanel.style.display = 'none';
+  if (paypalChip && !paypalActive) paypalChip.style.display = 'none';
+}
 
 function clearStaleLoadingPlaceholders(){
   const nodes = Array.from(document.querySelectorAll('p, h3, pre, div, span, td'));
@@ -982,10 +1013,11 @@ async function hydrateCommerceProof(){
 
   try {
     const spot = await api('/api/btc/spot');
-    if (btcEl && spot) btcEl.textContent = 'Static wallet live' + (spot.usdPerBtc ? ' · $' + Number(spot.usdPerBtc).toLocaleString() + '/BTC' : '');
+    if (btcEl && spot) btcEl.textContent = 'BTC direct wallet live' + (spot.usdPerBtc ? ' · $' + Number(spot.usdPerBtc).toLocaleString() + '/BTC' : '');
   } catch (_) {
     if (btcEl) btcEl.textContent = 'BTC checkout ready';
   }
+  hydratePaymentRails().catch(function(){});
 
   try {
     const r = await fetch('/api/admin/commerce/refund', { method:'POST', headers:{'Content-Type':'application/json'}, body:'{}' });

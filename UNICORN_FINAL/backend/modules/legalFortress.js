@@ -73,6 +73,10 @@ class LegalFortress {
 
   // ==================== PROPRIETATE EXCLUSIVĂ ====================
   async checkOwnershipStatus() {
+    if (process.env.NODE_ENV === 'test' || process.env.DISABLE_SELF_MUTATION === '1') {
+      console.log('🔍 Verificarea watermark-ului este dezactivată în test/self-mutation-disabled');
+      return true;
+    }
     console.log('🔍 Verific statutul proprietății...');
     const modules = this.getAllModules();
     let allOwned = true;

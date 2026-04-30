@@ -13,13 +13,21 @@
 'use strict';
 
 const assert = require('assert');
+const fs = require('fs');
+const os = require('os');
+const path = require('path');
 
 process.env.DB_PATH = ':memory:';
 process.env.NODE_ENV = 'test';
+process.env.DISABLE_SELF_MUTATION = '1';
 process.env.JWT_SECRET = process.env.JWT_SECRET || 'test-jwt-secret-for-ci-only';
 process.env.ADMIN_MASTER_PASSWORD = process.env.ADMIN_MASTER_PASSWORD || 'TestAdmin2026!';
 process.env.ADMIN_2FA_CODE = process.env.ADMIN_2FA_CODE || '999999';
 process.env.BTC_FX_OVERRIDE = process.env.BTC_FX_OVERRIDE || '60000';
+const tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'unicorn-api-aliases-'));
+process.env.UI_BUILD_CACHE_FILE = path.join(tmpRoot, 'ui-build-cache.json');
+process.env.MARKETING_INNOVATION_LEDGER = path.join(tmpRoot, 'innovation-ledger.jsonl');
+process.env.MARKETING_INNOVATION_LOOP_DISABLED = '1';
 
 const app = require('../backend/index');
 
@@ -75,6 +83,7 @@ async function run() {
     console.log('\n[api-aliases.test.js] all assertions passed');
   } finally {
     await teardown();
+    try { fs.rmSync(tmpRoot, { recursive: true, force: true }); } catch (_) {}
   }
 }
 

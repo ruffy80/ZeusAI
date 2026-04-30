@@ -722,4 +722,4 @@ async function run() {
   console.log('\n✅ marketing-innovations.test.js — all checks passed');
 }
 
-run().catch((e) => { console.error(e); process.exit(1); });
+run().then(() => process.exit(0)).catch((e) => { console.error(e); process.exit(1); });

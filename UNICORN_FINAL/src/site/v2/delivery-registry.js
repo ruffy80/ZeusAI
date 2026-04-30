@@ -4,7 +4,7 @@ const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
 
-const DATA_DIR = path.join(__dirname, '..', '..', '..', 'data');
+const DATA_DIR = process.env.UNICORN_DATA_DIR || path.join(__dirname, '..', '..', '..', 'data');
 const DELIVERIES_FILE = path.join(DATA_DIR, 'commerce-deliveries.json');
 
 function readJson(file, fallback) {

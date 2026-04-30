@@ -66,7 +66,7 @@ function buildJsonLd(title, route, canonical, desc, opts) {
   // 5) FAQPage on /how and /pricing — small but valuable for rich results.
   if (route === '/how' || route === '/pricing') {
     const faq = route === '/pricing' ? [
-      { q: 'How do I pay?', a: 'Direct BTC checkout (sovereign), with PayPal as an optional rail. Every receipt is Ed25519-signed and stored in your account.' },
+      { q: 'How do I pay?', a: 'Direct BTC checkout is the primary production rail. Card/Stripe, PayPal and NOWPayments appear only when configured in runtime env. Every receipt is Ed25519-signed and stored in your account.' },
       { q: 'Is there a refund?', a: 'Yes — a cryptographic refund guarantee: SLA breach → automatic refund, plus 30-day money-back, no questions asked.' },
       { q: 'Do you store my data?', a: 'Minimal data, no resale, no model training on personal data. See our DPA and Privacy Policy for full details.' }
     ] : [
@@ -520,7 +520,7 @@ function pageHome() {
     <div class="card" style="border-color:rgba(247,147,26,.45)">
       <span class="tag" style="background:rgba(247,147,26,.15);color:#f7931a">BTC / BTCPay</span>
       <h3 id="commerceProofBtcProvider">Checking payment rail…</h3>
-      <p>Creates a real receipt, exact BTC amount, owner wallet fallback, and BTCPay checkout URL when env is configured.</p>
+      <p id="commerceProofPaymentCopy">BTC direct is primary. Card/Stripe, PayPal and global crypto appear only when configured live.</p>
       <a class="btn btn-primary" href="/checkout?plan=adaptive-ai&amount=49" data-link>Test checkout →</a>
     </div>
     <div class="card" style="border-color:rgba(110,231,183,.42)">
@@ -740,7 +740,7 @@ function pagePricing() {
       <ul>
         <li>Up to 5 active modules</li>
         <li>100k module executions / month</li>
-        <li>Direct BTC checkout</li>
+        <li id="pricingPaymentRail">Direct BTC checkout · optional rails only when configured</li>
         <li>Community support</li>
       </ul>
       <a class="btn" href="/checkout?plan=starter&amount=49" data-link>Start Starter</a>
@@ -783,7 +783,7 @@ function pageCheckout() {
   </div>
   <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px;margin:0 0 22px">
     <div class="card"><span class="tag">Step 1</span><h3>Select service</h3><p style="color:var(--ink-dim)">Choose plan/product and email so delivery can issue the entitlement.</p></div>
-    <div class="card"><span class="tag">Step 2</span><h3>Quote / invoice</h3><p style="color:var(--ink-dim)">BTC quote and owner wallet are shown before payment. NOWPayments and PayPal are optional later rails.</p></div>
+    <div class="card"><span class="tag">Step 2</span><h3>Quote / invoice</h3><p id="checkoutPaymentRailCopy" style="color:var(--ink-dim)">BTC quote and owner wallet are shown before payment. External providers appear only when configured live.</p></div>
     <div class="card"><span class="tag">Step 3</span><h3>Delivery / license</h3><p style="color:var(--ink-dim)">After settlement, receipt, license token, API key and onboarding delivery become available.</p></div>
   </div>
   <div class="checkout">
@@ -813,7 +813,7 @@ function pageCheckout() {
         <div class="field"><label for="coEmailPP">Email for activation</label><input id="coEmailPP" type="email" placeholder="you@company.com"/></div>
         <button class="btn btn-primary" id="coPayPP" style="width:100%;justify-content:center;margin-bottom:8px">Start PayPal payment →</button>
         <a class="btn btn-gold" id="coPaypal" style="width:100%;justify-content:center" target="_blank" rel="noopener">Or tip via paypal.me</a>
-        <p style="color:var(--ink-dim);font-size:13px;margin-top:14px">PayPal is intentionally parked for later configuration. Current production checkout routes revenue directly to the BTC owner wallet.</p>
+        <p id="paypalRailCopy" style="color:var(--ink-dim);font-size:13px;margin-top:14px">PayPal appears only when runtime credentials are configured. Current production checkout routes revenue directly to the BTC owner wallet.</p>
       </div>
     </div>
     <aside class="co-box">
@@ -984,7 +984,7 @@ function pageLegal() {
   <h3>Privacy</h3>
   <p style="color:var(--ink-dim);font-size:15px;line-height:1.7">ZeusAI stores the minimum data necessary to deliver services: email (for activation), plan, receipts. No data is sold. No data is shared. Cryptographic receipts are append‑only and owner‑owned.</p>
   <h3>Payments</h3>
-  <p style="color:var(--ink-dim);font-size:15px;line-height:1.7">Payments are routed directly to owner‑controlled wallets (BTC) and accounts (PayPal). There are no custodians, no payment processors keeping a balance.</p>
+  <p style="color:var(--ink-dim);font-size:15px;line-height:1.7">Payments are BTC-first and route directly to the owner-controlled wallet. Card/Stripe, PayPal and NOWPayments are optional live rails and are shown only when configured.</p>
   <p style="color:var(--ink-dim);font-size:13.5px;margin-top:30px">Last updated: ${new Date().toISOString().slice(0,10)} · Jurisdiction: owner of record.</p>
 </section>`;
 }

@@ -421,13 +421,19 @@ const { generateSprintPlan } = require('./innovation/innovation-sprint');
 const unicornCommerceConnector = require('./modules/unicornCommerceConnector');
 const billionScaleRevenueEngine = require('./modules/billionScaleRevenueEngine');
 const billionScaleActivationOrchestrator = require('./modules/billionScaleActivationOrchestrator');
-const { getSiteHtml } = require('./site/template');
 let v2 = null; try { v2 = require('./site/v2/shell'); } catch (e) { console.warn('[site/v2/shell] not loaded:', e.message); }
-// Fallback shim so downstream code never dereferences null.
+function getCinematicFallbackHtml(route) {
+  const ownerBtc = BTC_WALLET || 'bc1q4f7e66z87mdfj56kz0dj5hvcnpmh0qh4wuv22e';
+  return `<!doctype html><html lang="en" data-route="${route || '/'}"><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/><meta name="theme-color" content="#05040a"/><title>ZeusAI — Sovereign AI OS</title><style>
+  html,body{margin:0;min-height:100%;background:#05040a;color:#f4f7ff;font-family:Inter,system-ui,-apple-system,Segoe UI,sans-serif;overflow-x:hidden}
+  .hero{position:relative;min-height:100vh;display:flex;align-items:center;padding:96px 7vw;overflow:hidden}.hero:before{content:"";position:absolute;inset:0;background:url('/assets/zeus/hero.jpg') center/cover no-repeat;filter:contrast(1.12) saturate(1.16) brightness(.78);transform:scale(1.035);animation:drift 18s ease-in-out infinite}.hero:after{content:"";position:absolute;inset:0;background:radial-gradient(circle at 50% 22%,rgba(255,211,106,.22),transparent 34%),linear-gradient(90deg,rgba(5,4,10,.9),rgba(5,4,10,.48),rgba(5,4,10,.92))}.content{position:relative;z-index:2;max-width:880px}.brand{position:fixed;left:28px;top:22px;z-index:5;font-weight:900;letter-spacing:.16em;text-transform:uppercase;color:#ffd36a;text-shadow:0 0 28px rgba(255,211,106,.45)}h1{font-size:clamp(48px,8vw,120px);line-height:.92;margin:0 0 24px;background:linear-gradient(180deg,#fff,#ffd36a 48%,#7fdcff);-webkit-background-clip:text;background-clip:text;color:transparent}p{font-size:clamp(18px,2vw,25px);line-height:1.55;color:#d9e3ff;max-width:720px}.actions{display:flex;gap:14px;flex-wrap:wrap;margin-top:30px}.btn{padding:14px 20px;border-radius:14px;border:1px solid rgba(255,255,255,.18);color:#fff;text-decoration:none;background:rgba(255,255,255,.08);backdrop-filter:blur(10px)}.btn.primary{background:linear-gradient(135deg,#8a5cff,#3ea0ff);border-color:transparent}.wallet{margin-top:28px;font-family:ui-monospace,monospace;font-size:13px;color:#ffd36a;word-break:break-all}@keyframes drift{50%{transform:scale(1.07) translateY(-1.5%)}}
+</style></head><body><div class="brand">ZEUS AI</div><section class="hero"><div class="content"><h1>ZeusAI cinematic shell active.</h1><p>The v2 shell is protected. Marketplace, BTC checkout, payment methods and live APIs remain active while the full UI module reloads.</p><div class="actions"><a class="btn primary" href="/services">Open Marketplace</a><a class="btn" href="/sw-reset">Reset browser cache</a></div><div class="wallet">BTC owner wallet: ${ownerBtc}</div></div></section></body></html>`;
+}
+// Fallback shim keeps the cinematic Zeus visual layer; never fall back to the old legacy template.
 if (!v2 || typeof v2.getHtml !== 'function') {
   v2 = {
     CSS: (v2 && v2.CSS) || '',
-    getHtml: (url) => getSiteHtml(url || '/')
+    getHtml: (url) => getCinematicFallbackHtml(url || '/')
   };
 }
 let sovereign = null; try { sovereign = require('./site/sovereign-extensions'); } catch (e) { console.warn('[sovereign] not loaded:', e.message); }
@@ -503,13 +509,32 @@ const SITE_OWNED_MUTATIONS = [
   '/api/payments/paypal/confirm'
 ];
 
+// Routes whose POST/PUT/PATCH/DELETE handlers ARE registered on Express in this file.
+// They must continue to flow through Express (which already parses JSON body via express.json()).
+// Any other /api/* mutation must bypass Express entirely so that unicornHandler can read the
+// raw request body itself — otherwise express.json() drains the stream first and the
+// req.on('data')/req.on('end') listeners inside unicornHandler never fire (request hangs).
+const EXPRESS_OWNED_MUTATIONS = new Set([
+  '/api/future-state',
+  '/api/marketplace/module',
+  '/api/marketplace/review',
+  '/api/feedback',
+  '/api/ethics/audit'
+]);
+
 function shouldBypassExpressForSiteMutation(pathname, method) {
-  return !['GET', 'HEAD', 'OPTIONS'].includes(method) && SITE_OWNED_MUTATIONS.includes(pathname);
+  if (['GET', 'HEAD', 'OPTIONS'].includes(method)) return false;
+  if (SITE_OWNED_MUTATIONS.includes(pathname)) return true;
+  if (EXPRESS_OWNED_MUTATIONS.has(pathname)) return false;
+  // All other /api/* mutations are handled by unicornHandler — bypass Express.
+  if (pathname.startsWith('/api/')) return true;
+  return false;
 }
 
 function shouldProxyBeforeExpress(pathname, method) {
   if (!pathname.startsWith('/api/') || ['GET', 'HEAD', 'OPTIONS'].includes(method)) return false;
   if (SITE_OWNED_MUTATIONS.includes(pathname)) return false;
+  if (EXPRESS_OWNED_MUTATIONS.has(pathname)) return false;
   return true;
 }
 const APP_URL = process.env.PUBLIC_APP_URL || 'https://zeusai.pro';
@@ -523,7 +548,7 @@ const BACKEND_SYNC_TIMEOUT_MS = Number(process.env.SITE_BACKEND_SYNC_TIMEOUT_MS 
 // ===================================================================
 // FALLBACK COMMERCE LEDGER — persistent receipts when UAIC is absent
 // ===================================================================
-const FALLBACK_RECEIPTS_FILE = path.join(__dirname, '..', 'data', 'commerce-receipts.json');
+const FALLBACK_RECEIPTS_FILE = process.env.UNICORN_RECEIPTS_FILE || path.join(__dirname, '..', 'data', 'commerce-receipts.json');
 function loadFallbackReceipts() {
   try {
     if (!fs.existsSync(FALLBACK_RECEIPTS_FILE)) return [];
@@ -587,10 +612,12 @@ function isConfiguredSecret(name) {
 function getPaymentConfigStatus() {
   const nowConfigured = isConfiguredSecret('NOWPAYMENTS_API_KEY');
   const nowIpnConfigured = isConfiguredSecret('NOWPAYMENTS_IPN_SECRET');
+  const stripeConfigured = isConfiguredSecret('STRIPE_SECRET_KEY');
   const paypalConfigured = isConfiguredSecret('PAYPAL_CLIENT_ID') && isConfiguredSecret('PAYPAL_CLIENT_SECRET');
   const btcpayConfigured = isConfiguredSecret('BTCPAY_SERVER_URL') && isConfiguredSecret('BTCPAY_API_KEY') && isConfiguredSecret('BTCPAY_STORE_ID');
   const rails = [
     { id: 'btc-direct', configured: true, active: true, primary: true, mode: 'owner-wallet-primary', payoutDestination: BTC_WALLET, action: 'none' },
+    { id: 'stripe', configured: stripeConfigured, active: stripeConfigured, primary: false, mode: stripeConfigured ? 'checkout-api' : 'optional-later', action: stripeConfigured ? 'none' : 'optional: configure STRIPE_SECRET_KEY later' },
     { id: 'btcpay', configured: btcpayConfigured, active: btcpayConfigured, primary: false, mode: btcpayConfigured ? 'invoice-api' : 'optional-later', action: btcpayConfigured ? 'none' : 'optional: configure BTCPAY_SERVER_URL, BTCPAY_API_KEY, BTCPAY_STORE_ID later' },
     { id: 'paypal', configured: paypalConfigured, active: paypalConfigured, primary: false, mode: paypalConfigured ? 'orders-api' : 'optional-later', action: paypalConfigured ? 'none' : 'optional: configure PAYPAL_CLIENT_ID and PAYPAL_CLIENT_SECRET later' },
     { id: 'nowpayments', configured: nowConfigured, active: nowConfigured, primary: false, mode: nowConfigured ? 'global-crypto' : 'optional-later', action: nowConfigured && nowIpnConfigured ? 'none' : 'optional: configure NOWPAYMENTS_API_KEY and NOWPAYMENTS_IPN_SECRET later' },
@@ -610,8 +637,25 @@ function getPaymentConfigStatus() {
       requiredForCurrentMode: false,
     },
     rails,
-    action: 'No action needed for current mode: revenue routes directly to the configured BTC owner wallet. NOWPayments/PayPal can be enabled later as optional rails.',
+    action: 'No action needed for current mode: revenue routes directly to the configured BTC owner wallet. Stripe/NOWPayments/PayPal can be enabled later as optional rails.',
   };
+}
+function getPublicPaymentMethods() {
+  const status = getPaymentConfigStatus();
+  const methods = [
+    { id: 'crypto_btc', name: 'Bitcoin', currency: 'BTC', active: true, primary: true, settlement: '10-30 min', provider: 'btc-direct', btcAddress: BTC_WALLET },
+  ];
+  if (status.rails.some((rail) => rail.id === 'stripe' && rail.active)) {
+    methods.push({ id: 'card', name: 'Credit Card', currency: 'USD', active: true, primary: false, settlement: 'instant', provider: 'stripe' });
+    methods.push({ id: 'stripe', name: 'Stripe', currency: 'USD', active: true, primary: false, settlement: 'instant', provider: 'stripe' });
+  }
+  if (status.rails.some((rail) => rail.id === 'paypal' && rail.active)) {
+    methods.push({ id: 'paypal', name: 'PayPal', currency: 'USD', active: true, primary: false, settlement: 'instant', provider: 'paypal' });
+  }
+  if (status.rails.some((rail) => rail.id === 'nowpayments' && rail.active)) {
+    methods.push({ id: 'nowpayments', name: 'Global Crypto', currency: 'MULTI', active: true, primary: false, settlement: 'instant', provider: 'nowpayments' });
+  }
+  return { methods, status };
 }
 function buildPublicSecurityPosture() {
   const payment = getPaymentConfigStatus();
@@ -774,7 +818,10 @@ async function getBtcUsdSpot() {
   ];
   for (const s of sources) {
     try {
-      const r = await fetch(s.url, { headers: { 'User-Agent': 'ZeusAI/1.0' } });
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), 1500);
+      const r = await fetch(s.url, { headers: { 'User-Agent': 'ZeusAI/1.0' }, signal: controller.signal });
+      clearTimeout(timer);
       if (!r.ok) continue;
       const j = await r.json();
       const p = s.pick(j);
@@ -2066,7 +2113,7 @@ async function unicornHandler(req, res) {
     '/api/payments/btc/confirm', '/api/payments/paypal/confirm',
     '/api/activate', '/api/concierge', '/api/concierge/stream', '/api/concierge/feedback',
     '/api/secrets/status',
-    '/api/catalog/master', '/api/btc/spot'
+    '/api/catalog', '/api/catalog/master', '/api/btc/spot', '/api/btc/rate', '/api/payment/btc-rate', '/api/payment/methods', '/api/payment/nowpayments/security'
   ]);
   // ================== ADMIN SESSION (cookie-based, stateless HMAC) ==================
   // Flow: POST /api/admin/login {password} → verify vs backend → Set-Cookie admin_session=ts.hmac
@@ -2197,7 +2244,7 @@ async function unicornHandler(req, res) {
   // 30Y-LTS: local-first routes served by this site process (not proxied to backend).
   // Only routes that are implemented locally in this file are matched here;
   // backend-only endpoints (/api/v1/deprecations, /api/v1/events/*) keep flowing to the backend.
-  const isLts = /^\/api\/(v1\/)?(contract|i18n\/|crypto\/public-keys|succession\/attestation|anchors)(\/|$|\.)/.test(urlPath) || urlPath === '/api/v1/contract' || urlPath === '/api/contract';  const isLocalV2Api = isLts || LOCAL_V2_API.has(urlPath) || urlPath.startsWith('/api/services/') || urlPath.startsWith('/services/') || urlPath.startsWith('/api/enterprise/') || urlPath.startsWith('/api/outreach/') || urlPath.startsWith('/api/vault/') || urlPath.startsWith('/api/governance/') || urlPath.startsWith('/api/whales/') || urlPath.startsWith('/api/webhooks/') || urlPath.startsWith('/api/admin/') || urlPath.startsWith('/api/instant/') || urlPath.startsWith('/api/customer/') || urlPath.startsWith('/api/user/') || urlPath.startsWith('/api/unicorn-ai/') || urlPath.startsWith('/api/unicorn-commerce/') || urlPath.startsWith('/api/billion-scale/') || urlPath.startsWith('/api/checkout/') || urlPath.startsWith('/api/uaic/') || urlPath.startsWith('/api/receipt/') || urlPath.startsWith('/api/invoice/') || urlPath.startsWith('/api/license/') || urlPath.startsWith('/api/delivery/') || urlPath.startsWith('/api/wire/') || urlPath === '/api/payments/btc/confirm' || urlPath === '/api/payments/paypal/confirm' || urlPath === '/api/payments/config/status' || urlPath === '/api/checkout/synthetic-probe' || urlPath === '/api/qr' || urlPath.startsWith('/api/cart/') || urlPath.startsWith('/api/coupons') || urlPath.startsWith('/api/leads') || urlPath.startsWith('/api/keys') || urlPath.startsWith('/api/newsletter/') || urlPath.startsWith('/api/wizard/') || urlPath.startsWith('/api/fx/') || urlPath.startsWith('/api/tax/') || urlPath.startsWith('/api/webhooks/') || urlPath === '/api/status' || urlPath === '/api/track' || urlPath.startsWith('/api/analytics/') || urlPath.startsWith('/api/refund/') || urlPath === '/api/aura' || urlPath.startsWith('/api/outcome/') || urlPath.startsWith('/api/discount/') || urlPath.startsWith('/api/receipt/nft/') || urlPath.startsWith('/api/capability/') || urlPath.startsWith('/api/email/proof') || urlPath.startsWith('/api/gift/') || urlPath.startsWith('/api/pledge') || urlPath.startsWith('/api/cancel/') || urlPath.startsWith('/api/bandit/') || urlPath.startsWith('/api/carbon/') || urlPath.startsWith('/api/abandon-cart') || urlPath === '/api/frontier/status' || urlPath === '/api/trust/center' || urlPath === '/api/operator/console' || urlPath === '/api/observability/status' || urlPath === '/api/secret-sync/status' || urlPath === '/api/security/pq/status' || urlPath === '/api/commerce/protocol' || urlPath === '/api/innovation/coverage' || urlPath === '/openapi.json' || urlPath === '/api/openapi' || urlPath === '/seo/sitemap.xml' || urlPath === '/seo/sitemap-services.xml' || urlPath === '/seo/robots.txt' || urlPath === '/api/catalog/master' || urlPath === '/api/catalog/diff' || urlPath === '/api/commerce/recent-sales' || urlPath === '/api/admin/owner-revenue' || urlPath === '/agents.json' || urlPath === '/.well-known/agents.json' || urlPath === '/api/btc/spot' || urlPath.startsWith('/api/payments/btc/verify/');
+  const isLts = /^\/api\/(v1\/)?(contract|i18n\/|crypto\/public-keys|succession\/attestation|anchors)(\/|$|\.)/.test(urlPath) || urlPath === '/api/v1/contract' || urlPath === '/api/contract';  const isLocalV2Api = isLts || LOCAL_V2_API.has(urlPath) || urlPath.startsWith('/api/services/') || urlPath.startsWith('/services/') || urlPath.startsWith('/api/enterprise/') || urlPath.startsWith('/api/outreach/') || urlPath.startsWith('/api/vault/') || urlPath.startsWith('/api/governance/') || urlPath.startsWith('/api/whales/') || urlPath.startsWith('/api/webhooks/') || urlPath.startsWith('/api/admin/') || urlPath.startsWith('/api/instant/') || urlPath.startsWith('/api/customer/') || urlPath.startsWith('/api/user/') || urlPath.startsWith('/api/unicorn-ai/') || urlPath.startsWith('/api/unicorn-commerce/') || urlPath.startsWith('/api/billion-scale/') || urlPath.startsWith('/api/checkout/') || urlPath.startsWith('/api/uaic/') || urlPath.startsWith('/api/receipt/') || urlPath.startsWith('/api/invoice/') || urlPath.startsWith('/api/license/') || urlPath.startsWith('/api/delivery/') || urlPath.startsWith('/api/wire/') || urlPath === '/api/payments/btc/confirm' || urlPath === '/api/payments/paypal/confirm' || urlPath === '/api/payments/config/status' || urlPath === '/api/checkout/synthetic-probe' || urlPath === '/api/qr' || urlPath.startsWith('/api/cart/') || urlPath.startsWith('/api/coupons') || urlPath.startsWith('/api/leads') || urlPath.startsWith('/api/keys') || urlPath.startsWith('/api/newsletter/') || urlPath.startsWith('/api/wizard/') || urlPath.startsWith('/api/fx/') || urlPath.startsWith('/api/tax/') || urlPath.startsWith('/api/webhooks/') || urlPath === '/api/status' || urlPath === '/api/track' || urlPath.startsWith('/api/analytics/') || urlPath.startsWith('/api/refund/') || urlPath === '/api/aura' || urlPath.startsWith('/api/outcome/') || urlPath.startsWith('/api/discount/') || urlPath.startsWith('/api/receipt/nft/') || urlPath.startsWith('/api/capability/') || urlPath.startsWith('/api/email/proof') || urlPath.startsWith('/api/gift/') || urlPath.startsWith('/api/pledge') || urlPath.startsWith('/api/cancel/') || urlPath.startsWith('/api/bandit/') || urlPath.startsWith('/api/carbon/') || urlPath.startsWith('/api/abandon-cart') || urlPath === '/api/frontier/status' || urlPath === '/api/trust/center' || urlPath === '/api/operator/console' || urlPath === '/api/observability/status' || urlPath === '/api/secret-sync/status' || urlPath === '/api/security/pq/status' || urlPath === '/api/commerce/protocol' || urlPath === '/api/innovation/coverage' || urlPath === '/openapi.json' || urlPath === '/api/openapi' || urlPath === '/seo/sitemap.xml' || urlPath === '/seo/sitemap-services.xml' || urlPath === '/seo/robots.txt' || urlPath === '/api/catalog/master' || urlPath === '/api/catalog/diff' || urlPath === '/api/commerce/recent-sales' || urlPath === '/api/admin/owner-revenue' || urlPath === '/agents.json' || urlPath === '/.well-known/agents.json' || urlPath === '/api/btc/spot' || urlPath === '/api/btc/rate' || urlPath === '/api/payment/btc-rate' || urlPath.startsWith('/api/payments/btc/verify/');
   const isUaic = !!(uaic && uaic.matches(urlPath)) && urlPath !== '/api/uaic/status';
   const isUse  = !!(USE && USE.matches(urlPath)) && !urlPath.startsWith('/api/user/') && !urlPath.startsWith('/api/ai/');
   const backendUrl = process.env.BACKEND_API_URL;
@@ -2297,6 +2344,23 @@ async function unicornHandler(req, res) {
   if (urlPath === '/api/payments/config/status') {
     res.writeHead(200, { 'Content-Type':'application/json', 'Cache-Control':'no-cache' });
     return res.end(JSON.stringify(getPaymentConfigStatus()));
+  }
+
+  if (urlPath === '/api/payment/methods') {
+    res.writeHead(200, { 'Content-Type':'application/json', 'Cache-Control':'no-cache' });
+    return res.end(JSON.stringify(getPublicPaymentMethods()));
+  }
+
+  if (urlPath === '/api/payment/nowpayments/security') {
+    const status = getPaymentConfigStatus().nowpayments;
+    res.writeHead(200, { 'Content-Type':'application/json', 'Cache-Control':'no-cache' });
+    return res.end(JSON.stringify({
+      apiKeyConfigured: status.apiKeyConfigured,
+      ipnSecretConfigured: status.ipnSecretConfigured,
+      webhookSecurityReady: status.webhookSecurityReady,
+      sandbox: status.sandbox,
+      requiredForCurrentMode: false,
+    }));
   }
 
   if (urlPath === '/api/security/pq/status') {
@@ -3059,7 +3123,7 @@ async function unicornHandler(req, res) {
               : ext === '.svg' ? 'image/svg+xml; charset=utf-8'
                 : 'application/octet-stream';
       const payload = fs.readFileSync(filePath);
-      res.writeHead(200, { 'Content-Type': type, 'Cache-Control': 'public, max-age=3600' });
+      res.writeHead(200, { 'Content-Type': type, 'Cache-Control': 'public, max-age=300, must-revalidate' });
       return res.end(payload);
     } catch (_) {
       res.writeHead(404, { 'Content-Type': 'application/json' });
@@ -3394,6 +3458,33 @@ async function unicornHandler(req, res) {
     return;
   }
 
+  // /api/catalog — legacy UI-compatible array backed by the full master catalog.
+  // Keeps the marketplace grid populated with all sellable services instead of
+  // falling back to the tiny two-item mock when no separate backend is present.
+  if (urlPath === '/api/catalog') {
+    try {
+      const cat = await getCachedMasterCatalog();
+      const items = (cat.items || []).map(item => ({
+        id: item.id,
+        name: item.title || item.name || item.id,
+        title: item.title || item.name || item.id,
+        description: item.description || '',
+        price: Number(item.priceUsd || item.price || 0),
+        priceUsd: Number(item.priceUsd || item.price || 0),
+        priceBtc: item.priceBtc,
+        btcUri: item.btcUri,
+        category: item.segment || item.group || item.category || 'AI',
+        group: item.group || item.segment || 'marketplace',
+        buyUrl: item.buyUrl
+      }));
+      res.writeHead(200, { 'Content-Type':'application/json', 'Cache-Control':'public, max-age=30' });
+      return res.end(JSON.stringify(items));
+    } catch (e) {
+      res.writeHead(500, { 'Content-Type':'application/json' });
+      return res.end(JSON.stringify({ error: 'catalog_failed', detail: e.message }));
+    }
+  }
+
   // ===================================================================
   // /api/catalog/master — every deliverable Unicorn can sell, BTC-priced
   // ===================================================================
@@ -3581,12 +3672,12 @@ document.getElementById('buyBtn').addEventListener('click', async function(){
     }
   }
 
-  // /api/btc/spot — live USD/BTC rate (cached 60s)
-  if (urlPath === '/api/btc/spot') {
+  // /api/btc/spot + aliases — live USD/BTC rate (cached 60s)
+  if (urlPath === '/api/btc/spot' || urlPath === '/api/btc/rate' || urlPath === '/api/payment/btc-rate') {
     try {
       const usdPerBtc = await getBtcUsdSpot();
       res.writeHead(200, { 'Content-Type':'application/json', 'Cache-Control':'public, max-age=60' });
-      return res.end(JSON.stringify({ usdPerBtc, fetchedAt: new Date(_btcSpotCache.fetchedAt).toISOString(), btcAddress: BTC_WALLET, owner: OWNER_NAME }));
+      return res.end(JSON.stringify({ usdPerBtc, rate: usdPerBtc, usd: usdPerBtc, fetchedAt: new Date(_btcSpotCache.fetchedAt).toISOString(), btcAddress: BTC_WALLET, owner: OWNER_NAME }));
     } catch (e) {
       res.writeHead(503, { 'Content-Type':'application/json' });
       return res.end(JSON.stringify({ error: 'spot_unavailable' }));
@@ -5221,8 +5312,6 @@ ${invoice.payer ? `<h2>Payer</h2><table><tr><th>Legal entity</th><td>${esc(invoi
       return m ? m[1] : 'en';
     })();
     const lang = cookieLang || acceptLang || 'en';
-    // Public cacheable routes vs private routes
-    const isPrivate = /^\/(account|dashboard|checkout)(\/|$)/.test(route);
     let html = v2.getHtml(route, { lang, nonce });
     // Inject verifiable build marker so the freshly deployed variant is
     // always distinguishable from any stale browser cache.
@@ -5239,12 +5328,12 @@ ${invoice.payer ? `<h2>Payer</h2><table><tr><th>Legal entity</th><td>${esc(invoi
     // 30Y-LTS Cache-Control diff:
     //   Public pages → 5min cache + SWR (browsers/CDNs may revalidate)
     //   Private pages → no-store (auth, dashboard, checkout)
-    const cache = isPrivate
-      ? 'no-store, no-cache, must-revalidate, max-age=0'
-      : 'public, max-age=300, stale-while-revalidate=600';
+    const cache = 'no-store, no-cache, must-revalidate, max-age=0';
     res.writeHead(200, {
       'Content-Type': 'text/html; charset=utf-8',
       'Cache-Control': cache,
+      'Pragma': 'no-cache',
+      'Expires': '0',
       'Link': '</assets/app.css?v=' + ZEUS_BUILD.sha + '>; rel=preload; as=style, </assets/app.js?v=' + ZEUS_BUILD.sha + '>; rel=preload; as=script, </assets/icons/icon-192.png>; rel=preload; as=image',
       'X-Zeus-Build': ZEUS_BUILD.sha,
       'X-Zeus-Built-At': ZEUS_BUILD.ts,
@@ -5427,7 +5516,9 @@ if (require.main === module) {
   });
 }
 
-module.exports = {
-  unicornHandler,
-  createServer
-};
+// Default export is a singleton http.Server (provides .listen/.close).
+// Backwards-compatible properties { unicornHandler, createServer } are attached.
+const _siteServerSingleton = createServer();
+_siteServerSingleton.unicornHandler = unicornHandler;
+_siteServerSingleton.createServer = createServer;
+module.exports = _siteServerSingleton;

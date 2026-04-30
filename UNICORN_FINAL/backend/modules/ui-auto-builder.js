@@ -45,7 +45,7 @@ const BUILD_DIR     = path.join(CLIENT_DIR, 'build');
 const MIRROR_DIR    = path.join(CLIENT_DIR, 'build_mirror');
 const BUILD_INDEX   = path.join(BUILD_DIR, 'index.html');
 const MIRROR_INDEX  = path.join(MIRROR_DIR, 'index.html');
-const CACHE_FILE    = path.join(CLIENT_DIR, '.ui-build-cache.json');
+const CACHE_FILE    = process.env.UI_BUILD_CACHE_FILE || path.join(CLIENT_DIR, '.ui-build-cache.json');
 
 // ── Constants ────────────────────────────────────────────────────────────────
 const BUILD_CHECK_INTERVAL_MS = parseInt(process.env.UI_BUILD_CHECK_INTERVAL_MS || '180000', 10); // 3 min
@@ -494,7 +494,11 @@ function getRouter() {
 }
 
 // ── Auto-start on require() ───────────────────────────────────────────────────
-start();
+if (process.env.NODE_ENV !== 'test' && process.env.DISABLE_SELF_MUTATION !== '1') {
+  start();
+} else {
+  console.log('[ui-auto-builder] auto-start suppressed in test/self-mutation-disabled mode');
+}
 
 module.exports = {
   start,

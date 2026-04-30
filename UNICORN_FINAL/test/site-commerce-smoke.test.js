@@ -2,12 +2,16 @@
 
 const assert = require('assert');
 const fs = require('fs');
+const os = require('os');
 const path = require('path');
 
 process.env.NODE_ENV = 'test';
 process.env.PORT = process.env.PORT || '31991';
 process.env.PUBLIC_APP_URL = process.env.PUBLIC_APP_URL || 'https://zeusai.pro';
 process.env.BTC_WALLET_ADDRESS = process.env.BTC_WALLET_ADDRESS || 'bc1q4f7e66z87mdfj56kz0dj5hvcnpmh0qh4wuv22e';
+const tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'unicorn-site-commerce-'));
+process.env.UNICORN_DATA_DIR = tmpRoot;
+process.env.UNICORN_RECEIPTS_FILE = path.join(tmpRoot, 'commerce-receipts.json');
 
 const { createServer } = require('../src/index');
 const app = createServer();
@@ -29,9 +33,10 @@ function cleanSmokeJsonArray(filePath) {
 }
 
 function cleanupSmokeArtifacts() {
-  const dataDir = path.join(__dirname, '..', 'data');
+  const dataDir = process.env.UNICORN_DATA_DIR || path.join(__dirname, '..', 'data');
   cleanSmokeJsonArray(path.join(dataDir, 'commerce-receipts.json'));
   cleanSmokeJsonArray(path.join(dataDir, 'commerce-deliveries.json'));
+  try { fs.rmSync(tmpRoot, { recursive: true, force: true }); } catch (_) {}
 }
 
 async function request(path, options = {}) {

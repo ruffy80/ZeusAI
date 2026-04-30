@@ -3,6 +3,7 @@
  * Uses BTC_FX_OVERRIDE so no network is required.
  */
 const fs = require('fs');
+const os = require('os');
 const path = require('path');
 const assert = require('assert');
 
@@ -10,9 +11,8 @@ process.env.BTC_FX_OVERRIDE = '60000';
 process.env.ADMIN_OWNER_BTC = 'bc1q4f7e66z87mdfj56kz0dj5hvcnpmh0qh4wuv22e';
 
 // Isolate ledger storage to a tmp dir so we don't pollute repo data/.
-const TMP_DATA = path.join(__dirname, '..', 'data', 'invoices');
-// (the ledger uses ../../data/invoices relative to backend/modules; for the
-// purposes of this smoke test we just clean up after ourselves)
+const TMP_DATA = fs.mkdtempSync(path.join(os.tmpdir(), 'unicorn-btc-invoices-'));
+process.env.BTC_INVOICE_DATA_DIR = TMP_DATA;
 
 const ledger    = require('../backend/modules/btcInvoiceLedger');
 const verifier  = require('../backend/modules/btcPaymentVerifier');
@@ -58,15 +58,9 @@ async function run() {
   assert.strictEqual(typeof ast.discordConfigured, 'boolean');
   console.log('[ok] alerts.broadcast skip-when-unconfigured');
 
-  // cleanup test invoices
-  try {
-    for (const inv of [a, b]) {
-      const f = path.join(__dirname, '..', 'data', 'invoices', `${inv.id}.json`);
-      if (fs.existsSync(f)) fs.unlinkSync(f);
-    }
-  } catch (_) {}
+  try { fs.rmSync(TMP_DATA, { recursive: true, force: true }); } catch (_) {}
 
   console.log('✅ btc.test.js passed');
 }
 
-run().catch((e) => { console.error('❌ btc.test.js failed:', e); process.exit(1); });
+run().then(() => process.exit(0)).catch((e) => { console.error('❌ btc.test.js failed:', e); process.exit(1); });
