@@ -1297,6 +1297,82 @@ function adminHeaders(){
 }
 function isLoggedIn(){return !!STATE.token;}
 
+(function installResilientFetch(){
+  if(window.__zeusResilientFetchInstalled || !window.fetch) return;
+  window.__zeusResilientFetchInstalled=true;
+  var nativeFetch=window.fetch.bind(window);
+  var CACHE_PREFIX='zeus_last_good_response:';
+  function methodOf(input,init){return ((init&&init.method)||(input&&input.method)||'GET').toUpperCase();}
+  function urlOf(input){try{return new URL((typeof input==='string'?input:input.url),window.location.origin).href;}catch(e){return String(input||'');}}
+  function sameSite(url){try{return new URL(url,window.location.origin).origin===window.location.origin;}catch(e){return false;}}
+  function cacheKey(method,url){return CACHE_PREFIX+method+':'+url;}
+  function wait(ms){return new Promise(function(resolve){setTimeout(resolve,ms);});}
+  function markFallback(url){
+    window.__zeusLastDataFallback={url:url,ts:new Date().toISOString()};
+    try{document.documentElement.setAttribute('data-zeus-api-fallback','1');}catch(e){}
+  }
+  function clearStuckLoading(){
+    try{
+      var nodes=document.querySelectorAll('[id]');
+      for(var i=0;i<nodes.length;i++){
+        var n=nodes[i];
+        if(/^\s*(Loading( dashboard)?|Revenue data loading|Growth data loading)\.\.\.\s*$/i.test(n.textContent||'')){
+          n.textContent='Date temporar indisponibile — se afișează ultimele date cunoscute când există.';
+        }
+      }
+    }catch(e){}
+  }
+  function remember(method,url,response){
+    if(method!=='GET' || !sameSite(url) || !response || !response.ok) return;
+    try{
+      response.clone().text().then(function(body){
+        if(!body || body.length>250000) return;
+        var type=response.headers&&response.headers.get?response.headers.get('content-type')||'application/json':'application/json';
+        localStorage.setItem(cacheKey(method,url),JSON.stringify({body:body,type:type,status:response.status,ts:Date.now()}));
+      }).catch(function(){});
+    }catch(e){}
+  }
+  function cachedResponse(method,url){
+    if(method!=='GET' || !sameSite(url)) return null;
+    try{
+      var raw=localStorage.getItem(cacheKey(method,url));
+      if(!raw) return null;
+      var item=JSON.parse(raw);
+      if(!item || typeof item.body!=='string') return null;
+      markFallback(url);
+      clearStuckLoading();
+      return new Response(item.body,{status:200,statusText:'OK (cached)',headers:{'Content-Type':item.type||'application/json','X-Zeus-Cache-Fallback':'1','X-Zeus-Cache-Ts':String(item.ts||'')}});
+    }catch(e){return null;}
+  }
+  window.__zeusClearStuckLoading=clearStuckLoading;
+  window.fetch=async function resilientFetch(input,init){
+    var method=methodOf(input,init);
+    var url=urlOf(input);
+    var attempts=3;
+    var lastError=null;
+    var lastResponse=null;
+    for(var attempt=1;attempt<=attempts;attempt++){
+      try{
+        var response=await nativeFetch(input,init);
+        if(response.ok){remember(method,url,response);return response;}
+        lastResponse=response;
+        if(response.status<500) return response;
+      }catch(e){
+        lastError=e;
+        if(init&&init.signal&&init.signal.aborted) break;
+      }
+      if(attempt<attempts) await wait(250*attempt);
+    }
+    var cached=cachedResponse(method,url);
+    if(cached) return cached;
+    clearStuckLoading();
+    if(lastResponse) return lastResponse;
+    throw lastError||new Error('Network error');
+  };
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',function(){setTimeout(clearStuckLoading,8000);});
+  else setTimeout(clearStuckLoading,8000);
+})();
+
 async function api(method,path,body,useAdmin){
   try{
     var opts={method:method,headers:useAdmin?adminHeaders():authHeaders()};
@@ -1308,6 +1384,7 @@ async function api(method,path,body,useAdmin){
     }
     return r.json();
   }catch(e){
+    if(window.__zeusClearStuckLoading) window.__zeusClearStuckLoading();
     return {error:e.message||'Network error'};
   }
 }

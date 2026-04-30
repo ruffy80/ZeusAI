@@ -1,60 +1,74 @@
-# SITE-FIX-REPORT — zeusai.pro frontend ↔ backend ↔ Unicorn
+# SITE-FIX-REPORT — zeusai.pro frontend ↔ site backend ↔ Unicorn
 
-Data: 2026-04-29
+Data: 2026-04-30
 
-## 1. Endpointurile expuse de backend-ul site-ului (`UNICORN_FINAL/src/index.js`)
-- Existente (subset relevant): `/health`, `/snapshot`, `/stream`, `/api/audit-chain`, `/api/marketplace`, `/api/feedback`, `/api/metrics`, `/api/innovation-dashboard`, `/api/feature-flags`, `/api/admin/*`, `/api/user/services`, `/api/payments/*`, `/api/checkout/*`, `/api/services/*`, `/api/catalog/*`, etc.
-- Backend Unicorn (`UNICORN_FINAL/backend/index.js`) expune `/api/industry/list`, `/api/industry/projected`, `/api/industry/blueprint/:name`, etc., dar răspunde 503 dacă modulul `_industryOS` nu e încărcat.
+## Scope
+- Am lucrat doar pe layer-ul site `zeusai.pro`: `UNICORN_FINAL/src/index.js` (site backend) și `UNICORN_FINAL/src/site/template.js` (frontend inline).
+- Nu am modificat modulele Unicorn / engine-ul din `UNICORN_FINAL/backend/modules/`.
 
-## 2. Comparație cu apelurile frontendului
-- Frontendul (UI inline din `src/site/template.js` + apeluri legacy din `release/unpacked/client/src/pages/*.jsx`) apelează:
-  - `/api/industry/list` → era 503 pe `https://zeusai.pro/api/industry/list`
-  - `/api/control/stats` → era 404
-  - `/api/evolution/snapshot` → era 404
-  - + alte `/api/*` (payment, marketplace, blockchain, etc.) — funcționale
-- Endpoint-urile lipsă au fost adăugate cu proxy + fallback în site-ul zeusai.pro.
+## 1. Endpointuri expuse de backend-ul site-ului
+- Inventar automat din `UNICORN_FINAL/src/index.js`: 26 rute Express directe (`app.get/post/...`) plus rute servite de handler-ul HTTP intern (`/snapshot`, `/stream`, multe `/api/*` locale/proxy).
+- Rute relevante confirmate în site backend:
+  - `GET /api/industry/list`
+  - `GET /api/control/stats`
+  - `GET /api/evolution/snapshot`
+  - `GET /api/autonomous/viral/status`
+  - `POST /api/autonomous/viral/trigger`
+  - `GET /api/viral/status`
+  - `GET /health`, `GET /snapshot`, `GET /stream`
 
-## 3. Modificări backend zeusai.pro (`UNICORN_FINAL/src/index.js`)
-- Adăugat helper `siteProxyToUnicorn(routePath)` cu:
-  - timeout configurabil `SITE_PROXY_TIMEOUT_MS` (default 2000 ms)
-  - `AbortController` pentru tăierea curată a request-ului
-  - log warning la fiecare fallback (`[site-proxy] ... → fallback mock`)
-  - răspuns JSON `200` cu mock dacă upstream este indisponibil / 5xx / lipsă `BACKEND_API_URL`
-- Adăugat rutele:
-  - `GET /api/industry/list` → proxy către Unicorn `/api/industry/list`, fallback `industries[]` mock cu 5 verticale.
-  - `GET /api/control/stats` → proxy către Unicorn, fallback `{ uptime, status, modules, activeUsers, requestsPerMin }`.
-  - `GET /api/evolution/snapshot` → proxy către Unicorn, fallback `{ timestamp, evolution, version, metrics, notes }`.
-- Toate răspunsurile fallback marchează header `X-Source: site-fallback-mock` și câmp `source` în JSON.
+## 2. Comparație frontend calls vs backend site
+- Inventar automat frontend din `UNICORN_FINAL/src/site/template.js`: 209 URL-uri locale chemate prin `api(...)` sau `fetch(...)`.
+- Frontendul cheamă direct multe familii `/api/*`: auth, billing, admin, payment, viral, innovation, pricing, tenants, carbon, blockchain, workforce, compliance, risk, reputation, aviation, telecom, enterprise etc.
+- Cele trei endpointuri cerute (`/api/industry/list`, `/api/control/stats`, `/api/evolution/snapshot`) există în site backend și au fost verificate live; nu sunt chemate direct în `template.js` în build-ul curent, dar sunt gata pentru frontend/client extern.
+- Pentru endpointurile frontend care merg spre backend/Unicorn, site-ul are deja mecanisme locale/proxy/fallback pe familiile importante; noul wrapper frontend acoperă orice `fetch` rămas.
 
-## 4. Modificări backend legacy (`release/unpacked/backend/index.js`)
-- Adăugat `axios` proxy către Unicorn cu `UNICORN_URL` env (default `http://localhost:3001`), 2s timeout, log fallback.
-- Endpoint-uri noi: `/api/industry/list`, `/api/control/stats`, `/api/evolution/snapshot` cu mock data.
+## 3. Backend site → Unicorn
+- `UNICORN_FINAL/src/index.js` are helper `siteProxyToUnicorn(routePath, opts)` cu timeout default `SITE_PROXY_TIMEOUT_MS=2000`.
+- Dacă `BACKEND_API_URL` răspunde în timp, site backend returnează JSON-ul Unicorn.
+- Dacă Unicorn nu răspunde, dă 5xx, timeout sau `BACKEND_API_URL` lipsește, site backend loghează `[site-proxy] ... → fallback mock` și returnează `200` JSON mock, fără să crape procesul.
+- Rutele cerute au fallback-uri mock dedicate:
+  - `/api/industry/list`: industrii/verticale business.
+  - `/api/control/stats`: status/control stats.
+  - `/api/evolution/snapshot`: snapshot evoluție/stabilitate.
 
-## 5. Modificări frontend (`release/unpacked/client/src/`)
-- Nou utilitar `utils/retryFetch.js`:
-  - `retryAxios(config, retries=3, delay=400)`
-  - `retryFetch(url, opts, retries=3, delay=400)`
-- `pages/Dashboard.jsx`, `pages/InnovationCommandCenter.jsx`, `pages/Wealth.jsx`:
-  - axios → `retryAxios` pentru toate apelurile critice.
-  - `localStorage` cache (`lastStats`, `lastInnovationStats`, `lastWealthStats`) pentru "last known good".
-  - State `loading` + `error` cu UI fallback: "Loading stats..." / "Live stats unavailable. Showing last known data." (fără infinite loading).
+## 4. Frontend resilience adăugat
+- În `UNICORN_FINAL/src/site/template.js` am instalat un wrapper global peste `window.fetch`:
+  - retry automat de 3 ori pentru requesturi eșuate / 5xx;
+  - cache localStorage pentru ultimul răspuns bun `GET` same-origin;
+  - dacă datele live nu vin, returnează un `Response` din cache cu header `X-Zeus-Cache-Fallback: 1`;
+  - curăță UI-urile blocate pe `Loading...` și afișează mesaj de fallback când nu există cache.
+- Funcția centrală `api(method,path,...)` folosește automat acest wrapper, deci toate apelurile UI trec prin retry/fallback.
+- Fetch-urile directe din pagină (`/snapshot`, `/api/payment/btc-rate`, `/api/catalog`, `/api/module-registry`, etc.) sunt acoperite de același wrapper global.
 
-## 6. Mecanism de fallback (rezumat)
-- **Backend zeusai.pro:** orice apel către Unicorn cu timeout 2s; dacă pică, returnează mock + log fără să crape procesul.
-- **Frontend:** retry automat 3× pentru fiecare request critic, apoi fallback la datele cache din `localStorage`, apoi UI gol cu mesaj clar.
+## 5. Verificare locală
+- `npm run lint` în `UNICORN_FINAL/` a trecut.
+- VS Code Problems: fără erori în `UNICORN_FINAL/src/site/template.js` și `UNICORN_FINAL/src/index.js`.
+
+## 6. Verificare live înainte de deploy-ul frontend resilience
+Comenzi rulate pe `https://zeusai.pro`:
+
+```bash
+curl https://zeusai.pro/api/industry/list
+curl https://zeusai.pro/api/control/stats
+curl https://zeusai.pro/api/evolution/snapshot
+```
+
+Rezultat:
+- `/api/industry/list` → `200`, JSON real din backend/Unicorn (`x-powered-by: Express`).
+- `/api/control/stats` → `200`, JSON fallback mock (`x-source: site-fallback-mock`).
+- `/api/evolution/snapshot` → `200`, JSON fallback mock (`x-source: site-fallback-mock`).
 
 ## 7. Deploy
-- Commit pe branch `main`, push la `https://github.com/ruffy80/ZeusAI.git`.
-- Workflow `.github/workflows/hetzner-deploy.yml` redeployează automat pe Hetzner la push în `main`.
+- Push pe `main` declanșează workflow-ul activ `.github/workflows/deploy.yml`, care redeployează pe Hetzner.
+- După deploy se revalidează:
 
-## 8. Verificare finală (după deploy Hetzner)
-Comenzi de validare:
 ```bash
-curl -i https://zeusai.pro/api/industry/list      # 200 + JSON industries[]
-curl -i https://zeusai.pro/api/control/stats      # 200 + JSON stats
-curl -i https://zeusai.pro/api/evolution/snapshot # 200 + JSON snapshot
+curl -i https://zeusai.pro/api/industry/list
+curl -i https://zeusai.pro/api/control/stats
+curl -i https://zeusai.pro/api/evolution/snapshot
 ```
-Browser: `https://zeusai.pro` — fără "Loading..." infinit, fără erori 404/503 în Network.
 
-## 9. Promisiunea explicită
-Unicorn-ul NU a fost modificat. Toate fix-urile sunt în site (frontend + backend-ul site-ului).
+## 8. Garanție scope
+- Unicornul rămâne neatins.
+- Fix-ul este strict pentru comunicarea site frontend ↔ site backend ↔ Unicorn și pentru UX fără loading infinit.
