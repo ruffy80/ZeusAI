@@ -82,7 +82,7 @@ setInterval(() => { logCriticalAction('feature-flag', { flag: 'ai-advanced-chat'
 app.get('/api/audit-chain', (req, res) => { res.json(blockchainAudit.getChain()); });
 // === Simulare future state AI ===
 const futureStateAI = require('./../backend/modules/future-state-ai');
-app.post('/api/future-state', (req, res) => {
+app.post('/api/future-state', express.json(), (req, res) => {
   const { traffic, cost, scaling } = req.body || {};
   if (!traffic || !cost || !scaling) return res.status(400).json({ error: 'traffic, cost, scaling required' });
   res.json(futureStateAI.simulate({ traffic, cost, scaling }));
@@ -99,7 +99,7 @@ app.get('/api/docs', (req, res) => {
 // === Marketplace AI extensibil ===
 const aiMarketplace = require('./../backend/modules/ai-marketplace');
 
-app.post('/api/marketplace/module', (req, res) => {
+app.post('/api/marketplace/module', express.json(), (req, res) => {
   const { name, description, author, url } = req.body || {};
   if (!name || !url) return res.status(400).json({ error: 'Name and url required' });
   aiMarketplace.addModule({ name, description, author, url });
@@ -108,7 +108,7 @@ app.post('/api/marketplace/module', (req, res) => {
 app.get('/api/marketplace', (req, res) => {
   res.json(aiMarketplace.getModules());
 });
-app.post('/api/marketplace/review', (req, res) => {
+app.post('/api/marketplace/review', express.json(), (req, res) => {
   const { moduleId, user, rating, text } = req.body || {};
   if (!moduleId || !rating) return res.status(400).json({ error: 'moduleId and rating required' });
   aiMarketplace.addReview(moduleId, user || 'anon', rating, text || '');
@@ -117,8 +117,12 @@ app.post('/api/marketplace/review', (req, res) => {
 // === Modul feedback AI user-driven ===
 const feedbackAI = require('./../backend/modules/feedback-ai');
 
-app.use(express.json());
-app.post('/api/feedback', (req, res) => {
+// Per-route body parsing only — global app.use(express.json()) would consume
+// the request body for every POST/PUT/DELETE that flows through `app.handle`,
+// breaking the fall-through to `unicornHandler` (which reads raw req via
+// req.on('data')/req.on('end') for hundreds of /api/* routes that the express
+// stub does not own). Apply express.json() inline to the routes that need it.
+app.post('/api/feedback', express.json(), (req, res) => {
   const { user, text, feature } = req.body || {};
   if (!text) return res.status(400).json({ error: 'Feedback text required' });
   feedbackAI.addFeedback(user || 'anon', text, feature || null);

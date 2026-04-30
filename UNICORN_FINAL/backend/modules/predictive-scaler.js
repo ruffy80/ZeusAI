@@ -71,6 +71,11 @@ function autoScale() {
 }
 
 // Rulează la fiecare 2 minute
-setInterval(autoScale, 120000);
+// .unref() so the timer does not keep the Node event loop alive on its own.
+// In production the HTTP server keeps the loop active, so scaling still runs;
+// in test/CLI contexts the process can exit cleanly once its work is done
+// (otherwise tests that load src/index.js hang forever and CI deploys time out).
+const _scalerTimer = setInterval(autoScale, 120000);
+if (typeof _scalerTimer.unref === 'function') _scalerTimer.unref();
 
 module.exports = { autoScale };

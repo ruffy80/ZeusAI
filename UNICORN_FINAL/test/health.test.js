@@ -50,7 +50,14 @@ async function run() {
   console.log('health test passed');
 }
 
-run().catch((err) => {
+run().then(() => {
+  // Force-exit after success: src/index.js loads many production modules
+  // (predictive-scaler, orchestrators, watchers...) that legitimately keep
+  // long-lived handles in real runtime. Without an explicit exit the test
+  // process never returns, GitHub Actions cancels after ~6h, and the
+  // deploy step never runs.
+  process.exit(0);
+}).catch((err) => {
   console.error(err);
   process.exit(1);
 });

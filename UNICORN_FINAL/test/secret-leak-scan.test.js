@@ -49,7 +49,8 @@ console.error = cap('error');
 console.info = cap('info');
 
 // Boot the server (this is what production does on startup).
-const server = require('../src/index');
+const { createServer } = require('../src/index');
+const server = createServer();
 
 async function run() {
   await new Promise((resolve) => server.listen(0, resolve));
