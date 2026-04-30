@@ -95,6 +95,54 @@ def _has_include(block, target):
     return target in block
 
 
+CONFLICTING_LOCATION_PATHS = {
+    "/.well-known/security.txt",
+    "/security.txt",
+    "/.well-known/agents.json",
+    "/humans.txt",
+}
+
+
+def _remove_conflicting_locations(block):
+    """Remove old exact location blocks for routes now served by the snippet.
+
+    The active Hetzner vhost already contains some generated `location = ...`
+    blocks for these paths, but they still return nginx-level 403. Including our
+    fixed snippet beside them makes nginx fail with `duplicate location`. Remove
+    only these exact public-discovery locations and leave every other route,
+    including ACME and backend proxy locations, untouched.
+    """
+    pattern = re.compile(r"\blocation\s+(?:=\s*)?([^\s{]+)\s*\{")
+    spans = []
+    for match in pattern.finditer(block):
+        location_path = match.group(1)
+        if location_path not in CONFLICTING_LOCATION_PATHS:
+            continue
+        depth = 1
+        cursor = match.end()
+        while cursor < len(block) and depth > 0:
+            if block[cursor] == "{":
+                depth += 1
+            elif block[cursor] == "}":
+                depth -= 1
+            cursor += 1
+        if depth == 0:
+            start = match.start()
+            while start > 0 and block[start - 1] in " \t":
+                start -= 1
+            if start > 0 and block[start - 1] == "\n":
+                start -= 1
+            spans.append((start, cursor))
+
+    if not spans:
+        return block, 0
+
+    cleaned = block
+    for start, end in reversed(spans):
+        cleaned = cleaned[:start] + cleaned[end:]
+    return cleaned, len(spans)
+
+
 def _inject_include(block, include_path):
     """Insert `include <include_path>;` right after the opening `{` of the
     server block, preserving indentation."""
@@ -117,11 +165,15 @@ def patch_site_config(site_path, include_path, domain):
     for start, end, body in reversed(blocks):
         if not _server_name_matches(body, domain):
             continue
-        if _has_include(body, include_path):
+        patched, removed = _remove_conflicting_locations(body)
+        injected = 0
+        if not _has_include(patched, include_path):
+            patched = _inject_include(patched, include_path)
+            injected = 1
+        if removed == 0 and injected == 0:
             continue
-        patched = _inject_include(body, include_path)
         new_text = new_text[:start] + patched + new_text[end:]
-        edits += 1
+        edits += removed + injected
     return new_text, edits
 
 
