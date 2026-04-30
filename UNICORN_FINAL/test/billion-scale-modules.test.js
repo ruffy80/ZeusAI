@@ -63,8 +63,13 @@ async function run() {
 
     const r2 = await req('GET', '/api/monetize/marketplaces');
     assert.strictEqual(r2.status, 200, '/api/monetize/marketplaces must be 200');
-    assert.ok(r2.body && Array.isArray(r2.body.marketplaces) && r2.body.marketplaces.length >= 12,
-      'marketplaces array must include >=12 marketplaces');
+    // globalMonetizationMesh ships a curated catalog of 12 marketplaces
+    // (AWS/GCP/Azure Marketplace, Salesforce AppExchange, Shopify, AppSumo,
+    // Product Hunt, G2, Capterra, Atlassian, GitHub Marketplace, internal).
+    // Asserting >=12 keeps the test forward-compatible if marketplaces are added.
+    const MIN_MARKETPLACES = 12;
+    assert.ok(r2.body && Array.isArray(r2.body.marketplaces) && r2.body.marketplaces.length >= MIN_MARKETPLACES,
+      'marketplaces array must include >=' + MIN_MARKETPLACES + ' marketplaces');
     console.log('[ok] /api/monetize/marketplaces → 200 (was 503), ' + r2.body.marketplaces.length + ' marketplaces');
 
     const r3 = await req('GET', '/api/industry/list');

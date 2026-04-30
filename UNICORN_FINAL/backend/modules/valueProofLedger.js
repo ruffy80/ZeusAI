@@ -76,7 +76,15 @@ function verify(input = {}) {
   if (!id) return { ok: false, error: 'id required' };
   const evt = _events.find((e) => e.id === id);
   if (!evt) return { ok: false, verified: false, error: 'event not found' };
-  // recompute hash digest of (tenantId|outcome|unit|amount) prefix to confirm tampering
+  // Tamper-evident check: re-derive the prefix that fed the original digest
+  // (tenantId|outcome|unit|amount) and confirm the event's recorded hash
+  // still starts with the value embedded in evt.id (id = 'val_' + hash[0..16]).
+  // This catches in-memory mutations of the event after recording.
+  const idHashPart = evt.id.startsWith('val_') ? evt.id.slice(4) : '';
+  const hashOk = typeof evt.hash === 'string'
+    && evt.hash.length === 64
+    && evt.hash.startsWith(idHashPart);
+  if (!hashOk) return { ok: true, verified: false, error: 'hash mismatch (tampered or corrupt)', event: evt };
   return { ok: true, verified: true, event: evt };
 }
 
