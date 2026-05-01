@@ -553,7 +553,10 @@ function globalChrome(N) {
   try {
     var route = (document.documentElement.getAttribute('data-route')||'/');
     var bar = document.getElementById('zeus-buy-bar');
-    if (bar && /^\/(?:|services|pricing|how|frontier)$/.test(route)) {
+    // NB: this code lives inside a backtick template literal, so backslashes
+    // get unescaped before reaching the browser. Use new RegExp(...) to keep
+    // the literal slash intact (otherwise '/^\\/(...)/' -> '/^/(...)/' -> SyntaxError).
+    if (bar && new RegExp('^/(?:|services|pricing|how|frontier)$').test(route)) {
       window.addEventListener('scroll', function(){ if (scrollY > 320) bar.hidden = false; }, { passive:true });
     }
   } catch(_){ }
