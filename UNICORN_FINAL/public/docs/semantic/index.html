@@ -1,0 +1,189 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"/>
+<title>ZeusAI Public API — Semantic Docs</title>
+<meta name="generator" content="auto-doc-semantic"/>
+<style>
+  body{font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;margin:0;background:#0b1020;color:#e8edf7}
+  header{padding:24px;background:linear-gradient(90deg,#15224a,#1f3a8a);border-bottom:1px solid #2b3a6b}
+  h1{margin:0;font-size:22px}
+  main{padding:16px 24px}
+  table{width:100%;border-collapse:collapse}
+  th,td{padding:8px 10px;border-bottom:1px solid #1c2a55;text-align:left;vertical-align:top;font-size:13px}
+  th{color:#9fb3ff;font-weight:600}
+  code{background:#101733;padding:2px 6px;border-radius:4px;color:#9fb3ff}
+  .meta{opacity:.7;font-size:12px;margin-top:6px}
+</style></head>
+<body>
+<header>
+  <h1>ZeusAI Public API — Semantic Documentation</h1>
+  <div class="meta">Generated 2026-05-01T23:17:41.641Z · 27 endpoints · auto-doc-semantic v1</div>
+</header>
+<main>
+  <table>
+    <thead><tr><th>Method</th><th>Route</th><th>Tags</th><th>Summary</th></tr></thead>
+    <tbody>
+    <tr>
+      <td><code>GET</code></td>
+      <td><code>/api/aura</code></td>
+      <td>general</td>
+      <td>F2 — Live Conversion Aura</td>
+    </tr>
+    <tr>
+      <td><code>GET</code></td>
+      <td><code>/api/bandit/transparency</code></td>
+      <td>general</td>
+      <td>F11 — Pricing bandit transparency</td>
+    </tr>
+    <tr>
+      <td><code>POST</code></td>
+      <td><code>/api/cancel/universal</code></td>
+      <td>general</td>
+      <td>F10 — Universal cancel</td>
+    </tr>
+    <tr>
+      <td><code>POST</code></td>
+      <td><code>/api/carbon/cart</code></td>
+      <td>general</td>
+      <td>F12 — Carbon-inclusive checkout</td>
+    </tr>
+    <tr>
+      <td><code>GET</code></td>
+      <td><code>/api/cart/{id}</code></td>
+      <td>general</td>
+      <td>Get cart</td>
+    </tr>
+    <tr>
+      <td><code>POST</code></td>
+      <td><code>/api/cart/{id}/add</code></td>
+      <td>general</td>
+      <td>Add to cart</td>
+    </tr>
+    <tr>
+      <td><code>POST</code></td>
+      <td><code>/api/cart/{id}/checkout</code></td>
+      <td>general</td>
+      <td>Checkout cart</td>
+    </tr>
+    <tr>
+      <td><code>POST</code></td>
+      <td><code>/api/cart/create</code></td>
+      <td>general</td>
+      <td>Create cart</td>
+    </tr>
+    <tr>
+      <td><code>POST</code></td>
+      <td><code>/api/checkout/btc</code></td>
+      <td>general</td>
+      <td>Create BTC invoice</td>
+    </tr>
+    <tr>
+      <td><code>POST</code></td>
+      <td><code>/api/checkout/cascade</code></td>
+      <td>general</td>
+      <td>F4 — Self-healing checkout</td>
+    </tr>
+    <tr>
+      <td><code>POST</code></td>
+      <td><code>/api/discount/timelocked</code></td>
+      <td>general</td>
+      <td>F5 — Time-locked discount vault</td>
+    </tr>
+    <tr>
+      <td><code>POST</code></td>
+      <td><code>/api/email/proof</code></td>
+      <td>general</td>
+      <td>F7 — Provable email delivery</td>
+    </tr>
+    <tr>
+      <td><code>GET</code></td>
+      <td><code>/api/frontier/status</code></td>
+      <td>general</td>
+      <td>Frontier feature inventory</td>
+    </tr>
+    <tr>
+      <td><code>POST</code></td>
+      <td><code>/api/gift/mint</code></td>
+      <td>general</td>
+      <td>F8 — Gift-as-Capability</td>
+    </tr>
+    <tr>
+      <td><code>POST</code></td>
+      <td><code>/api/keys</code></td>
+      <td>general</td>
+      <td>Create API key</td>
+    </tr>
+    <tr>
+      <td><code>POST</code></td>
+      <td><code>/api/leads</code></td>
+      <td>general</td>
+      <td>Capture lead</td>
+    </tr>
+    <tr>
+      <td><code>POST</code></td>
+      <td><code>/api/newsletter/subscribe</code></td>
+      <td>general</td>
+      <td>Subscribe</td>
+    </tr>
+    <tr>
+      <td><code>POST</code></td>
+      <td><code>/api/outcome/anchor</code></td>
+      <td>general</td>
+      <td>F3 — Outcome anchor receipt</td>
+    </tr>
+    <tr>
+      <td><code>GET</code></td>
+      <td><code>/api/pledge</code></td>
+      <td>general</td>
+      <td>F9 — Anti-Dark-Pattern pledge</td>
+    </tr>
+    <tr>
+      <td><code>GET</code></td>
+      <td><code>/api/receipt/nft/{id}</code></td>
+      <td>general</td>
+      <td>F6 — Sovereign Receipt NFT</td>
+    </tr>
+    <tr>
+      <td><code>GET</code></td>
+      <td><code>/api/refund/guarantee</code></td>
+      <td>general</td>
+      <td>F1 — Crypto refund guarantee</td>
+    </tr>
+    <tr>
+      <td><code>GET</code></td>
+      <td><code>/api/services</code></td>
+      <td>general</td>
+      <td>Marketplace catalogue</td>
+    </tr>
+    <tr>
+      <td><code>POST</code></td>
+      <td><code>/api/services/buy</code></td>
+      <td>general</td>
+      <td>Buy a service</td>
+    </tr>
+    <tr>
+      <td><code>GET</code></td>
+      <td><code>/api/status</code></td>
+      <td>general</td>
+      <td>Status page</td>
+    </tr>
+    <tr>
+      <td><code>POST</code></td>
+      <td><code>/api/wizard/recommend</code></td>
+      <td>general</td>
+      <td>Plan wizard</td>
+    </tr>
+    <tr>
+      <td><code>GET</code></td>
+      <td><code>/health</code></td>
+      <td>general</td>
+      <td>Liveness</td>
+    </tr>
+    <tr>
+      <td><code>GET</code></td>
+      <td><code>/snapshot</code></td>
+      <td>general</td>
+      <td>Full system snapshot</td>
+    </tr></tbody>
+  </table>
+</main>
+</body></html>
