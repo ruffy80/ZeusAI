@@ -1526,7 +1526,7 @@ async function doLogin(){
   var msg=document.getElementById('login-msg');
   if(!email||!pass){msg.innerHTML='<div class="msg-err">Please fill all fields.</div>';return;}
   msg.innerHTML='<div class="loader"></div>';
-  var r=await api('POST','/api/auth/login',{email:email,password:pass});
+  var r=await api('POST','/api/customer/login',{email:email,password:pass});
   if(r.error||r.message){
     msg.innerHTML='<div class="msg-err">'+(r.error||r.message)+'</div>';
     return;
@@ -1534,7 +1534,7 @@ async function doLogin(){
   var token=r.token||r.accessToken||(r.data&&r.data.token);
   if(!token){msg.innerHTML='<div class="msg-err">Login failed. Check credentials.</div>';return;}
   STATE.token=token;
-  STATE.user=r.user||(r.data&&r.data.user)||{email:email};
+  STATE.user=r.user||r.customer||(r.data&&(r.data.user||r.data.customer))||{email:email};
   localStorage.setItem('zeus_token',token);
   localStorage.setItem('zeus_user',JSON.stringify(STATE.user));
   updateHeaderAuth();
@@ -1549,17 +1549,17 @@ async function doRegister(){
   var pass=document.getElementById('reg-pass').value;
   var msg=document.getElementById('reg-msg');
   if(!name||!email||!pass){msg.innerHTML='<div class="msg-err">Please fill all fields.</div>';return;}
-  if(pass.length<6){msg.innerHTML='<div class="msg-err">Password must be at least 6 characters.</div>';return;}
+  if(pass.length<8){msg.innerHTML='<div class="msg-err">Password must be at least 8 characters.</div>';return;}
   msg.innerHTML='<div class="loader"></div>';
-  var r=await api('POST','/api/auth/register',{name:name,email:email,password:pass});
-  if(r.error||r.message&&!r.token&&!r.user){
+  var r=await api('POST','/api/customer/signup',{name:name,email:email,password:pass});
+  if(r.error||(r.message&&!r.token&&!r.customer&&!r.user)){
     msg.innerHTML='<div class="msg-err">'+(r.error||r.message||'Registration failed')+'</div>';
     return;
   }
   var token=r.token||r.accessToken||(r.data&&r.data.token);
   if(token){
     STATE.token=token;
-    STATE.user=r.user||(r.data&&r.data.user)||{name:name,email:email};
+    STATE.user=r.user||r.customer||(r.data&&(r.data.user||r.data.customer))||{name:name,email:email};
     localStorage.setItem('zeus_token',token);
     localStorage.setItem('zeus_user',JSON.stringify(STATE.user));
     updateHeaderAuth();
@@ -1576,7 +1576,7 @@ async function doForgot(){
   var msg=document.getElementById('forgot-msg');
   if(!email){msg.innerHTML='<div class="msg-err">Please enter your email.</div>';return;}
   msg.innerHTML='<div class="loader"></div>';
-  var r=await api('POST','/api/auth/forgot-password',{email:email});
+  var r=await api('POST','/api/customer/forgot-password',{email:email});
   if(r.error){msg.innerHTML='<div class="msg-err">'+(r.error||'Failed')+'</div>';return;}
   msg.innerHTML='<div class="msg-ok">✓ If that email exists, a reset link has been sent.</div>';
 }
