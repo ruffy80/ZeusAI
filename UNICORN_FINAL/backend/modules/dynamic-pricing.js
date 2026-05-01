@@ -210,6 +210,7 @@
 'use strict';
 
 const BASE_PRICES = {
+  free: 0,
   starter: 29,
   pro: 99,
   enterprise: 499,
@@ -287,10 +288,10 @@ function getPrice(serviceId, options = {}) {
   if (coupon === 'LAUNCH50') price *= 0.5;
 
   const unclampedPrice = Math.round(price * 100) / 100;
-  const finalPrice = Math.max(1, Math.min(10000000, unclampedPrice));
+  const finalPrice = Math.max(0, Math.min(10000000, unclampedPrice));
   if (finalPrice !== unclampedPrice) {
     try {
-      console.warn('[DynamicPricing] unrealistic price clamped', JSON.stringify({ serviceId, unclampedPrice, finalPrice, min: 1, max: 10000000 }));
+      console.warn('[DynamicPricing] unrealistic price clamped', JSON.stringify({ serviceId, unclampedPrice, finalPrice, min: 0, max: 10000000 }));
     } catch (_) {}
   }
 

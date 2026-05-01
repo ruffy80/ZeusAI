@@ -85,6 +85,50 @@ async function api(path, opts){
   } catch (e) { console.warn('api', path, e.message); return null; }
 }
 function escapeHtml(s){ return String(s==null?'':s).replace(/[&<>"']/g, m=>({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[m])); }
+function domSafeId(s){ return String(s==null?'':s).replace(/[^a-zA-Z0-9_-]/g, '-').slice(0, 120); }
+function normalizeLivePricing(serviceId, payload){
+  const p = payload || {};
+  const usd = Number(
+    p.price_usd != null ? p.price_usd
+      : (p.priceUsd != null ? p.priceUsd
+      : (p.finalPrice != null ? p.finalPrice
+      : (p.pricing && p.pricing.usd != null ? p.pricing.usd : 99)))
+  );
+  const btcRaw = p.price_btc != null ? p.price_btc : (p.btcEquivalent != null ? p.btcEquivalent : (p.pricing && p.pricing.btc != null ? p.pricing.btc : null));
+  return {
+    serviceId: String(p.serviceId || p.moduleId || serviceId || 'unknown-service'),
+    price_usd: Number.isFinite(usd) ? usd : 99,
+    price_btc: btcRaw == null ? null : Number(btcRaw),
+    currency: String(p.currency || (p.pricing && p.pricing.currency) || 'USD'),
+    interval: String(p.interval || 'month'),
+    negotiated: Boolean(p.negotiated || (p.segment && p.segment.negotiable)),
+    timestamp: String(p.timestamp || p.updatedAt || new Date().toISOString()),
+  };
+}
+async function fetchLivePricing(serviceId, opts){
+  const options = opts || {};
+  const sid = String(serviceId || '').trim();
+  if (!sid) return normalizeLivePricing('unknown-service', { price_usd: 99, currency: 'USD', interval: 'month', negotiated: false });
+  const qp = new URLSearchParams();
+  if (options.userId) qp.set('userId', String(options.userId));
+  if (options.coupon) qp.set('coupon', String(options.coupon));
+  const url = '/api/pricing/' + encodeURIComponent(sid) + (qp.toString() ? ('?' + qp.toString()) : '');
+  let slowTimer = null;
+  try {
+    if (typeof options.onSlow === 'function') {
+      slowTimer = setTimeout(function(){ try { options.onSlow(); } catch(_){} }, 2000);
+    }
+    const r = await fetch(url, { headers: { Accept: 'application/json' }, cache: 'no-store' });
+    if (slowTimer) clearTimeout(slowTimer);
+    const j = await r.json().catch(function(){ return null; });
+    if (!r.ok) throw new Error((j && (j.error || j.message)) || ('HTTP ' + r.status));
+    return normalizeLivePricing(sid, j);
+  } catch (e) {
+    if (slowTimer) clearTimeout(slowTimer);
+    console.warn('[live-pricing]', sid, e && e.message ? e.message : e);
+    return normalizeLivePricing(sid, { serviceId: sid, price_usd: 99, price_btc: null, currency: 'USD', interval: 'month', negotiated: /enterprise|global|giants|tier/i.test(sid) });
+  }
+}
 
 function paymentLabels(){
   const ids = (STATE.paymentMethods || []).filter(m => m && m.active !== false).map(m => m.id || m.provider || '');
@@ -313,8 +357,8 @@ function initZeus(){
   const scene = new THREE.Scene();
   scene.fog = new THREE.FogExp2(0x04030a, 0.015);
   const camera = new THREE.PerspectiveCamera(55, w/h, 0.1, 2000);
-  camera.position.set(0, 42, 95);
-  camera.lookAt(0, 0, 0);
+          const serviceId = ($('#svcId') || {}).value || 'starter';
+          const email = ($('#svcEmail') || {}).value || '';
 
   const renderer = new THREE.WebGLRenderer({ antialias:true, alpha:true, powerPreference:'high-performance' });
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
@@ -825,6 +869,7 @@ async function hydratePage(route){
 
   try { if (route === '/') { initTourbillon(); await hydrateHome(); initPillars(); } } catch (e) { console.warn('hydratePage:home', e && e.message); }
   try { if (route === '/services') await hydrateMasterCatalog(); } catch (e) { console.warn('hydratePage:services', e && e.message); }
+  try { if (route === '/pricing') await hydratePricingPage(); } catch (e) { console.warn('hydratePage:pricing', e && e.message); }
   try { if (route.startsWith('/services/')) await hydrateServiceDetail(route.slice(10)); } catch (e) { console.warn('hydratePage:serviceDetail', e && e.message); }
   try { if (route === '/checkout') hydrateCheckout(); } catch (e) { console.warn('hydratePage:checkout', e && e.message); }
   try { if (route === '/dashboard') await hydrateDashboard(); } catch (e) { console.warn('hydratePage:dashboard', e && e.message); }
@@ -894,7 +939,7 @@ async function loadServices(){
   // fallback to /marketplace (current server)
   const m = await api('/marketplace');
   if (m && Array.isArray(m.modules)) {
-    STATE.services = m.modules.map(x => ({ id:x.id, title:x.title, segment:x.segment, kpi:x.kpi, price: 499, currency:'USD', description:'Core service from the ZeusAI marketplace.' }));
+    STATE.services = m.modules.map(x => ({ id:x.id, title:x.title, segment:x.segment, kpi:x.kpi, price: null, currency:'USD', description:'Core service from the ZeusAI marketplace.' }));
     return STATE.services;
   }
   return [];
@@ -1009,7 +1054,7 @@ async function hydrateAdminServices(){
     };
     const r = await adminFetch('/api/admin/services', { method:'POST', body: JSON.stringify(body) });
     if (msg) msg.textContent = r.ok ? ('✓ Saved ('+r.json.action+') — broadcasting to all browsers…') : ('Error: '+(r.json && r.json.error || r.status));
-    if (r.ok){ form.reset(); form.segment.value = 'all'; form.billing.value = 'monthly'; form.price.value = 499; await loadAndRender(); }
+    if (r.ok){ form.reset(); form.segment.value = 'all'; form.billing.value = 'monthly'; form.price.value = ''; await loadAndRender(); }
     else if (r.status === 401){ setTimeout(function(){ navigate('/admin'); }, 800); }
   };
   await loadAndRender();
@@ -1407,11 +1452,13 @@ function initFinalLive(services){
   btn.onclick = async function(){
     const serviceId = sel.value || 'adaptive-ai';
     const email = (document.getElementById('fuEmail')||{}).value || '';
+    const live = await fetchLivePricing(serviceId);
+    const amountUsd = Number(live && live.price_usd != null ? live.price_usd : 99);
     out.textContent = 'Creating order…';
     const res = await fetch('/api/services/buy', {
       method: 'POST',
       headers: { 'Content-Type':'application/json' },
-      body: JSON.stringify({ serviceId, paymentMethod:'BTC', amount:49, email })
+      body: JSON.stringify({ serviceId, paymentMethod:'BTC', amount: amountUsd, email })
     }).then(function(r){ return r.json(); }).catch(function(e){ return { error: String(e) }; });
     out.textContent = JSON.stringify(res, null, 2);
   };
@@ -1433,15 +1480,19 @@ function initFinalLive(services){
 }
 
 function cardHtml(s){
-  const price = s.price != null ? `$${s.price}${s.billing==='monthly'?'/mo':''}` : '$499/mo';
+  const sid = String(s && s.id ? s.id : 'unknown-service');
+  const tag = domSafeId(sid);
+  const hasPrice = Number.isFinite(Number(s && (s.priceUsd != null ? s.priceUsd : s.price)));
+  const resolvedPrice = hasPrice ? Number(s.priceUsd != null ? s.priceUsd : s.price) : null;
+  const price = resolvedPrice != null ? (`$${resolvedPrice}${s.billing==='monthly'?'/mo':''}`) : 'Loading price...';
   return `<div class="card">
     <span class="tag">${escapeHtml(s.segment || s.category || 'core')}</span>
     <h3>${escapeHtml(s.title || s.id)}</h3>
     <p>${escapeHtml(s.description || ('Outcome: ' + (s.kpi || 'automation')))}</p>
-    <div class="row"><span>${escapeHtml(s.kpi || 'SLA-backed')}</span><b>${price}</b></div>
+    <div class="row"><span>${escapeHtml(s.kpi || 'SLA-backed')}</span><b data-live-price="${tag}">${price}</b></div>
     <div style="display:flex;gap:8px;margin-top:12px">
       <a class="btn btn-ghost" href="/services/${encodeURIComponent(s.id)}" data-link style="flex:1;justify-content:center">Details</a>
-      <a class="btn btn-primary" href="/checkout?plan=${encodeURIComponent(s.id)}&amount=${encodeURIComponent(s.price || 499)}" data-link style="flex:1;justify-content:center">Buy</a>
+      <a class="btn btn-primary" href="/checkout?plan=${encodeURIComponent(s.id)}" data-link style="flex:1;justify-content:center">Buy</a>
     </div>
   </div>`;
 }
@@ -1462,6 +1513,43 @@ async function hydrateServices(){
     });
   }
   if (grid) grid.innerHTML = services.map(cardHtml).join('') || '<div class="card"><p>No services yet.</p></div>';
+  if (grid && services.length) hydrateServiceCardPrices(services, grid);
+}
+
+async function hydrateServiceCardPrices(services, root){
+  const list = Array.isArray(services) ? services : [];
+  for (let i = 0; i < list.length; i += 1) {
+    const s = list[i];
+    const sid = String(s && s.id ? s.id : '').trim();
+    if (!sid) continue;
+    const sel = '[data-live-price="' + domSafeId(sid) + '"]';
+    const el = (root || document).querySelector(sel);
+    if (!el) continue;
+    const live = await fetchLivePricing(sid, { onSlow: function(){ if (el) el.textContent = 'Loading price...'; } });
+    if (!live || !el) continue;
+    s.priceUsd = Number(live.price_usd);
+    s.price = Number(live.price_usd);
+    el.textContent = '$' + Number(live.price_usd).toLocaleString('en-US', { maximumFractionDigits: 2 }) + '/mo';
+  }
+}
+
+async function hydratePricingPage(){
+  const pairs = [
+    { plan: 'starter', serviceId: 'starter' },
+    { plan: 'pro', serviceId: 'pro' },
+    { plan: 'enterprise', serviceId: 'enterprise' },
+  ];
+  for (let i = 0; i < pairs.length; i += 1) {
+    const pair = pairs[i];
+    const priceEl = document.querySelector('[data-pricing-value="' + pair.plan + '"]');
+    const planCard = document.querySelector('[data-pricing-plan="' + pair.plan + '"]');
+    if (!priceEl || !planCard) continue;
+    const cta = planCard.querySelector('a[href*="/checkout?plan="]');
+    const live = await fetchLivePricing(pair.serviceId, { onSlow: function(){ priceEl.textContent = 'Loading price...'; } });
+    if (!live) continue;
+    priceEl.innerHTML = '$' + Number(live.price_usd).toLocaleString('en-US', { maximumFractionDigits: 2 }) + '<small>/mo</small>';
+    if (cta) cta.setAttribute('href', '/checkout?plan=' + encodeURIComponent(pair.serviceId));
+  }
 }
 
 // ============================================================
@@ -1710,7 +1798,9 @@ async function hydrateServiceDetail(id){
   const root = $('#serviceMain');
   if (!root) return;
   if (!s) { root.innerHTML = '<div class="card"><p>Service not found.</p><a class="btn" href="/services" data-link>Back to marketplace</a></div>'; return; }
-  const price = (s.priceUsd != null ? s.priceUsd : (s.price != null ? s.price : 499));
+  const sid = String(s.id || id || 'unknown-service');
+  const localPrice = (s.priceUsd != null ? Number(s.priceUsd) : (s.price != null ? Number(s.price) : null));
+  const priceText = Number.isFinite(localPrice) ? ('$' + localPrice.toLocaleString('en-US', { maximumFractionDigits: 2 })) : 'Loading price...';
   root.innerHTML = `
     <div style="display:grid;grid-template-columns:1.3fr 1fr;gap:28px">
       <div class="svc-cine-card" data-tilt>
@@ -1739,12 +1829,27 @@ async function hydrateServiceDetail(id){
       <aside class="co-box">
         <span class="kicker">Pricing</span>
         <h3 style="margin:6px 0 10px">${escapeHtml(s.title||s.id)}</h3>
-        <div class="price" style="font-size:42px;font-weight:700;background:linear-gradient(120deg,#fff,var(--violet2));-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent">$${price}<small style="font-size:14px;color:var(--ink-dim);-webkit-text-fill-color:var(--ink-dim)">/mo</small></div>
+        <div class="price" id="svcLivePrice" style="font-size:42px;font-weight:700;background:linear-gradient(120deg,#fff,var(--violet2));-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent">${priceText}<small style="font-size:14px;color:var(--ink-dim);-webkit-text-fill-color:var(--ink-dim)">/mo</small></div>
+        <div id="svcLiveBtc" style="font-size:12px;color:var(--ink-dim);margin-top:4px"></div>
         <p style="color:var(--ink-dim);font-size:13.5px">Activate instantly. Cancel anytime. Signed receipt on every invoice.</p>
         <button type="button" class="btn btn-primary" id="svcBuyBtn" data-sovereign-buy="${escapeHtml(s.id)}" style="width:100%;justify-content:center;margin-top:10px">₿ Buy now → BTC checkout</button>
         <a class="btn" href="/services" data-link style="width:100%;justify-content:center;margin-top:8px">← All services</a>
       </aside>
     </div>`;
+  fetchLivePricing(sid, {
+    onSlow: function(){
+      var elSlow = document.getElementById('svcLivePrice');
+      if (elSlow) elSlow.innerHTML = 'Loading price...<small style="font-size:14px;color:var(--ink-dim);-webkit-text-fill-color:var(--ink-dim)">/mo</small>';
+    }
+  }).then(function(live){
+    if (!live) return;
+    s.priceUsd = Number(live.price_usd);
+    s.price = Number(live.price_usd);
+    var el = document.getElementById('svcLivePrice');
+    var btcEl = document.getElementById('svcLiveBtc');
+    if (el) el.innerHTML = '$' + Number(live.price_usd).toLocaleString('en-US', { maximumFractionDigits: 2 }) + '<small style="font-size:14px;color:var(--ink-dim);-webkit-text-fill-color:var(--ink-dim)">/mo</small>';
+    if (btcEl) btcEl.textContent = live.price_btc != null ? ('≈ ' + Number(live.price_btc).toFixed(8) + ' BTC') : '';
+  }).catch(function(){});
   initServiceNarrative(s);
 }
 
@@ -1798,12 +1903,30 @@ async function loadFx(){
 function hydrateCheckout(){
   const q = new URLSearchParams(location.search);
   const plan = q.get('plan') || 'starter';
-  const amount = Number(q.get('amount')) || 49;
+  const queryAmount = Number(q.get('amount'));
+  let amount = Number.isFinite(queryAmount) && queryAmount > 0 ? queryAmount : null;
   const set = (id, v) => { const el = document.getElementById(id); if (el) el.value = v; };
-  set('coAmount', amount); set('coPlan', plan);
-  set('coAmountPP', amount); set('coPlanPP', plan);
+  set('coAmount', amount != null ? amount : ''); set('coPlan', plan);
+  set('coAmountPP', amount != null ? amount : ''); set('coPlanPP', plan);
   const sumP = $('#sumPlan'); if (sumP) sumP.textContent = plan;
-  const sumA = $('#sumAmount'); if (sumA) sumA.textContent = '$' + amount;
+  const sumA = $('#sumAmount'); if (sumA) sumA.textContent = amount != null ? ('$' + amount) : 'Loading price...';
+
+  if (amount == null) {
+    fetchLivePricing(plan, {
+      onSlow: function(){ if (sumA) sumA.textContent = 'Loading price...'; }
+    }).then(function(live){
+      const liveAmount = Number(live && live.price_usd != null ? live.price_usd : 99);
+      amount = liveAmount;
+      set('coAmount', liveAmount);
+      set('coAmountPP', liveAmount);
+      if (sumA) sumA.textContent = '$' + liveAmount;
+    }).catch(function(){
+      amount = 99;
+      set('coAmount', 99);
+      set('coAmountPP', 99);
+      if (sumA) sumA.textContent = '$99';
+    });
+  }
 
   const btc = cfg.owner && cfg.owner.btc ? cfg.owner.btc : '';
   loadFx();

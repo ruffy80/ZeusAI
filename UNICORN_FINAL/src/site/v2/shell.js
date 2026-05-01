@@ -634,7 +634,7 @@ function pageHome() {
       <span class="tag" style="background:rgba(247,147,26,.15);color:#f7931a">BTC / BTCPay</span>
       <h3 id="commerceProofBtcProvider">Checking payment rail…</h3>
       <p id="commerceProofPaymentCopy">BTC direct is primary. Card/Stripe, PayPal and global crypto appear only when configured live.</p>
-      <a class="btn btn-primary" href="/checkout?plan=adaptive-ai&amount=49" data-link>Test checkout →</a>
+      <a class="btn btn-primary" href="/checkout?plan=adaptive-ai" data-link>Test checkout →</a>
     </div>
     <div class="card" style="border-color:rgba(110,231,183,.42)">
       <span class="tag" style="background:rgba(110,231,183,.16);color:#6ee7b7">Delivery Registry</span>
@@ -818,7 +818,7 @@ function pageServices() {
       </div>
       <div style="display:flex;flex-direction:column;gap:8px;min-width:200px">
         <div id="catCounts" style="font-size:12px;color:var(--ink-dim);text-align:right;font-family:var(--mono)">Loading catalog…</div>
-        <a class="btn btn-primary" href="/checkout?plan=custom&amount=99" data-link>Quick BTC checkout →</a>
+        <a class="btn btn-primary" href="/checkout?plan=custom" data-link>Quick BTC checkout →</a>
       </div>
     </div>
   </div>
@@ -846,9 +846,9 @@ function pagePricing() {
     <p>Simple plans for teams. For enterprise verticals, ZeusAI ships outcome‑based pricing — you pay a share of measured value delivered, auto‑invoiced via the Value‑Proof Ledger.</p>
   </div>
   <div class="pricing">
-    <div class="plan">
+    <div class="plan" data-pricing-plan="starter">
       <h3>Starter</h3>
-      <div class="price">$49<small>/mo</small></div>
+      <div class="price" data-pricing-value="starter">Loading price…<small>/mo</small></div>
       <p style="color:var(--ink-dim);margin:0">For founders & indie teams.</p>
       <ul>
         <li>Up to 5 active modules</li>
@@ -856,11 +856,11 @@ function pagePricing() {
         <li id="pricingPaymentRail">Direct BTC checkout · optional rails only when configured</li>
         <li>Community support</li>
       </ul>
-      <a class="btn" href="/checkout?plan=starter&amount=49" data-link>Start Starter</a>
+      <a class="btn" href="/checkout?plan=starter" data-link>Start Starter</a>
     </div>
-    <div class="plan highlight">
+    <div class="plan highlight" data-pricing-plan="pro">
       <h3>Growth</h3>
-      <div class="price">$499<small>/mo</small></div>
+      <div class="price" data-pricing-value="pro">Loading price…<small>/mo</small></div>
       <p style="color:var(--ink-dim);margin:0">For scaling companies.</p>
       <ul>
         <li>Unlimited modules</li>
@@ -869,11 +869,11 @@ function pagePricing() {
         <li>SSO, priority support</li>
         <li>Signed outcome reports</li>
       </ul>
-      <a class="btn btn-primary" href="/checkout?plan=growth&amount=499" data-link>Go Growth</a>
+      <a class="btn btn-primary" href="/checkout?plan=pro" data-link>Go Growth</a>
     </div>
-    <div class="plan">
+    <div class="plan" data-pricing-plan="enterprise">
       <h3>Enterprise</h3>
-      <div class="price">Custom<small></small></div>
+      <div class="price" data-pricing-value="enterprise">Loading price…<small>/mo</small></div>
       <p style="color:var(--ink-dim);margin:0">Outcome‑priced. Global.</p>
       <ul>
         <li>All 18 verticals</li>
@@ -882,7 +882,7 @@ function pagePricing() {
         <li>Dedicated Zeus cluster</li>
         <li>Value‑Proof Ledger (bps share)</li>
       </ul>
-      <a class="btn btn-gold" href="/checkout?plan=enterprise&amount=25000" data-link>Talk to Zeus</a>
+      <a class="btn btn-gold" href="/checkout?plan=enterprise" data-link>Talk to Zeus</a>
     </div>
   </div>
 </section>`;
@@ -907,7 +907,7 @@ function pageCheckout() {
       <div id="coPanelBtc">
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:18px;align-items:start">
           <div>
-            <div class="field"><label for="coAmount">Amount (USD)</label><input id="coAmount" type="number" min="1" step="1" value="49"/></div>
+            <div class="field"><label for="coAmount">Amount (USD)</label><input id="coAmount" type="number" min="1" step="1" value=""/></div>
             <div class="field"><label for="coPlan">Plan / product</label><input id="coPlan" value="starter"/></div>
             <div class="field"><label for="coEmail">Email for activation</label><input id="coEmail" type="email" placeholder="you@company.com"/></div>
             <div class="field"><label for="coBtc">BTC quote</label><input id="coBtc" readonly value="computing…"/></div>
@@ -921,7 +921,7 @@ function pageCheckout() {
         <div id="coStatus"></div>
       </div>
       <div id="coPanelPaypal" style="display:none">
-        <div class="field"><label for="coAmountPP">Amount (USD)</label><input id="coAmountPP" type="number" min="1" step="1" value="49"/></div>
+        <div class="field"><label for="coAmountPP">Amount (USD)</label><input id="coAmountPP" type="number" min="1" step="1" value=""/></div>
         <div class="field"><label for="coPlanPP">Plan / product</label><input id="coPlanPP" value="starter"/></div>
         <div class="field"><label for="coEmailPP">Email for activation</label><input id="coEmailPP" type="email" placeholder="you@company.com"/></div>
         <button class="btn btn-primary" id="coPayPP" style="width:100%;justify-content:center;margin-bottom:8px">Start PayPal payment →</button>
@@ -932,7 +932,7 @@ function pageCheckout() {
     <aside class="co-box">
       <h3 style="margin:0 0 8px">Order summary</h3>
       <div style="display:flex;justify-content:space-between;color:var(--ink-dim);font-size:14px;padding:10px 0;border-bottom:1px solid var(--stroke)"><span>Plan</span><b id="sumPlan" style="color:#fff">starter</b></div>
-      <div style="display:flex;justify-content:space-between;color:var(--ink-dim);font-size:14px;padding:10px 0;border-bottom:1px solid var(--stroke)"><span>Amount</span><b id="sumAmount" style="color:#fff">$49</b></div>
+      <div style="display:flex;justify-content:space-between;color:var(--ink-dim);font-size:14px;padding:10px 0;border-bottom:1px solid var(--stroke)"><span>Amount</span><b id="sumAmount" style="color:#fff">Loading price...</b></div>
       <div style="display:flex;justify-content:space-between;color:var(--ink-dim);font-size:14px;padding:10px 0;border-bottom:1px solid var(--stroke)"><span>Owner</span><b style="color:#fff">${OWNER.name}</b></div>
       <div style="display:flex;justify-content:space-between;color:var(--ink-dim);font-size:14px;padding:10px 0"><span>Receipt</span><b style="color:var(--ok)">Ed25519 signed</b></div>
       <p style="color:var(--ink-dim);font-size:12.5px;line-height:1.6;margin-top:14px">Every receipt is routed by <code class="inline">sovereignRevenueRouter</code>. On enterprise plans, a share of delivered value is auto‑invoiced via the Value‑Proof Ledger.</p>
@@ -1674,7 +1674,7 @@ function pageGift() {
   <p style="color:var(--ink-dim);font-size:16px;line-height:1.7">No account required for the recipient. They click your link, redeem the signed capability, get the service activated.</p>
   <div class="card" style="padding:24px;margin-top:18px">
     <div class="field"><label>Service / SKU</label><input id="gtSku" value="adaptive-ai"></div>
-    <div class="field"><label>Value (USD)</label><input id="gtVal" type="number" value="49"></div>
+    <div class="field"><label>Value (USD)</label><input id="gtVal" type="number" value=""></div>
     <div class="field"><label>From email</label><input id="gtFrom" type="email"></div>
     <div class="field"><label>To email (optional)</label><input id="gtTo" type="email"></div>
     <div class="field"><label>Message</label><input id="gtMsg" placeholder="Use ZeusAI on me 🎁"></div>
@@ -1685,7 +1685,7 @@ function pageGift() {
   document.getElementById('gtBtn').addEventListener('click', async () => {
     const payload = {
       sku: document.getElementById('gtSku').value,
-      valueUsd: Number(document.getElementById('gtVal').value)||49,
+      valueUsd: Number(document.getElementById('gtVal').value)||0,
       fromEmail: document.getElementById('gtFrom').value,
       toEmail: document.getElementById('gtTo').value,
       message: document.getElementById('gtMsg').value

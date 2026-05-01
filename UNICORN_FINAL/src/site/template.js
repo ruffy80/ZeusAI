@@ -1809,10 +1809,10 @@ function renderServiceGrid(){
 // PRICING
 // ================================================================
 var PLANS=[
-  {id:'free',name:'Free',monthly:0,yearly:0,features:['3 AI requests/day','1 workspace','Community support','Basic analytics'],noFeatures:['Custom integrations','API access','Priority support']},
-  {id:'starter',name:'Starter',monthly:29,yearly:24,features:['500 AI requests/day','5 workspaces','Email support','Full analytics','API access'],noFeatures:['Custom integrations','Dedicated support'],popular:false},
-  {id:'pro',name:'Pro',monthly:99,yearly:82,features:['Unlimited AI requests','Unlimited workspaces','Priority support','Custom integrations','API access','Advanced analytics'],noFeatures:[],popular:true},
-  {id:'enterprise',name:'Enterprise',monthly:499,yearly:415,features:['Everything in Pro','Dedicated account manager','Custom AI training','SLA 99.99%','White-label option','On-premise deployment'],noFeatures:[],popular:false},
+  {id:'free',name:'Free',monthly:null,yearly:null,features:['3 AI requests/day','1 workspace','Community support','Basic analytics'],noFeatures:['Custom integrations','API access','Priority support']},
+  {id:'starter',name:'Starter',monthly:null,yearly:null,features:['500 AI requests/day','5 workspaces','Email support','Full analytics','API access'],noFeatures:['Custom integrations','Dedicated support'],popular:false},
+  {id:'pro',name:'Pro',monthly:null,yearly:null,features:['Unlimited AI requests','Unlimited workspaces','Priority support','Custom integrations','API access','Advanced analytics'],noFeatures:[],popular:true},
+  {id:'enterprise',name:'Enterprise',monthly:null,yearly:null,features:['Everything in Pro','Dedicated account manager','Custom AI training','SLA 99.99%','White-label option','On-premise deployment'],noFeatures:[],popular:false},
 ];
 
 async function loadPricing(){
@@ -1824,6 +1824,18 @@ async function loadPricing(){
     }catch(e){}
   }
   renderPlanCards();
+  try{
+    for(var i=0;i<PLANS.length;i++){
+      var pid=PLANS[i].id;
+      var pr=await fetch('/api/pricing/'+encodeURIComponent(pid)).then(function(r){return r.json();}).catch(function(){return null;});
+      if(pr&&pr.price_usd!=null){
+        var usd=Number(pr.price_usd);
+        PLANS[i].monthly=usd;
+        PLANS[i].yearly=usd;
+      }
+    }
+    renderPlanCards();
+  }catch(_){ }
   // Try to get live plans from API (with dynamic pricing applied)
   var r=await api('GET','/api/billing/plans/public');
   if(r.plans&&r.plans.length){
@@ -1978,21 +1990,24 @@ function renderPlanCards(apiPlans,marketConditions){
   else if(mc&&mc.peakHours){marketBanner='<div style="text-align:center;margin-bottom:12px;padding:8px;background:#e6a817;color:#000;border-radius:8px;font-weight:700;">🕐 Peak hours — dynamic pricing in effect</div>';}
   grid.innerHTML=marketBanner+plans.map(function(p){
     var price=STATE.pricingYearly?p.yearly:p.monthly;
-    var btcEq=price>0?usdToBtc(price):'Free';
+    var hasPrice=price!=null&&isFinite(Number(price));
+    var btcEq=hasPrice&&price>0?usdToBtc(price):'—';
     var feats=(p.features||[]).map(function(f){return '<li>'+escHtml(f)+'</li>';}).join('');
     var noFeats=(p.noFeatures||[]).map(function(f){return '<li class="no">'+escHtml(f)+'</li>';}).join('');
     var dynamicNote=p.dynamicFactor&&p.dynamicFactor!==1?'<div style="font-size:11px;color:#7090b0;margin-top:4px;">Demand factor: ×'+p.dynamicFactor.toFixed(2)+'</div>':'';
     return '<div class="plan-card'+(p.popular?' popular':'') +'">'
       +(p.popular?'<div class="popular-tag">⭐ Most Popular</div>':'')
       +'<div class="plan-name">'+escHtml(p.name)+'</div>'
-      +'<div class="plan-price">'+(price===0?'Free':'$'+price)+'<span>'+(price>0?(STATE.pricingYearly?'/mo, billed yearly':'/mo'):'')+'</span></div>'
-      +(price>0?'<div class="plan-btc">≈ '+btcEq+'/mo</div>':'')
+      +'<div class="plan-price">'+(!hasPrice?'Loading price...':(price===0?'Free':'$'+price))+'<span>'+(hasPrice&&price>0?(STATE.pricingYearly?'/mo, billed yearly':'/mo'):'')+'</span></div>'
+      +(hasPrice&&price>0?'<div class="plan-btc">≈ '+btcEq+'/mo</div>':'')
       +dynamicNote
       +'<ul class="plan-features">'+feats+noFeats+'</ul>'
-      +(price===0
+      +(!hasPrice
+        ?'<button class="btn btn-outline" disabled>Loading price...</button>'
+        :(price===0
         ?'<button class="btn btn-outline" onclick="openModal(\\'auth-modal\\');switchTab(\\'tab-register\\')">Get Started Free</button>'
         :'<button class="btn '+(p.popular?'btn-primary':'btn-outline')+'" onclick="handleSubscribe(\\''+p.id+'\\','+price+')">Subscribe</button>'
-      )
+      ))
       +'</div>';
   }).join('');
 }

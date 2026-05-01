@@ -276,14 +276,14 @@ async function runTests() {
     // Find the /api/auth/passkey/assert handler block.
     const assertIdx = src.indexOf("'/api/auth/passkey/assert'");
     assert.ok(assertIdx > 0, 'passkey/assert route must exist');
-    const assertBlock = src.slice(assertIdx, assertIdx + 2500);
+    const assertBlock = src.slice(assertIdx, assertIdx + 4000);
     assert.ok(/customerSessionCookie\(token,/.test(assertBlock), 'passkey/assert must Set-Cookie customer_session');
     assert.ok(/customer:\s*publicCustomerView\(user\)/.test(assertBlock), 'passkey/assert must return customer field');
     assert.ok(/ok:\s*true/.test(assertBlock), 'passkey/assert must return ok:true');
 
     const regIdx = src.indexOf("'/api/auth/passkey/register'");
     assert.ok(regIdx > 0, 'passkey/register route must exist');
-    const regBlock = src.slice(regIdx, regIdx + 3500);
+    const regBlock = src.slice(regIdx, regIdx + 5000);
     assert.ok(/customerSessionCookie\(/.test(regBlock), 'passkey/register must Set-Cookie customer_session');
     assert.ok(/customer:\s*publicCustomerView\(user\)/.test(regBlock), 'passkey/register must return customer field');
   });

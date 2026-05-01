@@ -650,8 +650,10 @@ app.post('/api/auth/passkey/challenge', authRateLimit(20, 15 * 60 * 1000), async
   }
   if (!user) return res.status(404).json({ error: 'User not found' });
   const { rpID, rpName } = getWebAuthnContext(req);
+  const { origin } = getWebAuthnContext(req);
   const { generateRegistrationOptions, generateAuthenticationOptions } = await getWebAuthn();
   let publicKey;
+  console.log('[passkey/challenge]', { mode, email, rpID, origin, userAgent: req.headers['user-agent']?.slice(0, 50) });
   if (mode === 'register') {
     const existing = dbPasskeys.listByUser(user.id);
     publicKey = await generateRegistrationOptions({
@@ -682,96 +684,155 @@ app.post('/api/auth/passkey/challenge', authRateLimit(20, 15 * 60 * 1000), async
     createdAt: Date.now(),
     expiresAt: Date.now() + 5 * 60 * 1000,
   });
+  console.log('[passkey/challenge] success', { rpID, email, mode, challengeLength: String(publicKey.challenge).length });
   res.json({ ok: true, publicKey, rpID, mode });
 }));
 
 app.post('/api/auth/passkey/register', authRateLimit(10, 15 * 60 * 1000), asyncHandler(async (req, res) => {
-  const email = normalizeEmail(req.body?.email);
-  const { credential, password } = req.body || {};
-  if (!email || !credential) return res.status(400).json({ error: 'email and credential required' });
-  const user = dbUsers.findByEmail(email);
-  if (!user) return res.status(404).json({ error: 'User not found' });
-  const authUser = bearerUser(req);
-  const passwordOk = password ? await bcrypt.compare(String(password), user.passwordHash) : false;
-  if (!passwordOk && (!authUser || authUser.id !== user.id)) return res.status(401).json({ error: 'Existing login or password required to enroll passkey' });
-  const challenge = dbPasskeys.findChallenge(email, 'register');
-  if (!challenge) return res.status(400).json({ error: 'Passkey challenge expired' });
-  const { origin, rpID } = getWebAuthnContext(req);
-  const { verifyRegistrationResponse } = await getWebAuthn();
-  const verification = await verifyRegistrationResponse({ response: credential, expectedChallenge: challenge.challenge, expectedOrigin: origin, expectedRPID: rpID, requireUserVerification: false });
-  dbPasskeys.deleteChallenge(challenge.id);
-  if (!verification.verified || !verification.registrationInfo) return res.status(400).json({ error: 'Passkey registration failed' });
-  const info = verification.registrationInfo;
-  const storedCredential = info.credential || info;
-  const credentialId = b64u(storedCredential.id || info.credentialID || credential.id || credential.rawId);
-  const publicKey = b64u(storedCredential.publicKey || info.credentialPublicKey);
-  if (!credentialId || !publicKey) return res.status(400).json({ error: 'Passkey credential incomplete' });
-  dbPasskeys.saveCredential({
-    credentialId,
-    userId: user.id,
-    email: user.email,
-    publicKey,
-    counter: Number(storedCredential.counter || info.counter || 0),
-    transports: credential.response?.transports || credential.transports || [],
-    createdAt: new Date().toISOString(),
-    lastUsedAt: null,
-    active: 1,
-  });
-  worldStandard.appendLedger('identity.passkey.enrolled', { userId: user.id, email: user.email, credentialIdHash: crypto.createHash('sha256').update(credentialId).digest('hex') });
-  // Also sign the customer in: issue the same JWT/cookie shape as /api/customer/login so
-  // "Create device key" doubles as a successful sign-in for first-time visitors.
-  const sessionToken = jwt.sign({ id: user.id, email: user.email, name: user.name }, JWT_SECRET, { expiresIn: '30d' });
-  res.setHeader('Set-Cookie', customerSessionCookie(sessionToken, CUSTOMER_SESSION_MAX_AGE_SEC));
-  res.json({
-    ok: true,
-    credentialId,
-    token: sessionToken,
-    email: user.email,
-    user: { id: user.id, email: user.email, name: user.name },
-    customer: publicCustomerView(user),
-  });
+  try {
+    const email = normalizeEmail(req.body?.email);
+    const { credential, password } = req.body || {};
+    if (!email || !credential) return res.status(400).json({ error: 'email and credential required' });
+    const user = dbUsers.findByEmail(email);
+    if (!user) return res.status(404).json({ error: 'User not found' });
+    const authUser = bearerUser(req);
+    const passwordOk = password ? await bcrypt.compare(String(password), user.passwordHash) : false;
+    if (!passwordOk && (!authUser || authUser.id !== user.id)) return res.status(401).json({ error: 'Existing login or password required to enroll passkey' });
+    const challenge = dbPasskeys.findChallenge(email, 'register');
+    if (!challenge) return res.status(400).json({ error: 'Passkey challenge expired' });
+    const { origin, rpID } = getWebAuthnContext(req);
+    const { verifyRegistrationResponse } = await getWebAuthn();
+    // Defensive: ensure clientExtensionResults exists (some browsers omit it on minimal flows).
+    const responsePayload = { ...credential, clientExtensionResults: credential.clientExtensionResults || {} };
+    let verification;
+    try {
+      verification = await verifyRegistrationResponse({
+        response: responsePayload,
+        expectedChallenge: challenge.challenge,
+        expectedOrigin: origin,
+        expectedRPID: rpID,
+        requireUserVerification: false,
+      });
+    } catch (err) {
+      console.error('[passkey/register] verify threw:', { email, origin, rpID, err: err && err.message, errName: err?.name });
+      dbPasskeys.deleteChallenge(challenge.id);
+      return res.status(400).json({ error: 'Passkey registration failed', message: (err && err.message) || 'verify_threw', origin, rpID, errName: err?.name });
+    }
+    dbPasskeys.deleteChallenge(challenge.id);
+    if (!verification.verified || !verification.registrationInfo) {
+      console.error('[passkey/register] verify returned unverified', { email, origin, rpID, verification });
+      return res.status(400).json({ error: 'Passkey registration failed', message: 'unverified', origin, rpID });
+    }
+    const info = verification.registrationInfo;
+    const storedCredential = info.credential || info;
+    const credentialId = b64u(storedCredential.id || info.credentialID || credential.id || credential.rawId);
+    const publicKey = b64u(storedCredential.publicKey || info.credentialPublicKey);
+    if (!credentialId || !publicKey) return res.status(400).json({ error: 'Passkey credential incomplete' });
+    dbPasskeys.saveCredential({
+      credentialId,
+      userId: user.id,
+      email: user.email,
+      publicKey,
+      counter: Number(storedCredential.counter || info.counter || 0),
+      transports: credential.response?.transports || credential.transports || [],
+      createdAt: new Date().toISOString(),
+      lastUsedAt: null,
+      active: 1,
+    });
+    worldStandard.appendLedger('identity.passkey.enrolled', { userId: user.id, email: user.email, credentialIdHash: crypto.createHash('sha256').update(credentialId).digest('hex') });
+    // Also sign the customer in: issue the same JWT/cookie shape as /api/customer/login so
+    // "Create device key" doubles as a successful sign-in for first-time visitors.
+    const sessionToken = jwt.sign({ id: user.id, email: user.email, name: user.name }, JWT_SECRET, { expiresIn: '30d' });
+    res.setHeader('Set-Cookie', customerSessionCookie(sessionToken, CUSTOMER_SESSION_MAX_AGE_SEC));
+    res.json({
+      ok: true,
+      credentialId,
+      token: sessionToken,
+      email: user.email,
+      user: { id: user.id, email: user.email, name: user.name },
+      customer: publicCustomerView(user),
+    });
+  } catch (err) {
+    console.error('[passkey/register] unhandled outer error:', { err: err && err.message, errName: err?.name, stack: err?.stack });
+    return res.status(500).json({ error: 'Internal server error', message: err && err.message });
+  }
 }));
 
 app.post('/api/auth/passkey/assert', authRateLimit(20, 15 * 60 * 1000), asyncHandler(async (req, res) => {
-  const email = normalizeEmail(req.body?.email);
-  const { credential } = req.body || {};
-  if (!email || !credential) return res.status(400).json({ error: 'email and credential required' });
-  const user = dbUsers.findByEmail(email);
-  if (!user) return res.status(404).json({ error: 'User not found' });
-  const challenge = dbPasskeys.findChallenge(email, 'assert');
-  if (!challenge) return res.status(400).json({ error: 'Passkey challenge expired' });
-  const credentialId = b64u(credential.id || credential.rawId);
-  const stored = dbPasskeys.findCredential(credentialId);
-  if (!stored || stored.userId !== user.id) return res.status(401).json({ error: 'Passkey not recognized' });
-  const { origin, rpID } = getWebAuthnContext(req);
-  const { verifyAuthenticationResponse } = await getWebAuthn();
-  const verification = await verifyAuthenticationResponse({
-    response: credential,
-    expectedChallenge: challenge.challenge,
-    expectedOrigin: origin,
-    expectedRPID: rpID,
-    credential: { id: stored.credentialId, publicKey: b64uBuffer(stored.publicKey), counter: Number(stored.counter || 0), transports: stored.transports || [] },
-    requireUserVerification: false,
-  });
-  dbPasskeys.deleteChallenge(challenge.id);
-  if (!verification.verified) return res.status(401).json({ error: 'Passkey verification failed' });
-  dbPasskeys.updateCounter(stored.credentialId, Number(verification.authenticationInfo?.newCounter || stored.counter || 0));
-  // Issue the same JWT/cookie shape as /api/customer/login so client code that already knows
-  // how to read `customer_session` cookie + `customer` field works without divergent paths.
-  const token = jwt.sign({ id: user.id, email: user.email, name: user.name }, JWT_SECRET, { expiresIn: '30d' });
-  res.setHeader('Set-Cookie', customerSessionCookie(token, CUSTOMER_SESSION_MAX_AGE_SEC));
-  worldStandard.appendLedger('identity.passkey.login', { userId: user.id, email: user.email, credentialIdHash: crypto.createHash('sha256').update(stored.credentialId).digest('hex') });
-  res.json({
-    ok: true,
-    token,
-    email: user.email,
-    user: { id: user.id, name: user.name, email: user.email, emailVerified: Boolean(user.emailVerified) },
-    customer: publicCustomerView(user),
-  });
+  try {
+    const email = normalizeEmail(req.body?.email);
+    const { credential } = req.body || {};
+    if (!email || !credential) return res.status(400).json({ error: 'email and credential required' });
+    const user = dbUsers.findByEmail(email);
+    if (!user) return res.status(404).json({ error: 'User not found' });
+    const challenge = dbPasskeys.findChallenge(email, 'assert');
+    if (!challenge) return res.status(400).json({ error: 'Passkey challenge expired' });
+    const credentialId = b64u(credential.id || credential.rawId);
+    const stored = dbPasskeys.findCredential(credentialId);
+    if (!stored || stored.userId !== user.id) return res.status(401).json({ error: 'Passkey not recognized' });
+    const { origin, rpID } = getWebAuthnContext(req);
+    const { verifyAuthenticationResponse } = await getWebAuthn();
+    let verification;
+    try {
+      verification = await verifyAuthenticationResponse({
+        response: credential,
+        expectedChallenge: challenge.challenge,
+        expectedOrigin: origin,
+        expectedRPID: rpID,
+        credential: { id: stored.credentialId, publicKey: b64uBuffer(stored.publicKey), counter: Number(stored.counter || 0), transports: stored.transports || [] },
+        requireUserVerification: false,
+      });
+    } catch (err) {
+      console.error('[passkey/assert] verify threw:', { email, origin, rpID, err: err && err.message, errName: err?.name });
+      dbPasskeys.deleteChallenge(challenge.id);
+      return res.status(401).json({ error: 'Passkey verification failed', message: (err && err.message) || 'verify_threw', origin, rpID, errName: err?.name });
+    }
+    dbPasskeys.deleteChallenge(challenge.id);
+    if (!verification.verified) return res.status(401).json({ error: 'Passkey verification failed', message: 'unverified' });
+    dbPasskeys.updateCounter(stored.credentialId, Number(verification.authenticationInfo?.newCounter || stored.counter || 0));
+    // Issue the same JWT/cookie shape as /api/customer/login so client code that already knows
+    // how to read `customer_session` cookie + `customer` field works without divergent paths.
+    const token = jwt.sign({ id: user.id, email: user.email, name: user.name }, JWT_SECRET, { expiresIn: '30d' });
+    res.setHeader('Set-Cookie', customerSessionCookie(token, CUSTOMER_SESSION_MAX_AGE_SEC));
+    worldStandard.appendLedger('identity.passkey.login', { userId: user.id, email: user.email, credentialIdHash: crypto.createHash('sha256').update(stored.credentialId).digest('hex') });
+    res.json({
+      ok: true,
+      token,
+      email: user.email,
+      user: { id: user.id, name: user.name, email: user.email, emailVerified: Boolean(user.emailVerified) },
+      customer: publicCustomerView(user),
+    });
+  } catch (err) {
+    console.error('[passkey/assert] unhandled outer error:', { err: err && err.message, errName: err?.name, stack: err?.stack });
+    return res.status(500).json({ error: 'Internal server error', message: err && err.message });
+  }
 }));
 
 app.get('/api/auth/passkey/list', authMiddleware, (req, res) => {
   res.json({ ok: true, credentials: dbPasskeys.listByUser(req.user.id) });
+});
+
+// Admin diagnostic — count passkeys per email so the owner can verify whether
+// registration actually persisted server-side. NOT user-facing.
+app.get('/api/auth/passkey/debug', adminTokenMiddleware, (req, res) => {
+  const email = normalizeEmail(req.query?.email);
+  if (!email) return res.status(400).json({ error: 'email query param required' });
+  const user = dbUsers.findByEmail(email);
+  const credentials = dbPasskeys.listByEmail(email);
+  res.json({
+    ok: true,
+    email,
+    user: user ? { id: user.id, email: user.email, createdAt: user.createdAt } : null,
+    count: credentials.length,
+    credentials: credentials.map(c => ({
+      credentialId: c.credentialId.slice(0, 16) + '…',
+      userId: c.userId,
+      counter: c.counter,
+      createdAt: c.createdAt,
+      lastUsedAt: c.lastUsedAt,
+      active: c.active,
+    })),
+  });
 });
 
 app.post('/api/auth/passkey/revoke', authMiddleware, (req, res) => {
@@ -4608,12 +4669,47 @@ app.get('/api/pricing/module/:moduleId', async (req, res) => {
   }
 });
 
-app.get('/api/pricing/:serviceId', (req, res) => {
-  const allowed = Object.keys(dynamicPricing.BASE_PRICES);
-  if (!allowed.includes(req.params.serviceId)) {
-    return res.status(404).json({ error: 'Service not found in pricing engine' });
+app.get('/api/pricing/:serviceId', async (req, res) => {
+  const serviceId = String(req.params.serviceId || '').trim().slice(0, 120) || 'unknown-service';
+  const dp = dynamicPricing.getPrice(serviceId, { userId: req.query.userId, coupon: req.query.coupon });
+  const negotiated = /enterprise|global|giants|tier/i.test(serviceId);
+  let btcRate = 0;
+  try {
+    const r = await Promise.race([
+      paymentGateway.getBitcoinRate(),
+      new Promise((_, rej) => setTimeout(() => rej(new Error('btc-rate-timeout')), 2000)),
+    ]);
+    if (r && Number(r.rate) > 0) btcRate = Number(r.rate);
+  } catch (_) { /* fallback below */ }
+  if (btcRate <= 0 && livePricingBroker) {
+    try {
+      const snap = livePricingBroker.getSnapshot();
+      if (snap && snap.btcRate && Number(snap.btcRate.rate) > 0) btcRate = Number(snap.btcRate.rate);
+    } catch (_) { /* keep null */ }
   }
-  res.json(dynamicPricing.getPrice(req.params.serviceId, { userId: req.query.userId, coupon: req.query.coupon }));
+  const priceUsd = Number(dp.finalPrice || 0);
+  const priceBtc = btcRate > 0 ? Math.round((priceUsd / btcRate) * 1e8) / 1e8 : null;
+  res.set('Cache-Control', 'no-store');
+  res.json({
+    serviceId,
+    price_usd: priceUsd,
+    price_btc: priceBtc,
+    currency: 'USD',
+    interval: 'month',
+    negotiated,
+    timestamp: new Date().toISOString(),
+    // Backward-compatible fields used by existing clients:
+    basePrice: Number(dp.basePrice || 99),
+    finalPrice: priceUsd,
+    demandFactor: dp.demandFactor,
+    globalDemand: dp.globalDemand,
+    serviceFactor: dp.serviceFactor,
+    peakHours: !!dp.peakHours,
+    surgeActive: !!dp.surgeActive,
+    discountApplied: !!dp.discountApplied,
+    btcRate: btcRate > 0 ? btcRate : null,
+    source: Object.prototype.hasOwnProperty.call(dynamicPricing.BASE_PRICES || {}, serviceId) ? 'dynamic-pricing' : 'dynamic-pricing-default',
+  });
 });
 
 // Admin: activate surge pricing (duration key: 30min | 1h | 2h | 6h | 24h)
