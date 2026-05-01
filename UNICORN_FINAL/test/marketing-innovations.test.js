@@ -72,15 +72,18 @@ function reqJson(server, method, path, body, headers) {
 }
 
 async function run() {
-  // ── 1. autoViralGrowth shape preserved ───────────────────────────────
+  // ── 1. autoViralGrowth shape preserved (post reality-grounding 2026-05-01) ──
+  // The module no longer reports Math.random-based engagement counters.
+  // We assert the new reality-aligned schema: real KPIs + honesty flag.
   {
     const v = autoViralGrowth.getViralStatus();
     assert.ok(v && v.metrics, 'getViralStatus must still return metrics');
-    for (const k of ['viralScore', 'referralCodesGenerated', 'referralSignups', 'socialMentions', 'partnerMentions', 'growthLoopsExecuted', 'estimatedReach']) {
+    for (const k of ['viralScore', 'growthLoopsExecuted', 'realCustomers', 'realPaidOrders', 'realRevenueUsd', 'configuredSocialProviders', 'simulated']) {
       assert.ok(k in v.metrics, 'autoViralGrowth metrics must keep field: ' + k);
     }
+    assert.strictEqual(v.metrics.simulated, false, 'simulated flag must be false in production');
     assert.strictEqual(v.state, 'AUTONOMOUS_VIRAL_GROWTH_ACTIVE');
-    console.log('[OK] autoViralGrowth shape preserved');
+    console.log('[OK] autoViralGrowth reality-grounded shape preserved');
   }
 
   // ── 2. content multi-channel ────────────────────────────────────────

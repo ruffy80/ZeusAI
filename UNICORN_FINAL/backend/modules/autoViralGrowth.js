@@ -218,6 +218,15 @@
 let llamaBridge;
 try { llamaBridge = require('./llamaBridge'); } catch { llamaBridge = null; }
 
+// 🎯 Reality metrics — every number reported below is derived from the SQLite
+// portal + JSONL receipt ledger. No Math.random() in production paths.
+// Metrici reale — fără random, doar ce există în baza de date.
+let realityMetrics;
+try { realityMetrics = require('./reality-metrics'); } catch { realityMetrics = null; }
+
+let socialViralizer;
+try { socialViralizer = require('./socialMediaViralizer'); } catch { socialViralizer = null; }
+
 class AutoViralGrowth {
   constructor() {
     this.cache = new Map(); this.cacheTTL = 60000; 
@@ -228,18 +237,18 @@ class AutoViralGrowth {
 
     this.metrics = {
       viralScore: 0,
-      referralCodesGenerated: 0,
-      referralSignups: 0,
-      socialMentions: 0,
-      partnerMentions: 0,
       growthLoopsExecuted: 0,
-      estimatedReach: 0,
+      // Real KPIs — populated each cycle from reality-metrics. NOT cumulative.
+      realCustomers: 0,
+      realPaidOrders: 0,
+      realRevenueUsd: 0,
+      configuredSocialProviders: [],
+      simulated: false,
     };
 
     this.config = {
       cycleMs: Math.max(parseInt(process.env.VIRAL_CYCLE_MS || '20000', 10), 5000),
       contentPerCycle: Math.max(parseInt(process.env.VIRAL_CONTENT_PER_CYCLE || '3', 10), 1),
-      referralsPerCycle: Math.max(parseInt(process.env.VIRAL_REFERRALS_PER_CYCLE || '4', 10), 1),
     };
 
     this.start();
@@ -257,55 +266,63 @@ class AutoViralGrowth {
   executeGrowthLoop() {
     this.metrics.growthLoopsExecuted += 1;
 
+    // -- REAL DATA SOURCE --
+    // We previously seeded contentQueue/referrals/social with Math.random().
+    // That produced fake dashboards. Now everything below is derived from
+    // SQLite portal + JSONL receipt ledger via reality-metrics.
+    // We still queue *outbound* content for the social viralizer (to be posted
+    // when env tokens exist), but we no longer fabricate engagement numbers.
+    const real = realityMetrics ? realityMetrics.snapshot() : null;
+    const customerCount = real ? Number(real.customers || 0) : 0;
+    const paidOrders = real ? Number(real.orders && real.orders.paid || 0) : 0;
+    const revenueUsd = real ? Number(real.revenue && real.revenue.paidUsd || 0) : 0;
+
+    // Queue outbound posts (these only get *sent* if X/Telegram/Pinterest tokens
+    // are configured in env — see socialMediaViralizer). No fake post counters.
     for (let i = 0; i < this.config.contentPerCycle; i++) {
       this.contentQueue.push({
         id: `CNT-${Date.now()}-${i}`,
-        channel: ['X', 'LinkedIn', 'Reddit', 'Community'][Math.floor(Math.random() * 4)],
-        topic: ['ZEUS AI', 'Unicorn Automation', 'Autonomous Growth', 'Revenue Flywheel'][Math.floor(Math.random() * 4)],
+        channel: ['X', 'Telegram', 'DevTo'][i % 3],
+        topic: ['ZeusAI sovereign AI', 'BTC-native checkout', 'Unicorn automation', 'Self-hosted AI'][this.metrics.growthLoopsExecuted % 4],
         createdAt: new Date().toISOString(),
+        status: 'queued',
       });
     }
 
-    for (let i = 0; i < this.config.referralsPerCycle; i++) {
-      const code = `ZEUS-${Math.random().toString(36).slice(2, 8).toUpperCase()}`;
-      this.referrals.push({
-        code,
-        createdAt: new Date().toISOString(),
-        signups: Math.floor(Math.random() * 4),
-      });
-      this.metrics.referralCodesGenerated += 1;
-      this.metrics.referralSignups += this.referrals[this.referrals.length - 1].signups;
-    }
+    // Real social provider state — what is actually configured?
+    const socialState = (socialViralizer && typeof socialViralizer.getProviderStatus === 'function')
+      ? socialViralizer.getProviderStatus()
+      : { configuredProviders: [], totalProviders: 0 };
 
-    const social = Math.floor(Math.random() * 12) + 3;
-    const partner = Math.floor(Math.random() * 5) + 1;
-    const reach = Math.floor(Math.random() * 900) + 200;
+    // Viral score is now grounded in REAL data: paid customers, total customers,
+    // configured social channels. With 0 paid customers the score is 0. Honest.
+    // Formula: paid_customers * 5 + signups * 0.5 + active_social_channels * 2
+    // capped at 100. This way the score reflects business truth, not theatrics.
+    const score = Math.min(100, Math.round(
+      paidOrders * 5
+      + customerCount * 0.5
+      + (socialState.configuredProviders ? socialState.configuredProviders.length : 0) * 2
+    ));
 
-    this.metrics.socialMentions += social;
-    this.metrics.partnerMentions += partner;
-    this.metrics.estimatedReach += reach;
+    this.metrics.viralScore = score;
+    this.metrics.realCustomers = customerCount;
+    this.metrics.realPaidOrders = paidOrders;
+    this.metrics.realRevenueUsd = Math.round(revenueUsd * 100) / 100;
+    this.metrics.configuredSocialProviders = socialState.configuredProviders || [];
+    this.metrics.simulated = false; // explicit honesty flag
 
     this.events.push({
       at: new Date().toISOString(),
-      socialMentions: social,
-      partnerMentions: partner,
-      estimatedReach: reach,
+      customers: customerCount,
+      paidOrders,
+      revenueUsd: this.metrics.realRevenueUsd,
+      configuredProviders: this.metrics.configuredSocialProviders,
     });
 
-    this.metrics.viralScore = Math.min(
-      100,
-      Math.round(
-        this.metrics.referralSignups * 0.8 +
-        this.metrics.socialMentions * 0.25 +
-        this.metrics.partnerMentions * 0.6
-      )
-    );
-
     if (this.events.length > 200) this.events = this.events.slice(-200);
-    if (this.referrals.length > 300) this.referrals = this.referrals.slice(-300);
     if (this.contentQueue.length > 300) this.contentQueue = this.contentQueue.slice(-300);
 
-    // Ask Llama to write viral copy every 5th loop (async, non-blocking, P2)
+    // Ask the AI router to write viral copy every 5th loop (no-op if no provider).
     if (this.metrics.growthLoopsExecuted % 5 === 0) {
       this._refreshLlamaCopy().catch(() => {});
     }
@@ -336,11 +353,19 @@ class AutoViralGrowth {
     return {
       timestamp: new Date().toISOString(),
       state: 'AUTONOMOUS_VIRAL_GROWTH_ACTIVE',
+      simulated: false,
+      source: 'reality-metrics (SQLite + JSONL ledgers)',
       metrics: this.metrics,
       nextCycleIn: `${Math.round(this.config.cycleMs / 1000)}s`,
       recentEvents: this.events.slice(-5),
-      recentReferrals: this.referrals.slice(-5),
+      contentQueueDepth: this.contentQueue.length,
       llamaCopy: this.llamaCopy,
+      honesty: {
+        simulationsRemoved: ['Math.random viral score', 'Math.random referral signups', 'Math.random social mentions', 'Math.random reach'],
+        nextStep: this.metrics.realPaidOrders === 0
+          ? 'Configure X_BEARER_TOKEN / TELEGRAM_BOT_TOKEN / DEV_API_KEY in env, then real posts start; first paid order seeds revenue metrics.'
+          : 'Scale outbound channels and paid acquisition; metrics here track ground truth.',
+      },
     };
   }
 }

@@ -4991,6 +4991,34 @@ ${invoice.payer ? `<h2>Payer</h2><table><tr><th>Legal entity</th><td>${esc(invoi
     }
   }
 
+  // Reality-grounded growth metrics — no Math.random, only SQLite + JSONL ledgers.
+  // Metrici reale, fără simulări — doar ce există în baza de date.
+  if (urlPath === '/api/growth/real' && req.method === 'GET') {
+    try {
+      const reality = require('../backend/modules/reality-metrics');
+      res.writeHead(200, { 'Content-Type':'application/json' });
+      return res.end(JSON.stringify(reality.snapshot()));
+    } catch (e) {
+      res.writeHead(500, { 'Content-Type':'application/json' });
+      return res.end(JSON.stringify({ ok: false, error: e.message }));
+    }
+  }
+
+  // Social-provider configuration truth — which channels are actually wired.
+  if (urlPath === '/api/social/status' && req.method === 'GET') {
+    try {
+      const sv = require('../backend/modules/socialMediaViralizer');
+      const status = sv && typeof sv.getProviderStatus === 'function'
+        ? sv.getProviderStatus()
+        : { ok: false, error: 'social_viralizer_not_loaded' };
+      res.writeHead(200, { 'Content-Type':'application/json' });
+      return res.end(JSON.stringify(status));
+    } catch (e) {
+      res.writeHead(500, { 'Content-Type':'application/json' });
+      return res.end(JSON.stringify({ ok: false, error: e.message }));
+    }
+  }
+
   if (urlPath === '/api/customer/login' && req.method === 'POST') {
     if (!portal) { res.writeHead(503); return res.end('{}'); }
     let body=''; req.on('data', c=>{ body+=c; if(body.length>8*1024) req.destroy(); });

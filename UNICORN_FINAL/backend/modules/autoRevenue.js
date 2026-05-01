@@ -265,7 +265,17 @@ class AutoRevenueEngine {
     this.revenueStreams.set('CONSULTING', { name: 'Consulting Services', revenue: 0, deals: 0 });
 
     // Start autonomous revenue generation every 30 seconds
-    this.startRevenueGeneration();
+    // SAFETY 2026-05-01: simulation cycle is now OFF by default. The previous
+    // implementation generated affiliates/marketplace/B2B deals with
+    // Math.random() values which polluted dashboards with fake numbers.
+    // Set AUTO_REVENUE_SIMULATE=enabled only for local development demos.
+    // Stage = 'enabled' / Etapă = 'enabled' pentru a porni simularea.
+    if (String(process.env.AUTO_REVENUE_SIMULATE || 'disabled').toLowerCase() === 'enabled') {
+      console.warn('[autoRevenue] ⚠️  SIMULATION MODE — fabricated deals will populate metrics. Disable in production.');
+      this.startRevenueGeneration();
+    } else {
+      console.log('[autoRevenue] simulation disabled (default). Use realityMetrics + uaic for revenue truth.');
+    }
   }
 
   startRevenueGeneration() {
@@ -591,25 +601,42 @@ class AutoRevenueEngine {
   // ================================================================
 
   getRevenueStatus() {
+    // Reality first — read from receipt ledger.
+    let realityMetrics;
+    try { realityMetrics = require('./reality-metrics'); } catch { realityMetrics = null; }
+    const real = realityMetrics ? realityMetrics.snapshot() : null;
+    const simulationOn = String(process.env.AUTO_REVENUE_SIMULATE || 'disabled').toLowerCase() === 'enabled';
+
     const streamDetails = Array.from(this.revenueStreams.entries()).map(([key, stream]) => ({
       stream: key,
       name: stream.name,
       monthlyRevenue: stream.revenue.toFixed(2),
       numberOfDeals: stream.deals,
       annualizedRevenue: (stream.revenue * 12).toFixed(2),
+      simulated: simulationOn,
     }));
 
     return {
       timestamp: new Date().toISOString(),
-      state: 'AUTONOMOUS_REVENUE_GENERATION',
-      totalMonthlyRevenue: Array.from(this.revenueStreams.values())
-        .reduce((sum, stream) => sum + (stream.revenue || 0), 0)
-        .toFixed(2),
-      projectedAnnualRevenue: this.metrics.projectedAnnualRevenue.toFixed(2),
-      activeDeals: this.metrics.activeDeals,
-      completedTransactions: this.metrics.completedDeals,
-      revenueStreams: streamDetails,
+      state: simulationOn ? 'SIMULATED_REVENUE_DEMO' : 'AUTONOMOUS_REVENUE_REAL',
+      simulated: simulationOn,
+      reality: real ? {
+        paidCustomers: real.orders.paid,
+        paidRevenueUsd: real.revenue.paidUsd,
+        currency: real.revenue.currency,
+        method: real.revenue.method,
+      } : null,
+      totalMonthlyRevenue: simulationOn
+        ? Array.from(this.revenueStreams.values()).reduce((sum, s) => sum + (s.revenue || 0), 0).toFixed(2)
+        : (real ? real.revenue.paidUsd.toFixed(2) : '0.00'),
+      projectedAnnualRevenue: simulationOn ? this.metrics.projectedAnnualRevenue.toFixed(2) : '0.00',
+      activeDeals: simulationOn ? this.metrics.activeDeals : 0,
+      completedTransactions: simulationOn ? this.metrics.completedDeals : (real ? real.orders.paid : 0),
+      revenueStreams: simulationOn ? streamDetails : [],
       llamaStrategy: this.llamaStrategySuggestion,
+      honesty: simulationOn
+        ? 'Simulation mode is ON (AUTO_REVENUE_SIMULATE=enabled). Numbers above are fabricated for demos. Reality block contains the truth.'
+        : 'Simulation OFF. Only real paid receipts are reported. Set AUTO_REVENUE_SIMULATE=enabled for demo populated dashboards.',
     };
   }
 

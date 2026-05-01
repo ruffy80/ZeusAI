@@ -2,123 +2,96 @@
 // OWNERSHIP: Acest fișier este proprietatea exclusivă a lui Vladoi Ionut
 // Email: vladoi_ionut@yahoo.com
 // BTC Address: bc1q4f7e66z87mdfj56kz0dj5hvcnpmh0qh4wuv22e
-// Data: 2026-04-13T03:10:20.931Z
+// Rebuilt 2026-05-01 — Math.random simulations removed.
 // Orice copiere, modificare sau distribuție neautorizată este interzisă.
 // =====================================================================
 
 'use strict';
-// ==================== AI SALES CLOSER ====================
-// Agent AI care închide automat vânzări, upsells și reactivează clienți pierduți
+// ==================== AI SALES CLOSER (reality-grounded) ====================
+// Reads real leads from data/money-machine/sales-leads.jsonl + paid orders from
+// the receipt ledger. No fabricated prospects, no Math.random deal values.
+
+const fs = require('fs');
+const path = require('path');
+
+const LEADS_PATH = path.resolve(__dirname, '..', '..', 'data', 'money-machine', 'sales-leads.jsonl');
+const RECEIPTS_PATH = path.resolve(__dirname, '..', '..', 'data', 'commerce', 'uaic-receipts.jsonl');
 
 const _state = {
   name: 'ai-sales-closer',
   label: 'AI Sales Closer',
-  startedAt: null,
+  startedAt: new Date().toISOString(),
   processCount: 0,
   lastRun: null,
-  health: 'good',
-  dealsClosedTotal: 0,
-  upsellsTotal: 0,
-  reactivationsTotal: 0,
-  pipeline: [],
-  closedDeals: [],
+  simulated: false,
 };
 
-const CLOSE_TACTICS = [
-  'urgency-scarcity', 'social-proof', 'roi-calculator',
-  'risk-reversal', 'trial-to-paid', 'annual-discount',
-];
-
-const DEAL_STAGES = ['prospect', 'qualified', 'demo', 'proposal', 'negotiation', 'closed-won', 'closed-lost'];
-
-function _newDeal(input = {}) {
-  return {
-    id: `deal_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
-    prospect: input.email || `lead_${Math.random().toString(36).slice(2, 10)}@prospect.com`,
-    value: input.value || Math.round((500 + Math.random() * 9500) * 100) / 100,
-    currency: 'USD',
-    stage: input.stage || 'prospect',
-    tactic: CLOSE_TACTICS[Math.floor(Math.random() * CLOSE_TACTICS.length)],
-    probability: Math.round((0.2 + Math.random() * 0.75) * 100),
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-  };
+function _readJsonl(file) {
+  try {
+    if (!fs.existsSync(file)) return [];
+    return fs.readFileSync(file, 'utf8').split('\n').filter(Boolean)
+      .map((l) => { try { return JSON.parse(l); } catch (_) { return null; } })
+      .filter(Boolean);
+  } catch (_) { return []; }
 }
 
-function _attemptClose(deal) {
-  const roll = Math.random() * 100;
-  if (roll <= deal.probability) {
-    deal.stage = 'closed-won';
-    deal.closedAt = new Date().toISOString();
-    _state.dealsClosedTotal++;
-    _state.closedDeals.unshift({ ...deal });
-    if (_state.closedDeals.length > 100) _state.closedDeals.pop();
-    return true;
-  }
-  return false;
-}
-
-function init() {
-  _state.startedAt = new Date().toISOString();
-  // Simulate pipeline deals
-  for (let i = 0; i < 8; i++) {
-    const deal = _newDeal();
-    deal.stage = DEAL_STAGES[Math.floor(Math.random() * (DEAL_STAGES.length - 2))];
-    _state.pipeline.push(deal);
-  }
-  // Auto-close cycle every 10 minutes
-  setInterval(() => {
-    _state.pipeline.forEach(deal => {
-      if (deal.stage !== 'closed-won' && deal.stage !== 'closed-lost') {
-        _attemptClose(deal);
-      }
-    });
-    // Add a new prospect
-    _state.pipeline.push(_newDeal());
-    if (_state.pipeline.length > 50) _state.pipeline.shift();
-    _state.lastRun = new Date().toISOString();
-  }, 10 * 60 * 1000);
-  console.log('💼 AI Sales Closer activat.');
-}
-
-async function process(input = {}) {
-  _state.processCount++;
-  _state.lastRun = new Date().toISOString();
-  const deal = _newDeal(input);
-  const closed = _attemptClose(deal);
-  if (!closed) _state.pipeline.push(deal);
-  return {
-    status: 'ok',
-    module: _state.name,
-    label: _state.label,
-    deal,
-    result: closed ? 'CLOSED-WON 🎉' : 'IN-PIPELINE',
-    dealsClosedTotal: _state.dealsClosedTotal,
-    pipelineSize: _state.pipeline.length,
-    timestamp: _state.lastRun,
-  };
+function _realPipeline() {
+  const leads = _readJsonl(LEADS_PATH);
+  const receipts = _readJsonl(RECEIPTS_PATH);
+  const paidEmails = new Set(
+    receipts.filter((r) => r && r.status === 'paid')
+      .map((r) => String(r.email || r.customerEmail || '').toLowerCase())
+      .filter(Boolean)
+  );
+  const open = leads.filter((l) => l && l.email && !paidEmails.has(String(l.email).toLowerCase()));
+  return { leads, receipts, paidEmails, open };
 }
 
 function getStatus() {
-  const wonDeals = _state.pipeline.filter(d => d.stage === 'closed-won');
-  const pipelineValue = _state.pipeline
-    .filter(d => d.stage !== 'closed-won' && d.stage !== 'closed-lost')
-    .reduce((sum, d) => sum + d.value, 0);
+  const { leads, receipts, paidEmails, open } = _realPipeline();
+  const paidRevenue = receipts
+    .filter((r) => r && r.status === 'paid')
+    .reduce((s, r) => s + Number(r.amount || 0), 0);
   return {
     ..._state,
-    pipelineSize: _state.pipeline.length,
-    dealsWonInPipeline: wonDeals.length,
-    estimatedPipelineValue: Math.round(pipelineValue * 100) / 100,
-    recentClosedDeal: _state.closedDeals[0] || null,
+    source: 'sales-leads.jsonl + uaic-receipts.jsonl (no Math.random)',
+    realLeadsTotal: leads.length,
+    realPaidCustomers: paidEmails.size,
+    openPipelineSize: open.length,
+    realRevenueUsd: Math.round(paidRevenue * 100) / 100,
+    closedWon: receipts.filter((r) => r && r.status === 'paid').slice(-5)
+      .map((r) => ({ id: r.id, amount: r.amount, plan: r.plan, paidAt: r.paidAt })),
+    nextStep: open.length === 0
+      ? 'No open leads yet. Drive traffic via socialMediaViralizer (configure tokens) and content; leads will appear here as they sign up.'
+      : `Follow up on ${open.length} open lead(s) via transactional-email + AI router copy.`,
   };
 }
 
-function addDeal(input = {}) {
-  const deal = _newDeal(input);
-  _state.pipeline.push(deal);
-  return deal;
+async function process(input = {}) {
+  _state.processCount += 1;
+  _state.lastRun = new Date().toISOString();
+  const email = String(input.email || '').trim().toLowerCase();
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    return { status: 'skipped', reason: 'invalid_or_missing_email', module: _state.name };
+  }
+  const lead = {
+    email,
+    name: input.name ? String(input.name).slice(0, 80) : null,
+    source: input.source ? String(input.source).slice(0, 60) : 'unknown',
+    interest: input.interest ? String(input.interest).slice(0, 80) : null,
+    note: input.note ? String(input.note).slice(0, 200) : null,
+    createdAt: new Date().toISOString(),
+  };
+  try {
+    fs.mkdirSync(path.dirname(LEADS_PATH), { recursive: true });
+    fs.appendFileSync(LEADS_PATH, JSON.stringify(lead) + '\n');
+  } catch (e) {
+    return { status: 'error', error: 'lead_persist_failed', message: e.message };
+  }
+  return { status: 'ok', module: _state.name, lead, dispatched: 'lead_persisted' };
 }
 
-init();
+function init() { return true; }
+function addDeal(input) { return process(input); } // back-compat shim
 
 module.exports = { process, getStatus, init, addDeal, name: 'ai-sales-closer' };
