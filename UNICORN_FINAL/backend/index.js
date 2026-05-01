@@ -698,9 +698,27 @@ app.post('/api/auth/passkey/register', authRateLimit(10, 15 * 60 * 1000), asyncH
   if (!challenge) return res.status(400).json({ error: 'Passkey challenge expired' });
   const { origin, rpID } = getWebAuthnContext(req);
   const { verifyRegistrationResponse } = await getWebAuthn();
-  const verification = await verifyRegistrationResponse({ response: credential, expectedChallenge: challenge.challenge, expectedOrigin: origin, expectedRPID: rpID, requireUserVerification: false });
+  // Defensive: ensure clientExtensionResults exists (some browsers omit it on minimal flows).
+  const responsePayload = { ...credential, clientExtensionResults: credential.clientExtensionResults || {} };
+  let verification;
+  try {
+    verification = await verifyRegistrationResponse({
+      response: responsePayload,
+      expectedChallenge: challenge.challenge,
+      expectedOrigin: origin,
+      expectedRPID: rpID,
+      requireUserVerification: false,
+    });
+  } catch (err) {
+    console.error('[passkey/register] verify threw:', { email, origin, rpID, err: err && err.message });
+    dbPasskeys.deleteChallenge(challenge.id);
+    return res.status(400).json({ error: 'Passkey registration failed', message: (err && err.message) || 'verify_threw', origin, rpID });
+  }
   dbPasskeys.deleteChallenge(challenge.id);
-  if (!verification.verified || !verification.registrationInfo) return res.status(400).json({ error: 'Passkey registration failed' });
+  if (!verification.verified || !verification.registrationInfo) {
+    console.error('[passkey/register] verify returned unverified', { email, origin, rpID, verification });
+    return res.status(400).json({ error: 'Passkey registration failed', message: 'unverified', origin, rpID });
+  }
   const info = verification.registrationInfo;
   const storedCredential = info.credential || info;
   const credentialId = b64u(storedCredential.id || info.credentialID || credential.id || credential.rawId);
@@ -745,16 +763,23 @@ app.post('/api/auth/passkey/assert', authRateLimit(20, 15 * 60 * 1000), asyncHan
   if (!stored || stored.userId !== user.id) return res.status(401).json({ error: 'Passkey not recognized' });
   const { origin, rpID } = getWebAuthnContext(req);
   const { verifyAuthenticationResponse } = await getWebAuthn();
-  const verification = await verifyAuthenticationResponse({
-    response: credential,
-    expectedChallenge: challenge.challenge,
-    expectedOrigin: origin,
-    expectedRPID: rpID,
-    credential: { id: stored.credentialId, publicKey: b64uBuffer(stored.publicKey), counter: Number(stored.counter || 0), transports: stored.transports || [] },
-    requireUserVerification: false,
-  });
+  let verification;
+  try {
+    verification = await verifyAuthenticationResponse({
+      response: credential,
+      expectedChallenge: challenge.challenge,
+      expectedOrigin: origin,
+      expectedRPID: rpID,
+      credential: { id: stored.credentialId, publicKey: b64uBuffer(stored.publicKey), counter: Number(stored.counter || 0), transports: stored.transports || [] },
+      requireUserVerification: false,
+    });
+  } catch (err) {
+    console.error('[passkey/assert] verify threw:', { email, origin, rpID, err: err && err.message });
+    dbPasskeys.deleteChallenge(challenge.id);
+    return res.status(401).json({ error: 'Passkey verification failed', message: (err && err.message) || 'verify_threw', origin, rpID });
+  }
   dbPasskeys.deleteChallenge(challenge.id);
-  if (!verification.verified) return res.status(401).json({ error: 'Passkey verification failed' });
+  if (!verification.verified) return res.status(401).json({ error: 'Passkey verification failed', message: 'unverified' });
   dbPasskeys.updateCounter(stored.credentialId, Number(verification.authenticationInfo?.newCounter || stored.counter || 0));
   // Issue the same JWT/cookie shape as /api/customer/login so client code that already knows
   // how to read `customer_session` cookie + `customer` field works without divergent paths.
@@ -772,6 +797,29 @@ app.post('/api/auth/passkey/assert', authRateLimit(20, 15 * 60 * 1000), asyncHan
 
 app.get('/api/auth/passkey/list', authMiddleware, (req, res) => {
   res.json({ ok: true, credentials: dbPasskeys.listByUser(req.user.id) });
+});
+
+// Admin diagnostic — count passkeys per email so the owner can verify whether
+// registration actually persisted server-side. NOT user-facing.
+app.get('/api/auth/passkey/debug', adminTokenMiddleware, (req, res) => {
+  const email = normalizeEmail(req.query?.email);
+  if (!email) return res.status(400).json({ error: 'email query param required' });
+  const user = dbUsers.findByEmail(email);
+  const credentials = dbPasskeys.listByEmail(email);
+  res.json({
+    ok: true,
+    email,
+    user: user ? { id: user.id, email: user.email, createdAt: user.createdAt } : null,
+    count: credentials.length,
+    credentials: credentials.map(c => ({
+      credentialId: c.credentialId.slice(0, 16) + '…',
+      userId: c.userId,
+      counter: c.counter,
+      createdAt: c.createdAt,
+      lastUsedAt: c.lastUsedAt,
+      active: c.active,
+    })),
+  });
 });
 
 app.post('/api/auth/passkey/revoke', authMiddleware, (req, res) => {
