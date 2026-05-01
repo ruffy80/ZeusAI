@@ -665,7 +665,36 @@ const BTC_PAYMENT_PROVIDER = process.env.BTCPAY_SERVER_URL ? 'btcpay' : (process
 const OWNER_NAME = process.env.OWNER_NAME || 'Vladoi Ionut';
 const OWNER_EMAIL = process.env.OWNER_EMAIL || process.env.ADMIN_EMAIL || 'vladoi_ionut@yahoo.com';
 const BACKEND_SYNC_INTERVAL_MS = Number(process.env.SITE_BACKEND_SYNC_INTERVAL_MS || 30000);
-const BACKEND_SYNC_TIMEOUT_MS = Number(process.env.SITE_BACKEND_SYNC_TIMEOUT_MS || 5000);
+const BACKEND_SYNC_TIMEOUT_MS = Number(process.env.SITE_BACKEND_SYNC_TIMEOUT_MS || 2000);
+const TRANSACTION_LOG_FILE = process.env.UNICORN_TX_LOG || '/var/log/unicorn-transactions.log';
+
+function logTransactionEvent(event, details) {
+  const row = { ts: new Date().toISOString(), event, ...(details || {}) };
+  try {
+    fs.mkdirSync(path.dirname(TRANSACTION_LOG_FILE), { recursive: true });
+    fs.appendFileSync(TRANSACTION_LOG_FILE, JSON.stringify(row) + '\n');
+  } catch (_) {
+    try { console.warn('[transactions]', JSON.stringify(row)); } catch (_) {}
+  }
+}
+
+function clampUsdPrice(value, context) {
+  const raw = Number(value);
+  const safe = Number.isFinite(raw) ? raw : 0;
+  const clamped = Math.max(1, Math.min(10000000, safe));
+  if (clamped !== safe) {
+    logTransactionEvent('pricing_clamped', { raw: safe, clamped, context: context || null, min: 1, max: 10000000 });
+  }
+  return Math.round(clamped * 100) / 100;
+}
+
+function fallbackUsdForService(service) {
+  const tier = String((service && (service.segment || service.tier || service.category || service.id)) || '').toLowerCase();
+  if (tier.includes('mid')) return 499;
+  if (tier.includes('enterprise')) return 499;
+  if (tier.includes('global')) return 499;
+  return 99;
+}
 
 // ===================================================================
 // FALLBACK COMMERCE LEDGER — persistent receipts when UAIC is absent
@@ -1170,10 +1199,34 @@ function normalizePricingMap(payload) {
 function getServicePrice(serviceId, pricingMap) {
   if (!pricingMap || !serviceId || !pricingMap[serviceId]) return null;
   const pricing = pricingMap[serviceId];
-  if (pricing.finalPrice != null) return pricing.finalPrice;
-  if (pricing.price != null) return pricing.price;
-  if (pricing.basePrice != null) return pricing.basePrice;
+  if (pricing.finalPrice != null) return clampUsdPrice(pricing.finalPrice, { serviceId, field: 'finalPrice' });
+  if (pricing.price != null) return clampUsdPrice(pricing.price, { serviceId, field: 'price' });
+  if (pricing.basePrice != null) return clampUsdPrice(pricing.basePrice, { serviceId, field: 'basePrice' });
   return null;
+}
+
+async function enrichServicesWithLivePricing(services) {
+  const list = Array.isArray(services) ? services : [];
+  const usdPerBtc = await getBtcUsdSpot().catch(() => 95000);
+  const pricingMap = runtimeSyncState.pricing || {};
+  return list.map((service) => {
+    const dynamicPrice = getServicePrice(service.id, pricingMap);
+    const originalPrice = Number(service.price || service.priceUsd || service.priceUSD || 0);
+    const safeFallback = originalPrice > 0 ? originalPrice : fallbackUsdForService(service);
+    const priceUsd = dynamicPrice != null ? dynamicPrice : clampUsdPrice(safeFallback, { serviceId: service.id, source: 'site-fallback' });
+    if (dynamicPrice == null) {
+      logTransactionEvent('pricing_fallback', { serviceId: service.id, fallbackUsd: priceUsd, reason: 'dynamic_pricing_missing_or_timeout' });
+    }
+    const priceBtc = usdToBtc(priceUsd, usdPerBtc);
+    return {
+      ...service,
+      price: priceUsd,
+      priceUsd,
+      priceUSD: priceUsd,
+      dynamicPrice: { usd: priceUsd, btc: priceBtc, usdPerBtc, source: dynamicPrice != null ? 'unicorn-dynamic-pricing' : 'safe-fallback', cacheTtlMs: 2000 },
+      paymentOptions: [{ method: 'BTC', btcAddress: BTC_WALLET, btcAmount: priceBtc, btcUri: priceUsd > 0 ? buildBtcUri(BTC_WALLET, priceBtc, 'ZeusAI-' + service.id) : null }]
+    };
+  });
 }
 
 function normalizeMarketplaceServices(payload) {
@@ -3512,9 +3565,10 @@ async function unicornHandler(req, res) {
 
   // Unified service catalogue for the v2 site (marketplace + verticals → service objects)
   if (urlPath === '/api/services/list') {
+    if (process.env.BACKEND_API_URL) await refreshBackendRuntimeState(true).catch((error) => logTransactionEvent('pricing_sync_failed', { error: error && error.message }));
     const snapshot = buildSnapshot();
-    const services = snapshot.services || [];
-    res.writeHead(200, { 'Content-Type':'application/json' });
+    const services = await enrichServicesWithLivePricing(snapshot.services || []);
+    res.writeHead(200, { 'Content-Type':'application/json', 'Cache-Control':'no-store' });
     return res.end(JSON.stringify({ updatedAt: new Date().toISOString(), source: 'zeusai', sourceLegacy: 'unicorn', sync: snapshot.source, services }));
   }
   if (urlPath === '/api/services') {
@@ -3894,6 +3948,7 @@ document.getElementById('buyBtn').addEventListener('click', async function(){
         const serviceId = String(p.serviceId || p.service_id || p.plan || 'starter');
         const paymentMethod = String(p.paymentMethod || p.payment_method || p.method || 'BTC').toUpperCase();
         const amount = Number(p.amount || p.amountUSD || p.priceUSD || 0);
+        logTransactionEvent('purchase_requested', { serviceId, paymentMethod, amount, ip: (req.headers['x-forwarded-for'] || req.socket.remoteAddress || '').toString().slice(0, 80) });
         const customerToken = readCustomerToken(req, p.customerToken || p.user_id);
         let email = p.email || '';
         if (!email && portal && customerToken) {
@@ -3921,6 +3976,7 @@ document.getElementById('buyBtn').addEventListener('click', async function(){
         });
         const checkout = await checkoutRes.json().catch(() => null);
         if (!checkoutRes.ok || !checkout) {
+          logTransactionEvent('purchase_checkout_failed', { serviceId, paymentMethod, status: checkoutRes.status, targetPath });
           res.writeHead(502, { 'Content-Type':'application/json' });
           return res.end(JSON.stringify({ error: 'checkout_failed', targetPath }));
         }
@@ -3944,6 +4000,7 @@ document.getElementById('buyBtn').addEventListener('click', async function(){
               note: 'Send the exact BTC amount. Auto-confirm runs every 30s or call /api/payments/btc/confirm with {receiptId} to force verify.'
             };
         res.writeHead(200, { 'Content-Type':'application/json' });
+        logTransactionEvent('purchase_checkout_created', { serviceId, paymentMethod, orderId, status: rec.status || 'pending', amount: rec.amount || amount });
         return res.end(JSON.stringify({
           ok: true,
           source: 'zeusai',
@@ -4933,6 +4990,7 @@ ${invoice.payer ? `<h2>Payer</h2><table><tr><th>Legal entity</th><td>${esc(invoi
           }
           uaic.persistReceipt(receipt);
           const out = { ok: true, receiptId, method: 'BTC', amount, currency: receipt.currency, plan: receipt.plan, email: receipt.email, createdAt: receipt.createdAt, destination: receipt.destination, btcAmount, btcUri: receipt.btcUri, btcpay: receipt.btcpay || null, btcpayCheckoutUrl: receipt.btcpay && receipt.btcpay.checkoutUrl || null, status: 'pending', invoiceUrl: `/api/invoice/${receiptId}`, statusUrl: `/api/receipt/${receiptId}`, licenseUrl: `/api/license/${receiptId}` };
+          logTransactionEvent('btc_checkout_created', { receiptId, plan: receipt.plan, amount, btcAmount, btcAddress: BTC_WALLET, provider: receipt.destination && receipt.destination.provider });
           // optional backend revenue router
           const backendUrl = process.env.BACKEND_API_URL;
           if (backendUrl) {
@@ -4970,6 +5028,7 @@ ${invoice.payer ? `<h2>Payer</h2><table><tr><th>Legal entity</th><td>${esc(invoi
           invoice.destination = buildPaymentDestination({ provider: btcpay.provider === 'btcpay' ? 'btcpay' : BTC_PAYMENT_PROVIDER, btcpayInvoiceId: btcpay.invoiceId || null, btcpayCheckoutUrl: btcpay.checkoutUrl || null });
         }
         persistFallbackReceipt(invoice);
+        logTransactionEvent('btc_checkout_created', { receiptId, plan: invoice.plan, amount: amountUsdF, btcAmount: btcAmountF, btcAddress: BTC_WALLET, provider: invoice.destination && invoice.destination.provider, fallback: true });
         res.writeHead(200, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ ok: true, ...invoice }));
       } catch (e) {
@@ -5101,6 +5160,7 @@ ${invoice.payer ? `<h2>Payer</h2><table><tr><th>Legal entity</th><td>${esc(invoi
             runDeliveryForReceipt(receipt);
             persistFallbackReceipt(receipt);
             try { emitServiceActivated(receipt); } catch (_) {}
+            logTransactionEvent('payment_activated', { receiptId, method: urlPath.includes('/btc/') ? 'BTC' : 'PAYPAL', amount: receipt.amount, status: receipt.status });
           }
           res.writeHead(200, { 'Content-Type':'application/json' });
           return res.end(JSON.stringify({ ok:true, method:urlPath.includes('/btc/') ? 'BTC' : 'PAYPAL', receipt }));
@@ -5167,6 +5227,7 @@ ${invoice.payer ? `<h2>Payer</h2><table><tr><th>Legal entity</th><td>${esc(invoi
             }
           }
           if (!matched) {
+            logTransactionEvent('payment_pending', { receiptId, method: 'BTC', btcAddress: addr, btcAmount: expectedBtc });
             res.writeHead(202, { 'Content-Type':'application/json' });
             return res.end(JSON.stringify({ ok: false, status: 'awaiting_payment', receiptId, btcAddress: addr, btcAmount: expectedBtc, message: 'No matching on-chain tx found yet. Retry after sending payment.' }));
           }
@@ -5179,6 +5240,7 @@ ${invoice.payer ? `<h2>Payer</h2><table><tr><th>Legal entity</th><td>${esc(invoi
           receipt.license = receipt.license || uaic.issueLicense(receipt);
           runDeliveryForReceipt(receipt);
           uaic.persistReceipt(receipt);
+          logTransactionEvent('payment_activated', { receiptId, method: 'BTC', amount: receipt.amount, txid: matched.txid, confirmedAmountBtc: matched.btc });
           res.writeHead(200, { 'Content-Type':'application/json' });
           return res.end(JSON.stringify({ ok: true, method: 'BTC', mode: 'self-service', match: matched, receipt }));
         }
@@ -5201,6 +5263,7 @@ ${invoice.payer ? `<h2>Payer</h2><table><tr><th>Legal entity</th><td>${esc(invoi
           receipt.license = receipt.license || uaic.issueLicense(receipt);
           runDeliveryForReceipt(receipt);
           uaic.persistReceipt(receipt);
+          logTransactionEvent('payment_activated', { receiptId, method: urlPath.includes('/btc/') ? 'BTC' : 'PAYPAL', amount: receipt.amount, txid: receipt.confirmation && receipt.confirmation.txid, trusted: true });
         }
 
         res.writeHead(200, { 'Content-Type':'application/json' });

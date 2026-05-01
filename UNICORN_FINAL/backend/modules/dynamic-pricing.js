@@ -286,10 +286,18 @@ function getPrice(serviceId, options = {}) {
   if (coupon === 'UNICORN2026') price *= 0.7;
   if (coupon === 'LAUNCH50') price *= 0.5;
 
+  const unclampedPrice = Math.round(price * 100) / 100;
+  const finalPrice = Math.max(1, Math.min(10000000, unclampedPrice));
+  if (finalPrice !== unclampedPrice) {
+    try {
+      console.warn('[DynamicPricing] unrealistic price clamped', JSON.stringify({ serviceId, unclampedPrice, finalPrice, min: 1, max: 10000000 }));
+    } catch (_) {}
+  }
+
   return {
     serviceId,
     basePrice: base,
-    finalPrice: Math.max(0.01, Math.round(price * 100) / 100),
+    finalPrice,
     demandFactor: Math.round(effectiveDemand * 1000) / 1000,
     globalDemand: Math.round(currentDemandFactor * 1000) / 1000,
     serviceFactor: Math.round(svcFactor * 1000) / 1000,
