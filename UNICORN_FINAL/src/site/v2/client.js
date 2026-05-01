@@ -856,12 +856,84 @@ function initTourbillon(){
 }
 
 // ================= PAGE HYDRATION =================
+// ── ZEUS PER-PAGE BACKDROP ─────────────────────────────────────────────
+// Two crossfading <div> layers in #zeusPageBg get one of two Zeus portraits
+// assigned per route. Hidden on home (which already has the full-bleed
+// hero image). Deterministic hash → same page always shows the same
+// Zeus, so the user perceives a stable identity per section.
+const ZEUS_BACKDROP_IMAGES = ['/assets/zeus/hero.jpg','/assets/zeus/brand.jpg'];
+// Curated overrides so flagship pages get the most cinematic portrait
+// (hero.jpg = full Zeus throne; brand.jpg = close-up bust).
+const ZEUS_BACKDROP_BY_ROUTE = {
+  '/services':       '/assets/zeus/hero.jpg',
+  '/pricing':        '/assets/zeus/brand.jpg',
+  '/enterprise':     '/assets/zeus/hero.jpg',
+  '/store':          '/assets/zeus/brand.jpg',
+  '/wizard':         '/assets/zeus/hero.jpg',
+  '/innovations':    '/assets/zeus/brand.jpg',
+  '/frontier':       '/assets/zeus/hero.jpg',
+  '/docs':           '/assets/zeus/brand.jpg',
+  '/dashboard':      '/assets/zeus/hero.jpg',
+  '/account':        '/assets/zeus/brand.jpg',
+  '/checkout':       '/assets/zeus/hero.jpg',
+  '/about':          '/assets/zeus/brand.jpg',
+  '/legal':          '/assets/zeus/brand.jpg',
+  '/security':       '/assets/zeus/hero.jpg',
+  '/trust':          '/assets/zeus/hero.jpg',
+  '/status':         '/assets/zeus/brand.jpg',
+  '/operator':       '/assets/zeus/hero.jpg',
+  '/observability':  '/assets/zeus/brand.jpg'
+};
+let __zeusBackdropToggle = false;
+function pickZeusBackdrop(route){
+  if (!route || route === '/') return null;
+  if (ZEUS_BACKDROP_BY_ROUTE[route]) return ZEUS_BACKDROP_BY_ROUTE[route];
+  // Sub-route prefix lookup (e.g. /services/foo, /admin/x) — match longest prefix.
+  const keys = Object.keys(ZEUS_BACKDROP_BY_ROUTE);
+  for (let i = 0; i < keys.length; i++){
+    if (route.indexOf(keys[i] + '/') === 0) return ZEUS_BACKDROP_BY_ROUTE[keys[i]];
+  }
+  // Stable hash → deterministic image per arbitrary route.
+  let h = 0; for (let i = 0; i < route.length; i++){ h = (h * 31 + route.charCodeAt(i)) >>> 0; }
+  return ZEUS_BACKDROP_IMAGES[h % ZEUS_BACKDROP_IMAGES.length];
+}
+function applyZeusBackdrop(route){
+  try {
+    const root = document.getElementById('zeusPageBg');
+    if (!root) return;
+    try { document.body.setAttribute('data-route', route || '/'); } catch (_) {}
+    const url = pickZeusBackdrop(route);
+    if (!url){
+      root.classList.remove('is-active');
+      const layers = root.querySelectorAll('.zeus-page-bg__layer');
+      layers.forEach(function(l){ l.classList.remove('is-on'); });
+      return;
+    }
+    const a = root.querySelector('.zeus-page-bg__layer--a');
+    const b = root.querySelector('.zeus-page-bg__layer--b');
+    if (!a || !b) return;
+    const incoming = __zeusBackdropToggle ? a : b;
+    const outgoing = __zeusBackdropToggle ? b : a;
+    __zeusBackdropToggle = !__zeusBackdropToggle;
+    // If image already matches, keep current layer on and skip to avoid a flash.
+    const currentBg = (outgoing.style.backgroundImage || '').indexOf(url) >= 0;
+    if (currentBg){ root.classList.add('is-active'); return; }
+    incoming.style.backgroundImage = 'url("' + url + '")';
+    requestAnimationFrame(function(){
+      incoming.classList.add('is-on');
+      outgoing.classList.remove('is-on');
+      root.classList.add('is-active');
+    });
+  } catch (e) { /* never break navigation */ }
+}
+
 async function hydratePage(route){
   route = routePath(route);
   try {
     // Galaxy is a universal background — keep it alive across all routes.
     if (!zeusCtx) initZeus();
   } catch (e) { console.warn('hydratePage:initZeus', e && e.message); }
+  try { applyZeusBackdrop(route); } catch (e) { console.warn('hydratePage:zeusBackdrop', e && e.message); }
   try {
     // Tear down tourbillon if leaving home
     if (route !== '/' && tbCtx){ tbCtx.dispose(); tbCtx = null; }

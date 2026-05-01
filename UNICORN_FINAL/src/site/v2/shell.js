@@ -170,6 +170,7 @@ ${gtPrimer}
 <a href="#app" style="position:absolute;left:-999px;top:10px;background:#fff;color:#05040a;padding:10px 14px;border-radius:10px;z-index:9999" onfocus="this.style.left='10px'" onblur="this.style.left='-999px'">Skip to content</a>
 <noscript><div style="position:relative;z-index:10;max-width:760px;margin:120px auto 20px;padding:18px 22px;border-radius:14px;background:rgba(138,92,255,.08);border:1px solid rgba(138,92,255,.3);color:#e8f4ff;font-family:system-ui,Arial">ZeusAI runs best with JavaScript enabled. Static pages, sitemap, and signed receipts are still available without it: visit <a href="/sitemap.xml" style="color:#8a5cff">/sitemap.xml</a>, <a href="/docs" style="color:#8a5cff">/docs</a>, or <a href="/api/services" style="color:#8a5cff">/api/services</a>.</div></noscript>
 <div class="galaxy-bg" id="zeusCanvas" aria-hidden="true"></div>
+<div class="zeus-page-bg" id="zeusPageBg" aria-hidden="true"><div class="zeus-page-bg__layer zeus-page-bg__layer--a"></div><div class="zeus-page-bg__layer zeus-page-bg__layer--b"></div><div class="zeus-page-bg__veil"></div></div>
 <div class="toasts" id="toasts"></div>
 ${navBar(route, opts)}
 <main id="app">`;
