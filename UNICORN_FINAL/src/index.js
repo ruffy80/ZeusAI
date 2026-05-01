@@ -3947,7 +3947,23 @@ document.getElementById('buyBtn').addEventListener('click', async function(){
         const p = JSON.parse(body || '{}');
         const serviceId = String(p.serviceId || p.service_id || p.plan || 'starter');
         const paymentMethod = String(p.paymentMethod || p.payment_method || p.method || 'BTC').toUpperCase();
-        const amount = Number(p.amount || p.amountUSD || p.priceUSD || 0);
+        let amount = Number(p.amount || p.amountUSD || p.priceUSD || 0);
+        // Look up authoritative price from catalog when client does not pass one (RO+EN)
+        // Caută prețul oficial în catalog dacă clientul nu a trimis un preț — evită checkout cu amount=0
+        if (!amount || amount <= 0) {
+          try {
+            const catalog = getRuntimeDataSources().services || [];
+            const svc = catalog.find((entry) => entry && entry.id === serviceId);
+            if (svc) {
+              const candidate = Number(
+                (svc.dynamicPrice && svc.dynamicPrice.usd) ||
+                svc.priceUsd || svc.priceUSD || svc.price || 0
+              );
+              if (candidate > 0) amount = clampUsdPrice(candidate, { source: 'catalog-lookup', serviceId });
+            }
+            if (!amount || amount <= 0) amount = clampUsdPrice(fallbackUsdForService({ id: serviceId }), { source: 'fallback', serviceId });
+          } catch (_) { /* ignore lookup failures, fallback below */ }
+        }
         logTransactionEvent('purchase_requested', { serviceId, paymentMethod, amount, ip: (req.headers['x-forwarded-for'] || req.socket.remoteAddress || '').toString().slice(0, 80) });
         const customerToken = readCustomerToken(req, p.customerToken || p.user_id);
         let email = p.email || '';
