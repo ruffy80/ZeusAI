@@ -4669,12 +4669,47 @@ app.get('/api/pricing/module/:moduleId', async (req, res) => {
   }
 });
 
-app.get('/api/pricing/:serviceId', (req, res) => {
-  const allowed = Object.keys(dynamicPricing.BASE_PRICES);
-  if (!allowed.includes(req.params.serviceId)) {
-    return res.status(404).json({ error: 'Service not found in pricing engine' });
+app.get('/api/pricing/:serviceId', async (req, res) => {
+  const serviceId = String(req.params.serviceId || '').trim().slice(0, 120) || 'unknown-service';
+  const dp = dynamicPricing.getPrice(serviceId, { userId: req.query.userId, coupon: req.query.coupon });
+  const negotiated = /enterprise|global|giants|tier/i.test(serviceId);
+  let btcRate = 0;
+  try {
+    const r = await Promise.race([
+      paymentGateway.getBitcoinRate(),
+      new Promise((_, rej) => setTimeout(() => rej(new Error('btc-rate-timeout')), 2000)),
+    ]);
+    if (r && Number(r.rate) > 0) btcRate = Number(r.rate);
+  } catch (_) { /* fallback below */ }
+  if (btcRate <= 0 && livePricingBroker) {
+    try {
+      const snap = livePricingBroker.getSnapshot();
+      if (snap && snap.btcRate && Number(snap.btcRate.rate) > 0) btcRate = Number(snap.btcRate.rate);
+    } catch (_) { /* keep null */ }
   }
-  res.json(dynamicPricing.getPrice(req.params.serviceId, { userId: req.query.userId, coupon: req.query.coupon }));
+  const priceUsd = Number(dp.finalPrice || 0);
+  const priceBtc = btcRate > 0 ? Math.round((priceUsd / btcRate) * 1e8) / 1e8 : null;
+  res.set('Cache-Control', 'no-store');
+  res.json({
+    serviceId,
+    price_usd: priceUsd,
+    price_btc: priceBtc,
+    currency: 'USD',
+    interval: 'month',
+    negotiated,
+    timestamp: new Date().toISOString(),
+    // Backward-compatible fields used by existing clients:
+    basePrice: Number(dp.basePrice || 99),
+    finalPrice: priceUsd,
+    demandFactor: dp.demandFactor,
+    globalDemand: dp.globalDemand,
+    serviceFactor: dp.serviceFactor,
+    peakHours: !!dp.peakHours,
+    surgeActive: !!dp.surgeActive,
+    discountApplied: !!dp.discountApplied,
+    btcRate: btcRate > 0 ? btcRate : null,
+    source: Object.prototype.hasOwnProperty.call(dynamicPricing.BASE_PRICES || {}, serviceId) ? 'dynamic-pricing' : 'dynamic-pricing-default',
+  });
 });
 
 // Admin: activate surge pricing (duration key: 30min | 1h | 2h | 6h | 24h)

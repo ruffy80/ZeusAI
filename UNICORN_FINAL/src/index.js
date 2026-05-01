@@ -288,6 +288,47 @@ function siteProxyToUnicorn(routePath, opts) {
 app.get('/api/industry/list', siteProxyToUnicorn('/api/industry/list'));
 app.get('/api/control/stats', siteProxyToUnicorn('/api/control/stats'));
 app.get('/api/evolution/snapshot', siteProxyToUnicorn('/api/evolution/snapshot'));
+app.get('/api/pricing/segments', siteProxyToUnicorn('/api/pricing/segments'));
+app.get('/api/pricing/module/:moduleId', async (req, res) => {
+  const moduleId = String(req.params.moduleId || '').slice(0, 80);
+  const backendUrl = process.env.BACKEND_API_URL;
+  if (backendUrl) {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), SITE_PROXY_TIMEOUT_MS);
+    try {
+      const qp = new URLSearchParams(req.query || {}).toString();
+      const target = backendUrl.replace(/\/$/, '') + '/api/pricing/module/' + encodeURIComponent(moduleId) + (qp ? ('?' + qp) : '');
+      const r = await fetch(target, { headers: { Accept: 'application/json' }, signal: controller.signal });
+      clearTimeout(timer);
+      if (r.ok) return res.json(await r.json());
+      console.warn('[site-proxy] /api/pricing/module/' + moduleId + ' upstream ' + r.status);
+    } catch (err) {
+      clearTimeout(timer);
+      console.warn('[site-proxy] /api/pricing/module/' + moduleId + ' failed: ' + (err && err.message));
+    }
+  }
+  res.set('X-Source', 'site-fallback-mock');
+  res.json({
+    moduleId,
+    segment: null,
+    pricing: {
+      usd: 99,
+      btc: null,
+      sats: null,
+      currency: 'USD',
+      btcCurrency: 'BTC',
+      btcRate: null,
+      btcRateSource: 'site-fallback-mock',
+      basePrice: 99,
+      demandFactor: 1,
+      peakHours: false,
+      surgeActive: false,
+      discountApplied: false,
+    },
+    source: 'site-fallback-mock',
+    updatedAt: new Date().toISOString(),
+  });
+});
 // Dynamic per-service pricing — proxies to Unicorn /api/pricing/:serviceId so
 // the public site shows live prices. No mock fallback for unknown services;
 // returns the raw upstream JSON when reachable, otherwise a stable shape.
@@ -298,7 +339,8 @@ app.get('/api/pricing/:serviceId', async (req, res) => {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), SITE_PROXY_TIMEOUT_MS);
     try {
-      const target = backendUrl.replace(/\/$/, '') + '/api/pricing/' + encodeURIComponent(serviceId);
+      const qp = new URLSearchParams(req.query || {}).toString();
+      const target = backendUrl.replace(/\/$/, '') + '/api/pricing/' + encodeURIComponent(serviceId) + (qp ? ('?' + qp) : '');
       const r = await fetch(target, { headers: { Accept: 'application/json' }, signal: controller.signal });
       clearTimeout(timer);
       if (r.ok) return res.json(await r.json());
@@ -309,7 +351,18 @@ app.get('/api/pricing/:serviceId', async (req, res) => {
     }
   }
   res.set('X-Source', 'site-fallback-mock');
-  res.json({ ok: true, serviceId, priceUsd: null, currency: 'USD', source: 'site-fallback-mock', note: 'Backend unreachable — request again later for live price.' });
+  const negotiated = /enterprise|global|giants|tier/i.test(serviceId);
+  res.json({
+    serviceId,
+    price_usd: 99,
+    price_btc: null,
+    currency: 'USD',
+    interval: 'month',
+    negotiated,
+    timestamp: new Date().toISOString(),
+    source: 'site-fallback-mock',
+    note: 'Backend unreachable — fallback pricing active.',
+  });
 });
 // Autoviralization — read-only status proxies are public; the trigger POST
 // is admin-gated by the backend (adminTokenMiddleware on /api/autonomous/viral/trigger
