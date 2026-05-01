@@ -4779,6 +4779,101 @@ setInterval(()=>{loadOrder().then(render);},10000);
     return;
   }
 
+  // ========== PUBLIC ENTERPRISE CONTACT FORM (no auth) ==========
+  // Stores leads to data/enterprise-leads.jsonl + notifies via console/file/email.
+  // Owner reviews leads via GET /api/enterprise/leads (admin-only) or /admin panel.
+  if (urlPath === '/api/enterprise/contact' && req.method === 'POST') {
+    let body = '';
+    req.on('data', c => { body += c; if (body.length > 32 * 1024) req.destroy(); });
+    req.on('end', () => {
+      try {
+        const p = JSON.parse(body || '{}');
+        const name = String(p.name || '').trim().slice(0, 200);
+        const email = String(p.email || '').trim().slice(0, 200);
+        const company = String(p.company || '').trim().slice(0, 200);
+        const phone = String(p.phone || '').trim().slice(0, 80);
+        const interest = String(p.interest || p.module || '').trim().slice(0, 200);
+        const message = String(p.message || '').trim().slice(0, 4000);
+        if (!name || !email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+          res.writeHead(400, { 'Content-Type': 'application/json' });
+          return res.end(JSON.stringify({ error: 'name and valid email required' }));
+        }
+        const lead = {
+          id: 'ent-' + Date.now() + '-' + Math.random().toString(36).slice(2, 8),
+          name, email, company, phone, interest, message,
+          source: 'enterprise-page',
+          status: 'new',
+          ip: (req.headers['x-forwarded-for'] || req.socket.remoteAddress || '').split(',')[0].trim(),
+          userAgent: String(req.headers['user-agent'] || '').slice(0, 300),
+          createdAt: new Date().toISOString(),
+        };
+        // Persist to JSONL
+        try {
+          const fs = require('fs'); const path = require('path');
+          const dir = path.join(__dirname, '..', 'data');
+          if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+          fs.appendFileSync(path.join(dir, 'enterprise-leads.jsonl'), JSON.stringify(lead) + '\n');
+        } catch (e) { console.warn('[enterprise-contact] persist failed:', e.message); }
+        // Notify owner: console + optional email via SMTP if configured
+        console.log('[ENTERPRISE-LEAD] 🔥 New lead:', JSON.stringify({ id: lead.id, name, email, company, interest }));
+        const ownerEmail = process.env.OWNER_EMAIL || process.env.ZEUS_OWNER_EMAIL || 'vladoi_ionut@yahoo.com';
+        try {
+          const smtpHost = process.env.SMTP_HOST;
+          if (smtpHost) {
+            // best-effort: try nodemailer if available, else skip silently
+            let nm = null; try { nm = require('nodemailer'); } catch (_) {}
+            if (nm) {
+              const transport = nm.createTransport({
+                host: smtpHost,
+                port: Number(process.env.SMTP_PORT || 587),
+                secure: process.env.SMTP_SECURE === 'true',
+                auth: process.env.SMTP_USER ? { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS } : undefined,
+              });
+              transport.sendMail({
+                from: process.env.SMTP_FROM || ('zeusai@' + (process.env.PUBLIC_HOST || 'zeusai.pro')),
+                to: ownerEmail,
+                subject: `[ZeusAI Enterprise Lead] ${company || name} — ${interest || 'general'}`,
+                text: `New enterprise lead\n\nName: ${name}\nEmail: ${email}\nCompany: ${company}\nPhone: ${phone}\nInterest: ${interest}\n\nMessage:\n${message}\n\nLead ID: ${lead.id}\nSubmitted: ${lead.createdAt}`,
+              }).catch(err => console.warn('[enterprise-contact] mail failed:', err.message));
+            }
+          }
+        } catch (e) { console.warn('[enterprise-contact] mail error:', e.message); }
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        return res.end(JSON.stringify({
+          ok: true,
+          leadId: lead.id,
+          message: 'Thank you. Our enterprise team will reply within 24 hours.',
+          messageRo: 'Mulțumim. Echipa noastră enterprise vă va contacta în 24 de ore.'
+        }));
+      } catch (e) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: e.message }));
+      }
+    });
+    return;
+  }
+  // Admin: list enterprise leads (uses same admin token as backend)
+  if (urlPath === '/api/enterprise/leads' && req.method === 'GET') {
+    const adminToken = process.env.ADMIN_TOKEN || process.env.ADMIN_API_TOKEN || '';
+    const provided = (req.headers.authorization || '').replace(/^Bearer\s+/i, '') || req.headers['x-admin-token'] || '';
+    if (!adminToken || provided !== adminToken) {
+      res.writeHead(401, { 'Content-Type': 'application/json' });
+      return res.end(JSON.stringify({ error: 'unauthorized' }));
+    }
+    try {
+      const fs = require('fs'); const path = require('path');
+      const file = path.join(__dirname, '..', 'data', 'enterprise-leads.jsonl');
+      if (!fs.existsSync(file)) { res.writeHead(200, { 'Content-Type': 'application/json' }); return res.end('[]'); }
+      const lines = fs.readFileSync(file, 'utf8').split('\n').filter(Boolean);
+      const leads = lines.map(l => { try { return JSON.parse(l); } catch (_) { return null; } }).filter(Boolean);
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      return res.end(JSON.stringify(leads));
+    } catch (e) {
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      return res.end(JSON.stringify({ error: e.message }));
+    }
+  }
+
   // Contract HTML (signed Ed25519)
   if (urlPath.startsWith('/api/enterprise/contract/')) {
     if (!contractGen) { res.writeHead(503); return res.end('contracts offline'); }

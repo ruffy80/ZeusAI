@@ -1281,11 +1281,61 @@ function pageAccount() {
 }
 
 function pageEnterprise() {
+  const modules = [
+    { id: 'aws-auto-healer', icon: '🛠️', title: 'AWS Auto-Healer', tagline: 'Self-healing infrastructure for AWS — detects faults, auto-restarts, fails over without humans.', endpoint: '/api/enterprise/aws/auto-heal', kpi: 'MTTR < 90s' },
+    { id: 'gcp-cost-optimizer', icon: '📉', title: 'Google Cost Optimizer', tagline: 'Continuous GCP spend reduction — rightsizing, commitment optimization, idle resource cleanup.', endpoint: '/api/enterprise/gcp/cost-optimize', kpi: 'Up to −40% spend' },
+    { id: 'azure-security-bot', icon: '🛡️', title: 'Azure Security Bot', tagline: 'Continuously audits and auto-remediates misconfigurations across Azure subscriptions.', endpoint: '/api/enterprise/azure/security-scan', kpi: 'CIS L1+L2 enforced' },
+    { id: 'multi-cloud-orchestrator', icon: '☁️', title: 'Multi-Cloud Orchestrator', tagline: 'Workload portability — migrate live between AWS, GCP, Azure based on price/latency/policy.', endpoint: '/api/enterprise/multi-cloud/migrate', kpi: 'Zero-downtime moves' },
+    { id: 'k8s-self-healer', icon: '⚙️', title: 'K8s Self-Healer', tagline: 'Watches every cluster — heals broken pods, restarts deployments, repairs node-level drift.', endpoint: '/api/enterprise/k8s/heal', kpi: '99.99%+ uptime' },
+    { id: 'database-optimizer', icon: '🗄️', title: 'Database Optimizer', tagline: 'AI rewrites slow queries, indexes hot tables, vacuums and tunes — Postgres, MySQL, Mongo.', endpoint: '/api/enterprise/db/optimize', kpi: 'Up to 10× faster' },
+    { id: 'disaster-recovery-autopilot', icon: '🚀', title: 'Disaster Recovery Autopilot', tagline: 'Continuous backup, geo-replication, signed restoration drills — every 24h, fully automated.', endpoint: '/api/enterprise/dr/run', kpi: 'RPO ≤ 60s, RTO ≤ 15m' },
+  ];
+  const moduleCards = modules.map(m => `
+    <div class="card ent-module-card" data-module-id="${m.id}" style="padding:24px;display:flex;flex-direction:column;gap:12px;border:1px solid rgba(255,255,255,.08);background:linear-gradient(180deg,rgba(20,12,40,.55),rgba(8,6,18,.55))">
+      <div style="font-size:34px;line-height:1">${m.icon}</div>
+      <h3 style="font-size:20px;line-height:1.2;margin:0;letter-spacing:-0.01em">${m.title}</h3>
+      <p style="color:var(--ink-dim);font-size:14px;margin:0;line-height:1.55">${m.tagline}</p>
+      <div style="display:flex;justify-content:space-between;align-items:center;padding-top:10px;border-top:1px solid rgba(255,255,255,.06);margin-top:auto">
+        <code class="inline" style="font-size:11px;color:#6fd3ff">${m.endpoint}</code>
+        <span style="font-size:11px;color:#ffd36a;font-weight:600">${m.kpi}</span>
+      </div>
+      <button class="btn btn-ghost ent-module-cta" data-module="${m.id}" data-module-title="${m.title}" style="font-size:13px;padding:8px 14px">Request demo →</button>
+    </div>`).join('');
+
+  const apiExamples = modules.slice(0, 3).map(m => `
+    <details style="margin-bottom:8px;background:rgba(8,6,18,.5);border:1px solid rgba(255,255,255,.06);border-radius:8px;padding:14px 18px">
+      <summary style="cursor:pointer;font-weight:600;color:#6fd3ff">${m.endpoint}</summary>
+      <pre style="margin:12px 0 0;padding:14px;background:#000;border-radius:6px;overflow:auto;font-size:12px;line-height:1.5;color:#a3ffce"><code>POST ${m.endpoint}
+Authorization: Bearer &lt;ENTERPRISE_API_TOKEN&gt;
+Content-Type: application/json
+
+{
+  "tenantId": "your-org-id",
+  "scope": ["prod", "staging"],
+  "dryRun": false
+}
+
+→ 200 OK
+{
+  "ok": true,
+  "module": "${m.id}",
+  "actions": [...],
+  "kpi": "${m.kpi}",
+  "auditId": "audit-2026-..."
+}</code></pre>
+    </details>`).join('');
+
   return `<section class="enterprise-hero" style="padding-top:120px">
   <div style="max-width:1280px;margin:0 auto;padding:0 28px">
     <span class="kicker" style="color:#ffd36a">Enterprise · Hyperscaler grade</span>
     <h1 style="font-size:clamp(40px,5.4vw,72px);line-height:1.02;margin:14px 0 18px;letter-spacing:-0.02em;background:linear-gradient(135deg,#fff 0%,#ffd36a 40%,#8a5cff 100%);-webkit-background-clip:text;background-clip:text;color:transparent">Licenses built for AWS, Google, Microsoft, Meta, Apple, Amazon.</h1>
-    <p style="color:var(--ink-dim);font-size:19px;max-width:900px;line-height:1.55">Ten production-ready ZeusAI platforms. Anchor pricing from <b style="color:#fff">$14M</b> to <b style="color:#fff">$150M</b>. Topstone deals up to <b style="color:#ffd36a">$2B</b>. Every license includes signed deliverables, sovereign key ceremony, 99.99%+ SLA, and a live <b style="color:#fff">autonomous negotiation desk</b> that closes without a human in the loop.</p>
+    <p style="color:var(--ink-dim);font-size:19px;max-width:900px;line-height:1.55">Ten production-ready ZeusAI platforms plus a full module catalogue. Anchor pricing from <b style="color:#fff">$14M</b> to <b style="color:#fff">$150M</b>. Topstone deals up to <b style="color:#ffd36a">$2B</b>. Every license includes signed deliverables, sovereign key ceremony, 99.99%+ SLA, and a live <b style="color:#fff">autonomous negotiation desk</b> that closes without a human in the loop.</p>
+
+    <div style="display:flex;gap:14px;flex-wrap:wrap;margin:28px 0 0">
+      <a href="#enterprise-contact" class="btn btn-gold" data-link style="font-size:16px;padding:14px 26px">📩 Contact Enterprise Sales</a>
+      <a href="#enterprise-modules" class="btn btn-ghost" style="font-size:16px;padding:14px 26px">View modules</a>
+      <a href="#enterprise-api" class="btn btn-ghost" style="font-size:16px;padding:14px 26px">API endpoints</a>
+    </div>
 
     <div id="entSummary" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:16px;margin:32px 0 40px">
       <div class="card" style="padding:20px"><div style="color:var(--ink-dim);font-size:12px;text-transform:uppercase;letter-spacing:.12em">Products</div><div style="font-size:32px;font-weight:700;margin-top:6px" id="entProducts">10</div></div>
@@ -1294,9 +1344,55 @@ function pageEnterprise() {
       <div class="card" style="padding:20px"><div style="color:var(--ink-dim);font-size:12px;text-transform:uppercase;letter-spacing:.12em">Topstone potential</div><div style="font-size:32px;font-weight:700;margin-top:6px;color:#ffd36a" id="entTop">—</div></div>
     </div>
 
+    <h2 id="enterprise-modules" style="font-size:32px;letter-spacing:-0.01em;margin:60px 0 8px">Enterprise modules — production-ready</h2>
+    <p style="color:var(--ink-dim);font-size:15px;max-width:800px;margin:0 0 24px">Seven flagship modules covering cloud reliability, cost, security and disaster recovery. Each is exposed as a public API, deployable on your VPC or ours, with signed audit trails.</p>
+    <div id="entModulesGrid" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:20px;margin-bottom:60px">${moduleCards}</div>
+
+    <h2 id="enterprise-api" style="font-size:32px;letter-spacing:-0.01em;margin:60px 0 8px">API endpoints exposed</h2>
+    <p style="color:var(--ink-dim);font-size:15px;max-width:800px;margin:0 0 24px">Every enterprise module is fully programmatic. Request a sandbox token via the contact form below — typical turnaround &lt; 4 hours.</p>
+    <div style="margin-bottom:24px">${apiExamples}</div>
+    <p style="color:var(--ink-dim);font-size:13px;margin-bottom:60px">📖 Full reference: <a href="/docs" data-link style="color:#6fd3ff">/docs</a> · 🧪 Sandbox available on request · 🔐 Every response is Ed25519-signed.</p>
+
+    <h2 style="font-size:32px;letter-spacing:-0.01em;margin:60px 0 8px">Enterprise license catalogue</h2>
+    <p style="color:var(--ink-dim);font-size:15px;max-width:800px;margin:0 0 24px">Ten pre-packaged Anchor &amp; Topstone licenses for hyperscalers and Fortune 50.</p>
     <div id="entProductsGrid" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(380px,1fr));gap:22px;margin-bottom:50px"></div>
     <div id="entNegotiator" style="margin:40px 0"></div>
-    <div id="entDeals" style="margin:40px 0 80px"></div>
+    <div id="entDeals" style="margin:40px 0 60px"></div>
+
+    <section id="enterprise-contact" style="margin:60px 0 80px;padding:40px;border:1px solid rgba(255,211,106,.3);border-radius:14px;background:linear-gradient(180deg,rgba(255,211,106,.04),rgba(138,92,255,.04))">
+      <h2 style="font-size:32px;letter-spacing:-0.01em;margin:0 0 6px;background:linear-gradient(135deg,#ffd36a 0%,#8a5cff 100%);-webkit-background-clip:text;background-clip:text;color:transparent">Contact Enterprise Sales</h2>
+      <p style="color:var(--ink-dim);font-size:15px;max-width:700px;margin:0 0 24px">Tell us about your scale, your stack, and what you need to ship. We reply within <b style="color:#fff">24 hours</b>. For procurement &amp; legal, ask for the deal-desk packet.</p>
+      <form id="entContactForm" style="display:grid;grid-template-columns:1fr 1fr;gap:16px;max-width:760px" novalidate>
+        <label style="display:flex;flex-direction:column;gap:6px;font-size:13px;color:var(--ink-dim)">Full name *
+          <input name="name" required maxlength="200" placeholder="Jane Doe" style="padding:12px 14px;border:1px solid rgba(255,255,255,.12);background:rgba(0,0,0,.3);color:#fff;border-radius:8px;font-size:14px" />
+        </label>
+        <label style="display:flex;flex-direction:column;gap:6px;font-size:13px;color:var(--ink-dim)">Company *
+          <input name="company" required maxlength="200" placeholder="Acme Corp" style="padding:12px 14px;border:1px solid rgba(255,255,255,.12);background:rgba(0,0,0,.3);color:#fff;border-radius:8px;font-size:14px" />
+        </label>
+        <label style="display:flex;flex-direction:column;gap:6px;font-size:13px;color:var(--ink-dim)">Work email *
+          <input name="email" type="email" required maxlength="200" placeholder="jane@acme.com" style="padding:12px 14px;border:1px solid rgba(255,255,255,.12);background:rgba(0,0,0,.3);color:#fff;border-radius:8px;font-size:14px" />
+        </label>
+        <label style="display:flex;flex-direction:column;gap:6px;font-size:13px;color:var(--ink-dim)">Phone (optional)
+          <input name="phone" maxlength="80" placeholder="+1 555 ..." style="padding:12px 14px;border:1px solid rgba(255,255,255,.12);background:rgba(0,0,0,.3);color:#fff;border-radius:8px;font-size:14px" />
+        </label>
+        <label style="grid-column:1/-1;display:flex;flex-direction:column;gap:6px;font-size:13px;color:var(--ink-dim)">Module of interest
+          <select name="interest" style="padding:12px 14px;border:1px solid rgba(255,255,255,.12);background:rgba(0,0,0,.3);color:#fff;border-radius:8px;font-size:14px">
+            <option value="">— Select (optional) —</option>
+            ${modules.map(m => `<option value="${m.id}">${m.title}</option>`).join('')}
+            <option value="anchor-license">Anchor / Topstone license</option>
+            <option value="custom">Custom deployment</option>
+          </select>
+        </label>
+        <label style="grid-column:1/-1;display:flex;flex-direction:column;gap:6px;font-size:13px;color:var(--ink-dim)">Message *
+          <textarea name="message" required maxlength="4000" rows="5" placeholder="Tell us about your scale, timeline, security requirements..." style="padding:12px 14px;border:1px solid rgba(255,255,255,.12);background:rgba(0,0,0,.3);color:#fff;border-radius:8px;font-size:14px;resize:vertical;min-height:120px;font-family:inherit"></textarea>
+        </label>
+        <div style="grid-column:1/-1;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;margin-top:6px">
+          <p style="color:var(--ink-dim);font-size:12px;margin:0">By submitting you accept our <a href="/legal" data-link style="color:#6fd3ff">terms</a> &amp; <a href="/dpa" data-link style="color:#6fd3ff">DPA</a>. No newsletter spam.</p>
+          <button type="submit" class="btn btn-gold" style="padding:14px 28px;font-size:15px;font-weight:600">Send to Enterprise Sales →</button>
+        </div>
+        <div id="entContactStatus" style="grid-column:1/-1;display:none;padding:14px 18px;border-radius:8px;font-size:14px"></div>
+      </form>
+    </section>
   </div>
 </section>`;
 }

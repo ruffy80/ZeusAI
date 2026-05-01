@@ -2714,6 +2714,22 @@ async function hydrateOwnerRevenue(){
 
 // ================= ENTERPRISE =================
 async function hydrateEnterprise(){
+  // Wire contact form first — must work even if catalog fails
+  wireEnterpriseContactForm();
+  // Wire module CTAs (scroll to form + preselect interest)
+  document.querySelectorAll('.ent-module-cta').forEach(btn => {
+    btn.addEventListener('click', (ev) => {
+      ev.preventDefault();
+      const moduleId = btn.dataset.module || '';
+      const form = document.getElementById('entContactForm');
+      if (form) {
+        const sel = form.querySelector('select[name="interest"]');
+        if (sel && moduleId) sel.value = moduleId;
+        document.getElementById('enterprise-contact').scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
+    });
+  });
+
   const cat = await api('/api/enterprise/catalog');
   if (!cat || !cat.products) return;  const s = cat.summary || {};
   const setT = (id,v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
@@ -2746,6 +2762,73 @@ async function hydrateEnterprise(){
   }
   await renderEntDeals();
   await renderEntOps();
+}
+
+function wireEnterpriseContactForm(){
+  const form = document.getElementById('entContactForm');
+  if (!form || form.dataset.wired === '1') return;
+  form.dataset.wired = '1';
+  const status = document.getElementById('entContactStatus');
+  const showStatus = (msg, type) => {
+    if (!status) return;
+    status.style.display = 'block';
+    status.textContent = msg;
+    if (type === 'ok') {
+      status.style.background = 'rgba(111,255,180,.1)';
+      status.style.border = '1px solid rgba(111,255,180,.4)';
+      status.style.color = '#a3ffce';
+    } else if (type === 'err') {
+      status.style.background = 'rgba(255,90,90,.1)';
+      status.style.border = '1px solid rgba(255,90,90,.4)';
+      status.style.color = '#ff9999';
+    } else {
+      status.style.background = 'rgba(111,211,255,.1)';
+      status.style.border = '1px solid rgba(111,211,255,.4)';
+      status.style.color = '#6fd3ff';
+    }
+  };
+  form.addEventListener('submit', async (ev) => {
+    ev.preventDefault();
+    const fd = new FormData(form);
+    const payload = {
+      name: String(fd.get('name') || '').trim(),
+      company: String(fd.get('company') || '').trim(),
+      email: String(fd.get('email') || '').trim(),
+      phone: String(fd.get('phone') || '').trim(),
+      interest: String(fd.get('interest') || '').trim(),
+      message: String(fd.get('message') || '').trim(),
+    };
+    if (!payload.name || !payload.email || !payload.company || !payload.message) {
+      showStatus('Please fill in name, company, email and message.', 'err');
+      return;
+    }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(payload.email)) {
+      showStatus('Please provide a valid work email.', 'err');
+      return;
+    }
+    const submitBtn = form.querySelector('button[type="submit"]');
+    if (submitBtn) { submitBtn.disabled = true; submitBtn.textContent = 'Sending…'; }
+    showStatus('Submitting your request…', 'info');
+    try {
+      const r = await fetch('/api/enterprise/contact', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      const data = await r.json().catch(() => ({}));
+      if (r.ok && data.ok) {
+        showStatus('✅ ' + (data.message || 'Thank you. Our enterprise team will reply within 24 hours.') + ' (Lead ID: ' + (data.leadId || '—') + ')', 'ok');
+        form.reset();
+        if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = 'Send to Enterprise Sales →'; }
+      } else {
+        showStatus('❌ ' + (data.error || 'Submission failed. Please email us at vladoi_ionut@yahoo.com'), 'err');
+        if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = 'Send to Enterprise Sales →'; }
+      }
+    } catch (e) {
+      showStatus('❌ Network error. Please try again or email vladoi_ionut@yahoo.com', 'err');
+      if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = 'Send to Enterprise Sales →'; }
+    }
+  });
 }
 
 function openEntNegotiator(pid, title){
