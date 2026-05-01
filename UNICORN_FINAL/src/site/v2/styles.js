@@ -709,11 +709,36 @@ nav.nav[data-nav-open="true"] .nav-toggle-bar:nth-child(3){transform:translateY(
 
 /* Print */
 @media print{
-  .nav,.nav-toggle,footer,.concierge,.toasts,.zeus-cookie,.zeus-buy-bar,.zeus-exit,.hero-canvas,.galaxy-bg,.fx-orb-a,.fx-orb-b,.fx-orb-c,.fx-scan,.fx-grid{display:none !important}
+  .nav,.nav-toggle,footer,.concierge,.toasts,.zeus-cookie,.zeus-buy-bar,.zeus-exit,.hero-canvas,.galaxy-bg,.zeus-page-bg,.fx-orb-a,.fx-orb-b,.fx-orb-c,.fx-scan,.fx-grid{display:none !important}
   body{background:#fff;color:#000}
   .hero,section{padding:18px;page-break-inside:avoid}
   .hero h1,.section-title h2{color:#000;-webkit-text-fill-color:#000;background:none;filter:none}
   a{color:#0033cc;text-decoration:underline}
+}
+
+/* ============ ZEUS PER-PAGE BACKDROP ============
+   Fixed-position decorative Zeus portrait that sits behind every non-home
+   page. Two crossfading layers (a/b) so changing routes does a smooth
+   dissolve between Zeus #1 and Zeus #2. Soft radial vignette fades the
+   image into the violet/blue ambient theme so cards and copy stay
+   perfectly readable. Suppressed on the home page (which already shows
+   the full-bleed hero) and on print. Respects reduced-motion. */
+.zeus-page-bg{position:fixed;inset:0;z-index:0;pointer-events:none;overflow:hidden;opacity:0;transition:opacity 1.1s ease}
+.zeus-page-bg.is-active{opacity:1}
+.zeus-page-bg__layer{position:absolute;inset:-4% -4%;background-position:center 32%;background-size:cover;background-repeat:no-repeat;filter:contrast(1.06) saturate(1.08) brightness(.78);opacity:0;transition:opacity 1.4s ease, transform 22s ease-out;transform:scale(1.04)}
+.zeus-page-bg__layer.is-on{opacity:.9;transform:scale(1.0)}
+.zeus-page-bg__veil{position:absolute;inset:0;background:
+  radial-gradient(900px 700px at 50% 28%,rgba(8,5,20,0) 0%,rgba(8,5,20,.45) 55%,rgba(5,4,10,.92) 92%),
+  linear-gradient(180deg,rgba(5,4,10,.55) 0%,rgba(5,4,10,.25) 40%,rgba(5,4,10,.85) 100%),
+  radial-gradient(1100px 600px at 50% 100%,rgba(138,92,255,.12),transparent 65%)}
+/* Home already shows zeus full-bleed via .zeus-hero-image — hide the global backdrop to avoid double-exposure. */
+body[data-route="/"] .zeus-page-bg{opacity:0 !important}
+@media (max-width:900px){
+  .zeus-page-bg__layer{background-position:50% 28%;filter:contrast(1.04) saturate(1.06) brightness(.72)}
+}
+@media (prefers-reduced-motion: reduce){
+  .zeus-page-bg,.zeus-page-bg__layer{transition:opacity .3s ease}
+  .zeus-page-bg__layer.is-on{transform:none}
 }
 
 `;
