@@ -210,6 +210,7 @@
 'use strict';
 
 const BASE_PRICES = {
+  free: 0,
   starter: 29,
   pro: 99,
   enterprise: 499,
@@ -219,6 +220,15 @@ const BASE_PRICES = {
   'legal-bot': 49,
   'cloud-broker': 79,
   'data-export': 9,
+  // ── Revenue-tier modules (SME, Mid-Market, Enterprise, Global Giants) ──
+  // These IDs power /api/pricing/module/:moduleId so the site can show a
+  // real-time, AI-negotiated price per segment. Base prices are the floor;
+  // the dynamic-pricing engine then applies demand, peak-hours, surge,
+  // discount, per-service variance and (optional) coupon/loyalty.
+  sme: 199,
+  'mid-market': 1499,
+  'enterprise-tier': 9999,
+  'global-giants': 99999,
 };
 
 const DEMAND_FACTOR_HISTORY = [];
@@ -226,6 +236,18 @@ let currentDemandFactor = 1.0;
 let peakHoursActive = false;
 let surgeActive = false;
 let discountActive = true; // 20% discount as per spec
+
+// Per-service noise: stable per (serviceId, hour) so prices differ between
+// products but don't flicker on every request. Hash of serviceId + hour bucket
+// yields deterministic ±15% variance per service.
+const crypto = require('crypto');
+function perServiceFactor(serviceId) {
+  const hour = Math.floor(Date.now() / 3600000); // hourly bucket
+  const h = crypto.createHash('sha256').update(String(serviceId) + ':' + hour).digest();
+  // Normalize first 4 bytes to 0..1, then map to 0.85..1.15
+  const raw = h.readUInt32BE(0) / 0xffffffff;
+  return 0.85 + raw * 0.30;
+}
 
 function updateDemandFactor() {
   const hour = new Date().getHours();
@@ -244,7 +266,9 @@ function getPrice(serviceId, options = {}) {
   const base = BASE_PRICES[serviceId] ?? 99;
   const { userId, quantity = 1, coupon } = options;
 
-  let price = base * currentDemandFactor;
+  const svcFactor = perServiceFactor(serviceId);
+  const effectiveDemand = currentDemandFactor * svcFactor;
+  let price = base * effectiveDemand;
 
   // Volume discounts
   if (quantity >= 10) price *= 0.85;
@@ -263,11 +287,21 @@ function getPrice(serviceId, options = {}) {
   if (coupon === 'UNICORN2026') price *= 0.7;
   if (coupon === 'LAUNCH50') price *= 0.5;
 
+  const unclampedPrice = Math.round(price * 100) / 100;
+  const finalPrice = Math.max(0, Math.min(10000000, unclampedPrice));
+  if (finalPrice !== unclampedPrice) {
+    try {
+      console.warn('[DynamicPricing] unrealistic price clamped', JSON.stringify({ serviceId, unclampedPrice, finalPrice, min: 0, max: 10000000 }));
+    } catch (_) {}
+  }
+
   return {
     serviceId,
     basePrice: base,
-    finalPrice: Math.max(0.01, Math.round(price * 100) / 100),
-    demandFactor: currentDemandFactor,
+    finalPrice,
+    demandFactor: Math.round(effectiveDemand * 1000) / 1000,
+    globalDemand: Math.round(currentDemandFactor * 1000) / 1000,
+    serviceFactor: Math.round(svcFactor * 1000) / 1000,
     discountApplied: discountActive,
     surgeActive,
     peakHours: peakHoursActive,

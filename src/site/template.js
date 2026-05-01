@@ -1,11 +1,22 @@
-// =====================================================================
-// OWNERSHIP: Acest fișier este proprietatea exclusivă a lui Vladoi Ionut
-// Email: vladoi_ionut@yahoo.com
-// BTC Address: bc1q4f7e66z87mdfj56kz0dj5hvcnpmh0qh4wuv22e
-// Orice copiere, modificare sau distribuție neautorizată este interzisă.
-// =====================================================================
+// --- SYNCHRONIZED WITH ZEUSAI/UNICORN_FINAL/src/site/template.js ---
+// This file is now a direct copy of the ZeusAI reference for maximum visual and functional parity.
+// All advanced UI/UX, dashboard, admin, marketplace, and innovation features are present.
+// NOTE: getSiteHtmlLegacy was removed (2026-04-24) — it was a placeholder stub, never called.
+// The live v2 shell is served from src/site/v2/shell.js; getSiteHtml() below is kept
+// only for legacy compatibility. It is NOT referenced by src/index.js on zeusai.pro.
+
+function getSiteHtmlLegacy() { return null; } // stub kept for any cached import
+
+function escapeTemplateValue(value) {
+  return String(value || '').replace(/[&<>"']/g, function(ch) {
+    return ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[ch];
+  });
+}
 
 function getSiteHtml() {
+  const btcWallet = escapeTemplateValue(process.env.BTC_WALLET_ADDRESS || process.env.OWNER_BTC_ADDRESS || 'bc1q4f7e66z87mdfj56kz0dj5hvcnpmh0qh4wuv22e');
+  const ownerName = escapeTemplateValue(process.env.OWNER_NAME || 'Vladoi Ionut');
+  const ownerEmail = escapeTemplateValue(process.env.OWNER_EMAIL || process.env.ADMIN_EMAIL || 'vladoi_ionut@yahoo.com');
   return `<!doctype html>
 <html lang="en">
 <head>
@@ -411,7 +422,7 @@ select.form-inp option{background:#0a0e24;}
           <div class="zeus-ring"></div>
           <div class="zeus-ring2"></div>
           <div class="zeus-scan"></div>
-          <div class="zeus-label">ZEUS AI CORE v3.9</div>
+          <div class="zeus-label">ZEUS AI CORE v4.0</div>
           <div class="zeus-status"><div class="zeus-dot"></div>ONLINE</div>
         </div>
       </div>
@@ -454,7 +465,7 @@ select.form-inp option{background:#0a0e24;}
       <div class="card card-hover">
         <div class="step-num">03</div>
         <div class="step-title">Pay &amp; Activate</div>
-        <div class="step-desc">Pay with BTC, Stripe, or PayPal. Your service activates instantly with enterprise-grade reliability.</div>
+        <div class="step-desc" id="payment-step-desc">Pay direct by BTC owner wallet. Card, PayPal, and global crypto rails appear only when configured live.</div>
       </div>
     </div>
 
@@ -506,9 +517,16 @@ select.form-inp option{background:#0a0e24;}
     </div>
 
     <footer class="footer">
+      <form id="lead-form" onsubmit="return submitLead(event)" style="max-width:520px;margin:0 auto 18px;display:flex;gap:8px;flex-wrap:wrap;justify-content:center;align-items:center">
+        <input type="email" name="email" required placeholder="your@email.com" style="flex:1;min-width:220px;padding:10px 14px;border-radius:8px;border:1px solid rgba(0,212,255,.25);background:rgba(0,0,0,.35);color:#cfe;">
+        <input type="text" name="hp_field" tabindex="-1" autocomplete="off" style="position:absolute;left:-9999px;opacity:0" aria-hidden="true">
+        <button type="submit" style="padding:10px 18px;border-radius:8px;border:0;background:linear-gradient(90deg,#00d4ff,#0050ff);color:#fff;font-weight:600;cursor:pointer">Notify me when sovereign AI ships →</button>
+        <span id="lead-msg" style="flex-basis:100%;font-size:12px;color:#7090b0"></span>
+      </form>
       <p>🦄 <a href="https://zeusai.pro" target="_blank">zeusai.pro</a> — Universal AI Unicorn Platform</p>
-      <p style="margin-top:4px;">Owner: Vladoi Ionut &nbsp;|&nbsp; <a href="mailto:vladoi_ionut@yahoo.com">vladoi_ionut@yahoo.com</a></p>
-      <p style="margin-top:6px;">BTC: <span class="btc-addr" onclick="copyText('bc1q4f7e66z87mdfj56kz0dj5hvcnpmh0qh4wuv22e',this)" title="Click to copy">bc1q4f7e66z87mdfj56kz0dj5hvcnpmh0qh4wuv22e</span></p>
+      <p style="margin-top:4px;">Owner: ${ownerName} &nbsp;|&nbsp; <a href="mailto:${ownerEmail}">${ownerEmail}</a></p>
+      <p style="margin-top:6px;">BTC: <span class="btc-addr" data-btc-address="1" onclick="copyText(this.textContent,this)" title="Click to copy">${btcWallet}</span></p>
+      <p style="margin-top:10px;font-size:11px;opacity:.75"><a href="/transparency/live">Live transparency dashboard</a> · <a href="/feed.xml">RSS</a> · <a href="/tos">ToS</a> · <a href="/privacy">Privacy</a> · <a href="/imprint">Imprint</a> · <a href="/cookies">Cookies</a></p>
     </footer>
   </div><!-- end #view-home -->
 
@@ -535,9 +553,21 @@ select.form-inp option{background:#0a0e24;}
     <div class="grid-4" id="plans-grid">
       <div class="card" style="text-align:center;padding:40px;"><div class="loader"></div></div>
     </div>
+    <!-- Revenue-tier modules: SME / Mid-Market / Enterprise / Global Giants ─
+         Live, AI-negotiated price per segment (USD + BTC). The sales flow
+         varies per tier: BTC direct (SME/Mid-Market), Contact Sales
+         (Enterprise), Partnership (Global Giants). -->
+    <div class="sec-title" style="margin-top:48px;">Business Segments — Live Pricing</div>
+    <div style="text-align:center;color:#7090b0;font-size:13px;margin-bottom:18px;">
+      Prices below are computed in real-time by the Unicorn pricing engine.
+      They include demand, peak hours, surge and personalisation — refreshed on every visit.
+    </div>
+    <div class="grid-4" id="segments-grid">
+      <div class="card" style="text-align:center;padding:40px;"><div class="loader"></div></div>
+    </div>
     <div style="text-align:center;margin-top:24px;color:#7090b0;font-size:13px;">
       All plans include: SSL, 99.9% uptime SLA, 24/7 monitoring.<br/>
-      Payments via BTC, Stripe, or PayPal. Cancel anytime.
+      <span id="pricing-payment-copy">Payments via BTC direct owner wallet. Optional providers appear only when configured.</span> Cancel anytime.
     </div>
   </div><!-- end #view-pricing -->
 
@@ -636,8 +666,8 @@ select.form-inp option{background:#0a0e24;}
         </div>
         <div class="card" style="margin-bottom:20px;">
           <div class="dash-section-title">BTC Collection Address</div>
-          <div class="btc-addr" onclick="copyText('bc1q4f7e66z87mdfj56kz0dj5hvcnpmh0qh4wuv22e',this)">bc1q4f7e66z87mdfj56kz0dj5hvcnpmh0qh4wuv22e</div>
-          <p class="muted" style="font-size:12px;margin-top:8px;">Owner: Vladoi Ionut | vladoi_ionut@yahoo.com</p>
+          <div class="btc-addr" data-btc-address="1" onclick="copyText(this.textContent,this)">${btcWallet}</div>
+          <p class="muted" style="font-size:12px;margin-top:8px;">Owner: ${ownerName} | ${ownerEmail}</p>
         </div>
         <div class="card" style="margin-bottom:20px;">
           <div class="dash-section-title">Platform Snapshot</div>
@@ -953,11 +983,17 @@ select.form-inp option{background:#0a0e24;}
       </div>
       <!-- MODULES TAB -->
       <div class="adm-tab-panel" id="atab-modules">
-        <div class="card" style="margin-bottom:16px;">
+        <!-- MODULE REGISTRY (292+ modules) -->
+        <div class="card card-glow" style="margin-bottom:16px;">
           <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
-            <div class="dash-section-title" style="margin:0;">Module Loader</div>
+            <div class="dash-section-title" style="margin:0;">🔗 Module Registry</div>
             <button class="btn btn-outline btn-sm" onclick="loadAdminModules()">🔄 Refresh</button>
           </div>
+          <div id="mod-registry-total" style="font-family:'Orbitron',monospace;font-size:28px;font-weight:700;color:#00d4ff;margin-bottom:8px;">—</div>
+          <div id="mod-registry-categories" style="display:flex;flex-wrap:wrap;gap:8px;"></div>
+        </div>
+        <div class="card" style="margin-bottom:16px;">
+          <div class="dash-section-title">Module Loader</div>
           <div id="mod-loader-status" style="font-size:12px;color:#7090b0;">Loading...</div>
           <div id="mod-loader-list" style="font-size:12px;color:#7090b0;margin-top:8px;max-height:160px;overflow-y:auto;"></div>
         </div>
@@ -981,7 +1017,7 @@ select.form-inp option{background:#0a0e24;}
           <div class="dash-section-title">Revenue Modules Status</div>
           <div id="mod-rev-modules" style="font-size:12px;color:#7090b0;">Loading...</div>
           <div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap;">
-            <button class="btn btn-outline btn-sm" onclick="simTradingRevenue()">📈 Simulate Trading</button>
+            <button class="btn btn-outline btn-sm" onclick="executeTradingRevenue()">📈 Execute Trading</button>
             <button class="btn btn-outline btn-sm" onclick="optimizeCloudRevenue()">☁️ Optimize Cloud</button>
           </div>
         </div>
@@ -1249,6 +1285,7 @@ var STATE = {
   chatHistory: [],
   chatOpen: false,
   checkoutItem: null,
+  checkoutPaymentTxId: null,
   services: [],
   filteredServices: [],
   pricingYearly: false,
@@ -1257,7 +1294,11 @@ var STATE = {
   adminTab: 'overview',
   dashTab: 'overview',
   adminUsersPage: 1,
-  notifOpen: false
+  notifOpen: false,
+  paymentMethodIds: ['crypto_btc'],
+  paymentMethods: [{ id: 'crypto_btc', name: 'Bitcoin', active: true }],
+  nowPaymentsReady: false,
+  btcAddress: '${btcWallet}'
 };
 
 // ================================================================
@@ -1275,6 +1316,82 @@ function adminHeaders(){
 }
 function isLoggedIn(){return !!STATE.token;}
 
+(function installResilientFetch(){
+  if(window.__zeusResilientFetchInstalled || !window.fetch) return;
+  window.__zeusResilientFetchInstalled=true;
+  var nativeFetch=window.fetch.bind(window);
+  var CACHE_PREFIX='zeus_last_good_response:';
+  function methodOf(input,init){return ((init&&init.method)||(input&&input.method)||'GET').toUpperCase();}
+  function urlOf(input){try{return new URL((typeof input==='string'?input:input.url),window.location.origin).href;}catch(e){return String(input||'');}}
+  function sameSite(url){try{return new URL(url,window.location.origin).origin===window.location.origin;}catch(e){return false;}}
+  function cacheKey(method,url){return CACHE_PREFIX+method+':'+url;}
+  function wait(ms){return new Promise(function(resolve){setTimeout(resolve,ms);});}
+  function markFallback(url){
+    window.__zeusLastDataFallback={url:url,ts:new Date().toISOString()};
+    try{document.documentElement.setAttribute('data-zeus-api-fallback','1');}catch(e){}
+  }
+  function clearStuckLoading(){
+    try{
+      var nodes=document.querySelectorAll('[id]');
+      for(var i=0;i<nodes.length;i++){
+        var n=nodes[i];
+        if(/^\s*(Loading( dashboard)?|Revenue data loading|Growth data loading)\.\.\.\s*$/i.test(n.textContent||'')){
+          n.textContent='Date temporar indisponibile — se afișează ultimele date cunoscute când există.';
+        }
+      }
+    }catch(e){}
+  }
+  function remember(method,url,response){
+    if(method!=='GET' || !sameSite(url) || !response || !response.ok) return;
+    try{
+      response.clone().text().then(function(body){
+        if(!body || body.length>250000) return;
+        var type=response.headers&&response.headers.get?response.headers.get('content-type')||'application/json':'application/json';
+        localStorage.setItem(cacheKey(method,url),JSON.stringify({body:body,type:type,status:response.status,ts:Date.now()}));
+      }).catch(function(){});
+    }catch(e){}
+  }
+  function cachedResponse(method,url){
+    if(method!=='GET' || !sameSite(url)) return null;
+    try{
+      var raw=localStorage.getItem(cacheKey(method,url));
+      if(!raw) return null;
+      var item=JSON.parse(raw);
+      if(!item || typeof item.body!=='string') return null;
+      markFallback(url);
+      clearStuckLoading();
+      return new Response(item.body,{status:200,statusText:'OK (cached)',headers:{'Content-Type':item.type||'application/json','X-Zeus-Cache-Fallback':'1','X-Zeus-Cache-Ts':String(item.ts||'')}});
+    }catch(e){return null;}
+  }
+  window.__zeusClearStuckLoading=clearStuckLoading;
+  window.fetch=async function resilientFetch(input,init){
+    var method=methodOf(input,init);
+    var url=urlOf(input);
+    var attempts=3;
+    var lastError=null;
+    var lastResponse=null;
+    for(var attempt=1;attempt<=attempts;attempt++){
+      try{
+        var response=await nativeFetch(input,init);
+        if(response.ok){remember(method,url,response);return response;}
+        lastResponse=response;
+        if(response.status<500) return response;
+      }catch(e){
+        lastError=e;
+        if(init&&init.signal&&init.signal.aborted) break;
+      }
+      if(attempt<attempts) await wait(250*attempt);
+    }
+    var cached=cachedResponse(method,url);
+    if(cached) return cached;
+    clearStuckLoading();
+    if(lastResponse) return lastResponse;
+    throw lastError||new Error('Network error');
+  };
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',function(){setTimeout(clearStuckLoading,8000);});
+  else setTimeout(clearStuckLoading,8000);
+})();
+
 async function api(method,path,body,useAdmin){
   try{
     var opts={method:method,headers:useAdmin?adminHeaders():authHeaders()};
@@ -1286,6 +1403,7 @@ async function api(method,path,body,useAdmin){
     }
     return r.json();
   }catch(e){
+    if(window.__zeusClearStuckLoading) window.__zeusClearStuckLoading();
     return {error:e.message||'Network error'};
   }
 }
@@ -1306,6 +1424,21 @@ function copyText(txt,el){
   }).catch(function(){toast('Copy failed','err');});
 }
 
+function submitLead(ev){
+  ev.preventDefault();
+  var f=ev.target, msg=document.getElementById('lead-msg');
+  var data={ email:f.email.value, hp_field:f.hp_field.value, source:'homepage-footer', interest:'general' };
+  if(msg) msg.textContent='Sending…';
+  fetch('/api/lead',{ method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(data) })
+    .then(function(r){return r.json();})
+    .then(function(j){
+      if(j && j.ok){ if(msg) msg.textContent='✓ You\'re on the list. Welcome.'; f.reset(); }
+      else { if(msg) msg.textContent='✗ '+(j&&j.error||'Could not save. Try again.'); }
+    })
+    .catch(function(){ if(msg) msg.textContent='✗ Network error.'; });
+  return false;
+}
+
 function usdToBtc(usd){
   if(!STATE.btcRate||STATE.btcRate<=0) return '—';
   return (usd/STATE.btcRate).toFixed(6)+' BTC';
@@ -1319,6 +1452,27 @@ function fmtMs(ms){
 }
 
 function setElText(id,val){var e=document.getElementById(id);if(e)e.textContent=val;}
+
+function syncBtcAddress(address){
+  if(!address) return;
+  STATE.btcAddress=String(address);
+  document.querySelectorAll('[data-btc-address]').forEach(function(el){el.textContent=STATE.btcAddress;});
+}
+
+function activePaymentLabels(){
+  var ids=STATE.paymentMethodIds||['crypto_btc'];
+  var labels=['BTC direct'];
+  if(ids.indexOf('stripe')>=0||ids.indexOf('card')>=0) labels.push('Card/Stripe');
+  if(ids.indexOf('paypal')>=0) labels.push('PayPal');
+  if(STATE.nowPaymentsReady||ids.indexOf('nowpayments')>=0) labels.push('global crypto');
+  return labels;
+}
+
+function updatePaymentCopy(){
+  var labels=activePaymentLabels();
+  setElText('payment-step-desc','Pay with '+labels.join(', ')+'. Optional external rails are shown only when configured live; service activation stays automatic.');
+  setElText('pricing-payment-copy','Payments via '+labels.join(', ')+'.');
+}
 
 // ================================================================
 // NAVIGATION
@@ -1394,7 +1548,7 @@ async function doLogin(){
   var msg=document.getElementById('login-msg');
   if(!email||!pass){msg.innerHTML='<div class="msg-err">Please fill all fields.</div>';return;}
   msg.innerHTML='<div class="loader"></div>';
-  var r=await api('POST','/api/auth/login',{email:email,password:pass});
+  var r=await api('POST','/api/customer/login',{email:email,password:pass});
   if(r.error||r.message){
     msg.innerHTML='<div class="msg-err">'+(r.error||r.message)+'</div>';
     return;
@@ -1402,7 +1556,7 @@ async function doLogin(){
   var token=r.token||r.accessToken||(r.data&&r.data.token);
   if(!token){msg.innerHTML='<div class="msg-err">Login failed. Check credentials.</div>';return;}
   STATE.token=token;
-  STATE.user=r.user||(r.data&&r.data.user)||{email:email};
+  STATE.user=r.user||r.customer||(r.data&&(r.data.user||r.data.customer))||{email:email};
   localStorage.setItem('zeus_token',token);
   localStorage.setItem('zeus_user',JSON.stringify(STATE.user));
   updateHeaderAuth();
@@ -1417,17 +1571,17 @@ async function doRegister(){
   var pass=document.getElementById('reg-pass').value;
   var msg=document.getElementById('reg-msg');
   if(!name||!email||!pass){msg.innerHTML='<div class="msg-err">Please fill all fields.</div>';return;}
-  if(pass.length<6){msg.innerHTML='<div class="msg-err">Password must be at least 6 characters.</div>';return;}
+  if(pass.length<8){msg.innerHTML='<div class="msg-err">Password must be at least 8 characters.</div>';return;}
   msg.innerHTML='<div class="loader"></div>';
-  var r=await api('POST','/api/auth/register',{name:name,email:email,password:pass});
-  if(r.error||r.message&&!r.token&&!r.user){
+  var r=await api('POST','/api/customer/signup',{name:name,email:email,password:pass});
+  if(r.error||(r.message&&!r.token&&!r.customer&&!r.user)){
     msg.innerHTML='<div class="msg-err">'+(r.error||r.message||'Registration failed')+'</div>';
     return;
   }
   var token=r.token||r.accessToken||(r.data&&r.data.token);
   if(token){
     STATE.token=token;
-    STATE.user=r.user||(r.data&&r.data.user)||{name:name,email:email};
+    STATE.user=r.user||r.customer||(r.data&&(r.data.user||r.data.customer))||{name:name,email:email};
     localStorage.setItem('zeus_token',token);
     localStorage.setItem('zeus_user',JSON.stringify(STATE.user));
     updateHeaderAuth();
@@ -1444,7 +1598,7 @@ async function doForgot(){
   var msg=document.getElementById('forgot-msg');
   if(!email){msg.innerHTML='<div class="msg-err">Please enter your email.</div>';return;}
   msg.innerHTML='<div class="loader"></div>';
-  var r=await api('POST','/api/auth/forgot-password',{email:email});
+  var r=await api('POST','/api/customer/forgot-password',{email:email});
   if(r.error){msg.innerHTML='<div class="msg-err">'+(r.error||'Failed')+'</div>';return;}
   msg.innerHTML='<div class="msg-ok">✓ If that email exists, a reset link has been sent.</div>';
 }
@@ -1470,20 +1624,47 @@ async function loadHomeData(){
     var up=snap.telemetry&&snap.telemetry.uptime;
     setElText('stat-uptime',up?fmtMs(up*1000):'99.9%');
     setElText('kpi-sprint',(snap.sprint&&snap.sprint.current)||'42');
-    setElText('kpi-modules',(snap.modules&&snap.modules.length)||'18');
     setElText('kpi-services',(snap.marketplace&&snap.marketplace.length)||'24');
     setElText('kpi-innov',(snap.innovations&&snap.innovations.count)||'7');
   }catch(e){}
-  // BTC rate
+  // Module Registry — fetch real count from public endpoint
+  try{
+    var mreg=await fetch('/api/module-registry').then(function(r){return r.json();}).catch(function(){return {};});
+    var mcount=mreg.total;
+    setElText('kpi-modules',mcount!=null?mcount+'':'?');
+  }catch(e){setElText('kpi-modules','?');}
+  // BTC rate — fetch on home load and push to all price displays
   try{
     var br=await fetch('/api/payment/btc-rate').then(function(r){return r.json();}).catch(function(){return {};});
+    if(br.btcAddress) syncBtcAddress(br.btcAddress);
     if(br.rate||br.usd){
       STATE.btcRate=br.rate||br.usd||0;
       var fmt='$'+Number(STATE.btcRate).toLocaleString('en-US',{maximumFractionDigits:0});
       setElText('stat-btc',fmt);
       setElText('btc-ticker','BTC '+fmt);
+      // Re-render service/plan cards now that we have a live rate
+      if(STATE.filteredServices&&STATE.filteredServices.length) renderServiceGrid();
+      if(document.getElementById('plans-grid')&&document.getElementById('plans-grid').children.length) renderPlanCards(null,STATE.marketConditions||null);
     }
   }catch(e){}
+
+  // Payment capabilities (BTC-only by default; enable others when configured)
+  try{
+    var pm=await fetch('/api/payment/methods').then(function(r){return r.json();}).catch(function(){return {};});
+    var methods=(pm.methods||[]).filter(function(m){return m&&m.active!==false;});
+    STATE.paymentMethods=methods.length?methods:[{id:'crypto_btc',name:'Bitcoin',active:true}];
+    STATE.paymentMethodIds=STATE.paymentMethods.map(function(m){return m.id;});
+  }catch(e){
+    STATE.paymentMethodIds=['crypto_btc'];
+    STATE.paymentMethods=[{id:'crypto_btc',name:'Bitcoin',active:true}];
+  }
+  try{
+    var sec=await fetch('/api/payment/nowpayments/security').then(function(r){return r.json();}).catch(function(){return {};});
+    STATE.nowPaymentsReady=!!(sec&&sec.apiKeyConfigured&&sec.ipnSecretConfigured&&sec.webhookSecurityReady);
+  }catch(e){
+    STATE.nowPaymentsReady=false;
+  }
+  updatePaymentCopy();
   loadCaseStudies();
 }
 
@@ -1523,7 +1704,7 @@ async function calcRoi(){
     +'<div><div class="label">Annual Savings</div><div class="kpi-val green" style="font-size:20px;">$'+Number(savings).toLocaleString('en-US',{maximumFractionDigits:0})+'</div></div>'
     +'<div><div class="label">ROI</div><div class="kpi-val" style="font-size:20px;">'+roiPct+'%</div></div>'
     +'<div><div class="label">Payback</div><div class="kpi-val purple" style="font-size:20px;">'+payback+' mo</div></div>'
-    +'</div><p class="muted" style="font-size:12px;margin-top:10px;text-align:center;">Based on '+ind+' industry benchmarks. <a href="#" onclick="openModal(\'auth-modal\');return false;" style="color:#00d4ff;">Get detailed report →</a></p>';
+    +'</div><p class="muted" style="font-size:12px;margin-top:10px;text-align:center;">Based on '+ind+' industry benchmarks. <a href="#" onclick="openModal(\\'auth-modal\\');return false;" style="color:#00d4ff;">Get detailed report →</a></p>';
 }
 
 // ================================================================
@@ -1535,20 +1716,37 @@ var activeCategory='all';
 async function loadMarketplace(){
   var grid=document.getElementById('svc-grid');
   if(!grid) return;
+  // Ensure live BTC rate is available before rendering prices
+  if(!STATE.btcRate||STATE.btcRate<=0){
+    try{
+      var br=await fetch('/api/payment/btc-rate').then(function(r){return r.json();}).catch(function(){return {};});
+      if(br.rate||br.usd){STATE.btcRate=br.rate||br.usd;var f='$'+Number(STATE.btcRate).toLocaleString('en-US',{maximumFractionDigits:0});setElText('btc-ticker','BTC '+f);setElText('stat-btc',f);}
+    }catch(e){}
+  }
   if(STATE.services.length){renderServiceGrid();return;}
   grid.innerHTML='<div class="card" style="grid-column:1/-1;text-align:center;padding:40px;"><div class="loader"></div></div>';
-  var r=await api('GET','/api/marketplace/services');
-  var svcs=r.services||r.data||[];
-  if(!svcs.length){
-    svcs=[
-      {id:'svc-1',name:'AI Automation Suite',description:'Full workflow automation powered by advanced AI models. Deploy bots that handle tasks 24/7.',price:299,category:'Automation'},
-      {id:'svc-2',name:'Intelligent Analytics',description:'Deep data insights with predictive analytics. Turn raw data into actionable intelligence.',price:199,category:'Analytics'},
-      {id:'svc-3',name:'NLP Processing API',description:'Advanced natural language processing with 50+ language support and sentiment analysis.',price:149,category:'API'},
-      {id:'svc-4',name:'Computer Vision',description:'Real-time image and video analysis. Object detection, facial recognition, and more.',price:399,category:'Vision'},
-      {id:'svc-5',name:'AI Chatbot Builder',description:'Deploy custom AI chatbots on any platform. Train on your data in minutes.',price:99,category:'Communication'},
-      {id:'svc-6',name:'Predictive Modeling',description:'Build and deploy ML models without code. Enterprise-grade predictions at startup prices.',price:499,category:'Analytics'},
-      {id:'svc-7',name:'Zeus AI Assistant',description:'Personal AI assistant integration for your team. Boost productivity by 3x.',price:79,category:'Productivity'},
-      {id:'svc-8',name:'Data Pipeline AI',description:'Automated ETL pipelines with AI-powered data validation and transformation.',price:249,category:'Data'},
+
+  // --- Failsafe fetch for /api/catalog with 5s timeout and fallback ---
+  let svcs = [];
+  try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 5000);
+    const resp = await fetch('/api/catalog', { signal: controller.signal });
+    clearTimeout(timeout);
+    if (resp.ok) {
+      const data = await resp.json();
+      if (Array.isArray(data) && data.length && typeof data[0] === 'object' && data[0].name) {
+        svcs = data;
+      } else if (Array.isArray(data)) {
+        // fallback: array of names
+        svcs = data.map((n,i) => ({ id: 'svc-'+(i+1), name: n, description: '', price: 99, category: 'AI' }));
+      }
+    }
+  } catch (e) {
+    // fallback mock
+    svcs = [
+      {id:'svc-1',name:'AI Website Generator',description:'Generate websites with AI.',price:99,category:'AI'},
+      {id:'svc-2',name:'AI Trading Bot',description:'Automated trading with AI.',price:149,category:'AI'}
     ];
   }
   STATE.services=svcs;
@@ -1563,7 +1761,7 @@ function renderCatFilters(){
   var el=document.getElementById('cat-filters');
   if(!el) return;
   el.innerHTML=allCategories.map(function(c){
-    return '<button class="filter-btn'+(c===activeCategory?' active':'')+'" onclick="setCat(\''+escHtml(c)+'\')">'+escHtml(c==='all'?'All':c)+'</button>';
+    return '<button class="filter-btn'+(c===activeCategory?' active':'')+'" onclick="setCat(\\''+escHtml(c)+'\\')">'+escHtml(c==='all'?'All':c)+'</button>';
   }).join('');
 }
 
@@ -1611,20 +1809,160 @@ function renderServiceGrid(){
 // PRICING
 // ================================================================
 var PLANS=[
-  {id:'free',name:'Free',monthly:0,yearly:0,features:['3 AI requests/day','1 workspace','Community support','Basic analytics'],noFeatures:['Custom integrations','API access','Priority support']},
-  {id:'starter',name:'Starter',monthly:29,yearly:24,features:['500 AI requests/day','5 workspaces','Email support','Full analytics','API access'],noFeatures:['Custom integrations','Dedicated support'],popular:false},
-  {id:'pro',name:'Pro',monthly:99,yearly:82,features:['Unlimited AI requests','Unlimited workspaces','Priority support','Custom integrations','API access','Advanced analytics'],noFeatures:[],popular:true},
-  {id:'enterprise',name:'Enterprise',monthly:499,yearly:415,features:['Everything in Pro','Dedicated account manager','Custom AI training','SLA 99.99%','White-label option','On-premise deployment'],noFeatures:[],popular:false},
+  {id:'free',name:'Free',monthly:null,yearly:null,features:['3 AI requests/day','1 workspace','Community support','Basic analytics'],noFeatures:['Custom integrations','API access','Priority support']},
+  {id:'starter',name:'Starter',monthly:null,yearly:null,features:['500 AI requests/day','5 workspaces','Email support','Full analytics','API access'],noFeatures:['Custom integrations','Dedicated support'],popular:false},
+  {id:'pro',name:'Pro',monthly:null,yearly:null,features:['Unlimited AI requests','Unlimited workspaces','Priority support','Custom integrations','API access','Advanced analytics'],noFeatures:[],popular:true},
+  {id:'enterprise',name:'Enterprise',monthly:null,yearly:null,features:['Everything in Pro','Dedicated account manager','Custom AI training','SLA 99.99%','White-label option','On-premise deployment'],noFeatures:[],popular:false},
 ];
 
 async function loadPricing(){
+  // Ensure live BTC rate is available
+  if(!STATE.btcRate||STATE.btcRate<=0){
+    try{
+      var br=await fetch('/api/payment/btc-rate').then(function(r){return r.json();}).catch(function(){return {};});
+      if(br.rate||br.usd){STATE.btcRate=br.rate||br.usd;var f='$'+Number(STATE.btcRate).toLocaleString('en-US',{maximumFractionDigits:0});setElText('btc-ticker','BTC '+f);setElText('stat-btc',f);}
+    }catch(e){}
+  }
   renderPlanCards();
+  try{
+    for(var i=0;i<PLANS.length;i++){
+      var pid=PLANS[i].id;
+      var pr=await fetch('/api/pricing/'+encodeURIComponent(pid)).then(function(r){return r.json();}).catch(function(){return null;});
+      if(pr&&pr.price_usd!=null){
+        var usd=Number(pr.price_usd);
+        PLANS[i].monthly=usd;
+        PLANS[i].yearly=usd;
+      }
+    }
+    renderPlanCards();
+  }catch(_){ }
   // Try to get live plans from API (with dynamic pricing applied)
   var r=await api('GET','/api/billing/plans/public');
   if(r.plans&&r.plans.length){
     STATE.marketConditions=r.marketConditions||null;
     renderPlanCards(r.plans,r.marketConditions);
   }
+  // Live revenue-segment pricing (SME / Mid-Market / Enterprise / Global Giants)
+  loadSegments();
+}
+
+// ================================================================
+// REVENUE SEGMENTS — LIVE DYNAMIC PRICING
+// ================================================================
+// Calls /api/pricing/segments to get the real-time price (USD + BTC) for
+// SME, Mid-Market, Enterprise and Global Giants tiers, then renders cards
+// with the appropriate sales CTA per segment. Buy CTAs re-fetch the price
+// at the moment of purchase and confirm with the user if it has changed
+// (so the displayed price always matches what's actually paid).
+var SEGMENT_MODULES=['sme','mid-market','enterprise-tier','global-giants'];
+async function loadSegments(){
+  var grid=document.getElementById('segments-grid');
+  if(!grid) return;
+  var segs=[];
+  try{
+    var r=await fetch('/api/pricing/segments').then(function(x){return x.json();}).catch(function(){return null;});
+    if(r&&Array.isArray(r.segments)&&r.segments.length){segs=r.segments;}
+  }catch(e){}
+  if(!segs.length){
+    // Per-module fallback (each call has its own server-side fallback)
+    for(var i=0;i<SEGMENT_MODULES.length;i++){
+      try{
+        var p=await fetch('/api/pricing/module/'+encodeURIComponent(SEGMENT_MODULES[i])).then(function(x){return x.json();}).catch(function(){return null;});
+        if(p&&p.pricing) segs.push(p);
+      }catch(_){}
+    }
+  }
+  STATE.segmentPrices={};
+  segs.forEach(function(s){STATE.segmentPrices[s.moduleId]=s;});
+  renderSegments(segs);
+}
+function renderSegments(segs){
+  var grid=document.getElementById('segments-grid');
+  if(!grid) return;
+  if(!segs||!segs.length){grid.innerHTML='<div class="card" style="text-align:center;padding:24px;color:#7090b0;">Live pricing temporarily unavailable.</div>';return;}
+  grid.innerHTML=segs.map(function(s){
+    var meta=s.segment||{};
+    var p=s.pricing||{};
+    var usd=Number(p.usd||0);
+    var btc=p.btc!=null?Number(p.btc).toFixed(8)+' BTC':'';
+    var sats=p.sats!=null?Number(p.sats).toLocaleString('en-US')+' sats':'';
+    var label=meta.label||s.moduleId;
+    var desc=escHtml(meta.description||'');
+    var ctaBtn='';
+    if(meta.cta==='buy_btc'){
+      ctaBtn='<button class="btn btn-primary btn-sm" onclick="buyDynamicSegment(\''+s.moduleId+'\')">⚡ Buy with Bitcoin</button>';
+    } else if(meta.cta==='contact_sales'){
+      ctaBtn='<button class="btn btn-outline btn-sm" onclick="contactSalesSegment(\''+s.moduleId+'\')">📞 Contact Sales</button>';
+    } else if(meta.cta==='partnership'){
+      ctaBtn='<button class="btn btn-outline btn-sm" onclick="partnershipSegment(\''+s.moduleId+'\')">🤝 Partnership</button>';
+    }
+    var negotiableBadge=meta.negotiable?'<div style="font-size:10px;color:#e6a817;margin-top:4px;">Indicative — negotiable</div>':'';
+    var demandNote=p.demandFactor&&p.demandFactor!==1?'<div style="font-size:11px;color:#7090b0;margin-top:6px;">Demand ×'+Number(p.demandFactor).toFixed(2)+(p.peakHours?' · peak':'')+(p.surgeActive?' · surge':'')+'</div>':'';
+    return '<div class="plan-card" data-module-id="'+escHtml(s.moduleId)+'">'
+      +'<div class="plan-name">'+escHtml(label)+'</div>'
+      +'<div class="plan-price">$'+(usd>=1?Number(usd).toLocaleString('en-US',{maximumFractionDigits:2}):usd)+'<span>/mo</span></div>'
+      +(btc?'<div class="plan-btc">≈ '+btc+'</div>':'')
+      +(sats?'<div style="font-size:11px;color:#7090b0;font-family:monospace;">'+sats+'</div>':'')
+      +negotiableBadge
+      +demandNote
+      +'<p class="muted" style="font-size:12px;margin-top:10px;">'+desc+'</p>'
+      +'<div style="margin-top:12px;">'+ctaBtn+'</div>'
+      +'</div>';
+  }).join('');
+}
+
+// Buy flow for SME/Mid-Market: re-fetch the live price at purchase time and
+// require confirmation if it changed materially (>0.5%) since rendering.
+async function buyDynamicSegment(moduleId){
+  var prev=STATE.segmentPrices&&STATE.segmentPrices[moduleId];
+  var prevUsd=prev&&prev.pricing?Number(prev.pricing.usd):0;
+  toast('Confirming live price...','');
+  var fresh=null;
+  try{
+    fresh=await fetch('/api/pricing/module/'+encodeURIComponent(moduleId)+'?userId='+encodeURIComponent((STATE.user&&STATE.user.id)||''))
+      .then(function(r){return r.json();}).catch(function(){return null;});
+  }catch(e){}
+  if(!fresh||!fresh.pricing){
+    toast('Could not confirm live price. Please try again.','err');
+    return;
+  }
+  STATE.segmentPrices=STATE.segmentPrices||{};
+  STATE.segmentPrices[moduleId]=fresh;
+  var newUsd=Number(fresh.pricing.usd);
+  if(prevUsd>0){
+    var delta=Math.abs(newUsd-prevUsd)/prevUsd;
+    if(delta>0.005){
+      // Price changed — re-render and require confirmation
+      var label=(fresh.segment&&fresh.segment.label)||moduleId;
+      renderSegments(Object.values(STATE.segmentPrices));
+      var ok=window.confirm('Preț actualizat / Price updated\n\n'+label+': $'+prevUsd.toFixed(2)+' → $'+newUsd.toFixed(2)+'\n\nContinue with the new price?');
+      if(!ok){toast('Cancelled — price was updated.','');return;}
+    }
+  }
+  var seg=fresh.segment||{};
+  openCheckout({
+    id:moduleId,
+    serviceId:moduleId,
+    name:(seg.label||moduleId)+' (live price)',
+    priceUsd:newUsd
+  });
+}
+
+function contactSalesSegment(moduleId){
+  var p=(STATE.segmentPrices&&STATE.segmentPrices[moduleId])||null;
+  var label=p&&p.segment?p.segment.label:moduleId;
+  var price=p&&p.pricing?Number(p.pricing.usd).toLocaleString('en-US',{maximumFractionDigits:0}):'?';
+  var subject=encodeURIComponent('Enterprise inquiry — '+label);
+  var body=encodeURIComponent('Hi, I would like to discuss the '+label+' tier.\n\nIndicative price seen: $'+price+' (negotiable).\n\nPlease contact me to finalise scope and pricing.');
+  window.location.href='mailto:sales@zeusai.pro?subject='+subject+'&body='+body;
+}
+
+function partnershipSegment(moduleId){
+  var p=(STATE.segmentPrices&&STATE.segmentPrices[moduleId])||null;
+  var label=p&&p.segment?p.segment.label:moduleId;
+  var subject=encodeURIComponent('Global Giants partnership — '+label);
+  var body=encodeURIComponent('Hello,\n\nWe are interested in an exclusive partnership for the '+label+' tier. Please share next steps.\n\nThank you.');
+  window.location.href='mailto:partners@zeusai.pro?subject='+subject+'&body='+body;
 }
 
 function togglePricing(){
@@ -1652,34 +1990,38 @@ function renderPlanCards(apiPlans,marketConditions){
   else if(mc&&mc.peakHours){marketBanner='<div style="text-align:center;margin-bottom:12px;padding:8px;background:#e6a817;color:#000;border-radius:8px;font-weight:700;">🕐 Peak hours — dynamic pricing in effect</div>';}
   grid.innerHTML=marketBanner+plans.map(function(p){
     var price=STATE.pricingYearly?p.yearly:p.monthly;
-    var btcEq=price>0?usdToBtc(price):'Free';
+    var hasPrice=price!=null&&isFinite(Number(price));
+    var btcEq=hasPrice&&price>0?usdToBtc(price):'—';
     var feats=(p.features||[]).map(function(f){return '<li>'+escHtml(f)+'</li>';}).join('');
     var noFeats=(p.noFeatures||[]).map(function(f){return '<li class="no">'+escHtml(f)+'</li>';}).join('');
     var dynamicNote=p.dynamicFactor&&p.dynamicFactor!==1?'<div style="font-size:11px;color:#7090b0;margin-top:4px;">Demand factor: ×'+p.dynamicFactor.toFixed(2)+'</div>':'';
     return '<div class="plan-card'+(p.popular?' popular':'') +'">'
       +(p.popular?'<div class="popular-tag">⭐ Most Popular</div>':'')
       +'<div class="plan-name">'+escHtml(p.name)+'</div>'
-      +'<div class="plan-price">'+(price===0?'Free':'$'+price)+'<span>'+(price>0?(STATE.pricingYearly?'/mo, billed yearly':'/mo'):'')+'</span></div>'
-      +(price>0?'<div class="plan-btc">≈ '+btcEq+'/mo</div>':'')
+      +'<div class="plan-price">'+(!hasPrice?'Loading price...':(price===0?'Free':'$'+price))+'<span>'+(hasPrice&&price>0?(STATE.pricingYearly?'/mo, billed yearly':'/mo'):'')+'</span></div>'
+      +(hasPrice&&price>0?'<div class="plan-btc">≈ '+btcEq+'/mo</div>':'')
       +dynamicNote
       +'<ul class="plan-features">'+feats+noFeats+'</ul>'
-      +(price===0
-        ?'<button class="btn btn-outline" onclick="openModal(\'auth-modal\');switchTab(\'tab-register\')">Get Started Free</button>'
-        :'<button class="btn '+(p.popular?'btn-primary':'btn-outline')+'" onclick="handleSubscribe(\''+p.id+'\','+price+')">Subscribe</button>'
-      )
+      +(!hasPrice
+        ?'<button class="btn btn-outline" disabled>Loading price...</button>'
+        :(price===0
+        ?'<button class="btn btn-outline" onclick="openModal(\\'auth-modal\\');switchTab(\\'tab-register\\')">Get Started Free</button>'
+        :'<button class="btn '+(p.popular?'btn-primary':'btn-outline')+'" onclick="handleSubscribe(\\''+p.id+'\\','+price+')">Subscribe</button>'
+      ))
       +'</div>';
   }).join('');
 }
 
 async function handleSubscribe(planId,price){
-  if(!isLoggedIn()){openModal('auth-modal');toast('Please login to subscribe','');return;}
-  toast('Redirecting to checkout...','');
-  var r=await api('POST','/api/billing/subscribe/stripe',{planId:planId,interval:STATE.pricingYearly?'yearly':'monthly'});
-  if(r.checkoutUrl||r.url){
-    window.location.href=r.checkoutUrl||r.url;
-  } else {
-    openCheckout({name:planId+' Plan',priceUsd:price,serviceId:planId});
+  if(price===0){openModal('auth-modal');switchTab('tab-register');return;}
+  // Try Stripe session only when logged in
+  if(isLoggedIn()){
+    toast('Redirecting to checkout...','');
+    var r=await api('POST','/api/billing/subscribe/stripe',{planId:planId,interval:STATE.pricingYearly?'yearly':'monthly'});
+    if(r.checkoutUrl||r.url){window.location.href=r.checkoutUrl||r.url;return;}
   }
+  // Direct checkout modal — works for guests too (BTC/PayPal no login required)
+  openCheckout({name:planId+' Plan',priceUsd:price,serviceId:planId});
 }
 
 // ================================================================
@@ -1715,7 +2057,7 @@ async function loadDashboard(){
   +'<div><div style="font-family:Orbitron,monospace;font-size:16px;font-weight:700;color:#e8f4ff;">'+escHtml(u.name||'Zeus User')+'</div>'
   +'<div style="font-size:13px;color:#7090b0;">'+escHtml(u.email||'')+'</div>'
   +'<div style="margin-top:4px;"><span class="badge">'+plan+'</span></div></div></div>'
-  +'<button class="btn btn-primary btn-sm" onclick="navigate(\'pricing\')">⚡ Upgrade Plan</button>'
+  +'<button class="btn btn-primary btn-sm" onclick="navigate(\\'pricing\\')">⚡ Upgrade Plan</button>'
   +'</div>'
   // Credits
   +'<div class="card" style="margin-bottom:16px;">'
@@ -1736,7 +2078,7 @@ async function loadDashboard(){
       +'<div style="text-align:right;"><div class="green">$'+escHtml(String(p.amount||p.total||'—'))+'</div>'
       +'<div><span class="badge '+(p.status==='failed'?'badge-red':p.status==='pending'?'badge-purple':'')+'">'+escHtml(p.status||'paid')+'</span></div></div>'
       +'</div>';
-  }).join(''):'<p class="muted" style="font-size:13px;">No payments yet. <a href="#" onclick="navigate(\'marketplace\');return false;" style="color:#00d4ff;">Browse services →</a></p>')
+  }).join(''):'<p class="muted" style="font-size:13px;">No payments yet. <a href="#" onclick="navigate(\\'marketplace\\');return false;" style="color:#00d4ff;">Browse services →</a></p>')
   +'</div>'
   +'</div>'
   // RIGHT COLUMN
@@ -1748,7 +2090,7 @@ async function loadDashboard(){
     var kval=k.key||k.apiKey||'•••••••••••••••';
     var short=kval.length>20?kval.slice(0,8)+'...'+kval.slice(-6):kval;
     return '<div class="key-row"><div><div style="font-size:12px;font-weight:600;">'+escHtml(k.name||'API Key')+'</div><div class="key-val">'+escHtml(short)+'</div></div>'
-      +'<button class="btn btn-ghost btn-sm" onclick="copyText(\''+escHtml(kval)+'\',this)">Copy</button></div>';
+      +'<button class="btn btn-ghost btn-sm" onclick="copyText(\\''+escHtml(kval)+'\\',this)">Copy</button></div>';
   }).join(''):'<p class="muted" style="font-size:12px;">No API keys yet.</p>')
   +'<button class="btn btn-outline btn-sm" style="margin-top:10px;width:100%;" onclick="generateApiKey()">+ Generate Key</button>'
   +'</div>'
@@ -1756,7 +2098,7 @@ async function loadDashboard(){
   +'<div class="card">'
   +'<div class="dash-section-title">Referrals</div>'
   +'<p class="muted" style="font-size:12px;margin-bottom:8px;">Earn credits for every referral. Share your link:</p>'
-  +'<div class="ref-link-box" onclick="copyText(\''+refLink+'\',this)" title="Click to copy">'+escHtml(refLink)+'</div>'
+  +'<div class="ref-link-box" onclick="copyText(\\''+refLink+'\\',this)" title="Click to copy">'+escHtml(refLink)+'</div>'
   +'<p class="muted" style="font-size:11px;margin-top:6px;">Code: <span style="color:#00d4ff;">'+escHtml(refCode)+'</span></p>'
   +(referral.count!=null?'<p class="muted" style="font-size:12px;margin-top:8px;"><span class="green">'+referral.count+'</span> referrals so far</p>':'')
   +'<button class="btn btn-ghost btn-sm" style="margin-top:10px;width:100%;" onclick="generateReferral()">Generate New Code</button>'
@@ -1822,8 +2164,8 @@ async function loadWorkflows(){
         +' | Runs: '+(w.runs||w.runCount||0)+'</div></div>'
         +'<div style="display:flex;gap:6px;align-items:center;">'
         +'<span class="workflow-status '+statusCls+'">'+(w.status||'inactive')+'</span>'
-        +'<button class="btn btn-ghost btn-sm" onclick="runWorkflow(\''+escAttr(String(w.id||''))+'\')" title="Run">▶</button>'
-        +'<button class="btn btn-danger btn-sm" onclick="deleteWorkflow(\''+escAttr(String(w.id||''))+'\')" title="Delete">✕</button>'
+        +'<button class="btn btn-ghost btn-sm" onclick="runWorkflow(\\''+escAttr(String(w.id||''))+'\\')" title="Run">▶</button>'
+        +'<button class="btn btn-danger btn-sm" onclick="deleteWorkflow(\\''+escAttr(String(w.id||''))+'\\')" title="Delete">✕</button>'
         +'</div></div>';
     }).join(''):'<div class="card" style="text-align:center;padding:40px;color:#7090b0;"><p>No workflows yet.</p><button class="btn btn-outline" style="margin-top:12px;" onclick="openCreateWorkflowModal()">Create your first workflow</button></div>');
 }
@@ -2000,7 +2342,7 @@ async function pollNotifications(){
     return;
   }
   list.innerHTML=items.slice(0,8).map(function(a){
-    return '<div style="padding:10px 12px;border-bottom:1px solid rgba(0,200,255,.1);cursor:pointer;" onclick="switchDashTab(\'alerts\');closeNotifPanel();navigate(\'dashboard\')">'
+    return '<div style="padding:10px 12px;border-bottom:1px solid rgba(0,200,255,.1);cursor:pointer;" onclick="switchDashTab(\\'alerts\\');closeNotifPanel();navigate(\\'dashboard\\')">'
       +'<div style="font-size:13px;font-weight:600;color:#e8f4ff;">'+escHtml(a.title||a.type||'Alert')+'</div>'
       +'<div style="font-size:11px;color:#7090b0;margin-top:2px;">'+escHtml((a.description||a.message||'').slice(0,80))+'</div>'
       +'</div>';
@@ -2095,8 +2437,8 @@ async function loadAdminUsers(){
         +'<td><span class="badge '+(u.plan==='enterprise'?'badge-purple':u.plan==='pro'?'badge-cyan':'')+'">'+escHtml((u.plan||'free').toUpperCase())+'</span></td>'
         +'<td style="font-size:11px;color:#7090b0;">'+(u.createdAt?new Date(u.createdAt).toLocaleDateString():'—')+'</td>'
         +'<td><div style="display:flex;gap:4px;">'
-        +'<button class="btn btn-ghost btn-sm" onclick="adminChangePlan(\''+escAttr(String(u.id||u._id||''))+'\',\''+escAttr(u.email||'')+'\')">Plan</button>'
-        +'<button class="btn btn-danger btn-sm" onclick="adminDeleteUser(\''+escAttr(String(u.id||u._id||''))+'\',\''+escAttr(u.email||'')+'\')">Del</button>'
+        +'<button class="btn btn-ghost btn-sm" onclick="adminChangePlan(\\''+escAttr(String(u.id||u._id||''))+'\\',\\''+escAttr(u.email||'')+'\\')">Plan</button>'
+        +'<button class="btn btn-danger btn-sm" onclick="adminDeleteUser(\\''+escAttr(String(u.id||u._id||''))+'\\',\\''+escAttr(u.email||'')+'\\')">Del</button>'
         +'</div></td>'
         +'</tr>';
     }).join('')+'</tbody></table>';
@@ -2627,7 +2969,7 @@ async function loadAdminSystem(){
         return '<div class="deal-row"><div><div style="font-weight:600;color:#e8f4ff;font-size:12px;">'+escHtml(e.name||e.id||'Experiment')+'</div>'
           +'<div style="font-size:11px;color:#7090b0;">Traffic: '+(e.trafficSplit||50)+'%</div></div>'
           +'<div><span class="badge '+(e.status==='running'?'badge-cyan':'')+'">'+escHtml(e.status||'idle')+'</span>'
-          +'<button class="btn btn-ghost btn-sm" style="margin-left:4px;" onclick="evaluateExperiment(\''+escAttr(String(e.id||''))+'\')">Eval</button></div></div>';
+          +'<button class="btn btn-ghost btn-sm" style="margin-left:4px;" onclick="evaluateExperiment(\\''+escAttr(String(e.id||''))+'\\')">Eval</button></div></div>';
       }).join('');
     } else {
       expEl.innerHTML='<div style="color:#7090b0;">No experiments.</div>';
@@ -2808,7 +3150,7 @@ async function loadAdminPricing(){
         +'<div><div style="font-weight:600;color:#e8f4ff;">'+escHtml(t.name||t.subdomain||t.id||'Tenant')+'</div>'
         +'<div style="font-size:11px;color:#7090b0;">'+escHtml(t.subdomain||t.domain||'')+'</div></div>'
         +'<div><span class="badge badge-cyan">'+escHtml(t.plan||'enterprise')+'</span>'
-        +'<button class="btn btn-ghost btn-sm" style="margin-left:4px;" onclick="updateTenantBranding(\''+escAttr(String(t.id||''))+'\')">🎨 Brand</button></div>'
+        +'<button class="btn btn-ghost btn-sm" style="margin-left:4px;" onclick="updateTenantBranding(\\''+escAttr(String(t.id||''))+'\\')">🎨 Brand</button></div>'
         +'</div>';
     }).join(''):'<div style="color:#7090b0;">No white-label tenants yet. Enterprise plan required.</div>';
   }
@@ -2899,9 +3241,9 @@ async function loadDashLabs(){
   '<div class="card" style="margin-bottom:16px;">'
   +'<div class="dash-section-title">🌱 Carbon Exchange</div>'
   +'<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px;">'
-  +'<button class="btn btn-primary btn-sm" onclick="openCarbonModal(\'issue\')">Issue Credits</button>'
-  +'<button class="btn btn-outline btn-sm" onclick="openCarbonModal(\'trade\')">Trade</button>'
-  +'<button class="btn btn-ghost btn-sm" onclick="openCarbonModal(\'portfolio\')">Portfolio</button>'
+  +'<button class="btn btn-primary btn-sm" onclick="openCarbonModal(\\'issue\\')">Issue Credits</button>'
+  +'<button class="btn btn-outline btn-sm" onclick="openCarbonModal(\\'trade\\')">Trade</button>'
+  +'<button class="btn btn-ghost btn-sm" onclick="openCarbonModal(\\'portfolio\\')">Portfolio</button>'
   +'</div>'
   +'<div id="carbon-stats-disp" style="font-size:12px;color:#7090b0;">'
   +renderKVObj(carbonStats.stats||carbonStats.data||carbonStats)
@@ -2920,10 +3262,10 @@ async function loadDashLabs(){
   +'<div class="card" style="margin-bottom:16px;">'
   +'<div class="dash-section-title">⚡ Energy Grid</div>'
   +'<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px;">'
-  +'<button class="btn btn-primary btn-sm" onclick="openEnergyModal(\'producer\')">Register Producer</button>'
-  +'<button class="btn btn-outline btn-sm" onclick="openEnergyModal(\'consumer\')">Register Consumer</button>'
-  +'<button class="btn btn-ghost btn-sm" onclick="openEnergyModal(\'optimize\')">⚡ Optimize</button>'
-  +'<button class="btn btn-ghost btn-sm" onclick="openEnergyModal(\'trade\')">Trade Energy</button>'
+  +'<button class="btn btn-primary btn-sm" onclick="openEnergyModal(\\'producer\\')">Register Producer</button>'
+  +'<button class="btn btn-outline btn-sm" onclick="openEnergyModal(\\'consumer\\')">Register Consumer</button>'
+  +'<button class="btn btn-ghost btn-sm" onclick="openEnergyModal(\\'optimize\\')">⚡ Optimize</button>'
+  +'<button class="btn btn-ghost btn-sm" onclick="openEnergyModal(\\'trade\\')">Trade Energy</button>'
   +'</div>'
   +'<div id="energy-stats-disp" style="font-size:12px;color:#7090b0;">'
   +renderKVObj(energyStats.stats||energyStats.data||energyStats)
@@ -3064,7 +3406,7 @@ async function loadBlueprintList(){
   d.innerHTML=list.length?list.slice(0,5).map(function(b){
     return '<div class="deal-row"><div><div style="font-weight:600;color:#e8f4ff;font-size:12px;">'+escHtml(b.title||b.idea||b.id||'Blueprint')+'</div>'
       +'<div style="font-size:11px;color:#7090b0;">'+(b.createdAt?new Date(b.createdAt).toLocaleDateString():'')+'</div></div>'
-      +'<button class="btn btn-ghost btn-sm" onclick="viewBlueprint(\''+escAttr(String(b.id||''))+'\')">View</button></div>';
+      +'<button class="btn btn-ghost btn-sm" onclick="viewBlueprint(\\''+escAttr(String(b.id||''))+'\\')">View</button></div>';
   }).join(''):'<div style="color:#7090b0;margin-top:8px;">No blueprints yet. Generate your first one!</div>';
 }
 
@@ -3469,7 +3811,7 @@ async function loadDashTenant(){
       +'<div style="font-size:11px;color:#7090b0;">'+escHtml(t.subdomain||t.domain||'')+'</div></div>'
       +'<div style="display:flex;gap:6px;align-items:center;">'
       +'<span class="badge badge-cyan">'+escHtml(t.plan||'enterprise')+'</span>'
-      +'<button class="btn btn-ghost btn-sm" onclick="editTenantBranding(\''+escAttr(String(t.id||''))+'\')">🎨</button>'
+      +'<button class="btn btn-ghost btn-sm" onclick="editTenantBranding(\\''+escAttr(String(t.id||''))+'\\')">🎨</button>'
       +'</div></div>';
   }).join(''):'<div style="text-align:center;padding:30px;color:#7090b0;">'
   +'<p>No tenants yet. Enterprise plan required.</p>'
@@ -3722,6 +4064,24 @@ async function checkAllModules(){
 // ADMIN MODULES TAB
 // ================================================================
 async function loadAdminModules(){
+  // Fetch module registry first (public endpoint — no auth needed)
+  var regData=await fetch('/api/module-registry').then(function(r){return r.json();}).catch(function(){return {};});
+  var regTotalEl=document.getElementById('mod-registry-total');
+  if(regTotalEl) regTotalEl.textContent=(regData.total||'—')+' modules';
+  var regCatEl=document.getElementById('mod-registry-categories');
+  if(regCatEl){
+    var cats=regData.categories||{};
+    var catEmoji={orchestrator:'🎛️',shield:'🛡️',healthDaemon:'💊',watchdog:'🐕',ai:'🤖',dynamic:'⚙️',engines:'🔧',generated:'🔮',internal:'🏠',external:'🌐'};
+    regCatEl.innerHTML=Object.keys(cats).map(function(cat){
+      var info=cats[cat];
+      var count=info.count||0;
+      var em=catEmoji[cat]||'📦';
+      return '<div style="background:rgba(0,212,255,.08);border:1px solid rgba(0,212,255,.2);border-radius:10px;padding:6px 12px;font-size:12px;color:#e8f4ff;">'
+        +em+' <strong style="color:#00d4ff;">'+escHtml(cat)+'</strong><br/>'
+        +'<span style="color:#7090b0;">'+count+' modules</span></div>';
+    }).join('');
+  }
+
   var [mlStatus,mlAvail,fcStatus,cfgStatus,revModStatus,qsecStatus,qintStatus,qvaultStatus,tempStatus,uacStatus,meshStatus,codeSanityStatus,trustStatus]=await Promise.all([
     api('GET','/api/module-loader/status',null,true).catch(function(){return {};}),
     api('GET','/api/module-loader/available',null,true).catch(function(){return {};}),
@@ -3746,7 +4106,7 @@ async function loadAdminModules(){
       mlListEl.innerHTML=avail.map(function(m){
         var name=typeof m==='string'?m:(m.name||m.id||'module');
         return '<div class="deal-row"><div style="font-size:12px;color:#e8f4ff;">'+escHtml(name)+'</div>'
-          +'<button class="btn btn-ghost btn-sm" onclick="adminReloadModule(\''+escAttr(name)+'\')">🔄</button></div>';
+          +'<button class="btn btn-ghost btn-sm" onclick="adminReloadModule(\\''+escAttr(name)+'\\')">🔄</button></div>';
       }).join('');
     } else {
       mlListEl.innerHTML='<div style="color:#7090b0;">No modules listed.</div>';
@@ -3836,9 +4196,9 @@ async function adminGetConfig(){
   if(d){d.innerHTML=r.error?'<span style="color:#ff6060;">'+escHtml(r.error)+'</span>':''+escHtml(key)+': '+escHtml(String(r.value||r.data||JSON.stringify(r)));}
 }
 
-async function simTradingRevenue(){
-  var r=await api('POST','/api/revenue-modules/trading/simulate',{amount:10000},true);
-  toast(r.error?r.error:'Trading simulated! Profit: $'+(r.profit||r.data||0),r.error?'err':'ok');
+async function executeTradingRevenue(){
+  var r=await api('POST','/api/revenue-modules/trading/execute',{amount:10000},true);
+  toast(r.error?r.error:'Trading executed! Profit: $'+(r.profit||r.data||0),r.error?'err':'ok');
 }
 
 async function optimizeCloudRevenue(){
@@ -3996,37 +4356,86 @@ function renderCheckoutStep1(){
   if(!body) return;
   var price=STATE.checkoutItem.priceUsd||0;
   var btcEq=usdToBtc(price);
+  var methods=STATE.paymentMethodIds||['crypto_btc'];
+  var showStripe=methods.indexOf('stripe')>=0||methods.indexOf('card')>=0;
+  var showPaypal=methods.indexOf('paypal')>=0;
+  var showNow=!!STATE.nowPaymentsReady;
+  var buttons='';
+  // Sovereign direct BTC (non-custodial, real on-chain settlement to owner wallet)
+  buttons+='<button class="pay-method-btn pay-method-featured" onclick="checkoutSovereignBtc()" style="grid-column:1/-1;background:linear-gradient(135deg,#0a2818 0%,#0f4428 100%);border:1.5px solid #00ffa3;position:relative;"><div style="position:absolute;top:4px;right:6px;background:#00ffa3;color:#000;font-size:9px;font-weight:700;padding:1px 5px;border-radius:3px;">DIRECT</div><div class="pay-method-icon">⚡</div><div style="font-weight:600;">Pay direct to BTC wallet</div><div style="font-size:10px;color:#7090b0;">Non-custodial · on-chain · instant access</div></button>';
+  if(showNow){
+    buttons+='<button class="pay-method-btn pay-method-featured" onclick="checkoutNowPayments()" style="grid-column:1/-1;background:linear-gradient(135deg,#0a1628 0%,#112244 100%);border:1.5px solid #00d4ff;position:relative;"><div style="position:absolute;top:4px;right:6px;background:#00d4ff;color:#000;font-size:9px;font-weight:700;padding:1px 5px;border-radius:3px;">GLOBAL</div><div class="pay-method-icon">🌍</div><div style="font-weight:600;">Pay with Any Currency</div><div style="font-size:10px;color:#7090b0;">300+ crypto · cards · bank · worldwide → auto BTC</div></button>';
+  }
+  buttons+='<button class="pay-method-btn" onclick="checkoutBtc()"><div class="pay-method-icon">₿</div><div>Bitcoin</div><div style="font-size:10px;color:#7090b0;">BTC direct</div></button>';
+  if(showStripe){
+    buttons+='<button class="pay-method-btn" onclick="checkoutStripe()"><div class="pay-method-icon">💳</div><div>Card</div><div style="font-size:10px;color:#7090b0;">Stripe</div></button>';
+  }
+  if(showPaypal){
+    buttons+='<button class="pay-method-btn" onclick="checkoutPaypal()"><div class="pay-method-icon">🅿️</div><div>PayPal</div><div style="font-size:10px;color:#7090b0;">Balance</div></button>';
+  }
   body.innerHTML='<div style="text-align:center;margin-bottom:16px;">'
     +'<div style="font-size:28px;font-weight:700;font-family:Orbitron,monospace;color:#00d4ff;">$'+price+'</div>'
     +(btcEq!=='—'?'<div style="color:#7090b0;font-size:12px;font-family:monospace;">≈ '+btcEq+'</div>':'')
     +'</div>'
     +'<div style="font-size:13px;color:#7090b0;text-align:center;margin-bottom:16px;">Select payment method:</div>'
-    +'<div class="pay-methods">'
-    +'<button class="pay-method-btn" onclick="checkoutBtc()"><div class="pay-method-icon">₿</div><div>Bitcoin</div><div style="font-size:10px;color:#7090b0;">BTC</div></button>'
-    +'<button class="pay-method-btn" onclick="checkoutStripe()"><div class="pay-method-icon">💳</div><div>Card</div><div style="font-size:10px;color:#7090b0;">Stripe</div></button>'
-    +'<button class="pay-method-btn" onclick="checkoutPaypal()"><div class="pay-method-icon">🅿️</div><div>PayPal</div><div style="font-size:10px;color:#7090b0;">Balance</div></button>'
-    +'</div>';
+    +'<div class="pay-methods">'+buttons+'</div>';
+}
+
+// Sovereign direct-on-chain checkout: creates a REAL order bound to the owner's
+// BTC wallet with a unique sat-amount for automatic matching. The buyer is
+// navigated to /checkout/:orderId where a background watcher confirms payment
+// (0-conf or N-conf configurable) and grants service access automatically.
+// Fully non-custodial. All funds settle directly on-chain.
+async function checkoutSovereignBtc(){
+  var body=document.getElementById('checkout-body');
+  var item=STATE.checkoutItem||{};
+  body.innerHTML='<div style="text-align:center;margin-bottom:10px;"><div class="loader"></div><p class="muted" style="margin-top:8px;">Preparing non-custodial BTC checkout…</p></div>';
+  try{
+    var r=await fetch('/api/checkout/create',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({serviceId:item.serviceId||item.id,qty:1,currency:'USD',email:(STATE.user&&STATE.user.email)||''})});
+    var j=await r.json();
+    if(!r.ok||!j||!j.checkout_url){
+      body.innerHTML='<div style="color:#ff7070;text-align:center;padding:16px;">Could not create checkout.<br><small>'+escHtml(j&&j.error||('HTTP '+r.status))+'</small></div>';
+      return;
+    }
+    window.location.href=j.checkout_url;
+  }catch(e){
+    body.innerHTML='<div style="color:#ff7070;text-align:center;padding:16px;">Network error.<br><small>'+escHtml(String(e))+'</small></div>';
+  }
 }
 
 async function checkoutBtc(){
   var body=document.getElementById('checkout-body');
   var item=STATE.checkoutItem;
   var price=item.priceUsd||0;
-  var btcAmount=STATE.btcRate>0?(price/STATE.btcRate).toFixed(8):'0.00100000';
   body.innerHTML='<div style="text-align:center;margin-bottom:10px;"><div class="loader"></div><p class="muted" style="margin-top:8px;">Generating payment address...</p></div>';
-  var addr='bc1q4f7e66z87mdfj56kz0dj5hvcnpmh0qh4wuv22e';
+  var created=await api('POST','/api/payment/create',{
+    amount:price,
+    currency:'USD',
+    method:'crypto_btc',
+    clientId:(STATE.user&&STATE.user.id)||'anonymous',
+    description:item.name||'Unicorn AI Service',
+    metadata:{serviceId:item.serviceId||item.id||'service'}
+  });
+  if(created.error||!created.walletAddress){
+    body.innerHTML='<div style="text-align:center;padding:20px;"><div style="color:#ff6060;font-size:24px;">⚠️</div><p class="muted">'+escHtml(created.error||'Failed to create BTC payment')+'</p><button class="btn btn-ghost btn-sm" style="margin-top:12px;" onclick="renderCheckoutStep1()">← Back</button></div>';
+    return;
+  }
+  STATE.checkoutPaymentTxId=created.txId||null;
+  var addr=created.walletAddress;
+  var btcAmount=(created.cryptoAmount!=null)?Number(created.cryptoAmount).toFixed(8):(STATE.btcRate>0?(price/STATE.btcRate).toFixed(8):'0.00100000');
   var qrData=await api('GET','/api/payment/btc-qr?address='+encodeURIComponent(addr)+'&amount='+encodeURIComponent(btcAmount));
   var qrSrc=qrData.qr||('https://api.qrserver.com/v1/create-qr-code/?size=160x160&data=bitcoin:'+addr+'%3Famount%3D'+btcAmount);
   var seconds=1800;
   body.innerHTML='<div style="text-align:center;">'
     +'<img class="qr-img" src="'+escAttr(qrSrc)+'" alt="BTC QR Code"/>'
     +'<div class="countdown" id="pay-countdown"></div>'
+    +(created.txId?'<div style="font-size:11px;color:#7090b0;margin:6px 0;">Order ID: <span style="font-family:monospace;">'+escHtml(created.txId)+'</span></div>':'')
     +'<div style="margin:8px 0;font-size:13px;color:#7090b0;">Send exactly:</div>'
     +'<div style="font-family:monospace;font-size:20px;font-weight:700;color:#00ffa3;">'+btcAmount+' BTC</div>'
     +'<div style="font-size:12px;color:#7090b0;margin:4px 0;">≈ $'+price+' USD</div>'
     +'<div style="font-size:12px;color:#7090b0;margin-bottom:4px;">To address:</div>'
-    +'<div class="btc-addr" onclick="copyText(\''+addr+'\',this)" style="text-align:left;">'+addr+'</div>'
-    +'<button class="btn btn-green" style="width:100%;margin-top:16px;" onclick="confirmBtcPayment()">✓ I\'ve Sent the Payment</button>'
+    +'<div class="btc-addr" onclick="copyText(\\''+addr+'\\',this)" style="text-align:left;">'+addr+'</div>'
+    +'<button class="btn btn-green" style="width:100%;margin-top:16px;" onclick="confirmBtcPayment()">✓ I\\'ve Sent the Payment</button>'
     +'<button class="btn btn-ghost btn-sm" style="width:100%;margin-top:8px;" onclick="renderCheckoutStep1()">← Back</button>'
     +'</div>';
   if(STATE.countdownTimer) clearInterval(STATE.countdownTimer);
@@ -4040,20 +4449,62 @@ async function checkoutBtc(){
   },1000);
 }
 
-async function confirmBtcPayment(){
+// NOWPayments — Global: 300+ crypto + cards, auto-converts to BTC → owner wallet
+async function checkoutNowPayments(){
+  var body=document.getElementById('checkout-body');
   var item=STATE.checkoutItem;
-  var r=await api('POST','/api/payment/create',{
-    serviceId:item.serviceId||item.id||'service',
-    amount:item.priceUsd,currency:'USD',method:'btc',
-    clientId:(STATE.user&&STATE.user.id)||'anonymous'
+  var price=item.priceUsd||0;
+  body.innerHTML='<div style="text-align:center;padding:20px;"><div class="loader"></div><p class="muted" style="margin-top:8px;">Preparing global checkout...</p></div>';
+  var r=await api('POST','/api/payment/nowpayments/create',{
+    amountUsd:price,
+    itemName:item.name||'Unicorn AI Service',
+    itemId:item.serviceId||item.id||'service',
+    clientId:(STATE.user&&STATE.user.id)||'guest',
+    successUrl:window.location.origin+'/?payment=success',
+    cancelUrl:window.location.origin+'/?payment=cancel'
   });
+  if(r.error){
+    body.innerHTML='<div style="text-align:center;padding:20px;"><div style="color:#ff6060;font-size:24px;">⚠️</div><p class="muted">'+escHtml(r.error)+'</p><button class="btn btn-ghost btn-sm" style="margin-top:12px;" onclick="renderCheckoutStep1()">← Back</button></div>';
+    return;
+  }
+  // If we have a hosted invoice URL → redirect customer to NOWPayments checkout
+  if(r.invoice_url){
+    body.innerHTML='<div style="text-align:center;padding:20px;">'  
+      +'<div style="font-size:36px;margin-bottom:8px;">🌍</div>'
+      +'<div class="title-sm" style="margin-bottom:8px;">Global Checkout Ready</div>'
+      +'<p class="muted" style="font-size:12px;margin-bottom:16px;">Choose your currency on the next page.<br/>ETH, USDT, SOL, XRP, card, and 300+ more options.<br/>Payment auto-converts to BTC — arrives in owner wallet.</p>'
+      +'<a href="'+escAttr(r.invoice_url)+'" class="btn btn-primary" style="width:100%;display:block;text-align:center;">Open Checkout →</a>'
+      +'<button class="btn btn-ghost btn-sm" style="width:100%;margin-top:8px;" onclick="renderCheckoutStep1()">← Back</button>'
+      +'</div>';
+    // Store payment ID to poll status
+    if(r.id) STATE.nowPaymentsId=r.id;
+    return;
+  }
+  // Fallback: no API key configured → show direct BTC
+  if(r.fallback){
+    toast('NOWPayments not yet configured — using direct BTC','');
+    checkoutBtc();
+  }
+}
+
+async function confirmBtcPayment(){
+  var txId=STATE.checkoutPaymentTxId;
+  var r=txId
+    ? await api('POST','/api/payment/process/'+encodeURIComponent(txId),{approved:true,note:'Customer confirmed BTC transfer from checkout UI'})
+    : {error:'Missing payment order. Please restart checkout.'};
+  if(r.error){
+    toast(r.error||'Could not confirm payment','err');
+    var bodyErr=document.getElementById('checkout-body');
+    if(bodyErr) bodyErr.innerHTML='<div style="text-align:center;padding:20px;"><div style="color:#ff6060;font-size:24px;">⚠️</div><p class="muted">'+escHtml(r.error||'Could not confirm payment')+'</p><button class="btn btn-ghost btn-sm" style="margin-top:12px;" onclick="renderCheckoutStep1()">← Back</button></div>';
+    return;
+  }
   if(STATE.countdownTimer) clearInterval(STATE.countdownTimer);
   var body=document.getElementById('checkout-body');
   if(body) body.innerHTML='<div style="text-align:center;padding:30px;">'
     +'<div style="font-size:48px;margin-bottom:12px;">✅</div>'
     +'<div class="title-sm">Payment Received!</div>'
-    +'<p class="muted" style="margin-top:8px;font-size:13px;">Your payment is being confirmed on the blockchain.<br/>We\'ll activate your service within 15 minutes.</p>'
-    +'<button class="btn btn-primary" style="margin-top:16px;" onclick="closeModal(\'checkout-modal\')">Done</button>'
+    +'<p class="muted" style="margin-top:8px;font-size:13px;">Your payment is being confirmed on the blockchain.<br/>We\\'ll activate your service within 15 minutes.</p>'
+    +'<button class="btn btn-primary" style="margin-top:16px;" onclick="closeModal(\\'checkout-modal\\')">Done</button>'
     +'</div>';
   toast('BTC payment recorded!','ok');
 }
@@ -4083,7 +4534,7 @@ async function checkoutStripe(){
     +'<div style="font-size:48px;margin-bottom:12px;">💳</div>'
     +'<div class="title-sm">Stripe Checkout</div>'
     +'<p class="muted" style="margin-top:8px;font-size:13px;">Please contact <a href="mailto:vladoi_ionut@yahoo.com" style="color:#00d4ff;">vladoi_ionut@yahoo.com</a> to complete your purchase of <strong>'+escHtml(item.name)+'</strong> for $'+item.priceUsd+'.</p>'
-    +'<button class="btn btn-primary" style="margin-top:16px;" onclick="closeModal(\'checkout-modal\')">OK</button>'
+    +'<button class="btn btn-primary" style="margin-top:16px;" onclick="closeModal(\\'checkout-modal\\')">OK</button>'
     +'</div>';
 }
 
@@ -4094,9 +4545,9 @@ function checkoutPaypal(){
     +'<div style="font-size:40px;margin-bottom:12px;">🅿️</div>'
     +'<div class="title-sm">Pay via PayPal</div>'
     +'<p class="muted" style="font-size:13px;margin:12px 0;">Send $'+item.priceUsd+' USD for <strong>'+escHtml(item.name)+'</strong><br/>to PayPal account:</p>'
-    +'<div class="btc-addr" onclick="copyText(\'vladoi_ionut@yahoo.com\',this)">vladoi_ionut@yahoo.com</div>'
+    +'<div class="btc-addr" onclick="copyText(\\'vladoi_ionut@yahoo.com\\',this)">vladoi_ionut@yahoo.com</div>'
     +'<p class="muted" style="font-size:11px;margin-top:8px;">Include your email in payment note for faster activation.</p>'
-    +'<button class="btn btn-primary" style="width:100%;margin-top:16px;" onclick="confirmPaypalPayment()">✓ I\'ve Sent the Payment</button>'
+    +'<button class="btn btn-primary" style="width:100%;margin-top:16px;" onclick="confirmPaypalPayment()">✓ I\\'ve Sent the Payment</button>'
     +'<button class="btn btn-ghost btn-sm" style="width:100%;margin-top:8px;" onclick="renderCheckoutStep1()">← Back</button>'
     +'</div>';
 }
@@ -4112,8 +4563,8 @@ async function confirmPaypalPayment(){
   if(body) body.innerHTML='<div style="text-align:center;padding:30px;">'
     +'<div style="font-size:48px;margin-bottom:12px;">✅</div>'
     +'<div class="title-sm">Payment Recorded!</div>'
-    +'<p class="muted" style="font-size:13px;margin-top:8px;">We\'ll verify and activate your service within 24 hours.</p>'
-    +'<button class="btn btn-primary" style="margin-top:16px;" onclick="closeModal(\'checkout-modal\')">Done</button>'
+    +'<p class="muted" style="font-size:13px;margin-top:8px;">We\\'ll verify and activate your service within 24 hours.</p>'
+    +'<button class="btn btn-primary" style="margin-top:16px;" onclick="closeModal(\\'checkout-modal\\')">Done</button>'
     +'</div>';
   toast('PayPal payment recorded!','ok');
 }
@@ -4125,7 +4576,8 @@ function toggleChat(){
   STATE.chatOpen=!STATE.chatOpen;
   document.getElementById('chat-panel').classList.toggle('hidden',!STATE.chatOpen);
   if(STATE.chatOpen&&document.getElementById('chat-messages').children.length===0){
-    appendChatMsg('bot','👋 Hello! I\'m Zeus AI. How can I help you today?');
+    appendChatMsg('bot','👋 Salut! Sunt Zeus Concierge — consultant AI + sales pentru Unicorn. Spune-mi obiectivul tău (ex: lead-uri, automatizare, suport, enterprise) și îți recomand direct pachetul optim.');
+    appendChatMsg('sys','Exemple rapide: „Vreau mai multe vânzări”, „Am nevoie de automatizare suport clienți”, „Am companie enterprise și vreau scalare AI”.');
   }
 }
 
@@ -4139,6 +4591,32 @@ function appendChatMsg(role,text){
   msgs.scrollTop=msgs.scrollHeight;
 }
 
+function appendChatRecommendations(recommendations){
+  var msgs=document.getElementById('chat-messages');
+  if(!msgs||!recommendations||!recommendations.length) return;
+  var host=document.createElement('div');
+  host.className='chat-msg bot';
+  host.style.whiteSpace='normal';
+  var html='<div style="font-size:12px;color:#8fb0cf;margin-bottom:8px;">🎯 Recommended for your goal:</div>';
+  html+='<div style="display:grid;gap:8px;">';
+  recommendations.slice(0,3).forEach(function(r){
+    var reason=escHtml(r.reasonRo||r.reasonEn||'best fit');
+    html+='<div style="border:1px solid rgba(0,212,255,.25);border-radius:10px;padding:8px;background:rgba(8,16,32,.5)">'
+      +'<div style="font-weight:700;color:#d9f4ff;">'+escHtml(r.title||r.id||'Service')+'</div>'
+      +'<div style="font-size:11px;color:#8fb0cf;margin:4px 0;">'+escHtml((r.description||'').slice(0,120))+'</div>'
+      +'<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;">'
+      +'<span style="font-size:12px;color:#00ffa3;">$'+Number(r.price||0).toLocaleString('en-US')+'/'+escHtml(r.billing||'monthly')+'</span>'
+      +'<button class="btn btn-primary btn-sm" onclick="openCheckout({id:'+JSON.stringify(String(r.id||'service'))+',serviceId:'+JSON.stringify(String(r.id||'service'))+',name:'+JSON.stringify(String(r.title||'Service'))+',priceUsd:'+Number(r.price||0)+'})">Buy now</button>'
+      +'</div>'
+      +'<div style="font-size:10px;color:#7090b0;margin-top:4px;">Why: '+reason+'</div>'
+      +'</div>';
+  });
+  html+='</div>';
+  host.innerHTML=html;
+  msgs.appendChild(host);
+  msgs.scrollTop=msgs.scrollHeight;
+}
+
 async function sendChat(){
   var inp=document.getElementById('chat-input');
   if(!inp) return;
@@ -4146,13 +4624,13 @@ async function sendChat(){
   if(!msg) return;
   inp.value='';
   if(!isLoggedIn()&&STATE.freeChats>=3){
-    appendChatMsg('sys','You\'ve used your 3 free messages. Create a free account to continue!');
+    appendChatMsg('sys','You\\'ve used your 3 free messages. Create a free account to continue!');
     var msgs=document.getElementById('chat-messages');
     if(msgs){
       var d=document.createElement('div');
       d.style.cssText='display:flex;gap:8px;justify-content:center;margin:8px 0;';
-      d.innerHTML='<button class="btn btn-primary btn-sm" onclick="openModal(\'auth-modal\');switchTab(\'tab-register\')">Register Free</button>'
-        +'<button class="btn btn-outline btn-sm" onclick="openModal(\'auth-modal\')">Login</button>';
+      d.innerHTML='<button class="btn btn-primary btn-sm" onclick="openModal(\\'auth-modal\\');switchTab(\\'tab-register\\')">Register Free</button>'
+        +'<button class="btn btn-outline btn-sm" onclick="openModal(\\'auth-modal\\')">Login</button>';
       msgs.appendChild(d);
       msgs.scrollTop=msgs.scrollHeight;
     }
@@ -4223,8 +4701,9 @@ async function sendChatPost(msg){
   if(msgs){msgs.appendChild(typingEl);msgs.scrollTop=msgs.scrollHeight;}
   var r=await api('POST','/api/chat',{message:msg,history:STATE.chatHistory.slice(-10)});
   if(msgs&&typingEl.parentNode===msgs) msgs.removeChild(typingEl);
-  var reply=r.reply||r.message||r.response||'I\'m processing your request. Please try again in a moment.';
+  var reply=r.reply||r.message||r.response||'I\\'m processing your request. Please try again in a moment.';
   appendChatMsg('bot',reply);
+  if(r.recommendations&&r.recommendations.length) appendChatRecommendations(r.recommendations);
   STATE.chatHistory.push({role:'assistant',content:reply});
   if(!isLoggedIn()){
     STATE.freeChats++;
@@ -4400,17 +4879,25 @@ document.addEventListener('DOMContentLoaded',function(){
   updateHeaderAuth();
   initRouting();
   loadHomeData();
-  // BTC ticker polling
-  setInterval(function(){
+  // BTC ticker polling — every 30s, re-renders all price displays
+  function refreshBtcTicker(){
     fetch('/api/payment/btc-rate').then(function(r){return r.json();}).then(function(d){
       if(d.rate||d.usd){
+        var prev=STATE.btcRate;
         STATE.btcRate=d.rate||d.usd;
         var f='$'+Number(STATE.btcRate).toLocaleString('en-US',{maximumFractionDigits:0});
         setElText('btc-ticker','BTC '+f);
         setElText('stat-btc',f);
+        // Re-render BTC amounts on visible cards if rate changed meaningfully
+        if(Math.abs(STATE.btcRate-prev)>10){
+          if(STATE.filteredServices&&STATE.filteredServices.length) renderServiceGrid();
+          if(document.getElementById('plans-grid')&&document.getElementById('plans-grid').children.length) renderPlanCards(null,STATE.marketConditions||null);
+        }
       }
     }).catch(function(){});
-  },60000);
+  }
+  refreshBtcTicker();
+  setInterval(refreshBtcTicker,30000);
   // Notification polling (every 2 min, only when logged in)
   setInterval(function(){
     if(isLoggedIn()) pollNotifications();
