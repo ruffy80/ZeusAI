@@ -86,7 +86,7 @@
     "unzip:github": "mkdir -p ../release/unpacked && unzip -o ../release/unicorn-github-deploy.zip -d ../release/unpacked"
   },
   "devDependencies": {
-    "eslint": "^8.57.1",
+    "eslint": "^10.3.0",
     "husky": "^9.1.7",
     "lint-staged": "^16.4.0"
   },
