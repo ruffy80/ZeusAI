@@ -3317,6 +3317,15 @@ function renderAccountAuth(root, topError){
         <input id="acLoginPass" type="password" placeholder="password / parolă" autocomplete="current-password" style="width:100%;padding:10px 12px;border-radius:6px;border:1px solid rgba(138,92,255,.3);background:rgba(10,8,30,.4);color:#fff;margin-bottom:14px">
         <button id="acLoginBtn" class="btn btn-primary" style="width:100%">Log in →</button>
         <div id="acLoginErr" style="color:#ff9c9c;font-size:13px;margin-top:10px;line-height:1.5"></div>
+        <div style="margin-top:10px;text-align:right">
+          <a id="acForgotLink" href="#" style="color:#8a5cff;font-size:12.5px;text-decoration:none">Forgot password? / Ai uitat parola?</a>
+        </div>
+        <div id="acForgotBox" hidden style="margin-top:14px;padding:14px;border:1px solid rgba(138,92,255,.3);border-radius:8px;background:rgba(10,8,30,.4)">
+          <div style="font-size:13px;color:var(--ink-dim);margin-bottom:10px">Introdu emailul; dacă există cont, primești un link de resetare valid 1h. / Enter your email; if an account exists, you'll receive a 1h reset link.</div>
+          <input id="acForgotEmail" type="email" placeholder="email" autocomplete="email" style="width:100%;box-sizing:border-box;padding:9px 12px;border-radius:6px;border:1px solid rgba(138,92,255,.3);background:rgba(10,8,30,.4);color:#fff;margin-bottom:10px">
+          <button id="acForgotBtn" class="btn btn-primary" style="width:100%">Send reset link →</button>
+          <div id="acForgotMsg" style="font-size:12.5px;margin-top:10px;line-height:1.5;color:var(--ink-dim)"></div>
+        </div>
         <div style="margin-top:14px;font-size:12px;color:var(--ink-dim)">Folosești aceleași credențiale pe site &amp; API (zeusai.pro + api.zeusai.pro). / Same credentials work on both site &amp; API.</div>
       </div>
       <div class="card" style="padding:28px">
@@ -3458,6 +3467,62 @@ function renderAccountAuth(root, topError){
   root.querySelector('#acSignupPass').addEventListener('keydown', e => { if (e.key === 'Enter') doSignup(); });
   root.querySelector('#acLoginEmail').addEventListener('input', e => syncPasskeyEmail(e.target.value.trim()));
   root.querySelector('#acSignupEmail').addEventListener('input', e => syncPasskeyEmail(e.target.value.trim()));
+
+  // Forgot password — toggle inline form, submit to /api/customer/forgot-password.
+  // Server always returns 200 (anti email enumeration); message tells the user
+  // to check their inbox if an account exists.
+  const forgotLink = root.querySelector('#acForgotLink');
+  const forgotBox = root.querySelector('#acForgotBox');
+  const forgotEmail = root.querySelector('#acForgotEmail');
+  const forgotBtn = root.querySelector('#acForgotBtn');
+  const forgotMsg = root.querySelector('#acForgotMsg');
+  if (forgotLink && forgotBox) {
+    forgotLink.addEventListener('click', function(ev){
+      ev.preventDefault();
+      forgotBox.hidden = !forgotBox.hidden;
+      if (!forgotBox.hidden) {
+        // Pre-fill with whatever's in the login email field.
+        try { forgotEmail.value = root.querySelector('#acLoginEmail').value || forgotEmail.value || ''; } catch(_){}
+        forgotEmail.focus();
+      }
+    });
+  }
+  async function doForgot(){
+    if (!forgotEmail) return;
+    const email = (forgotEmail.value || '').trim();
+    forgotMsg.style.color = 'var(--ink-dim)';
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      forgotMsg.style.color = '#ff9c9c';
+      forgotMsg.textContent = 'Adresă email invalidă. / Invalid email address.';
+      return;
+    }
+    forgotBtn.disabled = true; forgotBtn.textContent = 'Sending…';
+    try {
+      const r = await fetch('/api/customer/forgot-password', {
+        method:'POST', credentials:'same-origin',
+        headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({ email })
+      }).then(x=>x.json()).catch(()=>({ ok:false }));
+      if (r && r.ok) {
+        forgotMsg.style.color = '#7cffb8';
+        forgotMsg.textContent = r.message || '✓ Dacă există un cont, am trimis un link de resetare valid 1h. Verifică inbox-ul. / If an account exists, a 1h reset link was sent. Check your inbox.';
+      } else if (r && r.error === 'rate_limited') {
+        forgotMsg.style.color = '#ff9c9c';
+        forgotMsg.textContent = r.message || 'Prea multe încercări, reia într-o oră. / Too many attempts, try again in an hour.';
+      } else {
+        forgotMsg.style.color = '#ff9c9c';
+        forgotMsg.textContent = (r && (r.message || r.error)) || 'Nu am putut trimite link-ul. / Could not send the link.';
+      }
+    } catch(e) {
+      forgotMsg.style.color = '#ff9c9c';
+      forgotMsg.textContent = 'Network error. / Eroare de rețea.';
+    } finally {
+      forgotBtn.disabled = false; forgotBtn.textContent = 'Send reset link →';
+    }
+  }
+  if (forgotBtn) forgotBtn.addEventListener('click', doForgot);
+  if (forgotEmail) forgotEmail.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); doForgot(); } });
+
   // Mark root as wired so wireExistingAccountAuth() won't double-render and wipe user input
   root.dataset.accountWired = '1';
 }

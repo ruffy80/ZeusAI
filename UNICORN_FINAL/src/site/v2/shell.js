@@ -444,18 +444,8 @@ function globalChrome(N) {
   <div class="zeus-buy-text"><b>Ready to deploy ZeusAI?</b><span>30-day refund · direct BTC owner wallet · cancel any time</span></div>
   <div class="zeus-buy-cta"><a class="btn btn-ghost btn-sm" href="/wizard" data-link>Find my plan</a><a class="btn btn-primary btn-sm" href="/services" data-link>Buy now →</a></div>
 </div>
-<div id="zeus-exit" class="zeus-exit" hidden>
-  <div class="zeus-exit-card">
-    <button class="zeus-exit-x" id="zeus-exit-close" aria-label="Close">×</button>
-    <h3>Wait — get the founders' brief.</h3>
-    <p>One signed email per month: new inventions, sovereign primitives, refund-of-the-month. Unsubscribe in one click.</p>
-    <form id="zeus-exit-form" class="zeus-exit-form">
-      <input type="email" required placeholder="you@domain.com" id="zeus-exit-email"/>
-      <button class="btn btn-primary" type="submit">Send brief</button>
-    </form>
-    <small id="zeus-exit-msg" style="color:var(--ink-dim)"></small>
-  </div>
-</div>
+<!-- Founders' brief exit-intent popup removed — was blocking /account access for logged-in users.
+     Newsletter signup remains available in the footer (non-blocking). -->
 <script${N}>
 (function(){
   // Early resilient fetch: applies before /assets/app.js loads, so inline
@@ -560,88 +550,13 @@ function globalChrome(N) {
       window.addEventListener('scroll', function(){ if (scrollY > 320) bar.hidden = false; }, { passive:true });
     }
   } catch(_){ }
-  // Exit-intent popup — only on marketing pages, never for logged-in customers,
-  // permanently dismissed (30 days) once user closes or submits.
+  // Exit-intent popup permanently removed — was blocking /account access for
+  // logged-in users. Newsletter signup lives in the footer (non-blocking).
+  // Defensive cleanup: if a stale modal element ever lingers in the DOM
+  // (e.g. cached HTML), force-hide it.
   try {
-    var EXIT_DISMISS_KEY = 'zeus_exit_dismissed_until';
-    var EXIT_DISMISS_TTL_MS = 30 * 24 * 60 * 60 * 1000; // 30 days
-
-    function exitIntentSuppressed(){
-      try {
-        // 1) Suppress on routes where users are actively transacting / authenticating.
-        //    NB: this code lives inside a backtick template literal — backslashes get
-        //    unescaped before reaching the browser, so a regex literal /\/(...)/
-        //    would arrive as / / (...) /, an invalid regex. Use new RegExp(string).
-        var route = location.pathname || '/';
-        var AUTH_ROUTES = new RegExp('^/(account|dashboard|checkout|store|portal|login|signup|register|admin)(/|$)');
-        if (AUTH_ROUTES.test(route)) return true;
-        // 2) Suppress if customer is signed in (any of the keys set by client.js#setCustToken).
-        var tok = '';
-        try { tok = localStorage.getItem('u_cust_token') || localStorage.getItem('customerToken') || localStorage.getItem('token') || ''; } catch(_) { }
-        if (tok) return true;
-        // 3) Backend-set HttpOnly customer_session cookie isn't visible to JS,
-        //    but a same-origin probe to /api/customer/me has already run via app.js;
-        //    if that lit up, client.js will have written u_cust_token, so step 2 catches it.
-        // 4) Suppress if user previously dismissed within the TTL window.
-        var until = 0;
-        try { until = parseInt(localStorage.getItem(EXIT_DISMISS_KEY) || '0', 10) || 0; } catch(_) { }
-        if (until && Date.now() < until) return true;
-      } catch(_) { }
-      return false;
-    }
-
-    function dismissExitForever(){
-      try { localStorage.setItem(EXIT_DISMISS_KEY, String(Date.now() + EXIT_DISMISS_TTL_MS)); } catch(_) { }
-      try { sessionStorage.setItem('zeus_exit_seen', '1'); } catch(_) { }
-    }
-
-    var modal = document.getElementById('zeus-exit');
-    if (modal) modal.hidden = true; // ensure hidden on boot regardless of CSS races
-
-    if (modal && !exitIntentSuppressed()) {
-      var seen = false;
-      try { seen = sessionStorage.getItem('zeus_exit_seen') === '1'; } catch(_) { }
-      var armed = false; setTimeout(function(){ armed = true; }, 20000); // require 20s on page first
-      function showExit(){
-        if (exitIntentSuppressed()) return; // re-check at the moment of trigger (e.g. user just logged in)
-        if (!seen && armed && modal.hidden) {
-          modal.hidden = false;
-          seen = true;
-          try { sessionStorage.setItem('zeus_exit_seen','1'); } catch(_) { }
-        }
-      }
-      document.addEventListener('mouseleave', function(e){ if (e.clientY <= 4) showExit(); });
-
-      var closeBtn = document.getElementById('zeus-exit-close');
-      if (closeBtn) {
-        closeBtn.onclick = function(){ modal.hidden = true; dismissExitForever(); };
-      }
-      // Click outside the card also closes (a11y / mobile escape hatch).
-      modal.addEventListener('click', function(ev){
-        if (ev.target === modal) { modal.hidden = true; dismissExitForever(); }
-      });
-      // Esc closes.
-      document.addEventListener('keydown', function(ev){
-        if (ev.key === 'Escape' && modal && !modal.hidden) { modal.hidden = true; dismissExitForever(); }
-      });
-
-      var formEl = document.getElementById('zeus-exit-form');
-      if (formEl) {
-        formEl.onsubmit = function(ev){
-          ev.preventDefault();
-          var email = (document.getElementById('zeus-exit-email').value || '').trim();
-          var msg = document.getElementById('zeus-exit-msg');
-          if (!email) { if (msg) msg.textContent = 'Introdu un email valid. / Enter a valid email.'; return; }
-          fetch('/api/newsletter/subscribe', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ email: email, source: 'exit-intent', route: location.pathname })})
-            .then(function(r){return r.json();})
-            .then(function(j){
-              if (msg) msg.textContent = j && j.ok ? '✓ Signed brief queued — check inbox.' : 'Something failed, please retry.';
-              if (j && j.ok) { dismissExitForever(); setTimeout(function(){ modal.hidden = true; }, 1500); }
-            })
-            .catch(function(){ if (msg) msg.textContent = 'Network error. Apasă × ca să închizi. / Press × to close.'; });
-        };
-      }
-    }
+    var staleExit = document.getElementById('zeus-exit');
+    if (staleExit && staleExit.parentNode) staleExit.parentNode.removeChild(staleExit);
   } catch(_){ }
   // Track pageview
   try {
@@ -662,16 +577,9 @@ function globalChrome(N) {
 .zeus-buy-cta{display:flex;gap:8px}
 .btn-sm{padding:8px 14px;font-size:13px}
 [hidden]{display:none !important}
-.zeus-exit{position:fixed;inset:0;z-index:120;background:rgba(0,0,0,.7);backdrop-filter:blur(6px);display:flex;align-items:center;justify-content:center;padding:18px}
-.zeus-exit[hidden]{display:none !important}
 .zeus-buy-bar[hidden]{display:none !important}
 .zeus-cookie[hidden]{display:none !important}
-.zeus-exit-card{background:#0a0c14;border:1px solid rgba(120,140,200,.25);border-radius:18px;padding:28px;max-width:460px;width:100%;color:#e7ecf3;position:relative}
-.zeus-exit-card h3{margin:0 0 8px;font-size:22px}
-.zeus-exit-card p{color:#9aa6bd;margin:0 0 14px;font-size:14px;line-height:1.55}
-.zeus-exit-form{display:flex;gap:8px;flex-wrap:wrap}
-.zeus-exit-form input{flex:1;min-width:180px;padding:11px 14px;background:#0b0f17;border:1px solid #1f2a3b;color:#e7ecf3;border-radius:10px;font:14px system-ui}
-.zeus-exit-x{position:absolute;top:12px;right:14px;background:transparent;border:0;color:#9aa6bd;font-size:24px;cursor:pointer}
+/* .zeus-exit*: removed (founders' brief popup eliminated) */
 </style>`;
 }
 

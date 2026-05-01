@@ -81,6 +81,18 @@ try {
       FOREIGN KEY (customer_id) REFERENCES customers(id) ON DELETE CASCADE
     );
     CREATE INDEX IF NOT EXISTS idx_api_keys_customer ON api_keys(customer_id);
+    CREATE TABLE IF NOT EXISTS password_resets (
+      token TEXT PRIMARY KEY,
+      customer_id TEXT NOT NULL,
+      email TEXT NOT NULL,
+      expires_at INTEGER NOT NULL,
+      used INTEGER DEFAULT 0,
+      created_at TEXT NOT NULL,
+      ip TEXT,
+      FOREIGN KEY (customer_id) REFERENCES customers(id) ON DELETE CASCADE
+    );
+    CREATE INDEX IF NOT EXISTS idx_pwreset_email ON password_resets(email);
+    CREATE INDEX IF NOT EXISTS idx_pwreset_expires ON password_resets(expires_at);
   `);
   usingSqlite = true;
   console.log('[portal] SQLite WAL backend active at ' + SQLITE_FILE);
@@ -572,11 +584,85 @@ function _listOrders(filter) {
   return rows.slice(0, limit);
 }
 
+// ── Password reset (single-use tokens, 1h TTL) ──────────────────────────
+// Persistent in SQLite (or in-memory map for JSON fallback).
+const PWRESET_TTL_MS = 60 * 60 * 1000; // 1 hour
+const _pwResetMem = new Map(); // fallback storage when SQLite unavailable
+
+function createPasswordResetToken(email, opts) {
+  const e = String(email || '').trim().toLowerCase();
+  const c = byEmail(e);
+  if (!c) return null; // caller should still respond 200 to avoid email enumeration
+  const token = crypto.randomBytes(32).toString('hex'); // 256-bit
+  const expiresAt = Date.now() + PWRESET_TTL_MS;
+  const createdAt = new Date().toISOString();
+  const ip = (opts && opts.ip) || null;
+  if (usingSqlite) {
+    db.prepare(`INSERT INTO password_resets (token,customer_id,email,expires_at,used,created_at,ip) VALUES (?,?,?,?,0,?,?)`)
+      .run(token, c.id, e, expiresAt, createdAt, ip);
+    // Opportunistic GC: delete expired/used tokens older than 7d.
+    try { db.prepare(`DELETE FROM password_resets WHERE expires_at < ? AND created_at < ?`).run(Date.now() - 7*24*3600*1000, new Date(Date.now() - 7*24*3600*1000).toISOString()); } catch(_) {}
+  } else {
+    _pwResetMem.set(token, { customerId: c.id, email: e, expiresAt, used: false, createdAt, ip });
+  }
+  return { token, expiresAt, customerId: c.id, email: e };
+}
+
+function verifyPasswordResetToken(token) {
+  const t = String(token || '').trim();
+  if (!t || t.length < 32) return null;
+  let row = null;
+  if (usingSqlite) {
+    row = db.prepare(`SELECT * FROM password_resets WHERE token=?`).get(t);
+    if (!row) return null;
+    if (row.used) return null;
+    if (Date.now() > Number(row.expires_at)) return null;
+    return { customerId: row.customer_id, email: row.email, expiresAt: Number(row.expires_at) };
+  }
+  row = _pwResetMem.get(t);
+  if (!row) return null;
+  if (row.used) return null;
+  if (Date.now() > row.expiresAt) return null;
+  return { customerId: row.customerId, email: row.email, expiresAt: row.expiresAt };
+}
+
+function consumePasswordResetToken(token, newPassword) {
+  const t = String(token || '').trim();
+  const pw = String(newPassword || '');
+  if (pw.length < 8) { const err = new Error('password_too_short'); err.code = 'password_too_short'; throw err; }
+  const verified = verifyPasswordResetToken(t);
+  if (!verified) { const err = new Error('invalid_or_expired_token'); err.code = 'invalid_or_expired_token'; throw err; }
+  const newHash = hashPassword(pw);
+  if (usingSqlite) {
+    const tx = db.transaction(() => {
+      db.prepare(`UPDATE customers SET password_hash=? WHERE id=?`).run(newHash, verified.customerId);
+      db.prepare(`UPDATE password_resets SET used=1 WHERE token=?`).run(t);
+      // Invalidate ALL other outstanding reset tokens for this customer
+      // (defense in depth — if multiple were issued, only the consumed one
+      // already used; the rest are nuked so a stolen link expires immediately).
+      db.prepare(`UPDATE password_resets SET used=1 WHERE customer_id=? AND used=0`).run(verified.customerId);
+    });
+    tx();
+  } else {
+    const c = jsonState.customers.find(x => x.id === verified.customerId);
+    if (c) { c.passwordHash = newHash; saveJson(jsonState); }
+    const row = _pwResetMem.get(t); if (row) row.used = true;
+    for (const [k, v] of _pwResetMem.entries()) {
+      if (v.customerId === verified.customerId) v.used = true;
+    }
+  }
+  // Issue a fresh session token for the customer (auto-login after reset).
+  const fresh = byEmail(verified.email);
+  return makeAuthResult(fresh);
+}
+
 module.exports = {
   signup, login, upsertFromBackend, verifyToken,
   byEmail, getById, publicCustomer,
   createOrder, getOrder, updateOrder, listOrdersByCustomer,
   issueApiKey, findByApiKey,
+  // Password reset (1h tokens, single-use)
+  createPasswordResetToken, verifyPasswordResetToken, consumePasswordResetToken,
   // GDPR
   exportCustomer, deleteCustomer,
   // TOTP MFA

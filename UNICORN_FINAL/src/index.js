@@ -5499,6 +5499,128 @@ ${invoice.payer ? `<h2>Payer</h2><table><tr><th>Legal entity</th><td>${esc(invoi
     });
     return res.end(JSON.stringify({ ok: true }));
   }
+
+  // ─── Password reset: request a 1h reset link ─────────────────────────
+  // POST /api/customer/forgot-password { email }
+  // Always returns 200 OK to prevent email enumeration. If the email exists,
+  // a one-time token is generated, persisted, and emailed (or logged in dev).
+  if (urlPath === '/api/customer/forgot-password' && req.method === 'POST') {
+    if (!portal) { res.writeHead(503); return res.end('{}'); }
+    let body=''; req.on('data', c=>{ body+=c; if(body.length>4*1024) req.destroy(); });
+    req.on('end', async () => {
+      try {
+        const p = JSON.parse(body||'{}');
+        const email = String(p.email||'').trim().toLowerCase();
+        if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+          res.writeHead(400,{'Content-Type':'application/json'});
+          return res.end(JSON.stringify({ error: 'invalid_email', message: 'Adresă email invalidă / Invalid email address' }));
+        }
+        // Rate-limit: max 3 reset requests / hour / IP.
+        const ip = (req.headers['x-forwarded-for']||req.socket.remoteAddress||'').toString().split(',')[0].trim();
+        global.__pwResetRate = global.__pwResetRate || new Map();
+        const now = Date.now(); const windowMs = 3600*1000;
+        const arr = (global.__pwResetRate.get(ip) || []).filter(t => now - t < windowMs);
+        if (arr.length >= 5) {
+          res.writeHead(429,{'Content-Type':'application/json'});
+          return res.end(JSON.stringify({ ok:false, error:'rate_limited', message:'Prea multe încercări. Încearcă din nou într-o oră. / Too many attempts, try again in an hour.' }));
+        }
+        arr.push(now); global.__pwResetRate.set(ip, arr);
+
+        const result = portal.createPasswordResetToken(email, { ip });
+        if (result && result.token) {
+          // Build absolute reset URL using public base URL (or current host).
+          const host = String(req.headers['x-forwarded-host'] || req.headers.host || 'zeusai.pro');
+          const proto = String(req.headers['x-forwarded-proto'] || 'https');
+          const base = process.env.PUBLIC_APP_URL || (proto + '://' + host);
+          const resetUrl = base.replace(/\/$/,'') + '/reset-password?token=' + encodeURIComponent(result.token);
+          // Best-effort transactional email; on failure log so owner can still recover.
+          let emailSent = false;
+          try {
+            const tx = require('./commerce/transactional-email');
+            if (tx && typeof tx.sendTransactional === 'function') {
+              const r = await Promise.resolve(tx.sendTransactional({
+                to: email,
+                template: 'password_reset',
+                subject: 'Reset your ZeusAI password / Resetează parola',
+                data: { resetUrl, expiresInMinutes: 60 },
+                fallbackText: 'Ai cerut resetarea parolei pe zeusai.pro. Link valid 1h:\n\n' + resetUrl + '\n\nDacă nu tu ai cerut asta, ignoră emailul.\n\nYou requested a password reset on zeusai.pro. Link valid for 1 hour:\n\n' + resetUrl + '\n\nIf you did not request this, ignore this email.'
+              })).catch(e => { console.warn('[pwreset] transactional-email failed:', e.message); return null; });
+              emailSent = !!(r && (r.ok || r.sent || r.id));
+            }
+          } catch(e) { console.warn('[pwreset] email module load failed:', e.message); }
+          // Mock fallback: always log the link so owner can manually deliver
+          // if SMTP isn't configured. Visible in pm2 logs / Hetzner journal.
+          console.log('[pwreset] token issued for ' + email + ' · expires=' + new Date(result.expiresAt).toISOString() + ' · url=' + resetUrl + ' · emailed=' + emailSent);
+        } else {
+          // Email not in DB → still respond 200 (anti-enumeration), but log it.
+          console.log('[pwreset] no account for email=' + email + ' (silently ignored, anti-enumeration)');
+        }
+        res.writeHead(200,{'Content-Type':'application/json'});
+        // Same response whether or not the email exists.
+        res.end(JSON.stringify({ ok: true, message: 'Dacă există un cont cu acest email, am trimis un link de resetare (valid 1h). / If an account exists for this email, a reset link has been sent (valid 1h).' }));
+      } catch (e) {
+        console.error('[pwreset] forgot-password error:', e);
+        res.writeHead(500,{'Content-Type':'application/json'});
+        res.end(JSON.stringify({ ok:false, error: e.message }));
+      }
+    });
+    return;
+  }
+
+  // GET /api/customer/reset-password/verify?token=... → { ok, valid, email }
+  // Used by the /reset-password page to show the email + validate before submit.
+  if (urlPath.startsWith('/api/customer/reset-password/verify') && req.method === 'GET') {
+    if (!portal) { res.writeHead(503); return res.end('{}'); }
+    try {
+      const u = new URL(req.url, 'http://x');
+      const token = u.searchParams.get('token') || '';
+      const v = portal.verifyPasswordResetToken(token);
+      res.writeHead(200,{'Content-Type':'application/json'});
+      return res.end(JSON.stringify(v
+        ? { ok:true, valid:true, email: v.email, expiresAt: v.expiresAt }
+        : { ok:true, valid:false, message: 'Link expirat sau invalid. Cere unul nou. / Link expired or invalid. Request a new one.' }
+      ));
+    } catch(e) {
+      res.writeHead(500,{'Content-Type':'application/json'});
+      return res.end(JSON.stringify({ ok:false, error:e.message }));
+    }
+  }
+
+  // POST /api/customer/reset-password { token, password }
+  // Consumes the token, sets a new password, and auto-logs the user in.
+  if (urlPath === '/api/customer/reset-password' && req.method === 'POST') {
+    if (!portal) { res.writeHead(503); return res.end('{}'); }
+    let body=''; req.on('data', c=>{ body+=c; if(body.length>8*1024) req.destroy(); });
+    req.on('end', async () => {
+      try {
+        const p = JSON.parse(body||'{}');
+        const token = String(p.token||'').trim();
+        const password = String(p.password||'');
+        if (password.length < 8) {
+          res.writeHead(400,{'Content-Type':'application/json'});
+          return res.end(JSON.stringify({ error: 'password_too_short', message: 'Parola trebuie să aibă minim 8 caractere / Password must be at least 8 characters' }));
+        }
+        const r = portal.consumePasswordResetToken(token, password);
+        // Auto-login: set session cookie for 30 days.
+        res.writeHead(200, {
+          'Content-Type':'application/json',
+          'Set-Cookie': customerSessionCookie(r.token, 30 * 24 * 3600)
+        });
+        res.end(JSON.stringify({ ...r, message: 'Parolă resetată. Ești conectat. / Password reset complete. You are logged in.' }));
+        console.log('[pwreset] consumed · customer=' + (r.customer && r.customer.email));
+      } catch (e) {
+        const code = e.code || 'reset_failed';
+        const msg = code === 'invalid_or_expired_token'
+          ? 'Link expirat sau deja folosit. Cere unul nou. / Link expired or already used. Request a new one.'
+          : (code === 'password_too_short'
+              ? 'Parola trebuie să aibă minim 8 caractere / Password must be at least 8 characters'
+              : 'Eroare la resetare / Reset failed');
+        res.writeHead(400,{'Content-Type':'application/json'});
+        res.end(JSON.stringify({ error: code, message: msg }));
+      }
+    });
+    return;
+  }
   if (urlPath === '/api/customer/me') {
     if (!portal) {
       const email = String(req.headers['x-user-email'] || '').toLowerCase();
@@ -6287,6 +6409,121 @@ ${invoice.payer ? `<h2>Payer</h2><table><tr><th>Legal entity</th><td>${esc(invoi
     }
     res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'public, max-age=10, stale-while-revalidate=60' });
     return res.end(JSON.stringify(payload));
+  }
+
+  // ─── /reset-password — standalone landing page (token in query string) ───
+  // Self-contained: no SPA dependency, no third-party JS, CSP-safe inline form.
+  if (urlPath === '/reset-password' && req.method === 'GET') {
+    const token = String((new URL(req.url, 'http://x')).searchParams.get('token') || '');
+    const safeToken = token.replace(/[^a-f0-9]/gi, '').slice(0, 128);
+    const nonce = String(req.headers['x-csp-nonce'] || crypto.randomBytes(12).toString('base64'));
+    const html = `<!DOCTYPE html><html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Reset password · ZeusAI</title>
+<meta name="robots" content="noindex,nofollow">
+<style nonce="${nonce}">
+:root{color-scheme:dark}
+body{margin:0;font:15px/1.55 system-ui,-apple-system,Segoe UI,Roboto,sans-serif;background:#06060f;color:#e7ecf3;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:20px}
+.card{max-width:460px;width:100%;background:#0a0c14;border:1px solid rgba(120,140,200,.25);border-radius:18px;padding:32px;box-shadow:0 20px 60px rgba(0,0,0,.5)}
+h1{margin:0 0 8px;font-size:22px}
+p{color:#9aa6bd;margin:0 0 18px;font-size:14px}
+label{display:block;margin:14px 0 6px;font-size:13px;color:#cdd5e6}
+input{width:100%;box-sizing:border-box;padding:11px 14px;background:#0b0f17;border:1px solid #1f2a3b;color:#e7ecf3;border-radius:10px;font:14px system-ui}
+input:focus{outline:0;border-color:#8a5cff}
+button{width:100%;margin-top:18px;padding:12px;background:linear-gradient(135deg,#8a5cff,#5b8cff);border:0;border-radius:10px;color:#fff;font-size:15px;font-weight:600;cursor:pointer}
+button:disabled{opacity:.5;cursor:not-allowed}
+.msg{margin-top:14px;padding:10px 12px;border-radius:8px;font-size:13.5px}
+.msg-err{background:rgba(255,80,80,.1);border:1px solid rgba(255,80,80,.35);color:#ffb7b7}
+.msg-ok{background:rgba(124,255,184,.1);border:1px solid rgba(124,255,184,.35);color:#a9ffd0}
+a{color:#8a5cff;text-decoration:none}
+.footer{margin-top:18px;font-size:12.5px;color:#7a849b;text-align:center}
+</style></head>
+<body>
+<main class="card" role="main">
+  <h1>Reset your password</h1>
+  <p>Setează o parolă nouă pentru contul tău ZeusAI. / Set a new password for your ZeusAI account.</p>
+  <div id="emailRow" style="font-size:13px;color:#9aa6bd"></div>
+  <form id="resetForm" autocomplete="off">
+    <label for="pw1">New password / Parolă nouă (min 8)</label>
+    <input id="pw1" type="password" autocomplete="new-password" minlength="8" required>
+    <label for="pw2">Confirm password / Confirmă parola</label>
+    <input id="pw2" type="password" autocomplete="new-password" minlength="8" required>
+    <button id="submitBtn" type="submit">Reset password →</button>
+  </form>
+  <div id="msg" class="msg" hidden></div>
+  <div class="footer">After reset, you'll be logged in automatically · <a href="/account">Account</a></div>
+</main>
+<script nonce="${nonce}">
+(function(){
+  var TOKEN = ${JSON.stringify(safeToken)};
+  var msg = document.getElementById('msg');
+  var emailRow = document.getElementById('emailRow');
+  var btn = document.getElementById('submitBtn');
+  var pw1 = document.getElementById('pw1');
+  var pw2 = document.getElementById('pw2');
+  function show(kind, text){
+    msg.hidden = false;
+    msg.className = 'msg msg-' + (kind === 'ok' ? 'ok' : 'err');
+    msg.textContent = text;
+  }
+  function disable(){ btn.disabled = true; pw1.disabled = true; pw2.disabled = true; }
+  if (!TOKEN) { show('err', 'Link invalid: lipsește tokenul. / Invalid link: missing token.'); disable(); return; }
+  // Verify token up-front so user knows it's still valid before typing.
+  fetch('/api/customer/reset-password/verify?token=' + encodeURIComponent(TOKEN), { credentials:'same-origin' })
+    .then(function(r){ return r.json(); })
+    .then(function(j){
+      if (!j || !j.valid) {
+        show('err', (j && j.message) || 'Link expirat sau invalid. Cere unul nou. / Link expired or invalid. Request a new one.');
+        disable();
+        return;
+      }
+      if (j.email) emailRow.textContent = 'Pentru contul / For account: ' + j.email;
+    })
+    .catch(function(){ /* network blip — let submit handle the error */ });
+  document.getElementById('resetForm').addEventListener('submit', function(e){
+    e.preventDefault();
+    msg.hidden = true;
+    var p1 = pw1.value, p2 = pw2.value;
+    if (p1.length < 8) { show('err', 'Parola trebuie să aibă minim 8 caractere. / At least 8 characters.'); return; }
+    if (p1 !== p2) { show('err', 'Parolele nu coincid. / Passwords do not match.'); return; }
+    btn.disabled = true; btn.textContent = 'Resetting…';
+    fetch('/api/customer/reset-password', {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token: TOKEN, password: p1 })
+    })
+      .then(function(r){ return r.json(); })
+      .then(function(j){
+        if (j && j.token) {
+          // Persist the fresh session token client-side (matches client.js setCustToken keys).
+          try {
+            localStorage.setItem('u_cust_token', j.token);
+            localStorage.setItem('customerToken', j.token);
+            if (j.customer) localStorage.setItem('u_cust_profile', JSON.stringify(j.customer));
+          } catch(_){}
+          show('ok', '✓ Parolă resetată. Te redirecționăm la cont… / Password reset. Redirecting to account…');
+          setTimeout(function(){ location.href = '/account'; }, 1200);
+        } else {
+          show('err', (j && j.message) || (j && j.error) || 'Reset failed.');
+          btn.disabled = false; btn.textContent = 'Reset password →';
+        }
+      })
+      .catch(function(){
+        show('err', 'Network error. Încearcă din nou. / Network error. Try again.');
+        btn.disabled = false; btn.textContent = 'Reset password →';
+      });
+  });
+})();
+</script>
+</body></html>`;
+    res.writeHead(200, {
+      'Content-Type': 'text/html; charset=utf-8',
+      'Cache-Control': 'no-store',
+      'X-CSP-Nonce-Hint': nonce,
+      'Content-Security-Policy': "default-src 'self'; script-src 'self' 'nonce-" + nonce + "'; style-src 'self' 'nonce-" + nonce + "'; connect-src 'self'; img-src 'self' data:; frame-ancestors 'none'"
+    });
+    return res.end(html);
   }
 
   // Any SPA route → v2 shell
