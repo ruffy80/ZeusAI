@@ -293,6 +293,8 @@ function listLocalBackups({ overrideDir } = {}) {
 }
 
 function startCron() {
+  const cfg = _config();
+  const useLocal = cfg.backend === 'local';
 
   if (useLocal) {
     // Local backend needs nothing more than a writable directory — never blocks.
