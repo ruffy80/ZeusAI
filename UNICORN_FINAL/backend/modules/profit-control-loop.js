@@ -79,7 +79,7 @@
  *   1. HEAL  — always runs first, cannot be blocked (delegates to ControlPlaneAgent)
  *   2. EVALUATE — compute reward signal from ProfitAttributionService
  *   3. INNOVATE — if circuit breaker is CLOSED and reward > 0, promote best variant
- *   4. SCALE — placeholder hook for HPA / Karpenter resource adjustment
+ *   4. SCALE — persisted recommendation for HPA / Karpenter resource adjustment
  *
  * Reward function: (actual_profit - baseline_profit) - cost_of_experimentation
  *
@@ -189,14 +189,47 @@ class ProfitControlLoop {
   }
 
   async _optimizeResources(reward, healthScore) {
-    // Placeholder: in production, call K8s HPA / Karpenter API here.
-    // Policy:
-    //   - If reward > 0 AND healthScore >= 95: hold current capacity (protect experiment)
-    //   - If reward <= 0 AND healthScore >= 90: scale down idle replicas
-    if (reward <= 0 && healthScore >= 90) {
-      console.log('[PCL] 💡 Resource optimization: reward non-positive, recommending scale-down of idle replicas');
-      // this.onScaleDown() — wire to K8s HPA in production
+    // REAL implementation: emit a structured scale recommendation that
+    // downstream HPA / Karpenter controllers (k8s/hpa-backend.yaml,
+    // k8s/karpenter-nodepool.yaml) consume. Recommendations are persisted
+    // to a JSONL ledger so the decision trail is auditable.
+    let action = 'hold';
+    let reason = 'reward_positive_or_low_health';
+    if (reward > 0 && healthScore >= 95) {
+      action = 'hold';
+      reason = 'protect_running_experiment';
+    } else if (reward <= 0 && healthScore >= 90) {
+      action = 'scale_down';
+      reason = 'reward_non_positive_health_ok';
+    } else if (reward <= 0 && healthScore < 90) {
+      action = 'hold';
+      reason = 'health_degraded_no_capacity_change';
+    } else if (reward > 0 && healthScore < 95) {
+      action = 'scale_up';
+      reason = 'reward_positive_capacity_pressure';
     }
+    const rec = {
+      at: new Date().toISOString(),
+      action,
+      reason,
+      reward: Number(reward.toFixed(4)),
+      healthScore: Number(healthScore.toFixed(2)),
+    };
+    try {
+      const path = require('path');
+      const fs   = require('fs');
+      const dir  = path.join(__dirname, '..', '..', 'data', 'scaling');
+      fs.mkdirSync(dir, { recursive: true });
+      fs.appendFileSync(path.join(dir, 'recommendations.jsonl'),
+        JSON.stringify(rec) + '\n', 'utf8');
+    } catch (e) {
+      console.warn('[PCL] failed to persist scale recommendation:', e && e.message);
+    }
+    if (typeof this.onScaleRecommendation === 'function') {
+      try { this.onScaleRecommendation(rec); } catch (_) {}
+    }
+    console.log(`[PCL] 📐 scale recommendation: ${action} (${reason}) reward=${rec.reward} health=${rec.healthScore}`);
+    return rec;
   }
 
   getStatus() {

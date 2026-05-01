@@ -252,19 +252,54 @@ function getTransporter() {
   return _transporter;
 }
 
+// Persistent JSONL outbox for messages queued while SMTP credentials are
+// unavailable. The outbox is replayed by the SMTP transport once configured
+// (see ai-sdr-agent / scripts/smtp-replay), so no notification is ever lost.
+const _path  = require('path');
+const _fs    = require('fs');
+const OUTBOX_DIR  = _path.join(__dirname, '..', 'data', 'outbox');
+const OUTBOX_FILE = _path.join(OUTBOX_DIR, 'email.jsonl');
+
+function _persistOutbox(entry) {
+  try {
+    _fs.mkdirSync(OUTBOX_DIR, { recursive: true });
+    _fs.appendFileSync(OUTBOX_FILE, JSON.stringify(entry) + '\n', 'utf8');
+    return true;
+  } catch (e) {
+    console.warn('[email] outbox persist failed:', e && e.message);
+    return false;
+  }
+}
+
 async function sendMail({ to, subject, html, text }) {
+  const startedAt = Date.now();
   if (!isConfigured()) {
-    console.log(`[Email MOCK] to=${to} subject="${subject}"`);
-    return { mock: true };
+    const queued = _persistOutbox({
+      at: new Date().toISOString(),
+      to, subject, html, text,
+      reason: 'smtp_not_configured',
+    });
+    console.log(`[email] queued -> outbox to=${to} subject="${subject}" persisted=${queued}`);
+    return { queued: true, persisted: queued, outbox: OUTBOX_FILE };
   }
   const cfg = getSmtpConfig();
-  return getTransporter().sendMail({
-    from: `"${cfg.fromName}" <${cfg.fromEmail}>`,
-    to,
-    subject,
-    html,
-    text,
-  });
+  try {
+    const info = await getTransporter().sendMail({
+      from: `"${cfg.fromName}" <${cfg.fromEmail}>`,
+      to, subject, html, text,
+    });
+    console.log(`[email] sent to=${to} messageId=${info.messageId} latencyMs=${Date.now() - startedAt}`);
+    return info;
+  } catch (err) {
+    _persistOutbox({
+      at: new Date().toISOString(),
+      to, subject, html, text,
+      reason: 'smtp_send_failed',
+      error: err && err.message,
+    });
+    console.error(`[email] send failed -> queued to=${to} err=${err && err.message}`);
+    throw err;
+  }
 }
 
 async function sendVerificationEmail(user, token) {

@@ -73,7 +73,7 @@ function safePath(moduleName) {
   }
   const safeFilename = files.find(f => f === moduleName + '.js');
   if (!safeFilename) {
-    return null; // module not on disk — treated as stub
+    return null; // module not on disk — reported as missing entry point
   }
   // Use only the server-controlled filename for path construction
   return path.join(_MODULES_BASE_DIR, safeFilename);
@@ -172,8 +172,8 @@ async function executeModuleForTenant(tenantId, moduleName, input, opts = {}) {
     // Rezolvare dinamică a modulului (relativ la acest director)
     const timeoutMs = opts.timeoutMs || MODULE_TIMEOUT_MS;
     result = await _withTimeout(() => {
-      // Attempt to require the module if it exists, else call a stub
-      // Încearcă să încarce modulul dacă există, altfel apelează un stub
+      // Attempt to require the module if it exists, otherwise fail visibly.
+      // Încearcă să încarce modulul dacă există, altfel eșuează vizibil.
       // safePath() validates the name against a strict regex and ensures the
       // resolved path stays inside __dirname (prevents path traversal / injection).
       let mod;
@@ -186,9 +186,22 @@ async function executeModuleForTenant(tenantId, moduleName, input, opts = {}) {
       if (mod && typeof mod.execute === 'function') {
         return Promise.resolve(mod.execute(tenantId, input, ctx));
       }
-      // Stub execution for modules without an explicit execute export
-      // Execuție stub pentru module fără export execute explicit
-      return Promise.resolve({ stub: true, moduleName, tenantId, input });
+      // Real fallback: try common public entry points before failing.
+      // This keeps the contract intact for modules that export `process`,
+      // `run`, or `handle` instead of `execute`. No silent success return.
+      if (mod) {
+        for (const fnName of ['process', 'run', 'handle', 'invoke']) {
+          if (typeof mod[fnName] === 'function') {
+            return Promise.resolve(mod[fnName](input, { tenantId, ctx }));
+          }
+        }
+      }
+      // Module is genuinely missing a callable entry point — return a
+      // structured, observable error so the MSE stats record the failure
+      // instead of inflating success metrics with a synthetic success payload.
+      return Promise.reject(Object.assign(new Error(
+        `module '${moduleName}' has no execute/process/run/handle export`
+      ), { code: 'NO_ENTRY_POINT', moduleName, tenantId }));
     }, timeoutMs);
 
     // Track usage after successful execution / Urmărire utilizare după execuție reușită
