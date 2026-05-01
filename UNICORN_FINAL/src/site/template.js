@@ -546,6 +546,18 @@ select.form-inp option{background:#0a0e24;}
     <div class="grid-4" id="plans-grid">
       <div class="card" style="text-align:center;padding:40px;"><div class="loader"></div></div>
     </div>
+    <!-- Revenue-tier modules: SME / Mid-Market / Enterprise / Global Giants ─
+         Live, AI-negotiated price per segment (USD + BTC). The sales flow
+         varies per tier: BTC direct (SME/Mid-Market), Contact Sales
+         (Enterprise), Partnership (Global Giants). -->
+    <div class="sec-title" style="margin-top:48px;">Business Segments — Live Pricing</div>
+    <div style="text-align:center;color:#7090b0;font-size:13px;margin-bottom:18px;">
+      Prices below are computed in real-time by the Unicorn pricing engine.
+      They include demand, peak hours, surge and personalisation — refreshed on every visit.
+    </div>
+    <div class="grid-4" id="segments-grid">
+      <div class="card" style="text-align:center;padding:40px;"><div class="loader"></div></div>
+    </div>
     <div style="text-align:center;margin-top:24px;color:#7090b0;font-size:13px;">
       All plans include: SSL, 99.9% uptime SLA, 24/7 monitoring.<br/>
       <span id="pricing-payment-copy">Payments via BTC direct owner wallet. Optional providers appear only when configured.</span> Cancel anytime.
@@ -1796,6 +1808,127 @@ async function loadPricing(){
     STATE.marketConditions=r.marketConditions||null;
     renderPlanCards(r.plans,r.marketConditions);
   }
+  // Live revenue-segment pricing (SME / Mid-Market / Enterprise / Global Giants)
+  loadSegments();
+}
+
+// ================================================================
+// REVENUE SEGMENTS — LIVE DYNAMIC PRICING
+// ================================================================
+// Calls /api/pricing/segments to get the real-time price (USD + BTC) for
+// SME, Mid-Market, Enterprise and Global Giants tiers, then renders cards
+// with the appropriate sales CTA per segment. Buy CTAs re-fetch the price
+// at the moment of purchase and confirm with the user if it has changed
+// (so the displayed price always matches what's actually paid).
+var SEGMENT_MODULES=['sme','mid-market','enterprise-tier','global-giants'];
+async function loadSegments(){
+  var grid=document.getElementById('segments-grid');
+  if(!grid) return;
+  var segs=[];
+  try{
+    var r=await fetch('/api/pricing/segments').then(function(x){return x.json();}).catch(function(){return null;});
+    if(r&&Array.isArray(r.segments)&&r.segments.length){segs=r.segments;}
+  }catch(e){}
+  if(!segs.length){
+    // Per-module fallback (each call has its own server-side fallback)
+    for(var i=0;i<SEGMENT_MODULES.length;i++){
+      try{
+        var p=await fetch('/api/pricing/module/'+encodeURIComponent(SEGMENT_MODULES[i])).then(function(x){return x.json();}).catch(function(){return null;});
+        if(p&&p.pricing) segs.push(p);
+      }catch(_){}
+    }
+  }
+  STATE.segmentPrices={};
+  segs.forEach(function(s){STATE.segmentPrices[s.moduleId]=s;});
+  renderSegments(segs);
+}
+function renderSegments(segs){
+  var grid=document.getElementById('segments-grid');
+  if(!grid) return;
+  if(!segs||!segs.length){grid.innerHTML='<div class="card" style="text-align:center;padding:24px;color:#7090b0;">Live pricing temporarily unavailable.</div>';return;}
+  grid.innerHTML=segs.map(function(s){
+    var meta=s.segment||{};
+    var p=s.pricing||{};
+    var usd=Number(p.usd||0);
+    var btc=p.btc!=null?Number(p.btc).toFixed(8)+' BTC':'';
+    var sats=p.sats!=null?Number(p.sats).toLocaleString('en-US')+' sats':'';
+    var label=meta.label||s.moduleId;
+    var desc=escHtml(meta.description||'');
+    var ctaBtn='';
+    if(meta.cta==='buy_btc'){
+      ctaBtn='<button class="btn btn-primary btn-sm" onclick="buyDynamicSegment(\''+s.moduleId+'\')">⚡ Buy with Bitcoin</button>';
+    } else if(meta.cta==='contact_sales'){
+      ctaBtn='<button class="btn btn-outline btn-sm" onclick="contactSalesSegment(\''+s.moduleId+'\')">📞 Contact Sales</button>';
+    } else if(meta.cta==='partnership'){
+      ctaBtn='<button class="btn btn-outline btn-sm" onclick="partnershipSegment(\''+s.moduleId+'\')">🤝 Partnership</button>';
+    }
+    var negotiableBadge=meta.negotiable?'<div style="font-size:10px;color:#e6a817;margin-top:4px;">Indicative — negotiable</div>':'';
+    var demandNote=p.demandFactor&&p.demandFactor!==1?'<div style="font-size:11px;color:#7090b0;margin-top:6px;">Demand ×'+Number(p.demandFactor).toFixed(2)+(p.peakHours?' · peak':'')+(p.surgeActive?' · surge':'')+'</div>':'';
+    return '<div class="plan-card" data-module-id="'+escHtml(s.moduleId)+'">'
+      +'<div class="plan-name">'+escHtml(label)+'</div>'
+      +'<div class="plan-price">$'+(usd>=1?Number(usd).toLocaleString('en-US',{maximumFractionDigits:2}):usd)+'<span>/mo</span></div>'
+      +(btc?'<div class="plan-btc">≈ '+btc+'</div>':'')
+      +(sats?'<div style="font-size:11px;color:#7090b0;font-family:monospace;">'+sats+'</div>':'')
+      +negotiableBadge
+      +demandNote
+      +'<p class="muted" style="font-size:12px;margin-top:10px;">'+desc+'</p>'
+      +'<div style="margin-top:12px;">'+ctaBtn+'</div>'
+      +'</div>';
+  }).join('');
+}
+
+// Buy flow for SME/Mid-Market: re-fetch the live price at purchase time and
+// require confirmation if it changed materially (>0.5%) since rendering.
+async function buyDynamicSegment(moduleId){
+  var prev=STATE.segmentPrices&&STATE.segmentPrices[moduleId];
+  var prevUsd=prev&&prev.pricing?Number(prev.pricing.usd):0;
+  toast('Confirming live price...','');
+  var fresh=null;
+  try{
+    fresh=await fetch('/api/pricing/module/'+encodeURIComponent(moduleId)+'?userId='+encodeURIComponent((STATE.user&&STATE.user.id)||''))
+      .then(function(r){return r.json();}).catch(function(){return null;});
+  }catch(e){}
+  if(!fresh||!fresh.pricing){
+    toast('Could not confirm live price. Please try again.','err');
+    return;
+  }
+  STATE.segmentPrices=STATE.segmentPrices||{};
+  STATE.segmentPrices[moduleId]=fresh;
+  var newUsd=Number(fresh.pricing.usd);
+  if(prevUsd>0){
+    var delta=Math.abs(newUsd-prevUsd)/prevUsd;
+    if(delta>0.005){
+      // Price changed — re-render and require confirmation
+      var label=(fresh.segment&&fresh.segment.label)||moduleId;
+      renderSegments(Object.values(STATE.segmentPrices));
+      var ok=window.confirm('Preț actualizat / Price updated\n\n'+label+': $'+prevUsd.toFixed(2)+' → $'+newUsd.toFixed(2)+'\n\nContinue with the new price?');
+      if(!ok){toast('Cancelled — price was updated.','');return;}
+    }
+  }
+  var seg=fresh.segment||{};
+  openCheckout({
+    id:moduleId,
+    serviceId:moduleId,
+    name:(seg.label||moduleId)+' (live price)',
+    priceUsd:newUsd
+  });
+}
+
+function contactSalesSegment(moduleId){
+  var p=(STATE.segmentPrices&&STATE.segmentPrices[moduleId])||null;
+  var label=p&&p.segment?p.segment.label:moduleId;
+  var price=p&&p.pricing?Number(p.pricing.usd).toLocaleString('en-US',{maximumFractionDigits:0}):'?';
+  var subject=encodeURIComponent('Enterprise inquiry — '+label);
+  var body=encodeURIComponent('Hi, I would like to discuss the '+label+' tier.\n\nIndicative price seen: $'+price+' (negotiable).\n\nPlease contact me to finalise scope and pricing.');
+  window.location.href='mailto:sales@zeusai.pro?subject='+subject+'&body='+body;
+}
+
+function partnershipSegment(moduleId){
+  var p=(STATE.segmentPrices&&STATE.segmentPrices[moduleId])||null;
+  var label=p&&p.segment?p.segment.label:moduleId;
+  var subject=encodeURIComponent('Global Giants partnership — '+label);
+  var body=encodeURIComponent('Hello,\n\nWe are interested in an exclusive partnership for the '+label+' tier. Please share next steps.\n\nThank you.');
+  window.location.href='mailto:partners@zeusai.pro?subject='+subject+'&body='+body;
 }
 
 function togglePricing(){

@@ -219,6 +219,15 @@ const BASE_PRICES = {
   'legal-bot': 49,
   'cloud-broker': 79,
   'data-export': 9,
+  // ── Revenue-tier modules (SME, Mid-Market, Enterprise, Global Giants) ──
+  // These IDs power /api/pricing/module/:moduleId so the site can show a
+  // real-time, AI-negotiated price per segment. Base prices are the floor;
+  // the dynamic-pricing engine then applies demand, peak-hours, surge,
+  // discount, per-service variance and (optional) coupon/loyalty.
+  sme: 199,
+  'mid-market': 1499,
+  'enterprise-tier': 9999,
+  'global-giants': 99999,
 };
 
 const DEMAND_FACTOR_HISTORY = [];
