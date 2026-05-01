@@ -57,14 +57,19 @@ async function run() {
 
     // 4. Write-guard warning header on /api/* mutations hitting the site
     //    (in production these should never reach 3001 — nginx routes /api/ to
-    //    backend — but if they do, the operator must see it instantly).
-    const guardRes = await fetch(siteBase + '/api/checkout/create', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: '{}'
-    });
-    assert.equal(guardRes.headers.get('x-site-write-warning'), 'routed-to-site',
-      'site write-guard must tag non-safe /api/* mutations with X-Site-Write-Warning: routed-to-site');
+    //    backend — but if they do, the operator must see it instantly). Cover
+    //    every non-safe HTTP method to keep parity with the guard's method
+    //    filter (`['GET','HEAD','OPTIONS']` are skipped, everything else is
+    //    tagged).
+    for (const method of ['POST', 'PUT', 'PATCH', 'DELETE']) {
+      const guardRes = await fetch(siteBase + '/api/checkout/create', {
+        method,
+        headers: { 'Content-Type': 'application/json' },
+        body: method === 'DELETE' ? undefined : '{}'
+      });
+      assert.equal(guardRes.headers.get('x-site-write-warning'), 'routed-to-site',
+        `site write-guard must tag ${method} /api/* with X-Site-Write-Warning: routed-to-site`);
+    }
 
     // 5. Safe methods (GET) must NOT be tagged with the warning
     const safeRes = await fetch(siteBase + '/api/control/stats');

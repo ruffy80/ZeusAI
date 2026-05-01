@@ -122,7 +122,12 @@ if (process.env.HOST_SANITY_DISABLED !== '1') {
       const host = String(req.headers['host'] || '').toLowerCase();
       const seen = (xfh || host).split(':')[0];
       if (!seen) return next();
-      // Accept exact + subdomain match (api.zeusai.pro for SITE_DOMAIN=zeusai.pro)
+      // Accept exact match + any subdomain of the expected SITE_DOMAIN
+      // (api.zeusai.pro, www.zeusai.pro, orchestrator.zeusai.pro, *.zeusai.pro
+      // — all served by the same nginx vhost per nginx-unicorn.conf). This is
+      // observability-only (logs once/min/host); it never blocks a request and
+      // it is NOT a security boundary. The actual security boundary is CORS
+      // (see _allowedOrigins above) plus nginx server_name matching upstream.
       if (seen === expected || seen.endsWith('.' + expected) || seen === 'localhost' || seen === '127.0.0.1') return next();
       const now = Date.now();
       const last = __hostSanitySeen.get(seen) || 0;

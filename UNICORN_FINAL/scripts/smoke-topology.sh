@@ -91,9 +91,12 @@ assert_topology "site /internal/topology"        "$SITE_BASE/internal/topology" 
 if [ -n "$PUBLIC_BASE" ]; then
   echo
   echo "[smoke-topology] public-domain checks via nginx (PUBLIC_BASE=$PUBLIC_BASE)"
-  assert_role "public /api/health (must hit backend)" "$PUBLIC_BASE/api/health" "backend"
-  assert_role "public /snapshot (must hit site)"      "$PUBLIC_BASE/snapshot"   "site"
-  assert_role "public /internal/topology (backend)"   "$PUBLIC_BASE/internal/topology" "backend"
+  assert_role     "public /api/health (must hit backend)" "$PUBLIC_BASE/api/health"        "backend"
+  assert_role     "public /snapshot (must hit site)"      "$PUBLIC_BASE/snapshot"          "site"
+  # Validate the FULL topology JSON (role + sourceOfTruth) on the public path
+  # too — catches the case where some other server is responding on /internal/
+  # but with the wrong identity (e.g. a stale upstream still serving traffic).
+  assert_topology "public /internal/topology (backend)"   "$PUBLIC_BASE/internal/topology" "backend" "true"
 fi
 
 echo

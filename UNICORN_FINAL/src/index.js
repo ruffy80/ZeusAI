@@ -153,7 +153,7 @@ function applySiteWriteGuard(req, res, pathname, method) {
     const lastLogged = __siteWriteGuardSeen.get(key) || 0;
     if (now - lastLogged > 60000) {
       __siteWriteGuardSeen.set(key, now);
-      try { console.warn('[site-write-guard] mutation reached SITE (3001):', key, '— expect this on backend (3000) when nginx is healthy. BACKEND_API_URL=' + (process.env.BACKEND_API_URL || '<unset>')); } catch (_) {}
+      console.warn('[site-write-guard] mutation reached SITE (3001):', key, '— expect this on backend (3000) when nginx is healthy. BACKEND_API_URL=' + (process.env.BACKEND_API_URL || '<unset>'));
     }
     if (mode === 'enforce' && process.env.BACKEND_API_URL) {
       if (!res.headersSent) {
@@ -5733,7 +5733,7 @@ if (require.main === module) {
   // close direct external access. Tests use 127.0.0.1 explicitly via .listen(0).
   const BIND_HOST = process.env.BIND_HOST || '0.0.0.0';
   server.listen(PORT, BIND_HOST, () => {
-    console.log('UNICORN_FINAL listening on http://' + (BIND_HOST === '0.0.0.0' ? 'localhost' : BIND_HOST) + ':' + PORT + ' (role=site, port=' + PORT + ', source-of-truth=false)');
+    console.log('UNICORN_FINAL listening on http://' + (BIND_HOST === '0.0.0.0' ? 'localhost' : BIND_HOST) + ':' + PORT + ' (role=site, source-of-truth=false)');
     if (BIND_HOST === '0.0.0.0') {
       console.log('[topology] site bound to 0.0.0.0 — port ' + PORT + ' reachable externally. In production behind nginx, set BIND_HOST=127.0.0.1 to close direct external access.');
     }
