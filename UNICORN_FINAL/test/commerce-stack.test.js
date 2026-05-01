@@ -10,7 +10,7 @@ const path = require('path');
 // Reset persistent state so the test is hermetic.
 const DATA_DIR = path.join(__dirname, '..', 'data', 'commerce');
 const DELIV_DIR = path.join(__dirname, '..', 'logs', 'deliverables');
-for (const f of ['portal.json','uaic-receipts.jsonl','uaic-entitlements.jsonl']) {
+for (const f of ['portal.json','portal.sqlite','portal.sqlite-wal','portal.sqlite-shm','uaic-receipts.jsonl','uaic-entitlements.jsonl']) {
   try { fs.rmSync(path.join(DATA_DIR, f), { force: true }); } catch (_) {}
 }
 try { fs.rmSync(DELIV_DIR, { recursive: true, force: true }); } catch (_) {}
@@ -37,22 +37,47 @@ async function run() {
   const cid = portal.verifyToken(log1.token);
   assert.equal(cid, log1.customer.id);
 
-  // PM2 cluster regression: another worker can write portal.json while this
-  // process has stale in-memory state; login must refresh from disk first.
-  const portalFile = path.join(DATA_DIR, 'portal.json');
-  const diskState = JSON.parse(fs.readFileSync(portalFile, 'utf8'));
-  const aliceRaw = diskState.customers.find(c => c.email === 'alice@example.com');
-  diskState.customers.push({
-    id: 'cust_external_worker',
-    email: 'external-worker@example.com',
-    name: 'External Worker',
-    passwordHash: aliceRaw.passwordHash,
-    createdAt: new Date().toISOString(),
-    apiKeys: []
-  });
-  fs.writeFileSync(portalFile, JSON.stringify(diskState, null, 2));
-  const externalLogin = portal.login('external-worker@example.com', 'hunter1234');
-  assert.equal(externalLogin.customer.id, 'cust_external_worker');
+  // PM2 cluster regression: another worker can write a customer row directly
+  // into the SQLite portal database while this process has stale in-memory
+  // cache; login must read from the canonical store. With the WAL backend the
+  // cross-worker visibility comes for free; we still assert the contract.
+  let externalLoginVerified = false;
+  try {
+    const Database = require('better-sqlite3');
+    const sqlitePath = path.join(DATA_DIR, 'portal.sqlite');
+    const db = new Database(sqlitePath);
+    const aliceRow = db.prepare("SELECT password_hash FROM customers WHERE email = ?").get('alice@example.com');
+    if (aliceRow && aliceRow.password_hash) {
+      db.prepare("INSERT INTO customers (id,email,name,password_hash,created_at) VALUES (?,?,?,?,?)")
+        .run('cust_external_worker','external-worker@example.com','External Worker', aliceRow.password_hash, new Date().toISOString());
+      db.close();
+      const externalLogin = portal.login('external-worker@example.com', 'hunter1234');
+      assert.equal(externalLogin.customer.id, 'cust_external_worker');
+      externalLoginVerified = true;
+    } else {
+      db.close();
+    }
+  } catch (e) {
+    // SQLite backend not active (rare fallback path); fall back to JSON tampering.
+    const portalFile = path.join(DATA_DIR, 'portal.json');
+    if (fs.existsSync(portalFile)) {
+      const diskState = JSON.parse(fs.readFileSync(portalFile, 'utf8'));
+      const aliceRaw = diskState.customers.find(c => c.email === 'alice@example.com');
+      diskState.customers.push({
+        id: 'cust_external_worker',
+        email: 'external-worker@example.com',
+        name: 'External Worker',
+        passwordHash: aliceRaw.passwordHash,
+        createdAt: new Date().toISOString(),
+        apiKeys: []
+      });
+      fs.writeFileSync(portalFile, JSON.stringify(diskState, null, 2));
+      const externalLogin = portal.login('external-worker@example.com', 'hunter1234');
+      assert.equal(externalLogin.customer.id, 'cust_external_worker');
+      externalLoginVerified = true;
+    }
+  }
+  assert.equal(externalLoginVerified, true, 'cross-worker login must succeed via SQLite or JSON fallback');
 
   // wrong password / unknown email
   assert.throws(() => portal.login('alice@example.com', 'wrong'), /wrong_password/);

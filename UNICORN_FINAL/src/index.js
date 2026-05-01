@@ -956,30 +956,54 @@ function runDeliveryForReceipt(receipt, opts) {
 }
 
 // ===================================================================
-// BTC SPOT — live USD/BTC rate cache (60s) for checkout amount math
+// BTC SPOT — multi-source MEDIAN USD/BTC rate (60s cache) + circuit breaker
+// Median din 3+ surse evită manipularea single-feed și reduce divergența.
 // ===================================================================
-const _btcSpotCache = { usdPerBtc: 95000, fetchedAt: 0 };
+const _btcSpotCache = { usdPerBtc: 95000, fetchedAt: 0, source: 'bootstrap', lastDivergence: 0 };
+const BTC_DIVERGENCE_MAX_PCT = Number(process.env.UNICORN_BTC_DIVERGENCE_MAX_PCT || 5); // %
 async function getBtcUsdSpot() {
   const now = Date.now();
   if (now - _btcSpotCache.fetchedAt < 60000) return _btcSpotCache.usdPerBtc;
   const sources = [
-    { url: 'https://api.coinbase.com/v2/prices/BTC-USD/spot', pick: j => Number(j && j.data && j.data.amount) },
-    { url: 'https://api.kraken.com/0/public/Ticker?pair=XBTUSD', pick: j => { try { const k = Object.keys(j.result)[0]; return Number(j.result[k].c[0]); } catch(_){ return null; } } },
-    { url: 'https://www.bitstamp.net/api/v2/ticker/btcusd/', pick: j => Number(j && j.last) }
+    { name: 'coinbase', url: 'https://api.coinbase.com/v2/prices/BTC-USD/spot', pick: j => Number(j && j.data && j.data.amount) },
+    { name: 'kraken', url: 'https://api.kraken.com/0/public/Ticker?pair=XBTUSD', pick: j => { try { const k = Object.keys(j.result)[0]; return Number(j.result[k].c[0]); } catch(_){ return null; } } },
+    { name: 'bitstamp', url: 'https://www.bitstamp.net/api/v2/ticker/btcusd/', pick: j => Number(j && j.last) },
+    { name: 'coingecko', url: 'https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=usd', pick: j => Number(j && j.bitcoin && j.bitcoin.usd) },
+    { name: 'binance', url: 'https://api.binance.com/api/v3/ticker/price?symbol=BTCUSDT', pick: j => Number(j && j.price) }
   ];
-  for (const s of sources) {
+  const results = await Promise.all(sources.map(async (s) => {
     try {
       const controller = new AbortController();
       const timer = setTimeout(() => controller.abort(), 1500);
       const r = await fetch(s.url, { headers: { 'User-Agent': 'ZeusAI/1.0' }, signal: controller.signal });
       clearTimeout(timer);
-      if (!r.ok) continue;
+      if (!r.ok) return null;
       const j = await r.json();
       const p = s.pick(j);
-      if (p && p > 1000 && p < 10000000) { _btcSpotCache.usdPerBtc = p; _btcSpotCache.fetchedAt = now; return p; }
-    } catch (_) {}
+      if (p && p > 1000 && p < 10000000) return { name: s.name, price: p };
+      return null;
+    } catch (_) { return null; }
+  }));
+  const valid = results.filter(Boolean).map(r => r.price).sort((a, b) => a - b);
+  if (valid.length === 0) {
+    _btcSpotCache.fetchedAt = now;
+    return _btcSpotCache.usdPerBtc; // keep last good
   }
+  // median
+  const mid = Math.floor(valid.length / 2);
+  const median = valid.length % 2 === 0 ? (valid[mid - 1] + valid[mid]) / 2 : valid[mid];
+  // divergence (max-min relative to median) — circuit breaker
+  const divergence = valid.length > 1 ? ((valid[valid.length - 1] - valid[0]) / median) * 100 : 0;
+  _btcSpotCache.lastDivergence = divergence;
+  if (divergence > BTC_DIVERGENCE_MAX_PCT) {
+    // RO+EN: divergență prea mare între surse — păstrăm ultima cotație validă
+    console.warn('[btc-spot] divergence too high', JSON.stringify({ divergence: divergence.toFixed(2) + '%', max: BTC_DIVERGENCE_MAX_PCT, sources: results.filter(Boolean) }));
+    _btcSpotCache.fetchedAt = now;
+    return _btcSpotCache.usdPerBtc;
+  }
+  _btcSpotCache.usdPerBtc = Math.round(median * 100) / 100;
   _btcSpotCache.fetchedAt = now;
+  _btcSpotCache.source = 'median(' + results.filter(Boolean).map(r => r.name).join('+') + ')';
   return _btcSpotCache.usdPerBtc;
 }
 function usdToBtc(usd, spot) { const p = Number(spot) || 95000; return Number((Number(usd || 0) / p).toFixed(8)); }
@@ -3903,6 +3927,225 @@ document.getElementById('buyBtn').addEventListener('click', async function(){
     }
   }
 
+  // ============================================================
+  // GDPR · /api/customer/export (auth) — full data download
+  // ============================================================
+  if (urlPath === '/api/customer/export' && (req.method === 'GET' || req.method === 'POST')) {
+    const token = readCustomerToken(req);
+    const cid = portal && token ? portal.verifyToken(token) : null;
+    if (!cid) { res.writeHead(401, { 'Content-Type':'application/json' }); return res.end(JSON.stringify({ error:'unauthorized' })); }
+    const data = portal.exportCustomer ? portal.exportCustomer(cid) : null;
+    if (!data) { res.writeHead(404, { 'Content-Type':'application/json' }); return res.end(JSON.stringify({ error:'not_found' })); }
+    logTransactionEvent('gdpr_export', { customerId: cid, ip: (req.headers['x-forwarded-for'] || req.socket.remoteAddress || '').toString().slice(0,80) });
+    res.writeHead(200, { 'Content-Type':'application/json', 'Content-Disposition': 'attachment; filename="zeusai-data-export.json"' });
+    return res.end(JSON.stringify({ ok: true, exportedAt: new Date().toISOString(), zeusai: data }, null, 2));
+  }
+
+  // ============================================================
+  // GDPR · DELETE /api/customer/me — right to be forgotten
+  // ============================================================
+  if (urlPath === '/api/customer/me' && req.method === 'DELETE') {
+    const token = readCustomerToken(req);
+    const cid = portal && token ? portal.verifyToken(token) : null;
+    if (!cid) { res.writeHead(401, { 'Content-Type':'application/json' }); return res.end(JSON.stringify({ error:'unauthorized' })); }
+    const result = portal.deleteCustomer ? portal.deleteCustomer(cid) : { ok: false };
+    logTransactionEvent('gdpr_delete', { customerId: cid, ok: !!result.ok });
+    res.writeHead(result.ok ? 200 : 404, { 'Content-Type':'application/json', 'Set-Cookie': 'customer_session=; HttpOnly; Secure; SameSite=Lax; Path=/; Max-Age=0' });
+    return res.end(JSON.stringify(result));
+  }
+
+  // ============================================================
+  // /api/customer/totp/setup — generate TOTP secret + otpauth URI
+  // ============================================================
+  if (urlPath === '/api/customer/totp/setup' && req.method === 'POST') {
+    const token = readCustomerToken(req);
+    const cid = portal && token ? portal.verifyToken(token) : null;
+    if (!cid) { res.writeHead(401, { 'Content-Type':'application/json' }); return res.end(JSON.stringify({ error:'unauthorized' })); }
+    if (!portal.generateTotpSecret) { res.writeHead(503, { 'Content-Type':'application/json' }); return res.end(JSON.stringify({ error:'totp_unavailable' })); }
+    const customer = portal.getById(cid);
+    const secret = portal.generateTotpSecret(cid);
+    const issuer = encodeURIComponent('ZeusAI');
+    const account = encodeURIComponent(customer && customer.email || cid);
+    const otpauth = `otpauth://totp/${issuer}:${account}?secret=${secret}&issuer=${issuer}&algorithm=SHA1&digits=6&period=30`;
+    res.writeHead(200, { 'Content-Type':'application/json' });
+    return res.end(JSON.stringify({ ok:true, secret, otpauth }));
+  }
+  if (urlPath === '/api/customer/totp/verify' && req.method === 'POST') {
+    let body=''; req.on('data', c=>{ body+=c; if(body.length>4*1024) req.destroy(); });
+    req.on('end', () => {
+      try {
+        const p = JSON.parse(body || '{}');
+        const token = readCustomerToken(req);
+        const cid = portal && token ? portal.verifyToken(token) : null;
+        if (!cid) { res.writeHead(401, { 'Content-Type':'application/json' }); return res.end(JSON.stringify({ error:'unauthorized' })); }
+        const ok = portal.verifyTotp ? portal.verifyTotp(cid, p.code) : false;
+        res.writeHead(ok ? 200 : 400, { 'Content-Type':'application/json' });
+        return res.end(JSON.stringify({ ok }));
+      } catch (e) { res.writeHead(400, { 'Content-Type':'application/json' }); res.end(JSON.stringify({ error: 'bad_request' })); }
+    });
+    return;
+  }
+
+  // ============================================================
+  // /metrics — Prometheus text format (process + business KPIs)
+  // ============================================================
+  if (urlPath === '/metrics') {
+    try {
+      const stats = portal && portal._stats ? portal._stats() : { customers: 0, orders: 0, backend: 'json' };
+      const mem = process.memoryUsage();
+      const uptime = Math.floor(process.uptime());
+      const lines = [
+        '# HELP zeusai_customers_total Total registered customers.',
+        '# TYPE zeusai_customers_total gauge',
+        `zeusai_customers_total ${stats.customers}`,
+        '# HELP zeusai_orders_total Total orders in storage.',
+        '# TYPE zeusai_orders_total gauge',
+        `zeusai_orders_total ${stats.orders}`,
+        '# HELP zeusai_btc_usd_rate Last cached BTC/USD rate (median of public sources).',
+        '# TYPE zeusai_btc_usd_rate gauge',
+        `zeusai_btc_usd_rate ${Number(_btcSpotCache.usdPerBtc || 0)}`,
+        '# HELP zeusai_btc_divergence_pct Spread between min/max source vs median.',
+        '# TYPE zeusai_btc_divergence_pct gauge',
+        `zeusai_btc_divergence_pct ${Number(_btcSpotCache.lastDivergence || 0).toFixed(3)}`,
+        '# HELP process_uptime_seconds Process uptime.',
+        '# TYPE process_uptime_seconds counter',
+        `process_uptime_seconds ${uptime}`,
+        '# HELP process_resident_memory_bytes Resident memory.',
+        '# TYPE process_resident_memory_bytes gauge',
+        `process_resident_memory_bytes ${mem.rss}`,
+        '# HELP process_heap_bytes Node heap used.',
+        '# TYPE process_heap_bytes gauge',
+        `process_heap_bytes ${mem.heapUsed}`,
+        ''
+      ];
+      res.writeHead(200, { 'Content-Type': 'text/plain; version=0.0.4', 'Cache-Control':'no-store' });
+      return res.end(lines.join('\n'));
+    } catch (e) {
+      res.writeHead(500, { 'Content-Type':'text/plain' }); return res.end('metrics_error: ' + e.message);
+    }
+  }
+
+  // ============================================================
+  // Legal pages (RO+EN inline) · /tos /imprint /legal /cookies
+  // (NOTE: /terms /privacy /refund are served by existing polish-pack with the
+  //  brand-canonical titles — we only add new aliases that did not exist before.)
+  // ============================================================
+  if (req.method === 'GET' && /^\/(tos|terms-of-service|imprint|legal|cookies|cookie-policy)$/.test(urlPath)) {
+    const slug = urlPath.replace(/^\//, '').replace(/\/$/, '');
+    const titleMap = {
+      tos: ['Terms of Service · ZeusAI', 'Termeni și condiții'],
+      terms: ['Terms of Service · ZeusAI', 'Termeni și condiții'],
+      'terms-of-service': ['Terms of Service · ZeusAI', 'Termeni și condiții'],
+      privacy: ['Privacy Policy · ZeusAI', 'Politica de confidențialitate'],
+      refund: ['Refund Policy · ZeusAI', 'Politica de rambursare'],
+      'refund-policy': ['Refund Policy · ZeusAI', 'Politica de rambursare'],
+      imprint: ['Imprint · ZeusAI', 'Date de identificare operator'],
+      legal: ['Legal Notices · ZeusAI', 'Notificări legale'],
+      cookies: ['Cookie Policy · ZeusAI', 'Politica de cookie-uri'],
+      'cookie-policy': ['Cookie Policy · ZeusAI', 'Politica de cookie-uri']
+    };
+    const [titleEn, titleRo] = titleMap[slug] || ['Legal · ZeusAI', 'Legal'];
+    const owner = process.env.OWNER_NAME || 'Vladoi Ionut';
+    const ownerEmail = process.env.OWNER_EMAIL || 'legal@zeusai.pro';
+    const btcAddr = process.env.BTC_WALLET_ADDRESS || process.env.OWNER_BTC_ADDRESS || 'bc1q4f7e66z87mdfj56kz0dj5hvcnpmh0qh4wuv22e';
+    let body = '';
+    if (slug.startsWith('tos') || slug === 'terms' || slug === 'terms-of-service') {
+      body = `<h2>1. Service</h2><p>ZeusAI offers AI-as-a-service products on demand. By using zeusai.pro you agree to these terms.</p>
+<h2>2. Payment · BTC self-custody</h2><p>Payments settle in Bitcoin to the owner-controlled wallet <code>${btcAddr}</code>. Smaller orders settle on 0-confirmation, larger orders require on-chain confirmations before activation. There are no chargebacks.</p>
+<h2>3. Activation</h2><p>Upon payment confirmation, your service is activated automatically and an entitlement is signed and recorded.</p>
+<h2>4. No refunds after activation</h2><p>Because activation is automatic and software/AI usage is metered immediately, refunds are not available after activation. See <a href="/refund">Refund Policy</a> for the limited pre-activation refund window.</p>
+<h2>5. Acceptable use</h2><p>No illegal use, no abuse, no resale without explicit written permission.</p>
+<h2>6. Liability</h2><p>Service provided AS-IS. Owner liability capped at the amount paid in the last 30 days.</p>
+<h2>7. Changes</h2><p>Terms may evolve. Material changes will be announced on this page.</p>`;
+    } else if (slug === 'privacy') {
+      body = `<h2>Data we store</h2><ul><li>Email + name (account)</li><li>Password hash (bcrypt)</li><li>Order history + payment status</li><li>API keys you create</li><li>Optional WebAuthn / TOTP factors</li></ul>
+<h2>Data we do NOT store</h2><ul><li>Raw passwords</li><li>Card numbers (BTC self-custody)</li><li>Tracking pixels from third parties on critical flows</li></ul>
+<h2>Your rights (GDPR)</h2><p>You can export <a href="/api/customer/export">all your data</a> or <a href="/account">delete your account</a> at any time. Programmatic access: <code>GET /api/customer/export</code> · <code>DELETE /api/customer/me</code>.</p>
+<h2>Contact</h2><p>Email: <a href="mailto:${ownerEmail}">${ownerEmail}</a> · Operator: ${owner}.</p>`;
+    } else if (slug.startsWith('refund')) {
+      body = `<h2>Pre-activation</h2><p>If your order is still in <code>awaiting_payment</code> state, simply do not send Bitcoin. The order auto-cancels after 60 minutes.</p>
+<h2>Post-activation</h2><p>Activation is instantaneous after payment confirmation. Refunds after activation are not available because compute and AI inference resources are consumed immediately. This is the trade-off of self-custody, no-chargeback Bitcoin payments.</p>
+<h2>Service failure</h2><p>If the service is materially broken on our end (not user error), contact <a href="mailto:${ownerEmail}">${ownerEmail}</a> within 7 days. We will investigate and credit usage.</p>`;
+    } else if (slug === 'imprint' || slug === 'legal') {
+      body = `<h2>Operator</h2><p>${owner}</p>
+<h2>Contact</h2><p><a href="mailto:${ownerEmail}">${ownerEmail}</a></p>
+<h2>BTC payment address (owner self-custody)</h2><p><code>${btcAddr}</code></p>
+<h2>Hosting</h2><p>Hetzner Online GmbH (EU).</p>`;
+    } else if (slug.startsWith('cookies') || slug === 'cookie-policy') {
+      body = `<h2>What we use</h2><ul><li><code>customer_session</code> — first-party HttpOnly authentication cookie. Strictly necessary, no consent required.</li><li>No third-party tracking cookies on critical flows.</li></ul>
+<h2>Translation widget</h2><p>The optional Google Translate widget loads only when you click the language toggle. It may set its own cookies. Block it via your browser if you prefer.</p>`;
+    }
+    const html = `<!doctype html><html lang="en"><head><meta charset="utf-8"><title>${titleEn}</title>
+<meta name="description" content="${titleEn} · ${titleRo}">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta property="og:title" content="${titleEn}"><meta property="og:type" content="website"><meta property="og:url" content="${(process.env.APP_URL || 'https://zeusai.pro').replace(/\/$/, '') + urlPath}">
+<style>body{font-family:-apple-system,Segoe UI,Roboto,sans-serif;max-width:780px;margin:40px auto;padding:0 22px;line-height:1.6;color:#111}h1{font-size:30px}h2{font-size:18px;margin-top:28px}code{background:#f4f4f4;padding:2px 6px;border-radius:4px}a{color:#0050ff}.bilingual{color:#777;font-size:14px}</style></head>
+<body><a href="/">← ZeusAI</a><h1>${titleEn}</h1><div class="bilingual">${titleRo}</div>${body}<hr><p style="font-size:13px;color:#777">Last updated: ${new Date().toISOString().slice(0,10)} · Operator: ${owner} · <a href="/tos">ToS</a> · <a href="/privacy">Privacy</a> · <a href="/refund">Refund</a> · <a href="/imprint">Imprint</a> · <a href="/cookies">Cookies</a></p></body></html>`;
+    res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'public, max-age=3600' });
+    return res.end(html);
+  }
+
+  // ============================================================
+  // /order/:id — live SSE-driven order status page
+  // ============================================================
+  if (req.method === 'GET' && /^\/order\/[A-Za-z0-9_\-:]{4,}$/.test(urlPath)) {
+    const orderId = urlPath.slice('/order/'.length);
+    const escId = orderId.replace(/[^A-Za-z0-9_\-:]/g, '');
+    const html = `<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Order ${escId} · ZeusAI</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<style>body{font-family:-apple-system,Segoe UI,Roboto,sans-serif;max-width:680px;margin:30px auto;padding:0 18px;color:#111}.card{border:1px solid #e6e6e6;border-radius:14px;padding:22px;margin:14px 0;box-shadow:0 1px 0 rgba(0,0,0,.02)}h1{margin:0 0 6px 0}.s-pending{color:#a35200}.s-paid{color:#0a7a30}.s-active{color:#0050ff}.s-cancelled{color:#a00}code{background:#f4f4f4;padding:3px 8px;border-radius:6px;display:block;word-break:break-all}.qr{display:block;margin:12px 0}.btn{display:inline-block;background:#0050ff;color:#fff;padding:10px 16px;border-radius:8px;text-decoration:none}.muted{color:#777;font-size:13px}</style>
+</head><body>
+<a href="/">← ZeusAI</a><h1>Order status</h1>
+<div class="card" id="orderCard"><div id="status">Loading…</div><div id="details" class="muted"></div></div>
+<div class="card"><div id="payInstr" class="muted">Loading payment instructions…</div></div>
+<script>
+const ORDER_ID=${JSON.stringify(escId)};
+async function loadOrder(){
+  try{
+    const r=await fetch('/api/uaic/receipt/'+encodeURIComponent(ORDER_ID),{credentials:'same-origin'});
+    if(!r.ok){const r2=await fetch('/api/receipt/'+encodeURIComponent(ORDER_ID));if(r2.ok)return r2.json();return null;}
+    return r.json();
+  }catch(e){return null;}
+}
+function render(o){
+  if(!o){document.getElementById('status').textContent='Order not found / Comandă inexistentă.';return;}
+  const status=String(o.status||o.state||'pending').toLowerCase();
+  const cls={pending:'s-pending',awaiting_payment:'s-pending',paid:'s-paid',active:'s-active',activated:'s-active',cancelled:'s-cancelled',expired:'s-cancelled'}[status]||'';
+  document.getElementById('status').innerHTML='<span class="'+cls+'">●</span> Status: <b>'+status.replace(/_/g,' ')+'</b>';
+  const meta=[];
+  if(o.serviceId||o.plan)meta.push('Service: '+(o.serviceId||o.plan));
+  if(o.priceUSD||o.amount)meta.push('Amount: $'+(o.priceUSD||o.amount));
+  if(o.btcAmount)meta.push('BTC: '+o.btcAmount);
+  if(o.confirmations!=null)meta.push('Confirmations: '+o.confirmations+(o.confs_required?'/'+o.confs_required:''));
+  if(o.createdAt||o.created_at)meta.push('Created: '+new Date(o.createdAt||o.created_at).toLocaleString());
+  document.getElementById('details').innerHTML=meta.join(' · ');
+  const pi=o.paymentInstructions||o.payment_instructions||{};
+  const addr=pi.btcAddress||o.btcAddress||o.btc_address;
+  const uri=pi.btcUri||o.btcUri||o.btc_uri;
+  const amt=pi.btcAmount||o.btcAmount||o.btc_amount;
+  if(status==='pending'||status==='awaiting_payment'){
+    document.getElementById('payInstr').innerHTML=
+      '<b>Send exactly '+(amt||'?')+' BTC to:</b><code>'+(addr||'?')+'</code>'+
+      (uri?'<a class="btn" href="'+uri+'">Open in BTC wallet</a>':'')+
+      '<p class="muted">Status updates live · auto-confirm runs every 30s · larger amounts require additional on-chain confirmations.</p>';
+  }else if(status==='paid'||status==='active'||status==='activated'){
+    document.getElementById('payInstr').innerHTML='<b>✅ Payment confirmed.</b> Your service is being activated. Visit <a href="/account">/account</a> for delivery and API keys.';
+  }else{
+    document.getElementById('payInstr').innerHTML='Order is '+status+'.';
+  }
+}
+loadOrder().then(render);
+const es=new EventSource('/api/unicorn/events');
+es.addEventListener('message',()=>{loadOrder().then(render);});
+es.addEventListener('order',()=>{loadOrder().then(render);});
+es.addEventListener('payment',()=>{loadOrder().then(render);});
+es.addEventListener('error',()=>{});
+setInterval(()=>{loadOrder().then(render);},10000);
+</script></body></html>`;
+    res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store' });
+    return res.end(html);
+  }
+
   // /api/btc/spot + aliases — live USD/BTC rate (cached 60s)
   if (urlPath === '/api/btc/spot' || urlPath === '/api/btc/rate' || urlPath === '/api/payment/btc-rate') {
     try {
@@ -3965,6 +4208,36 @@ document.getElementById('buyBtn').addEventListener('click', async function(){
           } catch (_) { /* ignore lookup failures, fallback below */ }
         }
         logTransactionEvent('purchase_requested', { serviceId, paymentMethod, amount, ip: (req.headers['x-forwarded-for'] || req.socket.remoteAddress || '').toString().slice(0, 80) });
+
+        // KYC threshold gate (MiCA-aligned). Above $1000 require name+email on record.
+        // Disable with COMMERCE_KYC_GATE=disabled. Override threshold with COMMERCE_KYC_USD.
+        const kycEnabled = String(process.env.COMMERCE_KYC_GATE || 'enabled').toLowerCase() !== 'disabled';
+        const kycThreshold = Number(process.env.COMMERCE_KYC_USD || 1000);
+        if (kycEnabled && amount >= kycThreshold) {
+          let kycEmail = String(p.email || '').trim().toLowerCase();
+          let kycName = String(p.name || p.fullName || '').trim();
+          if (!kycEmail || !kycName) {
+            // Try to enrich from authenticated portal customer.
+            try {
+              const tok = readCustomerToken(req, p.customerToken || p.user_id);
+              if (portal && tok) {
+                const cid = portal.verifyToken(tok);
+                const c = cid ? portal.getById(cid) : null;
+                if (c) { kycEmail = kycEmail || (c.email||'').toLowerCase(); kycName = kycName || (c.name||''); }
+              }
+            } catch(_) {}
+          }
+          if (!kycEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(kycEmail) || kycName.length < 2) {
+            res.writeHead(400, { 'Content-Type':'application/json' });
+            return res.end(JSON.stringify({
+              error: 'kyc_required',
+              threshold_usd: kycThreshold,
+              amount_usd: amount,
+              message: `Pentru achiziții peste $${kycThreshold} avem nevoie de nume și email de contact (cerință MiCA). / For purchases above $${kycThreshold} we require a contact name and email (MiCA requirement).`
+            }));
+          }
+        }
+
         const customerToken = readCustomerToken(req, p.customerToken || p.user_id);
         let email = p.email || '';
         if (!email && portal && customerToken) {
@@ -4017,6 +4290,18 @@ document.getElementById('buyBtn').addEventListener('click', async function(){
             };
         res.writeHead(200, { 'Content-Type':'application/json' });
         logTransactionEvent('purchase_checkout_created', { serviceId, paymentMethod, orderId, status: rec.status || 'pending', amount: rec.amount || amount });
+        // Best-effort transactional email for pending payment (no-op if SMTP unset).
+        try {
+          const tx = require('./commerce/transactional-email');
+          const buyerEmail = (rec.customerEmail || rec.email || (req.headers['x-customer-email']) || '').toString().trim().toLowerCase();
+          if (tx && buyerEmail && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(buyerEmail)) {
+            Promise.resolve(tx.sendTransactional({
+              to: buyerEmail,
+              template: 'payment_pending',
+              data: { orderId, serviceId, btcAddress: paymentInstructions.btcAddress, btcAmount: paymentInstructions.btcAmount, priceUSD: rec.amount || amount }
+            })).catch(()=>{});
+          }
+        } catch(_) {}
         return res.end(JSON.stringify({
           ok: true,
           source: 'zeusai',
@@ -4678,12 +4963,32 @@ ${invoice.payer ? `<h2>Payer</h2><table><tr><th>Legal entity</th><td>${esc(invoi
           'Set-Cookie': customerSessionCookie(r.token, 30 * 24 * 3600)
         });
         res.end(JSON.stringify(r));
+
+        // Fire-and-forget welcome email (no-op if SMTP not configured).
+        try {
+          const tx = require('./commerce/transactional-email');
+          if (tx && typeof tx.sendTransactional === 'function') {
+            Promise.resolve(tx.sendTransactional({ to: email, template: 'welcome', data: { name: name || email.split('@')[0] } })).catch(()=>{});
+          }
+        } catch(_) {}
       } catch (e) {
         res.writeHead(400, {'Content-Type':'application/json'});
         res.end(JSON.stringify({ error: e.message, message: 'Eroare la crearea contului / Error creating account' }));
       }
     });
     return;
+  }
+
+  // AI provider router status (transparent fallback chain visibility).
+  if (urlPath === '/api/ai/router/status' && req.method === 'GET') {
+    try {
+      const router = require('./modules/ai-router');
+      res.writeHead(200, { 'Content-Type':'application/json' });
+      return res.end(JSON.stringify(router.status ? router.status() : { ok: false, error: 'router_not_ready' }));
+    } catch (e) {
+      res.writeHead(500, { 'Content-Type':'application/json' });
+      return res.end(JSON.stringify({ ok: false, error: e.message }));
+    }
   }
 
   if (urlPath === '/api/customer/login' && req.method === 'POST') {
@@ -5177,6 +5482,7 @@ ${invoice.payer ? `<h2>Payer</h2><table><tr><th>Legal entity</th><td>${esc(invoi
             persistFallbackReceipt(receipt);
             try { emitServiceActivated(receipt); } catch (_) {}
             logTransactionEvent('payment_activated', { receiptId, method: urlPath.includes('/btc/') ? 'BTC' : 'PAYPAL', amount: receipt.amount, status: receipt.status });
+            try { const tx = require('./commerce/transactional-email'); const em = (receipt.customerEmail || receipt.email || '').toString().trim().toLowerCase(); if (tx && em && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(em)) Promise.resolve(tx.sendTransactional({ to: em, template:'payment_activated', data:{ orderId: receiptId, serviceId: receipt.serviceId || receipt.productId } })).catch(()=>{}); } catch(_){}
           }
           res.writeHead(200, { 'Content-Type':'application/json' });
           return res.end(JSON.stringify({ ok:true, method:urlPath.includes('/btc/') ? 'BTC' : 'PAYPAL', receipt }));
@@ -5257,6 +5563,7 @@ ${invoice.payer ? `<h2>Payer</h2><table><tr><th>Legal entity</th><td>${esc(invoi
           runDeliveryForReceipt(receipt);
           uaic.persistReceipt(receipt);
           logTransactionEvent('payment_activated', { receiptId, method: 'BTC', amount: receipt.amount, txid: matched.txid, confirmedAmountBtc: matched.btc });
+          try { const tx = require('./commerce/transactional-email'); const em = (receipt.customerEmail || receipt.email || '').toString().trim().toLowerCase(); if (tx && em && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(em)) Promise.resolve(tx.sendTransactional({ to: em, template:'payment_activated', data:{ orderId: receiptId, serviceId: receipt.serviceId || receipt.productId } })).catch(()=>{}); } catch(_){}
           res.writeHead(200, { 'Content-Type':'application/json' });
           return res.end(JSON.stringify({ ok: true, method: 'BTC', mode: 'self-service', match: matched, receipt }));
         }
@@ -5280,6 +5587,7 @@ ${invoice.payer ? `<h2>Payer</h2><table><tr><th>Legal entity</th><td>${esc(invoi
           runDeliveryForReceipt(receipt);
           uaic.persistReceipt(receipt);
           logTransactionEvent('payment_activated', { receiptId, method: urlPath.includes('/btc/') ? 'BTC' : 'PAYPAL', amount: receipt.amount, txid: receipt.confirmation && receipt.confirmation.txid, trusted: true });
+          try { const tx = require('./commerce/transactional-email'); const em = (receipt.customerEmail || receipt.email || '').toString().trim().toLowerCase(); if (tx && em && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(em)) Promise.resolve(tx.sendTransactional({ to: em, template:'payment_activated', data:{ orderId: receiptId, serviceId: receipt.serviceId || receipt.productId } })).catch(()=>{}); } catch(_){}
         }
 
         res.writeHead(200, { 'Content-Type':'application/json' });

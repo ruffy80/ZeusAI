@@ -59,6 +59,24 @@ const STATE_FILE   = path.join(DATA_DIR, 'state.json');
 const WATCH_MS     = Math.max(15000, +(process.env.COMMERCE_WATCH_MS || 45000));
 const ORDER_TTL_MS = Math.max(5, +(process.env.COMMERCE_ORDER_TTL_MIN || 60)) * 60 * 1000;
 const MIN_CONFS    = Math.max(0, +(process.env.COMMERCE_MIN_CONFS || 0));
+// Tiered confirmation policy by USD amount (RO+EN):
+//   < $50         → 0-conf (mempool acceptable)
+//   $50–$1,000    → require 1 confirmation
+//   > $1,000      → require 3 confirmations
+// Override the entire policy via COMMERCE_TIERED_CONFS=disabled, or tune
+// thresholds via COMMERCE_CONFS_TIER1_USD / TIER2_USD / TIER1_CONFS / TIER2_CONFS.
+const TIERED_CONFS_ENABLED = String(process.env.COMMERCE_TIERED_CONFS || 'enabled').toLowerCase() !== 'disabled';
+const TIER1_USD   = Math.max(0, +(process.env.COMMERCE_CONFS_TIER1_USD || 50));
+const TIER2_USD   = Math.max(TIER1_USD, +(process.env.COMMERCE_CONFS_TIER2_USD || 1000));
+const TIER1_CONFS = Math.max(0, +(process.env.COMMERCE_CONFS_TIER1_CONFS || 1));
+const TIER2_CONFS = Math.max(TIER1_CONFS, +(process.env.COMMERCE_CONFS_TIER2_CONFS || 3));
+function requiredConfsForUsd(usd) {
+  if (!TIERED_CONFS_ENABLED) return MIN_CONFS;
+  const n = Number(usd || 0);
+  if (n >= TIER2_USD) return Math.max(MIN_CONFS, TIER2_CONFS);
+  if (n >= TIER1_USD) return Math.max(MIN_CONFS, TIER1_CONFS);
+  return MIN_CONFS;
+}
 const ADMIN_SECRET = process.env.COMMERCE_ADMIN_SECRET || '';
 const MEMPOOL_BASE = (process.env.COMMERCE_MEMPOOL_BASE || 'https://mempool.space/api').replace(/\/+$/, '');
 const PRICE_FALLBACK_USD = +(process.env.COMMERCE_PRICE_FALLBACK_USD || 60000);
@@ -406,15 +424,21 @@ async function scanIncoming() {
     }
     if (outSats <= 0) continue;
     const confirmed = !!(tx.status && tx.status.confirmed);
-    // Match against exact amount (strictest). If MIN_CONFS > 0, require confirmation.
+    // Match against exact amount (strictest). Apply tiered confirmation policy:
+    // small amounts may settle 0-conf, large amounts require N on-chain confs.
     const orderId = AMT_INDEX.get(outSats);
-    if (orderId && (confirmed || MIN_CONFS === 0)) {
+    const orderForTier = orderId ? ORDERS.get(orderId) : null;
+    const usdForTier = orderForTier && Number(orderForTier.price_usd || orderForTier.amount_usd || 0);
+    const neededConfs = requiredConfsForUsd(usdForTier || 0);
+    const txConfs = confirmed ? Math.max(1, Number((tx.status && tx.status.block_height) ? 1 : 1)) : 0;
+    if (orderId && (neededConfs === 0 ? true : txConfs >= neededConfs)) {
       const order = ORDERS.get(orderId);
       if (order && order.status === 'pending') {
         order.status = 'paid';
         order.paid_at = new Date().toISOString();
         order.txids = Array.from(new Set([...(order.txids || []), tx.txid]));
-        order.confirmations = confirmed ? 1 : 0;
+        order.confirmations = txConfs;
+        order.confs_required = neededConfs;
         order.paid_sats_observed = outSats;
         // Grant entitlement
         const entitlement = {
