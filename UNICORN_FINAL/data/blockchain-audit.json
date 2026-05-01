@@ -187,5 +187,14 @@
     },
     "prevHash": "82b37b0aef23f555f48de7a1056a77ceb45f470ac55a1168f19039222ea3724e",
     "hash": "363fb25666212a4ae71a3e665666c8b22e40c72c58e2f43e619a2fcf73e20860"
+  },
+  {
+    "ts": 1777638378498,
+    "action": "scaling",
+    "details": {
+      "procs": 5
+    },
+    "prevHash": "363fb25666212a4ae71a3e665666c8b22e40c72c58e2f43e619a2fcf73e20860",
+    "hash": "755900a4b481db84afbc9af716f100e441c2c337fd2e5a73df48c07de57fd4ca"
   }
 ]

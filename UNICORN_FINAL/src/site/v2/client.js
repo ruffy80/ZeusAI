@@ -2412,6 +2412,7 @@ async function hydrateOwnerRevenue(){
       typing.remove();
       assistantMsg = addMsg('<span class="stream-caret">▌</span>', 'bot', {withTools:false});
       const bodyBox = assistantMsg.querySelector('.msg-body');
+      // eslint-disable-next-line no-constant-condition
       while (true) {
         const { value, done } = await reader.read();
         if (done) break;
@@ -3267,19 +3268,22 @@ async function hydrateAccount(){
   const tok = getCustToken();
   const headers = tok ? { 'x-customer-token': tok } : {};
   const resp = await fetch('/api/customer/me', { headers, credentials: 'same-origin', cache: 'no-store' }).catch(() => null);
+  // Helper: auth form already rendered and wired — skip re-render to preserve user-typed input
+  const authFormWired = () => root.dataset.accountWired === '1' && !!root.querySelector('#acLoginBtn');
   if (!resp) {
-    renderAccountAuth(root, 'Rețea indisponibilă temporar. Reîncearcă în câteva secunde. / Temporary network issue. Please retry.');
+    if (!authFormWired()) renderAccountAuth(root, 'Rețea indisponibilă temporar. Reîncearcă în câteva secunde. / Temporary network issue. Please retry.');
     return;
   }
   if (resp.status === 401) {
     setCustToken('');
     setCustProfile(null);
-    renderAccountAuth(root);
+    // Only render if auth form isn't already wired — prevents double-render race that wipes user input
+    if (!authFormWired()) renderAccountAuth(root);
     return;
   }
   const me = resp.ok ? await resp.json().catch(()=>null) : null;
   if (!me) {
-    renderAccountAuth(root, 'Contul nu poate fi încărcat acum. / Could not load account right now.');
+    if (!authFormWired()) renderAccountAuth(root, 'Contul nu poate fi încărcat acum. / Could not load account right now.');
     return;
   }
   if (!tok && me.token) setCustToken(me.token);
@@ -3457,6 +3461,8 @@ function renderAccountAuth(root, topError){
   root.querySelector('#acSignupPass').addEventListener('keydown', e => { if (e.key === 'Enter') doSignup(); });
   root.querySelector('#acLoginEmail').addEventListener('input', e => syncPasskeyEmail(e.target.value.trim()));
   root.querySelector('#acSignupEmail').addEventListener('input', e => syncPasskeyEmail(e.target.value.trim()));
+  // Mark root as wired so wireExistingAccountAuth() won't double-render and wipe user input
+  root.dataset.accountWired = '1';
 }
 
 function wireExistingAccountAuth(){
