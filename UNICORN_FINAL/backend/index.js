@@ -530,7 +530,27 @@ app.post('/api/auth/passkey/challenge', authRateLimit(20, 15 * 60 * 1000), async
   const email = normalizeEmail(req.body?.email);
   if (!email || !isValidEmail(email)) return res.status(400).json({ error: 'Valid email required' });
   if (!['register', 'assert'].includes(mode)) return res.status(400).json({ error: 'mode must be register or assert' });
-  const user = dbUsers.findByEmail(email);
+  let user = dbUsers.findByEmail(email);
+  // For mode='register', auto-create the user account when a valid password is supplied,
+  // so "Create device key" works for first-time visitors without a separate signup step.
+  if (!user && mode === 'register') {
+    const password = req.body?.password;
+    if (typeof password === 'string' && password.length >= 8) {
+      const passwordHash = await bcrypt.hash(password, 10);
+      const newUser = {
+        id: crypto.randomBytes(8).toString('hex'),
+        name: sanitizeString(req.body?.name || email.split('@')[0], 100),
+        email,
+        passwordHash,
+        emailVerified: 0,
+        verifyToken: null,
+        verifyExpires: null,
+        createdAt: new Date().toISOString(),
+      };
+      dbUsers.create(newUser);
+      user = dbUsers.findByEmail(email);
+    }
+  }
   if (!user) return res.status(404).json({ error: 'User not found' });
   const { rpID, rpName } = getWebAuthnContext(req);
   const { generateRegistrationOptions, generateAuthenticationOptions } = await getWebAuthn();
@@ -686,6 +706,134 @@ app.get('/api/auth/me', authMiddleware, (req, res) => {
   const user = dbUsers.findById(req.user.id);
   if (!user) return res.status(404).json({ error: 'User not found' });
   res.json({ id: user.id, name: user.name, email: user.email, planId: user.planId || 'free', createdAt: user.createdAt, emailVerified: Boolean(user.emailVerified) });
+});
+
+// ==================== CUSTOMER PORTAL AUTH ROUTES ====================
+// Durable customer-portal endpoints reachable through nginx (`/api/*` → backend).
+// Backed by SQLite (dbUsers) so accounts persist across restarts, deploys and
+// PM2 cluster replicas — the same credentials work for every future login.
+//
+// Bilingual error messages (RO/EN) match the contract expected by
+// `UNICORN_FINAL/src/site/v2/client.js` (renderAccountAuth / hydrateAccount).
+const CUSTOMER_SESSION_COOKIE = 'customer_session';
+const CUSTOMER_SESSION_MAX_AGE_SEC = 30 * 24 * 3600; // 30 zile / 30 days
+function customerSessionCookie(token, maxAgeSec) {
+  const secure = process.env.NODE_ENV === 'production' || process.env.UNICORN_FORCE_SECURE_COOKIES === '1';
+  return `${CUSTOMER_SESSION_COOKIE}=${encodeURIComponent(String(token || ''))}; HttpOnly;${secure ? ' Secure;' : ''} SameSite=Lax; Path=/; Max-Age=${maxAgeSec}`;
+}
+function parseCookieHeader(raw) {
+  const out = {};
+  String(raw || '').split(/;\s*/).forEach((part) => {
+    if (!part) return;
+    const eq = part.indexOf('=');
+    if (eq < 0) return;
+    const k = part.slice(0, eq).trim();
+    const v = decodeURIComponent(part.slice(eq + 1).trim());
+    if (k) out[k] = v;
+  });
+  return out;
+}
+function readCustomerToken(req) {
+  const headerTok = String((req.headers && req.headers['x-customer-token']) || '').trim();
+  if (headerTok) return headerTok;
+  const auth = String((req.headers && req.headers.authorization) || '').trim();
+  if (auth.toLowerCase().startsWith('bearer ')) return auth.slice(7).trim();
+  const cookies = parseCookieHeader(req.headers && req.headers.cookie);
+  return String(cookies[CUSTOMER_SESSION_COOKIE] || '').trim();
+}
+function publicCustomerView(user) {
+  return { id: user.id, email: user.email, name: user.name || '', createdAt: user.createdAt, emailVerified: Boolean(user.emailVerified) };
+}
+
+app.post('/api/customer/signup', authRateLimit(10, 15 * 60 * 1000), async (req, res) => {
+  try {
+    const { name, email, password } = req.body || {};
+    const cleanEmail = sanitizeString(email, 254).toLowerCase();
+    const cleanName = sanitizeString(name, 100);
+    if (!isValidEmail(cleanEmail)) {
+      return res.status(400).json({ error: 'invalid_email', message: 'Adresă email invalidă / Invalid email address' });
+    }
+    if (typeof password !== 'string' || password.length < 8) {
+      return res.status(400).json({ error: 'password_too_short', message: 'Parola trebuie să aibă minim 8 caractere / Password must be at least 8 characters' });
+    }
+    if (dbUsers.findByEmail(cleanEmail)) {
+      return res.status(409).json({ error: 'email_taken', message: 'Acest email are deja cont. Conectează-te cu parola ta. / An account already exists for this email — please log in instead.' });
+    }
+    const passwordHash = await bcrypt.hash(password, 10);
+    const verifyToken = crypto.randomBytes(32).toString('hex');
+    const verifyExpires = Date.now() + 86400000; // 24h
+    const user = {
+      id: crypto.randomBytes(8).toString('hex'),
+      name: cleanName || cleanEmail.split('@')[0],
+      email: cleanEmail,
+      passwordHash,
+      emailVerified: 0,
+      verifyToken,
+      verifyExpires,
+      createdAt: new Date().toISOString(),
+    };
+    dbUsers.create(user);
+    // Best-effort verification email — do not block signup if mailer is unavailable.
+    try { emailService.sendVerificationEmail(user, verifyToken).catch((err) => console.error('[Email] verify send failed:', err.message)); } catch (_) {}
+    const token = jwt.sign({ id: user.id, email: user.email, name: user.name }, JWT_SECRET, { expiresIn: '30d' });
+    res.setHeader('Set-Cookie', customerSessionCookie(token, CUSTOMER_SESSION_MAX_AGE_SEC));
+    return res.status(200).json({ ok: true, token, customer: publicCustomerView(user) });
+  } catch (e) {
+    console.error('[customer.signup] error:', e && e.message);
+    return res.status(500).json({ error: 'signup_failed', message: 'Eroare la crearea contului / Error creating account' });
+  }
+});
+
+app.post('/api/customer/login', authRateLimit(20, 15 * 60 * 1000), async (req, res) => {
+  try {
+    const { email, password } = req.body || {};
+    const cleanEmail = sanitizeString(email, 254).toLowerCase();
+    if (!cleanEmail || !password) {
+      return res.status(400).json({ error: 'missing_fields', message: 'Email și parolă obligatorii / Email and password required' });
+    }
+    if (!isValidEmail(cleanEmail)) {
+      return res.status(400).json({ error: 'invalid_email', message: 'Adresă email invalidă / Invalid email address' });
+    }
+    const user = dbUsers.findByEmail(cleanEmail);
+    if (!user) {
+      return res.status(401).json({ error: 'email_not_found', message: 'Nu există cont cu acest email. Creează unul nou mai jos. / No account found for this email — create one below.' });
+    }
+    const valid = await bcrypt.compare(String(password), user.passwordHash);
+    if (!valid) {
+      return res.status(401).json({ error: 'wrong_password', message: 'Parolă incorectă. Încearcă din nou sau folosește "Ai uitat parola?". / Wrong password. Try again or use "Forgot password?".' });
+    }
+    const token = jwt.sign({ id: user.id, email: user.email, name: user.name }, JWT_SECRET, { expiresIn: '30d' });
+    res.setHeader('Set-Cookie', customerSessionCookie(token, CUSTOMER_SESSION_MAX_AGE_SEC));
+    return res.status(200).json({ ok: true, token, customer: publicCustomerView(user) });
+  } catch (e) {
+    console.error('[customer.login] error:', e && e.message);
+    return res.status(500).json({ error: 'login_failed', message: 'Eroare la autentificare / Login error' });
+  }
+});
+
+app.post('/api/customer/logout', (req, res) => {
+  res.setHeader('Set-Cookie', customerSessionCookie('', 0));
+  return res.status(200).json({ ok: true });
+});
+
+app.get('/api/customer/me', (req, res) => {
+  const tok = readCustomerToken(req);
+  if (!tok) return res.status(401).json({ error: 'unauthorized' });
+  let payload;
+  try { payload = jwt.verify(tok, JWT_SECRET); } catch (_) { return res.status(401).json({ error: 'unauthorized' }); }
+  if (!payload || !payload.id) return res.status(401).json({ error: 'unauthorized' });
+  const user = dbUsers.findById(payload.id);
+  if (!user) return res.status(401).json({ error: 'unauthorized' });
+  // Shape matches what `renderAccountDashboard` expects in
+  // UNICORN_FINAL/src/site/v2/client.js. Empty arrays are valid defaults; the
+  // dashboard renders friendly empty-states for them.
+  return res.status(200).json({
+    customer: publicCustomerView(user),
+    activeServices: [],
+    pendingOrders: [],
+    apiKeys: [],
+    orders: [],
+  });
 });
 
 // Refresh JWT token — issues a fresh token for the currently authenticated user.
