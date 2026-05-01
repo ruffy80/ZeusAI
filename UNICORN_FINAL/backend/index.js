@@ -708,7 +708,18 @@ app.post('/api/auth/passkey/register', authRateLimit(10, 15 * 60 * 1000), asyncH
     active: 1,
   });
   worldStandard.appendLedger('identity.passkey.enrolled', { userId: user.id, email: user.email, credentialIdHash: crypto.createHash('sha256').update(credentialId).digest('hex') });
-  res.json({ ok: true, credentialId, user: { id: user.id, email: user.email, name: user.name } });
+  // Also sign the customer in: issue the same JWT/cookie shape as /api/customer/login so
+  // "Create device key" doubles as a successful sign-in for first-time visitors.
+  const sessionToken = jwt.sign({ id: user.id, email: user.email, name: user.name }, JWT_SECRET, { expiresIn: '30d' });
+  res.setHeader('Set-Cookie', customerSessionCookie(sessionToken, CUSTOMER_SESSION_MAX_AGE_SEC));
+  res.json({
+    ok: true,
+    credentialId,
+    token: sessionToken,
+    email: user.email,
+    user: { id: user.id, email: user.email, name: user.name },
+    customer: publicCustomerView(user),
+  });
 }));
 
 app.post('/api/auth/passkey/assert', authRateLimit(20, 15 * 60 * 1000), asyncHandler(async (req, res) => {
@@ -735,9 +746,18 @@ app.post('/api/auth/passkey/assert', authRateLimit(20, 15 * 60 * 1000), asyncHan
   dbPasskeys.deleteChallenge(challenge.id);
   if (!verification.verified) return res.status(401).json({ error: 'Passkey verification failed' });
   dbPasskeys.updateCounter(stored.credentialId, Number(verification.authenticationInfo?.newCounter || stored.counter || 0));
-  const token = jwt.sign({ id: user.id, email: user.email, name: user.name }, JWT_SECRET, { expiresIn: '7d' });
+  // Issue the same JWT/cookie shape as /api/customer/login so client code that already knows
+  // how to read `customer_session` cookie + `customer` field works without divergent paths.
+  const token = jwt.sign({ id: user.id, email: user.email, name: user.name }, JWT_SECRET, { expiresIn: '30d' });
+  res.setHeader('Set-Cookie', customerSessionCookie(token, CUSTOMER_SESSION_MAX_AGE_SEC));
   worldStandard.appendLedger('identity.passkey.login', { userId: user.id, email: user.email, credentialIdHash: crypto.createHash('sha256').update(stored.credentialId).digest('hex') });
-  res.json({ token, user: { id: user.id, name: user.name, email: user.email, emailVerified: Boolean(user.emailVerified) } });
+  res.json({
+    ok: true,
+    token,
+    email: user.email,
+    user: { id: user.id, name: user.name, email: user.email, emailVerified: Boolean(user.emailVerified) },
+    customer: publicCustomerView(user),
+  });
 }));
 
 app.get('/api/auth/passkey/list', authMiddleware, (req, res) => {

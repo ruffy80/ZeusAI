@@ -263,6 +263,31 @@ async function runTests() {
     assert.equal(lr.status, 200);
   });
 
+  // Response-shape contract: device-key login (passkey assert) and device-key creation
+  // (passkey register) MUST mirror /api/customer/login output — i.e. include `ok`, `token`,
+  // `customer` and a `customer_session` cookie — so the same client code that handles
+  // password-based auth (UNICORN_FINAL/src/site/v2/client.js: `if (result.token && result.customer)`)
+  // works without divergent passkey paths. We can't drive a real WebAuthn handshake from
+  // node's `fetch`, but we can lock in the route source so the contract isn't silently broken.
+  await test('passkey assert/register sources include cookie + customer field for client parity', async () => {
+    const fs = require('fs');
+    const path = require('path');
+    const src = fs.readFileSync(path.join(__dirname, '..', 'backend', 'index.js'), 'utf8');
+    // Find the /api/auth/passkey/assert handler block.
+    const assertIdx = src.indexOf("'/api/auth/passkey/assert'");
+    assert.ok(assertIdx > 0, 'passkey/assert route must exist');
+    const assertBlock = src.slice(assertIdx, assertIdx + 2500);
+    assert.ok(/customerSessionCookie\(token,/.test(assertBlock), 'passkey/assert must Set-Cookie customer_session');
+    assert.ok(/customer:\s*publicCustomerView\(user\)/.test(assertBlock), 'passkey/assert must return customer field');
+    assert.ok(/ok:\s*true/.test(assertBlock), 'passkey/assert must return ok:true');
+
+    const regIdx = src.indexOf("'/api/auth/passkey/register'");
+    assert.ok(regIdx > 0, 'passkey/register route must exist');
+    const regBlock = src.slice(regIdx, regIdx + 3500);
+    assert.ok(/customerSessionCookie\(/.test(regBlock), 'passkey/register must Set-Cookie customer_session');
+    assert.ok(/customer:\s*publicCustomerView\(user\)/.test(regBlock), 'passkey/register must return customer field');
+  });
+
   // ── Billing Plans ────────────────────────────────────────────────────────────
   console.log('\nBilling:');
   await test('GET /api/billing/plans/public → 200 with plans array', async () => {
