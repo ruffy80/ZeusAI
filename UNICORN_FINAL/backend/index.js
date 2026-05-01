@@ -4488,6 +4488,168 @@ app.get('/api/marketplace/purchases/guest', (req, res) => {
 
 // ==================== DYNAMIC PRICING ROUTES ====================
 
+// ==================== AUTONOMOUS MODULE REGISTRY (public, source-of-truth) ====================
+// Single endpoint that lists ALL current and future modules of the Unicorn.
+// Auto-innovation, manual additions, or external systems POST to /api/modules/register
+// and the change is broadcast via SSE in <5s. Site BFF mirrors this to its frontend.
+const _autonomousRegistry = {
+  modules: new Map(), // id -> module entry
+  listeners: new Set(), // SSE response objects
+  rev: 0,
+};
+
+function _autoEmit(type, data) {
+  _autonomousRegistry.rev += 1;
+  const evt = { type, rev: _autonomousRegistry.rev, at: new Date().toISOString(), data };
+  const payload = 'event: ' + type + '\ndata: ' + JSON.stringify(evt) + '\n\n';
+  for (const res of _autonomousRegistry.listeners) {
+    try { res.write(payload); } catch (_) { /* dead client; will be cleaned on close */ }
+  }
+}
+
+function _autoUpsertModule(meta) {
+  const id = String((meta && meta.id) || '').trim();
+  if (!id) return null;
+  const existing = _autonomousRegistry.modules.get(id);
+  const now = new Date().toISOString();
+  const entry = {
+    id,
+    name: String(meta.name || (existing && existing.name) || id.charAt(0).toUpperCase() + id.slice(1).replace(/[-_]/g, ' ')),
+    description: String(meta.description || (existing && existing.description) || ''),
+    category: String(meta.category || (existing && existing.category) || 'general'),
+    isActive: meta.isActive !== false,
+    defaultPrice: Number.isFinite(Number(meta.defaultPrice)) ? Number(meta.defaultPrice) : ((existing && existing.defaultPrice != null) ? existing.defaultPrice : null),
+    addedAt: (existing && existing.addedAt) || now,
+    updatedAt: now,
+  };
+  _autonomousRegistry.modules.set(id, entry);
+  _autoEmit(existing ? 'module.update' : 'module.added', entry);
+  return entry;
+}
+
+// Seed from BASE_PRICES + MODULE_REGISTRY at boot
+(function _autoSeed() {
+  try {
+    const bp = dynamicPricing.BASE_PRICES || {};
+    for (const [id, price] of Object.entries(bp)) {
+      _autoUpsertModule({
+        id,
+        name: id.charAt(0).toUpperCase() + id.slice(1).replace(/[-_]/g, ' '),
+        description: 'ZeusAI ' + id + ' tier',
+        category: 'pricing-tier',
+        isActive: true,
+        defaultPrice: Number(price),
+      });
+    }
+  } catch (e) { console.warn('[autonomous-registry] seed pricing failed:', e.message); }
+  try {
+    const reg = (typeof MODULE_REGISTRY !== 'undefined' && MODULE_REGISTRY) || {};
+    for (const [cat, mods] of Object.entries(reg)) {
+      if (!Array.isArray(mods)) continue;
+      for (const m of mods) {
+        const id = 'mod-' + String(m).toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '').slice(0, 80);
+        if (!id || id === 'mod-') continue;
+        _autoUpsertModule({
+          id,
+          name: String(m),
+          description: cat + ' capability',
+          category: cat,
+          isActive: true,
+          defaultPrice: null,
+        });
+      }
+    }
+  } catch (e) { console.warn('[autonomous-registry] seed modules failed:', e.message); }
+  console.log('[autonomous-registry] seeded ' + _autonomousRegistry.modules.size + ' modules');
+})();
+
+// Periodic price refresh + SSE heartbeat (every 5s)
+setInterval(() => {
+  try {
+    const all = (typeof dynamicPricing !== 'undefined' && dynamicPricing.getAllPrices) ? dynamicPricing.getAllPrices() : {};
+    const updates = [];
+    for (const m of _autonomousRegistry.modules.values()) {
+      const live = all && all[m.id];
+      if (live && Number.isFinite(Number(live.finalPrice))) {
+        const newPrice = Number(live.finalPrice);
+        if (m.defaultPrice !== newPrice) {
+          m.defaultPrice = newPrice;
+          m.updatedAt = new Date().toISOString();
+          updates.push({ id: m.id, price_usd: newPrice });
+        }
+      }
+    }
+    if (updates.length) _autoEmit('price.update', { updates });
+    // Heartbeat for liveness (comment line — clients ignore)
+    for (const res of _autonomousRegistry.listeners) {
+      try { res.write(': hb ' + Date.now() + '\n\n'); } catch (_) {}
+    }
+  } catch (_) { /* never crash */ }
+}, 5000);
+
+// GET /api/modules/list — public catalog snapshot
+app.get('/api/modules/list', (req, res) => {
+  const arr = Array.from(_autonomousRegistry.modules.values());
+  res.json({
+    ok: true,
+    count: arr.length,
+    rev: _autonomousRegistry.rev,
+    modules: arr,
+    generatedAt: new Date().toISOString(),
+  });
+});
+
+// GET /api/modules/stream — SSE live event feed
+app.get('/api/modules/stream', (req, res) => {
+  res.writeHead(200, {
+    'Content-Type': 'text/event-stream',
+    'Cache-Control': 'no-cache, no-transform',
+    'Connection': 'keep-alive',
+    'Access-Control-Allow-Origin': '*',
+    'X-Accel-Buffering': 'no',
+  });
+  const snapshot = {
+    type: 'snapshot',
+    rev: _autonomousRegistry.rev,
+    at: new Date().toISOString(),
+    modules: Array.from(_autonomousRegistry.modules.values()),
+  };
+  res.write('event: snapshot\ndata: ' + JSON.stringify(snapshot) + '\n\n');
+  _autonomousRegistry.listeners.add(res);
+  req.on('close', () => { _autonomousRegistry.listeners.delete(res); });
+});
+
+// POST /api/modules/register — autonomous innovation hook
+// Used by auto-innovation engine, admin tooling, or external systems.
+// Optional auth: if ADMIN_TOKEN env is set, requires it; otherwise open (dev).
+app.post('/api/modules/register', express.json(), (req, res) => {
+  const adminToken = process.env.ADMIN_TOKEN || process.env.ADMIN_API_TOKEN || '';
+  if (adminToken) {
+    const provided = (req.headers.authorization || '').replace(/^Bearer\s+/i, '') || req.headers['x-admin-token'] || '';
+    if (provided !== adminToken) return res.status(401).json({ error: 'unauthorized' });
+  }
+  const entry = _autoUpsertModule(req.body || {});
+  if (!entry) return res.status(400).json({ error: 'id required' });
+  res.json({ ok: true, module: entry });
+});
+
+// POST /api/modules/status — broadcast a status change
+app.post('/api/modules/status', express.json(), (req, res) => {
+  const adminToken = process.env.ADMIN_TOKEN || process.env.ADMIN_API_TOKEN || '';
+  if (adminToken) {
+    const provided = (req.headers.authorization || '').replace(/^Bearer\s+/i, '') || req.headers['x-admin-token'] || '';
+    if (provided !== adminToken) return res.status(401).json({ error: 'unauthorized' });
+  }
+  const { id, isActive, status } = req.body || {};
+  if (!id) return res.status(400).json({ error: 'id required' });
+  const m = _autonomousRegistry.modules.get(String(id));
+  if (!m) return res.status(404).json({ error: 'not_found' });
+  if (typeof isActive === 'boolean') m.isActive = isActive;
+  m.updatedAt = new Date().toISOString();
+  _autoEmit('status.update', { id: m.id, isActive: m.isActive, status: status || (m.isActive ? 'active' : 'inactive') });
+  res.json({ ok: true, module: m });
+});
+
 // Public: current price for all or a specific service
 app.get('/api/pricing/all', routeCache.cacheMiddleware(), (req, res) => {
   res.json({ prices: dynamicPricing.getAllPrices(), basePrices: dynamicPricing.BASE_PRICES });
