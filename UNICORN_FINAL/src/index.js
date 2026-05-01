@@ -2806,6 +2806,72 @@ async function unicornHandler(req, res) {
     }
   }
 
+  // ─── Real money-machine: sales closer + SDR + conversion + revenue + enterprise ───
+  if (urlPath === '/api/sales/closer/status' || urlPath === '/api/sales/closer') {
+    try { const m = require('../backend/modules/ai-sales-closer-pro'); res.writeHead(200, { 'Content-Type':'application/json', 'Cache-Control':'no-cache' }); return res.end(JSON.stringify(m.getStatus({ btcWallet: BTC_WALLET }))); }
+    catch (e) { res.writeHead(500, { 'Content-Type':'application/json' }); return res.end(JSON.stringify({ error: 'closer_status_failed', message: e.message })); }
+  }
+  if (urlPath === '/api/sales/sdr/status' || urlPath === '/api/sales/sdr/lead' || urlPath === '/api/sales/sdr') {
+    try { const m = require('../backend/modules/ai-sdr-agent'); res.writeHead(200, { 'Content-Type':'application/json', 'Cache-Control':'no-cache' }); return res.end(JSON.stringify(m.getStatus({ btcWallet: BTC_WALLET }))); }
+    catch (e) { res.writeHead(500, { 'Content-Type':'application/json' }); return res.end(JSON.stringify({ error: 'sdr_status_failed', message: e.message })); }
+  }
+  if (urlPath === '/api/conversion/intelligence' || urlPath === '/api/conversion/intelligence/status') {
+    try { const m = require('../backend/modules/conversion-intelligence-layer'); res.writeHead(200, { 'Content-Type':'application/json', 'Cache-Control':'no-cache' }); return res.end(JSON.stringify(m.getStatus({ btcWallet: BTC_WALLET }))); }
+    catch (e) { res.writeHead(500, { 'Content-Type':'application/json' }); return res.end(JSON.stringify({ error: 'conversion_status_failed', message: e.message })); }
+  }
+  if (urlPath === '/api/owner/revenue' || urlPath === '/api/revenue/commander' || urlPath === '/api/owner/revenue/dashboard') {
+    try { const m = require('../backend/modules/owner-revenue-dashboard'); res.writeHead(200, { 'Content-Type':'application/json', 'Cache-Control':'no-cache' }); return res.end(JSON.stringify(m.getStatus({ btcWallet: BTC_WALLET }))); }
+    catch (e) { res.writeHead(500, { 'Content-Type':'application/json' }); return res.end(JSON.stringify({ error: 'revenue_status_failed', message: e.message })); }
+  }
+  if (urlPath === '/api/enterprise/quote' && req.method === 'GET') {
+    try { const m = require('../backend/modules/enterprise-deal-desk'); res.writeHead(200, { 'Content-Type':'application/json', 'Cache-Control':'no-cache' }); return res.end(JSON.stringify(m.getStatus({ btcWallet: BTC_WALLET }))); }
+    catch (e) { res.writeHead(500, { 'Content-Type':'application/json' }); return res.end(JSON.stringify({ error: 'quote_status_failed', message: e.message })); }
+  }
+  if (urlPath === '/api/enterprise/quote' && req.method === 'POST') {
+    try {
+      const chunks = []; for await (const c of req) chunks.push(c);
+      let body = {}; try { body = JSON.parse(Buffer.concat(chunks).toString('utf8') || '{}'); } catch (_) {}
+      const m = require('../backend/modules/enterprise-deal-desk');
+      const usdPerBtc = await getBtcUsdSpot().catch(() => 95000);
+      const quote = m.buildQuote({ items: body.items || [], seats: body.seats, slaTier: body.slaTier, customerId: body.customerId || null, discountPct: body.discountPct, msaUrl: body.msaUrl, btcWallet: BTC_WALLET, btcSpotUsd: usdPerBtc });
+      res.writeHead(200, { 'Content-Type':'application/json', 'Cache-Control':'no-cache' });
+      return res.end(JSON.stringify({ ok: true, quote }));
+    } catch (e) { res.writeHead(400, { 'Content-Type':'application/json' }); return res.end(JSON.stringify({ error: e.code || 'quote_create_failed', message: e.message })); }
+  }
+  if (urlPath === '/api/money-machine/status') {
+    try {
+      const off = require('../backend/modules/offer-factory');
+      const seo = require('../backend/modules/programmatic-seo-engine');
+      const grow = require('../backend/modules/vertical-growth-page-engine');
+      const cs = require('../backend/modules/customer-success-autopilot');
+      const rec = require('../backend/modules/checkout-recovery-agent');
+      const cl = require('../backend/modules/ai-sales-closer-pro');
+      const sdr = require('../backend/modules/ai-sdr-agent');
+      const ci = require('../backend/modules/conversion-intelligence-layer');
+      const rev = require('../backend/modules/owner-revenue-dashboard');
+      const ent = require('../backend/modules/enterprise-deal-desk');
+      const opt = { btcWallet: BTC_WALLET };
+      res.writeHead(200, { 'Content-Type':'application/json', 'Cache-Control':'no-cache' });
+      return res.end(JSON.stringify({
+        ok: true,
+        owner: { name: 'Vladoi Ionut', btcAddress: BTC_WALLET },
+        modules: {
+          offerFactory: off.getStatus(opt),
+          programmaticSeo: seo.getStatus(opt),
+          verticalGrowth: grow.getStatus(opt),
+          customerSuccess: cs.getStatus(opt),
+          checkoutRecovery: rec.getStatus(opt),
+          salesCloser: cl.getStatus(opt),
+          sdrAgent: sdr.getStatus(opt),
+          conversionIntelligence: ci.getStatus(opt),
+          ownerRevenue: rev.getStatus(opt),
+          enterpriseDealDesk: ent.getStatus(opt)
+        },
+        generatedAt: new Date().toISOString()
+      }));
+    } catch (e) { res.writeHead(500, { 'Content-Type':'application/json' }); return res.end(JSON.stringify({ error: 'money_machine_status_failed', message: e.message })); }
+  }
+
   if (urlPath.startsWith('/api/capability/credential/')) {
     const id = decodeURIComponent(urlPath.slice('/api/capability/credential/'.length));
     const receipt = findReceipt(id) || { id, status: 'pending', plan: 'starter', services: ['starter'], deliveryStatus: 'pending' };

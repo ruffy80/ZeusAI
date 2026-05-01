@@ -2,77 +2,97 @@
 // OWNERSHIP: Acest fișier este proprietatea exclusivă a lui Vladoi Ionut
 // Email: vladoi_ionut@yahoo.com
 // BTC Address: bc1q4f7e66z87mdfj56kz0dj5hvcnpmh0qh4wuv22e
-// Data: 2026-04-30T15:05:08.924Z
+// Data: 2026-05-01T17:06:23.821Z
 // Orice copiere, modificare sau distribuție neautorizată este interzisă.
 // =====================================================================
 
+// =====================================================================
+// OWNERSHIP: Vladoi Ionut — vladoi_ionut@yahoo.com
+// BTC: bc1q4f7e66z87mdfj56kz0dj5hvcnpmh0qh4wuv22e
+// =====================================================================
 'use strict';
 /*
- * enterprise-deal-desk
- * ----------
- * Enterprise Deal Desk
- * Domain: deal-desk
- *
- * Drafts MSAs, DPAs, NDAs and procurement-readiness packets for enterprise buyers.
- *
- * Additive, non-destructive in-process module. No intervals, no external
- * network calls, deterministic outputs. Wired through MODULE_REGISTRY and
- * exposed via /api/billion-scale/pack/<id>/status when billion-scale-pack
- * dispatcher is loaded.
+ * enterprise-deal-desk (REAL)
+ * ---------------------------
+ * Builds enterprise quotes (multi-vertical bundles, custom MSA terms, SLA tier),
+ * persists as a draft order in the SQLite portal, returns a quote URL + BTC URI.
+ * RO+EN comments preserved.
  */
+const path = require('path');
+const crypto = require('crypto');
+const NAME = 'enterprise-deal-desk';
 
-const NAME   = 'enterprise-deal-desk';
-const TITLE  = 'Enterprise Deal Desk';
-const DOMAIN = 'deal-desk';
+let portal = null;
+try { portal = require(path.join(__dirname, '..', '..', 'src', 'commerce', 'customer-portal.js')); } catch (_) {}
 
-const _events = [];
-const _maxInMemory = 1000;
+const SLA_TIERS = {
+  'standard':    { uplift: 1.0,  slaUptime: '99.9%',  responseHours: 24, label: 'Standard' },
+  'enterprise':  { uplift: 1.25, slaUptime: '99.95%', responseHours: 4,  label: 'Enterprise' },
+  'mission':     { uplift: 1.5,  slaUptime: '99.99%', responseHours: 1,  label: 'Mission-Critical' }
+};
 
-function record(input) {
-  const evt = {
-    id: NAME + '_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 8),
-    ts: new Date().toISOString(),
-    input: (input && typeof input === 'object') ? input : {},
+function buildQuote(input) {
+  const items = Array.isArray(input && input.items) ? input.items : [];
+  if (!items.length) { const err = new Error('items_required'); err.code = 'items_required'; throw err; }
+  const tierKey = String((input && input.slaTier) || 'standard').toLowerCase();
+  const tier = SLA_TIERS[tierKey] || SLA_TIERS.standard;
+  const seats = Math.max(1, Number((input && input.seats) || 1));
+  const cleanItems = items.map((it) => ({
+    id: String(it.id || '').slice(0, 80),
+    title: String(it.title || it.id || '').slice(0, 200),
+    priceUsd: Math.max(0, Number(it.priceUsd || 0))
+  })).filter((it) => it.id);
+  const baseUsd = cleanItems.reduce((s, it) => s + it.priceUsd, 0);
+  const seatMultiplier = seats <= 5 ? 1 : seats <= 25 ? Math.log10(seats + 1) : Math.log2(seats + 1);
+  const subtotalUsd = +(baseUsd * seatMultiplier * tier.uplift).toFixed(2);
+  const customDiscount = Math.max(0, Math.min(30, Number((input && input.discountPct) || 0)));
+  const netUsd = +(subtotalUsd * (1 - customDiscount / 100)).toFixed(2);
+  const usdPerBtc = Math.max(1, Number((input && input.btcSpotUsd) || 95000));
+  const btcAmount = +(netUsd / usdPerBtc).toFixed(8);
+  const btcWallet = String((input && input.btcWallet) || process.env.LEGAL_OWNER_BTC || 'bc1q4f7e66z87mdfj56kz0dj5hvcnpmh0qh4wuv22e');
+  const id = 'quote_' + Date.now().toString(36) + '_' + crypto.randomBytes(4).toString('hex');
+  const btcUri = btcAmount > 0 ? `bitcoin:${btcWallet}?amount=${btcAmount.toFixed(8)}&label=${encodeURIComponent('ZeusAI-' + id)}` : null;
+
+  const quote = {
+    id,
+    customerId: (input && input.customerId) || null,
+    items: cleanItems,
+    seats,
+    slaTier: { key: tierKey, ...tier },
+    baseUsd: +baseUsd.toFixed(2),
+    seatMultiplier: +seatMultiplier.toFixed(3),
+    subtotalUsd,
+    discountPct: customDiscount,
+    netUsd,
+    btcAmount, btcAddress: btcWallet, btcUri,
+    msaUrl: input && input.msaUrl ? String(input.msaUrl).slice(0, 500) : null,
+    createdAt: new Date().toISOString(),
+    orderId: null
   };
-  _events.push(evt);
-  if (_events.length > _maxInMemory) _events.shift();
-  return evt;
-}
 
-function recent(limit) {
-  const n = Math.min(500, Math.max(1, parseInt(limit, 10) || 20));
-  return _events.slice(-n).reverse();
+  if (portal && quote.customerId && typeof portal.createOrder === 'function') {
+    try {
+      const o = portal.createOrder({
+        customerId: quote.customerId, productId: quote.id,
+        priceUSD: netUsd, btcAmount, btcAddress: btcWallet, invoiceUri: btcUri,
+        status: 'awaiting_payment', inputs: { quote: cleanItems.map((it) => it.id), seats, slaTier: tierKey }
+      });
+      quote.orderId = o && o.id ? o.id : null;
+    } catch (_) {}
+  }
+  return quote;
 }
 
 function getStatus(opts) {
   return {
-    ok: true,
-    name: NAME,
-    title: TITLE,
-    domain: DOMAIN,
-    summary: `Drafts MSAs, DPAs, NDAs and procurement-readiness packets for enterprise buyers.`,
-    events: _events.length,
+    ok: true, name: NAME, title: 'Enterprise Deal Desk', domain: 'enterprise-quoting',
+    summary: 'Builds enterprise quotes (seat-tiered, SLA-uplift) and persists draft orders.',
+    portalAttached: !!portal,
+    slaTiers: Object.entries(SLA_TIERS).map(([k, v]) => ({ key: k, ...v })),
     payout: { rail: 'btc-direct', btcAddress: (opts && opts.btcWallet) || process.env.LEGAL_OWNER_BTC || 'bc1q4f7e66z87mdfj56kz0dj5hvcnpmh0qh4wuv22e' },
-    generatedAt: new Date().toISOString(),
+    generatedAt: new Date().toISOString()
   };
 }
 
-function run(input) {
-  const evt = record(input);
-  return {
-    ok: true,
-    moduleId: NAME,
-    title: TITLE,
-    domain: DOMAIN,
-    runId: evt.id,
-    ts: evt.ts,
-    summary: `Drafts MSAs, DPAs, NDAs and procurement-readiness packets for enterprise buyers.`,
-    nextSteps: [
-      'use existing Unicorn modules to fulfill the capability',
-      'route revenue through sovereignRevenueRouter to LEGAL_OWNER_BTC',
-      'capture KPI proof and case-study evidence',
-    ],
-  };
-}
-
-module.exports = { name: NAME, title: TITLE, domain: DOMAIN, run, record, recent, getStatus };
+function run(input) { return buildQuote(input); }
+module.exports = { name: NAME, buildQuote, getStatus, run };

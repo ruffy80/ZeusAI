@@ -2,77 +2,67 @@
 // OWNERSHIP: Acest fișier este proprietatea exclusivă a lui Vladoi Ionut
 // Email: vladoi_ionut@yahoo.com
 // BTC Address: bc1q4f7e66z87mdfj56kz0dj5hvcnpmh0qh4wuv22e
-// Data: 2026-04-30T15:05:08.919Z
+// Data: 2026-05-01T17:06:23.818Z
 // Orice copiere, modificare sau distribuție neautorizată este interzisă.
 // =====================================================================
 
+// =====================================================================
+// OWNERSHIP: Vladoi Ionut — vladoi_ionut@yahoo.com
+// BTC: bc1q4f7e66z87mdfj56kz0dj5hvcnpmh0qh4wuv22e
+// =====================================================================
 'use strict';
 /*
- * ai-sdr-agent
- * ----------
- * AI SDR Agent
- * Domain: sales-pipeline
- *
- * Drafts personalized outbound and inbound responses for enterprise leads.
- *
- * Additive, non-destructive in-process module. No intervals, no external
- * network calls, deterministic outputs. Wired through MODULE_REGISTRY and
- * exposed via /api/billion-scale/pack/<id>/status when billion-scale-pack
- * dispatcher is loaded.
+ * ai-sdr-agent (REAL)
+ * -------------------
+ * Reads inbound leads (data/marketing/leads.jsonl when present) and
+ * produces a prioritized SDR queue with next-step recommendations.
+ * Pull-based, no timers. RO+EN comments preserved.
  */
+const fs = require('fs');
+const path = require('path');
+const NAME = 'ai-sdr-agent';
 
-const NAME   = 'ai-sdr-agent';
-const TITLE  = 'AI SDR Agent';
-const DOMAIN = 'sales-pipeline';
+const LEADS_FILE = path.join(__dirname, '..', '..', 'data', 'marketing', 'leads.jsonl');
 
-const _events = [];
-const _maxInMemory = 1000;
-
-function record(input) {
-  const evt = {
-    id: NAME + '_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 8),
-    ts: new Date().toISOString(),
-    input: (input && typeof input === 'object') ? input : {},
-  };
-  _events.push(evt);
-  if (_events.length > _maxInMemory) _events.shift();
-  return evt;
+function _readLeads() {
+  try {
+    if (!fs.existsSync(LEADS_FILE)) return [];
+    const raw = fs.readFileSync(LEADS_FILE, 'utf8');
+    return raw.split('\n').filter(Boolean).map((l) => { try { return JSON.parse(l); } catch (_) { return null; } }).filter(Boolean);
+  } catch (_) { return []; }
 }
 
-function recent(limit) {
-  const n = Math.min(500, Math.max(1, parseInt(limit, 10) || 20));
-  return _events.slice(-n).reverse();
+function _scoreLead(lead) {
+  let score = 30;
+  const email = String(lead.email || '').toLowerCase();
+  if (email && !/(gmail|yahoo|hotmail|outlook|icloud)\./i.test(email)) score += 25;
+  if (lead.company) score += 20;
+  if (lead.vertical) score += 15;
+  if (lead.source === 'vertical-growth-page') score += 10;
+  return Math.min(100, score);
+}
+
+function buildQueue(opts) {
+  const leads = _readLeads();
+  const enriched = leads.map((l) => ({
+    email: l.email, name: l.name || null, company: l.company || null, vertical: l.vertical || null,
+    source: l.source || 'unknown', receivedAt: l.ts || l.receivedAt || null,
+    score: _scoreLead(l),
+    nextStep: _scoreLead(l) >= 70 ? 'book_call_24h' : _scoreLead(l) >= 50 ? 'send_case_study' : 'nurture_sequence'
+  })).sort((a, b) => b.score - a.score);
+  return { queue: enriched.slice(0, Number((opts && opts.limit) || 100)), totalLeads: enriched.length };
 }
 
 function getStatus(opts) {
+  const q = buildQueue(opts);
   return {
-    ok: true,
-    name: NAME,
-    title: TITLE,
-    domain: DOMAIN,
-    summary: `Drafts personalized outbound and inbound responses for enterprise leads.`,
-    events: _events.length,
+    ok: true, name: NAME, title: 'AI SDR Agent', domain: 'sdr',
+    summary: 'Scores inbound leads from /api/lead and produces a prioritized SDR queue.',
+    leadsFile: LEADS_FILE, totals: { totalLeads: q.totalLeads }, top: q.queue.slice(0, 5),
     payout: { rail: 'btc-direct', btcAddress: (opts && opts.btcWallet) || process.env.LEGAL_OWNER_BTC || 'bc1q4f7e66z87mdfj56kz0dj5hvcnpmh0qh4wuv22e' },
-    generatedAt: new Date().toISOString(),
+    generatedAt: new Date().toISOString()
   };
 }
 
-function run(input) {
-  const evt = record(input);
-  return {
-    ok: true,
-    moduleId: NAME,
-    title: TITLE,
-    domain: DOMAIN,
-    runId: evt.id,
-    ts: evt.ts,
-    summary: `Drafts personalized outbound and inbound responses for enterprise leads.`,
-    nextSteps: [
-      'use existing Unicorn modules to fulfill the capability',
-      'route revenue through sovereignRevenueRouter to LEGAL_OWNER_BTC',
-      'capture KPI proof and case-study evidence',
-    ],
-  };
-}
-
-module.exports = { name: NAME, title: TITLE, domain: DOMAIN, run, record, recent, getStatus };
+function run(input) { return buildQueue(input); }
+module.exports = { name: NAME, buildQueue, getStatus, run };

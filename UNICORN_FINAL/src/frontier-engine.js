@@ -412,10 +412,13 @@ function openApiSpec(extraPaths={}) {
 // SITEMAP + ROBOTS
 // ═══════════════════════════════════════════════════════════════════════════
 const SITE_ROUTES = ['/', '/services', '/pricing', '/checkout', '/dashboard', '/how', '/docs', '/about', '/legal', '/store', '/enterprise', '/account', '/innovations', '/wizard', '/status', '/changelog', '/terms', '/privacy', '/refund', '/sla', '/pledge', '/cancel', '/gift', '/aura', '/api-explorer', '/transparency', '/trust', '/security', '/responsible-ai', '/dpa', '/payment-terms', '/frontier'];
+const VERTICAL_SLUGS = ['fintech-os','health-os','retail-os','logistics-os','manufacturing-os','energy-os','agri-os','edu-os','govtech-os','legaltech-os','hospitality-os','media-os','gaming-os','realestate-os','mobility-os','biotech-os','security-os','climate-os'];
 function sitemapXml(base='https://zeusai.pro') {
   const lastmod = nowIso().slice(0,10);
-  const urls = SITE_ROUTES.map(r => `<url><loc>${base}${r}</loc><lastmod>${lastmod}</lastmod><changefreq>weekly</changefreq><priority>${r==='/'?'1.0':'0.7'}</priority></url>`).join('');
-  return `<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">${urls}</urlset>`;
+  const main = SITE_ROUTES.map(r => `<url><loc>${base}${r}</loc><lastmod>${lastmod}</lastmod><changefreq>weekly</changefreq><priority>${r==='/'?'1.0':'0.7'}</priority></url>`).join('');
+  const verticals = VERTICAL_SLUGS.map(s => `<url><loc>${base}/vertical/${s}</loc><lastmod>${lastmod}</lastmod><changefreq>weekly</changefreq><priority>0.8</priority></url><url><loc>${base}/grow/${s}</loc><lastmod>${lastmod}</lastmod><changefreq>weekly</changefreq><priority>0.7</priority></url>`).join('');
+  const verticalsIndex = `<url><loc>${base}/verticals</loc><lastmod>${lastmod}</lastmod><changefreq>weekly</changefreq><priority>0.9</priority></url>`;
+  return `<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">${main}${verticalsIndex}${verticals}</urlset>`;
 }
 function robotsTxt(base='https://zeusai.pro') {
   return `User-agent: *\nAllow: /\nDisallow: /admin\nDisallow: /api/admin\nSitemap: ${base}/sitemap.xml\nSitemap: ${base}/seo/sitemap-services.xml\n`;
