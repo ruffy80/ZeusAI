@@ -517,9 +517,16 @@ select.form-inp option{background:#0a0e24;}
     </div>
 
     <footer class="footer">
+      <form id="lead-form" onsubmit="return submitLead(event)" style="max-width:520px;margin:0 auto 18px;display:flex;gap:8px;flex-wrap:wrap;justify-content:center;align-items:center">
+        <input type="email" name="email" required placeholder="your@email.com" style="flex:1;min-width:220px;padding:10px 14px;border-radius:8px;border:1px solid rgba(0,212,255,.25);background:rgba(0,0,0,.35);color:#cfe;">
+        <input type="text" name="hp_field" tabindex="-1" autocomplete="off" style="position:absolute;left:-9999px;opacity:0" aria-hidden="true">
+        <button type="submit" style="padding:10px 18px;border-radius:8px;border:0;background:linear-gradient(90deg,#00d4ff,#0050ff);color:#fff;font-weight:600;cursor:pointer">Notify me when sovereign AI ships →</button>
+        <span id="lead-msg" style="flex-basis:100%;font-size:12px;color:#7090b0"></span>
+      </form>
       <p>🦄 <a href="https://zeusai.pro" target="_blank">zeusai.pro</a> — Universal AI Unicorn Platform</p>
       <p style="margin-top:4px;">Owner: ${ownerName} &nbsp;|&nbsp; <a href="mailto:${ownerEmail}">${ownerEmail}</a></p>
       <p style="margin-top:6px;">BTC: <span class="btc-addr" data-btc-address="1" onclick="copyText(this.textContent,this)" title="Click to copy">${btcWallet}</span></p>
+      <p style="margin-top:10px;font-size:11px;opacity:.75"><a href="/transparency/live">Live transparency dashboard</a> · <a href="/feed.xml">RSS</a> · <a href="/tos">ToS</a> · <a href="/privacy">Privacy</a> · <a href="/imprint">Imprint</a> · <a href="/cookies">Cookies</a></p>
     </footer>
   </div><!-- end #view-home -->
 
@@ -1415,6 +1422,21 @@ function copyText(txt,el){
     toast('Copied to clipboard!','ok');
     if(el){var old=el.textContent;el.textContent='✓ Copied!';setTimeout(function(){el.textContent=old;},1500);}
   }).catch(function(){toast('Copy failed','err');});
+}
+
+function submitLead(ev){
+  ev.preventDefault();
+  var f=ev.target, msg=document.getElementById('lead-msg');
+  var data={ email:f.email.value, hp_field:f.hp_field.value, source:'homepage-footer', interest:'general' };
+  if(msg) msg.textContent='Sending…';
+  fetch('/api/lead',{ method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(data) })
+    .then(function(r){return r.json();})
+    .then(function(j){
+      if(j && j.ok){ if(msg) msg.textContent='✓ You\'re on the list. Welcome.'; f.reset(); }
+      else { if(msg) msg.textContent='✗ '+(j&&j.error||'Could not save. Try again.'); }
+    })
+    .catch(function(){ if(msg) msg.textContent='✗ Network error.'; });
+  return false;
 }
 
 function usdToBtc(usd){

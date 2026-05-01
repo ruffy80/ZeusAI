@@ -2443,7 +2443,7 @@ async function unicornHandler(req, res) {
   // 30Y-LTS: local-first routes served by this site process (not proxied to backend).
   // Only routes that are implemented locally in this file are matched here;
   // backend-only endpoints (/api/v1/deprecations, /api/v1/events/*) keep flowing to the backend.
-  const isLts = /^\/api\/(v1\/)?(contract|i18n\/|crypto\/public-keys|succession\/attestation|anchors)(\/|$|\.)/.test(urlPath) || urlPath === '/api/v1/contract' || urlPath === '/api/contract';  const isLocalV2Api = isLts || LOCAL_V2_API.has(urlPath) || urlPath.startsWith('/api/services/') || urlPath.startsWith('/services/') || urlPath.startsWith('/api/enterprise/') || urlPath.startsWith('/api/outreach/') || urlPath.startsWith('/api/vault/') || urlPath.startsWith('/api/governance/') || urlPath.startsWith('/api/whales/') || urlPath.startsWith('/api/webhooks/') || urlPath.startsWith('/api/admin/') || urlPath.startsWith('/api/instant/') || urlPath.startsWith('/api/customer/') || urlPath.startsWith('/api/user/') || urlPath.startsWith('/api/unicorn-ai/') || urlPath.startsWith('/api/unicorn-commerce/') || urlPath.startsWith('/api/billion-scale/') || urlPath.startsWith('/api/checkout/') || urlPath.startsWith('/api/uaic/') || urlPath.startsWith('/api/receipt/') || urlPath.startsWith('/api/invoice/') || urlPath.startsWith('/api/license/') || urlPath.startsWith('/api/delivery/') || urlPath.startsWith('/api/wire/') || urlPath === '/api/payments/btc/confirm' || urlPath === '/api/payments/paypal/confirm' || urlPath === '/api/payments/config/status' || urlPath === '/api/checkout/synthetic-probe' || urlPath === '/api/qr' || urlPath.startsWith('/api/cart/') || urlPath.startsWith('/api/coupons') || urlPath.startsWith('/api/leads') || urlPath.startsWith('/api/keys') || urlPath.startsWith('/api/newsletter/') || urlPath.startsWith('/api/wizard/') || urlPath.startsWith('/api/fx/') || urlPath.startsWith('/api/tax/') || urlPath.startsWith('/api/webhooks/') || urlPath === '/api/status' || urlPath === '/api/track' || urlPath.startsWith('/api/analytics/') || urlPath.startsWith('/api/refund/') || urlPath === '/api/aura' || urlPath.startsWith('/api/outcome/') || urlPath.startsWith('/api/discount/') || urlPath.startsWith('/api/receipt/nft/') || urlPath.startsWith('/api/capability/') || urlPath.startsWith('/api/email/proof') || urlPath.startsWith('/api/gift/') || urlPath.startsWith('/api/pledge') || urlPath.startsWith('/api/cancel/') || urlPath.startsWith('/api/bandit/') || urlPath.startsWith('/api/carbon/') || urlPath.startsWith('/api/abandon-cart') || urlPath === '/api/frontier/status' || urlPath === '/api/trust/center' || urlPath === '/api/operator/console' || urlPath === '/api/observability/status' || urlPath === '/api/secret-sync/status' || urlPath === '/api/security/pq/status' || urlPath === '/api/commerce/protocol' || urlPath === '/api/innovation/coverage' || urlPath === '/openapi.json' || urlPath === '/api/openapi' || urlPath === '/seo/sitemap.xml' || urlPath === '/seo/sitemap-services.xml' || urlPath === '/seo/robots.txt' || urlPath === '/api/catalog/master' || urlPath === '/api/catalog/diff' || urlPath === '/api/commerce/recent-sales' || urlPath === '/api/admin/owner-revenue' || urlPath === '/agents.json' || urlPath === '/.well-known/agents.json' || urlPath === '/api/btc/spot' || urlPath === '/api/btc/rate' || urlPath === '/api/payment/btc-rate' || urlPath.startsWith('/api/payments/btc/verify/');
+  const isLts = /^\/api\/(v1\/)?(contract|i18n\/|crypto\/public-keys|succession\/attestation|anchors)(\/|$|\.)/.test(urlPath) || urlPath === '/api/v1/contract' || urlPath === '/api/contract';  const isLocalV2Api = isLts || LOCAL_V2_API.has(urlPath) || urlPath.startsWith('/api/services/') || urlPath.startsWith('/services/') || urlPath.startsWith('/api/enterprise/') || urlPath.startsWith('/api/outreach/') || urlPath.startsWith('/api/vault/') || urlPath.startsWith('/api/governance/') || urlPath.startsWith('/api/whales/') || urlPath.startsWith('/api/webhooks/') || urlPath.startsWith('/api/admin/') || urlPath.startsWith('/api/instant/') || urlPath.startsWith('/api/customer/') || urlPath.startsWith('/api/user/') || urlPath.startsWith('/api/unicorn-ai/') || urlPath.startsWith('/api/unicorn-commerce/') || urlPath.startsWith('/api/billion-scale/') || urlPath.startsWith('/api/checkout/') || urlPath.startsWith('/api/uaic/') || urlPath.startsWith('/api/receipt/') || urlPath.startsWith('/api/invoice/') || urlPath.startsWith('/api/license/') || urlPath.startsWith('/api/delivery/') || urlPath.startsWith('/api/wire/') || urlPath === '/api/payments/btc/confirm' || urlPath === '/api/payments/paypal/confirm' || urlPath === '/api/payments/config/status' || urlPath === '/api/checkout/synthetic-probe' || urlPath === '/api/qr' || urlPath.startsWith('/api/cart/') || urlPath.startsWith('/api/coupons') || urlPath.startsWith('/api/leads') || urlPath.startsWith('/api/lead') || urlPath.startsWith('/api/referral/') || urlPath.startsWith('/api/transparency') || urlPath.startsWith('/api/keys') || urlPath.startsWith('/api/newsletter/') || urlPath.startsWith('/api/wizard/') || urlPath.startsWith('/api/fx/') || urlPath.startsWith('/api/tax/') || urlPath.startsWith('/api/webhooks/') || urlPath === '/api/status' || urlPath === '/api/track' || urlPath.startsWith('/api/analytics/') || urlPath.startsWith('/api/refund/') || urlPath === '/api/aura' || urlPath.startsWith('/api/outcome/') || urlPath.startsWith('/api/discount/') || urlPath.startsWith('/api/receipt/nft/') || urlPath.startsWith('/api/capability/') || urlPath.startsWith('/api/email/proof') || urlPath.startsWith('/api/gift/') || urlPath.startsWith('/api/pledge') || urlPath.startsWith('/api/cancel/') || urlPath.startsWith('/api/bandit/') || urlPath.startsWith('/api/carbon/') || urlPath.startsWith('/api/abandon-cart') || urlPath === '/api/frontier/status' || urlPath === '/api/trust/center' || urlPath === '/api/operator/console' || urlPath === '/api/observability/status' || urlPath === '/api/secret-sync/status' || urlPath === '/api/security/pq/status' || urlPath === '/api/commerce/protocol' || urlPath === '/api/innovation/coverage' || urlPath === '/openapi.json' || urlPath === '/api/openapi' || urlPath === '/seo/sitemap.xml' || urlPath === '/seo/sitemap-services.xml' || urlPath === '/seo/robots.txt' || urlPath === '/api/catalog/master' || urlPath === '/api/catalog/diff' || urlPath === '/api/commerce/recent-sales' || urlPath === '/api/admin/owner-revenue' || urlPath === '/agents.json' || urlPath === '/.well-known/agents.json' || urlPath === '/api/btc/spot' || urlPath === '/api/btc/rate' || urlPath === '/api/payment/btc-rate' || urlPath.startsWith('/api/payments/btc/verify/');
   const isUaic = !!(uaic && uaic.matches(urlPath)) && urlPath !== '/api/uaic/status';
   const isUse  = !!(USE && USE.matches(urlPath)) && !urlPath.startsWith('/api/user/') && !urlPath.startsWith('/api/ai/');
   const backendUrl = process.env.BACKEND_API_URL;
@@ -4086,6 +4086,99 @@ document.getElementById('buyBtn').addEventListener('click', async function(){
   }
 
   // ============================================================
+  // /transparency/live — public real-time honesty dashboard
+  // No auth, no caching, exposes ONLY real metrics from SQLite/JSONL.
+  // (Sibling to existing /transparency Pricing-Bandit page.)
+  // ============================================================
+  if (req.method === 'GET' && (urlPath === '/transparency/live' || urlPath === '/transparency/live/')) {
+    let reality = {}, referrals = null, social = null;
+    try { reality = require('../backend/modules/reality-metrics').snapshot(); } catch(_){}
+    try { referrals = require('./commerce/referral-engine-real').globalStats(); } catch(_){}
+    try { social = require('../backend/modules/socialMediaViralizer').getProviderStatus(); } catch(_){}
+    const r = reality && reality.ok ? reality : {};
+    const ord = (r.orders || {});
+    const lds = (r.leads || {});
+    const socialList = (social && social.providers) || {};
+    const socialRows = Object.keys(socialList).map(k => {
+      const v = socialList[k] || {};
+      return '<tr><td>'+k+'</td><td>'+(v.configured?'<span style="color:#0a0">✓ configured</span>':'<span style="color:#a00">✗ missing</span>')+'</td><td><code>'+(v.envVar||'')+'</code></td></tr>';
+    }).join('');
+    const html = `<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Transparency · ZeusAI</title>
+<meta name="description" content="Live, unfiltered metrics straight from our database. No vanity numbers, no Math.random. Updated every page-load.">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta property="og:title" content="ZeusAI · Radical Transparency">
+<meta property="og:description" content="Real customers, real revenue, real referrals. No fake metrics.">
+<meta property="og:type" content="website">
+<meta property="og:url" content="${(process.env.APP_URL || 'https://zeusai.pro').replace(/\/$/, '')}/transparency/live">
+<style>body{font-family:-apple-system,Segoe UI,Roboto,sans-serif;max-width:920px;margin:40px auto;padding:0 22px;line-height:1.55;color:#111;background:#fafafa}h1{font-size:32px;margin-bottom:4px}h2{font-size:20px;margin-top:34px;border-bottom:1px solid #ddd;padding-bottom:6px}.kpi{display:inline-block;min-width:170px;background:#fff;border:1px solid #e5e5e5;border-radius:10px;padding:14px 18px;margin:6px 8px 6px 0}.kpi b{display:block;font-size:24px;color:#0050ff}.kpi span{font-size:12px;color:#666}table{border-collapse:collapse;width:100%;background:#fff;margin-top:8px;border-radius:8px;overflow:hidden}td,th{padding:8px 12px;border-bottom:1px solid #eee;text-align:left;font-size:14px}code{background:#f0f0f0;padding:2px 6px;border-radius:4px;font-size:12px}.note{color:#777;font-size:13px}.banner{background:#fff8e1;border:1px solid #f0c36d;padding:12px 16px;border-radius:8px;margin-top:14px;font-size:14px}a{color:#0050ff}</style></head>
+<body><a href="/">← ZeusAI home</a><h1>Radical Transparency</h1>
+<div class="note">Generated at ${new Date().toISOString()} · No cache · Source: SQLite + JSONL ledgers · No <code>Math.random()</code></div>
+<div class="banner"><b>Why this exists:</b> most SaaS dashboards inflate metrics. We publish the raw numbers — including zeros — because trust compounds faster than vanity.</div>
+
+<h2>Customers & revenue (real)</h2>
+<div class="kpi"><b>${r.customerCount||0}</b><span>Customers (SQLite)</span></div>
+<div class="kpi"><b>${ord.total||0}</b><span>Orders total</span></div>
+<div class="kpi"><b>${ord.paid||0}</b><span>Paid orders</span></div>
+<div class="kpi"><b>$${(ord.totalRevenueUsd||0).toLocaleString()}</b><span>Revenue (USD)</span></div>
+<div class="kpi"><b>${lds.total||0}</b><span>Leads captured</span></div>
+
+<h2>Referral engine</h2>
+${referrals ? `<div class="kpi"><b>${referrals.codesActive||0}</b><span>Active codes</span></div>
+<div class="kpi"><b>${referrals.redemptions||0}</b><span>Redemptions</span></div>
+<div class="kpi"><b>$${(referrals.grossReferredUsd||0).toLocaleString()}</b><span>Gross referred USD</span></div>
+<div class="kpi"><b>$${(referrals.payoutOwedUsd||0).toLocaleString()}</b><span>Payout owed</span></div>
+<p class="note">Source: <code>${referrals.source}</code></p>` : '<p class="note">Referral engine not loaded.</p>'}
+
+<h2>Social distribution channels</h2>
+<table><tr><th>Provider</th><th>Status</th><th>Required env var</th></tr>${socialRows||'<tr><td colspan="3">No providers exposed.</td></tr>'}</table>
+<p class="note">A provider is "configured" only when its access token env var is set. We never fake reach.</p>
+
+<h2>Bitcoin owner wallet</h2>
+<p>All checkout funds settle directly to the owner wallet (no custody, no escrow):<br><code style="font-size:14px">${process.env.BTC_OWNER_ADDRESS || 'bc1q4f7e66z87mdfj56kz0dj5hvcnpmh0qh4wuv22e'}</code></p>
+<p class="note">Verify on any block explorer (e.g. <a href="https://mempool.space/address/${process.env.BTC_OWNER_ADDRESS || 'bc1q4f7e66z87mdfj56kz0dj5hvcnpmh0qh4wuv22e'}" target="_blank" rel="noopener">mempool.space</a>).</p>
+
+<h2>APIs you can audit yourself</h2>
+<ul>
+<li><a href="/api/transparency/full"><code>GET /api/transparency/full</code></a> — single JSON aggregating everything on this page</li>
+<li><a href="/api/growth/real"><code>GET /api/growth/real</code></a> — reality-metrics snapshot</li>
+<li><a href="/api/social/status"><code>GET /api/social/status</code></a> — per-channel configured booleans</li>
+<li><a href="/api/referral/global"><code>GET /api/referral/global</code></a> — referral engine global stats</li>
+<li><a href="/api/ai/router/status"><code>GET /api/ai/router/status</code></a> — AI provider fallback chain</li>
+<li><a href="/health"><code>GET /health</code></a> · <a href="/snapshot"><code>/snapshot</code></a> · <a href="/metrics"><code>/metrics</code></a> (Prometheus)</li>
+</ul>
+<hr><p class="note"><a href="/">Home</a> · <a href="/feed.xml">RSS</a> · <a href="/tos">ToS</a> · <a href="/privacy">Privacy</a> · <a href="/imprint">Imprint</a></p>
+</body></html>`;
+    res.writeHead(200, { 'Content-Type':'text/html; charset=utf-8', 'Cache-Control':'no-store' });
+    return res.end(html);
+  }
+
+  // ============================================================
+  // /feed.xml — RSS 2.0 feed of recent activity (innovations + transparency anchor)
+  // ============================================================
+  if (req.method === 'GET' && urlPath === '/feed.xml') {
+    const APP = (process.env.APP_URL || 'https://zeusai.pro').replace(/\/$/,'');
+    const items = [];
+    try {
+      const fs = require('fs'); const path = require('path');
+      const ledger = path.resolve(__dirname,'..','data','marketing','innovation-ledger.jsonl');
+      if (fs.existsSync(ledger)) {
+        const lines = fs.readFileSync(ledger,'utf8').trim().split('\n').slice(-50);
+        for (const ln of lines) {
+          try { const j = JSON.parse(ln); items.push({ title:String(j.title||j.id||'Innovation').slice(0,140), link:APP+'/innovation', desc:String(j.summary||j.text||'').slice(0,800), date:j.ts||j.date||new Date().toISOString() }); } catch(_){}
+        }
+      }
+    } catch(_){}
+    if (items.length === 0) {
+      items.push({ title:'ZeusAI launches radical transparency dashboard', link:APP+'/transparency', desc:'Live SQLite-backed metrics, no vanity numbers, no Math.random.', date:new Date().toISOString() });
+    }
+    const escapeXml = s => String(s).replace(/[<>&'"]/g, c => ({ '<':'&lt;','>':'&gt;','&':'&amp;',"'":'&apos;','"':'&quot;' }[c]));
+    const xmlItems = items.reverse().map(it => `<item><title>${escapeXml(it.title)}</title><link>${escapeXml(it.link)}</link><guid isPermaLink="false">${escapeXml(it.link+'#'+it.date)}</guid><pubDate>${new Date(it.date).toUTCString()}</pubDate><description>${escapeXml(it.desc)}</description></item>`).join('');
+    const xml = `<?xml version="1.0" encoding="UTF-8"?><rss version="2.0"><channel><title>ZeusAI · Innovation log</title><link>${APP}</link><description>Sovereign-AI commerce platform — public changelog and transparency feed</description><language>en</language><lastBuildDate>${new Date().toUTCString()}</lastBuildDate>${xmlItems}</channel></rss>`;
+    res.writeHead(200, { 'Content-Type':'application/rss+xml; charset=utf-8', 'Cache-Control':'public, max-age=600' });
+    return res.end(xml);
+  }
+
+  // ============================================================
   // /order/:id — live SSE-driven order status page
   // ============================================================
   if (req.method === 'GET' && /^\/order\/[A-Za-z0-9_\-:]{4,}$/.test(urlPath)) {
@@ -5017,6 +5110,113 @@ ${invoice.payer ? `<h2>Payer</h2><table><tr><th>Legal entity</th><td>${esc(invoi
       res.writeHead(500, { 'Content-Type':'application/json' });
       return res.end(JSON.stringify({ ok: false, error: e.message }));
     }
+  }
+
+  // === REAL referral engine — SQLite-persisted, no Math.random ===
+  // POST /api/referral/code  { email } → { code, discount_pct, payout_pct }
+  if (urlPath === '/api/referral/code' && req.method === 'POST') {
+    let body=''; req.on('data', c=>{ body+=c; if(body.length>4*1024) req.destroy(); });
+    req.on('end', () => {
+      try {
+        const p = JSON.parse(body||'{}');
+        const ref = require('./commerce/referral-engine-real');
+        const out = ref.getOrCreateCode(p.email, p.customerId || null);
+        res.writeHead(200,{'Content-Type':'application/json'});
+        res.end(JSON.stringify({ ok:true, ...out }));
+      } catch(e){ res.writeHead(400,{'Content-Type':'application/json'}); res.end(JSON.stringify({ ok:false, error: e.message })); }
+    });
+    return;
+  }
+  // GET /api/referral/lookup?code=ZEUS-XXXX → public, used at checkout
+  if (urlPath === '/api/referral/lookup' && req.method === 'GET') {
+    try {
+      const u = new URL(req.url, 'http://x'); const code = u.searchParams.get('code');
+      const ref = require('./commerce/referral-engine-real');
+      const c = ref.lookupCode(code);
+      res.writeHead(200,{'Content-Type':'application/json'});
+      return res.end(JSON.stringify(c ? { ok:true, valid:true, code:c.code, discount_pct:c.discount_pct } : { ok:true, valid:false }));
+    } catch(e){ res.writeHead(500,{'Content-Type':'application/json'}); return res.end(JSON.stringify({ ok:false, error:e.message })); }
+  }
+  // POST /api/referral/redeem  { code, referredEmail, orderId, amountUsd }
+  if (urlPath === '/api/referral/redeem' && req.method === 'POST') {
+    let body=''; req.on('data', c=>{ body+=c; if(body.length>4*1024) req.destroy(); });
+    req.on('end', () => {
+      try {
+        const p = JSON.parse(body||'{}');
+        const ref = require('./commerce/referral-engine-real');
+        const out = ref.recordRedemption({ code:p.code, referredEmail:p.referredEmail, orderId:p.orderId, amountUsd:p.amountUsd });
+        res.writeHead(200,{'Content-Type':'application/json'});
+        res.end(JSON.stringify(out));
+      } catch(e){ res.writeHead(400,{'Content-Type':'application/json'}); res.end(JSON.stringify({ ok:false, error: e.message })); }
+    });
+    return;
+  }
+  // GET /api/referral/stats?email=...  → owner stats
+  if (urlPath === '/api/referral/stats' && req.method === 'GET') {
+    try {
+      const u = new URL(req.url, 'http://x'); const email = u.searchParams.get('email');
+      const ref = require('./commerce/referral-engine-real');
+      res.writeHead(200,{'Content-Type':'application/json'});
+      return res.end(JSON.stringify(ref.statsFor(email)));
+    } catch(e){ res.writeHead(500,{'Content-Type':'application/json'}); return res.end(JSON.stringify({ ok:false, error:e.message })); }
+  }
+  // GET /api/referral/global → global stats for transparency dashboard
+  if (urlPath === '/api/referral/global' && req.method === 'GET') {
+    try {
+      const ref = require('./commerce/referral-engine-real');
+      res.writeHead(200,{'Content-Type':'application/json'});
+      return res.end(JSON.stringify(ref.globalStats()));
+    } catch(e){ res.writeHead(500,{'Content-Type':'application/json'}); return res.end(JSON.stringify({ ok:false, error:e.message })); }
+  }
+
+  // === Lead capture — anti-spam (rate-limit + honeypot), persisted to JSONL ===
+  // POST /api/lead  { email, source, interest, note, hp_field }
+  if (urlPath === '/api/lead' && req.method === 'POST') {
+    let body=''; req.on('data', c=>{ body+=c; if(body.length>8*1024) req.destroy(); });
+    req.on('end', () => {
+      try {
+        const p = JSON.parse(body||'{}');
+        // Honeypot: any non-empty hp_field is a bot.
+        if (p.hp_field && String(p.hp_field).length > 0) { res.writeHead(204); return res.end(); }
+        const email = String(p.email||'').trim().toLowerCase();
+        if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { res.writeHead(400,{'Content-Type':'application/json'}); return res.end(JSON.stringify({ ok:false, error:'invalid_email' })); }
+        // Rate limit: 5 / hour / IP.
+        const ip = (req.headers['x-forwarded-for']||req.socket.remoteAddress||'').toString().split(',')[0].trim();
+        global.__leadRate = global.__leadRate || new Map();
+        const now = Date.now(); const windowMs = 3600*1000;
+        const arr = (global.__leadRate.get(ip) || []).filter(t => now - t < windowMs);
+        if (arr.length >= 5) { res.writeHead(429,{'Content-Type':'application/json'}); return res.end(JSON.stringify({ ok:false, error:'rate_limited' })); }
+        arr.push(now); global.__leadRate.set(ip, arr);
+        // Persist.
+        const fs = require('fs'); const path = require('path');
+        const dir = path.resolve(__dirname,'..','data','money-machine'); fs.mkdirSync(dir,{recursive:true});
+        const rec = { email, source: String(p.source||'organic').slice(0,40), interest: String(p.interest||'').slice(0,200), note: String(p.note||'').slice(0,1000), ip, ts: new Date().toISOString() };
+        fs.appendFileSync(path.join(dir,'sales-leads.jsonl'), JSON.stringify(rec)+'\n');
+        // Best-effort welcome email.
+        try {
+          const tx = require('./commerce/transactional-email');
+          if (tx && typeof tx.sendTransactional === 'function') {
+            Promise.resolve(tx.sendTransactional({ to: email, template: 'welcome', data: { name: email.split('@')[0] } })).catch(()=>{});
+          }
+        } catch(_){}
+        res.writeHead(200,{'Content-Type':'application/json'});
+        res.end(JSON.stringify({ ok:true, queued:true }));
+      } catch(e){ res.writeHead(400,{'Content-Type':'application/json'}); res.end(JSON.stringify({ ok:false, error:e.message })); }
+    });
+    return;
+  }
+
+  // GET /api/transparency/full — single JSON aggregating ALL real metrics
+  if (urlPath === '/api/transparency/full' && req.method === 'GET') {
+    try {
+      const reality = require('../backend/modules/reality-metrics').snapshot();
+      let referrals = null, social = null, ai = null;
+      try { referrals = require('./commerce/referral-engine-real').globalStats(); } catch(_){}
+      try { social = require('../backend/modules/socialMediaViralizer').getProviderStatus(); } catch(_){}
+      try { ai = require('./modules/ai-router').status(); } catch(_){}
+      res.writeHead(200,{'Content-Type':'application/json'});
+      return res.end(JSON.stringify({ ok:true, generatedAt:new Date().toISOString(), reality, referrals, social, ai }));
+    } catch(e){ res.writeHead(500,{'Content-Type':'application/json'}); return res.end(JSON.stringify({ ok:false, error:e.message })); }
   }
 
   if (urlPath === '/api/customer/login' && req.method === 'POST') {
