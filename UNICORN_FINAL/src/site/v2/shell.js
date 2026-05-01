@@ -102,6 +102,15 @@ function head(title, route, opts) {
   // hreflang alternates — keep simple: same path across languages via ?lang=
   const hreflangs = HREFLANGS.map(l => `<link rel="alternate" hreflang="${l}" href="${canonical}${route.indexOf('?') >= 0 ? '&' : '?'}lang=${l}"/>`).join('\n')
     + `\n<link rel="alternate" hreflang="x-default" href="${canonical}"/>`;
+  // Auto-translate priming: when the visitor's effective language is not
+  // English we set the `googtrans` cookie BEFORE loading the Google Translate
+  // widget so the page is translated in-place into the country's language
+  // without a flicker. Source language is always English (`en`) — that is the
+  // language the SSR HTML is authored in.
+  const gtTarget = (lang && lang !== 'en') ? lang : '';
+  const gtPrimer = gtTarget
+    ? `<script${nonceAttr}>(function(){try{var p='/en/${gtTarget}';var d=document.cookie;if(d.indexOf('googtrans=')<0){document.cookie='googtrans='+p+'; path=/; samesite=lax';var h=location.hostname.split('.');if(h.length>=2){document.cookie='googtrans='+p+'; path=/; domain=.'+h.slice(-2).join('.')+'; samesite=lax';}}}catch(_){}})();</script>`
+    : '';
   return `<!doctype html>
 <html lang="${lang}" data-route="${route}">
 <head>
@@ -139,6 +148,23 @@ ${jsonLdBlocks}
 <link rel="apple-touch-icon" sizes="180x180" href="/assets/icons/apple-touch-icon.png"/>
 <link rel="mask-icon" href="/assets/icons/icon.svg" color="#8a5cff"/>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' x2='1' y1='0' y2='1'%3E%3Cstop offset='0' stop-color='%238a5cff'/%3E%3Cstop offset='0.5' stop-color='%233ea0ff'/%3E%3Cstop offset='1' stop-color='%23ffd36a'/%3E%3C/linearGradient%3E%3C/defs%3E%3Cpath fill='url(%23g)' d='M32 4l8 14h14l-12 10 5 18-15-10-15 10 5-18L10 18h14z'/%3E%3C/svg%3E"/>
+<style${nonceAttr}>
+/* Hide the Google Translate banner/iframe so the auto-translation is
+   applied silently and the layout never shifts. The widget itself stays
+   active in #google_translate_element (kept off-screen). */
+.skiptranslate,
+.goog-te-banner-frame,
+.goog-te-gadget-icon,
+#goog-gt-tt,
+.goog-tooltip,
+.goog-tooltip:hover,
+.VIpgJd-ZVi9od-aZ2wEe-wOHMyf,
+.VIpgJd-ZVi9od-ORHb-OEVmcd { display:none !important; visibility:hidden !important; }
+body { top:0 !important; position:static !important; }
+font[style*="vertical-align"] { background:none !important; box-shadow:none !important; }
+#google_translate_element { position:absolute !important; left:-9999px !important; top:-9999px !important; width:1px; height:1px; overflow:hidden; }
+</style>
+${gtPrimer}
 </head>
 <body>
 <a href="#app" style="position:absolute;left:-999px;top:10px;background:#fff;color:#05040a;padding:10px 14px;border-radius:10px;z-index:9999" onfocus="this.style.left='10px'" onblur="this.style.left='-999px'">Skip to content</a>
@@ -152,8 +178,22 @@ ${navBar(route, opts)}
 function navBar(route, opts) {
   opts = opts || {};
   const curLang = opts.lang || 'en';
+  const autoLang = (opts.autoLang || curLang || 'en');
   const L = (href, label) => `<a href="${href}" data-link${route === href ? ' class="active"' : ''}>${label}</a>`;
-  const langBtn = (code, label) => `<button class="lang-btn${curLang===code?' active':''}" data-lang="${code}" type="button" aria-label="${label}">${code.toUpperCase()}</button>`;
+  // 30Y-LTS: country-aware auto-translate.
+  //   The site is detected and translated automatically into the visitor's
+  //   country's language (Google Translate widget, primed via the `googtrans`
+  //   cookie set in `<head>`). The small toggle below lets the visitor force
+  //   English or revert to the auto-detected language.
+  const showingEnglish = curLang === 'en';
+  const targetLang = showingEnglish ? autoLang : 'en';
+  const targetLabel = showingEnglish
+    ? (autoLang === 'en' ? 'EN' : autoLang.toUpperCase())
+    : 'EN';
+  const targetTitle = showingEnglish
+    ? `Display in ${autoLang.toUpperCase()} (auto-detected)`
+    : 'Display in English';
+  const langToggle = `<button class="lang-toggle" type="button" data-target-lang="${targetLang}" aria-label="${targetTitle}" title="${targetTitle}">🌐 ${targetLabel}</button>`;
   return `<nav class="nav" data-nav-open="false">
 <div class="brand"><div class="brand-logo brand-logo-photo"><img src="/assets/zeus/brand.jpg" alt="Zeus" onerror="this.style.display='none'"/></div><div><span class="zeus-wordmark">Zeus<span class="ai">AI</span></span><small>Sovereign · Self-Evolving · Signed</small></div></div>
 <button class="nav-toggle" type="button" aria-label="Toggle navigation" aria-expanded="false" aria-controls="nav-links">
@@ -163,7 +203,7 @@ function navBar(route, opts) {
 ${L('/', 'Home')}${L('/services', 'Marketplace')}${L('/wizard', 'Find my plan')}${L('/store', 'Store')}<a href="/account" data-link data-customer-link${route === '/account' ? ' class="active"' : ''}>Account</a>${L('/enterprise', 'Enterprise')}${L('/pricing', 'Pricing')}${L('/innovations', 'Innovations')}${L('/frontier', 'Frontier')}${L('/docs', 'API')}${L('/status', 'Status')}
 </div>
 <div class="nav-cta">
-<div class="lang-switch" role="group" aria-label="Language">${langBtn('en','English')}${langBtn('ro','Română')}${langBtn('es','Español')}</div>
+${langToggle}
 <a class="btn btn-ghost" href="/account" data-link data-customer-cta>Sign in</a>
 <a class="btn btn-primary" href="/services" data-link>Explore Services</a>
 </div>
@@ -245,19 +285,74 @@ ${globalChrome()}
 })();
 </script>
 <script${N}>
-// 30Y-LTS — language switcher (cookie-based, no reload-flicker)
+// 30Y-LTS — country-aware language toggle.
+// The site is auto-translated into the visitor's country's language via the
+// Google Translate widget (primed by the googtrans cookie set server-side
+// in head). The small "EN / auto" button toggles between English and the
+// auto-detected language without flicker.
 (function(){
+  function setCookie(name, value, days){
+    var d = new Date(); d.setTime(d.getTime() + (days||365) * 86400000);
+    var base = name + '=' + value + ';expires=' + d.toUTCString() + ';path=/;samesite=lax';
+    document.cookie = base;
+    // Also write on the registrable domain so subdomains share the choice.
+    try {
+      var h = location.hostname.split('.');
+      if (h.length >= 2) {
+        document.cookie = base + ';domain=.' + h.slice(-2).join('.');
+      }
+    } catch(_) {}
+  }
+  function clearCookie(name){
+    setCookie(name, '', -1);
+    // Clear googtrans on every variant Google may have written.
+    if (name === 'googtrans') {
+      try {
+        var h = location.hostname.split('.');
+        for (var i=0; i<h.length-1; i++) {
+          var dom = h.slice(i).join('.');
+          document.cookie = 'googtrans=;expires=Thu, 01 Jan 1970 00:00:00 GMT;path=/;domain=.' + dom;
+          document.cookie = 'googtrans=;expires=Thu, 01 Jan 1970 00:00:00 GMT;path=/;domain=' + dom;
+        }
+      } catch(_) {}
+      document.cookie = 'googtrans=;expires=Thu, 01 Jan 1970 00:00:00 GMT;path=/';
+    }
+  }
   document.addEventListener('click', function(ev){
-    var b = ev.target && ev.target.closest && ev.target.closest('.lang-btn');
+    var b = ev.target && ev.target.closest && ev.target.closest('.lang-toggle');
     if (!b) return;
-    var code = b.getAttribute('data-lang');
-    if (!code) return;
-    document.cookie = 'lang=' + code + '; path=/; max-age=31536000; samesite=lax';
-    document.documentElement.setAttribute('lang', code);
-    document.querySelectorAll('.lang-btn').forEach(function(x){ x.classList.toggle('active', x===b); });
+    ev.preventDefault();
+    var target = b.getAttribute('data-target-lang') || 'en';
+    if (target === 'en') {
+      // User wants English — clear translation cookie and remember the choice.
+      setCookie('lang', 'en', 365);
+      clearCookie('googtrans');
+    } else {
+      // User wants the auto-detected language — clear the override and let
+      // the server-side detection pick it up on reload.
+      clearCookie('lang');
+      setCookie('googtrans', '/en/' + target, 365);
+    }
     location.reload();
   }, false);
 })();
+// Google Translate widget bootstrap. The googtrans cookie (set in head
+// when the visitor's country language is not English) drives the in-place
+// translation; the banner is hidden via CSS, so the page is translated
+// silently.
+window.googleTranslateElementInit = function(){
+  try {
+    new google.translate.TranslateElement({
+      pageLanguage: 'en',
+      autoDisplay: false,
+      layout: google.translate.TranslateElement.InlineLayout.SIMPLE
+    }, 'google_translate_element');
+  } catch(_){ }
+};
+</script>
+<div id="google_translate_element" aria-hidden="true"></div>
+<script src="//translate.googleapis.com/translate_a/element.js?cb=googleTranslateElementInit" defer></script>
+<script${N}>
 // Service worker registration (offline-first) + auto-refresh on new deploy
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', function(){

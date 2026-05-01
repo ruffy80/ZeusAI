@@ -165,6 +165,9 @@ body::before{content:"";position:fixed;inset:0;pointer-events:none;z-index:1;bac
 .lang-switch .lang-btn{background:transparent;color:var(--ink-dim);border:none;padding:6px 9px;cursor:pointer;letter-spacing:.5px;transition:background .15s,color .15s}
 .lang-switch .lang-btn:hover{background:rgba(62,160,255,.08);color:var(--ink)}
 .lang-switch .lang-btn.active{background:linear-gradient(135deg,#3ea0ff,#8a5cff);color:#fff}
+/* Single small auto/EN translation toggle (replaces the EN/RO/ES bar). */
+.lang-toggle{display:inline-flex;align-items:center;gap:4px;background:rgba(8,12,20,.55);color:var(--ink-dim);border:1px solid rgba(160,200,255,.22);border-radius:999px;padding:5px 11px;cursor:pointer;font:600 11px/1 'JetBrains Mono',monospace;letter-spacing:.5px;transition:all .2s}
+.lang-toggle:hover{background:linear-gradient(135deg,rgba(62,160,255,.18),rgba(138,92,255,.18));color:var(--ink);border-color:rgba(138,92,255,.5)}
 
 .btn{display:inline-flex;align-items:center;gap:8px;padding:11px 18px;border-radius:14px;border:1px solid var(--stroke);background:var(--glass);color:var(--ink);font-weight:600;font-size:14px;cursor:pointer;transition:all .2s;text-decoration:none}
 .btn:hover{border-color:var(--stroke-hot);transform:translateY(-1px);box-shadow:0 10px 30px -10px rgba(138,92,255,.4)}
