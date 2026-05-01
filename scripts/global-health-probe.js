@@ -137,7 +137,19 @@ async function checkHostProbe(pathname) {
   const payload = await checkHostFetchJson('https://check-host.net/check-result/' + encodeURIComponent(meta.request_id), 'result');
   const rows = parseCheckHostResult(payload);
   const okRows = rows.filter((row) => row.ok);
-  return { pathname, target, nodes: rows.length, okNodes: okRows.length, rows, ok: okRows.length >= Math.min(CHECK_HOST_MIN_OK, Math.max(1, rows.length)) };
+  // Inconclusive când niciun nod nu a putut returna un status HTTP real (toate `n/a`)
+  // Inconclusive when no node returned an actual HTTP status — that's check-host failing,
+  // not the site. Direct probes from this runner already confirmed the site is up.
+  const allUnknown = rows.length > 0 && rows.every((row) => !row.status);
+  return {
+    pathname,
+    target,
+    nodes: rows.length,
+    okNodes: okRows.length,
+    rows,
+    inconclusive: allUnknown,
+    ok: !allUnknown && okRows.length >= Math.min(CHECK_HOST_MIN_OK, Math.max(1, rows.length))
+  };
 }
 
 async function run() {
@@ -164,11 +176,14 @@ async function run() {
     if (i > 0) await sleep(CHECK_HOST_SPACING_MS);
     try {
       const result = await checkHostProbe(pathname);
-      console.log(`${result.ok ? '✅' : '❌'} ${pathname.padEnd(20)} ${result.okNodes}/${result.nodes} nodes reachable`);
+      const icon = result.inconclusive ? '⚠️ ' : (result.ok ? '✅' : '❌');
+      const suffix = result.inconclusive ? ' (inconclusive — check-host nodes returned no HTTP status)' : '';
+      console.log(`${icon} ${pathname.padEnd(20)} ${result.okNodes}/${result.nodes} nodes reachable${suffix}`);
       for (const row of result.rows.slice(0, CHECK_HOST_NODES)) {
         console.log(`   - ${row.ok ? 'ok ' : 'bad'} ${row.node}: HTTP ${row.status || 'n/a'}${row.latency != null ? `, ${row.latency}s` : ''}`);
       }
-      if (!result.ok) globalRealFailures += 1;
+      if (result.inconclusive) globalInconclusive += 1;
+      else if (!result.ok) globalRealFailures += 1;
     } catch (error) {
       // check-host.net itself failed (HTTP 429, network blip, timeout).
       // This tells us nothing about the site — treat as inconclusive.
