@@ -8991,6 +8991,15 @@ if (require.main === module) {
     console.log(`🤖 AI Auto Dispatcher: ACTIVE (smart task routing for all tenants)`);
     // Pornire Zero-Downtime Controller în-process (monitorizare health locală)
     zeroDT.init();
+    // ==================== INTEGRATIONS LAYER (complementary, additive) ====================
+    // 7 complementary modules that subscribe to existing engines without replacing them.
+    try {
+      const integrations = require('./modules/integrations');
+      integrations.init({ app });
+      console.log(`🔗 Integrations Layer: ACTIVE (${integrations.getLoaded().length} complementary modules)`);
+    } catch (e) {
+      console.warn('[integrations] failed to mount:', e && e.message);
+    }
   });
 }
 // Export Express app for testing
