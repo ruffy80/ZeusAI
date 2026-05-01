@@ -135,6 +135,16 @@ if (usingSqlite) {
       revokedAt   TEXT
     );
     CREATE INDEX IF NOT EXISTS idx_activations_user ON service_activations(userId, status);
+
+    CREATE TABLE IF NOT EXISTS sla_samples (
+      id          INTEGER PRIMARY KEY AUTOINCREMENT,
+      orgId       TEXT NOT NULL,
+      ts          INTEGER NOT NULL,
+      endpoint    TEXT NOT NULL,
+      latencyMs   REAL NOT NULL,
+      ok          INTEGER NOT NULL DEFAULT 1
+    );
+    CREATE INDEX IF NOT EXISTS idx_sla_org_ts ON sla_samples(orgId, ts DESC);
   `);
 }
 
@@ -494,6 +504,56 @@ const activations = {
   },
 };
 
+// ---------------------------------------------------------------- SLA samples
+mem.slaSamples = mem.slaSamples || [];
+const sla = {
+  record({ orgId, endpoint, latencyMs, ok = true } = {}) {
+    if (!orgId || !endpoint) return null;
+    const row = {
+      orgId: String(orgId),
+      ts: Date.now(),
+      endpoint: String(endpoint).slice(0, 160),
+      latencyMs: Number(latencyMs) || 0,
+      ok: ok ? 1 : 0,
+    };
+    if (usingSqlite) {
+      db.prepare(`INSERT INTO sla_samples (orgId,ts,endpoint,latencyMs,ok) VALUES (@orgId,@ts,@endpoint,@latencyMs,@ok)`).run(row);
+    } else {
+      mem.slaSamples.push(row);
+      if (mem.slaSamples.length > 50000) mem.slaSamples.splice(0, mem.slaSamples.length - 50000);
+    }
+    return row;
+  },
+  summary(orgId, { windowMs = 24 * 60 * 60 * 1000 } = {}) {
+    const since = Date.now() - windowMs;
+    const rows = usingSqlite
+      ? db.prepare('SELECT * FROM sla_samples WHERE orgId = ? AND ts >= ?').all(orgId, since)
+      : mem.slaSamples.filter(r => r.orgId === orgId && r.ts >= since);
+    const total = rows.length;
+    if (!total) {
+      return { ok: true, orgId, windowMs, samples: 0, uptimePct: 100, errorRatePct: 0,
+               latencyAvgMs: 0, latencyP95Ms: 0, target: { uptime: 99.999, latencyMs: 100, errorRate: 0.001 }, meetsSla: true };
+    }
+    const okCount = rows.reduce((a, r) => a + (Number(r.ok) === 1 ? 1 : 0), 0);
+    const errs = total - okCount;
+    const uptimePct = (okCount / total) * 100;
+    const errorRatePct = (errs / total) * 100;
+    const latencies = rows.map(r => Number(r.latencyMs) || 0).sort((a, b) => a - b);
+    const avg = latencies.reduce((a, b) => a + b, 0) / total;
+    const p95 = latencies[Math.min(latencies.length - 1, Math.floor(latencies.length * 0.95))];
+    const target = { uptime: 99.999, latencyMs: 100, errorRate: 0.001 };
+    return {
+      ok: true, orgId, windowMs, samples: total,
+      uptimePct: Number(uptimePct.toFixed(5)),
+      errorRatePct: Number(errorRatePct.toFixed(5)),
+      latencyAvgMs: Number(avg.toFixed(2)),
+      latencyP95Ms: Number(p95.toFixed(2)),
+      target,
+      meetsSla: uptimePct >= target.uptime && avg <= target.latencyMs && errorRatePct <= target.errorRate,
+    };
+  },
+};
+
 // ---------------------------------------------------------------- helpers
 function safeParse(s) { try { return JSON.parse(s); } catch { return {}; } }
 
@@ -510,4 +570,4 @@ function meta() {
   };
 }
 
-module.exports = { audit, subscriptions, metrics, orgs, activations, meta, REPORT_DIR };
+module.exports = { audit, subscriptions, metrics, orgs, activations, sla, meta, REPORT_DIR };

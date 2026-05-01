@@ -7839,6 +7839,13 @@ if (String(process.env.ENABLE_ENTERPRISE_WORKERS || '1') !== '0') {
   startEnterpriseWorkers({ enabled: true });
 }
 
+// Enterprise Cloud Router: exposes giantIntegrationFabric (aws/gcp/azure/…),
+// ai-self-healing, predictive-healing, global-load-balancer as REST APIs,
+// gated by per-org x-api-key, rate-limited, SLA-tracked, audit-logged.
+const { buildEnterpriseCloudRouter, buildDashboardRoute } = require('./modules/enterprise-cloud-router');
+app.use(buildEnterpriseCloudRouter());
+app.get('/enterprise/dashboard', buildDashboardRoute());
+
 // Global Admin Panel (protected)
 app.use('/api/admin', adminTokenMiddleware, createAdminPanelRouter(adminTokenMiddleware));
 

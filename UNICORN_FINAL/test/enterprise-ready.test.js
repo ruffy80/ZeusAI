@@ -76,6 +76,29 @@ const enterprise = require('../backend/enterprise');
   assert.strictEqual(after, null, 'revoked token rejected');
   console.log(`[ok] activations: issue/verify/revoke`);
 
+  // ------------------------- SLA samples -------------------------
+  for (let i = 0; i < 20; i++) {
+    enterprise.sla.record({ orgId: org.id, endpoint: '/api/enterprise/aws/dispatch', latencyMs: 15 + i, ok: i < 19 });
+  }
+  const sla = enterprise.sla.summary(org.id, { windowMs: 60_000 });
+  assert.ok(sla.samples === 20, 'sla samples=20');
+  assert.ok(sla.uptimePct >= 90 && sla.uptimePct <= 100, 'sla uptimePct in range');
+  assert.ok(sla.latencyP95Ms >= sla.latencyAvgMs, 'p95 >= avg');
+  assert.deepStrictEqual(sla.target, { uptime: 99.999, latencyMs: 100, errorRate: 0.001 }, 'sla targets');
+  console.log(`[ok] sla: samples=${sla.samples} uptime=${sla.uptimePct}% p95=${sla.latencyP95Ms}ms`);
+
+  // ------------------------- enterprise-cloud-router (smoke) -------------------------
+  const { buildOpenApi, PROVIDERS } = require('../backend/modules/enterprise-cloud-router');
+  const spec = buildOpenApi();
+  assert.strictEqual(spec.openapi, '3.0.3', 'openapi version');
+  assert.ok(PROVIDERS.includes('aws') && PROVIDERS.includes('gcp') && PROVIDERS.includes('azure'), 'big-3 clouds');
+  for (const p of ['aws', 'gcp', 'azure']) {
+    assert.ok(spec.paths['/api/enterprise/' + p + '/dispatch'], 'has dispatch path for ' + p);
+    assert.ok(spec.paths['/api/enterprise/' + p + '/auto-heal'], 'has auto-heal for ' + p);
+    assert.ok(spec.paths['/api/enterprise/' + p + '/cost-optimize'], 'has cost-optimize for ' + p);
+  }
+  console.log(`[ok] enterprise-cloud-router: ${PROVIDERS.length} providers, ${Object.keys(spec.paths).length} OpenAPI paths`);
+
   // ------------------------- meta -------------------------
   const meta = enterprise.meta();
   assert.ok(meta.counts.audit >= 2 && meta.counts.subscriptions >= 1, 'meta counts populated');
