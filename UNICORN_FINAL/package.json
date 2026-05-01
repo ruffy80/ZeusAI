@@ -39,7 +39,7 @@
     "stop:pm2": "pm2 stop unicorn",
     "restart:pm2": "pm2 restart unicorn",
     "secrets:push": "node scripts/setup-github-secrets.js",
-    "test": "node test/health.test.js && node test/api.test.js && node test/api-aliases.test.js && node test/auth-persistence.test.js && node test/site-commerce-smoke.test.js && node test/zac.test.js && node test/btc.test.js && node test/innovations-50y.test.js && node test/improvements-pack.test.js && node test/marketing-innovations.test.js && node test/secret-leak-scan.test.js && node test/commerce-stack.test.js && node test/commerce-stage567.test.js && node test/polish-pack.test.js && node test/site-stability-guard.test.js && node test/billion-scale-modules.test.js && node test/topology.test.js && node test/site-auth-e2e.test.js",
+    "test": "node test/health.test.js && node test/api.test.js && node test/api-aliases.test.js && node test/auth-persistence.test.js && node test/site-commerce-smoke.test.js && node test/zac.test.js && node test/btc.test.js && node test/innovations-50y.test.js && node test/improvements-pack.test.js && node test/marketing-innovations.test.js && node test/secret-leak-scan.test.js && node test/commerce-stack.test.js && node test/commerce-stage567.test.js && node test/polish-pack.test.js && node test/site-stability-guard.test.js && node test/billion-scale-modules.test.js && node test/topology.test.js && node test/site-auth-e2e.test.js && node test/enterprise-ready.test.js",
     "test:50y": "node test/innovations-50y.test.js",
     "test:improvements-pack": "node test/improvements-pack.test.js",
     "test:marketing": "node test/marketing-innovations.test.js",

@@ -288,6 +288,29 @@ function siteProxyToUnicorn(routePath, opts) {
 app.get('/api/industry/list', siteProxyToUnicorn('/api/industry/list'));
 app.get('/api/control/stats', siteProxyToUnicorn('/api/control/stats'));
 app.get('/api/evolution/snapshot', siteProxyToUnicorn('/api/evolution/snapshot'));
+// Dynamic per-service pricing — proxies to Unicorn /api/pricing/:serviceId so
+// the public site shows live prices. No mock fallback for unknown services;
+// returns the raw upstream JSON when reachable, otherwise a stable shape.
+app.get('/api/pricing/:serviceId', async (req, res) => {
+  const serviceId = String(req.params.serviceId || '').slice(0, 80);
+  const backendUrl = process.env.BACKEND_API_URL;
+  if (backendUrl) {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), SITE_PROXY_TIMEOUT_MS);
+    try {
+      const target = backendUrl.replace(/\/$/, '') + '/api/pricing/' + encodeURIComponent(serviceId);
+      const r = await fetch(target, { headers: { Accept: 'application/json' }, signal: controller.signal });
+      clearTimeout(timer);
+      if (r.ok) return res.json(await r.json());
+      console.warn('[site-proxy] /api/pricing/' + serviceId + ' upstream ' + r.status);
+    } catch (err) {
+      clearTimeout(timer);
+      console.warn('[site-proxy] /api/pricing/' + serviceId + ' failed: ' + (err && err.message));
+    }
+  }
+  res.set('X-Source', 'site-fallback-mock');
+  res.json({ ok: true, serviceId, priceUsd: null, currency: 'USD', source: 'site-fallback-mock', note: 'Backend unreachable — request again later for live price.' });
+});
 // Autoviralization — read-only status proxies are public; the trigger POST
 // is admin-gated by the backend (adminTokenMiddleware on /api/autonomous/viral/trigger
 // and adminSecretMiddleware on the /api/viral/* router). The site only forwards

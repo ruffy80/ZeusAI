@@ -2303,6 +2303,59 @@ function _recordActivatedPurchase(purchase, service) {
     paymentMethod: String(purchase.paymentMethod || 'BTC').toUpperCase(),
     purchasedAt: purchase.activatedAt || new Date().toISOString(),
   });
+  // ---------- Enterprise hooks: audit + auto-subscription + email ----------
+  try {
+    const enterpriseLazy = require('./enterprise');
+    const buyer = (() => { try { return dbUsers.findByEmail ? dbUsers.findByEmail(clientId) : null; } catch (_) { return null; } })();
+    enterpriseLazy.audit.log({
+      userId: buyer && buyer.id || null,
+      action: 'purchase.activated',
+      metadata: {
+        purchaseId: purchase.id,
+        serviceId: purchase.serviceId || safeService.id || 'custom',
+        amount: Number(purchase.amount || 0),
+        method: String(purchase.paymentMethod || 'BTC').toUpperCase(),
+        auto: !!(purchase.confirmation && purchase.confirmation.auto),
+      },
+    });
+    if (buyer && buyer.id) {
+      enterpriseLazy.subscriptions.create({
+        userId: buyer.id,
+        plan: safeService.plan || 'service',
+        serviceId: purchase.serviceId || safeService.id || 'custom',
+        priceUsd: Number(purchase.amount || 0),
+        durationDays: Number(safeService.durationDays || 30),
+        autoRenew: !!safeService.autoRenew,
+        paymentTxId: purchase.id,
+        metadata: { source: 'btc-watcher', email: clientId },
+      });
+    }
+    // best-effort confirmation email — never block activation
+    try {
+      const mailer = require('./email');
+      if (mailer && typeof mailer.sendDeliveryEmail === 'function') {
+        mailer.sendDeliveryEmail({
+          to: clientId,
+          subject: `✅ ZeusAI: ${safeService.title || purchase.serviceId} activated`,
+          serviceId: purchase.serviceId || safeService.id || 'custom',
+          purchaseId: purchase.id,
+          amount: Number(purchase.amount || 0),
+        }).catch(() => {});
+      } else if (mailer && typeof mailer.send === 'function') {
+        mailer.send({
+          to: clientId,
+          subject: `✅ ZeusAI: ${safeService.title || purchase.serviceId} activated`,
+          text: `Your service ${purchase.serviceId} has been activated. Purchase ID: ${purchase.id}.`,
+        }).catch(() => {});
+      } else {
+        console.log(`[delivery-email] mock to=${clientId} service=${purchase.serviceId} purchase=${purchase.id}`);
+      }
+    } catch (_) {
+      console.log(`[delivery-email] mock to=${clientId} service=${purchase.serviceId} purchase=${purchase.id}`);
+    }
+  } catch (e) {
+    console.warn('[enterprise.activation hook]', e && e.message);
+  }
 }
 
 function _emitUnicornEvent(type, data) {
@@ -7774,6 +7827,17 @@ app.use('/api/orchestrator/v4', adminTokenMiddleware, orchestratorV4.createExpre
 
 // Self-Evolving Engine routes
 app.use('/api/see', adminTokenMiddleware, seeEngine.createExpressRouter());
+
+// Enterprise layer: audit_log, subscriptions, metrics_timeseries, organizations,
+// service activations, owner /admin HTML console. Mounted BEFORE the global
+// /api/admin router so /api/admin/users/:id/{suspend,reactivate} resolve here
+// (the global admin-panel router does not own those paths).
+const enterprise = require('./enterprise');
+const { buildEnterpriseRouter, startBackgroundWorkers: startEnterpriseWorkers } = require('./modules/enterprise-router');
+app.use(buildEnterpriseRouter({ authMiddleware, adminTokenMiddleware, ownerEmail: ADMIN_OWNER_EMAIL }));
+if (String(process.env.ENABLE_ENTERPRISE_WORKERS || '1') !== '0') {
+  startEnterpriseWorkers({ enabled: true });
+}
 
 // Global Admin Panel (protected)
 app.use('/api/admin', adminTokenMiddleware, createAdminPanelRouter(adminTokenMiddleware));
