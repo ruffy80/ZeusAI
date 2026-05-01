@@ -165,6 +165,7 @@ console.log('[UNICORN] Pentru debug rapid: dacă backend nu pornește, verifică
 
 // Raw body buffers needed for webhook signature verification
 app.use('/api/payment/webhook/stripe', express.raw({ type: 'application/json' }));
+app.use('/webhooks/stripe', express.raw({ type: 'application/json' }));
 app.use('/api/payment/webhook/paypal', express.raw({ type: 'application/json' }));
 app.use('/api/payment/nowpayments/webhook', express.raw({ type: 'application/json' }));
 
@@ -7845,6 +7846,88 @@ if (String(process.env.ENABLE_ENTERPRISE_WORKERS || '1') !== '0') {
 const { buildEnterpriseCloudRouter, buildDashboardRoute } = require('./modules/enterprise-cloud-router');
 app.use(buildEnterpriseCloudRouter());
 app.get('/enterprise/dashboard', buildDashboardRoute());
+
+// ==================== /webhooks/stripe (real, signature-verified) ====================
+// Clean enterprise alias of /api/payment/webhook/stripe.
+// Verifies stripe-signature, activates subscription via enterprise.subscriptions,
+// writes audit entry, sends email confirmation.
+app.post('/webhooks/stripe', async (req, res) => {
+  const sig = req.headers['stripe-signature'];
+  const secret = process.env.STRIPE_WEBHOOK_SECRET;
+  const payload = req.body; // raw Buffer
+  let event;
+  try {
+    if (secret && sig) {
+      const parts = String(sig).split(',');
+      const ts = parts.find(p => p.startsWith('t='))?.split('=')[1];
+      const v1 = parts.find(p => p.startsWith('v1='))?.split('=')[1];
+      if (!ts || !v1) return res.status(400).json({ ok: false, error: 'invalid_signature_format' });
+      const signed = crypto.createHmac('sha256', secret).update(ts + '.' + payload).digest('hex');
+      if (signed !== v1) return res.status(400).json({ ok: false, error: 'signature_mismatch' });
+      event = JSON.parse(payload.toString());
+    } else if (process.env.NODE_ENV !== 'production') {
+      console.warn('⚠️  [/webhooks/stripe] STRIPE_WEBHOOK_SECRET not set — dev unverified path');
+      event = JSON.parse(Buffer.isBuffer(payload) ? payload.toString() : JSON.stringify(payload || {}));
+    } else {
+      return res.status(401).json({ ok: false, error: 'webhook_secret_missing' });
+    }
+  } catch (e) {
+    return res.status(400).json({ ok: false, error: 'invalid_json', message: e.message });
+  }
+
+  try {
+    enterprise.audit.log({ action: 'stripe.webhook.' + event.type, metadata: { id: event.id } });
+  } catch (_) {}
+
+  const handle = {
+    'checkout.session.completed': () => {
+      const s = event.data?.object || {};
+      if (s.payment_status !== 'paid') return { handled: false, reason: 'not_paid' };
+      const userId = s.metadata?.userId || s.client_reference_id;
+      const planId = s.metadata?.planId || 'pro';
+      const serviceId = s.metadata?.serviceId || planId;
+      const amountUsd = Number(s.amount_total || 0) / 100;
+      if (!userId) return { handled: false, reason: 'no_userId' };
+      const sub = enterprise.subscriptions.create({
+        userId, plan: planId, serviceId, priceUsd: amountUsd, durationDays: 30, autoRenew: true,
+      });
+      try {
+        if (typeof dbUsers !== 'undefined' && dbUsers.setPlanId) dbUsers.setPlanId(userId, planId);
+        const user = typeof dbUsers !== 'undefined' && dbUsers.findById ? dbUsers.findById(userId) : null;
+        if (user && typeof emailService !== 'undefined' && emailService.sendPaymentConfirmation) {
+          emailService.sendPaymentConfirmation(user, { planId, amount: amountUsd, method: 'stripe' })
+            .catch(err => console.error('[/webhooks/stripe] email failed:', err.message));
+        }
+      } catch (_) {}
+      enterprise.audit.log({ userId, action: 'subscription.activated.stripe', metadata: { subId: sub.id, planId, amountUsd } });
+      return { handled: true, subId: sub.id, planId };
+    },
+    'invoice.paid': () => {
+      const inv = event.data?.object || {};
+      const userId = inv.metadata?.userId || inv.customer;
+      const subId = inv.subscription;
+      if (userId && subId) {
+        enterprise.audit.log({ userId, action: 'subscription.invoice.paid', metadata: { subId, amount: inv.amount_paid / 100 } });
+      }
+      return { handled: true };
+    },
+    'customer.subscription.deleted': () => {
+      const s = event.data?.object || {};
+      const userId = s.metadata?.userId;
+      if (userId) {
+        const subs = enterprise.subscriptions.listByUser(userId);
+        for (const sub of subs) {
+          if (sub.status === 'active') enterprise.subscriptions.cancel(sub.id);
+        }
+        enterprise.audit.log({ userId, action: 'subscription.cancelled.stripe', metadata: { stripeSubId: s.id } });
+      }
+      return { handled: true };
+    },
+  };
+  const handler = handle[event.type];
+  const result = handler ? handler() : { handled: false, ignored: event.type };
+  res.json({ ok: true, eventType: event.type, ...result });
+});
 
 // Global Admin Panel (protected)
 app.use('/api/admin', adminTokenMiddleware, createAdminPanelRouter(adminTokenMiddleware));

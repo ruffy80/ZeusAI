@@ -38,6 +38,7 @@ const giantFabric = _safeRequire('./giantIntegrationFabric');
 const aiSelfHealing = _safeRequire('./ai-self-healing');
 const predictiveHealing = _safeRequire('./predictive-healing');
 const globalLB = _safeRequire('./global-load-balancer');
+const cloudProviders = _safeRequire('./cloud-providers');
 
 // ---- per-key rate limiter ---------------------------------------------------
 const _hits = new Map(); // keyId -> [timestamps]
@@ -166,6 +167,51 @@ function buildEnterpriseCloudRouter() {
     res.json({ ok: true, providers: list });
   });
 
+  // ===========================================================================
+  // REAL provider integrations (use SDK calls when credentials are supplied).
+  // These run BEFORE the generic loop below, so they take precedence.
+  // ===========================================================================
+
+  // AWS Auto-Healer — real EC2 + CloudWatch
+  router.post('/api/enterprise/aws/auto-heal', async (req, res) => {
+    const t0 = Date.now();
+    const b = req.body || {};
+    const result = cloudProviders ? await cloudProviders.awsAutoHeal({
+      region: b.region, instanceId: b.instanceId,
+      accessKeyId: b.accessKeyId || b.apiKey, secretAccessKey: b.secretAccessKey || b.apiSecret,
+      sessionToken: b.sessionToken,
+    }) : { ok: false, error: 'sdk_missing' };
+    _audit(req.org.id, 'aws.auto-heal', { instanceId: b.instanceId, region: b.region, action: result.action, real: result.real, keyId: req.apiKey.keyId });
+    _sample(req.org.id, '/api/enterprise/aws/auto-heal', t0, !!result.ok);
+    res.json(result);
+  });
+
+  // Google Cost Optimizer — real Cloud Billing + Monitoring
+  router.post('/api/enterprise/gcp/cost-optimize', async (req, res) => {
+    const t0 = Date.now();
+    const b = req.body || {};
+    const result = cloudProviders ? await cloudProviders.gcpCostOptimize({
+      projectId: b.projectId, billingAccountId: b.billingAccountId,
+      serviceAccountKey: b.serviceAccountKey || b.apiKey, days: b.days,
+    }) : { ok: false, error: 'sdk_missing' };
+    _audit(req.org.id, 'gcp.cost-optimize', { projectId: b.projectId, real: result.real, savingsPct: result.potentialSavingsPct, keyId: req.apiKey.keyId });
+    _sample(req.org.id, '/api/enterprise/gcp/cost-optimize', t0, !!result.ok);
+    res.json(result);
+  });
+
+  // Azure Security Bot — real NSG + Storage + KeyVault scan
+  router.post('/api/enterprise/azure/security-scan', async (req, res) => {
+    const t0 = Date.now();
+    const b = req.body || {};
+    const result = cloudProviders ? await cloudProviders.azureSecurityScan({
+      subscriptionId: b.subscriptionId, tenantId: b.tenantId,
+      clientId: b.clientId, clientSecret: b.clientSecret,
+    }) : { ok: false, error: 'sdk_missing' };
+    _audit(req.org.id, 'azure.security-scan', { subscriptionId: b.subscriptionId, real: result.real, issues: result.issuesCount, verdict: result.verdict, keyId: req.apiKey.keyId });
+    _sample(req.org.id, '/api/enterprise/azure/security-scan', t0, !!result.ok);
+    res.json(result);
+  });
+
   // ---- per-provider action endpoints ---------------------------------------
   for (const provider of PROVIDERS) {
     // Generic dispatch: POST /api/enterprise/:provider/:action
@@ -278,6 +324,18 @@ function buildOpenApi() {
       responses: { '200': { description: 'OK' } } } },
     '/api/enterprise/load-balancer/regions': { get: { summary: 'Active edge regions', security: [{ ApiKeyAuth: [] }],
       responses: { '200': { description: 'OK' } } } },
+    '/api/enterprise/aws/auto-heal': { post: { summary: 'Real EC2 + CloudWatch auto-heal', security: [{ ApiKeyAuth: [] }],
+      requestBody: { required: true, content: { 'application/json': { schema: { type: 'object', required: ['region', 'instanceId', 'accessKeyId', 'secretAccessKey'],
+        properties: { region: { type: 'string' }, instanceId: { type: 'string' }, accessKeyId: { type: 'string' }, secretAccessKey: { type: 'string' }, sessionToken: { type: 'string' } } } } } },
+      responses: { '200': { description: 'OK — { action: started|rebooted|healthy|noop }' } } } },
+    '/api/enterprise/gcp/cost-optimize': { post: { summary: 'Real Google Cloud Billing + Monitoring cost optimizer', security: [{ ApiKeyAuth: [] }],
+      requestBody: { required: true, content: { 'application/json': { schema: { type: 'object', required: ['projectId', 'serviceAccountKey'],
+        properties: { projectId: { type: 'string' }, billingAccountId: { type: 'string' }, serviceAccountKey: { type: 'object', description: 'Service account JSON' }, days: { type: 'integer', default: 30 } } } } } },
+      responses: { '200': { description: 'OK — { recommendations[], potentialSavingsPct }' } } } },
+    '/api/enterprise/azure/security-scan': { post: { summary: 'Real Azure NSG + Storage + KeyVault security scan', security: [{ ApiKeyAuth: [] }],
+      requestBody: { required: true, content: { 'application/json': { schema: { type: 'object', required: ['subscriptionId', 'tenantId', 'clientId', 'clientSecret'],
+        properties: { subscriptionId: { type: 'string' }, tenantId: { type: 'string' }, clientId: { type: 'string' }, clientSecret: { type: 'string' } } } } } },
+      responses: { '200': { description: 'OK — { issues[], remediations[], verdict }' } } } },
   };
   for (const p of PROVIDERS) {
     paths['/api/enterprise/' + p + '/dispatch'] = { post: { summary: 'Dispatch action on ' + p, security: [{ ApiKeyAuth: [] }],
