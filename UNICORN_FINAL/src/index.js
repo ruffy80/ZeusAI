@@ -5359,19 +5359,100 @@ ${invoice.payer ? `<h2>Payer</h2><table><tr><th>Legal entity</th><td>${esc(invoi
     // 30Y-LTS: per-request CSP nonce (Nginx forwards X-CSP-Nonce as $request_id;
     // if absent — local dev — we generate one. Inline scripts get this nonce.
     const nonce = String(req.headers['x-csp-nonce'] || crypto.randomBytes(12).toString('base64'));
-    // 30Y-LTS: language preference — cookie lang=xx wins, else Accept-Language.
+    // 30Y-LTS: language preference.
+    //   1) Explicit user override via `lang` cookie wins (set when the visitor
+    //      taps the small "English / Auto" toggle button).
+    //   2) Otherwise auto-detect from the visitor's country (CDN/proxy geo
+    //      headers — Cloudflare `cf-ipcountry`, nginx geoip `x-country`,
+    //      Vercel/Netlify variants). Country → language map covers ~80
+    //      jurisdictions; the entire site is then auto-translated client-side
+    //      into that language via the embedded Google Translate widget.
+    //   3) Fall back to the browser Accept-Language header.
+    //   4) Final fallback: English.
     const cookieLang = (() => {
       const ck = String(req.headers.cookie || '');
-      const m = ck.match(/(?:^|;\s*)lang=([a-z]{2})/i);
+      const m = ck.match(/(?:^|;\s*)lang=([a-z]{2}(?:-[A-Za-z]{2})?)/i);
       return m ? m[1].toLowerCase() : '';
     })();
+    const country = String(
+      req.headers['cf-ipcountry']
+      || req.headers['x-country']
+      || req.headers['x-geo-country']
+      || req.headers['x-vercel-ip-country']
+      || req.headers['x-appengine-country']
+      || ''
+    ).toUpperCase();
+    // ISO-3166 country → BCP-47 language code (Google-Translate compatible).
+    const COUNTRY_TO_LANG = {
+      RO: 'ro', MD: 'ro',
+      ES: 'es', MX: 'es', AR: 'es', CO: 'es', CL: 'es', PE: 'es', VE: 'es',
+      EC: 'es', GT: 'es', CU: 'es', BO: 'es', DO: 'es', HN: 'es', PY: 'es',
+      NI: 'es', SV: 'es', CR: 'es', PA: 'es', UY: 'es', PR: 'es',
+      FR: 'fr', BE: 'fr', LU: 'fr', MC: 'fr', SN: 'fr', CI: 'fr', CM: 'fr',
+      DE: 'de', AT: 'de', LI: 'de', CH: 'de',
+      IT: 'it', SM: 'it', VA: 'it',
+      PT: 'pt', BR: 'pt', AO: 'pt', MZ: 'pt', CV: 'pt',
+      NL: 'nl',
+      PL: 'pl',
+      RU: 'ru', BY: 'ru', KZ: 'ru', KG: 'ru', TJ: 'ru',
+      UA: 'uk',
+      TR: 'tr',
+      JP: 'ja',
+      KR: 'ko',
+      CN: 'zh-CN', SG: 'zh-CN',
+      TW: 'zh-TW', HK: 'zh-TW', MO: 'zh-TW',
+      IN: 'hi',
+      ID: 'id',
+      TH: 'th',
+      VN: 'vi',
+      SA: 'ar', AE: 'ar', EG: 'ar', MA: 'ar', DZ: 'ar', TN: 'ar', IQ: 'ar',
+      JO: 'ar', KW: 'ar', LB: 'ar', LY: 'ar', OM: 'ar', QA: 'ar', SY: 'ar',
+      YE: 'ar', BH: 'ar', SD: 'ar', PS: 'ar',
+      IL: 'iw',
+      GR: 'el', CY: 'el',
+      SE: 'sv',
+      NO: 'no',
+      DK: 'da',
+      FI: 'fi',
+      IS: 'is',
+      CZ: 'cs',
+      SK: 'sk',
+      HU: 'hu',
+      BG: 'bg',
+      HR: 'hr',
+      RS: 'sr', ME: 'sr', BA: 'sr',
+      SI: 'sl',
+      MK: 'mk',
+      AL: 'sq', XK: 'sq',
+      EE: 'et',
+      LV: 'lv',
+      LT: 'lt',
+      PH: 'tl',
+      MY: 'ms', BN: 'ms',
+      PK: 'ur',
+      BD: 'bn',
+      IR: 'fa', AF: 'fa',
+      LK: 'si',
+      NP: 'ne',
+      MM: 'my',
+      KH: 'km',
+      LA: 'lo',
+      GE: 'ka',
+      AM: 'hy',
+      AZ: 'az',
+      ET: 'am',
+      KE: 'sw', TZ: 'sw', UG: 'sw',
+      ZA: 'en'
+    };
+    const geoLang = COUNTRY_TO_LANG[country] || '';
     const acceptLang = (() => {
       const al = String(req.headers['accept-language'] || '').toLowerCase();
       const m = al.match(/^([a-z]{2})/);
-      return m ? m[1] : 'en';
+      return m ? m[1] : '';
     })();
-    const lang = cookieLang || acceptLang || 'en';
-    let html = v2.getHtml(route, { lang, nonce });
+    const autoLang = geoLang || acceptLang || 'en';
+    const lang = cookieLang || autoLang;
+    let html = v2.getHtml(route, { lang, autoLang, country, nonce });
     // Inject verifiable build marker so the freshly deployed variant is
     // always distinguishable from any stale browser cache.
     const buildMeta = '<meta name="x-zeus-build" content="' + ZEUS_BUILD.sha + '"><meta name="x-zeus-built-at" content="' + ZEUS_BUILD.ts + '">';
