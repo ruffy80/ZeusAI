@@ -272,7 +272,7 @@ function footer(route, opts) {
   </div>
 </footer>
 ${concierge()}
-${globalChrome()}
+${globalChrome(N)}
 <noscript><div style="position:fixed;bottom:0;left:0;right:0;padding:14px 18px;background:#05040a;color:#e8f0ff;border-top:1px solid #3ea0ff;font:14px/1.4 system-ui;z-index:99">This site works fully without JavaScript. Cinematic effects are disabled in no-JS mode; all services, pricing and APIs remain reachable.</div></noscript>
 <script${N}>window.__UNICORN__=${JSON.stringify({ owner: OWNER, route })};</script>
 <script${N} data-local-three-version="r160">
@@ -434,7 +434,8 @@ function concierge() {
 
 // ================== PAGES ==================
 
-function globalChrome() {
+function globalChrome(N) {
+  N = N || '';
   return `<div id="zeus-cookie" class="zeus-cookie" hidden>
   <div class="zeus-cookie-text">We use only first-party, signed analytics — no trackers, no ad networks. <a href="/privacy" data-link>Privacy</a> · <a href="/pledge" data-link>Pledge</a>.</div>
   <div class="zeus-cookie-cta"><button id="zeus-cookie-accept" class="btn btn-primary btn-sm">Accept</button><button id="zeus-cookie-deny" class="btn btn-ghost btn-sm">Deny</button></div>
