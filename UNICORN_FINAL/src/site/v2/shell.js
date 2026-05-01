@@ -404,8 +404,8 @@ window.addEventListener('securitypolicyviolation', function(e){
   }catch(_){ }
 });
 </script>
-<script src="/assets/aeon.js?v=${BUILD_ID}" defer></script>
-<script src="/assets/app.js?v=${BUILD_ID}" defer></script>
+<script${N} src="/assets/aeon.js?v=${BUILD_ID}" defer></script>
+<script${N} src="/assets/app.js?v=${BUILD_ID}" defer></script>
 </body></html>`;
 }
 
