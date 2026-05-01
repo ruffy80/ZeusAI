@@ -829,6 +829,13 @@ function pageServices() {
     <button class="chip" data-group="vertical">Vertical OS · 18</button>
     <button class="chip" data-group="marketplace">AI Modules</button>
   </div>
+  <section id="autonomousLiveSection" style="margin:20px 0 30px">
+    <div style="display:flex;justify-content:space-between;align-items:baseline;flex-wrap:wrap;gap:8px;margin-bottom:14px">
+      <h3 style="margin:0;font-size:20px;letter-spacing:-0.01em">⚡ Live from Unicorn fabric <small style="color:var(--ink-dim);font-size:12px;font-weight:400">— auto-discovered services, live prices</small></h3>
+      <span id="autonomousStatus" style="font-size:11px;color:var(--ink-dim);font-family:var(--mono)">connecting…</span>
+    </div>
+    <div class="grid" id="autonomousServicesGrid" style="grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:16px"><div class="card" style="padding:20px;color:var(--ink-dim)">Loading modules from Unicorn live feed…</div></div>
+  </section>
   <div class="grid" id="catalogGrid" style="grid-template-columns:repeat(auto-fill,minmax(300px,1fr))"><div class="card"><p>Loading every Unicorn deliverable…</p></div></div>
 </section>`;
 }

@@ -868,8 +868,7 @@ async function hydratePage(route){
   } catch (e) { console.warn('hydratePage:tbDispose', e && e.message); }
 
   try { if (route === '/') { initTourbillon(); await hydrateHome(); initPillars(); } } catch (e) { console.warn('hydratePage:home', e && e.message); }
-  try { if (route === '/services') await hydrateMasterCatalog(); } catch (e) { console.warn('hydratePage:services', e && e.message); }
-  try { if (route === '/pricing') await hydratePricingPage(); } catch (e) { console.warn('hydratePage:pricing', e && e.message); }
+  try { if (route === '/services') await hydrateMasterCatalog(); } catch (e) { console.warn('hydratePage:services', e && e.message); }  try { if (route === '/pricing') await hydratePricingPage(); } catch (e) { console.warn('hydratePage:pricing', e && e.message); }
   try { if (route.startsWith('/services/')) await hydrateServiceDetail(route.slice(10)); } catch (e) { console.warn('hydratePage:serviceDetail', e && e.message); }
   try { if (route === '/checkout') hydrateCheckout(); } catch (e) { console.warn('hydratePage:checkout', e && e.message); }
   try { if (route === '/dashboard') await hydrateDashboard(); } catch (e) { console.warn('hydratePage:dashboard', e && e.message); }
@@ -3188,8 +3187,139 @@ window.addEventListener('DOMContentLoaded', () => {
   document.addEventListener('change', e => { if (e.target && e.target.id === 'coEmail' && e.target.value) { try { localStorage.setItem('u_email', e.target.value); } catch(_){} } });
   refreshCustomerNav();
   openStream();
+  subscribeAutonomousEvents();
   hydratePage(STATE.route);
 });
+
+// ===================== AUTONOMOUS LIVE BRIDGE =====================
+// Connects to /api/events SSE and reactively updates DOM whenever a price
+// changes or a new module appears. Auto-reconnects with exponential backoff.
+window.AUTONOMOUS_MODULES = window.AUTONOMOUS_MODULES || { byId: {}, rev: 0, updatedAt: null };
+
+function subscribeAutonomousEvents(){
+  if (typeof EventSource === 'undefined') return;
+  let es = null;
+  let backoff = 1500;
+  function connect(){
+    try { es = new EventSource('/api/events'); }
+    catch(_) { setTimeout(connect, backoff); backoff = Math.min(backoff * 2, 30000); return; }
+    es.addEventListener('snapshot', (ev) => {
+      try {
+        const d = JSON.parse(ev.data);
+        if (Array.isArray(d.modules)) {
+          window.AUTONOMOUS_MODULES.byId = {};
+          for (const m of d.modules) window.AUTONOMOUS_MODULES.byId[m.id] = m;
+          window.AUTONOMOUS_MODULES.rev = d.rev || 0;
+          window.AUTONOMOUS_MODULES.updatedAt = d.at || new Date().toISOString();
+          applyAutonomousSnapshot();
+        }
+      } catch(_) {}
+      backoff = 1500;
+    });
+    es.addEventListener('price.update', (ev) => {
+      try {
+        const evt = JSON.parse(ev.data);
+        const updates = (evt.data && evt.data.updates) || [];
+        for (const u of updates) {
+          const m = window.AUTONOMOUS_MODULES.byId[u.id];
+          if (m) m.defaultPrice = u.price_usd;
+          applyLivePriceToDom(u.id, u.price_usd);
+        }
+      } catch(_){}
+    });
+    es.addEventListener('module.added', (ev) => {
+      try {
+        const evt = JSON.parse(ev.data);
+        const m = evt.data; if (m && m.id) window.AUTONOMOUS_MODULES.byId[m.id] = m;
+        applyAutonomousSnapshot();
+      } catch(_){}
+    });
+    es.addEventListener('module.update', (ev) => {
+      try {
+        const evt = JSON.parse(ev.data);
+        const m = evt.data; if (m && m.id) window.AUTONOMOUS_MODULES.byId[m.id] = m;
+        if (m && m.defaultPrice != null) applyLivePriceToDom(m.id, m.defaultPrice);
+      } catch(_){}
+    });
+    es.addEventListener('status.update', (ev) => {
+      try {
+        const evt = JSON.parse(ev.data);
+        const d = evt.data;
+        if (d && d.id) {
+          const m = window.AUTONOMOUS_MODULES.byId[d.id];
+          if (m) m.isActive = d.isActive !== false;
+          applyAutonomousSnapshot();
+        }
+      } catch(_){}
+    });
+    es.onerror = () => {
+      try { es.close(); } catch(_){}
+      setTimeout(connect, backoff);
+      backoff = Math.min(backoff * 2, 30000);
+    };
+  }
+  connect();
+}
+
+function applyLivePriceToDom(moduleId, priceUsd){
+  if (!moduleId) return;
+  const safe = String(moduleId).replace(/"/g, '\\"');
+  const fmt = '$' + Number(priceUsd || 0).toLocaleString('en-US', { maximumFractionDigits: 2 });
+  document.querySelectorAll('[data-live-price="' + safe + '"]').forEach(el => {
+    el.textContent = fmt;
+    el.setAttribute('data-live-updated', String(Date.now()));
+    el.classList.add('price-flash');
+    setTimeout(() => el.classList.remove('price-flash'), 800);
+  });
+  document.querySelectorAll('[data-pricing-value="' + safe + '"]').forEach(el => {
+    el.innerHTML = fmt + '<small>/mo</small>';
+  });
+}
+
+function applyAutonomousSnapshot(){
+  // If user is on a route that auto-renders from modules, refresh that grid.
+  // For now, we trigger known dynamic grids if present.
+  const route = (STATE && STATE.route) || location.pathname;
+  if (route === '/services' || route === '/' || (route && route.indexOf('/services') === 0)) {
+    const target = document.getElementById('autonomousServicesGrid');
+    if (target) renderAutonomousServicesGrid(target);
+  }
+  const statusEl = document.getElementById('autonomousStatus');
+  if (statusEl) {
+    const count = Object.keys(window.AUTONOMOUS_MODULES.byId || {}).length;
+    statusEl.textContent = '● live · ' + count + ' modules · rev ' + (window.AUTONOMOUS_MODULES.rev || 0);
+    statusEl.style.color = '#a3ffce';
+  }
+}
+
+function renderAutonomousServicesGrid(target){
+  const modules = Object.values(window.AUTONOMOUS_MODULES.byId || {})
+    .filter(m => m && m.isActive !== false)
+    .sort((a, b) => String(a.category).localeCompare(String(b.category)) || String(a.name).localeCompare(String(b.name)));
+  if (!modules.length) { target.innerHTML = '<div class="card" style="padding:18px;text-align:center;color:var(--ink-dim)">Loading modules…</div>'; return; }
+  target.innerHTML = modules.map(m => {
+    const priceTxt = (m.defaultPrice != null && Number.isFinite(Number(m.defaultPrice)))
+      ? '$' + Number(m.defaultPrice).toLocaleString('en-US', { maximumFractionDigits: 2 })
+      : 'Loading price…';
+    const buyHref = (m.defaultPrice != null && Number(m.defaultPrice) > 0)
+      ? '/checkout?plan=' + encodeURIComponent(m.id)
+      : '/services/' + encodeURIComponent(m.id);
+    const buyLabel = (m.defaultPrice != null && Number(m.defaultPrice) > 0) ? 'Buy now' : 'Learn more';
+    const safeName = escapeHtml(m.name);
+    const safeDesc = escapeHtml(m.description || (m.category + ' module'));
+    return `<div class="card" data-autonomous-module="${escapeHtml(m.id)}" style="padding:20px;display:flex;flex-direction:column;gap:10px;border:1px solid rgba(255,255,255,.08)">
+      <div style="font-size:10px;letter-spacing:.18em;text-transform:uppercase;color:var(--ink-dim)">${escapeHtml(m.category)}</div>
+      <h3 style="margin:0;font-size:18px;letter-spacing:-0.01em">${safeName}</h3>
+      <p style="margin:0;color:var(--ink-dim);font-size:13px;line-height:1.5">${safeDesc}</p>
+      <div style="display:flex;justify-content:space-between;align-items:center;padding-top:12px;border-top:1px solid rgba(255,255,255,.06);margin-top:auto">
+        <span data-live-price="${escapeHtml(m.id)}" style="font-weight:700;font-size:18px;color:#ffd36a">${priceTxt}</span>
+        <a class="btn btn-primary" href="${buyHref}" data-link style="padding:8px 14px;font-size:13px">${buyLabel}</a>
+      </div>
+    </div>`;
+  }).join('');
+}
+// ===================== END AUTONOMOUS LIVE BRIDGE =====================
+
 
 // ===== Instant Store =====
 const STORE_TOKEN_KEY = 'u_cust_token';

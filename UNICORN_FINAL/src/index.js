@@ -665,6 +665,13 @@ function createServer() {
     // bypass (which carries hundreds of /api/* mutation routes).
     applySiteTopologyHeaders(req, res);
     if (applySiteWriteGuard(req, res, earlyPath, method)) return; // 503 enforced
+    // ── AUTONOMOUS BRIDGE early-dispatch ──
+    // /api/modules and /api/events MUST be served by the site BFF cache/relay,
+    // not proxied to Unicorn (which has auth-gated /api/modules). Run before
+    // edgeProxyApi to win the dispatch chain.
+    if (method === 'GET' && (earlyPath === '/api/modules' || earlyPath === '/api/events')) {
+      return unicornHandler(req, res);
+    }
     if (shouldBypassExpressForSiteMutation(earlyPath, method)) {
       return unicornHandler(req, res);
     }
@@ -1667,6 +1674,148 @@ setTimeout(() => { try { startBackendEventBridge(); } catch (e) { console.warn('
 
 const streamClients = new Set();
 const unicornEventClients = new Set();
+
+// ==================== AUTONOMOUS MODULES BRIDGE ====================
+// Mirrors Unicorn's /api/modules/list + /api/modules/stream into a local
+// in-memory cache, exposes /api/modules + /api/events SSE relay to frontend.
+// Auto-reconnects, never blocks startup, works offline (uses last cache).
+const MODULES_CACHE = {
+  rev: 0,
+  modules: new Map(),
+  updatedAt: null,
+  upstreamConnected: false,
+};
+const _siteEventClients = new Set();
+
+function _siteRelayEvent(type, payload) {
+  if (!_siteEventClients.size) return;
+  const out = 'event: ' + type + '\ndata: ' + JSON.stringify(payload) + '\n\n';
+  for (const r of _siteEventClients) { try { r.write(out); } catch (_) {} }
+}
+
+function _siteApplySnapshot(snap) {
+  if (!snap || !Array.isArray(snap.modules)) return;
+  MODULES_CACHE.modules.clear();
+  for (const m of snap.modules) MODULES_CACHE.modules.set(m.id, m);
+  MODULES_CACHE.rev = Number(snap.rev) || (MODULES_CACHE.rev + 1);
+  MODULES_CACHE.updatedAt = new Date().toISOString();
+  _siteRelayEvent('snapshot', {
+    rev: MODULES_CACHE.rev,
+    modules: snap.modules,
+    at: MODULES_CACHE.updatedAt,
+    upstreamConnected: MODULES_CACHE.upstreamConnected,
+  });
+}
+
+function _siteApplyEvent(type, evt) {
+  const data = evt && evt.data;
+  if (type === 'module.added' || type === 'module.update') {
+    if (data && data.id) MODULES_CACHE.modules.set(data.id, data);
+  } else if (type === 'price.update' && data && Array.isArray(data.updates)) {
+    for (const u of data.updates) {
+      const m = MODULES_CACHE.modules.get(u.id);
+      if (m) { m.defaultPrice = u.price_usd; m.updatedAt = new Date().toISOString(); }
+    }
+  } else if (type === 'status.update' && data && data.id) {
+    const m = MODULES_CACHE.modules.get(data.id);
+    if (m) { m.isActive = data.isActive !== false; m.updatedAt = new Date().toISOString(); }
+  }
+  if (evt && evt.rev) MODULES_CACHE.rev = Number(evt.rev) || MODULES_CACHE.rev;
+  MODULES_CACHE.updatedAt = new Date().toISOString();
+  _siteRelayEvent(type, evt);
+}
+
+function _siteSubscribeUpstream() {
+  let upstream;
+  try {
+    const base = (process.env.BACKEND_API_URL || 'http://localhost:3000').replace(/\/+$/, '');
+    upstream = new URL(base + '/api/modules/stream');
+  } catch (e) {
+    console.warn('[autonomous-bridge] bad BACKEND_API_URL:', e.message);
+    return setTimeout(_siteSubscribeUpstream, 10000);
+  }
+  const lib = upstream.protocol === 'https:' ? require('https') : require('http');
+  const reqUp = lib.get(upstream, { headers: { 'Accept': 'text/event-stream' }, timeout: 0 }, (resUp) => {
+    if (resUp.statusCode !== 200) {
+      MODULES_CACHE.upstreamConnected = false;
+      resUp.resume();
+      return setTimeout(_siteSubscribeUpstream, 5000);
+    }
+    MODULES_CACHE.upstreamConnected = true;
+    let buf = '';
+    resUp.setEncoding('utf8');
+    resUp.on('data', (chunk) => {
+      buf += chunk;
+      let idx;
+      while ((idx = buf.indexOf('\n\n')) !== -1) {
+        const block = buf.slice(0, idx); buf = buf.slice(idx + 2);
+        if (!block.trim() || block.startsWith(':')) continue; // heartbeat
+        let evtName = 'message'; let dataStr = '';
+        for (const line of block.split('\n')) {
+          if (line.startsWith('event:')) evtName = line.slice(6).trim();
+          else if (line.startsWith('data:')) dataStr += line.slice(5).trim();
+        }
+        if (!dataStr) continue;
+        try {
+          const evt = JSON.parse(dataStr);
+          if (evtName === 'snapshot' || (evt && evt.type === 'snapshot')) _siteApplySnapshot(evt);
+          else _siteApplyEvent(evtName, evt);
+        } catch (_) { /* ignore malformed */ }
+      }
+    });
+    resUp.on('end', () => {
+      MODULES_CACHE.upstreamConnected = false;
+      setTimeout(_siteSubscribeUpstream, 1500);
+    });
+    resUp.on('error', () => {
+      MODULES_CACHE.upstreamConnected = false;
+      setTimeout(_siteSubscribeUpstream, 3000);
+    });
+  });
+  reqUp.on('error', (e) => {
+    MODULES_CACHE.upstreamConnected = false;
+    if (process.env.AUTONOMOUS_BRIDGE_VERBOSE === '1') console.warn('[autonomous-bridge] connect error:', e.message);
+    setTimeout(_siteSubscribeUpstream, 5000);
+  });
+}
+
+function _siteBootstrapModules() {
+  let upstream;
+  try {
+    const base = (process.env.BACKEND_API_URL || 'http://localhost:3000').replace(/\/+$/, '');
+    upstream = new URL(base + '/api/modules/list');
+  } catch (_) { return; }
+  const lib = upstream.protocol === 'https:' ? require('https') : require('http');
+  const r = lib.get(upstream, { timeout: 5000 }, (resUp) => {
+    let body = '';
+    resUp.on('data', c => { body += c; if (body.length > 4 * 1024 * 1024) resUp.destroy(); });
+    resUp.on('end', () => {
+      try {
+        const j = JSON.parse(body);
+        if (j && Array.isArray(j.modules)) {
+          _siteApplySnapshot({ rev: j.rev, modules: j.modules });
+          console.log('[autonomous-bridge] bootstrapped ' + j.modules.length + ' modules from upstream (rev ' + j.rev + ')');
+        }
+      } catch (_) {}
+    });
+  });
+  r.on('error', () => {});
+  r.on('timeout', () => { try { r.destroy(); } catch (_) {} });
+}
+
+// Boot autonomous bridge (fire-and-forget; never blocks server start)
+setImmediate(() => {
+  _siteBootstrapModules();
+  _siteSubscribeUpstream();
+});
+// Self-heal: if cache stale > 60s, re-bootstrap
+setInterval(() => {
+  const ageMs = Date.now() - new Date(MODULES_CACHE.updatedAt || 0).getTime();
+  if (ageMs > 60000 || MODULES_CACHE.modules.size === 0) {
+    _siteBootstrapModules();
+    if (!MODULES_CACHE.upstreamConnected) _siteSubscribeUpstream();
+  }
+}, 60000);
 
 // ==============================================================
 // Real-time activation broadcaster (Phase C: Real Payments)
@@ -3021,10 +3170,12 @@ async function unicornHandler(req, res) {
   // Forward /api/* and /deploy to the Express backend (Hetzner) if configured,
   // EXCEPT the v2 local APIs which we serve in this process.
   const forceLocalApi = urlPath.startsWith('/api/onboarding/recommendations/');
-  if (backendUrl && (isBackendMoneyMachineApi || (!forceLocalApi && !isLocalV2Api && !isUaic && (urlPath.startsWith('/api/') || urlPath === '/deploy')))) {
+  // Autonomous bridge endpoints are served locally from MODULES_CACHE — never proxy.
+  const isAutonomousBridge = urlPath === '/api/modules' || urlPath === '/api/events';
+  if (backendUrl && !isAutonomousBridge && (isBackendMoneyMachineApi || (!forceLocalApi && !isLocalV2Api && !isUaic && (urlPath.startsWith('/api/') || urlPath === '/deploy')))) {
     return proxyToBackend(req, res, backendUrl);
   }
-  if (urlPath.startsWith('/api/') && !forceLocalApi && !isLocalV2Api && !isUaic) {
+  if (urlPath.startsWith('/api/') && !forceLocalApi && !isLocalV2Api && !isUaic && !isAutonomousBridge) {
     res.writeHead(503, { 'Content-Type': 'application/json' });
     return res.end(JSON.stringify({ error: 'API backend not configured on this endpoint. Set BACKEND_API_URL env var.' }));
   }
@@ -3115,6 +3266,45 @@ async function unicornHandler(req, res) {
   if (urlPath === '/snapshot') {
     res.writeHead(200, { 'Content-Type': 'application/json' });
     return res.end(JSON.stringify(buildSnapshot()));
+  }
+
+  // ========== AUTONOMOUS MODULES BRIDGE (frontend-facing) ==========
+  // Mirrors Unicorn's catalog + live events to the frontend.
+  if (urlPath === '/api/modules' && req.method === 'GET') {
+    const arr = Array.from(MODULES_CACHE.modules.values());
+    res.writeHead(200, {
+      'Content-Type': 'application/json',
+      'Cache-Control': 'no-cache',
+      'X-Modules-Rev': String(MODULES_CACHE.rev),
+      'X-Source': MODULES_CACHE.upstreamConnected ? 'unicorn-live' : 'site-cache',
+    });
+    return res.end(JSON.stringify({
+      ok: true,
+      count: arr.length,
+      rev: MODULES_CACHE.rev,
+      updatedAt: MODULES_CACHE.updatedAt,
+      upstreamConnected: MODULES_CACHE.upstreamConnected,
+      modules: arr,
+    }));
+  }
+
+  if (urlPath === '/api/events' && req.method === 'GET') {
+    res.writeHead(200, {
+      'Content-Type': 'text/event-stream',
+      'Cache-Control': 'no-cache, no-transform',
+      'Connection': 'keep-alive',
+      'X-Accel-Buffering': 'no',
+    });
+    // Send snapshot on connect so client never starts blind
+    res.write('event: snapshot\ndata: ' + JSON.stringify({
+      rev: MODULES_CACHE.rev,
+      modules: Array.from(MODULES_CACHE.modules.values()),
+      at: MODULES_CACHE.updatedAt,
+      upstreamConnected: MODULES_CACHE.upstreamConnected,
+    }) + '\n\n');
+    _siteEventClients.add(res);
+    req.on('close', () => { _siteEventClients.delete(res); });
+    return;
   }
 
   if (urlPath === '/stream') {
