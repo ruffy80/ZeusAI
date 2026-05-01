@@ -135,6 +135,10 @@ function _costOptimize(provider, payload = {}) {
 function buildEnterpriseCloudRouter() {
   const router = express.Router();
 
+  // ---- public endpoints (NO auth) — must be registered BEFORE the gate ----
+  // OpenAPI spec must be readable so prospective customers can integrate.
+  router.get('/api/enterprise/openapi.json', (_req, res) => res.json(buildOpenApi()));
+
   // ---- API-key gate: requires x-api-key bound to an organization -----------
   router.use('/api/enterprise', (req, res, next) => {
     const raw = req.headers['x-api-key'] || req.headers['x-org-api-key'];
@@ -249,7 +253,7 @@ function buildEnterpriseCloudRouter() {
   });
 
   // ---- OpenAPI spec --------------------------------------------------------
-  router.get('/api/enterprise/openapi.json', (_req, res) => res.json(buildOpenApi()));
+  // (already registered before the auth gate above; kept here as no-op note)
 
   return router;
 }
