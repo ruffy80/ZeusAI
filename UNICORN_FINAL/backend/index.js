@@ -35,6 +35,15 @@ const SAAS_CATALOG_MOCK = [
 // =====================================================================
 
 require('dotenv').config();
+// Also load `.env.local` (untracked, deployment-specific overrides).
+// `override:true` so production secrets always win over baseline `.env`.
+try {
+  const path = require('path');
+  require('dotenv').config({
+    path: path.join(__dirname, '..', '.env.local'),
+    override: true,
+  });
+} catch (_) { /* dotenv missing or .env.local absent — non-fatal */ }
 // QuantumVault trebuie să se încarce PRIMUL – bootstrap + inject secrete în process.env
 // înainte ca orice alt modul să citească variabilele de mediu
 const quantumVault = require('./modules/quantumVault');
