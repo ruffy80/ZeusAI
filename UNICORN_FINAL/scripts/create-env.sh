@@ -354,5 +354,9 @@ upsert LTV_DECAY             "${LTV_DECAY:-0.9}"
 upsert REWARD_WINDOW_MS      "${REWARD_WINDOW_MS:-604800000}"
 upsert PAYPAL_ENV            "${PAYPAL_ENV:-sandbox}"
 
+# Build identity — set by CI; drives browser asset cache-busting (app.js?v=<sha>)
+upsert ZEUS_BUILD_SHA        "${ZEUS_BUILD_SHA:-}"
+upsert SW_VERSION            "${ZEUS_BUILD_SHA:-${SW_VERSION:-}}"
+
 echo "✅ .env configurat la $ENV_FILE"
 echo "   Linii active: $(grep -c '.' "$ENV_FILE" 2>/dev/null || echo '?')"

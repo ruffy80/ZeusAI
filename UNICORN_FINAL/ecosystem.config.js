@@ -68,6 +68,9 @@ module.exports = {
         OWNER_EMAIL: 'vladoi_ionut@yahoo.com',
         ADMIN_EMAIL: 'vladoi_ionut@yahoo.com',
         HETZNER_BACKEND_URL: 'http://127.0.0.1:3000',
+        // ── Build identity — written by CI deploy, kept static at runtime ──
+        ZEUS_BUILD_SHA: process.env.ZEUS_BUILD_SHA || '',
+        SW_VERSION:     process.env.ZEUS_BUILD_SHA || process.env.SW_VERSION || '',
         // ── AI Provider API Keys (read from system env at spawn time) ──────
         OPENAI_API_KEY:      process.env.OPENAI_API_KEY      || '',
         DEEPSEEK_API_KEY:    process.env.DEEPSEEK_API_KEY    || '',
@@ -132,6 +135,9 @@ module.exports = {
         DOMAIN: 'zeusai.pro',
         SITE_DOMAIN: 'zeusai.pro',
         PUBLIC_APP_URL: 'https://zeusai.pro',
+        // ── Build identity — drives asset cache-busting (app.js?v=<sha>) ──
+        ZEUS_BUILD_SHA: process.env.ZEUS_BUILD_SHA || '',
+        SW_VERSION:     process.env.ZEUS_BUILD_SHA || process.env.SW_VERSION || '',
         // ── AI Provider API Keys — site needs them too because /api/ai/registry
         // and /api/ai/use have local fallbacks in src/index.js when the backend
         // is unreachable, and because some site-layer modules (UAIC, USE) read
