@@ -553,6 +553,25 @@ function _stats() {
   return { customers: jsonState.customers.length, orders: jsonState.orders.length, backend: 'json' };
 }
 
+// ── Cluster-wide order scan (used by checkout-recovery + customer-success) ──
+function _listOrders(filter) {
+  filter = filter || {};
+  const limit = Math.max(1, Math.min(5000, Number(filter.limit) || 2000));
+  if (usingSqlite) {
+    const where = []; const args = [];
+    if (filter.status) { where.push('status=?'); args.push(filter.status); }
+    if (filter.customerId) { where.push('customer_id=?'); args.push(filter.customerId); }
+    const sql = `SELECT * FROM orders ${where.length ? 'WHERE ' + where.join(' AND ') : ''} ORDER BY created_at DESC LIMIT ?`;
+    args.push(limit);
+    return db.prepare(sql).all(...args).map(orderRowToFull);
+  }
+  let rows = jsonState.orders.slice();
+  if (filter.status) rows = rows.filter((o) => o.status === filter.status);
+  if (filter.customerId) rows = rows.filter((o) => o.customerId === filter.customerId);
+  rows.sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''));
+  return rows.slice(0, limit);
+}
+
 module.exports = {
   signup, login, upsertFromBackend, verifyToken,
   byEmail, getById, publicCustomer,
@@ -563,5 +582,6 @@ module.exports = {
   // TOTP MFA
   generateTotpSecret, verifyTotp, totpCodeFor,
   _resetForTests,
-  _stats
+  _stats,
+  _listOrders
 };

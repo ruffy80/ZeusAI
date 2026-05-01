@@ -2707,6 +2707,105 @@ async function unicornHandler(req, res) {
     return res.end(JSON.stringify(buildInnovationCoverage()));
   }
 
+  // ─── Real money-machine endpoints (offer-factory, SEO, growth, recovery, success) ───
+  if (urlPath === '/vertical/' || urlPath === '/verticals' || urlPath === '/verticals/') {
+    try {
+      const seo = require('../backend/modules/programmatic-seo-engine');
+      const list = seo.listVerticals();
+      const html = `<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><title>Vertical OS Catalog · ZeusAI</title><meta name="description" content="ZeusAI vertical AI operating systems — 18 industries, BTC-settled.">
+<style>body{font:16px/1.6 -apple-system,Segoe UI,Roboto,sans-serif;max-width:880px;margin:2rem auto;padding:0 1rem;color:#111}h1{font-size:2rem}ul{list-style:none;padding:0}li{border-bottom:1px solid #eee;padding:.75rem 0}a{color:#06c;text-decoration:none;font-weight:600}.kpi{color:#0a7;font-size:.85rem;margin-left:.5rem}.price{float:right;color:#000;font-weight:700}</style></head>
+<body><h1>Vertical AI Operating Systems</h1><p>18 turn-key vertical OSes. Same sovereign infra, different KPI focus. BTC-settled.</p><ul>${list.map((v) => `<li><a href="/vertical/${v.id}">${v.title}</a><span class="kpi">${v.kpi}</span><span class="price">$${v.priceUsd}</span></li>`).join('')}</ul><p><a href="/">← Home</a> · <a href="/sitemap.xml">Sitemap</a></p></body></html>`;
+      res.writeHead(200, { 'Content-Type':'text/html; charset=utf-8', 'Cache-Control':'public, max-age=300' });
+      return res.end(html);
+    } catch (e) {
+      res.writeHead(500, { 'Content-Type':'application/json' });
+      return res.end(JSON.stringify({ error: 'verticals_index_failed', message: e.message }));
+    }
+  }
+  if (urlPath.startsWith('/vertical/')) {
+    try {
+      const slug = decodeURIComponent(urlPath.slice('/vertical/'.length)).split('/')[0];
+      const seo = require('../backend/modules/programmatic-seo-engine');
+      const usdPerBtc = await getBtcUsdSpot().catch(() => 95000);
+      const html = seo.renderLandingHtml(slug, { baseUrl: APP_URL, btcWallet: BTC_WALLET, btcSpotUsd: usdPerBtc });
+      if (!html) { res.writeHead(404, { 'Content-Type':'application/json' }); return res.end(JSON.stringify({ error: 'unknown_vertical', slug })); }
+      res.writeHead(200, { 'Content-Type':'text/html; charset=utf-8', 'Cache-Control':'public, max-age=600' });
+      return res.end(html);
+    } catch (e) {
+      res.writeHead(500, { 'Content-Type':'application/json' }); return res.end(JSON.stringify({ error: 'vertical_render_failed', message: e.message }));
+    }
+  }
+  if (urlPath.startsWith('/grow/')) {
+    try {
+      const slug = decodeURIComponent(urlPath.slice('/grow/'.length)).split('/')[0];
+      const grow = require('../backend/modules/vertical-growth-page-engine');
+      const html = grow.renderGrowthHtml(slug, { baseUrl: APP_URL });
+      if (!html) { res.writeHead(404, { 'Content-Type':'application/json' }); return res.end(JSON.stringify({ error: 'unknown_vertical', slug })); }
+      res.writeHead(200, { 'Content-Type':'text/html; charset=utf-8', 'Cache-Control':'public, max-age=300' });
+      return res.end(html);
+    } catch (e) {
+      res.writeHead(500, { 'Content-Type':'application/json' }); return res.end(JSON.stringify({ error: 'grow_render_failed', message: e.message }));
+    }
+  }
+  if (urlPath === '/api/seo/programmatic/status') {
+    try {
+      const seo = require('../backend/modules/programmatic-seo-engine');
+      res.writeHead(200, { 'Content-Type':'application/json', 'Cache-Control':'no-cache' });
+      return res.end(JSON.stringify(seo.getStatus({ btcWallet: BTC_WALLET })));
+    } catch (e) { res.writeHead(500, { 'Content-Type':'application/json' }); return res.end(JSON.stringify({ error: 'seo_status_failed', message: e.message })); }
+  }
+  if (urlPath === '/api/customer-success/status') {
+    try {
+      const cs = require('../backend/modules/customer-success-autopilot');
+      res.writeHead(200, { 'Content-Type':'application/json', 'Cache-Control':'no-cache' });
+      return res.end(JSON.stringify(cs.getStatus({ btcWallet: BTC_WALLET })));
+    } catch (e) { res.writeHead(500, { 'Content-Type':'application/json' }); return res.end(JSON.stringify({ error: 'cs_status_failed', message: e.message })); }
+  }
+  if (urlPath === '/api/customer-success/tick' && req.method === 'POST') {
+    try {
+      const cs = require('../backend/modules/customer-success-autopilot');
+      res.writeHead(200, { 'Content-Type':'application/json', 'Cache-Control':'no-cache' });
+      return res.end(JSON.stringify(cs.tick({ dryRun: true })));
+    } catch (e) { res.writeHead(500, { 'Content-Type':'application/json' }); return res.end(JSON.stringify({ error: 'cs_tick_failed', message: e.message })); }
+  }
+  if (urlPath === '/api/checkout/recovery/status') {
+    try {
+      const rec = require('../backend/modules/checkout-recovery-agent');
+      res.writeHead(200, { 'Content-Type':'application/json', 'Cache-Control':'no-cache' });
+      return res.end(JSON.stringify(rec.getStatus({ btcWallet: BTC_WALLET })));
+    } catch (e) { res.writeHead(500, { 'Content-Type':'application/json' }); return res.end(JSON.stringify({ error: 'recovery_status_failed', message: e.message })); }
+  }
+  if (urlPath === '/api/checkout/recovery/run' && req.method === 'POST') {
+    try {
+      const rec = require('../backend/modules/checkout-recovery-agent');
+      res.writeHead(200, { 'Content-Type':'application/json', 'Cache-Control':'no-cache' });
+      return res.end(JSON.stringify(rec.recover({ dryRun: true })));
+    } catch (e) { res.writeHead(500, { 'Content-Type':'application/json' }); return res.end(JSON.stringify({ error: 'recovery_run_failed', message: e.message })); }
+  }
+  if (urlPath === '/api/offers/factory' && req.method === 'GET') {
+    try {
+      const off = require('../backend/modules/offer-factory');
+      res.writeHead(200, { 'Content-Type':'application/json', 'Cache-Control':'no-cache' });
+      return res.end(JSON.stringify({ status: off.getStatus({ btcWallet: BTC_WALLET }), recent: off.listRecent(20) }));
+    } catch (e) { res.writeHead(500, { 'Content-Type':'application/json' }); return res.end(JSON.stringify({ error: 'offers_status_failed', message: e.message })); }
+  }
+  if (urlPath === '/api/offers/factory' && req.method === 'POST') {
+    try {
+      const chunks = [];
+      for await (const c of req) chunks.push(c);
+      let body = {};
+      try { body = JSON.parse(Buffer.concat(chunks).toString('utf8') || '{}'); } catch (_) {}
+      const off = require('../backend/modules/offer-factory');
+      const usdPerBtc = await getBtcUsdSpot().catch(() => 95000);
+      const offer = off.bundle({ items: body.items || [], customerId: body.customerId || null, label: body.label, btcWallet: BTC_WALLET, btcSpotUsd: usdPerBtc });
+      res.writeHead(200, { 'Content-Type':'application/json', 'Cache-Control':'no-cache' });
+      return res.end(JSON.stringify({ ok: true, offer }));
+    } catch (e) {
+      res.writeHead(400, { 'Content-Type':'application/json' });
+      return res.end(JSON.stringify({ error: e.code || 'offers_create_failed', message: e.message }));
+    }
+  }
+
   if (urlPath.startsWith('/api/capability/credential/')) {
     const id = decodeURIComponent(urlPath.slice('/api/capability/credential/'.length));
     const receipt = findReceipt(id) || { id, status: 'pending', plan: 'starter', services: ['starter'], deliveryStatus: 'pending' };
