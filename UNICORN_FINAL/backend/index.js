@@ -53,6 +53,93 @@ const routeCache = require('./modules/route-cache');
 const app = express();
 const PORT = process.env.PORT || 3000;
 
+// ==================== TOPOLOGY IDENTITY MIDDLEWARE (backend, 3000) ====================
+// Companion to the same middleware in src/index.js (site, 3001). Tags every
+// response from the backend (the source-of-truth process — SQLite, ledgers,
+// orchestrators, audit log) with `X-Unicorn-Role: backend`. Pair with the
+// site's `X-Unicorn-Role: site` to instantly diagnose nginx routing drift:
+//
+//   curl -sI https://zeusai.pro/api/health    → must show role=backend
+//   curl -sI https://zeusai.pro/snapshot       → must show role=site (with
+//                                                 backend backup fallback)
+//
+// Strictly additive — never changes status codes or bodies. Disable with
+// BACKEND_TOPOLOGY_HEADERS_DISABLED=1.
+const __BACKEND_TOPOLOGY = (function buildBackendTopology() {
+  const role = 'backend';
+  const port = Number(process.env.PORT || 3000);
+  const instance = process.env.NODE_APP_INSTANCE || '0';
+  const hostname = (function safeHostname() { try { return require('os').hostname(); } catch (_) { return ''; } })();
+  return { role, port, instance, hostname, pid: process.pid, sourceOfTruth: true };
+})();
+if (process.env.BACKEND_TOPOLOGY_HEADERS_DISABLED !== '1') {
+  app.use((req, res, next) => {
+    try {
+      if (!res.headersSent) {
+        res.setHeader('X-Unicorn-Role', __BACKEND_TOPOLOGY.role);
+        res.setHeader('X-Unicorn-Port', String(__BACKEND_TOPOLOGY.port));
+        res.setHeader('X-Unicorn-Instance', String(__BACKEND_TOPOLOGY.instance));
+        res.setHeader('X-Unicorn-Source-Of-Truth', '1');
+      }
+    } catch (_) { /* never block the request */ }
+    next();
+  });
+}
+
+// ==================== TOPOLOGY ENDPOINT (backend) ====================
+// Public-readable diagnostic; mirrors /internal/topology on the site. No
+// secrets, no mutation. Disable with TOPOLOGY_ENDPOINT_DISABLED=1.
+if (process.env.TOPOLOGY_ENDPOINT_DISABLED !== '1') {
+  app.get('/internal/topology', (req, res) => {
+    res.setHeader('Cache-Control', 'no-store');
+    res.json({
+      role: __BACKEND_TOPOLOGY.role,
+      port: __BACKEND_TOPOLOGY.port,
+      pid: __BACKEND_TOPOLOGY.pid,
+      instance: __BACKEND_TOPOLOGY.instance,
+      hostname: __BACKEND_TOPOLOGY.hostname,
+      sourceOfTruth: __BACKEND_TOPOLOGY.sourceOfTruth,
+      uptimeSeconds: Math.floor(process.uptime()),
+      ts: new Date().toISOString(),
+      note: 'backend (source of truth) — SQLite, ledgers, orchestrators, audit log; nginx routes /api/, /internal/, /health here.'
+    });
+  });
+}
+
+// ==================== HOST HEADER SANITY OBSERVABILITY ====================
+// When Host / X-Forwarded-Host disagrees with the configured SITE_DOMAIN we
+// log once per minute per host. Catches CDN/proxy misconfigurations that
+// would otherwise silently leak the wrong canonical domain in JSON-LD,
+// hreflang, og:url, etc. Strictly observability — never blocks. Disable with
+// HOST_SANITY_DISABLED=1.
+const __hostSanitySeen = new Map();
+if (process.env.HOST_SANITY_DISABLED !== '1') {
+  app.use((req, res, next) => {
+    try {
+      const expected = String(process.env.SITE_DOMAIN || process.env.DOMAIN || '').toLowerCase();
+      if (!expected) return next();
+      const xfh = String(req.headers['x-forwarded-host'] || '').toLowerCase();
+      const host = String(req.headers['host'] || '').toLowerCase();
+      const seen = (xfh || host).split(':')[0];
+      if (!seen) return next();
+      // Accept exact match + any subdomain of the expected SITE_DOMAIN
+      // (api.zeusai.pro, www.zeusai.pro, orchestrator.zeusai.pro, *.zeusai.pro
+      // — all served by the same nginx vhost per nginx-unicorn.conf). This is
+      // observability-only (logs once/min/host); it never blocks a request and
+      // it is NOT a security boundary. The actual security boundary is CORS
+      // (see _allowedOrigins above) plus nginx server_name matching upstream.
+      if (seen === expected || seen.endsWith('.' + expected) || seen === 'localhost' || seen === '127.0.0.1') return next();
+      const now = Date.now();
+      const last = __hostSanitySeen.get(seen) || 0;
+      if (now - last > 60000) {
+        __hostSanitySeen.set(seen, now);
+        console.warn('[host-sanity] unexpected host header on backend (3000): host=' + host + ' xfh=' + xfh + ' expected=' + expected);
+      }
+    } catch (_) {}
+    next();
+  });
+}
+
 // --- API: Metrics (CPU, RAM, uptime) ---
 app.get('/api/metrics', (req, res) => {
   res.json({
@@ -8184,10 +8271,18 @@ process.on('unhandledRejection', (reason) => {
 
 // Only bind to a port when run directly (not when imported by tests)
 if (require.main === module) {
-  app.listen(PORT, () => {
+  // BIND_HOST defaults to '0.0.0.0' for backward compatibility with CI smoke
+  // tests that hit `HETZNER_HOST:3000` directly. In production, nginx fronts
+  // every request — set BIND_HOST=127.0.0.1 to harden by closing the public
+  // port entirely (nginx connects via loopback). Strictly additive knob.
+  const BIND_HOST = process.env.BIND_HOST || '0.0.0.0';
+  app.listen(PORT, BIND_HOST, () => {
     const reg = getModuleRegistryStatus();
     worldStandard.startupSeal({ appVersion: APP_VERSION, port: PORT, modules: reg.total, pid: process.pid });
-    console.log(`🚀 Unicorn autonom rulând pe portul ${PORT}`);
+    console.log(`🚀 Unicorn autonom rulând pe portul ${PORT} (bind=${BIND_HOST}, role=backend, source-of-truth=true)`);
+    if (BIND_HOST === '0.0.0.0') {
+      console.log('[topology] backend bound to 0.0.0.0 — port 3000 reachable externally. In production behind nginx, set BIND_HOST=127.0.0.1 to close direct external access.');
+    }
     console.log(`🤖 Universal AI Connector (UAIC): ${_uaic ? 'ACTIVE' : 'DISABLED'}`);
     console.log(`🌐 Multi-Model Router (14 AI): ${_multiRouter ? 'ACTIVE' : 'DISABLED'}`);
     console.log(`✨ Autonomous Innovation Engine: ACTIVE`);
