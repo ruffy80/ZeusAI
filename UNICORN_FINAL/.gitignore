@@ -22,3 +22,7 @@ generated/innovation_*.json
 generated/autonomous-cycle-*.json
 generated/AUTONOMOUS-STATUS.json
 generated/AUTONOMOUS-STATUS.md
+
+# frontier signing keys (NEVER commit)
+data/frontier/*.key.pem
+data/frontier/*.pub.pem
