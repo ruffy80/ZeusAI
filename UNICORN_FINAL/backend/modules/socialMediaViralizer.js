@@ -488,14 +488,23 @@ class SocialMediaViralizer {
   // genuine "no token configured" cases.
   // ───────────────────────────────────────────────────────────────────
   getProviderStatus() {
-    const t = this.tokens || this.loadTokens();
+    // Use the central secrets module so a key configured via .env / runtime-secrets / aliases
+    // is recognised everywhere — no more silent "configured: false" because of trim/placeholder.
+    let cfg = (name) => {
+      const v = String(process.env[name] || '').trim();
+      return !!(v && v.length > 10 && !/^(your_|replace_with_|change[-_]?me|placeholder|xxx)/i.test(v));
+    };
+    try {
+      const sec = require('../../src/config/secrets');
+      if (sec && typeof sec.configured === 'function') cfg = sec.configured;
+    } catch (_) {}
     const providers = {
-      x_twitter: { configured: String(t.xBearer || '').length > 10, endpoint: 'https://api.twitter.com/2/tweets', envVar: 'X_BEARER_TOKEN' },
-      telegram:  { configured: String(t.telegram || '').length > 10, endpoint: 'https://api.telegram.org', envVar: 'TELEGRAM_BOT_TOKEN' },
-      pinterest: { configured: String(t.pinterest || '').length > 10, endpoint: 'https://api.pinterest.com/v5', envVar: 'PINTEREST_TOKEN' },
-      devto:     { configured: String(t.devApi || '').length > 10, endpoint: 'https://dev.to/api/articles', envVar: 'DEV_API_KEY' },
-      youtube:   { configured: String(t.youtube || '').length > 10, endpoint: 'https://www.googleapis.com/youtube/v3', envVar: 'YOUTUBE_API_KEY' },
-      producthunt: { configured: String(t.producthuntDevToken || '').length > 10, endpoint: 'https://api.producthunt.com/v2', envVar: 'PRODUCTHUNT_DEVELOPER_TOKEN' },
+      x_twitter:   { configured: cfg('X_BEARER_TOKEN'),            endpoint: 'https://api.twitter.com/2/tweets',         envVar: 'X_BEARER_TOKEN' },
+      telegram:    { configured: cfg('TELEGRAM_BOT_TOKEN'),        endpoint: 'https://api.telegram.org',                  envVar: 'TELEGRAM_BOT_TOKEN' },
+      pinterest:   { configured: cfg('PINTEREST_TOKEN'),           endpoint: 'https://api.pinterest.com/v5',              envVar: 'PINTEREST_TOKEN' },
+      devto:       { configured: cfg('DEV_API_KEY'),               endpoint: 'https://dev.to/api/articles',               envVar: 'DEV_API_KEY' },
+      youtube:     { configured: cfg('YOUTUBE_API_KEY'),           endpoint: 'https://www.googleapis.com/youtube/v3',     envVar: 'YOUTUBE_API_KEY' },
+      producthunt: { configured: cfg('PRODUCTHUNT_DEVELOPER_TOKEN'), endpoint: 'https://api.producthunt.com/v2',          envVar: 'PRODUCTHUNT_DEVELOPER_TOKEN' },
     };
     const configuredProviders = Object.keys(providers).filter((k) => providers[k].configured);
     return {
@@ -507,7 +516,7 @@ class SocialMediaViralizer {
       postsAttempted: this.postHistory.length,
       lastPost: this.postHistory.length ? this.postHistory[this.postHistory.length - 1] : null,
       hint: configuredProviders.length === 0
-        ? 'No social provider configured. Set X_BEARER_TOKEN / TELEGRAM_BOT_TOKEN / DEV_API_KEY / PINTEREST_TOKEN in .env to enable real posting.'
+        ? 'No social provider configured. Set X_BEARER_TOKEN / TELEGRAM_BOT_TOKEN / DEV_API_KEY / PINTEREST_TOKEN in .env (or GitHub Actions secrets) to enable real posting. The central secrets bootstrap will auto-propagate them.'
         : `${configuredProviders.length} provider(s) ready. Posting cron will publish via these only.`,
     };
   }

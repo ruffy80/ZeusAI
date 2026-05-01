@@ -12,6 +12,18 @@ const path = require('path');
 const fs = require('fs');
 const crypto = require('crypto');
 
+// Centralised credential manager — auto-generates REFERRAL_SECRET on first
+// boot and persists it in data/runtime-secrets.json so codes stay stable
+// across PM2 reloads / cluster workers / future deploys.
+let secretsMod = null;
+try { secretsMod = require('../config/secrets'); } catch (_) {}
+function _secret(name, fallback) {
+  if (secretsMod && typeof secretsMod.getSecret === 'function') {
+    return secretsMod.getSecret(name, fallback);
+  }
+  return process.env[name] || fallback;
+}
+
 const DATA_DIR = path.resolve(__dirname, '..', '..', 'data', 'commerce');
 const DB_FILE = path.join(DATA_DIR, 'referrals.sqlite');
 
@@ -65,7 +77,9 @@ function _init() {
 function _newCode(email) {
   // Deterministic but non-guessable code: 8 hex chars from sha256(email + secret).
   // Stable across regenerations — same customer always gets same code.
-  const seed = String(email).toLowerCase() + ':' + (process.env.REFERRAL_SECRET || 'zeusai-default-2026');
+  // Secret is sourced from the central secrets module (auto-generated on first boot).
+  const secret = _secret('REFERRAL_SECRET', 'zeusai-default-2026');
+  const seed = String(email).toLowerCase() + ':' + secret;
   const hex = crypto.createHash('sha256').update(seed).digest('hex').slice(0, 8).toUpperCase();
   return 'ZEUS-' + hex;
 }
@@ -75,8 +89,8 @@ function getOrCreateCode(email, customerId = null) {
   const ownerEmail = String(email || '').trim().toLowerCase();
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(ownerEmail)) throw new Error('invalid_email');
   const code = _newCode(ownerEmail);
-  const discountPct = Math.max(1, Math.min(50, parseInt(process.env.REFERRAL_DISCOUNT_PCT || '10', 10)));
-  const payoutPct = Math.max(1, Math.min(50, parseInt(process.env.REFERRAL_PAYOUT_PCT || '20', 10)));
+  const discountPct = Math.max(1, Math.min(50, parseInt(_secret('REFERRAL_DISCOUNT_PCT', '10'), 10)));
+  const payoutPct = Math.max(1, Math.min(50, parseInt(_secret('REFERRAL_PAYOUT_PCT', '20'), 10)));
 
   if (usingSqlite && db) {
     const existing = db.prepare('SELECT * FROM referral_codes WHERE code = ?').get(code);

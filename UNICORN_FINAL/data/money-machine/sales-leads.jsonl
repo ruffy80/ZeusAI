@@ -45,3 +45,4 @@
 {"email":"prospect@example.com","source":"homepage","interest":"AI commerce","note":"","ip":"127.0.0.1","ts":"2026-05-01T16:04:06.361Z"}
 {"email":"prospect@example.com","source":"homepage","interest":"AI commerce","note":"","ip":"127.0.0.1","ts":"2026-05-01T16:04:21.452Z"}
 {"id":"lead_8763209d47197945","company":"Acme SaaS","industry":"SaaS","pain":"need autonomous lead generation and checkout recovery","score":100,"status":"qualified","nextAction":"send ROI audit + book demo","createdAt":"2026-05-01T16:05:08.642Z"}
+{"id":"lead_fd2a3c35fb310a62","company":"Acme SaaS","industry":"SaaS","pain":"need autonomous lead generation and checkout recovery","score":100,"status":"qualified","nextAction":"send ROI audit + book demo","createdAt":"2026-05-01T16:10:11.576Z"}

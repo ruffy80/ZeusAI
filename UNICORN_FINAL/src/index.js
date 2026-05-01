@@ -2579,6 +2579,8 @@ async function unicornHandler(req, res) {
   if (urlPath === '/api/secret-sync/status') {
     const workflowPath = path.join(__dirname, '..', '..', '.github', 'workflows', 'sync-all-secrets.yml');
     const canonicalPath = path.join(__dirname, '..', 'backend', 'constants', 'secretKeys.js');
+    let liveFeatureGroups = {};
+    try { liveFeatureGroups = require('./config/secrets').features(); } catch (_) {}
     const payload = {
       ok: true,
       generatedAt: new Date().toISOString(),
@@ -2600,7 +2602,8 @@ async function unicornHandler(req, res) {
         generatesInternalRuntimeSecrets: true,
         doesNotGenerateExternalProviderKeys: true
       },
-      configured: ['JWT_SECRET', 'ADMIN_SECRET', 'ADMIN_TOKEN', 'HETZNER_WEBHOOK_SECRET', 'COMMERCE_ADMIN_SECRET', 'ANCHOR_WEBHOOK_TOKEN', 'BTC_WALLET_ADDRESS', 'OWNER_BTC_ADDRESS', 'LEGAL_OWNER_BTC', 'PUBLIC_APP_URL', 'APP_BASE_URL', 'FRONTEND_URL', 'NOWPAYMENTS_API_KEY', 'NOWPAYMENTS_IPN_SECRET', 'PAYPAL_CLIENT_ID', 'PAYPAL_CLIENT_SECRET'].map((name) => ({ name, configured: isConfiguredSecret(name) })),
+      featureGroups: liveFeatureGroups,
+      configured: ['JWT_SECRET', 'JWT_SECRET_PREVIOUS', 'ADMIN_SECRET', 'ADMIN_TOKEN', 'HETZNER_WEBHOOK_SECRET', 'COMMERCE_ADMIN_SECRET', 'ANCHOR_WEBHOOK_TOKEN', 'BTC_WALLET_ADDRESS', 'OWNER_BTC_ADDRESS', 'LEGAL_OWNER_BTC', 'PUBLIC_APP_URL', 'APP_BASE_URL', 'FRONTEND_URL', 'NOWPAYMENTS_API_KEY', 'NOWPAYMENTS_IPN_SECRET', 'PAYPAL_CLIENT_ID', 'PAYPAL_CLIENT_SECRET', 'REFERRAL_SECRET', 'X_BEARER_TOKEN', 'TELEGRAM_BOT_TOKEN', 'DEV_API_KEY', 'SMTP_HOST', 'SMTP_USER', 'SMTP_PASS'].map((name) => ({ name, configured: isConfiguredSecret(name) })),
       note: 'GitHub Actions secrets cannot be read by the app; this endpoint verifies code readiness and runtime env presence only.'
     };
     res.writeHead(200, { 'Content-Type':'application/json', 'Cache-Control':'no-cache' });
@@ -4091,10 +4094,11 @@ document.getElementById('buyBtn').addEventListener('click', async function(){
   // (Sibling to existing /transparency Pricing-Bandit page.)
   // ============================================================
   if (req.method === 'GET' && (urlPath === '/transparency/live' || urlPath === '/transparency/live/')) {
-    let reality = {}, referrals = null, social = null;
+    let reality = {}, referrals = null, social = null, secretFeatures = null;
     try { reality = require('../backend/modules/reality-metrics').snapshot(); } catch(_){}
     try { referrals = require('./commerce/referral-engine-real').globalStats(); } catch(_){}
     try { social = require('../backend/modules/socialMediaViralizer').getProviderStatus(); } catch(_){}
+    try { secretFeatures = require('./config/secrets').features(); } catch(_){}
     const r = reality && reality.ok ? reality : {};
     const ord = (r.orders || {});
     const lds = (r.leads || {});
@@ -4132,6 +4136,16 @@ ${referrals ? `<div class="kpi"><b>${referrals.codesActive||0}</b><span>Active c
 <h2>Social distribution channels</h2>
 <table><tr><th>Provider</th><th>Status</th><th>Required env var</th></tr>${socialRows||'<tr><td colspan="3">No providers exposed.</td></tr>'}</table>
 <p class="note">A provider is "configured" only when its access token env var is set. We never fake reach.</p>
+
+<h2>Credential bootstrap (secrets module)</h2>
+${secretFeatures ? `<table><tr><th>Feature group</th><th>Configured</th><th>Missing</th></tr>${
+  Object.keys(secretFeatures).map(g => {
+    const f = secretFeatures[g];
+    const miss = (f.missing && f.missing.length) ? f.missing.join(', ') : '—';
+    return '<tr><td><b>'+g+'</b></td><td>'+(f.ready?'<span style="color:#0a0">✓ ready ('+f.configured+'/'+f.total+')</span>':'<span style="color:#c80">'+f.configured+'/'+f.total+'</span>')+'</td><td><code style="font-size:11px">'+miss+'</code></td></tr>';
+  }).join('')
+}</table>
+<p class="note">Source: <a href="/api/secret-sync/status"><code>/api/secret-sync/status</code></a>. The bootstrap auto-generates internal secrets (JWT_SECRET, REFERRAL_SECRET, etc.) and persists them in <code>data/runtime-secrets.json</code> with <code>0600</code> mode. External provider keys (X, Telegram, SMTP…) must be supplied via <code>.env</code> or GitHub Actions secrets.</p>` : '<p class="note">Secrets module not loaded.</p>'}
 
 <h2>Bitcoin owner wallet</h2>
 <p>All checkout funds settle directly to the owner wallet (no custody, no escrow):<br><code style="font-size:14px">${process.env.BTC_OWNER_ADDRESS || 'bc1q4f7e66z87mdfj56kz0dj5hvcnpmh0qh4wuv22e'}</code></p>
@@ -5210,12 +5224,13 @@ ${invoice.payer ? `<h2>Payer</h2><table><tr><th>Legal entity</th><td>${esc(invoi
   if (urlPath === '/api/transparency/full' && req.method === 'GET') {
     try {
       const reality = require('../backend/modules/reality-metrics').snapshot();
-      let referrals = null, social = null, ai = null;
+      let referrals = null, social = null, ai = null, secretFeatures = null;
       try { referrals = require('./commerce/referral-engine-real').globalStats(); } catch(_){}
       try { social = require('../backend/modules/socialMediaViralizer').getProviderStatus(); } catch(_){}
       try { ai = require('./modules/ai-router').status(); } catch(_){}
+      try { secretFeatures = require('./config/secrets').features(); } catch(_){}
       res.writeHead(200,{'Content-Type':'application/json'});
-      return res.end(JSON.stringify({ ok:true, generatedAt:new Date().toISOString(), reality, referrals, social, ai }));
+      return res.end(JSON.stringify({ ok:true, generatedAt:new Date().toISOString(), reality, referrals, social, ai, credentials: secretFeatures }));
     } catch(e){ res.writeHead(500,{'Content-Type':'application/json'}); return res.end(JSON.stringify({ ok:false, error:e.message })); }
   }
 

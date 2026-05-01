@@ -83,6 +83,7 @@ const GENERATED_INTERNAL_SECRETS = {
   VAULT_MASTER_SECRET: () => token('vault'),
   VAULT_EMERGENCY_CODE: () => token('unlock'),
   MASTER_CONFIG_SECRET: () => token('config'),
+  REFERRAL_SECRET: () => token('referral', 40),
 };
 
 const FEATURE_GROUPS = {
@@ -94,6 +95,9 @@ const FEATURE_GROUPS = {
   email: ['SMTP_HOST', 'SMTP_USER', 'SMTP_PASS'],
   observability: ['OTEL_EXPORTER_OTLP_ENDPOINT'],
   vault: ['VAULT_MASTER_SECRET', 'VAULT_EMERGENCY_CODE', 'MASTER_CONFIG_SECRET'],
+  socialDistribution: ['X_BEARER_TOKEN', 'TELEGRAM_BOT_TOKEN', 'PINTEREST_TOKEN', 'DEV_API_KEY', 'YOUTUBE_API_KEY', 'PRODUCTHUNT_DEVELOPER_TOKEN'],
+  referralEngine: ['REFERRAL_SECRET'],
+  jwtRotation: ['JWT_SECRET', 'JWT_SECRET_PREVIOUS'],
 };
 
 function configured(name) {
@@ -295,4 +299,20 @@ function features() {
   return Object.fromEntries(Object.entries(FEATURE_GROUPS).map(([name, keys]) => [name, groupStatus(keys)]));
 }
 
-module.exports = { bootstrap, configured, features, FEATURE_GROUPS, ALIASES, DEFAULT_VALUES };
+function getSecret(name, fallback = '') {
+  if (configured(name)) return String(process.env[name]);
+  // Try aliases.
+  const aliases = ALIASES[name] || [];
+  for (const alias of aliases) {
+    if (configured(alias)) return String(process.env[alias]);
+  }
+  return fallback;
+}
+
+function requireSecret(name) {
+  const v = getSecret(name);
+  if (!v) throw new Error(`secret_missing:${name}`);
+  return v;
+}
+
+module.exports = { bootstrap, configured, features, getSecret, requireSecret, FEATURE_GROUPS, ALIASES, DEFAULT_VALUES };
