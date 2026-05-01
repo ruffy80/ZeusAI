@@ -351,7 +351,7 @@ window.googleTranslateElementInit = function(){
 };
 </script>
 <div id="google_translate_element" aria-hidden="true"></div>
-<script src="//translate.googleapis.com/translate_a/element.js?cb=googleTranslateElementInit" defer></script>
+<script src="https://translate.googleapis.com/translate_a/element.js?cb=googleTranslateElementInit" defer></script>
 <script${N}>
 // Service worker registration (offline-first) + auto-refresh on new deploy
 if ('serviceWorker' in navigator) {
