@@ -3961,6 +3961,34 @@ app.get('/api/module-registry', (req, res) => {
   res.json(registry);
 });
 
+// Revenue launchpad — minimal stubs so site sync layer never sees 404 (RO+EN)
+// Endpoint public ce expune statusul lansării de venit pentru portalul ZeusAI
+app.get('/api/revenue/launchpad/status', (req, res) => {
+  const registry = getModuleRegistryStatus();
+  res.json({
+    ok: true,
+    status: 'live',
+    phase: 'production',
+    btcWallet: ADMIN_OWNER_BTC,
+    owner: ADMIN_OWNER_NAME,
+    modules: registry && registry.totalModules ? registry.totalModules : 0,
+    updatedAt: new Date().toISOString()
+  });
+});
+
+// Plan oficial de lansare — listă orientativă a etapelor (no-op safe defaults)
+app.get('/api/revenue/launchpad/plan', (req, res) => {
+  res.json({
+    ok: true,
+    plan: [
+      { id: 'live', label: 'Production live on zeusai.pro', status: 'completed' },
+      { id: 'btc', label: 'BTC self-custody payments', status: 'completed' },
+      { id: 'autonomous', label: 'Autonomous health + payment monitor', status: 'completed' }
+    ],
+    updatedAt: new Date().toISOString()
+  });
+});
+
 app.get('/api/unicorn-commerce/status', (req, res) => {
   res.json(unicornCommerceConnector.status({ registry: getModuleRegistryStatus(), btcWallet: ADMIN_OWNER_BTC, ownerName: ADMIN_OWNER_NAME }));
 });
