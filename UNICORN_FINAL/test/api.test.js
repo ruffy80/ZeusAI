@@ -171,6 +171,98 @@ async function runTests() {
     assert.equal(r.status, 401);
   });
 
+  // ── Customer portal auth (used by the SSR /account page) ────────────────────
+  console.log('\nCustomer portal:');
+  await test('POST /api/customer/signup - invalid email → 400 invalid_email', async () => {
+    const r = await apiRequest('POST', '/api/customer/signup', { email: 'not-email', password: 'SecurePass123!' });
+    assert.equal(r.status, 400);
+    assert.equal(r.body.error, 'invalid_email');
+  });
+
+  await test('POST /api/customer/signup - short password → 400 password_too_short', async () => {
+    const r = await apiRequest('POST', '/api/customer/signup', { email: 'shortpw@test.com', password: 'abc' });
+    assert.equal(r.status, 400);
+    assert.equal(r.body.error, 'password_too_short');
+  });
+
+  let _custToken;
+  await test('POST /api/customer/signup - valid → 200 with token + cookie', async () => {
+    const r = await apiRequest('POST', '/api/customer/signup', { name: 'Customer One', email: 'customer@test.com', password: 'SecurePass123!' });
+    assert.equal(r.status, 200);
+    assert.equal(r.body.ok, true);
+    assert.ok(r.body.token);
+    assert.equal(r.body.customer.email, 'customer@test.com');
+    assert.ok(!r.body.customer.passwordHash, 'passwordHash must not be exposed');
+    const setCookie = r.headers.get('set-cookie') || '';
+    assert.ok(setCookie.includes('customer_session='), 'customer_session cookie must be set');
+    assert.ok(/HttpOnly/i.test(setCookie), 'cookie must be HttpOnly');
+    _custToken = r.body.token;
+  });
+
+  await test('POST /api/customer/signup - duplicate → 409 email_taken', async () => {
+    const r = await apiRequest('POST', '/api/customer/signup', { email: 'customer@test.com', password: 'SecurePass123!' });
+    assert.equal(r.status, 409);
+    assert.equal(r.body.error, 'email_taken');
+  });
+
+  await test('GET /api/customer/me - no token → 401', async () => {
+    const r = await apiRequest('GET', '/api/customer/me');
+    assert.equal(r.status, 401);
+  });
+
+  await test('GET /api/customer/me - with x-customer-token → 200 with shape', async () => {
+    const r = await apiRequest('GET', '/api/customer/me', null, { 'x-customer-token': _custToken });
+    assert.equal(r.status, 200);
+    assert.equal(r.body.customer.email, 'customer@test.com');
+    assert.ok(Array.isArray(r.body.activeServices));
+    assert.ok(Array.isArray(r.body.pendingOrders));
+    assert.ok(Array.isArray(r.body.apiKeys));
+    assert.ok(Array.isArray(r.body.orders));
+  });
+
+  await test('POST /api/customer/login - unknown email → 401 email_not_found', async () => {
+    const r = await apiRequest('POST', '/api/customer/login', { email: 'noone@test.com', password: 'SecurePass123!' });
+    assert.equal(r.status, 401);
+    assert.equal(r.body.error, 'email_not_found');
+  });
+
+  await test('POST /api/customer/login - wrong password → 401 wrong_password', async () => {
+    const r = await apiRequest('POST', '/api/customer/login', { email: 'customer@test.com', password: 'BadPassword!' });
+    assert.equal(r.status, 401);
+    assert.equal(r.body.error, 'wrong_password');
+  });
+
+  await test('POST /api/customer/login - valid → 200 with token', async () => {
+    const r = await apiRequest('POST', '/api/customer/login', { email: 'customer@test.com', password: 'SecurePass123!' });
+    assert.equal(r.status, 200);
+    assert.equal(r.body.ok, true);
+    assert.ok(r.body.token);
+    assert.equal(r.body.customer.email, 'customer@test.com');
+  });
+
+  await test('POST /api/customer/logout - clears cookie', async () => {
+    const r = await apiRequest('POST', '/api/customer/logout');
+    assert.equal(r.status, 200);
+    const setCookie = r.headers.get('set-cookie') || '';
+    assert.ok(setCookie.includes('customer_session='));
+    assert.ok(/Max-Age=0/.test(setCookie));
+  });
+
+  await test('POST /api/customer/login - works again after logout (durable account)', async () => {
+    const r = await apiRequest('POST', '/api/customer/login', { email: 'customer@test.com', password: 'SecurePass123!' });
+    assert.equal(r.status, 200);
+    assert.ok(r.body.token);
+  });
+
+  await test('POST /api/auth/passkey/challenge mode=register auto-creates user when password supplied', async () => {
+    const r = await apiRequest('POST', '/api/auth/passkey/challenge', { email: 'autopk@test.com', mode: 'register', password: 'SecurePass123!' });
+    assert.equal(r.status, 200);
+    assert.ok(r.body.publicKey && r.body.publicKey.challenge);
+    // The auto-created user should be reachable via /api/customer/login.
+    const lr = await apiRequest('POST', '/api/customer/login', { email: 'autopk@test.com', password: 'SecurePass123!' });
+    assert.equal(lr.status, 200);
+  });
+
   // ── Billing Plans ────────────────────────────────────────────────────────────
   console.log('\nBilling:');
   await test('GET /api/billing/plans/public → 200 with plans array', async () => {
