@@ -169,9 +169,9 @@ window.__UNICORN_PASSKEY__ = {
       const token = localStorage.getItem('token') || localStorage.getItem('customerToken') || localStorage.getItem('authToken');
       if (token) authHeaders.Authorization = `Bearer ${token}`;
     } catch(_) {}
-    const r = await fetch('/api/auth/passkey/challenge', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ email, mode:'register' }) });
+    const r = await fetch('/api/auth/passkey/challenge', { method:'POST', credentials:'same-origin', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ email, mode:'register' }) });
     const j = await r.json();
-    if (!r.ok) return j;
+    if (!r.ok || !j.publicKey) return j;
     const pk = j.publicKey;
     pk.challenge = b64uToBuf(pk.challenge); pk.user.id = b64uToBuf(pk.user.id);
     const cred = await navigator.credentials.create({ publicKey: pk });
@@ -186,8 +186,9 @@ window.__UNICORN_PASSKEY__ = {
     return v.json();
   },
   async login(email){
-    const r = await fetch('/api/auth/passkey/challenge', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ email, mode:'assert' }) });
+    const r = await fetch('/api/auth/passkey/challenge', { method:'POST', credentials:'same-origin', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ email, mode:'assert' }) });
     const j = await r.json();
+    if (!r.ok || !j.publicKey) return j;
     const pk = j.publicKey;
     pk.challenge = b64uToBuf(pk.challenge);
     (pk.allowCredentials||[]).forEach(c => c.id = b64uToBuf(c.id));

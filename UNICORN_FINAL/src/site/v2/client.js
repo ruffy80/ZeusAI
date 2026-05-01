@@ -3436,9 +3436,6 @@ function renderAccountAuth(root, topError){
         setCustToken(r.token);
         if (r.customer) setCustProfile(r.customer);
         if (typeof toast === 'function') toast('Cont creat! Ești conectat. / Account created — you are logged in.', 'ok');
-        if (passkeySupported()) {
-          try { await enrollDeviceKey(email, password); } catch (_) { setPasskeyMsg('Cont creat. Device key poate fi creată manual cu butonul de sus.', 'info'); }
-        }
         hydrateAccount();
         return;
       }
@@ -3483,6 +3480,18 @@ function renderAccountDashboard(root, me){
         <div style="color:var(--ink-dim);font-size:13px">${escStore(c.email)}</div>
       </div>
       <button id="acLogoutBtn" class="btn" style="background:rgba(255,80,80,.15);color:#ff9c9c;border:1px solid rgba(255,80,80,.25)">Log out</button>
+    </div>
+
+    <div class="card" style="padding:22px;margin-bottom:24px;border:1px solid rgba(124,255,184,.26);background:linear-gradient(135deg,rgba(124,255,184,.08),rgba(138,92,255,.08))">
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:16px;flex-wrap:wrap">
+        <div style="max-width:680px">
+          <span class="kicker" style="color:#7cffb8">Device Key · Passkey</span>
+          <h3 style="margin:6px 0 6px">Activează login fără parolă pe acest device</h3>
+          <p style="color:var(--ink-dim);font-size:13.5px;line-height:1.55;margin:0">Contul este creat. Acum poți crea cheia privată pe device-ul tău; ZeusAI stochează doar cheia publică.</p>
+        </div>
+        <button id="acDashPasskeyCreateBtn" class="btn btn-primary">Create device key</button>
+      </div>
+      <div id="acDashPasskeyMsg" style="font-size:13px;margin-top:12px;color:var(--ink-dim);line-height:1.5"></div>
     </div>
 
     <h2 style="margin:28px 0 14px;font-size:24px">🚀 Active Services (${(me.activeServices||[]).length})</h2>
@@ -3557,6 +3566,36 @@ function renderAccountDashboard(root, me){
     setCustProfile(null);
     hydrateAccount();
   });
+
+  const dashPasskeyBtn = root.querySelector('#acDashPasskeyCreateBtn');
+  const dashPasskeyMsg = root.querySelector('#acDashPasskeyMsg');
+  function setDashPasskeyMsg(message, kind){
+    if (!dashPasskeyMsg) return;
+    dashPasskeyMsg.style.color = kind === 'err' ? '#ff9c9c' : (kind === 'ok' ? '#7cffb8' : 'var(--ink-dim)');
+    dashPasskeyMsg.textContent = message || '';
+  }
+  if (dashPasskeyBtn) {
+    if (!(window.__UNICORN_PASSKEY__ && window.__UNICORN_PASSKEY__.supported)) {
+      dashPasskeyBtn.disabled = true;
+      setDashPasskeyMsg('Acest browser/device nu suportă passkeys. Folosește Safari/Chrome/Edge actualizat.', 'err');
+    } else {
+      dashPasskeyBtn.addEventListener('click', async () => {
+        dashPasskeyBtn.disabled = true;
+        dashPasskeyBtn.textContent = 'Creating device key…';
+        setDashPasskeyMsg('Confirmă în browser/sistem. Cheia privată rămâne pe device.', 'info');
+        try {
+          const result = await window.__UNICORN_PASSKEY__.register(c.email, '');
+          if (result && result.ok) setDashPasskeyMsg('Device key creată. Data viitoare poți intra cu “Sign in with device”.', 'ok');
+          else setDashPasskeyMsg((result && (result.message || result.error)) || 'Device key nu a putut fi creată.', 'err');
+        } catch (_) {
+          setDashPasskeyMsg('Crearea cheii a fost anulată sau refuzată de device.', 'err');
+        } finally {
+          dashPasskeyBtn.disabled = false;
+          dashPasskeyBtn.textContent = 'Create device key';
+        }
+      });
+    }
+  }
 
   // "Use now →" handlers for active services
   root.querySelectorAll('.svc-use').forEach(btn => {
