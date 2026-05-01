@@ -569,8 +569,12 @@ function globalChrome(N) {
     function exitIntentSuppressed(){
       try {
         // 1) Suppress on routes where users are actively transacting / authenticating.
+        //    NB: this code lives inside a backtick template literal — backslashes get
+        //    unescaped before reaching the browser, so a regex literal /\/(...)/
+        //    would arrive as / / (...) /, an invalid regex. Use new RegExp(string).
         var route = location.pathname || '/';
-        if (/^\/(account|dashboard|checkout|store|portal|login|signup|register|admin)(\/|$)/.test(route)) return true;
+        var AUTH_ROUTES = new RegExp('^/(account|dashboard|checkout|store|portal|login|signup|register|admin)(/|$)');
+        if (AUTH_ROUTES.test(route)) return true;
         // 2) Suppress if customer is signed in (any of the keys set by client.js#setCustToken).
         var tok = '';
         try { tok = localStorage.getItem('u_cust_token') || localStorage.getItem('customerToken') || localStorage.getItem('token') || ''; } catch(_) { }
