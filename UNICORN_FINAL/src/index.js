@@ -2373,6 +2373,14 @@ async function unicornHandler(req, res) {
   const readCustomerToken = (req, fallbackToken) => {
     const headerTok = String((req && req.headers && req.headers['x-customer-token']) || '').trim();
     if (headerTok) return headerTok;
+    // Also accept standard `Authorization: Bearer <token>` for API ergonomics
+    // (curl, scripts, third-party integrations). The browser front-end uses
+    // x-customer-token + cookie; this is a non-breaking superset.
+    const authHdr = String((req && req.headers && req.headers.authorization) || '').trim();
+    if (/^Bearer\s+/i.test(authHdr)) {
+      const bearer = authHdr.replace(/^Bearer\s+/i, '').trim();
+      if (bearer) return bearer;
+    }
     const bodyTok = String(fallbackToken || '').trim();
     if (bodyTok) return bodyTok;
     const c = parseCookies((req && req.headers && req.headers.cookie) || '');

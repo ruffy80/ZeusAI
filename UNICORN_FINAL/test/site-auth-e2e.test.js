@@ -52,10 +52,12 @@ function doRequest(port, method, urlPath, body, extraHeaders) {
 server.listen(0, '127.0.0.1', async () => {
   try {
     const port = server.address().port;
+    // Use a unique email per run so the SQLite portal doesn't carry state across CI runs.
+    const TEST_EMAIL = `e2e-${Date.now()}-${Math.random().toString(36).slice(2,8)}@zeusai.pro`;
 
     // 3a. Signup creates account and returns token + Set-Cookie
     const signupRes = await doRequest(port, 'POST', '/api/customer/signup', {
-      email: 'e2e-test@zeusai.pro',
+      email: TEST_EMAIL,
       password: 'Test1234!',
       name: 'E2E Test User',
     });
@@ -68,7 +70,7 @@ server.listen(0, '127.0.0.1', async () => {
 
     // 3b. Login with same credentials returns token
     const loginRes = await doRequest(port, 'POST', '/api/customer/login', {
-      email: 'e2e-test@zeusai.pro',
+      email: TEST_EMAIL,
       password: 'Test1234!',
     });
     assert.strictEqual(loginRes.status, 200, `login status=${loginRes.status}: ${loginRes.body}`);
@@ -82,7 +84,16 @@ server.listen(0, '127.0.0.1', async () => {
     });
     assert.strictEqual(meRes.status, 200, `/me status=${meRes.status}: ${meRes.body}`);
     const me = JSON.parse(meRes.body);
-    assert.ok(me.customer && me.customer.email === 'e2e-test@zeusai.pro', '/me should return matching email');
+    assert.ok(me.customer && me.customer.email === TEST_EMAIL, '/me should return matching email');
+
+    // 3c-bis. /api/customer/me also accepts standard `Authorization: Bearer <token>`
+    // (API ergonomics for curl / scripts / 3rd-party integrations).
+    const meBearer = await doRequest(port, 'GET', '/api/customer/me', null, {
+      Authorization: `Bearer ${token}`,
+    });
+    assert.strictEqual(meBearer.status, 200, `/me with Bearer status=${meBearer.status}: ${meBearer.body}`);
+    const meBJson = JSON.parse(meBearer.body);
+    assert.ok(meBJson.customer && meBJson.customer.email === TEST_EMAIL, '/me with Bearer should return matching email');
 
     // 3d. /api/customer/me without token returns 401
     const me401 = await doRequest(port, 'GET', '/api/customer/me');
@@ -90,14 +101,14 @@ server.listen(0, '127.0.0.1', async () => {
 
     // 3e. Wrong password returns 401
     const badLogin = await doRequest(port, 'POST', '/api/customer/login', {
-      email: 'e2e-test@zeusai.pro',
+      email: TEST_EMAIL,
       password: 'WrongPassword!',
     });
     assert.strictEqual(badLogin.status, 401, 'wrong password should return 401');
 
     // 3f. Duplicate signup returns 409
     const dupSignup = await doRequest(port, 'POST', '/api/customer/signup', {
-      email: 'e2e-test@zeusai.pro',
+      email: TEST_EMAIL,
       password: 'Test1234!',
     });
     assert.strictEqual(dupSignup.status, 409, 'duplicate signup should return 409');
