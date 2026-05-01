@@ -362,8 +362,45 @@ class LegalFortress {
   }
 
   async detectUnauthorizedInstances() {
-    // Placeholder - aici se poate integra scan real sau API extern
-    return [];
+    // REAL implementation: probe a comma-separated list of suspect URLs
+    // (env CLONE_WATCH_URLS) and flag any that serve our owner fingerprint
+    // — the BTC owner address — without our DNS apex on its first response.
+    // Quiet by default (env unset → returns []), so it cannot generate
+    // false positives in dev/CI. Each detection is structured + logged.
+    const watch = (process.env.CLONE_WATCH_URLS || '').split(',')
+      .map(s => s.trim()).filter(Boolean);
+    if (watch.length === 0) return [];
+    const ownerSig = (process.env.OWNER_BTC_ADDRESS
+      || 'bc1q4f7e66z87mdfj56kz0dj5hvcnpmh0qh4wuv22e').toLowerCase();
+    const ourApex = (process.env.OWNER_APEX_DOMAIN || 'zeusai.pro').toLowerCase();
+    const detected = [];
+    for (const url of watch) {
+      try {
+        const ctl = new AbortController();
+        const t = setTimeout(() => ctl.abort(), 4000);
+        const r = await fetch(url, { signal: ctl.signal, redirect: 'follow' });
+        clearTimeout(t);
+        const body = (await r.text()).toLowerCase();
+        const finalHost = (() => { try { return new URL(r.url).hostname.toLowerCase(); } catch (_) { return ''; } })();
+        if (body.includes(ownerSig) && finalHost && !finalHost.endsWith(ourApex)) {
+          detected.push({
+            url,
+            finalHost,
+            detectedAt: new Date().toISOString(),
+            evidence: 'owner_btc_signature_on_foreign_host',
+          });
+        }
+      } catch (e) {
+        // network errors are not violations — log only at debug level
+        if (process.env.LEGAL_DEBUG) {
+          console.warn(`[legalFortress] probe failed url=${url} err=${e && e.message}`);
+        }
+      }
+    }
+    if (detected.length) {
+      console.warn(`[legalFortress] ⚠️  ${detected.length} unauthorized clone(s) detected`);
+    }
+    return detected;
   }
 
   async handleUnauthorizedInstance(clones) {
