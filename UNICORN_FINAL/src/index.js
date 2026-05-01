@@ -55,10 +55,123 @@ process.on('unhandledRejection', (reason) => {
 // === Health endpoint direct Express pentru testare și monitorizare ===
 const express = require('express');
 const app = express();
+
+// ==================== TOPOLOGY IDENTITY (site, 3001) ====================
+// Tag every response from the site cluster with `X-Unicorn-Role: site` plus the
+// PM2 instance index, the listening port and the cluster role (primary/replica).
+// This is purely diagnostic but it makes every nginx mis-route instantly visible
+// (e.g. an `/api/...` call should ALWAYS return `X-Unicorn-Role: backend` in
+// production; if you ever see `site`, the nginx /api/ rule is missing/broken).
+//
+// IMPORTANT: applied at the `createServer` dispatcher level (see below) — NOT
+// as `app.use(...)` — because hundreds of /api/* mutations bypass Express
+// entirely via `shouldBypassExpressForSiteMutation` and route straight to
+// `unicornHandler`. An `app.use` topology middleware would silently miss
+// them. Strictly additive — never changes status codes or bodies. Disable
+// with SITE_TOPOLOGY_HEADERS_DISABLED=1.
+const __SITE_TOPOLOGY = (function buildSiteTopology() {
+  const role = 'site';
+  const port = Number(process.env.PORT || 3001);
+  const instance = process.env.NODE_APP_INSTANCE || '0';
+  const clusterRole = process.env.SITE_CLUSTER_WORKER_ROLE === 'replica' ? 'replica' : 'primary';
+  const hostname = (function safeHostname() { try { return require('os').hostname(); } catch (_) { return ''; } })();
+  return { role, port, instance, clusterRole, hostname, pid: process.pid, sourceOfTruth: false };
+})();
+
+function applySiteTopologyHeaders(req, res) {
+  if (process.env.SITE_TOPOLOGY_HEADERS_DISABLED === '1') return;
+  try {
+    if (!res.headersSent) {
+      res.setHeader('X-Unicorn-Role', __SITE_TOPOLOGY.role);
+      res.setHeader('X-Unicorn-Port', String(__SITE_TOPOLOGY.port));
+      res.setHeader('X-Unicorn-Instance', String(__SITE_TOPOLOGY.instance));
+      res.setHeader('X-Unicorn-Cluster-Role', __SITE_TOPOLOGY.clusterRole);
+    }
+  } catch (_) { /* never block the request */ }
+}
+
 // === Health endpoint direct Express pentru testare și monitorizare ===
 app.get('/health', (req, res) => {
   res.json({ ok: true, status: 'healthy', ts: new Date().toISOString() });
 });
+
+// ==================== TOPOLOGY ENDPOINT (site) ====================
+// Public-readable diagnostic endpoint that announces this process's role in
+// the two-server architecture (site=3001 SSR cluster, backend=3000 source of
+// truth). Used by `scripts/smoke-topology.sh` and `test/topology.test.js` to
+// verify the nginx split routes /api/ → backend and / → site correctly.
+// No secrets, no mutation — safe to expose. Disable with
+// TOPOLOGY_ENDPOINT_DISABLED=1.
+if (process.env.TOPOLOGY_ENDPOINT_DISABLED !== '1') {
+  app.get('/internal/topology', (req, res) => {
+    res.setHeader('Cache-Control', 'no-store');
+    res.json({
+      role: __SITE_TOPOLOGY.role,
+      port: __SITE_TOPOLOGY.port,
+      pid: __SITE_TOPOLOGY.pid,
+      instance: __SITE_TOPOLOGY.instance,
+      clusterRole: __SITE_TOPOLOGY.clusterRole,
+      hostname: __SITE_TOPOLOGY.hostname,
+      sourceOfTruth: __SITE_TOPOLOGY.sourceOfTruth,
+      backendApiUrl: process.env.BACKEND_API_URL || null,
+      uptimeSeconds: Math.floor(process.uptime()),
+      ts: new Date().toISOString(),
+      note: 'site (SSR) — APIs and ledgers live on the backend (port 3000); nginx routes /api/ there.'
+    });
+  });
+}
+
+// ==================== SITE WRITE-GUARD (mutations on /api/*) ====================
+// In production, nginx routes EVERY /api/* request to the backend (3000). The
+// site (3001) only sees /api/* if (a) someone hits 3001 directly bypassing
+// nginx, or (b) a misconfiguration removes the /api/ location block. In either
+// case, letting the site process write-mutating APIs locally would silently
+// duplicate state across processes (in-memory ledgers, fallback receipts,
+// rate-limit counters drift apart from the backend's authoritative state).
+//
+// This guard is observability-first: it tags any non-safe /api/* method
+// with `X-Site-Write-Warning: routed-to-site` and logs once per minute per
+// path so the operator notices nginx routing drift immediately. It does NOT
+// block requests — the existing edgeProxyApi/unicornHandler chain still runs
+// and will proxy to backend via BACKEND_API_URL when set, or fall back locally
+// when not. Set SITE_API_WRITE_GUARD=enforce to additionally short-circuit
+// with 503 + Location: backend://... when BACKEND_API_URL is set, telling
+// upstreams to retarget. Disable entirely with SITE_API_WRITE_GUARD=off.
+//
+// Applied at the `createServer` dispatcher level — see comment on
+// applySiteTopologyHeaders above for why we cannot use `app.use(...)`.
+const __siteWriteGuardSeen = new Map();
+function applySiteWriteGuard(req, res, pathname, method) {
+  try {
+    const mode = String(process.env.SITE_API_WRITE_GUARD || 'warn').toLowerCase();
+    if (mode === 'off') return false;
+    if (['GET', 'HEAD', 'OPTIONS'].includes(method)) return false;
+    if (!pathname.startsWith('/api/')) return false;
+    if (!res.headersSent) res.setHeader('X-Site-Write-Warning', 'routed-to-site');
+    const key = method + ' ' + pathname;
+    const now = Date.now();
+    const lastLogged = __siteWriteGuardSeen.get(key) || 0;
+    if (now - lastLogged > 60000) {
+      __siteWriteGuardSeen.set(key, now);
+      try { console.warn('[site-write-guard] mutation reached SITE (3001):', key, '— expect this on backend (3000) when nginx is healthy. BACKEND_API_URL=' + (process.env.BACKEND_API_URL || '<unset>')); } catch (_) {}
+    }
+    if (mode === 'enforce' && process.env.BACKEND_API_URL) {
+      if (!res.headersSent) {
+        res.setHeader('Content-Type', 'application/json');
+        res.setHeader('Location', String(process.env.BACKEND_API_URL).replace(/\/+$/, '') + pathname);
+      }
+      res.statusCode = 503;
+      res.end(JSON.stringify({
+        error: 'site_write_guard_enforced',
+        message: 'Mutation /api/* routed to SITE (3001) but ledgers live on BACKEND (3000). Retry against BACKEND_API_URL.',
+        backend: process.env.BACKEND_API_URL,
+        path: pathname
+      }));
+      return true; // short-circuited
+    }
+  } catch (_) { /* never block the request */ }
+  return false;
+}
 
 // === Site → Unicorn proxy with 2s timeout + mock fallback ===
 // Adds /api/industry/list, /api/control/stats, /api/evolution/snapshot.
@@ -471,6 +584,11 @@ function createServer() {
   return http.createServer((req, res) => {
     const method = String(req.method || 'GET').toUpperCase();
     const earlyPath = new URL(req.url || '/', 'http://local').pathname;
+    // Topology headers + write-guard run BEFORE any dispatcher decision, so
+    // they apply uniformly across the Express path AND the unicornHandler
+    // bypass (which carries hundreds of /api/* mutation routes).
+    applySiteTopologyHeaders(req, res);
+    if (applySiteWriteGuard(req, res, earlyPath, method)) return; // 503 enforced
     if (shouldBypassExpressForSiteMutation(earlyPath, method)) {
       return unicornHandler(req, res);
     }
@@ -5610,8 +5728,15 @@ function edgeProxyApi(req, res, urlPath) {
 
 if (require.main === module) {
   const server = createServer();
-  server.listen(PORT, () => {
-    console.log('UNICORN_FINAL listening on http://localhost:' + PORT);
+  // BIND_HOST defaults to '0.0.0.0' for backward compatibility. In production,
+  // nginx always fronts the site (port 3001) — set BIND_HOST=127.0.0.1 to
+  // close direct external access. Tests use 127.0.0.1 explicitly via .listen(0).
+  const BIND_HOST = process.env.BIND_HOST || '0.0.0.0';
+  server.listen(PORT, BIND_HOST, () => {
+    console.log('UNICORN_FINAL listening on http://' + (BIND_HOST === '0.0.0.0' ? 'localhost' : BIND_HOST) + ':' + PORT + ' (role=site, port=' + PORT + ', source-of-truth=false)');
+    if (BIND_HOST === '0.0.0.0') {
+      console.log('[topology] site bound to 0.0.0.0 — port ' + PORT + ' reachable externally. In production behind nginx, set BIND_HOST=127.0.0.1 to close direct external access.');
+    }
     try {
       if (USE) {
         const runtimeSources = getRuntimeDataSources();
