@@ -1120,15 +1120,8 @@ const meshOrchestrator     = require('./modules/unicornMeshOrchestrator');
 const unicornOrchestrator  = require('./modules/unicornOrchestrator');
 
 // ==================== NEW ACTIVATED MODULES (23) ====================
-// NOTE: evolution-core, quantum-healing — deprecated 2026-05-01 (template stubs returning random data).
-// Files relocated to UNICORN_FINAL/_deprecated_/. Inline shims preserve mesh+route surface.
-const _deprecatedShim = (name, replacement) => ({
-  name,
-  process: async (input = {}) => ({ status: 'deprecated', module: name, replacement, input }),
-  getStatus: () => ({ name, status: 'deprecated', replacement, deprecatedAt: '2026-05-01' }),
-});
-const evolutionCore           = _deprecatedShim('evolution-core', 'auto-innovation-loop');
-const quantumHealing          = _deprecatedShim('quantum-healing', 'self-healing-engine');
+const evolutionCore           = require('./modules/evolution-core');
+const quantumHealing          = require('./modules/quantum-healing');
 const universalAdaptor        = require('./modules/universal-adaptor');
 const siteCreator             = require('./modules/site-creator');
 const abTesting               = require('./modules/ab-testing');
@@ -1180,8 +1173,7 @@ const uaitm                        = require('./modules/universalAITrainingMarke
 
 // ==================== SPECIAL MISSING MODULES — REQUIRES ====================
 const unicornExecutionEngine = require('./modules/unicorn-execution-engine');
-// predictive-healing — deprecated 2026-05-01 (template stub using Math.random). See _deprecated_/healing/.
-const predictiveHealing      = _deprecatedShim('predictive-healing', 'self-healing-engine');
+const predictiveHealing      = require('./modules/predictive-healing');
 
 // ==================== AUTONOMOUS SYSTEM MODULES ====================
 const autoRepair           = require('./modules/auto-repair');
