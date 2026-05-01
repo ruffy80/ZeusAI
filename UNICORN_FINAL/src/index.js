@@ -5592,7 +5592,7 @@ ${invoice.payer ? `<h2>Payer</h2><table><tr><th>Legal entity</th><td>${esc(invoi
       'Cache-Control': cache,
       'Pragma': 'no-cache',
       'Expires': '0',
-      'Link': '</assets/app.css?v=' + ZEUS_BUILD.sha + '>; rel=preload; as=style, </assets/app.js?v=' + ZEUS_BUILD.sha + '>; rel=preload; as=script, </assets/icons/icon-192.png>; rel=preload; as=image',
+      'Link': '</assets/app.css?v=' + require('./site/v2/build-id').BUILD_ID + '>; rel=preload; as=style, </assets/app.js?v=' + require('./site/v2/build-id').BUILD_ID + '>; rel=preload; as=script, </assets/icons/icon-192.png>; rel=preload; as=image',
       'X-Zeus-Build': ZEUS_BUILD.sha,
       'X-Zeus-Built-At': ZEUS_BUILD.ts,
       'X-CSP-Nonce': nonce,

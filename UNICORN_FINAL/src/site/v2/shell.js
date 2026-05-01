@@ -455,7 +455,7 @@ function globalChrome() {
     <small id="zeus-exit-msg" style="color:var(--ink-dim)"></small>
   </div>
 </div>
-<script>
+<script${N}>
 (function(){
   // Early resilient fetch: applies before /assets/app.js loads, so inline
   // telemetry/aura/newsletter requests also get 3x retry + last-good fallback.
