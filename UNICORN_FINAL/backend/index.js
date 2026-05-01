@@ -4426,14 +4426,18 @@ async function buildModulePrice(moduleId, opts) {
     return { ok: false, status: 404, body: { error: 'Module not found in pricing engine', moduleId } };
   }
   const dp = dynamicPricing.getPrice(moduleId, opts || {});
-  // Fetch BTC rate; if it fails, broker output already has live snapshot, so
-  // try that as a second source. Worst case → btc null but USD always present.
+  // Fetch BTC rate with a hard 2s timeout so a stalled paymentGateway can
+  // never make this endpoint hang. On timeout / error we fall back to the
+  // broker's last cached BTC rate, then to a logged "no rate" payload.
   let rate = 0;
   let btcSource = 'none';
   try {
-    const r = await paymentGateway.getBitcoinRate();
+    const r = await Promise.race([
+      paymentGateway.getBitcoinRate(),
+      new Promise((_, rej) => setTimeout(() => rej(new Error('btc-rate-timeout')), 2000)),
+    ]);
     if (r && Number(r.rate) > 0) { rate = Number(r.rate); btcSource = r.source || 'paymentGateway'; }
-  } catch (_) { /* ignore */ }
+  } catch (_) { /* ignore — fall through to broker cache */ }
   if (rate <= 0 && livePricingBroker) {
     try {
       const snap = livePricingBroker.getSnapshot();
