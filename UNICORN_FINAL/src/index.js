@@ -656,6 +656,161 @@ let polishPack = null; try { polishPack = require('../backend/modules/polish-pac
 const PORT = Number(process.env.PORT || 3000);
 // Pornește serverul Express pe același port cu HTTP dacă nu există deja
 
+// ── Crypto Transfer Intelligence Suite — page renderer ───────────────────
+// Self-contained HTML/CSS/JS. Fetches /api/crypto-bridge/* (proxied to
+// backend by nginx in prod). Non-custodial: never sends user funds.
+function renderCryptoFiatBridgePage() {
+  return `<!doctype html><html lang="en"><head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Crypto Transfer Intelligence Suite · ZeusAI</title>
+<meta name="description" content="The most advanced crypto transfer suite. Period. 8 non-custodial innovations: Fee Lock, Smart Bump, Destination Check, Liquidity Unlock, Atomic Swap Optimizer, MEV Protection, Batch Transaction, Time-Locked Refund."/>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,system-ui,sans-serif;background:#05040a;color:#e8e8f0;line-height:1.55;-webkit-font-smoothing:antialiased}
+.wrap{max-width:1200px;margin:0 auto;padding:32px 20px 80px}
+header.hero{padding:64px 0 40px;text-align:center;border-bottom:1px solid #1a1830}
+.hero h1{font-size:clamp(28px,5vw,52px);font-weight:800;letter-spacing:-.02em;background:linear-gradient(120deg,#fff,#9b8cff 60%,#3ee0c8);-webkit-background-clip:text;background-clip:text;color:transparent}
+.hero p.sub{margin-top:14px;color:#aaa9c4;font-size:clamp(14px,2.2vw,18px);max-width:780px;margin-left:auto;margin-right:auto}
+.live-rate{display:inline-flex;gap:8px;align-items:center;margin-top:18px;padding:8px 14px;background:#0e0c1f;border:1px solid #2a2750;border-radius:999px;font-family:ui-monospace,Menlo,monospace;font-size:13px}
+.live-rate b{color:#3ee0c8}
+.cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:16px;margin:32px 0}
+.card{background:linear-gradient(180deg,#0e0c1f,#0a0915);border:1px solid #1f1c3a;border-radius:14px;padding:20px;cursor:pointer;transition:transform .15s,border-color .15s,box-shadow .15s;position:relative}
+.card:hover{transform:translateY(-2px);border-color:#5e54a8;box-shadow:0 8px 30px -12px rgba(155,140,255,.4)}
+.card .num{position:absolute;top:14px;right:16px;font-family:ui-monospace,Menlo,monospace;font-size:11px;color:#5e54a8;letter-spacing:.1em}
+.card h3{font-size:18px;font-weight:700;margin-bottom:8px;letter-spacing:-.01em}
+.card p{color:#aaa9c4;font-size:13.5px;margin-bottom:14px}
+.card .fee{display:inline-block;padding:4px 10px;background:#1a1830;border-radius:6px;font-family:ui-monospace,Menlo,monospace;font-size:11.5px;color:#3ee0c8}
+.routing{margin-top:48px;background:linear-gradient(180deg,#13102a,#0a0915);border:1px solid #2a2750;border-radius:18px;padding:32px}
+.routing h2{font-size:24px;margin-bottom:6px;letter-spacing:-.01em}
+.routing p.lead{color:#aaa9c4;margin-bottom:20px;font-size:14.5px}
+.routing form{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px}
+.routing input,.routing select{padding:12px 14px;background:#05040a;border:1px solid #2a2750;border-radius:10px;color:#fff;font-family:inherit;font-size:14px;width:100%}
+.routing input:focus,.routing select:focus{outline:none;border-color:#9b8cff}
+.routing button{grid-column:1/-1;margin-top:12px;padding:16px 24px;background:linear-gradient(120deg,#9b8cff,#3ee0c8);color:#05040a;border:0;border-radius:12px;font-size:16px;font-weight:700;cursor:pointer;letter-spacing:.01em}
+.routing button:hover{filter:brightness(1.08)}
+.routing button:disabled{opacity:.5;cursor:wait}
+.result{margin-top:24px;padding:24px;background:#05040a;border:1px solid #1f1c3a;border-radius:14px;display:none}
+.result.show{display:block}
+.result h3{margin-bottom:12px;font-size:18px}
+.result .stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;margin:16px 0}
+.result .stat{padding:14px;background:#0e0c1f;border:1px solid #1f1c3a;border-radius:10px}
+.result .stat .lbl{font-size:11.5px;color:#7a7896;text-transform:uppercase;letter-spacing:.08em;margin-bottom:4px}
+.result .stat .val{font-family:ui-monospace,Menlo,monospace;font-size:18px;font-weight:600;color:#3ee0c8}
+.result ul{margin-top:16px;list-style:none;padding-left:0}
+.result ul li{padding:10px 14px;background:#0e0c1f;border-left:3px solid #9b8cff;border-radius:6px;margin-bottom:8px;font-size:13.5px}
+.result pre{margin-top:14px;padding:14px;background:#0e0c1f;border:1px solid #1f1c3a;border-radius:8px;overflow-x:auto;font-size:11.5px;color:#aaa9c4;max-height:340px}
+.why{margin-top:48px;padding:32px;background:linear-gradient(180deg,#0e0c1f,#05040a);border:1px solid #1f1c3a;border-radius:18px}
+.why h2{font-size:22px;margin-bottom:14px;letter-spacing:-.01em}
+.why p{color:#aaa9c4;font-size:14.5px;margin-bottom:10px}
+.foot{margin-top:48px;padding-top:24px;border-top:1px solid #1a1830;color:#5e54a8;font-size:12px;text-align:center;font-family:ui-monospace,Menlo,monospace}
+@media(max-width:520px){.routing{padding:20px}}
+</style>
+</head><body>
+<div class="wrap">
+<header class="hero">
+  <h1>The most advanced crypto transfer suite. Period.</h1>
+  <p class="sub">8 non-custodial innovations. We never hold your funds. We make every transfer cheaper, safer, faster.</p>
+  <div class="live-rate" id="liveRate">BTC/USD · loading…</div>
+</header>
+
+<section class="cards" id="cards"></section>
+
+<section class="routing">
+  <h2>Smart Routing</h2>
+  <p class="lead">Enter your transfer details. We'll run all 8 cards in parallel and return the optimal plan + total cost.</p>
+  <form id="routingForm">
+    <input name="address" placeholder="Destination address (BTC or 0x…)" required/>
+    <input name="amount" type="number" step="0.00000001" placeholder="Amount" required value="0.001"/>
+    <select name="currency">
+      <option value="BTC">BTC</option>
+      <option value="ETH">ETH</option>
+    </select>
+    <input name="maxWaitHours" type="number" step="1" min="1" max="48" placeholder="Max wait (h)" value="1"/>
+    <input name="txid" placeholder="Optional: existing tx hash (for bump/refund)"/>
+    <button type="submit" id="goBtn">SMART ROUTING — Optimize Transfer</button>
+  </form>
+  <div class="result" id="result"></div>
+</section>
+
+<section class="why">
+  <h2>Why this doesn't exist anywhere else</h2>
+  <p><b>Custodial bridges</b> (Wise, Revolut crypto, exchange withdrawals) hold your funds. They charge 1–3% spread + extra fees. They can freeze your transfer.</p>
+  <p><b>Wallet apps</b> let you set a fee. They don't tell you if it's wrong, if the address is risky, or if you can save 80% by batching.</p>
+  <p><b>This suite</b> is the missing intelligence layer. We read public blockchain data, run real algorithms, and return a recommendation. Your funds never leave your wallet. Our fee is direct-invoiced to <code>${process.env.OWNER_BTC_ADDRESS || process.env.BTC_WALLET_ADDRESS || 'bc1q4f7e66z87mdfj56kz0dj5hvcnpmh0qh4wuv22e'}</code> only after you confirm the trade.</p>
+  <p style="margin-top:16px;color:#3ee0c8"><b>Legal:</b> non-custodial information service. Not a money transmitter. Not financial advice. Use at your own discretion.</p>
+</section>
+
+<div class="foot">© ZeusAI · Crypto Transfer Intelligence Suite v1.0 · 8 services · non-custodial · 24/7 autonomous</div>
+</div>
+
+<script>
+(async function(){
+  const $ = s => document.querySelector(s);
+  const fmt = n => (n==null||isNaN(n))?'—':Number(n).toLocaleString('en-US',{maximumFractionDigits:8});
+  const fmtUsd = n => (n==null||isNaN(n))?'—':'$'+Number(n).toLocaleString('en-US',{maximumFractionDigits:2});
+
+  // 1. Live BTC rate (every 10s)
+  async function tickRate(){
+    try{
+      const r = await fetch('/api/crypto-bridge/btc-rate',{cache:'no-store'});
+      if(!r.ok) throw 0;
+      const j = await r.json();
+      $('#liveRate').innerHTML = 'BTC/USD · <b>'+fmtUsd(j.rate)+'</b> · '+(j.source||'live')+(j.degraded?' (degraded)':'');
+    }catch(_){ $('#liveRate').textContent='BTC/USD · feed offline'; }
+  }
+  tickRate(); setInterval(tickRate,10000);
+
+  // 2. Render the 8 cards
+  try{
+    const r = await fetch('/api/crypto-bridge/services',{cache:'no-store'});
+    const j = await r.json();
+    const html = (j.services||[]).map((s,i)=>{
+      const fee = s.commissionUsd ? '$'+s.commissionUsd+' '+s.unit : s.commissionPct+(s.unit?' '+s.unit:'%');
+      return '<div class="card" data-id="'+s.id+'"><span class="num">0'+(i+1)+'</span><h3>'+s.name+'</h3><p>'+s.tagline+'</p><span class="fee">'+fee+'</span></div>';
+    }).join('');
+    $('#cards').innerHTML = html || '<p>Services unavailable.</p>';
+  }catch(_){ $('#cards').innerHTML='<p style="color:#7a7896">Service catalog offline.</p>'; }
+
+  // 3. Smart routing form
+  $('#routingForm').addEventListener('submit', async ev => {
+    ev.preventDefault();
+    const btn = $('#goBtn'); btn.disabled = true; btn.textContent = 'Routing…';
+    const fd = new FormData(ev.target);
+    const body = {
+      address: fd.get('address'),
+      amount: Number(fd.get('amount'))||0,
+      currency: fd.get('currency'),
+      maxWaitHours: Number(fd.get('maxWaitHours'))||1,
+      txid: fd.get('txid')||undefined,
+    };
+    try{
+      const r = await fetch('/api/crypto-bridge/smart-routing',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+      const j = await r.json();
+      const stats = '<div class="stats">'+
+        '<div class="stat"><div class="lbl">Total Fee</div><div class="val">'+fmtUsd(j.totalFeeUsd)+'</div></div>'+
+        '<div class="stat"><div class="lbl">Fees Saved</div><div class="val">'+fmtUsd(j.totalFeesSavedUsd)+'</div></div>'+
+        '<div class="stat"><div class="lbl">Our Commission</div><div class="val">'+fmtUsd(j.ourCommissionUsd)+'</div></div>'+
+        '<div class="stat"><div class="lbl">In BTC</div><div class="val">'+fmt(j.ourCommissionBtc)+'</div></div>'+
+      '</div>';
+      const recs = (j.recommendations&&j.recommendations.length)
+        ? '<ul>'+j.recommendations.map(x=>'<li>'+x.replace(/</g,'&lt;')+'</li>').join('')+'</ul>'
+        : '<p style="color:#7a7896;margin-top:10px">No optimization recommended — your transfer is already optimal.</p>';
+      $('#result').innerHTML = '<h3>Routing Result · '+(j.requestId||'—')+'</h3>'+stats+recs+'<pre>'+JSON.stringify(j.cards,null,2).replace(/</g,'&lt;')+'</pre><p style="margin-top:14px;color:#5e54a8;font-size:12px">'+(j.disclaimer||'')+'</p>';
+      $('#result').classList.add('show');
+      $('#result').scrollIntoView({behavior:'smooth',block:'start'});
+    }catch(e){
+      $('#result').innerHTML='<p style="color:#ff6b9b">Routing failed: '+(e.message||e)+'</p>';
+      $('#result').classList.add('show');
+    }finally{
+      btn.disabled = false; btn.textContent = 'SMART ROUTING — Optimize Transfer';
+    }
+  });
+})();
+</script>
+</body></html>`;
+}
+
 function createServer() {
   return http.createServer((req, res) => {
     const method = String(req.method || 'GET').toUpperCase();
