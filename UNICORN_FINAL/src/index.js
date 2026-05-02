@@ -2668,7 +2668,17 @@ async function unicornHandler(req, res) {
 
       // F9 — Pledge
       if (fu === '/api/pledge') return fsend(200, frontier.pledge());
-      if (fu === '/api/pledge/report' && req.method === 'POST') return fbody(p => fsend(200, frontier.pledgeReport(p)));
+      if (fu === '/api/pledge/report' && req.method === 'POST') return fbody(p => {
+        const email = String((p && p.email) || '').trim();
+        const evidence = String((p && p.evidence) || '').trim();
+        if (!email || !/^\S+@\S+\.\S+$/.test(email)) {
+          return fsend(400, { error: 'invalid_email', message: 'Please provide a valid email.' });
+        }
+        if (evidence.length < 12) {
+          return fsend(400, { error: 'insufficient_evidence', message: 'Please provide at least 12 characters of evidence.' });
+        }
+        return fsend(200, frontier.pledgeReport({ ...p, email, evidence }));
+      });
 
       // F10 — Universal cancel
       if (fu === '/api/cancel/universal' && req.method === 'POST') return fbody(p => { try { return fsend(200, frontier.universalCancel(p)); } catch (e) { return fsend(400, { error: e.message }); } });
@@ -3024,6 +3034,68 @@ async function unicornHandler(req, res) {
       incidents: { status: 'sealed-public-log', count: 0, endpoint: '/api/incidents' },
       slo: { uptimeTarget: '99.99% API / 99.9% site', probe: '/api/observability/status' },
       discovery: ['/.well-known/unicorn-integrity.json', '/.well-known/did.json', '/openapi.json', '/sitemap.xml']
+    };
+    res.writeHead(200, { 'Content-Type':'application/json', 'Cache-Control':'no-cache' });
+    return res.end(JSON.stringify(payload));
+  }
+
+  if (urlPath === '/api/kpi/daily') {
+    const receipts = getAllReceipts();
+    const now = Date.now();
+    const cutoff24h = now - (24 * 3600 * 1000);
+    const toTs = (r) => {
+      const raw = (r && (r.createdAt || r.ts || r.issuedAt || r.paidAt || r.updatedAt)) || null;
+      const t = raw ? Date.parse(raw) : NaN;
+      return Number.isFinite(t) ? t : 0;
+    };
+    const statusOf = (r) => String((r && r.status) || '').toLowerCase();
+    const amountOf = (r) => Number(r && (r.amountUSD != null ? r.amountUSD : r.amount) || 0);
+    const in24 = receipts.filter((r) => toTs(r) >= cutoff24h);
+    const paid24 = in24.filter((r) => statusOf(r) === 'paid');
+    const pending24 = in24.filter((r) => statusOf(r) && statusOf(r) !== 'paid');
+    const revenue24Usd = Number(paid24.reduce((sum, r) => sum + amountOf(r), 0).toFixed(2));
+    const conversion24 = in24.length ? Number(((paid24.length / in24.length) * 100).toFixed(2)) : 0;
+
+    let leadsTotal = 0;
+    let leads24 = 0;
+    let newsletterSubscribers = 0;
+    let abandonEventsTotal = 0;
+    try {
+      if (frontier && typeof frontier.leadList === 'function') {
+        const leads = frontier.leadList(500) || [];
+        leadsTotal = Array.isArray(leads) ? leads.length : 0;
+        leads24 = Array.isArray(leads) ? leads.filter((l) => {
+          const t = Date.parse((l && (l.ts || l.createdAt)) || '');
+          return Number.isFinite(t) && t >= cutoff24h;
+        }).length : 0;
+      }
+      if (frontier && typeof frontier.newsletterStats === 'function') {
+        const ns = frontier.newsletterStats() || {};
+        newsletterSubscribers = Number(ns.subscribers || 0);
+      }
+      if (frontier && typeof frontier.analyticsSummary === 'function') {
+        const as = frontier.analyticsSummary() || {};
+        const byName = as.byName || {};
+        abandonEventsTotal = Object.keys(byName)
+          .filter((k) => String(k).toLowerCase().includes('abandon'))
+          .reduce((sum, k) => sum + Number(byName[k] || 0), 0);
+      }
+    } catch (_) {}
+
+    const payload = {
+      ok: true,
+      generatedAt: new Date().toISOString(),
+      window: '24h',
+      orders24h: in24.length,
+      paidOrders24h: paid24.length,
+      pendingOrders24h: pending24.length,
+      conversion24h: conversion24,
+      revenue24Usd,
+      receiptsTotal: receipts.length,
+      leads24h: leads24,
+      leadsTotal,
+      newsletterSubscribers,
+      abandonEventsTotal
     };
     res.writeHead(200, { 'Content-Type':'application/json', 'Cache-Control':'no-cache' });
     return res.end(JSON.stringify(payload));
@@ -3400,11 +3472,6 @@ async function unicornHandler(req, res) {
   if (urlPath === '/modules') {
     res.writeHead(200, { 'Content-Type': 'application/json' });
     return res.end(JSON.stringify({ updatedAt: new Date().toISOString(), modules }));
-  }
-
-  if (urlPath === '/marketplace') {
-    res.writeHead(200, { 'Content-Type': 'application/json' });
-    return res.end(JSON.stringify({ updatedAt: new Date().toISOString(), modules: getRuntimeDataSources().marketplace }));
   }
 
   if (urlPath === '/codex') {
@@ -7040,7 +7107,7 @@ a{color:#8a5cff;text-decoration:none}
 
   // Any SPA route → v2 shell
   const v2Routes = [
-    '/', '/services', '/pricing', '/checkout', '/dashboard', '/how', '/docs', '/about', '/legal',
+    '/', '/services', '/marketplace', '/pricing', '/checkout', '/dashboard', '/how', '/docs', '/about', '/legal',
     '/trust', '/security', '/responsible-ai', '/dpa', '/payment-terms', '/operator', '/observability',
     '/enterprise', '/store', '/account', '/innovations', '/wizard', '/status', '/changelog',
     '/terms', '/privacy', '/refund', '/sla', '/pledge', '/cancel', '/gift', '/aura',
@@ -7048,7 +7115,7 @@ a{color:#8a5cff;text-decoration:none}
   ];
   const isV2Route = v2Routes.includes(urlPath) || urlPath.startsWith('/services/');
   if (isV2Route) {
-    const route = urlPath;
+    const route = (urlPath === '/marketplace') ? '/services' : urlPath;
     // 30Y-LTS: per-request CSP nonce (Nginx forwards X-CSP-Nonce as $request_id;
     // if absent — local dev — we generate one. Inline scripts get this nonce.
     const nonce = String(req.headers['x-csp-nonce'] || crypto.randomBytes(12).toString('base64'));

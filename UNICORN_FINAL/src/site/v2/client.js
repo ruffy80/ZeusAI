@@ -297,12 +297,41 @@ function openStream(){
     es = resilientES(esPath, { onmessage: onMsg, onerror: onErr });
   } catch(_){}
 }
+
+function getSnapshotCounts(s) {
+  const snapshot = s || {};
+  const moduleCount = Number(
+    snapshot.telemetry && snapshot.telemetry.moduleCount != null
+      ? snapshot.telemetry.moduleCount
+      : (Array.isArray(snapshot.modules) ? snapshot.modules.length : 0)
+  );
+  const verticalCount = Number(
+    snapshot.telemetry && snapshot.telemetry.verticalCount != null
+      ? snapshot.telemetry.verticalCount
+      : (Array.isArray(snapshot.industries) ? snapshot.industries.length : 0)
+  );
+  const marketCount = Number(
+    snapshot.telemetry && snapshot.telemetry.marketplaceCount != null
+      ? snapshot.telemetry.marketplaceCount
+      : (Array.isArray(snapshot.marketplace) ? snapshot.marketplace.length : 0)
+  );
+  return {
+    moduleCount: Number.isFinite(moduleCount) && moduleCount > 0 ? moduleCount : null,
+    verticalCount: Number.isFinite(verticalCount) && verticalCount > 0 ? verticalCount : null,
+    marketCount: Number.isFinite(marketCount) && marketCount > 0 ? marketCount : null
+  };
+}
+
 function applySnapshot(s){
   if (!s) return;
   const set = (id, v) => { const el = document.getElementById(id); if (el && v!=null) el.textContent = v; };
-  if (s.telemetry) {
-    set('statModules', s.telemetry.moduleCount || s.modules?.length || 169);
-  }
+  const counts = getSnapshotCounts(s);
+  set('statModules', counts.moduleCount);
+  set('statVerticals', counts.verticalCount);
+  set('statMarkets', counts.marketCount);
+  set('leadModules', counts.moduleCount != null ? (counts.moduleCount + ' live modules') : null);
+  set('leadVerticals', counts.verticalCount != null ? (counts.verticalCount + ' active vertical industries') : null);
+  set('leadMarkets', counts.marketCount != null ? (counts.marketCount + ' connected marketplaces') : null);
   if (s.autonomy && s.autonomy.chain) set('statChain', s.autonomy.chain.length || '—');
 }
 
@@ -1169,7 +1198,7 @@ async function hydrateHome(){
         <div class="row"><span>${(v.outcomes||[]).slice(0,2).map(escapeHtml).join(' · ')}</span><b>→</b></div>
       </div>`).join('');
   }
-  if (snap && snap.telemetry) { $('#statModules') && ($('#statModules').textContent = snap.modules?.length || 169); }
+  if (snap) applySnapshot(snap);
   hydrateCommerceProof();
   initFinalLive(services);
 }
@@ -2004,6 +2033,34 @@ function hydrateCheckout(){
 
   let currentReceipt = null;
   let pollTimer = null;
+  let abandonSent = false;
+
+  function sendAbandon(reason){
+    if (abandonSent || currentReceipt) return;
+    const amt = Number(($('#coAmount')||{}).value || 0);
+    const pl = String((($('#coPlan')||{}).value || plan || 'starter'));
+    const email = String((($('#coEmail')||{}).value || '')).trim();
+    if (!amt && !email) return;
+    abandonSent = true;
+    const payload = {
+      reason: reason || 'leave_checkout',
+      plan: pl,
+      amountUsd: amt,
+      email: email || undefined,
+      ts: new Date().toISOString(),
+      path: '/checkout'
+    };
+    try {
+      if (navigator.sendBeacon) {
+        const blob = new Blob([JSON.stringify(payload)], { type: 'application/json' });
+        navigator.sendBeacon('/api/abandon-cart', blob);
+        return;
+      }
+    } catch(_) {}
+    try {
+      fetch('/api/abandon-cart', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload), keepalive: true }).catch(()=>{});
+    } catch(_) {}
+  }
 
   const draw = () => {
     const amt = Number(($('#coAmount')||{}).value || 0);
@@ -2135,6 +2192,11 @@ function hydrateCheckout(){
       showReceiptStatus(r.receipt);
       startPolling(r.receipt.id);
     } else toast('Could not create order','err');
+  });
+
+  window.addEventListener('beforeunload', () => sendAbandon('beforeunload'));
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'hidden') sendAbandon('visibility_hidden');
   });
 
   function showReceiptStatus(r){
@@ -3555,11 +3617,30 @@ function openStoreCheckout(product){
   box.querySelector('#storePurchaseBtn').addEventListener('click', async () => {
     const inputs = {};
     box.querySelectorAll('[data-k]').forEach(el => { inputs[el.dataset.k] = el.value; });
+    const required = Array.isArray(product.inputs) ? product.inputs.filter(i => i && i.required) : [];
+    const missing = required.find(i => !String(inputs[i.key] || '').trim());
+    if (missing) {
+      box.querySelector('#storeInvoice').innerHTML = `<div style="color:#ff9c9c;padding:12px;background:rgba(255,60,60,.1);border-radius:6px">Missing required field: ${escStore(missing.label || missing.key)}</div>`;
+      return;
+    }
     const payload = { productId: product.id, inputs };
     const t = getCustToken(); if (t) payload.customerToken = t;
-    const em = box.querySelector('#storeGuestEmail'); if (em && em.value) payload.guestEmail = em.value;
+    const em = box.querySelector('#storeGuestEmail');
+    if (em && em.value) {
+      const email = String(em.value).trim();
+      if (!/^\S+@\S+\.\S+$/.test(email)) {
+        box.querySelector('#storeInvoice').innerHTML = `<div style="color:#ff9c9c;padding:12px;background:rgba(255,60,60,.1);border-radius:6px">Please enter a valid email address.</div>`;
+        return;
+      }
+      payload.guestEmail = email;
+    }
     const r = await fetch('/api/instant/purchase', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) }).then(x=>x.json()).catch(e=>({error:String(e)}));
-    if (r.error) { box.querySelector('#storeInvoice').innerHTML = `<div style="color:#ff9c9c;padding:12px;background:rgba(255,60,60,.1);border-radius:6px">${escStore(r.error)}</div>`; return; }
+    if (r.error || !r.orderId) {
+      let msg = r.error || r.message || 'Purchase request failed.';
+      if (r.error === 'missing_input' && r.field) msg = `Missing required field: ${r.field}`;
+      box.querySelector('#storeInvoice').innerHTML = `<div style="color:#ff9c9c;padding:12px;background:rgba(255,60,60,.1);border-radius:6px">${escStore(msg)}</div>`;
+      return;
+    }
     renderStoreInvoice(r);
   });
   box.scrollIntoView({ behavior:'smooth', block:'start' });

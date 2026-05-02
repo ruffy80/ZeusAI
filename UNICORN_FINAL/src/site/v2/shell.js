@@ -1121,9 +1121,10 @@ function pageTrustCenter() {
   (async function(){
     const grid=document.getElementById('trustGrid'), raw=document.getElementById('trustRaw');
     try {
-      const [tc, integ] = await Promise.all([
+      const [tc, integ, kpi] = await Promise.all([
         fetch('/api/trust/center').then(r=>r.json()),
-        fetch('/.well-known/unicorn-integrity.json').then(r=>r.json())
+        fetch('/.well-known/unicorn-integrity.json').then(r=>r.json()),
+        fetch('/api/kpi/daily').then(r=>r.json()).catch(()=>null)
       ]);
       const cards = [
         ['Health', tc.health.status, tc.health.summary],
@@ -1133,7 +1134,10 @@ function pageTrustCenter() {
         ['Payments', tc.payments.mode, tc.payments.action],
         ['Security', tc.security.posture, tc.security.summary],
         ['Incidents', tc.incidents.count+' sealed', tc.incidents.status],
-        ['SLO', tc.slo.uptimeTarget, tc.slo.probe]
+        ['SLO', tc.slo.uptimeTarget, tc.slo.probe],
+        ['Revenue 24h', '$'+Number((kpi&&kpi.revenue24Usd)||0).toLocaleString(), 'Paid '+Number((kpi&&kpi.paidOrders24h)||0)+' / '+Number((kpi&&kpi.orders24h)||0)+' orders'],
+        ['Conversion 24h', Number((kpi&&kpi.conversion24h)||0).toFixed(2)+'%', 'Pending '+Number((kpi&&kpi.pendingOrders24h)||0)+' · Receipts total '+Number((kpi&&kpi.receiptsTotal)||0)],
+        ['Leads 24h', String(Number((kpi&&kpi.leads24h)||0)), 'Newsletter '+Number((kpi&&kpi.newsletterSubscribers)||0)+' · Abandon events '+Number((kpi&&kpi.abandonEventsTotal)||0)]
       ];
       grid.innerHTML = cards.map(c=>'<div class="card"><span class="tag">'+c[0]+'</span><h3>'+c[1]+'</h3><p style="color:var(--ink-dim)">'+c[2]+'</p></div>').join('');
       raw.textContent = 'health: '+(tc.health && tc.health.status || 'ok')+' · deploy: '+(tc.deploy && tc.deploy.sha || '—')+' · integrity: '+(integ && integ.alg || 'ed25519')+' · incidents: '+(tc.incidents && tc.incidents.count || 0);
