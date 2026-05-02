@@ -890,28 +890,29 @@ function initTourbillon(){
 // assigned per route. Hidden on home (which already has the full-bleed
 // hero image). Deterministic hash → same page always shows the same
 // Zeus, so the user perceives a stable identity per section.
-const ZEUS_BACKDROP_IMAGES = ['/assets/zeus/hero.jpg','/assets/zeus/brand.jpg'];
+const __ZEUS_ASSETS__ = window.__ZEUS_ASSETS__ || {};
+const ZEUS_BACKDROP_IMAGES = [__ZEUS_ASSETS__.hero || '/assets/zeus/hero.jpg', __ZEUS_ASSETS__.brand || '/assets/zeus/brand.jpg'];
 // Curated overrides so flagship pages get the most cinematic portrait
 // (hero.jpg = full Zeus throne; brand.jpg = close-up bust).
 const ZEUS_BACKDROP_BY_ROUTE = {
-  '/services':       '/assets/zeus/hero.jpg',
-  '/pricing':        '/assets/zeus/brand.jpg',
-  '/enterprise':     '/assets/zeus/hero.jpg',
-  '/store':          '/assets/zeus/brand.jpg',
-  '/wizard':         '/assets/zeus/hero.jpg',
-  '/innovations':    '/assets/zeus/brand.jpg',
-  '/frontier':       '/assets/zeus/hero.jpg',
-  '/docs':           '/assets/zeus/brand.jpg',
-  '/dashboard':      '/assets/zeus/hero.jpg',
-  '/account':        '/assets/zeus/brand.jpg',
-  '/checkout':       '/assets/zeus/hero.jpg',
-  '/about':          '/assets/zeus/brand.jpg',
-  '/legal':          '/assets/zeus/brand.jpg',
-  '/security':       '/assets/zeus/hero.jpg',
-  '/trust':          '/assets/zeus/hero.jpg',
-  '/status':         '/assets/zeus/brand.jpg',
-  '/operator':       '/assets/zeus/hero.jpg',
-  '/observability':  '/assets/zeus/brand.jpg'
+  '/services':       __ZEUS_ASSETS__.hero || '/assets/zeus/hero.jpg',
+  '/pricing':        __ZEUS_ASSETS__.brand || '/assets/zeus/brand.jpg',
+  '/enterprise':     __ZEUS_ASSETS__.hero || '/assets/zeus/hero.jpg',
+  '/store':          __ZEUS_ASSETS__.brand || '/assets/zeus/brand.jpg',
+  '/wizard':         __ZEUS_ASSETS__.hero || '/assets/zeus/hero.jpg',
+  '/innovations':    __ZEUS_ASSETS__.brand || '/assets/zeus/brand.jpg',
+  '/frontier':       __ZEUS_ASSETS__.hero || '/assets/zeus/hero.jpg',
+  '/docs':           __ZEUS_ASSETS__.brand || '/assets/zeus/brand.jpg',
+  '/dashboard':      __ZEUS_ASSETS__.hero || '/assets/zeus/hero.jpg',
+  '/account':        __ZEUS_ASSETS__.brand || '/assets/zeus/brand.jpg',
+  '/checkout':       __ZEUS_ASSETS__.hero || '/assets/zeus/hero.jpg',
+  '/about':          __ZEUS_ASSETS__.brand || '/assets/zeus/brand.jpg',
+  '/legal':          __ZEUS_ASSETS__.brand || '/assets/zeus/brand.jpg',
+  '/security':       __ZEUS_ASSETS__.hero || '/assets/zeus/hero.jpg',
+  '/trust':          __ZEUS_ASSETS__.hero || '/assets/zeus/hero.jpg',
+  '/status':         __ZEUS_ASSETS__.brand || '/assets/zeus/brand.jpg',
+  '/operator':       __ZEUS_ASSETS__.hero || '/assets/zeus/hero.jpg',
+  '/observability':  __ZEUS_ASSETS__.brand || '/assets/zeus/brand.jpg'
 };
 let __zeusBackdropToggle = false;
 function pickZeusBackdrop(route){

@@ -3,7 +3,7 @@
 'use strict';
 
 const { CSS } = require('./styles');
-const { BUILD_ID } = require('./build-id');
+const { BUILD_ID, assetPath, browserAssetManifest } = require('./build-id');
 
 const OWNER = {
   name: process.env.OWNER_NAME || 'Vladoi Ionut',
@@ -37,7 +37,7 @@ function buildJsonLd(title, route, canonical, desc, opts) {
     '@type': 'Organization',
     name: 'ZeusAI',
     url: base + '/',
-    logo: base + '/assets/icons/icon-512.png',
+    logo: base + assetPath('/assets/icons/icon-512.png'),
     email: OWNER.email,
     sameAs: [base + '/about', base + '/trust', base + '/security'],
     founder: { '@type': 'Person', name: OWNER.name }
@@ -95,7 +95,7 @@ function head(title, route, opts) {
   const base = OWNER.domain.replace(/\/$/, '');
   const canonical = base + (route || '/');
   // Per-route OG image: dedicated 1200x630 banner with safe fallback.
-  const ogImage = base + '/assets/icons/og-default.png';
+  const ogImage = base + assetPath('/assets/icons/og-default.png');
   const desc = routeDescription(route);
   const jsonLdBlocks = buildJsonLd(title, route, canonical, desc, opts)
     .map(b => `<script type="application/ld+json"${nonceAttr}>${JSON.stringify(b)}</script>`).join('\n');
@@ -117,6 +117,9 @@ function head(title, route, opts) {
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"/>
 <meta name="theme-color" content="#05040a"/>
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate"/>
+<meta http-equiv="Pragma" content="no-cache"/>
+<meta http-equiv="Expires" content="0"/>
 <meta name="color-scheme" content="dark"/>
 <title>${title} — ZEUSAI</title>
 <meta name="description" content="${desc}"/>
@@ -140,12 +143,12 @@ ${jsonLdBlocks}
 <link rel="manifest" href="/manifest.webmanifest"/>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="preload" as="image" href="/assets/zeus/hero.jpg" fetchpriority="high"/>
+<link rel="preload" as="image" href="${assetPath('/assets/zeus/hero.jpg')}" fetchpriority="high"/>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap"/>
-<link rel="stylesheet" href="/assets/app.css?v=${BUILD_ID}"/>
-<link rel="icon" type="image/png" sizes="32x32" href="/assets/icons/favicon-32.png"/>
-<link rel="icon" type="image/png" sizes="192x192" href="/assets/icons/icon-192.png"/>
-<link rel="apple-touch-icon" sizes="180x180" href="/assets/icons/apple-touch-icon.png"/>
+<link rel="stylesheet" href="${assetPath('/assets/app.css')}"/>
+<link rel="icon" type="image/png" sizes="32x32" href="${assetPath('/assets/icons/favicon-32.png')}"/>
+<link rel="icon" type="image/png" sizes="192x192" href="${assetPath('/assets/icons/icon-192.png')}"/>
+<link rel="apple-touch-icon" sizes="180x180" href="${assetPath('/assets/icons/apple-touch-icon.png')}"/>
 <link rel="mask-icon" href="/assets/icons/icon.svg" color="#8a5cff"/>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' x2='1' y1='0' y2='1'%3E%3Cstop offset='0' stop-color='%238a5cff'/%3E%3Cstop offset='0.5' stop-color='%233ea0ff'/%3E%3Cstop offset='1' stop-color='%23ffd36a'/%3E%3C/linearGradient%3E%3C/defs%3E%3Cpath fill='url(%23g)' d='M32 4l8 14h14l-12 10 5 18-15-10-15 10 5-18L10 18h14z'/%3E%3C/svg%3E"/>
 <style${nonceAttr}>
@@ -196,7 +199,7 @@ function navBar(route, opts) {
     : 'Display in English';
   const langToggle = `<button class="lang-toggle" type="button" data-target-lang="${targetLang}" aria-label="${targetTitle}" title="${targetTitle}">🌐 ${targetLabel}</button>`;
   return `<nav class="nav" data-nav-open="false">
-<div class="brand"><div class="brand-logo brand-logo-photo"><img src="/assets/zeus/brand.jpg" alt="Zeus" onerror="this.style.display='none'"/></div><div><span class="zeus-wordmark">Zeus<span class="ai">AI</span></span><small>Sovereign · Self-Evolving · Signed</small></div></div>
+<div class="brand"><div class="brand-logo brand-logo-photo"><img src="${assetPath('/assets/zeus/brand.jpg')}" alt="Zeus" onerror="this.style.display='none'"/></div><div><span class="zeus-wordmark">Zeus<span class="ai">AI</span></span><small>Sovereign · Self-Evolving · Signed</small></div></div>
 <button class="nav-toggle" type="button" aria-label="Toggle navigation" aria-expanded="false" aria-controls="nav-links">
   <span class="nav-toggle-bar"></span><span class="nav-toggle-bar"></span><span class="nav-toggle-bar"></span>
 </button>
@@ -276,11 +279,12 @@ ${concierge()}
 ${globalChrome(N)}
 <noscript><div style="position:fixed;bottom:0;left:0;right:0;padding:14px 18px;background:#05040a;color:#e8f0ff;border-top:1px solid #3ea0ff;font:14px/1.4 system-ui;z-index:99">This site works fully without JavaScript. Cinematic effects are disabled in no-JS mode; all services, pricing and APIs remain reachable.</div></noscript>
 <script${N}>window.__UNICORN__=${JSON.stringify({ owner: OWNER, route })};</script>
+<script${N}>window.__ZEUS_ASSETS__=${JSON.stringify(browserAssetManifest())};</script>
 <script${N} data-local-three-version="r160">
 // 30Y-LTS: try locally vendored Three.js first, fall back to CDN only when absent.
 (function loadThree(){
   var s=document.createElement('script');
-  s.src='/assets/vendor/three.min.js';
+  s.src='${assetPath('/assets/vendor/three.min.js')}';
   s.onerror=function(){var f=document.createElement('script');f.src='https://unpkg.com/three@0.160.0/build/three.min.js';f.defer=true;document.head.appendChild(f);};
   document.head.appendChild(s);
 })();
@@ -354,37 +358,24 @@ window.googleTranslateElementInit = function(){
 <div id="google_translate_element" aria-hidden="true"></div>
 <script src="https://translate.googleapis.com/translate_a/element.js?cb=googleTranslateElementInit" defer></script>
 <script${N}>
-// Service worker registration (offline-first) + auto-refresh on new deploy
+// Service worker cleanup: unregister any legacy workers so HTML is always
+// fetched fresh from origin and never served from stale browser caches.
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', function(){
-    navigator.serviceWorker.register('/sw.js').then(function(reg){
-      try { reg.update(); } catch(_){}
-      // When a new SW takes control, reload once so the user sees the latest assets.
-      var reloaded = false;
-      navigator.serviceWorker.addEventListener('controllerchange', function(){
-        if (reloaded) return; reloaded = true;
-        try { location.reload(); } catch(_){}
-      });
-      // Listen for explicit "sw-updated" broadcasts.
-      navigator.serviceWorker.addEventListener('message', function(ev){
-        try {
-          if (ev && ev.data && ev.data.type === 'sw-updated') {
-            if (reloaded) return; reloaded = true;
-            setTimeout(function(){ try { location.reload(); } catch(_){} }, 50);
-          }
-        } catch(_){}
-      });
-      // If a new worker is waiting, ask it to take over immediately.
-      if (reg.waiting) { try { reg.waiting.postMessage('skipWaiting'); } catch(_){} }
-      reg.addEventListener('updatefound', function(){
-        var nw = reg.installing;
-        if (!nw) return;
-        nw.addEventListener('statechange', function(){
-          if (nw.state === 'installed' && navigator.serviceWorker.controller) {
-            try { nw.postMessage('skipWaiting'); } catch(_){}
+    navigator.serviceWorker.getRegistrations().then(function(regs){
+      if (!regs || !regs.length) return null;
+      return Promise.all(regs.map(function(reg){ return reg.unregister(); }))
+        .then(function(){ return (window.caches && caches.keys) ? caches.keys() : []; })
+        .then(function(keys){ return Promise.all((keys || []).map(function(key){ return caches.delete(key); })); })
+        .then(function(){
+          var mark = 'zeus-sw-cleanup-${BUILD_ID}';
+          if (!sessionStorage.getItem(mark)) {
+            sessionStorage.setItem(mark, '1');
+            if (navigator.serviceWorker.controller) {
+              setTimeout(function(){ location.reload(); }, 60);
+            }
           }
         });
-      });
     }).catch(function(){});
   });
 }
@@ -405,8 +396,8 @@ window.addEventListener('securitypolicyviolation', function(e){
   }catch(_){ }
 });
 </script>
-<script${N} src="/assets/aeon.js?v=${BUILD_ID}" defer></script>
-<script${N} src="/assets/app.js?v=${BUILD_ID}" defer></script>
+<script${N} src="${assetPath('/assets/aeon.js')}" defer></script>
+<script${N} src="${assetPath('/assets/app.js')}" defer></script>
 </body></html>`;
 }
 
@@ -587,7 +578,7 @@ function globalChrome(N) {
 function pageHome() {
   return `<section class="hero">
   <div class="zeus-scene" aria-hidden="true">
-    <img id="zeusHeroImg" class="zeus-hero-image" src="/assets/zeus/hero.jpg" data-zeus-src="/assets/zeus/hero.jpg" alt="" onerror="this.onerror=null;this.src='/assets/zeus/placeholder.svg'"/>
+    <img id="zeusHeroImg" class="zeus-hero-image" src="${assetPath('/assets/zeus/hero.jpg')}" data-zeus-src="${assetPath('/assets/zeus/hero.jpg')}" alt="" onerror="this.onerror=null;this.src='${assetPath('/assets/zeus/placeholder.svg')}'"/>
     <div class="zeus-halo zeus-halo-a"></div>
     <div class="zeus-halo zeus-halo-b"></div>
     <div class="zeus-stars"></div>
