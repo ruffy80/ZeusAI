@@ -248,7 +248,9 @@ jobs:
              fi; \
              ln -sfn \"\$TARGET\" \"\$LINK\"; \
              test -L \"\$LINK\"; \
-             test \"$(readlink -f \"\$LINK\")\" = \"$(readlink -f \"\$TARGET\")\""
+             RESOLVED_LINK=\$(readlink -f \"\$LINK\"); \
+             RESOLVED_TARGET=\$(readlink -f \"\$TARGET\"); \
+             test \"\$RESOLVED_LINK\" = \"\$RESOLVED_TARGET\""
 
           ssh -o StrictHostKeyChecking=no root@${{ secrets.HETZNER_HOST }} \
             "printf '%s\n' '${{ github.sha }}' > /var/www/unicorn/UNICORN_FINAL/.deployed-commit && \
