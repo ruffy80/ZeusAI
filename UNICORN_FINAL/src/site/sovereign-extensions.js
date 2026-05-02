@@ -8,7 +8,6 @@
 const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
-const { assetPath } = require('./v2/build-id');
 
 const OWNER = {
   name: process.env.OWNER_NAME || 'Vladoi Ionut',
@@ -269,13 +268,13 @@ ${all.map(u => `  <url><loc>${OWNER.domain}${u}</loc><lastmod>${now}</lastmod><c
       lang,
       scope: '/',
       icons: [
-        { src: assetPath('/assets/icons/icon-192.png'), sizes: '192x192', type: 'image/png', purpose: 'any' },
-        { src: assetPath('/assets/icons/icon-512.png'), sizes: '512x512', type: 'image/png', purpose: 'any' },
-        { src: assetPath('/assets/icons/icon-maskable-512.png'), sizes: '512x512', type: 'image/png', purpose: 'maskable' },
+        { src: '/assets/icons/icon-192.png', sizes: '192x192', type: 'image/png', purpose: 'any' },
+        { src: '/assets/icons/icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'any' },
+        { src: '/assets/icons/icon-maskable-512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
         { src: '/assets/icons/icon.svg', sizes: 'any', type: 'image/svg+xml', purpose: 'any' }
       ],
       screenshots: [
-        { src: assetPath('/assets/icons/og-default.png'), sizes: '1200x630', type: 'image/png', form_factor: 'wide', label: 'ZeusAI Sovereign AI OS' }
+        { src: '/assets/icons/og-default.png', sizes: '1200x630', type: 'image/png', form_factor: 'wide', label: 'ZeusAI Sovereign AI OS' }
       ],
       shortcuts: [
         { name: 'Marketplace', short_name: 'Services', url: '/services', description: 'Browse the ZeusAI service marketplace' },
@@ -561,7 +560,7 @@ ${all.map(u => `  <url><loc>${OWNER.domain}${u}</loc><lastmod>${now}</lastmod><c
       description_for_model: 'Lets an AI agent discover, quote and purchase Unicorn services. Supports BTC, Lightning, USDC, SEPA. Returns Ed25519-signed Verifiable Credential receipts.',
       auth: { type: 'none' },
       api: { type: 'openapi', url: `${OWNER.domain}/openapi.json` },
-      logo_url: `${OWNER.domain}${assetPath('/assets/zeus/brand.jpg')}`,
+      logo_url: `${OWNER.domain}/assets/zeus/brand.jpg`,
       contact_email: OWNER.email,
       legal_info_url: `${OWNER.domain}/legal`,
     }), true);
@@ -696,7 +695,7 @@ ${all.map(u => `  <url><loc>${OWNER.domain}${u}</loc><lastmod>${now}</lastmod><c
         name: 'ZeusAI',
         legalName: OWNER.name,
         url: OWNER.domain,
-        logo: `${OWNER.domain}${assetPath('/assets/zeus/brand.jpg')}`,
+        logo: `${OWNER.domain}/assets/zeus/brand.jpg`,
         email: OWNER.email,
         sameAs: [],
         founder: { '@type': 'Person', name: OWNER.name },

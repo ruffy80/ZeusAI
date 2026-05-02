@@ -440,23 +440,5 @@
     },
     "prevHash": "61f8ed294ac559a9f5076d347fb1541bafff063ced4d713310f0f9949945e42a",
     "hash": "dd44656f8d328438dfbb9265e24169965546247d1d7ede2fea2b4a2e4e04ec93"
-  },
-  {
-    "ts": 1777751388081,
-    "action": "scaling",
-    "details": {
-      "procs": 5
-    },
-    "prevHash": "dd44656f8d328438dfbb9265e24169965546247d1d7ede2fea2b4a2e4e04ec93",
-    "hash": "47520138ff9bf3fcab07a58e333eced43bc230e70c459eaff041c925b1166972"
-  },
-  {
-    "ts": 1777751388422,
-    "action": "scaling",
-    "details": {
-      "procs": 3
-    },
-    "prevHash": "47520138ff9bf3fcab07a58e333eced43bc230e70c459eaff041c925b1166972",
-    "hash": "d784e372b5aff3c46b7441e8c73484e64061de53d848821403b74f409045ff18"
   }
 ]

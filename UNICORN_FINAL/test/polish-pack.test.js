@@ -61,9 +61,9 @@ const assert = require('assert');
     assert.match(html, /hreflang="x-default"/, 'hreflang x-default');
     assert.match(html, /apple-touch-icon/, 'apple-touch-icon link');
     assert.match(html, /mask-icon/, 'mask-icon link');
-    assert.match(html, /og:image" content="https:\/\/zeusai\.pro\/assets\/icons\/og-default\.[a-z0-9]+\.png/, 'og image dedicated');
+    assert.match(html, /og:image" content="https:\/\/zeusai\.pro\/assets\/icons\/og-default\.png/, 'og image dedicated');
     assert.match(html, /<noscript>/, 'noscript fallback');
-    assert.match(html, /rel="preload" as="image" href="\/assets\/zeus\/hero\.[a-z0-9]+\.jpg"/, 'preload hero');
+    assert.match(html, /rel="preload" as="image" href="\/assets\/zeus\/hero\.jpg"/, 'preload hero');
     // 4 JSON-LD blocks on most routes (Primary + Organization + WebSite + Breadcrumb).
     const blocks = (html.match(/application\/ld\+json/g) || []).length;
     assert.ok(blocks >= 4, 'expected >=4 JSON-LD blocks, got ' + blocks);

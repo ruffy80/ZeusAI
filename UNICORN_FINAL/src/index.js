@@ -173,69 +173,6 @@ function applySiteWriteGuard(req, res, pathname, method) {
   return false;
 }
 
-const HTML_NO_CACHE_CONTROL = 'no-cache, no-store, must-revalidate';
-
-function applyHtmlFreshnessHeaders(res) {
-  try {
-    if (!res.headersSent) {
-      res.setHeader('Cache-Control', HTML_NO_CACHE_CONTROL);
-      res.setHeader('Pragma', 'no-cache');
-      res.setHeader('Expires', '0');
-    }
-  } catch (_) {}
-}
-
-function injectLegacyNoCacheMeta(body) {
-  if (body == null) return body;
-  const isBuffer = Buffer.isBuffer(body);
-  const html = isBuffer ? body.toString('utf8') : String(body);
-  if (!/<head[^>]*>/i.test(html)) return body;
-  let injected = html;
-  if (!/http-equiv=["']Cache-Control["']/i.test(injected)) {
-    injected = injected.replace(/<head([^>]*)>/i, '<head$1><meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate"/>');
-  }
-  if (!/http-equiv=["']Pragma["']/i.test(injected)) {
-    injected = injected.replace(/<head([^>]*)>/i, '<head$1><meta http-equiv="Pragma" content="no-cache"/>');
-  }
-  if (!/http-equiv=["']Expires["']/i.test(injected)) {
-    injected = injected.replace(/<head([^>]*)>/i, '<head$1><meta http-equiv="Expires" content="0"/>');
-  }
-  return isBuffer ? Buffer.from(injected, 'utf8') : injected;
-}
-
-function installResponseFreshnessGuards(res) {
-  if (res.__zeusFreshnessGuardInstalled) return;
-  res.__zeusFreshnessGuardInstalled = true;
-  const origWriteHead = res.writeHead.bind(res);
-  const origEnd = res.end.bind(res);
-  res.writeHead = function patchedWriteHead(statusCode, reasonPhrase, headers) {
-    let finalReason = reasonPhrase;
-    let finalHeaders = headers;
-    if (typeof finalReason === 'object' && finalHeaders === undefined) {
-      finalHeaders = finalReason;
-      finalReason = undefined;
-    }
-    if (finalHeaders && typeof finalHeaders === 'object' && !Array.isArray(finalHeaders)) {
-      for (const [key, value] of Object.entries(finalHeaders)) {
-        try {
-          if (value != null) res.setHeader(key, value);
-        } catch (_) {}
-      }
-    }
-    if (String(res.getHeader('Content-Type') || '').toLowerCase().includes('text/html')) {
-      applyHtmlFreshnessHeaders(res);
-    }
-    return finalReason !== undefined ? origWriteHead(statusCode, finalReason) : origWriteHead(statusCode);
-  };
-  res.end = function patchedEnd(chunk, encoding, callback) {
-    if (String(res.getHeader('Content-Type') || '').toLowerCase().includes('text/html')) {
-      applyHtmlFreshnessHeaders(res);
-      return origEnd(injectLegacyNoCacheMeta(chunk), encoding, callback);
-    }
-    return origEnd(chunk, encoding, callback);
-  };
-}
-
 // === Site → Unicorn proxy with 2s timeout + mock fallback ===
 // Adds /api/industry/list, /api/control/stats, /api/evolution/snapshot.
 // Never crashes: on any failure (timeout / 5xx / network) returns mock JSON.
@@ -605,7 +542,6 @@ const https = require('https');
 const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
-const { BUILD_ID: V2_BUILD_ID, assetPath, resolveAssetPath } = require('./site/v2/build-id');
 
 // Pornește serverul Express pe același port cu HTTP dacă nu există deja (după definirea PORT)
 
@@ -724,7 +660,6 @@ function createServer() {
   return http.createServer((req, res) => {
     const method = String(req.method || 'GET').toUpperCase();
     const earlyPath = new URL(req.url || '/', 'http://local').pathname;
-    installResponseFreshnessGuards(res);
     // Topology headers + write-guard run BEFORE any dispatcher decision, so
     // they apply uniformly across the Express path AND the unicornHandler
     // bypass (which carries hundreds of /api/* mutation routes).
@@ -2224,9 +2159,7 @@ function proxyToBackend(req, res, backendBaseUrl) {
 
 async function unicornHandler(req, res) {
   const requestUrl = new URL(req.url || '/', 'http://local');
-  const requestedPath = requestUrl.pathname;
-  const urlPath = resolveAssetPath(requestedPath);
-  const isVersionedAssetPath = requestedPath !== urlPath;
+  const urlPath = requestUrl.pathname;
   const earlyPath = urlPath;
 
   // ── 50Y Standard dispatcher (zero overlap with existing routes) ──
@@ -3867,8 +3800,7 @@ async function unicornHandler(req, res) {
       // file-on-disk path here is a long-cache fallback when the SVG asset gets
       // shipped as a static file in the future.
       const payload = fs.readFileSync(filePath);
-      const cc = isVersionedAssetPath ? 'public, max-age=31536000, immutable' : 'public, max-age=300, must-revalidate';
-      res.writeHead(200, { 'Content-Type': type, 'Cache-Control': cc });
+      res.writeHead(200, { 'Content-Type': type, 'Cache-Control': 'public, max-age=2592000, immutable' });
       return res.end(payload);
     } catch (_) {
       // fall through to 404 logic below
@@ -3887,8 +3819,7 @@ async function unicornHandler(req, res) {
               : ext === '.svg' ? 'image/svg+xml; charset=utf-8'
                 : 'application/octet-stream';
       const payload = fs.readFileSync(filePath);
-      const cc = isVersionedAssetPath ? 'public, max-age=31536000, immutable' : 'public, max-age=300, must-revalidate';
-      res.writeHead(200, { 'Content-Type': type, 'Cache-Control': cc });
+      res.writeHead(200, { 'Content-Type': type, 'Cache-Control': 'public, max-age=300, must-revalidate' });
       return res.end(payload);
     } catch (_) {
       res.writeHead(404, { 'Content-Type': 'application/json' });
@@ -3896,20 +3827,20 @@ async function unicornHandler(req, res) {
     }
   }
   if (urlPath === '/assets/app.css') {
-    const hasV = requestUrl.searchParams.has('v') || isVersionedAssetPath;
+    const hasV = requestUrl.searchParams.has('v');
     const cc = hasV ? 'public, max-age=31536000, immutable' : 'public, max-age=60, must-revalidate';
     res.writeHead(200, { 'Content-Type':'text/css; charset=utf-8', 'Cache-Control': cc });
     return res.end(v2.CSS);
   }
   if (urlPath === '/assets/app.js') {
-    const hasV = requestUrl.searchParams.has('v') || isVersionedAssetPath;
+    const hasV = requestUrl.searchParams.has('v');
     const cc = hasV ? 'public, max-age=31536000, immutable' : 'public, max-age=60, must-revalidate';
     res.writeHead(200, { 'Content-Type':'application/javascript; charset=utf-8', 'Cache-Control': cc });
     try { return res.end(fs.readFileSync(V2_CLIENT_PATH, 'utf8')); }
     catch (e) { return res.end('console.error("v2 client missing")'); }
   }
   if (urlPath === '/assets/aeon.js') {
-    const hasV = requestUrl.searchParams.has('v') || isVersionedAssetPath;
+    const hasV = requestUrl.searchParams.has('v');
     const cc = hasV ? 'public, max-age=31536000, immutable' : 'public, max-age=60, must-revalidate';
     res.writeHead(200, { 'Content-Type':'application/javascript; charset=utf-8', 'Cache-Control': cc });
     try { return res.end(fs.readFileSync(path.join(__dirname,'site','v2','aeon.js'),'utf8')); }
@@ -3927,8 +3858,7 @@ async function unicornHandler(req, res) {
             : ext === '.map' ? 'application/json; charset=utf-8'
               : 'application/octet-stream';
       const payload = fs.readFileSync(filePath);
-      const cc = isVersionedAssetPath ? 'public, max-age=31536000, immutable' : 'public, max-age=300, must-revalidate';
-      res.writeHead(200, { 'Content-Type': type, 'Cache-Control': cc });
+      res.writeHead(200, { 'Content-Type': type, 'Cache-Control': 'public, max-age=31536000, immutable' });
       return res.end(payload);
     } catch (_) {
       res.writeHead(404, { 'Content-Type': 'application/json' });
@@ -4036,7 +3966,8 @@ async function unicornHandler(req, res) {
   }
   if (urlPath === '/sw.js') {
     try {
-      const swSrc = fs.readFileSync(path.join(__dirname,'site','v2','sw.js'),'utf8').replace('__VERSION__', process.env.SW_VERSION || V2_BUILD_ID);
+      const { BUILD_ID } = require('./site/v2/build-id');
+      const swSrc = fs.readFileSync(path.join(__dirname,'site','v2','sw.js'),'utf8').replace('__VERSION__', process.env.SW_VERSION || BUILD_ID);
       res.writeHead(200, { 'Content-Type':'application/javascript; charset=utf-8', 'Service-Worker-Allowed':'/', 'Cache-Control':'no-cache, no-store, must-revalidate' });
       return res.end(swSrc);
     } catch(_) { res.writeHead(404); return res.end(); }
@@ -4047,7 +3978,7 @@ async function unicornHandler(req, res) {
     return res.end('<!doctype html><meta charset=utf-8><title>SW reset</title><body style="font-family:system-ui;background:#05040a;color:#eee;padding:40px"><h1>Resetting service worker…</h1><p id=s>Working…</p><script>(async()=>{try{const rs=await navigator.serviceWorker.getRegistrations();for(const r of rs){await r.unregister();}const ks=await caches.keys();for(const k of ks){await caches.delete(k);}document.getElementById("s").textContent="Done. Reloading home…";setTimeout(()=>location.replace("/"),700);}catch(e){document.getElementById("s").textContent="Error: "+e.message;}})();</script></body>');
   }
   if (urlPath === '/.well-known/unicorn-integrity.json' || urlPath === '/integrity.json') {
-    const payload = { site:'unicorn-v2', version: process.env.SW_VERSION || V2_BUILD_ID, generatedAt: new Date().toISOString(), owner: OWNER_NAME, domain: APP_URL, btc: BTC_WALLET };
+    const payload = { site:'unicorn-v2', version: process.env.SW_VERSION || require('./site/v2/build-id').BUILD_ID, generatedAt: new Date().toISOString(), owner: OWNER_NAME, domain: APP_URL, btc: BTC_WALLET };
     const key = process.env.SITE_SIGN_KEY || (global.__SITE_SIGN_KEY__ || (global.__SITE_SIGN_KEY__ = crypto.generateKeyPairSync('ed25519').privateKey));
     let signature = null, publicKey = null;
     try { const keyObj = typeof key === 'string' ? crypto.createPrivateKey(key) : key; signature = crypto.sign(null, Buffer.from(JSON.stringify(payload)), keyObj).toString('base64'); publicKey = crypto.createPublicKey(keyObj).export({ format:'pem', type:'spki' }); } catch(_) {}
@@ -4316,23 +4247,20 @@ async function unicornHandler(req, res) {
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>${title} · ZeusAI</title>
 <meta name="description" content="${desc}">
-<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
-<meta http-equiv="Pragma" content="no-cache">
-<meta http-equiv="Expires" content="0">
 <meta property="og:title" content="${title}">
 <meta property="og:description" content="${desc}">
 <meta property="og:type" content="product">
 <meta property="og:url" content="${esc(APP_URL)}/services/${esc(item.id)}">
-<meta property="og:image" content="${esc(APP_URL)}${assetPath('/assets/icons/og-default.png')}">
+<meta property="og:image" content="${esc(APP_URL)}/assets/icons/og-default.png">
 <meta property="og:image:width" content="1200">
 <meta property="og:image:height" content="630">
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:title" content="${title}">
 <meta name="twitter:description" content="${desc}">
-<meta name="twitter:image" content="${esc(APP_URL)}${assetPath('/assets/icons/og-default.png')}">
+<meta name="twitter:image" content="${esc(APP_URL)}/assets/icons/og-default.png">
 <link rel="canonical" href="${esc(APP_URL)}/services/${esc(item.id)}">
-<link rel="apple-touch-icon" sizes="180x180" href="${assetPath('/assets/icons/apple-touch-icon.png')}">
-<link rel="icon" type="image/png" sizes="192x192" href="${assetPath('/assets/icons/icon-192.png')}">
+<link rel="apple-touch-icon" sizes="180x180" href="/assets/icons/apple-touch-icon.png">
+<link rel="icon" type="image/png" sizes="192x192" href="/assets/icons/icon-192.png">
 <link rel="manifest" href="/manifest.webmanifest">
 <script type="application/ld+json">${JSON.stringify({
   '@context': 'https://schema.org',
@@ -4341,7 +4269,7 @@ async function unicornHandler(req, res) {
   description: item.description || '',
   brand: { '@type': 'Brand', name: 'ZeusAI / Unicorn' },
   category: item.segment || item.group || 'AI Services',
-  image: `${APP_URL}${assetPath('/assets/icons/og-default.png')}`,
+  image: `${APP_URL}/assets/icons/og-default.png`,
   offers: {
     '@type': 'Offer',
     priceCurrency: 'USD',
@@ -6939,18 +6867,13 @@ a{color:#8a5cff;text-decoration:none}
     return res.end(html);
   }
 
-  if (urlPath === '/crypto-bridge') {
-    res.writeHead(302, { Location: '/crypto-fiat-bridge', 'Cache-Control': 'no-store' });
-    return res.end('Redirecting to /crypto-fiat-bridge');
-  }
-
   // Any SPA route → v2 shell
   const v2Routes = [
     '/', '/services', '/pricing', '/checkout', '/dashboard', '/how', '/docs', '/about', '/legal',
     '/trust', '/security', '/responsible-ai', '/dpa', '/payment-terms', '/operator', '/observability',
     '/enterprise', '/store', '/account', '/innovations', '/wizard', '/status', '/changelog',
     '/terms', '/privacy', '/refund', '/sla', '/pledge', '/cancel', '/gift', '/aura',
-    '/api-explorer', '/transparency', '/frontier', '/crypto-fiat-bridge'
+    '/api-explorer', '/transparency', '/frontier'
   ];
   const isV2Route = v2Routes.includes(urlPath) || urlPath.startsWith('/services/');
   if (isV2Route) {
@@ -7073,7 +6996,7 @@ a{color:#8a5cff;text-decoration:none}
       'Cache-Control': cache,
       'Pragma': 'no-cache',
       'Expires': '0',
-      'Link': `<${assetPath('/assets/app.css')}>; rel=preload; as=style, <${assetPath('/assets/app.js')}>; rel=preload; as=script, <${assetPath('/assets/icons/icon-192.png')}>; rel=preload; as=image`,
+      'Link': '</assets/app.css?v=' + require('./site/v2/build-id').BUILD_ID + '>; rel=preload; as=style, </assets/app.js?v=' + require('./site/v2/build-id').BUILD_ID + '>; rel=preload; as=script, </assets/icons/icon-192.png>; rel=preload; as=image',
       'X-Zeus-Build': ZEUS_BUILD.sha,
       'X-Zeus-Built-At': ZEUS_BUILD.ts,
       'X-CSP-Nonce': nonce,

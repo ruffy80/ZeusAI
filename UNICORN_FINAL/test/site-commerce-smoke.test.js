@@ -329,13 +329,13 @@ async function run() {
     assertBtcInvoice(buy.body, '/api/services/buy');
 
     const html = await request('/');
-    assert.match(html.text, /\/assets\/app\.[a-z0-9]+\.css/);
-    assert.match(html.text, /\/assets\/app\.[a-z0-9]+\.js/);
+    assert.match(html.text, /\/assets\/app\.css\?v=[a-z0-9]+/);
+    assert.match(html.text, /\/assets\/app\.js\?v=[a-z0-9]+/);
 
     const sw = await request('/sw.js');
     assert.equal(sw.status, 200);
-    assert.match(sw.text, /const V = 'unicorn-sw-disabled-[a-z0-9]+'/);
-    assert.match(sw.text, /skipWaiting/);
+    assert.match(sw.text, /const V = 'unicorn-v2-[a-z0-9]+'/);
+    assert.match(sw.text, /network-first with cache fallback/);
 
     const reset = await request('/sw-reset');
     assert.equal(reset.status, 200);

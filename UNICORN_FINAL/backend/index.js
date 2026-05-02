@@ -1298,7 +1298,6 @@ const logMonitor           = require('./modules/log-monitor');
 const resourceMonitor      = require('./modules/resource-monitor');
 const errorPatternDetector = require('./modules/error-pattern-detector');
 const recoveryEngine       = require('./modules/recovery-engine');
-const authGuardian         = require('./modules/auth-guardian');
 const uiAutoBuilder        = require('./modules/ui-auto-builder');
 
 // ==================== MULTI-TENANT SAAS PLATFORM ====================
@@ -1366,7 +1365,6 @@ const MODULE_REGISTRY = {
   healthDaemon: [
     'unicorn-health-daemon',
     'unicorn-health-guardian',
-    'auth-guardian',
     'totalSystemHealer',
     'self-healing-engine',
     'ai-self-healing',
@@ -1684,10 +1682,6 @@ if (_isPrimaryWorker) {
   // Componenta AI Self-Healing — monitorizare și auto-reparare provideri AI + module
   if (!_stableRuntime) {
     aiSelfHealing.init();
-  }
-  // Auth Guardian — ALWAYS ON in production profile (independent of mutation/full mode)
-  if (process.env.NODE_ENV !== 'test') {
-    authGuardian.start();
   }
   // Componenta 3 — Auto-Innovation Loop (analiză cod + PR automate + CI monitoring)
   if (!_stableRuntime && _enableFileMutators) {
@@ -8060,15 +8054,6 @@ app.post('/api/auto-restart/run', adminTokenMiddleware, async (req, res) => {
   catch (e) { res.status(500).json({ error: e.message }); }
 });
 
-// ── Auth Guardian ─────────────────────────────────────────────────────────────
-app.get('/api/auth-guardian/status', adminTokenMiddleware, (req, res) => {
-  res.json(authGuardian.getStatus());
-});
-app.post('/api/auth-guardian/run', adminTokenMiddleware, async (req, res) => {
-  try { res.json(await authGuardian.run(req.body || {})); }
-  catch (e) { res.status(500).json({ error: e.message }); }
-});
-
 // ── Auto-Optimize ─────────────────────────────────────────────────────────────
 app.get('/api/auto-optimize/status', adminTokenMiddleware, (req, res) => {
   res.json(autoOptimize.getStatus());
@@ -8326,24 +8311,6 @@ if (fs.existsSync(clientBuildPath)) {
     }
   }));
 }
-
-// ==================== CRYPTO TRANSFER INTELLIGENCE SUITE ====================
-// 8 servicii non-custodial care optimizează tranzacții crypto fără a deține
-// fonduri. Endpoints: /api/crypto-bridge/* Must be mounted BEFORE the SPA
-// catch-all below, otherwise local backend requests to `/api/crypto-bridge/*`
-// fall through to `client/build/index.html`.
-try {
-  const cryptoBridge = require('./modules/cryptoBridge');
-  cryptoBridge.mount(app);
-  console.log('🪙 Crypto Bridge Suite: ACTIVE (8 servicii non-custodial · fee invoice → ' + cryptoBridge.OWNER_BTC + ')');
-} catch (e) {
-  console.warn('[crypto-bridge] failed to mount:', e && e.message);
-}
-
-// Legacy alias -> canonical route (kept in backend runtime too)
-app.get('/crypto-bridge', (req, res) => {
-  return res.redirect(302, '/crypto-fiat-bridge');
-});
 
 app.get('/{*path}', (req, res) => {
   if (fs.existsSync(clientIndexPath)) {
