@@ -263,6 +263,28 @@ async function runTests() {
     assert.equal(lr.status, 200);
   });
 
+  // Recovery contract: when a known account has no server-side passkey, the assert challenge
+  // must return a structured `no_passkey_for_account` error with `recoverable:true` and
+  // `userExists:true`, so the client can render the inline "activate this device with your
+  // password once" recovery panel instead of dead-ending. This fixes the real-world failure
+  // where the device shows "passkey saved" but the server has no record (orphaned device key).
+  await test('POST /api/auth/passkey/challenge mode=assert with no server-side passkey → recoverable error', async () => {
+    // autopk@test.com was auto-created in the prior test, but never had a credential persisted.
+    const r = await apiRequest('POST', '/api/auth/passkey/challenge', { email: 'autopk@test.com', mode: 'assert' });
+    assert.equal(r.status, 404);
+    assert.equal(r.body.error, 'no_passkey_for_account');
+    assert.equal(r.body.recoverable, true);
+    assert.equal(r.body.userExists, true);
+    assert.equal(r.body.email, 'autopk@test.com');
+  });
+  await test('POST /api/auth/passkey/challenge mode=assert with unknown email → recoverable error (userExists:false)', async () => {
+    const r = await apiRequest('POST', '/api/auth/passkey/challenge', { email: 'never-seen@test.com', mode: 'assert' });
+    assert.equal(r.status, 404);
+    assert.equal(r.body.error, 'no_passkey_for_account');
+    assert.equal(r.body.recoverable, true);
+    assert.equal(r.body.userExists, false);
+  });
+
   // Response-shape contract: device-key login (passkey assert) and device-key creation
   // (passkey register) MUST mirror /api/customer/login output — i.e. include `ok`, `token`,
   // `customer` and a `customer_session` cookie — so the same client code that handles

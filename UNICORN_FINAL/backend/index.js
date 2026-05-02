@@ -674,7 +674,21 @@ app.post('/api/auth/passkey/challenge', authRateLimit(20, 15 * 60 * 1000), async
       user = dbUsers.findByEmail(email);
     }
   }
-  if (!user) return res.status(404).json({ error: 'User not found' });
+  if (!user) {
+    // For mode='assert' this matches the no-passkey case from the UX perspective (the user thinks
+    // they're "signing in" but the server has nothing for this email). Use the same structured
+    // error code so the client recovery UI can route them through sign-up + device-key creation.
+    if (mode === 'assert') {
+      return res.status(404).json({
+        error: 'no_passkey_for_account',
+        message: 'No account registered for this email. Sign up first, then create a device key.',
+        email,
+        userExists: false,
+        recoverable: true,
+      });
+    }
+    return res.status(404).json({ error: 'User not found' });
+  }
   const { rpID, rpName } = getWebAuthnContext(req);
   const { origin } = getWebAuthnContext(req);
   const { generateRegistrationOptions, generateAuthenticationOptions } = await getWebAuthn();
@@ -694,7 +708,20 @@ app.post('/api/auth/passkey/challenge', authRateLimit(20, 15 * 60 * 1000), async
     });
   } else {
     const credentials = dbPasskeys.listByEmail(email);
-    if (!credentials.length) return res.status(404).json({ error: 'No passkey registered for this account' });
+    if (!credentials.length) {
+      // Recoverable error: the device may already have a passkey saved locally (e.g. a previous
+      // enrollment whose server-side step failed silently, or a DB reset on this RP). Surface a
+      // structured error so the client can render a one-tap recovery flow ("activate this device
+      // with your password once") instead of a dead-end. `userExists` lets the UI tailor the
+      // message: an unknown email needs sign-up; a known email just needs to enroll the device.
+      return res.status(404).json({
+        error: 'no_passkey_for_account',
+        message: 'No passkey registered for this account on this server. Use "Create device key" with your password once to activate this device.',
+        email,
+        userExists: true,
+        recoverable: true,
+      });
+    }
     publicKey = await generateAuthenticationOptions({
       rpID,
       userVerification: 'preferred',
