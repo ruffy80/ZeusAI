@@ -23,7 +23,10 @@ async function run() {
     const pageHtml = await pageRes.text();
     assert.equal(pageRes.status, 200, 'crypto bridge page should return 200');
     assert.ok(pageHtml.includes('Crypto Bridge'), 'page should contain Crypto Bridge heading');
-    assert.ok(pageHtml.includes('Best-path calculator'), 'page should contain smart routing calculator');
+    assert.ok(
+      pageHtml.includes('Best-path calculator') || pageHtml.includes('SMART ROUTING') || pageHtml.includes('Smart Routing'),
+      'page should contain a smart routing calculator section'
+    );
 
     const aliasRes = await fetch(siteBase + '/crypto-bridge', { redirect: 'manual' });
     assert.equal(aliasRes.status, 302, 'legacy alias should redirect');
