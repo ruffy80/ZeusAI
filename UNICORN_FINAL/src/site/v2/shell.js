@@ -1715,22 +1715,91 @@ function pageCryptoBridge() {
     const out = document.getElementById('cbOut');
     form.addEventListener('submit', async function(e){
       e.preventDefault();
-      out.textContent = 'Computing best route...';
-      const payload = {
-        amountUsd: Number(document.getElementById('cbAmount').value) || 0,
-        currency: document.getElementById('cbCurrency').value,
-        destinationAddress: document.getElementById('cbAddress').value
-      };
+      const amountUsd = Number(document.getElementById('cbAmount').value) || 0;
+      const currency = document.getElementById('cbCurrency').value;
+      const address = document.getElementById('cbAddress').value;
+      
+      if (!address) { out.innerHTML = '<p style="color:#f06">Destination address required</p>'; return; }
+      if (amountUsd <= 0) { out.innerHTML = '<p style="color:#f06">Amount must be > 0</p>'; return; }
+      
+      out.innerHTML = '<p style="color:var(--ink-dim)">🔄 Computing best route for $' + amountUsd.toLocaleString() + ' USD in ' + currency + '...</p>';
+      
       try {
+        // Fetch current BTC rate to convert USD to BTC
+        const rateResp = await fetch('/api/crypto-bridge/btc-rate', { cache: 'no-store' });
+        const rateData = await rateResp.json();
+        const btcRate = Number(rateData.btcUsd || rateData.rate || 78000);
+        const amountBtc = amountUsd / btcRate;
+        
+        const payload = {
+          address: address,
+          amount: amountBtc,
+          currency: currency
+        };
+        
         const r = await fetch('/api/crypto-bridge/smart-routing', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(payload)
         });
+        
+        if (!r.ok) { out.innerHTML = '<p style="color:#f06">Request failed: ' + r.status + '</p>'; return; }
+        
         const d = await r.json();
-        out.textContent = JSON.stringify(d, null, 2);
+        if (!d.ok) { out.innerHTML = '<p style="color:#f06">Error: ' + (d.error || 'Unknown error') + '</p>'; return; }
+        
+        // Build beautiful display of results
+        let html = '<div style="background:#0b0f17;border:1px solid #2a2a40;border-radius:8px;padding:20px">';
+        html += '<h4 style="margin:0 0 16px;color:#00d4ff">✓ Quote calculated (ID: ' + d.requestId + ')</h4>';
+        
+        let totalCommission = 0;
+        let bestService = null;
+        let bestFee = Infinity;
+        
+        // Display all services
+        const services = d.cards || {};
+        for (const [key, service] of Object.entries(services)) {
+          if (service.skipped) continue;
+          
+          const commission = service.ourCommissionUsd || 0;
+          totalCommission += commission;
+          
+          if (service.service === 'feeLock' && (!bestService || service.feeBtc < bestFee)) {
+            bestService = service;
+            bestFee = service.feeBtc;
+          }
+          
+          html += '<div style="margin-bottom:12px;padding:12px;background:#0f1220;border-left:3px solid #6fd3ff;border-radius:4px">';
+          html += '<div style="font-size:13px;font-weight:600;color:#6fd3ff">' + (service.service || key).replace('-', ' ').toUpperCase() + '</div>';
+          
+          if (service.feeBtc !== undefined) {
+            html += '<div style="font-size:12px;color:#e0f0ff;margin-top:4px">Fee: <strong>' + service.feeBtc.toFixed(8) + ' BTC</strong> ($' + service.feeUsd.toFixed(2) + ')</div>';
+          }
+          if (service.ourCommissionUsd !== undefined) {
+            html += '<div style="font-size:12px;color:#6fd3ff;margin-top:2px">Commission: $' + commission.toFixed(4) + '</div>';
+          }
+          if (service.verdict) {
+            html += '<div style="font-size:11px;color:#7090b0;margin-top:2px">Verdict: <strong>' + service.verdict + '</strong></div>';
+          }
+          if (service.note) {
+            html += '<div style="font-size:11px;color:#5090b0;margin-top:2px;font-style:italic">' + service.note + '</div>';
+          }
+          html += '</div>';
+        }
+        
+        html += '<div style="margin-top:16px;padding:12px;background:#1a2a3a;border-radius:6px;border:1px solid #4caf50">';
+        html += '<div style="font-size:13px;color:#4caf50;font-weight:700">TOTAL COMMISSION: $' + totalCommission.toFixed(4) + ' USD</div>';
+        if (bestService) {
+          html += '<div style="font-size:12px;color:#e0f0ff;margin-top:6px">Recommended: <strong>Fee Lock</strong> ($' + bestService.feeUsd.toFixed(2) + ')</div>';
+        }
+        html += '</div>';
+        
+        html += '</div>';
+        out.innerHTML = html;
+        
       } catch (err) {
-        out.textContent = 'Error: ' + (err && err.message ? err.message : err);
+        out.innerHTML = '<p style="color:#f06">Error: ' + (err && err.message ? err.message : String(err)) + '</p>';
+        console.error('Crypto Bridge error:', err);
       }
     });
 
