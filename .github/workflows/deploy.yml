@@ -188,6 +188,12 @@ jobs:
 
       - name: 📦 Deploy to Server
         run: |
+          RELEASE_ID="${{ github.sha }}-$(date +%s)"
+          RELEASE_ROOT="/var/www/unicorn/releases"
+          RELEASE_PATH="$RELEASE_ROOT/$RELEASE_ID"
+          DEPLOY_LINK="/var/www/unicorn/UNICORN_FINAL"
+
+          ssh -o StrictHostKeyChecking=no root@${{ secrets.HETZNER_HOST }} "mkdir -p $RELEASE_ROOT && mkdir -p $RELEASE_PATH"
           ssh -o StrictHostKeyChecking=no root@${{ secrets.HETZNER_HOST }} \
             "systemctl disable --now zac.service 2>/dev/null || true; systemctl reset-failed zac.service 2>/dev/null || true; pm2 delete unicorn-guardian 2>/dev/null || true; pm2 save --force 2>/dev/null || true"
           rsync -avz --no-times --delete \
@@ -214,7 +220,11 @@ jobs:
             --exclude='UNICORN_FINAL/._*' \
             --exclude='*.zip' \
             -e "ssh -o StrictHostKeyChecking=no" \
-            ./ root@${{ secrets.HETZNER_HOST }}:/var/www/unicorn/
+            ./ root@${{ secrets.HETZNER_HOST }}:$RELEASE_PATH/
+
+          ssh -o StrictHostKeyChecking=no root@${{ secrets.HETZNER_HOST }} \
+            "ln -sfn $RELEASE_PATH/UNICORN_FINAL $DEPLOY_LINK && test -L $DEPLOY_LINK"
+
           ssh -o StrictHostKeyChecking=no root@${{ secrets.HETZNER_HOST }} \
             "printf '%s\n' '${{ github.sha }}' > /var/www/unicorn/UNICORN_FINAL/.deployed-commit && \
              printf '%s\n' '${{ github.sha }}' > /var/www/unicorn/.build-sha && \
@@ -473,6 +483,12 @@ jobs:
           BASE_URL=https://zeusai.pro SMOKE_RETRIES=4 SMOKE_SLEEP=3 \
             bash scripts/smoke-tests.sh || echo "⚠️  nginx-front smoke had failures (poate fi cache/SSL warmup)"
           SSHEOF
+
+      - name: 🧊 Cache correctness checks (HTML no-cache + hashed assets)
+        run: |
+          set -e
+          chmod +x UNICORN_FINAL/scripts/verify-cache-freshness.sh
+          bash UNICORN_FINAL/scripts/verify-cache-freshness.sh https://zeusai.pro
 
       - name: 🧪 Commerce Smoke (catalog + delivery)
         run: |
