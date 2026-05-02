@@ -3,10 +3,12 @@ name: 🚀 Unicorn Stable Deploy
 on:
   workflow_dispatch:
   push:
-    branches: [ "main" ]
+    branches:
+      - "main"
+      - "cleanup/**"
 
 concurrency:
-  group: unicorn-stable-deploy-main
+  group: unicorn-stable-deploy-${{ github.ref_name }}
   cancel-in-progress: true
 
 jobs:
@@ -157,12 +159,13 @@ jobs:
 
       - name: 🧷 Freshness + anti-downgrade guard
         run: |
-          git fetch origin main --quiet
-          LATEST_SHA=$(git rev-parse origin/main)
-          echo "Latest origin/main commit: $LATEST_SHA"
+          BRANCH="${GITHUB_REF_NAME}"
+          git fetch origin "$BRANCH" --quiet
+          LATEST_SHA=$(git rev-parse "origin/$BRANCH")
+          echo "Latest origin/$BRANCH commit: $LATEST_SHA"
           echo "Candidate commit: $GITHUB_SHA"
           if [ "$GITHUB_SHA" != "$LATEST_SHA" ]; then
-            echo "❌ Refuz deploy stale: acest workflow nu mai este ultimul commit de pe main."
+            echo "❌ Refuz deploy stale: acest workflow nu mai este ultimul commit de pe branch-ul curent."
             echo "   Candidate=$GITHUB_SHA"
             echo "   Latest=$LATEST_SHA"
             exit 1
@@ -200,7 +203,6 @@ jobs:
             --exclude='UNICORN_FINAL/.unicorn-backups' \
             --exclude='UNICORN_FINAL/.vercel' \
             --exclude='UNICORN_FINAL/generated' \
-            --exclude='UNICORN_FINAL/public' \
             --exclude='UNICORN_FINAL/*.log' \
             --exclude='UNICORN_FINAL/.DS_Store' \
             --exclude='UNICORN_FINAL/._*' \
@@ -217,7 +219,12 @@ jobs:
         # repo and confirm the deployed copy has the exact same SHA-256.
         run: |
           set -e
-          for rel in UNICORN_FINAL/backend/index.js UNICORN_FINAL/package.json; do
+          for rel in \
+            UNICORN_FINAL/backend/index.js \
+            UNICORN_FINAL/src/site/v2/shell.js \
+            UNICORN_FINAL/scripts/smoke-tests.sh \
+            UNICORN_FINAL/public/docs/semantic/index.html \
+            UNICORN_FINAL/package.json; do
             LOCAL_HASH=$(sha256sum "$rel" | awk '{print $1}')
             REMOTE_HASH=$(ssh -o StrictHostKeyChecking=no root@${{ secrets.HETZNER_HOST }} \
               "sha256sum /var/www/unicorn/$rel 2>/dev/null | awk '{print \$1}'" || true)
