@@ -3372,12 +3372,13 @@ async function unicornHandler(req, res) {
     return res.end(JSON.stringify(report));
   }
 
-  // ── Crypto Transfer Intelligence Suite (HTML page) ───────────────────
-  // 8 servicii non-custodial expuse în backend la /api/crypto-bridge/*.
-  // Pagina e self-contained: fetch live BTC rate la 10s, smart-routing
-  // POST către backend, render fiecare card. Nu mută bani — doar info.
-  if (urlPath === '/crypto-fiat-bridge' || urlPath === '/crypto-fiat-bridge/') {
-    res.writeHead(302, { 'Location': '/#crypto-bridge' });
+  // ── Crypto Transfer Intelligence Suite route aliases ─────────────────
+  // `v2.getHtml()` now renders the canonical page at `/crypto-fiat-bridge`.
+  // Keep the legacy slug working, but never bounce users to the removed
+  // hash-based router (`/#crypto-bridge`) because that makes the button look
+  // broken in production.
+  if (urlPath === '/crypto-bridge' || urlPath === '/crypto-bridge/') {
+    res.writeHead(302, { 'Location': '/crypto-fiat-bridge' });
     return res.end();
   }
 
