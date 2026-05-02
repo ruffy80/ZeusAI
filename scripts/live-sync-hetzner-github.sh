@@ -11,7 +11,7 @@ LOG_FILE="$LOG_DIR/live-sync-hetzner-github.log"
 PID_FILE="$LOG_DIR/live-sync-hetzner-github.pid"
 
 BRANCH="${AUTO_SYNC_BRANCH:-main}"
-INTERVAL="${AUTO_SYNC_INTERVAL:-3}"
+INTERVAL="${AUTO_SYNC_INTERVAL:-60}"
 SYNC_HOST="${AUTO_SYNC_HOST:-zeusai}"
 REMOTE_APP_DIR="${AUTO_SYNC_REMOTE_APP_DIR:-/var/www/unicorn/UNICORN_FINAL}"
 PM2_APPS="${AUTO_SYNC_PM2_APPS:-unicorn-site unicorn-backend}"
