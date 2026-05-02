@@ -782,6 +782,29 @@ function mount(app) {
 
   app.get('/admin/revenue', adminGuard, (req, res) => res.json(revenueSummary()));
   app.get('/api/admin/revenue', adminGuard, (req, res) => res.json(revenueSummary()));
+
+  // My transactions — returns last 50 entries for the calling user (userId from JWT sub)
+  app.get('/api/crypto-bridge/my-transactions', (req, res) => {
+    const auth = req.headers.authorization || '';
+    let userId = null;
+    if (auth.startsWith('Bearer ')) {
+      try {
+        const jwt = require('jsonwebtoken');
+        const secret = process.env.JWT_SECRET || 'unicorn-secret';
+        const payload = jwt.verify(auth.slice(7), secret);
+        userId = payload.sub || payload.id || payload.userId || null;
+      } catch (_) { /* invalid token */ }
+    }
+    if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+    let txs = [];
+    try {
+      const fs = require('fs');
+      const lines = fs.readFileSync(LEDGER_PATH, 'utf8').trim().split('\n').filter(Boolean);
+      txs = lines.map(l => { try { return JSON.parse(l); } catch(_){ return null; } })
+                 .filter(t => t && String(t.userId) === String(userId));
+    } catch(_) { txs = []; }
+    res.json({ transactions: txs.slice(-50).reverse() });
+  });
 }
 
 module.exports = {
