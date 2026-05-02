@@ -66,6 +66,14 @@ jobs:
       SMTP_PORT:                          ${{ secrets.SMTP_PORT }}
       SMTP_USER:                          ${{ secrets.SMTP_USER }}
       SMTP_PASS:                          ${{ secrets.SMTP_PASS }}
+      SMTP_FROM:                          ${{ secrets.SMTP_FROM }}
+      EMAIL_FROM_NAME:                    ${{ secrets.EMAIL_FROM_NAME }}
+      # Email — HTTPS providers (recommended on Hetzner where SMTP ports may be filtered)
+      RESEND_API_KEY:                     ${{ secrets.RESEND_API_KEY }}
+      RESEND_FROM:                        ${{ secrets.RESEND_FROM }}
+      BREVO_API_KEY:                      ${{ secrets.BREVO_API_KEY }}
+      MAILERSEND_API_KEY:                 ${{ secrets.MAILERSEND_API_KEY }}
+      OWNER_EMAIL:                        ${{ secrets.OWNER_EMAIL }}
       # Hetzner
       HETZNER_API_KEY:                    ${{ secrets.HETZNER_API_KEY }}
       HETZNER_API_TOKEN:                  ${{ secrets.HETZNER_API_TOKEN }}
