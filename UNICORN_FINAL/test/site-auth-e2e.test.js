@@ -9,6 +9,10 @@ const assert = require('assert');
 const http = require('http');
 const path = require('path');
 
+process.env.NODE_ENV = 'test';
+process.env.UNICORN_RUNTIME_PROFILE = process.env.UNICORN_RUNTIME_PROFILE || 'stable';
+process.env.DISABLE_SELF_MUTATION = process.env.DISABLE_SELF_MUTATION || '1';
+
 // ── 1. Syntax check for client.js (catches any JS parse error) ──────────────
 const { execFileSync } = require('child_process');
 execFileSync(process.execPath, ['--check', path.join(__dirname, '..', 'src', 'site', 'v2', 'client.js')]);

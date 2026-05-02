@@ -19,6 +19,7 @@ const path = require('path');
 
 process.env.DB_PATH = ':memory:';
 process.env.NODE_ENV = 'test';
+process.env.UNICORN_RUNTIME_PROFILE = process.env.UNICORN_RUNTIME_PROFILE || 'stable';
 process.env.DISABLE_SELF_MUTATION = '1';
 process.env.JWT_SECRET = process.env.JWT_SECRET || 'test-jwt-secret-for-ci-only';
 process.env.ADMIN_MASTER_PASSWORD = process.env.ADMIN_MASTER_PASSWORD || 'TestAdmin2026!';

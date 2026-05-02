@@ -16,6 +16,10 @@
 
 const assert = require('assert');
 
+process.env.NODE_ENV = 'test';
+process.env.UNICORN_RUNTIME_PROFILE = process.env.UNICORN_RUNTIME_PROFILE || 'stable';
+process.env.DISABLE_SELF_MUTATION = process.env.DISABLE_SELF_MUTATION || '1';
+
 const CANARIES = {
   STRIPE_SECRET_KEY: 'sk_test_CANARY_STRIPE_' + Math.random().toString(36).slice(2, 12),
   PAYPAL_CLIENT_SECRET: 'PAYPAL_CANARY_' + Math.random().toString(36).slice(2, 12),

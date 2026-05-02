@@ -513,6 +513,27 @@ function adminTokenMiddleware(req, res, next) {
   }
 }
 
+const STABILITY_STATE_FILE = '/opt/unicorn/logs/stability-guardian-state.json';
+const STABILITY_EVENTS_FILE = '/opt/unicorn/logs/stability-guardian-events.log';
+
+function readJsonSafe(filePath, fallback = {}) {
+  try { return JSON.parse(fs.readFileSync(filePath, 'utf8')); } catch (_) { return fallback; }
+}
+
+function appendStabilityEvent(type, payload = {}) {
+  try {
+    const dir = path.dirname(STABILITY_EVENTS_FILE);
+    fs.mkdirSync(dir, { recursive: true });
+    const rec = {
+      ts: new Date().toISOString(),
+      type,
+      payload,
+      hash: crypto.createHash('sha256').update(JSON.stringify({ t: Date.now(), type, payload })).digest('hex'),
+    };
+    fs.appendFileSync(STABILITY_EVENTS_FILE, JSON.stringify(rec) + '\n');
+  } catch (_) {}
+}
+
 // ==================== AUTH RATE LIMITING ====================
 // Simple sliding-window rate limiter for sensitive auth endpoints (no extra dependency).
 // In test mode (NODE_ENV=test) rate limiting is disabled to allow full test runs.
@@ -1073,6 +1094,42 @@ app.post('/api/auth/reset-password', async (req, res) => {
 
 app.get('/api/transparency/ledger', (req, res) => res.json(worldStandard.ledgerStatus(Number(req.query.limit || 25))));
 app.post('/api/transparency/ledger', adminTokenMiddleware, (req, res) => res.json({ ok: true, entry: worldStandard.appendLedger(req.body?.type || 'operator.note', req.body?.payload || {}) }));
+app.get('/api/admin/stability', adminSecretMiddleware, (req, res) => {
+  const state = readJsonSafe(STABILITY_STATE_FILE, { ok: false, status: 'guardian-state-missing' });
+  let events = [];
+  try {
+    const raw = fs.readFileSync(STABILITY_EVENTS_FILE, 'utf8');
+    events = raw.split('\n').filter(Boolean).slice(-200).map((l) => {
+      try { return JSON.parse(l); } catch (_) { return null; }
+    }).filter(Boolean);
+  } catch (_) {}
+  return res.json({ ok: true, state, eventsCount: events.length, events });
+});
+app.get('/admin/stability', adminSecretMiddleware, (req, res) => {
+  const state = readJsonSafe(STABILITY_STATE_FILE, { ok: false, status: 'guardian-state-missing' });
+  const html = `<!doctype html><html><head><meta charset="utf-8"><title>Stability Guardian</title><style>body{font-family:Inter,Arial,sans-serif;background:#0a0b14;color:#e6ecff;padding:20px}pre{background:#12182a;padding:14px;border-radius:10px;overflow:auto}h1{margin:0 0 12px;color:#9ad2ff}.ok{color:#41d88a}.bad{color:#ff6e8b}</style></head><body><h1>Stability Guardian</h1><p>Status: <b class="${state && state.status === 'healthy' ? 'ok' : 'bad'}">${(state && state.status) || 'unknown'}</b></p><pre>${JSON.stringify(state, null, 2)}</pre></body></html>`;
+  res.setHeader('Content-Type', 'text/html; charset=utf-8');
+  return res.end(html);
+});
+app.post('/admin/emergency/stop', adminSecretMiddleware, (req, res) => {
+  const requestedBy = req.headers['x-admin-user'] || 'admin-secret';
+  appendStabilityEvent('global-kill-switch', { requestedBy, at: new Date().toISOString() });
+  const stopped = [];
+  const failed = [];
+  try {
+    const { execSync } = require('child_process');
+    const nonCritical = ['autoscaler', 'innovation-loop', 'marketing-worker', 'predictive-scaler'];
+    for (const p of nonCritical) {
+      try {
+        execSync('pm2 stop ' + p, { stdio: 'ignore' });
+        stopped.push(p);
+      } catch (_) {
+        failed.push(p);
+      }
+    }
+  } catch (_) {}
+  return res.json({ ok: true, action: 'non-critical-modules-stopped', stopped, failed });
+});
 app.get('/api/resilience/backup/status', (req, res) => res.json(worldStandard.backupStatus()));
 app.post('/api/resilience/backup/create', adminTokenMiddleware, asyncHandler(async (req, res) => res.json(worldStandard.createBackup(req.body?.reason || 'manual'))));
 app.get('/api/vendor/marketplace/policy', (req, res) => res.json(worldStandard.vendorPolicy));
@@ -1260,7 +1317,6 @@ const uaitm                        = require('./modules/universalAITrainingMarke
 
 // ==================== SPECIAL MISSING MODULES — REQUIRES ====================
 const unicornExecutionEngine = require('./modules/unicorn-execution-engine');
-const predictiveHealing      = require('./modules/predictive-healing');
 
 // ==================== AUTONOMOUS SYSTEM MODULES ====================
 const autoRepair           = require('./modules/auto-repair');
@@ -1611,7 +1667,7 @@ const _isPrimaryWorker = _instanceId == null || _instanceId === '0';
 const _enableAutoDeploy = ['1', 'true', 'yes', 'on'].includes(String(process.env.ENABLE_AUTO_DEPLOY || '').toLowerCase());
 const _enableFileMutators = ['1', 'true', 'yes', 'on'].includes(String(process.env.ENABLE_FILE_MUTATORS || '').toLowerCase());
 const _runtimeProfile = String(
-  process.env.UNICORN_RUNTIME_PROFILE || (process.env.NODE_ENV === 'production' ? 'stable' : 'full')
+  process.env.UNICORN_RUNTIME_PROFILE || (process.env.NODE_ENV === 'production' || process.env.NODE_ENV === 'test' ? 'stable' : 'full')
 ).toLowerCase();
 const _stableRuntime = _runtimeProfile !== 'full';
 
@@ -1810,7 +1866,6 @@ meshOrchestrator.register('autonomousLegalEntity',  ale,                 { statu
 meshOrchestrator.register('globalEnergyCarbonTrade',gect,                { statusFn: 'getStatus' });
 meshOrchestrator.register('autonomousMAdvisor',     amaa,                { statusFn: 'getStatus' });
 meshOrchestrator.register('universalAITrainingMkt', uaitm,               { statusFn: 'getStatus' });
-meshOrchestrator.register('predictiveHealing',      predictiveHealing,   { statusFn: 'getStatus' });
 meshOrchestrator.register('selfAdaptationEngine',   selfAdaptationEngine, { statusFn: 'getStatus' });
 meshOrchestrator.register('selfHealingEngine',      selfHealingEngine,   { statusFn: 'getStatus' });
 meshOrchestrator.register('aiSelfHealing',          aiSelfHealing,       { statusFn: 'getStatus' });
@@ -7293,7 +7348,6 @@ registerModuleRoutes('ai-product-generator',           aiProductGenerator);
 
 // ==================== SPECIAL MODULES — ROUTES ====================
 registerModuleRoutes('unicorn-execution-engine', unicornExecutionEngine);
-registerModuleRoutes('predictive-healing',        predictiveHealing);
 
 // ==================== MULTI-TENANT SAAS PLATFORM — ROUTES ====================
 

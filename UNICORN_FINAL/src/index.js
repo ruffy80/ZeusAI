@@ -52,6 +52,8 @@ process.on('unhandledRejection', (reason) => {
   } catch (_) { /* never let the guard itself crash */ }
 });
 
+const __SITE_TEST_MODE__ = process.env.NODE_ENV === 'test';
+
 // === Health endpoint direct Express pentru testare și monitorizare ===
 const express = require('express');
 const app = express();
@@ -1958,19 +1960,19 @@ function _siteBootstrapModules() {
   r.on('timeout', () => { try { r.destroy(); } catch (_) {} });
 }
 
-// Boot autonomous bridge (fire-and-forget; never blocks server start)
-setImmediate(() => {
-  _siteBootstrapModules();
-  _siteSubscribeUpstream();
-});
-// Self-heal: if cache stale > 60s, re-bootstrap
-setInterval(() => {
-  const ageMs = Date.now() - new Date(MODULES_CACHE.updatedAt || 0).getTime();
-  if (ageMs > 60000 || MODULES_CACHE.modules.size === 0) {
+if (!__SITE_TEST_MODE__) {
+  setImmediate(() => {
     _siteBootstrapModules();
-    if (!MODULES_CACHE.upstreamConnected) _siteSubscribeUpstream();
-  }
-}, 60000);
+    _siteSubscribeUpstream();
+  });
+  setInterval(() => {
+    const ageMs = Date.now() - new Date(MODULES_CACHE.updatedAt || 0).getTime();
+    if (ageMs > 60000 || MODULES_CACHE.modules.size === 0) {
+      _siteBootstrapModules();
+      if (!MODULES_CACHE.upstreamConnected) _siteSubscribeUpstream();
+    }
+  }, 60000);
+}
 
 // ==============================================================
 // Real-time activation broadcaster (Phase C: Real Payments)
@@ -7511,7 +7513,11 @@ if (require.main === module) {
 
 // Default export is a singleton http.Server (provides .listen/.close).
 // Backwards-compatible properties { unicornHandler, createServer } are attached.
-const _siteServerSingleton = createServer();
-_siteServerSingleton.unicornHandler = unicornHandler;
-_siteServerSingleton.createServer = createServer;
-module.exports = _siteServerSingleton;
+if (__SITE_TEST_MODE__) {
+  module.exports = { createServer, unicornHandler };
+} else {
+  const _siteServerSingleton = createServer();
+  _siteServerSingleton.unicornHandler = unicornHandler;
+  _siteServerSingleton.createServer = createServer;
+  module.exports = _siteServerSingleton;
+}

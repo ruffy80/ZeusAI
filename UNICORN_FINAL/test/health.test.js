@@ -1,3 +1,7 @@
+process.env.NODE_ENV = 'test';
+process.env.UNICORN_RUNTIME_PROFILE = process.env.UNICORN_RUNTIME_PROFILE || 'stable';
+process.env.DISABLE_SELF_MUTATION = process.env.DISABLE_SELF_MUTATION || '1';
+
 const assert = require('assert');
 const { createServer } = require('../src/index');
 

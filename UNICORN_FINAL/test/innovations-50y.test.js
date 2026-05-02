@@ -13,6 +13,10 @@ const path = require('path');
 const fs = require('fs');
 const os = require('os');
 
+process.env.NODE_ENV = 'test';
+process.env.UNICORN_RUNTIME_PROFILE = process.env.UNICORN_RUNTIME_PROFILE || 'stable';
+process.env.DISABLE_SELF_MUTATION = process.env.DISABLE_SELF_MUTATION || '1';
+
 // Use isolated audit log path per-run so we never touch live data.
 const tmpAudit = path.join(os.tmpdir(), `unicorn-50y-audit-${process.pid}-${Date.now()}.jsonl`);
 process.env.AUDIT_50Y_LOG = tmpAudit;

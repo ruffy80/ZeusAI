@@ -10,6 +10,7 @@ const assert = require('assert');
 // Force in-memory mode so no SQLite file is created/needed in CI
 process.env.DB_PATH = ':memory:';
 process.env.NODE_ENV = 'test';
+process.env.UNICORN_RUNTIME_PROFILE = process.env.UNICORN_RUNTIME_PROFILE || 'stable';
 process.env.JWT_SECRET = 'test-jwt-secret-for-ci-only';
 process.env.ADMIN_MASTER_PASSWORD = 'TestAdmin2026!';
 process.env.ADMIN_2FA_CODE = '999999';

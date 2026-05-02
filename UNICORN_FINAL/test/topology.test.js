@@ -17,6 +17,10 @@
 const assert = require('assert');
 const http = require('http');
 
+process.env.NODE_ENV = 'test';
+process.env.UNICORN_RUNTIME_PROFILE = process.env.UNICORN_RUNTIME_PROFILE || 'stable';
+process.env.DISABLE_SELF_MUTATION = process.env.DISABLE_SELF_MUTATION || '1';
+
 async function run() {
   // ── SITE side (loaded via src/index.js) ────────────────────────────────────
   const siteModule = require('../src/index');
