@@ -1532,6 +1532,78 @@ function navigate(view){
   window.scrollTo(0,0);
 }
 
+// ═══════════════════════ CRYPTO BRIDGE ═══════════════════════
+async function loadCryptoBridge(){
+  // BTC rate
+  try{
+    var rr=await fetch('/api/crypto-bridge/btc-rate');
+    var rd=await rr.json();
+    var rate=rd.btcUsd||rd.rate||'—';
+    document.getElementById('cb-rate-bar').textContent='BTC Rate: $'+Number(rate).toLocaleString()+' USD (live)';
+  }catch(e){document.getElementById('cb-rate-bar').textContent='BTC Rate: unavailable';}
+  // Services grid
+  try{
+    var sr=await fetch('/api/crypto-bridge/services');
+    var sd=await sr.json();
+    var services=sd.services||[];
+    var icons={'fee-lock':'🔒','smart-bump':'🚀','destination-check':'✅','liquidity-unlock':'💧','atomic-swap':'⚛️','mev-protection':'🛡️','batch-tx':'📦','time-locked-refund':'⏳'};
+    document.getElementById('cb-services-grid').innerHTML=services.map(function(s){
+      var ic=icons[s.id]||'⚡';
+      return '<div class="card"><div style="font-size:28px;margin-bottom:10px;">'+ic+'</div>'+
+        '<div style="font-size:14px;font-weight:700;margin-bottom:6px;">'+s.name+'</div>'+
+        '<div style="font-size:12px;color:#7090b0;">'+s.description+'</div>'+
+        (s.feePct?'<div style="margin-top:10px;font-size:12px;color:#00d4ff;">Fee: '+s.feePct+'%</div>':'')+
+        '</div>';
+    }).join('');
+  }catch(e){document.getElementById('cb-services-grid').innerHTML='<div class="card" style="color:#f06">Services unavailable</div>';}
+  // My Transactions (logged in)
+  if(isLoggedIn()){
+    var txSection=document.getElementById('cb-my-tx-section');
+    if(txSection) txSection.style.display='block';
+    try{
+      var token=STATE.token||localStorage.getItem('unicorn_token')||'';
+      var tr=await fetch('/api/crypto-bridge/my-transactions',{headers:{'Authorization':'Bearer '+token}});
+      var td=await tr.json();
+      var txs=td.transactions||[];
+      if(!txs.length){
+        document.getElementById('cb-my-tx-list').innerHTML='<p style="color:#7090b0;">No transfers yet.</p>';
+      } else {
+        document.getElementById('cb-my-tx-list').innerHTML='<table style="width:100%;border-collapse:collapse;font-size:12px;">'+
+          '<tr style="color:#7090b0;border-bottom:1px solid #1e3a5a;"><th style="text-align:left;padding:6px;">Date</th><th>Currency</th><th>Amount</th><th>Commission</th><th>Status</th></tr>'+
+          txs.map(function(t){
+            return '<tr style="border-bottom:1px solid #0d2040;">'+
+              '<td style="padding:6px;">'+new Date(t.ts).toLocaleDateString()+'</td>'+
+              '<td style="text-align:center;">'+t.currency+'</td>'+
+              '<td style="text-align:right;">$'+Number(t.amount||0).toFixed(2)+'</td>'+
+              '<td style="text-align:right;color:#00d4ff;">$'+Number(t.ourCommissionUsd||0).toFixed(2)+'</td>'+
+              '<td style="text-align:center;color:#4caf50;">'+(t.status||'processed')+'</td>'+
+              '</tr>';
+          }).join('')+'</table>';
+      }
+    }catch(e){document.getElementById('cb-my-tx-list').innerHTML='<p style="color:#f06">Could not load transactions.</p>';}
+  }
+}
+
+async function cbSmartRoute(){
+  var amount=document.getElementById('cb-amount').value;
+  var currency=document.getElementById('cb-currency').value;
+  var address=document.getElementById('cb-address').value;
+  var out=document.getElementById('cb-route-result');
+  if(!amount||!address){out.textContent='Please fill amount and destination address.';out.style.color='#f06';return;}
+  out.textContent='Calculating…';out.style.color='#7090b0';
+  try{
+    var r=await fetch('/api/crypto-bridge/smart-routing',{
+      method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({amountUsd:parseFloat(amount),currency:currency,destinationAddress:address})
+    });
+    var d=await r.json();
+    out.style.color='#00d4ff';
+    out.innerHTML='✅ Best Route: <strong>'+d.recommendedPath+'</strong> — Estimated fee: $'+
+      Number(d.estimatedFeeUsd||0).toFixed(2)+' — ETA: '+(d.estimatedMinutes||'~5')+' min';
+  }catch(e){out.textContent='Smart routing unavailable — try again.';out.style.color='#f06';}
+}
+// ═════════════════════════════════════════════════════════════
+
 function initRouting(){
   var h=(window.location.hash||'').replace('#','').trim();
   var valid=['home','marketplace','pricing','dashboard','admin','crypto-bridge'];
