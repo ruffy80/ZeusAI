@@ -3764,9 +3764,44 @@ function renderAccountAuth(root, topError){
     if (!password) { setPasskeyMsg('Pentru prima creare a cheii pe device, introdu parola contului o singură dată.', 'err'); return null; }
     setPasskeyMsg('Se creează cheia pe device… confirmă în browser/sistem.', 'info');
     const result = await window.__UNICORN_PASSKEY__.register(email, password);
-    if (result && result.ok) setPasskeyMsg('Device key creată. De acum te poți loga fără parolă de pe acest device.', 'ok');
-    else setPasskeyMsg((result && (result.message || result.error)) || 'Device key nu a putut fi creată.', 'err');
+    // The OS may have shown a "passkey saved" toast even when the server-side step failed
+    // (e.g. challenge expired, password mismatch, attestation rejected). Treat the response
+    // as authoritative: only mark success when the server confirms ok:true + credentialId,
+    // and double-check by listing credentials so a stale device-side passkey can't masquerade
+    // as a working enrollment.
+    if (result && result.ok && result.credentialId) {
+      if (result.token) setCustToken(result.token);
+      if (result.customer) setCustProfile(result.customer);
+      const verified = await verifyPasskeyEnrolled(email, result.credentialId, result.token);
+      if (verified) {
+        setPasskeyMsg('Device key creată și sincronizată cu serverul. De acum te poți loga fără parolă de pe acest device.', 'ok');
+        if (typeof toast === 'function') toast('Device key activated', 'ok');
+        hydrateAccount();
+        return result;
+      }
+      setPasskeyMsg('Device-ul a salvat cheia local, dar serverul nu o vede încă. Reîncearcă "Create device key" sau contactează suportul.', 'err');
+      return Object.assign({}, result, { ok: false, error: 'server_desync' });
+    }
+    const reason = (result && (result.message || result.error)) || 'Device key nu a putut fi creată.';
+    setPasskeyMsg('Eroare la creare: ' + reason + ' (Dacă device-ul a salvat deja o cheie, va fi înlocuită la următorul "Create device key".)', 'err');
     return result;
+  }
+  // Confirm the credential the server claims to have just stored is actually returned by
+  // /api/auth/passkey/list. This catches silent SQL/disk persistence failures that the
+  // register endpoint couldn't detect (it only knows the INSERT statement was issued).
+  async function verifyPasskeyEnrolled(email, credentialId, token){
+    if (!credentialId) return false;
+    try {
+      const t = token || getCustToken();
+      const r = await fetch('/api/auth/passkey/list', {
+        credentials: 'same-origin',
+        headers: t ? { Authorization: 'Bearer ' + t } : {}
+      });
+      if (!r.ok) return false;
+      const j = await r.json();
+      const list = (j && j.credentials) || [];
+      return list.some(c => c && c.credentialId === credentialId);
+    } catch (_) { return false; }
   }
   async function loginWithDeviceKey(email){
     if (!passkeySupported()) { setPasskeyMsg('Acest browser/device nu suportă passkeys.', 'err'); return null; }
@@ -3781,8 +3816,48 @@ function renderAccountAuth(root, topError){
       hydrateAccount();
       return result;
     }
+    // Recovery path for the most common real-world failure: the device has a passkey saved
+    // locally (the OS confirmed it) but the server has no matching record — typically because
+    // a previous enrollment failed silently after the device step succeeded. Surface a one-tap
+    // re-enrollment panel instead of dead-ending on "no passkey".
+    if (result && result.error === 'no_passkey_for_account') {
+      renderPasskeyRecovery(email, result);
+      return result;
+    }
     setPasskeyMsg((result && (result.message || result.error)) || 'Login cu device key eșuat.', 'err');
     return result;
+  }
+  function renderPasskeyRecovery(email, info){
+    if (!passkeyMsg) return;
+    const userExists = !info || info.userExists !== false;
+    const safeEmail = (email || '').replace(/[<>&"]/g, c => ({'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;'}[c]));
+    if (!userExists) {
+      passkeyMsg.innerHTML =
+        '<span style="color:#ff9c9c">Nu există cont pentru ' + safeEmail + '.</span><br>' +
+        '<span style="color:var(--ink-dim)">Creează contul în panoul "Create account / Cont nou", apoi revino aici și apasă <b>Create device key</b>.</span>';
+      return;
+    }
+    passkeyMsg.innerHTML =
+      '<div style="color:#ffb7b7;margin-bottom:8px">Serverul nu are nicio cheie de device pentru <b>' + safeEmail + '</b>. ' +
+      'Probabil a fost salvată doar pe device la o încercare anterioară.</div>' +
+      '<div style="color:var(--ink-dim);margin-bottom:8px">Activează acest device acum: introdu parola contului o singură dată — o cheie nouă va fi generată și salvată pe server și pe device.</div>' +
+      '<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">' +
+        '<input id="acPasskeyRecoverPass" type="password" placeholder="parola contului" autocomplete="current-password" style="flex:1;min-width:200px;padding:9px 12px;border-radius:6px;border:1px solid rgba(124,255,184,.3);background:rgba(10,8,30,.4);color:#fff">' +
+        '<button id="acPasskeyRecoverBtn" class="btn btn-primary">Activează device-ul</button>' +
+      '</div>';
+    const passInput = passkeyMsg.querySelector('#acPasskeyRecoverPass');
+    const btn = passkeyMsg.querySelector('#acPasskeyRecoverBtn');
+    if (!btn || !passInput) return;
+    btn.addEventListener('click', async () => {
+      const pwd = passInput.value;
+      if (!pwd) { passInput.focus(); return; }
+      btn.disabled = true;
+      btn.textContent = 'Activez…';
+      try { await enrollDeviceKey(email, pwd); }
+      catch (e) { setPasskeyMsg('Activarea a eșuat: ' + (e && e.message || 'unknown'), 'err'); }
+      finally { btn.disabled = false; btn.textContent = 'Activează device-ul'; }
+    });
+    passInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') btn.click(); });
   }
   if (passkeyLoginBtn && !passkeySupported()) {
     passkeyLoginBtn.disabled = true;
@@ -4058,8 +4133,26 @@ function renderAccountDashboard(root, me){
         setDashPasskeyMsg('Confirmă în browser/sistem. Cheia privată rămâne pe device.', 'info');
         try {
           const result = await window.__UNICORN_PASSKEY__.register(c.email, '');
-          if (result && result.ok) setDashPasskeyMsg('Device key creată. Data viitoare poți intra cu “Sign in with device”.', 'ok');
-          else setDashPasskeyMsg((result && (result.message || result.error)) || 'Device key nu a putut fi creată.', 'err');
+          if (result && result.ok && result.credentialId) {
+            // Verify the server actually persisted the credential — the OS may show "saved"
+            // even when the server rejected it (silent enrollment failure).
+            const tok = (result.token || getCustToken());
+            let confirmed = false;
+            try {
+              const r = await fetch('/api/auth/passkey/list', { credentials:'same-origin', headers: tok ? { Authorization:'Bearer '+tok } : {} });
+              if (r.ok) {
+                const j = await r.json();
+                confirmed = ((j && j.credentials) || []).some(x => x && x.credentialId === result.credentialId);
+              }
+            } catch(_){}
+            if (confirmed) {
+              setDashPasskeyMsg('Device key creată și sincronizată cu serverul. Data viitoare poți intra cu „Sign in with device".', 'ok');
+            } else {
+              setDashPasskeyMsg('Device-ul a salvat cheia local, dar serverul nu o vede. Reîncearcă „Create device key".', 'err');
+            }
+          } else {
+            setDashPasskeyMsg((result && (result.message || result.error)) || 'Device key nu a putut fi creată.', 'err');
+          }
         } catch (_) {
           setDashPasskeyMsg('Crearea cheii a fost anulată sau refuzată de device.', 'err');
         } finally {
