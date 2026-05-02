@@ -8340,6 +8340,11 @@ try {
   console.warn('[crypto-bridge] failed to mount:', e && e.message);
 }
 
+// Legacy alias -> canonical route (kept in backend runtime too)
+app.get('/crypto-bridge', (req, res) => {
+  return res.redirect(302, '/crypto-fiat-bridge');
+});
+
 app.get('/{*path}', (req, res) => {
   if (fs.existsSync(clientIndexPath)) {
     res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
