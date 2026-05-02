@@ -795,7 +795,7 @@ function mount(app) {
     let txs = [];
     try {
       const fs = require('fs');
-      const lines = fs.readFileSync(LEDGER_PATH, 'utf8').trim().split('\n').filter(Boolean);
+      const lines = fs.readFileSync(LEDGER_FILE, 'utf8').trim().split('\n').filter(Boolean);
       txs = lines.map(l => { try { return JSON.parse(l); } catch(_){ return null; } })
                  .filter(t => t && String(t.userId) === String(userId));
     } catch(_) { txs = []; }
