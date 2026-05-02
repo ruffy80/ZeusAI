@@ -225,8 +225,17 @@ jobs:
             -e "ssh -o StrictHostKeyChecking=no" \
             ./ root@${{ secrets.HETZNER_HOST }}:$RELEASE_PATH/
 
-          ssh -o StrictHostKeyChecking=no root@${{ secrets.HETZNER_HOST }} \
-            "ln -sfn $RELEASE_PATH/UNICORN_FINAL $DEPLOY_LINK && test -L $DEPLOY_LINK"
+          ssh -o StrictHostKeyChecking=no root@${{ secrets.HETZNER_HOST }} "
+            # Atomic symlink swap: handles both first deploy (real dir) and subsequent (symlink).
+            # ln -sfn fails silently when DEPLOY_LINK is a real directory (creates link INSIDE it).
+            if [ -L $DEPLOY_LINK ]; then
+              rm -f $DEPLOY_LINK
+            elif [ -d $DEPLOY_LINK ]; then
+              mv $DEPLOY_LINK ${DEPLOY_LINK}.orig-$(date +%s)
+            fi
+            ln -sfn $RELEASE_PATH/UNICORN_FINAL $DEPLOY_LINK
+            test -L $DEPLOY_LINK
+          "
 
           ssh -o StrictHostKeyChecking=no root@${{ secrets.HETZNER_HOST }} \
             "printf '%s\n' '${{ github.sha }}' > /var/www/unicorn/UNICORN_FINAL/.deployed-commit && \
