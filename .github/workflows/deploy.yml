@@ -5,8 +5,17 @@ on:
   push:
     branches: [ "main" ]
     paths:
-      - 'UNICORN_FINAL/**'
+      - 'UNICORN_FINAL/src/**'
+      - 'UNICORN_FINAL/backend/**'
+      - 'UNICORN_FINAL/client/**'
+      - 'UNICORN_FINAL/scripts/**'
+      - 'UNICORN_FINAL/package.json'
+      - 'UNICORN_FINAL/package-lock.json'
+      - 'UNICORN_FINAL/ecosystem.config.js'
+      - 'UNICORN_FINAL/Dockerfile'
+      - 'UNICORN_FINAL/.nvmrc'
       - '.github/workflows/deploy.yml'
+      - '.nvmrc'
 
 concurrency:
   group: unicorn-stable-deploy-main

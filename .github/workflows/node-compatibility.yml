@@ -4,16 +4,34 @@ on:
   workflow_dispatch:
   pull_request:
     paths:
-      - 'UNICORN_FINAL/**'
+      - 'UNICORN_FINAL/src/**'
+      - 'UNICORN_FINAL/backend/**'
+      - 'UNICORN_FINAL/client/**'
+      - 'UNICORN_FINAL/scripts/**'
+      - 'UNICORN_FINAL/package.json'
+      - 'UNICORN_FINAL/package-lock.json'
+      - 'UNICORN_FINAL/ecosystem.config.js'
       - 'package.json'
+      - 'Dockerfile'
+      - 'UNICORN_FINAL/Dockerfile'
       - '.nvmrc'
+      - 'UNICORN_FINAL/.nvmrc'
       - '.github/workflows/node-compatibility.yml'
   push:
     branches: [ "main" ]
     paths:
-      - 'UNICORN_FINAL/**'
+      - 'UNICORN_FINAL/src/**'
+      - 'UNICORN_FINAL/backend/**'
+      - 'UNICORN_FINAL/client/**'
+      - 'UNICORN_FINAL/scripts/**'
+      - 'UNICORN_FINAL/package.json'
+      - 'UNICORN_FINAL/package-lock.json'
+      - 'UNICORN_FINAL/ecosystem.config.js'
       - 'package.json'
+      - 'Dockerfile'
+      - 'UNICORN_FINAL/Dockerfile'
       - '.nvmrc'
+      - 'UNICORN_FINAL/.nvmrc'
       - '.github/workflows/node-compatibility.yml'
 
 jobs:
