@@ -8952,6 +8952,17 @@ app.get('/api/saas/overview', adminTokenMiddleware, (req, res) => {
   });
 });
 
+// ==================== CRYPTO TRANSFER INTELLIGENCE SUITE ====================
+// 8 servicii non-custodial care optimizează tranzacții crypto fără a deține
+// fonduri. Endpoints: /api/crypto-bridge/* + /admin/revenue.
+try {
+  const cryptoBridge = require('./modules/cryptoBridge');
+  cryptoBridge.mount(app);
+  console.log('🪙 Crypto Bridge Suite: ACTIVE (8 servicii non-custodial · fee invoice → ' + cryptoBridge.OWNER_BTC + ')');
+} catch (e) {
+  console.warn('[crypto-bridge] failed to mount:', e && e.message);
+}
+
 // ==================== GLOBAL ERROR HANDLER ====================
 // Catches any unhandled errors thrown in route handlers.
 // In production, never expose the stack trace to the client.

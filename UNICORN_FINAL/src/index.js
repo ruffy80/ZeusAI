@@ -3217,6 +3217,15 @@ async function unicornHandler(req, res) {
     return res.end(JSON.stringify(report));
   }
 
+  // ── Crypto Transfer Intelligence Suite (HTML page) ───────────────────
+  // 8 servicii non-custodial expuse în backend la /api/crypto-bridge/*.
+  // Pagina e self-contained: fetch live BTC rate la 10s, smart-routing
+  // POST către backend, render fiecare card. Nu mută bani — doar info.
+  if (urlPath === '/crypto-fiat-bridge' || urlPath === '/crypto-fiat-bridge/') {
+    res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store', 'X-Unicorn-Page': 'crypto-fiat-bridge' });
+    return res.end(renderCryptoFiatBridgePage());
+  }
+
   if (urlPath === '/innovation/sprint') {
     const sprint = generateSprintPlan();
     res.writeHead(200, { 'Content-Type': 'application/json' });
