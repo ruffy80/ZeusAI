@@ -1298,6 +1298,7 @@ const logMonitor           = require('./modules/log-monitor');
 const resourceMonitor      = require('./modules/resource-monitor');
 const errorPatternDetector = require('./modules/error-pattern-detector');
 const recoveryEngine       = require('./modules/recovery-engine');
+const authGuardian         = require('./modules/auth-guardian');
 const uiAutoBuilder        = require('./modules/ui-auto-builder');
 
 // ==================== MULTI-TENANT SAAS PLATFORM ====================
@@ -1365,6 +1366,7 @@ const MODULE_REGISTRY = {
   healthDaemon: [
     'unicorn-health-daemon',
     'unicorn-health-guardian',
+    'auth-guardian',
     'totalSystemHealer',
     'self-healing-engine',
     'ai-self-healing',
@@ -1682,6 +1684,10 @@ if (_isPrimaryWorker) {
   // Componenta AI Self-Healing — monitorizare și auto-reparare provideri AI + module
   if (!_stableRuntime) {
     aiSelfHealing.init();
+  }
+  // Auth Guardian — ALWAYS ON in production profile (independent of mutation/full mode)
+  if (process.env.NODE_ENV !== 'test') {
+    authGuardian.start();
   }
   // Componenta 3 — Auto-Innovation Loop (analiză cod + PR automate + CI monitoring)
   if (!_stableRuntime && _enableFileMutators) {
@@ -8051,6 +8057,15 @@ app.get('/api/auto-restart/status', adminTokenMiddleware, (req, res) => {
 });
 app.post('/api/auto-restart/run', adminTokenMiddleware, async (req, res) => {
   try { res.json(await autoRestart.run(req.body || {})); }
+  catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// ── Auth Guardian ─────────────────────────────────────────────────────────────
+app.get('/api/auth-guardian/status', adminTokenMiddleware, (req, res) => {
+  res.json(authGuardian.getStatus());
+});
+app.post('/api/auth-guardian/run', adminTokenMiddleware, async (req, res) => {
+  try { res.json(await authGuardian.run(req.body || {})); }
   catch (e) { res.status(500).json({ error: e.message }); }
 });
 
