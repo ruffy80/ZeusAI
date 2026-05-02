@@ -190,8 +190,15 @@ upsert SMTP_HOST    "${SMTP_HOST:-smtp.mail.yahoo.com}"
 upsert SMTP_PORT    "${SMTP_PORT:-587}"
 upsert SMTP_USER    "${SMTP_USER:-}"
 upsert SMTP_PASS    "${SMTP_PASS:-}"
+upsert SMTP_FROM    "${SMTP_FROM:-}"
 upsert ADMIN_EMAIL  "${ADMIN_EMAIL:-${SMTP_USER:-vladoi_ionut@yahoo.com}}"
-upsert EMAIL_FROM_NAME "Zeus AI"
+upsert EMAIL_FROM_NAME "${EMAIL_FROM_NAME:-Zeus AI}"
+# HTTPS email providers (preferred on Hetzner — outbound SMTP ports often blocked).
+# Setting any of these enables real password-reset / transactional emails without SMTP.
+upsert RESEND_API_KEY     "${RESEND_API_KEY:-}"
+upsert RESEND_FROM        "${RESEND_FROM:-}"
+upsert BREVO_API_KEY      "${BREVO_API_KEY:-}"
+upsert MAILERSEND_API_KEY "${MAILERSEND_API_KEY:-}"
 
 # ── Hetzner ─────────────────────────────────────────────────────────────────────
 HETZ_VAL="${HETZNER_API_KEY:-${HETZNER_API_TOKEN:-}}"

@@ -5879,11 +5879,14 @@ ${invoice.payer ? `<h2>Payer</h2><table><tr><th>Legal entity</th><td>${esc(invoi
               const r = await Promise.resolve(tx.sendTransactional({
                 to: email,
                 template: 'password_reset',
-                subject: 'Reset your ZeusAI password / Resetează parola',
-                data: { resetUrl, expiresInMinutes: 60 },
-                fallbackText: 'Ai cerut resetarea parolei pe zeusai.pro. Link valid 1h:\n\n' + resetUrl + '\n\nDacă nu tu ai cerut asta, ignoră emailul.\n\nYou requested a password reset on zeusai.pro. Link valid for 1 hour:\n\n' + resetUrl + '\n\nIf you did not request this, ignore this email.'
+                data: { resetUrl, expiresInMinutes: 60 }
               })).catch(e => { console.warn('[pwreset] transactional-email failed:', e.message); return null; });
-              emailSent = !!(r && (r.ok || r.sent || r.id));
+              emailSent = !!(r && r.ok && !r.skipped);
+              if (!r) { /* already logged inside catch */ }
+              else if (r.skipped) console.warn('[pwreset] email skipped: ' + r.skipped + ' (set RESEND_API_KEY, BREVO_API_KEY, MAILERSEND_API_KEY, or SMTP_* to enable real delivery)');
+              else if (r.ok) console.log('[pwreset] email sent via ' + (r.provider || 'unknown') + ' · messageId=' + (r.messageId || 'n/a'));
+              else if (r.error) console.warn('[pwreset] email send failed: ' + r.error);
+              else console.warn('[pwreset] email returned unexpected shape: ' + JSON.stringify(r).slice(0, 200));
             }
           } catch(e) { console.warn('[pwreset] email module load failed:', e.message); }
           // Mock fallback: always log the link so owner can manually deliver
