@@ -1,4 +1,12 @@
 // =====================================================================
+// OWNERSHIP: Acest fișier este proprietatea exclusivă a lui Vladoi Ionut
+// Email: vladoi_ionut@yahoo.com
+// BTC Address: bc1q4f7e66z87mdfj56kz0dj5hvcnpmh0qh4wuv22e
+// Data: 2026-05-02T13:48:43.209Z
+// Orice copiere, modificare sau distribuție neautorizată este interzisă.
+// =====================================================================
+
+// =====================================================================
 // crypto-bridge — Crypto Transfer Intelligence Suite
 // 8 servicii NON-CUSTODIAL (informaționale + optimizare). Platforma NU
 // mută fonduri, NU deține chei private, NU re-rutează valoare. Toate
