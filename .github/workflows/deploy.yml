@@ -112,7 +112,12 @@ jobs:
       - name: 🟦 Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version-file: '.nvmrc'
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            UNICORN_FINAL/package-lock.json
+            UNICORN_FINAL/client/package-lock.json
 
       - name: 🔍 Run Linter (ESLint)
         working-directory: ./UNICORN_FINAL

@@ -2,6 +2,10 @@
   "name": "unicorn-final",
   "version": "1.2.2",
   "private": true,
+  "engines": {
+    "node": ">=20 <26",
+    "npm": ">=10"
+  },
   "dependencies": {
     "@aws-sdk/client-cloudwatch": "^3.1040.0",
     "@aws-sdk/client-ec2": "^3.1040.0",
