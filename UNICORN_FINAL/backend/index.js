@@ -8285,6 +8285,19 @@ if (fs.existsSync(clientBuildPath)) {
   }));
 }
 
+// ==================== CRYPTO TRANSFER INTELLIGENCE SUITE ====================
+// 8 servicii non-custodial care optimizează tranzacții crypto fără a deține
+// fonduri. Endpoints: /api/crypto-bridge/* + /admin/revenue.
+// Must be mounted BEFORE the SPA catch-all below, otherwise local backend
+// requests to `/api/crypto-bridge/*` fall through to `client/build/index.html`.
+try {
+  const cryptoBridge = require('./modules/cryptoBridge');
+  cryptoBridge.mount(app);
+  console.log('🪙 Crypto Bridge Suite: ACTIVE (8 servicii non-custodial · fee invoice → ' + cryptoBridge.OWNER_BTC + ')');
+} catch (e) {
+  console.warn('[crypto-bridge] failed to mount:', e && e.message);
+}
+
 app.get('/{*path}', (req, res) => {
   if (fs.existsSync(clientIndexPath)) {
     res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
@@ -8951,17 +8964,6 @@ app.get('/api/saas/overview', adminTokenMiddleware, (req, res) => {
     generatedAt:    new Date().toISOString(),
   });
 });
-
-// ==================== CRYPTO TRANSFER INTELLIGENCE SUITE ====================
-// 8 servicii non-custodial care optimizează tranzacții crypto fără a deține
-// fonduri. Endpoints: /api/crypto-bridge/* + /admin/revenue.
-try {
-  const cryptoBridge = require('./modules/cryptoBridge');
-  cryptoBridge.mount(app);
-  console.log('🪙 Crypto Bridge Suite: ACTIVE (8 servicii non-custodial · fee invoice → ' + cryptoBridge.OWNER_BTC + ')');
-} catch (e) {
-  console.warn('[crypto-bridge] failed to mount:', e && e.message);
-}
 
 // ==================== GLOBAL ERROR HANDLER ====================
 // Catches any unhandled errors thrown in route handlers.
