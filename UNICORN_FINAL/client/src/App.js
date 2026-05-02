@@ -49,6 +49,7 @@ import HowItWorks from './pages/HowItWorks';
 import Terms from './pages/Terms';
 import Privacy from './pages/Privacy';
 import Checkout from './pages/Checkout';
+import CryptoFiatBridge from './pages/CryptoFiatBridge';
 import toast, { Toaster } from 'react-hot-toast';
 
 function App() {
@@ -83,6 +84,7 @@ function App() {
   const NAV_LINKS = [
     { to: '/', label: 'Home' },
     { to: '/services', label: 'Services' },
+    { to: '/crypto-fiat-bridge', label: 'Crypto Bridge' },
     { to: '/pricing', label: 'Pricing' },
     { to: '/how-it-works', label: 'How It Works' },
     { to: '/about', label: 'About' },
@@ -210,6 +212,8 @@ function App() {
         <Routes>
           <Route path="/" element={<ScrollReveal><Home /></ScrollReveal>} />
           <Route path="/services" element={<ScrollReveal delay={0.1}><Services /></ScrollReveal>} />
+          <Route path="/crypto-fiat-bridge" element={<ScrollReveal delay={0.1}><CryptoFiatBridge /></ScrollReveal>} />
+          <Route path="/crypto-bridge" element={<Navigate to="/crypto-fiat-bridge" replace />} />
           <Route path="/pricing" element={<ScrollReveal delay={0.1}><Pricing /></ScrollReveal>} />
           <Route path="/about" element={<ScrollReveal delay={0.1}><About /></ScrollReveal>} />
           <Route path="/how-it-works" element={<ScrollReveal delay={0.1}><HowItWorks /></ScrollReveal>} />
