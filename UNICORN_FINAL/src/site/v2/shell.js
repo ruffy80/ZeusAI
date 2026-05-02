@@ -604,15 +604,15 @@ function pageHome() {
     <div class="hero-copy">
       <span class="hero-eyebrow"><span class="dot"></span> Live · ${new Date().toISOString().slice(0,16).replace('T',' ')} UTC</span>
       <h1>The autonomous <span class="grad">AI operating system</span> that bends SaaS to your will.</h1>
-      <p class="lead">ZeusAI is a self-evolving, cryptographically sovereign platform. 169 living modules, 18 vertical industries, 41 marketplaces — orchestrated by Zeus. Every outcome is signed. Every cent is routed. No middleman.</p>
+      <p class="lead">ZeusAI is a self-evolving, cryptographically sovereign platform. <span id="leadModules">Live modules</span>, <span id="leadVerticals">active vertical industries</span>, <span id="leadMarkets">connected marketplaces</span> — orchestrated by Zeus. Every outcome is signed. Every cent is routed. No middleman.</p>
       <div class="hero-cta">
-        <a class="btn btn-primary" href="/services" data-link>Explore the Marketplace →</a>
+        <a class="btn btn-primary" href="/marketplace" data-link>Explore the Marketplace →</a>
         <a class="btn" href="/how" data-link>See how it works</a>
       </div>
       <div class="hero-stats" id="heroStats">
-        <div class="hero-stat"><b id="statModules">169</b><span>Live modules</span></div>
-        <div class="hero-stat"><b id="statVerticals">18</b><span>Verticals</span></div>
-        <div class="hero-stat"><b id="statMarkets">41</b><span>Marketplaces</span></div>
+        <div class="hero-stat"><b id="statModules">—</b><span>Live modules</span></div>
+        <div class="hero-stat"><b id="statVerticals">—</b><span>Verticals</span></div>
+        <div class="hero-stat"><b id="statMarkets">—</b><span>Marketplaces</span></div>
         <div class="hero-stat"><b id="statChain">—</b><span>Chain length</span></div>
       </div>
     </div>
@@ -1406,50 +1406,57 @@ Content-Type: application/json
 }
 
 function renderRoute(route, params = {}) {
+  const nonce = (params && params.nonce) || '';
+  let html;
   switch (route) {
-    case '/': return pageHome();
-    case '/services': return pageServices();
-    case '/pricing': return pagePricing();
-    case '/checkout': return pageCheckout();
-    case '/dashboard': return pageDashboard();
-    case '/how': return pageHow();
-    case '/docs': return pageDocs();
-    case '/about': return pageAbout();
-    case '/legal': return pageLegal();
-    case '/trust': return pageTrustCenter();
-    case '/security': return pageSecurity();
-    case '/responsible-ai': return pageResponsibleAi();
-    case '/dpa': return pageDpa();
-    case '/payment-terms': return pagePaymentTerms();
-    case '/operator': return pageOperator();
-    case '/observability': return pageObservability();
-    case '/enterprise': return pageEnterprise();
-    case '/store': return pageStore();
-    case '/innovations': return pageInnovations();
-    case '/account': return pageAccount();
-    case '/admin/services': return pageAdminServices();
-    case '/admin': return pageAdminLogin();
-    case '/admin/login': return pageAdminLogin();
-    case '/wizard': return pageWizard();
-    case '/status': return pageStatus();
-    case '/crypto-fiat-bridge': return pageCryptoBridge();
-    case '/crypto-bridge': return pageCryptoBridge();
-    case '/changelog': return pageChangelog();
-    case '/terms': return pageTerms();
-    case '/privacy': return pagePrivacy();
-    case '/refund': return pageRefund();
-    case '/sla': return pageSla();
-    case '/pledge': return pagePledge();
-    case '/cancel': return pageCancel();
-    case '/gift': return pageGift();
-    case '/aura': return pageAura();
-    case '/api-explorer': return pageApiExplorer();
-    case '/transparency': return pageTransparency();
-    case '/frontier': return pageFrontier();
+    case '/': html = pageHome(); break;
+    case '/services': html = pageServices(); break;
+    case '/pricing': html = pagePricing(); break;
+    case '/checkout': html = pageCheckout(); break;
+    case '/dashboard': html = pageDashboard(); break;
+    case '/how': html = pageHow(); break;
+    case '/docs': html = pageDocs(); break;
+    case '/about': html = pageAbout(); break;
+    case '/legal': html = pageLegal(); break;
+    case '/trust': html = pageTrustCenter(); break;
+    case '/security': html = pageSecurity(); break;
+    case '/responsible-ai': html = pageResponsibleAi(); break;
+    case '/dpa': html = pageDpa(); break;
+    case '/payment-terms': html = pagePaymentTerms(); break;
+    case '/operator': html = pageOperator(); break;
+    case '/observability': html = pageObservability(); break;
+    case '/enterprise': html = pageEnterprise(); break;
+    case '/store': html = pageStore(); break;
+    case '/innovations': html = pageInnovations(); break;
+    case '/account': html = pageAccount(); break;
+    case '/admin/services': html = pageAdminServices(); break;
+    case '/admin': html = pageAdminLogin(); break;
+    case '/admin/login': html = pageAdminLogin(); break;
+    case '/wizard': html = pageWizard(); break;
+    case '/status': html = pageStatus(); break;
+    case '/crypto-fiat-bridge': html = pageCryptoBridge(); break;
+    case '/crypto-bridge': html = pageCryptoBridge(); break;
+    case '/changelog': html = pageChangelog(); break;
+    case '/terms': html = pageTerms(); break;
+    case '/privacy': html = pagePrivacy(); break;
+    case '/refund': html = pageRefund(); break;
+    case '/sla': html = pageSla(); break;
+    case '/pledge': html = pagePledge(); break;
+    case '/cancel': html = pageCancel(); break;
+    case '/gift': html = pageGift(); break;
+    case '/aura': html = pageAura(); break;
+    case '/api-explorer': html = pageApiExplorer(); break;
+    case '/transparency': html = pageTransparency(); break;
+    case '/frontier': html = pageFrontier(); break;
     default:
-      if (route.startsWith('/services/')) return pageService(params.id || route.slice(10));
-      return pageNotFound(route);
+      html = route.startsWith('/services/') ? pageService(params.id || route.slice(10)) : pageNotFound(route);
   }
+  // Inject CSP nonce into bare inline <script> tags (those without src=).
+  // External scripts already carry the nonce via the nonceAttr in head().
+  if (nonce && html) {
+    html = html.replace(/<script>/g, `<script nonce="${nonce}">`);
+  }
+  return html;
 }
 
 function pageAdminLogin() {
@@ -1588,8 +1595,8 @@ function pageInnovations() {
     const $ = (id) => document.getElementById(id);
     try { const s = await (await fetch('/api/innovations/status')).json();
       $('invConHash').textContent = (s.constitution && s.constitution.hashShort) || '—';
-      if (s.models) $('invModels').innerHTML = s.models.map(m =>
-        '<tr style="border-top:1px solid #1f2a3b"><td style="padding:12px">'+m.id+' · v'+m.version+'</td><td style="padding:12px">'+m.family+'</td><td style="padding:12px">'+(m.provenance||'—')+'</td><td style="padding:12px;font-family:monospace;font-size:12px">'+(m.sha256||'').slice(0,16)+'…</td></tr>').join('');
+      if (s.models && s.models.length) $('invModels').innerHTML = s.models.map(m =>
+        '<tr style="border-top:1px solid #1f2a3b"><td style="padding:12px">'+(m.id||'—')+(m.trainingCutoff?' · cut '+m.trainingCutoff:'')+'</td><td style="padding:12px">'+(m.family||'—')+'</td><td style="padding:12px">'+(m.license||m.provenance||'—')+'</td><td style="padding:12px;font-family:monospace;font-size:12px">'+(m.weightHash||m.sha256||'pending').slice(0,16)+'…</td></tr>').join('');
     } catch(e) { $('invConHash').textContent='offline'; }
     try { const r = await (await fetch('/api/receipts/root')).json();
       if (r && r.root) { $('invRoot').textContent = r.root.slice(0,24)+'…'; $('invRootCount').textContent = r.count || 0; }
@@ -2084,7 +2091,7 @@ function pageFrontier() {
     const out = document.getElementById('frOut');
     if (!out) return;
     const inv = d && (d.inventions || d.items || []);
-    const cnt = Array.isArray(inv) ? inv.length : (d && d.count) || 0;
+    const cnt = Array.isArray(inv) ? inv.length : (inv && typeof inv === 'object' ? Object.keys(inv).filter(k => inv[k]).length : (d && d.count) || 0);
     const mode = d && (d.mode || d.status || 'active');
     const updated = d && (d.generatedAt || d.updatedAt || new Date().toISOString());
     out.textContent = 'Frontier status: '+mode+'\nInventions available: '+cnt+'\nUpdated: '+updated;
