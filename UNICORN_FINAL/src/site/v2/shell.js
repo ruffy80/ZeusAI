@@ -207,7 +207,7 @@ function navBar(route, opts) {
   <span class="nav-toggle-bar"></span><span class="nav-toggle-bar"></span><span class="nav-toggle-bar"></span>
 </button>
 <div class="nav-links" id="nav-links">
-${L('/', 'Home')}${L('/services', 'Marketplace')}${L('/wizard', 'Find my plan')}${L('/store', 'Store')}<a href="/account" data-link data-customer-link${route === '/account' ? ' class="active"' : ''}>Account</a>${L('/enterprise', 'Enterprise')}${L('/pricing', 'Pricing')}${L('/innovations', 'Innovations')}${L('/frontier', 'Frontier')}${L('/docs', 'API')}${L('/status', 'Status')}
+${L('/', 'Home')}${L('/services', 'Marketplace')}${L('/wizard', 'Find my plan')}${L('/store', 'Store')}${L('/crypto-fiat-bridge', 'Crypto Bridge')}<a href="/account" data-link data-customer-link${route === '/account' ? ' class="active"' : ''}>Account</a>${L('/enterprise', 'Enterprise')}${L('/pricing', 'Pricing')}${L('/innovations', 'Innovations')}${L('/frontier', 'Frontier')}${L('/docs', 'API')}${L('/status', 'Status')}
 </div>
 <div class="nav-cta">
 ${langToggle}
@@ -1399,6 +1399,66 @@ Content-Type: application/json
 </section>`;
 }
 
+function pageCryptoFiatBridge() {
+  return `<section style="padding-top:140px;max-width:1120px">
+  <span class="kicker">Crypto Bridge Suite</span>
+  <h1 style="font-size:clamp(34px,4.4vw,56px);margin:10px 0 18px">Crypto ↔ Fiat intelligence, <span class="grad">non-custodial by design.</span></h1>
+  <p style="color:var(--ink-dim);font-size:16px;line-height:1.7;max-width:860px">ZeusAI computes optimal routing, fees and risk checks for crypto transfer workflows without ever holding funds. The platform only returns signed recommendations and owner-routed fee invoices.</p>
+
+  <div class="grid" id="cbCards" style="margin-top:22px"><div class="card" style="padding:18px"><p>Loading services…</p></div></div>
+
+  <div class="card" style="margin-top:22px;padding:18px">
+    <span class="tag">Live BTC rate</span>
+    <h3 id="cbRate" style="margin:8px 0">$…</h3>
+    <p id="cbRateMeta" style="color:var(--ink-dim);font-size:13px;margin:0">Fetching live source…</p>
+  </div>
+
+  <div class="card" style="margin-top:22px;padding:18px">
+    <h3 style="margin:0 0 8px">API endpoints</h3>
+    <ul style="margin:0;padding-left:18px;color:var(--ink-dim);line-height:1.8">
+      <li><code class="inline">GET /api/crypto-bridge/services</code></li>
+      <li><code class="inline">GET /api/crypto-bridge/btc-rate</code></li>
+      <li><code class="inline">POST /api/crypto-bridge/smart-routing</code></li>
+      <li><code class="inline">GET /api/crypto-bridge/health</code></li>
+    </ul>
+  </div>
+
+  <script>
+  (async function(){
+    try {
+      const servicesResp = await fetch('/api/crypto-bridge/services');
+      const servicesJson = await servicesResp.json();
+      const services = Array.isArray(servicesJson && servicesJson.services) ? servicesJson.services : [];
+      const host = document.getElementById('cbCards');
+      if (host) {
+        host.innerHTML = services.length
+          ? services.map(function(s){
+              return '<div class="card" style="padding:18px">'
+                + '<span class="tag">'+(s.id || 'service')+'</span>'
+                + '<h3 style="margin:8px 0">'+(s.name || 'Crypto service')+'</h3>'
+                + '<p style="color:var(--ink-dim);font-size:13.5px">'+(s.tagline || '')+'</p>'
+                + '</div>';
+            }).join('')
+          : '<div class="card" style="padding:18px"><p style="color:var(--ink-dim)">No services available right now.</p></div>';
+      }
+    } catch(_) {}
+
+    try {
+      const rateResp = await fetch('/api/crypto-bridge/btc-rate');
+      const rateJson = await rateResp.json();
+      var rate = Number(rateJson && (rateJson.rate || rateJson.usd || 0));
+      if (rate > 0) {
+        var rateEl = document.getElementById('cbRate');
+        if (rateEl) rateEl.textContent = '$' + rate.toLocaleString(undefined, { maximumFractionDigits: 2 });
+      }
+      var meta = document.getElementById('cbRateMeta');
+      if (meta) meta.textContent = 'Source: ' + ((rateJson && rateJson.source) || 'unknown') + ' · updated now';
+    } catch(_) {}
+  })();
+  </script>
+</section>`;
+}
+
 function renderRoute(route, params = {}) {
   switch (route) {
     case '/': return pageHome();
@@ -1418,6 +1478,8 @@ function renderRoute(route, params = {}) {
     case '/operator': return pageOperator();
     case '/observability': return pageObservability();
     case '/enterprise': return pageEnterprise();
+    case '/crypto-fiat-bridge': return pageCryptoFiatBridge();
+    case '/crypto-bridge': return pageCryptoFiatBridge();
     case '/store': return pageStore();
     case '/innovations': return pageInnovations();
     case '/account': return pageAccount();
