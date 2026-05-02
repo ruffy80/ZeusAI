@@ -1433,6 +1433,7 @@ function renderRoute(route, params = {}) {
     case '/wizard': return pageWizard();
     case '/status': return pageStatus();
     case '/crypto-fiat-bridge': return pageCryptoBridge();
+    case '/crypto-bridge': return pageCryptoBridge();
     case '/changelog': return pageChangelog();
     case '/terms': return pageTerms();
     case '/privacy': return pagePrivacy();
@@ -1672,12 +1673,13 @@ function pageCryptoBridge() {
     <h3 style="margin:10px 0 8px">Best-path calculator</h3>
     <p style="color:var(--ink-dim);font-size:14px;margin-bottom:14px">Runs the crypto bridge optimizer and returns fee + ETA + recommended path.</p>
     <form id="cbForm" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px;align-items:end">
-      <div><label style="font-size:12px;color:var(--ink-dim)">Amount USD</label><input id="cbAmount" type="number" min="1" step="0.01" value="250" style="width:100%;padding:10px;background:#0b0f17;border:1px solid #1f2a3b;color:#e7ecf3;border-radius:8px"></div>
+      <div><label style="font-size:12px;color:var(--ink-dim)">Amount</label><input id="cbAmount" type="number" min="0.00000001" step="0.00000001" value="0.01" style="width:100%;padding:10px;background:#0b0f17;border:1px solid #1f2a3b;color:#e7ecf3;border-radius:8px"></div>
       <div><label style="font-size:12px;color:var(--ink-dim)">Currency</label><select id="cbCurrency" style="width:100%;padding:10px;background:#0b0f17;border:1px solid #1f2a3b;color:#e7ecf3;border-radius:8px"><option>BTC</option><option>ETH</option><option>USDT</option><option>SOL</option></select></div>
       <div><label style="font-size:12px;color:var(--ink-dim)">Destination address</label><input id="cbAddress" type="text" placeholder="bc1... / 0x..." style="width:100%;padding:10px;background:#0b0f17;border:1px solid #1f2a3b;color:#e7ecf3;border-radius:8px"></div>
       <button class="btn btn-primary" type="submit">Calculate route →</button>
     </form>
-    <pre class="code" id="cbOut" style="margin-top:14px;max-height:300px;overflow:auto">Waiting for input...</pre>
+    <p style="color:var(--ink-dim);font-size:12px;margin-top:10px">Amount is interpreted in the selected currency. Example: <strong>0.01 BTC</strong> or <strong>1.50 ETH</strong>.</p>
+    <div class="card" id="cbOut" style="margin-top:14px;padding:16px;background:#0b0f17;border:1px solid #1f2a3b;max-height:none;overflow:visible">Waiting for input...</div>
   </div>
 
   <div class="card" style="padding:22px;margin-top:18px">
@@ -1693,6 +1695,66 @@ function pageCryptoBridge() {
       'fee-lock':'\ud83d\udd12','smart-bump':'\ud83d\ude80','destination-check':'\u2705','liquidity-unlock':'\ud83d\udca7',
       'atomic-swap':'\u269b\ufe0f','mev-protection':'\ud83d\udee1\ufe0f','batch-tx':'\ud83d\udce6','time-locked-refund':'\u23f3'
     };
+    const escapeHtml = function(value){
+      return String(value == null ? '' : value)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+    };
+    const formatUsd = function(value){
+      const number = Number(value);
+      return Number.isFinite(number) ? ('$' + number.toLocaleString(undefined, { maximumFractionDigits: 4 })) : '—';
+    };
+    const formatAsset = function(value, currency){
+      const number = Number(value);
+      if (!Number.isFinite(number)) return '—';
+      return number.toLocaleString(undefined, { maximumFractionDigits: 8 }) + ' ' + escapeHtml(currency || '');
+    };
+    const formatServiceLabel = function(key, service){
+      return escapeHtml((service && service.service) || key)
+        .replace(/([a-z])([A-Z])/g, '$1 $2')
+        .replace(/-/g, ' ')
+        .replace(/\b\w/g, function(ch){ return ch.toUpperCase(); });
+    };
+    const renderServiceCard = function(key, service, currency){
+      const statusColor = service.error ? '#ff6b9b' : service.skipped ? '#ffbf69' : '#6fd3ff';
+      const statusText = service.error ? 'error' : service.skipped ? 'skipped' : 'active';
+      const facts = [];
+      if (service.feeUsd != null) facts.push('Fee ' + formatUsd(service.feeUsd));
+      if (service.feeBtc != null) facts.push('Network ' + formatAsset(service.feeBtc, 'BTC'));
+      if (service.ourCommissionUsd != null) facts.push('Commission ' + formatUsd(service.ourCommissionUsd));
+      if (service.ourCommissionBtc != null) facts.push('Commission BTC ' + formatAsset(service.ourCommissionBtc, 'BTC'));
+      if (service.amountOut != null && service.to) facts.push('Output ' + formatAsset(service.amountOut, service.to));
+      if (service.satPerVB != null) facts.push('Rate ' + escapeHtml(service.satPerVB) + ' sat/vB');
+      if (service.etaMinutes != null) facts.push('ETA ' + escapeHtml(service.etaMinutes) + ' min');
+      if (service.riskScore != null) facts.push('Risk ' + escapeHtml(service.riskScore) + '/100');
+      if (service.verdict) facts.push('Verdict ' + escapeHtml(service.verdict));
+      if (service.reason) facts.push('Reason ' + escapeHtml(service.reason));
+      if (service.note) facts.push(escapeHtml(service.note));
+      if (service.route) facts.push('Route ' + escapeHtml(service.route));
+      if (service.deadlineIso) facts.push('Deadline ' + escapeHtml(service.deadlineIso));
+      if (service.lockedUntil) facts.push('Locked until ' + escapeHtml(service.lockedUntil));
+      if (service.refundBy) facts.push('Refund by ' + escapeHtml(service.refundBy));
+      if (service.addressType) facts.push('Address ' + escapeHtml(service.addressType));
+      if (service.txCount != null) facts.push('Seen txs ' + escapeHtml(service.txCount));
+      if (service.savedUsd != null) facts.push('Saved ' + formatUsd(service.savedUsd));
+      if (service.itemCount != null) facts.push('Batch items ' + escapeHtml(service.itemCount));
+      if (service.recommended) facts.push('Recommendation enabled');
+      if (!facts.length && !service.error && !service.skipped) facts.push('Live calculation completed for ' + escapeHtml(currency));
+      return '<div class="card" style="padding:16px;background:#0f1220;border:1px solid #1f2a3b;border-left:3px solid ' + statusColor + '">' +
+        '<div style="display:flex;justify-content:space-between;gap:10px;align-items:flex-start">' +
+          '<div><div style="font-size:14px;font-weight:700;color:#e7ecf3">' + formatServiceLabel(key, service) + '</div>' +
+          '<div style="font-size:12px;color:var(--ink-dim);margin-top:4px">' + escapeHtml(statusText) + '</div></div>' +
+          '<span class="tag" style="background:rgba(111,211,255,.14);color:' + statusColor + '">' + escapeHtml(statusText.toUpperCase()) + '</span>' +
+        '</div>' +
+        (service.error ? '<p style="margin-top:10px;color:#ff9ab7;font-size:13px">' + escapeHtml(service.error) + '</p>' : '') +
+        '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:8px;margin-top:12px">' +
+          facts.map(function(fact){ return '<div style="padding:10px;border-radius:8px;background:#0b0f17;color:#cfe3ff;font-size:12px">' + fact + '</div>'; }).join('') +
+        '</div>' +
+      '</div>';
+    };
     try {
       const r = await fetch('/api/crypto-bridge/btc-rate', { cache: 'no-store' });
       const j = await r.json();
@@ -1705,7 +1767,7 @@ function pageCryptoBridge() {
       const j = await r.json();
       const arr = Array.isArray(j.services) ? j.services : [];
       document.getElementById('cbGrid').innerHTML = arr.map((s, i) =>
-        '<div class="card"><span class="tag">Layer ' + (i + 1) + '</span><h3 style="margin:8px 0">' + (icons[s.id] || '⚡') + ' ' + (s.name || s.id) + '</h3><p style="color:var(--ink-dim);font-size:13px">' + (s.description || '—') + '</p><p style="margin-top:8px;font-size:12px;color:#6fd3ff">Fee: ' + (s.feePct != null ? (s.feePct + '%') : 'dynamic') + '</p></div>'
+        '<div class="card"><span class="tag">Layer ' + (i + 1) + '</span><h3 style="margin:8px 0">' + (icons[s.id] || '⚡') + ' ' + escapeHtml(s.name || s.id) + '</h3><p style="color:var(--ink-dim);font-size:13px">' + escapeHtml(s.description || s.tagline || '—') + '</p><p style="margin-top:8px;font-size:12px;color:#6fd3ff">Fee: ' + escapeHtml(s.feePct != null ? (s.feePct + '%') : (s.commissionUsd != null ? ('$' + s.commissionUsd) : 'dynamic')) + '</p></div>'
       ).join('') || '<div class="card">No services returned.</div>';
     } catch (_) {
       document.getElementById('cbGrid').innerHTML = '<div class="card">Services unavailable right now.</div>';
@@ -1715,25 +1777,19 @@ function pageCryptoBridge() {
     const out = document.getElementById('cbOut');
     form.addEventListener('submit', async function(e){
       e.preventDefault();
-      const amountUsd = Number(document.getElementById('cbAmount').value) || 0;
+      const amount = Number(document.getElementById('cbAmount').value) || 0;
       const currency = document.getElementById('cbCurrency').value;
-      const address = document.getElementById('cbAddress').value;
+      const address = document.getElementById('cbAddress').value.trim();
       
       if (!address) { out.innerHTML = '<p style="color:#f06">Destination address required</p>'; return; }
-      if (amountUsd <= 0) { out.innerHTML = '<p style="color:#f06">Amount must be > 0</p>'; return; }
+      if (amount <= 0) { out.innerHTML = '<p style="color:#f06">Amount must be > 0</p>'; return; }
       
-      out.innerHTML = '<p style="color:var(--ink-dim)">🔄 Computing best route for $' + amountUsd.toLocaleString() + ' USD in ' + currency + '...</p>';
+      out.innerHTML = '<p style="color:var(--ink-dim)">🔄 Computing best route for ' + formatAsset(amount, currency) + '...</p>';
       
       try {
-        // Fetch current BTC rate to convert USD to BTC
-        const rateResp = await fetch('/api/crypto-bridge/btc-rate', { cache: 'no-store' });
-        const rateData = await rateResp.json();
-        const btcRate = Number(rateData.btcUsd || rateData.rate || 78000);
-        const amountBtc = amountUsd / btcRate;
-        
         const payload = {
           address: address,
-          amount: amountBtc,
+          amount: amount,
           currency: currency
         };
         
@@ -1748,52 +1804,24 @@ function pageCryptoBridge() {
         const d = await r.json();
         if (!d.ok) { out.innerHTML = '<p style="color:#f06">Error: ' + (d.error || 'Unknown error') + '</p>'; return; }
         
-        // Build beautiful display of results
-        let html = '<div style="background:#0b0f17;border:1px solid #2a2a40;border-radius:8px;padding:20px">';
-        html += '<h4 style="margin:0 0 16px;color:#00d4ff">✓ Quote calculated (ID: ' + d.requestId + ')</h4>';
-        
-        let totalCommission = 0;
-        let bestService = null;
-        let bestFee = Infinity;
-        
-        // Display all services
         const services = d.cards || {};
-        for (const [key, service] of Object.entries(services)) {
-          if (service.skipped) continue;
-          
-          const commission = service.ourCommissionUsd || 0;
-          totalCommission += commission;
-          
-          if (service.service === 'feeLock' && (!bestService || service.feeBtc < bestFee)) {
-            bestService = service;
-            bestFee = service.feeBtc;
-          }
-          
-          html += '<div style="margin-bottom:12px;padding:12px;background:#0f1220;border-left:3px solid #6fd3ff;border-radius:4px">';
-          html += '<div style="font-size:13px;font-weight:600;color:#6fd3ff">' + (service.service || key).replace('-', ' ').toUpperCase() + '</div>';
-          
-          if (service.feeBtc !== undefined) {
-            html += '<div style="font-size:12px;color:#e0f0ff;margin-top:4px">Fee: <strong>' + service.feeBtc.toFixed(8) + ' BTC</strong> ($' + service.feeUsd.toFixed(2) + ')</div>';
-          }
-          if (service.ourCommissionUsd !== undefined) {
-            html += '<div style="font-size:12px;color:#6fd3ff;margin-top:2px">Commission: $' + commission.toFixed(4) + '</div>';
-          }
-          if (service.verdict) {
-            html += '<div style="font-size:11px;color:#7090b0;margin-top:2px">Verdict: <strong>' + service.verdict + '</strong></div>';
-          }
-          if (service.note) {
-            html += '<div style="font-size:11px;color:#5090b0;margin-top:2px;font-style:italic">' + service.note + '</div>';
-          }
-          html += '</div>';
-        }
-        
-        html += '<div style="margin-top:16px;padding:12px;background:#1a2a3a;border-radius:6px;border:1px solid #4caf50">';
-        html += '<div style="font-size:13px;color:#4caf50;font-weight:700">TOTAL COMMISSION: $' + totalCommission.toFixed(4) + ' USD</div>';
-        if (bestService) {
-          html += '<div style="font-size:12px;color:#e0f0ff;margin-top:6px">Recommended: <strong>Fee Lock</strong> ($' + bestService.feeUsd.toFixed(2) + ')</div>';
-        }
-        html += '</div>';
-        
+        const recommendationHtml = (Array.isArray(d.recommendations) && d.recommendations.length)
+          ? d.recommendations.map(function(item){ return '<li style="margin:0 0 6px 18px;color:#d7ecff">' + escapeHtml(item) + '</li>'; }).join('')
+          : '<li style="margin:0 0 6px 18px;color:var(--ink-dim)">No extra recommendation needed.</li>';
+        let html = '<div style="display:grid;gap:14px">';
+        html += '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px">' +
+          '<div style="padding:14px;border-radius:10px;background:#111827"><div style="font-size:12px;color:var(--ink-dim)">Request ID</div><div style="margin-top:6px;font-weight:700;color:#fff">' + escapeHtml(d.requestId || '—') + '</div></div>' +
+          '<div style="padding:14px;border-radius:10px;background:#111827"><div style="font-size:12px;color:var(--ink-dim)">Input</div><div style="margin-top:6px;font-weight:700;color:#fff">' + formatAsset(d.inputs && d.inputs.amount, d.inputs && d.inputs.currency) + '</div></div>' +
+          '<div style="padding:14px;border-radius:10px;background:#111827"><div style="font-size:12px;color:var(--ink-dim)">Total Fee</div><div style="margin-top:6px;font-weight:700;color:#fff">' + formatUsd(d.totalFeeUsd) + '</div></div>' +
+          '<div style="padding:14px;border-radius:10px;background:#111827"><div style="font-size:12px;color:var(--ink-dim)">Our Commission</div><div style="margin-top:6px;font-weight:700;color:#6fd3ff">' + formatUsd(d.ourCommissionUsd) + '</div></div>' +
+          '<div style="padding:14px;border-radius:10px;background:#111827"><div style="font-size:12px;color:var(--ink-dim)">Fees Saved</div><div style="margin-top:6px;font-weight:700;color:#34d399">' + formatUsd(d.totalFeesSavedUsd) + '</div></div>' +
+          '<div style="padding:14px;border-radius:10px;background:#111827"><div style="font-size:12px;color:var(--ink-dim)">BTC/USD</div><div style="margin-top:6px;font-weight:700;color:#fff">' + formatUsd(d.btcUsdRate) + '</div></div>' +
+        '</div>';
+        html += '<div class="card" style="padding:18px;background:#0f1220"><span class="tag">Recommendations</span><ul style="margin:12px 0 0;padding:0">' + recommendationHtml + '</ul></div>';
+        html += '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:12px">' +
+          Object.entries(services).map(function(entry){ return renderServiceCard(entry[0], entry[1] || {}, currency); }).join('') +
+        '</div>';
+        html += '<div style="font-size:12px;color:var(--ink-dim)">' + escapeHtml(d.disclaimer || '') + '</div>';
         html += '</div>';
         out.innerHTML = html;
         
@@ -1815,7 +1843,7 @@ function pageCryptoBridge() {
         return;
       }
       document.getElementById('cbMyTx').innerHTML = '<div style="overflow:auto"><table style="width:100%;border-collapse:collapse;font-size:13px"><thead><tr style="background:#0b0f17"><th style="text-align:left;padding:8px">Date</th><th style="text-align:left;padding:8px">Currency</th><th style="text-align:right;padding:8px">Amount</th><th style="text-align:right;padding:8px">Commission</th></tr></thead><tbody>' +
-        txs.map(t => '<tr style="border-top:1px solid #1f2a3b"><td style="padding:8px">' + new Date(t.ts || Date.now()).toLocaleString() + '</td><td style="padding:8px">' + (t.currency || '—') + '</td><td style="padding:8px;text-align:right">$' + (Number(t.amount || 0).toFixed(2)) + '</td><td style="padding:8px;text-align:right">$' + (Number(t.ourCommissionUsd || 0).toFixed(2)) + '</td></tr>').join('') +
+        txs.map(t => '<tr style="border-top:1px solid #1f2a3b"><td style="padding:8px">' + new Date(t.ts || Date.now()).toLocaleString() + '</td><td style="padding:8px">' + escapeHtml(t.currency || '—') + '</td><td style="padding:8px;text-align:right">' + formatAsset(t.amount || 0, t.currency || '') + '</td><td style="padding:8px;text-align:right">' + formatUsd(t.ourCommissionUsd || 0) + '</td></tr>').join('') +
         '</tbody></table></div>';
     } catch (_) {}
   })();
