@@ -71,7 +71,7 @@
     "lint:fix": "eslint --fix backend/**/*.js src/**/*.js",
     "lint:syntax": "node --check backend/index.js && node --check src/index.js",
     "lint:all": "node --check backend/index.js && node --check src/index.js",
-    "prepare": "cd .. && git config core.hooksPath .husky && echo 'husky hooks configured'",
+    "prepare": "sh -c 'cd .. && if [ -d .git ]; then git config core.hooksPath .husky && echo \"husky hooks configured\"; else echo \"husky skipped (no .git)\"; fi'",
     "innovation:add": "node add_innovations.js",
     "innovation:sprint": "node -e \"const ai = require('./backend/modules/autonomousInnovation'); console.log('[SPRINT]', JSON.stringify(ai.getStatus())); if (typeof ai.stopInnovationCycle === 'function') ai.stopInnovationCycle(); process.exit(0);\"",
     "innovation:report": "node -e \"const ai = require('./backend/modules/autonomousInnovation'); const m = ai.getDeploymentMetrics(); console.log('[REPORT] innovations:', m.totalInnovationsGenerated, '| deployed:', m.totalFeaturesDeployed, '| rate:', m.deploymentSuccessRate + '%'); if (typeof ai.stopInnovationCycle === 'function') ai.stopInnovationCycle(); process.exit(0);\"",
