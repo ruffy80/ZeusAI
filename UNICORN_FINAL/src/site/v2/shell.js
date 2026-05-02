@@ -201,7 +201,7 @@ function navBar(route, opts) {
   <span class="nav-toggle-bar"></span><span class="nav-toggle-bar"></span><span class="nav-toggle-bar"></span>
 </button>
 <div class="nav-links" id="nav-links">
-${L('/', 'Home')}${L('/services', 'Marketplace')}${L('/wizard', 'Find my plan')}${L('/store', 'Store')}<a href="/account" data-link data-customer-link${route === '/account' ? ' class="active"' : ''}>Account</a>${L('/enterprise', 'Enterprise')}${L('/pricing', 'Pricing')}${L('/innovations', 'Innovations')}${L('/frontier', 'Frontier')}${L('/docs', 'API')}${L('/status', 'Status')}
+${L('/', 'Home')}${L('/services', 'Marketplace')}${L('/wizard', 'Find my plan')}${L('/store', 'Store')}<a href="/account" data-link data-customer-link${route === '/account' ? ' class="active"' : ''}>Account</a>${L('/enterprise', 'Enterprise')}${L('/pricing', 'Pricing')}${L('/crypto-fiat-bridge', 'Crypto Bridge')}${L('/innovations', 'Innovations')}${L('/frontier', 'Frontier')}${L('/docs', 'API')}${L('/status', 'Status')}
 </div>
 <div class="nav-cta">
 ${langToggle}
@@ -1432,6 +1432,7 @@ function renderRoute(route, params = {}) {
     case '/admin/login': return pageAdminLogin();
     case '/wizard': return pageWizard();
     case '/status': return pageStatus();
+    case '/crypto-fiat-bridge': return pageCryptoBridge();
     case '/changelog': return pageChangelog();
     case '/terms': return pageTerms();
     case '/privacy': return pagePrivacy();
@@ -1649,6 +1650,106 @@ function pageWizard() {
       out.innerHTML = '<div class="card" style="border-color:var(--violet);padding:22px"><span class="kicker">Recommended</span><h2 style="margin:8px 0">'+winner+' · $'+d.cta.amount+'</h2><p style="color:var(--ink-dim)">Top services for you: '+d.services.map(s=>'<code class="inline">'+s+'</code>').join(' ')+'</p><a class="btn btn-primary" href="'+d.cta.url+'" data-link>Buy '+winner+' now →</a><a class="btn" href="/pricing" data-link style="margin-left:8px">See all plans</a><details style="margin-top:14px"><summary style="cursor:pointer;color:var(--ink-dim);font-size:13px">Why this plan? (signed reasoning)</summary><pre class="code">'+JSON.stringify({ ranked: d.ranked, explain: d.explain, signedAt: d.signedAt, signature: d.signature.slice(0,32)+'…' }, null, 2)+'</pre></details></div>';
     } catch (e) { out.innerHTML = '<p style="color:var(--danger)">Error: '+e.message+'</p>'; }
   });
+  </script>
+</section>`;
+}
+
+function pageCryptoBridge() {
+  return `<section style="padding-top:140px;max-width:1180px">
+  <span class="kicker">Transfer Intelligence · non-custodial</span>
+  <h1 style="font-size:clamp(34px,4.4vw,56px);margin:10px 0 14px">Crypto Bridge <span class="grad">inside ZeusAI</span>.</h1>
+  <p style="color:var(--ink-dim);font-size:16px;line-height:1.7;max-width:980px">Same Unicorn layout, same backend, same 8 intelligence layers (Fee Lock, Smart Bump, Destination Check, Liquidity Unlock, Atomic Swap, MEV Protection, Batch TX, Time-Locked Refund). Non-custodial: we never hold user funds.</p>
+
+  <div class="card" style="padding:18px;margin-top:18px;display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;align-items:center">
+    <div><span class="tag">Live BTC rate</span><h3 id="cbRate" style="margin:8px 0 0">Loading...</h3></div>
+    <a class="btn" href="/api/crypto-bridge/services" target="_blank" rel="noopener">Open services JSON</a>
+  </div>
+
+  <div class="grid" id="cbGrid" style="margin-top:16px;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px"><div class="card">Loading services...</div></div>
+
+  <div class="card" style="padding:22px;margin-top:18px">
+    <span class="tag">Smart Routing</span>
+    <h3 style="margin:10px 0 8px">Best-path calculator</h3>
+    <p style="color:var(--ink-dim);font-size:14px;margin-bottom:14px">Runs the crypto bridge optimizer and returns fee + ETA + recommended path.</p>
+    <form id="cbForm" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px;align-items:end">
+      <div><label style="font-size:12px;color:var(--ink-dim)">Amount USD</label><input id="cbAmount" type="number" min="1" step="0.01" value="250" style="width:100%;padding:10px;background:#0b0f17;border:1px solid #1f2a3b;color:#e7ecf3;border-radius:8px"></div>
+      <div><label style="font-size:12px;color:var(--ink-dim)">Currency</label><select id="cbCurrency" style="width:100%;padding:10px;background:#0b0f17;border:1px solid #1f2a3b;color:#e7ecf3;border-radius:8px"><option>BTC</option><option>ETH</option><option>USDT</option><option>SOL</option></select></div>
+      <div><label style="font-size:12px;color:var(--ink-dim)">Destination address</label><input id="cbAddress" type="text" placeholder="bc1... / 0x..." style="width:100%;padding:10px;background:#0b0f17;border:1px solid #1f2a3b;color:#e7ecf3;border-radius:8px"></div>
+      <button class="btn btn-primary" type="submit">Calculate route →</button>
+    </form>
+    <pre class="code" id="cbOut" style="margin-top:14px;max-height:300px;overflow:auto">Waiting for input...</pre>
+  </div>
+
+  <div class="card" style="padding:22px;margin-top:18px">
+    <span class="tag">My Transfers</span>
+    <h3 style="margin:10px 0 8px">User dashboard history</h3>
+    <p style="color:var(--ink-dim);font-size:14px">If you are logged in, your last bridge transactions appear below.</p>
+    <div id="cbMyTx" style="margin-top:10px;color:var(--ink-dim)">Login required to load personal transfers.</div>
+  </div>
+
+  <script>
+  (async function(){
+    const icons = {
+      'fee-lock':'\ud83d\udd12','smart-bump':'\ud83d\ude80','destination-check':'\u2705','liquidity-unlock':'\ud83d\udca7',
+      'atomic-swap':'\u269b\ufe0f','mev-protection':'\ud83d\udee1\ufe0f','batch-tx':'\ud83d\udce6','time-locked-refund':'\u23f3'
+    };
+    try {
+      const r = await fetch('/api/crypto-bridge/btc-rate', { cache: 'no-store' });
+      const j = await r.json();
+      const rate = Number(j.btcUsd || j.rate || 0);
+      document.getElementById('cbRate').textContent = rate ? ('$' + rate.toLocaleString(undefined,{maximumFractionDigits:2}) + ' · ' + (j.source || 'live')) : 'unavailable';
+    } catch (_) { document.getElementById('cbRate').textContent = 'unavailable'; }
+
+    try {
+      const r = await fetch('/api/crypto-bridge/services', { cache: 'no-store' });
+      const j = await r.json();
+      const arr = Array.isArray(j.services) ? j.services : [];
+      document.getElementById('cbGrid').innerHTML = arr.map((s, i) =>
+        '<div class="card"><span class="tag">Layer ' + (i + 1) + '</span><h3 style="margin:8px 0">' + (icons[s.id] || '⚡') + ' ' + (s.name || s.id) + '</h3><p style="color:var(--ink-dim);font-size:13px">' + (s.description || '—') + '</p><p style="margin-top:8px;font-size:12px;color:#6fd3ff">Fee: ' + (s.feePct != null ? (s.feePct + '%') : 'dynamic') + '</p></div>'
+      ).join('') || '<div class="card">No services returned.</div>';
+    } catch (_) {
+      document.getElementById('cbGrid').innerHTML = '<div class="card">Services unavailable right now.</div>';
+    }
+
+    const form = document.getElementById('cbForm');
+    const out = document.getElementById('cbOut');
+    form.addEventListener('submit', async function(e){
+      e.preventDefault();
+      out.textContent = 'Computing best route...';
+      const payload = {
+        amountUsd: Number(document.getElementById('cbAmount').value) || 0,
+        currency: document.getElementById('cbCurrency').value,
+        destinationAddress: document.getElementById('cbAddress').value
+      };
+      try {
+        const r = await fetch('/api/crypto-bridge/smart-routing', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+        const d = await r.json();
+        out.textContent = JSON.stringify(d, null, 2);
+      } catch (err) {
+        out.textContent = 'Error: ' + (err && err.message ? err.message : err);
+      }
+    });
+
+    try {
+      const token = localStorage.getItem('unicorn_token') || localStorage.getItem('token') || '';
+      if (!token) return;
+      const r = await fetch('/api/crypto-bridge/my-transactions', { headers: { Authorization: 'Bearer ' + token } });
+      if (!r.ok) return;
+      const d = await r.json();
+      const txs = Array.isArray(d.transactions) ? d.transactions : [];
+      if (!txs.length) {
+        document.getElementById('cbMyTx').innerHTML = '<span style="color:var(--ink-dim)">No transfers yet.</span>';
+        return;
+      }
+      document.getElementById('cbMyTx').innerHTML = '<div style="overflow:auto"><table style="width:100%;border-collapse:collapse;font-size:13px"><thead><tr style="background:#0b0f17"><th style="text-align:left;padding:8px">Date</th><th style="text-align:left;padding:8px">Currency</th><th style="text-align:right;padding:8px">Amount</th><th style="text-align:right;padding:8px">Commission</th></tr></thead><tbody>' +
+        txs.map(t => '<tr style="border-top:1px solid #1f2a3b"><td style="padding:8px">' + new Date(t.ts || Date.now()).toLocaleString() + '</td><td style="padding:8px">' + (t.currency || '—') + '</td><td style="padding:8px;text-align:right">$' + (Number(t.amount || 0).toFixed(2)) + '</td><td style="padding:8px;text-align:right">$' + (Number(t.ourCommissionUsd || 0).toFixed(2)) + '</td></tr>').join('') +
+        '</tbody></table></div>';
+    } catch (_) {}
+  })();
   </script>
 </section>`;
 }
@@ -1936,7 +2037,7 @@ function _legalSub(title, body) {
 function routeTitle(route) {
   if (route === '/') return 'Sovereign AI OS';
   if (route.startsWith('/services/')) return 'Service';
-  const map = { '/services':'Marketplace', '/pricing':'Pricing', '/checkout':'Checkout', '/dashboard':'Dashboard', '/how':'How it works', '/docs':'API & Docs', '/about':'About', '/legal':'Legal', '/trust':'Trust Center', '/security':'Security', '/responsible-ai':'Responsible AI', '/dpa':'Data Processing Agreement', '/payment-terms':'Payment Terms', '/operator':'Operator Console', '/observability':'Observability', '/enterprise':'Enterprise Licenses', '/store':'Instant Store', '/account':'Account', '/innovations':'30Y Cryptographic Durability', '/wizard':'Find my plan', '/status':'Live status', '/changelog':'Changelog', '/terms':'Terms of Service', '/privacy':'Privacy Policy', '/refund':'Refund Guarantee', '/sla':'SLA', '/pledge':'Anti-Dark-Pattern Pledge', '/cancel':'Universal Cancel', '/gift':'Gift-as-Capability', '/aura':'Live Conversion Aura', '/api-explorer':'API Explorer', '/transparency':'Pricing Bandit Transparency', '/frontier':'Frontier Inventions' };
+  const map = { '/services':'Marketplace', '/pricing':'Pricing', '/checkout':'Checkout', '/dashboard':'Dashboard', '/how':'How it works', '/docs':'API & Docs', '/about':'About', '/legal':'Legal', '/trust':'Trust Center', '/security':'Security', '/responsible-ai':'Responsible AI', '/dpa':'Data Processing Agreement', '/payment-terms':'Payment Terms', '/operator':'Operator Console', '/observability':'Observability', '/enterprise':'Enterprise Licenses', '/store':'Instant Store', '/account':'Account', '/innovations':'30Y Cryptographic Durability', '/wizard':'Find my plan', '/status':'Live status', '/crypto-fiat-bridge':'Crypto Bridge', '/changelog':'Changelog', '/terms':'Terms of Service', '/privacy':'Privacy Policy', '/refund':'Refund Guarantee', '/sla':'SLA', '/pledge':'Anti-Dark-Pattern Pledge', '/cancel':'Universal Cancel', '/gift':'Gift-as-Capability', '/aura':'Live Conversion Aura', '/api-explorer':'API Explorer', '/transparency':'Pricing Bandit Transparency', '/frontier':'Frontier Inventions' };
   return map[route] || 'ZeusAI';
 }
 
@@ -1964,6 +2065,7 @@ function routeDescription(route) {
     '/innovations': '30-year cryptographic durability, post-quantum readiness and frontier ZeusAI inventions.',
     '/wizard': 'Plan wizard that maps your business goal to the right ZeusAI service, price and delivery path.',
     '/status': 'Live ZeusAI status, uptime, build health and production service checks.',
+    '/crypto-fiat-bridge': 'Crypto Bridge transfer intelligence inside ZeusAI: Fee Lock, Smart Bump, Destination Check, Liquidity Unlock, Atomic Swap, MEV protection, Batch TX, and Time-Locked Refund. Non-custodial, signed fees, instant quotes.',
     '/changelog': 'Latest ZeusAI product changes, frontier releases, security upgrades and commerce improvements.',
     '/terms': 'Terms of Service for ZeusAI, including capability tokens, signed outputs, SLA and refund references.',
     '/privacy': 'Privacy Policy for ZeusAI: minimal data, no resale, no model training on personal data and GDPR rights.',
