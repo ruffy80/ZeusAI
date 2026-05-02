@@ -379,6 +379,7 @@ select.form-inp option{background:#0a0e24;}
     <button class="nav-btn" data-view="pricing" onclick="navigate('pricing')"><span>Pricing</span></button>
     <button class="nav-btn hidden" id="nav-dashboard" data-view="dashboard" onclick="navigate('dashboard')"><span>Dashboard</span></button>
     <button class="nav-btn" data-view="admin" onclick="navigate('admin')" id="nav-admin" style="display:none"><span>Admin</span></button>
+    <button class="nav-btn" data-view="crypto-bridge" onclick="navigate('crypto-bridge')" id="nav-crypto-bridge"><span>⚡ Bridge</span></button>
   </nav>
   <div class="hdr-right">
     <div class="btc-ticker" id="btc-ticker">BTC $—</div>
@@ -570,6 +571,40 @@ select.form-inp option{background:#0a0e24;}
       <span id="pricing-payment-copy">Payments via BTC direct owner wallet. Optional providers appear only when configured.</span> Cancel anytime.
     </div>
   </div><!-- end #view-pricing -->
+
+  <!-- CRYPTO BRIDGE VIEW -->
+  <div id="view-crypto-bridge" class="view">
+    <div class="sec-title">⚡ Transfer Intelligence — Crypto Fiat Bridge</div>
+    <p style="text-align:center;color:#7090b0;font-size:14px;margin-bottom:28px;">Non-custodial P2P crypto transfer suite with 8 intelligent routing layers. Real-time BTC rate, MEV protection, atomic swaps.</p>
+    <!-- BTC Rate ticker -->
+    <div id="cb-rate-bar" style="text-align:center;margin-bottom:24px;font-size:15px;color:#00d4ff;font-weight:700;">BTC Rate: loading…</div>
+    <!-- Smart Routing Form -->
+    <div class="card" style="max-width:520px;margin:0 auto 36px;">
+      <div style="font-size:16px;font-weight:700;margin-bottom:16px;">🔀 Smart Routing — Best Path Calculator</div>
+      <div style="display:grid;gap:12px;">
+        <input id="cb-amount" type="number" min="0" step="0.01" placeholder="Amount (USD)" style="padding:10px 14px;border-radius:8px;border:1px solid #1e3a5a;background:#0a1628;color:#e0f0ff;font-size:14px;" />
+        <select id="cb-currency" style="padding:10px 14px;border-radius:8px;border:1px solid #1e3a5a;background:#0a1628;color:#e0f0ff;font-size:14px;">
+          <option value="BTC">BTC – Bitcoin</option>
+          <option value="ETH">ETH – Ethereum</option>
+          <option value="USDT">USDT – Tether</option>
+          <option value="SOL">SOL – Solana</option>
+        </select>
+        <input id="cb-address" type="text" placeholder="Destination wallet address" style="padding:10px 14px;border-radius:8px;border:1px solid #1e3a5a;background:#0a1628;color:#e0f0ff;font-size:14px;" />
+        <button class="btn btn-primary" onclick="cbSmartRoute()" style="padding:12px;">Calculate Best Route →</button>
+      </div>
+      <div id="cb-route-result" style="margin-top:16px;font-size:13px;color:#7090b0;"></div>
+    </div>
+    <!-- 8 service cards -->
+    <div class="sec-title" style="font-size:18px;margin-bottom:20px;">8 Intelligent Transfer Layers</div>
+    <div class="grid-auto" id="cb-services-grid">
+      <div class="card" style="text-align:center;padding:40px;"><div class="loader"></div></div>
+    </div>
+    <!-- User transactions -->
+    <div id="cb-my-tx-section" style="margin-top:40px;display:none;">
+      <div class="sec-title" style="font-size:18px;margin-bottom:16px;">📋 My Transfers</div>
+      <div id="cb-my-tx-list" style="font-size:13px;"></div>
+    </div>
+  </div><!-- end #view-crypto-bridge -->
 
   <!-- DASHBOARD VIEW -->
   <div id="view-dashboard" class="view">
@@ -1493,12 +1528,13 @@ function navigate(view){
     switchDashTab(STATE.dashTab||'overview');
   }
   else if(view==='admin') initAdmin();
+  else if(view==='crypto-bridge') loadCryptoBridge();
   window.scrollTo(0,0);
 }
 
 function initRouting(){
   var h=(window.location.hash||'').replace('#','').trim();
-  var valid=['home','marketplace','pricing','dashboard','admin'];
+  var valid=['home','marketplace','pricing','dashboard','admin','crypto-bridge'];
   navigate(valid.indexOf(h)>=0?h:'home');
 }
 
