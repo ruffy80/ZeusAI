@@ -201,7 +201,7 @@ function navBar(route, opts) {
   <span class="nav-toggle-bar"></span><span class="nav-toggle-bar"></span><span class="nav-toggle-bar"></span>
 </button>
 <div class="nav-links" id="nav-links">
-${L('/', 'Home')}${L('/services', 'Marketplace')}${L('/wizard', 'Find my plan')}${L('/store', 'Store')}<a href="/account" data-link data-customer-link${route === '/account' ? ' class="active"' : ''}>Account</a>${L('/enterprise', 'Enterprise')}${L('/pricing', 'Pricing')}${L('/innovations', 'Innovations')}${L('/frontier', 'Frontier')}${L('/docs', 'API')}${L('/status', 'Status')}
+${L('/', 'Home')}${L('/services', 'Marketplace')}${L('/wizard', 'Find my plan')}${L('/store', 'Store')}${L('/crypto-fiat-bridge', 'Crypto Bridge')}<a href="/account" data-link data-customer-link${route === '/account' ? ' class="active"' : ''}>Account</a>${L('/enterprise', 'Enterprise')}${L('/pricing', 'Pricing')}${L('/innovations', 'Innovations')}${L('/frontier', 'Frontier')}${L('/docs', 'API')}${L('/status', 'Status')}
 </div>
 <div class="nav-cta">
 ${langToggle}
@@ -1405,6 +1405,28 @@ Content-Type: application/json
 </section>`;
 }
 
+function pageCryptoFiatBridge() {
+  return `<section class="section">
+  <div class="container" style="max-width:980px">
+    <h1 class="h1">Crypto ↔ Fiat Bridge</h1>
+    <p class="lead">Suite non-custodial pentru rutare inteligentă, fee management, verificare destinație și lichiditate. Fără custodie de fonduri.</p>
+    <div class="card" style="padding:20px;margin-top:16px">
+      <h3 style="margin:0 0 10px">Endpoints live</h3>
+      <ul style="margin:0;padding-left:18px;line-height:1.9;color:var(--ink-dim)">
+        <li><code class="inline">GET /api/crypto-bridge/services</code></li>
+        <li><code class="inline">GET /api/crypto-bridge/btc-rate</code></li>
+        <li><code class="inline">POST /api/crypto-bridge/smart-routing</code></li>
+        <li><code class="inline">GET /api/crypto-bridge/health</code></li>
+      </ul>
+      <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:14px">
+        <a class="btn" href="/api/crypto-bridge/health" target="_blank" rel="noopener">API Health</a>
+        <a class="btn btn-primary" href="/api/crypto-bridge/services" target="_blank" rel="noopener">View services</a>
+      </div>
+    </div>
+  </div>
+</section>`;
+}
+
 function renderRoute(route, params = {}) {
   switch (route) {
     case '/': return pageHome();
@@ -1444,6 +1466,8 @@ function renderRoute(route, params = {}) {
     case '/api-explorer': return pageApiExplorer();
     case '/transparency': return pageTransparency();
     case '/frontier': return pageFrontier();
+    case '/crypto-fiat-bridge': return pageCryptoFiatBridge();
+    case '/crypto-bridge': return pageCryptoFiatBridge();
     default:
       if (route.startsWith('/services/')) return pageService(params.id || route.slice(10));
       return pageNotFound(route);

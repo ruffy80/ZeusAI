@@ -6867,13 +6867,18 @@ a{color:#8a5cff;text-decoration:none}
     return res.end(html);
   }
 
+  if (urlPath === '/crypto-bridge') {
+    res.writeHead(302, { Location: '/crypto-fiat-bridge', 'Cache-Control': 'no-store' });
+    return res.end('Redirecting to /crypto-fiat-bridge');
+  }
+
   // Any SPA route → v2 shell
   const v2Routes = [
     '/', '/services', '/pricing', '/checkout', '/dashboard', '/how', '/docs', '/about', '/legal',
     '/trust', '/security', '/responsible-ai', '/dpa', '/payment-terms', '/operator', '/observability',
     '/enterprise', '/store', '/account', '/innovations', '/wizard', '/status', '/changelog',
     '/terms', '/privacy', '/refund', '/sla', '/pledge', '/cancel', '/gift', '/aura',
-    '/api-explorer', '/transparency', '/frontier'
+    '/api-explorer', '/transparency', '/frontier', '/crypto-fiat-bridge'
   ];
   const isV2Route = v2Routes.includes(urlPath) || urlPath.startsWith('/services/');
   if (isV2Route) {
