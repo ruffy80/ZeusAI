@@ -10,13 +10,22 @@ LOG_DIR="$REPO_DIR/logs"
 LOG_FILE="$LOG_DIR/live-sync-hetzner-github.log"
 PID_FILE="$LOG_DIR/live-sync-hetzner-github.pid"
 
-BRANCH="${AUTO_SYNC_BRANCH:-main}"
+CURRENT_BRANCH="$(git -C "$REPO_DIR" branch --show-current 2>/dev/null || true)"
+BRANCH="${AUTO_SYNC_BRANCH:-${CURRENT_BRANCH:-main}}"
 INTERVAL="${AUTO_SYNC_INTERVAL:-3}"
 SYNC_HOST="${AUTO_SYNC_HOST:-zeusai}"
 REMOTE_APP_DIR="${AUTO_SYNC_REMOTE_APP_DIR:-/var/www/unicorn/UNICORN_FINAL}"
 PM2_APPS="${AUTO_SYNC_PM2_APPS:-unicorn-site unicorn-backend}"
 SYNC_SCOPE=(
   "UNICORN_FINAL"
+  ":(exclude)UNICORN_FINAL/data/**"
+  ":(exclude)UNICORN_FINAL/generated/**"
+  ":(exclude)UNICORN_FINAL/logs/**"
+  ":(exclude)UNICORN_FINAL/.vercel/**"
+  ":(exclude)UNICORN_FINAL/.unicorn-backups/**"
+  ":(exclude)UNICORN_FINAL/node_modules/**"
+  ":(exclude)UNICORN_FINAL/.build-sha"
+  ":(exclude)UNICORN_FINAL/client/.ui-build-cache.json"
   "scripts/live-sync-hetzner-github.sh"
   "scripts/start-live-sync-hetzner-github.sh"
   "scripts/stop-live-sync-hetzner-github.sh"
@@ -34,22 +43,23 @@ log() {
 sync_server() {
   local changed="$1"
   log "Deploying UNICORN_FINAL to $SYNC_HOST:$REMOTE_APP_DIR"
-  # 30Y-LTS — write a stable .build-sha file before rsync so the deployed
-  # server (which has no .git tree) can show a real short SHA in
-  # /status, X-Zeus-Build header and the on-page build badge.
+  # 30Y-LTS — stamp a stable .build-sha on the deployed server so runtime
+  # status endpoints can show a real short SHA without dirtying the repo.
   local short_sha
   short_sha="$(git -C "$REPO_DIR" rev-parse --short=12 HEAD 2>/dev/null || echo unknown)"
-  echo "$short_sha" > "$REPO_DIR/UNICORN_FINAL/.build-sha"
   rsync -az --delete \
     --exclude '.git/' \
     --exclude 'node_modules/' \
     --exclude 'logs/' \
     --exclude 'data/' \
+    --exclude 'generated/' \
+    --exclude '.vercel/' \
+    --exclude '.unicorn-backups/' \
     --exclude '.env' \
     --exclude '.env.*' \
     "$REPO_DIR/UNICORN_FINAL/" "$SYNC_HOST:$REMOTE_APP_DIR/" >> "$LOG_FILE" 2>&1
 
-  local remote_cmd="cd '$REMOTE_APP_DIR'"
+  local remote_cmd="cd '$REMOTE_APP_DIR' && mkdir -p logs && printf '%s\n' '$short_sha' > .build-sha"
   if echo "$changed" | grep -Eq '^UNICORN_FINAL/package(-lock)?\.json$'; then
     remote_cmd+=" && npm install --omit=dev >> '$REMOTE_APP_DIR/logs/live-sync-npm.log' 2>&1"
   fi
@@ -79,7 +89,7 @@ while true; do
         sleep "$INTERVAL"
         continue
       fi
-      if ! git rebase "origin/$BRANCH" >> "$LOG_FILE" 2>&1; then
+      if ! git rebase --autostash "origin/$BRANCH" >> "$LOG_FILE" 2>&1; then
         log "Rebase failed; aborting rebase and retrying later"
         git rebase --abort >> "$LOG_FILE" 2>&1 || true
         sleep "$INTERVAL"
