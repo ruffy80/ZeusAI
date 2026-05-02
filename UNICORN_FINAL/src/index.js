@@ -3377,8 +3377,8 @@ async function unicornHandler(req, res) {
   // Pagina e self-contained: fetch live BTC rate la 10s, smart-routing
   // POST către backend, render fiecare card. Nu mută bani — doar info.
   if (urlPath === '/crypto-fiat-bridge' || urlPath === '/crypto-fiat-bridge/') {
-    res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store', 'X-Unicorn-Page': 'crypto-fiat-bridge' });
-    return res.end(renderCryptoFiatBridgePage());
+    res.writeHead(302, { 'Location': '/#crypto-bridge' });
+    return res.end();
   }
 
   if (urlPath === '/innovation/sprint') {
