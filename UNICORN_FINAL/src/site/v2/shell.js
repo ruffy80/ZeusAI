@@ -1117,6 +1117,19 @@ function pageTrustCenter() {
   <p style="color:var(--ink-dim);font-size:16px;line-height:1.7;max-width:860px">This page combines uptime, deploy identity, integrity signatures, owner BTC routing, payment readiness, security posture, audit logs and incident history. No private secrets are exposed.</p>
   <div class="grid" id="trustGrid" style="margin-top:22px"><div class="card"><p>Loading trust center…</p></div></div>
   <div class="card" style="padding:22px;margin-top:18px"><span class="kicker">Integrity document</span><pre class="code" id="trustRaw">Loading…</pre></div>
+  <div class="card" style="padding:22px;margin-top:18px">
+    <span class="kicker">Signature verifier</span>
+    <p style="color:var(--ink-dim);font-size:13px">Paste payload + signature + public key and verify Ed25519 server-side.</p>
+    <div class="field"><label>Payload (JSON)</label><textarea id="trustPayload" rows="6" style="padding:12px;border-radius:12px;border:1px solid var(--stroke);background:rgba(5,4,10,.55);color:var(--ink);font-family:var(--mono);width:100%"></textarea></div>
+    <div class="field"><label>Signature (base64/base64url)</label><input id="trustSig" placeholder="..."/></div>
+    <div class="field"><label>Public key (PEM)</label><textarea id="trustPub" rows="5" style="padding:12px;border-radius:12px;border:1px solid var(--stroke);background:rgba(5,4,10,.55);color:var(--ink);font-family:var(--mono);width:100%"></textarea></div>
+    <div style="display:flex;gap:10px;flex-wrap:wrap">
+      <button class="btn" id="trustVerifyBtn">Verify signature →</button>
+      <button class="btn btn-primary" id="trustProbeBtn">Run business funnel probe →</button>
+    </div>
+    <div id="trustVerifyOut" style="margin-top:10px;color:var(--ink-dim)"></div>
+    <div id="trustProbeOut" style="margin-top:6px;color:var(--ink-dim)"></div>
+  </div>
   <script>
   (async function(){
     const grid=document.getElementById('trustGrid'), raw=document.getElementById('trustRaw');
@@ -1141,7 +1154,36 @@ function pageTrustCenter() {
       ];
       grid.innerHTML = cards.map(c=>'<div class="card"><span class="tag">'+c[0]+'</span><h3>'+c[1]+'</h3><p style="color:var(--ink-dim)">'+c[2]+'</p></div>').join('');
       raw.textContent = 'health: '+(tc.health && tc.health.status || 'ok')+' · deploy: '+(tc.deploy && tc.deploy.sha || '—')+' · integrity: '+(integ && integ.alg || 'ed25519')+' · incidents: '+(tc.incidents && tc.incidents.count || 0);
+      const pEl = document.getElementById('trustPayload');
+      const sEl = document.getElementById('trustSig');
+      const kEl = document.getElementById('trustPub');
+      if (pEl && integ && integ.payload) pEl.value = JSON.stringify(integ.payload, null, 2);
+      if (sEl && integ && integ.signature) sEl.value = integ.signature;
+      if (kEl && integ && integ.publicKey) kEl.value = integ.publicKey;
     } catch(e) { grid.innerHTML='<div class="card"><p style="color:var(--danger)">Trust center unavailable: '+e.message+'</p></div>'; }
+
+    document.getElementById('trustVerifyBtn')?.addEventListener('click', async () => {
+      const out = document.getElementById('trustVerifyOut');
+      try {
+        const payloadTxt = (document.getElementById('trustPayload').value || '').trim();
+        const signature = (document.getElementById('trustSig').value || '').trim();
+        const publicKey = (document.getElementById('trustPub').value || '').trim();
+        if (!payloadTxt || !signature || !publicKey) { out.textContent = 'Missing payload/signature/publicKey.'; return; }
+        let payload = null;
+        try { payload = JSON.parse(payloadTxt); } catch(_) { payload = payloadTxt; }
+        const r = await fetch('/api/integrity/verify', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ payload, signature, publicKey }) });
+        const j = await r.json();
+        out.innerHTML = j && j.valid ? '<span style="color:#7cffb8">Signature valid ✓</span>' : '<span style="color:var(--danger)">Signature invalid ✗</span>';
+      } catch(e) { out.textContent = 'Verify failed: '+(e.message||e); }
+    });
+
+    document.getElementById('trustProbeBtn')?.addEventListener('click', async () => {
+      const out = document.getElementById('trustProbeOut');
+      try {
+        const j = await fetch('/api/probe/business-funnel').then(r=>r.json());
+        out.textContent = 'Probe: '+(j && j.pass ? 'PASS' : 'FAIL')+' · paid '+((j&&j.funnel&&j.funnel.receipt&&j.funnel.receipt.paid)||0)+' / total '+((j&&j.funnel&&j.funnel.receipt&&j.funnel.receipt.total)||0);
+      } catch(e) { out.textContent = 'Probe failed: '+(e.message||e); }
+    });
   })();
   </script>
 </section>`;

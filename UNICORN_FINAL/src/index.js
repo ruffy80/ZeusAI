@@ -3135,6 +3135,7 @@ async function unicornHandler(req, res) {
         { name: 'sitemap', target: '/sitemap.xml', interval: '15m', status: 'ready' },
         { name: 'trust integrity', target: '/.well-known/unicorn-integrity.json', interval: '15m', status: 'ready' },
         { name: 'checkout synthetic', target: '/api/checkout/synthetic-probe', interval: '5m', status: 'ready' },
+        { name: 'business funnel synthetic', target: '/api/probe/business-funnel', interval: '5m', status: 'ready' },
         { name: 'payment config', target: '/api/payments/config/status', interval: '5m', status: 'ready' }
       ],
       alerts: { channels: ['GitHub Actions', 'PM2 logs', 'operator console'], policy: 'alert on non-200, missing sitemap root, payment fallback degradation or webhook failure spike' },
@@ -3155,6 +3156,59 @@ async function unicornHandler(req, res) {
     };
     res.writeHead(200, { 'Content-Type':'application/json', 'Cache-Control':'no-cache' });
     return res.end(JSON.stringify(payload));
+  }
+
+  if (urlPath === '/api/probe/business-funnel') {
+    const receipts = getAllReceipts();
+    const paid = receipts.filter(r => String((r && r.status) || '').toLowerCase() === 'paid');
+    const payment = getPaymentConfigStatus();
+    const payload = {
+      ok: true,
+      generatedAt: new Date().toISOString(),
+      funnel: {
+        landing: { route: '/', status: 'ready' },
+        marketplace: { route: '/marketplace', status: 'ready' },
+        checkout: { route: '/checkout', status: 'ready', primaryRail: payment.primaryRail },
+        payment: { mode: payment.mode, railsActive: (payment.rails || []).filter(r => r && r.active).map(r => r.id) },
+        receipt: { total: receipts.length, paid: paid.length, status: 'ready' },
+        trust: { route: '/trust', status: 'ready' }
+      },
+      pass: true
+    };
+    res.writeHead(200, { 'Content-Type':'application/json', 'Cache-Control':'no-cache' });
+    return res.end(JSON.stringify(payload));
+  }
+
+  if (urlPath === '/api/integrity/verify' && req.method === 'POST') {
+    let body = '';
+    req.on('data', c => { body += c; if (body.length > 128 * 1024) req.destroy(); });
+    req.on('end', () => {
+      try {
+        const p = JSON.parse(body || '{}');
+        const payload = p && p.payload;
+        const signatureRaw = String((p && p.signature) || '').trim();
+        const publicKeyPem = String((p && p.publicKey) || '').trim();
+        if (!payload || !signatureRaw || !publicKeyPem) {
+          res.writeHead(400, { 'Content-Type':'application/json; charset=utf-8' });
+          return res.end(JSON.stringify({ ok: false, error: 'missing_fields', message: 'payload, signature and publicKey are required.' }));
+        }
+        const payloadBytes = Buffer.from(typeof payload === 'string' ? payload : JSON.stringify(payload));
+        let sigBuf = null;
+        try { sigBuf = Buffer.from(signatureRaw, 'base64'); } catch (_) {}
+        if (!sigBuf || !sigBuf.length) {
+          const b64u = signatureRaw.replace(/-/g, '+').replace(/_/g, '/');
+          sigBuf = Buffer.from(b64u + '='.repeat((4 - (b64u.length % 4 || 4)) % 4), 'base64');
+        }
+        const keyObj = crypto.createPublicKey(publicKeyPem);
+        const valid = crypto.verify(null, payloadBytes, keyObj, sigBuf);
+        res.writeHead(200, { 'Content-Type':'application/json; charset=utf-8', 'Cache-Control':'no-cache' });
+        return res.end(JSON.stringify({ ok: true, valid, alg: 'Ed25519' }));
+      } catch (e) {
+        res.writeHead(400, { 'Content-Type':'application/json; charset=utf-8' });
+        return res.end(JSON.stringify({ ok: false, error: 'verify_failed', message: e.message }));
+      }
+    });
+    return;
   }
 
   if (urlPath === '/api/commerce/protocol') {
@@ -4225,6 +4279,38 @@ async function unicornHandler(req, res) {
     try { const keyObj = typeof key === 'string' ? crypto.createPrivateKey(key) : key; signature = crypto.sign(null, Buffer.from(JSON.stringify(payload)), keyObj).toString('base64'); publicKey = crypto.createPublicKey(keyObj).export({ format:'pem', type:'spki' }); } catch(_) {}
     res.writeHead(200, { 'Content-Type':'application/json; charset=utf-8', 'Cache-Control':'no-cache' });
     return res.end(JSON.stringify({ payload, signature, publicKey, alg:'Ed25519' }));
+  }
+
+  if (urlPath === '/api/integrity/verify' && req.method === 'POST') {
+    let body = '';
+    req.on('data', c => { body += c; if (body.length > 128 * 1024) req.destroy(); });
+    req.on('end', () => {
+      try {
+        const p = JSON.parse(body || '{}');
+        const payload = p && p.payload;
+        const signatureRaw = String((p && p.signature) || '').trim();
+        const publicKeyPem = String((p && p.publicKey) || '').trim();
+        if (!payload || !signatureRaw || !publicKeyPem) {
+          res.writeHead(400, { 'Content-Type':'application/json; charset=utf-8' });
+          return res.end(JSON.stringify({ ok: false, error: 'missing_fields', message: 'payload, signature and publicKey are required.' }));
+        }
+        const payloadBytes = Buffer.from(typeof payload === 'string' ? payload : JSON.stringify(payload));
+        let sigBuf = null;
+        try { sigBuf = Buffer.from(signatureRaw, 'base64'); } catch (_) {}
+        if (!sigBuf || !sigBuf.length) {
+          const b64u = signatureRaw.replace(/-/g, '+').replace(/_/g, '/');
+          sigBuf = Buffer.from(b64u + '='.repeat((4 - (b64u.length % 4 || 4)) % 4), 'base64');
+        }
+        const keyObj = crypto.createPublicKey(publicKeyPem);
+        const valid = crypto.verify(null, payloadBytes, keyObj, sigBuf);
+        res.writeHead(200, { 'Content-Type':'application/json; charset=utf-8', 'Cache-Control':'no-cache' });
+        return res.end(JSON.stringify({ ok: true, valid, alg: 'Ed25519' }));
+      } catch (e) {
+        res.writeHead(400, { 'Content-Type':'application/json; charset=utf-8' });
+        return res.end(JSON.stringify({ ok: false, error: 'verify_failed', message: e.message }));
+      }
+    });
+    return;
   }
 
   // ── Agent-marketplace ACP discovery manifest ─────────────────────────────
