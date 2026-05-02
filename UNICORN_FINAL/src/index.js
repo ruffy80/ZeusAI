@@ -2835,7 +2835,16 @@ async function unicornHandler(req, res) {
   const isUaic = !!(uaic && uaic.matches(urlPath)) && urlPath !== '/api/uaic/status';
   const isUse  = !!(USE && USE.matches(urlPath)) && !urlPath.startsWith('/api/user/') && !urlPath.startsWith('/api/ai/');
   const backendUrl = process.env.BACKEND_API_URL;
+  const siteLocalBackendUrl = backendUrl || process.env.SITE_LOCAL_BACKEND_URL || 'http://127.0.0.1:3000';
   const isBackendMoneyMachineApi = urlPath.startsWith('/api/checkout/recovery');
+
+  // Crypto Bridge lives on the backend runtime. In production nginx sends
+  // `/api/*` there automatically, but direct access to the site worker on
+  // port 3001 would otherwise render HTML for GET requests. Always proxy the
+  // bridge APIs so the page works end-to-end in local PM2/two-port topology too.
+  if (urlPath.startsWith('/api/crypto-bridge/')) {
+    return proxyToBackend(req, res, siteLocalBackendUrl);
+  }
 
   // Universal Site Engine: security gate + perf telemetry on every request
   if (USE) { const blocked = USE.observe(req, res, process.hrtime.bigint()); if (blocked) return; }
