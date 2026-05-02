@@ -682,6 +682,21 @@ function carbonForOrder(orderId) {
 // FRONTIER STATUS (single inventory endpoint)
 // ═══════════════════════════════════════════════════════════════════════════
 function frontierStatus() {
+  const inventionsMap = {
+    F1_refundGuarantee: true,
+    F2_liveAura: true,
+    F3_outcomeAnchored: true,
+    F4_selfHealingCheckout: true,
+    F5_timeLockedDiscount: true,
+    F6_sovereignReceiptNft: true,
+    F7_provableEmail: true,
+    F8_giftAsCapability: true,
+    F9_antiDarkPatternPledge: true,
+    F10_universalCancel: true,
+    F11_banditTransparency: true,
+    F12_carbonInclusive: true
+  };
+  const inventions = Object.keys(inventionsMap).filter((k) => inventionsMap[k]);
   return {
     version: '1.0.0',
     publicKeyHex: publicKeyHex(),
@@ -692,20 +707,8 @@ function frontierStatus() {
       newsletter: newsletterStats().subscribers,
       apiKeysActive: apiKeys.keys.filter(k=>!k.revokedAt).length
     },
-    inventions: {
-      F1_refundGuarantee: true,
-      F2_liveAura: true,
-      F3_outcomeAnchored: true,
-      F4_selfHealingCheckout: true,
-      F5_timeLockedDiscount: true,
-      F6_sovereignReceiptNft: true,
-      F7_provableEmail: true,
-      F8_giftAsCapability: true,
-      F9_antiDarkPatternPledge: true,
-      F10_universalCancel: true,
-      F11_banditTransparency: true,
-      F12_carbonInclusive: true
-    },
+    inventions,
+    inventionsMap,
     endpointsAdded: 38,
     signedAt: nowIso(),
     signature: sign({ ts: nowIso() })

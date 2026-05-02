@@ -1411,6 +1411,7 @@ function renderRoute(route, params = {}) {
   switch (route) {
     case '/': html = pageHome(); break;
     case '/services': html = pageServices(); break;
+    case '/marketplace': html = pageServices(); break;
     case '/pricing': html = pagePricing(); break;
     case '/checkout': html = pageCheckout(); break;
     case '/dashboard': html = pageDashboard(); break;
@@ -1899,11 +1900,17 @@ function pageRefund()  { return `<section style="padding-top:140px;max-width:880
   fetch('/api/refund/guarantee').then(r=>r.json()).then(d=>{
     const out = document.getElementById('rfOut');
     if (!out) return;
-    const mode = d && (d.mode || d.status || 'active');
-    const windowH = d && (d.refundWindowHours || d.windowHours || 24);
+    let rules = d && d.rules;
+    if (typeof rules === 'string') { try { rules = JSON.parse(rules); } catch(e) { rules = []; } }
+    if (!Array.isArray(rules)) rules = [];
     const sig = d && d.signature ? String(d.signature).slice(0,18)+'…' : 'n/a';
-    out.textContent = 'Mode: '+mode+'\nRefund window: '+windowH+'h\nSignature: '+sig;
-  }).catch(()=>{});
+    const ruleLines = rules.slice(0,3).map((r,i)=>'  '+(i+1)+'. '+(r.text||r.description||JSON.stringify(r)).slice(0,90)).join('\n');
+    out.textContent = 'Refund Guarantee · Active ✓\n\n'+(ruleLines||'  Auto-refund on breach.')+'\n\nSignature: '+sig;
+  }).catch(()=>{
+    const out = document.getElementById('rfOut');
+    if (!out) return;
+    out.textContent = 'Unable to load refund guarantee right now. Please retry in a few seconds.';
+  });
   </script>
 </section>`; }
 function pageSla() { return `<section style="padding-top:140px;max-width:880px">
@@ -1935,16 +1942,31 @@ function pagePledge() {
   fetch('/api/pledge').then(r=>r.json()).then(d=>{
     const out = document.getElementById('plOut');
     if (!out) return;
-    const principles = Array.isArray(d && d.principles) ? d.principles.slice(0,4) : [];
+    let items = d && (d.commitments || d.principles);
+    if (typeof items === 'string') { try { items = JSON.parse(items); } catch(e) { items = [items]; } }
+    if (!Array.isArray(items)) items = items ? [String(items)] : [];
     const sig = d && d.signature ? String(d.signature).slice(0,18)+'…' : 'n/a';
-    out.textContent = 'Pledge active\nPrinciples: '+(principles.length ? principles.join(' | ') : 'available')+'\nSignature: '+sig;
+    out.textContent = 'Pledge active ✓\n\n'+(items.slice(0,5).map((c,i)=>'  '+(i+1)+'. '+c).join('\n'))+'\n\nSignature: '+sig;
+  }).catch(()=>{
+    const out = document.getElementById('plOut');
+    if (!out) return;
+    out.textContent = 'Unable to load pledge details right now. Please retry in a few seconds.';
   });
   document.getElementById('prBtn').addEventListener('click', async () => {
-    const email = document.getElementById('prEmail').value;
-    const evidence = document.getElementById('prEv').value;
+    const out = document.getElementById('prOut');
+    const email = (document.getElementById('prEmail').value || '').trim();
+    const evidence = (document.getElementById('prEv').value || '').trim();
+    if (!email || !/^\S+@\S+\.\S+$/.test(email)) {
+      out.textContent = 'Please enter a valid email address.';
+      return;
+    }
+    if (!evidence || evidence.length < 12) {
+      out.textContent = 'Please add enough evidence (minimum 12 characters).';
+      return;
+    }
     const r = await fetch('/api/pledge/report', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ email, evidence }) });
     const d = await r.json();
-    document.getElementById('prOut').textContent = d.ok ? 'Recorded · '+d.id : 'Error';
+    out.textContent = d && d.ok ? 'Recorded · '+d.id : (d && (d.error || d.message) ? String(d.error || d.message) : 'Report failed');
   });
   </script>
 </section>`;
@@ -1963,14 +1985,18 @@ function pageCancel() {
   </div>
   <script>
   document.getElementById('cnBtn').addEventListener('click', async () => {
-    const email = document.getElementById('cnEmail').value;
+    const email = (document.getElementById('cnEmail').value || '').trim();
     const reason = document.getElementById('cnReason').value;
+    if (!email || !/^\S+@\S+\.\S+$/.test(email)) {
+      document.getElementById('cnOut').innerHTML = '<b style="color:var(--danger)">Please enter a valid email.</b>';
+      return;
+    }
     const r = await fetch('/api/cancel/universal', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ email, reason }) });
     const d = await r.json();
     const sig = d && d.signature ? String(d.signature).slice(0,22)+'…' : '';
     document.getElementById('cnOut').innerHTML = d.ok
-      ? '<b style="color:#3bffb0">✓ '+d.message+'</b>' + (sig ? '<br><small style="font-family:var(--mono);font-size:11px">sig '+sig+'</small>' : '')
-      : '<b style="color:var(--danger)">Error</b>';
+      ? '<b style="color:#3bffb0">✓ '+(d.message || 'Cancellation accepted')+'</b>' + (sig ? '<br><small style="font-family:var(--mono);font-size:11px">sig '+sig+'</small>' : '')
+      : '<b style="color:var(--danger)">'+(d.error || d.message || 'Request failed')+'</b>';
   });
   </script>
 </section>`;
@@ -1990,18 +2016,68 @@ function pageGift() {
     <button class="btn btn-primary" id="gtBtn" style="width:100%;justify-content:center">Mint signed gift →</button>
     <div id="gtOut" style="margin-top:14px"></div>
   </div>
+  <div class="card" style="padding:24px;margin-top:16px">
+    <h3 style="margin:0 0 10px">Redeem a gift code</h3>
+    <div class="field"><label>Gift code</label><input id="grCode" placeholder="GIFT-XXXXXXXX"></div>
+    <div class="field"><label>Your email</label><input id="grEmail" type="email" placeholder="you@domain.com"></div>
+    <button class="btn" id="grBtn" style="width:100%;justify-content:center">Redeem now →</button>
+    <div id="grOut" style="margin-top:12px;color:var(--ink-dim)"></div>
+  </div>
   <script>
+  (function(){
+    try {
+      const qp = new URLSearchParams(location.search || '');
+      const c = qp.get('c');
+      if (c) {
+        const el = document.getElementById('grCode');
+        if (el) el.value = c;
+      }
+    } catch(_){ }
+  })();
   document.getElementById('gtBtn').addEventListener('click', async () => {
+    const sku = (document.getElementById('gtSku').value || '').trim();
+    const fromEmail = (document.getElementById('gtFrom').value || '').trim();
+    const toEmail = (document.getElementById('gtTo').value || '').trim();
+    if (!sku) {
+      document.getElementById('gtOut').innerHTML = '<b style="color:var(--danger)">Please enter a SKU/service id.</b>';
+      return;
+    }
+    if (fromEmail && !/^\S+@\S+\.\S+$/.test(fromEmail)) {
+      document.getElementById('gtOut').innerHTML = '<b style="color:var(--danger)">From email is invalid.</b>';
+      return;
+    }
+    if (toEmail && !/^\S+@\S+\.\S+$/.test(toEmail)) {
+      document.getElementById('gtOut').innerHTML = '<b style="color:var(--danger)">To email is invalid.</b>';
+      return;
+    }
     const payload = {
-      sku: document.getElementById('gtSku').value,
+      sku,
       valueUsd: Number(document.getElementById('gtVal').value)||0,
-      fromEmail: document.getElementById('gtFrom').value,
-      toEmail: document.getElementById('gtTo').value,
+      fromEmail,
+      toEmail,
       message: document.getElementById('gtMsg').value
     };
     const r = await fetch('/api/gift/mint', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) });
     const d = await r.json();
+    if (!d || !d.code) {
+      document.getElementById('gtOut').innerHTML = '<b style="color:var(--danger)">'+((d && (d.error || d.message)) || 'Mint failed')+'</b>';
+      return;
+    }
     document.getElementById('gtOut').innerHTML = '<div class="card" style="border-color:var(--violet)"><h3>'+d.code+'</h3><p style="color:var(--ink-dim)">Share this URL: <code class="inline">'+location.origin+d.redeemUrl+'</code></p><p style="color:var(--ink-dim);font-size:12px">Signed at '+d.mintedAt+'</p></div>';
+  });
+  document.getElementById('grBtn').addEventListener('click', async () => {
+    const code = (document.getElementById('grCode').value || '').trim();
+    const email = (document.getElementById('grEmail').value || '').trim();
+    if (!code) { document.getElementById('grOut').textContent = 'Enter a gift code.'; return; }
+    if (email && !/^\S+@\S+\.\S+$/.test(email)) { document.getElementById('grOut').textContent = 'Please enter a valid email.'; return; }
+    const r = await fetch('/api/gift/redeem', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ code, email }) });
+    const d = await r.json();
+    if (d && d.ok) {
+      const when = d.redemption && d.redemption.redeemedAt ? d.redemption.redeemedAt : new Date().toISOString();
+      document.getElementById('grOut').innerHTML = '<span style="color:#7cffb8">Redeemed ✓</span> · '+when;
+    } else {
+      document.getElementById('grOut').textContent = (d && (d.error || d.message)) ? String(d.error || d.message) : 'Redeem failed';
+    }
   });
   </script>
 </section>`;
@@ -2090,11 +2166,13 @@ function pageFrontier() {
   fetch('/api/frontier/status').then(r=>r.json()).then(d=>{
     const out = document.getElementById('frOut');
     if (!out) return;
-    const inv = d && (d.inventions || d.items || []);
-    const cnt = Array.isArray(inv) ? inv.length : (inv && typeof inv === 'object' ? Object.keys(inv).filter(k => inv[k]).length : (d && d.count) || 0);
+    const rawInv = d && (d.inventions || d.items || []);
+    const inventions = Array.isArray(rawInv) ? rawInv : (rawInv && typeof rawInv === 'object' ? Object.values(rawInv).filter(Boolean) : []);
+    const cnt = inventions.length || ((d && d.count) || 0);
     const mode = d && (d.mode || d.status || 'active');
     const updated = d && (d.generatedAt || d.updatedAt || new Date().toISOString());
-    out.textContent = 'Frontier status: '+mode+'\nInventions available: '+cnt+'\nUpdated: '+updated;
+    const preview = inventions.slice(0,5).map((x,i)=>'  '+(i+1)+'. '+String(x)).join('\n');
+    out.textContent = 'Frontier status: '+mode+'\nInventions available: '+cnt+'\nUpdated: '+updated+(preview ? '\n\nTop inventions:\n'+preview : '');
   }).catch((e)=>{
     const out = document.getElementById('frOut');
     if (out) out.textContent = 'Frontier status unavailable: '+(e.message||e);
@@ -2141,7 +2219,7 @@ function _legalSub(title, body) {
 function routeTitle(route) {
   if (route === '/') return 'Sovereign AI OS';
   if (route.startsWith('/services/')) return 'Service';
-  const map = { '/services':'Marketplace', '/pricing':'Pricing', '/checkout':'Checkout', '/dashboard':'Dashboard', '/how':'How it works', '/docs':'API & Docs', '/about':'About', '/legal':'Legal', '/trust':'Trust Center', '/security':'Security', '/responsible-ai':'Responsible AI', '/dpa':'Data Processing Agreement', '/payment-terms':'Payment Terms', '/operator':'Operator Console', '/observability':'Observability', '/enterprise':'Enterprise Licenses', '/store':'Instant Store', '/account':'Account', '/innovations':'30Y Cryptographic Durability', '/wizard':'Find my plan', '/status':'Live status', '/crypto-fiat-bridge':'Crypto Bridge', '/crypto-bridge':'Crypto Bridge', '/changelog':'Changelog', '/terms':'Terms of Service', '/privacy':'Privacy Policy', '/refund':'Refund Guarantee', '/sla':'SLA', '/pledge':'Anti-Dark-Pattern Pledge', '/cancel':'Universal Cancel', '/gift':'Gift-as-Capability', '/aura':'Live Conversion Aura', '/api-explorer':'API Explorer', '/transparency':'Pricing Bandit Transparency', '/frontier':'Frontier Inventions' };
+  const map = { '/services':'Marketplace', '/marketplace':'Marketplace', '/pricing':'Pricing', '/checkout':'Checkout', '/dashboard':'Dashboard', '/how':'How it works', '/docs':'API & Docs', '/about':'About', '/legal':'Legal', '/trust':'Trust Center', '/security':'Security', '/responsible-ai':'Responsible AI', '/dpa':'Data Processing Agreement', '/payment-terms':'Payment Terms', '/operator':'Operator Console', '/observability':'Observability', '/enterprise':'Enterprise Licenses', '/store':'Instant Store', '/account':'Account', '/innovations':'30Y Cryptographic Durability', '/wizard':'Find my plan', '/status':'Live status', '/crypto-fiat-bridge':'Crypto Bridge', '/crypto-bridge':'Crypto Bridge', '/changelog':'Changelog', '/terms':'Terms of Service', '/privacy':'Privacy Policy', '/refund':'Refund Guarantee', '/sla':'SLA', '/pledge':'Anti-Dark-Pattern Pledge', '/cancel':'Universal Cancel', '/gift':'Gift-as-Capability', '/aura':'Live Conversion Aura', '/api-explorer':'API Explorer', '/transparency':'Pricing Bandit Transparency', '/frontier':'Frontier Inventions' };
   return map[route] || 'ZeusAI';
 }
 
@@ -2149,6 +2227,7 @@ function routeDescription(route) {
   const map = {
     '/': 'ZeusAI is a sovereign autonomous AI operating system with signed outcomes, BTC-native commerce and self-healing automation.',
     '/services': 'Browse ZeusAI services, frontier inventions and vertical AI operating systems with instant BTC checkout.',
+    '/marketplace': 'Browse ZeusAI services, frontier inventions and vertical AI operating systems with instant BTC checkout.',
     '/pricing': 'Transparent ZeusAI pricing with signed receipts, BTC checkout, refund guarantees and enterprise licensing.',
     '/checkout': 'Create a ZeusAI invoice, pay with BTC or supported rails, and receive signed delivery credentials instantly.',
     '/dashboard': 'Operator dashboard for ZeusAI receipts, services, revenue proof, system health and live commerce telemetry.',
