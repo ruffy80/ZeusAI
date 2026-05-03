@@ -88,6 +88,76 @@ function _liveTierPrice(tierId, fallback) {
   }
   return { price: Number(fallback || 0), demandFactor: 1, surge: false, source: 'static-fallback' };
 }
+// Load the full Unicorn module library autonomously from
+// backend/modules/serviceMarketplace.js. Returns every loaded module as a
+// sellable item enriched with the live AI-negotiated price. Items that are
+// already in the unified catalog (passed via `excludeIds`) are filtered
+// out so the SSR section below the unified catalog shows only the long
+// tail. Returns [] silently if the marketplace module is not loadable in
+// this process (split site/backend mode) — the client-side hydration then
+// fetches `/api/catalog/master` via SSE and fills the section non-stop.
+function _loadFullLibrary(excludeIds) {
+  const exclude = new Set(Array.isArray(excludeIds) ? excludeIds.map(String) : []);
+  let marketplace = null;
+  try { marketplace = require('../../../backend/modules/serviceMarketplace'); } catch (_) {}
+  if (!marketplace || typeof marketplace.getAllServices !== 'function') return [];
+  let dp = null;
+  try { dp = require('../../../backend/modules/dynamic-pricing'); } catch (_) {}
+  const all = [];
+  try {
+    const services = marketplace.getAllServices() || [];
+    for (const s of services) {
+      if (!s || !s.id || exclude.has(String(s.id))) continue;
+      let price = Number(s.price || s.basePrice || 0);
+      let liveSrc = 'marketplace';
+      let demandFactor = null;
+      if (dp && typeof dp.getPrice === 'function') {
+        try {
+          const live = dp.getPrice(s.id);
+          if (live && Number(live.finalPrice) > 0) {
+            price = Number(live.finalPrice);
+            liveSrc = 'dynamic-pricing';
+            demandFactor = live.demandFactor;
+          }
+        } catch (_) { /* keep marketplace price */ }
+      }
+      all.push({
+        id: String(s.id),
+        title: String(s.name || s.id),
+        description: String(s.description || ('Adaptive AI module — ' + (s.category || 'general'))),
+        category: String(s.category || 'general'),
+        priceUSD: price,
+        livePriceSource: liveSrc,
+        demandFactor,
+        autoPublished: true,
+      });
+    }
+  } catch (_) { /* swallow */ }
+  return all;
+}
+function _libraryCard(p) {
+  const id = _esc(p.id || '');
+  const title = _esc(p.title || p.id || 'Service');
+  const desc = _esc(p.description || '');
+  const cat = _esc(p.category || 'general');
+  const price = Number(p.priceUSD || 0);
+  const priceTxt = price > 0 ? ('$' + price.toLocaleString('en-US', { maximumFractionDigits: 2 })) : 'Custom';
+  const liveBadge = p.livePriceSource === 'dynamic-pricing'
+    ? `<span class="tag" title="Live AI-negotiated price${p.demandFactor ? ' · demand=' + Number(p.demandFactor).toFixed(2) : ''}" style="background:rgba(127,255,212,.12);color:#7fffd4;border:1px solid rgba(127,255,212,.35);font-size:10px;margin-left:6px">⚡ live</span>`
+    : '';
+  const autoBadge = p.autoPublished
+    ? `<span class="tag" title="Auto-published from a backend module — appeared on the site without manual work" style="background:rgba(255,211,106,.10);color:#ffd36a;border:1px solid rgba(255,211,106,.30);font-size:10px;margin-left:6px">🤖 auto</span>`
+    : '';
+  return `<article class="card" data-product-id="${id}" data-price-source="${_esc(p.livePriceSource || 'marketplace')}" data-auto-published="${p.autoPublished ? '1' : '0'}" itemscope itemtype="https://schema.org/Product" style="display:flex;flex-direction:column;gap:8px;padding:14px">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px">
+      <span class="tag" style="background:rgba(138,92,255,.12);color:#bda4ff;border:1px solid rgba(138,92,255,.30);font-size:10px">${cat}</span>
+      <span style="font-family:var(--mono);font-size:14px;color:var(--gold)" itemprop="offers" itemscope itemtype="https://schema.org/Offer"><meta itemprop="priceCurrency" content="USD"/><span itemprop="price" data-pricing-value="${id}">${priceTxt}</span>${liveBadge}${autoBadge}</span>
+    </div>
+    <h4 style="margin:2px 0 0;font-size:14px;line-height:1.3" itemprop="name">${title}</h4>
+    <p style="margin:0;color:var(--ink-dim);font-size:12px;line-height:1.4;flex:1" itemprop="description">${desc}</p>
+    <a class="btn btn-ghost" href="/checkout?serviceId=${encodeURIComponent(id)}&plan=${encodeURIComponent(id)}" data-link aria-label="Buy ${title} with Bitcoin" style="font-size:12px;padding:6px 10px">Buy →</a>
+  </article>`;
+}
 function _tierBadge(tier) {
   const t = String(tier || 'professional').toLowerCase();
   const meta = {
@@ -1365,21 +1435,43 @@ function pageStore() {
   catalog.forEach(p => { const t = String(p.tier || 'professional'); if (byTier[t]) byTier[t].push(p); });
   const counts = { instant: byTier.instant.length, professional: byTier.professional.length, enterprise: byTier.enterprise.length };
   const totalUsd = catalog.reduce((s, p) => s + Number(p.priceUSD || p.priceUsd || 0), 0);
+  // Auto-published library: every service.js module loaded by
+  // serviceMarketplace at runtime gets a card here (deduplicated against
+  // the unified catalog above). Grouped by category so a 100+ list stays
+  // navigable. Hydration via the existing services.changed SSE event
+  // re-renders this block whenever a new module appears at runtime.
+  const library = _loadFullLibrary(catalog.map(p => p.id));
+  const libByCat = {};
+  for (const it of library) {
+    const c = String(it.category || 'general');
+    if (!libByCat[c]) libByCat[c] = [];
+    libByCat[c].push(it);
+  }
+  const libCategories = Object.keys(libByCat).sort();
+  const libCount = library.length;
+  const libValue = library.reduce((s, p) => s + Number(p.priceUSD || 0), 0);
+  const renderLibrarySection = (cat, items) => {
+    if (!items.length) return '';
+    const label = cat.charAt(0).toUpperCase() + cat.slice(1);
+    return `<details class="library-cat-block" data-category="${_esc(cat)}" style="margin:0 0 18px"><summary style="cursor:pointer;list-style:none;display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px 14px;border-radius:10px;background:rgba(138,92,255,.06);border:1px solid rgba(138,92,255,.2);font-weight:600;font-size:13px"><span>${_esc(label)} · ${items.length} services</span><span style="color:var(--ink-dim);font-family:var(--mono);font-size:11px">click to expand</span></summary><div class="grid" style="grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:10px;margin-top:10px">${items.map(_libraryCard).join('')}</div></details>`;
+  };
   const renderTierSection = (tier, label, items) => {
     if (!items.length) return '';
     return `<details class="store-tier-block" data-tier="${tier}" open style="margin:0 0 30px"><summary style="cursor:pointer;list-style:none;display:flex;align-items:center;justify-content:space-between;gap:12px;padding:14px 18px;border-radius:12px;background:rgba(138,92,255,.08);border:1px solid rgba(138,92,255,.25);font-weight:600"><span>${_esc(label)} · ${items.length} products</span><span style="color:var(--ink-dim);font-family:var(--mono);font-size:12px">click to collapse</span></summary><div class="grid" style="grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:18px;margin-top:14px">${items.map(_catalogCard).join('')}</div></details>`;
   };
+  const totalSellable = catalog.length + libCount;
+  const totalCatalogueValue = totalUsd + libValue;
   return `<section class="enterprise-hero" style="padding-top:120px">
   <div style="max-width:1280px;margin:0 auto;padding:0 28px">
-    <span class="kicker" style="color:#ffd36a">ZeusAI Store · ${catalog.length} real products across 3 tiers · $${totalUsd.toLocaleString('en-US')} total catalogue value</span>
+    <span class="kicker" style="color:#ffd36a">ZeusAI Store · ${totalSellable} sellable services across the curated catalogue + auto-published Unicorn library · $${totalCatalogueValue.toLocaleString('en-US', { maximumFractionDigits: 0 })} total catalogue value</span>
     <h1 style="font-size:clamp(36px,5vw,64px);line-height:1.04;margin:14px 0 18px;letter-spacing:-0.02em;background:linear-gradient(135deg,#fff 0%,#ffd36a 40%,#8a5cff 100%);-webkit-background-clip:text;background-clip:text;color:transparent">Buy it. Pay with BTC, card or wire. Use it instantly.</h1>
-    <p style="color:var(--ink-dim);font-size:18px;max-width:900px;line-height:1.55">Every service ZeusAI offers — from $29 digital deliverables to enterprise licenses — purchasable directly from this page. Bitcoin on-chain for instant fulfillment, Stripe for cards, SWIFT/SEPA wire for enterprise. Every artifact Ed25519-signed.</p>
+    <p style="color:var(--ink-dim);font-size:18px;max-width:900px;line-height:1.55">Every service ZeusAI offers — from $29 digital deliverables to enterprise licenses, plus every backend module auto-published from the live Unicorn — purchasable directly from this page. Bitcoin on-chain for instant fulfillment, Stripe for cards, SWIFT/SEPA wire for enterprise. Every artifact Ed25519-signed.</p>
 
     <div id="storeStats" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:14px;margin:30px 0 20px">
       <div class="card"><span class="tag">Instant</span><h3 style="margin:6px 0 0;font-size:24px">${counts.instant}</h3></div>
       <div class="card"><span class="tag">Professional</span><h3 style="margin:6px 0 0;font-size:24px">${counts.professional}</h3></div>
       <div class="card"><span class="tag">Enterprise</span><h3 style="margin:6px 0 0;font-size:24px">${counts.enterprise}</h3></div>
-      <div class="card"><span class="tag">Total catalogue</span><h3 style="margin:6px 0 0;font-size:24px">$${totalUsd.toLocaleString('en-US')}</h3></div>
+      <div class="card"><span class="tag" style="background:rgba(255,211,106,.10);color:#ffd36a;border:1px solid rgba(255,211,106,.30)">🤖 Auto-published</span><h3 style="margin:6px 0 0;font-size:24px" data-library-count>${libCount}</h3></div>
     </div>
 
     <div id="storeTabs" style="display:flex;gap:8px;margin:30px 0 10px;flex-wrap:wrap;border-bottom:1px solid rgba(138,92,255,.2);padding-bottom:4px">
@@ -1387,13 +1479,27 @@ function pageStore() {
       <button class="store-tab" data-tier="professional" type="button" style="background:rgba(138,92,255,.1);color:var(--ink);border:0;padding:10px 22px;border-radius:6px 6px 0 0;cursor:pointer;font-weight:600;font-size:14px">💼 Professional SaaS (${counts.professional})</button>
       <button class="store-tab" data-tier="enterprise" type="button" style="background:rgba(138,92,255,.1);color:var(--ink);border:0;padding:10px 22px;border-radius:6px 6px 0 0;cursor:pointer;font-weight:600;font-size:14px">👑 Enterprise Licenses (${counts.enterprise})</button>
     </div>
-    <div id="storeTabNote" style="color:var(--ink-dim);font-size:13px;margin:6px 0 20px">All ${catalog.length} products rendered server-side · live JS hydration refreshes prices.</div>
+    <div id="storeTabNote" style="color:var(--ink-dim);font-size:13px;margin:6px 0 20px">All ${catalog.length} curated products + ${libCount} auto-published library services rendered server-side · live JS hydration refreshes prices via SSE.</div>
 
     <div id="storeGrid" style="margin:20px 0 40px">
       ${renderTierSection('instant', '⚡ Instant deliverables (under 60 seconds)', byTier.instant)}
       ${renderTierSection('professional', '💼 Professional SaaS', byTier.professional)}
       ${renderTierSection('enterprise', '👑 Enterprise licenses', byTier.enterprise)}
     </div>
+
+    ${libCount > 0 ? `<div id="autoLibrary" style="margin:50px 0 80px">
+      <div style="display:flex;align-items:baseline;justify-content:space-between;gap:14px;flex-wrap:wrap;margin-bottom:14px;border-top:1px solid rgba(138,92,255,.2);padding-top:30px">
+        <div>
+          <span class="kicker" style="color:#ffd36a">🤖 Auto-published Unicorn library · live</span>
+          <h2 style="margin:6px 0 0;font-size:28px;line-height:1.2">Every backend module, on sale automatically.</h2>
+        </div>
+        <span style="color:var(--ink-dim);font-size:13px;font-family:var(--mono)" data-library-count-label>${libCount} services · auto-refreshed via SSE 24/7</span>
+      </div>
+      <p style="color:var(--ink-dim);font-size:14px;line-height:1.55;max-width:820px;margin:0 0 20px">Every <code style="font-size:12px;background:rgba(138,92,255,.1);padding:2px 6px;border-radius:4px">backend/modules/*.js</code> file becomes a sellable service the moment it loads. Categories below are derived from each module's domain; prices come live from the AI-negotiated <code style="font-size:12px;background:rgba(127,255,212,.1);padding:2px 6px;border-radius:4px">dynamic-pricing</code> engine. No manual catalogue work — the unicorn announces new services automatically.</p>
+      <div id="autoLibraryGrid">
+        ${libCategories.map(c => renderLibrarySection(c, libByCat[c])).join('')}
+      </div>
+    </div>` : ''}
     <div id="storeCheckout" style="margin:40px 0 80px"></div>
   </div>
 </section>`;

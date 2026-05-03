@@ -2502,6 +2502,47 @@ function _emitUnicornEvent(type, data) {
   for (const client of _unicornEventsClients) client.write(payload);
 }
 
+// Autonomous catalog announcer (24/7).
+//
+// Periodically samples serviceMarketplace.getAllServices() and, when the
+// total count changes (a new backend module was loaded, or one disappeared),
+// broadcasts a services.changed SSE so the site re-hydrates the
+// auto-published library section in pageStore() without a manual reload.
+// This is what makes the unicorn → site channel truly "non-stop": new
+// modules become sellable services on the public site within at most
+// CATALOG_ANNOUNCE_INTERVAL_MS.
+//
+// Disable with CATALOG_ANNOUNCE_DISABLED=1.
+const CATALOG_ANNOUNCE_INTERVAL_MS = Number(process.env.CATALOG_ANNOUNCE_INTERVAL_MS || 5 * 60 * 1000);
+let _lastAnnouncedCatalogCount = -1;
+let _catalogAnnouncerTimer = null;
+function _startAutonomousCatalogAnnouncer() {
+  if (process.env.CATALOG_ANNOUNCE_DISABLED === '1') return;
+  if (_catalogAnnouncerTimer) return; // already started
+  let mp = null;
+  try { mp = require('./modules/serviceMarketplace'); } catch (_) { return; }
+  if (!mp || typeof mp.getAllServices !== 'function') return;
+  const tick = () => {
+    try {
+      const all = mp.getAllServices() || [];
+      const n = all.length;
+      if (n !== _lastAnnouncedCatalogCount) {
+        const delta = _lastAnnouncedCatalogCount === -1 ? n : (n - _lastAnnouncedCatalogCount);
+        _lastAnnouncedCatalogCount = n;
+        // Notify the site so it re-renders /store + /services with the
+        // new auto-published library size. The payload is minimal — the
+        // client refetches via /api/services/list and /api/catalog/master.
+        _emitUnicornEvent('services.changed', { action: 'announce', total: n, delta, source: 'autonomous-announcer' });
+      }
+    } catch (_) { /* swallow — broadcaster is best-effort */ }
+  };
+  // First tick after a small delay (let marketplace finish loadServices()).
+  setTimeout(tick, 5000);
+  _catalogAnnouncerTimer = setInterval(tick, CATALOG_ANNOUNCE_INTERVAL_MS);
+  if (typeof _catalogAnnouncerTimer.unref === 'function') _catalogAnnouncerTimer.unref();
+}
+try { _startAutonomousCatalogAnnouncer(); } catch (_) { /* never fatal */ }
+
 function _timingSafeHexEqual(a, b) {
   try {
     const ba = Buffer.from(String(a || ''), 'hex');
