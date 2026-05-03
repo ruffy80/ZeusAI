@@ -1,6 +1,7 @@
 # Multi-stage Dockerfile for ZEUS AI Unicorn Platform
 # Stage 1: Build React frontend
-FROM node:20-alpine AS frontend-builder
+ARG NODE_IMAGE=node:lts-alpine
+FROM ${NODE_IMAGE} AS frontend-builder
 
 WORKDIR /app/client
 COPY client/package*.json ./
@@ -11,7 +12,7 @@ ENV GENERATE_SOURCEMAP=false
 RUN npm run build
 
 # Stage 2: Production server
-FROM node:20-alpine AS production
+FROM ${NODE_IMAGE} AS production
 
 # Install system dependencies
 RUN apk add --no-cache \
