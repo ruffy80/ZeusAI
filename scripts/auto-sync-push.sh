@@ -1,4 +1,19 @@
 #!/bin/zsh
+# 🛡️ NEUTRALIZED — DO NOT RE-ENABLE
+#
+# This script (auto-commit + push to main from the local Hetzner mirror)
+# was the proven downgrade vector that took the live site offline on
+# 2026-05-03 — see commit 0dacd1c (live-sync: 2026-05-03 00:47:25, -1216
+# lines) and LIVE_BASELINE.md.
+#
+# It is intentionally disabled in-tree.  Re-enabling it would require
+# removing this guard, which the no-downgrade-guard.yml workflow blocks
+# without an [upgrade-approved] commit trailer signed off by a human.
+echo "[$(date '+%Y-%m-%d %H:%M:%S')] auto-sync-push.sh is permanently disabled. See LIVE_BASELINE.md."
+exit 0
+###############################################################################
+# Original implementation kept below for historical reference only.
+###############################################################################
 set -euo pipefail
 
 REPO_DIR="/Users/ionutvladoi/Desktop/generate-unicorn"

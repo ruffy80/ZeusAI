@@ -1,4 +1,7 @@
 #!/bin/zsh
+# 🛡️ NEUTRALIZED — DO NOT RE-ENABLE.  See LIVE_BASELINE.md.
+echo "[$(date '+%Y-%m-%d %H:%M:%S')] start-auto-sync.sh is permanently disabled."
+exit 0
 set -euo pipefail
 
 REPO_DIR="/Users/ionutvladoi/Desktop/generate-unicorn"

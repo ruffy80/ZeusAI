@@ -1,4 +1,14 @@
 #!/bin/zsh
+# 🛡️ NEUTRALIZED — DO NOT RE-ENABLE
+#
+# This daemon (continuous git add/commit/push of whatever the live Hetzner
+# server happened to have on disk) is the proven downgrade vector.  Disabled
+# permanently.  See LIVE_BASELINE.md and scripts/auto-sync-push.sh header.
+echo "[$(date '+%Y-%m-%d %H:%M:%S')] live-sync-hetzner-github.sh is permanently disabled. See LIVE_BASELINE.md."
+exit 0
+###############################################################################
+# Original implementation kept below for historical reference only.
+###############################################################################
 set -euo pipefail
 
 # 30Y-LTS — ensure PATH includes Node/npm/npx so husky pre-commit hooks work

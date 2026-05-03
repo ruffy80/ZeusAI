@@ -118,6 +118,38 @@ jobs:
         with:
           fetch-depth: 0
 
+      # ── No-downgrade pre-flight ──────────────────────────────────────────
+      # HARD GATE: this step must pass or no SSH/rsync ever happens.
+      # The pinned SHA in .github/baselines/live.sha is the last snapshot
+      # confirmed live by both deploy.yml and global-health.yml.  Any HEAD
+      # that is not a strict descendant of that SHA is refused.
+      # See LIVE_BASELINE.md for the full contract.
+      - name: 🛡️ No-downgrade pre-flight (refuse rollback before SSH)
+        run: |
+          set -euo pipefail
+          if [ ! -f .github/baselines/live.sha ]; then
+            echo "::error::.github/baselines/live.sha is missing — refusing to deploy"
+            exit 1
+          fi
+          BASELINE="$(tr -d '[:space:]' < .github/baselines/live.sha)"
+          if [ "${#BASELINE}" -lt 40 ]; then
+            echo "::error::.github/baselines/live.sha is not a full 40-char SHA"
+            exit 1
+          fi
+          if ! git cat-file -e "${BASELINE}^{commit}" 2>/dev/null; then
+            git fetch --no-tags --depth=0 origin "+${BASELINE}:refs/baseline/live" || true
+          fi
+          git cat-file -e "${BASELINE}^{commit}"
+          if [ "${GITHUB_SHA}" = "${BASELINE}" ]; then
+            echo "✅ HEAD == pinned baseline (re-deploy of last-known-good)"
+          elif git merge-base --is-ancestor "${BASELINE}" "${GITHUB_SHA}"; then
+            echo "✅ HEAD ${GITHUB_SHA} is descendant of pinned baseline ${BASELINE}"
+          else
+            echo "::error::HEAD ${GITHUB_SHA} is NOT a descendant of pinned baseline ${BASELINE}"
+            echo "::error::This deploy would be a downgrade.  Refusing to ssh-rsync."
+            exit 1
+          fi
+
       - name: 🟦 Setup Node.js
         uses: actions/setup-node@v4
         with:
