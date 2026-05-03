@@ -22,9 +22,6 @@ function getSiteHtml() {
 <head>
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1"/>
-<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate"/>
-<meta http-equiv="Pragma" content="no-cache"/>
-<meta http-equiv="Expires" content="0"/>
 <title>ZEUS AI — Build. Automate. Scale.</title>
 <link rel="preconnect" href="https://fonts.googleapis.com"/>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
@@ -379,7 +376,6 @@ select.form-inp option{background:#0a0e24;}
   <nav class="hdr-nav">
     <button class="nav-btn active" data-view="home" onclick="navigate('home')"><span>Home</span></button>
     <button class="nav-btn" data-view="marketplace" onclick="navigate('marketplace')"><span>Services</span></button>
-    <button class="nav-btn" data-view="crypto-bridge" onclick="navigate('crypto-bridge')"><span>Crypto Bridge</span></button>
     <button class="nav-btn" data-view="pricing" onclick="navigate('pricing')"><span>Pricing</span></button>
     <button class="nav-btn hidden" id="nav-dashboard" data-view="dashboard" onclick="navigate('dashboard')"><span>Dashboard</span></button>
     <button class="nav-btn" data-view="admin" onclick="navigate('admin')" id="nav-admin" style="display:none"><span>Admin</span></button>
@@ -574,36 +570,6 @@ select.form-inp option{background:#0a0e24;}
       <span id="pricing-payment-copy">Payments via BTC direct owner wallet. Optional providers appear only when configured.</span> Cancel anytime.
     </div>
   </div><!-- end #view-pricing -->
-
-  <!-- CRYPTO BRIDGE VIEW -->
-  <div id="view-crypto-bridge" class="view">
-    <div class="sec-title">Crypto ↔ Fiat Bridge</div>
-    <div class="card card-glow" style="max-width:920px;margin:0 auto;">
-      <p class="muted" style="font-size:14px;line-height:1.6;margin-bottom:14px;">
-        Suite non-custodial pentru rutare inteligentă, optimizare fee și monitorizare de sănătate pentru transferuri crypto.
-      </p>
-      <div class="grid-2" style="margin-bottom:14px;">
-        <div class="card card-sm">
-          <div class="label">Service status</div>
-          <div class="kpi-val" id="cb-health" style="font-size:20px;">Loading...</div>
-        </div>
-        <div class="card card-sm">
-          <div class="label">BTC / USD</div>
-          <div class="kpi-val green" id="cb-rate" style="font-size:20px;">Loading...</div>
-        </div>
-      </div>
-      <ul style="color:#7090b0;line-height:1.8;padding-left:18px;">
-        <li>GET /api/crypto-bridge/services</li>
-        <li>GET /api/crypto-bridge/btc-rate</li>
-        <li>POST /api/crypto-bridge/smart-routing</li>
-        <li>GET /api/crypto-bridge/health</li>
-      </ul>
-      <div style="margin-top:14px;display:flex;gap:10px;flex-wrap:wrap;">
-        <a class="btn btn-outline" href="/api/crypto-bridge/health" target="_blank" rel="noopener">API Health</a>
-        <a class="btn btn-primary" href="/api/crypto-bridge/services" target="_blank" rel="noopener">View Services</a>
-      </div>
-    </div>
-  </div><!-- end #view-crypto-bridge -->
 
   <!-- DASHBOARD VIEW -->
   <div id="view-dashboard" class="view">
@@ -1521,7 +1487,6 @@ function navigate(view){
   });
   window.location.hash=view==='home'?'':view;
   if(view==='marketplace') loadMarketplace();
-  else if(view==='crypto-bridge') loadCryptoBridgeView();
   else if(view==='pricing') loadPricing();
   else if(view==='dashboard'){
     if(!isLoggedIn()){openModal('auth-modal');return;}
@@ -1533,17 +1498,8 @@ function navigate(view){
 
 function initRouting(){
   var h=(window.location.hash||'').replace('#','').trim();
-  var valid=['home','marketplace','crypto-bridge','pricing','dashboard','admin'];
-  if(valid.indexOf(h)>=0){
-    navigate(h);
-    return;
-  }
-  var p=(window.location.pathname||'/').replace(/\/+$/,'')||'/';
-  if(p==='/crypto-fiat-bridge' || p==='/crypto-bridge'){
-    navigate('crypto-bridge');
-    return;
-  }
-  navigate('home');
+  var valid=['home','marketplace','pricing','dashboard','admin'];
+  navigate(valid.indexOf(h)>=0?h:'home');
 }
 
 // ================================================================
@@ -1756,24 +1712,6 @@ async function calcRoi(){
 // ================================================================
 var allCategories=[];
 var activeCategory='all';
-
-async function loadCryptoBridgeView(){
-  try{
-    var h=await fetch('/api/crypto-bridge/health').then(function(r){return r.json();}).catch(function(){return null;});
-    var healthLabel=(h&&h.ok)?'ONLINE':'DEGRADED';
-    setElText('cb-health',healthLabel);
-  }catch(_){
-    setElText('cb-health','OFFLINE');
-  }
-
-  try{
-    var rate=await fetch('/api/crypto-bridge/btc-rate').then(function(r){return r.json();}).catch(function(){return null;});
-    var usd=(rate&&(rate.usd||rate.rate))?Number(rate.usd||rate.rate):0;
-    setElText('cb-rate',usd>0?('$'+usd.toLocaleString('en-US',{maximumFractionDigits:0})):'N/A');
-  }catch(_){
-    setElText('cb-rate','N/A');
-  }
-}
 
 async function loadMarketplace(){
   var grid=document.getElementById('svc-grid');

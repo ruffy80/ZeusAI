@@ -297,62 +297,6 @@ function openStream(){
     es = resilientES(esPath, { onmessage: onMsg, onerror: onErr });
   } catch(_){}
 }
-
-// Live pricing channel (additive, non-blocking).
-//
-// Subscribes to the backend's live-pricing-broker SSE stream. On every
-// snapshot update we refresh the price text inside any element with
-// `data-pricing-value="<id>"` — these are emitted by the SSR catalogue
-// cards (shell.js) and by the /pricing tier cards. When the stream is
-// unavailable (broker disabled, or 404), we silently fall back to the
-// existing per-card polling via fetchLivePricing(); nothing else breaks.
-let pricingES = null;
-function openPricingStream(){
-  try { if (pricingES) pricingES.close(); } catch(_) {}
-  function applyPricingSnapshot(snap){
-    if (!snap || !Array.isArray(snap.items)) return;
-    let updated = 0;
-    for (const it of snap.items) {
-      if (!it || !it.id) continue;
-      const usd = Number(it.priceUsd != null ? it.priceUsd : it.price_usd);
-      if (!Number.isFinite(usd) || usd <= 0) continue;
-      const sel = '[data-pricing-value="' + (window.CSS && CSS.escape ? CSS.escape(it.id) : it.id) + '"]';
-      const nodes = document.querySelectorAll(sel);
-      nodes.forEach(function(node){
-        // Preserve any trailing <small>/mo</small> label by replacing only
-        // the leading "$N…" text token, not the whole innerHTML.
-        const formatted = '$' + usd.toLocaleString('en-US', { maximumFractionDigits: 2 });
-        if (node.tagName === 'SPAN' || node.children.length === 0) {
-          node.textContent = formatted;
-        } else {
-          // For .price containers that include <small>/mo</small>, set the
-          // first text node only.
-          const firstText = Array.prototype.find.call(node.childNodes, function(n){ return n.nodeType === 3; });
-          if (firstText) firstText.nodeValue = formatted; else node.textContent = formatted;
-        }
-        updated++;
-      });
-    }
-    if (updated > 0) {
-      try { window.dispatchEvent(new CustomEvent('unicorn:pricing-updated', { detail: { count: updated, ts: snap.ts || Date.now() } })); } catch(_) {}
-    }
-  }
-  try {
-    pricingES = resilientES('/api/pricing/live/stream', {
-      onmessage: function(ev){
-        try {
-          const data = JSON.parse(ev.data);
-          // The broker emits either { snapshot: {...} } or the raw snapshot
-          // depending on version; handle both shapes defensively.
-          applyPricingSnapshot(data && data.items ? data : (data && data.snapshot));
-        } catch(_) {}
-      },
-      onerror: function(){ /* resilientES handles backoff; if endpoint is
-        truly absent (LIVE_PRICING_DISABLED=1), the per-card polling path
-        still keeps prices fresh, so we do not surface a user-facing error. */ }
-    }, { heartbeatMs: 90000 });
-  } catch(_) {}
-}
 function applySnapshot(s){
   if (!s) return;
   const set = (id, v) => { const el = document.getElementById(id); if (el && v!=null) el.textContent = v; };
@@ -1782,10 +1726,9 @@ async function hydrateMasterCatalog(){
       const g = String((p && p.group) || '').toLowerCase();
       const t = String((p && p.tier) || '').toLowerCase();
       if (g === 'instant' || t === 'instant') return 'instant';
-      if (g === 'enterprise' || t === 'enterprise' || t === 'industry' || t === 'sovereign' || t === 'strategic' || g === 'industry') return 'enterprise';
-      if (g === 'professional' || t === 'professional' || t === 'pro' || t === 'business') return 'professional';
-      // Anything else (legacy marketplace/etc.) collapses to professional so the
-      // 3-tier site contract holds even if a non-canonical record slips through.
+      if (g === 'enterprise' || t === 'enterprise' || t === 'industry') return 'enterprise';
+      if (g === 'professional' || t === 'professional') return 'professional';
+      if (g === 'marketplace' || t === 'marketplace') return 'marketplace';
       return 'professional';
     };
     const items = products.map(function(p){
@@ -1805,7 +1748,7 @@ async function hydrateMasterCatalog(){
       acc.total += 1;
       acc[it.group] = (acc[it.group] || 0) + 1;
       return acc;
-    }, { total: 0, instant: 0, professional: 0, enterprise: 0 });
+    }, { total: 0, instant: 0, professional: 0, enterprise: 0, marketplace: 0 });
     cat = { items, counts, btcSpot, summary: j && j.summary ? j.summary : null };
   } catch(_){ cat = null; }
   if (!cat || !Array.isArray(cat.items)) {
@@ -1816,19 +1759,23 @@ async function hydrateMasterCatalog(){
   }
   STATE.masterCatalog = cat;
   if (spotEl && cat.btcSpot) spotEl.textContent = '1 BTC = $' + Number(cat.btcSpot.usdPerBtc).toLocaleString() + ' · live';
-  if (counts) counts.textContent = cat.counts.total + ' real services · ' + (cat.counts.instant || 0) + ' instant · ' + (cat.counts.professional || 0) + ' professional · ' + (cat.counts.enterprise || 0) + ' enterprise';
-  // Catalogue contract: exactly 3 tiers (instant / professional / enterprise),
-  // capped at 25 products. Filter chips reflect that contract — no
-  // marketplace / industry / strategic / frontier groups any more.
+  if (counts) counts.textContent = cat.counts.total + ' real services · ' + (cat.counts.instant || 0) + ' instant · ' + (cat.counts.professional || 0) + ' professional · ' + (cat.counts.enterprise || 0) + ' enterprise · ' + (cat.counts.marketplace || 0) + ' modules';
+  // Auto-extend chip filters to cover every group present in the live catalog
+  // (Activation, Auto-Discovered, Future R&D, etc.) without removing the
+  // existing 5 chips defined in shell.js. Idempotent on hydrate.
   if (filters) {
-    const groupLabel = { instant: 'Instant', professional: 'Professional', enterprise: 'Enterprise' };
-    const allowed = ['instant', 'professional', 'enterprise'];
-    const present = allowed.filter(function(g){ return cat.items.some(function(it){ return it && it.group === g; }); });
+    const groupLabel = {
+      instant:'Instant', professional:'Professional', enterprise:'Enterprise', marketplace:'AI Modules', industry:'Industry',
+      strategic:'Strategic', frontier:'Frontier', vertical:'Vertical OS',
+      'unicorn-auto-module':'Auto-Discovered', 'billion-scale-activation':'Activation',
+      'billion-scale-package':'Strategic Packages', 'future-invention':'Future R&D'
+    };
+    const present = Array.from(new Set(cat.items.map(function(it){ return it && it.group; }).filter(Boolean)));
     filters.innerHTML = '<button class="chip on" data-group="all">All</button>';
     present.forEach(function(g){
       const b = document.createElement('button');
       b.className = 'chip'; b.dataset.group = g;
-      b.textContent = groupLabel[g];
+      b.textContent = groupLabel[g] || g.replace(/-/g, ' ');
       filters.appendChild(b);
     });
   }
@@ -3313,7 +3260,6 @@ window.addEventListener('DOMContentLoaded', () => {
   document.addEventListener('change', e => { if (e.target && e.target.id === 'coEmail' && e.target.value) { try { localStorage.setItem('u_email', e.target.value); } catch(_){} } });
   refreshCustomerNav();
   openStream();
-  openPricingStream();
   subscribeAutonomousEvents();
   hydratePage(STATE.route);
 });

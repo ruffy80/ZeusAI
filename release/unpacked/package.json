@@ -1,0 +1,36 @@
+{
+  "name": "unicorn-final",
+  "version": "1.0.0",
+  "private": true,
+  "dependencies": {
+    "@octokit/rest": "^20.1.2",
+    "axios": "^1.15.0",
+    "bcryptjs": "^2.4.3",
+    "chokidar": "^3.5.3",
+    "compression": "^1.7.4",
+    "cors": "^2.8.5",
+    "dotenv": "^16.0.3",
+    "express": "^4.18.2",
+    "jsonwebtoken": "^9.0.0",
+    "libsodium-wrappers": "^0.7.16",
+    "node-cron": "^3.0.3",
+    "simple-git": "^3.14.0",
+    "ssh2": "^1.17.0"
+  },
+  "scripts": {
+    "start": "node backend/index.js",
+    "test": "node test/health.test.js",
+    "lint": "node --check backend/index.js && node --check src/index.js",
+    "lint:all": "node --check backend/index.js && node --check src/index.js",
+    "innovation:add": "node add_innovations.js",
+    "innovation:sprint": "node -e \"const ai = require('./backend/modules/autonomousInnovation'); console.log('[SPRINT]', JSON.stringify(ai.getStatus()));\"",
+    "innovation:report": "node -e \"const ai = require('./backend/modules/autonomousInnovation'); const m = ai.getDeploymentMetrics(); console.log('[REPORT] innovations:', m.totalInnovationsGenerated, '| deployed:', m.totalFeaturesDeployed, '| rate:', m.deploymentSuccessRate + '%');\"",
+    "orchestrator:start": "node autonomous-orchestrator.js",
+    "deploy:local": "bash deploy_locally.sh",
+    "deploy:full": "node deploy-unicorn.js",
+    "deploy:run": "bash run.sh",
+    "hetzner:setup": "node scripts/setup-hetzner-auto.js",
+    "zip:github": "mkdir -p ../release && zip -r ../release/unicorn-github-deploy.zip . -x '.git/*' 'node_modules/*' 'logs/*' '.next/*' '.env' '.vercel/*'",
+    "unzip:github": "mkdir -p ../release/unpacked && unzip -o ../release/unicorn-github-deploy.zip -d ../release/unpacked"
+  }
+}

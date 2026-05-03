@@ -6,23 +6,24 @@
 // - `generate_unicorn_final_clean.js` is kept only as a compatibility wrapper
 //   and delegates execution to this file.
 //
-// DEPLOYMENT TARGET (singular, exclusive):
-//   GitHub (source of truth) → Hetzner (runtime: PM2 cluster behind nginx).
-//   No other provider is supported. Historical third-party deploy
-//   connector scripts have been removed.
+// NEW: Complete deployment automation included!
+// 
+// After generation, you have 3 setup options:
+// 
+// 1. AUTOMATIC SETUP (Recommended)
+//    $ bash setup-platform-auto-connect.sh
+//    → Sets up GitHub, Vercel, and Hetzner automatically
+//    → Requires: GitHub token, Vercel token, Hetzner SSH access
 //
-// Setup options after generation:
-//
-// 1. HETZNER SETUP
+// 2. HETZNER ONLY SETUP (If you already have GitHub/Vercel)
 //    $ node setup_hetzner.js
 //    → Interactive setup for Hetzner server
 //    → Installs Docker, Node.js, sets up services, webhooks
 //    → Requires: SSH access to Hetzner
 //
-// 2. CI/CD (recommended for ongoing deploys)
-//    → Configure HETZNER_* secrets in GitHub repo settings
-//    → Pushes to main trigger .github/workflows/deploy.yml
-//      which SSH/rsyncs to the Hetzner host and reloads PM2.
+// 3. MANUAL SETUP
+//    → See GITHUB-VERCEL-HETZNER-CONNECTOR.md
+//    → Use individual classes from github-vercel-hetzner-connector.js
 //
 // ADDING 3 REVOLUTIONARY INNOVATIONS:
 //    $ node add_innovations.js
@@ -32,8 +33,11 @@
 //    → Creates new modules in UNICORN_FINAL/src/modules/
 //
 // Documentation:
-//    - SETUP-HETZNER-GUIDE.md - Complete Hetzner guide
+//    - IMPLEMENTATION-GUIDE.md - Start here!
+//    - GITHUB-VERCEL-HETZNER-CONNECTOR.md - Complete API reference
 //    - setup_hetzner.js - Interactive Hetzner configuration
+//    - setup-platform-auto-connect.sh - Full automation script
+//    - SETUP-HETZNER-GUIDE.md - Complete Hetzner guide
 //    - add_innovations.js - Add revolutionary features
 
 /*
@@ -397,7 +401,7 @@ class AutoDeployOrchestratorUltra {
     }
   }
 
-  // ---------- Webhook paralel pentru Hetzner ----------
+  // ---------- Webhook paralel pentru Hetzner, Vercel, etc. ----------
   async triggerAllWebhooks() {
     const results = {};
     if (process.env.HETZNER_WEBHOOK_URL) {
@@ -4194,7 +4198,7 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v2
       - name: Trigger Hetzner deploy
         run: curl -X POST http://\${{ secrets.HETZNER_HOST }}:3001/webhook/update -H "X-Webhook-Secret: \${{ secrets.HETZNER_WEBHOOK_SECRET }}"
 `);
@@ -4228,7 +4232,7 @@ Acest proiect conține cod real pentru toate modulele și site-ul futurist, incl
 - Peste 200 de module backend (AdaptiveModule01–82, Engine1–62, și alte module specializate)
 - Module speciale: evolution-core, quantum-healing, universal-adaptor, quantum-pay, site-creator, ab-testing, seo-optimizer, analytics, content-ai, auto-marketing, performance-monitor, unicorn-realization-engine, unicorn-execution-engine, auto-trend-analyzer, self-adaptation-engine, predictive-healing, code-optimizer, self-documenter, ui-evolution, security-scanner, disaster-recovery, swarm-intelligence, auto-deploy, total-system-healer, dynamic-pricing, universal-interchain-nexus, autonomous-wealth-engine, autonomous-bd-engine, self-construction-engine
 - Frontend React futurist cu ZEUS 3D, Codex, Dashboard, pagini industrii, Wealth Engine și panouri administrative
-- Auto-deploy pe GitHub și Hetzner
+- Auto-deploy pe GitHub, Vercel, Hetzner
 - Self‑Construction Engine care la prima pornire completează și îmbunătățește automat orice modul incomplet
 
 ## Instalare rapidă
@@ -4438,8 +4442,17 @@ function createStructure() {
     { from: 'INNOVATIONS-GUIDE.md', to: 'INNOVATIONS-GUIDE.md' },
     { from: 'INNOVATIONS-INTEGRATION-SUMMARY.md', to: 'INNOVATIONS-INTEGRATION-SUMMARY.md' },
     { from: 'INNOVATIONS-QUICK-START.sh', to: 'INNOVATIONS-QUICK-START.sh' },
+    { from: 'github-vercel-hetzner-connector.js', to: 'github-vercel-hetzner-connector.js' },
     { from: 'setup_hetzner.js', to: 'setup_hetzner.js' },
+    { from: 'setup-platform-auto-connect.sh', to: 'setup-platform-auto-connect.sh' },
+    { from: 'verify-platform-setup.sh', to: 'verify-platform-setup.sh' },
+    { from: '.env.auto-connector.example', to: '.env.auto-connector.example' },
+    { from: 'GITHUB-VERCEL-HETZNER-CONNECTOR.md', to: 'GITHUB-VERCEL-HETZNER-CONNECTOR.md' },
+    { from: 'README-AUTO-CONNECTOR.md', to: 'README-AUTO-CONNECTOR.md' },
+    { from: 'IMPLEMENTATION-GUIDE.md', to: 'IMPLEMENTATION-GUIDE.md' },
     { from: 'SETUP-HETZNER-GUIDE.md', to: 'SETUP-HETZNER-GUIDE.md' },
+    { from: 'START-HERE.md', to: 'START-HERE.md' },
+    { from: 'QUICK-REFERENCE.sh', to: 'QUICK-REFERENCE.sh' },
     { from: 'scripts', to: 'scripts' },
     { from: '.github/workflows', to: '.github/workflows' }
   ];
@@ -13183,8 +13196,8 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
-      - uses: actions/setup-node@v5
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
         with:
           node-version: '20'
       - run: npm ci || npm install

@@ -1,0 +1,105 @@
+const fs = require('fs');
+const simpleGit = require('simple-git');
+const path = require('path');
+const chokidar = require('chokidar');
+const dotenv = require('dotenv');
+
+class AutoDeploy {
+  constructor() {
+    this.loadCredentialEnvFiles();
+  }
+
+  loadCredentialEnvFiles() {
+    const rootPath = path.join(__dirname, '..', '..');
+    const envCandidates = [
+      path.join(rootPath, '.env'),
+      path.join(rootPath, '.env.auto-connector'),
+      path.join(rootPath, '..', '.env'),
+      path.join(rootPath, '..', '.env.auto-connector')
+    ];
+
+    for (const filePath of envCandidates) {
+      if (fs.existsSync(filePath)) {
+        dotenv.config({ path: filePath, override: false });
+      }
+    }
+  }
+
+  getAuthenticatedRemoteUrl() {
+    const remoteUrl = process.env.GIT_REMOTE_URL || '';
+    const token = process.env.GITHUB_TOKEN || '';
+
+    if (!remoteUrl || !token) return remoteUrl;
+    if (!remoteUrl.includes('github.com') || remoteUrl.includes('@')) return remoteUrl;
+
+    return remoteUrl.replace('https://', `https://x-access-token:${encodeURIComponent(token)}@`);
+  }
+
+  start() {
+    const git = simpleGit(path.join(__dirname, '..'));
+    let timeout = null;
+
+    console.log('📡 Auto‑Deploy activ – monitorizez modificări...');
+
+    const watcher = chokidar.watch(
+      [
+        path.join(__dirname, '../'),
+        path.join(__dirname, '../../client/src')
+      ],
+      {
+        ignored: /(node_modules|\.git|client\/build|backups|logs|\.env)/,
+        persistent: true,
+        ignoreInitial: true
+      }
+    );
+
+    watcher.on('all', async (event, filePath) => {
+      if (timeout) clearTimeout(timeout);
+      timeout = setTimeout(async () => {
+        console.log(`📝 Modificare detectată: ${filePath}`);
+        console.log('🔄 Auto‑deploy în curs...');
+
+        try {
+          const status = await git.status();
+          if (status.files.length > 0 || status.not_added.length > 0) {
+            await git.add('.');
+            await git.commit('Auto‑deploy: ' + new Date().toISOString());
+            await git.push();
+            console.log('✅ Push realizat pe GitHub. Webhook-ul va actualiza Hetzner.');
+          } else {
+            console.log('ℹ️ Nicio modificare de commitat.');
+          }
+        } catch (err) {
+          console.error('❌ Eroare auto‑deploy:', err.message);
+        }
+      }, 2000);
+    });
+
+    // Verifică și inițializează repo dacă nu există
+    this.ensureRepo(git);
+  }
+
+  async ensureRepo(git) {
+    const gitDir = path.join(__dirname, '../../.git');
+    if (!fs.existsSync(gitDir)) {
+      console.log('📁 Inițializare repository git...');
+      await git.init();
+      const remoteUrl = this.getAuthenticatedRemoteUrl();
+      if (remoteUrl) {
+        await git.addRemote('origin', remoteUrl);
+        console.log('🔗 Remote adăugat pentru auto‑deploy.');
+      }
+    } else {
+      const remoteUrl = this.getAuthenticatedRemoteUrl();
+      if (remoteUrl) {
+        try {
+          await git.remote(['set-url', 'origin', remoteUrl]);
+        } catch {
+          // keep existing remote
+        }
+      }
+    }
+  }
+}
+
+module.exports = new AutoDeploy();

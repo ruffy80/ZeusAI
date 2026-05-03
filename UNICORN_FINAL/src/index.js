@@ -1222,19 +1222,11 @@ async function buildMasterCatalog() {
     description: s.description || ('Sovereign service: ' + (s.title || s.id)),
     segment: s.segment || s.category || 'all'
   }));
-  // Auto-publish ALL marketplace modules (no cap). serviceMarketplace
-  // discovers ~185 modules from backend/modules/*.js at boot and refreshes
-  // every 60s, so removing the slice() here makes every current AND future
-  // module become a sellable item on the site automatically. The previous
-  // slice(0, 30) was a UI-throttle from when /api/catalog/master fed a
-  // single hero strip; the site now has a dedicated "Full Unicorn Library"
-  // section in pageStore() that renders the long tail.
-  const marketplace = Array.isArray(sources.marketplace) ? sources.marketplace.map(m => ({
+  const marketplace = Array.isArray(sources.marketplace) ? sources.marketplace.slice(0, 30).map(m => ({
     id: m.id, title: m.title || m.name || m.id, group: 'marketplace',
     priceUsd: Number(m.price || m.basePrice || 0), kpi: m.kpi || m.category || 'module',
     description: m.description || 'Adaptive AI module — dynamic-priced, BTC settled.',
-    segment: m.category || 'modules',
-    autoPublished: true
+    segment: m.category || 'modules'
   })) : [];
   const frontierItems = frontier ? FRONTIER_DELIVERABLES.map(x => ({ ...x, segment: 'frontier' })) : [];
   const verticals = VERTICAL_OS_DELIVERABLES.map(x => ({ ...x, segment: 'enterprise' }));
@@ -1383,52 +1375,6 @@ function getServicePrice(serviceId, pricingMap) {
   if (pricing.price != null) return clampUsdPrice(pricing.price, { serviceId, field: 'price' });
   if (pricing.basePrice != null) return clampUsdPrice(pricing.basePrice, { serviceId, field: 'basePrice' });
   return null;
-}
-
-// Convert the canonical 25-product / 3-tier `unifiedCatalog` into the "service"
-// shape used by /api/services and /api/services/list (and consumed by Pricing /
-// Services / Store pages). This guarantees those pages always render the full
-// catalogue — never an empty stub — even when the backend snapshot has not yet
-// synced.
-function unifiedCatalogToServices() {
-  if (!unifiedCatalog || typeof unifiedCatalog.publicView !== 'function') return [];
-  let products = [];
-  try { products = unifiedCatalog.publicView() || []; } catch (_) { products = []; }
-  return products.map((p) => {
-    const priceUSD = Number(p.priceUSD || p.priceUsd || p.price || 0);
-    const billing = p.tier === 'instant' ? 'one-time'
-      : (p.tier === 'enterprise' ? (p.billing || 'project') : (p.billing || 'one-time'));
-    return {
-      id: p.id,
-      title: p.title || p.id,
-      description: p.description || '',
-      tier: p.tier,
-      segment: p.tier,
-      group: p.group || p.tier,
-      price: priceUSD,
-      priceUsd: priceUSD,
-      priceUSD,
-      currency: p.currency || 'USD',
-      billing,
-      kpi: p.deliverable || (p.tier + ' delivery')
-    };
-  });
-}
-
-// Merge backend-supplied services into the canonical 25-item catalogue, keeping
-// the catalogue's order and dropping any backend duplicates. Caps at the
-// catalogue's MAX_PRODUCTS so the contract holds across all listing endpoints.
-function mergeBackendServicesIntoCatalogue(baseServices, runtimeServices) {
-  const list = Array.isArray(baseServices) ? baseServices.slice() : [];
-  const cap = (unifiedCatalog && unifiedCatalog.MAX_PRODUCTS) ? unifiedCatalog.MAX_PRODUCTS : 25;
-  const seen = new Set(list.map((s) => s && s.id).filter(Boolean));
-  for (const r of (runtimeServices || [])) {
-    if (list.length >= cap) break;
-    if (!r || !r.id || seen.has(r.id)) continue;
-    list.push(r);
-    seen.add(r.id);
-  }
-  return list.slice(0, cap);
 }
 
 async function enrichServicesWithLivePricing(services) {
@@ -4152,24 +4098,16 @@ async function unicornHandler(req, res) {
     }, null, 2));
   }
 
-  // Unified service catalogue for the v2 site.
-  // Source-of-truth is the canonical 25-product / 3-tier `unifiedCatalog`.
-  // We additionally enrich with backend-supplied live pricing when available,
-  // but never exceed the 25-product / 3-tier contract — so /services and
-  // /pricing pages always render the full catalogue, never a stub.
+  // Unified service catalogue for the v2 site (marketplace + verticals → service objects)
   if (urlPath === '/api/services/list') {
     if (process.env.BACKEND_API_URL) await refreshBackendRuntimeState(true).catch((error) => logTransactionEvent('pricing_sync_failed', { error: error && error.message }));
     const snapshot = buildSnapshot();
-    const baseServices = unifiedCatalogToServices();
-    const merged = mergeBackendServicesIntoCatalogue(baseServices, snapshot.services || []);
-    const services = await enrichServicesWithLivePricing(merged);
+    const services = await enrichServicesWithLivePricing(snapshot.services || []);
     res.writeHead(200, { 'Content-Type':'application/json', 'Cache-Control':'no-store' });
     return res.end(JSON.stringify({ updatedAt: new Date().toISOString(), source: 'zeusai', sourceLegacy: 'unicorn', sync: snapshot.source, services }));
   }
   if (urlPath === '/api/services') {
-    const baseServices = unifiedCatalogToServices();
-    const runtimeServices = getRuntimeDataSources().services || [];
-    const services = mergeBackendServicesIntoCatalogue(baseServices, runtimeServices);
+    const services = getRuntimeDataSources().services;
     res.writeHead(200, { 'Content-Type':'application/json' });
     return res.end(JSON.stringify({ updatedAt: new Date().toISOString(), services }));
   }
@@ -7001,18 +6939,13 @@ a{color:#8a5cff;text-decoration:none}
     return res.end(html);
   }
 
-  if (urlPath === '/crypto-bridge') {
-    res.writeHead(302, { Location: '/crypto-fiat-bridge', 'Cache-Control': 'no-store' });
-    return res.end('Redirecting to /crypto-fiat-bridge');
-  }
-
   // Any SPA route → v2 shell
   const v2Routes = [
     '/', '/services', '/pricing', '/checkout', '/dashboard', '/how', '/docs', '/about', '/legal',
     '/trust', '/security', '/responsible-ai', '/dpa', '/payment-terms', '/operator', '/observability',
     '/enterprise', '/store', '/account', '/innovations', '/wizard', '/status', '/changelog',
     '/terms', '/privacy', '/refund', '/sla', '/pledge', '/cancel', '/gift', '/aura',
-    '/api-explorer', '/transparency', '/frontier', '/crypto-fiat-bridge'
+    '/api-explorer', '/transparency', '/frontier'
   ];
   const isV2Route = v2Routes.includes(urlPath) || urlPath.startsWith('/services/');
   if (isV2Route) {
@@ -7024,8 +6957,8 @@ a{color:#8a5cff;text-decoration:none}
     //   1) Explicit user override via `lang` cookie wins (set when the visitor
     //      taps the small "English / Auto" toggle button).
     //   2) Otherwise auto-detect from the visitor's country (CDN/proxy geo
-    //      headers — Cloudflare `cf-ipcountry`, nginx geoip `x-country`).
-    //      Country → language map covers ~80
+    //      headers — Cloudflare `cf-ipcountry`, nginx geoip `x-country`,
+    //      Vercel/Netlify variants). Country → language map covers ~80
     //      jurisdictions; the entire site is then auto-translated client-side
     //      into that language via the embedded Google Translate widget.
     //   3) Fall back to the browser Accept-Language header.
@@ -7039,6 +6972,7 @@ a{color:#8a5cff;text-decoration:none}
       req.headers['cf-ipcountry']
       || req.headers['x-country']
       || req.headers['x-geo-country']
+      || req.headers['x-vercel-ip-country']
       || req.headers['x-appengine-country']
       || ''
     ).toUpperCase();
