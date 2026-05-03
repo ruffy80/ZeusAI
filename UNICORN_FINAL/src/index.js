@@ -1222,11 +1222,19 @@ async function buildMasterCatalog() {
     description: s.description || ('Sovereign service: ' + (s.title || s.id)),
     segment: s.segment || s.category || 'all'
   }));
-  const marketplace = Array.isArray(sources.marketplace) ? sources.marketplace.slice(0, 30).map(m => ({
+  // Auto-publish ALL marketplace modules (no cap). serviceMarketplace
+  // discovers ~185 modules from backend/modules/*.js at boot and refreshes
+  // every 60s, so removing the slice() here makes every current AND future
+  // module become a sellable item on the site automatically. The previous
+  // slice(0, 30) was a UI-throttle from when /api/catalog/master fed a
+  // single hero strip; the site now has a dedicated "Full Unicorn Library"
+  // section in pageStore() that renders the long tail.
+  const marketplace = Array.isArray(sources.marketplace) ? sources.marketplace.map(m => ({
     id: m.id, title: m.title || m.name || m.id, group: 'marketplace',
     priceUsd: Number(m.price || m.basePrice || 0), kpi: m.kpi || m.category || 'module',
     description: m.description || 'Adaptive AI module — dynamic-priced, BTC settled.',
-    segment: m.category || 'modules'
+    segment: m.category || 'modules',
+    autoPublished: true
   })) : [];
   const frontierItems = frontier ? FRONTIER_DELIVERABLES.map(x => ({ ...x, segment: 'frontier' })) : [];
   const verticals = VERTICAL_OS_DELIVERABLES.map(x => ({ ...x, segment: 'enterprise' }));

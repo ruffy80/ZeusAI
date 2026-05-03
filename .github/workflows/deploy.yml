@@ -230,7 +230,6 @@ jobs:
             --exclude='UNICORN_FINAL/logs' \
             --exclude='UNICORN_FINAL/.archive' \
             --exclude='UNICORN_FINAL/.unicorn-backups' \
-            --exclude='UNICORN_FINAL/.vercel' \
             --exclude='UNICORN_FINAL/generated' \
             --exclude='UNICORN_FINAL/public' \
             --exclude='UNICORN_FINAL/*.log' \
@@ -869,3 +868,34 @@ jobs:
             process.exit(1);
           })();
           NODE
+
+      - name: 🛒 Storefront SSR gate (blocking · fails deploy on empty site)
+        # Final blocking gate: confirms the live HTML on /services actually
+        # contains the SSR product cards. Catches the specific regression
+        # where deploy succeeds but the site renders only "Loading…" stubs.
+        # No auto-rollback — operators trigger diagnose-and-repair.yml
+        # manually if this fails.
+        run: |
+          set -uo pipefail
+          MIN_CARDS=10
+          MAX_ATTEMPTS=6
+          RETRY_S=5
+          for attempt in $(seq 1 $MAX_ATTEMPTS); do
+            # Single curl call — capture HTTP status header + body together.
+            RESP=$(curl -sk -m 15 -H 'Cache-Control: no-cache' -H 'Pragma: no-cache' \
+              -w '\n___HTTP_STATUS___%{http_code}' https://zeusai.pro/services 2>/dev/null || true)
+            STATUS=$(printf '%s' "$RESP" | awk -F'___HTTP_STATUS___' 'END{print $2}')
+            HTML=$(printf '%s' "$RESP" | sed 's/___HTTP_STATUS___[0-9]*$//')
+            CARDS=$(printf '%s' "$HTML" | grep -oE 'data-product-id="[^"]+"' | sort -u | wc -l | tr -d ' ')
+            HAS_LOADING_ONLY=$(printf '%s' "$HTML" | grep -ciE 'Loading every Unicorn deliverable|Loading modules from Unicorn live feed' || true)
+            echo "attempt=$attempt status=$STATUS ssr_product_cards=$CARDS loading_only_stubs=$HAS_LOADING_ONLY"
+            if [ "$STATUS" = "200" ] && [ "$CARDS" -ge "$MIN_CARDS" ] && [ "$HAS_LOADING_ONLY" = "0" ]; then
+              echo "✅ Storefront SSR gate passed: $CARDS products rendered server-side on /services"
+              exit 0
+            fi
+            [ $attempt -lt $MAX_ATTEMPTS ] && sleep $RETRY_S
+          done
+          echo "❌ Storefront SSR gate FAILED — /services HTML is missing real product cards."
+          echo "   Expected ≥ $MIN_CARDS data-product-id attributes; got $CARDS."
+          echo "   Run the diagnose-and-repair workflow to inspect PM2/nginx state on Hetzner."
+          exit 1
