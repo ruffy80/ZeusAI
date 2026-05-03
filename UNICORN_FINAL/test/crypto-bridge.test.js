@@ -5,6 +5,15 @@
 
 const assert = require('assert');
 const express = require('express');
+
+// Hermetic test: cryptoBridge captures ADMIN_SECRET / OPERATOR_TOKEN at
+// module-load time (see backend/modules/cryptoBridge/index.js:48). In CI the
+// deploy workflow exports ADMIN_SECRET at job level, which would otherwise
+// flip /admin/revenue to 401 and break the assertion at line ~109. Clear the
+// env vars BEFORE require() so the in-process module sees "no secret".
+delete process.env.ADMIN_SECRET;
+delete process.env.OPERATOR_TOKEN;
+
 const cb = require('../backend/modules/cryptoBridge');
 
 async function run() {
