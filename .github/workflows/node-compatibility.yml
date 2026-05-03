@@ -1,0 +1,76 @@
+name: 🧪 Node Compatibility Matrix
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - 'UNICORN_FINAL/src/**'
+      - 'UNICORN_FINAL/backend/**'
+      - 'UNICORN_FINAL/client/**'
+      - 'UNICORN_FINAL/scripts/**'
+      - 'UNICORN_FINAL/package.json'
+      - 'UNICORN_FINAL/package-lock.json'
+      - 'UNICORN_FINAL/ecosystem.config.js'
+      - 'package.json'
+      - 'Dockerfile'
+      - 'UNICORN_FINAL/Dockerfile'
+      - '.nvmrc'
+      - 'UNICORN_FINAL/.nvmrc'
+      - '.github/workflows/node-compatibility.yml'
+  push:
+    branches: [ "main" ]
+    paths:
+      - 'UNICORN_FINAL/src/**'
+      - 'UNICORN_FINAL/backend/**'
+      - 'UNICORN_FINAL/client/**'
+      - 'UNICORN_FINAL/scripts/**'
+      - 'UNICORN_FINAL/package.json'
+      - 'UNICORN_FINAL/package-lock.json'
+      - 'UNICORN_FINAL/ecosystem.config.js'
+      - 'package.json'
+      - 'Dockerfile'
+      - 'UNICORN_FINAL/Dockerfile'
+      - '.nvmrc'
+      - 'UNICORN_FINAL/.nvmrc'
+      - '.github/workflows/node-compatibility.yml'
+
+jobs:
+  compat:
+    name: Node ${{ matrix.node }} compatibility
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [20, 22, 24]
+
+    steps:
+      - name: 📥 Checkout
+        uses: actions/checkout@v4
+
+      - name: 🟦 Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+          cache: npm
+          cache-dependency-path: |
+            UNICORN_FINAL/package-lock.json
+            UNICORN_FINAL/client/package-lock.json
+
+      - name: 📦 Install backend deps
+        working-directory: ./UNICORN_FINAL
+        run: npm ci
+
+      - name: 🔍 Lint backend + site
+        working-directory: ./UNICORN_FINAL
+        run: npm run lint
+
+      - name: 🧪 Run tests
+        working-directory: ./UNICORN_FINAL
+        run: npm test --if-present
+
+      - name: 🏗️ Build frontend
+        working-directory: ./UNICORN_FINAL/client
+        run: |
+          npm ci
+          CI=false npm run build

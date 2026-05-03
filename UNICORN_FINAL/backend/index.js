@@ -1298,6 +1298,7 @@ const logMonitor           = require('./modules/log-monitor');
 const resourceMonitor      = require('./modules/resource-monitor');
 const errorPatternDetector = require('./modules/error-pattern-detector');
 const recoveryEngine       = require('./modules/recovery-engine');
+const authGuardian         = require('./modules/auth-guardian');
 const uiAutoBuilder        = require('./modules/ui-auto-builder');
 
 // ==================== MULTI-TENANT SAAS PLATFORM ====================
@@ -1365,6 +1366,7 @@ const MODULE_REGISTRY = {
   healthDaemon: [
     'unicorn-health-daemon',
     'unicorn-health-guardian',
+    'auth-guardian',
     'totalSystemHealer',
     'self-healing-engine',
     'ai-self-healing',
@@ -1682,6 +1684,10 @@ if (_isPrimaryWorker) {
   // Componenta AI Self-Healing — monitorizare și auto-reparare provideri AI + module
   if (!_stableRuntime) {
     aiSelfHealing.init();
+  }
+  // Auth Guardian — ALWAYS ON in production profile (independent of mutation/full mode)
+  if (process.env.NODE_ENV !== 'test') {
+    authGuardian.start();
   }
   // Componenta 3 — Auto-Innovation Loop (analiză cod + PR automate + CI monitoring)
   if (!_stableRuntime && _enableFileMutators) {
@@ -2630,6 +2636,62 @@ app.get('/api/storefront', async (req, res) => {
   payload.integrityHash = _storefrontHash({ generatedAt, items });
   res.set('Cache-Control', 'public, max-age=20, stale-while-revalidate=60');
   res.json(payload);
+});
+
+// Additive alias — /api/instant/catalog. The site SSR client
+// (src/site/v2/client.js `hydrateMasterCatalog` and `hydrateStore`) calls
+// this endpoint to populate the master marketplace grid + the "X real
+// services · X instant · X professional · X enterprise · X modules" counts.
+// Nginx routes /api/* to this backend (port 3000), so without this alias
+// the page kept showing "0 real services · 0 instant · …" indefinitely.
+//
+// Tries the unified-catalog from src/commerce first (full instant +
+// enterprise + runtime catalogue). Falls back to mapping `_unicornServices`
+// when the unified module is unavailable, so the UI is never empty.
+// RO+EN: aliasul publică catalogul real (instant + enterprise + runtime)
+// în forma `{ products, summary }` cerută de hydrateMasterCatalog.
+let _unifiedCatalogModule = null;
+try { _unifiedCatalogModule = require('../src/commerce/unified-catalog'); }
+catch (_) { _unifiedCatalogModule = null; }
+
+app.get('/api/instant/catalog', async (req, res) => {
+  const tier = String(req.query.tier || '').trim();
+  let products = [];
+  let summary = null;
+  if (_unifiedCatalogModule && typeof _unifiedCatalogModule.publicView === 'function') {
+    try {
+      products = _unifiedCatalogModule.publicView() || [];
+      if (tier && Array.isArray(products)) products = products.filter(p => (p.tier || 'instant') === tier);
+      if (typeof _unifiedCatalogModule.summarize === 'function') {
+        try { summary = _unifiedCatalogModule.summarize(); } catch (_) { summary = null; }
+      }
+    } catch (_) { products = []; }
+  }
+  if (!Array.isArray(products) || products.length === 0) {
+    // Fallback: build a minimal catalogue from the in-memory _unicornServices
+    // so the site UI always has something to render. The shape matches what
+    // the unified catalog would emit (id/title/description/tier/priceUSD).
+    products = (_unicornServices || []).map((s) => ({
+      id: s.id,
+      title: s.title,
+      description: s.description || '',
+      tier: 'professional',
+      group: 'professional',
+      priceUSD: Number(s.price || 0),
+      currency: s.currency || 'USD',
+      deliverable: s.kpi || 'service delivery'
+    }));
+    if (tier) products = products.filter(p => p.tier === tier);
+    summary = summary || {
+      generatedAt: new Date().toISOString(),
+      products: products.length,
+      totalListedValueUSD: Number(products.reduce((a, p) => a + Number(p.priceUSD || 0), 0).toFixed(2)),
+      byTier: products.reduce((acc, p) => { acc[p.tier] = (acc[p.tier] || 0) + 1; return acc; }, {}),
+      byGroup: products.reduce((acc, p) => { acc[p.group] = (acc[p.group] || 0) + 1; return acc; }, {})
+    };
+  }
+  res.set('Cache-Control', 'public, max-age=20, stale-while-revalidate=60');
+  res.json({ products, summary });
 });
 
 // Allow new services to be registered live (in-memory) — fires SSE event so
@@ -5029,6 +5091,32 @@ app.get('/api/btc/rate', async (req, res) => {
     res.json(await paymentGateway.getBitcoinRate());
   } catch (err) {
     res.status(500).json({ error: err.message });
+  }
+});
+
+// Additive alias — /api/btc/spot. The site SSR client (src/site/v2/client.js
+// `hydrateMasterCatalog`) expects a payload with `usdPerBtc` so the
+// "live rate loading…" placeholder in the marketplace hero can be replaced
+// with a real BTC quote. Nginx routes /api/* to this backend (port 3000),
+// so without this alias the site silently kept the placeholder forever.
+// RO+EN: aliasul publică prețul BTC live în forma cerută de UI (`usdPerBtc`)
+// astfel încât hero-ul "Pay any service direct in BTC" să arate cotația reală.
+app.get('/api/btc/spot', async (req, res) => {
+  try {
+    const r = await paymentGateway.getBitcoinRate();
+    const usdPerBtc = Number(r && r.rate) || 0;
+    res.set('Cache-Control', 'public, max-age=60');
+    res.json({
+      usdPerBtc,
+      rate: usdPerBtc,
+      usd: usdPerBtc,
+      fetchedAt: r && r.updatedAt ? r.updatedAt : new Date().toISOString(),
+      source: r && r.source ? r.source : 'paymentGateway',
+      btcAddress: ADMIN_OWNER_BTC,
+      owner: ADMIN_OWNER_NAME
+    });
+  } catch (err) {
+    res.status(503).json({ error: 'spot_unavailable', detail: err.message });
   }
 });
 
@@ -8054,6 +8142,15 @@ app.post('/api/auto-restart/run', adminTokenMiddleware, async (req, res) => {
   catch (e) { res.status(500).json({ error: e.message }); }
 });
 
+// ── Auth Guardian ─────────────────────────────────────────────────────────────
+app.get('/api/auth-guardian/status', adminTokenMiddleware, (req, res) => {
+  res.json(authGuardian.getStatus());
+});
+app.post('/api/auth-guardian/run', adminTokenMiddleware, async (req, res) => {
+  try { res.json(await authGuardian.run(req.body || {})); }
+  catch (e) { res.status(500).json({ error: e.message }); }
+});
+
 // ── Auto-Optimize ─────────────────────────────────────────────────────────────
 app.get('/api/auto-optimize/status', adminTokenMiddleware, (req, res) => {
   res.json(autoOptimize.getStatus());
@@ -8311,6 +8408,24 @@ if (fs.existsSync(clientBuildPath)) {
     }
   }));
 }
+
+// ==================== CRYPTO TRANSFER INTELLIGENCE SUITE ====================
+// 8 servicii non-custodial care optimizează tranzacții crypto fără a deține
+// fonduri. Endpoints: /api/crypto-bridge/* Must be mounted BEFORE the SPA
+// catch-all below, otherwise local backend requests to `/api/crypto-bridge/*`
+// fall through to `client/build/index.html`.
+try {
+  const cryptoBridge = require('./modules/cryptoBridge');
+  cryptoBridge.mount(app);
+  console.log('🪙 Crypto Bridge Suite: ACTIVE (8 servicii non-custodial · fee invoice → ' + cryptoBridge.OWNER_BTC + ')');
+} catch (e) {
+  console.warn('[crypto-bridge] failed to mount:', e && e.message);
+}
+
+// Legacy alias -> canonical route (kept in backend runtime too)
+app.get('/crypto-bridge', (req, res) => {
+  return res.redirect(302, '/crypto-fiat-bridge');
+});
 
 app.get('/{*path}', (req, res) => {
   if (fs.existsSync(clientIndexPath)) {

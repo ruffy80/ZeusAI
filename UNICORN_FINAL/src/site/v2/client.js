@@ -1726,9 +1726,10 @@ async function hydrateMasterCatalog(){
       const g = String((p && p.group) || '').toLowerCase();
       const t = String((p && p.tier) || '').toLowerCase();
       if (g === 'instant' || t === 'instant') return 'instant';
-      if (g === 'enterprise' || t === 'enterprise' || t === 'industry') return 'enterprise';
-      if (g === 'professional' || t === 'professional') return 'professional';
-      if (g === 'marketplace' || t === 'marketplace') return 'marketplace';
+      if (g === 'enterprise' || t === 'enterprise' || t === 'industry' || t === 'sovereign' || t === 'strategic' || g === 'industry') return 'enterprise';
+      if (g === 'professional' || t === 'professional' || t === 'pro' || t === 'business') return 'professional';
+      // Anything else (legacy marketplace/etc.) collapses to professional so the
+      // 3-tier site contract holds even if a non-canonical record slips through.
       return 'professional';
     };
     const items = products.map(function(p){
@@ -1748,7 +1749,7 @@ async function hydrateMasterCatalog(){
       acc.total += 1;
       acc[it.group] = (acc[it.group] || 0) + 1;
       return acc;
-    }, { total: 0, instant: 0, professional: 0, enterprise: 0, marketplace: 0 });
+    }, { total: 0, instant: 0, professional: 0, enterprise: 0 });
     cat = { items, counts, btcSpot, summary: j && j.summary ? j.summary : null };
   } catch(_){ cat = null; }
   if (!cat || !Array.isArray(cat.items)) {
@@ -1759,23 +1760,19 @@ async function hydrateMasterCatalog(){
   }
   STATE.masterCatalog = cat;
   if (spotEl && cat.btcSpot) spotEl.textContent = '1 BTC = $' + Number(cat.btcSpot.usdPerBtc).toLocaleString() + ' · live';
-  if (counts) counts.textContent = cat.counts.total + ' real services · ' + (cat.counts.instant || 0) + ' instant · ' + (cat.counts.professional || 0) + ' professional · ' + (cat.counts.enterprise || 0) + ' enterprise · ' + (cat.counts.marketplace || 0) + ' modules';
-  // Auto-extend chip filters to cover every group present in the live catalog
-  // (Activation, Auto-Discovered, Future R&D, etc.) without removing the
-  // existing 5 chips defined in shell.js. Idempotent on hydrate.
+  if (counts) counts.textContent = cat.counts.total + ' real services · ' + (cat.counts.instant || 0) + ' instant · ' + (cat.counts.professional || 0) + ' professional · ' + (cat.counts.enterprise || 0) + ' enterprise';
+  // Catalogue contract: exactly 3 tiers (instant / professional / enterprise),
+  // capped at 25 products. Filter chips reflect that contract — no
+  // marketplace / industry / strategic / frontier groups any more.
   if (filters) {
-    const groupLabel = {
-      instant:'Instant', professional:'Professional', enterprise:'Enterprise', marketplace:'AI Modules', industry:'Industry',
-      strategic:'Strategic', frontier:'Frontier', vertical:'Vertical OS',
-      'unicorn-auto-module':'Auto-Discovered', 'billion-scale-activation':'Activation',
-      'billion-scale-package':'Strategic Packages', 'future-invention':'Future R&D'
-    };
-    const present = Array.from(new Set(cat.items.map(function(it){ return it && it.group; }).filter(Boolean)));
+    const groupLabel = { instant: 'Instant', professional: 'Professional', enterprise: 'Enterprise' };
+    const allowed = ['instant', 'professional', 'enterprise'];
+    const present = allowed.filter(function(g){ return cat.items.some(function(it){ return it && it.group === g; }); });
     filters.innerHTML = '<button class="chip on" data-group="all">All</button>';
     present.forEach(function(g){
       const b = document.createElement('button');
       b.className = 'chip'; b.dataset.group = g;
-      b.textContent = groupLabel[g] || g.replace(/-/g, ' ');
+      b.textContent = groupLabel[g];
       filters.appendChild(b);
     });
   }

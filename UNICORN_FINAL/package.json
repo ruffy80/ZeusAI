@@ -2,6 +2,10 @@
   "name": "unicorn-final",
   "version": "1.2.2",
   "private": true,
+  "engines": {
+    "node": ">=20 <26",
+    "npm": ">=10"
+  },
   "dependencies": {
     "@aws-sdk/client-cloudwatch": "^3.1040.0",
     "@aws-sdk/client-ec2": "^3.1040.0",
@@ -48,7 +52,7 @@
     "stop:pm2": "pm2 stop unicorn",
     "restart:pm2": "pm2 restart unicorn",
     "secrets:push": "node scripts/setup-github-secrets.js",
-    "test": "node test/health.test.js && node test/api.test.js && node test/api-aliases.test.js && node test/auth-persistence.test.js && node test/site-commerce-smoke.test.js && node test/zac.test.js && node test/btc.test.js && node test/innovations-50y.test.js && node test/improvements-pack.test.js && node test/marketing-innovations.test.js && node test/secret-leak-scan.test.js && node test/commerce-stack.test.js && node test/commerce-stage567.test.js && node test/polish-pack.test.js && node test/site-stability-guard.test.js && node test/billion-scale-modules.test.js && node test/topology.test.js && node test/site-auth-e2e.test.js && node test/enterprise-ready.test.js && node test/cloud-providers.test.js && node test/disaster-recovery-local.test.js && node test/password-reset-email.test.js",
+    "test": "node test/health.test.js && node test/api.test.js && node test/api-aliases.test.js && node test/auth-persistence.test.js && node test/site-commerce-smoke.test.js && node test/zac.test.js && node test/btc.test.js && node test/innovations-50y.test.js && node test/improvements-pack.test.js && node test/marketing-innovations.test.js && node test/secret-leak-scan.test.js && node test/commerce-stack.test.js && node test/commerce-stage567.test.js && node test/polish-pack.test.js && node test/site-stability-guard.test.js && node test/billion-scale-modules.test.js && node test/topology.test.js && node test/site-auth-e2e.test.js && node test/enterprise-ready.test.js && node test/cloud-providers.test.js && node test/disaster-recovery-local.test.js && node test/password-reset-email.test.js && node test/crypto-bridge.test.js",
     "test:50y": "node test/innovations-50y.test.js",
     "test:improvements-pack": "node test/improvements-pack.test.js",
     "test:marketing": "node test/marketing-innovations.test.js",
@@ -67,7 +71,7 @@
     "lint:fix": "eslint --fix backend/**/*.js src/**/*.js",
     "lint:syntax": "node --check backend/index.js && node --check src/index.js",
     "lint:all": "node --check backend/index.js && node --check src/index.js",
-    "prepare": "cd .. && git config core.hooksPath .husky && echo 'husky hooks configured'",
+    "prepare": "sh -c 'cd .. && if [ -d .git ]; then git config core.hooksPath .husky && echo \"husky hooks configured\"; else echo \"husky skipped (no .git)\"; fi'",
     "innovation:add": "node add_innovations.js",
     "innovation:sprint": "node -e \"const ai = require('./backend/modules/autonomousInnovation'); console.log('[SPRINT]', JSON.stringify(ai.getStatus())); if (typeof ai.stopInnovationCycle === 'function') ai.stopInnovationCycle(); process.exit(0);\"",
     "innovation:report": "node -e \"const ai = require('./backend/modules/autonomousInnovation'); const m = ai.getDeploymentMetrics(); console.log('[REPORT] innovations:', m.totalInnovationsGenerated, '| deployed:', m.totalFeaturesDeployed, '| rate:', m.deploymentSuccessRate + '%'); if (typeof ai.stopInnovationCycle === 'function') ai.stopInnovationCycle(); process.exit(0);\"",
