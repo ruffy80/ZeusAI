@@ -16,6 +16,58 @@ const OWNER = {
 // Languages with first-class UI translations + a default sitewide fallback.
 const HREFLANGS = ['en', 'ro', 'es'];
 
+// ── SSR catalogue helpers ───────────────────────────────────────────────
+// The previous build rendered all marketplace/pricing/store pages purely
+// client-side — when JS was slow or disabled, users saw "Loading…" stubs
+// instead of real products. These helpers SSR the canonical 25-product
+// unified catalogue (10 instant + 8 professional + 7 enterprise) directly
+// into the HTML so the site is *always* a working storefront on first paint.
+// Live JS hydration still runs on top to refresh prices.
+function _esc(s) {
+  return String(s == null ? '' : s)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
+function _loadCatalog() {
+  try {
+    const u = require('../../commerce/unified-catalog');
+    const all = (typeof u.all === 'function') ? u.all() : [];
+    return Array.isArray(all) ? all : [];
+  } catch (_) { return []; }
+}
+function _tierBadge(tier) {
+  const t = String(tier || 'professional').toLowerCase();
+  const meta = {
+    instant:      { label: '⚡ Instant',      color: '#8a5cff', bg: 'rgba(138,92,255,.15)'  },
+    professional: { label: '💼 Professional', color: '#3ea0ff', bg: 'rgba(62,160,255,.15)' },
+    enterprise:   { label: '👑 Enterprise',   color: '#ffd36a', bg: 'rgba(255,211,106,.15)' }
+  }[t] || { label: t, color: '#8a5cff', bg: 'rgba(138,92,255,.15)' };
+  return `<span class="tag" style="background:${meta.bg};color:${meta.color};border:1px solid ${meta.color}33">${_esc(meta.label)}</span>`;
+}
+function _catalogCard(p) {
+  const id = _esc(p.id || '');
+  const title = _esc(p.title || p.id || 'Service');
+  const desc = _esc(p.description || '');
+  const price = Number(p.priceUSD || p.priceUsd || p.price || 0);
+  const priceTxt = price > 0 ? ('$' + price.toLocaleString('en-US')) : 'Free';
+  const billing = price > 0 && (p.billing === 'monthly') ? '<small style="color:var(--ink-dim);font-weight:400">/mo</small>' : '';
+  return `<article class="card" data-tier="${_esc(p.tier || '')}" data-product-id="${id}" itemscope itemtype="https://schema.org/Product" style="display:flex;flex-direction:column;gap:10px">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px">${_tierBadge(p.tier)}<span style="font-family:var(--mono);font-size:18px;color:var(--gold)" itemprop="offers" itemscope itemtype="https://schema.org/Offer"><meta itemprop="priceCurrency" content="USD"/><span itemprop="price">${priceTxt}</span>${billing}</span></div>
+    <h3 style="margin:4px 0 0;font-size:18px;line-height:1.25" itemprop="name">${title}</h3>
+    <p style="margin:0;color:var(--ink-dim);font-size:13px;line-height:1.45;flex:1" itemprop="description">${desc}</p>
+    <div style="display:flex;gap:8px;margin-top:6px"><a class="btn btn-primary" href="/checkout?plan=${encodeURIComponent(id)}" data-link style="flex:1;justify-content:center">Buy with BTC →</a><a class="btn btn-ghost" href="/services/${encodeURIComponent(id)}" data-link>Details</a></div>
+  </article>`;
+}
+function _ssrCatalogGrid(items, opts) {
+  const o = opts || {};
+  if (!items || !items.length) {
+    return `<div class="card"><p style="color:var(--ink-dim);margin:0">Catalog refreshing… open <a href="/api/services">/api/services</a> for the live JSON.</p></div>`;
+  }
+  const cards = items.map(_catalogCard).join('');
+  const cols = o.minCol || 300;
+  return `<div class="grid" id="${_esc(o.gridId || 'catalogGrid')}" style="grid-template-columns:repeat(auto-fill,minmax(${cols}px,1fr));gap:16px">${cards}</div>`;
+}
+
 function buildJsonLd(title, route, canonical, desc, opts) {
   const base = OWNER.domain.replace(/\/$/, '');
   const blocks = [];
@@ -579,6 +631,25 @@ function globalChrome(N) {
 }
 
 function pageHome() {
+  // Featured 6 services for SSR strip on the homepage. We pick the 2 cheapest
+  // from each tier so the page always shows a buyable price range without
+  // depending on JS hydration.
+  const _all = _loadCatalog();
+  const _byTier = { instant: [], professional: [], enterprise: [] };
+  _all.forEach(p => { const t = String(p.tier || 'professional'); if (_byTier[t]) _byTier[t].push(p); });
+  const _featured = []
+    .concat(_byTier.instant.slice().sort((a,b)=>(a.priceUSD||0)-(b.priceUSD||0)).slice(0,2))
+    .concat(_byTier.professional.slice().sort((a,b)=>(a.priceUSD||0)-(b.priceUSD||0)).slice(0,2))
+    .concat(_byTier.enterprise.slice().sort((a,b)=>(a.priceUSD||0)-(b.priceUSD||0)).slice(0,2));
+  const _featuredHtml = _featured.length
+    ? `<section id="homeFeatured" style="margin:40px 0 0">
+  <div class="section-title">
+    <div><span class="kicker">Featured · ${_all.length} live products in catalog</span><h2>Buy a real ZeusAI service <span class="grad">in under a minute.</span></h2></div>
+    <p>These are six concrete deliverables you can pay for right now in BTC. Full catalogue at <a href="/services" data-link>/services</a>.</p>
+  </div>
+  ${_ssrCatalogGrid(_featured, { gridId: 'homeFeaturedGrid', minCol: 280 })}
+  <p style="text-align:center;margin:18px 0 0"><a class="btn btn-ghost" href="/services" data-link>See all ${_all.length} products →</a></p>
+</section>` : '';
   return `<section class="hero">
   <div class="zeus-scene" aria-hidden="true">
     <img id="zeusHeroImg" class="zeus-hero-image" src="${assetPath('/assets/zeus/hero.jpg')}" data-zeus-src="${assetPath('/assets/zeus/hero.jpg')}" alt="" onerror="this.onerror=null;this.src='${assetPath('/assets/zeus/placeholder.svg')}'"/>
@@ -613,16 +684,18 @@ function pageHome() {
   </div>
 </section>
 
+${_featuredHtml}
+
 <section id="commerceProof">
   <div class="section-title">
-    <div><span class="kicker">Live commerce proof · 25 Apr 2026</span><h2>Tot ce am adăugat azi este <span class="grad">legat în site.</span></h2></div>
+    <div><span class="kicker">Live commerce proof · ${_all.length} live products</span><h2>Tot ce am adăugat azi este <span class="grad">legat în site.</span></h2></div>
     <p>Nu doar API-uri ascunse: catalogul, checkout-ul BTC/BTCPay-ready, livrarea automată, portalul client și cockpit-ul admin sunt acum vizibile și testabile direct din interfață.</p>
   </div>
   <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(245px,1fr));gap:14px">
     <div class="card" style="border-color:rgba(255,211,106,.42)">
       <span class="tag" style="background:rgba(255,211,106,.15);color:var(--gold)">Master Catalog</span>
-      <h3 id="commerceProofCatalog">95 live products</h3>
-      <p>Strategic services + Frontier + Vertical OS + AI modules. Deterministic fallback keeps CI/live smoke above 65.</p>
+      <h3 id="commerceProofCatalog">${_all.length} live products</h3>
+      <p>Strategic services + Frontier + Vertical OS + AI modules. Deterministic fallback keeps CI/live smoke above 25.</p>
       <a class="btn btn-primary" href="/services" data-link>Open catalog →</a>
     </div>
     <div class="card" style="border-color:rgba(247,147,26,.45)">
@@ -798,9 +871,12 @@ function pageHome() {
 }
 
 function pageServices() {
+  const catalog = _loadCatalog();
+  const counts = catalog.reduce((acc, p) => { const t = String(p.tier || 'professional'); acc[t] = (acc[t] || 0) + 1; return acc; }, {});
+  const summary = `${catalog.length} live products · ${counts.instant || 0} instant · ${counts.professional || 0} professional · ${counts.enterprise || 0} enterprise`;
   return `<section style="padding-top:140px">
   <div class="section-title">
-    <div><span class="kicker">Marketplace · Master Catalog</span><h2>Every ZeusAI deliverable, <span class="grad">one sovereign storefront.</span></h2></div>
+    <div><span class="kicker">Marketplace · Master Catalog · ${_esc(summary)}</span><h2>Every ZeusAI deliverable, <span class="grad">one sovereign storefront.</span></h2></div>
     <p>Strategic services + Frontier inventions + Vertical OSes + Adaptive AI modules — all live from the ZeusAI fabric. Buy any item directly in BTC. Receipt is Ed25519-signed and revenue routes 100% to the owner wallet.</p>
   </div>
   <div class="card" style="margin:16px 0 22px;background:linear-gradient(135deg,rgba(247,147,26,.10),rgba(127,90,240,.10));border:1px solid rgba(247,147,26,.45)">
@@ -812,26 +888,25 @@ function pageServices() {
         <div class="btc-addr" id="svcHeroBtcAddr" data-copy="${OWNER.btc}" title="Click to copy">${OWNER.btc}</div>
       </div>
       <div style="display:flex;flex-direction:column;gap:8px;min-width:200px">
-        <div id="catCounts" style="font-size:12px;color:var(--ink-dim);text-align:right;font-family:var(--mono)">Loading catalog…</div>
+        <div id="catCounts" style="font-size:12px;color:var(--ink-dim);text-align:right;font-family:var(--mono)">${_esc(summary)}</div>
         <a class="btn btn-primary" href="/checkout?plan=custom" data-link>Quick BTC checkout →</a>
       </div>
     </div>
   </div>
-  <div class="filters" id="catFilters">
-    <button class="chip on" data-group="all">All</button>
-    <button class="chip" data-group="strategic">Strategic</button>
-    <button class="chip" data-group="frontier">Frontier · 12 Inventions</button>
-    <button class="chip" data-group="vertical">Vertical OS · 18</button>
-    <button class="chip" data-group="marketplace">AI Modules</button>
+  <div class="filters" id="catFilters" role="tablist" aria-label="Filter services by tier">
+    <button class="chip on" data-group="all" type="button">All (${catalog.length})</button>
+    <button class="chip" data-group="instant" type="button">⚡ Instant (${counts.instant || 0})</button>
+    <button class="chip" data-group="professional" type="button">💼 Professional (${counts.professional || 0})</button>
+    <button class="chip" data-group="enterprise" type="button">👑 Enterprise (${counts.enterprise || 0})</button>
   </div>
   <section id="autonomousLiveSection" style="margin:20px 0 30px">
     <div style="display:flex;justify-content:space-between;align-items:baseline;flex-wrap:wrap;gap:8px;margin-bottom:14px">
-      <h3 style="margin:0;font-size:20px;letter-spacing:-0.01em">⚡ Live from Unicorn fabric <small style="color:var(--ink-dim);font-size:12px;font-weight:400">— auto-discovered services, live prices</small></h3>
-      <span id="autonomousStatus" style="font-size:11px;color:var(--ink-dim);font-family:var(--mono)">connecting…</span>
+      <h3 style="margin:0;font-size:20px;letter-spacing:-0.01em">⚡ Live from Unicorn fabric <small style="color:var(--ink-dim);font-size:12px;font-weight:400">— rendered server-side, refreshed live</small></h3>
+      <span id="autonomousStatus" style="font-size:11px;color:var(--ink-dim);font-family:var(--mono)">${catalog.length} products SSR · hydrating…</span>
     </div>
-    <div class="grid" id="autonomousServicesGrid" style="grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:16px"><div class="card" style="padding:20px;color:var(--ink-dim)">Loading modules from Unicorn live feed…</div></div>
+    ${_ssrCatalogGrid(catalog, { gridId: 'catalogGrid', minCol: 300 })}
+    <div id="autonomousServicesGrid" hidden></div>
   </section>
-  <div class="grid" id="catalogGrid" style="grid-template-columns:repeat(auto-fill,minmax(300px,1fr))"><div class="card"><p>Loading every Unicorn deliverable…</p></div></div>
 </section>`;
 }
 
@@ -842,6 +917,9 @@ function pageService(id) {
 }
 
 function pagePricing() {
+  // Subscription tiers — values mirror SUBSCRIPTION_PLANS in backend/index.js.
+  // Rendered server-side so /pricing always shows real prices on first paint;
+  // hydratePricingPage() in client.js refreshes from /api/pricing/live afterwards.
   return `<section style="padding-top:140px">
   <div class="section-title">
     <div><span class="kicker">Pricing</span><h2>Fair. Sovereign. <span class="grad">Outcome‑aligned.</span></h2></div>
@@ -850,38 +928,36 @@ function pagePricing() {
   <div class="pricing">
     <div class="plan" data-pricing-plan="starter">
       <h3>Starter</h3>
-      <div class="price" data-pricing-value="starter">Loading price…<small>/mo</small></div>
+      <div class="price" data-pricing-value="starter">$29<small>/mo</small></div>
       <p style="color:var(--ink-dim);margin:0">For founders & indie teams.</p>
       <ul>
-        <li>Up to 5 active modules</li>
-        <li>100k module executions / month</li>
+        <li>10,000 API calls / month</li>
+        <li>3 seats · all AI modules</li>
         <li id="pricingPaymentRail">Direct BTC checkout · optional rails only when configured</li>
-        <li>Community support</li>
+        <li>14-day trial · community support</li>
       </ul>
       <a class="btn" href="/checkout?plan=starter" data-link>Start Starter</a>
     </div>
     <div class="plan highlight" data-pricing-plan="pro">
       <h3>Growth</h3>
-      <div class="price" data-pricing-value="pro">Loading price…<small>/mo</small></div>
+      <div class="price" data-pricing-value="pro">$99<small>/mo</small></div>
       <p style="color:var(--ink-dim);margin:0">For scaling companies.</p>
       <ul>
-        <li>Unlimited modules</li>
-        <li>5M executions / month</li>
-        <li>1 vertical OS activated</li>
-        <li>SSO, priority support</li>
-        <li>Signed outcome reports</li>
+        <li>120,000 API calls / month</li>
+        <li>15 seats · all AI modules</li>
+        <li>Quantum Blockchain · M&amp;A Advisor · Legal Contracts</li>
+        <li>SSO, priority support · signed outcome reports</li>
       </ul>
       <a class="btn btn-primary" href="/checkout?plan=pro" data-link>Go Growth</a>
     </div>
     <div class="plan" data-pricing-plan="enterprise">
       <h3>Enterprise</h3>
-      <div class="price" data-pricing-value="enterprise">Loading price…<small>/mo</small></div>
+      <div class="price" data-pricing-value="enterprise">$499<small>/mo</small></div>
       <p style="color:var(--ink-dim);margin:0">Outcome‑priced. Global.</p>
       <ul>
-        <li>All 18 verticals</li>
-        <li>All 42 giant integrations</li>
-        <li>All 41 marketplaces</li>
-        <li>Dedicated Zeus cluster</li>
+        <li>1.5M API calls / month · 100 seats</li>
+        <li>All 18 verticals · 42 giants · 41 marketplaces</li>
+        <li>Dedicated Zeus cluster · SLA 99.9%</li>
         <li>Value‑Proof Ledger (bps share)</li>
       </ul>
       <a class="btn btn-gold" href="/checkout?plan=enterprise" data-link>Talk to Zeus</a>
@@ -1215,22 +1291,40 @@ function pageObservability() {
 }
 
 function pageStore() {
+  const catalog = _loadCatalog();
+  const byTier = { instant: [], professional: [], enterprise: [] };
+  catalog.forEach(p => { const t = String(p.tier || 'professional'); if (byTier[t]) byTier[t].push(p); });
+  const counts = { instant: byTier.instant.length, professional: byTier.professional.length, enterprise: byTier.enterprise.length };
+  const totalUsd = catalog.reduce((s, p) => s + Number(p.priceUSD || p.priceUsd || 0), 0);
+  const renderTierSection = (tier, label, items) => {
+    if (!items.length) return '';
+    return `<details class="store-tier-block" data-tier="${tier}" open style="margin:0 0 30px"><summary style="cursor:pointer;list-style:none;display:flex;align-items:center;justify-content:space-between;gap:12px;padding:14px 18px;border-radius:12px;background:rgba(138,92,255,.08);border:1px solid rgba(138,92,255,.25);font-weight:600"><span>${_esc(label)} · ${items.length} products</span><span style="color:var(--ink-dim);font-family:var(--mono);font-size:12px">click to collapse</span></summary><div class="grid" style="grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:18px;margin-top:14px">${items.map(_catalogCard).join('')}</div></details>`;
+  };
   return `<section class="enterprise-hero" style="padding-top:120px">
   <div style="max-width:1280px;margin:0 auto;padding:0 28px">
-    <span class="kicker" style="color:#ffd36a">ZeusAI Store · 25 real products across 3 tiers</span>
+    <span class="kicker" style="color:#ffd36a">ZeusAI Store · ${catalog.length} real products across 3 tiers · $${totalUsd.toLocaleString('en-US')} total catalogue value</span>
     <h1 style="font-size:clamp(36px,5vw,64px);line-height:1.04;margin:14px 0 18px;letter-spacing:-0.02em;background:linear-gradient(135deg,#fff 0%,#ffd36a 40%,#8a5cff 100%);-webkit-background-clip:text;background-clip:text;color:transparent">Buy it. Pay with BTC, card or wire. Use it instantly.</h1>
-    <p style="color:var(--ink-dim);font-size:18px;max-width:900px;line-height:1.55">Every service ZeusAI offers — from $29 digital deliverables to $2B hyperscaler licenses — purchasable directly from this page. Bitcoin on-chain for instant fulfillment, Stripe for cards, SWIFT/SEPA wire for enterprise. Every artifact Ed25519-signed.</p>
+    <p style="color:var(--ink-dim);font-size:18px;max-width:900px;line-height:1.55">Every service ZeusAI offers — from $29 digital deliverables to enterprise licenses — purchasable directly from this page. Bitcoin on-chain for instant fulfillment, Stripe for cards, SWIFT/SEPA wire for enterprise. Every artifact Ed25519-signed.</p>
 
-    <div id="storeStats" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:14px;margin:30px 0 20px"></div>
+    <div id="storeStats" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:14px;margin:30px 0 20px">
+      <div class="card"><span class="tag">Instant</span><h3 style="margin:6px 0 0;font-size:24px">${counts.instant}</h3></div>
+      <div class="card"><span class="tag">Professional</span><h3 style="margin:6px 0 0;font-size:24px">${counts.professional}</h3></div>
+      <div class="card"><span class="tag">Enterprise</span><h3 style="margin:6px 0 0;font-size:24px">${counts.enterprise}</h3></div>
+      <div class="card"><span class="tag">Total catalogue</span><h3 style="margin:6px 0 0;font-size:24px">$${totalUsd.toLocaleString('en-US')}</h3></div>
+    </div>
 
     <div id="storeTabs" style="display:flex;gap:8px;margin:30px 0 10px;flex-wrap:wrap;border-bottom:1px solid rgba(138,92,255,.2);padding-bottom:4px">
-      <button class="store-tab" data-tier="instant" style="background:linear-gradient(135deg,#8a5cff,#6d28d9);color:#fff;border:0;padding:10px 22px;border-radius:6px 6px 0 0;cursor:pointer;font-weight:600;font-size:14px">⚡ Instant &lt;60s</button>
-      <button class="store-tab" data-tier="professional" style="background:rgba(138,92,255,.1);color:var(--ink);border:0;padding:10px 22px;border-radius:6px 6px 0 0;cursor:pointer;font-weight:600;font-size:14px">💼 Professional SaaS</button>
-      <button class="store-tab" data-tier="enterprise" style="background:rgba(138,92,255,.1);color:var(--ink);border:0;padding:10px 22px;border-radius:6px 6px 0 0;cursor:pointer;font-weight:600;font-size:14px">👑 Enterprise Licenses</button>
+      <button class="store-tab" data-tier="instant" type="button" style="background:linear-gradient(135deg,#8a5cff,#6d28d9);color:#fff;border:0;padding:10px 22px;border-radius:6px 6px 0 0;cursor:pointer;font-weight:600;font-size:14px">⚡ Instant &lt;60s (${counts.instant})</button>
+      <button class="store-tab" data-tier="professional" type="button" style="background:rgba(138,92,255,.1);color:var(--ink);border:0;padding:10px 22px;border-radius:6px 6px 0 0;cursor:pointer;font-weight:600;font-size:14px">💼 Professional SaaS (${counts.professional})</button>
+      <button class="store-tab" data-tier="enterprise" type="button" style="background:rgba(138,92,255,.1);color:var(--ink);border:0;padding:10px 22px;border-radius:6px 6px 0 0;cursor:pointer;font-weight:600;font-size:14px">👑 Enterprise Licenses (${counts.enterprise})</button>
     </div>
-    <div id="storeTabNote" style="color:var(--ink-dim);font-size:13px;margin:6px 0 20px"></div>
+    <div id="storeTabNote" style="color:var(--ink-dim);font-size:13px;margin:6px 0 20px">All ${catalog.length} products rendered server-side · live JS hydration refreshes prices.</div>
 
-    <div id="storeGrid" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(360px,1fr));gap:22px;margin:20px 0 40px"></div>
+    <div id="storeGrid" style="margin:20px 0 40px">
+      ${renderTierSection('instant', '⚡ Instant deliverables (under 60 seconds)', byTier.instant)}
+      ${renderTierSection('professional', '💼 Professional SaaS', byTier.professional)}
+      ${renderTierSection('enterprise', '👑 Enterprise licenses', byTier.enterprise)}
+    </div>
     <div id="storeCheckout" style="margin:40px 0 80px"></div>
   </div>
 </section>`;
@@ -1500,8 +1594,6 @@ function renderRoute(route, params = {}) {
     case '/api-explorer': return pageApiExplorer();
     case '/transparency': return pageTransparency();
     case '/frontier': return pageFrontier();
-    case '/crypto-fiat-bridge': return pageCryptoFiatBridge();
-    case '/crypto-bridge': return pageCryptoFiatBridge();
     default:
       if (route.startsWith('/services/')) return pageService(params.id || route.slice(10));
       return pageNotFound(route);
