@@ -33,9 +33,9 @@
 
 ## Integration boundaries and external systems
 - Deployment automation is first-class:
-  - `github-vercel-hetzner-connector.js` — historical connector script (Vercel is no longer used; Hetzner is the sole deployment target).
-  - `setup-platform-auto-connect.sh` validates `.env.auto-connector` and bootstraps Hetzner runtime.
-- GitHub Actions deploy only to Hetzner from secrets (`HETZNER_*`). Vercel integration is disabled (`vercel.json` sets `"github": { "enabled": false }`).
+  - Source of truth: this GitHub repo. Runtime target: Hetzner only (PM2 cluster behind nginx — `unicorn_backend:3000` + `unicorn_site:3001` on `zeusai.pro`).
+  - No other deploy provider is used. Do **not** introduce or reactivate Vercel, Netlify, Render, Fly, etc. Any historical references in archived docs/scripts are stale.
+- GitHub Actions deploy only to Hetzner from secrets (`HETZNER_*`) via `.github/workflows/deploy.yml` (SSH/rsync + PM2 reload).
 - Auto-sync scripts (`scripts/start-auto-sync.sh`, `scripts/auto-sync-push.sh`) continuously `git add/commit/push`; avoid enabling/changing them unintentionally during feature work.
 
 ## Practical change strategy for AI agents
