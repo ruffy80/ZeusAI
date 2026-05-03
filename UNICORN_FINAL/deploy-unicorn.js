@@ -2,7 +2,7 @@
 // ══════════════════════════════════════════════════════════════════════
 // deploy-unicorn.js  –  Unicorn One-Shot Full Deployer
 // Rulează o singură dată: node deploy-unicorn.js
-// Configurează GitHub + Vercel + Hetzner complet automat
+// Configurează GitHub + Hetzner complet automat
 // ══════════════════════════════════════════════════════════════════════
 
 'use strict';
@@ -46,7 +46,7 @@ console.log(`
 ║                                                                  ║
 ║   🦄 UNICORN AUTONOMOUS DEPLOYER                                 ║
 ║   Rulează o singură dată – totul devine complet automat          ║
-║   GitHub ▸ Vercel ▸ Hetzner ▸ Autonomous Orchestrator           ║
+║   GitHub ▸ Hetzner ▸ Autonomous Orchestrator                    ║
 ║                                                                  ║
 ╚══════════════════════════════════════════════════════════════════╝
 `);
@@ -84,9 +84,6 @@ async function main() {
   const githubToken   = process.env.GITHUB_TOKEN    || process.env.GH_TOKEN || await ask('🔑 GitHub Personal Access Token (repo + secrets + actions)');
   const githubOwner   = process.env.GITHUB_OWNER    || await ask('👤 GitHub username/org', process.env.GITHUB_OWNER || '');
   const repoName      = process.env.GITHUB_REPO     || await ask('📦 Nume repository', DEFAULTS.REPO_NAME);
-  const vercelToken   = process.env.VERCEL_TOKEN     || await ask('▲  Vercel Token (Enter pentru skip)');
-  const vercelOrgId   = process.env.VERCEL_ORG_ID   || await ask('▲  Vercel Org ID (Enter pentru skip)');
-  const vercelProjId  = process.env.VERCEL_PROJECT_ID|| await ask('▲  Vercel Project ID (Enter pentru skip)');
   const hetznerHost   = process.env.HETZNER_HOST     || await ask('🖥️  IP server Hetzner', process.env.HETZNER_HOST || '');
   const hetznerUser   = process.env.HETZNER_USER || process.env.HETZNER_DEPLOY_USER || await ask('👤 User SSH Hetzner', process.env.HETZNER_USER || process.env.HETZNER_DEPLOY_USER || 'root');
   const hetznerPort   = process.env.HETZNER_PORT || process.env.HETZNER_DEPLOY_PORT || await ask('🔌 Port SSH Hetzner', process.env.HETZNER_PORT || process.env.HETZNER_DEPLOY_PORT || '22');
@@ -118,7 +115,7 @@ async function main() {
 
   // Ensure .gitignore ignores secrets
   const gitignorePath = path.join(__dirname, '.gitignore');
-  const gitignoreLines = ['.env', 'node_modules/', 'logs/', '*.local', '.vercel'];
+  const gitignoreLines = ['.env', 'node_modules/', 'logs/', '*.local'];
   let gitignoreContent = fs.existsSync(gitignorePath) ? fs.readFileSync(gitignorePath, 'utf8') : '';
   for (const line of gitignoreLines) {
     if (!gitignoreContent.includes(line)) gitignoreContent += `\n${line}`;
@@ -166,10 +163,6 @@ async function main() {
         // GitHub
         GIT_REPO_URL:          repoUrl,
         BRANCH:                DEFAULTS.BRANCH,
-        // Vercel
-        VERCEL_TOKEN:          vercelToken,
-        VERCEL_ORG_ID:         vercelOrgId,
-        VERCEL_PROJECT_ID:     vercelProjId,
         // App secrets
         JWT_SECRET:            DEFAULTS.JWT_SECRET,
         ADMIN_SECRET:          DEFAULTS.ADMIN_SECRET,
@@ -341,7 +334,6 @@ ${'═'.repeat(66)}
 ║   🎉 DEPLOYMENT COMPLET!                                         ║
 ║                                                                  ║
 ║   📦 GitHub:    https://github.com/${githubOwner}/${repoName}
-║   ▲  Vercel:    https://${repoName}.vercel.app                  ║
 ║   🖥️  Hetzner:   http://${hetznerHost}:${DEFAULTS.PORT}            ║
 ║   🔗 Webhook:   http://${hetznerHost}:${DEFAULTS.PORT}/deploy      ║
 ║                                                                  ║

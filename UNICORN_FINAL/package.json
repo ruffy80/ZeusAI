@@ -47,6 +47,7 @@
     "smol-toml": ">=1.6.1"
   },
   "scripts": {
+    "build": "echo 'Build completed'",
     "start": "node backend/index.js",
     "start:pm2": "pm2 start ecosystem.config.js",
     "stop:pm2": "pm2 stop unicorn",
@@ -86,7 +87,7 @@
     "backup:create": "bash scripts/create-backup.sh",
     "backup:rollback": "bash scripts/rollback-last-backup.sh",
     "hetzner:setup": "node scripts/setup-hetzner-auto.js",
-    "zip:github": "mkdir -p ../release && zip -r ../release/unicorn-github-deploy.zip . -x '.git/*' 'node_modules/*' 'logs/*' '.next/*' '.env' '.vercel/*'",
+    "zip:github": "mkdir -p ../release && zip -r ../release/unicorn-github-deploy.zip . -x '.git/*' 'node_modules/*' 'logs/*' '.next/*' '.env'",
     "unzip:github": "mkdir -p ../release/unpacked && unzip -o ../release/unicorn-github-deploy.zip -d ../release/unpacked"
   },
   "devDependencies": {
