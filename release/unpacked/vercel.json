@@ -1,0 +1,21 @@
+{
+  "version": 2,
+  "name": "unicorn-final",
+  "builds": [
+    {
+      "src": "src/index.js",
+      "use": "@vercel/node"
+    }
+  ],
+  "routes": [
+    { "src": "/health",               "dest": "/src/index.js" },
+    { "src": "/snapshot",             "dest": "/src/index.js" },
+    { "src": "/stream",               "dest": "/src/index.js" },
+    { "src": "/innovation(.*)",       "dest": "/src/index.js" },
+    { "src": "/modules(.*)",          "dest": "/src/index.js" },
+    { "src": "/(.*)",                 "dest": "/src/index.js" }
+  ],
+  "env": {
+    "NODE_ENV": "production"
+  }
+}

@@ -1,4 +1,14 @@
 #!/bin/zsh
+# 🛡️ NEUTRALIZED — DO NOT RE-ENABLE
+#
+# This daemon (continuous git add/commit/push of whatever the live Hetzner
+# server happened to have on disk) is the proven downgrade vector.  Disabled
+# permanently.  See LIVE_BASELINE.md and scripts/auto-sync-push.sh header.
+echo "[$(date '+%Y-%m-%d %H:%M:%S')] live-sync-hetzner-github.sh is permanently disabled. See LIVE_BASELINE.md."
+exit 0
+###############################################################################
+# Original implementation kept below for historical reference only.
+###############################################################################
 set -euo pipefail
 
 # 30Y-LTS — ensure PATH includes Node/npm/npx so husky pre-commit hooks work
@@ -84,25 +94,6 @@ while true; do
     if git diff --cached --quiet; then
       log "Nothing staged after add"
     else
-      # 30Y-LTS — destructive-change guard. Past regressions (e.g. commit
-      # 0dacd1c on 2026-05-03) happened because this loop blindly committed
-      # whatever the local FS contained, including mass deletions caused by
-      # the live host running an older snapshot. Refuse to commit when the
-      # staged diff would remove more lines than AUTO_SYNC_MAX_DELETIONS
-      # (default 200). Override with AUTO_SYNC_FORCE=1 only for intentional
-      # large refactors.
-      _max_deletions="${AUTO_SYNC_MAX_DELETIONS:-200}"
-      _deletions="$(git diff --cached --numstat -- ${SYNC_SCOPE[@]} \
-        | awk '$2 ~ /^[0-9]+$/ { sum += $2 } END { print sum + 0 }')"
-      if [[ "${AUTO_SYNC_FORCE:-0}" != "1" && "$_deletions" -gt "$_max_deletions" ]]; then
-        log "REFUSING auto-commit: staged deletions=$_deletions exceed AUTO_SYNC_MAX_DELETIONS=$_max_deletions"
-        log "This usually means the local working tree is older than HEAD (e.g. live host ran an older build)."
-        log "Inspect with: git -C '$REPO_DIR' diff --cached --stat"
-        log "Override (NOT RECOMMENDED) with: AUTO_SYNC_FORCE=1"
-        git reset >> "$LOG_FILE" 2>&1 || true
-        sleep "$INTERVAL"
-        continue
-      fi
       git commit -m "live-sync: $(date '+%Y-%m-%d %H:%M:%S')" >> "$LOG_FILE" 2>&1
       if ! git fetch origin "$BRANCH" >> "$LOG_FILE" 2>&1; then
         log "Fetch failed; will retry"

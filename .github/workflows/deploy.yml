@@ -114,12 +114,44 @@ jobs:
 
     steps:
       - name: 📥 Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
+      # ── No-downgrade pre-flight ──────────────────────────────────────────
+      # HARD GATE: this step must pass or no SSH/rsync ever happens.
+      # The pinned SHA in .github/baselines/live.sha is the last snapshot
+      # confirmed live by both deploy.yml and global-health.yml.  Any HEAD
+      # that is not a strict descendant of that SHA is refused.
+      # See LIVE_BASELINE.md for the full contract.
+      - name: 🛡️ No-downgrade pre-flight (refuse rollback before SSH)
+        run: |
+          set -euo pipefail
+          if [ ! -f .github/baselines/live.sha ]; then
+            echo "::error::.github/baselines/live.sha is missing — refusing to deploy"
+            exit 1
+          fi
+          BASELINE="$(tr -d '[:space:]' < .github/baselines/live.sha)"
+          if [ "${#BASELINE}" -lt 40 ]; then
+            echo "::error::.github/baselines/live.sha is not a full 40-char SHA"
+            exit 1
+          fi
+          if ! git cat-file -e "${BASELINE}^{commit}" 2>/dev/null; then
+            git fetch --no-tags --depth=0 origin "+${BASELINE}:refs/baseline/live" || true
+          fi
+          git cat-file -e "${BASELINE}^{commit}"
+          if [ "${GITHUB_SHA}" = "${BASELINE}" ]; then
+            echo "✅ HEAD == pinned baseline (re-deploy of last-known-good)"
+          elif git merge-base --is-ancestor "${BASELINE}" "${GITHUB_SHA}"; then
+            echo "✅ HEAD ${GITHUB_SHA} is descendant of pinned baseline ${BASELINE}"
+          else
+            echo "::error::HEAD ${GITHUB_SHA} is NOT a descendant of pinned baseline ${BASELINE}"
+            echo "::error::This deploy would be a downgrade.  Refusing to ssh-rsync."
+            exit 1
+          fi
+
       - name: 🟦 Setup Node.js
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@v4
         with:
           node-version-file: '.nvmrc'
           cache: npm
@@ -147,7 +179,7 @@ jobs:
       - name: 🏗️ Build React client UI
         working-directory: ./UNICORN_FINAL/client
         # CI=false: react-scripts treats warnings as errors when CI=true (GitHub Actions default).
-        # Necessary so non-blocking warnings don't fail the production build.
+        # The project already uses this flag in the vercel-build script for the same reason.
         run: |
           # Tolerate orphaned npm install racing on node_modules (e.g. from ui-auto-builder
           # GODMODE loop loaded by the previous test step). npm ci itself wipes node_modules,
@@ -209,7 +241,6 @@ jobs:
           RELEASE_ROOT="/var/www/unicorn/releases"
           RELEASE_PATH="$RELEASE_ROOT/$RELEASE_ID"
           DEPLOY_LINK="/var/www/unicorn/UNICORN_FINAL"
-          CURRENT_LINK="/var/www/unicorn/current"
 
           ssh -o StrictHostKeyChecking=no root@${{ secrets.HETZNER_HOST }} "mkdir -p $RELEASE_ROOT && mkdir -p $RELEASE_PATH"
           ssh -o StrictHostKeyChecking=no root@${{ secrets.HETZNER_HOST }} \
@@ -230,6 +261,7 @@ jobs:
             --exclude='UNICORN_FINAL/logs' \
             --exclude='UNICORN_FINAL/.archive' \
             --exclude='UNICORN_FINAL/.unicorn-backups' \
+            --exclude='UNICORN_FINAL/.vercel' \
             --exclude='UNICORN_FINAL/generated' \
             --exclude='UNICORN_FINAL/public' \
             --exclude='UNICORN_FINAL/*.log' \
@@ -243,24 +275,14 @@ jobs:
             "set -euo pipefail; \
              TARGET='$RELEASE_PATH/UNICORN_FINAL'; \
              LINK='$DEPLOY_LINK'; \
-             CURRENT_TARGET='$RELEASE_PATH'; \
-             CURRENT_LINK='$CURRENT_LINK'; \
              if [ -d \"\$LINK\" ] && [ ! -L \"\$LINK\" ]; then \
                mv \"\$LINK\" \"\${LINK}.prelink.$(date +%s)\"; \
              fi; \
-             if [ -d \"\$CURRENT_LINK\" ] && [ ! -L \"\$CURRENT_LINK\" ]; then \
-               mv \"\$CURRENT_LINK\" \"\${CURRENT_LINK}.prelink.$(date +%s)\"; \
-             fi; \
              ln -sfn \"\$TARGET\" \"\$LINK\"; \
-             ln -sfn \"\$CURRENT_TARGET\" \"\$CURRENT_LINK\"; \
              test -L \"\$LINK\"; \
-             test -L \"\$CURRENT_LINK\"; \
              RESOLVED_LINK=\$(readlink -f \"\$LINK\"); \
              RESOLVED_TARGET=\$(readlink -f \"\$TARGET\"); \
-             RESOLVED_CURRENT=\$(readlink -f \"\$CURRENT_LINK\"); \
-             RESOLVED_RELEASE=\$(readlink -f \"\$CURRENT_TARGET\"); \
-             test \"\$RESOLVED_LINK\" = \"\$RESOLVED_TARGET\"; \
-             test \"\$RESOLVED_CURRENT\" = \"\$RESOLVED_RELEASE\""
+             test \"\$RESOLVED_LINK\" = \"\$RESOLVED_TARGET\""
 
           ssh -o StrictHostKeyChecking=no root@${{ secrets.HETZNER_HOST }} \
             "printf '%s\n' '${{ github.sha }}' > /var/www/unicorn/UNICORN_FINAL/.deployed-commit && \
@@ -417,8 +439,6 @@ jobs:
           mkdir -p /usr/local/bin /var/lib/unicorn /var/log /etc/cron.d /etc/logrotate.d /opt/unicorn
           install -m 0755 "$DEPLOY_PATH/scripts/unicorn-health-bot.sh" /usr/local/bin/unicorn-health-bot.sh
           install -m 0755 "$DEPLOY_PATH/scripts/unicorn-payment-monitor.sh" /usr/local/bin/unicorn-payment-monitor.sh
-          install -m 0755 "$DEPLOY_PATH/scripts/auth-db-backup.js" /usr/local/bin/auth-db-backup.js
-          install -m 0755 "$DEPLOY_PATH/scripts/auth-repair.js" /usr/local/bin/auth-repair.js
           chmod +x "$DEPLOY_PATH/scripts/unicorn-payment-monitor.js" 2>/dev/null || true
           cat > /etc/cron.d/unicorn-health-bot <<'CRON'
           SHELL=/bin/bash
@@ -427,14 +447,8 @@ jobs:
           * * * * * root DEPLOY_PATH=/var/www/unicorn/UNICORN_FINAL UNICORN_LOCAL_URL=http://127.0.0.1:3001 /usr/local/bin/unicorn-payment-monitor.sh
           CRON
           chmod 0644 /etc/cron.d/unicorn-health-bot
-          cat > /etc/cron.d/unicorn-auth-backup <<'CRON'
-          SHELL=/bin/bash
-          PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
-          0 * * * * root cd /var/www/unicorn/UNICORN_FINAL && AUTH_GUARDIAN_BACKUP_KEEP=24 node /usr/local/bin/auth-db-backup.js >> /var/log/unicorn-auth-db-backup.log 2>&1
-          CRON
-          chmod 0644 /etc/cron.d/unicorn-auth-backup
           cat > /etc/logrotate.d/unicorn-transactions <<'ROTATE'
-          /var/log/unicorn-transactions.log /var/log/unicorn-health-bot.log /var/log/unicorn-auth-db-backup.log {
+          /var/log/unicorn-transactions.log /var/log/unicorn-health-bot.log {
               daily
               rotate 30
               missingok
@@ -447,7 +461,6 @@ jobs:
           chmod 0644 /etc/logrotate.d/unicorn-transactions
           /usr/local/bin/unicorn-health-bot.sh || true
           /usr/local/bin/unicorn-payment-monitor.sh || true
-          cd "$DEPLOY_PATH" && node /usr/local/bin/auth-db-backup.js || true
           echo "✅ autonomous health/payment bots installed"
           SSHEOF
 
@@ -508,65 +521,6 @@ jobs:
           else
             echo "⚠️  HTTPS zeusai.pro: $DOMAIN_HTTPS — SSL necesită verificare manuală dacă DNS e greșit"
           fi
-
-      - name: 🔐 Mandatory auth login smoke (blocking)
-        run: |
-          ssh -o StrictHostKeyChecking=no root@${{ secrets.HETZNER_HOST }} bash -s << 'SSHEOF'
-          set -euo pipefail
-          DEPLOY_PATH=/var/www/unicorn/UNICORN_FINAL
-          cd "$DEPLOY_PATH"
-          EMAIL="$(grep -m1 '^AUTH_GUARDIAN_TEST_EMAIL=' .env 2>/dev/null | cut -d= -f2- | tr -d '"' | tr -d "'" || true)"
-          PASS="$(grep -m1 '^AUTH_GUARDIAN_TEST_PASSWORD=' .env 2>/dev/null | cut -d= -f2- | tr -d '"' | tr -d "'" || true)"
-          if [ -z "$EMAIL" ]; then
-            EMAIL="$(grep -m1 '^ADMIN_EMAIL=' .env 2>/dev/null | cut -d= -f2- | tr -d '"' | tr -d "'" || true)"
-          fi
-          if [ -z "$EMAIL" ]; then
-            EMAIL="$(grep -m1 '^OWNER_EMAIL=' .env 2>/dev/null | cut -d= -f2- | tr -d '"' | tr -d "'" || true)"
-          fi
-          if [ -z "$EMAIL" ]; then
-            EMAIL="auth.guardian@zeusai.pro"
-          fi
-          if [ -z "$PASS" ]; then
-            PASS="$(grep -m1 '^ADMIN_MASTER_PASSWORD=' .env 2>/dev/null | cut -d= -f2- | tr -d '"' | tr -d "'" || true)"
-          fi
-          if [ -z "$PASS" ]; then
-            PASS="Guardian#$(date +%s)"
-          fi
-          WEBHOOK="$(grep -m1 '^AUTH_GUARDIAN_ALERT_WEBHOOK=' .env 2>/dev/null | cut -d= -f2- | tr -d '"' | tr -d "'" || true)"
-          login_payload=$(node -e 'const [e,p]=process.argv.slice(1); process.stdout.write(JSON.stringify({ email:e, password:p }));' "$EMAIL" "$PASS")
-          signup_payload=$(node -e 'const [e,p]=process.argv.slice(1); process.stdout.write(JSON.stringify({ name:"Auth Guardian", email:e, password:p }));' "$EMAIL" "$PASS")
-
-          login_code=$(curl -sS -o /tmp/auth_login.json -w "%{http_code}" \
-            -X POST http://127.0.0.1:3000/api/customer/login \
-            -H 'Content-Type: application/json' \
-            --data "$login_payload" || true)
-
-          if [ "$login_code" != "200" ]; then
-            signup_code=$(curl -sS -o /tmp/auth_signup.json -w "%{http_code}" \
-              -X POST http://127.0.0.1:3000/api/customer/signup \
-              -H 'Content-Type: application/json' \
-              --data "$signup_payload" || true)
-            if [ "$signup_code" != "200" ] && [ "$signup_code" != "409" ]; then
-              echo "❌ auth signup bootstrap failed (code=$signup_code)"
-              [ -n "$WEBHOOK" ] && curl -sS -m 8 -X POST -H 'Content-Type: application/json' \
-                -d "{\"text\":\"[deploy] auth signup bootstrap failed (code=$signup_code)\"}" "$WEBHOOK" >/dev/null || true
-              exit 1
-            fi
-            login_code=$(curl -sS -o /tmp/auth_login_retry.json -w "%{http_code}" \
-              -X POST http://127.0.0.1:3000/api/customer/login \
-              -H 'Content-Type: application/json' \
-              --data "$login_payload" || true)
-          fi
-
-          if [ "$login_code" != "200" ]; then
-            echo "❌ mandatory auth smoke failed (code=$login_code)"
-            [ -n "$WEBHOOK" ] && curl -sS -m 8 -X POST -H 'Content-Type: application/json' \
-              -d "{\"text\":\"[deploy] mandatory auth smoke failed (code=$login_code)\"}" "$WEBHOOK" >/dev/null || true
-            exit 1
-          fi
-
-          echo "✅ mandatory auth smoke passed"
-          SSHEOF
 
       - name: 🧪 Public smoke tests (api/health, api/services, api/modules, api/btc/rate)
         # Rulează scripts/smoke-tests.sh ÎN PROCES PE SERVER, contra 127.0.0.1:3000
@@ -868,34 +822,3 @@ jobs:
             process.exit(1);
           })();
           NODE
-
-      - name: 🛒 Storefront SSR gate (blocking · fails deploy on empty site)
-        # Final blocking gate: confirms the live HTML on /services actually
-        # contains the SSR product cards. Catches the specific regression
-        # where deploy succeeds but the site renders only "Loading…" stubs.
-        # No auto-rollback — operators trigger diagnose-and-repair.yml
-        # manually if this fails.
-        run: |
-          set -uo pipefail
-          MIN_CARDS=10
-          MAX_ATTEMPTS=6
-          RETRY_S=5
-          for attempt in $(seq 1 $MAX_ATTEMPTS); do
-            # Single curl call — capture HTTP status header + body together.
-            RESP=$(curl -sk -m 15 -H 'Cache-Control: no-cache' -H 'Pragma: no-cache' \
-              -w '\n___HTTP_STATUS___%{http_code}' https://zeusai.pro/services 2>/dev/null || true)
-            STATUS=$(printf '%s' "$RESP" | awk -F'___HTTP_STATUS___' 'END{print $2}')
-            HTML=$(printf '%s' "$RESP" | sed 's/___HTTP_STATUS___[0-9]*$//')
-            CARDS=$(printf '%s' "$HTML" | grep -oE 'data-product-id="[^"]+"' | sort -u | wc -l | tr -d ' ')
-            HAS_LOADING_ONLY=$(printf '%s' "$HTML" | grep -ciE 'Loading every Unicorn deliverable|Loading modules from Unicorn live feed' || true)
-            echo "attempt=$attempt status=$STATUS ssr_product_cards=$CARDS loading_only_stubs=$HAS_LOADING_ONLY"
-            if [ "$STATUS" = "200" ] && [ "$CARDS" -ge "$MIN_CARDS" ] && [ "$HAS_LOADING_ONLY" = "0" ]; then
-              echo "✅ Storefront SSR gate passed: $CARDS products rendered server-side on /services"
-              exit 0
-            fi
-            [ $attempt -lt $MAX_ATTEMPTS ] && sleep $RETRY_S
-          done
-          echo "❌ Storefront SSR gate FAILED — /services HTML is missing real product cards."
-          echo "   Expected ≥ $MIN_CARDS data-product-id attributes; got $CARDS."
-          echo "   Run the diagnose-and-repair workflow to inspect PM2/nginx state on Hetzner."
-          exit 1

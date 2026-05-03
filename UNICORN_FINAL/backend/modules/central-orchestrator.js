@@ -10,15 +10,11 @@
  * CENTRAL ORCHESTRATOR
  *
  * Componenta 1 din sistemul autonom complet.
- * Monitorizează Hetzner și GitHub, detectează erori,
+ * Monitorizează Vercel, Hetzner și GitHub, detectează erori,
  * ia decizii și reconstruiește pipeline-ul fără intervenție manuală.
  *
- * Notă: Stack-ul rulează exclusiv pe GitHub (sursa de adevăr) +
- * Hetzner (runtime PM2/nginx). Nicio țintă de deploy externă (Vercel etc.)
- * nu este monitorizată sau folosită.
- *
  * Responsabilități:
- *   1. Ping health endpoints pentru Hetzner la fiecare POLL_MS
+ *   1. Ping health endpoints pentru Vercel + Hetzner la fiecare POLL_MS
  *   2. Verifică starea DNS domeniului configurat
  *   3. Detectează build failures în GitHub Actions via API
  *   4. Loghează fiecare decizie cu reasoning complet (audit trail)
@@ -345,6 +341,7 @@ class CentralOrchestrator extends EventEmitter {
   /** Force an immediate re-check of all services */
   async forceCheck() {
     await Promise.allSettled([
+      this._checkVercel(),
       this._checkHetzner(),
       this._checkDNS(),
       this._checkGitHub(),

@@ -56,69 +56,6 @@ const SEED = [
       { key: 'legalEntity', label: 'Partner Legal Entity', required: true },
       { key: 'contactEmail', label: 'Partner Contact Email', required: true }
     ]
-  },
-  {
-    id: 'ent-private-cloud',
-    title: 'Unicorn Private Cloud — Dedicated Tenant',
-    tier: 'enterprise',
-    priceUSD: 150000,
-    billing: 'annual',
-    currency: 'USD',
-    description: 'Dedicated single-tenant cloud deployment with isolated data plane, dedicated keys, 99.99% SLA and 24/7 support.',
-    sla: '99.99% / 30min response',
-    seats: 'unlimited',
-    inputs: [
-      { key: 'legalEntity', label: 'Legal Entity', required: true },
-      { key: 'region', label: 'Preferred cloud region', required: true },
-      { key: 'contactEmail', label: 'Operations Contact', required: true }
-    ]
-  },
-  {
-    id: 'ent-ai-transformation',
-    title: 'Unicorn AI Transformation Programme (12 months)',
-    tier: 'enterprise',
-    priceUSD: 500000,
-    billing: 'project',
-    currency: 'USD',
-    description: 'Twelve-month enterprise AI transformation: discovery, roadmap, custom agents, internal copilots, change management and KPI lift.',
-    sla: 'dedicated programme team',
-    inputs: [
-      { key: 'legalEntity', label: 'Legal Entity', required: true },
-      { key: 'sponsor', label: 'Executive sponsor', required: true },
-      { key: 'objectives', label: 'Top 3 transformation objectives', required: true },
-      { key: 'contactEmail', label: 'Programme Contact', required: true }
-    ]
-  },
-  {
-    id: 'ent-white-label',
-    title: 'Unicorn White-Label Platform',
-    tier: 'enterprise',
-    priceUSD: 350000,
-    billing: 'annual',
-    currency: 'USD',
-    description: 'Resell ZeusAI as your own platform: custom branding, custom domain, segregated catalog, partner revenue dashboard.',
-    sla: '99.95% / 2h response',
-    inputs: [
-      { key: 'legalEntity', label: 'Partner Legal Entity', required: true },
-      { key: 'brand', label: 'White-label brand name', required: true },
-      { key: 'contactEmail', label: 'Partner Contact Email', required: true }
-    ]
-  },
-  {
-    id: 'ent-sovereign-deployment',
-    title: 'Unicorn Sovereign Deployment (on-prem + audit suite)',
-    tier: 'enterprise',
-    priceUSD: 1200000,
-    billing: 'one-time',
-    currency: 'USD',
-    description: 'Full on-premises sovereign deployment with compliance audit suite (SOC2/ISO/GDPR), key custody, encrypted backups and 12-month onboarding.',
-    sla: 'on-prem dedicated SRE',
-    inputs: [
-      { key: 'legalEntity', label: 'Legal Entity', required: true },
-      { key: 'jurisdiction', label: 'Sovereign jurisdiction', required: true },
-      { key: 'contactName', label: 'Authorized Signatory', required: true },
-      { key: 'contactEmail', label: 'Signatory Email', required: true }
-    ]
   }
 ];
 

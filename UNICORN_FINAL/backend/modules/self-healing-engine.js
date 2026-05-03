@@ -19,8 +19,9 @@
  *   2. Reinstalare dependențe când build-ul eșuează
  *   3. Trigger re-deploy pe Hetzner via SSH (dacă configurat)
  *   4. Verificare și reînnoire SSL (certbot)
- *   5. Watchdog intern — detectează procese zombie și le ucide
- *   6. Audit trail complet pentru fiecare acțiune de vindecare
+ *   5. Fallback Vercel → Hetzner când Vercel e limitat
+ *   6. Watchdog intern — detectează procese zombie și le ucide
+ *   7. Audit trail complet pentru fiecare acțiune de vindecare
  */
 
 'use strict';

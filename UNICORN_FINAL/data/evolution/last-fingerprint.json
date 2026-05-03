@@ -1,8 +1,8 @@
 {
-  "at": "2026-05-03T11:09:05.699Z",
+  "at": "2026-05-02T11:10:38.866Z",
   "pkgVersion": "1.2.2",
-  "moduleCount": 186,
-  "moduleHash": "ed6c4a0d2632f0c8",
+  "moduleCount": 185,
+  "moduleHash": "1dbe7df76b43662c",
   "modules": [
     "FeatureFlagManager.js",
     "FutureCompatibilityBridge.js",
@@ -31,7 +31,6 @@
     "aiWorkforce.js",
     "analytics.js",
     "api-docs.js",
-    "auth-guardian.js",
     "auto-evolve.js",
     "auto-innovation-loop.js",
     "auto-marketing.js",
@@ -191,5 +190,5 @@
     "worldStandard.js",
     "zacAlertChannel.js"
   ],
-  "fingerprint": "4ca59eb99e39bef7"
+  "fingerprint": "1271cb169d754786"
 }

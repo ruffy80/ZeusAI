@@ -1,0 +1,119 @@
+name: 🛡️ No-Downgrade Guard
+
+# Refuses any push/PR-merge to main that:
+#   1. Is NOT a strict descendant of the pinned baseline SHA
+#      (.github/baselines/live.sha), or
+#   2. Deletes critical UNICORN_FINAL paths without the
+#      `[upgrade-approved]` trailer in the commit message.
+#
+# Pin file: .github/baselines/live.sha (one line, full SHA).
+# Doc:      LIVE_BASELINE.md
+#
+# This is the contractual protection that makes the live site
+# upgrade-only — see LIVE_BASELINE.md for the full rationale.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: no-downgrade-guard-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  guard:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: ⬇️ Checkout (full history)
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: 📌 Read pinned baseline SHA
+        id: baseline
+        run: |
+          set -euo pipefail
+          SHA="$(tr -d '[:space:]' < .github/baselines/live.sha)"
+          if [ -z "$SHA" ] || [ "${#SHA}" -lt 40 ]; then
+            echo "::error::.github/baselines/live.sha is missing or not a full 40-char SHA"
+            exit 1
+          fi
+          echo "sha=$SHA" >> "$GITHUB_OUTPUT"
+          echo "Pinned baseline SHA: $SHA"
+
+      - name: 🧬 Verify baseline SHA exists in repo
+        run: |
+          set -euo pipefail
+          BASELINE="${{ steps.baseline.outputs.sha }}"
+          if ! git cat-file -e "${BASELINE}^{commit}" 2>/dev/null; then
+            git fetch --no-tags --prune --depth=0 origin "+${BASELINE}:refs/baseline/live" || true
+          fi
+          git cat-file -e "${BASELINE}^{commit}"
+
+      - name: 🚦 HEAD must be descendant of pinned baseline
+        env:
+          BASELINE: ${{ steps.baseline.outputs.sha }}
+        run: |
+          set -euo pipefail
+          HEAD_SHA="${{ github.event.pull_request.head.sha || github.sha }}"
+          echo "HEAD = $HEAD_SHA"
+          echo "BASE = $BASELINE"
+          if [ "$HEAD_SHA" = "$BASELINE" ]; then
+            echo "✅ HEAD == baseline (re-deploy of pinned snapshot)"
+            exit 0
+          fi
+          if git merge-base --is-ancestor "$BASELINE" "$HEAD_SHA"; then
+            echo "✅ HEAD is a descendant of pinned baseline"
+          else
+            echo "::error::HEAD ($HEAD_SHA) is NOT a descendant of pinned live baseline ($BASELINE)."
+            echo "::error::This would be a downgrade. Refused by no-downgrade-guard."
+            echo "::error::See LIVE_BASELINE.md for how to advance the baseline."
+            exit 1
+          fi
+
+      - name: 🛑 Critical-path deletion guard
+        env:
+          BASELINE: ${{ steps.baseline.outputs.sha }}
+        run: |
+          set -euo pipefail
+          HEAD_SHA="${{ github.event.pull_request.head.sha || github.sha }}"
+
+          # Fast-pass when the bumping commit itself moved the baseline forward.
+          # Use the merge-commit body when present, otherwise the head-commit body.
+          MSG="$(git log -1 --format=%B "$HEAD_SHA" || true)"
+          if printf '%s' "$MSG" | grep -qiF '[upgrade-approved]'; then
+            echo "✅ commit message carries [upgrade-approved] — guard bypassed for this push"
+            exit 0
+          fi
+
+          # Compare HEAD tree vs baseline tree, but only count files that
+          # *existed at baseline* and are now deleted or shrunk significantly.
+          DELETED="$(git diff --diff-filter=D --name-only "$BASELINE" "$HEAD_SHA" -- \
+            'UNICORN_FINAL/src/**' \
+            'UNICORN_FINAL/backend/**' \
+            'UNICORN_FINAL/scripts/**' \
+            'UNICORN_FINAL/package.json' \
+            'UNICORN_FINAL/ecosystem.config.js' \
+            '.github/workflows/deploy.yml' \
+            '.github/workflows/no-downgrade-guard.yml' \
+            '.github/baselines/live.sha' \
+            'LIVE_BASELINE.md' \
+            || true)"
+
+          if [ -n "$DELETED" ]; then
+            echo "::error::These critical files existed at baseline $BASELINE and are deleted at HEAD:"
+            printf '::error::  %s\n' $DELETED
+            echo "::error::Add [upgrade-approved] to the commit message after a verified green deploy"
+            echo "::error::and a corresponding baseline bump in .github/baselines/live.sha"
+            exit 1
+          fi
+          echo "✅ no critical-path deletions vs baseline"
+
+      - name: ✅ Guard passed
+        run: echo "🛡️  No downgrade detected. Forward-only history confirmed."

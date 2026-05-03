@@ -129,10 +129,6 @@ const assert = require('assert');
   }
 
   console.log('polish-pack tests passed');
-  // Required: shell.js transitively starts long-lived intervals
-  // (autonomousInnovation, service-watchdog, orchestrator) that keep the
-  // event loop alive and would hang `npm test` until CI timeout.
-  process.exit(0);
 })().catch(e => {
   console.error('polish-pack tests FAILED:', e);
   process.exit(1);
