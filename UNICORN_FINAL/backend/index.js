@@ -2638,6 +2638,62 @@ app.get('/api/storefront', async (req, res) => {
   res.json(payload);
 });
 
+// Additive alias — /api/instant/catalog. The site SSR client
+// (src/site/v2/client.js `hydrateMasterCatalog` and `hydrateStore`) calls
+// this endpoint to populate the master marketplace grid + the "X real
+// services · X instant · X professional · X enterprise · X modules" counts.
+// Nginx routes /api/* to this backend (port 3000), so without this alias
+// the page kept showing "0 real services · 0 instant · …" indefinitely.
+//
+// Tries the unified-catalog from src/commerce first (full instant +
+// enterprise + runtime catalogue). Falls back to mapping `_unicornServices`
+// when the unified module is unavailable, so the UI is never empty.
+// RO+EN: aliasul publică catalogul real (instant + enterprise + runtime)
+// în forma `{ products, summary }` cerută de hydrateMasterCatalog.
+let _unifiedCatalogModule = null;
+try { _unifiedCatalogModule = require('../src/commerce/unified-catalog'); }
+catch (_) { _unifiedCatalogModule = null; }
+
+app.get('/api/instant/catalog', async (req, res) => {
+  const tier = String(req.query.tier || '').trim();
+  let products = [];
+  let summary = null;
+  if (_unifiedCatalogModule && typeof _unifiedCatalogModule.publicView === 'function') {
+    try {
+      products = _unifiedCatalogModule.publicView() || [];
+      if (tier && Array.isArray(products)) products = products.filter(p => (p.tier || 'instant') === tier);
+      if (typeof _unifiedCatalogModule.summarize === 'function') {
+        try { summary = _unifiedCatalogModule.summarize(); } catch (_) { summary = null; }
+      }
+    } catch (_) { products = []; }
+  }
+  if (!Array.isArray(products) || products.length === 0) {
+    // Fallback: build a minimal catalogue from the in-memory _unicornServices
+    // so the site UI always has something to render. The shape matches what
+    // the unified catalog would emit (id/title/description/tier/priceUSD).
+    products = (_unicornServices || []).map((s) => ({
+      id: s.id,
+      title: s.title,
+      description: s.description || '',
+      tier: 'professional',
+      group: 'professional',
+      priceUSD: Number(s.price || 0),
+      currency: s.currency || 'USD',
+      deliverable: s.kpi || 'service delivery'
+    }));
+    if (tier) products = products.filter(p => p.tier === tier);
+    summary = summary || {
+      generatedAt: new Date().toISOString(),
+      products: products.length,
+      totalListedValueUSD: Number(products.reduce((a, p) => a + Number(p.priceUSD || 0), 0).toFixed(2)),
+      byTier: products.reduce((acc, p) => { acc[p.tier] = (acc[p.tier] || 0) + 1; return acc; }, {}),
+      byGroup: products.reduce((acc, p) => { acc[p.group] = (acc[p.group] || 0) + 1; return acc; }, {})
+    };
+  }
+  res.set('Cache-Control', 'public, max-age=20, stale-while-revalidate=60');
+  res.json({ products, summary });
+});
+
 // Allow new services to be registered live (in-memory) — fires SSE event so
 // browsers get a real-time "🆕 new service" notification with zero reload.
 app.post('/api/services/register', (req, res) => {
@@ -5035,6 +5091,32 @@ app.get('/api/btc/rate', async (req, res) => {
     res.json(await paymentGateway.getBitcoinRate());
   } catch (err) {
     res.status(500).json({ error: err.message });
+  }
+});
+
+// Additive alias — /api/btc/spot. The site SSR client (src/site/v2/client.js
+// `hydrateMasterCatalog`) expects a payload with `usdPerBtc` so the
+// "live rate loading…" placeholder in the marketplace hero can be replaced
+// with a real BTC quote. Nginx routes /api/* to this backend (port 3000),
+// so without this alias the site silently kept the placeholder forever.
+// RO+EN: aliasul publică prețul BTC live în forma cerută de UI (`usdPerBtc`)
+// astfel încât hero-ul "Pay any service direct in BTC" să arate cotația reală.
+app.get('/api/btc/spot', async (req, res) => {
+  try {
+    const r = await paymentGateway.getBitcoinRate();
+    const usdPerBtc = Number(r && r.rate) || 0;
+    res.set('Cache-Control', 'public, max-age=60');
+    res.json({
+      usdPerBtc,
+      rate: usdPerBtc,
+      usd: usdPerBtc,
+      fetchedAt: r && r.updatedAt ? r.updatedAt : new Date().toISOString(),
+      source: r && r.source ? r.source : 'paymentGateway',
+      btcAddress: ADMIN_OWNER_BTC,
+      owner: ADMIN_OWNER_NAME
+    });
+  } catch (err) {
+    res.status(503).json({ error: 'spot_unavailable', detail: err.message });
   }
 });
 

@@ -4,6 +4,8 @@
  * Guarantees that:
  *   - GET /api/services        responds 200 with { services: [...] } (alias of /api/services/list)
  *   - GET /api/btc/rate        responds 200 with the BTC rate payload   (alias of /api/payment/btc-rate)
+ *   - GET /api/btc/spot        responds 200 with { usdPerBtc, btcAddress, … } (used by site SSR)
+ *   - GET /api/instant/catalog responds 200 with { products: [...], summary } (used by site SSR)
  *   - GET /api/services/list   keeps responding 200 (no regression)
  *   - GET /api/payment/btc-rate keeps responding 200 (no regression)
  *
@@ -79,6 +81,27 @@ async function run() {
     assert.strictEqual(btcAlias.status, 200, '/api/btc/rate status');
     assert.ok(btcAlias.body && typeof btcAlias.body === 'object', '/api/btc/rate body');
     console.log('[ok] /api/btc/rate alias responds 200');
+
+    // Alias /api/btc/spot — site SSR client expects { usdPerBtc } so the
+    // "live rate loading…" placeholder in the marketplace hero is replaced.
+    const btcSpot = await get('/api/btc/spot');
+    assert.strictEqual(btcSpot.status, 200, '/api/btc/spot status');
+    assert.ok(btcSpot.body && typeof btcSpot.body === 'object', '/api/btc/spot body');
+    assert.ok('usdPerBtc' in btcSpot.body, '/api/btc/spot must expose usdPerBtc');
+    assert.ok(typeof btcSpot.body.btcAddress === 'string' && btcSpot.body.btcAddress.length > 0, '/api/btc/spot must expose btcAddress');
+    console.log('[ok] /api/btc/spot alias responds 200 with { usdPerBtc, btcAddress }');
+
+    // Alias /api/instant/catalog — site SSR client uses this to populate the
+    // master catalog grid + the "X real services · X instant · X professional…"
+    // counts. Without this alias the page kept showing all zeros.
+    const catalog = await get('/api/instant/catalog');
+    assert.strictEqual(catalog.status, 200, '/api/instant/catalog status');
+    assert.ok(catalog.body && Array.isArray(catalog.body.products), '/api/instant/catalog must expose products[]');
+    assert.ok(catalog.body.products.length > 0, '/api/instant/catalog must return at least one product');
+    const sample = catalog.body.products[0];
+    assert.ok(sample && typeof sample.id === 'string' && sample.id.length > 0, 'product must have an id');
+    assert.ok('priceUSD' in sample || 'priceUsd' in sample || 'price' in sample, 'product must have a price field');
+    console.log('[ok] /api/instant/catalog alias responds 200 with', catalog.body.products.length, 'products');
 
     console.log('\n[api-aliases.test.js] all assertions passed');
   } finally {
