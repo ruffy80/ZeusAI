@@ -1,6 +1,10 @@
 {
   "name": "generate-unicorn-next",
   "private": true,
+  "engines": {
+    "node": ">=20 <26",
+    "npm": ">=10"
+  },
   "scripts": {
     "dev": "node UNICORN_FINAL/src/index.js",
     "build": "npm --prefix UNICORN_FINAL run lint && npm --prefix UNICORN_FINAL test",

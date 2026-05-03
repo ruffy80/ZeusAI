@@ -4198,7 +4198,7 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v5
       - name: Trigger Hetzner deploy
         run: curl -X POST http://\${{ secrets.HETZNER_HOST }}:3001/webhook/update -H "X-Webhook-Secret: \${{ secrets.HETZNER_WEBHOOK_SECRET }}"
 `);
@@ -13196,8 +13196,8 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
         with:
           node-version: '20'
       - run: npm ci || npm install

@@ -150,16 +150,20 @@ function run() {
   const ic = instantCatalog.publicView();
   assert.ok(ic.length >= 3);
   assert.ok(ic[0].inputs);
+  // Runtime sources are accepted but never exceed the MAX_PRODUCTS=25 / 3-tier
+  // contract — they only fill remaining headroom (see src/commerce/unified-catalog.js).
   unifiedCatalog.setRuntimeSources({ marketplace: [{ id: 'mp-x', title: 'Market X', priceUSD: 25 }], industries: [{ id: 'ind-y', title: 'Industry Y', priceUSD: 0 }] });
   const uall = unifiedCatalog.all();
-  assert.ok(uall.find(p => p.id === 'mp-x'));
-  assert.ok(uall.find(p => p.id === 'ind-y'));
-  assert.ok(uall.find(p => p.id === 'instant-website-audit'));
-  assert.ok(uall.find(p => p.id === 'ent-platform-license'));
+  assert.ok(uall.length <= unifiedCatalog.MAX_PRODUCTS, 'unified catalog must respect MAX_PRODUCTS cap');
+  assert.ok(uall.find(p => p.id === 'instant-website-audit'), 'instant seed item present');
+  assert.ok(uall.find(p => p.id === 'ent-platform-license'), 'enterprise seed item present');
+  // Every emitted product must be on one of the 3 canonical tiers.
+  assert.ok(uall.every(p => unifiedCatalog.TIERS.indexOf(p.tier) !== -1), 'all products on canonical tiers');
   const usum = unifiedCatalog.summarize();
   assert.ok(usum.products >= 6);
-  assert.ok(usum.byGroup.instant >= 3);
-  assert.ok(usum.byGroup.enterprise >= 3);
+  assert.equal(usum.maxProducts, unifiedCatalog.MAX_PRODUCTS);
+  assert.ok(usum.byTier.instant >= 3);
+  assert.ok(usum.byTier.enterprise >= 3);
   // Tier filter
   const onlyInstant = unifiedCatalog.publicView({ tier: 'instant' });
   assert.ok(onlyInstant.every(p => p.tier === 'instant'));

@@ -5,8 +5,17 @@ on:
   push:
     branches: [ "main" ]
     paths:
-      - 'UNICORN_FINAL/**'
+      - 'UNICORN_FINAL/src/**'
+      - 'UNICORN_FINAL/backend/**'
+      - 'UNICORN_FINAL/client/**'
+      - 'UNICORN_FINAL/scripts/**'
+      - 'UNICORN_FINAL/package.json'
+      - 'UNICORN_FINAL/package-lock.json'
+      - 'UNICORN_FINAL/ecosystem.config.js'
+      - 'UNICORN_FINAL/Dockerfile'
+      - 'UNICORN_FINAL/.nvmrc'
       - '.github/workflows/deploy.yml'
+      - '.nvmrc'
 
 concurrency:
   group: unicorn-stable-deploy-main
@@ -105,14 +114,19 @@ jobs:
 
     steps:
       - name: 📥 Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           fetch-depth: 0
 
       - name: 🟦 Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v5
         with:
-          node-version: 20
+          node-version-file: '.nvmrc'
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            UNICORN_FINAL/package-lock.json
+            UNICORN_FINAL/client/package-lock.json
 
       - name: 🔍 Run Linter (ESLint)
         working-directory: ./UNICORN_FINAL
@@ -195,6 +209,7 @@ jobs:
           RELEASE_ROOT="/var/www/unicorn/releases"
           RELEASE_PATH="$RELEASE_ROOT/$RELEASE_ID"
           DEPLOY_LINK="/var/www/unicorn/UNICORN_FINAL"
+          CURRENT_LINK="/var/www/unicorn/current"
 
           ssh -o StrictHostKeyChecking=no root@${{ secrets.HETZNER_HOST }} "mkdir -p $RELEASE_ROOT && mkdir -p $RELEASE_PATH"
           ssh -o StrictHostKeyChecking=no root@${{ secrets.HETZNER_HOST }} \
@@ -226,7 +241,27 @@ jobs:
             ./ root@${{ secrets.HETZNER_HOST }}:$RELEASE_PATH/
 
           ssh -o StrictHostKeyChecking=no root@${{ secrets.HETZNER_HOST }} \
-            "ln -sfn $RELEASE_PATH/UNICORN_FINAL $DEPLOY_LINK && test -L $DEPLOY_LINK"
+            "set -euo pipefail; \
+             TARGET='$RELEASE_PATH/UNICORN_FINAL'; \
+             LINK='$DEPLOY_LINK'; \
+             CURRENT_TARGET='$RELEASE_PATH'; \
+             CURRENT_LINK='$CURRENT_LINK'; \
+             if [ -d \"\$LINK\" ] && [ ! -L \"\$LINK\" ]; then \
+               mv \"\$LINK\" \"\${LINK}.prelink.$(date +%s)\"; \
+             fi; \
+             if [ -d \"\$CURRENT_LINK\" ] && [ ! -L \"\$CURRENT_LINK\" ]; then \
+               mv \"\$CURRENT_LINK\" \"\${CURRENT_LINK}.prelink.$(date +%s)\"; \
+             fi; \
+             ln -sfn \"\$TARGET\" \"\$LINK\"; \
+             ln -sfn \"\$CURRENT_TARGET\" \"\$CURRENT_LINK\"; \
+             test -L \"\$LINK\"; \
+             test -L \"\$CURRENT_LINK\"; \
+             RESOLVED_LINK=\$(readlink -f \"\$LINK\"); \
+             RESOLVED_TARGET=\$(readlink -f \"\$TARGET\"); \
+             RESOLVED_CURRENT=\$(readlink -f \"\$CURRENT_LINK\"); \
+             RESOLVED_RELEASE=\$(readlink -f \"\$CURRENT_TARGET\"); \
+             test \"\$RESOLVED_LINK\" = \"\$RESOLVED_TARGET\"; \
+             test \"\$RESOLVED_CURRENT\" = \"\$RESOLVED_RELEASE\""
 
           ssh -o StrictHostKeyChecking=no root@${{ secrets.HETZNER_HOST }} \
             "printf '%s\n' '${{ github.sha }}' > /var/www/unicorn/UNICORN_FINAL/.deployed-commit && \
@@ -383,6 +418,8 @@ jobs:
           mkdir -p /usr/local/bin /var/lib/unicorn /var/log /etc/cron.d /etc/logrotate.d /opt/unicorn
           install -m 0755 "$DEPLOY_PATH/scripts/unicorn-health-bot.sh" /usr/local/bin/unicorn-health-bot.sh
           install -m 0755 "$DEPLOY_PATH/scripts/unicorn-payment-monitor.sh" /usr/local/bin/unicorn-payment-monitor.sh
+          install -m 0755 "$DEPLOY_PATH/scripts/auth-db-backup.js" /usr/local/bin/auth-db-backup.js
+          install -m 0755 "$DEPLOY_PATH/scripts/auth-repair.js" /usr/local/bin/auth-repair.js
           chmod +x "$DEPLOY_PATH/scripts/unicorn-payment-monitor.js" 2>/dev/null || true
           cat > /etc/cron.d/unicorn-health-bot <<'CRON'
           SHELL=/bin/bash
@@ -391,8 +428,14 @@ jobs:
           * * * * * root DEPLOY_PATH=/var/www/unicorn/UNICORN_FINAL UNICORN_LOCAL_URL=http://127.0.0.1:3001 /usr/local/bin/unicorn-payment-monitor.sh
           CRON
           chmod 0644 /etc/cron.d/unicorn-health-bot
+          cat > /etc/cron.d/unicorn-auth-backup <<'CRON'
+          SHELL=/bin/bash
+          PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+          0 * * * * root cd /var/www/unicorn/UNICORN_FINAL && AUTH_GUARDIAN_BACKUP_KEEP=24 node /usr/local/bin/auth-db-backup.js >> /var/log/unicorn-auth-db-backup.log 2>&1
+          CRON
+          chmod 0644 /etc/cron.d/unicorn-auth-backup
           cat > /etc/logrotate.d/unicorn-transactions <<'ROTATE'
-          /var/log/unicorn-transactions.log /var/log/unicorn-health-bot.log {
+          /var/log/unicorn-transactions.log /var/log/unicorn-health-bot.log /var/log/unicorn-auth-db-backup.log {
               daily
               rotate 30
               missingok
@@ -405,6 +448,7 @@ jobs:
           chmod 0644 /etc/logrotate.d/unicorn-transactions
           /usr/local/bin/unicorn-health-bot.sh || true
           /usr/local/bin/unicorn-payment-monitor.sh || true
+          cd "$DEPLOY_PATH" && node /usr/local/bin/auth-db-backup.js || true
           echo "✅ autonomous health/payment bots installed"
           SSHEOF
 
@@ -465,6 +509,65 @@ jobs:
           else
             echo "⚠️  HTTPS zeusai.pro: $DOMAIN_HTTPS — SSL necesită verificare manuală dacă DNS e greșit"
           fi
+
+      - name: 🔐 Mandatory auth login smoke (blocking)
+        run: |
+          ssh -o StrictHostKeyChecking=no root@${{ secrets.HETZNER_HOST }} bash -s << 'SSHEOF'
+          set -euo pipefail
+          DEPLOY_PATH=/var/www/unicorn/UNICORN_FINAL
+          cd "$DEPLOY_PATH"
+          EMAIL="$(grep -m1 '^AUTH_GUARDIAN_TEST_EMAIL=' .env 2>/dev/null | cut -d= -f2- | tr -d '"' | tr -d "'" || true)"
+          PASS="$(grep -m1 '^AUTH_GUARDIAN_TEST_PASSWORD=' .env 2>/dev/null | cut -d= -f2- | tr -d '"' | tr -d "'" || true)"
+          if [ -z "$EMAIL" ]; then
+            EMAIL="$(grep -m1 '^ADMIN_EMAIL=' .env 2>/dev/null | cut -d= -f2- | tr -d '"' | tr -d "'" || true)"
+          fi
+          if [ -z "$EMAIL" ]; then
+            EMAIL="$(grep -m1 '^OWNER_EMAIL=' .env 2>/dev/null | cut -d= -f2- | tr -d '"' | tr -d "'" || true)"
+          fi
+          if [ -z "$EMAIL" ]; then
+            EMAIL="auth.guardian@zeusai.pro"
+          fi
+          if [ -z "$PASS" ]; then
+            PASS="$(grep -m1 '^ADMIN_MASTER_PASSWORD=' .env 2>/dev/null | cut -d= -f2- | tr -d '"' | tr -d "'" || true)"
+          fi
+          if [ -z "$PASS" ]; then
+            PASS="Guardian#$(date +%s)"
+          fi
+          WEBHOOK="$(grep -m1 '^AUTH_GUARDIAN_ALERT_WEBHOOK=' .env 2>/dev/null | cut -d= -f2- | tr -d '"' | tr -d "'" || true)"
+          login_payload=$(node -e 'const [e,p]=process.argv.slice(1); process.stdout.write(JSON.stringify({ email:e, password:p }));' "$EMAIL" "$PASS")
+          signup_payload=$(node -e 'const [e,p]=process.argv.slice(1); process.stdout.write(JSON.stringify({ name:"Auth Guardian", email:e, password:p }));' "$EMAIL" "$PASS")
+
+          login_code=$(curl -sS -o /tmp/auth_login.json -w "%{http_code}" \
+            -X POST http://127.0.0.1:3000/api/customer/login \
+            -H 'Content-Type: application/json' \
+            --data "$login_payload" || true)
+
+          if [ "$login_code" != "200" ]; then
+            signup_code=$(curl -sS -o /tmp/auth_signup.json -w "%{http_code}" \
+              -X POST http://127.0.0.1:3000/api/customer/signup \
+              -H 'Content-Type: application/json' \
+              --data "$signup_payload" || true)
+            if [ "$signup_code" != "200" ] && [ "$signup_code" != "409" ]; then
+              echo "❌ auth signup bootstrap failed (code=$signup_code)"
+              [ -n "$WEBHOOK" ] && curl -sS -m 8 -X POST -H 'Content-Type: application/json' \
+                -d "{\"text\":\"[deploy] auth signup bootstrap failed (code=$signup_code)\"}" "$WEBHOOK" >/dev/null || true
+              exit 1
+            fi
+            login_code=$(curl -sS -o /tmp/auth_login_retry.json -w "%{http_code}" \
+              -X POST http://127.0.0.1:3000/api/customer/login \
+              -H 'Content-Type: application/json' \
+              --data "$login_payload" || true)
+          fi
+
+          if [ "$login_code" != "200" ]; then
+            echo "❌ mandatory auth smoke failed (code=$login_code)"
+            [ -n "$WEBHOOK" ] && curl -sS -m 8 -X POST -H 'Content-Type: application/json' \
+              -d "{\"text\":\"[deploy] mandatory auth smoke failed (code=$login_code)\"}" "$WEBHOOK" >/dev/null || true
+            exit 1
+          fi
+
+          echo "✅ mandatory auth smoke passed"
+          SSHEOF
 
       - name: 🧪 Public smoke tests (api/health, api/services, api/modules, api/btc/rate)
         # Rulează scripts/smoke-tests.sh ÎN PROCES PE SERVER, contra 127.0.0.1:3000

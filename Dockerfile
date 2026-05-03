@@ -1,6 +1,10 @@
-FROM node:20-alpine
+ARG NODE_IMAGE=node:lts-alpine
+FROM ${NODE_IMAGE}
 
 WORKDIR /app
+
+# Needed by package prepare hooks that invoke git during npm ci
+RUN apk add --no-cache git
 
 # Copy package files
 COPY UNICORN_FINAL/package*.json ./
