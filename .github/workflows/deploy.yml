@@ -147,7 +147,7 @@ jobs:
       - name: 🏗️ Build React client UI
         working-directory: ./UNICORN_FINAL/client
         # CI=false: react-scripts treats warnings as errors when CI=true (GitHub Actions default).
-        # The project already uses this flag in the vercel-build script for the same reason.
+        # Necessary so non-blocking warnings don't fail the production build.
         run: |
           # Tolerate orphaned npm install racing on node_modules (e.g. from ui-auto-builder
           # GODMODE loop loaded by the previous test step). npm ci itself wipes node_modules,

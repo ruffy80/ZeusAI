@@ -6,24 +6,23 @@
 // - `generate_unicorn_final_clean.js` is kept only as a compatibility wrapper
 //   and delegates execution to this file.
 //
-// NEW: Complete deployment automation included!
-// 
-// After generation, you have 3 setup options:
-// 
-// 1. AUTOMATIC SETUP (Recommended)
-//    $ bash setup-platform-auto-connect.sh
-//    → Sets up GitHub, Vercel, and Hetzner automatically
-//    → Requires: GitHub token, Vercel token, Hetzner SSH access
+// DEPLOYMENT TARGET (singular, exclusive):
+//   GitHub (source of truth) → Hetzner (runtime: PM2 cluster behind nginx).
+//   No other provider is supported. Historical Vercel/auto-connector
+//   scripts have been removed.
 //
-// 2. HETZNER ONLY SETUP (If you already have GitHub/Vercel)
+// Setup options after generation:
+//
+// 1. HETZNER SETUP
 //    $ node setup_hetzner.js
 //    → Interactive setup for Hetzner server
 //    → Installs Docker, Node.js, sets up services, webhooks
 //    → Requires: SSH access to Hetzner
 //
-// 3. MANUAL SETUP
-//    → See GITHUB-VERCEL-HETZNER-CONNECTOR.md
-//    → Use individual classes from github-vercel-hetzner-connector.js
+// 2. CI/CD (recommended for ongoing deploys)
+//    → Configure HETZNER_* secrets in GitHub repo settings
+//    → Pushes to main trigger .github/workflows/deploy.yml
+//      which SSH/rsyncs to the Hetzner host and reloads PM2.
 //
 // ADDING 3 REVOLUTIONARY INNOVATIONS:
 //    $ node add_innovations.js
@@ -33,11 +32,8 @@
 //    → Creates new modules in UNICORN_FINAL/src/modules/
 //
 // Documentation:
-//    - IMPLEMENTATION-GUIDE.md - Start here!
-//    - GITHUB-VERCEL-HETZNER-CONNECTOR.md - Complete API reference
-//    - setup_hetzner.js - Interactive Hetzner configuration
-//    - setup-platform-auto-connect.sh - Full automation script
 //    - SETUP-HETZNER-GUIDE.md - Complete Hetzner guide
+//    - setup_hetzner.js - Interactive Hetzner configuration
 //    - add_innovations.js - Add revolutionary features
 
 /*
@@ -4442,17 +4438,8 @@ function createStructure() {
     { from: 'INNOVATIONS-GUIDE.md', to: 'INNOVATIONS-GUIDE.md' },
     { from: 'INNOVATIONS-INTEGRATION-SUMMARY.md', to: 'INNOVATIONS-INTEGRATION-SUMMARY.md' },
     { from: 'INNOVATIONS-QUICK-START.sh', to: 'INNOVATIONS-QUICK-START.sh' },
-    { from: 'github-vercel-hetzner-connector.js', to: 'github-vercel-hetzner-connector.js' },
     { from: 'setup_hetzner.js', to: 'setup_hetzner.js' },
-    { from: 'setup-platform-auto-connect.sh', to: 'setup-platform-auto-connect.sh' },
-    { from: 'verify-platform-setup.sh', to: 'verify-platform-setup.sh' },
-    { from: '.env.auto-connector.example', to: '.env.auto-connector.example' },
-    { from: 'GITHUB-VERCEL-HETZNER-CONNECTOR.md', to: 'GITHUB-VERCEL-HETZNER-CONNECTOR.md' },
-    { from: 'README-AUTO-CONNECTOR.md', to: 'README-AUTO-CONNECTOR.md' },
-    { from: 'IMPLEMENTATION-GUIDE.md', to: 'IMPLEMENTATION-GUIDE.md' },
     { from: 'SETUP-HETZNER-GUIDE.md', to: 'SETUP-HETZNER-GUIDE.md' },
-    { from: 'START-HERE.md', to: 'START-HERE.md' },
-    { from: 'QUICK-REFERENCE.sh', to: 'QUICK-REFERENCE.sh' },
     { from: 'scripts', to: 'scripts' },
     { from: '.github/workflows', to: '.github/workflows' }
   ];

@@ -1,1 +1,0 @@
-import React from 'react'; import ServiceMarketplace from '../components/ServiceMarketplace'; export default function Marketplace(){ return <ServiceMarketplace clientId="guest" />; }
