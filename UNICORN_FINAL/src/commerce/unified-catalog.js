@@ -1,8 +1,18 @@
 // commerce/unified-catalog.js
-// Unifies instant-catalog + enterprise-catalog + (optionally) runtime marketplace
-// + industries via setRuntimeSources(). Used by /api/instant/catalog when present.
+// Unifies instant-catalog + enterprise-catalog into a SINGLE canonical catalogue
+// with the contract guarantee enforced by `MAX_PRODUCTS` and `TIERS`:
+//
+//   * Exactly 3 tiers: instant | professional | enterprise.
+//   * At most `MAX_PRODUCTS` (25) products in any public response.
+//
+// Runtime marketplace/industry sources, if injected via `setRuntimeSources`,
+// are normalized into one of the 3 tiers, deduped against the static seed and
+// ONLY used to fill the remainder up to MAX_PRODUCTS — never to exceed it.
 //
 // Exports: byId(id), publicView({tier?}), summarize(), setRuntimeSources({marketplace, industries}), all()
+
+const MAX_PRODUCTS = 25;
+const TIERS = ['instant', 'professional', 'enterprise'];
 
 let _runtime = { marketplace: [], industries: [] };
 
@@ -15,11 +25,21 @@ function setRuntimeSources(sources) {
   if (Array.isArray(sources.industries))  _runtime.industries  = sources.industries;
 }
 
+// Coerce any incoming tier/group label to one of the 3 canonical tiers.
+function _coerceTier(value, fallback) {
+  const t = String(value || '').toLowerCase();
+  if (t === 'instant') return 'instant';
+  if (t === 'professional' || t === 'pro' || t === 'business') return 'professional';
+  if (t === 'enterprise' || t === 'industry' || t === 'sovereign' || t === 'strategic') return 'enterprise';
+  if (t === 'marketplace') return 'professional';
+  return fallback || 'professional';
+}
+
 function _normalize(item, defaults) {
   return {
     id: item.id || item.slug || item.title,
     title: item.title || item.name || item.id,
-    tier: item.tier || defaults.tier || 'instant',
+    tier: _coerceTier(item.tier, _coerceTier(defaults.tier, 'professional')),
     priceUSD: Number(item.priceUSD || item.priceUsd || item.price || 0),
     currency: item.currency || 'USD',
     description: item.description || '',
@@ -31,21 +51,44 @@ function _normalize(item, defaults) {
 function all() {
   const out = [];
   const seen = new Set();
+
+  // Static catalogues are the source of truth and ship the canonical 25.
   const inst = _instant();
-  if (inst) for (const p of inst.all()) { out.push(_normalize(p, { group: 'instant', tier: p.tier || 'instant' })); seen.add(out[out.length-1].id); }
+  if (inst) {
+    for (const p of inst.all()) {
+      if (out.length >= MAX_PRODUCTS) break;
+      const norm = _normalize(p, { group: 'instant', tier: p.tier || 'instant' });
+      if (!norm.id || seen.has(norm.id)) continue;
+      out.push(norm); seen.add(norm.id);
+    }
+  }
   const ent = _enterprise();
-  if (ent) for (const p of ent.all()) { if (!seen.has(p.id)) { out.push(_normalize(p, { group: 'enterprise', tier: p.tier || 'enterprise' })); seen.add(p.id); } }
+  if (ent) {
+    for (const p of ent.all()) {
+      if (out.length >= MAX_PRODUCTS) break;
+      const norm = _normalize(p, { group: 'enterprise', tier: p.tier || 'enterprise' });
+      if (!norm.id || seen.has(norm.id)) continue;
+      out.push(norm); seen.add(norm.id);
+    }
+  }
+
+  // Runtime marketplace/industry items only fill the remaining headroom (if any)
+  // and are coerced into one of the 3 canonical tiers — they NEVER exceed
+  // MAX_PRODUCTS and never leak a 4th tier label.
   for (const m of _runtime.marketplace || []) {
+    if (out.length >= MAX_PRODUCTS) break;
     if (!m || !m.id || seen.has(m.id)) continue;
-    out.push(_normalize(m, { group: 'marketplace', tier: m.tier || 'marketplace' }));
+    out.push(_normalize(m, { group: 'professional', tier: m.tier || 'professional' }));
     seen.add(m.id);
   }
   for (const i of _runtime.industries || []) {
+    if (out.length >= MAX_PRODUCTS) break;
     if (!i || !i.id || seen.has(i.id)) continue;
-    out.push(_normalize(i, { group: 'industry', tier: i.tier || 'industry' }));
+    out.push(_normalize(i, { group: 'enterprise', tier: i.tier || 'enterprise' }));
     seen.add(i.id);
   }
-  return out;
+
+  return out.slice(0, MAX_PRODUCTS);
 }
 
 function byId(id) {
@@ -60,14 +103,20 @@ function publicView(opts) {
 }
 function summarize() {
   const list = all();
-  const byTier = {}; const byGroup = {};
+  const byTier = { instant: 0, professional: 0, enterprise: 0 };
   let totalUSD = 0;
   for (const p of list) {
-    byTier[p.tier] = (byTier[p.tier] || 0) + 1;
-    byGroup[p.group] = (byGroup[p.group] || 0) + 1;
+    if (TIERS.indexOf(p.tier) !== -1) byTier[p.tier] += 1;
     totalUSD += Number(p.priceUSD || 0);
   }
-  return { generatedAt: new Date().toISOString(), products: list.length, totalListedValueUSD: Number(totalUSD.toFixed(2)), byTier, byGroup };
+  return {
+    generatedAt: new Date().toISOString(),
+    products: list.length,
+    maxProducts: MAX_PRODUCTS,
+    tiers: TIERS.slice(),
+    totalListedValueUSD: Number(totalUSD.toFixed(2)),
+    byTier
+  };
 }
 
-module.exports = { all, byId, publicView, summarize, setRuntimeSources };
+module.exports = { all, byId, publicView, summarize, setRuntimeSources, MAX_PRODUCTS, TIERS };
