@@ -881,10 +881,11 @@ jobs:
           MAX_ATTEMPTS=6
           RETRY_S=5
           for attempt in $(seq 1 $MAX_ATTEMPTS); do
-            HTML=$(curl -sk -m 15 -H 'Cache-Control: no-cache' -H 'Pragma: no-cache' \
-              https://zeusai.pro/services 2>/dev/null || true)
-            STATUS=$(curl -sk -m 15 -H 'Cache-Control: no-cache' -o /dev/null \
-              -w '%{http_code}' https://zeusai.pro/services 2>/dev/null || echo 0)
+            # Single curl call — capture HTTP status header + body together.
+            RESP=$(curl -sk -m 15 -H 'Cache-Control: no-cache' -H 'Pragma: no-cache' \
+              -w '\n___HTTP_STATUS___%{http_code}' https://zeusai.pro/services 2>/dev/null || true)
+            STATUS=$(printf '%s' "$RESP" | awk -F'___HTTP_STATUS___' 'END{print $2}')
+            HTML=$(printf '%s' "$RESP" | sed 's/___HTTP_STATUS___[0-9]*$//')
             CARDS=$(printf '%s' "$HTML" | grep -oE 'data-product-id="[^"]+"' | sort -u | wc -l | tr -d ' ')
             HAS_LOADING_ONLY=$(printf '%s' "$HTML" | grep -ciE 'Loading every Unicorn deliverable|Loading modules from Unicorn live feed' || true)
             echo "attempt=$attempt status=$STATUS ssr_product_cards=$CARDS loading_only_stubs=$HAS_LOADING_ONLY"
