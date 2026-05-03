@@ -32,8 +32,61 @@ function _loadCatalog() {
   try {
     const u = require('../../commerce/unified-catalog');
     const all = (typeof u.all === 'function') ? u.all() : [];
-    return Array.isArray(all) ? all : [];
+    if (!Array.isArray(all)) return [];
+    // Best-effort enrichment with the live AI-negotiated price computed by
+    // backend/modules/dynamic-pricing.js (BASE_PRICES × demand × surge ×
+    // peak × per-service variance × discount). When the module is loadable
+    // in this process we use it for SSR so the first paint already shows
+    // the same "live" number the client polls afterwards. When it isn't
+    // loadable (separate site/backend processes), or the broker has no
+    // entry for an id, we keep the static priceUSD from the catalogue.
+    let dp = null;
+    try { dp = require('../../../backend/modules/dynamic-pricing'); } catch (_) {}
+    let broker = null;
+    try { broker = require('../../../backend/modules/live-pricing-broker'); } catch (_) {}
+    const snap = (broker && typeof broker.getSnapshot === 'function') ? (broker.getSnapshot() || null) : null;
+    const brokerById = {};
+    if (snap && Array.isArray(snap.items)) {
+      for (const it of snap.items) { if (it && it.id) brokerById[it.id] = it; }
+    }
+    return all.map(p => {
+      const out = Object.assign({}, p);
+      const fromBroker = brokerById[p.id];
+      if (fromBroker && Number(fromBroker.priceUsd) > 0) {
+        out.priceUSD = Number(fromBroker.priceUsd);
+        out.livePriceSource = 'broker';
+        if (fromBroker.priceBtc) out.priceBtc = Number(fromBroker.priceBtc);
+      } else if (dp && typeof dp.getPrice === 'function') {
+        try {
+          const live = dp.getPrice(p.id);
+          if (live && Number(live.finalPrice) > 0) {
+            out.priceUSD = Number(live.finalPrice);
+            out.livePriceSource = 'dynamic-pricing';
+            out.demandFactor = live.demandFactor;
+            out.surgeActive = !!live.surgeActive;
+          }
+        } catch (_) { /* keep static */ }
+      }
+      return out;
+    });
   } catch (_) { return []; }
+}
+// Read the live AI-negotiated price for a subscription tier (starter/pro/
+// enterprise). Falls back to the documented base price when the engine is
+// not available in this process. Returns { price, demandFactor, surge,
+// source } so callers can show why the number changed.
+function _liveTierPrice(tierId, fallback) {
+  let dp = null;
+  try { dp = require('../../../backend/modules/dynamic-pricing'); } catch (_) {}
+  if (dp && typeof dp.getPrice === 'function') {
+    try {
+      const live = dp.getPrice(tierId);
+      if (live && Number(live.finalPrice) > 0) {
+        return { price: Number(live.finalPrice), demandFactor: live.demandFactor, surge: !!live.surgeActive, source: 'dynamic-pricing' };
+      }
+    } catch (_) {}
+  }
+  return { price: Number(fallback || 0), demandFactor: 1, surge: false, source: 'static-fallback' };
 }
 function _tierBadge(tier) {
   const t = String(tier || 'professional').toLowerCase();
@@ -51,8 +104,14 @@ function _catalogCard(p) {
   const price = Number(p.priceUSD || p.priceUsd || p.price || 0);
   const priceTxt = price > 0 ? ('$' + price.toLocaleString('en-US')) : 'Free';
   const billing = price > 0 && (p.billing === 'monthly') ? '<small style="color:var(--ink-dim);font-weight:400">/mo</small>' : '';
-  return `<article class="card" data-tier="${_esc(p.tier || '')}" data-product-id="${id}" itemscope itemtype="https://schema.org/Product" style="display:flex;flex-direction:column;gap:10px">
-    <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px">${_tierBadge(p.tier)}<span style="font-family:var(--mono);font-size:18px;color:var(--gold)" itemprop="offers" itemscope itemtype="https://schema.org/Offer"><meta itemprop="priceCurrency" content="USD"/><span itemprop="price">${priceTxt}</span>${billing}</span></div>
+  // When the live pricing engine produced this number, surface a small badge
+  // so the user (and ops) can tell it is the AI-negotiated value, not a
+  // static catalogue floor.
+  const liveBadge = p.livePriceSource && p.livePriceSource !== 'static-fallback'
+    ? `<span class="tag" title="Live AI-negotiated price · source=${_esc(p.livePriceSource)}${p.demandFactor ? ' · demand=' + Number(p.demandFactor).toFixed(2) : ''}" style="background:rgba(127,255,212,.12);color:#7fffd4;border:1px solid rgba(127,255,212,.35);font-size:10px;margin-left:6px">⚡ live${p.surgeActive ? ' · surge' : ''}</span>`
+    : '';
+  return `<article class="card" data-tier="${_esc(p.tier || '')}" data-product-id="${id}" data-price-source="${_esc(p.livePriceSource || 'static')}" itemscope itemtype="https://schema.org/Product" style="display:flex;flex-direction:column;gap:10px">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px">${_tierBadge(p.tier)}<span style="font-family:var(--mono);font-size:18px;color:var(--gold)" itemprop="offers" itemscope itemtype="https://schema.org/Offer"><meta itemprop="priceCurrency" content="USD"/><span itemprop="price" data-pricing-value="${id}">${priceTxt}</span>${billing}${liveBadge}</span></div>
     <h3 style="margin:4px 0 0;font-size:18px;line-height:1.25" itemprop="name">${title}</h3>
     <p style="margin:0;color:var(--ink-dim);font-size:13px;line-height:1.45;flex:1" itemprop="description">${desc}</p>
     <div style="display:flex;gap:8px;margin-top:6px"><a class="btn btn-primary" href="/checkout?plan=${encodeURIComponent(id)}" data-link style="flex:1;justify-content:center">Buy with BTC →</a><a class="btn btn-ghost" href="/services/${encodeURIComponent(id)}" data-link>Details</a></div>
@@ -917,18 +976,28 @@ function pageService(id) {
 }
 
 function pagePricing() {
-  // Subscription tiers — values mirror SUBSCRIPTION_PLANS in backend/index.js.
-  // Rendered server-side so /pricing always shows real prices on first paint;
-  // hydratePricingPage() in client.js refreshes from /api/pricing/live afterwards.
+  // Subscription tiers — render the AI-negotiated live price if the
+  // dynamic-pricing engine is loadable in this process (single-process
+  // dev/CI mode). In split-process production (site:3001 + backend:3000),
+  // the engine is on the backend so we fall back to the documented base
+  // values here ($29/$99/$499) and let hydratePricingPage() in client.js
+  // refresh them from /api/pricing/:id which proxies to the backend.
+  const starter    = _liveTierPrice('starter', 29);
+  const pro        = _liveTierPrice('pro', 99);
+  const enterprise = _liveTierPrice('enterprise', 499);
+  const liveTag = (info) => info.source !== 'static-fallback'
+    ? `<span class="tag" title="Live AI-negotiated · demand=${Number(info.demandFactor||1).toFixed(2)}${info.surge ? ' · surge active' : ''}" style="background:rgba(127,255,212,.12);color:#7fffd4;border:1px solid rgba(127,255,212,.35);font-size:10px;margin-left:6px">⚡ live${info.surge ? ' · surge' : ''}</span>`
+    : '';
+  const fmt = (info) => '$' + Number(info.price).toLocaleString('en-US');
   return `<section style="padding-top:140px">
   <div class="section-title">
-    <div><span class="kicker">Pricing</span><h2>Fair. Sovereign. <span class="grad">Outcome‑aligned.</span></h2></div>
-    <p>Simple plans for teams. For enterprise verticals, ZeusAI ships outcome‑based pricing — you pay a share of measured value delivered, auto‑invoiced via the Value‑Proof Ledger.</p>
+    <div><span class="kicker">Pricing · live AI-negotiated rates</span><h2>Fair. Sovereign. <span class="grad">Outcome‑aligned.</span></h2></div>
+    <p>Simple plans for teams. Prices below are computed live by the ZeusAI dynamic-pricing engine (demand × peak × per-tier variance × surge). For enterprise verticals, ZeusAI ships outcome‑based pricing — you pay a share of measured value delivered, auto‑invoiced via the Value‑Proof Ledger.</p>
   </div>
   <div class="pricing">
     <div class="plan" data-pricing-plan="starter">
       <h3>Starter</h3>
-      <div class="price" data-pricing-value="starter">$29<small>/mo</small></div>
+      <div class="price" data-pricing-value="starter">${fmt(starter)}<small>/mo</small>${liveTag(starter)}</div>
       <p style="color:var(--ink-dim);margin:0">For founders & indie teams.</p>
       <ul>
         <li>10,000 API calls / month</li>
@@ -940,7 +1009,7 @@ function pagePricing() {
     </div>
     <div class="plan highlight" data-pricing-plan="pro">
       <h3>Growth</h3>
-      <div class="price" data-pricing-value="pro">$99<small>/mo</small></div>
+      <div class="price" data-pricing-value="pro">${fmt(pro)}<small>/mo</small>${liveTag(pro)}</div>
       <p style="color:var(--ink-dim);margin:0">For scaling companies.</p>
       <ul>
         <li>120,000 API calls / month</li>
@@ -952,7 +1021,7 @@ function pagePricing() {
     </div>
     <div class="plan" data-pricing-plan="enterprise">
       <h3>Enterprise</h3>
-      <div class="price" data-pricing-value="enterprise">$499<small>/mo</small></div>
+      <div class="price" data-pricing-value="enterprise">${fmt(enterprise)}<small>/mo</small>${liveTag(enterprise)}</div>
       <p style="color:var(--ink-dim);margin:0">Outcome‑priced. Global.</p>
       <ul>
         <li>1.5M API calls / month · 100 seats</li>

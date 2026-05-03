@@ -297,6 +297,62 @@ function openStream(){
     es = resilientES(esPath, { onmessage: onMsg, onerror: onErr });
   } catch(_){}
 }
+
+// Live pricing channel (additive, non-blocking).
+//
+// Subscribes to the backend's live-pricing-broker SSE stream. On every
+// snapshot update we refresh the price text inside any element with
+// `data-pricing-value="<id>"` — these are emitted by the SSR catalogue
+// cards (shell.js) and by the /pricing tier cards. When the stream is
+// unavailable (broker disabled, or 404), we silently fall back to the
+// existing per-card polling via fetchLivePricing(); nothing else breaks.
+let pricingES = null;
+function openPricingStream(){
+  try { if (pricingES) pricingES.close(); } catch(_) {}
+  function applyPricingSnapshot(snap){
+    if (!snap || !Array.isArray(snap.items)) return;
+    let updated = 0;
+    for (const it of snap.items) {
+      if (!it || !it.id) continue;
+      const usd = Number(it.priceUsd != null ? it.priceUsd : it.price_usd);
+      if (!Number.isFinite(usd) || usd <= 0) continue;
+      const sel = '[data-pricing-value="' + (window.CSS && CSS.escape ? CSS.escape(it.id) : it.id) + '"]';
+      const nodes = document.querySelectorAll(sel);
+      nodes.forEach(function(node){
+        // Preserve any trailing <small>/mo</small> label by replacing only
+        // the leading "$N…" text token, not the whole innerHTML.
+        const formatted = '$' + usd.toLocaleString('en-US', { maximumFractionDigits: 2 });
+        if (node.tagName === 'SPAN' || node.children.length === 0) {
+          node.textContent = formatted;
+        } else {
+          // For .price containers that include <small>/mo</small>, set the
+          // first text node only.
+          const firstText = Array.prototype.find.call(node.childNodes, function(n){ return n.nodeType === 3; });
+          if (firstText) firstText.nodeValue = formatted; else node.textContent = formatted;
+        }
+        updated++;
+      });
+    }
+    if (updated > 0) {
+      try { window.dispatchEvent(new CustomEvent('unicorn:pricing-updated', { detail: { count: updated, ts: snap.ts || Date.now() } })); } catch(_) {}
+    }
+  }
+  try {
+    pricingES = resilientES('/api/pricing/live/stream', {
+      onmessage: function(ev){
+        try {
+          const data = JSON.parse(ev.data);
+          // The broker emits either { snapshot: {...} } or the raw snapshot
+          // depending on version; handle both shapes defensively.
+          applyPricingSnapshot(data && data.items ? data : (data && data.snapshot));
+        } catch(_) {}
+      },
+      onerror: function(){ /* resilientES handles backoff; if endpoint is
+        truly absent (LIVE_PRICING_DISABLED=1), the per-card polling path
+        still keeps prices fresh, so we do not surface a user-facing error. */ }
+    }, { heartbeatMs: 90000 });
+  } catch(_) {}
+}
 function applySnapshot(s){
   if (!s) return;
   const set = (id, v) => { const el = document.getElementById(id); if (el && v!=null) el.textContent = v; };
@@ -3257,6 +3313,7 @@ window.addEventListener('DOMContentLoaded', () => {
   document.addEventListener('change', e => { if (e.target && e.target.id === 'coEmail' && e.target.value) { try { localStorage.setItem('u_email', e.target.value); } catch(_){} } });
   refreshCustomerNav();
   openStream();
+  openPricingStream();
   subscribeAutonomousEvents();
   hydratePage(STATE.route);
 });
