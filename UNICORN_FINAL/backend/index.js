@@ -2513,9 +2513,13 @@ function _emitUnicornEvent(type, data) {
 // CATALOG_ANNOUNCE_INTERVAL_MS.
 //
 // Disable with CATALOG_ANNOUNCE_DISABLED=1.
-const CATALOG_ANNOUNCE_INTERVAL_MS = Number(process.env.CATALOG_ANNOUNCE_INTERVAL_MS || 5 * 60 * 1000);
+const _catalogAnnounceIntervalRaw = Number(process.env.CATALOG_ANNOUNCE_INTERVAL_MS);
+const CATALOG_ANNOUNCE_INTERVAL_MS = Number.isFinite(_catalogAnnounceIntervalRaw) && _catalogAnnounceIntervalRaw > 0
+  ? _catalogAnnounceIntervalRaw
+  : 5 * 60 * 1000;
 let _lastAnnouncedCatalogCount = -1;
 let _catalogAnnouncerTimer = null;
+let _catalogAnnouncerBootTimer = null;
 function _startAutonomousCatalogAnnouncer() {
   if (process.env.CATALOG_ANNOUNCE_DISABLED === '1') return;
   if (_catalogAnnouncerTimer) return; // already started
@@ -2537,7 +2541,9 @@ function _startAutonomousCatalogAnnouncer() {
     } catch (_) { /* swallow — broadcaster is best-effort */ }
   };
   // First tick after a small delay (let marketplace finish loadServices()).
-  setTimeout(tick, 5000);
+  // Stash the timer reference so test/shutdown code can clear it.
+  _catalogAnnouncerBootTimer = setTimeout(tick, 5000);
+  if (typeof _catalogAnnouncerBootTimer.unref === 'function') _catalogAnnouncerBootTimer.unref();
   _catalogAnnouncerTimer = setInterval(tick, CATALOG_ANNOUNCE_INTERVAL_MS);
   if (typeof _catalogAnnouncerTimer.unref === 'function') _catalogAnnouncerTimer.unref();
 }
