@@ -8,8 +8,8 @@
 //
 // DEPLOYMENT TARGET (singular, exclusive):
 //   GitHub (source of truth) → Hetzner (runtime: PM2 cluster behind nginx).
-//   No other provider is supported. Historical Vercel/auto-connector
-//   scripts have been removed.
+//   No other provider is supported. Historical third-party deploy
+//   connector scripts have been removed.
 //
 // Setup options after generation:
 //
@@ -397,7 +397,7 @@ class AutoDeployOrchestratorUltra {
     }
   }
 
-  // ---------- Webhook paralel pentru Hetzner, Vercel, etc. ----------
+  // ---------- Webhook paralel pentru Hetzner ----------
   async triggerAllWebhooks() {
     const results = {};
     if (process.env.HETZNER_WEBHOOK_URL) {
@@ -4228,7 +4228,7 @@ Acest proiect conține cod real pentru toate modulele și site-ul futurist, incl
 - Peste 200 de module backend (AdaptiveModule01–82, Engine1–62, și alte module specializate)
 - Module speciale: evolution-core, quantum-healing, universal-adaptor, quantum-pay, site-creator, ab-testing, seo-optimizer, analytics, content-ai, auto-marketing, performance-monitor, unicorn-realization-engine, unicorn-execution-engine, auto-trend-analyzer, self-adaptation-engine, predictive-healing, code-optimizer, self-documenter, ui-evolution, security-scanner, disaster-recovery, swarm-intelligence, auto-deploy, total-system-healer, dynamic-pricing, universal-interchain-nexus, autonomous-wealth-engine, autonomous-bd-engine, self-construction-engine
 - Frontend React futurist cu ZEUS 3D, Codex, Dashboard, pagini industrii, Wealth Engine și panouri administrative
-- Auto-deploy pe GitHub, Vercel, Hetzner
+- Auto-deploy pe GitHub și Hetzner
 - Self‑Construction Engine care la prima pornire completează și îmbunătățește automat orice modul incomplet
 
 ## Instalare rapidă

@@ -8,8 +8,7 @@
   },
   "scripts": {
     "start": "react-scripts start",
-    "build": "react-scripts build",
-    "vercel-build": "CI=false react-scripts build"
+    "build": "react-scripts build"
   },
   "dependencies": {
     "@react-three/drei": "^9.105.6",

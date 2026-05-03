@@ -7024,8 +7024,8 @@ a{color:#8a5cff;text-decoration:none}
     //   1) Explicit user override via `lang` cookie wins (set when the visitor
     //      taps the small "English / Auto" toggle button).
     //   2) Otherwise auto-detect from the visitor's country (CDN/proxy geo
-    //      headers — Cloudflare `cf-ipcountry`, nginx geoip `x-country`,
-    //      Vercel/Netlify variants). Country → language map covers ~80
+    //      headers — Cloudflare `cf-ipcountry`, nginx geoip `x-country`).
+    //      Country → language map covers ~80
     //      jurisdictions; the entire site is then auto-translated client-side
     //      into that language via the embedded Google Translate widget.
     //   3) Fall back to the browser Accept-Language header.
@@ -7039,7 +7039,6 @@ a{color:#8a5cff;text-decoration:none}
       req.headers['cf-ipcountry']
       || req.headers['x-country']
       || req.headers['x-geo-country']
-      || req.headers['x-vercel-ip-country']
       || req.headers['x-appengine-country']
       || ''
     ).toUpperCase();

@@ -1,7 +1,7 @@
 /**
  * AUTONOMOUS INNOVATION ENGINE
  * Self-generates new features, modules, and improvements continuously
- * Integrates with GitHub and Vercel for auto-deployment
+ * Integrates with GitHub for auto-deployment to Hetzner
  */
 
 const crypto = require('crypto');
@@ -241,7 +241,7 @@ class AutonomousInnovation {
         success: true,
         timestamp: new Date().toISOString(),
         gitCommit: this.generateGitCommit(),
-        vercelDeployUrl: `https://unicorn-${crypto.randomBytes(3).toString('hex')}.vercel.app`,
+        deployUrl: `https://zeusai.pro`,
       };
 
       this.deploymentLog.push(deployLog);
@@ -253,7 +253,7 @@ class AutonomousInnovation {
       this.metrics.cumulativeThroughput += deployTime;
 
       console.log(
-        `[AutonomousInnovation] Deployed: ${innov.id} (${deployTime}ms) → ${deployLog.vercelDeployUrl}`
+        `[AutonomousInnovation] Deployed: ${innov.id} (${deployTime}ms) → ${deployLog.deployUrl}`
       );
 
       return deployLog;
