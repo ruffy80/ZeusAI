@@ -150,6 +150,44 @@ jobs:
             exit 1
           fi
 
+      # ── AutoInnovation deploy gate ───────────────────────────────────────
+      # Independent layer: even if a bot manages to merge an `[AutoInnovation]`
+      # commit to main (e.g. via a PAT that bypasses status checks), this
+      # step refuses to deploy it until a human adds the [innovation-approved]
+      # trailer. See LIVE_BASELINE.md and no-downgrade-guard.yml for the
+      # matching CI-level check.
+      - name: 🤖 AutoInnovation deploy gate
+        run: |
+          set -euo pipefail
+          BASELINE="$(tr -d '[:space:]' < .github/baselines/live.sha)"
+          if ! git cat-file -e "${BASELINE}^{commit}" 2>/dev/null; then
+            git fetch --no-tags --depth=0 origin "+${BASELINE}:refs/baseline/live" || true
+          fi
+          UNAPPROVED=""
+          while IFS= read -r SHA; do
+            [ -z "$SHA" ] && continue
+            SUBJECT="$(git log -1 --format=%s "$SHA")"
+            BODY="$(git log -1 --format=%B "$SHA")"
+            case "$SUBJECT" in
+              \[AutoInnovation\]*|*\[AutoInnovation\]*)
+                if ! printf '%s' "$BODY" | grep -qiF '[innovation-approved]'; then
+                  UNAPPROVED="${UNAPPROVED}${SHA} ${SUBJECT}"$'\n'
+                fi
+                ;;
+            esac
+          done < <(git rev-list "${BASELINE}..${GITHUB_SHA}" 2>/dev/null || true)
+          if [ -n "$UNAPPROVED" ]; then
+            echo "::error::Refusing to deploy: unreviewed AutoInnovation commits since baseline:"
+            printf '%s' "$UNAPPROVED" | while IFS= read -r LINE; do
+              [ -z "$LINE" ] && continue
+              echo "::error::  $LINE"
+            done
+            echo "::error::Amend each commit body to include [innovation-approved]"
+            echo "::error::after a manual review, then re-run the deploy."
+            exit 1
+          fi
+          echo "✅ no unreviewed AutoInnovation commits between baseline and HEAD"
+
       - name: 🟦 Setup Node.js
         uses: actions/setup-node@v4
         with:
