@@ -141,6 +141,81 @@ if (process.env.TOPOLOGY_ENDPOINT_DISABLED !== '1') {
   });
 }
 
+// ==================== RUM beacons (Real User Monitoring) ====================
+// Production ingest path: nginx routes ALL /internal/* to this backend
+// (nginx-unicorn.conf:262), so this is the *canonical* owner of the
+// rum-beacons module — including persistence (singleton fork-mode process,
+// no cluster race on the JSONL file). The site cluster only injects the
+// inline collector; the browser then POSTs the beacon to /internal/rum
+// here. See src/perf/rum-beacons.js for the full safety contract.
+//
+// Mounted BEFORE express.json() so we read the body ourselves (sendBeacon
+// uses application/json or text/plain depending on the browser; we accept
+// both). Disable with SITE_RUM_BEACONS_DISABLED=1.
+let __backendRumBeacons = null;
+try {
+  __backendRumBeacons = require('../src/perf/rum-beacons');
+  if (__backendRumBeacons.ENABLED) {
+    try {
+      const r = __backendRumBeacons.restoreSnapshot();
+      if (r && r.ok && r.restored > 0) {
+        console.log('[rum-beacons:backend] restored ' + r.restored + ' route aggregates from snapshot');
+      }
+    } catch (_) { /* never fail boot on snapshot read */ }
+    try { __backendRumBeacons.startPersistence(); } catch (_) {}
+    console.log('[rum-beacons:backend] loaded · POST /internal/rum + GET /internal/rum/stats (canonical ingest behind nginx)');
+  } else {
+    console.log('[rum-beacons:backend] disabled via SITE_RUM_BEACONS_DISABLED=1');
+  }
+} catch (e) { console.warn('[rum-beacons:backend] not loaded:', e && e.message); }
+
+// POST /internal/rum — accept Web Vitals beacons. Always responds 204
+// (we never tell a hostile probe *why* we dropped a beacon). Body is
+// streamed and capped, so a 10 MB blob can't tie up the worker.
+app.post('/internal/rum', (req, res) => {
+  res.setHeader('Cache-Control', 'no-store');
+  if (!__backendRumBeacons || !__backendRumBeacons.ENABLED) {
+    res.status(204).end();
+    return;
+  }
+  let raw = '';
+  let aborted = false;
+  const limit = __backendRumBeacons.MAX_BEACON_BYTES;
+  req.on('data', (chunk) => {
+    if (aborted) return;
+    raw += chunk.toString('utf8');
+    if (raw.length > limit) {
+      aborted = true;
+      raw = '';
+      try { req.destroy(); } catch (_) {}
+    }
+  });
+  req.on('end', () => {
+    if (!aborted && raw) {
+      let payload = null;
+      try { payload = JSON.parse(raw); } catch (_) {}
+      if (payload) { try { __backendRumBeacons.acceptBeacon(payload, req); } catch (_) {} }
+    }
+    if (!res.headersSent) res.status(204).end();
+  });
+  req.on('error', () => { if (!res.headersSent) res.status(204).end(); });
+});
+
+// GET /internal/rum/stats — read-only aggregate (p50/p75/p95 per route).
+// No raw samples. No PII. Safe to expose alongside /internal/topology.
+app.get('/internal/rum/stats', (req, res) => {
+  res.setHeader('Cache-Control', 'no-store');
+  try {
+    if (!__backendRumBeacons) {
+      res.status(503).json({ error: 'rum_beacons_unavailable' });
+      return;
+    }
+    res.json(__backendRumBeacons.getStats());
+  } catch (e) {
+    res.status(500).json({ error: 'rum_beacons_unavailable', message: e && e.message });
+  }
+});
+
 // ==================== HOST HEADER SANITY OBSERVABILITY ====================
 // When Host / X-Forwarded-Host disagrees with the configured SITE_DOMAIN we
 // log once per minute per host. Catches CDN/proxy misconfigurations that

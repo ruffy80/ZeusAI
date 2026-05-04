@@ -882,6 +882,18 @@ try {
 // aggregates per-route p50/p75/p95 — no cookies, no PII, k-anonymous on disk.
 // See src/perf/rum-beacons.js for the full safety contract. Disable with
 // SITE_RUM_BEACONS_DISABLED=1.
+//
+// Production routing contract: nginx (nginx-unicorn.conf:262) routes ALL
+// /internal/* to the backend (3000). The backend is therefore the
+// *canonical* owner of beacon ingest AND persistence (singleton fork-mode,
+// no cluster race on the JSONL file). The site cluster only:
+//   • injects the inline collector script into SSR HTML (the only thing
+//     the browser actually needs from us);
+//   • reads the persisted aggregate on boot via restoreSnapshot() so the
+//     defensive port-3001 fallback path serves stable stats if nginx ever
+//     mis-routes /internal/rum/stats.
+// We deliberately DO NOT call startPersistence() on the site — that would
+// race the backend writer across the SSR cluster's ~4 workers.
 let rumBeacons = null;
 try {
   rumBeacons = require('./perf/rum-beacons');
@@ -889,11 +901,10 @@ try {
     try {
       const r = rumBeacons.restoreSnapshot();
       if (r && r.ok && r.restored > 0) {
-        console.log('[rum-beacons] restored ' + r.restored + ' route aggregates from snapshot');
+        console.log('[rum-beacons] restored ' + r.restored + ' route aggregates from snapshot (read-only on site; backend owns writes)');
       }
     } catch (_) { /* never fail boot on snapshot read */ }
-    try { rumBeacons.startPersistence(); } catch (_) {}
-    console.log('[rum-beacons] loaded · LCP/CLS/INP/FCP/TTFB collector + k-anon persistence');
+    console.log('[rum-beacons] loaded · SSR collector injection only (ingest+persistence live on backend behind nginx)');
   } else {
     console.log('[rum-beacons] disabled via SITE_RUM_BEACONS_DISABLED=1');
   }
