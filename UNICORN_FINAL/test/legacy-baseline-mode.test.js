@@ -3,9 +3,10 @@
 // Verifies the SITE_LEGACY_BASELINE_MODE master switch contract.
 //
 // When set to '1', the legacyBaselineModeGuard IIFE at the top of
-// src/index.js MUST propagate disable flags for every post-2026-05-04 17:21Z
-// (commit 89a8b7f3) site feature so that a baseline-pinning audit gets
-// bit-identical pre-PR-#515/#516 behavior — without any code revert.
+// src/index.js MUST propagate disable flags for every post-2026-05-04
+// 17:21 UTC (commit 89a8b7f3) site feature so that a baseline-pinning
+// audit gets bit-identical pre-PR-#515/#516 behavior — without any code
+// revert.
 //
 // Coverage:
 //   1. The 6 disable env vars are set after the guard runs.
