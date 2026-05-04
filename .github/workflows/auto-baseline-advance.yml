@@ -1,0 +1,231 @@
+name: 🪜 Auto-baseline-advance
+
+# 50-year-standard companion to no-downgrade-guard.yml.
+#
+# After every successful 🚀 Unicorn Stable Deploy AND a successful
+# 🌍 Global Availability Probe at the SAME commit SHA, this workflow
+# automatically advances `.github/baselines/live.sha` so the no-downgrade
+# guard pins forward to the latest known-good live state.
+#
+# Why this is safe:
+#   • We only advance when BOTH `deploy.yml` and `global-health.yml` are
+#     simultaneously green at the same SHA (= live + worldwide reachable).
+#   • We require the new SHA to be a strict descendant of the current
+#     baseline (forward-only — we cannot accidentally roll backwards).
+#   • The bumping commit carries the `[upgrade-approved]` trailer required
+#     by `no-downgrade-guard.yml`, so it doesn't trip the deletion guard.
+#   • Idempotent: re-runs on the same SHA are no-ops.
+#   • Bounded blast radius: the workflow only ever modifies two files
+#     (`.github/baselines/live.sha` + `LIVE_BASELINE.md`).
+#
+# This is the (H) "auto-baseline-advance" follow-up requested for the
+# long-term world-standard discipline. See LIVE_BASELINE.md for the full
+# baseline contract.
+
+on:
+  workflow_dispatch:
+    inputs:
+      force_sha:
+        description: 'Force advance to this SHA (leave empty to use latest verified-green)'
+        required: false
+        type: string
+  workflow_run:
+    workflows: ["🚀 Unicorn Stable Deploy", "🌍 Global Availability Probe"]
+    types: [completed]
+    branches: [main]
+  schedule:
+    # Self-healing tick: if either workflow_run was missed (e.g. concurrent
+    # rerun cancellations), the schedule will catch up within an hour.
+    - cron: '17 * * * *'
+
+concurrency:
+  group: auto-baseline-advance
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+  actions: read
+
+jobs:
+  advance:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    # Only run when the triggering workflow succeeded — saves CI minutes
+    # on the noisy workflow_run failure path. Manual / schedule always run.
+    if: |
+      github.event_name == 'workflow_dispatch' ||
+      github.event_name == 'schedule' ||
+      (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success')
+    steps:
+      - name: ⬇️ Checkout main (full history)
+        uses: actions/checkout@v5
+        with:
+          ref: main
+          fetch-depth: 0
+          # Use the GH_PAT so the subsequent push can reach `main` even
+          # behind branch-protection. Falls back to GITHUB_TOKEN if PAT
+          # is missing — the push then fails with a clear error rather
+          # than silently no-op'ing.
+          token: ${{ secrets.GH_PAT || secrets.GITHUB_TOKEN }}
+          persist-credentials: true
+
+      - name: 📌 Read current pinned baseline
+        id: pin
+        run: |
+          set -euo pipefail
+          SHA="$(tr -d '[:space:]' < .github/baselines/live.sha)"
+          if [ -z "$SHA" ] || [ "${#SHA}" -lt 40 ]; then
+            echo "::error::.github/baselines/live.sha missing or invalid"
+            exit 1
+          fi
+          echo "current=$SHA" >> "$GITHUB_OUTPUT"
+          echo "Current pinned baseline: $SHA"
+
+      - name: 🔍 Find latest verified-green SHA
+        id: target
+        env:
+          GH_TOKEN: ${{ secrets.GH_PAT || secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          FORCE_SHA: ${{ github.event.inputs.force_sha }}
+        run: |
+          set -euo pipefail
+          # When the operator passes a force_sha via workflow_dispatch we
+          # honour it (still subject to the descendant guard below). This
+          # is the manual escape hatch for emergency baseline rolls.
+          if [ -n "${FORCE_SHA:-}" ]; then
+            echo "Forced target SHA: $FORCE_SHA"
+            echo "sha=$FORCE_SHA" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          # Discover workflow numeric IDs by name. Names are stable and
+          # match exactly what's set in the `name:` of each YAML file.
+          WORKFLOWS_JSON="$(curl -fsS \
+            -H "Authorization: Bearer $GH_TOKEN" \
+            -H "Accept: application/vnd.github+json" \
+            "https://api.github.com/repos/$REPO/actions/workflows?per_page=100")"
+
+          DEPLOY_ID="$(printf '%s' "$WORKFLOWS_JSON" | jq -r '.workflows[] | select(.name=="🚀 Unicorn Stable Deploy") | .id' | head -n1)"
+          PROBE_ID="$(printf '%s' "$WORKFLOWS_JSON" | jq -r '.workflows[] | select(.name=="🌍 Global Availability Probe") | .id' | head -n1)"
+
+          if [ -z "$DEPLOY_ID" ] || [ -z "$PROBE_ID" ]; then
+            echo "::warning::Could not resolve workflow IDs by name (deploy=$DEPLOY_ID, probe=$PROBE_ID); skipping advance."
+            echo "sha=" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          echo "deploy workflow id: $DEPLOY_ID"
+          echo "probe  workflow id: $PROBE_ID"
+
+          # Latest successful deploy on main.
+          LATEST_DEPLOY_SHA="$(curl -fsS \
+            -H "Authorization: Bearer $GH_TOKEN" \
+            -H "Accept: application/vnd.github+json" \
+            "https://api.github.com/repos/$REPO/actions/workflows/$DEPLOY_ID/runs?branch=main&status=success&per_page=1" \
+            | jq -r '.workflow_runs[0].head_sha // ""')"
+
+          if [ -z "$LATEST_DEPLOY_SHA" ]; then
+            echo "::warning::No successful deploy run found on main yet; nothing to advance to."
+            echo "sha=" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          echo "latest deploy success at: $LATEST_DEPLOY_SHA"
+
+          # Verify a successful probe exists at the SAME SHA (sample up to
+          # last 30 probe runs on main — schedule fires every 30 minutes,
+          # so 30 runs covers ~15 hours of window).
+          PROBE_RUNS_JSON="$(curl -fsS \
+            -H "Authorization: Bearer $GH_TOKEN" \
+            -H "Accept: application/vnd.github+json" \
+            "https://api.github.com/repos/$REPO/actions/workflows/$PROBE_ID/runs?branch=main&status=success&per_page=30")"
+
+          PROBE_AT_DEPLOY="$(printf '%s' "$PROBE_RUNS_JSON" \
+            | jq -r --arg sha "$LATEST_DEPLOY_SHA" '.workflow_runs[] | select(.head_sha==$sha) | .id' \
+            | head -n1)"
+
+          if [ -z "$PROBE_AT_DEPLOY" ]; then
+            echo "::notice::No successful 🌍 Global Availability Probe run at SHA $LATEST_DEPLOY_SHA yet; will retry on next tick."
+            echo "sha=" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          echo "Probe run $PROBE_AT_DEPLOY confirms global reachability at $LATEST_DEPLOY_SHA"
+          echo "sha=$LATEST_DEPLOY_SHA" >> "$GITHUB_OUTPUT"
+
+      - name: 🛡️ Forward-only safety check
+        id: safety
+        if: steps.target.outputs.sha != ''
+        env:
+          CURRENT: ${{ steps.pin.outputs.current }}
+          TARGET:  ${{ steps.target.outputs.sha }}
+        run: |
+          set -euo pipefail
+          if [ "$TARGET" = "$CURRENT" ]; then
+            echo "✅ baseline already at $CURRENT — nothing to do"
+            echo "advance=no" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          # Make sure both SHAs are reachable.
+          git cat-file -e "${CURRENT}^{commit}" || { echo "::error::current baseline commit missing locally"; exit 1; }
+          if ! git cat-file -e "${TARGET}^{commit}" 2>/dev/null; then
+            git fetch --no-tags --prune origin "+${TARGET}:refs/baseline/target" || true
+          fi
+          git cat-file -e "${TARGET}^{commit}"
+          # Forward-only: target must be a strict descendant of the current
+          # baseline. This is the EXACT same rule the no-downgrade guard
+          # applies to HEAD on every push, so by enforcing it here we are
+          # certain the new pin will not trip its own guard on the bump
+          # commit's parent line.
+          if ! git merge-base --is-ancestor "$CURRENT" "$TARGET"; then
+            echo "::error::target $TARGET is not a descendant of current baseline $CURRENT — refusing to advance"
+            exit 1
+          fi
+          echo "✅ $TARGET is a descendant of $CURRENT — safe to advance"
+          echo "advance=yes" >> "$GITHUB_OUTPUT"
+
+      - name: 📝 Update baseline pin + LIVE_BASELINE.md
+        if: steps.target.outputs.sha != '' && steps.safety.outputs.advance == 'yes'
+        env:
+          TARGET:  ${{ steps.target.outputs.sha }}
+          CURRENT: ${{ steps.pin.outputs.current }}
+        run: |
+          set -euo pipefail
+          NOW_UTC="$(date -u +'%Y-%m-%d %H:%M UTC')"
+          SHORT_TARGET="$(printf '%s' "$TARGET"  | cut -c1-12)"
+          SHORT_CURRENT="$(printf '%s' "$CURRENT" | cut -c1-12)"
+
+          # 1) Update the pin file.
+          printf '%s\n' "$TARGET" > .github/baselines/live.sha
+
+          # 2) Append a row to LIVE_BASELINE.md's auto-advance log so the
+          #    history is auditable from the repo without going to Actions.
+          if [ -f LIVE_BASELINE.md ]; then
+            if ! grep -qF '## Auto-advance log' LIVE_BASELINE.md; then
+              printf '\n## Auto-advance log\n\nThis section is appended to by `.github/workflows/auto-baseline-advance.yml` after every verified-green deploy + global-health probe.\n\n| When (UTC) | From | To |\n|---|---|---|\n' >> LIVE_BASELINE.md
+            fi
+            printf '| %s | `%s` | `%s` |\n' "$NOW_UTC" "$SHORT_CURRENT" "$SHORT_TARGET" >> LIVE_BASELINE.md
+          fi
+
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add .github/baselines/live.sha LIVE_BASELINE.md
+          if git diff --cached --quiet; then
+            echo "no changes to commit"
+            exit 0
+          fi
+          git commit -m "baseline(live): auto-advance to ${SHORT_TARGET} [upgrade-approved]" \
+                     -m "Verified by 🚀 Unicorn Stable Deploy + 🌍 Global Availability Probe both green at ${TARGET}." \
+                     -m "Previous: ${CURRENT}" \
+                     -m "Auto-advanced by .github/workflows/auto-baseline-advance.yml at ${NOW_UTC}."
+
+      - name: 🚀 Push back to main
+        if: steps.target.outputs.sha != '' && steps.safety.outputs.advance == 'yes'
+        run: |
+          set -euo pipefail
+          # Rebase-on-push protection: if main moved while we were computing,
+          # pull and retry once. We never force-push.
+          if ! git push origin HEAD:main; then
+            echo "push raced with main; rebasing and retrying once"
+            git pull --rebase origin main
+            git push origin HEAD:main
+          fi
