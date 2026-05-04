@@ -358,6 +358,21 @@ function applySnapshot(s){
   const set = (id, v) => { const el = document.getElementById(id); if (el && v!=null) el.textContent = v; };
   if (s.telemetry) {
     set('statModules', s.telemetry.moduleCount || s.modules?.length || 169);
+    // Live verticals + marketplaces — kill the hardcoded 18 / 41 SSR stubs
+    // on the homepage hero. Snapshot exposes these as direct counts when the
+    // backend's industryOS / globalMonetizationMesh modules are loaded; if
+    // not available, we fall back to the previously-rendered SSR value
+    // instead of overwriting it with "—".
+    const verticals = s.telemetry.verticalCount
+      ?? (Array.isArray(s.industries) ? s.industries.length : (s.industryOS && s.industryOS.length))
+      ?? (Array.isArray(s.verticals) ? s.verticals.length : null);
+    if (verticals != null) set('statVerticals', verticals);
+    const markets = s.telemetry.marketplaceCount
+      ?? (Array.isArray(s.marketplace) ? s.marketplace.length : null)
+      ?? (Array.isArray(s.marketplaces) ? s.marketplaces.length : null)
+      ?? (s.monetization && s.monetization.marketplaceCount)
+      ?? (s.globalMonetizationMesh && s.globalMonetizationMesh.length);
+    if (markets != null) set('statMarkets', markets);
   }
   if (s.autonomy && s.autonomy.chain) set('statChain', s.autonomy.chain.length || '—');
 }
@@ -1684,47 +1699,57 @@ async function hydratePricingPage(){
 // MASTER CATALOG — every Unicorn deliverable, BTC-priced, filterable
 // ============================================================
 function masterCardHtml(it){
-  const groupColor = {
-    instant:'#8a5cff', professional:'#3ea0ff', enterprise:'#ffd36a', industry:'#ff8aab', marketplace:'#6fd3ff',
-    strategic:'#8a5cff', frontier:'#ffd36a', vertical:'#3ea0ff',
-    'unicorn-auto-module':'#a3ffce', 'billion-scale-activation':'#ff8aab',
-    'billion-scale-package':'#ff5cd1', 'future-invention':'#7cf3ff'
-  }[it.group] || '#8a5cff';
-  const groupLabel = {
-    instant:'Instant', professional:'Professional', enterprise:'Enterprise', industry:'Industry', marketplace:'AI Module',
-    strategic:'Strategic', frontier:'Frontier', vertical:'Vertical OS',
-    'unicorn-auto-module':'Auto-Discovered', 'billion-scale-activation':'Activation',
-    'billion-scale-package':'Strategic Package', 'future-invention':'Future R&D'
-  }[it.group] || it.group;
+  // Mirror the SSR `_catalogCard` structure from shell.js so hydration does
+  // not visually degrade the marketplace grid. The previous implementation
+  // dropped the tier badge, the schema.org Product/Offer markup, the
+  // [data-product-id] hook (used by hydrateMasterCatalog's SSR-preserve
+  // guard) and the [data-pricing-value] hook (used by openPricingStream to
+  // push live AI-negotiated price updates non-stop). All of those need to
+  // round-trip identically between SSR and client renders.
+  const tierMeta = {
+    instant:      { label: '⚡ Instant',      color: '#8a5cff', bg: 'rgba(138,92,255,.15)' },
+    professional: { label: '💼 Professional', color: '#3ea0ff', bg: 'rgba(62,160,255,.15)' },
+    enterprise:   { label: '👑 Enterprise',   color: '#ffd36a', bg: 'rgba(255,211,106,.15)' }
+  };
+  const tier = String(it.tier || it.group || 'professional').toLowerCase();
+  const meta = tierMeta[tier] || tierMeta.professional;
+  const tierBadge = '<span class="tag" style="background:' + meta.bg + ';color:' + meta.color + ';border:1px solid ' + meta.color + '33">' + escapeHtml(meta.label) + '</span>';
+  const id = String(it.id || '');
+  const idAttr = escapeHtml(id);
+  const title = escapeHtml(it.title || it.id || 'Service');
+  const desc = escapeHtml(it.description || '');
   const priceUsd = Number(it.priceUsd || 0);
-  const priceTxt = priceUsd > 0 ? ('$' + priceUsd.toLocaleString()) : 'Free';
-  const btcTxt = it.priceBtc > 0 ? ('₿ ' + Number(it.priceBtc).toFixed(8)) : '—';
-  const idAttr = escapeHtml(it.id);
+  const priceTxt = priceUsd > 0 ? ('$' + priceUsd.toLocaleString('en-US')) : 'Free';
+  const billing = priceUsd > 0 && (it.billing === 'monthly') ? '<small style="color:var(--ink-dim);font-weight:400">/mo</small>' : '';
+  const liveBadge = it.livePriceSource && it.livePriceSource !== 'static-fallback' && it.livePriceSource !== 'safe-fallback'
+    ? '<span class="tag" title="Live AI-negotiated price · source=' + escapeHtml(it.livePriceSource) + (it.demandFactor ? ' · demand=' + Number(it.demandFactor).toFixed(2) : '') + '" style="background:rgba(127,255,212,.12);color:#7fffd4;border:1px solid rgba(127,255,212,.35);font-size:10px;margin-left:6px">⚡ live' + (it.surgeActive ? ' · surge' : '') + '</span>'
+    : '';
   // Pre-order eligible: speculative R&D primitives are sold as forward-locks
   // at 30% of the listed price (configurable server-side via COMMERCE_PREORDER_PCT).
   const isPreorderEligible = it.group === 'future-invention' && priceUsd > 0;
-  // "Pay with BTC, save 10%" — strictly truthful: every BTC checkout applies
-  // the COMMERCE_BTC_DISCOUNT_PCT factor to subtotal_fiat before sat conversion.
-  const btcSaveBadge = priceUsd > 0
-    ? '<span class="tag" style="background:rgba(247,147,26,.15);color:#f7931a;border:1px solid rgba(247,147,26,.35);font-size:10px;margin-left:6px" title="Sovereign BTC checkout applies a 10% discount vs the USD list price">₿ save 10%</span>'
+  const buyBtn = priceUsd > 0
+    ? '<a class="btn btn-primary" href="/checkout?plan=' + encodeURIComponent(id) + '" data-link data-sovereign-buy="' + idAttr + '" aria-label="Buy ' + title + ' with Bitcoin" style="flex:1;justify-content:center">Buy with BTC →</a>'
+    : '<a class="btn btn-ghost" href="/services/' + encodeURIComponent(id) + '" data-link style="flex:1;justify-content:center">Activate free</a>';
+  const preorderBtn = isPreorderEligible
+    ? '<button type="button" class="btn btn-ghost" data-sovereign-buy="' + idAttr + '" data-sovereign-preorder="1" style="justify-content:center;border-color:#7cf3ff66;color:#7cf3ff" title="Reserve early access at 30% now — locks the price for 365 days">⏳ Reserve 30%</button>'
     : '';
-  return '<div class="card" data-group="' + escapeHtml(it.group) + '">'
-    + '<span class="tag" style="background:' + groupColor + '22;color:' + groupColor + '">' + escapeHtml(groupLabel) + '</span>'
-    + btcSaveBadge
-    + '<h3>' + escapeHtml(it.title || it.id) + '</h3>'
-    + '<p>' + escapeHtml(it.description || '') + '</p>'
-    + '<div class="row"><span>' + escapeHtml(it.kpi || 'sla-backed') + '</span><b>' + priceTxt + '</b></div>'
-    + '<div class="row" style="border-top:none;padding-top:4px;margin-top:0"><span style="font-size:11px;color:var(--ink-dim)">live BTC</span><b style="font-size:11px;color:var(--gold);font-family:var(--mono)">' + btcTxt + '</b></div>'
-    + '<div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap">'
-    + (priceUsd > 0
-        ? '<button type="button" class="btn btn-primary" data-sovereign-buy="' + idAttr + '" style="flex:1;justify-content:center;min-width:140px">₿ Buy in BTC</button>'
-        : '<a class="btn btn-ghost" href="/services/' + idAttr + '" data-link style="flex:1;justify-content:center">Activate free</a>')
-    + (isPreorderEligible
-        ? ' <button type="button" class="btn btn-ghost" data-sovereign-buy="' + idAttr + '" data-sovereign-preorder="1" style="justify-content:center;border-color:#7cf3ff66;color:#7cf3ff" title="Reserve early access at 30% now — locks the price for 365 days">⏳ Reserve 30%</button>'
-        : '')
-    + ' <a class="btn btn-ghost" href="/services/' + idAttr + '" data-link style="justify-content:center" title="Service details">Details →</a>'
+  return '<article class="card" data-tier="' + escapeHtml(tier) + '" data-group="' + escapeHtml(it.group || '') + '" data-product-id="' + idAttr + '" data-price-source="' + escapeHtml(it.livePriceSource || 'static') + '" itemscope itemtype="https://schema.org/Product" style="display:flex;flex-direction:column;gap:10px">'
+    + '<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px">'
+    + tierBadge
+    + '<span style="font-family:var(--mono);font-size:18px;color:var(--gold)" itemprop="offers" itemscope itemtype="https://schema.org/Offer">'
+    + '<meta itemprop="priceCurrency" content="' + escapeHtml(it.currency || 'USD') + '"/>'
+    + '<span itemprop="price" data-pricing-value="' + idAttr + '">' + escapeHtml(priceTxt) + '</span>'
+    + billing + liveBadge
+    + '</span>'
     + '</div>'
-    + '</div>';
+    + '<h3 style="margin:4px 0 0;font-size:18px;line-height:1.25" itemprop="name">' + title + '</h3>'
+    + '<p style="margin:0;color:var(--ink-dim);font-size:13px;line-height:1.45;flex:1" itemprop="description">' + desc + '</p>'
+    + '<div style="display:flex;gap:8px;margin-top:6px;flex-wrap:wrap">'
+    + buyBtn
+    + (preorderBtn ? ' ' + preorderBtn : '')
+    + ' <a class="btn btn-ghost" href="/services/' + encodeURIComponent(id) + '" data-link aria-label="View details for ' + title + '">Details</a>'
+    + '</div>'
+    + '</article>';
 }
 
 // Sovereign BTC checkout: creates a non-custodial order on the server and
@@ -1775,7 +1800,13 @@ async function hydrateMasterCatalog(){
     const products = Array.isArray(j && j.products) ? j.products : [];
     let btcSpot = null;
     try {
-      const spot = await api('/api/btc/spot');
+      // Try /api/btc/spot first (canonical), fall back to /api/btc/rate which
+      // some deployments expose under that legacy path.
+      let spot = null;
+      try { spot = await api('/api/btc/spot'); } catch (_) {}
+      if (!spot || !(Number(spot.usdPerBtc) > 0)) {
+        try { spot = await api('/api/btc/rate'); } catch (_) {}
+      }
       btcSpot = spot && Number(spot.usdPerBtc) > 0 ? { usdPerBtc: Number(spot.usdPerBtc), fetchedAt: spot.fetchedAt || null } : null;
     } catch (_) {}
     const normalizeGroup = function(p){
@@ -1790,11 +1821,23 @@ async function hydrateMasterCatalog(){
     };
     const items = products.map(function(p){
       const priceUsd = Number(p && (p.priceUSD != null ? p.priceUSD : (p.priceUsd != null ? p.priceUsd : p.price)) || 0);
+      const tier = String((p && (p.tier || p.group)) || 'professional').toLowerCase();
       return {
         id: p.id,
         title: p.title || p.name || p.id,
         description: p.description || p.tagline || 'ZeusAI service, immediately purchasable and auto-delivered after payment confirmation.',
         group: normalizeGroup(p),
+        // Preserve the SSR-equivalent fields so masterCardHtml can render the
+        // same tier badge, schema.org markup and live-pricing data hooks as
+        // _catalogCard in shell.js. Without these, hydration was visually
+        // degrading the SSR cards (no tier chip, no ⚡ live badge, no
+        // [data-pricing-value] anchors for the SSE pricing stream).
+        tier,
+        billing: p.billing || (tier === 'instant' ? 'one-time' : (tier === 'enterprise' ? 'project' : 'one-time')),
+        currency: p.currency || 'USD',
+        livePriceSource: p.livePriceSource || (p.dynamicPrice && p.dynamicPrice.source) || null,
+        demandFactor: p.demandFactor || null,
+        surgeActive: !!p.surgeActive,
         segment: p.tier || p.group || 'service',
         kpi: p.deliverable || ((p.tier || 'instant') + ' delivery'),
         priceUsd,
@@ -1834,7 +1877,16 @@ async function hydrateMasterCatalog(){
     return;
   }
   STATE.masterCatalog = cat;
-  if (spotEl && cat.btcSpot) spotEl.textContent = '1 BTC = $' + Number(cat.btcSpot.usdPerBtc).toLocaleString() + ' · live';
+  if (spotEl) {
+    if (cat.btcSpot) {
+      spotEl.textContent = '1 BTC = $' + Number(cat.btcSpot.usdPerBtc).toLocaleString() + ' · live';
+    } else {
+      // BTC spot endpoint unavailable — surface that explicitly instead of
+      // leaving the SSR placeholder ("live rate loading…") on screen forever.
+      spotEl.textContent = 'BTC rate unavailable (retrying)';
+      spotEl.style.color = 'var(--ink-dim)';
+    }
+  }
   if (counts) counts.textContent = cat.counts.total + ' real services · ' + (cat.counts.instant || 0) + ' instant · ' + (cat.counts.professional || 0) + ' professional · ' + (cat.counts.enterprise || 0) + ' enterprise';
   // Catalogue contract: exactly 3 tiers (instant / professional / enterprise),
   // capped at 25 products. Filter chips reflect that contract — no
