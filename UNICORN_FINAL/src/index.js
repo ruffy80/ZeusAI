@@ -1222,11 +1222,19 @@ async function buildMasterCatalog() {
     description: s.description || ('Sovereign service: ' + (s.title || s.id)),
     segment: s.segment || s.category || 'all'
   }));
-  const marketplace = Array.isArray(sources.marketplace) ? sources.marketplace.slice(0, 30).map(m => ({
+  // Auto-publish ALL marketplace modules (no cap). serviceMarketplace
+  // discovers ~185 modules from backend/modules/*.js at boot and refreshes
+  // every 60s, so removing the slice() here makes every current AND future
+  // module become a sellable item on the site automatically. The previous
+  // slice(0, 30) was a UI-throttle from when /api/catalog/master fed a
+  // single hero strip; the site now has a dedicated "Full Unicorn Library"
+  // section in pageStore() that renders the long tail.
+  const marketplace = Array.isArray(sources.marketplace) ? sources.marketplace.map(m => ({
     id: m.id, title: m.title || m.name || m.id, group: 'marketplace',
     priceUsd: Number(m.price || m.basePrice || 0), kpi: m.kpi || m.category || 'module',
     description: m.description || 'Adaptive AI module — dynamic-priced, BTC settled.',
-    segment: m.category || 'modules'
+    segment: m.category || 'modules',
+    autoPublished: true
   })) : [];
   const frontierItems = frontier ? FRONTIER_DELIVERABLES.map(x => ({ ...x, segment: 'frontier' })) : [];
   const verticals = VERTICAL_OS_DELIVERABLES.map(x => ({ ...x, segment: 'enterprise' }));
@@ -6993,13 +7001,18 @@ a{color:#8a5cff;text-decoration:none}
     return res.end(html);
   }
 
+  if (urlPath === '/crypto-bridge') {
+    res.writeHead(302, { Location: '/crypto-fiat-bridge', 'Cache-Control': 'no-store' });
+    return res.end('Redirecting to /crypto-fiat-bridge');
+  }
+
   // Any SPA route → v2 shell
   const v2Routes = [
     '/', '/services', '/pricing', '/checkout', '/dashboard', '/how', '/docs', '/about', '/legal',
     '/trust', '/security', '/responsible-ai', '/dpa', '/payment-terms', '/operator', '/observability',
     '/enterprise', '/store', '/account', '/innovations', '/wizard', '/status', '/changelog',
     '/terms', '/privacy', '/refund', '/sla', '/pledge', '/cancel', '/gift', '/aura',
-    '/api-explorer', '/transparency', '/frontier'
+    '/api-explorer', '/transparency', '/frontier', '/crypto-fiat-bridge'
   ];
   const isV2Route = v2Routes.includes(urlPath) || urlPath.startsWith('/services/');
   if (isV2Route) {
@@ -7011,8 +7024,8 @@ a{color:#8a5cff;text-decoration:none}
     //   1) Explicit user override via `lang` cookie wins (set when the visitor
     //      taps the small "English / Auto" toggle button).
     //   2) Otherwise auto-detect from the visitor's country (CDN/proxy geo
-    //      headers — Cloudflare `cf-ipcountry`, nginx geoip `x-country`,
-    //      Vercel/Netlify variants). Country → language map covers ~80
+    //      headers — Cloudflare `cf-ipcountry`, nginx geoip `x-country`).
+    //      Country → language map covers ~80
     //      jurisdictions; the entire site is then auto-translated client-side
     //      into that language via the embedded Google Translate widget.
     //   3) Fall back to the browser Accept-Language header.
@@ -7026,7 +7039,6 @@ a{color:#8a5cff;text-decoration:none}
       req.headers['cf-ipcountry']
       || req.headers['x-country']
       || req.headers['x-geo-country']
-      || req.headers['x-vercel-ip-country']
       || req.headers['x-appengine-country']
       || ''
     ).toUpperCase();

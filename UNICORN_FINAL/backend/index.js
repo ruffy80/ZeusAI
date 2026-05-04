@@ -1298,6 +1298,7 @@ const logMonitor           = require('./modules/log-monitor');
 const resourceMonitor      = require('./modules/resource-monitor');
 const errorPatternDetector = require('./modules/error-pattern-detector');
 const recoveryEngine       = require('./modules/recovery-engine');
+const authGuardian         = require('./modules/auth-guardian');
 const uiAutoBuilder        = require('./modules/ui-auto-builder');
 
 // ==================== MULTI-TENANT SAAS PLATFORM ====================
@@ -1365,6 +1366,7 @@ const MODULE_REGISTRY = {
   healthDaemon: [
     'unicorn-health-daemon',
     'unicorn-health-guardian',
+    'auth-guardian',
     'totalSystemHealer',
     'self-healing-engine',
     'ai-self-healing',
@@ -1682,6 +1684,10 @@ if (_isPrimaryWorker) {
   // Componenta AI Self-Healing — monitorizare și auto-reparare provideri AI + module
   if (!_stableRuntime) {
     aiSelfHealing.init();
+  }
+  // Auth Guardian — ALWAYS ON in production profile (independent of mutation/full mode)
+  if (process.env.NODE_ENV !== 'test') {
+    authGuardian.start();
   }
   // Componenta 3 — Auto-Innovation Loop (analiză cod + PR automate + CI monitoring)
   if (!_stableRuntime && _enableFileMutators) {
@@ -2495,6 +2501,53 @@ function _emitUnicornEvent(type, data) {
   const payload = `data: ${JSON.stringify({ type, at: new Date().toISOString(), data })}\n\n`;
   for (const client of _unicornEventsClients) client.write(payload);
 }
+
+// Autonomous catalog announcer (24/7).
+//
+// Periodically samples serviceMarketplace.getAllServices() and, when the
+// total count changes (a new backend module was loaded, or one disappeared),
+// broadcasts a services.changed SSE so the site re-hydrates the
+// auto-published library section in pageStore() without a manual reload.
+// This is what makes the unicorn → site channel truly "non-stop": new
+// modules become sellable services on the public site within at most
+// CATALOG_ANNOUNCE_INTERVAL_MS.
+//
+// Disable with CATALOG_ANNOUNCE_DISABLED=1.
+const _catalogAnnounceIntervalRaw = Number(process.env.CATALOG_ANNOUNCE_INTERVAL_MS);
+const CATALOG_ANNOUNCE_INTERVAL_MS = Number.isFinite(_catalogAnnounceIntervalRaw) && _catalogAnnounceIntervalRaw > 0
+  ? _catalogAnnounceIntervalRaw
+  : 5 * 60 * 1000;
+let _lastAnnouncedCatalogCount = -1;
+let _catalogAnnouncerTimer = null;
+let _catalogAnnouncerBootTimer = null;
+function _startAutonomousCatalogAnnouncer() {
+  if (process.env.CATALOG_ANNOUNCE_DISABLED === '1') return;
+  if (_catalogAnnouncerTimer) return; // already started
+  let mp = null;
+  try { mp = require('./modules/serviceMarketplace'); } catch (_) { return; }
+  if (!mp || typeof mp.getAllServices !== 'function') return;
+  const tick = () => {
+    try {
+      const all = mp.getAllServices() || [];
+      const n = all.length;
+      if (n !== _lastAnnouncedCatalogCount) {
+        const delta = _lastAnnouncedCatalogCount === -1 ? n : (n - _lastAnnouncedCatalogCount);
+        _lastAnnouncedCatalogCount = n;
+        // Notify the site so it re-renders /store + /services with the
+        // new auto-published library size. The payload is minimal — the
+        // client refetches via /api/services/list and /api/catalog/master.
+        _emitUnicornEvent('services.changed', { action: 'announce', total: n, delta, source: 'autonomous-announcer' });
+      }
+    } catch (_) { /* swallow — broadcaster is best-effort */ }
+  };
+  // First tick after a small delay (let marketplace finish loadServices()).
+  // Stash the timer reference so test/shutdown code can clear it.
+  _catalogAnnouncerBootTimer = setTimeout(tick, 5000);
+  if (typeof _catalogAnnouncerBootTimer.unref === 'function') _catalogAnnouncerBootTimer.unref();
+  _catalogAnnouncerTimer = setInterval(tick, CATALOG_ANNOUNCE_INTERVAL_MS);
+  if (typeof _catalogAnnouncerTimer.unref === 'function') _catalogAnnouncerTimer.unref();
+}
+try { _startAutonomousCatalogAnnouncer(); } catch (_) { /* never fatal */ }
 
 function _timingSafeHexEqual(a, b) {
   try {
@@ -8136,6 +8189,15 @@ app.post('/api/auto-restart/run', adminTokenMiddleware, async (req, res) => {
   catch (e) { res.status(500).json({ error: e.message }); }
 });
 
+// ── Auth Guardian ─────────────────────────────────────────────────────────────
+app.get('/api/auth-guardian/status', adminTokenMiddleware, (req, res) => {
+  res.json(authGuardian.getStatus());
+});
+app.post('/api/auth-guardian/run', adminTokenMiddleware, async (req, res) => {
+  try { res.json(await authGuardian.run(req.body || {})); }
+  catch (e) { res.status(500).json({ error: e.message }); }
+});
+
 // ── Auto-Optimize ─────────────────────────────────────────────────────────────
 app.get('/api/auto-optimize/status', adminTokenMiddleware, (req, res) => {
   res.json(autoOptimize.getStatus());
@@ -8393,6 +8455,24 @@ if (fs.existsSync(clientBuildPath)) {
     }
   }));
 }
+
+// ==================== CRYPTO TRANSFER INTELLIGENCE SUITE ====================
+// 8 servicii non-custodial care optimizează tranzacții crypto fără a deține
+// fonduri. Endpoints: /api/crypto-bridge/* Must be mounted BEFORE the SPA
+// catch-all below, otherwise local backend requests to `/api/crypto-bridge/*`
+// fall through to `client/build/index.html`.
+try {
+  const cryptoBridge = require('./modules/cryptoBridge');
+  cryptoBridge.mount(app);
+  console.log('🪙 Crypto Bridge Suite: ACTIVE (8 servicii non-custodial · fee invoice → ' + cryptoBridge.OWNER_BTC + ')');
+} catch (e) {
+  console.warn('[crypto-bridge] failed to mount:', e && e.message);
+}
+
+// Legacy alias -> canonical route (kept in backend runtime too)
+app.get('/crypto-bridge', (req, res) => {
+  return res.redirect(302, '/crypto-fiat-bridge');
+});
 
 app.get('/{*path}', (req, res) => {
   if (fs.existsSync(clientIndexPath)) {

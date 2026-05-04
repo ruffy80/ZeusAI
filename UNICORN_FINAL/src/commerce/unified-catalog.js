@@ -103,7 +103,7 @@ function publicView(opts) {
 }
 function summarize() {
   const list = all();
-  const byTier = { instant: 0, professional: 0, enterprise: 0 };
+  const byTier = TIERS.reduce((acc, t) => { acc[t] = 0; return acc; }, {});
   let totalUSD = 0;
   for (const p of list) {
     if (TIERS.indexOf(p.tier) !== -1) byTier[p.tier] += 1;
