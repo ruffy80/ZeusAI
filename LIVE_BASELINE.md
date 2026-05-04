@@ -67,3 +67,20 @@ verified by: deploy.yml run #<N>, global-health.yml run #<M>"
 The `[upgrade-approved]` trailer is what unlocks the deletion guard for
 the bumping commit itself, so the baseline file can be updated without
 tripping the no-downgrade workflow.
+
+### Automated advancement
+
+`.github/workflows/auto-baseline-advance.yml` performs the bump
+automatically once both gates are simultaneously green at the same SHA:
+
+1. `🚀 Unicorn Stable Deploy` succeeded at SHA `X`.
+2. `🌍 Global Availability Probe` succeeded at the same SHA `X`.
+3. `X` is a strict descendant of the currently pinned baseline.
+
+When all three hold, the workflow rewrites `.github/baselines/live.sha`,
+appends a row to the auto-advance log below, and commits with the
+`[upgrade-approved]` trailer so `no-downgrade-guard.yml` accepts the
+bumping commit. Re-runs at the same SHA are idempotent. The workflow
+also runs on a 1-hour `cron` schedule and is manually dispatchable with
+an optional `force_sha` input for emergency forward rolls.
+
