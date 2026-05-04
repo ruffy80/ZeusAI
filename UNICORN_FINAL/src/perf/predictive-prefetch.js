@@ -300,10 +300,10 @@ function shouldSuppressForSaveData(req) {
   const reduced = String(h['sec-ch-prefers-reduced-data'] || '').toLowerCase();
   if (reduced === 'reduce' || reduced === 'reduce-data' || reduced === 'on') return true;
   // ECT: Effective Connection Type from Network Information API client hint.
-  const ect = String(h.ect || h['ect'] || '').toLowerCase().trim();
+  const ect = String(h.ect || '').toLowerCase().trim();
   if (ect && SLOW_ECT_VALUES.has(ect)) return true;
   // Downlink (Mbps estimate) — RTT alone is too noisy, downlink is reliable.
-  const downlink = parseFloat(h.downlink || h['downlink']);
+  const downlink = parseFloat(h.downlink);
   if (Number.isFinite(downlink) && downlink > 0 && downlink < SLOW_DOWNLINK_MBPS) return true;
   return false;
 }

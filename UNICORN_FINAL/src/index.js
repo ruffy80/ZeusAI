@@ -905,7 +905,7 @@ function __predictivePrefetchHook(req, res, method, earlyPath) {
   // bookmarks where headers are minimal.
   try {
     const dest = String(req.headers['sec-fetch-dest'] || '').toLowerCase();
-    if (dest && dest !== 'document' && dest !== 'empty' && dest !== '') return;
+    if (dest && dest !== 'document' && dest !== 'empty') return;
   } catch (_) { /* keep going */ }
   try {
     const host = String(req.headers.host || '');
