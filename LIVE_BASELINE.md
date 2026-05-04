@@ -116,3 +116,11 @@ knob can also be flipped on its own for surgical rollbacks.
 
 Verified by `UNICORN_FINAL/test/legacy-baseline-mode.test.js`.
 
+
+## Auto-advance log
+
+This section is appended to by `.github/workflows/auto-baseline-advance.yml` after every verified-green deploy + global-health probe.
+
+| When (UTC) | From | To |
+|---|---|---|
+| 2026-05-04 21:42 UTC | `9b8431a9bd83` | `3a69ee76eb68` |
