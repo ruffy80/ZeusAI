@@ -77,6 +77,13 @@ const SPECULATION_RULES_ENABLED = ENABLED && process.env.SITE_SPECULATION_RULES_
 const PRERENDER_ENABLED = SPECULATION_RULES_ENABLED && process.env.PREFETCH_ENABLE_PRERENDER === '1';
 const PERSIST_ENABLED = ENABLED && process.env.PREFETCH_PERSIST_DISABLED !== '1';
 
+// Live override mirror of PRERENDER_ENABLED. Initialized once from the
+// constant at module load so production behavior matches the value
+// reported by /internal/prefetch/stats. Tests use `_setPrerenderForTests`
+// to flip it within a single process — that helper restores the value on
+// teardown via `_resetForTests`.
+let __prerenderOverride = PRERENDER_ENABLED;
+
 // Bounded-memory tuning knobs — overrideable via env, sane defaults.
 const MAX_FROM_PATHS = Number(process.env.PREFETCH_MAX_FROM_PATHS || 500);
 const MAX_TO_PATHS_PER_FROM = Number(process.env.PREFETCH_MAX_TO_PER_FROM || 50);
@@ -396,10 +403,6 @@ function buildSpeculationRulesScript(predictions, opts) {
   if (!SPECULATION_RULES_ENABLED) return '';
   if (!Array.isArray(predictions) || predictions.length === 0) return '';
   const nonce = opts && typeof opts.nonce === 'string' ? opts.nonce : '';
-  // Re-read the prerender gate at call-time so an operator can flip it via
-  // env without restarting the cluster (the constant captured at module
-  // load is still exported for /internal/prefetch/stats).
-  const prerenderActive = PRERENDER_ENABLED || process.env.PREFETCH_ENABLE_PRERENDER === '1';
   const prerenderUrls = [];
   const prefetchUrls = [];
   for (const p of predictions) {
@@ -407,13 +410,16 @@ function buildSpeculationRulesScript(predictions, opts) {
     // K-anonymity gate for prerender: only if at least KANON_THRESHOLD
     // distinct observations ever happened on this edge. Keeps low-volume
     // routes safe (no resource amplification on rarely-visited pages).
-    // prerenderActive gate: when false (default), every prediction —
+    // PRERENDER_ENABLED gate: when false (default), every prediction —
     // hot or cold — is emitted as "prefetch" so the browser downloads
     // only the HTML response and never pre-executes the page's JS.
     // This avoids fanning out SSR-bound SSE/WebSocket connections from
     // hidden prerender contexts on mobile Chromium browsers (which
     // breaks live pricing / BTC feeds on Samsung Chrome and similar).
-    if (prerenderActive && (p.count || 0) >= KANON_THRESHOLD) prerenderUrls.push(p.path);
+    // The constant is captured at module load; toggling requires a
+    // process restart, which keeps `/internal/prefetch/stats`
+    // (`prerenderEnabled`) consistent with the actual emission policy.
+    if (__prerenderOverride && (p.count || 0) >= KANON_THRESHOLD) prerenderUrls.push(p.path);
     else prefetchUrls.push(p.path);
   }
   if (prerenderUrls.length === 0 && prefetchUrls.length === 0) return '';
@@ -576,6 +582,15 @@ function _resetForTests() {
   __lastDecayAt = Date.now();
   for (const k of Object.keys(__telemetry)) __telemetry[k] = 0;
   stopPersistence();
+  __prerenderOverride = PRERENDER_ENABLED;
+}
+
+// Test-only: temporarily flip the prerender gate so a single test run can
+// exercise both code paths without spawning a child process. Production
+// callers must NOT use this — toggle the env var and restart instead, which
+// keeps `/internal/prefetch/stats` (`prerenderEnabled`) consistent.
+function _setPrerenderForTests(value) {
+  __prerenderOverride = !!value;
 }
 
 module.exports = {
@@ -598,5 +613,6 @@ module.exports = {
   restoreSnapshot,
   startPersistence,
   stopPersistence,
-  _resetForTests
+  _resetForTests,
+  _setPrerenderForTests
 };

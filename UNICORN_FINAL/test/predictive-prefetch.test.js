@@ -148,16 +148,19 @@ async function unitTests() {
 
   // 11. Speculation Rules script generation
   // Default behavior: every prediction (hot or cold) is "prefetch" — JS-safe
-  // for live SSE feeds. We opt into "prerender" via PREFETCH_ENABLE_PRERENDER
-  // for this test only, then restore the prior env value.
+  // for live SSE feeds. We opt into "prerender" via the test-only setter
+  // for this assertion, then always restore default in the finally block so
+  // the rest of the suite runs under the production default.
   pp._resetForTests();
   for (let i = 0; i < 5; i++) pp.recordTransition('/', '/store');
   pp.recordTransition('/', '/pricing');
-  const prevPrerenderEnv = process.env.PREFETCH_ENABLE_PRERENDER;
-  process.env.PREFETCH_ENABLE_PRERENDER = '1';
-  const sr = pp.buildSpeculationRulesScript(pp.predict('/', 3), { nonce: 'NONCE123' });
-  if (typeof prevPrerenderEnv === 'undefined') delete process.env.PREFETCH_ENABLE_PRERENDER;
-  else process.env.PREFETCH_ENABLE_PRERENDER = prevPrerenderEnv;
+  let sr;
+  try {
+    pp._setPrerenderForTests(true);
+    sr = pp.buildSpeculationRulesScript(pp.predict('/', 3), { nonce: 'NONCE123' });
+  } finally {
+    pp._setPrerenderForTests(false);
+  }
   expect('speculationrules script generated', typeof sr === 'string' && sr.length > 0);
   expect('speculationrules script type attribute', sr.indexOf('type="speculationrules"') !== -1);
   expect('speculationrules carries nonce', sr.indexOf('nonce="NONCE123"') !== -1);

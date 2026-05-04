@@ -88,3 +88,4 @@
 {"id":"evt_2e567c10087ccbd9","type":"checkout_started","path":"/checkout","emailHash":null,"valueUsd":299,"metadata":{},"createdAt":"2026-05-04T21:21:28.418Z"}
 {"id":"evt_4bd1d1bc05cbdbfb","type":"checkout_started","path":"/checkout","emailHash":null,"valueUsd":299,"metadata":{},"createdAt":"2026-05-04T21:37:23.046Z"}
 {"id":"evt_4503be61e50ec8ea","type":"checkout_started","path":"/checkout","emailHash":null,"valueUsd":299,"metadata":{},"createdAt":"2026-05-04T21:38:11.323Z"}
+{"id":"evt_819f31abd4648e9c","type":"checkout_started","path":"/checkout","emailHash":null,"valueUsd":299,"metadata":{},"createdAt":"2026-05-04T21:45:21.637Z"}
