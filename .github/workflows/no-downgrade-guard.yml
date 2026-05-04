@@ -115,5 +115,56 @@ jobs:
           fi
           echo "✅ no critical-path deletions vs baseline"
 
+      - name: 🤖 AutoInnovation guard (block unreviewed bot merges)
+        env:
+          BASELINE: ${{ steps.baseline.outputs.sha }}
+        run: |
+          set -euo pipefail
+          HEAD_SHA="${{ github.event.pull_request.head.sha || github.sha }}"
+
+          # Walk every commit between baseline and HEAD. If any commit
+          # subject begins with `[AutoInnovation]` (the marker used by
+          # the external auto-merge bot — see commits 813129577f, 271e71b1,
+          # e5371a40, etc.), the merge is only allowed when the commit
+          # body carries the `[innovation-approved]` trailer set by a
+          # human reviewer.
+          #
+          # This guard cannot un-do an already-pushed merge, but it makes
+          # CI red on any unreviewed AutoInnovation push, which combined
+          # with the deploy.yml pre-flight prevents the change from ever
+          # reaching production at zeusai.pro.
+
+          UNAPPROVED=""
+          while IFS= read -r SHA; do
+            [ -z "$SHA" ] && continue
+            SUBJECT="$(git log -1 --format=%s "$SHA")"
+            BODY="$(git log -1 --format=%B "$SHA")"
+            case "$SUBJECT" in
+              \[AutoInnovation\]*|*\[AutoInnovation\]*)
+                if printf '%s' "$BODY" | grep -qiF '[innovation-approved]'; then
+                  echo "✅ approved AutoInnovation commit: $SHA — $SUBJECT"
+                else
+                  UNAPPROVED="${UNAPPROVED}${SHA} ${SUBJECT}"$'\n'
+                fi
+                ;;
+            esac
+          done < <(git rev-list "${BASELINE}..${HEAD_SHA}" 2>/dev/null || true)
+
+          if [ -n "$UNAPPROVED" ]; then
+            echo "::error::AutoInnovation commits without [innovation-approved] trailer detected:"
+            printf '%s' "$UNAPPROVED" | while IFS= read -r LINE; do
+              [ -z "$LINE" ] && continue
+              echo "::error::  $LINE"
+            done
+            echo "::error::"
+            echo "::error::These commits originate from the auto-innovation bot and have NOT"
+            echo "::error::been reviewed by a human. Per the no-downgrade contract, they are"
+            echo "::error::refused. To allow a specific AutoInnovation change, amend its"
+            echo "::error::commit message to include the [innovation-approved] trailer after"
+            echo "::error::manual review. See LIVE_BASELINE.md."
+            exit 1
+          fi
+          echo "✅ no unreviewed AutoInnovation commits since baseline"
+
       - name: ✅ Guard passed
         run: echo "🛡️  No downgrade detected. Forward-only history confirmed."
