@@ -737,7 +737,7 @@ const V2_CLIENT_PATH = path.join(__dirname, 'site', 'v2', 'client.js');
 // so a hot redeploy still picks up changes without a process restart.
 // Disable with SITE_ASSET_MEMCACHE_DISABLED=1.
 const __staticAssetCache = new Map();
-function __readStaticAssetCached(filePath /* , label */) {
+function __readStaticAssetCached(filePath) {
   if (process.env.SITE_ASSET_MEMCACHE_DISABLED === '1') {
     return fs.readFileSync(filePath, 'utf8');
   }
@@ -4039,14 +4039,14 @@ async function unicornHandler(req, res) {
     const hasV = requestUrl.searchParams.has('v') || isVersionedAssetPath;
     const cc = hasV ? 'public, max-age=31536000, immutable' : 'public, max-age=60, must-revalidate';
     res.writeHead(200, { 'Content-Type':'application/javascript; charset=utf-8', 'Cache-Control': cc });
-    try { return res.end(__readStaticAssetCached(V2_CLIENT_PATH, '__v2ClientCache')); }
+    try { return res.end(__readStaticAssetCached(V2_CLIENT_PATH)); }
     catch (e) { return res.end('console.error("v2 client missing")'); }
   }
   if (urlPath === '/assets/aeon.js') {
     const hasV = requestUrl.searchParams.has('v') || isVersionedAssetPath;
     const cc = hasV ? 'public, max-age=31536000, immutable' : 'public, max-age=60, must-revalidate';
     res.writeHead(200, { 'Content-Type':'application/javascript; charset=utf-8', 'Cache-Control': cc });
-    try { return res.end(__readStaticAssetCached(path.join(__dirname,'site','v2','aeon.js'), '__v2AeonCache')); }
+    try { return res.end(__readStaticAssetCached(path.join(__dirname,'site','v2','aeon.js'))); }
     catch(_) { return res.end('/* aeon missing */'); }
   }
   // Locally-vendored third-party libs (30Y-LTS: no CDN dependency when file is present).
