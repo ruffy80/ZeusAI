@@ -147,16 +147,38 @@ async function unitTests() {
   );
 
   // 11. Speculation Rules script generation
+  // Default behavior: every prediction (hot or cold) is "prefetch" — JS-safe
+  // for live SSE feeds. We opt into "prerender" via the test-only setter
+  // for this assertion, then always restore default in the finally block so
+  // the rest of the suite runs under the production default.
   pp._resetForTests();
   for (let i = 0; i < 5; i++) pp.recordTransition('/', '/store');
   pp.recordTransition('/', '/pricing');
-  const sr = pp.buildSpeculationRulesScript(pp.predict('/', 3), { nonce: 'NONCE123' });
+  let sr;
+  try {
+    pp._setPrerenderForTests(true);
+    sr = pp.buildSpeculationRulesScript(pp.predict('/', 3), { nonce: 'NONCE123' });
+  } finally {
+    pp._setPrerenderForTests(false);
+  }
+  // Explicit isolation contract: after the finally block, the override
+  // must have been reset to the production default. We assert the
+  // constant didn't drift, and the post-finally `srDefault` assertion
+  // below (which calls buildSpeculationRulesScript again on the same
+  // hot edges and expects zero `"prerender"` occurrences) is the
+  // behavioral confirmation that __prerenderOverride was reset.
+  expect('post-finally: PRERENDER_ENABLED constant unchanged (still load-time default)', pp.PRERENDER_ENABLED === false);
   expect('speculationrules script generated', typeof sr === 'string' && sr.length > 0);
   expect('speculationrules script type attribute', sr.indexOf('type="speculationrules"') !== -1);
   expect('speculationrules carries nonce', sr.indexOf('nonce="NONCE123"') !== -1);
-  expect('speculationrules contains prerender for hot edge', sr.indexOf('"prerender"') !== -1);
+  expect('speculationrules contains prerender for hot edge (opt-in)', sr.indexOf('"prerender"') !== -1);
   expect('speculationrules JSON safely escapes </script>', sr.indexOf('</script>') === sr.lastIndexOf('</script>'));
   expect('speculationrules empty when no predictions', pp.buildSpeculationRulesScript([]) === '');
+  // Default behavior (no opt-in): even hot edges must NOT use prerender.
+  // This is the fix for the Samsung-Chrome-mobile live-pricing/BTC regression.
+  const srDefault = pp.buildSpeculationRulesScript(pp.predict('/', 3), { nonce: 'N' });
+  expect('speculationrules default has NO prerender (mobile-SSE-safe)', srDefault.indexOf('"prerender"') === -1);
+  expect('speculationrules default still emits prefetch for hot edge', srDefault.indexOf('"prefetch"') !== -1);
 
   // 12. injectSpeculationRules adds the script to <head>
   const html = '<!doctype html><html><head><title>x</title></head><body>y</body></html>';

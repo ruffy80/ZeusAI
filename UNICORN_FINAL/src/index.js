@@ -29,6 +29,44 @@
   } catch (_) { /* never let the guard itself crash */ }
 })();
 
+// ==================== LEGACY BASELINE MODE (site worker) ====================
+// Single-flag emergency rollback to the exact behavior of git commit
+// 89a8b7f3 (live baseline as of 2026-05-04 20:33 EEST), BEFORE PR #515
+// (Adaptive Predictive Prefetch + compression + asset memcache) and PR #516
+// (RUM beacons / Web Vitals). Useful when a downstream tool, audit, or
+// user contract requires bit-identical baseline behavior — without
+// reverting any code or losing the new features for everyone else (each
+// post-baseline feature still has its own individual disable knob).
+//
+// When `SITE_LEGACY_BASELINE_MODE=1`, this guard propagates the disable
+// flags for every post-baseline feature so they collapse to a no-op:
+//   • SITE_COMPRESSION_DISABLED        — gzip/brotli at dispatcher level
+//   • SITE_ASSET_MEMCACHE_DISABLED     — 60s mtime cache for static JS
+//   • SITE_PREDICTIVE_PREFETCH_DISABLED — 103 Early Hints + Link prefetch
+//   • SITE_SPECULATION_RULES_DISABLED  — <script type="speculationrules">
+//   • SITE_RUM_BEACONS_DISABLED        — Web Vitals collector + endpoints
+//   • PREFETCH_PERSIST_DISABLED        — k-anon snapshot persistence
+//
+// Strictly additive — when the env knob is unset (default), nothing
+// changes. Operator-set values are NEVER overwritten — if the operator
+// already set, e.g., SITE_COMPRESSION_DISABLED=0 to force compression on,
+// this guard respects that explicit choice.
+(function legacyBaselineModeGuard() {
+  try {
+    if (process.env.SITE_LEGACY_BASELINE_MODE !== '1') return;
+    const flags = [
+      'SITE_COMPRESSION_DISABLED',
+      'SITE_ASSET_MEMCACHE_DISABLED',
+      'SITE_PREDICTIVE_PREFETCH_DISABLED',
+      'SITE_SPECULATION_RULES_DISABLED',
+      'SITE_RUM_BEACONS_DISABLED',
+      'PREFETCH_PERSIST_DISABLED',
+    ];
+    for (const k of flags) if (!process.env[k]) process.env[k] = '1';
+    try { console.log('[site-legacy-baseline] SITE_LEGACY_BASELINE_MODE=1 — restored 89a8b7f3 baseline behavior (compression, asset memcache, predictive prefetch, speculation rules, RUM beacons, prefetch persistence all disabled)'); } catch (_) {}
+  } catch (_) { /* never let the guard itself crash */ }
+})();
+
 // ==================== PROCESS-LEVEL CRASH GUARD (site worker) ====================
 // Mirror of the guard already in backend/index.js. The site worker
 // (PM2 app `unicorn-site`, port 3001) loads many auto-starting modules
@@ -7591,23 +7629,36 @@ a{color:#8a5cff;text-decoration:none}
     if (res.__zeusPrefetchLink) {
       linkHeader += ', ' + res.__zeusPrefetchLink;
     }
-    res.writeHead(200, {
+    // Accept-CH + extended Vary are post-89a8b7f3 client-hint additions
+    // bound to the predictive-prefetch feature (we use those hints to
+    // suppress prefetch bytes on metered/slow connections). When the
+    // feature is disabled (incl. via SITE_LEGACY_BASELINE_MODE=1) we MUST
+    // emit the original baseline Vary header and skip Accept-CH entirely
+    // — otherwise downstream caches/CDNs see a different cache key from
+    // what they did 4.5h ago, which is a baseline-behavior change.
+    const __ppActive = predictivePrefetch && predictivePrefetch.ENABLED;
+    const responseHeaders = {
       'Content-Type': 'text/html; charset=utf-8',
       'Cache-Control': cache,
       'Pragma': 'no-cache',
       'Expires': '0',
       'Link': linkHeader,
+      'X-Zeus-Build': ZEUS_BUILD.sha,
+      'X-Zeus-Built-At': ZEUS_BUILD.ts,
+      'X-CSP-Nonce': nonce,
+      'Vary': __ppActive
+        ? 'Accept-Language, Accept-Encoding, Cookie, Save-Data, Sec-CH-Prefers-Reduced-Data, ECT, Downlink'
+        : 'Accept-Language, Accept-Encoding, Cookie',
+      'Content-Language': lang
+    };
+    if (__ppActive) {
       // 50-year-standard digital-equity hint: ask the browser to send
       // Save-Data + Network Information API client hints on subsequent
       // requests so we can suppress predictive bytes on metered/slow
       // connections. Opt-in per W3C Client Hints — entirely advisory.
-      'Accept-CH': 'Save-Data, Sec-CH-Prefers-Reduced-Data, ECT, Downlink',
-      'X-Zeus-Build': ZEUS_BUILD.sha,
-      'X-Zeus-Built-At': ZEUS_BUILD.ts,
-      'X-CSP-Nonce': nonce,
-      'Vary': 'Accept-Language, Accept-Encoding, Cookie, Save-Data, Sec-CH-Prefers-Reduced-Data, ECT, Downlink',
-      'Content-Language': lang
-    });
+      responseHeaders['Accept-CH'] = 'Save-Data, Sec-CH-Prefers-Reduced-Data, ECT, Downlink';
+    }
+    res.writeHead(200, responseHeaders);
     return res.end(html);
   }
 

@@ -54,7 +54,35 @@ const path = require('path');
 
 const ENABLED = process.env.SITE_PREDICTIVE_PREFETCH_DISABLED !== '1';
 const SPECULATION_RULES_ENABLED = ENABLED && process.env.SITE_SPECULATION_RULES_DISABLED !== '1';
+// Speculation Rules has two action verbs:
+//   • "prefetch"  — browser downloads the predicted HTML response only.
+//                   No JS execution, no SSE/WebSocket open, no DOM build.
+//                   Pure navigation accelerator. Safe with live data feeds.
+//   • "prerender" — browser fully renders the predicted page in a hidden
+//                   context (executes scripts, opens connections, fires
+//                   timers). Faster navigation, but it MULTIPLIES every
+//                   long-lived connection (SSE/WebSocket) that the SSR
+//                   document boots — once per prerendered URL.
+//
+// On a site like ours where the SSR client opens 2 SSE channels on boot
+// (`openStream()` → /api/unicorn/events and `openPricingStream()` →
+// /api/pricing/live/stream) plus a periodic BTC rate poller, "prerender"
+// causes mobile Chromium browsers (Samsung Chrome / Chrome on Android in
+// particular) to fan out connections in background tabs. With Data-Saver
+// or background-data restrictions this exhausts the per-origin connection
+// budget and the *visible* page never gets fresh price/BTC frames.
+//
+// Default OFF for safety. Opt-in with PREFETCH_ENABLE_PRERENDER=1 only
+// after auditing that all SSR-mounted live feeds are prerender-safe.
+const PRERENDER_ENABLED = SPECULATION_RULES_ENABLED && process.env.PREFETCH_ENABLE_PRERENDER === '1';
 const PERSIST_ENABLED = ENABLED && process.env.PREFETCH_PERSIST_DISABLED !== '1';
+
+// Live override mirror of PRERENDER_ENABLED. Initialized once from the
+// constant at module load so production behavior matches the value
+// reported by /internal/prefetch/stats. Tests use `_setPrerenderForTests`
+// to flip it within a single process — that helper restores the value on
+// teardown via `_resetForTests`.
+let __prerenderOverride = PRERENDER_ENABLED;
 
 // Bounded-memory tuning knobs — overrideable via env, sane defaults.
 const MAX_FROM_PATHS = Number(process.env.PREFETCH_MAX_FROM_PATHS || 500);
@@ -251,6 +279,7 @@ function getStats() {
   return {
     enabled: ENABLED,
     speculationRulesEnabled: SPECULATION_RULES_ENABLED,
+    prerenderEnabled: PRERENDER_ENABLED,
     persistEnabled: PERSIST_ENABLED,
     fromPaths: __graph.size,
     edges,
@@ -381,7 +410,16 @@ function buildSpeculationRulesScript(predictions, opts) {
     // K-anonymity gate for prerender: only if at least KANON_THRESHOLD
     // distinct observations ever happened on this edge. Keeps low-volume
     // routes safe (no resource amplification on rarely-visited pages).
-    if ((p.count || 0) >= KANON_THRESHOLD) prerenderUrls.push(p.path);
+    // PRERENDER_ENABLED gate: when false (default), every prediction —
+    // hot or cold — is emitted as "prefetch" so the browser downloads
+    // only the HTML response and never pre-executes the page's JS.
+    // This avoids fanning out SSR-bound SSE/WebSocket connections from
+    // hidden prerender contexts on mobile Chromium browsers (which
+    // breaks live pricing / BTC feeds on Samsung Chrome and similar).
+    // The constant is captured at module load; toggling requires a
+    // process restart, which keeps `/internal/prefetch/stats`
+    // (`prerenderEnabled`) consistent with the actual emission policy.
+    if (__prerenderOverride && (p.count || 0) >= KANON_THRESHOLD) prerenderUrls.push(p.path);
     else prefetchUrls.push(p.path);
   }
   if (prerenderUrls.length === 0 && prefetchUrls.length === 0) return '';
@@ -544,11 +582,21 @@ function _resetForTests() {
   __lastDecayAt = Date.now();
   for (const k of Object.keys(__telemetry)) __telemetry[k] = 0;
   stopPersistence();
+  __prerenderOverride = PRERENDER_ENABLED;
+}
+
+// Test-only: temporarily flip the prerender gate so a single test run can
+// exercise both code paths without spawning a child process. Production
+// callers must NOT use this — toggle the env var and restart instead, which
+// keeps `/internal/prefetch/stats` (`prerenderEnabled`) consistent.
+function _setPrerenderForTests(value) {
+  __prerenderOverride = !!value;
 }
 
 module.exports = {
   ENABLED,
   SPECULATION_RULES_ENABLED,
+  PRERENDER_ENABLED,
   PERSIST_ENABLED,
   isNavigablePath,
   extractReferrerPath,
@@ -565,5 +613,6 @@ module.exports = {
   restoreSnapshot,
   startPersistence,
   stopPersistence,
-  _resetForTests
+  _resetForTests,
+  _setPrerenderForTests
 };
