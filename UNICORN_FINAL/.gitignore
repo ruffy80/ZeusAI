@@ -26,3 +26,15 @@ generated/AUTONOMOUS-STATUS.md
 # frontier signing keys (NEVER commit)
 data/frontier/*.key.pem
 data/frontier/*.pub.pem
+
+# Test- and runtime-generated artefacts that must NEVER reach git (they are
+# already excluded from the rsync deploy via deploy.yml, but they should not
+# show up in commits either — they're per-process state, not source).
+backups/
+data/marketing/
+data/money-machine/
+data/outbox/
+data/world-standard/
+data/perf/
+data/value-proof/
+data/revenue/
