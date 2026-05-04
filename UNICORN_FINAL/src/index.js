@@ -808,7 +808,18 @@ let predictivePrefetch = null;
 try {
   predictivePrefetch = require('./perf/predictive-prefetch');
   if (predictivePrefetch.ENABLED) {
-    console.log('[predictive-prefetch] loaded · learns navigation graph + emits 103 Early Hints');
+    // 50-year-standard wiring: rehydrate the k-anonymous graph snapshot
+    // (if any) so we don't start cold after redeploys, then arm the
+    // periodic persistence timer. Both are no-ops when the persistence
+    // feature is disabled.
+    try {
+      const r = predictivePrefetch.restoreSnapshot();
+      if (r && r.ok && r.edges > 0) {
+        console.log('[predictive-prefetch] restored ' + r.edges + ' edges from snapshot');
+      }
+    } catch (_) { /* never fail boot on snapshot read */ }
+    try { predictivePrefetch.startPersistence(); } catch (_) {}
+    console.log('[predictive-prefetch] loaded · 103 Early Hints + Speculation Rules + Save-Data + order-2 Markov + k-anon persistence');
   } else {
     console.log('[predictive-prefetch] disabled via SITE_PREDICTIVE_PREFETCH_DISABLED=1');
   }
@@ -914,9 +925,11 @@ function __predictivePrefetchHook(req, res, method, earlyPath) {
       `<${cssHref}>; rel=preload; as=style`,
       `<${jsHref}>; rel=preload; as=script`,
     ];
-    predictivePrefetch.sendEarlyHints(res, predictions, extra);
-    // Stash on res for the SSR route to append to the final Link header.
+    predictivePrefetch.sendEarlyHints(res, predictions, extra, req);
+    // Stash on res for the SSR route to append to the final Link header
+    // and to inject the Speculation Rules <script> into <head>.
     res.__zeusPrefetchLink = predictivePrefetch.buildLinkHeader(predictions);
+    res.__zeusPrefetchPredictions = predictions;
   } catch (_) { /* never block on prediction emit */ }
 }
 
@@ -7451,6 +7464,25 @@ a{color:#8a5cff;text-decoration:none}
     if (html.indexOf('id="zeus-build-badge"') === -1) {
       html = html.replace('</body>', badge + '</body>');
     }
+    // 50-year-standard: inject W3C Speculation Rules into <head> with the
+    // same predictions we sent via 103 Early Hints. Speculation Rules is
+    // the *successor* of <link rel=prefetch> — declarative, browser-
+    // controlled, automatically respects Save-Data / prefers-reduced-data,
+    // and has a roadmap that outlives the rel=prefetch syntax. Suppressed
+    // automatically when the visitor's browser advertises Save-Data (we
+    // already filtered at the 103 layer; we re-check here for consistency).
+    if (predictivePrefetch && predictivePrefetch.SPECULATION_RULES_ENABLED
+        && Array.isArray(res.__zeusPrefetchPredictions)
+        && res.__zeusPrefetchPredictions.length > 0
+        && !predictivePrefetch.shouldSuppressForSaveData(req)) {
+      try {
+        html = predictivePrefetch.injectSpeculationRules(
+          html,
+          res.__zeusPrefetchPredictions,
+          { nonce }
+        );
+      } catch (_) { /* never fail SSR on speculation rules */ }
+    }
     // 30Y-LTS Cache-Control diff:
     //   Public pages → 5min cache + SWR (browsers/CDNs may revalidate)
     //   Private pages → no-store (auth, dashboard, checkout)
@@ -7470,10 +7502,15 @@ a{color:#8a5cff;text-decoration:none}
       'Pragma': 'no-cache',
       'Expires': '0',
       'Link': linkHeader,
+      // 50-year-standard digital-equity hint: ask the browser to send
+      // Save-Data + Network Information API client hints on subsequent
+      // requests so we can suppress predictive bytes on metered/slow
+      // connections. Opt-in per W3C Client Hints — entirely advisory.
+      'Accept-CH': 'Save-Data, Sec-CH-Prefers-Reduced-Data, ECT, Downlink',
       'X-Zeus-Build': ZEUS_BUILD.sha,
       'X-Zeus-Built-At': ZEUS_BUILD.ts,
       'X-CSP-Nonce': nonce,
-      'Vary': 'Accept-Language, Accept-Encoding, Cookie',
+      'Vary': 'Accept-Language, Accept-Encoding, Cookie, Save-Data, Sec-CH-Prefers-Reduced-Data, ECT, Downlink',
       'Content-Language': lang
     });
     return res.end(html);

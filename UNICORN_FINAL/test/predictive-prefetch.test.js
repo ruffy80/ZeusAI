@@ -112,14 +112,123 @@ async function unitTests() {
 
   // 9. ENABLED flag
   expect('ENABLED is boolean', typeof pp.ENABLED === 'boolean');
+
+  // ── 50-year-standard additions ─────────────────────────────────────────────
+  console.log('\npredictive-prefetch 50-year extensions:');
+
+  // 10. Save-Data / Sec-CH-Prefers-Reduced-Data / ECT / Downlink suppression
+  expect(
+    'shouldSuppressForSaveData with Save-Data: on → true',
+    pp.shouldSuppressForSaveData({ headers: { 'save-data': 'on' } }) === true
+  );
+  expect(
+    'shouldSuppressForSaveData with Sec-CH-Prefers-Reduced-Data: reduce → true',
+    pp.shouldSuppressForSaveData({ headers: { 'sec-ch-prefers-reduced-data': 'reduce' } }) === true
+  );
+  expect(
+    'shouldSuppressForSaveData with ECT: 2g → true',
+    pp.shouldSuppressForSaveData({ headers: { ect: '2g' } }) === true
+  );
+  expect(
+    'shouldSuppressForSaveData with Downlink: 0.5 → true',
+    pp.shouldSuppressForSaveData({ headers: { downlink: '0.5' } }) === true
+  );
+  expect(
+    'shouldSuppressForSaveData with Downlink: 10 → false',
+    pp.shouldSuppressForSaveData({ headers: { downlink: '10' } }) === false
+  );
+  expect(
+    'shouldSuppressForSaveData with no signals → false',
+    pp.shouldSuppressForSaveData({ headers: {} }) === false
+  );
+  expect(
+    'shouldSuppressForSaveData null-safe',
+    pp.shouldSuppressForSaveData(null) === false
+  );
+
+  // 11. Speculation Rules script generation
+  pp._resetForTests();
+  for (let i = 0; i < 5; i++) pp.recordTransition('/', '/store');
+  pp.recordTransition('/', '/pricing');
+  const sr = pp.buildSpeculationRulesScript(pp.predict('/', 3), { nonce: 'NONCE123' });
+  expect('speculationrules script generated', typeof sr === 'string' && sr.length > 0);
+  expect('speculationrules script type attribute', sr.indexOf('type="speculationrules"') !== -1);
+  expect('speculationrules carries nonce', sr.indexOf('nonce="NONCE123"') !== -1);
+  expect('speculationrules contains prerender for hot edge', sr.indexOf('"prerender"') !== -1);
+  expect('speculationrules JSON safely escapes </script>', sr.indexOf('</script>') === sr.lastIndexOf('</script>'));
+  expect('speculationrules empty when no predictions', pp.buildSpeculationRulesScript([]) === '');
+
+  // 12. injectSpeculationRules adds the script to <head>
+  const html = '<!doctype html><html><head><title>x</title></head><body>y</body></html>';
+  const out = pp.injectSpeculationRules(html, pp.predict('/', 3), { nonce: 'N' });
+  expect('inject placed script after <head>', out.indexOf('<head><script type="speculationrules"') !== -1);
+  expect('inject preserves rest of document', out.indexOf('<body>y</body>') !== -1);
+  const noHead = pp.injectSpeculationRules('<html><body>z</body></html>', pp.predict('/', 3));
+  expect('inject is no-op when no <head>', noHead === '<html><body>z</body></html>');
+
+  // 13. Order-2 Markov chain
+  pp._resetForTests();
+  // Train: A → B → C  (5 times), A → B → D (1 time), and a different prefix
+  // X → B → E (3 times). Order-1 from B is dominated by C+D+E mixed; order-2
+  // from (A,B) should pick C uniquely.
+  for (let i = 0; i < 5; i++) pp.recordTransition('/b', '/c', '/a');
+  pp.recordTransition('/b', '/d', '/a');
+  for (let i = 0; i < 3; i++) pp.recordTransition('/b', '/e', '/x');
+  const order1 = pp.predict('/b', 3);
+  const order2 = pp.predict('/b', 3, '/a');
+  expect('order-1 returns mixed top results', order1.length >= 1 && order1[0].order === 1);
+  expect('order-2 returns context-specific top result', order2.length >= 1 && order2[0].order === 2 && order2[0].path === '/c');
+  expect(
+    'order-2 falls back to order-1 when no order-2 data',
+    pp.predict('/b', 3, '/never-seen-prefix')[0].order === 1
+  );
+
+  // 14. K-anonymous persistence: write → wipe → restore
+  const fs = require('fs');
+  const path = require('path');
+  const os = require('os');
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'pp-test-'));
+  const tmpFile = path.join(tmpDir, 'snap.jsonl');
+  process.env.PREFETCH_PERSIST_PATH = tmpFile;
+  // Reload module to pick up env (the file path is captured at module load)
+  delete require.cache[require.resolve('../src/perf/predictive-prefetch')];
+  const pp2 = require('../src/perf/predictive-prefetch');
+  pp2._resetForTests();
+  // 5 hits on /a→/b (above k-anon threshold of 3), 1 hit on /a→/rare (below)
+  for (let i = 0; i < 5; i++) pp2.recordTransition('/a', '/b');
+  pp2.recordTransition('/a', '/rare');
+  const persist = pp2.persistSnapshot();
+  expect('persistSnapshot ok', persist.ok === true);
+  expect('persistSnapshot only persists k-anon-safe edges (count >= 3)', persist.edges === 1);
+  expect('snapshot file exists', fs.existsSync(tmpFile));
+  // Snapshot file content sanity
+  const content = fs.readFileSync(tmpFile, 'utf8');
+  expect('snapshot has metadata header line', content.indexOf('"_meta"') !== -1);
+  expect('snapshot contains the durable edge', content.indexOf('"/b"') !== -1);
+  expect('snapshot does NOT contain the unique-visit edge', content.indexOf('"/rare"') === -1);
+  // Wipe state, restore
+  pp2._resetForTests();
+  // Restore needs PERSIST_PATH; re-trigger by reloading with the env still set
+  const restoreResult = pp2.restoreSnapshot();
+  expect('restoreSnapshot ok', restoreResult.ok === true && restoreResult.edges === 1);
+  const restoredPredictions = pp2.predict('/a', 3);
+  expect('predicted edges restored from snapshot', restoredPredictions.length === 1 && restoredPredictions[0].path === '/b');
+  // Cleanup
+  try { fs.unlinkSync(tmpFile); fs.rmdirSync(tmpDir); } catch (_) {}
+  delete process.env.PREFETCH_PERSIST_PATH;
 }
 
 async function integrationTest() {
   console.log('\npredictive-prefetch integration test (HTTP 103 + stats endpoint):');
-  pp._resetForTests();
+  // The persistence unit test above deleted+re-required the module to reload
+  // it under a custom PREFETCH_PERSIST_PATH env. We must re-acquire the same
+  // instance the server will use, otherwise our pre-seed lands on a stale
+  // module reference.
+  const ppLive = require('../src/perf/predictive-prefetch');
+  ppLive._resetForTests();
   // Pre-seed a hot transition so the predictor has something to predict for /.
-  for (let i = 0; i < 3; i++) pp.recordTransition('/', '/store');
-  pp.recordTransition('/', '/pricing');
+  for (let i = 0; i < 3; i++) ppLive.recordTransition('/', '/store');
+  ppLive.recordTransition('/', '/pricing');
 
   // Boot the site server
   process.env.NODE_APP_INSTANCE = '0';
@@ -190,7 +299,7 @@ async function integrationTest() {
       'Accept': 'text/html',
       'Referer': refererBase + '/'
     });
-    const stats = pp.getStats();
+    const stats = ppLive.getStats();
     expect('stats fromPaths >= 1 after recording', stats.fromPaths >= 1);
 
     // 4. /internal/prefetch/stats endpoint
@@ -206,12 +315,12 @@ async function integrationTest() {
     );
 
     // 5. Cross-origin Referer must NOT register a transition.
-    const before = pp.getStats().totalTransitionsRecorded;
+    const before = ppLive.getStats().totalTransitionsRecorded;
     await fetchWithEarlyHints('/about', {
       'Accept': 'text/html',
       'Referer': 'https://attacker.example.com/poison'
     });
-    const after = pp.getStats().totalTransitionsRecorded;
+    const after = ppLive.getStats().totalTransitionsRecorded;
     expect('cross-origin Referer ignored', after === before);
 
     // 6. Non-navigable target (an /api path) must NOT trigger Early Hints.
@@ -220,6 +329,39 @@ async function integrationTest() {
       'no 103 Early Hints for /api/* path',
       r2.earlyHints.length === 0 || r2.earlyHints.every(h => h.status !== 103)
     );
+
+    // 7. Speculation Rules <script> injected into SSR HTML <head>
+    expect(
+      'SSR HTML contains <script type="speculationrules">',
+      r.body.indexOf('type="speculationrules"') !== -1
+    );
+    expect(
+      'speculation rules block contains predicted /store',
+      r.body.indexOf('"/store"') !== -1
+    );
+
+    // 8. Accept-CH header advertised on SSR response (digital-equity opt-in)
+    const acceptCh = String(r.headers['accept-ch'] || '');
+    expect(
+      'SSR response advertises Save-Data via Accept-CH',
+      acceptCh.toLowerCase().indexOf('save-data') !== -1
+    );
+
+    // 9. Save-Data: on must suppress 103 Early Hints (digital-equity contract)
+    const rSave = await fetchWithEarlyHints('/', { 'Accept': 'text/html', 'Save-Data': 'on' });
+    expect(
+      'Save-Data: on suppresses 103 Early Hints',
+      rSave.earlyHints.length === 0 || rSave.earlyHints.every(h => h.status !== 103)
+    );
+    expect(
+      'Save-Data: on suppresses speculation rules in SSR HTML',
+      rSave.body.indexOf('type="speculationrules"') === -1
+    );
+    expect('GET / with Save-Data still 200', rSave.status === 200);
+
+    // 10. Vary header lists Save-Data so caches partition correctly
+    const vary = String(r.headers.vary || '').toLowerCase();
+    expect('Vary header includes Save-Data', vary.indexOf('save-data') !== -1);
   } finally {
     server.close();
   }
