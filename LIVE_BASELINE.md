@@ -84,3 +84,11 @@ bumping commit. Re-runs at the same SHA are idempotent. The workflow
 also runs on a 1-hour `cron` schedule and is manually dispatchable with
 an optional `force_sha` input for emergency forward rolls.
 
+
+## Auto-advance log
+
+This section is appended to by `.github/workflows/auto-baseline-advance.yml` after every verified-green deploy + global-health probe.
+
+| When (UTC) | From | To |
+|---|---|---|
+| 2026-05-04 21:42 UTC | `9b8431a9bd83` | `3a69ee76eb68` |
