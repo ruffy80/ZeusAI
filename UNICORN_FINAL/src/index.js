@@ -5960,7 +5960,7 @@ ${invoice.payer ? `<h2>Payer</h2><table><tr><th>Legal entity</th><td>${esc(invoi
     } catch(e){ res.writeHead(500,{'Content-Type':'application/json'}); return res.end(JSON.stringify({ ok:false, error:e.message })); }
   }
 
-  // GET /api/services/changed — last catalog change announcement
+  // GET /api/services/changed — last catalog change announcement (JSON or SSE)
   if (urlPath === '/api/services/changed' && req.method === 'GET') {
     try {
       const fs = require('fs'); const path = require('path');
@@ -5968,14 +5968,30 @@ ${invoice.payer ? `<h2>Payer</h2><table><tr><th>Legal entity</th><td>${esc(invoi
         path.resolve(__dirname, '..', 'data', 'commerce', 'services-master.json'),
         path.resolve(__dirname, '..', '..', 'data', 'commerce', 'services-master.json')
       ];
-      let info = null;
-      for (const p of candidates) {
-        try { const s = fs.statSync(p); info = { path: p.split('/').slice(-3).join('/'), size: s.size, mtime: s.mtime, mtimeMs: s.mtimeMs }; break; } catch(_){}
+      const snapshot = () => {
+        let info = null, count = null, hash = null;
+        for (const p of candidates) {
+          try { const s = fs.statSync(p); info = { path: p.split('/').slice(-3).join('/'), size: s.size, mtime: s.mtime, mtimeMs: s.mtimeMs }; break; } catch(_){}
+        }
+        try {
+          const p = candidates.find(c=>fs.existsSync(c));
+          if (p) { const buf = fs.readFileSync(p); count = (JSON.parse(buf.toString('utf8'))||[]).length; hash = require('crypto').createHash('sha256').update(buf).digest('hex').slice(0,16); }
+        } catch(_){}
+        return { ok:true, generatedAt:new Date().toISOString(), info, count, hash };
+      };
+      // SSE if Accept: text/event-stream
+      const accept = String(req.headers['accept']||'');
+      if (accept.includes('text/event-stream')) {
+        res.writeHead(200, { 'Content-Type':'text/event-stream', 'Cache-Control':'no-cache, no-transform', 'Connection':'keep-alive', 'X-Accel-Buffering':'no' });
+        let last = '';
+        const send = () => { try { const cur = snapshot(); const j = JSON.stringify(cur); if (j !== last) { last = j; res.write('event: services-changed\ndata: '+j+'\n\n'); } else { res.write(': ping\n\n'); } } catch(_){} };
+        send();
+        const iv = setInterval(send, 15000);
+        req.on('close', () => clearInterval(iv));
+        return;
       }
-      let count = null;
-      try { if (info) { count = (JSON.parse(fs.readFileSync(candidates.find(c=>fs.existsSync(c)),'utf8'))||[]).length; } } catch(_){}
       res.writeHead(200,{'Content-Type':'application/json'});
-      return res.end(JSON.stringify({ ok:true, generatedAt:new Date().toISOString(), info, count }));
+      return res.end(JSON.stringify(snapshot()));
     } catch(e){ res.writeHead(500,{'Content-Type':'application/json'}); return res.end(JSON.stringify({ ok:false, error:e.message })); }
   }
 
