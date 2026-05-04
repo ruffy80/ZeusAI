@@ -58,6 +58,15 @@ module.exports = {
         ENABLE_AUTO_RESTART: '0',
         DISABLE_SELF_MUTATION: '1',
         QIS_AUTO_HEAL_ENABLED: 'false',
+        // ── AUTH-GUARDIAN: DISABLED PERMANENTLY ────────────────────────
+        // auth-guardian probes /api/auth/test and on failure runs
+        // scripts/auth-repair.js, which UNCONDITIONALLY calls
+        // `pm2 restart unicorn-backend` at the end of every run. With
+        // missing test credentials the probe always fails → infinite
+        // restart loop (~12s cycle) → backend never stays up. Re-enable
+        // only after AUTH_GUARDIAN_TEST_EMAIL + AUTH_GUARDIAN_TEST_PASSWORD
+        // are configured and auth-repair.js no longer self-restarts.
+        AUTH_GUARDIAN_ENABLED: '0',
         PORT: 3000,
         DOMAIN: 'zeusai.pro',
         SITE_DOMAIN: 'zeusai.pro',
