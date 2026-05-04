@@ -147,16 +147,28 @@ async function unitTests() {
   );
 
   // 11. Speculation Rules script generation
+  // Default behavior: every prediction (hot or cold) is "prefetch" — JS-safe
+  // for live SSE feeds. We opt into "prerender" via PREFETCH_ENABLE_PRERENDER
+  // for this test only, then restore the prior env value.
   pp._resetForTests();
   for (let i = 0; i < 5; i++) pp.recordTransition('/', '/store');
   pp.recordTransition('/', '/pricing');
+  const prevPrerenderEnv = process.env.PREFETCH_ENABLE_PRERENDER;
+  process.env.PREFETCH_ENABLE_PRERENDER = '1';
   const sr = pp.buildSpeculationRulesScript(pp.predict('/', 3), { nonce: 'NONCE123' });
+  if (typeof prevPrerenderEnv === 'undefined') delete process.env.PREFETCH_ENABLE_PRERENDER;
+  else process.env.PREFETCH_ENABLE_PRERENDER = prevPrerenderEnv;
   expect('speculationrules script generated', typeof sr === 'string' && sr.length > 0);
   expect('speculationrules script type attribute', sr.indexOf('type="speculationrules"') !== -1);
   expect('speculationrules carries nonce', sr.indexOf('nonce="NONCE123"') !== -1);
-  expect('speculationrules contains prerender for hot edge', sr.indexOf('"prerender"') !== -1);
+  expect('speculationrules contains prerender for hot edge (opt-in)', sr.indexOf('"prerender"') !== -1);
   expect('speculationrules JSON safely escapes </script>', sr.indexOf('</script>') === sr.lastIndexOf('</script>'));
   expect('speculationrules empty when no predictions', pp.buildSpeculationRulesScript([]) === '');
+  // Default behavior (no opt-in): even hot edges must NOT use prerender.
+  // This is the fix for the Samsung-Chrome-mobile live-pricing/BTC regression.
+  const srDefault = pp.buildSpeculationRulesScript(pp.predict('/', 3), { nonce: 'N' });
+  expect('speculationrules default has NO prerender (mobile-SSE-safe)', srDefault.indexOf('"prerender"') === -1);
+  expect('speculationrules default still emits prefetch for hot edge', srDefault.indexOf('"prefetch"') !== -1);
 
   // 12. injectSpeculationRules adds the script to <head>
   const html = '<!doctype html><html><head><title>x</title></head><body>y</body></html>';

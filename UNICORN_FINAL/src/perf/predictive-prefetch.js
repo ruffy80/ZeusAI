@@ -54,6 +54,27 @@ const path = require('path');
 
 const ENABLED = process.env.SITE_PREDICTIVE_PREFETCH_DISABLED !== '1';
 const SPECULATION_RULES_ENABLED = ENABLED && process.env.SITE_SPECULATION_RULES_DISABLED !== '1';
+// Speculation Rules has two action verbs:
+//   • "prefetch"  — browser downloads the predicted HTML response only.
+//                   No JS execution, no SSE/WebSocket open, no DOM build.
+//                   Pure navigation accelerator. Safe with live data feeds.
+//   • "prerender" — browser fully renders the predicted page in a hidden
+//                   context (executes scripts, opens connections, fires
+//                   timers). Faster navigation, but it MULTIPLIES every
+//                   long-lived connection (SSE/WebSocket) that the SSR
+//                   document boots — once per prerendered URL.
+//
+// On a site like ours where the SSR client opens 2 SSE channels on boot
+// (`openStream()` → /api/unicorn/events and `openPricingStream()` →
+// /api/pricing/live/stream) plus a periodic BTC rate poller, "prerender"
+// causes mobile Chromium browsers (Samsung Chrome / Chrome on Android in
+// particular) to fan out connections in background tabs. With Data-Saver
+// or background-data restrictions this exhausts the per-origin connection
+// budget and the *visible* page never gets fresh price/BTC frames.
+//
+// Default OFF for safety. Opt-in with PREFETCH_ENABLE_PRERENDER=1 only
+// after auditing that all SSR-mounted live feeds are prerender-safe.
+const PRERENDER_ENABLED = SPECULATION_RULES_ENABLED && process.env.PREFETCH_ENABLE_PRERENDER === '1';
 const PERSIST_ENABLED = ENABLED && process.env.PREFETCH_PERSIST_DISABLED !== '1';
 
 // Bounded-memory tuning knobs — overrideable via env, sane defaults.
@@ -251,6 +272,7 @@ function getStats() {
   return {
     enabled: ENABLED,
     speculationRulesEnabled: SPECULATION_RULES_ENABLED,
+    prerenderEnabled: PRERENDER_ENABLED,
     persistEnabled: PERSIST_ENABLED,
     fromPaths: __graph.size,
     edges,
@@ -374,6 +396,10 @@ function buildSpeculationRulesScript(predictions, opts) {
   if (!SPECULATION_RULES_ENABLED) return '';
   if (!Array.isArray(predictions) || predictions.length === 0) return '';
   const nonce = opts && typeof opts.nonce === 'string' ? opts.nonce : '';
+  // Re-read the prerender gate at call-time so an operator can flip it via
+  // env without restarting the cluster (the constant captured at module
+  // load is still exported for /internal/prefetch/stats).
+  const prerenderActive = PRERENDER_ENABLED || process.env.PREFETCH_ENABLE_PRERENDER === '1';
   const prerenderUrls = [];
   const prefetchUrls = [];
   for (const p of predictions) {
@@ -381,7 +407,13 @@ function buildSpeculationRulesScript(predictions, opts) {
     // K-anonymity gate for prerender: only if at least KANON_THRESHOLD
     // distinct observations ever happened on this edge. Keeps low-volume
     // routes safe (no resource amplification on rarely-visited pages).
-    if ((p.count || 0) >= KANON_THRESHOLD) prerenderUrls.push(p.path);
+    // prerenderActive gate: when false (default), every prediction —
+    // hot or cold — is emitted as "prefetch" so the browser downloads
+    // only the HTML response and never pre-executes the page's JS.
+    // This avoids fanning out SSR-bound SSE/WebSocket connections from
+    // hidden prerender contexts on mobile Chromium browsers (which
+    // breaks live pricing / BTC feeds on Samsung Chrome and similar).
+    if (prerenderActive && (p.count || 0) >= KANON_THRESHOLD) prerenderUrls.push(p.path);
     else prefetchUrls.push(p.path);
   }
   if (prerenderUrls.length === 0 && prefetchUrls.length === 0) return '';
@@ -549,6 +581,7 @@ function _resetForTests() {
 module.exports = {
   ENABLED,
   SPECULATION_RULES_ENABLED,
+  PRERENDER_ENABLED,
   PERSIST_ENABLED,
   isNavigablePath,
   extractReferrerPath,
