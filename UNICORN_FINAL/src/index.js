@@ -56,6 +56,44 @@ process.on('unhandledRejection', (reason) => {
 const express = require('express');
 const app = express();
 
+// ==================== HTTP COMPRESSION (site, 3001) ====================
+// The site serves the SSR HTML shell (~178KB shell.js render output) and the
+// large v2 client bundle (`/assets/app.js` ≈ 250KB) + `/assets/app.css`
+// (≈ 54KB). Without gzip/brotli these payloads dominate page-load time on any
+// real network. The backend (3000) already enables `compression()`; the site
+// did not, which is why pages felt slow in the browser even when the server
+// itself responded quickly.
+//
+// Applied at the dispatcher level (see `createServer` below) — NOT as
+// `app.use(compression())` — because hundreds of routes (including
+// `/assets/app.js`, `/assets/app.css`, the v2 SSR HTML pages and many JSON
+// endpoints) bypass Express entirely via `unicornHandler`. An `app.use`
+// middleware would silently miss them.
+//
+// `compression` already handles the safety cases we care about:
+//   • Skips `Content-Type: text/event-stream` (all our SSE routes — /stream,
+//     /api/events, /api/unicorn/events, concierge stream — emit this header).
+//   • Honors `Cache-Control: no-transform` (our SSE routes also set this).
+//   • Negotiates encoding from the client `Accept-Encoding` header (no
+//     compression for clients that don't support it).
+//   • Skips already-encoded bodies (Content-Encoding already set).
+//   • Default 1KB threshold — tiny JSON responses pass through untouched.
+//
+// Disable with SITE_COMPRESSION_DISABLED=1 (zero-risk rollback knob).
+let __siteCompressionMw = null;
+if (process.env.SITE_COMPRESSION_DISABLED !== '1') {
+  try {
+    const compression = require('compression');
+    __siteCompressionMw = compression({
+      // Slightly above the default 1KB so small JSON keepalives don't pay the
+      // CPU cost; the heavy hitters (HTML/CSS/JS) all comfortably exceed this.
+      threshold: 1024,
+    });
+  } catch (e) {
+    console.warn('[site-compression] not loaded:', e && e.message ? e.message : e);
+  }
+}
+
 // ==================== TOPOLOGY IDENTITY (site, 3001) ====================
 // Tag every response from the site cluster with `X-Unicorn-Role: site` plus the
 // PM2 instance index, the listening port and the cluster role (primary/replica).
@@ -692,6 +730,32 @@ if (!v2 || typeof v2.getHtml !== 'function') {
 let sovereign = null; try { sovereign = require('./site/sovereign-extensions'); } catch (e) { console.warn('[sovereign] not loaded:', e.message); }
 let commerce = null; try { commerce = require('./site/sovereign-commerce'); } catch (e) { console.warn('[commerce] not loaded:', e.message); }
 const V2_CLIENT_PATH = path.join(__dirname, 'site', 'v2', 'client.js');
+// In-memory cache for the v2 static JS bundles. The previous implementation
+// called `fs.readFileSync(V2_CLIENT_PATH, 'utf8')` on EVERY request to
+// `/assets/app.js` (≈ 250KB) and `/assets/aeon.js`, which added measurable
+// disk I/O latency to first-paint. We cache by path with a 60s mtime check
+// so a hot redeploy still picks up changes without a process restart.
+// Disable with SITE_ASSET_MEMCACHE_DISABLED=1.
+const __staticAssetCache = new Map();
+function __readStaticAssetCached(filePath /* , label */) {
+  if (process.env.SITE_ASSET_MEMCACHE_DISABLED === '1') {
+    return fs.readFileSync(filePath, 'utf8');
+  }
+  const now = Date.now();
+  const entry = __staticAssetCache.get(filePath);
+  if (entry && (now - entry.checkedAt) < 60000) {
+    return entry.body;
+  }
+  let mtimeMs = 0;
+  try { mtimeMs = fs.statSync(filePath).mtimeMs || 0; } catch (_) { /* ignore */ }
+  if (entry && entry.mtimeMs === mtimeMs && mtimeMs !== 0) {
+    entry.checkedAt = now;
+    return entry.body;
+  }
+  const body = fs.readFileSync(filePath, 'utf8');
+  __staticAssetCache.set(filePath, { body, mtimeMs, checkedAt: now });
+  return body;
+}
 let qrMod = null; try { qrMod = require('./site/v2/qr'); } catch (_) {}
 let deliveryRegistry = null; try { deliveryRegistry = require('./site/v2/delivery-registry'); } catch (e) { console.warn('[delivery] not loaded:', e.message); }
 let uaic = null; try { uaic = require('./commerce/uaic'); } catch (e) { console.warn('[UAIC] not loaded:', e.message); }
@@ -725,6 +789,22 @@ function createServer() {
     const method = String(req.method || 'GET').toUpperCase();
     const earlyPath = new URL(req.url || '/', 'http://local').pathname;
     installResponseFreshnessGuards(res);
+    // HTTP compression (gzip/brotli/deflate) — applied at the dispatcher
+    // BEFORE any handler so it covers both the Express path AND the
+    // `unicornHandler` raw req/res path (which serves /assets/app.js,
+    // /assets/app.css, all SSR HTML pages and most JSON endpoints).
+    // `compression` skips SSE (`text/event-stream`), `no-transform` Cache
+    // -Control, and bodies under 1KB automatically — no per-route changes
+    // needed. See note above the require for the full safety matrix.
+    if (__siteCompressionMw) {
+      __siteCompressionMw(req, res, () => __continueDispatch(req, res, method, earlyPath));
+    } else {
+      __continueDispatch(req, res, method, earlyPath);
+    }
+  });
+}
+
+function __continueDispatch(req, res, method, earlyPath) {
     // Topology headers + write-guard run BEFORE any dispatcher decision, so
     // they apply uniformly across the Express path AND the unicornHandler
     // bypass (which carries hundreds of /api/* mutation routes).
@@ -753,7 +833,6 @@ function createServer() {
         unicornHandler(req, res);
       }
     });
-  });
 }
 
 const SITE_OWNED_MUTATIONS = [
@@ -3960,14 +4039,14 @@ async function unicornHandler(req, res) {
     const hasV = requestUrl.searchParams.has('v') || isVersionedAssetPath;
     const cc = hasV ? 'public, max-age=31536000, immutable' : 'public, max-age=60, must-revalidate';
     res.writeHead(200, { 'Content-Type':'application/javascript; charset=utf-8', 'Cache-Control': cc });
-    try { return res.end(fs.readFileSync(V2_CLIENT_PATH, 'utf8')); }
+    try { return res.end(__readStaticAssetCached(V2_CLIENT_PATH, '__v2ClientCache')); }
     catch (e) { return res.end('console.error("v2 client missing")'); }
   }
   if (urlPath === '/assets/aeon.js') {
     const hasV = requestUrl.searchParams.has('v') || isVersionedAssetPath;
     const cc = hasV ? 'public, max-age=31536000, immutable' : 'public, max-age=60, must-revalidate';
     res.writeHead(200, { 'Content-Type':'application/javascript; charset=utf-8', 'Cache-Control': cc });
-    try { return res.end(fs.readFileSync(path.join(__dirname,'site','v2','aeon.js'),'utf8')); }
+    try { return res.end(__readStaticAssetCached(path.join(__dirname,'site','v2','aeon.js'), '__v2AeonCache')); }
     catch(_) { return res.end('/* aeon missing */'); }
   }
   // Locally-vendored third-party libs (30Y-LTS: no CDN dependency when file is present).
