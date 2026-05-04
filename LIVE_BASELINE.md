@@ -84,3 +84,35 @@ bumping commit. Re-runs at the same SHA are idempotent. The workflow
 also runs on a 1-hour `cron` schedule and is manually dispatchable with
 an optional `force_sha` input for emergency forward rolls.
 
+## Emergency runtime rollback — `SITE_LEGACY_BASELINE_MODE=1`
+
+Independent of the git-baseline pin above, the site worker
+(`UNICORN_FINAL/src/index.js`) honors a single env knob that collapses
+every post-`89a8b7f3` (2026-05-04 17:21 UTC) feature back to the exact
+`89a8b7f3` baseline behavior, **without any code revert**:
+
+```bash
+SITE_LEGACY_BASELINE_MODE=1 pm2 restart unicorn-site --update-env
+```
+
+When set, the `legacyBaselineModeGuard` IIFE at the top of
+`src/index.js` propagates these defaults (operator-set values are never
+overwritten):
+
+| Disabled | Restores |
+|---|---|
+| `SITE_COMPRESSION_DISABLED=1` | No gzip/brotli at the dispatcher level. |
+| `SITE_ASSET_MEMCACHE_DISABLED=1` | `/assets/app.js` + `/assets/aeon.js` re-read from disk per request (pre-PR #515 behavior). |
+| `SITE_PREDICTIVE_PREFETCH_DISABLED=1` | No HTTP 103 Early Hints, no `Link: rel=prefetch` extension. |
+| `SITE_SPECULATION_RULES_DISABLED=1` | No `<script type="speculationrules">` in SSR `<head>`. |
+| `SITE_RUM_BEACONS_DISABLED=1` | No Web Vitals collector script; `/internal/rum*` endpoints respond 204 / 503. |
+| `PREFETCH_PERSIST_DISABLED=1` | No `data/perf/prefetch-graph.jsonl` read or write. |
+
+This is the canonical answer to "give me the site exactly as it was 4.5
+hours ago, with everything I added since untouched but inactive". The
+PR #515 / PR #516 / prerender-gate code paths remain in the binary; the
+guard only disables their runtime side effects. Each individual disable
+knob can also be flipped on its own for surgical rollbacks.
+
+Verified by `UNICORN_FINAL/test/legacy-baseline-mode.test.js`.
+

@@ -161,6 +161,13 @@ async function unitTests() {
   } finally {
     pp._setPrerenderForTests(false);
   }
+  // Explicit isolation contract: after the finally block, the override
+  // must have been reset to the production default. We assert the
+  // constant didn't drift, and the post-finally `srDefault` assertion
+  // below (which calls buildSpeculationRulesScript again on the same
+  // hot edges and expects zero `"prerender"` occurrences) is the
+  // behavioral confirmation that __prerenderOverride was reset.
+  expect('post-finally: PRERENDER_ENABLED constant unchanged (still load-time default)', pp.PRERENDER_ENABLED === false);
   expect('speculationrules script generated', typeof sr === 'string' && sr.length > 0);
   expect('speculationrules script type attribute', sr.indexOf('type="speculationrules"') !== -1);
   expect('speculationrules carries nonce', sr.indexOf('nonce="NONCE123"') !== -1);
