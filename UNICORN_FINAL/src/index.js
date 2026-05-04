@@ -56,6 +56,44 @@ process.on('unhandledRejection', (reason) => {
 const express = require('express');
 const app = express();
 
+// ==================== HTTP COMPRESSION (site, 3001) ====================
+// The site serves the SSR HTML shell (~178KB shell.js render output) and the
+// large v2 client bundle (`/assets/app.js` ≈ 250KB) + `/assets/app.css`
+// (≈ 54KB). Without gzip/brotli these payloads dominate page-load time on any
+// real network. The backend (3000) already enables `compression()`; the site
+// did not, which is why pages felt slow in the browser even when the server
+// itself responded quickly.
+//
+// Applied at the dispatcher level (see `createServer` below) — NOT as
+// `app.use(compression())` — because hundreds of routes (including
+// `/assets/app.js`, `/assets/app.css`, the v2 SSR HTML pages and many JSON
+// endpoints) bypass Express entirely via `unicornHandler`. An `app.use`
+// middleware would silently miss them.
+//
+// `compression` already handles the safety cases we care about:
+//   • Skips `Content-Type: text/event-stream` (all our SSE routes — /stream,
+//     /api/events, /api/unicorn/events, concierge stream — emit this header).
+//   • Honors `Cache-Control: no-transform` (our SSE routes also set this).
+//   • Negotiates encoding from the client `Accept-Encoding` header (no
+//     compression for clients that don't support it).
+//   • Skips already-encoded bodies (Content-Encoding already set).
+//   • Default 1KB threshold — tiny JSON responses pass through untouched.
+//
+// Disable with SITE_COMPRESSION_DISABLED=1 (zero-risk rollback knob).
+let __siteCompressionMw = null;
+if (process.env.SITE_COMPRESSION_DISABLED !== '1') {
+  try {
+    const compression = require('compression');
+    __siteCompressionMw = compression({
+      // Slightly above the default 1KB so small JSON keepalives don't pay the
+      // CPU cost; the heavy hitters (HTML/CSS/JS) all comfortably exceed this.
+      threshold: 1024,
+    });
+  } catch (e) {
+    console.warn('[site-compression] not loaded:', e && e.message ? e.message : e);
+  }
+}
+
 // ==================== TOPOLOGY IDENTITY (site, 3001) ====================
 // Tag every response from the site cluster with `X-Unicorn-Role: site` plus the
 // PM2 instance index, the listening port and the cluster role (primary/replica).
@@ -118,6 +156,22 @@ if (process.env.TOPOLOGY_ENDPOINT_DISABLED !== '1') {
       ts: new Date().toISOString(),
       note: 'site (SSR) — APIs and ledgers live on the backend (port 3000); nginx routes /api/ there.'
     });
+  });
+  // Predictive prefetch observability — read-only, no secrets, no PII.
+  // Lets operators verify the navigation graph is being learned and that
+  // 103 Early Hints will fire with meaningful predictions.
+  app.get('/internal/prefetch/stats', (req, res) => {
+    res.setHeader('Cache-Control', 'no-store');
+    try {
+      // Lazy require so the endpoint also exists if the module is missing.
+      const pp = require('./perf/predictive-prefetch');
+      const stats = pp.getStats();
+      const samplePath = String(req.query && req.query.from || '').slice(0, 256);
+      if (samplePath) stats.samplePredictions = pp.predict(samplePath, 5);
+      res.json(stats);
+    } catch (e) {
+      res.status(500).json({ error: 'predictive_prefetch_unavailable', message: e && e.message });
+    }
   });
 }
 
@@ -692,6 +746,32 @@ if (!v2 || typeof v2.getHtml !== 'function') {
 let sovereign = null; try { sovereign = require('./site/sovereign-extensions'); } catch (e) { console.warn('[sovereign] not loaded:', e.message); }
 let commerce = null; try { commerce = require('./site/sovereign-commerce'); } catch (e) { console.warn('[commerce] not loaded:', e.message); }
 const V2_CLIENT_PATH = path.join(__dirname, 'site', 'v2', 'client.js');
+// In-memory cache for the v2 static JS bundles. The previous implementation
+// called `fs.readFileSync(V2_CLIENT_PATH, 'utf8')` on EVERY request to
+// `/assets/app.js` (≈ 250KB) and `/assets/aeon.js`, which added measurable
+// disk I/O latency to first-paint. We cache by path with a 60s mtime check
+// so a hot redeploy still picks up changes without a process restart.
+// Disable with SITE_ASSET_MEMCACHE_DISABLED=1.
+const __staticAssetCache = new Map();
+function __readStaticAssetCached(filePath) {
+  if (process.env.SITE_ASSET_MEMCACHE_DISABLED === '1') {
+    return fs.readFileSync(filePath, 'utf8');
+  }
+  const now = Date.now();
+  const entry = __staticAssetCache.get(filePath);
+  if (entry && (now - entry.checkedAt) < 60000) {
+    return entry.body;
+  }
+  let mtimeMs = 0;
+  try { mtimeMs = fs.statSync(filePath).mtimeMs || 0; } catch (_) { /* ignore */ }
+  if (entry && entry.mtimeMs === mtimeMs && mtimeMs !== 0) {
+    entry.checkedAt = now;
+    return entry.body;
+  }
+  const body = fs.readFileSync(filePath, 'utf8');
+  __staticAssetCache.set(filePath, { body, mtimeMs, checkedAt: now });
+  return body;
+}
 let qrMod = null; try { qrMod = require('./site/v2/qr'); } catch (_) {}
 let deliveryRegistry = null; try { deliveryRegistry = require('./site/v2/delivery-registry'); } catch (e) { console.warn('[delivery] not loaded:', e.message); }
 let uaic = null; try { uaic = require('./commerce/uaic'); } catch (e) { console.warn('[UAIC] not loaded:', e.message); }
@@ -716,6 +796,34 @@ let frontier = null; try { frontier = require('./frontier-engine'); console.log(
 let innov50 = null; try { innov50 = require('../backend/modules/innovations-50y'); console.log('[innovations-50y] loaded · pillars: permanence·security·sovereignty·intelligence'); } catch (e) { console.warn('[innovations-50y] not loaded:', e.message); }
 let improvementsPack = null; try { improvementsPack = require('../backend/modules/improvements-pack'); console.log('[improvements-pack] loaded · routes: /internal/health/aggregate /api/csp-report /api/funnel/* /api/owner/revenue*'); } catch (e) { console.warn('[improvements-pack] not loaded:', e.message); }
 let polishPack = null; try { polishPack = require('../backend/modules/polish-pack'); console.log('[polish-pack] loaded · routes: /.well-known/security.txt /humans.txt /offline.html'); } catch (e) { console.warn('[polish-pack] not loaded:', e.message); }
+// ── Adaptive Predictive Prefetch (APP) · self-learning navigation graph + 103 Early Hints ──
+// Genuinely novel: most sites use static, hand-written prefetch hints, or
+// SDK-tracked predictions that need cookies. This module learns the real
+// navigation graph from same-origin Referer headers (no PII, no cookies),
+// then emits HTTP 103 Early Hints with predicted prefetch links the moment
+// the request lands — so the browser starts fetching probable next pages in
+// parallel with our SSR work. See src/perf/predictive-prefetch.js for the
+// full safety contract. Disable with SITE_PREDICTIVE_PREFETCH_DISABLED=1.
+let predictivePrefetch = null;
+try {
+  predictivePrefetch = require('./perf/predictive-prefetch');
+  if (predictivePrefetch.ENABLED) {
+    // 50-year-standard wiring: rehydrate the k-anonymous graph snapshot
+    // (if any) so we don't start cold after redeploys, then arm the
+    // periodic persistence timer. Both are no-ops when the persistence
+    // feature is disabled.
+    try {
+      const r = predictivePrefetch.restoreSnapshot();
+      if (r && r.ok && r.edges > 0) {
+        console.log('[predictive-prefetch] restored ' + r.edges + ' edges from snapshot');
+      }
+    } catch (_) { /* never fail boot on snapshot read */ }
+    try { predictivePrefetch.startPersistence(); } catch (_) {}
+    console.log('[predictive-prefetch] loaded · 103 Early Hints + Speculation Rules + Save-Data + order-2 Markov + k-anon persistence');
+  } else {
+    console.log('[predictive-prefetch] disabled via SITE_PREDICTIVE_PREFETCH_DISABLED=1');
+  }
+} catch (e) { console.warn('[predictive-prefetch] not loaded:', e.message); }
 
 const PORT = Number(process.env.PORT || 3000);
 // Pornește serverul Express pe același port cu HTTP dacă nu există deja
@@ -725,11 +833,31 @@ function createServer() {
     const method = String(req.method || 'GET').toUpperCase();
     const earlyPath = new URL(req.url || '/', 'http://local').pathname;
     installResponseFreshnessGuards(res);
+    // HTTP compression (gzip/brotli/deflate) — applied at the dispatcher
+    // BEFORE any handler so it covers both the Express path AND the
+    // `unicornHandler` raw req/res path (which serves /assets/app.js,
+    // /assets/app.css, all SSR HTML pages and most JSON endpoints).
+    // `compression` skips SSE (`text/event-stream`), `no-transform` Cache
+    // -Control, and bodies under 1KB automatically — no per-route changes
+    // needed. See note above the require for the full safety matrix.
+    if (__siteCompressionMw) {
+      __siteCompressionMw(req, res, () => __continueDispatch(req, res, method, earlyPath));
+    } else {
+      __continueDispatch(req, res, method, earlyPath);
+    }
+  });
+}
+
+function __continueDispatch(req, res, method, earlyPath) {
     // Topology headers + write-guard run BEFORE any dispatcher decision, so
     // they apply uniformly across the Express path AND the unicornHandler
     // bypass (which carries hundreds of /api/* mutation routes).
     applySiteTopologyHeaders(req, res);
     if (applySiteWriteGuard(req, res, earlyPath, method)) return; // 503 enforced
+    // ── Predictive prefetch: record same-origin transition + emit 103 Early
+    // Hints for navigable GET HTML requests. Best-effort, never throws, runs
+    // before any handler so the 103 frame goes out while we render.
+    __predictivePrefetchHook(req, res, method, earlyPath);
     // ── AUTONOMOUS BRIDGE early-dispatch ──
     // /api/modules and /api/events MUST be served by the site BFF cache/relay,
     // not proxied to Unicorn (which has auth-gated /api/modules). Run before
@@ -753,7 +881,56 @@ function createServer() {
         unicornHandler(req, res);
       }
     });
-  });
+}
+
+// Predictive prefetch dispatcher hook. Three jobs:
+//   1. If the request looks like an HTML page navigation (GET, navigable
+//      path, no Accept: */* or includes text/html), and the Referer is the
+//      same origin and also navigable, record the transition (Referer →
+//      current path) so the predictor learns from real users.
+//   2. Compute top-3 predicted next pages for the current path.
+//   3. If any predictions exist, send a 103 Early Hints frame so the browser
+//      can start fetching them in parallel with our SSR. Also stash the
+//      prediction Link header value on the response object so the SSR HTML
+//      route can append it to the final `Link:` response header (fallback
+//      for clients that don't speak 103).
+function __predictivePrefetchHook(req, res, method, earlyPath) {
+  if (!predictivePrefetch || !predictivePrefetch.ENABLED) return;
+  if (method !== 'GET' && method !== 'HEAD') return;
+  if (!predictivePrefetch.isNavigablePath(earlyPath)) return;
+  // Heuristic: only emit prefetch hints for top-level navigations. Same-origin
+  // assets/XHR usually carry an `accept` of `*/*` or specific JSON types and
+  // a `sec-fetch-dest` other than `document`. Be permissive (default to true)
+  // so we still help direct address-bar hits and HTML navigations from
+  // bookmarks where headers are minimal.
+  try {
+    const dest = String(req.headers['sec-fetch-dest'] || '').toLowerCase();
+    if (dest && dest !== 'document' && dest !== 'empty') return;
+  } catch (_) { /* keep going */ }
+  try {
+    const host = String(req.headers.host || '');
+    const fromPath = predictivePrefetch.extractReferrerPath(req.headers.referer, host);
+    if (fromPath) {
+      predictivePrefetch.recordTransition(fromPath, earlyPath);
+    }
+  } catch (_) { /* never block on prediction recording */ }
+  try {
+    const predictions = predictivePrefetch.predict(earlyPath, 3);
+    if (!predictions || predictions.length === 0) return;
+    // Emit 103 Early Hints. We bundle our two critical preloads (CSS+JS) into
+    // the same frame so the browser parallelizes them with the prefetches.
+    const cssHref = (typeof assetPath === 'function') ? assetPath('/assets/app.css') : '/assets/app.css';
+    const jsHref = (typeof assetPath === 'function') ? assetPath('/assets/app.js') : '/assets/app.js';
+    const extra = [
+      `<${cssHref}>; rel=preload; as=style`,
+      `<${jsHref}>; rel=preload; as=script`,
+    ];
+    predictivePrefetch.sendEarlyHints(res, predictions, extra, req);
+    // Stash on res for the SSR route to append to the final Link header
+    // and to inject the Speculation Rules <script> into <head>.
+    res.__zeusPrefetchLink = predictivePrefetch.buildLinkHeader(predictions);
+    res.__zeusPrefetchPredictions = predictions;
+  } catch (_) { /* never block on prediction emit */ }
 }
 
 const SITE_OWNED_MUTATIONS = [
@@ -3960,14 +4137,14 @@ async function unicornHandler(req, res) {
     const hasV = requestUrl.searchParams.has('v') || isVersionedAssetPath;
     const cc = hasV ? 'public, max-age=31536000, immutable' : 'public, max-age=60, must-revalidate';
     res.writeHead(200, { 'Content-Type':'application/javascript; charset=utf-8', 'Cache-Control': cc });
-    try { return res.end(fs.readFileSync(V2_CLIENT_PATH, 'utf8')); }
+    try { return res.end(__readStaticAssetCached(V2_CLIENT_PATH)); }
     catch (e) { return res.end('console.error("v2 client missing")'); }
   }
   if (urlPath === '/assets/aeon.js') {
     const hasV = requestUrl.searchParams.has('v') || isVersionedAssetPath;
     const cc = hasV ? 'public, max-age=31536000, immutable' : 'public, max-age=60, must-revalidate';
     res.writeHead(200, { 'Content-Type':'application/javascript; charset=utf-8', 'Cache-Control': cc });
-    try { return res.end(fs.readFileSync(path.join(__dirname,'site','v2','aeon.js'),'utf8')); }
+    try { return res.end(__readStaticAssetCached(path.join(__dirname,'site','v2','aeon.js'))); }
     catch(_) { return res.end('/* aeon missing */'); }
   }
   // Locally-vendored third-party libs (30Y-LTS: no CDN dependency when file is present).
@@ -7287,20 +7464,53 @@ a{color:#8a5cff;text-decoration:none}
     if (html.indexOf('id="zeus-build-badge"') === -1) {
       html = html.replace('</body>', badge + '</body>');
     }
+    // 50-year-standard: inject W3C Speculation Rules into <head> with the
+    // same predictions we sent via 103 Early Hints. Speculation Rules is
+    // the *successor* of <link rel=prefetch> — declarative, browser-
+    // controlled, automatically respects Save-Data / prefers-reduced-data,
+    // and has a roadmap that outlives the rel=prefetch syntax. Suppressed
+    // automatically when the visitor's browser advertises Save-Data (we
+    // already filtered at the 103 layer; we re-check here for consistency).
+    if (predictivePrefetch && predictivePrefetch.SPECULATION_RULES_ENABLED
+        && Array.isArray(res.__zeusPrefetchPredictions)
+        && res.__zeusPrefetchPredictions.length > 0
+        && !predictivePrefetch.shouldSuppressForSaveData(req)) {
+      try {
+        html = predictivePrefetch.injectSpeculationRules(
+          html,
+          res.__zeusPrefetchPredictions,
+          { nonce }
+        );
+      } catch (_) { /* never fail SSR on speculation rules */ }
+    }
     // 30Y-LTS Cache-Control diff:
     //   Public pages → 5min cache + SWR (browsers/CDNs may revalidate)
     //   Private pages → no-store (auth, dashboard, checkout)
     const cache = 'no-store, no-cache, must-revalidate, max-age=0';
+    // Base Link header: critical preloads + favicon. Predictive prefetch
+    // (when active) appends `<path>; rel=prefetch` entries learned from the
+    // real navigation graph. This is the fallback for clients that don't
+    // honor the 103 Early Hints we already sent at the dispatcher level —
+    // the browser still gets the same hints, just slightly later.
+    let linkHeader = `<${assetPath('/assets/app.css')}>; rel=preload; as=style, <${assetPath('/assets/app.js')}>; rel=preload; as=script, <${assetPath('/assets/icons/icon-192.png')}>; rel=preload; as=image`;
+    if (res.__zeusPrefetchLink) {
+      linkHeader += ', ' + res.__zeusPrefetchLink;
+    }
     res.writeHead(200, {
       'Content-Type': 'text/html; charset=utf-8',
       'Cache-Control': cache,
       'Pragma': 'no-cache',
       'Expires': '0',
-      'Link': `<${assetPath('/assets/app.css')}>; rel=preload; as=style, <${assetPath('/assets/app.js')}>; rel=preload; as=script, <${assetPath('/assets/icons/icon-192.png')}>; rel=preload; as=image`,
+      'Link': linkHeader,
+      // 50-year-standard digital-equity hint: ask the browser to send
+      // Save-Data + Network Information API client hints on subsequent
+      // requests so we can suppress predictive bytes on metered/slow
+      // connections. Opt-in per W3C Client Hints — entirely advisory.
+      'Accept-CH': 'Save-Data, Sec-CH-Prefers-Reduced-Data, ECT, Downlink',
       'X-Zeus-Build': ZEUS_BUILD.sha,
       'X-Zeus-Built-At': ZEUS_BUILD.ts,
       'X-CSP-Nonce': nonce,
-      'Vary': 'Accept-Language, Accept-Encoding, Cookie',
+      'Vary': 'Accept-Language, Accept-Encoding, Cookie, Save-Data, Sec-CH-Prefers-Reduced-Data, ECT, Downlink',
       'Content-Language': lang
     });
     return res.end(html);
