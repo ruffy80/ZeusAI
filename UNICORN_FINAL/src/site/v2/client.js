@@ -1808,8 +1808,27 @@ async function hydrateMasterCatalog(){
     }, { total: 0, instant: 0, professional: 0, enterprise: 0 });
     cat = { items, counts, btcSpot, summary: j && j.summary ? j.summary : null };
   } catch(_){ cat = null; }
-  if (!cat || !Array.isArray(cat.items)) {
-    // Fallback to legacy /api/services
+  // Keep SSR cards visible if the API path is unhealthy. The SSR pass in
+  // pageServices() already paints 25 real product cards into #catalogGrid;
+  // overwriting that with an empty/error response would leave the page
+  // looking blank (the issue users reported on mobile: SSR flashes for a
+  // moment then the grid is wiped to a single "No items" placeholder).
+  // We detect SSR cards by counting [data-product-id] children on the grid.
+  const ssrCardCount = grid.querySelectorAll('[data-product-id]').length;
+  if (!cat || !Array.isArray(cat.items) || cat.items.length === 0) {
+    if (ssrCardCount > 0) {
+      // SSR already rendered — keep it. Just refresh the small status line.
+      const statusEl = document.getElementById('autonomousStatus');
+      if (statusEl) {
+        statusEl.textContent = ssrCardCount + ' products SSR · live API unavailable, retrying…';
+        statusEl.style.color = 'var(--ink-dim)';
+      }
+      console.warn('hydrateMasterCatalog: API empty/unavailable, kept ' + ssrCardCount + ' SSR cards');
+      // Still try the live-sales ticker; harmless if endpoint is absent.
+      hydrateLiveSales(grid).catch(function(){});
+      return;
+    }
+    // No SSR cards either — fall back to the legacy /api/services list.
     const services = await loadServices().catch(()=>[]);
     grid.innerHTML = (services.length ? services.map(cardHtml).join('') : '<div class="card"><p>No services available right now. Try again in a moment.</p></div>');
     return;
