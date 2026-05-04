@@ -2636,8 +2636,31 @@ app.get('/api/services/list', routeCache.cacheMiddleware(), (req, res) => {
 
 // Additive public alias — matches the canonical smoke-test contract (GET /api/services).
 // Returns the same payload shape as /api/services/list to keep backward compatibility.
+// Now hydrated with the full master catalog (577+ items) when available, falling back
+// to the curated _unicornServices set if the catalog file is missing.
 app.get('/api/services', routeCache.cacheMiddleware(), (req, res) => {
-  res.json({ updatedAt: new Date().toISOString(), source: 'zeusai-backend', sourceLegacy: 'unicorn-backend', services: _unicornServices });
+  let merged = _unicornServices;
+  try {
+    const fs = require('fs'); const path = require('path');
+    const candidates = [
+      path.resolve(__dirname, '..', 'data', 'commerce', 'services-master.json'),
+      path.resolve(__dirname, '..', '..', 'data', 'commerce', 'services-master.json'),
+    ];
+    for (const p of candidates) {
+      if (fs.existsSync(p)) {
+        const raw = JSON.parse(fs.readFileSync(p, 'utf8'));
+        const list = Array.isArray(raw) ? raw : (raw.items || raw.services || []);
+        if (list.length) {
+          // Dedupe by id, prefer curated entries first.
+          const seen = new Set(_unicornServices.map(s => s.id));
+          const extra = list.filter(s => s && s.id && !seen.has(s.id));
+          merged = _unicornServices.concat(extra);
+          break;
+        }
+      }
+    }
+  } catch (_) { /* fallback to curated list */ }
+  res.json({ updatedAt: new Date().toISOString(), source: 'zeusai-backend', sourceLegacy: 'unicorn-backend', count: merged.length, services: merged });
 });
 
 app.get('/api/services/:id', (req, res) => {
