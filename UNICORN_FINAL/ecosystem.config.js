@@ -144,6 +144,22 @@ module.exports = {
         DOMAIN: 'zeusai.pro',
         SITE_DOMAIN: 'zeusai.pro',
         PUBLIC_APP_URL: 'https://zeusai.pro',
+        // ── LEGACY BASELINE — RESTORE 2026-05-04 17:21 UTC SITE BEHAVIOR ──
+        // Master switch added in PR #517 (legacyBaselineModeGuard IIFE at the
+        // top of src/index.js). When set to '1', it propagates the 6 disable
+        // flags for every post-PR-#515/#516 site feature so production runs
+        // bit-identical to commit 89a8b7f3 (the last "site worked perfectly"
+        // checkpoint owner reported on 2026-05-04). Specifically it disables:
+        //   • compression (gzip/brotli at dispatcher level)
+        //   • static asset memcache (60s mtime cache for /assets/*.js)
+        //   • Adaptive Predictive Prefetch (HTTP 103 Early Hints + Link rel=prefetch)
+        //   • W3C Speculation Rules (<script type="speculationrules">)
+        //   • RUM Web Vitals beacons (collector + endpoints)
+        //   • k-anon prefetch graph snapshot persistence
+        // Operator override: set SITE_LEGACY_BASELINE_MODE=0 in the system
+        // env BEFORE pm2 reads this file to opt back into the new features.
+        // Each individual feature still has its own knob (SITE_*_DISABLED).
+        SITE_LEGACY_BASELINE_MODE: process.env.SITE_LEGACY_BASELINE_MODE || '1',
         // ── Build identity — drives asset cache-busting (app.js?v=<sha>) ──
         ZEUS_BUILD_SHA: process.env.ZEUS_BUILD_SHA || '',
         SW_VERSION:     process.env.ZEUS_BUILD_SHA || process.env.SW_VERSION || '',
