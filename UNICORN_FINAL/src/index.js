@@ -173,6 +173,56 @@ if (process.env.TOPOLOGY_ENDPOINT_DISABLED !== '1') {
       res.status(500).json({ error: 'predictive_prefetch_unavailable', message: e && e.message });
     }
   });
+
+  // RUM beacon ingest. We intentionally accept a tiny JSON envelope sent
+  // via navigator.sendBeacon. Always responds 204 — never tells the client
+  // why a beacon was rejected (so a hostile probe can't enumerate the gates).
+  // Body is bounded so we don't get torpedoed by a 10 MB blob.
+  app.post('/internal/rum', (req, res) => {
+    res.setHeader('Cache-Control', 'no-store');
+    try {
+      const rb = require('./perf/rum-beacons');
+      if (!rb.ENABLED) { res.status(204).end(); return; }
+      let raw = '';
+      let aborted = false;
+      const limit = rb.MAX_BEACON_BYTES;
+      req.on('data', (chunk) => {
+        if (aborted) return;
+        raw += chunk.toString('utf8');
+        if (raw.length > limit) {
+          aborted = true;
+          raw = '';
+          // Don't disconnect — just stop reading. 204 below is the standard
+          // response either way.
+          try { req.destroy(); } catch (_) {}
+        }
+      });
+      req.on('end', () => {
+        if (!aborted && raw) {
+          let payload = null;
+          try { payload = JSON.parse(raw); } catch (_) {}
+          if (payload) { try { rb.acceptBeacon(payload, req); } catch (_) {} }
+        }
+        if (!res.headersSent) { res.status(204).end(); }
+      });
+      req.on('error', () => {
+        if (!res.headersSent) { res.status(204).end(); }
+      });
+    } catch (_) {
+      if (!res.headersSent) res.status(204).end();
+    }
+  });
+
+  // RUM observability — read-only aggregate. No raw samples are exposed.
+  app.get('/internal/rum/stats', (req, res) => {
+    res.setHeader('Cache-Control', 'no-store');
+    try {
+      const rb = require('./perf/rum-beacons');
+      res.json(rb.getStats());
+    } catch (e) {
+      res.status(500).json({ error: 'rum_beacons_unavailable', message: e && e.message });
+    }
+  });
 }
 
 // ==================== SITE WRITE-GUARD (mutations on /api/*) ====================
@@ -824,6 +874,30 @@ try {
     console.log('[predictive-prefetch] disabled via SITE_PREDICTIVE_PREFETCH_DISABLED=1');
   }
 } catch (e) { console.warn('[predictive-prefetch] not loaded:', e.message); }
+
+// ==================== RUM beacons (Real User Monitoring) ====================
+// Companion to predictive-prefetch: that module *predicts* what visitors will
+// need next, this one measures what they actually experienced. Collects the
+// W3C Core Web Vitals (LCP/CLS/INP/FCP/TTFB) via navigator.sendBeacon and
+// aggregates per-route p50/p75/p95 — no cookies, no PII, k-anonymous on disk.
+// See src/perf/rum-beacons.js for the full safety contract. Disable with
+// SITE_RUM_BEACONS_DISABLED=1.
+let rumBeacons = null;
+try {
+  rumBeacons = require('./perf/rum-beacons');
+  if (rumBeacons.ENABLED) {
+    try {
+      const r = rumBeacons.restoreSnapshot();
+      if (r && r.ok && r.restored > 0) {
+        console.log('[rum-beacons] restored ' + r.restored + ' route aggregates from snapshot');
+      }
+    } catch (_) { /* never fail boot on snapshot read */ }
+    try { rumBeacons.startPersistence(); } catch (_) {}
+    console.log('[rum-beacons] loaded · LCP/CLS/INP/FCP/TTFB collector + k-anon persistence');
+  } else {
+    console.log('[rum-beacons] disabled via SITE_RUM_BEACONS_DISABLED=1');
+  }
+} catch (e) { console.warn('[rum-beacons] not loaded:', e.message); }
 
 const PORT = Number(process.env.PORT || 3000);
 // Pornește serverul Express pe același port cu HTTP dacă nu există deja
@@ -7482,6 +7556,16 @@ a{color:#8a5cff;text-decoration:none}
           { nonce }
         );
       } catch (_) { /* never fail SSR on speculation rules */ }
+    }
+    // 50-year-standard observability: inject the RUM collector snippet just
+    // before </head> so we measure what real visitors actually experience
+    // (LCP/CLS/INP/FCP/TTFB). Suppressed for Save-Data clients — bandwidth
+    // before measurement. Same CSP nonce as the rest of the SSR document.
+    if (rumBeacons && rumBeacons.ENABLED
+        && !rumBeacons.shouldSuppressForSaveData(req)) {
+      try {
+        html = rumBeacons.injectCollector(html, { nonce });
+      } catch (_) { /* never fail SSR on collector injection */ }
     }
     // 30Y-LTS Cache-Control diff:
     //   Public pages → 5min cache + SWR (browsers/CDNs may revalidate)
