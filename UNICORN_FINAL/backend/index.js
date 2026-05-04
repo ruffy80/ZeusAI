@@ -184,6 +184,37 @@ app.get('/api/metrics', (req, res) => {
   });
 });
 
+// --- Site-only API passthrough: forward catalog endpoints to unicorn-site ---
+// /api/catalog/master and /api/catalog/diff are implemented in src/index.js
+// (the SSR site server on port 3001). Backend exposes them by proxying so
+// CI smoke tests (which hit backend-direct on :3000 as a fallback) succeed
+// even when nginx routes them to the site directly.
+const SITE_INTERNAL_BASE = process.env.UNICORN_SITE_INTERNAL_URL || 'http://127.0.0.1:3001';
+async function proxyToSite(req, res, urlPath) {
+  try {
+    const target = SITE_INTERNAL_BASE + urlPath + (req.url.includes('?') ? req.url.slice(req.url.indexOf('?')) : '');
+    const r = await fetch(target, {
+      headers: {
+        'Accept': 'application/json',
+        'User-Agent': 'unicorn-backend-proxy/1.0',
+        'X-Forwarded-For': req.ip || '',
+      },
+      // 25s ceiling — site cold start can take ~10s under load
+      signal: AbortSignal.timeout(25_000),
+    });
+    const text = await r.text();
+    res.status(r.status);
+    const ct = r.headers.get('content-type');
+    if (ct) res.setHeader('Content-Type', ct);
+    res.setHeader('X-Proxied-From', 'unicorn-site');
+    return res.send(text);
+  } catch (e) {
+    res.status(502).json({ error: 'site_unreachable', detail: String(e && e.message || e) });
+  }
+}
+app.get('/api/catalog/master', (req, res) => proxyToSite(req, res, '/api/catalog/master'));
+app.get('/api/catalog/diff',   (req, res) => proxyToSite(req, res, '/api/catalog/diff'));
+
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
