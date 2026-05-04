@@ -157,6 +157,22 @@ if (process.env.TOPOLOGY_ENDPOINT_DISABLED !== '1') {
       note: 'site (SSR) — APIs and ledgers live on the backend (port 3000); nginx routes /api/ there.'
     });
   });
+  // Predictive prefetch observability — read-only, no secrets, no PII.
+  // Lets operators verify the navigation graph is being learned and that
+  // 103 Early Hints will fire with meaningful predictions.
+  app.get('/internal/prefetch/stats', (req, res) => {
+    res.setHeader('Cache-Control', 'no-store');
+    try {
+      // Lazy require so the endpoint also exists if the module is missing.
+      const pp = require('./perf/predictive-prefetch');
+      const stats = pp.getStats();
+      const samplePath = String(req.query && req.query.from || '').slice(0, 256);
+      if (samplePath) stats.samplePredictions = pp.predict(samplePath, 5);
+      res.json(stats);
+    } catch (e) {
+      res.status(500).json({ error: 'predictive_prefetch_unavailable', message: e && e.message });
+    }
+  });
 }
 
 // ==================== SITE WRITE-GUARD (mutations on /api/*) ====================
@@ -780,6 +796,23 @@ let frontier = null; try { frontier = require('./frontier-engine'); console.log(
 let innov50 = null; try { innov50 = require('../backend/modules/innovations-50y'); console.log('[innovations-50y] loaded · pillars: permanence·security·sovereignty·intelligence'); } catch (e) { console.warn('[innovations-50y] not loaded:', e.message); }
 let improvementsPack = null; try { improvementsPack = require('../backend/modules/improvements-pack'); console.log('[improvements-pack] loaded · routes: /internal/health/aggregate /api/csp-report /api/funnel/* /api/owner/revenue*'); } catch (e) { console.warn('[improvements-pack] not loaded:', e.message); }
 let polishPack = null; try { polishPack = require('../backend/modules/polish-pack'); console.log('[polish-pack] loaded · routes: /.well-known/security.txt /humans.txt /offline.html'); } catch (e) { console.warn('[polish-pack] not loaded:', e.message); }
+// ── Adaptive Predictive Prefetch (APP) · self-learning navigation graph + 103 Early Hints ──
+// Genuinely novel: most sites use static, hand-written prefetch hints, or
+// SDK-tracked predictions that need cookies. This module learns the real
+// navigation graph from same-origin Referer headers (no PII, no cookies),
+// then emits HTTP 103 Early Hints with predicted prefetch links the moment
+// the request lands — so the browser starts fetching probable next pages in
+// parallel with our SSR work. See src/perf/predictive-prefetch.js for the
+// full safety contract. Disable with SITE_PREDICTIVE_PREFETCH_DISABLED=1.
+let predictivePrefetch = null;
+try {
+  predictivePrefetch = require('./perf/predictive-prefetch');
+  if (predictivePrefetch.ENABLED) {
+    console.log('[predictive-prefetch] loaded · learns navigation graph + emits 103 Early Hints');
+  } else {
+    console.log('[predictive-prefetch] disabled via SITE_PREDICTIVE_PREFETCH_DISABLED=1');
+  }
+} catch (e) { console.warn('[predictive-prefetch] not loaded:', e.message); }
 
 const PORT = Number(process.env.PORT || 3000);
 // Pornește serverul Express pe același port cu HTTP dacă nu există deja
@@ -810,6 +843,10 @@ function __continueDispatch(req, res, method, earlyPath) {
     // bypass (which carries hundreds of /api/* mutation routes).
     applySiteTopologyHeaders(req, res);
     if (applySiteWriteGuard(req, res, earlyPath, method)) return; // 503 enforced
+    // ── Predictive prefetch: record same-origin transition + emit 103 Early
+    // Hints for navigable GET HTML requests. Best-effort, never throws, runs
+    // before any handler so the 103 frame goes out while we render.
+    __predictivePrefetchHook(req, res, method, earlyPath);
     // ── AUTONOMOUS BRIDGE early-dispatch ──
     // /api/modules and /api/events MUST be served by the site BFF cache/relay,
     // not proxied to Unicorn (which has auth-gated /api/modules). Run before
@@ -833,6 +870,54 @@ function __continueDispatch(req, res, method, earlyPath) {
         unicornHandler(req, res);
       }
     });
+}
+
+// Predictive prefetch dispatcher hook. Three jobs:
+//   1. If the request looks like an HTML page navigation (GET, navigable
+//      path, no Accept: */* or includes text/html), and the Referer is the
+//      same origin and also navigable, record the transition (Referer →
+//      current path) so the predictor learns from real users.
+//   2. Compute top-3 predicted next pages for the current path.
+//   3. If any predictions exist, send a 103 Early Hints frame so the browser
+//      can start fetching them in parallel with our SSR. Also stash the
+//      prediction Link header value on the response object so the SSR HTML
+//      route can append it to the final `Link:` response header (fallback
+//      for clients that don't speak 103).
+function __predictivePrefetchHook(req, res, method, earlyPath) {
+  if (!predictivePrefetch || !predictivePrefetch.ENABLED) return;
+  if (method !== 'GET' && method !== 'HEAD') return;
+  if (!predictivePrefetch.isNavigablePath(earlyPath)) return;
+  // Heuristic: only emit prefetch hints for top-level navigations. Same-origin
+  // assets/XHR usually carry an `accept` of `*/*` or specific JSON types and
+  // a `sec-fetch-dest` other than `document`. Be permissive (default to true)
+  // so we still help direct address-bar hits and HTML navigations from
+  // bookmarks where headers are minimal.
+  try {
+    const dest = String(req.headers['sec-fetch-dest'] || '').toLowerCase();
+    if (dest && dest !== 'document' && dest !== 'empty' && dest !== '') return;
+  } catch (_) { /* keep going */ }
+  try {
+    const host = String(req.headers.host || '');
+    const fromPath = predictivePrefetch.extractReferrerPath(req.headers.referer, host);
+    if (fromPath) {
+      predictivePrefetch.recordTransition(fromPath, earlyPath);
+    }
+  } catch (_) { /* never block on prediction recording */ }
+  try {
+    const predictions = predictivePrefetch.predict(earlyPath, 3);
+    if (!predictions || predictions.length === 0) return;
+    // Emit 103 Early Hints. We bundle our two critical preloads (CSS+JS) into
+    // the same frame so the browser parallelizes them with the prefetches.
+    const cssHref = (typeof assetPath === 'function') ? assetPath('/assets/app.css') : '/assets/app.css';
+    const jsHref = (typeof assetPath === 'function') ? assetPath('/assets/app.js') : '/assets/app.js';
+    const extra = [
+      `<${cssHref}>; rel=preload; as=style`,
+      `<${jsHref}>; rel=preload; as=script`,
+    ];
+    predictivePrefetch.sendEarlyHints(res, predictions, extra);
+    // Stash on res for the SSR route to append to the final Link header.
+    res.__zeusPrefetchLink = predictivePrefetch.buildLinkHeader(predictions);
+  } catch (_) { /* never block on prediction emit */ }
 }
 
 const SITE_OWNED_MUTATIONS = [
@@ -7370,12 +7455,21 @@ a{color:#8a5cff;text-decoration:none}
     //   Public pages → 5min cache + SWR (browsers/CDNs may revalidate)
     //   Private pages → no-store (auth, dashboard, checkout)
     const cache = 'no-store, no-cache, must-revalidate, max-age=0';
+    // Base Link header: critical preloads + favicon. Predictive prefetch
+    // (when active) appends `<path>; rel=prefetch` entries learned from the
+    // real navigation graph. This is the fallback for clients that don't
+    // honor the 103 Early Hints we already sent at the dispatcher level —
+    // the browser still gets the same hints, just slightly later.
+    let linkHeader = `<${assetPath('/assets/app.css')}>; rel=preload; as=style, <${assetPath('/assets/app.js')}>; rel=preload; as=script, <${assetPath('/assets/icons/icon-192.png')}>; rel=preload; as=image`;
+    if (res.__zeusPrefetchLink) {
+      linkHeader += ', ' + res.__zeusPrefetchLink;
+    }
     res.writeHead(200, {
       'Content-Type': 'text/html; charset=utf-8',
       'Cache-Control': cache,
       'Pragma': 'no-cache',
       'Expires': '0',
-      'Link': `<${assetPath('/assets/app.css')}>; rel=preload; as=style, <${assetPath('/assets/app.js')}>; rel=preload; as=script, <${assetPath('/assets/icons/icon-192.png')}>; rel=preload; as=image`,
+      'Link': linkHeader,
       'X-Zeus-Build': ZEUS_BUILD.sha,
       'X-Zeus-Built-At': ZEUS_BUILD.ts,
       'X-CSP-Nonce': nonce,
