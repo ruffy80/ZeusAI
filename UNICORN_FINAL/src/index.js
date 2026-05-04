@@ -765,6 +765,7 @@ const SITE_OWNED_MUTATIONS = [
   '/api/customer/signup',
   '/api/customer/login',
   '/api/customer/logout',
+  '/api/services',
   '/api/concierge',
   '/api/concierge/stream',
   '/api/concierge/feedback',
@@ -4167,11 +4168,28 @@ async function unicornHandler(req, res) {
     return res.end(JSON.stringify({ updatedAt: new Date().toISOString(), source: 'zeusai', sourceLegacy: 'unicorn', sync: snapshot.source, services }));
   }
   if (urlPath === '/api/services') {
-    const baseServices = unifiedCatalogToServices();
-    const runtimeServices = getRuntimeDataSources().services || [];
-    const services = mergeBackendServicesIntoCatalogue(baseServices, runtimeServices);
+    // Hydrate from the master catalog (auto-includes marketplace modules,
+    // activation products, strategic packages, frontier deliverables, vertical
+    // OSes, connector items). Falls back to the curated unifiedCatalog if the
+    // master build fails for any reason.
+    let services = [];
+    try {
+      const cat = await buildMasterCatalog();
+      services = (cat && Array.isArray(cat.items)) ? cat.items.map(it => ({
+        id: it.id, title: it.title, group: it.group, segment: it.segment,
+        kpi: it.kpi, description: it.description,
+        priceUsd: it.priceUsd, priceBtc: it.priceBtc, currency: it.currency || 'USD',
+        buyUrl: it.buyUrl, btcUri: it.btcUri,
+        autoPublished: !!it.autoPublished
+      })) : [];
+    } catch (_) { /* fall through */ }
+    if (!services.length) {
+      const baseServices = unifiedCatalogToServices();
+      const runtimeServices = getRuntimeDataSources().services || [];
+      services = mergeBackendServicesIntoCatalogue(baseServices, runtimeServices);
+    }
     res.writeHead(200, { 'Content-Type':'application/json' });
-    return res.end(JSON.stringify({ updatedAt: new Date().toISOString(), services }));
+    return res.end(JSON.stringify({ updatedAt: new Date().toISOString(), source: 'zeusai-site', count: services.length, services }));
   }
 
   if (urlPath === '/api/unicorn-commerce/status') {
