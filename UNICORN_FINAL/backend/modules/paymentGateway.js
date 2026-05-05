@@ -290,26 +290,77 @@ class PaymentGateway {
     return this.methods.filter((method) => method.active);
   }
 
+  // Live USD/BTC rate — multi-source median with 60s cache and last-good preservation.
+  // RO+EN: cotație BTC live din mai multe surse (Coinbase/Kraken/Bitstamp/CoinGecko/Binance).
+  // Coindesk a fost scos din funcțiune în 2024, așa că un singur feed nu mai este sigur.
+  // Fără cotație validă păstrăm ultima valoare bună din cache; NU mai servim un preț hardcodat,
+  // pentru a evita afișarea unui $65,000 static în UI 24/7.
   async getBitcoinRate() {
-    try {
-      const response = await axios.get('https://api.coindesk.com/v1/bpi/currentprice/USD.json', { timeout: 8000 });
+    const now = Date.now();
+    if (!PaymentGateway._btcRateCache) {
+      PaymentGateway._btcRateCache = { rate: 0, source: 'bootstrap', updatedAt: 0 };
+    }
+    const cache = PaymentGateway._btcRateCache;
+    if (cache.rate > 0 && now - cache.updatedAt < 60000) {
       return {
         asset: 'BTC',
         currency: 'USD',
-        rate: Number(response.data?.bpi?.USD?.rate_float || 0),
-        source: 'coindesk',
-        updatedAt: new Date().toISOString()
-      };
-    } catch (error) {
-      return {
-        asset: 'BTC',
-        currency: 'USD',
-        rate: 65000,
-        source: 'fallback',
-        updatedAt: new Date().toISOString(),
-        warning: 'Live BTC rate unavailable, fallback used.'
+        rate: cache.rate,
+        source: cache.source,
+        updatedAt: new Date(cache.updatedAt).toISOString()
       };
     }
+    const sources = [
+      { name: 'coinbase',  url: 'https://api.coinbase.com/v2/prices/BTC-USD/spot',                          pick: (j) => Number(j && j.data && j.data.amount) },
+      { name: 'kraken',    url: 'https://api.kraken.com/0/public/Ticker?pair=XBTUSD',                       pick: (j) => { try { const k = Object.keys(j.result)[0]; return Number(j.result[k].c[0]); } catch (_) { return null; } } },
+      { name: 'bitstamp',  url: 'https://www.bitstamp.net/api/v2/ticker/btcusd/',                           pick: (j) => Number(j && j.last) },
+      { name: 'coingecko', url: 'https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=usd', pick: (j) => Number(j && j.bitcoin && j.bitcoin.usd) },
+      { name: 'binance',   url: 'https://api.binance.com/api/v3/ticker/price?symbol=BTCUSDT',               pick: (j) => Number(j && j.price) }
+    ];
+    const results = await Promise.all(sources.map(async (s) => {
+      try {
+        const r = await axios.get(s.url, { timeout: 2500, headers: { 'User-Agent': 'ZeusAI/1.0' } });
+        const p = s.pick(r.data);
+        if (p && p > 1000 && p < 10000000) return { name: s.name, price: p };
+        return null;
+      } catch (_) { return null; }
+    }));
+    const valid = results.filter(Boolean).map((r) => r.price).sort((a, b) => a - b);
+    if (valid.length === 0) {
+      // No source responded — keep last good rate if we have one; otherwise signal unavailable.
+      if (cache.rate > 0) {
+        return {
+          asset: 'BTC',
+          currency: 'USD',
+          rate: cache.rate,
+          source: cache.source + '+stale',
+          updatedAt: new Date(cache.updatedAt).toISOString(),
+          warning: 'Live BTC sources unreachable, last-good rate served.'
+        };
+      }
+      // RO+EN: răspuns 200 cu rate=0 + warning, niciodată un preț hardcodat.
+      // Site UI tratează rate=0 ca "checkout ready" (fără cotație vizibilă).
+      return {
+        asset: 'BTC',
+        currency: 'USD',
+        rate: 0,
+        source: 'unavailable',
+        updatedAt: new Date(now).toISOString(),
+        warning: 'Live BTC rate unavailable, no cached value yet.'
+      };
+    }
+    const mid = Math.floor(valid.length / 2);
+    const median = valid.length % 2 === 0 ? (valid[mid - 1] + valid[mid]) / 2 : valid[mid];
+    cache.rate = Math.round(median * 100) / 100;
+    cache.updatedAt = now;
+    cache.source = 'median(' + results.filter(Boolean).map((r) => r.name).join('+') + ')';
+    return {
+      asset: 'BTC',
+      currency: 'USD',
+      rate: cache.rate,
+      source: cache.source,
+      updatedAt: new Date(cache.updatedAt).toISOString()
+    };
   }
 
   getMethod(methodId) {
