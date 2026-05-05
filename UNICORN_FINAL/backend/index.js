@@ -2789,7 +2789,8 @@ app.get('/api/storefront', async (req, res) => {
   const generatedAt = new Date().toISOString();
   const payload = { generatedAt, btcUsd, count: items.length, items };
   payload.integrityHash = _storefrontHash({ generatedAt, items });
-  res.set('Cache-Control', 'public, max-age=20, stale-while-revalidate=60');
+  res.set('Cache-Control', 'public, max-age=20, s-maxage=30, stale-while-revalidate=300');
+  res.set('Vary', 'Accept-Encoding');
   res.json(payload);
 });
 
@@ -2845,7 +2846,8 @@ app.get('/api/instant/catalog', async (req, res) => {
       byGroup: products.reduce((acc, p) => { acc[p.group] = (acc[p.group] || 0) + 1; return acc; }, {})
     };
   }
-  res.set('Cache-Control', 'public, max-age=20, stale-while-revalidate=60');
+  res.set('Cache-Control', 'public, max-age=30, s-maxage=60, stale-while-revalidate=600');
+  res.set('Vary', 'Accept-Encoding');
   res.json({ products, summary });
 });
 
