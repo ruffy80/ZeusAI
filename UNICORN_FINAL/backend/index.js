@@ -2437,7 +2437,13 @@ function buildBackendSnapshot() {
 
 app.get('/snapshot', routeCache.cacheMiddleware(), (req, res) => {
   const payload = buildBackendSnapshot();
-  const etag = _weakEtagFor(payload);
+  // Strip volatile timestamps from the ETag input so unchanged content
+  // returns the same hash across requests.
+  const stable = JSON.parse(JSON.stringify(payload));
+  if (stable && stable.platform) delete stable.platform.generatedAt;
+  if (stable) delete stable.generatedAt;
+  if (stable) delete stable.timestamp;
+  const etag = _weakEtagFor(stable);
   if (maybeSend304(req, res, etag)) return;
   res.json(payload);
 });
@@ -2897,7 +2903,9 @@ app.get('/api/instant/catalog', async (req, res) => {
   res.set('Cache-Control', 'public, max-age=30, s-maxage=60, stale-while-revalidate=600');
   res.set('Vary', 'Accept-Encoding');
   const _payload = { products, summary };
-  const _etag = _weakEtagFor(_payload);
+  // ETag must be stable across requests; `summary.generatedAt` changes per
+  // call, so hash only the immutable shape (`products` + tier filter).
+  const _etag = _weakEtagFor({ tier, products });
   if (maybeSend304(req, res, _etag)) return;
   res.json(_payload);
 });

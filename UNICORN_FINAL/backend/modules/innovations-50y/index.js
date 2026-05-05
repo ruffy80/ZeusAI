@@ -104,7 +104,7 @@ async function handle(req, res, _ctx) {
   // Verifiable-keys discovery (50Y · #5 forward-fix). Publishes the Ed25519
   // anchor public key used to sign /api/v50/audit/root + receipts, so any
   // client can verify integrity without trusting the server. Pure additive.
-  if (urlPath === '/.well-known/keys.json' && (req.method === 'GET' || req.method === 'HEAD')) {
+  if ((urlPath === '/.well-known/keys.json' || urlPath === '/api/v50/keys.json') && (req.method === 'GET' || req.method === 'HEAD')) {
     try {
       const k = cryptoAgility.getOrCreateAnchorKey();
       _send(res, 200, {
