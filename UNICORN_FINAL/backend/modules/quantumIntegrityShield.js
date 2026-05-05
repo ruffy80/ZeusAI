@@ -266,7 +266,10 @@ class QuantumIntegrityShield {
     }
 
     if (status !== 'intact') {
-      console.warn(`[QuantumIntegrityShield] Scan ${timestamp}: ${status} — ${issues.length} issue(s)`);
+      const summary = issues
+        .map(i => `${i.type || 'unknown'}(${i.severity || 'info'})`)
+        .join(', ');
+      console.warn(`[QuantumIntegrityShield] Scan ${timestamp}: ${status} — ${issues.length} issue(s): [${summary}]`);
     }
 
     this._attemptSelfHeal(status, issues);

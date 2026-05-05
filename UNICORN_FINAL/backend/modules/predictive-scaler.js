@@ -49,24 +49,44 @@ function predictNeededProcs(metrics) {
 function autoScale() {
   const metrics = getTrafficMetrics();
   const needed = predictNeededProcs(metrics);
-  if (needed !== lastProcs && Date.now() - lastScale > 60000) {
-    try {
-      if (!hasPm2()) return;
-      // Verifică dacă aplicația scalabilă există în PM2
-      const list = execSync('pm2 jlist').toString();
-      const apps = JSON.parse(list || '[]');
-      const target = apps.find(app => app && app.name === PM2_SCALE_APP);
-      if (!target) {
-        console.warn(`[predictive-scaler] PM2: ${PM2_SCALE_APP} app not found, skipping scaling.`);
-        return;
-      }
-      execSync(`pm2 scale ${PM2_SCALE_APP} ${needed}`);
+  if (needed === lastProcs || Date.now() - lastScale <= 60000) return;
+  try {
+    if (!hasPm2()) return;
+    // Snapshot real PM2 state once and decide off it. Counting instances by
+    // name covers cluster mode where pm2 jlist returns N rows (one per worker).
+    const list = execSync('pm2 jlist', { stdio: ['ignore', 'pipe', 'ignore'] }).toString();
+    const apps = JSON.parse(list || '[]');
+    const matches = apps.filter(app => app && app.name === PM2_SCALE_APP);
+    if (matches.length === 0) {
+      console.warn(`[predictive-scaler] PM2: ${PM2_SCALE_APP} app not found, skipping scaling.`);
+      return;
+    }
+    const currentRunning = matches.length;
+    if (currentRunning === needed) {
+      // Already at target — flip our local cursor so we don't keep retrying.
       lastProcs = needed;
       lastScale = Date.now();
-      console.log(`[predictive-scaler] Scaled ${PM2_SCALE_APP} to ${needed} procs (rps=${metrics.rps}, cpu=${metrics.cpu.toFixed(1)}%)`);
-    } catch (e) {
-      console.warn('[predictive-scaler] Scaling failed:', e.message);
+      return;
     }
+    try {
+      execSync(`pm2 scale ${PM2_SCALE_APP} ${needed}`, { stdio: ['ignore', 'pipe', 'pipe'] });
+      console.log(`[predictive-scaler] Scaled ${PM2_SCALE_APP} ${currentRunning}\u2192${needed} procs (rps=${metrics.rps}, cpu=${metrics.cpu.toFixed(1)}%)`);
+    } catch (e) {
+      const out = String((e && (e.stderr || e.stdout || e.message)) || '');
+      // PM2 prints "Nothing to do" when scale target equals current — that's a
+      // success no-op, not an error worth restarting the autoscaler over.
+      if (/Nothing to do/i.test(out)) {
+        lastProcs = needed;
+        lastScale = Date.now();
+        return;
+      }
+      console.warn('[predictive-scaler] Scaling failed:', (e && e.message) || out);
+      return;
+    }
+    lastProcs = needed;
+    lastScale = Date.now();
+  } catch (e) {
+    console.warn('[predictive-scaler] Scaling failed:', e && e.message);
   }
 }
 

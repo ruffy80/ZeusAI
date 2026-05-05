@@ -35,8 +35,11 @@ function getCurrentInstances(cb) {
     if (err) return cb(err);
     try {
       const list = JSON.parse(stdout);
-      const app = list.find(p => p.name === PM2_APP);
-      cb(null, app ? app.pm2_env.instances : 1);
+      // Count actual running workers by name. pm2_env.instances may be 'max'
+      // or 0 (cluster placeholder) which previously made us scale repeatedly
+      // and PM2 would respond "Nothing to do".
+      const running = list.filter(p => p && p.name === PM2_APP).length;
+      cb(null, running || 1);
     } catch (e) {
       cb(e);
     }
@@ -46,7 +49,9 @@ function getCurrentInstances(cb) {
 function scale(instances) {
   exec(`pm2 scale ${PM2_APP} ${instances}`, (err, stdout, stderr) => {
     if (err) {
-      console.error(`[AUTOSCALE] Scale error:`, err);
+      const out = String((stderr || stdout || err.message) || '');
+      if (/Nothing to do/i.test(out)) return; // already at target — not an error
+      console.error(`[AUTOSCALE] Scale error:`, err.message || err);
       return;
     }
     console.log(`[AUTOSCALE] Scaled ${PM2_APP} to ${instances} instances.`);
