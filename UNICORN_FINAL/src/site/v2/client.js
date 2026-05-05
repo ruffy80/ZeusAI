@@ -3866,15 +3866,6 @@ function renderAccountAuth(root, topError){
         </div>
         <div style="margin-top:14px;font-size:12px;color:var(--ink-dim)">Folosești aceleași credențiale pe site &amp; API (zeusai.pro + api.zeusai.pro). / Same credentials work on both site &amp; API.</div>
       </div>
-      <div class="card" style="padding:28px">
-        <h3 style="margin:0 0 6px">Create account / Cont nou</h3>
-        <div style="color:var(--ink-dim);font-size:13px;margin-bottom:14px">Doar dacă nu ai încă cont. / Only if you don't have an account yet.</div>
-        <input id="acSignupName" placeholder="name / nume (optional)" autocomplete="name" style="width:100%;padding:10px 12px;border-radius:6px;border:1px solid rgba(138,92,255,.3);background:rgba(10,8,30,.4);color:#fff;margin-bottom:10px">
-        <input id="acSignupEmail" type="email" placeholder="email" autocomplete="email" style="width:100%;padding:10px 12px;border-radius:6px;border:1px solid rgba(138,92,255,.3);background:rgba(10,8,30,.4);color:#fff;margin-bottom:10px">
-        <input id="acSignupPass" type="password" placeholder="password (min 8 chars) / parolă (min 8 caractere)" autocomplete="new-password" style="width:100%;padding:10px 12px;border-radius:6px;border:1px solid rgba(138,92,255,.3);background:rgba(10,8,30,.4);color:#fff;margin-bottom:14px">
-        <button id="acSignupBtn" class="btn btn-primary" style="width:100%">Sign up →</button>
-        <div id="acSignupErr" style="color:#ff9c9c;font-size:13px;margin-top:10px;line-height:1.5"></div>
-      </div>
     </div>`;
 
   const passkeyMsg = root.querySelector('#acPasskeyMsg');
