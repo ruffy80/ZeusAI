@@ -322,14 +322,9 @@ ${hreflangs}
 <meta name="twitter:image" content="${ogImage}"/>
 ${jsonLdBlocks}
 <link rel="manifest" href="/manifest.webmanifest"/>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="preload" as="image" href="${assetPath('/assets/zeus/hero.jpg')}" fetchpriority="high"/>
-<!-- Combined non-render-blocking Google Fonts (Space Grotesk + JetBrains Mono + Cinzel + Orbitron).
-     The preload+onload swap pattern means the browser fetches the stylesheet without
-     blocking first paint; <noscript> keeps it functional with JS disabled. -->
-<link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&family=Cinzel:wght@600;700;900&family=Orbitron:wght@500;700;900&display=swap" onload="this.onload=null;this.rel='stylesheet'"/>
-<noscript><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&family=Cinzel:wght@600;700;900&family=Orbitron:wght@500;700;900&display=swap"/></noscript>
+<!-- Local font loading for maximum speed and reliability. Google Fonts removed for instant FCP/LCP. -->
+<link rel="stylesheet" href="/assets/fonts/local-fonts.css"/>
 <link rel="stylesheet" href="${assetPath('/assets/app.css')}"/>
 <link rel="icon" type="image/png" sizes="32x32" href="${assetPath('/assets/icons/favicon-32.png')}"/>
 <link rel="icon" type="image/png" sizes="192x192" href="${assetPath('/assets/icons/icon-192.png')}"/>
@@ -561,7 +556,7 @@ window.googleTranslateElementInit = function(){
 };
 </script>
 <div id="google_translate_element" aria-hidden="true"></div>
-<script src="https://translate.googleapis.com/translate_a/element.js?cb=googleTranslateElementInit" defer></script>
+
 <script${N}>
 // Service worker cleanup: unregister any legacy workers and drop their caches
 // so future navigations are always fetched fresh from origin. The user keeps
