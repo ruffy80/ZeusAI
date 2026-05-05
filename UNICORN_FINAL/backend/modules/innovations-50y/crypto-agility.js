@@ -182,6 +182,39 @@ function status() {
   };
 }
 
+// ── Anchor key (Ed25519) for signed audit roots / receipts ──────────────────
+// Persisted in UNICORN_FINAL/data/keys/audit-anchor.{public,private}.pem so
+// it survives PM2 reloads. Generated on first call; afterwards loaded as-is.
+// Pure additive — independent from any existing signing key flow.
+const fs = require('fs');
+const path = require('path');
+const ANCHOR_DIR = path.join(__dirname, '..', '..', '..', 'data', 'keys');
+const ANCHOR_PUB = path.join(ANCHOR_DIR, 'audit-anchor.public.pem');
+const ANCHOR_PRIV = path.join(ANCHOR_DIR, 'audit-anchor.private.pem');
+
+function _kidFromPubPem(pem) {
+  // Stable KID = first 16 hex chars of SHA-256 over the PEM body bytes.
+  const body = String(pem || '').replace(/-----[A-Z ]+-----/g, '').replace(/\s+/g, '');
+  return crypto.createHash('sha256').update(body, 'utf8').digest('hex').slice(0, 16);
+}
+
+function getOrCreateAnchorKey() {
+  try { fs.mkdirSync(ANCHOR_DIR, { recursive: true }); } catch (_) {}
+  try {
+    const pub = fs.readFileSync(ANCHOR_PUB, 'utf8');
+    const priv = fs.readFileSync(ANCHOR_PRIV, 'utf8');
+    if (pub && priv) {
+      return { alg: ALG.ED25519, publicKey: pub, privateKey: priv, kid: _kidFromPubPem(pub) };
+    }
+  } catch (_) { /* generate below */ }
+  const kp = generateKeyPair(ALG.ED25519);
+  try {
+    fs.writeFileSync(ANCHOR_PUB, kp.publicKey, { mode: 0o644 });
+    fs.writeFileSync(ANCHOR_PRIV, kp.privateKey, { mode: 0o600 });
+  } catch (_) { /* read-only fs → still return key for in-memory use */ }
+  return { alg: ALG.ED25519, publicKey: kp.publicKey, privateKey: kp.privateKey, kid: _kidFromPubPem(kp.publicKey) };
+}
+
 module.exports = {
   ALG,
   DEFAULT_ALG,
@@ -190,6 +223,7 @@ module.exports = {
   verify,
   isAvailable,
   status,
+  getOrCreateAnchorKey,
   // exposed only for tests / debugging
   _b64u: b64u,
   _b64uDecode: b64uDecode

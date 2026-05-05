@@ -101,6 +101,27 @@ async function handle(req, res, _ctx) {
     return true;
   }
 
+  // Verifiable-keys discovery (50Y · #5 forward-fix). Publishes the Ed25519
+  // anchor public key used to sign /api/v50/audit/root + receipts, so any
+  // client can verify integrity without trusting the server. Pure additive.
+  if (urlPath === '/.well-known/keys.json' && (req.method === 'GET' || req.method === 'HEAD')) {
+    try {
+      const k = cryptoAgility.getOrCreateAnchorKey();
+      _send(res, 200, {
+        keys: [{
+          kid: k.kid,
+          alg: 'ed25519',
+          use: 'audit-root-sig',
+          format: 'pem-spki',
+          publicKey: k.publicKey,
+          standardsRef: ['NIST-FIPS-186-5', 'JWK-RFC-7517']
+        }],
+        generatedAt: new Date().toISOString()
+      }, { 'Cache-Control': 'public, max-age=300' });
+    } catch (e) { _send(res, 500, { error: 'keys_failed', message: e.message }); }
+    return true;
+  }
+
   // All v50 routes
   if (!urlPath.startsWith('/api/v50/') && urlPath !== '/api/v50') return false;
 
@@ -156,7 +177,18 @@ async function handle(req, res, _ctx) {
     return true;
   }
   if (urlPath === '/api/v50/audit/root') {
-    _send(res, 200, audit.root());
+    const r = audit.root();
+    // 50Y · #5 forward-fix: sign the root with the Ed25519 anchor key so
+    // any verifier can prove the server did not rewrite the chain. Failure
+    // to sign is non-fatal (returns plain root, fully backwards-compatible).
+    try {
+      const k = cryptoAgility.getOrCreateAnchorKey();
+      if (k && k.privateKey) {
+        const sig = cryptoAgility.sign(r.root, { alg: 'ed25519', privateKey: k.privateKey });
+        r.signature = { alg: 'ed25519', sig: sig.sig, kid: k.kid, keysUrl: '/.well-known/keys.json' };
+      }
+    } catch (_) { /* fall through with unsigned root */ }
+    _send(res, 200, r);
     return true;
   }
   if (urlPath === '/api/v50/audit/append' && req.method === 'POST') {

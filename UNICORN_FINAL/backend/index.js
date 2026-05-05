@@ -391,6 +391,51 @@ const adminCrudRateLimit = rateLimit({
 // Apply global rate limit to all routes
 app.use(globalPublicRateLimit);
 
+// ==================== SERVER-TIMING (additive observability · #7) ====================
+// Adds `Server-Timing: total;dur=<ms>` to every response so DevTools / synthetic
+// monitors can see backend latency without any APM agent. Routes opt in to add
+// finer marks via res.locals.__timings.push({name, dur}). Pure additive — no
+// existing header is removed; if a route already set Server-Timing, ours is appended.
+app.use((req, res, next) => {
+  const t0 = process.hrtime.bigint();
+  res.locals = res.locals || {};
+  res.locals.__timings = [];
+  const origWriteHead = res.writeHead.bind(res);
+  res.writeHead = function patchedWriteHead(...args) {
+    try {
+      const totalMs = Number(process.hrtime.bigint() - t0) / 1e6;
+      const marks = (res.locals.__timings || []).map(m => `${m.name};dur=${(+m.dur).toFixed(1)}`);
+      const value = [`total;dur=${totalMs.toFixed(1)}`].concat(marks).join(', ');
+      const existing = res.getHeader('Server-Timing');
+      const merged = existing ? (Array.isArray(existing) ? existing.join(', ') + ', ' : existing + ', ') + value : value;
+      res.setHeader('Server-Timing', merged);
+    } catch (_) { /* never block response */ }
+    return origWriteHead(...args);
+  };
+  next();
+});
+
+// ==================== ETag/304 helper (additive bandwidth-saver · #2) ====================
+// Tiny helper used by JSON routes that want weak ETag + 304 support without
+// changing their cache headers. Computes sha1 over the canonicalized body.
+function _weakEtagFor(payload) {
+  try {
+    const canon = (typeof payload === 'string') ? payload : JSON.stringify(payload);
+    return 'W/"' + crypto.createHash('sha1').update(canon).digest('hex').slice(0, 16) + '"';
+  } catch (_) { return null; }
+}
+function maybeSend304(req, res, etag) {
+  if (!etag) return false;
+  const ifNone = req.headers['if-none-match'];
+  if (ifNone && ifNone === etag) {
+    res.setHeader('ETag', etag);
+    res.status(304).end();
+    return true;
+  }
+  res.setHeader('ETag', etag);
+  return false;
+}
+
 // ==================== PERSISTENCE ====================
 const {
   users: dbUsers,
@@ -2391,7 +2436,10 @@ function buildBackendSnapshot() {
 }
 
 app.get('/snapshot', routeCache.cacheMiddleware(), (req, res) => {
-  res.json(buildBackendSnapshot());
+  const payload = buildBackendSnapshot();
+  const etag = _weakEtagFor(payload);
+  if (maybeSend304(req, res, etag)) return;
+  res.json(payload);
 });
 
 app.get('/stream', (req, res) => {
@@ -2848,7 +2896,10 @@ app.get('/api/instant/catalog', async (req, res) => {
   }
   res.set('Cache-Control', 'public, max-age=30, s-maxage=60, stale-while-revalidate=600');
   res.set('Vary', 'Accept-Encoding');
-  res.json({ products, summary });
+  const _payload = { products, summary };
+  const _etag = _weakEtagFor(_payload);
+  if (maybeSend304(req, res, _etag)) return;
+  res.json(_payload);
 });
 
 // Allow new services to be registered live (in-memory) — fires SSE event so

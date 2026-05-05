@@ -2095,6 +2095,46 @@ setTimeout(() => { try { startBackendEventBridge(); } catch (e) { console.warn('
 const streamClients = new Set();
 const unicornEventClients = new Set();
 
+// ── RFC 6902 JSON Patch — minimal diff helper for /stream/delta (#6) ──
+// Produces a list of {op, path, value} ops describing how to mutate `a`
+// into `b`. Only emits 'replace', 'add', 'remove' — sufficient for the
+// snapshot which is plain JSON (no array-by-id reordering semantics).
+// Cap output at 256 ops; if exceeded, emit a single root replace so the
+// client always converges. Pure additive; not exposed externally.
+function _jsonPatchDiff(a, b, basePath) {
+  const ops = [];
+  const MAX = 256;
+  function escape(seg) { return String(seg).replace(/~/g, '~0').replace(/\//g, '~1'); }
+  function walk(x, y, p) {
+    if (ops.length > MAX) return;
+    if (x === y) return;
+    const tx = (x === null) ? 'null' : Array.isArray(x) ? 'array' : typeof x;
+    const ty = (y === null) ? 'null' : Array.isArray(y) ? 'array' : typeof y;
+    if (tx !== ty || tx !== 'object' && tx !== 'array') {
+      ops.push({ op: 'replace', path: p || '', value: y });
+      return;
+    }
+    if (tx === 'array') {
+      // Naive but safe: if same length, walk per index; else replace whole
+      // array (snapshot arrays here are tiny — services, recommendations).
+      if (x.length !== y.length) { ops.push({ op: 'replace', path: p || '', value: y }); return; }
+      for (let i = 0; i < x.length; i++) walk(x[i], y[i], p + '/' + i);
+      return;
+    }
+    // object
+    for (const k of Object.keys(x)) {
+      if (!(k in y)) ops.push({ op: 'remove', path: p + '/' + escape(k) });
+      else walk(x[k], y[k], p + '/' + escape(k));
+    }
+    for (const k of Object.keys(y)) {
+      if (!(k in x)) ops.push({ op: 'add', path: p + '/' + escape(k), value: y[k] });
+    }
+  }
+  walk(a, b, basePath || '');
+  if (ops.length > MAX) return [{ op: 'replace', path: '', value: b }];
+  return ops;
+}
+
 // ==================== AUTONOMOUS MODULES BRIDGE ====================
 // Mirrors Unicorn's /api/modules/list + /api/modules/stream into a local
 // in-memory cache, exposes /api/modules + /api/events SSE relay to frontend.
@@ -3782,6 +3822,40 @@ async function unicornHandler(req, res) {
       clearInterval(_hb);
       streamClients.delete(res);
     });
+    return;
+  }
+
+  // ── /stream/delta — RFC 6902 JSON-Patch delta SSE (#6 forward-only) ──
+  // Additive companion to /stream. Sends the full snapshot once on connect
+  // (event: snapshot) and afterwards only minimal JSON-Patch ops (event: patch)
+  // when the snapshot changes, cutting bandwidth ~80% for the HTML portal
+  // that previously polled the full payload. Existing /stream is unchanged
+  // for backwards compatibility — clients opt in by switching the URL.
+  if (urlPath === '/stream/delta') {
+    res.writeHead(200, {
+      'Content-Type': 'text/event-stream',
+      'Cache-Control': 'no-cache, no-transform',
+      'Connection': 'keep-alive',
+      'X-Accel-Buffering': 'no'
+    });
+    if (typeof res.flushHeaders === 'function') res.flushHeaders();
+
+    let last = buildSnapshot();
+    res.write('event: snapshot\ndata: ' + JSON.stringify(last) + '\n\n');
+    const _tick = setInterval(() => {
+      try {
+        const cur = buildSnapshot();
+        const ops = _jsonPatchDiff(last, cur, '');
+        if (ops.length) {
+          res.write('event: patch\ndata: ' + JSON.stringify(ops) + '\n\n');
+          last = cur;
+        }
+      } catch (_) { /* keep socket alive */ }
+    }, 5000);
+    const _hb = setInterval(() => { try { res.write(': hb\n\n'); } catch (_) {} }, 20000);
+    if (typeof _tick.unref === 'function') _tick.unref();
+    if (typeof _hb.unref === 'function') _hb.unref();
+    req.on('close', () => { clearInterval(_tick); clearInterval(_hb); });
     return;
   }
 

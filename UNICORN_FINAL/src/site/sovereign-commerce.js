@@ -277,6 +277,29 @@ function timingSafeEqHex(a, b) {
   catch { return false; }
 }
 
+// ── Idempotency cache (24h, in-memory; #3 forward-only) ────────────────────
+// Replays prior responses for repeat POST /api/checkout/create with the
+// same Idempotency-Key. Keeps the cache bounded so a flood of unique keys
+// cannot exhaust memory. Entries older than 24h are evicted lazily.
+const _IDEMPOTENCY_TTL_MS = 24 * 60 * 60 * 1000;
+const _IDEMPOTENCY_MAX = 5000;
+const _IDEMPOTENCY = new Map(); // key -> { statusCode, body, ts }
+function _idempotencyGet(key) {
+  const entry = _IDEMPOTENCY.get(key);
+  if (!entry) return null;
+  if (Date.now() - entry.ts > _IDEMPOTENCY_TTL_MS) { _IDEMPOTENCY.delete(key); return null; }
+  return entry;
+}
+function _idempotencySet(key, statusCode, body) {
+  if (_IDEMPOTENCY.size >= _IDEMPOTENCY_MAX) {
+    // Evict oldest 10% to keep amortized O(1).
+    const drop = Math.ceil(_IDEMPOTENCY_MAX * 0.1);
+    let i = 0;
+    for (const k of _IDEMPOTENCY.keys()) { _IDEMPOTENCY.delete(k); if (++i >= drop) break; }
+  }
+  _IDEMPOTENCY.set(key, { statusCode, body, ts: Date.now() });
+}
+
 // ── Service resolution (from live snapshot OR full master catalog) ─────────
 // Supports two ctx accessors so any service from `/api/catalog/master`
 // (Vertical OS, Frontier F1-F12, Activation packages, Future R&D primitives,
@@ -593,8 +616,22 @@ async function handle(req, res, ctx) {
   // --- /api/checkout/create -------------------------------------------------
   if (url === '/api/checkout/create' && req.method === 'POST') {
     const body = await readBody(req);
+    // ── #3 Idempotency-Key (forward-only): if the client sends an
+    //    Idempotency-Key header, replay the prior 201 response for 24h
+    //    instead of allocating a NEW BTC amount. Critical for sovereign
+    //    BTC checkout where double-click would otherwise create two
+    //    distinct receive addresses and fragment funds. Standards-aligned
+    //    with Stripe / IETF draft-ietf-httpapi-idempotency-key.
+    const idemKey = String(req.headers['idempotency-key'] || req.headers['x-idempotency-key'] || '').slice(0, 128);
+    if (idemKey) {
+      const cached = _idempotencyGet(idemKey);
+      if (cached) {
+        return sendJson(res, cached.statusCode, cached.body, { 'Idempotent-Replay': '1' }), true;
+      }
+    }
     const out = await createOrder(ctx, body);
     if (out.error) return sendJson(res, out.status || 400, { error: out.error, serviceId: out.serviceId }), true;
+    if (idemKey) _idempotencySet(idemKey, 201, out.order);
     return sendJson(res, 201, out.order), true;
   }
 

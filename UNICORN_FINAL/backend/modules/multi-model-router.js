@@ -368,7 +368,7 @@ PROVIDER_CATALOG.forEach(p => {
   };
 });
 
-function _recordSuccess(name, latencyMs, estimatedCost) {
+function _recordSuccess(name, latencyMs, estimatedCost, taskType) {
   const s = _stats[name];
   if (!s) return;
   s.calls++;
@@ -378,15 +378,82 @@ function _recordSuccess(name, latencyMs, estimatedCost) {
   s.lastUsed = Date.now();
   s.avgLatencyMs = Math.round(s.totalLatencyMs / s.successes);
   s.errorRate = s.errors / s.calls;
+  // Per-taskType bookkeeping (additive · #1 conversion-aware scoring source).
+  if (taskType) {
+    if (!_taskStats[name]) _taskStats[name] = {};
+    if (!_taskStats[name][taskType]) _taskStats[name][taskType] = { calls: 0, successes: 0, monetized: 0 };
+    _taskStats[name][taskType].calls++;
+    _taskStats[name][taskType].successes++;
+  }
+  // Half-open success → close the breaker.
+  const br = _breakers[name];
+  if (br && br.state !== 'closed') {
+    br.state = 'closed';
+    br.failuresInWindow = 0;
+    br.openedAt = 0;
+  }
 }
 
-function _recordError(name, errMsg) {
+function _recordError(name, errMsg, taskType) {
   const s = _stats[name];
   if (!s) return;
   s.calls++;
   s.errors++;
   s.lastError = errMsg;
   s.errorRate = s.errors / s.calls;
+  if (taskType) {
+    if (!_taskStats[name]) _taskStats[name] = {};
+    if (!_taskStats[name][taskType]) _taskStats[name][taskType] = { calls: 0, successes: 0, monetized: 0 };
+    _taskStats[name][taskType].calls++;
+  }
+  // ── Circuit-breaker (#4): 5 failures in 60s → open for 5 minutes ──
+  const now = Date.now();
+  if (!_breakers[name]) _breakers[name] = { state: 'closed', failuresInWindow: 0, windowStart: now, openedAt: 0 };
+  const br = _breakers[name];
+  if (now - br.windowStart > BREAKER_WINDOW_MS) { br.windowStart = now; br.failuresInWindow = 0; }
+  br.failuresInWindow++;
+  if (br.state === 'closed' && br.failuresInWindow >= BREAKER_FAIL_THRESHOLD) {
+    br.state = 'open';
+    br.openedAt = now;
+    console.warn(`[MultiRouter] circuit OPEN for ${name} (${BREAKER_FAIL_THRESHOLD} fails in ${BREAKER_WINDOW_MS / 1000}s) — cooldown ${BREAKER_COOLDOWN_MS / 1000}s`);
+  }
+}
+
+// ── Per-taskType + breaker state (additive · #1 + #4) ────────────────────────
+const _taskStats = {}; // { [provider]: { [taskType]: { calls, successes, monetized } } }
+const _breakers = {};  // { [provider]: { state, failuresInWindow, windowStart, openedAt } }
+const BREAKER_FAIL_THRESHOLD = parseInt(process.env.AI_BREAKER_FAILS || '5', 10);
+const BREAKER_WINDOW_MS = parseInt(process.env.AI_BREAKER_WINDOW_MS || '60000', 10);
+const BREAKER_COOLDOWN_MS = parseInt(process.env.AI_BREAKER_COOLDOWN_MS || '300000', 10);
+
+function _breakerAllows(name) {
+  const br = _breakers[name];
+  if (!br) return true;
+  if (br.state === 'closed') return true;
+  if (br.state === 'open') {
+    const elapsed = Date.now() - br.openedAt;
+    if (elapsed >= BREAKER_COOLDOWN_MS) {
+      // Half-open: allow one canary probe; if it succeeds in _recordSuccess
+      // we close the breaker, otherwise _recordError keeps it open.
+      br.state = 'half-open';
+      return true;
+    }
+    return false;
+  }
+  // half-open: one canary already in flight; allow it.
+  return true;
+}
+
+/**
+ * Externally tag a provider response as "monetized" (e.g. resulting offer
+ * converted to a paid checkout). Drives #1 conversion-aware scoring without
+ * changing the existing TASK_ROUTING fallback chain.
+ */
+function recordOutcome(provider, taskType, kind) {
+  if (!provider || !taskType) return;
+  if (!_taskStats[provider]) _taskStats[provider] = {};
+  if (!_taskStats[provider][taskType]) _taskStats[provider][taskType] = { calls: 0, successes: 0, monetized: 0 };
+  if ((kind || 'monetized') === 'monetized') _taskStats[provider][taskType].monetized++;
 }
 
 // ─── Cache inteligent (enhanced via ai-smart-cache) ──────────────────────────
@@ -443,7 +510,34 @@ function _getOrderedProviders(taskType) {
     if (!seen.has(p.name)) ordered.push(p);
   });
 
-  return ordered;
+  // ── #1 Conversion-aware re-rank ──
+  // If any configured provider has historical monetized outcomes for this
+  // taskType, sort the routing list (NOT the safety-net tail) by:
+  //   monetized DESC, then successRate DESC, then original index ASC.
+  // This is purely a re-ordering inside the existing candidate set — no new
+  // providers are introduced, no providers are dropped. Backwards-compatible
+  // when _taskStats is empty (cold start) since the original order is kept.
+  const stats = _taskStats;
+  const headLen = order.length;
+  const head = ordered.slice(0, headLen);
+  const tail = ordered.slice(headLen);
+  const hasSignal = head.some(p => {
+    const t = stats[p.name] && stats[p.name][taskType];
+    return t && (t.monetized > 0 || t.calls >= 5);
+  });
+  if (hasSignal) {
+    const origIdx = new Map(head.map((p, i) => [p.name, i]));
+    head.sort((a, b) => {
+      const ta = (stats[a.name] && stats[a.name][taskType]) || { calls: 0, successes: 0, monetized: 0 };
+      const tb = (stats[b.name] && stats[b.name][taskType]) || { calls: 0, successes: 0, monetized: 0 };
+      if (tb.monetized !== ta.monetized) return tb.monetized - ta.monetized;
+      const sra = ta.calls ? ta.successes / ta.calls : 0;
+      const srb = tb.calls ? tb.successes / tb.calls : 0;
+      if (Math.abs(srb - sra) > 0.05) return srb - sra;
+      return origIdx.get(a.name) - origIdx.get(b.name);
+    });
+  }
+  return head.concat(tail);
 }
 
 // ─── API principal: ask() ──────────────────────────────────────────────────────
@@ -496,6 +590,12 @@ async function ask(message, options = {}) {
       continue;
     }
 
+    // ── #4 Circuit-breaker: skip providers in OPEN state until cooldown ──
+    if (!_breakerAllows(provider.name)) {
+      skipped.push(provider.name + ':breaker-open');
+      continue;
+    }
+
     const t0 = Date.now();
     try {
       const result = await withBackoff(
@@ -514,7 +614,7 @@ async function ask(message, options = {}) {
         console.warn(`[MultiRouter] Cost spike detectat la ${provider.name}: ${estimatedCost.toFixed(6)} USD`);
       }
 
-      _recordSuccess(provider.name, latencyMs, estimatedCost);
+      _recordSuccess(provider.name, latencyMs, estimatedCost, taskType);
 
       const response = {
         reply: result.reply,
@@ -543,7 +643,7 @@ async function ask(message, options = {}) {
     } catch (err) {
       const latencyMs = Date.now() - t0;
       const errMsg = err.response?.data?.error?.message || err.message || 'unknown';
-      _recordError(provider.name, errMsg);
+      _recordError(provider.name, errMsg, taskType);
       console.error(`[MultiRouter] ${provider.name} eșuat (${latencyMs}ms): ${errMsg}`);
       // Continuă cu următorul provider
     }
@@ -681,6 +781,7 @@ module.exports = {
   getStatus,
   getPerformanceReport,
   resetStats,
+  recordOutcome,
   PROVIDER_CATALOG,
   TASK_ROUTING,
 };
