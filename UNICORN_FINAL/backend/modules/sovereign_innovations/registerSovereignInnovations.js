@@ -9,6 +9,8 @@
 // Sovereign Innovations Loader
 // Loads and registers all paradigm-shifting sovereign modules for mesh and API exposure
 
+const rateLimit = require('express-rate-limit');
+
 module.exports = function registerSovereignInnovations(app, meshOrchestrator) {
   const aiSovereignIdentityMesh = require('./aiSovereignIdentityMesh');
   const quantumResilientPrivacyLayer = require('./quantumResilientPrivacyLayer');
@@ -29,17 +31,25 @@ module.exports = function registerSovereignInnovations(app, meshOrchestrator) {
     meshOrchestrator.registerModule(selfEvolvingLawEngine);
   }
 
-  // Expose status endpoints for each module
-  app.get('/api/sovereign-identity/status', (req, res) => res.json(aiSovereignIdentityMesh.getStatus()));
-  app.get('/api/quantum-privacy/status', (req, res) => res.json(quantumResilientPrivacyLayer.getStatus()));
-  app.get('/api/autonomous-negotiation/status', (req, res) => res.json(universalAutonomousNegotiationProtocol.getStatus()));
-  app.get('/api/global-value-ledger/status', (req, res) => res.json(globalValueLedger.getStatus()));
-  app.get('/api/temporal-sovereignty/status', (req, res) => res.json(temporalDataSovereignty.getStatus()));
-  app.get('/api/interplanetary-commerce/status', (req, res) => res.json(interplanetaryCommerceMesh.getStatus()));
-  app.get('/api/self-evolving-law/status', (req, res) => res.json(selfEvolvingLawEngine.getStatus()));
+  // High rate limit for sovereign endpoints (10,000/min)
+  const sovereignLimiter = rateLimit({
+    windowMs: 60 * 1000,
+    max: 10000,
+    standardHeaders: true,
+    legacyHeaders: false
+  });
+
+  // Expose status endpoints for each module with high rate limit
+  app.get('/api/sovereign-identity/status', sovereignLimiter, (req, res) => res.json(aiSovereignIdentityMesh.getStatus()));
+  app.get('/api/quantum-privacy/status', sovereignLimiter, (req, res) => res.json(quantumResilientPrivacyLayer.getStatus()));
+  app.get('/api/autonomous-negotiation/status', sovereignLimiter, (req, res) => res.json(universalAutonomousNegotiationProtocol.getStatus()));
+  app.get('/api/global-value-ledger/status', sovereignLimiter, (req, res) => res.json(globalValueLedger.getStatus()));
+  app.get('/api/temporal-sovereignty/status', sovereignLimiter, (req, res) => res.json(temporalDataSovereignty.getStatus()));
+  app.get('/api/interplanetary-commerce/status', sovereignLimiter, (req, res) => res.json(interplanetaryCommerceMesh.getStatus()));
+  app.get('/api/self-evolving-law/status', sovereignLimiter, (req, res) => res.json(selfEvolvingLawEngine.getStatus()));
 
   // Optionally: expose a summary endpoint
-  app.get('/api/sovereign-innovations/status', (req, res) => {
+  app.get('/api/sovereign-innovations/status', sovereignLimiter, (req, res) => {
     res.json({
       aiSovereignIdentityMesh: aiSovereignIdentityMesh.getStatus(),
       quantumResilientPrivacyLayer: quantumResilientPrivacyLayer.getStatus(),
@@ -50,5 +60,13 @@ module.exports = function registerSovereignInnovations(app, meshOrchestrator) {
       selfEvolvingLawEngine: selfEvolvingLawEngine.getStatus(),
       ts: new Date().toISOString()
     });
+  });
+
+  // Fallback for 404 to help with route propagation
+  app.use((req, res, next) => {
+    if (req.path.startsWith('/api/') && res.headersSent === false) {
+      return res.status(404).json({ error: 'Not found', path: req.path });
+    }
+    next();
   });
 };

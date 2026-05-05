@@ -1308,5 +1308,23 @@
     },
     "prevHash": "a6249d258078f9b14d81a568845b70224042341605dc6efa65ca7838da4d24e0",
     "hash": "9f335f041672f9cd2e80a048ac2665df876946b32d6043f40053c6d00ac16689"
+  },
+  {
+    "ts": 1778012022862,
+    "action": "scaling",
+    "details": {
+      "procs": 2
+    },
+    "prevHash": "9f335f041672f9cd2e80a048ac2665df876946b32d6043f40053c6d00ac16689",
+    "hash": "ba4e543f45930f148b79fb73563cd8899703e74146d6bce3c17aee2d8ee7aa7c"
+  },
+  {
+    "ts": 1778012039751,
+    "action": "scaling",
+    "details": {
+      "procs": 6
+    },
+    "prevHash": "ba4e543f45930f148b79fb73563cd8899703e74146d6bce3c17aee2d8ee7aa7c",
+    "hash": "6c9b5eada85119732529909f4a1e6955abf7d05e55316e5880be9d7cc26d6c7b"
   }
 ]
