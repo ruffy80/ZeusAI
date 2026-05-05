@@ -325,7 +325,11 @@ ${jsonLdBlocks}
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="preload" as="image" href="${assetPath('/assets/zeus/hero.jpg')}" fetchpriority="high"/>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap"/>
+<!-- Combined non-render-blocking Google Fonts (Space Grotesk + JetBrains Mono + Cinzel + Orbitron).
+     The preload+onload swap pattern means the browser fetches the stylesheet without
+     blocking first paint; <noscript> keeps it functional with JS disabled. -->
+<link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&family=Cinzel:wght@600;700;900&family=Orbitron:wght@500;700;900&display=swap" onload="this.onload=null;this.rel='stylesheet'"/>
+<noscript><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&family=Cinzel:wght@600;700;900&family=Orbitron:wght@500;700;900&display=swap"/></noscript>
 <link rel="stylesheet" href="${assetPath('/assets/app.css')}"/>
 <link rel="icon" type="image/png" sizes="32x32" href="${assetPath('/assets/icons/favicon-32.png')}"/>
 <link rel="icon" type="image/png" sizes="192x192" href="${assetPath('/assets/icons/icon-192.png')}"/>
@@ -333,6 +337,23 @@ ${jsonLdBlocks}
 <link rel="mask-icon" href="/assets/icons/icon.svg" color="#8a5cff"/>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' x2='1' y1='0' y2='1'%3E%3Cstop offset='0' stop-color='%238a5cff'/%3E%3Cstop offset='0.5' stop-color='%233ea0ff'/%3E%3Cstop offset='1' stop-color='%23ffd36a'/%3E%3C/linearGradient%3E%3C/defs%3E%3Cpath fill='url(%23g)' d='M32 4l8 14h14l-12 10 5 18-15-10-15 10 5-18L10 18h14z'/%3E%3C/svg%3E"/>
 <style${nonceAttr}>
+/* ============================================================
+   Critical above-the-fold CSS (inlined for instant FCP/LCP).
+   Mirrors the base layout in src/site/v2/styles.js so the hero,
+   nav, and primary CTA paint immediately while /assets/app.css
+   and the Google Fonts stylesheet finish loading in parallel.
+   Keep this block tiny — it ships on every SSR response.
+   ============================================================ */
+:root{--bg:#05040a;--bg2:#0a0818;--ink:#e8ecff;--ink-dim:#8fa1d4;--violet:#8a5cff;--blue:#3ea0ff;--gold:#ffd36a;--stroke:rgba(163,138,255,.22);--radius:18px;--font:"Space Grotesk","Inter",system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0;background:var(--bg);color:var(--ink);font-family:var(--font);-webkit-font-smoothing:antialiased;overflow-x:hidden}
+body{min-height:100vh;background:radial-gradient(1400px 900px at 50% 0%,rgba(138,92,255,.12),transparent 55%),radial-gradient(1200px 800px at 100% 100%,rgba(62,160,255,.08),transparent 60%),linear-gradient(180deg,#05040a 0%,#0a0818 100%)}
+a{color:#6fd3ff;text-decoration:none}
+img{max-width:100%;display:block}
+.nav{position:fixed;top:0;left:0;right:0;z-index:40;display:flex;align-items:center;justify-content:space-between;padding:18px 32px;backdrop-filter:blur(14px) saturate(140%);-webkit-backdrop-filter:blur(14px) saturate(140%);background:linear-gradient(180deg,rgba(5,4,10,.7),rgba(5,4,10,.3));border-bottom:1px solid var(--stroke)}
+.btn{display:inline-block;padding:14px 20px;border-radius:14px;border:1px solid rgba(255,255,255,.18);color:#fff;text-decoration:none;background:rgba(255,255,255,.08)}
+.btn.primary{background:linear-gradient(135deg,var(--violet),var(--blue));border-color:transparent}
+.hero{position:relative;min-height:100vh;display:flex;align-items:center;padding:96px 7vw;overflow:hidden}
 /* Hide the Google Translate banner/iframe so the auto-translation is
    applied silently and the layout never shifts. The widget itself stays
    active in #google_translate_element (kept off-screen). */
