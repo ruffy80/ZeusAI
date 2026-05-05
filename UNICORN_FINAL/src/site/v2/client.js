@@ -415,7 +415,13 @@ document.addEventListener('click', e => {
     if (window.__UNICORN_VT_WRAP__) window.__UNICORN_VT_WRAP__(swap); else swap();
   }).catch(()=>{ location.href = href; });
 });
-window.addEventListener('popstate', () => { STATE.route = location.pathname; hydratePage(STATE.route); location.reload(); });
+// Browser back/forward → re-hydrate the SPA in place. We deliberately do NOT
+// `location.reload()` here: the SPA already swapped #app via fetch when the
+// user navigated forward, so popstate just needs to refresh the dynamic
+// pieces. The previous version forced a full-page reload on every back/forward
+// which was both wasteful and caused a visible "auto-refresh" the user could
+// mistake for the page being broken.
+window.addEventListener('popstate', () => { STATE.route = location.pathname; hydratePage(STATE.route); });
 
 // ================= GALAXY 3D =================
 let zeusCtx = null;
@@ -428,8 +434,6 @@ function initZeus(){
   const scene = new THREE.Scene();
   scene.fog = new THREE.FogExp2(0x04030a, 0.015);
   const camera = new THREE.PerspectiveCamera(55, w/h, 0.1, 2000);
-          const serviceId = ($('#svcId') || {}).value || 'starter';
-          const email = ($('#svcEmail') || {}).value || '';
 
   const renderer = new THREE.WebGLRenderer({ antialias:true, alpha:true, powerPreference:'high-performance' });
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
