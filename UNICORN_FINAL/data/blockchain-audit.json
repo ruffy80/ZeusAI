@@ -1185,5 +1185,24 @@
     },
     "prevHash": "4c726cb88eb7879529327dd46083c0f804f8664b03686aaae6188b277c9e0b1a",
     "hash": "975beb6459af4e186861ec640edbafe8d66ba81da067af80cb7e063dd4d4dec1"
+  },
+  {
+    "ts": 1778008439823,
+    "action": "scaling",
+    "details": {
+      "procs": 6
+    },
+    "prevHash": "975beb6459af4e186861ec640edbafe8d66ba81da067af80cb7e063dd4d4dec1",
+    "hash": "4f3d0060c59213695f481bc47e78da440b0534df3b37773b68f4a27209e639da"
+  },
+  {
+    "ts": 1778008739822,
+    "action": "feature-flag",
+    "details": {
+      "flag": "ai-advanced-chat",
+      "enabled": true
+    },
+    "prevHash": "4f3d0060c59213695f481bc47e78da440b0534df3b37773b68f4a27209e639da",
+    "hash": "4be739c71d91e21cdb20f3a2b64bba30b90f8904ab7106a5bc769fe34228edad"
   }
 ]

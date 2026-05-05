@@ -909,6 +909,13 @@ select.form-inp option{background:#0a0e24;}
           <div class="dash-section-title">Recent Proposals</div>
           <div id="innov-proposals-list" style="font-size:12px;color:#7090b0;">Loading...</div>
         </div>
+        <div class="card" style="margin-bottom:16px;">
+          <div class="dash-section-title">Future-Proof Innovation Modules Status</div>
+          <div id="innovation-modules-status" style="font-size:12px;color:#7090b0;">Loading...</div>
+          <div style="margin-top:10px;">
+            <button class="btn btn-outline btn-sm" onclick="loadInnovationModulesStatus()">🔄 Refresh Status</button>
+          </div>
+        </div>
         <div class="card">
           <div class="dash-section-title">Innovation Engine Report</div>
           <div id="innov-engine-report" style="font-size:12px;color:#7090b0;">Loading...</div>
@@ -1306,6 +1313,39 @@ select.form-inp option{background:#0a0e24;}
 
 <script>
 // ================================================================
+// INNOVATION MODULES STATUS UI LOGIC
+// ================================================================
+function loadInnovationModulesStatus() {
+  var el = document.getElementById('innovation-modules-status');
+  if (!el) return;
+  el.textContent = 'Loading...';
+  fetch('/api/innovation/status').then(function(r){
+    if (!r.ok) throw new Error('API error');
+    return r.json();
+  }).then(function(data){
+    if (!data || !data.modules) {
+      el.textContent = 'No data.';
+      return;
+    }
+    var html = '<table style="width:100%;font-size:12px;border-collapse:collapse;">';
+    html += '<tr><th style="text-align:left;padding:4px 8px;">Module</th><th style="text-align:left;padding:4px 8px;">Status</th><th style="text-align:left;padding:4px 8px;">Details</th></tr>';
+    for (var k in data.modules) {
+      var m = data.modules[k];
+      html += '<tr>';
+      html += '<td style="padding:4px 8px;font-weight:700;color:#00d4ff;">'+escHtml(k)+'</td>';
+      html += '<td style="padding:4px 8px;">'+escHtml(m.status||'-')+'</td>';
+      html += '<td style="padding:4px 8px;">'+escHtml(m.details||'-')+'</td>';
+      html += '</tr>';
+    }
+    html += '</table>';
+    el.innerHTML = html;
+  }).catch(function(e){
+    el.textContent = 'Failed to load: '+e;
+  });
+}
+document.addEventListener('DOMContentLoaded',function(){
+  setTimeout(loadInnovationModulesStatus, 1200);
+});
 // STATE
 // ================================================================
 var STATE = {

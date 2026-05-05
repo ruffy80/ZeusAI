@@ -641,7 +641,22 @@ const ADMIN_OWNER_BTC = process.env.LEGAL_OWNER_BTC || 'bc1q4f7e66z87mdfj56kz0dj
 let adminPasswordHash = bcrypt.hashSync(process.env.ADMIN_MASTER_PASSWORD || 'UnicornAdmin2026!', 10);
 let adminBiometricHash = null;
 
-// ==================== STARTUP SECURITY VALIDATION ====================
+// ==================== INOVAȚII UNICORN 2070+ (Quantum, Neuro, Protocol, Ledger) ====================
+const quantumMemory = require('./modules/innovation/quantumMemory');
+const neuroUx = require('./modules/innovation/neuroUx');
+const selfEvolvingProtocol = require('./modules/innovation/selfEvolvingProtocol');
+const globalTrustLedger = require('./modules/innovation/globalTrustLedger');
+
+// API public: status inovații
+app.get('/api/innovation/status', (req, res) => {
+  res.json({
+    quantumMemory: quantumMemory.getStatus(),
+    neuroUx: neuroUx.getStatus(),
+    selfEvolvingProtocol: selfEvolvingProtocol.getStatus(),
+    globalTrustLedger: globalTrustLedger.getStatus(),
+    ts: new Date().toISOString()
+  });
+});
 if (process.env.NODE_ENV === 'production') {
   if (!process.env.JWT_SECRET || process.env.JWT_SECRET === 'unicorn-jwt-secret-change-in-prod') {
     console.error('❌ FATAL: JWT_SECRET is weak/default. Set a strong secret in .env before running in production.');
@@ -2003,6 +2018,10 @@ console.log('📱 Social Media Viralizer: STARTING');
 console.log('🌐 Global Digital Standard: STARTING');
 
 // ==================== MESH ORCHESTRATOR — înregistrare & pornire ====================
+meshOrchestrator.register('quantumMemory', quantumMemory, { statusFn: 'getStatus' });
+meshOrchestrator.register('neuroUx', neuroUx, { statusFn: 'getStatus' });
+meshOrchestrator.register('selfEvolvingProtocol', selfEvolvingProtocol, { statusFn: 'getStatus' });
+meshOrchestrator.register('globalTrustLedger', globalTrustLedger, { statusFn: 'getStatus' });
 // Înregistrăm toate modulele autonome în bus-ul central de comunicare
 meshOrchestrator.register('unicornAutonomousCore',  uac,                { statusFn: 'getStatus' });
 meshOrchestrator.register('unicornEternalEngine',   uee,                { statusFn: 'getStatus' });
