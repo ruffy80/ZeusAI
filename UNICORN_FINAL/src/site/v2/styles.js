@@ -3,7 +3,10 @@
 'use strict';
 
 module.exports.CSS = `
-@import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@600;700;900&family=Orbitron:wght@500;700;900&display=swap');
+/* Note: Google Fonts (Space Grotesk + JetBrains Mono + Cinzel + Orbitron) are
+   loaded via a single non-render-blocking <link> in src/site/v2/shell.js.
+   We intentionally do NOT @import them here to avoid a render-blocking
+   chained request that hurts FCP/LCP. */
 :root{
   --bg:#05040a;
   --bg2:#0a0818;
