@@ -336,6 +336,20 @@ app.post('/api/checkout/create', _swRateLimit, express.json({ limit: '64kb' }), 
   proxyPostToSite(req, res, '/api/checkout/create')
 );
 
+// ─── Forward additional site-only routes through backend (forward-only) ────
+// Nginx routes /api/* to backend. The following endpoints live in the site
+// process (sovereign-commerce.js + ab-testing.js). Without these proxies they
+// 404 from public URLs. Original site routes remain intact and reachable
+// directly via the site (port 3001) for local/internal callers.
+app.get(/^\/api\/order\/[a-zA-Z0-9_-]{6,64}\/receipt\.json$/, (req, res) =>
+  proxyToSite(req, res, req.path)
+);
+app.get('/api/ab/experiments', (req, res) => proxyToSite(req, res, '/api/ab/experiments'));
+app.get(/^\/api\/ab\/assign\/[a-zA-Z0-9_-]+$/, (req, res) => proxyToSite(req, res, req.path));
+app.get(/^\/api\/ab\/report\/[a-zA-Z0-9_-]+$/, (req, res) => proxyToSite(req, res, req.path));
+app.post('/api/ab/register', express.json({ limit: '4kb' }), (req, res) => proxyPostToSite(req, res, '/api/ab/register'));
+app.post('/api/ab/event',    express.json({ limit: '2kb' }), (req, res) => proxyPostToSite(req, res, '/api/ab/event'));
+
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
@@ -2204,9 +2218,9 @@ function _buildProvenance() {
   };
   const body = JSON.stringify(stmt);
   let signature = null;
-  if (anchor && anchor.privateKeyPem) {
+  if (anchor && anchor.privateKey) {
     try {
-      const sig = crypto.sign(null, Buffer.from(body), { key: anchor.privateKeyPem });
+      const sig = crypto.sign(null, Buffer.from(body), { key: anchor.privateKey });
       signature = {
         alg: 'ed25519',
         sig: sig.toString('base64'),
@@ -2216,7 +2230,9 @@ function _buildProvenance() {
     } catch (_) {}
   }
   _provenanceCache = { ...stmt, signature };
-  return _provenanceCache;
+  // Only cache when actually signed; otherwise allow recompute on next request.
+  if (!signature) _provenanceCache = null;
+  return { ...stmt, signature };
 }
 app.get('/api/v50/provenance', (req, res) => {
   res.set('Cache-Control', 'public, max-age=60, stale-while-revalidate=300');

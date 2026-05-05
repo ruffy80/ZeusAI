@@ -18,3 +18,5 @@
 {"at":"2026-05-05T15:38:06.261Z","action":"scale_down","reason":"reward_non_positive_health_ok","reward":0,"healthScore":100}
 {"at":"2026-05-05T15:43:06.263Z","action":"scale_down","reason":"reward_non_positive_health_ok","reward":0,"healthScore":100}
 {"at":"2026-05-05T15:48:06.235Z","action":"scale_down","reason":"reward_non_positive_health_ok","reward":0,"healthScore":100}
+{"at":"2026-05-05T15:53:06.216Z","action":"scale_down","reason":"reward_non_positive_health_ok","reward":0,"healthScore":100}
+{"at":"2026-05-05T15:58:06.214Z","action":"scale_down","reason":"reward_non_positive_health_ok","reward":0,"healthScore":100}

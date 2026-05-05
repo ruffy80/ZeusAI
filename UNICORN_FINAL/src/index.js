@@ -171,6 +171,35 @@ app.get('/health', (req, res) => {
   res.json({ ok: true, status: 'healthy', ts: new Date().toISOString() });
 });
 
+// ─── C8: stratified health (site mirror, additive) ────────────────────────
+// Mirrors backend so nginx fallthrough on /health/* (which doesn't match the
+// exact `location = /health` rule) resolves cleanly to the site without 404.
+let _siteDrainMode = false;
+global.__siteDrainState = () => _siteDrainMode;
+app.get('/health/live', (req, res) => {
+  res.set('Cache-Control', 'no-store');
+  res.json({ ok: true, role: 'site', pid: process.pid, uptime: Math.floor(process.uptime()), drain: _siteDrainMode });
+});
+app.get('/health/ready', (req, res) => {
+  res.set('Cache-Control', 'no-store');
+  if (_siteDrainMode) return res.status(503).json({ ok: false, ready: false, reason: 'draining', role: 'site' });
+  res.json({ ok: true, ready: true, role: 'site', pid: process.pid });
+});
+app.get('/health/deep', (req, res) => {
+  res.set('Cache-Control', 'no-store');
+  const mem = process.memoryUsage();
+  res.json({
+    ok: true, role: 'site', drain: _siteDrainMode, pid: process.pid,
+    uptimeSec: Math.floor(process.uptime()),
+    memory: {
+      rssMB: Math.round(mem.rss / 1024 / 1024),
+      heapUsedMB: Math.round(mem.heapUsed / 1024 / 1024),
+      heapTotalMB: Math.round(mem.heapTotal / 1024 / 1024),
+    },
+    timestamp: new Date().toISOString(),
+  });
+});
+
 // ==================== TOPOLOGY ENDPOINT (site) ====================
 // Public-readable diagnostic endpoint that announces this process's role in
 // the two-server architecture (site=3001 SSR cluster, backend=3000 source of
@@ -8010,6 +8039,7 @@ if (require.main === module) {
   function _siteGraceful(signal) {
     if (_siteDrain) return;
     _siteDrain = true;
+    try { _siteDrainMode = true; } catch (_) {}
     console.log(`[site-graceful] ${signal} received → draining (max 30s)`);
     setTimeout(() => {
       try { server.close(() => { console.log('[site-graceful] server closed'); process.exit(0); }); }
