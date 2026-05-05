@@ -3573,7 +3573,11 @@ app.post('/api/chat', authRateLimit(30, 60_000), async (req, res) => {
       });
       return res.json({ reply: result.text, model: result.model });
     } catch (err) {
-      console.warn('[Chat] UAIC a eșuat:', err.message);
+      const _t = Date.now();
+      if (!global.__chatUaicFailLog || _t - global.__chatUaicFailLog > 60_000) {
+        global.__chatUaicFailLog = _t;
+        console.warn('[Chat] UAIC a eșuat:', err.message);
+      }
     }
   }
 
@@ -3609,7 +3613,10 @@ app.post('/api/chat', authRateLimit(30, 60_000), async (req, res) => {
   ];
   const matched = KEYWORD_RESPONSES.find(([keywords]) => keywords.some(k => lower.includes(k)));
   const reply = matched ? matched[1] : 'Bun venit la Zeus AI! Sunt asistentul tău pentru business automation, AI, blockchain și plăți globale. Cum te pot ajuta?';
-  res.json({ reply, model: 'keyword-fallback' });
+  // Degraded flag tells callers (concierge, dashboards) that no live AI provider
+  // answered and we served the deterministic keyword fallback. Forward-only:
+  // the field is additive, existing clients ignore it.
+  res.json({ reply, model: 'keyword-fallback', degraded: true });
 });
 
 // ==================== UAIC STATUS + ADMIN ====================

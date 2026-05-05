@@ -549,8 +549,15 @@ async function ask(message, options = {}) {
     }
   }
 
-  // Toți providerii au eșuat
-  console.warn(`[MultiRouter] Toți providerii au eșuat pentru taskType=${taskType}. Skipped: ${skipped.join(', ')}`);
+  // Toți providerii au eșuat. Throttle the warning so a misconfigured runtime
+  // (no API keys, no Ollama) does not flood the log every minute.
+  const _now = Date.now();
+  if (!global.__mrFailLog) global.__mrFailLog = new Map();
+  const _last = global.__mrFailLog.get(taskType) || 0;
+  if (_now - _last > 60_000) {
+    global.__mrFailLog.set(taskType, _now);
+    console.warn(`[MultiRouter] Toți providerii au eșuat pentru taskType=${taskType}. Skipped: ${skipped.join(', ')}`);
+  }
   return null;
 }
 

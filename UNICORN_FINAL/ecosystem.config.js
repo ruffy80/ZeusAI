@@ -68,6 +68,11 @@ module.exports = {
         // are configured and auth-repair.js no longer self-restarts.
         AUTH_GUARDIAN_ENABLED: '0',
         PORT: 3000,
+        // Hardening: bind backend to loopback only. Nginx fronts every public
+        // request via http://127.0.0.1:3000. The smoke-test step already hits
+        // 127.0.0.1:3000 from inside the box (deploy.yml). Override with
+        // BIND_HOST=0.0.0.0 only for ad-hoc debugging.
+        BIND_HOST: process.env.BIND_HOST || '127.0.0.1',
         DOMAIN: 'zeusai.pro',
         SITE_DOMAIN: 'zeusai.pro',
         PUBLIC_APP_URL: 'https://zeusai.pro',
@@ -140,6 +145,8 @@ module.exports = {
       env: {
         NODE_ENV: 'production',
         PORT: 3001,
+        // Loopback-only; nginx is the only publicly reachable surface for the site.
+        BIND_HOST: process.env.BIND_HOST || '127.0.0.1',
         BACKEND_API_URL: 'http://127.0.0.1:3000',
         DOMAIN: 'zeusai.pro',
         SITE_DOMAIN: 'zeusai.pro',

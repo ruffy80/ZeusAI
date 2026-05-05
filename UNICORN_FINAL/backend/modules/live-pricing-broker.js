@@ -25,11 +25,20 @@
 const EventEmitter = require('events');
 
 // Lazy/defensive requires so a missing dep can never crash boot.
+// `marketplace` is loaded on first use to avoid a circular-dependency warning:
+// serviceMarketplace.loadServices() itself walks ./modules/* and pulls this
+// file in BEFORE marketplace.module.exports has finished assigning
+// `getAllServices`. Loading it lazily breaks the cycle without changing the
+// runtime contract.
 let marketplace = null;
+function _marketplace() {
+  if (marketplace) return marketplace;
+  try { marketplace = require('./serviceMarketplace'); } catch (_) { marketplace = null; }
+  return marketplace;
+}
 let dynamicPricing = null;
 let paymentGateway = null;
 let aiNegotiator = null;
-try { marketplace    = require('./serviceMarketplace'); } catch (_) {}
 try { dynamicPricing = require('./dynamic-pricing'); }   catch (_) {}
 try { paymentGateway = require('./paymentGateway'); }    catch (_) {}
 try { aiNegotiator   = require('./aiNegotiator'); }      catch (_) {}
@@ -87,9 +96,10 @@ class LivePricingBroker extends EventEmitter {
       const seen = new Set();
 
       // 2a) From the marketplace registry (primary source of truth for the UI)
-      if (marketplace && typeof marketplace.getAllServices === 'function') {
+      const _mp = _marketplace();
+      if (_mp && typeof _mp.getAllServices === 'function') {
         try {
-          for (const s of marketplace.getAllServices()) {
+          for (const s of _mp.getAllServices()) {
             const id = String(s.id);
             seen.add(id);
             const dp = dynamicPricing && typeof dynamicPricing.getPrice === 'function'
