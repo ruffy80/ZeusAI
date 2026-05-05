@@ -3651,6 +3651,32 @@ async function unicornHandler(req, res) {
   }
 
   if (urlPath === '/marketplace') {
+    // The human-facing Marketplace page is `/services` (rendered by the v2
+    // SSR shell). Historically this URL only returned a JSON payload of
+    // runtime modules, which meant a visitor typing `/marketplace` in the
+    // address bar or following a SPA `data-link` here would get a JSON
+    // body, the SPA router would fail to render it as HTML and the page
+    // would collapse to blank a fragment of a second after navigation
+    // (the "blank Marketplace" regression).
+    //
+    // The fix is content-negotiation: real browser navigations get a
+    // permanent-feeling 302 to `/services` so the SSR shell renders the
+    // proper page (and bookmarks/SW caches heal themselves), while
+    // programmatic JSON consumers (the legacy `loadServices()` fallback
+    // in `src/site/v2/client.js` and any historical scripts) continue to
+    // receive the same `{ updatedAt, modules }` body they always did.
+    const accept = String(req.headers['accept'] || '');
+    const fetchDest = String(req.headers['sec-fetch-dest'] || '').toLowerCase();
+    const fetchMode = String(req.headers['sec-fetch-mode'] || '').toLowerCase();
+    const isHtmlNavigation = (
+      fetchDest === 'document'
+      || fetchMode === 'navigate'
+      || (accept.indexOf('text/html') !== -1 && accept.indexOf('application/json') === -1)
+    );
+    if (isHtmlNavigation && req.method === 'GET') {
+      res.writeHead(302, { Location: '/services', 'Cache-Control': 'no-store' });
+      return res.end('Redirecting to /services');
+    }
     res.writeHead(200, { 'Content-Type': 'application/json' });
     return res.end(JSON.stringify({ updatedAt: new Date().toISOString(), modules: getRuntimeDataSources().marketplace }));
   }
@@ -7474,7 +7500,7 @@ a{color:#8a5cff;text-decoration:none}
     '/trust', '/security', '/responsible-ai', '/dpa', '/payment-terms', '/operator', '/observability',
     '/enterprise', '/store', '/account', '/innovations', '/wizard', '/status', '/changelog',
     '/terms', '/privacy', '/refund', '/sla', '/pledge', '/cancel', '/gift', '/aura',
-    '/api-explorer', '/transparency', '/frontier', '/crypto-fiat-bridge'
+    '/api-explorer', '/transparency', '/frontier', '/crypto-fiat-bridge', '/marketplace'
   ];
   const isV2Route = v2Routes.includes(urlPath) || urlPath.startsWith('/services/');
   if (isV2Route) {
