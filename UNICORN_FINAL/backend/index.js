@@ -1459,6 +1459,10 @@ const { getSiteHtml }       = require('../src/site/template');
 const meshOrchestrator     = require('./modules/unicornMeshOrchestrator');
 const unicornOrchestrator  = require('./modules/unicornOrchestrator');
 
+// ==================== SOVEREIGN INNOVATIONS (paradigm modules) ====================
+const registerSovereignInnovations = require('./modules/sovereign_innovations/registerSovereignInnovations');
+registerSovereignInnovations(app, meshOrchestrator);
+
 // ==================== NEW ACTIVATED MODULES (23) ====================
 const evolutionCore           = require('./modules/evolution-core');
 const quantumHealing          = require('./modules/quantum-healing');

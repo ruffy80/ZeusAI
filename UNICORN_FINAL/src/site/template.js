@@ -1,3 +1,21 @@
+// --- Performance: Debounce/Throttle helpers ---
+function debounce(fn, delay) {
+  let timer = null;
+  return function(...args) {
+    clearTimeout(timer);
+    timer = setTimeout(() => fn.apply(this, args), delay);
+  };
+}
+function throttle(fn, limit) {
+  let inThrottle;
+  return function(...args) {
+    if (!inThrottle) {
+      fn.apply(this, args);
+      inThrottle = true;
+      setTimeout(() => (inThrottle = false), limit);
+    }
+  };
+}
 // --- SYNCHRONIZED WITH ZEUSAI/UNICORN_FINAL/src/site/template.js ---
 // This file is now a direct copy of the ZeusAI reference for maximum visual and functional parity.
 // All advanced UI/UX, dashboard, admin, marketplace, and innovation features are present.
@@ -26,6 +44,37 @@ function getSiteHtml() {
 <meta http-equiv="Pragma" content="no-cache"/>
 <meta http-equiv="Expires" content="0"/>
 <title>ZEUS AI — Build. Automate. Scale.</title>
+<link rel="canonical" href="https://zeusai.pro/"/>
+<meta name="description" content="ZEUS AI — Universal AI Unicorn Platform. Build, automate, and scale with the most advanced AI and autonomous business tools."/>
+<meta name="robots" content="index, follow, max-snippet:-1, max-image-preview:large, max-video-preview:-1"/>
+<meta property="og:type" content="website"/>
+<meta property="og:title" content="ZEUS AI — Build. Automate. Scale."/>
+<meta property="og:description" content="Universal AI Unicorn Platform. Build, automate, and scale with the most advanced AI and autonomous business tools."/>
+<meta property="og:url" content="https://zeusai.pro/"/>
+<meta property="og:site_name" content="ZEUS AI"/>
+<meta property="og:image" content="https://zeusai.pro/assets/og-image.png"/>
+<meta name="twitter:card" content="summary_large_image"/>
+<meta name="twitter:title" content="ZEUS AI — Build. Automate. Scale."/>
+<meta name="twitter:description" content="Universal AI Unicorn Platform. Build, automate, and scale with the most advanced AI and autonomous business tools."/>
+<meta name="twitter:image" content="https://zeusai.pro/assets/og-image.png"/>
+<link rel="sitemap" type="application/xml" href="/sitemap.xml"/>
+<script type="application/ld+json">{
+  "@context": "https://schema.org",
+  "@type": "Organization",
+  "name": "ZEUS AI",
+  "url": "https://zeusai.pro/",
+  "logo": "https://zeusai.pro/assets/og-image.png",
+  "sameAs": [
+    "https://twitter.com/zeusai_pro",
+    "https://www.linkedin.com/company/zeusai-pro/"
+  ],
+  "description": "Universal AI Unicorn Platform. Build, automate, and scale with the most advanced AI and autonomous business tools.",
+  "contactPoint": [{
+    "@type": "ContactPoint",
+    "email": "${ownerEmail}",
+    "contactType": "customer support"
+  }]
+}</script>
 <link rel="preconnect" href="https://fonts.googleapis.com"/>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
 <link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;600;700&family=Orbitron:wght@400;700;900&display=swap" rel="stylesheet"/>
@@ -48,7 +97,7 @@ body{font-family:'Rajdhani',system-ui,Arial;color:#e8f4ff;background:#05060e;ove
 .nav-btn:hover,.nav-btn.active{color:#00d4ff;background:rgba(0,212,255,.1);}
 .hdr-right{display:flex;align-items:center;gap:12px;flex-shrink:0;}
 .btc-ticker{font-family:'Orbitron',monospace;font-size:12px;color:#00ffa3;background:rgba(0,255,163,.08);border:1px solid rgba(0,255,163,.2);padding:4px 10px;border-radius:8px;white-space:nowrap;}
-.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;padding:8px 18px;border-radius:10px;border:none;font-family:'Rajdhani',sans-serif;font-size:14px;font-weight:700;cursor:pointer;transition:all .2s;letter-spacing:.5px;text-decoration:none;}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;padding:8px 18px;border-radius:10px;border:none;font-family:'Rajdhani',sans-serif;font-size:14px;font-weight:700;cursor:pointer;transition:transform .2s,opacity .2s,box-shadow .2s,filter .2s;letter-spacing:.5px;text-decoration:none;}
 .btn-primary{background:linear-gradient(135deg,#00d4ff,#0ea5e9);color:#05060e;}
 .btn-primary:hover{filter:brightness(1.15);transform:translateY(-1px);}
 .btn-outline{background:transparent;border:1px solid rgba(0,200,255,.4);color:#00d4ff;}
@@ -75,8 +124,8 @@ body{font-family:'Rajdhani',system-ui,Arial;color:#e8f4ff;background:#05060e;ove
 .card{background:rgba(10,14,36,.75);border:1px solid rgba(0,200,255,.2);border-radius:20px;padding:20px;backdrop-filter:blur(10px);}
 .card-glow{box-shadow:0 0 30px rgba(0,180,255,.15) inset,0 4px 24px rgba(0,0,0,.5);}
 .card-sm{padding:14px 16px;border-radius:14px;}
-.card-hover{transition:border-color .3s,transform .3s;}
-.card-hover:hover{border-color:rgba(0,212,255,.5);transform:translateY(-3px);}
+.card-hover{transition:transform .3s,box-shadow .3s,opacity .3s;}
+.card-hover:hover{box-shadow:0 4px 20px rgba(0,212,255,.12);transform:translateY(-3px);}
 
 /* TYPOGRAPHY */
 .title{font-family:'Orbitron',monospace;font-size:clamp(22px,3.5vw,38px);font-weight:900;line-height:1.1;letter-spacing:.5px;background:linear-gradient(135deg,#00d4ff,#c084fc,#00ffa3);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;}
@@ -137,8 +186,8 @@ body{font-family:'Rajdhani',system-ui,Arial;color:#e8f4ff;background:#05060e;ove
 .step-desc{font-size:13px;color:#7090b0;line-height:1.6;}
 
 /* SERVICE CARDS */
-.svc-card{background:rgba(10,14,36,.75);border:1px solid rgba(0,200,255,.2);border-radius:16px;padding:18px;display:flex;flex-direction:column;gap:10px;transition:border-color .3s,transform .3s;}
-.svc-card:hover{border-color:rgba(0,212,255,.5);transform:translateY(-4px);}
+.svc-card{background:rgba(10,14,36,.75);border:1px solid rgba(0,200,255,.2);border-radius:16px;padding:18px;display:flex;flex-direction:column;gap:10px;transition:transform .3s,box-shadow .3s,opacity .3s;}
+.svc-card:hover{box-shadow:0 4px 20px rgba(0,212,255,.12);transform:translateY(-4px);}
 .svc-name{font-family:'Orbitron',monospace;font-size:14px;font-weight:700;color:#e8f4ff;}
 .svc-desc{font-size:13px;color:#7090b0;line-height:1.5;flex:1;}
 .svc-price{font-family:'Orbitron',monospace;font-size:18px;font-weight:700;color:#00ffa3;}
@@ -150,8 +199,8 @@ body{font-family:'Rajdhani',system-ui,Arial;color:#e8f4ff;background:#05060e;ove
 .search-inp{background:rgba(10,14,36,.8);border:1px solid rgba(0,200,255,.25);color:#e8f4ff;padding:8px 14px;border-radius:10px;font-family:'Rajdhani',sans-serif;font-size:14px;flex:1;min-width:200px;outline:none;}
 .search-inp:focus{border-color:rgba(0,212,255,.6);}
 .filter-btns{display:flex;gap:6px;flex-wrap:wrap;}
-.filter-btn{background:rgba(10,14,36,.8);border:1px solid rgba(0,200,255,.2);color:#7090b0;padding:5px 12px;border-radius:8px;font-family:'Rajdhani',sans-serif;font-size:13px;cursor:pointer;transition:all .2s;}
-.filter-btn:hover,.filter-btn.active{background:rgba(0,212,255,.15);border-color:rgba(0,212,255,.5);color:#00d4ff;}
+.filter-btn{background:rgba(10,14,36,.8);border:1px solid rgba(0,200,255,.2);color:#7090b0;padding:5px 12px;border-radius:8px;font-family:'Rajdhani',sans-serif;font-size:13px;cursor:pointer;transition:transform .2s,opacity .2s,box-shadow .2s;}
+.filter-btn:hover,.filter-btn.active{background:rgba(0,212,255,.15);border-color:rgba(0,212,255,.5);color:#00d4ff;transform:scale(1.04);}
 
 /* PRICING */
 .pricing-toggle{display:flex;align-items:center;justify-content:center;gap:12px;margin-bottom:28px;}
@@ -405,30 +454,24 @@ select.form-inp option{background:#0a0e24;}
 <!-- MAIN -->
 <main class="page-wrap">
 
-  <!-- HOME VIEW -->
-  <div id="view-home" class="view">
-    <!-- Hero -->
-    <section class="hero-section">
-      <p class="subtitle">Powered by Advanced AI</p>
-      <h1 class="hero-title">ZEUS AI<br/>Build. Automate. Scale.</h1>
-      <p class="hero-sub">The all-in-one AI platform for autonomous businesses. Deploy intelligent agents, automate workflows, and scale without limits.</p>
-      <div class="hero-ctas">
-        <button class="btn btn-primary btn-lg" onclick="openModal('auth-modal');switchTab('tab-register')">🚀 Get Started Free</button>
-        <button class="btn btn-outline btn-lg" onclick="navigate('marketplace')">⚡ Explore Services</button>
-      </div>
-    </section>
 
-    <!-- Zeus + Clock -->
-    <div class="zeus-wrap card card-glow" style="margin-bottom:24px;">
-      <div class="zeus-face">
-        <canvas id="zeusCanvas"></canvas>
-        <div class="zeus-overlay">
-          <div class="zeus-ring"></div>
-          <div class="zeus-ring2"></div>
-          <div class="zeus-scan"></div>
-          <div class="zeus-label">ZEUS AI CORE v4.0</div>
-          <div class="zeus-status"><div class="zeus-dot"></div>ONLINE</div>
-        </div>
+  <!-- HOME VIEW (DOM simplified) -->
+  <section id="view-home" class="view hero-section">
+    <p class="subtitle">Powered by Advanced AI</p>
+    <h1 class="hero-title">ZEUS AI<br/>Build. Automate. Scale.</h1>
+    <p class="hero-sub">The all-in-one AI platform for autonomous businesses. Deploy intelligent agents, automate workflows, and scale without limits.</p>
+    <div class="hero-ctas">
+      <button class="btn btn-primary btn-lg" onclick="openModal('auth-modal');switchTab('tab-register')">🚀 Get Started Free</button>
+      <button class="btn btn-outline btn-lg" onclick="navigate('marketplace')">⚡ Explore Services</button>
+    </div>
+    <div class="zeus-face-wrap">
+      <canvas id="zeusCanvas"></canvas>
+      <div class="zeus-overlay">
+        <div class="zeus-ring"></div>
+        <div class="zeus-ring2"></div>
+        <div class="zeus-scan"></div>
+        <div class="zeus-label">ZEUS AI CORE v4.0</div>
+        <div class="zeus-status"><span class="zeus-dot"></span>ONLINE</div>
       </div>
       <div class="clock-wrap card card-sm" style="justify-content:center;">
         <canvas id="luxClock" width="180" height="180"></canvas>
@@ -436,41 +479,21 @@ select.form-inp option{background:#0a0e24;}
         <div class="clock-date" id="clkDate">—</div>
       </div>
     </div>
+  </section>
 
-    <!-- Stats Bar -->
+    <!-- Stats Bar (flattened) -->
     <div class="stats-bar">
-      <div class="card card-sm">
-        <div class="label">Active Users</div>
-        <div class="kpi-val" id="stat-users">—</div>
-      </div>
-      <div class="card card-sm">
-        <div class="label">Uptime</div>
-        <div class="kpi-val green" id="stat-uptime">—</div>
-      </div>
-      <div class="card card-sm">
-        <div class="label">BTC Rate</div>
-        <div class="kpi-val cyan" id="stat-btc">—</div>
-      </div>
+      <div class="card card-sm"><span class="label">Active Users</span><span class="kpi-val" id="stat-users">—</span></div>
+      <div class="card card-sm"><span class="label">Uptime</span><span class="kpi-val green" id="stat-uptime">—</span></div>
+      <div class="card card-sm"><span class="label">BTC Rate</span><span class="kpi-val cyan" id="stat-btc">—</span></div>
     </div>
 
-    <!-- How it works -->
+    <!-- How it works (flattened) -->
     <div class="sec-title">How It Works</div>
     <div class="how-steps">
-      <div class="card card-hover">
-        <div class="step-num">01</div>
-        <div class="step-title">Register Free</div>
-        <div class="step-desc">Create your Zeus AI account in seconds. No credit card required to get started with our free tier.</div>
-      </div>
-      <div class="card card-hover">
-        <div class="step-num">02</div>
-        <div class="step-title">Choose a Service</div>
-        <div class="step-desc">Browse our marketplace of AI-powered services. From automation to intelligence, find your solution.</div>
-      </div>
-      <div class="card card-hover">
-        <div class="step-num">03</div>
-        <div class="step-title">Pay &amp; Activate</div>
-        <div class="step-desc" id="payment-step-desc">Pay direct by BTC owner wallet. Card, PayPal, and global crypto rails appear only when configured live.</div>
-      </div>
+      <div class="card card-hover"><span class="step-num">01</span><span class="step-title">Register Free</span><span class="step-desc">Create your Zeus AI account in seconds. No credit card required to get started with our free tier.</span></div>
+      <div class="card card-hover"><span class="step-num">02</span><span class="step-title">Choose a Service</span><span class="step-desc">Browse our marketplace of AI-powered services. From automation to intelligence, find your solution.</span></div>
+      <div class="card card-hover"><span class="step-num">03</span><span class="step-title">Pay &amp; Activate</span><span class="step-desc" id="payment-step-desc">Pay direct by BTC owner wallet. Card, PayPal, and global crypto rails appear only when configured live.</span></div>
     </div>
 
     <!-- KPI Cards (from snapshot) -->
@@ -495,17 +518,17 @@ select.form-inp option{background:#0a0e24;}
       <div class="roi-form">
         <div class="form-row">
           <div class="form-group">
-            <label class="form-label">Employees</label>
-            <input class="form-inp" type="number" id="roi-emp" placeholder="e.g. 50" min="1"/>
+            <label class="form-label" for="roi-emp">Employees</label>
+            <input class="form-inp" type="number" id="roi-emp" name="roi-emp" placeholder="e.g. 50" min="1" aria-label="Employees"/>
           </div>
           <div class="form-group">
-            <label class="form-label">Monthly Revenue ($)</label>
-            <input class="form-inp" type="number" id="roi-rev" placeholder="e.g. 500000" min="1"/>
+            <label class="form-label" for="roi-rev">Monthly Revenue ($)</label>
+            <input class="form-inp" type="number" id="roi-rev" name="roi-rev" placeholder="e.g. 500000" min="1" aria-label="Monthly Revenue ($)"/>
           </div>
         </div>
         <div class="form-group">
-          <label class="form-label">Industry</label>
-          <select class="form-inp" id="roi-ind">
+          <label class="form-label" for="roi-ind">Industry</label>
+          <select class="form-inp" id="roi-ind" name="roi-ind" aria-label="Industry">
             <option value="technology">Technology</option>
             <option value="finance">Finance</option>
             <option value="healthcare">Healthcare</option>
@@ -522,9 +545,10 @@ select.form-inp option{background:#0a0e24;}
 
     <footer class="footer">
       <form id="lead-form" onsubmit="return submitLead(event)" style="max-width:520px;margin:0 auto 18px;display:flex;gap:8px;flex-wrap:wrap;justify-content:center;align-items:center">
-        <input type="email" name="email" required placeholder="your@email.com" style="flex:1;min-width:220px;padding:10px 14px;border-radius:8px;border:1px solid rgba(0,212,255,.25);background:rgba(0,0,0,.35);color:#cfe;">
+        <label for="lead-email" class="visually-hidden">Email</label>
+        <input id="lead-email" type="email" name="email" required placeholder="your@email.com" style="flex:1;min-width:220px;padding:10px 14px;border-radius:8px;border:1px solid rgba(0,212,255,.25);background:rgba(0,0,0,.35);color:#cfe;" aria-label="Email">
         <input type="text" name="hp_field" tabindex="-1" autocomplete="off" style="position:absolute;left:-9999px;opacity:0" aria-hidden="true">
-        <button type="submit" style="padding:10px 18px;border-radius:8px;border:0;background:linear-gradient(90deg,#00d4ff,#0050ff);color:#fff;font-weight:600;cursor:pointer">Notify me when sovereign AI ships →</button>
+        <button type="submit" aria-label="Notify me when sovereign AI ships" style="padding:10px 18px;border-radius:8px;border:0;background:linear-gradient(90deg,#00d4ff,#0050ff);color:#fff;font-weight:600;cursor:pointer">Notify me when sovereign AI ships →</button>
         <span id="lead-msg" style="flex-basis:100%;font-size:12px;color:#7090b0"></span>
       </form>
       <p>🦄 <a href="https://zeusai.pro" target="_blank">zeusai.pro</a> — Universal AI Unicorn Platform</p>
@@ -1344,7 +1368,7 @@ function loadInnovationModulesStatus() {
   });
 }
 document.addEventListener('DOMContentLoaded',function(){
-  setTimeout(loadInnovationModulesStatus, 1200);
+  setTimeout(debounce(loadInnovationModulesStatus, 1200), 1200);
 });
 // STATE
 // ================================================================
@@ -3944,7 +3968,10 @@ async function editTenantBranding(id){
   toast('Branding updated!','ok');
   var d=document.getElementById('tenant-branding-preview');
   if(d) d.innerHTML='<div style="display:flex;align-items:center;gap:12px;">'
-    +(logo?'<img src="'+escAttr(logo)+'" style="height:40px;" alt="logo"/>':'')
+    +(logo?'<picture>'+
+      '<source srcset="'+escAttr(logo).replace(/\.(png|jpg|jpeg)/, '.webp')+'" type="image/webp">'+
+      '<img src="'+escAttr(logo)+'" style="height:40px;" alt="logo" loading="lazy"/>'+
+      '</picture>':'')
     +'<div style="width:40px;height:40px;border-radius:8px;background:'+escAttr(color)+';"></div>'
     +'<span style="color:#e8f4ff;">Preview: '+escHtml(color)+'</span>'
     +'</div>';
@@ -4529,7 +4556,10 @@ async function checkoutBtc(){
   var qrSrc=qrData.qr||('https://api.qrserver.com/v1/create-qr-code/?size=160x160&data=bitcoin:'+addr+'%3Famount%3D'+btcAmount);
   var seconds=1800;
   body.innerHTML='<div style="text-align:center;">'
-    +'<img class="qr-img" src="'+escAttr(qrSrc)+'" alt="BTC QR Code"/>'
+    +'<picture>'+
+      '<source srcset="'+escAttr(qrSrc).replace(/\.(png|jpg|jpeg)/, '.webp')+'" type="image/webp">'+
+      '<img class="qr-img" src="'+escAttr(qrSrc)+'" alt="BTC QR Code" loading="lazy"/>'+
+      '</picture>'
     +'<div class="countdown" id="pay-countdown"></div>'
     +(created.txId?'<div style="font-size:11px;color:#7090b0;margin:6px 0;">Order ID: <span style="font-family:monospace;">'+escHtml(created.txId)+'</span></div>':'')
     +'<div style="margin:8px 0;font-size:13px;color:#7090b0;">Send exactly:</div>'
