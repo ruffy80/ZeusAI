@@ -91,8 +91,32 @@ process.on('unhandledRejection', (reason) => {
 });
 
 // === Health endpoint direct Express pentru testare și monitorizare ===
+
 const express = require('express');
 const app = express();
+
+// === C2: Enable Brotli compression if available (forward-only) ===
+let brotliCompression = null;
+try {
+  brotliCompression = require('iltorb');
+  console.log('[brotli] iltorb loaded, Brotli compression enabled');
+} catch (_) {
+  // Fallback to gzip only
+}
+
+// === C11: Lightning integration (forward-only) ===
+let lightning = null;
+try { lightning = require('./lightning/lightning'); } catch (_) {}
+
+// === C12: OpenAPI schema endpoint (forward-only) ===
+let openapi = null;
+try { openapi = require('./openapi/index'); } catch (_) {}
+
+// === C13: WASM sandbox (forward-only) ===
+let wasmSandbox = null;
+try { wasmSandbox = require('./wasm/wasm-sandbox'); } catch (_) {}
+
+// === C10: Synthetic monitor is a separate PM2 process (see pm2.synthetic-monitor.config.js) ===
 
 // ==================== HTTP COMPRESSION (site, 3001) ====================
 // The site serves the SSR HTML shell (~178KB shell.js render output) and the
@@ -153,6 +177,11 @@ const __SITE_TOPOLOGY = (function buildSiteTopology() {
   const hostname = (function safeHostname() { try { return require('os').hostname(); } catch (_) { return ''; } })();
   return { role, port, instance, clusterRole, hostname, pid: process.pid, sourceOfTruth: false };
 })();
+
+// === C12: Expose OpenAPI schema at /openapi.yaml (forward-only) ===
+if (openapi && openapi.openapiHandler) {
+  app.get('/openapi.yaml', openapi.openapiHandler);
+}
 
 function applySiteTopologyHeaders(req, res) {
   if (process.env.SITE_TOPOLOGY_HEADERS_DISABLED === '1') return;

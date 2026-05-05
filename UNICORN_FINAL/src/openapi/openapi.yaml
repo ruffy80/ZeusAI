@@ -1,0 +1,44 @@
+openapi: 3.0.3
+info:
+  title: Unicorn API
+  version: 1.0.0
+  description: |
+    OpenAPI schema for all public endpoints (forward-only, C12).
+servers:
+  - url: https://zeusai.pro
+paths:
+  /api/webhooks:
+    get:
+      summary: List webhooks
+      responses:
+        '200':
+          description: Webhook list
+    post:
+      summary: Subscribe webhook
+      responses:
+        '200':
+          description: Subscribed
+  /api/ab/experiments:
+    get:
+      summary: List A/B experiments
+      responses:
+        '200':
+          description: Experiments
+  /api/v50/provenance:
+    get:
+      summary: Get provenance
+      responses:
+        '200':
+          description: Provenance
+  /api/order/{id}/receipt.json:
+    get:
+      summary: Get signed receipt
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Receipt
