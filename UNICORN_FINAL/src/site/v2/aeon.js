@@ -140,25 +140,11 @@ window.__UNICORN_VT_WRAP__ = function(swap){
 };
 
 // ================= WebXR entry =================
-(async function xr(){
-  if (!('xr' in navigator)) return;
-  try {
-    const ok = await navigator.xr.isSessionSupported('immersive-vr').catch(()=>false);
-    if (!ok) return;
-    const btn = document.createElement('button');
-    btn.textContent = '🥽 Enter Zeus in VR';
-    btn.className = 'btn btn-ghost';
-    btn.style.cssText = 'position:fixed;left:22px;bottom:22px;z-index:50';
-    btn.addEventListener('click', async () => {
-      try {
-        const s = await navigator.xr.requestSession('immersive-vr');
-        s.addEventListener('end', () => btn.disabled = false);
-        btn.disabled = true;
-      } catch(_) {}
-    });
-    document.body.appendChild(btn);
-  } catch(_) {}
-})();
+// The "Enter Zeus in VR" floating button has been removed to keep both the
+// mobile and desktop UI clean of non-essential / experimental chrome. WebXR
+// can still be initiated by future product flows that explicitly opt in;
+// the spontaneous bottom-left button is no longer injected.
+(function xrDisabled(){ /* no-op: VR entry button intentionally removed */ })();
 
 // ================= Passkey (WebAuthn) =================
 window.__UNICORN_PASSKEY__ = {

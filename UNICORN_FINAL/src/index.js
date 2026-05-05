@@ -7607,12 +7607,9 @@ a{color:#8a5cff;text-decoration:none}
     if (html.indexOf('x-zeus-build') === -1) {
       html = html.replace('<head>', '<head>' + buildMeta);
     }
-    // Inject a small visible build badge (bottom-right, unobtrusive) so the
-    // operator can verify at a glance which SHA is running without dev tools.
-    const badge = '<div id="zeus-build-badge" style="position:fixed;bottom:8px;right:8px;z-index:99999;font:11px/1.2 ui-monospace,monospace;background:rgba(0,0,0,0.72);color:#7fffd4;padding:4px 8px;border-radius:4px;pointer-events:none;opacity:0.8;">build ' + ZEUS_BUILD.sha + '</div>';
-    if (html.indexOf('id="zeus-build-badge"') === -1) {
-      html = html.replace('</body>', badge + '</body>');
-    }
+    // Build SHA remains discoverable via the <meta name="x-zeus-build">
+    // tag injected above; no visible badge is rendered in the UI to keep
+    // mobile and desktop layouts clean and free of debug chrome.
     // 50-year-standard: inject W3C Speculation Rules into <head> with the
     // same predictions we sent via 103 Early Hints. Speculation Rules is
     // the *successor* of <link rel=prefetch> — declarative, browser-
