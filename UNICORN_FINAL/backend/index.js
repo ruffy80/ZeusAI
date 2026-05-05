@@ -290,6 +290,46 @@ async function proxyToSite(req, res, urlPath) {
 app.get('/api/catalog/master', (req, res) => proxyToSite(req, res, '/api/catalog/master'));
 app.get('/api/catalog/diff',   (req, res) => proxyToSite(req, res, '/api/catalog/diff'));
 
+// POST proxy to site for endpoints implemented only in src/site/* (e.g. sovereign-commerce).
+// Forwards JSON body + Idempotency-Key headers so the site's idempotency cache works
+// regardless of whether nginx or backend receives the request.
+async function proxyPostToSite(req, res, urlPath) {
+  try {
+    const target = SITE_INTERNAL_BASE + urlPath;
+    const fwdHeaders = {
+      'Content-Type': 'application/json',
+      'Accept': 'application/json',
+      'User-Agent': 'unicorn-backend-proxy/1.0',
+      'X-Forwarded-For': req.ip || '',
+    };
+    // Preserve idempotency + auth context
+    for (const h of ['idempotency-key', 'x-idempotency-key', 'authorization', 'cookie']) {
+      const v = req.headers[h];
+      if (v) fwdHeaders[h] = Array.isArray(v) ? v.join(',') : v;
+    }
+    const body = req.body && typeof req.body === 'object' ? JSON.stringify(req.body) : '';
+    const r = await fetch(target, {
+      method: 'POST',
+      headers: fwdHeaders,
+      body,
+      signal: AbortSignal.timeout(25_000),
+    });
+    const text = await r.text();
+    res.status(r.status);
+    const ct = r.headers.get('content-type');
+    if (ct) res.setHeader('Content-Type', ct);
+    const replay = r.headers.get('idempotent-replay');
+    if (replay) res.setHeader('Idempotent-Replay', replay);
+    res.setHeader('X-Proxied-From', 'unicorn-site');
+    return res.send(text);
+  } catch (e) {
+    res.status(502).json({ error: 'site_unreachable', detail: String(e && e.message || e) });
+  }
+}
+app.post('/api/checkout/create', express.json({ limit: '64kb' }), (req, res) =>
+  proxyPostToSite(req, res, '/api/checkout/create')
+);
+
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const crypto = require('crypto');

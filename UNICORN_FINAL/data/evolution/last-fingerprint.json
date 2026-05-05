@@ -1,8 +1,8 @@
 {
-  "at": "2026-05-05T00:06:35.002Z",
+  "at": "2026-05-05T14:53:06.166Z",
   "pkgVersion": "1.2.2",
   "moduleCount": 186,
-  "moduleHash": "1c38d7239e0f9653",
+  "moduleHash": "534598ef36703110",
   "modules": [
     "FeatureFlagManager.js",
     "FutureCompatibilityBridge.js",
@@ -191,5 +191,5 @@
     "worldStandard.js",
     "zacAlertChannel.js"
   ],
-  "fingerprint": "2c5dee35b8985b70"
+  "fingerprint": "0c886e8ff76d016b"
 }
