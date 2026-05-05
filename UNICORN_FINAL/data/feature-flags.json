@@ -1,12 +1,12 @@
 {
   "ai-advanced-chat": {
     "enabled": false,
-    "lastChange": 1777671256891,
+    "lastChange": 1777942789287,
     "aiReason": "latency too high"
   },
   "marketplace-beta": {
     "enabled": true,
-    "lastChange": 1777671639438,
+    "lastChange": 1777942789287,
     "aiReason": "high engagement"
   }
 }

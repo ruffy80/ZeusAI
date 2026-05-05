@@ -542,24 +542,22 @@ window.googleTranslateElementInit = function(){
 <div id="google_translate_element" aria-hidden="true"></div>
 <script src="https://translate.googleapis.com/translate_a/element.js?cb=googleTranslateElementInit" defer></script>
 <script${N}>
-// Service worker cleanup: unregister any legacy workers so HTML is always
-// fetched fresh from origin and never served from stale browser caches.
+// Service worker cleanup: unregister any legacy workers and drop their caches
+// so future navigations are always fetched fresh from origin. The user keeps
+// the page they're currently viewing — we deliberately do NOT trigger a
+// location.reload() here. The previous version did, and that one-per-build
+// forced reload was both visible to the user as an "auto-refresh" and
+// re-entered the still-controlling legacy SW, which on some Android browsers
+// (Samsung Internet, older Chromium) returned a stale/empty HTML and left the
+// Marketplace page blank. Cleanup is still effective: the next user-initiated
+// navigation runs entirely SW-free.
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', function(){
     navigator.serviceWorker.getRegistrations().then(function(regs){
       if (!regs || !regs.length) return null;
-      return Promise.all(regs.map(function(reg){ return reg.unregister(); }))
+      return Promise.all(regs.map(function(reg){ return reg.unregister().catch(function(){}); }))
         .then(function(){ return (window.caches && caches.keys) ? caches.keys() : []; })
-        .then(function(keys){ return Promise.all((keys || []).map(function(key){ return caches.delete(key); })); })
-        .then(function(){
-          var mark = 'zeus-sw-cleanup-${BUILD_ID}';
-          if (!sessionStorage.getItem(mark)) {
-            sessionStorage.setItem(mark, '1');
-            if (navigator.serviceWorker.controller) {
-              setTimeout(function(){ location.reload(); }, 60);
-            }
-          }
-        });
+        .then(function(keys){ return Promise.all((keys || []).map(function(key){ return caches.delete(key).catch(function(){}); })); });
     }).catch(function(){});
   });
 }
