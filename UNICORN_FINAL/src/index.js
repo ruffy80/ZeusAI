@@ -263,6 +263,46 @@ if (process.env.TOPOLOGY_ENDPOINT_DISABLED !== '1') {
   });
 }
 
+// ─── C3: A/B testing endpoints (additive, opt-in) ─────────────────────────
+// Sticky cohort assigned via uc_ab cookie; events logged in
+// data/marketing/ab-events.jsonl. Default has no experiments registered →
+// all endpoints return empty results, no behaviour change for the site.
+let _abTesting = null;
+try { _abTesting = require('./site/ab-testing'); } catch (_) {}
+if (_abTesting) {
+  app.get('/api/ab/experiments', (req, res) => {
+    res.setHeader('Cache-Control', 'no-store');
+    res.json({ experiments: _abTesting.listExperiments() });
+  });
+  app.post('/api/ab/register', express.json({ limit: '4kb' }), (req, res) => {
+    const auth = req.headers['x-admin-token'] || '';
+    const required = process.env.ADMIN_SECRET || process.env.ADMIN_2FA_CODE || '';
+    if (!required) return res.status(503).json({ error: 'admin_secret_not_configured' });
+    if (auth !== required) return res.status(401).json({ error: 'unauthorized' });
+    try {
+      const exp = _abTesting.registerExperiment(req.body || {});
+      res.status(201).json(exp);
+    } catch (e) {
+      res.status(400).json({ error: 'invalid_experiment', detail: String(e && e.message) });
+    }
+  });
+  app.get('/api/ab/assign/:experimentId', (req, res) => {
+    res.setHeader('Cache-Control', 'no-store');
+    const out = _abTesting.assign(req, res, req.params.experimentId);
+    if (!out) return res.status(404).json({ error: 'experiment_not_found' });
+    _abTesting.logEvent({ ...out, event: 'exposure' });
+    res.json(out);
+  });
+  app.post('/api/ab/event', express.json({ limit: '2kb' }), (req, res) => {
+    const ok = _abTesting.logEvent(req.body || {});
+    res.status(ok ? 201 : 400).json({ ok });
+  });
+  app.get('/api/ab/report/:experimentId', (req, res) => {
+    res.setHeader('Cache-Control', 'no-store');
+    res.json(_abTesting.report(req.params.experimentId));
+  });
+}
+
 // ==================== SITE WRITE-GUARD (mutations on /api/*) ====================
 // In production, nginx routes EVERY /api/* request to the backend (3000). The
 // site (3001) only sees /api/* if (a) someone hits 3001 directly bypassing
@@ -7922,8 +7962,7 @@ if (require.main === module) {
     console.log('UNICORN_FINAL listening on http://' + (BIND_HOST === '0.0.0.0' ? 'localhost' : BIND_HOST) + ':' + PORT + ' (role=site, source-of-truth=false)');
     if (BIND_HOST === '0.0.0.0') {
       console.log('[topology] site bound to 0.0.0.0 — port ' + PORT + ' reachable externally. In production behind nginx, set BIND_HOST=127.0.0.1 to close direct external access.');
-    }
-    try {
+    }    try {
       if (USE) {
         const runtimeSources = getRuntimeDataSources();
         USE.sources = { marketplace: runtimeSources.marketplace, industries: runtimeSources.industries, modules };
@@ -7965,6 +8004,21 @@ if (require.main === module) {
       }
     } catch(e) { console.warn('[whales] start failed:', e.message); }
   });
+
+  // ─── C9: Graceful shutdown for site (mirror of backend) ──────────────
+  let _siteDrain = false;
+  function _siteGraceful(signal) {
+    if (_siteDrain) return;
+    _siteDrain = true;
+    console.log(`[site-graceful] ${signal} received → draining (max 30s)`);
+    setTimeout(() => {
+      try { server.close(() => { console.log('[site-graceful] server closed'); process.exit(0); }); }
+      catch (_) { process.exit(0); }
+    }, 2000);
+    setTimeout(() => { console.warn('[site-graceful] 30s ceiling — force exit'); process.exit(0); }, 30_000).unref?.();
+  }
+  process.on('SIGTERM', () => _siteGraceful('SIGTERM'));
+  process.on('SIGINT',  () => _siteGraceful('SIGINT'));
 }
 
 // Default export is a singleton http.Server (provides .listen/.close).

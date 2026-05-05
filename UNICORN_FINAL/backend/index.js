@@ -290,6 +290,12 @@ async function proxyToSite(req, res, urlPath) {
 app.get('/api/catalog/master', (req, res) => proxyToSite(req, res, '/api/catalog/master'));
 app.get('/api/catalog/diff',   (req, res) => proxyToSite(req, res, '/api/catalog/diff'));
 
+// ─── C5: tiered sliding-window rate-limit (additive, fail-open) ──────────
+// Loaded lazy so missing module never breaks boot.
+let _slidingWindow = null;
+try { _slidingWindow = require('./middleware/sliding-window'); } catch (_) {}
+const _swRateLimit = _slidingWindow ? _slidingWindow.rateLimit() : (req, res, next) => next();
+
 // POST proxy to site for endpoints implemented only in src/site/* (e.g. sovereign-commerce).
 // Forwards JSON body + Idempotency-Key headers so the site's idempotency cache works
 // regardless of whether nginx or backend receives the request.
@@ -326,7 +332,7 @@ async function proxyPostToSite(req, res, urlPath) {
     res.status(502).json({ error: 'site_unreachable', detail: String(e && e.message || e) });
   }
 }
-app.post('/api/checkout/create', express.json({ limit: '64kb' }), (req, res) =>
+app.post('/api/checkout/create', _swRateLimit, express.json({ limit: '64kb' }), (req, res) =>
   proxyPostToSite(req, res, '/api/checkout/create')
 );
 
@@ -2107,6 +2113,159 @@ app.get('/health', (req, res) => res.json(buildHealthResponse()));
 
 app.get('/api/health', (req, res) => res.json(buildHealthResponse()));
 
+// ─── C8: Stratified health (forward-only, additive) ────────────────────────
+// /health/live    — process alive (always 200)
+// /health/ready   — accepting traffic (db loaded, modules ready)
+// /health/deep    — diagnostic (latency stats, breaker states, queue depths)
+// Original /health untouched for backward compat with uptime monitors.
+let _drainMode = false; // set to true on SIGTERM (see graceful shutdown)
+app.get('/health/live', (req, res) => {
+  res.set('Cache-Control', 'no-store');
+  res.json({ ok: true, pid: process.pid, uptime: Math.floor(process.uptime()), drain: _drainMode });
+});
+app.get('/health/ready', (req, res) => {
+  res.set('Cache-Control', 'no-store');
+  if (_drainMode) {
+    return res.status(503).json({ ok: false, ready: false, reason: 'draining', pid: process.pid });
+  }
+  const persist = (typeof dbMeta === 'function') ? dbMeta() : { durable: true };
+  const ok = !!persist.durable;
+  res.status(ok ? 200 : 503).json({
+    ok, ready: ok, pid: process.pid,
+    db: persist.durable, mode: persist.mode, userCount: persist.userCount,
+  });
+});
+app.get('/health/deep', (req, res) => {
+  res.set('Cache-Control', 'no-store');
+  const mem = process.memoryUsage();
+  let routerStats = null;
+  try {
+    const mr = global.__multiRouter;
+    if (mr && typeof mr.getStats === 'function') routerStats = mr.getStats();
+  } catch (_) {}
+  let webhookStats = null;
+  try { webhookStats = require('./middleware/webhook-emitter').getStats(); } catch (_) {}
+  let rlStats = null;
+  try { rlStats = require('./middleware/sliding-window').getStats(); } catch (_) {}
+  res.json({
+    ok: true,
+    drain: _drainMode,
+    pid: process.pid,
+    uptimeSec: Math.floor(process.uptime()),
+    memory: {
+      rssMB: Math.round(mem.rss / 1024 / 1024),
+      heapUsedMB: Math.round(mem.heapUsed / 1024 / 1024),
+      heapTotalMB: Math.round(mem.heapTotal / 1024 / 1024),
+      externalMB: Math.round(mem.external / 1024 / 1024),
+    },
+    eventLoop: { active: true },
+    router: routerStats,
+    webhooks: webhookStats,
+    rateLimit: rlStats,
+    timestamp: new Date().toISOString(),
+  });
+});
+
+// ─── C4: SLSA-style provenance attestation (signed Ed25519) ───────────────
+// Built from RELEASE_SHA env (set by deploy workflow), git_sha at runtime,
+// boot_ts, builder_id. Signed with the same anchor key as audit-root (#5).
+let _provenanceCache = null;
+function _buildProvenance() {
+  if (_provenanceCache) return _provenanceCache;
+  let anchor = null;
+  try { anchor = require('./modules/innovations-50y/crypto-agility').getOrCreateAnchorKey(); } catch (_) {}
+  let gitSha = process.env.RELEASE_SHA || process.env.GIT_SHA || '';
+  if (!gitSha) {
+    try { gitSha = require('child_process').execSync('git rev-parse HEAD', { stdio: ['ignore', 'pipe', 'ignore'], timeout: 1500 }).toString().trim(); } catch (_) {}
+  }
+  const stmt = {
+    _type: 'https://in-toto.io/Statement/v1',
+    subject: [{ name: 'unicorn-final', digest: { sha1: gitSha || 'unknown' } }],
+    predicateType: 'https://slsa.dev/provenance/v1',
+    predicate: {
+      buildDefinition: {
+        buildType: 'https://github.com/ruffy80/ZeusAI/actions/hetzner-deploy',
+        externalParameters: { repository: 'ruffy80/ZeusAI', ref: 'refs/heads/main' },
+      },
+      runDetails: {
+        builder: { id: process.env.BUILDER_ID || 'github-actions://hetzner-deploy' },
+        metadata: {
+          invocationId: process.env.GITHUB_RUN_ID || ('local-' + Date.now()),
+          startedOn: new Date().toISOString(),
+        },
+      },
+    },
+    runtime: {
+      bootTs: new Date(Date.now() - process.uptime() * 1000).toISOString(),
+      pid: process.pid,
+      node: process.version,
+      version: APP_VERSION,
+    },
+  };
+  const body = JSON.stringify(stmt);
+  let signature = null;
+  if (anchor && anchor.privateKeyPem) {
+    try {
+      const sig = crypto.sign(null, Buffer.from(body), { key: anchor.privateKeyPem });
+      signature = {
+        alg: 'ed25519',
+        sig: sig.toString('base64'),
+        kid: anchor.kid,
+        keysUrl: '/api/v50/keys.json',
+      };
+    } catch (_) {}
+  }
+  _provenanceCache = { ...stmt, signature };
+  return _provenanceCache;
+}
+app.get('/api/v50/provenance', (req, res) => {
+  res.set('Cache-Control', 'public, max-age=60, stale-while-revalidate=300');
+  res.json(_buildProvenance());
+});
+// Mirror at /.well-known/provenance.json (additive — site nginx may or may not
+// route this; backend serves it for direct hits & bots).
+app.get('/.well-known/provenance.json', (req, res) => {
+  res.set('Cache-Control', 'public, max-age=60');
+  res.json(_buildProvenance());
+});
+
+// ─── C1: Webhook subscription management ──────────────────────────────────
+let _webhookEmitter = null;
+try { _webhookEmitter = require('./middleware/webhook-emitter'); _webhookEmitter.start(); } catch (e) {
+  console.warn('[webhooks] disabled —', e && e.message);
+}
+app.post('/api/webhooks/subscribe', express.json({ limit: '8kb' }), (req, res) => {
+  if (!_webhookEmitter) return res.status(503).json({ error: 'webhooks_disabled' });
+  try {
+    const out = _webhookEmitter.subscribe(req.body || {});
+    res.status(201).json(out);
+  } catch (e) {
+    res.status(400).json({ error: 'invalid_subscription', detail: String(e && e.message) });
+  }
+});
+app.delete('/api/webhooks/:id', (req, res) => {
+  if (!_webhookEmitter) return res.status(503).json({ error: 'webhooks_disabled' });
+  const ok = _webhookEmitter.unsubscribe(req.params.id);
+  res.status(ok ? 200 : 404).json({ ok });
+});
+app.get('/api/webhooks', (req, res) => {
+  if (!_webhookEmitter) return res.status(503).json({ error: 'webhooks_disabled' });
+  res.json({ subscriptions: _webhookEmitter.listSubs(), stats: _webhookEmitter.getStats() });
+});
+// Loopback-only emit endpoint — site process calls this when an order is paid.
+// Restricted to 127.0.0.1 / ::1 to prevent external abuse.
+app.post('/internal/webhooks/emit', express.json({ limit: '32kb' }), (req, res) => {
+  if (!_webhookEmitter) return res.status(503).json({ error: 'webhooks_disabled' });
+  const ip = (req.ip || req.connection?.remoteAddress || '').replace(/^::ffff:/, '');
+  if (ip !== '127.0.0.1' && ip !== '::1' && ip !== 'localhost') {
+    return res.status(403).json({ error: 'loopback_only' });
+  }
+  const { event, payload } = req.body || {};
+  if (!event) return res.status(400).json({ error: 'event_required' });
+  const out = _webhookEmitter.emit(event, payload || {});
+  res.json(out);
+});
+
 app.get('/api/persistence/status', (req, res) => {
   const persistence = dbMeta();
   res.json({
@@ -2484,6 +2643,9 @@ app.get('/snapshot', routeCache.cacheMiddleware(), (req, res) => {
   if (stable) delete stable.generatedAt;
   if (stable) delete stable.timestamp;
   const etag = _weakEtagFor(stable);
+  // C7 — stale-while-revalidate so CDN/browser can serve stale during refresh.
+  res.set('Cache-Control', 'public, max-age=15, s-maxage=30, stale-while-revalidate=300');
+  res.set('Vary', 'Accept-Encoding, If-None-Match');
   if (maybeSend304(req, res, etag)) return;
   res.json(payload);
 });
@@ -2904,7 +3066,7 @@ let _unifiedCatalogModule = null;
 try { _unifiedCatalogModule = require('../src/commerce/unified-catalog'); }
 catch (_) { _unifiedCatalogModule = null; }
 
-app.get('/api/instant/catalog', async (req, res) => {
+app.get('/api/instant/catalog', _swRateLimit, async (req, res) => {
   const tier = String(req.query.tier || '').trim();
   let products = [];
   let summary = null;
@@ -9398,7 +9560,7 @@ if (require.main === module) {
   // every request — set BIND_HOST=127.0.0.1 to harden by closing the public
   // port entirely (nginx connects via loopback). Strictly additive knob.
   const BIND_HOST = process.env.BIND_HOST || '0.0.0.0';
-  app.listen(PORT, BIND_HOST, () => {
+  const _httpServer = app.listen(PORT, BIND_HOST, () => {
     const reg = getModuleRegistryStatus();
     worldStandard.startupSeal({ appVersion: APP_VERSION, port: PORT, modules: reg.total, pid: process.pid });
     console.log(`🚀 Unicorn autonom rulând pe portul ${PORT} (bind=${BIND_HOST}, role=backend, source-of-truth=true)`);
@@ -9467,6 +9629,29 @@ if (require.main === module) {
       console.warn('[integrations] failed to mount:', e && e.message);
     }
   });
+
+  // ─── C9: Graceful shutdown (SIGTERM/SIGINT drain, max 30s) ──────────
+  // 1. Flip _drainMode → /health/ready returns 503 (LB stops sending new traffic)
+  // 2. Wait 2s so LB sees the 503 before we close
+  // 3. server.close() — finishes in-flight requests, refuses new sockets
+  // 4. Hard exit after 30s ceiling regardless
+  function _gracefulShutdown(signal) {
+    if (_drainMode) return; // already draining
+    _drainMode = true;
+    console.log(`[graceful] ${signal} received → draining (max 30s)`);
+    setTimeout(() => {
+      try { _httpServer.close(() => {
+        console.log('[graceful] http server closed');
+        process.exit(0);
+      }); } catch (_) { process.exit(0); }
+    }, 2000);
+    setTimeout(() => {
+      console.warn('[graceful] 30s ceiling — force exit');
+      process.exit(0);
+    }, 30_000).unref?.();
+  }
+  process.on('SIGTERM', () => _gracefulShutdown('SIGTERM'));
+  process.on('SIGINT',  () => _gracefulShutdown('SIGINT'));
 }
 // Export Express app for testing
 module.exports = app;

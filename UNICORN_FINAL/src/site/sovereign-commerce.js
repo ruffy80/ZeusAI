@@ -485,6 +485,33 @@ async function scanIncoming() {
         SEEN_TXIDS.add(tx.txid);
         matched++;
         console.log('[commerce] PAID', order.orderId, 'service=' + order.serviceId, 'sats=' + outSats, 'txid=' + tx.txid);
+        // ─── C1: emit `order.paid` webhook (forward-only, fire-and-forget) ───
+        // Backend webhook-emitter is reached via internal HTTP (loopback).
+        // Failure is silent — order state is already persisted; subscribers
+        // that miss the webhook can still poll /api/order/:id/status.
+        try {
+          const _whBase = process.env.UNICORN_BACKEND_INTERNAL_URL || 'http://127.0.0.1:3000';
+          fetch(_whBase + '/internal/webhooks/emit', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              event: 'order.paid',
+              payload: {
+                orderId: order.orderId,
+                serviceId: order.serviceId,
+                serviceName: order.serviceName,
+                amount_sats: outSats,
+                amount_btc: order.amount_btc,
+                currency: order.currency,
+                txid: tx.txid,
+                confirmations: txConfs,
+                paid_at: order.paid_at,
+                entitlement_id: order.entitlement_id,
+              },
+            }),
+            signal: AbortSignal.timeout(3000),
+          }).catch(() => {});
+        } catch (_) {}
       }
     }
     // Mark tx seen even if not matched (avoid re-scan cost next cycle)
@@ -678,7 +705,61 @@ async function handle(req, res, ctx) {
     return sendJson(res, 200, slim), true;
   }
 
-  // --- /api/entitlements/:token — verify proof-of-purchase ----------------
+  // ─── C6: signed receipt — JSON + HTML, verifiable offline ─────────────
+  // /api/order/:id/receipt.json  → canonical receipt with Ed25519 signature
+  // /checkout/:id/receipt        → printable HTML receipt
+  // Uses the same Ed25519 site signing key (sign(...) helper above).
+  const mReceiptJson = url.match(/^\/api\/order\/([a-zA-Z0-9_-]{6,64})\/receipt\.json$/);
+  if (mReceiptJson && req.method === 'GET') {
+    const order = ORDERS.get(mReceiptJson[1]);
+    if (!order) return sendJson(res, 404, { error: 'order_not_found' }), true;
+    if (order.status !== 'paid') return sendJson(res, 409, { error: 'order_not_paid', status: order.status }), true;
+    const canonical = {
+      type: 'unicorn-receipt-v1',
+      orderId: order.orderId,
+      service: { id: order.serviceId, name: order.serviceName },
+      amount: { sats: order.amount_sats, btc: order.amount_btc, fiat: order.subtotal_fiat, currency: order.currency },
+      buyer: order.buyer,
+      paid_at: order.paid_at,
+      txids: order.txids || [],
+      entitlement_id: order.entitlement_id || null,
+      issuer: { did: `did:web:${OWNER_DOMAIN.replace(/^https?:\/\//, '')}`, name: OWNER_NAME, btcAddress: order.receive_address },
+    };
+    const sig = sign(canonical);
+    res.setHeader('Cache-Control', 'private, max-age=31536000, immutable');
+    return sendJson(res, 200, {
+      ...canonical,
+      signature: sig ? { alg: 'ed25519', sig, encoding: 'base64' } : null,
+      verifyHint: 'sha256(canonical_json) signed with site Ed25519 key — fetch /.well-known/keys.json or /api/v50/keys.json for public key.',
+    }), true;
+  }
+  const mReceiptHtml = url.match(/^\/checkout\/([a-zA-Z0-9_-]{6,64})\/receipt$/);
+  if (mReceiptHtml && req.method === 'GET') {
+    const order = ORDERS.get(mReceiptHtml[1]);
+    if (!order) { res.writeHead(404, { 'Content-Type': 'text/plain' }); res.end('Order not found'); return true; }
+    if (order.status !== 'paid') { res.writeHead(409, { 'Content-Type': 'text/plain' }); res.end('Order not paid yet'); return true; }
+    const html = `<!doctype html><html><head><meta charset="utf-8"><title>Receipt — ${escapeHtml(order.orderId)}</title>
+<style>body{font-family:-apple-system,system-ui,sans-serif;max-width:640px;margin:2em auto;padding:0 1em;color:#222}h1{border-bottom:2px solid #000}dt{font-weight:600;margin-top:.6em}dd{margin:0 0 .4em 0}.sig{font-family:monospace;font-size:.75em;word-break:break-all;background:#f4f4f4;padding:.6em;border-radius:6px}@media print{body{margin:0}}</style></head>
+<body><h1>🦄 Unicorn — Receipt</h1>
+<dl>
+<dt>Order ID</dt><dd>${escapeHtml(order.orderId)}</dd>
+<dt>Service</dt><dd>${escapeHtml(order.serviceName)} (${escapeHtml(order.serviceId)})</dd>
+<dt>Amount</dt><dd>${escapeHtml(String(order.amount_btc))} BTC ≈ ${escapeHtml(String(order.subtotal_fiat))} ${escapeHtml(order.currency)}</dd>
+<dt>Paid at</dt><dd>${escapeHtml(order.paid_at || '')}</dd>
+<dt>TXIDs</dt><dd>${(order.txids || []).map(t => `<code>${escapeHtml(t)}</code>`).join('<br>') || '—'}</dd>
+<dt>Entitlement</dt><dd><code>${escapeHtml(order.entitlement_id || '—')}</code></dd>
+<dt>Issuer</dt><dd>${escapeHtml(OWNER_NAME)} · did:web:${escapeHtml(OWNER_DOMAIN.replace(/^https?:\/\//, ''))}</dd>
+</dl>
+<details><summary>🔐 Cryptographic signature (Ed25519)</summary>
+<p class="sig" id="sig-data">Loading…</p>
+<p><a href="/api/order/${escapeHtml(order.orderId)}/receipt.json">Download signed JSON</a> · <a href="/api/v50/keys.json">Public key</a></p></details>
+<script>fetch('/api/order/${escapeHtml(order.orderId)}/receipt.json').then(r=>r.json()).then(d=>{document.getElementById('sig-data').textContent=JSON.stringify(d.signature,null,2)}).catch(()=>{});</script>
+</body></html>`;
+    res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'private, max-age=300', 'X-Unicorn-Receipt': '1' });
+    res.end(html);
+    return true;
+  }
+
   const mEnt = url.match(/^\/api\/entitlements\/([a-zA-Z0-9_-]{8,128})$/);
   if (mEnt && req.method === 'GET') {
     const token = mEnt[1];
