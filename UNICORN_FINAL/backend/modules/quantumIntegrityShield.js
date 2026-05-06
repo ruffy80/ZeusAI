@@ -48,7 +48,9 @@ const LEGACY_PM2_NAME_MAP = {
   'unicorn-health-guardian': 'unicorn-guardian',
   'unicorn-quantum-watchdog': 'unicorn-guardian',
 };
-const REQUIRED_PM2_PROCESSES = (process.env.QIS_REQUIRED_PROCESSES || 'unicorn-backend,unicorn-site,autoscaler')
+const REQUIRED_PM2_PROCESSES = (Object.prototype.hasOwnProperty.call(process.env, 'QIS_REQUIRED_PROCESSES')
+  ? process.env.QIS_REQUIRED_PROCESSES
+  : 'unicorn-backend,unicorn-site,autoscaler')
   .split(',')
   .map((s) => LEGACY_PM2_NAME_MAP[s.trim()] || s.trim())
   .filter(Boolean);
