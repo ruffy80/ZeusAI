@@ -41,7 +41,7 @@ restart_target() {
     case "$app" in
       backend) pm2 restart unicorn-backend --update-env >/dev/null 2>&1 || true ;;
       site)    pm2 restart unicorn-site --update-env >/dev/null 2>&1 || true ;;
-      *)       pm2 restart all --update-env >/dev/null 2>&1 || true ;;
+      *)       (cd "$DEPLOY_PATH" && pm2 restart unicorn-backend unicorn-site autoscaler --update-env) >/dev/null 2>&1 || true ;;
     esac
     pm2 save --force >/dev/null 2>&1 || true
   fi
@@ -49,24 +49,8 @@ restart_target() {
 
 rollback_target() {
   local app="$1"
-  json_log error rollback "$app" triggered "{\"reason\":\"three_restarts_in_30m\"}"
-  if command -v docker >/dev/null 2>&1 && docker image inspect unicorn-${app}:previous >/dev/null 2>&1; then
-    docker tag unicorn-${app}:previous unicorn-${app}:latest >/dev/null 2>&1 || true
-    if [ -f /var/www/unicorn/docker-compose.prod.yml ]; then
-      (cd /var/www/unicorn && docker compose -f docker-compose.prod.yml up -d) >/dev/null 2>&1 || true
-    fi
-    return 0
-  fi
-  if [ -f "$DEPLOY_PATH/.last-stable-commit" ] && [ -d /var/www/unicorn/.git ]; then
-    local sha
-    sha="$(cat "$DEPLOY_PATH/.last-stable-commit" | head -c 40 | tr -d '[:space:]')"
-    if [ -n "$sha" ]; then
-      (cd /var/www/unicorn && git checkout --force "$sha") >/dev/null 2>&1 || true
-      if command -v pm2 >/dev/null 2>&1; then (cd "$DEPLOY_PATH" && pm2 reload ecosystem.config.js --update-env) >/dev/null 2>&1 || true; fi
-    fi
-  else
-    json_log warn rollback "$app" skipped "{\"reason\":\"no_previous_docker_image_or_git_checkout_available\"}"
-  fi
+  json_log error forward_fix_required "$app" blocked "{\"reason\":\"rollback_disabled_forward_only_contract\"}"
+  return 1
 }
 
 probe() {

@@ -86,13 +86,8 @@ ssh(`
 
   npm run innovation:sprint || true
 
-  pm2 describe unicorn >/dev/null 2>&1 \\
-    && pm2 restart unicorn \\
-    || pm2 start backend/index.js --name unicorn --log logs/backend.log
-
-  pm2 describe unicorn-orchestrator >/dev/null 2>&1 \\
-    && pm2 restart unicorn-orchestrator \\
-    || pm2 start autonomous-orchestrator.js --name unicorn-orchestrator --log logs/orchestrator.log
+  pm2 delete unicorn unicorn-orchestrator unicorn-backend unicorn-site autoscaler >/dev/null 2>&1 || true
+  pm2 start ecosystem.config.js --update-env
 
   pm2 save && pm2 startup systemd -u root --hp /root || true
 

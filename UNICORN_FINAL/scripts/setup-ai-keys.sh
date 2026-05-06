@@ -118,9 +118,9 @@ echo "✅ Cheile AI au fost salvate în $ENV_FILE"
 
 # ── Restart PM2 ───────────────────────────────────────────────────────────────
 if command -v pm2 &>/dev/null; then
-  echo "🔄 Repornire PM2 unicorn, unicorn-uaic..."
+  echo "🔄 Repornire PM2 stack canonic unicorn-backend/unicorn-site/autoscaler..."
   cd "$DEPLOY_PATH"
-  pm2 restart unicorn unicorn-uaic 2>/dev/null || pm2 restart all 2>/dev/null || true
+  pm2 restart unicorn-backend unicorn-site autoscaler --update-env 2>/dev/null || pm2 start ecosystem.config.js --update-env
   echo "✅ PM2 repornit. Cheile sunt active."
 else
   echo "⚠️  PM2 nu este instalat. Reporniți manual aplicația."

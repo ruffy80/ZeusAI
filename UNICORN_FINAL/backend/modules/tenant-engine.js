@@ -1128,6 +1128,9 @@ function logTenantLog(tenantId, level, message, metadata = {}) {
  * Returnează o copie a tuturor înregistrărilor de tenant
  */
 function getAllTenants() {
+  if (typeof _tenants !== 'undefined') {
+    return [..._tenants.values()].filter(t => t.status !== TENANT_STATUS.DELETED).map(t => ({ ...t }));
+  }
   return [...tenants.values()].map(t => ({ ...t }));
 }
 
@@ -2033,7 +2036,9 @@ module.exports = {
   getTenant,
   getTenantBySlug,
   getTenantByDomain,
+  getTenantByApiKey: resolveTenantByApiKey,
   listTenants,
+  getAllTenants,
 
   // Plan management
   changePlan,
@@ -2043,9 +2048,11 @@ module.exports = {
 
   // Configuration & features
   getTenantConfig,
+  getConfig: getTenantConfig,
   setTenantConfig,
   getTenantFeatures,
   setTenantFeature,
+  hasFeature: (tenantId, featureName) => !!((getTenantFeatures(tenantId) || {})[featureName]),
 
   // API keys
   createTenantApiKey,
@@ -2056,8 +2063,20 @@ module.exports = {
   // Usage tracking
   recordApiCall,
   recordAiCall,
+  incrementUsage: (tenantId, metric, amount = 1) => {
+    const usage = _getUsage(tenantId);
+    usage[metric] = (usage[metric] || 0) + amount;
+    usage.lastActivityAt = _now();
+    return usage;
+  },
+  resetUsage: (tenantId) => {
+    const fresh = _freshUsage();
+    _tenantUsage.set(tenantId, fresh);
+    return { ...fresh };
+  },
   checkRateLimit,
   getTenantUsage,
+  getUsage: getTenantUsage,
 
   // Billing & invoices
   generateInvoice,
@@ -2085,6 +2104,14 @@ module.exports = {
 
   // Audit log
   getAuditLog,
+  logEvent: (tenantId, type, payload = {}) => {
+    _auditLog(tenantId, type, payload, 'system');
+    return { tenantId, type, payload, createdAt: _now() };
+  },
+  logTenantLog: (tenantId, level, message, metadata = {}) => {
+    _auditLog(tenantId, `log.${level}`, { message, metadata }, 'system');
+    return { tenantId, level, message, metadata, createdAt: _now() };
+  },
 
   // Scaling & regions
   getRegionStatus,

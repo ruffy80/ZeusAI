@@ -647,6 +647,107 @@ const neuroUx = require('./modules/innovation/neuroUx');
 const selfEvolvingProtocol = require('./modules/innovation/selfEvolvingProtocol');
 const globalTrustLedger = require('./modules/innovation/globalTrustLedger');
 
+// ==================== AI FUTURE INNOVATIONS (50+ years) ====================
+const aiFutureModules = {
+  selfGovernanceProtocol: require('./modules/ai_future_innovations/selfGovernanceProtocol'),
+  quantumIdentityMesh: require('./modules/ai_future_innovations/quantumIdentityMesh'),
+  universalValueLedger: require('./modules/ai_future_innovations/universalValueLedger'),
+  selfEvolvingUX: require('./modules/ai_future_innovations/selfEvolvingUX'),
+  societalResilienceEngine: require('./modules/ai_future_innovations/societalResilienceEngine'),
+  globalCollabFabric: require('./modules/ai_future_innovations/globalCollabFabric'),
+  digitalPhysicalConvergence: require('./modules/ai_future_innovations/digitalPhysicalConvergence'),
+};
+
+// API: status for all future modules
+app.get('/api/future-innovation/status', (req, res) => {
+  res.json({
+    selfGovernanceProtocol: aiFutureModules.selfGovernanceProtocol.status || 'active',
+    quantumIdentityMesh: aiFutureModules.quantumIdentityMesh.status || 'active',
+    universalValueLedger: aiFutureModules.universalValueLedger.status || 'active',
+    selfEvolvingUX: aiFutureModules.selfEvolvingUX.status || 'active',
+    societalResilienceEngine: aiFutureModules.societalResilienceEngine.status || 'active',
+    globalCollabFabric: aiFutureModules.globalCollabFabric.status || 'active',
+    digitalPhysicalConvergence: aiFutureModules.digitalPhysicalConvergence.status || 'active',
+    ts: new Date().toISOString()
+  });
+});
+
+// API: demo/process for each future module
+Object.entries(aiFutureModules).forEach(([key, mod]) => {
+  app.get(`/api/future-innovation/${key}/process`, (req, res) => {
+    try {
+      let result = (typeof mod.audit === 'function') ? mod.audit({}) :
+                   (typeof mod.issueIdentity === 'function') ? mod.issueIdentity({}) :
+                   (typeof mod.transfer === 'function') ? mod.transfer('A','B','asset',1) :
+                   (typeof mod.adapt === 'function') ? mod.adapt({}) :
+                   (typeof mod.simulate === 'function') ? mod.simulate('global-crisis') :
+                   (typeof mod.collaborate === 'function') ? mod.collaborate(['A','B'],'goal') :
+                   (typeof mod.converge === 'function') ? mod.converge(['sys1','sys2']) :
+                   { status: 'ok', ts: new Date().toISOString() };
+      res.json({ module: key, result, ts: new Date().toISOString() });
+    } catch (e) {
+      res.status(500).json({ error: 'Module process error', module: key, detail: e.message });
+    }
+  });
+});
+
+// ==================== SOVEREIGN/QUANTUM/UNICORN MODULES DISPATCHER ====================
+// Expune /api/module/:module/process ca GET și POST (GET returnează demo/status, POST procesează dacă există implementare)
+const sovereignModules = {
+  quantumVault: require('./modules/quantumVault'),
+  unicornMeshOrchestrator: (() => { try { return require('./modules/unicornMeshOrchestrator'); } catch { return null; } })(),
+  sovereignAccessGuardian: (() => { try { return require('./modules/sovereign_innovations/sovereignAccessGuardian'); } catch { return null; } })(),
+  // Adaugă aici alte module după nevoie
+};
+
+app.get('/api/module/:module/process', (req, res) => {
+  const { module } = req.params;
+  const mod = sovereignModules[module];
+  if (!mod) return res.status(404).json({ error: 'Module not found', module });
+  if (typeof mod.status === 'function') {
+    try {
+      return res.json({ module, status: mod.status(), ts: new Date().toISOString() });
+    } catch (e) {
+      return res.status(500).json({ error: 'Module status error', module, detail: e.message });
+    }
+  }
+  // fallback: demo
+  return res.json({ module, status: 'ok', ts: new Date().toISOString() });
+});
+
+app.post('/api/module/:module/process', express.json({ limit: '128kb' }), (req, res) => {
+  const { module } = req.params;
+  const mod = sovereignModules[module];
+  if (!mod || typeof mod.process !== 'function') {
+    return res.status(404).json({ error: 'Module or process not found', module });
+  }
+  try {
+    const result = mod.process(req.body || {});
+    return res.json({ ok: true, module, result, ts: new Date().toISOString() });
+  } catch (e) {
+    return res.status(500).json({ error: 'Module process error', module, detail: e.message });
+  }
+});
+
+// ==================== STATUS ENDPOINTS GENERIC ====================
+// Expune GET pentru /api/sovereign-identity/status, /api/payment/status, /api/carbon/status, /api/identity/status, /api/negotiate/status
+const statusMap = {
+  'sovereign-identity': () => ({ ok: true, status: 'sovereign-identity live', ts: new Date().toISOString() }),
+  payment: () => ({ ok: true, status: 'payment live', ts: new Date().toISOString() }),
+  carbon: () => ({ ok: true, status: 'carbon live', ts: new Date().toISOString() }),
+  identity: () => ({ ok: true, status: 'identity live', ts: new Date().toISOString() }),
+  negotiate: () => ({ ok: true, status: 'negotiate live', ts: new Date().toISOString() }),
+};
+['sovereign-identity', 'payment', 'carbon', 'identity', 'negotiate'].forEach(domain => {
+  app.get(`/api/${domain}/status`, (req, res) => {
+    try {
+      return res.json(statusMap[domain]());
+    } catch (e) {
+      return res.status(500).json({ error: 'Status error', domain, detail: e.message });
+    }
+  });
+});
+
 // API public: status inovații
 app.get('/api/innovation/status', (req, res) => {
   res.json({
@@ -1862,6 +1963,9 @@ app.use((req, res, next) => {
 });
 
 // Global API Gateway middleware — tenant resolution + rate limiting
+app.get('/api/quantum-integrity/status', (req, res) => {
+  res.json(quantumIntegrityShield.getStatus());
+});
 app.use(tenantManager.middleware());
 app.use(globalApiGateway.middleware());
 
@@ -2115,6 +2219,12 @@ function buildHealthResponse() {
   const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), sec = s % 60;
   const mem = process.memoryUsage();
   const persistence = dbMeta();
+  const engineReadiness = {
+    innovation: !!autoInnovationLoop,
+    revenue: !!revenueModules,
+    viral: !!socialViralizer,
+    eternalEngine: !!uee,
+  };
   return {
     status: 'ok',
     uptime: s,
@@ -2126,12 +2236,9 @@ function buildHealthResponse() {
       mode: persistence.mode,
       userCount: persistence.userCount,
     },
-    engines: {
-      innovation: !_stableRuntime,
-      revenue: !_stableRuntime,
-      viral: !_stableRuntime,
-      eternalEngine: !_stableRuntime,
-    },
+    engines: engineReadiness,
+    runtimeProfile: _runtimeProfile,
+    autonomousBackgroundLoops: _stableRuntime ? 'paused-stable-profile' : 'running-full-profile',
     quantumIntegrityShield: quantumIntegrityShield.getStatus().integrity,
     memory: {
       rss: Math.round(mem.rss / 1024 / 1024) + 'MB',

@@ -465,7 +465,7 @@ ssh_run "
     echo 'Verificand portul...'
     ss -tlnp 2>/dev/null | grep ':${NODE_PORT}' || netstat -tlnp 2>/dev/null | grep ':${NODE_PORT}' || echo 'Portul ${NODE_PORT} nu asculta'
     echo 'Logs PM2:'
-    pm2 logs unicorn --lines 20 --no-color 2>/dev/null || true
+    pm2 logs unicorn-backend unicorn-site autoscaler --lines 20 --no-color 2>/dev/null || true
   fi
 
   echo ''
@@ -526,7 +526,7 @@ echo -e "${BOLD}Comenzi utile pe server:${NC}"
 echo "  ssh -i ${SSH_KEY} -p ${SSH_PORT} ${SSH_USER}@${SSH_HOST}"
 echo "  # pm2 list"
 echo "  # pm2 logs"
-echo "  # pm2 restart all"
+echo "  # pm2 restart unicorn-backend unicorn-site autoscaler --update-env"
 echo "  # curl http://localhost:${NODE_PORT}/api/health"
 echo "  # bash ${DEPLOY_PATH}/scripts/fix-server.sh"
 echo ""

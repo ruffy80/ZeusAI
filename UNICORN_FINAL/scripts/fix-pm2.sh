@@ -402,7 +402,7 @@ else
     PORT_OK=true
   else
     ko "Portul ${NODE_PORT} NU ascultă — verificați: pm2 logs unicorn"
-    pm2 logs unicorn --lines 20 --nostream 2>/dev/null || true
+    pm2 logs unicorn-backend unicorn-site autoscaler --lines 20 --nostream 2>/dev/null || true
   fi
 fi
 
@@ -472,7 +472,7 @@ else
   echo ""
   echo "  Diagnosticare:"
   echo "    pm2 list"
-  echo "    pm2 logs unicorn --lines 50"
+  echo "    pm2 logs unicorn-backend unicorn-site autoscaler --lines 50"
   echo "    journalctl -u pm2-${RUN_USER}.service -n 50"
   echo "    systemctl status pm2-${RUN_USER}.service"
 fi

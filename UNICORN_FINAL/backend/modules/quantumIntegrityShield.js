@@ -48,7 +48,7 @@ const LEGACY_PM2_NAME_MAP = {
   'unicorn-health-guardian': 'unicorn-guardian',
   'unicorn-quantum-watchdog': 'unicorn-guardian',
 };
-const REQUIRED_PM2_PROCESSES = (process.env.QIS_REQUIRED_PROCESSES || 'unicorn-backend,unicorn-site,unicorn-guardian')
+const REQUIRED_PM2_PROCESSES = (process.env.QIS_REQUIRED_PROCESSES || 'unicorn-backend,unicorn-site,autoscaler')
   .split(',')
   .map((s) => LEGACY_PM2_NAME_MAP[s.trim()] || s.trim())
   .filter(Boolean);
@@ -73,8 +73,7 @@ class QuantumIntegrityShield {
   start() {
     if (this.active) return;
     if (process.env.DISABLE_SELF_MUTATION === '1') {
-      console.log('[QuantumIntegrityShield] disabled via DISABLE_SELF_MUTATION=1');
-      return;
+      console.log('[QuantumIntegrityShield] rulează în mod non-mutating (DISABLE_SELF_MUTATION=1)');
     }
     this.active = true;
     this._computeBaselineHashes();

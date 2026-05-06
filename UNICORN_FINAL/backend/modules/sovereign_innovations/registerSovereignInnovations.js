@@ -62,9 +62,20 @@ module.exports = function registerSovereignInnovations(app, meshOrchestrator) {
     });
   });
 
-  // Fallback for 404 to help with route propagation
+  const sovereignPrefixes = [
+    '/api/sovereign-identity',
+    '/api/quantum-privacy',
+    '/api/autonomous-negotiation',
+    '/api/global-value-ledger',
+    '/api/temporal-sovereignty',
+    '/api/interplanetary-commerce',
+    '/api/self-evolving-law',
+    '/api/sovereign-innovations',
+  ];
+
+  // Fallback only for sovereign routes; never intercept the rest of /api/*.
   app.use((req, res, next) => {
-    if (req.path.startsWith('/api/') && res.headersSent === false) {
+    if (sovereignPrefixes.some((prefix) => req.path.startsWith(prefix)) && res.headersSent === false) {
       return res.status(404).json({ error: 'Not found', path: req.path });
     }
     next();

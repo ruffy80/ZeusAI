@@ -16,8 +16,9 @@ if curl -fs --max-time 5 "$API_URL" > /dev/null; then
   log "[Auto-Recovery] Backend healthy. No action needed."
   exit 0
 else
-  log "[Auto-Recovery] Backend DOWN. Restarting PM2 ..."
-  pm2 restart all
+  log "[Auto-Recovery] Backend DOWN. Restarting canonical PM2 stack ..."
+  cd /var/www/unicorn/UNICORN_FINAL 2>/dev/null || cd "$(dirname "$0")/.."
+  pm2 restart unicorn-backend unicorn-site autoscaler --update-env 2>/dev/null || pm2 start ecosystem.config.js --update-env
   sleep 5
   if curl -fs --max-time 5 "$API_URL" > /dev/null; then
     log "[Auto-Recovery] Backend recovered after PM2 restart."

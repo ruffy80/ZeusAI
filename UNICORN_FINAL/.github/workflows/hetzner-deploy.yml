@@ -37,6 +37,9 @@ jobs:
       - name: Test
         run: CI=1 npm test
 
+      - name: Forward-only preflight
+        run: CI=1 npm run preflight:forward
+
   deploy-hetzner:
     name: Deploy to Hetzner
     runs-on: ubuntu-latest
@@ -74,8 +77,11 @@ jobs:
 
       - name: Sync code to Hetzner
         id: sync_hetzner
-        continue-on-error: true
         run: |
+          RELEASE_PATH="/var/www/unicorn/releases/${{ github.sha }}-${{ github.run_id }}/UNICORN_FINAL"
+          ssh -p ${{ secrets.HETZNER_DEPLOY_PORT }} -o StrictHostKeyChecking=no \
+            ${{ secrets.HETZNER_DEPLOY_USER }}@${{ secrets.HETZNER_HOST }} \
+            "mkdir -p '$RELEASE_PATH'"
           rsync -az --delete \
             --exclude='.git' \
             --exclude='node_modules' \
@@ -84,15 +90,16 @@ jobs:
             --exclude='*.local' \
             -e "ssh -p ${{ secrets.HETZNER_DEPLOY_PORT }} -o StrictHostKeyChecking=no" \
             ./UNICORN_FINAL/ \
-            ${{ secrets.HETZNER_DEPLOY_USER }}@${{ secrets.HETZNER_HOST }}:${{ secrets.HETZNER_DEPLOY_PATH }}/
+            ${{ secrets.HETZNER_DEPLOY_USER }}@${{ secrets.HETZNER_HOST }}:$RELEASE_PATH/
+          echo "RELEASE_PATH=$RELEASE_PATH" >> "$GITHUB_ENV"
 
-      - name: Install and restart on Hetzner
+      - name: Forward-only atomic promote on Hetzner
         id: restart_hetzner
-        continue-on-error: true
         run: |
+          RELEASE_PATH="/var/www/unicorn/releases/${{ github.sha }}-${{ github.run_id }}/UNICORN_FINAL"
           ssh -p ${{ secrets.HETZNER_DEPLOY_PORT }} -o StrictHostKeyChecking=no ${{ secrets.HETZNER_DEPLOY_USER }}@${{ secrets.HETZNER_HOST }} '
             set -e
-            cd "${{ secrets.HETZNER_DEPLOY_PATH }}"
+            cd "'"$RELEASE_PATH"'"
             for key in HETZNER_API_KEY HETZNER_API_TOKEN PUBLIC_APP_URL SITE_DOMAIN \
                        BTC_WALLET_ADDRESS OWNER_BTC_ADDRESS OWNER_NAME OWNER_EMAIL ADMIN_EMAIL \
                        DR_AUTOPILOT_ENABLED DR_BACKEND DR_LOCAL_DIR DR_RETENTION_DAYS; do
@@ -110,26 +117,8 @@ jobs:
             printf "DR_BACKEND=local\n" >> .env
             printf "DR_LOCAL_DIR=/root/unicorn-backups\n" >> .env
             printf "DR_RETENTION_DAYS=14\n" >> .env
-            npm install --no-audit --no-fund
-            if [ -f client/package.json ]; then
-              cd client
-              npm install --no-audit --no-fund
-              npm run build || true
-              cd ..
-            fi
-
-            npm run innovation:sprint || true
-            npm run innovation:report || true
-
-            if command -v systemctl >/dev/null 2>&1 && systemctl list-unit-files | grep -q "^unicorn\.service"; then
-              systemctl restart unicorn
-            elif command -v pm2 >/dev/null 2>&1; then
-              pm2 describe unicorn >/dev/null 2>&1 && pm2 restart unicorn || pm2 start ecosystem.config.js
-              pm2 save
-            else
-              pkill -f "node backend/index.js" || true
-              nohup node backend/index.js > /var/log/unicorn-app.log 2>&1 &
-            fi
+            chmod +x scripts/*.sh scripts/*.js 2>/dev/null || true
+            GITHUB_SHA="${{ github.sha }}" PUBLIC_URL="https://zeusai.pro" bash scripts/deploy-atomic-forward.sh "'"$RELEASE_PATH"'" "/var/www/unicorn/UNICORN_FINAL"
           '
 
 
@@ -175,30 +164,18 @@ jobs:
               sudo rm -f "${SITE_AVAIL}.new"
             '
 
-      - name: Healthcheck unicorn site (rollback dacă fail)
+      - name: Healthcheck unicorn site (forward-only, no rollback)
         run: |
-          STATUS=$(ssh -p ${{ secrets.HETZNER_DEPLOY_PORT }} -o StrictHostKeyChecking=no ${{ secrets.HETZNER_DEPLOY_USER }}@${{ secrets.HETZNER_HOST }} 'cd "${{ secrets.HETZNER_DEPLOY_PATH }}" && bash scripts/healthcheck-unicorn.sh "http://localhost:3000" && echo OK || echo FAIL')
-          if [ "$STATUS" != "OK" ]; then
-            echo "Healthcheck unicorn FAIL. Rulez rollback automat!"
-            ssh -p ${{ secrets.HETZNER_DEPLOY_PORT }} -o StrictHostKeyChecking=no ${{ secrets.HETZNER_DEPLOY_USER }}@${{ secrets.HETZNER_HOST }} 'cd "${{ secrets.HETZNER_DEPLOY_PATH }}" && bash scripts/rollback-last-backup.sh'
-            echo "Trimit notificare owner..."
-            echo "[UNICORN] Deploy failed, rollback executat automat!" | mail -s "UNICORN: Rollback automat după deploy fail" vladoi_ionut@yahoo.com || true
-            exit 1
-          fi
-          echo "Healthcheck unicorn OK. Deploy reușit."
+          ssh -p ${{ secrets.HETZNER_DEPLOY_PORT }} -o StrictHostKeyChecking=no ${{ secrets.HETZNER_DEPLOY_USER }}@${{ secrets.HETZNER_HOST }} \
+            'cd /var/www/unicorn/UNICORN_FINAL && BASE_URL=http://127.0.0.1:3000 PUBLIC_URL=https://zeusai.pro bash scripts/smoke-forward-only.sh'
+          echo "Healthcheck unicorn OK. Forward-only deploy reușit."
 
-      - name: Smoke tests unicorn (fail rapid dacă pică)
+      - name: Smoke tests unicorn (fail closed, no rollback)
         run: |
-          echo "[UNICORN] Rulez smoke-tests.sh pe server..."
-          ssh -p ${{ secrets.HETZNER_DEPLOY_PORT }} -o StrictHostKeyChecking=no ${{ secrets.HETZNER_DEPLOY_USER }}@${{ secrets.HETZNER_HOST }} 'cd "${{ secrets.HETZNER_DEPLOY_PATH }}" && bash scripts/smoke-tests.sh'
-          if [ $? -ne 0 ]; then
-            echo "[UNICORN] SMOKE TESTS FAILED! Rulez rollback automat."
-            ssh -p ${{ secrets.HETZNER_DEPLOY_PORT }} -o StrictHostKeyChecking=no ${{ secrets.HETZNER_DEPLOY_USER }}@${{ secrets.HETZNER_HOST }} 'cd "${{ secrets.HETZNER_DEPLOY_PATH }}" && bash scripts/rollback-last-backup.sh'
-            echo "Trimit notificare owner..."
-            echo "[UNICORN] Smoke tests failed, rollback executat automat!" | mail -s "UNICORN: Rollback automat după smoke tests fail" vladoi_ionut@yahoo.com || true
-            exit 1
-          fi
-          echo "[UNICORN] Smoke tests OK. Deploy complet."
+          echo "[UNICORN] Rulez smoke-forward-only.sh pe server..."
+          ssh -p ${{ secrets.HETZNER_DEPLOY_PORT }} -o StrictHostKeyChecking=no ${{ secrets.HETZNER_DEPLOY_USER }}@${{ secrets.HETZNER_HOST }} \
+            'cd /var/www/unicorn/UNICORN_FINAL && BASE_URL=http://127.0.0.1:3000 PUBLIC_URL=https://zeusai.pro bash scripts/smoke-forward-only.sh'
+          echo "[UNICORN] Smoke tests OK. Deploy complet fără rollback/downgrade."
 
       # Fallback și fail steps eliminate temporar pentru validare YAML completă. Pot fi reintroduse după testare.
 

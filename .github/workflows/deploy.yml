@@ -30,88 +30,6 @@ jobs:
     # completes in ~7-9 minutes; 30 minutes is generous headroom.
     timeout-minutes: 45
 
-    # ── All GitHub Secrets injected as env vars for create-env.sh ──────────
-    env:
-      # Auth
-      JWT_SECRET:                         ${{ secrets.JWT_SECRET }}
-      ADMIN_SECRET:                       ${{ secrets.ADMIN_SECRET }}
-      ADMIN_MASTER_PASSWORD:              ${{ secrets.ADMIN_MASTER_PASSWORD }}
-      ADMIN_2FA_CODE:                     ${{ secrets.ADMIN_2FA_CODE }}
-      WEBHOOK_SECRET:                     ${{ secrets.WEBHOOK_SECRET }}
-      HETZNER_WEBHOOK_SECRET:             ${{ secrets.HETZNER_WEBHOOK_SECRET }}
-      # GitHub
-      GITHUB_TOKEN:                       ${{ secrets.GH_PAT || secrets.GITHUB_TOKEN }}
-      GH_PAT:                             ${{ secrets.GH_PAT }}
-      # AI Providers
-      OPENAI_API_KEY:                     ${{ secrets.OPENAI_API_KEY }}
-      DEEPSEEK_API_KEY:                   ${{ secrets.DEEPSEEK_API_KEY }}
-      ANTHROPIC_API_KEY:                  ${{ secrets.ANTHROPIC_API_KEY }}
-      GEMINI_API_KEY:                     ${{ secrets.GEMINI_API_KEY }}
-      MISTRAL_API_KEY:                    ${{ secrets.MISTRAL_API_KEY }}
-      COHERE_API_KEY:                     ${{ secrets.COHERE_API_KEY }}
-      XAI_API_KEY:                        ${{ secrets.XAI_API_KEY }}
-      GROQ_API_KEY:                       ${{ secrets.GROQ_API_KEY }}
-      OPENROUTER_API_KEY:                 ${{ secrets.OPENROUTER_API_KEY }}
-      HF_API_KEY:                         ${{ secrets.HF_API_KEY }}
-      HUGGINGFACE_API_KEY:                ${{ secrets.HUGGINGFACE_API_KEY }}
-      PERPLEXITY_API_KEY:                 ${{ secrets.PERPLEXITY_API_KEY }}
-      TOGETHER_API_KEY:                   ${{ secrets.TOGETHER_API_KEY }}
-      FIREWORKS_API_KEY:                  ${{ secrets.FIREWORKS_API_KEY }}
-      SAMBANOVA_API_KEY:                  ${{ secrets.SAMBANOVA_API_KEY }}
-      NVIDIA_NIM_API_KEY:                 ${{ secrets.NVIDIA_NIM_API_KEY }}
-      # Stripe
-      STRIPE_SECRET_KEY:                  ${{ secrets.STRIPE_SECRET_KEY }}
-      STRIPE_PUBLISHABLE_KEY:             ${{ secrets.STRIPE_PUBLISHABLE_KEY }}
-      STRIPE_WEBHOOK_SECRET:              ${{ secrets.STRIPE_WEBHOOK_SECRET }}
-      STRIPE_PRICE_STARTER_MONTHLY:       ${{ secrets.STRIPE_PRICE_STARTER_MONTHLY }}
-      STRIPE_PRICE_STARTER_YEARLY:        ${{ secrets.STRIPE_PRICE_STARTER_YEARLY }}
-      STRIPE_PRICE_PRO_MONTHLY:           ${{ secrets.STRIPE_PRICE_PRO_MONTHLY }}
-      STRIPE_PRICE_PRO_YEARLY:            ${{ secrets.STRIPE_PRICE_PRO_YEARLY }}
-      STRIPE_PRICE_ENTERPRISE_MONTHLY:    ${{ secrets.STRIPE_PRICE_ENTERPRISE_MONTHLY }}
-      STRIPE_PRICE_ENTERPRISE_YEARLY:     ${{ secrets.STRIPE_PRICE_ENTERPRISE_YEARLY }}
-      # PayPal
-      PAYPAL_CLIENT_ID:                   ${{ secrets.PAYPAL_CLIENT_ID }}
-      PAYPAL_CLIENT_SECRET:               ${{ secrets.PAYPAL_CLIENT_SECRET }}
-      PAYPAL_WEBHOOK_ID:                  ${{ secrets.PAYPAL_WEBHOOK_ID }}
-      # Email / SMTP
-      SMTP_HOST:                          ${{ secrets.SMTP_HOST }}
-      SMTP_PORT:                          ${{ secrets.SMTP_PORT }}
-      SMTP_USER:                          ${{ secrets.SMTP_USER }}
-      SMTP_PASS:                          ${{ secrets.SMTP_PASS }}
-      SMTP_FROM:                          ${{ secrets.SMTP_FROM }}
-      EMAIL_FROM_NAME:                    ${{ secrets.EMAIL_FROM_NAME }}
-      # Email — HTTPS providers (recommended on Hetzner where SMTP ports may be filtered)
-      RESEND_API_KEY:                     ${{ secrets.RESEND_API_KEY }}
-      RESEND_FROM:                        ${{ secrets.RESEND_FROM }}
-      BREVO_API_KEY:                      ${{ secrets.BREVO_API_KEY }}
-      MAILERSEND_API_KEY:                 ${{ secrets.MAILERSEND_API_KEY }}
-      OWNER_EMAIL:                        ${{ secrets.OWNER_EMAIL }}
-      # Hetzner
-      HETZNER_API_KEY:                    ${{ secrets.HETZNER_API_KEY }}
-      HETZNER_API_TOKEN:                  ${{ secrets.HETZNER_API_TOKEN }}
-      HETZNER_HOST:                       ${{ secrets.HETZNER_HOST }}
-      HETZNER_PASSWORD:                   ${{ secrets.HETZNER_PASSWORD }}
-      HETZNER_DNS_API_KEY:                ${{ secrets.HETZNER_DNS_API_KEY }}
-      # Vault
-      VAULT_MASTER_SECRET:                ${{ secrets.VAULT_MASTER_SECRET }}
-      VAULT_EMERGENCY_CODE:               ${{ secrets.VAULT_EMERGENCY_CODE }}
-      MASTER_CONFIG_SECRET:               ${{ secrets.MASTER_CONFIG_SECRET }}
-      # Social / marketing
-      TELEGRAM_BOT_TOKEN:                 ${{ secrets.TELEGRAM_BOT_TOKEN }}
-      TELEGRAM_CHAT_ID:                   ${{ secrets.TELEGRAM_CHAT_ID }}
-      # Crypto exchanges
-      BINANCE_API_KEY:                    ${{ secrets.BINANCE_API_KEY }}
-      BINANCE_SECRET:                     ${{ secrets.BINANCE_SECRET }}
-      COINBASE_API_KEY:                   ${{ secrets.COINBASE_API_KEY }}
-      COINBASE_SECRET:                    ${{ secrets.COINBASE_SECRET }}
-      KRAKEN_API_KEY:                     ${{ secrets.KRAKEN_API_KEY }}
-      KRAKEN_SECRET:                      ${{ secrets.KRAKEN_SECRET }}
-      BYBIT_API_KEY:                      ${{ secrets.BYBIT_API_KEY }}
-      BYBIT_SECRET:                       ${{ secrets.BYBIT_SECRET }}
-      OKX_API_KEY:                        ${{ secrets.OKX_API_KEY }}
-      OKX_SECRET:                         ${{ secrets.OKX_SECRET }}
-      OKX_PASSWORD:                       ${{ secrets.OKX_PASSWORD }}
-
     steps:
       - name: 📥 Checkout
         uses: actions/checkout@v4
@@ -214,6 +132,11 @@ jobs:
         timeout-minutes: 12
         run: npm test --if-present
 
+      - name: 🧬 Forward-only preflight (syntax, requires, routes, PM2 contract)
+        working-directory: ./UNICORN_FINAL
+        timeout-minutes: 8
+        run: npm run preflight:forward
+
       - name: 🏗️ Build React client UI
         working-directory: ./UNICORN_FINAL/client
         # CI=false: react-scripts treats warnings as errors when CI=true (GitHub Actions default).
@@ -226,7 +149,38 @@ jobs:
           npm ci || (sleep 3 && rm -rf node_modules || true && npm ci)
           CI=false npm run build
 
-      - name: ⚙️ Generate .env with all secrets
+      - name: 🔐 Export configured optional secrets for env generation
+        env:
+          OPTIONAL_SECRETS_JSON: ${{ toJson(secrets) }}
+        run: |
+          node <<'NODE'
+          const fs = require('fs');
+          const secrets = JSON.parse(process.env.OPTIONAL_SECRETS_JSON || '{}');
+          const allow = [
+            'JWT_SECRET','ADMIN_SECRET','ADMIN_MASTER_PASSWORD','ADMIN_2FA_CODE','WEBHOOK_SECRET','HETZNER_WEBHOOK_SECRET',
+            'GH_PAT','OPENAI_API_KEY','DEEPSEEK_API_KEY','ANTHROPIC_API_KEY','GEMINI_API_KEY','MISTRAL_API_KEY','COHERE_API_KEY',
+            'XAI_API_KEY','GROQ_API_KEY','OPENROUTER_API_KEY','HF_API_KEY','HUGGINGFACE_API_KEY','PERPLEXITY_API_KEY','TOGETHER_API_KEY',
+            'FIREWORKS_API_KEY','SAMBANOVA_API_KEY','NVIDIA_NIM_API_KEY','STRIPE_SECRET_KEY','STRIPE_PUBLISHABLE_KEY','STRIPE_WEBHOOK_SECRET',
+            'STRIPE_PRICE_STARTER_MONTHLY','STRIPE_PRICE_STARTER_YEARLY','STRIPE_PRICE_PRO_MONTHLY','STRIPE_PRICE_PRO_YEARLY',
+            'STRIPE_PRICE_ENTERPRISE_MONTHLY','STRIPE_PRICE_ENTERPRISE_YEARLY','PAYPAL_CLIENT_ID','PAYPAL_CLIENT_SECRET','PAYPAL_WEBHOOK_ID',
+            'SMTP_HOST','SMTP_PORT','SMTP_USER','SMTP_PASS','SMTP_FROM','EMAIL_FROM_NAME','RESEND_API_KEY','RESEND_FROM','BREVO_API_KEY',
+            'MAILERSEND_API_KEY','OWNER_EMAIL','HETZNER_API_KEY','HETZNER_API_TOKEN','HETZNER_HOST','HETZNER_DNS_API_KEY',
+            'VAULT_MASTER_SECRET','VAULT_EMERGENCY_CODE','MASTER_CONFIG_SECRET','TELEGRAM_BOT_TOKEN','TELEGRAM_CHAT_ID',
+            'BINANCE_API_KEY','BINANCE_SECRET','COINBASE_API_KEY','COINBASE_SECRET','KRAKEN_API_KEY','KRAKEN_SECRET',
+            'BYBIT_API_KEY','BYBIT_SECRET','OKX_API_KEY','OKX_SECRET','OKX_PASSWORD'
+          ];
+          const out = [];
+          for (const key of allow) {
+            const value = secrets[key];
+            if (!value) continue;
+            const delimiter = `EOF_${key}_${Math.random().toString(36).slice(2)}`;
+            out.push(`${key}<<${delimiter}\n${value}\n${delimiter}`);
+          }
+          fs.appendFileSync(process.env.GITHUB_ENV, out.join('\n') + (out.length ? '\n' : ''));
+          console.log(`Exported ${out.length} configured optional secrets for create-env.sh`);
+          NODE
+
+      - name: ⚙️ Generate .env with configured secrets
         run: |
           bash UNICORN_FINAL/scripts/create-env.sh UNICORN_FINAL
 
@@ -236,12 +190,10 @@ jobs:
           HETZNER_HOST:            ${{ secrets.HETZNER_HOST }}
           HETZNER_DEPLOY_PORT:     ${{ secrets.HETZNER_DEPLOY_PORT || '22' }}
           HETZNER_DEPLOY_USER:     ${{ secrets.HETZNER_DEPLOY_USER || 'root' }}
-          HETZNER_PASSWORD:        ${{ secrets.HETZNER_PASSWORD }}
         run: |
           # Folosește modulul unicorn de secrets pentru a garanta că key-auth
-          # funcționează înainte de rsync/ssh-agent. Dacă cheia nu e deja
-          # autorizată pe server, instalează public key-ul derivat din privata
-          # furnizată, folosind HETZNER_PASSWORD ca trust-anchor.
+          # funcționează înainte de rsync/ssh-agent. Workflow-ul forward-only
+          # folosește SSH key auth; parola rămâne opțională și nu este cerută aici.
           chmod +x UNICORN_FINAL/scripts/ensure-ssh-access.sh
           bash UNICORN_FINAL/scripts/ensure-ssh-access.sh
 
@@ -310,22 +262,7 @@ jobs:
             ./ root@${{ secrets.HETZNER_HOST }}:$RELEASE_PATH/
 
           ssh -o StrictHostKeyChecking=no root@${{ secrets.HETZNER_HOST }} \
-            "set -euo pipefail; \
-             TARGET='$RELEASE_PATH/UNICORN_FINAL'; \
-             LINK='$DEPLOY_LINK'; \
-             if [ -d \"\$LINK\" ] && [ ! -L \"\$LINK\" ]; then \
-               mv \"\$LINK\" \"\${LINK}.prelink.$(date +%s)\"; \
-             fi; \
-             ln -sfn \"\$TARGET\" \"\$LINK\"; \
-             test -L \"\$LINK\"; \
-             RESOLVED_LINK=\$(readlink -f \"\$LINK\"); \
-             RESOLVED_TARGET=\$(readlink -f \"\$TARGET\"); \
-             test \"\$RESOLVED_LINK\" = \"\$RESOLVED_TARGET\""
-
-          ssh -o StrictHostKeyChecking=no root@${{ secrets.HETZNER_HOST }} \
-            "printf '%s\n' '${{ github.sha }}' > /var/www/unicorn/UNICORN_FINAL/.deployed-commit && \
-             printf '%s\n' '${{ github.sha }}' > /var/www/unicorn/.build-sha && \
-             printf '%s\n' '${{ github.sha }}' > /var/www/unicorn/UNICORN_FINAL/.build-sha"
+            "set -euo pipefail; chmod +x '$RELEASE_PATH/UNICORN_FINAL/scripts/'*.sh '$RELEASE_PATH/UNICORN_FINAL/scripts/'*.js 2>/dev/null || true; GITHUB_SHA='${{ github.sha }}' PUBLIC_URL='https://zeusai.pro' bash '$RELEASE_PATH/UNICORN_FINAL/scripts/deploy-atomic-forward.sh' '$RELEASE_PATH/UNICORN_FINAL' '$DEPLOY_LINK'"
 
       - name: 🔬 Verify rsync replicated source
         # Catch silent rsync failures: pick a few canonical files from the
@@ -363,9 +300,6 @@ jobs:
           SSHEOF
 
       - name: 🩺 Server Doctor + Restart
-        env:
-          ADMIN_EMAIL: ${{ secrets.SMTP_USER }}
-          SITE_DOMAIN: zeusai.pro
         run: |
           ssh -o StrictHostKeyChecking=no root@${{ secrets.HETZNER_HOST }} bash -s << 'SSHEOF'
           # set -uo pipefail (fără -e): fiecare comandă critică are || true explicit, deci
@@ -538,7 +472,7 @@ jobs:
           else
             echo "⚠️  Health returned Node=$STATUS Nginx=$NGINX_STATUS — checking PM2 status..."
             ssh -o StrictHostKeyChecking=no root@${{ secrets.HETZNER_HOST }} \
-              "pm2 list && pm2 logs unicorn --lines 30 --nostream" || true
+              "pm2 list && pm2 logs unicorn-backend unicorn-site autoscaler --lines 30 --nostream" || true
           fi
           if [ "$DOMAIN_HTTP" = "200" ] || [ "$DOMAIN_HTTPS" = "200" ]; then
             echo "✅ Domeniu zeusai.pro accesibil (HTTP=$DOMAIN_HTTP HTTPS=$DOMAIN_HTTPS)"

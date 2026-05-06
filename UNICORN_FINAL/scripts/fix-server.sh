@@ -98,6 +98,7 @@ if [ -f "$NGINX_CONF_SRC" ]; then
   else
     ok "SSL cert există — config Nginx cu HTTPS păstrat (nu suprascris)"
   fi
+fi
 SSL_CERT="/etc/letsencrypt/live/${DOMAIN}/fullchain.pem"
 if [ -f "$NGINX_CONF_SRC" ]; then
   # ── Nu suprascrie config-ul nginx dacă certbot a adăugat deja blocurile HTTPS.
@@ -426,7 +427,7 @@ else
   ko "Backend NU ascultă pe portul ${NODE_PORT}"
   warn "Verifică manual: pm2 logs && pm2 list"
   # Afișează ultimele loguri PM2 pentru diagnosticare
-  pm2 logs unicorn --lines 30 --nostream 2>/dev/null || true
+  pm2 logs unicorn-backend unicorn-site autoscaler --lines 30 --nostream 2>/dev/null || true
 fi
 
 # 3i. Test health endpoint

@@ -1,7 +1,7 @@
 name: 🩺 Diagnose & Repair (Hetzner)
 
 # Manual-only workflow that SSHes to the live Hetzner host, prints a full
-# diagnostic report (PM2, ports, nginx), self-heals the backend (PM2 restart,
+# diagnostic report (PM2, ports, nginx), self-heals the canonical stack (PM2 restart,
 # nginx reload, pm2 save) and runs the canonical smoke tests.
 #
 # This workflow is purely additive and does NOT modify any code or config on
@@ -34,7 +34,6 @@ jobs:
         env:
           HETZNER_SSH_PRIVATE_KEY: ${{ secrets.HETZNER_SSH_PRIVATE_KEY }}
           HETZNER_HOST:            ${{ secrets.HETZNER_HOST }}
-          HETZNER_PASSWORD:        ${{ secrets.HETZNER_PASSWORD }}
         run: |
           chmod +x UNICORN_FINAL/scripts/ensure-ssh-access.sh
           bash UNICORN_FINAL/scripts/ensure-ssh-access.sh
@@ -67,8 +66,8 @@ jobs:
           ssh -o StrictHostKeyChecking=no root@"$HETZNER_HOST" 'nginx -t 2>&1 || echo "[nginx] -t failed"' || true
           echo "::endgroup::"
 
-          echo "::group::PM2 last 80 log lines (unicorn)"
-          ssh -o StrictHostKeyChecking=no root@"$HETZNER_HOST" 'pm2 logs unicorn --lines 80 --nostream 2>&1 || echo "[pm2 logs] not available"' || true
+          echo "::group::PM2 last 80 log lines (canonical apps)"
+          ssh -o StrictHostKeyChecking=no root@"$HETZNER_HOST" 'pm2 logs unicorn-backend unicorn-site autoscaler --lines 80 --nostream 2>&1 || echo "[pm2 logs] not available"' || true
           echo "::endgroup::"
 
           echo "::group::Backend-direct probes (127.0.0.1:3000)"
@@ -87,11 +86,10 @@ jobs:
         run: |
           ssh -o StrictHostKeyChecking=no root@"$HETZNER_HOST" bash -s <<'SSHEOF'
             set +e
-            echo '[heal] PM2 restart unicorn (fall back to start ecosystem.config.js)'
-            cd /var/www/unicorn 2>/dev/null || true
-            pm2 restart unicorn --update-env 2>/dev/null \
-              || pm2 start ecosystem.config.js --only unicorn --update-env 2>/dev/null \
-              || pm2 start ecosystem.config.js --update-env 2>/dev/null \
+            echo '[heal] PM2 restart canonical stack from /var/www/unicorn/UNICORN_FINAL'
+            cd /var/www/unicorn/UNICORN_FINAL 2>/dev/null || { echo '[heal] canonical path missing'; exit 1; }
+            pm2 delete unicorn-backend unicorn-site autoscaler 2>/dev/null || true
+            pm2 start ecosystem.config.js --update-env 2>/dev/null \
               || echo '[heal] pm2 start failed (no ecosystem.config.js?)'
 
             echo '[heal] nginx -t && systemctl reload nginx'
@@ -113,20 +111,17 @@ jobs:
         env:
           HETZNER_HOST: ${{ secrets.HETZNER_HOST }}
         run: |
-          chmod +x UNICORN_FINAL/scripts/smoke-tests.sh
+          chmod +x UNICORN_FINAL/scripts/smoke-forward-only.sh
 
           echo "::group::Smoke (backend-direct via SSH on 127.0.0.1:3000)"
-          # Run the smoke script *on the server* so it hits localhost (bypassing
-          # any nginx/firewall complications). We pipe the script via stdin.
-          ssh -o StrictHostKeyChecking=no root@"$HETZNER_HOST" 'bash -s -- http://127.0.0.1:3000' \
-            < UNICORN_FINAL/scripts/smoke-tests.sh \
+          ssh -o StrictHostKeyChecking=no root@"$HETZNER_HOST" 'cd /var/www/unicorn/UNICORN_FINAL && BASE_URL=http://127.0.0.1:3000 SKIP_PUBLIC=1 REQUIRE_PM2=1 bash scripts/smoke-forward-only.sh' \
             && echo "[backend-direct] PASS" \
             || echo "[backend-direct] FAIL"
           echo "::endgroup::"
 
           echo "::group::Smoke (public via nginx)"
-          BASE_URL="http://$HETZNER_HOST" SMOKE_RETRIES=4 SMOKE_SLEEP=4 \
-            bash UNICORN_FINAL/scripts/smoke-tests.sh \
+          BASE_URL="http://$HETZNER_HOST" PUBLIC_URL="https://zeusai.pro" \
+            bash UNICORN_FINAL/scripts/smoke-forward-only.sh \
             && echo "[public] PASS" \
             || echo "[public] FAIL"
           echo "::endgroup::"

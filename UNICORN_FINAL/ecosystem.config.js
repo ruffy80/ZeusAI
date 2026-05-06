@@ -57,7 +57,8 @@ module.exports = {
         ENABLE_AUTO_EVOLVE: '0',
         ENABLE_AUTO_RESTART: '0',
         DISABLE_SELF_MUTATION: '1',
-        QIS_AUTO_HEAL_ENABLED: 'false',
+        QIS_AUTO_HEAL_ENABLED: 'true',
+        QIS_REQUIRED_PROCESSES: 'unicorn-backend,unicorn-site,autoscaler',
         // ── AUTH-GUARDIAN: DISABLED PERMANENTLY ────────────────────────
         // auth-guardian probes /api/auth/test and on failure runs
         // scripts/auth-repair.js, which UNCONDITIONALLY calls
