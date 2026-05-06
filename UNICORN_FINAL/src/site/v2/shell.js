@@ -153,7 +153,7 @@ function _libraryCard(p) {
       <span class="tag" style="background:rgba(138,92,255,.12);color:#bda4ff;border:1px solid rgba(138,92,255,.30);font-size:10px">${cat}</span>
       <span style="font-family:var(--mono);font-size:14px;color:var(--gold)" itemprop="offers" itemscope itemtype="https://schema.org/Offer"><meta itemprop="priceCurrency" content="USD"/><span itemprop="price" data-pricing-value="${id}">${priceTxt}</span>${liveBadge}${autoBadge}</span>
     </div>
-    <h4 style="margin:2px 0 0;font-size:14px;line-height:1.3" itemprop="name">${title}</h4>
+    <h3 style="margin:2px 0 0;font-size:14px;line-height:1.3" itemprop="name">${title}</h3>
     <p style="margin:0;color:var(--ink-dim);font-size:12px;line-height:1.4;flex:1" itemprop="description">${desc}</p>
     <a class="btn btn-ghost" href="/checkout?serviceId=${encodeURIComponent(id)}&plan=${encodeURIComponent(id)}" data-link aria-label="Buy ${title} with Bitcoin" style="font-size:12px;padding:6px 10px">Buy →</a>
   </article>`;
@@ -399,7 +399,7 @@ function navBar(route, opts) {
     : 'Display in English';
   const langToggle = `<button class="lang-toggle" type="button" data-target-lang="${targetLang}" aria-label="${targetTitle}" title="${targetTitle}">🌐 ${targetLabel}</button>`;
   return `<nav class="nav" data-nav-open="false">
-<div class="brand"><div class="brand-logo brand-logo-photo"><img src="${assetPath('/assets/zeus/brand.jpg')}" alt="Zeus" onerror="this.style.display='none'"/></div><div><span class="zeus-wordmark">Zeus<span class="ai">AI</span></span><small>Sovereign · Self-Evolving · Signed</small></div></div>
+<div class="brand"><div class="brand-logo brand-logo-photo"><img src="${assetPath('/assets/zeus/brand.jpg')}" alt="Zeus" width="44" height="44" decoding="async" loading="lazy" onerror="this.style.display='none'"/></div><div><span class="zeus-wordmark">Zeus<span class="ai">AI</span></span><small>Sovereign · Self-Evolving · Signed</small></div></div>
 <button class="nav-toggle" type="button" aria-label="Toggle navigation" aria-expanded="false" aria-controls="nav-links">
   <span class="nav-toggle-bar"></span><span class="nav-toggle-bar"></span><span class="nav-toggle-bar"></span>
 </button>
@@ -425,7 +425,7 @@ function footer(route, opts) {
       <div class="brand" style="margin-bottom:14px"><div class="brand-logo"></div><div><span class="zeus-wordmark">Zeus<span class="ai">AI</span></span><small>Sovereign · Self-Evolving · Signed</small></div></div>
       <p style="color:var(--ink-dim);font-size:13.5px;line-height:1.6;max-width:360px">Autonomous AI operating system. Every module signed with W3C DID. Every outcome routed through Merkle-chained receipts. Property of ${OWNER.name}.</p>
     </div>
-    <div><h5>Product</h5><ul>
+    <div><h3 class="footer-col-title">Product</h3><ul>
       <li><a href="/services" data-link>Marketplace</a></li>
       <li><a href="/wizard" data-link>Find my plan</a></li>
       <li><a href="/pricing" data-link>Pricing</a></li>
@@ -434,7 +434,7 @@ function footer(route, opts) {
       <li><a href="/store" data-link>Instant Store</a></li>
       <li><a href="/gift" data-link>Gift</a></li>
     </ul></div>
-    <div><h5>Developers</h5><ul>
+    <div><h3 class="footer-col-title">Developers</h3><ul>
       <li><a href="/docs" data-link>API &amp; Docs</a></li>
       <li><a href="/api-explorer" data-link>API Explorer</a></li>
       <li><a href="/openapi.json">OpenAPI 3.1</a></li>
@@ -443,7 +443,7 @@ function footer(route, opts) {
       <li><a href="/stream">/stream (SSE)</a></li>
       <li><a href="/health">/health</a></li>
     </ul></div>
-    <div><h5>Trust</h5><ul>
+    <div><h3 class="footer-col-title">Trust</h3><ul>
       <li><a href="/trust" data-link>Trust Center</a></li>
       <li><a href="/security" data-link>Security</a></li>
       <li><a href="/responsible-ai" data-link>Responsible AI</a></li>
@@ -457,7 +457,7 @@ function footer(route, opts) {
       <li><a href="/innovations" data-link>30Y Innovations</a></li>
       <li><a href="/frontier" data-link>Frontier (F1–F12)</a></li>
     </ul></div>
-    <div><h5>Company</h5><ul>
+    <div><h3 class="footer-col-title">Company</h3><ul>
       <li><a href="/about" data-link>About</a></li>
       <li><a href="/changelog" data-link>Changelog</a></li>
       <li><a href="/legal" data-link>Legal</a></li>
@@ -778,6 +778,9 @@ function globalChrome(N) {
 .zeus-buy-bar[hidden]{display:none !important}
 .zeus-cookie[hidden]{display:none !important}
 /* .zeus-exit*: removed (founders' brief popup eliminated) */
+/* Heading-rename visual preservation (a11y h2→h3 chain, no visual regression) */
+.pillar-title{margin:8px 0 6px;font-size:16px;font-weight:600;line-height:1.25;letter-spacing:.01em}
+.footer-col-title{margin:0 0 10px;font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.08em;color:var(--ink-dim,#9aa6bd)}
 </style>`;
 }
 
@@ -803,7 +806,7 @@ function pageHome() {
 </section>` : '';
   return `<section class="hero">
   <div class="zeus-scene" aria-hidden="true">
-    <img id="zeusHeroImg" class="zeus-hero-image" src="${assetPath('/assets/zeus/hero.jpg')}" data-zeus-src="${assetPath('/assets/zeus/hero.jpg')}" alt="" onerror="this.onerror=null;this.src='${assetPath('/assets/zeus/placeholder.svg')}'"/>
+    <img id="zeusHeroImg" class="zeus-hero-image" src="${assetPath('/assets/zeus/hero.jpg')}" data-zeus-src="${assetPath('/assets/zeus/hero.jpg')}" alt="" width="1600" height="900" decoding="async" fetchpriority="high" loading="eager" onerror="this.onerror=null;this.src='${assetPath('/assets/zeus/placeholder.svg')}'"/>
     <div class="zeus-halo zeus-halo-a"></div>
     <div class="zeus-halo zeus-halo-b"></div>
     <div class="zeus-stars"></div>
@@ -1002,12 +1005,12 @@ ${_featuredHtml}
     <p>Each pillar is a production subsystem running on Hetzner, verified by Merkle chains and W3C DIDs. Together they compose the first truly sovereign AI platform.</p>
   </div>
   <div class="panels" id="pillarPanels">
-    <div class="panel pillar" data-pillar="autonomy" tabindex="0" role="button" aria-label="Open Zeus Orchestrator live view"><div class="ic">⚡</div><h4>Zeus Orchestrator</h4><p>Autonomy chain (PCMC) + capability tokens (CBAT). Every decision append-only, every action capability-bound.</p><span class="pillar-cta">Open live chain →</span></div>
-    <div class="panel pillar" data-pillar="quarantine" tabindex="0" role="button" aria-label="Open Quarantine Buffer live view"><div class="ic">🛡️</div><h4>Quarantine Buffer</h4><p>Quantum Integrity Shield isolates suspect modules before they touch the core. Safe‑code‑writer enforces review gates.</p><span class="pillar-cta">Open live quarantine →</span></div>
-    <div class="panel pillar" data-pillar="did" tabindex="0" role="button" aria-label="Open Self-Sovereign DIDs live view"><div class="ic">🪪</div><h4>Self‑Sovereign DIDs</h4><p>Ed25519 identities per module. Every receipt, every invoice, every module action is independently verifiable.</p><span class="pillar-cta">Resolve & verify →</span></div>
-    <div class="panel pillar" data-pillar="outcome" tabindex="0" role="button" aria-label="Open Outcome Economics live view"><div class="ic">💎</div><h4>Outcome Economics</h4><p>Value‑Proof Ledger meters delivered value in $. Auto‑invoices a share. Owner keeps sovereignty through direct BTC settlement.</p><span class="pillar-cta">Record outcome →</span></div>
-    <div class="panel pillar" data-pillar="giants" tabindex="0" role="button" aria-label="Open Giant Integration Fabric live view"><div class="ic">🌐</div><h4>Giant Integration Fabric</h4><p>42 hyperscalers and enterprise giants (AWS, Azure, GCP, SF, SAP, SNOW, OpenAI, NVIDIA…) behind a single markup‑aware bus.</p><span class="pillar-cta">Dispatch to giants →</span></div>
-    <div class="panel pillar" data-pillar="monetize" tabindex="0" role="button" aria-label="Open Global Monetization Mesh live view"><div class="ic">🚀</div><h4>Global Monetization Mesh</h4><p>41 marketplaces, multi‑armed bandit pricing. 572M+ reach. Publish once, sell everywhere.</p><span class="pillar-cta">Publish listing →</span></div></div>
+    <div class="panel pillar" data-pillar="autonomy" tabindex="0" role="button" aria-label="Open Zeus Orchestrator live view"><div class="ic">⚡</div><h3 class="pillar-title">Zeus Orchestrator</h3><p>Autonomy chain (PCMC) + capability tokens (CBAT). Every decision append-only, every action capability-bound.</p><span class="pillar-cta">Open live chain →</span></div>
+    <div class="panel pillar" data-pillar="quarantine" tabindex="0" role="button" aria-label="Open Quarantine Buffer live view"><div class="ic">🛡️</div><h3 class="pillar-title">Quarantine Buffer</h3><p>Quantum Integrity Shield isolates suspect modules before they touch the core. Safe‑code‑writer enforces review gates.</p><span class="pillar-cta">Open live quarantine →</span></div>
+    <div class="panel pillar" data-pillar="did" tabindex="0" role="button" aria-label="Open Self-Sovereign DIDs live view"><div class="ic">🪪</div><h3 class="pillar-title">Self‑Sovereign DIDs</h3><p>Ed25519 identities per module. Every receipt, every invoice, every module action is independently verifiable.</p><span class="pillar-cta">Resolve & verify →</span></div>
+    <div class="panel pillar" data-pillar="outcome" tabindex="0" role="button" aria-label="Open Outcome Economics live view"><div class="ic">💎</div><h3 class="pillar-title">Outcome Economics</h3><p>Value‑Proof Ledger meters delivered value in $. Auto‑invoices a share. Owner keeps sovereignty through direct BTC settlement.</p><span class="pillar-cta">Record outcome →</span></div>
+    <div class="panel pillar" data-pillar="giants" tabindex="0" role="button" aria-label="Open Giant Integration Fabric live view"><div class="ic">🌐</div><h3 class="pillar-title">Giant Integration Fabric</h3><p>42 hyperscalers and enterprise giants (AWS, Azure, GCP, SF, SAP, SNOW, OpenAI, NVIDIA…) behind a single markup‑aware bus.</p><span class="pillar-cta">Dispatch to giants →</span></div>
+    <div class="panel pillar" data-pillar="monetize" tabindex="0" role="button" aria-label="Open Global Monetization Mesh live view"><div class="ic">🚀</div><h3 class="pillar-title">Global Monetization Mesh</h3><p>41 marketplaces, multi‑armed bandit pricing. 572M+ reach. Publish once, sell everywhere.</p><span class="pillar-cta">Publish listing →</span></div></div>
   <div id="pillarLive" class="pillar-live" aria-live="polite"></div>
 </section>
 
@@ -1231,13 +1234,13 @@ function pageHow() {
     <p>ZeusAI is engineered like a Swiss tourbillon — every component locked by cryptography, every movement measurable.</p>
   </div>
   <div class="panels">
-    <div class="panel"><div class="ic">1</div><h4>Zeus Core</h4><p>Deterministic decision engine. Schedules every action through capability tokens (CBAT).</p></div>
-    <div class="panel"><div class="ic">2</div><h4>Autonomy Chain</h4><p>PCMC — Merkle chain of every decision. Tamper‑evident, verifiable at <code class="inline">/api/autonomy/verify</code>.</p></div>
-    <div class="panel"><div class="ic">3</div><h4>Module Mesh</h4><p>169 living modules. 144 legacy stubs were retired; adaptive/engine pools materialize workers on demand.</p></div>
-    <div class="panel"><div class="ic">4</div><h4>Quarantine Shield</h4><p>Isolates suspect behavior. No auto‑restart loops. Safe‑code‑writer gates every change.</p></div>
-    <div class="panel"><div class="ic">5</div><h4>Revenue Router</h4><p>Every $ is Ed25519‑signed and routed to the owner's BTC. Zero custodians.</p></div>
-    <div class="panel"><div class="ic">6</div><h4>Value‑Proof Ledger</h4><p>Every outcome is measured in $. Auto‑invoice (bps share) on proven value.</p></div>
-    <div class="panel"><div class="ic">7</div><h4>Monetization Mesh</h4><p>41 marketplaces, multi‑armed bandit pricing. Publish once, sell everywhere.</p></div>
+    <div class="panel"><div class="ic">1</div><h3 class="pillar-title">Zeus Core</h3><p>Deterministic decision engine. Schedules every action through capability tokens (CBAT).</p></div>
+    <div class="panel"><div class="ic">2</div><h3 class="pillar-title">Autonomy Chain</h3><p>PCMC — Merkle chain of every decision. Tamper‑evident, verifiable at <code class="inline">/api/autonomy/verify</code>.</p></div>
+    <div class="panel"><div class="ic">3</div><h3 class="pillar-title">Module Mesh</h3><p>169 living modules. 144 legacy stubs were retired; adaptive/engine pools materialize workers on demand.</p></div>
+    <div class="panel"><div class="ic">4</div><h3 class="pillar-title">Quarantine Shield</h3><p>Isolates suspect behavior. No auto‑restart loops. Safe‑code‑writer gates every change.</p></div>
+    <div class="panel"><div class="ic">5</div><h3 class="pillar-title">Revenue Router</h3><p>Every $ is Ed25519‑signed and routed to the owner's BTC. Zero custodians.</p></div>
+    <div class="panel"><div class="ic">6</div><h3 class="pillar-title">Value‑Proof Ledger</h3><p>Every outcome is measured in $. Auto‑invoice (bps share) on proven value.</p></div>
+    <div class="panel"><div class="ic">7</div><h3 class="pillar-title">Monetization Mesh</h3><p>41 marketplaces, multi‑armed bandit pricing. Publish once, sell everywhere.</p></div>
   </div>
 </section>
 
@@ -1907,6 +1910,24 @@ function pageInnovations() {
       <div class="card" style="padding:18px"><span class="tag">Equity</span><h3 style="margin:8px 0">Digital Equity</h3><p style="color:var(--ink-dim);font-size:13.5px">Save-Data + reduced-motion honored. No feature gated by network speed, device class, geography.</p><a href="/api/v100/digital-equity" target="_blank" rel="noopener" class="btn" style="margin-top:8px">Open JSON</a></div>
       <div class="card" style="padding:18px"><span class="tag">50-year pledge</span><h3 style="margin:8px 0">Longevity Pledge</h3><p style="color:var(--ink-dim);font-size:13.5px">No breaking change without 5-year deprecation window. Yearly archival mirror. Successor-key escrow.</p><a href="/api/v100/longevity-pledge" target="_blank" rel="noopener" class="btn" style="margin-top:8px">Open JSON</a></div>
       <div class="card" style="padding:18px"><span class="tag">Discovery</span><h3 style="margin:8px 0">100Y Manifest</h3><p style="color:var(--ink-dim);font-size:13.5px">Single index of all 15 endpoints with stability tags and machine/human entry points.</p><a href="/api/v100/manifest" target="_blank" rel="noopener" class="btn" style="margin-top:8px">Open JSON</a></div>
+    </div>
+
+    <h2 id="zeusperf100y" style="margin-top:32px">Performance · 100-year horizon <span class="tag" style="vertical-align:middle">2076</span></h2>
+    <p class="lead" style="max-width:880px;font-size:14.5px">13 GET-only deterministic endpoints codifying public performance budgets, composited-only animation, image / font / cache / preload / Early-Hints policies, and a 50-year performance pledge. Additive only · zero rollback path · machine + human discovery. <a href="/api/v100/perf/manifest" target="_blank" rel="noopener">Performance manifest →</a></p>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:14px;margin:14px 0 22px">
+      <div class="card" style="padding:18px"><span class="tag">Public budget</span><h3 style="margin:8px 0">Per-Route Perf Budget</h3><p style="color:var(--ink-dim);font-size:13.5px">LCP/INP/CLS/TBT/FCP/TTFB hard-caps per route. Regression beyond cap rolls back within 24h.</p><a href="/.well-known/perf-budget.json" target="_blank" rel="noopener" class="btn" style="margin-top:8px">Open JSON</a></div>
+      <div class="card" style="padding:18px"><span class="tag">Signed claim</span><h3 style="margin:8px 0">Web Vitals Attestation</h3><p style="color:var(--ink-dim);font-size:13.5px">Ed25519 + ML-DSA-65 hybrid signature on pledged Core Web Vitals. Yearly rotation.</p><a href="/.well-known/web-vitals-attestation.json" target="_blank" rel="noopener" class="btn" style="margin-top:8px">Open JSON</a></div>
+      <div class="card" style="padding:18px"><span class="tag">Render path</span><h3 style="margin:8px 0">Render Budget</h3><p style="color:var(--ink-dim);font-size:13.5px">Per-page critical CSS/JS, SSR HTML target, hydration deadline. No JS before first paint.</p><a href="/api/v100/perf/render-budget" target="_blank" rel="noopener" class="btn" style="margin-top:8px">Open JSON</a></div>
+      <div class="card" style="padding:18px"><span class="tag">DOM size</span><h3 style="margin:8px 0">DOM Budget</h3><p style="color:var(--ink-dim);font-size:13.5px">Total nodes / depth / max children hard-caps. Pre-deploy lint enforces.</p><a href="/api/v100/perf/dom-budget" target="_blank" rel="noopener" class="btn" style="margin-top:8px">Open JSON</a></div>
+      <div class="card" style="padding:18px"><span class="tag">Main thread</span><h3 style="margin:8px 0">Main-Thread Budget</h3><p style="color:var(--ink-dim);font-size:13.5px">Longest-task ≤100ms cap, TBT ≤400ms cap, ≤3 long-tasks per nav. Web Workers + scheduler.yield().</p><a href="/api/v100/perf/main-thread-budget" target="_blank" rel="noopener" class="btn" style="margin-top:8px">Open JSON</a></div>
+      <div class="card" style="padding:18px"><span class="tag">GPU only</span><h3 style="margin:8px 0">Composited-Only Animations</h3><p style="color:var(--ink-dim);font-size:13.5px">Only opacity + transform animate. Forbidden: width/height/margin/font-size/box-shadow.</p><a href="/api/v100/perf/animation-policy" target="_blank" rel="noopener" class="btn" style="margin-top:8px">Open JSON</a></div>
+      <div class="card" style="padding:18px"><span class="tag">Images</span><h3 style="margin:8px 0">Image Delivery Policy</h3><p style="color:var(--ink-dim);font-size:13.5px">Width+height locked, fetchpriority on LCP, AVIF primary, lazy below-the-fold.</p><a href="/api/v100/perf/image-policy" target="_blank" rel="noopener" class="btn" style="margin-top:8px">Open JSON</a></div>
+      <div class="card" style="padding:18px"><span class="tag">Fonts</span><h3 style="margin:8px 0">Zero-Layout-Shift Fonts</h3><p style="color:var(--ink-dim);font-size:13.5px">font-display:swap + size-adjust + ascent-override. Self-hosted, &lt;30 KB per face.</p><a href="/api/v100/perf/font-policy" target="_blank" rel="noopener" class="btn" style="margin-top:8px">Open JSON</a></div>
+      <div class="card" style="padding:18px"><span class="tag">Cache</span><h3 style="margin:8px 0">Immutable + SWR</h3><p style="color:var(--ink-dim);font-size:13.5px">Hashed assets immutable for 1y; HTML stale-while-revalidate. Never break a cached URL.</p><a href="/api/v100/perf/cache-policy" target="_blank" rel="noopener" class="btn" style="margin-top:8px">Open JSON</a></div>
+      <div class="card" style="padding:18px"><span class="tag">Preload</span><h3 style="margin:8px 0">Early-Hints (103) Policy</h3><p style="color:var(--ink-dim);font-size:13.5px">≤4 critical resources preloaded per nav. preconnect + dns-prefetch tiers.</p><a href="/api/v100/perf/preload-policy" target="_blank" rel="noopener" class="btn" style="margin-top:8px">Open JSON</a></div>
+      <div class="card" style="padding:18px"><span class="tag">Carbon-aware</span><h3 style="margin:8px 0">Zero-Energy Pledge</h3><p style="color:var(--ink-dim);font-size:13.5px">≤0.05 gCO₂ per request. Halve by 2030, net-zero by 2050, negative by 2076.</p><a href="/api/v100/perf/zero-energy-pledge" target="_blank" rel="noopener" class="btn" style="margin-top:8px">Open JSON</a></div>
+      <div class="card" style="padding:18px"><span class="tag">50-year pledge</span><h3 style="margin:8px 0">Longevity Perf Pledge</h3><p style="color:var(--ink-dim);font-size:13.5px">No regression &gt;5% lands without same-day rollback plan. Tightening only, never loosening.</p><a href="/api/v100/perf/longevity-perf-pledge" target="_blank" rel="noopener" class="btn" style="margin-top:8px">Open JSON</a></div>
+      <div class="card" style="padding:18px"><span class="tag">Discovery</span><h3 style="margin:8px 0">Performance Manifest</h3><p style="color:var(--ink-dim);font-size:13.5px">Single index of all 13 perf endpoints with stability tags and entry points.</p><a href="/api/v100/perf/manifest" target="_blank" rel="noopener" class="btn" style="margin-top:8px">Open JSON</a></div>
     </div>
 
     <h2 style="margin-top:32px">Model registry &amp; provenance</h2>

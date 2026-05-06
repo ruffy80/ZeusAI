@@ -1011,6 +1011,7 @@ let innov50 = null; try { innov50 = require('../backend/modules/innovations-50y'
 let improvementsPack = null; try { improvementsPack = require('../backend/modules/improvements-pack'); console.log('[improvements-pack] loaded · routes: /internal/health/aggregate /api/csp-report /api/funnel/* /api/owner/revenue*'); } catch (e) { console.warn('[improvements-pack] not loaded:', e.message); }
 let polishPack = null; try { polishPack = require('../backend/modules/polish-pack'); console.log('[polish-pack] loaded · routes: /.well-known/security.txt /humans.txt /offline.html'); } catch (e) { console.warn('[polish-pack] not loaded:', e.message); }
 let innov100 = null; try { innov100 = require('../backend/modules/innovations-100y'); console.log('[innovations-100y] loaded · 15 future world-standard primitives (50y horizon)'); } catch (e) { console.warn('[innovations-100y] not loaded:', e.message); }
+let perf100 = null; try { perf100 = require('../backend/modules/performance-100y'); console.log('[performance-100y] loaded · 13 visionary perf primitives (50y horizon)'); } catch (e) { console.warn('[performance-100y] not loaded:', e.message); }
 // ── Adaptive Predictive Prefetch (APP) · self-learning navigation graph + 103 Early Hints ──
 // Genuinely novel: most sites use static, hand-written prefetch hints, or
 // SDK-tracked predictions that need cookies. This module learns the real
@@ -2784,6 +2785,17 @@ async function unicornHandler(req, res) {
     try {
       if (await innov100.handle(req, res)) return;
     } catch (e) { console.warn('[innovations-100y] handler error:', e.message); }
+  }
+  // ── Performance 100Y dispatcher (additive · visionary perf primitives) ──
+  // Handles: /.well-known/perf-budget.json, /.well-known/web-vitals-attestation.json,
+  // /api/v100/perf/* (manifest, render-budget, dom-budget, main-thread-budget,
+  // animation-policy, image-policy, font-policy, cache-policy, preload-policy,
+  // zero-energy-pledge, longevity-perf-pledge). GET-only. Disable via
+  // PERFORMANCE_100Y_DISABLED=1.
+  if (perf100) {
+    try {
+      if (await perf100.handle(req, res)) return;
+    } catch (e) { console.warn('[performance-100y] handler error:', e.message); }
   }
   if (earlyPath === '/api/uaic/receipts') {
     const email = String(requestUrl.searchParams.get('email') || '').toLowerCase();
