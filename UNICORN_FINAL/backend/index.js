@@ -592,6 +592,55 @@ app.use((req, res, next) => {
   next();
 });
 
+// ── Cryptoauth dispatcher (revolutionary · /api/cryptoauth/* — Ed25519 passwordless) ──
+// Same module mounted on the SITE (3001). Mounted here too because nginx routes
+// /api/* to the BACKEND (3000); without this mount the new endpoints are 404.
+// Also installs the legacy 410-Gone trap on /api/customer/* + /api/auth/* +
+// /api/auth/passkey/* + /api/webauthn/* + /api/device-key/* so those retired
+// paths emit Deprecation/Sunset/Link headers from the backend too.
+let _cryptoauth = null; try { _cryptoauth = require('./modules/cryptoauth'); console.log('[cryptoauth] loaded · backend dispatcher active (Ed25519 passwordless)'); } catch (e) { console.warn('[cryptoauth] not loaded:', e.message); }
+if (_cryptoauth) {
+  // Stable 410 body for retired auth endpoints.
+  const RETIRED_AUTH = new Set([
+    '/api/customer/signup', '/api/customer/login', '/api/customer/logout',
+    '/api/customer/forgot-password', '/api/customer/reset-password',
+    '/api/auth/register', '/api/auth/login', '/api/auth/logout',
+    '/api/auth/forgot-password', '/api/auth/reset-password',
+  ]);
+  const RETIRED_AUTH_PREFIXES = [
+    '/api/customer/reset-password/',
+    '/api/auth/passkey/',
+    '/api/webauthn/',
+    '/api/device-key/',
+  ];
+  app.use(async (req, res, next) => {
+    try {
+      const p = (req.path || req.url || '').split('?')[0];
+      if (p.startsWith('/api/cryptoauth/')) {
+        const handled = await _cryptoauth.handle(req, res);
+        if (handled) return;
+      }
+      const isRetired = RETIRED_AUTH.has(p) || RETIRED_AUTH_PREFIXES.some((pre) => p.startsWith(pre));
+      if (isRetired) {
+        res.setHeader('Deprecation', 'true');
+        res.setHeader('Sunset', 'Wed, 31 Dec 2025 23:59:59 GMT');
+        res.setHeader('Link', '</api/cryptoauth/manifest>; rel="successor-version", </account>; rel="alternate"');
+        res.setHeader('X-Auth-Retired', 'cryptoauth-1.0.0');
+        res.setHeader('Cache-Control', 'no-store');
+        res.status(410).json({
+          ok: false,
+          error: 'auth_endpoint_retired',
+          message: 'Legacy auth has been replaced by Ed25519 passwordless cryptoauth.',
+          successor: '/api/cryptoauth/manifest',
+          ui: '/account',
+        });
+        return;
+      }
+    } catch (e) { console.warn('[cryptoauth] handler error:', e.message); }
+    next();
+  });
+}
+
 // ── 50Y Standard dispatcher (additive · /.well-known/did.json + /api/v50/*) ──
 let _innov50 = null; try { _innov50 = require('./modules/innovations-50y'); console.log('[innovations-50y] loaded · backend dispatcher active'); } catch (e) { console.warn('[innovations-50y] not loaded:', e.message); }
 if (_innov50) {

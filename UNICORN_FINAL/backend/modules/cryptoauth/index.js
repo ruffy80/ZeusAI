@@ -181,6 +181,11 @@ function _sendJson(res, status, payload) {
   res.end(body);
 }
 function _readBody(req, max = 64 * 1024) {
+  // Express compatibility: if body has already been parsed by express.json(),
+  // honor it instead of waiting on a consumed stream.
+  if (req && req.body && typeof req.body === 'object' && !Buffer.isBuffer(req.body)) {
+    return Promise.resolve(req.body);
+  }
   return new Promise((resolve) => {
     let data = '';
     let aborted = false;
