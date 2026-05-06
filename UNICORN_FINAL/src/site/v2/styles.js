@@ -130,18 +130,16 @@ body::before{content:"";position:fixed;inset:0;pointer-events:none;z-index:1;bac
 }
 
 @keyframes zeusGoldPulse{
-  0%,100%{filter:drop-shadow(0 1px 0 rgba(0,0,0,.7)) drop-shadow(0 0 14px rgba(255,200,80,.4))}
-  50%   {filter:drop-shadow(0 1px 0 rgba(0,0,0,.7)) drop-shadow(0 0 24px rgba(255,225,140,.85)) drop-shadow(0 0 44px rgba(255,180,60,.5))}
+  0%,100%{opacity:.85}
+  50%   {opacity:1}
 }
 @keyframes zeusSilverPulse{
-  0%,100%{filter:drop-shadow(0 1px 0 rgba(0,0,0,.7)) drop-shadow(0 0 12px rgba(180,210,255,.4))}
-  50%   {filter:drop-shadow(0 1px 0 rgba(0,0,0,.7)) drop-shadow(0 0 22px rgba(220,235,255,.85)) drop-shadow(0 0 36px rgba(140,200,255,.55))}
+  0%,100%{opacity:.85}
+  50%   {opacity:1}
 }
 @keyframes zeusBoltPulse{
-  0%,100%{transform:scaleY(1) scaleX(1);opacity:.95;
-    filter:drop-shadow(0 0 4px #ffffff) drop-shadow(0 0 12px #00E6FF) drop-shadow(0 0 28px #0098c0) drop-shadow(0 0 50px rgba(0,230,255,.45))}
-  50%   {transform:scaleY(1.04) scaleX(1.06);opacity:1;
-    filter:drop-shadow(0 0 8px #ffffff) drop-shadow(0 0 22px #b8eeff) drop-shadow(0 0 40px #00E6FF) drop-shadow(0 0 72px rgba(0,230,255,.7))}
+  0%,100%{transform:scaleY(1) scaleX(1);opacity:.92}
+  50%   {transform:scaleY(1.04) scaleX(1.06);opacity:1}
 }
 @keyframes zeusBoltFlicker{
   0%,18%,22%,42%,46%,82%,86%,100%{opacity:1}

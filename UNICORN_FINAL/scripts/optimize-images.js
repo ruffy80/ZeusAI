@@ -44,10 +44,17 @@ async function run() {
       console.log(`  ${w}w  jpg=${sz(jpgOut)}  webp=${sz(webpOut)}  avif=${sz(avifOut)}`);
     }
     // Also emit a re-encoded baseline JPG at the original size (smaller than the
-    // current Photoshop output because of mozjpeg + progressive encoding).
-    const jpgBase = path.join(SRC_DIR, `${t.base}.jpg`);
+    // current Photoshop output because of mozjpeg + progressive encoding) PLUS
+    // matching AVIF + WebP at the same native resolution so the <picture>
+    // fallback ladder has a true full-size variant for desktop browsers that
+    // pick the largest source.
+    const jpgBase  = path.join(SRC_DIR, `${t.base}.jpg`);
+    const webpBase = path.join(SRC_DIR, `${t.base}.webp`);
+    const avifBase = path.join(SRC_DIR, `${t.base}.avif`);
     const tmp = jpgBase + '.tmp';
     await sharp(inFile).jpeg({ quality: t.jpgQ, mozjpeg: true, progressive: true }).toFile(tmp);
+    await sharp(inFile).webp({ quality: t.webpQ, effort: 6 }).toFile(webpBase);
+    await sharp(inFile).avif({ quality: t.avifQ, effort: 4 }).toFile(avifBase);
     const before = fs.statSync(jpgBase).size;
     const after = fs.statSync(tmp).size;
     if (after < before) {
@@ -57,6 +64,8 @@ async function run() {
       fs.unlinkSync(tmp);
       console.log(`  (${t.base}.jpg already smaller, kept original)`);
     }
+    const sz = (p) => (fs.statSync(p).size / 1024).toFixed(1) + ' KiB';
+    console.log(`  full-res webp=${sz(webpBase)}  avif=${sz(avifBase)}`);
   }
   console.log('\nDone.');
 }

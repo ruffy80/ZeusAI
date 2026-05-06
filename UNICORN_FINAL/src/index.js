@@ -966,6 +966,15 @@ const V2_CLIENT_PATH = path.join(__dirname, 'site', 'v2', 'client.js');
 // disk I/O latency to first-paint. We cache by path with a 60s mtime check
 // so a hot redeploy still picks up changes without a process restart.
 // Disable with SITE_ASSET_MEMCACHE_DISABLED=1.
+//
+// PERF (PageSpeed pass-4, desktop diagnostics): when the path ends in `.js`
+// we synchronously minify the source the first time it's read in this
+// worker, then keep the minified bytes hot. Lighthouse desktop savings:
+// ~14 KiB transfer on /assets/app.js. We use Terser with conservative
+// options and a try/catch fallback so a parse error never breaks the site.
+let __terserMinify = null;
+try { __terserMinify = require('terser').minify_sync; }
+catch (_) { /* terser not installed — fall back to raw bytes */ }
 const __staticAssetCache = new Map();
 function __readStaticAssetCached(filePath) {
   if (process.env.SITE_ASSET_MEMCACHE_DISABLED === '1') {
@@ -982,7 +991,23 @@ function __readStaticAssetCached(filePath) {
     entry.checkedAt = now;
     return entry.body;
   }
-  const body = fs.readFileSync(filePath, 'utf8');
+  let body = fs.readFileSync(filePath, 'utf8');
+  // Synchronous minify on first read for .js bundles. Failure is non-fatal —
+  // we ship the original source so the site never breaks if Terser chokes
+  // on a syntax it doesn't recognise (no risk of regression).
+  if (__terserMinify && /\.js$/i.test(filePath) && process.env.SITE_JS_MINIFY_DISABLED !== '1') {
+    try {
+      const result = __terserMinify(body, {
+        ecma: 2020,
+        compress: { passes: 1, drop_debugger: true, pure_getters: true },
+        mangle: true,
+        format: { comments: false, ascii_only: true }
+      });
+      if (result && typeof result.code === 'string' && result.code.length > 0) {
+        body = result.code;
+      }
+    } catch (_) { /* keep original */ }
+  }
   __staticAssetCache.set(filePath, { body, mtimeMs, checkedAt: now });
   return body;
 }
