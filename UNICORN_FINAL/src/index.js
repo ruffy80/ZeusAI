@@ -1010,6 +1010,7 @@ let frontier = null; try { frontier = require('./frontier-engine'); console.log(
 let innov50 = null; try { innov50 = require('../backend/modules/innovations-50y'); console.log('[innovations-50y] loaded · pillars: permanence·security·sovereignty·intelligence'); } catch (e) { console.warn('[innovations-50y] not loaded:', e.message); }
 let improvementsPack = null; try { improvementsPack = require('../backend/modules/improvements-pack'); console.log('[improvements-pack] loaded · routes: /internal/health/aggregate /api/csp-report /api/funnel/* /api/owner/revenue*'); } catch (e) { console.warn('[improvements-pack] not loaded:', e.message); }
 let polishPack = null; try { polishPack = require('../backend/modules/polish-pack'); console.log('[polish-pack] loaded · routes: /.well-known/security.txt /humans.txt /offline.html'); } catch (e) { console.warn('[polish-pack] not loaded:', e.message); }
+let innov100 = null; try { innov100 = require('../backend/modules/innovations-100y'); console.log('[innovations-100y] loaded · 15 future world-standard primitives (50y horizon)'); } catch (e) { console.warn('[innovations-100y] not loaded:', e.message); }
 // ── Adaptive Predictive Prefetch (APP) · self-learning navigation graph + 103 Early Hints ──
 // Genuinely novel: most sites use static, hand-written prefetch hints, or
 // SDK-tracked predictions that need cookies. This module learns the real
@@ -2771,6 +2772,18 @@ async function unicornHandler(req, res) {
     try {
       if (await polishPack.handle(req, res)) return;
     } catch (e) { console.warn('[polish-pack] handler error:', e.message); }
+  }
+  // ── 100Y Standard dispatcher (additive · world-standard for 50+ years) ──
+  // Handles: /.well-known/civilization-protocol.json, /.well-known/ai-rights.json,
+  // /.well-known/earth-standard.json, /.well-known/zeus-attestation.json,
+  // /api/v100/* (manifest, pq-readiness, carbon-budget, explain/:id,
+  // data-sovereignty, timelock/:hash, reversibility-manifest, ontology,
+  // provenance, digital-equity, longevity-pledge). GET-only. Disable via
+  // INNOVATIONS_100Y_DISABLED=1.
+  if (innov100) {
+    try {
+      if (await innov100.handle(req, res)) return;
+    } catch (e) { console.warn('[innovations-100y] handler error:', e.message); }
   }
   if (earlyPath === '/api/uaic/receipts') {
     const email = String(requestUrl.searchParams.get('email') || '').toLowerCase();
