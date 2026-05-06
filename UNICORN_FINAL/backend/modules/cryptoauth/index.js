@@ -25,7 +25,7 @@
 //          of the public key; safe to share.
 //
 //   POST /api/cryptoauth/challenge
-//        body: { userId } OR { email }
+//        body: { userId } OR { email } OR { publicKey }
 //        → { ok, userId, challenge } — fresh nonce, expires in 2 min.
 //
 //   POST /api/cryptoauth/login
@@ -39,8 +39,8 @@
 //   POST /api/cryptoauth/recover
 //        body: { publicKey: base64, signature: base64, challenge: base64 }
 //        → { ok, userId, token } — proves possession of restored key.
-//        (Recovery is just: import vault → derive privKey → register OR
-//         re-sign a challenge; no server-side state needed.)
+//        (Recovery is just: import vault → derive privKey → sign a fresh
+//         server challenge; nonce is single-use to prevent replay.)
 //
 //   GET  /api/cryptoauth/me
 //        Authorization: Bearer <jwt>
@@ -232,6 +232,9 @@ async function _challenge(req, res) {
     const target = body.email.toLowerCase();
     for (const id of Object.keys(users)) if (users[id].email === target) { userId = id; break; }
   }
+  if (!userId && typeof body.publicKey === 'string') {
+    userId = _userIdFromPublicKey(body.publicKey);
+  }
   if (!userId || !users[userId]) return _sendJson(res, 404, { ok: false, error: 'user_not_found' });
   const challenge = _newChallenge();
   _putChallenge(userId, challenge);
@@ -271,10 +274,12 @@ async function _recover(req, res) {
   if (!body || typeof body.publicKey !== 'string' || typeof body.signature !== 'string' || typeof body.challenge !== 'string') {
     return _sendJson(res, 400, { ok: false, error: 'missing_fields' });
   }
+  const userId = _userIdFromPublicKey(body.publicKey);
+  const ch = _takeChallenge(body.challenge);
+  if (!ch || ch.userId !== userId) return _sendJson(res, 400, { ok: false, error: 'challenge_invalid_or_expired' });
   const ok = _verifySignature(body.publicKey, body.challenge, body.signature);
   if (!ok) return _sendJson(res, 401, { ok: false, error: 'signature_invalid' });
   const users = _loadUsers();
-  const userId = _userIdFromPublicKey(body.publicKey);
   if (!users[userId]) {
     users[userId] = {
       id: userId,

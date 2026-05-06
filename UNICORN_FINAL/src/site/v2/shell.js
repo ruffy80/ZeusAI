@@ -1801,7 +1801,7 @@ function pageAccount() {
 
   function renderLoggedOut() {
     $state.innerHTML =
-      '<div style=\"font-size:15px;color:var(--ink-dim);line-height:1.55\">You are not signed in. Create a new account in 5 seconds (no email needed) or import your backup vault if you already have one.</div>';
+      '<div style=\"font-size:15px;color:var(--ink-dim);line-height:1.55\">You are not signed in. Create a new account in 5 seconds, sign in with the key already saved on this device, or recover by importing your encrypted backup vault.</div>';
     $panels.innerHTML =
       '<div style=\"display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:16px\">' +
         '<div class=\"card\" style=\"padding:22px\">' +
@@ -1816,8 +1816,8 @@ function pageAccount() {
           '<p style=\"color:var(--ink-dim);font-size:13.5px;margin:0 0 14px\">If you already created an account on this browser, just tap below. The key is read from IndexedDB \u2014 no password.</p>' +
           '<button id=\"acaSignin\" class=\"btn btn-primary\" style=\"width:100%;padding:12px\">Sign in with this device \u2192</button>' +
           '<hr style=\"border:none;border-top:1px solid rgba(255,255,255,.08);margin:18px 0\">' +
-          '<h3 style=\"margin:0 0 6px;font-size:15px\">Lost access? Import vault</h3>' +
-          '<p style=\"color:var(--ink-dim);font-size:13px;margin:0 0 10px\">Restore from the <code style=\"color:#7cffb8\">.zeus-vault</code> backup file.</p>' +
+          '<h3 style=\"margin:0 0 6px;font-size:15px\">Recover account · Import vault</h3>' +
+          '<p style=\"color:var(--ink-dim);font-size:13px;margin:0 0 10px\">Restore access from the encrypted <code style=\"color:#7cffb8\">.zeus-vault</code> backup file you downloaded at account creation.</p>' +
           '<input id=\"acaVaultFile\" type=\"file\" accept=\".zeus-vault,.json,application/json\" style=\"width:100%;font-size:13px;color:#cdd5e6;margin-bottom:8px\">' +
           '<button id=\"acaImport\" class=\"btn btn-ghost\" style=\"width:100%;padding:10px\">Import &amp; sign in \u2192</button>' +
         '</div>' +
@@ -1900,19 +1900,18 @@ function pageAccount() {
       if (!rec || !rec.priv || !rec.pub) {
         return statusError('No local key on this device. Use \"Create new account\" or \"Import vault\".');
       }
-      return api('/api/cryptoauth/challenge', { userId: '', email: '', publicKey: rec.pub }).then(function(){
-        // Compute userId from publicKey by asking for a challenge — but our endpoint needs userId or email.
-        // We'll do a register-call which is idempotent (returns userId for an existing pub key).
-        return api('/api/cryptoauth/register', { publicKey: rec.pub }).then(function(r){
-          if (r.status !== 200 || !r.body || !r.body.ok) throw new Error((r.body && r.body.error) || 'challenge_failed');
-          var userId = r.body.userId;
-          var challenge = r.body.challenge;
-          return sign(rec.priv, utf8(challenge)).then(function(sig){
-            return api('/api/cryptoauth/login', { userId: userId, challenge: challenge, signature: b64encode(sig) }).then(function(lr){
-              if (lr.status !== 200 || !lr.body || !lr.body.ok) throw new Error('login_failed');
-              try { localStorage.setItem(TOKEN_KEY, lr.body.token); localStorage.setItem(USERID_KEY, userId); } catch(_){}
-              return refresh();
-            });
+      return api('/api/cryptoauth/challenge', { publicKey: rec.pub }).then(function(r){
+        if (r.status === 404) return api('/api/cryptoauth/register', { publicKey: rec.pub });
+        return r;
+      }).then(function(r){
+        if (r.status !== 200 || !r.body || !r.body.ok) throw new Error((r.body && r.body.error) || 'challenge_failed');
+        var userId = r.body.userId;
+        var challenge = r.body.challenge;
+        return sign(rec.priv, utf8(challenge)).then(function(sig){
+          return api('/api/cryptoauth/login', { userId: userId, challenge: challenge, signature: b64encode(sig) }).then(function(lr){
+            if (lr.status !== 200 || !lr.body || !lr.body.ok) throw new Error('login_failed');
+            try { localStorage.setItem(TOKEN_KEY, lr.body.token); localStorage.setItem(USERID_KEY, userId); } catch(_){}
+            return refresh();
           });
         });
       });

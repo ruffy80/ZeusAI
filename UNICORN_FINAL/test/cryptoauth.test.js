@@ -109,12 +109,20 @@ async function call(method, url, body, headers) {
   r = await call('POST', '/api/cryptoauth/challenge', { email: 'vladoi_ionut@yahoo.com' });
   ok(r.handled && r.status === 200 && r.body && r.body.userId === userId, 'POST /challenge {email} → 200 + same userId');
 
+  // 9b. Challenge by publicKey powers browser-local login without a legacy lookup.
+  r = await call('POST', '/api/cryptoauth/challenge', { publicKey: pubB64 });
+  ok(r.handled && r.status === 200 && r.body && r.body.userId === userId && r.body.challenge, 'POST /challenge {publicKey} → 200 + same userId');
+
   // 10. Recover (passwordless) — send fresh challenge + signature with same keypair.
   r = await call('POST', '/api/cryptoauth/challenge', { userId });
   const ch3 = r.body.challenge;
   const sig3 = crypto.sign(null, Buffer.from(ch3, 'utf8'), privateKey);
   r = await call('POST', '/api/cryptoauth/recover', { publicKey: pubB64, challenge: ch3, signature: sig3.toString('base64') });
   ok(r.handled && r.status === 200 && r.body && r.body.ok && r.body.userId === userId && r.body.token, 'POST /recover → 200 + token');
+
+  // 10b. Recover challenge is single-use; replay must fail.
+  r = await call('POST', '/api/cryptoauth/recover', { publicKey: pubB64, challenge: ch3, signature: sig3.toString('base64') });
+  ok(r.handled && r.status === 400 && !r.body.ok, 'POST /recover replay challenge → 400');
 
   // 11. Logout (stateless)
   r = await call('POST', '/api/cryptoauth/logout', { token });
