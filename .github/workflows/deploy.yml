@@ -322,6 +322,20 @@ jobs:
           systemctl disable --now zac.service 2>/dev/null || true
           systemctl reset-failed zac.service 2>/dev/null || true
           pm2 delete unicorn-guardian 2>/dev/null || true
+          # Kill stale/orphan Node listeners before PM2 start. A previous
+          # deploy can leave a detached process bound to 127.0.0.1:3000; PM2
+          # then reports the new backend as online while it loops on EADDRINUSE,
+          # and nginx keeps serving the old API build.
+          for PORT in 3000 3001; do
+            PIDS=$(ss -tlnp 2>/dev/null | awk -v p=":$PORT" '$4 ~ p {print $0}' | sed -n 's/.*pid=\([0-9][0-9]*\).*/\1/p' | sort -u)
+            for PID in $PIDS; do
+              [ -n "$PID" ] || continue
+              echo "[deploy] killing stale listener pid=$PID on port $PORT"
+              kill "$PID" 2>/dev/null || true
+              sleep 1
+              kill -9 "$PID" 2>/dev/null || true
+            done
+          done
           pm2 save --force 2>/dev/null || true
           bash "$DEPLOY_PATH/server-doctor.sh" "$DEPLOY_PATH" "$DOMAIN" || true
           # Ensure SSL / HTTPS is active:
