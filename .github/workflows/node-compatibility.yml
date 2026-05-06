@@ -72,5 +72,5 @@ jobs:
       - name: 🏗️ Build frontend
         working-directory: ./UNICORN_FINAL/client
         run: |
-          npm ci
+          npm ci || (sleep 3 && rm -rf node_modules && npm ci)
           CI=false npm run build
