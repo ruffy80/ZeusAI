@@ -322,9 +322,10 @@ ${hreflangs}
 <meta name="twitter:image" content="${ogImage}"/>
 ${jsonLdBlocks}
 <link rel="manifest" href="/manifest.webmanifest"/>
-<link rel="preload" as="image" href="${assetPath('/assets/zeus/hero.jpg')}" fetchpriority="high"/>
-<!-- Local font loading for maximum speed and reliability. Google Fonts removed for instant FCP/LCP. -->
-<link rel="stylesheet" href="/assets/fonts/local-fonts.css"/>
+<!-- Preload the only font used above the fold; the rest are declared inline below. -->
+<link rel="preload" as="font" type="font/woff2" href="/assets/fonts/SpaceGrotesk-Regular.woff2" crossorigin="anonymous"/>
+<!-- Responsive LCP preload: tiny mobile AVIF/WebP first, full hero only on wider viewports. -->
+<link rel="preload" as="image" type="image/avif" href="${assetPath('/assets/zeus/hero-640.avif')}" imagesrcset="${assetPath('/assets/zeus/hero-640.avif')} 640w" imagesizes="100vw" fetchpriority="high"/>
 <link rel="stylesheet" href="${assetPath('/assets/app.css')}"/>
 <link rel="icon" type="image/png" sizes="32x32" href="${assetPath('/assets/icons/favicon-32.png')}"/>
 <link rel="icon" type="image/png" sizes="192x192" href="${assetPath('/assets/icons/icon-192.png')}"/>
@@ -339,6 +340,11 @@ ${jsonLdBlocks}
    and the Google Fonts stylesheet finish loading in parallel.
    Keep this block tiny — it ships on every SSR response.
    ============================================================ */
+@font-face{font-family:'Space Grotesk';src:url('/assets/fonts/SpaceGrotesk-Regular.woff2') format('woff2');font-weight:400;font-style:normal;font-display:swap}
+@font-face{font-family:'Space Grotesk';src:url('/assets/fonts/SpaceGrotesk-Bold.woff2') format('woff2');font-weight:700;font-style:normal;font-display:swap}
+@font-face{font-family:'JetBrains Mono';src:url('/assets/fonts/JetBrainsMono-Regular.woff2') format('woff2');font-weight:400;font-style:normal;font-display:swap}
+@font-face{font-family:'Cinzel';src:url('/assets/fonts/Cinzel-Bold.woff2') format('woff2');font-weight:700;font-style:normal;font-display:swap}
+@font-face{font-family:'Orbitron';src:url('/assets/fonts/Orbitron-Bold.woff2') format('woff2');font-weight:700;font-style:normal;font-display:swap}
 :root{--bg:#05040a;--bg2:#0a0818;--ink:#e8ecff;--ink-dim:#8fa1d4;--violet:#8a5cff;--blue:#3ea0ff;--gold:#ffd36a;--stroke:rgba(163,138,255,.22);--radius:18px;--font:"Space Grotesk","Inter",system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
 *{box-sizing:border-box}
 html,body{margin:0;padding:0;background:var(--bg);color:var(--ink);font-family:var(--font);-webkit-font-smoothing:antialiased;overflow-x:hidden}
@@ -399,7 +405,7 @@ function navBar(route, opts) {
     : 'Display in English';
   const langToggle = `<button class="lang-toggle" type="button" data-target-lang="${targetLang}" aria-label="${targetTitle}" title="${targetTitle}">🌐 ${targetLabel}</button>`;
   return `<nav class="nav" data-nav-open="false">
-<div class="brand"><div class="brand-logo brand-logo-photo"><img src="${assetPath('/assets/zeus/brand.jpg')}" alt="Zeus" width="44" height="44" decoding="async" loading="lazy" onerror="this.style.display='none'"/></div><div><span class="zeus-wordmark">Zeus<span class="ai">AI</span></span><small>Sovereign · Self-Evolving · Signed</small></div></div>
+<div class="brand"><div class="brand-logo brand-logo-photo"><picture><source type="image/avif" srcset="${assetPath('/assets/zeus/brand-88.avif')} 1x, ${assetPath('/assets/zeus/brand-176.avif')} 2x, ${assetPath('/assets/zeus/brand-264.avif')} 3x"/><source type="image/webp" srcset="${assetPath('/assets/zeus/brand-88.webp')} 1x, ${assetPath('/assets/zeus/brand-176.webp')} 2x, ${assetPath('/assets/zeus/brand-264.webp')} 3x"/><img src="${assetPath('/assets/zeus/brand-88.jpg')}" srcset="${assetPath('/assets/zeus/brand-88.jpg')} 1x, ${assetPath('/assets/zeus/brand-176.jpg')} 2x, ${assetPath('/assets/zeus/brand-264.jpg')} 3x" alt="Zeus" width="44" height="44" decoding="async" loading="lazy" onerror="this.style.display='none'"/></picture></div><div><span class="zeus-wordmark">Zeus<span class="ai">AI</span></span><small>Sovereign · Self-Evolving · Signed</small></div></div>
 <button class="nav-toggle" type="button" aria-label="Toggle navigation" aria-expanded="false" aria-controls="nav-links">
   <span class="nav-toggle-bar"></span><span class="nav-toggle-bar"></span><span class="nav-toggle-bar"></span>
 </button>
@@ -482,11 +488,21 @@ ${globalChrome(N)}
 <script${N}>window.__ZEUS_ASSETS__=${JSON.stringify(browserAssetManifest())};</script>
 <script${N} data-local-three-version="r160">
 // 30Y-LTS: try locally vendored Three.js first, fall back to CDN only when absent.
+// PERF: defer until the browser is idle (or 1.5 s after load) so Three.js parsing
+// never blocks LCP / TBT. The galaxy canvas already has a CSS-only fallback
+// painted for the first frame so deferring is purely additive.
 (function loadThree(){
-  var s=document.createElement('script');
-  s.src='${assetPath('/assets/vendor/three.min.js')}';
-  s.onerror=function(){var f=document.createElement('script');f.src='https://unpkg.com/three@0.160.0/build/three.min.js';f.defer=true;document.head.appendChild(f);};
-  document.head.appendChild(s);
+  function inject(){
+    if (window.__zeusThreeLoaded) return; window.__zeusThreeLoaded = true;
+    var s=document.createElement('script');
+    s.src='${assetPath('/assets/vendor/three.min.js')}';
+    s.async=true;
+    s.onerror=function(){var f=document.createElement('script');f.src='https://unpkg.com/three@0.160.0/build/three.min.js';f.async=true;document.head.appendChild(f);};
+    document.head.appendChild(s);
+  }
+  var ric = window.requestIdleCallback || function(cb){ return setTimeout(cb, 1500); };
+  if (document.readyState === 'complete') ric(inject, { timeout: 3000 });
+  else window.addEventListener('load', function(){ ric(inject, { timeout: 3000 }); }, { once: true });
 })();
 </script>
 <script${N}>
@@ -806,7 +822,7 @@ function pageHome() {
 </section>` : '';
   return `<section class="hero">
   <div class="zeus-scene" aria-hidden="true">
-    <img id="zeusHeroImg" class="zeus-hero-image" src="${assetPath('/assets/zeus/hero.jpg')}" data-zeus-src="${assetPath('/assets/zeus/hero.jpg')}" alt="" width="1600" height="900" decoding="async" fetchpriority="high" loading="eager" onerror="this.onerror=null;this.src='${assetPath('/assets/zeus/placeholder.svg')}'"/>
+    <picture><source type="image/avif" srcset="${assetPath('/assets/zeus/hero-640.avif')} 640w, ${assetPath('/assets/zeus/hero.jpg').replace(/\.jpg$/, '.avif')} 800w" sizes="100vw"/><source type="image/webp" srcset="${assetPath('/assets/zeus/hero-640.webp')} 640w" sizes="100vw"/><img id="zeusHeroImg" class="zeus-hero-image" src="${assetPath('/assets/zeus/hero-640.jpg')}" srcset="${assetPath('/assets/zeus/hero-640.jpg')} 640w, ${assetPath('/assets/zeus/hero.jpg')} 800w" sizes="100vw" data-zeus-src="${assetPath('/assets/zeus/hero.jpg')}" alt="" width="1600" height="900" decoding="async" fetchpriority="high" loading="eager" onerror="this.onerror=null;this.src='${assetPath('/assets/zeus/placeholder.svg')}'"/></picture>
     <div class="zeus-halo zeus-halo-a"></div>
     <div class="zeus-halo zeus-halo-b"></div>
     <div class="zeus-stars"></div>

@@ -22,7 +22,7 @@ assert(typeof m.handle === 'function', 'module exports handle()');
 // ── A11y/perf regression guards from PageSpeed pass-2 ──
 assert(shellJs.includes('class="zeus-hero-image"') && shellJs.includes('fetchpriority="high"'), 'hero image has fetchpriority=high');
 assert(/zeus-hero-image[^>]*width="1600"[^>]*height="900"/.test(shellJs), 'hero image has explicit width/height');
-assert(/brand\.jpg[^<]*width="44"[^<]*height="44"[^<]*loading="lazy"/.test(shellJs), 'brand logo has explicit dimensions + lazy loading');
+assert(/brand-88\.jpg[^<]*width="44"[^<]*height="44"[^<]*loading="lazy"/.test(shellJs), 'brand logo has explicit dimensions + lazy loading');
 assert(!/<h4|<h5|<h6/.test(shellJs), 'no <h4>/<h5>/<h6> headings (descending order preserved)');
 assert(shellJs.includes('.pillar-title{') && shellJs.includes('.footer-col-title{'), 'pillar-title + footer-col-title CSS present');
 
