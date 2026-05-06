@@ -7,6 +7,7 @@ const path = require('path');
 const srcIndex = fs.readFileSync(path.join(__dirname, '..', 'src', 'index.js'), 'utf8');
 const template = fs.readFileSync(path.join(__dirname, '..', 'src', 'site', 'template.js'), 'utf8');
 const v2Shell = fs.readFileSync(path.join(__dirname, '..', 'src', 'site', 'v2', 'shell.js'), 'utf8');
+const sovereignExtensions = fs.readFileSync(path.join(__dirname, '..', 'src', 'site', 'sovereign-extensions.js'), 'utf8');
 const nginx = fs.readFileSync(path.join(__dirname, '..', 'scripts', 'nginx-unicorn.conf'), 'utf8');
 
 assert.ok(srcIndex.includes("Cross-Origin-Resource-Policy', 'same-origin'"), 'HTML responses must set CORP');
@@ -37,6 +38,8 @@ assert.ok(v2Shell.includes('Buy AI Service'), 'Served v2 shell must expose a cle
 assert.ok(v2Shell.includes('Innovation map'), 'Served v2 shell must expose innovation map navigation');
 assert.ok(v2Shell.includes('function zeusResilientFetch'), 'Served v2 shell must install resilient fetch');
 assert.ok(v2Shell.includes('response.status===429'), 'Served v2 shell must handle HTTP 429 explicitly');
+assert.ok(sovereignExtensions.includes("urlPath === '/status.json'"), 'Sovereign status JSON must remain available at /status.json');
+assert.ok(sovereignExtensions.includes("!/text\\/html/i.test"), 'Sovereign /status handler must let browser HTML requests reach the v2 shell');
 
 assert.ok(/\bgzip\s+on;/.test(nginx), 'nginx template must enable gzip');
 assert.ok(/\bgzip_vary\s+on;/.test(nginx), 'nginx gzip must emit Vary: Accept-Encoding');

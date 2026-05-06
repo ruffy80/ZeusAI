@@ -720,8 +720,8 @@ ${all.map(u => `  <url><loc>${OWNER.domain}${u}</loc><lastmod>${now}</lastmod><c
     ]), true);
   }
 
-  // ── /status — public uptime/health (no internals leaked) ─────────────────
-  if (urlPath === '/status') {
+  // ── /status(.json) — JSON for monitors, HTML shell for browsers ──────────
+  if (urlPath === '/status.json' || (urlPath === '/status' && !/text\/html/i.test(String(req.headers.accept || '')))) {
     const uptimeSec = (Date.now() - METRICS.startedAt) / 1000;
     const health = {
       status: 'operational',
