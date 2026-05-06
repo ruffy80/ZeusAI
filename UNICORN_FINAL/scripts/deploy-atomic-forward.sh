@@ -88,6 +88,18 @@ for _ in $(seq 1 "$CANARY_TIMEOUT_SECONDS"); do
 done
 [ "$CANARY_OK" = "1" ] || { tail -120 "$CANARY_LOG" >&2 || true; fail "canary health timeout"; }
 
+log "wait for canary quantum integrity"
+QIS_OK=0
+for _ in $(seq 1 "$CANARY_TIMEOUT_SECONDS"); do
+  if curl -fsS --max-time 2 "http://127.0.0.1:${CANARY_PORT}/api/quantum-integrity/status" \
+    | node -e 'let body=""; process.stdin.on("data", c => body += c); process.stdin.on("end", () => { const data = JSON.parse(body); if (data.active === true && data.integrity === "intact" && (!data.diagnostics || (data.diagnostics.issues || []).length === 0)) process.exit(0); process.exit(1); });' >/dev/null 2>&1; then
+    QIS_OK=1
+    break
+  fi
+  sleep 1
+done
+[ "$QIS_OK" = "1" ] || { curl -fsS --max-time 2 "http://127.0.0.1:${CANARY_PORT}/api/quantum-integrity/status" >&2 || true; tail -120 "$CANARY_LOG" >&2 || true; fail "canary quantum integrity timeout"; }
+
 BASE_URL="http://127.0.0.1:${CANARY_PORT}" SKIP_PUBLIC=1 bash scripts/smoke-forward-only.sh
 cleanup_canary
 trap - EXIT
