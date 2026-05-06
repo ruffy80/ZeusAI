@@ -392,6 +392,13 @@ jobs:
             # the static /.well-known/ alias. Idempotent; safe to re-run on every deploy.
             python3 "$DEPLOY_PATH/scripts/nginx-patch-100y-routes.py" || \
               echo "[nginx-patch-100y-routes] patch failed (continuing)"
+            # ZEUS-PERF-100Y: route the two new performance-100y .well-known
+            # JSON files (perf-budget.json, web-vitals-attestation.json) to
+            # the SITE service (:3001). /api/v100/perf/* is already covered
+            # by the generic /api/v100/ rule from the previous patcher.
+            # Idempotent; safe to re-run on every deploy.
+            python3 "$DEPLOY_PATH/scripts/nginx-patch-perf-100y-routes.py" || \
+              echo "[nginx-patch-perf-100y-routes] patch failed (continuing)"
           else
             echo "[nginx-patch] python3 indisponibil pe host — sărit (instalează-l ca să activezi /.well-known/*)"
           fi
