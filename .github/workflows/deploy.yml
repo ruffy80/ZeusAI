@@ -386,6 +386,12 @@ jobs:
             # One final reload to pick up the asset-cache injection.
             nginx -t && systemctl reload nginx || \
               echo "[nginx-patch-asset-cache] reload skipped (validation/reload failed)"
+            # ZEUS-100Y: route /api/v100/* and the new /.well-known/{civilization-protocol,
+            # ai-rights, earth-standard, zeus-attestation}.json files to the SITE
+            # service (:3001) BEFORE the generic /api/ → :3000 catch-all and BEFORE
+            # the static /.well-known/ alias. Idempotent; safe to re-run on every deploy.
+            python3 "$DEPLOY_PATH/scripts/nginx-patch-100y-routes.py" || \
+              echo "[nginx-patch-100y-routes] patch failed (continuing)"
           else
             echo "[nginx-patch] python3 indisponibil pe host — sărit (instalează-l ca să activezi /.well-known/*)"
           fi
