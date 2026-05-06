@@ -1,35 +1,20 @@
 'use strict';
-// Regression test: site-local customer signup + login endpoints, plus
-// client-side double-render guard (accountWired flag logic).
+// Site auth e2e — REVOLUTIONARY EDITION.
+// Asserts that the SITE server (src/index.js) has fully retired legacy
+// password/JWT/passkey auth and now exposes the Ed25519 cryptoauth contract
+// at /api/cryptoauth/* with proper deprecation signaling on the old paths.
 //
-// Catches the bug where renderAccountAuth() never set root.dataset.accountWired,
-// allowing wireExistingAccountAuth() to fire 500ms later and wipe user input.
+// Original password-based test archived as site-auth-e2e.test.js.legacy-bak.
 
 const assert = require('assert');
 const http = require('http');
 const path = require('path');
-
-// ── 1. Syntax check for client.js (catches any JS parse error) ──────────────
 const { execFileSync } = require('child_process');
+
+// 1. Client-side guard syntax check (kept from legacy test).
 execFileSync(process.execPath, ['--check', path.join(__dirname, '..', 'src', 'site', 'v2', 'client.js')]);
 
-// ── 2. Verify accountWired logic in client.js source ────────────────────────
-const clientSrc = require('fs').readFileSync(
-  path.join(__dirname, '..', 'src', 'site', 'v2', 'client.js'),
-  'utf8'
-);
-// renderAccountAuth must set accountWired='1' at the end
-assert.ok(
-  /root\.dataset\.accountWired\s*=\s*['"]1['"]/.test(clientSrc),
-  'renderAccountAuth() must set root.dataset.accountWired = "1" to prevent double-render'
-);
-// hydrateAccount must guard against re-rendering when already wired
-assert.ok(
-  /authFormWired\(\)/.test(clientSrc),
-  'hydrateAccount() must use authFormWired() guard to skip re-render when form is already wired'
-);
-
-// ── 3. Boot site server + test customer API end-to-end ──────────────────────
+// 2. Boot the site server.
 const { createServer } = require('../src/index');
 const server = createServer();
 
@@ -49,91 +34,79 @@ function doRequest(port, method, urlPath, body, extraHeaders) {
   });
 }
 
+function assertRetired(res, label) {
+  assert.strictEqual(res.status, 410, `${label} should return 410 Gone, got ${res.status}: ${res.body}`);
+  assert.strictEqual(res.headers['deprecation'], 'true', `${label} must set Deprecation: true`);
+  assert.ok(res.headers['sunset'], `${label} must set Sunset header`);
+  assert.ok(res.headers['link'] && /rel="successor-version"/i.test(res.headers['link']),
+    `${label} Link header must advertise successor-version`);
+  assert.ok(res.headers['x-auth-retired'], `${label} must set X-Auth-Retired header`);
+  const json = JSON.parse(res.body);
+  assert.strictEqual(json.ok, false, `${label} body.ok must be false`);
+  assert.strictEqual(json.error, 'auth_endpoint_retired', `${label} body.error must be auth_endpoint_retired`);
+  assert.ok(json.successor && json.successor.includes('cryptoauth'), `${label} body.successor must point to cryptoauth`);
+}
+
 server.listen(0, '127.0.0.1', async () => {
   try {
     const port = server.address().port;
-    // Use a unique email per run so the SQLite portal doesn't carry state across CI runs.
-    const TEST_EMAIL = `e2e-${Date.now()}-${Math.random().toString(36).slice(2,8)}@zeusai.pro`;
 
-    // 3a. Signup creates account and returns token + Set-Cookie
-    const signupRes = await doRequest(port, 'POST', '/api/customer/signup', {
-      email: TEST_EMAIL,
-      password: 'Test1234!',
-      name: 'E2E Test User',
+    // ── Legacy customer endpoints → all 410 with deprecation headers ───────
+    const retiredPosts = [
+      '/api/customer/signup',
+      '/api/customer/login',
+      '/api/customer/logout',
+      '/api/customer/forgot-password',
+      '/api/customer/reset-password',
+      '/api/auth/register',
+      '/api/auth/login',
+      '/api/auth/logout',
+    ];
+    for (const p of retiredPosts) {
+      const r = await doRequest(port, 'POST', p, { email: 'x@y.z', password: 'irrelevant' });
+      assertRetired(r, `POST ${p}`);
+    }
+
+    // Passkey + WebAuthn + device-key namespaces also retired.
+    for (const p of ['/api/auth/passkey/options', '/api/webauthn/register/begin', '/api/device-key/register']) {
+      const r = await doRequest(port, 'POST', p, {});
+      assertRetired(r, `POST ${p}`);
+    }
+
+    // ── Legacy GET pages → 301 redirect to /account ────────────────────────
+    for (const legacyPage of ['/login', '/signup', '/forgot-password', '/reset-password', '/auth']) {
+      const r = await doRequest(port, 'GET', legacyPage);
+      assert.strictEqual(r.status, 301, `${legacyPage} must redirect (got ${r.status})`);
+      assert.strictEqual(r.headers['location'], '/account', `${legacyPage} must redirect to /account`);
+    }
+
+    // ── New cryptoauth manifest reachable through the site server ──────────
+    const manifest = await doRequest(port, 'GET', '/api/cryptoauth/manifest');
+    assert.strictEqual(manifest.status, 200, `cryptoauth manifest status=${manifest.status}: ${manifest.body}`);
+    const mJson = JSON.parse(manifest.body);
+    assert.strictEqual(mJson.ok, true);
+    assert.strictEqual(mJson.pack, 'zeus-cryptoauth');
+    assert.ok(/ed25519/i.test(String(mJson.algorithm)), `manifest.algorithm must be Ed25519 (got ${mJson.algorithm})`);
+    assert.ok(mJson.endpoints && typeof mJson.endpoints === 'object' && Object.keys(mJson.endpoints).length >= 6,
+      'cryptoauth manifest must list >=6 endpoints');
+    assert.strictEqual(manifest.headers['x-cryptoauth'], '1.0.0',
+      'cryptoauth responses must advertise X-Cryptoauth version');
+
+    // ── /account page renders the new flow markers ─────────────────────────
+    const accountPage = await doRequest(port, 'GET', '/account', null, {
+      'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 Zeus-E2E',
     });
-    assert.strictEqual(signupRes.status, 200, `signup status=${signupRes.status}: ${signupRes.body}`);
-    const signup = JSON.parse(signupRes.body);
-    assert.ok(signup.token, 'signup should return a token');
-    assert.ok(signup.customer && signup.customer.email, 'signup should return customer object');
-    assert.ok(signupRes.headers['set-cookie'], 'signup should set customer_session cookie');
-    const token = signup.token;
-
-    // 3b. Login with same credentials returns token
-    const loginRes = await doRequest(port, 'POST', '/api/customer/login', {
-      email: TEST_EMAIL,
-      password: 'Test1234!',
-    });
-    assert.strictEqual(loginRes.status, 200, `login status=${loginRes.status}: ${loginRes.body}`);
-    const login = JSON.parse(loginRes.body);
-    assert.ok(login.token, 'login should return a token');
-    assert.ok(loginRes.headers['set-cookie'], 'login should set customer_session cookie');
-
-    // 3c. /api/customer/me with token returns profile
-    const meRes = await doRequest(port, 'GET', '/api/customer/me', null, {
-      'x-customer-token': token,
-    });
-    assert.strictEqual(meRes.status, 200, `/me status=${meRes.status}: ${meRes.body}`);
-    const me = JSON.parse(meRes.body);
-    assert.ok(me.customer && me.customer.email === TEST_EMAIL, '/me should return matching email');
-
-    // 3c-bis. /api/customer/me also accepts standard `Authorization: Bearer <token>`
-    // (API ergonomics for curl / scripts / 3rd-party integrations).
-    const meBearer = await doRequest(port, 'GET', '/api/customer/me', null, {
-      Authorization: `Bearer ${token}`,
-    });
-    assert.strictEqual(meBearer.status, 200, `/me with Bearer status=${meBearer.status}: ${meBearer.body}`);
-    const meBJson = JSON.parse(meBearer.body);
-    assert.ok(meBJson.customer && meBJson.customer.email === TEST_EMAIL, '/me with Bearer should return matching email');
-
-    // 3d. /api/customer/me without token returns 401
-    const me401 = await doRequest(port, 'GET', '/api/customer/me');
-    assert.strictEqual(me401.status, 401, '/me without token should be 401');
-
-    // 3e. Wrong password returns 401
-    const badLogin = await doRequest(port, 'POST', '/api/customer/login', {
-      email: TEST_EMAIL,
-      password: 'WrongPassword!',
-    });
-    assert.strictEqual(badLogin.status, 401, 'wrong password should return 401');
-
-    // 3f. Duplicate signup returns 409
-    const dupSignup = await doRequest(port, 'POST', '/api/customer/signup', {
-      email: TEST_EMAIL,
-      password: 'Test1234!',
-    });
-    assert.strictEqual(dupSignup.status, 409, 'duplicate signup should return 409');
-    const dupJson = JSON.parse(dupSignup.body);
-    assert.strictEqual(dupJson.error, 'email_taken', 'duplicate signup error should be email_taken');
-
-    // 3g. Logout clears the cookie
-    const logoutRes = await doRequest(port, 'POST', '/api/customer/logout');
-    assert.strictEqual(logoutRes.status, 200, `logout status=${logoutRes.status}`);
-    const logoutCookie = logoutRes.headers['set-cookie'];
-    assert.ok(logoutCookie, 'logout should set cookie');
-    // Cookie should expire in the past (max-age=0 or expires in past)
-    const cookieStr = Array.isArray(logoutCookie) ? logoutCookie.join('; ') : String(logoutCookie);
-    assert.ok(
-      cookieStr.includes('Max-Age=0') || cookieStr.includes('max-age=0') || cookieStr.includes('Expires=Thu, 01 Jan 1970'),
-      'logout cookie should be expired'
-    );
+    assert.strictEqual(accountPage.status, 200, `/account status=${accountPage.status}`);
+    assert.ok(/cryptoauth|Ed25519|zeus-vault|Web Crypto/.test(accountPage.body),
+      '/account page must render new cryptoauth UI markers');
 
     server.close(() => {
-      console.log('site-auth-e2e test passed');
+      console.log('site-auth-e2e (cryptoauth edition) test passed');
       process.exit(0);
     });
   } catch (err) {
     server.close();
-    console.error('site-auth-e2e test FAILED:', err.message || err);
+    console.error('site-auth-e2e (cryptoauth edition) test FAILED:', err && err.stack ? err.stack : err);
     process.exit(1);
   }
 });

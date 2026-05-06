@@ -1548,49 +1548,425 @@ function pageStore() {
 }
 
 function pageAccount() {
-  return `<section class="enterprise-hero" style="padding-top:120px">
-  <div style="max-width:1100px;margin:0 auto;padding:0 28px">
-    <span class="kicker" style="color:#8a5cff">Customer Portal</span>
-    <h1 style="font-size:clamp(36px,4.5vw,56px);line-height:1.04;margin:14px 0 12px;letter-spacing:-0.02em">Your account</h1>
-    <p style="color:var(--ink-dim);font-size:17px;line-height:1.55;max-width:820px;margin:0 0 30px">Create a real ZeusAI customer account, then manage services, orders, invoices, licenses, deliverables and API keys from one secure portal.</p>
-    <div id="accountRoot">
-      <div class="card" style="padding:24px;margin-bottom:24px;border:1px solid rgba(124,255,184,.26);background:linear-gradient(135deg,rgba(124,255,184,.08),rgba(138,92,255,.08))">
-        <div style="display:flex;justify-content:space-between;gap:18px;align-items:center;flex-wrap:wrap">
-          <div style="max-width:640px">
-            <span class="kicker" style="color:#7cffb8">Device Key · Passkey</span>
-            <h3 style="margin:6px 0 6px">Revolutionary sign in: your device creates the private key</h3>
-            <p style="color:var(--ink-dim);font-size:13.5px;line-height:1.55;margin:0">WebAuthn/FIDO2: cheia privată rămâne în Secure Enclave/TPM/browser. ZeusAI păstrează doar cheia publică și creează sesiunea client după semnătura device-ului.</p>
-          </div>
-          <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;min-width:280px">
-            <input id="acPasskeyEmail" type="email" placeholder="email pentru device key" autocomplete="email" style="flex:1;min-width:220px;padding:10px 12px;border-radius:6px;border:1px solid rgba(124,255,184,.3);background:rgba(10,8,30,.4);color:#fff">
-            <button id="acPasskeyLoginBtn" class="btn btn-primary">Sign in with device</button>
-            <button id="acPasskeyCreateBtn" class="btn">Create device key</button>
-          </div>
-        </div>
-        <div id="acPasskeyMsg" style="font-size:13px;margin-top:12px;color:var(--ink-dim);line-height:1.5"></div>
+  // ────────────────────────────────────────────────────────────────────
+  // Revolutionary cryptographic auth (Ed25519 + IndexedDB + encrypted vault).
+  // SOLE auth surface on this site. No passwords. No emails for auth.
+  // No SMS. No magic links. Private key never leaves the user's device.
+  // Mobile + desktop parity by design (single responsive layout).
+  // ────────────────────────────────────────────────────────────────────
+  return `<section style="padding:120px 0 80px;min-height:100vh">
+  <div style="max-width:760px;margin:0 auto;padding:0 20px">
+    <span class="kicker" style="color:#7cffb8">Cryptographic identity \u00b7 Ed25519</span>
+    <h1 style="font-size:clamp(32px,4vw,48px);line-height:1.05;margin:14px 0 10px;letter-spacing:-0.02em">Your account</h1>
+    <p id="acaTagline" style="color:var(--ink-dim);font-size:16px;line-height:1.55;margin:0 0 28px">No passwords. No emails to verify. Your device generates the keypair \u2014 the private key never leaves your browser. To recover, import the encrypted backup file you download once at registration.</p>
+
+    <div id="acaState" class="card" style="padding:26px;background:linear-gradient(135deg,rgba(124,255,184,.07),rgba(138,92,255,.07));border:1px solid rgba(124,255,184,.25);min-height:120px">
+      <div style="color:var(--ink-dim);font-size:14px">Loading\u2026</div>
+    </div>
+
+    <div id="acaPanels" style="margin-top:22px"></div>
+
+    <details id="acaAdvanced" style="margin-top:22px;background:rgba(10,8,30,.4);border:1px solid rgba(138,92,255,.18);border-radius:10px;padding:14px 18px">
+      <summary style="cursor:pointer;font-weight:600;color:#9ab4ff">Advanced \u00b7 Sign out from this device only \u00b7 Wipe local key</summary>
+      <div style="margin-top:14px;display:flex;gap:10px;flex-wrap:wrap">
+        <button id="acaLogoutBtn" class="btn btn-ghost">Sign out</button>
+        <button id="acaWipeBtn" class="btn btn-ghost" style="color:#ff9c9c;border-color:rgba(255,156,156,.4)">Wipe local key (irreversible without backup)</button>
       </div>
-      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:28px">
-        <div class="card" style="padding:28px">
-          <h3 style="margin:0 0 6px">Log in / Conectare</h3>
-          <div style="color:var(--ink-dim);font-size:13px;margin-bottom:14px">Dacă ai deja un cont — intră aici. / If you already have an account — log in here.</div>
-          <input id="acLoginEmail" type="email" placeholder="email" autocomplete="email" style="width:100%;padding:10px 12px;border-radius:6px;border:1px solid rgba(138,92,255,.3);background:rgba(10,8,30,.4);color:#fff;margin-bottom:10px">
-          <input id="acLoginPass" type="password" placeholder="password / parolă" autocomplete="current-password" style="width:100%;padding:10px 12px;border-radius:6px;border:1px solid rgba(138,92,255,.3);background:rgba(10,8,30,.4);color:#fff;margin-bottom:14px">
-          <button id="acLoginBtn" class="btn btn-primary" style="width:100%">Log in →</button>
-          <div id="acLoginErr" style="color:#ff9c9c;font-size:13px;margin-top:10px;line-height:1.5"></div>
-        </div>
-        <div class="card" style="padding:28px">
-          <h3 style="margin:0 0 6px">Create account / Cont nou</h3>
-          <div style="color:var(--ink-dim);font-size:13px;margin-bottom:14px">Doar dacă nu ai încă cont. / Only if you don't have an account yet.</div>
-          <input id="acSignupName" placeholder="name / nume (optional)" autocomplete="name" style="width:100%;padding:10px 12px;border-radius:6px;border:1px solid rgba(138,92,255,.3);background:rgba(10,8,30,.4);color:#fff;margin-bottom:10px">
-          <input id="acSignupEmail" type="email" placeholder="email" autocomplete="email" style="width:100%;padding:10px 12px;border-radius:6px;border:1px solid rgba(138,92,255,.3);background:rgba(10,8,30,.4);color:#fff;margin-bottom:10px">
-          <input id="acSignupPass" type="password" placeholder="password (min 8 chars) / parolă (min 8 caractere)" autocomplete="new-password" style="width:100%;padding:10px 12px;border-radius:6px;border:1px solid rgba(138,92,255,.3);background:rgba(10,8,30,.4);color:#fff;margin-bottom:14px">
-          <button id="acSignupBtn" class="btn btn-primary" style="width:100%">Sign up →</button>
-          <div id="acSignupErr" style="color:#ff9c9c;font-size:13px;margin-top:10px;line-height:1.5"></div>
-        </div>
-      </div>
+      <p style="color:var(--ink-dim);font-size:12.5px;margin:12px 0 0;line-height:1.5">Wiping removes the private key from this browser only. To get back in, import your <code style="color:#7cffb8">.zeus-vault</code> backup file.</p>
+    </details>
+
+    <div style="margin-top:30px;padding:18px;background:rgba(255,211,106,.04);border:1px solid rgba(255,211,106,.18);border-radius:10px">
+      <div style="font-size:13px;color:#ffd36a;font-weight:600;margin-bottom:6px">Why this is future-proof</div>
+      <ul style="color:var(--ink-dim);font-size:13px;line-height:1.65;margin:0;padding-left:20px">
+        <li><b style="color:#fff">No password</b> means no leak, no phishing, no reuse risk \u2014 ever.</li>
+        <li><b style="color:#fff">Ed25519</b> is the same algorithm SSH, signal apps and crypto wallets use \u2014 will be safe for decades.</li>
+        <li><b style="color:#fff">Your private key</b> sits in IndexedDB on your device. The server stores only the public key.</li>
+        <li><b style="color:#fff">Recovery</b> = re-import the encrypted vault file you downloaded at signup. No email, no SMS, no support ticket.</li>
+        <li><b style="color:#fff">User ID</b> is derived from the public key (<code style="color:#7cffb8">zid_\u2026</code>) \u2014 no central database controls who you are.</li>
+      </ul>
     </div>
   </div>
-</section>`;
+</section>
+
+<dialog id="acaDlg" style="border:none;border-radius:14px;padding:0;background:transparent;max-width:520px;width:92%">
+  <div class="card" style="padding:26px;border:1px solid rgba(124,255,184,.3);background:#0a0c14">
+    <h3 id="acaDlgTitle" style="margin:0 0 8px">Backup your private key</h3>
+    <div id="acaDlgBody" style="color:var(--ink-dim);font-size:14px;line-height:1.55"></div>
+    <div style="margin-top:18px;display:flex;gap:10px;flex-wrap:wrap;justify-content:flex-end">
+      <button id="acaDlgCancel" class="btn btn-ghost">Cancel</button>
+      <button id="acaDlgOk" class="btn btn-primary">OK</button>
+    </div>
+  </div>
+</dialog>
+
+<script>
+(function(){
+  if (window.__zeusCryptoAuthInit) return; window.__zeusCryptoAuthInit = true;
+  // ── Polyfilled-safe Web Crypto check ──
+  var subtle = (window.crypto && window.crypto.subtle) || null;
+  if (!subtle || !window.indexedDB) {
+    var s = document.getElementById('acaState');
+    if (s) s.innerHTML = '<b style="color:#ff9c9c">This browser does not support Web Crypto / IndexedDB.</b><br><span style="color:var(--ink-dim);font-size:13px">Use any modern browser (Chrome, Firefox, Safari, Edge \u2265 2020).</span>';
+    return;
+  }
+
+  var DB_NAME = 'zeus-cryptoauth';
+  var STORE = 'keys';
+  var KEY_ID = 'primary';
+  var TOKEN_KEY = 'zeus_cryptoauth_token';
+  var USERID_KEY = 'zeus_cryptoauth_userid';
+
+  // ── IndexedDB tiny wrapper ──
+  function dbOpen() {
+    return new Promise(function(resolve, reject){
+      var req = indexedDB.open(DB_NAME, 1);
+      req.onupgradeneeded = function(){ req.result.createObjectStore(STORE); };
+      req.onsuccess = function(){ resolve(req.result); };
+      req.onerror = function(){ reject(req.error); };
+    });
+  }
+  function dbGet(key) {
+    return dbOpen().then(function(db){ return new Promise(function(res, rej){
+      var tx = db.transaction(STORE, 'readonly').objectStore(STORE).get(key);
+      tx.onsuccess = function(){ res(tx.result || null); };
+      tx.onerror = function(){ rej(tx.error); };
+    }); });
+  }
+  function dbPut(key, val) {
+    return dbOpen().then(function(db){ return new Promise(function(res, rej){
+      var tx = db.transaction(STORE, 'readwrite').objectStore(STORE).put(val, key);
+      tx.onsuccess = function(){ res(); };
+      tx.onerror = function(){ rej(tx.error); };
+    }); });
+  }
+  function dbDel(key) {
+    return dbOpen().then(function(db){ return new Promise(function(res, rej){
+      var tx = db.transaction(STORE, 'readwrite').objectStore(STORE).delete(key);
+      tx.onsuccess = function(){ res(); };
+      tx.onerror = function(){ rej(tx.error); };
+    }); });
+  }
+
+  // ── base64 helpers (URL-safe-tolerant) ──
+  function b64encode(buf) {
+    var bytes = new Uint8Array(buf);
+    var s = '';
+    for (var i = 0; i < bytes.length; i++) s += String.fromCharCode(bytes[i]);
+    return btoa(s);
+  }
+  function b64decode(s) {
+    var raw = atob(s);
+    var out = new Uint8Array(raw.length);
+    for (var i = 0; i < raw.length; i++) out[i] = raw.charCodeAt(i);
+    return out;
+  }
+  function utf8(s) { return new TextEncoder().encode(s); }
+
+  // ── Ed25519 keypair (Web Crypto, raw export for interop with Node) ──
+  // Note: SubtleCrypto Ed25519 is supported in Chrome 113+, Safari 17+, Firefox 130+.
+  // Safe across modern browsers; fallback handled with clear error.
+  function genKeypair() {
+    return subtle.generateKey({ name: 'Ed25519' }, true, ['sign', 'verify']);
+  }
+  function exportPublicRaw(kp) { return subtle.exportKey('raw', kp.publicKey); }
+  function exportPrivatePkcs8(kp) { return subtle.exportKey('pkcs8', kp.privateKey); }
+  function importPrivate(pkcs8) {
+    return subtle.importKey('pkcs8', pkcs8, { name: 'Ed25519' }, true, ['sign']);
+  }
+  function importPublic(raw) {
+    return subtle.importKey('raw', raw, { name: 'Ed25519' }, true, ['verify']);
+  }
+  function sign(privKey, data) {
+    return subtle.sign({ name: 'Ed25519' }, privKey, data);
+  }
+
+  // ── AES-GCM vault encrypt/decrypt with PBKDF2 ──
+  function deriveAesKey(password, salt) {
+    return subtle.importKey('raw', utf8(password), 'PBKDF2', false, ['deriveKey']).then(function(km){
+      return subtle.deriveKey(
+        { name: 'PBKDF2', salt: salt, iterations: 250000, hash: 'SHA-256' },
+        km, { name: 'AES-GCM', length: 256 }, false, ['encrypt', 'decrypt']
+      );
+    });
+  }
+  function encryptVault(privatePkcs8, publicRaw, meta, password) {
+    var salt = crypto.getRandomValues(new Uint8Array(16));
+    var iv = crypto.getRandomValues(new Uint8Array(12));
+    return deriveAesKey(password, salt).then(function(key){
+      var blob = JSON.stringify({
+        priv: b64encode(privatePkcs8),
+        pub: b64encode(publicRaw),
+        meta: meta || {},
+        createdAt: new Date().toISOString()
+      });
+      return subtle.encrypt({ name: 'AES-GCM', iv: iv }, key, utf8(blob)).then(function(ct){
+        return {
+          format: 'zeus-vault-v1',
+          alg: 'AES-GCM-256+PBKDF2-SHA256-250k',
+          salt: b64encode(salt),
+          iv: b64encode(iv),
+          ciphertext: b64encode(ct),
+          createdAt: new Date().toISOString()
+        };
+      });
+    });
+  }
+  function decryptVault(vault, password) {
+    if (!vault || vault.format !== 'zeus-vault-v1') throw new Error('Unknown vault format');
+    var salt = b64decode(vault.salt);
+    var iv = b64decode(vault.iv);
+    var ct = b64decode(vault.ciphertext);
+    return deriveAesKey(password, salt).then(function(key){
+      return subtle.decrypt({ name: 'AES-GCM', iv: iv }, key, ct);
+    }).then(function(plain){
+      return JSON.parse(new TextDecoder().decode(plain));
+    });
+  }
+
+  // ── Server interactions ──
+  function api(path, body) {
+    return fetch(path, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body || {})
+    }).then(function(r){ return r.json().then(function(j){ return { status: r.status, body: j }; }); });
+  }
+  function apiGet(path, token) {
+    return fetch(path, { headers: token ? { 'Authorization': 'Bearer ' + token } : {} })
+      .then(function(r){ return r.json().then(function(j){ return { status: r.status, body: j }; }); });
+  }
+
+  // ── State & UI ──
+  var $state = document.getElementById('acaState');
+  var $panels = document.getElementById('acaPanels');
+  var $logout = document.getElementById('acaLogoutBtn');
+  var $wipe = document.getElementById('acaWipeBtn');
+  var $dlg = document.getElementById('acaDlg');
+  var $dlgTitle = document.getElementById('acaDlgTitle');
+  var $dlgBody = document.getElementById('acaDlgBody');
+  var $dlgOk = document.getElementById('acaDlgOk');
+  var $dlgCancel = document.getElementById('acaDlgCancel');
+
+  function html(s){ return s.replace(/[&<>\"']/g, function(c){ return ({'&':'&amp;','<':'&lt;','>':'&gt;','\"':'&quot;',\"'\":'&#39;'})[c]; }); }
+  function showDialog(title, bodyHtml, okText) {
+    $dlgTitle.textContent = title;
+    $dlgBody.innerHTML = bodyHtml;
+    $dlgOk.textContent = okText || 'OK';
+    return new Promise(function(resolve){
+      function done(v){ $dlgOk.removeEventListener('click', okH); $dlgCancel.removeEventListener('click', cancelH); $dlg.close(); resolve(v); }
+      function okH(){ done(true); }
+      function cancelH(){ done(false); }
+      $dlgOk.addEventListener('click', okH);
+      $dlgCancel.addEventListener('click', cancelH);
+      if ($dlg.showModal) $dlg.showModal(); else $dlg.setAttribute('open','open');
+    });
+  }
+
+  function statusError(msg) {
+    $state.innerHTML = '<div style=\"color:#ff9c9c;font-weight:600\">' + html(msg) + '</div>';
+  }
+  function statusOk(msg) {
+    $state.innerHTML = '<div style=\"color:#7cffb8;font-weight:600\">' + html(msg) + '</div>';
+  }
+
+  function renderLoggedIn(user) {
+    $state.innerHTML =
+      '<div style=\"display:flex;align-items:center;gap:12px;flex-wrap:wrap\">' +
+        '<div style=\"width:42px;height:42px;border-radius:50%;background:linear-gradient(135deg,#7cffb8,#8a5cff);display:flex;align-items:center;justify-content:center;font-weight:700;color:#000;font-size:18px\">' + html((user.name || user.userId).slice(0,1).toUpperCase()) + '</div>' +
+        '<div style=\"flex:1;min-width:200px\">' +
+          '<div style=\"font-size:18px;font-weight:600\">' + html(user.name || 'Signed in') + '</div>' +
+          '<div style=\"color:var(--ink-dim);font-size:13px\">' + (user.email ? html(user.email) + ' \u00b7 ' : '') + '<code style=\"font-size:12px;color:#9ab4ff\">' + html(user.userId) + '</code></div>' +
+          '<div style=\"color:var(--ink-dim);font-size:12px;margin-top:4px\">Member since ' + html(new Date(user.createdAt).toLocaleDateString()) + '</div>' +
+        '</div>' +
+        '<span style=\"background:rgba(124,255,184,.15);color:#7cffb8;padding:6px 12px;border-radius:20px;font-size:12px;font-weight:600\">\u25cf Signed in</span>' +
+      '</div>';
+    $panels.innerHTML = '';
+  }
+
+  function renderLoggedOut() {
+    $state.innerHTML =
+      '<div style=\"font-size:15px;color:var(--ink-dim);line-height:1.55\">You are not signed in. Create a new account in 5 seconds (no email needed) or import your backup vault if you already have one.</div>';
+    $panels.innerHTML =
+      '<div style=\"display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:16px\">' +
+        '<div class=\"card\" style=\"padding:22px\">' +
+          '<h3 style=\"margin:0 0 6px\">Create new account</h3>' +
+          '<p style=\"color:var(--ink-dim);font-size:13.5px;margin:0 0 14px\">Generates an Ed25519 keypair on this device. You will be prompted to download an encrypted backup.</p>' +
+          '<input id=\"acaName\" placeholder=\"Display name (optional)\" style=\"width:100%;box-sizing:border-box;padding:10px 12px;border-radius:8px;border:1px solid rgba(138,92,255,.3);background:rgba(10,8,30,.4);color:#fff;margin-bottom:8px;font-size:14px\">' +
+          '<input id=\"acaEmail\" type=\"email\" placeholder=\"Email (optional, for hint only)\" style=\"width:100%;box-sizing:border-box;padding:10px 12px;border-radius:8px;border:1px solid rgba(138,92,255,.3);background:rgba(10,8,30,.4);color:#fff;margin-bottom:14px;font-size:14px\">' +
+          '<button id=\"acaCreate\" class=\"btn btn-primary\" style=\"width:100%;padding:12px\">Create account \u2192</button>' +
+        '</div>' +
+        '<div class=\"card\" style=\"padding:22px\">' +
+          '<h3 style=\"margin:0 0 6px\">Sign in (this device)</h3>' +
+          '<p style=\"color:var(--ink-dim);font-size:13.5px;margin:0 0 14px\">If you already created an account on this browser, just tap below. The key is read from IndexedDB \u2014 no password.</p>' +
+          '<button id=\"acaSignin\" class=\"btn btn-primary\" style=\"width:100%;padding:12px\">Sign in with this device \u2192</button>' +
+          '<hr style=\"border:none;border-top:1px solid rgba(255,255,255,.08);margin:18px 0\">' +
+          '<h3 style=\"margin:0 0 6px;font-size:15px\">Lost access? Import vault</h3>' +
+          '<p style=\"color:var(--ink-dim);font-size:13px;margin:0 0 10px\">Restore from the <code style=\"color:#7cffb8\">.zeus-vault</code> backup file.</p>' +
+          '<input id=\"acaVaultFile\" type=\"file\" accept=\".zeus-vault,.json,application/json\" style=\"width:100%;font-size:13px;color:#cdd5e6;margin-bottom:8px\">' +
+          '<button id=\"acaImport\" class=\"btn btn-ghost\" style=\"width:100%;padding:10px\">Import &amp; sign in \u2192</button>' +
+        '</div>' +
+      '</div>';
+
+    document.getElementById('acaCreate').addEventListener('click', onCreate);
+    document.getElementById('acaSignin').addEventListener('click', onSignin);
+    document.getElementById('acaImport').addEventListener('click', onImport);
+  }
+
+  function persistKeyAndAuth(privateKey, publicKeyB64, userId, token) {
+    return Promise.all([
+      dbPut(KEY_ID, { priv: privateKey, pub: publicKeyB64 })
+    ]).then(function(){
+      try { localStorage.setItem(TOKEN_KEY, token); localStorage.setItem(USERID_KEY, userId); } catch(_) {}
+    });
+  }
+
+  function onCreate() {
+    var name = (document.getElementById('acaName').value || '').trim();
+    var email = (document.getElementById('acaEmail').value || '').trim();
+    statusOk('Generating keypair\u2026');
+    genKeypair().then(function(kp){
+      return Promise.all([exportPublicRaw(kp), exportPrivatePkcs8(kp)]).then(function(arr){
+        var publicRaw = arr[0], privatePkcs8 = arr[1];
+        var publicKeyB64 = b64encode(publicRaw);
+        return api('/api/cryptoauth/register', { publicKey: publicKeyB64, name: name, email: email }).then(function(r){
+          if (r.status !== 200 || !r.body || !r.body.ok) throw new Error((r.body && r.body.error) || 'register_failed');
+          var userId = r.body.userId;
+          var challenge = r.body.challenge;
+          // Sign challenge to immediately log in.
+          return sign(kp.privateKey, utf8(challenge)).then(function(sig){
+            return api('/api/cryptoauth/login', { userId: userId, challenge: challenge, signature: b64encode(sig) }).then(function(lr){
+              if (lr.status !== 200 || !lr.body || !lr.body.ok) throw new Error('login_after_register_failed');
+              return persistKeyAndAuth(kp.privateKey, publicKeyB64, userId, lr.body.token).then(function(){
+                return promptBackupDownload(privatePkcs8, publicRaw, { userId: userId, name: name, email: email }).then(function(){
+                  return refresh();
+                });
+              });
+            });
+          });
+        });
+      });
+    }).catch(function(e){ statusError('Could not create account: ' + (e.message || e)); });
+  }
+
+  function promptBackupDownload(privatePkcs8, publicRaw, meta) {
+    var bodyHtml =
+      '<p>Your private key was just generated <b>on this device</b>. Download the encrypted backup file now \u2014 it is the only way to recover your account on another device or after wiping this browser.</p>' +
+      '<label style=\"display:block;margin-top:12px;font-size:13px;color:#cdd5e6\">Encryption password (min 8 chars)</label>' +
+      '<input id=\"acaVaultPw\" type=\"password\" autocomplete=\"new-password\" style=\"width:100%;box-sizing:border-box;padding:10px 12px;border-radius:8px;border:1px solid rgba(138,92,255,.3);background:rgba(10,8,30,.4);color:#fff;margin-top:6px\">' +
+      '<div id=\"acaVaultErr\" style=\"color:#ff9c9c;font-size:12.5px;margin-top:8px\"></div>';
+    return showDialog('Download your backup vault', bodyHtml, 'Download .zeus-vault').then(function(ok){
+      if (!ok) {
+        // Allow user to skip but warn.
+        return showDialog('Skip backup?', '<p style=\"color:#ff9c9c\"><b>Warning:</b> Without the backup file, you will lose access if this browser is cleared or if you switch devices.</p>', 'Skip anyway').then(function(skip){
+          if (skip) return; else return promptBackupDownload(privatePkcs8, publicRaw, meta);
+        });
+      }
+      var pw = (document.getElementById('acaVaultPw') || {}).value || '';
+      if (pw.length < 8) {
+        return showDialog('Password too short', '<p style=\"color:#ff9c9c\">Use at least 8 characters.</p>', 'Try again').then(function(){
+          return promptBackupDownload(privatePkcs8, publicRaw, meta);
+        });
+      }
+      return encryptVault(privatePkcs8, publicRaw, meta, pw).then(function(vault){
+        var blob = new Blob([JSON.stringify(vault, null, 2)], { type: 'application/json' });
+        var a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = 'zeus-' + (meta.userId || 'account').slice(0, 16) + '.zeus-vault';
+        document.body.appendChild(a); a.click();
+        setTimeout(function(){ URL.revokeObjectURL(a.href); a.remove(); }, 1000);
+      });
+    });
+  }
+
+  function onSignin() {
+    statusOk('Reading local key\u2026');
+    dbGet(KEY_ID).then(function(rec){
+      if (!rec || !rec.priv || !rec.pub) {
+        return statusError('No local key on this device. Use \"Create new account\" or \"Import vault\".');
+      }
+      return api('/api/cryptoauth/challenge', { userId: '', email: '', publicKey: rec.pub }).then(function(){
+        // Compute userId from publicKey by asking for a challenge — but our endpoint needs userId or email.
+        // We'll do a register-call which is idempotent (returns userId for an existing pub key).
+        return api('/api/cryptoauth/register', { publicKey: rec.pub }).then(function(r){
+          if (r.status !== 200 || !r.body || !r.body.ok) throw new Error((r.body && r.body.error) || 'challenge_failed');
+          var userId = r.body.userId;
+          var challenge = r.body.challenge;
+          return sign(rec.priv, utf8(challenge)).then(function(sig){
+            return api('/api/cryptoauth/login', { userId: userId, challenge: challenge, signature: b64encode(sig) }).then(function(lr){
+              if (lr.status !== 200 || !lr.body || !lr.body.ok) throw new Error('login_failed');
+              try { localStorage.setItem(TOKEN_KEY, lr.body.token); localStorage.setItem(USERID_KEY, userId); } catch(_){}
+              return refresh();
+            });
+          });
+        });
+      });
+    }).catch(function(e){ statusError('Sign in failed: ' + (e.message || e)); });
+  }
+
+  function onImport() {
+    var f = (document.getElementById('acaVaultFile') || {}).files;
+    if (!f || !f[0]) return statusError('Choose a .zeus-vault file first.');
+    var file = f[0];
+    showDialog('Decrypt vault', '<p>Enter the password you set when you downloaded this vault.</p><label style=\"display:block;margin-top:10px;font-size:13px;color:#cdd5e6\">Vault password</label><input id=\"acaImportPw\" type=\"password\" style=\"width:100%;box-sizing:border-box;padding:10px 12px;border-radius:8px;border:1px solid rgba(138,92,255,.3);background:rgba(10,8,30,.4);color:#fff;margin-top:6px\">', 'Decrypt').then(function(ok){
+      if (!ok) return;
+      var pw = (document.getElementById('acaImportPw') || {}).value || '';
+      var reader = new FileReader();
+      reader.onload = function(){
+        try {
+          var vault = JSON.parse(reader.result);
+          decryptVault(vault, pw).then(function(unpacked){
+            var pkcs8 = b64decode(unpacked.priv);
+            var pubB64 = unpacked.pub;
+            return importPrivate(pkcs8.buffer).then(function(privKey){
+              return api('/api/cryptoauth/register', { publicKey: pubB64 }).then(function(r){
+                if (r.status !== 200 || !r.body || !r.body.ok) throw new Error('recover_register_failed');
+                var userId = r.body.userId;
+                var challenge = r.body.challenge;
+                return sign(privKey, utf8(challenge)).then(function(sig){
+                  return api('/api/cryptoauth/recover', { publicKey: pubB64, challenge: challenge, signature: b64encode(sig) }).then(function(lr){
+                    if (lr.status !== 200 || !lr.body || !lr.body.ok) throw new Error('recover_failed');
+                    return persistKeyAndAuth(privKey, pubB64, userId, lr.body.token).then(refresh);
+                  });
+                });
+              });
+            });
+          }).catch(function(){ statusError('Decryption failed. Wrong password or corrupted vault.'); });
+        } catch (e) { statusError('Could not parse vault file.'); }
+      };
+      reader.readAsText(file);
+    });
+  }
+
+  function logout() {
+    var t;
+    try { t = localStorage.getItem(TOKEN_KEY); localStorage.removeItem(TOKEN_KEY); localStorage.removeItem(USERID_KEY); } catch(_){}
+    api('/api/cryptoauth/logout', { token: t }).catch(function(){});
+    refresh();
+  }
+  function wipeLocal() {
+    showDialog('Wipe local key?', '<p style=\"color:#ff9c9c\">This removes your private key from this browser. Without your <code style=\"color:#7cffb8\">.zeus-vault</code> backup file, you will lose access to this account.</p>', 'Wipe').then(function(ok){
+      if (!ok) return;
+      Promise.all([dbDel(KEY_ID)]).then(function(){
+        try { localStorage.removeItem(TOKEN_KEY); localStorage.removeItem(USERID_KEY); } catch(_){}
+        refresh();
+      });
+    });
+  }
+  if ($logout) $logout.addEventListener('click', logout);
+  if ($wipe) $wipe.addEventListener('click', wipeLocal);
+
+  function refresh() {
+    var token; try { token = localStorage.getItem(TOKEN_KEY); } catch(_) { token = null; }
+    if (!token) { renderLoggedOut(); return Promise.resolve(); }
+    return apiGet('/api/cryptoauth/me', token).then(function(r){
+      if (r.status === 200 && r.body && r.body.ok) renderLoggedIn(r.body);
+      else { try { localStorage.removeItem(TOKEN_KEY); } catch(_){} renderLoggedOut(); }
+    }).catch(function(){ renderLoggedOut(); });
+  }
+
+  refresh();
+})();
+</script>`;
 }
 
 function pageEnterprise() {
@@ -1794,6 +2170,9 @@ function renderRoute(route, params = {}) {
     case '/store': return pageStore();
     case '/innovations': return pageInnovations();
     case '/account': return pageAccount();
+    case '/auth': return pageAccount();
+    case '/login': return pageAccount();
+    case '/signup': return pageAccount();
     case '/admin/services': return pageAdminServices();
     case '/admin': return pageAdminLogin();
     case '/admin/login': return pageAdminLogin();

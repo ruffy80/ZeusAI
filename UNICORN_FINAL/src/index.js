@@ -1014,6 +1014,7 @@ let innov100 = null; try { innov100 = require('../backend/modules/innovations-10
 let perf100 = null; try { perf100 = require('../backend/modules/performance-100y'); console.log('[performance-100y] loaded · 13 visionary perf primitives (50y horizon)'); } catch (e) { console.warn('[performance-100y] not loaded:', e.message); }
 let perf100v2 = null; try { perf100v2 = require('../backend/modules/performance-100y-v2'); console.log('[performance-100y-v2] loaded · 15 second-wave visionary perf primitives (50y horizon)'); } catch (e) { console.warn('[performance-100y-v2] not loaded:', e.message); }
 let perf100v3 = null; try { perf100v3 = require('../backend/modules/performance-100y-v3'); console.log('[performance-100y-v3] loaded · 15 third-wave 50y standard primitives (mobile parity, provenance, equity)'); } catch (e) { console.warn('[performance-100y-v3] not loaded:', e.message); }
+let cryptoauth = null; try { cryptoauth = require('../backend/modules/cryptoauth'); console.log('[cryptoauth] loaded · Ed25519 passwordless auth (revolutionary, replaces legacy /api/auth + /api/customer/{login,signup,logout,forgot,reset})'); } catch (e) { console.warn('[cryptoauth] not loaded:', e.message); }
 // ── Adaptive Predictive Prefetch (APP) · self-learning navigation graph + 103 Early Hints ──
 // Genuinely novel: most sites use static, hand-written prefetch hints, or
 // SDK-tracked predictions that need cookies. This module learns the real
@@ -2816,6 +2817,60 @@ async function unicornHandler(req, res) {
     try {
       if (await perf100v3.handle(req, res)) return;
     } catch (e) { console.warn('[performance-100y-v3] handler error:', e.message); }
+  }
+  // ── Cryptoauth (Ed25519 passwordless) dispatcher — the new sole auth surface.
+  // Handles /api/cryptoauth/* (register, challenge, login, logout, recover, me, manifest).
+  // Disable via CRYPTOAUTH_DISABLED=1.
+  if (cryptoauth) {
+    try {
+      if (await cryptoauth.handle(req, res)) return;
+    } catch (e) { console.warn('[cryptoauth] handler error:', e.message); }
+  }
+  // ── Legacy auth retirement: every old auth/customer-auth/webauthn endpoint
+  // returns 410 Gone with a Link header pointing to the new flow at /account.
+  // Owner-only site, single client — zero downstream consumers, safe to retire.
+  // (Kept here BEFORE the legacy handlers below so it pre-empts them.)
+  if (earlyPath && (
+      earlyPath === '/api/customer/signup' ||
+      earlyPath === '/api/customer/login' ||
+      earlyPath === '/api/customer/logout' ||
+      earlyPath === '/api/customer/forgot-password' ||
+      earlyPath === '/api/customer/reset-password' ||
+      earlyPath.startsWith('/api/customer/reset-password/') ||
+      earlyPath === '/api/auth/register' ||
+      earlyPath === '/api/auth/login' ||
+      earlyPath === '/api/auth/logout' ||
+      earlyPath === '/api/auth/forgot-password' ||
+      earlyPath === '/api/auth/reset-password' ||
+      earlyPath.startsWith('/api/auth/passkey/') ||
+      earlyPath.startsWith('/api/webauthn/') ||
+      earlyPath.startsWith('/api/device-key/')
+    )) {
+    res.writeHead(410, {
+      'Content-Type': 'application/json; charset=utf-8',
+      'Cache-Control': 'no-store',
+      'Deprecation': 'true',
+      'Sunset': 'Tue, 06 May 2026 00:00:00 GMT',
+      'Link': '</api/cryptoauth/manifest>; rel="successor-version", </account>; rel="alternate"',
+      'X-Auth-Retired': 'cryptoauth-1.0.0'
+    });
+    return res.end(JSON.stringify({
+      ok: false,
+      error: 'auth_endpoint_retired',
+      message: 'Legacy auth has been replaced by Ed25519 passwordless cryptoauth.',
+      successor: '/api/cryptoauth/manifest',
+      ui: '/account'
+    }));
+  }
+  // ── Legacy /reset-password landing page: redirect to new /account flow.
+  if (earlyPath === '/reset-password' && req.method === 'GET') {
+    res.writeHead(301, { Location: '/account', 'Cache-Control': 'no-store' });
+    return res.end('Moved to /account');
+  }
+  // ── Legacy /login, /signup, /forgot-password landing pages — redirect to /account.
+  if (req.method === 'GET' && (earlyPath === '/login' || earlyPath === '/signup' || earlyPath === '/forgot-password' || earlyPath === '/auth')) {
+    res.writeHead(301, { Location: '/account', 'Cache-Control': 'no-store' });
+    return res.end('Moved to /account');
   }
   if (earlyPath === '/api/uaic/receipts') {
     const email = String(requestUrl.searchParams.get('email') || '').toLowerCase();
