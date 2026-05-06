@@ -69,7 +69,13 @@ function renderGrowthHtml(slug, opts) {
 <link rel="canonical" href="${baseUrl}/grow/${v.id}">
 <meta name="robots" content="index,follow">
 <style>
-  body { font: 16px/1.55 -apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif; max-width: 920px; margin: 0 auto; padding: 2rem 1rem; color: #111; background: #fff; }
+  /* Zeus full-bleed page background — alternation flipped vs the matching
+     /vertical/<slug> page so the visitor sees a different Zeus on the
+     growth variant. Low opacity for legibility. */
+  html { min-height: 100%; }
+  body::before { content:""; position:fixed; inset:0; z-index:-2; background-image:url("/assets/zeus/${ ((v.id||'').length % 2 === 0) ? 'brand.jpg' : 'hero.jpg' }"); background-size:cover; background-position:center; background-repeat:no-repeat; opacity:.18; pointer-events:none; }
+  body::after  { content:""; position:fixed; inset:0; z-index:-1; background:linear-gradient(180deg, rgba(255,255,255,.74), rgba(255,255,255,.9)); pointer-events:none; }
+  body { font: 16px/1.55 -apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif; max-width: 920px; margin: 0 auto; padding: 2rem 1rem; color: #111; background: transparent; position: relative; }
   h1 { font-size: 2.25rem; margin: 0 0 .5rem; }
   .lede { font-size: 1.15rem; color: #333; margin: 0 0 1.5rem; }
   .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; }

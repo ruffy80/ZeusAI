@@ -122,7 +122,13 @@ function renderLandingHtml(slug, opts) {
 <script type="application/ld+json">${JSON.stringify(ldFaq)}</script>
 <script type="application/ld+json">${JSON.stringify(ldBreadcrumb)}</script>
 <style>
-  body { font: 16px/1.55 -apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif; max-width: 880px; margin: 2rem auto; padding: 0 1rem; color: #111; background: #fafafa; }
+  /* Zeus full-bleed page background — same hero/brand alternation as the
+     v2 shell. Deterministic per slug so each vertical always shows the
+     same Zeus. Low opacity preserves text legibility. */
+  html { min-height: 100%; }
+  body::before { content:""; position:fixed; inset:0; z-index:-2; background-image:url("/assets/zeus/${ ((v.id||'').length % 2 === 0) ? 'hero.jpg' : 'brand.jpg' }"); background-size:cover; background-position:center; background-repeat:no-repeat; opacity:.16; pointer-events:none; }
+  body::after  { content:""; position:fixed; inset:0; z-index:-1; background:linear-gradient(180deg, rgba(250,250,250,.78), rgba(250,250,250,.92)); pointer-events:none; }
+  body { font: 16px/1.55 -apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif; max-width: 880px; margin: 2rem auto; padding: 0 1rem; color: #111; background: transparent; position: relative; }
   header { border-bottom: 1px solid #ddd; padding-bottom: 1rem; margin-bottom: 1.5rem; }
   h1 { font-size: 2rem; margin: 0 0 .25rem; }
   .kpi { display:inline-block; background:#0b8a3e; color:#fff; padding:.25rem .5rem; border-radius:4px; font-size:.85rem; }
