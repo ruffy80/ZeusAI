@@ -431,6 +431,8 @@ select.form-inp option{background:#0a0e24;}
     <button class="nav-btn" data-view="marketplace" onclick="navigate('marketplace')"><span>Services</span></button>
     <button class="nav-btn" data-view="crypto-bridge" onclick="navigate('crypto-bridge')"><span>Crypto Bridge</span></button>
     <button class="nav-btn" data-view="pricing" onclick="navigate('pricing')"><span>Pricing</span></button>
+    <button class="nav-btn" data-view="innovations" onclick="navigate('innovations')"><span>Innovations</span></button>
+    <button class="nav-btn" data-view="status" onclick="navigate('status')"><span>Status</span></button>
     <button class="nav-btn hidden" id="nav-dashboard" data-view="dashboard" onclick="navigate('dashboard')"><span>Dashboard</span></button>
     <button class="nav-btn" data-view="admin" onclick="navigate('admin')" id="nav-admin" style="display:none"><span>Admin</span></button>
   </nav>
@@ -458,12 +460,19 @@ select.form-inp option{background:#0a0e24;}
 
   <!-- HOME VIEW (DOM simplified) -->
   <section id="view-home" class="view hero-section">
-    <p class="subtitle">Powered by Advanced AI</p>
-    <h1 class="hero-title">ZEUS AI<br/>Build. Automate. Scale.</h1>
-    <p class="hero-sub">The all-in-one AI platform for autonomous businesses. Deploy intelligent agents, automate workflows, and scale without limits.</p>
+    <p class="subtitle">Live autonomous AI commerce platform</p>
+    <h1 class="hero-title">ZEUS AI<br/>Launch AI products faster.</h1>
+    <p class="hero-sub">Buy ready-to-run AI services, monitor the live Unicorn engine, and activate automation with direct BTC checkout plus enterprise-grade integrity checks.</p>
     <div class="hero-ctas">
-      <button class="btn btn-primary btn-lg" onclick="openModal('auth-modal');switchTab('tab-register')">🚀 Get Started Free</button>
-      <button class="btn btn-outline btn-lg" onclick="navigate('marketplace')">⚡ Explore Services</button>
+      <button class="btn btn-primary btn-lg" onclick="navigate('marketplace')">🚀 Buy AI Service</button>
+      <button class="btn btn-outline btn-lg" onclick="navigate('status')">🟢 Live Status</button>
+      <button class="btn btn-ghost btn-lg" onclick="navigate('innovations')">💡 Innovations</button>
+    </div>
+    <div class="grid-4" style="max-width:920px;margin:18px auto 0;">
+      <div class="card card-sm"><div class="label">Deploy</div><div class="kpi-val green" style="font-size:16px;">Forward-only</div></div>
+      <div class="card card-sm"><div class="label">Integrity</div><div class="kpi-val cyan" style="font-size:16px;">QIS guarded</div></div>
+      <div class="card card-sm"><div class="label">Checkout</div><div class="kpi-val" style="font-size:16px;">BTC direct</div></div>
+      <div class="card card-sm"><div class="label">Delivery</div><div class="kpi-val purple" style="font-size:16px;">Live catalog</div></div>
     </div>
     <div class="zeus-face-wrap">
       <canvas id="zeusCanvas"></canvas>
@@ -629,6 +638,47 @@ select.form-inp option{background:#0a0e24;}
       </div>
     </div>
   </div><!-- end #view-crypto-bridge -->
+
+  <!-- INNOVATIONS VIEW -->
+  <div id="view-innovations" class="view">
+    <div class="sec-title">Live Innovation Coverage</div>
+    <div class="card card-glow" style="max-width:980px;margin:0 auto 18px;">
+      <p class="muted" style="font-size:14px;line-height:1.6;margin-bottom:14px;">A public control panel for the modules shipped in the last innovation cycles: live APIs, foundation layers, optional integrations and provider-dependent capabilities.</p>
+      <div class="grid-4" id="innovation-summary-grid">
+        <div class="card card-sm"><div class="label">Total</div><div class="kpi-val">—</div></div>
+        <div class="card card-sm"><div class="label">Live</div><div class="kpi-val green">—</div></div>
+        <div class="card card-sm"><div class="label">Foundation</div><div class="kpi-val cyan">—</div></div>
+        <div class="card card-sm"><div class="label">Needs Secrets</div><div class="kpi-val purple">—</div></div>
+      </div>
+      <div style="margin-top:16px;display:flex;gap:10px;flex-wrap:wrap;">
+        <button class="btn btn-primary" onclick="loadInnovationCoverage(true)">Refresh Coverage</button>
+        <a class="btn btn-outline" href="/api/innovation/coverage" target="_blank" rel="noopener">Open JSON</a>
+      </div>
+    </div>
+    <div class="grid-auto" id="innovation-coverage-grid">
+      <div class="card" style="text-align:center;padding:40px;"><div class="loader"></div></div>
+    </div>
+  </div><!-- end #view-innovations -->
+
+  <!-- STATUS VIEW -->
+  <div id="view-status" class="view">
+    <div class="sec-title">Live Unicorn Status</div>
+    <div class="grid-4" id="status-summary-grid">
+      <div class="card card-sm"><div class="label">Site</div><div class="kpi-val">Checking…</div></div>
+      <div class="card card-sm"><div class="label">Backend</div><div class="kpi-val">Checking…</div></div>
+      <div class="card card-sm"><div class="label">QIS</div><div class="kpi-val">Checking…</div></div>
+      <div class="card card-sm"><div class="label">Build</div><div class="kpi-val">—</div></div>
+    </div>
+    <div class="card card-glow" style="margin-top:18px;">
+      <div class="dash-section-title">Operational checks</div>
+      <div id="status-checks"><div style="text-align:center;padding:30px;"><div class="loader"></div></div></div>
+      <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:16px;">
+        <button class="btn btn-primary" onclick="loadLiveStatus(true)">Refresh Status</button>
+        <a class="btn btn-outline" href="/api/quantum-integrity/status" target="_blank" rel="noopener">QIS JSON</a>
+        <a class="btn btn-outline" href="/health" target="_blank" rel="noopener">Public Health</a>
+      </div>
+    </div>
+  </div><!-- end #view-status -->
 
   <!-- DASHBOARD VIEW -->
   <div id="view-dashboard" class="view">
@@ -1497,6 +1547,11 @@ async function api(method,path,body,useAdmin){
     if(body) opts.body=JSON.stringify(body);
     var r=await fetch(path,opts);
     if(!r.ok){
+      if(r.status===429){
+        var msg=rateLimitMessage(r);
+        toast(msg,'err');
+        return {error:msg,rateLimited:true,status:429};
+      }
       var t=await r.text();
       try{return JSON.parse(t);}catch(e){return {error:t||('HTTP '+r.status)};}
     }
@@ -1573,6 +1628,96 @@ function updatePaymentCopy(){
   setElText('pricing-payment-copy','Payments via '+labels.join(', ')+'.');
 }
 
+function rateLimitMessage(response){
+  var retry=response&&response.headers&&response.headers.get?response.headers.get('retry-after'):'';
+  return 'Live API is protecting the platform from too many rapid requests. '+(retry?'Retry in '+retry+' seconds.':'Please wait a few seconds and retry.');
+}
+
+function buildStatusCard(label,value,tone,detail){
+  return '<div class="card card-sm"><div class="label">'+escHtml(label)+'</div><div class="kpi-val '+(tone||'')+'" style="font-size:18px;">'+escHtml(value)+'</div>'+(detail?'<p class="muted" style="font-size:11px;margin-top:6px;">'+escHtml(detail)+'</p>':'')+'</div>';
+}
+
+function metaBuild(){
+  var m=document.querySelector('meta[name="x-zeus-build"]');
+  return m&&m.content?m.content:'live';
+}
+
+async function fetchJsonStatus(path){
+  var started=Date.now();
+  try{
+    var response=await fetch(path,{headers:{'Cache-Control':'no-cache'}});
+    var ms=Date.now()-started;
+    var text=await response.text();
+    var json={};
+    try{json=text?JSON.parse(text):{};}catch(e){json={raw:text};}
+    return {path:path,ok:response.ok,status:response.status,ms:ms,json:json};
+  }catch(e){
+    return {path:path,ok:false,status:0,ms:Date.now()-started,json:{error:e.message||'Network error'}};
+  }
+}
+
+async function loadLiveStatus(force){
+  var grid=document.getElementById('status-summary-grid');
+  var checks=document.getElementById('status-checks');
+  if(!grid||!checks) return;
+  if(force) toast('Refreshing live status…','');
+  var results=await Promise.all([
+    fetchJsonStatus('/health'),
+    fetchJsonStatus('/api/health'),
+    fetchJsonStatus('/api/quantum-integrity/status'),
+    fetchJsonStatus('/api/instant/catalog'),
+    fetchJsonStatus('/api/innovation/coverage')
+  ]);
+  var site=results[0], backend=results[1], qis=results[2];
+  var qisIntact=qis.ok&&qis.json&&qis.json.integrity==='intact';
+  grid.innerHTML=buildStatusCard('Site',site.ok?'Online':'Issue',site.ok?'green':'','HTTP '+site.status+' · '+site.ms+'ms')
+    +buildStatusCard('Backend',backend.ok?'Online':'Limited',backend.ok?'green':'purple','HTTP '+backend.status+' · '+backend.ms+'ms')
+    +buildStatusCard('QIS',qisIntact?'Intact':'Review',qisIntact?'green':'purple',qis.json&&qis.json.lastScan?'Last scan '+(qis.json.lastScan.status||'n/a'):'HTTP '+qis.status)
+    +buildStatusCard('Build',metaBuild().slice(0,7),'cyan','Forward-only live release');
+  checks.innerHTML=results.map(function(r){
+    var ok=r.ok&&(r.status<400);
+    var detail=r.status===429?'Rate limited safely':(r.json&&r.json.error?r.json.error:(r.ms+'ms'));
+    return '<div class="hist-row"><div><div style="font-weight:600;color:#e8f4ff;">'+escHtml(r.path)+'</div><div class="muted" style="font-size:11px;">'+escHtml(detail)+'</div></div><span class="badge '+(ok?'':'badge-purple')+'">HTTP '+escHtml(String(r.status))+'</span></div>';
+  }).join('');
+}
+
+function renderInnovationCards(data){
+  var grid=document.getElementById('innovation-coverage-grid');
+  var summaryGrid=document.getElementById('innovation-summary-grid');
+  if(!grid||!summaryGrid) return;
+  var summary=data&&data.summary||{};
+  summaryGrid.innerHTML=buildStatusCard('Total',String(summary.total!=null?summary.total:'—'),'')
+    +buildStatusCard('Live',String(summary.live!=null?summary.live:'—'),'green')
+    +buildStatusCard('Foundation',String(summary.foundation!=null?summary.foundation:'—'),'cyan')
+    +buildStatusCard('Needs Secrets',String(summary.optionalNeedsSecrets!=null?summary.optionalNeedsSecrets:'—'),'purple');
+  var counts=summary.counts||{};
+  var cards=Object.keys(counts).sort().map(function(key){
+    var tone=key.indexOf('live')>=0?'green':key.indexOf('secret')>=0?'purple':'cyan';
+    return '<div class="card card-hover"><div class="label">'+escHtml(key.replace(/-/g,' '))+'</div><div class="kpi-val '+tone+'" style="font-size:24px;">'+escHtml(String(counts[key]))+'</div><p class="muted" style="font-size:12px;margin-top:8px;">Coverage category from the live innovation engine.</p></div>';
+  });
+  if(!cards.length){
+    cards.push('<div class="card"><div class="dash-section-title">Coverage payload</div><pre style="white-space:pre-wrap;color:#9fb7d8;font-size:12px;">'+escHtml(JSON.stringify(data,null,2).slice(0,1800))+'</pre></div>');
+  }
+  grid.innerHTML=cards.join('');
+}
+
+async function loadInnovationCoverage(force){
+  var grid=document.getElementById('innovation-coverage-grid');
+  if(!grid) return;
+  if(force) toast('Refreshing innovation coverage…','');
+  grid.innerHTML='<div class="card" style="text-align:center;padding:40px;"><div class="loader"></div></div>';
+  var r=await fetchJsonStatus('/api/innovation/coverage');
+  if(r.status===429){
+    grid.innerHTML='<div class="card card-glow" style="text-align:center;padding:32px;"><div style="font-size:28px;">🛡️</div><p class="muted">'+escHtml(rateLimitMessage({headers:{get:function(){return '';}}}))+'</p><button class="btn btn-primary" style="margin-top:12px;" onclick="loadInnovationCoverage(true)">Retry</button></div>';
+    return;
+  }
+  if(!r.ok){
+    grid.innerHTML='<div class="card card-glow" style="text-align:center;padding:32px;color:#ff9090;">Could not load coverage · HTTP '+escHtml(String(r.status))+'</div>';
+    return;
+  }
+  renderInnovationCards(r.json||{});
+}
+
 // ================================================================
 // NAVIGATION
 // ================================================================
@@ -1588,6 +1733,8 @@ function navigate(view){
   if(view==='marketplace') loadMarketplace();
   else if(view==='crypto-bridge') loadCryptoBridgeView();
   else if(view==='pricing') loadPricing();
+  else if(view==='innovations') loadInnovationCoverage();
+  else if(view==='status') loadLiveStatus();
   else if(view==='dashboard'){
     if(!isLoggedIn()){openModal('auth-modal');return;}
     switchDashTab(STATE.dashTab||'overview');
@@ -1598,7 +1745,7 @@ function navigate(view){
 
 function initRouting(){
   var h=(window.location.hash||'').replace('#','').trim();
-  var valid=['home','marketplace','crypto-bridge','pricing','dashboard','admin'];
+  var valid=['home','marketplace','crypto-bridge','pricing','innovations','status','dashboard','admin'];
   if(valid.indexOf(h)>=0){
     navigate(h);
     return;
@@ -2179,6 +2326,13 @@ async function loadDashboard(){
   +'<div>'
   // User info
   +'<div class="card card-glow" style="margin-bottom:16px;">'
+  +'<div class="dash-section-title">Command Center</div>'
+  +'<p class="muted" style="font-size:12px;margin-bottom:12px;">Track purchases, keys, credits and platform health from one place.</p>'
+  +'<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;">'
+  +'<button class="btn btn-outline btn-sm" onclick="navigate(\'marketplace\')">Buy service</button>'
+  +'<button class="btn btn-outline btn-sm" onclick="navigate(\'status\')">Live status</button>'
+  +'<button class="btn btn-outline btn-sm" onclick="navigate(\'innovations\')">Innovation map</button>'
+  +'</div>'
   +'<div style="display:flex;align-items:center;gap:16px;margin-bottom:16px;">'
   +'<div class="user-avatar" style="width:52px;height:52px;font-size:20px;">'+((u.name||u.email||'Z').charAt(0).toUpperCase())+'</div>'
   +'<div><div style="font-family:Orbitron,monospace;font-size:16px;font-weight:700;color:#e8f4ff;">'+escHtml(u.name||'Zeus User')+'</div>'
@@ -4507,7 +4661,8 @@ function renderCheckoutStep1(){
     +'<div style="font-size:28px;font-weight:700;font-family:Orbitron,monospace;color:#00d4ff;">$'+price+'</div>'
     +(btcEq!=='—'?'<div style="color:#7090b0;font-size:12px;font-family:monospace;">≈ '+btcEq+'</div>':'')
     +'</div>'
-    +'<div style="font-size:13px;color:#7090b0;text-align:center;margin-bottom:16px;">Select payment method:</div>'
+    +'<div style="font-size:13px;color:#7090b0;text-align:center;margin-bottom:12px;">Select payment method. Direct BTC settles to the owner wallet; configured providers appear automatically when live.</div>'
+    +'<div class="card card-sm" style="margin-bottom:14px;text-align:left;"><div class="label">Checkout promise</div><p class="muted" style="font-size:12px;line-height:1.6;">Transparent amount · order ID generated · payment status tracked · access granted automatically after confirmation.</p></div>'
     +'<div class="pay-methods">'+buttons+'</div>';
 }
 
@@ -4537,7 +4692,7 @@ async function checkoutBtc(){
   var body=document.getElementById('checkout-body');
   var item=STATE.checkoutItem;
   var price=item.priceUsd||0;
-  body.innerHTML='<div style="text-align:center;margin-bottom:10px;"><div class="loader"></div><p class="muted" style="margin-top:8px;">Generating payment address...</p></div>';
+  body.innerHTML='<div style="text-align:center;margin-bottom:10px;"><div class="loader"></div><p class="muted" style="margin-top:8px;">Generating secure BTC invoice and order ID...</p></div>';
   var created=await api('POST','/api/payment/create',{
     amount:price,
     currency:'USD',
@@ -4569,6 +4724,7 @@ async function checkoutBtc(){
     +'<div style="font-size:12px;color:#7090b0;margin-bottom:4px;">To address:</div>'
     +'<div class="btc-addr" onclick="copyText(\\''+addr+'\\',this)" style="text-align:left;">'+addr+'</div>'
     +'<button class="btn btn-green" style="width:100%;margin-top:16px;" onclick="confirmBtcPayment()">✓ I\\'ve Sent the Payment</button>'
+    +'<p class="muted" style="font-size:11px;line-height:1.5;margin-top:8px;">Keep this window open. The platform tracks the order and unlocks access after payment confirmation.</p>'
     +'<button class="btn btn-ghost btn-sm" style="width:100%;margin-top:8px;" onclick="renderCheckoutStep1()">← Back</button>'
     +'</div>';
   if(STATE.countdownTimer) clearInterval(STATE.countdownTimer);

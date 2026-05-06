@@ -20,6 +20,13 @@ assert.ok(template.includes('rel="preconnect" href="https://fonts.gstatic.com" c
 assert.ok(template.includes('width="40" height="40"'), 'Tenant logo preview must reserve layout dimensions');
 assert.ok(template.includes('width="160" height="160"'), 'BTC QR image must reserve layout dimensions');
 assert.ok(template.includes('decoding="async"'), 'Lazy images must decode asynchronously');
+assert.ok(template.includes('data-view="innovations"'), 'Header must expose the Innovations view');
+assert.ok(template.includes('data-view="status"'), 'Header must expose the Status view');
+assert.ok(template.includes('id="view-innovations"'), 'Template must render an innovations coverage page');
+assert.ok(template.includes('id="view-status"'), 'Template must render a live status page');
+assert.ok(template.includes('function rateLimitMessage'), 'Template must provide friendly rate-limit messaging');
+assert.ok(template.includes('r.status===429'), 'API helper must handle HTTP 429 explicitly');
+assert.ok(template.includes('Checkout promise'), 'Checkout modal must explain payment delivery expectations');
 
 assert.ok(/\bgzip\s+on;/.test(nginx), 'nginx template must enable gzip');
 assert.ok(/\bgzip_vary\s+on;/.test(nginx), 'nginx gzip must emit Vary: Accept-Encoding');
