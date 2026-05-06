@@ -1,5 +1,24 @@
 'use strict';
+const fs = require('fs');
+const path = require('path');
 const m = require('../backend/modules/innovations-100y');
+
+// ── Static assertions: file presence + wiring + UI marker ──
+const repoRoot = path.join(__dirname, '..');
+const indexJs = fs.readFileSync(path.join(repoRoot, 'src', 'index.js'), 'utf8');
+const shellJs = fs.readFileSync(path.join(repoRoot, 'src', 'site', 'v2', 'shell.js'), 'utf8');
+
+let staticFail = 0;
+function assert(cond, label) {
+  if (cond) { console.log('  ✅', label); } else { staticFail++; console.error('  ❌', label); }
+}
+assert(indexJs.includes("require('../backend/modules/innovations-100y')"), 'src/index.js requires innovations-100y');
+assert(indexJs.includes('innov100.handle'), 'src/index.js dispatches innov100.handle');
+assert(shellJs.includes('id="zeus100y"'), 'shell.js has zeus100y section anchor');
+assert(shellJs.includes('/.well-known/civilization-protocol.json'), 'shell.js links to civilization-protocol.json');
+assert(shellJs.includes('/api/v100/manifest'), 'shell.js links to /api/v100/manifest');
+assert(typeof m.handle === 'function', 'module exports handle()');
+
 const paths = [
   '/.well-known/civilization-protocol.json',
   '/.well-known/ai-rights.json',
@@ -44,6 +63,6 @@ const paths = [
   const ignoredPost = await m.handle({ url: '/api/v100/manifest', method: 'POST' }, r3);
   if (ignoredPost !== false) { fail++; console.error('FAIL POST not ignored: got', ignoredPost); }
 
-  console.log('innovations-100y smoke:', pass, 'pass /', fail, 'fail');
-  process.exit(fail === 0 ? 0 : 1);
+  console.log('innovations-100y smoke:', pass, 'pass /', fail, 'fail · static:', staticFail, 'fail');
+  process.exit(fail === 0 && staticFail === 0 ? 0 : 1);
 })();
