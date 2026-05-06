@@ -1647,6 +1647,24 @@ function pageAccount() {
   var KEY_ID = 'primary';
   var TOKEN_KEY = 'zeus_cryptoauth_token';
   var USERID_KEY = 'zeus_cryptoauth_userid';
+  var naclReady = null;
+
+  function loadNacl() {
+    if (window.nacl) return Promise.resolve(window.nacl);
+    if (naclReady) return naclReady;
+    naclReady = new Promise(function(resolve, reject){
+      var s = document.createElement('script');
+      s.src = 'https://cdn.jsdelivr.net/npm/tweetnacl@1.0.3/nacl-fast.min.js';
+      s.async = true;
+      s.onload = function(){
+        if (window.nacl) resolve(window.nacl);
+        else reject(new Error('nacl_unavailable'));
+      };
+      s.onerror = function(){ reject(new Error('nacl_load_failed')); };
+      document.head.appendChild(s);
+    });
+    return naclReady;
+  }
 
   // ── IndexedDB tiny wrapper ──
   function dbOpen() {
@@ -1698,17 +1716,44 @@ function pageAccount() {
   // Note: SubtleCrypto Ed25519 is supported in Chrome 113+, Safari 17+, Firefox 130+.
   // Safe across modern browsers; fallback handled with clear error.
   function genKeypair() {
-    return subtle.generateKey({ name: 'Ed25519' }, true, ['sign', 'verify']);
+    return subtle.generateKey({ name: 'Ed25519' }, true, ['sign', 'verify']).catch(function(){
+      return loadNacl().then(function(n){
+        var kp = n.sign.keyPair();
+        return {
+          __nacl: true,
+          publicKey: kp.publicKey,
+          privateKey: { __naclSk: kp.secretKey }
+        };
+      });
+    });
   }
-  function exportPublicRaw(kp) { return subtle.exportKey('raw', kp.publicKey); }
-  function exportPrivatePkcs8(kp) { return subtle.exportKey('pkcs8', kp.privateKey); }
+  function exportPublicRaw(kp) {
+    if (kp && kp.__nacl && kp.publicKey) return Promise.resolve((new Uint8Array(kp.publicKey)).buffer);
+    return subtle.exportKey('raw', kp.publicKey);
+  }
+  function exportPrivatePkcs8(kp) {
+    if (kp && kp.__nacl && kp.privateKey && kp.privateKey.__naclSk) {
+      return Promise.resolve((new Uint8Array(kp.privateKey.__naclSk)).buffer);
+    }
+    return subtle.exportKey('pkcs8', kp.privateKey);
+  }
   function importPrivate(pkcs8) {
+    var raw = new Uint8Array(pkcs8);
+    if (raw.length === 64) {
+      return loadNacl().then(function(){ return { __naclSk: new Uint8Array(raw) }; });
+    }
     return subtle.importKey('pkcs8', pkcs8, { name: 'Ed25519' }, true, ['sign']);
   }
   function importPublic(raw) {
     return subtle.importKey('raw', raw, { name: 'Ed25519' }, true, ['verify']);
   }
   function sign(privKey, data) {
+    if (privKey && privKey.__naclSk) {
+      return loadNacl().then(function(n){
+        var sig = n.sign.detached(new Uint8Array(data), new Uint8Array(privKey.__naclSk));
+        return (new Uint8Array(sig)).buffer;
+      });
+    }
     return subtle.sign({ name: 'Ed25519' }, privKey, data);
   }
 
