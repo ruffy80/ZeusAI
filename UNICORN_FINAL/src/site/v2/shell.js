@@ -268,6 +268,44 @@ function buildJsonLd(title, route, canonical, desc, opts) {
   return blocks;
 }
 
+// ── ZEUS PER-PAGE BACKDROP (SSR) ──────────────────────────────────────────
+// Render the page-wide Zeus background image inline at SSR time so it
+// appears on first paint, before any JavaScript runs. Mirrors the
+// client-side ZEUS_BACKDROP_BY_ROUTE map in src/site/v2/client.js so SPA
+// navigation continues to crossfade smoothly. Two distinct portraits:
+//   • hero.jpg  — full Zeus-on-throne (flagship pages: services, enterprise…)
+//   • brand.jpg — close-up bust (content pages: about, docs, account…)
+// Home (`/`) keeps its dedicated hero <picture>, so we render an empty
+// container there to let the existing CSS rule
+// `body[data-route="/"] .zeus-page-bg{opacity:0}` apply.
+const _ZEUS_BG_HERO  = ['/services','/enterprise','/wizard','/frontier','/dashboard','/checkout','/security','/trust','/operator'];
+const _ZEUS_BG_BRAND = ['/pricing','/store','/innovations','/docs','/account','/about','/legal','/status','/observability','/transparency','/responsible-ai','/dpa','/payment-terms','/refund','/sla','/pledge','/cancel','/gift','/aura','/api-explorer','/changelog','/terms','/privacy','/innovation-log','/admin'];
+function _pickZeusBgSSR(route) {
+  if (!route || route === '/') return null;
+  // Exact match first.
+  if (_ZEUS_BG_HERO.indexOf(route)  >= 0) return assetPath('/assets/zeus/hero.jpg');
+  if (_ZEUS_BG_BRAND.indexOf(route) >= 0) return assetPath('/assets/zeus/brand.jpg');
+  // Sub-route prefix (e.g. /services/foo, /admin/x, /vertical/health-os).
+  for (let i = 0; i < _ZEUS_BG_HERO.length;  i++) if (route.indexOf(_ZEUS_BG_HERO[i]  + '/') === 0) return assetPath('/assets/zeus/hero.jpg');
+  for (let i = 0; i < _ZEUS_BG_BRAND.length; i++) if (route.indexOf(_ZEUS_BG_BRAND[i] + '/') === 0) return assetPath('/assets/zeus/brand.jpg');
+  // Verticals + grow + any remaining route → deterministic alternation by
+  // simple hash so each page gets the SAME Zeus on every visit.
+  let h = 0; for (let i = 0; i < route.length; i++){ h = (h * 31 + route.charCodeAt(i)) >>> 0; }
+  return (h % 2 === 0)
+    ? assetPath('/assets/zeus/hero.jpg')
+    : assetPath('/assets/zeus/brand.jpg');
+}
+function zeusPageBgSSR(route) {
+  const url = _pickZeusBgSSR(route);
+  if (!url) {
+    return `<div class="zeus-page-bg" id="zeusPageBg" aria-hidden="true"><div class="zeus-page-bg__layer zeus-page-bg__layer--a"></div><div class="zeus-page-bg__layer zeus-page-bg__layer--b"></div><div class="zeus-page-bg__veil"></div></div>`;
+  }
+  // Pre-activate layer A with the chosen URL so the background paints on
+  // first frame, even if /assets/app.js never executes. Client-side
+  // applyZeusBackdrop() will swap to layer B for SPA navigation.
+  return `<div class="zeus-page-bg is-active" id="zeusPageBg" aria-hidden="true"><div class="zeus-page-bg__layer zeus-page-bg__layer--a is-on" style="background-image:url('${url}')"></div><div class="zeus-page-bg__layer zeus-page-bg__layer--b"></div><div class="zeus-page-bg__veil"></div></div>`;
+}
+
 function head(title, route, opts) {
   opts = opts || {};
   const lang = opts.lang || 'en';
@@ -379,7 +417,7 @@ ${gtPrimer}
 <meta http-equiv="Expires" content="0"/>
 <noscript><div style="position:relative;z-index:10;max-width:760px;margin:120px auto 20px;padding:18px 22px;border-radius:14px;background:rgba(138,92,255,.08);border:1px solid rgba(138,92,255,.3);color:#e8f4ff;font-family:system-ui,Arial">ZeusAI runs best with JavaScript enabled. Static pages, sitemap, and signed receipts are still available without it: visit <a href="/sitemap.xml" style="color:#8a5cff">/sitemap.xml</a>, <a href="/docs" style="color:#8a5cff">/docs</a>, or <a href="/api/services" style="color:#8a5cff">/api/services</a>.</div></noscript>
 <div class="galaxy-bg" id="zeusCanvas" aria-hidden="true"></div>
-<div class="zeus-page-bg" id="zeusPageBg" aria-hidden="true"><div class="zeus-page-bg__layer zeus-page-bg__layer--a"></div><div class="zeus-page-bg__layer zeus-page-bg__layer--b"></div><div class="zeus-page-bg__veil"></div></div>
+${zeusPageBgSSR(route)}
 <div class="toasts" id="toasts"></div>
 ${navBar(route, opts)}
 <main id="app">`;
