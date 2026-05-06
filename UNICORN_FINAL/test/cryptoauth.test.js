@@ -23,8 +23,8 @@ assert(indexJs.includes("'/api/customer/signup'"), 'src/index.js still reference
 assert(indexJs.includes("'X-Auth-Retired': 'cryptoauth-1.0.0'"), 'src/index.js installs legacy 410-Gone trap');
 assert(indexJs.includes("location: '/account'") || indexJs.includes("Location: '/account'"), 'src/index.js redirects legacy /login,/signup,/forgot-password to /account');
 assert(shellJs.includes('cryptoauth') || shellJs.includes('Ed25519'), 'shell.js pageAccount uses new cryptoauth flow');
-assert(shellJs.includes("case '/auth': return pageAccount()"), 'shell.js routes /auth → pageAccount');
-assert(shellJs.includes("case '/login': return pageAccount()"), 'shell.js routes /login → pageAccount');
+assert(shellJs.includes("case '/auth': return pageAccount("), 'shell.js routes /auth → pageAccount');
+assert(shellJs.includes("case '/login': return pageAccount("), 'shell.js routes /login → pageAccount');
 assert(typeof m.handle === 'function', 'cryptoauth module exports handle()');
 
 // ── Mock req/res helpers ──

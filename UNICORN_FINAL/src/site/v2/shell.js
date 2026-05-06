@@ -1563,13 +1563,15 @@ function pageStore() {
 </section>`;
 }
 
-function pageAccount() {
+function pageAccount(opts) {
   // ────────────────────────────────────────────────────────────────────
   // Revolutionary cryptographic auth (Ed25519 + IndexedDB + encrypted vault).
   // SOLE auth surface on this site. No passwords. No emails for auth.
   // No SMS. No magic links. Private key never leaves the user's device.
   // Mobile + desktop parity by design (single responsive layout).
   // ────────────────────────────────────────────────────────────────────
+  var _nonce = (opts && opts.nonce) ? String(opts.nonce) : '';
+  var _N = _nonce ? ' nonce="' + _nonce + '"' : '';
   return `<section style="padding:120px 0 80px;min-height:100vh">
   <div style="max-width:760px;margin:0 auto;padding:0 20px">
     <span class="kicker" style="color:#7cffb8">Cryptographic identity \u00b7 Ed25519</span>
@@ -1615,7 +1617,7 @@ function pageAccount() {
   </div>
 </dialog>
 
-<script>
+<script${_N}>
 (function(){
   if (window.__zeusCryptoAuthInit) return; window.__zeusCryptoAuthInit = true;
   var ttPolicy = null;
@@ -2245,10 +2247,10 @@ function renderRoute(route, params = {}) {
     case '/crypto-bridge': return pageCryptoFiatBridge();
     case '/store': return pageStore();
     case '/innovations': return pageInnovations();
-    case '/account': return pageAccount();
-    case '/auth': return pageAccount();
-    case '/login': return pageAccount();
-    case '/signup': return pageAccount();
+    case '/account': return pageAccount(params);
+    case '/auth': return pageAccount(params);
+    case '/login': return pageAccount(params);
+    case '/signup': return pageAccount(params);
     case '/admin/services': return pageAdminServices();
     case '/admin': return pageAdminLogin();
     case '/admin/login': return pageAdminLogin();
