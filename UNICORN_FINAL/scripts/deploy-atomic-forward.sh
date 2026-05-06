@@ -6,6 +6,7 @@ DEPLOY_LINK="${2:-/var/www/unicorn/UNICORN_FINAL}"
 PUBLIC_URL="${PUBLIC_URL:-https://zeusai.pro}"
 CANARY_PORT="${CANARY_PORT:-3100}"
 CANARY_TIMEOUT_SECONDS="${CANARY_TIMEOUT_SECONDS:-90}"
+FINAL_SMOKE_ATTEMPTS="${FINAL_SMOKE_ATTEMPTS:-12}"
 PM2_APPS="unicorn-backend unicorn-site autoscaler"
 
 if [ -z "$CANDIDATE_DIR" ]; then
@@ -29,6 +30,7 @@ cleanup_canary() {
     kill "$CANARY_PID" 2>/dev/null || true
     sleep 1
     kill -9 "$CANARY_PID" 2>/dev/null || true
+    wait "$CANARY_PID" 2>/dev/null || true
   fi
 }
 trap cleanup_canary EXIT
@@ -120,11 +122,27 @@ cd "$DEPLOY_LINK"
 for app in $PM2_APPS; do
   pm2 delete "$app" >/dev/null 2>&1 || true
 done
-pm2 start ecosystem.config.js --update-env
+env \
+  NODE_ENV=production \
+  PORT=3000 \
+  BIND_HOST=127.0.0.1 \
+  UNICORN_RUNTIME_PROFILE=safe \
+  QIS_REQUIRED_PROCESSES=unicorn-backend,unicorn-site,autoscaler \
+  ZEUS_BUILD_SHA="${GITHUB_SHA:-}" \
+  SW_VERSION="${GITHUB_SHA:-}" \
+  pm2 start ecosystem.config.js --update-env
 
 log "wait for PM2 warmup"
 sleep 15
-BASE_URL=http://127.0.0.1:3000 PUBLIC_URL="$PUBLIC_URL" EXPECT_PM2_CWD="$DEPLOY_LINK" bash scripts/smoke-forward-only.sh
+FINAL_SMOKE_OK=0
+for _ in $(seq 1 "$FINAL_SMOKE_ATTEMPTS"); do
+  if BASE_URL=http://127.0.0.1:3000 PUBLIC_URL="$PUBLIC_URL" EXPECT_PM2_CWD="$DEPLOY_LINK" bash scripts/smoke-forward-only.sh; then
+    FINAL_SMOKE_OK=1
+    break
+  fi
+  sleep 5
+done
+[ "$FINAL_SMOKE_OK" = "1" ] || fail "final live smoke timeout after PM2 restart"
 pm2 save --force >/dev/null
 
 if [ -n "${GITHUB_SHA:-}" ]; then
