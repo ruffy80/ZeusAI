@@ -744,4 +744,20 @@ body[data-route="/"] .zeus-page-bg{opacity:0 !important}
   .zeus-page-bg__layer.is-on{transform:none}
 }
 
+/* ============ PAGESPEED PASS-3 (additive, zero-regression) ============
+   1. Composer hints on every node we already animate so the browser
+      promotes them to their own layer once and avoids forced reflow.
+   2. content-visibility: auto on below-the-fold sections so the browser
+      skips rendering+layout work for offscreen content (huge LCP/TBT win
+      on mobile pages with long catalogues).
+   3. A stricter prefers-reduced-motion guard that disables every keyframe
+      animation we declare, not just the wordmark family. */
+.zeus-hero-image,.zeus-halo-b,.zeus-stars,.fx-orb,.fx-scan,.hero-eyebrow .dot{will-change:transform,opacity}
+section,.section,footer,.foot-grid{content-visibility:auto;contain-intrinsic-size:1px 1200px}
+/* Hero must always render — it's the LCP target. */
+.hero,.hero *{content-visibility:visible}
+@media (prefers-reduced-motion: reduce){
+  .zeus-hero-image,.zeus-halo-b,.zeus-stars,.fx-orb,.fx-scan,.hero-eyebrow .dot{animation:none !important;transform:none !important}
+}
+
 `;
