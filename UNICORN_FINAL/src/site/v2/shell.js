@@ -1862,7 +1862,7 @@ function pageAccount() {
 
   function renderLoggedOut() {
     setHtml($state,
-      '<div style=\"font-size:15px;color:var(--ink-dim);line-height:1.55\">You are not signed in. Create a new account in 5 seconds, sign in with the key already saved on this device, or recover by importing your encrypted backup vault.</div>';
+      '<div style=\"font-size:15px;color:var(--ink-dim);line-height:1.55\">You are not signed in. Create a new account in 5 seconds, sign in with the key already saved on this device, or recover by importing your encrypted backup vault.</div>');
     setHtml($panels,
       '<div style=\"display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:16px\">' +
         '<div class=\"card\" style=\"padding:22px\">' +
