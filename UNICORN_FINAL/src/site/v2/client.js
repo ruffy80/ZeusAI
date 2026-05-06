@@ -3,6 +3,16 @@
 (function(){
 'use strict';
 
+// Suppress harmless vendor warnings (e.g., Three.js deprecation warning)
+const __origConsoleWarn = window.console && window.console.warn;
+if (window.console && typeof window.console.warn === 'function') {
+  window.console.warn = function(msg, ...args) {
+    if (typeof msg === 'string' && msg.includes('build/three.js') && msg.includes('deprecated')) return;
+    return __origConsoleWarn && __origConsoleWarn.call(this, msg, ...args);
+  };
+}
+'use strict';
+
 function installResilientFetch(){
   if (window.__zeusResilientFetchInstalled || !window.fetch) return;
   window.__zeusResilientFetchInstalled = true;

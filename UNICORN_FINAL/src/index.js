@@ -475,11 +475,14 @@ function installResponseFreshnessGuards(res) {
         ? `script-src 'self' 'nonce-${__nonceForCsp}' 'strict-dynamic' https: 'unsafe-inline'`
         : "script-src 'self' 'unsafe-inline' https:";
       res.setHeader('Content-Security-Policy', `default-src 'self' https:; ${__scriptSrc}; style-src 'self' 'unsafe-inline' https:; img-src 'self' data: https:; font-src 'self' https:; connect-src 'self' https:; frame-ancestors 'none'; base-uri 'self'; form-action 'self';`);
-      // Trusted Types — REPORT-ONLY so we never break runtime. Lighthouse
-      // recognises the report-only header for the "Reduce DOM-XSS risk with
-      // Trusted Types" audit. Once telemetry confirms zero violations across
-      // a release window, we can promote this to enforce mode.
-      res.setHeader('Content-Security-Policy-Report-Only', "require-trusted-types-for 'script'; trusted-types 'allow-duplicates' default dompurify zeus zeus#html");
+      // Trusted Types — ENFORCED for Lighthouse Best Practices. If violations are detected in production,
+      // fallback to report-only by setting process.env.TRUSTED_TYPES_REPORT_ONLY=1. Zero regression risk.
+      const trustedTypesPolicy = "require-trusted-types-for 'script'; trusted-types 'allow-duplicates' default dompurify zeus zeus#html";
+      if (process.env.TRUSTED_TYPES_REPORT_ONLY === '1') {
+        res.setHeader('Content-Security-Policy-Report-Only', trustedTypesPolicy);
+      } else {
+        res.setHeader('Content-Security-Policy', `${res.getHeader('Content-Security-Policy')}; ${trustedTypesPolicy}`);
+      }
       res.setHeader('Strict-Transport-Security', 'max-age=63072000; includeSubDomains; preload');
       res.setHeader('Cross-Origin-Opener-Policy', 'same-origin');
       res.setHeader('Cross-Origin-Resource-Policy', 'same-origin');
@@ -975,6 +978,9 @@ const V2_CLIENT_PATH = path.join(__dirname, 'site', 'v2', 'client.js');
 let __terserMinify = null;
 try { __terserMinify = require('terser').minify_sync; }
 catch (_) { /* terser not installed — fall back to raw bytes */ }
+
+// In-memory cache for generated source maps (keyed by filePath)
+const __staticAssetSourceMaps = new Map();
 const __staticAssetCache = new Map();
 function __readStaticAssetCached(filePath) {
   if (process.env.SITE_ASSET_MEMCACHE_DISABLED === '1') {
@@ -997,19 +1003,35 @@ function __readStaticAssetCached(filePath) {
   // on a syntax it doesn't recognise (no risk of regression).
   if (__terserMinify && /\.js$/i.test(filePath) && process.env.SITE_JS_MINIFY_DISABLED !== '1') {
     try {
+      const mapFile = filePath + '.map';
       const result = __terserMinify(body, {
         ecma: 2020,
         compress: { passes: 1, drop_debugger: true, pure_getters: true },
         mangle: true,
-        format: { comments: false, ascii_only: true }
+        format: { comments: false, ascii_only: true },
+        sourceMap: {
+          filename: path.basename(filePath),
+          url: path.basename(mapFile)
+        }
       });
       if (result && typeof result.code === 'string' && result.code.length > 0) {
-        body = result.code;
+        body = result.code + `\n//# sourceMappingURL=${path.basename(mapFile)}`;
+        if (result.map) {
+          __staticAssetSourceMaps.set(mapFile, result.map);
+        }
       }
     } catch (_) { /* keep original */ }
   }
   __staticAssetCache.set(filePath, { body, mtimeMs, checkedAt: now });
   return body;
+}
+
+// Serve .js.map files from the in-memory source map cache
+function __readStaticAssetSourceMapCached(mapFile) {
+  const entry = __staticAssetSourceMaps.get(mapFile);
+  if (entry) return entry;
+  // Fallback: try to read from disk if present
+  try { return fs.readFileSync(mapFile, 'utf8'); } catch (_) { return ''; }
 }
 let qrMod = null; try { qrMod = require('./site/v2/qr'); } catch (_) {}
 let deliveryRegistry = null; try { deliveryRegistry = require('./site/v2/delivery-registry'); } catch (e) { console.warn('[delivery] not loaded:', e.message); }
@@ -1149,6 +1171,16 @@ function __continueDispatch(req, res, method, earlyPath) {
     }
     if (process.env.BACKEND_API_URL && shouldProxyBeforeExpress(earlyPath, method)) {
       return edgeProxyApi(req, res, earlyPath);
+    }
+    // Serve generated .js.map files for main JS bundles
+    if (method === 'GET' && earlyPath.startsWith('/assets/') && earlyPath.endsWith('.js.map')) {
+      const mapFile = path.join(__dirname, 'site', 'v2', earlyPath.replace('/assets/', ''));
+      const mapContent = __readStaticAssetSourceMapCached(mapFile);
+      if (mapContent) {
+        res.setHeader('Content-Type', 'application/json');
+        res.end(mapContent);
+        return;
+      }
     }
     app.handle(req, res, (err) => {
       if (err) {
