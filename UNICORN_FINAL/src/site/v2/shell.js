@@ -1618,11 +1618,27 @@ function pageAccount() {
 <script>
 (function(){
   if (window.__zeusCryptoAuthInit) return; window.__zeusCryptoAuthInit = true;
+  var ttPolicy = null;
+  try {
+    if (window.trustedTypes && typeof window.trustedTypes.createPolicy === 'function') {
+      ttPolicy = window.trustedTypes.createPolicy('zeus', {
+        createHTML: function(v){ return String(v == null ? '' : v); }
+      });
+    }
+  } catch (_) {}
+  function setHtml(el, html) {
+    if (!el) return;
+    try {
+      el.innerHTML = ttPolicy ? ttPolicy.createHTML(html) : html;
+    } catch (_) {
+      try { el.innerHTML = html; } catch (__){ }
+    }
+  }
   // ── Polyfilled-safe Web Crypto check ──
   var subtle = (window.crypto && window.crypto.subtle) || null;
   if (!subtle || !window.indexedDB) {
     var s = document.getElementById('acaState');
-    if (s) s.innerHTML = '<b style="color:#ff9c9c">This browser does not support Web Crypto / IndexedDB.</b><br><span style="color:var(--ink-dim);font-size:13px">Use any modern browser (Chrome, Firefox, Safari, Edge \u2265 2020).</span>';
+    setHtml(s, '<b style="color:#ff9c9c">This browser does not support Web Crypto / IndexedDB.</b><br><span style="color:var(--ink-dim);font-size:13px">Use any modern browser (Chrome, Firefox, Safari, Edge \u2265 2020).</span>');
     return;
   }
 
@@ -1766,7 +1782,7 @@ function pageAccount() {
   function html(s){ return s.replace(/[&<>\"']/g, function(c){ return ({'&':'&amp;','<':'&lt;','>':'&gt;','\"':'&quot;',\"'\":'&#39;'})[c]; }); }
   function showDialog(title, bodyHtml, okText) {
     $dlgTitle.textContent = title;
-    $dlgBody.innerHTML = bodyHtml;
+    setHtml($dlgBody, bodyHtml);
     $dlgOk.textContent = okText || 'OK';
     return new Promise(function(resolve){
       function done(v){ $dlgOk.removeEventListener('click', okH); $dlgCancel.removeEventListener('click', cancelH); $dlg.close(); resolve(v); }
@@ -1779,14 +1795,14 @@ function pageAccount() {
   }
 
   function statusError(msg) {
-    $state.innerHTML = '<div style=\"color:#ff9c9c;font-weight:600\">' + html(msg) + '</div>';
+    setHtml($state, '<div style=\"color:#ff9c9c;font-weight:600\">' + html(msg) + '</div>');
   }
   function statusOk(msg) {
-    $state.innerHTML = '<div style=\"color:#7cffb8;font-weight:600\">' + html(msg) + '</div>';
+    setHtml($state, '<div style=\"color:#7cffb8;font-weight:600\">' + html(msg) + '</div>');
   }
 
   function renderLoggedIn(user) {
-    $state.innerHTML =
+    setHtml($state,
       '<div style=\"display:flex;align-items:center;gap:12px;flex-wrap:wrap\">' +
         '<div style=\"width:42px;height:42px;border-radius:50%;background:linear-gradient(135deg,#7cffb8,#8a5cff);display:flex;align-items:center;justify-content:center;font-weight:700;color:#000;font-size:18px\">' + html((user.name || user.userId).slice(0,1).toUpperCase()) + '</div>' +
         '<div style=\"flex:1;min-width:200px\">' +
@@ -1795,14 +1811,14 @@ function pageAccount() {
           '<div style=\"color:var(--ink-dim);font-size:12px;margin-top:4px\">Member since ' + html(new Date(user.createdAt).toLocaleDateString()) + '</div>' +
         '</div>' +
         '<span style=\"background:rgba(124,255,184,.15);color:#7cffb8;padding:6px 12px;border-radius:20px;font-size:12px;font-weight:600\">\u25cf Signed in</span>' +
-      '</div>';
-    $panels.innerHTML = '';
+      '</div>');
+    setHtml($panels, '');
   }
 
   function renderLoggedOut() {
-    $state.innerHTML =
+    setHtml($state,
       '<div style=\"font-size:15px;color:var(--ink-dim);line-height:1.55\">You are not signed in. Create a new account in 5 seconds, sign in with the key already saved on this device, or recover by importing your encrypted backup vault.</div>';
-    $panels.innerHTML =
+    setHtml($panels,
       '<div style=\"display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:16px\">' +
         '<div class=\"card\" style=\"padding:22px\">' +
           '<h3 style=\"margin:0 0 6px\">Create new account</h3>' +
@@ -1821,7 +1837,7 @@ function pageAccount() {
           '<input id=\"acaVaultFile\" type=\"file\" accept=\".zeus-vault,.json,application/json\" style=\"width:100%;font-size:13px;color:#cdd5e6;margin-bottom:8px\">' +
           '<button id=\"acaImport\" class=\"btn btn-ghost\" style=\"width:100%;padding:10px\">Import &amp; sign in \u2192</button>' +
         '</div>' +
-      '</div>';
+      '</div>');
 
     document.getElementById('acaCreate').addEventListener('click', onCreate);
     document.getElementById('acaSignin').addEventListener('click', onSignin);
