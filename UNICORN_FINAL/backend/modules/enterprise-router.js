@@ -181,6 +181,14 @@ function buildEnterpriseRouter({
   });
 
   // -------------------------------------------------- /admin owner HTML dashboard
+  // Aliases that redirect legacy paths to the canonical /admin owner console.
+  // Reason: nginx routes the entire /admin/* prefix to the backend (singleton
+  // source-of-truth). Older docs and a few inbound links use /admin/login or
+  // /admin/services; we 302 them to /admin so users always land on the live
+  // console instead of a generic Express 404.
+  router.get(['/admin/login', '/admin/services'], (_req, res) => {
+    res.redirect(302, '/admin');
+  });
   router.get('/admin', (_req, res) => {
     // Public shell — actual data calls require admin token (xhr). The page
     // itself is just a static viewer; sensitive APIs above stay protected.
