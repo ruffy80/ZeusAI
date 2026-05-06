@@ -602,7 +602,18 @@ ${all.map(u => `  <url><loc>${OWNER.domain}${u}</loc><lastmod>${now}</lastmod><c
         '/api/receipt/{id}':  { get: { operationId: 'getReceipt', parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }], responses: { '200': { description: 'VC' }, '404': { description: 'Not found' } } } },
         '/catalog.json':      { get: { operationId: 'signedCatalog', summary: 'Ed25519-signed full catalog', responses: { '200': { description: 'Signed catalog' } } } },
         '/feed.json':         { get: { operationId: 'feed', summary: 'JSON Feed 1.1', responses: { '200': { description: 'Feed' } } } },
+        // ── Cryptoauth: Ed25519 passwordless identity ──────────────────────
+        '/api/cryptoauth/manifest': { get: { operationId: 'cryptoauthManifest', tags: ['cryptoauth'], summary: 'Public cryptoauth capability manifest', responses: { '200': { description: 'Algorithm, TTLs, endpoint map' } } } },
+        '/api/cryptoauth/register': { post: { operationId: 'cryptoauthRegister', tags: ['cryptoauth'], summary: 'Register a new Ed25519 identity', requestBody: { required: true, content: { 'application/json': { schema: { type: 'object', required: ['email','publicKey'], properties: { email: { type: 'string', format: 'email' }, publicKey: { type: 'string', description: 'Ed25519 public key, base64url' }, displayName: { type: 'string' }, recoveryHash: { type: 'string', description: 'Optional Argon2/SHA-256 of recovery secret' } } } } } }, responses: { '201': { description: 'User created' }, '409': { description: 'Already exists' } } } },
+        '/api/cryptoauth/challenge': { post: { operationId: 'cryptoauthChallenge', tags: ['cryptoauth'], summary: 'Get a one-shot challenge to sign', requestBody: { required: true, content: { 'application/json': { schema: { type: 'object', required: ['email'], properties: { email: { type: 'string', format: 'email' } } } } } }, responses: { '200': { description: 'Challenge issued (TTL 60s, single-use)' }, '404': { description: 'Unknown identity' } } } },
+        '/api/cryptoauth/login': { post: { operationId: 'cryptoauthLogin', tags: ['cryptoauth'], summary: 'Verify signature, mint session', requestBody: { required: true, content: { 'application/json': { schema: { type: 'object', required: ['email','challenge','signature'], properties: { email: { type: 'string' }, challenge: { type: 'string' }, signature: { type: 'string', description: 'base64url Ed25519 signature' } } } } } }, responses: { '200': { description: 'Session cookie set' }, '401': { description: 'Bad signature' } } } },
+        '/api/cryptoauth/me': { get: { operationId: 'cryptoauthMe', tags: ['cryptoauth'], summary: 'Current identity (from session cookie)', responses: { '200': { description: 'User profile' }, '401': { description: 'Not signed in' } } } },
+        '/api/cryptoauth/recover': { post: { operationId: 'cryptoauthRecover', tags: ['cryptoauth'], summary: 'Rotate keypair using recovery secret', requestBody: { required: true, content: { 'application/json': { schema: { type: 'object', required: ['email','recoverySecret','newPublicKey'], properties: { email: { type: 'string' }, recoverySecret: { type: 'string' }, newPublicKey: { type: 'string' } } } } } }, responses: { '200': { description: 'Key rotated' }, '401': { description: 'Recovery failed' } } } },
+        '/api/cryptoauth/logout': { post: { operationId: 'cryptoauthLogout', tags: ['cryptoauth'], summary: 'Invalidate session', responses: { '200': { description: 'Session cleared' } } } },
       },
+      tags: [
+        { name: 'cryptoauth', description: 'Ed25519 passwordless identity (W3C-style challenge/response).' }
+      ],
     }), true);
   }
 
