@@ -650,6 +650,10 @@ function globalChrome(N) {
       var urlOf = function(input){ try { return new URL((typeof input === 'string' ? input : input.url), location.origin).href; } catch(_) { return String(input || ''); } };
       var sameSite = function(url){ try { return new URL(url, location.origin).origin === location.origin; } catch(_) { return false; } };
       var keyOf = function(method, url){ return cachePrefix + method + ':' + url; };
+      var rateLimitMessage = function(response){
+        var retryAfter = response && response.headers && response.headers.get && response.headers.get('retry-after');
+        return 'Live API is protecting the service from too many requests. Please try again' + (retryAfter ? ' in ' + retryAfter + 's.' : ' in a moment.');
+      };
       var remember = function(method, url, response){
         if (method !== 'GET' || !sameSite(url) || !response || !response.ok) return;
         try { response.clone().text().then(function(body){
@@ -672,6 +676,10 @@ function globalChrome(N) {
           try {
             var response = await nativeFetch(input, init);
             if (response.ok) { remember(method, url, response); return response; }
+            if (response.status===429) {
+              try { document.documentElement.setAttribute('data-zeus-rate-limited', '1'); window.dispatchEvent(new CustomEvent('zeus:rate-limit', { detail: { message: rateLimitMessage(response), url: url } })); } catch(_) {}
+              return response;
+            }
             lastResponse = response;
             if (response.status < 500) return response;
           } catch(err) { lastError = err; if (init && init.signal && init.signal.aborted) break; }
@@ -811,17 +819,24 @@ function pageHome() {
   <div class="hero-grid">
     <div class="hero-copy">
       <span class="hero-eyebrow"><span class="dot"></span> Live · ${new Date().toISOString().slice(0,16).replace('T',' ')} UTC</span>
-      <h1>The autonomous <span class="grad">AI operating system</span> that bends SaaS to your will.</h1>
-      <p class="lead">ZeusAI is a self-evolving, cryptographically sovereign platform. 169 living modules, 18 vertical industries, 41 marketplaces — orchestrated by Zeus. Every outcome is signed. Every cent is routed. No middleman.</p>
+      <h1>ZEUS AI / <span class="grad">Launch AI products faster.</span></h1>
+      <p class="lead">Live autonomous AI commerce platform: ZeusAI turns modules, verticals and marketplaces into buyable AI services with direct BTC checkout, signed receipts and instant delivery.</p>
       <div class="hero-cta">
-        <a class="btn btn-primary" href="/services" data-link>Explore the Marketplace →</a>
-        <a class="btn" href="/how" data-link>See how it works</a>
+        <a class="btn btn-primary" href="/services" data-link>Buy AI Service →</a>
+        <a class="btn" href="/status" data-link>Live Status</a>
+        <a class="btn" href="/innovations" data-link>Innovations</a>
       </div>
       <div class="hero-stats" id="heroStats">
         <div class="hero-stat"><b id="statModules">169</b><span>Live modules</span></div>
         <div class="hero-stat"><b id="statVerticals">18</b><span>Verticals</span></div>
         <div class="hero-stat"><b id="statMarkets">41</b><span>Marketplaces</span></div>
         <div class="hero-stat"><b id="statChain">—</b><span>Chain length</span></div>
+      </div>
+      <div class="hero-stats" style="margin-top:14px">
+        <div class="hero-stat"><b>Forward-only</b><span>Deploy guarded</span></div>
+        <div class="hero-stat"><b>QIS intact</b><span>Integrity live</span></div>
+        <div class="hero-stat"><b>BTC direct</b><span>Checkout promise</span></div>
+        <div class="hero-stat"><b>Live API</b><span>Live API is protecting orders</span></div>
       </div>
     </div>
   </div>
@@ -1122,8 +1137,8 @@ function pagePricing() {
 function pageCheckout() {
   return `<section style="padding-top:140px">
   <div class="section-title">
-    <div><span class="kicker">Checkout</span><h2>Pay direct in BTC. <span class="grad">Activation is automatic.</span></h2></div>
-    <p>Every payment generates an Ed25519‑signed receipt appended to the Merkle chain. No middlemen, no custody.</p>
+    <div><span class="kicker">Checkout promise</span><h2>Pay direct in BTC. <span class="grad">Activation is automatic.</span></h2></div>
+    <p>Every payment generates an Ed25519‑signed receipt appended to the Merkle chain. Keep this window open: ZeusAI watches settlement and unlocks delivery/license credentials automatically.</p>
   </div>
   <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px;margin:0 0 22px">
     <div class="card"><span class="tag">Step 1</span><h3>Select service</h3><p style="color:var(--ink-dim)">Choose plan/product and email so delivery can issue the entitlement.</p></div>
@@ -1144,8 +1159,8 @@ function pageCheckout() {
             <div class="field"><label for="coBtc">BTC quote</label><input id="coBtc" readonly value="computing…"/></div>
             <div class="btc-addr" id="btcAddr">${OWNER.btc}</div>
             <div id="coFxStrip" style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px"></div>
-            <button class="btn btn-primary" id="coPay" style="margin-top:14px;width:100%;justify-content:center">Create order & watch blockchain</button>
-            <p style="color:var(--ink-dim);font-size:12px;margin-top:8px">After you send BTC, the server watches the mempool every 30s and auto‑issues a signed license on confirmation.</p>
+            <button class="btn btn-primary" id="coPay" style="margin-top:14px;width:100%;justify-content:center">Generate secure BTC invoice</button>
+            <p style="color:var(--ink-dim);font-size:12px;margin-top:8px">Generating secure BTC invoice and order ID. After you send BTC, the server watches the mempool every 30s and auto‑issues a signed license on confirmation.</p>
           </div>
           <div class="co-qr"><canvas id="btcQr" width="320" height="320"></canvas></div>
         </div>
@@ -1187,6 +1202,16 @@ function pageDashboard() {
     </div>
   </div>
   <div class="dash-grid" id="dashKpis"></div>
+  <div class="co-box" style="margin:22px 0">
+    <span class="kicker">Command Center</span>
+    <h3 style="margin:6px 0 10px">Next best actions</h3>
+    <p style="color:var(--ink-dim);font-size:13.5px;margin:0 0 14px">Jump straight to the high-value live areas: checkout, platform health and innovation coverage.</p>
+    <div style="display:flex;gap:10px;flex-wrap:wrap">
+      <a class="btn btn-primary" href="/services" data-link>Buy AI Service</a>
+      <a class="btn" href="/status" data-link>Live status</a>
+      <a class="btn" href="/innovations" data-link>Innovation map</a>
+    </div>
+  </div>
   <div class="grid" id="dashServices"><div class="card"><p>Loading services…</p></div></div>
   <div class="section-title" style="margin-top:50px"><div><h2 style="font-size:24px">Recent receipts</h2></div></div>
   <div id="dashReceipts" class="card"><p>Loading receipts…</p></div>
@@ -1846,8 +1871,14 @@ function pageAdminServices() {
 function pageInnovations() {
   return `<section class="section">
   <div class="container">
-    <h1 class="h1">30-Year Cryptographic Durability</h1>
-    <p class="lead" style="max-width:880px">Twelve sovereign primitives that make every action provable for the next three decades — quantum-safe signatures, Bitcoin-anchored Merkle receipts, a public AI constitution, and a 4-of-7 Shamir time capsule.</p>
+    <h1 class="h1">Live Innovation Coverage</h1>
+    <p class="lead" style="max-width:880px">Innovation map for the live Unicorn: cryptographic durability, sovereign primitives and production coverage from <code class="inline">/api/innovation/coverage</code>, plus the 30-year proof layer below.</p>
+
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:14px;margin:22px 0">
+      <div class="card" style="padding:18px"><span class="tag">Coverage API</span><h3>Live coverage</h3><p style="color:var(--ink-dim);font-size:13.5px">Runtime coverage summary for recent innovations and deployed modules.</p><a href="/api/innovation/coverage" target="_blank" rel="noopener" class="btn" style="margin-top:8px">Open JSON</a></div>
+      <div class="card" style="padding:18px"><span class="tag">Forward-only</span><h3>No downgrade path</h3><p style="color:var(--ink-dim);font-size:13.5px">Every accepted innovation must pass canary, QIS and final smoke before promotion.</p></div>
+      <div class="card" style="padding:18px"><span class="tag">Live site</span><h3>Innovation map</h3><p style="color:var(--ink-dim);font-size:13.5px">This page is the visible map for what changed and where to verify it.</p></div>
+    </div>
 
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:14px;margin:22px 0">
       <div class="card" style="padding:18px"><span class="tag">Constitution</span><h3 id="invConHash" style="margin:8px 0;font-family:monospace">…</h3><p style="color:var(--ink-dim);font-size:13.5px">Public, hashed, signed. Every response carries <code class="inline">X-Constitution-Hash</code>.</p><a href="/api/constitution" target="_blank" rel="noopener" class="btn" style="margin-top:8px">View JSON</a></div>
@@ -1996,8 +2027,13 @@ function pageWizard() {
 function pageStatus() {
   return `<section style="padding-top:140px;max-width:1100px">
   <span class="kicker">Live status</span>
-  <h1 style="font-size:clamp(34px,4.4vw,56px);margin:10px 0 18px">All systems <span id="stHeadline" class="grad">operational.</span></h1>
-  <p style="color:var(--ink-dim);font-size:15px">Live, signed status. Source: <code class="inline">/api/status</code>. Refreshes every 15s.</p>
+  <h1 style="font-size:clamp(34px,4.4vw,56px);margin:10px 0 18px">Live Unicorn Status · <span id="stHeadline" class="grad">operational.</span></h1>
+  <p style="color:var(--ink-dim);font-size:15px">Live API is protecting the site: health, QIS, catalog and checkout checks are refreshed from production endpoints. Source: <code class="inline">/api/status</code>. Refreshes every 15s.</p>
+  <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;margin-top:18px">
+    <div class="card"><span class="tag">Deploy</span><h3>Forward-only</h3><p style="color:var(--ink-dim)">Canary + smoke guarded.</p></div>
+    <div class="card"><span class="tag">Integrity</span><h3>QIS guarded</h3><p style="color:var(--ink-dim)">Quantum Integrity Shield checked live.</p></div>
+    <div class="card"><span class="tag">Commerce</span><h3>Catalog + BTC</h3><p style="color:var(--ink-dim)">Checkout path remains monitored.</p></div>
+  </div>
   <div class="grid" id="stGrid" style="margin-top:22px"><div class="card"><p>Loading…</p></div></div>
   <div class="card" style="margin-top:22px;padding:22px"><span class="kicker">90-day uptime</span><h2 id="stUptime" style="margin:8px 0">—</h2><p style="color:var(--ink-dim)">Synthetic checks every 60s. Incidents publicly sealed (commit-reveal).</p><a class="btn" href="/api/incidents" target="_blank">Public incident log</a></div>
   <script>

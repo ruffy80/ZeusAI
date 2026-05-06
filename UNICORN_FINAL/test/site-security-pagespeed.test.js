@@ -6,6 +6,7 @@ const path = require('path');
 
 const srcIndex = fs.readFileSync(path.join(__dirname, '..', 'src', 'index.js'), 'utf8');
 const template = fs.readFileSync(path.join(__dirname, '..', 'src', 'site', 'template.js'), 'utf8');
+const v2Shell = fs.readFileSync(path.join(__dirname, '..', 'src', 'site', 'v2', 'shell.js'), 'utf8');
 const nginx = fs.readFileSync(path.join(__dirname, '..', 'scripts', 'nginx-unicorn.conf'), 'utf8');
 
 assert.ok(srcIndex.includes("Cross-Origin-Resource-Policy', 'same-origin'"), 'HTML responses must set CORP');
@@ -27,6 +28,15 @@ assert.ok(template.includes('id="view-status"'), 'Template must render a live st
 assert.ok(template.includes('function rateLimitMessage'), 'Template must provide friendly rate-limit messaging');
 assert.ok(template.includes('r.status===429'), 'API helper must handle HTTP 429 explicitly');
 assert.ok(template.includes('Checkout promise'), 'Checkout modal must explain payment delivery expectations');
+
+assert.ok(v2Shell.includes('Live Unicorn Status'), 'Served v2 shell must render a live status page marker');
+assert.ok(v2Shell.includes('Live Innovation Coverage'), 'Served v2 shell must render an innovation coverage page marker');
+assert.ok(v2Shell.includes('Checkout promise'), 'Served v2 shell must explain checkout delivery expectations');
+assert.ok(v2Shell.includes('Live API is protecting'), 'Served v2 shell must provide friendly rate-limit/status wording');
+assert.ok(v2Shell.includes('Buy AI Service'), 'Served v2 shell must expose a clear buy CTA');
+assert.ok(v2Shell.includes('Innovation map'), 'Served v2 shell must expose innovation map navigation');
+assert.ok(v2Shell.includes('function zeusResilientFetch'), 'Served v2 shell must install resilient fetch');
+assert.ok(v2Shell.includes('response.status===429'), 'Served v2 shell must handle HTTP 429 explicitly');
 
 assert.ok(/\bgzip\s+on;/.test(nginx), 'nginx template must enable gzip');
 assert.ok(/\bgzip_vary\s+on;/.test(nginx), 'nginx gzip must emit Vary: Accept-Encoding');
