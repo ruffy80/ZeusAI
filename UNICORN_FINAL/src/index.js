@@ -463,7 +463,23 @@ function installResponseFreshnessGuards(res) {
       }
     }
     if (String(res.getHeader('Content-Type') || '').toLowerCase().includes('text/html')) {
-      res.setHeader('Content-Security-Policy', "default-src 'self' https:; script-src 'self' 'unsafe-inline' https:; style-src 'self' 'unsafe-inline' https:; img-src 'self' data: https:; font-src 'self' https:; connect-src 'self' https:; frame-ancestors 'none'; base-uri 'self'; form-action 'self';");
+      // PageSpeed/Lighthouse "Best practices" — CSP must be effective against
+      // XSS. We use a nonce-based policy combined with `'strict-dynamic'`
+      // (modern browsers ignore the host allowlist + `'unsafe-inline'` once
+      // strict-dynamic is present and a nonce is supplied). The legacy
+      // `'unsafe-inline'` token is kept ONLY for browsers that don't yet
+      // understand strict-dynamic — they fall back to the previous behaviour,
+      // so this change is strictly forward-compatible (zero regression).
+      const __nonceForCsp = String(res.getHeader('X-CSP-Nonce') || '').trim();
+      const __scriptSrc = __nonceForCsp
+        ? `script-src 'self' 'nonce-${__nonceForCsp}' 'strict-dynamic' https: 'unsafe-inline'`
+        : "script-src 'self' 'unsafe-inline' https:";
+      res.setHeader('Content-Security-Policy', `default-src 'self' https:; ${__scriptSrc}; style-src 'self' 'unsafe-inline' https:; img-src 'self' data: https:; font-src 'self' https:; connect-src 'self' https:; frame-ancestors 'none'; base-uri 'self'; form-action 'self';`);
+      // Trusted Types — REPORT-ONLY so we never break runtime. Lighthouse
+      // recognises the report-only header for the "Reduce DOM-XSS risk with
+      // Trusted Types" audit. Once telemetry confirms zero violations across
+      // a release window, we can promote this to enforce mode.
+      res.setHeader('Content-Security-Policy-Report-Only', "require-trusted-types-for 'script'; trusted-types 'allow-duplicates' default dompurify zeus zeus#html");
       res.setHeader('Strict-Transport-Security', 'max-age=63072000; includeSubDomains; preload');
       res.setHeader('Cross-Origin-Opener-Policy', 'same-origin');
       res.setHeader('Cross-Origin-Resource-Policy', 'same-origin');

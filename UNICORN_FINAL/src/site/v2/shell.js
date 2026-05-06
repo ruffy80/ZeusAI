@@ -615,7 +615,7 @@ function concierge() {
       <button class="chip" data-q="Arată-mi serviciile mele">📦 My services</button>
     </div>
     <div class="concierge-foot">
-      <textarea id="conciergeInput" rows="1" placeholder="Întreabă Zeus orice… / Ask Zeus anything…  (Enter · Shift+Enter newline)" autocomplete="off"></textarea>
+      <textarea id="conciergeInput" rows="1" placeholder="Întreabă Zeus orice… / Ask Zeus anything…  (Enter · Shift+Enter newline)" autocomplete="off" aria-label="Ask Zeus anything"></textarea>
       <button id="conciergeSend" aria-label="Send">→</button>
     </div>
   </div>
@@ -906,8 +906,8 @@ ${_featuredHtml}
     <h3 style="margin:0 0 8px">Quick buy test (live)</h3>
     <p style="color:var(--ink-dim);font-size:13px;margin:0 0 12px">Creates a real order through <code class="inline">/api/services/buy</code>.</p>
     <div class="pl-row">
-      <select id="fuService"><option value="adaptive-ai">adaptive-ai</option></select>
-      <input id="fuEmail" type="email" placeholder="you@company.com" />
+      <select id="fuService" aria-label="Select service to test-buy"><option value="adaptive-ai">adaptive-ai</option></select>
+      <input id="fuEmail" type="email" placeholder="you@company.com" aria-label="Email address for test order" />
     </div>
     <div class="pl-actions" style="margin-top:10px"><button class="pl-btn" id="fuBuyBtn">Create live order</button></div>
     <div class="pl-output" id="fuOut">Ready.</div>
@@ -916,7 +916,7 @@ ${_featuredHtml}
     <h3 style="margin:0 0 8px">AI Gateway test (live)</h3>
     <p style="color:var(--ink-dim);font-size:13px;margin:0 0 12px">Routes your request to the best AI automatically via <code class="inline">/api/ai/use</code>.</p>
     <div class="pl-row">
-      <input id="fuAiPrompt" placeholder="Summarize a go-to-market strategy for a new AI service" />
+      <input id="fuAiPrompt" placeholder="Summarize a go-to-market strategy for a new AI service" aria-label="AI gateway prompt" />
     </div>
     <div class="pl-actions" style="margin-top:10px"><button class="pl-btn" id="fuAiBtn">Run AI gateway</button></div>
     <div class="pl-output" id="fuAiOut">Ready.</div>

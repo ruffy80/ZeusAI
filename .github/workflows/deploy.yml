@@ -375,7 +375,17 @@ jobs:
                 --target /etc/nginx/snippets/zeus-public-discovery.conf \
                 --domain "$DOMAIN" || \
               echo "[nginx-patch] $REAL — patch a eșuat (continuă)"
+              # ZEUS-PERF: ensure /assets/ /icons/ /manifest.json bypass the
+              # catch-all `add_header Cache-Control "no-cache"` so PageSpeed sees
+              # immutable cacheable assets. Idempotent; --no-reload here because
+              # the public-discovery patcher already handles the reload below.
+              python3 "$DEPLOY_PATH/scripts/nginx-patch-asset-cache.py" \
+                --site "$REAL" --no-reload || \
+              echo "[nginx-patch-asset-cache] $REAL — patch a eșuat (continuă)"
             done
+            # One final reload to pick up the asset-cache injection.
+            nginx -t && systemctl reload nginx || \
+              echo "[nginx-patch-asset-cache] reload skipped (validation/reload failed)"
           else
             echo "[nginx-patch] python3 indisponibil pe host — sărit (instalează-l ca să activezi /.well-known/*)"
           fi

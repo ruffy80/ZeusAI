@@ -42,6 +42,20 @@ assert.ok(v2Shell.includes('response.status===429'), 'Served v2 shell must handl
 assert.ok(sovereignExtensions.includes("urlPath === '/status.json'"), 'Sovereign status JSON must remain available at /status.json');
 assert.ok(sovereignExtensions.includes("!/text\\/html/i.test"), 'Sovereign /status handler must let browser HTML requests reach the v2 shell');
 
+assert.ok(v2Shell.includes('aria-label="Ask Zeus anything"'), 'Concierge textarea must have an aria-label for accessibility');
+assert.ok(v2Shell.includes('aria-label="AI gateway prompt"'), 'AI gateway prompt input must have an aria-label');
+assert.ok(v2Shell.includes('aria-label="Email address for test order"'), 'Test-order email input must have an aria-label');
+assert.ok(v2Shell.includes('aria-label="Select service to test-buy"'), 'Test-buy service select must have an aria-label');
+
+assert.ok(srcIndex.includes("'strict-dynamic'"), 'CSP must use strict-dynamic so script-src nonces are effective');
+assert.ok(srcIndex.includes("Content-Security-Policy-Report-Only"), 'Server must emit Trusted-Types CSP-RO header for DOM-XSS coverage');
+assert.ok(srcIndex.includes("require-trusted-types-for 'script'"), 'CSP-RO must request Trusted Types enforcement on script sinks');
+assert.ok(srcIndex.includes("'nonce-${__nonceForCsp}'"), 'CSP must bind a per-request nonce to script-src');
+
+const assetCachePatch = fs.readFileSync(path.join(__dirname, '..', 'scripts', 'nginx-patch-asset-cache.py'), 'utf8');
+assert.ok(assetCachePatch.includes('ZEUS-PERF: static immutable assets'), 'Asset-cache patcher must declare its idempotency marker');
+assert.ok(assetCachePatch.includes('location ^~ /assets/'), 'Asset-cache patcher must inject a /assets/ bypass block');
+
 assert.ok(/\bgzip\s+on;/.test(nginx), 'nginx template must enable gzip');
 assert.ok(/\bgzip_vary\s+on;/.test(nginx), 'nginx gzip must emit Vary: Accept-Encoding');
 assert.ok(!/^\s*brotli\s+on;/m.test(nginx), 'nginx template must not require optional Brotli module');
