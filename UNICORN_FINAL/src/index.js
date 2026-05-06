@@ -7540,9 +7540,9 @@ ${invoice.payer ? `<h2>Payer</h2><table><tr><th>Legal entity</th><td>${esc(invoi
     return;
   }
 
-  // 30Y-LTS — public status endpoint. JSON for monitors, pretty HTML for browsers.
-  if (urlPath === '/status' || urlPath === '/status.json') {
-    const wantHtml = urlPath !== '/status.json' && /text\/html/.test(String(req.headers.accept || ''));
+  // 30Y-LTS — public status endpoint. JSON for monitors; browser HTML falls through to the v2 shell.
+  if (urlPath === '/status.json' || (urlPath === '/status' && !/text\/html/i.test(String(req.headers.accept || '')))) {
+    const wantHtml = false;
     let snap = {};
     try { snap = buildSnapshot(); } catch (_) {}
     let comm = null;

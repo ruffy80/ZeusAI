@@ -15,6 +15,7 @@ assert.ok(srcIndex.includes("Origin-Agent-Cluster', '?1'"), 'HTML responses must
 assert.ok(srcIndex.includes('X-DNS-Prefetch-Control'), 'HTML responses must allow DNS prefetch control explicitly');
 assert.ok(srcIndex.includes('X-Permitted-Cross-Domain-Policies'), 'HTML responses must disable cross-domain policy files');
 assert.ok(srcIndex.includes('camera=(), microphone=(), geolocation=(), usb=(), serial=(), bluetooth=(), interest-cohort=()'), 'Permissions-Policy must cover high-risk browser features');
+assert.ok(srcIndex.includes("urlPath === '/status.json' || (urlPath === '/status' && !/text\\/html/i.test"), 'Site server /status must let browser HTML requests reach the v2 shell');
 
 assert.ok(template.includes('<meta name="theme-color" content="#05060e"/>'), 'Template must expose theme-color for mobile browser UI');
 assert.ok(template.includes('rel="preconnect" href="https://fonts.googleapis.com"'), 'Template must preconnect Google Fonts CSS origin');
