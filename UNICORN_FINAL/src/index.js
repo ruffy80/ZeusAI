@@ -462,19 +462,17 @@ function installResponseFreshnessGuards(res) {
         } catch (_) {}
       }
     }
-    // Security headers for all HTML responses
     if (String(res.getHeader('Content-Type') || '').toLowerCase().includes('text/html')) {
-      // Content Security Policy (CSP)
       res.setHeader('Content-Security-Policy', "default-src 'self' https:; script-src 'self' 'unsafe-inline' https:; style-src 'self' 'unsafe-inline' https:; img-src 'self' data: https:; font-src 'self' https:; connect-src 'self' https:; frame-ancestors 'none'; base-uri 'self'; form-action 'self';");
-      // HTTP Strict Transport Security (HSTS)
       res.setHeader('Strict-Transport-Security', 'max-age=63072000; includeSubDomains; preload');
-      // Cross-Origin Opener Policy (COOP)
       res.setHeader('Cross-Origin-Opener-Policy', 'same-origin');
-      // X-Frame-Options (XFO)
+      res.setHeader('Cross-Origin-Resource-Policy', 'same-origin');
+      res.setHeader('Origin-Agent-Cluster', '?1');
       res.setHeader('X-Frame-Options', 'DENY');
-      // Trusted Types (for CSP)
-      res.setHeader('Permissions-Policy', 'interest-cohort=()');
+      res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=(), usb=(), serial=(), bluetooth=(), interest-cohort=()');
       res.setHeader('X-Content-Type-Options', 'nosniff');
+      res.setHeader('X-DNS-Prefetch-Control', 'on');
+      res.setHeader('X-Permitted-Cross-Domain-Policies', 'none');
       res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
       res.setHeader('X-XSS-Protection', '1; mode=block');
       applyHtmlFreshnessHeaders(res);

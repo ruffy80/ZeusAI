@@ -43,6 +43,7 @@ function getSiteHtml() {
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate"/>
 <meta http-equiv="Pragma" content="no-cache"/>
 <meta http-equiv="Expires" content="0"/>
+<meta name="theme-color" content="#05060e"/>
 <title>ZEUS AI — Build. Automate. Scale.</title>
 <link rel="canonical" href="https://zeusai.pro/"/>
 <meta name="description" content="ZEUS AI — Universal AI Unicorn Platform. Build, automate, and scale with the most advanced AI and autonomous business tools."/>
@@ -3970,7 +3971,7 @@ async function editTenantBranding(id){
   if(d) d.innerHTML='<div style="display:flex;align-items:center;gap:12px;">'
     +(logo?'<picture>'+
       '<source srcset="'+escAttr(logo).replace(/\.(png|jpg|jpeg)/, '.webp')+'" type="image/webp">'+
-      '<img src="'+escAttr(logo)+'" style="height:40px;" alt="logo" loading="lazy"/>'+
+      '<img src="'+escAttr(logo)+'" width="40" height="40" style="height:40px;" alt="Tenant logo preview" loading="lazy" decoding="async"/>'+
       '</picture>':'')
     +'<div style="width:40px;height:40px;border-radius:8px;background:'+escAttr(color)+';"></div>'
     +'<span style="color:#e8f4ff;">Preview: '+escHtml(color)+'</span>'
@@ -4558,7 +4559,7 @@ async function checkoutBtc(){
   body.innerHTML='<div style="text-align:center;">'
     +'<picture>'+
       '<source srcset="'+escAttr(qrSrc).replace(/\.(png|jpg|jpeg)/, '.webp')+'" type="image/webp">'+
-      '<img class="qr-img" src="'+escAttr(qrSrc)+'" alt="BTC QR Code" loading="lazy"/>'+
+      '<img class="qr-img" src="'+escAttr(qrSrc)+'" width="160" height="160" alt="Bitcoin payment QR code" loading="lazy" decoding="async"/>'+
       '</picture>'
     +'<div class="countdown" id="pay-countdown"></div>'
     +(created.txId?'<div style="font-size:11px;color:#7090b0;margin:6px 0;">Order ID: <span style="font-family:monospace;">'+escHtml(created.txId)+'</span></div>':'')
