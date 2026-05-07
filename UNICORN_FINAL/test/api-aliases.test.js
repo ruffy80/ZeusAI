@@ -103,6 +103,28 @@ async function run() {
     assert.ok('priceUSD' in sample || 'priceUsd' in sample || 'price' in sample, 'product must have a price field');
     console.log('[ok] /api/instant/catalog alias responds 200 with', catalog.body.products.length, 'products');
 
+    // Stale-on-error guard for /api/instant/catalog — even if the unified
+    // catalog throws AND the in-memory services list is empty, the route
+    // MUST still answer 200 with the last-good payload (header
+    // `X-Catalog-Source: stale-after-error`). This prevents the live nginx
+    // 502 observed on 2026-05-07 (probe run #25483752817).
+    const unifiedCatalog = require('../src/commerce/unified-catalog');
+    const origPublicView = unifiedCatalog.publicView;
+    try {
+      unifiedCatalog.publicView = function () { throw new Error('forced-test-throw'); };
+      const url = `http://127.0.0.1:${port}/api/instant/catalog?tier=stale-test`;
+      const stale = await fetch(url, { headers: { Accept: 'application/json' } });
+      assert.strictEqual(stale.status, 200, 'stale-on-error must still be 200, got ' + stale.status);
+      const staleBody = await stale.json();
+      assert.ok(staleBody && Array.isArray(staleBody.products), 'stale-on-error must expose products[]');
+      // Tier filter "stale-test" yields zero products from a healthy publicView,
+      // so the empty-after-error branch returns { products: [], summary: {…} }
+      // without 5xx — the critical contract for the live page.
+      console.log('[ok] /api/instant/catalog stays 200 even when publicView throws');
+    } finally {
+      unifiedCatalog.publicView = origPublicView;
+    }
+
     console.log('\n[api-aliases.test.js] all assertions passed');
   } finally {
     await teardown();
