@@ -8,7 +8,7 @@ YELLOW='\033[1;33m'
 RED='\033[0;31m'
 NC='\033[0m'
 
-echo -e "${BLUE}🚀 GitHub + Vercel + Hetzner bootstrap${NC}\n"
+echo -e "${BLUE}🚀 GitHub + Hetzner bootstrap${NC}\n"
 
 if [ ! -f ".env.auto-connector" ]; then
   echo -e "${RED}❌ Missing .env.auto-connector${NC}"
@@ -25,9 +25,6 @@ required=(
   GITHUB_OWNER
   GITHUB_REPO
   ADMIN_SECRET
-  VERCEL_TOKEN
-  VERCEL_ORG_ID
-  VERCEL_PROJECT_ID
   HETZNER_HOST
   HETZNER_USER
   HETZNER_DEPLOY_USER
@@ -70,7 +67,33 @@ HETZNER_WEBHOOK_URL="${HETZNER_WEBHOOK_URL:-http://${HETZNER_HOST}:3001/webhook/
 WEBHOOK_SECRET="${WEBHOOK_SECRET:-${HETZNER_WEBHOOK_SECRET:-}}"
 
 echo -e "${YELLOW}[1/4] Testing SSH access...${NC}"
-ssh -i "${HETZNER_KEY_PATH}" -p "${SSH_DEPLOY_PORT}" -o BatchMode=yes -o ConnectTimeout=8 "${SSH_DEPLOY_USER}@${HETZNER_HOST}" "echo SSH_OK" >/dev/null
+if ssh -i "${HETZNER_KEY_PATH}" -p "${SSH_DEPLOY_PORT}" -o BatchMode=yes -o ConnectTimeout=8 "${SSH_DEPLOY_USER}@${HETZNER_HOST}" "echo SSH_OK" >/dev/null; then
+  :
+elif [ -n "${HETZNER_PASSWORD:-}" ] && [ -x "UNICORN_FINAL/scripts/ensure-ssh-access.sh" ]; then
+  echo -e "${YELLOW}⚠️ SSH key-auth failed, trying one-time bootstrap with HETZNER_PASSWORD...${NC}"
+  export HETZNER_SSH_PRIVATE_KEY="$(cat "${HETZNER_KEY_PATH}")"
+  export HETZNER_DEPLOY_USER="${SSH_DEPLOY_USER}"
+  export HETZNER_DEPLOY_PORT="${SSH_DEPLOY_PORT}"
+  bash UNICORN_FINAL/scripts/ensure-ssh-access.sh
+elif [ -n "${GITHUB_TOKEN:-${GH_PAT:-}}" ] && [ -x "UNICORN_FINAL/scripts/bootstrap-ssh-via-github.sh" ]; then
+  echo -e "${YELLOW}⚠️ SSH key-auth failed, trying GitHub Actions bootstrap (uses already-trusted server key)...${NC}"
+  bash UNICORN_FINAL/scripts/bootstrap-ssh-via-github.sh
+else
+  echo -e "${RED}❌ SSH key-auth failed and no auto-bootstrap path available.${NC}"
+  echo "Run the secrets doctor to see exactly which credential to rotate:"
+  echo "  node scripts/secrets-doctor.js"
+  echo
+  echo "Then choose one of:"
+  echo "  • set HETZNER_PASSWORD in .env.auto-connector (one-time bootstrap), or"
+  echo "  • set a fresh GITHUB_TOKEN (workflow scope) in .env.auto-connector and rerun this script, or"
+  echo "  • manually add this public key to server ~/.ssh/authorized_keys:"
+  if [ -f "${HETZNER_KEY_PATH}.pub" ]; then
+    cat "${HETZNER_KEY_PATH}.pub"
+  else
+    ssh-keygen -y -f "${HETZNER_KEY_PATH}" || true
+  fi
+  exit 1
+fi
 echo -e "${GREEN}✅ SSH access OK${NC}"
 
 echo -e "${YELLOW}[2/4] Bootstrapping Hetzner runtime...${NC}"
@@ -93,9 +116,6 @@ cat <<EOF
 
 Add these repository secrets in GitHub:
 
-- VERCEL_TOKEN=${VERCEL_TOKEN}
-- VERCEL_ORG_ID=${VERCEL_ORG_ID}
-- VERCEL_PROJECT_ID=${VERCEL_PROJECT_ID}
 - HETZNER_HOST=${HETZNER_HOST}
 - HETZNER_USER=${HETZNER_USER}
 - HETZNER_DEPLOY_USER=${HETZNER_DEPLOY_USER}
@@ -110,7 +130,6 @@ Add these repository secrets in GitHub:
 - WEBHOOK_SECRET=${WEBHOOK_SECRET}
 - HETZNER_WEBHOOK_SECRET=${HETZNER_WEBHOOK_SECRET:-${WEBHOOK_SECRET}}
 - ADMIN_SECRET=${ADMIN_SECRET}
-- VERCEL_DEPLOY_HOOK_URL=${VERCEL_DEPLOY_HOOK_URL:-}
 
 GitHub secrets page:
 https://github.com/${GITHUB_OWNER}/${GITHUB_REPO}/settings/secrets/actions
@@ -118,7 +137,7 @@ https://github.com/${GITHUB_OWNER}/${GITHUB_REPO}/settings/secrets/actions
 EOF
 
 echo -e "${YELLOW}[4/4] Final checks...${NC}"
-echo "- Workflow file: .github/workflows/vercel-deploy.yml"
+echo "- Workflow file: .github/workflows/deploy.yml"
 echo "- Deployment app path: UNICORN_FINAL"
 
 echo -e "\n${GREEN}✅ Bootstrap complete.${NC}"

@@ -1,0 +1,79 @@
+name: 🔑 Install local SSH pubkey on server
+
+# One-shot bootstrap workflow: takes a public key as input and appends it to
+# ~/.ssh/authorized_keys on the Hetzner server using the SSH_PRIVATE_KEY that
+# is already trusted in production. This breaks the chicken-and-egg loop on
+# new developer machines — they dispatch this workflow with their pubkey and
+# afterwards can SSH directly without HETZNER_PASSWORD.
+
+on:
+  workflow_dispatch:
+    inputs:
+      public_key:
+        description: 'Public key line (ssh-ed25519 AAAA... comment) — exact content of id.pub'
+        required: true
+        type: string
+      label:
+        description: 'Optional comment/label appended to the key (kept for audit)'
+        required: false
+        default: 'workflow-installed'
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  install:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: 🔐 Auto-bootstrap SSH (uses HETZNER_SSH_PRIVATE_KEY already trusted)
+        env:
+          HETZNER_SSH_PRIVATE_KEY: ${{ secrets.HETZNER_SSH_PRIVATE_KEY }}
+          HETZNER_HOST:            ${{ secrets.HETZNER_HOST }}
+          HETZNER_DEPLOY_PORT:     ${{ secrets.HETZNER_DEPLOY_PORT || '22' }}
+          HETZNER_DEPLOY_USER:     ${{ secrets.HETZNER_DEPLOY_USER || 'root' }}
+        run: |
+          chmod +x UNICORN_FINAL/scripts/ensure-ssh-access.sh
+          bash UNICORN_FINAL/scripts/ensure-ssh-access.sh
+
+      - name: ➕ Append requested public key to authorized_keys
+        env:
+          PUB:         ${{ github.event.inputs.public_key }}
+          LABEL:       ${{ github.event.inputs.label }}
+          DEPLOY_USER: ${{ secrets.HETZNER_DEPLOY_USER || 'root' }}
+          DEPLOY_PORT: ${{ secrets.HETZNER_DEPLOY_PORT || '22' }}
+          DEPLOY_HOST: ${{ secrets.HETZNER_HOST }}
+        run: |
+          set -euo pipefail
+          # Validate input shape early
+          if ! printf '%s' "$PUB" | ssh-keygen -lf - >/dev/null 2>&1; then
+            echo "::error::Provided public_key input is not a valid SSH key"
+            exit 1
+          fi
+          LINE="$(printf '%s' "$PUB" | awk '{print $1" "$2}')  ${LABEL:-workflow}@$(date -u +%Y%m%dT%H%M%SZ)"
+          printf '%s\n' "$LINE" | ssh \
+            -i ~/.ssh/deploy_key -p "$DEPLOY_PORT" \
+            -o StrictHostKeyChecking=no -o BatchMode=yes -o IdentitiesOnly=yes \
+            "${DEPLOY_USER}@${DEPLOY_HOST}" '
+              set -e
+              umask 077
+              mkdir -p ~/.ssh
+              chmod 700 ~/.ssh
+              touch ~/.ssh/authorized_keys
+              chmod 600 ~/.ssh/authorized_keys
+              NEW_LINE="$(cat)"
+              KEY_BODY="$(printf "%s" "$NEW_LINE" | awk "{print \$1\" \"\$2}")"
+              if grep -F -q "$KEY_BODY" ~/.ssh/authorized_keys 2>/dev/null; then
+                echo "ℹ️  pubkey already present"
+              else
+                printf "%s\n" "$NEW_LINE" >> ~/.ssh/authorized_keys
+                echo "✅ pubkey appended"
+              fi
+              ssh-keygen -lf <(printf "%s\n" "$NEW_LINE") || true
+            '
+
+      - name: ✅ Done
+        run: echo "Local pubkey installed. You can now ssh ${{ secrets.HETZNER_DEPLOY_USER || 'root' }}@${{ secrets.HETZNER_HOST }} with key auth."

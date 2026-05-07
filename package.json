@@ -16,6 +16,9 @@
     "deploy": "npm --prefix UNICORN_FINAL run deploy:full",
     "heal": "npm --prefix UNICORN_FINAL run health:guardian",
     "health:global": "node scripts/global-health-probe.js",
+    "secrets:doctor": "node scripts/secrets-doctor.js",
+    "secrets:bootstrap": "node -e \"require('./UNICORN_FINAL/src/config/secrets.js').bootstrap({log:true,persistGenerated:false})\"",
+    "ssh:bootstrap": "bash UNICORN_FINAL/scripts/bootstrap-ssh-via-github.sh",
     "evolve": "npm --prefix UNICORN_FINAL run innovation:sprint",
     "test": "npm --prefix UNICORN_FINAL test"
   },
