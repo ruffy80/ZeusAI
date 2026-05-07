@@ -1361,11 +1361,22 @@ function initFinalLive(services){
 
   if (aiCountEl) {
     fetch('/api/ai/registry').then(function(r){ return r.json(); }).then(function(j){
-      if (!j) return;
+      // Always repaint — even when the API returns null/empty — so the SSR
+      // placeholder ("Loading…" / "Analyzing…") cannot stay stuck on screen.
+      // Same regression class as the /services BTC spot rate bug.
+      if (!j) {
+        aiCountEl.textContent = 'Registry unavailable';
+        if (aiModeEl) aiModeEl.textContent = 'Manual fallback';
+        return;
+      }
       const active = typeof j.active === 'number' ? j.active : 0;
       const total = typeof j.total === 'number' ? j.total : 0;
       aiCountEl.textContent = active + '/' + total + ' AI adapters online';
-      if (aiModeEl && Array.isArray(j.routers) && j.routers.length) aiModeEl.textContent = 'Auto via ' + j.routers[0];
+      if (aiModeEl) {
+        aiModeEl.textContent = (Array.isArray(j.routers) && j.routers.length)
+          ? 'Auto via ' + j.routers[0]
+          : 'Manual fallback';
+      }
     }).catch(function(){
       aiCountEl.textContent = 'Registry unavailable';
       if (aiModeEl) aiModeEl.textContent = 'Manual fallback';
@@ -1374,7 +1385,7 @@ function initFinalLive(services){
 
   if (pqEl) {
     fetch('/api/security/pq/status').then(function(r){ return r.json(); }).then(function(j){
-      if (!j) return;
+      if (!j) { pqEl.textContent = 'Unavailable'; return; }
       const mode = j.mode || 'unknown';
       const dig = j.digest || 'n/a';
       pqEl.textContent = mode + ' · ' + dig;
@@ -1468,7 +1479,15 @@ function initFinalLive(services){
   }
 
   fetch('/api/evolution/loop').then(function(r){ return r.json(); }).then(function(j){
-    if (!j) return;
+    // Always repaint — never leave the SSR "Loading…" / "Waiting for loop
+    // snapshot…" placeholders on screen if the API returns null/empty.
+    if (!j) {
+      if (optEl) optEl.textContent = 'n/a';
+      if (rbEl) rbEl.textContent = 'n/a';
+      if (stEl) stEl.textContent = 'n/a';
+      if (loopOut) loopOut.textContent = 'Loop snapshot unavailable.';
+      return;
+    }
     if (optEl) optEl.textContent = ((j.quality && j.quality.optimizationScore) || 'n/a') + '/100';
     if (rbEl) rbEl.textContent = (j.guardrails && j.guardrails.rollbackReady) ? 'Ready' : 'Not ready';
     if (stEl) {
@@ -1512,11 +1531,23 @@ function initFinalLive(services){
       trustOut.textContent = 'Integrity: ' + (endpoint || 'n/a') + ' · paid receipts: ' + (paid != null ? paid : 'n/a') + ' · routing: direct BTC';
     }
   }).catch(function(){
+    // Belt-and-suspenders: the inner catches already swap to null on fetch
+    // failure, so this outer catch is rare — but ensure no SSR placeholder
+    // ("Loading…") ever stays stuck on screen.
+    if (trustSigEl) trustSigEl.textContent = 'n/a/100';
+    if (trustReceiptsEl) trustReceiptsEl.textContent = 'n/a verified';
+    if (revTotalEl) revTotalEl.textContent = 'n/a';
+    if (revMethodsEl) revMethodsEl.textContent = 'n/a';
     if (trustOut) trustOut.textContent = 'Trust snapshot unavailable.';
   });
 
   function applyDrill(j){
-    if (!j || !j.drill) return;
+    if (!j || !j.drill) {
+      if (drillScoreEl) drillScoreEl.textContent = 'n/a';
+      if (drillRecoveryEl) drillRecoveryEl.textContent = 'n/a';
+      if (drillRunsEl) drillRunsEl.textContent = 'n/a';
+      return;
+    }
     if (drillScoreEl) drillScoreEl.textContent = (j.drill.readinessScore != null ? j.drill.readinessScore : 'n/a') + '/100';
     if (drillRecoveryEl) drillRecoveryEl.textContent = (j.drill.averageRecoveryMs != null ? (j.drill.averageRecoveryMs + ' ms') : 'n/a');
     if (drillRunsEl) drillRunsEl.textContent = (j.drill.totalRuns != null ? j.drill.totalRuns : 'n/a') + '';
@@ -1526,6 +1557,7 @@ function initFinalLive(services){
     applyDrill(j);
     if (drillOut) drillOut.textContent = 'Policy: ' + ((j && j.drill && j.drill.policy) || 'n/a') + ' · status: ' + ((j && j.drill && j.drill.status) || 'unknown');
   }).catch(function(){
+    applyDrill(null);
     if (drillOut) drillOut.textContent = 'Resilience status unavailable.';
   });
 
@@ -1554,7 +1586,13 @@ function initFinalLive(services){
   }
 
   fetch('/api/ui/autotune').then(function(r){ return r.json(); }).then(function(j){
-    if (!j) return;
+    if (!j) {
+      if (tuneModeEl) tuneModeEl.textContent = 'n/a';
+      if (tuneIntensityEl) tuneIntensityEl.textContent = 'n/a';
+      if (tuneMotionEl) tuneMotionEl.textContent = 'n/a';
+      if (tuneOut) tuneOut.textContent = 'Auto-tune profile unavailable.';
+      return;
+    }
     tuneProfile = j;
     if (tuneModeEl) tuneModeEl.textContent = (j.profile && j.profile.mode) || 'auto-cinematic';
     if (tuneIntensityEl) tuneIntensityEl.textContent = ((j.profile && j.profile.intensity) != null ? j.profile.intensity : 'n/a') + '';
@@ -1562,6 +1600,9 @@ function initFinalLive(services){
     if (tuneOut) tuneOut.textContent = 'Profile loaded · glow ' + ((j.profile && j.profile.glowPower) || 'n/a') + ' · blur ' + ((j.profile && j.profile.glassBlurPx) || 'n/a') + 'px';
     applyTune(j);
   }).catch(function(){
+    if (tuneModeEl) tuneModeEl.textContent = 'n/a';
+    if (tuneIntensityEl) tuneIntensityEl.textContent = 'n/a';
+    if (tuneMotionEl) tuneMotionEl.textContent = 'n/a';
     if (tuneOut) tuneOut.textContent = 'Auto-tune profile unavailable.';
   });
 
@@ -1591,9 +1632,17 @@ function initFinalLive(services){
 
   function loadGovernance(){
     return fetch('/api/performance/governance').then(function(r){ return r.json(); }).then(function(j){
-      if (!j) return;
+      if (!j) {
+        if (perfP95El) perfP95El.textContent = 'n/a';
+        if (perfP99El) perfP99El.textContent = 'n/a';
+        if (perfModeEl) perfModeEl.textContent = 'unavailable';
+        if (perfOut) perfOut.textContent = 'Performance governance unavailable.';
+        return;
+      }
       applyGovernance(j);
     }).catch(function(){
+      if (perfP95El) perfP95El.textContent = 'n/a';
+      if (perfP99El) perfP99El.textContent = 'n/a';
       if (perfOut) perfOut.textContent = 'Performance governance unavailable.';
       if (perfModeEl) perfModeEl.textContent = 'unavailable';
     });
