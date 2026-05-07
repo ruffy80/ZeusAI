@@ -1442,7 +1442,12 @@ function pageTrustCenter() {
       ];
       grid.innerHTML = cards.map(c=>'<div class="card"><span class="tag">'+c[0]+'</span><h3>'+c[1]+'</h3><p style="color:var(--ink-dim)">'+c[2]+'</p></div>').join('');
       raw.textContent = 'health: '+(tc.health && tc.health.status || 'ok')+' · deploy: '+(tc.deploy && tc.deploy.sha || '—')+' · integrity: '+(integ && integ.alg || 'ed25519')+' · incidents: '+(tc.incidents && tc.incidents.count || 0);
-    } catch(e) { grid.innerHTML='<div class="card"><p style="color:var(--danger)">Trust center unavailable: '+e.message+'</p></div>'; }
+    } catch(e) {
+      grid.innerHTML='<div class="card"><p style="color:var(--danger)">Trust center unavailable: '+e.message+'</p></div>';
+      // Also clear the SSR "Loading…" placeholder on the integrity document
+      // element — same regression class as the /services BTC spot rate bug.
+      raw.textContent = 'Integrity document unavailable: '+e.message;
+    }
   })();
   </script>
 </section>`;
@@ -2620,7 +2625,12 @@ function pageStatus() {
       document.getElementById('stHeadline').textContent = d.overall + '.';
       document.getElementById('stUptime').textContent = d.uptime90d + '%';
       document.getElementById('stGrid').innerHTML = d.components.map(c => '<div class="card"><span class="tag" style="background:rgba(59,255,176,.15);color:#3bffb0">'+c.status+'</span><h3>'+c.name+'</h3><p style="color:var(--ink-dim)">Latency: <b>'+c.latencyMs+'ms</b></p></div>').join('');
-    } catch(e) {}
+    } catch(e) {
+      // Never leave the SSR "Loading…" placeholder on screen — same regression
+      // class as the /services BTC spot rate bug.
+      const g = document.getElementById('stGrid');
+      if (g) g.innerHTML = '<div class="card"><p style="color:var(--ink-dim)">Status snapshot unavailable. Retrying every 15s.</p></div>';
+    }
   }
   loadStatus(); setInterval(loadStatus, 15000);
   </script>

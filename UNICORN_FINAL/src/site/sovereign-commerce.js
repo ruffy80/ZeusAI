@@ -753,7 +753,7 @@ async function handle(req, res, ctx) {
 <details><summary>🔐 Cryptographic signature (Ed25519)</summary>
 <p class="sig" id="sig-data">Loading…</p>
 <p><a href="/api/order/${escapeHtml(order.orderId)}/receipt.json">Download signed JSON</a> · <a href="/api/v50/keys.json">Public key</a></p></details>
-<script>fetch('/api/order/${escapeHtml(order.orderId)}/receipt.json').then(r=>r.json()).then(d=>{document.getElementById('sig-data').textContent=JSON.stringify(d.signature,null,2)}).catch(()=>{});</script>
+<script>fetch('/api/order/${escapeHtml(order.orderId)}/receipt.json').then(r=>r.json()).then(d=>{document.getElementById('sig-data').textContent=JSON.stringify(d.signature,null,2)}).catch(()=>{var el=document.getElementById('sig-data');if(el){el.textContent='Signature unavailable — refresh or download the signed JSON below.';}});</script>
 </body></html>`;
     res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'private, max-age=300', 'X-Unicorn-Receipt': '1' });
     res.end(html);
