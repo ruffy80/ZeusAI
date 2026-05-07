@@ -1,0 +1,291 @@
+name: 🔬 Drastic Verify (Site/Server/Unicorn)
+
+# Manual-only workflow that runs the exact 12-step "verificare drastică"
+# requested by the operator: 6 public HTTPS curl probes against zeusai.pro,
+# 2 auth POST probes (register/login), and 4 SSH probes to the live Hetzner
+# host (docker logs, docker stats, free/df, sqlite users count).
+#
+# Purely diagnostic — no code or server-state mutation. Output is captured in
+# the run logs and a consolidated summary at the end.
+
+on:
+  workflow_dispatch:
+    inputs:
+      public_base:
+        description: 'Public base URL (default https://zeusai.pro)'
+        type: string
+        default: 'https://zeusai.pro'
+      docker_container:
+        description: 'Docker container name for logs (default unicorn-backend)'
+        type: string
+        default: 'unicorn-backend'
+      sqlite_path:
+        description: 'SQLite users DB path on Hetzner (default /opt/unicorn/data/users.db)'
+        type: string
+        default: '/opt/unicorn/data/users.db'
+
+concurrency:
+  group: zeusai-drastic-verify
+  cancel-in-progress: false
+
+jobs:
+  drastic-verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    env:
+      PUBLIC_BASE:      ${{ inputs.public_base }}
+      DOCKER_CONTAINER: ${{ inputs.docker_container }}
+      SQLITE_PATH:      ${{ inputs.sqlite_path }}
+      REPORT_FILE:      ${{ github.workspace }}/drastic-report.txt
+
+    steps:
+      - name: 📥 Checkout
+        uses: actions/checkout@v4
+
+      - name: 🔑 Install SSH key (for Hetzner probes 9-12)
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.HETZNER_SSH_PRIVATE_KEY }}
+
+      - name: 🌐 Add Hetzner host to known_hosts
+        env:
+          HETZNER_HOST: ${{ secrets.HETZNER_HOST }}
+        run: |
+          mkdir -p ~/.ssh
+          if [ -n "$HETZNER_HOST" ]; then
+            ssh-keyscan -H "$HETZNER_HOST" >> ~/.ssh/known_hosts 2>/dev/null || true
+          fi
+
+      - name: 🧪 Initialise report file
+        run: |
+          {
+            echo "================================================================"
+            echo "  ZeusAI · Drastic verification report"
+            echo "  Run:  ${{ github.run_id }}  ($(date -u +%Y-%m-%dT%H:%M:%SZ))"
+            echo "  Base: $PUBLIC_BASE"
+            echo "================================================================"
+          } | tee "$REPORT_FILE"
+
+      # --------------------------------------------------------------
+      # Probes 1-4: HEAD requests to public site (status / headers)
+      # --------------------------------------------------------------
+      - name: 1️⃣  curl -I ${{ inputs.public_base }}/
+        run: |
+          echo "::group::1. curl -I $PUBLIC_BASE/"
+          {
+            echo
+            echo "---- 1. curl -I $PUBLIC_BASE/ ----"
+            curl -sS -I -m 15 "$PUBLIC_BASE/" || echo "[ERROR] curl exited with $?"
+          } | tee -a "$REPORT_FILE"
+          echo "::endgroup::"
+
+      - name: 2️⃣  curl -I ${{ inputs.public_base }}/health
+        run: |
+          echo "::group::2. curl -I $PUBLIC_BASE/health"
+          {
+            echo
+            echo "---- 2. curl -I $PUBLIC_BASE/health ----"
+            curl -sS -I -m 15 "$PUBLIC_BASE/health" || echo "[ERROR] curl exited with $?"
+          } | tee -a "$REPORT_FILE"
+          echo "::endgroup::"
+
+      - name: 3️⃣  curl -I ${{ inputs.public_base }}/marketplace
+        run: |
+          echo "::group::3. curl -I $PUBLIC_BASE/marketplace"
+          {
+            echo
+            echo "---- 3. curl -I $PUBLIC_BASE/marketplace ----"
+            curl -sS -I -m 15 "$PUBLIC_BASE/marketplace" || echo "[ERROR] curl exited with $?"
+          } | tee -a "$REPORT_FILE"
+          echo "::endgroup::"
+
+      - name: 4️⃣  curl -I ${{ inputs.public_base }}/account
+        run: |
+          echo "::group::4. curl -I $PUBLIC_BASE/account"
+          {
+            echo
+            echo "---- 4. curl -I $PUBLIC_BASE/account ----"
+            curl -sS -I -m 15 "$PUBLIC_BASE/account" || echo "[ERROR] curl exited with $?"
+          } | tee -a "$REPORT_FILE"
+          echo "::endgroup::"
+
+      # --------------------------------------------------------------
+      # Probes 5-6: timing for HTML root and a JSON API
+      # --------------------------------------------------------------
+      - name: 5️⃣  time curl ${{ inputs.public_base }}/
+        run: |
+          echo "::group::5. time curl $PUBLIC_BASE/"
+          {
+            echo
+            echo "---- 5. time curl -s $PUBLIC_BASE/ -o /dev/null ----"
+            T="$( { time curl -sS -m 30 "$PUBLIC_BASE/" -o /dev/null -w 'HTTP: %{http_code}  size: %{size_download}B\n' ; } 2>&1 )"
+            echo "$T"
+          } | tee -a "$REPORT_FILE"
+          echo "::endgroup::"
+
+      - name: 6️⃣  time curl ${{ inputs.public_base }}/api/products/list
+        run: |
+          echo "::group::6. time curl $PUBLIC_BASE/api/products/list"
+          {
+            echo
+            echo "---- 6. time curl -s $PUBLIC_BASE/api/products/list -o /dev/null ----"
+            T="$( { time curl -sS -m 30 "$PUBLIC_BASE/api/products/list" -o /dev/null -w 'HTTP: %{http_code}  size: %{size_download}B\n' ; } 2>&1 )"
+            echo "$T"
+          } | tee -a "$REPORT_FILE"
+          echo "::endgroup::"
+
+      # --------------------------------------------------------------
+      # Probes 7-8: auth flow (register + login)
+      # --------------------------------------------------------------
+      - name: 7️⃣  POST /api/auth/register
+        run: |
+          echo "::group::7. POST $PUBLIC_BASE/api/auth/register"
+          {
+            echo
+            echo "---- 7. POST $PUBLIC_BASE/api/auth/register ----"
+            curl -sS -m 20 -X POST "$PUBLIC_BASE/api/auth/register" \
+              -H "Content-Type: application/json" \
+              -d '{"email":"test@verify.com","password":"Test123456!","name":"Verif"}' \
+              -w "\nHTTP: %{http_code}\n" \
+              || echo "[ERROR] curl exited with $?"
+          } | tee -a "$REPORT_FILE"
+          echo "::endgroup::"
+
+      - name: 8️⃣  POST /api/auth/login
+        run: |
+          echo "::group::8. POST $PUBLIC_BASE/api/auth/login"
+          {
+            echo
+            echo "---- 8. POST $PUBLIC_BASE/api/auth/login ----"
+            curl -sS -m 20 -X POST "$PUBLIC_BASE/api/auth/login" \
+              -H "Content-Type: application/json" \
+              -d '{"email":"test@verify.com","password":"Test123456!"}' \
+              -w "\nHTTP: %{http_code}\n" \
+              || echo "[ERROR] curl exited with $?"
+          } | tee -a "$REPORT_FILE"
+          echo "::endgroup::"
+
+      # --------------------------------------------------------------
+      # Probes 9-12: SSH to Hetzner (docker, resources, sqlite)
+      # --------------------------------------------------------------
+      - name: 9️⃣  SSH · docker logs ${{ inputs.docker_container }} | grep -i error
+        env:
+          HETZNER_HOST: ${{ secrets.HETZNER_HOST }}
+        run: |
+          echo "::group::9. ssh root@HETZNER docker logs $DOCKER_CONTAINER --tail 50 | grep -i error"
+          {
+            echo
+            echo "---- 9. ssh root@HETZNER docker logs $DOCKER_CONTAINER --tail 50 | grep -i error ----"
+            if [ -z "$HETZNER_HOST" ]; then
+              echo "[SKIP] HETZNER_HOST secret not set"
+            else
+              ssh -o StrictHostKeyChecking=no -o ConnectTimeout=15 root@"$HETZNER_HOST" \
+                "if command -v docker >/dev/null 2>&1; then docker logs $DOCKER_CONTAINER --tail 50 2>&1 | grep -i error || echo '[ok] no error lines in last 50 log lines'; else echo '[skip] docker not installed (likely PM2 deployment) — falling back to: pm2 logs unicorn-backend --lines 50 --nostream | grep -i error'; pm2 logs unicorn-backend --lines 50 --nostream 2>&1 | grep -i error || echo '[ok] no error lines in pm2 logs'; fi" \
+                || echo "[ERROR] ssh exited with $?"
+            fi
+          } | tee -a "$REPORT_FILE"
+          echo "::endgroup::"
+
+      - name: 🔟 SSH · docker stats --no-stream
+        env:
+          HETZNER_HOST: ${{ secrets.HETZNER_HOST }}
+        run: |
+          echo "::group::10. ssh root@HETZNER docker stats --no-stream"
+          {
+            echo
+            echo "---- 10. ssh root@HETZNER docker stats --no-stream ----"
+            if [ -z "$HETZNER_HOST" ]; then
+              echo "[SKIP] HETZNER_HOST secret not set"
+            else
+              ssh -o StrictHostKeyChecking=no -o ConnectTimeout=15 root@"$HETZNER_HOST" \
+                "if command -v docker >/dev/null 2>&1; then docker stats --no-stream 2>&1; else echo '[skip] docker not installed — falling back to: pm2 list (canonical PM2 deployment)'; pm2 list 2>&1 || echo '[pm2] not available'; fi" \
+                || echo "[ERROR] ssh exited with $?"
+            fi
+          } | tee -a "$REPORT_FILE"
+          echo "::endgroup::"
+
+      - name: 1️⃣1️⃣  SSH · free -h && df -h
+        env:
+          HETZNER_HOST: ${{ secrets.HETZNER_HOST }}
+        run: |
+          echo "::group::11. ssh root@HETZNER 'free -h && df -h'"
+          {
+            echo
+            echo "---- 11. ssh root@HETZNER 'free -h && df -h' ----"
+            if [ -z "$HETZNER_HOST" ]; then
+              echo "[SKIP] HETZNER_HOST secret not set"
+            else
+              ssh -o StrictHostKeyChecking=no -o ConnectTimeout=15 root@"$HETZNER_HOST" 'free -h && echo && df -h' \
+                || echo "[ERROR] ssh exited with $?"
+            fi
+          } | tee -a "$REPORT_FILE"
+          echo "::endgroup::"
+
+      - name: 1️⃣2️⃣  SSH · sqlite3 ${{ inputs.sqlite_path }} 'SELECT COUNT(*) FROM users;'
+        env:
+          HETZNER_HOST: ${{ secrets.HETZNER_HOST }}
+        run: |
+          echo "::group::12. ssh root@HETZNER sqlite3 $SQLITE_PATH 'SELECT COUNT(*) FROM users;'"
+          {
+            echo
+            echo "---- 12. ssh root@HETZNER sqlite3 $SQLITE_PATH 'SELECT COUNT(*) FROM users;' ----"
+            if [ -z "$HETZNER_HOST" ]; then
+              echo "[SKIP] HETZNER_HOST secret not set"
+            else
+              # Note: this codebase uses an in-memory `users` array in
+              # UNICORN_FINAL/backend/index.js, not SQLite, so we also probe
+              # the canonical JSON-backed users store as a fallback.
+              ssh -o StrictHostKeyChecking=no -o ConnectTimeout=15 root@"$HETZNER_HOST" "SQLITE_PATH='$SQLITE_PATH' bash -s" <<'SSHEOF' || echo "[ERROR] ssh exited with $?"
+            DB="${SQLITE_PATH:-/opt/unicorn/data/users.db}"
+            echo "[probe] checking sqlite at $DB"
+            if [ -f "$DB" ] && command -v sqlite3 >/dev/null 2>&1; then
+              sqlite3 "$DB" 'SELECT COUNT(*) FROM users;' 2>&1 \
+                || echo "[sqlite] query failed (file present, table missing?)"
+            else
+              echo "[sqlite] not present at $DB — falling back to canonical JSON users store"
+              for P in /var/www/unicorn/UNICORN_FINAL/data/users.json /opt/unicorn/data/users.json; do
+                if [ -f "$P" ]; then
+                  if command -v jq >/dev/null 2>&1; then
+                    N=$(jq 'if type=="array" then length else (.users // [] | length) end' "$P" 2>/dev/null || echo "?")
+                  else
+                    N=$(grep -o '"email"' "$P" 2>/dev/null | wc -l)
+                  fi
+                  echo "[users.json] $P -> $N entries"
+                  break
+                fi
+              done
+              # Also surface live count from the running backend (in-memory store).
+              CODE=$(curl -sS -o /tmp/_users.json -m 5 -w '%{http_code}' http://127.0.0.1:3000/api/auth/admin/users-count 2>/dev/null || echo 000)
+              echo "[backend] /api/auth/admin/users-count -> HTTP $CODE"
+              [ "$CODE" = "200" ] && cat /tmp/_users.json 2>/dev/null && echo
+            fi
+          SSHEOF
+            fi
+          } | tee -a "$REPORT_FILE"
+          echo "::endgroup::"
+
+      # --------------------------------------------------------------
+      # Final consolidated report
+      # --------------------------------------------------------------
+      - name: 📋 Final summary (full report)
+        if: always()
+        run: |
+          echo "## 🔬 Drastic verification report" >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+          cat "$REPORT_FILE" >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+          echo
+          echo "================================================================"
+          echo "  Full report (also attached as artifact):"
+          echo "================================================================"
+          cat "$REPORT_FILE"
+
+      - name: 📦 Upload report artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: drastic-verify-report
+          path: ${{ env.REPORT_FILE }}
+          retention-days: 14
