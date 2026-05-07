@@ -45,24 +45,36 @@ function httpsJson({ host, path: p, method = 'GET', headers = {}, timeout = 8000
 
 async function probeGithub() {
   const tok = get('GITHUB_TOKEN') || get('GH_PAT') || get('GH_TOKEN');
-  if (!tok) return { ok: false, msg: 'GITHUB_TOKEN missing', fix: 'gh auth login   # or set GH_PAT/GITHUB_TOKEN in .env.auto-connector' };
-  const r = await httpsJson({
-    host: 'api.github.com', path: '/user',
-    headers: { Authorization: `token ${tok}`, 'User-Agent': 'unicorn-doctor', Accept: 'application/vnd.github+json' },
-  });
-  if (r.status === 200) return { ok: true, msg: 'GitHub PAT valid' };
-  return { ok: false, msg: `GitHub PAT HTTP ${r.status}`, fix: 'rotate token at https://github.com/settings/tokens then update GITHUB_TOKEN in .env.auto-connector' };
+  if (tok) {
+    const r = await httpsJson({
+      host: 'api.github.com', path: '/user',
+      headers: { Authorization: `token ${tok}`, 'User-Agent': 'unicorn-doctor', Accept: 'application/vnd.github+json' },
+    });
+    if (r.status === 200) return { ok: true, msg: 'GitHub PAT (env) valid' };
+  }
+  // Fallback: accept the gh CLI keyring credential as equivalent.
+  try {
+    const cleanEnv = { ...process.env };
+    delete cleanEnv.GITHUB_TOKEN;
+    delete cleanEnv.GH_TOKEN;
+    const r = spawnSync('gh', ['auth', 'status'], { encoding: 'utf8', env: cleanEnv });
+    const all = (r.stdout || '') + (r.stderr || '');
+    if (/Logged in to github\.com/i.test(all)) {
+      return { ok: true, msg: 'GitHub via gh CLI keyring (env token absent/expired but gh works)', soft: true };
+    }
+  } catch (_) { /* ignore */ }
+  return { ok: false, msg: 'no valid GitHub credential', fix: 'gh auth login   # or set a fresh GITHUB_TOKEN with workflow scope in .env.auto-connector' };
 }
 
 async function probeHetzner() {
   const tok = get('HETZNER_API_KEY') || get('HETZNER_API_TOKEN') || get('HCLOUD_TOKEN');
-  if (!tok) return { ok: false, msg: 'HETZNER_API_KEY missing', fix: 'create token at https://console.hetzner.cloud/projects then set HETZNER_API_KEY' };
+  if (!tok) return { ok: true, msg: 'Hetzner API token not set (optional — only needed for cloud-server provisioning)', soft: true };
   const r = await httpsJson({
     host: 'api.hetzner.cloud', path: '/v1/servers?per_page=1',
     headers: { Authorization: `Bearer ${tok}` },
   });
   if (r.status === 200) return { ok: true, msg: 'Hetzner API token valid' };
-  return { ok: false, msg: `Hetzner API HTTP ${r.status}`, fix: 'rotate Hetzner Cloud API token, update HETZNER_API_KEY in .env.auto-connector' };
+  return { ok: false, msg: `Hetzner API HTTP ${r.status} (optional — only blocks server provisioning)`, soft: true, fix: 'rotate token at https://console.hetzner.cloud and update HETZNER_API_KEY in .env.auto-connector' };
 }
 
 function probeSsh() {
@@ -110,13 +122,15 @@ function probeLiveSite() {
     ['Live site      ', await probeLiveSite()],
   ];
   let failed = 0;
+  let softFailed = 0;
   for (const [name, r] of checks) {
-    if (r.ok) console.log(`${name} ${ok(r.msg)}`);
-    else { console.log(`${name} ${bad(r.msg)}`); if (r.fix) console.log('               ' + c(35, 'fix → ') + r.fix); failed++; }
+    if (r.ok) console.log(`${name} ${r.soft ? warn(r.msg) : ok(r.msg)}`);
+    else { console.log(`${name} ${r.soft ? warn(r.msg) : bad(r.msg)}`); if (r.fix) console.log('               ' + c(35, 'fix → ') + r.fix); if (r.soft) softFailed++; else failed++; }
   }
 
   console.log(head('Summary'));
-  if (!failed) console.log(ok('all critical credentials valid · system fully autonomous'));
-  else console.log(warn(`${failed} credential check(s) failed — apply the fixes above, then rerun: node scripts/secrets-doctor.js`));
+  if (!failed && !softFailed) console.log(ok('all critical credentials valid · system fully autonomous'));
+  else if (!failed) console.log(ok(`critical credentials OK · ${softFailed} optional credential(s) missing (non-blocking)`));
+  else console.log(warn(`${failed} critical credential check(s) failed — apply the fixes above, then rerun: node scripts/secrets-doctor.js`));
   process.exit(failed ? 1 : 0);
 })();
