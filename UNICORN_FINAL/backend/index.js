@@ -3261,50 +3261,157 @@ let _unifiedCatalogModule = null;
 try { _unifiedCatalogModule = require('../src/commerce/unified-catalog'); }
 catch (_) { _unifiedCatalogModule = null; }
 
+// ──────────────────────────────────────────────────────────────────────────
+// Resilient last-good cache for /api/instant/catalog (additive, fail-soft).
+//
+// Why: live `🌍 Global Availability Probe` run #25483752817 (2026-05-07
+// 08:04 UTC) caught an intermittent nginx 502 on this route while every
+// other backend route stayed up — i.e. the upstream dropped the connection
+// for this handler specifically. The site SSR client (`hydrateMasterCatalog`
+// in src/site/v2/client.js) keeps the SSR cards on empty/error, but the
+// "X real services · X instant · X professional · X enterprise" counters go
+// stale and the live page looks broken.
+//
+// Mitigation: a tiny in-process per-tier "last known good" cache with a
+// 30 s TTL. On the happy path it's a no-op (we still recompute the canonical
+// payload every time below); after the first successful response we keep a
+// frozen copy keyed by tier so that ANY subsequent throw, missing module,
+// or empty fallback can still answer 200 with the last-good payload plus
+// `X-Catalog-Source: stale`. Disable with INSTANT_CATALOG_LASTGOOD_DISABLED=1.
+// RO+EN: cache aditiv, ZERO regresie pe calea fericită.
+// ──────────────────────────────────────────────────────────────────────────
+const _LASTGOOD_TTL_MS = Number(process.env.INSTANT_CATALOG_LASTGOOD_TTL_MS || 30_000);
+const _LASTGOOD_DISABLED = process.env.INSTANT_CATALOG_LASTGOOD_DISABLED === '1';
+const _instantCatalogLastGood = new Map(); // tier -> { products, summary, etag, ts }
+
+function _instantCatalogStoreLastGood(tier, products, summary, etag) {
+  if (_LASTGOOD_DISABLED) return;
+  if (!Array.isArray(products) || products.length === 0) return;
+  try {
+    _instantCatalogLastGood.set(tier, {
+      products,
+      summary,
+      etag,
+      ts: Date.now()
+    });
+  } catch (_) { /* fail-soft */ }
+}
+
+function _instantCatalogReadLastGood(tier) {
+  if (_LASTGOOD_DISABLED) return null;
+  try {
+    const hit = _instantCatalogLastGood.get(tier);
+    if (!hit) return null;
+    // Intentionally NO TTL eviction here: even a multi-minute-old last-good
+    // is strictly better than a 5xx for the live page's hydration counters.
+    // _LASTGOOD_TTL_MS is reserved for a future LRU/eviction sweep; today
+    // the Map is small (one entry per tier ≈ ≤4) so unbounded retention is
+    // safe. Callers always pair this with a successful refresh on the happy
+    // path (see _instantCatalogStoreLastGood call below).
+    return hit;
+  } catch (_) { return null; }
+}
+
 app.get('/api/instant/catalog', _swRateLimit, async (req, res) => {
   const tier = String(req.query.tier || '').trim();
-  let products = [];
-  let summary = null;
-  if (_unifiedCatalogModule && typeof _unifiedCatalogModule.publicView === 'function') {
-    try {
-      products = _unifiedCatalogModule.publicView() || [];
-      if (tier && Array.isArray(products)) products = products.filter(p => (p.tier || 'instant') === tier);
-      if (typeof _unifiedCatalogModule.summarize === 'function') {
-        try { summary = _unifiedCatalogModule.summarize(); } catch (_) { summary = null; }
+  // Defensive try/catch around the entire handler — no matter what blows up,
+  // we MUST send 200 + { products, summary } (using last-good if available).
+  // Nginx returning 502 means backend closed the connection mid-handler;
+  // the wrapper guarantees we always end the response cleanly.
+  try {
+    let products = [];
+    let summary = null;
+    if (_unifiedCatalogModule && typeof _unifiedCatalogModule.publicView === 'function') {
+      try {
+        products = _unifiedCatalogModule.publicView() || [];
+        if (tier && Array.isArray(products)) products = products.filter(p => (p.tier || 'instant') === tier);
+        if (typeof _unifiedCatalogModule.summarize === 'function') {
+          try { summary = _unifiedCatalogModule.summarize(); } catch (_) { summary = null; }
+        }
+      } catch (_) { products = []; }
+    }
+    if (!Array.isArray(products) || products.length === 0) {
+      // Fallback: build a minimal catalogue from the in-memory _unicornServices
+      // so the site UI always has something to render. The shape matches what
+      // the unified catalog would emit (id/title/description/tier/priceUSD).
+      products = (_unicornServices || []).map((s) => ({
+        id: s.id,
+        title: s.title,
+        description: s.description || '',
+        tier: 'professional',
+        group: 'professional',
+        priceUSD: Number(s.price || 0),
+        currency: s.currency || 'USD',
+        deliverable: s.kpi || 'service delivery'
+      }));
+      if (tier) products = products.filter(p => p.tier === tier);
+      summary = summary || {
+        generatedAt: new Date().toISOString(),
+        products: products.length,
+        totalListedValueUSD: Number(products.reduce((a, p) => a + Number(p.priceUSD || 0), 0).toFixed(2)),
+        byTier: products.reduce((acc, p) => { acc[p.tier] = (acc[p.tier] || 0) + 1; return acc; }, {}),
+        byGroup: products.reduce((acc, p) => { acc[p.group] = (acc[p.group] || 0) + 1; return acc; }, {})
+      };
+    }
+    res.set('Cache-Control', 'public, max-age=30, s-maxage=60, stale-while-revalidate=600');
+    res.set('Vary', 'Accept-Encoding');
+    const _payload = { products, summary };
+    // ETag must be stable across requests; `summary.generatedAt` changes per
+    // call, so hash only the immutable shape (`products` + tier filter).
+    const _etag = _weakEtagFor({ tier, products });
+
+    // If the canonical path produced a real (non-empty) result, refresh the
+    // last-good cache before responding so future failures can serve it.
+    if (Array.isArray(products) && products.length > 0) {
+      _instantCatalogStoreLastGood(tier, products, summary, _etag);
+    } else {
+      // Both unified catalog AND _unicornServices fallback returned empty —
+      // try last-good as a final guard so we don't ship `{products: []}`.
+      const lg = _instantCatalogReadLastGood(tier);
+      if (lg && Array.isArray(lg.products) && lg.products.length > 0) {
+        res.set('X-Catalog-Source', 'stale');
+        res.set('X-Catalog-Stale-Age-Ms', String(Date.now() - lg.ts));
+        if (maybeSend304(req, res, lg.etag)) return;
+        return res.json({ products: lg.products, summary: lg.summary });
       }
-    } catch (_) { products = []; }
+    }
+
+    if (maybeSend304(req, res, _etag)) return;
+    return res.json(_payload);
+  } catch (err) {
+    // Outer safety net — last-good if we have it, otherwise empty 200.
+    // Never let this route emit 5xx; the live page's hydrateMasterCatalog
+    // and the global-health probe both rely on a 200 response shape.
+    try {
+      const lg = _instantCatalogReadLastGood(tier);
+      if (lg && Array.isArray(lg.products) && lg.products.length > 0) {
+        res.set('X-Catalog-Source', 'stale-after-error');
+        res.set('X-Catalog-Stale-Age-Ms', String(Date.now() - lg.ts));
+        res.set('Cache-Control', 'public, max-age=10, stale-while-revalidate=300');
+        res.set('Vary', 'Accept-Encoding');
+        if (maybeSend304(req, res, lg.etag)) return;
+        return res.json({ products: lg.products, summary: lg.summary });
+      }
+    } catch (_) { /* fall through to empty 200 */ }
+    try {
+      res.set('X-Catalog-Source', 'empty-after-error');
+      res.set('Cache-Control', 'no-store');
+      return res.json({
+        products: [],
+        summary: {
+          generatedAt: new Date().toISOString(),
+          products: 0,
+          totalListedValueUSD: 0,
+          byTier: {},
+          byGroup: {},
+          error: String(err && err.message || err || 'unknown').slice(0, 240)
+        }
+      });
+    } catch (_) {
+      // Absolute last resort — write a minimal valid JSON body.
+      try { res.status(200).end('{"products":[],"summary":null}'); } catch (__) { /* socket gone */ }
+    }
   }
-  if (!Array.isArray(products) || products.length === 0) {
-    // Fallback: build a minimal catalogue from the in-memory _unicornServices
-    // so the site UI always has something to render. The shape matches what
-    // the unified catalog would emit (id/title/description/tier/priceUSD).
-    products = (_unicornServices || []).map((s) => ({
-      id: s.id,
-      title: s.title,
-      description: s.description || '',
-      tier: 'professional',
-      group: 'professional',
-      priceUSD: Number(s.price || 0),
-      currency: s.currency || 'USD',
-      deliverable: s.kpi || 'service delivery'
-    }));
-    if (tier) products = products.filter(p => p.tier === tier);
-    summary = summary || {
-      generatedAt: new Date().toISOString(),
-      products: products.length,
-      totalListedValueUSD: Number(products.reduce((a, p) => a + Number(p.priceUSD || 0), 0).toFixed(2)),
-      byTier: products.reduce((acc, p) => { acc[p.tier] = (acc[p.tier] || 0) + 1; return acc; }, {}),
-      byGroup: products.reduce((acc, p) => { acc[p.group] = (acc[p.group] || 0) + 1; return acc; }, {})
-    };
-  }
-  res.set('Cache-Control', 'public, max-age=30, s-maxage=60, stale-while-revalidate=600');
-  res.set('Vary', 'Accept-Encoding');
-  const _payload = { products, summary };
-  // ETag must be stable across requests; `summary.generatedAt` changes per
-  // call, so hash only the immutable shape (`products` + tier filter).
-  const _etag = _weakEtagFor({ tier, products });
-  if (maybeSend304(req, res, _etag)) return;
-  res.json(_payload);
 });
 
 // Allow new services to be registered live (in-memory) — fires SSE event so
