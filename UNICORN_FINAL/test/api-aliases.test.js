@@ -111,16 +111,40 @@ async function run() {
     const unifiedCatalog = require('../src/commerce/unified-catalog');
     const origPublicView = unifiedCatalog.publicView;
     try {
+      // (a) Warm the per-tier last-good cache with a healthy request first.
+      const warmUrl = `http://127.0.0.1:${port}/api/instant/catalog?tier=instant`;
+      const warm = await fetch(warmUrl, { headers: { Accept: 'application/json' } });
+      assert.strictEqual(warm.status, 200, 'warm-up must be 200');
+      const warmBody = await warm.json();
+      assert.ok(Array.isArray(warmBody.products) && warmBody.products.length > 0,
+        'warm-up must populate last-good cache with ≥1 instant product');
+      const warmedCount = warmBody.products.length;
+
+      // (b) Force publicView to throw and re-issue the same tier — the outer
+      // try/catch must serve the cached payload with X-Catalog-Source:
+      // stale-after-error rather than a 5xx.
       unifiedCatalog.publicView = function () { throw new Error('forced-test-throw'); };
-      const url = `http://127.0.0.1:${port}/api/instant/catalog?tier=stale-test`;
-      const stale = await fetch(url, { headers: { Accept: 'application/json' } });
-      assert.strictEqual(stale.status, 200, 'stale-on-error must still be 200, got ' + stale.status);
+      const staleUrl = `http://127.0.0.1:${port}/api/instant/catalog?tier=instant`;
+      const stale = await fetch(staleUrl, { headers: { Accept: 'application/json' } });
+      assert.strictEqual(stale.status, 200, 'stale-after-error must still be 200, got ' + stale.status);
+      const staleHeader = stale.headers.get('x-catalog-source') || '';
+      assert.ok(
+        staleHeader === 'stale' || staleHeader === 'stale-after-error',
+        'stale-after-error must advertise X-Catalog-Source header, got "' + staleHeader + '"'
+      );
       const staleBody = await stale.json();
-      assert.ok(staleBody && Array.isArray(staleBody.products), 'stale-on-error must expose products[]');
-      // Tier filter "stale-test" yields zero products from a healthy publicView,
-      // so the empty-after-error branch returns { products: [], summary: {…} }
-      // without 5xx — the critical contract for the live page.
-      console.log('[ok] /api/instant/catalog stays 200 even when publicView throws');
+      assert.ok(Array.isArray(staleBody.products) && staleBody.products.length === warmedCount,
+        'stale-after-error must replay the warmed last-good products[]');
+
+      // (c) Empty-after-error branch — unknown tier with no warmed cache —
+      // must still be 200 with empty products[] (never 5xx).
+      const emptyUrl = `http://127.0.0.1:${port}/api/instant/catalog?tier=does-not-exist`;
+      const empty = await fetch(emptyUrl, { headers: { Accept: 'application/json' } });
+      assert.strictEqual(empty.status, 200, 'empty-after-error must still be 200');
+      const emptyBody = await empty.json();
+      assert.ok(Array.isArray(emptyBody.products), 'empty-after-error must expose products[]');
+
+      console.log('[ok] /api/instant/catalog stale-after-error replays', warmedCount, 'cached products');
     } finally {
       unifiedCatalog.publicView = origPublicView;
     }

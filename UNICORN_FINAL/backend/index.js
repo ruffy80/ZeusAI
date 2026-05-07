@@ -3302,7 +3302,13 @@ function _instantCatalogReadLastGood(tier) {
   try {
     const hit = _instantCatalogLastGood.get(tier);
     if (!hit) return null;
-    return hit; // age check left to caller — even old last-good is better than 502
+    // Intentionally NO TTL eviction here: even a multi-minute-old last-good
+    // is strictly better than a 5xx for the live page's hydration counters.
+    // _LASTGOOD_TTL_MS is reserved for a future LRU/eviction sweep; today
+    // the Map is small (one entry per tier ≈ ≤4) so unbounded retention is
+    // safe. Callers always pair this with a successful refresh on the happy
+    // path (see _instantCatalogStoreLastGood call below).
+    return hit;
   } catch (_) { return null; }
 }
 
