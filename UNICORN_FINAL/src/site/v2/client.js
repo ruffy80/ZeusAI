@@ -1808,21 +1808,40 @@ async function hydrateMasterCatalog(){
   const counts = $('#catCounts');
   const spotEl = $('#catBtcSpot');
   if (!grid) return;
+
+  // Fetch BTC spot independently of the catalog API. Previously this was nested
+  // inside the same try block as /api/instant/catalog, so when the catalog
+  // call was slow/empty the SSR-preserve early-return path skipped the spot
+  // update entirely and the hero stayed stuck on the "live rate loading…"
+  // placeholder text from pageServices() — visible regression on mobile.
+  // We resolve the spot once up-front and reuse it on every downstream path.
+  let btcSpot = null;
+  try {
+    // Try /api/btc/spot first (canonical), fall back to /api/btc/rate which
+    // some deployments expose under that legacy path.
+    let spot = null;
+    try { spot = await api('/api/btc/spot'); } catch (_) {}
+    if (!spot || !(Number(spot.usdPerBtc) > 0)) {
+      try { spot = await api('/api/btc/rate'); } catch (_) {}
+    }
+    btcSpot = spot && Number(spot.usdPerBtc) > 0 ? { usdPerBtc: Number(spot.usdPerBtc), fetchedAt: spot.fetchedAt || null } : null;
+  } catch (_) {}
+  // Paint the BTC spot UI immediately so the hero never stays on the SSR
+  // placeholder, regardless of whether the catalog API ends up succeeding.
+  if (spotEl) {
+    if (btcSpot) {
+      spotEl.textContent = '1 BTC = $' + Number(btcSpot.usdPerBtc).toLocaleString() + ' · live';
+      spotEl.style.color = '';
+    } else {
+      spotEl.textContent = 'BTC rate unavailable (retrying)';
+      spotEl.style.color = 'var(--ink-dim)';
+    }
+  }
+
   let cat = null;
   try {
     const j = await api('/api/instant/catalog');
     const products = Array.isArray(j && j.products) ? j.products : [];
-    let btcSpot = null;
-    try {
-      // Try /api/btc/spot first (canonical), fall back to /api/btc/rate which
-      // some deployments expose under that legacy path.
-      let spot = null;
-      try { spot = await api('/api/btc/spot'); } catch (_) {}
-      if (!spot || !(Number(spot.usdPerBtc) > 0)) {
-        try { spot = await api('/api/btc/rate'); } catch (_) {}
-      }
-      btcSpot = spot && Number(spot.usdPerBtc) > 0 ? { usdPerBtc: Number(spot.usdPerBtc), fetchedAt: spot.fetchedAt || null } : null;
-    } catch (_) {}
     const normalizeGroup = function(p){
       const g = String((p && p.group) || '').toLowerCase();
       const t = String((p && p.tier) || '').toLowerCase();
@@ -1891,16 +1910,11 @@ async function hydrateMasterCatalog(){
     return;
   }
   STATE.masterCatalog = cat;
-  if (spotEl) {
-    if (cat.btcSpot) {
-      spotEl.textContent = '1 BTC = $' + Number(cat.btcSpot.usdPerBtc).toLocaleString() + ' · live';
-    } else {
-      // BTC spot endpoint unavailable — surface that explicitly instead of
-      // leaving the SSR placeholder ("live rate loading…") on screen forever.
-      spotEl.textContent = 'BTC rate unavailable (retrying)';
-      spotEl.style.color = 'var(--ink-dim)';
-    }
-  }
+  // BTC spot was already painted at the top of hydrateMasterCatalog using the
+  // independent /api/btc/* fetch — no need to repaint here. (Previously this
+  // block was the only place that updated spotEl, but it was unreachable when
+  // the catalog API was slow/empty, leaving the hero stuck on "live rate
+  // loading…".)
   if (counts) counts.textContent = cat.counts.total + ' real services · ' + (cat.counts.instant || 0) + ' instant · ' + (cat.counts.professional || 0) + ' professional · ' + (cat.counts.enterprise || 0) + ' enterprise';
   // Catalogue contract: exactly 3 tiers (instant / professional / enterprise),
   // capped at 25 products. Filter chips reflect that contract — no
