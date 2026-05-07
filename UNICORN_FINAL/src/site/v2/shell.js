@@ -1509,7 +1509,14 @@ function pageOperator() {
     const cards=[['Orders', d.orders.total], ['Paid', d.orders.paid], ['Revenue', '$'+d.revenue.totalUsd], ['Payment rail', d.payments.mode], ['AI providers', d.ai.active+'/'+d.ai.total], ['Deploy', d.deploy.sha], ['Errors', d.errors.count], ['Webhooks', d.webhooks.status]];
     document.getElementById('opGrid').innerHTML=cards.map(c=>'<div class="card"><span class="tag">'+c[0]+'</span><h3>'+c[1]+'</h3></div>').join('');
     document.getElementById('opRaw').textContent='deploy '+(d.deploy.sha||'—')+' · payments '+(d.payments.mode||'—')+' · revenue $'+(d.revenue.totalUsd||0).toLocaleString();
-  }).catch(e=>{ document.getElementById('opRaw').textContent=e.message; });
+  }).catch(e=>{
+    // Never leave the SSR "Operator snapshot will appear here." placeholder
+    // stuck on screen — same regression class as the /services BTC spot rate bug.
+    const g = document.getElementById('opGrid');
+    if (g) g.innerHTML = '<div class="card"><p style="color:var(--ink-dim)">Operator snapshot unavailable. Retrying.</p></div>';
+    const r = document.getElementById('opRaw');
+    if (r) r.textContent = 'Operator console unavailable: '+(e && e.message || e);
+  });
   </script>
 </section>`;
 }
@@ -1525,7 +1532,13 @@ function pageObservability() {
   fetch('/api/observability/status').then(r=>r.json()).then(d=>{
     document.getElementById('obsGrid').innerHTML=(d.probes||[]).map(p=>'<div class="card"><span class="tag">'+p.status+'</span><h3>'+p.name+'</h3><p style="color:var(--ink-dim)">'+p.target+' · '+p.interval+'</p></div>').join('');
     document.getElementById('obsRaw').textContent='probes: '+((d.probes||[]).length)+' · last update: '+(d.generatedAt||new Date().toISOString());
-  }).catch(e=>{ document.getElementById('obsRaw').textContent=e.message; });
+  }).catch(e=>{
+    // Never leave the SSR "Observability probes will appear here." placeholder stuck.
+    const g = document.getElementById('obsGrid');
+    if (g) g.innerHTML = '<div class="card"><p style="color:var(--ink-dim)">Observability snapshot unavailable. Retrying.</p></div>';
+    const r = document.getElementById('obsRaw');
+    if (r) r.textContent = 'Observability unavailable: '+(e && e.message || e);
+  });
   </script>
 </section>`;
 }
@@ -2662,7 +2675,11 @@ function pageRefund()  { return `<section style="padding-top:140px;max-width:880
     const windowH = d && (d.refundWindowHours || d.windowHours || 24);
     const sig = d && d.signature ? String(d.signature).slice(0,18)+'…' : 'n/a';
     out.textContent = 'Mode: '+mode+'\nRefund window: '+windowH+'h\nSignature: '+sig;
-  }).catch(()=>{});
+  }).catch(e=>{
+    // Never leave the SSR "Signed promise will appear here." placeholder stuck.
+    const out = document.getElementById('rfOut');
+    if (out) out.textContent = 'Refund guarantee unavailable: '+(e && e.message || e);
+  });
   </script>
 </section>`; }
 function pageSla() { return `<section style="padding-top:140px;max-width:880px">
@@ -2697,6 +2714,10 @@ function pagePledge() {
     const principles = Array.isArray(d && d.principles) ? d.principles.slice(0,4) : [];
     const sig = d && d.signature ? String(d.signature).slice(0,18)+'…' : 'n/a';
     out.textContent = 'Pledge active\nPrinciples: '+(principles.length ? principles.join(' | ') : 'available')+'\nSignature: '+sig;
+  }).catch(e=>{
+    // Never leave the SSR "Pledge summary will appear here." placeholder stuck.
+    const out = document.getElementById('plOut');
+    if (out) out.textContent = 'Pledge summary unavailable: '+(e && e.message || e);
   });
   document.getElementById('prBtn').addEventListener('click', async () => {
     const email = document.getElementById('prEmail').value;
@@ -2775,17 +2796,25 @@ function pageAura() {
   <pre class="code" id="auraRaw" style="margin-top:18px;max-height:280px;overflow:auto">…</pre>
   <script>
   async function loadAura(){
-    const d = await (await fetch('/api/aura')).json();
-    const sig = d && d.signature ? String(d.signature).slice(0,24)+'…' : 'n/a';
-    document.getElementById('auraRaw').textContent = 'Updated: '+(d.generatedAt||new Date().toISOString())+' · signature: '+sig;
-    const m = d.metrics;
-    document.getElementById('auraGrid').innerHTML = [
-      ['Orders total', m.ordersTotal],
-      ['Orders 24h', m.ordersLast24h],
-      ['Leads total', m.leadsTotal],
-      ['GMV USD', '$'+(m.gmvUsd||0).toLocaleString()],
-      ['Newsletter', m.newsletter]
-    ].map(([k,v])=>'<div class="card"><span class="tag">'+k+'</span><h2 style="margin:8px 0">'+v+'</h2></div>').join('');
+    try {
+      const d = await (await fetch('/api/aura')).json();
+      const sig = d && d.signature ? String(d.signature).slice(0,24)+'…' : 'n/a';
+      document.getElementById('auraRaw').textContent = 'Updated: '+(d.generatedAt||new Date().toISOString())+' · signature: '+sig;
+      const m = d.metrics || {};
+      document.getElementById('auraGrid').innerHTML = [
+        ['Orders total', m.ordersTotal],
+        ['Orders 24h', m.ordersLast24h],
+        ['Leads total', m.leadsTotal],
+        ['GMV USD', '$'+(m.gmvUsd||0).toLocaleString()],
+        ['Newsletter', m.newsletter]
+      ].map(([k,v])=>'<div class="card"><span class="tag">'+k+'</span><h2 style="margin:8px 0">'+(v==null?'—':v)+'</h2></div>').join('');
+    } catch(e) {
+      // Never leave the SSR "Live metrics will appear here." placeholder stuck.
+      const g = document.getElementById('auraGrid');
+      if (g) g.innerHTML = '<div class="card"><p style="color:var(--ink-dim)">Live aura unavailable. Retrying every 5s.</p></div>';
+      const r = document.getElementById('auraRaw');
+      if (r) r.textContent = 'Aura unavailable: '+(e && e.message || e);
+    }
   }
   loadAura(); setInterval(loadAura, 5000);
   </script>
@@ -2805,6 +2834,10 @@ function pageApiExplorer() {
       return '<div style="padding:6px 0;border-bottom:1px solid var(--stroke)">'+ms+' <a href="'+p+'" target="_blank" style="color:var(--violet2)">'+p+'</a> <span style="color:var(--ink-dim);font-size:12px">'+ (Object.values(ops)[0].summary || '') +'</span></div>';
     });
     document.getElementById('apiList').innerHTML = rows.join('');
+  }).catch(e=>{
+    // Never leave the SSR "Endpoint inventory will appear here." placeholder stuck.
+    const el = document.getElementById('apiList');
+    if (el) el.textContent = 'Endpoint inventory unavailable: '+(e && e.message || e);
   });
   </script>
 </section>`;
@@ -2821,6 +2854,10 @@ function pageTransparency() {
     const rows = (d.arms||[]).map(a=>'<tr><td style="padding:8px">'+a.arm+'</td><td style="padding:8px">'+a.impressions+'</td><td style="padding:8px">'+a.conversions+'</td><td style="padding:8px">'+(a.conversionRate*100).toFixed(2)+'%</td><td style="padding:8px">$'+(a.eValue||0).toFixed(2)+'</td></tr>').join('') || '<tr><td colspan="5" style="padding:14px;color:var(--ink-dim)">No experiments recorded yet. The bandit publishes its experiments here as it learns.</td></tr>';
     const sig = d && d.signature ? String(d.signature).slice(0,32)+'…' : 'n/a';
     document.getElementById('btTable').innerHTML = '<table style="width:100%;border-collapse:collapse;font-size:14px"><thead><tr style="background:#0b0f17"><th style="text-align:left;padding:8px">Arm</th><th style="text-align:left;padding:8px">Impressions</th><th style="text-align:left;padding:8px">Conversions</th><th style="text-align:left;padding:8px">CR</th><th style="text-align:left;padding:8px">$/imp</th></tr></thead><tbody>'+rows+'</tbody></table><p style="color:var(--ink-dim);font-size:12px;margin-top:14px;font-family:var(--mono)">snapshot: '+(d.snapshotAt||'—')+' · sig '+sig+'</p>';
+  }).catch(e=>{
+    // Never leave the SSR "Bandit snapshot will appear here." placeholder stuck.
+    const el = document.getElementById('btTable');
+    if (el) el.textContent = 'Bandit snapshot unavailable: '+(e && e.message || e);
   });
   </script>
 </section>`;
