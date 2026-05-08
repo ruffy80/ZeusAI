@@ -208,6 +208,13 @@ function buildEntry({ id, name, category, description, basePrice, usd, dp, rate 
     // for back-compat with existing internal consumers.
     priceUsd: safeUsd,
     priceBtc: btc,
+    // snake_case aliases mirror the documented HTTP contract for the
+    // per-service pricing endpoint (`GET /api/pricing/<serviceId>` →
+    // `{ price_usd, price_btc, … }`, see backend/index.js:5772-5773 and
+    // DYNAMIC-PRICING-INTEGRATED.md). client.js:358/380 reads
+    // `it.priceUsd || it.price_usd` (and the same for btc), so emitting
+    // both makes the SSE snapshot interchangeable with the HTTP response
+    // for any downstream consumer that already targets the HTTP shape.
     price_usd: safeUsd,
     price_btc: btc,
     deltaPct,
