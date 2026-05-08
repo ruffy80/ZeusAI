@@ -1267,7 +1267,7 @@ function pageCheckout() {
     <aside class="co-box">
       <h3 style="margin:0 0 8px">Order summary</h3>
       <div style="display:flex;justify-content:space-between;color:var(--ink-dim);font-size:14px;padding:10px 0;border-bottom:1px solid var(--stroke)"><span>Plan</span><b id="sumPlan" style="color:#fff">starter</b></div>
-      <div style="display:flex;justify-content:space-between;color:var(--ink-dim);font-size:14px;padding:10px 0;border-bottom:1px solid var(--stroke)"><span>Amount</span><b id="sumAmount" style="color:#fff">Loading price...</b></div>
+      <div style="display:flex;justify-content:space-between;color:var(--ink-dim);font-size:14px;padding:10px 0;border-bottom:1px solid var(--stroke)"><span>Amount</span><b id="sumAmount" style="color:#fff">—</b></div>
       <div style="display:flex;justify-content:space-between;color:var(--ink-dim);font-size:14px;padding:10px 0;border-bottom:1px solid var(--stroke)"><span>Owner</span><b style="color:#fff">${OWNER.name}</b></div>
       <div style="display:flex;justify-content:space-between;color:var(--ink-dim);font-size:14px;padding:10px 0"><span>Receipt</span><b style="color:var(--ok)">Ed25519 signed</b></div>
       <p style="color:var(--ink-dim);font-size:12.5px;line-height:1.6;margin-top:14px">Every receipt is routed by <code class="inline">sovereignRevenueRouter</code>. On enterprise plans, a share of delivered value is auto‑invoiced via the Value‑Proof Ledger.</p>

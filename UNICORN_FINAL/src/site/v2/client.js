@@ -115,10 +115,37 @@ function normalizeLivePricing(serviceId, payload){
     timestamp: String(p.timestamp || p.updatedAt || new Date().toISOString()),
   };
 }
+// In-memory + sessionStorage cache for live pricing. After the first paint
+// every subsequent navigation reuses the cached number instantly so users
+// never see a "Loading price..." placeholder. TTL: 5 minutes (the broker's
+// authoritative SSE stream keeps DOM anchors fresh in the background).
+const _PRICE_CACHE_TTL_MS = 5 * 60 * 1000;
+const _priceMem = Object.create(null);
+function _priceCacheGet(sid){
+  const now = Date.now();
+  const m = _priceMem[sid];
+  if (m && (now - m.ts) < _PRICE_CACHE_TTL_MS) return m.value;
+  try {
+    const raw = sessionStorage.getItem('zeus.price.' + sid);
+    if (!raw) return null;
+    const obj = JSON.parse(raw);
+    if (!obj || (now - Number(obj.ts || 0)) >= _PRICE_CACHE_TTL_MS) return null;
+    _priceMem[sid] = { ts: obj.ts, value: obj.value };
+    return obj.value;
+  } catch (_) { return null; }
+}
+function _priceCacheSet(sid, value){
+  const ts = Date.now();
+  _priceMem[sid] = { ts, value };
+  try { sessionStorage.setItem('zeus.price.' + sid, JSON.stringify({ ts, value })); } catch (_) {}
+}
 async function fetchLivePricing(serviceId, opts){
   const options = opts || {};
   const sid = String(serviceId || '').trim();
   if (!sid) return normalizeLivePricing('unknown-service', { price_usd: 99, currency: 'USD', interval: 'month', negotiated: false });
+  // Cache hit → return immediately, no network, no onSlow timer firing.
+  const cached = _priceCacheGet(sid);
+  if (cached) return cached;
   const qp = new URLSearchParams();
   if (options.userId) qp.set('userId', String(options.userId));
   if (options.coupon) qp.set('coupon', String(options.coupon));
@@ -132,11 +159,15 @@ async function fetchLivePricing(serviceId, opts){
     if (slowTimer) clearTimeout(slowTimer);
     const j = await r.json().catch(function(){ return null; });
     if (!r.ok) throw new Error((j && (j.error || j.message)) || ('HTTP ' + r.status));
-    return normalizeLivePricing(sid, j);
+    const out = normalizeLivePricing(sid, j);
+    _priceCacheSet(sid, out);
+    return out;
   } catch (e) {
     if (slowTimer) clearTimeout(slowTimer);
     console.warn('[live-pricing]', sid, e && e.message ? e.message : e);
-    return normalizeLivePricing(sid, { serviceId: sid, price_usd: 99, price_btc: null, currency: 'USD', interval: 'month', negotiated: /enterprise|global|giants|tier/i.test(sid) });
+    const fb = normalizeLivePricing(sid, { serviceId: sid, price_usd: 99, price_btc: null, currency: 'USD', interval: 'month', negotiated: /enterprise|global|giants|tier/i.test(sid) });
+    _priceCacheSet(sid, fb);
+    return fb;
   }
 }
 
@@ -1699,7 +1730,9 @@ function cardHtml(s){
   const tag = domSafeId(sid);
   const hasPrice = Number.isFinite(Number(s && (s.priceUsd != null ? s.priceUsd : s.price)));
   const resolvedPrice = hasPrice ? Number(s.priceUsd != null ? s.priceUsd : s.price) : null;
-  const price = resolvedPrice != null ? (`$${resolvedPrice}${s.billing==='monthly'?'/mo':''}`) : 'Loading price...';
+  // Never show a "Loading..." placeholder — em-dash is a stable, accessible
+  // glyph that the live pricing stream will replace within the same frame.
+  const price = resolvedPrice != null ? (`$${resolvedPrice}${s.billing==='monthly'?'/mo':''}`) : '—';
   return `<div class="card">
     <span class="tag">${escapeHtml(s.segment || s.category || 'core')}</span>
     <h3>${escapeHtml(s.title || s.id)}</h3>
@@ -1740,7 +1773,7 @@ async function hydrateServiceCardPrices(services, root){
     const sel = '[data-live-price="' + domSafeId(sid) + '"]';
     const el = (root || document).querySelector(sel);
     if (!el) continue;
-    const live = await fetchLivePricing(sid, { onSlow: function(){ if (el) el.textContent = 'Loading price...'; } });
+    const live = await fetchLivePricing(sid, { /* no onSlow placeholder — keep last good value visible */ });
     if (!live || !el) continue;
     s.priceUsd = Number(live.price_usd);
     s.price = Number(live.price_usd);
@@ -1760,7 +1793,7 @@ async function hydratePricingPage(){
     const planCard = document.querySelector('[data-pricing-plan="' + pair.plan + '"]');
     if (!priceEl || !planCard) continue;
     const cta = planCard.querySelector('a[href*="/checkout?plan="]');
-    const live = await fetchLivePricing(pair.serviceId, { onSlow: function(){ priceEl.textContent = 'Loading price...'; } });
+    const live = await fetchLivePricing(pair.serviceId, { /* no onSlow placeholder — preserve SSR price */ });
     if (!live) continue;
     priceEl.innerHTML = '$' + Number(live.price_usd).toLocaleString('en-US', { maximumFractionDigits: 2 }) + '<small>/mo</small>';
     if (cta) cta.setAttribute('href', '/checkout?plan=' + encodeURIComponent(pair.serviceId));
@@ -2088,7 +2121,7 @@ async function hydrateServiceDetail(id){
   if (!s) { root.innerHTML = '<div class="card"><p>Service not found.</p><a class="btn" href="/services" data-link>Back to marketplace</a></div>'; return; }
   const sid = String(s.id || id || 'unknown-service');
   const localPrice = (s.priceUsd != null ? Number(s.priceUsd) : (s.price != null ? Number(s.price) : null));
-  const priceText = Number.isFinite(localPrice) ? ('$' + localPrice.toLocaleString('en-US', { maximumFractionDigits: 2 })) : 'Loading price...';
+  const priceText = Number.isFinite(localPrice) ? ('$' + localPrice.toLocaleString('en-US', { maximumFractionDigits: 2 })) : '—';
   root.innerHTML = `
     <div style="display:grid;grid-template-columns:1.3fr 1fr;gap:28px">
       <div class="svc-cine-card" data-tilt>
@@ -2124,12 +2157,7 @@ async function hydrateServiceDetail(id){
         <a class="btn" href="/services" data-link style="width:100%;justify-content:center;margin-top:8px">← All services</a>
       </aside>
     </div>`;
-  fetchLivePricing(sid, {
-    onSlow: function(){
-      var elSlow = document.getElementById('svcLivePrice');
-      if (elSlow) elSlow.innerHTML = 'Loading price...<small style="font-size:14px;color:var(--ink-dim);-webkit-text-fill-color:var(--ink-dim)">/mo</small>';
-    }
-  }).then(function(live){
+  fetchLivePricing(sid, { /* no onSlow placeholder — first paint already shows the SSR price */ }).then(function(live){
     if (!live) return;
     s.priceUsd = Number(live.price_usd);
     s.price = Number(live.price_usd);
@@ -2197,12 +2225,15 @@ function hydrateCheckout(){
   set('coAmount', amount != null ? amount : ''); set('coPlan', plan);
   set('coAmountPP', amount != null ? amount : ''); set('coPlanPP', plan);
   const sumP = $('#sumPlan'); if (sumP) sumP.textContent = plan;
-  const sumA = $('#sumAmount'); if (sumA) sumA.textContent = amount != null ? ('$' + amount) : 'Loading price...';
+  // Try cache first so the checkout summary shows the price instantly.
+  if (amount == null) {
+    const cached = (typeof _priceCacheGet === 'function') ? _priceCacheGet(plan) : null;
+    if (cached && Number.isFinite(Number(cached.price_usd))) amount = Number(cached.price_usd);
+  }
+  const sumA = $('#sumAmount'); if (sumA) sumA.textContent = amount != null ? ('$' + amount) : '—';
 
   if (amount == null) {
-    fetchLivePricing(plan, {
-      onSlow: function(){ if (sumA) sumA.textContent = 'Loading price...'; }
-    }).then(function(live){
+    fetchLivePricing(plan, { /* no onSlow placeholder — em-dash already shown */ }).then(function(live){
       const liveAmount = Number(live && live.price_usd != null ? live.price_usd : 99);
       amount = liveAmount;
       set('coAmount', liveAmount);
@@ -3586,11 +3617,11 @@ function renderAutonomousServicesGrid(target){
   const modules = Object.values(window.AUTONOMOUS_MODULES.byId || {})
     .filter(m => m && m.isActive !== false)
     .sort((a, b) => String(a.category).localeCompare(String(b.category)) || String(a.name).localeCompare(String(b.name)));
-  if (!modules.length) { target.innerHTML = '<div class="card" style="padding:18px;text-align:center;color:var(--ink-dim)">Loading modules…</div>'; return; }
+  if (!modules.length) { target.innerHTML = '<div class="card" style="padding:18px;text-align:center;color:var(--ink-dim)">Module catalogue refreshing — open <a href="/api/services" style="color:#bda4ff">/api/services</a> for the live JSON.</div>'; return; }
   target.innerHTML = modules.map(m => {
     const priceTxt = (m.defaultPrice != null && Number.isFinite(Number(m.defaultPrice)))
       ? '$' + Number(m.defaultPrice).toLocaleString('en-US', { maximumFractionDigits: 2 })
-      : 'Loading price…';
+      : '—';
     const buyHref = (m.defaultPrice != null && Number(m.defaultPrice) > 0)
       ? '/checkout?plan=' + encodeURIComponent(m.id)
       : '/services/' + encodeURIComponent(m.id);
