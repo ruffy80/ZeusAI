@@ -267,6 +267,29 @@ function resilientES(url, handlers, opts){
         lastBeat = Date.now();
         if (handlers.onmessage) try { handlers.onmessage(ev); } catch(_) {}
       };
+      // Named SSE events (`event: <name>\ndata: …\n\n`) are NOT delivered
+      // to `onmessage` — by spec they fire only on listeners registered
+      // with `addEventListener(name, …)`. The live-pricing channel
+      // `/api/pricing/live/stream` emits the snapshot as a named `pricing`
+      // event so that the React `useLivePricing` hook can subscribe to it
+      // without seeing other event types. Without this re-attach loop,
+      // `openPricingStream()` would silently never receive a snapshot and
+      // the AI-negotiated price would never reach the DOM. Re-attaching on
+      // every reconnect is required because each reconnect builds a fresh
+      // EventSource instance.
+      if (handlers.events && typeof handlers.events === 'object') {
+        for (const name in handlers.events) {
+          if (!Object.prototype.hasOwnProperty.call(handlers.events, name)) continue;
+          const cb = handlers.events[name];
+          if (typeof cb !== 'function') continue;
+          try {
+            src.addEventListener(name, function(ev){
+              lastBeat = Date.now();
+              try { cb(ev); } catch(_) {}
+            });
+          } catch(_) {}
+        }
+      }
       src.onerror = function(ev){
         if (handlers.onerror) try { handlers.onerror(ev); } catch(_) {}
         try { src.close(); } catch(_) {}
@@ -389,6 +412,24 @@ function openPricingStream(){
   }
   try {
     pricingES = resilientES('/api/pricing/live/stream', {
+      // Backend emits the snapshot as a NAMED SSE event
+      // (`event: pricing\ndata: …\n\n`, see backend/index.js
+      // `/api/pricing/live/stream` handler). Named events are NOT
+      // delivered to `onmessage` — they require an explicit
+      // `addEventListener('pricing', …)`. Without this `events.pricing`
+      // wire-up, `applyPricingSnapshot` is never invoked, the AI-
+      // negotiated USD/BTC prices never reach the DOM and every
+      // `[data-pricing-value]` anchor stays pinned to its SSR seed value.
+      // We keep `onmessage` as a defensive fallback in case the broker
+      // ever publishes a default `message` event.
+      events: {
+        pricing: function(ev){
+          try {
+            const data = JSON.parse(ev.data);
+            applyPricingSnapshot(data && data.items ? data : (data && data.snapshot));
+          } catch(_) {}
+        }
+      },
       onmessage: function(ev){
         try {
           const data = JSON.parse(ev.data);
