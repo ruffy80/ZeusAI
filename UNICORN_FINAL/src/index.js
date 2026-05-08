@@ -2257,14 +2257,24 @@ setTimeout(() => { try { startBackendEventBridge(); } catch (e) { console.warn('
     if (!process.env.BTC_WALLET_ADDRESS && !process.env.OWNER_BTC_ADDRESS) {
       warn('No BTC_WALLET_ADDRESS configured — falling back to repo default. Set it explicitly.');
     }
-    // 30Y-LTS: accept any of three persistence modes (inline PEM, file path, default on-disk path).
+    // 30Y-LTS: accept any of four persistence modes:
+    //   1) SITE_SIGN_KEY  (inline PEM)
+    //   2) SITE_SIGN_KEY_FILE  (explicit path)
+    //   3) UNICORN_FINAL/.unicorn-site-sign.key  (legacy default)
+    //   4) ~/.unicorn-keys/site-sign.pem  (current persistence path written by
+    //      the boot block above). Mode 4 was missing from this check, which
+    //      caused a noisy false-positive 'ephemeral key' warning on every
+    //      boot even though the key was actually persisted.
     const fs = require('fs');
     const path = require('path');
-    const defaultKeyPath = path.join(__dirname, '..', '.unicorn-site-sign.key');
+    const legacyKeyPath = path.join(__dirname, '..', '.unicorn-site-sign.key');
+    const siteKeyDir = process.env.UNICORN_KEY_DIR || path.join(process.env.HOME || '/tmp', '.unicorn-keys');
+    const persistedKeyPath = path.join(siteKeyDir, 'site-sign.pem');
     const hasPersistentKey =
       !!process.env.SITE_SIGN_KEY ||
       (process.env.SITE_SIGN_KEY_FILE && fs.existsSync(process.env.SITE_SIGN_KEY_FILE)) ||
-      fs.existsSync(defaultKeyPath);
+      fs.existsSync(legacyKeyPath) ||
+      fs.existsSync(persistedKeyPath);
     if (!hasPersistentKey) {
       warn('SITE_SIGN_KEY not provided — ephemeral Ed25519 key is generated per boot. Persist a key for long-term receipt verification.');
     }

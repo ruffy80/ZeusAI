@@ -22,3 +22,9 @@ UNICORN_FINAL/data/**/secrets*.json
 UNICORN_FINAL/data/**/pq-keys.json
 UNICORN_FINAL/data/**/vrf-key.json
 .env.secrets.local
+
+# Locally-generated stub modules from generate_unicorn_final.js
+# (AdaptiveModule01..82 are deterministic counter stubs; they're not loaded
+# at runtime by backend/index.js and are regenerated on demand.)
+UNICORN_FINAL/backend/modules/AdaptiveModule[0-9][0-9].js
+UNICORN_FINAL/backend/modules/Engine[0-9]*.js

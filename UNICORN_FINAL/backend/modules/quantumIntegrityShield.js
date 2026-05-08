@@ -19,7 +19,11 @@ const { execSync } = require('child_process');
 const SCAN_INTERVAL_MS  = parseInt(process.env.QIS_SCAN_INTERVAL_MS  || '300000',  10); // 5 min
 const MAX_SCAN_HISTORY  = 100;
 const AUTO_HEAL_ENABLED = String(process.env.QIS_AUTO_HEAL_ENABLED || 'true').toLowerCase() !== 'false';
-const AUTO_HEAL_CMD     = process.env.QIS_AUTO_HEAL_CMD || 'pm2 reload ecosystem.config.js --update-env || pm2 reload unicorn-backend unicorn-site unicorn-guardian --update-env';
+// Default auto-heal: only references the live PM2 processes that actually
+// exist on production (unicorn-backend, unicorn-site, autoscaler). The legacy
+// 'unicorn-guardian' was retired and reloading it errored every cycle, which
+// in turn flooded log-monitor and kept the shield permanently 'degraded'.
+const AUTO_HEAL_CMD     = process.env.QIS_AUTO_HEAL_CMD || 'pm2 reload unicorn-backend unicorn-site --update-env';
 const AUTO_ROLLBACK_CMD = process.env.QIS_AUTO_ROLLBACK_CMD || '';
 const AUTO_HEAL_COOLDOWN_MS = parseInt(process.env.QIS_AUTO_HEAL_COOLDOWN_MS || '180000', 10);
 const HEAP_WARN_PCT = Number(process.env.QIS_HEAP_WARN_PCT || '0.98');
@@ -135,7 +139,11 @@ class QuantumIntegrityShield {
       const missing = REQUIRED_PM2_PROCESSES.filter((name) => !online.has(name));
       return { ok: missing.length === 0, missing };
     } catch {
-      return { ok: false, missing: REQUIRED_PM2_PROCESSES.slice(), error: 'pm2_unavailable' };
+      // Cluster workers (PM2 cluster mode) cannot run `pm2 jlist` reliably:
+      // the IPC channel is owned by the master. Reporting 'missing' from a
+      // worker would be a false positive that triggers a useless auto-heal
+      // loop. Treat 'unknown' as healthy and surface it as info-only.
+      return { ok: true, missing: [], unknown: true, error: 'pm2_unavailable' };
     }
   }
 

@@ -36,6 +36,14 @@ const _state = {
     criticalCount: 0,
     lastErrors:  [],   // ultimele 20 erori
   },
+  // Snapshot of stats at the previous scan, used to compute delta-per-scan
+  // (rate) instead of comparing the cumulative counter against the threshold.
+  // The cumulative form caused the warning to fire forever once any error
+  // had ever been seen, drowning the logs.
+  prevStats: {
+    errorCount:  0,
+    criticalCount: 0,
+  },
   fileOffsets: {},   // offset per fișier (citire incrementală)
 };
 
@@ -105,10 +113,20 @@ function _scanAllLogs() {
   _state.scanCount++;
   _state.lastScan = new Date().toISOString();
 
-  // Alertă dacă depășim pragul de erori
-  if (_state.stats.errorCount + _state.stats.criticalCount > ERROR_THRESHOLD) {
+  // Delta-based threshold: only alert on NEW errors since the previous scan.
+  // Comparing the cumulative counter to a fixed threshold made the alert
+  // fire on every scan after a single early error, producing tens of
+  // thousands of false-positive log lines per hour.
+  const dErr = (_state.stats.errorCount     - _state.prevStats.errorCount);
+  const dCrit = (_state.stats.criticalCount - _state.prevStats.criticalCount);
+  const newErrors = dErr + dCrit;
+  _state.prevStats.errorCount    = _state.stats.errorCount;
+  _state.prevStats.criticalCount = _state.stats.criticalCount;
+  if (newErrors > ERROR_THRESHOLD) {
     _state.health = 'degraded';
-    console.warn(`⚠️  [log-monitor] ${_state.stats.errorCount} erori detectate în log-uri!`);
+    console.warn(`⚠️  [log-monitor] ${newErrors} erori noi de la ultima scanare (total: ${_state.stats.errorCount}).`);
+  } else if (dCrit > 0) {
+    _state.health = 'degraded';
   } else {
     _state.health = 'good';
   }
