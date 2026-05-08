@@ -2278,11 +2278,15 @@ function pageCryptoFiatBridge() {
 
   <script>
   (async function(){
+    // Always repaint placeholders on EVERY path — empty catch blocks left the
+    // "Loading services…", "$…", and "Fetching live source…" placeholders
+    // stuck whenever /api/crypto-bridge/* was unhealthy. Same regression class
+    // as pageOperatorConsole / pageObservability / pageRefund / pageAura.
+    var host = document.getElementById('cbCards');
     try {
       const servicesResp = await fetch('/api/crypto-bridge/services');
       const servicesJson = await servicesResp.json();
       const services = Array.isArray(servicesJson && servicesJson.services) ? servicesJson.services : [];
-      const host = document.getElementById('cbCards');
       if (host) {
         host.innerHTML = services.length
           ? services.map(function(s){
@@ -2294,19 +2298,28 @@ function pageCryptoFiatBridge() {
             }).join('')
           : '<div class="card" style="padding:18px"><p style="color:var(--ink-dim)">No services available right now.</p></div>';
       }
-    } catch(_) {}
+    } catch(_) {
+      if (host) {
+        host.innerHTML = '<div class="card" style="padding:18px"><p style="color:var(--ink-dim)">Crypto bridge services unavailable. Try again in a moment.</p></div>';
+      }
+    }
 
+    var rateEl = document.getElementById('cbRate');
+    var meta = document.getElementById('cbRateMeta');
     try {
       const rateResp = await fetch('/api/crypto-bridge/btc-rate');
       const rateJson = await rateResp.json();
       var rate = Number(rateJson && (rateJson.rate || rateJson.usd || 0));
-      if (rate > 0) {
-        var rateEl = document.getElementById('cbRate');
-        if (rateEl) rateEl.textContent = '$' + rate.toLocaleString(undefined, { maximumFractionDigits: 2 });
+      if (rateEl) {
+        rateEl.textContent = rate > 0
+          ? '$' + rate.toLocaleString(undefined, { maximumFractionDigits: 2 })
+          : 'Rate unavailable';
       }
-      var meta = document.getElementById('cbRateMeta');
       if (meta) meta.textContent = 'Source: ' + ((rateJson && rateJson.source) || 'unknown') + ' · updated now';
-    } catch(_) {}
+    } catch(_) {
+      if (rateEl) rateEl.textContent = 'Rate unavailable';
+      if (meta) meta.textContent = 'Live source temporarily offline';
+    }
   })();
   </script>
 </section>`;
