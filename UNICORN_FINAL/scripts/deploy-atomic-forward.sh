@@ -43,14 +43,49 @@ if [ -L "$DEPLOY_LINK" ]; then
   CURRENT_TARGET="$(readlink -f "$DEPLOY_LINK" || true)"
 fi
 
+# Stable shared state directory — every release symlinks .env/data/db/logs/...
+# into here instead of into the previous release. Avoids the MAXSYMLINKS=40
+# ELOOP that would otherwise hit the canary after ~40 deploys (each new
+# release used to chain `data → prev/data → prev-prev/data → …`).
+SHARED_ROOT="/var/www/unicorn/shared"
+mkdir -p "$SHARED_ROOT"
+
+# One-time migration: if the current live release contains REAL state dirs
+# (not yet promoted to SHARED_ROOT), move them once. Subsequent deploys then
+# always link straight into $SHARED_ROOT, breaking any pre-existing chain.
 if [ -n "$CURRENT_TARGET" ] && [ -d "$CURRENT_TARGET" ]; then
-  log "preserve live mutable state from $CURRENT_TARGET"
   for item in .env data db logs backups snapshots; do
-    if [ -e "$CURRENT_TARGET/$item" ] && [ ! -e "$CANDIDATE_DIR/$item" ]; then
-      ln -sfn "$CURRENT_TARGET/$item" "$CANDIDATE_DIR/$item"
+    SRC="$CURRENT_TARGET/$item"
+    DEST="$SHARED_ROOT/$item"
+    if [ -e "$SRC" ] && [ ! -L "$SRC" ] && [ ! -e "$DEST" ]; then
+      log "migrate $item → $SHARED_ROOT (one-time)"
+      mv "$SRC" "$DEST" || cp -a "$SRC" "$DEST"
+    fi
+    # If the source is a symlink chain, resolve it once and copy its
+    # ultimate real target into SHARED_ROOT (only if SHARED_ROOT is empty).
+    if [ -L "$SRC" ] && [ ! -e "$DEST" ]; then
+      REAL="$(readlink -f "$SRC" 2>/dev/null || true)"
+      if [ -n "$REAL" ] && [ -e "$REAL" ] && [ "$REAL" != "$DEST" ]; then
+        log "rescue $item from chain → $SHARED_ROOT"
+        cp -a "$REAL" "$DEST" || true
+      fi
     fi
   done
 fi
+
+log "preserve live mutable state via shared root: $SHARED_ROOT"
+for item in .env data db logs backups snapshots; do
+  if [ -e "$SHARED_ROOT/$item" ] && [ ! -e "$CANDIDATE_DIR/$item" ]; then
+    ln -sfn "$SHARED_ROOT/$item" "$CANDIDATE_DIR/$item"
+  elif [ -n "$CURRENT_TARGET" ] && [ -e "$CURRENT_TARGET/$item" ] && [ ! -e "$CANDIDATE_DIR/$item" ]; then
+    # Fallback: cold-start case where SHARED_ROOT is not populated yet.
+    # Resolve to the real path so the new release does not extend the chain.
+    REAL="$(readlink -f "$CURRENT_TARGET/$item" 2>/dev/null || true)"
+    if [ -n "$REAL" ] && [ -e "$REAL" ]; then
+      ln -sfn "$REAL" "$CANDIDATE_DIR/$item"
+    fi
+  fi
+done
 
 cd "$CANDIDATE_DIR"
 chmod +x scripts/*.sh scripts/*.js 2>/dev/null || true
