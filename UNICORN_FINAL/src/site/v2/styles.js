@@ -616,8 +616,10 @@ nav.nav[data-nav-open="true"] .nav-toggle-bar:nth-child(3){transform:translateY(
 /* Phone portrait */
 @media (max-width:640px){
   .nav{padding:12px 14px}
-  .nav-cta .btn-ghost{display:none}
-  .nav-cta .btn{padding:9px 12px;font-size:12.5px}
+  /* Sign in MUST stay visible & functional on mobile (was hidden by .btn-ghost rule). */
+  .nav-cta .btn-ghost{display:inline-flex !important;align-items:center;justify-content:center;padding:10px 14px;font-size:13px;min-height:44px;min-width:44px;border:1px solid var(--violet);background:rgba(138,92,255,.10);color:var(--ink)}
+  .nav-cta .btn{padding:10px 12px;font-size:12.5px;min-height:44px}
+  .nav-cta{flex-wrap:nowrap;gap:6px}
   .hero{padding:80px 14px 24px}
   .hero-eyebrow{font-size:11px;padding:5px 12px;letter-spacing:2px}
   .hero h1{font-size:clamp(30px,8.5vw,46px);line-height:1.05}
@@ -657,6 +659,7 @@ nav.nav[data-nav-open="true"] .nav-toggle-bar:nth-child(3){transform:translateY(
 /* Tiny screens (folded phones) */
 @media (max-width:380px){
   .nav-cta .btn-primary{padding:8px 10px;font-size:12px}
+  .nav-cta .btn-ghost{padding:8px 10px;font-size:12px;min-width:44px}
   .lang-switch{display:none}
   .hero-stats{grid-template-columns:1fr}
   .immersive-strip{gap:8px}
