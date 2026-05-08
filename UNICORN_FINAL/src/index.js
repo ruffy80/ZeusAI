@@ -5624,7 +5624,7 @@ ${secretFeatures ? `<table><tr><th>Feature group</th><th>Configured</th><th>Miss
 <style>body{font-family:-apple-system,Segoe UI,Roboto,sans-serif;max-width:680px;margin:30px auto;padding:0 18px;color:#111}.card{border:1px solid #e6e6e6;border-radius:14px;padding:22px;margin:14px 0;box-shadow:0 1px 0 rgba(0,0,0,.02)}h1{margin:0 0 6px 0}.s-pending{color:#a35200}.s-paid{color:#0a7a30}.s-active{color:#0050ff}.s-cancelled{color:#a00}code{background:#f4f4f4;padding:3px 8px;border-radius:6px;display:block;word-break:break-all}.qr{display:block;margin:12px 0}.btn{display:inline-block;background:#0050ff;color:#fff;padding:10px 16px;border-radius:8px;text-decoration:none}.muted{color:#777;font-size:13px}</style>
 </head><body>
 <a href="/">← ZeusAI</a><h1>Order status</h1>
-<div class="card" id="orderCard"><div id="status">Loading…</div><div id="details" class="muted"></div></div>
+<div class="card" id="orderCard"><div id="status">—</div><div id="details" class="muted"></div></div>
 <div class="card"><div id="payInstr" class="muted">Loading payment instructions…</div></div>
 <script>
 const ORDER_ID=${JSON.stringify(escId)};

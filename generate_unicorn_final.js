@@ -12460,7 +12460,7 @@ module.exports = server;
         <!-- Top Innovation -->
         <div class="card card-glow">
           <div class="subtitle">Top Innovation</div>
-          <div id="topTitle" style="font-family:'Orbitron',monospace;font-size:13px;margin-bottom:6px;color:#e8f4ff;">Loading…</div>
+          <div id="topTitle" style="font-family:'Orbitron',monospace;font-size:13px;margin-bottom:6px;color:#e8f4ff;">—</div>
           <div id="topScore" class="kpi-val">--</div>
           <div id="topProblem" style="font-size:11px;color:#7090b0;margin-top:4px;"></div>
         </div>

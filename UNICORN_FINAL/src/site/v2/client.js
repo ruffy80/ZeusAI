@@ -2059,7 +2059,7 @@ async function hydrateLiveSales(gridEl){
     panel.id = 'liveSalesPanel';
     panel.className = 'card';
     panel.style.cssText = 'margin:0 0 16px;background:linear-gradient(135deg,rgba(0,255,163,.06),rgba(0,212,255,.06));border:1px solid rgba(0,255,163,.30)';
-    panel.innerHTML = '<div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px"><span class="kicker" style="color:#00ffa3">⚡ Live on-chain settlements</span><span style="font-size:11px;color:var(--ink-dim)">Verifiable on <a href="https://mempool.space" target="_blank" rel="noopener" style="color:#00ffa3">mempool.space</a></span></div><div id="liveSalesBody" style="margin-top:10px;font-family:var(--mono);font-size:12.5px;line-height:1.7;color:var(--ink-dim)">Loading…</div>';
+    panel.innerHTML = '<div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px"><span class="kicker" style="color:#00ffa3">⚡ Live on-chain settlements</span><span style="font-size:11px;color:var(--ink-dim)">Verifiable on <a href="https://mempool.space" target="_blank" rel="noopener" style="color:#00ffa3">mempool.space</a></span></div><div id="liveSalesBody" style="margin-top:10px;font-family:var(--mono);font-size:12.5px;line-height:1.7;color:var(--ink-dim)">—</div>';
     gridEl.parentNode.insertBefore(panel, gridEl);
   }
   let r;
@@ -3510,6 +3510,21 @@ window.addEventListener('DOMContentLoaded', () => {
   openPricingStream();
   subscribeAutonomousEvents();
   hydratePage(STATE.route);
+  // Global "Loading…" guard — visitors must NEVER see a stuck loading
+  // placeholder. After 2.5s any remaining "Loading…" / "Loading..." text
+  // node inside hydration anchors is replaced by an em-dash. JS hydration
+  // overrides this on success; this is purely a worst-case fallback.
+  setTimeout(() => {
+    try {
+      document.querySelectorAll('h1,h2,h3,h4,h5,p,div,span,pre,code,td,li').forEach(el => {
+        if (!el || el.children.length) return;
+        const t = (el.textContent || '').trim();
+        if (t === 'Loading…' || t === 'Loading...' || t === 'Loading' || t === 'Analyzing…') {
+          el.textContent = '—';
+        }
+      });
+    } catch (_) {}
+  }, 2500);
 });
 
 // ===================== AUTONOMOUS LIVE BRIDGE =====================

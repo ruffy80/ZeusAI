@@ -146,3 +146,13 @@
 {"id":"evt_ad8613fe8e4a8d36","type":"checkout_started","path":"/checkout","emailHash":null,"valueUsd":299,"metadata":{},"createdAt":"2026-05-06T22:42:43.684Z"}
 {"id":"evt_0b912994ac605d24","type":"checkout_started","path":"/checkout","emailHash":null,"valueUsd":299,"metadata":{},"createdAt":"2026-05-06T22:56:50.438Z"}
 {"id":"evt_b23b380ddf73eb5d","type":"checkout_started","path":"/checkout","emailHash":null,"valueUsd":299,"metadata":{},"createdAt":"2026-05-06T23:08:52.721Z"}
+{"id":"evt_ab944106f0e3e169","type":"checkout_started","path":"/checkout","emailHash":null,"valueUsd":299,"metadata":{},"createdAt":"2026-05-08T13:41:47.454Z"}
+{"id":"evt_24ce8d9fc8725d59","type":"checkout_started","path":"/checkout","emailHash":null,"valueUsd":299,"metadata":{},"createdAt":"2026-05-08T13:42:18.186Z"}
+{"id":"evt_4ec26237436450d8","type":"checkout_started","path":"/checkout","emailHash":null,"valueUsd":299,"metadata":{},"createdAt":"2026-05-08T13:42:56.953Z"}
+{"id":"evt_48b1ce0d2afb9c12","type":"checkout_started","path":"/checkout","emailHash":null,"valueUsd":299,"metadata":{},"createdAt":"2026-05-08T14:07:01.235Z"}
+{"id":"evt_8af3b172ee0f4795","type":"checkout_started","path":"/checkout","emailHash":null,"valueUsd":299,"metadata":{},"createdAt":"2026-05-08T14:07:25.135Z"}
+{"id":"evt_b253e00e24aa762d","type":"checkout_started","path":"/checkout","emailHash":null,"valueUsd":299,"metadata":{},"createdAt":"2026-05-08T14:07:48.104Z"}
+{"id":"evt_ff6ee2c0b9ff0ab0","type":"checkout_started","path":"/checkout","emailHash":null,"valueUsd":299,"metadata":{},"createdAt":"2026-05-08T14:47:40.319Z"}
+{"id":"evt_bcfa7c61f925fcbd","type":"checkout_started","path":"/checkout","emailHash":null,"valueUsd":299,"metadata":{},"createdAt":"2026-05-08T15:07:29.903Z"}
+{"id":"evt_beaef4d0ee9de5fd","type":"checkout_started","path":"/checkout","emailHash":null,"valueUsd":299,"metadata":{},"createdAt":"2026-05-08T15:24:25.175Z"}
+{"id":"evt_232243017ec6674b","type":"checkout_started","path":"/checkout","emailHash":null,"valueUsd":299,"metadata":{},"createdAt":"2026-05-08T15:50:25.505Z"}

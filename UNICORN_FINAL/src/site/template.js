@@ -619,11 +619,11 @@ select.form-inp option{background:#0a0e24;}
       <div class="grid-2" style="margin-bottom:14px;">
         <div class="card card-sm">
           <div class="label">Service status</div>
-          <div class="kpi-val" id="cb-health" style="font-size:20px;">Loading...</div>
+          <div class="kpi-val" id="cb-health" style="font-size:20px;">—</div>
         </div>
         <div class="card card-sm">
           <div class="label">BTC / USD</div>
-          <div class="kpi-val green" id="cb-rate" style="font-size:20px;">Loading...</div>
+          <div class="kpi-val green" id="cb-rate" style="font-size:20px;">—</div>
         </div>
       </div>
       <ul style="color:#7090b0;line-height:1.8;padding-left:18px;">
@@ -805,26 +805,26 @@ select.form-inp option{background:#0a0e24;}
         </div>
         <div class="card" style="margin-bottom:16px;">
           <div class="dash-section-title">Revenue Breakdown</div>
-          <div id="rev-breakdown" style="color:#7090b0;font-size:13px;padding:10px 0;">Loading...</div>
+          <div id="rev-breakdown" style="color:#7090b0;font-size:13px;padding:10px 0;">—</div>
         </div>
         <div class="card" style="margin-bottom:16px;">
           <div class="dash-section-title">Growth Metrics</div>
-          <div id="rev-growth" style="color:#7090b0;font-size:13px;padding:10px 0;">Loading...</div>
+          <div id="rev-growth" style="color:#7090b0;font-size:13px;padding:10px 0;">—</div>
         </div>
         <div class="card" style="margin-bottom:16px;">
           <div class="dash-section-title">Wealth Engine Stats</div>
-          <div id="rev-wealth-stats" style="color:#7090b0;font-size:12px;">Loading...</div>
+          <div id="rev-wealth-stats" style="color:#7090b0;font-size:12px;">—</div>
           <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap;">
             <button class="btn btn-primary btn-sm" onclick="adminSaveWealthSettings()">💾 Save Wealth Settings</button>
           </div>
         </div>
         <div class="card" style="margin-bottom:16px;">
           <div class="dash-section-title">Quantum Payment Revenue</div>
-          <div id="rev-qpay-stats" style="color:#7090b0;font-size:12px;">Loading...</div>
+          <div id="rev-qpay-stats" style="color:#7090b0;font-size:12px;">—</div>
         </div>
         <div class="card" style="margin-bottom:16px;">
           <div class="dash-section-title">Executive Modules & Innovations</div>
-          <div id="rev-exec-modules" style="color:#7090b0;font-size:12px;">Loading...</div>
+          <div id="rev-exec-modules" style="color:#7090b0;font-size:12px;">—</div>
           <div id="rev-exec-innovations" style="color:#7090b0;font-size:12px;margin-top:8px;"></div>
         </div>
         <div class="card">
@@ -854,33 +854,33 @@ select.form-inp option{background:#0a0e24;}
         </div>
         <div class="card" style="margin-bottom:16px;">
           <div class="dash-section-title">Control Plane Decisions</div>
-          <div id="sys-decisions" style="font-size:12px;color:#7090b0;">Loading...</div>
+          <div id="sys-decisions" style="font-size:12px;color:#7090b0;">—</div>
           <div style="margin-top:8px;"><button class="btn btn-danger btn-sm" onclick="adminControlPlaneRollback()">⏪ Rollback</button></div>
         </div>
         <div class="card" style="margin-bottom:16px;">
           <div class="dash-section-title">Canary Deployments</div>
-          <div id="sys-canary-decisions" style="font-size:12px;color:#7090b0;">Loading...</div>
+          <div id="sys-canary-decisions" style="font-size:12px;color:#7090b0;">—</div>
           <div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap;">
             <button class="btn btn-primary btn-sm" onclick="adminRegisterCanary()">+ Register Canary</button>
           </div>
         </div>
         <div class="card" style="margin-bottom:16px;">
           <div class="dash-section-title">Shadow Test Variants</div>
-          <div id="sys-shadow-variants" style="font-size:12px;color:#7090b0;">Loading...</div>
+          <div id="sys-shadow-variants" style="font-size:12px;color:#7090b0;">—</div>
           <div style="margin-top:8px;"><button class="btn btn-primary btn-sm" onclick="adminRegisterShadow()">+ Register Shadow</button></div>
         </div>
         <div class="card" style="margin-bottom:16px;">
           <div class="dash-section-title">A/B Experiments</div>
-          <div id="sys-experiments" style="font-size:12px;color:#7090b0;">Loading...</div>
+          <div id="sys-experiments" style="font-size:12px;color:#7090b0;">—</div>
           <div style="margin-top:8px;"><button class="btn btn-primary btn-sm" onclick="adminAddExperiment()">+ New Experiment</button></div>
         </div>
         <div class="card" style="margin-bottom:16px;">
           <div class="dash-section-title">Profit Attribution Metrics</div>
-          <div id="sys-profit-metrics" style="font-size:12px;color:#7090b0;">Loading...</div>
+          <div id="sys-profit-metrics" style="font-size:12px;color:#7090b0;">—</div>
         </div>
         <div class="card">
           <div class="dash-section-title">Profit Loop Status</div>
-          <div id="sys-profit-loop" style="font-size:12px;color:#7090b0;">Loading...</div>
+          <div id="sys-profit-loop" style="font-size:12px;color:#7090b0;">—</div>
           <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap;">
             <button class="btn btn-outline btn-sm" onclick="loadAdminSystem()">🔄 Refresh</button>
             <button class="btn btn-ghost btn-sm" onclick="adminResetCircuitBreaker()">Reset CB</button>
@@ -891,11 +891,11 @@ select.form-inp option{background:#0a0e24;}
       <div class="adm-tab-panel" id="atab-ai">
         <div class="card" style="margin-bottom:16px;">
           <div class="dash-section-title">AI Providers Status</div>
-          <div id="ai-providers-list" style="color:#7090b0;font-size:13px;">Loading...</div>
+          <div id="ai-providers-list" style="color:#7090b0;font-size:13px;">—</div>
         </div>
         <div class="card" style="margin-bottom:16px;">
           <div class="dash-section-title">UAIC Models</div>
-          <div id="ai-uaic-models" style="color:#7090b0;font-size:13px;">Loading...</div>
+          <div id="ai-uaic-models" style="color:#7090b0;font-size:13px;">—</div>
         </div>
         <div class="card">
           <div class="dash-section-title">Ask UAIC (Admin)</div>
@@ -919,22 +919,22 @@ select.form-inp option{background:#0a0e24;}
         </div>
         <div class="card" style="margin-bottom:16px;">
           <div class="dash-section-title">Leads</div>
-          <div id="crm-leads-list" style="color:#7090b0;font-size:13px;">Loading...</div>
+          <div id="crm-leads-list" style="color:#7090b0;font-size:13px;">—</div>
         </div>
         <div class="card" style="margin-bottom:16px;">
           <div class="dash-section-title">Affiliate / Referral Stats</div>
-          <div id="crm-affiliate-stats" style="color:#7090b0;font-size:12px;">Loading...</div>
+          <div id="crm-affiliate-stats" style="color:#7090b0;font-size:12px;">—</div>
         </div>
         <div class="card" style="margin-bottom:16px;">
           <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
             <div class="dash-section-title" style="margin:0;">All Referrals (Admin)</div>
             <button class="btn btn-outline btn-sm" onclick="loadAdminCRM()">🔄 Refresh</button>
           </div>
-          <div id="crm-all-referrals" style="color:#7090b0;font-size:12px;">Loading...</div>
+          <div id="crm-all-referrals" style="color:#7090b0;font-size:12px;">—</div>
         </div>
         <div class="card" style="margin-bottom:16px;">
           <div class="dash-section-title">Onboarding Flow</div>
-          <div id="crm-onboarding" style="color:#7090b0;font-size:12px;">Loading...</div>
+          <div id="crm-onboarding" style="color:#7090b0;font-size:12px;">—</div>
           <div style="margin-top:8px;">
             <input class="inp-field" type="text" id="onboard-company-inp" placeholder="Company name..." style="width:100%;margin-bottom:6px;"/>
             <button class="btn btn-primary btn-sm" onclick="adminStartOnboarding()">🚀 Start Onboarding</button>
@@ -942,7 +942,7 @@ select.form-inp option{background:#0a0e24;}
         </div>
         <div class="card">
           <div class="dash-section-title">Marketplace Intelligence</div>
-          <div id="crm-mkt-intelligence" style="color:#7090b0;font-size:12px;">Loading...</div>
+          <div id="crm-mkt-intelligence" style="color:#7090b0;font-size:12px;">—</div>
         </div>
       </div>
       <!-- VIRAL TAB -->
@@ -954,7 +954,7 @@ select.form-inp option{background:#0a0e24;}
         </div>
         <div class="card" style="margin-bottom:16px;">
           <div class="dash-section-title">Auto Viral Growth Status</div>
-          <div id="viral-status" style="font-size:12px;color:#7090b0;">Loading...</div>
+          <div id="viral-status" style="font-size:12px;color:#7090b0;">—</div>
           <div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap;">
             <button class="btn btn-primary btn-sm" onclick="triggerViralLoop()">▶ Trigger Growth Loop</button>
             <button class="btn btn-outline btn-sm" onclick="loadAdminViral()">🔄 Refresh</button>
@@ -962,7 +962,7 @@ select.form-inp option{background:#0a0e24;}
         </div>
         <div class="card">
           <div class="dash-section-title">Social Viralization</div>
-          <div id="social-viral-status" style="font-size:12px;color:#7090b0;">Loading...</div>
+          <div id="social-viral-status" style="font-size:12px;color:#7090b0;">—</div>
         </div>
       </div>
       <!-- INNOVATION TAB -->
@@ -974,7 +974,7 @@ select.form-inp option{background:#0a0e24;}
         </div>
         <div class="card" style="margin-bottom:16px;">
           <div class="dash-section-title">Innovation Loop</div>
-          <div id="innov-loop-detail" style="font-size:12px;color:#7090b0;">Loading...</div>
+          <div id="innov-loop-detail" style="font-size:12px;color:#7090b0;">—</div>
           <div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap;">
             <button class="btn btn-primary btn-sm" onclick="triggerInnovationLoop()">▶ Trigger Innovation Loop</button>
             <button class="btn btn-outline btn-sm" onclick="loadAdminInnovation()">🔄 Refresh</button>
@@ -982,18 +982,18 @@ select.form-inp option{background:#0a0e24;}
         </div>
         <div class="card" style="margin-bottom:16px;">
           <div class="dash-section-title">Recent Proposals</div>
-          <div id="innov-proposals-list" style="font-size:12px;color:#7090b0;">Loading...</div>
+          <div id="innov-proposals-list" style="font-size:12px;color:#7090b0;">—</div>
         </div>
         <div class="card" style="margin-bottom:16px;">
           <div class="dash-section-title">Future-Proof Innovation Modules Status</div>
-          <div id="innovation-modules-status" style="font-size:12px;color:#7090b0;">Loading...</div>
+          <div id="innovation-modules-status" style="font-size:12px;color:#7090b0;">—</div>
           <div style="margin-top:10px;">
             <button class="btn btn-outline btn-sm" onclick="loadInnovationModulesStatus()">🔄 Refresh Status</button>
           </div>
         </div>
         <div class="card">
           <div class="dash-section-title">Innovation Engine Report</div>
-          <div id="innov-engine-report" style="font-size:12px;color:#7090b0;">Loading...</div>
+          <div id="innov-engine-report" style="font-size:12px;color:#7090b0;">—</div>
         </div>
       </div>
       <!-- PRICING TAB -->
@@ -1006,24 +1006,24 @@ select.form-inp option{background:#0a0e24;}
               <button class="btn btn-outline btn-sm" onclick="loadAdminPricing()">🔄 Refresh</button>
             </div>
           </div>
-          <div id="pricing-all-list" style="font-size:12px;color:#7090b0;">Loading...</div>
+          <div id="pricing-all-list" style="font-size:12px;color:#7090b0;">—</div>
         </div>
         <div class="card" style="margin-bottom:16px;">
           <div class="dash-section-title">White Label Tenants (Admin)</div>
-          <div id="pricing-tenants-list" style="font-size:12px;color:#7090b0;">Loading...</div>
+          <div id="pricing-tenants-list" style="font-size:12px;color:#7090b0;">—</div>
         </div>
         <div class="card" style="margin-bottom:16px;">
           <div class="dash-section-title">Credits Plans & Admin</div>
-          <div id="adm-credits-plans" style="font-size:12px;color:#7090b0;">Loading...</div>
+          <div id="adm-credits-plans" style="font-size:12px;color:#7090b0;">—</div>
           <div style="margin-top:10px;"><div id="adm-credits-users" style="font-size:12px;color:#7090b0;max-height:180px;overflow-y:auto;"></div></div>
         </div>
         <div class="card" style="margin-bottom:16px;">
           <div class="dash-section-title">Billing Plans (Admin)</div>
-          <div id="adm-billing-plans" style="font-size:12px;color:#7090b0;">Loading...</div>
+          <div id="adm-billing-plans" style="font-size:12px;color:#7090b0;">—</div>
         </div>
         <div class="card" style="margin-bottom:16px;">
           <div class="dash-section-title">Platform Webhooks</div>
-          <div id="adm-webhooks-list" style="font-size:12px;color:#7090b0;">Loading...</div>
+          <div id="adm-webhooks-list" style="font-size:12px;color:#7090b0;">—</div>
           <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap;">
             <button class="btn btn-primary btn-sm" onclick="adminAddWebhook()">+ Add Webhook</button>
             <button class="btn btn-outline btn-sm" onclick="loadAdminPricing()">🔄 Refresh</button>
@@ -1031,7 +1031,7 @@ select.form-inp option{background:#0a0e24;}
         </div>
         <div class="card">
           <div class="dash-section-title">Admin Health Scores</div>
-          <div id="adm-health-scores" style="font-size:12px;color:#7090b0;">Loading...</div>
+          <div id="adm-health-scores" style="font-size:12px;color:#7090b0;">—</div>
           <div style="margin-top:10px;"><div id="adm-churn-risk" style="font-size:12px;color:#7090b0;"></div></div>
         </div>
       </div>
@@ -1044,7 +1044,7 @@ select.form-inp option{background:#0a0e24;}
         </div>
         <div class="card" style="margin-bottom:16px;">
           <div class="dash-section-title">Autonomous Innovation Status</div>
-          <div id="auto-innov-detail" style="font-size:12px;color:#7090b0;">Loading...</div>
+          <div id="auto-innov-detail" style="font-size:12px;color:#7090b0;">—</div>
           <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap;">
             <button class="btn btn-primary btn-sm" onclick="triggerAutoInnovation()">▶ Trigger Innovation</button>
             <button class="btn btn-outline btn-sm" onclick="optimizeAutoInnovation()">⚡ Optimize</button>
@@ -1053,21 +1053,21 @@ select.form-inp option{background:#0a0e24;}
         </div>
         <div class="card" style="margin-bottom:16px;">
           <div class="dash-section-title">Autonomous Revenue Engine</div>
-          <div id="auto-rev-detail" style="font-size:12px;color:#7090b0;">Loading...</div>
+          <div id="auto-rev-detail" style="font-size:12px;color:#7090b0;">—</div>
           <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap;">
             <button class="btn btn-primary btn-sm" onclick="generateAutoDeals()">💰 Generate Deals</button>
           </div>
         </div>
         <div class="card" style="margin-bottom:16px;">
           <div class="dash-section-title">Orchestrator</div>
-          <div id="auto-orchestrator-detail" style="font-size:12px;color:#7090b0;">Loading...</div>
+          <div id="auto-orchestrator-detail" style="font-size:12px;color:#7090b0;">—</div>
           <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap;">
             <button class="btn btn-primary btn-sm" onclick="runOrchestratorCheck()">🔍 Run Check</button>
           </div>
         </div>
         <div class="card" style="margin-bottom:16px;">
           <div class="dash-section-title">Self-Healer</div>
-          <div id="auto-healer-status" style="font-size:12px;color:#7090b0;">Loading...</div>
+          <div id="auto-healer-status" style="font-size:12px;color:#7090b0;">—</div>
           <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap;">
             <button class="btn btn-outline btn-sm" onclick="adminHealerRestart()">🔁 Restart</button>
             <button class="btn btn-danger btn-sm" onclick="adminHealerRedeploy()">🚀 Redeploy</button>
@@ -1075,22 +1075,22 @@ select.form-inp option{background:#0a0e24;}
         </div>
         <div class="card" style="margin-bottom:16px;">
           <div class="dash-section-title">Innovation Loop Logs</div>
-          <div id="auto-innov-log" style="font-size:11px;color:#7090b0;max-height:150px;overflow-y:auto;">Loading...</div>
+          <div id="auto-innov-log" style="font-size:11px;color:#7090b0;max-height:150px;overflow-y:auto;">—</div>
         </div>
         <div class="card" style="margin-bottom:16px;">
           <div class="dash-section-title">Pending PRs</div>
-          <div id="auto-pending-prs" style="font-size:12px;color:#7090b0;">Loading...</div>
+          <div id="auto-pending-prs" style="font-size:12px;color:#7090b0;">—</div>
         </div>
         <div class="card" style="margin-bottom:16px;">
           <div class="dash-section-title">Self-Construction</div>
-          <div id="auto-self-construction" style="font-size:12px;color:#7090b0;">Loading...</div>
+          <div id="auto-self-construction" style="font-size:12px;color:#7090b0;">—</div>
           <div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap;">
             <button class="btn btn-primary btn-sm" onclick="runSelfConstruction()">🏗️ Run Build</button>
           </div>
         </div>
         <div class="card">
           <div class="dash-section-title">Total System Healer</div>
-          <div id="auto-total-healer" style="font-size:12px;color:#7090b0;">Loading...</div>
+          <div id="auto-total-healer" style="font-size:12px;color:#7090b0;">—</div>
           <div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap;">
             <button class="btn btn-primary btn-sm" onclick="runTotalHeal()">🩺 Heal All</button>
             <button class="btn btn-outline btn-sm" onclick="checkAllModules()">📋 Check Modules</button>
@@ -1110,17 +1110,17 @@ select.form-inp option{background:#0a0e24;}
         </div>
         <div class="card" style="margin-bottom:16px;">
           <div class="dash-section-title">Module Loader</div>
-          <div id="mod-loader-status" style="font-size:12px;color:#7090b0;">Loading...</div>
+          <div id="mod-loader-status" style="font-size:12px;color:#7090b0;">—</div>
           <div id="mod-loader-list" style="font-size:12px;color:#7090b0;margin-top:8px;max-height:160px;overflow-y:auto;"></div>
         </div>
         <div class="card" style="margin-bottom:16px;">
           <div class="dash-section-title">Future Compatibility Bridge</div>
-          <div id="mod-future-compat" style="font-size:12px;color:#7090b0;">Loading...</div>
+          <div id="mod-future-compat" style="font-size:12px;color:#7090b0;">—</div>
           <div style="margin-top:8px;"><button class="btn btn-primary btn-sm" onclick="runFutureCompatProcess()">▶ Process</button></div>
         </div>
         <div class="card" style="margin-bottom:16px;">
           <div class="dash-section-title">Configuration Manager</div>
-          <div id="mod-config-status" style="font-size:12px;color:#7090b0;">Loading...</div>
+          <div id="mod-config-status" style="font-size:12px;color:#7090b0;">—</div>
           <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px;">
             <input class="inp-field" type="text" id="cfg-key-inp" placeholder="Config key..." style="flex:1;min-width:100px;"/>
             <input class="inp-field" type="text" id="cfg-val-inp" placeholder="Value..." style="flex:1;min-width:100px;"/>
@@ -1131,7 +1131,7 @@ select.form-inp option{background:#0a0e24;}
         </div>
         <div class="card" style="margin-bottom:16px;">
           <div class="dash-section-title">Revenue Modules Status</div>
-          <div id="mod-rev-modules" style="font-size:12px;color:#7090b0;">Loading...</div>
+          <div id="mod-rev-modules" style="font-size:12px;color:#7090b0;">—</div>
           <div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap;">
             <button class="btn btn-outline btn-sm" onclick="executeTradingRevenue()">📈 Execute Trading</button>
             <button class="btn btn-outline btn-sm" onclick="optimizeCloudRevenue()">☁️ Optimize Cloud</button>
@@ -1139,12 +1139,12 @@ select.form-inp option{background:#0a0e24;}
         </div>
         <div class="card" style="margin-bottom:16px;">
           <div class="dash-section-title">Quantum Security Layer</div>
-          <div id="mod-qsec-status" style="font-size:12px;color:#7090b0;">Loading...</div>
+          <div id="mod-qsec-status" style="font-size:12px;color:#7090b0;">—</div>
           <div style="margin-top:8px;"><button class="btn btn-primary btn-sm" onclick="runQuantumSecurityProcess()">🔐 Process</button></div>
         </div>
         <div class="card" style="margin-bottom:16px;">
           <div class="dash-section-title">Quantum Integrity Shield</div>
-          <div id="mod-qintegrity-status" style="font-size:12px;color:#7090b0;">Loading...</div>
+          <div id="mod-qintegrity-status" style="font-size:12px;color:#7090b0;">—</div>
           <div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap;">
             <button class="btn btn-primary btn-sm" onclick="runQuantumIntegrityScan()">🛡️ Scan</button>
           </div>
@@ -1152,7 +1152,7 @@ select.form-inp option{background:#0a0e24;}
         </div>
         <div class="card" style="margin-bottom:16px;">
           <div class="dash-section-title">Quantum Vault</div>
-          <div id="mod-qvault-status" style="font-size:12px;color:#7090b0;">Loading...</div>
+          <div id="mod-qvault-status" style="font-size:12px;color:#7090b0;">—</div>
           <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px;">
             <input class="inp-field" type="text" id="vault-key-inp" placeholder="Vault key..." style="flex:1;min-width:100px;"/>
             <input class="inp-field" type="text" id="vault-val-inp" placeholder="Secret value..." style="flex:1;min-width:100px;"/>
@@ -1164,12 +1164,12 @@ select.form-inp option{background:#0a0e24;}
         </div>
         <div class="card" style="margin-bottom:16px;">
           <div class="dash-section-title">Temporal Processor</div>
-          <div id="mod-temporal-status" style="font-size:12px;color:#7090b0;">Loading...</div>
+          <div id="mod-temporal-status" style="font-size:12px;color:#7090b0;">—</div>
           <div style="margin-top:8px;"><button class="btn btn-primary btn-sm" onclick="runTemporalProcess()">⏱️ Process</button></div>
         </div>
         <div class="card" style="margin-bottom:16px;">
           <div class="dash-section-title">UAC (Universal Autonomous Controller)</div>
-          <div id="mod-uac-status" style="font-size:12px;color:#7090b0;">Loading...</div>
+          <div id="mod-uac-status" style="font-size:12px;color:#7090b0;">—</div>
           <div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap;">
             <button class="btn btn-outline btn-sm" onclick="runUacCycle()">🔄 Cycle</button>
             <button class="btn btn-outline btn-sm" onclick="runUacInnovate()">💡 Innovate</button>
@@ -1178,7 +1178,7 @@ select.form-inp option{background:#0a0e24;}
         </div>
         <div class="card" style="margin-bottom:16px;">
           <div class="dash-section-title">Mesh Orchestrator</div>
-          <div id="mod-mesh-status" style="font-size:12px;color:#7090b0;">Loading...</div>
+          <div id="mod-mesh-status" style="font-size:12px;color:#7090b0;">—</div>
           <div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap;">
             <button class="btn btn-primary btn-sm" onclick="adminMeshSync()">🔄 Sync</button>
           </div>
@@ -1186,14 +1186,14 @@ select.form-inp option{background:#0a0e24;}
         </div>
         <div class="card" style="margin-bottom:16px;">
           <div class="dash-section-title">Code Sanity Engine</div>
-          <div id="mod-code-sanity" style="font-size:12px;color:#7090b0;">Loading...</div>
+          <div id="mod-code-sanity" style="font-size:12px;color:#7090b0;">—</div>
           <div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap;">
             <button class="btn btn-primary btn-sm" onclick="runCodeSanityScan()">🔍 Scan</button>
           </div>
         </div>
         <div class="card">
           <div class="dash-section-title">Trust & Audit</div>
-          <div id="mod-trust-status" style="font-size:12px;color:#7090b0;">Loading...</div>
+          <div id="mod-trust-status" style="font-size:12px;color:#7090b0;">—</div>
           <div id="mod-trust-incidents" style="font-size:12px;color:#7090b0;margin-top:8px;"></div>
         </div>
       </div>
@@ -1209,14 +1209,14 @@ select.form-inp option{background:#0a0e24;}
             <div class="dash-section-title" style="margin:0;">AGI Self-Evolution Engine</div>
             <button class="btn btn-outline btn-sm" onclick="loadAdminAdvanced()">🔄 Refresh</button>
           </div>
-          <div id="adv-agi-detail" style="font-size:12px;color:#7090b0;">Loading...</div>
+          <div id="adv-agi-detail" style="font-size:12px;color:#7090b0;">—</div>
           <div style="margin-top:8px;"><button class="btn btn-primary btn-sm" onclick="runAgiProcess()">▶ Process Task</button>
           <input class="inp-field" type="text" id="agi-task-inp" placeholder="AGI task..." style="margin-top:6px;width:100%;"/></div>
           <div id="agi-result" style="font-size:12px;color:#00ffa3;margin-top:8px;"></div>
         </div>
         <div class="card" style="margin-bottom:16px;">
           <div class="dash-section-title">Sovereign Access Guardian</div>
-          <div id="adv-sovereign-detail" style="font-size:12px;color:#7090b0;">Loading...</div>
+          <div id="adv-sovereign-detail" style="font-size:12px;color:#7090b0;">—</div>
           <div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap;">
             <button class="btn btn-primary btn-sm" onclick="adminSetupTotp()">🔐 Setup TOTP</button>
           </div>
@@ -1224,42 +1224,42 @@ select.form-inp option{background:#0a0e24;}
         </div>
         <div class="card" style="margin-bottom:16px;">
           <div class="dash-section-title">Autonomous Space Computing</div>
-          <div id="adv-space-detail" style="font-size:12px;color:#7090b0;">Loading...</div>
+          <div id="adv-space-detail" style="font-size:12px;color:#7090b0;">—</div>
           <div style="margin-top:8px;"><button class="btn btn-outline btn-sm" onclick="runSpaceProcess()">🚀 Process</button>
           <input class="inp-field" type="text" id="space-task-inp" placeholder="Space computing task..." style="margin-top:6px;width:100%;"/></div>
           <div id="space-result" style="font-size:12px;color:#00ffa3;margin-top:8px;"></div>
         </div>
         <div class="card" style="margin-bottom:16px;">
           <div class="dash-section-title">Decentralized Digital Twin Network</div>
-          <div id="adv-dtwin-detail" style="font-size:12px;color:#7090b0;">Loading...</div>
+          <div id="adv-dtwin-detail" style="font-size:12px;color:#7090b0;">—</div>
           <div style="margin-top:8px;"><button class="btn btn-outline btn-sm" onclick="runDigitalTwinProcess()">🔄 Process</button>
           <input class="inp-field" type="text" id="dtwin-task-inp" placeholder="Digital twin task..." style="margin-top:6px;width:100%;"/></div>
           <div id="dtwin-result" style="font-size:12px;color:#00ffa3;margin-top:8px;"></div>
         </div>
         <div class="card" style="margin-bottom:16px;">
           <div class="dash-section-title">Neural Interface API</div>
-          <div id="adv-neural-detail" style="font-size:12px;color:#7090b0;">Loading...</div>
+          <div id="adv-neural-detail" style="font-size:12px;color:#7090b0;">—</div>
           <div style="margin-top:8px;"><button class="btn btn-outline btn-sm" onclick="runNeuralProcess()">🧠 Process</button>
           <input class="inp-field" type="text" id="neural-task-inp" placeholder="Neural interface task..." style="margin-top:6px;width:100%;"/></div>
           <div id="neural-result" style="font-size:12px;color:#00ffa3;margin-top:8px;"></div>
         </div>
         <div class="card" style="margin-bottom:16px;">
           <div class="dash-section-title">Quantum Internet Protocol</div>
-          <div id="adv-qinternet-detail" style="font-size:12px;color:#7090b0;">Loading...</div>
+          <div id="adv-qinternet-detail" style="font-size:12px;color:#7090b0;">—</div>
           <div style="margin-top:8px;"><button class="btn btn-outline btn-sm" onclick="runQuantumInternetProcess()">🌐 Process</button>
           <input class="inp-field" type="text" id="qinternet-task-inp" placeholder="Quantum internet task..." style="margin-top:6px;width:100%;"/></div>
           <div id="qinternet-result" style="font-size:12px;color:#00ffa3;margin-top:8px;"></div>
         </div>
         <div class="card" style="margin-bottom:16px;">
           <div class="dash-section-title">Quantum ML Core</div>
-          <div id="adv-qml-detail" style="font-size:12px;color:#7090b0;">Loading...</div>
+          <div id="adv-qml-detail" style="font-size:12px;color:#7090b0;">—</div>
           <div style="margin-top:8px;"><button class="btn btn-outline btn-sm" onclick="runQuantumMlProcess()">⚛️ Process</button>
           <input class="inp-field" type="text" id="qml-task-inp" placeholder="Quantum ML task..." style="margin-top:6px;width:100%;"/></div>
           <div id="qml-result" style="font-size:12px;color:#00ffa3;margin-top:8px;"></div>
         </div>
         <div class="card">
           <div class="dash-section-title">Temporal Data Layer</div>
-          <div id="adv-temporal-detail" style="font-size:12px;color:#7090b0;">Loading...</div>
+          <div id="adv-temporal-detail" style="font-size:12px;color:#7090b0;">—</div>
           <div style="margin-top:8px;"><button class="btn btn-outline btn-sm" onclick="runTemporalDataProcess()">⏳ Process</button>
           <input class="inp-field" type="text" id="temporaldata-task-inp" placeholder="Temporal data task..." style="margin-top:6px;width:100%;"/></div>
           <div id="temporaldata-result" style="font-size:12px;color:#00ffa3;margin-top:8px;"></div>
@@ -1393,7 +1393,7 @@ select.form-inp option{background:#0a0e24;}
 function loadInnovationModulesStatus() {
   var el = document.getElementById('innovation-modules-status');
   if (!el) return;
-  el.textContent = 'Loading...';
+  el.textContent = '—';
   fetch('/api/innovation/status').then(function(r){
     if (!r.ok) throw new Error('API error');
     return r.json();

@@ -984,10 +984,10 @@ ${_featuredHtml}
     <p>This section proves runtime integration in production: service sync, user services and real-time event stream.</p>
   </div>
   <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:16px">
-    <div class="card"><span class="tag">Services sync</span><h3 id="fuServices">Loading…</h3><p>Source: <code class="inline">/api/services/list</code></p></div>
+    <div class="card"><span class="tag">Services sync</span><h3 id="fuServices">—</h3><p>Source: <code class="inline">/api/services/list</code></p></div>
     <div class="card"><span class="tag">Realtime stream</span><h3 id="fuEvents">Connecting…</h3><p>Source: <code class="inline">/api/unicorn/events</code></p></div>
-    <div class="card"><span class="tag">User services</span><h3 id="fuUser">Loading…</h3><p>Source: <code class="inline">/api/user/services</code></p></div>
-    <div class="card"><span class="tag">AI registry</span><h3 id="fuAiCount">Loading…</h3><p>Source: <code class="inline">/api/ai/registry</code></p></div>
+    <div class="card"><span class="tag">User services</span><h3 id="fuUser">—</h3><p>Source: <code class="inline">/api/user/services</code></p></div>
+    <div class="card"><span class="tag">AI registry</span><h3 id="fuAiCount">—</h3><p>Source: <code class="inline">/api/ai/registry</code></p></div>
     <div class="card"><span class="tag">AI auto-router</span><h3 id="fuAiMode">Analyzing…</h3><p>Source: <code class="inline">/api/ai/use</code></p></div>
     <div class="card"><span class="tag">Post-quantum security</span><h3 id="fuPq">Checking…</h3><p>Source: <code class="inline">/api/security/pq/status</code></p></div>
   </div>
@@ -1033,9 +1033,9 @@ ${_featuredHtml}
     <h3 style="margin:0 0 8px">Autonomous Evolution Loop</h3>
     <p style="color:var(--ink-dim);font-size:13px;margin:0 0 12px">Self-optimization with guardrails, bandit strategy and instant rollback readiness.</p>
     <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px">
-      <div class="card" style="margin:0"><span class="tag">Optimization score</span><h3 id="fuOptScore">Loading…</h3></div>
-      <div class="card" style="margin:0"><span class="tag">Rollback readiness</span><h3 id="fuRollback">Loading…</h3></div>
-      <div class="card" style="margin:0"><span class="tag">Strategy split</span><h3 id="fuStrategy">Loading…</h3></div>
+      <div class="card" style="margin:0"><span class="tag">Optimization score</span><h3 id="fuOptScore">—</h3></div>
+      <div class="card" style="margin:0"><span class="tag">Rollback readiness</span><h3 id="fuRollback">—</h3></div>
+      <div class="card" style="margin:0"><span class="tag">Strategy split</span><h3 id="fuStrategy">—</h3></div>
     </div>
     <div class="pl-output" id="fuLoopOut" style="margin-top:10px">Waiting for loop snapshot…</div>
   </div>
@@ -1043,10 +1043,10 @@ ${_featuredHtml}
     <h3 style="margin:0 0 8px">Trust & Transparency Ledger</h3>
     <p style="color:var(--ink-dim);font-size:13px;margin:0 0 12px">Unified proof layer for integrity signatures, receipt auditability and owner revenue routing.</p>
     <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px">
-      <div class="card" style="margin:0"><span class="tag">Integrity score</span><h3 id="fuTrustSig">Loading…</h3></div>
-      <div class="card" style="margin:0"><span class="tag">Paid receipts</span><h3 id="fuTrustReceipts">Loading…</h3></div>
-      <div class="card" style="margin:0"><span class="tag">Revenue proof</span><h3 id="fuRevTotal">Loading…</h3></div>
-      <div class="card" style="margin:0"><span class="tag">Payout channels</span><h3 id="fuRevMethods">Loading…</h3></div>
+      <div class="card" style="margin:0"><span class="tag">Integrity score</span><h3 id="fuTrustSig">—</h3></div>
+      <div class="card" style="margin:0"><span class="tag">Paid receipts</span><h3 id="fuTrustReceipts">—</h3></div>
+      <div class="card" style="margin:0"><span class="tag">Revenue proof</span><h3 id="fuRevTotal">—</h3></div>
+      <div class="card" style="margin:0"><span class="tag">Payout channels</span><h3 id="fuRevMethods">—</h3></div>
     </div>
     <div class="pl-output" id="fuTrustOut" style="margin-top:10px">Waiting for trust snapshot…</div>
   </div>
@@ -1054,9 +1054,9 @@ ${_featuredHtml}
     <h3 style="margin:0 0 8px">Resilience Drill Console</h3>
     <p style="color:var(--ink-dim);font-size:13px;margin:0 0 12px">Live failover drill to validate recovery posture and rollback speed.</p>
     <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px">
-      <div class="card" style="margin:0"><span class="tag">Drill score</span><h3 id="fuDrillScore">Loading…</h3></div>
-      <div class="card" style="margin:0"><span class="tag">Avg recovery</span><h3 id="fuDrillRecovery">Loading…</h3></div>
-      <div class="card" style="margin:0"><span class="tag">Total runs</span><h3 id="fuDrillRuns">Loading…</h3></div>
+      <div class="card" style="margin:0"><span class="tag">Drill score</span><h3 id="fuDrillScore">—</h3></div>
+      <div class="card" style="margin:0"><span class="tag">Avg recovery</span><h3 id="fuDrillRecovery">—</h3></div>
+      <div class="card" style="margin:0"><span class="tag">Total runs</span><h3 id="fuDrillRuns">—</h3></div>
     </div>
     <div class="pl-actions" style="margin-top:10px"><button class="pl-btn" id="fuDrillBtn">Run drill now</button></div>
     <div class="pl-output" id="fuDrillOut">Waiting for resilience snapshot…</div>
@@ -1065,9 +1065,9 @@ ${_featuredHtml}
     <h3 style="margin:0 0 8px">Cinematic Auto-Tune</h3>
     <p style="color:var(--ink-dim);font-size:13px;margin:0 0 12px">Reglează efectele vizuale automat, în funcție de performanța curentă.</p>
     <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px">
-      <div class="card" style="margin:0"><span class="tag">Profile</span><h3 id="fuTuneMode">Loading…</h3></div>
-      <div class="card" style="margin:0"><span class="tag">Intensity</span><h3 id="fuTuneIntensity">Loading…</h3></div>
-      <div class="card" style="margin:0"><span class="tag">Motion</span><h3 id="fuTuneMotion">Loading…</h3></div>
+      <div class="card" style="margin:0"><span class="tag">Profile</span><h3 id="fuTuneMode">—</h3></div>
+      <div class="card" style="margin:0"><span class="tag">Intensity</span><h3 id="fuTuneIntensity">—</h3></div>
+      <div class="card" style="margin:0"><span class="tag">Motion</span><h3 id="fuTuneMotion">—</h3></div>
     </div>
     <div class="pl-actions" style="margin-top:10px"><button class="pl-btn" id="fuTuneBtn">Apply live profile</button></div>
     <div class="pl-output" id="fuTuneOut">Waiting for auto-tune profile…</div>
@@ -1076,9 +1076,9 @@ ${_featuredHtml}
     <h3 style="margin:0 0 8px">Performance Governance Console</h3>
     <p style="color:var(--ink-dim);font-size:13px;margin:0 0 12px">p95/p99 latency guardrails with adaptive cinematic downgrade policy.</p>
     <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px">
-      <div class="card" style="margin:0"><span class="tag">API latency</span><h3 id="fuPerfP95">Loading…</h3></div>
-      <div class="card" style="margin:0"><span class="tag">Render latency</span><h3 id="fuPerfP99">Loading…</h3></div>
-      <div class="card" style="margin:0"><span class="tag">Mode</span><h3 id="fuPerfMode">Loading…</h3></div>
+      <div class="card" style="margin:0"><span class="tag">API latency</span><h3 id="fuPerfP95">—</h3></div>
+      <div class="card" style="margin:0"><span class="tag">Render latency</span><h3 id="fuPerfP99">—</h3></div>
+      <div class="card" style="margin:0"><span class="tag">Mode</span><h3 id="fuPerfMode">—</h3></div>
     </div>
     <div class="pl-actions" style="margin-top:10px"><button class="pl-btn" id="fuPerfBtn">Refresh governance</button></div>
     <div class="pl-output" id="fuPerfOut">Waiting for performance governance snapshot…</div>
@@ -1453,7 +1453,7 @@ function pageTrustCenter() {
   <h1 style="font-size:clamp(34px,4.4vw,58px);margin:10px 0 18px">Operational trust, <span class="grad">signed and inspectable.</span></h1>
   <p style="color:var(--ink-dim);font-size:16px;line-height:1.7;max-width:860px">This page combines uptime, deploy identity, integrity signatures, owner BTC routing, payment readiness, security posture, audit logs and incident history. No private secrets are exposed.</p>
   <div class="grid" id="trustGrid" style="margin-top:22px"><div class="card"><p>Loading trust center…</p></div></div>
-  <div class="card" style="padding:22px;margin-top:18px"><span class="kicker">Integrity document</span><pre class="code" id="trustRaw">Loading…</pre></div>
+  <div class="card" style="padding:22px;margin-top:18px"><span class="kicker">Integrity document</span><pre class="code" id="trustRaw">—</pre></div>
   <script>
   (async function(){
     const grid=document.getElementById('trustGrid'), raw=document.getElementById('trustRaw');
@@ -2411,7 +2411,7 @@ function pageAdminServices() {
       </form>
     </div>
     <h3 style="margin:0 0 12px">Live catalogue (auto-syncs)</h3>
-    <div id="admSvcList" style="display:grid;gap:10px">Loading…</div>
+    <div id="admSvcList" style="display:grid;gap:10px">—</div>
   </div>
 </section>`;
 }
@@ -2662,7 +2662,7 @@ function pageStatus() {
     <div class="card"><span class="tag">Integrity</span><h3>QIS guarded</h3><p style="color:var(--ink-dim)">Quantum Integrity Shield checked live.</p></div>
     <div class="card"><span class="tag">Commerce</span><h3>Catalog + BTC</h3><p style="color:var(--ink-dim)">Checkout path remains monitored.</p></div>
   </div>
-  <div class="grid" id="stGrid" style="margin-top:22px"><div class="card"><p>Loading…</p></div></div>
+  <div class="grid" id="stGrid" style="margin-top:22px"><div class="card"><p>—</p></div></div>
   <div class="card" style="margin-top:22px;padding:22px"><span class="kicker">90-day uptime</span><h2 id="stUptime" style="margin:8px 0">—</h2><p style="color:var(--ink-dim)">Synthetic checks every 60s. Incidents publicly sealed (commit-reveal).</p><a class="btn" href="/api/incidents" target="_blank">Public incident log</a></div>
   <script>
   async function loadStatus(){
