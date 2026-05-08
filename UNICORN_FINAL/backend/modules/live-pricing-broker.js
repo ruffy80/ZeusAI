@@ -63,6 +63,7 @@ class LivePricingBroker extends EventEmitter {
     this._snapshot = {
       btcRate: { rate: 0, currency: 'USD', source: 'init', updatedAt: null },
       services: [],
+      items: [],
       negotiator: { total: 0, active: 0, completed: 0, expired: 0 },
       updatedAt: new Date().toISOString(),
       refreshMs: REFRESH_MS,
@@ -140,6 +141,14 @@ class LivePricingBroker extends EventEmitter {
       this._snapshot = {
         btcRate,
         services,
+        // Alias consumed by `UNICORN_FINAL/src/site/v2/shell.js` (`_loadCatalog`
+        // SSR enrichment) and `src/site/v2/client.js` (`applyPricingSnapshot`
+        // SSE consumer). Both look for `snap.items` — without this alias the
+        // live AI-negotiated price never reaches the site and the page shows
+        // the static seed price instead. `services` is retained unchanged for
+        // back-compat with existing internal consumers (sovereign-extensions,
+        // sovereign-commerce, src/index.js mergeBackendServicesIntoCatalogue).
+        items: services,
         negotiator,
         updatedAt: new Date().toISOString(),
         refreshMs: REFRESH_MS,
@@ -190,6 +199,24 @@ function buildEntry({ id, name, category, description, basePrice, usd, dp, rate 
     usd: safeUsd,
     btc,
     sats,
+    // Aliases consumed by the site SSR (`UNICORN_FINAL/src/site/v2/shell.js`
+    // `_loadCatalog`) and by the live SSE consumer (`src/site/v2/client.js`
+    // `applyPricingSnapshot`). Both expect `priceUsd`/`priceBtc` on every
+    // item; without these aliases the AI-negotiated price never reaches the
+    // page (the SSR enrichment falls through to the static seed price and
+    // the SSE pricing stream becomes a silent no-op). We retain `usd`/`btc`
+    // for back-compat with existing internal consumers.
+    priceUsd: safeUsd,
+    priceBtc: btc,
+    // snake_case aliases mirror the documented HTTP contract for the
+    // per-service pricing endpoint (`GET /api/pricing/<serviceId>` →
+    // `{ price_usd, price_btc, … }`, see backend/index.js:5772-5773 and
+    // DYNAMIC-PRICING-INTEGRATED.md). client.js:358/380 reads
+    // `it.priceUsd || it.price_usd` (and the same for btc), so emitting
+    // both makes the SSE snapshot interchangeable with the HTTP response
+    // for any downstream consumer that already targets the HTTP shape.
+    price_usd: safeUsd,
+    price_btc: btc,
     deltaPct,
     demandFactor: dp ? dp.demandFactor : null,
     surgeActive: dp ? dp.surgeActive : null,
