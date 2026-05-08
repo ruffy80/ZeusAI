@@ -1906,6 +1906,57 @@ async function hydrateMasterCatalog(){
   const spotEl = $('#catBtcSpot');
   if (!grid) return;
 
+  // ── Early SSR-aware chip binding ────────────────────────────────────────
+  // The SSR pass in shell.js pageServices() emits the filter chips
+  // (All / ⚡ Instant / 💼 Professional / 👑 Enterprise) and 25 product
+  // cards, each with `data-tier="instant|professional|enterprise"`. We
+  // MUST bind the chip click handler here, before any /api/* call, so the
+  // filters are functional even on the SSR-preserve path below (when the
+  // catalog API is empty/unhealthy in split-process production). Without
+  // this early binding the chips were silent stubs whenever the early
+  // return at "API empty + SSR cards present" fired — see screenshot
+  // report from 2026-05-08 ("All/Instant/Professional/Enterprise nu se
+  // intampla nimic").
+  //
+  // `_renderHydrated` is null until cat.items lands; while null we filter
+  // the SSR DOM in place by toggling card visibility. Once the hydrated
+  // renderer is wired, clicks delegate to it (which fully repaints the
+  // grid from the live, AI-priced items[]). This keeps the rich-render
+  // behaviour identical to before for the success path.
+  let _renderHydrated = null;
+  function _applyTierFilter(group){
+    if (typeof _renderHydrated === 'function') { _renderHydrated(group); return; }
+    const cards = grid.querySelectorAll('[data-product-id]');
+    let visible = 0;
+    cards.forEach(function(c){
+      const tier = String(c.getAttribute('data-tier') || '').toLowerCase();
+      const matches = (group === 'all') || (tier === group);
+      // Use the empty string (not `block`) to restore the original display
+      // value; cards use `display:flex` from the .card style and forcing
+      // `block` would break the inner flex layout.
+      c.style.display = matches ? '' : 'none';
+      if (matches) visible += 1;
+    });
+    // Update the small status line to reflect the active filter without
+    // wiping the SSR `${N} products SSR · hydrating…` text on first paint.
+    const statusEl = document.getElementById('autonomousStatus');
+    if (statusEl) {
+      const total = cards.length;
+      statusEl.textContent = visible + ' / ' + total + ' products · ' +
+        (group === 'all' ? 'all tiers' : group) + ' (SSR)';
+    }
+  }
+  if (filters && !filters.dataset.bound) {
+    filters.dataset.bound = '1';
+    filters.addEventListener('click', function(e){
+      const chip = e.target && e.target.closest && e.target.closest('.chip');
+      if (!chip || !filters.contains(chip)) return;
+      $$('.chip', filters).forEach(function(c){ c.classList.remove('on'); });
+      chip.classList.add('on');
+      _applyTierFilter(String(chip.dataset.group || 'all').toLowerCase());
+    });
+  }
+
   // Fetch BTC spot independently of the catalog API. Previously this was nested
   // inside the same try block as /api/instant/catalog, so when the catalog
   // call was slow/empty the SSR-preserve early-return path skipped the spot
@@ -2032,19 +2083,24 @@ async function hydrateMasterCatalog(){
     const list = group === 'all' ? cat.items : cat.items.filter(x => x.group === group);
     grid.innerHTML = list.length ? list.map(masterCardHtml).join('') : '<div class="card"><p>No items in this group.</p></div>';
   };
-  render('all');
+  // Wire the hydrated renderer into the early-bound chip handler so future
+  // chip clicks fully repaint from cat.items[] instead of toggling SSR cards.
+  // (The handler itself was bound at the top of this function so the chips
+  // are functional on every path, including the SSR-preserve early-return.)
+  _renderHydrated = render;
+  // Determine the currently-active group from the chip with the `.on` class
+  // so the first hydrated paint reflects whatever the user already picked
+  // before the API resolved (otherwise clicking "Instant" then waiting for
+  // hydration would snap the grid back to "all").
+  let _activeGroup = 'all';
+  if (filters) {
+    const onChip = filters.querySelector('.chip.on');
+    if (onChip && onChip.dataset && onChip.dataset.group) _activeGroup = String(onChip.dataset.group).toLowerCase();
+  }
+  render(_activeGroup);
   // Live on-chain settlements ticker (real paid orders → mempool.space proof).
   // Injected as an additive panel above the grid; non-fatal if endpoint absent.
   hydrateLiveSales(grid).catch(function(){});
-  if (filters && !filters.dataset.bound) {
-    filters.dataset.bound = '1';
-    filters.addEventListener('click', e => {
-      const chip = e.target.closest('.chip'); if (!chip) return;
-      $$('.chip', filters).forEach(c => c.classList.remove('on'));
-      chip.classList.add('on');
-      render(chip.dataset.group || 'all');
-    });
-  }
 }
 
 // Live on-chain revenue ticker. Public endpoint /api/commerce/recent-sales
