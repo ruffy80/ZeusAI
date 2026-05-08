@@ -2072,6 +2072,15 @@ if (_isPrimaryWorker) {
   if (process.env.NODE_ENV !== 'test') {
     authGuardian.start();
   }
+  // Ops watchdog — read-only ops/dashboard poller + deduplicated Discord alerts.
+  // Always on in production: it never mutates state, it only observes via
+  // /api/quantum-integrity/status and pm2 jlist. Disable with WATCHDOG_DISABLED=1.
+  try {
+    if (process.env.NODE_ENV !== 'test') {
+      const opsWatchdog = require('./modules/ops-watchdog');
+      opsWatchdog.start();
+    }
+  } catch (e) { console.warn('[ops-watchdog] not loaded:', e.message); }
   // Componenta 3 — Auto-Innovation Loop (analiză cod + PR automate + CI monitoring)
   if (!_stableRuntime && _enableFileMutators) {
     autoInnovationLoop.start();
@@ -8894,6 +8903,19 @@ app.get('/api/auto-evolve/status', adminTokenMiddleware, (req, res) => {
 app.post('/api/auto-evolve/run', adminTokenMiddleware, async (req, res) => {
   try { res.json(await autoEvolve.run(req.body || {})); }
   catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// ── Ops Dashboard (public, read-only) ─────────────────────────────────────────
+app.get(['/api/ops/dashboard', '/api/ops/status'], async (req, res) => {
+  try {
+    const opsAggregator = require('../src/modules/ops-aggregator');
+    const data = await opsAggregator.collect({ buildSha: process.env.ZEUS_BUILD_SHA || process.env.GITHUB_SHA });
+    let watchdog = null;
+    try { watchdog = require('./modules/ops-watchdog').getStatus(); } catch (_) {}
+    res.json({ ...data, watchdog });
+  } catch (e) {
+    res.status(500).json({ ok: false, error: e.message });
+  }
 });
 
 // ── Log Monitor ───────────────────────────────────────────────────────────────

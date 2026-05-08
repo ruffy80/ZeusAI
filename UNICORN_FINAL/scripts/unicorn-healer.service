@@ -1,0 +1,19 @@
+# /etc/systemd/system/unicorn-healer.service
+[Unit]
+Description=ZeusAI Unicorn Self-Healer (PM2)
+After=network-online.target
+
+[Service]
+Type=oneshot
+EnvironmentFile=-/var/www/unicorn/.env
+EnvironmentFile=-/var/www/unicorn/.env.healer
+Environment=HEALTH_URL=http://127.0.0.1:3000/health
+Environment=PM2_APPS=unicorn-backend unicorn-site autoscaler
+Environment=FAIL_THRESHOLD=3
+Environment=FAIL_WINDOW_SEC=300
+Environment=CHECK_TIMEOUT_SEC=5
+Environment=LOG_FILE=/var/log/healer.log
+ExecStart=/usr/local/bin/unicorn-healer.sh
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=unicorn-healer

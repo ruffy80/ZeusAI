@@ -117,6 +117,13 @@ RESOLVED_TMP="$(readlink -f "$TMP_LINK")"
 mv -Tf "$TMP_LINK" "$DEPLOY_LINK"
 [ "$(readlink -f "$DEPLOY_LINK")" = "$CANDIDATE_DIR" ] || fail "deploy symlink mismatch after promote"
 
+# Forever-key: provision the release-stable Ed25519 signing key BEFORE PM2
+# starts, so the very first request after promote serves stable signatures.
+log "ensure forever-key (Ed25519 site-sign)"
+SHARED_DIR="$(dirname "$DEPLOY_LINK")/shared"
+SHARED_DIR="$SHARED_DIR" KEY_FILE="$SHARED_DIR/site-sign.pem" PUB_FILE="$SHARED_DIR/site-sign.pub" \
+  bash "$DEPLOY_LINK/scripts/ensure-forever-key.sh" || log "[forever-key] non-fatal: continuing without persistent key"
+
 log "restart PM2 from canonical symlink only"
 cd "$DEPLOY_LINK"
 for app in $PM2_APPS; do
@@ -134,6 +141,57 @@ env \
 
 log "wait for PM2 warmup"
 sleep 15
+
+# ── PM2 cwd-drift auto-recovery ─────────────────────────────────────────────
+# Some PM2 versions don't fully replace existing entries on `pm2 start
+# ecosystem.config.js` when a name collides with a previously-deleted slot.
+# This causes apps (especially fork-mode `unicorn-backend`) to silently keep
+# pointing at the previous release's pm_cwd. Detect and force-respawn.
+log "check for PM2 cwd drift"
+EXPECTED_CWD="$(readlink -f "$DEPLOY_LINK")"
+DRIFTED_APPS="$(pm2 jlist 2>/dev/null | node -e '
+  let body=""; process.stdin.on("data",c=>body+=c);
+  process.stdin.on("end",()=>{
+    try {
+      const expected = process.argv[1];
+      const required = (process.argv[2] || "").split(/\s+/).filter(Boolean);
+      const list = JSON.parse(body || "[]");
+      const drifted = new Set();
+      for (const p of list) {
+        const name = p.name || "";
+        if (!required.includes(name)) continue;
+        const cwd = (p.pm2_env && p.pm2_env.pm_cwd) || "";
+        if (cwd && cwd !== expected) drifted.add(name);
+        if ((p.pm2_env && p.pm2_env.status) !== "online") drifted.add(name);
+      }
+      // Also: any required app entirely missing → respawn it.
+      const present = new Set(list.map(p => p.name));
+      for (const name of required) if (!present.has(name)) drifted.add(name);
+      process.stdout.write([...drifted].join(" "));
+    } catch (_) { /* leave empty */ }
+  });
+' "$EXPECTED_CWD" "$PM2_APPS")"
+
+if [ -n "$DRIFTED_APPS" ]; then
+  log "PM2 drift detected on: $DRIFTED_APPS — force-respawn from canonical symlink"
+  for app in $DRIFTED_APPS; do
+    pm2 delete "$app" >/dev/null 2>&1 || true
+  done
+  cd "$DEPLOY_LINK"
+  for app in $DRIFTED_APPS; do
+    env \
+      NODE_ENV=production \
+      PORT=3000 \
+      BIND_HOST=127.0.0.1 \
+      UNICORN_RUNTIME_PROFILE=safe \
+      QIS_REQUIRED_PROCESSES=unicorn-backend,unicorn-site,autoscaler \
+      ZEUS_BUILD_SHA="${GITHUB_SHA:-}" \
+      SW_VERSION="${GITHUB_SHA:-}" \
+      pm2 start ecosystem.config.js --only "$app" --update-env >/dev/null
+  done
+  sleep 10
+fi
+
 FINAL_SMOKE_OK=0
 for _ in $(seq 1 "$FINAL_SMOKE_ATTEMPTS"); do
   if BASE_URL=http://127.0.0.1:3000 PUBLIC_URL="$PUBLIC_URL" EXPECT_PM2_CWD="$DEPLOY_LINK" bash scripts/smoke-forward-only.sh; then
@@ -149,6 +207,13 @@ if [ -n "${GITHUB_SHA:-}" ]; then
   printf '%s\n' "$GITHUB_SHA" > "$DEPLOY_LINK/.deployed-commit"
   printf '%s\n' "$GITHUB_SHA" > "$DEPLOY_LINK/.build-sha"
   printf '%s\n' "$GITHUB_SHA" > "$DEPLOY_PARENT/.build-sha"
+fi
+
+# Idempotent self-heal install: ensures unicorn-healer.timer is on every box.
+log "ensure unicorn-healer.timer is installed and active"
+if [ -x "$DEPLOY_LINK/scripts/install-healer.sh" ]; then
+  REPO_DIR="$DEPLOY_LINK" bash "$DEPLOY_LINK/scripts/install-healer.sh" \
+    || log "[healer] non-fatal: install-healer.sh exited non-zero"
 fi
 
 log "forward-only deploy complete"

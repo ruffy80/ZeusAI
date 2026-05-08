@@ -93,6 +93,23 @@ if [ "$SKIP_PUBLIC" != "1" ]; then
   esac
   assert_node_json "public QIS intact" "$PUBLIC_URL/api/quantum-integrity/status" \
     "if (!(data.active === true && data.integrity === 'intact' && (!data.diagnostics || (data.diagnostics.issues || []).length === 0))) process.exit(1);"
+
+  # Functional: confirm public site exposes the forever-key (best-effort, no fail).
+  if curl -fsS --max-time 8 "$PUBLIC_URL/.well-known/zeusai-key.pub" | head -c 32 | grep -q 'BEGIN PUBLIC KEY'; then
+    echo "✅ forever-key public PEM served"
+  else
+    echo "⚠ forever-key endpoint not yet serving PEM (non-fatal on first deploy)"
+  fi
+
+  # Functional: build-SHA pin (only if GITHUB_SHA is in env, e.g. CI).
+  if [ -n "${GITHUB_SHA:-}" ]; then
+    SHA_HDR="$(curl -fsSI --max-time 10 "$PUBLIC_URL/" | awk -F': ' 'tolower($1)=="x-zeus-build"{gsub(/\r/,"",$2); print $2}' | head -n1)"
+    if [ -n "$SHA_HDR" ] && [ "$SHA_HDR" != "$GITHUB_SHA" ]; then
+      echo "❌ live build SHA mismatch: header=$SHA_HDR expected=$GITHUB_SHA" >&2
+      exit 1
+    fi
+    [ -n "$SHA_HDR" ] && echo "✅ x-zeus-build matches GITHUB_SHA"
+  fi
 fi
 
 printf '{"ok":true,"baseUrl":"%s","publicUrl":"%s","timestamp":"%s"}\n' "$BASE_URL" "$PUBLIC_URL" "$(date -u +%Y-%m-%dT%H:%M:%SZ)"

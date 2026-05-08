@@ -4824,6 +4824,68 @@ async function unicornHandler(req, res) {
     return res.end(JSON.stringify({ payload, signature, publicKey, alg:'Ed25519' }));
   }
 
+  // ── Forever-key public endpoint ──────────────────────────────────────────
+  // Serves the persistent Ed25519 SPKI public key in PEM format. External
+  // verifiers (archives, agents, integrity auditors) can pin this URL to
+  // verify any /integrity.json signature for the lifetime of the site, even
+  // across deploys / rollbacks. The private half lives at
+  // /var/www/unicorn/shared/site-sign.pem and is never rotated automatically;
+  // a manual rotation MUST be accompanied by a public-key archival entry so
+  // historical receipts remain verifiable.
+  if (urlPath === '/.well-known/zeusai-key.pub' || urlPath === '/.well-known/zeusai-pubkey') {
+    try {
+      const key = global.__SITE_SIGN_KEY__;
+      if (!key) {
+        res.writeHead(503, { 'Content-Type': 'application/json' });
+        return res.end(JSON.stringify({ ok:false, error:'site_sign_key_not_loaded' }));
+      }
+      const pubPem = crypto.createPublicKey(key).export({ format: 'pem', type: 'spki' });
+      const isJson = (req.headers.accept || '').includes('application/json') || urlPath.endsWith('.json');
+      if (isJson) {
+        const pubDer = crypto.createPublicKey(key).export({ format: 'der', type: 'spki' });
+        res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'public, max-age=86400' });
+        return res.end(JSON.stringify({
+          alg: 'Ed25519',
+          kid: crypto.createHash('sha256').update(pubDer).digest('hex').slice(0, 16),
+          publicKeyPem: pubPem,
+          publicKeyJwk: {
+            kty: 'OKP',
+            crv: 'Ed25519',
+            x: Buffer.from(pubDer.subarray(pubDer.length - 32)).toString('base64url')
+          },
+          owner: OWNER_NAME,
+          domain: APP_URL,
+          purpose: 'integrity-receipt-signature',
+          rotation_policy: 'manual; previous keys archived in repo /docs/keys/',
+          generatedAt: new Date().toISOString()
+        }, null, 2));
+      }
+      res.writeHead(200, { 'Content-Type': 'application/x-pem-file; charset=utf-8', 'Cache-Control': 'public, max-age=86400' });
+      return res.end(pubPem);
+    } catch (e) {
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      return res.end(JSON.stringify({ ok:false, error: e.message }));
+    }
+  }
+
+  // ── Ops dashboard aggregator ─────────────────────────────────────────────
+  // Single GET that aggregates everything an operator (or autonomous agent)
+  // needs to decide if action is required: QIS state, log-monitor delta,
+  // PM2 cwd-drift, deploy provenance, heap pressure. Designed to be cheap
+  // (≤ 50ms p95) and side-effect-free. Discord alerting lives in
+  // backend/modules/ops-watchdog.js; this endpoint is read-only.
+  if (urlPath === '/api/ops/dashboard' || urlPath === '/api/ops/status') {
+    try {
+      const opsAggregator = require('./modules/ops-aggregator');
+      const data = await opsAggregator.collect({ buildSha: process.env.ZEUS_BUILD_SHA || V2_BUILD_ID });
+      res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' });
+      return res.end(JSON.stringify(data, null, 2));
+    } catch (e) {
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      return res.end(JSON.stringify({ ok:false, error: e.message }));
+    }
+  }
+
   // ── Agent-marketplace ACP discovery manifest ─────────────────────────────
   // Static, additive descriptor so external Agent-Commerce-Protocol catalogs
   // can list ZeusAI's APIs automatically. Companion to the existing

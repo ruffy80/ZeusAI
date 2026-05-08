@@ -1,0 +1,13 @@
+# /etc/systemd/system/unicorn-healer.timer
+[Unit]
+Description=ZeusAI Unicorn Self-Healer Timer
+Requires=unicorn-healer.service
+
+[Timer]
+OnBootSec=60
+OnUnitInactiveSec=30
+AccuracySec=5
+Unit=unicorn-healer.service
+
+[Install]
+WantedBy=timers.target

@@ -86,6 +86,13 @@ module.exports = {
         // ── Build identity — written by CI deploy, kept static at runtime ──
         ZEUS_BUILD_SHA: process.env.ZEUS_BUILD_SHA || '',
         SW_VERSION:     process.env.ZEUS_BUILD_SHA || process.env.SW_VERSION || '',
+        // ── Forever-key: persist Ed25519 site signing key OUTSIDE the release dir
+        // so /integrity.json signatures remain verifiable across deploys.
+        // /var/www/unicorn/shared/ is the symlink-stable location seeded by
+        // scripts/ensure-forever-key.sh on first boot. UNICORN_KEY_DIR steers
+        // the same path for the persistent on-disk default lookup.
+        UNICORN_KEY_DIR:    process.env.UNICORN_KEY_DIR    || '/var/www/unicorn/shared',
+        SITE_SIGN_KEY_FILE: process.env.SITE_SIGN_KEY_FILE || '/var/www/unicorn/shared/site-sign.pem',
         // ── AI Provider API Keys (read from system env at spawn time) ──────
         OPENAI_API_KEY:      process.env.OPENAI_API_KEY      || '',
         DEEPSEEK_API_KEY:    process.env.DEEPSEEK_API_KEY    || '',
@@ -171,6 +178,12 @@ module.exports = {
         // ── Build identity — drives asset cache-busting (app.js?v=<sha>) ──
         ZEUS_BUILD_SHA: process.env.ZEUS_BUILD_SHA || '',
         SW_VERSION:     process.env.ZEUS_BUILD_SHA || process.env.SW_VERSION || '',
+        // ── Forever-key (mirror of backend block) ─────────────────────────
+        // Persistent Ed25519 site signing key lives outside the release dir
+        // so /integrity.json + /.well-known/zeusai-key.pub remain stable
+        // across deploys. See scripts/ensure-forever-key.sh.
+        UNICORN_KEY_DIR:    process.env.UNICORN_KEY_DIR    || '/var/www/unicorn/shared',
+        SITE_SIGN_KEY_FILE: process.env.SITE_SIGN_KEY_FILE || '/var/www/unicorn/shared/site-sign.pem',
         // ── AI Provider API Keys — site needs them too because /api/ai/registry
         // and /api/ai/use have local fallbacks in src/index.js when the backend
         // is unreachable, and because some site-layer modules (UAIC, USE) read

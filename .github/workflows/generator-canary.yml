@@ -1,0 +1,94 @@
+name: 🧬 Generator Canary (strict)
+
+# Hard gate: when generate_unicorn_final.js changes, regenerate and ensure
+# no live runtime files (src/**, backend/**, ecosystem.config.js, package.json)
+# silently change without an explicit `[generator-approved]` trailer in the
+# triggering commit. Stub modules and mutable state are excluded.
+
+on:
+  pull_request:
+    paths:
+      - 'generate_unicorn_final.js'
+      - '.github/workflows/generator-canary.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  canary:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: '.nvmrc'
+
+      - name: 🔁 Regenerate UNICORN_FINAL into sandbox
+        id: regen
+        run: |
+          set -uo pipefail
+          mkdir -p /tmp/regen
+          cp generate_unicorn_final.js /tmp/regen/
+          (cd /tmp/regen && node generate_unicorn_final.js > /tmp/regen.log 2>&1) || {
+            echo "::error::generator failed — see log"
+            tail -200 /tmp/regen.log
+            exit 1
+          }
+          if [ ! -d /tmp/regen/UNICORN_FINAL ]; then
+            echo "::error::Generator did not produce UNICORN_FINAL/ — abort"
+            exit 1
+          fi
+
+      - name: 🔍 Diff live vs regenerated (live-runtime files only)
+        id: diff
+        run: |
+          set -uo pipefail
+          # Only inspect files that, if changed, alter live behavior.
+          INCLUDE_PATHS=(
+            "src"
+            "backend"
+            "ecosystem.config.js"
+            "package.json"
+            "scripts/deploy-atomic-forward.sh"
+            "scripts/smoke-forward-only.sh"
+          )
+          EXCLUDES="--exclude=node_modules --exclude=data --exclude=db --exclude=logs --exclude=backups --exclude=snapshots --exclude=.env --exclude=.deployed-commit --exclude=.build-sha --exclude='AdaptiveModule*.js' --exclude='Engine*.js'"
+
+          DRIFT=0
+          DRIFT_LOG=/tmp/canary-diff.log
+          : > "$DRIFT_LOG"
+          for p in "${INCLUDE_PATHS[@]}"; do
+            LIVE="$GITHUB_WORKSPACE/UNICORN_FINAL/$p"
+            GEN="/tmp/regen/UNICORN_FINAL/$p"
+            if [ ! -e "$LIVE" ] && [ ! -e "$GEN" ]; then continue; fi
+            if [ -d "$LIVE" ] || [ -d "$GEN" ]; then
+              eval diff -qr $EXCLUDES "$LIVE" "$GEN" >> "$DRIFT_LOG" 2>&1 || DRIFT=1
+            else
+              diff -q "$LIVE" "$GEN" >> "$DRIFT_LOG" 2>&1 || DRIFT=1
+            fi
+          done
+          echo "drift=$DRIFT" >> "$GITHUB_OUTPUT"
+          if [ "$DRIFT" = "1" ]; then
+            echo "::notice::Generator would change runtime files:"
+            head -80 "$DRIFT_LOG"
+          fi
+
+      - name: 🔐 Require [generator-approved] trailer when drift exists
+        if: steps.diff.outputs.drift == '1'
+        run: |
+          set -euo pipefail
+          MSG=$(git log -1 --pretty=%B "${{ github.event.pull_request.head.sha || github.sha }}")
+          echo "Commit message:"
+          echo "$MSG"
+          if echo "$MSG" | grep -qE '\[generator-approved\]'; then
+            echo "✅ [generator-approved] present — drift accepted"
+            exit 0
+          fi
+          echo "::error::Generator drift detected without [generator-approved] trailer."
+          echo "::error::If intentional, add '[generator-approved]' to the commit message."
+          exit 1
