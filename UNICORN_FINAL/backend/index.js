@@ -337,6 +337,13 @@ async function proxyToSite(req, res, urlPath) {
 }
 app.get('/api/catalog/master', (req, res) => proxyToSite(req, res, '/api/catalog/master'));
 app.get('/api/catalog/diff',   (req, res) => proxyToSite(req, res, '/api/catalog/diff'));
+// /api/products + /api/price/:id are implemented in src/index.js (the site
+// process) on top of the master catalog. Proxy them through so consumers can
+// hit the canonical https://zeusai.pro/api/products and /api/price/<id>
+// endpoints without caring whether the request lands on backend (3000) or
+// site (3001) first. Read-only, cached upstream, never block.
+app.get('/api/products', (req, res) => proxyToSite(req, res, '/api/products'));
+app.get('/api/price/:id', (req, res) => proxyToSite(req, res, '/api/price/' + encodeURIComponent(req.params.id)));
 
 // ─── C5: tiered sliding-window rate-limit (additive, fail-open) ──────────
 // Loaded lazy so missing module never breaks boot.
@@ -2312,7 +2319,7 @@ if (!_stableRuntime) {
 // --- API: SaaS Catalog (REAL, derived from live engines) ---
 app.get('/api/catalog', async (req, res) => {
   try {
-    const live = await buildLiveSaasCatalogWithBtc();
+    const live = buildLiveSaasCatalog();
     if (live && live.length) return res.json(live);
     return res.status(503).json({ ok: false, error: 'catalog sources unavailable' });
   } catch (err) {

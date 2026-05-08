@@ -28,6 +28,30 @@ function _esc(s) {
     .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 }
+// Best-effort sync access to the live BTC/USD spot cached by src/index.js
+// (same process). Used as a fallback when the broker snapshot does not
+// already provide priceBtc per item — guarantees every SSR card renders an
+// "≈ X BTC" line at first paint, which the client then keeps refreshed via
+// openPricingStream() over SSE.
+function _btcSpotUsd() {
+  try {
+    const idx = require('../../index.js');
+    if (idx && idx._btcSpotCache && Number(idx._btcSpotCache.usdPerBtc) > 0) {
+      return Number(idx._btcSpotCache.usdPerBtc);
+    }
+  } catch (_) { /* circular or unavailable */ }
+  // Conservative last-known fallback — same default the rest of the app
+  // uses, so the BTC amount will be in the right order of magnitude even
+  // before the first /api/btc/spot refresh lands.
+  return 95000;
+}
+function _toBtc(usd) {
+  const r = _btcSpotUsd();
+  if (!(r > 0)) return 0;
+  const u = Number(usd || 0);
+  if (!(u > 0)) return 0;
+  return Number((u / r).toFixed(8));
+}
 function _loadCatalog() {
   try {
     const u = require('../../commerce/unified-catalog');
@@ -148,7 +172,7 @@ function _libraryCard(p) {
   const autoBadge = p.autoPublished
     ? `<span class="tag" title="Auto-published from a backend module — appeared on the site without manual work" style="background:rgba(255,211,106,.10);color:#ffd36a;border:1px solid rgba(255,211,106,.30);font-size:10px;margin-left:6px">🤖 auto</span>`
     : '';
-  const priceBtcNum = Number(p.priceBtc || 0);
+  const priceBtcNum = Number(p.priceBtc || 0) || _toBtc(price);
   const btcTxt = priceBtcNum > 0 ? ('≈ ' + priceBtcNum.toFixed(8) + ' BTC') : '';
   return `<article class="card" data-product-id="${id}" data-price-source="${_esc(p.livePriceSource || 'marketplace')}" data-auto-published="${p.autoPublished ? '1' : '0'}" itemscope itemtype="https://schema.org/Product" style="display:flex;flex-direction:column;gap:8px;padding:14px">
     <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px">
@@ -178,8 +202,9 @@ function _catalogCard(p) {
   const billing = price > 0 && (p.billing === 'monthly') ? '<small style="color:var(--ink-dim);font-weight:400">/mo</small>' : '';
   // BTC price line — shown next to the "Buy with BTC →" CTA so users can see
   // the exact Bitcoin amount that will be requested at checkout. Sourced from
-  // the AI-negotiated pricing pipeline (priceNegotiator → live BTC rate).
-  const priceBtcNum = Number(p.priceBtc || 0);
+  // the AI-negotiated pricing pipeline (priceNegotiator → live BTC rate),
+  // with a sync fallback via _toBtc(usd) for items the broker hasn't tagged.
+  const priceBtcNum = Number(p.priceBtc || 0) || _toBtc(price);
   const btcTxt = priceBtcNum > 0 ? ('≈ ' + priceBtcNum.toFixed(8) + ' BTC') : '';
   // When the live pricing engine produced this number, surface a small badge
   // so the user (and ops) can tell it is the AI-negotiated value, not a
