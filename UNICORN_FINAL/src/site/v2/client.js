@@ -342,6 +342,15 @@ function openPricingStream(){
         }
         updated++;
       });
+      // Companion BTC line (≈ 0.00045 BTC) — keeps the Bitcoin amount that
+      // will be charged at checkout in sync with the live USD price. Anchor
+      // emitted by _libraryCard / _catalogCard / masterCardHtml.
+      const btcSel = '[data-price-btc-value="' + (window.CSS && CSS.escape ? CSS.escape(it.id) : it.id) + '"]';
+      const btcNum = Number(it.priceBtc != null ? it.priceBtc : it.price_btc);
+      if (Number.isFinite(btcNum) && btcNum > 0) {
+        const btcText = '≈ ' + btcNum.toFixed(8) + ' BTC';
+        document.querySelectorAll(btcSel).forEach(function(node){ node.textContent = btcText; });
+      }
     }
     if (updated > 0) {
       try { window.dispatchEvent(new CustomEvent('unicorn:pricing-updated', { detail: { count: updated, ts: snap.ts || Date.now() } })); } catch(_) {}
@@ -1784,6 +1793,11 @@ function masterCardHtml(it){
   const priceUsd = Number(it.priceUsd || 0);
   const priceTxt = priceUsd > 0 ? ('$' + priceUsd.toLocaleString('en-US')) : 'Free';
   const billing = priceUsd > 0 && (it.billing === 'monthly') ? '<small style="color:var(--ink-dim);font-weight:400">/mo</small>' : '';
+  // BTC amount displayed below the USD price so every "Buy with BTC →" CTA
+  // shows the exact Bitcoin sum the buyer will be asked to send at checkout.
+  // Auto-refreshed by openPricingStream() via [data-price-btc-value].
+  const priceBtcNum = Number(it.priceBtc || 0);
+  const btcTxt = priceBtcNum > 0 ? ('≈ ' + priceBtcNum.toFixed(8) + ' BTC') : '';
   const liveBadge = it.livePriceSource && it.livePriceSource !== 'static-fallback' && it.livePriceSource !== 'safe-fallback'
     ? '<span class="tag" title="Live AI-negotiated price · source=' + escapeHtml(it.livePriceSource) + (it.demandFactor ? ' · demand=' + Number(it.demandFactor).toFixed(2) : '') + '" style="background:rgba(127,255,212,.12);color:#7fffd4;border:1px solid rgba(127,255,212,.35);font-size:10px;margin-left:6px">⚡ live' + (it.surgeActive ? ' · surge' : '') + '</span>'
     : '';
@@ -1799,10 +1813,11 @@ function masterCardHtml(it){
   return '<article class="card" data-tier="' + escapeHtml(tier) + '" data-group="' + escapeHtml(it.group || '') + '" data-product-id="' + idAttr + '" data-price-source="' + escapeHtml(it.livePriceSource || 'static') + '" itemscope itemtype="https://schema.org/Product" style="display:flex;flex-direction:column;gap:10px">'
     + '<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px">'
     + tierBadge
-    + '<span style="font-family:var(--mono);font-size:18px;color:var(--gold)" itemprop="offers" itemscope itemtype="https://schema.org/Offer">'
+    + '<span style="font-family:var(--mono);font-size:18px;color:var(--gold);text-align:right" itemprop="offers" itemscope itemtype="https://schema.org/Offer">'
     + '<meta itemprop="priceCurrency" content="' + escapeHtml(it.currency || 'USD') + '"/>'
     + '<span itemprop="price" data-pricing-value="' + idAttr + '">' + escapeHtml(priceTxt) + '</span>'
     + billing + liveBadge
+    + '<span class="btc-line" data-price-btc-value="' + idAttr + '" style="display:block;font-size:11.5px;color:#f7a13b;font-weight:600;margin-top:3px;letter-spacing:.2px">' + escapeHtml(btcTxt) + '</span>'
     + '</span>'
     + '</div>'
     + '<h3 style="margin:4px 0 0;font-size:18px;line-height:1.25" itemprop="name">' + title + '</h3>'

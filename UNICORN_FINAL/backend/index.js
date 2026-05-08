@@ -2,6 +2,31 @@
 // the module marketplace, and the dynamic-pricing engine. If every source is
 // unavailable the endpoint returns 503 instead of synthetic services.
 
+// Lightweight BTC/USD spot for catalog enrichment. Cached 60s. Falls back to
+// a sane floor (used only during cold-start) so /api/catalog never blocks.
+let __btcSpotCache = { rate: 0, ts: 0 };
+async function __getBtcUsdRate() {
+  const now = Date.now();
+  if (__btcSpotCache.rate > 0 && (now - __btcSpotCache.ts) < 60_000) return __btcSpotCache.rate;
+  const sources = [
+    'https://api.coinbase.com/v2/prices/BTC-USD/spot',
+    'https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=usd',
+  ];
+  for (const url of sources) {
+    try {
+      const r = await fetch(url, { signal: AbortSignal.timeout(2500) });
+      if (!r.ok) continue;
+      const j = await r.json();
+      const rate = Number(
+        j?.data?.amount ?? j?.bitcoin?.usd ?? 0
+      );
+      if (rate > 0) { __btcSpotCache = { rate, ts: now }; return rate; }
+    } catch (_) { /* try next */ }
+  }
+  return __btcSpotCache.rate || 80000; // last-known or conservative fallback
+}
+const __OWNER_BTC = process.env.BTC_OWNER_WALLET || 'bc1q4f7e66z87mdfj56kz0dj5hvcnpmh0qh4wuv22e';
+
 function buildLiveSaasCatalog() {
   // Pull pricing from the running dynamic-pricing engine (mounted later in
   // this file). The require() is deferred so the function works regardless
@@ -19,15 +44,18 @@ function buildLiveSaasCatalog() {
       const all = pricer.getAllPrices();
       for (const id of Object.keys(pricer.BASE_PRICES)) {
         const p = all[id] || {};
+        const priceUsd = Number(p.finalPrice ?? p.basePrice ?? pricer.BASE_PRICES[id]) || 0;
         items.push({
           id,
           name: id.replace(/[-_]/g, ' ').replace(/\b\w/g, c => c.toUpperCase()),
           description: '',
-          price: p.finalPrice ?? p.basePrice ?? pricer.BASE_PRICES[id],
+          price: priceUsd,
+          priceUsd,
           basePrice: p.basePrice,
           surge: !!p.surgeActive,
           category: 'SaaS',
           source: 'dynamic-pricing',
+          buyUrl: `/checkout?serviceId=${encodeURIComponent(id)}&amount=${priceUsd}&plan=${encodeURIComponent(id)}`,
         });
       }
     } catch (_) {}
@@ -38,20 +66,40 @@ function buildLiveSaasCatalog() {
       const cat = marketplace.refreshCatalog();
       for (const m of cat) {
         if (items.find(x => x.id === m.id)) continue;
+        const priceUsd = Number((m.price && (m.price.finalPrice ?? m.price.amount)) || 0);
         items.push({
           id: m.id,
           name: m.name || m.id,
           description: '',
-          price: (m.price && (m.price.finalPrice ?? m.price.amount)) || 0,
+          price: priceUsd,
+          priceUsd,
           currency: (m.price && m.price.currency) || 'USD',
           category: 'Module',
           license: m.license,
           source: 'module-marketplace',
+          buyUrl: `/checkout?serviceId=${encodeURIComponent(m.id)}&amount=${priceUsd}&plan=${encodeURIComponent(m.id)}`,
         });
       }
     } catch (_) {}
   }
   return items;
+}
+
+// Async wrapper that enriches every catalog row with `priceBtc` and a
+// `bitcoin:` URI so the frontend can render "≈ 0.00045 BTC" next to every
+// "Buy with BTC →" CTA without a second round-trip.
+async function buildLiveSaasCatalogWithBtc() {
+  const items = buildLiveSaasCatalog();
+  if (!items.length) return items;
+  const rate = await __getBtcUsdRate().catch(() => 0);
+  if (!rate || rate <= 0) return items;
+  return items.map(it => {
+    const priceUsd = Number(it.priceUsd || it.price || 0);
+    if (priceUsd <= 0) return { ...it, priceBtc: 0, btcUri: null };
+    const priceBtc = Number((priceUsd / rate).toFixed(8));
+    const btcUri = `bitcoin:${__OWNER_BTC}?amount=${priceBtc}&label=ZeusAI-${encodeURIComponent(it.id)}`;
+    return { ...it, priceBtc, btcUri };
+  });
 }
 // =====================================================================
 // OWNERSHIP: Acest fișier este proprietatea exclusivă a lui Vladoi Ionut
@@ -2264,7 +2312,7 @@ if (!_stableRuntime) {
 // --- API: SaaS Catalog (REAL, derived from live engines) ---
 app.get('/api/catalog', async (req, res) => {
   try {
-    const live = buildLiveSaasCatalog();
+    const live = await buildLiveSaasCatalogWithBtc();
     if (live && live.length) return res.json(live);
     return res.status(503).json({ ok: false, error: 'catalog sources unavailable' });
   } catch (err) {

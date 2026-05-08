@@ -148,10 +148,12 @@ function _libraryCard(p) {
   const autoBadge = p.autoPublished
     ? `<span class="tag" title="Auto-published from a backend module — appeared on the site without manual work" style="background:rgba(255,211,106,.10);color:#ffd36a;border:1px solid rgba(255,211,106,.30);font-size:10px;margin-left:6px">🤖 auto</span>`
     : '';
+  const priceBtcNum = Number(p.priceBtc || 0);
+  const btcTxt = priceBtcNum > 0 ? ('≈ ' + priceBtcNum.toFixed(8) + ' BTC') : '';
   return `<article class="card" data-product-id="${id}" data-price-source="${_esc(p.livePriceSource || 'marketplace')}" data-auto-published="${p.autoPublished ? '1' : '0'}" itemscope itemtype="https://schema.org/Product" style="display:flex;flex-direction:column;gap:8px;padding:14px">
     <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px">
       <span class="tag" style="background:rgba(138,92,255,.12);color:#bda4ff;border:1px solid rgba(138,92,255,.30);font-size:10px">${cat}</span>
-      <span style="font-family:var(--mono);font-size:14px;color:var(--gold)" itemprop="offers" itemscope itemtype="https://schema.org/Offer"><meta itemprop="priceCurrency" content="USD"/><span itemprop="price" data-pricing-value="${id}">${priceTxt}</span>${liveBadge}${autoBadge}</span>
+      <span style="font-family:var(--mono);font-size:14px;color:var(--gold);text-align:right" itemprop="offers" itemscope itemtype="https://schema.org/Offer"><meta itemprop="priceCurrency" content="USD"/><span itemprop="price" data-pricing-value="${id}">${priceTxt}</span>${liveBadge}${autoBadge}<span class="btc-line" data-price-btc-value="${id}" style="display:block;font-size:10.5px;color:#f7a13b;font-weight:600;margin-top:2px">${btcTxt}</span></span>
     </div>
     <h3 style="margin:2px 0 0;font-size:14px;line-height:1.3" itemprop="name">${title}</h3>
     <p style="margin:0;color:var(--ink-dim);font-size:12px;line-height:1.4;flex:1" itemprop="description">${desc}</p>
@@ -174,6 +176,11 @@ function _catalogCard(p) {
   const price = Number(p.priceUSD || p.priceUsd || p.price || 0);
   const priceTxt = price > 0 ? ('$' + price.toLocaleString('en-US')) : 'Free';
   const billing = price > 0 && (p.billing === 'monthly') ? '<small style="color:var(--ink-dim);font-weight:400">/mo</small>' : '';
+  // BTC price line — shown next to the "Buy with BTC →" CTA so users can see
+  // the exact Bitcoin amount that will be requested at checkout. Sourced from
+  // the AI-negotiated pricing pipeline (priceNegotiator → live BTC rate).
+  const priceBtcNum = Number(p.priceBtc || 0);
+  const btcTxt = priceBtcNum > 0 ? ('≈ ' + priceBtcNum.toFixed(8) + ' BTC') : '';
   // When the live pricing engine produced this number, surface a small badge
   // so the user (and ops) can tell it is the AI-negotiated value, not a
   // static catalogue floor.
@@ -181,10 +188,10 @@ function _catalogCard(p) {
     ? `<span class="tag" title="Live AI-negotiated price · source=${_esc(p.livePriceSource)}${p.demandFactor ? ' · demand=' + Number(p.demandFactor).toFixed(2) : ''}" style="background:rgba(127,255,212,.12);color:#7fffd4;border:1px solid rgba(127,255,212,.35);font-size:10px;margin-left:6px">⚡ live${p.surgeActive ? ' · surge' : ''}</span>`
     : '';
   return `<article class="card" data-tier="${_esc(p.tier || '')}" data-product-id="${id}" data-price-source="${_esc(p.livePriceSource || 'static')}" itemscope itemtype="https://schema.org/Product" style="display:flex;flex-direction:column;gap:10px">
-    <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px">${_tierBadge(p.tier)}<span style="font-family:var(--mono);font-size:18px;color:var(--gold)" itemprop="offers" itemscope itemtype="https://schema.org/Offer"><meta itemprop="priceCurrency" content="USD"/><span itemprop="price" data-pricing-value="${id}">${priceTxt}</span>${billing}${liveBadge}</span></div>
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px">${_tierBadge(p.tier)}<span style="font-family:var(--mono);font-size:18px;color:var(--gold);text-align:right" itemprop="offers" itemscope itemtype="https://schema.org/Offer"><meta itemprop="priceCurrency" content="USD"/><span itemprop="price" data-pricing-value="${id}">${priceTxt}</span>${billing}${liveBadge}<span class="btc-line" data-price-btc-value="${id}" style="display:block;font-size:11.5px;color:#f7a13b;font-weight:600;margin-top:3px;letter-spacing:.2px">${btcTxt}</span></span></div>
     <h3 style="margin:4px 0 0;font-size:18px;line-height:1.25" itemprop="name">${title}</h3>
     <p style="margin:0;color:var(--ink-dim);font-size:13px;line-height:1.45;flex:1" itemprop="description">${desc}</p>
-    <div style="display:flex;gap:8px;margin-top:6px"><a class="btn btn-primary" href="/checkout?plan=${encodeURIComponent(id)}" data-link aria-label="Buy ${title} with Bitcoin" style="flex:1;justify-content:center">Buy with BTC →</a><a class="btn btn-ghost" href="/services/${encodeURIComponent(id)}" data-link aria-label="View details for ${title}">Details</a></div>
+    <div style="display:flex;gap:8px;margin-top:6px"><a class="btn btn-primary" href="/checkout?plan=${encodeURIComponent(id)}" data-link aria-label="Buy ${title} with Bitcoin for ${btcTxt || priceTxt}" style="flex:1;justify-content:center">Buy with BTC →</a><a class="btn btn-ghost" href="/services/${encodeURIComponent(id)}" data-link aria-label="View details for ${title}">Details</a></div>
   </article>`;
 }
 function _ssrCatalogGrid(items, opts) {
