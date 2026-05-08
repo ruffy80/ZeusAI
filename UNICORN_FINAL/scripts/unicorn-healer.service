@@ -9,6 +9,8 @@ EnvironmentFile=-/var/www/unicorn/.env
 EnvironmentFile=-/var/www/unicorn/.env.healer
 Environment=HEALTH_URL=http://127.0.0.1:3000/health
 Environment=PM2_APPS=unicorn-backend unicorn-site autoscaler
+Environment=PM2_BIN=/usr/bin/pm2
+Environment=PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 Environment=FAIL_THRESHOLD=3
 Environment=FAIL_WINDOW_SEC=300
 Environment=CHECK_TIMEOUT_SEC=5

@@ -92,7 +92,12 @@ chmod 600 "$ENV_FILE"
 
 # ── Core (FORCE — backend nu pornește corect dacă acestea sunt stale) ────────
 force_upsert NODE_ENV         "${NODE_ENV:-production}"
-force_upsert PORT             "${PORT:-3000}"
+# IMPORTANT: do NOT bake a global PORT into .env. server-doctor.sh sources .env
+# before `pm2 start ecosystem.config.js --update-env`, which would propagate the
+# .env PORT to BOTH unicorn-backend (3000) and unicorn-site (3001) via PM2's
+# --update-env, causing EADDRINUSE. ecosystem.config.js is the single source
+# of truth for per-app PORT. We strip any pre-existing PORT line below.
+sed -i '/^PORT=/d' "$ENV_FILE" 2>/dev/null || true
 upsert PUBLIC_APP_URL   "${PUBLIC_APP_URL:-https://zeusai.pro}"
 upsert SITE_DOMAIN      "${SITE_DOMAIN:-zeusai.pro}"
 upsert UNICORN_DOMAIN   "${UNICORN_DOMAIN:-www.zeusai.pro}"

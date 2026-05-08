@@ -23,7 +23,13 @@ const AUTO_HEAL_ENABLED = String(process.env.QIS_AUTO_HEAL_ENABLED || 'true').to
 // exist on production (unicorn-backend, unicorn-site, autoscaler). The legacy
 // 'unicorn-guardian' was retired and reloading it errored every cycle, which
 // in turn flooded log-monitor and kept the shield permanently 'degraded'.
-const AUTO_HEAL_CMD     = process.env.QIS_AUTO_HEAL_CMD || 'pm2 reload unicorn-backend unicorn-site --update-env';
+// IMPORTANT: NEVER pass --update-env from inside the app process. The calling
+// process inherits its own env (e.g. PORT=3000 for backend or PORT=3001 for
+// site) and PM2 propagates that to ALL named apps in the reload list, causing
+// cross-port contamination (backend ends up bound to 3001 → EADDRINUSE clash
+// with site → cluster-wide crash loops). Without --update-env, PM2 keeps each
+// app's original env from `pm2 start ecosystem.config.js`.
+const AUTO_HEAL_CMD     = process.env.QIS_AUTO_HEAL_CMD || 'pm2 reload unicorn-backend unicorn-site';
 const AUTO_ROLLBACK_CMD = process.env.QIS_AUTO_ROLLBACK_CMD || '';
 const AUTO_HEAL_COOLDOWN_MS = parseInt(process.env.QIS_AUTO_HEAL_COOLDOWN_MS || '180000', 10);
 const HEAP_WARN_PCT = Number(process.env.QIS_HEAP_WARN_PCT || '0.98');

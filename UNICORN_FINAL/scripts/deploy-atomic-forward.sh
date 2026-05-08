@@ -129,9 +129,12 @@ cd "$DEPLOY_LINK"
 for app in $PM2_APPS; do
   pm2 delete "$app" >/dev/null 2>&1 || true
 done
+# DO NOT set a global PORT here. ecosystem.config.js is the single source of
+# truth for per-app PORT (backend:3000, site:3001). Setting PORT=3000 in the
+# shell env propagates via `--update-env` to ALL apps and forces site to also
+# attempt 3000, racing with backend → EADDRINUSE crash-loops on cold deploy.
 env \
   NODE_ENV=production \
-  PORT=3000 \
   BIND_HOST=127.0.0.1 \
   UNICORN_RUNTIME_PROFILE=safe \
   QIS_REQUIRED_PROCESSES=unicorn-backend,unicorn-site,autoscaler \
@@ -181,7 +184,6 @@ if [ -n "$DRIFTED_APPS" ]; then
   for app in $DRIFTED_APPS; do
     env \
       NODE_ENV=production \
-      PORT=3000 \
       BIND_HOST=127.0.0.1 \
       UNICORN_RUNTIME_PROFILE=safe \
       QIS_REQUIRED_PROCESSES=unicorn-backend,unicorn-site,autoscaler \
