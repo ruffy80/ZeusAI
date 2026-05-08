@@ -1130,7 +1130,7 @@ function pageServices() {
     <div style="display:flex;flex-wrap:wrap;gap:18px;align-items:center;justify-content:space-between">
       <div style="flex:1;min-width:280px">
         <span class="kicker">₿ Native Bitcoin commerce · zero custodian</span>
-        <h3 style="margin:8px 0;font-size:22px">Pay any service direct in BTC. <span id="catBtcSpot" style="color:var(--gold);font-family:var(--mono);font-size:14px">live rate loading…</span></h3>
+        <h3 style="margin:8px 0;font-size:22px">Pay any service direct in BTC. <span id="catBtcSpot" style="color:var(--gold);font-family:var(--mono);font-size:14px">—</span></h3>
         <p style="color:var(--ink-dim);margin:0;font-size:14px">Owner wallet routes 100% of revenue. Each invoice generates an Ed25519 receipt + on-chain proof via mempool.space.</p>
         <div class="btc-addr" id="svcHeroBtcAddr" data-copy="${OWNER.btc}" title="Click to copy">${OWNER.btc}</div>
       </div>
