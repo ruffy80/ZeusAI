@@ -198,7 +198,12 @@ function _catalogCard(p) {
   const title = _esc(p.title || p.id || 'Service');
   const desc = _esc(p.description || '');
   const price = Number(p.priceUSD || p.priceUsd || p.price || 0);
-  const priceTxt = price > 0 ? ('$' + price.toLocaleString('en-US')) : 'Free';
+  // Always render with up to 2 decimals so dynamic values like 25.08 / 465.92
+  // surface accurately. Integers stay clean (e.g. "99" not "99.00").
+  const _hasFrac = Number.isFinite(price) && Math.abs(price - Math.round(price)) > 0.0049;
+  const priceTxt = price > 0
+    ? ('$' + price.toLocaleString('en-US', { minimumFractionDigits: _hasFrac ? 2 : 0, maximumFractionDigits: 2 }))
+    : 'Free';
   const billing = price > 0 && (p.billing === 'monthly') ? '<small style="color:var(--ink-dim);font-weight:400">/mo</small>' : '';
   // BTC price line — shown next to the "Buy with BTC →" CTA so users can see
   // the exact Bitcoin amount that will be requested at checkout. Sourced from
@@ -1205,7 +1210,12 @@ function pagePricing() {
   const liveTag = (info) => info.source !== 'static-fallback'
     ? `<span class="tag" title="Live AI-negotiated · demand=${Number(info.demandFactor||1).toFixed(2)}${info.surge ? ' · surge active' : ''}" style="background:rgba(127,255,212,.12);color:#7fffd4;border:1px solid rgba(127,255,212,.35);font-size:10px;margin-left:6px">⚡ live${info.surge ? ' · surge' : ''}</span>`
     : '';
-  const fmt = (info) => '$' + Number(info.price).toLocaleString('en-US');
+  const fmt = (info) => {
+    const n = Number(info.price);
+    if (!Number.isFinite(n)) return '—';
+    const hasFrac = Math.abs(n - Math.round(n)) > 0.0049;
+    return '$' + n.toLocaleString('en-US', { minimumFractionDigits: hasFrac ? 2 : 0, maximumFractionDigits: 2 });
+  };
   return `<section style="padding-top:140px">
   <div class="section-title">
     <div><span class="kicker">Pricing · live AI-negotiated rates</span><h2>Fair. Sovereign. <span class="grad">Outcome‑aligned.</span></h2></div>

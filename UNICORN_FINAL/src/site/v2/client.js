@@ -102,12 +102,14 @@ function normalizeLivePricing(serviceId, payload){
     p.price_usd != null ? p.price_usd
       : (p.priceUsd != null ? p.priceUsd
       : (p.finalPrice != null ? p.finalPrice
-      : (p.pricing && p.pricing.usd != null ? p.pricing.usd : 99)))
+      : (p.pricing && p.pricing.usd != null ? p.pricing.usd : NaN)))
   );
   const btcRaw = p.price_btc != null ? p.price_btc : (p.btcEquivalent != null ? p.btcEquivalent : (p.pricing && p.pricing.btc != null ? p.pricing.btc : null));
   return {
     serviceId: String(p.serviceId || p.moduleId || serviceId || 'unknown-service'),
-    price_usd: Number.isFinite(usd) ? usd : 99,
+    // Never silently substitute a hardcoded fallback — callers MUST check
+    // Number.isFinite(price_usd) before rendering or accepting an order.
+    price_usd: Number.isFinite(usd) ? usd : NaN,
     price_btc: btcRaw == null ? null : Number(btcRaw),
     currency: String(p.currency || (p.pricing && p.pricing.currency) || 'USD'),
     interval: String(p.interval || 'month'),
@@ -142,7 +144,8 @@ function _priceCacheSet(sid, value){
 async function fetchLivePricing(serviceId, opts){
   const options = opts || {};
   const sid = String(serviceId || '').trim();
-  if (!sid) return normalizeLivePricing('unknown-service', { price_usd: 99, currency: 'USD', interval: 'month', negotiated: false });
+  // No id → no price. Callers must handle null (display em-dash, disable Buy).
+  if (!sid) return null;
   // Cache hit → return immediately, no network, no onSlow timer firing.
   const cached = _priceCacheGet(sid);
   if (cached) return cached;
@@ -160,14 +163,29 @@ async function fetchLivePricing(serviceId, opts){
     const j = await r.json().catch(function(){ return null; });
     if (!r.ok) throw new Error((j && (j.error || j.message)) || ('HTTP ' + r.status));
     const out = normalizeLivePricing(sid, j);
+    if (!Number.isFinite(out.price_usd)) return null;
     _priceCacheSet(sid, out);
     return out;
   } catch (e) {
     if (slowTimer) clearTimeout(slowTimer);
     console.warn('[live-pricing]', sid, e && e.message ? e.message : e);
-    const fb = normalizeLivePricing(sid, { serviceId: sid, price_usd: 99, price_btc: null, currency: 'USD', interval: 'month', negotiated: /enterprise|global|giants|tier/i.test(sid) });
-    _priceCacheSet(sid, fb);
-    return fb;
+    // Predictive fallback: if we have a master-catalog snapshot in memory,
+    // use the priceUsd we already SSR-rendered so the user never sees a
+    // hardcoded $99. If nothing is available, return null — the UI keeps
+    // its last-known value (em-dash on first paint, no fake number ever).
+    try {
+      const mc = (typeof STATE === 'object' && STATE && STATE.masterCatalog && Array.isArray(STATE.masterCatalog.items)) ? STATE.masterCatalog.items : null;
+      if (mc) {
+        const hit = mc.find(function(x){ return x && String(x.id) === sid; });
+        if (hit && Number.isFinite(Number(hit.priceUsd)) && Number(hit.priceUsd) > 0) {
+          const fb = normalizeLivePricing(sid, { serviceId: sid, price_usd: Number(hit.priceUsd), price_btc: hit.priceBtc != null ? Number(hit.priceBtc) : null, currency: 'USD', interval: hit.billing || 'month', negotiated: false });
+          // Do not persist predictive prices in sessionStorage — only live
+          // backend responses earn a cache slot.
+          return fb;
+        }
+      }
+    } catch (_) {}
+    return null;
   }
 }
 
@@ -1740,7 +1758,11 @@ function initFinalLive(services){
     const serviceId = sel.value || 'adaptive-ai';
     const email = (document.getElementById('fuEmail')||{}).value || '';
     const live = await fetchLivePricing(serviceId);
-    const amountUsd = Number(live && live.price_usd != null ? live.price_usd : 99);
+    const amountUsd = Number(live && live.price_usd);
+    if (!Number.isFinite(amountUsd) || amountUsd <= 0) {
+      out.textContent = 'Pricing engine is warming up — please retry in a moment. (No order created.)';
+      return;
+    }
     out.textContent = 'Creating order…';
     const res = await fetch('/api/services/buy', {
       method: 'POST',
@@ -1773,7 +1795,10 @@ function cardHtml(s){
   const resolvedPrice = hasPrice ? Number(s.priceUsd != null ? s.priceUsd : s.price) : null;
   // Never show a "Loading..." placeholder — em-dash is a stable, accessible
   // glyph that the live pricing stream will replace within the same frame.
-  const price = resolvedPrice != null ? (`$${resolvedPrice}${s.billing==='monthly'?'/mo':''}`) : '—';
+  const _resHasFrac = resolvedPrice != null && Math.abs(resolvedPrice - Math.round(resolvedPrice)) > 0.0049;
+  const price = resolvedPrice != null
+    ? ('$' + resolvedPrice.toLocaleString('en-US', { minimumFractionDigits: _resHasFrac ? 2 : 0, maximumFractionDigits: 2 }) + (s.billing === 'monthly' ? '/mo' : ''))
+    : '—';
   return `<div class="card">
     <span class="tag">${escapeHtml(s.segment || s.category || 'core')}</span>
     <h3>${escapeHtml(s.title || s.id)}</h3>
@@ -1815,7 +1840,7 @@ async function hydrateServiceCardPrices(services, root){
     const el = (root || document).querySelector(sel);
     if (!el) continue;
     const live = await fetchLivePricing(sid, { /* no onSlow placeholder — keep last good value visible */ });
-    if (!live || !el) continue;
+    if (!live || !el || !Number.isFinite(Number(live.price_usd))) continue;
     s.priceUsd = Number(live.price_usd);
     s.price = Number(live.price_usd);
     el.textContent = '$' + Number(live.price_usd).toLocaleString('en-US', { maximumFractionDigits: 2 }) + '/mo';
@@ -1835,7 +1860,7 @@ async function hydratePricingPage(){
     if (!priceEl || !planCard) continue;
     const cta = planCard.querySelector('a[href*="/checkout?plan="]');
     const live = await fetchLivePricing(pair.serviceId, { /* no onSlow placeholder — preserve SSR price */ });
-    if (!live) continue;
+    if (!live || !Number.isFinite(Number(live.price_usd))) continue;
     priceEl.innerHTML = '$' + Number(live.price_usd).toLocaleString('en-US', { maximumFractionDigits: 2 }) + '<small>/mo</small>';
     if (cta) cta.setAttribute('href', '/checkout?plan=' + encodeURIComponent(pair.serviceId));
   }
@@ -1865,7 +1890,10 @@ function masterCardHtml(it){
   const title = escapeHtml(it.title || it.id || 'Service');
   const desc = escapeHtml(it.description || '');
   const priceUsd = Number(it.priceUsd || 0);
-  const priceTxt = priceUsd > 0 ? ('$' + priceUsd.toLocaleString('en-US')) : 'Free';
+  const _priceHasFrac = Number.isFinite(priceUsd) && Math.abs(priceUsd - Math.round(priceUsd)) > 0.0049;
+  const priceTxt = priceUsd > 0
+    ? ('$' + priceUsd.toLocaleString('en-US', { minimumFractionDigits: _priceHasFrac ? 2 : 0, maximumFractionDigits: 2 }))
+    : 'Free';
   const billing = priceUsd > 0 && (it.billing === 'monthly') ? '<small style="color:var(--ink-dim);font-weight:400">/mo</small>' : '';
   // BTC amount displayed below the USD price so every "Buy with BTC →" CTA
   // shows the exact Bitcoin sum the buyer will be asked to send at checkout.
@@ -2218,7 +2246,8 @@ async function hydrateServiceDetail(id){
   if (!s) { root.innerHTML = '<div class="card"><p>Service not found.</p><a class="btn" href="/services" data-link>Back to marketplace</a></div>'; return; }
   const sid = String(s.id || id || 'unknown-service');
   const localPrice = (s.priceUsd != null ? Number(s.priceUsd) : (s.price != null ? Number(s.price) : null));
-  const priceText = Number.isFinite(localPrice) ? ('$' + localPrice.toLocaleString('en-US', { maximumFractionDigits: 2 })) : '—';
+  const _localHasFrac = Number.isFinite(localPrice) && Math.abs(localPrice - Math.round(localPrice)) > 0.0049;
+  const priceText = Number.isFinite(localPrice) ? ('$' + localPrice.toLocaleString('en-US', { minimumFractionDigits: _localHasFrac ? 2 : 0, maximumFractionDigits: 2 })) : '—';
   root.innerHTML = `
     <div style="display:grid;grid-template-columns:1.3fr 1fr;gap:28px">
       <div class="svc-cine-card" data-tilt>
@@ -2255,7 +2284,7 @@ async function hydrateServiceDetail(id){
       </aside>
     </div>`;
   fetchLivePricing(sid, { /* no onSlow placeholder — first paint already shows the SSR price */ }).then(function(live){
-    if (!live) return;
+    if (!live || !Number.isFinite(Number(live.price_usd))) return;
     s.priceUsd = Number(live.price_usd);
     s.price = Number(live.price_usd);
     var el = document.getElementById('svcLivePrice');
@@ -2331,16 +2360,17 @@ function hydrateCheckout(){
 
   if (amount == null) {
     fetchLivePricing(plan, { /* no onSlow placeholder — em-dash already shown */ }).then(function(live){
-      const liveAmount = Number(live && live.price_usd != null ? live.price_usd : 99);
+      const liveAmount = Number(live && live.price_usd);
+      if (!Number.isFinite(liveAmount) || liveAmount <= 0) {
+        if (sumA) sumA.textContent = 'price refreshing…';
+        return;
+      }
       amount = liveAmount;
       set('coAmount', liveAmount);
       set('coAmountPP', liveAmount);
-      if (sumA) sumA.textContent = '$' + liveAmount;
+      if (sumA) sumA.textContent = '$' + liveAmount.toLocaleString('en-US', { maximumFractionDigits: 2 });
     }).catch(function(){
-      amount = 99;
-      set('coAmount', 99);
-      set('coAmountPP', 99);
-      if (sumA) sumA.textContent = '$99';
+      if (sumA) sumA.textContent = 'price refreshing…';
     });
   }
 

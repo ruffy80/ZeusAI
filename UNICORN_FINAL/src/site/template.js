@@ -1598,6 +1598,27 @@ function usdToBtc(usd){
   return (usd/STATE.btcRate).toFixed(6)+' BTC';
 }
 
+// Render a USD amount safely. Returns a non-jagged string with up to 2 decimals
+// (e.g. 25.08 → "25.08", 99 → "99", 1234.5 → "1,234.50"). Negative or NaN → "0".
+function fmtUsd(usd){
+  var n=Number(usd);
+  if(!isFinite(n)||n<0) return '0';
+  if(n===0) return '0';
+  if(n<1) return n.toFixed(2);
+  // 2 decimals for non-integers, no trailing zeros for integers
+  var hasFrac=Math.abs(n-Math.round(n))>0.0049;
+  return n.toLocaleString('en-US',{minimumFractionDigits:hasFrac?2:0,maximumFractionDigits:2});
+}
+
+// Serialize an object as a HTML-attribute-safe JSON literal so it can be
+// embedded inside an onclick attribute. Browsers decode entities back into
+// quotes before evaluating the JS, so the JSON structure survives even when
+// the object contains user-provided strings or special characters.
+function payloadAttr(o){
+  try{return String(JSON.stringify(o)).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/'/g,'&#39;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+  catch(_){return '{}';}
+}
+
 function fmtMs(ms){
   var s=Math.floor(ms/1000),m=Math.floor(s/60),h=Math.floor(m/60),d=Math.floor(h/24);
   if(d>0) return d+'d '+( h%24)+'h';
@@ -2000,29 +2021,58 @@ async function loadMarketplace(){
   if(STATE.services.length){renderServiceGrid();return;}
   grid.innerHTML='<div class="card" style="grid-column:1/-1;text-align:center;padding:40px;"><div class="loader"></div></div>';
 
-  // --- Failsafe fetch for /api/catalog with 5s timeout and fallback ---
+  // --- Forward-only catalog resolution ---
+  // Try real catalog first; if it returns array-of-names or fails, build the
+  // catalog from the live marketplace + dynamic-pricing endpoints. NEVER use
+  // hardcoded prices: the worst case is rendering an empty grid with a clear
+  // "pricing engine warming up" message so users never see fake numbers.
   let svcs = [];
-  try {
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 5000);
-    const resp = await fetch('/api/catalog', { signal: controller.signal });
-    clearTimeout(timeout);
-    if (resp.ok) {
-      const data = await resp.json();
-      if (Array.isArray(data) && data.length && typeof data[0] === 'object' && data[0].name) {
-        svcs = data;
-      } else if (Array.isArray(data)) {
-        // fallback: array of names
-        svcs = data.map((n,i) => ({ id: 'svc-'+(i+1), name: n, description: '', price: 99, category: 'AI' }));
+  async function fetchJson(url, ms){
+    var ctl=new AbortController();
+    var to=setTimeout(function(){ctl.abort();}, ms||5000);
+    try{
+      var r=await fetch(url,{signal:ctl.signal,headers:{'Accept':'application/json'}});
+      clearTimeout(to);
+      if(!r.ok) return null;
+      return await r.json();
+    }catch(_){clearTimeout(to);return null;}
+  }
+  function looksLikeService(o){return o && typeof o==='object' && (o.name||o.title) && (o.price!=null||o.priceUsd!=null||o.basePrice!=null);}
+  // 1) /api/catalog (priced)
+  var catalog=await fetchJson('/api/catalog',5000);
+  if(Array.isArray(catalog)&&catalog.length&&looksLikeService(catalog[0])){
+    svcs=catalog;
+  } else {
+    // 2) /api/marketplace/services
+    var mk=await fetchJson('/api/marketplace/services',5000);
+    if(mk && Array.isArray(mk.services) && mk.services.length){
+      svcs=mk.services.map(function(s){
+        return {
+          id:s.id, name:s.name||s.title||s.id, description:s.description||'',
+          price:Number(s.price!=null?s.price:(s.priceUsd!=null?s.priceUsd:s.basePrice||0)),
+          basePrice:Number(s.basePrice||s.price||0), category:s.category||'AI',
+          dynamicFactor:s.dynamicFactor, surgeActive:!!s.surgeActive
+        };
+      });
+    } else {
+      // 3) /api/pricing/all → derive list from dynamic pricing engine
+      var all=await fetchJson('/api/pricing/all',5000);
+      var prices = all && (all.prices||all);
+      if(prices && typeof prices==='object'){
+        svcs=Object.keys(prices).map(function(k){
+          var p=prices[k]||{};
+          return {
+            id:k, name:String(k).replace(/[-_]/g,' ').replace(/\b\w/g,function(c){return c.toUpperCase();}),
+            description:'', category:'AI',
+            price:Number(p.finalPrice!=null?p.finalPrice:(p.price_usd!=null?p.price_usd:p.basePrice||0)),
+            basePrice:Number(p.basePrice||0),
+            dynamicFactor:p.demandFactor, surgeActive:!!p.surgeActive
+          };
+        });
       }
     }
-  } catch (e) {
-    // fallback mock
-    svcs = [
-      {id:'svc-1',name:'AI Website Generator',description:'Generate websites with AI.',price:99,category:'AI'},
-      {id:'svc-2',name:'AI Trading Bot',description:'Automated trading with AI.',price:149,category:'AI'}
-    ];
   }
+  if(!Array.isArray(svcs)) svcs=[];
   STATE.services=svcs;
   STATE.filteredServices=svcs.slice();
   allCategories=['all'];
@@ -2059,22 +2109,28 @@ function filterServices(){
 function renderServiceGrid(){
   var grid=document.getElementById('svc-grid');
   if(!grid) return;
-  if(!STATE.filteredServices.length){
+  if(!Array.isArray(STATE.filteredServices)||!STATE.filteredServices.length){
     grid.innerHTML='<div class="card" style="grid-column:1/-1;text-align:center;padding:40px;color:#7090b0;">No services match your search.</div>';
     return;
   }
   grid.innerHTML=STATE.filteredServices.map(function(s){
-    var price=s.price||s.priceUsd||0;
-    var btcEq=usdToBtc(price);
+    if(!s||typeof s!=='object') return '';
+    var rawPrice=Number(s.price!=null?s.price:(s.priceUsd!=null?s.priceUsd:(s.finalPrice!=null?s.finalPrice:(s.basePrice||0))));
+    if(!isFinite(rawPrice)||rawPrice<0) rawPrice=0;
+    var priceLabel=rawPrice===0?'Free':('$'+fmtUsd(rawPrice));
+    var btcEq=rawPrice>0?usdToBtc(rawPrice):'—';
     var surgeBadge=s.surgeActive?'<span style="background:#ff4444;color:#fff;font-size:10px;padding:2px 6px;border-radius:4px;margin-left:6px;">⚡ SURGE</span>':'';
-    var dynamicNote=s.dynamicFactor&&s.dynamicFactor!==1?'<div style="font-size:11px;color:#7090b0;">Demand: ×'+s.dynamicFactor.toFixed(2)+'</div>':'';
+    var df=Number(s.dynamicFactor);
+    var dynamicNote=(isFinite(df)&&df!==1&&df>0)?'<div style="font-size:11px;color:#7090b0;">Demand: ×'+df.toFixed(2)+'</div>':'';
+    var payload=payloadAttr({id:s.id,serviceId:s.id,name:s.name||'Service',priceUsd:rawPrice});
+    var buyLabel=rawPrice===0?'Activate →':'Buy Now →';
     return '<div class="svc-card">'
       +'<div><span class="svc-cat">'+escHtml(s.category||'Service')+'</span>'+surgeBadge+'</div>'
       +'<div class="svc-name">'+escHtml(s.name||'Service')+'</div>'
       +'<div class="svc-desc">'+escHtml(s.description||'')+'</div>'
-      +'<div><div class="svc-price">$'+price+' <span style="font-size:12px;color:#7090b0;">/ mo</span></div>'
-      +'<div class="svc-btc">≈ '+btcEq+'</div>'+dynamicNote+'</div>'
-      +'<button class="btn btn-green btn-sm" onclick="openCheckout('+JSON.stringify({id:s.id,name:s.name,priceUsd:price})+')">Buy Now →</button>'
+      +'<div><div class="svc-price">'+priceLabel+(rawPrice>0?' <span style="font-size:12px;color:#7090b0;">/ mo</span>':'')+'</div>'
+      +(btcEq!=='—'?'<div class="svc-btc">≈ '+btcEq+'</div>':'')+dynamicNote+'</div>'
+      +'<button class="btn btn-green btn-sm" onclick="openCheckout('+payload+')">'+buyLabel+'</button>'
       +'</div>';
   }).join('');
 }
@@ -4658,7 +4714,7 @@ function renderCheckoutStep1(){
     buttons+='<button class="pay-method-btn" onclick="checkoutPaypal()"><div class="pay-method-icon">🅿️</div><div>PayPal</div><div style="font-size:10px;color:#7090b0;">Balance</div></button>';
   }
   body.innerHTML='<div style="text-align:center;margin-bottom:16px;">'
-    +'<div style="font-size:28px;font-weight:700;font-family:Orbitron,monospace;color:#00d4ff;">$'+price+'</div>'
+    +'<div style="font-size:28px;font-weight:700;font-family:Orbitron,monospace;color:#00d4ff;">$'+fmtUsd(price)+'</div>'
     +(btcEq!=='—'?'<div style="color:#7090b0;font-size:12px;font-family:monospace;">≈ '+btcEq+'</div>':'')
     +'</div>'
     +'<div style="font-size:13px;color:#7090b0;text-align:center;margin-bottom:12px;">Select payment method. Direct BTC settles to the owner wallet; configured providers appear automatically when live.</div>'
@@ -4894,8 +4950,8 @@ function appendChatRecommendations(recommendations){
       +'<div style="font-weight:700;color:#d9f4ff;">'+escHtml(r.title||r.id||'Service')+'</div>'
       +'<div style="font-size:11px;color:#8fb0cf;margin:4px 0;">'+escHtml((r.description||'').slice(0,120))+'</div>'
       +'<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;">'
-      +'<span style="font-size:12px;color:#00ffa3;">$'+Number(r.price||0).toLocaleString('en-US')+'/'+escHtml(r.billing||'monthly')+'</span>'
-      +'<button class="btn btn-primary btn-sm" onclick="openCheckout({id:'+JSON.stringify(String(r.id||'service'))+',serviceId:'+JSON.stringify(String(r.id||'service'))+',name:'+JSON.stringify(String(r.title||'Service'))+',priceUsd:'+Number(r.price||0)+'})">Buy now</button>'
+      +'<span style="font-size:12px;color:#00ffa3;">$'+fmtUsd(r.price||0)+'/'+escHtml(r.billing||'monthly')+'</span>'
+      +'<button class="btn btn-primary btn-sm" onclick="openCheckout('+payloadAttr({id:String(r.id||'service'),serviceId:String(r.id||'service'),name:String(r.title||'Service'),priceUsd:Number(r.price||0)})+')">Buy now</button>'
       +'</div>'
       +'<div style="font-size:10px;color:#7090b0;margin-top:4px;">Why: '+reason+'</div>'
       +'</div>';
