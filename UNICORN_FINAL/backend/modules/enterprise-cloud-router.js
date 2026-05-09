@@ -140,6 +140,50 @@ function buildEnterpriseCloudRouter() {
   // OpenAPI spec must be readable so prospective customers can integrate.
   router.get('/api/enterprise/openapi.json', (_req, res) => res.json(buildOpenApi()));
 
+  // Public enterprise contact form. Persists lead to data/enterprise-leads.jsonl
+  // mirroring the site-process handler in src/index.js. Forward-only fix for
+  // the case where nginx routes /api/enterprise/* to backend :3000 — without
+  // this allow-listed handler the api-key gate would 401 prospects who try
+  // to contact sales. Idempotent: site handler still works on port 3001.
+  router.post('/api/enterprise/contact', express.json({ limit: '32kb' }), (req, res) => {
+    try {
+      const p = req.body || {};
+      const name = String(p.name || '').trim().slice(0, 200);
+      const email = String(p.email || '').trim().slice(0, 200);
+      const company = String(p.company || '').trim().slice(0, 200);
+      const phone = String(p.phone || '').trim().slice(0, 80);
+      const interest = String(p.interest || p.module || '').trim().slice(0, 200);
+      const message = String(p.message || '').trim().slice(0, 4000);
+      if (!name || !email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+        return res.status(400).json({ ok: false, error: 'name and valid email required' });
+      }
+      const lead = {
+        id: 'ent-' + Date.now() + '-' + Math.random().toString(36).slice(2, 8),
+        name, email, company, phone, interest, message,
+        source: 'enterprise-page-backend',
+        status: 'new',
+        ip: (req.headers['x-forwarded-for'] || (req.socket && req.socket.remoteAddress) || '').split(',')[0].trim(),
+        userAgent: String(req.headers['user-agent'] || '').slice(0, 300),
+        createdAt: new Date().toISOString(),
+      };
+      try {
+        const fs = require('fs'); const path = require('path');
+        const dir = path.join(__dirname, '..', '..', 'data');
+        if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+        fs.appendFileSync(path.join(dir, 'enterprise-leads.jsonl'), JSON.stringify(lead) + '\n');
+      } catch (e) { console.warn('[enterprise-contact] persist failed:', e.message); }
+      console.log('[ENTERPRISE-LEAD] 🔥 New lead:', JSON.stringify({ id: lead.id, name, email, company, interest }));
+      return res.json({
+        ok: true,
+        leadId: lead.id,
+        message: 'Thank you. Our enterprise team will reply within 24 hours.',
+        messageRo: 'Mulțumim. Echipa noastră enterprise vă va contacta în 24 de ore.'
+      });
+    } catch (e) {
+      return res.status(400).json({ ok: false, error: e.message });
+    }
+  });
+
   // ---- API-key gate: requires x-api-key bound to an organization -----------
   router.use('/api/enterprise', (req, res, next) => {
     const raw = req.headers['x-api-key'] || req.headers['x-org-api-key'];
