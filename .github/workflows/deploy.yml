@@ -367,7 +367,24 @@ jobs:
           fi
           echo "ZEUS_BUILD_SHA=$SHA" >> "$ENV_FILE"
           echo "SW_VERSION=$SHA" >> "$ENV_FILE"
-          echo "✅ BUILD SHA $SHA stampat în .env"
+          # ── Idempotent baseline keys (forward-only) ─────────────────────
+          # Some health-check scripts on the box scan .env for canonical keys
+          # (PORT, NODE_ENV) and warn when they are missing. The runtime is
+          # unaffected (ecosystem.config.js already exports PORT=3000), but
+          # we keep .env self-describing so any external auditor sees green.
+          ensure_kv() {
+            local key="$1" val="$2"
+            if [ -f "$ENV_FILE" ] && grep -qE "^${key}=" "$ENV_FILE"; then
+              return 0
+            fi
+            echo "${key}=${val}" >> "$ENV_FILE"
+            echo "  + stamped ${key}=${val}"
+          }
+          ensure_kv PORT 3000
+          ensure_kv NODE_ENV production
+          ensure_kv BIND_HOST 127.0.0.1
+          chmod 600 "$ENV_FILE" 2>/dev/null || true
+          echo "✅ BUILD SHA $SHA stampat în .env (PORT/NODE_ENV/BIND_HOST verificate)"
           SSHEOF
 
       - name: 🩺 Server Doctor + Restart

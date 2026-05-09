@@ -246,3 +246,11 @@
 {"ts":"2026-05-08T22:23:22.718Z","subject":"[UNICORN] Order settled — ord_115ea3e0afa75236","body":"Order: ord_115ea3e0afa75236\nProduct: starter\nTX: btc:tx123\nUSD: 49","priority":"low","channels":[]}
 {"ts":"2026-05-09T01:23:13.507Z","subject":"[UNICORN] Order settled — ord_2cfe7c0b37894e8f","body":"Order: ord_2cfe7c0b37894e8f\nProduct: starter\nTX: btc:tx123\nUSD: 49","priority":"low","channels":[]}
 {"ts":"2026-05-09T01:23:13.508Z","subject":"[UNICORN] Order settled — ord_2cfe7c0b37894e8f","body":"Order: ord_2cfe7c0b37894e8f\nProduct: starter\nTX: btc:tx123\nUSD: 49","priority":"low","channels":[]}
+{"ts":"2026-05-09T14:19:13.450Z","subject":"[UNICORN] Order settled — ord_d47e514c27d24de0","body":"Order: ord_d47e514c27d24de0\nProduct: starter\nTX: btc:tx123\nUSD: 49","priority":"low","channels":[]}
+{"ts":"2026-05-09T14:19:13.450Z","subject":"[UNICORN] Order settled — ord_d47e514c27d24de0","body":"Order: ord_d47e514c27d24de0\nProduct: starter\nTX: btc:tx123\nUSD: 49","priority":"low","channels":[]}
+{"ts":"2026-05-09T14:49:03.440Z","subject":"[UNICORN] Order settled — ord_7907a5ffcf93f259","body":"Order: ord_7907a5ffcf93f259\nProduct: starter\nTX: btc:tx123\nUSD: 49","priority":"low","channels":[]}
+{"ts":"2026-05-09T14:49:03.441Z","subject":"[UNICORN] Order settled — ord_7907a5ffcf93f259","body":"Order: ord_7907a5ffcf93f259\nProduct: starter\nTX: btc:tx123\nUSD: 49","priority":"low","channels":[]}
+{"ts":"2026-05-09T15:03:19.680Z","subject":"[UNICORN] Order settled — ord_bb743b122949a684","body":"Order: ord_bb743b122949a684\nProduct: starter\nTX: btc:tx123\nUSD: 49","priority":"low","channels":[]}
+{"ts":"2026-05-09T15:03:19.681Z","subject":"[UNICORN] Order settled — ord_bb743b122949a684","body":"Order: ord_bb743b122949a684\nProduct: starter\nTX: btc:tx123\nUSD: 49","priority":"low","channels":[]}
+{"ts":"2026-05-09T15:13:27.261Z","subject":"[UNICORN] Order settled — ord_b9222d3a92d31480","body":"Order: ord_b9222d3a92d31480\nProduct: starter\nTX: btc:tx123\nUSD: 49","priority":"low","channels":[]}
+{"ts":"2026-05-09T15:13:27.262Z","subject":"[UNICORN] Order settled — ord_b9222d3a92d31480","body":"Order: ord_b9222d3a92d31480\nProduct: starter\nTX: btc:tx123\nUSD: 49","priority":"low","channels":[]}
