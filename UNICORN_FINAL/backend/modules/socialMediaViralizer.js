@@ -241,7 +241,7 @@ class SocialMediaViralizer {
     };
   }
 
-  refreshTokensFromEnv() {
+  reloadTokensFromEnv() {
     this.tokens = this.loadTokens();
     return this.tokens;
   }
@@ -258,7 +258,7 @@ class SocialMediaViralizer {
   }
 
   async validateTokens() {
-    this.refreshTokensFromEnv();
+    this.reloadTokensFromEnv();
     console.log('🔑 Validare tokenuri...');
     const validCount = Object.keys(this.tokens).filter((k) => String(this.tokens[k] || '').length > 10).length;
     console.log('✅ ' + validCount + ' tokenuri valide găsite');
@@ -305,7 +305,7 @@ class SocialMediaViralizer {
   async postToAllPlatforms() {
     // Runtime secrets can be injected/rotated after process boot (QuantumVault /
     // secret bootstrap). Always refresh token snapshot before each outbound cycle.
-    this.refreshTokensFromEnv();
+    this.reloadTokensFromEnv();
     const content = await this.generatePostContent();
     const results = {};
     if (this.tokens.youtube) results.youtube = await this.postToYouTube(content);
@@ -510,7 +510,8 @@ class SocialMediaViralizer {
       x_twitter:   {
         configured: cfg('X_BEARER_TOKEN') && cfg('X_ACCESS_TOKEN'),
         endpoint: 'https://api.twitter.com/2/tweets',
-        envVar: 'X_BEARER_TOKEN + X_ACCESS_TOKEN'
+        envVar: 'X_BEARER_TOKEN',
+        requiredEnvVars: ['X_BEARER_TOKEN', 'X_ACCESS_TOKEN']
       },
       telegram:    { configured: cfg('TELEGRAM_BOT_TOKEN'),        endpoint: 'https://api.telegram.org',                  envVar: 'TELEGRAM_BOT_TOKEN' },
       pinterest:   { configured: cfg('PINTEREST_TOKEN'),           endpoint: 'https://api.pinterest.com/v5',              envVar: 'PINTEREST_TOKEN' },

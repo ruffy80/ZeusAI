@@ -6996,8 +6996,9 @@ app.post('/api/autonomous/viral/activate', adminTokenMiddleware, asyncHandler(as
     }
   }
   res.json({
-    success: true,
+    success: !!growth,
     activated: true,
+    partial: !social.ok,
     growth,
     social,
   });
