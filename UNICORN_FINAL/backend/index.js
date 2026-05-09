@@ -2370,6 +2370,34 @@ app.get('/health', (req, res) => res.json(buildHealthResponse()));
 
 app.get('/api/health', (req, res) => res.json(buildHealthResponse()));
 
+// Public deploy-verification endpoint (forward-only addition).
+// Returns the build SHA stamped by .github/workflows/deploy.yml on every CI
+// deploy. Lets anyone verify with one curl that the site updates after every
+// push:  curl -fsS https://zeusai.pro/api/build
+// No secrets, no PII; safe to expose publicly.
+app.get(['/api/build', '/api/version'], (req, res) => {
+  let sha = process.env.ZEUS_BUILD_SHA || '';
+  if (!sha) {
+    try {
+      const fs = require('fs'); const path = require('path');
+      const f = path.join(__dirname, '..', '.build-sha');
+      if (fs.existsSync(f)) sha = fs.readFileSync(f, 'utf8').trim().slice(0, 12);
+    } catch (_) { /* best-effort */ }
+  }
+  if (!sha) sha = 'unknown';
+  res.set('Cache-Control', 'no-store');
+  res.json({
+    ok: true,
+    sha,
+    shaShort: String(sha).slice(0, 7),
+    bootedAt: new Date(Date.now() - Math.floor(process.uptime() * 1000)).toISOString(),
+    uptimeSec: Math.floor(process.uptime()),
+    service: 'unicorn-backend',
+    brand: 'ZeusAI',
+    version: process.env.npm_package_version || require('./package.json').version || '1.2.2',
+  });
+});
+
 // ─── C8: Stratified health (forward-only, additive) ────────────────────────
 // /health/live    — process alive (always 200)
 // /health/ready   — accepting traffic (db loaded, modules ready)
