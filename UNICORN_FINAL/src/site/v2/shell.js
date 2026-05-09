@@ -1105,7 +1105,36 @@ ${_featuredHtml}
     <div><span class="kicker">Live from the fabric</span><h2>Top services, <span class="grad">streaming from ZeusAI.</span></h2></div>
     <p>Pulled in real time from <code class="inline">/api/services</code>. When ZeusAI adds or reprices a service, this section updates automatically.</p>
   </div>
-  <div class="grid" id="liveServices"><div class="card"><p>Loading live catalogue…</p></div></div>
+  ${(function(){
+    // SSR-render 8 hero cards immediately so visitors NEVER see a "Loading…"
+    // placeholder on the home page. Hydration in client.js will replace this
+    // grid with the live master catalogue once /api/catalog/master returns,
+    // but the first paint already shows real products with real BTC prices.
+    try {
+      const all = _loadCatalog() || [];
+      // Heuristic mix: take some strategic, some frontier, some vertical,
+      // some marketplace — cheapest of each so users immediately see a
+      // buyable price range. Falls back to first 8 of any group.
+      const byGroup = (g, n) => all
+        .filter(p => (p.group === g || p.category === g) && Number(p.priceUSD || p.priceUsd || p.price || 0) > 0)
+        .sort((a,b) => Number(a.priceUSD||a.priceUsd||a.price||0) - Number(b.priceUSD||b.priceUsd||b.price||0))
+        .slice(0, n);
+      let picks = [
+        ...byGroup('strategic', 2),
+        ...byGroup('frontier', 2),
+        ...byGroup('vertical', 2),
+        ...byGroup('marketplace', 2),
+      ];
+      if (picks.length < 6) picks = all.filter(p => Number(p.priceUSD||p.priceUsd||p.price||0) > 0).slice(0, 8);
+      if (!picks.length) {
+        return `<div class="grid" id="liveServices"><div class="card"><p style="margin:0;color:var(--ink-dim)">Catalog refreshing — open <a href="/api/services" style="color:var(--violet2)">/api/services</a> for the live JSON.</p></div></div>`;
+      }
+      const cards = picks.map(_catalogCard).join('');
+      return `<div class="grid" id="liveServices" style="grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:16px">${cards}</div>`;
+    } catch (e) {
+      return `<div class="grid" id="liveServices"><div class="card"><p style="margin:0;color:var(--ink-dim)">Catalog refreshing — open <a href="/api/services" style="color:var(--violet2)">/api/services</a> for the live JSON.</p></div></div>`;
+    }
+  })()}
 </section>
 
 <section>

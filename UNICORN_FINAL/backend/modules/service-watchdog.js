@@ -22,10 +22,24 @@ const WATCHDOG_FAIL_THRESHOLD = parseInt(process.env.WATCHDOG_FAIL_THRESHOLD || 
 const WATCHDOG_MAX_LOG        = parseInt(process.env.WATCHDOG_MAX_LOG        || '200', 10);
 const WATCHDOG_BASE_BACKOFF_MS = parseInt(process.env.WATCHDOG_BASE_BACKOFF_MS || '2000', 10);
 const WATCHDOG_MAX_BACKOFF_MS  = parseInt(process.env.WATCHDOG_MAX_BACKOFF_MS  || '300000', 10);
+// How many consecutive identical check-fail reasons can be logged before the
+// watchdog goes quiet for that service (prevents pm2-error.log spam).
+const WATCHDOG_LOG_DEDUP_AFTER = parseInt(process.env.WATCHDOG_LOG_DEDUP_AFTER || '3', 10);
+
+// Resolve backend probe URL once. Honours explicit override, falls back to
+// the local backend on whatever PORT it's been configured for (no more
+// hard-coded :3000 — that was the source of the ECONNREFUSED log spam when
+// backend listened on a different port behind nginx).
+const _BACKEND_PORT = process.env.WATCHDOG_BACKEND_PORT
+  || process.env.BACKEND_PORT
+  || process.env.PORT
+  || '3000';
+const _BACKEND_URL = process.env.WATCHDOG_BACKEND_URL
+  || `http://127.0.0.1:${_BACKEND_PORT}/api/health`;
 
 // Services to monitor (override via env WATCHDOG_SERVICES as JSON array)
 const DEFAULT_SERVICES = [
-  { name: 'backend',            url: 'http://127.0.0.1:3000/api/health', pm2: 'unicorn' },
+  { name: 'backend',            url: _BACKEND_URL,                        pm2: 'unicorn' },
   { name: 'health-guardian',    url: null,                                pm2: 'unicorn-health-guardian' },
   { name: 'zero-downtime',      url: null,                                pm2: 'unicorn-zero-downtime' },
   { name: 'ai-self-healing',    url: null,                                pm2: 'unicorn-ai-self-healing' },
@@ -57,10 +71,36 @@ const _state = {
 const _counters = {};   // { [name]: { failures: number, backoffUntil: number } }
 
 // ── Helpers ────────────────────────────────────────────────────────────
+// Per-service dedup state for console output. The recentLog ring-buffer is
+// always populated (so /api/* status endpoints stay accurate); only the
+// noisy console.log/console.warn output is suppressed once the same reason
+// repeats more than WATCHDOG_LOG_DEDUP_AFTER times in a row.
+const _logDedup = {}; // { [service]: { lastKey, repeats } }
+
 function _log(event, service, ok, detail) {
   const entry = { ts: new Date().toISOString(), event, service, ok, detail };
   _state.log.unshift(entry);
   if (_state.log.length > WATCHDOG_MAX_LOG) _state.log.length = WATCHDOG_MAX_LOG;
+
+  const key = `${event}|${ok ? 'ok' : 'fail'}|${detail || ''}`;
+  const d = _logDedup[service] || (_logDedup[service] = { lastKey: '', repeats: 0 });
+  if (d.lastKey === key) {
+    d.repeats += 1;
+    if (d.repeats > WATCHDOG_LOG_DEDUP_AFTER) {
+      // Quietly drop console output, but emit one summary every ~50 repeats
+      // so operators still see the watchdog is alive.
+      if (d.repeats === WATCHDOG_LOG_DEDUP_AFTER + 1) {
+        console.log(`🤫 [service-watchdog] suppressing repeat "${event}" for "${service}" (will resurface on change)`);
+      } else if (d.repeats % 50 === 0) {
+        const icon = ok ? '✅' : '❌';
+        console.log(`${icon} [service-watchdog] still ${event} "${service}" ×${d.repeats}${detail ? ' (' + detail + ')' : ''}`);
+      }
+      return;
+    }
+  } else {
+    d.lastKey = key;
+    d.repeats = 1;
+  }
   const icon = ok ? '✅' : '❌';
   console.log(`${icon} [service-watchdog] ${event} "${service}"${detail ? ': ' + detail : ''}`);
 }
@@ -273,6 +313,28 @@ async function withRetry(fn, opts = {}) {
   throw lastErr;
 }
 
-start();
+// ── Auto-start gate ────────────────────────────────────────────────────
+// Historically this file called start() unconditionally on require, which
+// caused two production regressions:
+//   1) totalSystemHealer.checkModules() does require() on every file in
+//      backend/modules every 5 min → re-triggered watchdog state and
+//      probed http://127.0.0.1:3000/api/health from contexts where the
+//      backend wasn't on :3000, flooding pm2-error.log with ECONNREFUSED.
+//   2) `npm test` had to call process.exit(0) at the end of every suite
+//      because the watchdog interval kept the loop alive.
+//
+// The watchdog is now opt-in by default. To re-enable the legacy behavior
+// set WATCHDOG_AUTOSTART=1 (production PM2 ecosystem can do this). Tests,
+// CI, and dev keep things quiet automatically.
+const _SHOULD_AUTOSTART =
+  String(process.env.WATCHDOG_AUTOSTART || '0') === '1'
+  && String(process.env.WATCHDOG_DISABLED || '0') !== '1'
+  && process.env.NODE_ENV !== 'test';
+
+if (_SHOULD_AUTOSTART) {
+  start();
+} else if (process.env.WATCHDOG_VERBOSE === '1') {
+  console.log('🐕 [service-watchdog] standby — set WATCHDOG_AUTOSTART=1 to enable polling');
+}
 
 module.exports = { start, stop, getStatus, withRetry };
