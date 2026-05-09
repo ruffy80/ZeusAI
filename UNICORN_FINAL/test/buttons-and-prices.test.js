@@ -106,8 +106,26 @@ assert.ok(/_auditButtonsForMissingHandlers/.test(CLIENT),
 assert.ok(/sendBeacon\([^)]*\/api\/site\/log/.test(CLIENT),
   'client.js audit must beacon to /api/site/log when CTAs are dead');
 
+// ---------- 5) backend/index.js · 24/7 future-proofing ----------
+// Any new product added to any catalog must be priced correctly without a
+// backend restart. This is enforced by (a) boot-time seeding of all
+// catalog ids and (b) a per-request lazy resolver that looks up the
+// canonical priceUSD from the catalog modules and passes it to the engine
+// as options.basePrice when the engine doesn't yet know the id.
+const BACKEND = read('backend/index.js');
+assert.ok(/\[dynamic-pricing\]\s*seeded\s*'\s*\+\s*seeded\s*\+\s*'\s*catalog\s*ids\s*\(backend\)/.test(BACKEND) ||
+  /seeded\s*'\s*\+\s*seeded/.test(BACKEND),
+  'backend/index.js must seed the engine from the catalogs at boot');
+assert.ok(/_resolveCatalogBase\s*\(/.test(BACKEND),
+  'backend/index.js must resolve catalog basePrice on every /api/pricing/:id request (24/7 future-proof for new products)');
+assert.ok(/dpOpts\.basePrice\s*=\s*catalogBase/.test(BACKEND),
+  'backend/index.js must pass the resolved catalog basePrice into dynamicPricing.getPrice()');
+assert.ok(/dynamicPricing\.registerService\(serviceId,\s*catalogBase\)/.test(BACKEND),
+  'backend/index.js must auto-register newly-resolved catalog ids so the live snapshot picks them up');
+
 console.log('✓ buttons-and-prices: dynamic-pricing engine accepts basePrice override + register API');
 console.log('✓ buttons-and-prices: shell.js SSR multiplies demand on catalog floor');
 console.log('✓ buttons-and-prices: src/index.js seeds engine + corrects proxy fallback');
 console.log('✓ buttons-and-prices: client.js binds SSR chip filter + dead-CTA audit');
+console.log('✓ buttons-and-prices: backend resolves catalog basePrice 24/7 for any new product');
 process.exit(0);

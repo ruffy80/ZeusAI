@@ -5807,9 +5807,52 @@ app.get('/api/pricing/module/:moduleId', async (req, res) => {
   }
 });
 
+// Lazy catalog resolver — runs on every /api/pricing/:id request so any new
+// product added to any catalog is priced correctly without backend restart.
+// 24/7 future-proof: catalogs cache .all() in-memory but byId() is O(n) on
+// hot paths — that's fine for the public pricing endpoint volume.
+function _resolveCatalogBase(id) {
+  const probe = (mod) => {
+    if (!mod) return null;
+    try {
+      if (typeof mod.byId === 'function') {
+        const it = mod.byId(id);
+        if (it) return Number(it.priceUSD != null ? it.priceUSD : it.price);
+      }
+      if (typeof mod.all === 'function') {
+        const arr = mod.all() || [];
+        const it = arr.find(x => x && x.id === id);
+        if (it) return Number(it.priceUSD != null ? it.priceUSD : it.price);
+      }
+    } catch (_) {}
+    return null;
+  };
+  let base = null;
+  try { base = probe(require('../src/commerce/unified-catalog')); } catch (_) {}
+  if (!base) { try { base = probe(require('../src/commerce/instant-catalog')); } catch (_) {} }
+  if (!base) { try { base = probe(require('../src/commerce/enterprise-catalog')); } catch (_) {} }
+  return (base && base > 0) ? base : null;
+}
+
 app.get('/api/pricing/:serviceId', async (req, res) => {
   const serviceId = String(req.params.serviceId || '').trim().slice(0, 120) || 'unknown-service';
-  const dp = dynamicPricing.getPrice(serviceId, { userId: req.query.userId, coupon: req.query.coupon });
+  // Resolve canonical catalog basePrice (covers existing AND future products).
+  // If the engine doesn't know the id, we pass the catalog floor as override so
+  // the engine still applies demand/surge/peak/discount on top of the real base.
+  const catalogBase = _resolveCatalogBase(serviceId);
+  const dpOpts = { userId: req.query.userId, coupon: req.query.coupon };
+  if (catalogBase) {
+    dpOpts.basePrice = catalogBase;
+    // Also auto-register so subsequent calls + the live snapshot pick it up.
+    try {
+      if (typeof dynamicPricing.registerService === 'function' &&
+          typeof dynamicPricing.hasService === 'function' &&
+          !dynamicPricing.hasService(serviceId)) {
+        dynamicPricing.registerService(serviceId, catalogBase);
+      }
+    } catch (_) {}
+  }
+  const dp = dynamicPricing.getPrice(serviceId, dpOpts);
   const negotiated = /enterprise|global|giants|tier/i.test(serviceId);
   let btcRate = 0;
   try {
@@ -5846,7 +5889,7 @@ app.get('/api/pricing/:serviceId', async (req, res) => {
     surgeActive: !!dp.surgeActive,
     discountApplied: !!dp.discountApplied,
     btcRate: btcRate > 0 ? btcRate : null,
-    source: Object.prototype.hasOwnProperty.call(dynamicPricing.BASE_PRICES || {}, serviceId) ? 'dynamic-pricing' : 'dynamic-pricing-default',
+    source: (catalogBase || (typeof dynamicPricing.hasService === 'function' && dynamicPricing.hasService(serviceId)) || Object.prototype.hasOwnProperty.call(dynamicPricing.BASE_PRICES || {}, serviceId)) ? 'dynamic-pricing' : 'dynamic-pricing-default',
   });
 });
 
