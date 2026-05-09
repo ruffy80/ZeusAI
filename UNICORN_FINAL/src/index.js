@@ -626,6 +626,19 @@ function siteProxyToUnicorn(routePath, opts) {
   };
 }
 app.get('/api/industry/list', siteProxyToUnicorn('/api/industry/list'));
+// Tiny telemetry sink for client-side audits (button-audit, missing-pricing, etc.).
+// We never persist PII; we just stdout-log so PM2 captures it. Body is small
+// (sendBeacon caps at ~64KB on most browsers) so we accept the parse cost
+// and keep the contract permissive.
+app.post('/api/site/log', express.json({ limit: '64kb' }), (req, res) => {
+  try {
+    const body = req.body || {};
+    const kind = String(body.kind || 'unknown').slice(0, 40);
+    const route = String(body.route || '').slice(0, 80);
+    console.log('[site-log] kind=' + kind + ' route=' + route + ' payload=' + JSON.stringify(body).slice(0, 600));
+  } catch (_) {}
+  res.status(204).end();
+});
 app.get('/api/control/stats', siteProxyToUnicorn('/api/control/stats'));
 app.get('/api/evolution/snapshot', siteProxyToUnicorn('/api/evolution/snapshot'));
 app.get('/api/pricing/segments', siteProxyToUnicorn('/api/pricing/segments'));
@@ -674,6 +687,54 @@ app.get('/api/pricing/module/:moduleId', async (req, res) => {
 // returns the raw upstream JSON when reachable, otherwise a stable shape.
 app.get('/api/pricing/:serviceId', async (req, res) => {
   const serviceId = String(req.params.serviceId || '').slice(0, 80);
+  // Helper: look up the canonical catalog floor for this id across the three
+  // catalogs the site already loads. Used both as a fallback when the backend
+  // is unreachable AND as a corrective override when the backend's engine
+  // returned its generic $99 default for an id it doesn't yet know about.
+  function _catalogBaseFor(id) {
+    const probe = (mod) => {
+      if (!mod) return null;
+      try {
+        if (typeof mod.byId === 'function') {
+          const it = mod.byId(id);
+          if (it) return Number(it.priceUSD != null ? it.priceUSD : it.price);
+        }
+        if (typeof mod.all === 'function') {
+          const arr = mod.all() || [];
+          const it = arr.find(x => x && x.id === id);
+          if (it) return Number(it.priceUSD != null ? it.priceUSD : it.price);
+        }
+      } catch (_) {}
+      return null;
+    };
+    return probe(unifiedCatalog) || probe(instantCatalog) || probe(entCatalog) || null;
+  }
+  function _recomputeWithRealBase(upstream, realBase) {
+    // Reverse-derive the engine multipliers from the upstream response and
+    // apply them to the catalog's real floor. The engine returns
+    // demandFactor (effective = global × per-service variance) and surgeActive,
+    // so the multiplier is upstream.price_usd / upstream.basePrice for the
+    // discount/surge/peak combination already baked in. We replay it on
+    // the real base so the rendered USD/BTC numbers are dynamic but anchored
+    // to the catalog's intended floor.
+    try {
+      const upstreamBase = Number(upstream.basePrice);
+      const upstreamPrice = Number(upstream.price_usd);
+      if (!(upstreamBase > 0) || !(upstreamPrice > 0)) return upstream;
+      const multiplier = upstreamPrice / upstreamBase;
+      const realFinal = Math.round(realBase * multiplier * 100) / 100;
+      const out = Object.assign({}, upstream, {
+        basePrice: realBase,
+        price_usd: realFinal,
+        finalPrice: realFinal,
+        source: (upstream.source || 'dynamic-pricing') + '-catalog-seeded',
+      });
+      if (upstream.btcRate && upstream.btcRate > 0) {
+        out.price_btc = Number((realFinal / upstream.btcRate).toFixed(8));
+      }
+      return out;
+    } catch (_) { return upstream; }
+  }
   const backendUrl = process.env.BACKEND_API_URL;
   if (backendUrl) {
     const controller = new AbortController();
@@ -683,25 +744,67 @@ app.get('/api/pricing/:serviceId', async (req, res) => {
       const target = backendUrl.replace(/\/$/, '') + '/api/pricing/' + encodeURIComponent(serviceId) + (qp ? ('?' + qp) : '');
       const r = await fetch(target, { headers: { Accept: 'application/json' }, signal: controller.signal });
       clearTimeout(timer);
-      if (r.ok) return res.json(await r.json());
+      if (r.ok) {
+        const upstream = await r.json();
+        // If the backend returned the engine's generic default (it doesn't
+        // know this id), correct it locally so the site never shows a wrong
+        // price for any catalog item — even if the backend hasn't been
+        // restarted with the seeding patch yet.
+        const realBase = _catalogBaseFor(serviceId);
+        if (realBase && (
+          (upstream.source && /default/i.test(upstream.source)) ||
+          (upstream.baseSource === 'fallback-default') ||
+          (Number(upstream.basePrice) === 99 && realBase !== 99)
+        )) {
+          return res.json(_recomputeWithRealBase(upstream, realBase));
+        }
+        return res.json(upstream);
+      }
       console.warn('[site-proxy] /api/pricing/' + serviceId + ' upstream ' + r.status);
     } catch (err) {
       clearTimeout(timer);
       console.warn('[site-proxy] /api/pricing/' + serviceId + ' failed: ' + (err && err.message));
     }
   }
+  // Backend unreachable — fall back to a local computation if we have the
+  // catalog floor, else return a static-fallback shape (keeps the contract
+  // stable but never invents a wrong concrete number for catalog items).
+  const realBase = _catalogBaseFor(serviceId);
+  if (realBase) {
+    try {
+      const dp = require('../backend/modules/dynamic-pricing');
+      const live = dp.getPrice(serviceId, { basePrice: realBase });
+      res.set('X-Source', 'site-local-pricing');
+      return res.json({
+        serviceId,
+        price_usd: live.finalPrice,
+        price_btc: null,
+        currency: 'USD',
+        interval: 'month',
+        negotiated: false,
+        timestamp: new Date().toISOString(),
+        basePrice: live.basePrice,
+        finalPrice: live.finalPrice,
+        demandFactor: live.demandFactor,
+        peakHours: live.peakHours,
+        surgeActive: live.surgeActive,
+        discountApplied: live.discountApplied,
+        source: 'site-local-pricing-catalog-seeded',
+      });
+    } catch (_) { /* fall through to mock */ }
+  }
   res.set('X-Source', 'site-fallback-mock');
   const negotiated = /enterprise|global|giants|tier/i.test(serviceId);
   res.json({
     serviceId,
-    price_usd: 99,
+    price_usd: realBase || 99,
     price_btc: null,
     currency: 'USD',
     interval: 'month',
     negotiated,
     timestamp: new Date().toISOString(),
-    source: 'site-fallback-mock',
-    note: 'Backend unreachable — fallback pricing active.',
+    source: realBase ? 'site-fallback-catalog' : 'site-fallback-mock',
+    note: realBase ? 'Backend unreachable — using catalog floor.' : 'Backend unreachable — fallback pricing active.',
   });
 });
 // Autoviralization — read-only status proxies are public; the trigger POST
@@ -1063,6 +1166,41 @@ let unifiedCatalog = null; try { unifiedCatalog = require('./commerce/unified-ca
 let productEngine = null; try { productEngine = require('./commerce/product-engine'); } catch (e) { console.warn('[product-engine] not loaded:', e.message); }
 let portal = null; try { portal = require('./commerce/customer-portal'); } catch (e) { console.warn('[portal] not loaded:', e.message); }
 let provisioner = null; try { provisioner = require('./commerce/provisioner'); } catch (e) { console.warn('[provisioner] not loaded:', e.message); }
+
+// =====================================================================
+// CRITICAL · 2026-05-09 — Seed dynamic-pricing engine from every catalog.
+// =====================================================================
+// Without this seeding, dynamic-pricing.js only knows 14 SaaS-tier ids and
+// returns a generic $99-base fallback for every catalog product (we measured
+// instant-pitch-deck=$149 → $72 and unicorn-billion-scale-activation=$500k →
+// $80 in production). Both the SSR home grid and /api/pricing/{id} pulled
+// the wrong number, breaking the storefront's primary purpose: selling at
+// the catalog's intended price.
+//
+// We register every catalog id's `priceUSD` as the engine's basePrice. The
+// engine then applies its demand × peak × surge × discount × per-service
+// variance multipliers on top of the *real* floor, so the site keeps the
+// "live AI-negotiated price" feel while never inventing a wrong base.
+try {
+  const dynamicPricingEngine = require('../backend/modules/dynamic-pricing');
+  if (dynamicPricingEngine && typeof dynamicPricingEngine.registerServices === 'function') {
+    let totalSeeded = 0;
+    if (unifiedCatalog && typeof unifiedCatalog.all === 'function') {
+      const items = unifiedCatalog.all() || [];
+      totalSeeded += dynamicPricingEngine.registerServices(items.map(i => ({ id: i.id, priceUsd: i.priceUSD ?? i.price })));
+    }
+    if (instantCatalog && typeof instantCatalog.all === 'function') {
+      const items = instantCatalog.all() || [];
+      totalSeeded += dynamicPricingEngine.registerServices(items.map(i => ({ id: i.id, priceUsd: i.priceUSD ?? i.price })));
+    }
+    if (entCatalog && typeof entCatalog.all === 'function') {
+      const items = entCatalog.all() || [];
+      totalSeeded += dynamicPricingEngine.registerServices(items.map(i => ({ id: i.id, priceUsd: i.priceUSD ?? i.price })));
+    }
+    console.log('[dynamic-pricing] seeded ' + totalSeeded + ' catalog ids → /api/pricing/{id} now uses real basePrice');
+  }
+} catch (e) { console.warn('[dynamic-pricing] catalog seeding skipped:', e && e.message); }
+
 let innov30 = null; try { innov30 = require('./innovations-30y'); console.log('[innovations-30y] loaded · constitution', innov30.getConstitution().hashShort); } catch (e) { console.warn('[innovations-30y] not loaded:', e.message); }
 let innov30v2 = null; try { innov30v2 = require('./innovations-30y-v2'); console.log('[innovations-30y-v2] loaded · 15 primitives'); } catch (e) { console.warn('[innovations-30y-v2] not loaded:', e.message); }
 let frontier = null; try { frontier = require('./frontier-engine'); console.log('[frontier] loaded · 12 sovereign inventions + commerce suite'); } catch (e) { console.warn('[frontier] not loaded:', e.message); }

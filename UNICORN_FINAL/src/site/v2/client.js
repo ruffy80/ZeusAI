@@ -532,6 +532,78 @@ document.addEventListener('click', e => {
 // mistake for the page being broken.
 window.addEventListener('popstate', () => { STATE.route = location.pathname; hydratePage(STATE.route); });
 
+// ================= SSR CHIP FILTERS (architectural · 2026-05-09) =================
+// Server-rendered filter chips on /services and /home featured grids carry
+// `data-group="all|instant|professional|enterprise"` and the cards carry
+// `data-tier="instant|professional|enterprise"`. The dynamic SPA chip
+// handler further down only matches `data-cat=` chips it builds itself, so
+// before this delegated listener was added every "All 25 / Instant /
+// Professional / Enterprise" button on the SSR pages was completely dead
+// — clicking did nothing, defeating the catalogue's primary discovery
+// affordance. We attach a single document-level click delegate so the SSR
+// chips work the moment the HTML lands, with no hydration round-trip.
+document.addEventListener('click', (e) => {
+  const chip = e.target.closest('button.chip[data-group], .chip[data-group]');
+  if (!chip) return;
+  const group = String(chip.getAttribute('data-group') || '').toLowerCase();
+  if (!group) return;
+  // Find the nearest grid that hosts the cards. Common SSR ids:
+  //   #catalogGrid (services page)  ·  #homeFeaturedGrid (home featured)
+  //   any .grid sibling of the chip's parent .filter-bar / .chips
+  let grid = null;
+  const wrap = chip.closest('section, main, #app, body') || document;
+  grid = wrap.querySelector('#catalogGrid, #homeFeaturedGrid, [data-card-grid]');
+  if (!grid) grid = document.querySelector('#catalogGrid, #homeFeaturedGrid, [data-card-grid]');
+  if (!grid) return; // nothing to filter on this page
+  // Toggle .on among sibling chips of the same data-group bar
+  const bar = chip.parentElement || chip.closest('.chips, .filter-bar') || document;
+  bar.querySelectorAll('button.chip[data-group], .chip[data-group]').forEach((c) => c.classList.toggle('on', c === chip));
+  // Apply tier filter
+  let visible = 0;
+  grid.querySelectorAll('[data-tier], [data-product-id]').forEach((card) => {
+    const tier = String(card.getAttribute('data-tier') || '').toLowerCase();
+    const show = (group === 'all') || (tier && tier === group);
+    card.style.display = show ? '' : 'none';
+    if (show) visible++;
+  });
+  try { window.dispatchEvent(new CustomEvent('unicorn:chip-filter', { detail: { group, visible } })); } catch (_) {}
+});
+
+// ================= AUTO-AUDIT BUTTONS WITHOUT HANDLERS (2026-05-09) =================
+// Defensive runtime guard so any future regression where a CTA loses its
+// click handler (no href, no data-link, no data-action, no inline onclick)
+// is reported within the first second of page hydration. We only emit a
+// console.warn (zero user-visible impact) plus a best-effort beacon to
+// /api/site/log so the operations dashboard can pick it up.
+function _auditButtonsForMissingHandlers() {
+  try {
+    const dead = [];
+    document.querySelectorAll('button, .btn, a.btn, a[role="button"], [data-cta]').forEach((el) => {
+      // Skip hidden controls (the chip filter above will hide cards but not chips).
+      const cs = window.getComputedStyle(el);
+      if (cs && (cs.display === 'none' || cs.visibility === 'hidden')) return;
+      const tag = el.tagName.toLowerCase();
+      const href = (tag === 'a' ? (el.getAttribute('href') || '') : '');
+      const hasNavTarget = !!(href && href !== '#' && !href.startsWith('javascript:'));
+      const hasInlineHandler = !!(el.getAttribute('onclick') || el.getAttribute('data-action') || el.getAttribute('data-link') || el.getAttribute('data-group') || el.getAttribute('data-cat') || el.getAttribute('data-method') || el.id);
+      const hasType = (tag === 'button') && el.type === 'submit';
+      if (hasNavTarget || hasInlineHandler || hasType) return;
+      dead.push({ tag, text: (el.textContent || '').trim().slice(0, 50), id: el.id || null, classes: el.className || null });
+    });
+    if (dead.length) {
+      console.warn('[unicorn:button-audit] ' + dead.length + ' visible CTA(s) without a handler', dead);
+      try {
+        if (navigator && typeof navigator.sendBeacon === 'function') {
+          const body = JSON.stringify({ kind: 'button-audit', route: location.pathname, dead });
+          navigator.sendBeacon('/api/site/log', new Blob([body], { type: 'application/json' }));
+        }
+      } catch (_) {}
+    }
+  } catch (_) { /* never break the page on the audit */ }
+}
+window.addEventListener('load', () => setTimeout(_auditButtonsForMissingHandlers, 1200));
+window.addEventListener('unicorn:hydrated', () => setTimeout(_auditButtonsForMissingHandlers, 600));
+
 // ================= GALAXY 3D =================
 let zeusCtx = null;
 function initZeus(){

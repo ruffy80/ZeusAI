@@ -82,8 +82,18 @@ function _loadCatalog() {
         if (fromBroker.priceBtc) out.priceBtc = Number(fromBroker.priceBtc);
       } else if (dp && typeof dp.getPrice === 'function') {
         try {
-          const live = dp.getPrice(p.id);
-          if (live && Number(live.finalPrice) > 0) {
+          // CRITICAL: pass the catalog’s priceUSD as the engine’s basePrice
+          // override. Without it, every catalog id (instant-pitch-deck=$149,
+          // unicorn-billion-scale-activation=$500k, etc.) falls back to the
+          // engine’s generic $99 default and the SSR shows a wrong $72-89
+          // price. With the override the demand factor multiplies the real
+          // catalog floor and the on-page price stays correct ± a tight band.
+          const catalogBase = Number(p.priceUSD != null ? p.priceUSD : p.price);
+          if (Number.isFinite(catalogBase) && catalogBase > 0 && typeof dp.registerService === 'function') {
+            try { dp.registerService(p.id, catalogBase, { force: false }); } catch (_) {}
+          }
+          const live = dp.getPrice(p.id, Number.isFinite(catalogBase) && catalogBase > 0 ? { basePrice: catalogBase } : {});
+          if (live && Number(live.finalPrice) > 0 && live.baseSource !== 'fallback-default') {
             out.priceUSD = Number(live.finalPrice);
             out.livePriceSource = 'dynamic-pricing';
             out.demandFactor = live.demandFactor;
@@ -137,8 +147,12 @@ function _loadFullLibrary(excludeIds) {
       let demandFactor = null;
       if (dp && typeof dp.getPrice === 'function') {
         try {
-          const live = dp.getPrice(s.id);
-          if (live && Number(live.finalPrice) > 0) {
+          const catalogBase = price > 0 ? price : Number(s.basePrice || 0);
+          if (catalogBase > 0 && typeof dp.registerService === 'function') {
+            try { dp.registerService(s.id, catalogBase, { force: false }); } catch (_) {}
+          }
+          const live = dp.getPrice(s.id, catalogBase > 0 ? { basePrice: catalogBase } : {});
+          if (live && Number(live.finalPrice) > 0 && live.baseSource !== 'fallback-default') {
             price = Number(live.finalPrice);
             liveSrc = 'dynamic-pricing';
             demandFactor = live.demandFactor;

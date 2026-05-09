@@ -209,6 +209,12 @@
 // dynamic-pricing.js – Dynamic pricing engine based on market conditions and client behavior
 'use strict';
 
+// BASE_PRICES is the canonical floor table. It starts with the curated SaaS
+// tiers below and is extended at runtime via registerService() with every id
+// produced by the unified / instant / enterprise / master catalogs. Without
+// this seeding, getPrice() of any id outside this list would fall back to a
+// generic $99, which silently overrides the real catalog price (we observed
+// $500,000 → $80 and $149 → $72 regressions in production on 2026-05-09).
 const BASE_PRICES = {
   free: 0,
   starter: 29,
@@ -236,6 +242,7 @@ let currentDemandFactor = 1.0;
 let peakHoursActive = false;
 let surgeActive = false;
 let discountActive = true; // 20% discount as per spec
+const _warnedFallbackIds = new Set();
 
 // Per-service noise: stable per (serviceId, hour) so prices differ between
 // products but don't flicker on every request. Hash of serviceId + hour bucket
@@ -263,7 +270,31 @@ function updateDemandFactor() {
 }
 
 function getPrice(serviceId, options = {}) {
-  const base = BASE_PRICES[serviceId] ?? 99;
+  // Resolution order for the floor price (`base`):
+  //   1. explicit options.basePrice (caller knows the real catalog price)
+  //   2. registered BASE_PRICES[serviceId] (seeded at boot from catalog)
+  //   3. legacy $99 fallback (only for truly unknown ids — emits warning)
+  const overrideBase = Number(options && options.basePrice);
+  let base;
+  let baseSource;
+  if (Number.isFinite(overrideBase) && overrideBase >= 0) {
+    base = overrideBase;
+    baseSource = 'override';
+  } else if (Object.prototype.hasOwnProperty.call(BASE_PRICES, serviceId)) {
+    base = BASE_PRICES[serviceId];
+    baseSource = 'registered';
+  } else {
+    base = 99;
+    baseSource = 'fallback-default';
+    // Once-per-id warning (avoid log floods when live-pricing-broker iterates
+    // hundreds of module ids on every snapshot). The Set lives for the
+    // process lifetime, which is exactly what we want — we only want to be
+    // told once per missing id, not on every refresh tick.
+    if (!_warnedFallbackIds.has(serviceId)) {
+      _warnedFallbackIds.add(serviceId);
+      try { console.warn('[DynamicPricing] using $99 fallback for unknown service id', JSON.stringify({ serviceId })); } catch (_) {}
+    }
+  }
   const { userId, quantity = 1, coupon } = options;
 
   const svcFactor = perServiceFactor(serviceId);
@@ -298,6 +329,7 @@ function getPrice(serviceId, options = {}) {
   return {
     serviceId,
     basePrice: base,
+    baseSource,
     finalPrice,
     demandFactor: Math.round(effectiveDemand * 1000) / 1000,
     globalDemand: Math.round(currentDemandFactor * 1000) / 1000,
@@ -310,6 +342,33 @@ function getPrice(serviceId, options = {}) {
     quantity,
   };
 }
+
+// registerService(id, basePrice) — idempotently seed BASE_PRICES so that
+// /api/pricing/{id} and /api/pricing/all return the catalog’s real floor for
+// every product the site can sell. Called from the site startup (src/index.js)
+// for the unified catalog (28 curated items) and lazily for any id pulled from
+// /api/catalog/master. Re-registering with a different price overwrites; pass
+// { force:false } to keep the first value if you only want to seed once.
+function registerService(serviceId, basePrice, opts = {}) {
+  if (typeof serviceId !== 'string' || !serviceId) return false;
+  const n = Number(basePrice);
+  if (!Number.isFinite(n) || n < 0) return false;
+  if (opts && opts.force === false && Object.prototype.hasOwnProperty.call(BASE_PRICES, serviceId)) return false;
+  BASE_PRICES[serviceId] = n;
+  return true;
+}
+function registerServices(items, opts) {
+  if (!Array.isArray(items)) return 0;
+  let n = 0;
+  for (const it of items) {
+    if (!it || typeof it !== 'object') continue;
+    const id = String(it.id || it.serviceId || '');
+    const price = Number(it.priceUsd != null ? it.priceUsd : (it.priceUSD != null ? it.priceUSD : it.price));
+    if (registerService(id, price, opts)) n++;
+  }
+  return n;
+}
+function hasService(serviceId) { return Object.prototype.hasOwnProperty.call(BASE_PRICES, serviceId); }
 
 function getAllPrices(options = {}) {
   return Object.keys(BASE_PRICES).reduce((acc, k) => {
@@ -352,4 +411,4 @@ function getMarketConditions() {
 setInterval(updateDemandFactor, 5 * 60 * 1000);
 updateDemandFactor(); // initial call
 
-module.exports = { getPrice, getAllPrices, activateSurge, setDiscount, getMarketConditions, BASE_PRICES, ALLOWED_SURGE_DURATIONS_MS };
+module.exports = { getPrice, getAllPrices, activateSurge, setDiscount, getMarketConditions, BASE_PRICES, ALLOWED_SURGE_DURATIONS_MS, registerService, registerServices, hasService };
