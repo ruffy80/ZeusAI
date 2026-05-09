@@ -1,0 +1,33 @@
+# VERSION_LOCK — Forward-only stable commit pin
+#
+# This file declares the minimum-known-good commit hash that production
+# (zeusai.pro on Hetzner) MUST be at least equal to or descended from.
+#
+# Contract:
+#   • The CI workflow .github/workflows/no-downgrade-guard.yml refuses
+#     to deploy any HEAD that is not a strict descendant of this SHA.
+#   • The CI workflow .github/workflows/auto-baseline-advance.yml updates
+#     this file (and its mirror .github/baselines/live.sha) automatically
+#     after every successful deploy + post-deploy smoke run.
+#   • Manual rollback is forbidden by automation. Forward-only repairs:
+#     ship a fix that supersedes the broken commit, never `git reset`.
+#
+# Layout:
+#   STABLE_SHA       — full 40-char commit hash (single line, no spaces)
+#   STABLE_TAG       — human label (e.g. v1.2.3 or YYYY-MM-DD-r#)
+#   LAST_VERIFIED_AT — ISO8601 timestamp of last green CI deploy run
+#   VERIFIED_BY      — workflow run ID URL (audit trail)
+#
+# To deliberately advance this file by hand (rare, e.g. emergency forward
+# patch from a hotfix branch), include the trailer
+#     [innovation-approved]
+# in the commit message — the deploy gate looks for it explicitly.
+
+STABLE_SHA=91e7540d4292dbb925615fb8e4b6c4efe3114b98
+STABLE_TAG=2026-05-09-watchdog-autostart
+LAST_VERIFIED_AT=2026-05-09T14:07:00Z
+VERIFIED_BY=https://github.com/ruffy80/ZeusAI/actions/runs/25602922672
+
+# Mirror file (machine-read by deploy.yml + no-downgrade-guard.yml):
+#   .github/baselines/live.sha
+# Both must agree. auto-baseline-advance.yml keeps them in sync.

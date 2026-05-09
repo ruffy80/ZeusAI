@@ -106,6 +106,41 @@ jobs:
           fi
           echo "✅ no unreviewed AutoInnovation commits between baseline and HEAD"
 
+      # ── VERSION_LOCK consistency gate (additive forward-only) ────────────
+      # If repo root contains a VERSION_LOCK file, its STABLE_SHA must equal
+      # the pinned .github/baselines/live.sha (mirror) OR be one of HEAD's
+      # ancestors. This is a redundant check that makes the contract visible
+      # in the repo root for human reviewers and external auditors.
+      - name: 📌 VERSION_LOCK consistency
+        run: |
+          set -euo pipefail
+          if [ ! -f VERSION_LOCK ]; then
+            echo "ℹ️  VERSION_LOCK absent — skipping (non-fatal, gate is satisfied by .github/baselines/live.sha)"
+            exit 0
+          fi
+          LOCK_SHA="$(grep -E '^STABLE_SHA=' VERSION_LOCK | head -1 | cut -d= -f2 | tr -d '[:space:]')"
+          MIRROR_SHA="$(tr -d '[:space:]' < .github/baselines/live.sha)"
+          if [ -z "${LOCK_SHA}" ] || [ "${#LOCK_SHA}" -lt 40 ]; then
+            echo "::error::VERSION_LOCK STABLE_SHA missing or too short"
+            exit 1
+          fi
+          if [ "${LOCK_SHA}" = "${MIRROR_SHA}" ]; then
+            echo "✅ VERSION_LOCK matches .github/baselines/live.sha (${LOCK_SHA})"
+          else
+            # Allow VERSION_LOCK to lag behind mirror so auto-baseline-advance
+            # bumps don't have to dual-update; but require that VERSION_LOCK
+            # is itself an ancestor of HEAD (i.e. no rollback hidden in it).
+            if ! git cat-file -e "${LOCK_SHA}^{commit}" 2>/dev/null; then
+              git fetch --no-tags --depth=0 origin "+${LOCK_SHA}:refs/version-lock" || true
+            fi
+            if ! git merge-base --is-ancestor "${LOCK_SHA}" "${GITHUB_SHA}"; then
+              echo "::error::VERSION_LOCK STABLE_SHA ${LOCK_SHA} is NOT an ancestor of HEAD ${GITHUB_SHA}"
+              echo "::error::This would be a hidden downgrade. Refusing to deploy."
+              exit 1
+            fi
+            echo "✅ VERSION_LOCK ${LOCK_SHA} is ancestor of HEAD ${GITHUB_SHA} (mirror=${MIRROR_SHA})"
+          fi
+
       - name: 🟦 Setup Node.js
         uses: actions/setup-node@v4
         with:
@@ -448,12 +483,17 @@ jobs:
           mkdir -p /usr/local/bin /var/lib/unicorn /var/log /etc/cron.d /etc/logrotate.d /opt/unicorn
           install -m 0755 "$DEPLOY_PATH/scripts/unicorn-health-bot.sh" /usr/local/bin/unicorn-health-bot.sh
           install -m 0755 "$DEPLOY_PATH/scripts/unicorn-payment-monitor.sh" /usr/local/bin/unicorn-payment-monitor.sh
+          # Forward-only fast-path autoheal: 1-minute /health probe, threshold-3,
+          # cooldown-10min PM2 reload. Complements (does not replace) the 5-minute
+          # unicorn-health-bot. Disable instantly with: touch /var/run/unicorn-autoheal-min.disabled
+          install -m 0755 "$DEPLOY_PATH/scripts/autoheal-min.sh" /usr/local/bin/autoheal-min.sh
           chmod +x "$DEPLOY_PATH/scripts/unicorn-payment-monitor.js" 2>/dev/null || true
           cat > /etc/cron.d/unicorn-health-bot <<'CRON'
           SHELL=/bin/bash
           PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
           */5 * * * * root DEPLOY_PATH=/var/www/unicorn/UNICORN_FINAL UNICORN_HEALTH_BASE_URL=http://127.0.0.1:3000 UNICORN_HEALTH_SITE_URL=http://127.0.0.1:3001 /usr/local/bin/unicorn-health-bot.sh
           * * * * * root DEPLOY_PATH=/var/www/unicorn/UNICORN_FINAL UNICORN_LOCAL_URL=http://127.0.0.1:3001 /usr/local/bin/unicorn-payment-monitor.sh
+          * * * * * root /usr/local/bin/autoheal-min.sh >>/var/log/unicorn-autoheal-min.log 2>&1
           CRON
           chmod 0644 /etc/cron.d/unicorn-health-bot
           cat > /etc/logrotate.d/unicorn-transactions <<'ROTATE'
@@ -470,6 +510,7 @@ jobs:
           chmod 0644 /etc/logrotate.d/unicorn-transactions
           /usr/local/bin/unicorn-health-bot.sh || true
           /usr/local/bin/unicorn-payment-monitor.sh || true
+          /usr/local/bin/autoheal-min.sh || true
           echo "✅ autonomous health/payment bots installed"
           SSHEOF
 
