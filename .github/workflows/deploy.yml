@@ -260,6 +260,42 @@ jobs:
             fi
           fi
 
+      - name: 🧹 Pre-deploy disk hygiene (forward-only, never touches current symlink)
+        # Forward-only safety: prune old release dirs and runtime caches so
+        # ENOSPC cannot block a deploy. Keeps the last 3 release dirs plus
+        # whatever DEPLOY_LINK currently points at. Never touches data/, db/,
+        # logs/, backups/. Idempotent.
+        run: |
+          set -e
+          ssh -o StrictHostKeyChecking=no root@${{ secrets.HETZNER_HOST }} bash -se <<'REMOTE'
+            set -e
+            RELEASE_ROOT="/var/www/unicorn/releases"
+            DEPLOY_LINK="/var/www/unicorn/UNICORN_FINAL"
+            CURRENT_TARGET="$(readlink -f "$DEPLOY_LINK" 2>/dev/null || true)"
+            echo "Current symlink target: ${CURRENT_TARGET:-none}"
+            echo "Disk before:"; df -h /var/www | tail -1
+            if [ -d "$RELEASE_ROOT" ]; then
+              # Sort by mtime descending, keep newest 3, drop the rest
+              # while also never deleting the dir backing the current symlink.
+              cd "$RELEASE_ROOT"
+              ls -1dt */ 2>/dev/null | tail -n +4 | while read -r d; do
+                FULL="$RELEASE_ROOT/${d%/}"
+                if [ "$FULL" = "$CURRENT_TARGET" ]; then
+                  echo "  keep (live): $d"
+                  continue
+                fi
+                echo "  prune: $d"
+                rm -rf -- "$FULL"
+              done
+            fi
+            # Best-effort cache pruning (never fatal)
+            npm cache clean --force >/dev/null 2>&1 || true
+            rm -rf /root/.npm/_cacache 2>/dev/null || true
+            journalctl --vacuum-size=200M >/dev/null 2>&1 || true
+            apt-get clean >/dev/null 2>&1 || true
+            echo "Disk after:"; df -h /var/www | tail -1
+          REMOTE
+
       - name: 📦 Deploy to Server
         run: |
           RELEASE_ID="${{ github.sha }}-$(date +%s)"
