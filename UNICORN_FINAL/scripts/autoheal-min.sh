@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 # autoheal-min.sh — One-minute /health probe + PM2 restart escalator
+# Version: 1.0.1 (forward-only retrigger after baseline-advance race)
 # -----------------------------------------------------------------------------
 # Forward-only safety net. Designed to run from cron every minute on Hetzner
 # AS A COMPLEMENT to the existing healer.service / unicorn-health-bot.sh.
