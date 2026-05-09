@@ -501,6 +501,14 @@ jobs:
             # Idempotent; safe to re-run on every deploy.
             python3 "$DEPLOY_PATH/scripts/nginx-patch-perf-100y-routes.py" || \
               echo "[nginx-patch-perf-100y-routes] patch failed (continuing)"
+            # ZEUS-SOVEREIGN-COMMERCE: route /api/checkout/create,
+            # /api/commerce/{health,price,recent-sales,reconcile},
+            # /api/order/*, /api/entitlements/* and /checkout/<orderId> to
+            # the SITE service (:3001) — sovereign-commerce.js lives only on
+            # the site, while the default /api/ catch-all proxies to BACKEND
+            # which has no implementation and would 404 the Buy flow.
+            python3 "$DEPLOY_PATH/scripts/nginx-patch-sovereign-commerce-routes.py" || \
+              echo "[nginx-patch-sovereign-commerce-routes] patch failed (continuing)"
           else
             echo "[nginx-patch] python3 indisponibil pe host — sărit (instalează-l ca să activezi /.well-known/*)"
           fi
