@@ -6978,6 +6978,31 @@ app.post('/api/autonomous/viral/trigger', adminTokenMiddleware, (req, res) => {
   res.json({ success: true, result });
 });
 
+app.post('/api/autonomous/viral/activate', adminTokenMiddleware, asyncHandler(async (req, res) => {
+  const growth = autoViralGrowth.executeGrowthLoop();
+  let social = { ok: false, error: 'social_viralizer_not_loaded' };
+  if (socialViralizer) {
+    try {
+      if (typeof socialViralizer.validateTokens === 'function') await socialViralizer.validateTokens();
+      const providerStatus = (typeof socialViralizer.getProviderStatus === 'function')
+        ? socialViralizer.getProviderStatus()
+        : { ok: false, error: 'provider_status_unavailable' };
+      const postNow = (typeof socialViralizer.postToAllPlatforms === 'function')
+        ? await socialViralizer.postToAllPlatforms()
+        : {};
+      social = { ok: true, providerStatus, postNow };
+    } catch (e) {
+      social = { ok: false, error: e && e.message ? e.message : 'activation_failed' };
+    }
+  }
+  res.json({
+    success: true,
+    activated: true,
+    growth,
+    social,
+  });
+}));
+
 app.get('/api/autonomous/platform/status', (req, res) => {
   res.json({
     timestamp: new Date().toISOString(),

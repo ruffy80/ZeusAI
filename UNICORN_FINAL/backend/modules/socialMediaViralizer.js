@@ -241,6 +241,11 @@ class SocialMediaViralizer {
     };
   }
 
+  refreshTokensFromEnv() {
+    this.tokens = this.loadTokens();
+    return this.tokens;
+  }
+
   async init() {
     if (this.started) return;
     this.started = true;
@@ -253,7 +258,7 @@ class SocialMediaViralizer {
   }
 
   async validateTokens() {
-    this.tokens = this.loadTokens();
+    this.refreshTokensFromEnv();
     console.log('🔑 Validare tokenuri...');
     const validCount = Object.keys(this.tokens).filter((k) => String(this.tokens[k] || '').length > 10).length;
     console.log('✅ ' + validCount + ' tokenuri valide găsite');
@@ -298,6 +303,9 @@ class SocialMediaViralizer {
   }
 
   async postToAllPlatforms() {
+    // Runtime secrets can be injected/rotated after process boot (QuantumVault /
+    // secret bootstrap). Always refresh token snapshot before each outbound cycle.
+    this.refreshTokensFromEnv();
     const content = await this.generatePostContent();
     const results = {};
     if (this.tokens.youtube) results.youtube = await this.postToYouTube(content);
@@ -499,7 +507,11 @@ class SocialMediaViralizer {
       if (sec && typeof sec.configured === 'function') cfg = sec.configured;
     } catch (_) {}
     const providers = {
-      x_twitter:   { configured: cfg('X_BEARER_TOKEN'),            endpoint: 'https://api.twitter.com/2/tweets',         envVar: 'X_BEARER_TOKEN' },
+      x_twitter:   {
+        configured: cfg('X_BEARER_TOKEN') && cfg('X_ACCESS_TOKEN'),
+        endpoint: 'https://api.twitter.com/2/tweets',
+        envVar: 'X_BEARER_TOKEN + X_ACCESS_TOKEN'
+      },
       telegram:    { configured: cfg('TELEGRAM_BOT_TOKEN'),        endpoint: 'https://api.telegram.org',                  envVar: 'TELEGRAM_BOT_TOKEN' },
       pinterest:   { configured: cfg('PINTEREST_TOKEN'),           endpoint: 'https://api.pinterest.com/v5',              envVar: 'PINTEREST_TOKEN' },
       devto:       { configured: cfg('DEV_API_KEY'),               endpoint: 'https://dev.to/api/articles',               envVar: 'DEV_API_KEY' },
@@ -516,7 +528,7 @@ class SocialMediaViralizer {
       postsAttempted: this.postHistory.length,
       lastPost: this.postHistory.length ? this.postHistory[this.postHistory.length - 1] : null,
       hint: configuredProviders.length === 0
-        ? 'No social provider configured. Set X_BEARER_TOKEN / TELEGRAM_BOT_TOKEN / DEV_API_KEY / PINTEREST_TOKEN in .env (or GitHub Actions secrets) to enable real posting. The central secrets bootstrap will auto-propagate them.'
+        ? 'No social provider configured. Set X_BEARER_TOKEN + X_ACCESS_TOKEN, TELEGRAM_BOT_TOKEN, DEV_API_KEY, or PINTEREST_TOKEN in .env (or GitHub Actions secrets) to enable real posting. The central secrets bootstrap will auto-propagate them.'
         : `${configuredProviders.length} provider(s) ready. Posting cron will publish via these only.`,
     };
   }
