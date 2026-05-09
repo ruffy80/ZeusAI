@@ -25,6 +25,8 @@
 | 3 | this commit | [.github/workflows/deploy.yml](.github/workflows/deploy.yml) | Added `📌 VERSION_LOCK consistency` gate; refuses deploy if `STABLE_SHA` is not an ancestor of HEAD |
 | 3 | this commit | [scripts/autoheal-min.sh](UNICORN_FINAL/scripts/autoheal-min.sh) | New 1-minute `/health` probe with 3-strike threshold + 10-min cooldown + `pm2 reload --update-env` escalator. Disable via `touch /var/run/unicorn-autoheal-min.disabled` |
 | 3 | this commit | [.github/workflows/deploy.yml](.github/workflows/deploy.yml) | Post-deploy step now installs `autoheal-min.sh` to `/usr/local/bin/` and adds `* * * * * /usr/local/bin/autoheal-min.sh` to `/etc/cron.d/unicorn-health-bot` |
+| 4 | [`4826f54`](https://github.com/ruffy80/ZeusAI/commit/4826f54) | [.github/workflows/deploy.yml](.github/workflows/deploy.yml) | New `🧹 Pre-deploy disk hygiene` step. Prunes all but the 3 newest `/var/www/unicorn/releases/*`, never touches dir backing `DEPLOY_LINK`, runs `npm cache clean`, `journalctl --vacuum-size=200M`, `apt-get clean`. Fixes ENOSPC forward-only without manual SSH. |
+| 5 | [`b931250`](https://github.com/ruffy80/ZeusAI/commit/b931250) | [backend/modules/enterprise-cloud-router.js](UNICORN_FINAL/backend/modules/enterprise-cloud-router.js) | Public `POST /api/enterprise/contact` registered BEFORE the api-key gate. Persists to `data/enterprise-leads.jsonl`. Fixes 401 on lead-capture form when nginx routed to backend :3000. |
 
 ## 3. Live verification (post-deploy)
 
