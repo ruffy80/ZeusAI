@@ -575,6 +575,12 @@ const SITE_FALLBACK_MOCKS = {
     triggered: false,
     note: 'Backend unreachable — trigger queued client-side; backend will run its own scheduled growth loop.',
     source: 'site-fallback-mock'
+  },
+  '/api/autonomous/viral/activate': {
+    ok: true,
+    activated: false,
+    note: 'Backend unreachable — activation endpoint unavailable while proxy is in fallback mode.',
+    source: 'site-fallback-mock'
   }
 };
 function siteProxyToUnicorn(routePath, opts) {
@@ -704,6 +710,7 @@ app.get('/api/pricing/:serviceId', async (req, res) => {
 // the Authorization header and request body — no extra trust is granted here.
 app.get('/api/autonomous/viral/status', siteProxyToUnicorn('/api/autonomous/viral/status'));
 app.post('/api/autonomous/viral/trigger', express.json(), siteProxyToUnicorn('/api/autonomous/viral/trigger', { method: 'POST' }));
+app.post('/api/autonomous/viral/activate', express.json(), siteProxyToUnicorn('/api/autonomous/viral/activate', { method: 'POST' }));
 app.get('/api/viral/status', siteProxyToUnicorn('/api/viral/status'));
 
 // === Audit trail blockchain ===
@@ -1278,7 +1285,8 @@ const EXPRESS_OWNED_MUTATIONS = new Set([
   // Autoviralization trigger is registered on Express (with a fallback mock
   // when BACKEND_API_URL is unset). It must NOT bypass Express, otherwise
   // unicornHandler returns 503 in CI (no backend reachable).
-  '/api/autonomous/viral/trigger'
+  '/api/autonomous/viral/trigger',
+  '/api/autonomous/viral/activate'
 ]);
 
 function shouldBypassExpressForSiteMutation(pathname, method) {
