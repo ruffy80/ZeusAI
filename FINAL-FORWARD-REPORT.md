@@ -48,3 +48,37 @@
 Site-ul afișează acum **exact** prețul calculat de motorul de pricing al Unicornului (cu zecimale corecte), niciun buton nu mai poate ajunge la checkout cu preț fals, fallback‑urile sunt predictive (SSR cache), nu hardcodate. Fluxurile critice (autentificare passwordless `/api/auth/passwordless/*`, BTC checkout sovereign, marketplace 330+ servicii dinamice) rămân intacte și sunt acoperite de testele care au trecut.
 
 Deploy: push pe `main` declanșează `.github/workflows/hetzner-deploy.yml` → lint + test în CI → SSH deploy către Hetzner. Fără rollback, fără patch‑uri; numai upgrade definitiv.
+
+## Update 2026-05-09T16:50Z — Sovereign commerce reactivat live
+
+### 6. /api/checkout/create și /api/commerce/{health,price,recent-sales} returnau 404 pe producție
+
+**Cauza reală** (descoperită prin headerul `x-unicorn-role: backend`): nginx pe Hetzner are o regulă catch-all `location ^~ /api/` care trimite tot traficul `/api/*` către BACKEND (`:3000`). Modulul sovereign-commerce ([sovereign-commerce.js](UNICORN_FINAL/src/site/sovereign-commerce.js)) rulează exclusiv pe SITE (`:3001`). Cererile loveau backend-ul Express (care nu are aceste rute) și răspundeau cu `Cannot GET /api/commerce/price`. Workflow-ul activ `Unicorn Stable Deploy` ([deploy.yml](.github/workflows/deploy.yml)) nu sincroniza `UNICORN_FINAL/scripts/nginx-unicorn.conf` (acea sincronizare există doar într-un workflow nedetectat din `UNICORN_FINAL/.github/`).
+
+**Forward fix:**
+
+- Patcher nou idempotent [nginx-patch-sovereign-commerce-routes.py](UNICORN_FINAL/scripts/nginx-patch-sovereign-commerce-routes.py) care injectează un bloc `# ZEUS-SOVEREIGN-COMMERCE BEGIN/END` cu `location =` pentru `/api/checkout/create`, `/api/commerce/{health,price,recent-sales,reconcile}` și `location ^~` pentru `/api/order/`, `/api/entitlements/`, `/checkout/` — toate spre `127.0.0.1:3001`. Pattern identic cu `nginx-patch-100y-routes.py`: backup, atomic write, `nginx -t`, auto-revert la failure, reload.
+- Wired în [deploy.yml](.github/workflows/deploy.yml) imediat după `nginx-patch-perf-100y-routes.py`, cu `continue-on-error`.
+- Bypass adițional în [src/index.js](UNICORN_FINAL/src/index.js#L1182) pentru ca, dacă vreodată nginx trimite aceste paths la SITE, dispatcher-ul să sară Express direct la `unicornHandler` și să cheme `commerce.handle()`.
+- Log de pornire îmbogățit la încărcarea modulului commerce ([src/index.js](UNICORN_FINAL/src/index.js#L971)) ca un eventual eșec viitor de `require('./site/sovereign-commerce')` să apară în PM2.
+
+**Verificări live după commit `334b0a3`:**
+
+- `GET /api/commerce/price` returnează `200`, header `x-unicorn-role: site`, body real `{"btc_usd":80606,"btc_eur":68431,"source":"mempool.space",...}`.
+- `GET /api/commerce/health` returnează `200`, watcher activ (`lastScanOk:true`, 58 ordere totale).
+- `POST /api/checkout/create` cu `serviceId="unicorn-billion-scale-activation"` returnează `201 Created`, ordin real cu `bip21=bitcoin:bc1q4f7e66z87mdfj56kz0dj5hvcnpmh0qh4wuv22e?amount=5.58271970`, `unit_price_fiat=4500$`, `btc_discount_pct=10`, `access_token` emis, `status=pending` (așteaptă confirmarea on-chain).
+
+### Tests și lint după runda 2
+
+- ESLint: 0 erori, 0 warnings.
+- Test suite: 55/55 (extins de la 37/37 prin testele suplimentare ale runtime-ului).
+- `py_compile` OK pe noul patcher.
+
+### Commits livrate (forward-only, în ordine cronologică)
+
+1. `19c9acf` — fix(pricing): forward audit – eliminate hardcoded $99 fallbacks, decimal-accurate price rendering, safe Buy onclick payloads.
+2. `066da6a` — fix(commerce): bypass Express for sovereign-commerce GET routes.
+3. `5ef7b2a` — fix(nginx): route sovereign-commerce paths to unicorn_site upstream.
+4. `334b0a3` — fix(deploy): patch live nginx with sovereign-commerce route block.
+
+Toate live, toate verificate cu `curl` direct pe `https://zeusai.pro`. Header-ul `x-zeus-build` corespunde commit SHA pe fiecare etapă.
