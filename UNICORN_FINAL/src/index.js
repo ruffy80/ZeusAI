@@ -3300,6 +3300,7 @@ async function unicornHandler(req, res) {
     '/api/payments/btc/confirm', '/api/payments/paypal/confirm',
     '/api/activate', '/api/concierge', '/api/concierge/stream', '/api/concierge/feedback',
     '/api/secrets/status',
+    '/api/build', '/api/version',
     '/api/catalog', '/api/catalog/master', '/api/btc/spot', '/api/btc/rate', '/api/payment/btc-rate', '/api/payment/methods', '/api/payment/nowpayments/security'
   ]);
   // ================== ADMIN SESSION (cookie-based, stateless HMAC) ==================
@@ -3954,6 +3955,26 @@ async function unicornHandler(req, res) {
   if (urlPath === '/health') {
     res.writeHead(200, { 'Content-Type': 'application/json' });
     return res.end(JSON.stringify({ ok: true, service: 'unicorn-final', brand: 'ZeusAI' }));
+  }
+
+  // Public deploy-verification endpoint. Returns the build SHA stamped by
+  // .github/workflows/deploy.yml on every successful CI deploy. Lets anyone
+  // confirm `the site updates after every push` with a single curl:
+  //   curl -fsS https://zeusai.pro/api/build
+  // No secrets, no PII; safe to expose. Forward-only addition.
+  if (urlPath === '/api/build' || urlPath === '/api/version') {
+    res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
+    return res.end(JSON.stringify({
+      ok: true,
+      sha: ZEUS_BUILD.sha,
+      shaShort: String(ZEUS_BUILD.sha || '').slice(0, 7),
+      builtAt: ZEUS_BUILD.ts,
+      bootedAt: new Date(ZEUS_BUILD.bootAt).toISOString(),
+      uptimeSec: Math.floor((Date.now() - ZEUS_BUILD.bootAt) / 1000),
+      service: 'unicorn-final',
+      brand: 'ZeusAI',
+      version: process.env.npm_package_version || '1.2.2',
+    }));
   }
 
   if (urlPath === '/api/secrets/status') {
