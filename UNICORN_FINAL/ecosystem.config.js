@@ -68,6 +68,17 @@ module.exports = {
         // only after AUTH_GUARDIAN_TEST_EMAIL + AUTH_GUARDIAN_TEST_PASSWORD
         // are configured and auth-repair.js no longer self-restarts.
         AUTH_GUARDIAN_ENABLED: '0',
+        // ── SERVICE-WATCHDOG: opt-in autostart in production ──────────────
+        // The watchdog module (backend/modules/service-watchdog.js) is now
+        // standby-by-default to avoid require()-time spam when other modules
+        // (totalSystemHealer cron) re-pull it. Production explicitly turns
+        // it on here. Probe URL is auto-resolved from PORT below, but we
+        // pin it for clarity. Override per-host via WATCHDOG_DISABLED=1.
+        WATCHDOG_AUTOSTART: process.env.WATCHDOG_AUTOSTART || '1',
+        WATCHDOG_BACKEND_URL: process.env.WATCHDOG_BACKEND_URL || 'http://127.0.0.1:3000/api/health',
+        WATCHDOG_INTERVAL_MS: process.env.WATCHDOG_INTERVAL_MS || '30000',
+        WATCHDOG_FAIL_THRESHOLD: process.env.WATCHDOG_FAIL_THRESHOLD || '3',
+        WATCHDOG_LOG_DEDUP_AFTER: process.env.WATCHDOG_LOG_DEDUP_AFTER || '3',
         PORT: 3000,
         // Hardening: bind backend to loopback only. Nginx fronts every public
         // request via http://127.0.0.1:3000. The smoke-test step already hits
