@@ -413,6 +413,24 @@ async function runTests() {
     assert.equal(r.status, 401);
   });
 
+  // ── Autonomous Viral Growth (PR #532) ────────────────────────────────────────
+  // Denial contract: admin-gated mutations must refuse unauthenticated callers.
+  // Public status endpoint is open (no auth required).
+  console.log('\nAutonomous Viral Growth (PR #532):');
+  await test('GET /api/autonomous/viral/status → 200 with valid shape', async () => {
+    const r = await apiRequest('GET', '/api/autonomous/viral/status');
+    assert.equal(r.status, 200);
+    assert.ok(r.body && typeof r.body === 'object', 'body must be an object');
+  });
+  await test('POST /api/autonomous/viral/activate - no token → 401', async () => {
+    const r = await apiRequest('POST', '/api/autonomous/viral/activate');
+    assert.equal(r.status, 401);
+  });
+  await test('POST /api/autonomous/viral/trigger - no token → 401', async () => {
+    const r = await apiRequest('POST', '/api/autonomous/viral/trigger');
+    assert.equal(r.status, 401);
+  });
+
   // ── Rate limiting ─────────────────────────────────────────────────────────────
   console.log('\nSecurity:');
   await test('GET /api/health returns Content-Security-Policy header', async () => {
