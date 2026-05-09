@@ -968,7 +968,13 @@ if (!v2 || typeof v2.getHtml !== 'function') {
   };
 }
 let sovereign = null; try { sovereign = require('./site/sovereign-extensions'); } catch (e) { console.warn('[sovereign] not loaded:', e.message); }
-let commerce = null; try { commerce = require('./site/sovereign-commerce'); } catch (e) { console.warn('[commerce] not loaded:', e.message); }
+let commerce = null;
+try {
+  commerce = require('./site/sovereign-commerce');
+  console.log('[commerce] sovereign-commerce module loaded ok (handles /api/checkout/create, /api/commerce/{health,price,recent-sales,reconcile}, /api/order/*, /api/entitlements/*, /api/catalog/diff)');
+} catch (e) {
+  console.warn('[commerce] not loaded:', e && e.stack ? e.stack : e.message);
+}
 const V2_CLIENT_PATH = path.join(__dirname, 'site', 'v2', 'client.js');
 // In-memory cache for the v2 static JS bundles. The previous implementation
 // called `fs.readFileSync(V2_CLIENT_PATH, 'utf8')` on EVERY request to
@@ -1171,6 +1177,20 @@ function __continueDispatch(req, res, method, earlyPath) {
     // not proxied to Unicorn (which has auth-gated /api/modules). Run before
     // edgeProxyApi to win the dispatch chain.
     if (method === 'GET' && (earlyPath === '/api/modules' || earlyPath === '/api/events')) {
+      return unicornHandler(req, res);
+    }
+    // Sovereign commerce GET endpoints — bypass Express so they reliably
+    // reach `commerce.handle(...)` inside `unicornHandler`. Production was
+    // observed to 404 these because some Express layer answered first.
+    if (method === 'GET' && (
+        earlyPath === '/api/commerce/health' ||
+        earlyPath === '/api/commerce/price' ||
+        earlyPath === '/api/commerce/recent-sales' ||
+        earlyPath === '/api/commerce/reconcile' ||
+        earlyPath === '/api/catalog/diff' ||
+        earlyPath.startsWith('/api/order/') ||
+        earlyPath.startsWith('/api/entitlements/')
+      )) {
       return unicornHandler(req, res);
     }
     if (shouldBypassExpressForSiteMutation(earlyPath, method)) {
