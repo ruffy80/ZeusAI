@@ -1629,6 +1629,39 @@ const githubOps           = require('./modules/github-ops');
 // ==================== DYNAMIC PRICING ENGINE ====================
 const dynamicPricing   = require('./modules/dynamic-pricing');
 
+// Seed the engine at boot with the canonical catalog floors so every
+// service id has a real basePrice and never collapses to the generic $99
+// fallback. Same fix as the site-side seeding in src/index.js, but applied
+// here too because nginx routes /api/pricing/:id directly to this backend.
+try {
+  const _seedFrom = (mod) => {
+    if (!mod) return 0;
+    let arr = [];
+    try { arr = (typeof mod.all === 'function') ? mod.all() : []; } catch (_) {}
+    let n = 0;
+    for (const it of (arr || [])) {
+      if (!it || !it.id) continue;
+      const base = Number(it.priceUSD != null ? it.priceUSD : it.price);
+      if (!(base > 0)) continue;
+      try {
+        if (typeof dynamicPricing.registerService === 'function') {
+          dynamicPricing.registerService(it.id, base);
+          n += 1;
+        }
+      } catch (_) {}
+    }
+    return n;
+  };
+  let _u = null, _i = null, _e = null;
+  try { _u = require('../src/commerce/unified-catalog'); } catch (_) {}
+  try { _i = require('../src/commerce/instant-catalog'); } catch (_) {}
+  try { _e = require('../src/commerce/enterprise-catalog'); } catch (_) {}
+  const seeded = _seedFrom(_u) + _seedFrom(_i) + _seedFrom(_e);
+  if (seeded > 0) console.log('[dynamic-pricing] seeded ' + seeded + ' catalog ids (backend)');
+} catch (e) {
+  console.warn('[dynamic-pricing] backend seeding skipped:', e && e.message);
+}
+
 // ==================== LIVE PRICING BROKER (additive) ====================
 // Combines marketplace catalogue + dynamic-pricing proposals + live BTC rate
 // into a unified snapshot. Powers /api/pricing/live and /api/pricing/live/stream.
