@@ -623,6 +623,9 @@ module.exports = {
 //   • UNICORN_FINAL/src/site/v2/client.js
 //   • UNICORN_FINAL/src/site/v2/shell.js
 //   • UNICORN_FINAL/src/site/template.js
+//   • UX guardrail requirement: user-facing CTAs must not open raw /api/*,
+//     /internal/*, or /.well-known/* payload pages directly; route via
+//     /api-explorer?endpoint=... for human-safe inspection flow.
 //   • UNICORN_FINAL/scripts/backup-signing-key.sh
 //   • UNICORN_FINAL/scripts/nginx-unicorn.conf  (split routing: unicorn_backend
 //     for /api/*,/internal/*,/.well-known/*,/health; unicorn_site for /,/stream,

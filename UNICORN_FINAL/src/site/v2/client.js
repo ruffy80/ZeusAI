@@ -495,6 +495,21 @@ function navigate(to, push=true){
   STATE.route = routePath(to);
   hydratePage(STATE.route);
 }
+// Guardrail: user-facing button links should never dump raw JSON in the tab.
+// If a visual CTA points to /api/* or /.well-known/*, route users to
+// API Explorer with context instead of opening a raw payload page.
+document.addEventListener('click', (e) => {
+  const a = e.target.closest('a[href]');
+  if (!a) return;
+  const href = String(a.getAttribute('href') || '').trim();
+  if (!href || href.startsWith('http') || href.startsWith('mailto:') || href.startsWith('javascript:')) return;
+  if (a.hasAttribute('download') || a.dataset.allowRaw === '1') return;
+  if (/^(\/api\/|\/internal\/|\/.well-known\/)/.test(href)) {
+    e.preventDefault();
+    const to = '/api-explorer?endpoint=' + encodeURIComponent(href);
+    navigate(to, true);
+  }
+});
 document.addEventListener('click', e => {
   const a = e.target.closest('a[data-link]');
   if (!a) return;
@@ -2597,7 +2612,7 @@ function hydrateCheckout(){
         <h3 style="margin:6px 0">Receipt ${escapeHtml(r.id.slice(0,12))}…</h3>
         ${btcLine}${btcpayLine}${ppLine}
         <div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap">
-          <a class="btn btn-ghost" href="/api/invoice/${r.id}" target="_blank" rel="noopener">Invoice</a>
+          <a class="btn btn-ghost" href="/checkout/${r.id}/receipt" target="_blank" rel="noopener">Receipt</a>
           <button class="btn btn-ghost" id="coCheck">Check now</button>
           <span id="coBadge" style="align-self:center;font-size:13px;color:var(--ink-dim)">awaiting payment…</span>
         </div>
@@ -2634,7 +2649,7 @@ function hydrateCheckout(){
               <textarea readonly style="width:100%;min-height:90px;background:#05040a;color:#a6e4ff;padding:10px;border-radius:8px;font-family:ui-monospace,monospace;font-size:11px;word-break:break-all" onclick="this.select()">${escapeHtml(lic.license.token)}</textarea>
               <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap">
                 <a class="btn btn-primary" download="zeusai-license-${id}.txt" href="data:text/plain;base64,${btoa(lic.license.token)}">Download license</a>
-                <a class="btn btn-primary" href="/api/delivery/${encodeURIComponent(id)}" target="_blank" rel="noopener">Open delivery package</a>
+                <a class="btn btn-primary" href="/account#delivery" target="_blank" rel="noopener">Open delivery package</a>
                 ${deliveryLinks}
                 <a class="btn btn-ghost" href="/dashboard" data-link>Go to dashboard</a>
               </div>
@@ -2736,8 +2751,8 @@ async function hydrateDashboard(){
           <td>${escapeHtml(r.plan||'—')}</td>
           <td>${escapeHtml((r.paidAt||r.createdAt||'').toString().slice(0,19))}</td>
           <td style="white-space:nowrap">
-            <a class="btn btn-ghost" href="/api/invoice/${r.id}" target="_blank" rel="noopener" style="padding:5px 10px;font-size:12px">Invoice</a>
-            ${r.hasLicense ? `<a class="btn btn-ghost" href="/api/license/${r.id}" target="_blank" rel="noopener" style="padding:5px 10px;font-size:12px">License</a>` : ''}
+            <a class="btn btn-ghost" href="/checkout/${r.id}/receipt" target="_blank" rel="noopener" style="padding:5px 10px;font-size:12px">Receipt</a>
+            ${r.hasLicense ? `<a class="btn btn-ghost" href="/account#license" target="_blank" rel="noopener" style="padding:5px 10px;font-size:12px">License</a>` : ''}
           </td></tr>`).join('') + '</tbody></table>';
     }
   }
@@ -3417,7 +3432,7 @@ function renderEntThread(deal){
         <div class="card" style="padding:12px"><div style="color:var(--ink-dim);font-size:10px;letter-spacing:.1em;text-transform:uppercase">Anchor</div><div style="font-weight:700;margin-top:4px">${deal.anchorFmt}</div></div>
       </div>
       ${historyHtml}
-      ${closed ? (deal.closedPriceFmt ? `<div class="card" style="padding:20px;margin-top:16px;border:1px solid rgba(111,211,255,.4);background:rgba(111,211,255,.08)"><b style="font-size:20px;color:#6fd3ff">Closed won @ ${deal.closedPriceFmt}</b><div style="color:var(--ink-dim);margin-top:6px;font-size:13px">Signature package will be circulated within 48h.</div>${deal.contractId?`<div style="margin-top:10px"><a class="btn btn-ghost" href="/api/enterprise/contract/${deal.id}" target="_blank">📜 View signed contract (${deal.contractId})</a></div>`:''}</div>` : deal.status==='pending_governance' ? '<div class="card" style="padding:20px;margin-top:16px;border:1px solid rgba(255,211,106,.4);background:rgba(255,211,106,.08);color:#ffd36a"><b>⏸ Awaiting owner governance OTP</b><div style="color:var(--ink-dim);margin-top:6px;font-size:13px">Enter the OTP on the Governance tab below to release this deal.</div></div>' : '<div class="card" style="padding:16px;margin-top:12px;color:#ff8a8a">Deal closed without signature.</div>')
+      ${closed ? (deal.closedPriceFmt ? `<div class="card" style="padding:20px;margin-top:16px;border:1px solid rgba(111,211,255,.4);background:rgba(111,211,255,.08)"><b style="font-size:20px;color:#6fd3ff">Closed won @ ${deal.closedPriceFmt}</b><div style="color:var(--ink-dim);margin-top:6px;font-size:13px">Signature package will be circulated within 48h.</div>${deal.contractId?`<div style="margin-top:10px"><a class="btn btn-ghost" href="/docs#contracts" target="_blank">📜 View signed contract (${deal.contractId})</a></div>`:''}</div>` : deal.status==='pending_governance' ? '<div class="card" style="padding:20px;margin-top:16px;border:1px solid rgba(255,211,106,.4);background:rgba(255,211,106,.08);color:#ffd36a"><b>⏸ Awaiting owner governance OTP</b><div style="color:var(--ink-dim);margin-top:6px;font-size:13px">Enter the OTP on the Governance tab below to release this deal.</div></div>' : '<div class="card" style="padding:16px;margin-top:12px;color:#ff8a8a">Deal closed without signature.</div>')
        : `<div style="display:grid;grid-template-columns:2fr 1fr 1fr;gap:10px;margin-top:16px">
             <input id="entMsg" class="input" placeholder="Optional message to Zeus (why this price is fair, constraints, etc.)" style="padding:11px 14px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.12);border-radius:10px;color:#fff"/>
             <input id="entOffer" type="number" placeholder="Your offer (USD)" style="padding:11px 14px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.12);border-radius:10px;color:#fff"/>

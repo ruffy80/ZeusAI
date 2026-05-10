@@ -633,8 +633,8 @@ select.form-inp option{background:#0a0e24;}
         <li>GET /api/crypto-bridge/health</li>
       </ul>
       <div style="margin-top:14px;display:flex;gap:10px;flex-wrap:wrap;">
-        <a class="btn btn-outline" href="/api/crypto-bridge/health" target="_blank" rel="noopener">API Health</a>
-        <a class="btn btn-primary" href="/api/crypto-bridge/services" target="_blank" rel="noopener">View Services</a>
+        <a class="btn btn-outline" href="/crypto-fiat-bridge" target="_blank" rel="noopener">Open bridge</a>
+        <a class="btn btn-primary" href="/services" target="_blank" rel="noopener">View Services</a>
       </div>
     </div>
   </div><!-- end #view-crypto-bridge -->
@@ -652,7 +652,7 @@ select.form-inp option{background:#0a0e24;}
       </div>
       <div style="margin-top:16px;display:flex;gap:10px;flex-wrap:wrap;">
         <button class="btn btn-primary" onclick="loadInnovationCoverage(true)">Refresh Coverage</button>
-        <a class="btn btn-outline" href="/api/innovation/coverage" target="_blank" rel="noopener">Open JSON</a>
+        <a class="btn btn-outline" href="/innovations" target="_blank" rel="noopener">Open innovations</a>
       </div>
     </div>
     <div class="grid-auto" id="innovation-coverage-grid">
@@ -674,7 +674,7 @@ select.form-inp option{background:#0a0e24;}
       <div id="status-checks"><div style="text-align:center;padding:30px;"><div class="loader"></div></div></div>
       <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:16px;">
         <button class="btn btn-primary" onclick="loadLiveStatus(true)">Refresh Status</button>
-        <a class="btn btn-outline" href="/api/quantum-integrity/status" target="_blank" rel="noopener">QIS JSON</a>
+        <a class="btn btn-outline" href="/status" target="_blank" rel="noopener">View status</a>
         <a class="btn btn-outline" href="/health" target="_blank" rel="noopener">Public Health</a>
       </div>
     </div>
