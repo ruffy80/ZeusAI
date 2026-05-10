@@ -22,6 +22,8 @@
 'use strict';
 
 const axios = require('axios');
+let _llamaBridge = null;
+try { _llamaBridge = require('./llamaBridge'); } catch (_) { /* optional local AI bridge */ }
 
 // ─── Configurare globală ──────────────────────────────────────────────────
 const RETRY_MAX     = parseInt(process.env.AI_RETRY_MAX     || '2', 10);
@@ -416,6 +418,22 @@ function autoDetectTaskType(message) {
   return 'chat';
 }
 
+function buildLocalFallbackReply(message, taskType) {
+  const text = String(message || '').trim();
+  const preview = text.length > 280 ? `${text.slice(0, 280)}…` : text;
+  return [
+    `Autonomous local fallback active (${taskType}).`,
+    'Cloud AI providers are temporarily unavailable or unconfigured in this runtime.',
+    'Action plan:',
+    '1) Continue with deterministic local execution.',
+    '2) Keep platform flows running (health, pricing, commerce, automation).',
+    '3) Re-enable external providers once API secrets are validated.',
+    '',
+    'User input (preview):',
+    preview || '(empty)',
+  ].join('\n');
+}
+
 // ─── Core: ask() with intelligent routing ─────────────────────────────────
 /**
  * Route a request to the best available AI provider.
@@ -488,7 +506,39 @@ async function ask(message, opts = {}) {
     }
   }
 
-  return null; // all providers failed
+  if (_llamaBridge && typeof _llamaBridge.generate === 'function') {
+    try {
+      const t0 = Date.now();
+      const pri = (_llamaBridge.PRIORITY && (_llamaBridge.PRIORITY[resolvedTaskType?.toUpperCase()] || _llamaBridge.PRIORITY.CHAT)) || 4;
+      const llamaReply = await _llamaBridge.generate(
+        String(message || ''),
+        pri,
+        `Task type: ${resolvedTaskType}. ${SYSTEM_PROMPT}`
+      );
+      if (llamaReply) {
+        const latencyMs = Date.now() - t0;
+        return {
+          reply: llamaReply,
+          model: process.env.OLLAMA_MODEL || 'llama-local',
+          provider: 'llama_local',
+          latencyMs,
+          cached: false,
+          detectedTaskType: resolvedTaskType,
+        };
+      }
+    } catch (err) {
+      console.warn('[AIOrchestrator] local llama fallback failed:', err && err.message ? err.message : err);
+    }
+  }
+
+  return {
+    reply: buildLocalFallbackReply(message, resolvedTaskType),
+    model: 'unicorn-local-fallback-v1',
+    provider: 'unicorn_local',
+    latencyMs: 0,
+    cached: false,
+    detectedTaskType: resolvedTaskType,
+  };
 }
 
 // ─── Health report ─────────────────────────────────────────────────────────
@@ -517,6 +567,44 @@ function getHealthReport() {
       costPer1MTokens: COST_PER_1M[name] ?? null,
     });
   }
+
+  let llamaStatus = null;
+  try {
+    llamaStatus = _llamaBridge && typeof _llamaBridge.getStatus === 'function'
+      ? _llamaBridge.getStatus()
+      : null;
+  } catch (_) {
+    llamaStatus = null;
+  }
+
+  report.push({
+    provider: 'llama_local',
+    envKey: 'OLLAMA_URL',
+    configured: !!(process.env.OLLAMA_URL || process.env.OLLAMA_MODEL || (llamaStatus && llamaStatus.model)),
+    circuitOpen: false,
+    available: !!(llamaStatus && llamaStatus.available),
+    totalRequests: llamaStatus && llamaStatus.stats ? Number(llamaStatus.stats.requested || 0) : 0,
+    totalErrors: llamaStatus && llamaStatus.stats ? Number(llamaStatus.stats.errors || 0) : 0,
+    errorRatePct: 0,
+    avgLatencyMs: null,
+    lastLatencyMs: null,
+    costPer1MTokens: 0,
+  });
+
+  report.push({
+    provider: 'unicorn_local',
+    envKey: 'internal',
+    configured: true,
+    circuitOpen: false,
+    available: true,
+    totalRequests: 0,
+    totalErrors: 0,
+    errorRatePct: 0,
+    avgLatencyMs: null,
+    lastLatencyMs: null,
+    costPer1MTokens: 0,
+  });
+
   return report;
 }
 
