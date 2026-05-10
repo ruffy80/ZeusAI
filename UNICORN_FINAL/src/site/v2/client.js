@@ -503,7 +503,7 @@ document.addEventListener('click', (e) => {
   if (!a) return;
   const href = String(a.getAttribute('href') || '').trim();
   if (!href || href.startsWith('http') || href.startsWith('mailto:') || href.startsWith('javascript:')) return;
-  if (a.hasAttribute('download') || a.dataset.allowRaw === '1') return;
+  if (a.hasAttribute('download') || a.dataset.allowRaw === '1' || a.getAttribute('target') === '_blank') return;
   if (/^(\/api\/|\/internal\/|\/.well-known\/)/.test(href)) {
     e.preventDefault();
     const to = '/api-explorer?endpoint=' + encodeURIComponent(href);
@@ -515,6 +515,12 @@ document.addEventListener('click', e => {
   if (!a) return;
   const href = a.getAttribute('href');
   if (!href || href.startsWith('http') || href.startsWith('mailto:')) return;
+  if (href.startsWith('#')) {
+    e.preventDefault();
+    const target = document.getElementById(href.slice(1));
+    if (target) target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    return;
+  }
   e.preventDefault();
   // Ask server for new page (SSR for integrity), swap #app
   fetch(href, { headers: { 'x-unicorn-partial':'1' } }).then(r=>{

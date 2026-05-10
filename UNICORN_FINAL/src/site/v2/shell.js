@@ -2261,7 +2261,7 @@ Content-Type: application/json
     <p style="color:var(--ink-dim);font-size:19px;max-width:900px;line-height:1.55">Ten production-ready ZeusAI platforms plus a full module catalogue. Anchor pricing from <b style="color:#fff">$14M</b> to <b style="color:#fff">$150M</b>. Topstone deals up to <b style="color:#ffd36a">$2B</b>. Every license includes signed deliverables, sovereign key ceremony, 99.99%+ SLA, and a live <b style="color:#fff">autonomous negotiation desk</b> that closes without a human in the loop.</p>
 
     <div style="display:flex;gap:14px;flex-wrap:wrap;margin:28px 0 0">
-      <a href="#enterprise-contact" class="btn btn-gold" data-link style="font-size:16px;padding:14px 26px">📩 Contact Enterprise Sales</a>
+      <a href="#enterprise-contact" class="btn btn-gold" style="font-size:16px;padding:14px 26px">📩 Contact Enterprise Sales</a>
       <a href="#enterprise-modules" class="btn btn-ghost" style="font-size:16px;padding:14px 26px">View modules</a>
       <a href="#enterprise-api" class="btn btn-ghost" style="font-size:16px;padding:14px 26px">API endpoints</a>
     </div>
