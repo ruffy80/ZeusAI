@@ -3831,7 +3831,7 @@ function renderAutonomousServicesGrid(target){
   const modules = Object.values(window.AUTONOMOUS_MODULES.byId || {})
     .filter(m => m && m.isActive !== false)
     .sort((a, b) => String(a.category).localeCompare(String(b.category)) || String(a.name).localeCompare(String(b.name)));
-  if (!modules.length) { target.innerHTML = '<div class="card" style="padding:18px;text-align:center;color:var(--ink-dim)">Module catalogue refreshing — open <a href="/api/services" style="color:#bda4ff">/api/services</a> for the live JSON.</div>'; return; }
+  if (!modules.length) { target.innerHTML = '<div class="card" style="padding:18px;text-align:center;color:var(--ink-dim)">Module catalogue refreshing — open <a href="/services" data-link style="color:#bda4ff">/services</a> for the marketplace.</div>'; return; }
   target.innerHTML = modules.map(m => {
     const priceTxt = (m.defaultPrice != null && Number.isFinite(Number(m.defaultPrice)))
       ? '$' + Number(m.defaultPrice).toLocaleString('en-US', { maximumFractionDigits: 2 })

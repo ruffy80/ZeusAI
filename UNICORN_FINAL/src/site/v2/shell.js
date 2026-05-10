@@ -241,7 +241,7 @@ function _catalogCard(p) {
 function _ssrCatalogGrid(items, opts) {
   const o = opts || {};
   if (!items || !items.length) {
-    return `<div class="card"><p style="color:var(--ink-dim);margin:0">Catalog refreshing… open <a href="/api/services">/api/services</a> for the live JSON.</p></div>`;
+    return `<div class="card"><p style="color:var(--ink-dim);margin:0">Catalog refreshing… open <a href="/services" data-link>/services</a> for the marketplace.</p></div>`;
   }
   const cards = items.map(_catalogCard).join('');
   const cols = o.minCol || 300;
@@ -466,7 +466,7 @@ ${gtPrimer}
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate"/>
 <meta http-equiv="Pragma" content="no-cache"/>
 <meta http-equiv="Expires" content="0"/>
-<noscript><div style="position:relative;z-index:10;max-width:760px;margin:120px auto 20px;padding:18px 22px;border-radius:14px;background:rgba(138,92,255,.08);border:1px solid rgba(138,92,255,.3);color:#e8f4ff;font-family:system-ui,Arial">ZeusAI runs best with JavaScript enabled. Static pages, sitemap, and signed receipts are still available without it: visit <a href="/sitemap.xml" style="color:#8a5cff">/sitemap.xml</a>, <a href="/docs" style="color:#8a5cff">/docs</a>, or <a href="/api/services" style="color:#8a5cff">/api/services</a>.</div></noscript>
+<noscript><div style="position:relative;z-index:10;max-width:760px;margin:120px auto 20px;padding:18px 22px;border-radius:14px;background:rgba(138,92,255,.08);border:1px solid rgba(138,92,255,.3);color:#e8f4ff;font-family:system-ui,Arial">ZeusAI runs best with JavaScript enabled. Static pages, sitemap, and the service marketplace are still available without it: visit <a href="/sitemap.xml" style="color:#8a5cff">/sitemap.xml</a>, <a href="/docs" style="color:#8a5cff">/docs</a>, or <a href="/services" data-link style="color:#8a5cff">/services</a>.</div></noscript>
 <div class="galaxy-bg" id="zeusCanvas" aria-hidden="true"></div>
 ${zeusPageBgSSR(route)}
 <div class="toasts" id="toasts"></div>
@@ -1146,12 +1146,12 @@ ${_featuredHtml}
       ];
       if (picks.length < 6) picks = all.filter(p => Number(p.priceUSD||p.priceUsd||p.price||0) > 0).slice(0, 8);
       if (!picks.length) {
-        return `<div class="grid" id="liveServices"><div class="card"><p style="margin:0;color:var(--ink-dim)">Catalog refreshing — open <a href="/api/services" style="color:var(--violet2)">/api/services</a> for the live JSON.</p></div></div>`;
+        return `<div class="grid" id="liveServices"><div class="card"><p style="margin:0;color:var(--ink-dim)">Catalog refreshing — open <a href="/services" data-link style="color:var(--violet2)">/services</a> for the marketplace.</p></div></div>`;
       }
       const cards = picks.map(_catalogCard).join('');
       return `<div class="grid" id="liveServices" style="grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:16px">${cards}</div>`;
     } catch (e) {
-      return `<div class="grid" id="liveServices"><div class="card"><p style="margin:0;color:var(--ink-dim)">Catalog refreshing — open <a href="/api/services" style="color:var(--violet2)">/api/services</a> for the live JSON.</p></div></div>`;
+      return `<div class="grid" id="liveServices"><div class="card"><p style="margin:0;color:var(--ink-dim)">Catalog refreshing — open <a href="/services" data-link style="color:var(--violet2)">/services</a> for the marketplace.</p></div></div>`;
     }
   })()}
 </section>
