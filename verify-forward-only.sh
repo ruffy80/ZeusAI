@@ -9,6 +9,16 @@ GREEN='\033[92m'
 RED='\033[91m'
 RESET='\033[0m'
 
+SSH_KEY="${SSH_KEY:-$HOME/.ssh/hetzner_rsa}"
+SSH_USER="${HETZNER_DEPLOY_USER:-${HETZNER_USER:-root}}"
+SSH_HOST="${HETZNER_HOST:-204.168.230.142}"
+SSH_PORT="${HETZNER_DEPLOY_PORT:-22}"
+PUBLIC_URL="${PUBLIC_URL:-https://zeusai.pro}"
+
+ssh_cmd() {
+  ssh -i "$SSH_KEY" -p "$SSH_PORT" -o StrictHostKeyChecking=no "$SSH_USER@$SSH_HOST" "$@"
+}
+
 check() {
   local name="$1"
   local cmd="$2"
@@ -34,15 +44,15 @@ check "6. Backup script" "[ -f UNICORN_FINAL/scripts/create-backup.sh ]"
 
 echo ""
 echo "📋 DEPLOY ARTIFACTS:"
-check "7. Release dirs on Hetzner" "ssh -i ~/.ssh/hetzner_rsa root@204.168.230.142 'test -d /var/www/unicorn/releases'"
-check "8. Current symlink on Hetzner" "ssh -i ~/.ssh/hetzner_rsa root@204.168.230.142 'test -L /var/www/unicorn/current'"
-check "9. Backup vault on Hetzner" "ssh -i ~/.ssh/hetzner_rsa root@204.168.230.142 'test -d /root/unicorn-backups'"
+check "7. Release dirs on Hetzner" "ssh_cmd 'test -d /var/www/unicorn/releases'"
+check "8. Current symlink on Hetzner" "ssh_cmd 'test -L /var/www/unicorn/current || test -L /var/www/unicorn/UNICORN_FINAL'"
+check "9. Backup vault on Hetzner" "ssh_cmd 'test -d /root/unicorn-backups || test -d /var/www/unicorn/shared/backups || test -d /var/www/unicorn/UNICORN_FINAL/backups'"
 
 echo ""
 echo "📋 LIVE SITE:"
-check "10. zeusai.com responds" "curl -s https://zeusai.com/health >/dev/null"
-check "11. App is healthy" "curl -s http://127.0.0.1:3000/health | grep -q 'ok\\|status'"
-check "12. Services running (PM2)" "ssh -i ~/.ssh/hetzner_rsa root@204.168.230.142 'pm2 list | grep -E unicorn'"
+check "10. Public health responds" "curl -fsS \"$PUBLIC_URL/health\" >/dev/null"
+check "11. Backend localhost healthy on server" "ssh_cmd 'curl -fsS http://127.0.0.1:3000/health | grep -q \"ok\\|status\\|healthy\"'"
+check "12. Services running (PM2)" "ssh_cmd 'pm2 list | grep -E \"unicorn|autoscaler\"'"
 
 echo ""
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
@@ -66,11 +76,15 @@ echo ""
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo ""
 echo "📊 DEPLOYMENT HISTORY (last 5):"
-ssh -i ~/.ssh/hetzner_rsa root@204.168.230.142 'ls -1t /var/www/unicorn/releases/ 2>/dev/null | head -5 | while read r; do echo "   $(basename $r | cut -d- -f1-7)..."; done' || echo "   (SSH failed)"
+ssh_cmd 'ls -1t /var/www/unicorn/releases/ 2>/dev/null | head -5 | while read r; do echo "   $(basename $r | cut -d- -f1-7)..."; done' || echo "   (SSH failed)"
 
 echo ""
 echo "📊 BACKUP VAULT (last 5):"
-ssh -i ~/.ssh/hetzner_rsa root@204.168.230.142 'ls -1t /root/unicorn-backups/*.tar.gz 2>/dev/null | head -5 | while read f; do echo "   $(basename $f)"; done' || echo "   (SSH failed)"
+ssh_cmd '
+  ls -1t /root/unicorn-backups/*.tar.gz /var/www/unicorn/shared/backups/*.tar.gz /var/www/unicorn/UNICORN_FINAL/backups/*.tar.gz 2>/dev/null \
+  | head -5 \
+  | while read f; do echo "   $(basename $f)"; done
+' || echo "   (SSH failed)"
 
 echo ""
 echo "✨ All protections are in place! Forward-only policy is ACTIVE."

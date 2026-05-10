@@ -241,6 +241,31 @@ module.exports = {
       log_date_format: 'YYYY-MM-DD HH:mm:ss',
     },
 
+    // ── 5. Module Mesh Guardian — continuous inter-module communication guard
+    {
+      name: 'module-mesh-guardian',
+      script: 'scripts/module-mesh-guardian.js',
+      cwd: APP_DIR,
+      instances: 1,
+      exec_mode: 'fork',
+      autorestart: true,
+      max_restarts: 20,
+      min_uptime: '20s',
+      restart_delay: 3000,
+      watch: false,
+      env: {
+        NODE_ENV: 'production',
+        MESH_GUARDIAN_INTERVAL_MS: process.env.MESH_GUARDIAN_INTERVAL_MS || '30000',
+        MESH_GUARDIAN_TIMEOUT_MS: process.env.MESH_GUARDIAN_TIMEOUT_MS || '6000',
+        MESH_GUARDIAN_FAIL_THRESHOLD: process.env.MESH_GUARDIAN_FAIL_THRESHOLD || '3',
+        MESH_GUARDIAN_HEAL_COOLDOWN_MS: process.env.MESH_GUARDIAN_HEAL_COOLDOWN_MS || '300000',
+        MESH_GUARDIAN_AUTOREPAIR: process.env.MESH_GUARDIAN_AUTOREPAIR || '1',
+      },
+      error_file: 'logs/mesh-guardian-error.log',
+      out_file:   'logs/mesh-guardian-out.log',
+      log_date_format: 'YYYY-MM-DD HH:mm:ss',
+    },
+
     // ── 3. Guardian — DISABLED (set UNICORN_GUARDIAN=1 to enable) ────────────
     // Guardian keeps tar snapshots and performs auto-rollback by extracting
     // the last "known-good" tarball over the app dir. If the baseline snapshot
