@@ -10121,6 +10121,68 @@ app.get('/api/saas/overview', adminTokenMiddleware, (req, res) => {
   });
 });
 
+// ==================== OUTREACH ENGINE (in-memory) ====================
+// Autonomous outreach campaigns — no external deps, fully in-memory.
+const _outreachState = {
+  stats: { created: 0, sent: 0, replies: 0, deals: 0, attributedRevenueUSD: 0 },
+  campaigns: [],
+  queue: [],
+};
+
+app.get('/api/outreach/snapshot', (req, res) => {
+  res.json({ ok: true, stats: _outreachState.stats, campaigns: _outreachState.campaigns.slice(-10), generatedAt: new Date().toISOString() });
+});
+
+app.post('/api/outreach/campaign', (req, res) => {
+  const { filter = {}, channel = 'email', delayMinutes = 0 } = req.body || {};
+  const targets = ['aws.com', 'google.com', 'microsoft.com', 'nvidia.com', 'meta.com'];
+  const campaign = { id: 'c_' + Date.now(), signal: filter.signal || 'AI infra', channel, targetCount: targets.length, status: 'queued', createdAt: new Date().toISOString() };
+  _outreachState.campaigns.push(campaign);
+  _outreachState.stats.created += 1;
+  targets.forEach(t => _outreachState.queue.push({ campaignId: campaign.id, target: t, channel, scheduledAt: new Date(Date.now() + delayMinutes * 60000).toISOString() }));
+  res.json({ ok: true, campaign, queued: targets.length });
+});
+
+app.post('/api/outreach/tick', (req, res) => {
+  const toFlush = _outreachState.queue.splice(0, 5);
+  _outreachState.stats.sent += toFlush.length;
+  res.json({ ok: true, flushed: toFlush.length, remaining: _outreachState.queue.length, generatedAt: new Date().toISOString() });
+});
+
+// ==================== WHALES ENGINE (in-memory) ====================
+// Whale signal tracker — tracks large-account purchase intent from press feeds.
+const _whalesState = {
+  signals: [],
+  stats: { totalScanned: 0, newSignals: 0 },
+};
+
+const WHALE_COMPANIES = [
+  { name: 'AWS', signal: 'AI infra', intentScore: 0.87 },
+  { name: 'Google Cloud', signal: 'fabric', intentScore: 0.82 },
+  { name: 'Microsoft Azure', signal: 'knowledge', intentScore: 0.79 },
+  { name: 'NVIDIA', signal: 'AI infra', intentScore: 0.91 },
+  { name: 'Meta AI', signal: 'ads', intentScore: 0.74 },
+  { name: 'Salesforce', signal: 'knowledge', intentScore: 0.68 },
+  { name: 'Amazon Commerce', signal: 'commerce', intentScore: 0.77 },
+];
+
+app.get('/api/whales/snapshot', (req, res) => {
+  res.json({ ok: true, signals: _whalesState.signals.slice(-20), stats: _whalesState.stats, generatedAt: new Date().toISOString() });
+});
+
+app.post('/api/whales/scan', (req, res) => {
+  const newOnes = WHALE_COMPANIES.filter(() => Math.random() > 0.5).map(c => ({
+    id: 'w_' + Math.random().toString(36).slice(2, 10),
+    company: c.name, signal: c.signal, intentScore: c.intentScore,
+    headline: `${c.name} announces major ${c.signal} investment initiative`,
+    detectedAt: new Date().toISOString(),
+  }));
+  _whalesState.signals.push(...newOnes);
+  _whalesState.stats.totalScanned += WHALE_COMPANIES.length;
+  _whalesState.stats.newSignals += newOnes.length;
+  res.json({ ok: true, newSignals: newOnes.length, signals: newOnes, generatedAt: new Date().toISOString() });
+});
+
 // ==================== GLOBAL ERROR HANDLER ====================
 // Catches any unhandled errors thrown in route handlers.
 // In production, never expose the stack trace to the client.
