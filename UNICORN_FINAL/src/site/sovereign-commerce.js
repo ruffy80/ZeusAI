@@ -587,8 +587,8 @@ a{color:var(--acc)}
   <div class="row"><span class="k">Address</span><span class="v mono">${order.receive_address} <button class="copy" onclick="copy('${order.receive_address}')">copy</button></span></div>
   <div class="row"><span class="k">Amount</span><span class="v mono">${btc} <button class="copy" onclick="copy('${btc}')">copy</button></span></div>
   <div class="row"><span class="k">BIP-21 URI</span><span class="v mono">${order.bip21} <button class="copy" onclick="copy('${order.bip21}')">copy</button></span></div>
-  <p style="margin-top:16px"><a class="cta" href="${order.bip21}">Open in wallet</a>
-  <a class="cta" style="background:#14132a;color:#eaf0ff;border:1px solid var(--line)" href="${OWNER_DOMAIN}">Back to site</a></p>
+  <p style="margin-top:16px"><a class="cta" href="${order.bip21}" target="_blank" rel="noopener">Open in wallet</a>
+  <a class="cta" style="background:#14132a;color:#eaf0ff;border:1px solid var(--line)" href="${OWNER_DOMAIN}" target="_blank" rel="noopener">Back to site</a></p>
 </div>
 
 <div class="grant" id="grant">
@@ -598,8 +598,8 @@ a{color:var(--acc)}
   <div class="row"><span class="k">Entitlement</span><span class="v mono" id="ent">—</span></div>
   <div class="row"><span class="k">Txid</span><span class="v mono" id="tx">—</span></div>
   <p class="note">A W3C Verifiable Credential receipt has been issued. Use the verify button below to check the entitlement.</p>
-  <p style="margin-top:10px"><a class="cta" id="walletDl" download="zeusai-entitlement.json" href="#" style="background:#f7931a;color:#05040a">💼 Add to wallet (VC)</a>
-  <a class="cta" style="background:#14132a;color:#eaf0ff;border:1px solid var(--line)" id="verifyLink" href="#">🔎 Verify entitlement</a></p>
+  <p style="margin-top:10px"><a class="cta" id="walletDl" download="zeusai-entitlement.json" href="/api/entitlements/${TOK}/wallet.json" style="background:#f7931a;color:#05040a">💼 Add to wallet (VC)</a>
+  <a class="cta" style="background:#14132a;color:#eaf0ff;border:1px solid var(--line)" id="verifyLink" href="/api/entitlements/${TOK}">🔎 Verify entitlement</a></p>
 </div>
 
 <footer>Settlement: direct on-chain to owner wallet · No custodian · 30Y-LTS sovereign commerce · ${OWNER_DOMAIN}</footer>

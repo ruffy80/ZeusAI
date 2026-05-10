@@ -1,9 +1,9 @@
 #!/bin/zsh
-# 30Y-LTS — stop the live-sync daemon cleanly via PID file.
+# Forward-only live-sync stop helper.
 set -euo pipefail
 
 REPO_DIR="$(cd "$(dirname "$0")/.." && pwd)"
-PID_FILE="$REPO_DIR/logs/live-sync-hetzner-github.pid"
+PID_FILE="$REPO_DIR/logs/live-sync-forward.pid"
 
 if [[ ! -f "$PID_FILE" ]]; then
   echo "No PID file at $PID_FILE — daemon not running."

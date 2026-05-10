@@ -1752,6 +1752,12 @@ const qrBaaS                       = require('./modules/quantumResistantBaaS');
 const amaa                         = require('./modules/autonomousMAdvisor');
 const uaitm                        = require('./modules/universalAITrainingMarketplace');
 
+// ==================== FORWARD-ONLY SAFETY (Activation Guardian) ====================
+// Ensures all autonomous engines operate with guaranteed forward-only semantics:
+// ✅ approved mutations only, ❌ no breaking changes, 🔒 protected state zones,
+// 🕰️ Swiss-watch harmony monitoring
+const forwardOnlySafety            = require('./modules/forward-only-safety');
+
 
 // ==================== SPECIAL MISSING MODULES — REQUIRES ====================
 const unicornExecutionEngine = require('./modules/unicorn-execution-engine');
@@ -2272,6 +2278,9 @@ console.log('📱 Social Media Viralizer: STARTING');
 console.log('🌐 Global Digital Standard: STARTING');
 
 // ==================== MESH ORCHESTRATOR — înregistrare & pornire ====================
+// FIRST: Register Forward-Only Safety (guardian of autonomous ops)
+meshOrchestrator.register('forwardOnlySafety',      forwardOnlySafety,  { statusFn: 'getStatus' });
+
 meshOrchestrator.register('quantumMemory', quantumMemory, { statusFn: 'getStatus' });
 meshOrchestrator.register('neuroUx', neuroUx, { statusFn: 'getStatus' });
 meshOrchestrator.register('selfEvolvingProtocol', selfEvolvingProtocol, { statusFn: 'getStatus' });
@@ -2341,10 +2350,14 @@ meshOrchestrator.register('centralOrchestrator',    centralOrchestrator, { statu
 if (!_stableRuntime) {
   meshOrchestrator.start();
   unicornOrchestrator.start('full'); // Orchestratorul central al unicornului — activează toate motoarele autonome (full mode)
+  // Start Forward-Only Safety harmony monitor
+  forwardOnlySafety.startHarmonyMonitor();
   console.log('🕰️  Unicorn Mesh Orchestrator: STARTED — toate modulele conectate');
   console.log('🦄 Unicorn Orchestrator (8 engines): ACTIVE');
+  console.log('🛡️  Forward-Only Safety: HARMONY MONITORING ACTIVE');
 } else {
   console.log('🧯 Stable profile active: mesh/orchestrator background loops are paused');
+  console.log('🛡️  Forward-Only Safety: enforcement enabled (monitoring-only, no harmony tracking in STABLE mode)');
 }
 
 // ==================== RUTE API ====================
@@ -8952,6 +8965,43 @@ app.post('/api/autonomy/activate', adminTokenMiddleware, (req, res) => {
     total: results.length,
     results,
   });
+});
+
+// ==================== FORWARD-ONLY SAFETY CONTROL PLANE ====================
+// Guardian of autonomous operations: whitelist mutations, protect state, enforce harmony
+
+app.get('/api/autonomy/safety/status', adminTokenMiddleware, (req, res) => {
+  res.json(forwardOnlySafety.getStatus());
+});
+
+app.get('/api/autonomy/safety/violations', adminTokenMiddleware, (req, res) => {
+  const limit = Math.min(500, Math.max(1, parseInt(req.query.limit, 10) || 50));
+  const violations = forwardOnlySafety.listViolations(limit);
+  res.json({ count: violations.length, violations });
+});
+
+app.get('/api/autonomy/approved-mutations', adminTokenMiddleware, (req, res) => {
+  res.json({ mutations: forwardOnlySafety.listApprovedMutations() });
+});
+
+app.get('/api/autonomy/protected-zones', adminTokenMiddleware, (req, res) => {
+  res.json({ zones: forwardOnlySafety.listProtectedZones() });
+});
+
+app.post('/api/autonomy/safety/clear-violations', adminTokenMiddleware, (req, res) => {
+  res.json(forwardOnlySafety.clearViolations());
+});
+
+app.post('/api/autonomy/safety/check-mutation', adminTokenMiddleware, express.json(), (req, res) => {
+  const result = forwardOnlySafety.checkMutation(req.body || {}, {
+    actor: req.admin && req.admin.email || 'admin',
+    userId: req.admin && req.admin.role || 'system',
+  });
+  res.json(result);
+});
+
+app.get('/api/autonomy/harmony/status', adminTokenMiddleware, (req, res) => {
+  res.json(forwardOnlySafety.getHarmonySnapshot());
 });
 
 // ==================== ECOSYSTEM TEST ====================

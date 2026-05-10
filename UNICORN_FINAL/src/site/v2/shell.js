@@ -2207,7 +2207,7 @@ function pageEnterprise() {
         <code class="inline" style="font-size:11px;color:#6fd3ff">${m.endpoint}</code>
         <span style="font-size:11px;color:#ffd36a;font-weight:600">${m.kpi}</span>
       </div>
-      <button class="btn btn-ghost ent-module-cta" data-module="${m.id}" data-module-title="${m.title}" style="font-size:13px;padding:8px 14px">Request demo →</button>
+      <button type="button" class="btn btn-ghost ent-module-cta" data-module="${m.id}" data-module-title="${m.title}" style="font-size:13px;padding:8px 14px">Request demo →</button>
     </div>`).join('');
 
   const apiExamples = modules.slice(0, 3).map(m => `

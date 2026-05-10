@@ -4001,13 +4001,18 @@ function renderStoreGrid(products, grid){
       ${features}
       <div style="font-size:11px;color:var(--ink-dim);padding:8px 10px;background:rgba(138,92,255,.08);border-radius:6px">📦 ${escStore(p.deliverable)}</div>
       ${accounts}
-      <button class="btn btn-primary store-buy" data-pid="${escStore(p.id)}" style="margin-top:auto">${ctaLabel}</button>
+      <button type="button" class="btn btn-primary store-buy" data-pid="${escStore(p.id)}" style="margin-top:auto">${ctaLabel}</button>
     </div>`;
   }).join('');
-  grid.querySelectorAll('.store-buy').forEach(b => b.addEventListener('click', () => {
-    const all = window.__UNICORN_STORE_PRODUCTS__ || [];
-    openStoreCheckout(all.find(x => x.id === b.dataset.pid));
-  }));
+  if (grid.dataset.storeWired !== '1') {
+    grid.dataset.storeWired = '1';
+    grid.addEventListener('click', (ev) => {
+      const button = ev.target && ev.target.closest ? ev.target.closest('.store-buy') : null;
+      if (!button || !grid.contains(button)) return;
+      const all = window.__UNICORN_STORE_PRODUCTS__ || [];
+      openStoreCheckout(all.find(x => x.id === button.dataset.pid));
+    });
+  }
 }
 
 function openStoreCheckout(product){
@@ -4062,7 +4067,7 @@ function renderStoreInvoice(r){
       </div>
 
       <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px" id="payMethodTabs">
-        ${methods.map((m,i) => `<button class="pay-tab" data-idx="${i}" style="background:${i===0?'linear-gradient(135deg,#8a5cff,#6d28d9)':'rgba(138,92,255,.12)'};color:${i===0?'#fff':'var(--ink)'};border:0;padding:10px 16px;border-radius:6px;cursor:pointer;font-weight:600;font-size:13px">${escStore(m.label)}</button>`).join('')}
+        ${methods.map((m,i) => `<button type="button" class="pay-tab" data-idx="${i}" style="background:${i===0?'linear-gradient(135deg,#8a5cff,#6d28d9)':'rgba(138,92,255,.12)'};color:${i===0?'#fff':'var(--ink)'};border:0;padding:10px 16px;border-radius:6px;cursor:pointer;font-weight:600;font-size:13px">${escStore(m.label)}</button>`).join('')}
       </div>
 
       <div id="payMethodBody"></div>
@@ -4085,14 +4090,14 @@ function renderStoreInvoice(r){
             <div style="font-size:22px;font-weight:700;color:#ffd36a;margin-bottom:10px">${escStore(m.btcAmount)} BTC</div>
             <div style="font-size:13px;color:var(--ink-dim)">Send to</div>
             <div style="font-family:monospace;font-size:12px;word-break:break-all;padding:8px;background:rgba(0,0,0,.3);border-radius:4px">${escStore(m.btcAddress)}</div>
-            <div style="margin-top:12px"><a href="${escStore(m.invoiceUri)}" class="btn btn-primary" style="font-size:13px">Open in BTC wallet</a></div>
+            <div style="margin-top:12px"><a href="${escStore(m.invoiceUri)}" class="btn btn-primary" target="_blank" rel="noopener" style="font-size:13px">Open in BTC wallet</a></div>
           </div>
         </div>`;
     } else if (m.kind === 'card') {
       bodyEl.innerHTML = `
         <div style="padding:18px;background:rgba(0,0,0,.25);border-radius:8px">
           <p style="color:var(--ink);margin:0 0 14px">Pay with any major credit card — Stripe-secured checkout. Monthly subscriptions auto-renew until cancelled from your account.</p>
-          <button id="stripeGoBtn" class="btn btn-primary" style="font-size:14px">Proceed to secure card payment →</button>
+          <button type="button" id="stripeGoBtn" class="btn btn-primary" style="font-size:14px">Proceed to secure card payment →</button>
           <div id="stripeErr" style="color:#ff9c9c;font-size:13px;margin-top:10px"></div>
         </div>`;
       bodyEl.querySelector('#stripeGoBtn').addEventListener('click', async () => {
@@ -4104,7 +4109,7 @@ function renderStoreInvoice(r){
       bodyEl.innerHTML = `
         <div style="padding:18px;background:rgba(0,0,0,.25);border-radius:8px">
           <p style="color:var(--ink);margin:0 0 14px">${escStore(m.note||'Bank wire transfer for enterprise orders. 1–3 business days settlement. Signed pro-forma invoice generated below.')}</p>
-          <button id="wireGoBtn" class="btn btn-primary" style="font-size:14px">Generate pro-forma invoice →</button>
+          <button type="button" id="wireGoBtn" class="btn btn-primary" style="font-size:14px">Generate pro-forma invoice →</button>
           <div id="wireResult" style="margin-top:14px"></div>
         </div>`;
       bodyEl.querySelector('#wireGoBtn').addEventListener('click', async () => {

@@ -1,14 +1,12 @@
 #!/bin/zsh
-# 🛡️ NEUTRALIZED — DO NOT RE-ENABLE.  See LIVE_BASELINE.md.
-echo "[$(date '+%Y-%m-%d %H:%M:%S')] start-live-sync-hetzner-github.sh is permanently disabled."
-exit 0
+# Forward-only live-sync launcher.
 set -euo pipefail
 
-REPO_DIR="/Users/ionutvladoi/Desktop/generate-unicorn"
+REPO_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 LOG_DIR="$REPO_DIR/logs"
-PID_FILE="$LOG_DIR/live-sync-hetzner-github.pid"
-LOG_FILE="$LOG_DIR/live-sync-hetzner-github.log"
-SCRIPT="$REPO_DIR/scripts/live-sync-hetzner-github.sh"
+PID_FILE="$LOG_DIR/live-sync-forward.pid"
+LOG_FILE="$LOG_DIR/live-sync-forward.log"
+SCRIPT="$REPO_DIR/UNICORN_FINAL/scripts/live-sync-forward.js"
 
 mkdir -p "$LOG_DIR"
 
@@ -17,6 +15,6 @@ if [[ -f "$PID_FILE" ]] && kill -0 "$(cat "$PID_FILE")" 2>/dev/null; then
   exit 0
 fi
 
-nohup "$SCRIPT" >> "$LOG_FILE" 2>&1 &
+nohup node "$SCRIPT" >> "$LOG_FILE" 2>&1 &
 echo $! > "$PID_FILE"
 echo "Live sync started with PID $!"

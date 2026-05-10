@@ -304,8 +304,22 @@ else
   git clone --depth=1 --branch "${BRANCH}" "${GITHUB_REPO}" "${TMP_CLONE}"
   mkdir -p "${DEPLOY_PATH}"
   cp -a "${TMP_CLONE}/UNICORN_FINAL/." "${DEPLOY_PATH}/"
+  BUILD_SHA="$(git -C "${TMP_CLONE}" rev-parse --short=12 HEAD 2>/dev/null || true)"
+  if [ -n "$BUILD_SHA" ]; then
+    printf '%s\n' "$BUILD_SHA" > "${DEPLOY_PATH}/.build-sha"
+    ok "Build SHA actualizat: $BUILD_SHA"
+  fi
   rm -rf "${TMP_CLONE}"
   fixed "Repository clonat → $DEPLOY_PATH"
+fi
+
+if [ -d "${DEPLOY_PATH}/.git" ]; then
+  cd "${DEPLOY_PATH}"
+  BUILD_SHA="$(git rev-parse --short=12 HEAD 2>/dev/null || true)"
+  if [ -n "$BUILD_SHA" ]; then
+    printf '%s\n' "$BUILD_SHA" > .build-sha
+    ok "Build SHA actualizat: $BUILD_SHA"
+  fi
 fi
 
 # ============================================================
@@ -358,8 +372,8 @@ ENVEOF
   pm2 delete all 2>/dev/null || true
 
   if [ -f "ecosystem.config.js" ]; then
-    pm2 start ecosystem.config.js
-    fixed "PM2 pornit din ecosystem.config.js"
+    pm2 startOrRestart ecosystem.config.js --update-env
+    fixed "PM2 startOrRestart din ecosystem.config.js"
   elif [ -f "backend/index.js" ]; then
     pm2 start backend/index.js --name unicorn-backend --env production
     fixed "PM2 pornit din backend/index.js"

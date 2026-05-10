@@ -72,6 +72,7 @@
     "test:site-commerce": "node test/site-commerce-smoke.test.js",
     "smoke": "bash scripts/smoke-tests.sh",
     "smoke:forward": "bash scripts/smoke-forward-only.sh",
+    "live:sync": "node scripts/live-sync-forward.js",
     "audit:live:mesh": "bash scripts/live-module-mesh-audit.sh",
     "mesh:guardian:once": "MESH_GUARDIAN_ONCE=1 node scripts/module-mesh-guardian.js",
     "preflight:forward": "node scripts/preflight-forward-only.js",

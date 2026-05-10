@@ -1291,7 +1291,7 @@ select.form-inp option{background:#0a0e24;}
       </div>
       <div id="login-msg"></div>
       <button class="btn btn-primary" style="width:100%;margin-top:8px;" onclick="doLogin()">🔑 Login</button>
-      <p style="text-align:center;margin-top:12px;font-size:12px;color:#7090b0;">No account? <a href="#" style="color:#00d4ff;" onclick="switchTab('tab-register');return false">Register free</a></p>
+      <p style="text-align:center;margin-top:12px;font-size:12px;color:#7090b0;">No account? <button type="button" style="padding:0;border:0;background:transparent;color:#00d4ff;font:inherit;cursor:pointer;" onclick="switchTab('tab-register')">Register free</button></p>
     </div>
     <!-- Register -->
     <div class="tab-panel" id="tab-register">
@@ -1981,7 +1981,7 @@ async function calcRoi(){
     +'<div><div class="label">Annual Savings</div><div class="kpi-val green" style="font-size:20px;">$'+Number(savings).toLocaleString('en-US',{maximumFractionDigits:0})+'</div></div>'
     +'<div><div class="label">ROI</div><div class="kpi-val" style="font-size:20px;">'+roiPct+'%</div></div>'
     +'<div><div class="label">Payback</div><div class="kpi-val purple" style="font-size:20px;">'+payback+' mo</div></div>'
-    +'</div><p class="muted" style="font-size:12px;margin-top:10px;text-align:center;">Based on '+ind+' industry benchmarks. <a href="#" onclick="openModal(\\'auth-modal\\');return false;" style="color:#00d4ff;">Get detailed report →</a></p>';
+    +'</div><p class="muted" style="font-size:12px;margin-top:10px;text-align:center;">Based on '+ind+' industry benchmarks. <button type="button" style="padding:0;border:0;background:transparent;color:#00d4ff;font:inherit;cursor:pointer;" onclick="openModal(\\'auth-modal\\')">Get detailed report →</button></p>';
 }
 
 // ================================================================
@@ -2415,7 +2415,7 @@ async function loadDashboard(){
       +'<div style="text-align:right;"><div class="green">$'+escHtml(String(p.amount||p.total||'—'))+'</div>'
       +'<div><span class="badge '+(p.status==='failed'?'badge-red':p.status==='pending'?'badge-purple':'')+'">'+escHtml(p.status||'paid')+'</span></div></div>'
       +'</div>';
-  }).join(''):'<p class="muted" style="font-size:13px;">No payments yet. <a href="#" onclick="navigate(\\'marketplace\\');return false;" style="color:#00d4ff;">Browse services →</a></p>')
+  }).join(''):'<p class="muted" style="font-size:13px;">No payments yet. <button type="button" style="padding:0;border:0;background:transparent;color:#00d4ff;font:inherit;cursor:pointer;" onclick="navigate(\\'marketplace\\')">Browse services →</button></p>')
   +'</div>'
   +'</div>'
   // RIGHT COLUMN

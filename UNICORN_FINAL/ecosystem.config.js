@@ -267,6 +267,33 @@ module.exports = {
       log_date_format: 'YYYY-MM-DD HH:mm:ss',
     },
 
+    // ── 6. Live Sync Forward — safe file-change→reload bridge ───────────────
+    {
+      name: 'unicorn-live-sync',
+      script: 'scripts/live-sync-forward.js',
+      cwd: APP_DIR,
+      instances: 1,
+      exec_mode: 'fork',
+      autorestart: true,
+      max_restarts: 20,
+      min_uptime: '15s',
+      restart_delay: 3000,
+      watch: false,
+      env: {
+        NODE_ENV: 'production',
+        LIVE_SYNC_ENABLED: process.env.LIVE_SYNC_ENABLED || '1',
+        LIVE_SYNC_ROOT: APP_DIR,
+        LIVE_SYNC_INTERVAL_MS: process.env.LIVE_SYNC_INTERVAL_MS || '10000',
+        LIVE_SYNC_QUIET_MS: process.env.LIVE_SYNC_QUIET_MS || '2500',
+        LIVE_SYNC_INSTALL_ON_MANIFEST: process.env.LIVE_SYNC_INSTALL_ON_MANIFEST || '1',
+        LIVE_SYNC_PM2_CMD: process.env.LIVE_SYNC_PM2_CMD || 'pm2',
+        LIVE_SYNC_PM2_ARGS: process.env.LIVE_SYNC_PM2_ARGS || 'startOrRestart ecosystem.config.js --update-env',
+      },
+      error_file: 'logs/live-sync-error.log',
+      out_file:   'logs/live-sync-out.log',
+      log_date_format: 'YYYY-MM-DD HH:mm:ss',
+    },
+
     // ── 3. Guardian — DISABLED (set UNICORN_GUARDIAN=1 to enable) ────────────
     // Guardian keeps tar snapshots and performs auto-rollback by extracting
     // the last "known-good" tarball over the app dir. If the baseline snapshot

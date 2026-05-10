@@ -39,10 +39,12 @@ read by:
    Refuses any HEAD that is **not** a strict descendant of the pinned SHA.
 2. The pre-flight step in `.github/workflows/deploy.yml` — refuses to
    ssh-rsync to Hetzner unless HEAD is a descendant of the pinned SHA.
-3. The neutralized `scripts/auto-sync-push.sh` and friends — they exit
-   immediately, so the live filesystem on Hetzner can never push a stale
-   snapshot back into git the way it did with commit `0dacd1c`
-   (`live-sync: 2026-05-03 00:47:25` → -1216 lines).
+3. The neutralized `scripts/auto-sync-push.sh` and the legacy live-sync
+   launchers — the old push-to-git path still exits immediately, while the
+   launcher names now resolve to the forward-only daemon in
+   `UNICORN_FINAL/scripts/live-sync-forward.js`. The live filesystem on
+   Hetzner can no longer push a stale snapshot back into git the way it did
+   with commit `0dacd1c` (`live-sync: 2026-05-03 00:47:25` → -1216 lines).
 4. The **AutoInnovation guard** in `no-downgrade-guard.yml` and the
    `deploy.yml` pre-flight: any commit whose subject begins with
    `[AutoInnovation]` between baseline and HEAD must carry the

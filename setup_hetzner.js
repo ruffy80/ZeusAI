@@ -338,7 +338,7 @@ function getSetupScript(answers) {
   script += `cat > /etc/cron.d/unicorn-update << 'CRON_EOF'\n`;
   script += `SHELL=/bin/bash\n`;
   script += `PATH=/usr/local/sbin:/usr/local/bin:/sbin:/bin:/usr/sbin:/usr/bin\n`;
-  script += `*/5 * * * * root cd ${deployPath} && git pull && npm install && systemctl restart unicorn >> /var/log/unicorn-update.log 2>&1\n`;
+  script += `*/5 * * * * root cd ${deployPath} && git pull && npm install && pm2 startOrRestart ecosystem.config.js --update-env >> /var/log/unicorn-update.log 2>&1\n`;
   script += `CRON_EOF\n`;
   script += `chmod 0644 /etc/cron.d/unicorn-update\n\n`;
 
