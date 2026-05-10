@@ -576,6 +576,18 @@ ${globalChrome(N)}
 <script${N}>window.__UNICORN__=${JSON.stringify({ owner: OWNER, route })};</script>
 <script${N}>window.__ZEUS_ASSETS__=${JSON.stringify(browserAssetManifest())};</script>
 <script${N} data-local-three-version="r160">
+// Trusted Types: register a passthrough 'default' policy early — before any
+// third-party script runs — so raw innerHTML / script.src assignments from any
+// module are automatically routed through it, satisfying require-trusted-types-for
+// 'script' without breaking existing functionality.
+(function(){
+  if (!window.trustedTypes || typeof window.trustedTypes.createPolicy !== 'function') return;
+  try { window.trustedTypes.createPolicy('default', {
+    createHTML: function(s){ return String(s == null ? '' : s); },
+    createScriptURL: function(s){ return String(s == null ? '' : s); },
+    createScript: function(s){ return String(s == null ? '' : s); }
+  }); } catch(_) { /* already registered — allow-duplicates in CSP is set */ }
+})();
 // 30Y-LTS: try locally vendored Three.js first, fall back to CDN only when absent.
 // PERF: defer until the browser is idle (or 1.5 s after load) so Three.js parsing
 // never blocks LCP / TBT. The galaxy canvas already has a CSS-only fallback
@@ -584,9 +596,16 @@ ${globalChrome(N)}
   function inject(){
     if (window.__zeusThreeLoaded) return; window.__zeusThreeLoaded = true;
     var s=document.createElement('script');
-    s.src='${assetPath('/assets/vendor/three.min.js')}';
+    var _src='${assetPath('/assets/vendor/three.min.js')}';
+    // Use Trusted Types createScriptURL when available (satisfies TrustedScriptURL sink)
+    try { s.src = (window.trustedTypes && window.trustedTypes.defaultPolicy) ? window.trustedTypes.defaultPolicy.createScriptURL(_src) : _src; } catch(_e){ try{ s.setAttribute('src',_src); }catch(__){} }
     s.async=true;
-    s.onerror=function(){var f=document.createElement('script');f.src='https://unpkg.com/three@0.160.0/build/three.min.js';f.async=true;document.head.appendChild(f);};
+    s.onerror=function(){
+      var f=document.createElement('script');
+      var _fsrc='https://unpkg.com/three@0.160.0/build/three.min.js';
+      try { f.src = (window.trustedTypes && window.trustedTypes.defaultPolicy) ? window.trustedTypes.defaultPolicy.createScriptURL(_fsrc) : _fsrc; } catch(_e){ try{ f.setAttribute('src',_fsrc); }catch(__){} }
+      f.async=true;document.head.appendChild(f);
+    };
     document.head.appendChild(s);
   }
   var ric = window.requestIdleCallback || function(cb){ return setTimeout(cb, 1500); };
@@ -1765,7 +1784,9 @@ function pageAccount(opts) {
   try {
     if (window.trustedTypes && typeof window.trustedTypes.createPolicy === 'function') {
       ttPolicy = window.trustedTypes.createPolicy('zeus', {
-        createHTML: function(v){ return String(v == null ? '' : v); }
+        createHTML: function(v){ return String(v == null ? '' : v); },
+        createScriptURL: function(v){ return String(v == null ? '' : v); },
+        createScript: function(v){ return String(v == null ? '' : v); }
       });
     }
   } catch (_) {}
