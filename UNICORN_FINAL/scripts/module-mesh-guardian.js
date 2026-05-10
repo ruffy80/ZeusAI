@@ -5,17 +5,21 @@ const { execFile } = require('node:child_process');
 
 const CFG = {
   intervalMs: Math.max(10_000, Number(process.env.MESH_GUARDIAN_INTERVAL_MS || 30_000)),
-  timeoutMs: Math.max(2_000, Number(process.env.MESH_GUARDIAN_TIMEOUT_MS || 6_000)),
+  timeoutMs: Math.max(2_000, Number(process.env.MESH_GUARDIAN_TIMEOUT_MS || 12_000)),
   failThreshold: Math.max(1, Number(process.env.MESH_GUARDIAN_FAIL_THRESHOLD || 3)),
   healCooldownMs: Math.max(30_000, Number(process.env.MESH_GUARDIAN_HEAL_COOLDOWN_MS || 300_000)),
+  startupGraceMs: Math.max(0, Number(process.env.MESH_GUARDIAN_STARTUP_GRACE_MS || 45_000)),
   autoRepair: String(process.env.MESH_GUARDIAN_AUTOREPAIR || '1') !== '0',
   once: String(process.env.MESH_GUARDIAN_ONCE || '0') === '1',
 };
+
+const startedAt = Date.now();
 
 const TARGETS = [
   {
     name: 'backend.health',
     app: 'unicorn-backend',
+    critical: true,
     url: 'http://127.0.0.1:3000/health',
     validate(data) {
       return !!data && (data.status === 'ok' || data.status === 'healthy' || data.ok === true);
@@ -24,6 +28,7 @@ const TARGETS = [
   {
     name: 'backend.apiHealth',
     app: 'unicorn-backend',
+    critical: true,
     url: 'http://127.0.0.1:3000/api/health',
     validate(data) {
       if (!data || !(data.status === 'ok' || data.ok === true)) return false;
@@ -35,6 +40,7 @@ const TARGETS = [
   {
     name: 'backend.qis',
     app: 'unicorn-backend',
+    critical: false,
     url: 'http://127.0.0.1:3000/api/quantum-integrity/status',
     validate(data) {
       return !!data && data.active === true && data.integrity === 'intact';
@@ -43,6 +49,7 @@ const TARGETS = [
   {
     name: 'backend.commerce',
     app: 'unicorn-backend',
+    critical: false,
     url: 'http://127.0.0.1:3000/api/unicorn-commerce/status',
     validate(data) {
       return !!data && data.ok === true;
@@ -51,6 +58,7 @@ const TARGETS = [
   {
     name: 'backend.billionScale',
     app: 'unicorn-backend',
+    critical: false,
     url: 'http://127.0.0.1:3000/api/billion-scale/status',
     validate(data) {
       return !!data && data.ok === true;
@@ -59,6 +67,7 @@ const TARGETS = [
   {
     name: 'site.health',
     app: 'unicorn-site',
+    critical: true,
     url: 'http://127.0.0.1:3001/health',
     validate(data) {
       return !!data && (data.status === 'ok' || data.status === 'healthy' || data.ok === true);
@@ -67,6 +76,7 @@ const TARGETS = [
   {
     name: 'site.home',
     app: 'unicorn-site',
+    critical: false,
     url: 'http://127.0.0.1:3001/',
     validate(data) {
       return !!data && typeof data === 'string' && data.includes('<!doctype html');
@@ -99,7 +109,7 @@ async function fetchTarget(target) {
       headers: { 'cache-control': 'no-cache' },
     });
     if (!res.ok) {
-      return { ok: false, target: target.name, app: target.app, reason: `http_${res.status}` };
+      return { ok: false, target: target.name, app: target.app, critical: !!target.critical, reason: `http_${res.status}` };
     }
     let data;
     if (target.expectText) {
@@ -109,11 +119,11 @@ async function fetchTarget(target) {
     }
     const valid = !!target.validate(data);
     if (!valid) {
-      return { ok: false, target: target.name, app: target.app, reason: 'invalid_payload' };
+      return { ok: false, target: target.name, app: target.app, critical: !!target.critical, reason: 'invalid_payload' };
     }
-    return { ok: true, target: target.name, app: target.app };
+    return { ok: true, target: target.name, app: target.app, critical: !!target.critical };
   } catch (err) {
-    return { ok: false, target: target.name, app: target.app, reason: err && err.name === 'AbortError' ? 'timeout' : 'network_error' };
+    return { ok: false, target: target.name, app: target.app, critical: !!target.critical, reason: err && err.name === 'AbortError' ? 'timeout' : 'network_error' };
   } finally {
     clearTimeout(timer);
   }
@@ -154,27 +164,40 @@ async function heal(fails) {
 }
 
 async function cycle() {
+  const inStartupGrace = (Date.now() - startedAt) < CFG.startupGraceMs;
   const started = Date.now();
   const results = await Promise.all(TARGETS.map(fetchTarget));
   const fails = results.filter((r) => !r.ok);
+  const hardFails = fails.filter((r) => r.critical);
+  const softFails = fails.filter((r) => !r.critical);
 
-  if (!fails.length) {
+  if (!hardFails.length) {
     if (failStreak > 0) log('OK', 'module mesh restored', { previousFailStreak: failStreak });
     failStreak = 0;
-    log('OK', 'module mesh healthy', { checks: results.length, ms: Date.now() - started });
+    if (softFails.length) {
+      log('WARN', 'module mesh healthy (non-critical endpoint warnings)', {
+        checks: results.length,
+        softFails: softFails.map((f) => ({ target: f.target, reason: f.reason })),
+        ms: Date.now() - started,
+      });
+    } else {
+      log('OK', 'module mesh healthy', { checks: results.length, ms: Date.now() - started });
+    }
     return true;
   }
 
   failStreak += 1;
-  log('WARN', 'module mesh check failed', {
+  log('WARN', 'module mesh critical check failed', {
     failStreak,
     threshold: CFG.failThreshold,
-    fails: fails.map((f) => ({ target: f.target, app: f.app, reason: f.reason })),
+    hardFails: hardFails.map((f) => ({ target: f.target, app: f.app, reason: f.reason })),
+    softFails: softFails.map((f) => ({ target: f.target, app: f.app, reason: f.reason })),
+    startupGrace: inStartupGrace,
     ms: Date.now() - started,
   });
 
-  if (failStreak >= CFG.failThreshold) {
-    await heal(fails);
+  if (!inStartupGrace && failStreak >= CFG.failThreshold) {
+    await heal(hardFails);
     failStreak = 0;
   }
   return false;
