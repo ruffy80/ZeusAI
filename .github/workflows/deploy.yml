@@ -33,6 +33,8 @@ concurrency:
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    env:
+      NODE_OPTIONS: --no-deprecation
     # Hard ceiling so a hung step (e.g. an interval that forgets process.exit)
     # cannot burn 6h of CI again the way it did 2026-04-29 (8 cancelled runs
     # in a row → live PM2 stack drifted → 502 outage). The job normally
