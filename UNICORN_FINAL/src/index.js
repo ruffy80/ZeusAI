@@ -4320,10 +4320,10 @@ async function unicornHandler(req, res) {
   }
 
   // ==================== FAZA 2 / VAL 5: STALE-BUT-ALIVE HEALTH MONITOR (server-side flag) ====================
-  // Exposes /api/site/degraded — true if backend (:3000) has failed last 3 health
-  // checks. The cockpit/services/status pages use this to render a banner; the
-  // browser also polls /health locally as defence in depth.
-  if (urlPath === '/api/site/degraded') {
+  // Exposes /site/degraded (NOT /api/* to avoid nginx routing to backend:3000).
+  // The cockpit/services/status pages use this to render a banner; the browser
+  // also polls /health locally as defence in depth.
+  if (urlPath === '/site/degraded' || urlPath === '/unicorn-degraded') {
     res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
     var monitor = global.__UNICORN_BACKEND_MONITOR || { fails: 0, ok: true, lastTs: 0 };
     return res.end(JSON.stringify({ ok: true, degraded: !monitor.ok, fails: monitor.fails, lastCheckTs: monitor.lastTs }));
