@@ -4123,6 +4123,85 @@ async function unicornHandler(req, res) {
     return res.end(JSON.stringify({ ok: true, service: 'unicorn-final', brand: 'ZeusAI' }));
   }
 
+  // ==================== FAZA 2 / VAL 5: SUPREME COCKPIT ENDPOINTS ====================
+  // /unicorn-status — JSON aggregate over the 6 supreme modules loaded directly
+  //                   (no HTTP hop to :3000). Stale-but-alive: returns cached
+  //                   payload if a module is slow/down. Strict additive.
+  // /unicorn-stream — SSE feed of cockpit updates (10s tick, unref'd).
+  if (urlPath === '/unicorn-status' || urlPath === '/unicorn-cockpit.json') {
+    try {
+      if (!global.__UNICORN_SUPREME_CACHE) global.__UNICORN_SUPREME_CACHE = { ts: 0, data: null };
+      const cache = global.__UNICORN_SUPREME_CACHE;
+      const STALE_MS = 5000;
+      if (cache.data && (Date.now() - cache.ts) < STALE_MS) {
+        res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store', 'X-Unicorn-Cache': 'hit' });
+        return res.end(JSON.stringify(cache.data));
+      }
+      const names = ['unicornBrain','unicornSelfHealer','unicornInnovator','unicornTreasury','unicornGrowth','unicornGuardian'];
+      const keys  = ['brain','healer','innovator','treasury','growth','guardian'];
+      const out = { ok: true, ts: Date.now(), supreme: {} };
+      const TIMEOUT_MS = 1500;
+      const tasks = names.map((n, i) => new Promise((resolve) => {
+        let mod = null;
+        try { mod = require('../backend/modules/' + n); } catch (_) {}
+        if (!mod || typeof mod.getStatus !== 'function') return resolve({ ok: false, reason: 'missing', module: n });
+        let settled = false;
+        const t = setTimeout(() => { if (settled) return; settled = true; resolve({ ok: false, reason: 'timeout', module: n }); }, TIMEOUT_MS);
+        try {
+          Promise.resolve(mod.getStatus()).then((v) => { if (settled) return; settled = true; clearTimeout(t); resolve(v); })
+            .catch((err) => { if (settled) return; settled = true; clearTimeout(t); resolve({ ok: false, reason: 'error', module: n, error: String(err && err.message || err) }); });
+        } catch (err) { if (settled) return; settled = true; clearTimeout(t); resolve({ ok: false, reason: 'throw', module: n, error: String(err && err.message || err) }); }
+      }));
+      return Promise.all(tasks).then((results) => {
+        keys.forEach((k, i) => { out.supreme[k] = results[i]; });
+        cache.ts = Date.now(); cache.data = out;
+        res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store', 'X-Unicorn-Cache': 'miss' });
+        res.end(JSON.stringify(out));
+      }).catch((err) => {
+        const fallback = cache.data || { ok: false, error: String(err && err.message || err), ts: Date.now() };
+        res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store', 'X-Unicorn-Cache': 'fallback' });
+        res.end(JSON.stringify(fallback));
+      });
+    } catch (err) {
+      try { res.writeHead(500, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ ok: false, error: String(err && err.message || err) })); } catch (_) {}
+      return;
+    }
+  }
+
+  if (urlPath === '/unicorn-stream') {
+    try {
+      res.writeHead(200, {
+        'Content-Type': 'text/event-stream; charset=utf-8',
+        'Cache-Control': 'no-cache, no-transform',
+        Connection: 'keep-alive',
+        'X-Accel-Buffering': 'no',
+      });
+      const send = () => {
+        try {
+          const names = ['unicornBrain','unicornSelfHealer','unicornInnovator','unicornTreasury','unicornGrowth','unicornGuardian'];
+          const keys  = ['brain','healer','innovator','treasury','growth','guardian'];
+          const supreme = {};
+          names.forEach((n, i) => {
+            try { const m = require('../backend/modules/' + n); supreme[keys[i]] = (m && typeof m.getStatus === 'function') ? m.getStatus() : { ok: false, reason: 'missing' }; }
+            catch (e) { supreme[keys[i]] = { ok: false, reason: 'error', error: String(e && e.message || e) }; }
+          });
+          res.write('event: cockpit\n');
+          res.write('data: ' + JSON.stringify({ ok: true, ts: Date.now(), supreme }) + '\n\n');
+        } catch (_) {}
+      };
+      send();
+      const timer = setInterval(send, 10000);
+      if (timer && typeof timer.unref === 'function') timer.unref();
+      req.on('close', () => { try { clearInterval(timer); } catch (_) {} });
+      return;
+    } catch (err) {
+      try { res.writeHead(500, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ ok: false, error: String(err && err.message || err) })); } catch (_) {}
+      return;
+    }
+  }
+  // ==================== END FAZA 2 / VAL 5 ====================
+
+
   // Public deploy-verification endpoint. Returns the build SHA stamped by
   // .github/workflows/deploy.yml on every successful CI deploy. Lets anyone
   // confirm `the site updates after every push` with a single curl:

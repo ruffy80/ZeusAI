@@ -136,6 +136,100 @@ const routeCache = require('./modules/route-cache');
 const app = express();
 const PORT = process.env.PORT || 3000;
 
+// ==================== FAZA 2 / VAL 4: SUPREME MODULE REGISTRY ====================
+// Centralizează cele 6 module supreme (Brain, SelfHealer, Innovator, Treasury,
+// Growth, Guardian). safeGet() oferă timeout + cache + fallback ca rutele
+// /api/<modul>/status să nu cadă niciodată chiar dacă un modul intern e lent.
+// Strict additive — nu interferează cu rutele existente.
+const __SUPREME = (function buildSupremeRegistry() {
+  function tryLoad(name) {
+    try { return require('./modules/' + name); }
+    catch (e) { console.warn('[supreme] load fail', name, e && e.message); return null; }
+  }
+  const reg = {
+    brain:     tryLoad('unicornBrain'),
+    healer:    tryLoad('unicornSelfHealer'),
+    innovator: tryLoad('unicornInnovator'),
+    treasury:  tryLoad('unicornTreasury'),
+    growth:    tryLoad('unicornGrowth'),
+    guardian:  tryLoad('unicornGuardian'),
+  };
+  const cache = Object.create(null);
+  function safeGet(modName, method, fallback, timeoutMs) {
+    const mod = reg[modName];
+    const key = modName + ':' + method;
+    const to = Number(timeoutMs || 5000);
+    return new Promise((resolve) => {
+      if (!mod || typeof mod[method] !== 'function') {
+        return resolve(cache[key] || fallback || { ok: false, reason: 'module-or-method-missing', module: modName, method });
+      }
+      let settled = false;
+      const timer = setTimeout(() => {
+        if (settled) return;
+        settled = true;
+        resolve(cache[key] || fallback || { ok: false, reason: 'timeout', module: modName, method, timeoutMs: to });
+      }, to);
+      try {
+        Promise.resolve(mod[method]()).then((val) => {
+          if (settled) return;
+          settled = true;
+          clearTimeout(timer);
+          cache[key] = val;
+          resolve(val);
+        }).catch((err) => {
+          if (settled) return;
+          settled = true;
+          clearTimeout(timer);
+          resolve(cache[key] || fallback || { ok: false, reason: 'error', error: String(err && err.message || err), module: modName, method });
+        });
+      } catch (err) {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timer);
+        resolve(cache[key] || fallback || { ok: false, reason: 'throw', error: String(err && err.message || err), module: modName, method });
+      }
+    });
+  }
+  return { reg, safeGet };
+})();
+
+// Generic JSON helper
+function __supremeSend(res, payload, status) {
+  try {
+    res.status(status || 200);
+    res.setHeader('Content-Type', 'application/json; charset=utf-8');
+    res.setHeader('Cache-Control', 'no-store');
+    res.end(JSON.stringify(payload));
+  } catch (_) { /* socket closed */ }
+}
+
+// Wire all 6 supreme modules — same shape for each: /status, /history, /force (POST)
+['brain','healer','innovator','treasury','growth','guardian'].forEach((name) => {
+  app.get('/api/' + name + '/status', async (req, res) => {
+    const data = await __SUPREME.safeGet(name, 'getStatus', { ok: true, module: name, degraded: true });
+    __supremeSend(res, { ok: true, module: name, ts: Date.now(), data });
+  });
+  app.get('/api/' + name + '/history', async (req, res) => {
+    const data = await __SUPREME.safeGet(name, 'getHistory', { ok: true, module: name, history: [] });
+    __supremeSend(res, { ok: true, module: name, ts: Date.now(), data });
+  });
+  app.post('/api/' + name + '/force', express.json({ limit: '8kb' }), async (req, res) => {
+    const data = await __SUPREME.safeGet(name, 'forceTick', { ok: true, module: name, forced: false });
+    __supremeSend(res, { ok: true, module: name, ts: Date.now(), forced: true, data });
+  });
+});
+
+// Aggregate endpoint — single call to inspect all 6 supreme modules at once
+app.get('/api/supreme/status', async (req, res) => {
+  const names = ['brain','healer','innovator','treasury','growth','guardian'];
+  const results = await Promise.all(names.map((n) => __SUPREME.safeGet(n, 'getStatus', { ok: true, module: n, degraded: true })));
+  const out = {};
+  names.forEach((n, i) => { out[n] = results[i]; });
+  __supremeSend(res, { ok: true, ts: Date.now(), supreme: out });
+});
+// ==================== END FAZA 2 / VAL 4 ====================
+
+
 // ==================== TOPOLOGY IDENTITY MIDDLEWARE (backend, 3000) ====================
 // Companion to the same middleware in src/index.js (site, 3001). Tags every
 // response from the backend (the source-of-truth process — SQLite, ledgers,
