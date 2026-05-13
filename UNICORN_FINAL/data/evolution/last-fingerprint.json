@@ -1,8 +1,8 @@
 {
-  "at": "2026-05-09T14:48:56.037Z",
+  "at": "2026-05-10T19:12:13.243Z",
   "pkgVersion": "1.2.2",
-  "moduleCount": 331,
-  "moduleHash": "2c6510f2709682e4",
+  "moduleCount": 332,
+  "moduleHash": "f6bd36d54e677c8c",
   "modules": [
     "AdaptiveModule01.js",
     "AdaptiveModule02.js",
@@ -229,6 +229,7 @@
     "evolution-core.js",
     "executiveDashboard.js",
     "feedback-ai.js",
+    "forward-only-safety.js",
     "future-state-ai.js",
     "giantIntegrationFabric.js",
     "github-ops.js",
@@ -336,5 +337,5 @@
     "worldStandard.js",
     "zacAlertChannel.js"
   ],
-  "fingerprint": "eeed2caeda15cb75"
+  "fingerprint": "7039609bd178abde"
 }

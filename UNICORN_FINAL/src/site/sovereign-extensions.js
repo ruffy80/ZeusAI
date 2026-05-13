@@ -189,6 +189,11 @@ async function handle(req, res, ctx) {
   }
 
   // ── /robots.txt ────────────────────────────────────────────────────────
+  // Lighthouse robots-txt audit (PageSpeed) is strict — it rejects the
+  // non-standard `Host:` directive and only accepts ASCII syntax. We keep
+  // the file strictly RFC 9309 compliant: one group per `User-agent` line,
+  // standard `Allow:` / `Disallow:` / `Sitemap:` directives, comments in
+  // ASCII only, blank lines between groups for clarity.
   if (urlPath === '/robots.txt') {
     const body = [
       'User-agent: *',
@@ -197,21 +202,24 @@ async function handle(req, res, ctx) {
       'Disallow: /dashboard',
       'Disallow: /account',
       '',
-      '# AI agents — we welcome indexing and autonomous purchase',
+      '# AI agents -- we welcome indexing and autonomous purchase',
       'User-agent: GPTBot',
       'Allow: /',
+      '',
       'User-agent: ClaudeBot',
       'Allow: /',
+      '',
       'User-agent: PerplexityBot',
       'Allow: /',
+      '',
       'User-agent: CCBot',
       'Allow: /',
+      '',
       'User-agent: Google-Extended',
       'Allow: /',
       '',
       `Sitemap: ${OWNER.domain}/sitemap.xml`,
       `Sitemap: ${OWNER.domain}/seo/sitemap-services.xml`,
-      `Host: ${OWNER.domain.replace(/^https?:\/\//, '')}`,
     ].join('\n');
     res.writeHead(200, { 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': 'public, max-age=3600' });
     res.end(body);

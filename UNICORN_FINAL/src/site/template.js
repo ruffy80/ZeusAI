@@ -269,7 +269,7 @@ select.form-inp option{background:#0a0e24;}
 .modal-close:hover{color:#e8f4ff;background:rgba(255,255,255,.15);}
 .modal-title{font-family:'Orbitron',monospace;font-size:18px;font-weight:700;color:#e8f4ff;margin-bottom:20px;}
 .tab-row{display:flex;gap:4px;margin-bottom:20px;background:rgba(255,255,255,.04);border-radius:10px;padding:4px;}
-.tab-btn{flex:1;background:none;border:none;color:#7090b0;font-family:'Rajdhani',sans-serif;font-size:14px;font-weight:600;padding:7px;border-radius:8px;cursor:pointer;transition:all .2s;}
+.tab-btn{flex:1;background:none;border:none;color:#7090b0;font-family:'Rajdhani',sans-serif;font-size:14px;font-weight:600;padding:7px;border-radius:8px;cursor:pointer;transition:transform .2s,opacity .2s,background-color .2s,color .2s;}
 .tab-btn.active{background:rgba(0,212,255,.15);color:#00d4ff;}
 .tab-panel{display:none;}
 .tab-panel.active{display:block;}
@@ -282,7 +282,7 @@ select.form-inp option{background:#0a0e24;}
 
 /* CHECKOUT STEPS */
 .pay-methods{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:12px;}
-.pay-method-btn{background:rgba(10,14,36,.9);border:1px solid rgba(0,200,255,.25);color:#e8f4ff;padding:16px 8px;border-radius:12px;cursor:pointer;font-family:'Rajdhani',sans-serif;font-size:13px;font-weight:600;text-align:center;transition:all .2s;display:flex;flex-direction:column;align-items:center;gap:6px;}
+.pay-method-btn{background:rgba(10,14,36,.9);border:1px solid rgba(0,200,255,.25);color:#e8f4ff;padding:16px 8px;border-radius:12px;cursor:pointer;font-family:'Rajdhani',sans-serif;font-size:13px;font-weight:600;text-align:center;transition:transform .2s,opacity .2s,background-color .2s,border-color .2s,color .2s;display:flex;flex-direction:column;align-items:center;gap:6px;}
 .pay-method-btn:hover{border-color:#00d4ff;background:rgba(0,212,255,.1);}
 .pay-method-icon{font-size:24px;}
 .qr-img{width:160px;height:160px;display:block;margin:10px auto;border-radius:8px;border:2px solid rgba(0,200,255,.3);}
@@ -345,7 +345,7 @@ select.form-inp option{background:#0a0e24;}
 
 /* ADMIN TABS */
 .adm-tabs{display:flex;gap:4px;margin-bottom:20px;background:rgba(255,255,255,.04);border-radius:10px;padding:4px;flex-wrap:wrap;}
-.adm-tab-btn{background:none;border:none;color:#7090b0;font-family:'Rajdhani',sans-serif;font-size:13px;font-weight:600;padding:7px 14px;border-radius:8px;cursor:pointer;transition:all .2s;white-space:nowrap;}
+.adm-tab-btn{background:none;border:none;color:#7090b0;font-family:'Rajdhani',sans-serif;font-size:13px;font-weight:600;padding:7px 14px;border-radius:8px;cursor:pointer;transition:transform .2s,opacity .2s,background-color .2s,color .2s;white-space:nowrap;}
 .adm-tab-btn.active{background:rgba(0,212,255,.15);color:#00d4ff;}
 .adm-tab-panel{display:none;}
 .adm-tab-panel.active{display:block;}
@@ -365,7 +365,7 @@ select.form-inp option{background:#0a0e24;}
 
 /* DASHBOARD SUB-TABS */
 .dash-tabs{display:flex;gap:4px;margin-bottom:20px;background:rgba(255,255,255,.04);border-radius:10px;padding:4px;}
-.dash-tab-btn{flex:1;background:none;border:none;color:#7090b0;font-family:'Rajdhani',sans-serif;font-size:13px;font-weight:600;padding:7px;border-radius:8px;cursor:pointer;transition:all .2s;text-align:center;}
+.dash-tab-btn{flex:1;background:none;border:none;color:#7090b0;font-family:'Rajdhani',sans-serif;font-size:13px;font-weight:600;padding:7px;border-radius:8px;cursor:pointer;transition:transform .2s,opacity .2s,background-color .2s,color .2s;text-align:center;}
 .dash-tab-btn.active{background:rgba(0,212,255,.15);color:#00d4ff;}
 .dash-tab-panel{display:none;}
 .dash-tab-panel.active{display:block;}
@@ -1372,19 +1372,9 @@ select.form-inp option{background:#0a0e24;}
   <div id="notif-list" style="max-height:320px;overflow-y:auto;padding:8px;"></div>
 </div>
 
-<!-- CHAT WIDGET -->
-<button id="chat-fab" onclick="toggleChat()">💬 Zeus AI</button>
-<div id="chat-panel" class="hidden">
-  <div class="chat-hdr">
-    <span class="chat-title">⚡ Zeus AI Assistant</span>
-    <button class="chat-close" onclick="toggleChat()">✕</button>
-  </div>
-  <div id="chat-messages"></div>
-  <div class="chat-inp-row">
-    <input class="chat-inp" id="chat-input" type="text" placeholder="Ask Zeus anything..." onkeydown="if(event.key==='Enter')sendChat()"/>
-    <button class="chat-send" onclick="sendChat()">▶</button>
-  </div>
-</div>
+<!-- CHAT WIDGET — unified into the v2 Concierge (#conciergeBtn / #conciergePanel).
+     Legacy #chat-fab + #chat-panel removed: a single advanced AI widget remains
+     (SSE streaming, voice, memory, tool calls, recommendations, cards, QR). -->
 
 <script>
 // ================================================================

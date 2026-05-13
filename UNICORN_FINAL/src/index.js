@@ -471,10 +471,15 @@ function installResponseFreshnessGuards(res) {
       // understand strict-dynamic — they fall back to the previous behaviour,
       // so this change is strictly forward-compatible (zero regression).
       const __nonceForCsp = String(res.getHeader('X-CSP-Nonce') || '').trim();
+      // PageSpeed CSP Evaluator: with `'strict-dynamic'` + nonce, host
+      // expressions (`https:`) are explicitly ignored by spec — including
+      // them looks permissive to scanners. We drop them from script-src and
+      // default-src while keeping the nonce + strict-dynamic + unsafe-inline
+      // fallback so legacy browsers degrade gracefully (zero regression).
       const __scriptSrc = __nonceForCsp
-        ? `script-src 'self' 'nonce-${__nonceForCsp}' 'strict-dynamic' https: 'unsafe-inline'`
-        : "script-src 'self' 'unsafe-inline' https:";
-      res.setHeader('Content-Security-Policy', `default-src 'self' https:; ${__scriptSrc}; style-src 'self' 'unsafe-inline' https:; img-src 'self' data: https:; font-src 'self' https:; connect-src 'self' https:; frame-ancestors 'none'; base-uri 'self'; form-action 'self';`);
+        ? `script-src 'self' 'nonce-${__nonceForCsp}' 'strict-dynamic' 'unsafe-inline'`
+        : "script-src 'self' 'unsafe-inline'";
+      res.setHeader('Content-Security-Policy', `default-src 'self'; ${__scriptSrc}; style-src 'self' 'unsafe-inline' https:; img-src 'self' data: https:; font-src 'self' https: data:; connect-src 'self' https:; media-src 'self' data: https:; worker-src 'self' blob:; manifest-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'`);
       // Trusted Types — ENFORCED for Lighthouse Best Practices. If violations are detected in production,
       // fallback to report-only by setting process.env.TRUSTED_TYPES_REPORT_ONLY=1. Zero regression risk.
       const trustedTypesPolicy = "require-trusted-types-for 'script'; trusted-types 'allow-duplicates' default dompurify zeus zeus#html";
@@ -1201,6 +1206,7 @@ try {
   }
 } catch (e) { console.warn('[dynamic-pricing] catalog seeding skipped:', e && e.message); }
 
+let concierge50y = null; try { concierge50y = require('./concierge-50y-knowledge'); console.log('[concierge-50y-knowledge] loaded · ' + concierge50y.getKnowledgeSummary().capabilityCount + ' capabilities · masked-ad → autoviralizer'); } catch (e) { console.warn('[concierge-50y-knowledge] not loaded:', e.message); }
 let innov30 = null; try { innov30 = require('./innovations-30y'); console.log('[innovations-30y] loaded · constitution', innov30.getConstitution().hashShort); } catch (e) { console.warn('[innovations-30y] not loaded:', e.message); }
 let innov30v2 = null; try { innov30v2 = require('./innovations-30y-v2'); console.log('[innovations-30y-v2] loaded · 15 primitives'); } catch (e) { console.warn('[innovations-30y-v2] not loaded:', e.message); }
 let frontier = null; try { frontier = require('./frontier-engine'); console.log('[frontier] loaded · 12 sovereign inventions + commerce suite'); } catch (e) { console.warn('[frontier] not loaded:', e.message); }
@@ -1422,6 +1428,8 @@ const SITE_OWNED_MUTATIONS = [
   '/api/concierge',
   '/api/concierge/stream',
   '/api/concierge/feedback',
+  '/api/concierge/knowledge',
+  '/api/concierge/personalize',
   '/api/services/buy',
   '/api/ai/use',
   '/api/uaic/order',
@@ -3456,7 +3464,7 @@ async function unicornHandler(req, res) {
     '/api/uaic/order', '/api/uaic/receipts',
     '/api/ai/registry', '/api/ai/use',
     '/api/payments/btc/confirm', '/api/payments/paypal/confirm',
-    '/api/activate', '/api/concierge', '/api/concierge/stream', '/api/concierge/feedback',
+    '/api/activate', '/api/concierge', '/api/concierge/stream', '/api/concierge/feedback', '/api/concierge/knowledge', '/api/concierge/personalize',
     '/api/secrets/status',
     '/api/build', '/api/version',
     '/api/catalog', '/api/catalog/master', '/api/btc/spot', '/api/btc/rate', '/api/payment/btc-rate', '/api/payment/methods', '/api/payment/nowpayments/security'
@@ -4809,6 +4817,19 @@ async function unicornHandler(req, res) {
 
   // ================= UNICORN V2 SITE =================
   // Static assets — icons (PNG/SVG) generated for PWA + Apple + OG.
+  // ── Defensive font handler ─────────────────────────────────────────────
+  // Web fonts are no longer shipped with this build (we use the system-ui
+  // stack). However, returning the SSR shell on /assets/fonts/*.woff2 makes
+  // browsers parse hundreds of KB of HTML as a font \u2192 console error +
+  // failed @font-face. Serve a proper 404 with a tiny text body so old SW
+  // caches & legacy bookmarks degrade cleanly. PageSpeed-friendly.
+  if (urlPath.startsWith('/assets/fonts/')) {
+    res.writeHead(404, {
+      'Content-Type': 'text/plain; charset=utf-8',
+      'Cache-Control': 'public, max-age=300'
+    });
+    return res.end('font not bundled — using system stack');
+  }
   if (urlPath.startsWith('/assets/icons/')) {
     try {
       const rel = urlPath.replace('/assets/icons/', '').replace(/\.\./g, '');
@@ -7886,9 +7907,30 @@ ${invoice.payer ? `<h2>Payer</h2><table><tr><th>Legal entity</th><td>${esc(invoi
 
         // ---- Intent + slot extraction
         const intent = classifyIntent(message);
-        const { reply, actions, recommendations, cards, quickReplies } = composeReply({
+        let { reply, actions, recommendations, cards, quickReplies } = composeReply({
           message, intent, lang, services, customer, activeServices, pendingOrders, history
         });
+
+        // ---- 50-year-standard knowledge & recommendation extension (additive)
+        // Enriches the reply with a personalized per-entity plan + masked-ad
+        // seed into the auto-viralizer. Fail-soft: never breaks the base flow.
+        let ext50y = null;
+        if (concierge50y) {
+          try {
+            ext50y = concierge50y.personalize({ message, lang, customer, services, intent });
+            if (ext50y) {
+              if (ext50y.shouldAppendNarrative && ext50y.plan && ext50y.plan.narrative) {
+                reply = reply + '\n\n— — —\n' + ext50y.plan.narrative;
+              }
+              if (Array.isArray(ext50y.recommendations) && ext50y.recommendations.length) {
+                const seen = new Set(recommendations.map(r => r.id));
+                for (const r of ext50y.recommendations) if (!seen.has(r.id)) { recommendations.push(r); seen.add(r.id); }
+              }
+              if (Array.isArray(ext50y.cards) && ext50y.cards.length) cards = cards.concat(ext50y.cards);
+              if (Array.isArray(ext50y.quickReplies) && ext50y.quickReplies.length) quickReplies = quickReplies.concat(ext50y.quickReplies);
+            }
+          } catch (e) { /* never fail the chat path */ }
+        }
 
         // ---- Try backend first for richer AI if configured (non-stream)
         const backendUrl = process.env.BACKEND_API_URL;
@@ -7918,6 +7960,8 @@ ${invoice.payer ? `<h2>Payer</h2><table><tr><th>Legal entity</th><td>${esc(invoi
           return res.end(JSON.stringify({
             messageId, reply: finalReply, model: finalModel, provider: finalProvider,
             lang, intent, recommendations, actions, cards, quickReplies,
+            plan50y: ext50y && ext50y.plan ? ext50y.plan : null,
+            viralAd: ext50y && ext50y.viralAd ? ext50y.viralAd : null,
             personalization: customer ? { name: customer.name||customer.email, activeCount: activeServices.length, pendingCount: pendingOrders.length } : null
           }));
         }
@@ -7945,11 +7989,50 @@ ${invoice.payer ? `<h2>Payer</h2><table><tr><th>Legal entity</th><td>${esc(invoi
         if (cards && cards.length) send('cards', cards);
         if (actions && actions.length) send('actions', actions);
         if (quickReplies && quickReplies.length) send('quickReplies', quickReplies);
+        if (ext50y && ext50y.plan) send('plan50y', ext50y.plan);
+        if (ext50y && ext50y.viralAd) send('viralAd', ext50y.viralAd);
         send('done', { messageId });
         res.end();
       } catch(e) {
         if (isStream) { try { res.end(); } catch(_){} }
         else { res.writeHead(400,{'Content-Type':'application/json'}); res.end(JSON.stringify({ error: e.message })); }
+      }
+    });
+    return;
+  }
+
+  // ── 50Y Knowledge & Recommendation public endpoints (additive) ──
+  // GET  /api/concierge/knowledge   — capability map (humanity / company / person)
+  // POST /api/concierge/personalize — { message, lang? } → personalized 50Y plan + masked-ad seed
+  if (concierge50y && urlPath === '/api/concierge/knowledge' && req.method === 'GET') {
+    res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'public, max-age=300' });
+    return res.end(JSON.stringify({
+      summary: concierge50y.getKnowledgeSummary(),
+      capabilities: concierge50y.getCapabilities()
+    }));
+  }
+  if (concierge50y && urlPath === '/api/concierge/personalize' && req.method === 'POST') {
+    let body=''; req.on('data', c=>{ body+=c; if(body.length>32*1024) req.destroy(); });
+    req.on('end', () => {
+      try {
+        const p = JSON.parse(body||'{}');
+        const sources = (typeof getRuntimeDataSources === 'function') ? getRuntimeDataSources() : { services: [] };
+        const unifiedServices = (unifiedCatalog && typeof unifiedCatalog.publicView === 'function')
+          ? unifiedCatalog.publicView().map(s => ({ ...s, price: Number(s.price || s.priceUSD || s.priceUsd || 0), billing: s.billing || (s.tier === 'enterprise' ? 'project' : 'one-time') }))
+          : [];
+        const services = unifiedServices.length ? unifiedServices : (sources.services || []);
+        const out = concierge50y.personalize({
+          message: String(p.message||p.q||''),
+          lang: detectLang(String(p.message||p.q||''), p.lang),
+          customer: null,
+          services,
+          intent: 'general'
+        });
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify(out));
+      } catch(e) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: e.message }));
       }
     });
     return;

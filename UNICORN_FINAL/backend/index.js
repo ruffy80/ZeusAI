@@ -428,6 +428,39 @@ app.post('/api/checkout/create', _swRateLimit, express.json({ limit: '64kb' }), 
   proxyPostToSite(req, res, '/api/checkout/create')
 );
 
+// Compatibility bridge for site-owned APIs (nginx sends /api/* to backend).
+// Keep these routed through the site runtime so frontend actions never 404.
+app.post('/api/checkout/btc', _swRateLimit, express.json({ limit: '64kb' }), (req, res) => proxyPostToSite(req, res, '/api/checkout/btc'));
+app.post('/api/checkout/paypal', _swRateLimit, express.json({ limit: '64kb' }), (req, res) => proxyPostToSite(req, res, '/api/checkout/paypal'));
+app.post('/api/instant/purchase', _swRateLimit, express.json({ limit: '64kb' }), (req, res) => proxyPostToSite(req, res, '/api/instant/purchase'));
+app.get(/^\/api\/instant\/order\/[a-zA-Z0-9_-]{6,128}$/, (req, res) => proxyToSite(req, res, req.path));
+app.post(/^\/api\/services\/[a-zA-Z0-9._:-]+\/use$/, _swRateLimit, express.json({ limit: '64kb' }), (req, res) => proxyPostToSite(req, res, req.path));
+app.post('/api/activate', _swRateLimit, express.json({ limit: '64kb' }), (req, res) => proxyPostToSite(req, res, '/api/activate'));
+app.get('/api/operator/console', (req, res) => proxyToSite(req, res, '/api/operator/console'));
+app.get('/api/observability/status', (req, res) => proxyToSite(req, res, '/api/observability/status'));
+
+// Innovations/frontier/site snapshots are implemented in src/index.js (site runtime).
+// Forward them here because public nginx routes /api/* to backend first.
+app.get('/api/frontier/status', (req, res) => proxyToSite(req, res, '/api/frontier/status'));
+app.get('/api/vault/snapshot', (req, res) => proxyToSite(req, res, '/api/vault/snapshot'));
+app.get('/api/governance/snapshot', (req, res) => proxyToSite(req, res, '/api/governance/snapshot'));
+
+app.get('/api/constitution', (req, res) => proxyToSite(req, res, '/api/constitution'));
+app.get('/api/receipts/root', (req, res) => proxyToSite(req, res, '/api/receipts/root'));
+app.get(/^\/api\/receipts\/proof\/[a-zA-Z0-9_-]{3,128}$/, (req, res) => proxyToSite(req, res, req.path));
+app.get('/api/btc/twap', (req, res) => proxyToSite(req, res, '/api/btc/twap'));
+app.get('/api/sbom', (req, res) => proxyToSite(req, res, '/api/sbom'));
+app.get('/api/incidents', (req, res) => proxyToSite(req, res, '/api/incidents'));
+
+app.get('/api/compliance/attestation', (req, res) => proxyToSite(req, res, '/api/compliance/attestation'));
+app.get('/api/v2/carbon/attest', (req, res) => proxyToSite(req, res, '/api/v2/carbon/attest'));
+app.get('/api/v2/bounty/total', (req, res) => proxyToSite(req, res, '/api/v2/bounty/total'));
+app.get('/api/v2/dr/list', (req, res) => proxyToSite(req, res, '/api/v2/dr/list'));
+
+app.post('/api/wizard/recommend', _swRateLimit, express.json({ limit: '64kb' }), (req, res) => proxyPostToSite(req, res, '/api/wizard/recommend'));
+app.post('/api/innovations/receipt', _swRateLimit, express.json({ limit: '64kb' }), (req, res) => proxyPostToSite(req, res, '/api/innovations/receipt'));
+app.post('/api/innovations/roll-root', _swRateLimit, express.json({ limit: '64kb' }), (req, res) => proxyPostToSite(req, res, '/api/innovations/roll-root'));
+
 // ─── Forward additional site-only routes through backend (forward-only) ────
 // Nginx routes /api/* to backend. The following endpoints live in the site
 // process (sovereign-commerce.js + ab-testing.js). Without these proxies they
@@ -1543,7 +1576,7 @@ app.post('/api/auth/refresh', authMiddleware, (req, res) => {
   res.json({ token, user: { id: user.id, name: user.name, email: user.email, planId: user.planId || 'free', emailVerified: Boolean(user.emailVerified) } });
 });
 
-app.post('/api/auth/forgot-password', authRateLimit(5, 15 * 60 * 1000), async (req, res) => {
+async function handleForgotPassword(req, res) {
   const { email } = req.body || {};
   const cleanEmail = sanitizeString(email, 254);
   if (!cleanEmail || !isValidEmail(cleanEmail)) return res.status(400).json({ error: 'Valid email required' });
@@ -1552,10 +1585,10 @@ app.post('/api/auth/forgot-password', authRateLimit(5, 15 * 60 * 1000), async (r
   const resetToken = crypto.randomBytes(32).toString('hex');
   dbUsers.setResetToken(user.id, resetToken, Date.now() + 3600000);
   emailService.sendPasswordResetEmail(user, resetToken).catch(err => console.error('[Email] reset send failed:', err.message));
-  res.json({ message: 'If the account exists, a reset email was sent' });
-});
+  return res.json({ message: 'If the account exists, a reset email was sent' });
+}
 
-app.post('/api/auth/reset-password', async (req, res) => {
+async function handleResetPassword(req, res) {
   const { token, newPassword } = req.body || {};
   if (!token || !newPassword) return res.status(400).json({ error: 'token and newPassword required' });
   if (typeof newPassword !== 'string' || newPassword.length < 8) return res.status(400).json({ error: 'Password must be at least 8 characters' });
@@ -1563,8 +1596,12 @@ app.post('/api/auth/reset-password', async (req, res) => {
   if (!user) return res.status(400).json({ error: 'Invalid or expired token' });
   const passwordHash = await bcrypt.hash(newPassword, 10);
   dbUsers.updatePassword(user.id, passwordHash);
-  res.json({ message: 'Password reset successful' });
-});
+  return res.json({ message: 'Password reset successful' });
+}
+
+app.post('/api/auth/forgot-password', authRateLimit(5, 15 * 60 * 1000), handleForgotPassword);
+
+app.post('/api/auth/reset-password', handleResetPassword);
 
 app.get('/api/transparency/ledger', (req, res) => res.json(worldStandard.ledgerStatus(Number(req.query.limit || 25))));
 app.post('/api/transparency/ledger', adminTokenMiddleware, (req, res) => res.json({ ok: true, entry: worldStandard.appendLedger(req.body?.type || 'operator.note', req.body?.payload || {}) }));
@@ -2659,20 +2696,37 @@ try { _autonomyChain = require('./modules/autonomyChain');    } catch (_) {}
 try { _capTokens     = require('./modules/capabilityTokens'); } catch (_) {}
 
 app.get('/api/autonomy/stats', (req, res) => {
-  if (!_autonomyChain) return res.status(503).json({ error: 'autonomyChain unavailable' });
-  res.json(_autonomyChain.stats());
+  if (!_autonomyChain) {
+    return res.json({
+      degraded: true,
+      unavailable: 'autonomyChain',
+      length: 0,
+      bytes: 0,
+      head: null,
+      generatedAt: new Date().toISOString()
+    });
+  }
+  return res.json(_autonomyChain.stats());
 });
 
 app.get('/api/autonomy/verify', (req, res) => {
-  if (!_autonomyChain) return res.status(503).json({ error: 'autonomyChain unavailable' });
-  res.json(_autonomyChain.verify());
+  if (!_autonomyChain) {
+    return res.json({
+      ok: true,
+      degraded: true,
+      unavailable: 'autonomyChain',
+      verified: false,
+      message: 'autonomyChain unavailable (fail-soft)'
+    });
+  }
+  return res.json(_autonomyChain.verify());
 });
 
 app.get('/api/autonomy/chain', (req, res) => {
-  if (!_autonomyChain) return res.status(503).json({ error: 'autonomyChain unavailable' });
   const from  = Math.max(0, parseInt(req.query.from,  10) || 0);
   const limit = Math.min(500, Math.max(1, parseInt(req.query.limit, 10) || 50));
-  res.json({ from, limit, records: _autonomyChain.slice(from, limit) });
+  if (!_autonomyChain) return res.json({ from, limit, records: [], degraded: true, unavailable: 'autonomyChain' });
+  return res.json({ from, limit, records: _autonomyChain.slice(from, limit) });
 });
 
 app.get('/api/autonomy/capabilities', (req, res) => {
@@ -2749,8 +2803,8 @@ app.post('/api/autonomy/quarantine/promote', express.json(), (req, res) => {
 
 // ===================== Self-Sovereign Module Identity =====================
 app.get('/api/autonomy/did', (req, res) => {
-  if (!_moduleIdent) return res.status(503).json({ error: 'moduleIdentity unavailable' });
-  res.json(_moduleIdent.list());
+  if (!_moduleIdent) return res.json({ modules: {}, degraded: true, unavailable: 'moduleIdentity' });
+  return res.json(_moduleIdent.list());
 });
 
 app.get('/api/autonomy/did/resolve', (req, res) => {
@@ -9425,7 +9479,24 @@ const clientIndexPath = path.join(clientBuildPath, 'index.html');
 const fs = require('fs');
 
 if (fs.existsSync(clientBuildPath)) {
+  // Pre-resolve directory index files for paths missing trailing slash so we
+  // avoid the default 301 redirect emitted by serve-static. Keeps URLs canonical
+  // without forcing clients to follow redirects (e.g. /api/innovation -> 200).
+  app.get(/^\/[^?#]*[^/]$/, (req, res, next) => {
+    try {
+      const rel = decodeURIComponent(req.path).replace(/^\/+/, '');
+      if (!rel || rel.includes('..')) return next();
+      const candidate = path.join(clientBuildPath, rel, 'index.html');
+      if (!candidate.startsWith(clientBuildPath)) return next();
+      if (fs.existsSync(candidate) && fs.statSync(candidate).isFile()) {
+        res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+        return res.sendFile(candidate);
+      }
+    } catch (_) { /* fall through */ }
+    return next();
+  });
   app.use(express.static(clientBuildPath, {
+    redirect: false,
     setHeaders: (res, filePath) => {
       if (filePath.endsWith('.html')) {
         res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');

@@ -1209,7 +1209,7 @@ async function hydratePage(route){
   route = routePath(route);
   try {
     // Galaxy is a universal background — keep it alive across all routes.
-    if (!zeusCtx) initZeus();
+    if (!zeusCtx && THREE && !window.__UNICORN_THREE_STUB__) initZeus();
   } catch (e) { console.warn('hydratePage:initZeus', e && e.message); }
   try { applyZeusBackdrop(route); } catch (e) { console.warn('hydratePage:zeusBackdrop', e && e.message); }
   try {
@@ -1217,7 +1217,7 @@ async function hydratePage(route){
     if (route !== '/' && tbCtx){ tbCtx.dispose(); tbCtx = null; }
   } catch (e) { console.warn('hydratePage:tbDispose', e && e.message); }
 
-  try { if (route === '/') { initTourbillon(); await hydrateHome(); initPillars(); } } catch (e) { console.warn('hydratePage:home', e && e.message); }
+  try { if (route === '/') { if (THREE && !window.__UNICORN_THREE_STUB__) initTourbillon(); await hydrateHome(); initPillars(); } } catch (e) { console.warn('hydratePage:home', e && e.message); }
   try { if (route === '/services') await hydrateMasterCatalog(); } catch (e) { console.warn('hydratePage:services', e && e.message); }  try { if (route === '/pricing') await hydratePricingPage(); } catch (e) { console.warn('hydratePage:pricing', e && e.message); }
   try { if (route.startsWith('/services/')) await hydrateServiceDetail(route.slice(10)); } catch (e) { console.warn('hydratePage:serviceDetail', e && e.message); }
   try { if (route === '/checkout') hydrateCheckout(); } catch (e) { console.warn('hydratePage:checkout', e && e.message); }
@@ -1237,6 +1237,9 @@ function initCinematicInteractions(){
   // reveal sections
   const sections = Array.from(document.querySelectorAll('section'));
   sections.forEach(function(s){ s.setAttribute('data-reveal',''); });
+  // Fail-safe: reveal the first section immediately so no route can render as
+  // a fully blank screen even if IntersectionObserver is delayed/throttled.
+  if (sections[0]) sections[0].classList.add('revealed');
   if ('IntersectionObserver' in window) {
     const io = new IntersectionObserver(function(entries){
       entries.forEach(function(en){
@@ -1247,6 +1250,14 @@ function initCinematicInteractions(){
   } else {
     sections.forEach(function(s){ s.classList.add('revealed'); });
   }
+  // Extra safety net for browsers/device modes where observers can stall on
+  // first paint: force-reveal after a short delay if nothing became visible.
+  setTimeout(function(){
+    try {
+      const anyVisible = sections.some(function(s){ return s.classList.contains('revealed'); });
+      if (!anyVisible) sections.forEach(function(s){ s.classList.add('revealed'); });
+    } catch (_) {}
+  }, 900);
 
   // tilt surfaces
   var tiltTargets = Array.from(document.querySelectorAll('.card, .panel'));

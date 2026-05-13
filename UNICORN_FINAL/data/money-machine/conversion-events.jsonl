@@ -178,3 +178,14 @@
 {"id":"evt_f4b6c44e5d158cd6","type":"checkout_started","path":"/checkout","emailHash":null,"valueUsd":299,"metadata":{},"createdAt":"2026-05-09T16:27:52.331Z"}
 {"id":"evt_cf87a1eaa8bc4890","type":"checkout_started","path":"/checkout","emailHash":null,"valueUsd":299,"metadata":{},"createdAt":"2026-05-09T16:28:24.414Z"}
 {"id":"evt_fefa5f991138a917","type":"checkout_started","path":"/checkout","emailHash":null,"valueUsd":299,"metadata":{},"createdAt":"2026-05-09T16:39:09.295Z"}
+{"id":"evt_53a864d8e1428294","type":"checkout_started","path":"/checkout","emailHash":null,"valueUsd":299,"metadata":{},"createdAt":"2026-05-10T19:12:13.999Z"}
+{"id":"evt_e0b99034ceeaf71d","type":"checkout_started","path":"/checkout","emailHash":null,"valueUsd":299,"metadata":{},"createdAt":"2026-05-10T19:12:53.861Z"}
+{"id":"evt_cfe7310957128b94","type":"checkout_started","path":"/checkout","emailHash":null,"valueUsd":299,"metadata":{},"createdAt":"2026-05-10T19:15:40.017Z"}
+{"id":"evt_a0b743130b60c512","type":"checkout_started","path":"/checkout","emailHash":null,"valueUsd":299,"metadata":{},"createdAt":"2026-05-10T19:31:12.751Z"}
+{"id":"evt_c6f0de3eec01f4c4","type":"checkout_started","path":"/checkout","emailHash":null,"valueUsd":299,"metadata":{},"createdAt":"2026-05-10T19:52:32.300Z"}
+{"id":"evt_3c13df461377fd86","type":"checkout_started","path":"/checkout","emailHash":null,"valueUsd":299,"metadata":{},"createdAt":"2026-05-10T20:08:48.693Z"}
+{"id":"evt_11b0569b9ce985d2","type":"checkout_started","path":"/checkout","emailHash":null,"valueUsd":299,"metadata":{},"createdAt":"2026-05-10T20:22:18.392Z"}
+{"id":"evt_e2b4e5d8a452c5b8","type":"checkout_started","path":"/checkout","emailHash":null,"valueUsd":299,"metadata":{},"createdAt":"2026-05-10T20:22:54.454Z"}
+{"id":"evt_91f1f1ff869034cb","type":"checkout_started","path":"/checkout","emailHash":null,"valueUsd":299,"metadata":{},"createdAt":"2026-05-10T20:23:42.216Z"}
+{"id":"evt_ba86973f685cdf0a","type":"checkout_started","path":"/checkout","emailHash":null,"valueUsd":299,"metadata":{},"createdAt":"2026-05-10T20:32:33.395Z"}
+{"id":"evt_e1482001f9a6ab3f","type":"checkout_started","path":"/checkout","emailHash":null,"valueUsd":299,"metadata":{},"createdAt":"2026-05-10T20:46:16.374Z"}
