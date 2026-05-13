@@ -44,12 +44,15 @@ module.exports = {
       env: {
         NODE_ENV: 'production',
         // ── RUNTIME PROFILE ─────────────────────────────────────────────────
-        // 'growth' (NEW, 2026-05-14): business loops ON (revenue autopilot,
-        //   innovation, viral, central-orchestrator, self-healing) but file
-        //   mutators stay OFF. This is the "make money safely" profile.
-        // 'safe' / 'stable': everything paused — emergency-only.
+        // 'safe' / 'stable' (DEFAULT): business loops paused. Growth-engine
+        //   routes (/api/growth/*, /sitemap.xml, /robots.txt) stay mounted
+        //   unconditionally — distribution is always live, even in safe mode.
+        // 'growth': adds revenue autopilot, innovation, viral, central-
+        //   orchestrator, self-healing loops. Heavy: ~1.5GB RSS, 100%+ CPU
+        //   on single Hetzner node; only enable on multi-node or upgraded
+        //   instance. Set on host via /etc/profile.d/zeusai.sh.
         // 'full': everything ON including file mutators (DANGEROUS, dev-only).
-        UNICORN_RUNTIME_PROFILE: process.env.UNICORN_RUNTIME_PROFILE || 'growth',
+        UNICORN_RUNTIME_PROFILE: process.env.UNICORN_RUNTIME_PROFILE || 'safe',
         // ── SELF-MUTATORS — DISABLED PERMANENTLY ────────────────────────────
         // These used to rewrite backend source files on the fly (auto-repair,
         // self-construction, ui-autobuilder, code-optimizer). They corrupted
