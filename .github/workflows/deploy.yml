@@ -164,7 +164,7 @@ jobs:
         working-directory: ./UNICORN_FINAL
         timeout-minutes: 10
         run: |
-          npm ci
+          npm ci --no-audit --no-fund --loglevel=error
           npm run lint
 
       - name: 🛠️ Test UNICORN_FINAL

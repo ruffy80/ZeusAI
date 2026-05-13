@@ -93,16 +93,19 @@ chmod +x scripts/*.sh scripts/*.js 2>/dev/null || true
 log "preflight syntax/integrity"
 node scripts/preflight-forward-only.js
 
+export NPM_CONFIG_LOGLEVEL=error
+export NPM_CONFIG_FUND=false
+
 log "install production dependencies if needed"
 if [ -f package-lock.json ]; then
-  npm ci --omit=dev --no-audit --no-fund
+  npm ci --omit=dev --no-audit --no-fund --loglevel=error
 else
-  npm install --omit=dev --no-audit --no-fund
+  npm install --omit=dev --no-audit --no-fund --loglevel=error
 fi
 
 if [ -f client/package.json ]; then
   log "build client if present"
-  (cd client && { [ -f package-lock.json ] && npm ci --no-audit --no-fund || npm install --no-audit --no-fund; } && CI=false npm run build)
+  (cd client && { [ -f package-lock.json ] && npm ci --no-audit --no-fund --loglevel=error || npm install --no-audit --no-fund --loglevel=error; } && CI=false npm run build)
 fi
 
 log "start backend canary on port $CANARY_PORT"
