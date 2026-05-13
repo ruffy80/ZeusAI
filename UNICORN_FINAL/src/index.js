@@ -4304,7 +4304,7 @@ async function unicornHandler(req, res) {
   // (services) and /api/supreme/digest (status). All additive, never break the
   // existing template. Each page is server-rendered, returns a full HTML doc,
   // and includes a tiny client script that polls every 5s.
-  if (urlPath === '/unicorn-cockpit' || urlPath === '/services' || urlPath === '/status' || urlPath === '/unicorn-status.html') {
+  if (urlPath === '/unicorn-cockpit' || urlPath === '/services' || urlPath === '/status' || urlPath === '/unicorn-status.html' || urlPath === '/revenue-command') {
     const renderPage = (title, bodyHtml, pageScript) => {
       // Use the existing template engine if available; otherwise emit a minimal SEO-clean doc
       // that still passes the site's chrome heuristics (lang, charset, viewport, meta).
@@ -4343,7 +4343,7 @@ async function unicornHandler(req, res) {
         '<style>' + css + '</style>',
         '</head><body>',
         '<header><h1>🦄 ZeusAI</h1>',
-        '<a href="/">Home</a> · <a href="/unicorn-cockpit">Cockpit</a> · <a href="/services">Services</a> · <a href="/status">Status</a>',
+        '<a href="/">Home</a> · <a href="/unicorn-cockpit">Cockpit</a> · <a href="/services">Services</a> · <a href="/revenue-command">Revenue</a> · <a href="/status">Status</a>',
         '</header>',
         '<main>',
         '<div id="degraded-banner" class="banner">⚠️ Reconnecting to live data…</div>',
@@ -4385,6 +4385,20 @@ async function unicornHandler(req, res) {
       const js = "(function(){var current=null;function card(s){return '<div class=\"card\" data-id=\"'+s.id+'\"><h3>'+(s.category||'service')+'</h3><div style=\"font-size:16px;font-weight:600;margin:4px 0\">'+(s.name||s.id)+'</div><div class=\"price\">$'+((s.price||s.basePrice||99).toFixed?(s.price||s.basePrice||99).toFixed(2):(s.price||s.basePrice||99))+'</div><p style=\"color:var(--muted);font-size:12px;margin:8px 0 12px\">'+(s.description||s.tagline||'AI service')+'</p><button onclick=\"window.__buy(\\''+s.id+'\\',\\''+(s.name||s.id).replace(/\"/g,\"\")+'\\','+(s.price||s.basePrice||99)+')\">Buy now</button></div>'}window.__buy=function(id,name,price){current={id:id,name:name,price:price};document.getElementById('ck-title').textContent='Checkout: '+name;document.getElementById('ck-body').innerHTML='<div style=\"font-size:13px;margin-top:8px\">Total: <b class=\"ok\">$'+price.toFixed(2)+'</b></div>';document.getElementById('ck-result').textContent='';document.getElementById('checkout').style.display='block';document.getElementById('checkout').scrollIntoView({behavior:'smooth'})};function pay(method){if(!current)return;document.getElementById('ck-result').textContent='Processing '+method+'…';fetch('/api/checkout/'+method,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({serviceId:current.id,amount:current.price})}).then(function(r){return r.json()}).then(function(d){document.getElementById('ck-result').innerHTML='<span class=\"ok\">✓ '+(d.message||'Order created')+'</span> '+(d.orderId?('· order '+d.orderId):'')+(d.btcAddress?('<br>BTC: <code>'+d.btcAddress+'</code>'):'')}).catch(function(e){document.getElementById('ck-result').innerHTML='<span class=\"err\">✗ '+e.message+'</span>'})}document.getElementById('ck-btc').onclick=function(){pay('btc')};document.getElementById('ck-stripe').onclick=function(){pay('create')};document.getElementById('ck-close').onclick=function(){document.getElementById('checkout').style.display='none'};fetch('/api/revenue/command-center',{cache:'no-store'}).then(function(r){return r.json()}).then(function(d){var commander=d&&d.commander||{};var ap=d&&d.autopilot||{};var nba=d&&d.nextBestAction||{};document.getElementById('selling-now').innerHTML='<h3>Revenue autopilot</h3><div class=\"v\">'+(commander.decision&&commander.decision.topOffer||'—')+'</div><div class=\"sub\">Today: '+(nba.vertical||'warming')+' · '+(nba.bundle||'bundle')+' · leads '+((commander.kpis&&commander.kpis.leads)||0)+' · runs '+(ap.runs||0)+'</div>'}).catch(function(){});fetch('/api/products',{cache:'no-store'}).then(function(r){return r.json()}).then(function(d){var arr=Array.isArray(d)?d:(d.products||d.items||d.data||[]);document.getElementById('services').innerHTML=arr.slice(0,18).map(card).join('')||'<div class=\"card\"><h3>Loading</h3><div class=\"v\">…</div></div>'}).catch(function(){document.getElementById('services').innerHTML='<div class=\"card\"><h3>Catalog unavailable</h3><div class=\"sub\">Try again in a moment.</div></div>'})})();";
       try { res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'public, max-age=30', 'X-Unicorn-Page': 'services' }); } catch (_) {}
       return res.end(renderPage('Services', body, js));
+    }
+
+    if (urlPath === '/revenue-command') {
+      const body =
+        '<h2 style="margin:0">Revenue Command Center</h2>' +
+        '<p style="color:var(--muted);margin:8px 0 24px">Live view of what Unicorn is selling now, what verticals it is attacking, and what the next growth actions are.</p>' +
+        '<div id="rc-summary" class="grid"></div>' +
+        '<h3 style="margin:32px 0 8px">Action Queue</h3>' +
+        '<div id="rc-actions" class="grid"></div>' +
+        '<h3 style="margin:32px 0 8px">Vertical Playbook</h3>' +
+        '<div id="rc-playbook" class="grid"></div>';
+      const js = "(function(){function card(t,v,s){return '<div class=\"card\"><h3>'+t+'</h3><div class=\"v\">'+v+'</div><div class=\"sub\">'+(s||'')+'</div></div>'}function refresh(){fetch('/api/revenue/command-center',{cache:'no-store'}).then(function(r){return r.json()}).then(function(d){var c=d&&d.commander||{};var a=d&&d.autopilot||{};var last=a.last||{};var acts=(c.decision&&c.decision.actions)||[];var play=last.verticalPlaybook||[];document.getElementById('rc-summary').innerHTML=card('Top offer',c.decision&&c.decision.topOffer||'—',(c.decision&&c.decision.focus)||'')+card('Leads',c.kpis&&c.kpis.leads||0,'qualified pipeline')+card('Autopilot runs',a.runs||0,'every '+(a.intervalMs||0)+'ms')+card('Offers / cycle',last.offersGenerated||0,'latest cycle')+card('SEO pages / cycle',last.seoPagesPlanned||0,'latest cycle')+card('Budget / cycle','$'+(last.budgetUsd||0),'latest cycle');document.getElementById('rc-actions').innerHTML=(acts.length?acts.map(function(x){return card(x.action,x.count!=null?x.count:(x.offerId||'ready'),x.expectedImpact||x.channel||'')}).join(''):card('Actions','warming','autopilot booting'));document.getElementById('rc-playbook').innerHTML=(play.length?play.map(function(p){return card(p.vertical,p.bundle,p.angle+' · '+p.nextAction)}).join(''):card('Playbook','warming','waiting for first cycle'));}).catch(function(){document.getElementById('rc-summary').innerHTML=card('Revenue center','offline','retrying')})}refresh();setInterval(refresh,5000);})();";
+      try { res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store', 'X-Unicorn-Page': 'revenue-command' }); } catch (_) {}
+      return res.end(renderPage('Revenue Command Center', body, js));
     }
 
     if (urlPath === '/status' || urlPath === '/unicorn-status.html') {
