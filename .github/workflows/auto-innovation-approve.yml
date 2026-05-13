@@ -1,0 +1,108 @@
+name: 🤖 Auto-Innovation Approval & Merge
+
+on:
+  workflow_run:
+    workflows: ["🛡️ No-Downgrade Guard"]
+    types: [completed]
+
+jobs:
+  check-innovation:
+    name: Check Innovation Auto-Merge Eligibility
+    runs-on: ubuntu-latest
+    if: github.event.workflow_run.conclusion == 'success'
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Get PR info
+        id: pr
+        run: |
+          # Find PR associated with this workflow
+          SEARCH_PR=$(gh pr list --state open --search "head:copilot/auto-innovation" --json number --limit 1 | jq -r '.[0].number // empty')
+          if [ -n "$SEARCH_PR" ]; then
+            echo "pr_number=$SEARCH_PR" >> "$GITHUB_OUTPUT"
+            echo "Found PR: $SEARCH_PR"
+          else
+            echo "No active auto-innovation PR found"
+          fi
+
+      - name: Check eligibility
+        id: eligible
+        if: steps.pr.outputs.pr_number
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          PR_NUM="${{ steps.pr.outputs.pr_number }}"
+          
+          # Check if PR has [AutoInnovation] label
+          LABELS=$(gh pr view $PR_NUM --json labels --jq '.labels[].name' | tr '\n' ' ')
+          if echo "$LABELS" | grep -q "AutoInnovation"; then
+            echo "✓ PR has AutoInnovation label"
+          else
+            echo "✗ PR missing AutoInnovation label"
+            exit 1
+          fi
+          
+          # Check all status checks are green
+          CHECKS=$(gh pr view $PR_NUM --json statusCheckRollup --jq '.statusCheckRollup[].state' | sort | uniq)
+          if [ "$CHECKS" = "SUCCESS" ]; then
+            echo "✓ All status checks are green"
+          else
+            echo "✗ Status checks not all green: $CHECKS"
+            exit 1
+          fi
+          
+          # Check PR age (should be at least creation + test time)
+          CREATED_AT=$(gh pr view $PR_NUM --json createdAt --jq '.createdAt')
+          AGE_HOURS=$(($(date +%s) - $(date -d "$CREATED_AT" +%s)) / 3600)
+          if [ $AGE_HOURS -ge 48 ]; then
+            echo "✓ PR aged 48+ hours ($AGE_HOURS hours)"
+            echo "eligible=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "⚠ PR only $AGE_HOURS hours old (need 48)"
+            echo "eligible=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Add approval comment
+        if: steps.eligible.outputs.eligible == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          PR_NUM="${{ steps.pr.outputs.pr_number }}"
+          gh pr comment $PR_NUM -b "🤖 Auto-Innovation Approval - All gates passed"
+
+      - name: Add innovation-approved label
+        if: steps.eligible.outputs.eligible == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          PR_NUM="${{ steps.pr.outputs.pr_number }}"
+          gh pr edit $PR_NUM --add-label "innovation-approved" || true
+
+      - name: Auto-merge PR
+        if: steps.eligible.outputs.eligible == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          PR_NUM="${{ steps.pr.outputs.pr_number }}"
+          gh pr merge $PR_NUM --squash --auto -m "🤖 Auto-merge: innovation gates passed 48h+ CI" || true
+
+      - name: Create release tag
+        if: steps.eligible.outputs.eligible == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG="innovation-$(date +%s)"
+          git tag "$TAG"
+          git push origin "$TAG" || true
+          echo "Created release tag: $TAG"
+
+      - name: Log decision
+        run: |
+          echo "Innovation Auto-Approval Decision:"
+          echo "PR: ${{ steps.pr.outputs.pr_number }}"
+          echo "Eligible: ${{ steps.eligible.outputs.eligible }}"
+          echo "Timestamp: $(date -u +%Y-%m-%dT%H:%M:%SZ)"
