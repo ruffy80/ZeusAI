@@ -4304,7 +4304,7 @@ async function unicornHandler(req, res) {
   // (services) and /api/supreme/digest (status). All additive, never break the
   // existing template. Each page is server-rendered, returns a full HTML doc,
   // and includes a tiny client script that polls every 5s.
-  if (urlPath === '/unicorn-cockpit' || urlPath === '/services' || urlPath === '/status' || urlPath === '/unicorn-status.html' || urlPath === '/revenue-command') {
+  if (urlPath === '/unicorn-cockpit' || urlPath === '/services' || urlPath === '/status' || urlPath === '/unicorn-status.html' || urlPath === '/revenue-command' || urlPath === '/proof' || urlPath === '/revenue-share' || urlPath === '/pricing') {
     const renderPage = (title, bodyHtml, pageScript) => {
       // Use the existing template engine if available; otherwise emit a minimal SEO-clean doc
       // that still passes the site's chrome heuristics (lang, charset, viewport, meta).
@@ -4343,7 +4343,7 @@ async function unicornHandler(req, res) {
         '<style>' + css + '</style>',
         '</head><body>',
         '<header><h1>🦄 ZeusAI</h1>',
-        '<a href="/">Home</a> · <a href="/unicorn-cockpit">Cockpit</a> · <a href="/services">Services</a> · <a href="/revenue-command">Revenue</a> · <a href="/status">Status</a>',
+        '<a href="/">Home</a> · <a href="/pricing">Pricing</a> · <a href="/revenue-share">Revenue Share</a> · <a href="/proof">Proof</a> · <a href="/unicorn-cockpit">Cockpit</a> · <a href="/services">Services</a> · <a href="/status">Status</a>',
         '</header>',
         '<main>',
         '<div id="degraded-banner" class="banner">⚠️ Reconnecting to live data…</div>',
@@ -4414,6 +4414,62 @@ async function unicornHandler(req, res) {
       const js = "(function(){function card(t,v,s){return '<div class=\"card\"><h3>'+t+'</h3><div class=\"v\">'+v+'</div><div class=\"sub\">'+(s||'')+'</div></div>'}function refresh(){fetch('/api/supreme/digest').then(function(r){return r.json()}).then(function(d){var m=d.modules||{};var html='';Object.keys(m).forEach(function(k){html+=card(k,(m[k].ok?'<span class=\"ok\">●</span>':'<span class=\"err\">●</span>')+' '+(m[k].cycles||0),'cycles')});if(d.economyPulse!=null)html+=card('Economy pulse',d.economyPulse,'0-100');if(d.revenueForecast)html+=card('Forecast/day','$'+(d.revenueForecast.daily||0).toFixed(2),'oracle');document.getElementById('summary').innerHTML=html;}).catch(function(){});fetch('/api/revenue/autopilot/status').then(function(r){return r.json()}).then(function(d){var last=d.last||{};document.getElementById('autopilot').innerHTML=card('Autopilot runs',d.runs||0,'interval '+(d.intervalMs||0)+'ms')+card('Offers generated',last.offersGenerated||0,'latest cycle')+card('SEO pages',last.seoPagesPlanned||0,'latest cycle')+card('Budget','$'+(last.budgetUsd||0),(last.focus||'warming'))+card('Economy pulse',last.economyPulse||0,'latest cycle')+card('Forecast 30d','$'+(last.forecastNext30dUsd||0).toFixed(2),'oracle');}).catch(function(){document.getElementById('autopilot').innerHTML=card('Autopilot','offline','retrying')});fetch('/api/sovereignty/verify').then(function(r){return r.json()}).then(function(d){var c=d.chain||{};var status=c.ok?'<span class=\"ok\">✓ valid</span>':'<span class=\"warn\">⚠ '+(c.breaks?c.breaks.length:'?')+' break(s)</span>';var sub='length '+(c.length||0)+', head '+((c.head||'').slice(0,16))+'…'+(c.currentChain?(' · current sub-chain: '+c.currentChain.length+' attestations'):'');document.getElementById('chain').innerHTML='<h3>Chain status</h3><div class=\"v\">'+status+'</div><div class=\"sub\">'+sub+'</div>'}).catch(function(){})}refresh();setInterval(refresh,5000);})();";
       try { res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'public, max-age=15', 'X-Unicorn-Page': 'status' }); } catch (_) {}
       return res.end(renderPage('Status', body, js));
+    }
+
+    // ==================== GROWTH-ENGINE SSR PAGES (additive, 2026-05-14) ====================
+    // Public-facing HTML wrappers around /api/growth/* JSON. Trust + buy + apply.
+    // - /pricing       — 3-tier card grid (Starter/Pro/Scale) with Stripe-or-BTC CTA
+    // - /proof         — live trust dashboard (uptime, integrity, sovereignty, innovations)
+    // - /revenue-share — zero-upfront wedge: 30% of incremental revenue, application form
+
+    if (urlPath === '/pricing') {
+      const body =
+        '<h2 style="margin:0">Pricing · Pay once, ship in an hour</h2>' +
+        '<p style="color:var(--muted);margin:8px 0 24px">Sovereign-signed receipts. 30-day money-back guarantee. Cancel anytime. Card via Stripe or self-custody BTC.</p>' +
+        '<div id="tiers" class="grid" style="grid-template-columns:repeat(auto-fit,minmax(280px,1fr))"></div>' +
+        '<div style="margin:32px 0 0;padding:18px;border:1px solid var(--border);border-radius:12px;background:var(--card)"><h3 style="margin:0 0 8px;color:var(--accent);font-size:14px;text-transform:uppercase;letter-spacing:.08em">Not ready to pay?</h3><p style="margin:0 0 12px;color:var(--muted)">Take the zero-upfront route: we ship the platform, you only pay 30% of the <em>incremental</em> revenue we generate.</p><a href="/revenue-share"><button class="btn-ghost">See revenue-share offer →</button></a></div>';
+      const js = "(function(){function esc(s){return String(s||'').replace(/[&<>\"]/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','\"':'&quot;'}[c]})}function card(t){var rail=t.rail==='stripe'?'<span class=\"pill\">card · Stripe</span>':'<span class=\"pill\">BTC · self-custody</span>';return '<div class=\"card\" style=\"padding:24px\"><h3 style=\"font-size:13px;letter-spacing:.08em\">'+esc(t.tier)+'</h3><div class=\"price\">$'+t.priceUsd+'<span style=\"font-size:14px;color:var(--muted)\">/mo</span></div><div style=\"color:var(--muted);min-height:42px;margin:8px 0\">'+esc(t.tagline||'')+'</div><div class=\"row\">'+(t.features||[]).map(function(f){return '<span class=\"pill\">'+esc(f)+'</span>'}).join('')+'</div><a href=\"'+esc(t.payHref)+'\" rel=\"noopener\"><button style=\"width:100%;margin-top:16px\">'+esc(t.cta)+'</button></a><div style=\"margin-top:10px;text-align:center\">'+rail+'</div></div>'}fetch('/api/growth/payment-links',{cache:'no-store'}).then(function(r){return r.json()}).then(function(d){var t=(d&&d.tiers)||[];document.getElementById('tiers').innerHTML=t.map(card).join('')||'<div class=\"card\">No tiers configured.</div>'}).catch(function(){document.getElementById('tiers').innerHTML='<div class=\"card err\">Could not load pricing. <a href=\"/api/growth/payment-links\">Raw JSON</a></div>'})})();";
+      try { res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'public, max-age=60', 'X-Unicorn-Page': 'pricing' }); } catch (_) {}
+      return res.end(renderPage('Pricing', body, js));
+    }
+
+    if (urlPath === '/proof') {
+      const body =
+        '<h2 style="margin:0">Live Proof · ZeusAI</h2>' +
+        '<p style="color:var(--muted);margin:8px 0 24px">Trust is conversion. Every claim on this page is fetched live from the running platform — no static slide decks. Cryptographic chain is publicly verifiable.</p>' +
+        '<div id="hero" class="grid"></div>' +
+        '<h3 style="margin:32px 0 8px">Integrity Shield</h3>' +
+        '<div id="integrity" class="card"><h3>Loading…</h3></div>' +
+        '<h3 style="margin:32px 0 8px">Sovereignty Chain (ed25519)</h3>' +
+        '<div id="sovereignty" class="card"><h3>Loading…</h3></div>' +
+        '<h3 style="margin:32px 0 8px">Recent Innovations (attested)</h3>' +
+        '<div id="innovations" class="grid"></div>' +
+        '<h3 style="margin:32px 0 8px">Procurement</h3>' +
+        '<div class="card"><h3>SOC2 Readiness Snapshot</h3><div class="v"><a href="/api/growth/soc2.json" style="color:var(--accent)">/api/growth/soc2.json</a></div><div class="sub">Drop-in JSON for vendor security questionnaires. Live data, signed.</div></div>';
+      const js = "(function(){function esc(s){return String(s||'').replace(/[&<>\"]/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','\"':'&quot;'}[c]})}function card(t,v,s){return '<div class=\"card\"><h3>'+esc(t)+'</h3><div class=\"v\">'+v+'</div><div class=\"sub\">'+esc(s||'')+'</div></div>'}function fmtTs(t){return t?new Date(t).toLocaleString():'—'}function refresh(){fetch('/api/growth/proof',{cache:'no-store'}).then(function(r){return r.json()}).then(function(d){var h='';h+=card('Brand',d.brand||'ZeusAI','');h+=card('Uptime',(d.uptime&&d.uptime.human)||'—','seconds: '+((d.uptime&&d.uptime.seconds)||0));h+=card('Build SHA',(d.platform&&d.platform.buildSha)||'—',(d.platform&&d.platform.node)||'');h+=card('Generated',fmtTs(d.generatedAt),'live');var ig=d.integrity||{};h+=card('Integrity','<span class=\"'+(ig.ok?'ok':'warn')+'\">'+(ig.ok?'✓ intact':'⚠ degraded')+'</span>',ig.digest?String(ig.digest).slice(0,18)+'…':'');var so=d.sovereignty||{};h+=card('Sovereignty','<span class=\"'+(so.ok?'ok':'warn')+'\">'+(so.ok?'✓ '+(so.attestationCount||0):'⚠ '+(so.attestationCount||0))+'</span>','attestations');var pc=d.proofChain||{};h+=card('Chain length',pc.length||0,pc.head?'head: '+String(pc.head).slice(0,16)+'…':'');document.getElementById('hero').innerHTML=h;document.getElementById('integrity').innerHTML='<h3>Quantum Integrity Shield</h3><div class=\"v '+(ig.ok?'ok':'warn')+'\">'+(ig.ok?'INTACT':'DEGRADED')+'</div><div class=\"sub\">digest: '+esc(ig.digest||'—')+' · last check: '+fmtTs(ig.lastCheckTs)+'</div>';document.getElementById('sovereignty').innerHTML='<h3>ed25519 Attestation Chain</h3><div class=\"v\">'+(so.attestationCount||0)+' attestations</div><div class=\"sub\">public key: <a href=\"/api/sovereignty/publickey\" style=\"color:var(--accent)\">/api/sovereignty/publickey</a> · verify: <a href=\"/api/sovereignty/verify\" style=\"color:var(--accent)\">/api/sovereignty/verify</a></div>';var inv=d.innovations||{};var rec=inv.recent||[];document.getElementById('innovations').innerHTML=rec.length?rec.slice(0,12).map(function(x){return card(x.title||x.id||'innovation',(x.score!=null?(x.score*100).toFixed(0)+'%':''),(x.year||'')+' · '+(x.sigKind||''))}).join(''):card('No attestations yet','—','platform warming');}).catch(function(){document.getElementById('hero').innerHTML=card('Proof','offline','retrying')})}refresh();setInterval(refresh,10000);})();";
+      try { res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store', 'X-Unicorn-Page': 'proof' }); } catch (_) {}
+      return res.end(renderPage('Live Proof', body, js));
+    }
+
+    if (urlPath === '/revenue-share') {
+      const body =
+        '<h2 style="margin:0">Revenue Share · Zero Upfront</h2>' +
+        '<p style="color:var(--muted);margin:8px 0 24px">No subscription. No setup fee. We ship the platform; you only pay a small percentage of the <em>incremental</em> revenue we generate. Aligned incentives, no buyer remorse.</p>' +
+        '<div id="terms" class="grid"></div>' +
+        '<div style="margin:24px 0;padding:18px;border:1px solid var(--accent);border-radius:12px;background:rgba(124,247,192,0.06)"><h3 style="margin:0 0 8px;color:var(--accent);font-size:14px;text-transform:uppercase;letter-spacing:.08em">How it works</h3><ol style="margin:0;padding-left:20px;line-height:1.9"><li>You apply with company, monthly revenue, and goal.</li><li>We ship the autonomous revenue engine within 7 business days.</li><li>Each month, you wire <span class="ok" id="pct-inline">30%</span> of the <strong>net new</strong> revenue (above baseline) to our BTC/USDT/IBAN.</li><li>Cancel any time. You keep everything we shipped.</li></ol></div>' +
+        '<h3 style="margin:32px 0 8px">Apply</h3>' +
+        '<form id="apply" class="card" style="display:grid;gap:12px;max-width:640px">' +
+        '<input name="company" placeholder="Company name" required style="background:rgba(255,255,255,0.05);border:1px solid var(--border);color:var(--fg);padding:12px;border-radius:8px;font-size:14px"/>' +
+        '<input name="email" type="email" placeholder="Work email" required style="background:rgba(255,255,255,0.05);border:1px solid var(--border);color:var(--fg);padding:12px;border-radius:8px;font-size:14px"/>' +
+        '<input name="website" placeholder="Website (optional)" style="background:rgba(255,255,255,0.05);border:1px solid var(--border);color:var(--fg);padding:12px;border-radius:8px;font-size:14px"/>' +
+        '<input name="currentMrrUsd" type="number" min="0" placeholder="Current MRR in USD (optional)" style="background:rgba(255,255,255,0.05);border:1px solid var(--border);color:var(--fg);padding:12px;border-radius:8px;font-size:14px"/>' +
+        '<textarea name="goal" placeholder="What outcome do you want? (e.g. \"3× MRR in 90 days\", \"unblock B2B procurement\", \"automate sales ops\")" rows="3" style="background:rgba(255,255,255,0.05);border:1px solid var(--border);color:var(--fg);padding:12px;border-radius:8px;font-size:14px;font-family:inherit"></textarea>' +
+        '<button type="submit" style="margin-top:4px">Apply for Revenue Share →</button>' +
+        '<div id="apply-result" class="sub" style="min-height:18px"></div>' +
+        '</form>';
+      const js = "(function(){function esc(s){return String(s||'').replace(/[&<>\"]/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','\"':'&quot;'}[c]})}function card(t,v,s){return '<div class=\"card\"><h3>'+esc(t)+'</h3><div class=\"v\">'+v+'</div><div class=\"sub\">'+esc(s||'')+'</div></div>'}fetch('/api/growth/revenue-share',{cache:'no-store'}).then(function(r){return r.json()}).then(function(d){var html='';html+=card('Revenue share',d.pct+'%','of net-new revenue');html+=card('Minimum MRR','$'+(d.minMrrUsd||0),'to qualify');html+=card('Setup fee','$0','zero upfront');html+=card('Term','month-to-month','cancel anytime');document.getElementById('terms').innerHTML=html;var p=document.getElementById('pct-inline');if(p)p.textContent=d.pct+'%';}).catch(function(){document.getElementById('terms').innerHTML=card('Terms','offline','retrying')});var f=document.getElementById('apply');if(f){f.addEventListener('submit',function(e){e.preventDefault();var data={};(new FormData(f)).forEach(function(v,k){data[k]=v});var btn=f.querySelector('button[type=submit]');var out=document.getElementById('apply-result');btn.disabled=true;out.textContent='Sending…';fetch('/api/growth/revenue-share/apply',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)}).then(function(r){return r.json()}).then(function(j){if(j&&j.ok){out.innerHTML='<span class=\"ok\">✓ Application received. ID: '+esc(j.appId||'—')+'. We will email you within 1 business day.</span>';f.reset()}else{out.innerHTML='<span class=\"err\">Could not submit: '+esc((j&&j.error)||'unknown')+'</span>';btn.disabled=false}}).catch(function(err){out.innerHTML='<span class=\"err\">Network error. Try again or email founders@zeusai.pro.</span>';btn.disabled=false})})}})();";
+      try { res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store', 'X-Unicorn-Page': 'revenue-share' }); } catch (_) {}
+      return res.end(renderPage('Revenue Share', body, js));
     }
   }
   // ==================== END FAZA 2 / VAL 5 COMPLETARE ====================

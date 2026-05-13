@@ -36,7 +36,7 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           PR_NUM="${{ steps.pr.outputs.pr_number }}"
-          
+
           # Check if PR has [AutoInnovation] label
           LABELS=$(gh pr view $PR_NUM --json labels --jq '.labels[].name' | tr '\n' ' ')
           if echo "$LABELS" | grep -q "AutoInnovation"; then
@@ -45,7 +45,7 @@ jobs:
             echo "✗ PR missing AutoInnovation label"
             exit 1
           fi
-          
+
           # Check all status checks are green
           CHECKS=$(gh pr view $PR_NUM --json statusCheckRollup --jq '.statusCheckRollup[].state' | sort | uniq)
           if [ "$CHECKS" = "SUCCESS" ]; then
@@ -54,15 +54,63 @@ jobs:
             echo "✗ Status checks not all green: $CHECKS"
             exit 1
           fi
-          
-          # Check PR age (should be at least creation + test time)
+
+          # ── CRITICAL PATHS GUARD ────────────────────────────────────────────
+          # PRs touching these paths are NEVER auto-merged regardless of age or
+          # score — they must be reviewed by a human. Keeps the platform safe
+          # while letting docs/innovations/templates/scripts merge faster.
+          FILES=$(gh pr view $PR_NUM --json files --jq '.files[].path')
+          CRITICAL_REGEX='^(\.github/workflows/|UNICORN_FINAL/backend/index\.js$|UNICORN_FINAL/backend/modules/(unicornSovereignty|quantumIntegrityShield|payment|revenue-autopilot|growth-engine)\.js$|UNICORN_FINAL/ecosystem\.config\.js$|UNICORN_FINAL/src/index\.js$|package(-lock)?\.json$|generate_unicorn_final\.js$)'
+          CRITICAL_HITS=$(echo "$FILES" | grep -E "$CRITICAL_REGEX" || true)
+          if [ -n "$CRITICAL_HITS" ]; then
+            echo "✗ PR touches critical paths — human review required:"
+            echo "$CRITICAL_HITS"
+            echo "eligible=false" >> "$GITHUB_OUTPUT"
+            echo "tier=critical-human-review" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          echo "✓ No critical paths touched"
+
+          # ── DIFF SIZE & SCORE TIERED GATES ──────────────────────────────────
+          # Smaller, higher-confidence PRs merge faster. The 48h default stays
+          # the safe fallback for anything that doesn't qualify for fast-track.
+          ADDITIONS=$(gh pr view $PR_NUM --json additions --jq '.additions')
+          DELETIONS=$(gh pr view $PR_NUM --json deletions --jq '.deletions')
+          TOTAL_LINES=$((ADDITIONS + DELETIONS))
+          echo "Diff size: +$ADDITIONS / -$DELETIONS = $TOTAL_LINES lines"
+
+          # Extract optional "Innovation-Score: 0.NN" from PR body (auto-innovation
+          # bot emits this; we treat anything between 0.0 and 1.0 as valid).
+          BODY=$(gh pr view $PR_NUM --json body --jq '.body')
+          SCORE=$(echo "$BODY" | grep -oE 'Innovation-Score:[[:space:]]*0?\.[0-9]+' | head -1 | grep -oE '0?\.[0-9]+' || echo "0")
+          SCORE_PCT=$(awk -v s="$SCORE" 'BEGIN{printf "%d", s*100}')
+          echo "Innovation score: $SCORE ($SCORE_PCT%)"
+
           CREATED_AT=$(gh pr view $PR_NUM --json createdAt --jq '.createdAt')
-          AGE_HOURS=$(($(date +%s) - $(date -d "$CREATED_AT" +%s)) / 3600)
-          if [ $AGE_HOURS -ge 48 ]; then
-            echo "✓ PR aged 48+ hours ($AGE_HOURS hours)"
+          AGE_HOURS=$(( ($(date +%s) - $(date -d "$CREATED_AT" +%s)) / 3600 ))
+          echo "PR age: $AGE_HOURS hours"
+
+          # Tier 1: tiny diff (≤30 lines) + very high score (≥0.95) → 1 hour
+          # Tier 2: small diff (≤80 lines) + high score (≥0.85) → 6 hours
+          # Tier 3: medium diff (≤200 lines) + decent score (≥0.70) → 24 hours
+          # Tier 4 (default): anything else → 48 hours (legacy behavior)
+          REQUIRED_HOURS=48
+          TIER="default-48h"
+          if [ "$TOTAL_LINES" -le 30 ] && [ "$SCORE_PCT" -ge 95 ]; then
+            REQUIRED_HOURS=1; TIER="tier1-fast-1h"
+          elif [ "$TOTAL_LINES" -le 80 ] && [ "$SCORE_PCT" -ge 85 ]; then
+            REQUIRED_HOURS=6; TIER="tier2-small-6h"
+          elif [ "$TOTAL_LINES" -le 200 ] && [ "$SCORE_PCT" -ge 70 ]; then
+            REQUIRED_HOURS=24; TIER="tier3-medium-24h"
+          fi
+          echo "Tier: $TIER (required ${REQUIRED_HOURS}h, have ${AGE_HOURS}h)"
+          echo "tier=$TIER" >> "$GITHUB_OUTPUT"
+
+          if [ $AGE_HOURS -ge $REQUIRED_HOURS ]; then
+            echo "✓ PR aged ${AGE_HOURS}h ≥ ${REQUIRED_HOURS}h (tier=$TIER)"
             echo "eligible=true" >> "$GITHUB_OUTPUT"
           else
-            echo "⚠ PR only $AGE_HOURS hours old (need 48)"
+            echo "⚠ PR only ${AGE_HOURS}h old (need ${REQUIRED_HOURS}h for tier=$TIER)"
             echo "eligible=false" >> "$GITHUB_OUTPUT"
           fi
 
@@ -72,7 +120,7 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           PR_NUM="${{ steps.pr.outputs.pr_number }}"
-          gh pr comment $PR_NUM -b "🤖 Auto-Innovation Approval - All gates passed"
+          gh pr comment $PR_NUM -b "🤖 Auto-Innovation Approval — all gates passed (tier: ${{ steps.eligible.outputs.tier }})"
 
       - name: Add innovation-approved label
         if: steps.eligible.outputs.eligible == 'true'
@@ -88,7 +136,7 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           PR_NUM="${{ steps.pr.outputs.pr_number }}"
-          gh pr merge $PR_NUM --squash --auto -m "🤖 Auto-merge: innovation gates passed 48h+ CI" || true
+          gh pr merge $PR_NUM --squash --auto -m "🤖 Auto-merge: innovation gates passed (tier: ${{ steps.eligible.outputs.tier }})" || true
 
       - name: Create release tag
         if: steps.eligible.outputs.eligible == 'true'

@@ -461,13 +461,37 @@ select.form-inp option{background:#0a0e24;}
   <!-- HOME VIEW (DOM simplified) -->
   <section id="view-home" class="view hero-section">
     <p class="subtitle">Live autonomous AI commerce platform</p>
-    <h1 class="hero-title">ZEUS AI<br/>Launch AI products faster.</h1>
-    <p class="hero-sub">Buy ready-to-run AI services, monitor the live Unicorn engine, and activate automation with direct BTC checkout plus enterprise-grade integrity checks.</p>
-    <div class="hero-ctas">
-      <button class="btn btn-primary btn-lg" onclick="navigate('marketplace')">🚀 Buy AI Service</button>
-      <button class="btn btn-outline btn-lg" onclick="navigate('status')">🟢 Live Status</button>
-      <button class="btn btn-ghost btn-lg" onclick="navigate('innovations')">💡 Innovations</button>
+    <h1 class="hero-title" id="heroTitle">ZEUS AI<br/>Launch AI products faster.</h1>
+    <p class="hero-sub" id="heroSub">Buy ready-to-run AI services, monitor the live Unicorn engine, and activate automation with direct BTC checkout plus enterprise-grade integrity checks.</p>
+    <div class="hero-ctas" id="heroCtas">
+      <a href="/pricing" id="heroCtaPrimary" class="btn btn-primary btn-lg" style="text-decoration:none">🚀 See Pricing</a>
+      <a href="/revenue-share" id="heroCtaSecondary" class="btn btn-outline btn-lg" style="text-decoration:none">💸 Zero-upfront · revenue share</a>
+      <a href="/proof" id="heroCtaTertiary" class="btn btn-ghost btn-lg" style="text-decoration:none">🔒 Live Proof</a>
     </div>
+    <p class="hero-sub" id="heroGuarantee" style="margin-top:14px;font-size:13px;color:#7090b0">30-day money-back · sovereign-signed receipts · cancel anytime</p>
+    <script>
+      /* Hero hydration from /api/growth/offer — additive, with safe fallback. */
+      (function heroHydrate(){
+        try {
+          fetch('/api/growth/offer', { cache: 'no-store' })
+            .then(function(r){ return r.ok ? r.json() : null; })
+            .then(function(o){
+              if (!o || !o.ok) return;
+              var t = document.getElementById('heroTitle');
+              var s = document.getElementById('heroSub');
+              var g = document.getElementById('heroGuarantee');
+              var p = document.getElementById('heroCtaPrimary');
+              var sec = document.getElementById('heroCtaSecondary');
+              if (t && o.headline) t.innerHTML = String(o.headline).replace(/—/g,'<br/>—');
+              if (s && o.subhead) s.textContent = String(o.subhead);
+              if (g && o.guarantee) g.textContent = String(o.guarantee);
+              if (p && o.primary && o.primary.href) { p.href = o.primary.href; p.textContent = (o.primary.rail === 'stripe' ? '💳 ' : '₿ ') + (o.primary.label || 'Buy now'); }
+              if (sec && o.tertiary && o.tertiary.href) { sec.href = o.tertiary.href; sec.textContent = '💸 ' + (o.tertiary.label || 'Revenue share'); }
+            })
+            .catch(function(){ /* keep static fallback */ });
+        } catch (_) { /* never break the page */ }
+      })();
+    </script>
     <div class="grid-4" style="max-width:920px;margin:18px auto 0;">
       <div class="card card-sm"><div class="label">Deploy</div><div class="kpi-val green" style="font-size:16px;">Forward-only</div></div>
       <div class="card card-sm"><div class="label">Integrity</div><div class="kpi-val cyan" style="font-size:16px;">QIS guarded</div></div>
