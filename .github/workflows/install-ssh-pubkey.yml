@@ -27,7 +27,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: 🔐 Auto-bootstrap SSH (uses HETZNER_SSH_PRIVATE_KEY already trusted)
         env:

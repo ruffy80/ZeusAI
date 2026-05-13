@@ -41,7 +41,7 @@ jobs:
 
     steps:
       - name: 📥 Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           fetch-depth: 0
 
@@ -151,7 +151,7 @@ jobs:
           fi
 
       - name: 🟦 Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v5
         with:
           node-version-file: '.nvmrc'
           cache: npm
@@ -191,7 +191,7 @@ jobs:
           # so the explicit rm is best-effort only.
           rm -rf node_modules || true
           npm ci --no-audit --no-fund --loglevel=error || (sleep 3 && rm -rf node_modules || true && npm ci --no-audit --no-fund --loglevel=error)
-          CI=false npm run build
+          NODE_OPTIONS=--no-deprecation CI=false npm run build
 
       - name: 🔐 Export configured optional secrets for env generation
         env:

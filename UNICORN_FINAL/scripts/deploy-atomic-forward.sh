@@ -105,7 +105,7 @@ fi
 
 if [ -f client/package.json ]; then
   log "build client if present"
-  (cd client && { [ -f package-lock.json ] && npm ci --no-audit --no-fund --loglevel=error || npm install --no-audit --no-fund --loglevel=error; } && CI=false npm run build)
+  (cd client && { [ -f package-lock.json ] && npm ci --no-audit --no-fund --loglevel=error || npm install --no-audit --no-fund --loglevel=error; } && NODE_OPTIONS=--no-deprecation CI=false npm run build)
 fi
 
 log "start backend canary on port $CANARY_PORT"
