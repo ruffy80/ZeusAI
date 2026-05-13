@@ -143,14 +143,26 @@ function verifyChain() {
     if (!fs.existsSync(LEDGER)) return { ok: true, length: 0, reason: 'empty' };
     const lines = fs.readFileSync(LEDGER, 'utf8').split('\n').filter(Boolean);
     let prev = 'GENESIS';
+    let breaks = [];
+    let currentChainStart = 0; // index where current unbroken chain begins
     for (let i = 0; i < lines.length; i++) {
       const a = JSON.parse(lines[i]);
-      if (a.prevHash !== prev) return { ok: false, length: lines.length, brokenAt: i, expectedPrev: prev, gotPrev: a.prevHash };
       const recomputed = crypto.createHash('sha256').update(JSON.stringify({ v: a.v, ts: a.ts, seq: a.seq, prevHash: a.prevHash, modules: a.modules })).digest('hex');
-      if (recomputed !== a.payloadHash) return { ok: false, length: lines.length, brokenAt: i, reason: 'payload-hash-mismatch' };
+      const hashOk = recomputed === a.payloadHash;
+      const linkOk = a.prevHash === prev;
+      if (!hashOk || !linkOk) {
+        breaks.push({ at: i, ts: a.ts, seq: a.seq, expectedPrev: prev, gotPrev: a.prevHash, hashOk });
+        currentChainStart = i; // sub-chain restarts here
+      }
       prev = a.payloadHash;
     }
-    return { ok: true, length: lines.length, head: prev };
+    return {
+      ok: breaks.length === 0,
+      length: lines.length,
+      head: prev,
+      breaks,
+      currentChain: { from: currentChainStart, length: lines.length - currentChainStart, head: prev },
+    };
   } catch (e) { return { ok: false, error: String(e && e.message || e) }; }
 }
 
