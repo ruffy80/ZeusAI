@@ -1980,6 +1980,30 @@ app.get('/api/revenue/command-center', (req, res) => {
     customerSuccess: success,
     seo,
     nextBestAction: autopilot.last?.verticalPlaybook?.[0] || null,
+    promotedOfferId: commander.decision?.topOffer || null,
+  });
+});
+
+// ==================== AUTOPILOT-DRIVEN CATALOG REORDERING + CTA PROMINENCE ====================
+// Returns the current promoted offer ID from the revenue autopilot so clients can
+// prioritize it in catalog UI, checkout flows, and marketing surfaces.
+app.get('/api/catalog/promoted', (req, res) => {
+  const commander = moneyMachine.revenueCommander();
+  const autopilot = __REV_AUTO.status();
+  const topOffer = commander.decision?.topOffer || null;
+  const playbook = autopilot.last?.verticalPlaybook || [];
+  const focus = commander.decision?.focus || 'warming';
+  
+  res.json({
+    ok: true,
+    ts: Date.now(),
+    promotedOfferId: topOffer,
+    promotedOfferBundle: playbook[0]?.bundle || 'default',
+    promotedOfferVertical: playbook[0]?.vertical || 'warming',
+    automationFocus: focus,
+    ctaPromptStrength: topOffer ? 'primary' : 'secondary',
+    catalogReorderingEnabled: true,
+    nextRotationTs: autopilot.nextRunTs,
   });
 });
 

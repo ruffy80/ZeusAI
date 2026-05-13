@@ -4382,7 +4382,7 @@ async function unicornHandler(req, res) {
         '<div id="selling-now" class="card" style="margin-bottom:24px"><h3>Revenue autopilot</h3><div class="v">Loading…</div><div class="sub">Choosing today\'s vertical and offer</div></div>' +
         '<div id="services" class="grid"></div>' +
         '<div id="checkout" style="display:none;margin-top:32px;padding:24px;background:var(--card);border:1px solid var(--border);border-radius:12px;max-width:560px"><h3 id="ck-title" style="margin:0">Checkout</h3><div id="ck-body"></div><div class="row" style="margin-top:16px"><button id="ck-btc">Pay with BTC</button><button class="btn-ghost" id="ck-stripe">Pay with Card</button><button class="btn-ghost" id="ck-close">Cancel</button></div><div id="ck-result" style="margin-top:12px;font-size:12px;color:var(--muted)"></div></div>';
-      const js = "(function(){var current=null;function card(s){return '<div class=\"card\" data-id=\"'+s.id+'\"><h3>'+(s.category||'service')+'</h3><div style=\"font-size:16px;font-weight:600;margin:4px 0\">'+(s.name||s.id)+'</div><div class=\"price\">$'+((s.price||s.basePrice||99).toFixed?(s.price||s.basePrice||99).toFixed(2):(s.price||s.basePrice||99))+'</div><p style=\"color:var(--muted);font-size:12px;margin:8px 0 12px\">'+(s.description||s.tagline||'AI service')+'</p><button onclick=\"window.__buy(\\''+s.id+'\\',\\''+(s.name||s.id).replace(/\"/g,\"\")+'\\','+(s.price||s.basePrice||99)+')\">Buy now</button></div>'}window.__buy=function(id,name,price){current={id:id,name:name,price:price};document.getElementById('ck-title').textContent='Checkout: '+name;document.getElementById('ck-body').innerHTML='<div style=\"font-size:13px;margin-top:8px\">Total: <b class=\"ok\">$'+price.toFixed(2)+'</b></div>';document.getElementById('ck-result').textContent='';document.getElementById('checkout').style.display='block';document.getElementById('checkout').scrollIntoView({behavior:'smooth'})};function pay(method){if(!current)return;document.getElementById('ck-result').textContent='Processing '+method+'…';fetch('/api/checkout/'+method,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({serviceId:current.id,amount:current.price})}).then(function(r){return r.json()}).then(function(d){document.getElementById('ck-result').innerHTML='<span class=\"ok\">✓ '+(d.message||'Order created')+'</span> '+(d.orderId?('· order '+d.orderId):'')+(d.btcAddress?('<br>BTC: <code>'+d.btcAddress+'</code>'):'')}).catch(function(e){document.getElementById('ck-result').innerHTML='<span class=\"err\">✗ '+e.message+'</span>'})}document.getElementById('ck-btc').onclick=function(){pay('btc')};document.getElementById('ck-stripe').onclick=function(){pay('create')};document.getElementById('ck-close').onclick=function(){document.getElementById('checkout').style.display='none'};fetch('/api/revenue/command-center',{cache:'no-store'}).then(function(r){return r.json()}).then(function(d){var commander=d&&d.commander||{};var ap=d&&d.autopilot||{};var nba=d&&d.nextBestAction||{};document.getElementById('selling-now').innerHTML='<h3>Revenue autopilot</h3><div class=\"v\">'+(commander.decision&&commander.decision.topOffer||'—')+'</div><div class=\"sub\">Today: '+(nba.vertical||'warming')+' · '+(nba.bundle||'bundle')+' · leads '+((commander.kpis&&commander.kpis.leads)||0)+' · runs '+(ap.runs||0)+'</div>'}).catch(function(){});fetch('/api/products',{cache:'no-store'}).then(function(r){return r.json()}).then(function(d){var arr=Array.isArray(d)?d:(d.products||d.items||d.data||[]);document.getElementById('services').innerHTML=arr.slice(0,18).map(card).join('')||'<div class=\"card\"><h3>Loading</h3><div class=\"v\">…</div></div>'}).catch(function(){document.getElementById('services').innerHTML='<div class=\"card\"><h3>Catalog unavailable</h3><div class=\"sub\">Try again in a moment.</div></div>'})})();";
+      const js = "(function(){var current=null;function card(s,isPromoted){var promoted=isPromoted?' style=\"border:3px solid var(--acc);background:linear-gradient(135deg, rgba(204,146,249,0.05), rgba(204,146,249,0.02));transform:scale(1.02)\"':'';var badge=isPromoted?'<div style=\"position:absolute;top:12px;right:12px;background:var(--acc);color:#05040a;font-weight:700;padding:4px 8px;border-radius:6px;font-size:11px\">★ Featured</div>':'';return '<div class=\"card\" data-id=\"'+s.id+'\"'+promoted+'>'+badge+'<h3>'+(s.category||'service')+'</h3><div style=\"font-size:16px;font-weight:600;margin:4px 0\">'+(s.name||s.id)+'</div><div class=\"price\">$'+((s.price||s.basePrice||99).toFixed?(s.price||s.basePrice||99).toFixed(2):(s.price||s.basePrice||99))+'</div><p style=\"color:var(--muted);font-size:12px;margin:8px 0 12px\">'+(s.description||s.tagline||'AI service')+'</p><button onclick=\"window.__buy(\\''+s.id+'\\',\\''+(s.name||s.id).replace(/\"/g,\"\")+'\\','+(s.price||s.basePrice||99)+')\">Buy now</button></div>'}window.__buy=function(id,name,price){current={id:id,name:name,price:price};document.getElementById('ck-title').textContent='Checkout: '+name;document.getElementById('ck-body').innerHTML='<div style=\"font-size:13px;margin-top:8px\">Total: <b class=\"ok\">$'+price.toFixed(2)+'</b></div>';document.getElementById('ck-result').textContent='';document.getElementById('checkout').style.display='block';document.getElementById('checkout').scrollIntoView({behavior:'smooth'})};function pay(method){if(!current)return;document.getElementById('ck-result').textContent='Processing '+method+'…';fetch('/api/checkout/'+method,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({serviceId:current.id,amount:current.price})}).then(function(r){return r.json()}).then(function(d){document.getElementById('ck-result').innerHTML='<span class=\"ok\">✓ '+(d.message||'Order created')+'</span> '+(d.orderId?('· order '+d.orderId):'')+(d.btcAddress?('<br>BTC: <code>'+d.btcAddress+'</code>'):'')}).catch(function(e){document.getElementById('ck-result').innerHTML='<span class=\"err\">✗ '+e.message+'</span>'})}document.getElementById('ck-btc').onclick=function(){pay('btc')};document.getElementById('ck-stripe').onclick=function(){pay('create')};document.getElementById('ck-close').onclick=function(){document.getElementById('checkout').style.display='none'};fetch('/api/revenue/command-center',{cache:'no-store'}).then(function(r){return r.json()}).then(function(d){var commander=d&&d.commander||{};var ap=d&&d.autopilot||{};var nba=d&&d.nextBestAction||{};document.getElementById('selling-now').innerHTML='<h3>Revenue autopilot</h3><div class=\"v\">'+(commander.decision&&commander.decision.topOffer||'—')+'</div><div class=\"sub\">Today: '+(nba.vertical||'warming')+' · '+(nba.bundle||'bundle')+' · leads '+((commander.kpis&&commander.kpis.leads)||0)+' · runs '+(ap.runs||0)+'</div>'}).catch(function(){});fetch('/api/products',{cache:'no-store'}).then(function(r){return r.json()}).then(function(d){var arr=Array.isArray(d)?d:(d.products||d.items||d.data||[]);var promoted=d.promoted||null;document.getElementById('services').innerHTML=arr.slice(0,18).map(function(x){return card(x,x.id===promoted)}).join('')||'<div class=\"card\"><h3>Loading</h3><div class=\"v\">…</div></div>'}).catch(function(){document.getElementById('services').innerHTML='<div class=\"card\"><h3>Catalog unavailable</h3><div class=\"sub\">Try again in a moment.</div></div>'})})();";
       try { res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'public, max-age=30', 'X-Unicorn-Page': 'services' }); } catch (_) {}
       return res.end(renderPage('Services', body, js));
     }
@@ -5695,11 +5695,25 @@ async function unicornHandler(req, res) {
   // /api/price/:id — single-item live price lookup (USD + BTC + bitcoin: URI)
   // Both are read-only, cached, and never block. They satisfy clients that
   // expect a REST-style "products + per-item price" surface.
+  // AUTOPILOT INTEGRATION: If a topOffer is active, it is moved to position 0
+  // with enhanced CTA flags for UI emphasis (buy button, banner, hero section).
   // ===================================================================
   if (urlPath === '/api/products') {
     try {
       const cat = await getCachedMasterCatalog();
-      const items = (cat.items || []).map(it => ({
+      // Fetch the current promoted offer from autopilot
+      const promotedId = (() => {
+        try {
+          const moneyMachine = global.__UNICORN_MONEY_MACHINE;
+          if (moneyMachine && typeof moneyMachine.revenueCommander === 'function') {
+            const commander = moneyMachine.revenueCommander();
+            return commander.decision?.topOffer || null;
+          }
+        } catch (_) {}
+        return null;
+      })();
+      
+      let items = (cat.items || []).map(it => ({
         id: it.id,
         title: it.title || it.name || it.id,
         description: it.description || '',
@@ -5709,9 +5723,21 @@ async function unicornHandler(req, res) {
         btcUri: it.btcUri,
         buyUrl: it.buyUrl || ('/checkout?serviceId=' + encodeURIComponent(it.id) + '&plan=' + encodeURIComponent(it.id)),
         group: it.group || it.segment || 'marketplace',
+        isPromoted: promotedId && it.id === promotedId,
+        ctaPromptStrength: promotedId && it.id === promotedId ? 'primary' : 'secondary',
       }));
+      
+      // REORDER: Move promoted item to front if it exists
+      if (promotedId) {
+        const promotedIdx = items.findIndex(x => x.id === promotedId);
+        if (promotedIdx > 0) {
+          const promoted = items.splice(promotedIdx, 1);
+          items.unshift(promoted[0]);
+        }
+      }
+      
       res.writeHead(200, { 'Content-Type':'application/json', 'Cache-Control':'public, max-age=30' });
-      return res.end(JSON.stringify({ count: items.length, products: items }));
+      return res.end(JSON.stringify({ count: items.length, products: items, promoted: promotedId || null }));
     } catch (e) {
       res.writeHead(500, { 'Content-Type':'application/json' });
       return res.end(JSON.stringify({ error: 'products_failed', detail: e.message }));
