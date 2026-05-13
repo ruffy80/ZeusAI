@@ -45,6 +45,25 @@ function safeRequire(rel) { try { return require(rel); } catch (_) { return null
 function ensureDir() { try { fs.mkdirSync(DIR, { recursive: true, mode: 0o700 }); } catch (_) {} }
 function loadState() {
   try { if (fs.existsSync(STATE_FILE)) state = Object.assign(state, JSON.parse(fs.readFileSync(STATE_FILE, 'utf8'))); } catch (_) {}
+  // Recover from ledger if STATE_FILE absent or stale (e.g., PM2 restart after deploy).
+  // Source of truth = last line in attestations.jsonl. Forward-only, never rewrites ledger.
+  try {
+    if (fs.existsSync(LEDGER)) {
+      const raw = fs.readFileSync(LEDGER, 'utf8');
+      const lines = raw.split('\n').filter(Boolean);
+      if (lines.length) {
+        const last = JSON.parse(lines[lines.length - 1]);
+        if (last && last.payloadHash && typeof last.seq === 'number') {
+          if (last.seq >= state.seq) {
+            state.seq = last.seq;
+            state.prevHash = last.payloadHash;
+            state.lastTs = last.ts || state.lastTs;
+            state.lastAttestation = { seq: last.seq, ts: last.ts, payloadHash: last.payloadHash, alg: last.alg };
+          }
+        }
+      }
+    }
+  } catch (_) {}
 }
 function persistState() { try { fs.writeFileSync(STATE_FILE, JSON.stringify(state)); } catch (_) {} }
 
