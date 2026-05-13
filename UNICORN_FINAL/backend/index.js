@@ -1803,7 +1803,7 @@ const __REV_AUTO = (function buildRevenueAutopilot() {
   const LEDGER_FILE = nodePath.join(__dirname, '..', 'data', 'revenue', 'autopilot-ledger.jsonl');
   const state = {
     enabled: process.env.UNICORN_REVENUE_AUTOPILOT_DISABLED !== '1',
-    intervalMs: Math.max(15000, Number(process.env.UNICORN_REVENUE_AUTOPILOT_MS || 60000)),
+    intervalMs: Math.max(15000, Number(process.env.UNICORN_REVENUE_AUTOPILOT_MS || 30000)),
     runs: 0,
     errors: 0,
     lastRunTs: 0,
@@ -1840,6 +1840,28 @@ const __REV_AUTO = (function buildRevenueAutopilot() {
     return Math.round(base * pulseBoost * fcBoost);
   }
 
+  function pickVerticals(commander, economyPulse, oracleFc) {
+    const pulse = Number(economyPulse?.economyPulse || 0);
+    const forecast = Number(oracleFc?.revenueForecast?.next30dUsd || oracleFc?.next30dUsd || 0);
+    const focus = String(commander?.decision?.focus || 'checkout-and-offer-optimization');
+    const base = ['fintech', 'ecommerce', 'legaltech', 'cybersecurity', 'logistics', 'healthtech'];
+    const weighted = focus.includes('traffic') ? ['creator-economy', 'education', 'hospitality'] : ['b2b-saas', 'services', 'enterprise-software'];
+    if (pulse >= 70 || forecast >= 100000) weighted.unshift('enterprise-software', 'fintech');
+    if (pulse >= 50) weighted.unshift('ecommerce', 'logistics');
+    return Array.from(new Set([...weighted, ...base])).slice(0, 8);
+  }
+
+  function buildEnterprisePlaybook(commander, economyPulse, oracleFc) {
+    const verticals = pickVerticals(commander, economyPulse, oracleFc);
+    return verticals.map((vertical, index) => ({
+      vertical,
+      angle: vertical.includes('enterprise') ? 'SLA + trust + governance' : 'ROI + automation + speed',
+      offerStrategy: index < 2 ? 'homepage-hero' : index < 5 ? 'programmatic-seo' : 'sales-outreach',
+      bundle: index === 0 ? 'flagship' : index === 1 ? 'growth' : 'conversion',
+      nextAction: index === 0 ? 'lead with premium trust pack' : 'pair with vertical case study',
+    }));
+  }
+
   async function run(reason) {
     const ts = Date.now();
     const at = new Date(ts).toISOString();
@@ -1854,11 +1876,21 @@ const __REV_AUTO = (function buildRevenueAutopilot() {
       const segment = focus.includes('upsell') ? 'enterprise-growth' : 'b2b-performance';
       const industry = focus.includes('traffic') ? 'global saas + marketplaces' : 'high-intent service businesses';
       const budgetUsd = pickBudgetUsd(commander, economyPulse, oracleFc);
+      const verticalPlaybook = buildEnterprisePlaybook(commander, economyPulse, oracleFc);
 
-      const offers = moneyMachine.offerFactory({ industry, segment, budgetUsd });
-      const seo = moneyMachine.generateSeoPages({
-        verticals: ['fintech', 'ecommerce', 'legaltech', 'cybersecurity', 'logistics', 'healthtech']
-      });
+      const offers = verticalPlaybook.map((item) => moneyMachine.offerFactory({
+        industry: item.vertical,
+        segment: `${segment}:${item.bundle}`,
+        budgetUsd: Math.round(budgetUsd * (item.bundle === 'flagship' ? 1.7 : item.bundle === 'growth' ? 1.15 : 0.85)),
+      }));
+      const seo = moneyMachine.generateSeoPages({ verticals: verticalPlaybook.map((item) => item.vertical) });
+
+      // Revenue actions that immediately bias the pipeline toward conversion.
+      const leads = [
+        moneyMachine.qualifyLead({ company: 'Autopilot Inbound', industry, pain: focus, employeeCount: budgetUsd > 2000 ? 75 : 15, budgetUsd }),
+        moneyMachine.qualifyLead({ company: 'Enterprise Trust Signal', industry: 'enterprise', pain: 'SLA, auditability, long-term standard', employeeCount: 200, budgetUsd: budgetUsd * 2 }),
+      ];
+      const closer = moneyMachine.closerAnswer({ plan: budgetUsd > 3000 ? 'money-machine-pro' : 'compliance-trust-pack', objection: 'trust' });
 
       const runResult = {
         ok: true,
@@ -1869,8 +1901,11 @@ const __REV_AUTO = (function buildRevenueAutopilot() {
         budgetUsd,
         kpis: commander?.kpis || {},
         topOffer: commander?.decision?.topOffer || null,
-        offersGenerated: Number(offers?.count || (offers?.offers || []).length || 0),
+        offersGenerated: offers.reduce((sum, pack) => sum + Number(pack?.count || (pack?.offers || []).length || 0), 0),
         seoPagesPlanned: Number((seo?.pages || []).length || 0),
+        verticalPlaybook,
+        leadSignals: leads.map((item) => item?.lead?.status || 'unknown'),
+        trustAnswer: closer?.answer || null,
         conversionSignals: conv?.totals || {},
         customerSuccessMode: success?.status || 'foundation-live',
         economyPulse: Number(economyPulse?.economyPulse || 0),
@@ -1930,6 +1965,23 @@ app.post('/api/revenue/autopilot/run', adminTokenMiddleware, asyncHandler(async 
   const out = await __REV_AUTO.run(req.body?.reason || 'manual');
   res.json(out);
 }));
+app.get('/api/revenue/command-center', (req, res) => {
+  const commander = moneyMachine.revenueCommander();
+  const conversion = moneyMachine.conversionIntelligence();
+  const success = moneyMachine.customerSuccessStatus();
+  const seo = moneyMachine.programmaticSeoStatus();
+  const autopilot = __REV_AUTO.status();
+  res.json({
+    ok: true,
+    ts: Date.now(),
+    commander,
+    autopilot,
+    conversion,
+    customerSuccess: success,
+    seo,
+    nextBestAction: autopilot.last?.verticalPlaybook?.[0] || null,
+  });
+});
 
 // ==================== MODULE AUTONOME ====================
 const autoDeploy = require('./modules/autoDeploy');
