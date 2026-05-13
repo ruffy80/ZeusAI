@@ -196,8 +196,53 @@ function applySiteTopologyHeaders(req, res) {
 }
 
 // === Health endpoint direct Express pentru testare și monitorizare ===
+// 24/7-PERFECTION: single-fetch full picture (backwards-compatible: keeps ok/status/ts,
+// adds backend monitor + SSE counts so the HTML pages and external probes can detect
+// degraded mode without a second request).
 app.get('/health', (req, res) => {
-  res.json({ ok: true, status: 'healthy', ts: new Date().toISOString() });
+  res.set('Cache-Control', 'no-store');
+  const mon = global.__UNICORN_BACKEND_MONITOR || { ok: true, fails: 0, lastTs: 0 };
+  const sse = {
+    snapshot: (typeof streamClients !== 'undefined' && streamClients) ? streamClients.size : 0,
+    unicorn:  (typeof unicornEventClients !== 'undefined' && unicornEventClients) ? unicornEventClients.size : 0
+  };
+  res.json({
+    ok: true,
+    status: 'healthy',
+    service: 'unicorn-final',
+    brand: 'ZeusAI',
+    ts: new Date().toISOString(),
+    uptimeSec: Math.round(process.uptime()),
+    backend: { ok: mon.ok, fails: mon.fails || 0, lastCheckTs: mon.lastTs || 0, degraded: !mon.ok },
+    sse
+  });
+});
+
+// 24/7-PERFECTION: /site/observe — single-shot full comms diagnostic for ops dashboards.
+// Returns backend monitor, SSE client counts, uptime, build sha, supreme module loadability.
+app.get('/site/observe', (req, res) => {
+  res.set('Cache-Control', 'no-store');
+  const mon = global.__UNICORN_BACKEND_MONITOR || { ok: true, fails: 0, lastTs: 0 };
+  const modNames = ['unicornBrain','unicornSelfHealer','unicornInnovator','unicornTreasury','unicornGrowth','unicornGuardian','unicornOracle','unicornEconomy','unicornSovereignty'];
+  const loaded = {};
+  for (const n of modNames) {
+    try { const m = require('../backend/modules/' + n); loaded[n] = !!(m && typeof m.getStatus === 'function'); }
+    catch (_) { loaded[n] = false; }
+  }
+  res.json({
+    ok: true,
+    ts: Date.now(),
+    uptimeSec: Math.round(process.uptime()),
+    memoryRssMb: Math.round(process.memoryUsage().rss / 1024 / 1024),
+    pid: process.pid,
+    backend: { ok: mon.ok, fails: mon.fails || 0, lastCheckTs: mon.lastTs || 0, degraded: !mon.ok },
+    sse: {
+      snapshotClients: (typeof streamClients !== 'undefined' && streamClients) ? streamClients.size : 0,
+      unicornEventClients: (typeof unicornEventClients !== 'undefined' && unicornEventClients) ? unicornEventClients.size : 0
+    },
+    eventBridge: { configured: !!process.env.BACKEND_API_URL, target: process.env.BACKEND_API_URL || null },
+    supremeModules: loaded
+  });
 });
 
 // ─── C8: stratified health (site mirror, additive) ────────────────────────
@@ -4119,8 +4164,20 @@ async function unicornHandler(req, res) {
   }
 
   if (urlPath === '/health') {
-    res.writeHead(200, { 'Content-Type': 'application/json' });
-    return res.end(JSON.stringify({ ok: true, service: 'unicorn-final', brand: 'ZeusAI' }));
+    // 24/7-PERFECTION: single-fetch full picture — keeps original keys for backwards compat,
+    // adds backend monitor + SSE clients + uptime so the HTML pages and external probes can
+    // detect degraded mode without a second request.
+    var __mon = global.__UNICORN_BACKEND_MONITOR || { ok: true, fails: 0, lastTs: 0 };
+    var __sse = { snapshot: (typeof streamClients !== 'undefined' && streamClients && streamClients.size) || 0,
+                  unicorn:  (typeof unicornEventClients !== 'undefined' && unicornEventClients && unicornEventClients.size) || 0 };
+    res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
+    return res.end(JSON.stringify({
+      ok: true, service: 'unicorn-final', brand: 'ZeusAI',
+      uptimeSec: Math.round(process.uptime()),
+      backend: { ok: __mon.ok, fails: __mon.fails || 0, lastCheckTs: __mon.lastTs || 0 },
+      sse: __sse,
+      ts: Date.now()
+    }));
   }
 
   // ==================== FAZA 2 / VAL 5: SUPREME COCKPIT ENDPOINTS ====================
@@ -4176,6 +4233,13 @@ async function unicornHandler(req, res) {
         Connection: 'keep-alive',
         'X-Accel-Buffering': 'no',
       });
+      if (typeof res.flushHeaders === 'function') res.flushHeaders();
+      // 24/7-PERFECTION: SSE protocol hardening
+      //   • retry: 5000  — EventSource respects this on disconnect (controlled backoff)
+      //   • id:           — monotonic per-message id so clients can detect skipped events
+      //   • comment heartbeat every 15s — keeps nginx/Cloudflare from closing idle sockets
+      res.write('retry: 5000\n\n');
+      let __seq = 0;
       const send = () => {
         try {
           const names = ['unicornBrain','unicornSelfHealer','unicornInnovator','unicornTreasury','unicornGrowth','unicornGuardian','unicornOracle','unicornEconomy','unicornSovereignty'];
@@ -4185,14 +4249,20 @@ async function unicornHandler(req, res) {
             try { const m = require('../backend/modules/' + n); supreme[keys[i]] = (m && typeof m.getStatus === 'function') ? m.getStatus() : { ok: false, reason: 'missing' }; }
             catch (e) { supreme[keys[i]] = { ok: false, reason: 'error', error: String(e && e.message || e) }; }
           });
+          __seq++;
+          res.write('id: ' + __seq + '\n');
           res.write('event: cockpit\n');
-          res.write('data: ' + JSON.stringify({ ok: true, ts: Date.now(), supreme }) + '\n\n');
+          res.write('data: ' + JSON.stringify({ ok: true, ts: Date.now(), seq: __seq, supreme }) + '\n\n');
         } catch (_) {}
       };
       send();
       const timer = setInterval(send, 10000);
+      // Independent comment heartbeat so the socket stays alive even if module
+      // require() throws and `send` produces no bytes for a full tick.
+      const __hb = setInterval(() => { try { res.write(': hb ' + Date.now() + '\n\n'); } catch (_) {} }, 15000);
       if (timer && typeof timer.unref === 'function') timer.unref();
-      req.on('close', () => { try { clearInterval(timer); } catch (_) {} });
+      if (__hb && typeof __hb.unref === 'function') __hb.unref();
+      req.on('close', () => { try { clearInterval(timer); clearInterval(__hb); } catch (_) {} });
       return;
     } catch (err) {
       try { res.writeHead(500, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ ok: false, error: String(err && err.message || err) })); } catch (_) {}
@@ -4323,6 +4393,34 @@ async function unicornHandler(req, res) {
   // Exposes /site/degraded (NOT /api/* to avoid nginx routing to backend:3000).
   // The cockpit/services/status pages use this to render a banner; the browser
   // also polls /health locally as defence in depth.
+  // 24/7-PERFECTION: /site/observe — single-shot full comms diagnostic for ops dashboards.
+  // Returns: backend monitor, SSE client counts, uptime, build sha, module loadability check.
+  if (urlPath === '/site/observe') {
+    res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
+    var _mon = global.__UNICORN_BACKEND_MONITOR || { ok: true, fails: 0, lastTs: 0 };
+    var _modNames = ['unicornBrain','unicornSelfHealer','unicornInnovator','unicornTreasury','unicornGrowth','unicornGuardian','unicornOracle','unicornEconomy','unicornSovereignty'];
+    var _loaded = {};
+    _modNames.forEach(function (n) {
+      try { var m = require('../backend/modules/' + n); _loaded[n] = !!(m && typeof m.getStatus === 'function'); }
+      catch (_) { _loaded[n] = false; }
+    });
+    return res.end(JSON.stringify({
+      ok: true,
+      ts: Date.now(),
+      uptimeSec: Math.round(process.uptime()),
+      memoryRssMb: Math.round(process.memoryUsage().rss / 1024 / 1024),
+      pid: process.pid,
+      backend: { ok: _mon.ok, fails: _mon.fails || 0, lastCheckTs: _mon.lastTs || 0, degraded: !_mon.ok },
+      sse: {
+        snapshotClients: (typeof streamClients !== 'undefined' && streamClients) ? streamClients.size : 0,
+        unicornEventClients: (typeof unicornEventClients !== 'undefined' && unicornEventClients) ? unicornEventClients.size : 0
+      },
+      eventBridge: { configured: !!process.env.BACKEND_API_URL, target: process.env.BACKEND_API_URL || null },
+      supremeModules: _loaded,
+      build: (typeof ZEUS_BUILD !== 'undefined' && ZEUS_BUILD) ? { sha: ZEUS_BUILD.sha, builtAt: ZEUS_BUILD.ts } : null
+    }));
+  }
+
   if (urlPath === '/site/degraded' || urlPath === '/unicorn-degraded') {
     res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
     var monitor = global.__UNICORN_BACKEND_MONITOR || { fails: 0, ok: true, lastTs: 0 };
