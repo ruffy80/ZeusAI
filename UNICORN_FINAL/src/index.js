@@ -4137,8 +4137,8 @@ async function unicornHandler(req, res) {
         res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store', 'X-Unicorn-Cache': 'hit' });
         return res.end(JSON.stringify(cache.data));
       }
-      const names = ['unicornBrain','unicornSelfHealer','unicornInnovator','unicornTreasury','unicornGrowth','unicornGuardian'];
-      const keys  = ['brain','healer','innovator','treasury','growth','guardian'];
+      const names = ['unicornBrain','unicornSelfHealer','unicornInnovator','unicornTreasury','unicornGrowth','unicornGuardian','unicornOracle','unicornEconomy','unicornSovereignty'];
+      const keys  = ['brain','healer','innovator','treasury','growth','guardian','oracle','economy','sovereignty'];
       const out = { ok: true, ts: Date.now(), supreme: {} };
       const TIMEOUT_MS = 1500;
       const tasks = names.map((n, i) => new Promise((resolve) => {
@@ -4178,8 +4178,8 @@ async function unicornHandler(req, res) {
       });
       const send = () => {
         try {
-          const names = ['unicornBrain','unicornSelfHealer','unicornInnovator','unicornTreasury','unicornGrowth','unicornGuardian'];
-          const keys  = ['brain','healer','innovator','treasury','growth','guardian'];
+          const names = ['unicornBrain','unicornSelfHealer','unicornInnovator','unicornTreasury','unicornGrowth','unicornGuardian','unicornOracle','unicornEconomy','unicornSovereignty'];
+          const keys  = ['brain','healer','innovator','treasury','growth','guardian','oracle','economy','sovereignty'];
           const supreme = {};
           names.forEach((n, i) => {
             try { const m = require('../backend/modules/' + n); supreme[keys[i]] = (m && typeof m.getStatus === 'function') ? m.getStatus() : { ok: false, reason: 'missing' }; }

@@ -147,12 +147,16 @@ const __SUPREME = (function buildSupremeRegistry() {
     catch (e) { console.warn('[supreme] load fail', name, e && e.message); return null; }
   }
   const reg = {
-    brain:     tryLoad('unicornBrain'),
-    healer:    tryLoad('unicornSelfHealer'),
-    innovator: tryLoad('unicornInnovator'),
-    treasury:  tryLoad('unicornTreasury'),
-    growth:    tryLoad('unicornGrowth'),
-    guardian:  tryLoad('unicornGuardian'),
+    brain:       tryLoad('unicornBrain'),
+    healer:      tryLoad('unicornSelfHealer'),
+    innovator:   tryLoad('unicornInnovator'),
+    treasury:    tryLoad('unicornTreasury'),
+    growth:      tryLoad('unicornGrowth'),
+    guardian:    tryLoad('unicornGuardian'),
+    // FAZA 3: predictive + economy + sovereignty overlays
+    oracle:      tryLoad('unicornOracle'),
+    economy:     tryLoad('unicornEconomy'),
+    sovereignty: tryLoad('unicornSovereignty'),
   };
   const cache = Object.create(null);
   function safeGet(modName, method, fallback, timeoutMs) {
@@ -204,7 +208,7 @@ function __supremeSend(res, payload, status) {
 }
 
 // Wire all 6 supreme modules — same shape for each: /status, /history, /force (POST)
-['brain','healer','innovator','treasury','growth','guardian'].forEach((name) => {
+['brain','healer','innovator','treasury','growth','guardian','oracle','economy','sovereignty'].forEach((name) => {
   app.get('/api/' + name + '/status', async (req, res) => {
     const data = await __SUPREME.safeGet(name, 'getStatus', { ok: true, module: name, degraded: true });
     __supremeSend(res, { ok: true, module: name, ts: Date.now(), data });
@@ -219,9 +223,74 @@ function __supremeSend(res, payload, status) {
   });
 });
 
+// FAZA 3 / VAL 7 — Oracle dedicated endpoint
+app.get('/api/oracle/forecast', async (req, res) => {
+  const data = await __SUPREME.safeGet('oracle', 'getForecast', { ok: false, reason: 'oracle-unavailable' });
+  __supremeSend(res, { ok: true, ts: Date.now(), forecast: data });
+});
+
+// FAZA 3 / VAL 8 — Economy dedicated endpoint
+app.get('/api/economy/pulse', async (req, res) => {
+  const data = await __SUPREME.safeGet('economy', 'getPulse', { ok: false, reason: 'economy-unavailable' });
+  __supremeSend(res, { ok: true, ts: Date.now(), pulse: data });
+});
+
+// FAZA 3 / VAL 9 — Sovereignty attestation + public key + chain verify
+app.get('/api/sovereignty/attestation', async (req, res) => {
+  const data = await __SUPREME.safeGet('sovereignty', 'getLast', { ok: false, reason: 'sovereignty-unavailable' });
+  __supremeSend(res, { ok: true, ts: Date.now(), attestation: data });
+});
+app.get('/api/sovereignty/publickey', (req, res) => {
+  try {
+    const mod = __SUPREME.reg.sovereignty;
+    const pk = mod && typeof mod.getPublicKey === 'function' ? mod.getPublicKey() : null;
+    res.setHeader('Content-Type', 'text/plain; charset=utf-8');
+    res.setHeader('Cache-Control', 'public, max-age=300');
+    res.end(pk || '# sovereignty public key unavailable');
+  } catch (_) { res.end(''); }
+});
+app.get('/api/sovereignty/verify', (req, res) => {
+  try {
+    const mod = __SUPREME.reg.sovereignty;
+    const result = mod && typeof mod.verifyChain === 'function' ? mod.verifyChain() : { ok: false, reason: 'unavailable' };
+    __supremeSend(res, { ok: true, ts: Date.now(), chain: result });
+  } catch (e) { __supremeSend(res, { ok: false, error: String(e && e.message || e) }, 500); }
+});
+
+// FAZA 3 / VAL 10 — Lightweight digest (≈1–2 KB vs full /status which can be ~1MB)
+// In-process LRU cache (3s) shared across requests for high-throughput cockpit polls.
+const __DIGEST_CACHE = { ts: 0, data: null, ttl: 3000 };
+app.get('/api/supreme/digest', async (req, res) => {
+  if (__DIGEST_CACHE.data && (Date.now() - __DIGEST_CACHE.ts) < __DIGEST_CACHE.ttl) {
+    res.setHeader('X-Cache', 'hit');
+    return __supremeSend(res, __DIGEST_CACHE.data);
+  }
+  const names = ['brain','healer','innovator','treasury','growth','guardian','oracle','economy','sovereignty'];
+  const all = await Promise.all(names.map((n) => __SUPREME.safeGet(n, 'getStatus', null, 800)));
+  const digest = { ok: true, ts: Date.now(), modules: {} };
+  names.forEach((n, i) => {
+    const s = all[i] || {};
+    digest.modules[n] = {
+      cycles: s.cycles ?? s.mainCycleCount ?? 0,
+      lastTs: s.lastTs ?? s.ts ?? 0,
+      ok: !!s && s.ok !== false,
+    };
+  });
+  // Inline economy pulse score (single most actionable number)
+  const economyPulse = await __SUPREME.safeGet('economy', 'getPulse', null, 600);
+  if (economyPulse && typeof economyPulse.economyPulse === 'number') digest.economyPulse = economyPulse.economyPulse;
+  // Inline oracle daily forecast
+  const oracleFc = await __SUPREME.safeGet('oracle', 'getForecast', null, 600);
+  if (oracleFc && oracleFc.revenueForecast) digest.revenueForecast = oracleFc.revenueForecast;
+  __DIGEST_CACHE.ts = Date.now();
+  __DIGEST_CACHE.data = digest;
+  res.setHeader('X-Cache', 'miss');
+  __supremeSend(res, digest);
+});
+
 // Aggregate endpoint — single call to inspect all 6 supreme modules at once
 app.get('/api/supreme/status', async (req, res) => {
-  const names = ['brain','healer','innovator','treasury','growth','guardian'];
+  const names = ['brain','healer','innovator','treasury','growth','guardian','oracle','economy','sovereignty'];
   const results = await Promise.all(names.map((n) => __SUPREME.safeGet(n, 'getStatus', { ok: true, module: n, degraded: true })));
   const out = {};
   names.forEach((n, i) => { out[n] = results[i]; });
