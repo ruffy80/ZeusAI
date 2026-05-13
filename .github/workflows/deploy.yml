@@ -190,7 +190,7 @@ jobs:
           # GODMODE loop loaded by the previous test step). npm ci itself wipes node_modules,
           # so the explicit rm is best-effort only.
           rm -rf node_modules || true
-          npm ci || (sleep 3 && rm -rf node_modules || true && npm ci)
+          npm ci --no-audit --no-fund --loglevel=error || (sleep 3 && rm -rf node_modules || true && npm ci --no-audit --no-fund --loglevel=error)
           CI=false npm run build
 
       - name: 🔐 Export configured optional secrets for env generation

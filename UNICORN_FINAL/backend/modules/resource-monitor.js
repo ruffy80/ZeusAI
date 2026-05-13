@@ -21,6 +21,7 @@ const CPU_WARN_PCT        = parseInt(process.env.HEALTH_CPU_WARN               |
 const RAM_WARN_PCT        = parseInt(process.env.HEALTH_RAM_WARN               || '90',   10);
 const DISK_WARN_PCT       = parseInt(process.env.HEALTH_DISK_WARN              || '85',   10);
 const HISTORY_MAX         = 60; // ultimele 60 de probe
+const ALERT_COOLDOWN_MS   = parseInt(process.env.RESOURCE_MONITOR_ALERT_COOLDOWN_MS || '300000', 10); // 5 min
 
 const _state = {
   name:          'resource-monitor',
@@ -49,6 +50,8 @@ const _state = {
     uptimeSec:    0,
   },
   history: [],   // array de snapshots
+  lastAlertByType: {},
+  suppressedByType: {},
 };
 
 // ── Colectare metrici ─────────────────────────────────────────────────────────
@@ -110,7 +113,18 @@ function _checkAlerts() {
   }
 
   for (const alert of alerts) {
-    console.warn(`⚠️  [resource-monitor] ${alert.msg}`);
+    const key = alert.type;
+    const now = Date.now();
+    const last = _state.lastAlertByType[key] || 0;
+    if ((now - last) >= ALERT_COOLDOWN_MS) {
+      const suppressed = _state.suppressedByType[key] || 0;
+      const extra = suppressed > 0 ? ` (suppressed=${suppressed})` : '';
+      _state.suppressedByType[key] = 0;
+      _state.lastAlertByType[key] = now;
+      console.warn(`⚠️  [resource-monitor] ${alert.msg}${extra}`);
+    } else {
+      _state.suppressedByType[key] = (_state.suppressedByType[key] || 0) + 1;
+    }
     _state.alerts.unshift(alert);
   }
   if (_state.alerts.length > 20) _state.alerts.length = 20;

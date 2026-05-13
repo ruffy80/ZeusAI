@@ -8,7 +8,7 @@
   },
   "scripts": {
     "start": "react-scripts start",
-    "build": "react-scripts build"
+    "build": "GENERATE_SOURCEMAP=false react-scripts build"
   },
   "dependencies": {
     "@react-three/drei": "^9.105.6",

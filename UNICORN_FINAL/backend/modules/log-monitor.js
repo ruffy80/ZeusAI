@@ -17,6 +17,7 @@ const path = require('path');
 
 const MONITOR_INTERVAL_MS  = parseInt(process.env.LOG_MONITOR_INTERVAL_MS  || '30000', 10);
 const ERROR_THRESHOLD      = parseInt(process.env.LOG_MONITOR_ERROR_THRESH  || '10',   10); // erori/min → alertă
+const ALERT_COOLDOWN_MS    = parseInt(process.env.LOG_MONITOR_ALERT_COOLDOWN_MS || '300000', 10); // 5 min
 const LOGS_DIR             = path.join(__dirname, '..', '..', 'logs');
 
 const _state = {
@@ -44,6 +45,8 @@ const _state = {
     errorCount:  0,
     criticalCount: 0,
   },
+  lastAlertAt: 0,
+  suppressedAlerts: 0,
   fileOffsets: {},   // offset per fișier (citire incrementală)
 };
 
@@ -54,6 +57,17 @@ const PATTERNS = [
   { re: /\b(WARN|WARNING|Deprecat)\b/i,       level: 'warn' },
   { re: /\b(INFO|info)\b/,                    level: 'info' },
 ];
+
+const IGNORE_PATTERNS = [
+  /npm\s+warn\s+deprecated/i,
+  /compiled with warnings/i,
+  /failed to parse source map/i,
+  /source map.*ENOENT/i,
+];
+
+function _shouldIgnoreLine(line) {
+  return IGNORE_PATTERNS.some((re) => re.test(line));
+}
 
 function _classifyLine(line) {
   for (const { re, level } of PATTERNS) {
@@ -87,6 +101,7 @@ function _scanFile(fp) {
   const lines = chunk.toString('utf8').split('\n');
   for (const line of lines) {
     if (!line.trim()) continue;
+    if (_shouldIgnoreLine(line)) continue;
     const level = _classifyLine(line);
     if (!level) continue;
 
@@ -124,11 +139,34 @@ function _scanAllLogs() {
   _state.prevStats.criticalCount = _state.stats.criticalCount;
   if (newErrors > ERROR_THRESHOLD) {
     _state.health = 'degraded';
-    console.warn(`⚠️  [log-monitor] ${newErrors} erori noi de la ultima scanare (total: ${_state.stats.errorCount}).`);
+    const now = Date.now();
+    if ((now - (_state.lastAlertAt || 0)) >= ALERT_COOLDOWN_MS) {
+      _state.lastAlertAt = now;
+      const extra = _state.suppressedAlerts > 0 ? ` (suppressed=${_state.suppressedAlerts})` : '';
+      _state.suppressedAlerts = 0;
+      console.warn(`⚠️  [log-monitor] ${newErrors} erori noi de la ultima scanare (total: ${_state.stats.errorCount})${extra}.`);
+    } else {
+      _state.suppressedAlerts += 1;
+    }
   } else if (dCrit > 0) {
     _state.health = 'degraded';
   } else {
     _state.health = 'good';
+  }
+}
+
+function _bootstrapOffsetsToTail() {
+  if (process.env.LOG_MONITOR_BOOTSTRAP_SKIP_OLD === '0') return;
+  if (!fs.existsSync(LOGS_DIR)) return;
+  let files = [];
+  try { files = fs.readdirSync(LOGS_DIR); } catch (_) { return; }
+  for (const file of files) {
+    if (!/\.(log|txt)$/i.test(file)) continue;
+    const fp = path.join(LOGS_DIR, file);
+    try {
+      const st = fs.statSync(fp);
+      _state.fileOffsets[fp] = st.size;
+    } catch (_) { /* ignore */ }
   }
 }
 
@@ -140,6 +178,7 @@ function start() {
   }
   _state.running      = true;
   _state.startedAt    = new Date().toISOString();
+  _bootstrapOffsetsToTail();
   _state.intervalHandle = setInterval(() => {
     try { _scanAllLogs(); } catch (e) { _state.lastError = e.message; }
   }, MONITOR_INTERVAL_MS);
