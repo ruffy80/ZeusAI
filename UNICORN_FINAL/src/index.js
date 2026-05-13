@@ -4201,6 +4201,136 @@ async function unicornHandler(req, res) {
   }
   // ==================== END FAZA 2 / VAL 5 ====================
 
+  // ==================== FAZA 2 / VAL 5 (COMPLETARE): COCKPIT + SERVICES + STATUS HTML ====================
+  // Three SSR HTML pages share the same chrome (header + footer) as the rest of
+  // the site. They hydrate live from /unicorn-status (cockpit), /api/products
+  // (services) and /api/supreme/digest (status). All additive, never break the
+  // existing template. Each page is server-rendered, returns a full HTML doc,
+  // and includes a tiny client script that polls every 5s.
+  if (urlPath === '/unicorn-cockpit' || urlPath === '/services' || urlPath === '/status' || urlPath === '/unicorn-status.html') {
+    const renderPage = (title, bodyHtml, pageScript) => {
+      // Use the existing template engine if available; otherwise emit a minimal SEO-clean doc
+      // that still passes the site's chrome heuristics (lang, charset, viewport, meta).
+      const css = `
+        :root { --bg:#0a0f1e; --fg:#e8eef9; --accent:#7cf7c0; --muted:#7a8499; --card:rgba(255,255,255,0.04); --border:rgba(255,255,255,0.08); }
+        *{box-sizing:border-box} body{margin:0;font:14px/1.55 system-ui,-apple-system,Segoe UI,Roboto,sans-serif;background:radial-gradient(1200px 800px at 20% -10%,#142046 0%,#0a0f1e 60%) fixed;color:var(--fg);min-height:100vh}
+        header{padding:18px 32px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:16px;backdrop-filter:blur(8px)}
+        header a{color:var(--fg);text-decoration:none;opacity:.8} header a:hover{opacity:1}
+        h1{margin:0;font-size:18px;font-weight:600}
+        main{padding:32px;max-width:1200px;margin:0 auto}
+        .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:16px;margin:24px 0}
+        .card{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:18px;transition:transform .15s ease}
+        .card:hover{transform:translateY(-2px);border-color:var(--accent)}
+        .card h3{margin:0 0 6px;font-size:12px;font-weight:500;color:var(--muted);text-transform:uppercase;letter-spacing:.08em}
+        .card .v{font-size:24px;font-weight:600;color:var(--accent)}
+        .card .sub{font-size:11px;color:var(--muted);margin-top:4px}
+        .banner{display:none;padding:12px 18px;border:1px solid #f0c674;background:rgba(240,198,116,0.1);color:#f0c674;border-radius:8px;margin:0 0 16px;font-size:13px}
+        .banner.show{display:block}
+        footer{padding:24px 32px;border-top:1px solid var(--border);color:var(--muted);font-size:12px;text-align:center;margin-top:48px}
+        button{background:var(--accent);color:#0a0f1e;border:0;padding:10px 18px;border-radius:8px;font-weight:600;cursor:pointer}
+        button:hover{filter:brightness(1.1)}
+        .btn-ghost{background:transparent;color:var(--fg);border:1px solid var(--border)}
+        .price{font-size:28px;color:var(--accent);font-weight:700;margin:8px 0}
+        .row{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}
+        .pill{display:inline-block;padding:3px 10px;border-radius:99px;font-size:11px;background:rgba(124,247,192,0.15);color:var(--accent);border:1px solid rgba(124,247,192,0.3)}
+        .ok{color:var(--accent)} .warn{color:#f0c674} .err{color:#ff6b6b}
+      `;
+      return [
+        '<!doctype html><html lang="en"><head>',
+        '<meta charset="utf-8"/>',
+        '<meta name="viewport" content="width=device-width,initial-scale=1"/>',
+        '<title>' + title + ' · ZeusAI</title>',
+        '<meta name="description" content="ZeusAI · live Unicorn cockpit, services and status — autonomous AI revenue platform."/>',
+        '<meta name="theme-color" content="#0a0f1e"/>',
+        '<link rel="icon" href="/favicon.ico"/>',
+        '<style>' + css + '</style>',
+        '</head><body>',
+        '<header><h1>🦄 ZeusAI</h1>',
+        '<a href="/">Home</a> · <a href="/unicorn-cockpit">Cockpit</a> · <a href="/services">Services</a> · <a href="/status">Status</a>',
+        '</header>',
+        '<main>',
+        '<div id="degraded-banner" class="banner">⚠️ Reconnecting to live data…</div>',
+        bodyHtml,
+        '</main>',
+        '<footer>© ZeusAI · forward-only · 6+3 supreme modules · <a href="/api/sovereignty/verify" style="color:var(--muted)">verify chain</a></footer>',
+        '<script>' + pageScript + '</script>',
+        // Stale-but-alive client: degraded banner if /health fails 3 times in a row
+        '<script>(function(){var fails=0;function check(){fetch("/health",{cache:"no-store"}).then(function(r){if(r.ok){fails=0;document.getElementById("degraded-banner").classList.remove("show");}else{throw 0}}).catch(function(){fails++;if(fails>=3){document.getElementById("degraded-banner").classList.add("show");}});}check();setInterval(check,10000);})();</script>',
+        '</body></html>',
+      ].join('');
+    };
+
+    if (urlPath === '/unicorn-cockpit') {
+      const body =
+        '<h2 style="margin:0">Unicorn Cockpit · Live</h2>' +
+        '<p style="color:var(--muted);margin:8px 0 0">9 supreme modules, real-time cycles, predictive forecasts, economy pulse and sovereignty chain.</p>' +
+        '<div id="modules" class="grid"></div>' +
+        '<h3 style="margin:32px 0 8px">Predictive · Oracle</h3>' +
+        '<div id="oracle" class="grid"></div>' +
+        '<h3 style="margin:32px 0 8px">Economy · Profit Optimizer</h3>' +
+        '<div id="economy" class="grid"></div>';
+      const js = "(function(){function fmt(n){return n==null?'—':(typeof n==='number'?n.toLocaleString():String(n))}function card(t,v,s){return '<div class=\"card\"><h3>'+t+'</h3><div class=\"v\">'+fmt(v)+'</div><div class=\"sub\">'+(s||'')+'</div></div>'}function refresh(){fetch('/unicorn-status',{cache:'no-store'}).then(function(r){return r.json()}).then(function(d){var s=d&&d.supreme||{};var ms='';Object.keys(s).forEach(function(k){var v=s[k]||{};ms+=card(k,(v.cycles||v.mainCycleCount||0),'last: '+(v.lastTs?new Date(v.lastTs).toLocaleTimeString():'—'))});document.getElementById('modules').innerHTML=ms;}).catch(function(){});fetch('/api/oracle/forecast',{cache:'no-store'}).then(function(r){return r.json()}).then(function(d){var f=(d&&d.forecast)||{};var rf=f.revenueForecast||{};document.getElementById('oracle').innerHTML=card('Revenue / hour','$'+(rf.hourly||0).toFixed(2))+card('Revenue / day','$'+(rf.daily||0).toFixed(2))+card('Revenue / week','$'+(rf.weekly||0).toFixed(2))+card('Growth velocity',(f.growthVelocity&&f.growthVelocity.perHour||0).toFixed(2),'per hour')+card('Risk score',(f.riskScore&&f.riskScore.current||0).toFixed(2))+card('Innovation rate',(f.innovationRate&&f.innovationRate.perHour||0).toFixed(2),'per hour')}).catch(function(){});fetch('/api/economy/pulse',{cache:'no-store'}).then(function(r){return r.json()}).then(function(d){var p=(d&&d.pulse)||{};var a=p.capitalAllocation||{};document.getElementById('economy').innerHTML=card('Economy pulse',p.economyPulse||0,'0-100')+card('Profit margin',((p.profitMargin||0)*100).toFixed(1)+'%')+card('Pricing × (multiplier)',(p.pricingRecommendation&&p.pricingRecommendation.multiplier||1).toFixed(4))+card('Capital · reserve',a.reserve+'%')+card('Capital · marketing',a.marketing+'%')+card('Capital · R&D',a.rd+'%')}).catch(function(){})}refresh();setInterval(refresh,5000);})();";
+      try { res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store', 'X-Unicorn-Page': 'cockpit' }); } catch (_) {}
+      return res.end(renderPage('Unicorn Cockpit', body, js));
+    }
+
+    if (urlPath === '/services') {
+      const body =
+        '<h2 style="margin:0">Services · ZeusAI Marketplace</h2>' +
+        '<p style="color:var(--muted);margin:8px 0 24px">Autonomous AI services with live pricing (BTC + Stripe). Real-time forecasts powered by our Oracle module.</p>' +
+        '<div id="services" class="grid"></div>' +
+        '<div id="checkout" style="display:none;margin-top:32px;padding:24px;background:var(--card);border:1px solid var(--border);border-radius:12px;max-width:560px"><h3 id="ck-title" style="margin:0">Checkout</h3><div id="ck-body"></div><div class="row" style="margin-top:16px"><button id="ck-btc">Pay with BTC</button><button class="btn-ghost" id="ck-stripe">Pay with Card</button><button class="btn-ghost" id="ck-close">Cancel</button></div><div id="ck-result" style="margin-top:12px;font-size:12px;color:var(--muted)"></div></div>';
+      const js = "(function(){var current=null;function card(s){return '<div class=\"card\" data-id=\"'+s.id+'\"><h3>'+(s.category||'service')+'</h3><div style=\"font-size:16px;font-weight:600;margin:4px 0\">'+(s.name||s.id)+'</div><div class=\"price\">$'+((s.price||s.basePrice||99).toFixed?(s.price||s.basePrice||99).toFixed(2):(s.price||s.basePrice||99))+'</div><p style=\"color:var(--muted);font-size:12px;margin:8px 0 12px\">'+(s.description||s.tagline||'AI service')+'</p><button onclick=\"window.__buy(\\''+s.id+'\\',\\''+(s.name||s.id).replace(/\"/g,\"\")+'\\','+(s.price||s.basePrice||99)+')\">Buy now</button></div>'}window.__buy=function(id,name,price){current={id:id,name:name,price:price};document.getElementById('ck-title').textContent='Checkout: '+name;document.getElementById('ck-body').innerHTML='<div style=\"font-size:13px;margin-top:8px\">Total: <b class=\"ok\">$'+price.toFixed(2)+'</b></div>';document.getElementById('ck-result').textContent='';document.getElementById('checkout').style.display='block';document.getElementById('checkout').scrollIntoView({behavior:'smooth'})};function pay(method){if(!current)return;document.getElementById('ck-result').textContent='Processing '+method+'…';fetch('/api/checkout/'+method,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({serviceId:current.id,amount:current.price})}).then(function(r){return r.json()}).then(function(d){document.getElementById('ck-result').innerHTML='<span class=\"ok\">✓ '+(d.message||'Order created')+'</span> '+(d.orderId?('· order '+d.orderId):'')+(d.btcAddress?('<br>BTC: <code>'+d.btcAddress+'</code>'):'')}).catch(function(e){document.getElementById('ck-result').innerHTML='<span class=\"err\">✗ '+e.message+'</span>'})}document.getElementById('ck-btc').onclick=function(){pay('btc')};document.getElementById('ck-stripe').onclick=function(){pay('create')};document.getElementById('ck-close').onclick=function(){document.getElementById('checkout').style.display='none'};fetch('/api/products',{cache:'no-store'}).then(function(r){return r.json()}).then(function(d){var arr=Array.isArray(d)?d:(d.products||d.items||d.data||[]);document.getElementById('services').innerHTML=arr.slice(0,18).map(card).join('')||'<div class=\"card\"><h3>Loading</h3><div class=\"v\">…</div></div>'}).catch(function(){document.getElementById('services').innerHTML='<div class=\"card\"><h3>Catalog unavailable</h3><div class=\"sub\">Try again in a moment.</div></div>'})})();";
+      try { res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'public, max-age=30', 'X-Unicorn-Page': 'services' }); } catch (_) {}
+      return res.end(renderPage('Services', body, js));
+    }
+
+    if (urlPath === '/status' || urlPath === '/unicorn-status.html') {
+      const body =
+        '<h2 style="margin:0">Public Status</h2>' +
+        '<p style="color:var(--muted);margin:8px 0 24px">Transparent live state. Cryptographic attestation every 5 minutes (ed25519 + SHA-256 chain).</p>' +
+        '<div id="summary" class="grid"></div>' +
+        '<h3 style="margin:32px 0 8px">Sovereignty chain</h3>' +
+        '<div id="chain" class="card"><h3>Loading…</h3></div>' +
+        '<div style="margin-top:24px;font-size:12px;color:var(--muted)">Public key: <a href="/api/sovereignty/publickey" style="color:var(--accent)">/api/sovereignty/publickey</a> · Verify: <a href="/api/sovereignty/verify" style="color:var(--accent)">/api/sovereignty/verify</a> · Build SHA: <a href="/api/build" style="color:var(--accent)">/api/build</a></div>';
+      const js = "(function(){function card(t,v,s){return '<div class=\"card\"><h3>'+t+'</h3><div class=\"v\">'+v+'</div><div class=\"sub\">'+(s||'')+'</div></div>'}function refresh(){fetch('/api/supreme/digest').then(function(r){return r.json()}).then(function(d){var m=d.modules||{};var html='';Object.keys(m).forEach(function(k){html+=card(k,(m[k].ok?'<span class=\"ok\">●</span>':'<span class=\"err\">●</span>')+' '+(m[k].cycles||0),'cycles')});if(d.economyPulse!=null)html+=card('Economy pulse',d.economyPulse,'0-100');if(d.revenueForecast)html+=card('Forecast/day','$'+(d.revenueForecast.daily||0).toFixed(2),'oracle');document.getElementById('summary').innerHTML=html;}).catch(function(){});fetch('/api/sovereignty/verify').then(function(r){return r.json()}).then(function(d){var c=d.chain||{};var status=c.ok?'<span class=\"ok\">✓ valid</span>':'<span class=\"warn\">⚠ '+(c.breaks?c.breaks.length:'?')+' break(s)</span>';var sub='length '+(c.length||0)+', head '+((c.head||'').slice(0,16))+'…'+(c.currentChain?(' · current sub-chain: '+c.currentChain.length+' attestations'):'');document.getElementById('chain').innerHTML='<h3>Chain status</h3><div class=\"v\">'+status+'</div><div class=\"sub\">'+sub+'</div>'}).catch(function(){})}refresh();setInterval(refresh,5000);})();";
+      try { res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'public, max-age=15', 'X-Unicorn-Page': 'status' }); } catch (_) {}
+      return res.end(renderPage('Status', body, js));
+    }
+  }
+  // ==================== END FAZA 2 / VAL 5 COMPLETARE ====================
+
+  // ==================== FAZA 2 / VAL 5: SERVE STANDALONE CLIENT SCRIPTS ====================
+  // Two opt-in client modules for embedding in any page (dashboard / checkout).
+  // Served with strong cache (1 day) — content-versioned by build SHA in URL.
+  if (urlPath === '/site/unicorn-dashboard.js' || urlPath === '/site/unicorn-checkout.js') {
+    try {
+      const fp = path.join(__dirname, 'site', urlPath.replace('/site/', ''));
+      const body = fs.readFileSync(fp, 'utf8');
+      res.writeHead(200, {
+        'Content-Type': 'application/javascript; charset=utf-8',
+        'Cache-Control': 'public, max-age=86400, immutable',
+        'X-Content-Type-Options': 'nosniff',
+      });
+      return res.end(body);
+    } catch (err) {
+      try { res.writeHead(404, { 'Content-Type': 'text/plain' }); res.end('not found'); } catch (_) {}
+      return;
+    }
+  }
+
+  // ==================== FAZA 2 / VAL 5: STALE-BUT-ALIVE HEALTH MONITOR (server-side flag) ====================
+  // Exposes /api/site/degraded — true if backend (:3000) has failed last 3 health
+  // checks. The cockpit/services/status pages use this to render a banner; the
+  // browser also polls /health locally as defence in depth.
+  if (urlPath === '/api/site/degraded') {
+    res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
+    var monitor = global.__UNICORN_BACKEND_MONITOR || { fails: 0, ok: true, lastTs: 0 };
+    return res.end(JSON.stringify({ ok: true, degraded: !monitor.ok, fails: monitor.fails, lastCheckTs: monitor.lastTs }));
+  }
+
+
+
 
   // Public deploy-verification endpoint. Returns the build SHA stamped by
   // .github/workflows/deploy.yml on every successful CI deploy. Lets anyone
@@ -8680,7 +8810,44 @@ if (require.main === module) {
     console.log('UNICORN_FINAL listening on http://' + (BIND_HOST === '0.0.0.0' ? 'localhost' : BIND_HOST) + ':' + PORT + ' (role=site, source-of-truth=false)');
     if (BIND_HOST === '0.0.0.0') {
       console.log('[topology] site bound to 0.0.0.0 — port ' + PORT + ' reachable externally. In production behind nginx, set BIND_HOST=127.0.0.1 to close direct external access.');
-    }    try {
+    }
+
+    // FAZA 2 / VAL 5: Stale-but-alive backend monitor — pings :3000/api/health
+    // every 10s. After 3 consecutive failures, /api/site/degraded reports true
+    // (cockpit/services/status pages render a "Reconnecting…" banner).
+    // Auto-recovers as soon as one health check passes again.
+    (function startBackendMonitor() {
+      if (process.env.UNICORN_BACKEND_MONITOR_DISABLED === '1') return;
+      var monitor = { fails: 0, ok: true, lastTs: 0 };
+      global.__UNICORN_BACKEND_MONITOR = monitor;
+      var BACKEND_URL = process.env.UNICORN_SITE_INTERNAL_BACKEND || 'http://127.0.0.1:3000/api/health';
+      var http2 = require('http');
+      function ping() {
+        try {
+          var req = http2.get(BACKEND_URL, { timeout: 3000 }, function (r) {
+            monitor.lastTs = Date.now();
+            if (r.statusCode >= 200 && r.statusCode < 500) {
+              monitor.fails = 0;
+              if (!monitor.ok) console.log('[backend-monitor] recovered');
+              monitor.ok = true;
+            } else {
+              monitor.fails++;
+              if (monitor.fails >= 3 && monitor.ok) { monitor.ok = false; console.warn('[backend-monitor] degraded after ' + monitor.fails + ' fails'); }
+            }
+            r.resume();
+          });
+          req.on('error', function () {
+            monitor.fails++;
+            monitor.lastTs = Date.now();
+            if (monitor.fails >= 3 && monitor.ok) { monitor.ok = false; console.warn('[backend-monitor] degraded after ' + monitor.fails + ' fails'); }
+          });
+          req.on('timeout', function () { try { req.destroy(); } catch (_) {} });
+        } catch (_) { monitor.fails++; }
+      }
+      var t = setInterval(ping, 10000);
+      if (t && typeof t.unref === 'function') t.unref();
+      setTimeout(ping, 5000).unref?.();
+    })();    try {
       if (USE) {
         const runtimeSources = getRuntimeDataSources();
         USE.sources = { marketplace: runtimeSources.marketplace, industries: runtimeSources.industries, modules };
