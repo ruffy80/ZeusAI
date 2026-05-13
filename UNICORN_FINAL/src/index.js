@@ -8985,7 +8985,7 @@ if (require.main === module) {
               var bodyOk = false;
               try {
                 var j = JSON.parse(chunks || '{}');
-                bodyOk = !!(j && j.ok === true);
+                bodyOk = !!(j && (j.ok === true || j.status === 'ok' || j.ready === true));
               } catch (_) { bodyOk = false; }
               monitor.lastBodyOk = bodyOk;
               var statusOk = r.statusCode >= 200 && r.statusCode < 400;
