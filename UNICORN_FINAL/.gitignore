@@ -38,3 +38,11 @@ data/world-standard/
 data/perf/
 data/value-proof/
 data/revenue/
+
+# FAZA 3 / VAL 9 — Sovereignty (private key + per-host state must NEVER be committed)
+data/sovereignty/sovereignty-keypair.json
+data/sovereignty/sovereignty-state.json
+data/sovereignty/attestations.jsonl
+data/sovereignty/attestations.jsonl.*
+data/oracle/oracle-state.json
+data/economy/economy-state.json
