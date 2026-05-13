@@ -16,9 +16,16 @@ function walk(dir, files = []) {
   if (!fs.existsSync(dir)) return files;
   for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
     if (entry.name === 'node_modules' || entry.name === '.git' || entry.name === 'logs') continue;
+    if (entry.name === 'vendor' || entry.name === 'vendors' || entry.name === 'dist' || entry.name === 'build') continue;
     const full = path.join(dir, entry.name);
     if (entry.isDirectory()) walk(full, files);
-    else if (entry.isFile()) files.push(full);
+    else if (entry.isFile()) {
+      // Skip minified bundles and legacy backup files
+      if (/\.min\.js$/i.test(entry.name)) continue;
+      if (/\.bundle\.js$/i.test(entry.name)) continue;
+      if (/\.legacy\.bak$/i.test(entry.name)) continue;
+      files.push(full);
+    }
   }
   return files;
 }

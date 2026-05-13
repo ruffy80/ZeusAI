@@ -152,5 +152,19 @@
       "accuracy": 0.5
     },
     "requiresKey": true
+  },
+  {
+    "name": "meta-llama/Llama-3.2-1B-Instruct",
+    "type": "huggingface",
+    "modelName": "meta-llama/Llama-3.2-1B-Instruct",
+    "capabilities": [
+      "text-generation"
+    ],
+    "cost": 0,
+    "performance": {
+      "speed": 0.5,
+      "accuracy": 0.5
+    },
+    "requiresKey": true
   }
 ]
