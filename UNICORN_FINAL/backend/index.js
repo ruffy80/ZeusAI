@@ -1793,6 +1793,144 @@ app.post('/api/seo/programmatic/generate', (req, res) => res.json(moneyMachine.g
 app.get('/api/customer-success/status', (req, res) => res.json(moneyMachine.customerSuccessStatus()));
 app.post('/api/customer-success/analyze', (req, res) => res.json(moneyMachine.analyzeCustomer(req.body || {})));
 
+// ==================== 30Y SCALE: AUTONOMOUS REVENUE AUTOPILOT ====================
+// Executes the money-machine chain end-to-end on a fixed cadence so the platform
+// can continuously optimize offers, pipeline and retention without waiting for
+// manual operator actions.
+const __REV_AUTO = (function buildRevenueAutopilot() {
+  const nodeFs = require('fs');
+  const nodePath = require('path');
+  const LEDGER_FILE = nodePath.join(__dirname, '..', 'data', 'revenue', 'autopilot-ledger.jsonl');
+  const state = {
+    enabled: process.env.UNICORN_REVENUE_AUTOPILOT_DISABLED !== '1',
+    intervalMs: Math.max(15000, Number(process.env.UNICORN_REVENUE_AUTOPILOT_MS || 60000)),
+    runs: 0,
+    errors: 0,
+    lastRunTs: 0,
+    lastError: null,
+    last: null,
+    nextRunTs: 0,
+    timer: null,
+  };
+
+  function writeLedger(entry) {
+    try {
+      nodeFs.mkdirSync(nodePath.dirname(LEDGER_FILE), { recursive: true });
+      nodeFs.appendFileSync(LEDGER_FILE, JSON.stringify(entry) + '\n', { mode: 0o600 });
+    } catch (_) { /* best-effort */ }
+  }
+
+  function readLedger(limit) {
+    const lim = Math.max(1, Math.min(500, Number(limit || 30)));
+    try {
+      if (!nodeFs.existsSync(LEDGER_FILE)) return [];
+      const rows = nodeFs.readFileSync(LEDGER_FILE, 'utf8').split('\n').filter(Boolean);
+      return rows.slice(-lim).reverse().map((line) => { try { return JSON.parse(line); } catch (_) { return null; } }).filter(Boolean);
+    } catch (_) {
+      return [];
+    }
+  }
+
+  function pickBudgetUsd(commander, economyPulse, oracleFc) {
+    const base = Number(commander?.kpis?.paidEvents || 0) > 0 ? 3500 : 1200;
+    const pulse = Number(economyPulse?.economyPulse || 0);
+    const forecast = Number(oracleFc?.revenueForecast?.next30dUsd || oracleFc?.next30dUsd || 0);
+    const pulseBoost = pulse > 70 ? 1.35 : pulse > 50 ? 1.15 : 0.95;
+    const fcBoost = forecast > 0 ? Math.min(1.5, Math.max(0.9, forecast / 50000)) : 1;
+    return Math.round(base * pulseBoost * fcBoost);
+  }
+
+  async function run(reason) {
+    const ts = Date.now();
+    const at = new Date(ts).toISOString();
+    try {
+      const commander = moneyMachine.revenueCommander();
+      const conv = moneyMachine.conversionIntelligence();
+      const success = moneyMachine.customerSuccessStatus();
+      const economyPulse = await __SUPREME.safeGet('economy', 'getPulse', {}, 1200);
+      const oracleFc = await __SUPREME.safeGet('oracle', 'getForecast', {}, 1200);
+
+      const focus = String(commander?.decision?.focus || 'checkout-and-offer-optimization');
+      const segment = focus.includes('upsell') ? 'enterprise-growth' : 'b2b-performance';
+      const industry = focus.includes('traffic') ? 'global saas + marketplaces' : 'high-intent service businesses';
+      const budgetUsd = pickBudgetUsd(commander, economyPulse, oracleFc);
+
+      const offers = moneyMachine.offerFactory({ industry, segment, budgetUsd });
+      const seo = moneyMachine.generateSeoPages({
+        verticals: ['fintech', 'ecommerce', 'legaltech', 'cybersecurity', 'logistics', 'healthtech']
+      });
+
+      const runResult = {
+        ok: true,
+        at,
+        ts,
+        reason: reason || 'interval',
+        focus,
+        budgetUsd,
+        kpis: commander?.kpis || {},
+        topOffer: commander?.decision?.topOffer || null,
+        offersGenerated: Number(offers?.count || (offers?.offers || []).length || 0),
+        seoPagesPlanned: Number((seo?.pages || []).length || 0),
+        conversionSignals: conv?.totals || {},
+        customerSuccessMode: success?.status || 'foundation-live',
+        economyPulse: Number(economyPulse?.economyPulse || 0),
+        forecastNext30dUsd: Number(oracleFc?.revenueForecast?.next30dUsd || oracleFc?.next30dUsd || 0),
+      };
+
+      state.runs += 1;
+      state.lastRunTs = ts;
+      state.lastError = null;
+      state.last = runResult;
+      writeLedger(runResult);
+      return runResult;
+    } catch (err) {
+      state.errors += 1;
+      state.lastRunTs = ts;
+      state.lastError = String(err && err.message || err);
+      const fail = { ok: false, at, ts, reason: reason || 'interval', error: state.lastError };
+      state.last = fail;
+      writeLedger(fail);
+      return fail;
+    }
+  }
+
+  function start() {
+    if (!state.enabled || state.timer) return;
+    const tick = () => {
+      state.nextRunTs = Date.now() + state.intervalMs;
+      run('interval').catch(() => {});
+    };
+    state.nextRunTs = Date.now() + 2500;
+    setTimeout(() => { run('boot').catch(() => {}); }, 2500).unref?.();
+    state.timer = setInterval(tick, state.intervalMs);
+    if (state.timer && typeof state.timer.unref === 'function') state.timer.unref();
+    try { console.log('[revenue-autopilot] started interval=' + state.intervalMs + 'ms'); } catch (_) {}
+  }
+
+  function status() {
+    return {
+      ok: true,
+      enabled: !!state.enabled,
+      intervalMs: state.intervalMs,
+      runs: state.runs,
+      errors: state.errors,
+      lastRunTs: state.lastRunTs,
+      nextRunTs: state.nextRunTs,
+      lastError: state.lastError,
+      last: state.last,
+    };
+  }
+
+  return { start, run, status, ledger: readLedger };
+})();
+
+app.get('/api/revenue/autopilot/status', (req, res) => res.json(__REV_AUTO.status()));
+app.get('/api/revenue/autopilot/ledger', (req, res) => res.json({ ok: true, items: __REV_AUTO.ledger(req.query.limit || 30) }));
+app.post('/api/revenue/autopilot/run', adminTokenMiddleware, asyncHandler(async (req, res) => {
+  const out = await __REV_AUTO.run(req.body?.reason || 'manual');
+  res.json(out);
+}));
+
 // ==================== MODULE AUTONOME ====================
 const autoDeploy = require('./modules/autoDeploy');
 const selfConstruction = require('./modules/selfConstruction');
@@ -10525,6 +10663,15 @@ if (require.main === module) {
       console.log(`🔗 Integrations Layer: ACTIVE (${integrations.getLoaded().length} complementary modules)`);
     } catch (e) {
       console.warn('[integrations] failed to mount:', e && e.message);
+    }
+
+    // 30Y-SCALE: always-on revenue autopilot (offers + SEO + conversion focus)
+    // Disable only with UNICORN_REVENUE_AUTOPILOT_DISABLED=1.
+    try {
+      __REV_AUTO.start();
+      console.log(`💸 Revenue Autopilot: ACTIVE (${__REV_AUTO.status().intervalMs}ms cadence)`);
+    } catch (e) {
+      console.warn('[revenue-autopilot] start failed:', e && e.message);
     }
   });
 
