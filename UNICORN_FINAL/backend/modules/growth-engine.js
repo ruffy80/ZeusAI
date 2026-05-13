@@ -193,13 +193,18 @@ const _revenueShareApplications = []; // in-memory ledger; mirrored to disk belo
 const REVENUE_SHARE_PATH = path.join(DATA_DIR, 'revenue-share-applications.jsonl');
 
 function applyForRevenueShare(payload) {
-  const email = String(payload && payload.email || '').trim().toLowerCase();
-  const website = String(payload && payload.website || '').trim();
-  const mrr = Number(payload && payload.monthlyRevenueUsd || 0);
+  const p = payload || {};
+  const email = String(p.email || '').trim().toLowerCase();
+  const company = String(p.company || '').trim().slice(0, 200);
+  const website = String(p.website || '').trim();
+  const goal = String(p.goal || '').trim().slice(0, 2000);
+  // Accept both monthlyRevenueUsd (API) and currentMrrUsd (form) for back-compat.
+  const mrr = Number(p.monthlyRevenueUsd != null ? p.monthlyRevenueUsd : (p.currentMrrUsd != null ? p.currentMrrUsd : 0)) || 0;
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
     return { ok: false, error: 'invalid_email' };
   }
-  if (!/^https?:\/\//i.test(website)) {
+  // Website is OPTIONAL. Only validate format if provided.
+  if (website && !/^https?:\/\//i.test(website) && !/^[a-z0-9.-]+\.[a-z]{2,}/i.test(website)) {
     return { ok: false, error: 'invalid_website' };
   }
   const minMrr = Number(process.env.REVENUE_SHARE_MIN_MRR_USD || '0');
@@ -208,7 +213,7 @@ function applyForRevenueShare(payload) {
   }
   const application = {
     id: 'rs_' + crypto.randomBytes(8).toString('hex'),
-    email, website,
+    email, company, website, goal,
     monthlyRevenueUsd: mrr,
     receivedAt: new Date().toISOString(),
   };
