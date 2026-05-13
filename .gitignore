@@ -28,3 +28,17 @@ UNICORN_FINAL/data/**/vrf-key.json
 # at runtime by backend/index.js and are regenerated on demand.)
 UNICORN_FINAL/backend/modules/AdaptiveModule[0-9][0-9].js
 UNICORN_FINAL/backend/modules/Engine[0-9]*.js
+
+# Runtime-generated data artifacts (ledgers, metrics, feature flags, etc.)
+# These are written by the live runtime and must NOT be committed.
+# Server has its own copies generated independently.
+UNICORN_FINAL/data/blockchain-audit.json
+UNICORN_FINAL/data/feature-flags.json
+UNICORN_FINAL/data/metrics-log.json
+UNICORN_FINAL/data/economy/economy-ledger.jsonl
+UNICORN_FINAL/data/economy/economy-state.json
+UNICORN_FINAL/data/oracle/oracle-ledger.jsonl
+UNICORN_FINAL/data/revenue-share-applications.jsonl
+UNICORN_FINAL/data/innovation-attestations.jsonl
+UNICORN_FINAL/data/sovereignty/attestations.jsonl
+UNICORN_FINAL/data/sovereignty/sovereignty-state.json

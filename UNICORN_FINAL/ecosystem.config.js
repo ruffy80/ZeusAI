@@ -43,7 +43,13 @@ module.exports = {
       exp_backoff_restart_delay: 2000,
       env: {
         NODE_ENV: 'production',
-        UNICORN_RUNTIME_PROFILE: 'safe',
+        // ── RUNTIME PROFILE ─────────────────────────────────────────────────
+        // 'growth' (NEW, 2026-05-14): business loops ON (revenue autopilot,
+        //   innovation, viral, central-orchestrator, self-healing) but file
+        //   mutators stay OFF. This is the "make money safely" profile.
+        // 'safe' / 'stable': everything paused — emergency-only.
+        // 'full': everything ON including file mutators (DANGEROUS, dev-only).
+        UNICORN_RUNTIME_PROFILE: process.env.UNICORN_RUNTIME_PROFILE || 'growth',
         // ── SELF-MUTATORS — DISABLED PERMANENTLY ────────────────────────────
         // These used to rewrite backend source files on the fly (auto-repair,
         // self-construction, ui-autobuilder, code-optimizer). They corrupted
@@ -57,6 +63,20 @@ module.exports = {
         ENABLE_AUTO_EVOLVE: '0',
         ENABLE_AUTO_RESTART: '0',
         DISABLE_SELF_MUTATION: '1',
+        // ── GROWTH ENGINE — public payment links (read-only Stripe URLs) ────
+        // Generate at https://dashboard.stripe.com/payment-links and paste
+        // here OR set on host via /etc/profile.d/zeusai.sh. Without these,
+        // the homepage falls back to BTC-only checkout (current behavior).
+        STRIPE_PAYMENT_LINK_STARTER: process.env.STRIPE_PAYMENT_LINK_STARTER || '',
+        STRIPE_PAYMENT_LINK_PRO:     process.env.STRIPE_PAYMENT_LINK_PRO     || '',
+        STRIPE_PAYMENT_LINK_SCALE:   process.env.STRIPE_PAYMENT_LINK_SCALE   || '',
+        // Revenue-Share-as-a-Service: % of incremental revenue we take instead
+        // of upfront fee. SMBs love this; enterprises don't qualify.
+        REVENUE_SHARE_PCT: process.env.REVENUE_SHARE_PCT || '30',
+        REVENUE_SHARE_MIN_MRR_USD: process.env.REVENUE_SHARE_MIN_MRR_USD || '0',
+        // Auto-attest every approved innovation on the sovereign ed25519
+        // ledger. Makes evolution publicly verifiable for 30+ years.
+        GROWTH_AUTO_ATTEST_INNOVATIONS: process.env.GROWTH_AUTO_ATTEST_INNOVATIONS || '1',
         QIS_AUTO_HEAL_ENABLED: 'true',
         QIS_REQUIRED_PROCESSES: 'unicorn-backend,unicorn-site,autoscaler',
         // ── AUTH-GUARDIAN: DISABLED PERMANENTLY ────────────────────────

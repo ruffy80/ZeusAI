@@ -2560,6 +2560,30 @@ app.use((req, res, next) => {
 app.get('/api/quantum-integrity/status', (req, res) => {
   res.json(quantumIntegrityShield.getStatus());
 });
+
+// ── GROWTH ENGINE (2026-05-14) ───────────────────────────────────────
+// Public distribution + monetization layer. Mounts:
+//   /api/growth/offer            — featured CTA payload for homepage
+//   /api/growth/payment-links    — Stripe + BTC tier matrix
+//   /api/growth/proof            — live trust payload (uptime/integrity/sovereignty)
+//   /api/growth/soc2.json        — SOC2 readiness snapshot
+//   /api/growth/revenue-share[/apply]  — zero-upfront wedge for SMBs
+//   /api/growth/innovations      — public ed25519-signed evolution ledger
+//   /sitemap.xml, /robots.txt, /.well-known/security.txt
+// All routes are READ-ONLY and PUBLIC. Wrapped in try/catch so module
+// failure cannot take down boot path.
+try {
+  const growthEngine = require('./modules/growth-engine');
+  growthEngine.registerRoutes(app);
+  // Wire the innovation attestation hook so every approved innovation is
+  // mirrored to the sovereign chain (proof-of-evolution).
+  if (typeof autoInnovationLoop !== 'undefined' && autoInnovationLoop && typeof autoInnovationLoop.on === 'function') {
+    try { autoInnovationLoop.on('innovation:approved', (inv) => growthEngine.onInnovationApproved(inv)); } catch (_) {}
+  }
+} catch (e) {
+  console.warn('[growth-engine] failed to mount:', e && e.message);
+}
+
 app.use(tenantManager.middleware());
 app.use(globalApiGateway.middleware());
 
@@ -2570,7 +2594,14 @@ const _enableFileMutators = ['1', 'true', 'yes', 'on'].includes(String(process.e
 const _runtimeProfile = String(
   process.env.UNICORN_RUNTIME_PROFILE || (process.env.NODE_ENV === 'production' ? 'stable' : 'full')
 ).toLowerCase();
-const _stableRuntime = _runtimeProfile !== 'full';
+// Runtime profile semantics (2026-05-14 — added 'growth'):
+//   safe / stable → emergency mode, ALL background loops paused.
+//   growth        → business loops ON (revenue, innovation, viral, healing)
+//                   but file-mutators stay OFF. Default for production.
+//   full          → everything ON, including file mutators (dev-only).
+const _growthRuntime = _runtimeProfile === 'growth' || _runtimeProfile === 'full';
+const _stableRuntime = !_growthRuntime; // back-compat: 'safe' & 'stable' → true
+const _fullRuntime   = _runtimeProfile === 'full';
 
 if (_isPrimaryWorker) {
   if (_stableRuntime) {
