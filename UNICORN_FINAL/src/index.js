@@ -213,7 +213,16 @@ app.get('/health', (req, res) => {
     brand: 'ZeusAI',
     ts: new Date().toISOString(),
     uptimeSec: Math.round(process.uptime()),
-    backend: { ok: mon.ok, fails: mon.fails || 0, lastCheckTs: mon.lastTs || 0, degraded: !mon.ok },
+    backend: {
+      ok: mon.ok,
+      fails: mon.fails || 0,
+      lastCheckTs: mon.lastTs || 0,
+      degraded: !mon.ok,
+      target: mon.target || null,
+      lastCode: Number.isFinite(mon.lastCode) ? mon.lastCode : null,
+      lastBodyOk: typeof mon.lastBodyOk === 'boolean' ? mon.lastBodyOk : null,
+      reason: mon.reason || null
+    },
     sse
   });
 });
@@ -223,11 +232,18 @@ app.get('/health', (req, res) => {
 app.get('/site/observe', (req, res) => {
   res.set('Cache-Control', 'no-store');
   const mon = global.__UNICORN_BACKEND_MONITOR || { ok: true, fails: 0, lastTs: 0 };
-  const modNames = ['unicornBrain','unicornSelfHealer','unicornInnovator','unicornTreasury','unicornGrowth','unicornGuardian','unicornOracle','unicornEconomy','unicornSovereignty'];
-  const loaded = {};
-  for (const n of modNames) {
-    try { const m = require('../backend/modules/' + n); loaded[n] = !!(m && typeof m.getStatus === 'function'); }
-    catch (_) { loaded[n] = false; }
+  const OBS_TTL_MS = Number(process.env.UNICORN_OBSERVE_CACHE_MS || 15000);
+  if (!global.__UNICORN_SITE_OBSERVE_CACHE) global.__UNICORN_SITE_OBSERVE_CACHE = { ts: 0, loaded: null };
+  const c = global.__UNICORN_SITE_OBSERVE_CACHE;
+  if (!c.loaded || (Date.now() - c.ts) > OBS_TTL_MS) {
+    const modNames = ['unicornBrain','unicornSelfHealer','unicornInnovator','unicornTreasury','unicornGrowth','unicornGuardian','unicornOracle','unicornEconomy','unicornSovereignty'];
+    const loaded = {};
+    for (const n of modNames) {
+      try { const m = require('../backend/modules/' + n); loaded[n] = !!(m && typeof m.getStatus === 'function'); }
+      catch (_) { loaded[n] = false; }
+    }
+    c.ts = Date.now();
+    c.loaded = loaded;
   }
   res.json({
     ok: true,
@@ -235,13 +251,24 @@ app.get('/site/observe', (req, res) => {
     uptimeSec: Math.round(process.uptime()),
     memoryRssMb: Math.round(process.memoryUsage().rss / 1024 / 1024),
     pid: process.pid,
-    backend: { ok: mon.ok, fails: mon.fails || 0, lastCheckTs: mon.lastTs || 0, degraded: !mon.ok },
+    backend: {
+      ok: mon.ok,
+      fails: mon.fails || 0,
+      lastCheckTs: mon.lastTs || 0,
+      degraded: !mon.ok,
+      target: mon.target || null,
+      lastCode: Number.isFinite(mon.lastCode) ? mon.lastCode : null,
+      lastBodyOk: typeof mon.lastBodyOk === 'boolean' ? mon.lastBodyOk : null,
+      reason: mon.reason || null
+    },
     sse: {
       snapshotClients: (typeof streamClients !== 'undefined' && streamClients) ? streamClients.size : 0,
       unicornEventClients: (typeof unicornEventClients !== 'undefined' && unicornEventClients) ? unicornEventClients.size : 0
     },
     eventBridge: { configured: !!process.env.BACKEND_API_URL, target: process.env.BACKEND_API_URL || null },
-    supremeModules: loaded
+    supremeModules: c.loaded,
+    observeCacheMs: OBS_TTL_MS,
+    observeCacheAgeMs: Math.max(0, Date.now() - (c.ts || 0))
   });
 });
 
@@ -4398,25 +4425,31 @@ async function unicornHandler(req, res) {
   if (urlPath === '/site/observe') {
     res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
     var _mon = global.__UNICORN_BACKEND_MONITOR || { ok: true, fails: 0, lastTs: 0 };
-    var _modNames = ['unicornBrain','unicornSelfHealer','unicornInnovator','unicornTreasury','unicornGrowth','unicornGuardian','unicornOracle','unicornEconomy','unicornSovereignty'];
-    var _loaded = {};
-    _modNames.forEach(function (n) {
-      try { var m = require('../backend/modules/' + n); _loaded[n] = !!(m && typeof m.getStatus === 'function'); }
-      catch (_) { _loaded[n] = false; }
-    });
+    var _obs = global.__UNICORN_SITE_OBSERVE_CACHE || { ts: 0, loaded: null };
+    if (!_obs.loaded) _obs.loaded = {};
     return res.end(JSON.stringify({
       ok: true,
       ts: Date.now(),
       uptimeSec: Math.round(process.uptime()),
       memoryRssMb: Math.round(process.memoryUsage().rss / 1024 / 1024),
       pid: process.pid,
-      backend: { ok: _mon.ok, fails: _mon.fails || 0, lastCheckTs: _mon.lastTs || 0, degraded: !_mon.ok },
+      backend: {
+        ok: _mon.ok,
+        fails: _mon.fails || 0,
+        lastCheckTs: _mon.lastTs || 0,
+        degraded: !_mon.ok,
+        target: _mon.target || null,
+        lastCode: Number.isFinite(_mon.lastCode) ? _mon.lastCode : null,
+        lastBodyOk: typeof _mon.lastBodyOk === 'boolean' ? _mon.lastBodyOk : null,
+        reason: _mon.reason || null
+      },
       sse: {
         snapshotClients: (typeof streamClients !== 'undefined' && streamClients) ? streamClients.size : 0,
         unicornEventClients: (typeof unicornEventClients !== 'undefined' && unicornEventClients) ? unicornEventClients.size : 0
       },
       eventBridge: { configured: !!process.env.BACKEND_API_URL, target: process.env.BACKEND_API_URL || null },
-      supremeModules: _loaded,
+      supremeModules: _obs.loaded,
+      observeCacheAgeMs: Math.max(0, Date.now() - (_obs.ts || 0)),
       build: (typeof ZEUS_BUILD !== 'undefined' && ZEUS_BUILD) ? { sha: ZEUS_BUILD.sha, builtAt: ZEUS_BUILD.ts } : null
     }));
   }
@@ -8916,31 +8949,62 @@ if (require.main === module) {
     // Auto-recovers as soon as one health check passes again.
     (function startBackendMonitor() {
       if (process.env.UNICORN_BACKEND_MONITOR_DISABLED === '1') return;
-      var monitor = { fails: 0, ok: true, lastTs: 0 };
+      var monitor = { fails: 0, ok: true, lastTs: 0, target: null, lastCode: null, lastBodyOk: null, reason: null };
       global.__UNICORN_BACKEND_MONITOR = monitor;
       var BACKEND_URL = process.env.UNICORN_SITE_INTERNAL_BACKEND || 'http://127.0.0.1:3000/api/health';
+      monitor.target = BACKEND_URL;
       var http2 = require('http');
+      function markFail(reason, code, bodyOk) {
+        monitor.fails++;
+        monitor.lastTs = Date.now();
+        monitor.reason = reason || 'failure';
+        if (Number.isFinite(code)) monitor.lastCode = code;
+        if (typeof bodyOk === 'boolean') monitor.lastBodyOk = bodyOk;
+        if (monitor.fails >= 3 && monitor.ok) {
+          monitor.ok = false;
+          console.warn('[backend-monitor] degraded after ' + monitor.fails + ' fails (' + monitor.reason + ')');
+        }
+      }
       function ping() {
         try {
+          var settled = false;
+          function failOnce(reason, code, bodyOk) {
+            if (settled) return;
+            settled = true;
+            markFail(reason, code, bodyOk);
+          }
           var req = http2.get(BACKEND_URL, { timeout: 3000 }, function (r) {
             monitor.lastTs = Date.now();
-            if (r.statusCode >= 200 && r.statusCode < 500) {
-              monitor.fails = 0;
-              if (!monitor.ok) console.log('[backend-monitor] recovered');
-              monitor.ok = true;
-            } else {
-              monitor.fails++;
-              if (monitor.fails >= 3 && monitor.ok) { monitor.ok = false; console.warn('[backend-monitor] degraded after ' + monitor.fails + ' fails'); }
-            }
-            r.resume();
+            monitor.lastCode = Number.isFinite(r.statusCode) ? r.statusCode : null;
+            var chunks = '';
+            r.setEncoding('utf8');
+            r.on('data', function (d) {
+              if (chunks.length < 2048) chunks += String(d || '');
+            });
+            r.on('end', function () {
+              var bodyOk = false;
+              try {
+                var j = JSON.parse(chunks || '{}');
+                bodyOk = !!(j && j.ok === true);
+              } catch (_) { bodyOk = false; }
+              monitor.lastBodyOk = bodyOk;
+              var statusOk = r.statusCode >= 200 && r.statusCode < 400;
+              if (statusOk && bodyOk) {
+                settled = true;
+                monitor.fails = 0;
+                monitor.reason = null;
+                if (!monitor.ok) console.log('[backend-monitor] recovered');
+                monitor.ok = true;
+              } else {
+                failOnce('status/body mismatch', r.statusCode, bodyOk);
+              }
+            });
           });
           req.on('error', function () {
-            monitor.fails++;
-            monitor.lastTs = Date.now();
-            if (monitor.fails >= 3 && monitor.ok) { monitor.ok = false; console.warn('[backend-monitor] degraded after ' + monitor.fails + ' fails'); }
+            failOnce('request error');
           });
-          req.on('timeout', function () { try { req.destroy(); } catch (_) {} });
-        } catch (_) { monitor.fails++; }
+          req.on('timeout', function () { try { req.destroy(); } catch (_) {} failOnce('timeout'); });
+        } catch (_) { markFail('exception'); }
       }
       var t = setInterval(ping, 10000);
       if (t && typeof t.unref === 'function') t.unref();
