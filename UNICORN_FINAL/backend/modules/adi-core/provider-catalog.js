@@ -218,8 +218,28 @@ const PROVIDERS = [
   },
 ];
 
-function byId(id) { return PROVIDERS.find(p => p.id === id) || null; }
-function paid() { return PROVIDERS.filter(p => !p.keyless); }
-function keyless() { return PROVIDERS.filter(p => p.keyless); }
+// Learned providers loaded from disk (populated by world-scanner.js).
+const fs   = require('fs');
+const path = require('path');
+const LEARNED_FILE = path.join(__dirname, '..', '..', '..', '.data', 'learned-providers.json');
 
-module.exports = { PROVIDERS, byId, paid, keyless };
+function loadLearned() {
+  try {
+    if (!fs.existsSync(LEARNED_FILE)) return [];
+    const j = JSON.parse(fs.readFileSync(LEARNED_FILE, 'utf8'));
+    return Array.isArray(j.providers) ? j.providers : [];
+  } catch { return []; }
+}
+
+function all() {
+  const staticIds = new Set(PROVIDERS.map(p => p.id));
+  const learned = loadLearned().filter(p => p && p.id && !staticIds.has(p.id));
+  return [...PROVIDERS, ...learned];
+}
+
+function learned() { return loadLearned(); }
+function byId(id) { return all().find(p => p.id === id) || null; }
+function paid() { return all().filter(p => !p.keyless); }
+function keylessOnly() { return all().filter(p => p.keyless); }
+
+module.exports = { PROVIDERS, all, learned, byId, paid, keyless: keylessOnly };

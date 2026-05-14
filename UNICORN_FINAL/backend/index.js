@@ -10636,6 +10636,14 @@ try {
   }, 5 * 60 * 1000);
   // Initial run at boot
   adiCore.runADI().catch(e => console.warn('[ADI-Core] initial run error:', e && e.message));
+  // World scanner: vaneaza AI-uri publice la fiecare 30 min, primul scan la 60s dupa boot.
+  setTimeout(() => {
+    adiCore.worldScan().then(r => console.log('[ADI-Core] world-scan boot:', r && r.report && r.report.learnedCount, 'learned'))
+      .catch(e => console.warn('[ADI-Core] world-scan boot error:', e && e.message));
+  }, 60 * 1000);
+  setInterval(() => {
+    adiCore.worldScan().catch(e => console.warn('[ADI-Core] world-scan error:', e && e.message));
+  }, 30 * 60 * 1000);
   console.log('[ADI-Core] loaded and periodic run loop started');
 } catch (e) {
   console.warn('[ADI-Core] not loaded:', e && e.message);
@@ -10683,6 +10691,29 @@ app.get('/api/adi-core/onboarding', (req, res) => {
   if (!adiCore) return res.status(503).json({ ok: false });
   res.setHeader('Cache-Control', 'no-store');
   res.json(adiCore.getOnboarding());
+});
+
+// ADI-Core: world-scan snapshot — what the autonomous hunter has found on the public internet.
+app.get('/api/adi-core/world', (req, res) => {
+  if (!adiCore) return res.status(503).json({ ok: false });
+  res.setHeader('Cache-Control', 'no-store');
+  res.json(adiCore.getWorld());
+});
+
+// ADI-Core: force a world-scan now (admin-gated like /keys).
+app.post('/api/adi-core/world/scan', express.json({ limit: '2kb' }), async (req, res) => {
+  if (!adiCore) return res.status(503).json({ ok: false, reason: 'ADI-Core not loaded' });
+  const expected = process.env.ADI_ADMIN_TOKEN;
+  if (expected) {
+    const given = req.headers['x-admin-token'] || req.headers['X-Admin-Token'] || '';
+    if (String(given) !== String(expected)) return res.status(401).json({ ok: false, reason: 'admin-token-required' });
+  }
+  try {
+    const r = await adiCore.worldScan();
+    res.json(r);
+  } catch (e) {
+    res.status(500).json({ ok: false, error: String(e && e.message || e) });
+  }
 });
 
 // ADI-Core: runtime key intake. Admin-token gated.

@@ -10,6 +10,7 @@ const router      = require('./router');
 const selfImprove = require('./self-improve');
 const vault       = require('./key-vault');
 const catalog     = require('./provider-catalog');
+const worldScanner = require('./world-scanner');
 
 const adiState = {
   startedAt: Date.now(),
@@ -81,7 +82,7 @@ function getStatus() {
 }
 
 function getOnboarding() {
-  const summary = vault.summarize(catalog.PROVIDERS);
+  const summary = vault.summarize(catalog.all());
   return {
     ok: true,
     ts: Date.now(),
@@ -97,10 +98,13 @@ function getOnboarding() {
 }
 
 function listProviders() {
+  const list = catalog.all();
   return {
     ok: true,
-    count: catalog.PROVIDERS.length,
-    providers: catalog.PROVIDERS.map(p => ({
+    count: list.length,
+    staticCount: catalog.PROVIDERS.length,
+    learnedCount: list.length - catalog.PROVIDERS.length,
+    providers: list.map(p => ({
       id: p.id, flavor: p.flavor, keyless: !!p.keyless, tags: p.tags || [],
       envAliases: p.envAliases || [], signupUrl: p.signupUrl || null,
       defaultModel: p.defaultModel || null, notes: p.notes || '',
@@ -123,7 +127,26 @@ async function addKey({ provider, key, aliases }) {
 
 async function call(tag, prompt, opts) { return router.call(tag, prompt, opts); }
 
+// Scaneaza internetul public, invata provideri noi, ii salveaza pe disc si
+// re-ruleaza discovery+integration imediat ca sa intre in serviciu.
+async function worldScan() {
+  const report = await worldScanner.scan(catalog.PROVIDERS);
+  const run = await runADI();
+  return { ok: true, report, run };
+}
+
+function getWorld() {
+  return {
+    ok: true,
+    ts: Date.now(),
+    lastReport: worldScanner.getReport(),
+    learned: worldScanner.getLearned(),
+    files: { learned: worldScanner.LEARNED_FILE, scan: worldScanner.SCAN_FILE },
+  };
+}
+
 module.exports = {
   runADI, getStatus, getOnboarding, listProviders, addKey, call,
-  adiState, discovery, evaluator, registry, adapterGen, router, selfImprove, vault, catalog,
+  worldScan, getWorld,
+  adiState, discovery, evaluator, registry, adapterGen, router, selfImprove, vault, catalog, worldScanner,
 };

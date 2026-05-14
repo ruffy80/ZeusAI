@@ -7,7 +7,8 @@
 
 const fs   = require('fs');
 const path = require('path');
-const { PROVIDERS } = require('./provider-catalog');
+const catalog = require('./provider-catalog');
+const { PROVIDERS } = catalog;
 const vault = require('./key-vault');
 
 function discoverLocalModules() {
@@ -33,7 +34,7 @@ function discoverLocalModules() {
 function discoverFromCatalog() {
   vault.reseedProcessEnv();
   const out = [];
-  for (const p of PROVIDERS) {
+  for (const p of catalog.all()) {
     const tags = [...(p.tags || [])];
     if (p.keyless) {
       out.push({

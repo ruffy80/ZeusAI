@@ -716,11 +716,16 @@ select.form-inp option{background:#0a0e24;}
         <div style="font-family:Orbitron,monospace;font-size:13px;color:#ffb84d;margin-bottom:8px;">🔑 Providers awaiting API key</div>
         <div id="adi-core-pending" style="font-size:12px;opacity:.92;">—</div>
       </div>
+      <div style="margin-top:18px;">
+        <div style="font-family:Orbitron,monospace;font-size:13px;color:#9ad;margin-bottom:8px;">🌍 World-scan (autonomous AI hunter)</div>
+        <div id="adi-core-world" style="font-size:12px;opacity:.92;">—</div>
+      </div>
       <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:14px;">
         <button class="btn btn-primary" onclick="loadAdiCore(true)">Refresh ADI-Core</button>
         <button class="btn btn-outline" onclick="adiDropKey()">+ Drop API Key</button>
         <a class="btn btn-outline" href="/api/adi-core/onboarding" target="_blank" rel="noopener">Onboarding JSON</a>
         <a class="btn btn-outline" href="/api/adi-core/status" target="_blank" rel="noopener">Status JSON</a>
+        <a class="btn btn-outline" href="/api/adi-core/world" target="_blank" rel="noopener">World-scan JSON</a>
       </div>
     </div>
   </div><!-- end #view-status -->
@@ -1803,6 +1808,49 @@ async function loadAdiCore(force){
             grid.appendChild(card);
           });
           pendEl.appendChild(grid);
+        }
+      }
+    } catch(_) {}
+    // Fetch world-scan snapshot
+    try {
+      var wr = await fetch('/api/adi-core/world', { cache:'no-store' });
+      var wEl = document.getElementById('adi-core-world');
+      if(wr.ok && wEl){
+        var wj = await wr.json();
+        var rep = (wj && wj.lastReport) || null;
+        var learned = (wj && wj.learned) || [];
+        wEl.textContent = '';
+        var head = document.createElement('div');
+        head.style.marginBottom='8px';
+        if(rep){
+          var ts = new Date(rep.ts).toLocaleString();
+          var srcs = rep.sources || {};
+          head.innerHTML = '<span style="opacity:.7">Last scan:</span> ' + ts +
+            ' · <span style="color:#9ad">reachable models:</span> <b>' + (rep.totalReachableModels||0) + '</b>' +
+            ' · <span style="color:#9ad">learned:</span> <b>' + (rep.learnedCount||0) + '</b>' +
+            ' · OpenRouter free: <b>' + ((srcs.openrouter && srcs.openrouter.freeModelCount)||0) + '</b>' +
+            ' · Pollinations: <b>' + ((srcs.pollinations && srcs.pollinations.modelCount)||0) + '</b>';
+        } else {
+          head.textContent = 'No scan yet (runs 60s after boot, then every 30 min).';
+        }
+        wEl.appendChild(head);
+        if(learned.length){
+          var lg = document.createElement('div');
+          lg.style.display='grid';
+          lg.style.gridTemplateColumns='repeat(auto-fill,minmax(240px,1fr))';
+          lg.style.gap='6px';
+          learned.forEach(function(lp){
+            var c = document.createElement('div');
+            c.style.padding='6px 8px';
+            c.style.borderRadius='6px';
+            c.style.background='rgba(154,170,221,0.07)';
+            c.style.border='1px solid rgba(154,170,221,0.2)';
+            c.style.fontFamily='monospace';
+            c.style.fontSize='11px';
+            c.textContent = (lp.id||'?') + ' · ' + (lp.flavor||'openai') + (lp.keyless?' · free':'');
+            lg.appendChild(c);
+          });
+          wEl.appendChild(lg);
         }
       }
     } catch(_) {}
