@@ -718,6 +718,9 @@ app.post('/api/site/log', express.json({ limit: '64kb' }), (req, res) => {
 });
 app.get('/api/control/stats', siteProxyToUnicorn('/api/control/stats'));
 app.get('/api/evolution/snapshot', siteProxyToUnicorn('/api/evolution/snapshot'));
+// ADI-Core: site-side proxies (no keys, no secrets — safe for the public UI)
+app.get('/api/adi-core/status', siteProxyToUnicorn('/api/adi-core/status'));
+app.get('/api/adi-core/routes', siteProxyToUnicorn('/api/adi-core/routes'));
 app.get('/api/pricing/segments', siteProxyToUnicorn('/api/pricing/segments'));
 app.get('/api/pricing/module/:moduleId', async (req, res) => {
   const moduleId = String(req.params.moduleId || '').slice(0, 80);
@@ -2283,9 +2286,11 @@ function refreshBackendRuntimeState(force) {
     fetchBackendJson(backendUrl, '/api/industry/list'),
     fetchBackendJson(backendUrl, '/api/revenue/launchpad/status'),
     fetchBackendJson(backendUrl, '/api/revenue/launchpad/plan'),
-    fetchBackendJson(backendUrl, '/api/module-registry')
+    fetchBackendJson(backendUrl, '/api/module-registry'),
+    fetchBackendJson(backendUrl, '/api/adi-core/status')
   ]).then((results) => {
-    const [snapshotRes, servicesRes, marketplaceRes, pricingRes, industriesRes, launchpadStatusRes, launchpadPlanRes, moduleRegistryRes] = results;
+    const [snapshotRes, servicesRes, marketplaceRes, pricingRes, industriesRes, launchpadStatusRes, launchpadPlanRes, moduleRegistryRes, adiCoreRes] = results;
+    if (adiCoreRes && adiCoreRes.status === 'fulfilled') runtimeSyncState.adiCore = adiCoreRes.value;
     if (snapshotRes.status === 'fulfilled') runtimeSyncState.backendSnapshot = snapshotRes.value;
     if (pricingRes.status === 'fulfilled') runtimeSyncState.pricing = normalizePricingMap(pricingRes.value);
     if (marketplaceRes.status === 'fulfilled') {
@@ -2342,6 +2347,7 @@ function getRuntimeDataSources() {
     moduleRegistry: runtimeSyncState.moduleRegistry,
     launchpadStatus: runtimeSyncState.launchpadStatus,
     launchpadPlan: runtimeSyncState.launchpadPlan,
+    adiCore: runtimeSyncState.adiCore,
     sourceMode: hasBackend ? (runtimeSyncState.lastSyncAt ? 'backend-live' : 'backend-warming') : 'local-fallback'
   };
 }
@@ -2409,6 +2415,7 @@ function buildSnapshot() {
       ...(backendSnapshot.platform || {})
     },
     launchpad: sources.launchpadStatus || null,
+    adiCore: sources.adiCore || null,
     source: {
       mode: sources.sourceMode,
       backendConfigured: !!process.env.BACKEND_API_URL,

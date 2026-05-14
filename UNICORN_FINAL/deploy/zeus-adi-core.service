@@ -1,0 +1,14 @@
+[Unit]
+Description=Zeus AI ADI-Core Service
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=/var/www/unicorn/current/UNICORN_FINAL/backend/modules/adi-core
+ExecStart=/usr/bin/node index.js
+Restart=always
+User=www-data
+Environment=NODE_ENV=production
+
+[Install]
+WantedBy=multi-user.target

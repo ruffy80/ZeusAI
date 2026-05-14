@@ -10625,6 +10625,52 @@ app.get('/api/saas/overview', adminTokenMiddleware, (req, res) => {
   });
 });
 
+// ==================== ADI-Core (AI Discovery & Integration Core) ====================
+// Self-discover, evaluate, auto-integrate, route, and self-improve AI models/services
+let adiCore = null;
+try {
+  adiCore = require('./modules/adi-core');
+  // Start periodic ADI-Core run loop (every 5 min)
+  setInterval(() => {
+    adiCore.runADI().catch(e => console.warn('[ADI-Core] run error:', e && e.message));
+  }, 5 * 60 * 1000);
+  // Initial run at boot
+  adiCore.runADI().catch(e => console.warn('[ADI-Core] initial run error:', e && e.message));
+  console.log('[ADI-Core] loaded and periodic run loop started');
+} catch (e) {
+  console.warn('[ADI-Core] not loaded:', e && e.message);
+}
+
+// ADI-Core status endpoint — rich snapshot used by the site UI
+app.get('/api/adi-core/status', (req, res) => {
+  if (!adiCore) return res.status(503).json({ ok: false, reason: 'ADI-Core not loaded' });
+  res.setHeader('Cache-Control', 'no-store');
+  res.json({ ok: true, ts: Date.now(), ...adiCore.getStatus() });
+});
+
+// ADI-Core: force a discovery run (admin or internal use)
+app.post('/api/adi-core/run', express.json({ limit: '4kb' }), async (req, res) => {
+  if (!adiCore) return res.status(503).json({ ok: false, reason: 'ADI-Core not loaded' });
+  const r = await adiCore.runADI();
+  res.json({ ok: true, ts: Date.now(), result: r });
+});
+
+// ADI-Core: route a prompt to the best available provider by tag
+app.post('/api/adi-core/call', express.json({ limit: '16kb' }), async (req, res) => {
+  if (!adiCore) return res.status(503).json({ ok: false, reason: 'ADI-Core not loaded' });
+  const { tag = 'chat', prompt = '', opts = {} } = req.body || {};
+  if (!prompt) return res.status(400).json({ ok: false, reason: 'prompt-required' });
+  const r = await adiCore.call(String(tag), String(prompt), opts);
+  res.json({ ok: !!r.ok, ts: Date.now(), ...r });
+});
+
+// ADI-Core: public-safe routes summary (no keys, no URLs)
+app.get('/api/adi-core/routes', (req, res) => {
+  if (!adiCore) return res.status(503).json({ ok: false });
+  res.setHeader('Cache-Control', 'no-store');
+  res.json({ ok: true, ts: Date.now(), routes: adiCore.router.getRoutes() });
+});
+
 // ==================== OUTREACH ENGINE (in-memory) ====================
 // Autonomous outreach campaigns — no external deps, fully in-memory.
 const _outreachState = {

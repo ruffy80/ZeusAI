@@ -702,6 +702,21 @@ select.form-inp option{background:#0a0e24;}
         <a class="btn btn-outline" href="/health" target="_blank" rel="noopener">Public Health</a>
       </div>
     </div>
+    <!-- ADI-Core live panel — populated by /api/adi-core/status -->
+    <div class="card card-glow" id="adi-core-panel" style="margin-top:18px;">
+      <div class="dash-section-title">🧠 ADI-Core · AI Discovery &amp; Integration</div>
+      <div class="grid-4" id="adi-core-kpis">
+        <div class="card card-sm"><div class="label">Integrated</div><div class="kpi-val" id="adi-integrated">—</div></div>
+        <div class="card card-sm"><div class="label">Tags</div><div class="kpi-val" id="adi-tags">—</div></div>
+        <div class="card card-sm"><div class="label">Runs</div><div class="kpi-val" id="adi-runs">—</div></div>
+        <div class="card card-sm"><div class="label">Avg score</div><div class="kpi-val" id="adi-avg">—</div></div>
+      </div>
+      <div id="adi-core-list" style="margin-top:14px;font-size:13px;opacity:.92;">Loading providers…</div>
+      <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:14px;">
+        <button class="btn btn-primary" onclick="loadAdiCore(true)">Refresh ADI-Core</button>
+        <a class="btn btn-outline" href="/api/adi-core/status" target="_blank" rel="noopener">Raw JSON</a>
+      </div>
+    </div>
   </div><!-- end #view-status -->
 
   <!-- DASHBOARD VIEW -->
@@ -1691,11 +1706,53 @@ async function fetchJsonStatus(path){
   }
 }
 
+async function loadAdiCore(force){
+  var listEl=document.getElementById('adi-core-list');
+  if(!listEl) return;
+  if(force) try{ toast('Refreshing ADI-Core…',''); }catch(_){}
+  try {
+    var r = await fetch('/api/adi-core/status', { cache:'no-store' });
+    if(!r.ok){ listEl.textContent = 'ADI-Core unavailable (HTTP ' + r.status + ')'; return; }
+    var j = await r.json();
+    var set = function(id,v){ var el=document.getElementById(id); if(el) el.textContent=String(v); };
+    set('adi-integrated', j.integratedCount != null ? j.integratedCount : (j.integrated ? j.integrated.length : 0));
+    set('adi-tags',       Array.isArray(j.tags) ? j.tags.length : (j.routes ? Object.keys(j.routes).length : 0));
+    set('adi-runs',       j.runs != null ? j.runs : 0);
+    set('adi-avg',        (j.lastImprovement && j.lastImprovement.avgScore != null) ? j.lastImprovement.avgScore : '—');
+    var items = Array.isArray(j.integrated) ? j.integrated.slice(0,30) : [];
+    if(!items.length){
+      listEl.textContent = 'No providers integrated yet — ADI-Core will retry every 5 min.';
+      return;
+    }
+    // Render server-escaped via DOM (no innerHTML strings — Trusted Types safe).
+    listEl.textContent = '';
+    var ul = document.createElement('div');
+    ul.style.display='grid';
+    ul.style.gridTemplateColumns='repeat(auto-fill,minmax(220px,1fr))';
+    ul.style.gap='8px';
+    items.forEach(function(m){
+      var row = document.createElement('div');
+      row.style.padding='8px 10px';
+      row.style.borderRadius='8px';
+      row.style.background='rgba(255,255,255,0.04)';
+      row.style.fontFamily='monospace';
+      row.style.fontSize='12px';
+      row.textContent = (m.id||'?') + ' · score=' + (m.score||0) + ' · ' + (m.latencyMs||0) + 'ms';
+      ul.appendChild(row);
+    });
+    listEl.appendChild(ul);
+  } catch(e){
+    listEl.textContent = 'ADI-Core fetch error: ' + (e && e.message || e);
+  }
+}
+
 async function loadLiveStatus(force){
   var grid=document.getElementById('status-summary-grid');
   var checks=document.getElementById('status-checks');
   if(!grid||!checks) return;
   if(force) toast('Refreshing live status…','');
+  // Kick ADI-Core panel refresh in parallel (non-blocking).
+  try { loadAdiCore(false); } catch(_) {}
   var results=await Promise.all([
     fetchJsonStatus('/health'),
     fetchJsonStatus('/api/health'),
