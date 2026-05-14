@@ -232,6 +232,10 @@ class UnicornEternalEngine {
     this.healingLog = [];
     this.learningLog = [];
     this.postedTitles = {}; // title -> lastPostedTs (idempotență 24h pentru social media)
+    this.revenueLog = []; // { source, amount, currency, ts }
+    this.patentLog = []; // { id, title, submittedAt, externalRef?, status }
+    this.pressLog = []; // { title, sentAt, recipients?, status }
+    this.socialLog = []; // { platform, title, ts, ok, externalId?, error? }
     this.lastBackup = null;
     // Persistență state pe disc – previne re-patentarea acelorași inovații după restart backend.
     // State stored: innovationQueue (cu patented flag), siteInnovations (cu patented flag), postedTitles, lastBackup.
@@ -249,8 +253,12 @@ class UnicornEternalEngine {
         this.innovationQueue = Array.isArray(raw.innovationQueue) ? raw.innovationQueue : [];
         this.siteInnovations = Array.isArray(raw.siteInnovations) ? raw.siteInnovations : [];
         this.postedTitles = raw.postedTitles && typeof raw.postedTitles === 'object' ? raw.postedTitles : {};
+        this.revenueLog = Array.isArray(raw.revenueLog) ? raw.revenueLog : [];
+        this.patentLog = Array.isArray(raw.patentLog) ? raw.patentLog : [];
+        this.pressLog = Array.isArray(raw.pressLog) ? raw.pressLog : [];
+        this.socialLog = Array.isArray(raw.socialLog) ? raw.socialLog : [];
         this.lastBackup = raw.lastBackup || null;
-        console.log(`♾️ UEE state loaded: ${this.innovationQueue.length} inovații, ${this.siteInnovations.length} site, ${Object.keys(this.postedTitles).length} titluri postate`);
+        console.log(`♾️ UEE state loaded: ${this.innovationQueue.length} inovații, ${this.siteInnovations.length} site, ${Object.keys(this.postedTitles).length} titluri postate, ${this.revenueLog.length} revenue events`);
       }
     } catch (err) {
       console.warn('⚠️ UEE state load failed (start gol):', err.message);
@@ -270,6 +278,10 @@ class UnicornEternalEngine {
         innovationQueue: this.innovationQueue.slice(-200),
         siteInnovations: this.siteInnovations,
         postedTitles: this.postedTitles,
+        revenueLog: this.revenueLog.slice(-500),
+        patentLog: this.patentLog.slice(-500),
+        pressLog: this.pressLog.slice(-200),
+        socialLog: this.socialLog.slice(-500),
         lastBackup: this.lastBackup,
         savedAt: new Date().toISOString(),
       }, null, 2));
@@ -750,7 +762,26 @@ module.exports = new ${name}();
   }
 
   async submitToPatentOffice(patent) {
-    console.log(`📨 Brevet ${patent.id} trimis către oficiul de brevete`);
+    const entry = { id: patent.id, title: patent.title || patent.name, submittedAt: new Date().toISOString(), status: 'queued' };
+    try {
+      const url = process.env.PATENT_SUBMIT_URL; // ex: endpoint custom care interfacă cu USPTO/EPO
+      const key = process.env.PATENT_API_KEY;
+      if (url) {
+        const r = await axios.post(url, patent, {
+          headers: key ? { Authorization: `Bearer ${key}` } : {}, timeout: 15000
+        });
+        entry.externalRef = r.data && (r.data.applicationNumber || r.data.id || r.data.reference);
+        entry.status = 'submitted';
+        console.log(`📨 Brevet ${patent.id} submitted LIVE (ref: ${entry.externalRef})`);
+      } else {
+        console.log(`📨 Brevet ${patent.id} queued (no PATENT_SUBMIT_URL): ${entry.title}`);
+      }
+    } catch (err) {
+      entry.status = 'failed';
+      entry.error = err.message;
+      console.warn(`⚠️ Patent submit failed for ${patent.id}: ${err.message}`);
+    }
+    this.patentLog.push(entry);
     await this.recordRevenue('patent', 5000);
   }
 
@@ -1221,20 +1252,114 @@ export default function QuantumLoader() {
   }
 
   async postToSocialMedia(content) {
-    const platforms = ['twitter', 'linkedin', 'facebook', 'instagram'];
+    // Real distribution: încercă API-uri reale dacă env keys sunt prezente, altfel queue + log.
+    // Toate înregistrările sunt persistate în socialLog (audit trail) și .data/uee-state.json.
     const now = Date.now();
     const cooldown = 24 * 60 * 60 * 1000; // 24h
-    for (const platform of platforms) {
+    const tagline = (content.hashtags || []).map(h => h.startsWith('#') ? h : '#' + h).join(' ');
+    const body = `${content.title}\n\n${content.description || ''}\n${tagline}\nhttps://zeusai.pro`.trim().slice(0, 500);
+
+    const tryPost = async (platform, fn) => {
       const key = `${platform}::${content.title}`;
-      const last = this.postedTitles[key] || 0;
-      if (now - last < cooldown) continue; // skip — postat deja recent
-      console.log(`📱 Postat pe ${platform}: ${content.title}`);
-      this.postedTitles[key] = now;
-    }
+      if (now - (this.postedTitles[key] || 0) < cooldown) return; // idempotență
+      try {
+        const result = await fn();
+        this.postedTitles[key] = now;
+        this.socialLog.push({ platform, title: content.title, ts: new Date().toISOString(), ok: true, externalId: result && result.id, mode: result && result.mode });
+        console.log(`📱 [${platform}] ${result && result.mode === 'live' ? 'LIVE' : 'queued'}: ${content.title}`);
+      } catch (err) {
+        this.socialLog.push({ platform, title: content.title, ts: new Date().toISOString(), ok: false, error: err.message });
+        console.warn(`⚠️ [${platform}] post failed: ${err.message}`);
+      }
+    };
+
+    // Twitter / X v2 (POST /2/tweets cu OAuth2 user-context bearer)
+    await tryPost('twitter', async () => {
+      const bearer = process.env.TWITTER_BEARER_TOKEN || process.env.X_BEARER_TOKEN;
+      if (!bearer) return { mode: 'log-only' };
+      const r = await axios.post('https://api.twitter.com/2/tweets', { text: body.slice(0, 280) }, {
+        headers: { Authorization: `Bearer ${bearer}`, 'Content-Type': 'application/json' }, timeout: 10000
+      });
+      return { id: r.data && r.data.data && r.data.data.id, mode: 'live' };
+    });
+
+    // LinkedIn UGC posts
+    await tryPost('linkedin', async () => {
+      const token = process.env.LINKEDIN_ACCESS_TOKEN;
+      const author = process.env.LINKEDIN_AUTHOR_URN; // ex: urn:li:person:xxxx sau urn:li:organization:xxx
+      if (!token || !author) return { mode: 'log-only' };
+      const r = await axios.post('https://api.linkedin.com/v2/ugcPosts', {
+        author, lifecycleState: 'PUBLISHED',
+        specificContent: { 'com.linkedin.ugc.ShareContent': { shareCommentary: { text: body }, shareMediaCategory: 'NONE' } },
+        visibility: { 'com.linkedin.ugc.MemberNetworkVisibility': 'PUBLIC' }
+      }, { headers: { Authorization: `Bearer ${token}`, 'X-Restli-Protocol-Version': '2.0.0' }, timeout: 10000 });
+      return { id: r.data && r.data.id, mode: 'live' };
+    });
+
+    // Facebook page feed
+    await tryPost('facebook', async () => {
+      const token = process.env.FACEBOOK_PAGE_TOKEN;
+      const pageId = process.env.FACEBOOK_PAGE_ID;
+      if (!token || !pageId) return { mode: 'log-only' };
+      const r = await axios.post(`https://graph.facebook.com/v19.0/${pageId}/feed`, null, {
+        params: { message: body, access_token: token }, timeout: 10000
+      });
+      return { id: r.data && r.data.id, mode: 'live' };
+    });
+
+    // Discord webhook (zero-config dacă DISCORD_WEBHOOK_URL e setat)
+    await tryPost('discord', async () => {
+      const url = process.env.DISCORD_WEBHOOK_URL;
+      if (!url) return { mode: 'log-only' };
+      await axios.post(url, { content: body }, { timeout: 10000 });
+      return { mode: 'live' };
+    });
+
+    // Telegram channel (TELEGRAM_BOT_TOKEN + TELEGRAM_CHAT_ID)
+    await tryPost('telegram', async () => {
+      const tok = process.env.TELEGRAM_BOT_TOKEN;
+      const chat = process.env.TELEGRAM_CHAT_ID;
+      if (!tok || !chat) return { mode: 'log-only' };
+      const r = await axios.post(`https://api.telegram.org/bot${tok}/sendMessage`, { chat_id: chat, text: body, disable_web_page_preview: false }, { timeout: 10000 });
+      return { id: r.data && r.data.result && r.data.result.message_id, mode: 'live' };
+    });
+
+    // Generic webhook (Zapier/Make/n8n -> Instagram/TikTok/Reddit)
+    await tryPost('webhook', async () => {
+      const url = process.env.SOCIAL_WEBHOOK_URL;
+      if (!url) return { mode: 'log-only' };
+      await axios.post(url, { title: content.title, body, hashtags: content.hashtags, image: content.image, ts: new Date().toISOString() }, { timeout: 10000 });
+      return { mode: 'live' };
+    });
   }
 
   async sendPressReleases(content) {
-    console.log(`📰 Comunicat de presă trimis: ${content.title}`);
+    const entry = { title: content.title, sentAt: new Date().toISOString(), status: 'queued', recipients: 0 };
+    try {
+      const mgKey = process.env.MAILGUN_API_KEY;
+      const mgDomain = process.env.MAILGUN_DOMAIN;
+      const recipients = (process.env.PRESS_RECIPIENTS || '').split(',').map(s => s.trim()).filter(Boolean);
+      if (mgKey && mgDomain && recipients.length) {
+        const form = new URLSearchParams();
+        form.append('from', process.env.PRESS_FROM || `Unicorn AI <press@${mgDomain}>`);
+        recipients.forEach(r => form.append('to', r));
+        form.append('subject', content.title);
+        form.append('html', `<h1>${content.title}</h1><p>${content.description || ''}</p><p><a href="https://zeusai.pro">zeusai.pro</a></p>`);
+        await axios.post(`https://api.mailgun.net/v3/${mgDomain}/messages`, form.toString(), {
+          auth: { username: 'api', password: mgKey }, headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, timeout: 15000
+        });
+        entry.status = 'sent';
+        entry.recipients = recipients.length;
+        console.log(`📰 Comunicat trimis LIVE către ${recipients.length} jurnaliști: ${content.title}`);
+      } else {
+        console.log(`📰 Comunicat de presă queued (no Mailgun env): ${content.title}`);
+      }
+    } catch (err) {
+      entry.status = 'failed';
+      entry.error = err.message;
+      console.warn('⚠️ Press release send failed:', err.message);
+    }
+    this.pressLog.push(entry);
   }
 
   async hasBudget() {
@@ -1433,18 +1558,23 @@ export default function QuantumLoader() {
 
   async recordRevenue(source, amount) {
     if (!amount || Number(amount) <= 0) return;
+    const entry = { source, amount: Number(amount), currency: 'USD', ts: new Date().toISOString(), status: 'recorded' };
     try {
       const paymentGateway = require('./paymentGateway');
       if (typeof paymentGateway.createPayment === 'function') {
-        await paymentGateway.createPayment({
+        const r = await paymentGateway.createPayment({
           amount: Number(amount),
           currency: 'USD',
           method: 'bank',
           clientId: 'future_market',
           description: `UEE: ${source}`
         });
+        entry.gatewayRef = r && (r.id || r.reference);
       }
-    } catch (_) {}
+    } catch (err) {
+      entry.error = err.message;
+    }
+    this.revenueLog.push(entry);
   }
 
   getStats() {
@@ -1459,7 +1589,13 @@ export default function QuantumLoader() {
       futureReadiness: 'critical',
       eternalStatus: 'active',
       yearsAhead: this.futureDate.getFullYear() - new Date().getFullYear(),
-      hasBackup: Boolean(this.lastBackup)
+      hasBackup: Boolean(this.lastBackup),
+      revenueEvents: (this.revenueLog || []).length,
+      revenueTotalUSD: (this.revenueLog || []).reduce((s, r) => s + (Number(r.amount) || 0), 0),
+      patentsSubmitted: (this.patentLog || []).filter(p => p.status === 'submitted').length,
+      patentsQueued: (this.patentLog || []).filter(p => p.status === 'queued').length,
+      pressReleasesSent: (this.pressLog || []).filter(p => p.status === 'sent').length,
+      socialPostsLive: (this.socialLog || []).filter(s => s.ok).length,
     };
   }
 

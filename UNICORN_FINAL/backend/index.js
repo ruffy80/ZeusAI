@@ -10798,6 +10798,69 @@ app.post('/api/whales/scan', (req, res) => {
   res.json({ ok: true, newSignals: newOnes.length, signals: newOnes, generatedAt: new Date().toISOString() });
 });
 
+// ==================== UNICORN ETERNAL ENGINE SNAPSHOTS ====================
+// Expun state-ul autonom (innovations / revenue / social / press / patents) ca portalul s\u0103 le poat\u0103 afi\u0219a LIVE.
+app.get('/api/innovation/snapshot', (req, res) => {
+  try {
+    const stats = (typeof uee.getStats === 'function') ? uee.getStats() : {};
+    res.json({
+      ok: true,
+      stats,
+      innovationsQueueTail: (uee.innovationQueue || []).slice(-20),
+      siteInnovations: uee.siteInnovations || [],
+      socialRecent: (uee.socialLog || []).slice(-20),
+      generatedAt: new Date().toISOString(),
+    });
+  } catch (err) {
+    res.status(500).json({ ok: false, error: err.message });
+  }
+});
+
+app.get('/api/revenue/snapshot', (req, res) => {
+  try {
+    const log = uee.revenueLog || [];
+    const bySource = {};
+    let total = 0;
+    for (const r of log) {
+      const amt = Number(r.amount) || 0;
+      total += amt;
+      bySource[r.source] = (bySource[r.source] || 0) + amt;
+    }
+    res.json({
+      ok: true,
+      totalUSD: total,
+      eventCount: log.length,
+      bySource,
+      recent: log.slice(-30),
+      patentsSubmitted: (uee.patentLog || []).filter(p => p.status === 'submitted').length,
+      patentsQueued: (uee.patentLog || []).filter(p => p.status === 'queued').length,
+      generatedAt: new Date().toISOString(),
+    });
+  } catch (err) {
+    res.status(500).json({ ok: false, error: err.message });
+  }
+});
+
+app.get('/api/social/snapshot', (req, res) => {
+  try {
+    const log = uee.socialLog || [];
+    const byPlatform = {};
+    for (const s of log) {
+      byPlatform[s.platform] = byPlatform[s.platform] || { ok: 0, fail: 0 };
+      byPlatform[s.platform][s.ok ? 'ok' : 'fail']++;
+    }
+    res.json({
+      ok: true,
+      eventCount: log.length,
+      byPlatform,
+      recent: log.slice(-30),
+      generatedAt: new Date().toISOString(),
+    });
+  } catch (err) {
+    res.status(500).json({ ok: false, error: err.message });
+  }
+});
+
 // ==================== GLOBAL ERROR HANDLER ====================
 // Catches any unhandled errors thrown in route handlers.
 // In production, never expose the stack trace to the client.
