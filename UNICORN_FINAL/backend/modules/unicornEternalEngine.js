@@ -231,10 +231,51 @@ class UnicornEternalEngine {
     this.siteInnovations = [];
     this.healingLog = [];
     this.learningLog = [];
+    this.postedTitles = {}; // title -> lastPostedTs (idempotență 24h pentru social media)
     this.lastBackup = null;
+    // Persistență state pe disc – previne re-patentarea acelorași inovații după restart backend.
+    // State stored: innovationQueue (cu patented flag), siteInnovations (cu patented flag), postedTitles, lastBackup.
+    this.stateFile = path.join(__dirname, '..', '..', '.data', 'uee-state.json');
+    this._loadState();
     this.init().catch((err) => {
       console.error('❌ UEE init failed:', err.message);
     });
+  }
+
+  _loadState() {
+    try {
+      if (fs.existsSync(this.stateFile)) {
+        const raw = JSON.parse(fs.readFileSync(this.stateFile, 'utf8'));
+        this.innovationQueue = Array.isArray(raw.innovationQueue) ? raw.innovationQueue : [];
+        this.siteInnovations = Array.isArray(raw.siteInnovations) ? raw.siteInnovations : [];
+        this.postedTitles = raw.postedTitles && typeof raw.postedTitles === 'object' ? raw.postedTitles : {};
+        this.lastBackup = raw.lastBackup || null;
+        console.log(`♾️ UEE state loaded: ${this.innovationQueue.length} inovații, ${this.siteInnovations.length} site, ${Object.keys(this.postedTitles).length} titluri postate`);
+      }
+    } catch (err) {
+      console.warn('⚠️ UEE state load failed (start gol):', err.message);
+    }
+  }
+
+  _saveState() {
+    try {
+      const dir = path.dirname(this.stateFile);
+      if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+      // Garbage-collect postedTitles mai vechi de 30 zile ca să nu crească la infinit
+      const cutoff = Date.now() - 30 * 24 * 60 * 60 * 1000;
+      for (const t of Object.keys(this.postedTitles)) {
+        if (this.postedTitles[t] < cutoff) delete this.postedTitles[t];
+      }
+      fs.writeFileSync(this.stateFile, JSON.stringify({
+        innovationQueue: this.innovationQueue.slice(-200),
+        siteInnovations: this.siteInnovations,
+        postedTitles: this.postedTitles,
+        lastBackup: this.lastBackup,
+        savedAt: new Date().toISOString(),
+      }, null, 2));
+    } catch (err) {
+      console.warn('⚠️ UEE state save failed:', err.message);
+    }
   }
 
   async init() {
@@ -287,19 +328,29 @@ class UnicornEternalEngine {
       await this.createQuantumBackup();
     }
 
-    for (const innovation of this.innovationQueue.slice(-5)) {
+    // Patentează DOAR inovațiile care nu sunt deja patentate (dedupe pe flag persistat).
+    // Limită 5/ciclu pentru a nu spama logurile. Restul rămân în coadă cu patented=false.
+    let patented = 0;
+    for (const innovation of this.innovationQueue) {
+      if (patented >= 5) break;
       if (!innovation.patented) {
         await this.generatePatent(innovation);
         innovation.patented = true;
+        patented++;
       }
     }
 
-    for (const innovation of this.siteInnovations.slice(-5)) {
+    patented = 0;
+    for (const innovation of this.siteInnovations) {
+      if (patented >= 5) break;
       if (!innovation.patented) {
         await this.generatePatent(innovation);
         innovation.patented = true;
+        patented++;
       }
     }
+
+    this._saveState();
   }
 
   async generateFutureInnovations() {
@@ -812,8 +863,12 @@ module.exports = new ${name}();
   async innovateSite() {
     console.log('🌐 Auto-inovare site – pregătesc site-ul pentru următorii 44 de ani');
     const innovations = await this.generateSiteInnovations();
-    this.siteInnovations = innovations;
+    // MERGE după id pentru a păstra patented flag deja existent pe disc
+    const existingById = new Map(this.siteInnovations.map((i) => [i.id, i]));
     for (const innovation of innovations) {
+      if (!existingById.has(innovation.id)) {
+        this.siteInnovations.push({ ...innovation, patented: false, createdAt: new Date().toISOString() });
+      }
       await this.implementSiteInnovation(innovation);
     }
   }
@@ -1167,8 +1222,14 @@ export default function QuantumLoader() {
 
   async postToSocialMedia(content) {
     const platforms = ['twitter', 'linkedin', 'facebook', 'instagram'];
+    const now = Date.now();
+    const cooldown = 24 * 60 * 60 * 1000; // 24h
     for (const platform of platforms) {
+      const key = `${platform}::${content.title}`;
+      const last = this.postedTitles[key] || 0;
+      if (now - last < cooldown) continue; // skip — postat deja recent
       console.log(`📱 Postat pe ${platform}: ${content.title}`);
+      this.postedTitles[key] = now;
     }
   }
 

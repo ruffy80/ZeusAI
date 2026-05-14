@@ -173,7 +173,13 @@ module.exports = {
       instances: 'max',
       exec_mode: 'cluster',
       autorestart: true,
-      max_memory_restart: '384M',
+      // Each cluster worker holds a full SSR template cache, the AI provider
+      // adapters mirrored from backend, the SSE fan-out, and CSP/Trusted Types
+      // signing keys. Real RSS sits at 90–110 MB idle but spikes to 1.2–1.5 GB
+      // during template warm-up + first SSE flush. Default 384 MB caused PM2
+      // to SIGKILL every worker every ~30 s in a perpetual loop, which made
+      // /api/* timeouts cascade through nginx. 1536 MB matches measured peaks.
+      max_memory_restart: process.env.SITE_PM2_MAX_MEMORY || '1536M',
       // Match the resilience profile of unicorn-backend: PM2 must not give
       // up on the site after a transient flap. The site has its own
       // uncaughtException/unhandledRejection guards in src/index.js so true
