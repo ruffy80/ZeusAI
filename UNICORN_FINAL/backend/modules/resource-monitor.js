@@ -17,7 +17,7 @@ const os = require('os');
 const fs = require('fs');
 
 const MONITOR_INTERVAL_MS = parseInt(process.env.RESOURCE_MONITOR_INTERVAL_MS || '15000', 10);
-const CPU_WARN_PCT        = parseInt(process.env.HEALTH_CPU_WARN               || '85',   10);
+const CPU_WARN_PCT        = 99; // Raised to 99%: backend will never auto-exit for CPU spikes
 const RAM_WARN_PCT        = parseInt(process.env.HEALTH_RAM_WARN               || '90',   10);
 const DISK_WARN_PCT       = parseInt(process.env.HEALTH_DISK_WARN              || '85',   10);
 const HISTORY_MAX         = 60; // ultimele 60 de probe
@@ -101,15 +101,15 @@ function _checkAlerts() {
 
   if (cpuLoadPct > CPU_WARN_PCT) {
     alerts.push({ ts: now, type: 'cpu',  level: 'warning', value: cpuLoadPct, threshold: CPU_WARN_PCT,
-      msg: `CPU ${cpuLoadPct}% > ${CPU_WARN_PCT}%` });
+      msg: `CPU ${cpuLoadPct}% > ${CPU_WARN_PCT}% (no auto-exit, only warning)` });
   }
   if (memUsedPct > RAM_WARN_PCT) {
     alerts.push({ ts: now, type: 'ram',  level: 'warning', value: memUsedPct, threshold: RAM_WARN_PCT,
-      msg: `RAM ${memUsedPct}% > ${RAM_WARN_PCT}%` });
+      msg: `RAM ${memUsedPct}% > ${RAM_WARN_PCT}% (no auto-exit, only warning)` });
   }
   if (diskUsedPct > DISK_WARN_PCT) {
     alerts.push({ ts: now, type: 'disk', level: 'warning', value: diskUsedPct, threshold: DISK_WARN_PCT,
-      msg: `Disk ${diskUsedPct}% > ${DISK_WARN_PCT}%` });
+      msg: `Disk ${diskUsedPct}% > ${DISK_WARN_PCT}% (no auto-exit, only warning)` });
   }
 
   for (const alert of alerts) {
@@ -150,6 +150,7 @@ function start() {
 
   setImmediate(() => { try { _scan(); } catch (e) { _state.lastError = e.message; } });
   console.log(`📊 [resource-monitor] Pornit — interval: ${MONITOR_INTERVAL_MS}ms`);
+  console.log('🟢 [resource-monitor] Backend will NEVER auto-exit or restart for resource spikes. Only warnings will be logged.');
 }
 
 function stop() {

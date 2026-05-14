@@ -1,0 +1,31 @@
+[Unit]
+Description=ZeusAI Pricing Sync Daemon (Unicorn dynamic-pricing watchdog)
+Documentation=https://zeusai.pro
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/opt/unicorn/UNICORN_FINAL
+Environment=NODE_ENV=production
+Environment=UNICORN_UPSTREAM=http://127.0.0.1:8080
+Environment=SYNC_PORT=9099
+Environment=POLL_MS=5000
+Environment=SNAPSHOT_TTL_MS=10000
+ExecStart=/usr/bin/node /opt/unicorn/UNICORN_FINAL/scripts/pricing-sync-daemon.js
+Restart=always
+RestartSec=3
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=zeus-pricing-sync
+LimitNOFILE=65536
+
+# Hardening
+NoNewPrivileges=true
+ProtectSystem=full
+ProtectHome=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target
