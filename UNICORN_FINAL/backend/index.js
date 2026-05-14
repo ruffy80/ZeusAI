@@ -6147,6 +6147,31 @@ app.get('/api/pricing/conditions', routeCache.cacheMiddleware(), (req, res) => {
   res.json(dynamicPricing.getMarketConditions());
 });
 
+// Public: daily auto-tuner status (golden rule #1 — exposed for verification)
+app.get('/api/price-autotuner/status', (req, res) => {
+  try {
+    const t = require('./modules/price-autotuner');
+    res.set('Cache-Control', 'no-store');
+    res.json(t.getStatus());
+  } catch (e) {
+    res.status(503).json({ error: 'autotuner unavailable', message: e.message });
+  }
+});
+
+// Manual trigger (admin only — guarded by simple shared secret env)
+app.post('/api/price-autotuner/run', (req, res) => {
+  const expected = process.env.AUTOTUNER_SECRET || '';
+  const given = String(req.headers['x-autotuner-secret'] || (req.body && req.body.secret) || '');
+  if (!expected || given !== expected) return res.status(403).json({ error: 'forbidden' });
+  try {
+    const t = require('./modules/price-autotuner');
+    const out = t.tuneOnce();
+    res.json({ ok: true, ...out });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 // ==================== LIVE PRICING (additive) ====================
 // Snapshot of live prices for every service: USD (proposed by the dynamic-pricing
 // engine + AI negotiator) + BTC equivalent computed against the live BTC rate.
@@ -10709,6 +10734,14 @@ if (require.main === module) {
     console.log(`🚀 Unicorn autonom rulând pe portul ${PORT} (bind=${BIND_HOST}, role=backend, source-of-truth=true)`);
     if (BIND_HOST === '0.0.0.0') {
       console.log('[topology] backend bound to 0.0.0.0 — port 3000 reachable externally. In production behind nginx, set BIND_HOST=127.0.0.1 to close direct external access.');
+    }
+    // Daily ±5% auto-tuner — boots after the rest of the system. Guarded so a
+    // missing module never breaks listen() callback. See golden rule #1+#2.
+    try {
+      const autotuner = require('./modules/price-autotuner');
+      autotuner.start({});
+    } catch (e) {
+      console.warn('[price-autotuner] could not start:', e.message);
     }
     console.log(`🤖 Universal AI Connector (UAIC): ${_uaic ? 'ACTIVE' : 'DISABLED'}`);
     console.log(`🌐 Multi-Model Router (14 AI): ${_multiRouter ? 'ACTIVE' : 'DISABLED'}`);

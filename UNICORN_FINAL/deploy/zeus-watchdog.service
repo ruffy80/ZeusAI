@@ -1,0 +1,29 @@
+[Unit]
+Description=ZeusAI Unicorn Health Watchdog (60s API probes + PM2 auto-restart)
+Documentation=https://zeusai.pro
+After=network-online.target pm2-root.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/var/www/unicorn/current/UNICORN_FINAL
+Environment=NODE_ENV=production
+Environment=WATCHDOG_BASE=https://zeusai.pro
+Environment=WATCHDOG_POLL_MS=60000
+Environment=WATCHDOG_FAIL_THRESHOLD=3
+Environment=WATCHDOG_TIMEOUT_MS=10000
+Environment=PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/root/.npm-global/bin
+ExecStart=/usr/bin/node /var/www/unicorn/current/UNICORN_FINAL/scripts/health-watchdog.js
+Restart=always
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=zeus-watchdog
+
+# Hardening (rule #6: watchdog itself never gets killed for resource use)
+LimitNOFILE=65536
+NoNewPrivileges=true
+
+[Install]
+WantedBy=multi-user.target
