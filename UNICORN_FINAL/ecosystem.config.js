@@ -20,7 +20,10 @@ const SNAP_DIR = path.join(APP_DIR, 'snapshots');
 // PM2 cluster — two workers silently deadlock on sqlite file locks and exit
 // without writing to stderr. Keep fork/1 until the backend is cluster-safe.
 const BACKEND_INSTANCES = Number(process.env.UNICORN_INSTANCES || 1);
-const BACKEND_MEM = process.env.PM2_MAX_MEMORY || '1024M';
+// Golden rule #7: backend memory ceiling >= 2560M (real RSS w/ ADI-Core +
+// world-scanner + 50+ in-memory modules sits around 1.4–2GB). Lowering this
+// below 2560M causes SIGKILL crash-loops within minutes of boot.
+const BACKEND_MEM = process.env.PM2_MAX_MEMORY || '2560M';
 
 module.exports = {
   apps: [
