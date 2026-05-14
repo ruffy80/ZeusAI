@@ -4350,6 +4350,12 @@ async function unicornHandler(req, res) {
         bodyHtml,
         '</main>',
         '<footer>© ZeusAI · forward-only · 6+3 supreme modules · <a href="/api/sovereignty/verify" style="color:var(--muted)">verify chain</a></footer>',
+        // Trusted Types default policy — REQUIRED because CSP enforces `require-trusted-types-for \'script\'`.
+        // Without this, every `element.innerHTML = "..."` assignment throws TypeError and the page stays empty
+        // (e.g. /services and /pricing stuck on "Catalog warming up"). The policy name `default` is already
+        // whitelisted in the CSP trusted-types directive. We pass strings through unchanged because all our
+        // inline HTML is server-built and already escaped via `esc()` helpers.
+        '<script>(function(){try{if(window.trustedTypes&&window.trustedTypes.createPolicy){window.trustedTypes.createPolicy("default",{createHTML:function(s){return s},createScript:function(s){return s},createScriptURL:function(s){return s}});}}catch(_){/* policy already exists */}})();</script>',
         '<script>' + pageScript + '</script>',
         // Stale-but-alive client: degraded banner if /health fails 3 times in a row
         '<script>(function(){var fails=0;function check(){fetch("/health",{cache:"no-store"}).then(function(r){if(r.ok){fails=0;document.getElementById("degraded-banner").classList.remove("show");}else{throw 0}}).catch(function(){fails++;if(fails>=3){document.getElementById("degraded-banner").classList.add("show");}});}check();setInterval(check,10000);})();</script>',
