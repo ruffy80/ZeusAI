@@ -25,8 +25,12 @@ async function integrate(evaluated) {
     const entry = {
       id: m.id,
       type: m.type,
+      flavor: m.flavor || null,
       url: m.url || null,
+      chatUrl: m.chatUrl || null,
+      defaultModel: m.defaultModel || null,
       envVar: m.envVar || null,
+      keyless: !!m.keyless,
       meta: m.meta || {},
       score: m.score,
       latencyMs: m.latencyMs,

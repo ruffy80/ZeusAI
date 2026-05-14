@@ -721,6 +721,8 @@ app.get('/api/evolution/snapshot', siteProxyToUnicorn('/api/evolution/snapshot')
 // ADI-Core: site-side proxies (no keys, no secrets — safe for the public UI)
 app.get('/api/adi-core/status', siteProxyToUnicorn('/api/adi-core/status'));
 app.get('/api/adi-core/routes', siteProxyToUnicorn('/api/adi-core/routes'));
+app.get('/api/adi-core/providers', siteProxyToUnicorn('/api/adi-core/providers'));
+app.get('/api/adi-core/onboarding', siteProxyToUnicorn('/api/adi-core/onboarding'));
 app.get('/api/pricing/segments', siteProxyToUnicorn('/api/pricing/segments'));
 app.get('/api/pricing/module/:moduleId', async (req, res) => {
   const moduleId = String(req.params.moduleId || '').slice(0, 80);

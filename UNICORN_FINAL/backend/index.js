@@ -10671,6 +10671,40 @@ app.get('/api/adi-core/routes', (req, res) => {
   res.json({ ok: true, ts: Date.now(), routes: adiCore.router.getRoutes() });
 });
 
+// ADI-Core: full provider catalog (id, flavor, signup URL, key aliases) — public, no secrets.
+app.get('/api/adi-core/providers', (req, res) => {
+  if (!adiCore) return res.status(503).json({ ok: false });
+  res.setHeader('Cache-Control', 'no-store');
+  res.json(adiCore.listProviders());
+});
+
+// ADI-Core: onboarding — which providers have keys, which need keys (with signup URLs).
+app.get('/api/adi-core/onboarding', (req, res) => {
+  if (!adiCore) return res.status(503).json({ ok: false });
+  res.setHeader('Cache-Control', 'no-store');
+  res.json(adiCore.getOnboarding());
+});
+
+// ADI-Core: runtime key intake. Admin-token gated.
+// Header: X-Admin-Token must match process.env.ADI_ADMIN_TOKEN (if set).
+// Body: { provider: 'openai', key: 'sk-...', aliases?: ['OPENAI_API_KEY'] }
+app.post('/api/adi-core/keys', express.json({ limit: '8kb' }), async (req, res) => {
+  if (!adiCore) return res.status(503).json({ ok: false, reason: 'ADI-Core not loaded' });
+  const expected = process.env.ADI_ADMIN_TOKEN;
+  if (expected) {
+    const given = req.headers['x-admin-token'] || req.headers['X-Admin-Token'] || '';
+    if (String(given) !== String(expected)) return res.status(401).json({ ok: false, reason: 'admin-token-required' });
+  }
+  const { provider, key, aliases } = req.body || {};
+  if (!provider || !key) return res.status(400).json({ ok: false, reason: 'provider+key required' });
+  try {
+    const r = await adiCore.addKey({ provider, key, aliases });
+    res.json(r);
+  } catch (e) {
+    res.status(500).json({ ok: false, error: String(e && e.message || e) });
+  }
+});
+
 // ==================== OUTREACH ENGINE (in-memory) ====================
 // Autonomous outreach campaigns — no external deps, fully in-memory.
 const _outreachState = {

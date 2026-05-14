@@ -712,9 +712,15 @@ select.form-inp option{background:#0a0e24;}
         <div class="card card-sm"><div class="label">Avg score</div><div class="kpi-val" id="adi-avg">—</div></div>
       </div>
       <div id="adi-core-list" style="margin-top:14px;font-size:13px;opacity:.92;">Loading providers…</div>
+      <div style="margin-top:18px;">
+        <div style="font-family:Orbitron,monospace;font-size:13px;color:#ffb84d;margin-bottom:8px;">🔑 Providers awaiting API key</div>
+        <div id="adi-core-pending" style="font-size:12px;opacity:.92;">—</div>
+      </div>
       <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:14px;">
         <button class="btn btn-primary" onclick="loadAdiCore(true)">Refresh ADI-Core</button>
-        <a class="btn btn-outline" href="/api/adi-core/status" target="_blank" rel="noopener">Raw JSON</a>
+        <button class="btn btn-outline" onclick="adiDropKey()">+ Drop API Key</button>
+        <a class="btn btn-outline" href="/api/adi-core/onboarding" target="_blank" rel="noopener">Onboarding JSON</a>
+        <a class="btn btn-outline" href="/api/adi-core/status" target="_blank" rel="noopener">Status JSON</a>
       </div>
     </div>
   </div><!-- end #view-status -->
@@ -1737,14 +1743,95 @@ async function loadAdiCore(force){
       row.style.background='rgba(255,255,255,0.04)';
       row.style.fontFamily='monospace';
       row.style.fontSize='12px';
-      row.textContent = (m.id||'?') + ' · score=' + (m.score||0) + ' · ' + (m.latencyMs||0) + 'ms';
+      var tag = m.keyless ? ' · free' : '';
+      row.textContent = (m.id||'?') + ' · score=' + (m.score||0) + ' · ' + (m.latencyMs||0) + 'ms' + tag;
       ul.appendChild(row);
     });
     listEl.appendChild(ul);
+    // Fetch onboarding (pending providers + signup URLs) in parallel.
+    try {
+      var rr = await fetch('/api/adi-core/onboarding', { cache:'no-store' });
+      var pendEl = document.getElementById('adi-core-pending');
+      if(rr.ok && pendEl){
+        var jj = await rr.json();
+        pendEl.textContent = '';
+        var pendList = (jj && jj.withoutKeys) || [];
+        if(!pendList.length){
+          pendEl.textContent = 'All known paid providers have a key. 🎉';
+        } else {
+          var grid = document.createElement('div');
+          grid.style.display='grid';
+          grid.style.gridTemplateColumns='repeat(auto-fill,minmax(240px,1fr))';
+          grid.style.gap='8px';
+          pendList.forEach(function(p){
+            var card = document.createElement('div');
+            card.style.padding='8px 10px';
+            card.style.borderRadius='8px';
+            card.style.background='rgba(255,184,77,0.07)';
+            card.style.border='1px solid rgba(255,184,77,0.25)';
+            var nameDiv = document.createElement('div');
+            nameDiv.style.fontWeight='700';
+            nameDiv.style.color='#ffd699';
+            nameDiv.textContent = p.id;
+            card.appendChild(nameDiv);
+            var aliasDiv = document.createElement('div');
+            aliasDiv.style.fontFamily='monospace';
+            aliasDiv.style.fontSize='11px';
+            aliasDiv.style.opacity='.7';
+            aliasDiv.textContent = (p.aliases||[]).join(' / ');
+            card.appendChild(aliasDiv);
+            var actions = document.createElement('div');
+            actions.style.marginTop='6px';
+            actions.style.display='flex';
+            actions.style.gap='6px';
+            actions.style.flexWrap='wrap';
+            if(p.signupUrl){
+              var a = document.createElement('a');
+              a.className='btn btn-outline btn-sm';
+              a.href = p.signupUrl;
+              a.target='_blank';
+              a.rel='noopener';
+              a.textContent='Get key ↗';
+              actions.appendChild(a);
+            }
+            var b = document.createElement('button');
+            b.className='btn btn-primary btn-sm';
+            b.textContent='+ Add key';
+            b.onclick = function(){ adiDropKey(p.id); };
+            actions.appendChild(b);
+            card.appendChild(actions);
+            grid.appendChild(card);
+          });
+          pendEl.appendChild(grid);
+        }
+      }
+    } catch(_) {}
   } catch(e){
     listEl.textContent = 'ADI-Core fetch error: ' + (e && e.message || e);
   }
 }
+
+// Drop an API key into ADI-Core at runtime (admin-token gated server-side).
+async function adiDropKey(prefilledProvider){
+  try{
+    var provider = window.prompt('Provider id (e.g. openai, groq, gemini):', prefilledProvider || '');
+    if(!provider) return;
+    var key = window.prompt('Paste the API key for ' + provider + ' (will be persisted in vault):', '');
+    if(!key) return;
+    var adminToken = STATE && STATE.adminToken ? STATE.adminToken : (localStorage.getItem('zeus_admin_token') || '');
+    var headers = { 'Content-Type':'application/json' };
+    if(adminToken) headers['X-Admin-Token'] = adminToken;
+    var r = await fetch('/api/adi-core/keys', { method:'POST', headers: headers, body: JSON.stringify({ provider: provider, key: key }) });
+    var j = await r.json().catch(function(){return {ok:false};});
+    if(r.ok && j && j.ok){
+      toast('✓ Key added for ' + provider + ' · ' + (j.masked||'***'), 'ok');
+      setTimeout(function(){ loadAdiCore(true); }, 600);
+    } else {
+      toast('Failed: ' + ((j && (j.reason||j.error)) || ('HTTP ' + r.status)), 'err');
+    }
+  }catch(e){ toast('Error: ' + (e && e.message || e), 'err'); }
+}
+window.adiDropKey = adiDropKey;
 
 async function loadLiveStatus(force){
   var grid=document.getElementById('status-summary-grid');
