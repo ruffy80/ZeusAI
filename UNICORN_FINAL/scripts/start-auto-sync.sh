@@ -1,4 +1,10 @@
 #!/bin/zsh
+# PERMANENTLY DISABLED — golden rule #4.
+# Auto-commit/push loops corrupt feature work and trigger CI storms.
+# Use explicit `git add/commit/push` from your editor or the agent flow instead.
+echo "[$(date '+%Y-%m-%d %H:%M:%S')] UNICORN_FINAL/scripts/start-auto-sync.sh is permanently disabled."
+exit 0
+
 set -euo pipefail
 
 REPO_DIR="/Users/ionutvladoi/Desktop/generate-unicorn"

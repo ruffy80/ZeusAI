@@ -42,3 +42,44 @@
 - If a fix must survive future regeneration, patch generator templates in `generate_unicorn_final.js`.
 - If user asks for immediate runtime behavior in current generated app, patch `UNICORN_FINAL/` directly and run its `lint` + `test`.
 - For API/UI consistency checks, validate `/snapshot` and `/stream` behavior because the HTML portal depends on those payload shapes.
+
+## Golden rules (enforced 2026-05-15)
+
+These rules guarantee every change made by humans or AI agents lands LIVE on
+https://zeusai.pro within minutes, with zero regression and full auditability.
+
+1. **Durable fix → patch the generator.** Anything that must survive a regen
+   of `UNICORN_FINAL/` belongs in `generate_unicorn_final.js`. After editing,
+   run `node generate_unicorn_final.js` locally if regen is needed.
+2. **Live runtime fix → edit `UNICORN_FINAL/` directly.** For hot-fixes on
+   site/backend, edit under `UNICORN_FINAL/src/**`, `UNICORN_FINAL/backend/**`,
+   commit and push. The workflow `.github/workflows/deploy.yml` auto-deploys
+   to Hetzner on every `main` push that touches those paths.
+3. **Push-to-main = production.** No manual SSH/rsync needed once the patch is
+   committed. CI runs `node --check` + tests, rsyncs a new release dir,
+   atomically switches `/var/www/unicorn/current`, then `pm2 reload` both
+   clusters (`unicorn-backend` port 3000, `unicorn-site` port 3001).
+4. **NEVER run auto-sync scripts.** `scripts/start-auto-sync.sh` and
+   `UNICORN_FINAL/scripts/start-auto-sync.sh` are PERMANENTLY DISABLED. They
+   used to `git add/commit/push` in a loop and corrupted feature work.
+5. **CSP / Trusted Types contract.** Every server-rendered HTML page goes
+   through `renderPage()` in `UNICORN_FINAL/src/index.js`, which injects the
+   `default` Trusted Types policy BEFORE any inline `<script>`. All client
+   `innerHTML` assignments must use server-escaped strings (helper `esc()`).
+   Never remove this policy script or `/services`, `/pricing`,
+   `/unicorn-cockpit`, `/revenue-command`, `/status`, `/proof` will silently
+   break (stuck on "Catalog warming up").
+6. **Resource monitor never kills backend.** `backend/modules/resource-monitor.js`
+   uses `CPU_WARN_PCT=99` and only logs. Do not reintroduce `process.exit`,
+   `kill`, or PM2-restart-on-CPU-spike logic.
+7. **PM2 backend memory ≥ 2560M.** `ecosystem.config.js` reads
+   `PM2_MAX_MEMORY` (env override). The server has it pinned to `2560M`,
+   saved via `pm2 save`. Do not lower without measuring real RSS first.
+8. **Domain truth: `zeusai.pro` only.** DNS on Cloudflare → 204.168.230.142.
+   SSL via Let's Encrypt (`zeusai.pro-0001`). Ignore `zeusai.live` —
+   unrelated/parked; never automate certs or nginx for it.
+9. **Verify after every push.** Hard-refresh https://zeusai.pro/services and
+   /pricing (≥ 1 service card with live USD+BTC price = success). For backend,
+   curl `https://zeusai.pro/health` + `https://zeusai.pro/api/pricing/all`.
+10. **Bilingual comments are intentional.** Romanian + English coexists in
+    logs and code comments. Do not normalize.
