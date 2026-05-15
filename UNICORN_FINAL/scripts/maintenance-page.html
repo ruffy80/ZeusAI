@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="refresh" content="15">
+<meta name="robots" content="noindex">
+<title>ZeusAI — Restoring service · Restaurăm serviciul</title>
+<style>
+  :root { color-scheme: dark; }
+  html, body { margin: 0; padding: 0; height: 100%; background: #07090d; color: #e9edf5;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Inter, Helvetica, Arial, sans-serif; }
+  .wrap { min-height: 100%; display: flex; align-items: center; justify-content: center; padding: 24px; box-sizing: border-box; }
+  .card { max-width: 640px; width: 100%; background: linear-gradient(180deg, #0d1220 0%, #0a0e18 100%);
+    border: 1px solid #1c2740; border-radius: 16px; padding: 32px 28px; box-shadow: 0 20px 60px rgba(0,0,0,.45); }
+  h1 { font-size: 22px; margin: 0 0 10px; letter-spacing: .2px; }
+  p  { font-size: 15px; line-height: 1.55; margin: 0 0 12px; color: #b8c2d6; }
+  .pill { display: inline-block; font-size: 12px; letter-spacing: .8px; text-transform: uppercase;
+    padding: 4px 10px; border-radius: 999px; background: rgba(255,180,80,.12); color: #ffb450;
+    border: 1px solid rgba(255,180,80,.35); margin-bottom: 14px; }
+  .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: #ffb450;
+    margin-right: 6px; animation: pulse 1.4s ease-in-out infinite; vertical-align: middle; }
+  @keyframes pulse { 0%,100% { opacity: 1 } 50% { opacity: .35 } }
+  .grid { display: grid; grid-template-columns: 1fr; gap: 18px; margin-top: 18px; }
+  @media (min-width: 520px) { .grid { grid-template-columns: 1fr 1fr; } }
+  .lang { padding-top: 14px; border-top: 1px solid #1c2740; }
+  .lang h2 { font-size: 13px; letter-spacing: .8px; text-transform: uppercase; color: #7d8aa5; margin: 0 0 6px; }
+  a { color: #6ea8ff; text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  footer { margin-top: 20px; font-size: 12px; color: #58637a; }
+  code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 12.5px;
+    background: #0a1224; border: 1px solid #1c2740; border-radius: 6px; padding: 1px 6px; color: #b8c2d6; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="card" role="alert" aria-live="polite">
+    <div class="pill"><span class="dot" aria-hidden="true"></span>Restoring service</div>
+    <h1>ZeusAI is reloading itself.</h1>
+    <p>We hit a brief upstream blip and our self-healing pipeline is already
+       restarting the cluster. This page will reload automatically every
+       15&nbsp;seconds — no action needed on your side.</p>
+    <div class="grid">
+      <div class="lang">
+        <h2>English</h2>
+        <p>If you were mid-checkout, your order is safe: payments are
+           confirmed on-chain (BTC) or by Stripe/PayPal webhook and replayed
+           once the API is back. Status page: <a href="/status">/status</a>.</p>
+      </div>
+      <div class="lang">
+        <h2>Română</h2>
+        <p>Site-ul ZeusAI se restartează automat după un incident scurt al
+           upstream-ului. Pagina se va reîncărca singură la fiecare 15 secunde.
+           Comenzile în curs sunt în siguranță — plățile se confirmă pe blockchain
+           (BTC) sau prin webhook Stripe/PayPal.</p>
+      </div>
+    </div>
+    <footer>
+      ZeusAI Unicorn · <code>503</code> · auto-refresh in ~15s ·
+      <a href="https://zeusai.pro/health">/health</a> ·
+      <a href="https://zeusai.pro/status">/status</a>
+    </footer>
+  </div>
+</div>
+</body>
+</html>
