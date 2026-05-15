@@ -2127,6 +2127,16 @@ let livePricingBroker = null;
 try { livePricingBroker = require('./modules/live-pricing-broker'); }
 catch (e) { console.warn('[live-pricing-broker] disabled:', e && e.message); }
 
+// DeepSeek Governor — strict allowlist executor (no eval, no arbitrary writes).
+// Guvernor DeepSeek — executor cu listă albă strictă (fără eval, fără scrieri arbitrare).
+let deepseekGovernor = null;
+try {
+  deepseekGovernor = require('./modules/deepseek-governor');
+  deepseekGovernor.configure({ livePricingBroker });
+} catch (e) {
+  console.warn('[deepseek-governor] disabled:', e && e.message);
+}
+
 // ==================== MODULELE NEACTIVATE ANTERIOR — acum active 100% ====================
 const futureCompatBridge    = require('./modules/FutureCompatibilityBridge');
 const moduleLoader          = require('./modules/ModuleLoader');
@@ -5185,6 +5195,29 @@ app.get('/api/perf/cache', (req, res) => {
 // POST /api/admin/perf/cache/clear — golire cache (admin only)
 app.post('/api/admin/perf/cache/clear', adminCrudRateLimit, adminTokenMiddleware, (req, res) => {
   res.json(routeCache.clearCache());
+});
+
+// ==================== DEEPSEEK GOVERNOR API ====================
+// Strict allowlist executor for autonomous-but-bounded LLM-driven actions.
+// Executor cu listă albă pentru acțiuni autonome dar limitate.
+// Allowed actions: none, read_status, prices_sync, checkout_fix, run_test, restart_service (intent only).
+// Forbidden by design: write_file, deploy, git_commit, arbitrary shell. See backend/modules/deepseek-governor.js.
+app.get('/api/admin/deepseek/status', adminCrudRateLimit, adminTokenMiddleware, (req, res) => {
+  if (!deepseekGovernor) return res.status(503).json({ error: 'deepseek-governor not loaded' });
+  res.json(deepseekGovernor.getStatus());
+});
+
+app.post('/api/admin/deepseek/act', adminCrudRateLimit, adminTokenMiddleware, async (req, res) => {
+  if (!deepseekGovernor) return res.status(503).json({ error: 'deepseek-governor not loaded' });
+  const { action, params, requestId } = req.body || {};
+  const ip = req.ip || (req.connection && req.connection.remoteAddress) || 'unknown';
+  const actor = (req.admin && (req.admin.sub || req.admin.email || req.admin.role)) || 'admin';
+  try {
+    const result = await deepseekGovernor.dispatch({ action, params, requestId, actor, ip });
+    res.status(result.status).json(result.body);
+  } catch (e) {
+    res.status(500).json({ error: 'governor_dispatch_failed', detail: String(e && e.message || e).slice(0, 200) });
+  }
 });
 
 

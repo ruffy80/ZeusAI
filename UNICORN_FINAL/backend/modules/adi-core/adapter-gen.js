@@ -1,3 +1,11 @@
+// =====================================================================
+// OWNERSHIP: Acest fișier este proprietatea exclusivă a lui Vladoi Ionut
+// Email: vladoi_ionut@yahoo.com
+// BTC Address: bc1q4f7e66z87mdfj56kz0dj5hvcnpmh0qh4wuv22e
+// Data: 2026-05-15T07:00:12.520Z
+// Orice copiere, modificare sau distribuție neautorizată este interzisă.
+// =====================================================================
+
 // ADI-Core Adapter Generator
 // Construieste un client `(prompt, opts) => result` per provider.
 // Suporta: openai-compatible, anthropic, gemini, pollinations, hf-router, ollama, local-module.
