@@ -213,7 +213,13 @@ jobs:
             'MAILERSEND_API_KEY','OWNER_EMAIL','HETZNER_API_KEY','HETZNER_API_TOKEN','HETZNER_HOST','HETZNER_DNS_API_KEY',
             'VAULT_MASTER_SECRET','VAULT_EMERGENCY_CODE','MASTER_CONFIG_SECRET','TELEGRAM_BOT_TOKEN','TELEGRAM_CHAT_ID',
             'BINANCE_API_KEY','BINANCE_SECRET','COINBASE_API_KEY','COINBASE_SECRET','KRAKEN_API_KEY','KRAKEN_SECRET',
-            'BYBIT_API_KEY','BYBIT_SECRET','OKX_API_KEY','OKX_SECRET','OKX_PASSWORD'
+            'BYBIT_API_KEY','BYBIT_SECRET','OKX_API_KEY','OKX_SECRET','OKX_PASSWORD',
+            // DeepSeek advisory/execute loop knobs — forwarded to .env via
+            // create-env.sh so the systemd unit installed below sees them on
+            // every deploy. All default-OFF: setting them as repo secrets is
+            // the explicit operator opt-in for full-power mode (PR #547/#548).
+            'DEEPSEEK_LOOP_ENABLED','DEEPSEEK_LOOP_EXECUTE','DEEPSEEK_LOOP_ADMIN_TOKEN',
+            'DEEPSEEK_LOOP_INTERVAL_MS','DEEPSEEK_LOOP_BACKEND_URL'
           ];
           const out = [];
           for (const key of allow) {
@@ -553,6 +559,80 @@ jobs:
           # Persist PM2 process list for systemd resurrection at boot
           pm2 save --force 2>/dev/null || true
           echo "✅ Deploy complet: $(pm2 list 2>/dev/null | grep -c online || echo '?') procese PM2 online"
+          SSHEOF
+
+      - name: 🧠 Install + start DeepSeek advisory/execute loop (default-OFF)
+        # Idempotent installer for `deepseek-loop.service`. Replaces the
+        # manual workflow_dispatch (install-deepseek-loop.yml) for the
+        # happy path: every successful deploy copies the unit file, runs
+        # daemon-reload, and (when DEEPSEEK_LOOP_ENABLED=1 has been written
+        # to /var/www/unicorn/UNICORN_FINAL/.env via CI secrets) calls
+        # `systemctl enable --now`.
+        #
+        # Safety envelope preserved end-to-end:
+        #   * Without DEEPSEEK_LOOP_ENABLED=1 the script exits 0 → with
+        #     Restart=on-failure systemd does NOT restart it; the unit
+        #     stays installed but inactive (zero CPU footprint).
+        #   * Without DEEPSEEK_API_KEY the script throws missing_DEEPSEEK_API_KEY
+        #     and stops (one log line per cycle).
+        #   * Execute mode (POST /api/admin/deepseek/act) additionally needs
+        #     DEEPSEEK_LOOP_EXECUTE=1 AND DEEPSEEK_LOOP_ADMIN_TOKEN; otherwise
+        #     the loop is strictly advisory (logs only).
+        #   * The backend governor re-validates every action against its
+        #     hardcoded allowlist (PR #547), so even a compromised loop
+        #     cannot execute anything outside the enum.
+        run: |
+          ssh -o StrictHostKeyChecking=no root@${{ secrets.HETZNER_HOST }} bash -s << 'SSHEOF'
+          set -uo pipefail
+          DEPLOY_PATH=/var/www/unicorn/UNICORN_FINAL
+          UNIT_SRC="$DEPLOY_PATH/scripts/deepseek-loop.service"
+          UNIT_DST=/etc/systemd/system/deepseek-loop.service
+          ENV_FILE="$DEPLOY_PATH/.env"
+
+          if [ ! -f "$UNIT_SRC" ]; then
+            echo "⚠️  $UNIT_SRC missing — skipping DeepSeek loop install"
+            exit 0
+          fi
+
+          # Copy the unit file only if it differs (avoids needless daemon-reload).
+          # `cmp -s` returns 0 when files are identical.
+          if ! cmp -s "$UNIT_SRC" "$UNIT_DST" 2>/dev/null; then
+            install -m 0644 "$UNIT_SRC" "$UNIT_DST"
+            systemctl daemon-reload
+            echo "✅ deepseek-loop.service unit file updated"
+          else
+            echo "ℹ️  deepseek-loop.service unit file unchanged"
+          fi
+
+          # Ensure the runtime log directory exists (ReadWritePaths target).
+          mkdir -p "$DEPLOY_PATH/data/logs"
+
+          # Decide whether to enable+start. The loop is default-OFF and only
+          # runs when the operator has opted in by setting DEEPSEEK_LOOP_ENABLED=1
+          # as a GitHub Actions repository secret (which create-env.sh now
+          # propagates to .env).
+          LOOP_ENABLED=0
+          if [ -f "$ENV_FILE" ] && grep -qE "^DEEPSEEK_LOOP_ENABLED=(['\"]?1['\"]?|['\"]?true['\"]?)[[:space:]]*$" "$ENV_FILE"; then
+            LOOP_ENABLED=1
+          fi
+
+          if [ "$LOOP_ENABLED" = "1" ]; then
+            # Quick prerequisite check: warn (do not fail) if API key missing.
+            if ! grep -qE '^DEEPSEEK_API_KEY=' "$ENV_FILE" 2>/dev/null; then
+              echo "::warning::DEEPSEEK_LOOP_ENABLED=1 but DEEPSEEK_API_KEY is missing from $ENV_FILE — the loop will log missing_DEEPSEEK_API_KEY each cycle until the key is added"
+            fi
+            systemctl enable --now deepseek-loop.service || true
+            sleep 2
+            echo "--- systemctl status (post enable --now) ---"
+            systemctl is-enabled deepseek-loop.service 2>&1 || true
+            systemctl is-active  deepseek-loop.service 2>&1 || true
+            systemctl status deepseek-loop.service --no-pager -l 2>&1 | head -25 || true
+          else
+            # Leave the unit installed (for `systemctl status`) but do not
+            # start it — the script would exit 0 immediately anyway.
+            systemctl enable deepseek-loop.service 2>/dev/null || true
+            echo "ℹ️  DEEPSEEK_LOOP_ENABLED not set to 1 in $ENV_FILE — loop unit installed but inactive"
+          fi
           SSHEOF
 
       - name: 🤖 Install autonomous health/payment bots

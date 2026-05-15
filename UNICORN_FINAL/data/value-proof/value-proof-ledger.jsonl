@@ -149,3 +149,4 @@
 {"id":"val_f52fe8fabb0315ca","ts":"2026-05-14T12:55:06.746Z","tenantId":"test-tenant","outcome":"energy-saved","unit":"kwh","amount":1500,"valueUsd":300,"hash":"f52fe8fabb0315ca051294a140aed71437c81962d1a6bbca2ae4fb9343c26609","proof":null}
 {"id":"val_056523adc55d2b86","ts":"2026-05-14T12:56:00.160Z","tenantId":"test-tenant","outcome":"energy-saved","unit":"kwh","amount":1500,"valueUsd":300,"hash":"056523adc55d2b86d8c524b84b5394771cd41af5a4ae33a93384d722b489bfaa","proof":null}
 {"id":"val_8d9bd8f109211b14","ts":"2026-05-15T09:01:33.023Z","tenantId":"test-tenant","outcome":"energy-saved","unit":"kwh","amount":1500,"valueUsd":300,"hash":"8d9bd8f109211b1458c2f590314552676853257fd03bb38137a83ec2a6fc6b27","proof":null}
+{"id":"val_8cf000927f653de8","ts":"2026-05-15T09:05:23.519Z","tenantId":"test-tenant","outcome":"energy-saved","unit":"kwh","amount":1500,"valueUsd":300,"hash":"8cf000927f653de8a0c5edb4850007840a23970984815111fe60805f58f7f076","proof":null}

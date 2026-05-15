@@ -1,15 +1,20 @@
 # DeepSeek Advisory Loop — systemd unit
 #
-# This unit is installed by the `🛠️ Install DeepSeek Loop (Hetzner)` workflow
-# (`.github/workflows/install-deepseek-loop.yml`) on operator demand
-# (workflow_dispatch). It is intentionally NOT installed by `deploy.yml`,
-# matching Golden Rule #4 (no auto-sync of optional loops).
+# Auto-installed by `deploy.yml` on every push to main (step
+# “🧠 Install + start DeepSeek advisory/execute loop (default-OFF)”).
+# A manual fallback also exists: the `🛠️ Install DeepSeek Loop (Hetzner)`
+# workflow (`.github/workflows/install-deepseek-loop.yml`) can install,
+# uninstall, or report status on demand (workflow_dispatch).
 #
 # After install, the loop is still default-OFF: the script exits 0 unless
-# `DEEPSEEK_LOOP_ENABLED=1` is set in the EnvironmentFile. To actually run:
-#   1. Add `DEEPSEEK_LOOP_ENABLED=1` (and DEEPSEEK_API_KEY) to
-#      /var/www/unicorn/UNICORN_FINAL/.env
-#   2. `systemctl enable --now deepseek-loop.service`
+# `DEEPSEEK_LOOP_ENABLED=1` is set in the EnvironmentFile. To actually run,
+# either:
+#   1. Set DEEPSEEK_LOOP_ENABLED=1 + DEEPSEEK_API_KEY (+ DEEPSEEK_LOOP_EXECUTE=1
+#      + DEEPSEEK_LOOP_ADMIN_TOKEN for execute mode) as repository secrets in
+#      GitHub Actions — `create-env.sh` propagates them to `.env` on next
+#      deploy and the install step then runs `systemctl enable --now`.
+#   2. Or, manually on the box: edit /var/www/unicorn/UNICORN_FINAL/.env then
+#      `systemctl enable --now deepseek-loop.service`
 #
 # Safety:
 #   * Default-OFF gate inside the script (`DEEPSEEK_LOOP_ENABLED=1` required).
