@@ -137,10 +137,65 @@ async function run() {
 
   await test('getStatus exposes allowlist + limits, no per-IP detail', async () => {
     const s = governor.getStatus();
-    assert.deepEqual(s.allowedActions.slice().sort(), ['checkout_fix', 'none', 'prices_sync', 'read_status', 'restart_service', 'run_test']);
+    assert.deepEqual(s.allowedActions.slice().sort(), ['checkout_fix', 'none', 'prices_sync', 'read_file', 'read_status', 'restart_service', 'run_test']);
     assert.ok(s.limits.perHourPerIp >= 1);
     assert.ok(s.limits.perDayPerIp >= s.limits.perHourPerIp);
     assert.ok(!('perIp' in s), 'must not leak per-IP details');
+  });
+
+  // ---------- read_file safety envelope ----------
+  await test('read_file: missing path → path_required', async () => {
+    governor._resetForTests();
+    const r = await governor.dispatch({ action: 'read_file', params: {}, requestId: 'rf-1', ip: '127.0.0.1' });
+    assert.equal(r.status, 422);
+    assert.equal(r.body.reason, 'path_required');
+  });
+
+  await test('read_file: rejects path traversal outside root', async () => {
+    governor._resetForTests();
+    const r = await governor.dispatch({ action: 'read_file', params: { path: '/etc/passwd' }, requestId: 'rf-2', ip: '127.0.0.1' });
+    assert.equal(r.status, 422);
+    assert.ok(['path_outside_root', 'not_found', 'extension_not_allowed', 'segment_denied'].includes(r.body.reason), 'reason was ' + r.body.reason);
+  });
+
+  await test('read_file: rejects disallowed extension', async () => {
+    governor._resetForTests();
+    const r = await governor.dispatch({ action: 'read_file', params: { path: 'run.sh' }, requestId: 'rf-3', ip: '127.0.0.1' });
+    assert.equal(r.status, 422);
+    assert.ok(['extension_not_allowed', 'not_found'].includes(r.body.reason));
+  });
+
+  await test('read_file: rejects .git segment', async () => {
+    governor._resetForTests();
+    const r = await governor.dispatch({ action: 'read_file', params: { path: '.git/config' }, requestId: 'rf-4', ip: '127.0.0.1' });
+    assert.equal(r.status, 422);
+    assert.ok(['segment_denied', 'extension_not_allowed', 'not_found'].includes(r.body.reason));
+  });
+
+  await test('read_file: rejects .env file', async () => {
+    governor._resetForTests();
+    const r = await governor.dispatch({ action: 'read_file', params: { path: '.env.example' }, requestId: 'rf-5', ip: '127.0.0.1' });
+    assert.equal(r.status, 422);
+    // .env.example → segment ends with .env, denied
+    assert.ok(['segment_denied', 'not_found', 'extension_not_allowed'].includes(r.body.reason));
+  });
+
+  await test('read_file: rejects names containing "secret"', async () => {
+    governor._resetForTests();
+    // Use an .md file that does not exist with "secret" in name — should fail name check, not just not_found
+    const r = await governor.dispatch({ action: 'read_file', params: { path: 'docs/my-secret-notes.md' }, requestId: 'rf-6', ip: '127.0.0.1' });
+    assert.equal(r.status, 422);
+    assert.ok(['name_denied', 'not_found'].includes(r.body.reason));
+  });
+
+  await test('read_file: reads an allowed .json file', async () => {
+    governor._resetForTests();
+    const r = await governor.dispatch({ action: 'read_file', params: { path: 'package.json' }, requestId: 'rf-7', ip: '127.0.0.1' });
+    assert.equal(r.status, 200);
+    assert.equal(r.body.ok, true);
+    assert.equal(r.body.encoding, 'base64');
+    const decoded = Buffer.from(r.body.content, 'base64').toString('utf8');
+    assert.ok(decoded.indexOf('"name"') !== -1, 'should include package.json name field');
   });
 
   await test('log file is written and parseable JSONL', async () => {

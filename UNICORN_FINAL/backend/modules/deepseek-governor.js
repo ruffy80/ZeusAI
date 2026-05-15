@@ -40,11 +40,29 @@ const LOG_PATH            = process.env.DEEPSEEK_GOVERNOR_LOG_PATH
                           || path.join(__dirname, '..', '..', 'data', 'logs', 'deepseek-governor.log');
 const LOG_MAX_BYTES       = parseInt(process.env.DEEPSEEK_GOVERNOR_LOG_MAX_BYTES || String(2 * 1024 * 1024), 10);
 
+// read_file safety envelope / Plicul de siguranță pentru read_file
+const READ_FILE_ROOT      = path.resolve(process.env.DEEPSEEK_GOVERNOR_READ_ROOT || path.join(__dirname, '..', '..'));
+const READ_FILE_MAX_BYTES = parseInt(process.env.DEEPSEEK_GOVERNOR_READ_MAX_BYTES || String(256 * 1024), 10);
+const READ_FILE_EXT_ALLOWLIST = Object.freeze(['.js', '.json', '.yaml', '.yml', '.log', '.md', '.txt', '.html', '.css']);
+// Deny tokens: any path segment matching one of these is rejected outright.
+// Tokenuri interzise: orice segment de cale care se potrivește este respins.
+const READ_FILE_DENY_SEGMENTS = Object.freeze([
+  '.git', 'node_modules', '.ssh', '.npmrc', '.env',
+  'secrets', 'private', 'credentials', 'id_rsa', 'id_ed25519',
+]);
+// Substring deny list applied to the full relative path (case-insensitive).
+// Substring-uri interzise în calea relativă completă (case-insensitive).
+const READ_FILE_DENY_SUBSTRINGS = Object.freeze([
+  'secret', 'password', 'apikey', 'api_key', 'api-key',
+  'token', 'jwt', 'private_key', 'privatekey',
+]);
+
 // Allowed action names. Anything else is rejected with HTTP 400.
 // Numele acțiunilor permise. Orice altceva → respins (400).
 const ALLOWED_ACTIONS = Object.freeze([
   'none',
   'read_status',
+  'read_file',
   'prices_sync',
   'checkout_fix',
   'run_test',
@@ -121,6 +139,86 @@ function _gcRequestIds() {
 // -------- Action handlers / Handlere acțiuni ----------------------------
 function _action_none() {
   return { ok: true, action: 'none', note: 'no operation performed' };
+}
+
+// read_file: strict whitelist. Path must:
+//   1. resolve to a real path inside READ_FILE_ROOT (default = repo root);
+//   2. have an extension in READ_FILE_EXT_ALLOWLIST;
+//   3. contain no denied path segments (e.g. .git, .ssh, .env, node_modules);
+//   4. contain no denied substrings (secret, password, token, ...);
+//   5. not be a symlink (lstat check) — no symlink escape;
+//   6. not exceed READ_FILE_MAX_BYTES.
+// All checks happen AFTER fs.realpathSync resolution so '..' / symlink tricks
+// cannot escape the root. Returns base64-encoded content for binary safety.
+function _action_read_file(params) {
+  const raw = params && typeof params.path === 'string' ? params.path : '';
+  if (!raw) return { ok: false, action: 'read_file', reason: 'path_required' };
+  // Reject NUL bytes outright (Node sometimes accepts them).
+  if (raw.indexOf('\0') !== -1) return { ok: false, action: 'read_file', reason: 'invalid_path' };
+  // Reject absolute paths outside the root early; require relative-or-rooted.
+  let candidate;
+  try {
+    candidate = path.isAbsolute(raw) ? path.normalize(raw) : path.resolve(READ_FILE_ROOT, raw);
+  } catch (_) {
+    return { ok: false, action: 'read_file', reason: 'invalid_path' };
+  }
+  // Resolve symlinks; if the file doesn't exist, realpathSync will throw.
+  let real;
+  try {
+    real = fs.realpathSync(candidate);
+  } catch (_) {
+    return { ok: false, action: 'read_file', reason: 'not_found' };
+  }
+  // Containment: must be inside READ_FILE_ROOT.
+  const rootReal = fs.realpathSync(READ_FILE_ROOT);
+  const rel = path.relative(rootReal, real);
+  if (rel.startsWith('..') || path.isAbsolute(rel)) {
+    return { ok: false, action: 'read_file', reason: 'path_outside_root' };
+  }
+  // No-symlink: lstat must agree with stat target type (file).
+  let lst;
+  try { lst = fs.lstatSync(real); } catch (_) { return { ok: false, action: 'read_file', reason: 'not_found' }; }
+  if (lst.isSymbolicLink()) return { ok: false, action: 'read_file', reason: 'symlink_not_allowed' };
+  if (!lst.isFile())        return { ok: false, action: 'read_file', reason: 'not_a_file' };
+  // Extension allowlist.
+  const ext = path.extname(real).toLowerCase();
+  if (!READ_FILE_EXT_ALLOWLIST.includes(ext)) {
+    return { ok: false, action: 'read_file', reason: 'extension_not_allowed', allowed: READ_FILE_EXT_ALLOWLIST };
+  }
+  // Per-segment deny.
+  const segs = rel.split(/[\\/]/);
+  for (const seg of segs) {
+    const lower = seg.toLowerCase();
+    for (const deny of READ_FILE_DENY_SEGMENTS) {
+      if (lower === deny.toLowerCase() || lower.endsWith(deny.toLowerCase())) {
+        return { ok: false, action: 'read_file', reason: 'segment_denied', segment: seg };
+      }
+    }
+  }
+  // Substring deny on full relative path.
+  const lowerRel = rel.toLowerCase();
+  for (const deny of READ_FILE_DENY_SUBSTRINGS) {
+    if (lowerRel.indexOf(deny) !== -1) {
+      return { ok: false, action: 'read_file', reason: 'name_denied', match: deny };
+    }
+  }
+  // Size cap.
+  if (lst.size > READ_FILE_MAX_BYTES) {
+    return { ok: false, action: 'read_file', reason: 'too_large', size: lst.size, max: READ_FILE_MAX_BYTES };
+  }
+  let buf;
+  try { buf = fs.readFileSync(real); } catch (e) {
+    return { ok: false, action: 'read_file', reason: 'read_failed', error: String(e && e.message || e).slice(0, 200) };
+  }
+  return {
+    ok: true,
+    action: 'read_file',
+    path: rel,
+    size: buf.length,
+    encoding: 'base64',
+    content: buf.toString('base64'),
+    timestamp: new Date().toISOString(),
+  };
 }
 
 function _action_read_status() {
@@ -283,6 +381,7 @@ async function dispatch({ action, params, requestId, actor, ip }) {
     switch (safeAction) {
       case 'none':            result = _action_none(); break;
       case 'read_status':     result = _action_read_status(); break;
+      case 'read_file':       result = _action_read_file(params); break;
       case 'prices_sync':     result = await _action_prices_sync(); break;
       case 'checkout_fix':    result = await _action_checkout_fix(); break;
       case 'run_test':        result = await _action_run_test(); break;

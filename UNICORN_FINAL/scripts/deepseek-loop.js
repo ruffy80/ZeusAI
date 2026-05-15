@@ -53,7 +53,7 @@ const ADMIN_TOKEN            = process.env.DEEPSEEK_LOOP_ADMIN_TOKEN || '';
 const LOG_PATH               = process.env.DEEPSEEK_LOOP_LOG_PATH
                              || path.join(__dirname, '..', 'data', 'logs', 'deepseek-loop.log');
 const ERROR_LOG_PATH         = process.env.DEEPSEEK_LOOP_ERROR_LOG || '/var/log/unicorn/error.log';
-const ALLOWED_ACTIONS = ['none', 'read_status', 'prices_sync', 'checkout_fix', 'run_test', 'restart_service'];
+const ALLOWED_ACTIONS = ['none', 'read_status', 'read_file', 'prices_sync', 'checkout_fix', 'run_test', 'restart_service'];
 
 // ---------- Logging ----------
 function ensureLogDir() {

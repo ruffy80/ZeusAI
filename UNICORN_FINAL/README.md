@@ -40,6 +40,7 @@ Both require a valid admin JWT (`adminTokenMiddleware`) and pass through
 | ----------------- | ---------------------------------------------------------------------- |
 | `none`            | No-op.                                                                 |
 | `read_status`     | Returns a curated runtime snapshot (no secrets, no arbitrary file reads). |
+| `read_file`       | Reads a file from the repo root with a strict whitelist: extension must be one of `.js/.json/.yaml/.yml/.log/.md/.txt/.html/.css`; path segments matching `.git/.ssh/.env/node_modules/secrets/private/credentials/id_rsa/id_ed25519` are rejected; substrings `secret/password/apikey/token/jwt/private_key` are rejected; symlinks are rejected; max 256 KiB; content returned base64-encoded. Configurable via `DEEPSEEK_GOVERNOR_READ_ROOT`, `DEEPSEEK_GOVERNOR_READ_MAX_BYTES`. |
 | `prices_sync`     | Calls `livePricingBroker._refresh()` and returns snapshot summary.     |
 | `checkout_fix`    | Read-only checkout-health re-check. Never mutates user data.           |
 | `run_test`        | Spawns `npm test` with `shell:false` and a 30 s hard timeout.          |
