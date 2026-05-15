@@ -1307,18 +1307,18 @@ export default function QuantumLoader() {
       return { id: r.data && r.data.id, mode: 'live' };
     });
 
-    // Discord webhook (zero-config dacă DISCORD_WEBHOOK_URL e setat)
+    // Discord webhook (acceptă DISCORD_WEBHOOK_URL sau DISCORD_WEBHOOK — ultimul e standardul Unicorn)
     await tryPost('discord', async () => {
-      const url = process.env.DISCORD_WEBHOOK_URL;
+      const url = process.env.DISCORD_WEBHOOK_URL || process.env.DISCORD_WEBHOOK || process.env.WATCHDOG_DISCORD_WEBHOOK;
       if (!url) return { mode: 'log-only' };
-      await axios.post(url, { content: body }, { timeout: 10000 });
+      await axios.post(url, { content: body, username: 'ZeusAI Unicorn', avatar_url: 'https://zeusai.pro/assets/og-image.png' }, { timeout: 10000 });
       return { mode: 'live' };
     });
 
-    // Telegram channel (TELEGRAM_BOT_TOKEN + TELEGRAM_CHAT_ID)
+    // Telegram channel (TELEGRAM_BOT_TOKEN + TELEGRAM_CHAT_ID, fallback la ZAC_*)
     await tryPost('telegram', async () => {
-      const tok = process.env.TELEGRAM_BOT_TOKEN;
-      const chat = process.env.TELEGRAM_CHAT_ID;
+      const tok = process.env.TELEGRAM_BOT_TOKEN || process.env.ZAC_TELEGRAM_TOKEN;
+      const chat = process.env.TELEGRAM_CHAT_ID || process.env.ZAC_TELEGRAM_CHAT_ID;
       if (!tok || !chat) return { mode: 'log-only' };
       const r = await axios.post(`https://api.telegram.org/bot${tok}/sendMessage`, { chat_id: chat, text: body, disable_web_page_preview: false }, { timeout: 10000 });
       return { id: r.data && r.data.result && r.data.result.message_id, mode: 'live' };

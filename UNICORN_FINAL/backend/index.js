@@ -10861,6 +10861,39 @@ app.get('/api/social/snapshot', (req, res) => {
   }
 });
 
+// Trigger manual al unui ciclu de marketing (post Twitter/Telegram/Discord/etc) \u2014 util pentru test live.
+app.post('/api/social/trigger', async (req, res) => {
+  try {
+    const customTitle = (req.body && req.body.title) || null;
+    const customDesc = (req.body && req.body.description) || null;
+    const content = (typeof uee.generateMarketingContent === 'function')
+      ? await uee.generateMarketingContent()
+      : { title: 'ZeusAI Unicorn live', description: 'Autonomous SaaS platform online', hashtags: ['#AI', '#ZeusAI'], image: 'https://zeusai.pro/assets/og-image.png' };
+    if (customTitle) content.title = customTitle;
+    if (customDesc) content.description = customDesc;
+    await uee.postToSocialMedia(content);
+    res.json({ ok: true, posted: content, recentLog: (uee.socialLog || []).slice(-10) });
+  } catch (err) {
+    res.status(500).json({ ok: false, error: err.message });
+  }
+});
+
+// Force ciclu etern complet (innovate + heal + market + patent) \u2014 admin only via ?key=ADMIN_TOKEN.
+app.post('/api/uee/cycle', async (req, res) => {
+  try {
+    const adminKey = process.env.ADMIN_TOKEN || process.env.ADMIN_SECRET;
+    const provided = req.query.key || req.headers['x-admin-token'];
+    if (adminKey && provided !== adminKey) return res.status(401).json({ ok: false, error: 'unauthorized' });
+    if (typeof uee.runEternalCycle === 'function') {
+      // fire-and-forget ca s\u0103 nu blocheze response
+      uee.runEternalCycle().catch(e => console.warn('UEE cycle err:', e.message));
+    }
+    res.json({ ok: true, started: true, statsBefore: typeof uee.getStats === 'function' ? uee.getStats() : {} });
+  } catch (err) {
+    res.status(500).json({ ok: false, error: err.message });
+  }
+});
+
 // ==================== GLOBAL ERROR HANDLER ====================
 // Catches any unhandled errors thrown in route handlers.
 // In production, never expose the stack trace to the client.
