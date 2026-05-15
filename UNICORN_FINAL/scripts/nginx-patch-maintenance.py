@@ -129,7 +129,7 @@ def nginx_reload():
 def make_backup(site_path):
     """Keep backups outside /etc/nginx/sites-enabled so they are not parsed
     as additional vhosts."""
-    ts = datetime.datetime.utcnow().strftime("%Y%m%dT%H%M%SZ")
+    ts = datetime.datetime.now(datetime.timezone.utc).strftime("%Y%m%dT%H%M%SZ")
     backup_dir = "/var/backups/zeus-nginx-maintenance"
     os.makedirs(backup_dir, exist_ok=True)
     backup_name = os.path.basename(site_path).replace(os.sep, "_")
