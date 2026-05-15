@@ -48,7 +48,9 @@ ProtectControlGroups=true
 RestrictSUIDSGID=true
 RestrictRealtime=true
 LockPersonality=true
-MemoryDenyWriteExecute=true
+# Node/V8 can require writable+executable memory for JIT/baseline compilation;
+# enabling MemoryDenyWriteExecute makes the service crash with signal=TRAP.
+MemoryDenyWriteExecute=false
 SystemCallFilter=@system-service
 SystemCallErrorNumber=EPERM
 

@@ -49,11 +49,50 @@ const PRICING_PAGE_URL       = process.env.DEEPSEEK_LOOP_PRICING_URL || 'https:/
 const DEEPSEEK_API_URL       = process.env.DEEPSEEK_API_URL || 'https://api.deepseek.com/v1/chat/completions';
 const DEEPSEEK_API_KEY       = process.env.DEEPSEEK_API_KEY || '';
 const DEEPSEEK_MODEL         = process.env.DEEPSEEK_MODEL || 'deepseek-reasoner';
+const OPENROUTER_API_KEY     = process.env.OPENROUTER_API_KEY || '';
+const OPENROUTER_DEEPSEEK_MODEL = process.env.OPENROUTER_DEEPSEEK_MODEL || 'deepseek/deepseek-r1:free';
+const GROQ_API_KEY           = process.env.GROQ_API_KEY || '';
+const GROQ_DEEPSEEK_MODEL    = process.env.GROQ_DEEPSEEK_MODEL || 'deepseek-r1-distill-llama-70b';
 const ADMIN_TOKEN            = process.env.DEEPSEEK_LOOP_ADMIN_TOKEN || '';
 const LOG_PATH               = process.env.DEEPSEEK_LOOP_LOG_PATH
                              || path.join(__dirname, '..', 'data', 'logs', 'deepseek-loop.log');
 const ERROR_LOG_PATH         = process.env.DEEPSEEK_LOOP_ERROR_LOG || '/var/log/unicorn/error.log';
 const ALLOWED_ACTIONS = ['none', 'read_status', 'read_file', 'prices_sync', 'checkout_fix', 'run_test', 'restart_service'];
+
+function getAdvisorProviders() {
+  const providers = [];
+  if (DEEPSEEK_API_KEY) {
+    providers.push({
+      name: 'deepseek-direct',
+      url: DEEPSEEK_API_URL,
+      key: DEEPSEEK_API_KEY,
+      model: DEEPSEEK_MODEL,
+      headers: {},
+    });
+  }
+  if (OPENROUTER_API_KEY) {
+    providers.push({
+      name: 'openrouter-deepseek',
+      url: 'https://openrouter.ai/api/v1/chat/completions',
+      key: OPENROUTER_API_KEY,
+      model: OPENROUTER_DEEPSEEK_MODEL,
+      headers: {
+        'HTTP-Referer': 'https://zeusai.pro',
+        'X-Title': 'ZeusAI DeepSeek Loop',
+      },
+    });
+  }
+  if (GROQ_API_KEY) {
+    providers.push({
+      name: 'groq-deepseek',
+      url: 'https://api.groq.com/openai/v1/chat/completions',
+      key: GROQ_API_KEY,
+      model: GROQ_DEEPSEEK_MODEL,
+      headers: {},
+    });
+  }
+  return providers;
+}
 
 // ---------- Logging ----------
 function ensureLogDir() {
@@ -131,7 +170,8 @@ async function collectStatus() {
 
 // ---------- DeepSeek call ----------
 async function askDeepSeek(status) {
-  if (!DEEPSEEK_API_KEY) throw new Error('missing_DEEPSEEK_API_KEY');
+  const providers = getAdvisorProviders();
+  if (!providers.length) throw new Error('missing_deepseek_advisor_provider_key');
   const systemPrompt =
     'You are the DeepSeek operations advisor for the Unicorn platform. ' +
     'Based on the given status JSON, choose EXACTLY ONE action from this hardcoded allowlist: ' +
@@ -141,8 +181,10 @@ async function askDeepSeek(status) {
     'For restart_service, params.service MUST be one of: unicorn-backend, unicorn-frontend, unicorn-site, pricing-module. ' +
     'If unsure, return action="none". Never invent actions outside the allowlist.';
   const userPrompt = 'STATUS:\n' + JSON.stringify(status, null, 2);
-  const body = JSON.stringify({
-    model: DEEPSEEK_MODEL,
+  let lastError = null;
+  for (const provider of providers) {
+    const body = JSON.stringify({
+    model: provider.model,
     messages: [
       { role: 'system', content: systemPrompt },
       { role: 'user', content: userPrompt },
@@ -150,23 +192,32 @@ async function askDeepSeek(status) {
     temperature: 0.1,
     response_format: { type: 'json_object' },
   });
-  const res = await request(DEEPSEEK_API_URL, {
-    method: 'POST',
-    timeoutMs: 30_000,
-    headers: {
-      'Authorization': 'Bearer ' + DEEPSEEK_API_KEY,
-      'Content-Type': 'application/json',
-      'Content-Length': Buffer.byteLength(body),
-    },
-  }, body);
-  if (res.status < 200 || res.status >= 300) throw new Error('deepseek_http_' + res.status);
-  let parsed;
-  try { parsed = JSON.parse(res.body); } catch (e) { throw new Error('deepseek_non_json'); }
-  const content = parsed && parsed.choices && parsed.choices[0] && parsed.choices[0].message && parsed.choices[0].message.content;
-  if (!content) throw new Error('deepseek_empty_content');
-  let action;
-  try { action = JSON.parse(content); } catch (e) { throw new Error('deepseek_content_non_json'); }
-  return action;
+    try {
+      const res = await request(provider.url, {
+        method: 'POST',
+        timeoutMs: 30_000,
+        headers: {
+          ...provider.headers,
+          'Authorization': 'Bearer ' + provider.key,
+          'Content-Type': 'application/json',
+          'Content-Length': Buffer.byteLength(body),
+        },
+      }, body);
+      if (res.status < 200 || res.status >= 300) throw new Error(provider.name + '_http_' + res.status);
+      let parsed;
+      try { parsed = JSON.parse(res.body); } catch (e) { throw new Error(provider.name + '_non_json'); }
+      const content = parsed && parsed.choices && parsed.choices[0] && parsed.choices[0].message && parsed.choices[0].message.content;
+      if (!content) throw new Error(provider.name + '_empty_content');
+      let action;
+      try { action = JSON.parse(content); } catch (e) { throw new Error(provider.name + '_content_non_json'); }
+      log('info', 'advisor_provider_ok', { provider: provider.name, model: provider.model });
+      return action;
+    } catch (e) {
+      lastError = e;
+      log('warn', 'advisor_provider_failed', { provider: provider.name, error: String(e && e.message || e).slice(0, 200) });
+    }
+  }
+  throw lastError || new Error('all_deepseek_advisor_providers_failed');
 }
 
 // ---------- Client-side validation (server re-validates anyway) ----------
@@ -243,7 +294,7 @@ function main() {
     executeMode: EXECUTE_MODE,
     intervalMs: INTERVAL_MS,
     backendUrl: BACKEND_URL,
-    hasApiKey: !!DEEPSEEK_API_KEY,
+    advisorProviders: getAdvisorProviders().map((provider) => provider.name),
     hasAdminToken: !!ADMIN_TOKEN,
   });
   if (!ENABLED) {
