@@ -520,6 +520,14 @@ jobs:
             # which has no implementation and would 404 the Buy flow.
             python3 "$DEPLOY_PATH/scripts/nginx-patch-sovereign-commerce-routes.py" || \
               echo "[nginx-patch-sovereign-commerce-routes] patch failed (continuing)"
+            # ZEUS-NEVER-502: install the static maintenance fallback so that
+            # when both unicorn-site:3001 and unicorn-backend:3000 are down
+            # (mid pm2 reload, OOM, post-rsync race) nginx serves a friendly
+            # auto-refreshing HTML page from /var/www/maintenance/index.html
+            # instead of a bare 502 Bad Gateway. Fully idempotent.
+            bash "$DEPLOY_PATH/scripts/install-maintenance-page.sh" \
+                 "$DEPLOY_PATH" "$DOMAIN" || \
+              echo "[install-maintenance-page] step failed (continuing)"
           else
             echo "[nginx-patch] python3 indisponibil pe host — sărit (instalează-l ca să activezi /.well-known/*)"
           fi
