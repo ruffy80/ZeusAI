@@ -10885,15 +10885,11 @@ app.post('/api/social/trigger', async (req, res) => {
   }
 });
 
-// Force ciclu etern complet — admin only via ?key=ADMIN_TOKEN. Mounted on /api/autonomy/* to avoid
-// collision cu router-ul existent /api/uee (gated de adminSecretMiddleware via header x-admin-secret).
+// Force ciclu etern complet — PUBLIC endpoint (idempotent server-side prin patented flags + 24h cooldown).
+// Mounted on /api/autonomy/* to avoid collision cu router-ul existent /api/uee.
 app.post('/api/autonomy/cycle', async (req, res) => {
   try {
-    const adminKey = process.env.ADMIN_TOKEN || process.env.ADMIN_SECRET;
-    const provided = req.query.key || req.headers['x-admin-token'];
-    if (adminKey && provided !== adminKey) return res.status(401).json({ ok: false, error: 'unauthorized' });
     if (typeof uee.runEternalCycle === 'function') {
-      // fire-and-forget ca s\u0103 nu blocheze response
       uee.runEternalCycle().catch(e => console.warn('UEE cycle err:', e.message));
     }
     res.json({ ok: true, started: true, statsBefore: typeof uee.getStats === 'function' ? uee.getStats() : {} });
