@@ -86,19 +86,29 @@ Environment knobs:
 
 Circuit breaker, no shell, no eval, no file writes outside its log.
 
-A systemd unit ships at `scripts/deepseek-loop.service`. It is **not
-installed by `deploy.yml`**. Instead, an operator can install it on demand
-via the **`🛠️ Install DeepSeek Loop (Hetzner)`** workflow
-(`.github/workflows/install-deepseek-loop.yml`, `workflow_dispatch`), which
-SCP-s the unit to `/etc/systemd/system/`, runs `daemon-reload`, and reports
-`systemctl status`. The loop remains **default-OFF** even after install —
-to actually start it: add `DEEPSEEK_LOOP_ENABLED=1` (and `DEEPSEEK_API_KEY`)
-to `/var/www/unicorn/UNICORN_FINAL/.env`, then re-run the workflow with
-`action: install_and_enable` and `force_enable: true`, or `systemctl
-enable --now deepseek-loop.service` over SSH. The unit hardens the runtime
-with `NoNewPrivileges`, `ProtectSystem=strict`, `MemoryDenyWriteExecute`,
-and a restrictive `SystemCallFilter`, and uses `Restart=on-failure` so the
-default-OFF clean exit does not cause a restart loop.
+A systemd unit ships at `scripts/deepseek-loop.service`. It is **auto-installed
+by `deploy.yml`** on every successful push to `main` (step _“🧠 Install + start
+DeepSeek advisory/execute loop (default-OFF)”_): the unit is copied to
+`/etc/systemd/system/`, `daemon-reload`-ed, and—only when
+`DEEPSEEK_LOOP_ENABLED=1` is present in `/var/www/unicorn/UNICORN_FINAL/.env`—
+`systemctl enable --now`-ed. A manual fallback workflow (**`🛠️ Install DeepSeek
+Loop (Hetzner)`**, `.github/workflows/install-deepseek-loop.yml`,
+`workflow_dispatch`) remains available for install/uninstall/status outside the
+normal deploy path. The loop remains **default-OFF**: to bring it up at full
+power, set the following as repository secrets in GitHub Actions so
+`create-env.sh` propagates them to `.env` on the next deploy:
+
+- `DEEPSEEK_API_KEY` — DeepSeek API token.
+- `DEEPSEEK_LOOP_ENABLED=1` — flips the in-script gate.
+- `DEEPSEEK_LOOP_EXECUTE=1` and `DEEPSEEK_LOOP_ADMIN_TOKEN=<admin-jwt>` —
+  required together to switch from advisory-only to execute mode (POST to
+  `/api/admin/deepseek/act`). Without both the loop only logs recommendations.
+- *(optional)* `DEEPSEEK_LOOP_INTERVAL_MS`, `DEEPSEEK_LOOP_BACKEND_URL`.
+
+The unit hardens the runtime with `NoNewPrivileges`, `ProtectSystem=strict`,
+`MemoryDenyWriteExecute`, and a restrictive `SystemCallFilter`, and uses
+`Restart=on-failure` so the default-OFF clean exit does not cause a restart
+loop.
 
 ### Tests
 `test/deepseek-governor.test.js` enforces the allowlist contract (including

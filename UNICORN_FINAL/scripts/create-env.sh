@@ -355,6 +355,23 @@ upsert VIRAL_CYCLE_MS        "${VIRAL_CYCLE_MS:-3600000}"
 upsert VIRAL_CONTENT_PER_CYCLE "${VIRAL_CONTENT_PER_CYCLE:-3}"
 upsert VIRAL_REFERRALS_PER_CYCLE "${VIRAL_REFERRALS_PER_CYCLE:-5}"
 upsert PROFIT_LOOP_INTERVAL_MS "${PROFIT_LOOP_INTERVAL_MS:-300000}"
+
+# ── DeepSeek Advisory/Execute Loop (default-OFF; opt-in via CI secrets) ───────
+# When the operator sets these as GH Actions repository secrets, every deploy
+# propagates them to /var/www/unicorn/UNICORN_FINAL/.env so the systemd unit
+# `deepseek-loop.service` (installed in the post-deploy step) picks them up via
+# its EnvironmentFile= directive.  All defaults remain OFF — only the explicit
+# combination DEEPSEEK_LOOP_ENABLED=1 + DEEPSEEK_API_KEY=<key> activates the
+# advisory loop; full execute mode additionally needs DEEPSEEK_LOOP_EXECUTE=1
+# AND DEEPSEEK_LOOP_ADMIN_TOKEN.  Per PR #547 the server-side governor still
+# re-validates every action against its hardcoded allowlist.
+# (RO) Bucla DeepSeek rămâne default-OFF; setarea lor în GitHub Secrets este
+# singura modalitate prin care `deploy.yml` o activează „full power”.
+upsert DEEPSEEK_LOOP_ENABLED       "${DEEPSEEK_LOOP_ENABLED:-}"
+upsert DEEPSEEK_LOOP_EXECUTE       "${DEEPSEEK_LOOP_EXECUTE:-}"
+upsert DEEPSEEK_LOOP_ADMIN_TOKEN   "${DEEPSEEK_LOOP_ADMIN_TOKEN:-}"
+upsert DEEPSEEK_LOOP_INTERVAL_MS   "${DEEPSEEK_LOOP_INTERVAL_MS:-}"
+upsert DEEPSEEK_LOOP_BACKEND_URL   "${DEEPSEEK_LOOP_BACKEND_URL:-}"
 upsert ORCHESTRATOR_POLL_MS  "${ORCHESTRATOR_POLL_MS:-60000}"
 upsert ORCHESTRATOR_GH_MS    "${ORCHESTRATOR_GH_MS:-120000}"
 upsert ORCHESTRATOR_DNS_MS   "${ORCHESTRATOR_DNS_MS:-300000}"
