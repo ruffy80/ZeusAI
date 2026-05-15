@@ -1,0 +1,167 @@
+name: 🛠️ Install DeepSeek Loop (Hetzner)
+
+# Manual-only workflow that installs/uninstalls/inspects the systemd unit
+# `deepseek-loop.service` on the live Hetzner host.
+#
+# Why this is a separate workflow (per Golden Rule #4):
+# `deploy.yml` does NOT install optional advisory loops automatically. This
+# workflow gives operators a single-click GitHub Actions UI to register the
+# unit so that `systemctl status deepseek-loop` returns a meaningful state.
+#
+# Important:
+#   * The loop remains DEFAULT-OFF even after install. The script exits 0
+#     unless `DEEPSEEK_LOOP_ENABLED=1` is present in the EnvironmentFile
+#     `/var/www/unicorn/UNICORN_FINAL/.env`.
+#   * `action: install` only writes the unit + `daemon-reload`. It does NOT
+#     `enable --now` the service. Use `action: install_and_enable` (with
+#     `force_enable: true`) to also enable it.
+#   * `action: uninstall` stops + disables + removes the unit file.
+#   * `action: status` only reports current state (read-only).
+
+on:
+  workflow_dispatch:
+    inputs:
+      action:
+        description: 'What to do on the host'
+        type: choice
+        required: true
+        default: status
+        options:
+          - status
+          - install
+          - install_and_enable
+          - uninstall
+      force_enable:
+        description: 'When action=install_and_enable, also `systemctl enable --now` (requires DEEPSEEK_LOOP_ENABLED=1 in /var/www/unicorn/UNICORN_FINAL/.env, otherwise the script will exit 0 immediately).'
+        type: boolean
+        default: false
+
+concurrency:
+  group: zeusai-install-deepseek-loop
+  cancel-in-progress: false
+
+jobs:
+  install-deepseek-loop:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Bootstrap SSH access
+        env:
+          HETZNER_SSH_PRIVATE_KEY: ${{ secrets.HETZNER_SSH_PRIVATE_KEY }}
+          HETZNER_HOST:            ${{ secrets.HETZNER_HOST }}
+        run: |
+          chmod +x UNICORN_FINAL/scripts/ensure-ssh-access.sh
+          bash UNICORN_FINAL/scripts/ensure-ssh-access.sh
+
+      - name: Install SSH key
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.HETZNER_SSH_PRIVATE_KEY }}
+
+      - name: Add Hetzner host to known_hosts
+        env:
+          HETZNER_HOST: ${{ secrets.HETZNER_HOST }}
+        run: |
+          mkdir -p ~/.ssh
+          ssh-keyscan -H "$HETZNER_HOST" >> ~/.ssh/known_hosts 2>/dev/null || true
+
+      - name: Local syntax check of unit file
+        run: |
+          set -eu
+          UNIT_SRC="UNICORN_FINAL/scripts/deepseek-loop.service"
+          test -f "$UNIT_SRC" || { echo "::error::Missing $UNIT_SRC"; exit 1; }
+          # Sanity: every required section header must be present.
+          grep -q '^\[Unit\]'    "$UNIT_SRC" || { echo "::error::[Unit] missing";    exit 1; }
+          grep -q '^\[Service\]' "$UNIT_SRC" || { echo "::error::[Service] missing"; exit 1; }
+          grep -q '^\[Install\]' "$UNIT_SRC" || { echo "::error::[Install] missing"; exit 1; }
+          echo "Unit file looks structurally valid."
+
+      - name: Upload unit file to Hetzner (action=install*)
+        if: ${{ inputs.action == 'install' || inputs.action == 'install_and_enable' }}
+        env:
+          HETZNER_HOST: ${{ secrets.HETZNER_HOST }}
+        run: |
+          set -eu
+          scp -o StrictHostKeyChecking=no \
+            UNICORN_FINAL/scripts/deepseek-loop.service \
+            root@"$HETZNER_HOST":/etc/systemd/system/deepseek-loop.service
+          ssh -o StrictHostKeyChecking=no root@"$HETZNER_HOST" bash -s <<'SSHEOF'
+            set -eu
+            chmod 0644 /etc/systemd/system/deepseek-loop.service
+            mkdir -p /var/www/unicorn/UNICORN_FINAL/data/logs
+            systemctl daemon-reload
+            echo "[install] daemon-reload OK"
+            # Make sure the script file actually exists in the canonical deploy path
+            if [ ! -f /var/www/unicorn/UNICORN_FINAL/scripts/deepseek-loop.js ]; then
+              echo "::warning::/var/www/unicorn/UNICORN_FINAL/scripts/deepseek-loop.js missing — run deploy.yml first or this service will fail to start."
+            fi
+          SSHEOF
+
+      - name: Enable + start (action=install_and_enable && force_enable)
+        if: ${{ inputs.action == 'install_and_enable' && inputs.force_enable == true }}
+        env:
+          HETZNER_HOST: ${{ secrets.HETZNER_HOST }}
+        run: |
+          set -eu
+          ssh -o StrictHostKeyChecking=no root@"$HETZNER_HOST" bash -s <<'SSHEOF'
+            set -eu
+            # Soft warning if the operator has not set DEEPSEEK_LOOP_ENABLED=1
+            ENV_FILE=/var/www/unicorn/UNICORN_FINAL/.env
+            if [ -f "$ENV_FILE" ] && ! grep -qE '^DEEPSEEK_LOOP_ENABLED=1' "$ENV_FILE"; then
+              echo "::warning::DEEPSEEK_LOOP_ENABLED=1 is NOT set in $ENV_FILE — the script will start and exit 0 immediately (advisory mode disabled)."
+            fi
+            systemctl enable --now deepseek-loop.service || true
+            sleep 2
+            systemctl is-enabled deepseek-loop.service || true
+            systemctl is-active  deepseek-loop.service || true
+          SSHEOF
+
+      - name: Uninstall (action=uninstall)
+        if: ${{ inputs.action == 'uninstall' }}
+        env:
+          HETZNER_HOST: ${{ secrets.HETZNER_HOST }}
+        run: |
+          set -eu
+          ssh -o StrictHostKeyChecking=no root@"$HETZNER_HOST" bash -s <<'SSHEOF'
+            set +e
+            systemctl disable --now deepseek-loop.service 2>&1 || true
+            systemctl reset-failed deepseek-loop.service 2>&1 || true
+            rm -f /etc/systemd/system/deepseek-loop.service
+            systemctl daemon-reload
+            echo "[uninstall] removed unit + daemon-reload"
+          SSHEOF
+
+      - name: Final status report (always)
+        if: always()
+        env:
+          HETZNER_HOST: ${{ secrets.HETZNER_HOST }}
+        run: |
+          set +e
+          echo "::group::systemctl status deepseek-loop"
+          ssh -o StrictHostKeyChecking=no root@"$HETZNER_HOST" \
+            'systemctl status deepseek-loop.service --no-pager -l 2>&1 || true' || true
+          echo "::endgroup::"
+
+          echo "::group::script + log presence"
+          ssh -o StrictHostKeyChecking=no root@"$HETZNER_HOST" bash -s <<'SSHEOF' || true
+            for p in \
+              /etc/systemd/system/deepseek-loop.service \
+              /var/www/unicorn/UNICORN_FINAL/scripts/deepseek-loop.js \
+              /var/www/unicorn/UNICORN_FINAL/data/logs/deepseek-loop.log
+            do
+              if [ -e "$p" ]; then printf '  present  %s\n' "$p"
+              else                 printf '  MISSING  %s\n' "$p"
+              fi
+            done
+          SSHEOF
+          echo "::endgroup::"
+
+          echo "::group::last 20 journal lines (best effort)"
+          ssh -o StrictHostKeyChecking=no root@"$HETZNER_HOST" \
+            'journalctl -u deepseek-loop --no-pager -n 20 2>&1 || true' || true
+          echo "::endgroup::"

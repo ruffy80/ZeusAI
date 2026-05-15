@@ -86,12 +86,19 @@ Environment knobs:
 
 Circuit breaker, no shell, no eval, no file writes outside its log.
 
-A systemd unit template ships at `scripts/deepseek-loop.service`. **It is not
-installed automatically by `.github/workflows/deploy.yml`** — an operator must
-copy it to `/etc/systemd/system/`, set the `EnvironmentFile`, and enable it
-explicitly. The unit hardens the runtime with `User=unicorn`, `NoNewPrivileges`,
-`ProtectSystem=strict`, `MemoryDenyWriteExecute`, and a restrictive
-`SystemCallFilter`.
+A systemd unit ships at `scripts/deepseek-loop.service`. It is **not
+installed by `deploy.yml`**. Instead, an operator can install it on demand
+via the **`🛠️ Install DeepSeek Loop (Hetzner)`** workflow
+(`.github/workflows/install-deepseek-loop.yml`, `workflow_dispatch`), which
+SCP-s the unit to `/etc/systemd/system/`, runs `daemon-reload`, and reports
+`systemctl status`. The loop remains **default-OFF** even after install —
+to actually start it: add `DEEPSEEK_LOOP_ENABLED=1` (and `DEEPSEEK_API_KEY`)
+to `/var/www/unicorn/UNICORN_FINAL/.env`, then re-run the workflow with
+`action: install_and_enable` and `force_enable: true`, or `systemctl
+enable --now deepseek-loop.service` over SSH. The unit hardens the runtime
+with `NoNewPrivileges`, `ProtectSystem=strict`, `MemoryDenyWriteExecute`,
+and a restrictive `SystemCallFilter`, and uses `Restart=on-failure` so the
+default-OFF clean exit does not cause a restart loop.
 
 ### Tests
 `test/deepseek-governor.test.js` enforces the allowlist contract (including

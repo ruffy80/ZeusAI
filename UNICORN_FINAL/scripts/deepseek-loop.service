@@ -1,33 +1,34 @@
-# DeepSeek Advisory Loop — systemd unit TEMPLATE
+# DeepSeek Advisory Loop — systemd unit
 #
-# This file is a TEMPLATE. It is NOT installed automatically by
-# `.github/workflows/deploy.yml`. An operator must copy it to
-# `/etc/systemd/system/deepseek-loop.service` on the host manually,
-# review the EnvironmentFile, then `systemctl daemon-reload` +
-# `systemctl enable --now deepseek-loop.service`.
+# This unit is installed by the `🛠️ Install DeepSeek Loop (Hetzner)` workflow
+# (`.github/workflows/install-deepseek-loop.yml`) on operator demand
+# (workflow_dispatch). It is intentionally NOT installed by `deploy.yml`,
+# matching Golden Rule #4 (no auto-sync of optional loops).
+#
+# After install, the loop is still default-OFF: the script exits 0 unless
+# `DEEPSEEK_LOOP_ENABLED=1` is set in the EnvironmentFile. To actually run:
+#   1. Add `DEEPSEEK_LOOP_ENABLED=1` (and DEEPSEEK_API_KEY) to
+#      /var/www/unicorn/UNICORN_FINAL/.env
+#   2. `systemctl enable --now deepseek-loop.service`
 #
 # Safety:
-#   * Runs as non-root user `unicorn`.
-#   * Default-OFF: the script exits cleanly unless DEEPSEEK_LOOP_ENABLED=1
-#     is set in the EnvironmentFile.
+#   * Default-OFF gate inside the script (`DEEPSEEK_LOOP_ENABLED=1` required).
 #   * Execute mode additionally requires DEEPSEEK_LOOP_EXECUTE=1 and
 #     DEEPSEEK_LOOP_ADMIN_TOKEN. Without both it is advisory only (log).
-#   * Restart=always with RestartSec=60 to recover from transient errors,
-#     not to mask a misconfiguration.
+#   * Restart=on-failure (NOT always) so that a clean `exit 0` from the
+#     default-OFF gate does NOT cause a tight restart loop while disabled.
 
 [Unit]
 Description=DeepSeek Advisory Loop (allowlist-only, default-off)
-After=network.target unicorn-backend.service
+After=network.target
 Wants=network-online.target
 
 [Service]
 Type=simple
-User=unicorn
-Group=unicorn
-EnvironmentFile=/opt/unicorn/.env
-WorkingDirectory=/opt/unicorn
-ExecStart=/usr/bin/node /opt/unicorn/scripts/deepseek-loop.js
-Restart=always
+EnvironmentFile=-/var/www/unicorn/UNICORN_FINAL/.env
+WorkingDirectory=/var/www/unicorn/UNICORN_FINAL
+ExecStart=/usr/bin/node /var/www/unicorn/UNICORN_FINAL/scripts/deepseek-loop.js
+Restart=on-failure
 RestartSec=60
 
 # Hardening — defense in depth.
@@ -35,7 +36,7 @@ NoNewPrivileges=true
 PrivateTmp=true
 ProtectSystem=strict
 ProtectHome=true
-ReadWritePaths=/opt/unicorn/data/logs
+ReadWritePaths=/var/www/unicorn/UNICORN_FINAL/data/logs
 ProtectKernelTunables=true
 ProtectKernelModules=true
 ProtectControlGroups=true
@@ -46,8 +47,9 @@ MemoryDenyWriteExecute=true
 SystemCallFilter=@system-service
 SystemCallErrorNumber=EPERM
 
-# Logging goes to journalctl + the per-script log file at
-# /opt/unicorn/data/logs/deepseek-loop.log (override with DEEPSEEK_LOOP_LOG_PATH).
+# Logging goes to journalctl + the per-script log file under
+# /var/www/unicorn/UNICORN_FINAL/data/logs/deepseek-loop.log
+# (override via DEEPSEEK_LOOP_LOG_PATH in the EnvironmentFile).
 StandardOutput=journal
 StandardError=journal
 
