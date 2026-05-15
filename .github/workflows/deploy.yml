@@ -628,10 +628,16 @@ jobs:
             systemctl is-active  deepseek-loop.service 2>&1 || true
             systemctl status deepseek-loop.service --no-pager -l 2>&1 | head -25 || true
           else
-            # Leave the unit installed (for `systemctl status`) but do not
-            # start it — the script would exit 0 immediately anyway.
-            systemctl enable deepseek-loop.service 2>/dev/null || true
-            echo "ℹ️  DEEPSEEK_LOOP_ENABLED not set to 1 in $ENV_FILE — loop unit installed but inactive"
+            # Honor the operator: when DEEPSEEK_LOOP_ENABLED is not set to 1
+            # (either never configured, or explicitly turned back off), make
+            # sure the unit will not auto-start on next boot either. This
+            # keeps the on/off state symmetric with the GH secret across
+            # deploys — flipping the secret OFF in CI fully deactivates the
+            # loop on the next push instead of leaving a re-enable-on-reboot
+            # surprise behind. `disable` is non-fatal when already disabled.
+            systemctl disable deepseek-loop.service 2>/dev/null || true
+            systemctl stop    deepseek-loop.service 2>/dev/null || true
+            echo "ℹ️  DEEPSEEK_LOOP_ENABLED not set to 1 in $ENV_FILE — loop unit installed but disabled+stopped"
           fi
           SSHEOF
 
