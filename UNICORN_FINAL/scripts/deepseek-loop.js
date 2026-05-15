@@ -50,9 +50,9 @@ const DEEPSEEK_API_URL       = process.env.DEEPSEEK_API_URL || 'https://api.deep
 const DEEPSEEK_API_KEY       = process.env.DEEPSEEK_API_KEY || '';
 const DEEPSEEK_MODEL         = process.env.DEEPSEEK_MODEL || 'deepseek-reasoner';
 const OPENROUTER_API_KEY     = process.env.OPENROUTER_API_KEY || '';
-const OPENROUTER_DEEPSEEK_MODEL = process.env.OPENROUTER_DEEPSEEK_MODEL || 'deepseek/deepseek-r1:free';
+const OPENROUTER_DEEPSEEK_MODEL = process.env.OPENROUTER_DEEPSEEK_MODEL || 'deepseek/deepseek-v4-flash:free';
 const GROQ_API_KEY           = process.env.GROQ_API_KEY || '';
-const GROQ_DEEPSEEK_MODEL    = process.env.GROQ_DEEPSEEK_MODEL || 'deepseek-r1-distill-llama-70b';
+const GROQ_DEEPSEEK_MODEL    = process.env.GROQ_DEEPSEEK_MODEL || 'qwen/qwen3-32b';
 const ADMIN_TOKEN            = process.env.DEEPSEEK_LOOP_ADMIN_TOKEN || '';
 const LOG_PATH               = process.env.DEEPSEEK_LOOP_LOG_PATH
                              || path.join(__dirname, '..', 'data', 'logs', 'deepseek-loop.log');
@@ -84,7 +84,7 @@ function getAdvisorProviders() {
   }
   if (GROQ_API_KEY) {
     providers.push({
-      name: 'groq-deepseek',
+      name: 'groq-reasoning-fallback',
       url: 'https://api.groq.com/openai/v1/chat/completions',
       key: GROQ_API_KEY,
       model: GROQ_DEEPSEEK_MODEL,
@@ -203,7 +203,11 @@ async function askDeepSeek(status) {
           'Content-Length': Buffer.byteLength(body),
         },
       }, body);
-      if (res.status < 200 || res.status >= 300) throw new Error(provider.name + '_http_' + res.status);
+      if (res.status < 200 || res.status >= 300) {
+        const err = new Error(provider.name + '_http_' + res.status);
+        err.preview = String(res.body || '').replace(/\s+/g, ' ').slice(0, 240);
+        throw err;
+      }
       let parsed;
       try { parsed = JSON.parse(res.body); } catch (e) { throw new Error(provider.name + '_non_json'); }
       const content = parsed && parsed.choices && parsed.choices[0] && parsed.choices[0].message && parsed.choices[0].message.content;
@@ -214,7 +218,11 @@ async function askDeepSeek(status) {
       return action;
     } catch (e) {
       lastError = e;
-      log('warn', 'advisor_provider_failed', { provider: provider.name, error: String(e && e.message || e).slice(0, 200) });
+      log('warn', 'advisor_provider_failed', {
+        provider: provider.name,
+        error: String(e && e.message || e).slice(0, 200),
+        preview: e && e.preview ? String(e.preview).slice(0, 240) : '',
+      });
     }
   }
   throw lastError || new Error('all_deepseek_advisor_providers_failed');
