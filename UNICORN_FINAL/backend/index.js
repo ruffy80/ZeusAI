@@ -118,6 +118,13 @@ try {
     override: true,
   });
 } catch (_) { /* dotenv missing or .env.local absent — non-fatal */ }
+// Load deployment-wide social/payment secrets from /etc/zeusai/social.env (chmod 600).
+// Survives release switches (zero-touch) and centralizes Discord/Telegram/Twitter/Mailgun keys.
+try {
+  if (require('fs').existsSync('/etc/zeusai/social.env')) {
+    require('dotenv').config({ path: '/etc/zeusai/social.env', override: true });
+  }
+} catch (_) { /* non-fatal */ }
 // QuantumVault trebuie să se încarce PRIMUL – bootstrap + inject secrete în process.env
 // înainte ca orice alt modul să citească variabilele de mediu
 const quantumVault = require('./modules/quantumVault');
