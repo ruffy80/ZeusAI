@@ -214,6 +214,7 @@ async function run() {
   process.env.JWT_SECRET = 'test-jwt-secret-for-ci-only';
   process.env.ADMIN_MASTER_PASSWORD = 'TestAdmin2026!';
   process.env.ADMIN_2FA_CODE = '999999';
+  process.env.DEEPSEEK_LOOP_ADMIN_TOKEN = 'deepseek-test-token';
   const app = require('../backend/index');
   await new Promise((resolve) => {
     const srv = app.listen(0, '127.0.0.1', async () => {
@@ -230,6 +231,20 @@ async function run() {
         await test('GET /api/admin/deepseek/status without token → 401', async () => {
           const r = await fetch(`http://127.0.0.1:${port}/api/admin/deepseek/status`);
           assert.equal(r.status, 401);
+        });
+        await test('POST /api/admin/deepseek/act with loop token → 200', async () => {
+          const r = await fetch(`http://127.0.0.1:${port}/api/admin/deepseek/act`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', Authorization: 'Bearer deepseek-test-token' },
+            body: JSON.stringify({ action: 'none', requestId: 'http-loop-token' }),
+          });
+          assert.equal(r.status, 200);
+        });
+        await test('GET /api/admin/deepseek/status with loop token → 200', async () => {
+          const r = await fetch(`http://127.0.0.1:${port}/api/admin/deepseek/status`, {
+            headers: { Authorization: 'Bearer deepseek-test-token' },
+          });
+          assert.equal(r.status, 200);
         });
       } finally {
         srv.close(resolve);

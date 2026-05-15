@@ -1184,6 +1184,20 @@ function adminTokenMiddleware(req, res, next) {
   }
 }
 
+function deepseekGovernorAuthMiddleware(req, res, next) {
+  const token = extractAdminToken(req);
+  const staticToken = process.env.DEEPSEEK_LOOP_ADMIN_TOKEN || '';
+  if (staticToken && token) {
+    const provided = Buffer.from(token);
+    const expected = Buffer.from(staticToken);
+    if (provided.length === expected.length && crypto.timingSafeEqual(provided, expected)) {
+      req.admin = { role: 'admin', sub: 'deepseek-loop', email: 'deepseek-loop@localhost' };
+      return next();
+    }
+  }
+  return adminTokenMiddleware(req, res, next);
+}
+
 // ==================== AUTH RATE LIMITING ====================
 // Simple sliding-window rate limiter for sensitive auth endpoints (no extra dependency).
 // In test mode (NODE_ENV=test) rate limiting is disabled to allow full test runs.
@@ -5202,12 +5216,12 @@ app.post('/api/admin/perf/cache/clear', adminCrudRateLimit, adminTokenMiddleware
 // Executor cu listă albă pentru acțiuni autonome dar limitate.
 // Allowed actions: none, read_status, prices_sync, checkout_fix, run_test, restart_service (intent only).
 // Forbidden by design: write_file, deploy, git_commit, arbitrary shell. See backend/modules/deepseek-governor.js.
-app.get('/api/admin/deepseek/status', adminCrudRateLimit, adminTokenMiddleware, (req, res) => {
+app.get('/api/admin/deepseek/status', adminCrudRateLimit, deepseekGovernorAuthMiddleware, (req, res) => {
   if (!deepseekGovernor) return res.status(503).json({ error: 'deepseek-governor not loaded' });
   res.json(deepseekGovernor.getStatus());
 });
 
-app.post('/api/admin/deepseek/act', adminCrudRateLimit, adminTokenMiddleware, async (req, res) => {
+app.post('/api/admin/deepseek/act', adminCrudRateLimit, deepseekGovernorAuthMiddleware, async (req, res) => {
   if (!deepseekGovernor) return res.status(503).json({ error: 'deepseek-governor not loaded' });
   const { action, params, requestId } = req.body || {};
   const ip = req.ip || (req.connection && req.connection.remoteAddress) || 'unknown';
