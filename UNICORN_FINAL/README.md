@@ -45,14 +45,56 @@ Both require a valid admin JWT (`adminTokenMiddleware`) and pass through
 | `checkout_fix`    | Read-only checkout-health re-check. Never mutates user data.           |
 | `run_test`        | Spawns `npm test` with `shell:false` and a 30 s hard timeout.          |
 | `restart_service` | **Intent-logged only.** Records a `restart_request` line in the governor log. The governor never invokes `systemctl` / `pm2` itself; a separate OS-level supervisor is responsible for acting on the log entry. Allowed service names: `unicorn-backend`, `unicorn-frontend`, `unicorn-site`, `pricing-module`. |
+| `code_proposal`   | **Envelope only — never applied automatically.** Writes a JSON file under `data/deepseek-proposals/` containing `targetPath`, `proposedContent`, `rationale`, `objectiveId`, `riskLevel`. The proposal must target a repo-relative file with an extension in the read_file allowlist, must NOT touch `.github/`, `deepseek-governor.js`, `deepseek-loop.js`, `package.json`, `package-lock.json`, and the same deny-segments/substrings as `read_file` apply. Max 32 KiB per proposal, 50 proposals/day. Apply is a separate human/CI step. |
+| `roadmap_update`  | Updates `status` and optional `note` on an **existing** objective in `data/roadmap.json`. Cannot add/remove objectives or change vision/north-star — that requires a human edit. Allowed statuses: `pending`, `in-progress`, `done`, `blocked`. |
 
 ### Explicitly rejected (by design, not by configuration)
-- `write_file` to anywhere — would be equivalent to remote code execution on the
-  next `require()`.
+- `write_file` to arbitrary paths — would be equivalent to remote code execution on the
+  next `require()`. (`code_proposal` is **not** an exception: it only writes envelope
+  JSON files under a dedicated quarantine directory and never to source.)
 - `deploy` triggered by the LLM — would bypass human review and the
   AutoInnovation guard.
-- `git_commit` authored by an autonomous loop — same.
+- `git_commit` / `git push` authored by an autonomous loop — same.
 - Arbitrary shell / `eval`.
+- Modifying the governor itself, the loop script, CI workflows, or `package.json`
+  (enforced by `PROPOSAL_TARGET_DENY_*` allowlists).
+
+### Autonomous Mode — goal-directed loop with operator commands
+
+When DeepSeek runs continuously (see `scripts/deepseek-loop.js`), three new pieces
+turn it into a goal-directed worker that the human owner can steer in real time:
+
+1. **Roadmap** — `data/roadmap.json` lists prioritised objectives toward the
+   north-star metric. The loop fetches the top-priority open objectives every
+   tick and biases its action toward closing them.
+   - `GET /api/admin/roadmap` returns the full roadmap.
+   - `roadmap_update` action lets the loop mark an objective `done` when it
+     ships a fix.
+2. **Operator command queue** — push a free-form text instruction that
+   overrides roadmap priorities for the next loop tick:
+   - `POST /api/admin/deepseek/command` body `{ instruction: string, priority?: 1-10 }`
+   - `GET  /api/admin/deepseek/commands?limit=50&includeConsumed=0`
+   - `POST /api/admin/deepseek/command/consume` (used by the loop; pops the
+     highest-priority unconsumed command and marks it consumed).
+3. **Proposals listing** — review what DeepSeek wants to change before any code
+   lands on disk:
+   - `GET /api/admin/deepseek/proposals?limit=50` returns the envelope metadata
+     for the most recent proposals in `data/deepseek-proposals/`.
+
+Recommended operator alias (mobile-friendly):
+
+```bash
+zeus() { curl -sX POST https://zeusai.pro/api/admin/deepseek/command \
+  -H "x-admin-token: $DEEPSEEK_LOOP_ADMIN_TOKEN" \
+  -H "content-type: application/json" \
+  -d "{\"instruction\":\"$*\",\"priority\":7}"; }
+# Usage: zeus "fa marketplace sa incarce sub 150ms"
+```
+
+The loop reads the next operator command at the start of each tick and forwards
+it to DeepSeek as the highest-priority context, alongside the roadmap. The model
+must still pick an action from the hardcoded allowlist; nothing about the
+operator-command channel weakens the safety envelope.
 
 These actions are **not in the allowlist enum**, so even a tampered client or a
 compromised LLM response cannot invoke them.

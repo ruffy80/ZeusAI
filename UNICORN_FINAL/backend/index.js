@@ -5234,6 +5234,75 @@ app.post('/api/admin/deepseek/act', adminCrudRateLimit, deepseekGovernorAuthMidd
   }
 });
 
+// ---- Autonomous Mode: roadmap + operator command queue + proposals listing ----
+// Mod Autonom: roadmap + coadă comenzi operator + listare propuneri.
+// All three endpoints are admin-only; they expose state but never mutate code.
+// Toate sunt admin-only; expun starea, nu modifică niciodată codul.
+app.get('/api/admin/roadmap', adminCrudRateLimit, deepseekGovernorAuthMiddleware, (req, res) => {
+  if (!deepseekGovernor) return res.status(503).json({ error: 'deepseek-governor not loaded' });
+  const roadmap = deepseekGovernor.readRoadmap();
+  if (!roadmap) return res.status(404).json({ error: 'roadmap_unavailable' });
+  res.json(roadmap);
+});
+
+app.post('/api/admin/deepseek/command', adminCrudRateLimit, deepseekGovernorAuthMiddleware, (req, res) => {
+  if (!deepseekGovernor) return res.status(503).json({ error: 'deepseek-governor not loaded' });
+  const { instruction, priority } = req.body || {};
+  const ip = req.ip || (req.connection && req.connection.remoteAddress) || 'unknown';
+  const actor = (req.admin && (req.admin.sub || req.admin.email || req.admin.role)) || 'admin';
+  const result = deepseekGovernor.enqueueCommand({ instruction, priority, actor, ip });
+  if (!result.ok) return res.status(400).json(result);
+  res.status(201).json(result);
+});
+
+app.get('/api/admin/deepseek/commands', adminCrudRateLimit, deepseekGovernorAuthMiddleware, (req, res) => {
+  if (!deepseekGovernor) return res.status(503).json({ error: 'deepseek-governor not loaded' });
+  const limit = parseInt(req.query.limit, 10) || 50;
+  const includeConsumed = String(req.query.includeConsumed || '') === '1';
+  res.json({ ok: true, commands: deepseekGovernor.listCommands({ limit, includeConsumed }) });
+});
+
+app.get('/api/admin/deepseek/proposals', adminCrudRateLimit, deepseekGovernorAuthMiddleware, (req, res) => {
+  if (!deepseekGovernor) return res.status(503).json({ error: 'deepseek-governor not loaded' });
+  const fs = require('fs');
+  const path = require('path');
+  const dir = deepseekGovernor.PROPOSALS_DIR;
+  let files = [];
+  try {
+    if (fs.existsSync(dir)) {
+      files = fs.readdirSync(dir).filter(f => f.endsWith('.json'));
+    }
+  } catch (_) { /* ignore */ }
+  const limit = Math.max(1, Math.min(200, parseInt(req.query.limit, 10) || 50));
+  files.sort().reverse();
+  const proposals = [];
+  for (const f of files.slice(0, limit)) {
+    try {
+      const env = JSON.parse(fs.readFileSync(path.join(dir, f), 'utf8'));
+      proposals.push({
+        proposalId: f,
+        createdAt: env.createdAt,
+        status: env.status || 'pending-review',
+        objectiveId: env.objectiveId || null,
+        targetPath: env.targetPath,
+        riskLevel: env.riskLevel,
+        bytes: env.proposedContentBytes,
+        rationalePreview: String(env.rationale || '').slice(0, 240),
+      });
+    } catch (_) { /* skip malformed */ }
+  }
+  res.json({ ok: true, total: files.length, returned: proposals.length, proposals });
+});
+
+// DeepSeek loop pulls the next operator command from the queue here.
+// Loop-ul DeepSeek extrage următoarea comandă operator de aici.
+app.post('/api/admin/deepseek/command/consume', adminCrudRateLimit, deepseekGovernorAuthMiddleware, (req, res) => {
+  if (!deepseekGovernor) return res.status(503).json({ error: 'deepseek-governor not loaded' });
+  const next = deepseekGovernor.consumeNextCommand();
+  if (!next) return res.status(204).end();
+  res.json({ ok: true, command: next });
+});
+
 
 // Middleware for public API access (used with x-api-key header)
 function apiKeyMiddleware(req, res, next) {

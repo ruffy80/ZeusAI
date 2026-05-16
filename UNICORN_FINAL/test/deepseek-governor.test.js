@@ -137,7 +137,7 @@ async function run() {
 
   await test('getStatus exposes allowlist + limits, no per-IP detail', async () => {
     const s = governor.getStatus();
-    assert.deepEqual(s.allowedActions.slice().sort(), ['checkout_fix', 'none', 'prices_sync', 'read_file', 'read_status', 'restart_service', 'run_test']);
+    assert.deepEqual(s.allowedActions.slice().sort(), ['checkout_fix', 'code_proposal', 'none', 'prices_sync', 'read_file', 'read_status', 'restart_service', 'roadmap_update', 'run_test']);
     assert.ok(s.limits.perHourPerIp >= 1);
     assert.ok(s.limits.perDayPerIp >= s.limits.perHourPerIp);
     assert.ok(!('perIp' in s), 'must not leak per-IP details');

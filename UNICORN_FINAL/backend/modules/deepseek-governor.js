@@ -67,7 +67,46 @@ const ALLOWED_ACTIONS = Object.freeze([
   'checkout_fix',
   'run_test',
   'restart_service',
+  // Autonomous mode (write-only proposals — NO direct apply, audit-first):
+  // Modul autonom (doar propuneri — fără aplicare directă, audit obligatoriu):
+  'code_proposal',
+  'roadmap_update',
 ]);
+
+// code_proposal safety envelope / Plicul de siguranță pentru code_proposal
+// Proposals are written to a quarantine directory and require human/CI review
+// to land in source. The governor itself never applies them.
+// Propunerile se scriu într-un director-carantină; aplicarea cere review.
+const PROPOSALS_DIR = process.env.DEEPSEEK_GOVERNOR_PROPOSALS_DIR
+                   || path.join(__dirname, '..', '..', 'data', 'deepseek-proposals');
+const PROPOSAL_MAX_BYTES = parseInt(process.env.DEEPSEEK_GOVERNOR_PROPOSAL_MAX_BYTES || String(32 * 1024), 10);
+const PROPOSAL_MAX_FILES_PER_DAY = parseInt(process.env.DEEPSEEK_GOVERNOR_PROPOSAL_MAX_PER_DAY || '50', 10);
+// Target file path inside the proposal must respect the same deny-segments and
+// deny-substrings as read_file. We additionally reject any path that would
+// touch CI workflows, package metadata, env files, or the governor itself —
+// the LLM must NEVER be allowed to weaken its own safety rails.
+// Calea țintă a propunerii respectă aceleași reguli ca read_file + interdicții
+// suplimentare pentru CI/.env/package.json/governor.
+const PROPOSAL_TARGET_DENY_PREFIXES = Object.freeze([
+  '.github/',
+  'node_modules/',
+]);
+const PROPOSAL_TARGET_DENY_SUFFIXES = Object.freeze([
+  '/deepseek-governor.js',
+  '/deepseek-loop.js',
+  '/deepseek-loop.service',
+  'package.json',
+  'package-lock.json',
+]);
+
+// Roadmap location (read-write via roadmap_update action) / Locația roadmap-ului
+const ROADMAP_PATH = process.env.DEEPSEEK_GOVERNOR_ROADMAP_PATH
+                  || path.join(__dirname, '..', '..', 'data', 'roadmap.json');
+
+// Operator command queue (consumed by the deepseek-loop) / Coada de comenzi operator
+const COMMAND_QUEUE_PATH = process.env.DEEPSEEK_GOVERNOR_COMMAND_QUEUE_PATH
+                        || path.join(__dirname, '..', '..', 'data', 'deepseek-commands.jsonl');
+const COMMAND_QUEUE_MAX_ENTRIES = parseInt(process.env.DEEPSEEK_GOVERNOR_COMMAND_QUEUE_MAX || '200', 10);
 
 // Allowlist of service names that `restart_service` is permitted to *flag*.
 // Lista de servicii pentru care `restart_service` poate semnala intenție.
@@ -225,6 +264,14 @@ function _action_read_status() {
   // Curated, public-safe status snapshot — no secrets, no full file reads.
   // Snapshot de status curat — fără secrete, fără citire de fișiere arbitrare.
   const mem = process.memoryUsage();
+  const roadmap = _readRoadmapSafe();
+  let proposalCount = 0;
+  try {
+    if (fs.existsSync(PROPOSALS_DIR)) {
+      proposalCount = fs.readdirSync(PROPOSALS_DIR).filter(f => f.endsWith('.json')).length;
+    }
+  } catch (_) { /* best-effort */ }
+  const pendingCommands = _listCommands({ limit: 5, includeConsumed: false });
   return {
     ok: true,
     action: 'read_status',
@@ -233,6 +280,25 @@ function _action_read_status() {
     memory: { rssMb: +(mem.rss / 1024 / 1024).toFixed(1), heapUsedMb: +(mem.heapUsed / 1024 / 1024).toFixed(1) },
     nodeEnv: process.env.NODE_ENV || 'development',
     pricingSnapshotAvailable: !!(_refs.livePricingBroker && typeof _refs.livePricingBroker.getSnapshot === 'function'),
+    roadmap: roadmap ? {
+      vision: roadmap.vision || '',
+      northStarMetric: roadmap.northStarMetric || '',
+      currentPhase: roadmap.currentPhase || '',
+      objectivesTotal: roadmap.objectives.length,
+      objectivesDone: roadmap.objectives.filter(o => o && o.status === 'done').length,
+      topPriorityOpen: roadmap.objectives
+        .filter(o => o && o.status !== 'done')
+        .sort((a, b) => (a.priority || 99) - (b.priority || 99))
+        .slice(0, 5)
+        .map(o => ({ id: o.id, title: o.title, status: o.status, priority: o.priority })),
+    } : null,
+    autonomy: {
+      proposalCount,
+      pendingCommandCount: pendingCommands.length,
+      nextCommandPreview: pendingCommands[0]
+        ? { id: pendingCommands[0].id, priority: pendingCommands[0].priority, preview: String(pendingCommands[0].instruction).slice(0, 200) }
+        : null,
+    },
     timestamp: new Date().toISOString(),
   };
 }
@@ -347,6 +413,253 @@ function _action_restart_service(params) {
   };
 }
 
+// -------- code_proposal handler / Handler propunere de cod -------------
+// Writes an envelope-only file under PROPOSALS_DIR. NEVER touches source.
+// Scrie un fișier de propunere; NU modifică niciodată codul-sursă.
+function _validateProposalTargetPath(targetPath) {
+  if (typeof targetPath !== 'string' || !targetPath.trim()) {
+    return { ok: false, reason: 'target_path_required' };
+  }
+  if (targetPath.indexOf('\0') !== -1)        return { ok: false, reason: 'invalid_target' };
+  if (path.isAbsolute(targetPath))            return { ok: false, reason: 'target_must_be_relative' };
+  // Normalize without resolving (we don't need the file to exist).
+  const norm = path.posix.normalize(targetPath.replace(/\\/g, '/'));
+  if (norm.startsWith('../') || norm === '..' || norm.indexOf('/../') !== -1) {
+    return { ok: false, reason: 'path_traversal' };
+  }
+  const lower = norm.toLowerCase();
+  for (const pfx of PROPOSAL_TARGET_DENY_PREFIXES) {
+    if (lower.startsWith(pfx.toLowerCase())) return { ok: false, reason: 'target_prefix_denied', match: pfx };
+  }
+  for (const sfx of PROPOSAL_TARGET_DENY_SUFFIXES) {
+    if (lower === sfx.toLowerCase() || lower.endsWith(sfx.toLowerCase())) {
+      return { ok: false, reason: 'target_suffix_denied', match: sfx };
+    }
+  }
+  const segs = norm.split('/');
+  for (const seg of segs) {
+    const segLower = seg.toLowerCase();
+    for (const deny of READ_FILE_DENY_SEGMENTS) {
+      if (segLower === deny.toLowerCase()) return { ok: false, reason: 'segment_denied', segment: seg };
+    }
+  }
+  for (const deny of READ_FILE_DENY_SUBSTRINGS) {
+    if (lower.indexOf(deny) !== -1) return { ok: false, reason: 'name_denied', match: deny };
+  }
+  const ext = path.extname(norm).toLowerCase();
+  if (!READ_FILE_EXT_ALLOWLIST.includes(ext)) {
+    return { ok: false, reason: 'extension_not_allowed', allowed: READ_FILE_EXT_ALLOWLIST };
+  }
+  return { ok: true, normalized: norm };
+}
+
+function _action_code_proposal(params) {
+  const targetPath = params && params.targetPath;
+  const rationale  = params && typeof params.rationale === 'string' ? params.rationale.slice(0, 4000) : '';
+  const objectiveId = params && typeof params.objectiveId === 'string' ? params.objectiveId.slice(0, 128) : '';
+  const proposedContent = params && typeof params.proposedContent === 'string' ? params.proposedContent : '';
+  const riskLevel = params && typeof params.riskLevel === 'string' ? params.riskLevel.toLowerCase() : 'medium';
+
+  if (!['low', 'medium', 'high'].includes(riskLevel)) {
+    return { ok: false, action: 'code_proposal', reason: 'invalid_risk_level' };
+  }
+  if (!rationale) {
+    return { ok: false, action: 'code_proposal', reason: 'rationale_required' };
+  }
+  const targetCheck = _validateProposalTargetPath(targetPath);
+  if (!targetCheck.ok) {
+    return { ok: false, action: 'code_proposal', reason: targetCheck.reason, match: targetCheck.match, segment: targetCheck.segment, allowed: targetCheck.allowed };
+  }
+  const contentBytes = Buffer.byteLength(proposedContent, 'utf8');
+  if (contentBytes > PROPOSAL_MAX_BYTES) {
+    return { ok: false, action: 'code_proposal', reason: 'proposed_content_too_large', size: contentBytes, max: PROPOSAL_MAX_BYTES };
+  }
+  if (!proposedContent) {
+    return { ok: false, action: 'code_proposal', reason: 'proposed_content_required' };
+  }
+
+  // Per-day proposal cap to prevent disk floods.
+  // Plafon zilnic pentru a preveni inundarea discului.
+  try {
+    fs.mkdirSync(PROPOSALS_DIR, { recursive: true });
+    const today = new Date().toISOString().slice(0, 10);
+    const todayCount = fs.readdirSync(PROPOSALS_DIR)
+      .filter(f => f.startsWith(today + 'T') && f.endsWith('.json'))
+      .length;
+    if (todayCount >= PROPOSAL_MAX_FILES_PER_DAY) {
+      return { ok: false, action: 'code_proposal', reason: 'daily_proposal_cap', cap: PROPOSAL_MAX_FILES_PER_DAY };
+    }
+  } catch (e) {
+    return { ok: false, action: 'code_proposal', reason: 'proposals_dir_unavailable', error: String(e && e.message || e).slice(0, 200) };
+  }
+
+  const ts = new Date().toISOString().replace(/[:.]/g, '-');
+  const safeSlug = (objectiveId || 'proposal').replace(/[^a-zA-Z0-9_-]/g, '-').slice(0, 64);
+  const fileName = `${ts}-${safeSlug}.json`;
+  const fullPath = path.join(PROPOSALS_DIR, fileName);
+
+  const envelope = {
+    schemaVersion: 1,
+    createdAt: new Date().toISOString(),
+    status: 'pending-review',
+    objectiveId: objectiveId || null,
+    targetPath: targetCheck.normalized,
+    riskLevel,
+    rationale,
+    proposedContent,
+    proposedContentBytes: contentBytes,
+    note: 'Envelope only — code is NOT applied. Human/CI review required before any edit.',
+  };
+
+  try {
+    fs.writeFileSync(fullPath, JSON.stringify(envelope, null, 2), { encoding: 'utf8' });
+  } catch (e) {
+    return { ok: false, action: 'code_proposal', reason: 'write_failed', error: String(e && e.message || e).slice(0, 200) };
+  }
+
+  return {
+    ok: true,
+    action: 'code_proposal',
+    proposalId: fileName,
+    targetPath: targetCheck.normalized,
+    objectiveId: objectiveId || null,
+    riskLevel,
+    bytes: contentBytes,
+    note: 'Proposal stored under PROPOSALS_DIR; requires human/CI review before apply.',
+    timestamp: new Date().toISOString(),
+  };
+}
+
+// roadmap_update handler — narrow scope: only `status` or `notes` of an
+// existing objective may be changed. Adding new objectives or rewriting the
+// vision requires a human edit of data/roadmap.json.
+// Doar `status` / `notes` ale unui obiectiv existent; restul cere edit uman.
+function _action_roadmap_update(params) {
+  const objectiveId = params && typeof params.objectiveId === 'string' ? params.objectiveId.trim() : '';
+  const newStatus = params && typeof params.status === 'string' ? params.status.trim().toLowerCase() : '';
+  const note = params && typeof params.note === 'string' ? params.note.slice(0, 1000) : '';
+  const ALLOWED_STATUSES = ['pending', 'in-progress', 'done', 'blocked'];
+
+  if (!objectiveId) return { ok: false, action: 'roadmap_update', reason: 'objective_id_required' };
+  if (newStatus && !ALLOWED_STATUSES.includes(newStatus)) {
+    return { ok: false, action: 'roadmap_update', reason: 'invalid_status', allowed: ALLOWED_STATUSES };
+  }
+
+  let roadmap;
+  try {
+    roadmap = JSON.parse(fs.readFileSync(ROADMAP_PATH, 'utf8'));
+  } catch (e) {
+    return { ok: false, action: 'roadmap_update', reason: 'roadmap_unavailable', error: String(e && e.message || e).slice(0, 200) };
+  }
+  if (!roadmap || !Array.isArray(roadmap.objectives)) {
+    return { ok: false, action: 'roadmap_update', reason: 'roadmap_malformed' };
+  }
+  const target = roadmap.objectives.find(o => o && o.id === objectiveId);
+  if (!target) return { ok: false, action: 'roadmap_update', reason: 'objective_not_found', objectiveId };
+
+  if (newStatus) target.status = newStatus;
+  if (note)      target.lastNote = note;
+  target.updatedAt = new Date().toISOString();
+  roadmap.updatedAt = target.updatedAt;
+
+  try {
+    fs.writeFileSync(ROADMAP_PATH, JSON.stringify(roadmap, null, 2), { encoding: 'utf8' });
+  } catch (e) {
+    return { ok: false, action: 'roadmap_update', reason: 'write_failed', error: String(e && e.message || e).slice(0, 200) };
+  }
+  return {
+    ok: true,
+    action: 'roadmap_update',
+    objectiveId,
+    status: target.status,
+    timestamp: target.updatedAt,
+  };
+}
+
+// -------- Operator command queue helpers / Coadă comenzi operator -------
+// FIFO with priority — DeepSeek loop consumes the highest-priority oldest item.
+function _enqueueCommand({ instruction, priority, actor, ip }) {
+  const safeInstruction = String(instruction || '').slice(0, 4000);
+  if (!safeInstruction.trim()) return { ok: false, reason: 'instruction_required' };
+  const p = parseInt(priority, 10);
+  const safePriority = Number.isFinite(p) ? Math.max(1, Math.min(10, p)) : 5;
+  const id = 'cmd-' + Date.now() + '-' + Math.random().toString(36).slice(2, 8);
+  const entry = {
+    id,
+    createdAt: new Date().toISOString(),
+    priority: safePriority,
+    instruction: safeInstruction,
+    actor: String(actor || 'admin').slice(0, 64),
+    ip: String(ip || 'unknown').slice(0, 64),
+    consumed: false,
+  };
+  try {
+    fs.mkdirSync(path.dirname(COMMAND_QUEUE_PATH), { recursive: true });
+    fs.appendFileSync(COMMAND_QUEUE_PATH, JSON.stringify(entry) + '\n', { encoding: 'utf8' });
+  } catch (e) {
+    return { ok: false, reason: 'queue_write_failed', error: String(e && e.message || e).slice(0, 200) };
+  }
+  return { ok: true, id, priority: safePriority, createdAt: entry.createdAt };
+}
+
+function _listCommands({ limit, includeConsumed } = {}) {
+  let lines = [];
+  try {
+    if (fs.existsSync(COMMAND_QUEUE_PATH)) {
+      lines = fs.readFileSync(COMMAND_QUEUE_PATH, 'utf8').split('\n').filter(Boolean);
+    }
+  } catch (_) { /* ignore */ }
+  const cap = Math.max(1, Math.min(COMMAND_QUEUE_MAX_ENTRIES, parseInt(limit, 10) || 50));
+  const out = [];
+  for (let i = lines.length - 1; i >= 0 && out.length < cap; i--) {
+    try {
+      const e = JSON.parse(lines[i]);
+      if (!includeConsumed && e.consumed) continue;
+      out.push(e);
+    } catch (_) { /* skip malformed */ }
+  }
+  out.sort((a, b) => (b.priority || 0) - (a.priority || 0) || (a.createdAt > b.createdAt ? 1 : -1));
+  return out;
+}
+
+function _consumeNextCommand() {
+  let lines = [];
+  try {
+    if (!fs.existsSync(COMMAND_QUEUE_PATH)) return null;
+    lines = fs.readFileSync(COMMAND_QUEUE_PATH, 'utf8').split('\n').filter(Boolean);
+  } catch (_) { return null; }
+  let best = -1;
+  let bestPrio = -1;
+  const parsed = [];
+  for (let i = 0; i < lines.length; i++) {
+    try {
+      const e = JSON.parse(lines[i]);
+      parsed.push(e);
+      if (!e.consumed && (e.priority || 0) > bestPrio) {
+        bestPrio = e.priority || 0;
+        best = i;
+      }
+    } catch (_) { parsed.push(null); }
+  }
+  if (best < 0) return null;
+  const picked = parsed[best];
+  parsed[best] = { ...picked, consumed: true, consumedAt: new Date().toISOString() };
+  try {
+    fs.writeFileSync(COMMAND_QUEUE_PATH,
+      parsed.filter(Boolean).map(o => JSON.stringify(o)).join('\n') + '\n',
+      { encoding: 'utf8' });
+  } catch (_) { /* best effort */ }
+  return picked;
+}
+
+function _readRoadmapSafe() {
+  try {
+    const r = JSON.parse(fs.readFileSync(ROADMAP_PATH, 'utf8'));
+    if (r && Array.isArray(r.objectives)) return r;
+  } catch (_) { /* ignore */ }
+  return null;
+}
+
 // -------- Dispatcher / Dispecer ----------------------------------------
 async function dispatch({ action, params, requestId, actor, ip }) {
   const safeAction = String(action || '').trim();
@@ -386,6 +699,8 @@ async function dispatch({ action, params, requestId, actor, ip }) {
       case 'checkout_fix':    result = await _action_checkout_fix(); break;
       case 'run_test':        result = await _action_run_test(); break;
       case 'restart_service': result = _action_restart_service(params); break;
+      case 'code_proposal':   result = _action_code_proposal(params); break;
+      case 'roadmap_update':  result = _action_roadmap_update(params); break;
       default:                result = { ok: false, reason: 'unreachable' };
     }
   } catch (e) {
@@ -429,8 +744,16 @@ function getStatus() {
     ok: true,
     allowedActions: ALLOWED_ACTIONS,
     restartableServices: RESTARTABLE_SERVICES,
-    limits: { perHourPerIp: RATE_LIMIT_PER_HOUR, perDayPerIp: RATE_LIMIT_PER_DAY, runTestTimeoutMs: RUN_TEST_TIMEOUT_MS },
+    limits: {
+      perHourPerIp: RATE_LIMIT_PER_HOUR,
+      perDayPerIp: RATE_LIMIT_PER_DAY,
+      runTestTimeoutMs: RUN_TEST_TIMEOUT_MS,
+      proposalMaxBytes: PROPOSAL_MAX_BYTES,
+      proposalsMaxPerDay: PROPOSAL_MAX_FILES_PER_DAY,
+      commandQueueMaxEntries: COMMAND_QUEUE_MAX_ENTRIES,
+    },
     aggregate: { actionsLastHour: totalLastHour, actionsLastDay: totalLastDay, trackedIps: _rateState.size, pendingRequestIds: _seenRequestIds.size },
+    paths: { logPath: LOG_PATH, proposalsDir: PROPOSALS_DIR, roadmapPath: ROADMAP_PATH, commandQueuePath: COMMAND_QUEUE_PATH },
     logPath: LOG_PATH,
   };
 }
@@ -456,4 +779,15 @@ module.exports = {
   getStatus,
   configure,
   _resetForTests,
+  // Operator command queue (consumed by deepseek-loop / exposed via admin API).
+  // Coadă de comenzi operator (consumată de deepseek-loop / expusă prin admin API).
+  enqueueCommand: _enqueueCommand,
+  listCommands: _listCommands,
+  consumeNextCommand: _consumeNextCommand,
+  readRoadmap: _readRoadmapSafe,
+  // Test-only helpers (exported for the autonomous mode regression suite).
+  _validateProposalTargetPath,
+  PROPOSALS_DIR,
+  ROADMAP_PATH,
+  COMMAND_QUEUE_PATH,
 };
