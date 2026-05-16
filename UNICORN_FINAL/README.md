@@ -96,6 +96,10 @@ it to DeepSeek as the highest-priority context, alongside the roadmap. The model
 must still pick an action from the hardcoded allowlist; nothing about the
 operator-command channel weakens the safety envelope.
 
+### Billion-USD roadmap + innovation mandate / Roadmap miliarde + mandat de inovație
+
+`data/roadmap.json` is the durable goal-graph DeepSeek reads on every tick. It now declares the **owner BTC settlement address** (`ownerBtcSettlementAddress`), explicit **northStarTargets** (MRR 100k @ 30d → 1M @ 180d → 10M @ 365d → ARR 1B in 5y), a bilingual **`missionForDeepSeek`** instructing the model to operate 24/7 in an infinite improvement loop, and a set of innovation-flagged objectives (`innovation: true`) covering features that do not yet exist on any competing SaaS — AI-personalized per-visitor pricing, 24/7 AI commerce concierge, revenue-anomaly self-healing, sovereign anonymized-insights marketplace, BTC Lightning instant settlement, and autonomous blue/green self-deploy. The DeepSeek system prompt in `scripts/deepseek-loop.js` mirrors this mandate and adds an **auto-advance rule**: when an objective's metric target is met, DeepSeek prefers `roadmap_update status=done` so the loop chains automatically to the next priority.
+
 These actions are **not in the allowlist enum**, so even a tampered client or a
 compromised LLM response cannot invoke them.
 

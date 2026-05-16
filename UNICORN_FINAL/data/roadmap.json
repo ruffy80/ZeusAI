@@ -1,10 +1,18 @@
 {
   "schemaVersion": 1,
   "owner": "Vladoi Ionut <vladoi_ionut@yahoo.com>",
-  "vision": "Construirea celui mai mare SaaS mondial autonom, standard pentru >30 ani.",
+  "ownerBtcSettlementAddress": "bc1q4f7e66z87mdfj56kz0dj5hvcnpmh0qh4wuv22e",
+  "vision": "Construirea celui mai puternic SaaS mondial autonom, standard pentru >30 ani, care generează miliarde USD anual și decontează automat în BTC către adresa proprietarului.",
+  "missionForDeepSeek": "Operezi autonom 24/7. La fiecare tick: analizezi, gândești și propui (code_proposal envelope-only) sau marchezi obiective done (roadmap_update). Când un obiectiv este completat, treci automat la următoarea prioritate. Inventezi inovații care nu există încă pe nicio platformă SaaS concurentă. Nu te oprești niciodată — fiecare tick este un pas într-un loop infinit de îmbunătățire către cel mai puternic ecosistem mondial.",
   "northStarMetric": "MRR_USD",
+  "northStarTargets": {
+    "mrr30d_usd": 100000,
+    "mrr180d_usd": 1000000,
+    "mrr365d_usd": 10000000,
+    "arr_billion_usd_target_years": 5
+  },
   "currentPhase": "bootstrap",
-  "updatedAt": "2026-05-16T15:14:00.000Z",
+  "updatedAt": "2026-05-16T17:18:00.000Z",
   "objectives": [
     {
       "id": "perf-p95-sub-200ms",
@@ -39,8 +47,70 @@
     {
       "id": "checkout-conversion-instrumentation",
       "title": "Instrumentare end-to-end conversion (view → checkout → paid)",
+      "priority": 1,
+      "status": "pending"
+    },
+    {
+      "id": "billing-recurring-stripe-and-btc-lightning",
+      "title": "Billing recurent dual: Stripe SaaS + BTC Lightning cu decontare automată în adresa proprietarului",
+      "priority": 1,
+      "status": "pending",
+      "settlementAddress": "bc1q4f7e66z87mdfj56kz0dj5hvcnpmh0qh4wuv22e",
+      "note": "Fără acest obiectiv nu sunt miliarde — doar trafic. Stripe pentru retail SaaS, Lightning pentru micropayments + cross-border instant settlement."
+    },
+    {
+      "id": "ai-personalized-pricing-negotiator",
+      "title": "INOVAȚIE: preț personalizat per vizitator negociat în timp real de AI (willingness-to-pay + cohort uplift) — nu există pe nicio platformă SaaS concurentă",
+      "priority": 1,
+      "status": "pending",
+      "innovation": true,
+      "note": "Folosește live-pricing-broker + signal-uri anonime (geo, ECT, time-on-page, return-visitor) pentru a propune preț optim per sesiune. Toate deciziile loggate în data/pricing-decisions/ pentru auditabilitate."
+    },
+    {
+      "id": "ai-commerce-concierge-247",
+      "title": "INOVAȚIE: AI concierge 24/7 care gestionează 100% din ticket-urile L1 fără om — răspunde pe site, email, social, chat în <10s",
+      "priority": 2,
+      "status": "pending",
+      "innovation": true,
+      "metricKey": "l1AutoResolvedPct",
+      "target": 95,
+      "comparison": "gte"
+    },
+    {
+      "id": "revenue-anomaly-self-healing",
+      "title": "INOVAȚIE: auto-detectare drop de revenue + auto-propunere code_proposal de remediere fără intervenție umană (DeepSeek-driven)",
+      "priority": 2,
+      "status": "pending",
+      "innovation": true
+    },
+    {
+      "id": "predictive-feature-factory-weekly",
+      "title": "INOVAȚIE: DeepSeek generează săptămânal 5 propuneri de feature noi bazate pe gap-uri detectate în comportamentul vizitatorilor",
+      "priority": 2,
+      "status": "pending",
+      "innovation": true
+    },
+    {
+      "id": "sovereign-data-insights-marketplace",
+      "title": "INOVAȚIE: marketplace pentru insights agregate anonimizate (k-anon ≥ 3) vândute B2B — primul în lume cu suveranitate-by-default",
+      "priority": 3,
+      "status": "pending",
+      "innovation": true
+    },
+    {
+      "id": "zero-downtime-blue-green-self-deploy",
+      "title": "Deploy blue/green complet autonom cu auto-rollback la regresie metrică (p95/error-rate/conversion)",
       "priority": 2,
       "status": "pending"
+    },
+    {
+      "id": "mrr-100k-usd-90d",
+      "title": "Atingere MRR 100k USD în 90 de zile (north-star milestone #1)",
+      "priority": 2,
+      "status": "pending",
+      "metricKey": "MRR_USD",
+      "target": 100000,
+      "comparison": "gte"
     },
     {
       "id": "ssr-no-stuck-placeholders",
@@ -75,12 +145,6 @@
       "status": "in-progress"
     },
     {
-      "id": "billing-recurring-stripe-or-btc",
-      "title": "Billing recurent (Stripe SaaS + BTC Lightning) operațional",
-      "priority": 2,
-      "status": "pending"
-    },
-    {
       "id": "retention-30d-cohort-dashboard",
       "title": "Dashboard retention 30/60/90 zile pentru cohorte plătitoare",
       "priority": 3,
@@ -103,5 +167,5 @@
       "comparison": "gte"
     }
   ],
-  "operatorNotes": "Editați obiectivele aici sau prin POST /api/admin/deepseek/command — DeepSeek le citește la fiecare ciclu."
+  "operatorNotes": "Editați obiectivele aici sau prin POST /api/admin/deepseek/command — DeepSeek le citește la fiecare ciclu. Inovațiile marcate `innovation: true` trebuie să fie prime-în-lume (nu există încă pe SaaS concurente). Decontarea miliardelor merge automat în BTC la `ownerBtcSettlementAddress`."
 }
