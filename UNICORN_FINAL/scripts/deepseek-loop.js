@@ -200,13 +200,27 @@ async function collectStatus() {
     const roadmap = await fetchRoadmap();
     if (roadmap && Array.isArray(roadmap.objectives)) {
       out.roadmap = {
-        vision: String(roadmap.vision || '').slice(0, 240),
+        vision: String(roadmap.vision || '').slice(0, 480),
+        missionForDeepSeek: String(roadmap.missionForDeepSeek || '').slice(0, 600),
         currentPhase: roadmap.currentPhase || '',
+        northStarMetric: roadmap.northStarMetric || '',
+        northStarTargets: roadmap.northStarTargets || null,
+        ownerBtcSettlementAddress: roadmap.ownerBtcSettlementAddress || '',
         topOpenObjectives: roadmap.objectives
           .filter(o => o && o.status !== 'done')
           .sort((a, b) => (a.priority || 99) - (b.priority || 99))
           .slice(0, 5)
-          .map(o => ({ id: o.id, title: o.title, status: o.status, priority: o.priority })),
+          .map(o => ({
+            id: o.id,
+            title: String(o.title || '').slice(0, 220),
+            status: o.status,
+            priority: o.priority,
+            innovation: o.innovation === true ? true : undefined,
+            metricEndpoint: o.metricEndpoint || undefined,
+            metricKey: o.metricKey || undefined,
+            target: (o.target !== undefined ? o.target : undefined),
+            comparison: o.comparison || undefined,
+          })),
       };
     }
   } catch (_) { /* best-effort */ }
@@ -228,9 +242,11 @@ async function askDeepSeek(status) {
   const providers = getAdvisorProviders();
   if (!providers.length) throw new Error('missing_deepseek_advisor_provider_key');
   const systemPrompt =
-    'You are the autonomous DeepSeek operator for the Unicorn / zeusai.pro platform. ' +
-    'The user is building the largest autonomous SaaS in the world, aimed to be a global standard for >30 years. ' +
-    'You receive a STATUS JSON containing health signals, recent errors, the roadmap of open objectives, ' +
+    'You are the autonomous DeepSeek operator for the Unicorn / zeusai.pro platform, owned by Vladoi Ionut (BTC settlement address bc1q4f7e66z87mdfj56kz0dj5hvcnpmh0qh4wuv22e). ' +
+    'Mission: build the most powerful autonomous SaaS in the world — global standard for >30 years — designed to generate billions of USD in annual revenue and settle automatically to the owner\'s BTC address. ' +
+    'You operate 24/7 in an infinite improvement loop. Every tick: analyze the STATUS JSON, think one step ahead, then act. Never stop. When one objective is complete, immediately advance to the next priority. ' +
+    'INNOVATION MANDATE: when no fire is burning, generate code_proposal envelopes for features that DO NOT YET EXIST on any competing SaaS — AI-personalized pricing per visitor, 24/7 AI commerce concierge, revenue-anomaly self-healing, sovereign anonymized-insights marketplace, BTC Lightning instant settlement, autonomous blue/green deploys. Invent what hasn\'t been invented. ' +
+    'You receive a STATUS JSON containing health signals, recent errors, the roadmap of open objectives (vision + missionForDeepSeek + northStarTargets + topOpenObjectives), ' +
     'and (when present) an operatorCommand from the human owner that overrides roadmap priorities for this tick. ' +
     'Choose EXACTLY ONE action from this hardcoded allowlist: ' +
     ALLOWED_ACTIONS.join(', ') + '. ' +
@@ -241,13 +257,13 @@ async function askDeepSeek(status) {
     'prices_sync = refresh live pricing broker; checkout_fix = read-only checkout health; ' +
     'run_test = execute npm test (use sparingly); ' +
     'restart_service = log restart INTENT only (params.service ∈ unicorn-backend, unicorn-frontend, unicorn-site, pricing-module); ' +
-    'code_proposal = author a code change envelope (params: targetPath repo-relative, proposedContent full new file content, rationale, objectiveId, riskLevel ∈ low|medium|high). ' +
-    'NEVER target .github/, deepseek-governor.js, deepseek-loop.js, package.json — these are guardrails. ' +
+    'code_proposal = author a code change envelope (params: targetPath repo-relative, proposedContent full new file content, rationale, objectiveId, riskLevel ∈ low|medium|high). Envelopes are quarantined for human/CI review — never applied automatically. Aim for small, focused, audit-friendly diffs. ' +
+    'NEVER target .github/, deepseek-governor.js, deepseek-loop.js, package.json, package-lock.json — these are immutable guardrails. ' +
     'roadmap_update = mark an objective status (params.objectiveId, params.status ∈ pending|in-progress|done|blocked, optional note). ' +
-    'Prioritization rules: if operatorCommand is present, address it first. ' +
-    'Otherwise pick the highest-priority open objective from roadmap.topOpenObjectives and act toward it. ' +
-    'Prefer read_status / read_file for diagnosis, then code_proposal for fixes. ' +
-    'If unsure or all signals are green, return action="none". Never invent actions outside the allowlist.';
+    'Auto-advance rule: if STATUS shows a metric target met for an in-progress objective (compare metricKey against target via comparison), prefer roadmap_update status=done so the loop moves to the next priority on the next tick. ' +
+    'Prioritization rules: (1) if operatorCommand is present, address it first; (2) otherwise pick the highest-priority open objective from roadmap.topOpenObjectives and act toward it; (3) prefer read_status / read_file for diagnosis, then code_proposal for fixes; (4) when everything is green, generate an innovation code_proposal toward an `innovation: true` objective. ' +
+    'Diversify: do not repeat the same action+target on consecutive ticks. Spread effort across the top-3 priorities. ' +
+    'If unsure or all signals are green and an innovation proposal was just made, return action="none". Never invent actions outside the allowlist.';
   const userPrompt = 'STATUS:\n' + JSON.stringify(status, null, 2);
   let lastError = null;
   for (const provider of providers) {
