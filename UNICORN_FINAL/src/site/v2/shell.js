@@ -2406,6 +2406,264 @@ function pageCryptoFiatBridge() {
 </section>`;
 }
 
+// ----------------------------------------------------------------------------
+// DeepSeek Autonomy Cockpit (objective `deepseek-autonomy-cockpit`).
+// Read-only operator console that surfaces the autonomous loop's state:
+//   • Roadmap objectives (GET /api/admin/roadmap)
+//   • Governor status + counters (GET /api/admin/deepseek/status)
+//   • Pending operator commands (GET /api/admin/deepseek/commands)
+//   • Latest code_proposal envelopes (GET /api/admin/deepseek/proposals)
+// Plus a "Queue command" form (POST /api/admin/deepseek/command) so operators
+// can steer DeepSeek without curl. Token is provided by the operator and kept
+// in sessionStorage only — never embedded in SSR HTML. All API-sourced strings
+// are written via textContent to avoid XSS even if a malicious envelope lands
+// in data/deepseek-proposals/.
+// ----------------------------------------------------------------------------
+// Cockpit DeepSeek (obiectiv `deepseek-autonomy-cockpit`).
+// Consolă operator read-only care expune starea loop-ului autonom:
+//   • Roadmap, status governor, comenzi în coadă, ultimele propuneri.
+// Token-ul e introdus de operator și păstrat doar în sessionStorage.
+function pageDeepseekCockpit() {
+  return `<section style="padding-top:140px;max-width:1180px">
+  <span class="kicker">DeepSeek Autonomy Cockpit · admin-only</span>
+  <h1 style="font-size:clamp(34px,4.4vw,58px);margin:10px 0 18px">Roadmap, proposals and <span class="grad">operator commands in one cockpit.</span></h1>
+  <p style="color:var(--ink-dim);font-size:16px;line-height:1.7;max-width:860px">Live view of the autonomous DeepSeek loop: roadmap objectives, governor status, queued operator instructions and the latest <code class="inline">code_proposal</code> envelopes awaiting review. Paste your admin token to load the data — it is kept in browser session storage only.</p>
+
+  <div class="card" style="margin-top:22px;padding:18px">
+    <label for="dsToken" style="font-size:12px;color:var(--ink-dim);display:block;margin-bottom:6px">Admin token (x-auth-token / Bearer / DEEPSEEK_LOOP_ADMIN_TOKEN)</label>
+    <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">
+      <input id="dsToken" type="password" autocomplete="off" placeholder="paste admin token" style="flex:1 1 320px;padding:10px;background:#0b0f17;border:1px solid #1f2a3b;color:#e7ecf3;border-radius:8px;font-family:ui-monospace,monospace">
+      <button id="dsLoadBtn" class="btn btn-primary" type="button">Refresh</button>
+      <button id="dsClearBtn" class="btn" type="button">Clear token</button>
+    </div>
+    <p id="dsAuthMsg" style="color:var(--ink-dim);font-size:13px;margin:10px 0 0;min-height:18px">Token is held in sessionStorage only — never sent to anywhere except <code class="inline">/api/admin/deepseek/*</code> and <code class="inline">/api/admin/roadmap</code> on this origin.</p>
+  </div>
+
+  <div class="grid" id="dsSummary" style="margin-top:22px"><div class="card"><p>Summary will appear here after you load with a valid token.</p></div></div>
+
+  <div class="card" style="margin-top:22px;padding:18px">
+    <span class="tag">Roadmap</span>
+    <h3 style="margin:8px 0 12px">Objectives</h3>
+    <div id="dsRoadmap"><p style="color:var(--ink-dim);margin:0">Roadmap will appear here after refresh.</p></div>
+  </div>
+
+  <div class="card" style="margin-top:22px;padding:18px">
+    <span class="tag">Operator command queue</span>
+    <h3 style="margin:8px 0 12px">Queue a new instruction</h3>
+    <form id="dsCmdForm" style="display:grid;gap:10px;max-width:720px">
+      <label style="font-size:12px;color:var(--ink-dim)">Instruction (max 4096 chars)</label>
+      <textarea id="dsCmdInstr" rows="3" maxlength="4096" placeholder="e.g. Audit /api/instant/catalog response and propose a fail-soft fix" style="padding:10px;background:#0b0f17;border:1px solid #1f2a3b;color:#e7ecf3;border-radius:8px;font-family:ui-monospace,monospace"></textarea>
+      <label style="font-size:12px;color:var(--ink-dim)">Priority</label>
+      <select id="dsCmdPri" style="padding:10px;background:#0b0f17;border:1px solid #1f2a3b;color:#e7ecf3;border-radius:8px;max-width:200px">
+        <option value="1">1 — top</option>
+        <option value="2" selected>2 — high</option>
+        <option value="3">3 — normal</option>
+        <option value="5">5 — low</option>
+      </select>
+      <div><button class="btn btn-primary" type="submit">Queue command</button></div>
+      <p id="dsCmdMsg" style="color:var(--ink-dim);font-size:13px;margin:0;min-height:18px"></p>
+    </form>
+    <h3 style="margin:18px 0 8px">Pending</h3>
+    <div id="dsCmdList"><p style="color:var(--ink-dim);margin:0">Queue will appear here after refresh.</p></div>
+  </div>
+
+  <div class="card" style="margin-top:22px;padding:18px">
+    <span class="tag">code_proposal envelopes</span>
+    <h3 style="margin:8px 0 12px">Latest proposals (review-only — never auto-applied)</h3>
+    <div id="dsProposals"><p style="color:var(--ink-dim);margin:0">Proposals will appear here after refresh.</p></div>
+  </div>
+
+  <pre class="code" id="dsRaw" style="margin-top:22px;max-height:280px;overflow:auto">Raw governor status will appear here.</pre>
+
+  <script>
+  (function(){
+    var TOKEN_KEY = 'zeus_ds_admin_token';
+    var tokenInput = document.getElementById('dsToken');
+    var authMsg = document.getElementById('dsAuthMsg');
+    var summary = document.getElementById('dsSummary');
+    var roadmapEl = document.getElementById('dsRoadmap');
+    var cmdList = document.getElementById('dsCmdList');
+    var proposalsEl = document.getElementById('dsProposals');
+    var rawEl = document.getElementById('dsRaw');
+    var cmdForm = document.getElementById('dsCmdForm');
+    var cmdInstr = document.getElementById('dsCmdInstr');
+    var cmdPri = document.getElementById('dsCmdPri');
+    var cmdMsg = document.getElementById('dsCmdMsg');
+    var loadBtn = document.getElementById('dsLoadBtn');
+    var clearBtn = document.getElementById('dsClearBtn');
+
+    try { var stored = sessionStorage.getItem(TOKEN_KEY); if (stored) tokenInput.value = stored; } catch(_){}
+
+    function setAuthMsg(text, kind){
+      authMsg.textContent = text;
+      authMsg.style.color = kind === 'err' ? '#ff6b6b' : (kind === 'ok' ? '#7ee2a8' : 'var(--ink-dim)');
+    }
+
+    function el(tag, attrs, text){
+      var n = document.createElement(tag);
+      if (attrs) for (var k in attrs) { if (Object.prototype.hasOwnProperty.call(attrs,k)) n.setAttribute(k, attrs[k]); }
+      if (text != null) n.textContent = String(text);
+      return n;
+    }
+
+    function clearChildren(node){ while (node.firstChild) node.removeChild(node.firstChild); }
+
+    function authHeaders(){
+      var t = (tokenInput.value || '').trim();
+      if (!t) return null;
+      return { 'x-auth-token': t, 'authorization': 'Bearer ' + t };
+    }
+
+    async function fetchJson(url, opts){
+      var headers = authHeaders();
+      if (!headers) throw new Error('token_missing');
+      var init = Object.assign({ headers: headers }, opts || {});
+      if (init.body && !init.headers['content-type']) init.headers['content-type'] = 'application/json';
+      var r = await fetch(url, init);
+      if (r.status === 204) return null;
+      var txt = await r.text();
+      var j = null;
+      try { j = txt ? JSON.parse(txt) : null; } catch(_){ j = { raw: txt }; }
+      if (!r.ok) { var err = new Error('http_'+r.status); err.body = j; throw err; }
+      return j;
+    }
+
+    function renderRoadmap(roadmap){
+      clearChildren(roadmapEl);
+      if (!roadmap || !Array.isArray(roadmap.objectives) || !roadmap.objectives.length){
+        roadmapEl.appendChild(el('p', { style:'color:var(--ink-dim);margin:0' }, 'No objectives in roadmap.'));
+        return;
+      }
+      var list = el('div', { style:'display:grid;gap:10px' });
+      roadmap.objectives.slice().sort(function(a,b){ return (a.priority||99)-(b.priority||99); }).forEach(function(o){
+        var row = el('div', { style:'padding:12px;border:1px solid #1f2a3b;border-radius:8px;background:#0b0f17' });
+        var head = el('div', { style:'display:flex;gap:10px;flex-wrap:wrap;align-items:center' });
+        head.appendChild(el('span', { class:'tag' }, 'P'+(o.priority||'?')));
+        head.appendChild(el('span', { class:'tag' }, String(o.status||'unknown')));
+        head.appendChild(el('strong', { style:'font-size:14px' }, String(o.id||'')));
+        row.appendChild(head);
+        row.appendChild(el('p', { style:'margin:6px 0 0;color:var(--ink-dim);font-size:13.5px' }, String(o.title||'')));
+        if (o.metricEndpoint) row.appendChild(el('p', { style:'margin:4px 0 0;color:var(--ink-dim);font-size:12px;font-family:ui-monospace,monospace' }, o.metricEndpoint+' · target '+String(o.comparison||'')+' '+String(o.target||'')));
+        list.appendChild(row);
+      });
+      roadmapEl.appendChild(list);
+    }
+
+    function renderCommands(commands){
+      clearChildren(cmdList);
+      var arr = Array.isArray(commands) ? commands : [];
+      if (!arr.length){
+        cmdList.appendChild(el('p', { style:'color:var(--ink-dim);margin:0' }, 'No pending operator commands.'));
+        return;
+      }
+      var list = el('div', { style:'display:grid;gap:8px' });
+      arr.forEach(function(c){
+        var row = el('div', { style:'padding:10px;border:1px solid #1f2a3b;border-radius:8px;background:#0b0f17' });
+        var head = el('div', { style:'display:flex;gap:8px;flex-wrap:wrap;align-items:center' });
+        head.appendChild(el('span', { class:'tag' }, 'P'+(c.priority||'?')));
+        head.appendChild(el('span', { class:'tag' }, c.consumed ? 'consumed' : 'pending'));
+        head.appendChild(el('span', { style:'font-size:12px;color:var(--ink-dim);font-family:ui-monospace,monospace' }, String(c.id||'')));
+        row.appendChild(head);
+        row.appendChild(el('p', { style:'margin:6px 0 0;font-size:13.5px;white-space:pre-wrap' }, String(c.instruction||'')));
+        list.appendChild(row);
+      });
+      cmdList.appendChild(list);
+    }
+
+    function renderProposals(data){
+      clearChildren(proposalsEl);
+      var arr = (data && Array.isArray(data.proposals)) ? data.proposals : [];
+      if (!arr.length){
+        proposalsEl.appendChild(el('p', { style:'color:var(--ink-dim);margin:0' }, 'No proposals yet.'));
+        return;
+      }
+      var list = el('div', { style:'display:grid;gap:10px' });
+      arr.forEach(function(p){
+        var row = el('div', { style:'padding:12px;border:1px solid #1f2a3b;border-radius:8px;background:#0b0f17' });
+        var head = el('div', { style:'display:flex;gap:8px;flex-wrap:wrap;align-items:center' });
+        head.appendChild(el('span', { class:'tag' }, String(p.status||'pending-review')));
+        if (p.riskLevel) head.appendChild(el('span', { class:'tag' }, 'risk:'+String(p.riskLevel)));
+        if (p.bytes != null) head.appendChild(el('span', { class:'tag' }, String(p.bytes)+' B'));
+        head.appendChild(el('span', { style:'font-size:12px;color:var(--ink-dim);font-family:ui-monospace,monospace' }, String(p.proposalId||'')));
+        row.appendChild(head);
+        if (p.targetPath) row.appendChild(el('p', { style:'margin:6px 0 0;font-size:13px;font-family:ui-monospace,monospace;color:var(--ink-dim)' }, String(p.targetPath)));
+        if (p.objectiveId) row.appendChild(el('p', { style:'margin:4px 0 0;font-size:12px;color:var(--ink-dim)' }, 'objective: '+String(p.objectiveId)));
+        if (p.rationalePreview) row.appendChild(el('p', { style:'margin:6px 0 0;font-size:13px;white-space:pre-wrap' }, String(p.rationalePreview)));
+        list.appendChild(row);
+      });
+      proposalsEl.appendChild(list);
+      var totalNote = el('p', { style:'margin:10px 0 0;color:var(--ink-dim);font-size:12px' }, 'Showing '+arr.length+' of '+String(data.total||arr.length)+'. Envelopes are NEVER auto-applied; review them in data/deepseek-proposals/ before merging.');
+      proposalsEl.appendChild(totalNote);
+    }
+
+    function renderSummary(status, roadmap, commands, proposals){
+      clearChildren(summary);
+      var cards = [
+        ['Objectives open', (roadmap && Array.isArray(roadmap.objectives)) ? roadmap.objectives.filter(function(o){return o.status!=='done';}).length : '—'],
+        ['Pending commands', Array.isArray(commands) ? commands.filter(function(c){return !c.consumed;}).length : '—'],
+        ['Proposals total', (proposals && proposals.total != null) ? proposals.total : '—'],
+        ['Loop tick', (status && status.lastTickAt) ? status.lastTickAt : '—'],
+        ['Loop state', (status && status.state) ? status.state : '—'],
+        ['Actions today', (status && status.actionsToday != null) ? status.actionsToday : '—']
+      ];
+      cards.forEach(function(c){
+        var card = el('div', { class:'card', style:'padding:14px' });
+        card.appendChild(el('span', { class:'tag' }, String(c[0])));
+        card.appendChild(el('h3', { style:'margin:6px 0 0' }, String(c[1])));
+        summary.appendChild(card);
+      });
+    }
+
+    async function refresh(){
+      var h = authHeaders();
+      if (!h){ setAuthMsg('Token required to load cockpit data.', 'err'); return; }
+      setAuthMsg('Loading…', '');
+      try { sessionStorage.setItem(TOKEN_KEY, tokenInput.value.trim()); } catch(_){}
+      var status=null, roadmap=null, cmds=null, props=null, errs=[];
+      try { status = await fetchJson('/api/admin/deepseek/status'); } catch(e){ errs.push('status:'+e.message); }
+      try { roadmap = await fetchJson('/api/admin/roadmap'); } catch(e){ errs.push('roadmap:'+e.message); }
+      try { var cj = await fetchJson('/api/admin/deepseek/commands?includeConsumed=0&limit=50'); cmds = cj && cj.commands; } catch(e){ errs.push('commands:'+e.message); }
+      try { props = await fetchJson('/api/admin/deepseek/proposals?limit=20'); } catch(e){ errs.push('proposals:'+e.message); }
+      renderSummary(status, roadmap, cmds, props);
+      renderRoadmap(roadmap);
+      renderCommands(cmds);
+      renderProposals(props);
+      try { rawEl.textContent = JSON.stringify(status || { error:'governor_unavailable' }, null, 2); } catch(_){ rawEl.textContent = 'status unavailable'; }
+      if (errs.length) setAuthMsg('Loaded with errors: '+errs.join(' · '), 'err');
+      else setAuthMsg('Loaded at '+new Date().toISOString(), 'ok');
+    }
+
+    loadBtn.addEventListener('click', function(ev){ ev.preventDefault(); refresh(); });
+    clearBtn.addEventListener('click', function(ev){
+      ev.preventDefault();
+      tokenInput.value = '';
+      try { sessionStorage.removeItem(TOKEN_KEY); } catch(_){}
+      setAuthMsg('Token cleared.', '');
+    });
+
+    cmdForm.addEventListener('submit', async function(ev){
+      ev.preventDefault();
+      var instr = (cmdInstr.value || '').trim();
+      if (!instr){ cmdMsg.textContent = 'Instruction is empty.'; cmdMsg.style.color = '#ff6b6b'; return; }
+      var pri = parseInt(cmdPri.value, 10) || 3;
+      cmdMsg.style.color = 'var(--ink-dim)';
+      cmdMsg.textContent = 'Queuing…';
+      try {
+        var r = await fetchJson('/api/admin/deepseek/command', { method:'POST', body: JSON.stringify({ instruction: instr, priority: pri }) });
+        cmdMsg.style.color = '#7ee2a8';
+        cmdMsg.textContent = 'Queued (id '+ (r && r.id ? r.id : '?') + ', priority '+pri+').';
+        cmdInstr.value = '';
+        refresh();
+      } catch(e){
+        cmdMsg.style.color = '#ff6b6b';
+        cmdMsg.textContent = 'Failed: '+(e && e.message || 'unknown') + ((e && e.body && e.body.error) ? ' · '+e.body.error : '');
+      }
+    });
+  })();
+  </script>
+</section>`;
+}
+
 function renderRoute(route, params = {}) {
   switch (route) {
     case '/': return pageHome();
@@ -2450,6 +2708,7 @@ function renderRoute(route, params = {}) {
     case '/api-explorer': return pageApiExplorer();
     case '/transparency': return pageTransparency();
     case '/frontier': return pageFrontier();
+    case '/deepseek-cockpit': return pageDeepseekCockpit();
     case '/marketplace': return pageServices();
     default:
       if (route.startsWith('/services/')) return pageService(params.id || route.slice(10));
@@ -3063,7 +3322,7 @@ function _legalSub(title, body) {
 function routeTitle(route) {
   if (route === '/') return 'Sovereign AI OS';
   if (route.startsWith('/services/')) return 'Service';
-  const map = { '/services':'Marketplace', '/marketplace':'Marketplace', '/pricing':'Pricing', '/checkout':'Checkout', '/dashboard':'Dashboard', '/how':'How it works', '/docs':'API & Docs', '/about':'About', '/legal':'Legal', '/trust':'Trust Center', '/security':'Security', '/responsible-ai':'Responsible AI', '/dpa':'Data Processing Agreement', '/payment-terms':'Payment Terms', '/operator':'Operator Console', '/observability':'Observability', '/enterprise':'Enterprise Licenses', '/store':'Instant Store', '/account':'Account', '/innovations':'30Y Cryptographic Durability', '/wizard':'Find my plan', '/status':'Live status', '/changelog':'Changelog', '/terms':'Terms of Service', '/privacy':'Privacy Policy', '/refund':'Refund Guarantee', '/sla':'SLA', '/pledge':'Anti-Dark-Pattern Pledge', '/cancel':'Universal Cancel', '/gift':'Gift-as-Capability', '/aura':'Live Conversion Aura', '/api-explorer':'API Explorer', '/transparency':'Pricing Bandit Transparency', '/frontier':'Frontier Inventions' };
+  const map = { '/services':'Marketplace', '/marketplace':'Marketplace', '/pricing':'Pricing', '/checkout':'Checkout', '/dashboard':'Dashboard', '/how':'How it works', '/docs':'API & Docs', '/about':'About', '/legal':'Legal', '/trust':'Trust Center', '/security':'Security', '/responsible-ai':'Responsible AI', '/dpa':'Data Processing Agreement', '/payment-terms':'Payment Terms', '/operator':'Operator Console', '/observability':'Observability', '/enterprise':'Enterprise Licenses', '/store':'Instant Store', '/account':'Account', '/innovations':'30Y Cryptographic Durability', '/wizard':'Find my plan', '/status':'Live status', '/changelog':'Changelog', '/terms':'Terms of Service', '/privacy':'Privacy Policy', '/refund':'Refund Guarantee', '/sla':'SLA', '/pledge':'Anti-Dark-Pattern Pledge', '/cancel':'Universal Cancel', '/gift':'Gift-as-Capability', '/aura':'Live Conversion Aura', '/api-explorer':'API Explorer', '/transparency':'Pricing Bandit Transparency', '/frontier':'Frontier Inventions', '/deepseek-cockpit':'DeepSeek Autonomy Cockpit' };
   return map[route] || 'ZeusAI';
 }
 
@@ -3102,7 +3361,8 @@ function routeDescription(route) {
     '/aura': 'Live conversion aura showing signed ZeusAI commerce, delivery and trust metrics in real time.',
     '/api-explorer': 'Explore ZeusAI OpenAPI, signed catalog, payment routes, receipts and agent commerce endpoints.',
     '/transparency': 'Public pricing bandit transparency for ZeusAI experiments, offers and conversion governance.',
-    '/frontier': 'Frontier ZeusAI inventions: refund guarantee, live aura, self-healing checkout and verifiable receipts.'
+    '/frontier': 'Frontier ZeusAI inventions: refund guarantee, live aura, self-healing checkout and verifiable receipts.',
+    '/deepseek-cockpit': 'Admin-only DeepSeek autonomy cockpit: roadmap, governor status, operator command queue and code_proposal envelopes.'
   };
   return map[route] || 'ZeusAI sovereign AI operating system with verifiable commerce and autonomous delivery.';
 }
