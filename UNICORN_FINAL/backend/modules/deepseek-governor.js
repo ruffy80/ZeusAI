@@ -618,7 +618,13 @@ function _listCommands({ limit, includeConsumed } = {}) {
       out.push(e);
     } catch (_) { /* skip malformed */ }
   }
-  out.sort((a, b) => (b.priority || 0) - (a.priority || 0) || (a.createdAt > b.createdAt ? 1 : -1));
+  out.sort((a, b) => {
+    const pd = (b.priority || 0) - (a.priority || 0);
+    if (pd !== 0) return pd;
+    const ac = String(a.createdAt || '');
+    const bc = String(b.createdAt || '');
+    return ac < bc ? -1 : ac > bc ? 1 : 0;
+  });
   return out;
 }
 
