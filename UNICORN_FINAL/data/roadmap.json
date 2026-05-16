@@ -12,7 +12,7 @@
     "arr_billion_usd_target_years": 5
   },
   "currentPhase": "bootstrap",
-  "updatedAt": "2026-05-16T17:18:00.000Z",
+  "updatedAt": "2026-05-16T18:30:00.000Z",
   "objectives": [
     {
       "id": "perf-p95-sub-200ms",
@@ -155,6 +155,75 @@
       "title": "Site multilingv EN/RO/ES/DE/FR cu SSR per limbă",
       "priority": 3,
       "status": "pending"
+    },
+    {
+      "id": "i18n-mandarin-chinese",
+      "title": "Extindere i18n cu Mandarin (ZH) — cea mai mare piață SaaS netradusă la nivel global",
+      "priority": 3,
+      "status": "pending",
+      "note": "Necesită ZH-Hans pentru continental + ZH-Hant pentru Taiwan/HK. Reutilizează infrastructura SSR per limbă din i18n-en-ro-es-de-fr."
+    },
+    {
+      "id": "scale-100m-users-architecture",
+      "title": "Arhitectură horizontal-scale capabilă de 100M utilizatori activi lunar",
+      "priority": 2,
+      "status": "pending",
+      "note": "PM2 cluster multi-instance, nginx upstream pool, Postgres read-replica plan, Redis cache layer, CDN edge offload. DeepSeek emite code_proposal incremental: shard plan, connection pooling, queue backpressure."
+    },
+    {
+      "id": "referral-network-effect",
+      "title": "INOVAȚIE: motor de referral cu coeficient viral k>1 (cod unic per user, credit BTC, dashboard) — efect de rețea compound",
+      "priority": 2,
+      "status": "pending",
+      "innovation": true,
+      "note": "/api/referrals/credit + /account?ref=CODE. Recompensa în BTC micropayments via Lightning. Loop-ul închis: fiecare user plătitor invită ≥1 user nou."
+    },
+    {
+      "id": "auth-ed25519-passwordless",
+      "title": "Auth passwordless cu chei Ed25519/WebAuthn — zero parole, sovereign identity",
+      "priority": 2,
+      "status": "pending",
+      "note": "Înlocuiește auth-ul JWT-only existent. Cheia publică Ed25519 per user stocată în users[]. Login = challenge-response semnat client-side. Compatibil cu YubiKey + platform authenticators."
+    },
+    {
+      "id": "dropshipping-end-to-end",
+      "title": "Dropshipping end-to-end: catalog supplier → comandă cu plată BTC → forward la furnizor → tracking → settlement automat în adresa owner",
+      "priority": 2,
+      "status": "pending",
+      "note": "Modul nou backend/modules/dropshipping.js. Endpoints: GET /api/dropshipping/products, POST /api/dropshipping/order, GET /api/dropshipping/order/:id. Margin retained at owner BTC address; supplier paid in fiat via Stripe Connect."
+    },
+    {
+      "id": "weekly-progress-report-autogen",
+      "title": "Generator automat WEEKLY-REPORT.md rulat duminică 23:00 UTC cu MRR/uptime/users/inovații săptămâna trecută",
+      "priority": 3,
+      "status": "pending",
+      "note": "Cron systemd timer + scripts/weekly-report.js. Citește /health, /api/pricing/all, data/deepseek-proposals/, data/logs/deepseek-loop.log. Commit în repo + publicare pe /transparency."
+    },
+    {
+      "id": "daily-innovation-proposal",
+      "title": "INOVAȚIE: DeepSeek emite minim 1 code_proposal/zi pentru un obiectiv `innovation: true` — auto-inovare continuă fără om",
+      "priority": 2,
+      "status": "pending",
+      "innovation": true,
+      "note": "Extinde predictive-feature-factory-weekly de la 5/săptămână la 1/zi minim. Tracking: data/deepseek-proposals/YYYY-MM-DD/*.json. Dacă o zi trece fără propunere de inovație, loop-ul alertează în /api/admin/roadmap."
+    },
+    {
+      "id": "marketplace-thousands-of-products",
+      "title": "Scalare marketplace de la 25 servicii la 1000+ produse (servicii + dropshipping + digital goods) cu paginare + search + filtre",
+      "priority": 2,
+      "status": "pending",
+      "metricEndpoint": "/api/instant/catalog",
+      "metricKey": "products.length",
+      "target": 1000,
+      "comparison": "gte"
+    },
+    {
+      "id": "btc-auto-settlement-watchdog",
+      "title": "Watchdog care verifică că 100% din încasările nete ajung în adresa BTC a proprietarului în <24h, cu alertă la divergență",
+      "priority": 1,
+      "status": "pending",
+      "settlementAddress": "bc1q4f7e66z87mdfj56kz0dj5hvcnpmh0qh4wuv22e",
+      "note": "Compară on-chain transfers către bc1q4f7e66z87mdfj56kz0dj5hvcnpmh0qh4wuv22e cu suma încasărilor (Stripe payouts USD→BTC + Lightning direct). Divergență >1% = alertă în /api/admin/roadmap + email owner."
     },
     {
       "id": "fifty-year-standard-baseline",
