@@ -4,7 +4,7 @@
   "vision": "Construirea celui mai mare SaaS mondial autonom, standard pentru >30 ani.",
   "northStarMetric": "MRR_USD",
   "currentPhase": "bootstrap",
-  "updatedAt": "2026-05-16T00:00:00.000Z",
+  "updatedAt": "2026-05-16T15:14:00.000Z",
   "objectives": [
     {
       "id": "perf-p95-sub-200ms",
@@ -72,7 +72,7 @@
       "id": "deepseek-autonomy-cockpit",
       "title": "Cockpit /deepseek-cockpit cu istoric acțiuni + propuneri + halt",
       "priority": 3,
-      "status": "pending"
+      "status": "in-progress"
     },
     {
       "id": "billing-recurring-stripe-or-btc",
