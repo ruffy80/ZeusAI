@@ -57,7 +57,36 @@ const ADMIN_TOKEN            = process.env.DEEPSEEK_LOOP_ADMIN_TOKEN || '';
 const LOG_PATH               = process.env.DEEPSEEK_LOOP_LOG_PATH
                              || path.join(__dirname, '..', 'data', 'logs', 'deepseek-loop.log');
 const ERROR_LOG_PATH         = process.env.DEEPSEEK_LOOP_ERROR_LOG || '/var/log/unicorn/error.log';
-const ALLOWED_ACTIONS = ['none', 'read_status', 'read_file', 'prices_sync', 'checkout_fix', 'run_test', 'restart_service'];
+const ALLOWED_ACTIONS = ['none', 'read_status', 'read_file', 'prices_sync', 'checkout_fix', 'run_test', 'restart_service', 'code_proposal', 'roadmap_update'];
+
+// Roadmap + operator-command fetch (best-effort; failures don't break the loop).
+// Roadmap + comenzi-operator (best-effort; eșecurile nu opresc loop-ul).
+async function fetchRoadmap() {
+  if (!ADMIN_TOKEN) return null;
+  try {
+    const res = await request(BACKEND_URL + '/api/admin/roadmap', {
+      timeoutMs: 5000,
+      headers: { 'Authorization': 'Bearer ' + ADMIN_TOKEN },
+    });
+    if (res.status < 200 || res.status >= 300) return null;
+    return JSON.parse(res.body);
+  } catch (_) { return null; }
+}
+
+async function consumeNextOperatorCommand() {
+  if (!ADMIN_TOKEN) return null;
+  try {
+    const res = await request(BACKEND_URL + '/api/admin/deepseek/command/consume', {
+      method: 'POST',
+      timeoutMs: 5000,
+      headers: { 'Authorization': 'Bearer ' + ADMIN_TOKEN, 'Content-Length': '0' },
+    });
+    if (res.status === 204) return null;
+    if (res.status < 200 || res.status >= 300) return null;
+    const j = JSON.parse(res.body);
+    return j && j.command ? j.command : null;
+  } catch (_) { return null; }
+}
 
 function getAdvisorProviders() {
   const providers = [];
@@ -165,6 +194,32 @@ async function collectStatus() {
   } catch (e) {
     out.recentErrorsError = String(e && e.message || e).slice(0, 200);
   }
+  // Goal-directed context: roadmap top-priority open objectives + queued op cmd.
+  // Context goal-directed: obiective prioritare deschise + comandă operator.
+  try {
+    const roadmap = await fetchRoadmap();
+    if (roadmap && Array.isArray(roadmap.objectives)) {
+      out.roadmap = {
+        vision: String(roadmap.vision || '').slice(0, 240),
+        currentPhase: roadmap.currentPhase || '',
+        topOpenObjectives: roadmap.objectives
+          .filter(o => o && o.status !== 'done')
+          .sort((a, b) => (a.priority || 99) - (b.priority || 99))
+          .slice(0, 5)
+          .map(o => ({ id: o.id, title: o.title, status: o.status, priority: o.priority })),
+      };
+    }
+  } catch (_) { /* best-effort */ }
+  try {
+    const cmd = await consumeNextOperatorCommand();
+    if (cmd) {
+      out.operatorCommand = {
+        id: cmd.id,
+        priority: cmd.priority,
+        instruction: String(cmd.instruction || '').slice(0, 1000),
+      };
+    }
+  } catch (_) { /* best-effort */ }
   return out;
 }
 
@@ -173,13 +228,26 @@ async function askDeepSeek(status) {
   const providers = getAdvisorProviders();
   if (!providers.length) throw new Error('missing_deepseek_advisor_provider_key');
   const systemPrompt =
-    'You are the DeepSeek operations advisor for the Unicorn platform. ' +
-    'Based on the given status JSON, choose EXACTLY ONE action from this hardcoded allowlist: ' +
+    'You are the autonomous DeepSeek operator for the Unicorn / zeusai.pro platform. ' +
+    'The user is building the largest autonomous SaaS in the world, aimed to be a global standard for >30 years. ' +
+    'You receive a STATUS JSON containing health signals, recent errors, the roadmap of open objectives, ' +
+    'and (when present) an operatorCommand from the human owner that overrides roadmap priorities for this tick. ' +
+    'Choose EXACTLY ONE action from this hardcoded allowlist: ' +
     ALLOWED_ACTIONS.join(', ') + '. ' +
     'You MUST return ONLY a JSON object with shape: ' +
     '{"action":"<one-of-allowlist>","params":{...},"reason":"<short string>"}. ' +
-    'For restart_service, params.service MUST be one of: unicorn-backend, unicorn-frontend, unicorn-site, pricing-module. ' +
-    'If unsure, return action="none". Never invent actions outside the allowlist.';
+    'Action semantics: ' +
+    'read_status = inspect runtime; read_file = inspect a file (params.path, must be repo-relative, no .env/secrets); ' +
+    'prices_sync = refresh live pricing broker; checkout_fix = read-only checkout health; ' +
+    'run_test = execute npm test (use sparingly); ' +
+    'restart_service = log restart INTENT only (params.service ∈ unicorn-backend, unicorn-frontend, unicorn-site, pricing-module); ' +
+    'code_proposal = author a code change envelope (params: targetPath repo-relative, proposedContent full new file content, rationale, objectiveId, riskLevel ∈ low|medium|high). ' +
+    'NEVER target .github/, deepseek-governor.js, deepseek-loop.js, package.json — these are guardrails. ' +
+    'roadmap_update = mark an objective status (params.objectiveId, params.status ∈ pending|in-progress|done|blocked, optional note). ' +
+    'Prioritization rules: if operatorCommand is present, address it first. ' +
+    'Otherwise pick the highest-priority open objective from roadmap.topOpenObjectives and act toward it. ' +
+    'Prefer read_status / read_file for diagnosis, then code_proposal for fixes. ' +
+    'If unsure or all signals are green, return action="none". Never invent actions outside the allowlist.';
   const userPrompt = 'STATUS:\n' + JSON.stringify(status, null, 2);
   let lastError = null;
   for (const provider of providers) {

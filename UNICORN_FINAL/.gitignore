@@ -11,6 +11,11 @@ data/*.db-shm
 data/*.db-wal
 data/runtime-secrets.json
 data/**/*.secret
+data/deepseek-proposals/
+data/deepseek-commands.jsonl
+data/logs/deepseek-governor.log
+data/logs/deepseek-governor.log.1
+data/logs/deepseek-loop.log
 data/**/secrets*.json
 # Sovereign-commerce runtime state (orders, signing key, catalog-seen, txid cache)
 data/commerce/

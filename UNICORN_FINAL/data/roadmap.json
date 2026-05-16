@@ -1,0 +1,107 @@
+{
+  "schemaVersion": 1,
+  "owner": "Vladoi Ionut <vladoi_ionut@yahoo.com>",
+  "vision": "Construirea celui mai mare SaaS mondial autonom, standard pentru >30 ani.",
+  "northStarMetric": "MRR_USD",
+  "currentPhase": "bootstrap",
+  "updatedAt": "2026-05-16T00:00:00.000Z",
+  "objectives": [
+    {
+      "id": "perf-p95-sub-200ms",
+      "title": "Latency p95 < 200ms pentru toate paginile critice",
+      "priority": 1,
+      "status": "in-progress",
+      "metricEndpoint": "/internal/perf/stats",
+      "metricKey": "p95Ms",
+      "target": 200,
+      "comparison": "lte"
+    },
+    {
+      "id": "marketplace-25-services-live-pricing",
+      "title": "25 servicii în marketplace cu prețuri live USD+BTC",
+      "priority": 1,
+      "status": "in-progress",
+      "metricEndpoint": "/api/instant/catalog",
+      "metricKey": "products.length",
+      "target": 25,
+      "comparison": "gte"
+    },
+    {
+      "id": "autoviral-3-platforms-active",
+      "title": "Autoviralization activă pe minimum 3 platforme",
+      "priority": 2,
+      "status": "in-progress",
+      "metricEndpoint": "/api/autonomous/viral/status",
+      "metricKey": "activePlatforms",
+      "target": 3,
+      "comparison": "gte"
+    },
+    {
+      "id": "checkout-conversion-instrumentation",
+      "title": "Instrumentare end-to-end conversion (view → checkout → paid)",
+      "priority": 2,
+      "status": "pending"
+    },
+    {
+      "id": "ssr-no-stuck-placeholders",
+      "title": "Zero placeholder-uri SSR rămase pe Loading.../Checking...",
+      "priority": 1,
+      "status": "in-progress",
+      "metricEndpoint": "/pricing",
+      "metricKey": "pricingLoadingCount",
+      "target": 0,
+      "comparison": "eq"
+    },
+    {
+      "id": "uptime-three-nines",
+      "title": "99.9% uptime pe zeusai.pro (backend + site)",
+      "priority": 1,
+      "status": "in-progress",
+      "metricEndpoint": "/health",
+      "metricKey": "uptimePct30d",
+      "target": 99.9,
+      "comparison": "gte"
+    },
+    {
+      "id": "live-pricing-broker-resilient",
+      "title": "Live pricing broker fail-soft cu last-good cache pe toate serviciile",
+      "priority": 2,
+      "status": "done"
+    },
+    {
+      "id": "deepseek-autonomy-cockpit",
+      "title": "Cockpit /deepseek-cockpit cu istoric acțiuni + propuneri + halt",
+      "priority": 3,
+      "status": "pending"
+    },
+    {
+      "id": "billing-recurring-stripe-or-btc",
+      "title": "Billing recurent (Stripe SaaS + BTC Lightning) operațional",
+      "priority": 2,
+      "status": "pending"
+    },
+    {
+      "id": "retention-30d-cohort-dashboard",
+      "title": "Dashboard retention 30/60/90 zile pentru cohorte plătitoare",
+      "priority": 3,
+      "status": "pending"
+    },
+    {
+      "id": "i18n-en-ro-es-de-fr",
+      "title": "Site multilingv EN/RO/ES/DE/FR cu SSR per limbă",
+      "priority": 3,
+      "status": "pending"
+    },
+    {
+      "id": "fifty-year-standard-baseline",
+      "title": "Baseline arhitectural cu garanție 50 ani (kill-switch + rollback documentat)",
+      "priority": 2,
+      "status": "in-progress",
+      "metricEndpoint": "/internal/baseline/status",
+      "metricKey": "baselineModeAvailable",
+      "target": 1,
+      "comparison": "gte"
+    }
+  ],
+  "operatorNotes": "Editați obiectivele aici sau prin POST /api/admin/deepseek/command — DeepSeek le citește la fiecare ciclu."
+}
