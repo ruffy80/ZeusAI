@@ -115,13 +115,39 @@ auto-rotated at 2 MiB.
 
 ### Advisory loop (`scripts/deepseek-loop.js`)
 
-A **default-off**, opt-in companion script that polls a status snapshot,
-asks DeepSeek for one recommended action from the allowlist, and either logs
-the recommendation (advisory mode, default) or posts it to
-`/api/admin/deepseek/act` (execute mode).
+A companion script that polls a status snapshot, asks DeepSeek for one
+recommended action from the allowlist, and either logs the recommendation
+(advisory mode, default) or posts it to `/api/admin/deepseek/act` (execute mode).
 
-Environment knobs:
+**Activation (2026-05-17 update — full-power one-key activation):** when the
+operator has set `DEEPSEEK_API_KEY` (or `OPENROUTER_API_KEY` / `GROQ_API_KEY` as
+a fallback advisor) as a GitHub Actions secret, `scripts/create-env.sh` now
+**auto-defaults `DEEPSEEK_LOOP_ENABLED=1`** so the systemd unit activates on
+the next deploy without requiring a second secret. If `DEEPSEEK_LOOP_ADMIN_TOKEN`
+is also present, `DEEPSEEK_LOOP_EXECUTE=1` is auto-defaulted as well. To
+opt-out explicitly, set `DEEPSEEK_LOOP_ENABLED=0` as a secret — the operator's
+explicit value always wins over the auto-default.
+
+The companion GitHub Actions workflow
+**`.github/workflows/deepseek-autopilot.yml`** runs the SAME governor
+(`backend/modules/deepseek-governor.js`) every 30 minutes inside CI and opens
+a **draft Pull Request** when DeepSeek produces a `code_proposal` or
+`roadmap_update`. This closes the loop that previously ended on the Hetzner
+side: envelopes were written to `data/deepseek-proposals/` but never made it
+back into git. The workflow uses only `secrets.DEEPSEEK_API_KEY` (or the
+`OPENROUTER_API_KEY` / `GROQ_API_KEY` fallbacks) plus the default
+`GITHUB_TOKEN`; no admin token or SSH is required. PRs open as **draft** so the
+operator review gate is preserved.
+
+To bulk-populate every advisor secret from a single command, use the existing
+secret-management module `scripts/setup-github-secrets.js`
+(`GITHUB_TOKEN=ghp_xxx DEEPSEEK_API_KEY=… node scripts/setup-github-secrets.js`)
+— it writes `DEEPSEEK_API_KEY`, `GROQ_API_KEY`, `OPENROUTER_API_KEY` and 25+
+other advisor/model keys via the GitHub Secrets REST API in one pass.
+
+Environment knobs (loop-side):
 - `DEEPSEEK_LOOP_ENABLED=1` — required, otherwise the script exits immediately.
+  Auto-defaulted to `1` by `create-env.sh` when an advisor key is present.
 - `DEEPSEEK_LOOP_EXECUTE=1` + `DEEPSEEK_LOOP_ADMIN_TOKEN=<jwt>` — together
   enable execute mode. Without both, the loop is advisory only.
 - `DEEPSEEK_API_KEY`, `DEEPSEEK_API_URL`, `DEEPSEEK_MODEL`.
@@ -140,12 +166,11 @@ DeepSeek advisory/execute loop (default-OFF)”_): the unit is copied to
 `systemctl enable --now`-ed. A manual fallback workflow (**`🛠️ Install DeepSeek
 Loop (Hetzner)`**, `.github/workflows/install-deepseek-loop.yml`,
 `workflow_dispatch`) remains available for install/uninstall/status outside the
-normal deploy path. The loop remains **default-OFF**: to bring it up at full
-power, set the following as repository secrets in GitHub Actions so
-`create-env.sh` propagates them to `.env` on the next deploy:
+normal deploy path.
 
 - `DEEPSEEK_API_KEY` — DeepSeek API token.
-- `DEEPSEEK_LOOP_ENABLED=1` — flips the in-script gate.
+- `DEEPSEEK_LOOP_ENABLED=1` — flips the in-script gate (auto-defaulted to 1 when
+  an advisor key is present; explicit operator value always wins).
 - `DEEPSEEK_LOOP_EXECUTE=1` and `DEEPSEEK_LOOP_ADMIN_TOKEN=<admin-jwt>` —
   required together to switch from advisory-only to execute mode (POST to
   `/api/admin/deepseek/act`). Without both the loop only logs recommendations.

@@ -1,0 +1,181 @@
+name: 🤖 DeepSeek Autopilot (autonomous loop in CI)
+
+# Purpose:
+#   Run ONE DeepSeek governor tick every 30 minutes inside GitHub Actions and
+#   open a draft Pull Request whenever DeepSeek produces a `code_proposal` or
+#   `roadmap_update`. This closes the loop that previously ended on the Hetzner
+#   side: envelopes were written to `data/deepseek-proposals/` but nothing
+#   ever brought them back into git.
+#
+# Activation:
+#   1. Set the `DEEPSEEK_API_KEY` repository secret (or `OPENROUTER_API_KEY`
+#      / `GROQ_API_KEY` as fallbacks). No other secret is required — the
+#      workflow uses the default `GITHUB_TOKEN` for branch+PR.
+#   2. That's it. The cron starts immediately. To force a tick, use the
+#      "Run workflow" button (workflow_dispatch).
+#
+# Safety:
+#   * The tick runs `governor.dispatch` from the SAME module the backend uses;
+#     every allowlist + deny-prefix + size cap + per-day cap applies here too.
+#   * PRs are opened as DRAFT — never auto-merged. CI runs lint+tests on them.
+#   * If no provider key is set, the tick logs a hint and exits 0 (silent).
+#   * `concurrency` prevents overlapping ticks if a long run takes > 30 min.
+
+on:
+  schedule:
+    # Every 30 minutes. Cron in UTC. / La fiecare 30 de minute (UTC).
+    - cron: '*/30 * * * *'
+  workflow_dispatch:
+    inputs:
+      reason:
+        description: 'Why running this tick (free text, ends up in PR body)'
+        required: false
+        default: 'manual operator dispatch'
+
+concurrency:
+  group: deepseek-autopilot
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  tick:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: 📥 Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: 🟢 Setup Node 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: 🔍 Detect provider key presence
+        id: detect
+        env:
+          DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+        run: |
+          if [ -n "${DEEPSEEK_API_KEY}" ] || [ -n "${OPENROUTER_API_KEY}" ] || [ -n "${GROQ_API_KEY}" ]; then
+            echo "has_provider=1" >> "$GITHUB_OUTPUT"
+            echo "✅ Provider key detected — autopilot will run."
+          else
+            echo "has_provider=0" >> "$GITHUB_OUTPUT"
+            echo "::notice::No DEEPSEEK_API_KEY / OPENROUTER_API_KEY / GROQ_API_KEY secret set — autopilot will log a hint and skip. Set one to activate."
+          fi
+
+      - name: 🧠 Run autopilot tick
+        if: steps.detect.outputs.has_provider == '1'
+        id: tick
+        env:
+          DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
+          DEEPSEEK_MODEL: ${{ vars.DEEPSEEK_MODEL }}
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+          OPENROUTER_DEEPSEEK_MODEL: ${{ vars.OPENROUTER_DEEPSEEK_MODEL }}
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+          GROQ_DEEPSEEK_MODEL: ${{ vars.GROQ_DEEPSEEK_MODEL }}
+        working-directory: UNICORN_FINAL
+        run: |
+          set -o pipefail
+          node scripts/deepseek-autopilot-tick.js | tee tick-output.log
+          # Extract the AUTOPILOT_SUMMARY line for the next step.
+          # Extragem linia AUTOPILOT_SUMMARY pentru pașii următori.
+          summary=$(grep -E '^AUTOPILOT_SUMMARY=' tick-output.log | tail -1 | sed 's/^AUTOPILOT_SUMMARY=//')
+          # Always emit a value (even empty) so downstream `if` checks work.
+          {
+            echo 'summary<<__EOF__'
+            echo "${summary:-{}}"
+            echo '__EOF__'
+          } >> "$GITHUB_OUTPUT"
+
+      - name: 📋 Detect repo diff
+        if: steps.detect.outputs.has_provider == '1'
+        id: diff
+        run: |
+          # Only consider diffs in the two paths the governor is allowed to
+          # touch from in-process: data/deepseek-proposals/ and data/roadmap.json.
+          # Restul .gitignore / artefactele tick-ului nu produc PR.
+          changed=$(git status --porcelain \
+            UNICORN_FINAL/data/deepseek-proposals \
+            UNICORN_FINAL/data/roadmap.json 2>/dev/null || true)
+          if [ -n "$changed" ]; then
+            echo "has_changes=1" >> "$GITHUB_OUTPUT"
+            echo "📝 Changes detected:"
+            echo "$changed"
+          else
+            echo "has_changes=0" >> "$GITHUB_OUTPUT"
+            echo "ℹ️  No repo changes from this tick — nothing to PR."
+          fi
+
+      - name: 🌿 Create branch + commit + draft PR
+        if: steps.detect.outputs.has_provider == '1' && steps.diff.outputs.has_changes == '1'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SUMMARY_JSON: ${{ steps.tick.outputs.summary }}
+          DISPATCH_REASON: ${{ github.event.inputs.reason }}
+        run: |
+          set -euo pipefail
+          ts=$(date -u +'%Y%m%d-%H%M%S')
+          branch="deepseek-autopilot/tick-${ts}"
+          git config user.name  "deepseek-autopilot[bot]"
+          git config user.email "deepseek-autopilot@users.noreply.github.com"
+          git checkout -b "$branch"
+          git add UNICORN_FINAL/data/deepseek-proposals UNICORN_FINAL/data/roadmap.json
+          # Brief commit message — full context goes in the PR body.
+          action=$(printf '%s' "${SUMMARY_JSON:-{}}" | node -e "let s='';process.stdin.on('data',c=>s+=c).on('end',()=>{try{const j=JSON.parse(s);process.stdout.write(j.action||'unknown')}catch(_){process.stdout.write('unknown')}})")
+          git commit -m "deepseek-autopilot: ${action} tick ${ts}" -m "Draft PR — operator review required before merge."
+          git push origin "$branch"
+
+          # Build the PR body with a fenced JSON block for the summary.
+          # Corp PR cu blocul JSON pentru sumar.
+          body_file=$(mktemp)
+          {
+            echo "## 🤖 DeepSeek Autopilot tick"
+            echo ""
+            echo "**Run:** [\`${GITHUB_RUN_ID}\`](${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID})"
+            echo "**Trigger:** \`${GITHUB_EVENT_NAME}\`"
+            if [ -n "${DISPATCH_REASON:-}" ]; then
+              echo "**Operator reason:** ${DISPATCH_REASON}"
+            fi
+            echo ""
+            echo "### Governor result"
+            echo ""
+            echo '```json'
+            printf '%s' "${SUMMARY_JSON:-{}}" | node -e "let s='';process.stdin.on('data',c=>s+=c).on('end',()=>{try{process.stdout.write(JSON.stringify(JSON.parse(s),null,2))}catch(_){process.stdout.write(s)}})"
+            echo ""
+            echo '```'
+            echo ""
+            echo "### Files touched"
+            echo ""
+            echo '```'
+            git diff --stat HEAD~1 HEAD -- UNICORN_FINAL/data/deepseek-proposals UNICORN_FINAL/data/roadmap.json || true
+            echo '```'
+            echo ""
+            echo "---"
+            echo "Opened as **draft** — review the envelope or roadmap status flip, then mark ready for review when satisfied. Allowlist + deny-prefixes were enforced by \`deepseek-governor.dispatch\`."
+          } > "$body_file"
+
+          gh label create deepseek-autopilot --color BFD4F2 --description "Opened by the DeepSeek Autopilot workflow" 2>/dev/null || true
+          gh pr create \
+            --base main \
+            --head "$branch" \
+            --title "🤖 DeepSeek Autopilot: ${action} (${ts})" \
+            --body-file "$body_file" \
+            --draft \
+            --label deepseek-autopilot
+
+      - name: 📤 Upload tick log artifact
+        if: always() && steps.detect.outputs.has_provider == '1'
+        uses: actions/upload-artifact@v4
+        with:
+          name: deepseek-autopilot-tick-log-${{ github.run_id }}
+          path: UNICORN_FINAL/tick-output.log
+          if-no-files-found: ignore
+          retention-days: 14

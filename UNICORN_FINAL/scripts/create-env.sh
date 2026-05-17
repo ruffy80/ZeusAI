@@ -360,15 +360,32 @@ upsert PROFIT_LOOP_INTERVAL_MS "${PROFIT_LOOP_INTERVAL_MS:-300000}"
 # When the operator sets these as GH Actions repository secrets, every deploy
 # propagates them to /var/www/unicorn/UNICORN_FINAL/.env so the systemd unit
 # `deepseek-loop.service` (installed in the post-deploy step) picks them up via
-# its EnvironmentFile= directive.  All defaults remain OFF — only the explicit
-# combination DEEPSEEK_LOOP_ENABLED=1 + DEEPSEEK_API_KEY=<key> activates the
-# advisory loop; full execute mode additionally needs DEEPSEEK_LOOP_EXECUTE=1
-# AND DEEPSEEK_LOOP_ADMIN_TOKEN.  Per PR #547 the server-side governor still
-# re-validates every action against its hardcoded allowlist.
-# (RO) Bucla DeepSeek rămâne default-OFF; setarea lor în GitHub Secrets este
-# singura modalitate prin care `deploy.yml` o activează „full power”.
-upsert DEEPSEEK_LOOP_ENABLED       "${DEEPSEEK_LOOP_ENABLED:-}"
-upsert DEEPSEEK_LOOP_EXECUTE       "${DEEPSEEK_LOOP_EXECUTE:-}"
+# its EnvironmentFile= directive.
+#
+# Auto-activation (2026-05-17, PR DeepSeek full-power activation):
+# If the operator has set DEEPSEEK_API_KEY (or a fallback advisor key) as a
+# GitHub Actions secret but has NOT explicitly set DEEPSEEK_LOOP_ENABLED,
+# default DEEPSEEK_LOOP_ENABLED=1 so the Hetzner systemd loop activates
+# automatically — the operator no longer needs to remember the second flag.
+# Likewise, when a DEEPSEEK_LOOP_ADMIN_TOKEN is provided we default
+# DEEPSEEK_LOOP_EXECUTE=1. Per PR #547 the server-side governor still
+# re-validates every action against its hardcoded allowlist regardless.
+# Opt-out: set DEEPSEEK_LOOP_ENABLED=0 (or empty after this run) explicitly.
+# (RO) Dacă există DEEPSEEK_API_KEY și nu ai setat explicit DEEPSEEK_LOOP_ENABLED,
+# bucla DeepSeek se activează automat pe Hetzner. Pentru a o opri, setează
+# DEEPSEEK_LOOP_ENABLED=0 în secrete sau direct în .env.
+_ds_loop_enabled_default="${DEEPSEEK_LOOP_ENABLED:-}"
+if [ -z "$_ds_loop_enabled_default" ] && { [ -n "${DEEPSEEK_API_KEY:-}" ] || [ -n "${OPENROUTER_API_KEY:-}" ] || [ -n "${GROQ_API_KEY:-}" ]; }; then
+  _ds_loop_enabled_default=1
+  echo "ℹ️  DEEPSEEK_LOOP_ENABLED auto-defaulted to 1 (advisor key present, operator did not set it explicitly)"
+fi
+_ds_loop_execute_default="${DEEPSEEK_LOOP_EXECUTE:-}"
+if [ -z "$_ds_loop_execute_default" ] && [ -n "${DEEPSEEK_LOOP_ADMIN_TOKEN:-}" ] && [ "$_ds_loop_enabled_default" = "1" ]; then
+  _ds_loop_execute_default=1
+  echo "ℹ️  DEEPSEEK_LOOP_EXECUTE auto-defaulted to 1 (admin token present + loop enabled)"
+fi
+upsert DEEPSEEK_LOOP_ENABLED       "$_ds_loop_enabled_default"
+upsert DEEPSEEK_LOOP_EXECUTE       "$_ds_loop_execute_default"
 upsert DEEPSEEK_LOOP_ADMIN_TOKEN   "${DEEPSEEK_LOOP_ADMIN_TOKEN:-}"
 upsert DEEPSEEK_LOOP_INTERVAL_MS   "${DEEPSEEK_LOOP_INTERVAL_MS:-}"
 upsert DEEPSEEK_LOOP_BACKEND_URL   "${DEEPSEEK_LOOP_BACKEND_URL:-}"
