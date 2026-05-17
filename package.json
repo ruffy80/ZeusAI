@@ -29,6 +29,6 @@
     "node-fetch": "^3.3.2"
   },
   "devDependencies": {
-    "yaml": "^2.8.4"
+    "yaml": "^2.9.0"
   }
 }
