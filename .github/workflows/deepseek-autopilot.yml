@@ -162,19 +162,14 @@ jobs:
             echo "Opened as **draft** — review the envelope or roadmap status flip, then mark ready for review when satisfied. Allowlist + deny-prefixes were enforced by \`deepseek-governor.dispatch\`."
           } > "$body_file"
 
+          gh label create deepseek-autopilot --color BFD4F2 --description "Opened by the DeepSeek Autopilot workflow" 2>/dev/null || true
           gh pr create \
             --base main \
             --head "$branch" \
             --title "🤖 DeepSeek Autopilot: ${action} (${ts})" \
             --body-file "$body_file" \
             --draft \
-            --label deepseek-autopilot || \
-          gh pr create \
-            --base main \
-            --head "$branch" \
-            --title "🤖 DeepSeek Autopilot: ${action} (${ts})" \
-            --body-file "$body_file" \
-            --draft
+            --label deepseek-autopilot
 
       - name: 📤 Upload tick log artifact
         if: always() && steps.detect.outputs.has_provider == '1'
