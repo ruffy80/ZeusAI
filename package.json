@@ -24,7 +24,7 @@
   },
   "dependencies": {
     "@wasmer/wasi": "^1.2.2",
-    "axios": "^1.16.0",
+    "axios": "^1.16.1",
     "iltorb": "^2.4.5",
     "node-fetch": "^3.3.2"
   },
