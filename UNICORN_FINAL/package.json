@@ -12,7 +12,7 @@
     "@aws-sdk/client-s3": "^3.1045.0",
     "@azure/arm-keyvault": "^5.0.0",
     "@azure/arm-monitor": "^7.0.0",
-    "@azure/arm-network": "^33.5.0",
+    "@azure/arm-network": "^36.0.0",
     "@azure/arm-storage": "^19.1.0",
     "@azure/identity": "^4.13.1",
     "@noble/hashes": "^2.2.0",
