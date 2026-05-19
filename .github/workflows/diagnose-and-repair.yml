@@ -115,47 +115,8 @@ jobs:
               set -a
               [ -f .env ] && . ./.env 2>/dev/null || true
               set +a
-              cat > /tmp/zeus-rescue-api.js <<'NODE'
-              'use strict';
-              const http = require('http');
-              const btcAddress = process.env.BTC_WALLET_ADDRESS || process.env.OWNER_BTC_ADDRESS || 'bc1q4f7e66z87mdfj56kz0dj5hvcnpmh0qh4wuv22e';
-              const btcUsd = Number(process.env.RESCUE_BTC_USD || 77000);
-              const services = [
-                { id: 'adaptive-ai', name: 'Adaptive AI Automation', priceUsd: 499, currency: 'USD', btcAddress },
-                { id: 'ai-workforce', name: 'AI Workforce Suite', priceUsd: 1499, currency: 'USD', btcAddress },
-                { id: 'enterprise-growth', name: 'Enterprise Growth Engine', priceUsd: 4999, currency: 'USD', btcAddress },
-              ].map((service) => ({ ...service, priceBTC: Number((service.priceUsd / btcUsd).toFixed(8)) }));
-              function send(res, status, payload) {
-                const body = JSON.stringify(payload);
-                res.writeHead(status, {
-                  'content-type': 'application/json; charset=utf-8',
-                  'cache-control': 'no-store',
-                  'access-control-allow-origin': '*',
-                });
-                res.end(body);
-              }
-              http.createServer((req, res) => {
-                const url = new URL(req.url, 'http://127.0.0.1:3000');
-                if (url.pathname === '/health' || url.pathname === '/api/health') {
-                  return send(res, 200, { ok: true, status: 'healthy', service: 'zeus-rescue-api', mode: 'rescue', ts: new Date().toISOString() });
-                }
-                if (url.pathname === '/api/pricing/all') {
-                  return send(res, 200, { ok: true, generatedAt: new Date().toISOString(), btcUsd, btcAddress, services, pricing: services });
-                }
-                if (url.pathname === '/api/services' || url.pathname === '/api/services/list') {
-                  return send(res, 200, { ok: true, services });
-                }
-                if (url.pathname === '/api/btc/rate' || url.pathname === '/api/payment/btc-rate') {
-                  return send(res, 200, { ok: true, btcUsd, usdPerBtc: btcUsd, rate: btcUsd, source: 'rescue-fallback', ts: new Date().toISOString() });
-                }
-                if (url.pathname === '/api/modules' || url.pathname === '/api/module-registry') {
-                  return send(res, 200, { ok: true, modules: [], mode: 'rescue' });
-                }
-                return send(res, 404, { ok: false, error: 'rescue_endpoint_not_found', path: url.pathname });
-              }).listen(3000, '127.0.0.1', () => console.log('[rescue-api] listening on 127.0.0.1:3000'));
-              NODE
               nohup env BTC_WALLET_ADDRESS="${BTC_WALLET_ADDRESS:-}" OWNER_BTC_ADDRESS="${OWNER_BTC_ADDRESS:-}" \
-                node /tmp/zeus-rescue-api.js > logs/rescue-backend.log 2>&1 &
+                node -e "const http=require('http');const btcAddress=process.env.BTC_WALLET_ADDRESS||process.env.OWNER_BTC_ADDRESS||'bc1q4f7e66z87mdfj56kz0dj5hvcnpmh0qh4wuv22e';const btcUsd=Number(process.env.RESCUE_BTC_USD||77000);const services=[{id:'adaptive-ai',name:'Adaptive AI Automation',priceUsd:499,currency:'USD',btcAddress},{id:'ai-workforce',name:'AI Workforce Suite',priceUsd:1499,currency:'USD',btcAddress},{id:'enterprise-growth',name:'Enterprise Growth Engine',priceUsd:4999,currency:'USD',btcAddress}].map(s=>({...s,priceBTC:Number((s.priceUsd/btcUsd).toFixed(8))}));function send(res,status,payload){const body=JSON.stringify(payload);res.writeHead(status,{'content-type':'application/json; charset=utf-8','cache-control':'no-store','access-control-allow-origin':'*'});res.end(body)}http.createServer((req,res)=>{const url=new URL(req.url,'http://127.0.0.1:3000');if(url.pathname==='/health'||url.pathname==='/api/health')return send(res,200,{ok:true,status:'healthy',service:'zeus-rescue-api',mode:'rescue',ts:new Date().toISOString()});if(url.pathname==='/api/pricing/all')return send(res,200,{ok:true,generatedAt:new Date().toISOString(),btcUsd,btcAddress,services,pricing:services});if(url.pathname==='/api/services'||url.pathname==='/api/services/list')return send(res,200,{ok:true,services});if(url.pathname==='/api/btc/rate'||url.pathname==='/api/payment/btc-rate')return send(res,200,{ok:true,btcUsd,usdPerBtc:btcUsd,rate:btcUsd,source:'rescue-fallback',ts:new Date().toISOString()});if(url.pathname==='/api/modules'||url.pathname==='/api/module-registry')return send(res,200,{ok:true,modules:[],mode:'rescue'});return send(res,404,{ok:false,error:'rescue_endpoint_not_found',path:url.pathname})}).listen(3000,'127.0.0.1',()=>console.log('[rescue-api] listening on 127.0.0.1:3000'))" > logs/rescue-backend.log 2>&1 &
               BACKEND_RESCUE_PID=$!
               echo "[heal] rescue backend pid=$BACKEND_RESCUE_PID"
             fi
