@@ -334,7 +334,7 @@ async function run() {
 
     const sw = await request('/sw.js');
     assert.equal(sw.status, 200);
-    assert.match(sw.text, /const V = 'unicorn-sw-disabled-[a-z0-9]+'/);
+    assert.match(sw.text, /const V = 'unicorn-sw-disabled-[a-z0-9-]+'/);
     assert.match(sw.text, /skipWaiting/);
 
     const reset = await request('/sw-reset');
