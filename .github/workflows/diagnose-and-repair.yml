@@ -137,6 +137,15 @@ jobs:
               local reason="${1:-manual}"
               echo "[heal] starting PM2-managed rescue backend ($reason)"
               mkdir -p logs
+              if [ ! -f scripts/rescue-backend.js ]; then
+                echo '[heal] scripts/rescue-backend.js missing in current release — seeding rescue backend script'
+                mkdir -p scripts
+                curl -fsSL https://raw.githubusercontent.com/ruffy80/ZeusAI/main/UNICORN_FINAL/scripts/rescue-backend.js -o scripts/rescue-backend.js || {
+                  echo '[heal] failed to download rescue backend script'
+                  return 1
+                }
+                chmod +x scripts/rescue-backend.js
+              fi
               set -a
               [ -f .env ] && . ./.env 2>/dev/null || true
               set +a
