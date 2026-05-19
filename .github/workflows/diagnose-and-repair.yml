@@ -84,11 +84,14 @@ jobs:
         env:
           HETZNER_HOST: ${{ secrets.HETZNER_HOST }}
         run: |
-          ssh -o StrictHostKeyChecking=no root@"$HETZNER_HOST" bash -s <<'SSHEOF'
+          ssh -o StrictHostKeyChecking=no -o ServerAliveInterval=20 -o ServerAliveCountMax=12 root@"$HETZNER_HOST" bash -s <<'SSHEOF'
             set +e
             echo '[heal] PM2 restart canonical stack from /var/www/unicorn/UNICORN_FINAL'
             cd /var/www/unicorn/UNICORN_FINAL 2>/dev/null || { echo '[heal] canonical path missing'; exit 1; }
-            pm2 delete unicorn-backend unicorn-site autoscaler 2>/dev/null || true
+            echo '[heal] stop PM2 apps with hard timeout (avoid hung pm2 delete)'
+            timeout 20s pm2 stop unicorn-backend unicorn-site autoscaler module-mesh-guardian unicorn-live-sync 2>/dev/null || true
+            timeout 20s pm2 delete unicorn-backend unicorn-site autoscaler module-mesh-guardian unicorn-live-sync 2>/dev/null || true
+            timeout 10s pm2 kill 2>/dev/null || true
             for PORT in 3000 3001; do
               PIDS=$(ss -tlnp 2>/dev/null | awk -v p=":$PORT" '$4 ~ p {print $0}' | sed -n 's/.*pid=\([0-9][0-9]*\).*/\1/p' | sort -u)
               for PID in $PIDS; do
@@ -99,7 +102,10 @@ jobs:
                 kill -9 "$PID" 2>/dev/null || true
               done
             done
-            pm2 start ecosystem.config.js --update-env 2>/dev/null \
+            export SITE_INSTANCES="${SITE_INSTANCES:-1}"
+            export UNICORN_INSTANCES="${UNICORN_INSTANCES:-1}"
+            export UNICORN_GUARDIAN=0
+            timeout 90s pm2 start ecosystem.config.js --update-env 2>&1 \
               || echo '[heal] pm2 start failed (no ecosystem.config.js?)'
 
             echo '[heal] nginx -t && systemctl reload nginx'
@@ -110,11 +116,11 @@ jobs:
             fi
 
             echo '[heal] pm2 save'
-            pm2 save 2>&1 || echo '[heal] pm2 save failed'
+            timeout 20s pm2 save --force 2>&1 || echo '[heal] pm2 save failed'
 
-            echo '[heal] waiting 6s for backend warmup...'
-            sleep 6
-            pm2 list || true
+            echo '[heal] waiting 20s for backend warmup...'
+            sleep 20
+            timeout 20s pm2 list || true
           SSHEOF
 
       - name: Smoke tests (backend-direct, then nginx)

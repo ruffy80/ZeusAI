@@ -20,6 +20,7 @@ const SNAP_DIR = path.join(APP_DIR, 'snapshots');
 // PM2 cluster — two workers silently deadlock on sqlite file locks and exit
 // without writing to stderr. Keep fork/1 until the backend is cluster-safe.
 const BACKEND_INSTANCES = Number(process.env.UNICORN_INSTANCES || 1);
+const SITE_INSTANCES = Number(process.env.SITE_INSTANCES || 1);
 // Golden rule #7: backend memory ceiling >= 2560M (real RSS w/ ADI-Core +
 // world-scanner + 50+ in-memory modules sits around 1.4–2GB). Lowering this
 // below 2560M causes SIGKILL crash-loops within minutes of boot.
@@ -170,7 +171,7 @@ module.exports = {
       name: 'unicorn-site',
       script: 'src/index.js',
       cwd: APP_DIR,
-      instances: 'max',
+      instances: SITE_INSTANCES,
       exec_mode: 'cluster',
       autorestart: true,
       // Each cluster worker holds a full SSR template cache, the AI provider
