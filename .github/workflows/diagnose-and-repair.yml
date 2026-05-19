@@ -109,6 +109,31 @@ jobs:
             timeout 90s pm2 start ecosystem.config.js --only unicorn-backend,unicorn-site,autoscaler --update-env 2>&1 \
               || echo '[heal] pm2 start failed (no ecosystem.config.js?)'
 
+            if ! curl -fsS --max-time 3 http://127.0.0.1:3000/health >/dev/null 2>&1; then
+              echo '[heal] PM2 backend unhealthy — emergency direct-node fallback'
+              mkdir -p logs
+              set -a
+              [ -f .env ] && . ./.env 2>/dev/null || true
+              set +a
+              nohup env NODE_ENV=production PORT=3000 BIND_HOST=127.0.0.1 UNICORN_RUNTIME_PROFILE=safe \
+                DISABLE_SELF_MUTATION=1 ENABLE_FILE_MUTATORS=0 ENABLE_AUTO_DEPLOY=0 ENABLE_UI_AUTOBUILDER=0 \
+                ENABLE_AUTO_REPAIR=0 ENABLE_SELF_CONSTRUCTION=0 ENABLE_CODE_OPTIMIZER=0 ENABLE_AUTO_EVOLVE=0 \
+                WATCHDOG_DISABLED=1 AUTH_GUARDIAN_ENABLED=0 UNICORN_REVENUE_AUTOPILOT_DISABLED=1 \
+                QIS_REQUIRED_PROCESSES='' QIS_AUTO_HEAL_ENABLED=false \
+                node backend/index.js > logs/rescue-backend.log 2>&1 &
+              BACKEND_RESCUE_PID=$!
+              echo "[heal] rescue backend pid=$BACKEND_RESCUE_PID"
+            fi
+
+            if ! curl -fsS --max-time 3 http://127.0.0.1:3001/health >/dev/null 2>&1; then
+              echo '[heal] PM2 site unhealthy — emergency direct-node fallback'
+              nohup env NODE_ENV=production PORT=3001 BIND_HOST=127.0.0.1 BACKEND_API_URL=http://127.0.0.1:3000 SITE_LEGACY_BASELINE_MODE=1 \
+                DISABLE_SELF_MUTATION=1 WATCHDOG_DISABLED=1 \
+                node src/index.js > logs/rescue-site.log 2>&1 &
+              SITE_RESCUE_PID=$!
+              echo "[heal] rescue site pid=$SITE_RESCUE_PID"
+            fi
+
             echo '[heal] nginx -t && systemctl reload nginx'
             if nginx -t 2>&1; then
               systemctl reload nginx 2>&1 || systemctl restart nginx 2>&1 || echo '[heal] nginx reload failed'
@@ -119,8 +144,10 @@ jobs:
             echo '[heal] pm2 save'
             timeout 20s pm2 save --force 2>&1 || echo '[heal] pm2 save failed'
 
-            echo '[heal] waiting 20s for backend warmup...'
-            sleep 20
+            echo '[heal] waiting 30s for backend/site warmup...'
+            sleep 30
+            curl -fsS --max-time 5 http://127.0.0.1:3000/health || true
+            curl -fsS --max-time 5 http://127.0.0.1:3001/health || true
             timeout 20s pm2 list || true
           SSHEOF
 
