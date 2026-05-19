@@ -218,7 +218,7 @@ jobs:
           echo "::endgroup::"
 
           echo "::group::Smoke (public via nginx)"
-          BASE_URL="http://$HETZNER_HOST" PUBLIC_URL="https://zeusai.pro" \
+          GITHUB_SHA="" BASE_URL="http://$HETZNER_HOST" PUBLIC_URL="https://zeusai.pro" \
             bash UNICORN_FINAL/scripts/smoke-forward-only.sh
           echo "[public] PASS"
           echo "::endgroup::"
