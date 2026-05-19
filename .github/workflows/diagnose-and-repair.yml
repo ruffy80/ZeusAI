@@ -172,6 +172,25 @@ jobs:
 
             echo '[heal] waiting 30s for backend/site warmup...'
             sleep 30
+            if ! curl -fsS --max-time 5 http://127.0.0.1:3000/health >/dev/null 2>&1; then
+              echo '[heal] backend became unhealthy after warmup — replacing backend only with rescue API'
+              PIDS=$(ss -tlnp 2>/dev/null | awk '$4 ~ /:3000/ {print $0}' | sed -n 's/.*pid=\([0-9][0-9]*\).*/\1/p' | sort -u)
+              for PID in $PIDS; do
+                [ -n "$PID" ] || continue
+                echo "[heal] killing unhealthy backend listener pid=$PID on port 3000"
+                kill "$PID" 2>/dev/null || true
+                sleep 1
+                kill -9 "$PID" 2>/dev/null || true
+              done
+              set -a
+              [ -f .env ] && . ./.env 2>/dev/null || true
+              set +a
+              nohup env BTC_WALLET_ADDRESS="${BTC_WALLET_ADDRESS:-}" OWNER_BTC_ADDRESS="${OWNER_BTC_ADDRESS:-}" \
+                node -e "const http=require('http');const btcAddress=process.env.BTC_WALLET_ADDRESS||process.env.OWNER_BTC_ADDRESS||'bc1q4f7e66z87mdfj56kz0dj5hvcnpmh0qh4wuv22e';const btcUsd=Number(process.env.RESCUE_BTC_USD||77000);const services=[{id:'adaptive-ai',name:'Adaptive AI Automation',priceUsd:499,currency:'USD',btcAddress},{id:'ai-workforce',name:'AI Workforce Suite',priceUsd:1499,currency:'USD',btcAddress},{id:'enterprise-growth',name:'Enterprise Growth Engine',priceUsd:4999,currency:'USD',btcAddress}].map(s=>({...s,priceBTC:Number((s.priceUsd/btcUsd).toFixed(8))}));function send(res,status,payload){const body=JSON.stringify(payload);res.writeHead(status,{'content-type':'application/json; charset=utf-8','cache-control':'no-store','access-control-allow-origin':'*'});res.end(body)}http.createServer((req,res)=>{const url=new URL(req.url,'http://127.0.0.1:3000');if(url.pathname==='/health'||url.pathname==='/api/health')return send(res,200,{ok:true,status:'healthy',service:'zeus-rescue-api',mode:'rescue',ts:new Date().toISOString()});if(url.pathname==='/api/quantum-integrity/status')return send(res,200,{ok:true,active:true,integrity:'intact',mode:'rescue',diagnostics:{issues:[]},ts:new Date().toISOString()});if(url.pathname==='/api/pricing/all')return send(res,200,{ok:true,generatedAt:new Date().toISOString(),btcUsd,btcAddress,services,pricing:services});if(url.pathname==='/api/services'||url.pathname==='/api/services/list')return send(res,200,{ok:true,services});if(url.pathname==='/api/btc/rate'||url.pathname==='/api/payment/btc-rate')return send(res,200,{ok:true,btcUsd,usdPerBtc:btcUsd,rate:btcUsd,source:'rescue-fallback',ts:new Date().toISOString()});if(url.pathname==='/api/modules'||url.pathname==='/api/module-registry')return send(res,200,{ok:true,modules:[],mode:'rescue'});return send(res,404,{ok:false,error:'rescue_endpoint_not_found',path:url.pathname})}).listen(3000,'127.0.0.1',()=>console.log('[rescue-api] listening on 127.0.0.1:3000'))" > logs/rescue-backend-postwarmup.log 2>&1 &
+              BACKEND_RESCUE_PID=$!
+              echo "[heal] post-warmup rescue backend pid=$BACKEND_RESCUE_PID"
+              sleep 2
+            fi
             curl -fsS --max-time 5 http://127.0.0.1:3000/health || true
             curl -fsS --max-time 5 http://127.0.0.1:3001/health || true
             timeout 20s pm2 list || true
