@@ -104,8 +104,12 @@ else
 fi
 
 if [ -f client/package.json ]; then
-  log "build client if present"
-  (cd client && { [ -f package-lock.json ] && npm ci --no-audit --no-fund --loglevel=error || npm install --no-audit --no-fund --loglevel=error; } && NODE_OPTIONS=--no-deprecation CI=false npm run build)
+  if [ "${BUILD_LEGACY_CLIENT:-0}" = "1" ]; then
+    log "build legacy client (BUILD_LEGACY_CLIENT=1)"
+    (cd client && { [ -f package-lock.json ] && npm ci --no-audit --no-fund --loglevel=error || npm install --no-audit --no-fund --loglevel=error; } && NODE_OPTIONS="--no-deprecation --max-old-space-size=512" CI=false npm run build)
+  else
+    log "skip legacy client build (SSR site in src/ is production surface; set BUILD_LEGACY_CLIENT=1 to opt in)"
+  fi
 fi
 
 log "start backend canary on port $CANARY_PORT"
