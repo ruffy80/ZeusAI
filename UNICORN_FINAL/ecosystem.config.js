@@ -1,4 +1,4 @@
-// PM2 Ecosystem Config — UNICORN_FINAL (LEAN, AUTO-PATH)
+// PM2 Ecosystem Config — UNICORN_FINAL (LEAN, AUTO-PATH) — re-deploy 2026-05-19
 // -----------------------------------------------------------------------------
 // Paths are ALWAYS relative to this file (`__dirname`). Never hard-code absolute
 // paths — deployments land under /var/www/unicorn/UNICORN_FINAL on Hetzner but
