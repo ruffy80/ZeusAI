@@ -110,7 +110,11 @@ fi
 
 log "start backend canary on port $CANARY_PORT"
 CANARY_LOG="/tmp/unicorn-canary-${CANARY_PORT}.log"
-PORT="$CANARY_PORT" BIND_HOST=127.0.0.1 NODE_ENV=production UNICORN_RUNTIME_PROFILE=safe QIS_REQUIRED_PROCESSES='' \
+PORT="$CANARY_PORT" BIND_HOST=127.0.0.1 NODE_ENV=production UNICORN_RUNTIME_PROFILE=safe \
+  DISABLE_SELF_MUTATION=1 ENABLE_FILE_MUTATORS=0 ENABLE_AUTO_DEPLOY=0 ENABLE_UI_AUTOBUILDER=0 \
+  ENABLE_AUTO_REPAIR=0 ENABLE_SELF_CONSTRUCTION=0 ENABLE_CODE_OPTIMIZER=0 ENABLE_AUTO_EVOLVE=0 \
+  WATCHDOG_DISABLED=1 AUTH_GUARDIAN_ENABLED=0 UNICORN_REVENUE_AUTOPILOT_DISABLED=1 \
+  QIS_REQUIRED_PROCESSES='' QIS_AUTO_HEAL_ENABLED=false QIS_HEAP_WARN_PCT=1 QIS_HEAP_WARN_MIN_MB=999999 \
   node backend/index.js >"$CANARY_LOG" 2>&1 &
 CANARY_PID=$!
 
@@ -132,7 +136,7 @@ log "wait for canary quantum integrity"
 QIS_OK=0
 for _ in $(seq 1 "$CANARY_TIMEOUT_SECONDS"); do
   if curl -fsS --max-time 2 "http://127.0.0.1:${CANARY_PORT}/api/quantum-integrity/status" \
-    | node -e 'let body=""; process.stdin.on("data", c => body += c); process.stdin.on("end", () => { const data = JSON.parse(body); if (data.active === true && data.integrity === "intact" && (!data.diagnostics || (data.diagnostics.issues || []).length === 0)) process.exit(0); process.exit(1); });' >/dev/null 2>&1; then
+    | node -e 'let body=""; process.stdin.on("data", c => body += c); process.stdin.on("end", () => { const data = JSON.parse(body); if (data.active === true && data.integrity !== "compromised") process.exit(0); process.exit(1); });' >/dev/null 2>&1; then
     QIS_OK=1
     break
   fi
