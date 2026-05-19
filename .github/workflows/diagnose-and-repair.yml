@@ -92,7 +92,10 @@ jobs:
             timeout 15s pm2 stop all 2>/dev/null || true
             timeout 15s pm2 delete all 2>/dev/null || true
             timeout 10s pm2 kill 2>/dev/null || true
-            rm -f /root/.pm2/dump.pm2 /root/.pm2/dump.pm2.bak 2>/dev/null || true
+            pkill -9 -f 'PM2 v.*God Daemon' 2>/dev/null || true
+            rm -f /root/.pm2/dump.pm2 /root/.pm2/dump.pm2.bak /root/.pm2/rpc.sock /root/.pm2/pub.sock /root/.pm2/pm2.pid 2>/dev/null || true
+            rm -rf /root/.pm2/pids/* 2>/dev/null || true
+            sleep 2
             for PORT in 3000 3001; do
               PIDS=$(ss -tlnp 2>/dev/null | awk -v p=":$PORT" '$4 ~ p {print $0}' | sed -n 's/.*pid=\([0-9][0-9]*\).*/\1/p' | sort -u)
               for PID in $PIDS; do
