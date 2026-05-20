@@ -3741,21 +3741,6 @@ window.addEventListener('DOMContentLoaded', () => {
   openPricingStream();
   subscribeAutonomousEvents();
   hydratePage(STATE.route);
-  // Global "Loading…" guard — visitors must NEVER see a stuck loading
-  // placeholder. After 2.5s any remaining "Loading…" / "Loading..." text
-  // node inside hydration anchors is replaced by an em-dash. JS hydration
-  // overrides this on success; this is purely a worst-case fallback.
-  setTimeout(() => {
-    try {
-      document.querySelectorAll('h1,h2,h3,h4,h5,p,div,span,pre,code,td,li').forEach(el => {
-        if (!el || el.children.length) return;
-        const t = (el.textContent || '').trim();
-        if (t === 'Loading…' || t === 'Loading...' || t === 'Loading' || t === 'Analyzing…') {
-          el.textContent = '—';
-        }
-      });
-    } catch (_) {}
-  }, 2500);
 });
 
 // ===================== AUTONOMOUS LIVE BRIDGE =====================
