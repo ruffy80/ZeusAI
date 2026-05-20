@@ -326,3 +326,5 @@
 {"ts":"2026-05-19T20:51:04.823Z","subject":"[UNICORN] Order settled — ord_1dda2bee3d19923e","body":"Order: ord_1dda2bee3d19923e\nProduct: starter\nTX: btc:tx123\nUSD: 49","priority":"low","channels":[]}
 {"ts":"2026-05-19T20:51:32.873Z","subject":"[UNICORN] Order settled — ord_03f6bb9750f8cacb","body":"Order: ord_03f6bb9750f8cacb\nProduct: starter\nTX: btc:tx123\nUSD: 49","priority":"low","channels":[]}
 {"ts":"2026-05-19T20:51:32.873Z","subject":"[UNICORN] Order settled — ord_03f6bb9750f8cacb","body":"Order: ord_03f6bb9750f8cacb\nProduct: starter\nTX: btc:tx123\nUSD: 49","priority":"low","channels":[]}
+{"ts":"2026-05-20T18:13:56.328Z","subject":"[UNICORN] Order settled — ord_f2aa7fe5737a4c79","body":"Order: ord_f2aa7fe5737a4c79\nProduct: starter\nTX: btc:tx123\nUSD: 49","priority":"low","channels":[]}
+{"ts":"2026-05-20T18:13:56.329Z","subject":"[UNICORN] Order settled — ord_f2aa7fe5737a4c79","body":"Order: ord_f2aa7fe5737a4c79\nProduct: starter\nTX: btc:tx123\nUSD: 49","priority":"low","channels":[]}
