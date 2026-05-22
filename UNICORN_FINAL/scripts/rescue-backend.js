@@ -2,11 +2,13 @@
 'use strict';
 
 const http = require('http');
+const deepseekGovernor = require('../backend/modules/deepseek-governor');
 
 const host = process.env.BIND_HOST || '127.0.0.1';
 const port = Number(process.env.PORT || 3000);
 const btcAddress = process.env.BTC_WALLET_ADDRESS || process.env.OWNER_BTC_ADDRESS || 'bc1q4f7e66z87mdfj56kz0dj5hvcnpmh0qh4wuv22e';
 const btcUsd = Number(process.env.RESCUE_BTC_USD || 77000);
+const loopAdminToken = String(process.env.DEEPSEEK_LOOP_ADMIN_TOKEN || process.env.ADMIN_TOKEN || '').trim();
 
 const services = [
   { id: 'adaptive-ai', name: 'Adaptive AI Automation', priceUsd: 499, currency: 'USD', btcAddress },
@@ -45,8 +47,75 @@ function health() {
   };
 }
 
+function checkoutHealth() {
+  return {
+    ok: true,
+    status: 'healthy',
+    service: 'checkout',
+    mode: 'rescue',
+    payments: { btc: true, paypal: false, stripe: false },
+    ts: new Date().toISOString(),
+  };
+}
+
+function readJsonBody(req, maxBytes = 64 * 1024) {
+  return new Promise((resolve, reject) => {
+    let raw = '';
+    req.on('data', (chunk) => {
+      raw += chunk;
+      if (Buffer.byteLength(raw, 'utf8') > maxBytes) {
+        reject(new Error('payload_too_large'));
+      }
+    });
+    req.on('end', () => {
+      if (!raw.trim()) return resolve({});
+      try {
+        resolve(JSON.parse(raw));
+      } catch (_) {
+        reject(new Error('invalid_json'));
+      }
+    });
+    req.on('error', reject);
+  });
+}
+
+function isAuthorized(req) {
+  if (!loopAdminToken) return false;
+  const auth = String(req.headers.authorization || '');
+  if (!auth.startsWith('Bearer ')) return false;
+  const token = auth.slice('Bearer '.length).trim();
+  return token && token === loopAdminToken;
+}
+
 const server = http.createServer((req, res) => {
+  const handle = async () => {
   const url = new URL(req.url, `http://${host}:${port}`);
+
+  if (url.pathname === '/api/admin/deepseek/status') {
+    if (!isAuthorized(req)) return sendJson(res, 401, { ok: false, error: 'unauthorized' });
+    return sendJson(res, 200, { ok: true, ...deepseekGovernor.getStatus() });
+  }
+  if (url.pathname === '/api/admin/deepseek/act' && req.method === 'POST') {
+    if (!isAuthorized(req)) return sendJson(res, 401, { ok: false, error: 'unauthorized' });
+    let body;
+    try {
+      body = await readJsonBody(req);
+    } catch (e) {
+      const reason = String(e && e.message || 'invalid_json');
+      return sendJson(res, reason === 'payload_too_large' ? 413 : 400, { ok: false, error: reason });
+    }
+    const action = body && typeof body.action === 'string' ? body.action : '';
+    const params = body && typeof body.params === 'object' && body.params ? body.params : {};
+    const requestId = body && typeof body.requestId === 'string' ? body.requestId : '';
+    const result = await deepseekGovernor.dispatch({
+      action,
+      params,
+      requestId,
+      actor: 'deepseek-loop-rescue',
+      ip: req.socket && req.socket.remoteAddress ? req.socket.remoteAddress : '127.0.0.1',
+    });
+    return sendJson(res, result.status || 500, result.body || { ok: false, error: 'dispatch_failed' });
+  }
 
   if (url.pathname === '/health' || url.pathname === '/api/health') return sendJson(res, 200, health());
   if (url.pathname === '/api/quantum-integrity/status') {
@@ -72,6 +141,21 @@ const server = http.createServer((req, res) => {
   if (url.pathname === '/api/services' || url.pathname === '/api/services/list') {
     return sendJson(res, 200, { ok: true, updatedAt: new Date().toISOString(), count: services.length, services });
   }
+  if (url.pathname === '/api/catalog/master' || url.pathname === '/api/catalog') {
+    return sendJson(res, 200, {
+      ok: true,
+      mode: 'rescue',
+      generatedAt: new Date().toISOString(),
+      count: services.length,
+      items: services.map((service) => ({
+        id: service.id,
+        title: service.name,
+        priceUsd: service.priceUsd,
+        priceBtc: service.priceBTC,
+        btcAddress: service.btcAddress,
+      })),
+    });
+  }
   if (url.pathname === '/api/btc/rate' || url.pathname === '/api/payment/btc-rate') {
     return sendJson(res, 200, {
       ok: true,
@@ -82,11 +166,29 @@ const server = http.createServer((req, res) => {
       ts: new Date().toISOString(),
     });
   }
+  if (url.pathname === '/api/checkout/health' || url.pathname === '/checkout/health') {
+    return sendJson(res, 200, checkoutHealth());
+  }
+  if (url.pathname === '/api/checkout/create' || url.pathname === '/checkout/create' || url.pathname === '/api/checkout/btc') {
+    return sendJson(res, 200, {
+      ok: true,
+      mode: 'rescue',
+      checkoutId: 'rescue-' + Date.now(),
+      receipt: 'rescue-only',
+      message: 'rescue checkout path active',
+      ts: new Date().toISOString(),
+    });
+  }
   if (url.pathname === '/api/modules' || url.pathname === '/api/module-registry') {
     return sendJson(res, 200, { ok: true, modules: [], mode: 'rescue' });
   }
 
   return sendJson(res, 404, { ok: false, error: 'rescue_endpoint_not_found', path: url.pathname });
+  };
+
+  handle().catch((e) => {
+    sendJson(res, 500, { ok: false, error: 'rescue_internal_error', reason: String(e && e.message || e).slice(0, 160) });
+  });
 });
 
 server.listen(port, host, () => {
