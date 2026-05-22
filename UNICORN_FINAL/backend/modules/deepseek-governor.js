@@ -31,6 +31,7 @@
 const fs = require('fs');
 const path = require('path');
 const { spawn } = require('child_process');
+const https = require('https');
 
 // -------- Configuration / Configurație ---------------------------------
 const RATE_LIMIT_PER_HOUR = parseInt(process.env.DEEPSEEK_GOVERNOR_HOURLY_LIMIT || '10', 10);
@@ -57,16 +58,37 @@ const READ_FILE_DENY_SUBSTRINGS = Object.freeze([
   'token', 'jwt', 'private_key', 'privatekey',
 ]);
 
+const PROTECTED_BASENAMES = Object.freeze([
+  '.env', '.env.local', '.env.production', '.env.development', '.env.test',
+  '.gitconfig', '.npmrc', 'id_rsa', 'id_ed25519', 'authorized_keys',
+]);
+const PROTECTED_RELATIVE_PATHS = Object.freeze([
+  '.git/config',
+  '.git-credentials',
+]);
+
 // Allowed action names. Anything else is rejected with HTTP 400.
 // Numele acțiunilor permise. Orice altceva → respins (400).
 const ALLOWED_ACTIONS = Object.freeze([
   'none',
   'read_status',
   'read_file',
+  'write_file',
+  'create_file',
+  'move_file',
+  'delete_file',
+  'execute_safe_script',
   'prices_sync',
   'checkout_fix',
   'run_test',
   'restart_service',
+  'git_commit',
+  'deploy',
+  'github_clone_repo',
+  'github_create_pr',
+  'merge_pr',
+  'browse_github',
+  'search_github',
   // Autonomous mode (write-only proposals — NO direct apply, audit-first):
   // Modul autonom (doar propuneri — fără aplicare directă, audit obligatoriu):
   'code_proposal',
@@ -99,6 +121,19 @@ const PROPOSAL_TARGET_DENY_SUFFIXES = Object.freeze([
   'package-lock.json',
 ]);
 
+// write_file safety envelope (strict sandbox) / Plic write_file (sandbox strict)
+const AUTONOMY_ROOT = path.resolve(process.env.DEEPSEEK_GOVERNOR_AUTONOMY_ROOT || '/opt/unicorn');
+const WRITE_FILE_ROOT = path.resolve(process.env.DEEPSEEK_GOVERNOR_WRITE_ROOT || AUTONOMY_ROOT);
+const WRITE_FILE_MAX_BYTES = parseInt(process.env.DEEPSEEK_GOVERNOR_WRITE_MAX_BYTES || String(64 * 1024), 10);
+const SAFE_SCRIPT_ROOT = path.resolve(process.env.DEEPSEEK_GOVERNOR_SAFE_SCRIPT_ROOT || path.join(AUTONOMY_ROOT, 'scripts'));
+const SANDBOX_ROOT = path.resolve(process.env.DEEPSEEK_GOVERNOR_SANDBOX_ROOT || path.join(AUTONOMY_ROOT, 'sandbox'));
+const AUTONOMOUS_ACTION_LOG_PATH = process.env.DEEPSEEK_GOVERNOR_ACTION_LOG_PATH || '/var/log/autonomous_actions.log';
+const POST_MUTATION_SCRIPT = path.resolve(process.env.DEEPSEEK_GOVERNOR_POST_MUTATION_SCRIPT || path.join(SAFE_SCRIPT_ROOT, 'post-mutation-validate.sh'));
+const DELETE_FILE_ROOTS = Object.freeze((process.env.DEEPSEEK_GOVERNOR_DELETE_ROOTS
+  ? process.env.DEEPSEEK_GOVERNOR_DELETE_ROOTS.split(':').filter(Boolean)
+  : [path.join(AUTONOMY_ROOT, 'temp'), path.join(AUTONOMY_ROOT, 'old_backups'), path.join(AUTONOMY_ROOT, 'logs-old')])
+  .map((p) => path.resolve(p)));
+
 // Roadmap location (read-write via roadmap_update action) / Locația roadmap-ului
 const ROADMAP_PATH = process.env.DEEPSEEK_GOVERNOR_ROADMAP_PATH
                   || path.join(__dirname, '..', '..', 'data', 'roadmap.json');
@@ -107,6 +142,8 @@ const ROADMAP_PATH = process.env.DEEPSEEK_GOVERNOR_ROADMAP_PATH
 const COMMAND_QUEUE_PATH = process.env.DEEPSEEK_GOVERNOR_COMMAND_QUEUE_PATH
                         || path.join(__dirname, '..', '..', 'data', 'deepseek-commands.jsonl');
 const COMMAND_QUEUE_MAX_ENTRIES = parseInt(process.env.DEEPSEEK_GOVERNOR_COMMAND_QUEUE_MAX || '200', 10);
+const GITHUB_API_BASE = process.env.DEEPSEEK_GOVERNOR_GITHUB_API_BASE || 'https://api.github.com';
+const GITHUB_TOKEN = process.env.GITHUB_TOKEN || process.env.GH_TOKEN || '';
 
 // Allowlist of service names that `restart_service` is permitted to *flag*.
 // Lista de servicii pentru care `restart_service` poate semnala intenție.
@@ -151,6 +188,143 @@ function _appendLog(entry) {
   } catch (_) { /* never throw from logging */ }
   if (_refs.logger && typeof _refs.logger.info === 'function') {
     try { _refs.logger.info('[deepseek-governor]', entry); } catch (_) { /* noop */ }
+  }
+}
+
+function _appendAutonomousLog(entry) {
+  try {
+    fs.mkdirSync(path.dirname(AUTONOMOUS_ACTION_LOG_PATH), { recursive: true });
+    fs.appendFileSync(AUTONOMOUS_ACTION_LOG_PATH, JSON.stringify(entry) + '\n', { encoding: 'utf8' });
+  } catch (_) { /* never throw */ }
+}
+
+function _normalizeSafeRelative(input) {
+  if (typeof input !== 'string' || !input.trim()) return null;
+  if (input.indexOf('\0') !== -1) return null;
+  return path.posix.normalize(input.trim().replace(/\\/g, '/'));
+}
+
+function _isProtectedRelativePath(relPath) {
+  const norm = _normalizeSafeRelative(relPath);
+  if (!norm) return true;
+  const lower = norm.toLowerCase();
+  const base = path.posix.basename(lower);
+  if (PROTECTED_BASENAMES.includes(base)) return true;
+  if (PROTECTED_RELATIVE_PATHS.includes(lower)) return true;
+  const segs = lower.split('/');
+  if (segs.includes('.git') || segs.includes('.ssh')) return true;
+  if (segs.some((seg) => seg.startsWith('.env'))) return true;
+  for (const deny of READ_FILE_DENY_SUBSTRINGS) {
+    if (lower.includes(deny)) return true;
+  }
+  return false;
+}
+
+function _resolveWithinRoot(root, rawPath, { mustExist = false } = {}) {
+  const norm = _normalizeSafeRelative(rawPath);
+  if (!norm) return { ok: false, reason: 'invalid_path' };
+  if (path.posix.isAbsolute(norm) || norm === '..' || norm.startsWith('../') || norm.includes('/../')) {
+    return { ok: false, reason: 'path_outside_root' };
+  }
+  const target = path.resolve(root, norm);
+  const rel = path.relative(root, target);
+  if (rel.startsWith('..') || path.isAbsolute(rel)) return { ok: false, reason: 'path_outside_root' };
+  if (_isProtectedRelativePath(rel)) return { ok: false, reason: 'protected_path' };
+  if (mustExist && !fs.existsSync(target)) return { ok: false, reason: 'not_found' };
+  return { ok: true, abs: target, rel: rel.replace(/\\/g, '/') };
+}
+
+function _allowedDeleteRootFor(target) {
+  for (const root of DELETE_FILE_ROOTS) {
+    const rel = path.relative(root, target);
+    if (!rel.startsWith('..') && !path.isAbsolute(rel)) return root;
+  }
+  return null;
+}
+
+function _collectCleanupCandidates() {
+  const now = Date.now();
+  const candidates = [];
+  for (const root of DELETE_FILE_ROOTS) {
+    try {
+      if (!fs.existsSync(root)) continue;
+      const entries = fs.readdirSync(root).slice(0, 200);
+      for (const entry of entries) {
+        const full = path.join(root, entry);
+        const stat = fs.statSync(full);
+        if (!stat.isFile()) continue;
+        const ageDays = (now - stat.mtimeMs) / (24 * 60 * 60 * 1000);
+        const threshold = root.endsWith('old_backups') ? 30 : 7;
+        if (ageDays < threshold) continue;
+        candidates.push({
+          path: full,
+          ageDays: +ageDays.toFixed(1),
+          bytes: stat.size,
+          reason: root.endsWith('old_backups') ? 'backup_older_than_30d' : 'stale_temp_or_log',
+        });
+        if (candidates.length >= 25) return candidates;
+      }
+    } catch (_) { /* best-effort */ }
+  }
+  try {
+    const marker = path.join(SANDBOX_ROOT, 'dead-code-candidates.json');
+    if (fs.existsSync(marker)) {
+      const parsed = JSON.parse(fs.readFileSync(marker, 'utf8'));
+      if (Array.isArray(parsed)) {
+        for (const item of parsed.slice(0, 10)) candidates.push(item);
+      }
+    }
+  } catch (_) { /* best-effort */ }
+  return candidates;
+}
+
+function _runCommand(bin, args, options = {}) {
+  return new Promise((resolve) => {
+    let stdout = '';
+    let stderr = '';
+    let settled = false;
+    const child = spawn(bin, args, {
+      cwd: options.cwd || path.resolve(__dirname, '..', '..'),
+      env: options.env || process.env,
+      shell: false,
+      stdio: ['ignore', 'pipe', 'pipe'],
+    });
+    const timer = setTimeout(() => {
+      if (settled) return;
+      settled = true;
+      try { child.kill('SIGKILL'); } catch (_) { /* noop */ }
+      resolve({ ok: false, reason: 'timeout', stdoutTail: stdout.slice(-2000), stderrTail: stderr.slice(-2000), timeoutMs: options.timeoutMs || RUN_TEST_TIMEOUT_MS });
+    }, options.timeoutMs || RUN_TEST_TIMEOUT_MS);
+    child.stdout.on('data', (d) => { stdout += d.toString('utf8'); if (stdout.length > 50000) stdout = stdout.slice(-40000); });
+    child.stderr.on('data', (d) => { stderr += d.toString('utf8'); if (stderr.length > 50000) stderr = stderr.slice(-40000); });
+    child.on('error', (e) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      resolve({ ok: false, reason: 'spawn_error', error: String(e && e.message || e).slice(0, 200) });
+    });
+    child.on('close', (code) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      resolve({ ok: code === 0, exitCode: code, stdoutTail: stdout.slice(-2000), stderrTail: stderr.slice(-2000) });
+    });
+  });
+}
+
+async function _runPostMutationPipeline(meta) {
+  try {
+    if (!fs.existsSync(POST_MUTATION_SCRIPT)) {
+      return { ok: false, reason: 'post_mutation_script_missing', script: POST_MUTATION_SCRIPT };
+    }
+    const result = await _runCommand(POST_MUTATION_SCRIPT, [meta.action, meta.path || '', meta.mode || ''], {
+      cwd: SAFE_SCRIPT_ROOT,
+      env: { ...process.env, AUTONOMY_ROOT, SANDBOX_ROOT },
+      timeoutMs: Math.max(RUN_TEST_TIMEOUT_MS, 120000),
+    });
+    return { ...result, script: POST_MUTATION_SCRIPT };
+  } catch (e) {
+    return { ok: false, reason: 'post_mutation_pipeline_failed', error: String(e && e.message || e).slice(0, 200) };
   }
 }
 
@@ -260,6 +434,364 @@ function _action_read_file(params) {
   };
 }
 
+async function _action_write_file(params) {
+  const rawPath = params && typeof params.path === 'string' ? params.path.trim() : '';
+  const content = params && typeof params.content === 'string' ? params.content : '';
+  if (!rawPath) return { ok: false, action: 'write_file', reason: 'path_required' };
+  if (rawPath.indexOf('\0') !== -1) return { ok: false, action: 'write_file', reason: 'invalid_path' };
+  const bytes = Buffer.byteLength(content || '', 'utf8');
+  if (bytes > WRITE_FILE_MAX_BYTES) {
+    return { ok: false, action: 'write_file', reason: 'content_too_large', bytes, max: WRITE_FILE_MAX_BYTES };
+  }
+
+  const resolved = _resolveWithinRoot(WRITE_FILE_ROOT, rawPath);
+  if (!resolved.ok) return { ok: false, action: 'write_file', reason: resolved.reason };
+
+  const ext = path.extname(resolved.abs).toLowerCase();
+  if (!READ_FILE_EXT_ALLOWLIST.includes(ext)) {
+    return { ok: false, action: 'write_file', reason: 'extension_not_allowed', allowed: READ_FILE_EXT_ALLOWLIST };
+  }
+
+  try {
+    fs.mkdirSync(path.dirname(resolved.abs), { recursive: true });
+    fs.writeFileSync(resolved.abs, content, { encoding: 'utf8' });
+  } catch (e) {
+    return { ok: false, action: 'write_file', reason: 'write_failed', error: String(e && e.message || e).slice(0, 200) };
+  }
+
+  const pipeline = await _runPostMutationPipeline({ action: 'write_file', path: resolved.rel, mode: 'upsert' });
+  _appendAutonomousLog({ ts: new Date().toISOString(), action: 'write_file', path: resolved.rel, bytes, pipeline });
+
+  return {
+    ok: true,
+    action: 'write_file',
+    note: 'written_to_autonomy_root',
+    path: resolved.rel,
+    bytes,
+    pipeline,
+    timestamp: new Date().toISOString(),
+  };
+}
+
+async function _action_create_file(params) {
+  const rawPath = params && typeof params.path === 'string' ? params.path.trim() : '';
+  const content = params && typeof params.content === 'string' ? params.content : '';
+  if (!rawPath) return { ok: false, action: 'create_file', reason: 'path_required' };
+  const resolved = _resolveWithinRoot(WRITE_FILE_ROOT, rawPath);
+  if (!resolved.ok) return { ok: false, action: 'create_file', reason: resolved.reason };
+  if (fs.existsSync(resolved.abs)) return { ok: false, action: 'create_file', reason: 'already_exists' };
+  const bytes = Buffer.byteLength(content || '', 'utf8');
+  if (bytes > WRITE_FILE_MAX_BYTES) return { ok: false, action: 'create_file', reason: 'content_too_large', bytes, max: WRITE_FILE_MAX_BYTES };
+  const ext = path.extname(resolved.abs).toLowerCase();
+  if (!READ_FILE_EXT_ALLOWLIST.includes(ext)) return { ok: false, action: 'create_file', reason: 'extension_not_allowed', allowed: READ_FILE_EXT_ALLOWLIST };
+  try {
+    fs.mkdirSync(path.dirname(resolved.abs), { recursive: true });
+    fs.writeFileSync(resolved.abs, content, { encoding: 'utf8', flag: 'wx' });
+  } catch (e) {
+    return { ok: false, action: 'create_file', reason: 'create_failed', error: String(e && e.message || e).slice(0, 200) };
+  }
+  const pipeline = await _runPostMutationPipeline({ action: 'create_file', path: resolved.rel, mode: 'create' });
+  _appendAutonomousLog({ ts: new Date().toISOString(), action: 'create_file', path: resolved.rel, bytes, pipeline });
+  return { ok: true, action: 'create_file', path: resolved.rel, bytes, pipeline, timestamp: new Date().toISOString() };
+}
+
+async function _action_move_file(params) {
+  const fromPath = params && typeof params.from === 'string' ? params.from.trim() : '';
+  const toPath = params && typeof params.to === 'string' ? params.to.trim() : '';
+  if (!fromPath || !toPath) return { ok: false, action: 'move_file', reason: 'from_to_required' };
+  const fromResolved = _resolveWithinRoot(WRITE_FILE_ROOT, fromPath, { mustExist: true });
+  if (!fromResolved.ok) return { ok: false, action: 'move_file', reason: fromResolved.reason, which: 'from' };
+  const toResolved = _resolveWithinRoot(WRITE_FILE_ROOT, toPath);
+  if (!toResolved.ok) return { ok: false, action: 'move_file', reason: toResolved.reason, which: 'to' };
+  if (fs.existsSync(toResolved.abs)) return { ok: false, action: 'move_file', reason: 'destination_exists' };
+  try {
+    fs.mkdirSync(path.dirname(toResolved.abs), { recursive: true });
+    fs.renameSync(fromResolved.abs, toResolved.abs);
+  } catch (e) {
+    return { ok: false, action: 'move_file', reason: 'move_failed', error: String(e && e.message || e).slice(0, 200) };
+  }
+  const pipeline = await _runPostMutationPipeline({ action: 'move_file', path: `${fromResolved.rel} -> ${toResolved.rel}`, mode: 'move' });
+  _appendAutonomousLog({ ts: new Date().toISOString(), action: 'move_file', from: fromResolved.rel, to: toResolved.rel, pipeline });
+  return { ok: true, action: 'move_file', from: fromResolved.rel, to: toResolved.rel, pipeline, timestamp: new Date().toISOString() };
+}
+
+async function _action_delete_file(params) {
+  const rawPath = params && typeof params.path === 'string' ? params.path.trim() : '';
+  if (!rawPath) return { ok: false, action: 'delete_file', reason: 'path_required' };
+  const resolved = _resolveWithinRoot(AUTONOMY_ROOT, rawPath, { mustExist: true });
+  if (!resolved.ok) return { ok: false, action: 'delete_file', reason: resolved.reason };
+  const allowedRoot = _allowedDeleteRootFor(resolved.abs);
+  if (!allowedRoot) return { ok: false, action: 'delete_file', reason: 'delete_root_not_allowed', allowedRoots: DELETE_FILE_ROOTS };
+  let stat;
+  try { stat = fs.lstatSync(resolved.abs); } catch (_) { return { ok: false, action: 'delete_file', reason: 'not_found' }; }
+  if (!stat.isFile()) return { ok: false, action: 'delete_file', reason: 'only_files_allowed' };
+  try {
+    fs.unlinkSync(resolved.abs);
+  } catch (e) {
+    return { ok: false, action: 'delete_file', reason: 'delete_failed', error: String(e && e.message || e).slice(0, 200) };
+  }
+  const pipeline = await _runPostMutationPipeline({ action: 'delete_file', path: resolved.rel, mode: 'delete' });
+  _appendAutonomousLog({ ts: new Date().toISOString(), action: 'delete_file', path: resolved.rel, bytes: stat.size, pipeline });
+  return { ok: true, action: 'delete_file', path: resolved.rel, bytes: stat.size, pipeline, timestamp: new Date().toISOString() };
+}
+
+async function _action_execute_safe_script(params) {
+  const rawScript = params && typeof params.script === 'string' ? params.script.trim() : '';
+  const args = Array.isArray(params && params.args) ? params.args.slice(0, 12).map((arg) => String(arg).slice(0, 240)) : [];
+  if (!rawScript) return { ok: false, action: 'execute_safe_script', reason: 'script_required' };
+  const resolved = _resolveWithinRoot(SAFE_SCRIPT_ROOT, rawScript, { mustExist: true });
+  if (!resolved.ok) return { ok: false, action: 'execute_safe_script', reason: resolved.reason };
+  const ext = path.extname(resolved.abs).toLowerCase();
+  if (!['.sh', '.js'].includes(ext)) return { ok: false, action: 'execute_safe_script', reason: 'script_extension_not_allowed' };
+  const stat = fs.statSync(resolved.abs);
+  if (!stat.isFile()) return { ok: false, action: 'execute_safe_script', reason: 'not_a_file' };
+  const cmd = ext === '.js' ? process.execPath : resolved.abs;
+  const cmdArgs = ext === '.js' ? [resolved.abs, ...args] : args;
+  const result = await _runCommand(cmd, cmdArgs, {
+    cwd: SAFE_SCRIPT_ROOT,
+    env: { ...process.env, AUTONOMY_ROOT, SANDBOX_ROOT },
+    timeoutMs: Math.max(RUN_TEST_TIMEOUT_MS, 120000),
+  });
+  _appendAutonomousLog({ ts: new Date().toISOString(), action: 'execute_safe_script', script: resolved.rel, args, result });
+  return { ok: !!result.ok, action: 'execute_safe_script', script: resolved.rel, args, ...result, timestamp: new Date().toISOString() };
+}
+
+function _action_git_commit(params) {
+  const message = params && typeof params.message === 'string' ? params.message.slice(0, 180) : 'deepseek-governor intent commit';
+  return {
+    ok: true,
+    action: 'git_commit',
+    mode: 'intent_logged',
+    note: 'git commit intent recorded; no shell/git execution from governor',
+    message,
+    timestamp: new Date().toISOString(),
+  };
+}
+
+function _action_deploy(params) {
+  const target = params && typeof params.target === 'string' ? params.target.slice(0, 120) : 'hetzner-main';
+  return {
+    ok: true,
+    action: 'deploy',
+    mode: 'intent_logged',
+    note: 'deploy intent recorded; no direct deploy execution from governor',
+    target,
+    timestamp: new Date().toISOString(),
+  };
+}
+
+function _sanitizeGitHubRepo(repo) {
+  const raw = String(repo || '').trim();
+  if (!raw) return null;
+  if (!/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(raw)) return null;
+  return raw;
+}
+
+function _githubRequestJson(method, apiPath, bodyObj) {
+  return new Promise((resolve) => {
+    let target;
+    try {
+      target = new URL(apiPath, GITHUB_API_BASE);
+    } catch (_) {
+      resolve({ ok: false, reason: 'invalid_github_url' });
+      return;
+    }
+    const payload = bodyObj ? JSON.stringify(bodyObj) : '';
+    const headers = {
+      'User-Agent': 'unicorn-deepseek-governor',
+      'Accept': 'application/vnd.github+json',
+      'X-GitHub-Api-Version': '2022-11-28',
+    };
+    if (GITHUB_TOKEN) headers.Authorization = `Bearer ${GITHUB_TOKEN}`;
+    if (payload) {
+      headers['Content-Type'] = 'application/json';
+      headers['Content-Length'] = Buffer.byteLength(payload);
+    }
+    const req = https.request({
+      method,
+      hostname: target.hostname,
+      port: target.port || 443,
+      path: target.pathname + target.search,
+      headers,
+      timeout: 12_000,
+    }, (res) => {
+      const chunks = [];
+      res.on('data', (c) => chunks.push(c));
+      res.on('end', () => {
+        const rawBody = Buffer.concat(chunks).toString('utf8');
+        let parsed = null;
+        try { parsed = rawBody ? JSON.parse(rawBody) : null; } catch (_) { /* non-json */ }
+        resolve({
+          ok: (res.statusCode || 0) >= 200 && (res.statusCode || 0) < 300,
+          status: res.statusCode || 0,
+          data: parsed,
+          bodyPreview: String(rawBody || '').slice(0, 800),
+        });
+      });
+    });
+    req.on('timeout', () => {
+      req.destroy();
+      resolve({ ok: false, reason: 'github_timeout' });
+    });
+    req.on('error', (e) => {
+      resolve({ ok: false, reason: 'github_request_failed', error: String(e && e.message || e).slice(0, 200) });
+    });
+    if (payload) req.write(payload);
+    req.end();
+  });
+}
+
+function _action_github_clone_repo(params) {
+  const repo = _sanitizeGitHubRepo(params && params.repo);
+  const branch = params && typeof params.branch === 'string' ? params.branch.slice(0, 120) : 'main';
+  const destination = params && typeof params.destination === 'string' ? params.destination.slice(0, 240) : '';
+  if (!repo) return { ok: false, action: 'github_clone_repo', reason: 'invalid_repo' };
+  return {
+    ok: true,
+    action: 'github_clone_repo',
+    mode: 'intent_logged',
+    note: 'clone intent recorded; no git execution from governor process',
+    repo,
+    branch,
+    destination,
+    timestamp: new Date().toISOString(),
+  };
+}
+
+function _action_github_create_pr(params) {
+  const repo = _sanitizeGitHubRepo(params && params.repo);
+  const head = params && typeof params.head === 'string' ? params.head.slice(0, 180) : '';
+  const base = params && typeof params.base === 'string' ? params.base.slice(0, 180) : 'main';
+  const title = params && typeof params.title === 'string' ? params.title.slice(0, 240) : '';
+  const body = params && typeof params.body === 'string' ? params.body.slice(0, 4000) : '';
+  if (!repo || !head || !title) {
+    return { ok: false, action: 'github_create_pr', reason: 'repo_head_title_required' };
+  }
+  return {
+    ok: true,
+    action: 'github_create_pr',
+    mode: 'intent_logged',
+    note: 'PR intent recorded; no direct GitHub write performed by governor',
+    repo,
+    head,
+    base,
+    title,
+    bodyPreview: body.slice(0, 280),
+    timestamp: new Date().toISOString(),
+  };
+}
+
+function _action_merge_pr(params) {
+  const repo = _sanitizeGitHubRepo(params && params.repo);
+  const pullNumber = parseInt(params && params.pullNumber, 10);
+  const mergeMethod = params && typeof params.mergeMethod === 'string' ? params.mergeMethod.toLowerCase() : 'squash';
+  const commitTitle = params && typeof params.commitTitle === 'string' ? params.commitTitle.slice(0, 240) : '';
+  if (!repo || !Number.isFinite(pullNumber) || pullNumber <= 0) {
+    return { ok: false, action: 'merge_pr', reason: 'invalid_repo_or_pull_number' };
+  }
+  if (!['merge', 'squash', 'rebase'].includes(mergeMethod)) {
+    return { ok: false, action: 'merge_pr', reason: 'invalid_merge_method', allowed: ['merge', 'squash', 'rebase'] };
+  }
+  return {
+    ok: true,
+    action: 'merge_pr',
+    mode: 'intent_logged',
+    note: 'merge intent recorded; no direct GitHub write performed by governor',
+    repo,
+    pullNumber,
+    mergeMethod,
+    commitTitle,
+    timestamp: new Date().toISOString(),
+  };
+}
+
+async function _action_browse_github(params) {
+  const repo = _sanitizeGitHubRepo(params && params.repo);
+  const branch = params && typeof params.branch === 'string' ? params.branch.slice(0, 120) : '';
+  const filePath = params && typeof params.path === 'string' ? params.path.trim().replace(/^\/+/, '') : '';
+  if (!repo) return { ok: false, action: 'browse_github', reason: 'invalid_repo' };
+  const refQ = branch ? `?ref=${encodeURIComponent(branch)}` : '';
+  const apiPath = filePath
+    ? `/repos/${repo}/contents/${filePath}${refQ}`
+    : `/repos/${repo}/contents${refQ}`;
+  const result = await _githubRequestJson('GET', apiPath);
+  if (!result.ok) {
+    return {
+      ok: false,
+      action: 'browse_github',
+      reason: result.reason || 'github_api_failed',
+      status: result.status || 0,
+      bodyPreview: result.bodyPreview || '',
+    };
+  }
+  const data = result.data;
+  if (Array.isArray(data)) {
+    return {
+      ok: true,
+      action: 'browse_github',
+      repo,
+      path: filePath || '',
+      branch: branch || null,
+      items: data.slice(0, 100).map((it) => ({ name: it.name, type: it.type, path: it.path, size: it.size || 0 })),
+      timestamp: new Date().toISOString(),
+    };
+  }
+  return {
+    ok: true,
+    action: 'browse_github',
+    repo,
+    path: filePath || '',
+    branch: branch || null,
+    item: data ? {
+      name: data.name,
+      type: data.type,
+      path: data.path,
+      size: data.size || 0,
+      sha: data.sha || '',
+      encoding: data.encoding || null,
+      content: typeof data.content === 'string' ? data.content.slice(0, 200000) : null,
+    } : null,
+    timestamp: new Date().toISOString(),
+  };
+}
+
+async function _action_search_github(params) {
+  const query = params && typeof params.query === 'string' ? params.query.trim().slice(0, 240) : '';
+  const type = params && typeof params.type === 'string' ? params.type.toLowerCase() : 'code';
+  if (!query) return { ok: false, action: 'search_github', reason: 'query_required' };
+  if (!['code', 'repositories', 'issues', 'commits'].includes(type)) {
+    return { ok: false, action: 'search_github', reason: 'invalid_type', allowed: ['code', 'repositories', 'issues', 'commits'] };
+  }
+  const apiPath = `/search/${type}?q=${encodeURIComponent(query)}&per_page=20`;
+  const result = await _githubRequestJson('GET', apiPath);
+  if (!result.ok) {
+    return {
+      ok: false,
+      action: 'search_github',
+      reason: result.reason || 'github_api_failed',
+      status: result.status || 0,
+      bodyPreview: result.bodyPreview || '',
+    };
+  }
+  const items = Array.isArray(result.data && result.data.items) ? result.data.items : [];
+  return {
+    ok: true,
+    action: 'search_github',
+    type,
+    query,
+    totalCount: Number(result.data && result.data.total_count) || items.length,
+    items: items.slice(0, 20).map((it) => ({
+      name: it.name || null,
+      fullName: it.full_name || null,
+      path: it.path || null,
+      htmlUrl: it.html_url || null,
+      repository: it.repository && it.repository.full_name ? it.repository.full_name : null,
+      score: it.score || null,
+    })),
+    timestamp: new Date().toISOString(),
+  };
+}
+
 function _action_read_status() {
   // Curated, public-safe status snapshot — no secrets, no full file reads.
   // Snapshot de status curat — fără secrete, fără citire de fișiere arbitrare.
@@ -295,6 +827,10 @@ function _action_read_status() {
     autonomy: {
       proposalCount,
       pendingCommandCount: pendingCommands.length,
+      autonomyRoot: AUTONOMY_ROOT,
+      sandboxRoot: SANDBOX_ROOT,
+      actionLogPath: AUTONOMOUS_ACTION_LOG_PATH,
+      cleanupCandidates: _collectCleanupCandidates(),
       nextCommandPreview: pendingCommands[0]
         ? { id: pendingCommands[0].id, priority: pendingCommands[0].priority, preview: String(pendingCommands[0].instruction).slice(0, 200) }
         : null,
@@ -340,56 +876,14 @@ async function _action_checkout_fix() {
 }
 
 function _action_run_test() {
-  return new Promise((resolve) => {
-    // Sandbox: spawn npm test with NO shell, NO inherited stdin, hard
-    // timeout, captured stdout/stderr truncated. The child cannot escalate
-    // because it's started with the parent's uid/gid (whatever the unicorn
-    // user has) and shell=false prevents command injection.
-    // În sandbox: spawn fără shell, timeout dur, ieșire trunchiată.
-    const cwd = path.resolve(__dirname, '..', '..');
-    let stdout = '';
-    let stderr = '';
-    let settled = false;
-    const child = spawn('npm', ['test', '--silent'], {
-      cwd,
-      env: { ...process.env, NODE_ENV: 'test', CI: '1' },
-      shell: false,
-      stdio: ['ignore', 'pipe', 'pipe'],
-    });
-    const timer = setTimeout(() => {
-      if (settled) return;
-      settled = true;
-      try { child.kill('SIGKILL'); } catch (_) { /* noop */ }
-      resolve({
-        ok: false,
-        action: 'run_test',
-        reason: 'timeout',
-        timeoutMs: RUN_TEST_TIMEOUT_MS,
-        stdoutTail: stdout.slice(-2000),
-        stderrTail: stderr.slice(-2000),
-      });
-    }, RUN_TEST_TIMEOUT_MS);
-    child.stdout.on('data', (d) => { stdout += d.toString('utf8'); if (stdout.length > 50000) stdout = stdout.slice(-40000); });
-    child.stderr.on('data', (d) => { stderr += d.toString('utf8'); if (stderr.length > 50000) stderr = stderr.slice(-40000); });
-    child.on('error', (e) => {
-      if (settled) return;
-      settled = true;
-      clearTimeout(timer);
-      resolve({ ok: false, action: 'run_test', reason: 'spawn_error', error: String(e && e.message || e).slice(0, 200) });
-    });
-    child.on('close', (code) => {
-      if (settled) return;
-      settled = true;
-      clearTimeout(timer);
-      resolve({
-        ok: code === 0,
-        action: 'run_test',
-        exitCode: code,
-        stdoutTail: stdout.slice(-2000),
-        stderrTail: stderr.slice(-2000),
-      });
-    });
-  });
+  const cwd = fs.existsSync(path.join(SANDBOX_ROOT, 'package.json'))
+    ? SANDBOX_ROOT
+    : path.resolve(__dirname, '..', '..');
+  return _runCommand('npm', ['test', '--silent'], {
+    cwd,
+    env: { ...process.env, NODE_ENV: 'test', CI: '1' },
+    timeoutMs: RUN_TEST_TIMEOUT_MS,
+  }).then((result) => ({ ...result, action: 'run_test', cwd }));
 }
 
 function _action_restart_service(params) {
@@ -701,10 +1195,22 @@ async function dispatch({ action, params, requestId, actor, ip }) {
       case 'none':            result = _action_none(); break;
       case 'read_status':     result = _action_read_status(); break;
       case 'read_file':       result = _action_read_file(params); break;
+      case 'write_file':      result = await _action_write_file(params); break;
+      case 'create_file':     result = await _action_create_file(params); break;
+      case 'move_file':       result = await _action_move_file(params); break;
+      case 'delete_file':     result = await _action_delete_file(params); break;
+      case 'execute_safe_script': result = await _action_execute_safe_script(params); break;
       case 'prices_sync':     result = await _action_prices_sync(); break;
       case 'checkout_fix':    result = await _action_checkout_fix(); break;
       case 'run_test':        result = await _action_run_test(); break;
       case 'restart_service': result = _action_restart_service(params); break;
+      case 'git_commit':      result = _action_git_commit(params); break;
+      case 'deploy':          result = _action_deploy(params); break;
+      case 'github_clone_repo': result = _action_github_clone_repo(params); break;
+      case 'github_create_pr':  result = _action_github_create_pr(params); break;
+      case 'merge_pr':          result = _action_merge_pr(params); break;
+      case 'browse_github':     result = await _action_browse_github(params); break;
+      case 'search_github':     result = await _action_search_github(params); break;
       case 'code_proposal':   result = _action_code_proposal(params); break;
       case 'roadmap_update':  result = _action_roadmap_update(params); break;
       default:                result = { ok: false, reason: 'unreachable' };
@@ -759,7 +1265,8 @@ function getStatus() {
       commandQueueMaxEntries: COMMAND_QUEUE_MAX_ENTRIES,
     },
     aggregate: { actionsLastHour: totalLastHour, actionsLastDay: totalLastDay, trackedIps: _rateState.size, pendingRequestIds: _seenRequestIds.size },
-    paths: { logPath: LOG_PATH, proposalsDir: PROPOSALS_DIR, roadmapPath: ROADMAP_PATH, commandQueuePath: COMMAND_QUEUE_PATH },
+    paths: { logPath: LOG_PATH, proposalsDir: PROPOSALS_DIR, roadmapPath: ROADMAP_PATH, commandQueuePath: COMMAND_QUEUE_PATH, writeSandboxPath: WRITE_FILE_ROOT },
+    autonomy: { root: AUTONOMY_ROOT, sandboxRoot: SANDBOX_ROOT, safeScriptRoot: SAFE_SCRIPT_ROOT, deleteRoots: DELETE_FILE_ROOTS, actionLogPath: AUTONOMOUS_ACTION_LOG_PATH },
     logPath: LOG_PATH,
   };
 }

@@ -40,7 +40,9 @@ const https = require('https');
 
 const ENABLED                = String(process.env.DEEPSEEK_LOOP_ENABLED || '') === '1';
 const EXECUTE_MODE           = String(process.env.DEEPSEEK_LOOP_EXECUTE || '') === '1';
-const INTERVAL_MS            = Math.max(30_000, parseInt(process.env.DEEPSEEK_LOOP_INTERVAL_MS || '120000', 10));
+const FAST_INTERVAL_MS       = Math.max(60_000, parseInt(process.env.DEEPSEEK_LOOP_FAST_INTERVAL_MS || '60000', 10));
+const INTERVAL_MS            = Math.max(30_000, parseInt(process.env.DEEPSEEK_LOOP_INTERVAL_MS || '60000', 10));
+const INITIAL_FAST_WINDOW_MS = Math.max(60_000, parseInt(process.env.DEEPSEEK_LOOP_FAST_WINDOW_MS || String(60 * 60 * 1000), 10));
 const BACKOFF_MS             = parseInt(process.env.DEEPSEEK_LOOP_BACKOFF_MS || String(30 * 60 * 1000), 10);
 const FAILURE_THRESHOLD      = parseInt(process.env.DEEPSEEK_LOOP_FAILURE_THRESHOLD || '3', 10);
 const BACKEND_URL            = process.env.DEEPSEEK_LOOP_BACKEND_URL || 'http://127.0.0.1:3000';
@@ -49,6 +51,17 @@ const PRICING_PAGE_URL       = process.env.DEEPSEEK_LOOP_PRICING_URL || 'https:/
 const DEEPSEEK_API_URL       = process.env.DEEPSEEK_API_URL || 'https://api.deepseek.com/v1/chat/completions';
 const DEEPSEEK_API_KEY       = process.env.DEEPSEEK_API_KEY || '';
 const DEEPSEEK_MODEL         = process.env.DEEPSEEK_MODEL || 'deepseek-reasoner';
+const ADVISOR_TEMPERATURE    = Number.isFinite(Number(process.env.DEEPSEEK_LOOP_TEMPERATURE))
+                             ? Number(process.env.DEEPSEEK_LOOP_TEMPERATURE)
+                             : 0.0;
+const ADVISOR_MAX_TOKENS     = Math.max(64, parseInt(process.env.DEEPSEEK_LOOP_MAX_TOKENS || '500', 10));
+const ADVISOR_MAX_COMPLETION = Math.max(64, parseInt(process.env.DEEPSEEK_LOOP_MAX_COMPLETION_TOKENS || '200', 10));
+const AGI_FALLBACK_URL       = process.env.DEEPSEEK_LOOP_AGI_URL || (BACKEND_URL + '/api/agi/process');
+const AGE_FALLBACK_URL       = process.env.DEEPSEEK_LOOP_AGE_URL || (BACKEND_URL + '/api/age/act');
+const OLLAMA_BASE_URL        = process.env.DEEPSEEK_LOOP_OLLAMA_URL || 'http://127.0.0.1:11434';
+const OLLAMA_MODEL           = process.env.DEEPSEEK_LOOP_OLLAMA_MODEL || 'llama3';
+const STABLE_WINDOW_HOURS    = Math.max(1, parseInt(process.env.DEEPSEEK_LOOP_STABLE_WINDOW_HOURS || '24', 10));
+const SLOW_INTERVAL_MS       = Math.max(60_000, parseInt(process.env.DEEPSEEK_LOOP_SLOW_INTERVAL_MS || '300000', 10));
 const OPENROUTER_API_KEY     = process.env.OPENROUTER_API_KEY || '';
 const OPENROUTER_DEEPSEEK_MODEL = process.env.OPENROUTER_DEEPSEEK_MODEL || 'deepseek/deepseek-v4-flash:free';
 const GROQ_API_KEY           = process.env.GROQ_API_KEY || '';
@@ -57,7 +70,90 @@ const ADMIN_TOKEN            = process.env.DEEPSEEK_LOOP_ADMIN_TOKEN || '';
 const LOG_PATH               = process.env.DEEPSEEK_LOOP_LOG_PATH
                              || path.join(__dirname, '..', 'data', 'logs', 'deepseek-loop.log');
 const ERROR_LOG_PATH         = process.env.DEEPSEEK_LOOP_ERROR_LOG || '/var/log/unicorn/error.log';
-const ALLOWED_ACTIONS = ['none', 'read_status', 'read_file', 'prices_sync', 'checkout_fix', 'run_test', 'restart_service', 'code_proposal', 'roadmap_update'];
+const AUTONOMY_ROOT          = process.env.DEEPSEEK_LOOP_AUTONOMY_ROOT || '/opt/unicorn';
+const SANDBOX_ROOT           = process.env.DEEPSEEK_LOOP_SANDBOX_ROOT || path.join(AUTONOMY_ROOT, 'sandbox');
+const AUTONOMOUS_LOG_PATH    = process.env.DEEPSEEK_LOOP_ACTION_LOG || '/var/log/autonomous_actions.log';
+const ALLOWED_ACTIONS = ['none', 'read_status', 'read_file', 'write_file', 'create_file', 'move_file', 'delete_file', 'execute_safe_script', 'prices_sync', 'checkout_fix', 'run_test', 'restart_service', 'git_commit', 'deploy', 'github_clone_repo', 'github_create_pr', 'merge_pr', 'browse_github', 'search_github', 'code_proposal', 'roadmap_update'];
+
+function _safeStatCandidate(filePath, now, minAgeMs) {
+  try {
+    const stat = fs.statSync(filePath);
+    if (!stat.isFile()) return null;
+    const ageMs = now - stat.mtimeMs;
+    if (ageMs < minAgeMs) return null;
+    return {
+      path: filePath,
+      ageDays: +((ageMs / (24 * 60 * 60 * 1000)).toFixed(1)),
+      bytes: stat.size,
+    };
+  } catch (_) {
+    return null;
+  }
+}
+
+function collectCleanupCandidates() {
+  const now = Date.now();
+  const out = {
+    tempOlderThan7d: [],
+    backupsOlderThan30d: [],
+    staleLogs: [],
+    duplicateLikeFiles: [],
+    deadCodeCandidates: [],
+  };
+  const roots = [
+    { key: 'tempOlderThan7d', dir: path.join(AUTONOMY_ROOT, 'temp'), minAgeMs: 7 * 24 * 60 * 60 * 1000 },
+    { key: 'backupsOlderThan30d', dir: path.join(AUTONOMY_ROOT, 'old_backups'), minAgeMs: 30 * 24 * 60 * 60 * 1000 },
+    { key: 'staleLogs', dir: path.join(AUTONOMY_ROOT, 'logs-old'), minAgeMs: 7 * 24 * 60 * 60 * 1000 },
+  ];
+  for (const root of roots) {
+    try {
+      if (!fs.existsSync(root.dir)) continue;
+      const items = fs.readdirSync(root.dir).slice(0, 200);
+      for (const item of items) {
+        const candidate = _safeStatCandidate(path.join(root.dir, item), now, root.minAgeMs);
+        if (candidate) out[root.key].push(candidate);
+        if (out[root.key].length >= 20) break;
+      }
+    } catch (_) { /* best-effort */ }
+  }
+  try {
+    if (fs.existsSync(SANDBOX_ROOT)) {
+      const queue = [SANDBOX_ROOT];
+      while (queue.length && out.duplicateLikeFiles.length < 20) {
+        const current = queue.shift();
+        const entries = fs.readdirSync(current, { withFileTypes: true }).slice(0, 100);
+        for (const entry of entries) {
+          const full = path.join(current, entry.name);
+          if (entry.isDirectory()) {
+            if (entry.name === 'node_modules' || entry.name === '.git') continue;
+            queue.push(full);
+            continue;
+          }
+          if (!entry.isFile()) continue;
+          if (/(\.bak|\.old|\.orig|\.tmp|~)$/i.test(entry.name)) {
+            const candidate = _safeStatCandidate(full, now, 24 * 60 * 60 * 1000);
+            if (candidate) out.duplicateLikeFiles.push(candidate);
+          }
+        }
+      }
+      const deadCodePath = path.join(SANDBOX_ROOT, 'dead-code-candidates.json');
+      if (fs.existsSync(deadCodePath)) {
+        const parsed = JSON.parse(fs.readFileSync(deadCodePath, 'utf8'));
+        if (Array.isArray(parsed)) out.deadCodeCandidates = parsed.slice(0, 20);
+      }
+    }
+  } catch (_) { /* best-effort */ }
+  return out;
+}
+
+function readAutonomousLogTail() {
+  try {
+    if (!fs.existsSync(AUTONOMOUS_LOG_PATH)) return [];
+    return fs.readFileSync(AUTONOMOUS_LOG_PATH, 'utf8').split('\n').filter(Boolean).slice(-10);
+  } catch (_) {
+    return [];
+  }
+}
 
 // Roadmap + operator-command fetch (best-effort; failures don't break the loop).
 // Roadmap + comenzi-operator (best-effort; eșecurile nu opresc loop-ul).
@@ -234,6 +330,13 @@ async function collectStatus() {
       };
     }
   } catch (_) { /* best-effort */ }
+  out.autonomy = {
+    root: AUTONOMY_ROOT,
+    sandboxRoot: SANDBOX_ROOT,
+    autonomousLogPath: AUTONOMOUS_LOG_PATH,
+    cleanupCandidates: collectCleanupCandidates(),
+    recentAutonomousActions: readAutonomousLogTail(),
+  };
   return out;
 }
 
@@ -254,12 +357,18 @@ async function askDeepSeek(status) {
     '{"action":"<one-of-allowlist>","params":{...},"reason":"<short string>"}. ' +
     'Action semantics: ' +
     'read_status = inspect runtime; read_file = inspect a file (params.path, must be repo-relative, no .env/secrets); ' +
+    'write_file/create_file = mutate ONLY inside /opt/unicorn excluding secrets/.git/config; move_file/delete_file = only for safe allowlisted paths and cleanup candidates; ' +
+    'execute_safe_script = run only an existing script from /opt/unicorn/scripts with explicit args array; ' +
     'prices_sync = refresh live pricing broker; checkout_fix = read-only checkout health; ' +
     'run_test = execute npm test (use sparingly); ' +
     'restart_service = log restart INTENT only (params.service ∈ unicorn-backend, unicorn-frontend, unicorn-site, pricing-module); ' +
+    'github_clone_repo/github_create_pr/merge_pr = GitHub workflow intents (never use for secrets or unsafe repos); ' +
+    'browse_github/search_github = GitHub read-only discovery for analysis and innovation scouting; ' +
     'code_proposal = author a code change envelope (params: targetPath repo-relative, proposedContent full new file content, rationale, objectiveId, riskLevel ∈ low|medium|high). Envelopes are quarantined for human/CI review — never applied automatically. Aim for small, focused, audit-friendly diffs. ' +
-    'NEVER target .github/, deepseek-governor.js, deepseek-loop.js, package.json, package-lock.json — these are immutable guardrails. ' +
+    'NEVER target secrets, .env, .git/config, SSH keys, package-locks, or files outside /opt/unicorn for direct mutation. ' +
     'roadmap_update = mark an objective status (params.objectiveId, params.status ∈ pending|in-progress|done|blocked, optional note). ' +
+    'Prefer delete_file only when STATUS.autonomy.cleanupCandidates lists the target or when removing stale temp/backup/log files. ' +
+    'Use SANDBOX insight from STATUS.autonomy before risky changes. ' +
     'Auto-advance rule: if STATUS shows a metric target met for an in-progress objective (compare metricKey against target via comparison), prefer roadmap_update status=done so the loop moves to the next priority on the next tick. ' +
     'Prioritization rules: (1) if operatorCommand is present, address it first; (2) otherwise pick the highest-priority open objective from roadmap.topOpenObjectives and act toward it; (3) prefer read_status / read_file for diagnosis, then code_proposal for fixes; (4) when everything is green, generate an innovation code_proposal toward an `innovation: true` objective. ' +
     'Diversify: do not repeat the same action+target on consecutive ticks. Spread effort across the top-3 priorities. ' +
@@ -273,7 +382,9 @@ async function askDeepSeek(status) {
       { role: 'system', content: systemPrompt },
       { role: 'user', content: userPrompt },
     ],
-    temperature: 0.1,
+    temperature: ADVISOR_TEMPERATURE,
+    max_tokens: ADVISOR_MAX_TOKENS,
+    max_completion_tokens: ADVISOR_MAX_COMPLETION,
     response_format: { type: 'json_object' },
   });
     try {
@@ -309,7 +420,103 @@ async function askDeepSeek(status) {
       });
     }
   }
-  throw lastError || new Error('all_deepseek_advisor_providers_failed');
+
+  // Local AGI/AGE fallback endpoints.
+  // Fallback local AGI/AGE.
+  const localFallbacks = [
+    { name: 'agi-local', url: AGI_FALLBACK_URL },
+    { name: 'age-local', url: AGE_FALLBACK_URL },
+  ];
+  for (const fb of localFallbacks) {
+    try {
+      const payload = JSON.stringify({
+        mode: 'deepseek-loop-fallback',
+        allowedActions: ALLOWED_ACTIONS,
+        status,
+      });
+      const headers = {
+        'Content-Type': 'application/json',
+        'Content-Length': Buffer.byteLength(payload),
+      };
+      if (ADMIN_TOKEN) headers.Authorization = 'Bearer ' + ADMIN_TOKEN;
+      const res = await request(fb.url, {
+        method: 'POST',
+        timeoutMs: 20_000,
+        headers,
+      }, payload);
+      if (res.status < 200 || res.status >= 300) {
+        const err = new Error(fb.name + '_http_' + res.status);
+        err.preview = String(res.body || '').replace(/\s+/g, ' ').slice(0, 240);
+        throw err;
+      }
+      let data;
+      try { data = JSON.parse(res.body); } catch (_) { throw new Error(fb.name + '_non_json'); }
+      const action = (data && typeof data === 'object' && data.action)
+        ? data
+        : (data && data.result && typeof data.result === 'object' && data.result.action ? data.result : null);
+      if (!action || typeof action !== 'object') throw new Error(fb.name + '_missing_action');
+      log('info', 'advisor_provider_ok', { provider: fb.name, model: 'local-endpoint' });
+      return action;
+    } catch (e) {
+      lastError = e;
+      log('warn', 'advisor_provider_failed', {
+        provider: fb.name,
+        error: String(e && e.message || e).slice(0, 200),
+        preview: e && e.preview ? String(e.preview).slice(0, 240) : '',
+      });
+    }
+  }
+
+  // Ollama fallback (local inference, lightweight tasks only).
+  // Fallback Ollama local.
+  try {
+    const prompt =
+      'Return ONLY JSON with shape {"action":"...","params":{},"reason":"..."}. ' +
+      'Allowed actions: ' + ALLOWED_ACTIONS.join(', ') + '. ' +
+      'Prefer none if uncertain. STATUS=' + JSON.stringify(status);
+    const payload = JSON.stringify({
+      model: OLLAMA_MODEL,
+      prompt,
+      stream: false,
+      options: {
+        temperature: ADVISOR_TEMPERATURE,
+        num_predict: ADVISOR_MAX_COMPLETION,
+      },
+    });
+    const res = await request(OLLAMA_BASE_URL + '/api/generate', {
+      method: 'POST',
+      timeoutMs: 25_000,
+      headers: {
+        'Content-Type': 'application/json',
+        'Content-Length': Buffer.byteLength(payload),
+      },
+    }, payload);
+    if (res.status >= 200 && res.status < 300) {
+      let parsed;
+      try { parsed = JSON.parse(res.body); } catch (_) { parsed = null; }
+      const text = parsed && typeof parsed.response === 'string' ? parsed.response.trim() : '';
+      if (text) {
+        const action = JSON.parse(text);
+        log('info', 'advisor_provider_ok', { provider: 'ollama-fallback', model: OLLAMA_MODEL });
+        return action;
+      }
+      throw new Error('ollama_empty_response');
+    }
+    throw new Error('ollama_http_' + res.status);
+  } catch (e) {
+    lastError = e;
+    log('warn', 'advisor_provider_failed', {
+      provider: 'ollama-fallback',
+      error: String(e && e.message || e).slice(0, 200),
+    });
+  }
+
+  log('warn', 'advisor_default_action', { reason: 'all providers failed, using safe fallback action' });
+  return {
+    action: 'restart_service',
+    params: { service: 'unicorn-site' },
+    reason: 'all_advisors_failed_default_recovery',
+  };
 }
 
 // ---------- Client-side validation (server re-validates anyway) ----------
@@ -342,6 +549,18 @@ async function executeViaGovernor(rec) {
 // ---------- Main loop ----------
 let consecutiveFailures = 0;
 let pausedUntil = 0;
+let loopStartedAt = Date.now();
+let lastCriticalTs = Date.now();
+
+function _effectiveIntervalMs() {
+  const runtimeMs = Date.now() - loopStartedAt;
+  if (runtimeMs < INITIAL_FAST_WINDOW_MS) return FAST_INTERVAL_MS;
+  const stableMs = Date.now() - lastCriticalTs;
+  if (stableMs >= STABLE_WINDOW_HOURS * 60 * 60 * 1000) {
+    return Math.max(INTERVAL_MS, SLOW_INTERVAL_MS);
+  }
+  return INTERVAL_MS;
+}
 
 async function tick() {
   if (Date.now() < pausedUntil) {
@@ -349,10 +568,14 @@ async function tick() {
     return;
   }
   try {
+    log('info', 'Sending status to DeepSeek...', { intervalMs: _effectiveIntervalMs() });
     const status = await collectStatus();
     log('info', 'status_collected', status);
     const rec = await askDeepSeek(status);
     log('info', 'recommendation_received', rec);
+    log('info', 'Received action: ' + String(rec && rec.action || 'none'), {
+      action: rec && rec.action ? String(rec.action) : 'none',
+    });
     const v = validateRecommendation(rec);
     if (!v.ok) {
       log('warn', 'recommendation_rejected_client_side', { reason: v.reason, rec });
@@ -369,9 +592,16 @@ async function tick() {
       if (out.status >= 200 && out.status < 300) consecutiveFailures = 0;
       else consecutiveFailures++;
     }
+    if (consecutiveFailures === 0) {
+      // keep window stable only on clean cycles
+      // păstrăm fereastra stabilă doar pe cicluri curate
+    } else {
+      lastCriticalTs = Date.now();
+    }
   } catch (e) {
     log('error', 'tick_failed', { error: String(e && e.message || e).slice(0, 300) });
     consecutiveFailures++;
+    lastCriticalTs = Date.now();
   }
   if (consecutiveFailures >= FAILURE_THRESHOLD) {
     pausedUntil = Date.now() + BACKOFF_MS;
@@ -384,10 +614,15 @@ function main() {
   log('info', 'deepseek_loop_boot', {
     enabled: ENABLED,
     executeMode: EXECUTE_MODE,
+    fastIntervalMs: FAST_INTERVAL_MS,
     intervalMs: INTERVAL_MS,
+    initialFastWindowMs: INITIAL_FAST_WINDOW_MS,
+    slowIntervalMs: SLOW_INTERVAL_MS,
     backendUrl: BACKEND_URL,
     advisorProviders: getAdvisorProviders().map((provider) => provider.name),
     hasAdminToken: !!ADMIN_TOKEN,
+    autonomyRoot: AUTONOMY_ROOT,
+    sandboxRoot: SANDBOX_ROOT,
   });
   if (!ENABLED) {
     log('info', 'disabled_exiting', { reason: 'DEEPSEEK_LOOP_ENABLED!=1' });
@@ -398,8 +633,14 @@ function main() {
     log('warn', 'execute_mode_without_admin_token_falling_back_to_advisory', {});
   }
   // First tick after a short delay to let the backend boot.
-  setTimeout(() => { tick().catch((e) => log('error', 'tick_unhandled', { error: String(e) })); }, 5000);
-  setInterval(() => { tick().catch((e) => log('error', 'tick_unhandled', { error: String(e) })); }, INTERVAL_MS);
+  loopStartedAt = Date.now();
+  const loop = async () => {
+    await tick().catch((e) => log('error', 'tick_unhandled', { error: String(e) }));
+    const nextMs = _effectiveIntervalMs();
+    log('info', 'loop_schedule_next', { nextInMs: nextMs });
+    setTimeout(loop, nextMs);
+  };
+  setTimeout(loop, 5000);
 }
 
 if (require.main === module) main();

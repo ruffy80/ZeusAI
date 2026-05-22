@@ -21,6 +21,18 @@ const fs = require('fs');
 const tmpLog = path.join(__dirname, '..', 'data', 'logs', 'deepseek-governor.test.log');
 process.env.DEEPSEEK_GOVERNOR_LOG_PATH = tmpLog;
 process.env.NODE_ENV = 'test';
+const tmpAutonomyRoot = path.join(__dirname, '..', 'data', 'test-autonomy-root');
+process.env.DEEPSEEK_GOVERNOR_AUTONOMY_ROOT = tmpAutonomyRoot;
+process.env.DEEPSEEK_GOVERNOR_WRITE_ROOT = tmpAutonomyRoot;
+process.env.DEEPSEEK_GOVERNOR_SAFE_SCRIPT_ROOT = path.join(tmpAutonomyRoot, 'scripts');
+process.env.DEEPSEEK_GOVERNOR_SANDBOX_ROOT = path.join(tmpAutonomyRoot, 'sandbox');
+process.env.DEEPSEEK_GOVERNOR_ACTION_LOG_PATH = path.join(tmpAutonomyRoot, 'autonomous_actions.log');
+process.env.DEEPSEEK_GOVERNOR_POST_MUTATION_SCRIPT = path.join(tmpAutonomyRoot, 'scripts', 'post-mutation-validate.sh');
+fs.mkdirSync(path.join(tmpAutonomyRoot, 'scripts'), { recursive: true });
+fs.mkdirSync(path.join(tmpAutonomyRoot, 'sandbox'), { recursive: true });
+fs.mkdirSync(path.join(tmpAutonomyRoot, 'temp'), { recursive: true });
+fs.mkdirSync(path.join(tmpAutonomyRoot, 'old_backups'), { recursive: true });
+fs.writeFileSync(path.join(tmpAutonomyRoot, 'scripts', 'post-mutation-validate.sh'), '#!/bin/sh\necho post-mutation-ok\nexit 0\n', { mode: 0o755 });
 
 const governor = require('../backend/modules/deepseek-governor');
 
@@ -47,9 +59,9 @@ async function run() {
     assert.equal(r.status, 400);
     assert.equal(r.body.error, 'action_not_allowed');
     assert.ok(Array.isArray(r.body.allowed));
-    assert.ok(!r.body.allowed.includes('write_file'), 'write_file MUST NOT be in allowlist');
-    assert.ok(!r.body.allowed.includes('deploy'), 'deploy MUST NOT be in allowlist');
-    assert.ok(!r.body.allowed.includes('git_commit'), 'git_commit MUST NOT be in allowlist');
+    assert.ok(r.body.allowed.includes('write_file'), 'write_file must be in allowlist');
+    assert.ok(r.body.allowed.includes('delete_file'), 'delete_file must be in allowlist');
+    assert.ok(r.body.allowed.includes('execute_safe_script'), 'execute_safe_script must be in allowlist');
   });
 
   await test('rejects eval-style action shapes', async () => {
@@ -57,7 +69,7 @@ async function run() {
     const r1 = await governor.dispatch({ action: 'shell', params: { cmd: 'ls' }, requestId: 't2a', ip: '127.0.0.1' });
     assert.equal(r1.status, 400);
     const r2 = await governor.dispatch({ action: 'write_file', params: { path: '/etc/passwd' }, requestId: 't2b', ip: '127.0.0.1' });
-    assert.equal(r2.status, 400);
+    assert.equal(r2.status, 422);
   });
 
   await test('none returns ok no-op', async () => {
@@ -137,10 +149,38 @@ async function run() {
 
   await test('getStatus exposes allowlist + limits, no per-IP detail', async () => {
     const s = governor.getStatus();
-    assert.deepEqual(s.allowedActions.slice().sort(), ['checkout_fix', 'code_proposal', 'none', 'prices_sync', 'read_file', 'read_status', 'restart_service', 'roadmap_update', 'run_test']);
+    assert.deepEqual(s.allowedActions.slice().sort(), ['browse_github', 'checkout_fix', 'code_proposal', 'create_file', 'delete_file', 'deploy', 'execute_safe_script', 'git_commit', 'github_clone_repo', 'github_create_pr', 'merge_pr', 'move_file', 'none', 'prices_sync', 'read_file', 'read_status', 'restart_service', 'roadmap_update', 'run_test', 'search_github', 'write_file']);
     assert.ok(s.limits.perHourPerIp >= 1);
     assert.ok(s.limits.perDayPerIp >= s.limits.perHourPerIp);
     assert.ok(!('perIp' in s), 'must not leak per-IP details');
+  });
+
+  await test('create_file writes inside autonomy root and logs pipeline result', async () => {
+    governor._resetForTests();
+    const target = path.join(tmpAutonomyRoot, 'sandbox', 'new-module.js');
+    if (fs.existsSync(target)) fs.unlinkSync(target);
+    const r = await governor.dispatch({ action: 'create_file', params: { path: 'sandbox/new-module.js', content: 'module.exports = 1;\n' }, requestId: 'cf-1', ip: '127.0.0.1' });
+    assert.equal(r.status, 200);
+    assert.equal(r.body.ok, true);
+    assert.ok(fs.existsSync(target));
+    assert.equal(r.body.pipeline.ok, true);
+  });
+
+  await test('delete_file rejects protected or non-whitelisted roots', async () => {
+    governor._resetForTests();
+    fs.writeFileSync(path.join(tmpAutonomyRoot, 'sandbox', 'keep.txt'), 'x');
+    const r = await governor.dispatch({ action: 'delete_file', params: { path: 'sandbox/keep.txt' }, requestId: 'df-1', ip: '127.0.0.1' });
+    assert.equal(r.status, 422);
+    assert.equal(r.body.reason, 'delete_root_not_allowed');
+  });
+
+  await test('delete_file removes files from temp root', async () => {
+    governor._resetForTests();
+    const doomed = path.join(tmpAutonomyRoot, 'temp', 'old.log');
+    fs.writeFileSync(doomed, 'x');
+    const r = await governor.dispatch({ action: 'delete_file', params: { path: 'temp/old.log' }, requestId: 'df-2', ip: '127.0.0.1' });
+    assert.equal(r.status, 200);
+    assert.ok(!fs.existsSync(doomed));
   });
 
   // ---------- read_file safety envelope ----------
