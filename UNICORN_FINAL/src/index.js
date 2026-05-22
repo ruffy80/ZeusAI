@@ -4325,9 +4325,12 @@ async function unicornHandler(req, res) {
         body::before,body::after{content:"";position:fixed;inset:0;pointer-events:none;z-index:0;background-repeat:no-repeat;background-size:cover;opacity:.18;filter:saturate(1.08) contrast(1.04)}
         body::before{background-image:linear-gradient(180deg,rgba(10,15,30,.62),rgba(10,15,30,.78)),url('/assets/hero.jpg');background-position:center 14%}
         body::after{background-image:radial-gradient(900px 620px at 82% 74%,rgba(10,15,30,.18),rgba(10,15,30,.72) 72%),url('/assets/watch.jpg');background-position:right -120px bottom -30px;background-size:760px auto;opacity:.22;mix-blend-mode:screen}
-        /* Marketplace + Pricing: make Zeus portrait visibly cinematic. */
-        body.page-services::before, body.page-pricing::before{opacity:.24;filter:saturate(1.12) contrast(1.08) brightness(.92)}
-        body.page-services::after, body.page-pricing::after{opacity:.28;background-position:right -70px bottom -14px;background-size:700px auto}
+          /* Marketplace + Pricing Zeus profile (balanced by default, cinematic opt-in).
+            Toggle with ?zeus=cinematic (or ?zeus=balanced). */
+          body.zeus-balanced.page-services::before, body.zeus-balanced.page-pricing::before{opacity:.24;filter:saturate(1.12) contrast(1.08) brightness(.92)}
+          body.zeus-balanced.page-services::after, body.zeus-balanced.page-pricing::after{opacity:.28;background-position:right -70px bottom -14px;background-size:700px auto}
+          body.zeus-cinematic.page-services::before, body.zeus-cinematic.page-pricing::before{opacity:.31;filter:saturate(1.16) contrast(1.12) brightness(.96)}
+          body.zeus-cinematic.page-services::after, body.zeus-cinematic.page-pricing::after{opacity:.35;background-position:right -45px bottom -8px;background-size:760px auto}
         header{padding:18px 32px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:16px;backdrop-filter:blur(8px)}
         header a{color:var(--fg);text-decoration:none;opacity:.8} header a:hover{opacity:1}
         h1{margin:0;font-size:18px;font-weight:600}
@@ -4349,9 +4352,11 @@ async function unicornHandler(req, res) {
         .pill{display:inline-block;padding:3px 10px;border-radius:99px;font-size:11px;background:rgba(124,247,192,0.15);color:var(--accent);border:1px solid rgba(124,247,192,0.3)}
         .ok{color:var(--accent)} .warn{color:#f0c674} .err{color:#ff6b6b}
         @media(max-width:920px){body::before{background-position:center top;opacity:.16}body::after{background-position:center bottom -80px;background-size:520px auto;opacity:.16}}
-        @media(max-width:920px){body.page-services::before,body.page-pricing::before{opacity:.2}body.page-services::after,body.page-pricing::after{opacity:.2;background-position:center bottom -40px;background-size:480px auto}}
+        @media(max-width:920px){body.zeus-balanced.page-services::before,body.zeus-balanced.page-pricing::before{opacity:.2}body.zeus-balanced.page-services::after,body.zeus-balanced.page-pricing::after{opacity:.2;background-position:center bottom -40px;background-size:480px auto}}
+        @media(max-width:920px){body.zeus-cinematic.page-services::before,body.zeus-cinematic.page-pricing::before{opacity:.24}body.zeus-cinematic.page-services::after,body.zeus-cinematic.page-pricing::after{opacity:.26;background-position:center bottom -24px;background-size:520px auto}}
       `;
       const pageClass = 'page-' + String(urlPath || '/').replace(/^\/+/, '').replace(/[^a-z0-9_-]/gi, '-').replace(/-+/g, '-').replace(/^-|-$/g, '') || 'home';
+      const zeusProfile = String(requestUrl.searchParams.get('zeus') || '').toLowerCase() === 'cinematic' ? 'zeus-cinematic' : 'zeus-balanced';
       return [
         '<!doctype html><html lang="en"><head>',
         '<meta charset="utf-8"/>',
@@ -4361,7 +4366,7 @@ async function unicornHandler(req, res) {
         '<meta name="theme-color" content="#0a0f1e"/>',
         '<link rel="icon" href="/favicon.ico"/>',
         '<style>' + css + '</style>',
-        '</head><body class="' + pageClass + '">',
+        '</head><body class="' + pageClass + ' ' + zeusProfile + '">',
         '<header><h1>🦄 ZeusAI</h1>',
         '<a href="/">Home</a> · <a href="/pricing">Pricing</a> · <a href="/revenue-share">Revenue Share</a> · <a href="/proof">Proof</a> · <a href="/unicorn-cockpit">Cockpit</a> · <a href="/services">Services</a> · <a href="/status">Status</a>',
         '</header>',
