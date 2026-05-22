@@ -33,6 +33,27 @@ assert_node_json "backend engines active" "$BASE_URL/health" \
 assert_node_json "quantum integrity intact" "$BASE_URL/api/quantum-integrity/status" \
   "if (!(data.active === true && data.integrity === 'intact' && (!data.diagnostics || (data.diagnostics.issues || []).length === 0))) process.exit(1);"
 
+# Security guard: admin DeepSeek endpoint must NEVER be writable without
+# explicit Bearer auth. Any 2xx here is a critical misconfiguration.
+ADMIN_CODE="$(curl -sS -o /tmp/unicorn_admin_act.out -w '%{http_code}' --max-time 15 \
+  -X POST "$BASE_URL/api/admin/deepseek/act" \
+  -H 'Content-Type: application/json' \
+  --data '{"action":"read_status","params":{}}' || true)"
+case "$ADMIN_CODE" in
+  401|403)
+    echo "✅ admin deepseek act protected ($ADMIN_CODE without token)"
+    ;;
+  2*)
+    echo "❌ CRITICAL: /api/admin/deepseek/act returned $ADMIN_CODE without Bearer token" >&2
+    head -c 300 /tmp/unicorn_admin_act.out >&2 || true
+    echo >&2
+    exit 1
+    ;;
+  *)
+    echo "ℹ admin deepseek act returned $ADMIN_CODE without token (non-2xx, acceptable)"
+    ;;
+esac
+
 if command -v pm2 >/dev/null 2>&1 && { [ "$REQUIRE_PM2" = "1" ] || [ -n "$EXPECT_PM2_CWD" ]; }; then
   PM2_JSON="$(pm2 jlist)"
   node -e '

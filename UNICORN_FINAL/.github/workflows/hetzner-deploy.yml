@@ -40,6 +40,9 @@ jobs:
       - name: Forward-only preflight
         run: CI=1 npm run preflight:forward
 
+      - name: Performance budget guard
+        run: CI=1 npm run perf:budget
+
   deploy-hetzner:
     name: Deploy to Hetzner
     runs-on: ubuntu-latest
@@ -121,6 +124,11 @@ jobs:
             GITHUB_SHA="${{ github.sha }}" PUBLIC_URL="https://zeusai.pro" bash scripts/deploy-atomic-forward.sh "'"$RELEASE_PATH"'" "/var/www/unicorn/UNICORN_FINAL"
           '
 
+      - name: Enforce canonical PM2 cwd
+        run: |
+          ssh -p ${{ secrets.HETZNER_DEPLOY_PORT }} -o StrictHostKeyChecking=no ${{ secrets.HETZNER_DEPLOY_USER }}@${{ secrets.HETZNER_HOST }} \
+            'cd /var/www/unicorn/UNICORN_FINAL && chmod +x scripts/ensure-pm2-canonical-cwd.sh && bash scripts/ensure-pm2-canonical-cwd.sh /var/www/unicorn/UNICORN_FINAL'
+
 
       - name: Sync nginx config to Hetzner (atomic + nginx -t guard)
         id: sync_nginx
@@ -167,14 +175,14 @@ jobs:
       - name: Healthcheck unicorn site (forward-only, no rollback)
         run: |
           ssh -p ${{ secrets.HETZNER_DEPLOY_PORT }} -o StrictHostKeyChecking=no ${{ secrets.HETZNER_DEPLOY_USER }}@${{ secrets.HETZNER_HOST }} \
-            'cd /var/www/unicorn/UNICORN_FINAL && BASE_URL=http://127.0.0.1:3000 PUBLIC_URL=https://zeusai.pro bash scripts/smoke-forward-only.sh'
+            'cd /var/www/unicorn/UNICORN_FINAL && EXPECT_PM2_CWD=/var/www/unicorn/UNICORN_FINAL BASE_URL=http://127.0.0.1:3000 PUBLIC_URL=https://zeusai.pro bash scripts/smoke-forward-only.sh'
           echo "Healthcheck unicorn OK. Forward-only deploy reușit."
 
       - name: Smoke tests unicorn (fail closed, no rollback)
         run: |
           echo "[UNICORN] Rulez smoke-forward-only.sh pe server..."
           ssh -p ${{ secrets.HETZNER_DEPLOY_PORT }} -o StrictHostKeyChecking=no ${{ secrets.HETZNER_DEPLOY_USER }}@${{ secrets.HETZNER_HOST }} \
-            'cd /var/www/unicorn/UNICORN_FINAL && BASE_URL=http://127.0.0.1:3000 PUBLIC_URL=https://zeusai.pro bash scripts/smoke-forward-only.sh'
+            'cd /var/www/unicorn/UNICORN_FINAL && EXPECT_PM2_CWD=/var/www/unicorn/UNICORN_FINAL BASE_URL=http://127.0.0.1:3000 PUBLIC_URL=https://zeusai.pro bash scripts/smoke-forward-only.sh'
           echo "[UNICORN] Smoke tests OK. Deploy complet fără rollback/downgrade."
 
       # Fallback și fail steps eliminate temporar pentru validare YAML completă. Pot fi reintroduse după testare.

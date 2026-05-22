@@ -2,6 +2,7 @@
 'use strict';
 
 const http = require('http');
+const crypto = require('crypto');
 const deepseekGovernor = require('../backend/modules/deepseek-governor');
 
 const host = process.env.BIND_HOST || '127.0.0.1';
@@ -9,6 +10,8 @@ const port = Number(process.env.PORT || 3000);
 const btcAddress = process.env.BTC_WALLET_ADDRESS || process.env.OWNER_BTC_ADDRESS || 'bc1q4f7e66z87mdfj56kz0dj5hvcnpmh0qh4wuv22e';
 const btcUsd = Number(process.env.RESCUE_BTC_USD || 77000);
 const loopAdminToken = String(process.env.DEEPSEEK_LOOP_ADMIN_TOKEN || process.env.ADMIN_TOKEN || '').trim();
+const funnelEvents = [];
+const MAX_FUNNEL_EVENTS = 500;
 
 const services = [
   { id: 'adaptive-ai', name: 'Adaptive AI Automation', priceUsd: 499, currency: 'USD', btcAddress },
@@ -84,7 +87,22 @@ function isAuthorized(req) {
   const auth = String(req.headers.authorization || '');
   if (!auth.startsWith('Bearer ')) return false;
   const token = auth.slice('Bearer '.length).trim();
-  return token && token === loopAdminToken;
+  if (!token) return false;
+  const provided = Buffer.from(token);
+  const expected = Buffer.from(loopAdminToken);
+  return provided.length === expected.length && crypto.timingSafeEqual(provided, expected);
+}
+
+function auditAdminDenied(req, path) {
+  const ip = (req.socket && req.socket.remoteAddress) ? req.socket.remoteAddress : 'unknown';
+  const ua = String(req.headers['user-agent'] || '').slice(0, 180);
+  console.warn(`[rescue-admin-auth] denied path=${path} ip=${ip} ua=${ua}`);
+}
+
+function pushFunnelEvent(evt) {
+  if (!evt || typeof evt !== 'object') return;
+  funnelEvents.push(evt);
+  if (funnelEvents.length > MAX_FUNNEL_EVENTS) funnelEvents.splice(0, funnelEvents.length - MAX_FUNNEL_EVENTS);
 }
 
 const server = http.createServer((req, res) => {
@@ -92,11 +110,17 @@ const server = http.createServer((req, res) => {
   const url = new URL(req.url, `http://${host}:${port}`);
 
   if (url.pathname === '/api/admin/deepseek/status') {
-    if (!isAuthorized(req)) return sendJson(res, 401, { ok: false, error: 'unauthorized' });
+    if (!isAuthorized(req)) {
+      auditAdminDenied(req, url.pathname);
+      return sendJson(res, 401, { ok: false, error: 'unauthorized' });
+    }
     return sendJson(res, 200, { ok: true, ...deepseekGovernor.getStatus() });
   }
   if (url.pathname === '/api/admin/deepseek/act' && req.method === 'POST') {
-    if (!isAuthorized(req)) return sendJson(res, 401, { ok: false, error: 'unauthorized' });
+    if (!isAuthorized(req)) {
+      auditAdminDenied(req, url.pathname);
+      return sendJson(res, 401, { ok: false, error: 'unauthorized' });
+    }
     let body;
     try {
       body = await readJsonBody(req);
@@ -118,6 +142,17 @@ const server = http.createServer((req, res) => {
   }
 
   if (url.pathname === '/health' || url.pathname === '/api/health') return sendJson(res, 200, health());
+  if (url.pathname === '/api/commerce/health') {
+    return sendJson(res, 200, {
+      ok: true,
+      status: 'healthy',
+      service: 'commerce',
+      mode: 'rescue',
+      checkout: true,
+      pricing: true,
+      ts: new Date().toISOString(),
+    });
+  }
   if (url.pathname === '/api/quantum-integrity/status') {
     return sendJson(res, 200, {
       ok: true,
@@ -181,6 +216,35 @@ const server = http.createServer((req, res) => {
   }
   if (url.pathname === '/api/modules' || url.pathname === '/api/module-registry') {
     return sendJson(res, 200, { ok: true, modules: [], mode: 'rescue' });
+  }
+  if (url.pathname === '/api/analytics/funnel' && req.method === 'POST') {
+    let body;
+    try {
+      body = await readJsonBody(req, 16 * 1024);
+    } catch (e) {
+      const reason = String(e && e.message || 'invalid_json');
+      return sendJson(res, reason === 'payload_too_large' ? 413 : 400, { ok: false, error: reason });
+    }
+    const event = String(body && body.event || '').trim().slice(0, 80);
+    if (!event) return sendJson(res, 400, { ok: false, error: 'event_required' });
+    pushFunnelEvent({
+      event,
+      route: String(body && body.route || '').slice(0, 160),
+      serviceId: String(body && body.serviceId || '').slice(0, 120),
+      value: Number.isFinite(Number(body && body.value)) ? Number(body.value) : null,
+      source: String(body && body.source || 'web').slice(0, 40),
+      ts: new Date().toISOString(),
+      ip: (req.socket && req.socket.remoteAddress) ? req.socket.remoteAddress : 'unknown',
+      ua: String(req.headers['user-agent'] || '').slice(0, 180),
+    });
+    return sendJson(res, 202, { ok: true });
+  }
+  if (url.pathname === '/api/analytics/funnel' && req.method === 'GET') {
+    if (!isAuthorized(req)) {
+      auditAdminDenied(req, url.pathname);
+      return sendJson(res, 401, { ok: false, error: 'unauthorized' });
+    }
+    return sendJson(res, 200, { ok: true, total: funnelEvents.length, events: funnelEvents.slice(-100) });
   }
 
   return sendJson(res, 404, { ok: false, error: 'rescue_endpoint_not_found', path: url.pathname });

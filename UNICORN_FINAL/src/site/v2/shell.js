@@ -462,9 +462,6 @@ ${gtPrimer}
 </head>
 <body>
 <a href="#app" style="position:absolute;left:-999px;top:10px;background:#fff;color:#05040a;padding:10px 14px;border-radius:10px;z-index:9999" onfocus="this.style.left='10px'" onblur="this.style.left='-999px'">Skip to content</a>
-<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate"/>
-<meta http-equiv="Pragma" content="no-cache"/>
-<meta http-equiv="Expires" content="0"/>
 <noscript><div style="position:relative;z-index:10;max-width:760px;margin:120px auto 20px;padding:18px 22px;border-radius:14px;background:rgba(138,92,255,.08);border:1px solid rgba(138,92,255,.3);color:#e8f4ff;font-family:system-ui,Arial">ZeusAI runs best with JavaScript enabled. Static pages, sitemap, and the service marketplace are still available without it: visit <a href="/sitemap.xml" style="color:#8a5cff">/sitemap.xml</a>, <a href="/docs" style="color:#8a5cff">/docs</a>, or <a href="/services" data-link style="color:#8a5cff">/services</a>.</div></noscript>
 <div class="galaxy-bg" id="zeusCanvas" aria-hidden="true"></div>
 ${zeusPageBgSSR(route)}
@@ -547,7 +544,7 @@ function footer(route, opts) {
       <li><a href="/cancel" data-link>Universal Cancel</a></li>
       <li><a href="/transparency" data-link>Bandit Transparency</a></li>
       <li><a href="/aura" data-link>Live Aura</a></li>
-      <li><a href="/status" data-link>Live Status</a></li>
+      <li><a href="/unicorn-status.html" data-link>Live Status</a></li>
       <li><a href="/innovations" data-link>30Y Innovations</a></li>
       <li><a href="/frontier" data-link>Frontier (F1–F12)</a></li>
     </ul></div>
@@ -957,7 +954,7 @@ function pageHome() {
       <p class="lead">Live autonomous AI commerce platform: ZeusAI turns modules, verticals and marketplaces into buyable AI services with direct BTC checkout, signed receipts and instant delivery.</p>
       <div class="hero-cta">
         <a class="btn btn-primary" href="/services" data-link>Buy AI Service →</a>
-        <a class="btn" href="/status" data-link>Live Status</a>
+        <a class="btn" href="/unicorn-status.html" data-link>Live Status</a>
         <a class="btn" href="/innovations" data-link>Innovations</a>
       </div>
       <div class="hero-stats" id="heroStats">
@@ -1376,7 +1373,7 @@ function pageDashboard() {
     <p style="color:var(--ink-dim);font-size:13.5px;margin:0 0 14px">Jump straight to the high-value live areas: checkout, platform health and innovation coverage.</p>
     <div style="display:flex;gap:10px;flex-wrap:wrap">
       <a class="btn btn-primary" href="/services" data-link>Buy AI Service</a>
-      <a class="btn" href="/status" data-link>Live status</a>
+      <a class="btn" href="/unicorn-status.html" data-link>Live status</a>
       <a class="btn" href="/innovations" data-link>Innovation map</a>
     </div>
   </div>
@@ -3077,7 +3074,7 @@ function pageSla() { return `<section style="padding-top:140px;max-width:880px">
     <li><b style="color:#fff">Incident disclosure</b> · &lt; 72h public, sealed at /api/incidents</li>
     <li><b style="color:#fff">Refund</b> · auto on breach (see /refund)</li>
   </ul>
-  <a class="btn btn-primary" href="/status" data-link>Live status →</a>
+  <a class="btn btn-primary" href="/unicorn-status.html" data-link>Live status →</a>
 </section>`; }
 
 function pagePledge() {
@@ -3294,7 +3291,7 @@ function pageNotFound(route) {
     <a class="btn" href="/services" data-link>Marketplace</a>
     <a class="btn" href="/wizard" data-link>Find my plan</a>
     <a class="btn" href="/docs" data-link>API & docs</a>
-    <a class="btn" href="/status" data-link>Status</a>
+    <a class="btn" href="/unicorn-status.html" data-link>Status</a>
   </div>
 </section>`;
 }

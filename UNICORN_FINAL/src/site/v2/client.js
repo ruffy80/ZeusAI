@@ -94,6 +94,31 @@ async function api(path, opts){
     return j;
   } catch (e) { console.warn('api', path, e.message); return null; }
 }
+function trackFunnel(event, meta){
+  try {
+    if (!event) return;
+    const payload = {
+      event: String(event).slice(0, 80),
+      route: location.pathname,
+      source: 'site-v2',
+      ts: new Date().toISOString(),
+      ...(meta || {}),
+    };
+    const body = JSON.stringify(payload);
+    if (navigator.sendBeacon) {
+      const blob = new Blob([body], { type: 'application/json' });
+      navigator.sendBeacon('/api/analytics/funnel', blob);
+      return;
+    }
+    fetch('/api/analytics/funnel', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body,
+      keepalive: true,
+      cache: 'no-store',
+    }).catch(function(){});
+  } catch (_) {}
+}
 function escapeHtml(s){ return String(s==null?'':s).replace(/[&<>"']/g, m=>({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[m])); }
 function domSafeId(s){ return String(s==null?'':s).replace(/[^a-zA-Z0-9_-]/g, '-').slice(0, 120); }
 function normalizeLivePricing(serviceId, payload){
@@ -2043,12 +2068,14 @@ function masterCardHtml(it){
 async function sovereignBuy(serviceId, opts){
   try {
     const preorder = !!(opts && opts.preorder);
+    trackFunnel('checkout_start', { serviceId: String(serviceId || ''), value: null, checkoutType: preorder ? 'preorder' : 'direct' });
     const r = await fetch('/api/checkout/create', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ serviceId, qty: 1, currency: 'USD', preorder }) });
     const j = await r.json();
     if (!r.ok || !j || !j.checkout_url) {
       alert('Could not create checkout: ' + ((j && j.error) || ('HTTP ' + r.status)));
       return;
     }
+    trackFunnel('checkout_redirect', { serviceId: String(serviceId || ''), checkoutUrl: String(j.checkout_url || '').slice(0, 160) });
     window.location.href = j.checkout_url;
   } catch (e) {
     alert('Network error creating checkout: ' + (e && e.message ? e.message : e));
@@ -2648,6 +2675,11 @@ function hydrateCheckout(){
     if (r.status === 'paid') {
       if (pollTimer) { clearInterval(pollTimer); pollTimer = null; }
       if (badge) badge.textContent = '✓ paid' + (r.txid ? ' · tx '+r.txid.slice(0,10)+'…' : '');
+      trackFunnel('checkout_paid', {
+        serviceId: String((r && r.plan) || (r && r.serviceId) || ''),
+        value: Number.isFinite(Number(r && r.amountUsd)) ? Number(r.amountUsd) : null,
+        paymentMethod: String((r && r.method) || ''),
+      });
       toast('Payment confirmed · license ready','ok');
       const lic = await api('/api/license/'+encodeURIComponent(id));
       if (lic && lic.license) {
@@ -3736,6 +3768,16 @@ window.addEventListener('DOMContentLoaded', () => {
   } catch(_){}
   // Remember email typed at checkout
   document.addEventListener('change', e => { if (e.target && e.target.id === 'coEmail' && e.target.value) { try { localStorage.setItem('u_email', e.target.value); } catch(_){} } });
+  document.addEventListener('click', (e) => {
+    const a = e.target && e.target.closest ? e.target.closest('a[href]') : null;
+    if (!a) return;
+    const href = String(a.getAttribute('href') || '');
+    if (href.startsWith('/services')) {
+      trackFunnel('view_service', { target: href.slice(0, 160), serviceId: String(a.getAttribute('data-product-id') || '') });
+    } else if (href.startsWith('/checkout')) {
+      trackFunnel('checkout_start', { target: href.slice(0, 160), serviceId: String((new URLSearchParams((href.split('?')[1] || '')).get('plan') || '')) });
+    }
+  }, { passive: true });
   refreshCustomerNav();
   openStream();
   openPricingStream();

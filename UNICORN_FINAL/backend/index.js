@@ -1195,6 +1195,12 @@ function deepseekGovernorAuthMiddleware(req, res, next) {
       return next();
     }
   }
+  try {
+    const ip = req.ip || (req.connection && req.connection.remoteAddress) || 'unknown';
+    const ua = String(req.headers['user-agent'] || '').slice(0, 180);
+    const path = String(req.originalUrl || req.url || '/api/admin/deepseek/*').slice(0, 180);
+    console.warn(`[deepseek-auth] denied path=${path} ip=${ip} ua=${ua}`);
+  } catch (_) { /* never block auth flow */ }
   return adminTokenMiddleware(req, res, next);
 }
 
@@ -5209,6 +5215,47 @@ app.get('/api/perf/cache', (req, res) => {
 // POST /api/admin/perf/cache/clear — golire cache (admin only)
 app.post('/api/admin/perf/cache/clear', adminCrudRateLimit, adminTokenMiddleware, (req, res) => {
   res.json(routeCache.clearCache());
+});
+
+// ==================== FUNNEL ANALYTICS (lightweight, privacy-safe) ====================
+// Conversion telemetry for core path: view service -> checkout -> paid.
+// Keeps only bounded in-memory recent events; no PII is required.
+const funnelEvents = [];
+const MAX_FUNNEL_EVENTS = 1000;
+
+function pushFunnelEvent(evt) {
+  if (!evt || typeof evt !== 'object') return;
+  funnelEvents.push(evt);
+  if (funnelEvents.length > MAX_FUNNEL_EVENTS) funnelEvents.splice(0, funnelEvents.length - MAX_FUNNEL_EVENTS);
+}
+
+app.post('/api/analytics/funnel', (req, res) => {
+  const body = req.body || {};
+  const event = sanitizeString(body.event, 80);
+  if (!event) return res.status(400).json({ ok: false, error: 'event_required' });
+  const valueRaw = Number(body.value);
+  pushFunnelEvent({
+    event,
+    route: sanitizeString(body.route, 160),
+    serviceId: sanitizeString(body.serviceId, 120),
+    source: sanitizeString(body.source || 'web', 40),
+    value: Number.isFinite(valueRaw) ? valueRaw : null,
+    ts: new Date().toISOString(),
+    ip: req.ip || (req.connection && req.connection.remoteAddress) || 'unknown',
+    ua: sanitizeString(req.headers['user-agent'] || '', 180),
+  });
+  return res.status(202).json({ ok: true });
+});
+
+app.get('/api/admin/analytics/funnel', adminCrudRateLimit, adminTokenMiddleware, (req, res) => {
+  const limit = Math.max(1, Math.min(500, parseInt(req.query.limit, 10) || 200));
+  const recent = funnelEvents.slice(-limit);
+  const summary = recent.reduce((acc, e) => {
+    const key = String(e && e.event || 'unknown');
+    acc[key] = (acc[key] || 0) + 1;
+    return acc;
+  }, {});
+  return res.json({ ok: true, totalBuffered: funnelEvents.length, returned: recent.length, summary, events: recent });
 });
 
 // ==================== DEEPSEEK GOVERNOR API ====================
