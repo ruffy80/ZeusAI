@@ -24,6 +24,11 @@ process.env.NODE_ENV = 'test';
 const tmpAutonomyRoot = path.join(__dirname, '..', 'data', 'test-autonomy-root');
 process.env.DEEPSEEK_GOVERNOR_AUTONOMY_ROOT = tmpAutonomyRoot;
 process.env.DEEPSEEK_GOVERNOR_WRITE_ROOT = tmpAutonomyRoot;
+process.env.DEEPSEEK_GOVERNOR_DELETE_ROOTS = [
+  path.join(tmpAutonomyRoot, 'temp'),
+  path.join(tmpAutonomyRoot, 'old_backups'),
+  path.join(tmpAutonomyRoot, 'logs-old')
+].join(':');
 process.env.DEEPSEEK_GOVERNOR_SAFE_SCRIPT_ROOT = path.join(tmpAutonomyRoot, 'scripts');
 process.env.DEEPSEEK_GOVERNOR_SANDBOX_ROOT = path.join(tmpAutonomyRoot, 'sandbox');
 process.env.DEEPSEEK_GOVERNOR_ACTION_LOG_PATH = path.join(tmpAutonomyRoot, 'autonomous_actions.log');
@@ -32,6 +37,11 @@ fs.mkdirSync(path.join(tmpAutonomyRoot, 'scripts'), { recursive: true });
 fs.mkdirSync(path.join(tmpAutonomyRoot, 'sandbox'), { recursive: true });
 fs.mkdirSync(path.join(tmpAutonomyRoot, 'temp'), { recursive: true });
 fs.mkdirSync(path.join(tmpAutonomyRoot, 'old_backups'), { recursive: true });
+try {
+  fs.copyFileSync(path.join(__dirname, '..', 'package.json'), path.join(tmpAutonomyRoot, 'package.json'));
+} catch (e) {
+  fs.writeFileSync(path.join(tmpAutonomyRoot, 'package.json'), JSON.stringify({ name: "unicorn-final-test" }));
+}
 fs.writeFileSync(path.join(tmpAutonomyRoot, 'scripts', 'post-mutation-validate.sh'), '#!/bin/sh\necho post-mutation-ok\nexit 0\n', { mode: 0o755 });
 
 const governor = require('../backend/modules/deepseek-governor');
@@ -149,7 +159,7 @@ async function run() {
 
   await test('getStatus exposes allowlist + limits, no per-IP detail', async () => {
     const s = governor.getStatus();
-    assert.deepEqual(s.allowedActions.slice().sort(), ['browse_github', 'checkout_fix', 'code_proposal', 'create_file', 'delete_file', 'deploy', 'execute_safe_script', 'git_commit', 'github_clone_repo', 'github_create_pr', 'merge_pr', 'move_file', 'none', 'prices_sync', 'read_file', 'read_status', 'restart_service', 'roadmap_update', 'run_test', 'search_github', 'write_file']);
+    assert.deepEqual(s.allowedActions.slice().sort(), ["analyze_logs","browse_github","checkout_fix","code_proposal","create_file","delete_file","deploy","execute_safe_script","full_backup","git_commit","github_clone_repo","github_comment_issue","github_commit_push","github_create_branch","github_create_pr","github_merge_pr","github_read_repo","github_trigger_workflow","merge_pr","move_file","none","prices_sync","read_file","read_status","restart_service","restore_backup","roadmap_update","rollback_deploy","run_test","search_github","write_file"]);
     assert.ok(s.limits.perHourPerIp >= 1);
     assert.ok(s.limits.perDayPerIp >= s.limits.perHourPerIp);
     assert.ok(!('perIp' in s), 'must not leak per-IP details');
