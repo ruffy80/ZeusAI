@@ -233,6 +233,13 @@
       "note": "Validate backlog of proposals under data/deepseek-proposals/"
     },
     {
+      "id": "validate_proposal_backlog",
+      "title": "Validate pending proposals backlog",
+      "priority": 1,
+      "status": "pending",
+      "note": "Validate backlog of proposals under data/deepseek-proposals/"
+    },
+    {
       "id": "fifty-year-standard-baseline",
       "title": "Baseline arhitectural cu garanție 50 ani (kill-switch + rollback documentat)",
       "priority": 2,
