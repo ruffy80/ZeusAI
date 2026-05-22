@@ -34,14 +34,20 @@ module.exports.CSS = `
 }
 *{box-sizing:border-box}
 html,body{margin:0;padding:0;background:var(--bg);color:var(--ink);font-family:var(--font);-webkit-font-smoothing:antialiased;overflow-x:hidden}
-body{min-height:100vh;background:radial-gradient(1400px 900px at 50% 0%,rgba(138,92,255,.12),transparent 55%),radial-gradient(1200px 800px at 100% 100%,rgba(62,160,255,.08),transparent 60%),linear-gradient(180deg,#05040a 0%,#0a0818 100%)}
+body{min-height:100vh;background:radial-gradient(1400px 900px at 50% 0%,rgba(138,92,255,.12),transparent 55%),radial-gradient(1200px 800px at 100% 100%,rgba(62,160,255,.08),transparent 60%),linear-gradient(180deg,#05040a 0%,#0a0818 100%);position:relative}
 a{color:var(--blue2);text-decoration:none}
 a:hover{color:var(--violet2)}
 img{max-width:100%;display:block}
 button{font-family:inherit}
 
+/* ZEUS dual-image background, visible on every v2 page */
+body::before,
+body::after{content:"";position:fixed;inset:0;pointer-events:none;z-index:0;background-repeat:no-repeat;background-size:cover;opacity:.17}
+body::before{background-image:linear-gradient(180deg,rgba(5,4,10,.66),rgba(5,4,10,.74)),url('/assets/hero.jpg');background-position:center 10%;filter:contrast(1.04) saturate(1.08)}
+body::after{background-image:radial-gradient(760px 520px at 84% 74%,rgba(5,4,10,.08),rgba(5,4,10,.72) 76%),url('/assets/watch.jpg');background-position:right -120px bottom -20px;background-size:760px auto;opacity:.22;mix-blend-mode:screen;filter:contrast(1.08)}
+
 /* subtle vignette */
-body::before{content:"";position:fixed;inset:0;pointer-events:none;z-index:1;background:radial-gradient(ellipse at center,transparent 40%,rgba(0,0,0,0.5) 100%);opacity:.6}
+html::before{content:"";position:fixed;inset:0;pointer-events:none;z-index:1;background:radial-gradient(ellipse at center,transparent 40%,rgba(0,0,0,0.5) 100%);opacity:.6}
 
 /* ============ NAV ============ */
 .nav{position:fixed;top:0;left:0;right:0;z-index:40;display:flex;align-items:center;justify-content:space-between;padding:18px 32px;backdrop-filter:blur(14px) saturate(140%);-webkit-backdrop-filter:blur(14px) saturate(140%);background:linear-gradient(180deg,rgba(5,4,10,.7),rgba(5,4,10,.3));border-bottom:1px solid var(--stroke)}
@@ -234,6 +240,11 @@ body::before{content:"";position:fixed;inset:0;pointer-events:none;z-index:1;bac
 .hero-stat span{font-size:11px;color:var(--ink-dim);letter-spacing:1.5px;text-transform:uppercase}
 
 .hero-side{position:relative;display:flex;flex-direction:column;gap:20px;align-items:flex-end;z-index:3}
+
+@media(max-width:920px){
+  body::before{opacity:.14;background-position:center top}
+  body::after{opacity:.14;background-position:center bottom -90px;background-size:520px auto}
+}
 .hero-copy,.hero-side{text-shadow:0 2px 18px rgba(0,0,0,.46)}
 .tourbillon-wrap{position:relative;width:420px;max-width:100%;aspect-ratio:1/1;border-radius:50%;background:radial-gradient(circle at 30% 30%,rgba(138,92,255,.2),transparent 60%),radial-gradient(circle at 70% 70%,rgba(62,160,255,.14),transparent 55%),rgba(10,8,24,.55);backdrop-filter:blur(18px);border:1px solid var(--stroke-hot);box-shadow:var(--shadow),inset 0 0 60px rgba(138,92,255,.2);transform:perspective(900px) rotateX(var(--watch-rx,0deg)) rotateY(var(--watch-ry,0deg));transition:transform .2s ease}
 .tourbillon-wrap canvas{position:absolute;inset:0;width:100% !important;height:100% !important;border-radius:50%}
@@ -732,11 +743,32 @@ nav.nav[data-nav-open="true"] .nav-toggle-bar:nth-child(3){transform:translateY(
 .zeus-page-bg__layer{position:absolute;inset:-4% -4%;background-position:center 32%;background-size:cover;background-repeat:no-repeat;filter:contrast(1.06) saturate(1.08) brightness(.78);opacity:0;transition:opacity 1.4s ease, transform 22s ease-out;transform:scale(1.04)}
 .zeus-page-bg__layer.is-on{opacity:.9;transform:scale(1.0)}
 .zeus-page-bg__veil{position:absolute;inset:0;background:
-  radial-gradient(900px 700px at 50% 28%,rgba(8,5,20,0) 0%,rgba(8,5,20,.45) 55%,rgba(5,4,10,.92) 92%),
+  radial-gradient(900px 700px at 50% 28%,rgba(8,5,20,0) 0%,rgba(8,5,20,.40) 55%,rgba(5,4,10,.86) 92%),
   linear-gradient(180deg,rgba(5,4,10,.55) 0%,rgba(5,4,10,.25) 40%,rgba(5,4,10,.85) 100%),
   radial-gradient(1100px 600px at 50% 100%,rgba(138,92,255,.12),transparent 65%)}
 /* Home already shows zeus full-bleed via .zeus-hero-image — hide the global backdrop to avoid double-exposure. */
 body[data-route="/"] .zeus-page-bg{opacity:0 !important}
+/* Marketplace / Pricing / Store: boost Zeus portrait clarity.
+   We intentionally soften the generic body overlays here so the dedicated
+   .zeus-page-bg layer remains visible and cinematic behind cards. */
+body[data-route="/services"]::before,
+body[data-route="/pricing"]::before,
+body[data-route="/store"]::before{opacity:.08}
+body[data-route="/services"]::after,
+body[data-route="/pricing"]::after,
+body[data-route="/store"]::after{opacity:.10}
+body[data-route="/services"] .zeus-page-bg,
+body[data-route="/pricing"] .zeus-page-bg,
+body[data-route="/store"] .zeus-page-bg{opacity:1}
+body[data-route="/services"] .zeus-page-bg__layer.is-on,
+body[data-route="/pricing"] .zeus-page-bg__layer.is-on,
+body[data-route="/store"] .zeus-page-bg__layer.is-on{opacity:.98;filter:contrast(1.1) saturate(1.12) brightness(.86)}
+body[data-route="/services"] .zeus-page-bg__veil,
+body[data-route="/pricing"] .zeus-page-bg__veil,
+body[data-route="/store"] .zeus-page-bg__veil{background:
+  radial-gradient(900px 700px at 50% 28%,rgba(8,5,20,0) 0%,rgba(8,5,20,.28) 58%,rgba(5,4,10,.72) 94%),
+  linear-gradient(180deg,rgba(5,4,10,.38) 0%,rgba(5,4,10,.14) 42%,rgba(5,4,10,.72) 100%),
+  radial-gradient(1100px 600px at 50% 100%,rgba(138,92,255,.14),transparent 65%)}
 @media (max-width:900px){
   .zeus-page-bg__layer{background-position:50% 28%;filter:contrast(1.04) saturate(1.06) brightness(.72)}
 }

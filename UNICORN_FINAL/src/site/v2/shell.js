@@ -439,6 +439,9 @@ html,body{margin:0;padding:0;background:var(--bg);color:var(--ink);font-family:v
 body{min-height:100vh;background:radial-gradient(1400px 900px at 50% 0%,rgba(138,92,255,.12),transparent 55%),radial-gradient(1200px 800px at 100% 100%,rgba(62,160,255,.08),transparent 60%),linear-gradient(180deg,#05040a 0%,#0a0818 100%)}
 a{color:#6fd3ff;text-decoration:none}
 img{max-width:100%;display:block}
+.zeus-page-bg{position:fixed;inset:0;z-index:0;pointer-events:none;opacity:1}
+.zeus-page-bg__layer{position:absolute;inset:0;background-size:cover;background-position:center 28%;background-repeat:no-repeat}
+.zeus-page-bg__veil{position:absolute;inset:0;background:linear-gradient(180deg,rgba(5,4,10,.42),rgba(5,4,10,.74))}
 .nav{position:fixed;top:0;left:0;right:0;z-index:40;display:flex;align-items:center;justify-content:space-between;padding:18px 32px;backdrop-filter:blur(14px) saturate(140%);-webkit-backdrop-filter:blur(14px) saturate(140%);background:linear-gradient(180deg,rgba(5,4,10,.7),rgba(5,4,10,.3));border-bottom:1px solid var(--stroke)}
 .btn{display:inline-block;padding:14px 20px;border-radius:14px;border:1px solid rgba(255,255,255,.18);color:#fff;text-decoration:none;background:rgba(255,255,255,.08)}
 .btn.primary{background:linear-gradient(135deg,var(--violet),var(--blue));border-color:transparent}

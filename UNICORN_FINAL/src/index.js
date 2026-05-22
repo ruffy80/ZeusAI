@@ -4320,11 +4320,18 @@ async function unicornHandler(req, res) {
       // that still passes the site's chrome heuristics (lang, charset, viewport, meta).
       const css = `
         :root { --bg:#0a0f1e; --fg:#e8eef9; --accent:#7cf7c0; --muted:#7a8499; --card:rgba(255,255,255,0.04); --border:rgba(255,255,255,0.08); }
-        *{box-sizing:border-box} body{margin:0;font:14px/1.55 system-ui,-apple-system,Segoe UI,Roboto,sans-serif;background:radial-gradient(1200px 800px at 20% -10%,#142046 0%,#0a0f1e 60%) fixed;color:var(--fg);min-height:100vh}
+        *{box-sizing:border-box}
+        body{margin:0;font:14px/1.55 system-ui,-apple-system,Segoe UI,Roboto,sans-serif;background:radial-gradient(1200px 800px at 20% -10%,#142046 0%,#0a0f1e 60%) fixed;color:var(--fg);min-height:100vh;position:relative;overflow-x:hidden}
+        body::before,body::after{content:"";position:fixed;inset:0;pointer-events:none;z-index:0;background-repeat:no-repeat;background-size:cover;opacity:.18;filter:saturate(1.08) contrast(1.04)}
+        body::before{background-image:linear-gradient(180deg,rgba(10,15,30,.62),rgba(10,15,30,.78)),url('/assets/hero.jpg');background-position:center 14%}
+        body::after{background-image:radial-gradient(900px 620px at 82% 74%,rgba(10,15,30,.18),rgba(10,15,30,.72) 72%),url('/assets/watch.jpg');background-position:right -120px bottom -30px;background-size:760px auto;opacity:.22;mix-blend-mode:screen}
+        /* Marketplace + Pricing: make Zeus portrait visibly cinematic. */
+        body.page-services::before, body.page-pricing::before{opacity:.24;filter:saturate(1.12) contrast(1.08) brightness(.92)}
+        body.page-services::after, body.page-pricing::after{opacity:.28;background-position:right -70px bottom -14px;background-size:700px auto}
         header{padding:18px 32px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:16px;backdrop-filter:blur(8px)}
         header a{color:var(--fg);text-decoration:none;opacity:.8} header a:hover{opacity:1}
         h1{margin:0;font-size:18px;font-weight:600}
-        main{padding:32px;max-width:1200px;margin:0 auto}
+        main{padding:32px;max-width:1200px;margin:0 auto;position:relative;z-index:1}
         .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:16px;margin:24px 0}
         .card{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:18px;transition:transform .15s ease}
         .card:hover{transform:translateY(-2px);border-color:var(--accent)}
@@ -4333,7 +4340,7 @@ async function unicornHandler(req, res) {
         .card .sub{font-size:11px;color:var(--muted);margin-top:4px}
         .banner{display:none;padding:12px 18px;border:1px solid #f0c674;background:rgba(240,198,116,0.1);color:#f0c674;border-radius:8px;margin:0 0 16px;font-size:13px}
         .banner.show{display:block}
-        footer{padding:24px 32px;border-top:1px solid var(--border);color:var(--muted);font-size:12px;text-align:center;margin-top:48px}
+        footer{padding:24px 32px;border-top:1px solid var(--border);color:var(--muted);font-size:12px;text-align:center;margin-top:48px;position:relative;z-index:1}
         button{background:var(--accent);color:#0a0f1e;border:0;padding:10px 18px;border-radius:8px;font-weight:600;cursor:pointer}
         button:hover{filter:brightness(1.1)}
         .btn-ghost{background:transparent;color:var(--fg);border:1px solid var(--border)}
@@ -4341,7 +4348,10 @@ async function unicornHandler(req, res) {
         .row{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}
         .pill{display:inline-block;padding:3px 10px;border-radius:99px;font-size:11px;background:rgba(124,247,192,0.15);color:var(--accent);border:1px solid rgba(124,247,192,0.3)}
         .ok{color:var(--accent)} .warn{color:#f0c674} .err{color:#ff6b6b}
+        @media(max-width:920px){body::before{background-position:center top;opacity:.16}body::after{background-position:center bottom -80px;background-size:520px auto;opacity:.16}}
+        @media(max-width:920px){body.page-services::before,body.page-pricing::before{opacity:.2}body.page-services::after,body.page-pricing::after{opacity:.2;background-position:center bottom -40px;background-size:480px auto}}
       `;
+      const pageClass = 'page-' + String(urlPath || '/').replace(/^\/+/, '').replace(/[^a-z0-9_-]/gi, '-').replace(/-+/g, '-').replace(/^-|-$/g, '') || 'home';
       return [
         '<!doctype html><html lang="en"><head>',
         '<meta charset="utf-8"/>',
@@ -4351,7 +4361,7 @@ async function unicornHandler(req, res) {
         '<meta name="theme-color" content="#0a0f1e"/>',
         '<link rel="icon" href="/favicon.ico"/>',
         '<style>' + css + '</style>',
-        '</head><body>',
+        '</head><body class="' + pageClass + '">',
         '<header><h1>🦄 ZeusAI</h1>',
         '<a href="/">Home</a> · <a href="/pricing">Pricing</a> · <a href="/revenue-share">Revenue Share</a> · <a href="/proof">Proof</a> · <a href="/unicorn-cockpit">Cockpit</a> · <a href="/services">Services</a> · <a href="/status">Status</a>',
         '</header>',
