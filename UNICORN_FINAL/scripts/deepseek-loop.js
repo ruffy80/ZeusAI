@@ -40,7 +40,7 @@ const https = require('https');
 
 const ENABLED                = String(process.env.DEEPSEEK_LOOP_ENABLED || '') === '1';
 const EXECUTE_MODE           = String(process.env.DEEPSEEK_LOOP_EXECUTE || '') === '1';
-const FAST_INTERVAL_MS       = Math.max(60_000, parseInt(process.env.DEEPSEEK_LOOP_FAST_INTERVAL_MS || '60000', 10));
+const FAST_INTERVAL_MS       = Math.max(30_000, parseInt(process.env.DEEPSEEK_LOOP_FAST_INTERVAL_MS || '30000', 10));
 const INTERVAL_MS            = Math.max(30_000, parseInt(process.env.DEEPSEEK_LOOP_INTERVAL_MS || '60000', 10));
 const INITIAL_FAST_WINDOW_MS = Math.max(60_000, parseInt(process.env.DEEPSEEK_LOOP_FAST_WINDOW_MS || String(60 * 60 * 1000), 10));
 const BACKOFF_MS             = parseInt(process.env.DEEPSEEK_LOOP_BACKOFF_MS || String(30 * 60 * 1000), 10);
@@ -61,7 +61,7 @@ const AGE_FALLBACK_URL       = process.env.DEEPSEEK_LOOP_AGE_URL || (BACKEND_URL
 const OLLAMA_BASE_URL        = process.env.DEEPSEEK_LOOP_OLLAMA_URL || 'http://127.0.0.1:11434';
 const OLLAMA_MODEL           = process.env.DEEPSEEK_LOOP_OLLAMA_MODEL || 'llama3';
 const STABLE_WINDOW_HOURS    = Math.max(1, parseInt(process.env.DEEPSEEK_LOOP_STABLE_WINDOW_HOURS || '24', 10));
-const SLOW_INTERVAL_MS       = Math.max(60_000, parseInt(process.env.DEEPSEEK_LOOP_SLOW_INTERVAL_MS || '300000', 10));
+const SLOW_INTERVAL_MS       = Math.max(60_000, parseInt(process.env.DEEPSEEK_LOOP_SLOW_INTERVAL_MS || '60000', 10));
 const OPENROUTER_API_KEY     = process.env.OPENROUTER_API_KEY || '';
 const OPENROUTER_DEEPSEEK_MODEL = process.env.OPENROUTER_DEEPSEEK_MODEL || 'deepseek/deepseek-v4-flash:free';
 const GROQ_API_KEY           = process.env.GROQ_API_KEY || '';
@@ -73,7 +73,41 @@ const ERROR_LOG_PATH         = process.env.DEEPSEEK_LOOP_ERROR_LOG || '/var/log/
 const AUTONOMY_ROOT          = process.env.DEEPSEEK_LOOP_AUTONOMY_ROOT || '/opt/unicorn';
 const SANDBOX_ROOT           = process.env.DEEPSEEK_LOOP_SANDBOX_ROOT || path.join(AUTONOMY_ROOT, 'sandbox');
 const AUTONOMOUS_LOG_PATH    = process.env.DEEPSEEK_LOOP_ACTION_LOG || '/var/log/autonomous_actions.log';
-const ALLOWED_ACTIONS = ['none', 'read_status', 'read_file', 'write_file', 'create_file', 'move_file', 'delete_file', 'execute_safe_script', 'prices_sync', 'checkout_fix', 'run_test', 'restart_service', 'git_commit', 'deploy', 'github_clone_repo', 'github_create_pr', 'merge_pr', 'browse_github', 'search_github', 'code_proposal', 'roadmap_update'];
+const AUTONOMOUS_TAIL_MAX_AGE_MS = Math.max(60_000, parseInt(process.env.DEEPSEEK_LOOP_AUTONOMOUS_TAIL_MAX_AGE_MS || String(15 * 60 * 1000), 10));
+const AUTONOMOUS_TAIL_MAX_ITEMS  = Math.max(1, Math.min(20, parseInt(process.env.DEEPSEEK_LOOP_AUTONOMOUS_TAIL_MAX_ITEMS || '4', 10)));
+const ALLOWED_ACTIONS = [
+  'none',
+  'read_status',
+  'read_file',
+  'write_file',
+  'create_file',
+  'move_file',
+  'delete_file',
+  'execute_safe_script',
+  'prices_sync',
+  'checkout_fix',
+  'run_test',
+  'restart_service',
+  'git_commit',
+  'deploy',
+  'github_clone_repo',
+  'github_read_repo',
+  'github_create_branch',
+  'github_commit_push',
+  'github_create_pr',
+  'github_merge_pr',
+  'github_trigger_workflow',
+  'github_comment_issue',
+  'merge_pr',
+  'browse_github',
+  'search_github',
+  'full_backup',
+  'restore_backup',
+  'analyze_logs',
+  'rollback_deploy',
+  'code_proposal',
+  'roadmap_update',
+];
 
 function _safeStatCandidate(filePath, now, minAgeMs) {
   try {
@@ -117,31 +151,18 @@ function collectCleanupCandidates() {
     } catch (_) { /* best-effort */ }
   }
   try {
+    // IMPORTANT: do not propose sandbox file deletions here.
+    // Governor delete allowlist only permits /opt/unicorn/temp, /old_backups,
+    // /logs-old. Surfacing sandbox *.bak files caused repeated 422 responses
+    // and circuit-breaker pauses in execute mode.
     if (fs.existsSync(SANDBOX_ROOT)) {
-      const queue = [SANDBOX_ROOT];
-      while (queue.length && out.duplicateLikeFiles.length < 20) {
-        const current = queue.shift();
-        const entries = fs.readdirSync(current, { withFileTypes: true }).slice(0, 100);
-        for (const entry of entries) {
-          const full = path.join(current, entry.name);
-          if (entry.isDirectory()) {
-            if (entry.name === 'node_modules' || entry.name === '.git') continue;
-            queue.push(full);
-            continue;
-          }
-          if (!entry.isFile()) continue;
-          if (/(\.bak|\.old|\.orig|\.tmp|~)$/i.test(entry.name)) {
-            const candidate = _safeStatCandidate(full, now, 24 * 60 * 60 * 1000);
-            if (candidate) out.duplicateLikeFiles.push(candidate);
-          }
-        }
-      }
       const deadCodePath = path.join(SANDBOX_ROOT, 'dead-code-candidates.json');
       if (fs.existsSync(deadCodePath)) {
         const parsed = JSON.parse(fs.readFileSync(deadCodePath, 'utf8'));
         if (Array.isArray(parsed)) out.deadCodeCandidates = parsed.slice(0, 20);
       }
     }
+    out.duplicateLikeFiles = [];
   } catch (_) { /* best-effort */ }
   return out;
 }
@@ -149,7 +170,46 @@ function collectCleanupCandidates() {
 function readAutonomousLogTail() {
   try {
     if (!fs.existsSync(AUTONOMOUS_LOG_PATH)) return [];
-    return fs.readFileSync(AUTONOMOUS_LOG_PATH, 'utf8').split('\n').filter(Boolean).slice(-10);
+    const now = Date.now();
+    const rawLines = fs.readFileSync(AUTONOMOUS_LOG_PATH, 'utf8').split('\n').filter(Boolean).slice(-120);
+    const lines = [];
+    for (const raw of rawLines) {
+      if (!raw) continue;
+      // Some log writers occasionally concatenate JSON objects on one line: ...}{...
+      // Split defensively so each chunk can be parsed independently.
+      const chunks = raw.replace(/}\s*{/g, '}\n{').split('\n').filter(Boolean);
+      for (const c of chunks) lines.push(c);
+    }
+    const parsed = [];
+    for (const line of lines) {
+      try {
+        let item = JSON.parse(line);
+        // Sometimes an outer JSON string wraps an inner JSON object.
+        for (let i = 0; i < 2 && typeof item === 'string'; i += 1) {
+          const t = item.trim();
+          if (!(t.startsWith('{') || t.startsWith('[') || t.startsWith('"{'))) break;
+          item = JSON.parse(t);
+        }
+        if (!item || typeof item !== 'object' || Array.isArray(item)) continue;
+
+        const ts = Date.parse(item && item.ts ? item.ts : '');
+        if (!Number.isFinite(ts)) continue;
+        if ((now - ts) > AUTONOMOUS_TAIL_MAX_AGE_MS) continue;
+
+        // Keep the advisor payload compact: remove large tails that can
+        // continuously re-surface stale failures from older executions.
+        // Păstrăm context compact: eliminăm tail-urile mari/stale.
+        if (item.testTail) delete item.testTail;
+        if (item.pipeline && typeof item.pipeline === 'object') {
+          if (item.pipeline.stdoutTail) delete item.pipeline.stdoutTail;
+          if (item.pipeline.stderrTail) delete item.pipeline.stderrTail;
+        }
+        parsed.push(item);
+      } catch (_) {
+        // Ignore malformed lines silently.
+      }
+    }
+    return parsed.slice(-AUTONOMOUS_TAIL_MAX_ITEMS);
   } catch (_) {
     return [];
   }
@@ -279,6 +339,13 @@ async function collectStatus() {
   } catch (e) {
     out.healthError = String(e && e.message || e).slice(0, 200);
   }
+  out.unicornWorkstreams = {
+    primary: 'full-stack-autonomy',
+    focusAreas: ['unicorn-server-and-backend', 'public-site-and-pricing'],
+    executionMode: 'balanced-equal-priority',
+    backendUrl: BACKEND_URL,
+    autonomyRoot: AUTONOMY_ROOT,
+  };
   // last 10 error log lines (best-effort, read-only)
   try {
     if (fs.existsSync(ERROR_LOG_PATH)) {
@@ -337,6 +404,12 @@ async function collectStatus() {
     cleanupCandidates: collectCleanupCandidates(),
     recentAutonomousActions: readAutonomousLogTail(),
   };
+  out.workMode = {
+    name: 'efficient-full-stack',
+    primaryFocus: ['unicorn-server-and-backend', 'public-site-and-pricing'],
+    minimizeRepeatedDiagnosis: true,
+    preferImplementationWhenClear: true,
+  };
   return out;
 }
 
@@ -345,9 +418,12 @@ async function askDeepSeek(status) {
   const providers = getAdvisorProviders();
   if (!providers.length) throw new Error('missing_deepseek_advisor_provider_key');
   const systemPrompt =
-    'You are the autonomous DeepSeek operator for the Unicorn / zeusai.pro platform, owned by Vladoi Ionut (BTC settlement address bc1q4f7e66z87mdfj56kz0dj5hvcnpmh0qh4wuv22e). ' +
-    'Mission: build the most powerful autonomous SaaS in the world — global standard for >30 years — designed to generate billions of USD in annual revenue and settle automatically to the owner\'s BTC address. ' +
-    'You operate 24/7 in an infinite improvement loop. Every tick: analyze the STATUS JSON, think one step ahead, then act. Never stop. When one objective is complete, immediately advance to the next priority. ' +
+    'You are the autonomous DeepSeek operator for the Unicorn server/backend and the zeusai.pro platform, owned by Vladoi Ionut (BTC settlement address bc1q4f7e66z87mdfj56kz0dj5hvcnpmh0qh4wuv22e). ' +
+    'Mission: run the Unicorn server/backend and the public site as one full-stack organism, keep both healthy, then build the most powerful autonomous SaaS in the world — global standard for >30 years — designed to generate billions of USD in annual revenue and settle automatically to the owner\'s BTC address. ' +
+    'You operate 24/7 in an infinite improvement loop with maximum allowed autonomy. Every tick: analyze the STATUS JSON, think one step ahead, then act. Never stop. When one objective is complete, immediately advance to the next priority. ' +
+    'Priority zero is balanced production stability: never trade away Unicorn backend reliability, and never ignore the public site, pricing, or conversion paths. ' +
+    'EFFICIENCY MANDATE: be decisive and avoid repetitive diagnosis. If STATUS is already clear and no fresh error is present, do not spend a tick on read_status again; move to implementation, validation, or a code_proposal that advances an open objective. ' +
+    'One useful action beats several passive checks. Prefer actions that change the system or close an objective, and only inspect again when that inspection will change the next move. ' +
     'INNOVATION MANDATE: when no fire is burning, generate code_proposal envelopes for features that DO NOT YET EXIST on any competing SaaS — AI-personalized pricing per visitor, 24/7 AI commerce concierge, revenue-anomaly self-healing, sovereign anonymized-insights marketplace, BTC Lightning instant settlement, autonomous blue/green deploys. Invent what hasn\'t been invented. ' +
     'You receive a STATUS JSON containing health signals, recent errors, the roadmap of open objectives (vision + missionForDeepSeek + northStarTargets + topOpenObjectives), ' +
     'and (when present) an operatorCommand from the human owner that overrides roadmap priorities for this tick. ' +
@@ -356,22 +432,23 @@ async function askDeepSeek(status) {
     'You MUST return ONLY a JSON object with shape: ' +
     '{"action":"<one-of-allowlist>","params":{...},"reason":"<short string>"}. ' +
     'Action semantics: ' +
-    'read_status = inspect runtime; read_file = inspect a file (params.path, must be repo-relative, no .env/secrets); ' +
-    'write_file/create_file = mutate ONLY inside /opt/unicorn excluding secrets/.git/config; move_file/delete_file = only for safe allowlisted paths and cleanup candidates; ' +
-    'execute_safe_script = run only an existing script from /opt/unicorn/scripts with explicit args array; ' +
+    'read_status = inspect runtime; read_file = inspect files under /opt/unicorn with protected-path filtering; ' +
+    'write_file/create_file/move_file/delete_file = mutate inside /opt/unicorn with intelligent protected-path safeguards; ' +
+    'execute_safe_script = run existing scripts under /opt/unicorn with explicit args array; ' +
     'prices_sync = refresh live pricing broker; checkout_fix = read-only checkout health; ' +
     'run_test = execute npm test (use sparingly); ' +
     'restart_service = log restart INTENT only (params.service ∈ unicorn-backend, unicorn-frontend, unicorn-site, pricing-module); ' +
-    'github_clone_repo/github_create_pr/merge_pr = GitHub workflow intents (never use for secrets or unsafe repos); ' +
-    'browse_github/search_github = GitHub read-only discovery for analysis and innovation scouting; ' +
+    'github_clone_repo = clone repository into /opt/unicorn/contrib; github_read_repo/browse_github/search_github = GitHub read/discovery; ' +
+    'github_create_branch/github_commit_push/github_create_pr/github_merge_pr/github_trigger_workflow/github_comment_issue = GitHub delivery pipeline actions; ' +
+    'full_backup/restore_backup/analyze_logs/rollback_deploy = autonomous ops resilience actions; ' +
     'code_proposal = author a code change envelope (params: targetPath repo-relative, proposedContent full new file content, rationale, objectiveId, riskLevel ∈ low|medium|high). Envelopes are quarantined for human/CI review — never applied automatically. Aim for small, focused, audit-friendly diffs. ' +
-    'NEVER target secrets, .env, .git/config, SSH keys, package-locks, or files outside /opt/unicorn for direct mutation. ' +
+    'Never exfiltrate secrets; do not mutate protected files (.env, SSH keys, .git internals) unless explicitly confirmed in params.confirm=true for irreversible operations. ' +
     'roadmap_update = mark an objective status (params.objectiveId, params.status ∈ pending|in-progress|done|blocked, optional note). ' +
     'Prefer delete_file only when STATUS.autonomy.cleanupCandidates lists the target or when removing stale temp/backup/log files. ' +
     'Use SANDBOX insight from STATUS.autonomy before risky changes. ' +
     'Auto-advance rule: if STATUS shows a metric target met for an in-progress objective (compare metricKey against target via comparison), prefer roadmap_update status=done so the loop moves to the next priority on the next tick. ' +
-    'Prioritization rules: (1) if operatorCommand is present, address it first; (2) otherwise pick the highest-priority open objective from roadmap.topOpenObjectives and act toward it; (3) prefer read_status / read_file for diagnosis, then code_proposal for fixes; (4) when everything is green, generate an innovation code_proposal toward an `innovation: true` objective. ' +
-    'Diversify: do not repeat the same action+target on consecutive ticks. Spread effort across the top-3 priorities. ' +
+    'Prioritization rules: (1) if operatorCommand is present, address it first; (2) otherwise pick the highest-priority open objective from roadmap.topOpenObjectives and act toward it; (3) prefer implementation or code_proposal when the objective is clear, and use read_status / read_file only when they unlock the next step; (4) when everything is green, generate an innovation code_proposal toward an `innovation: true` objective. ' +
+    'Diversify: do not repeat the same action+target on consecutive ticks. Spread effort across the top-3 priorities and keep both server and site moving forward. ' +
     'If unsure or all signals are green and an innovation proposal was just made, return action="none". Never invent actions outside the allowlist.';
   const userPrompt = 'STATUS:\n' + JSON.stringify(status, null, 2);
   let lastError = null;
@@ -514,7 +591,7 @@ async function askDeepSeek(status) {
   log('warn', 'advisor_default_action', { reason: 'all providers failed, using safe fallback action' });
   return {
     action: 'restart_service',
-    params: { service: 'unicorn-site' },
+    params: { service: 'unicorn-backend' },
     reason: 'all_advisors_failed_default_recovery',
   };
 }
@@ -640,7 +717,7 @@ function main() {
     log('info', 'loop_schedule_next', { nextInMs: nextMs });
     setTimeout(loop, nextMs);
   };
-  setTimeout(loop, 5000);
+  setTimeout(loop, 0);
 }
 
 if (require.main === module) main();

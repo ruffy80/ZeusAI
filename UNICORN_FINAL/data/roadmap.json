@@ -226,6 +226,13 @@
       "note": "Compară on-chain transfers către bc1q4f7e66z87mdfj56kz0dj5hvcnpmh0qh4wuv22e cu suma încasărilor (Stripe payouts USD→BTC + Lightning direct). Divergență >1% = alertă în /api/admin/roadmap + email owner."
     },
     {
+      "id": "validate_backlog",
+      "title": "Validate pending proposals backlog before authoring more code changes",
+      "priority": 1,
+      "status": "pending",
+      "note": "Validate backlog of proposals under data/deepseek-proposals/"
+    },
+    {
       "id": "fifty-year-standard-baseline",
       "title": "Baseline arhitectural cu garanție 50 ani (kill-switch + rollback documentat)",
       "priority": 2,

@@ -350,9 +350,14 @@ async function run() {
 
   const { key, key_id } = await apiGet(`/repos/${OWNER}/${REPO}/actions/secrets/public-key`);
 
-  const entries = Object.entries(SECRETS).filter(([, v]) => v !== '');
+  const entries = Object.entries(SECRETS).filter(([, v]) => {
+    if (v === null || typeof v === 'undefined') return false;
+    const normalized = String(v).trim();
+    return normalized !== '';
+  });
   for (const [name, value] of entries) {
-    const encrypted = await encryptSecret(key, key_id, value);
+    const normalized = String(value);
+    const encrypted = await encryptSecret(key, key_id, normalized);
     const res = await apiPut(`/repos/${OWNER}/${REPO}/actions/secrets/${name}`, encrypted);
     const ok = res.status === 201 || res.status === 204;
     console.log(`  ${ok ? '✅' : '❌'} ${name} (HTTP ${res.status})`);

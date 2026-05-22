@@ -1,0 +1,189 @@
+{
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"label": "remote-env-check",
+			"type": "shell",
+			"command": "ssh -o StrictHostKeyChecking=no root@204.168.230.142 'echo remote-ok && date -u'",
+			"isBackground": false
+		},
+		{
+			"label": "restore-deepseek-keys",
+			"type": "shell",
+			"command": "ssh -o StrictHostKeyChecking=no root@204.168.230.142 \"python3 - <<'PY'\nfrom pathlib import Path\nsrc=Path('/var/www/unicorn/UNICORN_FINAL.prelink.1777753316/.env')\ndst=Path('/var/www/unicorn/UNICORN_FINAL/.env')\nif not src.exists() or not dst.exists():\n    print('missing_env_file')\n    raise SystemExit(0)\n\ndef parse_env(path):\n    out={}\n    for line in path.read_text(encoding='utf-8',errors='ignore').splitlines():\n        if not line or line.lstrip().startswith('#') or '=' not in line:\n            continue\n        k,v=line.split('=',1)\n        k=k.strip(); v=v.strip()\n        if len(v)>=2 and ((v[0]==v[-1]=='\\\"') or (v[0]==v[-1]==\"'\")):\n            v=v[1:-1]\n        out[k]=v\n    return out\n\nsrc_env=parse_env(src)\ndst_lines=dst.read_text(encoding='utf-8',errors='ignore').splitlines()\nset_map={\n    'DEEPSEEK_API_KEY':src_env.get('DEEPSEEK_API_KEY',''),\n    'OPENROUTER_API_KEY':src_env.get('OPENROUTER_API_KEY',''),\n    'GROQ_API_KEY':src_env.get('GROQ_API_KEY',''),\n    'DEEPSEEK_LOOP_ENABLED':'1',\n    'DEEPSEEK_LOOP_EXECUTE':'1',\n}\nset_map={k:v for k,v in set_map.items() if v}\n\nnew=[]\nseen=set()\nfor line in dst_lines:\n    if '=' in line and not line.lstrip().startswith('#'):\n        k=line.split('=',1)[0].strip()\n        if k in set_map:\n            new.append(f'{k}={set_map[k]}')\n            seen.add(k)\n            continue\n    new.append(line)\nfor k,v in set_map.items():\n    if k not in seen:\n        new.append(f'{k}={v}')\n\ndst.write_text('\\n'.join(new).rstrip()+'\\n',encoding='utf-8')\ncur=parse_env(dst)\nfor k in ['DEEPSEEK_API_KEY','OPENROUTER_API_KEY','GROQ_API_KEY','DEEPSEEK_LOOP_ENABLED','DEEPSEEK_LOOP_EXECUTE']:\n    v=cur.get(k,'')\n    if k.startswith('DEEPSEEK_LOOP_'):\n        print(f'{k}={v}')\n    else:\n        print(f'{k} len={len(v)}')\nPY\"",
+			"isBackground": false
+		},
+		{
+			"label": "run-restore-keys-remote",
+			"type": "shell",
+			"command": "chmod +x /Users/ionutvladoi/Desktop/generate-unicorn/tmp/restore_deepseek_keys_remote.sh && scp -o StrictHostKeyChecking=no /Users/ionutvladoi/Desktop/generate-unicorn/tmp/restore_deepseek_keys_remote.sh root@204.168.230.142:/tmp/restore_deepseek_keys_remote.sh && ssh -o StrictHostKeyChecking=no root@204.168.230.142 'bash /tmp/restore_deepseek_keys_remote.sh'",
+			"isBackground": false
+		},
+		{
+			"label": "restart-deepseek-loop",
+			"type": "shell",
+			"command": "ssh -o StrictHostKeyChecking=no root@204.168.230.142 'systemctl restart deepseek-loop && systemctl is-active deepseek-loop && sleep 8 && journalctl -u deepseek-loop --no-pager -n 60 | egrep -i \"deepseek_loop_boot|advisor_provider_ok|advisor_provider_failed|recommendation_received|governor_execution_result|invalid_api_key|Authentication Fails|401\" | tail -n 40'",
+			"isBackground": false
+		},
+		{
+			"label": "deepseek-loop-log-tail",
+			"type": "shell",
+			"command": "ssh -o StrictHostKeyChecking=no root@204.168.230.142 'sleep 12; journalctl -u deepseek-loop --no-pager -n 120 | tail -n 120'",
+			"isBackground": false
+		},
+		{
+			"label": "check-deepseek-file-log",
+			"type": "shell",
+			"command": "ssh -o StrictHostKeyChecking=no root@204.168.230.142 'LOG=/var/www/unicorn/UNICORN_FINAL/data/logs/deepseek-loop.log; tail -n 180 \"$LOG\" | egrep -i \"advisor_provider_ok|advisor_provider_failed|recommendation_received|governor_execution_result|401|invalid_api_key|Authentication Fails|Received action\" | tail -n 60'",
+			"isBackground": false
+		},
+		{
+			"label": "count-errors-loop",
+			"type": "shell",
+			"command": "ssh -o StrictHostKeyChecking=no root@204.168.230.142 'LOG=/var/www/unicorn/UNICORN_FINAL/data/logs/deepseek-loop.log; echo -n \"401_count=\"; tail -n 300 \"$LOG\" | egrep -ic \"http_401|invalid_api_key|Authentication Fails\" || true; echo -n \"provider_failed_count=\"; tail -n 300 \"$LOG\" | egrep -ic \"advisor_provider_failed\" || true; echo -n \"provider_ok_count=\"; tail -n 300 \"$LOG\" | egrep -ic \"advisor_provider_ok\" || true; echo -n \"actions_200_count=\"; tail -n 300 \"$LOG\" | egrep -ic \"governor_execution_result.*httpStatus.:200\" || true'",
+			"isBackground": false
+		},
+		{
+			"label": "count-errors-recent",
+			"type": "shell",
+			"command": "ssh -o StrictHostKeyChecking=no root@204.168.230.142 'LOG=/var/www/unicorn/UNICORN_FINAL/data/logs/deepseek-loop.log; echo -n \"recent_401=\"; tail -n 80 \"$LOG\" | egrep -ic \"http_401|invalid_api_key|Authentication Fails\" || true; echo -n \"recent_provider_failed=\"; tail -n 80 \"$LOG\" | egrep -ic \"advisor_provider_failed\" || true; echo -n \"recent_provider_ok=\"; tail -n 80 \"$LOG\" | egrep -ic \"advisor_provider_ok\" || true; echo -n \"recent_http200=\"; tail -n 80 \"$LOG\" | egrep -ic \"governor_execution_result.*httpStatus.:200\" || true; echo -n \"recent_write_file_200=\"; tail -n 80 \"$LOG\" | egrep -ic \"governor_execution_result.*httpStatus.:200.*write_file\" || true'",
+			"isBackground": false
+		},
+		{
+			"label": "recent-provider-lines",
+			"type": "shell",
+			"command": "ssh -o StrictHostKeyChecking=no root@204.168.230.142 'LOG=/var/www/unicorn/UNICORN_FINAL/data/logs/deepseek-loop.log; tail -n 120 \"$LOG\" | egrep \"advisor_provider_ok|advisor_provider_failed\" | tail -n 40'",
+			"isBackground": false
+		},
+		{
+			"label": "recent-minutes-check",
+			"type": "shell",
+			"command": "ssh -o StrictHostKeyChecking=no root@204.168.230.142 'LOG=/var/www/unicorn/UNICORN_FINAL/data/logs/deepseek-loop.log; tail -n 200 \"$LOG\" | egrep \"2026-05-22T18:59|2026-05-22T19:00|2026-05-22T19:01\" | egrep -i \"401|invalid_api_key|Authentication Fails|advisor_provider_ok|governor_execution_result|recommendation_received\" | tail -n 80'",
+			"isBackground": false
+		},
+		{
+			"label": "last40-401-check",
+			"type": "shell",
+			"command": "ssh -o StrictHostKeyChecking=no root@204.168.230.142 'LOG=/var/www/unicorn/UNICORN_FINAL/data/logs/deepseek-loop.log; echo -n \"last40_401=\"; tail -n 40 \"$LOG\" | egrep -ic \"http_401|invalid_api_key|Authentication Fails\" || true; echo -n \"last40_provider_ok=\"; tail -n 40 \"$LOG\" | egrep -ic \"advisor_provider_ok\" || true; echo -n \"last40_http200=\"; tail -n 40 \"$LOG\" | egrep -ic \"governor_execution_result.*httpStatus.:200\" || true'",
+			"isBackground": false
+		},
+		{
+			"label": "confirm-deepseek-autonomous",
+			"type": "shell",
+			"command": "ssh -o StrictHostKeyChecking=no root@204.168.230.142 'systemctl is-enabled deepseek-loop; systemctl is-active deepseek-loop; LOG=/var/www/unicorn/UNICORN_FINAL/data/logs/deepseek-loop.log; echo -n \"last60_http200=\"; tail -n 60 \"$LOG\" | egrep -ic \"governor_execution_result.*httpStatus.:200\" || true; echo -n \"last60_provider_ok=\"; tail -n 60 \"$LOG\" | egrep -ic \"advisor_provider_ok\" || true'",
+			"isBackground": false
+		},
+		{
+			"label": "inspect-roadmap-server",
+			"type": "shell",
+			"command": "ssh -o StrictHostKeyChecking=no root@204.168.230.142 'python3 -c \"import json, pathlib; p=pathlib.Path(\\\"/var/www/unicorn/UNICORN_FINAL/data/roadmap.json\\\"); d=json.loads(p.read_text()) if p.exists() else {}; print(\\\"exists=\\\",p.exists()); print(\\\"currentPhase=\\\",d.get(\\\"currentPhase\\\")); print(\\\"vision=\\\",str(d.get(\\\"vision\\\",\\\"\\\"))[:140]); print(\\\"open_objectives=\\\",len([o for o in d.get(\\\"objectives\\\",[]) if o.get(\\\"status\\\")!=\\\"done\\\"]))\"'",
+			"isBackground": false
+		},
+		{
+			"label": "check-deepseek-admin-status",
+			"type": "shell",
+			"command": "ssh -o StrictHostKeyChecking=no root@204.168.230.142 'TOK=$(grep -E \"^DEEPSEEK_LOOP_ADMIN_TOKEN=\" /var/www/unicorn/UNICORN_FINAL/.env | tail -n1 | cut -d= -f2-); curl -sS -H \"Authorization: Bearer $TOK\" http://127.0.0.1:3000/api/admin/deepseek/status | python3 -c \"import sys,json; d=json.load(sys.stdin); print(\\\"ok=\\\",d.get(\\\"ok\\\")); print(\\\"allowed_actions=\\\",len(d.get(\\\"allowedActions\\\",[]))); print(\\\"rate_hour=\\\",d.get(\\\"rateLimit\\\",{}).get(\\\"hour\\\")); print(\\\"rate_day=\\\",d.get(\\\"rateLimit\\\",{}).get(\\\"day\\\"))\"'",
+			"isBackground": false
+		},
+		{
+			"label": "raw-deepseek-status",
+			"type": "shell",
+			"command": "ssh -o StrictHostKeyChecking=no root@204.168.230.142 'TOK=$(grep -E \"^DEEPSEEK_LOOP_ADMIN_TOKEN=\" /var/www/unicorn/UNICORN_FINAL/.env | tail -n1 | cut -d= -f2-); curl -sS -i -H \"Authorization: Bearer $TOK\" http://127.0.0.1:3000/api/admin/deepseek/status | head -n 20'",
+			"isBackground": false
+		},
+		{
+			"label": "resolve-admin-token-and-status",
+			"type": "shell",
+			"command": "ssh -o StrictHostKeyChecking=no root@204.168.230.142 'python3 - <<\"PY\"\nfrom pathlib import Path\nimport subprocess\np=Path(\"/var/www/unicorn/UNICORN_FINAL/.env\")\ntok=\"\"\nfor line in p.read_text().splitlines():\n    if line.startswith(\"DEEPSEEK_LOOP_ADMIN_TOKEN=\"):\n        tok=line.split(\"=\",1)[1].strip().strip(\"\\\"'\")\nprint(\"token_len\",len(tok))\nres=subprocess.check_output([\"curl\",\"-sS\",\"-i\",\"-H\",f\"Authorization: Bearer {tok}\",\"http://127.0.0.1:3000/api/admin/deepseek/status\"],text=True)\nprint(\"\\n\".join(res.splitlines()[:14]))\nPY'",
+			"isBackground": false
+		},
+		{
+			"label": "apply-autonomous-mandate-server",
+			"type": "shell",
+			"command": "chmod +x /Users/ionutvladoi/Desktop/generate-unicorn/tmp/configure_autonomous_mandate_remote.sh && scp -o StrictHostKeyChecking=no /Users/ionutvladoi/Desktop/generate-unicorn/tmp/configure_autonomous_mandate_remote.sh root@204.168.230.142:/tmp/configure_autonomous_mandate_remote.sh && ssh -o StrictHostKeyChecking=no root@204.168.230.142 'bash /tmp/configure_autonomous_mandate_remote.sh'",
+			"isBackground": false
+		},
+		{
+			"label": "verify-mandate-active",
+			"type": "shell",
+			"command": "ssh -o StrictHostKeyChecking=no root@204.168.230.142 'systemctl is-active deepseek-loop; python3 -c \"import json; d=json.load(open(\\\"/var/www/unicorn/UNICORN_FINAL/data/roadmap.json\\\")); print(\\\"phase=\\\",d.get(\\\"currentPhase\\\")); print(\\\"open=\\\",len([o for o in d.get(\\\"objectives\\\",[]) if o.get(\\\"status\\\")!=\\\"done\\\"])); print(\\\"top=\\\",[o.get(\\\"id\\\") for o in d.get(\\\"objectives\\\",[])[:3]])\"; echo -n \"queue_lines=\"; wc -l /var/www/unicorn/UNICORN_FINAL/data/deepseek-commands.jsonl | awk \"{print \\$1}\"; echo \"recent:\"; tail -n 120 /var/www/unicorn/UNICORN_FINAL/data/logs/deepseek-loop.log | egrep -i \"operatorCommand|roadmap|recommendation_received|governor_execution_result|run_test|code_proposal|prices_sync|checkout_fix\" | tail -n 25'",
+			"isBackground": false
+		},
+		{
+			"label": "verify-core-numbers",
+			"type": "shell",
+			"command": "ssh -o StrictHostKeyChecking=no root@204.168.230.142 'echo active=$(systemctl is-active deepseek-loop); python3 -c \"import json; d=json.load(open(\\\"/var/www/unicorn/UNICORN_FINAL/data/roadmap.json\\\")); print(\\\"open=\\\"+str(len([o for o in d.get(\\\"objectives\\\",[]) if o.get(\\\"status\\\")!=\\\"done\\\"])))\"; echo last20_200=$(tail -n 20 /var/www/unicorn/UNICORN_FINAL/data/logs/deepseek-loop.log | egrep -ic \"governor_execution_result.*httpStatus.:200\" || true); echo last20_rec=$(tail -n 20 /var/www/unicorn/UNICORN_FINAL/data/logs/deepseek-loop.log | egrep -ic \"recommendation_received\" || true)'",
+			"isBackground": false
+		},
+		{
+			"label": "recover-and-check",
+			"type": "shell",
+			"command": "zsh",
+			"args": [
+				"-lc",
+				"echo TASK_OK"
+			],
+			"isBackground": false
+		},
+		{
+			"label": "set-live-github-token",
+			"type": "shell",
+			"command": "zsh",
+			"args": [
+				"-lc",
+				"set -e\nTOKEN=$(printf 'protocol=https\\nhost=github.com\\n\\n' | git credential fill 2>/dev/null | sed -n 's/^password=//p' | head -n1)\nif [[ -z \"$TOKEN\" ]]; then\n  echo LOCAL_GITHUB_TOKEN_MISSING\n  exit 0\nfi\necho LOCAL_GITHUB_TOKEN_FOUND len=${#TOKEN}\nprintf '%s' \"$TOKEN\" | base64 > /tmp/gh_token.b64\nscp -o StrictHostKeyChecking=no /tmp/gh_token.b64 root@204.168.230.142:/tmp/gh_token.b64 >/dev/null\nrm -f /tmp/gh_token.b64\nssh -o StrictHostKeyChecking=no root@204.168.230.142 \"python3 - <<'PY'\nfrom pathlib import Path\nimport base64\nenv_path = Path('/var/www/unicorn/UNICORN_FINAL/.env')\nb64_path = Path('/tmp/gh_token.b64')\nif not b64_path.exists():\n    print('REMOTE_B64_MISSING')\n    raise SystemExit(1)\ntoken = base64.b64decode(b64_path.read_text().strip()).decode('utf-8','ignore').strip()\nif not token:\n    print('REMOTE_TOKEN_EMPTY')\n    raise SystemExit(1)\ntext = env_path.read_text() if env_path.exists() else ''\nlines = [ln for ln in text.splitlines() if not ln.startswith('GITHUB_TOKEN=')]\nlines.append('GITHUB_TOKEN=' + token)\nenv_path.write_text('\\\\n'.join(lines) + '\\\\n')\nb64_path.unlink(missing_ok=True)\nprint('GITHUB_TOKEN_SET len=' + str(len(token)))\nPY\"\nssh -o StrictHostKeyChecking=no root@204.168.230.142 'systemctl restart unicorn-rescue-backend && systemctl restart deepseek-loop && sleep 2 && echo backend=$(systemctl is-active unicorn-rescue-backend) loop=$(systemctl is-active deepseek-loop)'\nssh -o StrictHostKeyChecking=no root@204.168.230.142 \"grep -E '^GITHUB_TOKEN=' /var/www/unicorn/UNICORN_FINAL/.env | sed 's/=.*/=<set>/'\"\n"
+			],
+			"isBackground": false
+		},
+		{
+			"label": "extract-local-gh-token",
+			"type": "shell",
+			"command": "zsh",
+			"args": [
+				"-lc",
+				"TOKEN=$(printf 'protocol=https\\nhost=github.com\\n\\n' | git credential fill 2>/dev/null | sed -n 's/^password=//p' | head -n1); if [[ -z \"$TOKEN\" ]]; then echo LOCAL_GITHUB_TOKEN_MISSING; exit 0; fi; echo LOCAL_GITHUB_TOKEN_FOUND len=${#TOKEN}; printf '%s' \"$TOKEN\" | base64 > /tmp/gh_token.b64; echo LOCAL_B64_READY"
+			],
+			"isBackground": false
+		},
+		{
+			"label": "copy-token-and-script",
+			"type": "shell",
+			"command": "zsh",
+			"args": [
+				"-lc",
+				"if [[ ! -f /tmp/gh_token.b64 ]]; then echo LOCAL_B64_MISSING; exit 0; fi; scp -o StrictHostKeyChecking=no /tmp/gh_token.b64 root@204.168.230.142:/tmp/gh_token.b64 >/dev/null; scp -o StrictHostKeyChecking=no /Users/ionutvladoi/Desktop/generate-unicorn/tmp/set_github_token_remote.py root@204.168.230.142:/tmp/set_github_token_remote.py >/dev/null; rm -f /tmp/gh_token.b64; echo COPIED_TO_SERVER"
+			],
+			"isBackground": false
+		},
+		{
+			"label": "apply-live-gh-token",
+			"type": "shell",
+			"command": "zsh",
+			"args": [
+				"-lc",
+				"ssh -o StrictHostKeyChecking=no root@204.168.230.142 'python3 /tmp/set_github_token_remote.py; systemctl restart unicorn-rescue-backend; systemctl restart deepseek-loop; sleep 2; echo backend=$(systemctl is-active unicorn-rescue-backend) loop=$(systemctl is-active deepseek-loop); grep -E \"^GITHUB_TOKEN=\" /var/www/unicorn/UNICORN_FINAL/.env | sed \"s/=.*/=<set>/\"'"
+			],
+			"isBackground": false
+		},
+		{
+			"label": "run-remote-token-script",
+			"type": "shell",
+			"command": "zsh",
+			"args": [
+				"-lc",
+				"ssh -o StrictHostKeyChecking=no root@204.168.230.142 python3 /tmp/set_github_token_remote.py"
+			],
+			"isBackground": false
+		},
+		{
+			"label": "server-token-key-scan",
+			"type": "shell",
+			"command": "zsh",
+			"args": [
+				"-lc",
+				"ssh -o StrictHostKeyChecking=no root@204.168.230.142 \"grep -R --line-number -E '^(GITHUB_TOKEN|GH_PAT|GH_TOKEN|GITHUB_TOKEN_SYNC)=' /var/www/unicorn /root /etc 2>/dev/null | head -n 200 | sed 's/=.*/=<set>/'\""
+			],
+			"isBackground": false
+		}
+	]
+}

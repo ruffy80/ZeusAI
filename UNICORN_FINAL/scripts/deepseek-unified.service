@@ -1,0 +1,81 @@
+[Unit]
+Description=DeepSeek Unified Daemon — Maximum Power Agent for zeusai.pro
+Documentation=https://github.com/vladoi-ionut/generate-unicorn
+After=network-online.target unicorn-backend.service
+Wants=network-online.target
+StartLimitIntervalSec=300
+StartLimitBurst=5
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/var/www/unicorn/UNICORN_FINAL
+
+# ── Enable flags ─────────────────────────────────────────────────────────────
+# DEEPSEEK_UNIFIED_ENABLED=1  → activates the daemon (required)
+# DEEPSEEK_LOOP_EXECUTE=1     → enables execution through governor (advisory-only if omitted)
+# DEEPSEEK_UNIFIED_GIT_PUSH=1 → auto-pushes proposals as draft PR on GitHub
+Environment=DEEPSEEK_UNIFIED_ENABLED=1
+Environment=DEEPSEEK_LOOP_EXECUTE=1
+
+# ── Load secrets from .env ────────────────────────────────────────────────────
+EnvironmentFile=-/var/www/unicorn/UNICORN_FINAL/.env
+
+# ── Intervals (adaptive: fast first hour, normal, slow when stable) ────────
+Environment=DEEPSEEK_LOOP_FAST_INTERVAL_MS=30000
+Environment=DEEPSEEK_LOOP_INTERVAL_MS=60000
+Environment=DEEPSEEK_LOOP_FAST_WINDOW_MS=3600000
+Environment=DEEPSEEK_LOOP_SLOW_INTERVAL_MS=120000
+Environment=DEEPSEEK_LOOP_STABLE_WINDOW_HOURS=24
+
+# ── Circuit breaker ──────────────────────────────────────────────────────────
+Environment=DEEPSEEK_LOOP_FAILURE_THRESHOLD=3
+Environment=DEEPSEEK_LOOP_BACKOFF_MS=1800000
+
+# ── Endpoints ────────────────────────────────────────────────────────────────
+Environment=DEEPSEEK_LOOP_BACKEND_URL=http://127.0.0.1:3000
+Environment=DEEPSEEK_LOOP_PRICING_URL=https://zeusai.pro/pricing
+
+# ── LLM models (keys loaded from .env) ───────────────────────────────────────
+Environment=DEEPSEEK_MODEL=deepseek-reasoner
+Environment=OPENROUTER_DEEPSEEK_MODEL=deepseek/deepseek-v4-flash:free
+Environment=GROQ_DEEPSEEK_MODEL=qwen/qwen3-32b
+
+# ── Advisor token budget ─────────────────────────────────────────────────────
+Environment=DEEPSEEK_LOOP_TEMPERATURE=0.0
+Environment=DEEPSEEK_LOOP_MAX_TOKENS=500
+Environment=DEEPSEEK_LOOP_MAX_COMPLETION_TOKENS=200
+
+# ── Paths ────────────────────────────────────────────────────────────────────
+Environment=DEEPSEEK_LOOP_AUTONOMY_ROOT=/opt/unicorn
+Environment=DEEPSEEK_LOOP_SANDBOX_ROOT=/opt/unicorn/sandbox
+Environment=DEEPSEEK_LOOP_ACTION_LOG=/var/log/autonomous_actions.log
+Environment=DEEPSEEK_LOOP_ERROR_LOG=/var/log/unicorn/error.log
+
+# ── Multi-tick memory ────────────────────────────────────────────────────────
+Environment=DEEPSEEK_UNIFIED_MEMORY_SIZE=10
+
+# ── Git push proposals config (optional — enable with DEEPSEEK_UNIFIED_GIT_PUSH=1) ──
+# Environment=DEEPSEEK_UNIFIED_GIT_PUSH=1
+# Environment=DEEPSEEK_UNIFIED_GITHUB_REPO=vladoi-ionut/generate-unicorn
+# Environment=DEEPSEEK_UNIFIED_GIT_ROOT=/var/www/unicorn/UNICORN_FINAL
+
+ExecStart=/usr/bin/node /var/www/unicorn/UNICORN_FINAL/scripts/deepseek-unified.js
+
+# ── Restart policy ───────────────────────────────────────────────────────────
+# Exit 0 = disabled intentionally → do not restart.
+# Any other exit = restart after 10s.
+Restart=on-failure
+RestartSec=10
+
+# ── Resource limits (safe: no root, no new privs) ────────────────────────────
+NoNewPrivileges=false
+PrivateTmp=false
+
+# ── Logging ──────────────────────────────────────────────────────────────────
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=deepseek-unified
+
+[Install]
+WantedBy=multi-user.target

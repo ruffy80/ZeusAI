@@ -34,21 +34,22 @@ const { spawn } = require('child_process');
 const https = require('https');
 
 // -------- Configuration / Configurație ---------------------------------
-const RATE_LIMIT_PER_HOUR = parseInt(process.env.DEEPSEEK_GOVERNOR_HOURLY_LIMIT || '10', 10);
-const RATE_LIMIT_PER_DAY  = parseInt(process.env.DEEPSEEK_GOVERNOR_DAILY_LIMIT  || '30', 10);
+const RATE_LIMIT_PER_HOUR = parseInt(process.env.DEEPSEEK_GOVERNOR_HOURLY_LIMIT || '60', 10);
+const RATE_LIMIT_PER_DAY  = parseInt(process.env.DEEPSEEK_GOVERNOR_DAILY_LIMIT  || '200', 10);
 const RUN_TEST_TIMEOUT_MS = parseInt(process.env.DEEPSEEK_GOVERNOR_RUN_TEST_TIMEOUT_MS || '30000', 10);
 const LOG_PATH            = process.env.DEEPSEEK_GOVERNOR_LOG_PATH
                           || path.join(__dirname, '..', '..', 'data', 'logs', 'deepseek-governor.log');
 const LOG_MAX_BYTES       = parseInt(process.env.DEEPSEEK_GOVERNOR_LOG_MAX_BYTES || String(2 * 1024 * 1024), 10);
 
 // read_file safety envelope / Plicul de siguranță pentru read_file
-const READ_FILE_ROOT      = path.resolve(process.env.DEEPSEEK_GOVERNOR_READ_ROOT || path.join(__dirname, '..', '..'));
+const AUTONOMY_ROOT = path.resolve(process.env.DEEPSEEK_GOVERNOR_AUTONOMY_ROOT || '/opt/unicorn');
+const READ_FILE_ROOT      = path.resolve(process.env.DEEPSEEK_GOVERNOR_READ_ROOT || AUTONOMY_ROOT);
 const READ_FILE_MAX_BYTES = parseInt(process.env.DEEPSEEK_GOVERNOR_READ_MAX_BYTES || String(256 * 1024), 10);
-const READ_FILE_EXT_ALLOWLIST = Object.freeze(['.js', '.json', '.yaml', '.yml', '.log', '.md', '.txt', '.html', '.css']);
+const READ_FILE_EXT_ALLOWLIST = Object.freeze(['.js', '.mjs', '.cjs', '.json', '.yaml', '.yml', '.log', '.md', '.txt', '.html', '.css', '.sh', '.service', '.ini', '.conf', '.sql']);
 // Deny tokens: any path segment matching one of these is rejected outright.
 // Tokenuri interzise: orice segment de cale care se potrivește este respins.
 const READ_FILE_DENY_SEGMENTS = Object.freeze([
-  '.git', 'node_modules', '.ssh', '.npmrc', '.env',
+  '.git', '.ssh', '.npmrc', '.env',
   'secrets', 'private', 'credentials', 'id_rsa', 'id_ed25519',
 ]);
 // Substring deny list applied to the full relative path (case-insensitive).
@@ -85,10 +86,20 @@ const ALLOWED_ACTIONS = Object.freeze([
   'git_commit',
   'deploy',
   'github_clone_repo',
+  'github_read_repo',
+  'github_create_branch',
+  'github_commit_push',
   'github_create_pr',
+  'github_merge_pr',
+  'github_trigger_workflow',
+  'github_comment_issue',
   'merge_pr',
   'browse_github',
   'search_github',
+  'full_backup',
+  'restore_backup',
+  'analyze_logs',
+  'rollback_deploy',
   // Autonomous mode (write-only proposals — NO direct apply, audit-first):
   // Modul autonom (doar propuneri — fără aplicare directă, audit obligatoriu):
   'code_proposal',
@@ -122,17 +133,22 @@ const PROPOSAL_TARGET_DENY_SUFFIXES = Object.freeze([
 ]);
 
 // write_file safety envelope (strict sandbox) / Plic write_file (sandbox strict)
-const AUTONOMY_ROOT = path.resolve(process.env.DEEPSEEK_GOVERNOR_AUTONOMY_ROOT || '/opt/unicorn');
 const WRITE_FILE_ROOT = path.resolve(process.env.DEEPSEEK_GOVERNOR_WRITE_ROOT || AUTONOMY_ROOT);
 const WRITE_FILE_MAX_BYTES = parseInt(process.env.DEEPSEEK_GOVERNOR_WRITE_MAX_BYTES || String(64 * 1024), 10);
-const SAFE_SCRIPT_ROOT = path.resolve(process.env.DEEPSEEK_GOVERNOR_SAFE_SCRIPT_ROOT || path.join(AUTONOMY_ROOT, 'scripts'));
+const SAFE_SCRIPT_ROOT = path.resolve(process.env.DEEPSEEK_GOVERNOR_SAFE_SCRIPT_ROOT || AUTONOMY_ROOT);
 const SANDBOX_ROOT = path.resolve(process.env.DEEPSEEK_GOVERNOR_SANDBOX_ROOT || path.join(AUTONOMY_ROOT, 'sandbox'));
 const AUTONOMOUS_ACTION_LOG_PATH = process.env.DEEPSEEK_GOVERNOR_ACTION_LOG_PATH || '/var/log/autonomous_actions.log';
 const POST_MUTATION_SCRIPT = path.resolve(process.env.DEEPSEEK_GOVERNOR_POST_MUTATION_SCRIPT || path.join(SAFE_SCRIPT_ROOT, 'post-mutation-validate.sh'));
 const DELETE_FILE_ROOTS = Object.freeze((process.env.DEEPSEEK_GOVERNOR_DELETE_ROOTS
   ? process.env.DEEPSEEK_GOVERNOR_DELETE_ROOTS.split(':').filter(Boolean)
-  : [path.join(AUTONOMY_ROOT, 'temp'), path.join(AUTONOMY_ROOT, 'old_backups'), path.join(AUTONOMY_ROOT, 'logs-old')])
+  : [AUTONOMY_ROOT])
   .map((p) => path.resolve(p)));
+const DELETE_FILE_PROTECTED_PREFIXES = Object.freeze([
+  path.resolve(AUTONOMY_ROOT, '.git'),
+  path.resolve(AUTONOMY_ROOT, '.ssh'),
+  path.resolve(AUTONOMY_ROOT, 'node_modules'),
+  path.resolve(AUTONOMY_ROOT, 'current'),
+]);
 
 // Roadmap location (read-write via roadmap_update action) / Locația roadmap-ului
 const ROADMAP_PATH = process.env.DEEPSEEK_GOVERNOR_ROADMAP_PATH
@@ -235,6 +251,10 @@ function _resolveWithinRoot(root, rawPath, { mustExist = false } = {}) {
 }
 
 function _allowedDeleteRootFor(target) {
+  for (const protectedPrefix of DELETE_FILE_PROTECTED_PREFIXES) {
+    const relProtected = path.relative(protectedPrefix, target);
+    if (!relProtected.startsWith('..') && !path.isAbsolute(relProtected)) return null;
+  }
   for (const root of DELETE_FILE_ROOTS) {
     const rel = path.relative(root, target);
     if (!rel.startsWith('..') && !path.isAbsolute(rel)) return root;
@@ -248,21 +268,27 @@ function _collectCleanupCandidates() {
   for (const root of DELETE_FILE_ROOTS) {
     try {
       if (!fs.existsSync(root)) continue;
-      const entries = fs.readdirSync(root).slice(0, 200);
-      for (const entry of entries) {
-        const full = path.join(root, entry);
-        const stat = fs.statSync(full);
-        if (!stat.isFile()) continue;
-        const ageDays = (now - stat.mtimeMs) / (24 * 60 * 60 * 1000);
-        const threshold = root.endsWith('old_backups') ? 30 : 7;
-        if (ageDays < threshold) continue;
-        candidates.push({
-          path: full,
-          ageDays: +ageDays.toFixed(1),
-          bytes: stat.size,
-          reason: root.endsWith('old_backups') ? 'backup_older_than_30d' : 'stale_temp_or_log',
-        });
-        if (candidates.length >= 25) return candidates;
+      const dirsToScan = (root === AUTONOMY_ROOT)
+        ? ['temp', 'old_backups', 'logs-old', 'contrib'].map((d) => path.join(root, d)).filter((d) => fs.existsSync(d))
+        : [root];
+      for (const scanDir of dirsToScan) {
+        const entries = fs.readdirSync(scanDir).slice(0, 200);
+        for (const entry of entries) {
+          const full = path.join(scanDir, entry);
+          if (!_allowedDeleteRootFor(full)) continue;
+          const stat = fs.statSync(full);
+          if (!stat.isFile()) continue;
+          const ageDays = (now - stat.mtimeMs) / (24 * 60 * 60 * 1000);
+          const threshold = scanDir.endsWith('old_backups') ? 30 : 7;
+          if (ageDays < threshold) continue;
+          candidates.push({
+            path: full,
+            ageDays: +ageDays.toFixed(1),
+            bytes: stat.size,
+            reason: scanDir.endsWith('old_backups') ? 'backup_older_than_30d' : 'stale_temp_or_log',
+          });
+          if (candidates.length >= 25) return candidates;
+        }
       }
     } catch (_) { /* best-effort */ }
   }
@@ -542,13 +568,13 @@ async function _action_execute_safe_script(params) {
   const resolved = _resolveWithinRoot(SAFE_SCRIPT_ROOT, rawScript, { mustExist: true });
   if (!resolved.ok) return { ok: false, action: 'execute_safe_script', reason: resolved.reason };
   const ext = path.extname(resolved.abs).toLowerCase();
-  if (!['.sh', '.js'].includes(ext)) return { ok: false, action: 'execute_safe_script', reason: 'script_extension_not_allowed' };
+  if (!['.sh', '.bash', '.js', '.mjs', '.cjs'].includes(ext)) return { ok: false, action: 'execute_safe_script', reason: 'script_extension_not_allowed' };
   const stat = fs.statSync(resolved.abs);
   if (!stat.isFile()) return { ok: false, action: 'execute_safe_script', reason: 'not_a_file' };
   const cmd = ext === '.js' ? process.execPath : resolved.abs;
-  const cmdArgs = ext === '.js' ? [resolved.abs, ...args] : args;
+  const cmdArgs = ['.js', '.mjs', '.cjs'].includes(ext) ? [resolved.abs, ...args] : args;
   const result = await _runCommand(cmd, cmdArgs, {
-    cwd: SAFE_SCRIPT_ROOT,
+    cwd: path.dirname(resolved.abs),
     env: { ...process.env, AUTONOMY_ROOT, SANDBOX_ROOT },
     timeoutMs: Math.max(RUN_TEST_TIMEOUT_MS, 120000),
   });
@@ -644,21 +670,77 @@ function _githubRequestJson(method, apiPath, bodyObj) {
 function _action_github_clone_repo(params) {
   const repo = _sanitizeGitHubRepo(params && params.repo);
   const branch = params && typeof params.branch === 'string' ? params.branch.slice(0, 120) : 'main';
-  const destination = params && typeof params.destination === 'string' ? params.destination.slice(0, 240) : '';
+  const destination = params && typeof params.destination === 'string' ? params.destination.slice(0, 240) : path.join(AUTONOMY_ROOT, 'contrib', (repo || '').replace('/', '_'));
   if (!repo) return { ok: false, action: 'github_clone_repo', reason: 'invalid_repo' };
-  return {
-    ok: true,
+  const resolved = _resolveWithinRoot(AUTONOMY_ROOT, destination.startsWith('/opt/unicorn/') ? destination.replace('/opt/unicorn/', '') : destination);
+  if (!resolved.ok) return { ok: false, action: 'github_clone_repo', reason: resolved.reason };
+  const cloneResult = _runCommand('git', ['clone', '--depth', '1', '--branch', branch, `https://github.com/${repo}.git`, resolved.abs], {
+    cwd: AUTONOMY_ROOT,
+    timeoutMs: 120000,
+  });
+  return cloneResult.then((result) => ({
+    ok: !!result.ok,
     action: 'github_clone_repo',
-    mode: 'intent_logged',
-    note: 'clone intent recorded; no git execution from governor process',
     repo,
     branch,
-    destination,
+    destination: resolved.abs,
+    ...result,
+    timestamp: new Date().toISOString(),
+  }));
+}
+
+async function _action_github_create_branch(params) {
+  const repo = _sanitizeGitHubRepo(params && params.repo);
+  const branch = params && typeof params.branch === 'string' ? params.branch.trim().slice(0, 120) : '';
+  const from = params && typeof params.from === 'string' ? params.from.trim().slice(0, 120) : 'main';
+  if (!repo || !branch) return { ok: false, action: 'github_create_branch', reason: 'repo_branch_required' };
+  if (!GITHUB_TOKEN) return { ok: false, action: 'github_create_branch', reason: 'missing_github_token' };
+  const ref = await _githubRequestJson('GET', `/repos/${repo}/git/ref/heads/${encodeURIComponent(from)}`);
+  if (!ref.ok || !ref.data || !ref.data.object || !ref.data.object.sha) {
+    return { ok: false, action: 'github_create_branch', reason: 'source_branch_not_found', status: ref.status || 0, bodyPreview: ref.bodyPreview || '' };
+  }
+  const create = await _githubRequestJson('POST', `/repos/${repo}/git/refs`, {
+    ref: `refs/heads/${branch}`,
+    sha: ref.data.object.sha,
+  });
+  if (!create.ok) {
+    return { ok: false, action: 'github_create_branch', reason: 'create_branch_failed', status: create.status || 0, bodyPreview: create.bodyPreview || '' };
+  }
+  return { ok: true, action: 'github_create_branch', repo, branch, from, timestamp: new Date().toISOString() };
+}
+
+async function _action_github_commit_push(params) {
+  const repo = _sanitizeGitHubRepo(params && params.repo);
+  const branch = params && typeof params.branch === 'string' ? params.branch.trim().slice(0, 120) : 'main';
+  const filePath = params && typeof params.path === 'string' ? params.path.trim().replace(/^\/+/, '') : '';
+  const message = params && typeof params.message === 'string' ? params.message.slice(0, 240) : 'DeepSeek autonomous update';
+  const contentRaw = params && typeof params.content === 'string' ? params.content : '';
+  const isBase64 = params && params.encoding === 'base64';
+  const sha = params && typeof params.sha === 'string' ? params.sha.slice(0, 80) : undefined;
+  if (!repo || !filePath || !contentRaw) return { ok: false, action: 'github_commit_push', reason: 'repo_path_content_required' };
+  if (!GITHUB_TOKEN) return { ok: false, action: 'github_commit_push', reason: 'missing_github_token' };
+  const contentB64 = isBase64 ? contentRaw : Buffer.from(contentRaw, 'utf8').toString('base64');
+  const write = await _githubRequestJson('PUT', `/repos/${repo}/contents/${filePath}`, {
+    message,
+    content: contentB64,
+    branch,
+    ...(sha ? { sha } : {}),
+  });
+  if (!write.ok) {
+    return { ok: false, action: 'github_commit_push', reason: 'commit_push_failed', status: write.status || 0, bodyPreview: write.bodyPreview || '' };
+  }
+  return {
+    ok: true,
+    action: 'github_commit_push',
+    repo,
+    branch,
+    path: filePath,
+    commitSha: write.data && write.data.commit && write.data.commit.sha ? write.data.commit.sha : null,
     timestamp: new Date().toISOString(),
   };
 }
 
-function _action_github_create_pr(params) {
+async function _action_github_create_pr(params) {
   const repo = _sanitizeGitHubRepo(params && params.repo);
   const head = params && typeof params.head === 'string' ? params.head.slice(0, 180) : '';
   const base = params && typeof params.base === 'string' ? params.base.slice(0, 180) : 'main';
@@ -667,42 +749,117 @@ function _action_github_create_pr(params) {
   if (!repo || !head || !title) {
     return { ok: false, action: 'github_create_pr', reason: 'repo_head_title_required' };
   }
+  if (!GITHUB_TOKEN) return { ok: false, action: 'github_create_pr', reason: 'missing_github_token' };
+  const pr = await _githubRequestJson('POST', `/repos/${repo}/pulls`, {
+    title,
+    head,
+    base,
+    body,
+  });
+  if (!pr.ok) {
+    return {
+      ok: false,
+      action: 'github_create_pr',
+      reason: 'create_pr_failed',
+      status: pr.status || 0,
+      bodyPreview: pr.bodyPreview || '',
+    };
+  }
   return {
     ok: true,
     action: 'github_create_pr',
-    mode: 'intent_logged',
-    note: 'PR intent recorded; no direct GitHub write performed by governor',
     repo,
     head,
     base,
     title,
-    bodyPreview: body.slice(0, 280),
+    number: pr.data && pr.data.number ? pr.data.number : null,
+    htmlUrl: pr.data && pr.data.html_url ? pr.data.html_url : null,
     timestamp: new Date().toISOString(),
   };
 }
 
-function _action_merge_pr(params) {
+async function _action_github_merge_pr(params) {
   const repo = _sanitizeGitHubRepo(params && params.repo);
   const pullNumber = parseInt(params && params.pullNumber, 10);
   const mergeMethod = params && typeof params.mergeMethod === 'string' ? params.mergeMethod.toLowerCase() : 'squash';
   const commitTitle = params && typeof params.commitTitle === 'string' ? params.commitTitle.slice(0, 240) : '';
   if (!repo || !Number.isFinite(pullNumber) || pullNumber <= 0) {
-    return { ok: false, action: 'merge_pr', reason: 'invalid_repo_or_pull_number' };
+    return { ok: false, action: 'github_merge_pr', reason: 'invalid_repo_or_pull_number' };
   }
   if (!['merge', 'squash', 'rebase'].includes(mergeMethod)) {
-    return { ok: false, action: 'merge_pr', reason: 'invalid_merge_method', allowed: ['merge', 'squash', 'rebase'] };
+    return { ok: false, action: 'github_merge_pr', reason: 'invalid_merge_method', allowed: ['merge', 'squash', 'rebase'] };
+  }
+  if (!GITHUB_TOKEN) return { ok: false, action: 'github_merge_pr', reason: 'missing_github_token' };
+  const merged = await _githubRequestJson('PUT', `/repos/${repo}/pulls/${pullNumber}/merge`, {
+    merge_method: mergeMethod,
+    ...(commitTitle ? { commit_title: commitTitle } : {}),
+  });
+  if (!merged.ok) {
+    return {
+      ok: false,
+      action: 'github_merge_pr',
+      reason: 'merge_failed',
+      status: merged.status || 0,
+      bodyPreview: merged.bodyPreview || '',
+    };
   }
   return {
     ok: true,
-    action: 'merge_pr',
-    mode: 'intent_logged',
-    note: 'merge intent recorded; no direct GitHub write performed by governor',
+    action: 'github_merge_pr',
     repo,
     pullNumber,
     mergeMethod,
     commitTitle,
+    merged: !!(merged.data && merged.data.merged),
     timestamp: new Date().toISOString(),
   };
+}
+
+function _action_merge_pr(params) {
+  return _action_github_merge_pr(params);
+}
+
+async function _action_github_trigger_workflow(params) {
+  const repo = _sanitizeGitHubRepo(params && params.repo);
+  const workflowId = params && typeof params.workflowId === 'string' ? params.workflowId.slice(0, 180) : '';
+  const ref = params && typeof params.ref === 'string' ? params.ref.slice(0, 120) : 'main';
+  const inputs = (params && params.inputs && typeof params.inputs === 'object') ? params.inputs : undefined;
+  if (!repo || !workflowId) return { ok: false, action: 'github_trigger_workflow', reason: 'repo_workflow_required' };
+  if (!GITHUB_TOKEN) return { ok: false, action: 'github_trigger_workflow', reason: 'missing_github_token' };
+  const run = await _githubRequestJson('POST', `/repos/${repo}/actions/workflows/${encodeURIComponent(workflowId)}/dispatches`, {
+    ref,
+    ...(inputs ? { inputs } : {}),
+  });
+  if (!run.ok && run.status !== 204) {
+    return { ok: false, action: 'github_trigger_workflow', reason: 'workflow_dispatch_failed', status: run.status || 0, bodyPreview: run.bodyPreview || '' };
+  }
+  return { ok: true, action: 'github_trigger_workflow', repo, workflowId, ref, timestamp: new Date().toISOString() };
+}
+
+async function _action_github_comment_issue(params) {
+  const repo = _sanitizeGitHubRepo(params && params.repo);
+  const issueNumber = parseInt(params && params.issueNumber, 10);
+  const body = params && typeof params.body === 'string' ? params.body.slice(0, 8000) : '';
+  if (!repo || !Number.isFinite(issueNumber) || issueNumber <= 0 || !body) {
+    return { ok: false, action: 'github_comment_issue', reason: 'repo_issue_body_required' };
+  }
+  if (!GITHUB_TOKEN) return { ok: false, action: 'github_comment_issue', reason: 'missing_github_token' };
+  const comment = await _githubRequestJson('POST', `/repos/${repo}/issues/${issueNumber}/comments`, { body });
+  if (!comment.ok) {
+    return { ok: false, action: 'github_comment_issue', reason: 'comment_failed', status: comment.status || 0, bodyPreview: comment.bodyPreview || '' };
+  }
+  return {
+    ok: true,
+    action: 'github_comment_issue',
+    repo,
+    issueNumber,
+    htmlUrl: comment.data && comment.data.html_url ? comment.data.html_url : null,
+    timestamp: new Date().toISOString(),
+  };
+}
+
+async function _action_github_read_repo(params) {
+  return _action_browse_github(params);
 }
 
 async function _action_browse_github(params) {
@@ -873,6 +1030,123 @@ async function _action_checkout_fix() {
     note: 'read-only health check; no mutations performed',
     timestamp: new Date().toISOString(),
   };
+}
+
+async function _action_full_backup(params) {
+  const label = params && typeof params.label === 'string' ? params.label.replace(/[^a-zA-Z0-9._-]/g, '-').slice(0, 80) : 'auto';
+  const ts = new Date().toISOString().replace(/[:.]/g, '-');
+  const backupDir = path.join(AUTONOMY_ROOT, 'old_backups');
+  const archiveName = `unicorn-${label}-${ts}.tar.gz`;
+  const archivePath = path.join(backupDir, archiveName);
+  try { fs.mkdirSync(backupDir, { recursive: true }); } catch (_) { /* noop */ }
+  const result = await _runCommand('tar', ['-czf', archivePath, '-C', AUTONOMY_ROOT, '.'], {
+    cwd: AUTONOMY_ROOT,
+    timeoutMs: 300000,
+  });
+  return {
+    ok: !!result.ok,
+    action: 'full_backup',
+    backupPath: archivePath,
+    ...result,
+    timestamp: new Date().toISOString(),
+  };
+}
+
+async function _action_restore_backup(params) {
+  const backupRel = params && typeof params.backupPath === 'string' ? params.backupPath.trim() : '';
+  const confirm = params && params.confirm === true;
+  if (!backupRel) return { ok: false, action: 'restore_backup', reason: 'backup_path_required' };
+  if (!confirm) return { ok: false, action: 'restore_backup', reason: 'confirm_required_for_restore' };
+  const resolved = _resolveWithinRoot(path.join(AUTONOMY_ROOT, 'old_backups'), backupRel, { mustExist: true });
+  if (!resolved.ok) return { ok: false, action: 'restore_backup', reason: resolved.reason };
+  const restoreDir = path.join(AUTONOMY_ROOT, 'restores', `restore-${Date.now()}`);
+  try { fs.mkdirSync(restoreDir, { recursive: true }); } catch (_) { /* noop */ }
+  const result = await _runCommand('tar', ['-xzf', resolved.abs, '-C', restoreDir], {
+    cwd: AUTONOMY_ROOT,
+    timeoutMs: 300000,
+  });
+  return {
+    ok: !!result.ok,
+    action: 'restore_backup',
+    backupPath: resolved.abs,
+    restoreDir,
+    mode: 'restored_to_staging',
+    ...result,
+    timestamp: new Date().toISOString(),
+  };
+}
+
+function _action_analyze_logs(params) {
+  const requested = params && typeof params.path === 'string' ? params.path.trim() : '/var/log';
+  const target = path.isAbsolute(requested) ? requested : path.join(AUTONOMY_ROOT, requested);
+  const maxLines = Math.max(20, Math.min(2000, parseInt(params && params.maxLines, 10) || 400));
+  const allowedRoots = [AUTONOMY_ROOT, '/var/log'];
+  const isAllowed = allowedRoots.some((root) => {
+    const rel = path.relative(path.resolve(root), path.resolve(target));
+    return !rel.startsWith('..') && !path.isAbsolute(rel);
+  });
+  if (!isAllowed) return { ok: false, action: 'analyze_logs', reason: 'path_outside_allowed_roots', allowedRoots };
+  if (!fs.existsSync(target)) return { ok: false, action: 'analyze_logs', reason: 'not_found', path: target };
+  const stat = fs.statSync(target);
+  if (!stat.isFile()) return { ok: false, action: 'analyze_logs', reason: 'not_a_file', path: target };
+  const content = fs.readFileSync(target, 'utf8');
+  const lines = content.split('\n').slice(-maxLines);
+  const patterns = {
+    error: /error|fatal|exception|panic/i,
+    warn: /warn|warning/i,
+    timeout: /timeout|timed out|econnreset|econnrefused/i,
+    auth: /401|403|unauthorized|forbidden|token/i,
+  };
+  const counters = Object.fromEntries(Object.keys(patterns).map((k) => [k, 0]));
+  for (const line of lines) {
+    for (const [key, rx] of Object.entries(patterns)) {
+      if (rx.test(line)) counters[key] += 1;
+    }
+  }
+  return {
+    ok: true,
+    action: 'analyze_logs',
+    path: target,
+    scannedLines: lines.length,
+    counters,
+    tail: lines.slice(-120),
+    timestamp: new Date().toISOString(),
+  };
+}
+
+function _action_rollback_deploy(params) {
+  const confirm = params && params.confirm === true;
+  if (!confirm) return { ok: false, action: 'rollback_deploy', reason: 'confirm_required_for_rollback' };
+  const releasesRoot = '/var/www/unicorn/releases';
+  const currentLink = '/var/www/unicorn/current';
+  if (!fs.existsSync(releasesRoot) || !fs.existsSync(currentLink)) {
+    return { ok: false, action: 'rollback_deploy', reason: 'release_structure_missing' };
+  }
+  const currentTarget = fs.realpathSync(currentLink);
+  const releases = fs.readdirSync(releasesRoot)
+    .map((name) => ({
+      name,
+      full: path.join(releasesRoot, name),
+      mtime: fs.statSync(path.join(releasesRoot, name)).mtimeMs,
+    }))
+    .filter((r) => fs.statSync(r.full).isDirectory())
+    .sort((a, b) => b.mtime - a.mtime);
+  const previous = releases.find((r) => r.full !== currentTarget);
+  if (!previous) return { ok: false, action: 'rollback_deploy', reason: 'no_previous_release' };
+  try {
+    fs.unlinkSync(currentLink);
+    fs.symlinkSync(previous.full, currentLink);
+    return {
+      ok: true,
+      action: 'rollback_deploy',
+      from: currentTarget,
+      to: previous.full,
+      note: 'pm2/systemctl restart may still be required by supervisor',
+      timestamp: new Date().toISOString(),
+    };
+  } catch (e) {
+    return { ok: false, action: 'rollback_deploy', reason: 'rollback_failed', error: String(e && e.message || e).slice(0, 200) };
+  }
 }
 
 function _action_run_test() {
@@ -1206,11 +1480,21 @@ async function dispatch({ action, params, requestId, actor, ip }) {
       case 'restart_service': result = _action_restart_service(params); break;
       case 'git_commit':      result = _action_git_commit(params); break;
       case 'deploy':          result = _action_deploy(params); break;
-      case 'github_clone_repo': result = _action_github_clone_repo(params); break;
-      case 'github_create_pr':  result = _action_github_create_pr(params); break;
-      case 'merge_pr':          result = _action_merge_pr(params); break;
+      case 'github_clone_repo': result = await _action_github_clone_repo(params); break;
+      case 'github_read_repo':   result = await _action_github_read_repo(params); break;
+      case 'github_create_branch': result = await _action_github_create_branch(params); break;
+      case 'github_commit_push': result = await _action_github_commit_push(params); break;
+      case 'github_create_pr':  result = await _action_github_create_pr(params); break;
+      case 'github_merge_pr':   result = await _action_github_merge_pr(params); break;
+      case 'github_trigger_workflow': result = await _action_github_trigger_workflow(params); break;
+      case 'github_comment_issue': result = await _action_github_comment_issue(params); break;
+      case 'merge_pr':          result = await _action_merge_pr(params); break;
       case 'browse_github':     result = await _action_browse_github(params); break;
       case 'search_github':     result = await _action_search_github(params); break;
+      case 'full_backup':     result = await _action_full_backup(params); break;
+      case 'restore_backup':  result = await _action_restore_backup(params); break;
+      case 'analyze_logs':    result = _action_analyze_logs(params); break;
+      case 'rollback_deploy': result = _action_rollback_deploy(params); break;
       case 'code_proposal':   result = _action_code_proposal(params); break;
       case 'roadmap_update':  result = _action_roadmap_update(params); break;
       default:                result = { ok: false, reason: 'unreachable' };
