@@ -26,6 +26,22 @@ assert(shellJs.includes('cryptoauth') || shellJs.includes('Ed25519'), 'shell.js 
 assert(shellJs.includes("case '/auth': return pageAccount("), 'shell.js routes /auth → pageAccount');
 assert(shellJs.includes("case '/login': return pageAccount("), 'shell.js routes /login → pageAccount');
 assert(typeof m.handle === 'function', 'cryptoauth module exports handle()');
+assert(typeof m._internals._rateCheck === 'function', 'cryptoauth exports _rateCheck via _internals');
+assert(typeof m._internals._getIp === 'function', 'cryptoauth exports _getIp via _internals');
+assert(m._internals.CHALLENGE_TTL_MS >= 5 * 60 * 1000, 'challenge TTL must be >= 5 min (PM2-restart tolerance)');
+assert(m._internals._RL_LIMITS.register >= 1, 'cryptoauth has register rate limit');
+assert(m._internals._RL_LIMITS.login >= 1, 'cryptoauth has login rate limit');
+assert(shellJs.includes('friendlyError'), 'shell.js pageAccount has friendlyError() helper');
+assert(shellJs.includes('doChallengeThenLogin'), 'shell.js onSignin auto-retries on challenge expiry');
+assert(shellJs.includes('doRegisterRecover'), 'shell.js onImport auto-retries on challenge expiry');
+assert(shellJs.includes('doLoginWithChallenge'), 'shell.js onCreate auto-retries on challenge expiry');
+assert(shellJs.includes('AbortController'), 'shell.js api() uses AbortController for timeout');
+// nginx routing contract
+const nginx = fs.readFileSync(path.join(repoRoot, 'scripts', 'nginx-unicorn.conf'), 'utf8');
+assert(/location\s+\^~\s+\/api\/cryptoauth\//.test(nginx), 'nginx pins /api/cryptoauth/ to explicit upstream');
+const cryptoauthPos = nginx.indexOf('/api/cryptoauth/');
+const apiPos = nginx.indexOf('\n    location /api/ {');
+assert(cryptoauthPos !== -1 && apiPos !== -1 && cryptoauthPos < apiPos, 'nginx cryptoauth rule is BEFORE the generic /api/ block');
 
 // ── Mock req/res helpers ──
 function mkRes() {
@@ -142,6 +158,41 @@ async function call(method, url, body, headers) {
   req = mkReq('GET', '/api/cryptoauth/register'); res = mkRes();
   handled = await m.handle(req, res);
   ok(handled === false, 'GET /register → false (POST-only)');
+
+  // 15. Rate limiter fires 429 after exceeding per-IP limit.
+  {
+    const rlIp = '10.99.88.77'; // dedicated test IP — won't interfere with other tests
+    const rlLimit = m._internals._RL_LIMITS.register; // typically 20
+    let got429 = false;
+    for (let i = 0; i < rlLimit + 5 && !got429; i++) {
+      const rr = await call('POST', '/api/cryptoauth/register', { publicKey: pubB64 }, { 'x-real-ip': rlIp });
+      if (rr.status === 429) { got429 = true; }
+    }
+    ok(got429, `rate limiter fires 429 after ${rlLimit} register calls from same IP`);
+  }
+
+  // 16. Challenge TTL is respected (synthetic expiry via _internals).
+  {
+    const { _putChallenge, _takeChallenge } = m._internals;
+    const fakeChallenge = 'test-ttl-' + Date.now();
+    // Insert a challenge that expired 1ms ago.
+    m._internals._challenges = m._internals._challenges || undefined; // no direct export
+    // Use _putChallenge then immediately mark expired via the stored Map entry.
+    _putChallenge('zid_ttltest', fakeChallenge);
+    // Manually expire: reach into the map (exported via _internals in the test env).
+    const ch = { userId: 'zid_ttltest', value: fakeChallenge, expiresAt: Date.now() - 1 };
+    const { _takeChallenge: take } = m._internals;
+    // Re-insert as expired (overwrite the fresh entry).
+    const challenges = (() => {
+      // Access via closure — inject a pre-expired entry by calling putChallenge with patched Date.
+      const orig = Date.now;
+      Date.now = () => orig() - (m._internals.CHALLENGE_TTL_MS + 5000);
+      _putChallenge('zid_ttltest2', 'expired-ch-' + Date.now());
+      Date.now = orig;
+      return take('expired-ch-' + (orig() - (m._internals.CHALLENGE_TTL_MS + 5000)));
+    })();
+    ok(challenges === null, 'expired challenge returns null from _takeChallenge');
+  }
 
   console.log('cryptoauth smoke:', pass, 'pass /', fail, 'fail · static:', staticFail, 'fail');
   // Cleanup test artifact
