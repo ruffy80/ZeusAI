@@ -4331,9 +4331,12 @@ async function unicornHandler(req, res) {
           body.zeus-balanced.page-services::after, body.zeus-balanced.page-pricing::after{opacity:.28;background-position:right -70px bottom -14px;background-size:700px auto}
           body.zeus-cinematic.page-services::before, body.zeus-cinematic.page-pricing::before{opacity:.31;filter:saturate(1.16) contrast(1.12) brightness(.96)}
           body.zeus-cinematic.page-services::after, body.zeus-cinematic.page-pricing::after{opacity:.35;background-position:right -45px bottom -8px;background-size:760px auto}
-        header{padding:18px 32px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:16px;backdrop-filter:blur(8px)}
+        header{padding:18px 32px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;gap:16px;backdrop-filter:blur(8px)}
         header a{color:var(--fg);text-decoration:none;opacity:.8} header a:hover{opacity:1}
         h1{margin:0;font-size:18px;font-weight:600}
+        .site-nav{display:flex;flex:1;justify-content:flex-end;min-width:0}
+        .site-nav-links{display:flex;flex-wrap:wrap;justify-content:flex-end;gap:8px 14px;min-width:0}
+        .site-nav-links a{white-space:nowrap}
         main{padding:32px;max-width:1200px;margin:0 auto;position:relative;z-index:1}
         .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:16px;margin:24px 0}
         .card{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:18px;transition:transform .15s ease}
@@ -4354,6 +4357,7 @@ async function unicornHandler(req, res) {
         @media(max-width:920px){body::before{background-position:center top;opacity:.16}body::after{background-position:center bottom -80px;background-size:520px auto;opacity:.16}}
         @media(max-width:920px){body.zeus-balanced.page-services::before,body.zeus-balanced.page-pricing::before{opacity:.2}body.zeus-balanced.page-services::after,body.zeus-balanced.page-pricing::after{opacity:.2;background-position:center bottom -40px;background-size:480px auto}}
         @media(max-width:920px){body.zeus-cinematic.page-services::before,body.zeus-cinematic.page-pricing::before{opacity:.24}body.zeus-cinematic.page-services::after,body.zeus-cinematic.page-pricing::after{opacity:.26;background-position:center bottom -24px;background-size:520px auto}}
+        @media(max-width:760px){header{padding:16px;align-items:flex-start;flex-direction:column}main{padding:20px 16px}.site-nav{width:100%;justify-content:flex-start}.site-nav-links{justify-content:flex-start;gap:8px 12px}.site-nav-links a{padding:6px 10px;border:1px solid var(--border);border-radius:999px;background:rgba(255,255,255,0.03)}footer{padding:20px 16px}}
       `;
       const pageClass = 'page-' + String(urlPath || '/').replace(/^\/+/, '').replace(/[^a-z0-9_-]/gi, '-').replace(/-+/g, '-').replace(/^-|-$/g, '') || 'home';
       const zeusProfile = String(requestUrl.searchParams.get('zeus') || '').toLowerCase() === 'cinematic' ? 'zeus-cinematic' : 'zeus-balanced';
@@ -4367,8 +4371,9 @@ async function unicornHandler(req, res) {
         '<link rel="icon" href="/favicon.ico"/>',
         '<style>' + css + '</style>',
         '</head><body class="' + pageClass + ' ' + zeusProfile + '">',
-        '<header><h1>🦄 ZeusAI</h1>',
-        '<a href="/">Home</a> · <a href="/pricing">Pricing</a> · <a href="/revenue-share">Revenue Share</a> · <a href="/proof">Proof</a> · <a href="/unicorn-cockpit">Cockpit</a> · <a href="/services">Services</a> · <a href="/status">Status</a>',
+        '<header><h1>🦄 ZeusAI</h1><nav class="site-nav" aria-label="Primary"><div class="site-nav-links">',
+        '<a href="/">Home</a><a href="/pricing">Pricing</a><a href="/revenue-share">Revenue Share</a><a href="/proof">Proof</a><a href="/unicorn-cockpit">Cockpit</a><a href="/services">Services</a><a href="/status">Status</a>',
+        '</div></nav>',
         '</header>',
         '<main>',
         '<div id="degraded-banner" class="banner">⚠️ Reconnecting to live data…</div>',
