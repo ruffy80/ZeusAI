@@ -48,11 +48,13 @@ read by:
 4. The **AutoInnovation guard** in `no-downgrade-guard.yml` and the
    `deploy.yml` pre-flight: any commit whose subject begins with
    `[AutoInnovation]` between baseline and HEAD must carry the
-   `[innovation-approved]` trailer in its body. Otherwise CI fails red
-   and the deploy refuses to ssh-rsync. This stops the auto-innovation
-   bot (which currently opens + auto-merges PRs from `auto-innovation/**`
-   branches) from ever pushing unreviewed code to live, even if it
-   merges to `main` via an external PAT.
+   `[innovation-approved]` trailer in its body **or** be explicitly
+   allowlisted in `.github/baselines/innovation-approved-shas.txt`
+   (one SHA per line, optional trailing comment).
+   Otherwise CI fails red and the deploy refuses to ssh-rsync.
+   This stops the auto-innovation bot (which currently opens + auto-merges
+   PRs from `auto-innovation/**` branches) from ever pushing unreviewed code
+   to live, even if it merges to `main` via an external PAT.
 
 ## How to advance the baseline (the only allowed direction)
 
