@@ -79,11 +79,11 @@ const SECRET = process.env.CRYPTOAUTH_SECRET
   || process.env.JWT_SECRET
   || crypto.createHash('sha256').update('zeus-cryptoauth-' + (process.env.ZEUS_BUILD_SHA || 'dev')).digest('hex');
 const TOKEN_TTL_SECONDS = 30 * 24 * 3600; // 30 days
-const CHALLENGE_TTL_MS = 2 * 60 * 1000;   // 2 minutes
+const CHALLENGE_TTL_MS = 5 * 60 * 1000;   // 5 minutes (restart-tolerant window)
 
 const DATA_DIR = path.join(__dirname, '..', '..', '..', 'data', 'cryptoauth');
 const USERS_FILE = path.join(DATA_DIR, 'users.json');
-try { fs.mkdirSync(DATA_DIR, { recursive: true }); } catch (_) {}
+try { fs.mkdirSync(DATA_DIR, { recursive: true }); } catch (e) { console.error('[cryptoauth] mkdir failed — writes will fail:', e.message); }
 
 // ──────────────────────── persistence ────────────────────────
 function _loadUsers() {
@@ -91,7 +91,7 @@ function _loadUsers() {
     if (!fs.existsSync(USERS_FILE)) return {};
     const raw = fs.readFileSync(USERS_FILE, 'utf8');
     return JSON.parse(raw || '{}');
-  } catch (_) { return {}; }
+  } catch (e) { console.error('[cryptoauth] _loadUsers parse error:', e.message); return {}; }
 }
 function _saveUsers(users) {
   try {
@@ -99,7 +99,7 @@ function _saveUsers(users) {
     fs.writeFileSync(tmp, JSON.stringify(users, null, 2));
     fs.renameSync(tmp, USERS_FILE);
     return true;
-  } catch (_) { return false; }
+  } catch (e) { console.error('[cryptoauth] _saveUsers failed — user data NOT persisted:', e.message); return false; }
 }
 
 // ──────────────────────── ed25519 verify ─────────────────────
@@ -169,6 +169,37 @@ function _bearerOf(req) {
   return h.slice(7).trim();
 }
 
+// ──────────────────────── rate limiting ──────────────────────
+// Sliding-window per-IP rate limits (in-memory — backend is a single PM2 fork).
+// Keys: "<ip>:<action>". Each entry: array of timestamps in current window.
+// Limits per 15-minute window: register 20, challenge 30, login 30, recover 10.
+const _rl = new Map();
+const _RL_WINDOW_MS = 15 * 60 * 1000;
+const _RL_LIMITS = { register: 20, challenge: 30, login: 30, recover: 10 };
+function _getIp(req) {
+  if (!req || !req.headers) return 'unknown';
+  const xri = (req.headers['x-real-ip'] || req.headers['x-forwarded-for'] || '').split(',')[0].trim();
+  if (xri) return xri;
+  return (req.socket && req.socket.remoteAddress) || 'unknown';
+}
+function _rateCheck(req, action) {
+  const ip = _getIp(req);
+  const key = ip + ':' + action;
+  const now = Date.now();
+  const window = now - _RL_WINDOW_MS;
+  const hits = (_rl.get(key) || []).filter(t => t > window);
+  const limit = _RL_LIMITS[action] || 20;
+  if (hits.length >= limit) return false;
+  hits.push(now);
+  _rl.set(key, hits);
+  return true;
+}
+// Prune stale buckets every 30 minutes to prevent unbounded memory growth.
+try { setInterval(function() {
+  const window = Date.now() - _RL_WINDOW_MS;
+  for (const [k, v] of _rl) if (!v.some(t => t > window)) _rl.delete(k);
+}, 30 * 60 * 1000).unref(); } catch (_) {}
+
 // ──────────────────────── HTTP helpers ───────────────────────
 function _sendJson(res, status, payload) {
   if (res.headersSent) return;
@@ -201,6 +232,7 @@ function _readBody(req, max = 64 * 1024) {
 
 // ──────────────────────── handlers ───────────────────────────
 async function _register(req, res) {
+  if (!_rateCheck(req, 'register')) return _sendJson(res, 429, { ok: false, error: 'too_many_requests', retryAfterMs: _RL_WINDOW_MS });
   const body = await _readBody(req);
   if (!body || typeof body.publicKey !== 'string') return _sendJson(res, 400, { ok: false, error: 'missing_publicKey' });
   const pub = Buffer.from(body.publicKey, 'base64');
@@ -224,6 +256,7 @@ async function _register(req, res) {
 }
 
 async function _challenge(req, res) {
+  if (!_rateCheck(req, 'challenge')) return _sendJson(res, 429, { ok: false, error: 'too_many_requests', retryAfterMs: _RL_WINDOW_MS });
   const body = await _readBody(req);
   if (!body) return _sendJson(res, 400, { ok: false, error: 'invalid_body' });
   const users = _loadUsers();
@@ -242,6 +275,7 @@ async function _challenge(req, res) {
 }
 
 async function _login(req, res) {
+  if (!_rateCheck(req, 'login')) return _sendJson(res, 429, { ok: false, error: 'too_many_requests', retryAfterMs: _RL_WINDOW_MS });
   const body = await _readBody(req);
   if (!body || typeof body.userId !== 'string' || typeof body.signature !== 'string' || typeof body.challenge !== 'string') {
     return _sendJson(res, 400, { ok: false, error: 'missing_fields' });
@@ -265,6 +299,7 @@ async function _logout(req, res) {
 }
 
 async function _recover(req, res) {
+  if (!_rateCheck(req, 'recover')) return _sendJson(res, 429, { ok: false, error: 'too_many_requests', retryAfterMs: _RL_WINDOW_MS });
   // Recovery is conceptually identical to register: the imported vault
   // yields the original keypair, the client signs a fresh challenge.
   // Server checks that the publicKey matches an existing user and that
@@ -369,9 +404,10 @@ async function handle(req, res) {
 module.exports = {
   handle,
   _internals: {
-    PACK_NAME, PACK_VERSION,
+    PACK_NAME, PACK_VERSION, CHALLENGE_TTL_MS,
     _verifySignature, _userIdFromPublicKey, _signToken, _verifyToken,
     _newChallenge, _putChallenge, _takeChallenge,
-    _loadUsers, _saveUsers, USERS_FILE
+    _loadUsers, _saveUsers, USERS_FILE,
+    _rateCheck, _getIp, _RL_LIMITS, _RL_WINDOW_MS
   }
 };

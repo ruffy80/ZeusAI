@@ -1971,17 +1971,54 @@ function pageAccount(opts) {
     });
   }
 
-  // ── Server interactions ──
+  // ── Server interactions (30s timeout; network failures return status 0) ──
   function api(path, body) {
+    var ctrl = typeof AbortController !== 'undefined' ? new AbortController() : null;
+    var tid = ctrl ? setTimeout(function(){ ctrl.abort(); }, 30000) : null;
     return fetch(path, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body || {})
-    }).then(function(r){ return r.json().then(function(j){ return { status: r.status, body: j }; }); });
+      body: JSON.stringify(body || {}),
+      signal: ctrl ? ctrl.signal : undefined
+    }).then(function(r){
+      if (tid) clearTimeout(tid);
+      return r.json().then(function(j){ return { status: r.status, body: j }; });
+    }).catch(function(e){
+      if (tid) clearTimeout(tid);
+      var code = (e && e.name === 'AbortError') ? 'timeout' : 'network_error';
+      return { status: 0, body: { ok: false, error: code } };
+    });
   }
   function apiGet(path, token) {
-    return fetch(path, { headers: token ? { 'Authorization': 'Bearer ' + token } : {} })
-      .then(function(r){ return r.json().then(function(j){ return { status: r.status, body: j }; }); });
+    var ctrl = typeof AbortController !== 'undefined' ? new AbortController() : null;
+    var tid = ctrl ? setTimeout(function(){ ctrl.abort(); }, 30000) : null;
+    return fetch(path, {
+      headers: token ? { 'Authorization': 'Bearer ' + token } : {},
+      signal: ctrl ? ctrl.signal : undefined
+    }).then(function(r){
+      if (tid) clearTimeout(tid);
+      return r.json().then(function(j){ return { status: r.status, body: j }; });
+    }).catch(function(e){
+      if (tid) clearTimeout(tid);
+      var code = (e && e.name === 'AbortError') ? 'timeout' : 'network_error';
+      return { status: 0, body: { ok: false, error: code } };
+    });
+  }
+  function friendlyError(code) {
+    var map = {
+      'challenge_invalid_or_expired': 'Sesiunea a expirat \u2014 re\u00eencerc\u0103 / Session expired, retrying\u2026',
+      'signature_invalid': 'Eroare de semn\u0103tur\u0103 \u2014 cheia nu corespunde / Signature mismatch',
+      'user_not_found': 'Cont neg\u0103sit \u2014 folosete \u201cCre\u0103z\u0103 cont\u201d sau \u201cImport\u0103 vault\u201d / Account not found',
+      'too_many_requests': 'Prea multe \u00eencerc\u0103ri, a\u015fteapt\u0103 un minut / Too many attempts, please wait',
+      'jwt_unavailable': 'Eroare de server \u2014 \u00eencerc\u0103 mai t\u00e2rziu / Server error, try again later',
+      'network_error': 'Eroare de re\u0163ea \u2014 verific\u0103 conexiunea / Network error, check your connection',
+      'timeout': 'Serverul nu r\u0103spunde \u2014 \u00eencerc\u0103 mai t\u00e2rziu / Server timeout, try again later',
+      'login_failed': 'Autentificare e\u015fuat\u0103 \u2014 re\u00eencerc\u0103 / Login failed, please retry',
+      'register_failed': 'Creare cont e\u015fuat\u0103 \u2014 re\u00eencerc\u0103 / Account creation failed',
+      'recover_failed': 'Recuperare e\u015fuat\u0103 \u2014 verific\u0103 parola vault-ului / Recovery failed, check vault password',
+      'internal': 'Eroare intern\u0103 de server / Internal server error'
+    };
+    return map[code] || code;
   }
 
   // ── State & UI ──
@@ -2079,21 +2116,30 @@ function pageAccount(opts) {
         return api('/api/cryptoauth/register', { publicKey: publicKeyB64, name: name, email: email }).then(function(r){
           if (r.status !== 200 || !r.body || !r.body.ok) throw new Error((r.body && r.body.error) || 'register_failed');
           var userId = r.body.userId;
-          var challenge = r.body.challenge;
-          // Sign challenge to immediately log in.
-          return sign(kp.privateKey, utf8(challenge)).then(function(sig){
-            return api('/api/cryptoauth/login', { userId: userId, challenge: challenge, signature: b64encode(sig) }).then(function(lr){
-              if (lr.status !== 200 || !lr.body || !lr.body.ok) throw new Error('login_after_register_failed');
-              return persistKeyAndAuth(kp.privateKey, publicKeyB64, userId, lr.body.token).then(function(){
-                return promptBackupDownload(privatePkcs8, publicRaw, { userId: userId, name: name, email: email }).then(function(){
-                  return refresh();
+          // Sign challenge to immediately log in; auto-retry once on expiry.
+          function doLoginWithChallenge(challenge, attempt) {
+            return sign(kp.privateKey, utf8(challenge)).then(function(sig){
+              return api('/api/cryptoauth/login', { userId: userId, challenge: challenge, signature: b64encode(sig) }).then(function(lr){
+                if (lr.status === 400 && lr.body && lr.body.error === 'challenge_invalid_or_expired' && attempt < 2) {
+                  statusOk('Refreshing session\u2026');
+                  return api('/api/cryptoauth/challenge', { userId: userId }).then(function(cr){
+                    if (cr.status !== 200 || !cr.body || !cr.body.challenge) throw new Error('login_after_register_failed');
+                    return doLoginWithChallenge(cr.body.challenge, attempt + 1);
+                  });
+                }
+                if (lr.status !== 200 || !lr.body || !lr.body.ok) throw new Error('login_after_register_failed');
+                return persistKeyAndAuth(kp.privateKey, publicKeyB64, userId, lr.body.token).then(function(){
+                  return promptBackupDownload(privatePkcs8, publicRaw, { userId: userId, name: name, email: email }).then(function(){
+                    return refresh();
+                  });
                 });
               });
             });
-          });
+          }
+          return doLoginWithChallenge(r.body.challenge, 1);
         });
       });
-    }).catch(function(e){ statusError('Could not create account: ' + (e.message || e)); });
+    }).catch(function(e){ statusError('Could not create account: ' + friendlyError(e.message || e)); });
   }
 
   function promptBackupDownload(privatePkcs8, publicRaw, meta) {
@@ -2132,22 +2178,30 @@ function pageAccount(opts) {
       if (!rec || !rec.priv || !rec.pub) {
         return statusError('No local key on this device. Use \"Create new account\" or \"Import vault\".');
       }
-      return api('/api/cryptoauth/challenge', { publicKey: rec.pub }).then(function(r){
-        if (r.status === 404) return api('/api/cryptoauth/register', { publicKey: rec.pub });
-        return r;
-      }).then(function(r){
-        if (r.status !== 200 || !r.body || !r.body.ok) throw new Error((r.body && r.body.error) || 'challenge_failed');
-        var userId = r.body.userId;
-        var challenge = r.body.challenge;
-        return sign(rec.priv, utf8(challenge)).then(function(sig){
-          return api('/api/cryptoauth/login', { userId: userId, challenge: challenge, signature: b64encode(sig) }).then(function(lr){
-            if (lr.status !== 200 || !lr.body || !lr.body.ok) throw new Error('login_failed');
-            try { localStorage.setItem(TOKEN_KEY, lr.body.token); localStorage.setItem(USERID_KEY, userId); } catch(_){}
-            return refresh();
+      // Auto-retry once when challenge expired (e.g. after server restart).
+      function doChallengeThenLogin(attempt) {
+        return api('/api/cryptoauth/challenge', { publicKey: rec.pub }).then(function(r){
+          if (r.status === 404) return api('/api/cryptoauth/register', { publicKey: rec.pub });
+          return r;
+        }).then(function(r){
+          if (r.status !== 200 || !r.body || !r.body.ok) throw new Error((r.body && r.body.error) || 'challenge_failed');
+          var userId = r.body.userId;
+          var challenge = r.body.challenge;
+          return sign(rec.priv, utf8(challenge)).then(function(sig){
+            return api('/api/cryptoauth/login', { userId: userId, challenge: challenge, signature: b64encode(sig) }).then(function(lr){
+              if (lr.status === 400 && lr.body && lr.body.error === 'challenge_invalid_or_expired' && attempt < 2) {
+                statusOk('Retrying sign-in\u2026');
+                return doChallengeThenLogin(attempt + 1);
+              }
+              if (lr.status !== 200 || !lr.body || !lr.body.ok) throw new Error((lr.body && lr.body.error) || 'login_failed');
+              try { localStorage.setItem(TOKEN_KEY, lr.body.token); localStorage.setItem(USERID_KEY, userId); } catch(_){}
+              return refresh();
+            });
           });
         });
-      });
-    }).catch(function(e){ statusError('Sign in failed: ' + (e.message || e)); });
+      }
+      return doChallengeThenLogin(1);
+    }).catch(function(e){ statusError('Sign in failed: ' + friendlyError(e.message || e)); });
   }
 
   function onImport() {
@@ -2165,19 +2219,34 @@ function pageAccount(opts) {
             var pkcs8 = b64decode(unpacked.priv);
             var pubB64 = unpacked.pub;
             return importPrivate(pkcs8.buffer).then(function(privKey){
-              return api('/api/cryptoauth/register', { publicKey: pubB64 }).then(function(r){
-                if (r.status !== 200 || !r.body || !r.body.ok) throw new Error('recover_register_failed');
-                var userId = r.body.userId;
-                var challenge = r.body.challenge;
-                return sign(privKey, utf8(challenge)).then(function(sig){
-                  return api('/api/cryptoauth/recover', { publicKey: pubB64, challenge: challenge, signature: b64encode(sig) }).then(function(lr){
-                    if (lr.status !== 200 || !lr.body || !lr.body.ok) throw new Error('recover_failed');
-                    return persistKeyAndAuth(privKey, pubB64, userId, lr.body.token).then(refresh);
+              // Auto-retry once on challenge_invalid_or_expired (server restart race).
+              function doRegisterRecover(attempt) {
+                statusOk(attempt > 1 ? 'Retrying recovery\u2026' : 'Recovering account\u2026');
+                return api('/api/cryptoauth/register', { publicKey: pubB64 }).then(function(r){
+                  if (r.status !== 200 || !r.body || !r.body.ok) throw new Error((r.body && r.body.error) || 'recover_register_failed');
+                  var userId = r.body.userId;
+                  var challenge = r.body.challenge;
+                  return sign(privKey, utf8(challenge)).then(function(sig){
+                    return api('/api/cryptoauth/recover', { publicKey: pubB64, challenge: challenge, signature: b64encode(sig) }).then(function(lr){
+                      if (lr.status === 400 && lr.body && lr.body.error === 'challenge_invalid_or_expired' && attempt < 2) {
+                        return doRegisterRecover(attempt + 1);
+                      }
+                      if (lr.status !== 200 || !lr.body || !lr.body.ok) throw new Error((lr.body && lr.body.error) || 'recover_failed');
+                      return persistKeyAndAuth(privKey, pubB64, userId, lr.body.token).then(refresh);
+                    });
                   });
                 });
-              });
+              }
+              return doRegisterRecover(1);
             });
-          }).catch(function(){ statusError('Decryption failed. Wrong password or corrupted vault.'); });
+          }).catch(function(e){
+            var code = e && e.message;
+            if (code === 'recover_register_failed' || code === 'recover_failed' || code === 'too_many_requests') {
+              statusError(friendlyError(code));
+            } else {
+              statusError('Decryption failed. Wrong password or corrupted vault.');
+            }
+          });
         } catch (e) { statusError('Could not parse vault file.'); }
       };
       reader.readAsText(file);
