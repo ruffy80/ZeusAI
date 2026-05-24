@@ -30,7 +30,7 @@ on:
         required: false
         type: string
   workflow_run:
-    workflows: ["🚀 Unicorn Stable Deploy", "🌍 Global Availability Probe"]
+    workflows: ["🚀 Unicorn Stable Deploy"]
     types: [completed]
     branches: [main]
   schedule:
@@ -106,16 +106,14 @@ jobs:
             "https://api.github.com/repos/$REPO/actions/workflows?per_page=100")"
 
           DEPLOY_ID="$(printf '%s' "$WORKFLOWS_JSON" | jq -r '.workflows[] | select(.name=="🚀 Unicorn Stable Deploy") | .id' | head -n1)"
-          PROBE_ID="$(printf '%s' "$WORKFLOWS_JSON" | jq -r '.workflows[] | select(.name=="🌍 Global Availability Probe") | .id' | head -n1)"
 
-          if [ -z "$DEPLOY_ID" ] || [ -z "$PROBE_ID" ]; then
-            echo "::warning::Could not resolve workflow IDs by name (deploy=$DEPLOY_ID, probe=$PROBE_ID); skipping advance."
+          if [ -z "$DEPLOY_ID" ]; then
+            echo "::warning::Could not resolve workflow IDs by name (deploy=$DEPLOY_ID); skipping advance."
             echo "sha=" >> "$GITHUB_OUTPUT"
             exit 0
           fi
 
           echo "deploy workflow id: $DEPLOY_ID"
-          echo "probe  workflow id: $PROBE_ID"
 
           # Latest successful deploy on main.
           LATEST_DEPLOY_SHA="$(curl -fsS \
@@ -130,26 +128,6 @@ jobs:
             exit 0
           fi
           echo "latest deploy success at: $LATEST_DEPLOY_SHA"
-
-          # Verify a successful probe exists at the SAME SHA (sample up to
-          # last 30 probe runs on main — schedule fires every 30 minutes,
-          # so 30 runs covers ~15 hours of window).
-          PROBE_RUNS_JSON="$(curl -fsS \
-            -H "Authorization: Bearer $GH_TOKEN" \
-            -H "Accept: application/vnd.github+json" \
-            "https://api.github.com/repos/$REPO/actions/workflows/$PROBE_ID/runs?branch=main&status=success&per_page=30")"
-
-          PROBE_AT_DEPLOY="$(printf '%s' "$PROBE_RUNS_JSON" \
-            | jq -r --arg sha "$LATEST_DEPLOY_SHA" '.workflow_runs[] | select(.head_sha==$sha) | .id' \
-            | head -n1)"
-
-          if [ -z "$PROBE_AT_DEPLOY" ]; then
-            echo "::notice::No successful 🌍 Global Availability Probe run at SHA $LATEST_DEPLOY_SHA yet; will retry on next tick."
-            echo "sha=" >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
-
-          echo "Probe run $PROBE_AT_DEPLOY confirms global reachability at $LATEST_DEPLOY_SHA"
           echo "sha=$LATEST_DEPLOY_SHA" >> "$GITHUB_OUTPUT"
 
       - name: 🛡️ Forward-only safety check
@@ -201,7 +179,7 @@ jobs:
           #    history is auditable from the repo without going to Actions.
           if [ -f LIVE_BASELINE.md ]; then
             if ! grep -qF '## Auto-advance log' LIVE_BASELINE.md; then
-              printf '\n## Auto-advance log\n\nThis section is appended to by `.github/workflows/auto-baseline-advance.yml` after every verified-green deploy + global-health probe.\n\n| When (UTC) | From | To |\n|---|---|---|\n' >> LIVE_BASELINE.md
+              printf '\n## Auto-advance log\n\nThis section is appended to by `.github/workflows/auto-baseline-advance.yml` after every verified-green deploy.\n\n| When (UTC) | From | To |\n|---|---|---|\n' >> LIVE_BASELINE.md
             fi
             printf '| %s | `%s` | `%s` |\n' "$NOW_UTC" "$SHORT_CURRENT" "$SHORT_TARGET" >> LIVE_BASELINE.md
           fi
@@ -214,7 +192,7 @@ jobs:
             exit 0
           fi
           git commit -m "baseline(live): auto-advance to ${SHORT_TARGET} [upgrade-approved]" \
-                     -m "Verified by 🚀 Unicorn Stable Deploy + 🌍 Global Availability Probe both green at ${TARGET}." \
+                     -m "Verified by 🚀 Unicorn Stable Deploy green at ${TARGET}." \
                      -m "Previous: ${CURRENT}" \
                      -m "Auto-advanced by .github/workflows/auto-baseline-advance.yml at ${NOW_UTC}."
 

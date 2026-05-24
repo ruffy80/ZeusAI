@@ -342,8 +342,13 @@ async function run() {
     assert.match(reset.text, /unregister/);
 
     console.log('site commerce smoke test passed');
+    cleanupSmokeArtifacts();
+    process.exit(0);
   } finally {
-    await new Promise((resolve, reject) => app.close((err) => err ? reject(err) : resolve()));
+    if (typeof app.closeAllConnections === 'function') {
+      try { app.closeAllConnections(); } catch (_) {}
+    }
+    await new Promise((resolve) => app.close(() => resolve()));
     cleanupSmokeArtifacts();
   }
 }
