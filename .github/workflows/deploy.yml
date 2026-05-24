@@ -301,7 +301,7 @@ jobs:
 
           ssh -o StrictHostKeyChecking=no root@${{ secrets.HETZNER_HOST }} "mkdir -p $RELEASE_ROOT && mkdir -p $RELEASE_PATH"
           ssh -o StrictHostKeyChecking=no root@${{ secrets.HETZNER_HOST }} \
-            "systemctl disable --now zac.service 2>/dev/null || true; systemctl reset-failed zac.service 2>/dev/null || true; pm2 delete unicorn-guardian 2>/dev/null || true; pm2 save --force 2>/dev/null || true"
+            "systemctl disable --now zac.service 2>/dev/null || true; systemctl reset-failed zac.service 2>/dev/null || true; systemctl disable --now unicorn-rescue-backend.service 2>/dev/null || true; systemctl reset-failed unicorn-rescue-backend.service 2>/dev/null || true; pm2 delete unicorn-guardian 2>/dev/null || true; pm2 save --force 2>/dev/null || true"
           rsync -avz --no-times --delete \
             --exclude='.git' \
             --exclude='node_modules' \
@@ -405,6 +405,8 @@ jobs:
           export UNICORN_GUARDIAN=0
           systemctl disable --now zac.service 2>/dev/null || true
           systemctl reset-failed zac.service 2>/dev/null || true
+          systemctl disable --now unicorn-rescue-backend.service 2>/dev/null || true
+          systemctl reset-failed unicorn-rescue-backend.service 2>/dev/null || true
           pm2 delete unicorn-guardian 2>/dev/null || true
           # Kill stale/orphan Node listeners before PM2 start. A previous
           # deploy can leave a detached process bound to 127.0.0.1:3000; PM2
