@@ -68,9 +68,18 @@ jobs:
         run: |
           set -euo pipefail
           BASELINE="$(tr -d '[:space:]' < .github/baselines/live.sha)"
+          APPROVED_SHA_FILE=".github/baselines/innovation-approved-shas.txt"
           if ! git cat-file -e "${BASELINE}^{commit}" 2>/dev/null; then
             git fetch --no-tags --depth=0 origin "+${BASELINE}:refs/baseline/live" || true
           fi
+
+          is_approved_by_sha_file() {
+            local sha_lc
+            sha_lc="$(printf '%s' "$1" | tr '[:upper:]' '[:lower:]')"
+            [ -f "$APPROVED_SHA_FILE" ] || return 1
+            grep -Eiq "^${sha_lc}([[:space:]]*(#.*)?)?$" "$APPROVED_SHA_FILE"
+          }
+
           UNAPPROVED=""
           while IFS= read -r SHA; do
             [ -z "$SHA" ] && continue
@@ -78,7 +87,11 @@ jobs:
             BODY="$(git log -1 --format=%B "$SHA")"
             case "$SUBJECT" in
               \[AutoInnovation\]*|*\[AutoInnovation\]*)
-                if ! printf '%s' "$BODY" | grep -qiF '[innovation-approved]'; then
+                if printf '%s' "$BODY" | grep -qiF '[innovation-approved]'; then
+                  echo "✅ approved AutoInnovation commit: $SHA — $SUBJECT"
+                elif is_approved_by_sha_file "$SHA"; then
+                  echo "✅ approved AutoInnovation commit via allowlist: $SHA — $SUBJECT"
+                else
                   UNAPPROVED="${UNAPPROVED}${SHA} ${SUBJECT}"$'\n'
                 fi
                 ;;
@@ -91,6 +104,7 @@ jobs:
               echo "::error::  $LINE"
             done
             echo "::error::Amend each commit body to include [innovation-approved]"
+            echo "::error::or add the exact SHA to ${APPROVED_SHA_FILE} after manual review."
             echo "::error::after a manual review, then re-run the deploy."
             exit 1
           fi
