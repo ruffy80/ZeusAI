@@ -20,6 +20,11 @@ class UnicornEternalEngine {
   }
 
   async init() {
+    const profile = String(process.env.UNICORN_RUNTIME_PROFILE || '').toLowerCase();
+    if (profile === 'safe' || profile === 'stable') {
+      console.log('🛡️ UEE: Stable/Safe runtime profile detected. Skipping autonomous background timers/cycles startup.');
+      return;
+    }
     console.log(`♾️ Unicorn Eternal Engine activ – 44 de ani înaintea oricărei tehnologii (până în ${this.futureDate.getFullYear()})`);
     this.startEternalCycle();
     this.startPredictiveInnovation();
