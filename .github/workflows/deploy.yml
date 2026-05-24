@@ -762,35 +762,51 @@ jobs:
           grep -R "smoke@zeusai.pro\|smoke-test-loopback" data/commerce-*.json 2>/dev/null && \
             echo "⚠️  stale smoke artifacts found in persistent commerce data; continuing because live ledgers are excluded from rsync and may contain historical smoke records" || true
           SSHEOF
+          echo "--- Remote site loopback catalog warmup ---"
+          ssh -o StrictHostKeyChecking=no root@${{ secrets.HETZNER_HOST }} bash -s << 'SSHEOF'
+          set -euo pipefail
+          DEPLOY_PATH=/var/www/unicorn/UNICORN_FINAL
+          cd "$DEPLOY_PATH"
+          for attempt in $(seq 1 8); do
+            BODY="$(curl -fsS --max-time 15 -H 'Cache-Control: no-cache' -H 'Accept: application/json' http://127.0.0.1:3001/api/catalog/master || true)"
+            read -r STATUS COUNT MODE <<<"$(printf '%s' "$BODY" | node -e '
+              let body = "";
+              process.stdin.on("data", (chunk) => body += chunk);
+              process.stdin.on("end", () => {
+                let parsed = null;
+                try { parsed = JSON.parse(body); } catch (_) {}
+                const count = parsed && Array.isArray(parsed.items) ? parsed.items.length : 0;
+                const mode = parsed && parsed.mode ? String(parsed.mode) : "live";
+                process.stdout.write(`${parsed ? 200 : 0} ${count} ${mode}`);
+              });
+            ')"
+            echo "loopback attempt=${attempt}/8 status=${STATUS} count=${COUNT} mode=${MODE}"
+            if [ "$STATUS" = "200" ] && [ "${COUNT:-0}" -ge 65 ] && [ "$MODE" != "rescue" ]; then
+              echo "✅ loopback site catalog healthy"
+              exit 0
+            fi
+            if [ "$attempt" -eq 4 ]; then
+              echo "↻ restart unicorn-site after slow/failed warmup"
+              pm2 restart unicorn-site --update-env >/dev/null 2>&1 || \
+                pm2 start ecosystem.config.js --only unicorn-site --update-env >/dev/null 2>&1 || true
+            fi
+            sleep 5
+          done
+          echo "❌ site loopback catalog never reached the expected non-rescue count"
+          exit 1
+          SSHEOF
           echo "--- Live domain catalog count ---"
           # Verificare reziliența catalogului public, post-deploy.
-          # Step-ul nu mai poate marca deploy-ul ca eșuat din cauza unor probleme
-          # tranzitorii (warmup PM2, cache nginx stale, DNS/SSL flaps):
-          #   - retry până la 8 încercări × 5s (40s toleranță la warmup)
-          #   - Cache-Control: no-cache + Pragma: no-cache → forțează
-          #     proxy_cache_bypass în nginx-unicorn.conf (proxy_cache_bypass
-          #     $http_cache_control), eliminând orice HTML stale cached.
-          #   - Fallback pe backend direct (HETZNER_HOST:3000), care ocolește
-          #     complet nginx-ul, dacă HTTPS continuă să dea non-JSON.
-          #   - Log diagnostic complet pe fiecare încercare (status + primii
-          #     200 chars din body), ca eșuările reale să fie ușor de depanat.
-          # Endpoint-ul /api/catalog/master este verificat — nimic nu este
-          # eliminat sau slăbit; doar reziliența verificării este îmbunătățită.
-          export HETZNER_HOST_ENV='${{ secrets.HETZNER_HOST }}'
+          # Backend-ul live e loopback-only (BIND_HOST=127.0.0.1), deci
+          # fallback-ul vechi pe http://$HETZNER_HOST:3000 nu putea funcționa
+          # din GitHub Actions. Warmup-ul intern al site-ului se verifică acum
+          # prin SSH + loopback înaintea probei publice; aici păstrăm doar
+          # adevărul de producție: https://zeusai.pro/api/catalog/master.
           node - <<'NODE'
           const MIN = 65;
           const MAX_ATTEMPTS = 8;
           const RETRY_MS = 5000;
-          const HETZNER_HOST = process.env.HETZNER_HOST_ENV || '';
-          const targets = [
-            { url: 'https://zeusai.pro/api/catalog/master', label: 'public-https' },
-          ];
-          if (HETZNER_HOST) {
-            targets.push({
-              url: `http://${HETZNER_HOST}:3000/api/catalog/master`,
-              label: 'backend-direct',
-            });
-          }
+          const target = { url: 'https://zeusai.pro/api/catalog/master', label: 'public-https' };
           const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
           async function probe(target) {
             try {
@@ -806,30 +822,30 @@ jobs:
               let body = null;
               try { body = JSON.parse(text); } catch (_) { /* HTML / non-JSON */ }
               const count = body && Array.isArray(body.items) ? body.items.length : 0;
-              const ok = r.status === 200 && count >= MIN;
-              return { ok, status: r.status, count, preview: text.slice(0, 200), target };
+              const mode = body && body.mode ? String(body.mode) : 'live';
+              const ok = r.status === 200 && count >= MIN && mode !== 'rescue';
+              return { ok, status: r.status, count, mode, preview: text.slice(0, 200), target };
             } catch (e) {
-              return { ok: false, status: 0, count: 0, preview: String(e && e.message || e), target };
+              return { ok: false, status: 0, count: 0, mode: 'error', preview: String(e && e.message || e), target };
             }
           }
           (async () => {
             let last = null;
             for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
-              for (const t of targets) {
-                const res = await probe(t);
-                console.log(`attempt=${attempt}/${MAX_ATTEMPTS} target=${t.label} status=${res.status} count=${res.count}`);
-                if (res.ok) {
-                  console.log(`✅ catalog OK via ${t.label}: status=${res.status} count=${res.count}`);
-                  process.exit(0);
-                }
-                last = res;
-                console.log(`   preview: ${res.preview.replace(/\s+/g, ' ').slice(0, 200)}`);
+              const res = await probe(target);
+              console.log(`attempt=${attempt}/${MAX_ATTEMPTS} target=${target.label} status=${res.status} count=${res.count} mode=${res.mode}`);
+              if (res.ok) {
+                console.log(`✅ catalog OK via ${target.label}: status=${res.status} count=${res.count} mode=${res.mode}`);
+                process.exit(0);
               }
+              last = res;
+              console.log(`   preview: ${res.preview.replace(/\s+/g, ' ').slice(0, 200)}`);
               if (attempt < MAX_ATTEMPTS) await sleep(RETRY_MS);
             }
-            console.error(`❌ catalog verification failed after ${MAX_ATTEMPTS} attempts on ${targets.length} target(s)`);
+            console.error(`❌ catalog verification failed after ${MAX_ATTEMPTS} attempts on ${target.label}`);
             if (last) {
               console.error(`   last status=${last.status} count=${last.count} target=${last.target.label}`);
+              console.error(`   last mode=${last.mode}`);
               console.error(`   last preview: ${last.preview}`);
             }
             process.exit(1);
