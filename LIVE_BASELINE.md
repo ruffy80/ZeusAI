@@ -161,3 +161,4 @@ This section is appended to by `.github/workflows/auto-baseline-advance.yml` aft
 | 2026-05-16 16:30 UTC | `e6ee42aee16b` | `a5bbc3f8800e` |
 | 2026-05-16 19:16 UTC | `a5bbc3f8800e` | `706838c73499` |
 | 2026-05-17 05:33 UTC | `706838c73499` | `528f1e88e100` |
+| 2026-05-24 14:13 UTC | `528f1e88e100` | `aa487491ab71` |
