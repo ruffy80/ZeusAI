@@ -2016,6 +2016,14 @@ function pageAccount(opts) {
       'login_failed': 'Autentificare e\u015fuat\u0103 \u2014 re\u00eencerc\u0103 / Login failed, please retry',
       'register_failed': 'Creare cont e\u015fuat\u0103 \u2014 re\u00eencerc\u0103 / Account creation failed',
       'recover_failed': 'Recuperare e\u015fuat\u0103 \u2014 verific\u0103 parola vault-ului / Recovery failed, check vault password',
+      'login_after_register_failed': 'Contul a fost creat, dar autentificarea automat\u0103 a e\u015fuat \u2014 apas\u0103 \u201cSign in with this device\u201d / Account created but auto-login failed \u2014 tap "Sign in with this device"',
+      'recover_register_failed': 'Importul vault-ului a e\u015fuat \u2014 re\u00eencerc\u0103 / Vault import failed, please retry',
+      'nacl_load_failed': 'Bibliotec\u0103 criptografic\u0103 indisponibil\u0103 \u2014 dezactiveaz\u0103 ad-blocker-ul \u015fi re\u00eencerc\u0103 / Crypto library unavailable \u2014 disable ad-blocker and retry',
+      'nacl_unavailable': 'Bibliotec\u0103 criptografic\u0103 indisponibil\u0103 \u2014 dezactiveaz\u0103 ad-blocker-ul \u015fi re\u00eencerc\u0103 / Crypto library unavailable \u2014 disable ad-blocker and retry',
+      'missing_publicKey': 'Eroare intern\u0103 la generarea cheii \u2014 re\u00eencerc\u0103 / Internal key generation error \u2014 please retry',
+      'invalid_publicKey_length': 'Eroare intern\u0103 la generarea cheii \u2014 re\u00eencerc\u0103 / Internal key generation error \u2014 please retry',
+      'missing_fields': 'Date lips\u0103 \u2014 re\u00eencerc\u0103 / Missing data \u2014 please retry',
+      'auth_endpoint_retired': 'Aceast\u0103 metod\u0103 de autentificare nu mai este activ\u0103 / This auth method has been retired',
       'internal': 'Eroare intern\u0103 de server / Internal server error'
     };
     return map[code] || code;
@@ -2108,6 +2116,8 @@ function pageAccount(opts) {
   function onCreate() {
     var name = (document.getElementById('acaName').value || '').trim();
     var email = (document.getElementById('acaEmail').value || '').trim();
+    var btn = document.getElementById('acaCreate');
+    if (btn) { btn.disabled = true; btn.textContent = 'Creating\u2026'; }
     statusOk('Generating keypair\u2026');
     genKeypair().then(function(kp){
       return Promise.all([exportPublicRaw(kp), exportPrivatePkcs8(kp)]).then(function(arr){
@@ -2123,11 +2133,11 @@ function pageAccount(opts) {
                 if (lr.status === 400 && lr.body && lr.body.error === 'challenge_invalid_or_expired' && attempt < 2) {
                   statusOk('Refreshing session\u2026');
                   return api('/api/cryptoauth/challenge', { userId: userId }).then(function(cr){
-                    if (cr.status !== 200 || !cr.body || !cr.body.challenge) throw new Error('login_after_register_failed');
+                    if (cr.status !== 200 || !cr.body || !cr.body.challenge) throw new Error((cr.body && cr.body.error) || 'login_after_register_failed');
                     return doLoginWithChallenge(cr.body.challenge, attempt + 1);
                   });
                 }
-                if (lr.status !== 200 || !lr.body || !lr.body.ok) throw new Error('login_after_register_failed');
+                if (lr.status !== 200 || !lr.body || !lr.body.ok) throw new Error((lr.body && lr.body.error) || 'login_after_register_failed');
                 return persistKeyAndAuth(kp.privateKey, publicKeyB64, userId, lr.body.token).then(function(){
                   return promptBackupDownload(privatePkcs8, publicRaw, { userId: userId, name: name, email: email }).then(function(){
                     return refresh();
@@ -2139,7 +2149,10 @@ function pageAccount(opts) {
           return doLoginWithChallenge(r.body.challenge, 1);
         });
       });
-    }).catch(function(e){ statusError('Could not create account: ' + friendlyError(e.message || e)); });
+    }).catch(function(e){
+      statusError('Nu s-a putut crea contul: ' + friendlyError(e.message || e));
+      if (btn) { btn.disabled = false; btn.textContent = 'Create account \u2192'; }
+    });
   }
 
   function promptBackupDownload(privatePkcs8, publicRaw, meta) {

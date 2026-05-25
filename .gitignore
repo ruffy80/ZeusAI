@@ -43,3 +43,4 @@ UNICORN_FINAL/data/innovation-attestations.jsonl
 UNICORN_FINAL/data/sovereignty/attestations.jsonl
 UNICORN_FINAL/data/sovereignty/sovereignty-state.json
 UNICORN_FINAL/.data/
+UNICORN_FINAL/data/oracle/oracle-state.json
