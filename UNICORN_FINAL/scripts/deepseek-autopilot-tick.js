@@ -192,8 +192,22 @@ async function getRecommendation(status) {
       return rec;
     } catch (e) {
       lastErr = e;
-      log('warn', 'provider_failed', { provider: p.name, error: String(e.message || e).slice(0, 240) });
+      const isAuth = /http_401/.test(String(e.message || ''));
+      log('warn', 'provider_failed', {
+        provider: p.name,
+        error: String(e.message || e).slice(0, 240),
+        authError: isAuth,
+      });
     }
+  }
+  // If ALL providers failed with 401, surface a clear hint.
+  // Dacă toți providerii au eșuat cu 401, afișăm un hint clar.
+  const allAuth = providers.every(() => /http_401/.test(String(lastErr && lastErr.message || '')));
+  if (allAuth && providers.length > 0) {
+    log('error', 'all_providers_auth_failed', {
+      count: providers.length,
+      hint: 'All API keys returned 401. Update secrets: DEEPSEEK_API_KEY, OPENROUTER_API_KEY, or GROQ_API_KEY. Free: https://console.groq.com/keys',
+    });
   }
   throw lastErr || new Error('all_providers_failed');
 }
@@ -216,7 +230,8 @@ async function runTick() {
       return { skipped: true, reason: 'no_provider_key' };
     }
     log('error', 'recommendation_failed', { error: String(e.message || e).slice(0, 300) });
-    return { skipped: true, reason: 'recommendation_failed' };
+    const isAuthFailure = /http_401/.test(String(e.message || ''));
+    return { skipped: true, reason: 'recommendation_failed', authFailure: isAuthFailure };
   }
 
   if (!rec || typeof rec !== 'object' || typeof rec.action !== 'string') {

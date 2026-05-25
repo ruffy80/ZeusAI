@@ -63,11 +63,22 @@ jobs:
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
           GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
         run: |
-          if [ -n "${DEEPSEEK_API_KEY}" ] || [ -n "${OPENROUTER_API_KEY}" ] || [ -n "${GROQ_API_KEY}" ]; then
+          # Trim whitespace — a secret set to " " or "\n" should count as empty.
+          # Eliminăm spațiile — un secret cu " " sau "\n" e gol practic.
+          dk=$(printf '%s' "${DEEPSEEK_API_KEY}" | tr -d '[:space:]')
+          or=$(printf '%s' "${OPENROUTER_API_KEY}" | tr -d '[:space:]')
+          gq=$(printf '%s' "${GROQ_API_KEY}" | tr -d '[:space:]')
+          count=0
+          [ -n "$dk" ] && count=$((count+1)) && echo "  • DEEPSEEK_API_KEY present (${#dk} chars)"
+          [ -n "$or" ] && count=$((count+1)) && echo "  • OPENROUTER_API_KEY present (${#or} chars)"
+          [ -n "$gq" ] && count=$((count+1)) && echo "  • GROQ_API_KEY present (${#gq} chars)"
+          if [ "$count" -gt 0 ]; then
             echo "has_provider=1" >> "$GITHUB_OUTPUT"
-            echo "✅ Provider key detected — autopilot will run."
+            echo "provider_count=${count}" >> "$GITHUB_OUTPUT"
+            echo "✅ ${count} provider key(s) detected — autopilot will run."
           else
             echo "has_provider=0" >> "$GITHUB_OUTPUT"
+            echo "provider_count=0" >> "$GITHUB_OUTPUT"
             echo "::notice::No DEEPSEEK_API_KEY / OPENROUTER_API_KEY / GROQ_API_KEY secret set — autopilot will log a hint and skip. Set one to activate."
           fi
 
@@ -99,6 +110,18 @@ jobs:
         if: steps.detect.outputs.has_provider == '1'
         id: diff
         run: |
+          # Emit ::error:: if every provider returned an auth failure (HTTP 401).
+          # This ensures operator sees a red annotation, not a silent green tick.
+          # Emitem ::error:: dacă toți providerii au dat 401 — operatorul vede roșu.
+          if [ -f UNICORN_FINAL/tick-output.log ]; then
+            summary=$(grep -oP '(?<=^AUTOPILOT_SUMMARY=).*' UNICORN_FINAL/tick-output.log | tail -1)
+            reason=$(printf '%s' "${summary:-}" | node -e "let s='';process.stdin.on('data',c=>s+=c).on('end',()=>{try{process.stdout.write(JSON.parse(s).reason||'')}catch(_){process.stdout.write('')}})" 2>/dev/null || true)
+            auth_fails=$(grep -c 'http_401' UNICORN_FINAL/tick-output.log 2>/dev/null || echo 0)
+            if [ "$reason" = "recommendation_failed" ] && [ "$auth_fails" -gt 0 ]; then
+              echo "::error title=DeepSeek Autopilot — all API keys invalid::All ${auth_fails} provider(s) returned HTTP 401 (authentication error). The autopilot cannot run until at least one valid key is set. Go to Settings → Secrets → Actions and update DEEPSEEK_API_KEY, OPENROUTER_API_KEY, or GROQ_API_KEY. Free tier: https://console.groq.com/keys (Groq) or https://openrouter.ai/keys (OpenRouter)."
+            fi
+          fi
+
           # Only consider diffs in the two paths the governor is allowed to
           # touch from in-process: data/deepseek-proposals/ and data/roadmap.json.
           # Restul .gitignore / artefactele tick-ului nu produc PR.
