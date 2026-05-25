@@ -2278,6 +2278,9 @@ function pageAccount(opts) {
       Promise.all([dbDel(KEY_ID)]).then(function(){
         try { localStorage.removeItem(TOKEN_KEY); localStorage.removeItem(USERID_KEY); } catch(_){}
         refresh();
+      }).catch(function(){
+        try { localStorage.removeItem(TOKEN_KEY); localStorage.removeItem(USERID_KEY); } catch(_){}
+        refresh();
       });
     });
   }

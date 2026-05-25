@@ -3962,8 +3962,11 @@ function escStore(s){ return String(s==null?'':s).replace(/[&<>"]/g, c => ({'&':
 async function hydrateStore(){
   const grid = document.getElementById('storeGrid');
   if (!grid) return;
-  const j = await fetch('/api/instant/catalog').then(r=>r.json()).catch(()=>({products:[], summary:null}));
+  const j = await fetch('/api/instant/catalog').then(r=>r.json()).catch(()=>({products:[], summary:null, _fetchError: true}));
   const rawProducts = Array.isArray(j.products) ? j.products : [];
+  if (j._fetchError && rawProducts.length === 0) {
+    grid.innerHTML = '<div style="color:#ffb86c;padding:40px;text-align:center">⚠️ Store catalog temporarily unavailable. Please refresh the page.</div>';
+  }
   const normTier = (t) => {
     if (t === 'instant' || t === 'professional' || t === 'enterprise') return t;
     if (t === 'industry') return 'enterprise';
@@ -4174,11 +4177,20 @@ function renderStoreInvoice(r){
   show(0);
   // Poll status
   let tries = 0;
+  let consecutiveFails = 0;
   const poll = setInterval(async () => {
     tries++;
     const o = await fetch('/api/instant/order/'+r.orderId).then(x=>x.json()).catch(()=>null);
     const el = document.getElementById('storeOrderStatus');
-    if (!el || !o) return;
+    if (!el) return;
+    if (!o) {
+      consecutiveFails++;
+      if (consecutiveFails >= 5) {
+        el.innerHTML = '<div style="color:#ffb86c">⚠️ Cannot reach order status — please check your connection and refresh the page.</div>';
+      }
+      return;
+    }
+    consecutiveFails = 0;
     if (o.status === 'awaiting_payment') {
       el.innerHTML = `⏳ Waiting for payment confirmation… <span style="color:var(--ink-dim);font-size:11px">(polling, ${tries}s)</span>`;
     } else if (o.status === 'generating') {
