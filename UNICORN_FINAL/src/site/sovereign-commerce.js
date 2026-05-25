@@ -1004,11 +1004,11 @@ async function handle(req, res, ctx) {
 loadState();
 loadCatalogSeen();
 // Initial non-blocking price warm-up + first scan
-setTimeout(() => { getBtcPrice().catch(() => {}); scanIncoming().catch(() => {}); }, 3000);
+setTimeout(() => { getBtcPrice().catch((e) => console.warn('[commerce] initial BTC price fetch error:', e.message)); scanIncoming().catch((e) => console.warn('[commerce] initial scan error:', e.message)); }, 3000);
 // Recurring watcher
 setInterval(() => { scanIncoming().catch((e) => console.warn('[commerce] scan error:', e.message)); }, WATCH_MS).unref();
 // Price refresh independent of watcher
-setInterval(() => { getBtcPrice().catch(() => {}); }, 5 * 60 * 1000).unref();
+setInterval(() => { getBtcPrice().catch((e) => console.warn('[commerce] BTC price refresh error:', e.message)); }, 5 * 60 * 1000).unref();
 
 console.log('[commerce] ready · addr=' + OWNER_BTC + ' · data=' + DATA_DIR + ' · watch=' + WATCH_MS + 'ms · min_confs=' + MIN_CONFS);
 
