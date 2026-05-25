@@ -1,0 +1,16 @@
+{
+  "zid_571d6592568d48e9e875a3f832726732": {
+    "id": "zid_571d6592568d48e9e875a3f832726732",
+    "publicKey": "YQYfhQYUd84TbFDylPaw5maxyg55rKcS/RU+8TwVPms=",
+    "name": "Test User",
+    "email": "test@test.com",
+    "createdAt": "2026-05-25T01:00:16.534Z"
+  },
+  "zid_3163d0ac5c90f4ff63ac7c4759ae3678": {
+    "id": "zid_3163d0ac5c90f4ff63ac7c4759ae3678",
+    "publicKey": "WPVFSi6E2frMq7rK1ENSKN2B+hBt7nsJRMIebZZK2Xo=",
+    "name": "",
+    "email": "",
+    "createdAt": "2026-05-25T01:03:58.393Z"
+  }
+}
