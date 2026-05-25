@@ -465,7 +465,7 @@ select.form-inp option{background:#0a0e24;}
     <p class="hero-sub" id="heroSub">Buy ready-to-run AI services, monitor the live Unicorn engine, and activate automation with direct BTC checkout plus enterprise-grade integrity checks.</p>
     <div class="hero-ctas" id="heroCtas">
       <a href="/pricing" id="heroCtaPrimary" class="btn btn-primary btn-lg" style="text-decoration:none">🚀 See Pricing</a>
-      <a href="/revenue-share" id="heroCtaSecondary" class="btn btn-outline btn-lg" style="text-decoration:none">💸 Zero-upfront · revenue share</a>
+      <button id="heroCtaDemo" class="btn btn-outline btn-lg" onclick="openOnboardingModal()" style="border-color:#00ffa3;color:#00ffa3">⚡ Try Free Demo</button>
       <a href="/proof" id="heroCtaTertiary" class="btn btn-ghost btn-lg" style="text-decoration:none">🔒 Live Proof</a>
     </div>
     <p class="hero-sub" id="heroGuarantee" style="margin-top:14px;font-size:13px;color:#7090b0">30-day money-back · sovereign-signed receipts · cancel anytime</p>
@@ -5473,6 +5473,47 @@ document.addEventListener('DOMContentLoaded',function(){
       closeNotifPanel();
     }
   });
+  // GDPR cookie consent banner
+  (function initCookieBanner(){
+    if(localStorage.getItem('zeus_cookie_consent')) return;
+    var banner=document.createElement('div');
+    banner.id='cookie-banner';
+    banner.setAttribute('role','dialog');
+    banner.setAttribute('aria-label','Cookie preferences');
+    banner.style.cssText='position:fixed;bottom:0;left:0;right:0;z-index:9999;background:rgba(7,9,20,.97);border-top:1px solid rgba(0,212,255,.2);padding:14px 20px;display:flex;align-items:center;gap:12px;flex-wrap:wrap;font-size:13px;color:#b0bcd4;backdrop-filter:blur(8px)';
+    banner.innerHTML='<span style="flex:1;min-width:200px">🍪 We use essential cookies for site functionality. Analytics cookies help us improve. <a href="/cookies" style="color:#00d4ff">Learn more</a></span>'+
+      '<button onclick="acceptCookies(true)" style="background:linear-gradient(135deg,#00d4ff,#0ea5e9);border:0;padding:8px 16px;border-radius:8px;color:#05060e;font-weight:700;cursor:pointer">Accept All</button>'+
+      '<button onclick="acceptCookies(false)" style="background:transparent;border:1px solid rgba(0,212,255,.3);padding:8px 16px;border-radius:8px;color:#b0bcd4;cursor:pointer">Essential Only</button>';
+    document.body.appendChild(banner);
+  })();
+  function acceptCookies(analytics){
+    localStorage.setItem('zeus_cookie_consent', JSON.stringify({analytics:analytics,ts:Date.now()}));
+    var b=document.getElementById('cookie-banner');
+    if(b) b.remove();
+    fetch('/api/gdpr/cookie-consent',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({analytics:analytics,marketing:false,functional:true})}).catch(function(){});
+  }
+  // Onboarding modal
+  function openOnboardingModal(){
+    var existing=document.getElementById('onboarding-modal');
+    if(existing){existing.style.display='flex';return;}
+    var m=document.createElement('div');
+    m.id='onboarding-modal';
+    m.style.cssText='position:fixed;inset:0;z-index:10000;background:rgba(0,0,0,.85);display:flex;align-items:center;justify-content:center;padding:20px;backdrop-filter:blur(6px)';
+    m.innerHTML='<div style="background:linear-gradient(160deg,#0d1220,#080c18);border:1px solid rgba(0,212,255,.2);border-radius:16px;padding:32px 28px;max-width:480px;width:100%;position:relative">'+
+      '<button onclick="document.getElementById(\"onboarding-modal\").style.display=\"none\"" style="position:absolute;top:12px;right:14px;background:0;border:0;color:#7090b0;font-size:20px;cursor:pointer" aria-label="Close">✕</button>'+
+      '<div style="font-size:11px;text-transform:uppercase;letter-spacing:.8px;color:#00d4ff;margin-bottom:8px">Free Demo</div>'+
+      '<h2 style="margin:0 0 12px;font-size:22px;color:#e9edf5">Try ZeusAI in 60 seconds</h2>'+
+      '<p style="color:#7090b0;font-size:14px;line-height:1.6;margin:0 0 20px">Explore live AI services, see real-time pricing, and test BTC checkout — no credit card required.</p>'+
+      '<div style="display:flex;flex-direction:column;gap:10px">'+
+        '<a href="/services" onclick="document.getElementById(\"onboarding-modal\").style.display=\"none\";navigate(\"marketplace\")" style="display:block;padding:12px 16px;background:linear-gradient(135deg,#00d4ff,#0ea5e9);border-radius:10px;color:#05060e;font-weight:700;text-align:center;text-decoration:none">🛍️ Browse Live Services</a>'+
+        '<a href="/pricing" onclick="document.getElementById(\"onboarding-modal\").style.display=\"none\";navigate(\"pricing\")" style="display:block;padding:12px 16px;border:1px solid rgba(0,212,255,.3);border-radius:10px;color:#b0bcd4;text-align:center;text-decoration:none">💳 View Pricing Plans</a>'+
+        '<a href="/proof" style="display:block;padding:12px 16px;border-radius:10px;color:#7090b0;text-align:center;text-decoration:none;font-size:13px">🔒 See Live Proof of Work →</a>'+
+      '</div>'+
+      '<p style="margin-top:16px;font-size:11px;color:#58637a;text-align:center">30-day money-back · sovereign-signed receipts · cancel anytime</p>'+
+    '</div>';
+    document.body.appendChild(m);
+    m.addEventListener('click',function(e){if(e.target===m)m.style.display='none';});
+  }
 });
 window.addEventListener('hashchange',initRouting);
 </script>
