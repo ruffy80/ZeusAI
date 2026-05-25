@@ -27,7 +27,7 @@ function logAction(action, details) {
     hash: require('crypto').createHash('sha256').update(JSON.stringify({action,details,prevHash,ts:Date.now()})).digest('hex')
   };
   chain.push(block);
-  fs.writeFileSync(AUDIT_FILE, JSON.stringify(chain, null, 2));
+  try { fs.writeFileSync(AUDIT_FILE, JSON.stringify(chain, null, 2)); } catch (e) { console.error('[blockchain-audit] persist error:', e.message); }
 }
 
 function getChain() {

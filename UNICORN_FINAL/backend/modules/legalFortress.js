@@ -130,7 +130,7 @@ class LegalFortress {
 // Orice copiere, modificare sau distribuție neautorizată este interzisă.
 // =====================================================================\n\n`;
 
-    fs.writeFileSync(filePath, watermark + content);
+    try { fs.writeFileSync(filePath, watermark + content); } catch (e) { console.error('[legalFortress] watermark write error:', e.message); return; }
     console.log(`📜 Watermark adăugat la ${path.basename(filePath)}`);
   }
 

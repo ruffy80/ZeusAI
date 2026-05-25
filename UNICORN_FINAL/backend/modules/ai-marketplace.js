@@ -19,7 +19,7 @@ function addModule({ name, description, author, url }) {
   let mods = [];
   try { if (fs.existsSync(MARKET_FILE)) mods = JSON.parse(fs.readFileSync(MARKET_FILE, 'utf8')); } catch {}
   mods.push({ id: Date.now(), name, description, author, url, reviews: [], score: 0 });
-  fs.writeFileSync(MARKET_FILE, JSON.stringify(mods, null, 2));
+  try { fs.writeFileSync(MARKET_FILE, JSON.stringify(mods, null, 2)); } catch (e) { console.error('[ai-marketplace] persist error:', e.message); }
 }
 
 function getModules() {
@@ -35,7 +35,7 @@ function addReview(moduleId, user, rating, text) {
     // Scoring automatizat: medie rating + bonus dacă multe review-uri
     const avg = mods[idx].reviews.reduce((a,b)=>a+b.rating,0)/mods[idx].reviews.length;
     mods[idx].score = avg + Math.log2(mods[idx].reviews.length+1);
-    fs.writeFileSync(MARKET_FILE, JSON.stringify(mods, null, 2));
+    try { fs.writeFileSync(MARKET_FILE, JSON.stringify(mods, null, 2)); } catch (e) { console.error('[ai-marketplace] persist error:', e.message); }
   }
 }
 

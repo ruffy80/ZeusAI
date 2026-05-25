@@ -180,15 +180,15 @@ function completeSite({ unicornRoot, dryRun = false } = {}) {
       page.replace('.html', '').replace(/^./, (c) => c.toUpperCase()),
       PAGE_BODIES[page] ? PAGE_BODIES[page]() : '',
     );
-    if (!dryRun) fs.writeFileSync(target, html);
+    if (!dryRun) { try { fs.writeFileSync(target, html); } catch (e) { skipped.push(page); continue; } }
     written.push(page);
   }
 
   // Bridge JS — overwrite-safe (small, read-only client). Skip if exists.
   const bridgePath = path.join(staticPath, 'zac-bridge.js');
   if (!fs.existsSync(bridgePath)) {
-    if (!dryRun) fs.writeFileSync(bridgePath, ZAC_BRIDGE_JS);
-    written.push('zac-bridge.js');
+    if (!dryRun) { try { fs.writeFileSync(bridgePath, ZAC_BRIDGE_JS); } catch (e) { skipped.push('zac-bridge.js'); } }
+    if (!skipped.includes('zac-bridge.js')) written.push('zac-bridge.js');
   } else {
     skipped.push('zac-bridge.js');
   }

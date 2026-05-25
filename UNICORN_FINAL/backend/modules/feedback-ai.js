@@ -19,7 +19,7 @@ function addFeedback(user, text, feature) {
   let feedback = [];
   try { if (fs.existsSync(FEEDBACK_FILE)) feedback = JSON.parse(fs.readFileSync(FEEDBACK_FILE, 'utf8')); } catch {}
   feedback.push({ ts: Date.now(), user, text, feature });
-  fs.writeFileSync(FEEDBACK_FILE, JSON.stringify(feedback, null, 2));
+  try { fs.writeFileSync(FEEDBACK_FILE, JSON.stringify(feedback, null, 2)); } catch (e) { console.error('[feedback-ai] persist error:', e.message); }
 }
 
 function getFeedback() {

@@ -498,7 +498,7 @@ function applyProposal(proposalId) {
     `module.exports = { _proposalId: ${JSON.stringify(proposalId)}, _status: 'proposal-only' };`,
   ].join('\n');
 
-  fs.writeFileSync(outFile, content, 'utf8');
+  try { fs.writeFileSync(outFile, content, 'utf8'); } catch (e) { rec.status = 'write-error'; rec.error = e.message; return rec; }
   rec.status    = 'applied';
   rec.appliedAt = new Date().toISOString();
   rec.outputFile = outFile;
