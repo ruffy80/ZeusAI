@@ -80,7 +80,7 @@ function generateModule({ name, description, dir = AUTOGEN_DIR } = {}) {
   if (fs.existsSync(file)) {
     return { ok: false, reason: 'exists', file };
   }
-  fs.writeFileSync(file, moduleTemplate({ name, slug, description }));
+  try { fs.writeFileSync(file, moduleTemplate({ name, slug, description })); } catch (e) { return { ok: false, reason: 'write-error: ' + e.message, file }; }
   return { ok: true, file, slug };
 }
 

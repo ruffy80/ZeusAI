@@ -27,7 +27,7 @@ function isEnabled(flag) {
 
 function setFlag(flag, enabled, aiReason = '') {
   flags[flag] = { enabled, lastChange: Date.now(), aiReason };
-  fs.writeFileSync(FLAG_FILE, JSON.stringify(flags, null, 2));
+  try { fs.writeFileSync(FLAG_FILE, JSON.stringify(flags, null, 2)); } catch (e) { console.error('[FeatureFlagManager] persist error:', e.message); }
 }
 
 function getAllFlags() {

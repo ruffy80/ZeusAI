@@ -20,7 +20,7 @@ function loadDb() {
 }
 
 function saveDb(db) {
-  fs.writeFileSync(DB_PATH, JSON.stringify(db, null, 2));
+  try { fs.writeFileSync(DB_PATH, JSON.stringify(db, null, 2)); } catch (e) { console.error('[aiFutureDb] persist error:', e.message); }
 }
 
 module.exports = {

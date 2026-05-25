@@ -454,7 +454,7 @@ class UnicornEternalEngine {
     fs.mkdirSync(generatedDir, { recursive: true });
 
     const modulePath = path.join(generatedDir, `${innovation.name.replace(/ /g, '')}.js`);
-    fs.writeFileSync(modulePath, this.getInnovationTemplate(innovation));
+    try { fs.writeFileSync(modulePath, this.getInnovationTemplate(innovation)); } catch (e) { console.error(`[EternalEngine] write error for ${innovation.name}:`, e.message); return; }
     console.log(`✅ Inovația ${innovation.name} a fost implementată cu succes`);
 
     await this.recordInnovationRevenue(innovation);
