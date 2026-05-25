@@ -897,13 +897,10 @@ let _cryptoauth = null; try { _cryptoauth = require('./modules/cryptoauth'); con
 if (_cryptoauth) {
   // Stable 410 body for retired auth endpoints.
   const RETIRED_AUTH = new Set([
-    '/api/customer/signup', '/api/customer/login', '/api/customer/logout',
-    '/api/customer/forgot-password', '/api/customer/reset-password',
-    '/api/auth/register', '/api/auth/login', '/api/auth/logout',
-    '/api/auth/forgot-password', '/api/auth/reset-password',
+    // customer/* and auth/forgot|reset have working handlers below - NOT retired.
   ]);
   const RETIRED_AUTH_PREFIXES = [
-    '/api/customer/reset-password/',
+    // // '/api/customer/reset-password/', // re-enabled // re-enabled
     '/api/auth/passkey/',
     '/api/webauthn/',
     '/api/device-key/',
@@ -1738,6 +1735,8 @@ app.post('/api/customer/logout', (req, res) => {
   return res.status(200).json({ ok: true });
 });
 
+app.post('/api/customer/forgot-password', authRateLimit(5, 15 * 60 * 1000), handleForgotPassword);
+app.post('/api/customer/reset-password', handleResetPassword);
 app.get('/api/customer/me', (req, res) => {
   const tok = readCustomerToken(req);
   if (!tok) return res.status(401).json({ error: 'unauthorized' });
