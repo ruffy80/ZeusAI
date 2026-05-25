@@ -2903,6 +2903,13 @@ function buildHealthResponse() {
     viral: !!socialViralizer,
     eternalEngine: !!uee,
   };
+  let fallbackPricing = {};
+  try {
+    const dp = require('./modules/dynamic-pricing');
+    if (dp && typeof dp.getFallbackStatus === 'function') {
+      fallbackPricing = dp.getFallbackStatus();
+    }
+  } catch (_) {}
   return {
     status: 'ok',
     uptime: s,
@@ -2927,6 +2934,7 @@ function buildHealthResponse() {
     env: process.env.NODE_ENV || 'development',
     version: APP_VERSION,
     timestamp: new Date().toISOString(),
+    fallbackPricing,
   };
 }
 

@@ -52,13 +52,26 @@ function _priceFor(id) {
 
 function refreshCatalog() {
   const ids = _scanCatalog();
-  _state.catalog = ids.map(id => ({
-    id,
-    name: id,
-    license: 'commercial',
-    price: _priceFor(id) || { amount: 99, currency: 'USD', model: 'monthly' },
-    publishedAt: new Date().toISOString(),
-  }));
+  const pricing = (() => { try { return require('../dynamic-pricing'); } catch (_) { return null; } })(); 
+  _state.catalog = ids.map(id => {
+    let priceObj = _priceFor(id) || { amount: 99, currency: 'USD', model: 'monthly' };
+    // Auto-register in BASE_PRICES if possible
+    if (pricing && typeof pricing.registerService === 'function') {
+      let priceUsd = null;
+      if (typeof priceObj === 'object' && priceObj.amount) priceUsd = Number(priceObj.amount);
+      else if (typeof priceObj === 'number') priceUsd = priceObj;
+      if (priceUsd && priceUsd > 0) {
+        pricing.registerService(id, priceUsd);
+      }
+    }
+    return {
+      id,
+      name: id,
+      license: 'commercial',
+      price: priceObj,
+      publishedAt: new Date().toISOString(),
+    };
+  });
   return _state.catalog;
 }
 

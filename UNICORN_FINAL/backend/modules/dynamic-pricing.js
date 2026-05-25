@@ -284,15 +284,43 @@ function getPrice(serviceId, options = {}) {
     base = BASE_PRICES[serviceId];
     baseSource = 'registered';
   } else {
-    base = 99;
-    baseSource = 'fallback-default';
-    // Once-per-id warning (avoid log floods when live-pricing-broker iterates
-    // hundreds of module ids on every snapshot). The Set lives for the
-    // process lifetime, which is exactly what we want — we only want to be
-    // told once per missing id, not on every refresh tick.
-    if (!_warnedFallbackIds.has(serviceId)) {
-      _warnedFallbackIds.add(serviceId);
-      try { console.warn('[DynamicPricing] using $99 fallback for unknown service id', JSON.stringify({ serviceId })); } catch (_) {}
+    // Try to auto-register from catalog modules if possible
+    let realBase = null;
+    try {
+      // Try to require the catalog modules (site and backend use similar paths)
+      let unified = null, instant = null, ent = null;
+      try { unified = require('../../src/commerce/unified-catalog'); } catch (_) {}
+      try { instant = require('../../src/commerce/instant-catalog'); } catch (_) {}
+      try { ent = require('../../src/commerce/enterprise-catalog'); } catch (_) {}
+      const probe = (mod) => {
+        if (!mod) return null;
+        try {
+          if (typeof mod.byId === 'function') {
+            const it = mod.byId(serviceId);
+            if (it) return Number(it.priceUSD != null ? it.priceUSD : it.price);
+          }
+          if (typeof mod.all === 'function') {
+            const arr = mod.all() || [];
+            const it = arr.find(x => x && x.id === serviceId);
+            if (it) return Number(it.priceUSD != null ? it.priceUSD : it.price);
+          }
+        } catch (_) {}
+        return null;
+      };
+      realBase = probe(unified) || probe(instant) || probe(ent) || null;
+      if (realBase && realBase > 0) {
+        BASE_PRICES[serviceId] = realBase;
+        base = realBase;
+        baseSource = 'auto-registered-catalog';
+      }
+    } catch (_) {}
+    if (!base) {
+      base = 99;
+      baseSource = 'fallback-default';
+      if (!_warnedFallbackIds.has(serviceId)) {
+        _warnedFallbackIds.add(serviceId);
+        try { console.warn('[DynamicPricing] using $99 fallback for unknown service id', JSON.stringify({ serviceId })); } catch (_) {}
+      }
     }
   }
   const { userId, quantity = 1, coupon } = options;
@@ -411,4 +439,14 @@ function getMarketConditions() {
 setInterval(updateDemandFactor, 5 * 60 * 1000);
 updateDemandFactor(); // initial call
 
-module.exports = { getPrice, getAllPrices, activateSurge, setDiscount, getMarketConditions, BASE_PRICES, ALLOWED_SURGE_DURATIONS_MS, registerService, registerServices, hasService };
+// Health snapshot: expose fallback usage and unregistered IDs
+function getFallbackStatus() {
+  return {
+    fallbackIds: Array.from(_warnedFallbackIds),
+    fallbackCount: _warnedFallbackIds.size,
+    registeredCount: Object.keys(BASE_PRICES).length,
+    registeredIds: Object.keys(BASE_PRICES),
+  };
+}
+
+module.exports = { getPrice, getAllPrices, activateSurge, setDiscount, getMarketConditions, BASE_PRICES, ALLOWED_SURGE_DURATIONS_MS, registerService, registerServices, hasService, getFallbackStatus };
