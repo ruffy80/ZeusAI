@@ -107,6 +107,8 @@ const ROADMAP_PATH       = process.env.DEEPSEEK_GOVERNOR_ROADMAP_PATH
                          || path.join(__dirname, '..', 'data', 'roadmap.json');
 const PROPOSALS_DIR      = process.env.DEEPSEEK_GOVERNOR_PROPOSALS_DIR
                          || path.join(__dirname, '..', 'data', 'deepseek-proposals');
+const COMMAND_QUEUE_PATH = process.env.DEEPSEEK_GOVERNOR_COMMAND_QUEUE_PATH
+                         || path.join(__dirname, '..', 'data', 'deepseek-commands.jsonl');
 
 // GitHub git-push config
 const GITHUB_TOKEN       = process.env.GITHUB_TOKEN || process.env.GH_TOKEN || process.env.GH_PAT || process.env.GITHUB_TOKEN_SYNC || '';
@@ -128,6 +130,16 @@ const ALLOWED_ACTIONS = [
   'search_github', 'full_backup', 'restore_backup', 'analyze_logs', 'rollback_deploy',
   'code_proposal', 'roadmap_update',
 ];
+
+const CODE_PROPOSAL_ALLOWED_PREFIXES = [
+  'UNICORN_FINAL/backend/modules/',
+  'UNICORN_FINAL/backend/constants/',
+  'UNICORN_FINAL/src/',
+  'UNICORN_FINAL/test/',
+  'UNICORN_FINAL/docs/',
+  'docs/',
+];
+const CODE_PROPOSAL_DENIED_PREFIXES = ['server/', 'src/', 'backend/', '.github/', 'node_modules/'];
 
 // -------- In-memory tick history -----------------------------------------
 // Istoria tick-urilor în memorie — evitâm repetiția și dăm context suplimentar.
@@ -222,7 +234,35 @@ async function consumeNextOperatorCommand() {
     if (res.status < 200 || res.status >= 300) return null;
     const j = JSON.parse(res.body);
     return j && j.command ? j.command : null;
+  } catch (_) { return consumeNextOperatorCommandFromFile(); }
+}
+
+function consumeNextOperatorCommandFromFile() {
+  let lines = [];
+  try {
+    if (!fs.existsSync(COMMAND_QUEUE_PATH)) return null;
+    lines = fs.readFileSync(COMMAND_QUEUE_PATH, 'utf8').split('\n').filter(Boolean);
   } catch (_) { return null; }
+  let best = -1;
+  let bestPrio = -1;
+  const parsed = [];
+  for (let i = 0; i < lines.length; i++) {
+    try {
+      const item = JSON.parse(lines[i]);
+      parsed.push(item);
+      if (!item.consumed && (item.priority || 0) > bestPrio) {
+        bestPrio = item.priority || 0;
+        best = i;
+      }
+    } catch (_) { parsed.push(null); }
+  }
+  if (best < 0) return null;
+  const picked = parsed[best];
+  parsed[best] = { ...picked, consumed: true, consumedAt: new Date().toISOString(), consumedBy: 'deepseek-unified-file-fallback' };
+  try {
+    fs.writeFileSync(COMMAND_QUEUE_PATH, parsed.filter(Boolean).map((item) => JSON.stringify(item)).join('\n') + '\n', { encoding: 'utf8' });
+  } catch (_) {}
+  return picked;
 }
 
 // -------- Status snapshot ------------------------------------------------
@@ -428,7 +468,7 @@ function buildSystemPrompt() {
     'github_create_branch/github_commit_push/github_create_pr/github_merge_pr/github_trigger_workflow/github_comment_issue=GitHub delivery pipeline; ' +
     'full_backup/restore_backup/rollback_deploy=autonomous ops resilience; ' +
     'analyze_logs=inspect a real log file (params.path absolute/relative file) OR a known service (params.service one of unicorn-backend, unicorn-site, deepseek-unified, deepseek-loop, governor; optional params.maxLines 20..2000). Do NOT pass directories like /var/log. ' +
-    'code_proposal=author a code change envelope (params: targetPath repo-relative, proposedContent full new file content, rationale, objectiveId, riskLevel∈low|medium|high). CRITICAL: targetPath MUST have one of these extensions: .js .mjs .cjs .json .yaml .yml .md .txt .html .css .sh .sql — NO TypeScript (.ts), NO compiled files, NO binary files. Target existing files under UNICORN_FINAL/backend/modules/ or UNICORN_FINAL/src/site/ for maximum impact. ' +
+    'code_proposal=author a code change envelope (params: targetPath repo-relative, proposedContent full new file content, rationale, objectiveId, riskLevel∈low|medium|high). CRITICAL: targetPath MUST have one of these extensions: .js .mjs .cjs .json .yaml .yml .md .txt .html .css .sh .sql — NO TypeScript (.ts), NO compiled files, NO binary files. targetPath MUST start with one of: ' + CODE_PROPOSAL_ALLOWED_PREFIXES.join(', ') + '. NEVER use server/src, server/, src/, backend/ root aliases, package metadata, CI workflows, or generated dependency paths. ' +
     'roadmap_update=mark objective status (params.objectiveId, params.status∈pending|in-progress|done|blocked, optional note). ' +
     'Auto-advance: if STATUS shows a metric target met for an in-progress objective, prefer roadmap_update status=done. ' +
     'Prioritization: (1) operatorCommand if present; (2) highest-priority open roadmap objective; (3) code_proposal for fixes; (4) innovation proposal when all green. ' +
@@ -539,6 +579,21 @@ async function askDeepSeek(status) {
 function validateRecommendation(rec) {
   if (!rec || typeof rec !== 'object') return { ok: false, reason: 'not_object' };
   if (!ALLOWED_ACTIONS.includes(rec.action)) return { ok: false, reason: 'action_not_allowed' };
+  if (rec.action === 'code_proposal') {
+    const targetPath = rec.params && typeof rec.params.targetPath === 'string'
+      ? rec.params.targetPath.replace(/\\/g, '/')
+      : '';
+    if (!targetPath || targetPath.startsWith('/') || targetPath.includes('\0') || targetPath.includes('..')) {
+      return { ok: false, reason: 'invalid_code_proposal_target' };
+    }
+    const lower = targetPath.toLowerCase();
+    for (const denied of CODE_PROPOSAL_DENIED_PREFIXES) {
+      if (lower.startsWith(denied)) return { ok: false, reason: 'code_proposal_target_prefix_denied' };
+    }
+    if (!CODE_PROPOSAL_ALLOWED_PREFIXES.some((prefix) => targetPath.startsWith(prefix))) {
+      return { ok: false, reason: 'code_proposal_target_prefix_not_allowed' };
+    }
+  }
   return { ok: true };
 }
 

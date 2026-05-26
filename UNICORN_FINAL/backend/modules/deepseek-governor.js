@@ -121,8 +121,19 @@ const PROPOSAL_MAX_FILES_PER_DAY = parseInt(process.env.DEEPSEEK_GOVERNOR_PROPOS
 // Calea țintă a propunerii respectă aceleași reguli ca read_file + interdicții
 // suplimentare pentru CI/.env/package.json/governor.
 const PROPOSAL_TARGET_DENY_PREFIXES = Object.freeze([
+  'server/',
+  'src/',
+  'backend/',
   '.github/',
   'node_modules/',
+]);
+const PROPOSAL_TARGET_ALLOW_PREFIXES = Object.freeze([
+  'UNICORN_FINAL/backend/modules/',
+  'UNICORN_FINAL/backend/constants/',
+  'UNICORN_FINAL/src/',
+  'UNICORN_FINAL/test/',
+  'UNICORN_FINAL/docs/',
+  'docs/',
 ]);
 const PROPOSAL_TARGET_DENY_SUFFIXES = Object.freeze([
   '/deepseek-governor.js',
@@ -1226,6 +1237,9 @@ function _validateProposalTargetPath(targetPath) {
   const lower = norm.toLowerCase();
   for (const pfx of PROPOSAL_TARGET_DENY_PREFIXES) {
     if (lower.startsWith(pfx.toLowerCase())) return { ok: false, reason: 'target_prefix_denied', match: pfx };
+  }
+  if (!PROPOSAL_TARGET_ALLOW_PREFIXES.some((pfx) => norm.startsWith(pfx))) {
+    return { ok: false, reason: 'target_prefix_not_allowed', allowed: PROPOSAL_TARGET_ALLOW_PREFIXES };
   }
   for (const sfx of PROPOSAL_TARGET_DENY_SUFFIXES) {
     if (lower === sfx.toLowerCase() || lower.endsWith(sfx.toLowerCase())) {
