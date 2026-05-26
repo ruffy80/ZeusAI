@@ -438,6 +438,14 @@ jobs:
           done
           pm2 save --force 2>/dev/null || true
           bash "$DEPLOY_PATH/server-doctor.sh" "$DEPLOY_PATH" "$DOMAIN" || true
+          # Keep production topology lean after server-doctor. The doctor may
+          # start the full ecosystem for recovery, but steady-state is backend
+          # + site only; sidecars remain opt-in and duplicate site workers are
+          # removed before smoke/deploy verification.
+          pm2 delete autoscaler module-mesh-guardian unicorn-live-sync unicorn-guardian 2>/dev/null || true
+          DUP_SITE_IDS=$(pm2 jlist 2>/dev/null | python3 -c 'import json,sys; ids=[str(p.get("pm_id")) for p in json.load(sys.stdin) if p.get("name")=="unicorn-site"]; print(" ".join(ids[1:]))' 2>/dev/null || true)
+          if [ -n "$DUP_SITE_IDS" ]; then pm2 delete $DUP_SITE_IDS 2>/dev/null || true; fi
+          pm2 save --force 2>/dev/null || true
           # Ensure SSL / HTTPS is active:
           #   - preserves certbot SSL blocks if already present
           #   - reinstalls SSL blocks if cert exists but blocks were wiped (recovery)

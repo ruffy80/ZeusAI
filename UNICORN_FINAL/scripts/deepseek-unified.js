@@ -86,6 +86,8 @@ const GROQ_API_KEY       = process.env.GROQ_API_KEY               || '';
 const GROQ_MODEL         = process.env.GROQ_DEEPSEEK_MODEL        || 'qwen/qwen3-32b';
 const OLLAMA_BASE_URL    = process.env.DEEPSEEK_LOOP_OLLAMA_URL   || 'http://127.0.0.1:11434';
 const OLLAMA_MODEL       = process.env.DEEPSEEK_LOOP_OLLAMA_MODEL || 'llama3';
+const LOCAL_FALLBACK_ENABLED = String(process.env.DEEPSEEK_LOOP_LOCAL_FALLBACK_ENABLED || '') === '1';
+const OLLAMA_FALLBACK_ENABLED = String(process.env.DEEPSEEK_LOOP_OLLAMA_ENABLED || '') === '1';
 
 const ADVISOR_TEMPERATURE    = Number.isFinite(Number(process.env.DEEPSEEK_LOOP_TEMPERATURE))
                              ? Number(process.env.DEEPSEEK_LOOP_TEMPERATURE) : 0.0;
@@ -420,17 +422,25 @@ async function collectStatus() {
 }
 
 // -------- Provider chain -------------------------------------------------
+function isUsableProviderKey(value) {
+  const key = String(value || '').trim();
+  if (key.length < 16) return false;
+  if (/^(changeme|change-me|replace-me|your_|your-|test|demo|dummy|null|undefined)$/i.test(key)) return false;
+  if (/(your_.*_here|your-.*-here|api[_-]?key[_-]?here|replace[_-]?me|changeme|dummy|placeholder)/i.test(key)) return false;
+  return true;
+}
+
 function getProviders() {
   const providers = [];
-  if (DEEPSEEK_API_KEY) providers.push({
+  if (isUsableProviderKey(DEEPSEEK_API_KEY)) providers.push({
     name: 'deepseek-direct', url: DEEPSEEK_API_URL, key: DEEPSEEK_API_KEY, model: DEEPSEEK_MODEL, headers: {},
   });
-  if (OPENROUTER_API_KEY) providers.push({
+  if (isUsableProviderKey(OPENROUTER_API_KEY)) providers.push({
     name: 'openrouter-deepseek', url: 'https://openrouter.ai/api/v1/chat/completions',
     key: OPENROUTER_API_KEY, model: OPENROUTER_MODEL,
     headers: { 'HTTP-Referer': 'https://zeusai.pro', 'X-Title': 'ZeusAI DeepSeek Unified' },
   });
-  if (GROQ_API_KEY) providers.push({
+  if (isUsableProviderKey(GROQ_API_KEY)) providers.push({
     name: 'groq-reasoning-fallback', url: 'https://api.groq.com/openai/v1/chat/completions',
     key: GROQ_API_KEY, model: GROQ_MODEL, headers: {},
   });
@@ -481,7 +491,10 @@ function buildSystemPrompt() {
 // -------- Ask DeepSeek (provider chain + Ollama fallback) ----------------
 async function askDeepSeek(status) {
   const providers = getProviders();
-  if (!providers.length) throw new Error('missing_all_provider_keys');
+  if (!providers.length && !LOCAL_FALLBACK_ENABLED && !OLLAMA_FALLBACK_ENABLED) {
+    log('warn', 'advisor_no_usable_provider_keys', {});
+    return { action: 'none', params: {}, reason: 'no_usable_provider_keys' };
+  }
 
   const bodyObj = {
     model: '',
@@ -528,8 +541,8 @@ async function askDeepSeek(status) {
     }
   }
 
-  // Local AGI/AGE endpoints (best-effort)
-  for (const fb of [{ name: 'agi-local', url: AGI_FALLBACK_URL }, { name: 'age-local', url: AGE_FALLBACK_URL }]) {
+  // Local AGI/AGE endpoints (best-effort, opt-in to avoid repeated 401/404 noise)
+  for (const fb of LOCAL_FALLBACK_ENABLED ? [{ name: 'agi-local', url: AGI_FALLBACK_URL }, { name: 'age-local', url: AGE_FALLBACK_URL }] : []) {
     try {
       const payload = JSON.stringify({ mode: 'deepseek-loop-fallback', allowedActions: ALLOWED_ACTIONS, status });
       const headers = { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(payload) };
@@ -547,8 +560,8 @@ async function askDeepSeek(status) {
     }
   }
 
-  // Ollama (local inference)
-  try {
+  // Ollama (local inference, opt-in when installed on the box)
+  if (OLLAMA_FALLBACK_ENABLED) try {
     const prompt = 'Return ONLY JSON {"action":"...","params":{},"reason":"..."}. Allowed: ' +
                    ALLOWED_ACTIONS.join(',') + '. STATUS=' + JSON.stringify(status);
     const payload = JSON.stringify({ model: OLLAMA_MODEL, prompt, stream: false,

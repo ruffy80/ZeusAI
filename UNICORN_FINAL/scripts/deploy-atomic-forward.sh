@@ -9,6 +9,7 @@ CANARY_TIMEOUT_SECONDS="${CANARY_TIMEOUT_SECONDS:-90}"
 FINAL_SMOKE_ATTEMPTS="${FINAL_SMOKE_ATTEMPTS:-12}"
 PM2_APPS="unicorn-backend unicorn-site"
 PM2_ONLY="unicorn-backend,unicorn-site"
+RETIRED_PM2_APPS="autoscaler module-mesh-guardian unicorn-live-sync unicorn-guardian"
 
 if [ -z "$CANDIDATE_DIR" ]; then
   echo "usage: $0 /path/to/candidate/UNICORN_FINAL [/var/www/unicorn/UNICORN_FINAL]" >&2
@@ -25,6 +26,34 @@ mkdir -p "$DEPLOY_PARENT"
 
 log() { printf '[deploy-forward] %s\n' "$*"; }
 fail() { printf '[deploy-forward][FAIL] %s\n' "$*" >&2; exit 1; }
+
+cleanup_pm2_topology() {
+  for app in $RETIRED_PM2_APPS; do
+    pm2 delete "$app" >/dev/null 2>&1 || true
+  done
+
+  local duplicate_ids
+  duplicate_ids="$(pm2 jlist 2>/dev/null | node -e '
+    let body = "";
+    process.stdin.on("data", (chunk) => body += chunk);
+    process.stdin.on("end", () => {
+      try {
+        const keepNames = new Set(["unicorn-backend", "unicorn-site"]);
+        const seen = new Set();
+        const deleteIds = [];
+        for (const proc of JSON.parse(body || "[]")) {
+          if (!keepNames.has(proc.name)) continue;
+          if (seen.has(proc.name)) deleteIds.push(String(proc.pm_id));
+          else seen.add(proc.name);
+        }
+        process.stdout.write(deleteIds.join(" "));
+      } catch (_) {}
+    });
+  ')"
+  if [ -n "$duplicate_ids" ]; then
+    pm2 delete $duplicate_ids >/dev/null 2>&1 || true
+  fi
+}
 
 cleanup_canary() {
   if [ -n "${CANARY_PID:-}" ] && kill -0 "$CANARY_PID" 2>/dev/null; then
@@ -163,6 +192,8 @@ RESOLVED_TMP="$(readlink -f "$TMP_LINK")"
 [ "$RESOLVED_TMP" = "$CANDIDATE_DIR" ] || fail "temporary symlink mismatch"
 mv -Tf "$TMP_LINK" "$DEPLOY_LINK"
 [ "$(readlink -f "$DEPLOY_LINK")" = "$CANDIDATE_DIR" ] || fail "deploy symlink mismatch after promote"
+ln -sfn "$CANDIDATE_DIR" "$DEPLOY_PARENT/current"
+[ "$(readlink -f "$DEPLOY_PARENT/current")" = "$CANDIDATE_DIR" ] || fail "current symlink mismatch after promote"
 
 # Forever-key: provision the release-stable Ed25519 signing key BEFORE PM2
 # starts, so the very first request after promote serves stable signatures.
@@ -173,6 +204,7 @@ SHARED_DIR="$SHARED_DIR" KEY_FILE="$SHARED_DIR/site-sign.pem" PUB_FILE="$SHARED_
 
 log "restart PM2 from canonical symlink only"
 cd "$DEPLOY_LINK"
+cleanup_pm2_topology
 for app in $PM2_APPS; do
   pm2 delete "$app" >/dev/null 2>&1 || true
 done
@@ -203,6 +235,7 @@ fi
 
 log "wait for PM2 warmup"
 sleep 15
+cleanup_pm2_topology
 
 # ── PM2 cwd-drift auto-recovery ─────────────────────────────────────────────
 # Some PM2 versions don't fully replace existing entries on `pm2 start
@@ -262,6 +295,7 @@ for _ in $(seq 1 "$FINAL_SMOKE_ATTEMPTS"); do
   sleep 5
 done
 [ "$FINAL_SMOKE_OK" = "1" ] || fail "final live smoke timeout after PM2 restart"
+cleanup_pm2_topology
 pm2 save --force >/dev/null
 
 if [ -n "${GITHUB_SHA:-}" ]; then
