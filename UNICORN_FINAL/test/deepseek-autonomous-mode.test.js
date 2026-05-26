@@ -3,9 +3,9 @@
  *
  * Covers the new self-contained extensions to backend/modules/deepseek-governor.js:
  *   1. code_proposal: writes envelope to PROPOSALS_DIR, enforces deny-list on
- *      .github/, deepseek-governor.js, deepseek-loop.js, package.json, .env
- *      and substring deny (secret/token/...). Enforces extension allowlist and
- *      size cap.
+ *      invalid repo prefixes, .github/, deepseek-governor.js, package.json,
+ *      .env and substring deny (secret/token/...). Enforces extension allowlist
+ *      and size cap.
  *   2. roadmap_update: rejects unknown objective IDs and invalid statuses.
  *      Persists status changes back to roadmap.json.
  *   3. Operator command queue: enqueue → list → consumeNext (FIFO with priority).
@@ -115,7 +115,7 @@ async function runTests() {
     riskLevel: 'high',
   });
   assert.strictEqual(denyLoop.status, 422);
-  assert.strictEqual(denyLoop.body.reason, 'target_suffix_denied');
+  assert.strictEqual(denyLoop.body.reason, 'target_prefix_not_allowed');
   passed++;
 
   // ---- 6. code_proposal MUST refuse package.json ----
@@ -126,7 +126,7 @@ async function runTests() {
     riskLevel: 'high',
   });
   assert.strictEqual(denyPkg.status, 422);
-  assert.strictEqual(denyPkg.body.reason, 'target_suffix_denied');
+  assert.strictEqual(denyPkg.body.reason, 'target_prefix_not_allowed');
   passed++;
 
   // ---- 7. code_proposal MUST refuse path traversal ----
