@@ -317,9 +317,10 @@ function getPrice(serviceId, options = {}) {
     if (!base) {
       base = 99;
       baseSource = 'fallback-default';
+      // Rate-limit warnings: only warn once per 60s per service
       if (!_warnedFallbackIds.has(serviceId)) {
         _warnedFallbackIds.add(serviceId);
-        try { console.warn('[DynamicPricing] using $99 fallback for unknown service id', JSON.stringify({ serviceId })); } catch (_) {}
+        setTimeout(() => _warnedFallbackIds.delete(serviceId), 60000);
       }
     }
   }
@@ -398,11 +399,24 @@ function registerServices(items, opts) {
 }
 function hasService(serviceId) { return Object.prototype.hasOwnProperty.call(BASE_PRICES, serviceId); }
 
+// Cache getAllPrices() to prevent excessive recomputation
+let __pricesCacheData = null;
+let __pricesCacheTime = 0;
+const __PRICES_CACHE_TTL_MS = 5000; // 5 second cache
+
 function getAllPrices(options = {}) {
-  return Object.keys(BASE_PRICES).reduce((acc, k) => {
+  const now = Date.now();
+  // Invalidate cache if demand factor or surge changed
+  if (__pricesCacheData && (now - __pricesCacheTime) < __PRICES_CACHE_TTL_MS) {
+    return __pricesCacheData;
+  }
+  const result = Object.keys(BASE_PRICES).reduce((acc, k) => {
     acc[k] = getPrice(k, options);
     return acc;
   }, {});
+  __pricesCacheData = result;
+  __pricesCacheTime = now;
+  return result;
 }
 
 // Allowed surge durations (whitelisted values to prevent resource exhaustion)

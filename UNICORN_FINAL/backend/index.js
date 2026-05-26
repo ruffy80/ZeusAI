@@ -6412,11 +6412,13 @@ app.post('/api/modules/status', express.json(), (req, res) => {
 });
 
 // Public: current price for all or a specific service
-app.get('/api/pricing/all', routeCache.cacheMiddleware(), (req, res) => {
+app.get('/api/pricing/all', routeCache.cacheMiddleware(10000), (req, res) => {
+  res.set('Cache-Control', 'public, max-age=10');
   res.json({ prices: dynamicPricing.getAllPrices(), basePrices: dynamicPricing.BASE_PRICES });
 });
 
-app.get('/api/pricing/conditions', routeCache.cacheMiddleware(), (req, res) => {
+app.get('/api/pricing/conditions', routeCache.cacheMiddleware(10000), (req, res) => {
+  res.set('Cache-Control', 'public, max-age=10');
   res.json(dynamicPricing.getMarketConditions());
 });
 
