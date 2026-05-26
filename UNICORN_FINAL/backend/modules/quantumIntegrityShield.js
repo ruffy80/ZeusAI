@@ -304,24 +304,41 @@ class QuantumIntegrityShield {
 
   // ── Public API ───────────────────────────────────────────────────
 
+  _freshenPm2OnlyLastScan() {
+    if (!this.lastScan || !Array.isArray(this.lastScan.issues)) return this.lastScan;
+    if (!this.lastScan.issues.length) return this.lastScan;
+    if (!this.lastScan.issues.every((issue) => issue && issue.type === 'pm2_process_missing')) return this.lastScan;
+
+    const pm2State = this._checkPm2Processes();
+    if (!pm2State.ok) return this.lastScan;
+
+    return {
+      ...this.lastScan,
+      status: 'intact',
+      issues: [],
+      pm2: pm2State,
+      staleRecoveredFrom: this.lastScan.status,
+    };
+  }
+
   /** Returnează statusul curent al scutului / Returns current shield status */
   getStatus() {
+    const currentScan = this._freshenPm2OnlyLastScan();
     return {
       name:       this.name,
       active:     this.active,
       startedAt:  this.startedAt,
-      lastScan:   this.lastScan,
-      integrity:  this.lastScan ? this.lastScan.status : 'pending',
+      lastScan:   currentScan,
+      integrity:  currentScan ? currentScan.status : 'pending',
       scansTotal: this.scanHistory.length,
       autoHealEnabled: AUTO_HEAL_ENABLED,
       lastSelfHealAt: this.lastSelfHealAt ? new Date(this.lastSelfHealAt).toISOString() : null,
       lastSelfHealResult: this.lastSelfHealResult,
-      diagnostics: this._diagnostics(),
+      diagnostics: this._diagnostics(currentScan),
     };
   }
 
-  _diagnostics() {
-    const scan = this.lastScan;
+  _diagnostics(scan = this.lastScan) {
     const issues = scan && Array.isArray(scan.issues) ? scan.issues : [];
     return {
       health: scan ? scan.status : 'pending',
