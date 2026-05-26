@@ -109,7 +109,7 @@ const PROPOSALS_DIR      = process.env.DEEPSEEK_GOVERNOR_PROPOSALS_DIR
                          || path.join(__dirname, '..', 'data', 'deepseek-proposals');
 
 // GitHub git-push config
-const GITHUB_TOKEN       = process.env.GITHUB_TOKEN || process.env.GH_TOKEN || '';
+const GITHUB_TOKEN       = process.env.GITHUB_TOKEN || process.env.GH_TOKEN || process.env.GH_PAT || process.env.GITHUB_TOKEN_SYNC || '';
 const GITHUB_REPO        = process.env.DEEPSEEK_UNIFIED_GITHUB_REPO || '';   // e.g. "username/repo"
 const GIT_REPO_ROOT      = process.env.DEEPSEEK_UNIFIED_GIT_ROOT
                          || path.join(__dirname, '..', '..');   // workspace root
