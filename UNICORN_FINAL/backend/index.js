@@ -125,6 +125,62 @@ try {
     require('dotenv').config({ path: '/etc/zeusai/social.env', override: true });
   }
 } catch (_) { /* non-fatal */ }
+
+// ── ENV alias resolver (no-conflict contract) ───────────────────────────────
+// Some GitHub Secrets were historically stored under short or alternate names
+// (CLAUDE_API_KEY vs ANTHROPIC_API_KEY, GOOGLE_API_KEY vs GEMINI_API_KEY,
+// HUGGINGFACE_API_KEY vs HF_API_KEY, SSH_HOST vs HETZNER_HOST, etc.). Rather
+// than touching every consumer, we resolve aliases here: if the canonical
+// name is empty/placeholder and the alias is set, the canonical takes the
+// alias's value. See docs/KEY_REGISTRY.md for the full table.
+(function resolveEnvAliases() {
+  const PLACEHOLDER = /^(your_.*_here|skip|changeme|todo|placeholder|x{3,}|\*+)$/i;
+  const isEmpty = v => !v || PLACEHOLDER.test(String(v).trim());
+  // Each tuple: [canonical, ...aliases]. First non-empty value wins for canonical.
+  const ALIASES = [
+    ['ANTHROPIC_API_KEY', 'CLAUDE_API_KEY'],
+    ['GEMINI_API_KEY', 'GOOGLE_API_KEY'],
+    ['HF_API_KEY', 'HUGGINGFACE_API_KEY'],
+    ['HUGGINGFACE_API_KEY', 'HF_API_KEY'], // bidirectional
+    ['OPENAI_API_KEY', 'OPENAI'],
+    ['DEEPSEEK_API_KEY', 'DEEPSEEK'],
+    ['MISTRAL_API_KEY', 'MISTRAL'],
+    ['GEMINI_API_KEY', 'GEMINI'],
+    ['BTC_WALLET_ADDRESS', 'OWNER_BTC_ADDRESS', 'LEGAL_OWNER_BTC'],
+    ['OWNER_BTC_ADDRESS', 'BTC_WALLET_ADDRESS'],
+    ['HETZNER_HOST', 'SSH_HOST', 'HETZNER_IP'],
+    ['HETZNER_DEPLOY_USER', 'HETZNER_USER', 'SSH_USER'],
+    ['HETZNER_USER', 'HETZNER_DEPLOY_USER'],
+    ['HETZNER_DEPLOY_PORT', 'SSH_PORT'],
+    ['HETZNER_SSH_PRIVATE_KEY', 'SSH_PRIVATE_KEY'],
+    ['HETZNER_API_TOKEN', 'HETZNER_API_KEY'],
+    ['HETZNER_DEPLOY_PATH', 'DEPLOY_PATH'],
+    ['GH_PAT', 'GITHUB_TOKEN_SYNC', 'GITHUB_TOKEN'],
+    ['GITHUB_TOKEN_SYNC', 'GH_PAT'],
+    ['GITHUB_REPOSITORY', 'GITHUB_REPO_FULL'],
+    ['GITHUB_REPO_FULL', 'GITHUB_REPOSITORY'],
+    ['BRANCH', 'GITHUB_BRANCH', 'GITHUB_DEFAULT_BRANCH'],
+    ['GITHUB_BRANCH', 'BRANCH'],
+    ['GIT_REMOTE_URL', 'GIT_REPO_URL'],
+    ['GIT_REPO_URL', 'GIT_REMOTE_URL'],
+  ];
+  let filled = 0;
+  for (const [canonical, ...aliases] of ALIASES) {
+    if (!isEmpty(process.env[canonical])) continue;
+    for (const a of aliases) {
+      const v = process.env[a];
+      if (!isEmpty(v)) {
+        process.env[canonical] = v;
+        filled++;
+        break;
+      }
+    }
+  }
+  if (filled > 0 && process.env.DEBUG_ENV_ALIASES === '1') {
+    console.log(`[env-alias] resolved ${filled} canonical key(s) from aliases`);
+  }
+})();
+
 // QuantumVault trebuie să se încarce PRIMUL – bootstrap + inject secrete în process.env
 // înainte ca orice alt modul să citească variabilele de mediu
 const quantumVault = require('./modules/quantumVault');
