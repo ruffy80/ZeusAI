@@ -897,7 +897,9 @@ let _cryptoauth = null; try { _cryptoauth = require('./modules/cryptoauth'); con
 if (_cryptoauth) {
   // Stable 410 body for retired auth endpoints.
   const RETIRED_AUTH = new Set([
-    // customer/* and auth/forgot|reset have working handlers below - NOT retired.
+    '/api/customer/signup', '/api/customer/login', '/api/customer/logout',
+    '/api/customer/forgot-password', '/api/customer/reset-password',
+    '/api/auth/register', '/api/auth/login', '/api/auth/logout'
   ]);
   const RETIRED_AUTH_PREFIXES = [
     // // '/api/customer/reset-password/', // re-enabled // re-enabled
