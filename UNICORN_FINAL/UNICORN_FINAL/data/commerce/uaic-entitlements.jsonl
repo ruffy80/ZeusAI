@@ -1,0 +1,1 @@
+{"id":"ent_91745d76367965f9","receiptId":"rcpt_test_1","customerId":"cust_2790a62a09099784","email":"alice@example.com","plan":"pro","serviceIds":["svc-a","svc-b"],"amount":199,"currency":"USD","issuedAt":"2026-05-26T15:02:16.099Z","activeUntil":"2027-05-26T15:02:16.099Z","licenseToken":null}

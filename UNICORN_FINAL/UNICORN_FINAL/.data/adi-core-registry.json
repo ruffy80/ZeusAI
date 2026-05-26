@@ -1,0 +1,942 @@
+{
+  "models": {
+    "pollinations": {
+      "id": "pollinations",
+      "type": "remote-api",
+      "flavor": "pollinations",
+      "url": "https://text.pollinations.ai/models",
+      "chatUrl": "https://text.pollinations.ai/openai",
+      "defaultModel": "openai",
+      "envVar": null,
+      "keyless": true,
+      "meta": {
+        "tags": [
+          "llm",
+          "chat",
+          "free",
+          "public",
+          "keyless"
+        ],
+        "signupUrl": null
+      },
+      "score": 100,
+      "latencyMs": 232,
+      "httpStatus": 200,
+      "firstSeen": 1779807728342,
+      "lastSeen": 1779807728342,
+      "integratedAt": 1779807728342,
+      "runs": 1
+    },
+    "duckduckgo-ai": {
+      "id": "duckduckgo-ai",
+      "type": "remote-api",
+      "flavor": "duckduckgo",
+      "url": "https://duckduckgo.com/duckchat/v1/status",
+      "chatUrl": "https://duckduckgo.com/duckchat/v1/chat",
+      "defaultModel": "gpt-4o-mini",
+      "envVar": null,
+      "keyless": true,
+      "meta": {
+        "tags": [
+          "llm",
+          "chat",
+          "free",
+          "privacy",
+          "keyless"
+        ],
+        "signupUrl": null
+      },
+      "score": 100,
+      "latencyMs": 154,
+      "httpStatus": 200,
+      "firstSeen": 1779807728342,
+      "lastSeen": 1779807728342,
+      "integratedAt": 1779807728342,
+      "runs": 1
+    },
+    "huggingface-public": {
+      "id": "huggingface-public",
+      "type": "remote-api",
+      "flavor": "hf-router",
+      "url": "https://router.huggingface.co/v1/models",
+      "chatUrl": "https://router.huggingface.co/v1/chat/completions",
+      "defaultModel": "meta-llama/Llama-3.2-3B-Instruct",
+      "envVar": null,
+      "keyless": true,
+      "meta": {
+        "tags": [
+          "llm",
+          "chat",
+          "free",
+          "open",
+          "keyless"
+        ],
+        "signupUrl": "https://huggingface.co/settings/tokens"
+      },
+      "score": 100,
+      "latencyMs": 229,
+      "httpStatus": 200,
+      "firstSeen": 1779807728342,
+      "lastSeen": 1779807728342,
+      "integratedAt": 1779807728342,
+      "runs": 1
+    },
+    "local:ai-auto-dispatcher.js": {
+      "id": "local:ai-auto-dispatcher.js",
+      "type": "local-module",
+      "flavor": null,
+      "url": null,
+      "chatUrl": null,
+      "defaultModel": null,
+      "envVar": null,
+      "keyless": false,
+      "meta": {
+        "tags": [
+          "local",
+          "module"
+        ]
+      },
+      "score": 88,
+      "latencyMs": 0,
+      "httpStatus": 200,
+      "firstSeen": 1779807728342,
+      "lastSeen": 1779807728342,
+      "integratedAt": 1779807728342,
+      "runs": 1
+    },
+    "local:ai-cfo-agent.js": {
+      "id": "local:ai-cfo-agent.js",
+      "type": "local-module",
+      "flavor": null,
+      "url": null,
+      "chatUrl": null,
+      "defaultModel": null,
+      "envVar": null,
+      "keyless": false,
+      "meta": {
+        "tags": [
+          "local",
+          "module"
+        ]
+      },
+      "score": 88,
+      "latencyMs": 0,
+      "httpStatus": 200,
+      "firstSeen": 1779807728342,
+      "lastSeen": 1779807728342,
+      "integratedAt": 1779807728342,
+      "runs": 1
+    },
+    "local:ai-crisis-anticipator.js": {
+      "id": "local:ai-crisis-anticipator.js",
+      "type": "local-module",
+      "flavor": null,
+      "url": null,
+      "chatUrl": null,
+      "defaultModel": null,
+      "envVar": null,
+      "keyless": false,
+      "meta": {
+        "tags": [
+          "local",
+          "module"
+        ]
+      },
+      "score": 88,
+      "latencyMs": 0,
+      "httpStatus": 200,
+      "firstSeen": 1779807728342,
+      "lastSeen": 1779807728342,
+      "integratedAt": 1779807728342,
+      "runs": 1
+    },
+    "local:ai-crisis-forecast.js": {
+      "id": "local:ai-crisis-forecast.js",
+      "type": "local-module",
+      "flavor": null,
+      "url": null,
+      "chatUrl": null,
+      "defaultModel": null,
+      "envVar": null,
+      "keyless": false,
+      "meta": {
+        "tags": [
+          "local",
+          "module"
+        ]
+      },
+      "score": 88,
+      "latencyMs": 0,
+      "httpStatus": 200,
+      "firstSeen": 1779807728342,
+      "lastSeen": 1779807728342,
+      "integratedAt": 1779807728342,
+      "runs": 1
+    },
+    "local:ai-digital-ethics.js": {
+      "id": "local:ai-digital-ethics.js",
+      "type": "local-module",
+      "flavor": null,
+      "url": null,
+      "chatUrl": null,
+      "defaultModel": null,
+      "envVar": null,
+      "keyless": false,
+      "meta": {
+        "tags": [
+          "local",
+          "module"
+        ]
+      },
+      "score": 88,
+      "latencyMs": 0,
+      "httpStatus": 200,
+      "firstSeen": 1779807728342,
+      "lastSeen": 1779807728342,
+      "integratedAt": 1779807728342,
+      "runs": 1
+    },
+    "local:ai-ethics.js": {
+      "id": "local:ai-ethics.js",
+      "type": "local-module",
+      "flavor": null,
+      "url": null,
+      "chatUrl": null,
+      "defaultModel": null,
+      "envVar": null,
+      "keyless": false,
+      "meta": {
+        "tags": [
+          "local",
+          "module"
+        ]
+      },
+      "score": 88,
+      "latencyMs": 0,
+      "httpStatus": 200,
+      "firstSeen": 1779807728342,
+      "lastSeen": 1779807728342,
+      "integratedAt": 1779807728342,
+      "runs": 1
+    },
+    "local:ai-marketplace.js": {
+      "id": "local:ai-marketplace.js",
+      "type": "local-module",
+      "flavor": null,
+      "url": null,
+      "chatUrl": null,
+      "defaultModel": null,
+      "envVar": null,
+      "keyless": false,
+      "meta": {
+        "tags": [
+          "local",
+          "module"
+        ]
+      },
+      "score": 88,
+      "latencyMs": 0,
+      "httpStatus": 200,
+      "firstSeen": 1779807728342,
+      "lastSeen": 1779807728342,
+      "integratedAt": 1779807728342,
+      "runs": 1
+    },
+    "local:ai-orchestrator.js": {
+      "id": "local:ai-orchestrator.js",
+      "type": "local-module",
+      "flavor": null,
+      "url": null,
+      "chatUrl": null,
+      "defaultModel": null,
+      "envVar": null,
+      "keyless": false,
+      "meta": {
+        "tags": [
+          "local",
+          "module"
+        ]
+      },
+      "score": 88,
+      "latencyMs": 0,
+      "httpStatus": 200,
+      "firstSeen": 1779807728342,
+      "lastSeen": 1779807728342,
+      "integratedAt": 1779807728342,
+      "runs": 1
+    },
+    "local:ai-product-generator.js": {
+      "id": "local:ai-product-generator.js",
+      "type": "local-module",
+      "flavor": null,
+      "url": null,
+      "chatUrl": null,
+      "defaultModel": null,
+      "envVar": null,
+      "keyless": false,
+      "meta": {
+        "tags": [
+          "local",
+          "module"
+        ]
+      },
+      "score": 88,
+      "latencyMs": 0,
+      "httpStatus": 200,
+      "firstSeen": 1779807728342,
+      "lastSeen": 1779807728342,
+      "integratedAt": 1779807728342,
+      "runs": 1
+    },
+    "local:ai-sales-closer-pro.js": {
+      "id": "local:ai-sales-closer-pro.js",
+      "type": "local-module",
+      "flavor": null,
+      "url": null,
+      "chatUrl": null,
+      "defaultModel": null,
+      "envVar": null,
+      "keyless": false,
+      "meta": {
+        "tags": [
+          "local",
+          "module"
+        ]
+      },
+      "score": 88,
+      "latencyMs": 0,
+      "httpStatus": 200,
+      "firstSeen": 1779807728342,
+      "lastSeen": 1779807728342,
+      "integratedAt": 1779807728342,
+      "runs": 1
+    },
+    "local:ai-sales-closer.js": {
+      "id": "local:ai-sales-closer.js",
+      "type": "local-module",
+      "flavor": null,
+      "url": null,
+      "chatUrl": null,
+      "defaultModel": null,
+      "envVar": null,
+      "keyless": false,
+      "meta": {
+        "tags": [
+          "local",
+          "module"
+        ]
+      },
+      "score": 88,
+      "latencyMs": 0,
+      "httpStatus": 200,
+      "firstSeen": 1779807728342,
+      "lastSeen": 1779807728342,
+      "integratedAt": 1779807728342,
+      "runs": 1
+    },
+    "local:ai-sdr-agent.js": {
+      "id": "local:ai-sdr-agent.js",
+      "type": "local-module",
+      "flavor": null,
+      "url": null,
+      "chatUrl": null,
+      "defaultModel": null,
+      "envVar": null,
+      "keyless": false,
+      "meta": {
+        "tags": [
+          "local",
+          "module"
+        ]
+      },
+      "score": 88,
+      "latencyMs": 0,
+      "httpStatus": 200,
+      "firstSeen": 1779807728342,
+      "lastSeen": 1779807728342,
+      "integratedAt": 1779807728342,
+      "runs": 1
+    },
+    "local:ai-self-healing.js": {
+      "id": "local:ai-self-healing.js",
+      "type": "local-module",
+      "flavor": null,
+      "url": null,
+      "chatUrl": null,
+      "defaultModel": null,
+      "envVar": null,
+      "keyless": false,
+      "meta": {
+        "tags": [
+          "local",
+          "module"
+        ]
+      },
+      "score": 88,
+      "latencyMs": 0,
+      "httpStatus": 200,
+      "firstSeen": 1779807728342,
+      "lastSeen": 1779807728342,
+      "integratedAt": 1779807728342,
+      "runs": 1
+    },
+    "local:ai-smart-cache.js": {
+      "id": "local:ai-smart-cache.js",
+      "type": "local-module",
+      "flavor": null,
+      "url": null,
+      "chatUrl": null,
+      "defaultModel": null,
+      "envVar": null,
+      "keyless": false,
+      "meta": {
+        "tags": [
+          "local",
+          "module"
+        ]
+      },
+      "score": 88,
+      "latencyMs": 0,
+      "httpStatus": 200,
+      "firstSeen": 1779807728342,
+      "lastSeen": 1779807728342,
+      "integratedAt": 1779807728342,
+      "runs": 1
+    },
+    "local:aiNegotiator.js": {
+      "id": "local:aiNegotiator.js",
+      "type": "local-module",
+      "flavor": null,
+      "url": null,
+      "chatUrl": null,
+      "defaultModel": null,
+      "envVar": null,
+      "keyless": false,
+      "meta": {
+        "tags": [
+          "local",
+          "module"
+        ]
+      },
+      "score": 88,
+      "latencyMs": 0,
+      "httpStatus": 200,
+      "firstSeen": 1779807728342,
+      "lastSeen": 1779807728342,
+      "integratedAt": 1779807728342,
+      "runs": 1
+    },
+    "local:aiProviders.js": {
+      "id": "local:aiProviders.js",
+      "type": "local-module",
+      "flavor": null,
+      "url": null,
+      "chatUrl": null,
+      "defaultModel": null,
+      "envVar": null,
+      "keyless": false,
+      "meta": {
+        "tags": [
+          "local",
+          "module"
+        ]
+      },
+      "score": 88,
+      "latencyMs": 0,
+      "httpStatus": 200,
+      "firstSeen": 1779807728342,
+      "lastSeen": 1779807728342,
+      "integratedAt": 1779807728342,
+      "runs": 1
+    },
+    "local:aiWorkforce.js": {
+      "id": "local:aiWorkforce.js",
+      "type": "local-module",
+      "flavor": null,
+      "url": null,
+      "chatUrl": null,
+      "defaultModel": null,
+      "envVar": null,
+      "keyless": false,
+      "meta": {
+        "tags": [
+          "local",
+          "module"
+        ]
+      },
+      "score": 88,
+      "latencyMs": 0,
+      "httpStatus": 200,
+      "firstSeen": 1779807728342,
+      "lastSeen": 1779807728342,
+      "integratedAt": 1779807728342,
+      "runs": 1
+    },
+    "local:ai_future_innovations": {
+      "id": "local:ai_future_innovations",
+      "type": "local-module",
+      "flavor": null,
+      "url": null,
+      "chatUrl": null,
+      "defaultModel": null,
+      "envVar": null,
+      "keyless": false,
+      "meta": {
+        "tags": [
+          "local",
+          "module"
+        ]
+      },
+      "score": 88,
+      "latencyMs": 0,
+      "httpStatus": 200,
+      "firstSeen": 1779807728342,
+      "lastSeen": 1779807728342,
+      "integratedAt": 1779807728342,
+      "runs": 1
+    },
+    "local:auto-repair.js": {
+      "id": "local:auto-repair.js",
+      "type": "local-module",
+      "flavor": null,
+      "url": null,
+      "chatUrl": null,
+      "defaultModel": null,
+      "envVar": null,
+      "keyless": false,
+      "meta": {
+        "tags": [
+          "local",
+          "module"
+        ]
+      },
+      "score": 88,
+      "latencyMs": 0,
+      "httpStatus": 200,
+      "firstSeen": 1779807728342,
+      "lastSeen": 1779807728342,
+      "integratedAt": 1779807728342,
+      "runs": 1
+    },
+    "local:blockchain-audit.js": {
+      "id": "local:blockchain-audit.js",
+      "type": "local-module",
+      "flavor": null,
+      "url": null,
+      "chatUrl": null,
+      "defaultModel": null,
+      "envVar": null,
+      "keyless": false,
+      "meta": {
+        "tags": [
+          "local",
+          "module"
+        ]
+      },
+      "score": 88,
+      "latencyMs": 0,
+      "httpStatus": 200,
+      "firstSeen": 1779807728342,
+      "lastSeen": 1779807728342,
+      "integratedAt": 1779807728342,
+      "runs": 1
+    },
+    "local:cloud-providers.js": {
+      "id": "local:cloud-providers.js",
+      "type": "local-module",
+      "flavor": null,
+      "url": null,
+      "chatUrl": null,
+      "defaultModel": null,
+      "envVar": null,
+      "keyless": false,
+      "meta": {
+        "tags": [
+          "local",
+          "module"
+        ]
+      },
+      "score": 88,
+      "latencyMs": 0,
+      "httpStatus": 200,
+      "firstSeen": 1779807728342,
+      "lastSeen": 1779807728342,
+      "integratedAt": 1779807728342,
+      "runs": 1
+    },
+    "local:content-ai.js": {
+      "id": "local:content-ai.js",
+      "type": "local-module",
+      "flavor": null,
+      "url": null,
+      "chatUrl": null,
+      "defaultModel": null,
+      "envVar": null,
+      "keyless": false,
+      "meta": {
+        "tags": [
+          "local",
+          "module"
+        ]
+      },
+      "score": 88,
+      "latencyMs": 0,
+      "httpStatus": 200,
+      "firstSeen": 1779807728342,
+      "lastSeen": 1779807728342,
+      "integratedAt": 1779807728342,
+      "runs": 1
+    },
+    "local:domainAutomationManager.js": {
+      "id": "local:domainAutomationManager.js",
+      "type": "local-module",
+      "flavor": null,
+      "url": null,
+      "chatUrl": null,
+      "defaultModel": null,
+      "envVar": null,
+      "keyless": false,
+      "meta": {
+        "tags": [
+          "local",
+          "module"
+        ]
+      },
+      "score": 88,
+      "latencyMs": 0,
+      "httpStatus": 200,
+      "firstSeen": 1779807728342,
+      "lastSeen": 1779807728342,
+      "integratedAt": 1779807728342,
+      "runs": 1
+    },
+    "local:enterprise-cloud-router.js": {
+      "id": "local:enterprise-cloud-router.js",
+      "type": "local-module",
+      "flavor": null,
+      "url": null,
+      "chatUrl": null,
+      "defaultModel": null,
+      "envVar": null,
+      "keyless": false,
+      "meta": {
+        "tags": [
+          "local",
+          "module"
+        ]
+      },
+      "score": 88,
+      "latencyMs": 0,
+      "httpStatus": 200,
+      "firstSeen": 1779807728342,
+      "lastSeen": 1779807728342,
+      "integratedAt": 1779807728342,
+      "runs": 1
+    },
+    "local:enterprise-router.js": {
+      "id": "local:enterprise-router.js",
+      "type": "local-module",
+      "flavor": null,
+      "url": null,
+      "chatUrl": null,
+      "defaultModel": null,
+      "envVar": null,
+      "keyless": false,
+      "meta": {
+        "tags": [
+          "local",
+          "module"
+        ]
+      },
+      "score": 88,
+      "latencyMs": 0,
+      "httpStatus": 200,
+      "firstSeen": 1779807728342,
+      "lastSeen": 1779807728342,
+      "integratedAt": 1779807728342,
+      "runs": 1
+    },
+    "local:feedback-ai.js": {
+      "id": "local:feedback-ai.js",
+      "type": "local-module",
+      "flavor": null,
+      "url": null,
+      "chatUrl": null,
+      "defaultModel": null,
+      "envVar": null,
+      "keyless": false,
+      "meta": {
+        "tags": [
+          "local",
+          "module"
+        ]
+      },
+      "score": 88,
+      "latencyMs": 0,
+      "httpStatus": 200,
+      "firstSeen": 1779807728342,
+      "lastSeen": 1779807728342,
+      "integratedAt": 1779807728342,
+      "runs": 1
+    },
+    "local:future-state-ai.js": {
+      "id": "local:future-state-ai.js",
+      "type": "local-module",
+      "flavor": null,
+      "url": null,
+      "chatUrl": null,
+      "defaultModel": null,
+      "envVar": null,
+      "keyless": false,
+      "meta": {
+        "tags": [
+          "local",
+          "module"
+        ]
+      },
+      "score": 88,
+      "latencyMs": 0,
+      "httpStatus": 200,
+      "firstSeen": 1779807728342,
+      "lastSeen": 1779807728342,
+      "integratedAt": 1779807728342,
+      "runs": 1
+    },
+    "local:global-failover.js": {
+      "id": "local:global-failover.js",
+      "type": "local-module",
+      "flavor": null,
+      "url": null,
+      "chatUrl": null,
+      "defaultModel": null,
+      "envVar": null,
+      "keyless": false,
+      "meta": {
+        "tags": [
+          "local",
+          "module"
+        ]
+      },
+      "score": 88,
+      "latencyMs": 0,
+      "httpStatus": 200,
+      "firstSeen": 1779807728342,
+      "lastSeen": 1779807728342,
+      "integratedAt": 1779807728342,
+      "runs": 1
+    },
+    "local:healthcareAI.js": {
+      "id": "local:healthcareAI.js",
+      "type": "local-module",
+      "flavor": null,
+      "url": null,
+      "chatUrl": null,
+      "defaultModel": null,
+      "envVar": null,
+      "keyless": false,
+      "meta": {
+        "tags": [
+          "local",
+          "module"
+        ]
+      },
+      "score": 88,
+      "latencyMs": 0,
+      "httpStatus": 200,
+      "firstSeen": 1779807728342,
+      "lastSeen": 1779807728342,
+      "integratedAt": 1779807728342,
+      "runs": 1
+    },
+    "local:multi-model-router.js": {
+      "id": "local:multi-model-router.js",
+      "type": "local-module",
+      "flavor": null,
+      "url": null,
+      "chatUrl": null,
+      "defaultModel": null,
+      "envVar": null,
+      "keyless": false,
+      "meta": {
+        "tags": [
+          "local",
+          "module"
+        ]
+      },
+      "score": 88,
+      "latencyMs": 0,
+      "httpStatus": 200,
+      "firstSeen": 1779807728342,
+      "lastSeen": 1779807728342,
+      "integratedAt": 1779807728342,
+      "runs": 1
+    },
+    "local:quantumBlockchain.js": {
+      "id": "local:quantumBlockchain.js",
+      "type": "local-module",
+      "flavor": null,
+      "url": null,
+      "chatUrl": null,
+      "defaultModel": null,
+      "envVar": null,
+      "keyless": false,
+      "meta": {
+        "tags": [
+          "local",
+          "module"
+        ]
+      },
+      "score": 88,
+      "latencyMs": 0,
+      "httpStatus": 200,
+      "firstSeen": 1779807728342,
+      "lastSeen": 1779807728342,
+      "integratedAt": 1779807728342,
+      "runs": 1
+    },
+    "local:sovereignRevenueRouter.js": {
+      "id": "local:sovereignRevenueRouter.js",
+      "type": "local-module",
+      "flavor": null,
+      "url": null,
+      "chatUrl": null,
+      "defaultModel": null,
+      "envVar": null,
+      "keyless": false,
+      "meta": {
+        "tags": [
+          "local",
+          "module"
+        ]
+      },
+      "score": 88,
+      "latencyMs": 0,
+      "httpStatus": 200,
+      "firstSeen": 1779807728342,
+      "lastSeen": 1779807728342,
+      "integratedAt": 1779807728342,
+      "runs": 1
+    },
+    "local:unicornBrain.js": {
+      "id": "local:unicornBrain.js",
+      "type": "local-module",
+      "flavor": null,
+      "url": null,
+      "chatUrl": null,
+      "defaultModel": null,
+      "envVar": null,
+      "keyless": false,
+      "meta": {
+        "tags": [
+          "local",
+          "module"
+        ]
+      },
+      "score": 88,
+      "latencyMs": 0,
+      "httpStatus": 200,
+      "firstSeen": 1779807728342,
+      "lastSeen": 1779807728342,
+      "integratedAt": 1779807728342,
+      "runs": 1
+    },
+    "local:universal-ai-connector": {
+      "id": "local:universal-ai-connector",
+      "type": "local-module",
+      "flavor": null,
+      "url": null,
+      "chatUrl": null,
+      "defaultModel": null,
+      "envVar": null,
+      "keyless": false,
+      "meta": {
+        "tags": [
+          "local",
+          "module"
+        ]
+      },
+      "score": 88,
+      "latencyMs": 0,
+      "httpStatus": 200,
+      "firstSeen": 1779807728342,
+      "lastSeen": 1779807728342,
+      "integratedAt": 1779807728342,
+      "runs": 1
+    },
+    "local:universal-interchain-nexus.js": {
+      "id": "local:universal-interchain-nexus.js",
+      "type": "local-module",
+      "flavor": null,
+      "url": null,
+      "chatUrl": null,
+      "defaultModel": null,
+      "envVar": null,
+      "keyless": false,
+      "meta": {
+        "tags": [
+          "local",
+          "module"
+        ]
+      },
+      "score": 88,
+      "latencyMs": 0,
+      "httpStatus": 200,
+      "firstSeen": 1779807728342,
+      "lastSeen": 1779807728342,
+      "integratedAt": 1779807728342,
+      "runs": 1
+    },
+    "local:universalAIConnector.js": {
+      "id": "local:universalAIConnector.js",
+      "type": "local-module",
+      "flavor": null,
+      "url": null,
+      "chatUrl": null,
+      "defaultModel": null,
+      "envVar": null,
+      "keyless": false,
+      "meta": {
+        "tags": [
+          "local",
+          "module"
+        ]
+      },
+      "score": 88,
+      "latencyMs": 0,
+      "httpStatus": 200,
+      "firstSeen": 1779807728342,
+      "lastSeen": 1779807728342,
+      "integratedAt": 1779807728342,
+      "runs": 1
+    },
+    "local:universalAITrainingMarketplace.js": {
+      "id": "local:universalAITrainingMarketplace.js",
+      "type": "local-module",
+      "flavor": null,
+      "url": null,
+      "chatUrl": null,
+      "defaultModel": null,
+      "envVar": null,
+      "keyless": false,
+      "meta": {
+        "tags": [
+          "local",
+          "module"
+        ]
+      },
+      "score": 88,
+      "latencyMs": 0,
+      "httpStatus": 200,
+      "firstSeen": 1779807728342,
+      "lastSeen": 1779807728342,
+      "integratedAt": 1779807728342,
+      "runs": 1
+    }
+  },
+  "history": [
+    {
+      "ts": 1779807728342,
+      "count": 40
+    }
+  ]
+}
