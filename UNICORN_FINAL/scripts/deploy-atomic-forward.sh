@@ -179,14 +179,26 @@ done
 # truth for per-app PORT (backend:3000, site:3001). Setting PORT=3000 in the
 # shell env propagates via `--update-env` to ALL apps and forces site to also
 # attempt 3000, racing with backend → EADDRINUSE crash-loops on cold deploy.
-env \
+if ! env \
   NODE_ENV=production \
   BIND_HOST=127.0.0.1 \
   UNICORN_RUNTIME_PROFILE=safe \
   QIS_REQUIRED_PROCESSES=unicorn-backend,unicorn-site,autoscaler \
   ZEUS_BUILD_SHA="${GITHUB_SHA:-}" \
   SW_VERSION="${GITHUB_SHA:-}" \
-  pm2 start ecosystem.config.js --update-env
+  pm2 start ecosystem.config.js --update-env; then
+  log "PM2 start failed (possibly stale process/daemon bug). Attempting recovery via pm2 kill..."
+  pm2 kill || true
+  sleep 3
+  env \
+    NODE_ENV=production \
+    BIND_HOST=127.0.0.1 \
+    UNICORN_RUNTIME_PROFILE=safe \
+    QIS_REQUIRED_PROCESSES=unicorn-backend,unicorn-site,autoscaler \
+    ZEUS_BUILD_SHA="${GITHUB_SHA:-}" \
+    SW_VERSION="${GITHUB_SHA:-}" \
+    pm2 start ecosystem.config.js --update-env
+fi
 
 log "wait for PM2 warmup"
 sleep 15
