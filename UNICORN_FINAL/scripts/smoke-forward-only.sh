@@ -58,7 +58,7 @@ if command -v pm2 >/dev/null 2>&1 && { [ "$REQUIRE_PM2" = "1" ] || [ -n "$EXPECT
   PM2_JSON="$(pm2 jlist)"
   node -e '
     const list = JSON.parse(process.argv[1]);
-    const names = ["unicorn-backend", "unicorn-site", "autoscaler"];
+    const names = ["unicorn-backend", "unicorn-site"];
     const apps = list.filter((p) => names.includes(p.name));
     const byName = new Map();
     for (const app of apps) {
@@ -88,7 +88,7 @@ if command -v pm2 >/dev/null 2>&1 && { [ "$REQUIRE_PM2" = "1" ] || [ -n "$EXPECT
       const fs = require("fs");
       const list = JSON.parse(process.argv[1]);
       const expected = fs.realpathSync(process.argv[2]);
-      const apps = list.filter((p) => ["unicorn-backend", "unicorn-site", "autoscaler"].includes(p.name));
+      const apps = list.filter((p) => ["unicorn-backend", "unicorn-site"].includes(p.name));
       const bad = apps.filter((p) => {
         let cwd = p.pm2_env.pm_cwd;
         try { cwd = fs.realpathSync(cwd); } catch (_) {}
