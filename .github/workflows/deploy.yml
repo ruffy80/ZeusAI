@@ -781,7 +781,12 @@ jobs:
           set -euo pipefail
           DEPLOY_PATH=/var/www/unicorn/UNICORN_FINAL
           cd "$DEPLOY_PATH"
-          for attempt in $(seq 1 8); do
+          for attempt in $(seq 1 24); do
+            if ! ss -ltn 2>/dev/null | grep -q '127.0.0.1:3001'; then
+              echo "loopback attempt=${attempt}/24 port=3001 status=warming"
+              sleep 5
+              continue
+            fi
             BODY="$(curl -fsS --max-time 15 -H 'Cache-Control: no-cache' -H 'Accept: application/json' http://127.0.0.1:3001/api/catalog/master || true)"
             read -r STATUS COUNT MODE <<<"$(printf '%s' "$BODY" | node -e '
               let body = "";
@@ -794,15 +799,10 @@ jobs:
                 process.stdout.write(`${parsed ? 200 : 0} ${count} ${mode}`);
               });
             ')"
-            echo "loopback attempt=${attempt}/8 status=${STATUS} count=${COUNT} mode=${MODE}"
+            echo "loopback attempt=${attempt}/24 status=${STATUS} count=${COUNT} mode=${MODE}"
             if [ "$STATUS" = "200" ] && [ "${COUNT:-0}" -ge 65 ] && [ "$MODE" != "rescue" ]; then
               echo "✅ loopback site catalog healthy"
               exit 0
-            fi
-            if [ "$attempt" -eq 4 ]; then
-              echo "↻ restart unicorn-site after slow/failed warmup"
-              pm2 restart unicorn-site --update-env >/dev/null 2>&1 || \
-                pm2 start ecosystem.config.js --only unicorn-site --update-env >/dev/null 2>&1 || true
             fi
             sleep 5
           done
