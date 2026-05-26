@@ -129,6 +129,24 @@ try {
   }
 } catch (_) { /* non-fatal */ }
 
+const QIS_PROCESS_ALIASES = {
+  unicorn: 'unicorn-backend',
+  'unicorn-orchestrator': 'unicorn-site',
+  'unicorn-health-guardian': '',
+  'unicorn-quantum-watchdog': '',
+};
+
+function normalizeQisRequiredProcesses(value) {
+  const normalized = String(value || 'unicorn-backend,unicorn-site')
+    .split(',')
+    .map((name) => name.trim().replace(/^['"]|['"]$/g, ''))
+    .map((name) => Object.prototype.hasOwnProperty.call(QIS_PROCESS_ALIASES, name) ? QIS_PROCESS_ALIASES[name] : name)
+    .filter(Boolean);
+  return [...new Set(normalized)].join(',') || 'unicorn-backend,unicorn-site';
+}
+
+process.env.QIS_REQUIRED_PROCESSES = normalizeQisRequiredProcesses(process.env.QIS_REQUIRED_PROCESSES);
+
 // ── ENV alias resolver (no-conflict contract) ───────────────────────────────
 // Some GitHub Secrets were historically stored under short or alternate names
 // (CLAUDE_API_KEY vs ANTHROPIC_API_KEY, GOOGLE_API_KEY vs GEMINI_API_KEY,

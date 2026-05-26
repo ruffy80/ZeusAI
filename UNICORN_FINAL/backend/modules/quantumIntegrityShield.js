@@ -20,7 +20,7 @@ const SCAN_INTERVAL_MS  = parseInt(process.env.QIS_SCAN_INTERVAL_MS  || '300000'
 const MAX_SCAN_HISTORY  = 100;
 const AUTO_HEAL_ENABLED = String(process.env.QIS_AUTO_HEAL_ENABLED || 'true').toLowerCase() !== 'false';
 // Default auto-heal: only references the live PM2 processes that actually
-// exist on production (unicorn-backend, unicorn-site, autoscaler). The legacy
+// exist on production (unicorn-backend, unicorn-site). The legacy
 // 'unicorn-guardian' was retired and reloading it errored every cycle, which
 // in turn flooded log-monitor and kept the shield permanently 'degraded'.
 // IMPORTANT: NEVER pass --update-env from inside the app process. The calling
@@ -65,12 +65,12 @@ const CRITICAL_FILES = [
 const LEGACY_PM2_NAME_MAP = {
   unicorn: 'unicorn-backend',
   'unicorn-orchestrator': 'unicorn-site',
-  'unicorn-health-guardian': 'unicorn-guardian',
-  'unicorn-quantum-watchdog': 'unicorn-guardian',
+  'unicorn-health-guardian': '',
+  'unicorn-quantum-watchdog': '',
 };
 const REQUIRED_PM2_PROCESSES = (Object.prototype.hasOwnProperty.call(process.env, 'QIS_REQUIRED_PROCESSES')
   ? process.env.QIS_REQUIRED_PROCESSES
-  : 'unicorn-backend,unicorn-site,autoscaler')
+  : 'unicorn-backend,unicorn-site')
   .split(',')
   .map((s) => LEGACY_PM2_NAME_MAP[s.trim()] || s.trim())
   .filter(Boolean);

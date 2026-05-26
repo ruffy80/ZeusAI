@@ -7,7 +7,8 @@ PUBLIC_URL="${PUBLIC_URL:-https://zeusai.pro}"
 CANARY_PORT="${CANARY_PORT:-3100}"
 CANARY_TIMEOUT_SECONDS="${CANARY_TIMEOUT_SECONDS:-90}"
 FINAL_SMOKE_ATTEMPTS="${FINAL_SMOKE_ATTEMPTS:-12}"
-PM2_APPS="unicorn-backend unicorn-site autoscaler"
+PM2_APPS="unicorn-backend unicorn-site"
+PM2_ONLY="unicorn-backend,unicorn-site"
 
 if [ -z "$CANDIDATE_DIR" ]; then
   echo "usage: $0 /path/to/candidate/UNICORN_FINAL [/var/www/unicorn/UNICORN_FINAL]" >&2
@@ -183,10 +184,10 @@ if ! env \
   NODE_ENV=production \
   BIND_HOST=127.0.0.1 \
   UNICORN_RUNTIME_PROFILE=safe \
-  QIS_REQUIRED_PROCESSES=unicorn-backend,unicorn-site,autoscaler \
+  QIS_REQUIRED_PROCESSES="$PM2_ONLY" \
   ZEUS_BUILD_SHA="${GITHUB_SHA:-}" \
   SW_VERSION="${GITHUB_SHA:-}" \
-  pm2 start ecosystem.config.js --update-env; then
+  pm2 start ecosystem.config.js --only "$PM2_ONLY" --update-env; then
   log "PM2 start failed (possibly stale process/daemon bug). Attempting recovery via pm2 kill..."
   pm2 kill || true
   sleep 3
@@ -194,10 +195,10 @@ if ! env \
     NODE_ENV=production \
     BIND_HOST=127.0.0.1 \
     UNICORN_RUNTIME_PROFILE=safe \
-    QIS_REQUIRED_PROCESSES=unicorn-backend,unicorn-site,autoscaler \
+    QIS_REQUIRED_PROCESSES="$PM2_ONLY" \
     ZEUS_BUILD_SHA="${GITHUB_SHA:-}" \
     SW_VERSION="${GITHUB_SHA:-}" \
-    pm2 start ecosystem.config.js --update-env
+    pm2 start ecosystem.config.js --only "$PM2_ONLY" --update-env
 fi
 
 log "wait for PM2 warmup"
@@ -244,7 +245,7 @@ if [ -n "$DRIFTED_APPS" ]; then
       NODE_ENV=production \
       BIND_HOST=127.0.0.1 \
       UNICORN_RUNTIME_PROFILE=safe \
-      QIS_REQUIRED_PROCESSES=unicorn-backend,unicorn-site,autoscaler \
+      QIS_REQUIRED_PROCESSES="$PM2_ONLY" \
       ZEUS_BUILD_SHA="${GITHUB_SHA:-}" \
       SW_VERSION="${GITHUB_SHA:-}" \
       pm2 start ecosystem.config.js --only "$app" --update-env >/dev/null
