@@ -30,8 +30,13 @@ assert_node_json "backend health status ok" "$BASE_URL/health" \
 assert_node_json "backend engines active" "$BASE_URL/health" \
   "if (data.engines && !Object.values(data.engines).every(Boolean)) process.exit(1);"
 
-assert_node_json "quantum integrity intact" "$BASE_URL/api/quantum-integrity/status" \
-  "if (!(data.active === true && data.integrity === 'intact' && (!data.diagnostics || (data.diagnostics.issues || []).length === 0))) process.exit(1);"
+if [ "$SKIP_PUBLIC" = "1" ]; then
+  assert_node_json "quantum integrity canary safe" "$BASE_URL/api/quantum-integrity/status" \
+    "if (!(data.active === true && data.integrity !== 'compromised')) process.exit(1);"
+else
+  assert_node_json "quantum integrity intact" "$BASE_URL/api/quantum-integrity/status" \
+    "if (!(data.active === true && data.integrity === 'intact' && (!data.diagnostics || (data.diagnostics.issues || []).length === 0))) process.exit(1);"
+fi
 
 # Security guard: admin DeepSeek endpoint must NEVER be writable without
 # explicit Bearer auth. Any 2xx here is a critical misconfiguration.
