@@ -44,3 +44,6 @@ UNICORN_FINAL/data/sovereignty/attestations.jsonl
 UNICORN_FINAL/data/sovereignty/sovereignty-state.json
 UNICORN_FINAL/.data/
 UNICORN_FINAL/data/oracle/oracle-state.json
+
+# Local archive of consolidated env files (never commit)
+.env-archive/
