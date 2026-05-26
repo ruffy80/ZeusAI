@@ -134,8 +134,33 @@ try {
 // name is empty/placeholder and the alias is set, the canonical takes the
 // alias's value. See docs/KEY_REGISTRY.md for the full table.
 (function resolveEnvAliases() {
-  const PLACEHOLDER = /^(your_.*_here|skip|changeme|todo|placeholder|x{3,}|\*+)$/i;
-  const isEmpty = v => !v || PLACEHOLDER.test(String(v).trim());
+  // Placeholders we never want downstream modules to consume. We test the
+  // trimmed value AND the trimmed value with surrounding single/double quotes
+  // stripped (dotenv normally strips quotes, but `'your_foo_here'` written
+  // literally without dotenv parsing — e.g. via plain shell echo — survives).
+  const PLACEHOLDER = /^(your[_-].*[_-]here|skip|changeme|todo|placeholder|x{3,}|\*+|sk-proj-\.\.\.|aiza\.\.\..*|none|null|undefined|n\/a|tbd)$/i;
+  const strip = v => String(v == null ? '' : v).trim().replace(/^['"]|['"]$/g, '').trim();
+  const isPlaceholder = v => { const s = strip(v); return s === '' || PLACEHOLDER.test(s); };
+  const isEmpty = v => !v || isPlaceholder(v);
+
+  // Pass 0 — wipe placeholders from process.env entirely so any downstream
+  // `process.env.FOO || default` works correctly. Also normalizes quoted
+  // values (dotenv keeps quotes when the file was written by shell heredoc).
+  let wiped = 0;
+  for (const [k, v] of Object.entries(process.env)) {
+    if (v == null) continue;
+    if (isPlaceholder(v)) {
+      delete process.env[k];
+      wiped++;
+    } else {
+      // Strip surrounding quotes only if both ends match
+      const stripped = strip(v);
+      if (stripped !== v) process.env[k] = stripped;
+    }
+  }
+  if (wiped > 0 && process.env.DEBUG_ENV_ALIASES === '1') {
+    console.log(`[env-alias] wiped ${wiped} placeholder env var(s)`);
+  }
   // Each tuple: [canonical, ...aliases]. First non-empty value wins for canonical.
   const ALIASES = [
     ['ANTHROPIC_API_KEY', 'CLAUDE_API_KEY'],
