@@ -82,7 +82,7 @@ module.exports = {
         // ledger. Makes evolution publicly verifiable for 30+ years.
         GROWTH_AUTO_ATTEST_INNOVATIONS: process.env.GROWTH_AUTO_ATTEST_INNOVATIONS || '1',
         QIS_AUTO_HEAL_ENABLED: 'true',
-        QIS_REQUIRED_PROCESSES: 'unicorn-backend,unicorn-site,autoscaler',
+        QIS_REQUIRED_PROCESSES: 'unicorn-backend,unicorn-site',
         // ── AUTH-GUARDIAN: DISABLED PERMANENTLY ────────────────────────
         // auth-guardian probes /api/auth/test and on failure runs
         // scripts/auth-repair.js, which UNCONDITIONALLY calls
@@ -265,6 +265,13 @@ module.exports = {
       watch: false,
       env: {
         NODE_ENV: 'production',
+        // Hard caps (2026-05-26): unbounded scaling on an 8-core box took the
+        // server to 11 GB site RSS → OOM → nginx 503 maintenance page. Default
+        // to DISABLED + cap=2 so the worst case is now bounded even if the
+        // operator flips AUTOSCALE_DISABLED=0.
+        AUTOSCALE_DISABLED: process.env.AUTOSCALE_DISABLED || '1',
+        AUTOSCALE_MAX: process.env.AUTOSCALE_MAX || '2',
+        AUTOSCALE_MIN_FREE_MB: process.env.AUTOSCALE_MIN_FREE_MB || '800',
       },
       error_file: 'logs/autoscale-error.log',
       out_file:   'logs/autoscale-out.log',

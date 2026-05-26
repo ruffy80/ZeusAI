@@ -1,6 +1,13 @@
 // scripts/autoscale.js — Unicorn SaaS Auto-Scaling (PM2)
 // Rulează cu: pm2 start scripts/autoscale.js --name autoscaler
 // Log: logs/autoscale-out.log
+//
+// SAFE-BY-DEFAULT (2026-05-26): historical regression — on an 8-core box this
+// scaled unicorn-site to 8 instances * ~1.4 GB each = 11 GB RSS → OOM thrash
+// → swap saturation → nginx falls back to maintenance 503 page. Hard caps:
+//   * MAX_INSTANCES default 2 (override via AUTOSCALE_MAX env)
+//   * Refuse to scale up when free memory < AUTOSCALE_MIN_FREE_MB (default 800)
+//   * AUTOSCALE_DISABLED=1 → no-op (process stays online but never scales)
 
 const { exec } = require('child_process');
 const os = require('os');
@@ -12,7 +19,10 @@ const CHECK_INTERVAL = 10000; // 10 sec
 const CPU_UP = 0.7; // 70%
 const CPU_DOWN = 0.3; // 30%
 const MIN_INSTANCES = 1;
-const MAX_INSTANCES = os.cpus().length;
+const HARD_CAP = Math.max(1, Math.min(os.cpus().length, Number(process.env.AUTOSCALE_MAX || 2)));
+const MAX_INSTANCES = HARD_CAP;
+const MIN_FREE_MB = Number(process.env.AUTOSCALE_MIN_FREE_MB || 800);
+const DISABLED = String(process.env.AUTOSCALE_DISABLED || '0') === '1';
 
 let lastInstances = null;
 
@@ -63,6 +73,7 @@ function log(msg) {
 }
 
 function checkAndScale() {
+  if (DISABLED) return; // safe-mode no-op
   getMetrics((err, metrics) => {
     if (err) {
       log(`Metrics error: ${err}`);
@@ -76,12 +87,22 @@ function checkAndScale() {
         return;
       }
       let newInstances = instances;
+      const freeMb = Math.round(os.freemem() / 1024 / 1024);
       if (cpu > CPU_UP && instances < MAX_INSTANCES) {
-        newInstances = instances + 1;
-        log(`Scaling up: CPU high (${(cpu*100).toFixed(1)}%), instances ${instances}→${newInstances}`);
+        if (freeMb < MIN_FREE_MB) {
+          log(`Refusing scale-up: free memory ${freeMb} MB < ${MIN_FREE_MB} MB (cap=${MAX_INSTANCES})`);
+        } else {
+          newInstances = instances + 1;
+          log(`Scaling up: CPU high (${(cpu*100).toFixed(1)}%), free=${freeMb} MB, instances ${instances}→${newInstances} (cap=${MAX_INSTANCES})`);
+        }
       } else if (cpu < CPU_DOWN && instances > MIN_INSTANCES) {
         newInstances = instances - 1;
         log(`Scaling down: CPU low (${(cpu*100).toFixed(1)}%), instances ${instances}→${newInstances}`);
+      } else if (instances > MAX_INSTANCES) {
+        // Hard cap enforcement: if a previous bad config left us above the cap,
+        // bring it down regardless of CPU.
+        newInstances = MAX_INSTANCES;
+        log(`Enforcing hard cap: instances ${instances}→${newInstances}`);
       }
       if (newInstances !== instances) {
         scale(newInstances);
@@ -92,4 +113,8 @@ function checkAndScale() {
 }
 
 setInterval(checkAndScale, CHECK_INTERVAL);
-log(`Autoscaler started. Monitoring ${PM2_APP}, max ${MAX_INSTANCES} cores.`);
+if (DISABLED) {
+  log(`Autoscaler DISABLED via AUTOSCALE_DISABLED=1. Process online but inert (cap=${MAX_INSTANCES}, app=${PM2_APP}).`);
+} else {
+  log(`Autoscaler started. Monitoring ${PM2_APP}, hard cap ${MAX_INSTANCES}, min-free ${MIN_FREE_MB} MB.`);
+}
