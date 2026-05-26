@@ -108,7 +108,10 @@ async function buildLiveSaasCatalogWithBtc() {
 // Orice copiere, modificare sau distribuție neautorizată este interzisă.
 // =====================================================================
 
-require('dotenv').config();
+// Production PM2 can retain stale placeholder values from older ecosystem
+// env blocks. Always let the canonical `.env` file replace those first, then
+// resolve aliases / wipe placeholders below.
+require('dotenv').config({ override: true });
 // Also load `.env.local` (untracked, deployment-specific overrides).
 // `override:true` so production secrets always win over baseline `.env`.
 try {
