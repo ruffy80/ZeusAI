@@ -587,7 +587,7 @@ function installResponseFreshnessGuards(res) {
 // === Site → Unicorn proxy with 2s timeout + mock fallback ===
 // Adds /api/industry/list, /api/control/stats, /api/evolution/snapshot.
 // Never crashes: on any failure (timeout / 5xx / network) returns mock JSON.
-const SITE_PROXY_TIMEOUT_MS = Number(process.env.SITE_PROXY_TIMEOUT_MS || 2000);
+const SITE_PROXY_TIMEOUT_MS = Number(process.env.SITE_PROXY_TIMEOUT_MS || 6000); // increased from 2s to 6s
 const SITE_FALLBACK_MOCKS = {
   '/api/industry/list': {
     industries: [
