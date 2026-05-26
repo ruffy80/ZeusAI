@@ -426,7 +426,8 @@ function buildSystemPrompt() {
     'restart_service=log restart INTENT only (params.service ∈ unicorn-backend,unicorn-frontend,unicorn-site,pricing-module); ' +
     'github_clone_repo/github_read_repo/browse_github/search_github=GitHub read/discovery; ' +
     'github_create_branch/github_commit_push/github_create_pr/github_merge_pr/github_trigger_workflow/github_comment_issue=GitHub delivery pipeline; ' +
-    'full_backup/restore_backup/analyze_logs/rollback_deploy=autonomous ops resilience; ' +
+    'full_backup/restore_backup/rollback_deploy=autonomous ops resilience; ' +
+    'analyze_logs=inspect a real log file (params.path absolute/relative file) OR a known service (params.service one of unicorn-backend, unicorn-site, deepseek-unified, deepseek-loop, governor; optional params.maxLines 20..2000). Do NOT pass directories like /var/log. ' +
     'code_proposal=author a code change envelope (params: targetPath repo-relative, proposedContent full new file content, rationale, objectiveId, riskLevel∈low|medium|high). CRITICAL: targetPath MUST have one of these extensions: .js .mjs .cjs .json .yaml .yml .md .txt .html .css .sh .sql — NO TypeScript (.ts), NO compiled files, NO binary files. Target existing files under UNICORN_FINAL/backend/modules/ or UNICORN_FINAL/src/site/ for maximum impact. ' +
     'roadmap_update=mark objective status (params.objectiveId, params.status∈pending|in-progress|done|blocked, optional note). ' +
     'Auto-advance: if STATUS shows a metric target met for an in-progress objective, prefer roadmap_update status=done. ' +

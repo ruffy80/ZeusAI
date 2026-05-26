@@ -1077,18 +1077,46 @@ async function _action_restore_backup(params) {
 }
 
 function _action_analyze_logs(params) {
-  const requested = params && typeof params.path === 'string' ? params.path.trim() : '/var/log';
+  const latestLog = (dir, prefix) => {
+    try {
+      const entries = fs.readdirSync(dir)
+        .filter((name) => name.startsWith(prefix) && name.endsWith('.log'))
+        .map((name) => {
+          const abs = path.join(dir, name);
+          const stat = fs.statSync(abs);
+          return { abs, mtimeMs: stat.mtimeMs };
+        })
+        .sort((a, b) => b.mtimeMs - a.mtimeMs);
+      return entries[0] && entries[0].abs;
+    } catch (_) {
+      return null;
+    }
+  };
+  const livePm2LogDir = '/var/www/unicorn/UNICORN_FINAL/logs';
+  const pm2LogDir = fs.existsSync(livePm2LogDir) ? livePm2LogDir : path.join(AUTONOMY_ROOT, 'logs');
+  const serviceLogMap = {
+    'unicorn-backend': latestLog(pm2LogDir, 'pm2-error-') || path.join(pm2LogDir, 'pm2-error-0.log'),
+    'unicorn-site': latestLog(pm2LogDir, 'pm2-error-') || path.join(pm2LogDir, 'pm2-error-1.log'),
+    'deepseek-unified': path.join(AUTONOMY_ROOT, 'data', 'logs', 'deepseek-unified.log'),
+    'deepseek-loop': path.join(AUTONOMY_ROOT, 'data', 'logs', 'deepseek-loop.log'),
+    governor: path.join(AUTONOMY_ROOT, 'data', 'logs', 'deepseek-governor.log'),
+  };
+  const rawRequested = params && typeof params.path === 'string'
+    ? params.path.trim()
+    : (params && typeof params.target === 'string' ? params.target.trim() : '');
+  const requestedService = params && typeof params.service === 'string' ? params.service.trim() : '';
+  const requested = rawRequested || serviceLogMap[requestedService] || serviceLogMap.governor;
   const target = path.isAbsolute(requested) ? requested : path.join(AUTONOMY_ROOT, requested);
   const maxLines = Math.max(20, Math.min(2000, parseInt(params && params.maxLines, 10) || 400));
-  const allowedRoots = [AUTONOMY_ROOT, '/var/log'];
+  const allowedRoots = [AUTONOMY_ROOT, '/var/log', '/var/www/unicorn/UNICORN_FINAL/logs'];
   const isAllowed = allowedRoots.some((root) => {
     const rel = path.relative(path.resolve(root), path.resolve(target));
     return !rel.startsWith('..') && !path.isAbsolute(rel);
   });
   if (!isAllowed) return { ok: false, action: 'analyze_logs', reason: 'path_outside_allowed_roots', allowedRoots };
-  if (!fs.existsSync(target)) return { ok: false, action: 'analyze_logs', reason: 'not_found', path: target };
+  if (!fs.existsSync(target)) return { ok: false, action: 'analyze_logs', reason: 'not_found', path: target, service: requestedService || null };
   const stat = fs.statSync(target);
-  if (!stat.isFile()) return { ok: false, action: 'analyze_logs', reason: 'not_a_file', path: target };
+  if (!stat.isFile()) return { ok: false, action: 'analyze_logs', reason: 'not_a_file', path: target, service: requestedService || null };
   const content = fs.readFileSync(target, 'utf8');
   const lines = content.split('\n').slice(-maxLines);
   const patterns = {
