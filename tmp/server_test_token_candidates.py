@@ -3,7 +3,7 @@ import re, urllib.request
 
 roots = [Path('/var/www/unicorn/UNICORN_FINAL/.env'), Path('/var/www/unicorn/shared/.env'), Path('/var/www/unicorn')]
 key_re = re.compile(r'^(GITHUB_TOKEN|GH_PAT|GH_TOKEN|GITHUB_TOKEN_SYNC)=(.*)$')
-pat_re = re.compile(r'(ghp_[A-Za-z0-9_]{20,}|github_pat_[A-Za-z0-9_]{20,})')
+pat_re = re.compile(r'(gh[pousr]_[A-Za-z0-9_]{20,}|github_pat_[A-Za-z0-9_]{20,})')
 
 cands = []
 seen = set()

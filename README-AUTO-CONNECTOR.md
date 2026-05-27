@@ -198,7 +198,7 @@ All credentials are **never stored in code**:
 ### 1. GitHub Token
 - Go to: https://github.com/settings/tokens
 - Scopes: `repo`, `workflow`, `admin:repo_hook`
-- Starts with: `ghp_`
+- Starts with: `ghp_` (PAT) or `ghs_` (App installation token, up to ~520 chars)
 
 ### 2. Vercel Token + Team ID
 - Go to: https://vercel.com/account/tokens

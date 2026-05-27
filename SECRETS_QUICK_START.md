@@ -114,7 +114,7 @@ ls -la ~/.ssh/hetzner_rsa | cut -d' ' -f1
 # Should show: -rw------- (600)
 
 # Check 4: No real secrets in example files
-grep -E "ghp_[A-Za-z0-9]+|vcp_[A-Za-z0-9]+|^[0-9]{1,3}\.[0-9]{1,3}" .env*.example
+grep -E "gh[pousr]_[A-Za-z0-9]+|github_pat_[A-Za-z0-9]+|vcp_[A-Za-z0-9]+|^[0-9]{1,3}\.[0-9]{1,3}" .env*.example
 # Should show: nothing OR only "YOUR_*_HERE" placeholders
 ```
 

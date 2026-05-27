@@ -3,7 +3,7 @@ import re
 
 roots = [Path('/var/www/unicorn'), Path('/root'), Path('/etc')]
 key_re = re.compile(r'^(GITHUB_TOKEN|GH_PAT|GH_TOKEN|GITHUB_TOKEN_SYNC)=(.*)$')
-real_re = re.compile(r'(ghp_[A-Za-z0-9_]{20,}|github_pat_[A-Za-z0-9_]{20,})')
+real_re = re.compile(r'(gh[pousr]_[A-Za-z0-9_]{20,}|github_pat_[A-Za-z0-9_]{20,})')
 
 results = []
 for root in roots:

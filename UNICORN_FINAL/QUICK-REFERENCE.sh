@@ -73,7 +73,7 @@ echo "
 1. GITHUB TOKEN
    → https://github.com/settings/tokens
    → Scopes: repo, workflow, admin:repo_hook
-   → Format: ghp_xxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+   → Format: ghp_... (PAT) or ghs_... (App installation, up to ~520 chars)
 
 2. VERCEL TOKEN + TEAM ID
    → https://vercel.com/account/tokens
