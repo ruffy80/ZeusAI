@@ -38,6 +38,22 @@ const path = require('path');
 const http = require('http');
 const https = require('https');
 
+// ADI-Core Key Vault — multi-source key resolution (env, vault file, .env,
+// /etc/zeusai/secrets/, ~/.zeusai/keys.env). Graceful fallback if unavailable.
+let keyVault;
+try { keyVault = require('../backend/modules/adi-core/key-vault'); } catch (e) {
+  keyVault = null;
+  // Non-fatal: key-vault may be unavailable in dev; falls back to process.env.
+  process.stdout.write(JSON.stringify({ ts: new Date().toISOString(), level: 'info', msg: 'key_vault_unavailable', extra: { error: String(e.message || e) } }) + '\n');
+}
+
+// Reseed process.env from all vault sources BEFORE reading any config constants.
+// This ensures keys stored in .data/adi-core-keys.json, /etc/zeusai/secrets/*.env,
+// ~/.zeusai/keys.env, or .env.local are visible to process.env.
+if (keyVault) {
+  try { keyVault.reseedProcessEnv(); } catch (_) { /* non-fatal */ }
+}
+
 const ENABLED                = String(process.env.DEEPSEEK_LOOP_ENABLED || '') === '1';
 const EXECUTE_MODE           = String(process.env.DEEPSEEK_LOOP_EXECUTE || '') === '1';
 const FAST_INTERVAL_MS       = Math.max(30_000, parseInt(process.env.DEEPSEEK_LOOP_FAST_INTERVAL_MS || '30000', 10));
@@ -244,22 +260,39 @@ async function consumeNextOperatorCommand() {
   } catch (_) { return null; }
 }
 
+// Resolve an API key from key-vault (multi-source) with process.env fallback.
+function _resolveKey(aliases) {
+  if (keyVault) {
+    try {
+      const found = keyVault.findKey(aliases);
+      if (found && String(found.value).length >= 8) return found.value;
+    } catch (_) { /* fall through */ }
+  }
+  for (const alias of aliases) {
+    const v = process.env[alias];
+    if (v && String(v).length >= 8) return v;
+  }
+  return '';
+}
+
 function getAdvisorProviders() {
   const providers = [];
-  if (DEEPSEEK_API_KEY) {
+  const dsKey = _resolveKey(['DEEPSEEK_API_KEY']);
+  if (dsKey) {
     providers.push({
       name: 'deepseek-direct',
       url: DEEPSEEK_API_URL,
-      key: DEEPSEEK_API_KEY,
+      key: dsKey,
       model: DEEPSEEK_MODEL,
       headers: {},
     });
   }
-  if (OPENROUTER_API_KEY) {
+  const orKey = _resolveKey(['OPENROUTER_API_KEY']);
+  if (orKey) {
     providers.push({
       name: 'openrouter-deepseek',
       url: 'https://openrouter.ai/api/v1/chat/completions',
-      key: OPENROUTER_API_KEY,
+      key: orKey,
       model: OPENROUTER_DEEPSEEK_MODEL,
       headers: {
         'HTTP-Referer': 'https://zeusai.pro',
@@ -267,11 +300,12 @@ function getAdvisorProviders() {
       },
     });
   }
-  if (GROQ_API_KEY) {
+  const gKey = _resolveKey(['GROQ_API_KEY']);
+  if (gKey) {
     providers.push({
       name: 'groq-reasoning-fallback',
       url: 'https://api.groq.com/openai/v1/chat/completions',
-      key: GROQ_API_KEY,
+      key: gKey,
       model: GROQ_DEEPSEEK_MODEL,
       headers: {},
     });
@@ -688,6 +722,13 @@ async function tick() {
 }
 
 function main() {
+  // Re-seed one more time at main() in case vault was updated after module load.
+  if (keyVault) {
+    try {
+      const added = keyVault.reseedProcessEnv();
+      if (added > 0) log('info', 'vault_reseeded', { keysAdded: added });
+    } catch (_) { /* non-fatal */ }
+  }
   log('info', 'deepseek_loop_boot', {
     enabled: ENABLED,
     executeMode: EXECUTE_MODE,
