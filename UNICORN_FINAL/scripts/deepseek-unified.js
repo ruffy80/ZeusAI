@@ -48,6 +48,19 @@ const http = require('http');
 const https = require('https');
 const { execFileSync } = require('child_process');
 
+// ADI-Core Key Vault — multi-source key resolution (env, vault file, .env,
+// /etc/zeusai/secrets/, ~/.zeusai/keys.env). Graceful fallback if unavailable.
+let keyVault;
+try { keyVault = require('../backend/modules/adi-core/key-vault'); } catch (e) {
+  keyVault = null;
+  process.stdout.write(JSON.stringify({ ts: new Date().toISOString(), level: 'info', msg: 'key_vault_unavailable', extra: { error: String(e.message || e) } }) + '\n');
+}
+
+// Reseed process.env from all vault sources BEFORE reading any config constants.
+if (keyVault) {
+  try { keyVault.reseedProcessEnv(); } catch (_) { /* non-fatal */ }
+}
+
 // -------- Governor (direct dispatch — no HTTP round-trip) ----------------
 let governor;
 try {
@@ -430,19 +443,37 @@ function isUsableProviderKey(value) {
   return true;
 }
 
+// Resolve an API key from key-vault (multi-source) with process.env fallback.
+function _resolveKey(aliases) {
+  if (keyVault) {
+    try {
+      const found = keyVault.findKey(aliases);
+      if (found && String(found.value).length >= 8) return found.value;
+    } catch (_) { /* fall through */ }
+  }
+  for (const alias of aliases) {
+    const v = process.env[alias];
+    if (v && String(v).length >= 8) return v;
+  }
+  return '';
+}
+
 function getProviders() {
   const providers = [];
-  if (isUsableProviderKey(DEEPSEEK_API_KEY)) providers.push({
-    name: 'deepseek-direct', url: DEEPSEEK_API_URL, key: DEEPSEEK_API_KEY, model: DEEPSEEK_MODEL, headers: {},
+  const dsKey = _resolveKey(['DEEPSEEK_API_KEY']);
+  if (isUsableProviderKey(dsKey)) providers.push({
+    name: 'deepseek-direct', url: DEEPSEEK_API_URL, key: dsKey, model: DEEPSEEK_MODEL, headers: {},
   });
-  if (isUsableProviderKey(OPENROUTER_API_KEY)) providers.push({
+  const orKey = _resolveKey(['OPENROUTER_API_KEY']);
+  if (isUsableProviderKey(orKey)) providers.push({
     name: 'openrouter-deepseek', url: 'https://openrouter.ai/api/v1/chat/completions',
-    key: OPENROUTER_API_KEY, model: OPENROUTER_MODEL,
+    key: orKey, model: OPENROUTER_MODEL,
     headers: { 'HTTP-Referer': 'https://zeusai.pro', 'X-Title': 'ZeusAI DeepSeek Unified' },
   });
-  if (isUsableProviderKey(GROQ_API_KEY)) providers.push({
+  const gKey = _resolveKey(['GROQ_API_KEY']);
+  if (isUsableProviderKey(gKey)) providers.push({
     name: 'groq-reasoning-fallback', url: 'https://api.groq.com/openai/v1/chat/completions',
-    key: GROQ_API_KEY, model: GROQ_MODEL, headers: {},
+    key: gKey, model: GROQ_MODEL, headers: {},
   });
   return providers;
 }
@@ -858,6 +889,13 @@ async function tick() {
 
 // -------- Bootstrap ------------------------------------------------------
 function main() {
+  // Re-seed one more time at main() in case vault was updated after module load.
+  if (keyVault) {
+    try {
+      const added = keyVault.reseedProcessEnv();
+      if (added > 0) log('info', 'vault_reseeded', { keysAdded: added });
+    } catch (_) { /* non-fatal */ }
+  }
   log('info', 'deepseek_unified_boot', {
     enabled: ENABLED,
     executeMode: EXECUTE_MODE,
