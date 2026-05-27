@@ -107,7 +107,7 @@ No manual intervention needed!
 1. **GitHub Personal Access Token**
    - Go to: https://github.com/settings/tokens
    - Scopes: repo, workflow, admin:repo_hook
-   - Starts with: `ghp_`
+   - Starts with: `ghp_` (PAT) or `ghs_` (App installation token, up to ~520 chars)
 
 2. **Vercel API Token + Team ID**
    - Go to: https://vercel.com/account/tokens

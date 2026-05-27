@@ -164,7 +164,7 @@ grep "\.env" .gitignore
 # .env.auto-connector
 
 # 2. Verify no real secrets in example files
-grep -E "ghp_[A-Za-z0-9]+|vcp_[A-Za-z0-9]+|204\.168" .env*.example
+grep -E "gh[pousr]_[A-Za-z0-9]+|github_pat_[A-Za-z0-9]+|vcp_[A-Za-z0-9]+|204\.168" .env*.example
 # Expected output: (empty - no real secrets found)
 
 # 3. Verify SSH key permissions
