@@ -119,9 +119,15 @@ A companion script that polls a status snapshot, asks DeepSeek for one
 recommended action from the allowlist, and either logs the recommendation
 (advisory mode, default) or posts it to `/api/admin/deepseek/act` (execute mode).
 
-**Activation (2026-05-17 update — full-power one-key activation):** when the
-operator has set `DEEPSEEK_API_KEY` (or `OPENROUTER_API_KEY` / `GROQ_API_KEY` as
-a fallback advisor) as a GitHub Actions secret, `scripts/create-env.sh` now
+**Activation (2026-05-27 update — full autonomous execute mode activated):**
+All required secrets are configured: `DEEPSEEK_API_KEY`, `DEEPSEEK_LOOP_ENABLED`,
+`DEEPSEEK_LOOP_EXECUTE`, `DEEPSEEK_LOOP_ADMIN_TOKEN`, `DEEPSEEK_MODEL`. The loop
+runs in **full execute mode** — reading roadmap objectives, consuming operator
+commands, generating `code_proposal` envelopes, and updating roadmap status
+autonomously every 60s on the Hetzner server.
+
+When the operator has set `DEEPSEEK_API_KEY` (or `OPENROUTER_API_KEY` / `GROQ_API_KEY` as
+a fallback advisor) as a GitHub Actions secret, `scripts/create-env.sh`
 **auto-defaults `DEEPSEEK_LOOP_ENABLED=1`** so the systemd unit activates on
 the next deploy without requiring a second secret. If `DEEPSEEK_LOOP_ADMIN_TOKEN`
 is also present, `DEEPSEEK_LOOP_EXECUTE=1` is auto-defaulted as well. To
