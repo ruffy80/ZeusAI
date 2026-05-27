@@ -35,8 +35,8 @@ on:
     branches: [main]
   schedule:
     # Self-healing tick: if either workflow_run was missed (e.g. concurrent
-    # rerun cancellations), the schedule will catch up within an hour.
-    - cron: '17 * * * *'
+    # rerun cancellations), the schedule will catch up within 12 hours.
+    - cron: '17 */12 * * *'
 
 concurrency:
   group: auto-baseline-advance
