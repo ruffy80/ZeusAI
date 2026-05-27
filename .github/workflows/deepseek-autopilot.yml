@@ -1,7 +1,7 @@
 name: 🤖 DeepSeek Autopilot (autonomous loop in CI)
 
 # Purpose:
-#   Run ONE DeepSeek governor tick every 30 minutes inside GitHub Actions and
+#   Run ONE DeepSeek governor tick every 12 hours inside GitHub Actions and
 #   open a draft Pull Request whenever DeepSeek produces a `code_proposal` or
 #   `roadmap_update`. This closes the loop that previously ended on the Hetzner
 #   side: envelopes were written to `data/deepseek-proposals/` but nothing
@@ -19,12 +19,12 @@ name: 🤖 DeepSeek Autopilot (autonomous loop in CI)
 #     every allowlist + deny-prefix + size cap + per-day cap applies here too.
 #   * PRs are opened as DRAFT — never auto-merged. CI runs lint+tests on them.
 #   * If no provider key is set, the tick logs a hint and exits 0 (silent).
-#   * `concurrency` prevents overlapping ticks if a long run takes > 30 min.
+#   * `concurrency` prevents overlapping ticks if a long run takes > 12 hours.
 
 on:
   schedule:
-    # Every 30 minutes. Cron in UTC. / La fiecare 30 de minute (UTC).
-    - cron: '*/30 * * * *'
+    # Every 12 hours at :00 UTC. / La fiecare 12 ore (UTC).
+    - cron: '0 */12 * * *'
   workflow_dispatch:
     inputs:
       reason:
