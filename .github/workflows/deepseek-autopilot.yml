@@ -52,7 +52,7 @@ jobs:
           token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: 🟢 Setup Node 20
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v5
         with:
           node-version: '20'
 
@@ -196,7 +196,7 @@ jobs:
 
       - name: 📤 Upload tick log artifact
         if: always() && steps.detect.outputs.has_provider == '1'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: deepseek-autopilot-tick-log-${{ github.run_id }}
           path: UNICORN_FINAL/tick-output.log
