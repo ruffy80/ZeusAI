@@ -41,7 +41,7 @@
     "sentiment": "^5.0.2",
     "simple-git": "^3.36.0",
     "ssh2": "^1.17.0",
-    "stripe": "^17.7.0",
+    "stripe": "^22.2.0",
     "gcp-metadata": "7.0.1",
     "gaxios": "7.1.4",
     "google-logging-utils": "0.0.2",
