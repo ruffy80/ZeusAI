@@ -8121,6 +8121,91 @@ app.post('/api/orchestrator/start', adminTokenMiddleware, (req, res) => {
   }
 });
 
+// ==================== ZACC: ZEUS AUTONOMIC COMMERCE CORE ROUTES ====================
+// RO: primul sistem economic complet autonom. Rulează in-proces (require de
+// mai jos pornește bucla autonomă). Toate mutațiile sunt admin-protejate;
+// citirile sunt publice pentru a alimenta pagina /zacc de pe site.
+let zacc = null;
+try { zacc = require('./modules/zacc'); console.log('[zacc] loaded · Zeus Autonomic Commerce Core online (autonomous loop active)'); }
+catch (e) { console.warn('[zacc] not loaded:', e.message); }
+
+// Public read: full status snapshot (all 9 components).
+app.get('/api/zacc/status', (req, res) => {
+  if (!zacc) return res.status(503).json({ ok: false, error: 'zacc_unavailable' });
+  res.json(zacc.status());
+});
+// Public read: compact snapshot for the site page.
+app.get('/api/zacc/public', (req, res) => {
+  if (!zacc) return res.status(503).json({ ok: false, error: 'zacc_unavailable' });
+  res.json(zacc.publicSnapshot());
+});
+// Public read: live products built by ZACC (sellable via standard checkout).
+app.get('/api/zacc/products', (req, res) => {
+  if (!zacc) return res.status(503).json({ ok: false, error: 'zacc_unavailable' });
+  const limit = Math.min(200, Number(req.query.limit) || 60);
+  res.json({ ok: true, items: zacc.builder.publicList(limit), count: zacc.builder.products.length });
+});
+// Public read: today's proposed ideas + trends.
+app.get('/api/zacc/ideas', (req, res) => {
+  if (!zacc) return res.status(503).json({ ok: false, error: 'zacc_unavailable' });
+  res.json({ ok: true, ideas: zacc.synthesizer.ideas.slice(0, 30), trends: zacc.scanner.top(12) });
+});
+// Personalized offer for a visitor (read-only; no PII stored).
+app.get('/api/zacc/offer/:productId', (req, res) => {
+  if (!zacc) return res.status(503).json({ ok: false, error: 'zacc_unavailable' });
+  const offer = zacc.offerFor(req.params.productId, {
+    returning: req.query.returning === '1',
+    referrer: req.get('referer') || req.query.ref,
+    device: /mobile/i.test(req.get('user-agent') || '') ? 'mobile' : 'desktop',
+    geo: req.query.geo,
+  });
+  if (!offer) return res.status(404).json({ ok: false, error: 'product_not_found' });
+  res.json({ ok: true, offer });
+});
+// Commerce telemetry hooks (storefront feeds demand signals here).
+app.post('/api/zacc/event', express.json({ limit: '8kb' }), (req, res) => {
+  if (!zacc) return res.status(503).json({ ok: false, error: 'zacc_unavailable' });
+  const { productId, type } = req.body || {};
+  if (!productId || !type) return res.status(400).json({ ok: false, error: 'productId_and_type_required' });
+  if (type === 'view') zacc.recordView(productId);
+  else if (type === 'cart') zacc.recordCart(productId);
+  else if (type === 'sale') zacc.recordSale(productId, Number((req.body && req.body.amountUsd) || 0));
+  else return res.status(400).json({ ok: false, error: 'unknown_event_type' });
+  res.json({ ok: true });
+});
+// Admin: force one autonomous cycle now.
+app.post('/api/zacc/tick', adminTokenMiddleware, async (req, res) => {
+  if (!zacc) return res.status(503).json({ ok: false, error: 'zacc_unavailable' });
+  const summary = await zacc.tick('manual-admin');
+  res.json({ ok: true, summary });
+});
+// Admin: approve a proposed idea → builds it into a live product immediately.
+app.post('/api/zacc/approve/:ideaId', adminTokenMiddleware, (req, res) => {
+  if (!zacc) return res.status(503).json({ ok: false, error: 'zacc_unavailable' });
+  const result = zacc.approveIdea(req.params.ideaId);
+  if (!result) return res.status(404).json({ ok: false, error: 'idea_not_found' });
+  res.json({ ok: true, idea: result.idea, product: result.product });
+});
+// Admin: send the BTC revenue report now (Discord/Telegram/email webhook).
+app.post('/api/zacc/report', adminTokenMiddleware, async (req, res) => {
+  if (!zacc) return res.status(503).json({ ok: false, error: 'zacc_unavailable' });
+  const result = await zacc.revenue.sendDailyReport(true);
+  res.json({ ok: true, sent: result.sent, reason: result.reason, report: result.report });
+});
+// Admin: niche (multi-instance) management.
+app.post('/api/zacc/niche/:action', adminTokenMiddleware, express.json({ limit: '8kb' }), (req, res) => {
+  if (!zacc) return res.status(503).json({ ok: false, error: 'zacc_unavailable' });
+  const { action } = req.params;
+  const b = req.body || {};
+  let result = null;
+  if (action === 'spawn') result = zacc.multi.spawn(b.id, b.label, b.categories);
+  else if (action === 'pause') result = zacc.multi.pause(b.id);
+  else if (action === 'resume') result = zacc.multi.resume(b.id);
+  else if (action === 'allocate') result = zacc.multi.allocate(b.id, b.cpuShare, b.ramShareMb);
+  else return res.status(400).json({ ok: false, error: 'unknown_action' });
+  res.json({ ok: true, niche: result, niches: zacc.multi.status() });
+});
+
 // ==================== SELF-HEALING: SLO ROUTES ====================
 app.get('/api/slo/status', (req, res) => {
   res.json({ stats: sloTracker.getAllStats(), routes: sloTracker.getAllRoutes() });

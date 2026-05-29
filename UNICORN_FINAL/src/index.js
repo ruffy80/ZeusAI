@@ -4450,7 +4450,7 @@ async function unicornHandler(req, res) {
   // (services) and /api/supreme/digest (status). All additive, never break the
   // existing template. Each page is server-rendered, returns a full HTML doc,
   // and includes a tiny client script that polls every 5s.
-  if (urlPath === '/unicorn-cockpit' || urlPath === '/services' || urlPath === '/status' || urlPath === '/unicorn-status.html' || urlPath === '/revenue-command' || urlPath === '/proof' || urlPath === '/revenue-share' || urlPath === '/pricing') {
+  if (urlPath === '/unicorn-cockpit' || urlPath === '/services' || urlPath === '/status' || urlPath === '/unicorn-status.html' || urlPath === '/revenue-command' || urlPath === '/proof' || urlPath === '/revenue-share' || urlPath === '/pricing' || urlPath === '/zacc') {
     const renderPage = (title, bodyHtml, pageScript) => {
       // Use the existing template engine if available; otherwise emit a minimal SEO-clean doc
       // that still passes the site's chrome heuristics (lang, charset, viewport, meta).
@@ -4705,6 +4705,45 @@ async function unicornHandler(req, res) {
       const js = "(function(){function esc(s){return String(s||'').replace(/[&<>\"]/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','\"':'&quot;'}[c]})}function card(t,v,s){return '<div class=\"card\"><h3>'+esc(t)+'</h3><div class=\"v\">'+v+'</div><div class=\"sub\">'+esc(s||'')+'</div></div>'}fetch('/api/growth/revenue-share',{cache:'no-store'}).then(function(r){return r.json()}).then(function(d){var html='';html+=card('Revenue share',d.pct+'%','of net-new revenue');html+=card('Minimum MRR','$'+(d.minMrrUsd||0),'to qualify');html+=card('Setup fee','$0','zero upfront');html+=card('Term','month-to-month','cancel anytime');document.getElementById('terms').innerHTML=html;var p=document.getElementById('pct-inline');if(p)p.textContent=d.pct+'%';}).catch(function(){document.getElementById('terms').innerHTML=card('Terms','offline','retrying')});var f=document.getElementById('apply');if(f){f.addEventListener('submit',function(e){e.preventDefault();var data={};(new FormData(f)).forEach(function(v,k){data[k]=v});var btn=f.querySelector('button[type=submit]');var out=document.getElementById('apply-result');btn.disabled=true;out.textContent='Sending…';fetch('/api/growth/revenue-share/apply',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)}).then(function(r){return r.json()}).then(function(j){if(j&&j.ok){out.innerHTML='<span class=\"ok\">✓ Application received. ID: '+esc(j.appId||'—')+'. We will email you within 1 business day.</span>';f.reset()}else{out.innerHTML='<span class=\"err\">Could not submit: '+esc((j&&j.error)||'unknown')+'</span>';btn.disabled=false}}).catch(function(err){out.innerHTML='<span class=\"err\">Network error. Try again or email founders@zeusai.pro.</span>';btn.disabled=false})})}})();";
       try { res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store', 'X-Unicorn-Page': 'revenue-share' }); } catch (_) {}
       return res.end(renderPage('Revenue Share', body, js));
+    }
+
+    // ==================== ZACC · ZEUS AUTONOMIC COMMERCE CORE (2026-05-29) ====================
+    // Public dashboard for the world's first fully-autonomous commerce core.
+    // Everything is fetched live from /api/zacc/public (backend, port 3000 via
+    // nginx). No fake numbers; the page renders exactly what the loop produced.
+    if (urlPath === '/zacc') {
+      const body =
+        '<h2 style="margin:0">Zeus Autonomic Commerce Core <span style="font-size:13px;color:var(--accent);border:1px solid var(--accent);border-radius:999px;padding:2px 10px;vertical-align:middle">ZACC · LIVE</span></h2>' +
+        '<p style="color:var(--muted);margin:8px 0 24px">The first fully-autonomous economic engine: it scans 20+ market sources, synthesises new product ideas, builds &amp; prices them, sells in BTC, heals itself, learns weekly and evolves monthly — with no human in the loop. Every number below is produced live by the running loop.</p>' +
+        '<div id="zc-summary" class="grid"></div>' +
+        '<h3 style="margin:32px 0 8px">Today\u2019s synthesised ideas</h3>' +
+        '<div id="zc-ideas" class="grid"></div>' +
+        '<h3 style="margin:32px 0 8px">Autonomously-built products <span class="sub" style="font-weight:400">(buyable now in BTC)</span></h3>' +
+        '<div id="zc-products" class="grid" style="grid-template-columns:repeat(auto-fit,minmax(280px,1fr))"></div>' +
+        '<h3 style="margin:32px 0 8px">Live market trends</h3>' +
+        '<div id="zc-trends" class="grid"></div>' +
+        '<h3 style="margin:32px 0 8px">Eternal evolution \u00b7 proposed integrations</h3>' +
+        '<div id="zc-evo" class="grid"></div>' +
+        '<div style="margin-top:24px;font-size:12px;color:var(--muted)">Components: Market Scanner \u00b7 Idea Synthesizer \u00b7 Auto-Builder \u00b7 Dynamic Pricing \u00b7 Self-Healing \u00b7 Revenue Autopilot (BTC) \u00b7 Multi-instance \u00b7 Self-Learning \u00b7 Eternal Evolution. Full status: <a href="/api/zacc/status" style="color:var(--accent)">/api/zacc/status</a></div>';
+      const js = [
+        "(function(){",
+        "function esc(s){return String(s==null?'':s).replace(/[&<>\"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','\"':'&quot;'}[c];});}",
+        "function card(t,v,s){return '<div class=\"card\"><h3>'+esc(t)+'</h3><div class=\"v\">'+v+'</div><div class=\"sub\">'+esc(s||'')+'</div></div>';}",
+        "function money(n){return '$'+Number(n||0).toLocaleString('en-US',{maximumFractionDigits:2});}",
+        "function refresh(){fetch('/api/zacc/public',{cache:'no-store'}).then(function(r){return r.json();}).then(function(d){",
+        "if(!d||!d.ok){document.getElementById('zc-summary').innerHTML=card('ZACC','warming up','autonomous loop booting');return;}",
+        "var c=d.counts||{};",
+        "document.getElementById('zc-summary').innerHTML=card('Autonomous cycles',d.ticks||0,'last: '+(d.lastTickAt?new Date(d.lastTickAt).toLocaleTimeString():'\u2014'))+card('Market sources',c.sources||0,'scanned for trends')+card('Live products',c.products||0,'built autonomously')+card('Lifetime revenue',money(d.revenue&&d.revenue.lifetimeUsd),'24h: '+money(d.revenue&&d.revenue.last24hUsd))+card('Payout',(d.payout&&d.payout.method)||'BTC','self-custody wallet')+card('Active niches',c.niches||0,'multi-instance');",
+        "var ideas=d.ideas||[];document.getElementById('zc-ideas').innerHTML=ideas.length?ideas.map(function(i){return card(i.name,money(i.priceUsd),i.type+' \u00b7 margin '+Math.round(i.marginPct||0)+'% \u00b7 '+i.status);}).join(''):card('Ideas','synthesising\u2026','first batch within the hour');",
+        "var prods=d.products||[];document.getElementById('zc-products').innerHTML=prods.length?prods.map(function(p){return '<div class=\"card\" style=\"padding:22px\"><h3 style=\"font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--accent)\">'+esc(p.type)+' \u00b7 '+esc(p.niche)+'</h3><div style=\"font-size:16px;font-weight:600;margin:6px 0\">'+esc(p.title)+'</div><div class=\"v\">'+money(p.priceUsd)+'</div><p style=\"color:var(--muted);font-size:12px;margin:8px 0 14px;min-height:48px\">'+esc((p.description||'').slice(0,150))+'</p><a href=\"/checkout?plan='+encodeURIComponent(p.id)+'\" style=\"text-decoration:none\"><button style=\"width:100%\">Buy with BTC \u2192</button></a></div>';}).join(''):card('Products','building\u2026','approved ideas materialise here');",
+        "var tr=d.trends||[];document.getElementById('zc-trends').innerHTML=tr.length?tr.map(function(t){return card(t.label,Math.round((t.score||0)*100)+'%','demand \u00b7 '+esc(t.category||''));}).join(''):card('Trends','scanning\u2026','');",
+        "var evo=d.evolution||[];document.getElementById('zc-evo').innerHTML=evo.length?evo.map(function(e){return card(e.label,Math.round((e.advantage||0)*100)+'%',esc(e.area)+' \u00b7 '+esc(e.status));}).join(''):card('Evolution','idle','monthly scan');",
+        "}).catch(function(){document.getElementById('zc-summary').innerHTML=card('ZACC','offline','retrying');});}",
+        "refresh();setInterval(refresh,5000);",
+        "})();",
+      ].join('');
+      try { res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store', 'X-Unicorn-Page': 'zacc' }); } catch (_) {}
+      return res.end(renderPage('Zeus Autonomic Commerce Core', body, js));
     }
   }
   // ==================== END FAZA 2 / VAL 5 COMPLETARE ====================
