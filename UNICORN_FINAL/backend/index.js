@@ -2750,9 +2750,11 @@ if (_isPrimaryWorker) {
 
   // Pornire module autonome (single-worker only to avoid duplicated intervals in PM2 cluster)
   if (!_stableRuntime && _enableFileMutators) {
-    selfConstruction.start();
+    // Profil growth/full cu mutatori activi: poate completa module goale/lipsă.
+    selfConstruction.start({ apply: true }).catch(() => {});
   } else {
-    console.log('🧱 Self‑Construction dezactivat (stabilitate server)');
+    // Profil stable/safe: rulează DOAR auditul read-only (sigur, fără scriere).
+    try { selfConstruction.audit(); console.log('🧱 Self‑Construction: audit read-only activ (profil stabil)'); } catch (_) {}
   }
   if (!_stableRuntime) {
     totalSystemHealer.start();
@@ -9169,12 +9171,15 @@ app.post('/api/github-ops/rollback', adminTokenMiddleware, async (req, res) => {
 
 // ==================== SELF CONSTRUCTION & TOTAL SYSTEM HEALER ROUTES ====================
 app.get('/api/self-construction/status', adminTokenMiddleware, (req, res) => {
-  res.json({ module: 'SelfConstruction', status: 'active', hasRun: selfConstruction.hasRun });
+  let report = selfConstruction.lastReport;
+  try { if (!report) report = selfConstruction.audit(); } catch (_) {}
+  res.json({ module: 'SelfConstruction', status: 'active', hasRun: selfConstruction.hasRun, report });
 });
-app.post('/api/self-construction/run', adminTokenMiddleware, async (req, res) => {
+app.post('/api/self-construction/run', adminTokenMiddleware, express.json({ limit: '4kb' }), async (req, res) => {
   try {
-    await selfConstruction.start();
-    res.json({ success: true, module: 'SelfConstruction', hasRun: selfConstruction.hasRun });
+    const apply = !!(req.body && req.body.apply === true);
+    const result = await selfConstruction.start({ apply });
+    res.json({ success: true, module: 'SelfConstruction', hasRun: selfConstruction.hasRun, result });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 

@@ -102,13 +102,27 @@ const viralGrowth = {
   },
 };
 
+function _composeFallbackContent(brief = {}) {
+  const topic = brief.topic || 'ZeusAI';
+  const audience = brief.audience || 'businesses';
+  const tone = brief.tone || 'confident';
+  const cta = brief.cta || 'Start now with Bitcoin checkout';
+  const title = topic + ': the autonomous edge for ' + audience;
+  const body = [
+    topic + ' helps ' + audience + ' move faster with an AI platform that runs itself.',
+    'Live pricing, instant Bitcoin checkout and self-healing infrastructure mean you ship value, not overhead.',
+    'Built on ZeusAI: ' + tone + ' by design, transparent by default.',
+  ].join(' ');
+  return { title, body, cta, hashtags: ['#ZeusAI', '#Autonomous', '#Bitcoin'], topic };
+}
+
 const contentGenerator = {
   getStatus() { return { name: 'contentGenerator', composed: !!contentAI }; },
   generate(brief = {}) {
     try {
       if (contentAI && typeof contentAI.generate === 'function') return contentAI.generate(brief);
     } catch (_) { /* silent */ }
-    return { ok: true, content: '[stub content for: ' + (brief.topic || 'unknown') + ']', shim: true };
+    return { ok: true, content: _composeFallbackContent(brief), generator: 'template-fallback' };
   },
 };
 

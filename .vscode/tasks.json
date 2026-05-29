@@ -184,6 +184,141 @@
 				"ssh -o StrictHostKeyChecking=no root@204.168.230.142 \"grep -R --line-number -E '^(GITHUB_TOKEN|GH_PAT|GH_TOKEN|GITHUB_TOKEN_SYNC)=' /var/www/unicorn /root /etc 2>/dev/null | head -n 200 | sed 's/=.*/=<set>/'\""
 			],
 			"isBackground": false
+		},
+		{
+			"label": "commit-and-push-stability",
+			"type": "shell",
+			"command": "zsh tmp/do_commit.sh"
+		},
+		{
+			"label": "investigate-sync",
+			"type": "shell",
+			"command": "zsh tmp/investigate.sh"
+		},
+		{
+			"label": "fetch-inv",
+			"type": "shell",
+			"command": "zsh tmp/fetch_inv.sh"
+		},
+		{
+			"label": "audit2",
+			"type": "shell",
+			"command": "zsh tmp/audit2.sh"
+		},
+		{
+			"label": "apply-loop",
+			"type": "shell",
+			"command": "zsh tmp/apply_loop.sh"
+		},
+		{
+			"label": "fetch-apply",
+			"type": "shell",
+			"command": "zsh tmp/fetch_apply.sh"
+		},
+		{
+			"label": "load-check",
+			"type": "shell",
+			"command": "zsh tmp/load.sh"
+		},
+		{
+			"label": "spawn-check",
+			"type": "shell",
+			"command": "zsh tmp/spawn.sh"
+		},
+		{
+			"label": "drain-check",
+			"type": "shell",
+			"command": "sleep 20 && zsh tmp/drain.sh"
+		},
+		{
+			"label": "clean-pileup",
+			"type": "shell",
+			"command": "zsh tmp/clean.sh"
+		},
+		{
+			"label": "commit-push2",
+			"type": "shell",
+			"command": "zsh tmp/commit_push2.sh"
+		},
+		{
+			"label": "final-verify",
+			"type": "shell",
+			"command": "sleep 90 && zsh tmp/final.sh"
+		},
+		{
+			"label": "deploy-watch",
+			"type": "shell",
+			"command": "sleep 60 && zsh tmp/dep.sh"
+		},
+		{
+			"label": "deploy-watch2",
+			"type": "shell",
+			"command": "sleep 75 && zsh tmp/dep.sh"
+		},
+		{
+			"label": "hunt-keys",
+			"type": "shell",
+			"command": "zsh tmp/hunt_keys.sh"
+		},
+		{
+			"label": "validate-keys",
+			"type": "shell",
+			"command": "zsh tmp/validate_keys.sh"
+		},
+		{
+			"label": "run-inject",
+			"type": "shell",
+			"command": "zsh tmp/run_inject.sh"
+		},
+		{
+			"label": "verify-ds",
+			"type": "shell",
+			"command": "zsh tmp/run_verify_ds.sh"
+		},
+		{
+			"label": "check-tools",
+			"type": "shell",
+			"command": "zsh tmp/run_check_tools.sh"
+		},
+		{
+			"label": "run-persist",
+			"type": "shell",
+			"command": "zsh tmp/run_persist.sh"
+		},
+		{
+			"label": "commit-push3",
+			"type": "shell",
+			"command": "zsh tmp/commit_push3.sh"
+		},
+		{
+			"label": "verify-durable",
+			"type": "shell",
+			"command": "sleep 150 && zsh tmp/run_verify_durable.sh"
+		},
+		{
+			"label": "verify-durable2",
+			"type": "shell",
+			"command": "sleep 150 && zsh tmp/run_verify_durable.sh"
+		},
+		{
+			"label": "verify-final",
+			"type": "shell",
+			"command": "zsh tmp/run_verify_durable.sh"
+		},
+		{
+			"label": "apply-service",
+			"type": "shell",
+			"command": "zsh tmp/run_apply_service.sh"
+		},
+		{
+			"label": "commit-push4",
+			"type": "shell",
+			"command": "zsh tmp/commit_push4.sh"
+		},
+		{
+			"label": "verify-e2e",
+			"type": "shell",
+			"command": "sleep 200 && zsh tmp/run_verify_durable.sh"
 		}
 	]
 }
