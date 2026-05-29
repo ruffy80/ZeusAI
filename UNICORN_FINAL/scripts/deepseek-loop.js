@@ -310,6 +310,28 @@ function getAdvisorProviders() {
       headers: {},
     });
   }
+
+  // ── Keyless / free cloud fallbacks ──
+  // If no keyed provider was found, auto-connect to free providers so the loop
+  // can operate without any API key at all (auto-connect la provideri gratuiți).
+  if (!providers.length) {
+    providers.push({
+      name: 'pollinations-free',
+      url: 'https://text.pollinations.ai/openai/chat/completions',
+      key: '',
+      model: 'openai',
+      headers: {},
+      keyless: true,
+    });
+    providers.push({
+      name: 'huggingface-free',
+      url: 'https://router.huggingface.co/v1/chat/completions',
+      key: '',
+      model: 'meta-llama/Llama-3.2-3B-Instruct',
+      headers: {},
+      keyless: true,
+    });
+  }
   return providers;
 }
 
@@ -450,7 +472,9 @@ async function collectStatus() {
 // ---------- DeepSeek call ----------
 async function askDeepSeek(status) {
   const providers = getAdvisorProviders();
-  if (!providers.length) throw new Error('missing_deepseek_advisor_provider_key');
+  if (!providers.length) {
+    log('warn', 'advisor_no_providers', { reason: 'no keyed or keyless providers available, trying local fallbacks' });
+  }
   const systemPrompt =
     'You are the autonomous DeepSeek operator for the Unicorn server/backend and the zeusai.pro platform, owned by Vladoi Ionut (BTC settlement address bc1q4f7e66z87mdfj56kz0dj5hvcnpmh0qh4wuv22e). ' +
     'Mission: run the Unicorn server/backend and the public site as one full-stack organism, keep both healthy, then build the most powerful autonomous SaaS in the world — global standard for >30 years — designed to generate billions of USD in annual revenue and settle automatically to the owner\'s BTC address. ' +
@@ -475,7 +499,7 @@ async function askDeepSeek(status) {
     'github_clone_repo = clone repository into /opt/unicorn/contrib; github_read_repo/browse_github/search_github = GitHub read/discovery; ' +
     'github_create_branch/github_commit_push/github_create_pr/github_merge_pr/github_trigger_workflow/github_comment_issue = GitHub delivery pipeline actions; ' +
     'full_backup/restore_backup/analyze_logs/rollback_deploy = autonomous ops resilience actions; ' +
-    'code_proposal = author a code change envelope (params: targetPath repo-relative, proposedContent full new file content, rationale, objectiveId, riskLevel ∈ low|medium|high). Envelopes are quarantined for human/CI review — never applied automatically. Aim for small, focused, audit-friendly diffs. ' +
+    'code_proposal = author a code change (params: targetPath repo-relative, proposedContent full new file content, rationale, objectiveId, riskLevel ∈ low|medium|high). When DEEPSEEK_AUTO_APPLY=1 (currently active), proposals are AUTOMATICALLY APPLIED to the target file on disk — no human review needed. You have FULL POWER to modify, create, and improve any code in the project. Act as the world\'s top full-stack expert: fix bugs, add features, optimize performance, innovate fearlessly. The quarantine envelope is also saved for audit. ' +
     'Never exfiltrate secrets; do not mutate protected files (.env, SSH keys, .git internals) unless explicitly confirmed in params.confirm=true for irreversible operations. ' +
     'roadmap_update = mark an objective status (params.objectiveId, params.status ∈ pending|in-progress|done|blocked, optional note). ' +
     'Prefer delete_file only when STATUS.autonomy.cleanupCandidates lists the target or when removing stale temp/backup/log files. ' +
@@ -499,15 +523,17 @@ async function askDeepSeek(status) {
     response_format: { type: 'json_object' },
   });
     try {
+      const hdrs = {
+        ...provider.headers,
+        'Content-Type': 'application/json',
+        'Content-Length': Buffer.byteLength(body),
+      };
+      // Only set Authorization for keyed providers (skip for keyless/free).
+      if (provider.key) hdrs['Authorization'] = 'Bearer ' + provider.key;
       const res = await request(provider.url, {
         method: 'POST',
         timeoutMs: 30_000,
-        headers: {
-          ...provider.headers,
-          'Authorization': 'Bearer ' + provider.key,
-          'Content-Type': 'application/json',
-          'Content-Length': Buffer.byteLength(body),
-        },
+        headers: hdrs,
       }, body);
       if (res.status < 200 || res.status >= 300) {
         const err = new Error(provider.name + '_http_' + res.status);

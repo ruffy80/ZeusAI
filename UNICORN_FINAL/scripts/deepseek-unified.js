@@ -475,6 +475,20 @@ function getProviders() {
     name: 'groq-reasoning-fallback', url: 'https://api.groq.com/openai/v1/chat/completions',
     key: gKey, model: GROQ_MODEL, headers: {},
   });
+
+  // ── Keyless / free cloud fallbacks (auto-connect fără cheie API) ──
+  if (!providers.length) {
+    providers.push({
+      name: 'pollinations-free',
+      url: 'https://text.pollinations.ai/openai/chat/completions',
+      key: '', model: 'openai', headers: {}, keyless: true,
+    });
+    providers.push({
+      name: 'huggingface-free',
+      url: 'https://router.huggingface.co/v1/chat/completions',
+      key: '', model: 'meta-llama/Llama-3.2-3B-Instruct', headers: {}, keyless: true,
+    });
+  }
   return providers;
 }
 
@@ -542,14 +556,15 @@ async function askDeepSeek(status) {
   for (const provider of providers) {
     const body = JSON.stringify({ ...bodyObj, model: provider.model });
     try {
+      const hdrs = {
+        ...provider.headers,
+        'Content-Type': 'application/json',
+        'Content-Length': Buffer.byteLength(body),
+      };
+      if (provider.key) hdrs['Authorization'] = 'Bearer ' + provider.key;
       const res = await request(provider.url, {
         method: 'POST', timeoutMs: 30_000,
-        headers: {
-          ...provider.headers,
-          'Authorization': 'Bearer ' + provider.key,
-          'Content-Type': 'application/json',
-          'Content-Length': Buffer.byteLength(body),
-        },
+        headers: hdrs,
       }, body);
       if (res.status < 200 || res.status >= 300) {
         const err = new Error(provider.name + '_http_' + res.status);

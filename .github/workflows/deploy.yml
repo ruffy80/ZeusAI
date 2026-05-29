@@ -212,7 +212,8 @@ jobs:
             // every deploy. All default-OFF: setting them as repo secrets is
             // the explicit operator opt-in for full-power mode (PR #547/#548).
             'DEEPSEEK_LOOP_ENABLED','DEEPSEEK_LOOP_EXECUTE','DEEPSEEK_LOOP_ADMIN_TOKEN',
-            'DEEPSEEK_LOOP_INTERVAL_MS','DEEPSEEK_LOOP_BACKEND_URL'
+            'DEEPSEEK_LOOP_INTERVAL_MS','DEEPSEEK_LOOP_BACKEND_URL',
+            'DEEPSEEK_AUTO_APPLY'
           ];
           const out = [];
           for (const key of allow) {
