@@ -111,6 +111,7 @@ class AutoBuilder {
     if (event === 'view') p.metrics.views += 1;
     else if (event === 'cart') p.metrics.carts += 1;
     else if (event === 'sale') p.metrics.sales += 1;
+    else if (event === 'delivered') { p.metrics.delivered = (p.metrics.delivered || 0) + 1; p.lastDeliveredAt = now(); }
     return p;
   }
 

@@ -8126,8 +8126,28 @@ app.post('/api/orchestrator/start', adminTokenMiddleware, (req, res) => {
 // mai jos pornește bucla autonomă). Toate mutațiile sunt admin-protejate;
 // citirile sunt publice pentru a alimenta pagina /zacc de pe site.
 let zacc = null;
-try { zacc = require('./modules/zacc'); console.log('[zacc] loaded · Zeus Autonomic Commerce Core online (autonomous loop active)'); }
-catch (e) { console.warn('[zacc] not loaded:', e.message); }
+try {
+  zacc = require('./modules/zacc');
+  console.log('[zacc] loaded · Zeus Autonomic Commerce Core online (autonomous loop active)');
+  // RO: publică produsele ZACC în catalogul principal (/api/services) imediat.
+  // Sink-ul este idempotent: duplicatele sunt ignorate (verifică id existent).
+  zacc.setServiceSink(function (p) {
+    if (!p || !p.id) return;
+    if (_unicornServices.some(function (s) { return s.id === p.id; })) return;
+    _unicornServices.push({
+      id: p.id,
+      title: p.title,
+      segment: p.niche || 'all',
+      kpi: 'autonomous delivery',
+      price: Number(p.priceUsd) || 0,
+      currency: 'USD',
+      billing: p.type === 'subscription' ? 'monthly' : 'one-time',
+      description: String(p.description || '').slice(0, 200),
+      group: 'zacc',
+      buyUrl: p.buyUrl,
+    });
+  });
+} catch (e) { console.warn('[zacc] not loaded:', e.message); }
 
 // Public read: full status snapshot (all 9 components).
 app.get('/api/zacc/status', (req, res) => {
@@ -8204,6 +8224,36 @@ app.post('/api/zacc/niche/:action', adminTokenMiddleware, express.json({ limit: 
   else if (action === 'allocate') result = zacc.multi.allocate(b.id, b.cpuShare, b.ramShareMb);
   else return res.status(400).json({ ok: false, error: 'unknown_action' });
   res.json({ ok: true, niche: result, niches: zacc.multi.status() });
+});
+// Public: create a real BTC invoice for a product (unique sats → on-chain match).
+// Returns the invoice with btcAddress + exact amountBtc to send.
+app.post('/api/zacc/invoice/:productId', async (req, res) => {
+  if (!zacc) return res.status(503).json({ ok: false, error: 'zacc_unavailable' });
+  try {
+    const result = await zacc.createInvoice(req.params.productId);
+    if (!result) return res.status(404).json({ ok: false, error: 'product_not_found' });
+    res.json({ ok: true, invoice: result.invoice, product: result.product });
+  } catch (e) { res.status(500).json({ ok: false, error: e.message }); }
+});
+// Public: get invoice status by id (buyer polls to detect payment confirmation).
+app.get('/api/zacc/invoice/:invoiceId', (req, res) => {
+  if (!zacc) return res.status(503).json({ ok: false, error: 'zacc_unavailable' });
+  const inv = zacc.payments.getInvoice(req.params.invoiceId);
+  if (!inv) return res.status(404).json({ ok: false, error: 'invoice_not_found' });
+  res.json({ ok: true, invoice: inv });
+});
+// Admin: list all invoices.
+app.get('/api/zacc/invoices', adminTokenMiddleware, (req, res) => {
+  if (!zacc) return res.status(503).json({ ok: false, error: 'zacc_unavailable' });
+  res.json({ ok: true, invoices: zacc.payments.invoices.slice(0, 200), status: zacc.payments.status() });
+});
+// Admin: force a mempool.space poll to confirm pending invoices now.
+app.post('/api/zacc/pay-poll', adminTokenMiddleware, async (req, res) => {
+  if (!zacc) return res.status(503).json({ ok: false, error: 'zacc_unavailable' });
+  try {
+    const result = await zacc.payments.poll(true);
+    res.json({ ok: true, result });
+  } catch (e) { res.status(500).json({ ok: false, error: e.message }); }
 });
 
 // ==================== SELF-HEALING: SLO ROUTES ====================

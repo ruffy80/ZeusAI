@@ -80,6 +80,21 @@ class MultiInstanceManager {
     if (n) n.products += 1;
   }
 
+  // Persistence helpers.
+  toState() {
+    const arr = [];
+    for (const n of this.niches.values()) arr.push(Object.assign({}, n));
+    return { niches: arr };
+  }
+  fromState(s) {
+    if (!s || !Array.isArray(s.niches)) return;
+    for (const saved of s.niches) {
+      if (!saved || !saved.id) continue;
+      const existing = this.niches.get(saved.id) || {};
+      this.niches.set(saved.id, Object.assign({}, existing, saved));
+    }
+  }
+
   status() {
     const list = [];
     for (const n of this.niches.values()) {

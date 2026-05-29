@@ -27,6 +27,8 @@ const { RevenueAutopilot } = require('./revenue');
 const { MultiInstanceManager } = require('./multi');
 const { SelfLearningCore } = require('./learning');
 const { EternalEvolution } = require('./evolution');
+const { BtcPayments } = require('./payments');
+const store = require('./store');
 
 const log = logger('core');
 
@@ -45,10 +47,17 @@ class ZeusAutonomicCommerceCore {
     this.lastError = null;
     this.timer = null;
 
+    // External catalog sink (set by backend so ZACC products show in /services).
+    this._serviceSink = null;
+    // Throttled persistence bookkeeping.
+    this._lastPersistAt = 0;
+    this._persistMinIntervalMs = Number(process.env.ZACC_PERSIST_MS || 30 * 1000);
+
     // Shared context handed to every component (telemetry hook + learning params).
     const ctx = {
       telemetry: () => this._telemetry(),
       params: () => this.learning.params,
+      onPaid: (invoice) => this._onPaid(invoice),
     };
     this.scanner = new MarketScanner(ctx);
     this.synthesizer = new IdeaSynthesizer(ctx);
@@ -59,6 +68,7 @@ class ZeusAutonomicCommerceCore {
     this.multi = new MultiInstanceManager(ctx);
     this.learning = new SelfLearningCore(ctx);
     this.evolution = new EternalEvolution(ctx);
+    this.payments = new BtcPayments(ctx);
 
     // Register components with the watchdog (reinit = re-run their step).
     this.health.register('scanner', () => this.scanner.scan().catch(() => {}));
@@ -67,8 +77,39 @@ class ZeusAutonomicCommerceCore {
     this.health.register('pricing', () => this.pricing.reprice(this.builder.products, true));
     this.health.register('revenue', () => {});
     this.health.register('learning', () => {});
+    this.health.register('payments', () => this.payments.poll(true).catch(() => {}));
+
+    // Restore durable state from disk so a deploy / reload never wipes the
+    // economy (products, sales, learning, invoices survive). Fail-soft.
+    try { this._restore(); } catch (e) { log.warn('restore skipped:', e.message); }
 
     if (this.enabled) this.start();
+  }
+
+  // Allow the backend to receive every built product (e.g. publish into the
+  // main /services catalog). Backfills products built before the sink was set.
+  setServiceSink(fn) {
+    if (typeof fn !== 'function') return;
+    this._serviceSink = fn;
+    try { for (const p of this.builder.products) fn(p); }
+    catch (e) { log.warn('service sink backfill:', e.message); }
+  }
+
+  _publishProduct(product) {
+    if (!product || !this._serviceSink) return;
+    try { this._serviceSink(product); } catch (e) { log.warn('service sink:', e.message); }
+  }
+
+  // A confirmed BTC payment landed for an invoice → record the sale and mark
+  // the product delivered. This is the real money-in path (vs. the demo hook).
+  _onPaid(invoice) {
+    if (!invoice || !invoice.productId) return;
+    try {
+      this.recordSale(invoice.productId, invoice.amountUsd);
+      this.builder.recordEvent(invoice.productId, 'delivered');
+      log.info('delivered', invoice.productId, 'for invoice', invoice.id, '($' + invoice.amountUsd + ')');
+      this._persist(true);
+    } catch (e) { log.warn('_onPaid failed:', e.message); }
   }
 
   // Best-effort live economy pulse. Kept local + cheap; the scanner blends it
@@ -128,6 +169,7 @@ class ZeusAutonomicCommerceCore {
             idea.status = 'active';
             this.multi.countProduct(niche);
             this.learning.record('product', product.title + ' ' + product.description, { id: product.id, priceUsd: product.priceUsd });
+            this._publishProduct(product);
             built += 1;
           }
         }
@@ -169,10 +211,20 @@ class ZeusAutonomicCommerceCore {
       summary.stages.evolve = { proposals: evo.length };
     } catch (e) { summary.stages.evolve = { error: e.message }; }
 
+    // 9) PAYMENTS — confirm BTC invoices on-chain (throttled; only polls when
+    // invoices are open). Confirmed payments auto-deliver via _onPaid().
+    try {
+      const pay = await this.payments.poll();
+      this.health.heartbeat('payments');
+      summary.stages.payments = { polled: !!pay.polled, matched: (pay.matched && pay.matched.length) || 0 };
+    } catch (e) { this.health.reportFailure('payments', e); summary.stages.payments = { error: e.message }; }
+
     this.ticks += 1;
     this.lastTickAt = now();
     summary.durationMs = Date.now() - t0;
     this._lastSummary = summary;
+    // Persist durable state after every cycle (throttled, fail-soft).
+    this._persist();
     return summary;
   }
 
@@ -200,8 +252,60 @@ class ZeusAutonomicCommerceCore {
     if (!idea) return null;
     const niche = this.multi.routeIdea(idea);
     const product = this.builder.build(idea, { niche });
-    if (product) { idea.status = 'active'; this.multi.countProduct(niche); }
+    if (product) { idea.status = 'active'; this.multi.countProduct(niche); this._publishProduct(product); this._persist(true); }
     return { idea, product };
+  }
+
+  // Create a real BTC invoice for a product (unique amount → on-chain match).
+  async createInvoice(productId) {
+    const p = this.builder.getProduct(productId);
+    if (!p) return null;
+    const inv = await this.payments.createInvoice(productId, p.priceUsd);
+    this._persist(true);
+    return { invoice: inv, product: { id: p.id, title: p.title, priceUsd: p.priceUsd } };
+  }
+
+  // ---- Durable persistence -------------------------------------------
+  serialize() {
+    return {
+      startedAt: this.startedAt,
+      ticks: this.ticks,
+      lastTickAt: this.lastTickAt,
+      scanner: { trends: this.scanner.trends.slice(0, 60), scanCount: this.scanner.scanCount },
+      synthesizer: { ideas: this.synthesizer.ideas.slice(0, 100), generated: this.synthesizer.generated },
+      builder: { products: this.builder.products.slice(0, 200), built: this.builder.built },
+      pricing: { history: this.pricing.history.slice(0, 50), repriceCount: this.pricing.repriceCount, lastRepriceAt: this.pricing.lastRepriceAt },
+      revenue: { sales: this.revenue.sales.slice(0, 500), totalUsd: this.revenue.totalUsd, lastReportAt: this.revenue.lastReportAt, reportsSent: this.revenue.reportsSent },
+      multi: this.multi.toState(),
+      learning: { params: this.learning.params, vectors: this.learning.vectors.slice(0, 500) },
+      evolution: { proposals: this.evolution.proposals.slice(0, 40), scans: this.evolution.scans, lastScanAt: this.evolution.lastScanAt },
+      payments: this.payments.toState(),
+    };
+  }
+
+  _restore() {
+    const s = store.load();
+    if (!s) return false;
+    if (s.startedAt) this.startedAt = s.startedAt;
+    if (Number.isFinite(s.ticks)) this.ticks = s.ticks;
+    if (s.lastTickAt) this.lastTickAt = s.lastTickAt;
+    if (s.scanner) { if (Array.isArray(s.scanner.trends)) this.scanner.trends = s.scanner.trends; if (Number.isFinite(s.scanner.scanCount)) this.scanner.scanCount = s.scanner.scanCount; }
+    if (s.synthesizer) { if (Array.isArray(s.synthesizer.ideas)) this.synthesizer.ideas = s.synthesizer.ideas; if (Number.isFinite(s.synthesizer.generated)) this.synthesizer.generated = s.synthesizer.generated; }
+    if (s.builder) { if (Array.isArray(s.builder.products)) this.builder.products = s.builder.products; if (Number.isFinite(s.builder.built)) this.builder.built = s.builder.built; }
+    if (s.pricing) { if (Array.isArray(s.pricing.history)) this.pricing.history = s.pricing.history; if (Number.isFinite(s.pricing.repriceCount)) this.pricing.repriceCount = s.pricing.repriceCount; if (Number.isFinite(s.pricing.lastRepriceAt)) this.pricing.lastRepriceAt = s.pricing.lastRepriceAt; }
+    if (s.revenue) { if (Array.isArray(s.revenue.sales)) this.revenue.sales = s.revenue.sales; if (Number.isFinite(s.revenue.totalUsd)) this.revenue.totalUsd = s.revenue.totalUsd; if (Number.isFinite(s.revenue.lastReportAt)) this.revenue.lastReportAt = s.revenue.lastReportAt; if (Number.isFinite(s.revenue.reportsSent)) this.revenue.reportsSent = s.revenue.reportsSent; }
+    if (s.multi) this.multi.fromState(s.multi);
+    if (s.learning) { if (s.learning.params) this.learning.params = Object.assign(this.learning.params, s.learning.params); if (Array.isArray(s.learning.vectors)) this.learning.vectors = s.learning.vectors; }
+    if (s.evolution) { if (Array.isArray(s.evolution.proposals)) this.evolution.proposals = s.evolution.proposals; if (Number.isFinite(s.evolution.scans)) this.evolution.scans = s.evolution.scans; if (Number.isFinite(s.evolution.lastScanAt)) this.evolution.lastScanAt = s.evolution.lastScanAt; }
+    if (s.payments) this.payments.fromState(s.payments);
+    log.info('state restored · products', this.builder.products.length, '· lifetime $' + this.revenue.totalUsd);
+    return true;
+  }
+
+  _persist(force) {
+    if (!force && Date.now() - this._lastPersistAt < this._persistMinIntervalMs) return false;
+    this._lastPersistAt = Date.now();
+    return store.save(this.serialize());
   }
 
   // ---- Snapshots for the API + site page -------------------------------
@@ -229,6 +333,7 @@ class ZeusAutonomicCommerceCore {
         multi: this.multi.status(),
         learning: this.learning.status(),
         evolution: this.evolution.status(),
+        payments: this.payments.status(),
       },
       lastCycle: this._lastSummary || null,
     };
@@ -252,6 +357,8 @@ class ZeusAutonomicCommerceCore {
         niches: this.multi.status().active,
       },
       revenue: { lifetimeUsd: this.revenue.totalUsd, last24hUsd: this.revenue.status().last24hUsd },
+      payments: { openInvoices: this.payments.status().openInvoices, paidInvoices: this.payments.status().paidInvoices, onChain: true },
+      persisted: true,
       trends: this.scanner.top(6),
       ideas: this.synthesizer.ideas.slice(0, 6).map(i => ({ name: i.name, type: i.type, priceUsd: i.priceUsd, marginPct: i.marginPct, status: i.status })),
       products: this.builder.publicList(12),

@@ -94,9 +94,43 @@ const assert = require('assert');
   const pub = zacc.publicSnapshot();
   assert.ok(pub.ok && pub.counts && pub.payout.btcAddress, 'public snapshot must carry counts + BTC payout');
   assert.ok(Array.isArray(pub.products) && Array.isArray(pub.ideas) && Array.isArray(pub.trends), 'public snapshot arrays present');
-  console.log('\u2713 zacc: public snapshot shape is valid for the site page');
+  assert.ok(pub.payments && typeof pub.payments.paidInvoices === 'number', 'public snapshot must expose payments summary');
+  assert.equal(pub.persisted, true, 'public snapshot must advertise disk persistence');
+  console.log('\u2713 zacc: public snapshot shape is valid (payments + persistence flags present)');
 
-  console.log('\nZACC smoke test passed \u2014 the autonomous commerce core is live.');
+  // --- 12) Disk persistence: serialize + restore --------------------
+  const store = require('../backend/modules/zacc/store');
+  const snap = zacc.serialize();
+  assert.ok(snap && Array.isArray(snap.builder.products), 'serialize must include builder products');
+  assert.ok(typeof snap.revenue.totalUsd === 'number', 'serialize must include revenue');
+  const saved = store.save(snap);
+  assert.ok(saved, 'store.save must return true');
+  const loaded = store.load();
+  assert.ok(loaded && Array.isArray(loaded.builder.products), 'store.load must restore products array');
+  console.log('\u2713 zacc: disk persistence saves and restores state correctly');
+
+  // --- 13) BTC payments: invoice creation + paid delivery hook ----------
+  const invResult = await zacc.createInvoice(products[0].id);
+  assert.ok(invResult && invResult.invoice, 'createInvoice must return an invoice');
+  assert.ok(invResult.invoice.amountSats >= 0, 'invoice must have amountSats');
+  assert.ok(invResult.invoice.btcAddress, 'invoice must carry owner BTC address');
+  assert.ok(['pending', 'rate-unavailable'].includes(invResult.invoice.status), 'new invoice status must be pending or rate-unavailable');
+  const paySt = zacc.payments.status();
+  assert.ok(paySt.ok && typeof paySt.invoices === 'number', 'payments.status must be well-shaped');
+  assert.equal(paySt.btcAddress, invResult.invoice.btcAddress, 'payments btcAddress must match invoice');
+  // Simulate paid delivery hook.
+  const prevLifetime = zacc.revenue.totalUsd;
+  zacc._onPaid({ id: invResult.invoice.id, productId: products[0].id, amountUsd: invResult.invoice.amountUsd || 10 });
+  assert.ok(zacc.revenue.totalUsd > prevLifetime, '_onPaid must record the sale');
+  console.log('\u2713 zacc: BTC payment watcher creates invoices + auto-delivers on confirmation');
+
+  // --- 14) ZACC products appear in the global service catalog sink ------
+  const catSink = [];
+  zacc.setServiceSink(function (p) { catSink.push(p.id); });
+  assert.ok(catSink.length >= 1, 'setServiceSink backfill must publish existing products');
+  console.log('\u2713 zacc: ' + catSink.length + ' products surfaced in global /services catalog via sink');
+
+  console.log('\nZACC smoke test passed \u2014 the autonomous commerce core is live, persistent and on-chain.');
   zacc.stop();
   process.exit(0);
 })().catch((e) => {

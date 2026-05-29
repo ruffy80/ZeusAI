@@ -4713,34 +4713,123 @@ async function unicornHandler(req, res) {
     // nginx). No fake numbers; the page renders exactly what the loop produced.
     if (urlPath === '/zacc') {
       const body =
-        '<h2 style="margin:0">Zeus Autonomic Commerce Core <span style="font-size:13px;color:var(--accent);border:1px solid var(--accent);border-radius:999px;padding:2px 10px;vertical-align:middle">ZACC · LIVE</span></h2>' +
-        '<p style="color:var(--muted);margin:8px 0 24px">The first fully-autonomous economic engine: it scans 20+ market sources, synthesises new product ideas, builds &amp; prices them, sells in BTC, heals itself, learns weekly and evolves monthly — with no human in the loop. Every number below is produced live by the running loop.</p>' +
+        '<h2 style="margin:0">Zeus Autonomic Commerce Core <span style="font-size:13px;color:var(--accent);border:1px solid var(--accent);border-radius:999px;padding:2px 10px;vertical-align:middle">ZACC \u00b7 LIVE</span></h2>' +
+        '<p style="color:var(--muted);margin:8px 0 24px">The first fully-autonomous economic engine: scans 20+ market sources, synthesises ideas, builds &amp; prices products, sells in BTC (confirmed on-chain), heals itself, learns weekly and evolves monthly \u2014 zero human in the loop. Every number is produced live by the running autonomous cycle.</p>' +
         '<div id="zc-summary" class="grid"></div>' +
-        '<h3 style="margin:32px 0 8px">Today\u2019s synthesised ideas</h3>' +
+        '<h3 style="margin:32px 0 8px">Today\u2019s synthesised ideas <span id="zc-admin-hint" style="font-size:11px;font-weight:400;color:var(--muted)"></span></h3>' +
         '<div id="zc-ideas" class="grid"></div>' +
-        '<h3 style="margin:32px 0 8px">Autonomously-built products <span class="sub" style="font-weight:400">(buyable now in BTC)</span></h3>' +
-        '<div id="zc-products" class="grid" style="grid-template-columns:repeat(auto-fit,minmax(280px,1fr))"></div>' +
+        '<h3 style="margin:32px 0 8px">Autonomously-built products <span class="sub" style="font-weight:400">(real BTC invoice per purchase)</span></h3>' +
+        '<div id="zc-products" class="grid" style="grid-template-columns:repeat(auto-fit,minmax(290px,1fr))"></div>' +
+        '<div id="zc-invoice-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:9999;align-items:center;justify-content:center">' +
+        '<div style="background:var(--card,#1a1a2e);border:1px solid var(--accent,#7c3aed);border-radius:12px;padding:32px;max-width:420px;width:90%;position:relative">' +
+        '<button onclick="document.getElementById(\'zc-invoice-modal\').style.display=\'none\'" style="position:absolute;top:12px;right:16px;background:none;border:none;color:var(--muted);font-size:20px;cursor:pointer">\u00d7</button>' +
+        '<h3 style="margin:0 0 8px" id="zc-inv-title">BTC Invoice</h3>' +
+        '<p style="color:var(--muted);font-size:12px;margin:0 0 16px" id="zc-inv-product"></p>' +
+        '<div style="background:#0d0d1a;border-radius:8px;padding:16px;margin-bottom:16px">' +
+        '<div style="font-size:11px;color:var(--muted);margin-bottom:4px">Send EXACTLY</div>' +
+        '<div id="zc-inv-btc" style="font-size:22px;font-weight:700;font-family:monospace;color:var(--accent)"></div>' +
+        '<div id="zc-inv-usd" style="font-size:13px;color:var(--muted);margin-top:4px"></div>' +
+        '</div>' +
+        '<div style="font-size:11px;color:var(--muted);margin-bottom:4px">To address</div>' +
+        '<div id="zc-inv-addr" style="font-family:monospace;font-size:12px;word-break:break-all;color:var(--accent);margin-bottom:16px"></div>' +
+        '<div id="zc-inv-status" style="font-size:13px;color:var(--muted);text-align:center"></div>' +
+        '<p style="font-size:11px;color:var(--muted);margin:12px 0 0;text-align:center">The exact amount is unique to your order. Payment confirmed automatically on-chain via mempool.space.</p>' +
+        '</div></div>' +
         '<h3 style="margin:32px 0 8px">Live market trends</h3>' +
         '<div id="zc-trends" class="grid"></div>' +
         '<h3 style="margin:32px 0 8px">Eternal evolution \u00b7 proposed integrations</h3>' +
         '<div id="zc-evo" class="grid"></div>' +
-        '<div style="margin-top:24px;font-size:12px;color:var(--muted)">Components: Market Scanner \u00b7 Idea Synthesizer \u00b7 Auto-Builder \u00b7 Dynamic Pricing \u00b7 Self-Healing \u00b7 Revenue Autopilot (BTC) \u00b7 Multi-instance \u00b7 Self-Learning \u00b7 Eternal Evolution. Full status: <a href="/api/zacc/status" style="color:var(--accent)">/api/zacc/status</a></div>';
+        '<div style="margin-top:24px;font-size:12px;color:var(--muted)">Components: Market Scanner \u00b7 Idea Synthesizer \u00b7 Auto-Builder \u00b7 Dynamic Pricing \u00b7 Self-Healing \u00b7 Revenue Autopilot (BTC) \u00b7 Multi-instance \u00b7 Self-Learning \u00b7 Eternal Evolution \u00b7 BTC Payment Watcher. Full status: <a href="/api/zacc/status" style="color:var(--accent)">/api/zacc/status</a></div>';
       const js = [
-        "(function(){",
-        "function esc(s){return String(s==null?'':s).replace(/[&<>\"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','\"':'&quot;'}[c];});}",
-        "function card(t,v,s){return '<div class=\"card\"><h3>'+esc(t)+'</h3><div class=\"v\">'+v+'</div><div class=\"sub\">'+esc(s||'')+'</div></div>';}",
-        "function money(n){return '$'+Number(n||0).toLocaleString('en-US',{maximumFractionDigits:2});}",
-        "function refresh(){fetch('/api/zacc/public',{cache:'no-store'}).then(function(r){return r.json();}).then(function(d){",
-        "if(!d||!d.ok){document.getElementById('zc-summary').innerHTML=card('ZACC','warming up','autonomous loop booting');return;}",
-        "var c=d.counts||{};",
-        "document.getElementById('zc-summary').innerHTML=card('Autonomous cycles',d.ticks||0,'last: '+(d.lastTickAt?new Date(d.lastTickAt).toLocaleTimeString():'\u2014'))+card('Market sources',c.sources||0,'scanned for trends')+card('Live products',c.products||0,'built autonomously')+card('Lifetime revenue',money(d.revenue&&d.revenue.lifetimeUsd),'24h: '+money(d.revenue&&d.revenue.last24hUsd))+card('Payout',(d.payout&&d.payout.method)||'BTC','self-custody wallet')+card('Active niches',c.niches||0,'multi-instance');",
-        "var ideas=d.ideas||[];document.getElementById('zc-ideas').innerHTML=ideas.length?ideas.map(function(i){return card(i.name,money(i.priceUsd),i.type+' \u00b7 margin '+Math.round(i.marginPct||0)+'% \u00b7 '+i.status);}).join(''):card('Ideas','synthesising\u2026','first batch within the hour');",
-        "var prods=d.products||[];document.getElementById('zc-products').innerHTML=prods.length?prods.map(function(p){return '<div class=\"card\" style=\"padding:22px\"><h3 style=\"font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--accent)\">'+esc(p.type)+' \u00b7 '+esc(p.niche)+'</h3><div style=\"font-size:16px;font-weight:600;margin:6px 0\">'+esc(p.title)+'</div><div class=\"v\">'+money(p.priceUsd)+'</div><p style=\"color:var(--muted);font-size:12px;margin:8px 0 14px;min-height:48px\">'+esc((p.description||'').slice(0,150))+'</p><a href=\"/checkout?plan='+encodeURIComponent(p.id)+'\" style=\"text-decoration:none\"><button style=\"width:100%\">Buy with BTC \u2192</button></a></div>';}).join(''):card('Products','building\u2026','approved ideas materialise here');",
-        "var tr=d.trends||[];document.getElementById('zc-trends').innerHTML=tr.length?tr.map(function(t){return card(t.label,Math.round((t.score||0)*100)+'%','demand \u00b7 '+esc(t.category||''));}).join(''):card('Trends','scanning\u2026','');",
-        "var evo=d.evolution||[];document.getElementById('zc-evo').innerHTML=evo.length?evo.map(function(e){return card(e.label,Math.round((e.advantage||0)*100)+'%',esc(e.area)+' \u00b7 '+esc(e.status));}).join(''):card('Evolution','idle','monthly scan');",
-        "}).catch(function(){document.getElementById('zc-summary').innerHTML=card('ZACC','offline','retrying');});}",
-        "refresh();setInterval(refresh,5000);",
-        "})();",
+        '(function(){',
+        'function esc(s){return String(s==null?"":s).replace(/[&<>"]/g,function(c){return{"&":"&amp;","<":"&lt;",">":"&gt;",\'"\':"&quot;"}[c];});}',
+        'function card(t,v,s){return\'<div class="card"><h3>\'+esc(t)+\'</h3><div class="v">\'+v+\'</div><div class="sub">\'+esc(s||"")+\'</div></div>\';}',
+        'function money(n){return"$"+Number(n||0).toLocaleString("en-US",{maximumFractionDigits:2});}',
+        // Admin token from sessionStorage (set once, stays for session)
+        'function adminToken(){return sessionStorage.getItem("zacc_admin_token")||"";}',
+        // Approve idea (admin-only)
+        'function approveIdea(ideaId,btn){',
+        '  var tok=adminToken();',
+        '  if(!tok){tok=prompt("Admin token:");if(tok)sessionStorage.setItem("zacc_admin_token",tok);}',
+        '  if(!tok)return;',
+        '  btn.disabled=true;btn.textContent="Approving\u2026";',
+        '  fetch("/api/zacc/approve/"+encodeURIComponent(ideaId),{method:"POST",headers:{"x-admin-token":tok}})',
+        '  .then(function(r){return r.json();})',
+        '  .then(function(d){btn.textContent=d.ok?"Approved \u2713":"Error";setTimeout(refresh,1500);})',
+        '  .catch(function(){btn.textContent="Error";});',
+        '}',
+        // BTC invoice modal
+        'var _invPollTimer=null;',
+        'function openInvoice(productId,productTitle,priceUsd){',
+        '  var m=document.getElementById("zc-invoice-modal");',
+        '  document.getElementById("zc-inv-title").textContent="BTC Invoice";',
+        '  document.getElementById("zc-inv-product").textContent=productTitle;',
+        '  document.getElementById("zc-inv-btc").textContent="Loading\u2026";',
+        '  document.getElementById("zc-inv-usd").textContent="";',
+        '  document.getElementById("zc-inv-addr").textContent="";',
+        '  document.getElementById("zc-inv-status").textContent="Creating invoice\u2026";',
+        '  m.style.display="flex";',
+        '  if(_invPollTimer){clearInterval(_invPollTimer);_invPollTimer=null;}',
+        '  fetch("/api/zacc/invoice/"+encodeURIComponent(productId),{method:"POST"})',
+        '  .then(function(r){return r.json();})',
+        '  .then(function(d){',
+        '    if(!d.ok||!d.invoice){document.getElementById("zc-inv-status").textContent="Invoice error";return;}',
+        '    var inv=d.invoice;',
+        '    document.getElementById("zc-inv-btc").textContent=(inv.amountBtc||0).toFixed(8)+" BTC";',
+        '    document.getElementById("zc-inv-usd").textContent="= "+money(inv.amountUsd);',
+        '    document.getElementById("zc-inv-addr").textContent=inv.btcAddress||"";',
+        '    document.getElementById("zc-inv-status").textContent=inv.status==="rate-unavailable"?"BTC rate unavailable \u2014 send any BTC to confirm":"Waiting for payment\u2026";',
+        '    var invId=inv.id;',
+        '    _invPollTimer=setInterval(function(){',
+        '      fetch("/api/zacc/invoice/"+encodeURIComponent(invId))',
+        '      .then(function(r){return r.json();})',
+        '      .then(function(d2){',
+        '        if(d2.invoice&&d2.invoice.status==="paid"){',
+        '          document.getElementById("zc-inv-status").textContent="\u2714 Payment confirmed! Delivery in progress.";',
+        '          clearInterval(_invPollTimer);_invPollTimer=null;',
+        '          setTimeout(function(){document.getElementById("zc-invoice-modal").style.display="none";refresh();},3000);',
+        '        }',
+        '      }).catch(function(){});',
+        '    },8000);',
+        '  }).catch(function(){document.getElementById("zc-inv-status").textContent="Network error";});',
+        '}',
+        // Main refresh
+        'function refresh(){fetch("/api/zacc/public",{cache:"no-store"}).then(function(r){return r.json();}).then(function(d){',
+        '  if(!d||!d.ok){document.getElementById("zc-summary").innerHTML=card("ZACC","warming up","autonomous loop booting");return;}',
+        '  var c=d.counts||{};',
+        '  var payI=(d.payments&&d.payments.openInvoices)||0;',
+        '  var payP=(d.payments&&d.payments.paidInvoices)||0;',
+        '  document.getElementById("zc-summary").innerHTML=',
+        '    card("Autonomous cycles",d.ticks||0,"last: "+(d.lastTickAt?new Date(d.lastTickAt).toLocaleTimeString():"\u2014"))+',
+        '    card("Market sources",c.sources||0,"scanned for trends")+',
+        '    card("Live products",c.products||0,"built autonomously")+',
+        '    card("Lifetime revenue",money(d.revenue&&d.revenue.lifetimeUsd),"24h: "+money(d.revenue&&d.revenue.last24hUsd))+',
+        '    card("BTC invoices",payP+" paid",""+payI+" open \u00b7 on-chain verified")+',
+        '    card("Payout",(d.payout&&d.payout.method)||"BTC","self-custody wallet");',
+        // Ideas with Approve button for proposed ones
+        '  var ideas=d.ideas||[];',
+        '  document.getElementById("zc-ideas").innerHTML=ideas.length?ideas.map(function(i){',
+        '    var approveBtn=i.status==="proposed"?\'<button onclick="approveIdea(\\"\'+esc(i.id)+\'\\",this)" style="margin-top:10px;font-size:11px;padding:4px 10px">Approve \u2192</button>\':"";',
+        '    return \'<div class="card"><h3>\'+esc(i.name)+\'</h3><div class="v">\'+money(i.priceUsd)+\'</div><div class="sub">\'+esc(i.type)+\' \u00b7 margin \'+Math.round(i.marginPct||0)+\'% \u00b7 \'+esc(i.status)+\'</div>\'+approveBtn+\'</div>\';',
+        '  }).join(""):card("Ideas","synthesising\u2026","first batch within the hour");',
+        // Products with BTC Invoice button
+        '  var prods=d.products||[];',
+        '  document.getElementById("zc-products").innerHTML=prods.length?prods.map(function(p){',
+        '    return \'<div class="card" style="padding:22px">\'',
+        '    +\'<h3 style="font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--accent)">\'+esc(p.type)+\' \u00b7 \'+esc(p.niche)+\'</h3>\'',
+        '    +\'<div style="font-size:16px;font-weight:600;margin:6px 0">\'+esc(p.title)+\'</div>\'',
+        '    +\'<div class="v">\'+money(p.priceUsd)+\'</div>\'',
+        '    +\'<p style="color:var(--muted);font-size:12px;margin:8px 0 14px;min-height:48px">\'+esc((p.description||"").slice(0,140))+\'</p>\'',
+        '    +\'<button onclick="openInvoice(\\"\'+esc(p.id)+\'\\",\\"\'+esc(p.title)+\'\\",\'+Number(p.priceUsd||0)+\')" style="width:100%">Pay with BTC (on-chain) \u2192</button>\'',
+        '    +\'</div>\';',
+        '  }).join(""):card("Products","building\u2026","approved ideas materialise here");',
+        '  var tr=d.trends||[];',
+        '  document.getElementById("zc-trends").innerHTML=tr.length?tr.map(function(t){return card(t.label,Math.round((t.score||0)*100)+"%","demand \u00b7 "+esc(t.category||""));}).join(""):card("Trends","scanning\u2026","");',
+        '  var evo=d.evolution||[];',
+        '  document.getElementById("zc-evo").innerHTML=evo.length?evo.map(function(e){return card(e.label,Math.round((e.advantage||0)*100)+"%",esc(e.area)+" \u00b7 "+esc(e.status));}).join(""):card("Evolution","idle","monthly scan");',
+        '}).catch(function(){document.getElementById("zc-summary").innerHTML=card("ZACC","offline","retrying");});}',
+        'refresh();setInterval(refresh,5000);',
+        '})();',
       ].join('');
       try { res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store', 'X-Unicorn-Page': 'zacc' }); } catch (_) {}
       return res.end(renderPage('Zeus Autonomic Commerce Core', body, js));
