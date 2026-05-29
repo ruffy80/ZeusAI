@@ -27,58 +27,73 @@ async function __getBtcUsdRate() {
 }
 const __OWNER_BTC = process.env.BTC_OWNER_WALLET || 'bc1q4f7e66z87mdfj56kz0dj5hvcnpmh0qh4wuv22e';
 
+// Canonical core subscription plans + utility products. These are the ONLY
+// fixed-price products; everything else is sourced from the commerce catalogs.
+// Internal engine modules (selfConstruction, resource-monitor, …) are NEVER
+// listed as sellable products. (RO: doar produse reale, fără module interne.)
+const CATALOG_CORE_PLANS = {
+  free: 0, starter: 29, pro: 99, enterprise: 499,
+  'api-call': 0.01, 'ai-analysis': 5, 'wealth-engine': 199, 'legal-bot': 49,
+  'cloud-broker': 79, 'data-export': 9, sme: 199, 'mid-market': 1499,
+  'enterprise-tier': 9999, 'global-giants': 99999,
+};
+
 function buildLiveSaasCatalog() {
   // Pull pricing from the running dynamic-pricing engine (mounted later in
   // this file). The require() is deferred so the function works regardless
   // of module load order.
   let pricer = null;
   try { pricer = require('./modules/dynamic-pricing'); } catch (_) {}
-  let marketplace = null;
-  try { marketplace = require('./modules/integrations/module-marketplace'); } catch (_) {}
+  let instantCat = null, entCat = null;
+  try { instantCat = require('../src/commerce/instant-catalog'); } catch (_) {}
+  try { entCat = require('../src/commerce/enterprise-catalog'); } catch (_) {}
 
   const items = [];
-  // Source 1: every SaaS service known to the dynamic-pricing engine, with
-  // the live computed price (demand factor + surge + discounts applied).
-  if (pricer && typeof pricer.getAllPrices === 'function' && pricer.BASE_PRICES) {
+  const seen = new Set();
+  const pushProduct = (id, base, meta) => {
+    const sid = String(id || '').trim();
+    if (!sid || seen.has(sid)) return;
+    const baseNum = Number(base) || 0;
+    let priceUsd = baseNum;
+    // Apply the SAME dynamic-pricing the rest of the site shows so the catalog
+    // price matches /api/pricing and the amount charged at checkout.
+    if (pricer && typeof pricer.getPrice === 'function' && baseNum > 0) {
+      try {
+        const live = pricer.getPrice(sid, { basePrice: baseNum });
+        const f = Number(live && live.finalPrice);
+        if (Number.isFinite(f) && f > 0) priceUsd = Math.round(f * 100) / 100;
+      } catch (_) {}
+    }
+    seen.add(sid);
+    items.push({
+      id: sid,
+      name: (meta && meta.name) || sid.replace(/[-_]/g, ' ').replace(/\b\w/g, c => c.toUpperCase()),
+      description: (meta && meta.description) || '',
+      price: priceUsd,
+      priceUsd,
+      basePrice: baseNum,
+      category: (meta && meta.category) || 'SaaS',
+      tier: (meta && meta.tier) || undefined,
+      source: 'canonical-catalog',
+      buyUrl: `/checkout?serviceId=${encodeURIComponent(sid)}&amount=${priceUsd}&plan=${encodeURIComponent(sid)}`,
+    });
+  };
+
+  // Source 1: fixed core subscription plans + utility products.
+  for (const [id, base] of Object.entries(CATALOG_CORE_PLANS)) pushProduct(id, base, { category: 'Plan' });
+  // Source 2: instant + professional deliverables (canonical commerce catalog).
+  if (instantCat && typeof instantCat.all === 'function') {
     try {
-      const all = pricer.getAllPrices();
-      for (const id of Object.keys(pricer.BASE_PRICES)) {
-        const p = all[id] || {};
-        const priceUsd = Number(p.finalPrice ?? p.basePrice ?? pricer.BASE_PRICES[id]) || 0;
-        items.push({
-          id,
-          name: id.replace(/[-_]/g, ' ').replace(/\b\w/g, c => c.toUpperCase()),
-          description: '',
-          price: priceUsd,
-          priceUsd,
-          basePrice: p.basePrice,
-          surge: !!p.surgeActive,
-          category: 'SaaS',
-          source: 'dynamic-pricing',
-          buyUrl: `/checkout?serviceId=${encodeURIComponent(id)}&amount=${priceUsd}&plan=${encodeURIComponent(id)}`,
-        });
+      for (const it of (instantCat.all() || [])) {
+        pushProduct(it.id, it.priceUSD != null ? it.priceUSD : it.price, { name: it.title || it.name, description: it.description, tier: it.tier, category: 'Service' });
       }
     } catch (_) {}
   }
-  // Source 2: monetisable modules from the marketplace catalog.
-  if (marketplace && typeof marketplace.refreshCatalog === 'function') {
+  // Source 3: enterprise licenses (canonical commerce catalog).
+  if (entCat && typeof entCat.all === 'function') {
     try {
-      const cat = marketplace.refreshCatalog();
-      for (const m of cat) {
-        if (items.find(x => x.id === m.id)) continue;
-        const priceUsd = Number((m.price && (m.price.finalPrice ?? m.price.amount)) || 0);
-        items.push({
-          id: m.id,
-          name: m.name || m.id,
-          description: '',
-          price: priceUsd,
-          priceUsd,
-          currency: (m.price && m.price.currency) || 'USD',
-          category: 'Module',
-          license: m.license,
-          source: 'module-marketplace',
-          buyUrl: `/checkout?serviceId=${encodeURIComponent(m.id)}&amount=${priceUsd}&plan=${encodeURIComponent(m.id)}`,
-        });
+      for (const it of (entCat.all() || [])) {
+        pushProduct(it.id, it.priceUSD != null ? it.priceUSD : it.price, { name: it.title || it.name, description: it.description, tier: it.tier, category: 'Enterprise' });
       }
     } catch (_) {}
   }

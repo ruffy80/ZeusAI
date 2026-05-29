@@ -1577,6 +1577,64 @@ function clampUsdPrice(value, context) {
   return Math.round(clamped * 100) / 100;
 }
 
+// ── Canonical, server-authoritative price (RO: prețul oficial calculat pe server) ──
+// SINGLE source of truth shared by the storefront (/api/catalog, /api/pricing)
+// AND every order endpoint, so the amount actually charged ALWAYS equals the
+// price the buyer saw for that exact service. This closes the class of bugs
+// where the card shows $500,000 but the BTC invoice came out at ~$70 (the
+// client-supplied / URL amount was trusted blindly). For any KNOWN product the
+// client amount is ignored entirely; only unknown/custom ids fall back to a
+// clamped client value.
+const CANONICAL_CORE_PLANS = {
+  free: 0, starter: 29, pro: 99, enterprise: 499,
+  'api-call': 0.01, 'ai-analysis': 5, 'wealth-engine': 199, 'legal-bot': 49,
+  'cloud-broker': 79, 'data-export': 9, sme: 199, 'mid-market': 1499,
+  'enterprise-tier': 9999, 'global-giants': 99999,
+};
+// Resolve the catalog FLOOR price (USD) for a service id across the canonical
+// commerce catalogs and the fixed core-plan table. Returns null for ids that
+// are not real, sellable products (e.g. internal engine modules).
+function canonicalBaseForService(serviceId) {
+  const id = String(serviceId || '').trim();
+  if (!id || id === 'custom') return null;
+  const probe = (mod) => {
+    if (!mod || typeof mod.byId !== 'function') return null;
+    try {
+      const it = mod.byId(id);
+      if (it) {
+        const n = Number(it.priceUSD != null ? it.priceUSD : it.price);
+        return Number.isFinite(n) ? n : null;
+      }
+    } catch (_) {}
+    return null;
+  };
+  const fromCatalog = probe(instantCatalog);
+  if (fromCatalog != null) return fromCatalog;
+  const fromEnt = probe(entCatalog);
+  if (fromEnt != null) return fromEnt;
+  const fromUnified = probe(unifiedCatalog);
+  if (fromUnified != null) return fromUnified;
+  if (Object.prototype.hasOwnProperty.call(CANONICAL_CORE_PLANS, id)) return CANONICAL_CORE_PLANS[id];
+  return null;
+}
+// Returns the live USD price for a KNOWN product applying the same
+// dynamic-pricing the storefront displays; null for unknown/custom ids so the
+// caller can decide a safe fallback. Never throws.
+function resolveCanonicalUsd(serviceId) {
+  const base = canonicalBaseForService(serviceId);
+  if (base == null) return null;
+  if (!(base > 0)) return 0; // free tier
+  try {
+    const dp = require('../backend/modules/dynamic-pricing');
+    if (dp && typeof dp.getPrice === 'function') {
+      const live = dp.getPrice(String(serviceId).trim(), { basePrice: base });
+      const f = Number(live && live.finalPrice);
+      if (Number.isFinite(f) && f > 0) return clampUsdPrice(f, { source: 'canonical-dynamic', serviceId });
+    }
+  } catch (_) { /* fall through to floor */ }
+  return clampUsdPrice(base, { source: 'canonical-base', serviceId });
+}
+
 function fallbackUsdForService(service) {
   const tier = String((service && (service.segment || service.tier || service.category || service.id)) || '').toLowerCase();
   if (tier.includes('mid')) return 499;
@@ -3245,13 +3303,17 @@ async function unicornHandler(req, res) {
         // auto-discovered modules) so the buyer pays directly to the owner BTC
         // wallet without going through Stripe/PayPal. Cached 60s via _masterCatalogCache.
         resolveCatalogItem: async (id) => {
+          // Canonical, server-authoritative price — same number the storefront
+          // shows. Overrides any divergent catalog price so /api/checkout/create
+          // matches /api/catalog & /api/pricing. (RO: prețul oficial unic.)
+          const _canon = resolveCanonicalUsd(id);
           if (unifiedCatalog && typeof unifiedCatalog.byId === 'function') {
             const u = unifiedCatalog.byId(id);
             if (u && u.id) {
               return {
                 id: u.id,
                 title: u.title || u.name || u.id,
-                priceUsd: Number(u.priceUSD != null ? u.priceUSD : (u.priceUsd != null ? u.priceUsd : (u.price || 0))),
+                priceUsd: _canon != null ? _canon : Number(u.priceUSD != null ? u.priceUSD : (u.priceUsd != null ? u.priceUsd : (u.price || 0))),
                 description: u.description || '',
                 group: u.group || u.tier || 'service',
                 segment: u.tier || u.group || 'service',
@@ -3260,8 +3322,17 @@ async function unicornHandler(req, res) {
             }
           }
           const cat = await getCachedMasterCatalog().catch(() => null);
-          if (!cat || !Array.isArray(cat.items)) return null;
-          return cat.items.find((it) => String(it.id) === String(id)) || null;
+          if (cat && Array.isArray(cat.items)) {
+            const hit = cat.items.find((it) => String(it.id) === String(id));
+            if (hit) return _canon != null ? Object.assign({}, hit, { priceUsd: _canon, price: _canon }) : hit;
+          }
+          // Real core/catalog product missing from the master catalog (e.g.
+          // pro, mid-market, ent-*) — synthesize it so checkout never returns
+          // service_not_found for a genuinely sellable product.
+          if (_canon != null) {
+            return { id: String(id), title: String(id), priceUsd: _canon, description: '', group: 'service', segment: 'service', kpi: '' };
+          }
+          return null;
         }
       });
       if (handled) return;
@@ -6468,7 +6539,10 @@ setInterval(()=>{loadOrder().then(render);},10000);
         const p = JSON.parse(body || '{}');
         const serviceId = String(p.serviceId || p.service_id || p.plan || 'starter');
         const paymentMethod = String(p.paymentMethod || p.payment_method || p.method || 'BTC').toUpperCase();
-        let amount = Number(p.amount || p.amountUSD || p.priceUSD || 0);
+        // Server-authoritative price first: for any known product the catalog
+        // price always wins over a client-supplied amount. (RO: prețul oficial.)
+        const _canonBuy = resolveCanonicalUsd(serviceId);
+        let amount = _canonBuy != null ? _canonBuy : Number(p.amount || p.amountUSD || p.priceUSD || 0);
         // Look up authoritative price from catalog when client does not pass one (RO+EN)
         // Caută prețul oficial în catalog dacă clientul nu a trimis un preț — evită checkout cu amount=0
         if (!amount || amount <= 0) {
@@ -8019,8 +8093,15 @@ ${invoice.payer ? `<h2>Payer</h2><table><tr><th>Legal entity</th><td>${esc(invoi
       try {
         const p = JSON.parse(body || '{}');
         const method = String(p.method || 'BTC').toUpperCase();
-        const amount = Number(p.amount || p.amount_usd || p.amountUSD || p.priceUSD || 0);
         const plan = String(p.plan || p.serviceId || 'starter');
+        // Server-authoritative price: for any known product the catalog price
+        // wins over whatever the client posted (URL/edited field). Prevents
+        // "$500,000 service charged $70". (RO: prețul oficial decis pe server.)
+        const _clientAmount = Number(p.amount || p.amount_usd || p.amountUSD || p.priceUSD || 0);
+        const _canonAmount = resolveCanonicalUsd(plan);
+        const amount = _canonAmount != null
+          ? _canonAmount
+          : (_clientAmount > 0 ? clampUsdPrice(_clientAmount, { source: 'uaic-custom', serviceId: plan }) : 0);
         const email = String(p.email || (p.customer && p.customer.email) || '');
         const receiptId = crypto.randomBytes(16).toString('hex');
         if (method === 'PAYPAL') {
@@ -8069,7 +8150,13 @@ ${invoice.payer ? `<h2>Payer</h2><table><tr><th>Legal entity</th><td>${esc(invoi
         const p = JSON.parse(body || '{}');
         // Delegate to UAIC for persistent, watched, license-issuing receipts
         if (uaic) {
-          const amount = Number(p.amount || p.amount_usd || p.amountUSD || p.priceUSD || 0);
+          const _planBtc = String(p.plan || p.serviceId || 'starter');
+          // Server-authoritative price (RO: prețul oficial calculat pe server)
+          const _canonBtc = resolveCanonicalUsd(_planBtc);
+          const _clientBtc = Number(p.amount || p.amount_usd || p.amountUSD || p.priceUSD || 0);
+          const amount = _canonBtc != null
+            ? _canonBtc
+            : (_clientBtc > 0 ? clampUsdPrice(_clientBtc, { source: 'checkout-btc-custom', serviceId: _planBtc }) : 0);
           const btcAmount = uaic.convert(amount, 'BTC');
           const receiptId = crypto.randomBytes(16).toString('hex');
           // Thread customer identity so /account activeServices and dashboard show it
@@ -8114,10 +8201,15 @@ ${invoice.payer ? `<h2>Payer</h2><table><tr><th>Legal entity</th><td>${esc(invoi
         }
         // Fallback (no uaic) — still compute live btcAmount + btcUri so frontend QR works
         const receiptId = crypto.randomBytes(16).toString('hex');
-        const amountUsdF = Number(p.amount || p.amount_usd || p.amountUSD || p.priceUSD || 0);
+        const planF = String(p.plan || p.serviceId || 'starter');
+        // Server-authoritative price (RO: prețul oficial calculat pe server)
+        const _canonF = resolveCanonicalUsd(planF);
+        const _clientF = Number(p.amount || p.amount_usd || p.amountUSD || p.priceUSD || 0);
+        const amountUsdF = _canonF != null
+          ? _canonF
+          : (_clientF > 0 ? clampUsdPrice(_clientF, { source: 'checkout-btc-fallback-custom', serviceId: planF }) : 0);
         const usdPerBtcF = await getBtcUsdSpot().catch(() => 95000);
         const btcAmountF = usdToBtc(amountUsdF, usdPerBtcF);
-        const planF = p.plan || 'starter';
         const btcUriF = amountUsdF > 0 ? buildBtcUri(BTC_WALLET, btcAmountF, 'ZeusAI-' + planF + '-' + receiptId.slice(0, 8)) : null;
         const invoice = {
           receiptId, method: 'BTC', amount: amountUsdF, currency: p.currency || 'USD',
