@@ -356,8 +356,10 @@ class UnicornAutonomousCore {
     try {
       const filePath = path.join(this.modulesDir, moduleFile);
       let content = fs.readFileSync(filePath, 'utf8');
-      if (!content.includes('this.cache') && content.includes('constructor()')) {
-        content = content.replace('constructor()', 'constructor()\n    this.cache = new Map(); this.cacheTTL = 60000;');
+      // Insert AFTER the opening brace so we never produce invalid syntax
+      // (the old version inserted before `{`, corrupting fresh modules).
+      if (!content.includes('this.cache') && content.includes('constructor() {')) {
+        content = content.replace('constructor() {', 'constructor() {\n    this.cache = new Map(); this.cacheTTL = 60000;');
         fs.writeFileSync(filePath, content);
         this.log(`📈 Îmbunătățit: ${moduleFile}`);
         return true;

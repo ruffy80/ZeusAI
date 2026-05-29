@@ -258,12 +258,14 @@ function _classify(file) {
   };
 }
 
-class SelfConstruction {
-  constructor() {
-    this.hasRun = false;
-    this.lastReport = null;
-    this.modulesDir = path.join(__dirname);
-  }
+// Singleton ca obiect simplu (FĂRĂ `class`/`constructor()` și fără class
+// fields): astfel runtime code-enhancers care injectează după `constructor()`
+// nu pot corupe acest fișier, iar ESLint-ul proiectului nu se plânge de
+// sintaxă. NU transforma înapoi în class cu constructor().
+const selfConstruction = {
+  hasRun: false,
+  lastReport: null,
+  modulesDir: path.join(__dirname),
 
   scan() {
     const files = _walk(this.modulesDir, []);
@@ -276,7 +278,7 @@ class SelfConstruction {
       duplicateOwnership: findings.filter(f => f.duplicateOwnership)
         .map(f => ({ file: path.relative(this.modulesDir, f.file), headers: f.ownershipHeaders })),
     };
-  }
+  },
 
   audit() {
     const scan = this.scan();
@@ -294,7 +296,7 @@ class SelfConstruction {
     };
     this.lastReport = report;
     return report;
-  }
+  },
 
   // Schelet funcțional pentru module GENUIN goale/fără export (nu cod real).
   _buildSkeleton(name) {
@@ -315,7 +317,7 @@ class SelfConstruction {
       '};',
       '',
     ].join('\n');
-  }
+  },
 
   async start(opts = {}) {
     const apply = opts.apply === true || process.env.SELF_CONSTRUCTION_APPLY === '1';
@@ -345,7 +347,7 @@ class SelfConstruction {
     }
     console.log('🛠️ Self‑Construction: ' + built.length + ' module completate (apply).');
     return { applied: true, built, report };
-  }
-}
+  },
+};
 
-module.exports = new SelfConstruction();
+module.exports = selfConstruction;
