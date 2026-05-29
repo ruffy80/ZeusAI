@@ -593,6 +593,31 @@ jobs:
           UNIT_DST=/etc/systemd/system/deepseek-loop.service
           ENV_FILE="$DEPLOY_PATH/.env"
 
+          # ── Reconcile AI keys from the persistent host store ──────────────────
+          # create-env.sh runs on the GitHub runner, where the host secret store
+          # does not exist, so an unset GitHub Actions secret leaves a placeholder
+          # (your_deepseek_api_key_here) in .env which then overwrites the live
+          # key on rsync. Here, ON THE SERVER, we force-merge any real keys from
+          # /etc/zeusai/secrets/ai-keys.env (outside the release tree, survives
+          # deploys) back into .env so the backend + loop always get valid keys.
+          # (RO) Reconciliază cheile reale din store-ul persistent în .env după
+          # fiecare deploy, astfel încât cheia DeepSeek validă să rămână activă.
+          STORE=/etc/zeusai/secrets/ai-keys.env
+          if [ -f "$STORE" ] && [ -f "$ENV_FILE" ]; then
+            while IFS= read -r _l; do
+              case "$_l" in ''|\#*) continue ;; *=*) : ;; *) continue ;; esac
+              _k="${_l%%=*}"; _v="${_l#*=}"
+              _v="${_v%\"}"; _v="${_v#\"}"; _v="${_v%\'}"; _v="${_v#\'}"
+              [ -z "$_k" ] && continue
+              [ -z "$_v" ] && continue
+              grep -vE "^${_k}=" "$ENV_FILE" > "$ENV_FILE.tmp" 2>/dev/null || true
+              printf "%s='%s'\n" "$_k" "$_v" >> "$ENV_FILE.tmp"
+              mv "$ENV_FILE.tmp" "$ENV_FILE"
+            done < "$STORE"
+            chmod 600 "$ENV_FILE" 2>/dev/null || true
+            echo "🔐 Reconciled AI keys from $STORE into .env"
+          fi
+
           if [ ! -f "$UNIT_SRC" ]; then
             echo "⚠️  $UNIT_SRC missing — skipping DeepSeek loop install"
             exit 0
