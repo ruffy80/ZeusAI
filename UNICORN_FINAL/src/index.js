@@ -4266,7 +4266,7 @@ async function unicornHandler(req, res) {
   // ---- UAIC (Unicorn Autonomous Commerce) ----
   if (isUaic) {
     const runtimeSources = getRuntimeDataSources();
-    return uaic.handle(req, res, { sources: { marketplace: runtimeSources.marketplace, industries: runtimeSources.industries, modules }, portal }).catch(err => {
+    return uaic.handle(req, res, { sources: { marketplace: runtimeSources.marketplace, industries: runtimeSources.industries, modules }, portal, resolvePrice: resolveCanonicalUsd }).catch(err => {
       try { res.writeHead(500, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ error: 'uaic_error', message: err && err.message })); } catch (_) {}
     });
   }

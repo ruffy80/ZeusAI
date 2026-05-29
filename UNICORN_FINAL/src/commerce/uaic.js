@@ -239,8 +239,19 @@ async function handle(req, res, ctx) {
       const body = await _readBody(req);
       const p = JSON.parse(body || '{}');
       const method = String(p.method || 'BTC').toUpperCase();
-      const amount = Number(p.amount || p.amount_usd || p.amountUSD || p.priceUSD || 0);
       const plan = String(p.plan || p.serviceId || 'starter');
+      // Server-authoritative price (RO: prețul oficial calculat pe server).
+      // For any KNOWN product the catalog price ALWAYS wins over the
+      // client-supplied amount, so a $500,000 service can never be invoiced at
+      // $70 (and nobody can tamper the amount field to underpay).
+      const _clientAmount = Number(p.amount || p.amount_usd || p.amountUSD || p.priceUSD || 0);
+      let amount = _clientAmount;
+      try {
+        if (ctxSafe && typeof ctxSafe.resolvePrice === 'function') {
+          const canon = ctxSafe.resolvePrice(plan);
+          if (canon != null && Number.isFinite(Number(canon))) amount = Number(canon);
+        }
+      } catch (_) { /* keep client amount on resolver failure */ }
       const email = String(p.email || (p.customer && p.customer.email) || '').toLowerCase();
       const portal = ctxSafe.portal;
       let customerId = p.customerId || null;
