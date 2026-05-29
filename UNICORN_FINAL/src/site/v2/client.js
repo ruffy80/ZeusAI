@@ -1499,8 +1499,8 @@ async function hydrateCommerceProof(){
   try {
     const cat = STATE.masterCatalog || await api('/api/catalog/master');
     if (catalogEl && cat && cat.counts) catalogEl.textContent = cat.counts.total + ' live products';
-    if (deliveryEl && cat && cat.counts) deliveryEl.textContent = cat.counts.marketplace + ' deliverable modules';
-    if (smokeEl && cat && cat.counts) smokeEl.textContent = cat.counts.total >= 65 ? 'Live smoke threshold passed' : 'Catalog threshold needs attention';
+    if (deliveryEl && cat && cat.counts) deliveryEl.textContent = cat.counts.total + ' deliverable products';
+    if (smokeEl && cat && cat.counts) smokeEl.textContent = cat.counts.total >= 25 ? 'Live smoke threshold passed' : 'Catalog threshold needs attention';
   } catch (_) {
     if (catalogEl) catalogEl.textContent = 'Catalog API reachable from /services';
   }

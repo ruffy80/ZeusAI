@@ -131,6 +131,15 @@ function _liveTierPrice(tierId, fallback) {
 // this process (split site/backend mode) — the client-side hydration then
 // fetches `/api/catalog/master` via SSE and fills the section non-stop.
 function _loadFullLibrary(excludeIds) {
+  // CLEANUP 2026-05-29: the auto-published "full library" dumped ~185 internal
+  // engine modules (resource-monitor, deepseek-governor, circuit-breaker…) and
+  // 144 near-identical "Adaptive/Engine Pool" clones onto /store, most with the
+  // Romanian placeholder "Serviciu AI avansat pentru…". They are NOT real,
+  // differentiated deliverables and destroyed buyer trust + SEO. The store now
+  // shows only the curated 3-tier catalogue. Set ZEUS_SHOW_FULL_LIBRARY=1 to
+  // re-enable (only after each module gets a real title/description/price).
+  // Bilingual note (RO): biblioteca auto a fost dezactivată — doar produse reale.
+  if (String(process.env.ZEUS_SHOW_FULL_LIBRARY || '') !== '1') return [];
   const exclude = new Set(Array.isArray(excludeIds) ? excludeIds.map(String) : []);
   let marketplace = null;
   try { marketplace = require('../../../backend/modules/serviceMarketplace'); } catch (_) {}
@@ -929,11 +938,11 @@ function pageHome() {
   const _featuredHtml = _featured.length
     ? `<section id="homeFeatured" style="margin:40px 0 0">
   <div class="section-title">
-    <div><span class="kicker">Featured · ${_all.length} live products in catalog</span><h2>Buy a real ZeusAI service <span class="grad">in under a minute.</span></h2></div>
-    <p>These are six concrete deliverables you can pay for right now in BTC. Full catalogue at <a href="/services" data-link>/services</a>.</p>
+    <div><span class="kicker">Featured services</span><h2>Buy a real ZeusAI service <span class="grad">in under a minute.</span></h2></div>
+    <p>These are six concrete deliverables you can pay for right now in BTC. Browse the full catalogue on <a href="/services" data-link>/services</a>.</p>
   </div>
   ${_ssrCatalogGrid(_featured, { gridId: 'homeFeaturedGrid', minCol: 280 })}
-  <p style="text-align:center;margin:18px 0 0"><a class="btn btn-ghost" href="/services" data-link>See all ${_all.length} products →</a></p>
+  <p style="text-align:center;margin:18px 0 0"><a class="btn btn-ghost" href="/services" data-link>Browse the full catalogue →</a></p>
 </section>` : '';
   return `<section class="hero">
   <div class="zeus-scene" aria-hidden="true">
@@ -980,8 +989,8 @@ ${_featuredHtml}
 
 <section id="commerceProof">
   <div class="section-title">
-    <div><span class="kicker">Live commerce proof · ${_all.length} live products</span><h2>Tot ce am adăugat azi este <span class="grad">legat în site.</span></h2></div>
-    <p>Nu doar API-uri ascunse: catalogul, checkout-ul BTC/BTCPay-ready, livrarea automată, portalul client și cockpit-ul admin sunt acum vizibile și testabile direct din interfață.</p>
+    <div><span class="kicker">Live commerce proof</span><h2>Everything we ship is <span class="grad">wired into the site.</span></h2></div>
+    <p>Not just hidden APIs: the catalogue, BTC/BTCPay-ready checkout, automatic delivery, the customer portal and the admin cockpit are all visible and testable directly from the interface.</p>
   </div>
   <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(245px,1fr));gap:14px">
     <div class="card" style="border-color:rgba(255,211,106,.42)">
@@ -1016,7 +1025,7 @@ ${_featuredHtml}
     </div>
     <div class="card" style="border-color:rgba(62,160,255,.42)">
       <span class="tag" style="background:rgba(62,160,255,.16);color:#6fd3ff">Live Smoke</span>
-      <h3 id="commerceProofSmoke">EXPECTED_MIN_CATALOG_ITEMS=65</h3>
+      <h3 id="commerceProofSmoke">EXPECTED_MIN_CATALOG_ITEMS=25</h3>
       <p>Post-deploy smoke validates catalog, checkout, confirmation, license, delivery, refund protection and cleanup.</p>
       <a class="btn btn-ghost" href="/health">Health JSON →</a>
     </div>

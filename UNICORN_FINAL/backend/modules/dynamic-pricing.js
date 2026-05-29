@@ -269,7 +269,7 @@ function updateDemandFactor() {
   if (DEMAND_FACTOR_HISTORY.length > 100) DEMAND_FACTOR_HISTORY.shift();
 }
 
-function getPrice(serviceId, options = {}) {
+function _computePrice(serviceId, options = {}) {
   // Resolution order for the floor price (`base`):
   //   1. explicit options.basePrice (caller knows the real catalog price)
   //   2. registered BASE_PRICES[serviceId] (seeded at boot from catalog)
@@ -370,6 +370,44 @@ function getPrice(serviceId, options = {}) {
     btcEquivalent: null, // filled on demand
     quantity,
   };
+}
+
+// ── PRICE SNAPSHOT CACHE (anti-flicker / single-source price) ──────────────
+// THE STORE'S #1 TRUST BUG was that the same product showed three different
+// prices on one page (badge $33, button 0.00045 BTC, card $32.01) because the
+// demand/surge factors drift between every getPrice() call. We now freeze each
+// product's computed price for a short window so the SSR card, the live SSE
+// stream, the /pricing page AND the checkout all read the SAME number. The
+// price still moves over time (the engine recomputes after the TTL) — it just
+// never contradicts itself within a single visit. Keyed by everything that can
+// legitimately change the price. Bilingual note (RO): preț unic, fără pâlpâire.
+const _priceSnapshotCache = new Map(); // key -> { result, exp }
+const PRICE_SNAPSHOT_TTL_MS = Number(process.env.PRICE_SNAPSHOT_TTL_MS) || 90000;
+function _snapshotKey(serviceId, options) {
+  const o = options || {};
+  return [
+    String(serviceId),
+    Number.isFinite(Number(o.basePrice)) ? Number(o.basePrice) : '',
+    o.quantity || 1,
+    o.coupon || '',
+    o.userId || '',
+  ].join('|');
+}
+function getPrice(serviceId, options = {}) {
+  // Bypass the snapshot only when a caller explicitly asks for a fresh quote
+  // (e.g. final order confirmation can pass { fresh: true }).
+  if (options && options.fresh) return _computePrice(serviceId, options);
+  const key = _snapshotKey(serviceId, options);
+  const now = Date.now();
+  const hit = _priceSnapshotCache.get(key);
+  if (hit && hit.exp > now) return Object.assign({}, hit.result, { cached: true });
+  const result = _computePrice(serviceId, options);
+  _priceSnapshotCache.set(key, { result, exp: now + PRICE_SNAPSHOT_TTL_MS });
+  // Opportunistic GC so the map can't grow unbounded across many ids.
+  if (_priceSnapshotCache.size > 4000) {
+    for (const [k, v] of _priceSnapshotCache) { if (v.exp <= now) _priceSnapshotCache.delete(k); }
+  }
+  return Object.assign({}, result);
 }
 
 // registerService(id, basePrice) — idempotently seed BASE_PRICES so that

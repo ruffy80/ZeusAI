@@ -2014,49 +2014,114 @@ function getSiteFallbackModuleRegistry() {
 async function buildMasterCatalog() {
   const usdPerBtc = await getBtcUsdSpot().catch(() => 95000);
   if (process.env.BACKEND_API_URL) await refreshBackendRuntimeState(true).catch(() => {});
+
+  // ── CANONICAL PUBLIC CATALOG (2026-05-29 cleanup) ─────────────────────────
+  // The storefront contract guarantees a curated 3-tier catalogue
+  // (instant | professional | enterprise). We source it from unified-catalog
+  // (which itself merges instant-catalog + enterprise-catalog + a capped slice
+  // of real runtime services), so /api/products, /api/catalog, /services,
+  // /pricing and the homepage all show the SAME real, differentiated products.
+  //
+  // DELIBERATELY EXCLUDED (this was the bug the owner flagged): the ~185
+  // internal engine modules (resource-monitor, deepseek-governor, circuit-
+  // breaker…), the auto-packaged "UNICORN-AUTO-MODULE" services, the 144
+  // near-identical "Adaptive Pool / Engine Pool" clones, the Romanian
+  // placeholder "Serviciu AI avansat pentru…" cards, and speculative
+  // "future-invention" primitives. None of those are real deliverables a
+  // customer should be able to buy, and they destroyed trust + SEO.
+  // Bilingual note (RO): catalog public = doar produse reale, 3 niveluri.
   const sources = getRuntimeDataSources();
+
+  // Canonical 3-tier storefront (instant | professional | enterprise) from
+  // unified-catalog — the curated, real, differentiated core (25 products).
+  let canonical = [];
+  try {
+    if (unifiedCatalog && typeof unifiedCatalog.all === 'function') canonical = unifiedCatalog.all() || [];
+  } catch (_) { canonical = []; }
+  if (!canonical.length) {
+    try { if (instantCatalog && typeof instantCatalog.all === 'function') canonical = canonical.concat(instantCatalog.all() || []); } catch (_) {}
+    try { if (entCatalog && typeof entCatalog.all === 'function') canonical = canonical.concat(entCatalog.all() || []); } catch (_) {}
+  }
+  const canonItems = canonical.map(p => {
+    const tier = String(p.tier || p.group || 'professional').toLowerCase();
+    return {
+      id: p.id,
+      title: p.title || p.name || p.id,
+      group: tier,
+      tier,
+      priceUsd: Number(p.priceUSD != null ? p.priceUSD : (p.priceUsd != null ? p.priceUsd : p.price)) || 0,
+      kpi: p.kpi || '',
+      description: p.description || ('ZeusAI ' + (p.title || p.id)),
+      segment: tier,
+    };
+  });
+
+  // Real strategic / frontier / vertical deliverables — human titles + prices.
   const strategic = (sources.services || []).map(s => ({
     id: s.id, title: s.title, group: 'strategic',
     priceUsd: Number(s.price || 0), kpi: s.kpi || 'automation',
     description: s.description || ('Sovereign service: ' + (s.title || s.id)),
-    segment: s.segment || s.category || 'all'
+    segment: s.segment || s.category || 'strategic'
   }));
-  // Auto-publish ALL marketplace modules (no cap). serviceMarketplace
-  // discovers ~185 modules from backend/modules/*.js at boot and refreshes
-  // every 60s, so removing the slice() here makes every current AND future
-  // module become a sellable item on the site automatically. The previous
-  // slice(0, 30) was a UI-throttle from when /api/catalog/master fed a
-  // single hero strip; the site now has a dedicated "Full Unicorn Library"
-  // section in pageStore() that renders the long tail.
-  const marketplace = Array.isArray(sources.marketplace) ? sources.marketplace.map(m => ({
-    id: m.id, title: m.title || m.name || m.id, group: 'marketplace',
-    priceUsd: Number(m.price || m.basePrice || 0), kpi: m.kpi || m.category || 'module',
-    description: m.description || 'Adaptive AI module — dynamic-priced, BTC settled.',
-    segment: m.category || 'modules',
-    autoPublished: true
-  })) : [];
   const frontierItems = frontier ? FRONTIER_DELIVERABLES.map(x => ({ ...x, segment: 'frontier' })) : [];
   const verticals = VERTICAL_OS_DELIVERABLES.map(x => ({ ...x, segment: 'enterprise' }));
-  const connectorCatalog = unicornCommerceConnector.buildCommerceCatalog({ registry: sources.moduleRegistry || getSiteFallbackModuleRegistry(), btcWallet: BTC_WALLET, ownerName: OWNER_NAME });
+
+  // Billion-scale enterprise packages + activation products (real, high-ACV).
   const strategicPackages = billionScaleRevenueEngine.buildStrategicPackages({ btcWallet: BTC_WALLET, ownerName: OWNER_NAME });
   const activationProducts = billionScaleActivationOrchestrator.buildActivationProducts({ btcWallet: BTC_WALLET, ownerName: OWNER_NAME });
-  const all = [...activationProducts, ...strategicPackages, ...strategic, ...frontierItems, ...verticals, ...marketplace, ...CATALOG_EXPANSION_DELIVERABLES, ...connectorCatalog.items];
-  // attach btc fields
+
+  // Connector catalog gives us the future-invention primitives (genuinely novel
+  // R&D deliverables the owner wants showcased) plus the auto-module registry
+  // counts. We KEEP the future-invention items but DELIBERATELY EXCLUDE the
+  // ~185 'unicorn-auto-module' clones, the raw serviceMarketplace dump and the
+  // CATALOG_EXPANSION placeholders from the PUBLIC storefront — those internal
+  // engine modules (resource-monitor, deepseek-governor…) and Romanian
+  // placeholder cards were the trust-destroying junk the owner flagged.
+  // Bilingual note (RO): păstrăm inovațiile reale, scoatem modulele interne.
+  const connectorCatalog = unicornCommerceConnector.buildCommerceCatalog({ registry: sources.moduleRegistry || getSiteFallbackModuleRegistry(), btcWallet: BTC_WALLET, ownerName: OWNER_NAME });
+  const futureInventions = (connectorCatalog.items || []).filter(it => it.group === 'future-invention');
+
+  const all = [
+    ...activationProducts,
+    ...strategicPackages,
+    ...canonItems,
+    ...strategic,
+    ...frontierItems,
+    ...verticals,
+    ...futureInventions,
+  ];
+
+  // Seed dynamic-pricing so /api/pricing/{id} and /api/pricing/all return the
+  // real catalogue floor for every listed product (not the generic $99 fallback).
+  try {
+    const dpe = require('../backend/modules/dynamic-pricing');
+    if (dpe && typeof dpe.registerServices === 'function') dpe.registerServices(all, { force: false });
+  } catch (_) {}
+
+  // attach btc + checkout fields (preserve any checkout set by the builders)
   for (const item of all) {
     item.priceBtc = usdToBtc(item.priceUsd, usdPerBtc);
     item.currency = 'USD';
-    item.buyUrl = `/checkout?serviceId=${encodeURIComponent(item.id)}&amount=${item.priceUsd}&plan=${encodeURIComponent(item.id)}`;
+    item.buyUrl = `/checkout?serviceId=${encodeURIComponent(item.id)}&plan=${encodeURIComponent(item.id)}`;
     item.btcUri = item.priceUsd > 0 ? buildBtcUri(BTC_WALLET, item.priceBtc, 'ZeusAI-' + item.id) : null;
+    item.checkout = item.checkout || { btcAddress: BTC_WALLET, priceUsd: item.priceUsd, priceBtc: item.priceBtc };
   }
   // dedupe by id
   const seen = new Set(); const out = [];
   for (const it of all) { if (!seen.has(it.id)) { seen.add(it.id); out.push(it); } }
+  const groupCount = (g) => out.filter(x => x.group === g).length;
   return {
     updatedAt: new Date().toISOString(),
     owner: { name: OWNER_NAME, btcAddress: BTC_WALLET },
     btcSpot: { usdPerBtc, fetchedAt: new Date(_btcSpotCache.fetchedAt).toISOString() },
-    counts: { total: out.length, strategic: strategic.length, strategicPackages: strategicPackages.length, activationProducts: activationProducts.length, frontier: frontierItems.length, vertical: verticals.length, marketplace: marketplace.length + CATALOG_EXPANSION_DELIVERABLES.length, unicornAuto: connectorCatalog.counts.registry, futurePrimitives: connectorCatalog.counts.futurePrimitives },
-    groups: ['billion-scale-activation', 'billion-scale-package', 'strategic', 'frontier', 'vertical', 'marketplace', 'unicorn-auto-module', 'future-invention'],
+    counts: {
+      total: out.length,
+      instant: groupCount('instant'), professional: groupCount('professional'), enterprise: groupCount('enterprise'),
+      strategic: strategic.length, frontier: frontierItems.length, vertical: verticals.length,
+      strategicPackages: strategicPackages.length, activationProducts: activationProducts.length,
+      unicornAuto: connectorCatalog.counts.registry, futurePrimitives: connectorCatalog.counts.futurePrimitives
+    },
+    groups: ['billion-scale-activation', 'billion-scale-package', 'instant', 'professional', 'enterprise', 'strategic', 'frontier', 'vertical', 'future-invention'],
     connector: { source: connectorCatalog.source, payout: connectorCatalog.payout, counts: connectorCatalog.counts },
     items: out
   };
