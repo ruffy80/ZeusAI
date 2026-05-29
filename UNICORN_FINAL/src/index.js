@@ -4714,8 +4714,19 @@ async function unicornHandler(req, res) {
     if (urlPath === '/zacc') {
       const body =
         '<h2 style="margin:0">Autonomous Dropshipping Platform <span style="font-size:13px;color:var(--accent);border:1px solid var(--accent);border-radius:999px;padding:2px 10px;vertical-align:middle">ZACC \u00b7 LIVE</span></h2>' +
-        '<p style="color:var(--muted);margin:8px 0 24px">The world\u2019s first fully-autonomous AI dropshipping store. The engine finds trending products by scanning 20+ market sources, builds product pages, sets BTC prices, fulfils physical orders via Printful and delivers digital services instantly. Payments are verified on-chain. You own the BTC wallet \u2014 the AI does product research, pricing, listing, fulfilment, support and learning, 24/7. Every number below is produced live.</p>' +
+        '<p style="color:var(--muted);margin:8px 0 24px">The world\u2019s first fully-autonomous AI dropshipping store. The engine scrapes 20+ global sources (Amazon, AliExpress, Etsy, eBay\u2026), filters the highest-margin winners, writes the listings, sets BTC prices, fulfils orders via CJ Dropshipping and delivers digital services instantly. Payments are verified on-chain. You own the BTC wallet \u2014 the AI does product research, pricing, listing, fulfilment, support and learning, 24/7. Every number below is produced live.</p>' +
         '<div id="zc-summary" class="grid"></div>' +
+        // Prominent CTA into the customer-facing auto-curated store.
+        '<div style="margin:26px 0;padding:22px 24px;border:1px solid var(--accent);border-radius:14px;background:linear-gradient(135deg,rgba(124,58,237,.14),rgba(124,58,237,.04));display:flex;flex-wrap:wrap;gap:14px;align-items:center;justify-content:space-between">' +
+        '  <div><div style="font-size:18px;font-weight:700">\ud83c\udf10 Live auto-curated store is open</div><div id="zc-store-sub" style="color:var(--muted);font-size:13px;margin-top:4px">Products are scraped, profit-scored and published automatically.</div></div>' +
+        '  <a href="/dropship" style="background:var(--accent);color:#fff;padding:12px 22px;border-radius:10px;font-weight:600;text-decoration:none;white-space:nowrap">Browse the store \u2192</a>' +
+        '</div>' +
+        // Autonomous dropshipping pipeline status (scraper -> profit -> publisher -> fulfillment).
+        '<h3 style="margin:32px 0 8px">Autonomous dropshipping pipeline</h3>' +
+        '<div id="zc-pipeline" class="grid"></div>' +
+        // Auto-scraped + auto-published products (the real dropship catalog).
+        '<h3 style="margin:32px 0 8px">Auto-scraped winning products <span class="sub" style="font-weight:400">(global sources \u00b7 profit-filtered \u00b7 BTC checkout)</span></h3>' +
+        '<div id="zc-dropship" class="grid" style="grid-template-columns:repeat(auto-fit,minmax(280px,1fr))"></div>' +
         '<h3 style="margin:32px 0 8px">Winning products being researched right now <span id="zc-admin-hint" style="font-size:11px;font-weight:400;color:var(--muted)"></span></h3>' +
         '<div id="zc-ideas" class="grid"></div>' +
         '<h3 style="margin:32px 0 8px">Live store · buy now in BTC <span class="sub" style="font-weight:400">(on-chain settled, Printful + AI fulfilment)</span></h3>' +
@@ -4801,11 +4812,14 @@ async function unicornHandler(req, res) {
         '  var payP=(d.payments&&d.payments.paidInvoices)||0;',
         '  document.getElementById("zc-summary").innerHTML=',
         '    card("Autonomous cycles",d.ticks||0,"last: "+(d.lastTickAt?new Date(d.lastTickAt).toLocaleTimeString():"\u2014"))+',
-        '    card("Market sources",c.sources||0,"scanned for trends")+',
-        '    card("Live products",c.products||0,"built autonomously")+',
+        '    card("Products scraped",c.scraped||0,"qualified: "+(c.qualified||0))+',
+        '    card("Published live",c.dropshipPublished||0,"auto-listed dropship products")+',
         '    card("Lifetime revenue",money(d.revenue&&d.revenue.lifetimeUsd),"24h: "+money(d.revenue&&d.revenue.last24hUsd))+',
         '    card("BTC invoices",payP+" paid",""+payI+" open \u00b7 on-chain verified")+',
-        '    card("Payout",(d.payout&&d.payout.method)||"BTC","self-custody wallet");',
+        '    card("Orders routed",c.ordersRouted||0,(c.ordersPending||0)+" pending fulfilment");',
+        // Pipeline status fed from /api/dropship/status (scraper/profit/publisher/fulfillment).
+        '  var sub=document.getElementById("zc-store-sub");',
+        '  if(sub)sub.textContent=(c.dropshipPublished||0)+" products live \u00b7 "+(c.scraped||0)+" scraped \u00b7 "+(c.qualified||0)+" qualified by the profit engine.";',
         // Ideas with Approve button for proposed ones
         '  var ideas=d.ideas||[];',
         '  document.getElementById("zc-ideas").innerHTML=ideas.length?ideas.map(function(i){',
@@ -4823,12 +4837,36 @@ async function unicornHandler(req, res) {
         '    +\'<button onclick="openInvoice(\\"\'+esc(p.id)+\'\\",\\"\'+esc(p.title)+\'\\",\'+Number(p.priceUsd||0)+\')" style="width:100%">Pay with BTC (on-chain) \u2192</button>\'',
         '    +\'</div>\';',
         '  }).join(""):card("Products","building\u2026","approved ideas materialise here");',
+        // Auto-scraped dropship products — clickable through to the product page.
+        '  var ds=d.dropship||[];',
+        '  document.getElementById("zc-dropship").innerHTML=ds.length?ds.map(function(p){',
+        '    var img=p.image?\'<div style="aspect-ratio:1/1;background:#0d0d1a url(\\"\'+esc(p.image)+\'\\") center/cover no-repeat;border-radius:8px;margin-bottom:10px"></div>\':\'<div style="aspect-ratio:1/1;background:linear-gradient(135deg,#1a1a2e,#0d0d1a);border-radius:8px;margin-bottom:10px;display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:11px">\'+esc(p.category||"product")+\'</div>\';',
+        '    var badge=p.netProfitUsd>0?\'<span style="display:inline-block;background:rgba(124,58,237,.18);color:var(--accent);font-size:10px;padding:2px 8px;border-radius:999px;margin-left:6px">+\'+money(p.netProfitUsd)+\'</span>\':"";',
+        '    return \'<a href="/dropship/product/\'+encodeURIComponent(p.id)+\'" style="text-decoration:none;color:inherit"><div class="card" style="padding:16px">\'+img',
+        '    +\'<div style="font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:var(--accent)">\'+esc(p.category||"general")+\' \u00b7 \'+esc(p.source||"sourced")+\'</div>\'',
+        '    +\'<div style="font-size:14px;font-weight:600;margin:5px 0 4px;min-height:38px">\'+esc(p.title)+\'</div>\'',
+        '    +\'<div class="v" style="font-size:20px">\'+money(p.priceUsd)+badge+\'</div>\'',
+        '    +\'<div style="font-size:11px;color:var(--muted);margin-top:4px">\u2605 \'+(Math.round((p.rating||0)*10)/10)+\' \u00b7 \'+Math.round(p.marginPct||0)+\'% margin \u00b7 buy \u2192</div>\'',
+        '    +\'</div></a>\';',
+        '  }).join(""):card("Store","warming up","first scrape publishes within minutes");',
         '  var tr=d.trends||[];',
         '  document.getElementById("zc-trends").innerHTML=tr.length?tr.map(function(t){return card(t.label,Math.round((t.score||0)*100)+"%","demand \u00b7 "+esc(t.category||""));}).join(""):card("Trends","scanning\u2026","");',
         '  var evo=d.evolution||[];',
         '  document.getElementById("zc-evo").innerHTML=evo.length?evo.map(function(e){return card(e.label,Math.round((e.advantage||0)*100)+"%",esc(e.area)+" \u00b7 "+esc(e.status));}).join(""):card("Evolution","idle","monthly scan");',
         '}).catch(function(){document.getElementById("zc-summary").innerHTML=card("ZACC","offline","retrying");});}',
+        // Pipeline status (scraper/profit/publisher/fulfillment) — separate cheap fetch.
+        'function refreshPipeline(){fetch("/api/dropship/status",{cache:"no-store"}).then(function(r){return r.json();}).then(function(d){',
+        '  if(!d||!d.ok)return;',
+        '  var sc=d.scraper||{},pr=d.profit||{},pb=d.publisher||{},fl=d.fulfillment||{};',
+        '  var th=pr.thresholds||{};',
+        '  document.getElementById("zc-pipeline").innerHTML=',
+        '    card("1 \u00b7 Scraper",(sc.cached||0)+" cached","every "+(sc.intervalHours||6)+"h \u00b7 "+(sc.scrapes||0)+" runs")+',
+        '    card("2 \u00b7 Profit engine",(pr.qualified||0)+" qualified","min margin "+(th.minMarginPct||0)+"% \u00b7 markup "+(th.markup||0)+"x")+',
+        '    card("3 \u00b7 Publisher",(pb.published||0)+" live",(pb.perTick||0)+"/tick \u00b7 "+(pb.lifetime||0)+" lifetime")+',
+        '    card("4 \u00b7 Fulfilment",(fl.routed||0)+" routed",(fl.pending||0)+" pending \u00b7 "+(fl.autoFulfilled||0)+" auto");',
+        '}).catch(function(){});}',
         'refresh();setInterval(refresh,5000);',
+        'refreshPipeline();setInterval(refreshPipeline,8000);',
         '})();',
       ].join('');
       try { res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store', 'X-Unicorn-Page': 'zacc' }); } catch (_) {}

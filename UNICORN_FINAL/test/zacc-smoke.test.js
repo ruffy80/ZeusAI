@@ -130,6 +130,53 @@ const assert = require('assert');
   assert.ok(catSink.length >= 1, 'setServiceSink backfill must publish existing products');
   console.log('\u2713 zacc: ' + catSink.length + ' products surfaced in global /services catalog via sink');
 
+  // --- 15) Autonomous dropshipping pipeline: scrape -> profit -> publish -
+  const scrapeRes = await zacc.scraper.scrape(true);
+  assert.ok(scrapeRes && scrapeRes.scraped >= 1, 'scraper must produce at least one product');
+  const rawScraped = zacc.scraper.recent(300);
+  assert.ok(rawScraped.length >= 1, 'scraper cache must hold products');
+  const qualified = zacc.profit.rank(rawScraped);
+  assert.ok(Array.isArray(qualified), 'profit.rank must return an array');
+  for (const q of qualified) {
+    assert.ok(q.netProfitUsd >= 0, 'qualified product must have non-negative net profit');
+    assert.ok(q.retailUsd > q.costUsd, 'retail must exceed cost');
+    assert.ok(typeof q.profitPotential === 'number', 'qualified product must carry a profit score');
+  }
+  const published = zacc.publisher.publish(qualified, 6);
+  assert.ok(Array.isArray(published), 'publisher.publish must return an array');
+  for (const p of published) {
+    assert.ok(p.id && /^dropship-/.test(p.id), 'dropship product id must be namespaced');
+    assert.ok(p.description && p.description.length > 20, 'dropship product must have an AI/template description');
+    assert.ok(Number(p.priceUsd) > 0, 'dropship product must have a positive price');
+    assert.ok(/^\/dropship\/product\//.test(p.page), 'dropship product must have a product page URL');
+    assert.ok(p.checkout && p.checkout.btcAddress, 'dropship product must carry BTC checkout');
+  }
+  console.log('\u2713 zacc: dropship pipeline scraped ' + rawScraped.length + ', qualified ' + qualified.length + ', published ' + zacc.publisher.published.length);
+
+  // --- 16) Publisher list is filterable/sortable + categories exposed ---
+  const byProfit = zacc.publisher.list({ sort: 'profit', limit: 10 });
+  assert.ok(byProfit.length >= 1, 'publisher.list must return published items');
+  for (let i = 1; i < byProfit.length; i++) {
+    assert.ok(byProfit[i - 1].profitPotential >= byProfit[i].profitPotential, 'profit sort must be descending');
+  }
+  assert.ok(Array.isArray(zacc.publisher.categories()), 'publisher must expose categories');
+  console.log('\u2713 zacc: publisher exposes sorted, filterable dropship catalog');
+
+  // --- 17) Fulfillment never throws + queues when no provider configured -
+  const fr = await zacc.fulfillment.onOrder({ productId: published[0] ? published[0].id : 'x', productTitle: 'Test', amountUsd: 50, invoiceId: 'inv-test' });
+  assert.ok(fr && fr.ok && fr.order, 'fulfillment.onOrder must return a routed order');
+  assert.ok(fr.order.result && fr.order.result.provider, 'order must record a routing provider');
+  const fst = zacc.fulfillment.status();
+  assert.ok(fst.ok && typeof fst.routed === 'number', 'fulfillment status must be well-shaped');
+  console.log('\u2713 zacc: fulfillment router handles orders (auto or manual queue) without throwing');
+
+  // --- 18) Public snapshot now carries the dropship surface -------------
+  const pub2 = zacc.publicSnapshot();
+  assert.ok(Array.isArray(pub2.dropship), 'public snapshot must expose dropship products');
+  assert.ok(typeof pub2.counts.dropshipPublished === 'number', 'counts must include dropshipPublished');
+  assert.ok(typeof pub2.counts.scraped === 'number', 'counts must include scraped');
+  console.log('\u2713 zacc: public snapshot surfaces dropship catalog for the Autonomous Dropshipping page');
+
   console.log('\nZACC smoke test passed \u2014 the autonomous commerce core is live, persistent and on-chain.');
   zacc.stop();
   process.exit(0);
