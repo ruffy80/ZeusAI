@@ -719,6 +719,11 @@ app.post('/api/checkout/create', _swRateLimit, express.json({ limit: '64kb' }), 
 // Keep these routed through the site runtime so frontend actions never 404.
 app.post('/api/checkout/btc', _swRateLimit, express.json({ limit: '64kb' }), (req, res) => proxyPostToSite(req, res, '/api/checkout/btc'));
 app.post('/api/checkout/paypal', _swRateLimit, express.json({ limit: '64kb' }), (req, res) => proxyPostToSite(req, res, '/api/checkout/paypal'));
+// /api/uaic/order powers the checkout-page "Generate secure BTC invoice"
+// button. It lives in the site runtime (server-authoritative pricing), so it
+// must be proxied here — otherwise nginx (→ backend) 404s and the pricing-page
+// checkout silently breaks. (RO: altfel butonul de plată din /checkout dă 404.)
+app.post('/api/uaic/order', _swRateLimit, express.json({ limit: '64kb' }), (req, res) => proxyPostToSite(req, res, '/api/uaic/order'));
 app.post('/api/instant/purchase', _swRateLimit, express.json({ limit: '64kb' }), (req, res) => proxyPostToSite(req, res, '/api/instant/purchase'));
 app.get(/^\/api\/instant\/order\/[a-zA-Z0-9_-]{6,128}$/, (req, res) => proxyToSite(req, res, req.path));
 app.post(/^\/api\/services\/[a-zA-Z0-9._:-]+\/use$/, _swRateLimit, express.json({ limit: '64kb' }), (req, res) => proxyPostToSite(req, res, req.path));
