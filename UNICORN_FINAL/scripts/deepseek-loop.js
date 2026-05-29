@@ -78,6 +78,11 @@ const OLLAMA_BASE_URL        = process.env.DEEPSEEK_LOOP_OLLAMA_URL || 'http://1
 const OLLAMA_MODEL           = process.env.DEEPSEEK_LOOP_OLLAMA_MODEL || 'llama3';
 const STABLE_WINDOW_HOURS    = Math.max(1, parseInt(process.env.DEEPSEEK_LOOP_STABLE_WINDOW_HOURS || '24', 10));
 const SLOW_INTERVAL_MS       = Math.max(60_000, parseInt(process.env.DEEPSEEK_LOOP_SLOW_INTERVAL_MS || '60000', 10));
+// When EVERY advisor provider is unreachable (bad/expired keys, daily quota
+// exhausted, etc.) we must NOT keep hammering every fast tick — that just
+// spams logs and churns the safe fallback. Back off for a while and let the
+// providers recover (quota resets, key rotated). Default 15 minutes.
+const PROVIDERS_DOWN_BACKOFF_MS = Math.max(60_000, parseInt(process.env.DEEPSEEK_LOOP_PROVIDERS_DOWN_BACKOFF_MS || String(15 * 60 * 1000), 10));
 const OPENROUTER_API_KEY     = process.env.OPENROUTER_API_KEY || '';
 const OPENROUTER_DEEPSEEK_MODEL = process.env.OPENROUTER_DEEPSEEK_MODEL || 'deepseek/deepseek-v4-flash:free';
 const GROQ_API_KEY           = process.env.GROQ_API_KEY || '';
@@ -650,9 +655,14 @@ async function askDeepSeek(status) {
 
   log('warn', 'advisor_default_action', { reason: 'all providers failed, using safe fallback action' });
   return {
-    action: 'restart_service',
-    params: { service: 'unicorn-backend' },
-    reason: 'all_advisors_failed_default_recovery',
+    // Safe fallback: when no advisor could be reached we do NOTHING rather than
+    // blindly restarting the backend. Restarting on advisor-outage used to seed
+    // restart storms and produced endless intent-log churn. `none` is the only
+    // responsible default. The `_providersDown` flag tells the loop to back off.
+    action: 'none',
+    params: {},
+    reason: 'all_advisors_unreachable_no_safe_action',
+    _providersDown: true,
   };
 }
 
@@ -714,7 +724,13 @@ async function tick() {
       action: rec && rec.action ? String(rec.action) : 'none',
     });
     const v = validateRecommendation(rec);
-    if (!v.ok) {
+    if (rec && rec._providersDown) {
+      // All advisors are unreachable. Don't spin on the fast interval: back off
+      // so logs stay quiet and we let quotas/keys recover. Self-heals on its own.
+      pausedUntil = Date.now() + PROVIDERS_DOWN_BACKOFF_MS;
+      log('warn', 'advisors_down_backoff', { pauseMs: PROVIDERS_DOWN_BACKOFF_MS, until: new Date(pausedUntil).toISOString() });
+      consecutiveFailures = 0;
+    } else if (!v.ok) {
       log('warn', 'recommendation_rejected_client_side', { reason: v.reason, rec });
       consecutiveFailures++;
     } else if (rec.action === 'none') {

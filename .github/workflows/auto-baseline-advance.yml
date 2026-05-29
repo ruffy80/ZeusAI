@@ -29,14 +29,17 @@ on:
         description: 'Force advance to this SHA (leave empty to use latest verified-green)'
         required: false
         type: string
-  workflow_run:
-    workflows: ["🚀 Unicorn Stable Deploy"]
-    types: [completed]
-    branches: [main]
+  # NOTE (2026-05-29): the per-deploy `workflow_run` trigger was removed on
+  # purpose. It pushed a `baseline(live): auto-advance` commit to `main` after
+  # EVERY green deploy, which raced concurrent human/agent pushes and forced
+  # painful rebase loops. The forward-only safety guarantee is fully preserved
+  # by the scheduled self-healing tick below (catches up within hours) plus the
+  # no-downgrade guard that still validates EVERY push. Re-add `workflow_run`
+  # only if you accept the high-frequency main-branch churn it causes.
   schedule:
-    # Self-healing tick: if either workflow_run was missed (e.g. concurrent
-    # rerun cancellations), the schedule will catch up within 12 hours.
-    - cron: '17 */12 * * *'
+    # Self-healing tick: advance the pinned baseline a few times a day. This is
+    # the sole automatic driver now — quiet enough to never race active work.
+    - cron: '17 */6 * * *'
 
 concurrency:
   group: auto-baseline-advance
@@ -50,12 +53,7 @@ jobs:
   advance:
     runs-on: ubuntu-latest
     timeout-minutes: 5
-    # Only run when the triggering workflow succeeded — saves CI minutes
-    # on the noisy workflow_run failure path. Manual / schedule always run.
-    if: |
-      github.event_name == 'workflow_dispatch' ||
-      github.event_name == 'schedule' ||
-      (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success')
+    # Driven only by the scheduled self-healing tick and manual dispatch now.
     steps:
       - name: ⬇️ Checkout main (full history)
         uses: actions/checkout@v5
@@ -200,10 +198,20 @@ jobs:
         if: steps.target.outputs.sha != '' && steps.safety.outputs.advance == 'yes'
         run: |
           set -euo pipefail
-          # Rebase-on-push protection: if main moved while we were computing,
-          # pull and retry once. We never force-push.
-          if ! git push origin HEAD:main; then
-            echo "push raced with main; rebasing and retrying once"
-            git pull --rebase origin main
-            git push origin HEAD:main
+          # Self-healing push: if main moved while we were computing, rebase and
+          # retry a few times. We never force-push. This makes the baseline bump
+          # yield gracefully to concurrent human/agent pushes instead of failing.
+          pushed=0
+          for attempt in 1 2 3 4 5; do
+            if git push origin HEAD:main; then
+              echo "✅ baseline pushed on attempt ${attempt}"
+              pushed=1
+              break
+            fi
+            echo "push raced with main (attempt ${attempt}); rebasing and retrying"
+            git pull --rebase origin main || true
+            sleep 3
+          done
+          if [ "$pushed" != "1" ]; then
+            echo "::warning::could not push baseline bump after 5 attempts; the scheduled tick will retry later"
           fi
