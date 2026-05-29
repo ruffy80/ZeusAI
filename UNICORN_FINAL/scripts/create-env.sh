@@ -138,6 +138,35 @@ upsert GIT_REMOTE_URL     "${GIT_REMOTE_URL:-https://github.com/ruffy80/ZeusAI.g
 upsert GITHUB_TOKEN       "${GITHUB_TOKEN:-}"
 upsert GH_PAT             "${GH_PAT:-${GITHUB_TOKEN:-}}"
 
+# ── Persistent secret store (survives deploys) ──────────────────────────────────
+# (EN) Load API keys from the host-level secret store that lives OUTSIDE the
+# release tree (so it is not wiped by a new release). This is the same path the
+# adi-core key-vault scans (EXTRA_DIRS=/etc/zeusai/secrets, ~/.zeusai/keys.env).
+# Values here are used ONLY as a fallback: GitHub Actions secrets still win
+# because the env vars below use `${VAR:-<persistent>}` precedence.
+# (RO) Încarcă cheile din store-ul persistent de pe host (în afara release-ului),
+# folosit ca fallback când secret-ul din GitHub Actions lipsește. Astfel cheile
+# valide (ex. DEEPSEEK_API_KEY) supraviețuiesc fiecărui deploy fără intervenție.
+_load_persistent_secrets() {
+  local f
+  for f in /etc/zeusai/secrets/ai-keys.env /etc/zeusai/secrets/*.env "$HOME/.zeusai/keys.env"; do
+    [ -f "$f" ] || continue
+    while IFS= read -r _line; do
+      case "$_line" in ''|\#*) continue ;; esac
+      case "$_line" in *=*) : ;; *) continue ;; esac
+      local _k="${_line%%=*}"
+      local _v="${_line#*=}"
+      # strip surrounding quotes
+      _v="${_v%\"}"; _v="${_v#\"}"; _v="${_v%\'}"; _v="${_v#\'}"
+      # only set if not already provided by the environment (GH secret wins)
+      if [ -n "$_k" ] && [ -z "$(eval "printf '%s' \"\${$_k:-}\"")" ] && [ -n "$_v" ]; then
+        export "$_k=$_v"
+      fi
+    done < "$f"
+  done
+}
+_load_persistent_secrets
+
 # ── AI Providers ───────────────────────────────────────────────────────────────
 upsert OPENAI_API_KEY     "${OPENAI_API_KEY:-}"
 upsert DEEPSEEK_API_KEY   "${DEEPSEEK_API_KEY:-}"
