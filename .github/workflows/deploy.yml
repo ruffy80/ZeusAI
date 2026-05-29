@@ -653,16 +653,28 @@ jobs:
           mkdir -p /usr/local/bin /var/lib/unicorn /var/log /etc/cron.d /etc/logrotate.d /opt/unicorn
           install -m 0755 "$DEPLOY_PATH/scripts/unicorn-health-bot.sh" /usr/local/bin/unicorn-health-bot.sh
           install -m 0755 "$DEPLOY_PATH/scripts/unicorn-payment-monitor.sh" /usr/local/bin/unicorn-payment-monitor.sh
-          # Forward-only fast-path autoheal: 1-minute /health probe, threshold-3,
-          # cooldown-10min PM2 reload. Complements (does not replace) the 5-minute
-          # unicorn-health-bot. Disable instantly with: touch /var/run/unicorn-autoheal-min.disabled
+          # SINGLE-HEALER CONTRACT (enforced 2026-05-29 — anti restart-storm).
+          # Only `autoheal-min` may restart PM2: it has threshold(3)+cooldown(600s)+
+          # disable-flag. Running multiple uncoordinated restarters (health-bot 5-min
+          # restart loop, safe-watchdog, healer.timer, zeusai-autonomy, deepseek-autonomy)
+          # caused a 41-restarts-in-8-min storm. Those are NEVER reinstalled here and are
+          # actively purged below so a redeploy can never resurrect the storm.
+          # Contract cu un singur healer — doar autoheal-min poate reporni PM2.
           install -m 0755 "$DEPLOY_PATH/scripts/autoheal-min.sh" /usr/local/bin/autoheal-min.sh
           chmod +x "$DEPLOY_PATH/scripts/unicorn-payment-monitor.js" 2>/dev/null || true
+          # Purge any legacy aggressive restarters left on the box (idempotent).
+          rm -f /etc/cron.d/unicorn-safe-watchdog /etc/cron.d/deepseek-autonomy 2>/dev/null || true
+          for U in unicorn-healer.timer unicorn-healer.service zeusai-autonomy.timer \
+                   zeusai-autonomy.service unicorn_godmode_v4.timer unicorn_godmode_v4.service \
+                   deepseek-unified.service; do
+            systemctl disable --now "$U" 2>/dev/null || true
+          done
           cat > /etc/cron.d/unicorn-health-bot <<'CRON'
           SHELL=/bin/bash
           PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
-          */5 * * * * root DEPLOY_PATH=/var/www/unicorn/UNICORN_FINAL UNICORN_HEALTH_BASE_URL=http://127.0.0.1:3000 UNICORN_HEALTH_SITE_URL=http://127.0.0.1:3001 /usr/local/bin/unicorn-health-bot.sh
+          # payment-monitor = benign (no PM2 restart, revenue telemetry only).
           * * * * * root DEPLOY_PATH=/var/www/unicorn/UNICORN_FINAL UNICORN_LOCAL_URL=http://127.0.0.1:3001 /usr/local/bin/unicorn-payment-monitor.sh
+          # autoheal-min = the ONLY sanctioned PM2 restarter (threshold+cooldown).
           * * * * * root /usr/local/bin/autoheal-min.sh >>/var/log/unicorn-autoheal-min.log 2>&1
           CRON
           chmod 0644 /etc/cron.d/unicorn-health-bot
@@ -678,7 +690,6 @@ jobs:
           }
           ROTATE
           chmod 0644 /etc/logrotate.d/unicorn-transactions
-          /usr/local/bin/unicorn-health-bot.sh || true
           /usr/local/bin/unicorn-payment-monitor.sh || true
           /usr/local/bin/autoheal-min.sh || true
           echo "✅ autonomous health/payment bots installed"

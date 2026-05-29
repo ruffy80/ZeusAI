@@ -47,3 +47,4 @@ UNICORN_FINAL/data/oracle/oracle-state.json
 
 # Local archive of consolidated env files (never commit)
 .env-archive/
+tmp/

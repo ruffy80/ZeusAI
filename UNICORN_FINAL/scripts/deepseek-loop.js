@@ -81,7 +81,7 @@ const SLOW_INTERVAL_MS       = Math.max(60_000, parseInt(process.env.DEEPSEEK_LO
 const OPENROUTER_API_KEY     = process.env.OPENROUTER_API_KEY || '';
 const OPENROUTER_DEEPSEEK_MODEL = process.env.OPENROUTER_DEEPSEEK_MODEL || 'deepseek/deepseek-v4-flash:free';
 const GROQ_API_KEY           = process.env.GROQ_API_KEY || '';
-const GROQ_DEEPSEEK_MODEL    = process.env.GROQ_DEEPSEEK_MODEL || 'qwen/qwen3-32b';
+const GROQ_DEEPSEEK_MODEL    = process.env.GROQ_DEEPSEEK_MODEL || 'llama-3.3-70b-versatile';
 const ADMIN_TOKEN            = process.env.DEEPSEEK_LOOP_ADMIN_TOKEN || '';
 const LOG_PATH               = process.env.DEEPSEEK_LOOP_LOG_PATH
                              || path.join(__dirname, '..', 'data', 'logs', 'deepseek-loop.log');
@@ -727,7 +727,10 @@ async function tick() {
       const out = await executeViaGovernor(rec);
       log('info', 'governor_execution_result', { httpStatus: out.status, bodyPreview: out.body });
       if (out.status >= 200 && out.status < 300) consecutiveFailures = 0;
-      else consecutiveFailures++;
+      else if (out.status >= 500) consecutiveFailures++;
+      // 4xx = governor business rejection (e.g. proposal validation); not a
+      // system outage, so it must NOT trip the circuit breaker.
+      // 4xx = respingere de business; nu declanseaza breaker-ul.
     }
     if (consecutiveFailures === 0) {
       // keep window stable only on clean cycles

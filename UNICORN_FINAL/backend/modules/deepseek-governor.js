@@ -1241,9 +1241,18 @@ function _validateProposalTargetPath(targetPath) {
   if (targetPath.indexOf('\0') !== -1)        return { ok: false, reason: 'invalid_target' };
   if (path.isAbsolute(targetPath))            return { ok: false, reason: 'target_must_be_relative' };
   // Normalize without resolving (we don't need the file to exist).
-  const norm = path.posix.normalize(targetPath.replace(/\\/g, '/'));
+  let norm = path.posix.normalize(targetPath.replace(/\\/g, '/'));
   if (norm.startsWith('../') || norm === '..' || norm.indexOf('/../') !== -1) {
     return { ok: false, reason: 'path_traversal' };
+  }
+  // Auto-prefix bare app subdirs with UNICORN_FINAL/ so advisor proposals that
+  // omit the deploy prefix still resolve into the correct tree.
+  // Prefixeaza automat subdirectoarele aplicatiei cu UNICORN_FINAL/.
+  {
+    const _bareAppDirs = ['backend/', 'src/', 'test/', 'scripts/', 'data/', 'client/'];
+    for (const _b of _bareAppDirs) {
+      if (norm === _b.slice(0, -1) || norm.startsWith(_b)) { norm = 'UNICORN_FINAL/' + norm; break; }
+    }
   }
   const lower = norm.toLowerCase();
   for (const pfx of PROPOSAL_TARGET_DENY_PREFIXES) {
