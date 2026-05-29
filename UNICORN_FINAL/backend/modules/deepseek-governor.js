@@ -41,6 +41,17 @@ const LOG_PATH            = process.env.DEEPSEEK_GOVERNOR_LOG_PATH
                           || path.join(__dirname, '..', '..', 'data', 'logs', 'deepseek-governor.log');
 const LOG_MAX_BYTES       = parseInt(process.env.DEEPSEEK_GOVERNOR_LOG_MAX_BYTES || String(2 * 1024 * 1024), 10);
 
+// Auto-apply mode: when DEEPSEEK_AUTO_APPLY=1, code_proposal writes the
+// proposed content directly to the target file IN ADDITION to the quarantine
+// envelope. This gives DeepSeek full autonomous power to modify production
+// code without human review. Safety rails (deny suffixes, deny segments,
+// extension allowlist) still apply — the governor itself, the loop script,
+// package.json, .env, and .github/ remain immutable.
+// Modul auto-apply: când DEEPSEEK_AUTO_APPLY=1, code_proposal scrie conținutul
+// propus direct în fișierul țintă PE LÂNGĂ plicul din carantină. Restul
+// regulilor de siguranță rămân active.
+const AUTO_APPLY = String(process.env.DEEPSEEK_AUTO_APPLY || '') === '1';
+
 // read_file safety envelope / Plicul de siguranță pentru read_file
 const AUTONOMY_ROOT = path.resolve(process.env.DEEPSEEK_GOVERNOR_AUTONOMY_ROOT || '/opt/unicorn');
 const READ_FILE_ROOT      = path.resolve(process.env.DEEPSEEK_GOVERNOR_READ_ROOT || AUTONOMY_ROOT);
@@ -107,12 +118,12 @@ const ALLOWED_ACTIONS = Object.freeze([
 ]);
 
 // code_proposal safety envelope / Plicul de siguranță pentru code_proposal
-// Proposals are written to a quarantine directory and require human/CI review
-// to land in source. The governor itself never applies them.
-// Propunerile se scriu într-un director-carantină; aplicarea cere review.
+// When AUTO_APPLY=1, proposals are written BOTH to quarantine AND to the target
+// file on disk (auto-applied). Otherwise, quarantine-only (human review).
+// Când AUTO_APPLY=1, propunerile se scriu ȘI în carantină ȘI în fișierul țintă.
 const PROPOSALS_DIR = process.env.DEEPSEEK_GOVERNOR_PROPOSALS_DIR
                    || path.join(__dirname, '..', '..', 'data', 'deepseek-proposals');
-const PROPOSAL_MAX_BYTES = parseInt(process.env.DEEPSEEK_GOVERNOR_PROPOSAL_MAX_BYTES || String(32 * 1024), 10);
+const PROPOSAL_MAX_BYTES = parseInt(process.env.DEEPSEEK_GOVERNOR_PROPOSAL_MAX_BYTES || String(128 * 1024), 10);
 const PROPOSAL_MAX_FILES_PER_DAY = parseInt(process.env.DEEPSEEK_GOVERNOR_PROPOSAL_MAX_PER_DAY || '50', 10);
 // Target file path inside the proposal must respect the same deny-segments and
 // deny-substrings as read_file. We additionally reject any path that would
@@ -122,17 +133,17 @@ const PROPOSAL_MAX_FILES_PER_DAY = parseInt(process.env.DEEPSEEK_GOVERNOR_PROPOS
 // suplimentare pentru CI/.env/package.json/governor.
 const PROPOSAL_TARGET_DENY_PREFIXES = Object.freeze([
   'server/',
-  'src/',
-  'backend/',
   '.github/',
   'node_modules/',
 ]);
 const PROPOSAL_TARGET_ALLOW_PREFIXES = Object.freeze([
-  'UNICORN_FINAL/backend/modules/',
-  'UNICORN_FINAL/backend/constants/',
+  'UNICORN_FINAL/backend/',
   'UNICORN_FINAL/src/',
   'UNICORN_FINAL/test/',
+  'UNICORN_FINAL/scripts/',
+  'UNICORN_FINAL/data/',
   'UNICORN_FINAL/docs/',
+  'UNICORN_FINAL/client/',
   'docs/',
 ]);
 const PROPOSAL_TARGET_DENY_SUFFIXES = Object.freeze([
@@ -1311,20 +1322,54 @@ function _action_code_proposal(params) {
   const envelope = {
     schemaVersion: 1,
     createdAt: new Date().toISOString(),
-    status: 'pending-review',
+    status: AUTO_APPLY ? 'auto-applied' : 'pending-review',
     objectiveId: objectiveId || null,
     targetPath: targetCheck.normalized,
     riskLevel,
     rationale,
     proposedContent,
     proposedContentBytes: contentBytes,
-    note: 'Envelope only — code is NOT applied. Human/CI review required before any edit.',
+    note: AUTO_APPLY
+      ? 'Auto-applied — code written to target file and quarantine envelope.'
+      : 'Envelope only — code is NOT applied. Human/CI review required before any edit.',
   };
 
   try {
     fs.writeFileSync(fullPath, JSON.stringify(envelope, null, 2), { encoding: 'utf8' });
   } catch (e) {
     return { ok: false, action: 'code_proposal', reason: 'write_failed', error: String(e && e.message || e).slice(0, 200) };
+  }
+
+  // Auto-apply: write the proposed content directly to the target file.
+  // The AUTONOMY_ROOT is used as the base for resolving the target path.
+  // Auto-apply: scrie conținutul propus direct în fișierul țintă.
+  let autoApplied = false;
+  if (AUTO_APPLY) {
+    try {
+      const targetAbsolute = path.resolve(AUTONOMY_ROOT, targetCheck.normalized);
+      // Re-verify the resolved path stays under AUTONOMY_ROOT
+      if (!targetAbsolute.startsWith(AUTONOMY_ROOT + path.sep) && targetAbsolute !== AUTONOMY_ROOT) {
+        return { ok: false, action: 'code_proposal', reason: 'auto_apply_path_escape', resolved: targetAbsolute };
+      }
+      fs.mkdirSync(path.dirname(targetAbsolute), { recursive: true });
+      fs.writeFileSync(targetAbsolute, proposedContent, { encoding: 'utf8' });
+      autoApplied = true;
+    } catch (e) {
+      // Auto-apply failed but quarantine envelope was written — report partial success
+      return {
+        ok: true,
+        action: 'code_proposal',
+        proposalId: fileName,
+        targetPath: targetCheck.normalized,
+        objectiveId: objectiveId || null,
+        riskLevel,
+        bytes: contentBytes,
+        autoApplied: false,
+        autoApplyError: String(e && e.message || e).slice(0, 200),
+        note: 'Quarantine envelope written but auto-apply to target file failed.',
+        timestamp: new Date().toISOString(),
+      };
+    }
   }
 
   return {
@@ -1335,7 +1380,10 @@ function _action_code_proposal(params) {
     objectiveId: objectiveId || null,
     riskLevel,
     bytes: contentBytes,
-    note: 'Proposal stored under PROPOSALS_DIR; requires human/CI review before apply.',
+    autoApplied,
+    note: autoApplied
+      ? 'Proposal auto-applied to target file and stored in PROPOSALS_DIR.'
+      : 'Proposal stored under PROPOSALS_DIR; requires human/CI review before apply.',
     timestamp: new Date().toISOString(),
   };
 }

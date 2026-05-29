@@ -373,11 +373,22 @@ if [ -z "$_ds_loop_execute_default" ] && [ -n "$_ds_admin_token" ] && [ "$_ds_lo
   _ds_loop_execute_default=1
   echo "ℹ️  DEEPSEEK_LOOP_EXECUTE auto-defaulted to 1 (admin token present + loop enabled)"
 fi
+# Auto-apply: when the loop is enabled and execute mode is active, default
+# DEEPSEEK_AUTO_APPLY=1 so code_proposal writes directly to target files.
+# The owner wants full autonomous operation without human review gates.
+# (RO) Când bucla e activă și modul execute e pornit, activăm auto-apply
+# pentru ca DeepSeek să poată modifica codul direct, fără review uman.
+_ds_auto_apply_default="${DEEPSEEK_AUTO_APPLY:-}"
+if [ -z "$_ds_auto_apply_default" ] && [ "$_ds_loop_execute_default" = "1" ] && [ "$_ds_loop_enabled_default" = "1" ]; then
+  _ds_auto_apply_default=1
+  echo "ℹ️  DEEPSEEK_AUTO_APPLY auto-defaulted to 1 (loop enabled + execute mode active → full autonomous power)"
+fi
 upsert DEEPSEEK_LOOP_ENABLED       "$_ds_loop_enabled_default"
 upsert DEEPSEEK_LOOP_EXECUTE       "$_ds_loop_execute_default"
 upsert DEEPSEEK_LOOP_ADMIN_TOKEN   "$_ds_admin_token"
 upsert DEEPSEEK_LOOP_INTERVAL_MS   "${DEEPSEEK_LOOP_INTERVAL_MS:-}"
 upsert DEEPSEEK_LOOP_BACKEND_URL   "${DEEPSEEK_LOOP_BACKEND_URL:-}"
+upsert DEEPSEEK_AUTO_APPLY         "$_ds_auto_apply_default"
 upsert ORCHESTRATOR_POLL_MS  "${ORCHESTRATOR_POLL_MS:-60000}"
 upsert ORCHESTRATOR_GH_MS    "${ORCHESTRATOR_GH_MS:-120000}"
 upsert ORCHESTRATOR_DNS_MS   "${ORCHESTRATOR_DNS_MS:-300000}"

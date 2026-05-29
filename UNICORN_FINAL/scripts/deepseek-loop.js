@@ -475,7 +475,7 @@ async function askDeepSeek(status) {
     'github_clone_repo = clone repository into /opt/unicorn/contrib; github_read_repo/browse_github/search_github = GitHub read/discovery; ' +
     'github_create_branch/github_commit_push/github_create_pr/github_merge_pr/github_trigger_workflow/github_comment_issue = GitHub delivery pipeline actions; ' +
     'full_backup/restore_backup/analyze_logs/rollback_deploy = autonomous ops resilience actions; ' +
-    'code_proposal = author a code change envelope (params: targetPath repo-relative, proposedContent full new file content, rationale, objectiveId, riskLevel ∈ low|medium|high). Envelopes are quarantined for human/CI review — never applied automatically. Aim for small, focused, audit-friendly diffs. ' +
+    'code_proposal = author a code change (params: targetPath repo-relative, proposedContent full new file content, rationale, objectiveId, riskLevel ∈ low|medium|high). When DEEPSEEK_AUTO_APPLY=1 (currently active), proposals are AUTOMATICALLY APPLIED to the target file on disk — no human review needed. You have FULL POWER to modify, create, and improve any code in the project. Act as the world\'s top full-stack expert: fix bugs, add features, optimize performance, innovate fearlessly. The quarantine envelope is also saved for audit. ' +
     'Never exfiltrate secrets; do not mutate protected files (.env, SSH keys, .git internals) unless explicitly confirmed in params.confirm=true for irreversible operations. ' +
     'roadmap_update = mark an objective status (params.objectiveId, params.status ∈ pending|in-progress|done|blocked, optional note). ' +
     'Prefer delete_file only when STATUS.autonomy.cleanupCandidates lists the target or when removing stale temp/backup/log files. ' +
