@@ -507,7 +507,7 @@ function navBar(route, opts) {
   <span class="nav-toggle-bar"></span><span class="nav-toggle-bar"></span><span class="nav-toggle-bar"></span>
 </button>
 <div class="nav-links" id="nav-links">
-${L('/', 'Home')}<a class="nav-link nav-link-zacc" href="/zacc" data-link aria-label="Autonomous Commerce (ZACC)">⚡ Autonomous Commerce <span style="display:inline-block;margin-left:6px;padding:1px 7px;font-size:10px;font-weight:700;letter-spacing:.08em;border-radius:999px;background:linear-gradient(135deg,#8a5cff,#3ea0ff);color:#05060e;vertical-align:middle">LIVE</span></a>${L('/services', 'Marketplace')}${L('/wizard', 'Find my plan')}${L('/store', 'Store')}${L('/crypto-fiat-bridge', 'Crypto Bridge')}${L('/enterprise', 'Enterprise')}${L('/pricing', 'Pricing')}${L('/innovations', 'Innovations')}${L('/frontier', 'Frontier')}${L('/docs', 'API')}${L('/status', 'Status')}
+${L('/', 'Home')}<a class="nav-link nav-link-zacc" href="/zacc" data-link aria-label="Autonomous Dropshipping (ZACC)">🛒 Autonomous Dropshipping <span style="display:inline-block;margin-left:6px;padding:1px 7px;font-size:10px;font-weight:700;letter-spacing:.08em;border-radius:999px;background:linear-gradient(135deg,#8a5cff,#3ea0ff);color:#05060e;vertical-align:middle">LIVE</span></a>${L('/services', 'Marketplace')}${L('/wizard', 'Find my plan')}${L('/store', 'Store')}${L('/crypto-fiat-bridge', 'Crypto Bridge')}${L('/enterprise', 'Enterprise')}${L('/pricing', 'Pricing')}${L('/innovations', 'Innovations')}${L('/frontier', 'Frontier')}${L('/docs', 'API')}${L('/status', 'Status')}
 </div>
 <div class="nav-cta">
 ${langToggle}
@@ -529,7 +529,7 @@ function footer(route, opts) {
       <p style="color:var(--ink-dim);font-size:13.5px;line-height:1.6;max-width:360px">Autonomous AI operating system. Every module signed with W3C DID. Every outcome routed through Merkle-chained receipts. Property of ${OWNER.name}.</p>
     </div>
     <div><h3 class="footer-col-title">Product</h3><ul>
-      <li><a href="/zacc" data-link><strong style="color:#8a5cff">⚡ Autonomous Commerce</strong></a></li>
+      <li><a href="/zacc" data-link><strong style="color:#8a5cff">🛒 Autonomous Dropshipping</strong></a></li>
       <li><a href="/services" data-link>Marketplace</a></li>
       <li><a href="/wizard" data-link>Find my plan</a></li>
       <li><a href="/pricing" data-link>Pricing</a></li>

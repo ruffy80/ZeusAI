@@ -4508,7 +4508,7 @@ async function unicornHandler(req, res) {
         '<style>' + css + '</style>',
         '</head><body class="' + pageClass + ' ' + zeusProfile + '">',
         '<header><h1>🦄 ZeusAI</h1><nav class="site-nav" aria-label="Primary"><div class="site-nav-links">',
-        '<a href="/">Home</a><a href="/zacc" style="color:#8a5cff;font-weight:700">⚡ Autonomous Commerce</a><a href="/pricing">Pricing</a><a href="/revenue-share">Revenue Share</a><a href="/proof">Proof</a><a href="/unicorn-cockpit">Cockpit</a><a href="/services">Services</a><a href="/status">Status</a>',
+        '<a href="/">Home</a><a href="/zacc" style="color:#8a5cff;font-weight:700">🛒 Autonomous Dropshipping</a><a href="/pricing">Pricing</a><a href="/revenue-share">Revenue Share</a><a href="/proof">Proof</a><a href="/unicorn-cockpit">Cockpit</a><a href="/services">Services</a><a href="/status">Status</a>',
         '</div></nav>',
         '</header>',
         '<main>',
@@ -4713,12 +4713,12 @@ async function unicornHandler(req, res) {
     // nginx). No fake numbers; the page renders exactly what the loop produced.
     if (urlPath === '/zacc') {
       const body =
-        '<h2 style="margin:0">Zeus Autonomic Commerce Core <span style="font-size:13px;color:var(--accent);border:1px solid var(--accent);border-radius:999px;padding:2px 10px;vertical-align:middle">ZACC \u00b7 LIVE</span></h2>' +
-        '<p style="color:var(--muted);margin:8px 0 24px">The first fully-autonomous economic engine: scans 20+ market sources, synthesises ideas, builds &amp; prices products, sells in BTC (confirmed on-chain), heals itself, learns weekly and evolves monthly \u2014 zero human in the loop. Every number is produced live by the running autonomous cycle.</p>' +
+        '<h2 style="margin:0">Autonomous Dropshipping Platform <span style="font-size:13px;color:var(--accent);border:1px solid var(--accent);border-radius:999px;padding:2px 10px;vertical-align:middle">ZACC \u00b7 LIVE</span></h2>' +
+        '<p style="color:var(--muted);margin:8px 0 24px">The world\u2019s first fully-autonomous AI dropshipping store. The engine finds trending products by scanning 20+ market sources, builds product pages, sets BTC prices, fulfils physical orders via Printful and delivers digital services instantly. Payments are verified on-chain. You own the BTC wallet \u2014 the AI does product research, pricing, listing, fulfilment, support and learning, 24/7. Every number below is produced live.</p>' +
         '<div id="zc-summary" class="grid"></div>' +
-        '<h3 style="margin:32px 0 8px">Today\u2019s synthesised ideas <span id="zc-admin-hint" style="font-size:11px;font-weight:400;color:var(--muted)"></span></h3>' +
+        '<h3 style="margin:32px 0 8px">Winning products being researched right now <span id="zc-admin-hint" style="font-size:11px;font-weight:400;color:var(--muted)"></span></h3>' +
         '<div id="zc-ideas" class="grid"></div>' +
-        '<h3 style="margin:32px 0 8px">Autonomously-built products <span class="sub" style="font-weight:400">(real BTC invoice per purchase)</span></h3>' +
+        '<h3 style="margin:32px 0 8px">Live store · buy now in BTC <span class="sub" style="font-weight:400">(on-chain settled, Printful + AI fulfilment)</span></h3>' +
         '<div id="zc-products" class="grid" style="grid-template-columns:repeat(auto-fit,minmax(290px,1fr))"></div>' +
         '<div id="zc-invoice-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:9999;align-items:center;justify-content:center">' +
         '<div style="background:var(--card,#1a1a2e);border:1px solid var(--accent,#7c3aed);border-radius:12px;padding:32px;max-width:420px;width:90%;position:relative">' +
@@ -4735,11 +4735,11 @@ async function unicornHandler(req, res) {
         '<div id="zc-inv-status" style="font-size:13px;color:var(--muted);text-align:center"></div>' +
         '<p style="font-size:11px;color:var(--muted);margin:12px 0 0;text-align:center">The exact amount is unique to your order. Payment confirmed automatically on-chain via mempool.space.</p>' +
         '</div></div>' +
-        '<h3 style="margin:32px 0 8px">Live market trends</h3>' +
+        '<h3 style="margin:32px 0 8px">Market demand the AI is tracking</h3>' +
         '<div id="zc-trends" class="grid"></div>' +
-        '<h3 style="margin:32px 0 8px">Eternal evolution \u00b7 proposed integrations</h3>' +
+        '<h3 style="margin:32px 0 8px">Roadmap \u00b7 next dropshipping integrations</h3>' +
         '<div id="zc-evo" class="grid"></div>' +
-        '<div style="margin-top:24px;font-size:12px;color:var(--muted)">Components: Market Scanner \u00b7 Idea Synthesizer \u00b7 Auto-Builder \u00b7 Dynamic Pricing \u00b7 Self-Healing \u00b7 Revenue Autopilot (BTC) \u00b7 Multi-instance \u00b7 Self-Learning \u00b7 Eternal Evolution \u00b7 BTC Payment Watcher. Full status: <a href="/api/zacc/status" style="color:var(--accent)">/api/zacc/status</a></div>';
+        '<div style="margin-top:24px;font-size:12px;color:var(--muted)">Pipeline: Trend Scanner \u00b7 Idea Synthesizer \u00b7 Auto-Builder \u00b7 Dynamic Pricing \u00b7 Self-Healing \u00b7 BTC Revenue Autopilot \u00b7 Multi-niche Store Manager \u00b7 Self-Learning \u00b7 Eternal Evolution \u00b7 On-chain Payment Watcher. Full status: <a href="/api/zacc/status" style="color:var(--accent)">/api/zacc/status</a></div>';
       const js = [
         '(function(){',
         'function esc(s){return String(s==null?"":s).replace(/[&<>"]/g,function(c){return{"&":"&amp;","<":"&lt;",">":"&gt;",\'"\':"&quot;"}[c];});}',
@@ -4832,7 +4832,7 @@ async function unicornHandler(req, res) {
         '})();',
       ].join('');
       try { res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store', 'X-Unicorn-Page': 'zacc' }); } catch (_) {}
-      return res.end(renderPage('Zeus Autonomic Commerce Core', body, js));
+      return res.end(renderPage('Autonomous Dropshipping Platform · ZACC', body, js));
     }
   }
   // ==================== END FAZA 2 / VAL 5 COMPLETARE ====================
