@@ -343,8 +343,11 @@ upsert PROFIT_LOOP_INTERVAL_MS "${PROFIT_LOOP_INTERVAL_MS:-300000}"
 # GitHub Actions secret but has NOT explicitly set DEEPSEEK_LOOP_ENABLED,
 # default DEEPSEEK_LOOP_ENABLED=1 so the Hetzner systemd loop activates
 # automatically — the operator no longer needs to remember the second flag.
-# Likewise, when a DEEPSEEK_LOOP_ADMIN_TOKEN is provided we default
-# DEEPSEEK_LOOP_EXECUTE=1. Per PR #547 the server-side governor still
+# Likewise, when a DEEPSEEK_LOOP_ADMIN_TOKEN is provided (or auto-generated
+# below) we default DEEPSEEK_LOOP_EXECUTE=1. If no token is provided but the
+# loop is enabled, a random 40-char token is auto-generated so the loop and
+# backend can authenticate with each other via the shared .env file.
+# Per PR #547 the server-side governor still
 # re-validates every action against its hardcoded allowlist regardless.
 # Opt-out: set DEEPSEEK_LOOP_ENABLED=0 (or empty after this run) explicitly.
 # (RO) Dacă există DEEPSEEK_API_KEY și nu ai setat explicit DEEPSEEK_LOOP_ENABLED,
@@ -355,14 +358,24 @@ if [ -z "$_ds_loop_enabled_default" ] && { [ -n "${DEEPSEEK_API_KEY:-}" ] || [ -
   _ds_loop_enabled_default=1
   echo "ℹ️  DEEPSEEK_LOOP_ENABLED auto-defaulted to 1 (advisor key present, operator did not set it explicitly)"
 fi
+# Auto-generate DEEPSEEK_LOOP_ADMIN_TOKEN when loop is enabled but no token
+# was provided. Both the loop script and the backend read from the same .env,
+# so a locally-generated token works for authentication between them.
+# (RO) Generează automat un token admin dacă loop-ul e activat dar nu s-a
+# furnizat un token — atât loop-ul cât și backend-ul citesc din același .env.
+_ds_admin_token="${DEEPSEEK_LOOP_ADMIN_TOKEN:-}"
+if [ -z "$_ds_admin_token" ] && [ "$_ds_loop_enabled_default" = "1" ]; then
+  _ds_admin_token=$(head -c 32 /dev/urandom | base64 | tr -d '/+=' | head -c 40)
+  echo "ℹ️  DEEPSEEK_LOOP_ADMIN_TOKEN auto-generated (40-char random token, loop enabled but no token provided)"
+fi
 _ds_loop_execute_default="${DEEPSEEK_LOOP_EXECUTE:-}"
-if [ -z "$_ds_loop_execute_default" ] && [ -n "${DEEPSEEK_LOOP_ADMIN_TOKEN:-}" ] && [ "$_ds_loop_enabled_default" = "1" ]; then
+if [ -z "$_ds_loop_execute_default" ] && [ -n "$_ds_admin_token" ] && [ "$_ds_loop_enabled_default" = "1" ]; then
   _ds_loop_execute_default=1
   echo "ℹ️  DEEPSEEK_LOOP_EXECUTE auto-defaulted to 1 (admin token present + loop enabled)"
 fi
 upsert DEEPSEEK_LOOP_ENABLED       "$_ds_loop_enabled_default"
 upsert DEEPSEEK_LOOP_EXECUTE       "$_ds_loop_execute_default"
-upsert DEEPSEEK_LOOP_ADMIN_TOKEN   "${DEEPSEEK_LOOP_ADMIN_TOKEN:-}"
+upsert DEEPSEEK_LOOP_ADMIN_TOKEN   "$_ds_admin_token"
 upsert DEEPSEEK_LOOP_INTERVAL_MS   "${DEEPSEEK_LOOP_INTERVAL_MS:-}"
 upsert DEEPSEEK_LOOP_BACKEND_URL   "${DEEPSEEK_LOOP_BACKEND_URL:-}"
 upsert ORCHESTRATOR_POLL_MS  "${ORCHESTRATOR_POLL_MS:-60000}"
