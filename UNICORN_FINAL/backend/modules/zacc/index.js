@@ -28,6 +28,10 @@ const { MultiInstanceManager } = require('./multi');
 const { SelfLearningCore } = require('./learning');
 const { EternalEvolution } = require('./evolution');
 const { BtcPayments } = require('./payments');
+const { GlobalScraper } = require('./scraper');
+const { ProfitMaximizer } = require('./profit');
+const { AutoPublisher } = require('./publisher');
+const { FulfillmentRouter } = require('./fulfillment');
 const store = require('./store');
 
 const log = logger('core');
@@ -69,6 +73,11 @@ class ZeusAutonomicCommerceCore {
     this.learning = new SelfLearningCore(ctx);
     this.evolution = new EternalEvolution(ctx);
     this.payments = new BtcPayments(ctx);
+    // Autonomous dropshipping pipeline (scrape → profit-filter → publish → fulfill).
+    this.scraper = new GlobalScraper(ctx);
+    this.profit = new ProfitMaximizer(ctx);
+    this.publisher = new AutoPublisher(ctx);
+    this.fulfillment = new FulfillmentRouter(ctx);
 
     // Register components with the watchdog (reinit = re-run their step).
     this.health.register('scanner', () => this.scanner.scan().catch(() => {}));
@@ -78,6 +87,9 @@ class ZeusAutonomicCommerceCore {
     this.health.register('revenue', () => {});
     this.health.register('learning', () => {});
     this.health.register('payments', () => this.payments.poll(true).catch(() => {}));
+    this.health.register('scraper', () => this.scraper.scrape(true).catch(() => {}));
+    this.health.register('publisher', () => {});
+    this.health.register('fulfillment', () => {});
 
     // Restore durable state from disk so a deploy / reload never wipes the
     // economy (products, sales, learning, invoices survive). Fail-soft.
@@ -91,8 +103,12 @@ class ZeusAutonomicCommerceCore {
   setServiceSink(fn) {
     if (typeof fn !== 'function') return;
     this._serviceSink = fn;
+    // Wire publisher to push dropship items into the main catalog as well.
+    try { this.publisher.setSink(fn); } catch (_) { /* fail-soft */ }
     try { for (const p of this.builder.products) fn(p); }
     catch (e) { log.warn('service sink backfill:', e.message); }
+    try { for (const p of this.publisher.published) fn(p); }
+    catch (e) { log.warn('publisher sink backfill:', e.message); }
   }
 
   _publishProduct(product) {
@@ -107,6 +123,18 @@ class ZeusAutonomicCommerceCore {
     try {
       this.recordSale(invoice.productId, invoice.amountUsd);
       this.builder.recordEvent(invoice.productId, 'delivered');
+      this.publisher.recordEvent(invoice.productId, 'sale', invoice.amountUsd);
+      // If this is a dropship product, route to real fulfillment provider.
+      const dropship = this.publisher.get(invoice.productId);
+      if (dropship) {
+        this.fulfillment.onOrder({
+          productId: invoice.productId,
+          productTitle: dropship.title,
+          amountUsd: invoice.amountUsd,
+          invoiceId: invoice.id,
+          shipping: invoice.shipping || null,
+        }).catch(e => log.warn('fulfillment route failed:', e.message));
+      }
       log.info('delivered', invoice.productId, 'for invoice', invoice.id, '($' + invoice.amountUsd + ')');
       this._persist(true);
     } catch (e) { log.warn('_onPaid failed:', e.message); }
@@ -219,6 +247,28 @@ class ZeusAutonomicCommerceCore {
       summary.stages.payments = { polled: !!pay.polled, matched: (pay.matched && pay.matched.length) || 0 };
     } catch (e) { this.health.reportFailure('payments', e); summary.stages.payments = { error: e.message }; }
 
+    // 10) DROPSHIPPING — global scrape (auto-throttled to every 6h internally).
+    let scraped = [];
+    try {
+      const r = await this.scraper.scrape();
+      scraped = this.scraper.recent(300);
+      this.health.heartbeat('scraper');
+      summary.stages.scrape = r;
+    } catch (e) { this.health.reportFailure('scraper', e); summary.stages.scrape = { error: e.message }; }
+
+    // 11) PROFIT — filter scraped products and rank by profit potential.
+    let qualified = [];
+    try {
+      qualified = this.profit.rank(scraped);
+      summary.stages.profit = { qualified: qualified.length, top: qualified[0] ? qualified[0].profitPotential : 0 };
+    } catch (e) { summary.stages.profit = { error: e.message }; }
+
+    // 12) PUBLISH — auto-publish top scored products into /dropship + /services.
+    try {
+      const added = this.publisher.publish(qualified, undefined);
+      summary.stages.publish = { added: added.length, total: this.publisher.published.length };
+    } catch (e) { summary.stages.publish = { error: e.message }; }
+
     this.ticks += 1;
     this.lastTickAt = now();
     summary.durationMs = Date.now() - t0;
@@ -280,6 +330,10 @@ class ZeusAutonomicCommerceCore {
       learning: { params: this.learning.params, vectors: this.learning.vectors.slice(0, 500) },
       evolution: { proposals: this.evolution.proposals.slice(0, 40), scans: this.evolution.scans, lastScanAt: this.evolution.lastScanAt },
       payments: this.payments.toState(),
+      scraper: this.scraper.toState(),
+      profit: this.profit.toState(),
+      publisher: this.publisher.toState(),
+      fulfillment: this.fulfillment.toState(),
     };
   }
 
@@ -298,7 +352,11 @@ class ZeusAutonomicCommerceCore {
     if (s.learning) { if (s.learning.params) this.learning.params = Object.assign(this.learning.params, s.learning.params); if (Array.isArray(s.learning.vectors)) this.learning.vectors = s.learning.vectors; }
     if (s.evolution) { if (Array.isArray(s.evolution.proposals)) this.evolution.proposals = s.evolution.proposals; if (Number.isFinite(s.evolution.scans)) this.evolution.scans = s.evolution.scans; if (Number.isFinite(s.evolution.lastScanAt)) this.evolution.lastScanAt = s.evolution.lastScanAt; }
     if (s.payments) this.payments.fromState(s.payments);
-    log.info('state restored · products', this.builder.products.length, '· lifetime $' + this.revenue.totalUsd);
+    if (s.scraper) this.scraper.fromState(s.scraper);
+    if (s.profit) this.profit.fromState(s.profit);
+    if (s.publisher) this.publisher.fromState(s.publisher);
+    if (s.fulfillment) this.fulfillment.fromState(s.fulfillment);
+    log.info('state restored · products', this.builder.products.length, '· dropship', this.publisher.published.length, '· lifetime $' + this.revenue.totalUsd);
     return true;
   }
 
@@ -334,6 +392,10 @@ class ZeusAutonomicCommerceCore {
         learning: this.learning.status(),
         evolution: this.evolution.status(),
         payments: this.payments.status(),
+        scraper: this.scraper.status(),
+        profit: this.profit.status(),
+        publisher: this.publisher.status(),
+        fulfillment: this.fulfillment.status(),
       },
       lastCycle: this._lastSummary || null,
     };
@@ -355,6 +417,11 @@ class ZeusAutonomicCommerceCore {
         ideas: this.synthesizer.ideas.length,
         products: this.builder.products.length,
         niches: this.multi.status().active,
+        scraped: this.scraper.products.length,
+        qualified: this.profit.scored.length,
+        dropshipPublished: this.publisher.published.length,
+        ordersRouted: this.fulfillment.routed,
+        ordersPending: this.fulfillment.pendingOrders.length,
       },
       revenue: { lifetimeUsd: this.revenue.totalUsd, last24hUsd: this.revenue.status().last24hUsd },
       payments: { openInvoices: this.payments.status().openInvoices, paidInvoices: this.payments.status().paidInvoices, onChain: true },
@@ -362,6 +429,8 @@ class ZeusAutonomicCommerceCore {
       trends: this.scanner.top(6),
       ideas: this.synthesizer.ideas.slice(0, 6).map(i => ({ name: i.name, type: i.type, priceUsd: i.priceUsd, marginPct: i.marginPct, status: i.status })),
       products: this.builder.publicList(12),
+      dropship: this.publisher.list({ limit: 12 }),
+      dropshipCategories: this.publisher.categories(),
       evolution: this.evolution.proposals.slice(0, 4),
       generatedAt: now(),
     };

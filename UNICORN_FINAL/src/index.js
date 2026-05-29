@@ -4450,7 +4450,7 @@ async function unicornHandler(req, res) {
   // (services) and /api/supreme/digest (status). All additive, never break the
   // existing template. Each page is server-rendered, returns a full HTML doc,
   // and includes a tiny client script that polls every 5s.
-  if (urlPath === '/unicorn-cockpit' || urlPath === '/services' || urlPath === '/status' || urlPath === '/unicorn-status.html' || urlPath === '/revenue-command' || urlPath === '/proof' || urlPath === '/revenue-share' || urlPath === '/pricing' || urlPath === '/zacc') {
+  if (urlPath === '/unicorn-cockpit' || urlPath === '/services' || urlPath === '/status' || urlPath === '/unicorn-status.html' || urlPath === '/revenue-command' || urlPath === '/proof' || urlPath === '/revenue-share' || urlPath === '/pricing' || urlPath === '/zacc' || urlPath === '/dropship' || urlPath.indexOf('/dropship/product/') === 0) {
     const renderPage = (title, bodyHtml, pageScript) => {
       // Use the existing template engine if available; otherwise emit a minimal SEO-clean doc
       // that still passes the site's chrome heuristics (lang, charset, viewport, meta).
@@ -4508,7 +4508,7 @@ async function unicornHandler(req, res) {
         '<style>' + css + '</style>',
         '</head><body class="' + pageClass + ' ' + zeusProfile + '">',
         '<header><h1>🦄 ZeusAI</h1><nav class="site-nav" aria-label="Primary"><div class="site-nav-links">',
-        '<a href="/">Home</a><a href="/zacc" style="color:#8a5cff;font-weight:700">🛒 Autonomous Dropshipping</a><a href="/pricing">Pricing</a><a href="/revenue-share">Revenue Share</a><a href="/proof">Proof</a><a href="/unicorn-cockpit">Cockpit</a><a href="/services">Services</a><a href="/status">Status</a>',
+        '<a href="/">Home</a><a href="/zacc" style="color:#8a5cff;font-weight:700">🛒 Autonomous Dropshipping</a><a href="/dropship" style="color:#8a5cff;font-weight:700">🌐 Live Store</a><a href="/pricing">Pricing</a><a href="/revenue-share">Revenue Share</a><a href="/proof">Proof</a><a href="/unicorn-cockpit">Cockpit</a><a href="/services">Services</a><a href="/status">Status</a>',
         '</div></nav>',
         '</header>',
         '<main>',
@@ -4833,6 +4833,220 @@ async function unicornHandler(req, res) {
       ].join('');
       try { res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store', 'X-Unicorn-Page': 'zacc' }); } catch (_) {}
       return res.end(renderPage('Autonomous Dropshipping Platform · ZACC', body, js));
+    }
+
+    // ==================== /DROPSHIP · AUTO-CURATED GLOBAL STORE ====================
+    // The customer-facing storefront. Every product is scraped, profit-filtered,
+    // AI-described and listed without human intervention. Buying = BTC invoice
+    // → auto-routed to CJ Dropshipping / webhook / admin queue. Single SSR shell,
+    // hydrated from /api/dropship/products + /api/dropship/status every 10s.
+    if (urlPath === '/dropship') {
+      const body =
+        '<h2 style="margin:0">Global AI Dropshipping Store <span style="font-size:13px;color:var(--accent);border:1px solid var(--accent);border-radius:999px;padding:2px 10px;vertical-align:middle">LIVE \u00b7 AUTO-CURATED</span></h2>' +
+        '<p style="color:var(--muted);margin:8px 0 18px">Zeus Autonomic Commerce Core scans Amazon, AliExpress, Etsy, eBay and other public sources every few hours, filters the highest-margin winners and publishes them here automatically. Every listing has a real cost, real margin, real BTC checkout, and ships globally. The store fills itself \u2014 you don\u2019t.</p>' +
+        '<div id="ds-summary" class="grid"></div>' +
+        '<div style="display:flex;gap:10px;flex-wrap:wrap;margin:24px 0 12px;align-items:center">' +
+        '  <input id="ds-search" placeholder="Search products\u2026" style="flex:1;min-width:200px;padding:10px 14px;border-radius:8px;border:1px solid var(--border,#333);background:var(--card,#1a1a2e);color:inherit" />' +
+        '  <select id="ds-sort" style="padding:10px 14px;border-radius:8px;border:1px solid var(--border,#333);background:var(--card,#1a1a2e);color:inherit">' +
+        '    <option value="profit">Most profitable</option>' +
+        '    <option value="newest">Newest</option>' +
+        '    <option value="sales">Best-selling</option>' +
+        '    <option value="price-asc">Price \u2191</option>' +
+        '    <option value="price-desc">Price \u2193</option>' +
+        '  </select>' +
+        '  <select id="ds-category" style="padding:10px 14px;border-radius:8px;border:1px solid var(--border,#333);background:var(--card,#1a1a2e);color:inherit">' +
+        '    <option value="">All categories</option>' +
+        '  </select>' +
+        '</div>' +
+        '<div id="ds-grid" class="grid" style="grid-template-columns:repeat(auto-fit,minmax(280px,1fr))"></div>' +
+        // Reuse the same invoice modal markup so the BTC pay flow is identical.
+        '<div id="zc-invoice-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:9999;align-items:center;justify-content:center">' +
+        '<div style="background:var(--card,#1a1a2e);border:1px solid var(--accent,#7c3aed);border-radius:12px;padding:32px;max-width:420px;width:90%;position:relative">' +
+        '<button onclick="document.getElementById(\'zc-invoice-modal\').style.display=\'none\'" style="position:absolute;top:12px;right:16px;background:none;border:none;color:var(--muted);font-size:20px;cursor:pointer">\u00d7</button>' +
+        '<h3 style="margin:0 0 8px" id="zc-inv-title">BTC Invoice</h3>' +
+        '<p style="color:var(--muted);font-size:12px;margin:0 0 16px" id="zc-inv-product"></p>' +
+        '<div style="background:#0d0d1a;border-radius:8px;padding:16px;margin-bottom:16px">' +
+        '<div style="font-size:11px;color:var(--muted);margin-bottom:4px">Send EXACTLY</div>' +
+        '<div id="zc-inv-btc" style="font-size:22px;font-weight:700;font-family:monospace;color:var(--accent)"></div>' +
+        '<div id="zc-inv-usd" style="font-size:13px;color:var(--muted);margin-top:4px"></div>' +
+        '</div>' +
+        '<div style="font-size:11px;color:var(--muted);margin-bottom:4px">To address</div>' +
+        '<div id="zc-inv-addr" style="font-family:monospace;font-size:12px;word-break:break-all;color:var(--accent);margin-bottom:16px"></div>' +
+        '<div id="zc-inv-status" style="font-size:13px;color:var(--muted);text-align:center"></div>' +
+        '<p style="font-size:11px;color:var(--muted);margin:12px 0 0;text-align:center">The exact amount is unique to your order. Payment confirmed automatically on-chain via mempool.space. Fulfilment is routed automatically to the supplier.</p>' +
+        '</div></div>' +
+        '<div style="margin-top:24px;font-size:12px;color:var(--muted)">Sources: scraper + profit-maximizer + auto-publisher + fulfillment router. Status: <a href="/api/dropship/status" style="color:var(--accent)">/api/dropship/status</a></div>';
+      const js = [
+        '(function(){',
+        'function esc(s){return String(s==null?"":s).replace(/[&<>"]/g,function(c){return{"&":"&amp;","<":"&lt;",">":"&gt;",\'"\':"&quot;"}[c];});}',
+        'function card(t,v,s){return\'<div class="card"><h3>\'+esc(t)+\'</h3><div class="v">\'+v+\'</div><div class="sub">\'+esc(s||"")+\'</div></div>\';}',
+        'function money(n){return"$"+Number(n||0).toLocaleString("en-US",{maximumFractionDigits:2});}',
+        'var _invPollTimer=null;',
+        'function openInvoice(productId,productTitle){',
+        '  var m=document.getElementById("zc-invoice-modal");',
+        '  document.getElementById("zc-inv-title").textContent="BTC Invoice";',
+        '  document.getElementById("zc-inv-product").textContent=productTitle;',
+        '  document.getElementById("zc-inv-btc").textContent="Loading\u2026";',
+        '  document.getElementById("zc-inv-usd").textContent="";',
+        '  document.getElementById("zc-inv-addr").textContent="";',
+        '  document.getElementById("zc-inv-status").textContent="Creating invoice\u2026";',
+        '  m.style.display="flex";',
+        '  if(_invPollTimer){clearInterval(_invPollTimer);_invPollTimer=null;}',
+        '  fetch("/api/dropship/order/"+encodeURIComponent(productId),{method:"POST"})',
+        '  .then(function(r){return r.json();})',
+        '  .then(function(d){',
+        '    if(!d.ok||!d.invoice){document.getElementById("zc-inv-status").textContent="Invoice error";return;}',
+        '    var inv=d.invoice;',
+        '    document.getElementById("zc-inv-btc").textContent=(inv.amountBtc||0).toFixed(8)+" BTC";',
+        '    document.getElementById("zc-inv-usd").textContent="= "+money(inv.amountUsd);',
+        '    document.getElementById("zc-inv-addr").textContent=inv.btcAddress||"";',
+        '    document.getElementById("zc-inv-status").textContent=inv.status==="rate-unavailable"?"BTC rate unavailable \u2014 send any BTC to confirm":"Waiting for payment\u2026";',
+        '    var invId=inv.id;',
+        '    _invPollTimer=setInterval(function(){',
+        '      fetch("/api/zacc/invoice/"+encodeURIComponent(invId))',
+        '      .then(function(r){return r.json();})',
+        '      .then(function(d2){',
+        '        if(d2.invoice&&d2.invoice.status==="paid"){',
+        '          document.getElementById("zc-inv-status").textContent="\u2714 Payment confirmed! Supplier is routing your order.";',
+        '          clearInterval(_invPollTimer);_invPollTimer=null;',
+        '        }',
+        '      }).catch(function(){});',
+        '    },8000);',
+        '  }).catch(function(){document.getElementById("zc-inv-status").textContent="Network error";});',
+        '}',
+        'var _cats=[];',
+        'function setCats(cats){',
+        '  if(!cats||!cats.length)return;',
+        '  var same=cats.length===_cats.length&&cats.every(function(c,i){return c===_cats[i];});',
+        '  if(same)return;',
+        '  _cats=cats.slice();',
+        '  var sel=document.getElementById("ds-category");',
+        '  var cur=sel.value;',
+        '  sel.innerHTML=\'<option value="">All categories</option>\'+cats.map(function(c){return\'<option value="\'+esc(c)+\'">\'+esc(c)+\'</option>\';}).join("");',
+        '  sel.value=cur;',
+        '}',
+        'function renderGrid(items){',
+        '  var g=document.getElementById("ds-grid");',
+        '  if(!items||!items.length){g.innerHTML=card("Catalog","warming up","first scrape running \u2014 products appear within minutes");return;}',
+        '  g.innerHTML=items.map(function(p){',
+        '    var img=p.image?\'<div style="aspect-ratio:1/1;background:#0d0d1a url(\\"\'+esc(p.image)+\'\\") center/cover no-repeat;border-radius:8px;margin-bottom:12px"></div>\':\'<div style="aspect-ratio:1/1;background:linear-gradient(135deg,#1a1a2e,#0d0d1a);border-radius:8px;margin-bottom:12px;display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:11px">\'+esc(p.category||"product")+\'</div>\';',
+        '    var stars=Math.round((p.rating||0)*10)/10;',
+        '    var profitBadge=p.netProfitUsd>0?\'<span style="display:inline-block;background:rgba(124,58,237,.18);color:var(--accent);font-size:10px;padding:2px 8px;border-radius:999px;margin-left:6px">+\'+money(p.netProfitUsd)+\' margin</span>\':"";',
+        '    return \'<div class="card" style="padding:18px">\'+img',
+        '    +\'<div style="font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:var(--accent)">\'+esc(p.category||"general")+\' \u00b7 \'+esc(p.source||"sourced")+\'</div>\'',
+        '    +\'<div style="font-size:15px;font-weight:600;margin:6px 0 4px;min-height:42px">\'+esc(p.title)+\'</div>\'',
+        '    +\'<div class="v" style="font-size:22px">\'+money(p.priceUsd)+profitBadge+\'</div>\'',
+        '    +\'<div style="font-size:11px;color:var(--muted);margin:6px 0">\u2605 \'+stars+\' \u00b7 \'+Number(p.reviews||0).toLocaleString()+\' reviews\u00b7 \'+Math.round(p.marginPct||0)+\'% margin</div>\'',
+        '    +\'<p style="color:var(--muted);font-size:12px;margin:8px 0 14px;min-height:48px">\'+esc((p.description||"").slice(0,120))+\'\u2026</p>\'',
+        '    +\'<button onclick="openInvoice(\\"\'+esc(p.id)+\'\\",\\"\'+esc(p.title)+\'\\")" style="width:100%">Buy with BTC \u2192</button>\'',
+        '    +\'</div>\';',
+        '  }).join("");',
+        '}',
+        'function refresh(){',
+        '  var sort=document.getElementById("ds-sort").value;',
+        '  var cat=document.getElementById("ds-category").value;',
+        '  var q=document.getElementById("ds-search").value;',
+        '  var url="/api/dropship/products?sort="+encodeURIComponent(sort)+"&limit=48"+(cat?"&category="+encodeURIComponent(cat):"")+(q?"&q="+encodeURIComponent(q):"");',
+        '  fetch(url,{cache:"no-store"}).then(function(r){return r.json();}).then(function(d){',
+        '    if(d&&d.categories)setCats(d.categories);',
+        '    renderGrid(d&&d.items||[]);',
+        '  }).catch(function(){renderGrid([]);});',
+        '  fetch("/api/dropship/status",{cache:"no-store"}).then(function(r){return r.json();}).then(function(d){',
+        '    if(!d||!d.ok)return;',
+        '    document.getElementById("ds-summary").innerHTML=',
+        '      card("Products live",(d.publisher&&d.publisher.published)||0,"auto-published")+',
+        '      card("Scraped",(d.scraper&&d.scraper.cached)||0,"qualified: "+((d.profit&&d.profit.qualified)||0))+',
+        '      card("Orders routed",(d.fulfillment&&d.fulfillment.routed)||0,"pending: "+((d.fulfillment&&d.fulfillment.pending)||0))+',
+        '      card("Min margin",((d.profit&&d.profit.thresholds&&d.profit.thresholds.minMarginPct)||0)+"%","markup: "+((d.profit&&d.profit.thresholds&&d.profit.thresholds.markup)||0)+"x")+',
+        '      card("Last scrape",(d.scraper&&d.scraper.lastScrapeAt)?new Date(d.scraper.lastScrapeAt).toLocaleTimeString():"queued","every "+((d.scraper&&d.scraper.intervalHours)||6)+"h")+',
+        '      card("Payout","BTC","on-chain self-custody");',
+        '  }).catch(function(){});',
+        '}',
+        'document.getElementById("ds-sort").addEventListener("change",refresh);',
+        'document.getElementById("ds-category").addEventListener("change",refresh);',
+        'var _qt;document.getElementById("ds-search").addEventListener("input",function(){clearTimeout(_qt);_qt=setTimeout(refresh,300);});',
+        'refresh();setInterval(refresh,10000);',
+        '})();',
+      ].join('');
+      try { res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store', 'X-Unicorn-Page': 'dropship' }); } catch (_) {}
+      return res.end(renderPage('Global AI Dropshipping Store · ZACC', body, js));
+    }
+
+    // /dropship/product/:id — individual SSR product page (deep-link friendly).
+    if (urlPath.indexOf('/dropship/product/') === 0) {
+      const pid = urlPath.slice('/dropship/product/'.length).split('?')[0];
+      const safePid = String(pid || '').slice(0, 120);
+      const body =
+        '<a href="/dropship" style="color:var(--accent);font-size:13px">\u2190 Back to store</a>' +
+        '<div id="dp-root" style="margin-top:16px"><p style="color:var(--muted)">Loading product\u2026</p></div>' +
+        '<div id="zc-invoice-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:9999;align-items:center;justify-content:center">' +
+        '<div style="background:var(--card,#1a1a2e);border:1px solid var(--accent,#7c3aed);border-radius:12px;padding:32px;max-width:420px;width:90%;position:relative">' +
+        '<button onclick="document.getElementById(\'zc-invoice-modal\').style.display=\'none\'" style="position:absolute;top:12px;right:16px;background:none;border:none;color:var(--muted);font-size:20px;cursor:pointer">\u00d7</button>' +
+        '<h3 style="margin:0 0 8px">BTC Invoice</h3>' +
+        '<p style="color:var(--muted);font-size:12px;margin:0 0 16px" id="zc-inv-product"></p>' +
+        '<div style="background:#0d0d1a;border-radius:8px;padding:16px;margin-bottom:16px">' +
+        '<div style="font-size:11px;color:var(--muted);margin-bottom:4px">Send EXACTLY</div>' +
+        '<div id="zc-inv-btc" style="font-size:22px;font-weight:700;font-family:monospace;color:var(--accent)"></div>' +
+        '<div id="zc-inv-usd" style="font-size:13px;color:var(--muted);margin-top:4px"></div>' +
+        '</div>' +
+        '<div style="font-size:11px;color:var(--muted);margin-bottom:4px">To address</div>' +
+        '<div id="zc-inv-addr" style="font-family:monospace;font-size:12px;word-break:break-all;color:var(--accent);margin-bottom:16px"></div>' +
+        '<div id="zc-inv-status" style="font-size:13px;color:var(--muted);text-align:center"></div>' +
+        '</div></div>';
+      const js = [
+        '(function(){',
+        'var PID=' + JSON.stringify(safePid) + ';',
+        'function esc(s){return String(s==null?"":s).replace(/[&<>"]/g,function(c){return{"&":"&amp;","<":"&lt;",">":"&gt;",\'"\':"&quot;"}[c];});}',
+        'function money(n){return"$"+Number(n||0).toLocaleString("en-US",{maximumFractionDigits:2});}',
+        'var _invPollTimer=null;',
+        'function openInvoice(productId,productTitle){',
+        '  var m=document.getElementById("zc-invoice-modal");',
+        '  document.getElementById("zc-inv-product").textContent=productTitle;',
+        '  document.getElementById("zc-inv-btc").textContent="Loading\u2026";',
+        '  document.getElementById("zc-inv-usd").textContent="";',
+        '  document.getElementById("zc-inv-addr").textContent="";',
+        '  document.getElementById("zc-inv-status").textContent="Creating invoice\u2026";',
+        '  m.style.display="flex";',
+        '  if(_invPollTimer){clearInterval(_invPollTimer);_invPollTimer=null;}',
+        '  fetch("/api/dropship/order/"+encodeURIComponent(productId),{method:"POST"})',
+        '  .then(function(r){return r.json();})',
+        '  .then(function(d){',
+        '    if(!d.ok||!d.invoice){document.getElementById("zc-inv-status").textContent="Invoice error";return;}',
+        '    var inv=d.invoice;',
+        '    document.getElementById("zc-inv-btc").textContent=(inv.amountBtc||0).toFixed(8)+" BTC";',
+        '    document.getElementById("zc-inv-usd").textContent="= "+money(inv.amountUsd);',
+        '    document.getElementById("zc-inv-addr").textContent=inv.btcAddress||"";',
+        '    document.getElementById("zc-inv-status").textContent="Waiting for payment\u2026";',
+        '    var invId=inv.id;',
+        '    _invPollTimer=setInterval(function(){',
+        '      fetch("/api/zacc/invoice/"+encodeURIComponent(invId)).then(function(r){return r.json();}).then(function(d2){',
+        '        if(d2.invoice&&d2.invoice.status==="paid"){document.getElementById("zc-inv-status").textContent="\u2714 Payment confirmed! Order routed to supplier.";clearInterval(_invPollTimer);_invPollTimer=null;}',
+        '      }).catch(function(){});',
+        '    },8000);',
+        '  }).catch(function(){document.getElementById("zc-inv-status").textContent="Network error";});',
+        '}',
+        'function render(p){',
+        '  var img=p.image?\'<div style="aspect-ratio:1/1;background:#0d0d1a url(\\"\'+esc(p.image)+\'\\") center/cover no-repeat;border-radius:12px"></div>\':\'<div style="aspect-ratio:1/1;background:linear-gradient(135deg,#1a1a2e,#0d0d1a);border-radius:12px;display:flex;align-items:center;justify-content:center;color:var(--muted)">\'+esc(p.category||"product")+\'</div>\';',
+        '  document.getElementById("dp-root").innerHTML=\'<div style="display:grid;grid-template-columns:1fr 1.4fr;gap:32px;align-items:start">\'',
+        '    +img',
+        '    +\'<div><div style="font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--accent)">\'+esc(p.category||"general")+\' \u00b7 \'+esc(p.source||"sourced")+\'</div>\'',
+        '    +\'<h1 style="margin:8px 0 6px;font-size:28px">\'+esc(p.title)+\'</h1>\'',
+        '    +\'<div style="font-size:13px;color:var(--muted);margin-bottom:18px">\u2605 \'+Number(p.rating||0)+\' \u00b7 \'+Number(p.reviews||0).toLocaleString()+\' reviews</div>\'',
+        '    +\'<div class="v" style="font-size:32px">\'+money(p.priceUsd)+\'</div>\'',
+        '    +\'<div style="font-size:12px;color:var(--muted);margin:4px 0 18px">Margin \'+Math.round(p.marginPct||0)+\'% \u00b7 ETA \'+esc((p.delivery&&p.delivery.etaDays)||"7-21 days")+\'</div>\'',
+        '    +\'<p style="color:var(--text);font-size:15px;line-height:1.6;margin:0 0 20px">\'+esc(p.description||"")+\'</p>\'',
+        '    +\'<button onclick="openInvoice(\\"\'+esc(p.id)+\'\\",\\"\'+esc(p.title)+\'\\")" style="padding:14px 26px;font-size:16px">Buy with BTC (on-chain) \u2192</button>\'',
+        '    +\'<p style="font-size:11px;color:var(--muted);margin-top:14px">Payments verified on-chain via mempool.space. Fulfilment auto-routed to supplier. No accounts required.</p>\'',
+        '    +\'</div></div>\';',
+        '}',
+        'fetch("/api/dropship/product/"+encodeURIComponent(PID),{cache:"no-store"}).then(function(r){return r.json();}).then(function(d){',
+        '  if(!d.ok||!d.product){document.getElementById("dp-root").innerHTML=\'<p style="color:var(--muted)">Product not found or still being prepared. <a href="/dropship" style="color:var(--accent)">Browse the store \u2192</a></p>\';return;}',
+        '  render(d.product);',
+        '}).catch(function(){document.getElementById("dp-root").innerHTML=\'<p style="color:var(--muted)">Could not load product.</p>\';});',
+        '})();',
+      ].join('');
+      try { res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store', 'X-Unicorn-Page': 'dropship-product' }); } catch (_) {}
+      return res.end(renderPage('Product · Global AI Dropshipping', body, js));
     }
   }
   // ==================== END FAZA 2 / VAL 5 COMPLETARE ====================

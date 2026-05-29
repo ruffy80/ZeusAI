@@ -8256,6 +8256,69 @@ app.post('/api/zacc/pay-poll', adminTokenMiddleware, async (req, res) => {
   } catch (e) { res.status(500).json({ ok: false, error: e.message }); }
 });
 
+// ==================== AUTONOMOUS DROPSHIPPING ROUTES ====================
+// RO: storefront-ul auto-curat al ZACC. Toate produsele sunt scrapate global,
+// filtrate de profit, descrise de AI și publicate fără intervenție umană.
+// GET-urile sunt publice. POST-urile sunt admin (force-scrape, force-publish).
+app.get('/api/dropship/products', (req, res) => {
+  if (!zacc) return res.status(503).json({ ok: false, error: 'zacc_unavailable' });
+  const items = zacc.publisher.list({
+    sort: req.query.sort,
+    category: req.query.category,
+    search: req.query.q,
+    limit: Math.min(200, Number(req.query.limit) || 60),
+  });
+  res.json({ ok: true, items, count: zacc.publisher.published.length, categories: zacc.publisher.categories() });
+});
+app.get('/api/dropship/product/:id', (req, res) => {
+  if (!zacc) return res.status(503).json({ ok: false, error: 'zacc_unavailable' });
+  const p = zacc.publisher.get(req.params.id);
+  if (!p) return res.status(404).json({ ok: false, error: 'product_not_found' });
+  zacc.publisher.recordEvent(p.id, 'view');
+  res.json({ ok: true, product: p });
+});
+app.get('/api/dropship/status', (req, res) => {
+  if (!zacc) return res.status(503).json({ ok: false, error: 'zacc_unavailable' });
+  res.json({
+    ok: true,
+    scraper: zacc.scraper.status(),
+    profit: zacc.profit.status(),
+    publisher: zacc.publisher.status(),
+    fulfillment: zacc.fulfillment.status(),
+  });
+});
+// Public: create a BTC invoice for a dropship product (same flow as ZACC).
+app.post('/api/dropship/order/:id', async (req, res) => {
+  if (!zacc) return res.status(503).json({ ok: false, error: 'zacc_unavailable' });
+  const p = zacc.publisher.get(req.params.id);
+  if (!p) return res.status(404).json({ ok: false, error: 'product_not_found' });
+  try {
+    const inv = await zacc.payments.createInvoice(p.id, p.priceUsd);
+    res.json({ ok: true, invoice: inv, product: { id: p.id, title: p.title, priceUsd: p.priceUsd } });
+  } catch (e) { res.status(500).json({ ok: false, error: e.message }); }
+});
+// Admin: force one scrape now (returns counts).
+app.post('/api/dropship/scrape', adminTokenMiddleware, async (req, res) => {
+  if (!zacc) return res.status(503).json({ ok: false, error: 'zacc_unavailable' });
+  try {
+    const scrapeRes = await zacc.scraper.scrape(true);
+    const qualified = zacc.profit.rank(zacc.scraper.recent(300));
+    const published = zacc.publisher.publish(qualified, Number((req.body && req.body.limit) || 8));
+    res.json({ ok: true, scrape: scrapeRes, qualified: qualified.length, published: published.length });
+  } catch (e) { res.status(500).json({ ok: false, error: e.message }); }
+});
+// Admin: list pending manual-fulfillment orders.
+app.get('/api/dropship/fulfillment/pending', adminTokenMiddleware, (req, res) => {
+  if (!zacc) return res.status(503).json({ ok: false, error: 'zacc_unavailable' });
+  res.json({ ok: true, pending: zacc.fulfillment.pendingOrders, status: zacc.fulfillment.status() });
+});
+app.post('/api/dropship/fulfillment/resolve/:orderId', adminTokenMiddleware, (req, res) => {
+  if (!zacc) return res.status(503).json({ ok: false, error: 'zacc_unavailable' });
+  const done = zacc.fulfillment.resolvePending(req.params.orderId);
+  if (!done) return res.status(404).json({ ok: false, error: 'order_not_found' });
+  res.json({ ok: true, order: done });
+});
+
 // ==================== SELF-HEALING: SLO ROUTES ====================
 app.get('/api/slo/status', (req, res) => {
   res.json({ stats: sloTracker.getAllStats(), routes: sloTracker.getAllRoutes() });
