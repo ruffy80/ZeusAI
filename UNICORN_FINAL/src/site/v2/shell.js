@@ -507,7 +507,7 @@ function navBar(route, opts) {
   <span class="nav-toggle-bar"></span><span class="nav-toggle-bar"></span><span class="nav-toggle-bar"></span>
 </button>
 <div class="nav-links" id="nav-links">
-${L('/', 'Home')}${L('/services', 'Marketplace')}${L('/wizard', 'Find my plan')}${L('/store', 'Store')}${L('/crypto-fiat-bridge', 'Crypto Bridge')}${L('/enterprise', 'Enterprise')}${L('/pricing', 'Pricing')}${L('/innovations', 'Innovations')}${L('/frontier', 'Frontier')}${L('/docs', 'API')}${L('/status', 'Status')}
+${L('/', 'Home')}<a class="nav-link nav-link-zacc" href="/zacc" data-link aria-label="Autonomous Commerce (ZACC)">⚡ Autonomous Commerce <span style="display:inline-block;margin-left:6px;padding:1px 7px;font-size:10px;font-weight:700;letter-spacing:.08em;border-radius:999px;background:linear-gradient(135deg,#8a5cff,#3ea0ff);color:#05060e;vertical-align:middle">LIVE</span></a>${L('/services', 'Marketplace')}${L('/wizard', 'Find my plan')}${L('/store', 'Store')}${L('/crypto-fiat-bridge', 'Crypto Bridge')}${L('/enterprise', 'Enterprise')}${L('/pricing', 'Pricing')}${L('/innovations', 'Innovations')}${L('/frontier', 'Frontier')}${L('/docs', 'API')}${L('/status', 'Status')}
 </div>
 <div class="nav-cta">
 ${langToggle}
@@ -529,6 +529,7 @@ function footer(route, opts) {
       <p style="color:var(--ink-dim);font-size:13.5px;line-height:1.6;max-width:360px">Autonomous AI operating system. Every module signed with W3C DID. Every outcome routed through Merkle-chained receipts. Property of ${OWNER.name}.</p>
     </div>
     <div><h3 class="footer-col-title">Product</h3><ul>
+      <li><a href="/zacc" data-link><strong style="color:#8a5cff">⚡ Autonomous Commerce</strong></a></li>
       <li><a href="/services" data-link>Marketplace</a></li>
       <li><a href="/wizard" data-link>Find my plan</a></li>
       <li><a href="/pricing" data-link>Pricing</a></li>
@@ -944,6 +945,28 @@ function pageHome() {
   ${_ssrCatalogGrid(_featured, { gridId: 'homeFeaturedGrid', minCol: 280 })}
   <p style="text-align:center;margin:18px 0 0"><a class="btn btn-ghost" href="/services" data-link>Browse the full catalogue →</a></p>
 </section>` : '';
+  // ZACC — Zeus Autonomic Commerce Core banner. Shown right after the hero,
+  // before any other section, so the world\u2019s first fully-autonomous economic
+  // engine is impossible to miss from the homepage.
+  const _zaccBanner = `<section id="homeZacc" style="margin:48px 0 0">
+  <div class="card" style="padding:36px;background:linear-gradient(135deg,rgba(138,92,255,.18),rgba(62,160,255,.10));border:1px solid rgba(138,92,255,.45);border-radius:18px;display:grid;grid-template-columns:1.4fr 1fr;gap:32px;align-items:center">
+    <div>
+      <span class="hero-eyebrow" style="background:linear-gradient(135deg,#8a5cff,#3ea0ff);color:#05060e;font-weight:800;padding:5px 12px;border-radius:999px;font-size:11px;letter-spacing:.1em">\u26a1 NEW \u00b7 WORLD-FIRST</span>
+      <h2 style="margin:14px 0 6px;font-size:clamp(26px,3vw,40px);line-height:1.1">Zeus Autonomic Commerce <span class="grad">\u2014 the first fully-autonomous economic engine</span></h2>
+      <p style="color:var(--ink-dim);font-size:15px;margin:0 0 18px;line-height:1.55">It scans 20+ market sources, synthesises product ideas, builds &amp; prices them, sells in BTC (confirmed on-chain via mempool.space), heals itself, learns weekly and evolves monthly. <strong>Zero human in the loop.</strong></p>
+      <div style="display:flex;gap:12px;flex-wrap:wrap">
+        <a class="btn btn-primary" href="/zacc" data-link>\u26a1 Open Autonomous Commerce \u2192</a>
+        <a class="btn btn-ghost" href="/api/zacc/public" target="_blank" rel="noopener">Live JSON snapshot</a>
+      </div>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:10px">
+      <div style="background:rgba(0,0,0,.25);border-radius:12px;padding:14px"><div style="font-size:11px;color:var(--ink-dim);text-transform:uppercase;letter-spacing:.08em">9 components</div><div style="font-size:18px;font-weight:700;margin-top:4px">All autonomous</div></div>
+      <div style="background:rgba(0,0,0,.25);border-radius:12px;padding:14px"><div style="font-size:11px;color:var(--ink-dim);text-transform:uppercase;letter-spacing:.08em">21 sources</div><div style="font-size:18px;font-weight:700;margin-top:4px">Market scanner</div></div>
+      <div style="background:rgba(0,0,0,.25);border-radius:12px;padding:14px"><div style="font-size:11px;color:var(--ink-dim);text-transform:uppercase;letter-spacing:.08em">BTC \u00b7 on-chain</div><div style="font-size:18px;font-weight:700;margin-top:4px">Verified payouts</div></div>
+      <div style="background:rgba(0,0,0,.25);border-radius:12px;padding:14px"><div style="font-size:11px;color:var(--ink-dim);text-transform:uppercase;letter-spacing:.08em">Persistent</div><div style="font-size:18px;font-weight:700;margin-top:4px">Self-learning</div></div>
+    </div>
+  </div>
+</section>`;
   return `<section class="hero">
   <div class="zeus-scene" aria-hidden="true">
     <picture><source type="image/avif" srcset="${assetPath('/assets/zeus/hero-640.avif')} 640w, ${assetPath('/assets/zeus/hero.avif')} 800w" sizes="100vw"/><source type="image/webp" srcset="${assetPath('/assets/zeus/hero-640.webp')} 640w, ${assetPath('/assets/zeus/hero.webp')} 800w" sizes="100vw"/><img id="zeusHeroImg" class="zeus-hero-image" src="${assetPath('/assets/zeus/hero-640.jpg')}" srcset="${assetPath('/assets/zeus/hero-640.jpg')} 640w, ${assetPath('/assets/zeus/hero.jpg')} 800w" sizes="100vw" data-zeus-src="${assetPath('/assets/zeus/hero.jpg')}" alt="" width="1600" height="900" decoding="async" fetchpriority="high" loading="eager" onerror="this.onerror=null;this.src='${assetPath('/assets/zeus/placeholder.svg')}'"/></picture>
@@ -984,6 +1007,8 @@ function pageHome() {
     </div>
   </div>
 </section>
+
+${_zaccBanner}
 
 ${_featuredHtml}
 
