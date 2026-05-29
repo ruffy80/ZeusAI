@@ -15,46 +15,18 @@
 'use strict';
 
 const { OWNER_BTC, now, slug, round2, shortId, logger } = require('./util');
+const describe = require('./describe');
 
 const log = logger('publisher');
 
 const DAILY_TARGET = Number(process.env.ZACC_PUBLISH_PER_TICK || 4); // per orchestrator tick
 const MAX_PUBLISHED = Number(process.env.ZACC_MAX_PUBLISHED || 200);
 const REPUBLISH_COOLDOWN_MS = Number(process.env.ZACC_REPUBLISH_MS || 24 * 60 * 60 * 1000);
+const AI_DESCRIPTIONS = process.env.ZACC_AI_DESCRIPTIONS !== '0'; // on by default
 
 // Best-effort hook into the existing AGI/AGE module for a richer marketing
 // description. If unavailable, falls back to a deterministic template — both
 // paths return plausible, on-brand copy.
-function _agiDescribe(product) {
-  try {
-    const agi = require('../agi-core');
-    if (agi && typeof agi.generateProductDescription === 'function') {
-      const txt = agi.generateProductDescription(product);
-      if (txt && typeof txt === 'string') return txt.slice(0, 600);
-    }
-  } catch (_) { /* AGI not available — fall through */ }
-  try {
-    const age = require('../age-core');
-    if (age && typeof age.describe === 'function') {
-      const txt = age.describe(product);
-      if (txt && typeof txt === 'string') return txt.slice(0, 600);
-    }
-  } catch (_) { /* AGE not available — fall through */ }
-  // Deterministic, sales-ready fallback. Bilingual-friendly, on-brand.
-  const benefit = product.category === 'electronics' ? 'engineered for daily reliability'
-    : product.category === 'fitness' ? 'designed for visible, measurable progress'
-    : product.category === 'beauty' ? 'crafted for a salon-grade finish at home'
-    : product.category === 'home' ? 'made to elevate the rooms you actually live in'
-    : product.category === 'pet' ? 'built around the needs of pets and the people who love them'
-    : product.category === 'kitchen' ? 'made for the cooks who want effortless precision'
-    : product.category === 'office' ? 'tuned for people who ship work, not waste time'
-    : 'crafted for performance, longevity and instant payoff';
-  return [
-    product.name + ' — ' + benefit + '.',
-    'Hand-picked by Zeus Autonomic Commerce Core after scoring across price, demand, and reviews (' + (product.reviews || 0) + ' verified, ' + (product.rating || 4.5) + '/5).',
-    'Ships globally. Pay in Bitcoin. The system handles sourcing, dispatch and delivery end-to-end — zero manual steps.',
-  ].join(' ');
-}
 
 class AutoPublisher {
   constructor(ctx) {
@@ -82,7 +54,7 @@ class AutoPublisher {
   // Build a single publishable product from a scored candidate.
   _materialize(scored) {
     const id = 'dropship-' + slug(scored.name) + '-' + shortId('').slice(-6);
-    const description = _agiDescribe(scored);
+    const description = describe.template(scored);
     const item = {
       id,
       title: scored.name,
@@ -138,6 +110,14 @@ class AutoPublisher {
       // Push into main catalog sink (so it shows in /api/services + storefront).
       if (this._sink) {
         try { this._sink(item); } catch (e) { log.warn('sink failed:', e.message); }
+      }
+      // Best-effort: upgrade the template copy to a real AI-written description
+      // asynchronously. Mutates the live product object in place; the next page
+      // refresh shows the AI copy. Never blocks the autonomous loop.
+      if (AI_DESCRIPTIONS) {
+        describe.ai(item).then((txt) => {
+          if (txt) { item.description = txt; item.aiDescribed = true; }
+        }).catch(() => { /* fail-soft */ });
       }
     }
     if (added.length) {
