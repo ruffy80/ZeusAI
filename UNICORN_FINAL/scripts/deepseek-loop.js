@@ -310,6 +310,28 @@ function getAdvisorProviders() {
       headers: {},
     });
   }
+
+  // ── Keyless / free cloud fallbacks ──
+  // If no keyed provider was found, auto-connect to free providers so the loop
+  // can operate without any API key at all (auto-connect la provideri gratuiți).
+  if (!providers.length) {
+    providers.push({
+      name: 'pollinations-free',
+      url: 'https://text.pollinations.ai/openai/chat/completions',
+      key: '',
+      model: 'openai',
+      headers: {},
+      keyless: true,
+    });
+    providers.push({
+      name: 'huggingface-free',
+      url: 'https://router.huggingface.co/v1/chat/completions',
+      key: '',
+      model: 'meta-llama/Llama-3.2-3B-Instruct',
+      headers: {},
+      keyless: true,
+    });
+  }
   return providers;
 }
 
@@ -450,7 +472,9 @@ async function collectStatus() {
 // ---------- DeepSeek call ----------
 async function askDeepSeek(status) {
   const providers = getAdvisorProviders();
-  if (!providers.length) throw new Error('missing_deepseek_advisor_provider_key');
+  if (!providers.length) {
+    log('warn', 'advisor_no_providers', { reason: 'no keyed or keyless providers available, trying local fallbacks' });
+  }
   const systemPrompt =
     'You are the autonomous DeepSeek operator for the Unicorn server/backend and the zeusai.pro platform, owned by Vladoi Ionut (BTC settlement address bc1q4f7e66z87mdfj56kz0dj5hvcnpmh0qh4wuv22e). ' +
     'Mission: run the Unicorn server/backend and the public site as one full-stack organism, keep both healthy, then build the most powerful autonomous SaaS in the world — global standard for >30 years — designed to generate billions of USD in annual revenue and settle automatically to the owner\'s BTC address. ' +
@@ -499,15 +523,17 @@ async function askDeepSeek(status) {
     response_format: { type: 'json_object' },
   });
     try {
+      const hdrs = {
+        ...provider.headers,
+        'Content-Type': 'application/json',
+        'Content-Length': Buffer.byteLength(body),
+      };
+      // Only set Authorization for keyed providers (skip for keyless/free).
+      if (provider.key) hdrs['Authorization'] = 'Bearer ' + provider.key;
       const res = await request(provider.url, {
         method: 'POST',
         timeoutMs: 30_000,
-        headers: {
-          ...provider.headers,
-          'Authorization': 'Bearer ' + provider.key,
-          'Content-Type': 'application/json',
-          'Content-Length': Buffer.byteLength(body),
-        },
+        headers: hdrs,
       }, body);
       if (res.status < 200 || res.status >= 300) {
         const err = new Error(provider.name + '_http_' + res.status);

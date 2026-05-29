@@ -77,9 +77,11 @@ jobs:
             echo "provider_count=${count}" >> "$GITHUB_OUTPUT"
             echo "✅ ${count} provider key(s) detected — autopilot will run."
           else
-            echo "has_provider=0" >> "$GITHUB_OUTPUT"
+            # No keyed provider — autopilot will auto-connect to free/keyless
+            # providers (pollinations, huggingface). Workflow still runs.
+            echo "has_provider=1" >> "$GITHUB_OUTPUT"
             echo "provider_count=0" >> "$GITHUB_OUTPUT"
-            echo "::notice::No DEEPSEEK_API_KEY / OPENROUTER_API_KEY / GROQ_API_KEY secret set — autopilot will log a hint and skip. Set one to activate."
+            echo "::notice::No DEEPSEEK_API_KEY / OPENROUTER_API_KEY / GROQ_API_KEY secret set — autopilot will auto-connect to free keyless providers (pollinations, huggingface)."
           fi
 
       - name: 🧠 Run autopilot tick
