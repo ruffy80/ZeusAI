@@ -6887,6 +6887,47 @@ app.get('/api/payment/methods', (req, res) => {
   res.json({ methods: paymentGateway.getPaymentMethods() });
 });
 
+// Public payment configuration status. BTC-direct is the primary, always-on
+// owner-wallet rail; external providers (Stripe/PayPal/BTCPay/NOWPayments) are
+// optional and reported as inactive until their secrets are configured.
+// Served by the backend because nginx routes /api/* to port 3000.
+app.get('/api/payments/config/status', (req, res) => {
+  const _set = (k) => {
+    const v = (process.env[k] || '').trim();
+    return !!v && !/^your_|_here$|^changeme$|^placeholder$/i.test(v);
+  };
+  const stripeConfigured = _set('STRIPE_SECRET_KEY');
+  const paypalConfigured = _set('PAYPAL_CLIENT_ID') && _set('PAYPAL_CLIENT_SECRET');
+  const btcpayConfigured = _set('BTCPAY_SERVER_URL') && _set('BTCPAY_API_KEY') && _set('BTCPAY_STORE_ID');
+  const nowConfigured = _set('NOWPAYMENTS_API_KEY');
+  const nowIpnConfigured = _set('NOWPAYMENTS_IPN_SECRET');
+  const rails = [
+    { id: 'btc-direct', configured: true, active: true, primary: true, mode: 'owner-wallet-primary', payoutDestination: __OWNER_BTC, action: 'none' },
+    { id: 'stripe', configured: stripeConfigured, active: stripeConfigured, primary: false, mode: stripeConfigured ? 'checkout-api' : 'optional-later', action: stripeConfigured ? 'none' : 'optional: configure STRIPE_SECRET_KEY later' },
+    { id: 'btcpay', configured: btcpayConfigured, active: btcpayConfigured, primary: false, mode: btcpayConfigured ? 'invoice-api' : 'optional-later', action: btcpayConfigured ? 'none' : 'optional: configure BTCPAY_SERVER_URL, BTCPAY_API_KEY, BTCPAY_STORE_ID later' },
+    { id: 'paypal', configured: paypalConfigured, active: paypalConfigured, primary: false, mode: paypalConfigured ? 'orders-api' : 'optional-later', action: paypalConfigured ? 'none' : 'optional: configure PAYPAL_CLIENT_ID and PAYPAL_CLIENT_SECRET later' },
+    { id: 'nowpayments', configured: nowConfigured, active: nowConfigured, primary: false, mode: nowConfigured ? 'global-crypto' : 'optional-later', action: (nowConfigured && nowIpnConfigured) ? 'none' : 'optional: configure NOWPAYMENTS_API_KEY and NOWPAYMENTS_IPN_SECRET later' },
+  ];
+  res.set('Cache-Control', 'no-cache');
+  res.json({
+    ok: true,
+    generatedAt: new Date().toISOString(),
+    mode: 'BTC direct owner-wallet primary; external providers optional later',
+    primaryRail: 'btc-direct',
+    primaryPayout: { currency: 'BTC', address: __OWNER_BTC, automatic: true, custody: 'owner-controlled-wallet' },
+    nowpayments: {
+      apiKeyConfigured: nowConfigured,
+      ipnSecretConfigured: nowIpnConfigured,
+      webhookSecurityReady: nowIpnConfigured,
+      sandbox: process.env.NOWPAYMENTS_SANDBOX === '1',
+      optionalSecrets: ['NOWPAYMENTS_API_KEY', 'NOWPAYMENTS_IPN_SECRET'],
+      requiredForCurrentMode: false,
+    },
+    rails,
+    action: 'No action needed for current mode: revenue routes directly to the configured BTC owner wallet. Stripe/NOWPayments/PayPal can be enabled later as optional rails.',
+  });
+});
+
 app.get('/api/payment/btc-rate', async (req, res) => {
   try {
     res.json(await paymentGateway.getBitcoinRate());
