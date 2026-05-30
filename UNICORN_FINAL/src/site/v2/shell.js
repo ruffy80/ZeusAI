@@ -2005,16 +2005,19 @@ function pageAccount(opts) {
     });
   }
 
-  // ── Server interactions (30s timeout; network failures return status 0) ──
-  function api(path, body) {
+  // ── Server interactions ──
+  // Each attempt has a 15s timeout; transient failures (server cold-start,
+  // restart race, nginx 502/timeout → status 0) are auto-retried with
+  // exponential backoff so a briefly-unresponsive server self-recovers
+  // instead of dumping "Server timeout" on the user.
+  var API_TIMEOUT_MS = 15000;
+  var API_MAX_ATTEMPTS = 3; // 1 initial + 2 retries
+  function _delay(ms){ return new Promise(function(resolve){ setTimeout(resolve, ms); }); }
+  function _fetchOnce(path, opts) {
     var ctrl = typeof AbortController !== 'undefined' ? new AbortController() : null;
-    var tid = ctrl ? setTimeout(function(){ ctrl.abort(); }, 30000) : null;
-    return fetch(path, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body || {}),
-      signal: ctrl ? ctrl.signal : undefined
-    }).then(function(r){
+    var tid = ctrl ? setTimeout(function(){ ctrl.abort(); }, API_TIMEOUT_MS) : null;
+    opts.signal = ctrl ? ctrl.signal : undefined;
+    return fetch(path, opts).then(function(r){
       if (tid) clearTimeout(tid);
       return r.json().then(function(j){ return { status: r.status, body: j }; });
     }).catch(function(e){
@@ -2023,19 +2026,28 @@ function pageAccount(opts) {
       return { status: 0, body: { ok: false, error: code } };
     });
   }
+  // Retry only on transient transport failures (status 0). Real HTTP responses
+  // (4xx/5xx) are returned to the caller unchanged so existing handlers keep
+  // their precise error semantics (e.g. challenge_invalid_or_expired retries).
+  function _fetchRetry(path, opts, attempt) {
+    attempt = attempt || 1;
+    return _fetchOnce(path, opts).then(function(res){
+      if (res.status === 0 && attempt < API_MAX_ATTEMPTS) {
+        return _delay(600 * attempt).then(function(){ return _fetchRetry(path, opts, attempt + 1); });
+      }
+      return res;
+    });
+  }
+  function api(path, body) {
+    return _fetchRetry(path, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body || {})
+    });
+  }
   function apiGet(path, token) {
-    var ctrl = typeof AbortController !== 'undefined' ? new AbortController() : null;
-    var tid = ctrl ? setTimeout(function(){ ctrl.abort(); }, 30000) : null;
-    return fetch(path, {
-      headers: token ? { 'Authorization': 'Bearer ' + token } : {},
-      signal: ctrl ? ctrl.signal : undefined
-    }).then(function(r){
-      if (tid) clearTimeout(tid);
-      return r.json().then(function(j){ return { status: r.status, body: j }; });
-    }).catch(function(e){
-      if (tid) clearTimeout(tid);
-      var code = (e && e.name === 'AbortError') ? 'timeout' : 'network_error';
-      return { status: 0, body: { ok: false, error: code } };
+    return _fetchRetry(path, {
+      headers: token ? { 'Authorization': 'Bearer ' + token } : {}
     });
   }
   function friendlyError(code) {
