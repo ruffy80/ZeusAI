@@ -4756,6 +4756,12 @@ async function unicornHandler(req, res) {
         'function esc(s){return String(s==null?"":s).replace(/[&<>"]/g,function(c){return{"&":"&amp;","<":"&lt;",">":"&gt;",\'"\':"&quot;"}[c];});}',
         'function card(t,v,s){return\'<div class="card"><h3>\'+esc(t)+\'</h3><div class="v">\'+v+\'</div><div class="sub">\'+esc(s||"")+\'</div></div>\';}',
         'function money(n){return"$"+Number(n||0).toLocaleString("en-US",{maximumFractionDigits:2});}',
+        // Robust product media: a real <img> (lazy-loaded) over a gradient/category
+        // placeholder. If the remote photo 404s or the source is offline the <img>
+        // removes itself (onerror) and the placeholder shows — the store never
+        // renders as a grid of broken images. Single/double quotes are valid HTML
+        // here (NEVER backslash-escaped quotes, which silently break the attribute).
+        'function imgBox(p,rad,mb){var r=rad||"8px";var m=mb?"margin-bottom:"+mb+"px;":"";var ph=\'<span style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.06em">\'+esc(p.category||"product")+\'</span>\';var im=p.image?\'<img src="\'+esc(p.image)+\'" alt="\'+esc(p.title||"")+\'" loading="lazy" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover" onerror="this.remove()">\':"";return \'<div style="position:relative;aspect-ratio:1/1;border-radius:\'+r+\';overflow:hidden;\'+m+\'background:linear-gradient(135deg,#1a1a2e,#0d0d1a)">\'+ph+im+\'</div>\';}',
         // Admin token from sessionStorage (set once, stays for session)
         'function adminToken(){return sessionStorage.getItem("zacc_admin_token")||"";}',
         // Approve idea (admin-only)
@@ -4823,7 +4829,7 @@ async function unicornHandler(req, res) {
         // Ideas with Approve button for proposed ones
         '  var ideas=d.ideas||[];',
         '  document.getElementById("zc-ideas").innerHTML=ideas.length?ideas.map(function(i){',
-        '    var approveBtn=i.status==="proposed"?\'<button onclick="approveIdea(\\"\'+esc(i.id)+\'\\",this)" style="margin-top:10px;font-size:11px;padding:4px 10px">Approve \u2192</button>\':"";',
+        '    var approveBtn=i.status==="proposed"?\'<button type="button" data-approve data-id="\'+esc(i.id)+\'" style="margin-top:10px;font-size:11px;padding:4px 10px">Approve \u2192</button>\':"";',
         '    return \'<div class="card"><h3>\'+esc(i.name)+\'</h3><div class="v">\'+money(i.priceUsd)+\'</div><div class="sub">\'+esc(i.type)+\' \u00b7 margin \'+Math.round(i.marginPct||0)+\'% \u00b7 \'+esc(i.status)+\'</div>\'+approveBtn+\'</div>\';',
         '  }).join(""):card("Ideas","synthesising\u2026","first batch within the hour");',
         // Products with BTC Invoice button
@@ -4834,13 +4840,13 @@ async function unicornHandler(req, res) {
         '    +\'<div style="font-size:16px;font-weight:600;margin:6px 0">\'+esc(p.title)+\'</div>\'',
         '    +\'<div class="v">\'+money(p.priceUsd)+\'</div>\'',
         '    +\'<p style="color:var(--muted);font-size:12px;margin:8px 0 14px;min-height:48px">\'+esc((p.description||"").slice(0,140))+\'</p>\'',
-        '    +\'<button onclick="openInvoice(\\"\'+esc(p.id)+\'\\",\\"\'+esc(p.title)+\'\\",\'+Number(p.priceUsd||0)+\')" style="width:100%">Pay with BTC (on-chain) \u2192</button>\'',
+        '    +\'<button type="button" data-buy data-pid="\'+esc(p.id)+\'" data-title="\'+esc(p.title)+\'" data-price="\'+Number(p.priceUsd||0)+\'" style="width:100%">Pay with BTC (on-chain) \u2192</button>\'',
         '    +\'</div>\';',
         '  }).join(""):card("Products","building\u2026","approved ideas materialise here");',
         // Auto-scraped dropship products — clickable through to the product page.
         '  var ds=d.dropship||[];',
         '  document.getElementById("zc-dropship").innerHTML=ds.length?ds.map(function(p){',
-        '    var img=p.image?\'<div style="aspect-ratio:1/1;background:#0d0d1a url(\\"\'+esc(p.image)+\'\\") center/cover no-repeat;border-radius:8px;margin-bottom:10px"></div>\':\'<div style="aspect-ratio:1/1;background:linear-gradient(135deg,#1a1a2e,#0d0d1a);border-radius:8px;margin-bottom:10px;display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:11px">\'+esc(p.category||"product")+\'</div>\';',
+        '    var img=imgBox(p,"8px",10);',
         '    var badge=p.netProfitUsd>0?\'<span style="display:inline-block;background:rgba(124,58,237,.18);color:var(--accent);font-size:10px;padding:2px 8px;border-radius:999px;margin-left:6px">+\'+money(p.netProfitUsd)+\'</span>\':"";',
         '    return \'<a href="/dropship/product/\'+encodeURIComponent(p.id)+\'" style="text-decoration:none;color:inherit"><div class="card" style="padding:16px">\'+img',
         '    +\'<div style="font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:var(--accent)">\'+esc(p.category||"general")+\' \u00b7 \'+esc(p.source||"sourced")+\'</div>\'',
@@ -4865,6 +4871,11 @@ async function unicornHandler(req, res) {
         '    card("3 \u00b7 Publisher",(pb.published||0)+" live",(pb.perTick||0)+"/tick \u00b7 "+(pb.lifetime||0)+" lifetime")+',
         '    card("4 \u00b7 Fulfilment",(fl.routed||0)+" routed",(fl.pending||0)+" pending \u00b7 "+(fl.autoFulfilled||0)+" auto");',
         '}).catch(function(){});}',
+        // Bind delegated click handlers ONCE (the grids are re-rendered every few
+        // seconds; inline onclick with embedded product data is both fragile and
+        // XSS-prone, so we read id/title/price from data-* attributes instead).
+        'var _zp=document.getElementById("zc-products");if(_zp)_zp.addEventListener("click",function(e){var b=e.target&&e.target.closest?e.target.closest("[data-buy]"):null;if(!b)return;openInvoice(b.getAttribute("data-pid"),b.getAttribute("data-title")||"",Number(b.getAttribute("data-price")||0));});',
+        'var _zi=document.getElementById("zc-ideas");if(_zi)_zi.addEventListener("click",function(e){var b=e.target&&e.target.closest?e.target.closest("[data-approve]"):null;if(!b)return;approveIdea(b.getAttribute("data-id"),b);});',
         'refresh();setInterval(refresh,5000);',
         'refreshPipeline();setInterval(refreshPipeline,8000);',
         '})();',
@@ -4963,11 +4974,14 @@ async function unicornHandler(req, res) {
         '  sel.innerHTML=\'<option value="">All categories</option>\'+cats.map(function(c){return\'<option value="\'+esc(c)+\'">\'+esc(c)+\'</option>\';}).join("");',
         '  sel.value=cur;',
         '}',
+        // Robust product media — real lazy <img> over a gradient/category placeholder
+        // with an onerror fallback so a dead remote photo never breaks the layout.
+        'function imgBox(p,rad,mb){var r=rad||"8px";var m=mb?"margin-bottom:"+mb+"px;":"";var ph=\'<span style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.06em">\'+esc(p.category||"product")+\'</span>\';var im=p.image?\'<img src="\'+esc(p.image)+\'" alt="\'+esc(p.title||"")+\'" loading="lazy" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover" onerror="this.remove()">\':"";return \'<div style="position:relative;aspect-ratio:1/1;border-radius:\'+r+\';overflow:hidden;\'+m+\'background:linear-gradient(135deg,#1a1a2e,#0d0d1a)">\'+ph+im+\'</div>\';}',
         'function renderGrid(items){',
         '  var g=document.getElementById("ds-grid");',
         '  if(!items||!items.length){g.innerHTML=card("Catalog","warming up","first scrape running \u2014 products appear within minutes");return;}',
         '  g.innerHTML=items.map(function(p){',
-        '    var img=p.image?\'<div style="aspect-ratio:1/1;background:#0d0d1a url(\\"\'+esc(p.image)+\'\\") center/cover no-repeat;border-radius:8px;margin-bottom:12px"></div>\':\'<div style="aspect-ratio:1/1;background:linear-gradient(135deg,#1a1a2e,#0d0d1a);border-radius:8px;margin-bottom:12px;display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:11px">\'+esc(p.category||"product")+\'</div>\';',
+        '    var img=imgBox(p,"8px",12);',
         '    var stars=Math.round((p.rating||0)*10)/10;',
         '    var profitBadge=p.netProfitUsd>0?\'<span style="display:inline-block;background:rgba(124,58,237,.18);color:var(--accent);font-size:10px;padding:2px 8px;border-radius:999px;margin-left:6px">+\'+money(p.netProfitUsd)+\' margin</span>\':"";',
         '    return \'<div class="card" style="padding:18px">\'+img',
@@ -4976,7 +4990,7 @@ async function unicornHandler(req, res) {
         '    +\'<div class="v" style="font-size:22px">\'+money(p.priceUsd)+profitBadge+\'</div>\'',
         '    +\'<div style="font-size:11px;color:var(--muted);margin:6px 0">\u2605 \'+stars+\' \u00b7 \'+Number(p.reviews||0).toLocaleString()+\' reviews\u00b7 \'+Math.round(p.marginPct||0)+\'% margin</div>\'',
         '    +\'<p style="color:var(--muted);font-size:12px;margin:8px 0 14px;min-height:48px">\'+esc((p.description||"").slice(0,120))+\'\u2026</p>\'',
-        '    +\'<button onclick="openInvoice(\\"\'+esc(p.id)+\'\\",\\"\'+esc(p.title)+\'\\")" style="width:100%">Buy with BTC \u2192</button>\'',
+        '    +\'<button type="button" data-buy data-pid="\'+esc(p.id)+\'" data-title="\'+esc(p.title)+\'" style="width:100%">Buy with BTC \u2192</button>\'',
         '    +\'</div>\';',
         '  }).join("");',
         '}',
@@ -5003,6 +5017,10 @@ async function unicornHandler(req, res) {
         'document.getElementById("ds-sort").addEventListener("change",refresh);',
         'document.getElementById("ds-category").addEventListener("change",refresh);',
         'var _qt;document.getElementById("ds-search").addEventListener("input",function(){clearTimeout(_qt);_qt=setTimeout(refresh,300);});',
+        // Delegated Buy handler bound ONCE — the grid re-renders every 10s, so we
+        // read the product id/title from data-* attributes instead of fragile
+        // inline onclick (which also breaks on titles containing quotes).
+        'document.getElementById("ds-grid").addEventListener("click",function(e){var b=e.target&&e.target.closest?e.target.closest("[data-buy]"):null;if(!b)return;openInvoice(b.getAttribute("data-pid"),b.getAttribute("data-title")||"");});',
         'refresh();setInterval(refresh,10000);',
         '})();',
       ].join('');
@@ -5064,7 +5082,9 @@ async function unicornHandler(req, res) {
         '  }).catch(function(){document.getElementById("zc-inv-status").textContent="Network error";});',
         '}',
         'function render(p){',
-        '  var img=p.image?\'<div style="aspect-ratio:1/1;background:#0d0d1a url(\\"\'+esc(p.image)+\'\\") center/cover no-repeat;border-radius:12px"></div>\':\'<div style="aspect-ratio:1/1;background:linear-gradient(135deg,#1a1a2e,#0d0d1a);border-radius:12px;display:flex;align-items:center;justify-content:center;color:var(--muted)">\'+esc(p.category||"product")+\'</div>\';',
+        // Robust product media — real lazy <img> with onerror fallback to a
+        // gradient/category placeholder (never a broken image).
+        '  var img=\'<div style="position:relative;aspect-ratio:1/1;border-radius:12px;overflow:hidden;background:linear-gradient(135deg,#1a1a2e,#0d0d1a)"><span style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:var(--muted)">\'+esc(p.category||"product")+\'</span>\'+(p.image?\'<img src="\'+esc(p.image)+\'" alt="\'+esc(p.title||"")+\'" loading="lazy" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover" onerror="this.remove()">\':"")+\'</div>\';',
         '  document.getElementById("dp-root").innerHTML=\'<div style="display:grid;grid-template-columns:1fr 1.4fr;gap:32px;align-items:start">\'',
         '    +img',
         '    +\'<div><div style="font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--accent)">\'+esc(p.category||"general")+\' \u00b7 \'+esc(p.source||"sourced")+\'</div>\'',
@@ -5073,9 +5093,11 @@ async function unicornHandler(req, res) {
         '    +\'<div class="v" style="font-size:32px">\'+money(p.priceUsd)+\'</div>\'',
         '    +\'<div style="font-size:12px;color:var(--muted);margin:4px 0 18px">Margin \'+Math.round(p.marginPct||0)+\'% \u00b7 ETA \'+esc((p.delivery&&p.delivery.etaDays)||"7-21 days")+\'</div>\'',
         '    +\'<p style="color:var(--text);font-size:15px;line-height:1.6;margin:0 0 20px">\'+esc(p.description||"")+\'</p>\'',
-        '    +\'<button onclick="openInvoice(\\"\'+esc(p.id)+\'\\",\\"\'+esc(p.title)+\'\\")" style="padding:14px 26px;font-size:16px">Buy with BTC (on-chain) \u2192</button>\'',
+        '    +\'<button type="button" id="dp-buy" style="padding:14px 26px;font-size:16px">Buy with BTC (on-chain) \u2192</button>\'',
         '    +\'<p style="font-size:11px;color:var(--muted);margin-top:14px">Payments verified on-chain via mempool.space. Fulfilment auto-routed to supplier. No accounts required.</p>\'',
         '    +\'</div></div>\';',
+        // Bind the Buy button from the product closure — quote-safe, no inline JS.
+        '  var bb=document.getElementById("dp-buy");if(bb)bb.addEventListener("click",function(){openInvoice(p.id,p.title);});',
         '}',
         'fetch("/api/dropship/product/"+encodeURIComponent(PID),{cache:"no-store"}).then(function(r){return r.json();}).then(function(d){',
         '  if(!d.ok||!d.product){document.getElementById("dp-root").innerHTML=\'<p style="color:var(--muted)">Product not found or still being prepared. <a href="/dropship" style="color:var(--accent)">Browse the store \u2192</a></p>\';return;}',
