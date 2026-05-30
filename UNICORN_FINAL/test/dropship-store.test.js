@@ -84,7 +84,11 @@ assert.ok(
 
 // The product detail page binds Buy from the product closure (quote-safe).
 assert.ok(
-  SRC.indexOf('id="dp-buy"') !== -1 && /getElementById\("dp-buy"\)[^]*addEventListener\("click"/.test(SRC),
+  SRC.indexOf('id="dp-buy"') !== -1,
+  'EXPECTED: the /dropship/product page Buy button should carry id="dp-buy".'
+);
+assert.ok(
+  /getElementById\("dp-buy"\)[\s\S]*addEventListener\("click"/.test(SRC),
   'EXPECTED: the /dropship/product page should bind #dp-buy via addEventListener.'
 );
 
