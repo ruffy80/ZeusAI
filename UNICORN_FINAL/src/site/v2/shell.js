@@ -2033,7 +2033,7 @@ function pageAccount(opts) {
     attempt = attempt || 1;
     return _fetchOnce(path, opts).then(function(res){
       if (res.status === 0 && attempt < API_MAX_ATTEMPTS) {
-        return _delay(600 * attempt).then(function(){ return _fetchRetry(path, opts, attempt + 1); });
+        return _delay(600 * Math.pow(2, attempt - 1)).then(function(){ return _fetchRetry(path, opts, attempt + 1); });
       }
       return res;
     });
