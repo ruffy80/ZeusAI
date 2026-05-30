@@ -22,6 +22,11 @@ const log = logger('publisher');
 const DAILY_TARGET = Number(process.env.ZACC_PUBLISH_PER_TICK || 4); // per orchestrator tick
 const MAX_PUBLISHED = Number(process.env.ZACC_MAX_PUBLISHED || 200);
 const REPUBLISH_COOLDOWN_MS = Number(process.env.ZACC_REPUBLISH_MS || 24 * 60 * 60 * 1000);
+// Minimum number of products the live storefront must always carry. When the
+// live catalogue drops below this floor (e.g. after a state restore that lost
+// `published` but kept the cooldown map, or a cold boot), the publisher fills
+// it aggressively and IGNORES the republish cooldown so the page is never empty.
+const MIN_CATALOG = Math.max(0, Number(process.env.ZACC_MIN_CATALOG || 12));
 const AI_DESCRIPTIONS = process.env.ZACC_AI_DESCRIPTIONS !== '0'; // on by default
 
 // Best-effort hook into the existing AGI/AGE module for a richer marketing
@@ -49,6 +54,15 @@ class AutoPublisher {
     const k = this._sourceKey(rawProduct);
     const t = this.publishedAt.get(k) || 0;
     return Date.now() - t < REPUBLISH_COOLDOWN_MS;
+  }
+
+  // Source keys of the products currently LIVE in the catalogue. Used to dedupe
+  // so the same product is never listed twice, independent of the time-based
+  // cooldown (which can be bypassed when the catalogue is under-filled).
+  _liveSourceKeys() {
+    const set = new Set();
+    for (const p of this.published) set.add(this._sourceKey({ source: p.source, name: p.title }));
+    return set;
   }
 
   // Build a single publishable product from a scored candidate.
@@ -88,17 +102,32 @@ class AutoPublisher {
 
   // Publish up to `limit` of the highest-scoring qualified products. Skips
   // duplicates (already-published source key within the cooldown window).
+  //
+  // Self-heal: when the live catalogue is below MIN_CATALOG (e.g. a cold boot or
+  // a state restore that lost `published` but kept the cooldown map), the
+  // publisher fills aggressively up to the floor and bypasses the time-based
+  // cooldown — otherwise the storefront could stay empty for a full 24h despite
+  // hundreds of scraped + qualified products. Live duplicates are still skipped.
   publish(scoredTop, limit) {
-    const max = Math.max(1, Number(limit) || DAILY_TARGET);
+    const underFilled = this.published.length < MIN_CATALOG;
+    const baseLimit = Math.max(1, Number(limit) || DAILY_TARGET);
+    const max = underFilled
+      ? Math.max(baseLimit, MIN_CATALOG - this.published.length)
+      : baseLimit;
+    const liveKeys = this._liveSourceKeys();
     const added = [];
     for (const cand of (scoredTop || [])) {
       if (added.length >= max) break;
       if (!cand || !cand.name) continue;
-      if (this._alreadyRecent(cand)) continue;
+      // Never list the same product twice.
+      if (liveKeys.has(this._sourceKey(cand))) continue;
+      // Respect the republish cooldown only while the catalogue is healthy.
+      if (!underFilled && this._alreadyRecent(cand)) continue;
       const item = this._materialize(cand);
       this.published = [item].concat(this.published).slice(0, MAX_PUBLISHED);
       this.byId.set(item.id, item);
       this.publishedAt.set(this._sourceKey(cand), Date.now());
+      liveKeys.add(this._sourceKey(cand));
       added.push(item);
       // Seed dynamic pricing for the live price endpoint (best-effort).
       try {
@@ -169,6 +198,7 @@ class AutoPublisher {
       lifetime: this.publishes,
       lastPublishAt: this.lastPublishAt ? new Date(this.lastPublishAt).toISOString() : null,
       perTick: DAILY_TARGET,
+      catalogFloor: MIN_CATALOG,
       cooldownHours: REPUBLISH_COOLDOWN_MS / 3_600_000,
       categories: this.categories(),
       top: this.list({ limit: 5 }).map(p => ({ id: p.id, title: p.title, price: p.priceUsd, profit: p.netProfitUsd, score: p.profitPotential })),

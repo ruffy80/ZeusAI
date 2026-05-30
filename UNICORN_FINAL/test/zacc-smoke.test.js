@@ -177,6 +177,36 @@ const assert = require('assert');
   assert.ok(typeof pub2.counts.scraped === 'number', 'counts must include scraped');
   console.log('\u2713 zacc: public snapshot surfaces dropship catalog for the Autonomous Dropshipping page');
 
+  // --- 19) Self-heal: an empty live catalogue refills even under cooldown ----
+  // Reproduces the "200 scraped but storefront empty" bug: published lost but
+  // the republish-cooldown map retained. The publisher must bypass the cooldown
+  // and refill to the floor instead of starving the page for 24h.
+  {
+    const pubr = zacc.publisher;
+    const raw = zacc.scraper.recent(300);
+    const scored = zacc.profit.rank(raw);
+    assert.ok(scored.length >= 1, 'need qualified candidates to test self-heal');
+    // Simulate the broken restore: clear the live catalogue, keep cooldowns hot.
+    pubr.published = [];
+    pubr.byId.clear();
+    for (const c of scored) pubr.publishedAt.set(pubr._sourceKey(c), Date.now());
+    const healed = pubr.publish(scored, undefined);
+    assert.ok(healed.length >= 1, 'publisher must self-heal an empty catalogue despite the cooldown');
+    const floor = pubr.status().catalogFloor || 12;
+    assert.ok(pubr.published.length >= Math.min(scored.length, floor),
+      'live catalogue must be refilled toward the floor');
+    const titles = pubr.published.map(p => p.title);
+    assert.equal(new Set(titles).size, titles.length, 'self-heal must not create duplicate products');
+    console.log('\u2713 zacc: storefront self-heals from an empty catalogue (no 24h starvation, no duplicates)');
+  }
+
+  // --- 20) Seed catalogue ships real product imagery ---------------------
+  {
+    const withImages = zacc.publisher.published.filter(p => typeof p.image === 'string' && /^https?:\/\//.test(p.image));
+    assert.ok(withImages.length >= 1, 'published seed products must carry a real image URL so the store looks real');
+    console.log('\u2713 zacc: published products carry real product imagery (' + withImages.length + ' with photos)');
+  }
+
   console.log('\nZACC smoke test passed \u2014 the autonomous commerce core is live, persistent and on-chain.');
   zacc.stop();
   process.exit(0);

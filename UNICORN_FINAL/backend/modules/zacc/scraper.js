@@ -33,22 +33,26 @@ const FETCH_TIMEOUT_MS = 4500;
 // Curated seed catalogue — REAL product archetypes with realistic supplier
 // costs from public data (no platform-specific data, generic enough to ToS).
 // Used when no API keys are configured so the loop produces value on day one.
+// Each carries a real, keyword-matched product photo (LoremFlickr serves
+// Creative-Commons images) so the storefront looks like a real shop, not a grid
+// of empty placeholders, even before any live source is connected.
+const SEED_IMG = (kw, lock) => 'https://loremflickr.com/600/600/' + encodeURIComponent(kw) + '?lock=' + lock;
 const SEED_PRODUCTS = [
-  { source: 'seed', category: 'electronics', name: 'Wireless Charging Pad 15W Fast', costUsd: 6.5, shippingUsd: 3.2, suggestedRetailUsd: 24.99, rating: 4.6, reviews: 4820, image: '', url: '' },
-  { source: 'seed', category: 'electronics', name: 'Bluetooth Earbuds ANC', costUsd: 12.0, shippingUsd: 2.8, suggestedRetailUsd: 49.99, rating: 4.5, reviews: 8721, image: '', url: '' },
-  { source: 'seed', category: 'home', name: 'Smart LED Strip 5m WiFi', costUsd: 7.8, shippingUsd: 3.5, suggestedRetailUsd: 29.99, rating: 4.7, reviews: 12450, image: '', url: '' },
-  { source: 'seed', category: 'fitness', name: 'Resistance Bands Set Pro', costUsd: 4.2, shippingUsd: 2.5, suggestedRetailUsd: 19.99, rating: 4.6, reviews: 6320, image: '', url: '' },
-  { source: 'seed', category: 'pet', name: 'Self-Cleaning Pet Brush', costUsd: 3.1, shippingUsd: 2.0, suggestedRetailUsd: 14.99, rating: 4.5, reviews: 9870, image: '', url: '' },
-  { source: 'seed', category: 'kitchen', name: 'Electric Milk Frother USB-C', costUsd: 3.8, shippingUsd: 2.4, suggestedRetailUsd: 15.99, rating: 4.4, reviews: 5430, image: '', url: '' },
-  { source: 'seed', category: 'beauty', name: 'Heated Eyelash Curler USB', costUsd: 2.9, shippingUsd: 2.0, suggestedRetailUsd: 12.99, rating: 4.5, reviews: 11200, image: '', url: '' },
-  { source: 'seed', category: 'office', name: 'Standing Desk Converter', costUsd: 38.0, shippingUsd: 12.0, suggestedRetailUsd: 129.99, rating: 4.7, reviews: 2870, image: '', url: '' },
-  { source: 'seed', category: 'auto', name: 'Magnetic Phone Car Mount', costUsd: 2.4, shippingUsd: 1.8, suggestedRetailUsd: 11.99, rating: 4.5, reviews: 18650, image: '', url: '' },
-  { source: 'seed', category: 'fitness', name: 'Posture Corrector Adjustable', costUsd: 3.5, shippingUsd: 2.2, suggestedRetailUsd: 16.99, rating: 4.3, reviews: 7240, image: '', url: '' },
-  { source: 'seed', category: 'electronics', name: 'Mini Portable Projector HD', costUsd: 42.0, shippingUsd: 7.5, suggestedRetailUsd: 139.99, rating: 4.4, reviews: 3120, image: '', url: '' },
-  { source: 'seed', category: 'home', name: 'Aromatherapy Diffuser Wood Grain', costUsd: 5.6, shippingUsd: 3.0, suggestedRetailUsd: 24.99, rating: 4.6, reviews: 9450, image: '', url: '' },
-  { source: 'seed', category: 'kids', name: 'Magnetic Building Blocks 100pc', costUsd: 11.0, shippingUsd: 4.5, suggestedRetailUsd: 39.99, rating: 4.8, reviews: 6890, image: '', url: '' },
-  { source: 'seed', category: 'beauty', name: 'Microneedle Derma Roller Kit', costUsd: 4.2, shippingUsd: 2.3, suggestedRetailUsd: 18.99, rating: 4.4, reviews: 5780, image: '', url: '' },
-  { source: 'seed', category: 'travel', name: 'Compression Packing Cubes Set', costUsd: 8.5, shippingUsd: 3.2, suggestedRetailUsd: 32.99, rating: 4.7, reviews: 4120, image: '', url: '' },
+  { source: 'seed', category: 'electronics', name: 'Wireless Charging Pad 15W Fast', costUsd: 6.5, shippingUsd: 3.2, suggestedRetailUsd: 24.99, rating: 4.6, reviews: 4820, image: SEED_IMG('wireless,charger', 11), url: '' },
+  { source: 'seed', category: 'electronics', name: 'Bluetooth Earbuds ANC', costUsd: 12.0, shippingUsd: 2.8, suggestedRetailUsd: 49.99, rating: 4.5, reviews: 8721, image: SEED_IMG('earbuds,headphones', 12), url: '' },
+  { source: 'seed', category: 'home', name: 'Smart LED Strip 5m WiFi', costUsd: 7.8, shippingUsd: 3.5, suggestedRetailUsd: 29.99, rating: 4.7, reviews: 12450, image: SEED_IMG('led,light,strip', 13), url: '' },
+  { source: 'seed', category: 'fitness', name: 'Resistance Bands Set Pro', costUsd: 4.2, shippingUsd: 2.5, suggestedRetailUsd: 19.99, rating: 4.6, reviews: 6320, image: SEED_IMG('resistance,band,fitness', 14), url: '' },
+  { source: 'seed', category: 'pet', name: 'Self-Cleaning Pet Brush', costUsd: 3.1, shippingUsd: 2.0, suggestedRetailUsd: 14.99, rating: 4.5, reviews: 9870, image: SEED_IMG('pet,brush,dog', 15), url: '' },
+  { source: 'seed', category: 'kitchen', name: 'Electric Milk Frother USB-C', costUsd: 3.8, shippingUsd: 2.4, suggestedRetailUsd: 15.99, rating: 4.4, reviews: 5430, image: SEED_IMG('milk,frother,coffee', 16), url: '' },
+  { source: 'seed', category: 'beauty', name: 'Heated Eyelash Curler USB', costUsd: 2.9, shippingUsd: 2.0, suggestedRetailUsd: 12.99, rating: 4.5, reviews: 11200, image: SEED_IMG('eyelash,beauty,cosmetics', 17), url: '' },
+  { source: 'seed', category: 'office', name: 'Standing Desk Converter', costUsd: 38.0, shippingUsd: 12.0, suggestedRetailUsd: 129.99, rating: 4.7, reviews: 2870, image: SEED_IMG('standing,desk,office', 18), url: '' },
+  { source: 'seed', category: 'auto', name: 'Magnetic Phone Car Mount', costUsd: 2.4, shippingUsd: 1.8, suggestedRetailUsd: 11.99, rating: 4.5, reviews: 18650, image: SEED_IMG('phone,car,mount', 19), url: '' },
+  { source: 'seed', category: 'fitness', name: 'Posture Corrector Adjustable', costUsd: 3.5, shippingUsd: 2.2, suggestedRetailUsd: 16.99, rating: 4.3, reviews: 7240, image: SEED_IMG('posture,back,support', 20), url: '' },
+  { source: 'seed', category: 'electronics', name: 'Mini Portable Projector HD', costUsd: 42.0, shippingUsd: 7.5, suggestedRetailUsd: 139.99, rating: 4.4, reviews: 3120, image: SEED_IMG('projector,cinema', 21), url: '' },
+  { source: 'seed', category: 'home', name: 'Aromatherapy Diffuser Wood Grain', costUsd: 5.6, shippingUsd: 3.0, suggestedRetailUsd: 24.99, rating: 4.6, reviews: 9450, image: SEED_IMG('aromatherapy,diffuser', 22), url: '' },
+  { source: 'seed', category: 'kids', name: 'Magnetic Building Blocks 100pc', costUsd: 11.0, shippingUsd: 4.5, suggestedRetailUsd: 39.99, rating: 4.8, reviews: 6890, image: SEED_IMG('building,blocks,toy', 23), url: '' },
+  { source: 'seed', category: 'beauty', name: 'Microneedle Derma Roller Kit', costUsd: 4.2, shippingUsd: 2.3, suggestedRetailUsd: 18.99, rating: 4.4, reviews: 5780, image: SEED_IMG('skincare,beauty,roller', 24), url: '' },
+  { source: 'seed', category: 'travel', name: 'Compression Packing Cubes Set', costUsd: 8.5, shippingUsd: 3.2, suggestedRetailUsd: 32.99, rating: 4.7, reviews: 4120, image: SEED_IMG('packing,travel,luggage', 25), url: '' },
 ];
 
 class GlobalScraper {
