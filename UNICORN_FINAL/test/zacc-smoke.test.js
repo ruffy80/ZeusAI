@@ -192,7 +192,8 @@ const assert = require('assert');
     for (const c of scored) pubr.publishedAt.set(pubr._sourceKey(c), Date.now());
     const healed = pubr.publish(scored, undefined);
     assert.ok(healed.length >= 1, 'publisher must self-heal an empty catalogue despite the cooldown');
-    assert.ok(pubr.published.length >= Math.min(scored.length, pubr.status().catalogFloor || 12) || pubr.published.length >= 1,
+    const floor = pubr.status().catalogFloor || 12;
+    assert.ok(pubr.published.length >= Math.min(scored.length, floor),
       'live catalogue must be refilled toward the floor');
     const titles = pubr.published.map(p => p.title);
     assert.equal(new Set(titles).size, titles.length, 'self-heal must not create duplicate products');
