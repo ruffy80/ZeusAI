@@ -51,3 +51,6 @@ data/sovereignty/attestations.jsonl
 data/sovereignty/attestations.jsonl.*
 data/oracle/oracle-state.json
 data/economy/economy-state.json
+# ZACC autonomous commerce core — per-process runtime state (products, sales,
+# invoices, scraped catalogue). Auto-created at runtime; must never reach git.
+data/zacc-state.json
