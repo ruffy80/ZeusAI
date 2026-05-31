@@ -4869,11 +4869,35 @@ if (_enableLocalLlm) {
   try { _llamaBridge = require('./modules/llamaBridge'); } catch { /* optional */ }
 }
 
+// 🧠 AI capability layer — real, persistent, no-mock modules:
+//   • semantic memory (RAG)  • cost ledger  • provider-health aggregator
+let _aiMemory = null;
+try { _aiMemory = require('./modules/ai-semantic-memory'); } catch (e) {
+  console.warn('[AIMemory] not loaded:', e.message);
+}
+let _aiCostLedger = null;
+try { _aiCostLedger = require('./modules/ai-cost-ledger'); } catch (e) {
+  console.warn('[AICost] not loaded:', e.message);
+}
+let _aiProviderHealth = null;
+try { _aiProviderHealth = require('./modules/ai-provider-health'); } catch (e) {
+  console.warn('[AIProviderHealth] not loaded:', e.message);
+}
+
 // ── Register optional profit & orchestration modules in mesh ──
 if (_aiOrchestrator) meshOrchestrator.register('aiOrchestrator', _aiOrchestrator, { statusFn: 'getStatus' });
 if (_revenueRouter) meshOrchestrator.register('sovereignRevenueRouter', _revenueRouter, { statusFn: 'getStatus' });
 if (_monetizeMesh) meshOrchestrator.register('globalMonetizationMesh', _monetizeMesh, { statusFn: 'getStatus' });
 if (_uaic) meshOrchestrator.register('universalAIConnector', _uaic, { statusFn: 'getStatus' });
+if (_aiMemory) meshOrchestrator.register('aiSemanticMemory', _aiMemory, { statusFn: 'getStatus' });
+if (_aiCostLedger) meshOrchestrator.register('aiCostLedger', _aiCostLedger, { statusFn: 'getStatus' });
+if (_aiProviderHealth) meshOrchestrator.register('aiProviderHealth', _aiProviderHealth, { statusFn: 'getStatus' });
+
+// Mount the AI capability HTTP surface. Each module exposes its own router;
+// write paths are gated behind the existing admin-token middleware.
+if (_aiMemory) app.use('/api/ai/memory', _aiMemory.router(express, { adminGuard: adminTokenMiddleware }));
+if (_aiCostLedger) app.use('/api/ai/cost', _aiCostLedger.router(express, { adminGuard: adminTokenMiddleware }));
+if (_aiProviderHealth) app.use('/api/ai/providers/health', _aiProviderHealth.router(express));
 
 const ZEUS_SYSTEM = 'You are Zeus AI Assistant, an expert in business automation, AI, blockchain, payments, and enterprise solutions. Be concise and helpful. You can also respond in Romanian if the user writes in Romanian.';
 
@@ -4922,7 +4946,21 @@ app.post('/api/chat', authRateLimit(30, 60_000), async (req, res) => {
         maxTokens: 500,
         history,
       });
-      if (mrResult && mrResult.reply) return res.json({ reply: mrResult.reply, model: mrResult.model, provider: mrResult.provider, latencyMs: mrResult.latencyMs });
+      if (mrResult && mrResult.reply) {
+        // Record real spend in the persistent cost ledger (best-effort).
+        if (_aiCostLedger) {
+          try {
+            _aiCostLedger.record({
+              provider: mrResult.provider,
+              model: mrResult.model,
+              task: taskType || 'chat',
+              tokens: (mrResult.usage && mrResult.usage.totalTokens) || 0,
+              costUsd: typeof mrResult.estimatedCostUSD === 'number' ? mrResult.estimatedCostUSD : undefined,
+            });
+          } catch (_) { /* ledger is advisory, never blocks chat */ }
+        }
+        return res.json({ reply: mrResult.reply, model: mrResult.model, provider: mrResult.provider, latencyMs: mrResult.latencyMs });
+      }
     } catch (err) {
       console.warn('[Chat] MultiRouter a eșuat:', err.message);
     }
