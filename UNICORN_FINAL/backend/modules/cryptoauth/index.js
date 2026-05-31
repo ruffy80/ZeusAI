@@ -372,6 +372,7 @@ async function _recover(req, res) {
     _saveUsers(users);
   }
   const token = _signToken(userId);
+  if (!token) return _sendJson(res, 500, { ok: false, error: 'jwt_unavailable' });
   return _sendJson(res, 200, { ok: true, userId, token, expiresAt: Date.now() + TOKEN_TTL_SECONDS * 1000 });
 }
 

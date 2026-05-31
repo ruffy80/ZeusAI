@@ -134,7 +134,7 @@ async function call(method, url, body, headers) {
   const ch3 = r.body.challenge;
   const sig3 = crypto.sign(null, Buffer.from(ch3, 'utf8'), privateKey);
   r = await call('POST', '/api/cryptoauth/recover', { publicKey: pubB64, challenge: ch3, signature: sig3.toString('base64') });
-  ok(r.handled && r.status === 200 && r.body && r.body.ok && r.body.userId === userId && r.body.token, 'POST /recover → 200 + token');
+  ok(r.handled && r.status === 200 && r.body && r.body.ok && r.body.userId === userId && r.body.token && r.body.expiresAt, 'POST /recover → 200 + token + expiresAt');
 
   // 10b. Recover challenge is single-use; replay must fail.
   r = await call('POST', '/api/cryptoauth/recover', { publicKey: pubB64, challenge: ch3, signature: sig3.toString('base64') });

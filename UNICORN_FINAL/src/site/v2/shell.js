@@ -2115,7 +2115,7 @@ function pageAccount(opts) {
         '<div style=\"flex:1;min-width:200px\">' +
           '<div style=\"font-size:18px;font-weight:600\">' + html(user.name || 'Signed in') + '</div>' +
           '<div style=\"color:var(--ink-dim);font-size:13px\">' + (user.email ? html(user.email) + ' \u00b7 ' : '') + '<code style=\"font-size:12px;color:#9ab4ff\">' + html(user.userId) + '</code></div>' +
-          '<div style=\"color:var(--ink-dim);font-size:12px;margin-top:4px\">Member since ' + html(new Date(user.createdAt).toLocaleDateString()) + '</div>' +
+          '<div style=\"color:var(--ink-dim);font-size:12px;margin-top:4px\">' + (function(){ var d = user.createdAt ? new Date(user.createdAt) : null; return (d && !isNaN(d.getTime())) ? 'Member since ' + html(d.toLocaleDateString()) : 'Active account'; })() + '</div>' +
         '</div>' +
         '<span style=\"background:rgba(124,255,184,.15);color:#7cffb8;padding:6px 12px;border-radius:20px;font-size:12px;font-weight:600\">\u25cf Signed in</span>' +
       '</div>');
@@ -2308,6 +2308,7 @@ function pageAccount(opts) {
           });
         } catch (e) { statusError('Could not parse vault file.'); }
       };
+      reader.onerror = function(){ statusError('Could not read the vault file. Try selecting it again.'); };
       reader.readAsText(file);
     });
   }
