@@ -134,7 +134,7 @@ async function call(method, url, body, headers) {
   const ch3 = r.body.challenge;
   const sig3 = crypto.sign(null, Buffer.from(ch3, 'utf8'), privateKey);
   r = await call('POST', '/api/cryptoauth/recover', { publicKey: pubB64, challenge: ch3, signature: sig3.toString('base64') });
-  ok(r.handled && r.status === 200 && r.body && r.body.ok && r.body.userId === userId && r.body.token, 'POST /recover → 200 + token');
+  ok(r.handled && r.status === 200 && r.body && r.body.ok && r.body.userId === userId && r.body.token && r.body.expiresAt, 'POST /recover → 200 + token + expiresAt');
 
   // 10b. Recover challenge is single-use; replay must fail.
   r = await call('POST', '/api/cryptoauth/recover', { publicKey: pubB64, challenge: ch3, signature: sig3.toString('base64') });
@@ -194,8 +194,37 @@ async function call(method, url, body, headers) {
     ok(challenges === null, 'expired challenge returns null from _takeChallenge');
   }
 
+  // 17. Cross-process durability: a challenge issued by ANOTHER process (only on
+  // disk, not in this process's in-memory Map) must still validate. This is what
+  // lets nginx route /api/cryptoauth/* to the resilient site cluster + backend
+  // backup instead of pinning every account operation to a single backend fork.
+  {
+    const { _putChallenge, _takeChallenge, CHALLENGES_FILE } = m._internals;
+    // 17a. _putChallenge persists to disk.
+    const persisted = 'xproc-persist-' + Date.now();
+    _putChallenge('zid_xproc1', persisted);
+    let onDisk = {};
+    try { onDisk = JSON.parse(fs.readFileSync(CHALLENGES_FILE, 'utf8') || '{}'); } catch (_) {}
+    ok(!!onDisk[persisted] && onDisk[persisted].userId === 'zid_xproc1', '_putChallenge persists challenge to disk');
+
+    // 17b. A challenge present ONLY on disk (written by a different process) is
+    // accepted by _takeChallenge — proving disk, not in-memory, is the source of truth.
+    const foreign = 'xproc-foreign-' + Date.now();
+    const disk2 = (() => { try { return JSON.parse(fs.readFileSync(CHALLENGES_FILE, 'utf8') || '{}'); } catch (_) { return {}; } })();
+    disk2[foreign] = { userId: 'zid_xproc2', value: foreign, expiresAt: Date.now() + m._internals.CHALLENGE_TTL_MS };
+    const tmp = CHALLENGES_FILE + '.tmp';
+    fs.writeFileSync(tmp, JSON.stringify(disk2)); fs.renameSync(tmp, CHALLENGES_FILE);
+    const taken = _takeChallenge(foreign);
+    ok(taken && taken.userId === 'zid_xproc2', 'challenge written by another process (disk-only) validates');
+
+    // 17c. Single-use across processes: the consumed challenge is gone from disk.
+    const disk3 = (() => { try { return JSON.parse(fs.readFileSync(CHALLENGES_FILE, 'utf8') || '{}'); } catch (_) { return {}; } })();
+    ok(!disk3[foreign], 'consumed cross-process challenge is removed from disk (single-use)');
+  }
+
   console.log('cryptoauth smoke:', pass, 'pass /', fail, 'fail · static:', staticFail, 'fail');
   // Cleanup test artifact
   try { if (fs.existsSync(usersFile)) fs.unlinkSync(usersFile); } catch (_) {}
+  try { if (fs.existsSync(m._internals.CHALLENGES_FILE)) fs.unlinkSync(m._internals.CHALLENGES_FILE); } catch (_) {}
   process.exit(fail === 0 && staticFail === 0 ? 0 : 1);
 })();

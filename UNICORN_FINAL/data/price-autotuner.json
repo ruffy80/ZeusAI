@@ -37,7 +37,23 @@
     "ent-private-cloud": 150000,
     "ent-ai-transformation": 500000,
     "ent-white-label": 350000,
-    "ent-sovereign-deployment": 1200000
+    "ent-sovereign-deployment": 1200000,
+    "zacc-ai-customer-support-studio-rmn2bt": 161,
+    "zacc-sovereign-video-k9pnvz": 198.14,
+    "zacc-on-brand-image-suite-7z4x78": 178.69,
+    "zacc-sovereign-compliance-automation-pu784i": 1362.8,
+    "dropship-mini-portable-projector-hd-3uctot": 139.99,
+    "dropship-standing-desk-converter-kp1ifk": 129.99,
+    "dropship-bluetooth-earbuds-anc-t2axv8": 49.99,
+    "dropship-magnetic-building-blocks-100pc-l68ica": 39.99,
+    "dropship-compression-packing-cubes-set-7im3g6": 32.99,
+    "dropship-smart-led-strip-5m-wifi-iel65d": 29.99,
+    "dropship-aromatherapy-diffuser-wood-grain-tab4zt": 24.99,
+    "dropship-wireless-charging-pad-15w-fast-djoli0": 24.99,
+    "dropship-resistance-bands-set-pro-6n4i9d": 19.99,
+    "dropship-microneedle-derma-roller-kit-c3ybny": 18.99,
+    "dropship-posture-corrector-adjustable-5cdmvo": 16.99,
+    "dropship-self-cleaning-pet-brush-qvf9h0": 14.99
   },
   "multipliers": {
     "starter": 1,
@@ -77,8 +93,24 @@
     "ent-private-cloud": 1,
     "ent-ai-transformation": 1,
     "ent-white-label": 1,
-    "ent-sovereign-deployment": 1
+    "ent-sovereign-deployment": 1,
+    "zacc-ai-customer-support-studio-rmn2bt": 1,
+    "zacc-sovereign-video-k9pnvz": 1,
+    "zacc-on-brand-image-suite-7z4x78": 1,
+    "zacc-sovereign-compliance-automation-pu784i": 1,
+    "dropship-mini-portable-projector-hd-3uctot": 1,
+    "dropship-standing-desk-converter-kp1ifk": 1,
+    "dropship-bluetooth-earbuds-anc-t2axv8": 1,
+    "dropship-magnetic-building-blocks-100pc-l68ica": 1,
+    "dropship-compression-packing-cubes-set-7im3g6": 1,
+    "dropship-smart-led-strip-5m-wifi-iel65d": 1,
+    "dropship-aromatherapy-diffuser-wood-grain-tab4zt": 1,
+    "dropship-wireless-charging-pad-15w-fast-djoli0": 1,
+    "dropship-resistance-bands-set-pro-6n4i9d": 1,
+    "dropship-microneedle-derma-roller-kit-c3ybny": 1,
+    "dropship-posture-corrector-adjustable-5cdmvo": 1,
+    "dropship-self-cleaning-pet-brush-qvf9h0": 1
   },
-  "lastRunIso": "2026-05-25T11:39:56.316Z",
-  "runs": 1
+  "lastRunIso": "2026-05-31T08:36:36.805Z",
+  "runs": 2
 }

@@ -1546,6 +1546,14 @@ function shouldProxyBeforeExpress(pathname, method) {
   if (!pathname.startsWith('/api/') || ['GET', 'HEAD', 'OPTIONS'].includes(method)) return false;
   if (SITE_OWNED_MUTATIONS.includes(pathname)) return false;
   if (EXPRESS_OWNED_MUTATIONS.has(pathname)) return false;
+  // Passwordless auth (/api/cryptoauth/*) is handled LOCALLY by this process via
+  // the cryptoauth dispatcher in unicornHandler. The challenge store is now
+  // cross-process durable (data/cryptoauth/challenges.json), so the resilient
+  // site cluster can serve register/challenge/login/recover/logout directly
+  // instead of funnelling every account operation through the single backend
+  // fork — which previously turned any backend restart into a hard
+  // "server not responding" for all account flows. Never proxy these away.
+  if (pathname.startsWith('/api/cryptoauth/')) return false;
   return true;
 }
 const APP_URL = process.env.PUBLIC_APP_URL || 'https://zeusai.pro';
