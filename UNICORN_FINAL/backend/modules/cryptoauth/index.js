@@ -83,6 +83,7 @@ const CHALLENGE_TTL_MS = 5 * 60 * 1000;   // 5 minutes (restart-tolerant window)
 
 const DATA_DIR = path.join(__dirname, '..', '..', '..', 'data', 'cryptoauth');
 const USERS_FILE = path.join(DATA_DIR, 'users.json');
+const CHALLENGES_FILE = path.join(DATA_DIR, 'challenges.json');
 try { fs.mkdirSync(DATA_DIR, { recursive: true }); } catch (e) { console.error('[cryptoauth] mkdir failed — writes will fail:', e.message); }
 
 // ──────────────────────── persistence ────────────────────────
@@ -128,21 +129,65 @@ function _newChallenge() {
   return crypto.randomBytes(32).toString('base64');
 }
 
-// In-memory challenge store (per process). Each entry: { userId, value, expiresAt }
+// ── Cross-process durable challenge store ─────────────────────
+// Challenges MUST be validatable by ANY process that fronts /api/cryptoauth/*
+// (the backend fork AND every site cluster worker). A purely in-memory Map
+// (per process) forced nginx to pin auth to a SINGLE backend instance — which
+// turned every backend restart/OOM into a hard "server not responding" for ALL
+// account operations (create / login / recover). We persist challenges to disk
+// (atomic write, same dir as users.json) so the store survives restarts and is
+// shared across processes. The in-memory Map is kept as a write-through cache
+// so behaviour degrades to (never worse than) the old single-process path if
+// the disk is unwritable. Each entry: { userId, value, expiresAt }.
 const _challenges = new Map();
+function _loadChallengeFile() {
+  try {
+    if (!fs.existsSync(CHALLENGES_FILE)) return {};
+    const raw = fs.readFileSync(CHALLENGES_FILE, 'utf8');
+    return JSON.parse(raw || '{}');
+  } catch (e) { console.error('[cryptoauth] _loadChallengeFile parse error:', e.message); return {}; }
+}
+function _saveChallengeFile(map) {
+  try {
+    const tmp = CHALLENGES_FILE + '.tmp';
+    fs.writeFileSync(tmp, JSON.stringify(map));
+    fs.renameSync(tmp, CHALLENGES_FILE);
+    return true;
+  } catch (e) { console.error('[cryptoauth] _saveChallengeFile failed — challenge NOT persisted:', e.message); return false; }
+}
+function _pruneExpired(map, now) {
+  for (const k of Object.keys(map)) {
+    if (!map[k] || map[k].expiresAt < now) delete map[k];
+  }
+  return map;
+}
 function _putChallenge(userId, value) {
-  _challenges.set(value, { userId, value, expiresAt: Date.now() + CHALLENGE_TTL_MS });
-  // opportunistic GC
+  const now = Date.now();
+  const entry = { userId, value, expiresAt: now + CHALLENGE_TTL_MS };
+  _challenges.set(value, entry);
+  // opportunistic in-memory GC
   if (_challenges.size > 5000) {
-    const now = Date.now();
     for (const [k, v] of _challenges) if (v.expiresAt < now) _challenges.delete(k);
   }
+  // Read-merge-write so a concurrent writer in another process is not clobbered.
+  const disk = _pruneExpired(_loadChallengeFile(), now);
+  disk[value] = entry;
+  _saveChallengeFile(disk);
 }
 function _takeChallenge(value) {
-  const e = _challenges.get(value);
+  const now = Date.now();
+  // Disk is the cross-process source of truth; fall back to the in-memory cache
+  // when the on-disk entry is absent (e.g. disk write previously failed).
+  const disk = _loadChallengeFile();
+  let e = disk[value] || _challenges.get(value) || null;
   if (!e) return null;
+  // One-time use: remove from both stores regardless of expiry.
   _challenges.delete(value);
-  if (e.expiresAt < Date.now()) return null;
+  if (disk[value]) {
+    delete disk[value];
+    _saveChallengeFile(_pruneExpired(disk, now));
+  }
+  if (e.expiresAt < now) return null;
   return e;
 }
 
@@ -407,7 +452,7 @@ module.exports = {
     PACK_NAME, PACK_VERSION, CHALLENGE_TTL_MS,
     _verifySignature, _userIdFromPublicKey, _signToken, _verifyToken,
     _newChallenge, _putChallenge, _takeChallenge,
-    _loadUsers, _saveUsers, USERS_FILE,
+    _loadUsers, _saveUsers, USERS_FILE, CHALLENGES_FILE,
     _rateCheck, _getIp, _RL_LIMITS, _RL_WINDOW_MS
   }
 };
