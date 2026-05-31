@@ -33,7 +33,7 @@
     "fetch-blob": "3.2.0",
     "formdata-polyfill": "4.0.10",
     "gaxios": "7.1.4",
-    "gcp-metadata": "7.0.1",
+    "gcp-metadata": "8.1.2",
     "google-logging-utils": "0.0.2",
     "googleapis": "^173.0.0",
     "helmet": "^8.1.0",
