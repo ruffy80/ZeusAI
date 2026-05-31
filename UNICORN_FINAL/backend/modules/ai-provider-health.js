@@ -24,12 +24,13 @@
 // =====================================================================
 
 const PLACEHOLDER_RX = /(your[_-]?|changeme|placeholder|example|xxxx|\.\.\.|<.*>)/i;
+const MIN_KEY_LENGTH = 20;
 
 function _keyConfigured(envKey) {
   const k = process.env[envKey];
   if (!k) return false;
   const v = String(k).trim();
-  if (v.length < 20) return false;
+  if (v.length < MIN_KEY_LENGTH) return false;
   if (PLACEHOLDER_RX.test(v)) return false;
   return true;
 }

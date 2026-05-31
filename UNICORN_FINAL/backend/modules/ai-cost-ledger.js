@@ -29,7 +29,10 @@ const path = require('path');
 
 const DATA_DIR = path.join(__dirname, '..', '..', 'data', 'ai-cost');
 const LEDGER_FILE = path.join(DATA_DIR, 'ledger.json');
-const MAX_ENTRIES = parseInt(process.env.AI_COST_MAX_ENTRIES || '20000', 10);
+const MAX_ENTRIES = (() => {
+  const n = parseInt(process.env.AI_COST_MAX_ENTRIES, 10);
+  return Number.isFinite(n) && n > 0 ? n : 20000;
+})();
 
 const MONTHLY_BUDGET_USD = parseFloat(process.env.AI_MONTHLY_BUDGET_USD || '100');
 const ALERT_THRESHOLD = (() => {

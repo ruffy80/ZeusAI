@@ -36,10 +36,16 @@ const crypto = require('crypto');
 let axios = null;
 try { axios = require('axios'); } catch { axios = null; }
 
-const DIM = parseInt(process.env.AI_MEMORY_DIM || '256', 10);
-const MAX_DOCS = parseInt(process.env.AI_MEMORY_MAX_DOCS || '5000', 10);
+const DIM = _posInt(process.env.AI_MEMORY_DIM, 256);
+const MAX_DOCS = _posInt(process.env.AI_MEMORY_MAX_DOCS, 5000);
 const DATA_DIR = path.join(__dirname, '..', '..', 'data', 'ai-memory');
 const STORE_FILE = path.join(DATA_DIR, 'store.json');
+
+// Parse a positive integer env var, falling back to `def` on NaN / <= 0.
+function _posInt(raw, def) {
+  const n = parseInt(raw, 10);
+  return Number.isFinite(n) && n > 0 ? n : def;
+}
 
 try { fs.mkdirSync(DATA_DIR, { recursive: true }); } catch (e) {
   console.error('[ai-memory] mkdir failed — persistence disabled:', e.message);
