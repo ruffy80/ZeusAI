@@ -56,11 +56,11 @@ Your **generate-unicorn** project has been secured with **enterprise-grade secre
 - GITHUB_OWNER
 - GITHUB_REPO
 
-**Vercel** (4)
-- VERCEL_TOKEN
-- VERCEL_ORG_ID
-- VERCEL_PROJECT_ID
-- VERCEL_PROJECT
+**Legacy provider (deprecated)** (4)
+- LEGACY_TOKEN
+- LEGACY_ORG_ID
+- LEGACY_PROJECT_ID
+- LEGACY_PROJECT
 
 **Hetzner** (7)
 - HETZNER_API_KEY
@@ -98,7 +98,7 @@ Your **generate-unicorn** project has been secured with **enterprise-grade secre
 
 ```
 [✅] No real GitHub tokens (ghp_*) in example files
-[✅] No real Vercel tokens (vcp_*) in example files
+[✅] No real legacy-provider tokens in example files
 [✅] No real Hetzner API keys in example files
 [✅] No real IP addresses (204.168.*) in example files
 [✅] No hardcoded secrets in tracked files
@@ -153,8 +153,8 @@ Local Dev                GitHub                    Hetzner
     ↓
 [3] Validates code (npm test, npm lint) ✅
     ↓
-[4] Deploys to Vercel
-    Uses: ${{ secrets.VERCEL_TOKEN }} ✅
+[4] Deploys through main production pipeline
+    Uses: ${{ secrets.HETZNER_API_KEY }} ✅
     ↓
 [5] Deploys to Hetzner
     Uses: ${{ secrets.HETZNER_API_KEY }} ✅

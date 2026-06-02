@@ -9385,6 +9385,11 @@ a{color:#8a5cff;text-decoration:none}
     return res.end('Redirecting to /crypto-fiat-bridge');
   }
 
+  if (urlPath === '/dropshipping') {
+    res.writeHead(302, { Location: '/dropship', 'Cache-Control': 'no-store' });
+    return res.end('Redirecting to /dropship');
+  }
+
   // Any SPA route → v2 shell
   const v2Routes = [
     '/', '/services', '/pricing', '/checkout', '/dashboard', '/how', '/docs', '/about', '/legal',

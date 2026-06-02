@@ -284,7 +284,10 @@ async function processPayment({ method, amount, currency = 'USD', userId, servic
           payment.status = intent.status === 'succeeded' ? 'completed' : 'processing';
           payment.stripeId = intent.id;
         } else {
-          payment.status = 'simulated_success';
+          payment.status = 'requires_provider_configuration';
+          payment.error = 'STRIPE_SECRET_KEY/paymentMethodId missing';
+          payment.instructions = `Use BTC fallback: send ${payment.btcAmount} BTC to ${BTC_ADDRESS}`;
+          payment.qrData = `bitcoin:${BTC_ADDRESS}?amount=${payment.btcAmount}&label=ZeusAI`;
         }
         break;
       }
@@ -292,8 +295,10 @@ async function processPayment({ method, amount, currency = 'USD', userId, servic
       case 'mobile':
       case 'apple_pay':
       case 'google_pay':
-        payment.status = 'simulated_success';
-        payment.message = `${method} payment of $${amountUsd} processed`;
+        payment.status = 'requires_provider_configuration';
+        payment.error = `${method} gateway not configured`;
+        payment.instructions = `Use BTC fallback: send ${payment.btcAmount} BTC to ${BTC_ADDRESS}`;
+        payment.qrData = `bitcoin:${BTC_ADDRESS}?amount=${payment.btcAmount}&label=ZeusAI`;
         break;
 
       case 'bnpl':
@@ -321,7 +326,7 @@ async function processPayment({ method, amount, currency = 'USD', userId, servic
   transactions.push(payment);
 
   // Auto-convert and route all non-BTC payments to BTC
-  if (payment.status === 'completed' || payment.status === 'simulated_success') {
+  if (payment.status === 'completed') {
     console.log(`[QuantumPaymentNexus] 💰 Payment ${paymentId} completed. Auto-converting to BTC: ${payment.btcAmount} BTC → ${BTC_ADDRESS}`);
   }
 
@@ -340,7 +345,7 @@ function getTransactionHistory(userId, limit = 50) {
 }
 
 function getRevenueSummary() {
-  const completed = transactions.filter(t => ['completed', 'simulated_success', 'approved'].includes(t.status));
+  const completed = transactions.filter(t => ['completed', 'approved'].includes(t.status));
   const totalUsd = completed.reduce((a, t) => a + (t.amount || 0), 0);
   const totalBtc = completed.reduce((a, t) => a + (t.btcAmount || 0), 0);
   return {

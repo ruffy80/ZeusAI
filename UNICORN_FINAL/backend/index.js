@@ -1137,7 +1137,7 @@ app.get('/api/future-innovation/status', (req, res) => {
   });
 });
 
-// API: demo/process for each future module
+// API: real process for each future module
 Object.entries(aiFutureModules).forEach(([key, mod]) => {
   app.get(`/api/future-innovation/${key}/process`, (req, res) => {
     try {
@@ -1157,7 +1157,7 @@ Object.entries(aiFutureModules).forEach(([key, mod]) => {
 });
 
 // ==================== SOVEREIGN/QUANTUM/UNICORN MODULES DISPATCHER ====================
-// Expune /api/module/:module/process ca GET și POST (GET returnează demo/status, POST procesează dacă există implementare)
+// Expune /api/module/:module/process ca GET și POST (strict: numai contracte reale de modul)
 const sovereignModules = {
   quantumVault: require('./modules/quantumVault'),
   unicornMeshOrchestrator: (() => { try { return require('./modules/unicornMeshOrchestrator'); } catch { return null; } })(),
@@ -1176,8 +1176,14 @@ app.get('/api/module/:module/process', (req, res) => {
       return res.status(500).json({ error: 'Module status error', module, detail: e.message });
     }
   }
-  // fallback: demo
-  return res.json({ module, status: 'ok', ts: new Date().toISOString() });
+  if (typeof mod.getStatus === 'function') {
+    try {
+      return res.json({ module, status: mod.getStatus(), ts: new Date().toISOString() });
+    } catch (e) {
+      return res.status(500).json({ error: 'Module getStatus error', module, detail: e.message });
+    }
+  }
+  return res.status(501).json({ error: 'Module does not expose status/getStatus', module });
 });
 
 app.post('/api/module/:module/process', express.json({ limit: '128kb' }), (req, res) => {
@@ -2200,6 +2206,7 @@ const domainAutomationManager = require('./modules/domainAutomationManager');
 
 const unicornInnovationSuite = require('./modules/unicornInnovationSuite');
 const autonomousInnovation = require('./modules/autonomousInnovation');
+const unicornInnovator = require('./modules/unicornInnovator');
 const autoRevenue = require('./modules/autoRevenue');
 const autoViralGrowth = require('./modules/autoViralGrowth');
 
@@ -8040,47 +8047,199 @@ app.get('/api/admin/executive/growth', adminTokenMiddleware, (req, res) => {
 });
 
 // ==================== AUTONOMOUS INNOVATION ROUTES ====================
+function _safeCall(target, methodName, args = [], fallback = null) {
+  try {
+    if (target && typeof target[methodName] === 'function') {
+      return target[methodName](...args);
+    }
+  } catch (_) { /* non-fatal for status endpoints */ }
+  return fallback;
+}
+
+function _selectInnovationEngine() {
+  const primary = autonomousInnovation;
+  const probe = _safeCall(primary, 'getStatus', [], null);
+  if (probe && Object.keys(probe).length > 0) return primary;
+  if (_safeCall(primary, 'autonomousInnovator', [], null)) return primary;
+  return unicornInnovator;
+}
+
+function _innovationStatusAndMetrics() {
+  const engine = _selectInnovationEngine();
+  const status = _safeCall(engine, 'getStatus', [], {}) || {};
+  const generated = Number(
+    status.totalInnovationsGenerated ?? status.generated ?? status.innovationsGenerated ?? 0
+  );
+  const deployed = Number(
+    status.totalFeaturesDeployed ?? status.approved ?? status.innovationsApproved ?? 0
+  );
+  const rejected = Number(
+    status.rejected ?? status.innovationsRejected ?? 0
+  );
+  const cycles = Number(
+    status.totalCycles ?? status.cycles ?? status.mainCycleCount ?? 0
+  );
+  const deploymentSuccessRate = generated > 0
+    ? Number(((deployed / generated) * 100).toFixed(2))
+    : 0;
+
+  return {
+    engine: engine === unicornInnovator ? 'unicornInnovator' : 'autonomousInnovation',
+    status: {
+      active: status.active !== false,
+      circuitOpen: !!status.circuitOpen,
+      cycles,
+      generated,
+      approved: deployed,
+      rejected,
+      pendingCount: Number(status.pendingCount ?? 0),
+      startedAt: status.startedAt || null,
+      source: engine === unicornInnovator ? 'supreme-innovator' : 'legacy-innovation',
+    },
+    metrics: {
+      totalInnovationsGenerated: generated,
+      totalFeaturesDeployed: deployed,
+      totalRejected: rejected,
+      cycles,
+      deploymentSuccessRate,
+    },
+  };
+}
+
+function _innovationHistory(limit) {
+  const engine = _selectInnovationEngine();
+  const n = Math.max(1, Math.min(200, Number(limit) || 20));
+  const h1 = _safeCall(engine, 'getInnovationHistory', [n], null);
+  if (Array.isArray(h1)) return h1;
+  if (h1 && Array.isArray(h1.history)) return h1.history;
+  const h2 = _safeCall(engine, 'getHistory', [n], null);
+  if (Array.isArray(h2)) return h2;
+  return [];
+}
+
+function _triggerInnovationCycle() {
+  const engine = _selectInnovationEngine();
+  const fromLegacy = _safeCall(engine, 'generateNewInnovation', [], null);
+  if (fromLegacy) return { ok: true, innovation: fromLegacy, action: 'generateNewInnovation' };
+
+  const fromSupreme = _safeCall(engine, 'autonomousInnovator', [], null);
+  if (fromSupreme) return { ok: true, innovation: fromSupreme, action: 'autonomousInnovator' };
+
+  const fromLoop = _safeCall(engine, 'innovationGenerator', [], null);
+  if (fromLoop) return { ok: true, innovation: fromLoop, action: 'innovationGenerator' };
+
+  return { ok: false, error: 'No innovation trigger entrypoint available' };
+}
+
+function _optimizeInnovation() {
+  const engine = _selectInnovationEngine();
+  const optimized = _safeCall(engine, 'selfOptimize', [], null);
+  if (optimized != null) return { ok: true, action: 'selfOptimize', result: optimized };
+  // Fallback: run one full autonomous cycle as practical optimization pass.
+  const cycle = _triggerInnovationCycle();
+  if (cycle.ok) return { ok: true, action: 'cycle-fallback', result: cycle };
+  return { ok: false, error: 'No optimization/cycle method available' };
+}
+
+function _runtimeAutonomyFlags() {
+  const runtimeProfile = String(process.env.UNICORN_RUNTIME_PROFILE || _runtimeProfile || 'safe').toLowerCase();
+  const disableSelfMutation = String(process.env.DISABLE_SELF_MUTATION || '').toLowerCase() === '1';
+  const enableFileMutators = ['1', 'true', 'yes', 'on'].includes(String(process.env.ENABLE_FILE_MUTATORS || '').toLowerCase());
+  const enableAutoDeploy = ['1', 'true', 'yes', 'on'].includes(String(process.env.ENABLE_AUTO_DEPLOY || '').toLowerCase());
+  const growthRuntime = runtimeProfile === 'growth' || runtimeProfile === 'full';
+  return {
+    runtimeProfile,
+    growthRuntime,
+    disableSelfMutation,
+    enableFileMutators,
+    enableAutoDeploy,
+  };
+}
+
 app.get('/api/autonomous/innovation/status', (req, res) => {
-  res.json(autonomousInnovation.getStatus());
+  const out = _innovationStatusAndMetrics();
+  res.json({
+    ...out.status,
+    metrics: out.metrics,
+    engine: out.engine,
+    timestamp: new Date().toISOString(),
+  });
 });
 
 app.get('/api/autonomous/innovation/history', (req, res) => {
   const limit = req.query.limit || 20;
-  res.json(autonomousInnovation.getInnovationHistory(limit));
+  res.json({
+    success: true,
+    limit: Math.max(1, Math.min(200, Number(limit) || 20)),
+    history: _innovationHistory(limit),
+  });
 });
 
 app.get('/api/autonomous/innovation/metrics', (req, res) => {
-  res.json(autonomousInnovation.getDeploymentMetrics());
+  const out = _innovationStatusAndMetrics();
+  res.json({ ...out.metrics, engine: out.engine, timestamp: new Date().toISOString() });
 });
 
 app.post('/api/autonomous/innovation/trigger', adminTokenMiddleware, (req, res) => {
-  const innov = autonomousInnovation.generateNewInnovation();
-  res.json({ success: true, innovation: innov });
+  const out = _triggerInnovationCycle();
+  if (!out.ok) return res.status(500).json({ success: false, error: out.error });
+  res.json({ success: true, innovation: out.innovation, action: out.action });
 });
 
 app.post('/api/autonomous/innovation/optimize', adminTokenMiddleware, (req, res) => {
-  autonomousInnovation.selfOptimize();
-  res.json({ success: true, message: 'Self-optimization triggered' });
+  const out = _optimizeInnovation();
+  if (!out.ok) return res.status(500).json({ success: false, error: out.error });
+  res.json({ success: true, message: 'Optimization cycle executed', action: out.action, result: out.result || null });
 });
 
 // ==================== AUTO REVENUE ROUTES ====================
-// NOTE: AutoRevenueEngine runs in DEMO/SIMULATION mode.
-// Figures shown are projections based on simulated deal flow — not real transactions.
-// Real revenue comes from /api/payment/* (Stripe/PayPal/crypto).
+// Real-first revenue API. Simulation can be enabled only explicitly via
+// AUTO_REVENUE_SIMULATE=enabled (development/demo only).
 app.get('/api/autonomous/revenue/status', (req, res) => {
-  res.json({ ...autoRevenue.getRevenueStatus(), mode: 'DEMO', note: 'Simulated pipeline. Real revenue tracked via /api/payment/stats.' });
+  const status = autoRevenue.getRevenueStatus();
+  const mode = status && status.simulated ? 'DEMO' : 'REAL';
+  res.json({
+    ...status,
+    mode,
+    note: status && status.honesty
+      ? status.honesty
+      : (mode === 'DEMO' ? 'Simulated pipeline.' : 'Real paid receipts only.'),
+  });
 });
 
 app.get('/api/autonomous/revenue/history', (req, res) => {
   const limit = req.query.limit || 20;
-  res.json({ ...autoRevenue.getRevenueHistory(limit), mode: 'DEMO', note: 'Simulated deal history.' });
+  const status = autoRevenue.getRevenueStatus();
+  const mode = status && status.simulated ? 'DEMO' : 'REAL';
+  res.json({
+    ...autoRevenue.getRevenueHistory(limit),
+    mode,
+    reality: status ? status.reality : null,
+    note: mode === 'DEMO' ? 'Simulated deal history.' : 'Real receipts history is tracked via ledger-backed payment endpoints.',
+  });
 });
 
 app.get('/api/autonomous/revenue/metrics', (req, res) => {
-  res.json({ ...autoRevenue.getDetailedMetrics(), mode: 'DEMO', note: 'Simulated metrics for planning purposes.' });
+  const status = autoRevenue.getRevenueStatus();
+  const mode = status && status.simulated ? 'DEMO' : 'REAL';
+  res.json({
+    ...autoRevenue.getDetailedMetrics(),
+    mode,
+    simulated: !!(status && status.simulated),
+    reality: status ? status.reality : null,
+    note: mode === 'DEMO' ? 'Simulated metrics for planning purposes.' : 'Real payment-ledger metrics.',
+  });
 });
 
 app.post('/api/autonomous/revenue/generate-deals', adminTokenMiddleware, (req, res) => {
+  const simulationOn = String(process.env.AUTO_REVENUE_SIMULATE || 'disabled').toLowerCase() === 'enabled';
+  if (!simulationOn) {
+    return res.status(409).json({
+      success: false,
+      error: 'Synthetic deal generation disabled in real mode',
+      mode: 'REAL',
+    });
+  }
   autoRevenue.generateAffiliateDeals();
   autoRevenue.createMarketplaceListings();
   autoRevenue.negotiateB2BPartnerships();
@@ -8124,21 +8283,40 @@ app.post('/api/autonomous/viral/activate', adminTokenMiddleware, asyncHandler(as
 }));
 
 app.get('/api/autonomous/platform/status', (req, res) => {
+  const innovation = _innovationStatusAndMetrics();
+  const revenue = autoRevenue.getRevenueStatus();
+  const viral = autoViralGrowth.getViralStatus();
+  const flags = _runtimeAutonomyFlags();
+  const fullyReal = flags.growthRuntime && !flags.disableSelfMutation && !revenue.simulated;
+  const limitedByProfile = !flags.growthRuntime || flags.disableSelfMutation;
+
+  const state = limitedByProfile
+    ? 'AUTONOMY_LIMITED_SAFE_PROFILE'
+    : (fullyReal ? 'AUTONOMOUS_REAL_WORLD_ACTIVE' : 'AUTONOMOUS_PARTIAL_SIMULATED');
+
   res.json({
     timestamp: new Date().toISOString(),
-    state: 'FULLY_AUTONOMOUS_LIVE',
+    state,
+    truth: {
+      runtimeProfile: flags.runtimeProfile,
+      growthRuntime: flags.growthRuntime,
+      disableSelfMutation: flags.disableSelfMutation,
+      revenueSimulated: !!revenue.simulated,
+      fullyReal,
+    },
     autonomousEngines: {
-      innovation: autonomousInnovation.getStatus(),
-      revenue: autoRevenue.getRevenueStatus(),
-      viral: autoViralGrowth.getViralStatus(),
+      innovation: { ...innovation.status, metrics: innovation.metrics, engine: innovation.engine },
+      revenue,
+      viral,
     },
     combinedMetrics: {
-      totalInnovationsGenerated: autonomousInnovation.metrics.totalInnovationsGenerated,
-      totalFeaturesDeployed: autonomousInnovation.metrics.totalFeaturesDeployed,
-      projectedAnnualRevenue: autoRevenue.metrics.projectedAnnualRevenue,
-      activeDeals: autoRevenue.metrics.activeDeals,
-      viralScore: autoViralGrowth.metrics.viralScore,
-      estimatedReach: autoViralGrowth.metrics.estimatedReach,
+      totalInnovationsGenerated: innovation.metrics.totalInnovationsGenerated,
+      totalFeaturesDeployed: innovation.metrics.totalFeaturesDeployed,
+      projectedAnnualRevenue: Number(revenue && revenue.projectedAnnualRevenue ? revenue.projectedAnnualRevenue : 0),
+      realPaidRevenueUsd: Number(revenue && revenue.reality && revenue.reality.paidRevenueUsd ? revenue.reality.paidRevenueUsd : 0),
+      activeDeals: Number(revenue && revenue.activeDeals ? revenue.activeDeals : 0),
+      viralScore: Number(viral && viral.metrics && viral.metrics.viralScore ? viral.metrics.viralScore : 0),
+      estimatedReach: Number(viral && viral.estimatedReach ? viral.estimatedReach : (viral && viral.metrics && viral.metrics.realCustomers ? viral.metrics.realCustomers : 0)),
     },
   });
 });

@@ -7,15 +7,4 @@
 // =====================================================================
 
 'use strict';
-// SHIM auto-generated: evolution-core.js -> unicornInnovator
-// Original code preserved in evolution-core.js.legacy.bak
-let supreme = null;
-try { supreme = require('./unicornInnovator'); } catch (_) { supreme = null; }
-const noop = () => ({ ok: false, shim: true });
-module.exports = new Proxy(supreme || {}, {
-  get(target, prop) {
-    if (prop === 'then') return undefined;
-    if (target && prop in target) return target[prop];
-    return noop;
-  }
-});
+module.exports = require('./supreme-innovator-adapter');

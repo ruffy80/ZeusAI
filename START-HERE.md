@@ -5,7 +5,7 @@
 You now have a **complete, production-ready automation system** that connects your Unicorn AI Platform to:
 
 - **🐙 GitHub** - Source control + automatic webhooks
-- **🎯 Vercel** - Frontend deployment + preview environments
+- **🎯 Hetzner** - Frontend deployment + preview environments
 - **🖥️ Hetzner** - Backend server + auto-deployments
 
 **Everything is automated with a single command!**
@@ -37,9 +37,9 @@ bash setup-platform-auto-connect.sh
 ## 📦 What You Got
 
 ### 🤖 Automation Module
-**github-vercel-hetzner-connector.js** (12 KB)
+**github-hetzner-connector.js** (12 KB)
 - `GitHubAutoConnector` - Create repos, add secrets, setup webhooks
-- `VercelAutoLinker` - Create projects, link GitHub, auto-deploy
+- `HetznerAutoLinker` - Create projects, link GitHub, auto-deploy
 - `HetznerSSHManager` - Deploy code, setup webhook server
 - `PlatformOrchestrator` - Master orchestrator for all 3
 
@@ -54,7 +54,7 @@ bash setup-platform-auto-connect.sh
    - Verification checklist
    - Examples and troubleshooting
 
-2. **GITHUB-VERCEL-HETZNER-CONNECTOR.md** (9.5 KB)
+2. **GITHUB-HETZNER-HETZNER-CONNECTOR.md** (9.5 KB)
    - Complete API reference
    - Deployment flow diagram
    - Security best practices
@@ -86,7 +86,7 @@ You push code to GitHub
           ↓
     [Triggers 2 webhooks]
        ↙        ↘
-   Vercel      Hetzner
+   Hetzner      Hetzner
   (Frontend)   (Backend)
      ↓            ↓
  Auto-deploy  Pull & Build
@@ -109,10 +109,10 @@ No manual intervention needed!
    - Scopes: repo, workflow, admin:repo_hook
    - Starts with: `ghp_` (PAT) or `ghs_` (App installation token, up to ~520 chars)
 
-2. **Vercel API Token + Team ID**
-   - Go to: https://vercel.com/account/tokens
-   - Team ID from: https://vercel.com/account/settings
-   - Starts with: `VercelProdToken`
+2. **Hetzner API Token + Team ID**
+   - Go to: https://hetzner.com/account/tokens
+   - Team ID from: https://hetzner.com/account/settings
+   - Starts with: `HetznerProdToken`
 
 3. **Hetzner Server Access**
    - Server IP/hostname
@@ -137,7 +137,7 @@ cat IMPLEMENTATION-GUIDE.md
 
 ### Step 2: Prepare Credentials
 - Get GitHub token
-- Get Vercel token
+- Get Hetzner token
 - Prepare Hetzner SSH key
 
 ### Step 3: Run Setup
@@ -168,7 +168,7 @@ git push origin main
 | Document | Use Case | Length |
 |----------|----------|--------|
 | **START HERE** → **IMPLEMENTATION-GUIDE.md** | Step-by-step setup | 12 KB |
-| **GITHUB-VERCEL-HETZNER-CONNECTOR.md** | Technical details & API | 9.5 KB |
+| **GITHUB-HETZNER-HETZNER-CONNECTOR.md** | Technical details & API | 9.5 KB |
 | **README-AUTO-CONNECTOR.md** | Quick summary | 8.6 KB |
 | **QUICK-REFERENCE.sh** | Command reference | 10 KB |
 | **.env.auto-connector.example** | Configuration template | 1.8 KB |
@@ -196,7 +196,7 @@ git push origin main
 - Webhooks enabled
 - Secrets stored securely
 
-✅ **Vercel Deployment**
+✅ **Hetzner Deployment**
 - Production deployment active
 - Preview deployments for PRs
 - Environment variables set
@@ -222,13 +222,13 @@ git push origin main
 /Users/ionutvladoi/Desktop/generate-unicorn/
 │
 ├── 🤖 AUTOMATION
-│   ├── github-vercel-hetzner-connector.js    (Main module)
+│   ├── github-hetzner-connector.js    (Main module)
 │   ├── setup-platform-auto-connect.sh        (Setup script)
 │   └── verify-platform-setup.sh              (Verification)
 │
 ├── 📚 DOCUMENTATION
 │   ├── IMPLEMENTATION-GUIDE.md               (👈 START HERE)
-│   ├── GITHUB-VERCEL-HETZNER-CONNECTOR.md   (API docs)
+│   ├── GITHUB-HETZNER-HETZNER-CONNECTOR.md   (API docs)
 │   ├── README-AUTO-CONNECTOR.md              (Summary)
 │   ├── QUICK-REFERENCE.sh                    (Cheat sheet)
 │   └── .env.auto-connector.example           (Config template)
@@ -264,7 +264,7 @@ All sensitive data is **never stored in code**:
 
 ### Immediate (Now)
 1. Read **IMPLEMENTATION-GUIDE.md** (10 min)
-2. Collect credentials (GitHub, Vercel, Hetzner)
+2. Collect credentials (GitHub, Hetzner, Hetzner)
 3. Run setup script (5 min)
 
 ### Short Term (Today)
@@ -302,9 +302,9 @@ All sensitive data is **never stored in code**:
    open https://github.com/YOUR_USERNAME/unicorn-final/settings/hooks
    ```
 
-5. **View Vercel deployments:**
+5. **View Hetzner deployments:**
    ```bash
-   open https://vercel.com/dashboard
+   open https://hetzner.com/dashboard
    ```
 
 ---
@@ -320,13 +320,13 @@ ssh -i ~/.ssh/hetzner_rsa -v root@204.168.230.142
 ### Problem: Webhook Not Firing
 → Check GitHub Settings → Webhooks → Recent Deliveries
 
-### Problem: Vercel Not Deploying  
+### Problem: Hetzner Not Deploying  
 → Check GitHub Actions tab for build logs
 
 ### Problem: App Not Restarting
 → SSH into Hetzner: `pm2 logs webhook-server`
 
-**See full troubleshooting:** IMPLEMENTATION-GUIDE.md or GITHUB-VERCEL-HETZNER-CONNECTOR.md
+**See full troubleshooting:** IMPLEMENTATION-GUIDE.md or GITHUB-HETZNER-HETZNER-CONNECTOR.md
 
 ---
 
@@ -337,7 +337,7 @@ ssh -i ~/.ssh/hetzner_rsa -v root@204.168.230.142
 3. **Run verification** - `bash verify-platform-setup.sh`
 4. **Check logs:**
    - GitHub Actions: https://github.com/username/unicorn-final/actions
-   - Vercel: https://vercel.com/dashboard
+   - Hetzner: https://hetzner.com/dashboard
    - Hetzner: `ssh root@server && pm2 logs`
 
 ---
@@ -348,7 +348,7 @@ After setup, verify:
 
 - [ ] GitHub repository created and accessible
 - [ ] Deploy keys added to GitHub
-- [ ] Vercel project created and linked
+- [ ] Hetzner project created and linked
 - [ ] Hetzner SSH connection works
 - [ ] Project directory on Hetzner exists
 - [ ] Webhook server running on port 3001
@@ -362,7 +362,7 @@ Run: `bash verify-platform-setup.sh` to automate this
 ## 🎓 Learning Resources
 
 - **Code Examples** - In IMPLEMENTATION-GUIDE.md
-- **API Reference** - In GITHUB-VERCEL-HETZNER-CONNECTOR.md
+- **API Reference** - In GITHUB-HETZNER-HETZNER-CONNECTOR.md
 - **Use Cases** - Real-world examples provided
 - **Best Practices** - Security and performance tips
 
@@ -373,11 +373,11 @@ Run: `bash verify-platform-setup.sh` to automate this
 ```
 📂 Total: 7 new files + updated generator = 66 KB
 
-✅ github-vercel-hetzner-connector.js (12 KB)
+✅ github-hetzner-connector.js (12 KB)
 ✅ setup-platform-auto-connect.sh (5.5 KB)
 ✅ verify-platform-setup.sh (9.7 KB)
 ✅ IMPLEMENTATION-GUIDE.md (12 KB)
-✅ GITHUB-VERCEL-HETZNER-CONNECTOR.md (9.5 KB)
+✅ GITHUB-HETZNER-HETZNER-CONNECTOR.md (9.5 KB)
 ✅ README-AUTO-CONNECTOR.md (8.6 KB)
 ✅ QUICK-REFERENCE.sh (10 KB)
 ✅ .env.auto-connector.example (3.5 KB)

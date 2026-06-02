@@ -49,28 +49,7 @@ else
   ko "GitHub repository not reachable"
 fi
 
-echo "\n2) Vercel"
-if curl -s -H "Authorization: Bearer ${VERCEL_TOKEN:-}" https://api.vercel.com/v2/user | grep -q '"email"'; then
-  ok "Vercel token valid"
-else
-  ko "Vercel token invalid"
-fi
-
-VERCEL_SCOPE_QUERY=""
-if [ -n "${VERCEL_TEAM_ID:-}" ]; then
-  VERCEL_SCOPE_QUERY="?teamId=${VERCEL_TEAM_ID}"
-elif [ -n "${VERCEL_ORG_ID:-}" ]; then
-  VERCEL_SCOPE_QUERY="?teamId=${VERCEL_ORG_ID}"
-fi
-
-if [ -n "${VERCEL_PROJECT_ID:-}" ] && \
-  curl -s -H "Authorization: Bearer ${VERCEL_TOKEN:-}" "https://api.vercel.com/v9/projects/${VERCEL_PROJECT_ID}${VERCEL_SCOPE_QUERY}" | grep -q '"id"'; then
-  ok "Vercel project reachable"
-else
-  ko "Vercel project not reachable"
-fi
-
-echo "\n3) Hetzner"
+echo "\n2) Hetzner"
 if curl -s -H "Authorization: Bearer ${HETZNER_API_VALUE:-}" https://api.hetzner.cloud/v1/servers | grep -q '"servers"'; then
   ok "Hetzner API key valid"
 else
@@ -101,7 +80,7 @@ if [ -n "${HETZNER_WEBHOOK_URL}" ]; then
   fi
 fi
 
-echo "\n4) Webhooks"
+echo "\n3) Webhooks"
 if [ -n "${GITHUB_WEBHOOK_URL}" ]; then
   ok "GITHUB_WEBHOOK_URL configured"
 else
@@ -126,9 +105,9 @@ else
   ko "ADMIN_SECRET missing"
 fi
 
-echo "\n5) Workflow files"
+echo "\n4) Workflow files"
 for f in \
-  .github/workflows/vercel-deploy.yml \
+  .github/workflows/deploy.yml \
   setup-platform-auto-connect.sh \
   verify-platform-setup.sh \
   .env.auto-connector.example
@@ -149,4 +128,4 @@ if [ "$FAIL" -gt 0 ]; then
   exit 1
 fi
 
-echo -e "\n${GREEN}All checks passed. Git push to main can trigger Vercel + Hetzner deploy.${NC}"
+echo -e "\n${GREEN}All checks passed. Git push to main can trigger GitHub + Hetzner deploy.${NC}"

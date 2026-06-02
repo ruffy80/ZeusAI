@@ -19,13 +19,13 @@ Click **"New repository secret"** for each one below:
 | `HETZNER_SSH_PRIVATE_KEY` | Full content of your SSH private key (id_rsa) | `-----BEGIN OPENSSH PRIVATE KEY-----...` |
 | `HETZNER_DEPLOY_PATH` | Path on server where app is deployed | `/opt/unicorn` |
 
-### 🚀 Vercel (Frontend Deployment)
+### 🚀 Hetzner (Frontend Deployment)
 
 | Secret Name | Description | How to get |
 |---|---|---|
-| `VERCEL_TOKEN` | Vercel API token | [vercel.com/account/tokens](https://vercel.com/account/tokens) |
-| `VERCEL_ORG_ID` | Your Vercel team/org ID | Run `vercel link` locally, check `.vercel/project.json` |
-| `VERCEL_PROJECT_ID` | Your Vercel project ID | Same as above |
+| `HETZNER_legacy_TOKEN` | Hetzner API token | [hetzner.com/account/tokens](https://hetzner.com/account/tokens) |
+| `HETZNER_legacy_ORG_ID` | Your Hetzner team/org ID | Run `hetzner link` locally, check `.hetzner/project.json` |
+| `HETZNER_legacy_PROJECT_ID` | Your Hetzner project ID | Same as above |
 
 ### 🐙 GitHub
 
@@ -84,7 +84,7 @@ Click **"New repository secret"** for each one below:
 ## 🚀 After Setting All Secrets
 
 1. Go to **Actions** tab in GitHub
-2. Click on **"Vercel Deploy + Hetzner Sync"** workflow
+2. Click on **"Hetzner Deploy + Hetzner Sync"** workflow
 3. Click **"Run workflow"** → select `main` branch → click **"Run workflow"**
 4. Monitor the workflow run for any errors
 
@@ -92,7 +92,7 @@ Click **"New repository secret"** for each one below:
 
 ## 🌐 Expected URLs After Deployment
 
-- **Vercel (Frontend):** `https://zeusai.pro` or `https://zeusai-[hash].vercel.app`
+- **Hetzner (Frontend):** `https://zeusai.pro` or `https://zeusai-[hash].hetzner.app`
 - **Hetzner (Backend API):** `https://zeusai.pro/api/*`
 - **Health Check:** `https://zeusai.pro/api/health`
 - **Admin Dashboard:** `https://zeusai.pro/admin`
@@ -102,10 +102,10 @@ Click **"New repository secret"** for each one below:
 
 ## 🔧 Minimum Required Secrets to Start
 
-For the **absolute minimum** working deployment (Vercel only):
-1. `VERCEL_TOKEN`
-2. `VERCEL_ORG_ID`
-3. `VERCEL_PROJECT_ID`
+For the **absolute minimum** working deployment (Hetzner only):
+1. `HETZNER_legacy_TOKEN`
+2. `HETZNER_legacy_ORG_ID`
+3. `HETZNER_legacy_PROJECT_ID`
 4. `ADMIN_SECRET`
 5. `JWT_SECRET`
 

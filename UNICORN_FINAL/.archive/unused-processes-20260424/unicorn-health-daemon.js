@@ -131,7 +131,7 @@ async function checkFrontend() {
   const main = await httpRequest(FRONTEND_URL, { timeout: 15000 });
   result.checks.mainPage = { ok: main.ok, status: main.status, latencyMs: main.latencyMs };
 
-  // Check /health endpoint (Vercel / edge)
+  // Check /health endpoint (edge/runtime)
   const healthUrl = FRONTEND_URL.replace(/\/$/, '') + '/health';
   const healthCheck = await httpRequest(healthUrl, { timeout: 10000 });
   result.checks.healthEndpoint = { ok: healthCheck.ok, status: healthCheck.status, latencyMs: healthCheck.latencyMs };

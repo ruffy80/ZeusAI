@@ -11,6 +11,8 @@
 
 'use strict';
 
+const crypto = require('crypto');
+
 const scenarios = [
   {
     id: 'pandemic',
@@ -43,21 +45,33 @@ const scenarios = [
 ];
 
 function getCrisisForecast() {
-  // Simulează scoruri dinamice
+  // Forecast determinist bazat pe baseline + bias regional/sectorial din input extern.
   return scenarios.map(s => ({
     ...s,
-    likelihood: +(s.likelihood + (Math.random() - 0.5) * 0.05).toFixed(2),
+    likelihood: +Number(s.likelihood).toFixed(2),
     aiAdvice: s.aiAdvice
   }));
 }
 
-function simulateImpact(scenarioId, exposure = 1) {
+function _deterministicNudge(seed) {
+  const h = crypto.createHash('sha256').update(String(seed)).digest('hex');
+  const n = parseInt(h.slice(0, 8), 16) / 0xffffffff; // 0..1
+  return 0.85 + (n * 0.3); // 0.85 .. 1.15
+}
+
+function simulateImpact(scenarioId, exposure = 1, context = {}) {
   const s = scenarios.find(x => x.id === scenarioId);
   if (!s) return { error: 'Scenario not found' };
-  // Exemplu: scor de impact ajustat
+  const e = Math.max(0, Number(exposure) || 0);
+  const region = String(context.region || 'global').toLowerCase();
+  const sector = String(context.sector || 'general').toLowerCase();
+  const bias = _deterministicNudge(`${scenarioId}:${region}:${sector}:${e}`);
+  const simulatedImpact = Number((s.likelihood * e * bias).toFixed(4));
+
   return {
     ...s,
-    simulatedImpact: +(s.likelihood * exposure * (0.8 + Math.random() * 0.4)).toFixed(2),
+    simulatedImpact,
+    inputs: { exposure: e, region, sector },
     aiAdvice: s.aiAdvice
   };
 }

@@ -3,7 +3,7 @@
 ## Overview
 
 Unicorn is now a **fully autonomous, self-sustaining platform** that:
-- ✅ **Auto-deploys** to GitHub → Vercel → Hetzner automatically
+- ✅ **Auto-deploys** to GitHub → Hetzner automatically
 - ✅ **Auto-innovates** by generating and deploying new features every 60 seconds
 - ✅ **Auto-monetizes** by creating affiliate deals and revenue streams every 30 seconds
 - ✅ **Self-heals** by monitoring health and optimizing performance
@@ -86,7 +86,7 @@ tail -f logs/orchestrator.log
 **What it does:**
 - Generates new innovative features automatically
 - Evaluates innovations based on confidence, impact, and feasibility
-- Deploys approved innovations to Vercel
+- Deploys approved innovations to platform runtime
 - Tracks deployment success and adjusts generation rate
 
 **Cycle:** Every 60 seconds
@@ -108,7 +108,7 @@ tail -f logs/orchestrator.log
 ```
 [AutonomousInnovation] Generated: INNOV-1704067200000-1 (API_ENHANCEMENT)
 [AutonomousInnovation] Approved: INNOV-1704067200000-1 (score: 0.87)
-[AutonomousInnovation] Deployed: INNOV-1704067200000-1 (245ms) → https://unicorn-abc123.vercel.app
+[AutonomousInnovation] Deployed: INNOV-1704067200000-1 (245ms) → https://zeusai.pro
 ```
 
 ### 2. 💰 Auto Revenue Engine (`backend/modules/autoRevenue.js`)
@@ -147,7 +147,7 @@ tail -f logs/orchestrator.log
 
 **What it does:**
 - Coordinates all autonomous systems
-- Manages deployment pipeline (GitHub → Vercel → Hetzner)
+- Manages deployment pipeline (GitHub → Hetzner)
 - Monitors system health
 - Optimizes autonomous parameters based on success rates
 - Tracks comprehensive metrics and logs
@@ -156,7 +156,7 @@ tail -f logs/orchestrator.log
 1. **Deployment Cycle** (every 300s / 5 min)
    - Auto-commits changes to git
    - Pushes to GitHub main branch
-   - Triggers Vercel deployment
+  - Triggers deployment
    - Deploys to Hetzner via SSH
    - Runs health checks
 
@@ -317,8 +317,8 @@ AUTONOMY_LEVEL=10
 # ==================== DEPLOYMENT ====================
 GITHUB_OWNER=your-username
 GITHUB_REPO=unicorn-final
-VERCEL_ORG_ID=your-vercel-org
-VERCEL_PROJECT_ID=your-vercel-project
+HETZNER_HOST=your-hetzner-host
+HETZNER_DEPLOY_PATH=/opt/unicorn
 HETZNER_HOST=your-hetzner.com
 HETZNER_DEPLOY_PATH=/opt/unicorn
 
@@ -335,20 +335,16 @@ JWT_SECRET=unicorn-jwt-secret-change-in-prod
 
 ### GitHub Actions Integration
 
-The `.github/workflows/vercel-deploy.yml` includes:
+The deployment workflow includes:
 
 1. **Validation Job** - Lints and tests code
-2. **Vercel Deployment** - Builds and deploys frontend
-3. **Hetzner Deployment** - SSH deployment or webhook fallback
-4. **Autonomous Innovation Job** - Triggers innovation cycle on deploy
-5. **Autonomous Revenue Job** - Triggers revenue generation on deploy
+2. **Hetzner Deployment** - SSH deployment or webhook fallback
+3. **Autonomous Innovation Job** - Triggers innovation cycle on deploy
+4. **Autonomous Revenue Job** - Triggers revenue generation on deploy
 
 **Required GitHub Secrets:**
 ```
 ADMIN_SECRET
-VERCEL_TOKEN
-VERCEL_ORG_ID
-VERCEL_PROJECT_ID
 HETZNER_HOST
 HETZNER_DEPLOY_USER
 HETZNER_DEPLOY_PORT
@@ -391,7 +387,7 @@ WEBHOOK_SECRET (for webhook security)
                     │            │            │
                     ▼            ▼            ▼
               ┌─────────┐  ┌─────────┐  ┌─────────┐
-              │ GitHub  │  │ Vercel  │  │Hetzner │
+              │ GitHub  │  │Hetzner │
               │  (push) │  │(deploy) │  │(deploy)│
               └─────────┘  └─────────┘  └─────────┘
                     │            │            │
@@ -540,8 +536,8 @@ grep -i "deployment\|deploy" logs/orchestrator.log
 # Test manual git push
 git push origin main
 
-# Test Vercel webhook (if configured)
-curl -X POST $VERCEL_DEPLOY_HOOK_URL
+# Test deployment webhook (if configured)
+curl -X POST $HETZNER_WEBHOOK_URL
 ```
 
 ---
@@ -598,7 +594,7 @@ for (const server of HETZNER_HOSTS) {
 Typical performance on a single Hetzner server (4 vCPU, 8GB RAM):
 
 - **Uptime:** 99.97%+
-- **Deployment Time:** 45-60 seconds (GitHub → Vercel → Hetzner)
+- **Deployment Time:** 45-60 seconds (GitHub → Hetzner)
 - **Innovation Cycle:** 60 seconds to generate + evaluate + deploy
 - **Revenue Generation:** 30 seconds to create deals + calculate metrics
 - **API Response Time:** <100ms average

@@ -22,9 +22,9 @@ git status | grep .env.auto-connector  # Should show nothing
 ### Option A: Using GitHub CLI (Recommended)
 ```bash
 gh secret set GITHUB_TOKEN --body "ghp_your_token_here"
-gh secret set VERCEL_TOKEN --body "vcp_your_token_here"
-gh secret set VERCEL_ORG_ID --body "team_your_org_id"
-gh secret set VERCEL_PROJECT_ID --body "prj_your_project_id"
+gh secret set HETZNER_legacy_TOKEN --body "vcp_your_token_here"
+gh secret set HETZNER_legacy_ORG_ID --body "team_your_org_id"
+gh secret set HETZNER_legacy_PROJECT_ID --body "prj_your_project_id"
 gh secret set HETZNER_HOST --body "192.168.1.100"
 gh secret set HETZNER_USER --body "root"
 gh secret set HETZNER_DEPLOY_USER --body "app-user"
@@ -74,9 +74,9 @@ curl localhost:3000/health  # Should return 200 OK
 | Secret | Value | Example | Get From |
 |--------|-------|---------|----------|
 | `GITHUB_TOKEN` | Your GitHub PAT | `ghp_xxxxxxxxxxxx` | https://github.com/settings/tokens |
-| `VERCEL_TOKEN` | Your Vercel token | `vcp_xxxxxxxx` | https://vercel.com/account/tokens |
-| `VERCEL_ORG_ID` | Your org ID | `team_qwerty` | https://vercel.com/dashboard |
-| `VERCEL_PROJECT_ID` | Your project ID | `prj_zxcvbnm` | https://vercel.com/dashboard |
+| `HETZNER_legacy_TOKEN` | Your Hetzner token | `vcp_xxxxxxxx` | https://hetzner.com/account/tokens |
+| `HETZNER_legacy_ORG_ID` | Your org ID | `team_qwerty` | https://hetzner.com/dashboard |
+| `HETZNER_legacy_PROJECT_ID` | Your project ID | `prj_zxcvbnm` | https://hetzner.com/dashboard |
 | `HETZNER_HOST` | Server IP | `192.168.1.100` | Your Hetzner console |
 | `HETZNER_USER` | SSH user | `root` | Your server |
 | `HETZNER_DEPLOY_USER` | Deploy user | `app-user` | Your preference |
@@ -94,7 +94,7 @@ curl localhost:3000/health  # Should return 200 OK
 ❌ Print secrets in logs or console output  
 ❌ Use the same token for multiple environments  
 ❌ Store secrets in comments or documentation  
-❌ Share GitHub/Vercel/Hetzner credentials directly  
+❌ Share GitHub/Hetzner/Hetzner credentials directly  
 
 ---
 
@@ -127,7 +127,7 @@ grep -E "gh[pousr]_[A-Za-z0-9]+|github_pat_[A-Za-z0-9]+|vcp_[A-Za-z0-9]+|^[0-9]{
 ```bash
 # 1. Regenerate token immediately
 # GitHub: https://github.com/settings/tokens → Delete old, create new
-# Vercel: https://vercel.com/account/tokens → Delete old, create new
+# Hetzner: https://hetzner.com/account/tokens → Delete old, create new
 # Hetzner: https://console.hetzner.cloud → Delete old, create new
 
 # 2. Update GitHub Secrets

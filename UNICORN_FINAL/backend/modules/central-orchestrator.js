@@ -14,7 +14,7 @@
  * ia decizii și reconstruiește pipeline-ul fără intervenție manuală.
  *
  * Notă: Stack-ul rulează exclusiv pe GitHub (sursa de adevăr) +
- * Hetzner (runtime PM2/nginx). Nicio țintă de deploy externă (Vercel etc.)
+ * Hetzner (runtime PM2/nginx). Nicio țintă de deploy externă suplimentară.
  * nu este monitorizată sau folosită.
  *
  * Responsabilități:

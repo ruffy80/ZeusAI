@@ -248,7 +248,6 @@ bash INNOVATIONS-QUICK-START.sh
 ### Related Documentation
 - **[SETUP-HETZNER-GUIDE.md](SETUP-HETZNER-GUIDE.md)** - Server deployment
 - **[IMPLEMENTATION-GUIDE.md](IMPLEMENTATION-GUIDE.md)** - Full setup guide
-- **[GITHUB-VERCEL-HETZNER-CONNECTOR.md](GITHUB-VERCEL-HETZNER-CONNECTOR.md)** - DevOps automation
 
 ---
 

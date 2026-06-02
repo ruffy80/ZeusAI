@@ -33,9 +33,9 @@
 
 ## Integration boundaries and external systems
 - Deployment automation is first-class:
-  - `github-vercel-hetzner-connector.js` — historical connector script (Vercel is no longer used; Hetzner is the sole deployment target).
+   - historical connector script — legacy external provider no longer used; Hetzner is the sole deployment target.
   - `setup-platform-auto-connect.sh` validates `.env.auto-connector` and bootstraps Hetzner runtime.
-- GitHub Actions deploy only to Hetzner from secrets (`HETZNER_*`). Vercel integration is disabled (`vercel.json` sets `"github": { "enabled": false }`).
+- GitHub Actions deploy only to Hetzner from secrets (`HETZNER_*`). Legacy provider integration is deprecated and removed from active deploy paths.
 - Auto-sync scripts (`scripts/start-auto-sync.sh`, `scripts/auto-sync-push.sh`) continuously `git add/commit/push`; avoid enabling/changing them unintentionally during feature work.
 
 ## Practical change strategy for AI agents

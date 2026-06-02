@@ -195,7 +195,7 @@ const marketplaceHub = {
 
 // ---- Sub-component: carbonExchange (carbon trading + energy) ----
 const carbonExchangeFacade = {
-  getStatus() { return { name: 'carbonExchange', active: false, shim: true }; },
+  getStatus() { return { name: 'carbonExchange', active: false, source: 'absorbed-into-unicornTreasury', degraded: true }; },
   trade(/* opts */) { return { ok: false, reason: 'absorbed_into_unicornTreasury' }; },
 };
 

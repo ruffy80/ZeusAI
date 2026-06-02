@@ -55,10 +55,10 @@ GITHUB_REPO=your-repo-name
 GITHUB_TOKEN=ghp_YOUR_PERSONAL_ACCESS_TOKEN_HERE
 GIT_REMOTE_URL=https://github.com/your-username/your-repo.git
 
-# Vercel - for front-end deployment
-VERCEL_TOKEN=vcp_YOUR_VERCEL_TOKEN_HERE
-VERCEL_ORG_ID=team_YOUR_ORG_ID_HERE
-VERCEL_PROJECT_ID=prj_YOUR_PROJECT_ID_HERE
+# Hetzner - for front-end deployment
+HETZNER_legacy_TOKEN=vcp_YOUR_HETZNER_legacy_TOKEN_HERE
+HETZNER_legacy_ORG_ID=team_YOUR_ORG_ID_HERE
+HETZNER_legacy_PROJECT_ID=prj_YOUR_PROJECT_ID_HERE
 
 # Hetzner - for server deployment
 HETZNER_HOST=your.server.ip.address
@@ -84,8 +84,8 @@ PAYPAL_CLIENT_ID=YOUR_PAYPAL_CLIENT_ID_HERE
 3. Select scopes: `repo`, `workflow`, `admin:repo_hook`
 4. Copy the token (you'll only see it once!)
 
-**For Vercel:**
-1. Go to https://vercel.com/account/tokens
+**For Hetzner:**
+1. Go to https://hetzner.com/account/tokens
 2. Create a new token
 3. Copy the token
 
@@ -104,9 +104,9 @@ Via **GitHub UI**:
 
 ```
 GITHUB_TOKEN              = ghp_...
-VERCEL_TOKEN              = vcp_...
-VERCEL_ORG_ID             = team_...
-VERCEL_PROJECT_ID         = prj_...
+HETZNER_legacy_TOKEN              = vcp_...
+HETZNER_legacy_ORG_ID             = team_...
+HETZNER_legacy_PROJECT_ID         = prj_...
 HETZNER_HOST              = 192.168.1.100
 HETZNER_USER              = root
 HETZNER_DEPLOY_USER       = app-user
@@ -120,7 +120,7 @@ HETZNER_DEPLOY_PATH       = /home/app/unicorn
 ```bash
 # Make sure you're authenticated: gh auth login
 gh secret set GITHUB_TOKEN --body "ghp_..."
-gh secret set VERCEL_TOKEN --body "vcp_..."
+gh secret set HETZNER_legacy_TOKEN --body "vcp_..."
 gh secret set HETZNER_API_KEY --body "..."
 # ... etc
 ```
@@ -158,9 +158,9 @@ GITHUB_REPO=my-project
 GITHUB_TOKEN=ghp_1234567890abcdefghijklmnopqrstuv
 GIT_REMOTE_URL=https://github.com/myusername/my-project.git
 
-VERCEL_TOKEN=vcp_asdfghjkl
-VERCEL_ORG_ID=team_qwerty
-VERCEL_PROJECT_ID=prj_zxcvbnm
+HETZNER_legacy_TOKEN=vcp_asdfghjkl
+HETZNER_legacy_ORG_ID=team_qwerty
+HETZNER_legacy_PROJECT_ID=prj_zxcvbnm
 
 HETZNER_HOST=192.168.1.100
 HETZNER_USER=root
@@ -227,7 +227,7 @@ This will:
 When you push to `main`:
 1. GitHub Actions checks out code
 2. Validates with `npm test` and `npm run lint`
-3. **Deploys to Vercel** using `VERCEL_TOKEN` from secrets
+3. **Deploys to Hetzner** using `HETZNER_legacy_TOKEN` from secrets
 4. **Deploys to Hetzner** using:
    - `HETZNER_HOST`, `HETZNER_DEPLOY_USER`, `HETZNER_API_KEY` (from secrets)
    - `HETZNER_SSH_PRIVATE_KEY` for SSH connection
@@ -290,15 +290,15 @@ When you push to `main`:
    ssh -i ~/.ssh/hetzner_rsa -p 22 root@your.server.ip "echo test"
    ```
 
-### Problem: Vercel deployment fails
+### Problem: Hetzner deployment fails
 **Solution:**
-1. Check token is not expired: https://vercel.com/account/tokens
+1. Check token is not expired: https://hetzner.com/account/tokens
 2. Verify org/project IDs match:
    ```bash
    # In UNICORN_FINAL directory
-   cat .vercel/project.json
+   cat .hetzner/project.json
    ```
-3. Regenerate Vercel token if needed
+3. Regenerate Hetzner token if needed
 
 ### Problem: Secrets were accidentally committed
 **Solution:**
@@ -320,9 +320,9 @@ When you push to `main`:
 | Secret | Scope | Example | Where To Get |
 |--------|-------|---------|--------------|
 | `GITHUB_TOKEN` | Repo, workflow | `ghp_xxxx` | https://github.com/settings/tokens |
-| `VERCEL_TOKEN` | Project, org | `vcp_xxxx` | https://vercel.com/account/tokens |
-| `VERCEL_ORG_ID` | Project org | `team_xxxx` | https://vercel.com/dashboard |
-| `VERCEL_PROJECT_ID` | Project | `prj_xxxx` | https://vercel.com/dashboard |
+| `HETZNER_legacy_TOKEN` | Project, org | `vcp_xxxx` | https://hetzner.com/account/tokens |
+| `HETZNER_legacy_ORG_ID` | Project org | `team_xxxx` | https://hetzner.com/dashboard |
+| `HETZNER_legacy_PROJECT_ID` | Project | `prj_xxxx` | https://hetzner.com/dashboard |
 | `HETZNER_API_KEY` | Cloud API | (token) | https://console.hetzner.cloud |
 | `HETZNER_SSH_PRIVATE_KEY` | SSH key | (full key file) | `cat ~/.ssh/hetzner_rsa` |
 | `HETZNER_HOST` | Server IP | `192.168.1.100` | Your Hetzner console |

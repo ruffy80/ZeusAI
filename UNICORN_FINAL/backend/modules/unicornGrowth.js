@@ -84,7 +84,7 @@ const trendAnalyzer = {
     try {
       if (autoTrendAnalyzer && typeof autoTrendAnalyzer.analyze === 'function') return autoTrendAnalyzer.analyze(opts);
     } catch (_) { /* silent */ }
-    return { ok: true, trends: [], shim: true };
+    return { ok: true, trends: [], source: 'fallback-local', degraded: true };
   },
 };
 
@@ -132,7 +132,7 @@ const conversionOptimizer = {
     try {
       if (conversionLayer && typeof conversionLayer.optimize === 'function') return conversionLayer.optimize(funnel);
     } catch (_) { /* silent */ }
-    return { ok: true, suggestions: [], shim: true };
+    return { ok: true, suggestions: [], source: 'fallback-local', degraded: true };
   },
 };
 
@@ -150,7 +150,7 @@ const seoMesh = {
     try {
       if (programmaticSEO && typeof programmaticSEO.generate === 'function') return programmaticSEO.generate(spec);
     } catch (_) { /* silent */ }
-    return { ok: true, generated: spec.count || 0, shim: true };
+    return { ok: true, generated: spec.count || 0, source: 'fallback-local', degraded: true };
   },
 };
 
@@ -160,7 +160,7 @@ const verticalGrowthEngine = {
     try {
       if (verticalGrowth && typeof verticalGrowth.build === 'function') return verticalGrowth.build(vertical);
     } catch (_) { /* silent */ }
-    return { ok: true, vertical: vertical.name || 'unknown', shim: true };
+    return { ok: true, vertical: vertical.name || 'unknown', source: 'fallback-local', degraded: true };
   },
 };
 

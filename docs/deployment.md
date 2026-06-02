@@ -1,7 +1,7 @@
 # Unicorn Autonomous Deployment (Hetzner-only)
 
 ## Scope
-This document defines the production runtime for `zeusai.pro` without Vercel dependency.
+This document defines the production runtime for `zeusai.pro` in Hetzner-only mode.
 
 - Runtime target: Hetzner
 - Public domains: `zeusai.pro`, `www.zeusai.pro`
@@ -89,5 +89,5 @@ Use these commands on server:
 
 ## Notes
 
-- Vercel workflow is intentionally deprecated in Hetzner-only mode.
+- Legacy external frontend workflows are intentionally deprecated in Hetzner-only mode.
 - If DNS/SSL provider propagation is in progress, HTTPS may lag until propagation completes.

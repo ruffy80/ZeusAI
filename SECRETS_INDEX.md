@@ -170,7 +170,7 @@ Contains:
 - [ ] Verify `.env.auto-connector` is git-ignored
 - [ ] Add secrets to GitHub via `gh secret set`
 - [ ] Push to main and verify GitHub Actions runs
-- [ ] Verify deployment on Vercel and Hetzner
+- [ ] Verify deployment on Hetzner
 
 ### Verification
 - [ ] No real secrets in `.env*.example` files
@@ -209,7 +209,6 @@ echo $HETZNER_API_KEY             # Should print your key
 
 # 2. Add to GitHub (10 min)
 gh secret set GITHUB_TOKEN --body "ghp_..."
-gh secret set VERCEL_TOKEN --body "vcp_..."
 gh secret set HETZNER_API_KEY --body "..."
 # ... (see SECRETS_QUICK_START.md for full list)
 
@@ -266,7 +265,7 @@ gh run view --web                 # Watch deployment
 
 **20+ Secrets Now Secure:**
 - GitHub tokens
-- Vercel tokens
+- Platform API tokens
 - Hetzner API keys
 - SSH private keys
 - Stripe/PayPal credentials

@@ -1,9 +1,9 @@
 /**
- * GITHUB-VERCEL-HETZNER AUTO CONNECTOR
- * Complete automation module for connecting GitHub, Vercel, and Hetzner
+ * GITHUB-LEGACY-HETZNER AUTO CONNECTOR
+ * Complete automation module for connecting GitHub, legacy provider, and Hetzner
  * 
  * Usage:
- *   const connector = require('./github-vercel-hetzner-connector.js');
+ *   const connector = require('./platform-connector.js');
  *   await connector.setupAll(config);
  */
 
@@ -31,7 +31,7 @@ class GitHubAutoConnector {
     try {
       const res = await axios.post(`${this.apiBase}/user/repos`, {
         name: this.repoName,
-        description: 'UNICORN FINAL - AI Platform with Auto-Deploy',
+        description: 'UNICORN_FINAL - AI Platform with Auto-Deploy',
         private: false,
         auto_init: true,
         gitignore_template: 'Node'
@@ -109,16 +109,16 @@ class GitHubAutoConnector {
 }
 
 // ================================================================
-// 2. VERCEL AUTO LINKER
+// 2. LEGACY PROVIDER LINKER
 // ================================================================
-class VercelAutoLinker {
-  constructor(vercelToken) {
-    this.token = vercelToken;
-    this.apiBase = 'https://api.vercel.com';
+class LegacyProviderLinker {
+  constructor(legacyToken) {
+    this.token = legacyToken;
+    this.apiBase = 'https://api.example.com';
   }
 
   log(msg) {
-    console.log(`[Vercel] ${msg}`);
+    console.log(`[LegacyProvider] ${msg}`);
   }
 
   async createProject(projectName, gitRepo) {
@@ -309,7 +309,7 @@ class PlatformOrchestrator {
     
     const {
       github,
-      vercel,
+      legacyProvider,
       hetzner,
       webhook
     } = config;
@@ -340,19 +340,19 @@ class PlatformOrchestrator {
       }
     }
 
-    // 2. Vercel Setup
-    if (vercel) {
-      this.log('Setting up Vercel...');
-      const vercelLinker = new VercelAutoLinker(vercel.token);
+    // 2. Legacy provider setup
+    if (legacyProvider) {
+      this.log('Setting up legacy provider...');
+      const legacyLinker = new LegacyProviderLinker(legacyProvider.token);
       
       const repoName = this.results.github?.success 
         ? `${github.owner}/unicorn-final` 
         : config.gitRepo;
       
-      this.results.vercel = await vercelLinker.createProject('unicorn-final', repoName);
+      this.results.legacyProvider = await legacyLinker.createProject('unicorn-final', repoName);
       
-      if (this.results.vercel.success && vercel.envVars) {
-        await vercelLinker.setEnvironmentVariables(this.results.vercel.projectId, vercel.envVars);
+      if (this.results.legacyProvider.success && legacyProvider.envVars) {
+        await legacyLinker.setEnvironmentVariables(this.results.legacyProvider.projectId, legacyProvider.envVars);
       }
     }
 
@@ -395,7 +395,7 @@ class PlatformOrchestrator {
 // ================================================================
 module.exports = {
   GitHubAutoConnector,
-  VercelAutoLinker,
+  LegacyProviderLinker,
   HetznerSSHManager,
   PlatformOrchestrator,
   

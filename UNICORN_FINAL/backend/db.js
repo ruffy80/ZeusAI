@@ -68,7 +68,7 @@
  * Tables: users, payments, marketplace_purchases, api_keys, api_usage
  *
  * Falls back to in-memory store if better-sqlite3 is unavailable
- * (e.g. Vercel Lambda, CI environments without native module support).
+ * (e.g. serverless/CI environments without native module support).
  */
 
 'use strict';

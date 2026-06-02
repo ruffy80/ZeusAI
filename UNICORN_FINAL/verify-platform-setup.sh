@@ -128,4 +128,4 @@ if [ "$FAIL" -gt 0 ]; then
   exit 1
 fi
 
-echo -e "\n${GREEN}All checks passed. Git push to main can trigger Vercel + Hetzner deploy.${NC}"
+echo -e "\n${GREEN}All checks passed. Git push to main can trigger GitHub + Hetzner deploy.${NC}"

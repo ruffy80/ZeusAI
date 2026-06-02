@@ -1,8 +1,6 @@
 .DS_Store
 .env
 node_modules/
-.vercel/
-.vercel
 
 logs/
 *.local

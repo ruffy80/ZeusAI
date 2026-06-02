@@ -1,12 +1,3 @@
-// Alias pentru orchestrator: statusFn
-module.exports.statusFn = module.exports.getStatus;
-// MeshOrchestrator expects a status function (getStatus)
-module.exports.getStatus = function() {
-  if (typeof this.getStatus === 'function') {
-    return this.getStatus();
-  }
-  return { status: 'unknown' };
-};
 // =====================================================================
 // OWNERSHIP: Acest fișier este proprietatea exclusivă a lui Vladoi Ionut
 // Email: vladoi_ionut@yahoo.com
@@ -465,3 +456,5 @@ class UnicornOrchestrator extends EventEmitter {
 
 // Export singleton — auto-starts on require
 module.exports = new UnicornOrchestrator();
+// Alias compatibil pentru consumatorii legacy.
+module.exports.statusFn = () => module.exports.getStatus();

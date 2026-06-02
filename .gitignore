@@ -1,6 +1,5 @@
 .DS_Store
 node_modules/
-.vercel
 logs/
 .next/
 out/
@@ -12,7 +11,6 @@ build/
 platform-setup-results.json
 run-platform-setup.js
 *.log
-.vercel/
 *.pid
 UNICORN_FINAL/data/innovations-30y/
 UNICORN_FINAL/data/innovations-30y-v2/
