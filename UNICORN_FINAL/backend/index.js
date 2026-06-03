@@ -2977,6 +2977,52 @@ for (const [meshName, modFile] of [
   } catch (e) { console.warn('[mesh] supreme engine register skipped:', modFile, e && e.message); }
 }
 
+// ── REAL ENGINE-CORE MODULES — cele 22 module populate cu logică reală
+// (PSO, Dijkstra, z-test, merit-order, topo-sort, PID, softmax, etc.) sunt
+// aduse SUB guvernanța mesh: monitorizare health + auto-heal (heal() clears
+// the circuit pause). Aceleași instanțe singleton folosite de rutele /api.
+for (const [meshName, inst] of [
+  ['analyticsEngine',          analyticsEngine],
+  ['abTesting',                abTesting],
+  ['contentAI',                contentAI],
+  ['autoTrendAnalyzer',        autoTrendAnalyzer],
+  ['performanceMonitor',       performanceMonitor],
+  ['seoOptimizer',             seoOptimizer],
+  ['securityScanner',          securityScanner],
+  ['swarmIntelligence',        swarmIntelligence],
+  ['autonomousWealthEngine',   autonomousWealthEngine],
+  ['autonomousBDEngine',       autonomousBDEngine],
+  ['autoMarketing',            autoMarketing],
+  ['selfAdaptationEngine',     selfAdaptationEngine],
+  ['selfDocumenter',           selfDocumenter],
+  ['siteCreator',              siteCreator],
+  ['unicornRealizationEngine', unicornRealizationEngine],
+  ['unicornSuperIntelligence', unicornSuperIntelligence],
+  ['universalAdaptor',         universalAdaptor],
+  ['universalInterchainNexus', universalInterchainNexus],
+  ['unicornExecutionEngine',   unicornExecutionEngine],
+]) {
+  try {
+    if (inst && typeof inst.getStatus === 'function') {
+      meshOrchestrator.register(meshName, inst, { statusFn: 'getStatus' });
+    }
+  } catch (e) { console.warn('[mesh] real engine register skipped:', meshName, e && e.message); }
+}
+// Module reale încărcate dinamic de autonomous-core (fără rute proprii) —
+// require e cache-uit, deci aceeași instanță, fără dublă-pornire.
+for (const [meshName, modFile] of [
+  ['energyTrading', 'energyTrading'],
+  ['healthcareAI',  'healthcareAI'],
+  ['web3Identity',  'web3Identity'],
+]) {
+  try {
+    const inst = require('./modules/' + modFile);
+    if (inst && typeof inst.getStatus === 'function') {
+      meshOrchestrator.register(meshName, inst, { statusFn: 'getStatus' });
+    }
+  } catch (e) { console.warn('[mesh] dynamic engine register skipped:', modFile, e && e.message); }
+}
+
 meshOrchestrator.register('autonomousInnovation',   autonomousInnovation, { statusFn: 'getStatus' });
 meshOrchestrator.register('autoRevenue',            autoRevenue,        { statusFn: 'getRevenueStatus' });
 meshOrchestrator.register('autoViralGrowth',        autoViralGrowth,    { statusFn: 'getViralStatus' });
