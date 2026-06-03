@@ -9213,6 +9213,48 @@ ${invoice.payer ? `<h2>Payer</h2><table><tr><th>Legal entity</th><td>${esc(invoi
     return res.end(JSON.stringify({ error: 'not_found', path: req.url }));
   }
 
+  // ─── HTML BUILD-ATTESTATION endpoints (inovație 2026-06-03) ────────────
+  // /api/attestation/publickey  — Ed25519 public key + verifier instructions
+  // /api/attestation/verify-html — POST html (raw or {html}) → verdict
+  // Anyone can capture an HTML page from zeusai.pro and confirm cryptographic
+  // provenance: anti-MITM, anti-cache-poisoning, anti-impersonation.
+  if (urlPath === '/api/attestation/publickey' && req.method === 'GET') {
+    try {
+      const fe = require('./frontier-engine');
+      const out = fe.attestationPublicKey();
+      res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'public, max-age=300' });
+      return res.end(JSON.stringify(out, null, 2));
+    } catch (e) {
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      return res.end(JSON.stringify({ error: (e && e.message) || 'attestation_pubkey_failed' }));
+    }
+  }
+  if (urlPath === '/api/attestation/verify-html' && req.method === 'POST') {
+    let body = '';
+    req.on('data', c => { body += c; if (body.length > 5 * 1024 * 1024) req.destroy(); });
+    req.on('end', () => {
+      try {
+        let html;
+        const ct = String(req.headers['content-type'] || '').toLowerCase();
+        if (ct.includes('application/json')) {
+          let parsed = {};
+          try { parsed = JSON.parse(body || '{}'); } catch (_) { parsed = {}; }
+          html = String(parsed.html || '');
+        } else {
+          html = body;
+        }
+        const fe = require('./frontier-engine');
+        const verdict = fe.verifyAttestedHtml(html);
+        res.writeHead(verdict.ok ? 200 : 422, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' });
+        return res.end(JSON.stringify(verdict, null, 2));
+      } catch (e) {
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        return res.end(JSON.stringify({ ok: false, reason: 'verify_exception:' + ((e && e.message) || 'unknown') }));
+      }
+    });
+    return;
+  }
+
   // 30Y-LTS — CSP violation reporter. Browsers POST here when a directive is breached.
   if (urlPath === '/csp-violations' && req.method === 'POST') {
     let body=''; req.on('data', c => { body += c; if (body.length > 16*1024) req.destroy(); });
@@ -9603,6 +9645,16 @@ a{color:#8a5cff;text-decoration:none}
       responseHeaders['Accept-CH'] = 'Save-Data, Sec-CH-Prefers-Reduced-Data, ECT, Downlink';
     }
     res.writeHead(200, responseHeaders);
+    // ─── HTML BUILD-ATTESTATION (per-response cryptographic proof) ────────
+    // Sign the HTML right before it leaves. Verifiers strip the meta tag,
+    // re-hash, and check sig vs /api/attestation/publickey. Non-fatal: any
+    // failure returns the original html untouched. See frontier-engine.js.
+    try {
+      const fe = require('./frontier-engine');
+      if (fe && typeof fe.attestHtml === 'function') {
+        html = fe.attestHtml(html, { build: ZEUS_BUILD.sha });
+      }
+    } catch (_) { /* skip attestation if frontier-engine missing */ }
     return res.end(html);
   }
 
