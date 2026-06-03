@@ -52,6 +52,17 @@ function ensureDir() {
 function loadState() {
   try {
     if (fs.existsSync(STATE)) {
+      // OOM GUARD: istoric stocat ca snapshot-uri complete (statusuri nested) putea
+      // creste la sute de MB. JSON.parse pe un astfel de fisier umfla heap-ul V8
+      // peste 2GB -> "JavaScript heap out of memory" -> crash loop la pornire.
+      // Daca fisierul e nerezonabil de mare, il arhivam si pornim curat.
+      // EN: a bloated state file would OOM the whole backend on boot; archive it.
+      const MAX_STATE_BYTES = 25 * 1024 * 1024; // 25MB hard ceiling
+      let sz = 0; try { sz = fs.statSync(STATE).size; } catch (_) {}
+      if (sz > MAX_STATE_BYTES) {
+        try { fs.renameSync(STATE, STATE + '.oversized.' + Date.now() + '.bak'); } catch (_) {}
+        return; // keep default in-memory state, do NOT parse
+      }
       const raw = JSON.parse(fs.readFileSync(STATE, 'utf8'));
       if (raw && Array.isArray(raw.history)) state = Object.assign(state, raw);
     }
@@ -115,6 +126,31 @@ function sampleAll() {
   };
 }
 
+/**
+ * Compact per-tick sample for the persisted history.
+ *
+ * buildForecast() only ever needs a handful of NUMERIC KPIs per module (it runs
+ * pickKpi over each entry). Persisting the full nested status objects (e.g.
+ * brain.layers.AdaptiveModule01..NN) bloated each history entry to ~180KB, so
+ * 2880 entries (24h) reached ~512MB on disk — which then OOM-crashed the backend
+ * on the next boot during JSON.parse. We therefore store ONLY the numbers the
+ * forecast consumes, keyed so pickKpi resolves them by name. Each entry is now a
+ * few hundred bytes → the whole file stays well under 1MB.
+ * RO: pastram doar KPI-urile numerice necesare prognozei, nu snapshot-ul complet.
+ */
+function compactSample() {
+  const num = (modName, keys) => pickKpi(safeStatus(modName), keys);
+  return {
+    ts: Date.now(),
+    treasury:  { totalRevenue:   num('unicornTreasury',  ['totalRevenue', 'revenue', 'mainCycleCount', 'cycles']) },
+    growth:    { leads:          num('unicornGrowth',    ['leads', 'conversions', 'mainCycleCount', 'cycles']) },
+    guardian:  { riskScore:      num('unicornGuardian',  ['riskScore', 'alerts', 'incidents', 'mainCycleCount']) },
+    healer:    { repairs:        num('unicornSelfHealer',['repairs', 'failures', 'mainCycleCount', 'cycles']) },
+    innovator: { experiments:    num('unicornInnovator', ['experiments', 'sprintsCompleted', 'mainCycleCount']) },
+    brain:     { mainCycleCount: num('unicornBrain',     ['mainCycleCount', 'cycles']) },
+  };
+}
+
 /** Extracts a single numeric KPI from a possibly-nested status object. */
 function pickKpi(obj, keys) {
   if (!obj || typeof obj !== 'object') return 0;
@@ -169,7 +205,7 @@ function buildForecast() {
 
 function tick() {
   state.cycles++;
-  const sample = sampleAll();
+  const sample = compactSample();
   state.history.push(sample);
   if (state.history.length > HISTORY_CAP) state.history.splice(0, state.history.length - HISTORY_CAP);
   const forecast = buildForecast();
