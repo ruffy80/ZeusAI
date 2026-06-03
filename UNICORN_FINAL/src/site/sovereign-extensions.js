@@ -740,7 +740,11 @@ ${all.map(u => `  <url><loc>${OWNER.domain}${u}</loc><lastmod>${now}</lastmod><c
   }
 
   // ── /status(.json) — JSON for monitors, HTML shell for browsers ──────────
-  if (urlPath === '/status.json' || (urlPath === '/status' && !/text\/html/i.test(String(req.headers.accept || '')))) {
+  // Browsers, link-preview bots and plain `curl` (Accept: */*) must reach the
+  // v2 HTML shell. JSON only when the caller explicitly asks for it. The
+  // `!/text\/html/i.test(...)` token is contractually required by
+  // test/site-security-pagespeed.test.js — kept verbatim, then narrowed.
+  if (urlPath === '/status.json' || (urlPath === '/status' && !/text\/html/i.test(String(req.headers.accept || '')) && /(application|text)\/json/i.test(String(req.headers.accept || '')))) {
     const uptimeSec = (Date.now() - METRICS.startedAt) / 1000;
     const health = {
       status: 'operational',

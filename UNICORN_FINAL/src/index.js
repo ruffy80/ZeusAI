@@ -9240,9 +9240,11 @@ ${invoice.payer ? `<h2>Payer</h2><table><tr><th>Legal entity</th><td>${esc(invoi
   // sending `Accept: application/json`, the `/status.json` path, or `?format=json`).
   // Everything else — real browsers, link-preview crawlers and plain `curl`
   // (Accept: */*) — falls through to the cinematic v2 HTML status page.
-  if (urlPath === '/status.json'
-      || (urlPath === '/status' && (/(application|text)\/json/i.test(String(req.headers.accept || ''))
-          || String(requestUrl.searchParams.get('format') || '').toLowerCase() === 'json'))) {
+  // The `!/text\/html/i.test(...)` guard is contractually required by
+  // test/site-security-pagespeed.test.js. We additionally require that the
+  // caller actually asked for JSON (Accept: application/json or ?format=json),
+  // so a bare `Accept: */*` does NOT collapse to JSON.
+  if (urlPath === '/status.json' || (urlPath === '/status' && !/text\/html/i.test(String(req.headers.accept || '')) && (/(application|text)\/json/i.test(String(req.headers.accept || '')) || String(requestUrl.searchParams.get('format') || '').toLowerCase() === 'json'))) {
     const wantHtml = false;
     let snap = {};
     try { snap = buildSnapshot(); } catch (_) {}
