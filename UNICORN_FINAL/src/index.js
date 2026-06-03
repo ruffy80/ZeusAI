@@ -4458,7 +4458,7 @@ async function unicornHandler(req, res) {
   // (services) and /api/supreme/digest (status). All additive, never break the
   // existing template. Each page is server-rendered, returns a full HTML doc,
   // and includes a tiny client script that polls every 5s.
-  if (urlPath === '/unicorn-cockpit' || urlPath === '/services' || urlPath === '/status' || urlPath === '/unicorn-status.html' || urlPath === '/revenue-command' || urlPath === '/proof' || urlPath === '/revenue-share' || urlPath === '/pricing' || urlPath === '/zacc' || urlPath === '/dropship' || urlPath.indexOf('/dropship/product/') === 0) {
+  if (urlPath === '/unicorn-cockpit' || urlPath === '/services' || urlPath === '/unicorn-status.html' || urlPath === '/revenue-command' || urlPath === '/proof' || urlPath === '/revenue-share' || urlPath === '/zacc' || urlPath === '/dropship' || urlPath.indexOf('/dropship/product/') === 0) {
     const renderPage = (title, bodyHtml, pageScript) => {
       // Use the existing template engine if available; otherwise emit a minimal SEO-clean doc
       // that still passes the site's chrome heuristics (lang, charset, viewport, meta).
