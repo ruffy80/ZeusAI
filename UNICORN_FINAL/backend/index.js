@@ -197,6 +197,48 @@ process.env.QIS_REQUIRED_PROCESSES = normalizeQisRequiredProcesses(process.env.Q
   if (wiped > 0 && process.env.DEBUG_ENV_ALIASES === '1') {
     console.log(`[env-alias] wiped ${wiped} placeholder env var(s)`);
   }
+
+  // Pass 0.5 — canonical .env reload (root-cause fix for stale PM2 placeholders).
+  // Some dotenv builds silently ignore `override:true`, so a placeholder injected
+  // by PM2's saved env (e.g. DEEPSEEK_API_KEY='your_..._here') survives the dotenv
+  // load at the top of this file and is then WIPED by Pass 0 above — leaving the
+  // var UNDEFINED even though the real secret is sitting in the canonical `.env`.
+  // Symptom: a valid DeepSeek key on disk but `configured:false` at runtime, so the
+  // provider cascade silently falls back to local Ollama (heavy: ~5GB RAM + swap).
+  // Fix: re-parse the canonical env files ourselves (zero-dep parser) and fill any
+  // slot that is currently empty/placeholder with the real on-disk value. First
+  // real value wins; PM2-provided real values (e.g. GROQ) are never touched.
+  // RO: reparsăm `.env`-ul canonic și completăm cheile golite (ex. DeepSeek) cu
+  //     valoarea reală de pe disc — independent de versiunea dotenv.
+  try {
+    const fs = require('fs');
+    const path = require('path');
+    const candidates = [
+      path.join(__dirname, '..', '.env'),
+      path.join(__dirname, '..', '.env.local'),
+      '/etc/zeusai/social.env',
+    ];
+    let restored = 0;
+    for (const file of candidates) {
+      let text;
+      try { text = fs.readFileSync(file, 'utf8'); } catch (_) { continue; }
+      for (const rawLine of text.split(/\r?\n/)) {
+        const line = rawLine.trim();
+        if (!line || line.startsWith('#')) continue;
+        const eq = line.indexOf('=');
+        if (eq <= 0) continue;
+        const key = line.slice(0, eq).trim();
+        if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(key)) continue;
+        const val = strip(line.slice(eq + 1));
+        if (isPlaceholder(val)) continue;
+        if (isEmpty(process.env[key])) { process.env[key] = val; restored++; }
+      }
+    }
+    if (restored > 0 && process.env.DEBUG_ENV_ALIASES === '1') {
+      console.log(`[env-alias] restored ${restored} canonical secret(s) from .env files`);
+    }
+  } catch (_) { /* non-fatal */ }
+
   // Each tuple: [canonical, ...aliases]. First non-empty value wins for canonical.
   const ALIASES = [
     ['ANTHROPIC_API_KEY', 'CLAUDE_API_KEY'],
