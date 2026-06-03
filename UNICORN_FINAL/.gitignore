@@ -47,6 +47,11 @@ data/sovereignty/sovereignty-keypair.json
 data/sovereignty/sovereignty-state.json
 data/sovereignty/attestations.jsonl
 data/sovereignty/attestations.jsonl.*
+# Autonomy Spine — ed25519 private key + per-host decision ledger (NEVER commit)
+data/autonomy/spine-ed25519.json
+data/autonomy/spine-state.json
+data/autonomy/decisions.jsonl
+data/autonomy/decisions-*.jsonl
 data/oracle/oracle-state.json
 data/economy/economy-state.json
 # ZACC autonomous commerce core — per-process runtime state (products, sales,

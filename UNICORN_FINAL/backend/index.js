@@ -2227,6 +2227,17 @@ const canaryCtrl       = require('./modules/canary-controller');
 const controlPlane     = require('./modules/control-plane-agent');
 const profitLoop       = require('./modules/profit-control-loop');
 
+// ==================== AUTONOMY SPINE — coloana de autonomie demonstrabilă ====================
+// Creierul de guvernanță: citește organele reale (mesh/SLO/profit/control-plane/
+// circuit), calculează o postură (EXPLORE/EXPLOIT/PROTECT/FREEZE), o semnează
+// ed25519 într-un lanț append-only și expune un GATE (canExperiment) pe care
+// buclele de profit/experimentare îl consultă. Nu mută niciodată procesul.
+// Governance brain: reads real organs, decides posture, ed25519-signs every
+// decision into an append-only chain, exposes a canExperiment() gate.
+let autonomySpine = null;
+try { autonomySpine = require('./modules/autonomy-spine'); }
+catch (e) { console.warn('[autonomy-spine] disabled:', e && e.message); }
+
 // ==================== 3 COMPONENTE CRITICE AUTONOME ====================
 const centralOrchestrator = require('./modules/central-orchestrator');
 const selfHealingEngine   = require('./modules/self-healing-engine');
@@ -2941,6 +2952,7 @@ meshOrchestrator.register('unicornAutonomousCore',  uac,                { status
 meshOrchestrator.register('unicornEternalEngine',   uee,                { statusFn: 'getStatus' });
 meshOrchestrator.register('controlPlaneAgent',      controlPlane,       { statusFn: 'getStatus' });
 meshOrchestrator.register('profitControlLoop',      profitLoop,         { statusFn: 'getStatus' });
+if (autonomySpine) meshOrchestrator.register('autonomySpine', autonomySpine, { statusFn: 'getStatus' });
 meshOrchestrator.register('autonomousInnovation',   autonomousInnovation, { statusFn: 'getStatus' });
 meshOrchestrator.register('autoRevenue',            autoRevenue,        { statusFn: 'getRevenueStatus' });
 meshOrchestrator.register('autoViralGrowth',        autoViralGrowth,    { statusFn: 'getViralStatus' });
@@ -7735,6 +7747,36 @@ app.get('/api/mesh/log', adminTokenMiddleware, (req, res) => {
 app.post('/api/mesh/sync', adminTokenMiddleware, (req, res) => {
   meshOrchestrator._syncCycle();
   res.json({ success: true, message: 'Sincronizare mesh declanșată manual' });
+});
+
+// ==================== AUTONOMY SPINE — public proof + gate ====================
+// Coloana de autonomie: postură de guvernanță + lanț de decizii semnat ed25519.
+// Toate publice (read-only) — dovada că autonomia este verificabilă și
+// reversibilă. Public proof endpoints: anyone can verify the signed chain.
+app.get('/api/autonomy/status', (req, res) => {
+  if (!autonomySpine) return res.status(503).json({ error: 'autonomy-spine unavailable' });
+  res.json(autonomySpine.getStatus());
+});
+
+app.get('/api/autonomy/gate', (req, res) => {
+  if (!autonomySpine) return res.status(503).json({ error: 'autonomy-spine unavailable' });
+  res.json(autonomySpine.getGate());
+});
+
+app.get('/api/autonomy/decisions', (req, res) => {
+  if (!autonomySpine) return res.status(503).json({ error: 'autonomy-spine unavailable' });
+  const limit = Math.min(parseInt(req.query.limit) || 50, 200);
+  res.json({ decisions: autonomySpine.getDecisions(limit) });
+});
+
+app.get('/api/autonomy/verify', (req, res) => {
+  if (!autonomySpine) return res.status(503).json({ error: 'autonomy-spine unavailable' });
+  res.json(autonomySpine.verifyChain());
+});
+
+app.get('/api/autonomy/publickey', (req, res) => {
+  if (!autonomySpine) return res.status(503).json({ error: 'autonomy-spine unavailable' });
+  res.json({ publicKey: autonomySpine.getPublicKey(), alg: 'ed25519' });
 });
 
 // ==================== CODE SANITY ENGINE ====================
