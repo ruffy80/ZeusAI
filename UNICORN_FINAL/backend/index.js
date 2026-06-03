@@ -7751,30 +7751,30 @@ app.post('/api/mesh/sync', adminTokenMiddleware, (req, res) => {
 
 // ==================== AUTONOMY SPINE — public proof + gate ====================
 // Coloana de autonomie: postură de guvernanță + lanț de decizii semnat ed25519.
-// Toate publice (read-only) — dovada că autonomia este verificabilă și
-// reversibilă. Public proof endpoints: anyone can verify the signed chain.
-app.get('/api/autonomy/status', (req, res) => {
+// Namespace dedicat /api/spine/* pentru a NU intra în coliziune cu subsistemul
+// PCMC existent (/api/autonomy/* — Merkle chain). Toate publice (read-only).
+app.get('/api/spine/status', (req, res) => {
   if (!autonomySpine) return res.status(503).json({ error: 'autonomy-spine unavailable' });
   res.json(autonomySpine.getStatus());
 });
 
-app.get('/api/autonomy/gate', (req, res) => {
+app.get('/api/spine/gate', (req, res) => {
   if (!autonomySpine) return res.status(503).json({ error: 'autonomy-spine unavailable' });
   res.json(autonomySpine.getGate());
 });
 
-app.get('/api/autonomy/decisions', (req, res) => {
+app.get('/api/spine/decisions', (req, res) => {
   if (!autonomySpine) return res.status(503).json({ error: 'autonomy-spine unavailable' });
   const limit = Math.min(parseInt(req.query.limit) || 50, 200);
   res.json({ decisions: autonomySpine.getDecisions(limit) });
 });
 
-app.get('/api/autonomy/verify', (req, res) => {
+app.get('/api/spine/verify', (req, res) => {
   if (!autonomySpine) return res.status(503).json({ error: 'autonomy-spine unavailable' });
   res.json(autonomySpine.verifyChain());
 });
 
-app.get('/api/autonomy/publickey', (req, res) => {
+app.get('/api/spine/publickey', (req, res) => {
   if (!autonomySpine) return res.status(503).json({ error: 'autonomy-spine unavailable' });
   res.json({ publicKey: autonomySpine.getPublicKey(), alg: 'ed25519' });
 });
