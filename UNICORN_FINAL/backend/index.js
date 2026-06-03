@@ -2953,6 +2953,30 @@ meshOrchestrator.register('unicornEternalEngine',   uee,                { status
 meshOrchestrator.register('controlPlaneAgent',      controlPlane,       { statusFn: 'getStatus' });
 meshOrchestrator.register('profitControlLoop',      profitLoop,         { statusFn: 'getStatus' });
 if (autonomySpine) meshOrchestrator.register('autonomySpine', autonomySpine, { statusFn: 'getStatus' });
+
+// ── SUPREME ENGINES — motoarele de venit deja încărcate prin __SUPREME, acum
+// aduse SUB guvernanța mesh + Autonomy Spine (monitorizare + auto-heal + sense).
+// require e cache-uit -> aceeași instanță singleton, fără dublă-pornire.
+// These revenue engines were running unmonitored; now health-tracked & sensed.
+for (const [meshName, modFile] of [
+  ['unicornTreasury',    'unicornTreasury'],
+  ['unicornGrowthEngine','unicornGrowth'],
+  ['unicornGuardianHub', 'unicornGuardian'],
+  ['unicornOracle',      'unicornOracle'],
+  ['unicornEconomy',     'unicornEconomy'],
+  ['unicornBrain',       'unicornBrain'],
+  ['unicornSelfHealer',  'unicornSelfHealer'],
+  ['unicornInnovator',   'unicornInnovator'],
+  ['unicornSovereigntyEngine', 'unicornSovereignty'],
+]) {
+  try {
+    const inst = require('./modules/' + modFile);
+    if (inst && typeof inst.getStatus === 'function') {
+      meshOrchestrator.register(meshName, inst, { statusFn: 'getStatus' });
+    }
+  } catch (e) { console.warn('[mesh] supreme engine register skipped:', modFile, e && e.message); }
+}
+
 meshOrchestrator.register('autonomousInnovation',   autonomousInnovation, { statusFn: 'getStatus' });
 meshOrchestrator.register('autoRevenue',            autoRevenue,        { statusFn: 'getRevenueStatus' });
 meshOrchestrator.register('autoViralGrowth',        autoViralGrowth,    { statusFn: 'getViralStatus' });
