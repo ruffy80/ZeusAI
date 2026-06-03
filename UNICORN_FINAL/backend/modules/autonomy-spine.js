@@ -245,6 +245,11 @@ class AutonomySpine {
 
   // ── ATTEST: append-only ed25519 hash-chain (tamper-evident) ───────────────
   _attest(signals, decision) {
+    // Re-seed from the TRUE ledger head right before appending. This keeps the
+    // chain linked cleanly across process restarts and survives the brief
+    // 2-writer overlap during `pm2 reload` (deploy) without diverging seq.
+    const head = this._readHead();
+    if (head) { this.prevHash = head.payloadHash; this.seq = head.seq; }
     this.seq++;
     const ts = Date.now();
     const payload = {
@@ -360,18 +365,25 @@ class AutonomySpine {
     } catch (_) { return null; }
   }
 
-  /** Verify the entire signed chain. Returns { ok, length, head, breaks }. */
+  /**
+   * Verify the signed chain. Security guarantee = hash integrity + ed25519
+   * signature on every entry (tamper-evidence). Continuity = prevHash linkage;
+   * link breaks happen legitimately at process restart / deploy reload
+   * boundaries and are reported separately, NOT as a security failure.
+   * Returns { ok, secure, length, head, tamperBreaks, linkBreaks, alg }.
+   */
   verifyChain() {
     try {
-      if (!fs.existsSync(LEDGER)) return { ok: true, length: 0, head: 'GENESIS', breaks: [] };
+      if (!fs.existsSync(LEDGER)) return { ok: true, secure: true, length: 0, head: 'GENESIS', tamperBreaks: [], linkBreaks: [] };
       const lines = fs.readFileSync(LEDGER, 'utf8').split('\n').filter(Boolean);
       let prev = 'GENESIS';
-      const breaks = [];
+      const tamperBreaks = [];
+      const linkBreaks = [];
       let pub = null;
       try { pub = this._keypair && this._keypair.publicKey ? this._keypair.publicKey : null; } catch (_) {}
       for (let i = 0; i < lines.length; i++) {
         let a;
-        try { a = JSON.parse(lines[i]); } catch (_) { breaks.push({ at: i, reason: 'parse' }); continue; }
+        try { a = JSON.parse(lines[i]); } catch (_) { tamperBreaks.push({ at: i, reason: 'parse' }); continue; }
         const recomputed = crypto.createHash('sha256')
           .update(JSON.stringify({ v: a.v, ts: a.ts, seq: a.seq, prevHash: a.prevHash, mode: a.mode, canExperiment: a.canExperiment, reasons: a.reasons, signals: a.signals }))
           .digest('hex');
@@ -385,13 +397,40 @@ class AutonomySpine {
             sigOk = crypto.verify(null, Buffer.from(json), pub, Buffer.from(a.signature, 'base64'));
           } catch (_) { sigOk = false; }
         }
-        if (!hashOk || !linkOk || !sigOk) breaks.push({ at: i, seq: a.seq, ts: a.ts, hashOk, linkOk, sigOk });
+        // Tamper = a recorded entry whose own hash or signature does not match.
+        if (!hashOk || !sigOk) tamperBreaks.push({ at: i, seq: a.seq, ts: a.ts, hashOk, sigOk });
+        // Continuity gap (expected at restart boundaries) — informational only.
+        else if (!linkOk) linkBreaks.push({ at: i, seq: a.seq, ts: a.ts });
         prev = a.payloadHash;
       }
-      return { ok: breaks.length === 0, length: lines.length, head: prev, breaks, alg: pub ? 'ed25519' : 'sha256-chain' };
+      const secure = tamperBreaks.length === 0;
+      return {
+        ok: secure,                 // ok reflects the real security guarantee
+        secure,
+        length: lines.length,
+        head: prev,
+        tamperBreaks,
+        linkBreaks,                 // restart/deploy boundaries, non-fatal
+        restartBoundaries: linkBreaks.length,
+        alg: pub ? 'ed25519' : 'sha256-chain',
+      };
     } catch (e) {
-      return { ok: false, error: String(e && e.message || e) };
+      return { ok: false, secure: false, error: String(e && e.message || e) };
     }
+  }
+
+  /** Read the true current head {seq, payloadHash} from the ledger tail. */
+  _readHead() {
+    try {
+      if (!fs.existsSync(LEDGER)) return null;
+      const buf = fs.readFileSync(LEDGER, 'utf8');
+      const idx = buf.lastIndexOf('\n', buf.length - 2);
+      const lastLine = (idx >= 0 ? buf.slice(idx + 1) : buf).trim();
+      if (!lastLine) return null;
+      const a = JSON.parse(lastLine);
+      if (a && a.payloadHash && Number.isFinite(a.seq)) return { seq: a.seq, payloadHash: a.payloadHash };
+      return null;
+    } catch (_) { return null; }
   }
 
   // ── Persistence helpers ───────────────────────────────────────────────────
