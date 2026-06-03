@@ -84,10 +84,14 @@ const KEY_FILE   = path.join(DIR, 'spine-ed25519.json');
 
 const MODES = Object.freeze({ EXPLORE: 'EXPLORE', EXPLOIT: 'EXPLOIT', PROTECT: 'PROTECT', FREEZE: 'FREEZE' });
 
-class AutonomySpine extends EventEmitter {
+class AutonomySpine {
   constructor() {
-    super();
-    this.setMaxListeners(50);
+    // NOTE: deliberately NOT extending EventEmitter. A CI code-injector adds a
+    // `this.cache = new Map()` line as the first statement of every constructor;
+    // in a derived class that lands before super() and crashes. Composition
+    // (internal _bus) is injector-proof — this is available immediately here.
+    this._bus = new EventEmitter();
+    this._bus.setMaxListeners(50);
     this.name        = 'autonomy-spine';
     this.startedAt   = Date.now();
     this.seq         = 0;
@@ -100,6 +104,13 @@ class AutonomySpine extends EventEmitter {
     this._keypair    = null;
     this._running    = false;
   }
+
+  // EventEmitter passthrough (composition) — injector-proof public API.
+  on(ev, fn) { this._bus.on(ev, fn); return this; }
+  once(ev, fn) { this._bus.once(ev, fn); return this; }
+  off(ev, fn) { this._bus.off(ev, fn); return this; }
+  emit(ev, payload) { return this._bus.emit(ev, payload); }
+  getBus() { return this._bus; }
 
   // ── Lifecycle ─────────────────────────────────────────────────────────────
   start() {
