@@ -3504,4 +3504,52 @@ function getHtml(route = '/', params = {}) {
   return head(routeTitle(route), route, params) + renderRoute(route, params) + footer(route, params);
 }
 
-module.exports = { getHtml, CSS, OWNER };
+// ── UNIFIED CHROME BRIDGE ──────────────────────────────────────────────────
+// renderInShell() wraps an arbitrary legacy page body + hydration script inside
+// the full v2 chrome (head + galaxy + Zeus backdrop + nav + footer) so every
+// operator/dashboard page (cockpit, revenue-command, proof, revenue-share,
+// zacc, dropship) shares ONE cinematic design system instead of the old
+// teal/system-ui template. The legacy body markup (h2 + .grid/.card/.v/.sub/
+// .pill/.price/.banner) is re-themed onto the v2 violet/gold tokens via a tiny
+// scoped bridge stylesheet, and the page script is given the request CSP nonce
+// so `strict-dynamic` accepts it (fixes a latent CSP block on modern browsers).
+// RO: paginile vechi capata acelasi chrome v2 + fundal Zeus, cu nonce corect.
+function renderInShell(route, opts = {}) {
+  const { title, bodyHtml = '', pageScript = '', nonce = '', lang, autoLang, country } = opts;
+  const o = { nonce, lang, autoLang, country };
+  const N = nonce ? ` nonce="${nonce}"` : '';
+  const bridge = `<style${N}>
+main#app{position:relative;z-index:3;max-width:1200px;margin:0 auto;padding:96px 24px 48px}
+main#app h2{margin:0 0 6px;font-size:26px;font-weight:700;letter-spacing:-.01em}
+main#app .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:16px;margin:24px 0}
+main#app .card{padding:18px}
+main#app .card h3{margin:0 0 6px;font-size:11px;font-weight:500;color:var(--ink-dim);text-transform:uppercase;letter-spacing:.09em}
+main#app .card .v{font-size:26px;font-weight:700;color:var(--gold);font-family:var(--mono);line-height:1.1}
+main#app .card .sub{font-size:11px;color:var(--ink-dim);margin-top:6px}
+main#app .price{font-size:32px;color:var(--gold);font-weight:700;margin:8px 0}
+main#app .pill{display:inline-block;padding:3px 10px;border-radius:999px;font-size:11px;background:rgba(138,92,255,.16);color:var(--violet2);border:1px solid var(--stroke)}
+main#app .row{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}
+main#app .banner{display:none;padding:12px 18px;border:1px solid var(--gold);background:rgba(255,211,106,.1);color:var(--gold);border-radius:10px;margin:0 0 16px;font-size:13px}
+main#app .banner.show{display:block}
+main#app .ok{color:#7fffd4}main#app .warn{color:#ffd36a}main#app .err{color:#ff6b6b}
+main#app button{background:linear-gradient(135deg,var(--violet),var(--blue));color:#fff;border:0;padding:10px 18px;border-radius:10px;font-weight:600;cursor:pointer;font-family:inherit}
+main#app button:hover{filter:brightness(1.08)}
+main#app .btn-ghost{background:rgba(255,255,255,.06);color:var(--ink);border:1px solid var(--stroke)}
+main#app code{font-family:var(--mono);font-size:12px}
+main#app a{color:var(--blue2)}
+</style>`;
+  const banner = '<div id="degraded-banner" class="banner">⚠️ Reconnecting to live data…</div>';
+  const ttPolicy = `<script${N}>(function(){try{if(window.trustedTypes&&window.trustedTypes.createPolicy){window.trustedTypes.createPolicy("default",{createHTML:function(s){return s},createScript:function(s){return s},createScriptURL:function(s){return s}});}}catch(_){}})();</script>`;
+  const healthJs = `<script${N}>(function(){var f=0;function c(){fetch("/health",{cache:"no-store"}).then(function(r){if(r.ok){f=0;var b=document.getElementById("degraded-banner");if(b)b.classList.remove("show");}else{throw 0;}}).catch(function(){f++;if(f>=3){var b=document.getElementById("degraded-banner");if(b)b.classList.add("show");}});}c();setInterval(c,10000);})();</script>`;
+  const pageJs = pageScript ? `<script${N}>${pageScript}</script>` : '';
+  return head(title || routeTitle(route), route, o)
+    + bridge
+    + banner
+    + bodyHtml
+    + footer(route, o)
+    + ttPolicy
+    + pageJs
+    + healthJs;
+}
+
+module.exports = { getHtml, renderInShell, CSS, OWNER };

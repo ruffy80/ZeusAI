@@ -4460,6 +4460,20 @@ async function unicornHandler(req, res) {
   // and includes a tiny client script that polls every 5s.
   if (urlPath === '/unicorn-cockpit' || urlPath === '/services' || urlPath === '/unicorn-status.html' || urlPath === '/revenue-command' || urlPath === '/proof' || urlPath === '/revenue-share' || urlPath === '/zacc' || urlPath === '/dropship' || urlPath.indexOf('/dropship/product/') === 0) {
     const renderPage = (title, bodyHtml, pageScript) => {
+      // Unified chrome: render every legacy operator/dashboard page inside the
+      // full v2 shell (nav + Zeus backdrop + footer + violet/gold theme) so the
+      // entire site is one cinematic design system. The legacy body markup and
+      // its live hydration script are preserved verbatim — only the surrounding
+      // chrome changes. The request CSP nonce is forwarded so `strict-dynamic`
+      // accepts the inline page script (fixes a latent CSP block on modern
+      // browsers, where the old non-nonced inline script was silently dropped).
+      // Falls back to the standalone legacy document only if v2 is unavailable.
+      if (v2 && typeof v2.renderInShell === 'function') {
+        try {
+          const nonce = String(req.headers['x-csp-nonce'] || crypto.randomBytes(12).toString('base64'));
+          return v2.renderInShell(urlPath, { title, bodyHtml, pageScript, nonce });
+        } catch (_) { /* fall through to legacy standalone doc */ }
+      }
       // Use the existing template engine if available; otherwise emit a minimal SEO-clean doc
       // that still passes the site's chrome heuristics (lang, charset, viewport, meta).
       const css = `
@@ -9222,8 +9236,13 @@ ${invoice.payer ? `<h2>Payer</h2><table><tr><th>Legal entity</th><td>${esc(invoi
     return;
   }
 
-  // 30Y-LTS — public status endpoint. JSON for monitors; browser HTML falls through to the v2 shell.
-  if (urlPath === '/status.json' || (urlPath === '/status' && !/text\/html/i.test(String(req.headers.accept || '')))) {
+  // 30Y-LTS — public status endpoint. JSON only on explicit request (monitors
+  // sending `Accept: application/json`, the `/status.json` path, or `?format=json`).
+  // Everything else — real browsers, link-preview crawlers and plain `curl`
+  // (Accept: */*) — falls through to the cinematic v2 HTML status page.
+  if (urlPath === '/status.json'
+      || (urlPath === '/status' && (/(application|text)\/json/i.test(String(req.headers.accept || ''))
+          || String(requestUrl.searchParams.get('format') || '').toLowerCase() === 'json'))) {
     const wantHtml = false;
     let snap = {};
     try { snap = buildSnapshot(); } catch (_) {}

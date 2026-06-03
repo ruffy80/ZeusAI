@@ -46,3 +46,18 @@ UNICORN_FINAL/data/oracle/oracle-state.json
 # Local archive of consolidated env files (never commit)
 .env-archive/
 tmp/
+
+# Additional runtime-generated artifacts that kept showing up as "modified".
+# These are per-process state written by the live runtime (and excluded from
+# the rsync deploy); the server keeps its own copies. Never commit them.
+UNICORN_FINAL/client/.ui-build-cache.json
+UNICORN_FINAL/data/crypto-bridge/
+UNICORN_FINAL/data/scaling/
+UNICORN_FINAL/data/test-autonomy-root/
+UNICORN_FINAL/data/marketing/
+UNICORN_FINAL/data/money-machine/
+UNICORN_FINAL/data/world-standard/
+UNICORN_FINAL/data/value-proof/
+UNICORN_FINAL/data/revenue/
+UNICORN_FINAL/data/notifications.jsonl
+UNICORN_FINAL/data/zacc-state.json
