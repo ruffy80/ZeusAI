@@ -16,7 +16,7 @@
 
 const http      = require('http');
 const https     = require('https');
-const { execFile } = require('child_process');
+const { execFile, spawn } = require('child_process');
 const EventEmitter = require('events');
 
 const HEALTH_URL        = process.env.ZDT_HEALTH_URL  || 'http://127.0.0.1:3000/api/health';
@@ -25,10 +25,18 @@ const RELOAD_TIMEOUT_MS = parseInt(process.env.ZDT_RELOAD_TIMEOUT || '30000',  1
 const FAIL_THRESHOLD    = parseInt(process.env.ZDT_FAIL_THRESHOLD || '3',      10);
 const HEALTH_OK_AFTER   = parseInt(process.env.ZDT_HEALTH_OK_AFTER || '3',     10); // confirmări consecutive
 
-// Procese critice în ordinea priorității (restartate rolling)
+// Procese critice în ordinea priorității (restartate rolling).
+// IMPORTANT: numele reale în producție sunt `unicorn-backend` și
+// `unicorn-site`. Numele vechi (unicorn / unicorn-orchestrator / *-guardian /
+// *-watchdog) NU mai există → `pm2 restart` eșua mereu cu "process not found",
+// lăsând backendul blocat fără recovery. Forward-only: hard-coded la procesele
+// canonice, override doar prin ZDT_CRITICAL_PROCS.
 const CRITICAL_PROCS = (process.env.ZDT_CRITICAL_PROCS ||
-  'unicorn,unicorn-orchestrator,unicorn-health-guardian,unicorn-quantum-watchdog')
+  'unicorn-backend,unicorn-site')
   .split(',').map(s => s.trim()).filter(Boolean);
+
+// Procesul backend pe care îl repornim la emergency recovery (blast-radius minim).
+const BACKEND_PROC = (process.env.ZDT_BACKEND_PROC || 'unicorn-backend').trim();
 
 // Whitelist PM2 comenzi permise
 const PM2_ALLOWED_OPS = new Set(['reload', 'restart', 'list', 'describe', 'startOrRestart']);
@@ -182,14 +190,29 @@ async function rollingRestart() {
 }
 
 // ── Recuperare urgentă ────────────────────────────────────────────────────────
+// CRITIC (lecție învățată în producție): NU rula `pm2 restart` SINCRON din
+// interiorul chiar al procesului care e repornit. PM2 trimite SIGINT/SIGKILL
+// acestui proces (unicorn-backend) ȘI child-ului execFile înainte ca restartul
+// să se termine → "restart failed" la fiecare ciclu, iar backendul blocat nu se
+// mai recuperează niciodată. Soluția: spawn DETAȘAT + unref(), în propriul grup
+// de procese, ca să supraviețuiască terminării noastre și să finalizeze
+// restartul. Fără --update-env (evită contaminarea PORT între backend↔site).
+// Recuperarea externă "hard" e oricum asigurată de module-mesh-guardian.
 async function emergencyRecovery() {
-  _log('emergency-recovery', 'backend down — starting emergency recovery');
+  _log('emergency-recovery', 'backend down — starting emergency recovery (detached external restart)');
   _state.recoveryCount++;
   _state.lastRecovery = new Date().toISOString();
 
-  // Restart toate procesele critice (nu reload)
-  const r = await _pm2(['restart', ...CRITICAL_PROCS]);
-  _log('emergency-recovery-restart', r.ok ? 'restart ok' : `restart failed: ${r.out}`, r.ok);
+  try {
+    const child = spawn('pm2', ['restart', BACKEND_PROC], {
+      detached: true,
+      stdio: 'ignore',
+    });
+    child.unref();
+    _log('emergency-recovery-restart', `detached pm2 restart spawned for: ${BACKEND_PROC}`);
+  } catch (e) {
+    _log('emergency-recovery-restart', `detached spawn failed: ${e.message}`, false);
+  }
 
   await new Promise(rr => setTimeout(rr, 8000));
 
