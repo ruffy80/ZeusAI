@@ -534,6 +534,11 @@ jobs:
             # which has no implementation and would 404 the Buy flow.
             python3 "$DEPLOY_PATH/scripts/nginx-patch-sovereign-commerce-routes.py" || \
               echo "[nginx-patch-sovereign-commerce-routes] patch failed (continuing)"
+            # ZEUS-ATTESTATION: route /api/attestation/{publickey,verify-html}
+            # to the SITE service (:3001) — implementations live in
+            # UNICORN_FINAL/src/index.js. Idempotent.
+            python3 "$DEPLOY_PATH/scripts/nginx-patch-attestation-routes.py" || \
+              echo "[nginx-patch-attestation-routes] patch failed (continuing)"
             # ZEUS-NEVER-502: install the static maintenance fallback so that
             # when both unicorn-site:3001 and unicorn-backend:3000 are down
             # (mid pm2 reload, OOM, post-rsync race) nginx serves a friendly

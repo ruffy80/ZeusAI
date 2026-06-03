@@ -9203,21 +9203,13 @@ ${invoice.payer ? `<h2>Payer</h2><table><tr><th>Legal entity</th><td>${esc(invoi
     res.writeHead(200,{'Content-Type':'application/json'}); return res.end(JSON.stringify({ items: [] }));
   }
 
-  // Final API fallback: if site runtime doesn't implement the route,
-  // transparently forward to backend (when configured).
-  if (urlPath.startsWith('/api/')) {
-    if (process.env.BACKEND_API_URL) {
-      return edgeProxyApi(req, res, urlPath);
-    }
-    res.writeHead(404, { 'Content-Type': 'application/json' });
-    return res.end(JSON.stringify({ error: 'not_found', path: req.url }));
-  }
-
   // ─── HTML BUILD-ATTESTATION endpoints (inovație 2026-06-03) ────────────
+  // MUST be before the /api/* catch-all that proxies to backend, otherwise
+  // these site-only endpoints get forwarded to :3000 and 404.
   // /api/attestation/publickey  — Ed25519 public key + verifier instructions
   // /api/attestation/verify-html — POST html (raw or {html}) → verdict
-  // Anyone can capture an HTML page from zeusai.pro and confirm cryptographic
-  // provenance: anti-MITM, anti-cache-poisoning, anti-impersonation.
+  // Anti-MITM, anti-cache-poisoning, anti-impersonation. Cheie:
+  // data/frontier.key.pem (PKCS8, 0600).
   if (urlPath === '/api/attestation/publickey' && req.method === 'GET') {
     try {
       const fe = require('./frontier-engine');
@@ -9253,6 +9245,16 @@ ${invoice.payer ? `<h2>Payer</h2><table><tr><th>Legal entity</th><td>${esc(invoi
       }
     });
     return;
+  }
+
+  // Final API fallback: if site runtime doesn't implement the route,
+  // transparently forward to backend (when configured).
+  if (urlPath.startsWith('/api/')) {
+    if (process.env.BACKEND_API_URL) {
+      return edgeProxyApi(req, res, urlPath);
+    }
+    res.writeHead(404, { 'Content-Type': 'application/json' });
+    return res.end(JSON.stringify({ error: 'not_found', path: req.url }));
   }
 
   // 30Y-LTS — CSP violation reporter. Browsers POST here when a directive is breached.
