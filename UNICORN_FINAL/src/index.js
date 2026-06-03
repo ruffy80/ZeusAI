@@ -1390,6 +1390,41 @@ function __continueDispatch(req, res, method, earlyPath) {
     // bypass (which carries hundreds of /api/* mutation routes).
     applySiteTopologyHeaders(req, res);
     if (applySiteWriteGuard(req, res, earlyPath, method)) return; // 503 enforced
+    // ── HTML build-attestation universal hook ─────────────────────────────
+    // Wrap res.end ONCE per request so any response that ends up being HTML
+    // (text/html Content-Type) gets the Ed25519 attestation meta injected
+    // automatically — works across every render path (v2 shell, legacy
+    // renderPage, sovereign portal, etc.) without per-handler wiring.
+    // Skipped for HEAD, non-2xx, and non-HTML responses. Non-fatal.
+    try {
+      if (!res.__zeusAttestPatched) {
+        res.__zeusAttestPatched = true;
+        const __origEnd = res.end.bind(res);
+        res.end = function (chunk, encoding, cb) {
+          try {
+            const ct = String(res.getHeader('Content-Type') || '').toLowerCase();
+            const sc = res.statusCode || 200;
+            if (method !== 'HEAD' && sc >= 200 && sc < 300 && ct.includes('text/html') && chunk && !res.__zeusAttested) {
+              const buf = Buffer.isBuffer(chunk) ? chunk : Buffer.from(String(chunk), encoding || 'utf8');
+              const html = buf.toString('utf8');
+              if (html.length > 64 && /<head[^>]*>/i.test(html) && !/x-zeus-attestation/i.test(html.slice(0, 4096))) {
+                const fe = require('./frontier-engine');
+                if (fe && typeof fe.attestHtml === 'function') {
+                  const signed = fe.attestHtml(html, { build: (typeof ZEUS_BUILD !== 'undefined' && ZEUS_BUILD && ZEUS_BUILD.sha) || process.env.ZEUS_BUILD_SHA || '' });
+                  if (signed && signed !== html) {
+                    res.__zeusAttested = true;
+                    const out = Buffer.from(signed, 'utf8');
+                    if (res.getHeader('Content-Length')) res.setHeader('Content-Length', out.length);
+                    return __origEnd(out, cb);
+                  }
+                }
+              }
+            }
+          } catch (_) { /* attestation must never break a response */ }
+          return __origEnd(chunk, encoding, cb);
+        };
+      }
+    } catch (_) {}
     // ── Predictive prefetch: record same-origin transition + emit 103 Early
     // Hints for navigable GET HTML requests. Best-effort, never throws, runs
     // before any handler so the 103 frame goes out while we render.
