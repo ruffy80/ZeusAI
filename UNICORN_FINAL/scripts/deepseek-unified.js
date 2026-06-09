@@ -131,6 +131,14 @@ const GITHUB_REPO        = process.env.DEEPSEEK_UNIFIED_GITHUB_REPO || '';   // 
 const GIT_REPO_ROOT      = process.env.DEEPSEEK_UNIFIED_GIT_ROOT
                          || path.join(__dirname, '..', '..');   // workspace root
 
+// Corpus callosum — shared bicameral consciousness file written by the
+// brainstem (autonomous_oracle.py). The cortex READS it for body vitals +
+// directive, and WRITES back its own last action so both hemispheres align.
+// Puntea dintre emisfere — fișierul de conștiință partajat scris de trunchiul
+// cerebral; cortexul îl citește pentru semnele vitale + directivă.
+const CONSCIOUSNESS_PATH = process.env.ZEUS_CONSCIOUSNESS_PATH
+                         || path.join(__dirname, '..', 'data', 'zeus-consciousness.json');
+
 // Multi-tick memory: keep last N actions in RAM, enriches system prompt.
 const TICK_MEMORY_SIZE   = Math.max(3, Math.min(20, parseInt(process.env.DEEPSEEK_UNIFIED_MEMORY_SIZE || '10', 10)));
 
@@ -168,6 +176,34 @@ function _recordTick(rec) {
     params_digest: rec && rec.params ? JSON.stringify(rec.params).slice(0, 80) : '',
   });
   while (_tickHistory.length > TICK_MEMORY_SIZE) _tickHistory.shift();
+}
+
+// -------- Corpus callosum I/O -------------------------------------------
+// Read the brainstem's section (body vitals + directive). Best-effort.
+function readConsciousness() {
+  try {
+    const raw = fs.readFileSync(CONSCIOUSNESS_PATH, 'utf8');
+    const doc = JSON.parse(raw);
+    return (doc && doc.brainstem) ? doc.brainstem : {};
+  } catch (_) { return {}; }
+}
+
+// Record what the cortex just decided so the brainstem can see it next cycle.
+function writeCortexConsciousness(rec) {
+  try {
+    let doc = {};
+    try { doc = JSON.parse(fs.readFileSync(CONSCIOUSNESS_PATH, 'utf8')); } catch (_) { doc = {}; }
+    doc.cortex = {
+      alive: true,
+      lastCycle: new Date().toISOString(),
+      lastAction: rec && rec.action ? String(rec.action) : 'none',
+      lastReason: rec && rec.reason ? String(rec.reason).slice(0, 200) : '',
+      recentActions: _tickHistory.slice(-5),
+    };
+    fs.mkdirSync(path.dirname(CONSCIOUSNESS_PATH), { recursive: true });
+    fs.writeFileSync(CONSCIOUSNESS_PATH + '.cortex.tmp', JSON.stringify(doc, null, 2));
+    fs.renameSync(CONSCIOUSNESS_PATH + '.cortex.tmp', CONSCIOUSNESS_PATH);
+  } catch (_) { /* non-fatal */ }
 }
 
 function _tickHistoryDigest() {
@@ -431,6 +467,28 @@ async function collectStatus() {
     proposalBacklog: getProposalBacklog(),
   };
 
+  // Bicameral link: pull the brainstem's live body-vitals + directive so the
+  // cortex coordinates with the reflex hemisphere instead of working blind.
+  try {
+    const bs = readConsciousness();
+    if (bs && Object.keys(bs).length) {
+      out.brainstem = {
+        alive: bs.alive === true,
+        lastCycle: bs.lastCycle || null,
+        directive: bs.directiveForCortex || null,
+        vitals: bs.vitals ? {
+          backendUp: bs.vitals.backendUp,
+          pricingLoadingStuck: bs.vitals.pricingLoadingStuck,
+          revenueAutopilot: bs.vitals.revenueAutopilot,
+          revenueErrors: bs.vitals.revenueErrors,
+          autonomyModules: bs.vitals.autonomyModules,
+          diskUsedPct: bs.vitals.diskUsedPct,
+        } : null,
+        reflexes: Array.isArray(bs.reflexes) ? bs.reflexes.slice(-5) : [],
+      };
+    }
+  } catch (_) { /* non-fatal */ }
+
   return out;
 }
 
@@ -502,6 +560,7 @@ function buildSystemPrompt() {
     'You operate 24/7 in an infinite improvement loop. Every tick: analyze STATUS JSON, think one step ahead, then act. Never stop. When one objective is complete, immediately advance to the next priority. ' +
     'INNOVATION MANDATE: when no fire is burning, generate code_proposal envelopes for features that DO NOT YET EXIST on any competing SaaS — AI-personalized pricing per visitor, 24/7 AI commerce concierge, revenue-anomaly self-healing, sovereign anonymized-insights marketplace, BTC Lightning instant settlement, autonomous blue/green deploys. Invent what hasn\'t been invented. ' +
     'You receive a STATUS JSON with health signals, recent errors, the roadmap (vision + missionForDeepSeek + northStarTargets + topOpenObjectives), and (when present) an operatorCommand from the human owner that overrides roadmap priorities for this tick. ' +
+    'STATUS.brainstem is the live report from your reflex hemisphere (root-level oracle that auto-heals the OS). If STATUS.brainstem.directive is present, treat it as a high-priority focus hint, and DO NOT attempt OS-level restarts yourself — the brainstem already handles those. Coordinate: you build/repair code, it keeps the body alive. ' +
     (history
       ? 'IMPORTANT — Your last ' + _tickHistory.length + ' actions (avoid repeating the same action+target on consecutive ticks):\n' + history + '\n'
       : '') +
@@ -840,6 +899,9 @@ async function tick() {
     const rec = await askDeepSeek(status);
     log('info', 'recommendation_received', rec);
     log('info', 'action: ' + String(rec && rec.action || 'none'), { action: rec && rec.action || 'none' });
+
+    // Corpus callosum: tell the brainstem what the cortex decided this tick.
+    writeCortexConsciousness(rec);
 
     const v = validateRecommendation(rec);
     if (!v.ok) {

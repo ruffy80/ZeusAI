@@ -10558,6 +10558,13 @@ app.post('/api/autonomy/activate', (req, res, next) => {
     if (meshOrchestrator.start) meshOrchestrator.start();
   });
 
+  // Profit Control Loop — revenue optimization engine (idempotent start).
+  // Bucla de control al profitului — motorul de optimizare a veniturilor.
+  tryActivate('profitControlLoop', () => {
+    const s = (typeof profitLoop.getStatus === 'function') ? profitLoop.getStatus() : {};
+    if (!s.active && !s.running) profitLoop.start();
+  });
+
   // Unicorn Orchestrator
   tryActivate('unicornOrchestrator', () => {
     if (unicornOrchestrator.start) unicornOrchestrator.start('full');
