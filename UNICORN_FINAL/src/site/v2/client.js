@@ -124,14 +124,15 @@ function domSafeId(s){ return String(s==null?'':s).replace(/[^a-zA-Z0-9_-]/g, '-
 function normalizeLivePricing(serviceId, payload){
   const p = payload || {};
   const usd = Number(
-    p.price_usd != null ? p.price_usd
+    p.usd != null ? p.usd
+      : (p.price_usd != null ? p.price_usd
       : (p.priceUsd != null ? p.priceUsd
       : (p.finalPrice != null ? p.finalPrice
-      : (p.pricing && p.pricing.usd != null ? p.pricing.usd : NaN)))
+      : (p.pricing && p.pricing.usd != null ? p.pricing.usd : NaN))))
   );
-  const btcRaw = p.price_btc != null ? p.price_btc : (p.btcEquivalent != null ? p.btcEquivalent : (p.pricing && p.pricing.btc != null ? p.pricing.btc : null));
+  const btcRaw = p.btc != null ? p.btc : (p.price_btc != null ? p.price_btc : (p.btcEquivalent != null ? p.btcEquivalent : (p.pricing && p.pricing.btc != null ? p.pricing.btc : null)));
   return {
-    serviceId: String(p.serviceId || p.moduleId || serviceId || 'unknown-service'),
+    serviceId: String(p.serviceId || p.productId || p.moduleId || serviceId || 'unknown-service'),
     // Never silently substitute a hardcoded fallback — callers MUST check
     // Number.isFinite(price_usd) before rendering or accepting an order.
     price_usd: Number.isFinite(usd) ? usd : NaN,
@@ -177,13 +178,18 @@ async function fetchLivePricing(serviceId, opts){
   const qp = new URLSearchParams();
   if (options.userId) qp.set('userId', String(options.userId));
   if (options.coupon) qp.set('coupon', String(options.coupon));
-  const url = '/api/pricing/' + encodeURIComponent(sid) + (qp.toString() ? ('?' + qp.toString()) : '');
+  const q = qp.toString();
+  const priceUrl = '/api/price/' + encodeURIComponent(sid) + (q ? ('?' + q) : '');
+  const pricingUrl = '/api/pricing/' + encodeURIComponent(sid) + (q ? ('?' + q) : '');
   let slowTimer = null;
   try {
     if (typeof options.onSlow === 'function') {
       slowTimer = setTimeout(function(){ try { options.onSlow(); } catch(_){} }, 2000);
     }
-    const r = await fetch(url, { headers: { Accept: 'application/json' }, cache: 'no-store' });
+    let r = await fetch(priceUrl, { headers: { Accept: 'application/json' }, cache: 'no-store' });
+    if (!r.ok) {
+      r = await fetch(pricingUrl, { headers: { Accept: 'application/json' }, cache: 'no-store' });
+    }
     if (slowTimer) clearTimeout(slowTimer);
     const j = await r.json().catch(function(){ return null; });
     if (!r.ok) throw new Error((j && (j.error || j.message)) || ('HTTP ' + r.status));
