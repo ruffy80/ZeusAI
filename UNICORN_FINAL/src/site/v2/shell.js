@@ -1704,19 +1704,107 @@ function pageOperator() {
   <p style="color:var(--ink-dim);font-size:16px;line-height:1.7;max-width:860px">Sanitized operator view for orders, payments, leads, AI provider readiness, errors, revenue proof, deploy health and webhook failures. Admin-only actions remain protected.</p>
   <div class="grid" id="opGrid" style="margin-top:22px"><div class="card"><p>Operator snapshot will appear here.</p></div></div>
   <pre class="code" id="opRaw" style="margin-top:18px;max-height:420px;overflow:auto">Operator summary will appear here.</pre>
+  <div class="card" style="margin-top:18px;padding:14px">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap">
+      <div>
+        <span class="tag">Admin ops summary</span>
+        <h3 style="margin:8px 0 4px">Funnel, SLO and DeepSeek in one panel</h3>
+        <p style="margin:0;color:var(--ink-dim);font-size:13px">Uses <code class="inline">/api/admin/ops/summary</code>. Token is stored in <code class="inline">sessionStorage</code> only.</p>
+      </div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;min-width:min(100%,520px)">
+        <input id="opAdminToken" type="password" placeholder="Admin JWT token" style="flex:1;min-width:220px;padding:10px;border-radius:10px;border:1px solid var(--stroke);background:rgba(5,4,10,.55);color:var(--ink);font-family:var(--mono)"/>
+        <button class="btn btn-primary" id="opLoadAdmin">Load admin KPIs</button>
+      </div>
+    </div>
+    <div class="grid" id="opOpsGrid" style="margin-top:14px;grid-template-columns:repeat(auto-fit,minmax(170px,1fr))"><div class="card"><p style="margin:0;color:var(--ink-dim)">Admin KPIs locked.</p></div></div>
+    <pre class="code" id="opOpsRaw" style="margin-top:12px;max-height:260px;overflow:auto">Awaiting admin token…</pre>
+  </div>
   <script>
-  fetch('/api/operator/console').then(r=>r.json()).then(d=>{
-    const cards=[['Orders', d.orders.total], ['Paid', d.orders.paid], ['Revenue', '$'+d.revenue.totalUsd], ['Payment rail', d.payments.mode], ['AI providers', d.ai.active+'/'+d.ai.total], ['Deploy', d.deploy.sha], ['Errors', d.errors.count], ['Webhooks', d.webhooks.status]];
-    document.getElementById('opGrid').innerHTML=cards.map(c=>'<div class="card"><span class="tag">'+c[0]+'</span><h3>'+c[1]+'</h3></div>').join('');
-    document.getElementById('opRaw').textContent='deploy '+(d.deploy.sha||'—')+' · payments '+(d.payments.mode||'—')+' · revenue $'+(d.revenue.totalUsd||0).toLocaleString();
-  }).catch(e=>{
-    // Never leave the SSR "Operator snapshot will appear here." placeholder
-    // stuck on screen — same regression class as the /services BTC spot rate bug.
-    const g = document.getElementById('opGrid');
-    if (g) g.innerHTML = '<div class="card"><p style="color:var(--ink-dim)">Operator snapshot unavailable. Retrying.</p></div>';
-    const r = document.getElementById('opRaw');
-    if (r) r.textContent = 'Operator console unavailable: '+(e && e.message || e);
-  });
+  (function(){
+    const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, (m) => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[m]));
+    const fmtNum = (n) => {
+      const v = Number(n || 0);
+      if (!Number.isFinite(v)) return '0';
+      return v.toLocaleString('en-US', { maximumFractionDigits: 2 });
+    };
+
+    function loadPublic(){
+      fetch('/api/operator/console').then(r=>r.json()).then(d=>{
+        const cards=[['Orders', d.orders.total], ['Paid', d.orders.paid], ['Revenue', '$'+fmtNum(d.revenue.totalUsd)], ['Payment rail', d.payments.mode], ['AI providers', d.ai.active+'/'+d.ai.total], ['Deploy', d.deploy.sha], ['Errors', d.errors.count], ['Webhooks', d.webhooks.status]];
+        const g = document.getElementById('opGrid');
+        if (g) g.innerHTML=cards.map(c=>'<div class="card"><span class="tag">'+esc(c[0])+'</span><h3>'+esc(c[1])+'</h3></div>').join('');
+        const r = document.getElementById('opRaw');
+        if (r) r.textContent='deploy '+(d.deploy.sha||'—')+' · payments '+(d.payments.mode||'—')+' · revenue $'+fmtNum(d.revenue.totalUsd);
+      }).catch(e=>{
+        const g = document.getElementById('opGrid');
+        if (g) g.innerHTML = '<div class="card"><p style="color:var(--ink-dim)">Operator snapshot unavailable. Retrying.</p></div>';
+        const r = document.getElementById('opRaw');
+        if (r) r.textContent = 'Operator console unavailable: '+(e && e.message || e);
+      });
+    }
+
+    function loadAdminOps(token){
+      const opsGrid = document.getElementById('opOpsGrid');
+      const opsRaw = document.getElementById('opOpsRaw');
+      if (!token) {
+        if (opsGrid) opsGrid.innerHTML = '<div class="card"><p style="margin:0;color:var(--ink-dim)">Admin KPIs locked.</p></div>';
+        if (opsRaw) opsRaw.textContent = 'Awaiting admin token…';
+        return;
+      }
+      if (opsRaw) opsRaw.textContent = 'Loading admin ops summary…';
+      fetch('/api/admin/ops/summary', { headers: { Authorization: 'Bearer ' + token } }).then(async (r) => {
+        const txt = await r.text();
+        let d = null; try { d = txt ? JSON.parse(txt) : null; } catch (_) { d = null; }
+        if (!r.ok) {
+          throw new Error((d && (d.error || d.reason)) || ('HTTP ' + r.status));
+        }
+        return d || {};
+      }).then((d) => {
+        const f = d.funnel || {};
+        const ds = d.deepseek || {};
+        const cards = [
+          ['Views/h', fmtNum(f.viewsHour)],
+          ['Checkout/h', fmtNum(f.checkoutHour)],
+          ['Paid/h', fmtNum(f.paidHour)],
+          ['View→Checkout', (Number(f.conversionViewToCheckout || 0) * 100).toFixed(1) + '%'],
+          ['Checkout→Paid', (Number(f.conversionCheckoutToPaid || 0) * 100).toFixed(1) + '%'],
+          ['DeepSeek actions/h', fmtNum(ds.actionsLastHour)],
+          ['DeepSeek actions/day', fmtNum(ds.actionsLastDay)],
+          ['Pending req ids', fmtNum(ds.pendingRequestIds)]
+        ];
+        if (opsGrid) {
+          opsGrid.innerHTML = cards.map((c) => '<div class="card"><span class="tag">' + esc(c[0]) + '</span><h3>' + esc(c[1]) + '</h3></div>').join('');
+        }
+        if (opsRaw) {
+          opsRaw.textContent = 'ts ' + (d.ts || '—') + '\n' +
+            'funnel events buffered: ' + fmtNum(f.bufferedEvents) + '\n' +
+            'perf.slo: ' + JSON.stringify((d.performance && d.performance.slo) || {}, null, 2);
+        }
+      }).catch((e) => {
+        if (opsGrid) opsGrid.innerHTML = '<div class="card"><p style="margin:0;color:#ffb4b4">Admin summary unavailable.</p></div>';
+        if (opsRaw) opsRaw.textContent = 'Admin ops summary error: ' + (e && e.message || e);
+      });
+    }
+
+    const tokenInput = document.getElementById('opAdminToken');
+    const loadBtn = document.getElementById('opLoadAdmin');
+    let saved = '';
+    try { saved = sessionStorage.getItem('zeus_admin_jwt') || ''; } catch (_) { saved = ''; }
+    if (tokenInput && saved) tokenInput.value = saved;
+    if (loadBtn) {
+      loadBtn.addEventListener('click', function(){
+        const t = tokenInput ? String(tokenInput.value || '').trim() : '';
+        try {
+          if (t) sessionStorage.setItem('zeus_admin_jwt', t);
+          else sessionStorage.removeItem('zeus_admin_jwt');
+        } catch (_) {}
+        loadAdminOps(t);
+      });
+    }
+
+    loadPublic();
+    if (saved) loadAdminOps(saved);
+  })();
   </script>
 </section>`;
 }
