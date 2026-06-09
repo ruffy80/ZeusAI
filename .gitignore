@@ -47,6 +47,14 @@ UNICORN_FINAL/data/oracle/oracle-state.json
 .env-archive/
 tmp/
 
+# Top-level runtime DB snapshots / LevelDB state (never commit)
+blockchainDB3/
+defaultDB2/
+minerPoolDB/
+poolDB/
+serverPoolDB/
+transactionsDB/
+
 # Additional runtime-generated artifacts that kept showing up as "modified".
 # These are per-process state written by the live runtime (and excluded from
 # the rsync deploy); the server keeps its own copies. Never commit them.

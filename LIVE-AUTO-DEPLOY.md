@@ -37,7 +37,7 @@ git push origin main
 
 ### 5️⃣ **Your changes go LIVE**
 - Deployment takes **60-90 seconds**
-- zeusai.com is updated automatically
+- zeusai.pro is updated automatically
 - No manual SSH, no password entry
 
 ---
@@ -60,7 +60,7 @@ You'll see:
 
 ```bash
 # Check if site is healthy
-curl https://zeusai.com/health
+curl https://zeusai.pro/health
 ```
 
 Should return: `{"status":"healthy",...}`
@@ -108,7 +108,7 @@ git push origin main
 # https://github.com/ruffy80/ZeusAI/actions
 
 # 5. After 90s, changes are LIVE
-curl https://zeusai.com/health
+curl https://zeusai.pro/health
 ```
 
 ---
@@ -131,4 +131,4 @@ Edit [UNICORN_FINAL/.github/workflows/hetzner-deploy.yml](UNICORN_FINAL/.github/
 
 - Workflow config: [UNICORN_FINAL/.github/workflows/hetzner-deploy.yml](UNICORN_FINAL/.github/workflows/hetzner-deploy.yml)
 - Deployment script: [UNICORN_FINAL/scripts/create-backup.sh](UNICORN_FINAL/scripts/create-backup.sh)
-- Live status: `curl https://zeusai.com/snapshot`
+- Live status: `curl https://zeusai.pro/snapshot`
