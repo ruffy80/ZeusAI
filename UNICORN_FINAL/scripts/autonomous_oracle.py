@@ -38,6 +38,7 @@ import os
 import re
 import subprocess
 import time
+import hashlib
 from datetime import datetime, timezone
 
 try:
@@ -54,6 +55,12 @@ CONSCIOUSNESS_PATH = os.environ.get(
 )
 HISTORY_MAX = 40
 CMD_TIMEOUT = int(os.environ.get("ORACLE_CMD_TIMEOUT", "25"))
+
+# AI cost guardrails (estimated spend).
+AI_BUDGET_DAILY_USD = float(os.environ.get("ORACLE_AI_BUDGET_DAILY_USD", "12"))
+AI_BUDGET_PER_TICK_USD = float(os.environ.get("ORACLE_AI_BUDGET_PER_TICK_USD", "0.05"))
+AI_COST_ESTIMATE_PER_CALL_USD = float(os.environ.get("ORACLE_AI_COST_ESTIMATE_PER_CALL_USD", "0.003"))
+AI_LEDGER_PATH = os.environ.get("ORACLE_AI_LEDGER_PATH", os.path.join(WORKDIR, "data", "ai-cost-ledger-brainstem.json"))
 
 DEEPSEEK_API_KEY = os.environ.get("DEEPSEEK_API_KEY", "").strip()
 DEEPSEEK_API_URL = os.environ.get(
@@ -72,8 +79,28 @@ ACTIVATABLE = {
     "quantumIntegrityShield", "meshOrchestrator", "profitControlLoop",
 }
 
+# Revenue SLO reflex (business health guardrail).
+SLO_MIN_RUNS = int(os.environ.get("ORACLE_SLO_MIN_RUNS", "20"))
+SLO_MIN_CONVERSION = float(os.environ.get("ORACLE_SLO_MIN_CONVERSION", "0.0001"))
+SLO_STALL_SEC = int(os.environ.get("ORACLE_SLO_STALL_SEC", str(4 * 60 * 60)))
+SLO_PLAYBOOK_COOLDOWN = int(os.environ.get("ORACLE_SLO_PLAYBOOK_COOLDOWN", str(45 * 60)))
+
+# Signed audit hash-chain (tamper-evident).
+AUDIT_CHAIN_PATH = os.environ.get("ZEUS_AUDIT_CHAIN_PATH", os.path.join(WORKDIR, "data", "autonomy-audit-chain.jsonl"))
+AUDIT_SIGNING_SECRET = (
+    os.environ.get("AUDIT_SIGNING_SECRET", "").strip()
+    or os.environ.get("ADMIN_SECRET", "").strip()
+    or os.environ.get("DEEPSEEK_LOOP_ADMIN_TOKEN", "").strip()
+)
+
 # Mutable runtime state for cooldowns / one-shot reflexes.
-_state = {"last_activate": 0.0}
+_state = {
+    "last_activate": 0.0,
+    "last_slo_playbook": 0.0,
+    "last_paid_events": 0,
+    "last_paid_event_change_ts": time.time(),
+    "last_audit_hash": "",
+}
 
 BACKEND = "http://127.0.0.1:3000"
 SITE = "http://127.0.0.1:3001"
@@ -128,6 +155,83 @@ DENY_TOKENS = (
 
 def now_iso():
     return datetime.now(timezone.utc).isoformat()
+
+
+def _day_key(ts=None):
+    dt = datetime.fromtimestamp(ts or time.time(), tz=timezone.utc)
+    return dt.strftime("%Y-%m-%d")
+
+
+def _load_cost_ledger():
+    try:
+        with open(AI_LEDGER_PATH, "r") as f:
+            return json.load(f)
+    except Exception:
+        return {"days": {}}
+
+
+def _save_cost_ledger(doc):
+    os.makedirs(os.path.dirname(AI_LEDGER_PATH), exist_ok=True)
+    tmp = AI_LEDGER_PATH + ".tmp"
+    with open(tmp, "w") as f:
+        json.dump(doc, f, indent=2, ensure_ascii=False)
+    os.replace(tmp, AI_LEDGER_PATH)
+
+
+def _can_afford_ai(estimated):
+    ledger = _load_cost_ledger()
+    day = _day_key()
+    node = (ledger.get("days") or {}).get(day, {"usd": 0.0})
+    spent = float(node.get("usd") or 0.0)
+    ok = (estimated <= AI_BUDGET_PER_TICK_USD) and ((spent + estimated) <= AI_BUDGET_DAILY_USD)
+    return ok, spent
+
+
+def _book_ai_spend(estimated, provider):
+    ledger = _load_cost_ledger()
+    day = _day_key()
+    days = ledger.setdefault("days", {})
+    node = days.setdefault(day, {"usd": 0.0, "calls": 0, "providers": {}})
+    node["usd"] = round(float(node.get("usd") or 0.0) + float(estimated), 6)
+    node["calls"] = int(node.get("calls") or 0) + 1
+    prov = node.setdefault("providers", {})
+    p = prov.setdefault(provider or "unknown", {"usd": 0.0, "calls": 0})
+    p["usd"] = round(float(p.get("usd") or 0.0) + float(estimated), 6)
+    p["calls"] = int(p.get("calls") or 0) + 1
+    _save_cost_ledger(ledger)
+
+
+def _append_audit(actor, event_type, payload):
+    """Tamper-evident JSONL hash-chain entry."""
+    try:
+        os.makedirs(os.path.dirname(AUDIT_CHAIN_PATH), exist_ok=True)
+        prev = _state.get("last_audit_hash") or ""
+        if not prev and os.path.exists(AUDIT_CHAIN_PATH):
+            try:
+                with open(AUDIT_CHAIN_PATH, "rb") as f:
+                    lines = f.read().splitlines()
+                if lines:
+                    last = json.loads(lines[-1].decode("utf-8"))
+                    prev = str(last.get("hash") or "")
+            except Exception:
+                prev = ""
+        body = {
+            "ts": now_iso(),
+            "actor": actor,
+            "event": event_type,
+            "payload": payload,
+            "prevHash": prev,
+        }
+        canonical = json.dumps(body, sort_keys=True, ensure_ascii=False, separators=(",", ":"))
+        h = hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+        sig = hashlib.sha256((h + "|" + (AUDIT_SIGNING_SECRET or "zeus-public")).encode("utf-8")).hexdigest()
+        body["hash"] = h
+        body["sig"] = sig
+        with open(AUDIT_CHAIN_PATH, "a") as f:
+            f.write(json.dumps(body, ensure_ascii=False) + "\n")
+        _state["last_audit_hash"] = h
+    except Exception:
+        pass
 
 
 def run(cmd, timeout=CMD_TIMEOUT):
@@ -189,6 +293,15 @@ def collect_vitals():
     v["revenueAutopilot"] = bool(rev.get("enabled"))
     v["revenueRuns"] = rev.get("runs")
     v["revenueErrors"] = rev.get("errors")
+    try:
+        kpis = ((rev.get("last") or {}).get("kpis") or {}) if isinstance(rev, dict) else {}
+        v["paidEvents"] = int(kpis.get("paidEvents") or 0)
+        v["conversionRate"] = float(kpis.get("conversionRate") or 0.0)
+        v["leads"] = int(kpis.get("leads") or 0)
+        v["events"] = int(kpis.get("events") or 0)
+    except Exception:
+        v["paidEvents"] = 0
+        v["conversionRate"] = 0.0
 
     pricing = get_json(BACKEND + "/api/pricing/all")
     if isinstance(pricing, dict):
@@ -259,6 +372,10 @@ def reflexes(vitals):
     # the otherwise-stable runtime, exactly as the activate endpoint intends.
     acted += activate_modules(vitals)
 
+    # Business-SLO remediation reflex: if revenue stalls too long, run a
+    # bounded playbook to recover conversion surfaces.
+    acted += kpi_slo_playbook(vitals)
+
     return acted
 
 
@@ -293,6 +410,44 @@ def activate_modules(vitals):
         return [f"reflex:activate_modules:error:{str(e)[:80]}"]
 
 
+def kpi_slo_playbook(vitals):
+    out = []
+    now = time.time()
+    paid = int(vitals.get("paidEvents") or 0)
+    runs = int(vitals.get("revenueRuns") or 0)
+    conv = float(vitals.get("conversionRate") or 0.0)
+
+    # Track last paid-event movement.
+    if paid != int(_state.get("last_paid_events") or 0):
+        _state["last_paid_events"] = paid
+        _state["last_paid_event_change_ts"] = now
+
+    stalled_sec = now - float(_state.get("last_paid_event_change_ts") or now)
+    if runs < SLO_MIN_RUNS:
+        return out
+    if paid > 0 and conv >= SLO_MIN_CONVERSION:
+        return out
+    if stalled_sec < SLO_STALL_SEC:
+        return out
+    if (now - float(_state.get("last_slo_playbook") or 0.0)) < SLO_PLAYBOOK_COOLDOWN:
+        return out
+
+    _state["last_slo_playbook"] = now
+
+    # Step 1: ensure all autonomy modules are active.
+    out += activate_modules(vitals)
+
+    # Step 2: gently refresh checkout-facing surface.
+    ok_site, _ = run("pm2 reload unicorn-site", 30)
+    out.append(f"reflex:slo:reload_site:{'ok' if ok_site else 'fail'}")
+
+    # Step 3: nudge backend loops (safe bounded reload).
+    ok_be, _ = run("pm2 reload unicorn-backend", 30)
+    out.append(f"reflex:slo:reload_backend:{'ok' if ok_be else 'fail'}")
+
+    return out
+
+
 # -------- 3) DeepSeek augmentation (parsed + whitelisted) ------------
 def parse_commands(plan):
     """Strip markdown fences, comments, bullets, prompts; yield clean lines."""
@@ -323,6 +478,9 @@ def allowed(cmd):
 
 def ask_deepseek(vitals, recent_actions):
     if not (DEEPSEEK_ENABLED and DEEPSEEK_API_KEY and requests):
+        return ""
+    can, _spent = _can_afford_ai(AI_COST_ESTIMATE_PER_CALL_USD)
+    if not can:
         return ""
     system = (
         "You are the ZeusAI brainstem operator for zeusai.pro (owner Vladoi Ionut, "
@@ -357,6 +515,7 @@ def ask_deepseek(vitals, recent_actions):
             timeout=40,
         )
         if r.status_code == 200:
+            _book_ai_spend(AI_COST_ESTIMATE_PER_CALL_USD, "deepseek-direct")
             return r.json()["choices"][0]["message"]["content"]
     except Exception as e:
         return ""  # DeepSeek failure is non-fatal; reflexes already ran.
@@ -425,6 +584,9 @@ def derive_directive(vitals):
     if vitals.get("revenueErrors"):
         return ("Revenue autopilot reporting errors — read_file the revenue "
                 "module, diagnose, and propose a fix.")
+    if int(vitals.get("revenueRuns") or 0) >= SLO_MIN_RUNS and int(vitals.get("paidEvents") or 0) == 0:
+        return ("Revenue SLO breach: paidEvents still zero after many runs — prioritize "
+                "checkout/offer conversion code_proposals and validation now.")
     return ("All vitals green — generate an innovation code_proposal for a "
             "feature no competing SaaS has yet (AI-personalized pricing, "
             "BTC Lightning instant settlement, revenue-anomaly self-healing).")
@@ -473,8 +635,17 @@ def main():
             cycle["reflexes"] = reflex_actions
             cycle["result"] = suggestions
             cycle["directive"] = directive
+            _append_audit("brainstem", "cycle", {
+                "backendUp": bool(vitals.get("backendUp")),
+                "paidEvents": int(vitals.get("paidEvents") or 0),
+                "conversionRate": float(vitals.get("conversionRate") or 0.0),
+                "reflexCount": len(reflex_actions),
+                "suggestionCount": len(suggestions),
+                "directive": str(directive)[:180],
+            })
         except Exception as e:
             cycle["error"] = str(e)
+            _append_audit("brainstem", "cycle_error", {"error": str(e)[:220]})
 
         history.append(cycle)
         history = history[-HISTORY_MAX:]

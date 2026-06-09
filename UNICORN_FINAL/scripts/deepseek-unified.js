@@ -46,6 +46,7 @@ const fs   = require('fs');
 const path = require('path');
 const http = require('http');
 const https = require('https');
+const crypto = require('crypto');
 const { execFileSync } = require('child_process');
 
 // ADI-Core Key Vault — multi-source key resolution (env, vault file, .env,
@@ -118,6 +119,15 @@ const AUTONOMOUS_TAIL_MAX_ITEMS   = Math.max(1, Math.min(20, parseInt(process.en
 
 const LOG_PATH           = process.env.DEEPSEEK_LOOP_LOG_PATH
                          || path.join(__dirname, '..', 'data', 'logs', 'deepseek-unified.log');
+const AI_LEDGER_PATH     = process.env.DEEPSEEK_UNIFIED_AI_LEDGER_PATH
+                         || path.join(__dirname, '..', 'data', 'ai-cost-ledger-cortex.json');
+const AI_BUDGET_DAILY_USD = Number.parseFloat(process.env.DEEPSEEK_UNIFIED_AI_BUDGET_DAILY_USD || '20');
+const AI_BUDGET_PER_TICK_USD = Number.parseFloat(process.env.DEEPSEEK_UNIFIED_AI_BUDGET_PER_TICK_USD || '0.08');
+const AI_COST_ESTIMATE_PER_CALL_USD = Number.parseFloat(process.env.DEEPSEEK_UNIFIED_AI_COST_ESTIMATE_PER_CALL_USD || '0.006');
+
+const AUDIT_CHAIN_PATH   = process.env.ZEUS_AUDIT_CHAIN_PATH
+                         || path.join(__dirname, '..', 'data', 'autonomy-audit-chain.jsonl');
+const AUDIT_SIGNING_SECRET = String(process.env.AUDIT_SIGNING_SECRET || process.env.ADMIN_SECRET || process.env.DEEPSEEK_LOOP_ADMIN_TOKEN || 'zeus-public');
 const ROADMAP_PATH       = process.env.DEEPSEEK_GOVERNOR_ROADMAP_PATH
                          || path.join(__dirname, '..', 'data', 'roadmap.json');
 const PROPOSALS_DIR      = process.env.DEEPSEEK_GOVERNOR_PROPOSALS_DIR
@@ -209,6 +219,76 @@ function writeCortexConsciousness(rec) {
 function _tickHistoryDigest() {
   if (!_tickHistory.length) return null;
   return _tickHistory.map((t) => `[${t.ts.slice(11, 19)}] ${t.action} — ${t.reason}`).join('\n');
+}
+
+function _dayKey(ts = Date.now()) {
+  return new Date(ts).toISOString().slice(0, 10);
+}
+
+function _loadAiLedger() {
+  try {
+    const raw = fs.readFileSync(AI_LEDGER_PATH, 'utf8');
+    return JSON.parse(raw);
+  } catch (_) { return { days: {} }; }
+}
+
+function _saveAiLedger(doc) {
+  try {
+    fs.mkdirSync(path.dirname(AI_LEDGER_PATH), { recursive: true });
+    fs.writeFileSync(AI_LEDGER_PATH + '.tmp', JSON.stringify(doc, null, 2));
+    fs.renameSync(AI_LEDGER_PATH + '.tmp', AI_LEDGER_PATH);
+  } catch (_) { /* non-fatal */ }
+}
+
+function _canAffordAi(estimatedUsd) {
+  const ledger = _loadAiLedger();
+  const day = _dayKey();
+  const node = (ledger.days && ledger.days[day]) || { usd: 0 };
+  const spent = Number(node.usd || 0);
+  const ok = estimatedUsd <= AI_BUDGET_PER_TICK_USD && (spent + estimatedUsd) <= AI_BUDGET_DAILY_USD;
+  return { ok, spent };
+}
+
+function _bookAiSpend(estimatedUsd, provider) {
+  const ledger = _loadAiLedger();
+  const day = _dayKey();
+  if (!ledger.days) ledger.days = {};
+  if (!ledger.days[day]) ledger.days[day] = { usd: 0, calls: 0, providers: {} };
+  const node = ledger.days[day];
+  node.usd = +((Number(node.usd || 0) + Number(estimatedUsd || 0)).toFixed(6));
+  node.calls = Number(node.calls || 0) + 1;
+  if (!node.providers) node.providers = {};
+  if (!node.providers[provider]) node.providers[provider] = { usd: 0, calls: 0 };
+  node.providers[provider].usd = +((Number(node.providers[provider].usd || 0) + Number(estimatedUsd || 0)).toFixed(6));
+  node.providers[provider].calls = Number(node.providers[provider].calls || 0) + 1;
+  _saveAiLedger(ledger);
+}
+
+function appendAudit(actor, eventType, payload) {
+  try {
+    fs.mkdirSync(path.dirname(AUDIT_CHAIN_PATH), { recursive: true });
+    let prevHash = '';
+    try {
+      const lines = fs.readFileSync(AUDIT_CHAIN_PATH, 'utf8').trim().split('\n').filter(Boolean);
+      if (lines.length) {
+        const last = JSON.parse(lines[lines.length - 1]);
+        prevHash = String(last.hash || '');
+      }
+    } catch (_) { /* empty chain */ }
+    const entry = {
+      ts: new Date().toISOString(),
+      actor,
+      event: eventType,
+      payload,
+      prevHash,
+    };
+    const canonical = JSON.stringify(entry, Object.keys(entry).sort());
+    const hash = crypto.createHash('sha256').update(canonical).digest('hex');
+    const sig = crypto.createHash('sha256').update(hash + '|' + AUDIT_SIGNING_SECRET).digest('hex');
+    entry.hash = hash;
+    entry.sig = sig;
+    fs.appendFileSync(AUDIT_CHAIN_PATH, JSON.stringify(entry) + '\n');
+  } catch (_) { /* non-fatal */ }
 }
 
 // -------- Loop state -----------------------------------------------------
@@ -415,6 +495,23 @@ async function collectStatus() {
     out.healthStatus = r.status;
   } catch (e) { out.healthError = String(e && e.message || e).slice(0, 200); }
 
+  // Revenue autopilot KPI snapshot (business SLO context)
+  try {
+    const r = await request(BACKEND_URL + '/api/revenue/autopilot/status', { timeoutMs: 4000 });
+    if (r.status >= 200 && r.status < 300) {
+      const data = JSON.parse(r.body || '{}');
+      const k = (data && data.last && data.last.kpis) ? data.last.kpis : {};
+      out.revenue = {
+        enabled: !!data.enabled,
+        runs: Number(data.runs || 0),
+        errors: Number(data.errors || 0),
+        paidEvents: Number(k.paidEvents || 0),
+        conversionRate: Number(k.conversionRate || 0),
+        leads: Number(k.leads || 0),
+      };
+    }
+  } catch (e) { out.revenueError = String(e && e.message || e).slice(0, 200); }
+
   // Recent error log
   try {
     if (fs.existsSync(ERROR_LOG_PATH)) {
@@ -592,8 +689,37 @@ function buildSystemPrompt() {
   );
 }
 
+function parseAdvisorJson(text) {
+  const raw = String(text || '').trim();
+  if (!raw) throw new Error('advisor_empty_content');
+  // 1) direct parse
+  try { return JSON.parse(raw); } catch (_) { /* continue */ }
+  // 2) strip markdown fences
+  const noFence = raw.replace(/^```(?:json)?\s*/i, '').replace(/```$/i, '').trim();
+  try { return JSON.parse(noFence); } catch (_) { /* continue */ }
+  // 3) extract first balanced JSON object
+  const start = noFence.indexOf('{');
+  const end = noFence.lastIndexOf('}');
+  if (start >= 0 && end > start) {
+    const candidate = noFence.slice(start, end + 1);
+    return JSON.parse(candidate);
+  }
+  throw new Error('advisor_json_parse_failed');
+}
+
 // -------- Ask DeepSeek (provider chain + Ollama fallback) ----------------
 async function askDeepSeek(status) {
+  const budget = _canAffordAi(AI_COST_ESTIMATE_PER_CALL_USD);
+  if (!budget.ok) {
+    log('warn', 'advisor_budget_guardrail_block', {
+      dailyBudgetUsd: AI_BUDGET_DAILY_USD,
+      perTickBudgetUsd: AI_BUDGET_PER_TICK_USD,
+      estimatedUsd: AI_COST_ESTIMATE_PER_CALL_USD,
+      spentTodayUsd: budget.spent,
+    });
+    return { action: 'none', params: {}, reason: 'advisor_budget_guardrail_block' };
+  }
+
   const providers = getProviders();
   if (!providers.length && !LOCAL_FALLBACK_ENABLED && !OLLAMA_FALLBACK_ENABLED) {
     log('warn', 'advisor_no_usable_provider_keys', {});
@@ -634,7 +760,8 @@ async function askDeepSeek(status) {
       const content = parsed && parsed.choices && parsed.choices[0] &&
                       parsed.choices[0].message && parsed.choices[0].message.content;
       if (!content) throw new Error(provider.name + '_empty_content');
-      const action = JSON.parse(content);
+      const action = parseAdvisorJson(content);
+      _bookAiSpend(AI_COST_ESTIMATE_PER_CALL_USD, provider.name);
       log('info', 'advisor_provider_ok', { provider: provider.name, model: provider.model });
       return action;
     } catch (e) {
@@ -658,6 +785,7 @@ async function askDeepSeek(status) {
       const action = (data && data.action) ? data
                    : (data && data.result && data.result.action ? data.result : null);
       if (!action) throw new Error(fb.name + '_missing_action');
+      _bookAiSpend(AI_COST_ESTIMATE_PER_CALL_USD, fb.name);
       log('info', 'advisor_provider_ok', { provider: fb.name, model: 'local-endpoint' });
       return action;
     } catch (e) {
@@ -679,7 +807,8 @@ async function askDeepSeek(status) {
       const parsed = JSON.parse(res.body);
       const text = parsed && typeof parsed.response === 'string' ? parsed.response.trim() : '';
       if (text) {
-        const action = JSON.parse(text);
+        const action = parseAdvisorJson(text);
+        _bookAiSpend(AI_COST_ESTIMATE_PER_CALL_USD, 'ollama-fallback');
         log('info', 'advisor_provider_ok', { provider: 'ollama-fallback', model: OLLAMA_MODEL });
         return action;
       }
@@ -899,6 +1028,11 @@ async function tick() {
     const rec = await askDeepSeek(status);
     log('info', 'recommendation_received', rec);
     log('info', 'action: ' + String(rec && rec.action || 'none'), { action: rec && rec.action || 'none' });
+    appendAudit('cortex', 'recommendation', {
+      action: rec && rec.action ? rec.action : 'none',
+      reason: rec && rec.reason ? String(rec.reason).slice(0, 180) : '',
+      executeMode: EXECUTE_MODE,
+    });
 
     // Corpus callosum: tell the brainstem what the cortex decided this tick.
     writeCortexConsciousness(rec);
@@ -920,6 +1054,11 @@ async function tick() {
       // Execute via governor (direct dispatch preferred over HTTP).
       const out = await executeViaGovernorDirect(rec);
       log('info', 'governor_execution_result', { httpStatus: out.status, bodyPreview: out.body });
+      appendAudit('cortex', 'governor_execution', {
+        action: rec.action,
+        status: out.status,
+        preview: String(out.body || '').slice(0, 180),
+      });
       if (out.status >= 200 && out.status < 300) {
         consecutiveFailures = 0;
         _recordTick(rec);
@@ -948,6 +1087,7 @@ async function tick() {
     }
   } catch (e) {
     log('error', 'tick_failed', { error: String(e && e.message || e).slice(0, 300) });
+    appendAudit('cortex', 'tick_error', { error: String(e && e.message || e).slice(0, 220) });
     consecutiveFailures++;
     lastCriticalTs = Date.now();
     _recordTick({ action: 'error', reason: String(e && e.message || e).slice(0, 80) });

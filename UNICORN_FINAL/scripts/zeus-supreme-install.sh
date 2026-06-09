@@ -51,6 +51,11 @@ EnvironmentFile=-${ENV_FILE}
 EnvironmentFile=-/etc/zeusai/secrets/ai-keys.env
 Environment=ORACLE_INTERVAL=60
 Environment=ORACLE_DEEPSEEK_ENABLED=1
+Environment=ORACLE_AI_BUDGET_DAILY_USD=12
+Environment=ORACLE_AI_BUDGET_PER_TICK_USD=0.05
+Environment=ORACLE_SLO_MIN_RUNS=20
+Environment=ORACLE_SLO_STALL_SEC=14400
+Environment=ZEUS_AUDIT_CHAIN_PATH=${ROOT}/data/autonomy-audit-chain.jsonl
 ExecStart=${PY_BIN} ${SCRIPTS}/autonomous_oracle.py
 Restart=always
 RestartSec=5
@@ -83,6 +88,10 @@ Environment=DEEPSEEK_LOOP_ENABLED=1
 Environment=DEEPSEEK_LOOP_EXECUTE=1
 Environment=DEEPSEEK_UNIFIED_MEMORY_SIZE=10
 Environment=DEEPSEEK_MODEL=deepseek-chat
+Environment=DEEPSEEK_UNIFIED_AI_BUDGET_DAILY_USD=20
+Environment=DEEPSEEK_UNIFIED_AI_BUDGET_PER_TICK_USD=0.08
+Environment=DEEPSEEK_UNIFIED_AI_COST_ESTIMATE_PER_CALL_USD=0.006
+Environment=ZEUS_AUDIT_CHAIN_PATH=${ROOT}/data/autonomy-audit-chain.jsonl
 ExecStart=${NODE_BIN} ${SCRIPTS}/deepseek-unified.js
 Restart=always
 RestartSec=8
@@ -107,6 +116,39 @@ AllowIsolate=no
 WantedBy=multi-user.target
 UNIT
 log "wrote zeus-supreme.target"
+
+# ---------------------------------------------------------------------
+# 3b) SAFE CHAOS DRILL — daily self-heal validation (non-destructive)
+# ---------------------------------------------------------------------
+cat > "${SYSTEMD_DIR}/zeus-chaos-drill.service" <<UNIT
+[Unit]
+Description=ZeusAI Safe Chaos Drill (daily resilience probe)
+After=network-online.target zeus-supreme.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=${ROOT}
+EnvironmentFile=-${ENV_FILE}
+ExecStart=/usr/bin/env bash ${SCRIPTS}/safe-chaos-drill.sh
+User=root
+UNIT
+log "wrote zeus-chaos-drill.service"
+
+cat > "${SYSTEMD_DIR}/zeus-chaos-drill.timer" <<UNIT
+[Unit]
+Description=Run ZeusAI Safe Chaos Drill daily
+
+[Timer]
+OnCalendar=*-*-* 04:17:00 UTC
+RandomizedDelaySec=1800
+Persistent=true
+Unit=zeus-chaos-drill.service
+
+[Install]
+WantedBy=timers.target
+UNIT
+log "wrote zeus-chaos-drill.timer"
 
 # ---------------------------------------------------------------------
 # 4) Retire the DUPLICATE / superseded units (unconditional, idempotent).
@@ -173,13 +215,16 @@ log "quieted flapping zeusai-autonomy oneshot"
 mkdir -p "${ROOT}/data"
 systemctl daemon-reload
 systemctl enable zeus-brainstem.service zeus-cortex.service zeus-supreme.target 2>/dev/null || true
+systemctl enable zeus-chaos-drill.timer 2>/dev/null || true
 systemctl restart zeus-brainstem.service
 sleep 2
 systemctl restart zeus-cortex.service
 systemctl start zeus-supreme.target 2>/dev/null || true
+systemctl start zeus-chaos-drill.timer 2>/dev/null || true
 
 log "----- STATUS -----"
 for u in zeus-brainstem.service zeus-cortex.service; do
   printf '[zeus-supreme] %-26s %s\n' "${u}" "$(systemctl is-active ${u} 2>/dev/null)"
 done
+printf '[zeus-supreme] %-26s %s\n' "zeus-chaos-drill.timer" "$(systemctl is-active zeus-chaos-drill.timer 2>/dev/null)"
 log "supreme brain online."
