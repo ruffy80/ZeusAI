@@ -771,10 +771,7 @@ function globalChrome(N) {
   <div class="zeus-cookie-text">We use only first-party, signed analytics — no trackers, no ad networks. <a href="/privacy" data-link>Privacy</a> · <a href="/pledge" data-link>Pledge</a>.</div>
   <div class="zeus-cookie-cta"><button id="zeus-cookie-accept" class="btn btn-primary btn-sm">Accept</button><button id="zeus-cookie-deny" class="btn btn-ghost btn-sm">Deny</button></div>
 </div>
-<div id="zeus-buy-bar" class="zeus-buy-bar" hidden>
-  <div class="zeus-buy-text"><b>Ready to deploy ZeusAI?</b><span>30-day refund · direct BTC owner wallet · cancel any time</span></div>
-  <div class="zeus-buy-cta"><a class="btn btn-ghost btn-sm" href="/wizard" data-link>Find my plan</a><a class="btn btn-primary btn-sm" href="/services" data-link>Buy now →</a></div>
-</div>
+<!-- Removed: zeus-buy-bar footer CTA banner permanently (2026-06-09) -->
 <!-- Founders' brief exit-intent popup removed — was blocking /account access for logged-in users.
      Newsletter signup remains available in the footer (non-blocking). -->
 <script${N}>
@@ -878,17 +875,7 @@ function globalChrome(N) {
     } catch(_){ }
   }
   pullAura(); setInterval(pullAura, 30000);
-  // Sticky buy bar — shown after scroll on home/services/pricing
-  try {
-    var route = (document.documentElement.getAttribute('data-route')||'/');
-    var bar = document.getElementById('zeus-buy-bar');
-    // NB: this code lives inside a backtick template literal, so backslashes
-    // get unescaped before reaching the browser. Use new RegExp(...) to keep
-    // the literal slash intact (otherwise '/^\\/(...)/' -> '/^/(...)/' -> SyntaxError).
-    if (bar && new RegExp('^/(?:|services|pricing|how|frontier)$').test(route)) {
-      window.addEventListener('scroll', function(){ if (scrollY > 320) bar.hidden = false; }, { passive:true });
-    }
-  } catch(_){ }
+  // Sticky buy bar permanently removed (2026-06-09)
   // Exit-intent popup permanently removed — was blocking /account access for
   // logged-in users. Newsletter signup lives in the footer (non-blocking).
   // Defensive cleanup: if a stale modal element ever lingers in the DOM
@@ -911,12 +898,10 @@ function globalChrome(N) {
 .zeus-aura-strip .dot{width:8px;height:8px;border-radius:50%;background:#3effa1;box-shadow:0 0 12px #3effa1;animation:zpulse 1.4s ease-in-out infinite}
 .zeus-aura-more{color:#7aa9ff;text-decoration:none;margin-left:4px}
 @keyframes zpulse{0%,100%{opacity:.7}50%{opacity:1}}
-.zeus-buy-bar{position:fixed;left:0;right:0;bottom:0;z-index:80;background:linear-gradient(180deg,rgba(8,10,18,0),rgba(5,4,10,.96) 40%);padding:12px 18px;display:flex;gap:16px;align-items:center;justify-content:space-between;border-top:1px solid rgba(120,140,200,.18);font:14px/1.4 system-ui;color:#e7ecf3}
-.zeus-buy-text b{display:block;font-size:14.5px}.zeus-buy-text span{color:#9aa6bd;font-size:12.5px}
-.zeus-buy-cta{display:flex;gap:8px}
+/* .zeus-buy-bar, .zeus-buy-text, .zeus-buy-cta removed permanently (2026-06-09) */
 .btn-sm{padding:8px 14px;font-size:13px}
 [hidden]{display:none !important}
-.zeus-buy-bar[hidden]{display:none !important}
+/* .zeus-buy-bar[hidden] removed — buy bar element itself removed (2026-06-09) */
 .zeus-cookie[hidden]{display:none !important}
 /* .zeus-exit*: removed (founders' brief popup eliminated) */
 /* Heading-rename visual preservation (a11y h2→h3 chain, no visual regression) */
