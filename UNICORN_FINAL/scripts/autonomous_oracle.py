@@ -80,7 +80,10 @@ SITE = "http://127.0.0.1:3001"
 
 # Critical processes the brainstem keeps alive (deterministic reflex).
 PM2_CRITICAL = ["unicorn-backend", "unicorn-site"]
-SYSTEMD_CRITICAL = ["deepseek-unified.service"]
+# The cortex hemisphere. systemd already has Restart=always on it; this is a
+# cross-hemisphere watchdog so the brainstem revives the cortex if systemd
+# ever gives up. (Must match the unit name written by zeus-supreme-install.sh.)
+SYSTEMD_CRITICAL = ["zeus-cortex.service"]
 
 # -------- Strict command whitelist for DeepSeek suggestions ----------
 # Only single-line, side-effect-bounded commands are allowed to run.

@@ -48,6 +48,7 @@ PartOf=zeus-supreme.target
 Type=simple
 WorkingDirectory=${ROOT}
 EnvironmentFile=-${ENV_FILE}
+EnvironmentFile=-/etc/zeusai/secrets/ai-keys.env
 Environment=ORACLE_INTERVAL=60
 Environment=ORACLE_DEEPSEEK_ENABLED=1
 ExecStart=${PY_BIN} ${SCRIPTS}/autonomous_oracle.py
@@ -81,6 +82,7 @@ Environment=DEEPSEEK_UNIFIED_ENABLED=1
 Environment=DEEPSEEK_LOOP_ENABLED=1
 Environment=DEEPSEEK_LOOP_EXECUTE=1
 Environment=DEEPSEEK_UNIFIED_MEMORY_SIZE=10
+Environment=DEEPSEEK_MODEL=deepseek-chat
 ExecStart=${NODE_BIN} ${SCRIPTS}/deepseek-unified.js
 Restart=always
 RestartSec=8
@@ -109,12 +111,34 @@ log "wrote zeus-supreme.target"
 # ---------------------------------------------------------------------
 # 4) Retire the DUPLICATE / superseded units (unconditional, idempotent).
 #    deepseek-unified.js is a strict superset of deepseek-loop.js, and the
-#    cortex/brainstem units now own the two daemons. `systemctl stop` on a
-#    non-existent unit is a harmless no-op, so no grep guard is needed.
+#    cortex/brainstem units now own the two daemons. These old units carry
+#    `Restart=on-failure` and exit non-zero on SIGTERM, so a plain stop lets
+#    them respawn a duplicate process that fights our cortex over the
+#    governor + consciousness file. `systemctl mask` also fails for them
+#    because their REAL unit file lives in /etc/systemd/system/, so we move
+#    the file aside (reversible: *.superseded) to make the unit truly vanish.
 # ---------------------------------------------------------------------
 for u in deepseek-loop.service autonomous-oracle.service deepseek-unified.service; do
   systemctl stop "$u" 2>/dev/null && log "stopped superseded $u" || true
   systemctl disable "$u" 2>/dev/null || true
+  if systemctl mask "$u" 2>/dev/null; then
+    log "masked superseded $u"
+  else
+    # Mask refused (real file present) — move the unit file aside instead.
+    for d in /etc/systemd/system /lib/systemd/system /usr/lib/systemd/system; do
+      if [ -f "$d/$u" ] && [ ! -L "$d/$u" ]; then
+        mv "$d/$u" "$d/$u.superseded" 2>/dev/null && log "moved aside $d/$u -> $u.superseded"
+      fi
+    done
+  fi
+done
+systemctl daemon-reload
+# Kill any lingering duplicate deepseek-unified.js NOT owned by zeus-cortex.
+CORTEX_PID="$(systemctl show zeus-cortex.service -p ExecMainPID --value 2>/dev/null)"
+for pid in $(pgrep -f 'scripts/deepseek-unified.js' 2>/dev/null); do
+  if [ -n "$pid" ] && [ "$pid" != "$CORTEX_PID" ]; then
+    kill -TERM "$pid" 2>/dev/null && log "killed duplicate cortex PID $pid (keeping $CORTEX_PID)"
+  fi
 done
 
 # ---------------------------------------------------------------------
