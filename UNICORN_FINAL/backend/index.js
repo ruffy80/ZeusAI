@@ -2182,14 +2182,59 @@ const __REV_AUTO = (function buildRevenueAutopilot() {
       const commander = moneyMachine.revenueCommander();
       const conv = moneyMachine.conversionIntelligence();
       const success = moneyMachine.customerSuccessStatus();
+      const commerceStatus = unicornCommerceConnector.status({ registry: getModuleRegistryStatus(), btcWallet: ADMIN_OWNER_BTC, ownerName: ADMIN_OWNER_NAME });
+      const commerceCatalog = unicornCommerceConnector.buildCommerceCatalog({ registry: getModuleRegistryStatus(), btcWallet: ADMIN_OWNER_BTC, ownerName: ADMIN_OWNER_NAME });
+      const strategicPackages = billionScaleRevenueEngine.buildStrategicPackages({ btcWallet: ADMIN_OWNER_BTC, ownerName: ADMIN_OWNER_NAME });
+      const enterpriseStatus = billionScaleRevenueEngine.status({ btcWallet: ADMIN_OWNER_BTC, ownerName: ADMIN_OWNER_NAME });
       const economyPulse = await __SUPREME.safeGet('economy', 'getPulse', {}, 1200);
       const oracleFc = await __SUPREME.safeGet('oracle', 'getForecast', {}, 1200);
+      const btcRate = await __getBtcUsdRate().catch(() => 0);
 
       const focus = String(commander?.decision?.focus || 'checkout-and-offer-optimization');
       const segment = focus.includes('upsell') ? 'enterprise-growth' : 'b2b-performance';
       const industry = focus.includes('traffic') ? 'global saas + marketplaces' : 'high-intent service businesses';
       const budgetUsd = pickBudgetUsd(commander, economyPulse, oracleFc);
       const verticalPlaybook = buildEnterprisePlaybook(commander, economyPulse, oracleFc);
+      const marketingPlan = await autoMarketing.process({
+        budget: Math.max(500, Math.round(budgetUsd * 0.4)),
+        channels: [
+          {
+            name: 'programmatic-seo',
+            impressions: Math.max(1000, Number(conv?.eventCount || 0) * 40),
+            clicks: Math.max(10, Number(commander?.kpis?.checkoutEvents || 0)),
+            spend: Math.max(100, budgetUsd * 0.12),
+            conversions: Math.max(1, Number(commander?.kpis?.paidEvents || 0)),
+            revenue: Math.max(0, Number(commander?.kpis?.paidEvents || 0) * budgetUsd * 0.8),
+          },
+          {
+            name: 'checkout-recovery',
+            impressions: Math.max(200, Number(commander?.kpis?.checkoutEvents || 0) * 10),
+            clicks: Math.max(5, Number(commander?.kpis?.paidEvents || 0) + 1),
+            spend: Math.max(50, budgetUsd * 0.08),
+            conversions: Math.max(1, Number(commander?.kpis?.paidEvents || 0)),
+            revenue: Math.max(0, Number(commander?.kpis?.paidEvents || 0) * budgetUsd * 0.6),
+          },
+          {
+            name: 'enterprise-deal-flow',
+            impressions: Math.max(100, Number(commander?.kpis?.leads || 0) * 50),
+            clicks: Math.max(5, Number(commander?.kpis?.leads || 0) * 3),
+            spend: Math.max(100, budgetUsd * 0.2),
+            conversions: Math.max(1, Number(commander?.kpis?.leads || 0)),
+            revenue: Math.max(1, budgetUsd * 1.2),
+          },
+        ],
+      });
+
+      const pricingSnapshot = {
+        starter: await priceNegotiator.getPrice('starter', { basePrice: 29, btcRate }),
+        pro: await priceNegotiator.getPrice('pro', { basePrice: 99, btcRate }),
+        enterprise: await priceNegotiator.getPrice('enterprise', { basePrice: 499, btcRate }),
+      };
+      const dealDesk = billionScaleRevenueEngine.dealDeskProposal({
+        packageId: strategicPackages[0] && strategicPackages[0].id,
+        company: 'Autopilot Enterprise Buyer',
+        seats: Math.max(10, Math.round(budgetUsd / 250)),
+      }, { btcWallet: ADMIN_OWNER_BTC, ownerName: ADMIN_OWNER_NAME });
 
       const offers = verticalPlaybook.map((item) => moneyMachine.offerFactory({
         industry: item.vertical,
@@ -2221,6 +2266,19 @@ const __REV_AUTO = (function buildRevenueAutopilot() {
         trustAnswer: closer?.answer || null,
         conversionSignals: conv?.totals || {},
         customerSuccessMode: success?.status || 'foundation-live',
+        commercialStack: {
+          autoMarketing: marketingPlan?.result || marketingPlan,
+          pricingSnapshot,
+          commerceStatus,
+          commerceCatalogCounts: commerceCatalog?.counts || {},
+          enterpriseStatus,
+          strategicPackages: strategicPackages.length,
+          dealDesk: {
+            proposalId: dealDesk?.proposalId || null,
+            packageId: dealDesk?.package?.id || null,
+            proposedUsd: Number(dealDesk?.proposedUsd || 0),
+          },
+        },
         economyPulse: Number(economyPulse?.economyPulse || 0),
         forecastNext30dUsd: Number(oracleFc?.revenueForecast?.next30dUsd || oracleFc?.next30dUsd || 0),
       };
@@ -2296,6 +2354,33 @@ app.get('/api/revenue/command-center', (req, res) => {
     promotedOfferId: commander.decision?.topOffer || null,
   });
 });
+
+app.get('/api/revenue/commercial-stack', asyncHandler(async (req, res) => {
+  const registry = getModuleRegistryStatus();
+  const btcRate = await __getBtcUsdRate().catch(() => 0);
+  const commerceStatus = unicornCommerceConnector.status({ registry, btcWallet: ADMIN_OWNER_BTC, ownerName: ADMIN_OWNER_NAME });
+  const commerceCatalog = unicornCommerceConnector.buildCommerceCatalog({ registry, btcWallet: ADMIN_OWNER_BTC, ownerName: ADMIN_OWNER_NAME });
+  const strategicPackages = billionScaleRevenueEngine.buildStrategicPackages({ btcWallet: ADMIN_OWNER_BTC, ownerName: ADMIN_OWNER_NAME });
+  const enterpriseStatus = billionScaleRevenueEngine.status({ btcWallet: ADMIN_OWNER_BTC, ownerName: ADMIN_OWNER_NAME });
+  const priceSnapshot = {
+    starter: await priceNegotiator.getPrice('starter', { basePrice: 29, btcRate }),
+    pro: await priceNegotiator.getPrice('pro', { basePrice: 99, btcRate }),
+    enterprise: await priceNegotiator.getPrice('enterprise', { basePrice: 499, btcRate }),
+  };
+  const marketingStatus = (() => { try { return autoMarketing.getStatus ? autoMarketing.getStatus() : null; } catch (_) { return null; } })();
+
+  res.json({
+    ok: true,
+    ts: new Date().toISOString(),
+    priceSnapshot,
+    commerceStatus,
+    commerceCatalogCounts: commerceCatalog.counts,
+    enterpriseStatus,
+    strategicPackageCount: strategicPackages.length,
+    marketingStatus,
+    autopilot: __REV_AUTO.status(),
+  });
+}));
 
 // ==================== AUTOPILOT-DRIVEN CATALOG REORDERING + CTA PROMINENCE ====================
 // Returns the current promoted offer ID from the revenue autopilot so clients can
@@ -2966,6 +3051,9 @@ if (_isPrimaryWorker) {
   // Pornire module revenue streams (7 fluxuri de venit activate autonom)
   if (!_stableRuntime) {
     revenueModules.startAutoRevenue();
+  }
+  if (!_stableRuntime) {
+    try { autoMarketing.init?.(); autoMarketing.start?.(); } catch (_) {}
   }
 
   // ==================== PORNIRE 3 COMPONENTE CRITICE AUTONOME ====================
