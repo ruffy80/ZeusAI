@@ -204,7 +204,7 @@ function _libraryCard(p) {
     </div>
     <h3 style="margin:2px 0 0;font-size:14px;line-height:1.3" itemprop="name">${title}</h3>
     <p style="margin:0;color:var(--ink-dim);font-size:12px;line-height:1.4;flex:1" itemprop="description">${desc}</p>
-    <a class="btn btn-ghost" href="/checkout?serviceId=${encodeURIComponent(id)}&plan=${encodeURIComponent(id)}" data-link aria-label="Buy ${title} with Bitcoin" style="font-size:12px;padding:6px 10px">Buy →</a>
+    <a class="btn btn-ghost" href="/checkout/?serviceId=${encodeURIComponent(id)}&plan=${encodeURIComponent(id)}" data-link aria-label="Buy ${title} with Bitcoin" style="font-size:12px;padding:6px 10px">Buy →</a>
   </article>`;
 }
 function _tierBadge(tier) {
@@ -244,7 +244,7 @@ function _catalogCard(p) {
     <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px">${_tierBadge(p.tier)}<span style="font-family:var(--mono);font-size:18px;color:var(--gold);text-align:right" itemprop="offers" itemscope itemtype="https://schema.org/Offer"><meta itemprop="priceCurrency" content="USD"/><span itemprop="price" data-pricing-value="${id}">${priceTxt}</span>${billing}${liveBadge}<span class="btc-line" data-price-btc-value="${id}" style="display:block;font-size:11.5px;color:#f7a13b;font-weight:600;margin-top:3px;letter-spacing:.2px">${btcTxt}</span></span></div>
     <h3 style="margin:4px 0 0;font-size:18px;line-height:1.25" itemprop="name">${title}</h3>
     <p style="margin:0;color:var(--ink-dim);font-size:13px;line-height:1.45;flex:1" itemprop="description">${desc}</p>
-    <div style="display:flex;gap:8px;margin-top:6px"><a class="btn btn-primary" href="/checkout?plan=${encodeURIComponent(id)}" data-link aria-label="Buy ${title} with Bitcoin for ${btcTxt || priceTxt}" style="flex:1;justify-content:center">Buy with BTC →</a><a class="btn btn-ghost" href="/services/${encodeURIComponent(id)}" data-link aria-label="View details for ${title}">Details</a></div>
+    <div style="display:flex;gap:8px;margin-top:6px"><a class="btn btn-primary" href="/checkout/?plan=${encodeURIComponent(id)}" data-link aria-label="Buy ${title} with Bitcoin for ${btcTxt || priceTxt}" style="flex:1;justify-content:center">Buy with BTC →</a><a class="btn btn-ghost" href="/services/${encodeURIComponent(id)}" data-link aria-label="View details for ${title}">Details</a></div>
   </article>`;
 }
 function _ssrCatalogGrid(items, opts) {
@@ -989,8 +989,11 @@ function pageHome() {
       <p class="lead">Live autonomous AI commerce platform: ZeusAI turns modules, verticals and marketplaces into buyable AI services with direct BTC checkout, signed receipts and instant delivery.</p>
       <div class="hero-cta">
         <a class="btn btn-primary" href="/services" data-link>Buy AI Service →</a>
-        <a class="btn" href="/unicorn-status.html" data-link>Live Status</a>
-        <a class="btn" href="/innovations" data-link>Innovations</a>
+      </div>
+      <div style="display:flex;gap:14px;flex-wrap:wrap;margin-top:10px;font-size:13px;color:var(--ink-dim)">
+        <a href="/status" data-link style="color:var(--violet2)">Live status</a>
+        <a href="/pricing" data-link style="color:var(--violet2)">Transparent pricing</a>
+        <a href="/trust" data-link style="color:var(--violet2)">Trust center</a>
       </div>
       <div class="hero-stats" id="heroStats">
         <div class="hero-stat"><b id="statModules">169</b><span>Live modules</span></div>
@@ -999,10 +1002,10 @@ function pageHome() {
         <div class="hero-stat"><b id="statChain">—</b><span>Chain length</span></div>
       </div>
       <div class="hero-stats" style="margin-top:14px">
-        <div class="hero-stat"><b>Forward-only</b><span>Deploy guarded</span></div>
-        <div class="hero-stat"><b>QIS intact</b><span>Integrity live</span></div>
-        <div class="hero-stat"><b>BTC direct</b><span>Checkout promise</span></div>
-        <div class="hero-stat"><b>Live API</b><span>Live API is protecting orders</span></div>
+        <div class="hero-stat"><b>Signed receipts</b><span>Every order verifiable</span></div>
+        <div class="hero-stat"><b>&lt; 60s checkout</b><span>BTC direct owner wallet</span></div>
+        <div class="hero-stat"><b>Live pricing</b><span>Server-validated at pay time</span></div>
+        <div class="hero-stat"><b>Refund contract</b><span>Public guarantee page</span></div>
       </div>
     </div>
   </div>
@@ -1028,7 +1031,7 @@ ${_featuredHtml}
       <span class="tag" style="background:rgba(247,147,26,.15);color:#f7931a">BTC / BTCPay</span>
       <h3 id="commerceProofBtcProvider">Checking payment rail…</h3>
       <p id="commerceProofPaymentCopy">BTC direct is primary. Card/Stripe, PayPal and global crypto appear only when configured live.</p>
-      <a class="btn btn-primary" href="/checkout?plan=adaptive-ai" data-link>Test checkout →</a>
+      <a class="btn btn-primary" href="/checkout/?plan=adaptive-ai" data-link>Test checkout →</a>
     </div>
     <div class="card" style="border-color:rgba(110,231,183,.42)">
       <span class="tag" style="background:rgba(110,231,183,.16);color:#6ee7b7">Delivery Registry</span>
@@ -1231,8 +1234,12 @@ function pageServices() {
   const summary = `${catalog.length} live products · ${counts.instant || 0} instant · ${counts.professional || 0} professional · ${counts.enterprise || 0} enterprise`;
   return `<section style="padding-top:140px">
   <div class="section-title">
-    <div><span class="kicker">Marketplace · Master Catalog · ${_esc(summary)}</span><h2>Every ZeusAI deliverable, <span class="grad">one sovereign storefront.</span></h2></div>
+    <div><span class="kicker">Marketplace · Master Catalog · ${_esc(summary)}</span><h1 style="font-size:clamp(34px,4.4vw,56px);margin:10px 0 18px">Every ZeusAI deliverable, <span class="grad">one sovereign storefront.</span></h1></div>
     <p>Strategic services + Frontier inventions + Vertical OSes + Adaptive AI modules — all live from the ZeusAI fabric. Buy any item directly in BTC. Receipt is Ed25519-signed and revenue routes 100% to the owner wallet.</p>
+  </div>
+  <div id="servicesStickySummary" class="card" style="position:sticky;top:88px;z-index:4;margin:12px 0 18px;padding:12px 14px;background:rgba(11,15,23,.88);backdrop-filter:blur(8px);border:1px solid var(--stroke);display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap">
+    <div style="font-size:13px;color:var(--ink-dim)">Live catalog synced from server pricing. Final amount is revalidated before payment.</div>
+    <a class="btn btn-primary" href="/checkout/?plan=custom" data-link>Quick BTC checkout →</a>
   </div>
   <div class="card" style="margin:16px 0 22px;background:linear-gradient(135deg,rgba(247,147,26,.10),rgba(127,90,240,.10));border:1px solid rgba(247,147,26,.45)">
     <div style="display:flex;flex-wrap:wrap;gap:18px;align-items:center;justify-content:space-between">
@@ -1244,7 +1251,7 @@ function pageServices() {
       </div>
       <div style="display:flex;flex-direction:column;gap:8px;min-width:200px">
         <div id="catCounts" style="font-size:12px;color:var(--ink-dim);text-align:right;font-family:var(--mono)">${_esc(summary)}</div>
-        <a class="btn btn-primary" href="/checkout?plan=custom" data-link>Quick BTC checkout →</a>
+        <a class="btn btn-primary" href="/checkout/?plan=custom" data-link>Quick BTC checkout →</a>
       </div>
     </div>
   </div>
@@ -1292,8 +1299,11 @@ function pagePricing() {
   };
   return `<section style="padding-top:140px">
   <div class="section-title">
-    <div><span class="kicker">Pricing · live AI-negotiated rates</span><h2>Fair. Sovereign. <span class="grad">Outcome‑aligned.</span></h2></div>
+    <div><span class="kicker">Pricing · live AI-negotiated rates</span><h1 style="font-size:clamp(34px,4.4vw,56px);margin:10px 0 18px">Fair. Sovereign. <span class="grad">Outcome‑aligned.</span></h1></div>
     <p>Simple plans for teams. Prices below are computed live by the ZeusAI dynamic-pricing engine (demand × peak × per-tier variance × surge). For enterprise verticals, ZeusAI ships outcome‑based pricing — you pay a share of measured value delivered, auto‑invoiced via the Value‑Proof Ledger.</p>
+  </div>
+  <div class="card" style="margin:10px 0 16px;padding:12px 14px;font-size:13px;color:var(--ink-dim)">
+    Prices are refreshed from live APIs and revalidated at checkout. Last sync: <span id="pricingLastSync" style="font-family:var(--mono)">pending…</span>
   </div>
   <div class="pricing">
     <div class="plan" data-pricing-plan="starter">
@@ -1306,7 +1316,7 @@ function pagePricing() {
         <li id="pricingPaymentRail">Direct BTC checkout · optional rails only when configured</li>
         <li>14-day trial · community support</li>
       </ul>
-      <a class="btn" href="/checkout?plan=starter" data-link>Start Starter</a>
+      <a class="btn" href="/checkout/?plan=starter" data-link>Start Starter</a>
     </div>
     <div class="plan highlight" data-pricing-plan="pro">
       <h3>Growth</h3>
@@ -1318,7 +1328,7 @@ function pagePricing() {
         <li>Quantum Blockchain · M&amp;A Advisor · Legal Contracts</li>
         <li>SSO, priority support · signed outcome reports</li>
       </ul>
-      <a class="btn btn-primary" href="/checkout?plan=pro" data-link>Go Growth</a>
+      <a class="btn btn-primary" href="/checkout/?plan=pro" data-link>Go Growth</a>
     </div>
     <div class="plan" data-pricing-plan="enterprise">
       <h3>Enterprise</h3>
@@ -1330,7 +1340,7 @@ function pagePricing() {
         <li>Dedicated Zeus cluster · SLA 99.9%</li>
         <li>Value‑Proof Ledger (bps share)</li>
       </ul>
-      <a class="btn btn-gold" href="/checkout?plan=enterprise" data-link>Talk to Zeus</a>
+      <a class="btn btn-gold" href="/checkout/?plan=enterprise" data-link>Talk to Zeus</a>
     </div>
   </div>
 </section>`;
@@ -2801,7 +2811,8 @@ function renderRoute(route, params = {}) {
     case '/': return pageHome();
     case '/services': return pageServices();
     case '/pricing': return pagePricing();
-    case '/checkout': return pageCheckout();
+    case '/checkout':
+    case '/checkout/': return pageCheckout();
     case '/dashboard': return pageDashboard();
     case '/how': return pageHow();
     case '/docs': return pageDocs();
@@ -3342,11 +3353,12 @@ function pageApiExplorer() {
   return `<section style="padding-top:140px;max-width:1080px">
   <span class="kicker">API Explorer</span>
   <h1 style="font-size:clamp(34px,4.4vw,56px);margin:10px 0 18px">Try every <span class="grad">endpoint</span> live.</h1>
-  <p style="color:var(--ink-dim);font-size:15px">OpenAPI 3.1 spec at <a href="/openapi.json" target="_blank">/openapi.json</a>. Below is the live endpoint inventory.</p>
+  <p style="color:var(--ink-dim);font-size:15px">Public OpenAPI 3.1 spec at <a href="/openapi-public.json" target="_blank">/openapi-public.json</a>. Below is the live public endpoint inventory.</p>
   <div id="apiList" class="card" style="padding:22px;margin-top:18px;font-family:var(--mono);font-size:13px;line-height:1.9;max-height:80vh;overflow:auto">Endpoint inventory will appear here.</div>
   <script>
-  fetch('/openapi.json').then(r=>r.json()).then(d=>{
-    const rows = Object.entries(d.paths).map(([p,ops])=>{
+  fetch('/openapi-public.json').then(r=>r.json()).then(d=>{
+    const privatePath = (p)=>/^\/api\/(admin|operator|autonomy|brain\/autonomy|internal|deepseek|observability)/.test(p);
+    const rows = Object.entries(d.paths).filter(([p])=>!privatePath(p)).map(([p,ops])=>{
       const ms = Object.keys(ops).map(m=>'<code class="inline" style="text-transform:uppercase">'+m+'</code>').join(' ');
       return '<div style="padding:6px 0;border-bottom:1px solid var(--stroke)">'+ms+' <a href="'+p+'" target="_blank" style="color:var(--violet2)">'+p+'</a> <span style="color:var(--ink-dim);font-size:12px">'+ (Object.values(ops)[0].summary || '') +'</span></div>';
     });
@@ -3388,7 +3400,7 @@ function pageFrontier() {
     <div class="card"><span class="tag">F1</span><h3>Crypto Refund Guarantee</h3><p>Self-executing SLA. If breached, refund auto-issues.</p><a class="btn" href="/refund" data-link>Open</a></div>
     <div class="card"><span class="tag">F2</span><h3>Live Conversion Aura</h3><p>Real-time, signed, public KPI heartbeat.</p><a class="btn" href="/aura" data-link>Open</a></div>
     <div class="card"><span class="tag">F3</span><h3>Outcome-Anchored Pricing</h3><p>Signed before/after deltas → auto-bps invoice.</p><a class="btn" href="/api/outcome/list" target="_blank">JSON</a></div>
-    <div class="card"><span class="tag">F4</span><h3>Self-Healing Checkout Cascade</h3><p>BTC → Lightning → Stripe → PayPal → Wire.</p><a class="btn" href="/checkout" data-link>Try</a></div>
+    <div class="card"><span class="tag">F4</span><h3>Self-Healing Checkout Cascade</h3><p>BTC → Lightning → Stripe → PayPal → Wire.</p><a class="btn" href="/checkout/" data-link>Try</a></div>
     <div class="card"><span class="tag">F5</span><h3>Time-Locked Discount Vault</h3><p>VDF-anchored "wait N s, get X% off".</p></div>
     <div class="card"><span class="tag">F6</span><h3>Sovereign Receipt NFT</h3><p>Portable, dual-signed proof. Verifiable offline.</p></div>
     <div class="card"><span class="tag">F7</span><h3>Provable Email Delivery</h3><p>Signed manifest + Merkle inclusion proof.</p></div>
@@ -3501,7 +3513,8 @@ function routeDescription(route) {
 
 function getHtml(route = '/', params = {}) {
   // Backward-compat: accept either getHtml(url) or getHtml(url, { lang, nonce })
-  return head(routeTitle(route), route, params) + renderRoute(route, params) + footer(route, params);
+  const normalized = route === '/' ? '/' : String(route || '/').replace(/\/$/, '') || '/';
+  return head(routeTitle(normalized), normalized, params) + renderRoute(normalized, params) + footer(normalized, params);
 }
 
 // ── UNIFIED CHROME BRIDGE ──────────────────────────────────────────────────

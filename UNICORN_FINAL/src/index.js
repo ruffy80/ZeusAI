@@ -922,7 +922,8 @@ try { require('./../backend/modules/recovery-orchestrator'); } catch (e) { conso
 // === Self-documenting API /api/docs ===
 const apiDocs = require('./../backend/modules/api-docs');
 app.get('/api/docs', (req, res) => {
-  const routes = apiDocs.extractRoutes(app);
+  const privateRoute = (r) => /\/api\/(admin|operator|autonomy|brain\/autonomy|internal|deepseek|observability)/.test(String(r || ''));
+  const routes = (apiDocs.extractRoutes(app) || []).filter((r) => !privateRoute(r));
   res.setHeader('Content-Type', 'text/html');
   res.send(apiDocs.docsHtml(routes));
 });
@@ -3608,6 +3609,21 @@ async function unicornHandler(req, res) {
       if (fu === '/sitemap.xml' || fu === '/seo/sitemap.xml')   return ftext(200, frontier.sitemapXml(APP_URL), 'application/xml; charset=utf-8');
       if (fu === '/robots.txt'  || fu === '/seo/robots.txt')    return ftext(200, frontier.robotsTxt(APP_URL));
       if (fu === '/openapi.json' || fu === '/api/openapi')  return fsend(200, frontier.openApiSpec());
+      if (fu === '/openapi-public.json' || fu === '/api/openapi/public') {
+        const all = frontier.openApiSpec() || {};
+        const privatePath = (p) => /^\/api\/(admin|operator|autonomy|brain\/autonomy|internal|deepseek|observability)/.test(String(p || ''));
+        const paths = Object.fromEntries(Object.entries(all.paths || {}).filter(([p]) => !privatePath(p)));
+        const pub = {
+          ...all,
+          info: {
+            ...(all.info || {}),
+            title: ((all.info && all.info.title) || 'ZeusAI API') + ' (Public)',
+            description: 'Public API surface only. Operator/internal endpoints are intentionally omitted.'
+          },
+          paths,
+        };
+        return fsend(200, pub);
+      }
 
       // Cart engine
       if (fu === '/api/cart/create' && req.method === 'POST') return fbody(p => fsend(200, frontier.cartCreate(p)));
@@ -4057,6 +4073,10 @@ async function unicornHandler(req, res) {
   }
 
   if (urlPath === '/api/operator/console') {
+    if (!isAdminAuthorized()) {
+      res.writeHead(401, { 'Content-Type':'application/json', 'Cache-Control':'no-store' });
+      return res.end(JSON.stringify({ error: 'unauthorized', message: 'admin token required', publicAlternative: '/api/trust/center' }));
+    }
     const receipts = getAllReceipts();
     const paid = receipts.filter(r => String(r && r.status || '').toLowerCase() === 'paid');
     const totalUsd = paid.reduce((sum, r) => sum + Number(r.amountUSD != null ? r.amountUSD : r.amount || 0), 0);

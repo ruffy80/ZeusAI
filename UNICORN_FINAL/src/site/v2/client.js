@@ -73,7 +73,7 @@ function installResilientFetch(){
 installResilientFetch();
 
 const THREE = window.THREE;
-const STATE = { route: location.pathname, snapshot: null, services: [], pricingArms: {}, paymentMethods: [{ id:'crypto_btc', active:true }] };
+const STATE = { route: (location.pathname.replace(/\/$/, '') || '/'), snapshot: null, services: [], pricingArms: {}, paymentMethods: [{ id:'crypto_btc', active:true }] };
 const cfg = window.__UNICORN__ || {};
 
 // ================= UTIL =================
@@ -99,7 +99,7 @@ function trackFunnel(event, meta){
     if (!event) return;
     const payload = {
       event: String(event).slice(0, 80),
-      route: location.pathname,
+      route: (location.pathname.replace(/\/$/, '') || '/'),
       source: 'site-v2',
       ts: new Date().toISOString(),
       ...(meta || {}),
@@ -582,7 +582,7 @@ document.addEventListener('click', e => {
 // pieces. The previous version forced a full-page reload on every back/forward
 // which was both wasteful and caused a visible "auto-refresh" the user could
 // mistake for the page being broken.
-window.addEventListener('popstate', () => { STATE.route = location.pathname; hydratePage(STATE.route); });
+window.addEventListener('popstate', () => { STATE.route = routePath(location.pathname); hydratePage(STATE.route); });
 
 // ================= SSR CHIP FILTERS (architectural · 2026-05-09) =================
 // Server-rendered filter chips on /services and /home featured grids carry
@@ -1941,7 +1941,7 @@ function cardHtml(s){
     <div class="row"><span>${escapeHtml(s.kpi || 'SLA-backed')}</span><b data-live-price="${tag}">${price}</b></div>
     <div style="display:flex;gap:8px;margin-top:12px">
       <a class="btn btn-ghost" href="/services/${encodeURIComponent(s.id)}" data-link style="flex:1;justify-content:center">Details</a>
-      <a class="btn btn-primary" href="/checkout?plan=${encodeURIComponent(s.id)}" data-link style="flex:1;justify-content:center">Buy</a>
+      <a class="btn btn-primary" href="/checkout/?plan=${encodeURIComponent(s.id)}" data-link style="flex:1;justify-content:center">Buy</a>
     </div>
   </div>`;
 }
@@ -1993,12 +1993,14 @@ async function hydratePricingPage(){
     const priceEl = document.querySelector('[data-pricing-value="' + pair.plan + '"]');
     const planCard = document.querySelector('[data-pricing-plan="' + pair.plan + '"]');
     if (!priceEl || !planCard) continue;
-    const cta = planCard.querySelector('a[href*="/checkout?plan="]');
+    const cta = planCard.querySelector('a[href*="/checkout"][href*="plan="]');
     const live = await fetchLivePricing(pair.serviceId, { /* no onSlow placeholder — preserve SSR price */ });
     if (!live || !Number.isFinite(Number(live.price_usd))) continue;
     priceEl.innerHTML = '$' + Number(live.price_usd).toLocaleString('en-US', { maximumFractionDigits: 2 }) + '<small>/mo</small>';
-    if (cta) cta.setAttribute('href', '/checkout?plan=' + encodeURIComponent(pair.serviceId));
+    if (cta) cta.setAttribute('href', '/checkout/?plan=' + encodeURIComponent(pair.serviceId));
   }
+  const syncEl = document.getElementById('pricingLastSync');
+  if (syncEl) syncEl.textContent = new Date().toISOString();
 }
 
 // ============================================================
@@ -2042,7 +2044,7 @@ function masterCardHtml(it){
   // at 30% of the listed price (configurable server-side via COMMERCE_PREORDER_PCT).
   const isPreorderEligible = it.group === 'future-invention' && priceUsd > 0;
   const buyBtn = priceUsd > 0
-    ? '<a class="btn btn-primary" href="/checkout?plan=' + encodeURIComponent(id) + '" data-link data-sovereign-buy="' + idAttr + '" aria-label="Buy ' + title + ' with Bitcoin" style="flex:1;justify-content:center">Buy with BTC →</a>'
+    ? '<a class="btn btn-primary" href="/checkout/?plan=' + encodeURIComponent(id) + '" data-link data-sovereign-buy="' + idAttr + '" aria-label="Buy ' + title + ' with Bitcoin" style="flex:1;justify-content:center">Buy with BTC →</a>'
     : '<a class="btn btn-ghost" href="/services/' + encodeURIComponent(id) + '" data-link style="flex:1;justify-content:center">Activate free</a>';
   const preorderBtn = isPreorderEligible
     ? '<button type="button" class="btn btn-ghost" data-sovereign-buy="' + idAttr + '" data-sovereign-preorder="1" style="justify-content:center;border-color:#7cf3ff66;color:#7cf3ff" title="Reserve early access at 30% now — locks the price for 365 days">⏳ Reserve 30%</button>'
@@ -2270,6 +2272,13 @@ async function hydrateMasterCatalog(){
   // the catalog API was slow/empty, leaving the hero stuck on "live rate
   // loading…".)
   if (counts) counts.textContent = cat.counts.total + ' real services · ' + (cat.counts.instant || 0) + ' instant · ' + (cat.counts.professional || 0) + ' professional · ' + (cat.counts.enterprise || 0) + ' enterprise';
+  const stickySummary = document.getElementById('servicesStickySummary');
+  if (stickySummary) {
+    const ts = new Date().toISOString();
+    const msg = cat.counts.total + ' products live · synced ' + ts + ' · checkout revalidates final quote before payment';
+    const infoNode = stickySummary.querySelector('div');
+    if (infoNode) infoNode.textContent = msg;
+  }
   // Catalogue contract: exactly 3 tiers (instant / professional / enterprise),
   // capped at 25 products. Filter chips reflect that contract — no
   // marketplace / industry / strategic / frontier groups any more.
@@ -3902,7 +3911,7 @@ function renderAutonomousServicesGrid(target){
       ? '$' + Number(m.defaultPrice).toLocaleString('en-US', { maximumFractionDigits: 2 })
       : '—';
     const buyHref = (m.defaultPrice != null && Number(m.defaultPrice) > 0)
-      ? '/checkout?plan=' + encodeURIComponent(m.id)
+      ? '/checkout/?plan=' + encodeURIComponent(m.id)
       : '/services/' + encodeURIComponent(m.id);
     const buyLabel = (m.defaultPrice != null && Number(m.defaultPrice) > 0) ? 'Buy now' : 'Learn more';
     const safeName = escapeHtml(m.name);

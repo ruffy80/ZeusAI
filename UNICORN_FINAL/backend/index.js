@@ -814,7 +814,9 @@ app.post('/api/instant/purchase', _swRateLimit, express.json({ limit: '64kb' }),
 app.get(/^\/api\/instant\/order\/[a-zA-Z0-9_-]{6,128}$/, (req, res) => proxyToSite(req, res, req.path));
 app.post(/^\/api\/services\/[a-zA-Z0-9._:-]+\/use$/, _swRateLimit, express.json({ limit: '64kb' }), (req, res) => proxyPostToSite(req, res, req.path));
 app.post('/api/activate', _swRateLimit, express.json({ limit: '64kb' }), (req, res) => proxyPostToSite(req, res, '/api/activate'));
-app.get('/api/operator/console', (req, res) => proxyToSite(req, res, '/api/operator/console'));
+// Operator console is sensitive (orders/revenue/payment posture). Keep it
+// owner-only; public users should use /api/trust/center + /health.
+app.get('/api/operator/console', adminTokenMiddleware, (req, res) => proxyToSite(req, res, '/api/operator/console'));
 app.get('/api/observability/status', (req, res) => proxyToSite(req, res, '/api/observability/status'));
 
 // Innovations/frontier/site snapshots are implemented in src/index.js (site runtime).
@@ -6459,16 +6461,16 @@ app.get('/api/docs', (req, res) => {
     ok: true,
     name: 'ZeusAI Unicorn Platform API',
     version: require('./package.json').version,
-    openapi: '/openapi.json',
+    openapi: '/openapi-public.json',
     changelog: '/api/changelog',
     health: '/health',
+    note: 'Public API index. Operator/admin endpoints require authentication and are intentionally excluded.',
     endpoints: {
       auth:        ['/api/auth/signup', '/api/auth/login', '/api/auth/me'],
       services:    ['/api/services', '/api/marketplace/services', '/api/pricing/all'],
       payments:    ['/api/checkout/create', '/api/btc/spot', '/api/payment/btc-rate'],
       carbon:      ['/api/carbon/stats', '/api/carbon/portfolio/:owner'],
       innovation:  ['/api/innovation', '/api/innovation/coverage'],
-      admin:       ['/api/admin/health', '/api/admin/owner-revenue'],
       monitoring:  ['/health', '/api/status', '/stream'],
     }
   });
@@ -10498,7 +10500,41 @@ app.get('/api/production/status', adminTokenMiddleware, (req, res) => {
 
 // ==================== AUTONOMY CONTROL ====================
 // Status și activare completă a modului de autonomie.
-app.get('/api/autonomy/status', (req, res) => {
+function _isLocalAutonomyProbe(req) {
+  const ip = String(req.ip || req.socket?.remoteAddress || '').toLowerCase();
+  return ip === '127.0.0.1' || ip === '::1' || ip === '::ffff:127.0.0.1' || ip.endsWith('127.0.0.1');
+}
+
+function _publicAutonomySnapshot(full) {
+  const modules = (full && full.modules) || {};
+  const summarize = (name) => {
+    const m = modules[name] || {};
+    return {
+      active: m.active === true || m.running === true || m.status === 'active',
+      health: m.health || m.integrity || m.status || (m.error ? 'degraded' : 'ok'),
+      lastCheck: m.lastCheck || m.lastScan?.timestamp || m.lastCycleAt || null,
+      errors: m.errors || (m.error ? 1 : 0),
+    };
+  };
+  return {
+    ts: full.ts,
+    activeModules: full.activeModules,
+    totalModules: full.totalModules,
+    autonomyReady: full.autonomyReady,
+    // High-level, public-safe indicators only (no file paths/hashes/internal graph)
+    modules: {
+      autoInnovationLoop: summarize('autoInnovationLoop'),
+      selfHealingEngine: summarize('selfHealingEngine'),
+      centralOrchestrator: summarize('centralOrchestrator'),
+      quantumIntegrityShield: summarize('quantumIntegrityShield'),
+      controlPlaneAgent: summarize('controlPlaneAgent'),
+      profitControlLoop: summarize('profitControlLoop'),
+      meshOrchestrator: summarize('meshOrchestrator'),
+    },
+  };
+}
+
+function _collectAutonomyStatus() {
   const status = {
     ts: new Date().toISOString(),
     modules: {}
@@ -10522,39 +10558,37 @@ app.get('/api/autonomy/status', (req, res) => {
   status.activeModules = activeCount;
   status.totalModules  = Object.keys(status.modules).length;
   status.autonomyReady = activeCount >= 4;
+  return status;
+}
 
-  res.json(status);
+app.get('/api/autonomy/status', (req, res) => {
+  const status = _collectAutonomyStatus();
+  const wantsFull = req.query && req.query.view === 'full';
+  const internal = _isLocalAutonomyProbe(req);
+  if (internal) return res.json(status);
+  if (wantsFull) return adminTokenMiddleware(req, res, () => res.json(status));
+  return res.json(_publicAutonomySnapshot(status));
 });
 
 // Backwards-compatible JSON alias for older dashboards/operators.
 // Keeps `/api/brain/autonomy` in sync with `/api/autonomy/status`.
 app.get('/api/brain/autonomy', (req, res) => {
-  const status = {
-    ts: new Date().toISOString(),
-    modules: {}
-  };
-
-  const collect = (key, fn) => {
-    try { status.modules[key] = fn(); } catch (e) { status.modules[key] = { error: e.message }; }
-  };
-
-  collect('autoInnovationLoop',   () => autoInnovationLoop.getStatus());
-  collect('selfHealingEngine',    () => selfHealingEngine.getStatus());
-  collect('centralOrchestrator',  () => centralOrchestrator.getStatus());
-  collect('quantumIntegrityShield', () => quantumIntegrityShield.getStatus());
-  collect('controlPlaneAgent',    () => controlPlane.getStatus());
-  collect('profitControlLoop',    () => profitLoop.getStatus());
-  collect('meshOrchestrator',     () => meshOrchestrator.getStatus ? meshOrchestrator.getStatus() : { active: true });
-
-  const activeCount = Object.values(status.modules).filter(
-    m => m && (m.active === true || m.running === true || m.status === 'active')
-  ).length;
-  status.activeModules = activeCount;
-  status.totalModules = Object.keys(status.modules).length;
-  status.autonomyReady = activeCount >= 4;
-  status.alias = '/api/autonomy/status';
-
-  res.json(status);
+  const status = _collectAutonomyStatus();
+  const wantsFull = req.query && req.query.view === 'full';
+  const internal = _isLocalAutonomyProbe(req);
+  if (internal) {
+    status.alias = '/api/autonomy/status';
+    return res.json(status);
+  }
+  if (wantsFull) {
+    return adminTokenMiddleware(req, res, () => {
+      status.alias = '/api/autonomy/status';
+      res.json(status);
+    });
+  }
+  const payload = _publicAutonomySnapshot(status);
+  payload.alias = '/api/autonomy/status';
+  return res.json(payload);
 });
 
 app.post('/api/autonomy/activate', (req, res, next) => {
