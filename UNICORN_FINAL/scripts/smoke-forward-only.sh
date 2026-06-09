@@ -129,12 +129,20 @@ if [ "$SKIP_PUBLIC" != "1" ]; then
 
   # Functional: build-SHA pin (only if GITHUB_SHA is in env, e.g. CI).
   if [ -n "${GITHUB_SHA:-}" ]; then
-    SHA_HDR="$(curl -fsSI --max-time 10 "$PUBLIC_URL/" | awk -F': ' 'tolower($1)=="x-zeus-build"{gsub(/\r/,"",$2); print $2}' | head -n1)"
-    if [ -n "$SHA_HDR" ] && [ "$SHA_HDR" != "$GITHUB_SHA" ]; then
-      echo "❌ live build SHA mismatch: header=$SHA_HDR expected=$GITHUB_SHA" >&2
+    LOCAL_SHA_HDR="$(curl -fsSI --max-time 10 "http://127.0.0.1:3001/" | awk -F': ' 'tolower($1)=="x-zeus-build"{gsub(/\r/,"",$2); print $2}' | head -n1)"
+    if [ -n "$LOCAL_SHA_HDR" ] && [ "$LOCAL_SHA_HDR" != "$GITHUB_SHA" ]; then
+      echo "❌ local build SHA mismatch: header=$LOCAL_SHA_HDR expected=$GITHUB_SHA" >&2
       exit 1
     fi
-    [ -n "$SHA_HDR" ] && echo "✅ x-zeus-build matches GITHUB_SHA"
+    [ -n "$LOCAL_SHA_HDR" ] && echo "✅ local x-zeus-build matches GITHUB_SHA"
+
+    # Public edge/CDN can lag briefly after PM2 restart; keep as advisory only.
+    SHA_HDR="$(curl -fsSI --max-time 10 "$PUBLIC_URL/" | awk -F': ' 'tolower($1)=="x-zeus-build"{gsub(/\r/,"",$2); print $2}' | head -n1)"
+    if [ -n "$SHA_HDR" ] && [ "$SHA_HDR" != "$GITHUB_SHA" ]; then
+      echo "⚠ public build SHA lag: header=$SHA_HDR expected=$GITHUB_SHA (non-fatal)"
+    elif [ -n "$SHA_HDR" ]; then
+      echo "✅ public x-zeus-build matches GITHUB_SHA"
+    fi
   fi
 fi
 
