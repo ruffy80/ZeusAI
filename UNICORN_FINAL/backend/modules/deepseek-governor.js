@@ -1283,7 +1283,31 @@ function _validateProposalTargetPath(targetPath) {
   return { ok: true, normalized: norm };
 }
 
-function _action_code_proposal(params) {
+async function _verifyAutoApplyGuards(targetAbsolute, targetRelative) {
+  const ext = path.extname(targetAbsolute).toLowerCase();
+  const syntaxExt = new Set(['.js', '.mjs', '.cjs']);
+  const checks = [];
+
+  if (syntaxExt.has(ext)) {
+    const syntax = await _runCommand('node', ['--check', targetAbsolute], {
+      cwd: AUTONOMY_ROOT,
+      timeoutMs: Math.max(RUN_TEST_TIMEOUT_MS, 60_000),
+    });
+    checks.push({ name: 'node_check', ok: !!syntax.ok, detail: syntax });
+    if (!syntax.ok) return { ok: false, reason: 'syntax_check_failed', checks };
+  }
+
+  const lint = await _runCommand('npm', ['run', 'lint'], {
+    cwd: path.join(AUTONOMY_ROOT, 'UNICORN_FINAL'),
+    timeoutMs: Math.max(RUN_TEST_TIMEOUT_MS, 120_000),
+  });
+  checks.push({ name: 'lint', ok: !!lint.ok, detail: lint });
+  if (!lint.ok) return { ok: false, reason: 'lint_failed', checks };
+
+  return { ok: true, reason: 'guards_passed', targetPath: targetRelative, checks };
+}
+
+async function _action_code_proposal(params) {
   const targetPath = params && params.targetPath;
   const rationale  = params && typeof params.rationale === 'string' ? params.rationale.slice(0, 4000) : '';
   const objectiveId = params && typeof params.objectiveId === 'string' ? params.objectiveId.slice(0, 128) : '';
@@ -1328,19 +1352,22 @@ function _action_code_proposal(params) {
   const fileName = `${ts}-${safeSlug}.json`;
   const fullPath = path.join(PROPOSALS_DIR, fileName);
 
+  const autoApplyEligible = AUTO_APPLY && riskLevel === 'low';
   const envelope = {
     schemaVersion: 1,
     createdAt: new Date().toISOString(),
-    status: AUTO_APPLY ? 'auto-applied' : 'pending-review',
+    status: autoApplyEligible ? 'auto-apply-pending-guard' : 'pending-review',
     objectiveId: objectiveId || null,
     targetPath: targetCheck.normalized,
     riskLevel,
     rationale,
     proposedContent,
     proposedContentBytes: contentBytes,
-    note: AUTO_APPLY
-      ? 'Auto-applied — code written to target file and quarantine envelope.'
-      : 'Envelope only — code is NOT applied. Human/CI review required before any edit.',
+    note: autoApplyEligible
+      ? 'Auto-apply requested for low-risk proposal. Runtime guard checks must pass before file mutation is accepted.'
+      : (AUTO_APPLY
+        ? 'Auto-apply blocked: only riskLevel=low is eligible. Envelope stored for human/CI review.'
+        : 'Envelope only — code is NOT applied. Human/CI review required before any edit.'),
   };
 
   try {
@@ -1353,16 +1380,51 @@ function _action_code_proposal(params) {
   // The AUTONOMY_ROOT is used as the base for resolving the target path.
   // Auto-apply: scrie conținutul propus direct în fișierul țintă.
   let autoApplied = false;
-  if (AUTO_APPLY) {
+  if (autoApplyEligible) {
     try {
       const targetAbsolute = path.resolve(AUTONOMY_ROOT, targetCheck.normalized);
       // Re-verify the resolved path stays under AUTONOMY_ROOT
       if (!targetAbsolute.startsWith(AUTONOMY_ROOT + path.sep) && targetAbsolute !== AUTONOMY_ROOT) {
         return { ok: false, action: 'code_proposal', reason: 'auto_apply_path_escape', resolved: targetAbsolute };
       }
+      const previousContent = fs.existsSync(targetAbsolute)
+        ? fs.readFileSync(targetAbsolute, 'utf8')
+        : null;
       fs.mkdirSync(path.dirname(targetAbsolute), { recursive: true });
       fs.writeFileSync(targetAbsolute, proposedContent, { encoding: 'utf8' });
+
+      const guards = await _verifyAutoApplyGuards(targetAbsolute, targetCheck.normalized);
+      if (!guards.ok) {
+        try {
+          if (previousContent === null) fs.unlinkSync(targetAbsolute);
+          else fs.writeFileSync(targetAbsolute, previousContent, { encoding: 'utf8' });
+        } catch (_) { /* best-effort rollback */ }
+        return {
+          ok: false,
+          action: 'code_proposal',
+          proposalId: fileName,
+          targetPath: targetCheck.normalized,
+          objectiveId: objectiveId || null,
+          riskLevel,
+          autoApplied: false,
+          reason: 'auto_apply_guard_failed',
+          guardFailure: guards.reason,
+          checks: guards.checks,
+          note: 'Proposal envelope saved, but auto-apply was rolled back because mandatory checks failed.',
+          timestamp: new Date().toISOString(),
+        };
+      }
+
+      const canaryCommand = _enqueueCommand({
+        instruction: `canary_verify target=${targetCheck.normalized} proposal=${fileName}`,
+        priority: 8,
+        actor: 'deepseek-governor',
+        ip: '127.0.0.1',
+      });
       autoApplied = true;
+      envelope.status = 'auto-applied-verified';
+      envelope.canaryCommand = canaryCommand && canaryCommand.ok ? canaryCommand.id : null;
+      try { fs.writeFileSync(fullPath, JSON.stringify(envelope, null, 2), { encoding: 'utf8' }); } catch (_) { /* best-effort metadata update */ }
     } catch (e) {
       // Auto-apply failed but quarantine envelope was written — report partial success
       return {
@@ -1594,7 +1656,7 @@ async function dispatch({ action, params, requestId, actor, ip }) {
       case 'restore_backup':  result = await _action_restore_backup(params); break;
       case 'analyze_logs':    result = _action_analyze_logs(params); break;
       case 'rollback_deploy': result = _action_rollback_deploy(params); break;
-      case 'code_proposal':   result = _action_code_proposal(params); break;
+      case 'code_proposal':   result = await _action_code_proposal(params); break;
       case 'roadmap_update':  result = _action_roadmap_update(params); break;
       default:                result = { ok: false, reason: 'unreachable' };
     }

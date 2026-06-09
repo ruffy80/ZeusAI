@@ -1983,6 +1983,33 @@ async function hydrateServiceCardPrices(services, root){
 }
 
 async function hydratePricingPage(){
+  const root = document.querySelector('.pricing');
+  const hint = document.getElementById('pricingExperimentHint');
+  const variantKey = 'zeus_pricing_variant_v1';
+  let variant = 'control';
+  try {
+    variant = localStorage.getItem(variantKey) || '';
+    if (!variant) {
+      variant = Math.random() < 0.5 ? 'control' : 'momentum';
+      localStorage.setItem(variantKey, variant);
+    }
+  } catch (_) {
+    variant = Math.random() < 0.5 ? 'control' : 'momentum';
+  }
+
+  if (variant === 'momentum' && root) {
+    const pro = root.querySelector('[data-pricing-plan="pro"]');
+    const starter = root.querySelector('[data-pricing-plan="starter"]');
+    if (pro && starter) root.insertBefore(pro, starter);
+    const ctaPro = root.querySelector('[data-plan-cta="pro"]');
+    const ctaStarter = root.querySelector('[data-plan-cta="starter"]');
+    if (ctaPro) ctaPro.textContent = 'Start Growth Now';
+    if (ctaStarter) ctaStarter.textContent = 'Start Lean';
+    if (hint) hint.textContent = 'Variant B active: Growth-first ordering + action-focused CTAs.';
+  } else if (hint) {
+    hint.textContent = 'Variant A active: baseline order + classic CTA copy.';
+  }
+
   const pairs = [
     { plan: 'starter', serviceId: 'starter' },
     { plan: 'pro', serviceId: 'pro' },
@@ -2496,6 +2523,13 @@ function hydrateCheckout(){
   const set = (id, v) => { const el = document.getElementById(id); if (el) el.value = v; };
   set('coAmount', amount != null ? amount : ''); set('coPlan', plan);
   set('coAmountPP', amount != null ? amount : ''); set('coPlanPP', plan);
+  try {
+    const rememberedEmail = localStorage.getItem('u_email') || '';
+    if (rememberedEmail && !q.get('email')) {
+      set('coEmail', rememberedEmail);
+      set('coEmailPP', rememberedEmail);
+    }
+  } catch (_) {}
   const sumP = $('#sumPlan'); if (sumP) sumP.textContent = plan;
   // Try cache first so the checkout summary shows the price instantly.
   if (amount == null) {
@@ -2522,9 +2556,19 @@ function hydrateCheckout(){
 
   const btc = cfg.owner && cfg.owner.btc ? cfg.owner.btc : '';
   loadFx();
+  const hint = $('#coQuickHint');
 
   let currentReceipt = null;
   let pollTimer = null;
+
+  const setBusy = (btnId, busy, busyText) => {
+    const btn = document.getElementById(btnId);
+    if (!btn) return;
+    if (!btn.dataset.baseLabel) btn.dataset.baseLabel = btn.textContent || '';
+    btn.disabled = !!busy;
+    btn.textContent = busy ? busyText : btn.dataset.baseLabel;
+  };
+  const validEmail = (v) => /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(String(v || '').trim());
 
   const draw = () => {
     const amt = Number(($('#coAmount')||{}).value || 0);
@@ -2620,25 +2664,32 @@ function hydrateCheckout(){
     const email = (($('#coEmailPP')||{}).value || ($('#coEmail')||{}).value || '');
     const ref = getRef();
     if (!amt || amt < 1) { toast('Enter a valid amount','err'); return; }
+    if (!validEmail(email)) { toast('Enter a valid activation email','err'); return; }
+    try { localStorage.setItem('u_email', String(email).trim()); } catch(_) {}
+    setBusy('coPayPP', true, 'Creating PayPal order…');
     toast('Creating PayPal order…','ok');
     const customerToken = getCustToken();
-    const r = await api('/api/uaic/order', { method:'POST', body: JSON.stringify({ method:'PAYPAL', plan:pl, amount_usd:amt, email, ref, customerToken }) });
-    if (r && r.receipt) {
-      currentReceipt = r.receipt;
-      showReceiptStatus(r.receipt);
-      if (r.receipt.approveHref) {
-        toast('Order created · opening PayPal…','ok');
-        window.open(r.receipt.approveHref, '_blank', 'noopener');
-        startPolling(r.receipt.id);
-      } else if (ppHandle) {
-        const fallback = ppHandle.startsWith('http') ? ppHandle
-          : (!ppHandle.includes('@') ? `https://paypal.me/${encodeURIComponent(ppHandle)}/${amt}`
-          : `mailto:${encodeURIComponent(ppHandle)}?subject=ZeusAI%20-%20${encodeURIComponent(pl)}%20%24${amt}`);
-        toast('Opening paypal.me fallback…','ok');
-        window.open(fallback, '_blank', 'noopener');
-        startPolling(r.receipt.id);
-      } else toast('PayPal link missing','err');
-    } else toast('Could not start PayPal order','err');
+    try {
+      const r = await api('/api/uaic/order', { method:'POST', body: JSON.stringify({ method:'PAYPAL', plan:pl, amount_usd:amt, email, ref, customerToken }) });
+      if (r && r.receipt) {
+        currentReceipt = r.receipt;
+        showReceiptStatus(r.receipt);
+        if (r.receipt.approveHref) {
+          toast('Order created · opening PayPal…','ok');
+          window.open(r.receipt.approveHref, '_blank', 'noopener');
+          startPolling(r.receipt.id);
+        } else if (ppHandle) {
+          const fallback = ppHandle.startsWith('http') ? ppHandle
+            : (!ppHandle.includes('@') ? `https://paypal.me/${encodeURIComponent(ppHandle)}/${amt}`
+            : `mailto:${encodeURIComponent(ppHandle)}?subject=ZeusAI%20-%20${encodeURIComponent(pl)}%20%24${amt}`);
+          toast('Opening paypal.me fallback…','ok');
+          window.open(fallback, '_blank', 'noopener');
+          startPolling(r.receipt.id);
+        } else toast('PayPal link missing','err');
+      } else toast('Could not start PayPal order','err');
+    } finally {
+      setBusy('coPayPP', false);
+    }
   });
 
   // BTC pay — create UAIC order with persistent, watched receipt
@@ -2648,14 +2699,27 @@ function hydrateCheckout(){
     const email = ($('#coEmail')||{}).value || '';
     const ref = getRef();
     const customerToken = getCustToken();
-    const r = await api('/api/uaic/order', { method:'POST', body: JSON.stringify({ method:'BTC', plan:pl, amount_usd:amt, email, ref, customerToken }) });
-    if (r && r.receipt) {
-      currentReceipt = r.receipt;
-      toast(`Receipt ${r.receipt.id.slice(0,10)}… · watching blockchain`, 'ok');
-      if (r.receipt.btcUri) renderQr('btcQr', r.receipt.btcUri);
-      showReceiptStatus(r.receipt);
-      startPolling(r.receipt.id);
-    } else toast('Could not create order','err');
+    if (!amt || amt < 1) { toast('Enter a valid amount','err'); return; }
+    if (!validEmail(email)) { toast('Enter a valid activation email','err'); return; }
+    try { localStorage.setItem('u_email', String(email).trim()); } catch(_) {}
+    if (hint) hint.textContent = 'Generating secure invoice… this usually takes 1-2 seconds.';
+    setBusy('coPay', true, 'Generating invoice…');
+    try {
+      const r = await api('/api/uaic/order', { method:'POST', body: JSON.stringify({ method:'BTC', plan:pl, amount_usd:amt, email, ref, customerToken }) });
+      if (r && r.receipt) {
+        currentReceipt = r.receipt;
+        toast(`Receipt ${r.receipt.id.slice(0,10)}… · watching blockchain`, 'ok');
+        if (r.receipt.btcUri) renderQr('btcQr', r.receipt.btcUri);
+        showReceiptStatus(r.receipt);
+        startPolling(r.receipt.id);
+        if (hint) hint.textContent = 'Invoice ready. Send BTC and keep this tab open for automatic license delivery.';
+      } else {
+        toast('Could not create order','err');
+        if (hint) hint.textContent = 'Invoice failed. Verify amount/email and retry.';
+      }
+    } finally {
+      setBusy('coPay', false);
+    }
   });
 
   function showReceiptStatus(r){

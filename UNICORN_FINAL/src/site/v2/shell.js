@@ -1290,6 +1290,9 @@ function pagePricing() {
   <div class="card" style="margin:10px 0 16px;padding:12px 14px;font-size:13px;color:var(--ink-dim)">
     Prices are refreshed from live APIs and revalidated at checkout. Last sync: <span id="pricingLastSync" style="font-family:var(--mono)">pending…</span>
   </div>
+  <div class="card" id="pricingExperimentHint" style="margin:0 0 16px;padding:10px 12px;font-size:12px;color:var(--ink-dim)">
+    Conversion optimizer is calibrating your pricing layout…
+  </div>
   <div class="pricing">
     <div class="plan" data-pricing-plan="starter">
       <h3>Starter</h3>
@@ -1301,7 +1304,7 @@ function pagePricing() {
         <li id="pricingPaymentRail">Direct BTC checkout · optional rails only when configured</li>
         <li>14-day trial · community support</li>
       </ul>
-      <a class="btn" href="/checkout/?plan=starter" data-link>Start Starter</a>
+      <a class="btn" data-plan-cta="starter" href="/checkout/?plan=starter" data-link>Start Starter</a>
     </div>
     <div class="plan highlight" data-pricing-plan="pro">
       <h3>Growth</h3>
@@ -1313,7 +1316,7 @@ function pagePricing() {
         <li>Quantum Blockchain · M&amp;A Advisor · Legal Contracts</li>
         <li>SSO, priority support · signed outcome reports</li>
       </ul>
-      <a class="btn btn-primary" href="/checkout/?plan=pro" data-link>Go Growth</a>
+      <a class="btn btn-primary" data-plan-cta="pro" href="/checkout/?plan=pro" data-link>Go Growth</a>
     </div>
     <div class="plan" data-pricing-plan="enterprise">
       <h3>Enterprise</h3>
@@ -1325,8 +1328,14 @@ function pagePricing() {
         <li>Dedicated Zeus cluster · SLA 99.9%</li>
         <li>Value‑Proof Ledger (bps share)</li>
       </ul>
-      <a class="btn btn-gold" href="/checkout/?plan=enterprise" data-link>Talk to Zeus</a>
+      <a class="btn btn-gold" data-plan-cta="enterprise" href="/checkout/?plan=enterprise" data-link>Talk to Zeus</a>
     </div>
+  </div>
+  <div class="card" style="margin-top:16px;padding:12px 14px">
+    <b>Use-case playbooks:</b>
+    <a href="/solutions/ai-pricing" data-link style="margin-left:8px">AI pricing engine</a> ·
+    <a href="/solutions/ai-checkout" data-link>AI checkout optimizer</a> ·
+    <a href="/solutions/ai-self-healing" data-link>AI self-healing ops</a>
   </div>
 </section>`;
 }
@@ -1352,12 +1361,12 @@ function pageCheckout() {
           <div>
             <div class="field"><label for="coAmount">Amount (USD)</label><input id="coAmount" type="number" min="1" step="1" value=""/></div>
             <div class="field"><label for="coPlan">Plan / product</label><input id="coPlan" value="starter"/></div>
-            <div class="field"><label for="coEmail">Email for activation</label><input id="coEmail" type="email" placeholder="you@company.com"/></div>
+            <div class="field"><label for="coEmail">Email for activation</label><input id="coEmail" type="email" autocomplete="email" placeholder="you@company.com" required/></div>
             <div class="field"><label for="coBtc">BTC quote</label><input id="coBtc" readonly value="computing…"/></div>
             <div class="btc-addr" id="btcAddr">${OWNER.btc}</div>
             <div id="coFxStrip" style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px"></div>
             <button class="btn btn-primary" id="coPay" style="margin-top:14px;width:100%;justify-content:center">Generate secure BTC invoice</button>
-            <p style="color:var(--ink-dim);font-size:12px;margin-top:8px">Generating secure BTC invoice and order ID. After you send BTC, the server watches the mempool every 30s and auto‑issues a signed license on confirmation.</p>
+            <p id="coQuickHint" style="color:var(--ink-dim);font-size:12px;margin-top:8px">Generating secure BTC invoice and order ID. After you send BTC, the server watches the mempool every 30s and auto‑issues a signed license on confirmation.</p>
           </div>
           <div class="co-qr"><canvas id="btcQr" width="320" height="320"></canvas></div>
         </div>
@@ -1380,6 +1389,57 @@ function pageCheckout() {
       <div style="display:flex;justify-content:space-between;color:var(--ink-dim);font-size:14px;padding:10px 0"><span>Receipt</span><b style="color:var(--ok)">Ed25519 signed</b></div>
       <p style="color:var(--ink-dim);font-size:12.5px;line-height:1.6;margin-top:14px">Every receipt is routed by <code class="inline">sovereignRevenueRouter</code>. On enterprise plans, a share of delivered value is auto‑invoiced via the Value‑Proof Ledger.</p>
     </aside>
+  </div>
+</section>`;
+}
+
+function pageSolution(kind) {
+  const key = String(kind || '').toLowerCase();
+  const cfg = {
+    pricing: {
+      kicker: 'AI pricing solution',
+      title: 'Adaptive AI Pricing Engine',
+      copy: 'Continuously re-prices your catalog from demand, competition and conversion telemetry. Every quote remains auditable and revalidated at checkout.',
+      bullets: ['Real-time quote updates', 'Bandit-aware offer ranking', 'Signed quote history'],
+      cta: '/pricing',
+      ctaLabel: 'Open live pricing'
+    },
+    checkout: {
+      kicker: 'AI checkout solution',
+      title: 'AI Checkout Conversion Optimizer',
+      copy: 'Improves payment completion with live quote confidence, route fallback and automatic recovery after pending payments.',
+      bullets: ['Inline validation + trust copy', 'Payment rail fallback', 'Receipt + delivery auto-issue'],
+      cta: '/checkout/?plan=starter',
+      ctaLabel: 'Open optimized checkout'
+    },
+    'ai-self-healing': {
+      kicker: 'AI reliability solution',
+      title: 'AI Self-Healing Operations',
+      copy: 'Tracks latency, error patterns and module health to auto-diagnose faults while keeping customer-facing flows stable.',
+      bullets: ['SLO + route latency telemetry', 'Autonomous recovery playbooks', 'Operator-safe guardrails'],
+      cta: '/observability',
+      ctaLabel: 'Open observability'
+    }
+  }[key] || {
+    kicker: 'AI solution',
+    title: 'ZeusAI Solution',
+    copy: 'Deploy an autonomous AI capability with signed outcomes and sovereign commerce.',
+    bullets: ['Sovereign architecture', 'Signed receipts', 'Live AI governance'],
+    cta: '/services',
+    ctaLabel: 'Browse services'
+  };
+
+  return `<section style="padding-top:140px">
+  <div class="section-title">
+    <div><span class="kicker">${_esc(cfg.kicker)}</span><h1>${_esc(cfg.title)}</h1></div>
+    <p>${_esc(cfg.copy)}</p>
+  </div>
+  <div class="card" style="padding:18px">
+    <ul style="margin:0;padding-left:18px;line-height:1.8;color:var(--ink-dim)">${cfg.bullets.map((b) => `<li>${_esc(b)}</li>`).join('')}</ul>
+    <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:16px">
+      <a class="btn btn-primary" href="${_esc(cfg.cta)}" data-link>${_esc(cfg.ctaLabel)} →</a>
+      <a class="btn" href="/services" data-link>View marketplace</a>
+    </div>
   </div>
 </section>`;
 }
@@ -2796,6 +2856,9 @@ function renderRoute(route, params = {}) {
     case '/': return pageHome();
     case '/services': return pageServices();
     case '/pricing': return pagePricing();
+    case '/solutions/ai-pricing': return pageSolution('pricing');
+    case '/solutions/ai-checkout': return pageSolution('checkout');
+    case '/solutions/ai-self-healing': return pageSolution('ai-self-healing');
     case '/checkout':
     case '/checkout/': return pageCheckout();
     case '/dashboard': return pageDashboard();
@@ -3451,7 +3514,7 @@ function _legalSub(title, body) {
 function routeTitle(route) {
   if (route === '/') return 'Sovereign AI OS';
   if (route.startsWith('/services/')) return 'Service';
-  const map = { '/services':'Marketplace', '/marketplace':'Marketplace', '/pricing':'Pricing', '/checkout':'Checkout', '/dashboard':'Dashboard', '/how':'How it works', '/docs':'API & Docs', '/about':'About', '/legal':'Legal', '/trust':'Trust Center', '/security':'Security', '/responsible-ai':'Responsible AI', '/dpa':'Data Processing Agreement', '/payment-terms':'Payment Terms', '/operator':'Operator Console', '/observability':'Observability', '/enterprise':'Enterprise Licenses', '/store':'Instant Store', '/account':'Account', '/innovations':'30Y Cryptographic Durability', '/wizard':'Find my plan', '/status':'Live status', '/changelog':'Changelog', '/terms':'Terms of Service', '/privacy':'Privacy Policy', '/refund':'Refund Guarantee', '/sla':'SLA', '/pledge':'Anti-Dark-Pattern Pledge', '/cancel':'Universal Cancel', '/gift':'Gift-as-Capability', '/aura':'Live Conversion Aura', '/api-explorer':'API Explorer', '/transparency':'Pricing Bandit Transparency', '/frontier':'Frontier Inventions', '/deepseek-cockpit':'DeepSeek Autonomy Cockpit' };
+  const map = { '/services':'Marketplace', '/marketplace':'Marketplace', '/pricing':'Pricing', '/solutions/ai-pricing':'AI Pricing Engine', '/solutions/ai-checkout':'AI Checkout Optimizer', '/solutions/ai-self-healing':'AI Self-Healing Ops', '/checkout':'Checkout', '/dashboard':'Dashboard', '/how':'How it works', '/docs':'API & Docs', '/about':'About', '/legal':'Legal', '/trust':'Trust Center', '/security':'Security', '/responsible-ai':'Responsible AI', '/dpa':'Data Processing Agreement', '/payment-terms':'Payment Terms', '/operator':'Operator Console', '/observability':'Observability', '/enterprise':'Enterprise Licenses', '/store':'Instant Store', '/account':'Account', '/innovations':'30Y Cryptographic Durability', '/wizard':'Find my plan', '/status':'Live status', '/changelog':'Changelog', '/terms':'Terms of Service', '/privacy':'Privacy Policy', '/refund':'Refund Guarantee', '/sla':'SLA', '/pledge':'Anti-Dark-Pattern Pledge', '/cancel':'Universal Cancel', '/gift':'Gift-as-Capability', '/aura':'Live Conversion Aura', '/api-explorer':'API Explorer', '/transparency':'Pricing Bandit Transparency', '/frontier':'Frontier Inventions', '/deepseek-cockpit':'DeepSeek Autonomy Cockpit' };
   return map[route] || 'ZeusAI';
 }
 
@@ -3460,6 +3523,9 @@ function routeDescription(route) {
     '/': 'ZeusAI is a sovereign autonomous AI operating system with signed outcomes, BTC-native commerce and self-healing automation.',
     '/services': 'Browse ZeusAI services, frontier inventions and vertical AI operating systems with instant BTC checkout.',
     '/pricing': 'Transparent ZeusAI pricing with signed receipts, BTC checkout, refund guarantees and enterprise licensing.',
+    '/solutions/ai-pricing': 'AI pricing engine for real-time quote optimization, conversion-aware offer ranking and auditable checkout revalidation.',
+    '/solutions/ai-checkout': 'AI checkout optimizer for higher completion rates, better payment reliability and faster delivery activation.',
+    '/solutions/ai-self-healing': 'AI self-healing operations with SLO tracking, error pattern detection and guarded autonomous remediation.',
     '/checkout': 'Create a ZeusAI invoice, pay with BTC or supported rails, and receive signed delivery credentials instantly.',
     '/dashboard': 'Operator dashboard for ZeusAI receipts, services, revenue proof, system health and live commerce telemetry.',
     '/how': 'How ZeusAI routes quotes, invoices, receipts, AI modules and delivery through verifiable autonomous workflows.',

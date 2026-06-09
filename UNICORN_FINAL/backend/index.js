@@ -816,7 +816,7 @@ app.post(/^\/api\/services\/[a-zA-Z0-9._:-]+\/use$/, _swRateLimit, express.json(
 app.post('/api/activate', _swRateLimit, express.json({ limit: '64kb' }), (req, res) => proxyPostToSite(req, res, '/api/activate'));
 // Operator console is sensitive (orders/revenue/payment posture). Keep it
 // owner-only; public users should use /api/trust/center + /health.
-app.get('/api/operator/console', adminTokenMiddleware, (req, res) => proxyToSite(req, res, '/api/operator/console'));
+app.get('/api/operator/console', sensitiveRateLimit({ maxRequests: 25, windowMs: 60_000, cooldownMs: 120_000 }), adminTokenMiddleware, (req, res) => proxyToSite(req, res, '/api/operator/console'));
 app.get('/api/observability/status', (req, res) => proxyToSite(req, res, '/api/observability/status'));
 
 // Innovations/frontier/site snapshots are implemented in src/index.js (site runtime).
@@ -1465,6 +1465,40 @@ function authRateLimit(maxRequests, windowMs) {
   };
 }
 
+// Adaptive sensitive limiter for admin/control-plane endpoints.
+// Limiter adaptiv pentru endpoint-uri sensibile (admin/control-plane).
+const sensitiveRateState = new Map(); // key -> { hits:number[], blockedUntil:number }
+function sensitiveRateLimit({ maxRequests = 30, windowMs = 60_000, cooldownMs = 120_000 } = {}) {
+  return function sensitiveRateLimitMiddleware(req, res, next) {
+    if (process.env.NODE_ENV === 'test') return next();
+    const ip = req.ip || (req.connection && req.connection.remoteAddress) || 'unknown';
+    const route = String(req.path || req.originalUrl || 'route').slice(0, 120);
+    const key = ip + '|' + route;
+    const now = Date.now();
+    const state = sensitiveRateState.get(key) || { hits: [], blockedUntil: 0 };
+
+    if (state.blockedUntil > now) {
+      return res.status(429).json({
+        ok: false,
+        error: 'sensitive_rate_limited',
+        retryAfterSec: Math.ceil((state.blockedUntil - now) / 1000),
+      });
+    }
+
+    const cutoff = now - windowMs;
+    state.hits = state.hits.filter(ts => ts > cutoff);
+    if (state.hits.length >= maxRequests) {
+      state.blockedUntil = now + cooldownMs;
+      sensitiveRateState.set(key, state);
+      return res.status(429).json({ ok: false, error: 'too_many_sensitive_requests', retryAfterSec: Math.ceil(cooldownMs / 1000) });
+    }
+
+    state.hits.push(now);
+    sensitiveRateState.set(key, state);
+    return next();
+  };
+}
+
 // Prune stale entries every 10 minutes
 setInterval(() => {
   const cutoff = Date.now() - 15 * 60 * 1000;
@@ -1472,6 +1506,16 @@ setInterval(() => {
     const pruned = hits.filter(ts => ts > cutoff);
     if (pruned.length === 0) authRateLimitStore.delete(key);
     else authRateLimitStore.set(key, pruned);
+  }
+}, 10 * 60 * 1000).unref();
+
+setInterval(() => {
+  const cutoff = Date.now() - 15 * 60 * 1000;
+  for (const [key, state] of sensitiveRateState) {
+    const hits = Array.isArray(state && state.hits) ? state.hits.filter(ts => ts > cutoff) : [];
+    const blockedUntil = Number(state && state.blockedUntil) || 0;
+    if (!hits.length && blockedUntil < Date.now()) sensitiveRateState.delete(key);
+    else sensitiveRateState.set(key, { hits, blockedUntil });
   }
 }, 10 * 60 * 1000).unref();
 
@@ -5641,6 +5685,56 @@ app.get('/api/admin/analytics/funnel', adminCrudRateLimit, adminTokenMiddleware,
   return res.json({ ok: true, totalBuffered: funnelEvents.length, returned: recent.length, summary, events: recent });
 });
 
+// Single-pane operational summary for business + engineering signals.
+// Panou unic de operare: business + inginerie.
+app.get('/api/admin/ops/summary', adminCrudRateLimit, adminTokenMiddleware, (req, res) => {
+  const now = Date.now();
+  const hourAgo = now - (60 * 60 * 1000);
+  const dayAgo = now - (24 * 60 * 60 * 1000);
+  const recentHour = funnelEvents.filter((e) => Date.parse(e.ts) > hourAgo);
+  const recentDay = funnelEvents.filter((e) => Date.parse(e.ts) > dayAgo);
+  const countEvent = (arr, ev) => arr.reduce((n, x) => n + (String(x.event || '') === ev ? 1 : 0), 0);
+
+  const viewsH = countEvent(recentHour, 'service_view');
+  const checkoutH = countEvent(recentHour, 'checkout_start');
+  const paidH = countEvent(recentHour, 'checkout_paid');
+  const convCheckoutToPaid = checkoutH > 0 ? +(paidH / checkoutH).toFixed(4) : 0;
+  const convViewToCheckout = viewsH > 0 ? +(checkoutH / viewsH).toFixed(4) : 0;
+
+  let routePerf = null;
+  try { routePerf = routeCache.getStats(); } catch (_) { routePerf = null; }
+  let sloMetrics = null;
+  try { sloMetrics = sloTracker.getMetrics(); } catch (_) { sloMetrics = null; }
+  let ds = null;
+  try { ds = deepseekGovernor ? deepseekGovernor.getStatus() : null; } catch (_) { ds = null; }
+
+  return res.json({
+    ok: true,
+    ts: new Date(now).toISOString(),
+    funnel: {
+      bufferedEvents: funnelEvents.length,
+      lastHour: recentHour.length,
+      lastDay: recentDay.length,
+      viewsHour: viewsH,
+      checkoutHour: checkoutH,
+      paidHour: paidH,
+      conversionViewToCheckout: convViewToCheckout,
+      conversionCheckoutToPaid: convCheckoutToPaid,
+    },
+    performance: {
+      routeCache: routePerf,
+      slo: sloMetrics,
+    },
+    deepseek: ds ? {
+      actionsLastHour: ds.aggregate && ds.aggregate.actionsLastHour,
+      actionsLastDay: ds.aggregate && ds.aggregate.actionsLastDay,
+      pendingRequestIds: ds.aggregate && ds.aggregate.pendingRequestIds,
+      proposalMaxPerDay: ds.limits && ds.limits.proposalsMaxPerDay,
+      runTestTimeoutMs: ds.limits && ds.limits.runTestTimeoutMs,
+    } : null,
+  });
+});
+
 // ==================== DEEPSEEK GOVERNOR API ====================
 // Strict allowlist executor for autonomous-but-bounded LLM-driven actions.
 // Executor cu listă albă pentru acțiuni autonome dar limitate.
@@ -5651,7 +5745,7 @@ app.get('/api/admin/deepseek/status', adminCrudRateLimit, deepseekGovernorAuthMi
   res.json(deepseekGovernor.getStatus());
 });
 
-app.post('/api/admin/deepseek/act', adminCrudRateLimit, deepseekGovernorAuthMiddleware, async (req, res) => {
+app.post('/api/admin/deepseek/act', sensitiveRateLimit({ maxRequests: 20, windowMs: 60_000, cooldownMs: 120_000 }), adminCrudRateLimit, deepseekGovernorAuthMiddleware, async (req, res) => {
   if (!deepseekGovernor) return res.status(503).json({ error: 'deepseek-governor not loaded' });
   const { action, params, requestId } = req.body || {};
   const ip = req.ip || (req.connection && req.connection.remoteAddress) || 'unknown';
@@ -5675,7 +5769,7 @@ app.get('/api/admin/roadmap', adminCrudRateLimit, deepseekGovernorAuthMiddleware
   res.json(roadmap);
 });
 
-app.post('/api/admin/deepseek/command', adminCrudRateLimit, deepseekGovernorAuthMiddleware, (req, res) => {
+app.post('/api/admin/deepseek/command', sensitiveRateLimit({ maxRequests: 20, windowMs: 60_000, cooldownMs: 120_000 }), adminCrudRateLimit, deepseekGovernorAuthMiddleware, (req, res) => {
   if (!deepseekGovernor) return res.status(503).json({ error: 'deepseek-governor not loaded' });
   const { instruction, priority } = req.body || {};
   const ip = req.ip || (req.connection && req.connection.remoteAddress) || 'unknown';
@@ -10579,7 +10673,7 @@ app.get('/api/brain/autonomy', (req, res) => {
   return res.json(payload);
 });
 
-app.post('/api/autonomy/activate', (req, res, next) => {
+app.post('/api/autonomy/activate', sensitiveRateLimit({ maxRequests: 12, windowMs: 60_000, cooldownMs: 180_000 }), (req, res, next) => {
   // Allow direct activation via ADMIN_SECRET header (server-side bootstrap)
   const provided = req.headers['x-admin-secret'] || req.body?.adminSecret || req.query?.adminSecret || '';
   const expected = process.env.ADMIN_SECRET || '';
@@ -12238,21 +12332,18 @@ if (require.main === module) {
     zeroDT.init();
     
     // ==================== DEEPSEEK AUTONOMOUS GOVERNOR ====================
-    // DeepSeek autonomous loop — governs AI-driven changes with strict allowlist.
-    // Enable with DEEPSEEK_LOOP_ENABLED=true. Auto-apply with DEEPSEEK_AUTO_APPLY=1.
-    if (deepseekGovernor && (process.env.DEEPSEEK_LOOP_ENABLED === 'true' || process.env.DEEPSEEK_LOOP_ENABLED === '1')) {
+    // Loop execution is owned by deepseek-loop.service; backend exposes
+    // governance endpoints + bounded action executor.
+    if (deepseekGovernor) {
       try {
-        deepseekGovernor.startAutonomousLoop({
-          autoApplyMode: (process.env.DEEPSEEK_AUTO_APPLY === '1' || process.env.DEEPSEEK_AUTO_APPLY === 'true'),
-          rateLimitPerHour: parseInt(process.env.DEEPSEEK_RATE_LIMIT_HOUR || '60', 10),
-          rateLimitPerDay: parseInt(process.env.DEEPSEEK_RATE_LIMIT_DAY || '200', 10),
-        });
-        console.log(`🧠 DeepSeek Autonomous Governor: ACTIVE (loop enabled, auto-apply=${process.env.DEEPSEEK_AUTO_APPLY === '1' ? 'ON' : 'OFF'})`);
+        const ds = deepseekGovernor.getStatus();
+        const autoApply = ds && ds.autoApply ? 'ON' : 'OFF';
+        const perHour = ds && ds.limits ? ds.limits.perHourPerIp : 'n/a';
+        const perDay = ds && ds.limits ? ds.limits.perDayPerIp : 'n/a';
+        console.log(`🧠 DeepSeek Governor: ACTIVE (auto-apply=${autoApply}, rate=${perHour}/h · ${perDay}/day)`);
       } catch (e) {
-        console.error('[deepseek-governor] autonomous loop failed to start:', e && e.message);
+        console.warn('[deepseek-governor] status unavailable:', e && e.message);
       }
-    } else if (deepseekGovernor) {
-      console.log(`🧠 DeepSeek Governor: LOADED (autonomous loop disabled; enable with DEEPSEEK_LOOP_ENABLED=true)`);
     }
     
     // ==================== INTEGRATIONS LAYER (complementary, additive) ====================
