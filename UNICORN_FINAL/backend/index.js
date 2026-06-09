@@ -12236,6 +12236,25 @@ if (require.main === module) {
     console.log(`🤖 AI Auto Dispatcher: ACTIVE (smart task routing for all tenants)`);
     // Pornire Zero-Downtime Controller în-process (monitorizare health locală)
     zeroDT.init();
+    
+    // ==================== DEEPSEEK AUTONOMOUS GOVERNOR ====================
+    // DeepSeek autonomous loop — governs AI-driven changes with strict allowlist.
+    // Enable with DEEPSEEK_LOOP_ENABLED=true. Auto-apply with DEEPSEEK_AUTO_APPLY=1.
+    if (deepseekGovernor && (process.env.DEEPSEEK_LOOP_ENABLED === 'true' || process.env.DEEPSEEK_LOOP_ENABLED === '1')) {
+      try {
+        deepseekGovernor.startAutonomousLoop({
+          autoApplyMode: (process.env.DEEPSEEK_AUTO_APPLY === '1' || process.env.DEEPSEEK_AUTO_APPLY === 'true'),
+          rateLimitPerHour: parseInt(process.env.DEEPSEEK_RATE_LIMIT_HOUR || '60', 10),
+          rateLimitPerDay: parseInt(process.env.DEEPSEEK_RATE_LIMIT_DAY || '200', 10),
+        });
+        console.log(`🧠 DeepSeek Autonomous Governor: ACTIVE (loop enabled, auto-apply=${process.env.DEEPSEEK_AUTO_APPLY === '1' ? 'ON' : 'OFF'})`);
+      } catch (e) {
+        console.error('[deepseek-governor] autonomous loop failed to start:', e && e.message);
+      }
+    } else if (deepseekGovernor) {
+      console.log(`🧠 DeepSeek Governor: LOADED (autonomous loop disabled; enable with DEEPSEEK_LOOP_ENABLED=true)`);
+    }
+    
     // ==================== INTEGRATIONS LAYER (complementary, additive) ====================
     // 7 complementary modules that subscribe to existing engines without replacing them.
     try {
