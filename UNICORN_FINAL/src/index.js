@@ -6501,6 +6501,36 @@ async function unicornHandler(req, res) {
   if (mPrice) {
     try {
       const id = decodeURIComponent(mPrice[1]);
+      let priceNegotiator = null;
+      try { priceNegotiator = require('../backend/modules/priceNegotiator'); } catch (_) { priceNegotiator = null; }
+      const btcRate = await getBtcUsdSpot().catch(() => 0);
+      const quote = priceNegotiator && typeof priceNegotiator.getPrice === 'function'
+        ? await priceNegotiator.getPrice(id, { userId: null, btcRate })
+        : null;
+
+      if (quote && Number(quote.usd) > 0 && quote.btc) {
+        res.writeHead(200, { 'Content-Type':'application/json', 'Cache-Control':'no-store' });
+        return res.end(JSON.stringify({
+          productId: id,
+          serviceId: quote.serviceId,
+          usd: Number(quote.usd),
+          btc: String(quote.btc),
+          profitMargin: Number(quote.profitMargin || 1.30),
+          source: quote.source || 'priceNegotiator',
+          // backward-compatible fields
+          id,
+          title: id,
+          priceUsd: Number(quote.usd),
+          priceBtc: Number(quote.btc),
+          currency: 'USD',
+          btcUri: buildBtcUri(BTC_WALLET, Number(quote.btc), 'ZeusAI-' + id),
+          buyUrl: '/checkout?serviceId=' + encodeURIComponent(id) + '&plan=' + encodeURIComponent(id),
+          price_usd: Number(quote.usd),
+          price_btc: String(quote.btc),
+          updatedAt: new Date().toISOString(),
+        }));
+      }
+
       const cat = await getCachedMasterCatalog();
       const it = (cat.items || []).find(x => x.id === id);
       if (!it) {
@@ -6509,6 +6539,9 @@ async function unicornHandler(req, res) {
       }
       res.writeHead(200, { 'Content-Type':'application/json', 'Cache-Control':'public, max-age=10' });
       return res.end(JSON.stringify({
+        productId: id,
+        usd: Number(it.priceUsd || it.price || 0),
+        btc: it.priceBtc != null ? String(it.priceBtc) : null,
         id: it.id,
         title: it.title || it.name || it.id,
         priceUsd: Number(it.priceUsd || it.price || 0),

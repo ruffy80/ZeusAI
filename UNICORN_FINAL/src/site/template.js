@@ -2283,6 +2283,7 @@ async function loadMarketplace(){
   STATE.filteredServices=svcs.slice();
   allCategories=['all'];
   svcs.forEach(function(s){if(s.category&&allCategories.indexOf(s.category)<0)allCategories.push(s.category);});
+  hydrateMarketplaceLivePrices();
   renderCatFilters();
   renderServiceGrid();
 }
@@ -2312,6 +2313,32 @@ function filterServices(){
   renderServiceGrid();
 }
 
+async function hydrateMarketplaceLivePrices(){
+  if(!Array.isArray(STATE.services)||!STATE.services.length) return;
+  var updates=await Promise.all(STATE.services.map(async function(s){
+    try{
+      var r=await fetch('/api/price/'+encodeURIComponent(s.id),{headers:{'Accept':'application/json'}}).then(function(x){return x.json();}).catch(function(){return null;});
+      if(!r) return null;
+      var usd=Number(r.usd!=null?r.usd:(r.price_usd!=null?r.price_usd:r.priceUsd));
+      var btc=(r.btc!=null?r.btc:(r.price_btc!=null?r.price_btc:r.priceBtc));
+      if(!(usd>0)&&!(Number(btc)>0)) return null;
+      return { id:s.id, usd:usd, btc:btc };
+    }catch(_){ return null; }
+  }));
+  var changed=false;
+  updates.forEach(function(u){
+    if(!u) return;
+    var row=(STATE.services||[]).find(function(x){return x&&x.id===u.id;});
+    if(!row) return;
+    if(u.usd>0){ row.price=u.usd; row.priceUsd=u.usd; }
+    if(Number(u.btc)>0){ row.priceBtc=Number(u.btc).toFixed(8); }
+    changed=true;
+  });
+  if(changed){
+    filterServices();
+  }
+}
+
 function renderServiceGrid(){
   var grid=document.getElementById('svc-grid');
   if(!grid) return;
@@ -2324,7 +2351,7 @@ function renderServiceGrid(){
     var rawPrice=Number(s.price!=null?s.price:(s.priceUsd!=null?s.priceUsd:(s.finalPrice!=null?s.finalPrice:(s.basePrice||0))));
     if(!isFinite(rawPrice)||rawPrice<0) rawPrice=0;
     var priceLabel=rawPrice===0?'Free':('$'+fmtUsd(rawPrice));
-    var btcEq=rawPrice>0?usdToBtc(rawPrice):'—';
+    var btcEq=(Number(s.priceBtc)>0?Number(s.priceBtc).toFixed(8)+' BTC':(rawPrice>0?usdToBtc(rawPrice):'—'));
     var surgeBadge=s.surgeActive?'<span style="background:#ff4444;color:#fff;font-size:10px;padding:2px 6px;border-radius:4px;margin-left:6px;">⚡ SURGE</span>':'';
     var df=Number(s.dynamicFactor);
     var dynamicNote=(isFinite(df)&&df!==1&&df>0)?'<div style="font-size:11px;color:#7090b0;">Demand: ×'+df.toFixed(2)+'</div>':'';

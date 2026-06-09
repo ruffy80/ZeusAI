@@ -709,7 +709,51 @@ app.get('/api/catalog/diff',   (req, res) => proxyToSite(req, res, '/api/catalog
 // endpoints without caring whether the request lands on backend (3000) or
 // site (3001) first. Read-only, cached upstream, never block.
 app.get('/api/products', (req, res) => proxyToSite(req, res, '/api/products'));
-app.get('/api/price/:id', (req, res) => proxyToSite(req, res, '/api/price/' + encodeURIComponent(req.params.id)));
+app.get('/api/price/:id', async (req, res) => {
+  try {
+    const productId = String(req.params.id || '').trim().slice(0, 120);
+    if (!productId) return res.status(400).json({ error: 'invalid_product_id' });
+
+    let btcRate = 0;
+    try {
+      const r = await Promise.race([
+        paymentGateway.getBitcoinRate(),
+        new Promise((_, rej) => setTimeout(() => rej(new Error('btc-rate-timeout')), 2000)),
+      ]);
+      if (r && Number(r.rate) > 0) btcRate = Number(r.rate);
+    } catch (_) { /* fallback below */ }
+    if (btcRate <= 0 && livePricingBroker) {
+      try {
+        const snap = livePricingBroker.getSnapshot();
+        if (snap && snap.btcRate && Number(snap.btcRate.rate) > 0) btcRate = Number(snap.btcRate.rate);
+      } catch (_) { /* keep 0 */ }
+    }
+
+    const quote = await priceNegotiator.getPrice(productId, {
+      userId: req.query.userId || null,
+      coupon: req.query.coupon || null,
+      btcRate,
+    });
+    if (!quote || !(Number(quote.usd) > 0) || !quote.btc) throw new Error('Invalid price');
+
+    res.set('Cache-Control', 'no-store');
+    return res.json({
+      productId,
+      serviceId: quote.serviceId,
+      usd: Number(quote.usd),
+      btc: String(quote.btc),
+      profitMargin: Number(quote.profitMargin || 1.30),
+      source: quote.source || 'priceNegotiator',
+      // backward compatibility
+      id: productId,
+      price_usd: Number(quote.usd),
+      price_btc: String(quote.btc),
+      updatedAt: new Date().toISOString(),
+    });
+  } catch (error) {
+    return res.status(500).json({ error: 'Price unavailable' });
+  }
+});
 
 // ─── C5: tiered sliding-window rate-limit (additive, fail-open) ──────────
 // Loaded lazy so missing module never breaks boot.
@@ -2314,6 +2358,7 @@ const githubOps           = require('./modules/github-ops');
 
 // ==================== DYNAMIC PRICING ENGINE ====================
 const dynamicPricing   = require('./modules/dynamic-pricing');
+const priceNegotiator  = require('./modules/priceNegotiator');
 
 // Seed the engine at boot with the canonical catalog floors so every
 // service id has a real basePrice and never collapses to the generic $99
