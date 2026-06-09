@@ -10500,11 +10500,6 @@ app.get('/api/production/status', adminTokenMiddleware, (req, res) => {
 
 // ==================== AUTONOMY CONTROL ====================
 // Status și activare completă a modului de autonomie.
-function _isLocalAutonomyProbe(req) {
-  const ip = String(req.ip || req.socket?.remoteAddress || '').toLowerCase();
-  return ip === '127.0.0.1' || ip === '::1' || ip === '::ffff:127.0.0.1' || ip.endsWith('127.0.0.1');
-}
-
 function _publicAutonomySnapshot(full) {
   const modules = (full && full.modules) || {};
   const summarize = (name) => {
@@ -10564,8 +10559,6 @@ function _collectAutonomyStatus() {
 app.get('/api/autonomy/status', (req, res) => {
   const status = _collectAutonomyStatus();
   const wantsFull = req.query && req.query.view === 'full';
-  const internal = _isLocalAutonomyProbe(req);
-  if (internal) return res.json(status);
   if (wantsFull) return adminTokenMiddleware(req, res, () => res.json(status));
   return res.json(_publicAutonomySnapshot(status));
 });
@@ -10575,11 +10568,6 @@ app.get('/api/autonomy/status', (req, res) => {
 app.get('/api/brain/autonomy', (req, res) => {
   const status = _collectAutonomyStatus();
   const wantsFull = req.query && req.query.view === 'full';
-  const internal = _isLocalAutonomyProbe(req);
-  if (internal) {
-    status.alias = '/api/autonomy/status';
-    return res.json(status);
-  }
   if (wantsFull) {
     return adminTokenMiddleware(req, res, () => {
       status.alias = '/api/autonomy/status';
