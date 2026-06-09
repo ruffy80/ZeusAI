@@ -6,6 +6,11 @@ PUBLIC_URL="${PUBLIC_URL:-https://zeusai.pro}"
 EXPECT_PM2_CWD="${EXPECT_PM2_CWD:-}"
 SKIP_PUBLIC="${SKIP_PUBLIC:-0}"
 REQUIRE_PM2="${REQUIRE_PM2:-0}"
+# QIS_TOLERANT=1 accepts a still-rebaselining shield (active && not compromised)
+# instead of the strict 'intact'. Used by the post-PM2-restart final smoke,
+# where the Quantum Integrity Shield legitimately needs time to re-baseline
+# after files changed in the new release. Steady-state checks stay strict.
+QIS_TOLERANT="${QIS_TOLERANT:-0}"
 
 json_get() {
   local url="$1"
@@ -30,7 +35,7 @@ assert_node_json "backend health status ok" "$BASE_URL/health" \
 assert_node_json "backend engines active" "$BASE_URL/health" \
   "if (data.engines && !Object.values(data.engines).every(Boolean)) process.exit(1);"
 
-if [ "$SKIP_PUBLIC" = "1" ]; then
+if [ "$SKIP_PUBLIC" = "1" ] || [ "$QIS_TOLERANT" = "1" ]; then
   assert_node_json "quantum integrity canary safe" "$BASE_URL/api/quantum-integrity/status" \
     "if (!(data.active === true && data.integrity !== 'compromised')) process.exit(1);"
 else
@@ -117,8 +122,13 @@ if [ "$SKIP_PUBLIC" != "1" ]; then
     200|301|302|308) echo "✅ public homepage status $STATUS" ;;
     *) echo "❌ public homepage bad status $STATUS" >&2; exit 1 ;;
   esac
-  assert_node_json "public QIS intact" "$PUBLIC_URL/api/quantum-integrity/status" \
-    "if (!(data.active === true && data.integrity === 'intact' && (!data.diagnostics || (data.diagnostics.issues || []).length === 0))) process.exit(1);"
+  if [ "$QIS_TOLERANT" = "1" ]; then
+    assert_node_json "public QIS canary safe" "$PUBLIC_URL/api/quantum-integrity/status" \
+      "if (!(data.active === true && data.integrity !== 'compromised')) process.exit(1);"
+  else
+    assert_node_json "public QIS intact" "$PUBLIC_URL/api/quantum-integrity/status" \
+      "if (!(data.active === true && data.integrity === 'intact' && (!data.diagnostics || (data.diagnostics.issues || []).length === 0))) process.exit(1);"
+  fi
 
   # Functional: confirm public site exposes the forever-key (best-effort, no fail).
   if curl -fsS --max-time 8 "$PUBLIC_URL/.well-known/zeusai-key.pub" | head -c 32 | grep -q 'BEGIN PUBLIC KEY'; then
