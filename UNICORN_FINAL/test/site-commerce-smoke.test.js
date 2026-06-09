@@ -126,11 +126,14 @@ async function run() {
     assert.equal(integrity.status, 200, '/.well-known/unicorn-integrity.json should return 200');
     assert.equal(integrity.body.alg, 'Ed25519');
 
-    for (const path of ['/api/trust/center', '/api/operator/console', '/api/observability/status', '/api/secret-sync/status', '/api/payments/config/status', '/api/security/pq/status', '/api/commerce/protocol', '/api/innovation/coverage', '/api/checkout/synthetic-probe', '/api/capability/credential/smoke']) {
+    for (const path of ['/api/trust/center', '/api/observability/status', '/api/secret-sync/status', '/api/payments/config/status', '/api/security/pq/status', '/api/commerce/protocol', '/api/innovation/coverage', '/api/checkout/synthetic-probe', '/api/capability/credential/smoke']) {
       const r = await request(path);
       assert.equal(r.status, 200, `${path} should return 200`);
       assert.equal(r.body.ok, true, `${path} should return ok:true`);
     }
+
+    const operatorConsolePublic = await request('/api/operator/console');
+    assert.equal(operatorConsolePublic.status, 401, '/api/operator/console should require admin auth on public surface');
 
     const paymentStatus = await request('/api/payments/config/status');
     assert.equal(paymentStatus.body.primaryRail, 'btc-direct');
