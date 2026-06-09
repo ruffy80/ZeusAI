@@ -1714,6 +1714,8 @@ function pageOperator() {
       <div style="display:flex;gap:8px;flex-wrap:wrap;min-width:min(100%,520px)">
         <input id="opAdminToken" type="password" placeholder="Admin JWT token" style="flex:1;min-width:220px;padding:10px;border-radius:10px;border:1px solid var(--stroke);background:rgba(5,4,10,.55);color:var(--ink);font-family:var(--mono)"/>
         <button class="btn btn-primary" id="opLoadAdmin">Load admin KPIs</button>
+        <button class="btn" id="opClearAdmin">Clear token</button>
+        <button class="btn" id="opAutoRefresh">Auto refresh: ON</button>
       </div>
     </div>
     <div class="grid" id="opOpsGrid" style="margin-top:14px;grid-template-columns:repeat(auto-fit,minmax(170px,1fr))"><div class="card"><p style="margin:0;color:var(--ink-dim)">Admin KPIs locked.</p></div></div>
@@ -1788,9 +1790,27 @@ function pageOperator() {
 
     const tokenInput = document.getElementById('opAdminToken');
     const loadBtn = document.getElementById('opLoadAdmin');
+    const clearBtn = document.getElementById('opClearAdmin');
+    const autoBtn = document.getElementById('opAutoRefresh');
+    let autoTimer = null;
+    let autoOn = true;
+
+    function setAutoRefresh(on){
+      autoOn = !!on;
+      if (autoBtn) autoBtn.textContent = 'Auto refresh: ' + (autoOn ? 'ON' : 'OFF');
+      try { sessionStorage.setItem('zeus_admin_ops_autorefresh', autoOn ? '1' : '0'); } catch (_) {}
+    }
+
+    function armAutoRefresh(token){
+      if (autoTimer) { clearInterval(autoTimer); autoTimer = null; }
+      if (!autoOn || !token) return;
+      autoTimer = setInterval(function(){ loadAdminOps(token); }, 30000);
+    }
+
     let saved = '';
     try { saved = sessionStorage.getItem('zeus_admin_jwt') || ''; } catch (_) { saved = ''; }
     if (tokenInput && saved) tokenInput.value = saved;
+    try { setAutoRefresh((sessionStorage.getItem('zeus_admin_ops_autorefresh') || '1') === '1'); } catch (_) { setAutoRefresh(true); }
     if (loadBtn) {
       loadBtn.addEventListener('click', function(){
         const t = tokenInput ? String(tokenInput.value || '').trim() : '';
@@ -1799,11 +1819,35 @@ function pageOperator() {
           else sessionStorage.removeItem('zeus_admin_jwt');
         } catch (_) {}
         loadAdminOps(t);
+        armAutoRefresh(t);
+      });
+    }
+    if (tokenInput) {
+      tokenInput.addEventListener('keydown', function(ev){
+        if (ev.key === 'Enter' && loadBtn) { ev.preventDefault(); loadBtn.click(); }
+      });
+    }
+    if (clearBtn) {
+      clearBtn.addEventListener('click', function(){
+        if (tokenInput) tokenInput.value = '';
+        try { sessionStorage.removeItem('zeus_admin_jwt'); } catch (_) {}
+        loadAdminOps('');
+        armAutoRefresh('');
+      });
+    }
+    if (autoBtn) {
+      autoBtn.addEventListener('click', function(){
+        setAutoRefresh(!autoOn);
+        const t = tokenInput ? String(tokenInput.value || '').trim() : '';
+        armAutoRefresh(t);
       });
     }
 
     loadPublic();
-    if (saved) loadAdminOps(saved);
+    if (saved) {
+      loadAdminOps(saved);
+      armAutoRefresh(saved);
+    }
   })();
   </script>
 </section>`;
