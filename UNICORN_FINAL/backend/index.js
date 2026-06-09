@@ -1145,6 +1145,31 @@ app.use(routeCache.profilerMiddleware());
 const ADMIN_OWNER_NAME = process.env.LEGAL_OWNER_NAME || 'Vladoi Ionut';
 const ADMIN_OWNER_EMAIL = process.env.ADMIN_EMAIL || process.env.LEGAL_OWNER_EMAIL || 'vladoi_ionut@yahoo.com';
 const ADMIN_OWNER_BTC = process.env.LEGAL_OWNER_BTC || 'bc1q4f7e66z87mdfj56kz0dj5hvcnpmh0qh4wuv22e';
+// Payment availability contract:
+// - BTC is always available.
+// - PAYMENT_MODE=btc (or BTC_ONLY=1) enforces BTC-only checkout.
+// - PAYMENT_MODE=auto enables Stripe/PayPal only when required secrets exist.
+const PAYMENT_MODE = String(process.env.PAYMENT_MODE || (process.env.BTC_ONLY === '1' ? 'btc' : 'auto')).toLowerCase();
+const STRIPE_READY = !!String(process.env.STRIPE_SECRET_KEY || '').trim();
+const PAYPAL_READY = !!String(process.env.PAYPAL_CLIENT_ID || '').trim() && !!String(process.env.PAYPAL_CLIENT_SECRET || '').trim();
+function getEnabledPaymentMethods() {
+  if (PAYMENT_MODE === 'btc') return ['BTC'];
+  const methods = ['BTC'];
+  if (STRIPE_READY) methods.push('STRIPE');
+  if (PAYPAL_READY) methods.push('PAYPAL');
+  return methods;
+}
+function isPaymentMethodEnabled(method) {
+  const m = String(method || 'BTC').toUpperCase();
+  return getEnabledPaymentMethods().includes(m);
+}
+function paymentMethodsPublicLabel() {
+  return getEnabledPaymentMethods().map((m) => {
+    if (m === 'STRIPE') return 'Stripe';
+    if (m === 'PAYPAL') return 'PayPal';
+    return m;
+  });
+}
 let adminPasswordHash = bcrypt.hashSync(process.env.ADMIN_MASTER_PASSWORD || 'UnicornAdmin2026!', 10);
 let adminBiometricHash = null;
 
@@ -3755,7 +3780,7 @@ function buildBackendSnapshot() {
     },
     billing: {
       primary: 'BTC',
-      supported: ['BTC', 'Stripe', 'PayPal'],
+      supported: paymentMethodsPublicLabel(),
       btcAddress: ADMIN_OWNER_BTC,
     },
     platform: {
@@ -4381,6 +4406,15 @@ app.post('/api/services/buy', (req, res) => {
   const service = _serviceById(serviceId);
   if (!service) return res.status(404).json({ error: 'service_not_found' });
   const paymentMethod = String(p.paymentMethod || p.method || 'BTC').toUpperCase();
+  if (!isPaymentMethodEnabled(paymentMethod)) {
+    return res.status(400).json({
+      error: 'payment_method_unavailable',
+      requested: paymentMethod,
+      allowed: getEnabledPaymentMethods(),
+      mode: PAYMENT_MODE,
+      hint: 'Use BTC now; Stripe/PayPal activate automatically when provider secrets are configured.'
+    });
+  }
   const amount = Number(p.amount || p.amountUSD || service.price || 0);
   const id = crypto.randomBytes(12).toString('hex');
   const email = String(p.email || '').toLowerCase();
@@ -10443,6 +10477,37 @@ app.get('/api/autonomy/status', (req, res) => {
   status.activeModules = activeCount;
   status.totalModules  = Object.keys(status.modules).length;
   status.autonomyReady = activeCount >= 4;
+
+  res.json(status);
+});
+
+// Backwards-compatible JSON alias for older dashboards/operators.
+// Keeps `/api/brain/autonomy` in sync with `/api/autonomy/status`.
+app.get('/api/brain/autonomy', (req, res) => {
+  const status = {
+    ts: new Date().toISOString(),
+    modules: {}
+  };
+
+  const collect = (key, fn) => {
+    try { status.modules[key] = fn(); } catch (e) { status.modules[key] = { error: e.message }; }
+  };
+
+  collect('autoInnovationLoop',   () => autoInnovationLoop.getStatus());
+  collect('selfHealingEngine',    () => selfHealingEngine.getStatus());
+  collect('centralOrchestrator',  () => centralOrchestrator.getStatus());
+  collect('quantumIntegrityShield', () => quantumIntegrityShield.getStatus());
+  collect('controlPlaneAgent',    () => controlPlane.getStatus());
+  collect('profitControlLoop',    () => profitLoop.getStatus());
+  collect('meshOrchestrator',     () => meshOrchestrator.getStatus ? meshOrchestrator.getStatus() : { active: true });
+
+  const activeCount = Object.values(status.modules).filter(
+    m => m && (m.active === true || m.running === true || m.status === 'active')
+  ).length;
+  status.activeModules = activeCount;
+  status.totalModules = Object.keys(status.modules).length;
+  status.autonomyReady = activeCount >= 4;
+  status.alias = '/api/autonomy/status';
 
   res.json(status);
 });
