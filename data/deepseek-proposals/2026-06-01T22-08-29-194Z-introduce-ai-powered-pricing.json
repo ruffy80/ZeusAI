@@ -1,0 +1,12 @@
+{
+  "schemaVersion": 1,
+  "createdAt": "2026-06-01T22:08:29.194Z",
+  "status": "pending-review",
+  "objectiveId": "introduce-ai-powered-pricing",
+  "targetPath": "UNICORN_FINAL/client/src/components/AIPricing.js",
+  "riskLevel": "low",
+  "rationale": "Introduce AI-powered pricing component to enhance user experience and increase conversion rates.",
+  "proposedContent": "import React from 'react';\nimport { useAI } from '../hooks/useAI';\n\nconst AIPricing = () => {\n  const { pricing } = useAI();\n  return (\n    <div>\n      <h2>AI-Powered Pricing</h2>\n      <p>{pricing}</p>\n    </div>\n  );\n};\n\nexport default AIPricing;",
+  "proposedContentBytes": 248,
+  "note": "Envelope only — code is NOT applied. Human/CI review required before any edit."
+}

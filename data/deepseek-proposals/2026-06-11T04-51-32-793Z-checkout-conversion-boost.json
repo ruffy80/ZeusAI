@@ -1,0 +1,12 @@
+{
+  "schemaVersion": 1,
+  "createdAt": "2026-06-11T04:51:32.793Z",
+  "status": "pending-review",
+  "objectiveId": "checkout-conversion-boost",
+  "targetPath": "UNICORN_FINAL/backend/modules/checkout-conversion-optimizer.js",
+  "riskLevel": "medium",
+  "rationale": "Brainstem directive: paidEvents zero after many runs. This module introduces dynamic offer selection to boost conversion rate. Integrate into checkout flow to test and improve conversion.",
+  "proposedContent": "// Checkout Conversion Optimizer\n// Dynamically adjusts offer presentation based on user behavior and revenue goals\n\nconst conversionState = {\n  totalVisits: 0,\n  conversions: 0,\n  lastOfferVariant: null,\n  abTestData: {}\n};\n\nfunction trackVisit() {\n  conversionState.totalVisits++;\n}\n\nfunction trackConversion() {\n  conversionState.conversions++;\n}\n\nfunction getConversionRate() {\n  if (conversionState.totalVisits === 0) return 0;\n  return conversionState.conversions / conversionState.totalVisits;\n}\n\nfunction selectOfferVariant(userContext) {\n  // Simple A/B logic: if conversion rate < 0.04, try more aggressive offer\n  const rate = getConversionRate();\n  if (rate < 0.02) {\n    return 'discount_20';\n  } else if (rate < 0.04) {\n    return 'discount_10';\n  } else {\n    return 'standard';\n  }\n}\n\nfunction applyOfferToCheckout(checkoutPayload, variant) {\n  // Modify checkout payload with selected offer\n  checkoutPayload.offer = variant;\n  checkoutPayload.discount = variant === 'discount_20' ? 0.2 : (variant === 'discount_10' ? 0.1 : 0);\n  return checkoutPayload;\n}\n\nmodule.exports = { trackVisit, trackConversion, getConversionRate, selectOfferVariant, applyOfferToCheckout };\n",
+  "proposedContentBytes": 1185,
+  "note": "Envelope only — code is NOT applied. Human/CI review required before any edit."
+}
