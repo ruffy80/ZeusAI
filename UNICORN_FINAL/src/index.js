@@ -4507,13 +4507,19 @@ async function unicornHandler(req, res) {
   }
   // ==================== END FAZA 2 / VAL 5 ====================
 
-  // ==================== FAZA 2 / VAL 5 (COMPLETARE): COCKPIT + SERVICES + STATUS HTML ====================
-  // Three SSR HTML pages share the same chrome (header + footer) as the rest of
-  // the site. They hydrate live from /unicorn-status (cockpit), /api/products
-  // (services) and /api/supreme/digest (status). All additive, never break the
-  // existing template. Each page is server-rendered, returns a full HTML doc,
-  // and includes a tiny client script that polls every 5s.
-  if (urlPath === '/unicorn-cockpit' || urlPath === '/services' || urlPath === '/unicorn-status.html' || urlPath === '/revenue-command' || urlPath === '/proof' || urlPath === '/revenue-share' || urlPath === '/zacc' || urlPath === '/dropship' || urlPath.indexOf('/dropship/product/') === 0) {
+  // ==================== FAZA 2 / VAL 5 (COMPLETARE): COCKPIT + STATUS HTML ====================
+  // SSR HTML operator pages share the same chrome (header + footer) as the rest
+  // of the site. They hydrate live from /unicorn-status (cockpit) and
+  // /api/supreme/digest (status). All additive, never break the existing
+  // template. Each page is server-rendered, returns a full HTML doc, and
+  // includes a tiny client script that polls every 5s.
+  // NOTE 2026-06-12: '/services' was removed from this intercept — it now falls
+  // through to the v2 SSR storefront (pageServices) below, which server-renders
+  // the full 25-product catalog with USD+BTC prices and schema.org Product
+  // markup. The old handler here rendered ZERO SSR cards (client-only grid),
+  // which violated the "≥1 SSR service card" golden rule and hurt SEO.
+  // RO: /services e servit acum de vitrina v2 SSR — carduri reale în HTML.
+  if (urlPath === '/unicorn-cockpit' || urlPath === '/unicorn-status.html' || urlPath === '/revenue-command' || urlPath === '/proof' || urlPath === '/revenue-share' || urlPath === '/zacc' || urlPath === '/dropship' || urlPath.indexOf('/dropship/product/') === 0) {
     const renderPage = (title, bodyHtml, pageScript) => {
       // Unified chrome: render every legacy operator/dashboard page inside the
       // full v2 shell (nav + Zeus backdrop + footer + violet/gold theme) so the
@@ -4624,57 +4630,8 @@ async function unicornHandler(req, res) {
       return res.end(renderPage('Unicorn Cockpit', body, js));
     }
 
-    if (urlPath === '/services') {
-      // Live SSR services marketplace — backed by /api/pricing/* (dynamic-pricing engine)
-      // and /api/products (catalog metadata). SSE-first for sub-second price updates,
-      // 5s polling fallback. Each Buy click re-confirms the price against the engine,
-      // then opens a checkout modal that hits /api/checkout/create + /api/checkout/{btc,stripe}.
-      const body =
-        '<h2 style="margin:0">Services · ZeusAI Marketplace</h2>' +
-        '<p style="color:var(--muted);margin:8px 0 16px">Every price below is computed live by the Unicorn dynamic-pricing engine (USD + BTC, demand-aware). Updates push via SSE within 1 second.</p>' +
-        '<div id="price-ticker" class="card" style="margin-bottom:16px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">' +
-          '<div><h3 style="margin:0">Live pricing feed</h3><div class="sub" id="ticker-sub">Connecting to pricing engine…</div></div>' +
-          '<div><span class="pill" id="ticker-status">⏳ connecting</span> <span class="sub" id="ticker-btc">BTC: —</span></div>' +
-        '</div>' +
-        '<div id="services" class="grid"></div>' +
-        '<div id="checkout-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:1000;align-items:center;justify-content:center;padding:16px">' +
-          '<div class="card" style="max-width:560px;width:100%;background:#0a0f1e">' +
-            '<h3 id="ck-title" style="margin:0 0 8px">Checkout</h3>' +
-            '<div id="ck-body"></div>' +
-            '<div class="row" style="margin-top:16px"><button id="ck-btc">⚡ Pay with BTC</button><button class="btn-ghost" id="ck-stripe">💳 Pay with Card (Stripe)</button><button class="btn-ghost" id="ck-close">Cancel</button></div>' +
-            '<div id="ck-result" style="margin-top:12px;font-size:12px;color:var(--muted)"></div>' +
-          '</div>' +
-        '</div>';
-      const js = [
-        "(function(){",
-        "var STATE={services:{},prices:{},btcRate:null,current:null};",
-        "function esc(s){return String(s||'').replace(/[&<>\"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','\"':'&quot;'}[c];});}",
-        "function fmt(n){return Number(n||0).toLocaleString('en-US',{maximumFractionDigits:2,minimumFractionDigits:2});}",
-        "function fmtBtc(n){return n==null?'—':Number(n).toFixed(8)+' BTC';}",
-        "function setStatus(state){var el=document.getElementById('ticker-status');if(!el)return;if(state==='live'){el.textContent='● LIVE';el.style.color='var(--accent)';}else if(state==='polling'){el.textContent='⟳ polling';el.style.color='#f0c674';}else{el.textContent='⏳ connecting';el.style.color='#7a8499';}}",
-        "function render(){var grid=document.getElementById('services');if(!grid)return;var items=Object.values(STATE.services);if(!items.length){grid.innerHTML='<div class=\"card\"><h3>Catalog warming up</h3><div class=\"sub\">Real services appear within seconds. No fake prices ever shown.</div></div>';return;}",
-        "grid.innerHTML=items.map(function(s){var p=STATE.prices[s.id]||{};var usd=Number(p.price_usd!=null?p.price_usd:(p.finalPrice!=null?p.finalPrice:s.priceUsd))||0;var btc=p.price_btc!=null?p.price_btc:null;var surge=p.surgeActive?'<span class=\"pill\" style=\"background:#ff4444;color:#fff;border-color:#ff4444\">⚡ SURGE</span>':'';var promoted=s.isPromoted?'<span class=\"pill\" style=\"background:rgba(204,146,249,0.2);border-color:#cc92f9;color:#cc92f9\">★ Featured</span>':'';return '<div class=\"card\" data-sid=\"'+esc(s.id)+'\"><h3>'+esc(s.group||'service')+' '+promoted+'</h3><div style=\"font-size:16px;font-weight:600;margin:4px 0\">'+esc(s.title||s.id)+'</div><div class=\"price\" data-price-for=\"'+esc(s.id)+'\">$'+fmt(usd)+'</div>'+(btc!=null?'<div class=\"sub\" style=\"font-family:monospace\">≈ '+fmtBtc(btc)+'</div>':'')+' '+surge+'<p style=\"color:var(--muted);font-size:12px;margin:8px 0 12px\">'+esc(s.description||'AI service')+'</p><button onclick=\"window.__buy(\\''+encodeURIComponent(s.id)+'\\')\">Buy now →</button></div>';}).join('');}",
-        "function applyPrice(sid,p){STATE.prices[sid]=p;var n=document.querySelector('[data-price-for=\"'+sid+'\"]');if(n){var usd=Number(p.price_usd!=null?p.price_usd:p.finalPrice||0);n.textContent='$'+fmt(usd);}}",
-        "function applySnapshot(snap){if(!snap)return;if(snap.btcRate){STATE.btcRate=Number(snap.btcRate.rate||snap.btcRate);var bt=document.getElementById('ticker-btc');if(bt)bt.textContent='BTC: $'+fmt(STATE.btcRate);}var prices=snap.prices||snap.items||{};if(Array.isArray(prices)){prices.forEach(function(p){if(p&&p.serviceId)applyPrice(p.serviceId,p);});}else{Object.keys(prices).forEach(function(k){applyPrice(k,prices[k]||{});});}document.getElementById('ticker-sub').textContent='Last update: '+new Date().toLocaleTimeString()+' · '+Object.keys(STATE.services).length+' services';}",
-        "async function loadCatalog(){try{var r=await fetch('/api/products',{cache:'no-store'});var d=await r.json();var arr=Array.isArray(d)?d:(d.products||d.items||[]);arr.forEach(function(x){STATE.services[x.id]={id:x.id,title:x.title||x.name||x.id,description:x.description||'',group:x.group||x.category||'AI',priceUsd:Number(x.priceUsd||x.price||0),isPromoted:!!x.isPromoted};});render();}catch(e){}}",
-        "async function pollAll(){try{var r=await fetch('/api/pricing/all',{cache:'no-store'});if(!r.ok)throw new Error('http '+r.status);var d=await r.json();var prices=d&&d.prices||{};Object.keys(prices).forEach(function(k){applyPrice(k,{price_usd:prices[k].finalPrice,finalPrice:prices[k].finalPrice,surgeActive:prices[k].surgeActive,demandFactor:prices[k].demandFactor});});document.getElementById('ticker-sub').textContent='Polling · '+new Date().toLocaleTimeString();setStatus('polling');}catch(e){setStatus('connecting');}}",
-        "function connectSSE(){if(typeof EventSource!=='function')return false;try{var es=new EventSource('/api/pricing/live/stream');es.addEventListener('pricing',function(ev){try{applySnapshot(JSON.parse(ev.data));setStatus('live');}catch(_){}});es.onerror=function(){setStatus('connecting');};es.onopen=function(){setStatus('live');};return true;}catch(e){return false;}}",
-        "window.__buy=async function(encId){var sid=decodeURIComponent(encId);var svc=STATE.services[sid];if(!svc)return;var fresh=null;try{fresh=await fetch('/api/pricing/'+encodeURIComponent(sid),{cache:'no-store'}).then(function(r){return r.json();});}catch(_){}",
-        "var usd=fresh&&fresh.price_usd!=null?Number(fresh.price_usd):Number(svc.priceUsd||0);var btc=fresh&&fresh.price_btc!=null?fresh.price_btc:null;STATE.current={id:sid,title:svc.title,priceUsd:usd,priceBtc:btc};",
-        "document.getElementById('ck-title').textContent='Checkout: '+svc.title;document.getElementById('ck-body').innerHTML='<div style=\"font-size:14px;margin-top:8px\">Total: <b class=\"ok\">$'+fmt(usd)+'</b>'+(btc!=null?' <span class=\"sub\">(≈ '+fmtBtc(btc)+')</span>':'')+'</div><div class=\"sub\" style=\"margin-top:6px\">Price verified live · '+new Date().toLocaleTimeString()+'</div>';document.getElementById('ck-result').textContent='';document.getElementById('checkout-modal').style.display='flex';};",
-        "function closeModal(){document.getElementById('checkout-modal').style.display='none';}",
-        "async function pay(method){var cur=STATE.current;if(!cur)return;var out=document.getElementById('ck-result');out.innerHTML='Processing '+method+'…';try{var orderRes=await fetch('/api/checkout/create',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({serviceId:cur.id,plan:cur.id,qty:1,currency:'USD',paymentMethod:method==='stripe'?'STRIPE':'BTC'})});var order=await orderRes.json();if(!orderRes.ok||(order&&order.error)){throw new Error((order&&(order.error||order.message))||('http '+orderRes.status));}var orderId=order.orderId||order.id||(order.order&&order.order.id);var railPath=method==='stripe'?'/api/checkout/stripe':'/api/checkout/btc';var railRes=await fetch(railPath,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({orderId:orderId,serviceId:cur.id,amount:cur.priceUsd})});var rail=await railRes.json();",
-        "if(method==='stripe'&&rail&&rail.url){out.innerHTML='<span class=\"ok\">✓ Order '+esc(orderId||'')+' created</span> · redirecting to Stripe…';setTimeout(function(){window.location.href=rail.url;},600);return;}",
-        "if(method==='btc'&&(rail.btcAddress||rail.address||rail.btcUri)){var addr=rail.btcAddress||rail.address||'';var uri=rail.btcUri||('bitcoin:'+addr+'?amount='+(rail.btcAmount||cur.priceBtc||''));out.innerHTML='<span class=\"ok\">✓ Order '+esc(orderId||'')+' created</span><br>Send <b>'+(rail.btcAmount||cur.priceBtc||'')+' BTC</b> to <code style=\"word-break:break-all\">'+esc(addr)+'</code><br><a href=\"'+esc(uri)+'\" style=\"color:var(--accent)\">Open in wallet →</a> · <a href=\"/checkout/'+esc(orderId||'')+'\" style=\"color:var(--accent)\">Receipt + delivery →</a>';return;}",
-        "out.innerHTML='<span class=\"ok\">✓ '+esc((rail&&rail.message)||'Order created')+'</span> '+(orderId?'· order '+esc(orderId):'')+' · <a href=\"/checkout/'+esc(orderId||'')+'\" style=\"color:var(--accent)\">View receipt →</a>';}catch(e){out.innerHTML='<span class=\"err\">✗ '+esc(e.message||String(e))+'</span>';}}",
-        "document.getElementById('ck-btc').onclick=function(){pay('btc');};document.getElementById('ck-stripe').onclick=function(){pay('stripe');};document.getElementById('ck-close').onclick=closeModal;document.getElementById('checkout-modal').addEventListener('click',function(e){if(e.target.id==='checkout-modal')closeModal();});",
-        "loadCatalog();pollAll();var sse=connectSSE();if(!sse){setInterval(pollAll,5000);}else{setInterval(pollAll,15000);}setInterval(loadCatalog,60000);",
-        "var qs=new URLSearchParams(location.search);var pre=qs.get('buy');if(pre){setTimeout(function(){window.__buy(encodeURIComponent(pre));},1500);}",
-        "})();",
-      ].join('');
-      try { res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store', 'X-Unicorn-Page': 'services' }); } catch (_) {}
-      return res.end(renderPage('Services', body, js));
-    }
+    // (legacy '/services' client-only handler removed 2026-06-12 — the v2 SSR
+    // storefront below now serves /services with real server-rendered cards.)
 
     if (urlPath === '/revenue-command') {
       const body =
@@ -9545,6 +9502,16 @@ a{color:#8a5cff;text-decoration:none}
   if (urlPath === '/dropshipping') {
     res.writeHead(302, { Location: '/dropship', 'Cache-Control': 'no-store' });
     return res.end('Redirecting to /dropship');
+  }
+
+  // Legacy deep-link compat: /services?buy=<id> used to open a checkout modal
+  // on the old client-rendered services page. The v2 SSR storefront links each
+  // card to /checkout/?plan=<id>, so we 302 buyers straight into checkout.
+  // RO: linkurile vechi de cumpărare ajung direct în checkout — zero fricțiune.
+  if (urlPath === '/services' && requestUrl.searchParams.get('buy')) {
+    const buyId = String(requestUrl.searchParams.get('buy')).slice(0, 120);
+    res.writeHead(302, { Location: '/checkout/?plan=' + encodeURIComponent(buyId), 'Cache-Control': 'no-store' });
+    return res.end('Redirecting to checkout');
   }
 
   // Any SPA route → v2 shell
