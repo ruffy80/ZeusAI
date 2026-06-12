@@ -103,7 +103,8 @@ function _verticalIds() {
 
 /** Canonical list of every URL worth indexing. Deterministic, capped. */
 function urlsToSubmit() {
-  const core = ['/', '/services', '/pricing', '/store', '/checkout', '/status', '/proof', '/trust', '/verticals'];
+  const core = ['/', '/services', '/pricing', '/store', '/checkout', '/status', '/proof', '/trust', '/verticals',
+    '/contact', '/faq', '/blog', '/affiliate', '/partners', '/roadmap', '/careers', '/press'];
   const urls = new Set(core.map((p) => APP_URL + p));
   for (const id of _catalogIds()) urls.add(APP_URL + '/services/' + encodeURIComponent(id));
   for (const id of _verticalIds()) urls.add(APP_URL + '/vertical/' + encodeURIComponent(id));

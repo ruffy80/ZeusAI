@@ -768,80 +768,73 @@ app.get('/api/pricing/module/:moduleId', async (req, res) => {
 // Dynamic per-service pricing — proxies to Unicorn /api/pricing/:serviceId so
 // the public site shows live prices. No mock fallback for unknown services;
 // returns the raw upstream JSON when reachable, otherwise a stable shape.
-app.get('/api/pricing/:serviceId', async (req, res) => {
-  const serviceId = String(req.params.serviceId || '').slice(0, 80);
-  // Helper: look up the canonical catalog floor for this id across the three
-  // catalogs the site already loads. Used both as a fallback when the backend
-  // is unreachable AND as a corrective override when the backend's engine
-  // returned its generic $99 default for an id it doesn't yet know about.
-  function _catalogBaseFor(id) {
-    const probe = (mod) => {
-      if (!mod) return null;
-      try {
-        if (typeof mod.byId === 'function') {
-          const it = mod.byId(id);
-          if (it) return Number(it.priceUSD != null ? it.priceUSD : it.price);
-        }
-        if (typeof mod.all === 'function') {
-          const arr = mod.all() || [];
-          const it = arr.find(x => x && x.id === id);
-          if (it) return Number(it.priceUSD != null ? it.priceUSD : it.price);
-        }
-      } catch (_) {}
-      return null;
-    };
-    return probe(unifiedCatalog) || probe(instantCatalog) || probe(entCatalog) || null;
-  }
-  function _recomputeWithRealBase(upstream, realBase) {
-    // Reverse-derive the engine multipliers from the upstream response and
-    // apply them to the catalog's real floor. The engine returns
-    // demandFactor (effective = global × per-service variance) and surgeActive,
-    // so the multiplier is upstream.price_usd / upstream.basePrice for the
-    // discount/surge/peak combination already baked in. We replay it on
-    // the real base so the rendered USD/BTC numbers are dynamic but anchored
-    // to the catalog's intended floor.
+//
+// PRICE COHERENCE BY CONSTRUCTION (2026-06): the resolution pipeline below is
+// extracted into quotePublicPricing() and shared by BOTH this public route
+// AND the sovereign-commerce checkout (ctx.canonicalUsd). One code path → the
+// card, /pricing and the BTC invoice can never disagree. (RO: o singură
+// funcție decide prețul public; checkout-ul o refolosește identic.)
+function _catalogBaseForPricing(id) {
+  const probe = (mod) => {
+    if (!mod) return null;
     try {
-      const upstreamBase = Number(upstream.basePrice);
-      const upstreamPrice = Number(upstream.price_usd);
-      if (!(upstreamBase > 0) || !(upstreamPrice > 0)) return upstream;
-      const multiplier = upstreamPrice / upstreamBase;
-      const realFinal = Math.round(realBase * multiplier * 100) / 100;
-      const out = Object.assign({}, upstream, {
-        basePrice: realBase,
-        price_usd: realFinal,
-        finalPrice: realFinal,
-        source: (upstream.source || 'dynamic-pricing') + '-catalog-seeded',
-      });
-      if (upstream.btcRate && upstream.btcRate > 0) {
-        out.price_btc = Number((realFinal / upstream.btcRate).toFixed(8));
+      if (typeof mod.byId === 'function') {
+        const it = mod.byId(id);
+        if (it) return Number(it.priceUSD != null ? it.priceUSD : it.price);
       }
-      return out;
-    } catch (_) { return upstream; }
-  }
+      if (typeof mod.all === 'function') {
+        const arr = mod.all() || [];
+        const it = arr.find(x => x && x.id === id);
+        if (it) return Number(it.priceUSD != null ? it.priceUSD : it.price);
+      }
+    } catch (_) {}
+    return null;
+  };
+  return probe(unifiedCatalog) || probe(instantCatalog) || probe(entCatalog) || null;
+}
+function _recomputePricingWithRealBase(upstream, realBase) {
+  // Reverse-derive the engine multipliers from the upstream response and
+  // apply them to the catalog's real floor, so rendered numbers stay dynamic
+  // but anchored to the intended floor.
+  try {
+    const upstreamBase = Number(upstream.basePrice);
+    const upstreamPrice = Number(upstream.price_usd);
+    if (!(upstreamBase > 0) || !(upstreamPrice > 0)) return upstream;
+    const multiplier = upstreamPrice / upstreamBase;
+    const realFinal = Math.round(realBase * multiplier * 100) / 100;
+    const out = Object.assign({}, upstream, {
+      basePrice: realBase,
+      price_usd: realFinal,
+      finalPrice: realFinal,
+      source: (upstream.source || 'dynamic-pricing') + '-catalog-seeded',
+    });
+    if (upstream.btcRate && upstream.btcRate > 0) {
+      out.price_btc = Number((realFinal / upstream.btcRate).toFixed(8));
+    }
+    return out;
+  } catch (_) { return upstream; }
+}
+async function quotePublicPricing(serviceId, query) {
   const backendUrl = process.env.BACKEND_API_URL;
   if (backendUrl) {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), SITE_PROXY_TIMEOUT_MS);
     try {
-      const qp = new URLSearchParams(req.query || {}).toString();
+      const qp = new URLSearchParams(query || {}).toString();
       const target = backendUrl.replace(/\/$/, '') + '/api/pricing/' + encodeURIComponent(serviceId) + (qp ? ('?' + qp) : '');
       const r = await fetch(target, { headers: { Accept: 'application/json' }, signal: controller.signal });
       clearTimeout(timer);
       if (r.ok) {
         const upstream = await r.json();
-        // If the backend returned the engine's generic default (it doesn't
-        // know this id), correct it locally so the site never shows a wrong
-        // price for any catalog item — even if the backend hasn't been
-        // restarted with the seeding patch yet.
-        const realBase = _catalogBaseFor(serviceId);
+        const realBase = _catalogBaseForPricing(serviceId);
         if (realBase && (
           (upstream.source && /default/i.test(upstream.source)) ||
           (upstream.baseSource === 'fallback-default') ||
           (Number(upstream.basePrice) === 99 && realBase !== 99)
         )) {
-          return res.json(_recomputeWithRealBase(upstream, realBase));
+          return { payload: _recomputePricingWithRealBase(upstream, realBase), headerSource: null };
         }
-        return res.json(upstream);
+        return { payload: upstream, headerSource: null };
       }
       console.warn('[site-proxy] /api/pricing/' + serviceId + ' upstream ' + r.status);
     } catch (err) {
@@ -849,46 +842,54 @@ app.get('/api/pricing/:serviceId', async (req, res) => {
       console.warn('[site-proxy] /api/pricing/' + serviceId + ' failed: ' + (err && err.message));
     }
   }
-  // Backend unreachable — fall back to a local computation if we have the
-  // catalog floor, else return a static-fallback shape (keeps the contract
-  // stable but never invents a wrong concrete number for catalog items).
-  const realBase = _catalogBaseFor(serviceId);
+  // Backend unreachable — local computation anchored to the catalog floor.
+  const realBase = _catalogBaseForPricing(serviceId);
   if (realBase) {
     try {
       const dp = require('../backend/modules/dynamic-pricing');
       const live = dp.getPrice(serviceId, { basePrice: realBase });
-      res.set('X-Source', 'site-local-pricing');
-      return res.json({
-        serviceId,
-        price_usd: live.finalPrice,
-        price_btc: null,
-        currency: 'USD',
-        interval: 'month',
-        negotiated: false,
-        timestamp: new Date().toISOString(),
-        basePrice: live.basePrice,
-        finalPrice: live.finalPrice,
-        demandFactor: live.demandFactor,
-        peakHours: live.peakHours,
-        surgeActive: live.surgeActive,
-        discountApplied: live.discountApplied,
-        source: 'site-local-pricing-catalog-seeded',
-      });
+      return {
+        headerSource: 'site-local-pricing',
+        payload: {
+          serviceId,
+          price_usd: live.finalPrice,
+          price_btc: null,
+          currency: 'USD',
+          interval: 'month',
+          negotiated: false,
+          timestamp: new Date().toISOString(),
+          basePrice: live.basePrice,
+          finalPrice: live.finalPrice,
+          demandFactor: live.demandFactor,
+          peakHours: live.peakHours,
+          surgeActive: live.surgeActive,
+          discountApplied: live.discountApplied,
+          source: 'site-local-pricing-catalog-seeded',
+        }
+      };
     } catch (_) { /* fall through to mock */ }
   }
-  res.set('X-Source', 'site-fallback-mock');
   const negotiated = /enterprise|global|giants|tier/i.test(serviceId);
-  res.json({
-    serviceId,
-    price_usd: realBase || 99,
-    price_btc: null,
-    currency: 'USD',
-    interval: 'month',
-    negotiated,
-    timestamp: new Date().toISOString(),
-    source: realBase ? 'site-fallback-catalog' : 'site-fallback-mock',
-    note: realBase ? 'Backend unreachable — using catalog floor.' : 'Backend unreachable — fallback pricing active.',
-  });
+  return {
+    headerSource: 'site-fallback-mock',
+    payload: {
+      serviceId,
+      price_usd: realBase || 99,
+      price_btc: null,
+      currency: 'USD',
+      interval: 'month',
+      negotiated,
+      timestamp: new Date().toISOString(),
+      source: realBase ? 'site-fallback-catalog' : 'site-fallback-mock',
+      note: realBase ? 'Backend unreachable — using catalog floor.' : 'Backend unreachable — fallback pricing active.',
+    }
+  };
+}
+app.get('/api/pricing/:serviceId', async (req, res) => {
+  const serviceId = String(req.params.serviceId || '').slice(0, 80);
+  const { payload, headerSource } = await quotePublicPricing(serviceId, req.query);
+  if (headerSource) res.set('X-Source', headerSource);
+  return res.json(payload);
 });
 // Autoviralization — read-only status proxies are public; the trigger POST
 // is admin-gated by the backend (adminTokenMiddleware on /api/autonomous/viral/trigger
@@ -3407,6 +3408,18 @@ async function unicornHandler(req, res) {
     try {
       const handled = await commerce.handle(req, res, {
         buildSnapshot,
+        // PRICE COHERENCE BY CONSTRUCTION: checkout calls the SAME
+        // quotePublicPricing() pipeline that serves GET /api/pricing/:id —
+        // the number on the card IS the number on the invoice. (RO: aceeași
+        // funcție, același preț, fără excepții.)
+        canonicalUsd: async (id) => {
+          try {
+            const { payload } = await quotePublicPricing(String(id || '').slice(0, 80), {});
+            const v = Number(payload && (payload.price_usd != null ? payload.price_usd : payload.finalPrice));
+            if (Number.isFinite(v) && v > 0) return v;
+          } catch (_) { /* fall back to local canonical below */ }
+          return resolveCanonicalUsd(id);
+        },
         // Allow sovereign-commerce to resolve any item from /api/catalog/master
         // (Vertical OS, Frontier, Activation packages, Future R&D primitives,
         // auto-discovered modules) so the buyer pays directly to the owner BTC
@@ -4167,9 +4180,20 @@ async function unicornHandler(req, res) {
     try {
       const seo = require('../backend/modules/programmatic-seo-engine');
       const list = seo.listVerticals();
-      const html = `<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><title>Vertical OS Catalog · ZeusAI</title><meta name="description" content="ZeusAI vertical AI operating systems — 18 industries, BTC-settled.">
-<style>body{font:16px/1.6 -apple-system,Segoe UI,Roboto,sans-serif;max-width:880px;margin:2rem auto;padding:0 1rem;color:#111}h1{font-size:2rem}ul{list-style:none;padding:0}li{border-bottom:1px solid #eee;padding:.75rem 0}a{color:#06c;text-decoration:none;font-weight:600}.kpi{color:#0a7;font-size:.85rem;margin-left:.5rem}.price{float:right;color:#000;font-weight:700}</style></head>
-<body><h1>Vertical AI Operating Systems</h1><p>18 turn-key vertical OSes. Same sovereign infra, different KPI focus. BTC-settled.</p><ul>${list.map((v) => `<li><a href="/vertical/${v.id}">${v.title}</a><span class="kpi">${v.kpi}</span><span class="price">$${v.priceUsd}</span></li>`).join('')}</ul><p><a href="/">← Home</a> · <a href="/sitemap.xml">Sitemap</a></p></body></html>`;
+      // CONVERSION UPGRADE (2026-06): the old index was bare <li> links with
+      // ZERO buy CTAs — visitors had to click through twice to find a price
+      // action. Now every vertical is a card with KPI, live price and TWO
+      // direct actions (landing + instant BTC checkout). RO: cumpărare din
+      // index, fără fricțiune.
+      const cards = list.map((v) => `<li class="card">
+<div class="meta"><a class="title" href="/vertical/${v.id}">${v.title}</a><span class="kpi">${v.kpi}</span></div>
+<div class="act"><span class="price">$${v.priceUsd}<small>/mo</small></span>
+<a class="btn ghost" href="/vertical/${v.id}">Details</a>
+<a class="btn buy" href="/checkout/?plan=${encodeURIComponent(v.id)}" data-vertical-buy="${v.id}">Deploy → BTC −10%</a></div>
+</li>`).join('');
+      const html = `<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><title>Vertical OS Catalog · ZeusAI</title><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="description" content="ZeusAI vertical AI operating systems — ${list.length} industries, BTC-settled, instant deploy.">
+<style>body{font:16px/1.6 -apple-system,Segoe UI,Roboto,sans-serif;max-width:980px;margin:2rem auto;padding:0 1rem;color:#e7ecf3;background:#070510}h1{font-size:2.1rem;background:linear-gradient(135deg,#8a5cff,#4ea1ff);-webkit-background-clip:text;background-clip:text;color:transparent}p.lead{color:#9aa3b5}ul{list-style:none;padding:0;display:grid;gap:12px}li.card{border:1px solid #221d3d;border-radius:12px;padding:16px 18px;display:flex;justify-content:space-between;align-items:center;gap:14px;flex-wrap:wrap;background:#0d0a1c}.meta{display:flex;flex-direction:column;gap:4px;min-width:220px}.title{color:#cfd6ff;text-decoration:none;font-weight:700;font-size:1.05rem}.title:hover{color:#fff}.kpi{color:#7fffd4;font-size:.8rem}.act{display:flex;align-items:center;gap:10px;flex-wrap:wrap}.price{color:#ffd36a;font-weight:800;font-size:1.2rem}.price small{color:#9aa3b5;font-weight:400}.btn{padding:8px 14px;border-radius:9px;text-decoration:none;font-weight:600;font-size:.88rem}.btn.buy{background:linear-gradient(135deg,#8a5cff,#4ea1ff);color:#fff}.btn.ghost{border:1px solid #2c2752;color:#cfd6ff}.foot{color:#9aa3b5;margin-top:24px;font-size:.9rem}a{color:#4ea1ff}</style></head>
+<body><h1>Vertical AI Operating Systems</h1><p class="lead">${list.length} turn-key vertical OSes. Same sovereign infra, different KPI focus. Pay in BTC — 10% sovereign discount applied automatically at checkout, Ed25519-signed receipt included.</p><ul>${cards}</ul><p class="foot"><a href="/">← Home</a> · <a href="/services">Marketplace</a> · <a href="/sitemap.xml">Sitemap</a></p></body></html>`;
       res.writeHead(200, { 'Content-Type':'text/html; charset=utf-8', 'Cache-Control':'public, max-age=300' });
       return res.end(html);
     } catch (e) {
@@ -5318,8 +5342,16 @@ async function unicornHandler(req, res) {
   }
 
   if (urlPath === '/me') {
-    res.writeHead(200, { 'Content-Type': 'application/json' });
-    return res.end(JSON.stringify(userProfile));
+    // SECURITY/HONESTY (2026-06): this route used to return a hardcoded
+    // demo-user profile to EVERYONE — fake data presented as real on a live
+    // domain. Now it answers honestly: no session → 401 + pointer to the
+    // real account flow. (RO: fără date false pe rute publice.)
+    res.writeHead(401, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
+    return res.end(JSON.stringify({
+      error: 'auth_required',
+      message: 'No active session. Sign in at /account — license-token and receipt lookups live there.',
+      login: '/account'
+    }));
   }
 
   if (urlPath === '/telemetry') {
@@ -9531,11 +9563,18 @@ a{color:#8a5cff;text-decoration:none}
     '/trust', '/security', '/responsible-ai', '/dpa', '/payment-terms', '/operator', '/observability',
     '/enterprise', '/store', '/account', '/innovations', '/wizard', '/status', '/changelog',
     '/terms', '/privacy', '/refund', '/sla', '/pledge', '/cancel', '/gift', '/aura',
-    '/api-explorer', '/transparency', '/frontier', '/crypto-fiat-bridge', '/marketplace'
+    '/api-explorer', '/transparency', '/frontier', '/crypto-fiat-bridge', '/marketplace',
+    // Real SSR pages (2026-06): previously these fell through to the legacy
+    // homepage clone — duplicate-content SEO poison + dead-end UX. Each now
+    // has a dedicated page in src/site/v2/shell.js. RO: pagini reale, nu clone.
+    '/contact', '/faq', '/blog', '/affiliate', '/partners', '/roadmap', '/careers', '/press'
   ];
-  const isV2Route = v2Routes.includes(urlPath) || urlPath.startsWith('/services/');
+  // Normalize trailing slash so '/checkout/' '/pricing/' etc. resolve to the
+  // same SSR page instead of falling through to the homepage clone.
+  const v2Path = (urlPath.length > 1 && urlPath.endsWith('/')) ? urlPath.replace(/\/+$/, '') : urlPath;
+  const isV2Route = v2Routes.includes(v2Path) || v2Path.startsWith('/services/');
   if (isV2Route) {
-    const route = urlPath;
+    const route = v2Path;
     // 30Y-LTS: per-request CSP nonce (Nginx forwards X-CSP-Nonce as $request_id;
     // if absent — local dev — we generate one. Inline scripts get this nonce.
     const nonce = String(req.headers['x-csp-nonce'] || crypto.randomBytes(12).toString('base64'));
@@ -9631,7 +9670,31 @@ a{color:#8a5cff;text-decoration:none}
     })();
     const autoLang = geoLang || acceptLang || 'en';
     const lang = cookieLang || autoLang;
-    let html = v2.getHtml(route, { lang, autoLang, country, nonce });
+    // CONVERSION SSR (2026-06): deep links like /checkout/?plan=adaptive-ai
+    // render the plan AND its canonical live price directly into the HTML —
+    // zero flicker, zero "computing…", price identical to the card the buyer
+    // clicked. (RO: prețul corect e în pagină înainte să ruleze orice JS.)
+    const ssrParams = { lang, autoLang, country, nonce };
+    if (route === '/checkout') {
+      const planQ = String(requestUrl.searchParams.get('plan') || requestUrl.searchParams.get('serviceId') || requestUrl.searchParams.get('service') || '').slice(0, 120);
+      if (planQ) {
+        ssrParams.plan = planQ;
+        try {
+          // Same pipeline as GET /api/pricing/:id → SSR shows the exact
+          // number the buyer will be invoiced. (RO: coerență totală.)
+          const { payload } = await quotePublicPricing(planQ, {});
+          const usd = Number(payload && (payload.price_usd != null ? payload.price_usd : payload.finalPrice));
+          if (Number.isFinite(usd) && usd > 0) ssrParams.planUsd = usd;
+        } catch (_) { /* price stays client-resolved */ }
+        if (ssrParams.planUsd == null) {
+          try {
+            const usd = resolveCanonicalUsd(planQ);
+            if (Number.isFinite(Number(usd)) && Number(usd) > 0) ssrParams.planUsd = Number(usd);
+          } catch (_) { /* price stays client-resolved */ }
+        }
+      }
+    }
+    let html = v2.getHtml(route, ssrParams);
     // Inject verifiable build marker so the freshly deployed variant is
     // always distinguishable from any stale browser cache.
     const buildMeta = '<meta name="x-zeus-build" content="' + ZEUS_BUILD.sha + '"><meta name="x-zeus-built-at" content="' + ZEUS_BUILD.ts + '">';

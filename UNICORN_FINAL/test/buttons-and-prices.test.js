@@ -88,8 +88,15 @@ assert.ok(/dynamicPricingEngine\.registerServices/.test(SITE),
   'src/index.js must seed the dynamic-pricing engine from the catalogs at boot');
 assert.ok(/unifiedCatalog\.all\(\)/.test(SITE) && /instantCatalog\.all\(\)/.test(SITE) && /entCatalog\.all\(\)/.test(SITE),
   'src/index.js must seed from unified + instant + enterprise catalogs');
-assert.ok(/_recomputeWithRealBase/.test(SITE),
+assert.ok(/_recompute(Pricing)?WithRealBase/.test(SITE),
   'src/index.js /api/pricing/:serviceId must have the recompute-with-real-base correction path');
+// 2026-06: the pricing pipeline is now shared-by-construction — checkout
+// (sovereign-commerce ctx.canonicalUsd) must call the SAME quotePublicPricing()
+// the public route uses, so the card price always equals the invoice.
+assert.ok(/quotePublicPricing/.test(SITE),
+  'src/index.js must expose the shared quotePublicPricing() pipeline');
+assert.ok(/canonicalUsd:\s*async/.test(SITE),
+  'src/index.js commerce ctx must provide canonicalUsd via the shared pricing pipeline');
 assert.ok(/\/default\/i\.test\(upstream\.source\)/.test(SITE) || /\/default\/i\.test/.test(SITE),
   'src/index.js must detect the engine fallback-default response and override locally');
 assert.ok(/'\/api\/site\/log'/.test(SITE),
