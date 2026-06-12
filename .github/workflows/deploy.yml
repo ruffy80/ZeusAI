@@ -315,8 +315,10 @@ jobs:
           DEPLOY_LINK="/var/www/unicorn/UNICORN_FINAL"
 
           ssh -o StrictHostKeyChecking=no root@${{ secrets.HETZNER_HOST }} "mkdir -p $RELEASE_ROOT && mkdir -p $RELEASE_PATH"
+          # ZAC e serviciu de primă clasă (misiunea autonomiei) — NU se mai
+          # dezactivează la deploy; e repornit după switch ca să ia codul nou.
           ssh -o StrictHostKeyChecking=no root@${{ secrets.HETZNER_HOST }} \
-            "systemctl disable --now zac.service 2>/dev/null || true; systemctl reset-failed zac.service 2>/dev/null || true; systemctl disable --now unicorn-rescue-backend.service 2>/dev/null || true; systemctl reset-failed unicorn-rescue-backend.service 2>/dev/null || true; pm2 delete unicorn-guardian 2>/dev/null || true; pm2 save --force 2>/dev/null || true"
+            "systemctl disable --now unicorn-rescue-backend.service 2>/dev/null || true; systemctl reset-failed unicorn-rescue-backend.service 2>/dev/null || true; pm2 delete unicorn-guardian 2>/dev/null || true; pm2 save --force 2>/dev/null || true"
           rsync -avz --no-times --delete \
             --exclude='.git' \
             --exclude='node_modules' \
@@ -417,8 +419,9 @@ jobs:
           # server-doctor.sh handles: Node.js install, pm2 install, npm ci, nginx, firewall,
           # pm2 startup systemd, pm2 delete all + start ecosystem.config.js + pm2 save.
           export UNICORN_GUARDIAN=0
-          systemctl disable --now zac.service 2>/dev/null || true
+          # ZAC rămâne enabled; restart după switch ca să ruleze codul release-ului nou.
           systemctl reset-failed zac.service 2>/dev/null || true
+          systemctl try-restart zac.service 2>/dev/null || true
           systemctl disable --now unicorn-rescue-backend.service 2>/dev/null || true
           systemctl reset-failed unicorn-rescue-backend.service 2>/dev/null || true
           pm2 delete unicorn-guardian 2>/dev/null || true
