@@ -6650,7 +6650,21 @@ app.get('/api/order/:id', (req, res) => {
 // Integrarea REALĂ e btcPaymentVerifier care urmărește mempool.space și
 // apelează același _onPaidInvoice → același flux de activare. Mock-ul
 // există ca să potăm proba cap-coadă fără a mișca BTC reali.
-app.post('/api/order/:id/simulate-payment', adminTokenMiddleware, (req, res) => {
+// Gate dual: admin JWT clasic SAU header x-commerce-admin-secret (cryptoauth
+// a retras login-ul legacy cu parolă — secretul static rămâne calea ops).
+function salesAdminGate(req, res, next) {
+  const secret = process.env.COMMERCE_ADMIN_SECRET || '';
+  const provided = String(req.headers['x-commerce-admin-secret'] || '');
+  if (secret && provided) {
+    const a = Buffer.from(provided), b = Buffer.from(secret);
+    if (a.length === b.length && crypto.timingSafeEqual(a, b)) {
+      req.admin = { role: 'admin', sub: 'commerce-admin-secret' };
+      return next();
+    }
+  }
+  return adminTokenMiddleware(req, res, next);
+}
+app.post('/api/order/:id/simulate-payment', salesAdminGate, (req, res) => {
   try {
     const inv = btcLedger.getInvoice(req.params.id);
     if (!inv) return res.status(404).json({ ok: false, error: 'not_found' });

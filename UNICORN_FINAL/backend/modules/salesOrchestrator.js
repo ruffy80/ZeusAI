@@ -130,7 +130,9 @@ async function createOrder({ serviceId, email = null, qty = 1, metadata = {}, dr
         amountBtc: inv.amountBtc,
         payoutAddress: inv.payoutAddress,
         bip21: `bitcoin:${inv.payoutAddress}?amount=${inv.amountBtc}&label=${encodeURIComponent('ZeusAI ' + inv.id)}`,
-        statusUrl: '/api/order/' + encodeURIComponent(inv.id),
+        // /api/invoice/:id e rutat public de nginx direct la backend (3000),
+        // pe când /api/order/:id e revendicat de sovereign-commerce pe site.
+        statusUrl: '/api/invoice/' + encodeURIComponent(inv.id),
       },
       invoice: inv,
     };
@@ -183,7 +185,8 @@ function getActivationByInvoice(invoiceId) {
   const target = String(invoiceId || '');
   if (!target) return null;
   const all = _loadActivations();
-  return all.find((a) => a && a.invoiceId === target) || null;
+  // invoice.id e numeric în ledger dar string în query — compară normalizat.
+  return all.find((a) => a && String(a.invoiceId) === target) || null;
 }
 
 function listActivations({ limit = 50 } = {}) {

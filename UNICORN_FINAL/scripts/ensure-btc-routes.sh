@@ -27,9 +27,8 @@ if [ -z "$CONF" ]; then
 fi
 
 if grep -q "BTC invoice + ZAC alerts + AI multi-router" "$CONF"; then
-  echo "[ensure-btc-routes] Already up to date in $CONF — skipping."
-  exit 0
-fi
+  echo "[ensure-btc-routes] Main block already up to date in $CONF — skipping to step 2."
+else
 
 # Upgrade path: an older version of this script may have injected a block
 # with marker "BTC invoice + ZAC alerts API" (no /api/ai/). Strip it so the
@@ -134,3 +133,52 @@ fi
 
 systemctl reload nginx || service nginx reload || true
 echo "[ensure-btc-routes] ✅ BTC API routes active on $CONF"
+
+fi  # end main-block else
+
+# ── Step 2 (idempotent): exact-match /api/order → backend 3000. ───────────
+# Fără el, POST https://domain/api/order lovește `location /` → 301 spre
+# /api/order/ și clientul pierde body-ul JSON. Slash-variant rămâne pe 3001
+# (sovereign-commerce își păstrează /api/order/:id/status).
+if ! grep -q 'location = /api/order ' "$CONF"; then
+  echo "[ensure-btc-routes] adding exact-match /api/order → 3000"
+  TS2=$(date +%s)
+  cp "$CONF" "/var/backups/$(basename "$CONF").bak.order.${TS2}" 2>/dev/null || true
+  python3 - "$CONF" <<'PYORD'
+import sys, re
+path = sys.argv[1]
+with open(path) as f:
+    txt = f.read()
+inject = """
+    # salesOrchestrator order intake → backend (managed by ensure-btc-routes.sh)
+    location = /api/order {
+        proxy_pass         http://127.0.0.1:3000;
+        proxy_http_version 1.1;
+        proxy_set_header   Host              $host;
+        proxy_set_header   X-Real-IP         $remote_addr;
+        proxy_set_header   X-Forwarded-For   $proxy_add_x_forwarded_for;
+        proxy_set_header   X-Forwarded-Proto $scheme;
+    }
+
+"""
+m = re.search(r'(    location \^~ /api/order/ )', txt)
+if not m:
+    m = re.search(r'(    location \^~ /api/invoice/ )', txt)
+if not m:
+    print('[python] no anchor for /api/order exact-match', file=sys.stderr)
+    sys.exit(2)
+new = txt[:m.start()] + inject + txt[m.start():]
+with open(path, 'w') as f:
+    f.write(new)
+print('[python] injected exact-match /api/order')
+PYORD
+  if ! nginx -t >/dev/null 2>&1; then
+    echo "[ensure-btc-routes] nginx -t failed (order step), restoring backup"
+    cp "/var/backups/$(basename "$CONF").bak.order.${TS2}" "$CONF"
+    exit 1
+  fi
+  systemctl reload nginx || service nginx reload || true
+  echo "[ensure-btc-routes] ✅ exact-match /api/order active"
+else
+  echo "[ensure-btc-routes] exact-match /api/order already present"
+fi

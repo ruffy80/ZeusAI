@@ -151,6 +151,13 @@ async function main() {
   console.log(`RESULT: pass=${pass} fail=${fail} skip=${skip}`);
   if (fail > 0) { console.log('❌ MODULES COMMUNICATION: FAILURES DETECTED'); process.exit(1); }
   console.log('✅ TOATE MODULELE COMUNICĂ EFICIENT (modules communicate correctly)');
+  // Modulele încărcate pornesc timere/bucle (autoMarketing, mesh, verifier) care
+  // țin event-loop-ul viu — exit explicit ca testul să se termine și pe server.
+  process.exit(0);
 }
+
+// Watchdog: dacă vreo secțiune async atârnă (fetch extern, scan greu), testul
+// se încheie singur în 120s în loc să rămână blocat pe server.
+setTimeout(() => { console.error('⏱ TIMEOUT: test exceeded 120s'); process.exit(2); }, 120000);
 
 main().catch((e) => { console.error('FATAL', e); process.exit(1); });
