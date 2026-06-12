@@ -94,6 +94,19 @@ async function api(path, opts){
     return j;
   } catch (e) { console.warn('api', path, e.message); return null; }
 }
+function funnelSessionId(){
+  // Stable anonymous session id (per browser) so funnel-intelligence can
+  // count REAL unique visitors. No PII — random hex only.
+  // RO: id de sesiune anonim, persistent — vizitatori reali, fără PII.
+  try {
+    let sid = localStorage.getItem('u_sid');
+    if (!sid) {
+      sid = Array.from(crypto.getRandomValues(new Uint8Array(16))).map(b=>b.toString(16).padStart(2,'0')).join('');
+      localStorage.setItem('u_sid', sid);
+    }
+    return sid;
+  } catch(_) { return 'no-storage'; }
+}
 function trackFunnel(event, meta){
   try {
     if (!event) return;
@@ -101,6 +114,7 @@ function trackFunnel(event, meta){
       event: String(event).slice(0, 80),
       route: (location.pathname.replace(/\/$/, '') || '/'),
       source: 'site-v2',
+      sessionId: funnelSessionId(),
       ts: new Date().toISOString(),
       ...(meta || {}),
     };
@@ -3862,6 +3876,9 @@ window.addEventListener('DOMContentLoaded', () => {
   openPricingStream();
   subscribeAutonomousEvents();
   hydratePage(STATE.route);
+  // Real visitor counting: one page_view beacon per load → durable funnel.
+  // RO: un beacon page_view per încărcare — vizitatori reali, durabili.
+  trackFunnel('page_view', {});
 });
 
 // ===================== AUTONOMOUS LIVE BRIDGE =====================

@@ -2536,6 +2536,16 @@ const canaryCtrl       = require('./modules/canary-controller');
 const controlPlane     = require('./modules/control-plane-agent');
 const profitLoop       = require('./modules/profit-control-loop');
 
+// ==================== AUTONOMOUS GROWTH STACK (2026-06-12) ====================
+// Closed-loop revenue compounding: durable funnel truth + search-engine
+// distribution + RAM guardian + the flywheel that connects them all.
+// RO: stiva de creștere autonomă — funnel durabil, trafic, memorie, volan.
+let funnelIntelligence = null, trafficEngine = null, memoryGuardian = null, revenueFlywheel = null;
+try { funnelIntelligence = require('./modules/funnel-intelligence'); } catch (e) { console.warn('[funnel-intelligence] disabled:', e && e.message); }
+try { trafficEngine = require('./modules/traffic-engine'); } catch (e) { console.warn('[traffic-engine] disabled:', e && e.message); }
+try { memoryGuardian = require('./modules/memory-guardian'); } catch (e) { console.warn('[memory-guardian] disabled:', e && e.message); }
+try { revenueFlywheel = require('./modules/revenue-flywheel'); } catch (e) { console.warn('[revenue-flywheel] disabled:', e && e.message); }
+
 // ==================== AUTONOMY SPINE — coloana de autonomie demonstrabilă ====================
 // Creierul de guvernanță: citește organele reale (mesh/SLO/profit/control-plane/
 // circuit), calculează o postură (EXPLORE/EXPLOIT/PROTECT/FREEZE), o semnează
@@ -3162,6 +3172,29 @@ if (_isPrimaryWorker) {
     domainAutomationManager.init().catch(err =>
       console.warn('[DomainAutomation] init error:', err.message, err.stack)
     );
+  }
+
+  // ==================== AUTONOMOUS GROWTH STACK — pornire ====================
+  // Runs in EVERY profile (incl. stable): footprint is tiny (3 unref'd
+  // intervals, bounded state) and revenue cannot wait for a growth profile.
+  // RO: pornește și în profil stabil — venitul nu așteaptă.
+  if (process.env.NODE_ENV !== 'test' && process.env.GROWTH_STACK_DISABLED !== '1') {
+    try {
+      if (memoryGuardian) {
+        // Cooperative trimmers — invoked only under measured RAM pressure.
+        memoryGuardian.registerTrimmer('route-cache', () => { try { return routeCache.clearCache(); } catch (e) { return { ok: false, error: e && e.message }; } });
+        memoryGuardian.registerTrimmer('funnel-buffer', () => { const n = funnelEvents.length; funnelEvents.splice(0, Math.max(0, n - 200)); return { kept: funnelEvents.length, dropped: n - funnelEvents.length }; });
+        memoryGuardian.registerTrimmer('funnel-intelligence-flush', () => (funnelIntelligence ? funnelIntelligence.flush() : { ok: false }));
+        memoryGuardian.start();
+      }
+    } catch (e) { console.warn('[memory-guardian] start failed:', e && e.message); }
+    try { if (trafficEngine) trafficEngine.start(); } catch (e) { console.warn('[traffic-engine] start failed:', e && e.message); }
+    try {
+      if (revenueFlywheel) {
+        revenueFlywheel.configure({ funnelIntelligence, trafficEngine, dynamicPricing });
+        revenueFlywheel.start();
+      }
+    } catch (e) { console.warn('[revenue-flywheel] start failed:', e && e.message); }
   }
 
   // Pornire module cu cicluri autonome
@@ -5816,16 +5849,21 @@ app.post('/api/analytics/funnel', (req, res) => {
   const event = sanitizeString(body.event, 80);
   if (!event) return res.status(400).json({ ok: false, error: 'event_required' });
   const valueRaw = Number(body.value);
-  pushFunnelEvent({
+  const evt = {
     event,
     route: sanitizeString(body.route, 160),
     serviceId: sanitizeString(body.serviceId, 120),
+    sessionId: sanitizeString(body.sessionId, 64),
     source: sanitizeString(body.source || 'web', 40),
     value: Number.isFinite(valueRaw) ? valueRaw : null,
     ts: new Date().toISOString(),
     ip: req.ip || (req.connection && req.connection.remoteAddress) || 'unknown',
     ua: sanitizeString(req.headers['user-agent'] || '', 180),
-  });
+  };
+  pushFunnelEvent(evt);
+  // Durable aggregation — survives PM2 reloads, feeds reality-metrics + flywheel.
+  // RO: agregare durabilă — vizitatorii nu se mai pierd la restart.
+  if (funnelIntelligence) { try { funnelIntelligence.record(evt); } catch (_) {} }
   return res.status(202).json({ ok: true });
 });
 
@@ -8728,6 +8766,41 @@ app.post('/api/autonomous/revenue/generate-deals', adminTokenMiddleware, (req, r
   autoRevenue.createMarketplaceListings();
   autoRevenue.negotiateB2BPartnerships();
   res.json({ success: true, message: 'Revenue generation cycle triggered' });
+});
+
+// ==================== AUTONOMOUS GROWTH STACK ROUTES (2026-06-12) ====================
+// Public read-only status + admin-gated triggers. Grouped per domain blocks
+// convention. RO: statusuri publice read-only, declanșatoare doar cu token.
+app.get('/api/traffic/status', (req, res) => {
+  if (!trafficEngine) return res.status(503).json({ error: 'traffic-engine not loaded' });
+  res.json(trafficEngine.getStatus());
+});
+
+app.post('/api/traffic/ping', adminTokenMiddleware, asyncHandler(async (req, res) => {
+  if (!trafficEngine) return res.status(503).json({ error: 'traffic-engine not loaded' });
+  const out = await trafficEngine.runCycle({ dryRun: String(req.query.dryRun || '') === '1' });
+  res.json(out);
+}));
+
+app.get('/api/funnel/intelligence', (req, res) => {
+  if (!funnelIntelligence) return res.status(503).json({ error: 'funnel-intelligence not loaded' });
+  res.json(funnelIntelligence.summary());
+});
+
+app.get('/api/flywheel/status', (req, res) => {
+  if (!revenueFlywheel) return res.status(503).json({ error: 'revenue-flywheel not loaded' });
+  res.json(revenueFlywheel.getStatus());
+});
+
+app.post('/api/flywheel/run', adminTokenMiddleware, asyncHandler(async (req, res) => {
+  if (!revenueFlywheel) return res.status(503).json({ error: 'revenue-flywheel not loaded' });
+  const out = await revenueFlywheel.runCycle({ dryRun: String(req.query.dryRun || '') === '1' });
+  res.json(out);
+}));
+
+app.get('/api/memory/status', (req, res) => {
+  if (!memoryGuardian) return res.status(503).json({ error: 'memory-guardian not loaded' });
+  res.json(memoryGuardian.getStatus());
 });
 
 // ==================== AUTO VIRAL GROWTH ROUTES ====================

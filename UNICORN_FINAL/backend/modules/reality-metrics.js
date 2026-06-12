@@ -48,6 +48,13 @@ function getUaic() {
   return null;
 }
 
+let _funnelIntel = null;
+function getFunnelIntel() {
+  if (_funnelIntel !== null) return _funnelIntel;
+  try { _funnelIntel = require('./funnel-intelligence'); } catch (_) { _funnelIntel = false; }
+  return _funnelIntel || null;
+}
+
 // Where commerce orders live (jsonl appended by sovereign-commerce/uaic).
 const COMMERCE_DIR = path.resolve(__dirname, '..', '..', 'data', 'commerce');
 const RECEIPTS_PATH = path.join(COMMERCE_DIR, 'uaic-receipts.jsonl');
@@ -131,6 +138,11 @@ function _leadStats() {
 function snapshot() {
   const orders = _orderStats();
   const leads = _leadStats();
+  // Visitors are now REAL (2026-06-12): durable sessions from
+  // funnel-intelligence (sendBeacon page_view → per-day unique sessionIds).
+  // RO: vizitatorii sunt numărați din sesiuni durabile, nu null.
+  let fv = null;
+  try { const fi = getFunnelIntel(); fv = fi ? fi.visitors() : null; } catch (_) { fv = null; }
   return {
     ok: true,
     generatedAt: new Date().toISOString(),
@@ -146,7 +158,10 @@ function snapshot() {
     entitlements: _entitlementCount(),
     leads: leads,
     funnel: {
-      visitors: null, // not tracked yet — see /api/growth/real for explanation
+      visitors: fv ? fv.last30d : null,
+      visitorsToday: fv ? fv.today : null,
+      visitors7d: fv ? fv.last7d : null,
+      visitorsSource: fv ? fv.source : 'funnel-intelligence not loaded',
       signups: _customerCount(),
       paidCustomers: orders.paid,
       conversionRate: orders.paid > 0 && _customerCount() > 0 ? Math.round((orders.paid / _customerCount()) * 10000) / 100 + '%' : null,

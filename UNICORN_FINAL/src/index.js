@@ -3608,6 +3608,17 @@ async function unicornHandler(req, res) {
       // Sitemap + robots + openapi
       if (fu === '/sitemap.xml' || fu === '/seo/sitemap.xml')   return ftext(200, frontier.sitemapXml(APP_URL), 'application/xml; charset=utf-8');
       if (fu === '/robots.txt'  || fu === '/seo/robots.txt')    return ftext(200, frontier.robotsTxt(APP_URL));
+      // IndexNow key file — must match backend traffic-engine derivation
+      // (sha256('zeusai-indexnow:'+host) → 32 hex). Search engines fetch this
+      // to verify URL-submission ownership. RO: fișierul-cheie IndexNow.
+      if (/^\/indexnow-[0-9a-f]{16,64}\.txt$/.test(fu)) {
+        const inHost = (() => { try { return new URL(APP_URL).host; } catch (_) { return 'zeusai.pro'; } })();
+        const inKey = process.env.INDEXNOW_KEY
+          ? String(process.env.INDEXNOW_KEY).slice(0, 64)
+          : crypto.createHash('sha256').update('zeusai-indexnow:' + inHost).digest('hex').slice(0, 32);
+        if (fu === '/indexnow-' + inKey + '.txt') return ftext(200, inKey);
+        return ftext(404, 'unknown indexnow key');
+      }
       if (fu === '/openapi.json' || fu === '/api/openapi')  return fsend(200, frontier.openApiSpec());
       if (fu === '/openapi-public.json' || fu === '/api/openapi/public') {
         const all = frontier.openApiSpec() || {};
