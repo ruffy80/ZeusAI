@@ -319,6 +319,21 @@
 			"label": "verify-e2e",
 			"type": "shell",
 			"command": "sleep 200 && zsh tmp/run_verify_durable.sh"
+		},
+		{
+			"label": "ssh-unicorn-shell",
+			"type": "shell",
+			"command": "ssh -o BatchMode=yes -o StrictHostKeyChecking=no root@204.168.230.142"
+		},
+		{
+			"label": "live-sync-unicorn-now",
+			"type": "shell",
+			"command": "zsh /Users/ionutvladoi/Desktop/generate-unicorn/scripts/live_sync_unicorn.sh"
+		},
+		{
+			"label": "push-main-and-watch-deploy",
+			"type": "shell",
+			"command": "zsh /Users/ionutvladoi/Desktop/generate-unicorn/scripts/push_main_and_watch_deploy.sh"
 		}
 	]
 }
