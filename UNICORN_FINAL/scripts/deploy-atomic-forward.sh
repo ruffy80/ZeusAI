@@ -9,7 +9,8 @@ CANARY_TIMEOUT_SECONDS="${CANARY_TIMEOUT_SECONDS:-90}"
 FINAL_SMOKE_ATTEMPTS="${FINAL_SMOKE_ATTEMPTS:-24}"
 PM2_APPS="unicorn-backend unicorn-site"
 PM2_ONLY="unicorn-backend,unicorn-site"
-RETIRED_PM2_APPS="autoscaler module-mesh-guardian unicorn-live-sync unicorn-guardian"
+# module-mesh-guardian is ACTIVE (works together with ZAC systemd) — do not retire.
+RETIRED_PM2_APPS="autoscaler unicorn-live-sync unicorn-guardian"
 
 if [ -z "$CANDIDATE_DIR" ]; then
   echo "usage: $0 /path/to/candidate/UNICORN_FINAL [/var/www/unicorn/UNICORN_FINAL]" >&2

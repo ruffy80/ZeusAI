@@ -3470,12 +3470,25 @@ function buildHealthResponse() {
       fallbackPricing = dp.getFallbackStatus();
     }
   } catch (_) {}
+  // modules[] — lista modulelor-cheie de business, fiecare verificat că e
+  // încărcat în runtime. RO: contractul /api/health cerut de misiune.
+  const keyModules = [
+    'priceNegotiator', 'serviceCatalog', 'salesOrchestrator',
+    'btcInvoiceLedger', 'btcPaymentVerifier', 'zacAlertChannel',
+    'global-api-gateway', 'auto-marketing', 'dynamic-pricing',
+    'unicornMeshOrchestrator', 'zeusAutonomousCore',
+  ];
+  const modulesLoaded = keyModules.filter((m) => {
+    try { require.resolve('./modules/' + m); return true; } catch (_) { return false; }
+  });
   return {
     status: 'ok',
     uptime: s,
     uptimeHuman: `${h}h ${m}m ${sec}s`,
     users: dbUsers.count(),
     dbConnected: true,
+    modules: modulesLoaded,
+    modulesTotal: keyModules.length,
     persistence: {
       durable: persistence.durable,
       mode: persistence.mode,
@@ -4115,6 +4128,11 @@ const _unicornServices = [
 ];
 const _unicornPurchases = new Map(); // id -> purchase
 const _unicornEventsClients = new Set();
+// serviceCatalog facade — in-process live view over _unicornServices so the
+// same module works identically in-process și standalone (ZAC/teste via HTTP).
+// RO: o singură fațadă de catalog pentru toate modulele.
+try { require('./modules/serviceCatalog').attachSource(() => _unicornServices); }
+catch (e) { console.warn('[serviceCatalog] attach failed:', e.message); }
 let _cinematicProfileOverride = null;
 const _pqDigest = (() => {
   try { crypto.createHash('sha3-512'); return 'sha3-512'; }
@@ -6498,7 +6516,17 @@ if (_zac && process.env.ZAC_INPROCESS === '1' && !_stableRuntime) {
 
 app.get('/api/zac/status', (req, res) => {
   if (!_zac) return res.status(503).json({ ok: false, error: 'zac-not-loaded' });
-  res.json({ ok: true, ...(_zac.getStatus() || {}) });
+  // Standalone (systemd) heartbeat — ZAC scrie data/zac/heartbeat.json la
+  // fiecare 30-60s. alive = heartbeat mai recent de 120s. RO: endpoint-ul
+  // vede ATÂT instanța in-process cât și procesul systemd separat.
+  let standalone = { alive: false };
+  try {
+    const hbPath = require('path').resolve(__dirname, '..', 'data', 'zac', 'heartbeat.json');
+    const hb = JSON.parse(require('fs').readFileSync(hbPath, 'utf8'));
+    const ageMs = Date.now() - new Date(hb.ts).getTime();
+    standalone = { alive: ageMs < 120000, ageMs, pid: hb.pid, version: hb.version, ts: hb.ts };
+  } catch (_) { /* no heartbeat yet */ }
+  res.json({ ok: true, standalone, ...(_zac.getStatus() || {}) });
 });
 
 app.get('/api/zac/scan', (req, res) => {
@@ -6541,11 +6569,28 @@ app.post('/api/zac/dev/generate-module', (req, res) => {
 const btcLedger   = require('./modules/btcInvoiceLedger');
 const btcVerifier = require('./modules/btcPaymentVerifier');
 const zacAlerts   = require('./modules/zacAlertChannel');
+const salesOrchestrator = require('./modules/salesOrchestrator');
+const serviceCatalogFacade = require('./modules/serviceCatalog');
+// Mesh visibility — the new sale-pipeline organs report status like every
+// other engine. RO: vizibile în mesh ca toate celelalte module.
+try {
+  meshOrchestrator.register('salesOrchestrator', salesOrchestrator, { statusFn: 'getStatus' });
+  meshOrchestrator.register('serviceCatalog', serviceCatalogFacade, { statusFn: 'getStatus' });
+} catch (_) { /* mesh optional */ }
 
 let _btcVerifier = null;
 let _firstSaleNotified = false;
 
 function _onPaidInvoice(invoice) {
+  // AUTO-ACTIVATION (salesOrchestrator): paid invoice → API key + license,
+  // persisted, idempotent. The buyer gets access with ZERO human steps.
+  // RO: plata confirmată on-chain activează serviciul instant.
+  try {
+    const act = salesOrchestrator.handlePaid(invoice);
+    if (act && act.ok && !act.idempotent) {
+      console.log('[BTC/Paid] → activated', act.activation.serviceId, 'license=' + act.activation.licenseId);
+    }
+  } catch (e) { console.warn('[BTC/Paid] activation failed:', e.message); }
   // Fire the appropriate Discord/Telegram alert. First sale gets a special banner.
   try {
     if (!_firstSaleNotified) {
@@ -6574,6 +6619,53 @@ app.post('/api/invoice/create', async (req, res) => {
     const inv = await btcLedger.createInvoice({ service, priceUsd, customerEmail, metadata });
     res.json({ ok: true, invoice: inv });
   } catch (e) { res.status(400).json({ ok: false, error: e.message }); }
+});
+
+// ==================== /api/order — FULL SALE PIPELINE ====================
+// POST /api/order — creează comanda: preț canonic (priceNegotiator, marjă
+// 30%) → factură BTC cu sats unici → așteaptă confirmarea on-chain
+// (btcPaymentVerifier) → activare automată (API key + licență).
+app.post('/api/order', async (req, res) => {
+  try {
+    const { serviceId, service, email, qty, metadata } = req.body || {};
+    const out = await salesOrchestrator.createOrder({
+      serviceId: serviceId || service,
+      email,
+      qty,
+      metadata: metadata || {},
+    });
+    if (!out.ok) return res.status(out.error === 'serviceId_required' ? 400 : 422).json(out);
+    res.status(201).json(out);
+  } catch (e) { res.status(500).json({ ok: false, error: e.message }); }
+});
+
+// GET /api/order/:id — factură + activare (dacă e plătită).
+app.get('/api/order/:id', (req, res) => {
+  const out = salesOrchestrator.getOrder(req.params.id);
+  if (!out.ok) return res.status(404).json(out);
+  res.json(out);
+});
+
+// POST /api/order/:id/simulate-payment — DOAR test/admin (mock de plată).
+// Integrarea REALĂ e btcPaymentVerifier care urmărește mempool.space și
+// apelează același _onPaidInvoice → același flux de activare. Mock-ul
+// există ca să potăm proba cap-coadă fără a mișca BTC reali.
+app.post('/api/order/:id/simulate-payment', adminTokenMiddleware, (req, res) => {
+  try {
+    const inv = btcLedger.getInvoice(req.params.id);
+    if (!inv) return res.status(404).json({ ok: false, error: 'not_found' });
+    if (inv.status === 'paid') {
+      return res.json({ ok: true, alreadyPaid: true, invoice: inv, activation: salesOrchestrator.getActivationByInvoice(inv.id) });
+    }
+    const updated = btcLedger.markPaid(inv.id, { txid: 'simulated-' + Date.now(), confirmations: 1 });
+    if (updated) _onPaidInvoice(updated);
+    res.json({ ok: true, simulated: true, invoice: updated, activation: salesOrchestrator.getActivationByInvoice(inv.id) });
+  } catch (e) { res.status(500).json({ ok: false, error: e.message }); }
+});
+
+// GET /api/sales/status — starea pipeline-ului de vânzări.
+app.get('/api/sales/status', (req, res) => {
+  res.json({ ok: true, sales: salesOrchestrator.getStatus(), catalog: serviceCatalogFacade.getStatus() });
 });
 
 app.get('/api/invoice/list', (req, res) => {
