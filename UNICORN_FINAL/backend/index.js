@@ -12573,6 +12573,13 @@ app.use((err, req, res, next) => {
   });
 });
 
+// ==================== CRASH NOTIFIER (webhook/email alerting) ====================
+// Must start before any other module so it catches all crashes from boot onwards.
+try {
+  const crashNotifier = require('./modules/crash-notifier');
+  crashNotifier.start();
+} catch (e) { console.warn('[crash-notifier] load failed:', e && e.message); }
+
 // ==================== PROCESS-LEVEL CRASH GUARD ====================
 // Prevent any unhandled exception or rejected promise from taking down
 // the entire server process. PM2 will still restart it if it truly dies,
