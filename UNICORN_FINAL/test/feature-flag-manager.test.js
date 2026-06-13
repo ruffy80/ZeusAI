@@ -3,7 +3,7 @@
  * feature-flag-manager.test.js — Unit tests for backend/modules/FeatureFlagManager.js
  *
  * Covers: isEnabled, setFlag, getAllFlags, autoTuneFlags.
- * Uses a temp data dir to avoid polluting production feature-flags.json.
+ * Intercepts fs.writeFileSync to prevent writes to production feature-flags.json.
  */
 
 const assert = require('assert');
@@ -11,12 +11,18 @@ const path = require('path');
 const fs = require('fs');
 const os = require('os');
 
-// Override FLAG_FILE path before requiring the module: we need to patch the
-// module's internal file path. Since the module reads FLAG_FILE at require time,
-// we instead test the API surface directly (the module gracefully handles
-// missing files and write errors).
-
 process.env.NODE_ENV = 'test';
+
+// Redirect writes to a temp file to avoid polluting data/feature-flags.json
+const tmpFlagFile = path.join(os.tmpdir(), `feature-flags-test-${Date.now()}.json`);
+const prodFlagFile = path.resolve(__dirname, '../data/feature-flags.json');
+const originalWriteFileSync = fs.writeFileSync;
+fs.writeFileSync = function (filePath, ...args) {
+  if (path.resolve(filePath) === prodFlagFile) {
+    return originalWriteFileSync.call(fs, tmpFlagFile, ...args);
+  }
+  return originalWriteFileSync.call(fs, filePath, ...args);
+};
 
 // We need a fresh instance — clear require cache if previously loaded
 const modPath = require.resolve('../backend/modules/FeatureFlagManager');
@@ -111,5 +117,9 @@ check('handles empty metrics gracefully', () => {
   flagManager.autoTuneFlags({});
   flagManager.autoTuneFlags({ latency: undefined, engagement: undefined });
 });
+
+// Cleanup: restore fs.writeFileSync and remove temp file
+fs.writeFileSync = originalWriteFileSync;
+try { fs.unlinkSync(tmpFlagFile); } catch {}
 
 console.log(`\n✅ feature-flag-manager: ${passed} tests passed\n`);

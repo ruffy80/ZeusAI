@@ -299,14 +299,15 @@ check('add and get monthly usage', () => {
 // ── Meta ────────────────────────────────────────────────────────────────────
 console.log('\nDB Layer — Meta');
 
-check('meta.get / meta.set', () => {
-  if (db.meta && typeof db.meta.set === 'function') {
-    db.meta.set('test_key', 'test_value');
-    const val = db.meta.get('test_key');
-    assert.strictEqual(val, 'test_value');
-  } else {
-    console.log('    (meta not available, skipped)');
-  }
+check('meta() returns status object', () => {
+  const status = db.meta();
+  assert.strictEqual(typeof status.usingSqlite, 'boolean');
+  assert.strictEqual(typeof status.durable, 'boolean');
+  assert.strictEqual(typeof status.dbPath, 'string');
+  assert.strictEqual(typeof status.userCount, 'number');
+  assert.ok(['sqlite-memory', 'sqlite-file', 'in-memory-fallback'].includes(status.mode));
+  assert.ok(status.usingSqlite === true);
+  assert.ok(status.userCount >= 1);
 });
 
 // ── Cleanup ─────────────────────────────────────────────────────────────────
