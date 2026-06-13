@@ -297,9 +297,9 @@ class AutonomySpine {
 
     if (prevMode !== decision.mode) {
       console.log(`🧠 AutonomySpine: ${prevMode} → ${decision.mode} (${decision.reasons.join('; ')})`);
-      try { this.emit('mode:change', { from: prevMode, to: decision.mode, reasons: decision.reasons, ts: att.ts }); } catch (_) {}
+      try { this.emit('mode:change', { from: prevMode, to: decision.mode, reasons: decision.reasons, ts: att.ts }); } catch (e) { console.warn('[AutonomySpine] mode:change emit failed:', e.message); }
     }
-    try { this.emit('decision', this.lastDecision); } catch (_) {}
+    try { this.emit('decision', this.lastDecision); } catch (e) { console.warn('[AutonomySpine] decision emit failed:', e.message); }
     return this.lastDecision;
   }
 
@@ -434,7 +434,7 @@ class AutonomySpine {
   }
 
   // ── Persistence helpers ───────────────────────────────────────────────────
-  _ensureDir() { try { fs.mkdirSync(DIR, { recursive: true }); } catch (_) {} }
+  _ensureDir() { try { fs.mkdirSync(DIR, { recursive: true }); } catch (e) { console.warn('[AutonomySpine] ensureDir failed:', e.message); } }
 
   _loadState() {
     try {
@@ -454,13 +454,13 @@ class AutonomySpine {
           if (last && last.payloadHash) { this.prevHash = last.payloadHash; this.seq = Number(last.seq) || this.seq; }
         }
       }
-    } catch (_) { /* fresh start */ }
+    } catch (e) { console.warn('[AutonomySpine] state load failed, starting fresh:', e.message); }
   }
 
   _persistState() {
     try {
       fs.writeFileSync(STATE_FILE, JSON.stringify({ seq: this.seq, prevHash: this.prevHash, mode: this.mode, ts: Date.now() }));
-    } catch (_) {}
+    } catch (e) { console.error('[AutonomySpine] state persist failed:', e.message); }
   }
 
   _loadOrCreateKeypair() {
@@ -476,13 +476,13 @@ class AutonomySpine {
           return;
         }
       }
-    } catch (_) { /* regenerate below */ }
+    } catch (e) { console.warn('[AutonomySpine] keypair load failed, regenerating:', e.message); }
     try {
       const { publicKey, privateKey } = crypto.generateKeyPairSync('ed25519');
       const publicKeyPem  = publicKey.export({ type: 'spki', format: 'pem' });
       const privateKeyPem = privateKey.export({ type: 'pkcs8', format: 'pem' });
       this._keypair = { publicKey, privateKey, publicKeyPem, privateKeyPem };
-      try { fs.writeFileSync(KEY_FILE, JSON.stringify({ publicKeyPem, privateKeyPem }), { mode: 0o600 }); } catch (_) {}
+      try { fs.writeFileSync(KEY_FILE, JSON.stringify({ publicKeyPem, privateKeyPem }), { mode: 0o600 }); } catch (e) { console.warn('[AutonomySpine] keypair file write failed:', e.message); }
       console.log('🔐 AutonomySpine: ed25519 keypair generated');
     } catch (e) {
       this._keypair = null;
@@ -498,7 +498,7 @@ class AutonomySpine {
       // Forward-only rotation: archive, never delete the proof.
       const archived = path.join(DIR, `decisions-${Date.now()}.jsonl`);
       fs.renameSync(LEDGER, archived);
-    } catch (_) {}
+    } catch (e) { console.warn('[AutonomySpine] ledger rotation failed:', e.message); }
   }
 }
 

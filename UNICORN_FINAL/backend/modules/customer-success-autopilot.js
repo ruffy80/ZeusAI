@@ -103,7 +103,7 @@ function tick(opts) {
       if (_emailLog.has(key)) continue;
       _emailLog.set(key, Date.now());
       if (!dryRun && mailer && typeof mailer.send === 'function') {
-        try { mailer.send({ to: cust.email, subject: stage.subject, text: stage.body(cust) }); } catch (_) {}
+        try { mailer.send({ to: cust.email, subject: stage.subject, text: stage.body(cust) }); } catch (e) { console.error('[customer-success-autopilot] email send failed for', cust.email, 'stage:', stage.id, e.message); }
       }
       fired.push({ customerId: h.customerId, stage: stage.id, dryRun });
     }

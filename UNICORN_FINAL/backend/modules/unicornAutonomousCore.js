@@ -239,7 +239,7 @@ class UnicornAutonomousCore {
     const timestamp = new Date().toISOString();
     const logLine = `[${timestamp}] ${message}
 `;
-    try { fs.appendFileSync(this.logFile, logLine); } catch(e) {}
+    try { fs.appendFileSync(this.logFile, logLine); } catch(e) { console.warn('[UAC] log write failed:', e.message); }
     console.log(`🧠 UAC: ${message}`);
   }
 
@@ -364,7 +364,7 @@ class UnicornAutonomousCore {
         this.log(`📈 Îmbunătățit: ${moduleFile}`);
         return true;
       }
-    } catch(e) {}
+    } catch(e) { this.log(`⚠️ optimize failed for ${moduleFile}: ${e.message}`); }
     return false;
   }
 
