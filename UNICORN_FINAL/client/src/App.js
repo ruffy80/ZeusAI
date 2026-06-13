@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, lazy, Suspense } from 'react';
 import { Routes, Route, Link, Navigate, useNavigate } from 'react-router-dom';
-import ParticlesBackground3D from './components/ParticlesBackground3D';
+const ParticlesBackground3D = lazy(() => import('./components/ParticlesBackground3D'));
 import OrbitalNav from './components/OrbitalNav';
 import QuantumLoader from './components/QuantumLoader';
 import ScrollReveal from './components/ScrollReveal';
@@ -94,7 +94,7 @@ function App() {
 
   return (
     <div style={{ minHeight: '100vh', background: 'var(--color-bg)', position: 'relative', overflowX: 'hidden' }}>
-      <ParticlesBackground3D />
+      <Suspense fallback={null}><ParticlesBackground3D /></Suspense>
       <QuantumLoader loading={false} />
       <Toaster position="top-right" />
 

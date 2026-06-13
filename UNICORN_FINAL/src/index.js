@@ -660,12 +660,56 @@ const SITE_FALLBACK_MOCKS = {
     source: 'site-fallback-mock'
   }
 };
+
+// ==================== SITE-PROXY CIRCUIT BREAKER ====================
+// Prevents cascading 502s when backend is restarting or unresponsive.
+// States: CLOSED (normal) → OPEN (all requests short-circuit to fallback) → HALF_OPEN (probe one request).
+// Opens after THRESHOLD consecutive failures; closes on first successful probe.
+const _siteProxyCB = {
+  state: 'CLOSED',     // CLOSED | OPEN | HALF_OPEN
+  failures: 0,
+  lastFailTs: 0,
+  lastSuccessTs: Date.now(),
+  threshold: Number(process.env.SITE_PROXY_CB_THRESHOLD || 3),
+  cooldownMs: Number(process.env.SITE_PROXY_CB_COOLDOWN_MS || 10000), // 10s before probe
+  tripped: 0,          // total times opened
+};
+function _cbRecordSuccess() {
+  _siteProxyCB.failures = 0;
+  _siteProxyCB.lastSuccessTs = Date.now();
+  if (_siteProxyCB.state !== 'CLOSED') {
+    _siteProxyCB.state = 'CLOSED';
+    console.log('[site-proxy-cb] Circuit CLOSED — backend recovered');
+  }
+}
+function _cbRecordFailure() {
+  _siteProxyCB.failures++;
+  _siteProxyCB.lastFailTs = Date.now();
+  if (_siteProxyCB.state === 'CLOSED' && _siteProxyCB.failures >= _siteProxyCB.threshold) {
+    _siteProxyCB.state = 'OPEN';
+    _siteProxyCB.tripped++;
+    console.warn('[site-proxy-cb] Circuit OPEN — backend unreachable after ' + _siteProxyCB.failures + ' failures');
+  }
+}
+function _cbShouldAllow() {
+  if (_siteProxyCB.state === 'CLOSED') return true;
+  if (_siteProxyCB.state === 'OPEN') {
+    if ((Date.now() - _siteProxyCB.lastFailTs) >= _siteProxyCB.cooldownMs) {
+      _siteProxyCB.state = 'HALF_OPEN';
+      return true; // allow one probe
+    }
+    return false;
+  }
+  // HALF_OPEN — already allowing one probe
+  return true;
+}
+
 function siteProxyToUnicorn(routePath, opts) {
   const method = (opts && opts.method) || 'GET';
   return async (req, res) => {
     const backendUrl = process.env.BACKEND_API_URL;
     const fallback = SITE_FALLBACK_MOCKS[routePath];
-    if (backendUrl) {
+    if (backendUrl && _cbShouldAllow()) {
       const controller = new AbortController();
       const timer = setTimeout(() => controller.abort(), SITE_PROXY_TIMEOUT_MS);
       try {
@@ -687,18 +731,22 @@ function siteProxyToUnicorn(routePath, opts) {
         const r = await fetch(target, init);
         clearTimeout(timer);
         if (r.ok) {
+          _cbRecordSuccess();
           const data = await r.json();
           return res.json(data);
         }
+        _cbRecordFailure();
         console.warn('[site-proxy] ' + method + ' ' + routePath + ' upstream ' + r.status + ' → fallback mock');
       } catch (err) {
         clearTimeout(timer);
+        _cbRecordFailure();
         console.warn('[site-proxy] ' + method + ' ' + routePath + ' failed: ' + (err && err.message) + ' → fallback mock');
       }
-    } else {
+    } else if (!backendUrl) {
       console.warn('[site-proxy] BACKEND_API_URL not set, serving mock for ' + routePath);
     }
-    res.set('X-Source', 'site-fallback-mock');
+    // Circuit is OPEN or backend failed — serve fallback instantly
+    res.set('X-Source', _siteProxyCB.state === 'OPEN' ? 'site-circuit-breaker' : 'site-fallback-mock');
     return res.json(fallback);
   };
 }
