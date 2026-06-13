@@ -86,7 +86,7 @@ function createSiteSyncBridge({
     server = http.createServer((req, res) => {
       // REST fallback for clients that can't use WebSocket
       if (req.url === '/zac-snapshot' || req.url === '/snapshot') {
-        res.writeHead(200, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
+        res.writeHead(200, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ ok: true, snapshot: lastSnapshot, lastUpdate }));
         return;
       }

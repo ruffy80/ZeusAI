@@ -1216,7 +1216,11 @@ function paymentMethodsPublicLabel() {
     return m;
   });
 }
-let adminPasswordHash = bcrypt.hashSync(process.env.ADMIN_MASTER_PASSWORD || 'UnicornAdmin2026!', 10);
+const _adminMasterPw = process.env.ADMIN_MASTER_PASSWORD || '';
+if (!_adminMasterPw) {
+  console.warn('⚠️  WARNING: ADMIN_MASTER_PASSWORD is not set. Admin login is disabled until a password is configured.');
+}
+let adminPasswordHash = _adminMasterPw ? bcrypt.hashSync(_adminMasterPw, 10) : '';
 let adminBiometricHash = null;
 
 // ==================== INOVAȚII UNICORN 2070+ (Quantum, Neuro, Protocol, Ledger) ====================
@@ -1347,11 +1351,17 @@ if (process.env.NODE_ENV === 'production') {
     console.error('❌ FATAL: JWT_SECRET is weak/default. Set a strong secret in .env before running in production.');
     process.exit(1);
   }
-  if (!process.env.ADMIN_2FA_CODE || process.env.ADMIN_2FA_CODE === '123456') {
-    console.warn('⚠️  WARNING: ADMIN_2FA_CODE is using the default value "123456". Change it in production!');
+  if (!process.env.ADMIN_2FA_CODE || process.env.ADMIN_2FA_CODE === '123456' || process.env.ADMIN_2FA_CODE === 'change-me-use-a-real-2fa-code') {
+    console.error('❌ FATAL: ADMIN_2FA_CODE is missing or using a placeholder. Set a real 2FA code in .env before running in production.');
+    process.exit(1);
   }
-  if (!process.env.ADMIN_MASTER_PASSWORD || process.env.ADMIN_MASTER_PASSWORD === 'UnicornAdmin2026!') {
-    console.warn('⚠️  WARNING: ADMIN_MASTER_PASSWORD is using the default value. Change it in production!');
+  if (!process.env.ADMIN_MASTER_PASSWORD || process.env.ADMIN_MASTER_PASSWORD === 'UnicornAdmin2026!' || process.env.ADMIN_MASTER_PASSWORD === 'change-me-use-a-strong-password') {
+    console.error('❌ FATAL: ADMIN_MASTER_PASSWORD is missing or using a placeholder. Set a strong password in .env before running in production.');
+    process.exit(1);
+  }
+  if (!process.env.ADMIN_SECRET || process.env.ADMIN_SECRET === 'change-me-to-a-strong-random-secret' || process.env.ADMIN_SECRET === 'VLADOI_IONUT_SECRET_SUPREM_2026') {
+    console.error('❌ FATAL: ADMIN_SECRET is missing or using a placeholder. Set a strong secret in .env before running in production.');
+    process.exit(1);
   }
 }
 
@@ -1569,7 +1579,9 @@ app.post('/api/auth/login', authRateLimit(20, 15 * 60 * 1000), async (req, res) 
 
   // Admin login (password + 2FA)
   if (!email && password && typeof twoFactorCode !== 'undefined') {
-    const expected2FA = process.env.ADMIN_2FA_CODE || '123456';
+    if (!adminPasswordHash) return res.status(403).json({ success: false, error: 'Admin login disabled — set ADMIN_MASTER_PASSWORD in env' });
+    const expected2FA = process.env.ADMIN_2FA_CODE || '';
+    if (!expected2FA) return res.status(403).json({ success: false, error: 'Admin 2FA not configured — set ADMIN_2FA_CODE in env' });
     const validPassword = await bcrypt.compare(String(password), adminPasswordHash);
     if (!validPassword) return res.status(401).json({ success: false, error: 'Parolă invalidă' });
     if (String(twoFactorCode).trim() !== String(expected2FA).trim()) {
@@ -3566,7 +3578,7 @@ app.get('/health/ready', (req, res) => {
     db: persist.durable, mode: persist.mode, userCount: persist.userCount,
   });
 });
-app.get('/health/deep', (req, res) => {
+app.get('/health/deep', adminTokenMiddleware, (req, res) => {
   res.set('Cache-Control', 'no-store');
   const mem = process.memoryUsage();
   let routerStats = null;
@@ -7129,11 +7141,15 @@ app.get('/api/modules/list', (req, res) => {
 
 // GET /api/modules/stream — SSE live event feed
 app.get('/api/modules/stream', (req, res) => {
+  const origin = req.headers.origin || '';
+  const allowOrigin = (process.env.NODE_ENV === 'production' && _allowedOrigins.length)
+    ? (_allowedOrigins.some(o => { try { const h = new URL(o).hostname; const ih = new URL(origin).hostname; return ih === h || ih.endsWith('.' + h); } catch { return false; } }) ? origin : '')
+    : origin || '*';
   res.writeHead(200, {
     'Content-Type': 'text/event-stream',
     'Cache-Control': 'no-cache, no-transform',
     'Connection': 'keep-alive',
-    'Access-Control-Allow-Origin': '*',
+    ...(allowOrigin ? { 'Access-Control-Allow-Origin': allowOrigin } : {}),
     'X-Accel-Buffering': 'no',
   });
   const snapshot = {
@@ -7149,12 +7165,16 @@ app.get('/api/modules/stream', (req, res) => {
 
 // POST /api/modules/register — autonomous innovation hook
 // Used by auto-innovation engine, admin tooling, or external systems.
-// Optional auth: if ADMIN_TOKEN env is set, requires it; otherwise open (dev).
+// Auth always required: ADMIN_TOKEN / ADMIN_API_TOKEN env, or valid admin JWT.
 app.post('/api/modules/register', express.json(), (req, res) => {
   const adminToken = process.env.ADMIN_TOKEN || process.env.ADMIN_API_TOKEN || '';
-  if (adminToken) {
-    const provided = (req.headers.authorization || '').replace(/^Bearer\s+/i, '') || req.headers['x-admin-token'] || '';
-    if (provided !== adminToken) return res.status(401).json({ error: 'unauthorized' });
+  const provided = (req.headers.authorization || '').replace(/^Bearer\s+/i, '') || req.headers['x-admin-token'] || '';
+  if (!adminToken || !provided || provided !== adminToken) {
+    return adminTokenMiddleware(req, res, () => {
+      const entry = _autoUpsertModule(req.body || {});
+      if (!entry) return res.status(400).json({ error: 'id required' });
+      res.json({ ok: true, module: entry });
+    });
   }
   const entry = _autoUpsertModule(req.body || {});
   if (!entry) return res.status(400).json({ error: 'id required' });
@@ -7164,9 +7184,18 @@ app.post('/api/modules/register', express.json(), (req, res) => {
 // POST /api/modules/status — broadcast a status change
 app.post('/api/modules/status', express.json(), (req, res) => {
   const adminToken = process.env.ADMIN_TOKEN || process.env.ADMIN_API_TOKEN || '';
-  if (adminToken) {
-    const provided = (req.headers.authorization || '').replace(/^Bearer\s+/i, '') || req.headers['x-admin-token'] || '';
-    if (provided !== adminToken) return res.status(401).json({ error: 'unauthorized' });
+  const provided = (req.headers.authorization || '').replace(/^Bearer\s+/i, '') || req.headers['x-admin-token'] || '';
+  if (!adminToken || !provided || provided !== adminToken) {
+    return adminTokenMiddleware(req, res, () => {
+      const { id, isActive, status } = req.body || {};
+      if (!id) return res.status(400).json({ error: 'id required' });
+      const m = _autonomousRegistry.modules.get(String(id));
+      if (!m) return res.status(404).json({ error: 'not_found' });
+      if (typeof isActive === 'boolean') m.isActive = isActive;
+      m.updatedAt = new Date().toISOString();
+      _autoEmit('status.update', { id: m.id, isActive: m.isActive, status: status || (m.isActive ? 'active' : 'inactive') });
+      return res.json({ ok: true, module: m });
+    });
   }
   const { id, isActive, status } = req.body || {};
   if (!id) return res.status(400).json({ error: 'id required' });
