@@ -685,7 +685,11 @@ function _cbRecordSuccess() {
 function _cbRecordFailure() {
   _siteProxyCB.failures++;
   _siteProxyCB.lastFailTs = Date.now();
-  if (_siteProxyCB.state === 'CLOSED' && _siteProxyCB.failures >= _siteProxyCB.threshold) {
+  if (_siteProxyCB.state === 'HALF_OPEN') {
+    _siteProxyCB.state = 'OPEN';
+    _siteProxyCB.tripped++;
+    console.warn('[site-proxy-cb] Circuit OPEN — probe failed, re-opening');
+  } else if (_siteProxyCB.state === 'CLOSED' && _siteProxyCB.failures >= _siteProxyCB.threshold) {
     _siteProxyCB.state = 'OPEN';
     _siteProxyCB.tripped++;
     console.warn('[site-proxy-cb] Circuit OPEN — backend unreachable after ' + _siteProxyCB.failures + ' failures');

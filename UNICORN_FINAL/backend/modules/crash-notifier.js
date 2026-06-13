@@ -107,8 +107,8 @@ async function notify(type, message, stack) {
   _record(type, message, stack);
 
   const sent = await _sendWebhook(type, message, stack);
-  if (!sent) await _sendEmail(type, message, stack);
-  if (sent) _state.notificationsSent++;
+  const emailSent = !sent ? await _sendEmail(type, message, stack) : false;
+  if (sent || emailSent) _state.notificationsSent++;
 }
 
 function start() {
