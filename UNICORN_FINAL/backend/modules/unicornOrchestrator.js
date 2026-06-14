@@ -43,6 +43,10 @@ function tryRequire(p, label) {
   }
 }
 
+function _safeStart(mod, method, label) {
+  try { mod[method](); } catch (e) { console.warn(`[UnicornOrchestrator] ${label}.${method}() failed:`, e.message); }
+}
+
 class UnicornOrchestrator extends EventEmitter {
   constructor() {
     super();
@@ -120,7 +124,7 @@ class UnicornOrchestrator extends EventEmitter {
       try {
         const s = typeof centralOrch.getStatus === 'function' ? centralOrch.getStatus() : {};
         if (!s.running) centralOrch.start();
-      } catch (_) {}
+      } catch (e) { console.warn('[UnicornOrchestrator] CentralOrchestrator start failed:', e.message); }
     }
 
     // SaaS Orchestrator V4
@@ -129,37 +133,37 @@ class UnicornOrchestrator extends EventEmitter {
       try {
         const s = typeof saasOrch.getStatus === 'function' ? saasOrch.getStatus() : {};
         if (!s.running) saasOrch.start();
-      } catch (_) {}
+      } catch (e) { console.warn('[UnicornOrchestrator] SaaSOrchestratorV4 start failed:', e.message); }
     }
 
     // Unicorn Execution Engine
     const uee2 = tryRequire(path.join(MODULES_DIR, 'unicorn-execution-engine'), 'UnicornExecutionEngine');
     if (uee2 && typeof uee2.start === 'function') {
-      try { uee2.start(); } catch (_) {}
+      _safeStart(uee2, 'start', 'UnicornExecutionEngine');
     }
 
     // Auto-Repair / Auto-Optimize
     const autoOptimize = tryRequire(path.join(MODULES_DIR, 'auto-optimize'), 'AutoOptimize');
     if (autoOptimize && typeof autoOptimize.start === 'function') {
-      try { autoOptimize.start(); } catch (_) {}
+      _safeStart(autoOptimize, 'start', 'AutoOptimize');
     }
     const autoRepairMod = tryRequire(path.join(MODULES_DIR, 'auto-repair'), 'AutoRepair');
     if (autoRepairMod && typeof autoRepairMod.start === 'function') {
-      try { autoRepairMod.start(); } catch (_) {}
+      _safeStart(autoRepairMod, 'start', 'AutoRepair');
     }
 
     // Auto-Evolution
     const autoEvolve = tryRequire(path.join(MODULES_DIR, 'auto-evolve'), 'AutoEvolve');
     if (autoEvolve && typeof autoEvolve.start === 'function') {
-      try { autoEvolve.start(); } catch (_) {}
+      _safeStart(autoEvolve, 'start', 'AutoEvolve');
     }
     const selfEvolvingEng = tryRequire(path.join(MODULES_DIR, 'self-evolving-engine'), 'SelfEvolvingEngine');
     if (selfEvolvingEng && typeof selfEvolvingEng.start === 'function') {
-      try { selfEvolvingEng.start(); } catch (_) {}
+      _safeStart(selfEvolvingEng, 'start', 'SelfEvolvingEngine');
     }
     const selfAdaptEng = tryRequire(path.join(MODULES_DIR, 'self-adaptation-engine'), 'SelfAdaptationEngine');
     if (selfAdaptEng && typeof selfAdaptEng.start === 'function') {
-      try { selfAdaptEng.start(); } catch (_) {}
+      _safeStart(selfAdaptEng, 'start', 'SelfAdaptationEngine');
     }
 
     // Auto-Innovation Loop
@@ -168,51 +172,51 @@ class UnicornOrchestrator extends EventEmitter {
       try {
         const s = typeof innovLoop.getStatus === 'function' ? innovLoop.getStatus() : {};
         if (!s.active) innovLoop.start();
-      } catch (_) {}
+      } catch (e) { console.warn('[UnicornOrchestrator] AutoInnovationLoop start failed:', e.message); }
     }
 
     // Auto-Marketing / Viral Growth
     const autoMarketing = tryRequire(path.join(MODULES_DIR, 'auto-marketing'), 'AutoMarketing');
     if (autoMarketing && typeof autoMarketing.start === 'function') {
-      try { autoMarketing.start(); } catch (_) {}
+      _safeStart(autoMarketing, 'start', 'AutoMarketing');
     }
     const viralGrowth = tryRequire(path.join(MODULES_DIR, 'autoViralGrowth'), 'AutoViralGrowth');
     if (viralGrowth && typeof viralGrowth.start === 'function') {
-      try { viralGrowth.start(); } catch (_) {}
+      _safeStart(viralGrowth, 'start', 'AutoViralGrowth');
     }
 
     // Auto-Revenue
     const autoRev = tryRequire(path.join(MODULES_DIR, 'autoRevenue'), 'AutoRevenue');
     if (autoRev && typeof autoRev.start === 'function') {
-      try { autoRev.start(); } catch (_) {}
+      _safeStart(autoRev, 'start', 'AutoRevenue');
     }
 
     // Disaster Recovery / Global Failover
     const disasterRec = tryRequire(path.join(MODULES_DIR, 'disaster-recovery'), 'DisasterRecovery');
     if (disasterRec && typeof disasterRec.start === 'function') {
-      try { disasterRec.start(); } catch (_) {}
+      _safeStart(disasterRec, 'start', 'DisasterRecovery');
     }
     const globalFailover = tryRequire(path.join(MODULES_DIR, 'global-failover'), 'GlobalFailover');
     if (globalFailover && typeof globalFailover.start === 'function') {
-      try { globalFailover.start(); } catch (_) {}
+      _safeStart(globalFailover, 'start', 'GlobalFailover');
     }
 
     // Predictive Healing
     const predHealing = tryRequire(path.join(MODULES_DIR, 'predictive-healing'), 'PredictiveHealing');
     if (predHealing && typeof predHealing.start === 'function') {
-      try { predHealing.start(); } catch (_) {}
+      _safeStart(predHealing, 'start', 'PredictiveHealing');
     }
 
     // Swarm Intelligence
     const swarm = tryRequire(path.join(MODULES_DIR, 'swarm-intelligence'), 'SwarmIntelligence');
     if (swarm && typeof swarm.start === 'function') {
-      try { swarm.start(); } catch (_) {}
+      _safeStart(swarm, 'start', 'SwarmIntelligence');
     }
 
     // Quantum Resilience Core
     const qrc2 = tryRequire(path.join(MODULES_DIR, 'quantumResilienceCore'), 'QuantumResilienceCore');
     if (qrc2 && typeof qrc2.startAutoScaler === 'function') {
-      try { qrc2.startAutoScaler(); } catch (_) {}
+      _safeStart(qrc2, 'startAutoScaler', 'QuantumResilienceCore');
     }
 
     this._log('✅', 'Full Mode: toate modulele suplimentare ACTIVE');
@@ -226,13 +230,13 @@ class UnicornOrchestrator extends EventEmitter {
     const gdes   = tryRequire(path.join(MODULES_DIR, 'globalDigitalStandard'), 'GlobalDigitalStandard');
 
     if (healer && typeof healer.start === 'function') {
-      try { healer.start(); } catch (_) {}
+      _safeStart(healer, 'start', 'TotalSystemHealer');
     }
     if (uee && typeof uee.startSelfHealing === 'function') {
-      try { uee.startSelfHealing(); } catch (_) {}
+      _safeStart(uee, 'startSelfHealing', 'UnicornEternalEngine');
     }
     if (gdes && typeof gdes.startSelfHealing === 'function') {
-      try { gdes.startSelfHealing(); } catch (_) {}
+      _safeStart(gdes, 'startSelfHealing', 'GlobalDigitalStandard');
     }
 
     // Active = engine modules exist OR already loaded in require cache
@@ -261,8 +265,8 @@ class UnicornOrchestrator extends EventEmitter {
       }
     }
     if (uee) {
-      try { uee.startEternalCycle(); } catch (_) {}
-      try { uee.startPredictiveInnovation(); } catch (_) {}
+      _safeStart(uee, 'startEternalCycle', 'UnicornEternalEngine');
+      _safeStart(uee, 'startPredictiveInnovation', 'UnicornEternalEngine');
     }
 
     if (!this.stats.autoInnovation.active) {
@@ -277,7 +281,7 @@ class UnicornOrchestrator extends EventEmitter {
     const orch   = tryRequire(path.join(SRC_DIR, 'modules/auto-deploy-orchestrator'), 'AutoDeployOrchestrator');
 
     if (deploy && typeof deploy.start === 'function') {
-      try { deploy.start(); } catch (_) {}
+      _safeStart(deploy, 'start', 'AutoDeploy');
     }
     // autoDeployOrchestrator auto-inits in constructor
 
@@ -296,10 +300,10 @@ class UnicornOrchestrator extends EventEmitter {
     const builder = tryRequire(path.join(MODULES_DIR, 'selfConstruction'), 'SelfConstruction');
 
     if (sanity && typeof sanity.start === 'function') {
-      try { sanity.start(); } catch (_) {}
+      _safeStart(sanity, 'start', 'CodeSanityEngine');
     }
     if (builder && typeof builder.start === 'function') {
-      try { builder.start(); } catch (_) {}
+      _safeStart(builder, 'start', 'SelfConstruction');
     }
 
     this.stats.autoRepair.active = !!(sanity || builder);

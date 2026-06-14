@@ -102,7 +102,7 @@ function createSelfInnovator({
     const next = nextRun(hour);
     const delay = Math.max(60_000, next.getTime() - Date.now());
     timer = setTimeout(async () => {
-      try { await runCycle(); } catch (_) {}
+      try { await runCycle(); } catch (e) { console.warn('[selfInnovator] cycle error:', e.message); }
       scheduleNext();
     }, delay);
     if (typeof timer.unref === 'function') timer.unref();

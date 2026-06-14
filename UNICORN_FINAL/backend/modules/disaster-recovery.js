@@ -21,7 +21,7 @@ const gzip = promisify(zlib.gzip);
 const gunzip = promisify(zlib.gunzip);
 
 let cloud = null;
-try { cloud = require('./cloud-providers'); } catch (_) {}
+try { cloud = require('./cloud-providers'); } catch (e) { console.warn('[disaster-recovery] cloud-providers not available:', e.message); }
 
 const _state = {
   name: 'disaster-recovery',
@@ -76,7 +76,7 @@ function _walk(dir, baseDir = dir, out = []) {
       try {
         const st = fs.statSync(full);
         if (st.size < 200 * 1024 * 1024) out.push({ rel: path.relative(baseDir, full), full, size: st.size });
-      } catch (_) {}
+      } catch (e) { console.warn('[disaster-recovery] stat failed for', full, e.message); }
     }
   }
   return out;
@@ -91,7 +91,7 @@ async function _buildArchive(dataDir) {
       const buf = fs.readFileSync(f.full);
       out.files.push({ rel: f.rel, size: f.size, sha256: crypto.createHash('sha256').update(buf).digest('hex'), content_b64: buf.toString('base64') });
       totalBytes += f.size;
-    } catch (_) {}
+    } catch (e) { console.warn('[disaster-recovery] failed to read file for archive:', f.rel, e.message); }
   }
   const json = Buffer.from(JSON.stringify(out));
   const gz = await gzip(json);
@@ -215,9 +215,9 @@ async function backupLocal({ overrideDir, overrideRetention } = {}) {
           fs.unlinkSync(p);
           rotated++;
         }
-      } catch (_) {}
+      } catch (e) { console.warn('[disaster-recovery] failed to prune old backup:', p, e.message); }
     }
-  } catch (_) {}
+  } catch (e) { console.warn('[disaster-recovery] backup rotation scan failed:', e.message); }
 
   const result = {
     ok: true, real: true, backend: 'local', dir, file, files, totalBytes,

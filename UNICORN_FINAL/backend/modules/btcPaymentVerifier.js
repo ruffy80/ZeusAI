@@ -33,7 +33,7 @@ function fetchJSON(url, timeoutMs = 8000) {
       res.on('end', () => { try { resolve(JSON.parse(buf)); } catch { resolve(null); } });
     });
     req.on('timeout', () => { req.destroy(); resolve(null); });
-    req.on('error', () => resolve(null));
+    req.on('error', (e) => { console.warn('[btcPaymentVerifier] fetchJSON network error:', e.message); resolve(null); });
   });
 }
 
@@ -83,16 +83,16 @@ function createPaymentVerifier({
       if (updated && updated.status === 'paid') {
         stats.matches += 1;
         stats.lastMatch = new Date().toISOString();
-        try { onPaid(updated); } catch (e) { try { onError(e); } catch (_) {} }
+        try { onPaid(updated); } catch (e) { try { onError(e); } catch (cbErr) { console.error('[btcPaymentVerifier] onError callback threw:', cbErr.message); } }
       }
     }
   }
 
   function start() {
     if (timer) return;
-    timer = setInterval(() => { tick().catch((e) => { stats.errors += 1; try { onError(e); } catch (_) {} }); }, intervalMs);
+    timer = setInterval(() => { tick().catch((e) => { stats.errors += 1; console.error('[btcPaymentVerifier] tick error:', e.message); try { onError(e); } catch (cbErr) { console.error('[btcPaymentVerifier] onError callback threw:', cbErr.message); } }); }, intervalMs);
     if (typeof timer.unref === 'function') timer.unref();
-    tick().catch((e) => { stats.errors += 1; try { onError(e); } catch (_) {} });
+    tick().catch((e) => { stats.errors += 1; console.error('[btcPaymentVerifier] initial tick error:', e.message); try { onError(e); } catch (cbErr) { console.error('[btcPaymentVerifier] onError callback threw:', cbErr.message); } });
   }
 
   function stop() { if (timer) { clearInterval(timer); timer = null; } }

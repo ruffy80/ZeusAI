@@ -2588,7 +2588,7 @@ try {
   const _seedFrom = (mod) => {
     if (!mod) return 0;
     let arr = [];
-    try { arr = (typeof mod.all === 'function') ? mod.all() : []; } catch (_) {}
+    try { arr = (typeof mod.all === 'function') ? mod.all() : []; } catch (e) { console.warn('[dynamic-pricing] catalog.all() failed:', e.message); }
     let n = 0;
     for (const it of (arr || [])) {
       if (!it || !it.id) continue;
@@ -2599,7 +2599,7 @@ try {
           dynamicPricing.registerService(it.id, base);
           n += 1;
         }
-      } catch (_) {}
+      } catch (e) { console.warn('[dynamic-pricing] registerService failed for', it.id, e.message); }
     }
     return n;
   };
@@ -3088,7 +3088,7 @@ try {
   // Wire the innovation attestation hook so every approved innovation is
   // mirrored to the sovereign chain (proof-of-evolution).
   if (typeof autoInnovationLoop !== 'undefined' && autoInnovationLoop && typeof autoInnovationLoop.on === 'function') {
-    try { autoInnovationLoop.on('innovation:approved', (inv) => growthEngine.onInnovationApproved(inv)); } catch (_) {}
+    try { autoInnovationLoop.on('innovation:approved', (inv) => growthEngine.onInnovationApproved(inv)); } catch (e) { console.warn('[growth-engine] innovation hook failed:', e.message); }
   }
 } catch (e) {
   console.warn('[growth-engine] failed to mount:', e && e.message);
@@ -3124,7 +3124,7 @@ if (_isPrimaryWorker) {
     selfConstruction.start({ apply: true }).catch(() => {});
   } else {
     // Profil stable/safe: rulează DOAR auditul read-only (sigur, fără scriere).
-    try { selfConstruction.audit(); console.log('🧱 Self‑Construction: audit read-only activ (profil stabil)'); } catch (_) {}
+    try { selfConstruction.audit(); console.log('🧱 Self‑Construction: audit read-only activ (profil stabil)'); } catch (e) { console.warn('[selfConstruction] audit failed:', e.message); }
   }
   if (!_stableRuntime) {
     totalSystemHealer.start();
@@ -3142,7 +3142,7 @@ if (_isPrimaryWorker) {
     revenueModules.startAutoRevenue();
   }
   if (!_stableRuntime) {
-    try { autoMarketing.init?.(); autoMarketing.start?.(); } catch (_) {}
+    try { autoMarketing.init?.(); autoMarketing.start?.(); } catch (e) { console.warn('[autoMarketing] init/start failed:', e.message); }
   }
 
   // ==================== PORNIRE 3 COMPONENTE CRITICE AUTONOME ====================
@@ -3481,7 +3481,7 @@ function buildHealthResponse() {
     if (dp && typeof dp.getFallbackStatus === 'function') {
       fallbackPricing = dp.getFallbackStatus();
     }
-  } catch (_) {}
+  } catch (e) { console.warn('[health] dynamic-pricing status unavailable:', e.message); }
   // modules[] — lista modulelor-cheie de business, fiecare verificat că e
   // încărcat în runtime. RO: contractul /api/health cerut de misiune.
   const keyModules = [
@@ -3585,11 +3585,11 @@ app.get('/health/deep', adminTokenMiddleware, (req, res) => {
   try {
     const mr = global.__multiRouter;
     if (mr && typeof mr.getStats === 'function') routerStats = mr.getStats();
-  } catch (_) {}
+  } catch (e) { console.warn('[health/deep] router stats failed:', e.message); }
   let webhookStats = null;
-  try { webhookStats = require('./middleware/webhook-emitter').getStats(); } catch (_) {}
+  try { webhookStats = require('./middleware/webhook-emitter').getStats(); } catch (e) { console.warn('[health/deep] webhook stats unavailable:', e.message); }
   let rlStats = null;
-  try { rlStats = require('./middleware/sliding-window').getStats(); } catch (_) {}
+  try { rlStats = require('./middleware/sliding-window').getStats(); } catch (e) { console.warn('[health/deep] rate-limit stats unavailable:', e.message); }
   res.json({
     ok: true,
     drain: _drainMode,
@@ -3616,10 +3616,10 @@ let _provenanceCache = null;
 function _buildProvenance() {
   if (_provenanceCache) return _provenanceCache;
   let anchor = null;
-  try { anchor = require('./modules/innovations-50y/crypto-agility').getOrCreateAnchorKey(); } catch (_) {}
+  try { anchor = require('./modules/innovations-50y/crypto-agility').getOrCreateAnchorKey(); } catch (e) { console.warn('[provenance] anchor key unavailable:', e.message); }
   let gitSha = process.env.RELEASE_SHA || process.env.GIT_SHA || '';
   if (!gitSha) {
-    try { gitSha = require('child_process').execSync('git rev-parse HEAD', { stdio: ['ignore', 'pipe', 'ignore'], timeout: 1500 }).toString().trim(); } catch (_) {}
+    try { gitSha = require('child_process').execSync('git rev-parse HEAD', { stdio: ['ignore', 'pipe', 'ignore'], timeout: 1500 }).toString().trim(); } catch (e) { /* git may not be available in container */ }
   }
   const stmt = {
     _type: 'https://in-toto.io/Statement/v1',
@@ -5893,7 +5893,7 @@ app.post('/api/analytics/funnel', (req, res) => {
   pushFunnelEvent(evt);
   // Durable aggregation — survives PM2 reloads, feeds reality-metrics + flywheel.
   // RO: agregare durabilă — vizitatorii nu se mai pierd la restart.
-  if (funnelIntelligence) { try { funnelIntelligence.record(evt); } catch (_) {} }
+  if (funnelIntelligence) { try { funnelIntelligence.record(evt); } catch (e) { console.warn('[funnel] record failed:', e.message); } }
   return res.status(202).json({ ok: true });
 });
 
@@ -6611,9 +6611,9 @@ function _onPaidInvoice(invoice) {
     } else {
       zacAlerts.notifySale(invoice).catch(() => {});
     }
-  } catch (_) {}
+  } catch (e) { console.warn('[BTC/Paid] sale notification failed:', e.message); }
   // Mesh broadcast so other modules can react (e.g., service activation).
-  try { meshOrchestrator.broadcast && meshOrchestrator.broadcast('btc.invoice.paid', invoice); } catch (_) {}
+  try { meshOrchestrator.broadcast && meshOrchestrator.broadcast('btc.invoice.paid', invoice); } catch (e) { console.warn('[BTC/Paid] mesh broadcast failed:', e.message); }
 }
 
 if (process.env.BTC_VERIFIER_DISABLE !== '1') {

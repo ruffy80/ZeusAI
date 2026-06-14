@@ -87,7 +87,7 @@ async function createOrder({ serviceId, email = null, qty = 1, metadata = {}, dr
   // unknown id is still sellable if priceNegotiator can price it (the
   // negotiator enforces the profit floor either way).
   let catalogItem = null;
-  try { catalogItem = await serviceCatalog.byId(sid); } catch (_) {}
+  try { catalogItem = await serviceCatalog.byId(sid); } catch (e) { console.warn('[salesOrchestrator] catalog lookup failed for', sid, e.message); }
 
   const pq = await quote(sid);
   if (!pq.ok) return { ok: false, error: 'unpriceable', serviceId: sid };
@@ -196,7 +196,7 @@ function listActivations({ limit = 50 } = {}) {
 
 function getStatus() {
   let activationCount = 0;
-  try { activationCount = _loadActivations().length; } catch (_) {}
+  try { activationCount = _loadActivations().length; } catch (e) { console.warn('[salesOrchestrator] activation count failed:', e.message); }
   return {
     module: 'salesOrchestrator',
     deps: { priceNegotiator: true, btcInvoiceLedger: true, serviceCatalog: true },

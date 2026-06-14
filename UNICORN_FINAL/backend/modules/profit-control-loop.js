@@ -234,7 +234,7 @@ class ProfitControlLoop {
       console.warn('[PCL] failed to persist scale recommendation:', e && e.message);
     }
     if (typeof this.onScaleRecommendation === 'function') {
-      try { this.onScaleRecommendation(rec); } catch (_) {}
+      try { this.onScaleRecommendation(rec); } catch (e) { console.warn('[PCL] onScaleRecommendation callback failed:', e.message); }
     }
     console.log(`[PCL] 📐 scale recommendation: ${action} (${reason}) reward=${rec.reward} health=${rec.healthScore}`);
     return rec;

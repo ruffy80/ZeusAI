@@ -73,7 +73,7 @@ function createSelfHealer({ targets = DEFAULT_TARGETS, intervalMs = 10000, maxFa
         }
         if (target.fails >= maxFailures + 2 && !target.manualReview) {
           target.manualReview = true;
-          try { onAlert({ kind: 'needs_manual_review', target: target.name, fails: target.fails }); } catch (_) {}
+          try { onAlert({ kind: 'needs_manual_review', target: target.name, fails: target.fails }); } catch (e) { console.error('[selfHealer] manual review alert failed:', e.message); }
         }
       }
     }
@@ -81,7 +81,7 @@ function createSelfHealer({ targets = DEFAULT_TARGETS, intervalMs = 10000, maxFa
 
   function start() {
     if (timer) return;
-    timer = setInterval(() => { tick().catch(() => {}); }, intervalMs);
+    timer = setInterval(() => { tick().catch((e) => { console.warn('[selfHealer] tick error:', e.message); }); }, intervalMs);
     if (typeof timer.unref === 'function') timer.unref();
     tick().catch(() => {});
   }
