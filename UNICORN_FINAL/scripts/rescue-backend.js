@@ -27,7 +27,7 @@ function sendJson(res, status, payload) {
   res.writeHead(status, {
     'content-type': 'application/json; charset=utf-8',
     'cache-control': 'no-store',
-    'access-control-allow-origin': '*',
+    'access-control-allow-origin': process.env.PUBLIC_APP_URL || '',
     'x-zeus-rescue': 'backend',
   });
   res.end(body);

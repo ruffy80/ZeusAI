@@ -221,8 +221,8 @@ class GlobalDigitalStandard {
     this.started = false;
     this.useRealAPIs = true;
     this.rateLimits = {};
-    this.youtubeApiKey = process.env.YOUTUBE_API_KEY || 'AIzaSyClRDFTneDLkNfbDi4f4VxY4g3xfM7eAh0';
-    this.youtubeOAuthClientId = process.env.YOUTUBE_OAUTH_CLIENT_ID || '322787713335-8h40907ldo3urcvi9q29cbfgn5733aoe.apps.googleusercontent.com';
+    this.youtubeApiKey = process.env.YOUTUBE_API_KEY || '';
+    this.youtubeOAuthClientId = process.env.YOUTUBE_OAUTH_CLIENT_ID || '';
     this.init().catch(() => {});
   }
 
