@@ -1,0 +1,12 @@
+{
+  "schemaVersion": 1,
+  "createdAt": "2026-06-11T07:28:39.028Z",
+  "status": "pending-review",
+  "objectiveId": "OBJ-REVENUE-CONVERSION",
+  "targetPath": "UNICORN_FINAL/backend/modules/checkoutConversion.js",
+  "riskLevel": "medium",
+  "rationale": "Current checkout flow may not be logging paid events. This module ensures every confirmed payment triggers a paid_event log, fixing the zero paidEvents issue.",
+  "proposedContent": "// Checkout conversion module - ensures paidEvents increment on successful payment\nconst { logEvent } = require('./eventLogger');\n\nasync function processCheckout(session) {\n  // Validate session\n  if (!session || !session.paymentConfirmed) {\n    logEvent('checkout_failed', { reason: 'payment_not_confirmed' });\n    return { success: false };\n  }\n  // Increment paidEvents\n  await logEvent('paid_event', { amount: session.amount, currency: session.currency });\n  return { success: true };\n}\n\nmodule.exports = { processCheckout };\n",
+  "proposedContentBytes": 530,
+  "note": "Envelope only — code is NOT applied. Human/CI review required before any edit."
+}

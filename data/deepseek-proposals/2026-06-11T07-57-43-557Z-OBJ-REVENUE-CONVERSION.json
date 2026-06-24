@@ -1,0 +1,12 @@
+{
+  "schemaVersion": 1,
+  "createdAt": "2026-06-11T07:57:43.557Z",
+  "status": "pending-review",
+  "objectiveId": "OBJ-REVENUE-CONVERSION",
+  "targetPath": "UNICORN_FINAL/backend/modules/checkoutConversionFix.js",
+  "riskLevel": "medium",
+  "rationale": "Brainstem directive: paidEvents zero after many runs. This module hooks into Stripe checkout.session.completed webhook to log paid events. Must be integrated into the webhook handler.",
+  "proposedContent": "// Checkout conversion fix: ensure paidEvents increment on successful payment\nconst stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);\nconst { logRevenueEvent } = require('./revenueTracker');\n\nmodule.exports = async function handleCheckoutSessionCompleted(session) {\n  if (session.payment_status === 'paid') {\n    await logRevenueEvent({\n      type: 'paid_event',\n      amount: session.amount_total,\n      currency: session.currency,\n      customer: session.customer,\n      timestamp: new Date().toISOString()\n    });\n    console.log('Checkout conversion: paid event logged');\n  }\n};\n",
+  "proposedContentBytes": 592,
+  "note": "Envelope only — code is NOT applied. Human/CI review required before any edit."
+}

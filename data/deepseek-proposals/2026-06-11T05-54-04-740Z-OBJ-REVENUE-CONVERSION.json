@@ -1,0 +1,12 @@
+{
+  "schemaVersion": 1,
+  "createdAt": "2026-06-11T05:54:04.740Z",
+  "status": "pending-review",
+  "objectiveId": "OBJ-REVENUE-CONVERSION",
+  "targetPath": "UNICORN_FINAL/backend/modules/revenueConversion.js",
+  "riskLevel": "medium",
+  "rationale": "Brainstem directive: paidEvents zero, implement conversion offer logic to convert leads into paid events.",
+  "proposedContent": "// Revenue conversion module: triggers checkout offer when paidEvents=0\nconst axios = require('axios');\n\nasync function triggerConversionOffer() {\n  try {\n    // Simulate offering a discount to convert leads\n    const response = await axios.post('http://localhost:4000/api/checkout/offer', {\n      offer: { discount: 10, message: 'Complete your purchase now and save 10%!' }\n    });\n    console.log('Conversion offer sent:', response.data);\n    return response.data;\n  } catch (err) {\n    console.error('Conversion offer failed:', err.message);\n    return null;\n  }\n}\n\nmodule.exports = { triggerConversionOffer };\n",
+  "proposedContentBytes": 614,
+  "note": "Envelope only — code is NOT applied. Human/CI review required before any edit."
+}

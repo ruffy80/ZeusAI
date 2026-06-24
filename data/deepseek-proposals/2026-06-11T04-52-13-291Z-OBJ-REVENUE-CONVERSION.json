@@ -1,0 +1,12 @@
+{
+  "schemaVersion": 1,
+  "createdAt": "2026-06-11T04:52:13.291Z",
+  "status": "pending-review",
+  "objectiveId": "OBJ-REVENUE-CONVERSION",
+  "targetPath": "UNICORN_FINAL/backend/modules/checkoutConversion.js",
+  "riskLevel": "low",
+  "rationale": "Create a dedicated checkout conversion tracking module to capture offer shown/accepted events and compute conversion rate. This enables validation of the conversion funnel and identifies where paidEvents are being lost.",
+  "proposedContent": "// Checkout conversion module - auto-optimize offer flow\nconst express = require('express');\nconst router = express.Router();\n\n// In-memory conversion tracking\nlet conversionStats = {\n  offersShown: 0,\n  offersAccepted: 0,\n  revenue: 0\n};\n\n// Track offer shown\nrouter.post('/offer-shown', (req, res) => {\n  conversionStats.offersShown++;\n  res.json({ ok: true });\n});\n\n// Track offer accepted (conversion)\nrouter.post('/offer-accepted', (req, res) => {\n  conversionStats.offersAccepted++;\n  conversionStats.revenue += req.body.amount || 0;\n  res.json({ ok: true });\n});\n\n// Get conversion stats\nrouter.get('/stats', (req, res) => {\n  const rate = conversionStats.offersShown > 0 ? (conversionStats.offersAccepted / conversionStats.offersShown) : 0;\n  res.json({\n    offersShown: conversionStats.offersShown,\n    offersAccepted: conversionStats.offersAccepted,\n    conversionRate: rate,\n    revenue: conversionStats.revenue\n  });\n});\n\n// Reset stats (for testing)\nrouter.post('/reset', (req, res) => {\n  conversionStats = { offersShown: 0, offersAccepted: 0, revenue: 0 };\n  res.json({ ok: true });\n});\n\nmodule.exports = router;\n",
+  "proposedContentBytes": 1128,
+  "note": "Envelope only — code is NOT applied. Human/CI review required before any edit."
+}

@@ -1,0 +1,12 @@
+{
+  "schemaVersion": 1,
+  "createdAt": "2026-06-11T05:51:59.068Z",
+  "status": "pending-review",
+  "objectiveId": "OBJ-REVENUE-CONVERSION",
+  "targetPath": "UNICORN_FINAL/backend/modules/checkout-conversion.js",
+  "riskLevel": "medium",
+  "rationale": "Brainstem directive: paidEvents zero. This module adds a micro-discount offer for engaged visitors and records payments. Integrates with existing pricing engine. Next step: wire into checkout flow and validate.",
+  "proposedContent": "// Checkout conversion module - auto-offer logic\n// Brainstem directive: paidEvents still zero, prioritize conversion\n\nconst { log } = require('../constants/logger.js');\nconst { getPricing } = require('./pricing-engine.js');\n\nasync function applyConversionOffer(session) {\n  // If user has high engagement but no purchase, inject a micro-offer\n  if (session.pageViews > 3 && !session.hasPaid) {\n    const pricing = await getPricing(session.visitorId);\n    // Offer 10% discount if pricing is above threshold\n    if (pricing.basePrice > 0) {\n      const discount = Math.round(pricing.basePrice * 0.1 * 100) / 100;\n      session.offer = {\n        type: 'micro_discount',\n        amount: discount,\n        expiresAt: Date.now() + 300000 // 5 min\n      };\n      log('conversion_offer_applied', { visitorId: session.visitorId, discount });\n    }\n  }\n  return session;\n}\n\nasync function recordPayment(session, amount) {\n  // Record a paid event\n  session.hasPaid = true;\n  session.paidAmount = amount;\n  session.paidAt = Date.now();\n  log('payment_recorded', { visitorId: session.visitorId, amount });\n  return session;\n}\n\nmodule.exports = { applyConversionOffer, recordPayment };\n",
+  "proposedContentBytes": 1175,
+  "note": "Envelope only — code is NOT applied. Human/CI review required before any edit."
+}
