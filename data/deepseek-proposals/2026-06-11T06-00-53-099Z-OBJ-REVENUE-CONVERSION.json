@@ -1,0 +1,12 @@
+{
+  "schemaVersion": 1,
+  "createdAt": "2026-06-11T06:00:53.099Z",
+  "status": "pending-review",
+  "objectiveId": "OBJ-REVENUE-CONVERSION",
+  "targetPath": "UNICORN_FINAL/backend/modules/conversion-offer.js",
+  "riskLevel": "low",
+  "rationale": "Brainstem directive: paidEvents zero. This middleware adds a conversion offer to the checkout page to drive paid events.",
+  "proposedContent": "// Conversion offer logic: when paidEvents is zero, inject a discount offer into checkout\nmodule.exports = function conversionOffer(req, res, next) {\n  if (req.path === '/checkout' && req.method === 'GET') {\n    // Inject a 10% discount offer banner\n    req.offer = { type: 'discount', value: 0.1, message: 'Use code UNICORN10 for 10% off!' };\n  }\n  next();\n};",
+  "proposedContentBytes": 360,
+  "note": "Envelope only — code is NOT applied. Human/CI review required before any edit."
+}

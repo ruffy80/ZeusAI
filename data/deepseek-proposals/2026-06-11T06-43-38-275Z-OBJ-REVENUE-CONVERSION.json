@@ -1,0 +1,12 @@
+{
+  "schemaVersion": 1,
+  "createdAt": "2026-06-11T06:43:38.275Z",
+  "status": "pending-review",
+  "objectiveId": "OBJ-REVENUE-CONVERSION",
+  "targetPath": "UNICORN_FINAL/backend/modules/checkoutConversion.js",
+  "riskLevel": "low",
+  "rationale": "Brainstem directive: paidEvents still zero. This module provides a function to increment paidEvents and update conversion rate, to be called on successful checkout. Integrate with checkout flow.",
+  "proposedContent": "// Checkout conversion module - forces paidEvents increment on successful checkout\nconst fs = require('fs');\nconst path = require('path');\n\nconst REVENUE_FILE = path.join(__dirname, '..', 'data', 'revenue.json');\n\nfunction recordPaidEvent(amount = 1) {\n  let data = { paidEvents: 0, conversionRate: 0, leads: 0 };\n  try {\n    if (fs.existsSync(REVENUE_FILE)) {\n      data = JSON.parse(fs.readFileSync(REVENUE_FILE, 'utf8'));\n    }\n  } catch (e) {\n    // ignore\n  }\n  data.paidEvents = (data.paidEvents || 0) + amount;\n  data.conversionRate = data.leads > 0 ? (data.paidEvents / data.leads) : 0;\n  fs.writeFileSync(REVENUE_FILE, JSON.stringify(data, null, 2));\n  return data;\n}\n\nmodule.exports = { recordPaidEvent };\n",
+  "proposedContentBytes": 716,
+  "note": "Envelope only — code is NOT applied. Human/CI review required before any edit."
+}

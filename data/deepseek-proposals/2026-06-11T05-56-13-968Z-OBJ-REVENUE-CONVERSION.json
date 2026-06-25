@@ -1,0 +1,12 @@
+{
+  "schemaVersion": 1,
+  "createdAt": "2026-06-11T05:56:13.968Z",
+  "status": "pending-review",
+  "objectiveId": "OBJ-REVENUE-CONVERSION",
+  "targetPath": "UNICORN_FINAL/backend/modules/conversion-offer.js",
+  "riskLevel": "medium",
+  "rationale": "Brainstem directive: paidEvents zero. This module injects a discount offer for high-intent leads to drive conversion. Integrates with existing lead scoring.",
+  "proposedContent": "// Conversion offer logic: when a lead is detected, inject a discount offer to drive paid event\nconst axios = require('axios');\nconst { BACKEND_URL } = require('../constants/config');\n\nasync function applyConversionOffer(leadId, leadData) {\n  // If lead has high intent (e.g., visited pricing page), offer a discount\n  if (leadData.intentScore > 0.7) {\n    try {\n      await axios.post(`${BACKEND_URL}/api/offer`, {\n        leadId,\n        offer: { type: 'discount', value: 20, expiresIn: 3600 },\n        source: 'conversion-offer'\n      });\n      return { applied: true, offerValue: 20 };\n    } catch (err) {\n      console.error('Conversion offer failed:', err.message);\n      return { applied: false, error: err.message };\n    }\n  }\n  return { applied: false, reason: 'low_intent' };\n}\n\nmodule.exports = { applyConversionOffer };\n",
+  "proposedContentBytes": 832,
+  "note": "Envelope only — code is NOT applied. Human/CI review required before any edit."
+}

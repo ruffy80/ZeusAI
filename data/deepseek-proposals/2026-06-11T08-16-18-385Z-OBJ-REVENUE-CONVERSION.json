@@ -1,0 +1,12 @@
+{
+  "schemaVersion": 1,
+  "createdAt": "2026-06-11T08:16:18.385Z",
+  "status": "pending-review",
+  "objectiveId": "OBJ-REVENUE-CONVERSION",
+  "targetPath": "UNICORN_FINAL/backend/modules/checkout-conversion.js",
+  "riskLevel": "low",
+  "rationale": "Brainstem directive: paidEvents zero. Create a conversion tracking module to log paid events and enable revenue autopilot. This module writes to a log file and provides a count function for the autopilot loop.",
+  "proposedContent": "// Checkout conversion module - tracks paid events and triggers revenue autopilot\nconst fs = require('fs');\nconst path = require('path');\n\nconst CONVERSION_LOG = '/var/log/checkout_conversions.log';\n\nfunction logConversion(event) {\n  const entry = {\n    ts: new Date().toISOString(),\n    event: event,\n    paid: true\n  };\n  fs.appendFileSync(CONVERSION_LOG, JSON.stringify(entry) + '\\n');\n  return entry;\n}\n\nfunction getPaidEventCount() {\n  try {\n    const data = fs.readFileSync(CONVERSION_LOG, 'utf8');\n    const lines = data.trim().split('\\n').filter(l => l);\n    return lines.length;\n  } catch (e) {\n    return 0;\n  }\n}\n\nmodule.exports = { logConversion, getPaidEventCount };\n",
+  "proposedContentBytes": 680,
+  "note": "Envelope only — code is NOT applied. Human/CI review required before any edit."
+}

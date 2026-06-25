@@ -1,0 +1,12 @@
+{
+  "schemaVersion": 1,
+  "createdAt": "2026-06-11T08:12:48.843Z",
+  "status": "pending-review",
+  "objectiveId": "OBJ-REVENUE-CONVERSION",
+  "targetPath": "UNICORN_FINAL/backend/modules/checkout-conversion.js",
+  "riskLevel": "low",
+  "rationale": "Create a dedicated checkout conversion module to track paid events. The brainstem directive indicates paidEvents is zero despite many runs. This module provides a persistent log and increments paidEvents on each conversion, enabling the revenue autopilot to detect and report conversions.",
+  "proposedContent": "// Checkout conversion module - forces conversion tracking and offer logic\nconst fs = require('fs');\nconst path = require('path');\n\nconst CONVERSION_LOG = path.join(__dirname, '..', '..', 'data', 'conversions.json');\n\nfunction ensureLog() {\n  if (!fs.existsSync(CONVERSION_LOG)) {\n    fs.writeFileSync(CONVERSION_LOG, JSON.stringify({ conversions: [], paidEvents: 0 }));\n  }\n}\n\nfunction trackConversion(userId, amount, currency = 'USD') {\n  ensureLog();\n  const data = JSON.parse(fs.readFileSync(CONVERSION_LOG));\n  data.conversions.push({ userId, amount, currency, timestamp: new Date().toISOString() });\n  data.paidEvents += 1;\n  fs.writeFileSync(CONVERSION_LOG, JSON.stringify(data, null, 2));\n  return data.paidEvents;\n}\n\nfunction getPaidEvents() {\n  ensureLog();\n  const data = JSON.parse(fs.readFileSync(CONVERSION_LOG));\n  return data.paidEvents;\n}\n\nfunction resetPaidEvents() {\n  ensureLog();\n  fs.writeFileSync(CONVERSION_LOG, JSON.stringify({ conversions: [], paidEvents: 0 }));\n}\n\nmodule.exports = { trackConversion, getPaidEvents, resetPaidEvents };\n",
+  "proposedContentBytes": 1062,
+  "note": "Envelope only — code is NOT applied. Human/CI review required before any edit."
+}

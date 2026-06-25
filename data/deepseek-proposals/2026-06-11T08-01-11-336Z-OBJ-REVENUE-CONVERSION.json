@@ -1,0 +1,12 @@
+{
+  "schemaVersion": 1,
+  "createdAt": "2026-06-11T08:01:11.336Z",
+  "status": "pending-review",
+  "objectiveId": "OBJ-REVENUE-CONVERSION",
+  "targetPath": "UNICORN_FINAL/backend/modules/checkoutConversionFix.js",
+  "riskLevel": "medium",
+  "rationale": "Brainstem directive: paidEvents zero. Intercept successful checkout responses to increment paidEvents counter.",
+  "proposedContent": "// Checkout conversion fix: ensure paidEvents increment on successful payment\nconst { logEvent } = require('./eventLogger');\n\nmodule.exports = function(req, res, next) {\n  const originalJson = res.json.bind(res);\n  res.json = function(body) {\n    if (res.statusCode === 200 && body && body.success && req.path === '/api/checkout') {\n      logEvent('paidEvents', { amount: body.amount || 0, currency: 'USD' });\n    }\n    return originalJson(body);\n  };\n  next();\n};",
+  "proposedContentBytes": 464,
+  "note": "Envelope only — code is NOT applied. Human/CI review required before any edit."
+}

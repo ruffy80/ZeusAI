@@ -1,0 +1,12 @@
+{
+  "schemaVersion": 1,
+  "createdAt": "2026-06-11T07:51:25.807Z",
+  "status": "pending-review",
+  "objectiveId": "OBJ-REVENUE-CONVERSION",
+  "targetPath": "UNICORN_FINAL/backend/modules/checkoutConversionFix.js",
+  "riskLevel": "medium",
+  "rationale": "Brainstem directive: paidEvents still zero. This middleware ensures every successful checkout completion fires a paidEvent to the revenue endpoint, fixing the conversion tracking gap.",
+  "proposedContent": "// Checkout conversion fix: ensure paidEvents increment on successful payment\n// This module intercepts the checkout completion webhook and forces a revenue event\n\nconst axios = require('axios');\n\nmodule.exports = async function fixCheckoutConversion(req, res, next) {\n  // Only act on successful checkout completion\n  if (req.path === '/api/checkout/complete' && req.method === 'POST') {\n    const { orderId, amount, currency } = req.body;\n    if (orderId && amount > 0) {\n      try {\n        // Fire revenue event to internal analytics\n        await axios.post('http://localhost:4000/api/revenue/event', {\n          event: 'paidEvent',\n          orderId,\n          amount,\n          currency: currency || 'USD',\n          timestamp: new Date().toISOString()\n        });\n        console.log(`[checkoutConversionFix] paidEvent recorded for order ${orderId}`);\n      } catch (err) {\n        console.error('[checkoutConversionFix] Failed to record paidEvent:', err.message);\n      }\n    }\n  }\n  next();\n};\n",
+  "proposedContentBytes": 1004,
+  "note": "Envelope only — code is NOT applied. Human/CI review required before any edit."
+}

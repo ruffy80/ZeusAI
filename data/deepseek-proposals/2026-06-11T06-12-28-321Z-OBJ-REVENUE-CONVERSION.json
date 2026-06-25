@@ -1,0 +1,12 @@
+{
+  "schemaVersion": 1,
+  "createdAt": "2026-06-11T06:12:28.321Z",
+  "status": "pending-review",
+  "objectiveId": "OBJ-REVENUE-CONVERSION",
+  "targetPath": "UNICORN_FINAL/backend/modules/conversion-offer.js",
+  "riskLevel": "low",
+  "rationale": "Brainstem directive: prioritize checkout/offer conversion code_proposals. This module creates time-limited discount offers to convert visitors into paying customers, addressing the zero paidEvents issue.",
+  "proposedContent": "// Conversion offer logic: triggers a special offer popup when user shows purchase intent\n// This module is called by the pricing page after a visitor views pricing for >5 seconds\n// or hovers over the checkout button.\n\nconst offers = {\n  default: {\n    discount: 0.15,\n    message: 'Get 15% off if you buy now!',\n    expiresInMinutes: 10\n  },\n  premium: {\n    discount: 0.25,\n    message: 'Exclusive 25% discount for premium visitors!',\n    expiresInMinutes: 5\n  }\n};\n\nfunction getOfferForVisitor(visitorProfile) {\n  // Simple logic: return premium offer for returning visitors\n  if (visitorProfile && visitorProfile.visitCount > 1) {\n    return offers.premium;\n  }\n  return offers.default;\n}\n\nfunction createConversionOffer(visitorProfile) {\n  const offer = getOfferForVisitor(visitorProfile);\n  return {\n    ...offer,\n    expiresAt: Date.now() + offer.expiresInMinutes * 60 * 1000,\n    code: 'CONVERT' + Math.random().toString(36).substring(2, 8).toUpperCase()\n  };\n}\n\nmodule.exports = { createConversionOffer, offers };\n",
+  "proposedContentBytes": 1024,
+  "note": "Envelope only — code is NOT applied. Human/CI review required before any edit."
+}
