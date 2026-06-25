@@ -1,0 +1,12 @@
+{
+  "schemaVersion": 1,
+  "createdAt": "2026-06-24T07:30:16.432Z",
+  "status": "pending-review",
+  "objectiveId": "revenue-conversion-fix",
+  "targetPath": "UNICORN_FINAL/backend/modules/checkoutConversionFix.js",
+  "riskLevel": "medium",
+  "rationale": "Brainstem directive: paidEvents stuck at 0. This middleware intercepts successful checkout responses and increments the paidEvents metric, fixing the conversion tracking.",
+  "proposedContent": "// Checkout conversion fix: ensure paidEvents increment on successful payment\nconst { logEvent } = require('./logger');\nconst { incrementMetric } = require('./metrics');\n\nmodule.exports = function checkoutConversionFix(req, res, next) {\n  const originalJson = res.json.bind(res);\n  res.json = function (body) {\n    if (res.statusCode === 200 && body && body.success) {\n      // Increment paidEvents on successful checkout\n      incrementMetric('paidEvents', 1);\n      logEvent('checkout_success', { orderId: body.orderId });\n    }\n    return originalJson(body);\n  };\n  next();\n};\n",
+  "proposedContentBytes": 580,
+  "note": "Envelope only — code is NOT applied. Human/CI review required before any edit."
+}

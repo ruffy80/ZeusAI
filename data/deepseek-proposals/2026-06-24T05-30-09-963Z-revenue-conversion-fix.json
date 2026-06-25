@@ -1,0 +1,12 @@
+{
+  "schemaVersion": 1,
+  "createdAt": "2026-06-24T05:30:09.963Z",
+  "status": "pending-review",
+  "objectiveId": "revenue-conversion-fix",
+  "targetPath": "UNICORN_FINAL/backend/modules/checkout-conversion-fix.js",
+  "riskLevel": "medium",
+  "rationale": "Intercept checkout completion to log paidEvent, addressing zero paidEvents after many runs.",
+  "proposedContent": "// Checkout conversion fix: ensure offer acceptance triggers payment event\nconst { logEvent } = require('./eventLogger');\n\nmodule.exports = function fixCheckoutConversion(req, res, next) {\n  const originalJson = res.json.bind(res);\n  res.json = function (body) {\n    if (req.path === '/api/checkout/complete' && res.statusCode === 200) {\n      logEvent('paidEvent', { userId: req.user?.id, amount: body?.amount });\n    }\n    return originalJson(body);\n  };\n  next();\n};",
+  "proposedContentBytes": 469,
+  "note": "Envelope only — code is NOT applied. Human/CI review required before any edit."
+}

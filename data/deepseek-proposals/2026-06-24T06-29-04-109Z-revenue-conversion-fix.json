@@ -1,0 +1,12 @@
+{
+  "schemaVersion": 1,
+  "createdAt": "2026-06-24T06:29:04.109Z",
+  "status": "pending-review",
+  "objectiveId": "revenue-conversion-fix",
+  "targetPath": "UNICORN_FINAL/backend/modules/checkout-conversion-fix.js",
+  "riskLevel": "medium",
+  "rationale": "Intercept successful checkout responses and log a paidEvent to fix zero conversion rate. Brainstem directive: prioritize checkout conversion fix.",
+  "proposedContent": "// Checkout conversion fix: ensure offer acceptance triggers paidEvent\nconst { logEvent } = require('./eventLogger');\n\nmodule.exports = function fixCheckoutConversion(req, res, next) {\n  const originalJson = res.json.bind(res);\n  res.json = function (body) {\n    if (req.path === '/api/checkout' && res.statusCode === 200 && body && body.success) {\n      logEvent('paidEvent', { amount: body.amount || 0, currency: 'USD' });\n    }\n    return originalJson(body);\n  };\n  next();\n};",
+  "proposedContentBytes": 479,
+  "note": "Envelope only — code is NOT applied. Human/CI review required before any edit."
+}

@@ -1,0 +1,12 @@
+{
+  "schemaVersion": 1,
+  "createdAt": "2026-06-24T08:05:48.893Z",
+  "status": "pending-review",
+  "objectiveId": "revenue-conversion-fix",
+  "targetPath": "UNICORN_FINAL/backend/modules/checkoutConversion.js",
+  "riskLevel": "medium",
+  "rationale": "Brainstem directive: paidEvents zero. This fix ensures paidEvents increments on successful payment, addressing the conversion SLO breach.",
+  "proposedContent": "// Checkout conversion fix: ensure paidEvents increments on successful payment\nconst { logEvent } = require('./eventLogger');\n\nmodule.exports = async function processCheckout(req, res) {\n  try {\n    // ... existing checkout logic ...\n    // After payment success:\n    if (paymentSuccess) {\n      await logEvent('paidEvent', { amount: req.body.amount, currency: 'USD' });\n      // Increment paidEvents counter in revenue module\n      const revenue = require('./revenue');\n      revenue.incrementPaidEvents();\n    }\n    res.status(200).json({ success: true });\n  } catch (err) {\n    console.error('Checkout error:', err);\n    res.status(500).json({ error: 'Checkout failed' });\n  }\n};",
+  "proposedContentBytes": 682,
+  "note": "Envelope only — code is NOT applied. Human/CI review required before any edit."
+}

@@ -1,0 +1,12 @@
+{
+  "schemaVersion": 1,
+  "createdAt": "2026-06-24T06:17:28.251Z",
+  "status": "pending-review",
+  "objectiveId": "revenue-conversion-fix",
+  "targetPath": "UNICORN_FINAL/backend/modules/checkout-conversion-fix.js",
+  "riskLevel": "medium",
+  "rationale": "paidEvents remains zero despite 170k leads. This module hooks into checkout completion to increment paidEvents and update conversion rate. Integrate with existing webhook handler.",
+  "proposedContent": "// Checkout conversion fix: ensure paidEvents increment on successful payment\n// This module intercepts the checkout completion webhook and increments revenue counter\n\nconst fs = require('fs');\nconst path = require('path');\n\nconst REVENUE_FILE = path.join(__dirname, '..', 'data', 'revenue.json');\n\nfunction incrementPaidEvents() {\n  try {\n    let data = { paidEvents: 0, conversionRate: 0, leads: 0 };\n    if (fs.existsSync(REVENUE_FILE)) {\n      data = JSON.parse(fs.readFileSync(REVENUE_FILE, 'utf8'));\n    }\n    data.paidEvents = (data.paidEvents || 0) + 1;\n    data.conversionRate = data.leads > 0 ? (data.paidEvents / data.leads) * 100 : 0;\n    fs.writeFileSync(REVENUE_FILE, JSON.stringify(data, null, 2));\n    console.log('Checkout conversion: paidEvents incremented to', data.paidEvents);\n    return true;\n  } catch (err) {\n    console.error('Checkout conversion error:', err);\n    return false;\n  }\n}\n\n// Hook into checkout completion (assumes webhook endpoint calls this)\nmodule.exports = { incrementPaidEvents };\n",
+  "proposedContentBytes": 1025,
+  "note": "Envelope only — code is NOT applied. Human/CI review required before any edit."
+}

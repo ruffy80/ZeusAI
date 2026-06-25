@@ -1,0 +1,12 @@
+{
+  "schemaVersion": 1,
+  "createdAt": "2026-06-24T07:01:22.744Z",
+  "status": "pending-review",
+  "objectiveId": "revenue-conversion-fix",
+  "targetPath": "UNICORN_FINAL/backend/modules/checkout-conversion-fix.js",
+  "riskLevel": "medium",
+  "rationale": "Brainstem directive: paidEvents zero. This module intercepts checkout success responses and writes paid events to a log file, ensuring revenue tracking works even if other paths fail.",
+  "proposedContent": "// Checkout conversion fix module\n// Ensures paidEvents are recorded when checkout completes\n\nconst fs = require('fs');\nconst path = require('path');\n\nconst EVENTS_LOG = '/var/log/unicorn_paid_events.log';\n\nfunction recordPaidEvent(orderId, amount, currency) {\n  const event = {\n    orderId,\n    amount,\n    currency: currency || 'USD',\n    timestamp: new Date().toISOString(),\n    source: 'checkout-conversion-fix'\n  };\n  fs.appendFileSync(EVENTS_LOG, JSON.stringify(event) + '\\n');\n  console.log('[CHECKOUT_FIX] Recorded paid event:', orderId);\n  return true;\n}\n\nfunction validateCheckoutFlow(req, res, next) {\n  // Intercept checkout completion\n  const originalJson = res.json.bind(res);\n  res.json = function(body) {\n    if (body && body.success && body.orderId) {\n      recordPaidEvent(body.orderId, body.amount, body.currency);\n    }\n    return originalJson(body);\n  };\n  next();\n}\n\nmodule.exports = { recordPaidEvent, validateCheckoutFlow };\n",
+  "proposedContentBytes": 949,
+  "note": "Envelope only — code is NOT applied. Human/CI review required before any edit."
+}

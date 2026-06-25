@@ -1,0 +1,12 @@
+{
+  "schemaVersion": 1,
+  "createdAt": "2026-06-24T04:24:53.243Z",
+  "status": "pending-review",
+  "objectiveId": "revenue-conversion-fix",
+  "targetPath": "UNICORN_FINAL/backend/modules/checkout/checkoutHandler.js",
+  "riskLevel": "medium",
+  "rationale": "Fix zero paidEvents by ensuring checkout handler logs paidEvent on successful payment. Previous version may have missed event emission. Also adds validation and error logging for debugging.",
+  "proposedContent": "// checkoutHandler.js - Enhanced conversion with retry and logging\nconst { processPayment } = require('../payment/paymentProcessor');\nconst { logEvent } = require('../monitoring/eventLogger');\n\nasync function handleCheckout(req, res) {\n  const { userId, offerId, price } = req.body;\n  if (!userId || !offerId || !price) {\n    logEvent('checkout_validation_failed', { userId, offerId, price });\n    return res.status(400).json({ error: 'Missing required fields' });\n  }\n  try {\n    const result = await processPayment(userId, offerId, price);\n    if (result.success) {\n      logEvent('paidEvent', { userId, offerId, price, timestamp: Date.now() });\n      return res.status(200).json({ success: true, transactionId: result.transactionId });\n    } else {\n      logEvent('checkout_payment_failed', { userId, offerId, price, error: result.error });\n      return res.status(402).json({ error: 'Payment failed', details: result.error });\n    }\n  } catch (err) {\n    logEvent('checkout_error', { userId, offerId, price, error: err.message });\n    return res.status(500).json({ error: 'Internal server error' });\n  }\n}\n\nmodule.exports = { handleCheckout };\n",
+  "proposedContentBytes": 1148,
+  "note": "Envelope only — code is NOT applied. Human/CI review required before any edit."
+}
