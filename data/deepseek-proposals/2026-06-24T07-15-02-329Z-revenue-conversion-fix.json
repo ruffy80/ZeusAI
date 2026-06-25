@@ -1,0 +1,12 @@
+{
+  "schemaVersion": 1,
+  "createdAt": "2026-06-24T07:15:02.329Z",
+  "status": "pending-review",
+  "objectiveId": "revenue-conversion-fix",
+  "targetPath": "UNICORN_FINAL/backend/modules/revenue-conversion-fix.js",
+  "riskLevel": "low",
+  "rationale": "Brainstem directive: paidEvents zero. Create a dedicated module to increment paidEvents on checkout success. This is a first step; next will integrate into checkout flow.",
+  "proposedContent": "// revenue-conversion-fix.js\n// Brainstem directive: paidEvents zero after many runs.\n// This module hooks into checkout completion to increment paidEvents.\n\nconst fs = require('fs');\nconst path = require('path');\n\nconst REVENUE_FILE = path.join(__dirname, '..', 'data', 'revenue.json');\n\nfunction loadRevenue() {\n  try {\n    const raw = fs.readFileSync(REVENUE_FILE, 'utf8');\n    return JSON.parse(raw);\n  } catch (e) {\n    return { paidEvents: 0, conversionRate: 0, leads: 0 };\n  }\n}\n\nfunction saveRevenue(data) {\n  fs.writeFileSync(REVENUE_FILE, JSON.stringify(data, null, 2));\n}\n\nfunction recordPaidEvent() {\n  const data = loadRevenue();\n  data.paidEvents = (data.paidEvents || 0) + 1;\n  data.conversionRate = data.leads > 0 ? (data.paidEvents / data.leads) : 0;\n  saveRevenue(data);\n  console.log(`[revenue-conversion-fix] recorded paid event. total: ${data.paidEvents}`);\n}\n\n// Hook into checkout success (assumes a global event or module export)\n// This is a placeholder; integrate with actual checkout flow.\nmodule.exports = { recordPaidEvent };\n\n// Auto-inject: if this module is loaded, it patches the checkout module.\n// For now, we export the function for manual integration.\n",
+  "proposedContentBytes": 1189,
+  "note": "Envelope only — code is NOT applied. Human/CI review required before any edit."
+}

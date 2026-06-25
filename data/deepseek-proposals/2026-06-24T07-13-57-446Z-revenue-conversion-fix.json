@@ -1,0 +1,12 @@
+{
+  "schemaVersion": 1,
+  "createdAt": "2026-06-24T07:13:57.446Z",
+  "status": "pending-review",
+  "objectiveId": "revenue-conversion-fix",
+  "targetPath": "UNICORN_FINAL/backend/modules/revenue-conversion-fix.js",
+  "riskLevel": "medium",
+  "rationale": "Brainstem directive: paidEvents zero after many runs. This module intercepts checkout completion and records a paid event, fixing conversion tracking.",
+  "proposedContent": "// Revenue conversion fix: ensure paidEvents increments on successful checkout\n// This module intercepts checkout completion and triggers revenue event\n\nconst revenueModule = require('./revenue');\n\nmodule.exports = function(app) {\n  app.post('/api/checkout/complete', (req, res, next) => {\n    const originalSend = res.send.bind(res);\n    res.send = function(body) {\n      try {\n        const data = JSON.parse(body);\n        if (data && data.success) {\n          revenueModule.recordEvent({\n            type: 'paid',\n            amount: data.amount || 0,\n            currency: data.currency || 'USD',\n            timestamp: Date.now()\n          });\n        }\n      } catch (e) {\n        console.error('Revenue conversion fix parse error:', e.message);\n      }\n      return originalSend(body);\n    };\n    next();\n  });\n};\n",
+  "proposedContentBytes": 822,
+  "note": "Envelope only — code is NOT applied. Human/CI review required before any edit."
+}

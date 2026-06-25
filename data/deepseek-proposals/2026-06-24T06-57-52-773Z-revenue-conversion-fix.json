@@ -1,0 +1,12 @@
+{
+  "schemaVersion": 1,
+  "createdAt": "2026-06-24T06:57:52.773Z",
+  "status": "pending-review",
+  "objectiveId": "revenue-conversion-fix",
+  "targetPath": "UNICORN_FINAL/backend/modules/revenue-conversion-fix.js",
+  "riskLevel": "medium",
+  "rationale": "paidEvents remains zero despite 106 revenue runs. This module hooks into checkout success to increment paidEvents and totalRevenue, fixing the conversion tracking gap.",
+  "proposedContent": "// revenue-conversion-fix.js\n// Ensures paidEvents increment when checkout completes successfully.\n// Hook into checkout success flow.\n\nconst fs = require('fs');\nconst path = require('path');\n\nconst REVENUE_FILE = path.join(__dirname, '..', 'data', 'revenue.json');\n\nfunction recordPaidEvent(amount, currency = 'USD') {\n  try {\n    let data = { paidEvents: 0, totalRevenue: 0, currency };\n    if (fs.existsSync(REVENUE_FILE)) {\n      const raw = fs.readFileSync(REVENUE_FILE, 'utf8');\n      data = JSON.parse(raw);\n    }\n    data.paidEvents = (data.paidEvents || 0) + 1;\n    data.totalRevenue = (data.totalRevenue || 0) + amount;\n    data.lastPaidAt = new Date().toISOString();\n    fs.writeFileSync(REVENUE_FILE, JSON.stringify(data, null, 2));\n    console.log(`[RevenueFix] Recorded paid event: +${amount} ${currency}`);\n    return true;\n  } catch (err) {\n    console.error('[RevenueFix] Error recording paid event:', err);\n    return false;\n  }\n}\n\n// Expose for integration with checkout success handler\nmodule.exports = { recordPaidEvent };\n",
+  "proposedContentBytes": 1044,
+  "note": "Envelope only — code is NOT applied. Human/CI review required before any edit."
+}

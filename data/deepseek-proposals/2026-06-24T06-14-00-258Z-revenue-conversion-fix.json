@@ -1,0 +1,12 @@
+{
+  "schemaVersion": 1,
+  "createdAt": "2026-06-24T06:14:00.258Z",
+  "status": "pending-review",
+  "objectiveId": "revenue-conversion-fix",
+  "targetPath": "UNICORN_FINAL/backend/modules/revenue-conversion-fix.js",
+  "riskLevel": "medium",
+  "rationale": "Brainstem directive: paidEvents still zero. This module hooks checkout completion to record revenue, fixing conversion tracking.",
+  "proposedContent": "// Revenue conversion fix: ensure paidEvents increments on successful checkout\n// This module hooks into the checkout completion flow and triggers revenue recording\n\nconst revenueModule = require('./revenue-module');\n\nasync function onCheckoutComplete(order) {\n  if (!order || !order.total || order.total <= 0) return;\n  try {\n    await revenueModule.recordPayment({\n      amount: order.total,\n      currency: order.currency || 'USD',\n      orderId: order.id,\n      customerId: order.customerId,\n      timestamp: new Date().toISOString()\n    });\n    console.log(`Revenue recorded for order ${order.id}: ${order.total}`);\n  } catch (err) {\n    console.error('Revenue recording failed:', err);\n  }\n}\n\nmodule.exports = { onCheckoutComplete };\n",
+  "proposedContentBytes": 740,
+  "note": "Envelope only — code is NOT applied. Human/CI review required before any edit."
+}

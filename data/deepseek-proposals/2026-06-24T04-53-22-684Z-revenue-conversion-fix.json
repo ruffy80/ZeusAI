@@ -1,0 +1,12 @@
+{
+  "schemaVersion": 1,
+  "createdAt": "2026-06-24T04:53:22.684Z",
+  "status": "pending-review",
+  "objectiveId": "revenue-conversion-fix",
+  "targetPath": "UNICORN_FINAL/backend/modules/revenue/checkoutConversion.js",
+  "riskLevel": "medium",
+  "rationale": "Brainstem directive: paidEvents zero after many runs. This module ensures checkout conversion events are properly logged as paid events, fixing the conversion tracking pipeline.",
+  "proposedContent": "// checkoutConversion.js - Fix conversion tracking for paid events\n// Brainstem directive: paidEvents zero after many runs\n\nconst { logEvent } = require('./eventLogger');\n\nmodule.exports = async function processCheckoutConversion(order) {\n  if (!order || !order.id || !order.total) {\n    console.warn('[checkoutConversion] Invalid order object');\n    return { success: false, reason: 'invalid_order' };\n  }\n\n  // Ensure paid event is recorded\n  const event = {\n    type: 'paid_event',\n    orderId: order.id,\n    amount: order.total,\n    currency: order.currency || 'USD',\n    timestamp: new Date().toISOString(),\n    customerId: order.customerId || 'anonymous'\n  };\n\n  try {\n    await logEvent(event);\n    console.log(`[checkoutConversion] Paid event logged for order ${order.id}`);\n    return { success: true, event };\n  } catch (err) {\n    console.error('[checkoutConversion] Failed to log paid event:', err.message);\n    return { success: false, reason: err.message };\n  }\n};\n",
+  "proposedContentBytes": 979,
+  "note": "Envelope only — code is NOT applied. Human/CI review required before any edit."
+}

@@ -1,0 +1,12 @@
+{
+  "schemaVersion": 1,
+  "createdAt": "2026-06-24T07:09:45.050Z",
+  "status": "pending-review",
+  "objectiveId": "revenue-conversion-fix",
+  "targetPath": "UNICORN_FINAL/backend/modules/revenue-conversion-fix.js",
+  "riskLevel": "medium",
+  "rationale": "Brainstem directive: paidEvents zero after many runs. This module provides a conversion recording function that hooks into checkout to increment paidEvent counter and log events. Integrate into checkout flow to fix conversion tracking.",
+  "proposedContent": "// revenue-conversion-fix.js\n// Brainstem directive: paidEvents zero, create conversion fix module\n// This module hooks into checkout flow to ensure paid events are recorded.\n\nconst fs = require('fs');\nconst path = require('path');\n\nconst CONVERSION_LOG = '/var/log/conversion_events.log';\n\nfunction logConversion(event) {\n  const line = JSON.stringify({ ts: new Date().toISOString(), ...event }) + '\\n';\n  fs.appendFileSync(CONVERSION_LOG, line, 'utf8');\n}\n\nfunction recordPaidEvent(orderId, amount, currency) {\n  // Simulate recording a paid event\n  logConversion({ type: 'paid_event', orderId, amount, currency });\n  // Also update in-memory counter (if applicable)\n  if (global.paidEventCounter !== undefined) {\n    global.paidEventCounter++;\n  }\n  return true;\n}\n\nfunction getPaidEventCount() {\n  if (global.paidEventCounter !== undefined) {\n    return global.paidEventCounter;\n  }\n  // Fallback: count lines in log\n  try {\n    const data = fs.readFileSync(CONVERSION_LOG, 'utf8');\n    const lines = data.trim().split('\\n').filter(l => l.includes('\"paid_event\"'));\n    return lines.length;\n  } catch (e) {\n    return 0;\n  }\n}\n\nmodule.exports = { recordPaidEvent, getPaidEventCount, logConversion };\n",
+  "proposedContentBytes": 1204,
+  "note": "Envelope only — code is NOT applied. Human/CI review required before any edit."
+}
