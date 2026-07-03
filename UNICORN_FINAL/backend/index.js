@@ -1495,6 +1495,43 @@ function deepseekGovernorAuthMiddleware(req, res, next) {
 // In test mode (NODE_ENV=test) rate limiting is disabled to allow full test runs.
 const authRateLimitStore = new Map(); // key -> [timestamps]
 
+// Email-based rate limiting for failed login/signup attempts
+const emailRateLimitStore = new Map(); // email -> { failedAttempts: [ts], blockedUntil: number }
+
+function emailRateLimit(email, maxFailures = 5, windowMs = 3600000) {
+  const now = Date.now();
+  const record = emailRateLimitStore.get(email) || { failedAttempts: [], blockedUntil: 0 };
+  
+  // If currently blocked, return false
+  if (record.blockedUntil && now < record.blockedUntil) {
+    return false;
+  }
+  
+  // Clean old attempts
+  const windowStart = now - windowMs;
+  const recentAttempts = (record.failedAttempts || []).filter(ts => ts > windowStart);
+  
+  // If too many failures, block for exponential time
+  if (recentAttempts.length >= maxFailures) {
+    const blockDuration = Math.min(600000, Math.pow(2, recentAttempts.length - maxFailures) * 30000); // exponential: 30s, 60s, 120s, etc, max 10m
+    record.blockedUntil = now + blockDuration;
+    emailRateLimitStore.set(email, record);
+    return false;
+  }
+  
+  return true;
+}
+
+function recordFailedAuthAttempt(email) {
+  const record = emailRateLimitStore.get(email) || { failedAttempts: [], blockedUntil: 0 };
+  record.failedAttempts.push(Date.now());
+  emailRateLimitStore.set(email, record);
+}
+
+function resetAuthAttempts(email) {
+  emailRateLimitStore.delete(email);
+}
+
 function authRateLimit(maxRequests, windowMs) {
   return function rateLimitMiddleware(req, res, next) {
     if (process.env.NODE_ENV === 'test') return next();
@@ -2010,7 +2047,14 @@ app.post('/api/customer/signup', authRateLimit(10, 15 * 60 * 1000), async (req, 
     if (typeof password !== 'string' || password.length < 8) {
       return res.status(400).json({ error: 'password_too_short', message: 'Parola trebuie să aibă minim 8 caractere / Password must be at least 8 characters' });
     }
+    
+    // Email-level rate limiting: block after 3 failed signup attempts in 1 hour
+    if (!emailRateLimit(cleanEmail, 3, 3600000)) {
+      return res.status(429).json({ error: 'too_many_attempts', message: 'Prea multe încercări de înregistrare. Încearcă mai târziu. / Too many signup attempts. Try again later.' });
+    }
+    
     if (dbUsers.findByEmail(cleanEmail)) {
+      recordFailedAuthAttempt(cleanEmail);
       return res.status(409).json({ error: 'email_taken', message: 'Acest email are deja cont. Conectează-te cu parola ta. / An account already exists for this email — please log in instead.' });
     }
     const passwordHash = await bcrypt.hash(password, 10);
@@ -2027,6 +2071,10 @@ app.post('/api/customer/signup', authRateLimit(10, 15 * 60 * 1000), async (req, 
       createdAt: new Date().toISOString(),
     };
     dbUsers.create(user);
+    
+    // Success: reset attempts
+    resetAuthAttempts(cleanEmail);
+    
     // Best-effort verification email — do not block signup if mailer is unavailable.
     try { emailService.sendVerificationEmail(user, verifyToken).catch((err) => console.error('[Email] verify send failed:', err.message)); } catch (_) {}
     const token = jwt.sign({ id: user.id, email: user.email, name: user.name }, JWT_SECRET, { expiresIn: '30d' });
@@ -2048,14 +2096,26 @@ app.post('/api/customer/login', authRateLimit(20, 15 * 60 * 1000), async (req, r
     if (!isValidEmail(cleanEmail)) {
       return res.status(400).json({ error: 'invalid_email', message: 'Adresă email invalidă / Invalid email address' });
     }
+    
+    // Email-level rate limiting: block after 5 failed attempts in 1 hour
+    if (!emailRateLimit(cleanEmail, 5, 3600000)) {
+      return res.status(429).json({ error: 'too_many_attempts', message: 'Prea multe încercări eșuate. Încearcă mai târziu. / Too many failed login attempts. Try again later.' });
+    }
+    
     const user = dbUsers.findByEmail(cleanEmail);
     if (!user) {
+      recordFailedAuthAttempt(cleanEmail);
       return res.status(401).json({ error: 'email_not_found', message: 'Nu există cont cu acest email. Creează unul nou mai jos. / No account found for this email — create one below.' });
     }
     const valid = await bcrypt.compare(String(password), user.passwordHash);
     if (!valid) {
+      recordFailedAuthAttempt(cleanEmail);
       return res.status(401).json({ error: 'wrong_password', message: 'Parolă incorectă. Încearcă din nou sau folosește "Ai uitat parola?". / Wrong password. Try again or use "Forgot password?".' });
     }
+    
+    // Success: reset attempts
+    resetAuthAttempts(cleanEmail);
+    
     const token = jwt.sign({ id: user.id, email: user.email, name: user.name }, JWT_SECRET, { expiresIn: '30d' });
     res.setHeader('Set-Cookie', customerSessionCookie(token, CUSTOMER_SESSION_MAX_AGE_SEC));
     return res.status(200).json({ ok: true, token, customer: publicCustomerView(user) });

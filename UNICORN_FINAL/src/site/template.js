@@ -2122,11 +2122,93 @@ function updateHeaderAuth(){
   }
 }
 
+// ================================================================
+// AUTH RATE LIMITING (Anti-abuse)
+// ================================================================
+const _authRateLimit = {
+  attempts: {}, // email -> { count, ts, cooldown }
+  fingerprints: {}, // fingerprint -> { count, ts }
+  
+  getFingerprint: function() {
+    // Simple browser fingerprint: user-agent + screen resolution + timezone
+    try {
+      var ua = navigator.userAgent;
+      var res = screen.width + 'x' + screen.height;
+      var tz = new Date().getTimezoneOffset();
+      var combined = ua + ':' + res + ':' + tz;
+      return combined.split('').reduce(function(a,b){return((a<<5)-a)+b.charCodeAt(0)|0;}, 0).toString(36);
+    } catch (e) {
+      return 'default';
+    }
+  },
+  
+  checkLoginAttempt: function(email) {
+    var now = Date.now();
+    var record = this.attempts[email] || { count: 0, ts: now, cooldown: 0 };
+    var timeElapsed = now - record.ts;
+    
+    // Reset counter if more than 1 hour has passed
+    if (timeElapsed > 3600000) {
+      record = { count: 0, ts: now, cooldown: 0 };
+    }
+    
+    record.count++;
+    record.ts = now;
+    
+    // Exponential cooldown: 0s, 5s, 15s, 30s, 60s, 120s, etc.
+    if (record.count > 1) {
+      record.cooldown = Math.min(300000, Math.pow(2, record.count - 2) * 5000); // max 5 min
+    } else {
+      record.cooldown = 0;
+    }
+    
+    this.attempts[email] = record;
+    
+    // 5 attempts per hour limit
+    if (record.count > 5 && timeElapsed < 3600000) {
+      return { allowed: false, reason: 'Too many attempts', cooldownMs: record.cooldown };
+    }
+    
+    if (record.cooldown > 0 && now - (record.ts - record.cooldown) < record.cooldown) {
+      return { allowed: false, reason: 'Please wait before trying again', cooldownMs: record.cooldown };
+    }
+    
+    return { allowed: true, cooldownMs: 0 };
+  },
+  
+  showCooldown: function(emailEl, msgEl, cooldownMs) {
+    var remaining = Math.ceil(cooldownMs / 1000);
+    var update = () => {
+      if (remaining > 0) {
+        msgEl.innerHTML = '<div class="msg-err">Too many attempts. Try again in ' + remaining + 's</div>';
+        emailEl.disabled = true;
+        remaining--;
+        setTimeout(update, 1000);
+      } else {
+        emailEl.disabled = false;
+        msgEl.innerHTML = '';
+      }
+    };
+    update();
+  }
+};
+
 async function doLogin(){
   var email=document.getElementById('login-email').value.trim();
   var pass=document.getElementById('login-pass').value;
   var msg=document.getElementById('login-msg');
   if(!email||!pass){msg.innerHTML='<div class="msg-err">Please fill all fields.</div>';return;}
+  
+  // Check rate limit
+  var rateCheck = _authRateLimit.checkLoginAttempt(email);
+  if (!rateCheck.allowed) {
+    msg.innerHTML = '<div class="msg-err">' + escHtml(rateCheck.reason) + '</div>';
+    if (rateCheck.cooldownMs > 0) {
+      _authRateLimit.showCooldown(document.getElementById('login-email'), msg, rateCheck.cooldownMs);
+    }
+    return;
+  }
+  
   msg.innerHTML='<div class="loader"></div>';
   var r=await api('POST','/api/customer/login',{email:email,password:pass});
   if(r.error||r.message){
@@ -2143,6 +2225,8 @@ async function doLogin(){
   closeModal('auth-modal');
   toast('Welcome back!','ok');
   msg.innerHTML='';
+  // Reset rate limit on successful login
+  _authRateLimit.attempts[email] = { count: 0, ts: Date.now(), cooldown: 0 };
 }
 
 async function doRegister(){
@@ -2152,10 +2236,22 @@ async function doRegister(){
   var msg=document.getElementById('reg-msg');
   if(!name||!email||!pass){msg.innerHTML='<div class="msg-err">Please fill all fields.</div>';return;}
   if(pass.length<8){msg.innerHTML='<div class="msg-err">Password must be at least 8 characters.</div>';return;}
+  
+  // Check rate limit (more lenient for signup: 3 per hour)
+  var attempts = _authRateLimit.attempts[email] || { count: 0, ts: Date.now() };
+  var timeElapsed = Date.now() - attempts.ts;
+  if (attempts.count > 3 && timeElapsed < 3600000) {
+    msg.innerHTML = '<div class="msg-err">Too many signup attempts. Try again later.</div>';
+    _authRateLimit.showCooldown(document.getElementById('reg-email'), msg, Math.max(10000, 3600000 - timeElapsed));
+    return;
+  }
+  
   msg.innerHTML='<div class="loader"></div>';
   var r=await api('POST','/api/customer/signup',{name:name,email:email,password:pass});
   if(r.error||(r.message&&!r.token&&!r.customer&&!r.user)){
     msg.innerHTML='<div class="msg-err">'+escHtml(r.error||r.message||'Registration failed')+'</div>';
+    // Increment rate limit counter on failed attempt
+    _authRateLimit.attempts[email] = { count: (attempts.count || 0) + 1, ts: attempts.ts || Date.now(), cooldown: 0 };
     return;
   }
   var token=r.token||r.accessToken||(r.data&&r.data.token);
@@ -2167,6 +2263,8 @@ async function doRegister(){
     updateHeaderAuth();
     closeModal('auth-modal');
     toast('Account created! Welcome to Zeus AI 🚀','ok');
+    // Reset rate limit on successful signup
+    _authRateLimit.attempts[email] = { count: 0, ts: Date.now(), cooldown: 0 };
   } else {
     msg.innerHTML='<div class="msg-ok">Account created! Please log in.</div>';
     setTimeout(function(){switchTab('tab-login');},1500);
