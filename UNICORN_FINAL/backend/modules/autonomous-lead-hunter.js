@@ -126,33 +126,48 @@ async function _runCycle() {
   const failureRate = state.failures / Math.max(1, state.cycles);
   const batchSize = failureRate > 0.3 ? 3 : (failureRate > 0.1 ? 8 : 15);
 
-  // 3. EXECUTE: generate synthetic lead signals (replace with real scrapers when LEAD_HUNTER_API_KEY set)
-  const industries = ['e-commerce', 'fintech', 'SaaS', 'AI', 'logistics', 'healthcare', 'real estate'];
+  // 3. EXECUTE: process REAL inbound leads only.
+  // ─────────────────────────────────────────────────────────────────────────
+  // HONESTY CONTRACT (audit fix 2026-07): this loop NO LONGER fabricates
+  // synthetic companies with Math.random() budgets and null emails. Fabricated
+  // leads polluted metrics and produced phantom "qualified" events that
+  // converted nothing. Real leads now arrive via ingestLead() from:
+  //   • /api/lead (homepage capture form + vertical growth pages)
+  //   • customer signups
+  //   • checkout_open telemetry (high-intent visitors)
+  // Synthetic generation is available ONLY when explicitly opted-in for local
+  // load-testing via LEAD_HUNTER_SYNTHETIC=1 — never in production.
+  // RO: gata cu lead-uri fabricate; procesăm doar lead-uri reale de intrare.
   const discovered = [];
-  for (let i = 0; i < batchSize && leads.size < MAX_LEADS; i++) {
-    const id = `lead_${Date.now()}_${i}_${Math.random().toString(36).slice(2, 7)}`;
-    const industry = industries[Math.floor(Math.random() * industries.length)];
-    const budgetTier = Math.random();
-    const lead = {
-      id,
-      company: `Company_${id.slice(-5)}`,
-      industry,
-      estimatedBudgetUsd: budgetTier > 0.7 ? 10000 : budgetTier > 0.4 ? 2000 : 300,
-      employees: Math.floor(Math.random() * 200) + 2,
-      contact: null,
-      email: null,
-      description: `${industry} startup looking for automation solutions`,
-      status: 'discovered',
-      confidence: 0,
-      score: 0,
-      outreach: null,
-      discoveredAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-      retries: 0,
-    };
-    leads.set(id, lead);
-    discovered.push(lead);
-    state.leadsDiscovered++;
+
+  // Pull any newly-ingested real leads that are still in 'discovered' state.
+  for (const lead of leads.values()) {
+    if (lead.status === 'discovered' && lead.source !== 'synthetic') {
+      discovered.push(lead);
+      if (discovered.length >= batchSize) break;
+    }
+  }
+
+  // Opt-in synthetic mode (LOCAL LOAD-TEST ONLY — never in prod).
+  if (process.env.LEAD_HUNTER_SYNTHETIC === '1') {
+    const industries = ['e-commerce', 'fintech', 'SaaS', 'AI', 'logistics', 'healthcare', 'real estate'];
+    for (let i = 0; i < batchSize && leads.size < MAX_LEADS; i++) {
+      const id = `synthetic_${Date.now()}_${i}_${Math.random().toString(36).slice(2, 7)}`;
+      const industry = industries[Math.floor(Math.random() * industries.length)];
+      const budgetTier = Math.random();
+      const lead = {
+        id, company: `Company_${id.slice(-5)}`, industry,
+        estimatedBudgetUsd: budgetTier > 0.7 ? 10000 : budgetTier > 0.4 ? 2000 : 300,
+        employees: Math.floor(Math.random() * 200) + 2,
+        contact: null, email: null, source: 'synthetic',
+        description: `${industry} startup (SYNTHETIC test lead)`,
+        status: 'discovered', confidence: 0, score: 0, outreach: null,
+        discoveredAt: new Date().toISOString(), updatedAt: new Date().toISOString(), retries: 0,
+      };
+      leads.set(id, lead);
+      discovered.push(lead);
+      state.leadsDiscovered++;
+    }
   }
 
   // 4. OBSERVE: qualify each discovered lead
@@ -269,8 +284,58 @@ function markConverted(id) {
 
 function runOnce() { return _runCycle(); }
 
+// ── ingestLead — accept a REAL inbound lead (audit fix 2026-07) ────────────────
+// Called by /api/lead, signup hooks, and checkout_open telemetry. Deduplicates
+// by email. Newly ingested leads are picked up by the next _runCycle() for
+// qualification + outreach. Returns the stored lead.
+// RO: primește un lead REAL de intrare (formular, signup, checkout).
+function ingestLead(input = {}) {
+  const email = String(input.email || '').trim().toLowerCase();
+  if (!email || !email.includes('@')) return { ok: false, error: 'invalid_email' };
+
+  // Dedupe by email — update existing rather than duplicate.
+  for (const l of leads.values()) {
+    if (l.email === email) {
+      l.updatedAt = new Date().toISOString();
+      l.touches = (l.touches || 1) + 1;
+      if (input.interest) l.interest = String(input.interest).slice(0, 120);
+      if (input.source) l.lastSource = String(input.source).slice(0, 60);
+      leads.set(l.id, l);
+      _save();
+      return { ok: true, deduped: true, lead: l };
+    }
+  }
+
+  const id = `real_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+  const lead = {
+    id,
+    company: String(input.company || '').slice(0, 160) || null,
+    industry: String(input.industry || input.interest || 'general').slice(0, 80),
+    estimatedBudgetUsd: Number(input.estimatedBudgetUsd) || null,
+    employees: Number(input.employees) || null,
+    contact: String(input.name || '').slice(0, 120) || null,
+    email,
+    source: String(input.source || 'inbound').slice(0, 60),
+    interest: String(input.interest || 'general').slice(0, 120),
+    description: String(input.description || `Inbound lead via ${input.source || 'site'}`).slice(0, 400),
+    status: 'discovered',
+    confidence: 0,
+    score: 0,
+    outreach: null,
+    touches: 1,
+    discoveredAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+    retries: 0,
+  };
+  leads.set(id, lead);
+  state.leadsDiscovered++;
+  try { if (global._unicornEventBus) global._unicornEventBus.emit('lead:captured', { ...lead }); } catch (_) {}
+  _save();
+  return { ok: true, deduped: false, lead };
+}
+
 module.exports = {
-  start, stop, getStatus, listLeads, markConverted, runOnce,
+  start, stop, getStatus, listLeads, markConverted, runOnce, ingestLead,
   on: (ev, fn) => bus.on(ev, fn),
   name: 'autonomous-lead-hunter',
 };

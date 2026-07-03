@@ -835,6 +835,17 @@ select.form-inp option{background:#0a0e24;}
       </div>
       <!-- OVERVIEW TAB -->
       <div class="adm-tab-panel active" id="atab-overview">
+        <div class="card card-glow" style="margin-bottom:20px;border:1.5px solid rgba(0,255,163,.35);">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
+            <div class="dash-section-title" style="margin:0;">💰 Revenue Activation</div>
+            <div style="display:flex;align-items:center;gap:10px;">
+              <span id="activation-score" style="font-family:Orbitron,monospace;font-size:22px;color:#00ffa3;">—</span>
+              <button class="btn btn-outline btn-sm" onclick="loadActivationReadiness()">🔄</button>
+            </div>
+          </div>
+          <div id="activation-summary" style="font-size:13px;color:#b0bcd4;margin-bottom:10px;">Loading activation map…</div>
+          <div id="activation-missing" style="font-size:12px;color:#7090b0;"></div>
+        </div>
         <div class="grid-3" style="margin-bottom:20px;">
           <div class="card card-sm"><div class="label">Health</div><div class="kpi-val green" id="adm-health">—</div></div>
           <div class="card card-sm"><div class="label">Uptime</div><div class="kpi-val cyan" id="adm-uptime">—</div></div>
@@ -3266,6 +3277,38 @@ async function loadAdminData(){
   setElText('adm-users',snap.telemetry&&snap.telemetry.activeUsers!=null?snap.telemetry.activeUsers:'—');
   var snapEl=document.getElementById('adm-snapshot');
   if(snapEl) snapEl.innerHTML='<pre style="overflow:auto;max-height:200px;font-size:11px;">'+escHtml(JSON.stringify(snap,null,2))+'</pre>';
+  loadActivationReadiness();
+}
+
+// Revenue Activation map — shows exactly which one-key integrations unlock revenue.
+async function loadActivationReadiness(){
+  var scoreEl=document.getElementById('activation-score');
+  var sumEl=document.getElementById('activation-summary');
+  var missEl=document.getElementById('activation-missing');
+  try{
+    var r=await api('GET','/api/activation/readiness').catch(function(){return null;});
+    if(!r||!r.ok){ if(sumEl) sumEl.textContent='Activation map unavailable.'; return; }
+    var score=Number(r.activationScore||0);
+    if(scoreEl){
+      scoreEl.textContent=score+'%';
+      scoreEl.style.color = score>=80?'#00ffa3':score>=50?'#ffc107':'#ff6b6b';
+    }
+    if(sumEl) sumEl.textContent=r.summary||'';
+    if(missEl){
+      if(!r.missing||!r.missing.length){
+        missEl.innerHTML='<div style="color:#00ffa3;">✓ Every revenue rail is armed.</div>';
+      }else{
+        missEl.innerHTML='<div style="font-weight:600;color:#e8f4ff;margin-bottom:6px;">Dormant revenue (ranked by impact):</div>'+
+          r.missing.map(function(m){
+            return '<div style="padding:8px 10px;background:#0d1117;border-left:3px solid #ffc107;border-radius:4px;margin-bottom:6px;">'
+              +'<div style="color:#ffd479;font-weight:600;">'+escHtml(m.title)+' <span style="color:#7090b0;font-weight:400;">(impact '+escHtml(String(m.impact))+')</span></div>'
+              +'<div style="color:#9fb0c8;margin-top:3px;">'+escHtml(m.unlocks||'')+'</div>'
+              +'<div style="color:#7090b0;margin-top:3px;font-size:11px;">→ '+escHtml(m.action||'')+' <span style="color:#00d4ff;">['+escHtml((m.envVars||[]).join(', '))+']</span></div>'
+              +'</div>';
+          }).join('');
+      }
+    }
+  }catch(e){ if(sumEl) sumEl.textContent='Activation map error.'; }
 }
 
 async function loadAdminUsers(){

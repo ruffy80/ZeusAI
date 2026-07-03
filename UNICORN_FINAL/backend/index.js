@@ -557,6 +557,173 @@ app.post('/api/track', (req, res) => {
   res.status(204).end();
 });
 
+// ═══════════════════════════════════════════════════════════════════════════
+// POST /api/lead — REAL inbound lead capture (AUDIT FIX 2026-07)
+// ───────────────────────────────────────────────────────────────────────────
+// ROOT CAUSE FOUND: the homepage "Notify me" form + vertical growth pages POST
+// here, but NO endpoint existed → every submission 404'd → every real lead was
+// silently lost. This was the #1 revenue leak: the only organic inbound capture
+// on the entire platform was broken.
+//
+// This endpoint: honeypot spam filter → validate → persist durably (JSONL,
+// survives restarts) → feed autonomous-lead-hunter → best-effort owner alert.
+// RO: captura reală de lead-uri — reparăm cea mai gravă scurgere de venit.
+// ═══════════════════════════════════════════════════════════════════════════
+const _inboundLeadsFile = path.join(process.cwd(), 'data', 'leads', 'inbound-leads.jsonl');
+const _leadDedupe = new Map(); // email -> lastTs (in-process rate limit)
+app.post('/api/lead', express.json({ limit: '8kb' }), (req, res) => {
+  try {
+    const body = req.body || {};
+    // Honeypot: bots fill hidden fields. Return ok so they don't retry, but drop.
+    if (body.hp_field && String(body.hp_field).trim() !== '') {
+      return res.json({ ok: true }); // silently accept-and-discard
+    }
+    const email = String(body.email || '').trim().toLowerCase();
+    if (!email || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email) || email.length > 254) {
+      return res.status(400).json({ ok: false, error: 'valid email required' });
+    }
+    // Light in-process dedupe: same email within 60s → accept idempotently.
+    const now = Date.now();
+    const last = _leadDedupe.get(email) || 0;
+    const isDupe = (now - last) < 60_000;
+    _leadDedupe.set(email, now);
+    if (_leadDedupe.size > 5000) { // bound the map
+      const cutoff = now - 3600_000;
+      for (const [k, ts] of _leadDedupe) if (ts < cutoff) _leadDedupe.delete(k);
+    }
+
+    const record = {
+      email,
+      name: String(body.name || '').slice(0, 120),
+      source: String(body.source || 'site').slice(0, 60),
+      interest: String(body.interest || 'general').slice(0, 120),
+      company: String(body.company || '').slice(0, 160),
+      ref: String(req.headers['referer'] || '').slice(0, 256),
+      ua: String(req.headers['user-agent'] || '').slice(0, 200),
+      ip: (req.ip || '').slice(0, 64),
+      ts: new Date().toISOString(),
+    };
+
+    // 1. Durable persistence (source of truth — survives restarts & regen).
+    if (!isDupe) {
+      try {
+        require('fs').mkdirSync(path.dirname(_inboundLeadsFile), { recursive: true, mode: 0o755 });
+        require('fs').appendFileSync(_inboundLeadsFile, JSON.stringify(record) + '\n', 'utf8');
+      } catch (e) { console.warn('[lead] persist failed:', e.message); }
+    }
+
+    // 2. Feed the autonomous lead-hunter pipeline (qualification + outreach).
+    try { if (_leadHunter && typeof _leadHunter.ingestLead === 'function') _leadHunter.ingestLead(record); } catch (_) {}
+
+    // 3. Best-effort owner notification (never blocks the response).
+    if (!isDupe) {
+      try {
+        const mailer = require('../src/commerce/transactional-email');
+        if (mailer && typeof mailer.sendRaw === 'function') {
+          mailer.sendRaw({
+            to: process.env.OWNER_EMAIL || 'vladoi_ionut@yahoo.com',
+            subject: `🎯 New lead: ${email}`,
+            text: `New inbound lead captured:\n\nEmail: ${email}\nName: ${record.name || '—'}\nSource: ${record.source}\nInterest: ${record.interest}\nCompany: ${record.company || '—'}\nTime: ${record.ts}`,
+          }).catch(() => {});
+        }
+      } catch (_) {}
+    }
+
+    return res.json({ ok: true });
+  } catch (e) {
+    console.warn('[lead] capture error:', e && e.message);
+    return res.status(500).json({ ok: false, error: 'capture_failed' });
+  }
+});
+
+// GET /api/leads/inbound/count — public-safe lead volume (owner dashboard).
+app.get('/api/leads/inbound/count', (req, res) => {
+  try {
+    let count = 0;
+    if (require('fs').existsSync(_inboundLeadsFile)) {
+      count = require('fs').readFileSync(_inboundLeadsFile, 'utf8').split('\n').filter(Boolean).length;
+    }
+    res.json({ ok: true, inboundLeads: count });
+  } catch (_) { res.json({ ok: true, inboundLeads: 0 }); }
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// GET /api/activation/readiness — REVENUE ACTIVATION MAP (AUDIT FIX 2026-07)
+// ───────────────────────────────────────────────────────────────────────────
+// The platform has real revenue organs but many are silently no-op because a
+// single API key is missing. This endpoint turns those silent gaps into a
+// PRIORITIZED, owner-facing action list: "add these N keys to unlock $X".
+// NEVER exposes secret values — only whether each capability is armed + the
+// exact env var name + the revenue it unlocks. Ranked by revenue impact.
+// RO: harta de activare a venitului — spune EXACT ce cheie deblochează bani.
+// ═══════════════════════════════════════════════════════════════════════════
+function _envArmed(name) {
+  const v = String(process.env[name] || '').trim();
+  if (!v) return false;
+  return !/^(your|skip|changeme|todo|placeholder|xxx+|none|null|undefined|tbd|n\/a)/i.test(v);
+}
+app.get('/api/activation/readiness', (req, res) => {
+  const capabilities = [
+    {
+      id: 'checkout_multicurrency', title: 'Card + 300-crypto checkout (NOWPayments)',
+      impact: 100, armed: _envArmed('NOWPAYMENTS_API_KEY'),
+      envVars: ['NOWPAYMENTS_API_KEY'],
+      unlocks: 'Non-crypto buyers can pay (cards, bank, 300+ coins → auto-BTC). Removes the #1 checkout friction.',
+      action: 'Create a free NOWPayments account, add NOWPAYMENTS_API_KEY.',
+    },
+    {
+      id: 'email_delivery', title: 'Transactional email delivery (HTTPS provider)',
+      impact: 95, armed: _envArmed('RESEND_API_KEY') || _envArmed('BREVO_API_KEY') || _envArmed('MAILERSEND_API_KEY'),
+      envVars: ['RESEND_API_KEY', 'BREVO_API_KEY', 'MAILERSEND_API_KEY'],
+      unlocks: 'Order confirmations, onboarding, password resets, checkout-recovery emails actually deliver. Hetzner blocks SMTP, so an HTTPS provider is required.',
+      action: 'Get a free Resend API key, add RESEND_API_KEY.',
+    },
+    {
+      id: 'card_checkout_stripe', title: 'Direct card checkout (Stripe)',
+      impact: 80, armed: _envArmed('STRIPE_SECRET_KEY'),
+      envVars: ['STRIPE_SECRET_KEY'],
+      unlocks: 'Native credit-card checkout for buyers who distrust crypto entirely.',
+      action: 'Add STRIPE_SECRET_KEY (test or live).',
+    },
+    {
+      id: 'organic_social', title: 'Autonomous social distribution',
+      impact: 60, armed: _envArmed('X_BEARER_TOKEN') || _envArmed('TELEGRAM_BOT_TOKEN') || _envArmed('YOUTUBE_API_KEY'),
+      envVars: ['X_BEARER_TOKEN', 'TELEGRAM_BOT_TOKEN', 'YOUTUBE_API_KEY', 'PINTEREST_TOKEN'],
+      unlocks: 'The social viralizer posts daily value content → free top-of-funnel traffic. Currently posts to zero platforms.',
+      action: 'Add at least one social token (Telegram bot is the fastest).',
+    },
+    {
+      id: 'ai_outreach', title: 'AI-personalized outreach + content',
+      impact: 50, armed: _envArmed('OPENAI_API_KEY') || _envArmed('DEEPSEEK_API_KEY') || _envArmed('GROQ_API_KEY') || _envArmed('ANTHROPIC_API_KEY'),
+      envVars: ['OPENAI_API_KEY', 'DEEPSEEK_API_KEY', 'GROQ_API_KEY'],
+      unlocks: 'Lead outreach messages + marketing copy are AI-personalized instead of template fallback.',
+      action: 'Already armed if any AI key is set.',
+    },
+  ];
+
+  // Native BTC is always armed (non-custodial owner wallet) — the baseline rail.
+  const btcArmed = !!(process.env.BTC_OWNER_WALLET || process.env.BTC_WALLET_ADDRESS || __OWNER_BTC);
+
+  const missing = capabilities.filter(c => !c.armed).sort((a, b) => b.impact - a.impact);
+  const armed = capabilities.filter(c => c.armed);
+  const score = Math.round((armed.reduce((s, c) => s + c.impact, 0) /
+    capabilities.reduce((s, c) => s + c.impact, 0)) * 100);
+
+  res.set('Cache-Control', 'no-store');
+  res.json({
+    ok: true,
+    ts: new Date().toISOString(),
+    activationScore: score, // 0-100 weighted by revenue impact
+    baseline: { btcCheckout: btcArmed },
+    armed: armed.map(c => ({ id: c.id, title: c.title, impact: c.impact })),
+    missing: missing.map(c => ({ id: c.id, title: c.title, impact: c.impact, envVars: c.envVars, unlocks: c.unlocks, action: c.action })),
+    topPriority: missing[0] || null,
+    summary: missing.length === 0
+      ? 'Fully armed — every revenue rail is active.'
+      : `${missing.length} revenue capabilit${missing.length === 1 ? 'y' : 'ies'} dormant. Highest-impact next step: ${missing[0].title}.`,
+  });
+});
+
 // GET /api/aura — live sovereign KPI strip (signed receipts, refunds honored, uptime, active carts)
 const _auraCache = { data: null, ts: 0 };
 app.get('/api/aura', (req, res) => {

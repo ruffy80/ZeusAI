@@ -267,4 +267,22 @@ async function sendTransactional({ to, template, data }) {
   return { ok: false, error: errors.join(' | ') || 'all_providers_failed' };
 }
 
-module.exports = { sendTransactional, TEMPLATES, configuredProviders };
+// sendRaw — send an ad-hoc subject/text/html (no template) via the same
+// provider cascade. Used by owner alerts (new lead, funnel drop-off).
+// Returns { ok:true, skipped:'unconfigured' } when no transport is available.
+async function sendRaw({ to, subject, text, html }) {
+  if (!to) return { ok: false, error: 'missing_to' };
+  const providers = configuredProviders();
+  if (providers.length === 0) return { ok: true, skipped: 'unconfigured' };
+  const order = [sendViaResend, sendViaBrevo, sendViaMailerSend, sendViaSmtp];
+  const errors = [];
+  for (const fn of order) {
+    const r = await fn({ to, subject: subject || '(no subject)', text: text || '', html: html || null });
+    if (r === null) continue;
+    if (r.ok) return r;
+    errors.push(r.provider + ': ' + (r.error || 'unknown'));
+  }
+  return { ok: false, error: errors.join(' | ') || 'all_providers_failed' };
+}
+
+module.exports = { sendTransactional, sendRaw, TEMPLATES, configuredProviders };
