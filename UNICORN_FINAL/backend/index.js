@@ -1198,11 +1198,14 @@ const ADMIN_OWNER_BTC = process.env.LEGAL_OWNER_BTC || 'bc1q4f7e66z87mdfj56kz0dj
 const PAYMENT_MODE = String(process.env.PAYMENT_MODE || (process.env.BTC_ONLY === '1' ? 'btc' : 'auto')).toLowerCase();
 const STRIPE_READY = !!String(process.env.STRIPE_SECRET_KEY || '').trim();
 const PAYPAL_READY = !!String(process.env.PAYPAL_CLIENT_ID || '').trim() && !!String(process.env.PAYPAL_CLIENT_SECRET || '').trim();
+const NOWPAYMENTS_READY = !!String(process.env.NOWPAYMENTS_API_KEY || '').trim();
 function getEnabledPaymentMethods() {
   if (PAYMENT_MODE === 'btc') return ['BTC'];
   const methods = ['BTC'];
   if (STRIPE_READY) methods.push('STRIPE');
   if (PAYPAL_READY) methods.push('PAYPAL');
+  // Global crypto rails via NOWPayments (settled to owner BTC destination).
+  if (NOWPAYMENTS_READY) methods.push('USDT', 'ETH', 'SOL');
   return methods;
 }
 function isPaymentMethodEnabled(method) {
@@ -1213,6 +1216,9 @@ function paymentMethodsPublicLabel() {
   return getEnabledPaymentMethods().map((m) => {
     if (m === 'STRIPE') return 'Stripe';
     if (m === 'PAYPAL') return 'PayPal';
+    if (m === 'USDT') return 'USDT (NOWPayments)';
+    if (m === 'ETH') return 'ETH (NOWPayments)';
+    if (m === 'SOL') return 'SOL (NOWPayments)';
     return m;
   });
 }
@@ -3679,7 +3685,7 @@ let _webhookEmitter = null;
 try { _webhookEmitter = require('./middleware/webhook-emitter'); _webhookEmitter.start(); } catch (e) {
   console.warn('[webhooks] disabled —', e && e.message);
 }
-app.post('/api/webhooks/subscribe', express.json({ limit: '8kb' }), (req, res) => {
+app.post('/api/webhooks/subscribe', sensitiveRateLimit({ maxRequests: 20, windowMs: 60_000, cooldownMs: 120_000 }), adminTokenMiddleware, express.json({ limit: '8kb' }), (req, res) => {
   if (!_webhookEmitter) return res.status(503).json({ error: 'webhooks_disabled' });
   try {
     const out = _webhookEmitter.subscribe(req.body || {});
@@ -3688,12 +3694,12 @@ app.post('/api/webhooks/subscribe', express.json({ limit: '8kb' }), (req, res) =
     res.status(400).json({ error: 'invalid_subscription', detail: String(e && e.message) });
   }
 });
-app.delete('/api/webhooks/:id', (req, res) => {
+app.delete('/api/webhooks/:id', sensitiveRateLimit({ maxRequests: 30, windowMs: 60_000, cooldownMs: 120_000 }), adminTokenMiddleware, (req, res) => {
   if (!_webhookEmitter) return res.status(503).json({ error: 'webhooks_disabled' });
   const ok = _webhookEmitter.unsubscribe(req.params.id);
   res.status(ok ? 200 : 404).json({ ok });
 });
-app.get('/api/webhooks', (req, res) => {
+app.get('/api/webhooks', sensitiveRateLimit({ maxRequests: 30, windowMs: 60_000, cooldownMs: 120_000 }), adminTokenMiddleware, (req, res) => {
   if (!_webhookEmitter) return res.status(503).json({ error: 'webhooks_disabled' });
   res.json({ subscriptions: _webhookEmitter.listSubs(), stats: _webhookEmitter.getStats() });
 });
@@ -6206,14 +6212,33 @@ app.post('/api/payment/webhook/stripe', (req, res) => {
   if (webhookSecret && sig) {
     // Verify signature with stripe-signature header
     const payload = req.body; // raw Buffer due to express.raw() middleware above
-    const parts = String(sig).split(',');
-    const ts = parts.find(p => p.startsWith('t='))?.split('=')[1];
-    const v1 = parts.find(p => p.startsWith('v1='))?.split('=')[1];
-    if (!ts || !v1) return res.status(400).json({ error: 'Invalid signature format' });
+    const parts = String(sig).split(',').map((p) => p.trim());
+    const tsRaw = parts.find(p => p.startsWith('t='))?.split('=')[1];
+    const v1Candidates = parts.filter(p => p.startsWith('v1=')).map((p) => p.split('=')[1]).filter(Boolean);
+    const ts = Number(tsRaw || 0);
+    if (!Number.isFinite(ts) || ts <= 0 || v1Candidates.length === 0) {
+      return res.status(400).json({ error: 'Invalid signature format' });
+    }
+    const toleranceSec = Math.max(60, Number(process.env.STRIPE_WEBHOOK_TOLERANCE_SEC || 300));
+    const ageSec = Math.abs(Math.floor(Date.now() / 1000) - ts);
+    if (ageSec > toleranceSec) {
+      return res.status(400).json({ error: 'Webhook timestamp out of tolerance' });
+    }
+
     const signed = crypto.createHmac('sha256', webhookSecret)
-      .update(ts + '.' + payload)
+      .update(String(ts) + '.' + Buffer.from(payload).toString('utf8'))
       .digest('hex');
-    if (signed !== v1) return res.status(400).json({ error: 'Webhook signature mismatch' });
+
+    const signedBuf = Buffer.from(signed, 'hex');
+    const valid = v1Candidates.some((cand) => {
+      try {
+        const candBuf = Buffer.from(String(cand || '').toLowerCase(), 'hex');
+        return candBuf.length === signedBuf.length && crypto.timingSafeEqual(signedBuf, candBuf);
+      } catch (_) {
+        return false;
+      }
+    });
+    if (!valid) return res.status(400).json({ error: 'Webhook signature mismatch' });
     try {
       event = JSON.parse(payload.toString());
     } catch {

@@ -95,6 +95,8 @@
     "perf:budget": "node scripts/perf-budget-check.js",
     "deploy:forward": "bash scripts/deploy-atomic-forward.sh",
     "smoke:topology": "bash scripts/smoke-topology.sh",
+    "audit:full": "node scripts/full-system-audit.js",
+    "optimize:full": "npm run lint:syntax && npm run test:health && npm run test:api && npm run audit:full",
     "test:topology": "node test/topology.test.js",
     "lint": "eslint backend/**/*.js src/**/*.js --max-warnings=0",
     "lint:fix": "eslint --fix backend/**/*.js src/**/*.js",

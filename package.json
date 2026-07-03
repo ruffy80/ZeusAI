@@ -20,6 +20,7 @@
     "secrets:bootstrap": "node -e \"require('./UNICORN_FINAL/src/config/secrets.js').bootstrap({log:true,persistGenerated:false})\"",
     "ssh:bootstrap": "bash UNICORN_FINAL/scripts/bootstrap-ssh-via-github.sh",
     "smoke:live": "bash scripts/live-smoke.sh",
+    "audit:full": "npm --prefix UNICORN_FINAL run audit:full",
     "evolve": "npm --prefix UNICORN_FINAL run innovation:sprint",
     "test": "npm --prefix UNICORN_FINAL test"
   },
