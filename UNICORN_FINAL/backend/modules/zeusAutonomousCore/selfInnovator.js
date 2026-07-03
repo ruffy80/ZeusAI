@@ -94,6 +94,35 @@ function createSelfInnovator({
     } catch (_) { /* best-effort */ }
 
     runs.push({ ts, suggestions: suggestions.length, trustScore });
+      // ── AUTO-APPLY: if trustScore >= 0.85 and ZAC_AUTO_APPLY=1, execute high-confidence actions ──
+      if (autoApply && trustScore >= 0.85 && suggestions.length > 0) {
+        const highConf = suggestions.filter(s => s.confidence >= 0.85);
+        for (const sug of highConf) {
+          try {
+            await _applyAction(sug, { backendBase, outDir });
+          } catch (e) {
+            console.warn('[selfInnovator] auto-apply failed for', sug.action, ':', e.message);
+          }
+        }
+      }
+
+      // ── WEBHOOK NOTIFICATION: notify owner on each innovation cycle ──
+      const _wh = process.env.ALERT_WEBHOOK_URL || '';
+      if (_wh && suggestions.length > 0) {
+        try {
+          const _body = JSON.stringify({
+            text: `[ZeusAI/ZAC] 🧠 SelfInnovator cycle — ${suggestions.length} suggestions, trustScore=${trustScore.toFixed(2)}, autoApply=${autoApply}`,
+          });
+          const _https = require('https'), _http = require('http');
+          const _u = new URL(_wh);
+          const _mod = _u.protocol === 'https:' ? _https : _http;
+          const _req = _mod.request({ hostname: _u.hostname, path: _u.pathname + _u.search, method: 'POST', headers: { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(_body) } });
+          _req.on('error', () => {});
+          _req.write(_body);
+          _req.end();
+        } catch (_) { /* non-critical */ }
+      }
+
     if (runs.length > 30) runs.shift();
     return report;
   }
@@ -116,6 +145,72 @@ function createSelfInnovator({
   }
 
   return { start, stop, runCycle, getStatus };
+}
+
+// ── _applyAction — executes a high-confidence, auto-approved innovation action ──
+// Execută o acțiune de inovare aprobată automat (trustScore >= 0.85)
+async function _applyAction(suggestion, { backendBase, outDir }) {
+  const { action, target } = suggestion;
+  console.log('[selfInnovator] ▶ auto-apply:', action, '→', target);
+
+  switch (action) {
+    case 'investigate-and-restart': {
+      // POST to the module's restart endpoint if available
+      const url = `${backendBase}/api/mesh/restart`;
+      try {
+        const http = require('http'), https = require('https');
+        const u = new URL(url);
+        const mod = u.protocol === 'https:' ? https : http;
+        const body = JSON.stringify({ module: target });
+        await new Promise((resolve) => {
+          const req = mod.request({
+            hostname: u.hostname, port: u.port || (u.protocol === 'https:' ? 443 : 80),
+            path: u.pathname, method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(body) },
+          }, (res) => { res.resume(); res.on('end', resolve); });
+          req.on('error', resolve);
+          req.write(body);
+          req.end();
+        });
+        console.log('[selfInnovator] ✅ restart signal sent for', target);
+      } catch (e) {
+        console.warn('[selfInnovator] restart signal failed:', e.message);
+      }
+      break;
+    }
+
+    case 'auto-generate-stub-modules': {
+      // Delegate to selfDeveloper to generate missing module stubs
+      try {
+        const { createSelfDeveloper } = require('./selfDeveloper');
+        const dev = createSelfDeveloper ? createSelfDeveloper() : null;
+        // selfDeveloper exposes generateModule directly — use it
+        const selfDev = require('./selfDeveloper');
+        if (typeof selfDev.generateModule === 'function') {
+          selfDev.generateModule({ name: target, description: `Auto-generated stub for missing module: ${target}` });
+          console.log('[selfInnovator] ✅ stub generated for', target);
+        }
+      } catch (e) {
+        console.warn('[selfInnovator] stub generation failed:', e.message);
+      }
+      break;
+    }
+
+    case 'expose-loaded-modules-in-registry': {
+      // Write a registry refresh marker file so the mesh picks up loaded modules
+      const markerPath = path.join(outDir, '..', 'registry-refresh.json');
+      try {
+        fs.writeFileSync(markerPath, JSON.stringify({ ts: new Date().toISOString(), action, requestedBy: 'selfInnovator' }, null, 2));
+        console.log('[selfInnovator] ✅ registry refresh marker written');
+      } catch (e) {
+        console.warn('[selfInnovator] registry marker failed:', e.message);
+      }
+      break;
+    }
+
+    default:
+      console.log('[selfInnovator] ℹ️ no auto-apply handler for action:', action, '— logged only');
+  }
 }
 
 module.exports = { createSelfInnovator };

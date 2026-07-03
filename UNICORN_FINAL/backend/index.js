@@ -5387,6 +5387,15 @@ try { _moatEngine = require('./modules/moat-engine'); console.log('[MoatEngine] 
 let _aiIntelCore = null;
 try { _aiIntelCore = require('./modules/autonomous-intelligence-core'); console.log('[AIIntelCore] ✅ loaded'); } catch (e) { console.warn('[AIIntelCore] not loaded:', e.message); }
 
+let _taxEngine = null;
+try { _taxEngine = require('./modules/tax-engine'); console.log('[TaxEngine] ✅ loaded'); } catch (e) { console.warn('[TaxEngine] not loaded:', e.message); }
+
+let _investorEngine = null;
+try { _investorEngine = require('./modules/investor-engine'); console.log('[InvestorEngine] ✅ loaded'); } catch (e) { console.warn('[InvestorEngine] not loaded:', e.message); }
+
+let _acquisitionEngine = null;
+try { _acquisitionEngine = require('./modules/acquisition-engine'); console.log('[AcquisitionEngine] ✅ loaded'); } catch (e) { console.warn('[AcquisitionEngine] not loaded:', e.message); }
+
 // ── Register optional profit & orchestration modules in mesh ──
 if (_aiOrchestrator) meshOrchestrator.register('aiOrchestrator', _aiOrchestrator, { statusFn: 'getStatus' });
 if (_revenueRouter) meshOrchestrator.register('sovereignRevenueRouter', _revenueRouter, { statusFn: 'getStatus' });
@@ -5439,6 +5448,21 @@ if (_aiIntelCore) {
   app.use('/api/intelligence', adminTokenMiddleware, _aiIntelCore.router());
   console.log('[backend] /api/intelligence mounted (autonomous-intelligence-core)');
 }
+  if (_taxEngine) {
+    meshOrchestrator.register('taxEngine', _taxEngine, { statusFn: 'getStatus' });
+    app.use('/api/tax', _taxEngine.router());
+    console.log('[backend] /api/tax mounted (global tax computation — 50 countries, US state tax)');
+  }
+  if (_investorEngine) {
+    meshOrchestrator.register('investorEngine', _investorEngine, { statusFn: 'getStatus' });
+    app.use('/api/investor', adminTokenMiddleware, _investorEngine.router());
+    console.log('[backend] /api/investor mounted (ARR/MRR/churn/NRR/Series-A readiness)');
+  }
+  if (_acquisitionEngine) {
+    meshOrchestrator.register('acquisitionEngine', _acquisitionEngine, { statusFn: 'getStatus' });
+    app.use('/api/acquisition', adminTokenMiddleware, _acquisitionEngine.router());
+    console.log('[backend] /api/acquisition mounted (digital acquisition pipeline + valuation)');
+  }
 
 const ZEUS_SYSTEM = 'You are Zeus AI Assistant, an expert in business automation, AI, blockchain, payments, and enterprise solutions. Be concise and helpful. You can also respond in Romanian if the user writes in Romanian.';
 
