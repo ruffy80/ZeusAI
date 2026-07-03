@@ -13,7 +13,7 @@
 //   1. Module Analyzer      — LOC, complexity, error patterns, usage stats
 //   2. Behavior Profiler    — call counts, avg duration, error rate per tenant
 //   3. Evolution Planner    — generates refactor/repair/deprecate/newModule tasks
-//   4. Code Generator       — safe stub mode; proposals only, no auto-write
+//   4. Code Generator       — conservative mode; proposals only, no auto-write
 //   5. Safety Validator     — syntax check + dangerous-pattern scan
 //   6. Auto-Deploy Integrator — validated rollout, monitoring, rollback
 // =============================================================================

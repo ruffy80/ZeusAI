@@ -81,7 +81,12 @@ class CodeSanityEngine {
     if (content.length < 50) {
       issues.push({ type: 'empty_module' });
     }
-    if (/Safe stub|placeholder run|echo:\s*input|Auto-generated stub|generat automat.*getStatus/i.test(content)) {
+    // Stub-signature detection is intentionally CONSERVATIVE. A real module can
+    // legitimately mention the words "safe stub mode" inside a doc comment; we
+    // must NOT overwrite it. Only mark as stub when BOTH the marker is present
+    // AND the file is trivially small (<600 chars) — a genuine engineered module
+    // is always much larger than that threshold.
+    if (content.length < 600 && /placeholder run|echo:\s*input|Auto-generated stub|generat automat.*getStatus/i.test(content)) {
       issues.push({ type: 'stub_signature' });
     }
     return issues;
@@ -111,7 +116,10 @@ class CodeSanityEngine {
       }
       if (issue.type === 'stub_signature') {
         const name = path.basename(filePath, '.js');
-        if (content.length < 1200 || /echo:\s*input|placeholder run|Safe stub|Auto-generated stub/i.test(content)) {
+        // Never overwrite a real engineered module. Only rewrite if the file
+        // is *tiny* AND clearly stub-shaped. Guards production modules from
+        // being wiped by an over-eager auto-repair loop.
+        if (content.length < 600 && /echo:\s*input|placeholder run|Auto-generated stub/i.test(content)) {
           content = this._realBaselineModule(name);
           modified = true;
           repairs.push('replaced_stub_signature');
