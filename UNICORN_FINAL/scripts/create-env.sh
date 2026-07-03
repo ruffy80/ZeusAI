@@ -203,6 +203,14 @@ upsert PAYPAL_CLIENT_SECRET "${PAYPAL_CLIENT_SECRET:-}"
 upsert PAYPAL_ENV           "${PAYPAL_ENV:-sandbox}"
 upsert PAYPAL_WEBHOOK_ID    "${PAYPAL_WEBHOOK_ID:-}"
 
+# ── NOWPayments (global crypto rail — cards/bank/300+ coins → auto-BTC) ──────────
+# #1 owner-armed revenue unlock (activation impact 100). Optional: the platform
+# still runs BTC-direct checkout without it. Set NOWPAYMENTS_API_KEY as a repo
+# secret and the next deploy arms card/300-coin checkout automatically. upsert
+# skips empty values, so absence never overwrites an existing key.
+upsert NOWPAYMENTS_API_KEY    "${NOWPAYMENTS_API_KEY:-}"
+upsert NOWPAYMENTS_IPN_SECRET "${NOWPAYMENTS_IPN_SECRET:-}"
+
 # ── Email ──────────────────────────────────────────────────────────────────────
 upsert SMTP_HOST    "${SMTP_HOST:-smtp.mail.yahoo.com}"
 upsert SMTP_PORT    "${SMTP_PORT:-587}"

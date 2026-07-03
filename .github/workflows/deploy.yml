@@ -202,6 +202,11 @@ jobs:
             'FIREWORKS_API_KEY','SAMBANOVA_API_KEY','NVIDIA_NIM_API_KEY','STRIPE_SECRET_KEY','STRIPE_PUBLISHABLE_KEY','STRIPE_WEBHOOK_SECRET',
             'STRIPE_PRICE_STARTER_MONTHLY','STRIPE_PRICE_STARTER_YEARLY','STRIPE_PRICE_PRO_MONTHLY','STRIPE_PRICE_PRO_YEARLY',
             'STRIPE_PRICE_ENTERPRISE_MONTHLY','STRIPE_PRICE_ENTERPRISE_YEARLY','PAYPAL_CLIENT_ID','PAYPAL_CLIENT_SECRET','PAYPAL_WEBHOOK_ID',
+            // NOWPayments — #1 owner-armed revenue unlock (activation impact 100):
+            // card/bank/300+ coin checkout that auto-settles to BTC. Optional; the
+            // platform still runs BTC-direct without it. Must be forwarded here or a
+            // configured repo secret would silently never reach the server .env.
+            'NOWPAYMENTS_API_KEY','NOWPAYMENTS_IPN_SECRET',
             'SMTP_HOST','SMTP_PORT','SMTP_USER','SMTP_PASS','SMTP_FROM','EMAIL_FROM_NAME','RESEND_API_KEY','RESEND_FROM','BREVO_API_KEY',
             'MAILERSEND_API_KEY','OWNER_EMAIL','HETZNER_API_KEY','HETZNER_API_TOKEN','HETZNER_HOST','HETZNER_DNS_API_KEY',
             'VAULT_MASTER_SECRET','VAULT_EMERGENCY_CODE','MASTER_CONFIG_SECRET','TELEGRAM_BOT_TOKEN','TELEGRAM_CHAT_ID',
