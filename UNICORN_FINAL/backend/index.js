@@ -7544,12 +7544,19 @@ app.post('/api/pricing/discount', adminTokenMiddleware, (req, res) => {
 
 // ==================== PAYMENT ROUTES ====================
 // ── NOWPayments — Global Universal Payment (300+ coins + cards → auto BTC) ──
-app.post('/api/payment/nowpayments/create', asyncHandler(async (req, res) => {
-  const { amountUsd, itemName, itemId, clientId, successUrl, cancelUrl } = req.body || {};
+// Supported pay_currency values (auto-settled to owner BTC via NOWPayments).
+const NOWPAYMENTS_SUPPORTED = ['btc','eth','usdt','usdc','bnb','sol','trx','ltc','doge','xrp','ada','dot'];
+
+app.post('/api/payment/nowpayments/create', _swRateLimit, asyncHandler(async (req, res) => {
+  const { amountUsd, itemName, itemId, clientId, successUrl, cancelUrl, payCurrency } = req.body || {};
   const normalizedAmount = Number(amountUsd);
   if (!Number.isFinite(normalizedAmount) || normalizedAmount <= 0) {
     return res.status(400).json({ error: 'amountUsd required' });
   }
+  // Validate requested currency; fall back to btc
+  const chosenCurrency = NOWPAYMENTS_SUPPORTED.includes(String(payCurrency || '').toLowerCase())
+    ? String(payCurrency).toLowerCase()
+    : 'btc';
 
   const invoice = await nowPayments.createInvoice({
     amountUsd: normalizedAmount,
@@ -7558,8 +7565,52 @@ app.post('/api/payment/nowpayments/create', asyncHandler(async (req, res) => {
     clientId,
     successUrl,
     cancelUrl,
+    payCurrency: chosenCurrency,
   });
-  res.json(invoice);
+  res.json({ ...invoice, chosenCurrency });
+}));
+
+// Multi-crypto checkout picker — returns all enabled rails + invoice options
+app.post('/api/payment/multi-crypto/checkout', _swRateLimit, express.json({ limit: '32kb' }), asyncHandler(async (req, res) => {
+  const { amountUsd, itemId, itemName, preferredCurrency } = req.body || {};
+  const amount = Number(amountUsd);
+  if (!Number.isFinite(amount) || amount <= 0) return res.status(400).json({ error: 'amountUsd required' });
+
+  const btcRate = await __getBtcUsdRate().catch(() => 0);
+  const currency = NOWPAYMENTS_SUPPORTED.includes(String(preferredCurrency || '').toLowerCase())
+    ? String(preferredCurrency).toLowerCase()
+    : 'btc';
+
+  // If NOWPayments is configured, create a real invoice
+  let invoice = null;
+  if (process.env.NOWPAYMENTS_API_KEY) {
+    try {
+      invoice = await nowPayments.createInvoice({
+        amountUsd: amount, itemName, itemId, payCurrency: currency,
+        successUrl: (process.env.PUBLIC_APP_URL || 'https://zeusai.pro') + '/payment-success',
+        cancelUrl: (process.env.PUBLIC_APP_URL || 'https://zeusai.pro') + '/checkout',
+      });
+    } catch (_) {}
+  }
+
+  const rails = NOWPAYMENTS_SUPPORTED.map((c) => ({
+    currency: c.toUpperCase(),
+    label: c.toUpperCase(),
+    active: c === currency,
+    invoiceUrl: (invoice && c === currency) ? (invoice.invoice_url || null) : null,
+  }));
+
+  res.json({
+    ok: true,
+    amountUsd: amount,
+    chosenCurrency: currency,
+    ownerBtcAddress: __OWNER_BTC,
+    btcRate,
+    btcEquivalent: btcRate > 0 ? Number((amount / btcRate).toFixed(8)) : null,
+    invoice: invoice || null,
+    rails,
+    note: 'All payments auto-converted and settled to owner BTC address.',
+  });
 }));
 
 app.get('/api/payment/nowpayments/status/:id', asyncHandler(async (req, res) => {
@@ -12610,6 +12661,174 @@ app.post('/api/autonomy/digest', async (req, res) => {
   }
 });
 
+// ==================== PRO-PLUS MODULES: Lead Hunter · Context Memory · Subscriptions ====================
+// Autonomous B2B lead generation, long-term AI memory, and recurring billing.
+// Modules are lazily required so a missing file never breaks the rest of the server.
+
+let _leadHunter, _ctxMemory, _subEngine;
+try {
+  _leadHunter = require('./modules/autonomous-lead-hunter');
+  _leadHunter.start();
+  console.log('[pro-plus] autonomous-lead-hunter ACTIVE');
+} catch (e) { console.warn('[pro-plus][lead-hunter] load failed:', e && e.message); }
+
+try {
+  _ctxMemory = require('./modules/context-persistence');
+  console.log('[pro-plus] context-persistence ACTIVE');
+} catch (e) { console.warn('[pro-plus][context-persistence] load failed:', e && e.message); }
+
+try {
+  _subEngine = require('./modules/subscription-engine');
+  console.log('[pro-plus] subscription-engine ACTIVE — plans:', _subEngine.getPlans().map(p => p.id).join(', '));
+} catch (e) { console.warn('[pro-plus][subscription-engine] load failed:', e && e.message); }
+
+// ── Lead Hunter API (/api/leads/*) ────────────────────────────────────────────
+// All write/admin routes require adminTokenMiddleware.
+app.get('/api/leads/status', adminTokenMiddleware, (req, res) => {
+  if (!_leadHunter) return res.status(503).json({ error: 'lead-hunter module not loaded' });
+  res.json(_leadHunter.getStatus());
+});
+app.get('/api/leads', adminTokenMiddleware, (req, res) => {
+  if (!_leadHunter) return res.status(503).json({ error: 'lead-hunter module not loaded' });
+  const { status, limit } = req.query;
+  res.json({ ok: true, leads: _leadHunter.listLeads({ status, limit: limit ? parseInt(limit, 10) : 50 }) });
+});
+app.post('/api/leads/start', adminTokenMiddleware, (req, res) => {
+  if (!_leadHunter) return res.status(503).json({ error: 'lead-hunter module not loaded' });
+  _leadHunter.start();
+  res.json({ ok: true, msg: 'lead hunter started' });
+});
+app.post('/api/leads/stop', adminTokenMiddleware, (req, res) => {
+  if (!_leadHunter) return res.status(503).json({ error: 'lead-hunter module not loaded' });
+  _leadHunter.stop();
+  res.json({ ok: true, msg: 'lead hunter stopped' });
+});
+app.post('/api/leads/run', adminTokenMiddleware, async (req, res) => {
+  if (!_leadHunter) return res.status(503).json({ error: 'lead-hunter module not loaded' });
+  try {
+    await _leadHunter.runOnce();
+    res.json({ ok: true, status: _leadHunter.getStatus() });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+app.post('/api/leads/:id/convert', adminTokenMiddleware, express.json({ limit: '4kb' }), (req, res) => {
+  if (!_leadHunter) return res.status(503).json({ error: 'lead-hunter module not loaded' });
+  const result = _leadHunter.markConverted(req.params.id);
+  if (!result || !result.ok) return res.status(404).json({ error: 'lead not found' });
+  res.json(result);
+});
+
+// ── Context Persistence API (/api/context/*) ─────────────────────────────────
+app.post('/api/context/store', adminTokenMiddleware, express.json({ limit: '16kb' }), async (req, res) => {
+  if (!_ctxMemory) return res.status(503).json({ error: 'context-persistence module not loaded' });
+  const { agentId, role, content, meta } = req.body || {};
+  if (!agentId || !role || !content) return res.status(400).json({ error: 'agentId, role, content required' });
+  try {
+    const entry = await _ctxMemory.store(agentId, role, content, meta || {});
+    res.json({ ok: true, entry });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+app.post('/api/context/recall', adminTokenMiddleware, express.json({ limit: '4kb' }), async (req, res) => {
+  if (!_ctxMemory) return res.status(503).json({ error: 'context-persistence module not loaded' });
+  const { agentId, query, topK } = req.body || {};
+  if (!agentId || !query) return res.status(400).json({ error: 'agentId and query required' });
+  try {
+    const results = await _ctxMemory.recall(agentId, query, topK || 5);
+    res.json({ ok: true, results });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+app.get('/api/context/summarise/:agentId', adminTokenMiddleware, async (req, res) => {
+  if (!_ctxMemory) return res.status(503).json({ error: 'context-persistence module not loaded' });
+  try {
+    const summary = await _ctxMemory.summarise(req.params.agentId);
+    res.json({ ok: true, agentId: req.params.agentId, summary });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+app.get('/api/context/episodes/:agentId', adminTokenMiddleware, async (req, res) => {
+  if (!_ctxMemory) return res.status(503).json({ error: 'context-persistence module not loaded' });
+  const { type } = req.query;
+  try {
+    const episodes = await _ctxMemory.getEpisodes(req.params.agentId, type);
+    res.json({ ok: true, episodes });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+app.get('/api/context/status', adminTokenMiddleware, (req, res) => {
+  if (!_ctxMemory) return res.status(503).json({ error: 'context-persistence module not loaded' });
+  res.json(_ctxMemory.getStatus());
+});
+app.delete('/api/context/:agentId', adminTokenMiddleware, async (req, res) => {
+  if (!_ctxMemory) return res.status(503).json({ error: 'context-persistence module not loaded' });
+  try {
+    const result = await _ctxMemory.clearAgent(req.params.agentId);
+    res.json(result);
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// ── Subscription Engine API (/api/subscriptions/*) ───────────────────────────
+// Public: list plans, create subscription, get user subs.
+// Admin-only: full status, MRR metrics, due subs.
+app.get('/api/subscriptions/plans', (req, res) => {
+  if (!_subEngine) return res.status(503).json({ error: 'subscription-engine module not loaded' });
+  res.json({ ok: true, plans: _subEngine.getPlans() });
+});
+app.get('/api/subscriptions/status', adminTokenMiddleware, (req, res) => {
+  if (!_subEngine) return res.status(503).json({ error: 'subscription-engine module not loaded' });
+  res.json(_subEngine.getStatus());
+});
+app.get('/api/subscriptions/mrr', adminTokenMiddleware, (req, res) => {
+  if (!_subEngine) return res.status(503).json({ error: 'subscription-engine module not loaded' });
+  const s = _subEngine.getStatus();
+  res.json({ ok: true, mrr: s.mrr, arr: s.arr, active: s.active, trialing: s.trialing });
+});
+app.get('/api/subscriptions/due', adminTokenMiddleware, (req, res) => {
+  if (!_subEngine) return res.status(503).json({ error: 'subscription-engine module not loaded' });
+  res.json({ ok: true, due: _subEngine.getDueSubs() });
+});
+app.post('/api/subscriptions', express.json({ limit: '8kb' }), async (req, res) => {
+  if (!_subEngine) return res.status(503).json({ error: 'subscription-engine module not loaded' });
+  const { userId, planId, paymentMethod, split } = req.body || {};
+  if (!userId || !planId) return res.status(400).json({ error: 'userId and planId required' });
+  try {
+    const result = await _subEngine.create({ userId, planId, paymentMethod: paymentMethod || 'manual', split });
+    res.json(result);
+  } catch (e) { res.status(400).json({ error: e.message }); }
+});
+app.get('/api/subscriptions/user/:userId', async (req, res) => {
+  if (!_subEngine) return res.status(503).json({ error: 'subscription-engine module not loaded' });
+  const subs = _subEngine.getByUser(req.params.userId);
+  res.json({ ok: true, subscriptions: subs });
+});
+app.get('/api/subscriptions/:id', async (req, res) => {
+  if (!_subEngine) return res.status(503).json({ error: 'subscription-engine module not loaded' });
+  const sub = _subEngine.getById(req.params.id);
+  if (!sub) return res.status(404).json({ error: 'subscription not found' });
+  res.json({ ok: true, subscription: sub });
+});
+app.post('/api/subscriptions/:id/payment', express.json({ limit: '8kb' }), async (req, res) => {
+  if (!_subEngine) return res.status(503).json({ error: 'subscription-engine module not loaded' });
+  const { amount, currency, method, txId } = req.body || {};
+  if (!amount) return res.status(400).json({ error: 'amount required' });
+  try {
+    const result = await _subEngine.recordPayment(req.params.id, { amount, currency: currency || 'USD', method: method || 'manual', txId });
+    res.json(result);
+  } catch (e) { res.status(400).json({ error: e.message }); }
+});
+app.put('/api/subscriptions/:id/plan', express.json({ limit: '4kb' }), async (req, res) => {
+  if (!_subEngine) return res.status(503).json({ error: 'subscription-engine module not loaded' });
+  const { planId } = req.body || {};
+  if (!planId) return res.status(400).json({ error: 'planId required' });
+  try {
+    const result = await _subEngine.changePlan(req.params.id, planId);
+    res.json(result);
+  } catch (e) { res.status(400).json({ error: e.message }); }
+});
+app.delete('/api/subscriptions/:id', async (req, res) => {
+  if (!_subEngine) return res.status(503).json({ error: 'subscription-engine module not loaded' });
+  try {
+    const result = await _subEngine.cancel(req.params.id);
+    res.json(result);
+  } catch (e) { res.status(400).json({ error: e.message }); }
+});
+
 // ==================== GLOBAL ERROR HANDLER ====================
 // Catches any unhandled errors thrown in route handlers.
 // In production, never expose the stack trace to the client.
@@ -12675,6 +12894,9 @@ if (require.main === module) {
     }
     console.log(`🤖 Universal AI Connector (UAIC): ${_uaic ? 'ACTIVE' : 'DISABLED'}`);
     console.log(`🌐 Multi-Model Router (14 AI): ${_multiRouter ? 'ACTIVE' : 'DISABLED'}`);
+    console.log(`🎯 Autonomous Lead Hunter: ${_leadHunter ? 'ACTIVE' : 'DISABLED'}`);
+    console.log(`🧠 Context Persistence (AI Memory): ${_ctxMemory ? 'ACTIVE' : 'DISABLED'}`);
+    console.log(`💳 Subscription Engine (MRR): ${_subEngine ? 'ACTIVE' : 'DISABLED'}`);
     console.log(`✨ Autonomous Innovation Engine: ACTIVE`);
     console.log(`💰 Auto Revenue Generation: ACTIVE`);
     console.log(`♾️  Unicorn Eternal Engine: ACTIVE`);
