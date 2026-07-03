@@ -3549,6 +3549,11 @@ if (_isPrimaryWorker) {
         revenueFlywheel.start();
       }
     } catch (e) { console.warn('[revenue-flywheel] start failed:', e && e.message); }
+    // Autonomous Growth Brain — the Observe→Think→Plan→Execute→Reflect loop
+    // that ties every real growth organ together. Bounded, unref()'d, never
+    // mutates money rails or PM2. Only runs outside the ultra-stable profile.
+    try { if (_growthBrain && typeof _growthBrain.start === 'function') _growthBrain.start(); }
+    catch (e) { console.warn('[growth-brain] start failed:', e && e.message); }
   }
 
   // Pornire module cu cicluri autonome
@@ -4487,6 +4492,65 @@ const _unicornEventsClients = new Set();
 // RO: o singură fațadă de catalog pentru toate modulele.
 try { require('./modules/serviceCatalog').attachSource(() => _unicornServices); }
 catch (e) { console.warn('[serviceCatalog] attach failed:', e.message); }
+
+// ═══════════════════════════════════════════════════════════════════════════
+// AUTONOMOUS GROWTH CORE (GODMODE 2026-07) — upsell + lead-intel + brain.
+// ───────────────────────────────────────────────────────────────────────────
+// Three REAL, additive, fail-safe organs that connect the previously-isolated
+// growth engines into one money-first loop:
+//   • upsell-engine     — next-best-offer + bundle discount on every sale
+//                         (raises AOV/LTV with zero new traffic).
+//   • lead-intelligence — scores + ranks the leads /api/lead now captures,
+//                         so follow-up goes to the hottest first.
+//   • growth-brain      — Observe→Think→Plan→Execute→Reflect over ALL real
+//                         telemetry; auto-runs safe actions (SEO push, lead
+//                         re-scoring), surfaces the #1 owner action, and
+//                         proves improvement in a hash-chained log.
+// Every require is wrapped: a growth-core failure must never break boot.
+// RO: nucleul autonom de creștere — leagă organele reale într-o singură
+// buclă orientată spre profit; totul aditiv și fail-safe.
+// ═══════════════════════════════════════════════════════════════════════════
+let _upsellEngine = null, _leadIntel = null, _growthBrain = null;
+try {
+  _upsellEngine = require('./modules/upsell-engine');
+  // Feed it the live 300-service catalog (falls back to flagships if empty).
+  _upsellEngine.configure({
+    getCatalog: () => {
+      try {
+        const facade = require('./modules/serviceCatalog');
+        const live = (facade && typeof facade.listSync === 'function') ? facade.listSync() : null;
+        if (Array.isArray(live) && live.length) return live;
+      } catch (_) {}
+      return _unicornServices; // always a valid array
+    },
+  });
+  _upsellEngine.registerRoutes(app);
+  console.log('[upsell-engine] mounted: /api/upsell (+ /stats) — next-best-offer + bundle discount');
+} catch (e) { console.warn('[upsell-engine] failed to mount:', e && e.message); }
+
+try {
+  _leadIntel = require('./modules/lead-intelligence');
+  // Reuse the platform's admin gate for the PII pipeline route (public-safe
+  // aggregate stays open for the admin card + brain).
+  _leadIntel.configure({ adminGuard: (typeof adminTokenMiddleware === 'function') ? adminTokenMiddleware : null });
+  _leadIntel.registerRoutes(app);
+  console.log('[lead-intelligence] mounted: /api/leads/pipeline + /api/leads/intelligence — scoring + ranked pipeline');
+} catch (e) { console.warn('[lead-intelligence] failed to mount:', e && e.message); }
+
+try {
+  _growthBrain = require('./modules/growth-brain');
+  _growthBrain.configure({
+    trafficEngine: (typeof trafficEngine !== 'undefined') ? trafficEngine : null,
+    leadIntel: _leadIntel,
+    upsell: _upsellEngine,
+    conversion: () => { try { return moneyMachine.conversionIntelligence(); } catch (_) { return {}; } },
+    funnel: () => { try { return (typeof funnelIntelligence !== 'undefined' && funnelIntelligence) ? funnelIntelligence.summary() : {}; } catch (_) { return {}; } },
+    referral: () => { try { return (typeof unicornInnovationSuite !== 'undefined' && unicornInnovationSuite && unicornInnovationSuite.getAffiliateStats) ? unicornInnovationSuite.getAffiliateStats() : {}; } catch (_) { return {}; } },
+  });
+  _growthBrain.registerRoutes(app);
+  console.log('[growth-brain] mounted: /api/growth/brain (+ /full, /run) — autonomous growth loop');
+} catch (e) { console.warn('[growth-brain] failed to mount:', e && e.message); }
+
 let _cinematicProfileOverride = null;
 const _pqDigest = (() => {
   try { crypto.createHash('sha3-512'); return 'sha3-512'; }
@@ -7082,6 +7146,10 @@ const serviceCatalogFacade = require('./modules/serviceCatalog');
 try {
   meshOrchestrator.register('salesOrchestrator', salesOrchestrator, { statusFn: 'getStatus' });
   meshOrchestrator.register('serviceCatalog', serviceCatalogFacade, { statusFn: 'getStatus' });
+  // Autonomous Growth Core — upsell, lead-intel, brain report status too.
+  if (_growthBrain) meshOrchestrator.register('growthBrain', _growthBrain, { statusFn: 'getState' });
+  if (_upsellEngine) meshOrchestrator.register('upsellEngine', _upsellEngine, { statusFn: 'stats' });
+  if (_leadIntel) meshOrchestrator.register('leadIntelligence', _leadIntel, { statusFn: 'stats' });
 } catch (_) { /* mesh optional */ }
 
 let _btcVerifier = null;

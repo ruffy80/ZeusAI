@@ -846,6 +846,18 @@ select.form-inp option{background:#0a0e24;}
           <div id="activation-summary" style="font-size:13px;color:#b0bcd4;margin-bottom:10px;">Loading activation map…</div>
           <div id="activation-missing" style="font-size:12px;color:#7090b0;"></div>
         </div>
+        <div class="card card-glow" style="margin-bottom:20px;border:1.5px solid rgba(120,140,255,.35);">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
+            <div class="dash-section-title" style="margin:0;">🧠 Autonomous Growth Brain</div>
+            <div style="display:flex;align-items:center;gap:10px;">
+              <span id="brain-score" style="font-family:Orbitron,monospace;font-size:22px;color:#7c9cff;">—</span>
+              <button class="btn btn-outline btn-sm" onclick="loadGrowthBrain()">🔄</button>
+            </div>
+          </div>
+          <div id="brain-stages" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px;"></div>
+          <div id="brain-actions" style="font-size:12px;color:#7090b0;">Loading growth brain…</div>
+          <div id="brain-pipeline" style="font-size:12px;color:#7090b0;margin-top:8px;"></div>
+        </div>
         <div class="grid-3" style="margin-bottom:20px;">
           <div class="card card-sm"><div class="label">Health</div><div class="kpi-val green" id="adm-health">—</div></div>
           <div class="card card-sm"><div class="label">Uptime</div><div class="kpi-val cyan" id="adm-uptime">—</div></div>
@@ -3278,6 +3290,55 @@ async function loadAdminData(){
   var snapEl=document.getElementById('adm-snapshot');
   if(snapEl) snapEl.innerHTML='<pre style="overflow:auto;max-height:200px;font-size:11px;">'+escHtml(JSON.stringify(snap,null,2))+'</pre>';
   loadActivationReadiness();
+  loadGrowthBrain();
+}
+
+// Autonomous Growth Brain — live funnel health + ranked next actions + lead pipeline.
+async function loadGrowthBrain(){
+  var scoreEl=document.getElementById('brain-score');
+  var stagesEl=document.getElementById('brain-stages');
+  var actEl=document.getElementById('brain-actions');
+  var pipeEl=document.getElementById('brain-pipeline');
+  try{
+    var r=await api('GET','/api/growth/brain').catch(function(){return null;});
+    if(!r||!r.ok){ if(actEl) actEl.textContent='Growth brain warming up…'; return; }
+    var score=Number(r.growthScore||0);
+    if(scoreEl){ scoreEl.textContent=score+'%'; scoreEl.style.color=score>=70?'#00ffa3':score>=45?'#7c9cff':'#ffc107'; }
+    if(stagesEl && r.stages){
+      var order=['traffic','capture','qualify','convert','monetize','expand','retain'];
+      stagesEl.innerHTML=order.map(function(k){
+        var v=Number(r.stages[k]||0);
+        var col=v>=70?'#00ffa3':v>=45?'#7c9cff':'#ff8f6b';
+        return '<span style="font-size:11px;padding:3px 8px;border-radius:10px;background:#0d1117;border:1px solid '+col+'44;color:'+col+';">'+k+' '+v+'</span>';
+      }).join('');
+    }
+    if(actEl){
+      var acts=r.topActions||[];
+      if(!acts.length){ actEl.innerHTML='<div style="color:#00ffa3;">✓ No high-impact actions pending.</div>'; }
+      else{
+        actEl.innerHTML='<div style="font-weight:600;color:#e8f4ff;margin-bottom:6px;">Next best actions (ranked):</div>'+
+          acts.map(function(a){
+            var badge=a.mode==='auto'?'<span style="color:#00ffa3;">AUTO</span>':'<span style="color:#ffc107;">OWNER</span>';
+            return '<div style="padding:7px 10px;background:#0d1117;border-left:3px solid '+(a.mode==='auto'?'#00ffa3':'#ffc107')+';border-radius:4px;margin-bottom:5px;">'
+              +'<div style="color:#cfe0ff;font-weight:600;">'+escHtml(a.title)+' <span style="color:#7090b0;font-weight:400;">(impact '+escHtml(String(a.impact))+') '+badge+'</span></div>'
+              +'<div style="color:#9fb0c8;margin-top:2px;">'+escHtml(a.detail||'')+'</div>'
+              +(a.envVars&&a.envVars.length?'<div style="color:#00d4ff;margin-top:2px;font-size:11px;">['+escHtml(a.envVars.join(', '))+']</div>':'')
+              +'</div>';
+          }).join('');
+      }
+    }
+    // Lead pipeline aggregate (public-safe, no PII).
+    var li=await api('GET','/api/leads/intelligence').catch(function(){return null;});
+    if(pipeEl && li && li.ok){
+      pipeEl.innerHTML='<div style="margin-top:6px;padding-top:8px;border-top:1px solid #1c2740;">'
+        +'<span style="color:#e8f4ff;font-weight:600;">Lead pipeline:</span> '
+        +'<span style="color:#ff6b6b;">'+Number(li.hot||0)+' hot</span> · '
+        +'<span style="color:#ffc107;">'+Number(li.warm||0)+' warm</span> · '
+        +'<span style="color:#7090b0;">'+Number(li.cold||0)+' cold</span> '
+        +'<span style="color:#7090b0;">('+Number(li.total||0)+' total, '+Number(li.qualifiedPct||0)+'% qualified)</span>'
+        +'</div>';
+    }
+  }catch(e){ if(actEl) actEl.textContent='Growth brain error.'; }
 }
 
 // Revenue Activation map — shows exactly which one-key integrations unlock revenue.

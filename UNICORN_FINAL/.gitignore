@@ -15,6 +15,10 @@ data/logs/deepseek-governor.log
 data/logs/deepseek-governor.log.1
 data/logs/deepseek-loop.log
 data/**/secrets*.json
+# Autonomous Growth Brain runtime reflection log (written at runtime — not committed)
+data/growth/brain-log.jsonl
+# Inbound-lead capture (PII, written at runtime — never committed)
+data/leads/
 # Sovereign-commerce runtime state (orders, signing key, catalog-seen, txid cache)
 data/commerce/
 # Owner notifications (audit log written at runtime — not committed)

@@ -84,6 +84,17 @@ async function list({ limit = 0, group = null } = {}) {
   return out;
 }
 
+// listSync — synchronous, in-process-only view of the catalog. Returns the
+// attached live array (or []) with no network. Used by upsell-engine and the
+// growth-brain, which run in-process and must never await on a request path.
+// RO: vedere sincronă a catalogului — doar sursa in-process, fără rețea.
+function listSync() {
+  if (_source) {
+    try { const arr = _source(); if (Array.isArray(arr)) return arr; } catch (_) { /* noop */ }
+  }
+  return Array.isArray(_httpCache.items) ? _httpCache.items : [];
+}
+
 async function byId(id) {
   const target = String(id || '').trim();
   if (!target) return null;
@@ -105,4 +116,4 @@ function getStatus() {
   };
 }
 
-module.exports = { attachSource, list, byId, count, getStatus };
+module.exports = { attachSource, list, listSync, byId, count, getStatus };
