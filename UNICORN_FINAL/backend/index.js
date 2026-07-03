@@ -5364,6 +5364,29 @@ try { _aiProviderHealth = require('./modules/ai-provider-health'); } catch (e) {
   console.warn('[AIProviderHealth] not loaded:', e.message);
 }
 
+// ── NEW: Capital Protection, Unit Economics, Multi-Payment Rails,
+//         Module Ranker, Expansion Engine, Moat Engine, AI Intelligence Core ──
+let _capitalProtection = null;
+try { _capitalProtection = require('./modules/capital-protection'); console.log('[CapitalProtection] ✅ loaded'); } catch (e) { console.warn('[CapitalProtection] not loaded:', e.message); }
+
+let _unitEconomics = null;
+try { _unitEconomics = require('./modules/unit-economics-engine'); console.log('[UnitEconomics] ✅ loaded'); } catch (e) { console.warn('[UnitEconomics] not loaded:', e.message); }
+
+let _multiPaymentRails = null;
+try { _multiPaymentRails = require('./modules/multi-payment-rails'); console.log('[MultiPaymentRails] ✅ loaded'); } catch (e) { console.warn('[MultiPaymentRails] not loaded:', e.message); }
+
+let _moduleRanker = null;
+try { _moduleRanker = require('./modules/module-performance-ranker'); console.log('[ModuleRanker] ✅ loaded'); } catch (e) { console.warn('[ModuleRanker] not loaded:', e.message); }
+
+let _expansionEngine = null;
+try { _expansionEngine = require('./modules/expansion-engine'); console.log('[ExpansionEngine] ✅ loaded'); } catch (e) { console.warn('[ExpansionEngine] not loaded:', e.message); }
+
+let _moatEngine = null;
+try { _moatEngine = require('./modules/moat-engine'); console.log('[MoatEngine] ✅ loaded'); } catch (e) { console.warn('[MoatEngine] not loaded:', e.message); }
+
+let _aiIntelCore = null;
+try { _aiIntelCore = require('./modules/autonomous-intelligence-core'); console.log('[AIIntelCore] ✅ loaded'); } catch (e) { console.warn('[AIIntelCore] not loaded:', e.message); }
+
 // ── Register optional profit & orchestration modules in mesh ──
 if (_aiOrchestrator) meshOrchestrator.register('aiOrchestrator', _aiOrchestrator, { statusFn: 'getStatus' });
 if (_revenueRouter) meshOrchestrator.register('sovereignRevenueRouter', _revenueRouter, { statusFn: 'getStatus' });
@@ -5378,6 +5401,44 @@ if (_aiProviderHealth) meshOrchestrator.register('aiProviderHealth', _aiProvider
 if (_aiMemory) app.use('/api/ai/memory', _aiMemory.router(express, { adminGuard: adminTokenMiddleware }));
 if (_aiCostLedger) app.use('/api/ai/cost', _aiCostLedger.router(express, { adminGuard: adminTokenMiddleware }));
 if (_aiProviderHealth) app.use('/api/ai/providers/health', _aiProviderHealth.router(express));
+
+// ── NEW MODULES: Capital Protection, Unit Economics, Payment Rails, Ranker, Expansion, Moat, AI Intel ──
+if (_capitalProtection) {
+  meshOrchestrator.register('capitalProtection', _capitalProtection, { statusFn: 'getStatus' });
+  app.use('/api/capital', adminTokenMiddleware, _capitalProtection.router());
+  console.log('[backend] /api/capital mounted (capital-protection)');
+}
+if (_unitEconomics) {
+  meshOrchestrator.register('unitEconomicsEngine', _unitEconomics, { statusFn: 'getStatus' });
+  app.use('/api/unit-economics', adminTokenMiddleware, _unitEconomics.router());
+  console.log('[backend] /api/unit-economics mounted');
+}
+if (_multiPaymentRails) {
+  meshOrchestrator.register('multiPaymentRails', _multiPaymentRails, { statusFn: 'getStatus' });
+  app.use('/api/payments/multi', _multiPaymentRails.router());
+  // IPN webhook does NOT require auth — called by payment providers
+  console.log('[backend] /api/payments/multi mounted (BTC+USDT+ETH+SOL+USDC+Stripe+PayPal+BNPL+Split)');
+}
+if (_moduleRanker) {
+  meshOrchestrator.register('modulePerformanceRanker', _moduleRanker, { statusFn: 'getStatus' });
+  app.use('/api/rankings', _moduleRanker.router());
+  console.log('[backend] /api/rankings mounted (module-performance-ranker)');
+}
+if (_expansionEngine) {
+  meshOrchestrator.register('expansionEngine', _expansionEngine, { statusFn: 'getStatus' });
+  app.use('/api/expansion', _expansionEngine.router());
+  console.log('[backend] /api/expansion mounted (global expansion engine)');
+}
+if (_moatEngine) {
+  meshOrchestrator.register('moatEngine', _moatEngine, { statusFn: 'getStatus' });
+  app.use('/api/moat', _moatEngine.router());
+  console.log('[backend] /api/moat mounted (moat creation engine)');
+}
+if (_aiIntelCore) {
+  meshOrchestrator.register('aiIntelligenceCore', _aiIntelCore, { statusFn: 'getStatus' });
+  app.use('/api/intelligence', adminTokenMiddleware, _aiIntelCore.router());
+  console.log('[backend] /api/intelligence mounted (autonomous-intelligence-core)');
+}
 
 const ZEUS_SYSTEM = 'You are Zeus AI Assistant, an expert in business automation, AI, blockchain, payments, and enterprise solutions. Be concise and helpful. You can also respond in Romanian if the user writes in Romanian.';
 
