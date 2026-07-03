@@ -852,8 +852,38 @@ app.get(/^\/api\/order\/[a-zA-Z0-9_-]{6,64}\/receipt\.json$/, (req, res) =>
 app.get('/api/ab/experiments', (req, res) => proxyToSite(req, res, '/api/ab/experiments'));
 app.get(/^\/api\/ab\/assign\/[a-zA-Z0-9_-]+$/, (req, res) => proxyToSite(req, res, req.path));
 app.get(/^\/api\/ab\/report\/[a-zA-Z0-9_-]+$/, (req, res) => proxyToSite(req, res, req.path));
+// ─── Native A/B Telemetry Handling (Backend as source-of-truth) ───────────
+// Avoid proxy issues by handling AB events directly in the backend.
+// Events are logged to data/marketing/ab-events.jsonl for aggregation + stats.
+const _abEventsFile = path.join(process.cwd(), 'data', 'marketing', 'ab-events.jsonl');
+const _ensureAbDir = () => {
+  try { require('fs').mkdirSync(path.dirname(_abEventsFile), { recursive: true, mode: 0o755 }); } catch (_) {}
+};
+
+app.post('/api/ab/event', express.json({ limit: '2kb' }), (req, res) => {
+  try {
+    _ensureAbDir();
+    const { experimentId, variant, cohort, event, value } = req.body || {};
+    if (!experimentId || !event) return res.status(400).json({ error: 'missing_fields' });
+    
+    const rec = {
+      expId: experimentId,
+      variant: variant || 'unknown',
+      cohort: cohort || null,
+      event,
+      value: typeof value === 'number' ? value : 0,
+      ts: new Date().toISOString(),
+    };
+    require('fs').appendFileSync(_abEventsFile, JSON.stringify(rec) + '\n', 'utf8');
+    res.status(204).end();
+  } catch (e) {
+    console.warn('[ab/event] ingest failed:', e.message);
+    res.status(500).json({ error: 'ingest_failed' });
+  }
+});
+
+// Proxy AB registration and assignment to site (these require experiment list management)
 app.post('/api/ab/register', express.json({ limit: '4kb' }), (req, res) => proxyPostToSite(req, res, '/api/ab/register'));
-app.post('/api/ab/event',    express.json({ limit: '2kb' }), (req, res) => proxyPostToSite(req, res, '/api/ab/event'));
 
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
