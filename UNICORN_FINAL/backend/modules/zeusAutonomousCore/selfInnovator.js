@@ -187,7 +187,7 @@ async function _applyAction(suggestion, { backendBase, outDir }) {
         // selfDeveloper exposes generateModule directly — use it
         const selfDev = require('./selfDeveloper');
         if (typeof selfDev.generateModule === 'function') {
-          selfDev.generateModule({ name: target, description: `Auto-generated stub for missing module: ${target}` });
+          selfDev.generateModule({ name: target, description: `Auto-generated executable module for missing capability: ${target}` });
           console.log('[selfInnovator] ✅ stub generated for', target);
         }
       } catch (e) {

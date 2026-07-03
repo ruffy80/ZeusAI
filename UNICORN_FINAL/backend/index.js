@@ -5396,6 +5396,24 @@ try { _investorEngine = require('./modules/investor-engine'); console.log('[Inve
 let _acquisitionEngine = null;
 try { _acquisitionEngine = require('./modules/acquisition-engine'); console.log('[AcquisitionEngine] ✅ loaded'); } catch (e) { console.warn('[AcquisitionEngine] not loaded:', e.message); }
 
+let _rollbackEngine = null;
+try { _rollbackEngine = require('./modules/rollback-engine'); console.log('[RollbackEngine] ✅ loaded'); } catch (e) { console.warn('[RollbackEngine] not loaded:', e.message); }
+
+let _mutationSandbox = null;
+try { _mutationSandbox = require('./modules/mutation-sandbox'); console.log('[MutationSandbox] ✅ loaded'); } catch (e) { console.warn('[MutationSandbox] not loaded:', e.message); }
+
+let _memoryFabricEngine = null;
+try { _memoryFabricEngine = require('./modules/memory-fabric-engine'); console.log('[MemoryFabric] ✅ loaded'); } catch (e) { console.warn('[MemoryFabric] not loaded:', e.message); }
+
+let _marketScannerEngine = null;
+try { _marketScannerEngine = require('./modules/market-scanner-engine'); console.log('[MarketScanner] ✅ loaded'); } catch (e) { console.warn('[MarketScanner] not loaded:', e.message); }
+
+let _profitOptimizationEngine = null;
+try { _profitOptimizationEngine = require('./modules/profit-optimization-engine'); console.log('[ProfitOptimization] ✅ loaded'); } catch (e) { console.warn('[ProfitOptimization] not loaded:', e.message); }
+
+let _retentionEngine = null;
+try { _retentionEngine = require('./modules/retention-engine'); console.log('[RetentionEngine] ✅ loaded'); } catch (e) { console.warn('[RetentionEngine] not loaded:', e.message); }
+
 // ── Register optional profit & orchestration modules in mesh ──
 if (_aiOrchestrator) meshOrchestrator.register('aiOrchestrator', _aiOrchestrator, { statusFn: 'getStatus' });
 if (_revenueRouter) meshOrchestrator.register('sovereignRevenueRouter', _revenueRouter, { statusFn: 'getStatus' });
@@ -5462,6 +5480,36 @@ if (_aiIntelCore) {
     meshOrchestrator.register('acquisitionEngine', _acquisitionEngine, { statusFn: 'getStatus' });
     app.use('/api/acquisition', adminTokenMiddleware, _acquisitionEngine.router());
     console.log('[backend] /api/acquisition mounted (digital acquisition pipeline + valuation)');
+  }
+  if (_rollbackEngine) {
+    meshOrchestrator.register('rollbackEngine', _rollbackEngine, { statusFn: 'getStatus' });
+    app.use('/api/rollback', adminTokenMiddleware, _rollbackEngine.router());
+    console.log('[backend] /api/rollback mounted');
+  }
+  if (_mutationSandbox) {
+    meshOrchestrator.register('mutationSandbox', _mutationSandbox, { statusFn: 'getStatus' });
+    app.use('/api/mutation-sandbox', adminTokenMiddleware, _mutationSandbox.router());
+    console.log('[backend] /api/mutation-sandbox mounted');
+  }
+  if (_memoryFabricEngine) {
+    meshOrchestrator.register('memoryFabricEngine', _memoryFabricEngine, { statusFn: 'getStatus' });
+    app.use('/api/memory-fabric', adminTokenMiddleware, _memoryFabricEngine.router());
+    console.log('[backend] /api/memory-fabric mounted');
+  }
+  if (_marketScannerEngine) {
+    meshOrchestrator.register('marketScannerEngine', _marketScannerEngine, { statusFn: 'getStatus' });
+    app.use('/api/market-scanner', adminTokenMiddleware, _marketScannerEngine.router());
+    console.log('[backend] /api/market-scanner mounted');
+  }
+  if (_profitOptimizationEngine) {
+    meshOrchestrator.register('profitOptimizationEngine', _profitOptimizationEngine, { statusFn: 'getStatus' });
+    app.use('/api/profit-optimization', adminTokenMiddleware, _profitOptimizationEngine.router());
+    console.log('[backend] /api/profit-optimization mounted');
+  }
+  if (_retentionEngine) {
+    meshOrchestrator.register('retentionEngine', _retentionEngine, { statusFn: 'getStatus' });
+    app.use('/api/retention', adminTokenMiddleware, _retentionEngine.router());
+    console.log('[backend] /api/retention mounted');
   }
 
 const ZEUS_SYSTEM = 'You are Zeus AI Assistant, an expert in business automation, AI, blockchain, payments, and enterprise solutions. Be concise and helpful. You can also respond in Romanian if the user writes in Romanian.';

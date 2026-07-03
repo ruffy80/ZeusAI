@@ -83,7 +83,18 @@ function process(input = {}) {
   state.lastRun = new Date().toISOString();
   if (Array.isArray(input.tasks)) return { module: 'UnicornExecutionEngine', cycles: state.cycles, ...execute(input.tasks) };
   if (Array.isArray(input)) return { module: 'UnicornExecutionEngine', cycles: state.cycles, ...execute(input) };
-  return { success: true, module: 'UnicornExecutionEngine', cycles: state.cycles, note: 'provide {tasks:[{id,deps,duration}]}', echo: input };
+  return {
+    success: false,
+    module: 'UnicornExecutionEngine',
+    cycles: state.cycles,
+    error: 'invalid-input',
+    required: {
+      tasks: [
+        { id: 'a', deps: [], duration: 3 },
+        { id: 'b', deps: ['a'], duration: 2 },
+      ],
+    },
+  };
 }
 
 function getStatus() {

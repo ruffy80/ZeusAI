@@ -53,7 +53,15 @@ class EnergyTrading {
     if (Array.isArray(input.asks)) {
       return { status: 'ok', module: this.name, ...this.clear(input.bids || [], input.asks, input.demandMwh) };
     }
-    return { status: 'ok', module: this.name, note: 'provide {asks:[{price,mwh}], demandMwh}', echo: input };
+    return {
+      status: 'invalid-input',
+      module: this.name,
+      required: {
+        asks: [{ id: 'ask-1', price: 95.5, mwh: 120 }],
+        demandMwh: 100,
+      },
+      reason: 'Missing asks list or positive demandMwh',
+    };
   }
 
   getStatus() { return { name: this.name, health: 'good', clears: this.state.clears, uptime: process.uptime() }; }

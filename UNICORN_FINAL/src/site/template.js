@@ -23,7 +23,7 @@ function throttle(fn, limit) {
 // The live v2 shell is served from src/site/v2/shell.js; getSiteHtml() below is kept
 // only for legacy compatibility. It is NOT referenced by src/index.js on zeusai.pro.
 
-function getSiteHtmlLegacy() { return null; } // stub kept for any cached import
+function getSiteHtmlLegacy() { return getSiteHtml(); }
 
 function escapeTemplateValue(value) {
   return String(value || '').replace(/[&<>"']/g, function(ch) {
