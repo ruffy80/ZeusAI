@@ -2033,7 +2033,7 @@ async function doLogin(){
   msg.innerHTML='<div class="loader"></div>';
   var r=await api('POST','/api/customer/login',{email:email,password:pass});
   if(r.error||r.message){
-    msg.innerHTML='<div class="msg-err">'+(r.error||r.message)+'</div>';
+    msg.innerHTML='<div class="msg-err">'+escHtml(r.error||r.message)+'</div>';
     return;
   }
   var token=r.token||r.accessToken||(r.data&&r.data.token);
@@ -2058,7 +2058,7 @@ async function doRegister(){
   msg.innerHTML='<div class="loader"></div>';
   var r=await api('POST','/api/customer/signup',{name:name,email:email,password:pass});
   if(r.error||(r.message&&!r.token&&!r.customer&&!r.user)){
-    msg.innerHTML='<div class="msg-err">'+(r.error||r.message||'Registration failed')+'</div>';
+    msg.innerHTML='<div class="msg-err">'+escHtml(r.error||r.message||'Registration failed')+'</div>';
     return;
   }
   var token=r.token||r.accessToken||(r.data&&r.data.token);
@@ -2082,7 +2082,7 @@ async function doForgot(){
   if(!email){msg.innerHTML='<div class="msg-err">Please enter your email.</div>';return;}
   msg.innerHTML='<div class="loader"></div>';
   var r=await api('POST','/api/customer/forgot-password',{email:email});
-  if(r.error){msg.innerHTML='<div class="msg-err">'+(r.error||'Failed')+'</div>';return;}
+  if(r.error){msg.innerHTML='<div class="msg-err">'+escHtml(r.error||'Failed')+'</div>';return;}
   msg.innerHTML='<div class="msg-ok">✓ If that email exists, a reset link has been sent.</div>';
 }
 
