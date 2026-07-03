@@ -400,6 +400,11 @@ if (process.env.TOPOLOGY_ENDPOINT_DISABLED !== '1') {
 let _abTesting = null;
 try { _abTesting = require('./site/ab-testing'); } catch (_) {}
 if (_abTesting) {
+  // Default website experiment (idempotent): conversion-oriented hero copy.
+  // Forward-safe: if already registered, registerExperiment throws and we ignore.
+  try {
+    _abTesting.registerExperiment({ id: 'home-hero-v1', variants: ['control', 'valueproof'], metric: 'checkout_intent' });
+  } catch (_) {}
   app.get('/api/ab/experiments', (req, res) => {
     res.setHeader('Cache-Control', 'no-store');
     res.json({ experiments: _abTesting.listExperiments() });

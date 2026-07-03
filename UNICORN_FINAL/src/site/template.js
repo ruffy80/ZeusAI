@@ -482,7 +482,7 @@ select.form-inp option{background:#0a0e24;}
               var g = document.getElementById('heroGuarantee');
               var p = document.getElementById('heroCtaPrimary');
               var sec = document.getElementById('heroCtaSecondary');
-              if (t && o.headline) t.innerHTML = String(o.headline).replace(/—/g,'<br/>—');
+              if (t && o.headline) t.innerHTML = escHtml(String(o.headline)).replace(/—/g,'<br/>—');
               if (s && o.subhead) s.textContent = String(o.subhead);
               if (g && o.guarantee) g.textContent = String(o.guarantee);
               if (p && o.primary && o.primary.href) { p.href = o.primary.href; p.textContent = (o.primary.rail === 'stripe' ? '💳 ' : '₿ ') + (o.primary.label || 'Buy now'); }
@@ -1505,6 +1505,82 @@ function adminHeaders(){
 }
 function isLoggedIn(){return !!STATE.token;}
 
+function trackClientEvent(eventName, meta){
+  try{
+    var payload={
+      event:String(eventName||'unknown'),
+      ts:new Date().toISOString(),
+      path:location.pathname,
+      sessionId:(localStorage.getItem('zeus_session_id')||(function(){var id='sess_'+Math.random().toString(36).slice(2)+Date.now().toString(36);localStorage.setItem('zeus_session_id',id);return id;})()),
+      meta:(meta&&typeof meta==='object')?meta:{}
+    };
+    var body=JSON.stringify(payload);
+    if(navigator.sendBeacon){
+      try{
+        var blob=new Blob([body],{type:'application/json'});
+        navigator.sendBeacon('/api/track',blob);
+        return;
+      }catch(_){ }
+    }
+    fetch('/api/track',{method:'POST',headers:{'Content-Type':'application/json'},body:body,keepalive:true}).catch(function(){});
+  }catch(_){ }
+}
+
+function logAbEvent(experimentId,eventName,value){
+  try{
+    var v=(STATE.ab&&STATE.ab[experimentId]&&STATE.ab[experimentId].variant)||null;
+    if(!experimentId||!v||!eventName) return;
+    fetch('/api/ab/event',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({experimentId:experimentId,variant:v,event:eventName,value:Number(value||0)})}).catch(function(){});
+  }catch(_){ }
+}
+
+async function initHeroAbExperience(){
+  var expId='home-hero-v1';
+  try{
+    var r=await fetch('/api/ab/assign/'+encodeURIComponent(expId),{cache:'no-store'});
+    if(!r.ok) return;
+    var a=await r.json();
+    var v=(a&&a.variant)?String(a.variant):'control';
+    STATE.ab=STATE.ab||{};
+    STATE.ab[expId]={variant:v,cohort:(a&&a.cohort)||null};
+    if(v==='valueproof'){
+      var t=document.getElementById('heroTitle');
+      var s=document.getElementById('heroSub');
+      var g=document.getElementById('heroGuarantee');
+      var p=document.getElementById('heroCtaPrimary');
+      if(t) t.innerHTML='ZEUS AI<br/>Revenue outcomes, not promises.';
+      if(s) s.textContent='Activate production AI services with measurable business impact, transparent checkout and verifiable delivery evidence.';
+      if(g) g.textContent='ROI-first onboarding · sovereign-signed receipts · 30-day money-back';
+      if(p){
+        p.href='/services';
+        p.textContent='⚡ Explore Live Services';
+      }
+    }
+    logAbEvent(expId,'exposure',0);
+    trackClientEvent('hero_exposure',{experimentId:expId,variant:v});
+  }catch(_){ }
+}
+
+function attachConversionHooks(){
+  try{
+    var p=document.getElementById('heroCtaPrimary');
+    var d=document.getElementById('heroCtaDemo');
+    var t=document.getElementById('heroCtaTertiary');
+    if(p) p.addEventListener('click',function(){
+      trackClientEvent('hero_cta_primary_click',{href:p.getAttribute('href')||'',variant:((STATE.ab||{})['home-hero-v1']||{}).variant||'control'});
+      logAbEvent('home-hero-v1','hero_cta_primary_click',0);
+    });
+    if(d) d.addEventListener('click',function(){
+      trackClientEvent('hero_cta_demo_click',{variant:((STATE.ab||{})['home-hero-v1']||{}).variant||'control'});
+      logAbEvent('home-hero-v1','hero_cta_demo_click',0);
+    });
+    if(t) t.addEventListener('click',function(){
+      trackClientEvent('hero_cta_proof_click',{href:t.getAttribute('href')||'',variant:((STATE.ab||{})['home-hero-v1']||{}).variant||'control'});
+      logAbEvent('home-hero-v1','hero_cta_proof_click',0);
+    });
+  }catch(_){ }
+}
+
 (function installResilientFetch(){
   if(window.__zeusResilientFetchInstalled || !window.fetch) return;
   window.__zeusResilientFetchInstalled=true;
@@ -2379,6 +2455,7 @@ var PLANS=[
 ];
 
 async function loadPricing(){
+  trackClientEvent('pricing_view',{source:'pricing_page'});
   // Ensure live BTC rate is available
   if(!STATE.btcRate||STATE.btcRate<=0){
     try{
@@ -2388,9 +2465,11 @@ async function loadPricing(){
   }
   renderPlanCards();
   try{
+    var livePlanPrices=await Promise.all(PLANS.map(function(plan){
+      return fetch('/api/pricing/'+encodeURIComponent(plan.id)).then(function(r){return r.json();}).catch(function(){return null;});
+    }));
     for(var i=0;i<PLANS.length;i++){
-      var pid=PLANS[i].id;
-      var pr=await fetch('/api/pricing/'+encodeURIComponent(pid)).then(function(r){return r.json();}).catch(function(){return null;});
+      var pr=livePlanPrices[i];
       if(pr&&pr.price_usd!=null){
         var usd=Number(pr.price_usd);
         PLANS[i].monthly=usd;
@@ -4918,6 +4997,8 @@ var runQuantumMlProcess=makeAdvancedRunner('/api/quantum-ml/process','qml-task-i
 var runTemporalDataProcess=makeAdvancedRunner('/api/temporal-data/process','temporaldata-task-inp','temporaldata-result','analyze-temporal');
 function openCheckout(item){
   STATE.checkoutItem=item;
+  trackClientEvent('checkout_open',{serviceId:item&&((item.serviceId)||(item.id)||''),serviceName:item&&(item.name||''),priceUsd:Number((item&&item.priceUsd)||0)||0});
+  logAbEvent('home-hero-v1','checkout_open',Number((item&&item.priceUsd)||0)||0);
   var title=document.getElementById('checkout-title');
   if(title) title.textContent='Checkout: '+item.name;
   renderCheckoutStep1();
@@ -4952,6 +5033,7 @@ function renderCheckoutStep1(){
     +'</div>'
     +'<div style="font-size:13px;color:#7090b0;text-align:center;margin-bottom:12px;">Select payment method. Direct BTC settles to the owner wallet; configured providers appear automatically when live.</div>'
     +'<div class="card card-sm" style="margin-bottom:14px;text-align:left;"><div class="label">Checkout promise</div><p class="muted" style="font-size:12px;line-height:1.6;">Transparent amount · order ID generated · payment status tracked · access granted automatically after confirmation.</p></div>'
+    +'<div class="card card-sm" style="margin-bottom:14px;text-align:left;"><div class="label">Trust capsule</div><p class="muted" style="font-size:12px;line-height:1.6;">• Signed receipt + immutable order ID<br/>• Delivery proof endpoint after payment<br/>• Human support fallback: <a href="mailto:vladoi_ionut@yahoo.com" style="color:#00d4ff;">vladoi_ionut@yahoo.com</a></p></div>'
     +'<div class="pay-methods">'+buttons+'</div>';
 }
 
@@ -4963,6 +5045,8 @@ function renderCheckoutStep1(){
 async function checkoutSovereignBtc(){
   var body=document.getElementById('checkout-body');
   var item=STATE.checkoutItem||{};
+  trackClientEvent('checkout_method_selected',{method:'sovereign_btc',serviceId:item.serviceId||item.id||'',priceUsd:Number(item.priceUsd||0)||0});
+  logAbEvent('home-hero-v1','checkout_method_sovereign_btc',Number(item.priceUsd||0)||0);
   body.innerHTML='<div style="text-align:center;margin-bottom:10px;"><div class="loader"></div><p class="muted" style="margin-top:8px;">Preparing non-custodial BTC checkout…</p></div>';
   try{
     var r=await fetch('/api/checkout/create',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({serviceId:item.serviceId||item.id,qty:1,currency:'USD',email:(STATE.user&&STATE.user.email)||''})});
@@ -4981,6 +5065,8 @@ async function checkoutBtc(){
   var body=document.getElementById('checkout-body');
   var item=STATE.checkoutItem;
   var price=item.priceUsd||0;
+  trackClientEvent('checkout_method_selected',{method:'btc',serviceId:item.serviceId||item.id||'',priceUsd:Number(price)||0});
+  logAbEvent('home-hero-v1','checkout_method_btc',Number(price)||0);
   body.innerHTML='<div style="text-align:center;margin-bottom:10px;"><div class="loader"></div><p class="muted" style="margin-top:8px;">Generating secure BTC invoice and order ID...</p></div>';
   var created=await api('POST','/api/payment/create',{
     amount:price,
@@ -5032,6 +5118,8 @@ async function checkoutNowPayments(){
   var body=document.getElementById('checkout-body');
   var item=STATE.checkoutItem;
   var price=item.priceUsd||0;
+  trackClientEvent('checkout_method_selected',{method:'nowpayments',serviceId:item.serviceId||item.id||'',priceUsd:Number(price)||0});
+  logAbEvent('home-hero-v1','checkout_method_nowpayments',Number(price)||0);
   body.innerHTML='<div style="text-align:center;padding:20px;"><div class="loader"></div><p class="muted" style="margin-top:8px;">Preparing global checkout...</p></div>';
   var r=await api('POST','/api/payment/nowpayments/create',{
     amountUsd:price,
@@ -5084,6 +5172,8 @@ async function confirmBtcPayment(){
     +'<p class="muted" style="margin-top:8px;font-size:13px;">Your payment is being confirmed on the blockchain.<br/>We\\'ll activate your service within 15 minutes.</p>'
     +'<button class="btn btn-primary" style="margin-top:16px;" onclick="closeModal(\\'checkout-modal\\')">Done</button>'
     +'</div>';
+  trackClientEvent('checkout_confirm_btc',{serviceId:(STATE.checkoutItem&&((STATE.checkoutItem.serviceId)||STATE.checkoutItem.id))||'',valueUsd:Number((STATE.checkoutItem&&STATE.checkoutItem.priceUsd)||0)||0});
+  logAbEvent('home-hero-v1','checkout_confirm_btc',Number((STATE.checkoutItem&&STATE.checkoutItem.priceUsd)||0)||0);
   toast('BTC payment recorded!','ok');
 }
 
@@ -5118,6 +5208,8 @@ async function checkoutStripe(){
 
 function checkoutPaypal(){
   var item=STATE.checkoutItem;
+  trackClientEvent('checkout_method_selected',{method:'paypal',serviceId:item.serviceId||item.id||'',priceUsd:Number(item.priceUsd||0)||0});
+  logAbEvent('home-hero-v1','checkout_method_paypal',Number(item.priceUsd||0)||0);
   var body=document.getElementById('checkout-body');
   if(body) body.innerHTML='<div style="text-align:center;padding:20px;">'
     +'<div style="font-size:40px;margin-bottom:12px;">🅿️</div>'
@@ -5144,6 +5236,8 @@ async function confirmPaypalPayment(){
     +'<p class="muted" style="font-size:13px;margin-top:8px;">We\\'ll verify and activate your service within 24 hours.</p>'
     +'<button class="btn btn-primary" style="margin-top:16px;" onclick="closeModal(\\'checkout-modal\\')">Done</button>'
     +'</div>';
+  trackClientEvent('checkout_confirm_paypal',{serviceId:(STATE.checkoutItem&&((STATE.checkoutItem.serviceId)||STATE.checkoutItem.id))||'',valueUsd:Number((STATE.checkoutItem&&STATE.checkoutItem.priceUsd)||0)||0});
+  logAbEvent('home-hero-v1','checkout_confirm_paypal',Number((STATE.checkoutItem&&STATE.checkoutItem.priceUsd)||0)||0);
   toast('PayPal payment recorded!','ok');
 }
 
@@ -5455,6 +5549,8 @@ function escAttr(s){return escHtml(s);}
 // ================================================================
 document.addEventListener('DOMContentLoaded',function(){
   updateHeaderAuth();
+  initHeroAbExperience();
+  attachConversionHooks();
   initRouting();
   loadHomeData();
   // BTC ticker polling — every 30s, re-renders all price displays
