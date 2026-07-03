@@ -875,12 +875,91 @@ app.post('/api/ab/event', express.json({ limit: '2kb' }), (req, res) => {
       ts: new Date().toISOString(),
     };
     require('fs').appendFileSync(_abEventsFile, JSON.stringify(rec) + '\n', 'utf8');
+    
+    // Update funnel metrics for drop-off alerts
+    updateFunnelMetrics(event, value);
+    
     res.status(204).end();
   } catch (e) {
     console.warn('[ab/event] ingest failed:', e.message);
     res.status(500).json({ error: 'ingest_failed' });
   }
 });
+
+// ─── Funnel Conversion Monitoring & Drop-Off Alerts ─────────────────────────
+const _funnelMetrics = {
+  baseline: { checkout_open: 100, checkout_method_selected: 0, checkout_confirm_btc: 0 },
+  current: { checkout_open: 0, checkout_method_selected: 0, checkout_confirm_btc: 0, checkout_confirm_paypal: 0 },
+  window: { start: Date.now(), events: [] },
+  alertSent: false,
+  lastAlertTime: 0,
+};
+
+function updateFunnelMetrics(event, value) {
+  const now = Date.now();
+  
+  // Window: last 60 minutes
+  if (now - _funnelMetrics.window.start > 3600000) {
+    _funnelMetrics.window = { start: now, events: [] };
+    _funnelMetrics.alertSent = false;
+  }
+  
+  // Track funnel events
+  if (event === 'checkout_open' || event === 'checkout_method_selected' || 
+      event === 'checkout_confirm_btc' || event === 'checkout_confirm_paypal') {
+    _funnelMetrics.window.events.push({ event, ts: now });
+    _funnelMetrics.current[event] = (_funnelMetrics.current[event] || 0) + 1;
+    
+    checkFunnelHealth();
+  }
+}
+
+function checkFunnelHealth() {
+  // Calculate conversion rates: method_selected / open, confirms / method_selected
+  const opens = _funnelMetrics.current.checkout_open || 1;
+  const methods = _funnelMetrics.current.checkout_method_selected || 0;
+  const confirms = (_funnelMetrics.current.checkout_confirm_btc || 0) + (_funnelMetrics.current.checkout_confirm_paypal || 0);
+  
+  const methodRate = methods / opens;
+  const confirmRate = confirms / (methods || 1);
+  
+  const threshold = 0.90; // Alert if drop > 10% from expected
+  const now = Date.now();
+  
+  // Simple baseline: expect 50% to select method, 70% of those to confirm
+  // If either metric drops below baseline * threshold, alert
+  if (methodRate < (0.5 * threshold) || confirmRate < (0.7 * threshold)) {
+    if (!_funnelMetrics.alertSent && (now - _funnelMetrics.lastAlertTime) > 300000) { // alert max once per 5min
+      _funnelMetrics.alertSent = true;
+      _funnelMetrics.lastAlertTime = now;
+      
+      const dropoffPct = ((1 - Math.max(methodRate / 0.5, confirmRate / 0.7)) * 100).toFixed(1);
+      sendFunnelDropOffAlert(dropoffPct, { opens, methods, confirms, methodRate: (methodRate * 100).toFixed(1), confirmRate: (confirmRate * 100).toFixed(1) });
+    }
+  }
+}
+
+function sendFunnelDropOffAlert(dropoffPct, metrics) {
+  // Alert details logged and optionally emailed to owner
+  const ownerEmail = process.env.OWNER_EMAIL || 'vladoi_ionut@yahoo.com';
+  const subject = `⚠️ Funnel drop-off alert: ${dropoffPct}% degradation`;
+  const details = `Opens: ${metrics.opens} | Methods: ${metrics.methods} (${metrics.methodRate}%) | Confirms: ${metrics.confirms} (${metrics.confirmRate}%)`;
+  
+  console.warn(`[funnel-alert] ${subject} | ${details} | To: ${ownerEmail}`);
+  
+  // Best-effort email (nodemailer optional)
+  try {
+    const nm = require('nodemailer');
+    if (nm && nm.createTransport) {
+      nm.createTransport({}).sendMail({
+        from: 'alerts@zeusai.pro',
+        to: ownerEmail,
+        subject,
+        text: `Conversion funnel alert:\n${details}\n\nView stats: https://zeusai.pro/admin → A/B Testing tab`
+      }).catch(e => console.warn('[funnel-email] failed:', e.message));
+    }
+  } catch (_) { /* nodemailer not available */ }
+}
 
 // Proxy AB registration and assignment to site (these require experiment list management)
 app.post('/api/ab/register', express.json({ limit: '4kb' }), (req, res) => proxyPostToSite(req, res, '/api/ab/register'));
