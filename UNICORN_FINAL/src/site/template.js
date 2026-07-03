@@ -812,6 +812,7 @@ select.form-inp option{background:#0a0e24;}
         <button class="adm-tab-btn" data-atab="viral" onclick="switchAdminTab('viral')">🚀 Viral</button>
         <button class="adm-tab-btn" data-atab="innovation" onclick="switchAdminTab('innovation')">💡 Innovation</button>
         <button class="adm-tab-btn" data-atab="pricing" onclick="switchAdminTab('pricing')">🏷️ Pricing</button>
+        <button class="adm-tab-btn" data-atab="ab-testing" onclick="switchAdminTab('ab-testing')">🧪 A/B Testing</button>
         <button class="adm-tab-btn" data-atab="autonomous" onclick="switchAdminTab('autonomous')">🔄 Autonomous</button>
         <button class="adm-tab-btn" data-atab="modules" onclick="switchAdminTab('modules')">🔧 Modules</button>
         <button class="adm-tab-btn" data-atab="advanced" onclick="switchAdminTab('advanced')">🌌 Advanced</button>
@@ -1083,6 +1084,26 @@ select.form-inp option{background:#0a0e24;}
           <div class="dash-section-title">Admin Health Scores</div>
           <div id="adm-health-scores" style="font-size:12px;color:#7090b0;">—</div>
           <div style="margin-top:10px;"><div id="adm-churn-risk" style="font-size:12px;color:#7090b0;"></div></div>
+        </div>
+      </div>
+      <!-- A/B TESTING TAB -->
+      <div class="adm-tab-panel" id="atab-ab-testing">
+        <div class="card" style="margin-bottom:16px;">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;">
+            <div class="dash-section-title" style="margin:0;">🧪 Active Experiments</div>
+            <div style="display:flex;gap:6px;">
+              <button class="btn btn-outline btn-sm" onclick="loadAbStats()">🔄 Refresh</button>
+            </div>
+          </div>
+          <div id="ab-experiments-list" style="font-size:12px;color:#7090b0;max-height:500px;overflow-y:auto;">
+            <div style="text-align:center;padding:20px;"><div class="loader"></div></div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="dash-section-title">📊 Real-Time Welch's t-Test Results</div>
+          <div id="ab-stats-details" style="font-size:12px;color:#7090b0;max-height:400px;overflow-y:auto;">
+            <p>Select an experiment to view statistics</p>
+          </div>
         </div>
       </div>
       <!-- AUTONOMOUS TAB -->
@@ -3048,9 +3069,11 @@ function switchAdminTab(tab){
   else if(tab==='viral') loadAdminViral();
   else if(tab==='innovation') loadAdminInnovation();
   else if(tab==='pricing') loadAdminPricing();
-  else if(tab==='autonomous') loadAdminAutonomous();
+  else if(tab==='ab-testing') { stopAbStatsAutoRefresh(); startAbStatsAutoRefresh(); }
+  else if(tab==='autonomous') { stopAbStatsAutoRefresh(); loadAdminAutonomous(); }
   else if(tab==='modules') loadAdminModules();
   else if(tab==='advanced') loadAdminAdvanced();
+  else { stopAbStatsAutoRefresh(); }
 }
 
 async function loadAdminData(){
@@ -3385,6 +3408,132 @@ async function triggerInnovationLoop(){
   if(r.error){toast(r.error,'err');return;}
   toast('Innovation loop triggered!','ok');
   loadAdminInnovation();
+}
+
+// Load A/B experiment stats with real-time Welch's t-test results
+async function loadAbStats(){
+  try {
+    // Fetch list of experiments
+    var expResp = await api('GET', '/api/ab/experiments').catch(() => ({ experiments: [] }));
+    var experiments = expResp.experiments || [];
+    
+    var listEl = document.getElementById('ab-experiments-list');
+    var detailsEl = document.getElementById('ab-stats-details');
+    
+    if (!experiments.length) {
+      if (listEl) listEl.innerHTML = '<p style="color:#7090b0;">No active experiments</p>';
+      if (detailsEl) detailsEl.innerHTML = '<p style="color:#7090b0;">No experiments to display</p>';
+      return;
+    }
+    
+    // Render experiment list
+    if (listEl) {
+      listEl.innerHTML = experiments.map(exp => {
+        return '<div class="deal-row" style="cursor:pointer;padding:10px;background:#1a1f2e;border-radius:4px;margin-bottom:8px;" onclick="loadAbReport(\'' + escHtml(exp.id) + '\')">'
+          + '<div><div style="font-weight:600;color:#e8f4ff;">🧪 ' + escHtml(exp.id) + '</div>'
+          + '<div style="font-size:10px;color:#7090b0;">Metric: ' + escHtml(exp.metric || 'revenue') + ' | Variants: ' + escHtml(exp.variants.join(', ')) + '</div></div>'
+          + '<div style="color:#00d4ff;">→ Click for stats</div>'
+          + '</div>';
+      }).join('');
+    }
+    
+    // Auto-load first experiment's report
+    if (experiments.length > 0) {
+      loadAbReport(experiments[0].id);
+    }
+  } catch (e) {
+    console.warn('[loadAbStats] error:', e);
+    if (document.getElementById('ab-experiments-list')) {
+      document.getElementById('ab-experiments-list').innerHTML = '<p style="color:#d44;">Error loading experiments</p>';
+    }
+  }
+}
+
+// Load and display A/B report for a specific experiment
+async function loadAbReport(experimentId) {
+  try {
+    var reportResp = await api('GET', '/api/ab/report/' + encodeURIComponent(experimentId)).catch(() => ({ error: 'unavailable' }));
+    var detailsEl = document.getElementById('ab-stats-details');
+    
+    if (!detailsEl) return;
+    
+    if (reportResp.error) {
+      detailsEl.innerHTML = '<p style="color:#d44;">Error: ' + escHtml(reportResp.error) + '</p>';
+      return;
+    }
+    
+    var variants = reportResp.variants || [];
+    var stats = reportResp.stats || {};
+    
+    var html = '<div style="margin-bottom:16px;"><strong>' + escHtml(reportResp.experimentId || experimentId) + '</strong></div>';
+    
+    // Render variants with key metrics
+    html += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:16px;">';
+    variants.forEach((v, idx) => {
+      var lift = stats.lift !== undefined ? (stats.lift * 100).toFixed(1) : '—';
+      var pval = stats.pApprox !== undefined ? stats.pApprox.toFixed(4) : '—';
+      var significant = stats.pApprox !== undefined && stats.pApprox < 0.05 ? '✓ Significant' : '✗ Not significant';
+      
+      html += '<div style="padding:12px;background:#0d1117;border:1px solid #30363d;border-radius:4px;">'
+        + '<div style="font-weight:600;color:#e8f4ff;">Variant: ' + escHtml(v.variant) + '</div>'
+        + '<div style="font-size:11px;color:#7090b0;margin-top:6px;">'
+        + 'Exposures: ' + escHtml(String(v.exposures)) + '<br/>'
+        + 'Revenue: $' + escHtml(Number(v.revenue || 0).toFixed(2)) + '<br/>'
+        + 'Avg Value: $' + escHtml(Number(v.avgValue || 0).toFixed(2)) + '<br/>'
+        + (stats.mean1 !== undefined && idx === 0 ? 'Mean: $' + escHtml(Number(stats.mean1).toFixed(2)) + '<br/>' : '')
+        + (stats.mean2 !== undefined && idx === 1 ? 'Mean: $' + escHtml(Number(stats.mean2).toFixed(2)) + '<br/>' : '')
+        + '</div>'
+        + '</div>';
+    });
+    html += '</div>';
+    
+    // Welch's t-test results (control vs first treatment)
+    if (stats.lift !== undefined) {
+      var liftPct = (stats.lift * 100).toFixed(1);
+      var pval = stats.pApprox.toFixed(4);
+      var tstat = stats.t.toFixed(3);
+      var df = stats.df.toFixed(1);
+      var significant = stats.pApprox < 0.05;
+      
+      html += '<div style="padding:12px;background:#0d1117;border:2px solid ' + (significant ? '#28a745' : '#ffc107') + ';border-radius:4px;">'
+        + '<div style="font-weight:600;color:' + (significant ? '#28a745' : '#ffc107') + ';">'
+        + (significant ? '✓ STATISTICALLY SIGNIFICANT' : '⚠ Not yet significant')
+        + '</div>'
+        + '<div style="font-size:11px;color:#7090b0;margin-top:8px;">'
+        + 'Revenue Lift: <strong style="color:#00d4ff;">' + (liftPct > 0 ? '+' : '') + escHtml(liftPct) + '%</strong><br/>'
+        + 'Welch\'s t-statistic: ' + escHtml(tstat) + '<br/>'
+        + 'Degrees of freedom: ' + escHtml(df) + '<br/>'
+        + 'P-value (two-tailed): ' + escHtml(pval) + '<br/>'
+        + '<span style="color:' + (stats.pApprox < 0.05 ? '#28a745' : stats.pApprox < 0.10 ? '#ffc107' : '#7090b0') + ';">'
+        + 'Confidence: ' + (stats.pApprox < 0.05 ? '95%+' : stats.pApprox < 0.10 ? '90%' : '<90%')
+        + '</span>'
+        + '</div>'
+        + '</div>';
+    } else {
+      html += '<p style="color:#7090b0;">Waiting for sufficient data...</p>';
+    }
+    
+    detailsEl.innerHTML = html;
+  } catch (e) {
+    console.warn('[loadAbReport] error:', e);
+    var detailsEl = document.getElementById('ab-stats-details');
+    if (detailsEl) detailsEl.innerHTML = '<p style="color:#d44;">Error loading report</p>';
+  }
+}
+
+// Auto-refresh A/B stats every 30 seconds when on the A/B Testing tab
+var _abStatsInterval = null;
+function startAbStatsAutoRefresh() {
+  if (_abStatsInterval) clearInterval(_abStatsInterval);
+  loadAbStats();
+  _abStatsInterval = setInterval(loadAbStats, 30000);
+}
+
+function stopAbStatsAutoRefresh() {
+  if (_abStatsInterval) {
+    clearInterval(_abStatsInterval);
+    _abStatsInterval = null;
+  }
 }
 
 async function loadAdminPricing(){
