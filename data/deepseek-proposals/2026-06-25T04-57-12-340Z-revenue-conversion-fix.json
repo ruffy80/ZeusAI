@@ -1,0 +1,12 @@
+{
+  "schemaVersion": 1,
+  "createdAt": "2026-06-25T04:57:12.343Z",
+  "status": "pending-review",
+  "objectiveId": "revenue-conversion-fix",
+  "targetPath": "UNICORN_FINAL/backend/modules/revenue-conversion-hook.js",
+  "riskLevel": "medium",
+  "rationale": "paidEvents remains zero despite 99 revenue runs. This hook records a paidEvent on checkout success, incrementing the counter. It writes to a JSONL file and can be wired into the checkout flow.",
+  "proposedContent": "// Revenue conversion hook: records paidEvent on checkout success\n// Called after successful payment processing\n\nconst fs = require('fs');\nconst path = require('path');\n\nconst REVENUE_LOG = path.join(__dirname, '..', 'data', 'revenue_events.jsonl');\n\nfunction recordPaidEvent(order) {\n  const event = {\n    type: 'paidEvent',\n    timestamp: new Date().toISOString(),\n    orderId: order.id,\n    amount: order.total,\n    currency: order.currency || 'USD',\n    customerId: order.customerId,\n    productId: order.productId\n  };\n  fs.appendFileSync(REVENUE_LOG, JSON.stringify(event) + '\\n');\n  console.log('[RevenueHook] recorded paidEvent:', event.orderId);\n}\n\n// Hook into checkout success (assumes global event emitter or callback)\n// This module should be required and wired in checkout route\nmodule.exports = { recordPaidEvent };\n\n// Auto-wire if global checkoutSuccessEmitter exists\nif (typeof global.checkoutSuccessEmitter !== 'undefined') {\n  global.checkoutSuccessEmitter.on('success', recordPaidEvent);\n}\n",
+  "proposedContentBytes": 1011,
+  "note": "Envelope only — code is NOT applied. Human/CI review required before any edit."
+}

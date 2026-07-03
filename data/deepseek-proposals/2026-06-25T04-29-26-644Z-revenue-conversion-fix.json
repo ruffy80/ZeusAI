@@ -1,0 +1,12 @@
+{
+  "schemaVersion": 1,
+  "createdAt": "2026-06-25T04:29:26.644Z",
+  "status": "pending-review",
+  "objectiveId": "revenue-conversion-fix",
+  "targetPath": "UNICORN_FINAL/backend/modules/revenue-conversion-fix.js",
+  "riskLevel": "medium",
+  "rationale": "Brainstem directive: paidEvents still zero. This module provides a function to increment paidEvents on successful checkout, which can be integrated into the checkout flow. Also includes file persistence for revenue data.",
+  "proposedContent": "// Revenue conversion fix: ensure paidEvents increments on successful checkout\n// This module intercepts the checkout completion event and updates the revenue counter.\n\nconst fs = require('fs');\nconst path = require('path');\n\nconst REVENUE_FILE = path.join(__dirname, '..', 'data', 'revenue.json');\n\nfunction ensureRevenueFile() {\n  if (!fs.existsSync(path.dirname(REVENUE_FILE))) {\n    fs.mkdirSync(path.dirname(REVENUE_FILE), { recursive: true });\n  }\n  if (!fs.existsSync(REVENUE_FILE)) {\n    fs.writeFileSync(REVENUE_FILE, JSON.stringify({ paidEvents: 0, conversionRate: 0, leads: 0 }));\n  }\n}\n\nfunction incrementPaidEvents() {\n  ensureRevenueFile();\n  const data = JSON.parse(fs.readFileSync(REVENUE_FILE, 'utf8'));\n  data.paidEvents = (data.paidEvents || 0) + 1;\n  data.conversionRate = data.leads > 0 ? (data.paidEvents / data.leads) * 100 : 0;\n  fs.writeFileSync(REVENUE_FILE, JSON.stringify(data, null, 2));\n  console.log(`Revenue conversion: paidEvents incremented to ${data.paidEvents}`);\n}\n\n// Hook into checkout completion (assumes event emitter or webhook)\n// For now, expose function to be called by checkout success handler\nmodule.exports = { incrementPaidEvents };\n",
+  "proposedContentBytes": 1182,
+  "note": "Envelope only — code is NOT applied. Human/CI review required before any edit."
+}

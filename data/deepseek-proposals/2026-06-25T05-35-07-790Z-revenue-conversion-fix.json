@@ -1,0 +1,12 @@
+{
+  "schemaVersion": 1,
+  "createdAt": "2026-06-25T05:35:07.794Z",
+  "status": "pending-review",
+  "objectiveId": "revenue-conversion-fix",
+  "targetPath": "UNICORN_FINAL/backend/modules/revenue-engine.js",
+  "riskLevel": "medium",
+  "rationale": "Fix revenue conversion: ensure paidEvents counter increments on successful checkout. Previous implementation had a bug where paidEvents was never incremented. This module provides a robust recordPaidEvent function that logs and increments counters.",
+  "proposedContent": "// Revenue Engine - conversion fix: ensure paidEvents increments on successful checkout\nconst crypto = require('crypto');\nconst fs = require('fs');\nconst path = require('path');\n\nconst REVENUE_LOG = '/var/log/revenue_events.log';\n\nfunction logEvent(type, data) {\n  const entry = {\n    ts: new Date().toISOString(),\n    type,\n    data,\n    id: crypto.randomUUID()\n  };\n  fs.appendFileSync(REVENUE_LOG, JSON.stringify(entry) + '\\n');\n  return entry;\n}\n\nfunction recordPaidEvent(amount, currency, customerId) {\n  const event = logEvent('paid', { amount, currency, customerId });\n  // Increment in-memory counter (persisted via periodic sync)\n  global.__revenuePaidEvents = (global.__revenuePaidEvents || 0) + 1;\n  global.__revenueTotal = (global.__revenueTotal || 0) + amount;\n  return event;\n}\n\nfunction getStats() {\n  return {\n    paidEvents: global.__revenuePaidEvents || 0,\n    totalRevenue: global.__revenueTotal || 0,\n    conversionRate: global.__revenueLeads > 0 ? (global.__revenuePaidEvents / global.__revenueLeads) : 0\n  };\n}\n\nmodule.exports = { recordPaidEvent, getStats, logEvent };\n",
+  "proposedContentBytes": 1092,
+  "note": "Envelope only — code is NOT applied. Human/CI review required before any edit."
+}

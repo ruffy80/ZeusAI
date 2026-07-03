@@ -1,0 +1,12 @@
+{
+  "schemaVersion": 1,
+  "createdAt": "2026-06-25T04:37:46.600Z",
+  "status": "pending-review",
+  "objectiveId": "revenue-conversion-fix",
+  "targetPath": "UNICORN_FINAL/backend/modules/revenue-conversion-fix.js",
+  "riskLevel": "medium",
+  "rationale": "paidEvents remains zero despite many revenue runs. This module provides a dedicated function to increment paidEvents on successful checkout, ensuring the conversion rate metric updates. It reads/writes a persistent state file to survive restarts. Integration into the checkout flow is needed separately.",
+  "proposedContent": "// Revenue conversion fix: ensure paidEvents increments on successful checkout\n// This module hooks into the checkout completion flow and increments the paidEvents counter.\n\nconst fs = require('fs');\nconst path = require('path');\n\nconst REVENUE_STATE_PATH = path.join(__dirname, '..', 'data', 'revenue-state.json');\n\nfunction incrementPaidEvents() {\n  try {\n    let state = { paidEvents: 0, runs: 0, errors: 0, leads: 0 };\n    if (fs.existsSync(REVENUE_STATE_PATH)) {\n      state = JSON.parse(fs.readFileSync(REVENUE_STATE_PATH, 'utf8'));\n    }\n    state.paidEvents = (state.paidEvents || 0) + 1;\n    state.runs = (state.runs || 0) + 1;\n    fs.writeFileSync(REVENUE_STATE_PATH, JSON.stringify(state, null, 2));\n    console.log(`[RevenueConversion] paidEvents incremented to ${state.paidEvents}`);\n    return true;\n  } catch (err) {\n    console.error('[RevenueConversion] Error incrementing paidEvents:', err);\n    return false;\n  }\n}\n\n// Hook into checkout completion (assumes a global event or callback)\n// This is a placeholder; actual integration depends on the checkout flow.\n// For now, we export the function to be called from the checkout handler.\nmodule.exports = { incrementPaidEvents };\n",
+  "proposedContentBytes": 1197,
+  "note": "Envelope only — code is NOT applied. Human/CI review required before any edit."
+}

@@ -1,0 +1,12 @@
+{
+  "schemaVersion": 1,
+  "createdAt": "2026-06-25T06:27:36.610Z",
+  "status": "pending-review",
+  "objectiveId": "revenue-conversion-fix",
+  "targetPath": "UNICORN_FINAL/backend/modules/checkoutConversion.js",
+  "riskLevel": "low",
+  "rationale": "Brainstem directive: paidEvents zero. This module records checkout conversions and persists revenue data, enabling paidEvents tracking and conversion rate calculation.",
+  "proposedContent": "// Checkout conversion module: tracks paid events and updates revenue metrics\nconst fs = require('fs');\nconst path = require('path');\n\nconst REVENUE_FILE = path.join(__dirname, '..', 'data', 'revenue.json');\n\nfunction loadRevenue() {\n  try {\n    if (fs.existsSync(REVENUE_FILE)) {\n      return JSON.parse(fs.readFileSync(REVENUE_FILE, 'utf8'));\n    }\n  } catch (e) {\n    console.error('Failed to load revenue file:', e);\n  }\n  return { paidEvents: 0, conversionRate: 0, leads: 0 };\n}\n\nfunction saveRevenue(data) {\n  fs.writeFileSync(REVENUE_FILE, JSON.stringify(data, null, 2));\n}\n\nfunction recordCheckout(leadId, amount) {\n  const revenue = loadRevenue();\n  revenue.paidEvents = (revenue.paidEvents || 0) + 1;\n  revenue.leads = (revenue.leads || 0) + 1;\n  revenue.conversionRate = revenue.paidEvents / revenue.leads;\n  revenue.lastCheckout = { leadId, amount, timestamp: new Date().toISOString() };\n  saveRevenue(revenue);\n  console.log(`Checkout recorded: lead ${leadId}, amount ${amount}`);\n  return revenue;\n}\n\nfunction getRevenue() {\n  return loadRevenue();\n}\n\nmodule.exports = { recordCheckout, getRevenue };\n",
+  "proposedContentBytes": 1115,
+  "note": "Envelope only — code is NOT applied. Human/CI review required before any edit."
+}

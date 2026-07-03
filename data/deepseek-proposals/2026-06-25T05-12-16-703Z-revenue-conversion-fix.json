@@ -1,0 +1,12 @@
+{
+  "schemaVersion": 1,
+  "createdAt": "2026-06-25T05:12:16.703Z",
+  "status": "pending-review",
+  "objectiveId": "revenue-conversion-fix",
+  "targetPath": "UNICORN_FINAL/backend/modules/revenue-conversion-hook.js",
+  "riskLevel": "low",
+  "rationale": "Create a dedicated revenue conversion hook that records paid events to a log file. This hook will be called by the checkout completion endpoint to increment paidEvents count and enable conversion rate tracking. Addresses brainstem directive: paidEvents still zero.",
+  "proposedContent": "// Revenue conversion hook: records paid events on successful checkout\n// Called by checkout completion endpoint\n\nconst fs = require('fs');\nconst path = require('path');\n\nconst REVENUE_LOG = path.join(__dirname, '..', 'data', 'revenue_events.log');\n\nfunction recordPaidEvent(amount, currency, userId, orderId) {\n  const event = {\n    type: 'paid',\n    amount: amount || 0,\n    currency: currency || 'USD',\n    userId: userId || 'anonymous',\n    orderId: orderId || 'unknown',\n    timestamp: new Date().toISOString()\n  };\n  try {\n    fs.appendFileSync(REVENUE_LOG, JSON.stringify(event) + '\\n', 'utf8');\n    return true;\n  } catch (err) {\n    console.error('Revenue hook write error:', err);\n    return false;\n  }\n}\n\nmodule.exports = { recordPaidEvent };\n",
+  "proposedContentBytes": 754,
+  "note": "Envelope only — code is NOT applied. Human/CI review required before any edit."
+}

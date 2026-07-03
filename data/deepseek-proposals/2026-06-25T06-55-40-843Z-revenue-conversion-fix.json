@@ -1,0 +1,12 @@
+{
+  "schemaVersion": 1,
+  "createdAt": "2026-06-25T06:55:40.843Z",
+  "status": "pending-review",
+  "objectiveId": "revenue-conversion-fix",
+  "targetPath": "UNICORN_FINAL/backend/modules/checkoutConversion.js",
+  "riskLevel": "low",
+  "rationale": "Brainstem directive: paidEvents zero. This module logs checkout conversions to a file, enabling revenue tracking. Integrate into checkout flow to increment paidEvents.",
+  "proposedContent": "// Checkout conversion module - tracks paid events from checkout completion\nconst fs = require('fs');\nconst path = require('path');\n\nconst CONVERSION_LOG = path.join(__dirname, '..', 'data', 'conversion_events.log');\n\nfunction ensureLogFile() {\n  const dir = path.dirname(CONVERSION_LOG);\n  if (!fs.existsSync(dir)) {\n    fs.mkdirSync(dir, { recursive: true });\n  }\n  if (!fs.existsSync(CONVERSION_LOG)) {\n    fs.writeFileSync(CONVERSION_LOG, '');\n  }\n}\n\nfunction logConversion(event) {\n  ensureLogFile();\n  const entry = {\n    timestamp: new Date().toISOString(),\n    event: event,\n    paid: true\n  };\n  fs.appendFileSync(CONVERSION_LOG, JSON.stringify(entry) + '\\n');\n  return entry;\n}\n\nfunction getConversionCount() {\n  ensureLogFile();\n  const data = fs.readFileSync(CONVERSION_LOG, 'utf-8').trim();\n  if (!data) return 0;\n  return data.split('\\n').length;\n}\n\nmodule.exports = { logConversion, getConversionCount };\n",
+  "proposedContentBytes": 920,
+  "note": "Envelope only — code is NOT applied. Human/CI review required before any edit."
+}

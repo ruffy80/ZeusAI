@@ -1,0 +1,12 @@
+{
+  "schemaVersion": 1,
+  "createdAt": "2026-06-25T06:32:08.217Z",
+  "status": "pending-review",
+  "objectiveId": "revenue-conversion-fix",
+  "targetPath": "UNICORN_FINAL/backend/modules/checkoutConversion.js",
+  "riskLevel": "low",
+  "rationale": "Create a dedicated checkout conversion module to log paid events to a file, enabling revenue tracking. This addresses brainstem directive: paidEvents zero. Module will be integrated into checkout flow.",
+  "proposedContent": "// Checkout conversion module to track paid events\nconst fs = require('fs');\nconst path = require('path');\n\nconst REVENUE_LOG = '/var/log/revenue_events.log';\n\nfunction logPaidEvent(amount, currency, userId) {\n  const event = {\n    type: 'paid',\n    amount,\n    currency: currency || 'USD',\n    userId: userId || 'anonymous',\n    timestamp: new Date().toISOString()\n  };\n  fs.appendFileSync(REVENUE_LOG, JSON.stringify(event) + '\\n');\n  return event;\n}\n\nfunction getPaidEventCount() {\n  try {\n    if (!fs.existsSync(REVENUE_LOG)) return 0;\n    const data = fs.readFileSync(REVENUE_LOG, 'utf8');\n    const lines = data.trim().split('\\n').filter(l => l);\n    return lines.length;\n  } catch (e) {\n    return 0;\n  }\n}\n\nmodule.exports = { logPaidEvent, getPaidEventCount };\n",
+  "proposedContentBytes": 769,
+  "note": "Envelope only — code is NOT applied. Human/CI review required before any edit."
+}

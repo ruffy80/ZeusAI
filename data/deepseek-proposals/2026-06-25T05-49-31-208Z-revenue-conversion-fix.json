@@ -1,0 +1,12 @@
+{
+  "schemaVersion": 1,
+  "createdAt": "2026-06-25T05:49:31.208Z",
+  "status": "pending-review",
+  "objectiveId": "revenue-conversion-fix",
+  "targetPath": "UNICORN_FINAL/backend/modules/revenue-conversion-fix.js",
+  "riskLevel": "medium",
+  "rationale": "Brainstem directive: paidEvents still zero. This module forces conversion tracking on checkout completion, incrementing paidEvents and logging revenue events. Integrates with existing revenue-tracker if present.",
+  "proposedContent": "// revenue-conversion-fix.js\n// Objective: Ensure paidEvents increments when a lead converts.\n// This module hooks into the checkout flow and forces conversion tracking.\n\nconst fs = require('fs');\nconst path = require('path');\n\nconst REVENUE_LOG = '/var/log/revenue_events.log';\n\nfunction trackConversion(leadId, amount) {\n  const event = {\n    ts: new Date().toISOString(),\n    leadId,\n    amount,\n    type: 'paid'\n  };\n  fs.appendFileSync(REVENUE_LOG, JSON.stringify(event) + '\\n');\n  // Also update in-memory counter via a shared module if available\n  try {\n    const revenueTracker = require('./revenue-tracker');\n    if (revenueTracker && revenueTracker.incrementPaid) {\n      revenueTracker.incrementPaid(amount);\n    }\n  } catch (e) {\n    // fallback: log only\n  }\n  return true;\n}\n\n// Expose for use in checkout completion handler\nmodule.exports = { trackConversion };\n",
+  "proposedContentBytes": 877,
+  "note": "Envelope only — code is NOT applied. Human/CI review required before any edit."
+}

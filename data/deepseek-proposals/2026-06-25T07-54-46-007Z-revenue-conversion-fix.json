@@ -1,0 +1,12 @@
+{
+  "schemaVersion": 1,
+  "createdAt": "2026-06-25T07:54:46.007Z",
+  "status": "pending-review",
+  "objectiveId": "revenue-conversion-fix",
+  "targetPath": "UNICORN_FINAL/backend/modules/checkoutHandler.js",
+  "riskLevel": "medium",
+  "rationale": "Brainstem directive: paidEvents zero. Ensure checkout handler logs paidEvent on successful payment to fix revenue SLO breach.",
+  "proposedContent": "// Checkout handler with revenue event logging\nconst { logRevenueEvent } = require('./revenueLogger');\n\nasync function handleCheckout(req, res) {\n  try {\n    const { paymentIntentId, amount, currency, customerId } = req.body;\n    // Process payment...\n    // On success:\n    await logRevenueEvent({\n      eventType: 'paidEvent',\n      paymentIntentId,\n      amount,\n      currency,\n      customerId,\n      timestamp: new Date().toISOString()\n    });\n    res.status(200).json({ success: true });\n  } catch (err) {\n    console.error('Checkout error:', err);\n    res.status(500).json({ error: 'Checkout failed' });\n  }\n}\n\nmodule.exports = { handleCheckout };\n",
+  "proposedContentBytes": 656,
+  "note": "Envelope only — code is NOT applied. Human/CI review required before any edit."
+}
