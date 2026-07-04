@@ -1,3 +1,11 @@
+// =====================================================================
+// OWNERSHIP: Acest fișier este proprietatea exclusivă a lui Vladoi Ionut
+// Email: vladoi_ionut@yahoo.com
+// BTC Address: bc1q4f7e66z87mdfj56kz0dj5hvcnpmh0qh4wuv22e
+// Data: 2026-07-04T11:19:48.500Z
+// Orice copiere, modificare sau distribuție neautorizată este interzisă.
+// =====================================================================
+
 // AI-Personalized Pricing Module (Auto-Apply Ready)
 // Autonomous per-visitor dynamic pricing using behavioral signals
 // Status: PRODUCTION-READY for auto-apply
@@ -7,6 +15,7 @@ const CACHE_TTL_MS = 3600000; // 1 hour
 
 class AIPersonalizedPricing {
   constructor() {
+    this.cache = new Map(); this.cacheTTL = 60000;
     this.priceCache = new Map();
     this.metrics = {
       computations: 0,

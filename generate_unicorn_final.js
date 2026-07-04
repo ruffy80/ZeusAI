@@ -4486,7 +4486,7 @@ function createStructure() {
       chokidar: '^3.5.3',
       openai: '^3.3.0',
       qrcode: '^1.5.4',
-      nodemailer: '^6.10.1'
+      nodemailer: '^9.0.3'
     }
   }, null, 2) + '\n');
 

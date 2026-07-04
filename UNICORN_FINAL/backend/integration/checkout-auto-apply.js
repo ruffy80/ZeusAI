@@ -1,3 +1,11 @@
+// =====================================================================
+// OWNERSHIP: Acest fișier este proprietatea exclusivă a lui Vladoi Ionut
+// Email: vladoi_ionut@yahoo.com
+// BTC Address: bc1q4f7e66z87mdfj56kz0dj5hvcnpmh0qh4wuv22e
+// Data: 2026-07-04T11:19:47.561Z
+// Orice copiere, modificare sau distribuție neautorizată este interzisă.
+// =====================================================================
+
 // Checkout Auto-Apply Integration
 // Wires revenue conversion and AI pricing into UNICORN_FINAL checkout flow
 // Status: PRODUCTION-READY for autonomous operation

@@ -53,7 +53,14 @@
     "dropship-resistance-bands-set-pro-6n4i9d": 19.99,
     "dropship-microneedle-derma-roller-kit-c3ybny": 18.99,
     "dropship-posture-corrector-adjustable-5cdmvo": 16.99,
-    "dropship-self-cleaning-pet-brush-qvf9h0": 14.99
+    "dropship-self-cleaning-pet-brush-qvf9h0": 14.99,
+    "zacc-video-autopilot-g440q2": 174.4,
+    "zacc-customer-support-suite-hvpmne": 175.17,
+    "zacc-real-time-translation-autopilot-klssmu": 198.75,
+    "zacc-tutoring-suite-rlqvtj": 89.15,
+    "dropship-electric-milk-frother-usb-c-bcd8rt": 15.99,
+    "dropship-heated-eyelash-curler-usb-vlx00j": 12.99,
+    "dropship-magnetic-phone-car-mount-p326mp": 11.99
   },
   "multipliers": {
     "starter": 1,
@@ -109,8 +116,15 @@
     "dropship-resistance-bands-set-pro-6n4i9d": 1,
     "dropship-microneedle-derma-roller-kit-c3ybny": 1,
     "dropship-posture-corrector-adjustable-5cdmvo": 1,
-    "dropship-self-cleaning-pet-brush-qvf9h0": 1
+    "dropship-self-cleaning-pet-brush-qvf9h0": 1,
+    "zacc-video-autopilot-g440q2": 1,
+    "zacc-customer-support-suite-hvpmne": 1,
+    "zacc-real-time-translation-autopilot-klssmu": 1,
+    "zacc-tutoring-suite-rlqvtj": 1,
+    "dropship-electric-milk-frother-usb-c-bcd8rt": 1,
+    "dropship-heated-eyelash-curler-usb-vlx00j": 1,
+    "dropship-magnetic-phone-car-mount-p326mp": 1
   },
-  "lastRunIso": "2026-05-31T08:36:36.805Z",
-  "runs": 2
+  "lastRunIso": "2026-07-04T11:22:33.193Z",
+  "runs": 3
 }
