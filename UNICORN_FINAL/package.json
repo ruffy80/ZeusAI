@@ -43,7 +43,7 @@
     "node-cron": "^4.2.1",
     "node-domexception": "1.0.0",
     "node-fetch": "3.3.2",
-    "nodemailer": "^8.0.7",
+    "nodemailer": "^9.0.3",
     "qrcode": "^1.5.4",
     "secrets.js-grempe": "^2.0.0",
     "sentiment": "^5.0.2",
