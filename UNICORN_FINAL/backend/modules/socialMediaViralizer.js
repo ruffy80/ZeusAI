@@ -260,9 +260,25 @@ class SocialMediaViralizer {
   async validateTokens() {
     this.reloadTokensFromEnv();
     console.log('🔑 Validare tokenuri...');
-    const validCount = Object.keys(this.tokens).filter((k) => String(this.tokens[k] || '').length > 10).length;
-    console.log('✅ ' + validCount + ' tokenuri valide găsite');
-    return { validCount, total: Object.keys(this.tokens).length };
+    // Per-channel truth so the operator instantly sees which platforms are LIVE
+    // and which are silently disabled. Fără asta, viralizatorul putea rula luni
+    // de zile fără să posteze nimic, fără niciun semnal vizibil.
+    const status = this.getProviderStatus();
+    for (const name of Object.keys(status.providers)) {
+      const p = status.providers[name];
+      const vars = p.requiredEnvVars || [p.envVar];
+      console.log(
+        (p.configured ? '  ✅ ' : '  ⚪ ') + name +
+        (p.configured ? ' — ACTIV (postează real)' : ' — INACTIV (lipsește ' + vars.join(' + ') + ')')
+      );
+    }
+    if (status.configuredProviders.length === 0) {
+      console.warn('⚠️  Niciun canal social activ — 0 postări reale se vor produce. ' + status.hint);
+    } else {
+      console.log('✅ ' + status.configuredProviders.length + '/' + status.totalProviders +
+        ' canale active: ' + status.configuredProviders.join(', '));
+    }
+    return { validCount: status.configuredProviders.length, total: status.totalProviders, configuredProviders: status.configuredProviders };
   }
 
   startAutoPosting() {
@@ -308,13 +324,20 @@ class SocialMediaViralizer {
     this.reloadTokensFromEnv();
     const content = await this.generatePostContent();
     const results = {};
-    if (this.tokens.youtube) results.youtube = await this.postToYouTube(content);
-    if (this.tokens.pinterest) results.pinterest = await this.postToPinterest(content);
-    if (this.tokens.xBearer && this.tokens.xAccessToken) results.x = await this.postToX(content);
-    if (this.tokens.telegram) results.telegram = await this.postToTelegram(content);
-    if (this.tokens.devApi) results.dev = await this.postToDev(content);
-    if (this.tokens.producthuntDevToken) results.producthunt = await this.postToProductHunt(content);
-    this.postHistory.push({ timestamp: new Date().toISOString(), content: String(content.text || '').slice(0, 100), results });
+    const skipped = [];
+    if (this.tokens.youtube) results.youtube = await this.postToYouTube(content); else skipped.push('youtube');
+    if (this.tokens.pinterest) results.pinterest = await this.postToPinterest(content); else skipped.push('pinterest');
+    if (this.tokens.xBearer && this.tokens.xAccessToken) results.x = await this.postToX(content); else skipped.push('x');
+    if (this.tokens.telegram) results.telegram = await this.postToTelegram(content); else skipped.push('telegram');
+    if (this.tokens.devApi) results.dev = await this.postToDev(content); else skipped.push('dev');
+    if (this.tokens.producthuntDevToken) results.producthunt = await this.postToProductHunt(content); else skipped.push('producthunt');
+    const published = Object.keys(results).length;
+    if (published === 0) {
+      console.warn('⚠️  postToAllPlatforms: 0 canale active — nimic postat (lipsesc: ' + skipped.join(', ') + ')');
+    } else {
+      console.log('📢 postToAllPlatforms: publicat pe ' + published + ' canal(e): ' + Object.keys(results).join(', '));
+    }
+    this.postHistory.push({ timestamp: new Date().toISOString(), content: String(content.text || '').slice(0, 100), results, published, skipped });
     if (this.postHistory.length > 500) this.postHistory.shift();
     return results;
   }
@@ -353,10 +376,22 @@ class SocialMediaViralizer {
     this.viralTimer = setInterval(() => this.analyzeViralPotential().catch(() => {}), 2 * 60 * 60 * 1000);
   }
 
-  calculateViralScore() {
-    const engagement = Math.random();
-    const reach = Math.random();
-    return engagement * 0.6 + reach * 0.4;
+  calculateViralScore(post) {
+    // Real signal instead of Math.random(): scor bazat pe rezultatele reale ale
+    // postării — câte canale au publicat cu succes și acoperirea lor relativă.
+    // Un post fără canale active are scor 0 (adevăr, nu zgomot aleator).
+    if (!post || typeof post !== 'object' || Array.isArray(post)) return 0;
+    const results = post.results || {};
+    const platforms = Object.keys(results);
+    if (!platforms.length) return 0;
+    const successes = platforms.filter((k) => results[k] && results[k].success);
+    if (!successes.length) return 0;
+    // Ponderi de reach aproximative per canal (relative, nu absolute).
+    const reachWeight = { x: 1.0, youtube: 0.9, producthunt: 0.8, dev: 0.6, telegram: 0.5, pinterest: 0.4 };
+    const maxWeight = Object.values(reachWeight).reduce((a, b) => a + b, 0);
+    const reachScore = successes.reduce((sum, k) => sum + (reachWeight[k] || 0.3), 0) / maxWeight;
+    const coverage = successes.length / platforms.length;
+    return Number((reachScore * 0.6 + coverage * 0.4).toFixed(4));
   }
 
   async analyzeViralPotential() {
