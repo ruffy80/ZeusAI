@@ -380,7 +380,7 @@ class SocialMediaViralizer {
     // Real signal instead of Math.random(): scor bazat pe rezultatele reale ale
     // postării — câte canale au publicat cu succes și acoperirea lor relativă.
     // Un post fără canale active are scor 0 (adevăr, nu zgomot aleator).
-    if (!post || typeof post !== 'object') return 0;
+    if (!post || typeof post !== 'object' || Array.isArray(post)) return 0;
     const results = post.results || {};
     const platforms = Object.keys(results);
     if (!platforms.length) return 0;
