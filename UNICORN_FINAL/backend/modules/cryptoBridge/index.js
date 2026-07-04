@@ -51,7 +51,7 @@ const DATA_DIR = path.join(__dirname, '..', '..', '..', 'data', 'crypto-bridge')
 const LEDGER_FILE = path.join(DATA_DIR, 'transactions.jsonl');
 
 function ensureDataDir() {
-  try { fs.mkdirSync(DATA_DIR, { recursive: true }); } catch (_) {}
+  try { fs.mkdirSync(DATA_DIR, { recursive: true }); } catch (e) { console.warn('[cryptoBridge] ensureDataDir failed:', e.message); }
 }
 
 // ─────────────────────────────────────────────────────────────────────
@@ -112,12 +112,12 @@ async function getBtcUsdRate() {
     const j = await getJson('https://api.binance.com/api/v3/ticker/price?symbol=BTCUSDT', 4000);
     const px = Number(j && j.price);
     if (px > 0) return cacheSet('btcusd', { rate: px, source: 'binance', ts: Date.now() }, 30_000);
-  } catch (_) {}
+  } catch (e) { console.warn('[cryptoBridge] binance BTC rate fetch failed:', e.message); }
   try {
     const j = await getJson('https://api.coinbase.com/v2/prices/BTC-USD/spot', 4000);
     const px = Number(j && j.data && j.data.amount);
     if (px > 0) return cacheSet('btcusd', { rate: px, source: 'coinbase', ts: Date.now() }, 30_000);
-  } catch (_) {}
+  } catch (e) { console.warn('[cryptoBridge] coinbase BTC rate fetch failed:', e.message); }
   // Last-resort static fallback (clearly marked degraded)
   return { rate: 95000, source: 'fallback-static', degraded: true, ts: Date.now() };
 }
@@ -624,7 +624,7 @@ async function smartRouting({ address, amount = 0.001, currency = 'BTC', maxWait
 function revenueSummary() {
   ensureDataDir();
   let raw = '';
-  try { raw = fs.readFileSync(LEDGER_FILE, 'utf8'); } catch (_) {}
+  try { raw = fs.readFileSync(LEDGER_FILE, 'utf8'); } catch (e) { /* file may not exist yet */ }
   const lines = raw.split('\n').filter(Boolean);
   const entries = [];
   for (const ln of lines) { try { entries.push(JSON.parse(ln)); } catch (_) {} }

@@ -305,13 +305,37 @@ function _idempotencySet(key, statusCode, body) {
 // (Vertical OS, Frontier F1-F12, Activation packages, Future R&D primitives,
 // auto-discovered connector modules, …) becomes purchasable via sovereign BTC.
 async function resolveService(ctx, serviceId) {
+  // PRICE COHERENCE GUARANTEE (forward-only, 2026-06): the storefront shows
+  // the dynamic-pricing engine's number (e.g. $77.69). The snapshot below
+  // carries the STATIC catalog price (e.g. $499). If we quote the snapshot
+  // price, the buyer sees one price on the card and a different one at
+  // checkout — a conversion killer and a trust breach. So: whatever path
+  // resolves the service, the CANONICAL live USD (same source as
+  // /api/pricing/:id and the SSR cards) always wins when available.
+  // RO: prețul de pe card = prețul din checkout, întotdeauna.
+  const canonicalUsd = await (async () => {
+    try {
+      if (ctx && typeof ctx.canonicalUsd === 'function') {
+        const v = Number(await ctx.canonicalUsd(serviceId));
+        if (Number.isFinite(v) && v >= 0) return v;
+      }
+    } catch {}
+    return null;
+  })();
+  const withCanonical = (svc) => {
+    if (!svc) return svc;
+    if (canonicalUsd != null && canonicalUsd > 0) {
+      return Object.assign({}, svc, { price: canonicalUsd, price_list: Number(svc.price || 0) || undefined });
+    }
+    return svc;
+  };
   // 1) Fast path: live snapshot (existing behavior, kept for backwards compat)
   try {
     if (ctx && typeof ctx.buildSnapshot === 'function') {
       const snap = ctx.buildSnapshot();
       const all = [].concat(snap.marketplace || [], snap.services || []).filter((s) => s && s.id);
       const hit = all.find((s) => String(s.id) === String(serviceId));
-      if (hit) return hit;
+      if (hit) return withCanonical(hit);
     }
   } catch {}
   // 2) Master catalog path: any deliverable Unicorn can sell
@@ -320,7 +344,7 @@ async function resolveService(ctx, serviceId) {
       const item = await ctx.resolveCatalogItem(serviceId);
       if (item && item.id) {
         // Normalize to the shape resolveService callers expect (.name + .price)
-        return {
+        return withCanonical({
           id: item.id,
           name: item.title || item.name || item.id,
           title: item.title || item.name || item.id,
@@ -328,7 +352,7 @@ async function resolveService(ctx, serviceId) {
           description: item.description || '',
           segment: item.segment || item.group || 'unicorn',
           kpi: item.kpi || ''
-        };
+        });
       }
     }
   } catch {}

@@ -1,0 +1,12 @@
+{
+  "schemaVersion": 1,
+  "createdAt": "2026-06-24T04:20:59.424Z",
+  "status": "pending-review",
+  "objectiveId": "revenue-conversion-fix",
+  "targetPath": "UNICORN_FINAL/backend/modules/checkout-conversion.js",
+  "riskLevel": "medium",
+  "rationale": "Brainstem directive: paidEvents zero after many runs. This module hooks into checkout completion to force a paid event and increment revenue counter, ensuring conversion tracking works.",
+  "proposedContent": "// Checkout conversion module - ensures paid events are generated\n// This module hooks into the checkout flow to guarantee conversion tracking\n\nconst checkoutConversion = {\n  name: 'checkout-conversion',\n  version: '1.0.0',\n  hooks: {\n    'checkout:complete': async (context) => {\n      // Force a paid event on every completed checkout\n      const { orderId, amount, currency } = context;\n      // Record the paid event\n      await context.recordEvent('paid', { orderId, amount, currency });\n      // Increment revenue counter\n      await context.incrementRevenueCounter(amount);\n      return { success: true, paidEvent: true };\n    },\n    'checkout:error': async (context) => {\n      // Log error but do not record paid event\n      console.error('Checkout error:', context.error);\n      return { success: false };\n    }\n  },\n  init: async (app) => {\n    // Register hooks\n    app.registerHook('checkout:complete', checkoutConversion.hooks['checkout:complete']);\n    app.registerHook('checkout:error', checkoutConversion.hooks['checkout:error']);\n    console.log('Checkout conversion module initialized');\n  }\n};\n\nmodule.exports = checkoutConversion;\n",
+  "proposedContentBytes": 1152,
+  "note": "Envelope only — code is NOT applied. Human/CI review required before any edit."
+}

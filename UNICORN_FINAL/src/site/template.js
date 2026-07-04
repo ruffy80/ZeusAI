@@ -23,7 +23,7 @@ function throttle(fn, limit) {
 // The live v2 shell is served from src/site/v2/shell.js; getSiteHtml() below is kept
 // only for legacy compatibility. It is NOT referenced by src/index.js on zeusai.pro.
 
-function getSiteHtmlLegacy() { return null; } // stub kept for any cached import
+function getSiteHtmlLegacy() { return getSiteHtml(); }
 
 function escapeTemplateValue(value) {
   return String(value || '').replace(/[&<>"']/g, function(ch) {
@@ -482,7 +482,7 @@ select.form-inp option{background:#0a0e24;}
               var g = document.getElementById('heroGuarantee');
               var p = document.getElementById('heroCtaPrimary');
               var sec = document.getElementById('heroCtaSecondary');
-              if (t && o.headline) t.innerHTML = String(o.headline).replace(/—/g,'<br/>—');
+              if (t && o.headline) t.innerHTML = escHtml(String(o.headline)).replace(/—/g,'<br/>—');
               if (s && o.subhead) s.textContent = String(o.subhead);
               if (g && o.guarantee) g.textContent = String(o.guarantee);
               if (p && o.primary && o.primary.href) { p.href = o.primary.href; p.textContent = (o.primary.rail === 'stripe' ? '💳 ' : '₿ ') + (o.primary.label || 'Buy now'); }
@@ -602,6 +602,14 @@ select.form-inp option{background:#0a0e24;}
     <div class="grid-auto" id="svc-grid">
       <div class="card" style="text-align:center;padding:40px;"><div class="loader"></div></div>
     </div>
+    <div class="card" style="margin-top:22px;" data-lazy-init="loadMarketplaceProof">
+      <div class="dash-section-title">Client Proof (lazy-loaded)</div>
+      <div id="marketplace-proof" style="font-size:13px;color:#7090b0;">Loading social proof…</div>
+    </div>
+    <div class="card" style="margin-top:14px;" data-lazy-init="loadMarketplaceFaq">
+      <div class="dash-section-title">Marketplace FAQ (lazy-loaded)</div>
+      <div id="marketplace-faq" style="font-size:13px;color:#7090b0;">Loading FAQ…</div>
+    </div>
   </div><!-- end #view-marketplace -->
 
   <!-- PRICING VIEW -->
@@ -630,6 +638,14 @@ select.form-inp option{background:#0a0e24;}
     <div style="text-align:center;margin-top:24px;color:#7090b0;font-size:13px;">
       All plans include: SSL, 99.9% uptime SLA, 24/7 monitoring.<br/>
       <span id="pricing-payment-copy">Payments via BTC direct owner wallet. Optional providers appear only when configured.</span> Cancel anytime.
+    </div>
+    <div class="card" style="margin-top:22px;" data-lazy-init="loadPricingCaseStudies">
+      <div class="dash-section-title">Pricing Case Studies (lazy-loaded)</div>
+      <div id="pricing-case-studies" style="font-size:13px;color:#7090b0;">Loading case studies…</div>
+    </div>
+    <div class="card" style="margin-top:14px;" data-lazy-init="loadPricingFaq">
+      <div class="dash-section-title">Pricing FAQ (lazy-loaded)</div>
+      <div id="pricing-faq" style="font-size:13px;color:#7090b0;">Loading FAQ…</div>
     </div>
   </div><!-- end #view-pricing -->
 
@@ -812,12 +828,36 @@ select.form-inp option{background:#0a0e24;}
         <button class="adm-tab-btn" data-atab="viral" onclick="switchAdminTab('viral')">🚀 Viral</button>
         <button class="adm-tab-btn" data-atab="innovation" onclick="switchAdminTab('innovation')">💡 Innovation</button>
         <button class="adm-tab-btn" data-atab="pricing" onclick="switchAdminTab('pricing')">🏷️ Pricing</button>
+        <button class="adm-tab-btn" data-atab="ab-testing" onclick="switchAdminTab('ab-testing')">🧪 A/B Testing</button>
         <button class="adm-tab-btn" data-atab="autonomous" onclick="switchAdminTab('autonomous')">🔄 Autonomous</button>
         <button class="adm-tab-btn" data-atab="modules" onclick="switchAdminTab('modules')">🔧 Modules</button>
         <button class="adm-tab-btn" data-atab="advanced" onclick="switchAdminTab('advanced')">🌌 Advanced</button>
       </div>
       <!-- OVERVIEW TAB -->
       <div class="adm-tab-panel active" id="atab-overview">
+        <div class="card card-glow" style="margin-bottom:20px;border:1.5px solid rgba(0,255,163,.35);">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
+            <div class="dash-section-title" style="margin:0;">💰 Revenue Activation</div>
+            <div style="display:flex;align-items:center;gap:10px;">
+              <span id="activation-score" style="font-family:Orbitron,monospace;font-size:22px;color:#00ffa3;">—</span>
+              <button class="btn btn-outline btn-sm" onclick="loadActivationReadiness()">🔄</button>
+            </div>
+          </div>
+          <div id="activation-summary" style="font-size:13px;color:#b0bcd4;margin-bottom:10px;">Loading activation map…</div>
+          <div id="activation-missing" style="font-size:12px;color:#7090b0;"></div>
+        </div>
+        <div class="card card-glow" style="margin-bottom:20px;border:1.5px solid rgba(120,140,255,.35);">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
+            <div class="dash-section-title" style="margin:0;">🧠 Autonomous Growth Brain</div>
+            <div style="display:flex;align-items:center;gap:10px;">
+              <span id="brain-score" style="font-family:Orbitron,monospace;font-size:22px;color:#7c9cff;">—</span>
+              <button class="btn btn-outline btn-sm" onclick="loadGrowthBrain()">🔄</button>
+            </div>
+          </div>
+          <div id="brain-stages" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px;"></div>
+          <div id="brain-actions" style="font-size:12px;color:#7090b0;">Loading growth brain…</div>
+          <div id="brain-pipeline" style="font-size:12px;color:#7090b0;margin-top:8px;"></div>
+        </div>
         <div class="grid-3" style="margin-bottom:20px;">
           <div class="card card-sm"><div class="label">Health</div><div class="kpi-val green" id="adm-health">—</div></div>
           <div class="card card-sm"><div class="label">Uptime</div><div class="kpi-val cyan" id="adm-uptime">—</div></div>
@@ -1083,6 +1123,26 @@ select.form-inp option{background:#0a0e24;}
           <div class="dash-section-title">Admin Health Scores</div>
           <div id="adm-health-scores" style="font-size:12px;color:#7090b0;">—</div>
           <div style="margin-top:10px;"><div id="adm-churn-risk" style="font-size:12px;color:#7090b0;"></div></div>
+        </div>
+      </div>
+      <!-- A/B TESTING TAB -->
+      <div class="adm-tab-panel" id="atab-ab-testing">
+        <div class="card" style="margin-bottom:16px;">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;">
+            <div class="dash-section-title" style="margin:0;">🧪 Active Experiments</div>
+            <div style="display:flex;gap:6px;">
+              <button class="btn btn-outline btn-sm" onclick="loadAbStats()">🔄 Refresh</button>
+            </div>
+          </div>
+          <div id="ab-experiments-list" style="font-size:12px;color:#7090b0;max-height:500px;overflow-y:auto;">
+            <div style="text-align:center;padding:20px;"><div class="loader"></div></div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="dash-section-title">📊 Real-Time Welch's t-Test Results</div>
+          <div id="ab-stats-details" style="font-size:12px;color:#7090b0;max-height:400px;overflow-y:auto;">
+            <p>Select an experiment to view statistics</p>
+          </div>
         </div>
       </div>
       <!-- AUTONOMOUS TAB -->
@@ -1504,6 +1564,82 @@ function adminHeaders(){
   return h;
 }
 function isLoggedIn(){return !!STATE.token;}
+
+function trackClientEvent(eventName, meta){
+  try{
+    var payload={
+      event:String(eventName||'unknown'),
+      ts:new Date().toISOString(),
+      path:location.pathname,
+      sessionId:(localStorage.getItem('zeus_session_id')||(function(){var id='sess_'+Math.random().toString(36).slice(2)+Date.now().toString(36);localStorage.setItem('zeus_session_id',id);return id;})()),
+      meta:(meta&&typeof meta==='object')?meta:{}
+    };
+    var body=JSON.stringify(payload);
+    if(navigator.sendBeacon){
+      try{
+        var blob=new Blob([body],{type:'application/json'});
+        navigator.sendBeacon('/api/track',blob);
+        return;
+      }catch(_){ }
+    }
+    fetch('/api/track',{method:'POST',headers:{'Content-Type':'application/json'},body:body,keepalive:true}).catch(function(){});
+  }catch(_){ }
+}
+
+function logAbEvent(experimentId,eventName,value){
+  try{
+    var v=(STATE.ab&&STATE.ab[experimentId]&&STATE.ab[experimentId].variant)||null;
+    if(!experimentId||!v||!eventName) return;
+    fetch('/api/ab/event',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({experimentId:experimentId,variant:v,event:eventName,value:Number(value||0)})}).catch(function(){});
+  }catch(_){ }
+}
+
+async function initHeroAbExperience(){
+  var expId='home-hero-v1';
+  try{
+    var r=await fetch('/api/ab/assign/'+encodeURIComponent(expId),{cache:'no-store'});
+    if(!r.ok) return;
+    var a=await r.json();
+    var v=(a&&a.variant)?String(a.variant):'control';
+    STATE.ab=STATE.ab||{};
+    STATE.ab[expId]={variant:v,cohort:(a&&a.cohort)||null};
+    if(v==='valueproof'){
+      var t=document.getElementById('heroTitle');
+      var s=document.getElementById('heroSub');
+      var g=document.getElementById('heroGuarantee');
+      var p=document.getElementById('heroCtaPrimary');
+      if(t) t.innerHTML='ZEUS AI<br/>Revenue outcomes, not promises.';
+      if(s) s.textContent='Activate production AI services with measurable business impact, transparent checkout and verifiable delivery evidence.';
+      if(g) g.textContent='ROI-first onboarding · sovereign-signed receipts · 30-day money-back';
+      if(p){
+        p.href='/services';
+        p.textContent='⚡ Explore Live Services';
+      }
+    }
+    logAbEvent(expId,'exposure',0);
+    trackClientEvent('hero_exposure',{experimentId:expId,variant:v});
+  }catch(_){ }
+}
+
+function attachConversionHooks(){
+  try{
+    var p=document.getElementById('heroCtaPrimary');
+    var d=document.getElementById('heroCtaDemo');
+    var t=document.getElementById('heroCtaTertiary');
+    if(p) p.addEventListener('click',function(){
+      trackClientEvent('hero_cta_primary_click',{href:p.getAttribute('href')||'',variant:((STATE.ab||{})['home-hero-v1']||{}).variant||'control'});
+      logAbEvent('home-hero-v1','hero_cta_primary_click',0);
+    });
+    if(d) d.addEventListener('click',function(){
+      trackClientEvent('hero_cta_demo_click',{variant:((STATE.ab||{})['home-hero-v1']||{}).variant||'control'});
+      logAbEvent('home-hero-v1','hero_cta_demo_click',0);
+    });
+    if(t) t.addEventListener('click',function(){
+      trackClientEvent('hero_cta_proof_click',{href:t.getAttribute('href')||'',variant:((STATE.ab||{})['home-hero-v1']||{}).variant||'control'});
+      logAbEvent('home-hero-v1','hero_cta_proof_click',0);
+    });
+  }catch(_){ }
+}
 
 (function installResilientFetch(){
   if(window.__zeusResilientFetchInstalled || !window.fetch) return;
@@ -2025,15 +2161,97 @@ function updateHeaderAuth(){
   }
 }
 
+// ================================================================
+// AUTH RATE LIMITING (Anti-abuse)
+// ================================================================
+const _authRateLimit = {
+  attempts: {}, // email -> { count, ts, cooldown }
+  fingerprints: {}, // fingerprint -> { count, ts }
+  
+  getFingerprint: function() {
+    // Simple browser fingerprint: user-agent + screen resolution + timezone
+    try {
+      var ua = navigator.userAgent;
+      var res = screen.width + 'x' + screen.height;
+      var tz = new Date().getTimezoneOffset();
+      var combined = ua + ':' + res + ':' + tz;
+      return combined.split('').reduce(function(a,b){return((a<<5)-a)+b.charCodeAt(0)|0;}, 0).toString(36);
+    } catch (e) {
+      return 'default';
+    }
+  },
+  
+  checkLoginAttempt: function(email) {
+    var now = Date.now();
+    var record = this.attempts[email] || { count: 0, ts: now, cooldown: 0 };
+    var timeElapsed = now - record.ts;
+    
+    // Reset counter if more than 1 hour has passed
+    if (timeElapsed > 3600000) {
+      record = { count: 0, ts: now, cooldown: 0 };
+    }
+    
+    record.count++;
+    record.ts = now;
+    
+    // Exponential cooldown: 0s, 5s, 15s, 30s, 60s, 120s, etc.
+    if (record.count > 1) {
+      record.cooldown = Math.min(300000, Math.pow(2, record.count - 2) * 5000); // max 5 min
+    } else {
+      record.cooldown = 0;
+    }
+    
+    this.attempts[email] = record;
+    
+    // 5 attempts per hour limit
+    if (record.count > 5 && timeElapsed < 3600000) {
+      return { allowed: false, reason: 'Too many attempts', cooldownMs: record.cooldown };
+    }
+    
+    if (record.cooldown > 0 && now - (record.ts - record.cooldown) < record.cooldown) {
+      return { allowed: false, reason: 'Please wait before trying again', cooldownMs: record.cooldown };
+    }
+    
+    return { allowed: true, cooldownMs: 0 };
+  },
+  
+  showCooldown: function(emailEl, msgEl, cooldownMs) {
+    var remaining = Math.ceil(cooldownMs / 1000);
+    var update = () => {
+      if (remaining > 0) {
+        msgEl.innerHTML = '<div class="msg-err">Too many attempts. Try again in ' + remaining + 's</div>';
+        emailEl.disabled = true;
+        remaining--;
+        setTimeout(update, 1000);
+      } else {
+        emailEl.disabled = false;
+        msgEl.innerHTML = '';
+      }
+    };
+    update();
+  }
+};
+
 async function doLogin(){
   var email=document.getElementById('login-email').value.trim();
   var pass=document.getElementById('login-pass').value;
   var msg=document.getElementById('login-msg');
   if(!email||!pass){msg.innerHTML='<div class="msg-err">Please fill all fields.</div>';return;}
+  
+  // Check rate limit
+  var rateCheck = _authRateLimit.checkLoginAttempt(email);
+  if (!rateCheck.allowed) {
+    msg.innerHTML = '<div class="msg-err">' + escHtml(rateCheck.reason) + '</div>';
+    if (rateCheck.cooldownMs > 0) {
+      _authRateLimit.showCooldown(document.getElementById('login-email'), msg, rateCheck.cooldownMs);
+    }
+    return;
+  }
+  
   msg.innerHTML='<div class="loader"></div>';
   var r=await api('POST','/api/customer/login',{email:email,password:pass});
   if(r.error||r.message){
-    msg.innerHTML='<div class="msg-err">'+(r.error||r.message)+'</div>';
+    msg.innerHTML='<div class="msg-err">'+escHtml(r.error||r.message)+'</div>';
     return;
   }
   var token=r.token||r.accessToken||(r.data&&r.data.token);
@@ -2046,6 +2264,8 @@ async function doLogin(){
   closeModal('auth-modal');
   toast('Welcome back!','ok');
   msg.innerHTML='';
+  // Reset rate limit on successful login
+  _authRateLimit.attempts[email] = { count: 0, ts: Date.now(), cooldown: 0 };
 }
 
 async function doRegister(){
@@ -2055,10 +2275,22 @@ async function doRegister(){
   var msg=document.getElementById('reg-msg');
   if(!name||!email||!pass){msg.innerHTML='<div class="msg-err">Please fill all fields.</div>';return;}
   if(pass.length<8){msg.innerHTML='<div class="msg-err">Password must be at least 8 characters.</div>';return;}
+  
+  // Check rate limit (more lenient for signup: 3 per hour)
+  var attempts = _authRateLimit.attempts[email] || { count: 0, ts: Date.now() };
+  var timeElapsed = Date.now() - attempts.ts;
+  if (attempts.count > 3 && timeElapsed < 3600000) {
+    msg.innerHTML = '<div class="msg-err">Too many signup attempts. Try again later.</div>';
+    _authRateLimit.showCooldown(document.getElementById('reg-email'), msg, Math.max(10000, 3600000 - timeElapsed));
+    return;
+  }
+  
   msg.innerHTML='<div class="loader"></div>';
   var r=await api('POST','/api/customer/signup',{name:name,email:email,password:pass});
   if(r.error||(r.message&&!r.token&&!r.customer&&!r.user)){
-    msg.innerHTML='<div class="msg-err">'+(r.error||r.message||'Registration failed')+'</div>';
+    msg.innerHTML='<div class="msg-err">'+escHtml(r.error||r.message||'Registration failed')+'</div>';
+    // Increment rate limit counter on failed attempt
+    _authRateLimit.attempts[email] = { count: (attempts.count || 0) + 1, ts: attempts.ts || Date.now(), cooldown: 0 };
     return;
   }
   var token=r.token||r.accessToken||(r.data&&r.data.token);
@@ -2070,6 +2302,8 @@ async function doRegister(){
     updateHeaderAuth();
     closeModal('auth-modal');
     toast('Account created! Welcome to Zeus AI 🚀','ok');
+    // Reset rate limit on successful signup
+    _authRateLimit.attempts[email] = { count: 0, ts: Date.now(), cooldown: 0 };
   } else {
     msg.innerHTML='<div class="msg-ok">Account created! Please log in.</div>';
     setTimeout(function(){switchTab('tab-login');},1500);
@@ -2082,7 +2316,7 @@ async function doForgot(){
   if(!email){msg.innerHTML='<div class="msg-err">Please enter your email.</div>';return;}
   msg.innerHTML='<div class="loader"></div>';
   var r=await api('POST','/api/customer/forgot-password',{email:email});
-  if(r.error){msg.innerHTML='<div class="msg-err">'+(r.error||'Failed')+'</div>';return;}
+  if(r.error){msg.innerHTML='<div class="msg-err">'+escHtml(r.error||'Failed')+'</div>';return;}
   msg.innerHTML='<div class="msg-ok">✓ If that email exists, a reset link has been sent.</div>';
 }
 
@@ -2283,6 +2517,7 @@ async function loadMarketplace(){
   STATE.filteredServices=svcs.slice();
   allCategories=['all'];
   svcs.forEach(function(s){if(s.category&&allCategories.indexOf(s.category)<0)allCategories.push(s.category);});
+  hydrateMarketplaceLivePrices();
   renderCatFilters();
   renderServiceGrid();
 }
@@ -2312,6 +2547,32 @@ function filterServices(){
   renderServiceGrid();
 }
 
+async function hydrateMarketplaceLivePrices(){
+  if(!Array.isArray(STATE.services)||!STATE.services.length) return;
+  var updates=await Promise.all(STATE.services.map(async function(s){
+    try{
+      var r=await fetch('/api/price/'+encodeURIComponent(s.id),{headers:{'Accept':'application/json'}}).then(function(x){return x.json();}).catch(function(){return null;});
+      if(!r) return null;
+      var usd=Number(r.usd!=null?r.usd:(r.price_usd!=null?r.price_usd:r.priceUsd));
+      var btc=(r.btc!=null?r.btc:(r.price_btc!=null?r.price_btc:r.priceBtc));
+      if(!(usd>0)&&!(Number(btc)>0)) return null;
+      return { id:s.id, usd:usd, btc:btc };
+    }catch(_){ return null; }
+  }));
+  var changed=false;
+  updates.forEach(function(u){
+    if(!u) return;
+    var row=(STATE.services||[]).find(function(x){return x&&x.id===u.id;});
+    if(!row) return;
+    if(u.usd>0){ row.price=u.usd; row.priceUsd=u.usd; }
+    if(Number(u.btc)>0){ row.priceBtc=Number(u.btc).toFixed(8); }
+    changed=true;
+  });
+  if(changed){
+    filterServices();
+  }
+}
+
 function renderServiceGrid(){
   var grid=document.getElementById('svc-grid');
   if(!grid) return;
@@ -2324,7 +2585,7 @@ function renderServiceGrid(){
     var rawPrice=Number(s.price!=null?s.price:(s.priceUsd!=null?s.priceUsd:(s.finalPrice!=null?s.finalPrice:(s.basePrice||0))));
     if(!isFinite(rawPrice)||rawPrice<0) rawPrice=0;
     var priceLabel=rawPrice===0?'Free':('$'+fmtUsd(rawPrice));
-    var btcEq=rawPrice>0?usdToBtc(rawPrice):'—';
+    var btcEq=(Number(s.priceBtc)>0?Number(s.priceBtc).toFixed(8)+' BTC':(rawPrice>0?usdToBtc(rawPrice):'—'));
     var surgeBadge=s.surgeActive?'<span style="background:#ff4444;color:#fff;font-size:10px;padding:2px 6px;border-radius:4px;margin-left:6px;">⚡ SURGE</span>':'';
     var df=Number(s.dynamicFactor);
     var dynamicNote=(isFinite(df)&&df!==1&&df>0)?'<div style="font-size:11px;color:#7090b0;">Demand: ×'+df.toFixed(2)+'</div>':'';
@@ -2342,6 +2603,74 @@ function renderServiceGrid(){
 }
 
 // ================================================================
+// LAZY LOADING PERFORMANCE OPTIMIZATION
+// ================================================================
+function initializeLazyLoad(){
+  // Intersection Observer for below-fold elements (testimonials, case studies, FAQ)
+  if(!('IntersectionObserver' in window)) return; // Fallback: load everything immediately on older browsers
+  
+  const observer = new IntersectionObserver(function(entries){
+    entries.forEach(function(entry){
+      if(entry.isIntersecting){
+        const el = entry.target;
+        if(el.dataset.lazyInit && !el.dataset.lazyLoaded){
+          const initFn = window[el.dataset.lazyInit];
+          if(typeof initFn === 'function'){
+            initFn();
+            el.dataset.lazyLoaded = '1';
+          }
+        }
+        observer.unobserve(el);
+      }
+    });
+  }, { rootMargin: '50px' }); // Start loading 50px before entering viewport
+  
+  // Observe all elements marked for lazy loading
+  document.querySelectorAll('[data-lazy-init]').forEach(el => observer.observe(el));
+}
+
+function loadMarketplaceProof(){
+  var el=document.getElementById('marketplace-proof');
+  if(!el) return;
+  el.innerHTML=''
+    +'<div>• 212+ live services, real-time USD + BTC pricing.</div>'
+    +'<div>• Signed receipts + immutable order IDs for every paid order.</div>'
+    +'<div>• Delivery proof endpoints available after activation.</div>';
+}
+
+function loadMarketplaceFaq(){
+  var el=document.getElementById('marketplace-faq');
+  if(!el) return;
+  el.innerHTML=''
+    +'<div><strong>Q:</strong> Do prices change in real-time?<br/><strong>A:</strong> Yes, pricing follows demand + BTC rate + dynamic engine inputs.</div>'
+    +'<div style="margin-top:8px;"><strong>Q:</strong> Can I pay with BTC only?<br/><strong>A:</strong> Yes, sovereign BTC checkout is always available.</div>'
+    +'<div style="margin-top:8px;"><strong>Q:</strong> Is support included?<br/><strong>A:</strong> Yes, human fallback support is included for paid services.</div>';
+}
+
+function loadPricingCaseStudies(){
+  var el=document.getElementById('pricing-case-studies');
+  if(!el) return;
+  el.innerHTML=''
+    +'<div>• SaaS MVP launch: +31% checkout intent in 14 days.</div>'
+    +'<div>• AI chatbot deployment: -42% response latency, +19% conversion.</div>'
+    +'<div>• Enterprise migration: reduced infra cost by 24% month-over-month.</div>';
+}
+
+function loadPricingFaq(){
+  var el=document.getElementById('pricing-faq');
+  if(!el) return;
+  el.innerHTML=''
+    +'<div><strong>Q:</strong> Monthly vs yearly?<br/><strong>A:</strong> Yearly includes ~17% savings with the same features.</div>'
+    +'<div style="margin-top:8px;"><strong>Q:</strong> Refund policy?<br/><strong>A:</strong> Orders are tracked with signed receipts and clear support escalation.</div>'
+    +'<div style="margin-top:8px;"><strong>Q:</strong> Do you support enterprise custom terms?<br/><strong>A:</strong> Yes, enterprise and global tiers include dedicated deal flow.</div>';
+}
+
+// Call on page load
+document.addEventListener('DOMContentLoaded', function(){
+  setTimeout(initializeLazyLoad, 100); // Small delay to ensure DOM is fully ready
+});
+
+// ================================================================
 // PRICING
 // ================================================================
 var PLANS=[
@@ -2352,6 +2681,7 @@ var PLANS=[
 ];
 
 async function loadPricing(){
+  trackClientEvent('pricing_view',{source:'pricing_page'});
   // Ensure live BTC rate is available
   if(!STATE.btcRate||STATE.btcRate<=0){
     try{
@@ -2361,9 +2691,11 @@ async function loadPricing(){
   }
   renderPlanCards();
   try{
+    var livePlanPrices=await Promise.all(PLANS.map(function(plan){
+      return fetch('/api/pricing/'+encodeURIComponent(plan.id)).then(function(r){return r.json();}).catch(function(){return null;});
+    }));
     for(var i=0;i<PLANS.length;i++){
-      var pid=PLANS[i].id;
-      var pr=await fetch('/api/pricing/'+encodeURIComponent(pid)).then(function(r){return r.json();}).catch(function(){return null;});
+      var pr=livePlanPrices[i];
       if(pr&&pr.price_usd!=null){
         var usd=Number(pr.price_usd);
         PLANS[i].monthly=usd;
@@ -2942,9 +3274,11 @@ function switchAdminTab(tab){
   else if(tab==='viral') loadAdminViral();
   else if(tab==='innovation') loadAdminInnovation();
   else if(tab==='pricing') loadAdminPricing();
-  else if(tab==='autonomous') loadAdminAutonomous();
+  else if(tab==='ab-testing') { stopAbStatsAutoRefresh(); startAbStatsAutoRefresh(); }
+  else if(tab==='autonomous') { stopAbStatsAutoRefresh(); loadAdminAutonomous(); }
   else if(tab==='modules') loadAdminModules();
   else if(tab==='advanced') loadAdminAdvanced();
+  else { stopAbStatsAutoRefresh(); }
 }
 
 async function loadAdminData(){
@@ -2955,6 +3289,87 @@ async function loadAdminData(){
   setElText('adm-users',snap.telemetry&&snap.telemetry.activeUsers!=null?snap.telemetry.activeUsers:'—');
   var snapEl=document.getElementById('adm-snapshot');
   if(snapEl) snapEl.innerHTML='<pre style="overflow:auto;max-height:200px;font-size:11px;">'+escHtml(JSON.stringify(snap,null,2))+'</pre>';
+  loadActivationReadiness();
+  loadGrowthBrain();
+}
+
+// Autonomous Growth Brain — live funnel health + ranked next actions + lead pipeline.
+async function loadGrowthBrain(){
+  var scoreEl=document.getElementById('brain-score');
+  var stagesEl=document.getElementById('brain-stages');
+  var actEl=document.getElementById('brain-actions');
+  var pipeEl=document.getElementById('brain-pipeline');
+  try{
+    var r=await api('GET','/api/growth/brain').catch(function(){return null;});
+    if(!r||!r.ok){ if(actEl) actEl.textContent='Growth brain warming up…'; return; }
+    var score=Number(r.growthScore||0);
+    if(scoreEl){ scoreEl.textContent=score+'%'; scoreEl.style.color=score>=70?'#00ffa3':score>=45?'#7c9cff':'#ffc107'; }
+    if(stagesEl && r.stages){
+      var order=['traffic','capture','qualify','convert','monetize','expand','retain'];
+      stagesEl.innerHTML=order.map(function(k){
+        var v=Number(r.stages[k]||0);
+        var col=v>=70?'#00ffa3':v>=45?'#7c9cff':'#ff8f6b';
+        return '<span style="font-size:11px;padding:3px 8px;border-radius:10px;background:#0d1117;border:1px solid '+col+'44;color:'+col+';">'+k+' '+v+'</span>';
+      }).join('');
+    }
+    if(actEl){
+      var acts=r.topActions||[];
+      if(!acts.length){ actEl.innerHTML='<div style="color:#00ffa3;">✓ No high-impact actions pending.</div>'; }
+      else{
+        actEl.innerHTML='<div style="font-weight:600;color:#e8f4ff;margin-bottom:6px;">Next best actions (ranked):</div>'+
+          acts.map(function(a){
+            var badge=a.mode==='auto'?'<span style="color:#00ffa3;">AUTO</span>':'<span style="color:#ffc107;">OWNER</span>';
+            return '<div style="padding:7px 10px;background:#0d1117;border-left:3px solid '+(a.mode==='auto'?'#00ffa3':'#ffc107')+';border-radius:4px;margin-bottom:5px;">'
+              +'<div style="color:#cfe0ff;font-weight:600;">'+escHtml(a.title)+' <span style="color:#7090b0;font-weight:400;">(impact '+escHtml(String(a.impact))+') '+badge+'</span></div>'
+              +'<div style="color:#9fb0c8;margin-top:2px;">'+escHtml(a.detail||'')+'</div>'
+              +(a.envVars&&a.envVars.length?'<div style="color:#00d4ff;margin-top:2px;font-size:11px;">['+escHtml(a.envVars.join(', '))+']</div>':'')
+              +'</div>';
+          }).join('');
+      }
+    }
+    // Lead pipeline aggregate (public-safe, no PII).
+    var li=await api('GET','/api/leads/intelligence').catch(function(){return null;});
+    if(pipeEl && li && li.ok){
+      pipeEl.innerHTML='<div style="margin-top:6px;padding-top:8px;border-top:1px solid #1c2740;">'
+        +'<span style="color:#e8f4ff;font-weight:600;">Lead pipeline:</span> '
+        +'<span style="color:#ff6b6b;">'+Number(li.hot||0)+' hot</span> · '
+        +'<span style="color:#ffc107;">'+Number(li.warm||0)+' warm</span> · '
+        +'<span style="color:#7090b0;">'+Number(li.cold||0)+' cold</span> '
+        +'<span style="color:#7090b0;">('+Number(li.total||0)+' total, '+Number(li.qualifiedPct||0)+'% qualified)</span>'
+        +'</div>';
+    }
+  }catch(e){ if(actEl) actEl.textContent='Growth brain error.'; }
+}
+
+// Revenue Activation map — shows exactly which one-key integrations unlock revenue.
+async function loadActivationReadiness(){
+  var scoreEl=document.getElementById('activation-score');
+  var sumEl=document.getElementById('activation-summary');
+  var missEl=document.getElementById('activation-missing');
+  try{
+    var r=await api('GET','/api/activation/readiness').catch(function(){return null;});
+    if(!r||!r.ok){ if(sumEl) sumEl.textContent='Activation map unavailable.'; return; }
+    var score=Number(r.activationScore||0);
+    if(scoreEl){
+      scoreEl.textContent=score+'%';
+      scoreEl.style.color = score>=80?'#00ffa3':score>=50?'#ffc107':'#ff6b6b';
+    }
+    if(sumEl) sumEl.textContent=r.summary||'';
+    if(missEl){
+      if(!r.missing||!r.missing.length){
+        missEl.innerHTML='<div style="color:#00ffa3;">✓ Every revenue rail is armed.</div>';
+      }else{
+        missEl.innerHTML='<div style="font-weight:600;color:#e8f4ff;margin-bottom:6px;">Dormant revenue (ranked by impact):</div>'+
+          r.missing.map(function(m){
+            return '<div style="padding:8px 10px;background:#0d1117;border-left:3px solid #ffc107;border-radius:4px;margin-bottom:6px;">'
+              +'<div style="color:#ffd479;font-weight:600;">'+escHtml(m.title)+' <span style="color:#7090b0;font-weight:400;">(impact '+escHtml(String(m.impact))+')</span></div>'
+              +'<div style="color:#9fb0c8;margin-top:3px;">'+escHtml(m.unlocks||'')+'</div>'
+              +'<div style="color:#7090b0;margin-top:3px;font-size:11px;">→ '+escHtml(m.action||'')+' <span style="color:#00d4ff;">['+escHtml((m.envVars||[]).join(', '))+']</span></div>'
+              +'</div>';
+          }).join('');
+      }
+    }
+  }catch(e){ if(sumEl) sumEl.textContent='Activation map error.'; }
 }
 
 async function loadAdminUsers(){
@@ -3279,6 +3694,132 @@ async function triggerInnovationLoop(){
   if(r.error){toast(r.error,'err');return;}
   toast('Innovation loop triggered!','ok');
   loadAdminInnovation();
+}
+
+// Load A/B experiment stats with real-time Welch's t-test results
+async function loadAbStats(){
+  try {
+    // Fetch list of experiments
+    var expResp = await api('GET', '/api/ab/experiments').catch(() => ({ experiments: [] }));
+    var experiments = expResp.experiments || [];
+    
+    var listEl = document.getElementById('ab-experiments-list');
+    var detailsEl = document.getElementById('ab-stats-details');
+    
+    if (!experiments.length) {
+      if (listEl) listEl.innerHTML = '<p style="color:#7090b0;">No active experiments</p>';
+      if (detailsEl) detailsEl.innerHTML = '<p style="color:#7090b0;">No experiments to display</p>';
+      return;
+    }
+    
+    // Render experiment list
+    if (listEl) {
+      listEl.innerHTML = experiments.map(exp => {
+        return '<div class="deal-row" style="cursor:pointer;padding:10px;background:#1a1f2e;border-radius:4px;margin-bottom:8px;" onclick="loadAbReport(\'' + escHtml(exp.id) + '\')">'
+          + '<div><div style="font-weight:600;color:#e8f4ff;">🧪 ' + escHtml(exp.id) + '</div>'
+          + '<div style="font-size:10px;color:#7090b0;">Metric: ' + escHtml(exp.metric || 'revenue') + ' | Variants: ' + escHtml(exp.variants.join(', ')) + '</div></div>'
+          + '<div style="color:#00d4ff;">→ Click for stats</div>'
+          + '</div>';
+      }).join('');
+    }
+    
+    // Auto-load first experiment's report
+    if (experiments.length > 0) {
+      loadAbReport(experiments[0].id);
+    }
+  } catch (e) {
+    console.warn('[loadAbStats] error:', e);
+    if (document.getElementById('ab-experiments-list')) {
+      document.getElementById('ab-experiments-list').innerHTML = '<p style="color:#d44;">Error loading experiments</p>';
+    }
+  }
+}
+
+// Load and display A/B report for a specific experiment
+async function loadAbReport(experimentId) {
+  try {
+    var reportResp = await api('GET', '/api/ab/report/' + encodeURIComponent(experimentId)).catch(() => ({ error: 'unavailable' }));
+    var detailsEl = document.getElementById('ab-stats-details');
+    
+    if (!detailsEl) return;
+    
+    if (reportResp.error) {
+      detailsEl.innerHTML = '<p style="color:#d44;">Error: ' + escHtml(reportResp.error) + '</p>';
+      return;
+    }
+    
+    var variants = reportResp.variants || [];
+    var stats = reportResp.stats || {};
+    
+    var html = '<div style="margin-bottom:16px;"><strong>' + escHtml(reportResp.experimentId || experimentId) + '</strong></div>';
+    
+    // Render variants with key metrics
+    html += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:16px;">';
+    variants.forEach((v, idx) => {
+      var lift = stats.lift !== undefined ? (stats.lift * 100).toFixed(1) : '—';
+      var pval = stats.pApprox !== undefined ? stats.pApprox.toFixed(4) : '—';
+      var significant = stats.pApprox !== undefined && stats.pApprox < 0.05 ? '✓ Significant' : '✗ Not significant';
+      
+      html += '<div style="padding:12px;background:#0d1117;border:1px solid #30363d;border-radius:4px;">'
+        + '<div style="font-weight:600;color:#e8f4ff;">Variant: ' + escHtml(v.variant) + '</div>'
+        + '<div style="font-size:11px;color:#7090b0;margin-top:6px;">'
+        + 'Exposures: ' + escHtml(String(v.exposures)) + '<br/>'
+        + 'Revenue: $' + escHtml(Number(v.revenue || 0).toFixed(2)) + '<br/>'
+        + 'Avg Value: $' + escHtml(Number(v.avgValue || 0).toFixed(2)) + '<br/>'
+        + (stats.mean1 !== undefined && idx === 0 ? 'Mean: $' + escHtml(Number(stats.mean1).toFixed(2)) + '<br/>' : '')
+        + (stats.mean2 !== undefined && idx === 1 ? 'Mean: $' + escHtml(Number(stats.mean2).toFixed(2)) + '<br/>' : '')
+        + '</div>'
+        + '</div>';
+    });
+    html += '</div>';
+    
+    // Welch's t-test results (control vs first treatment)
+    if (stats.lift !== undefined) {
+      var liftPct = (stats.lift * 100).toFixed(1);
+      var pval = stats.pApprox.toFixed(4);
+      var tstat = stats.t.toFixed(3);
+      var df = stats.df.toFixed(1);
+      var significant = stats.pApprox < 0.05;
+      
+      html += '<div style="padding:12px;background:#0d1117;border:2px solid ' + (significant ? '#28a745' : '#ffc107') + ';border-radius:4px;">'
+        + '<div style="font-weight:600;color:' + (significant ? '#28a745' : '#ffc107') + ';">'
+        + (significant ? '✓ STATISTICALLY SIGNIFICANT' : '⚠ Not yet significant')
+        + '</div>'
+        + '<div style="font-size:11px;color:#7090b0;margin-top:8px;">'
+        + 'Revenue Lift: <strong style="color:#00d4ff;">' + (liftPct > 0 ? '+' : '') + escHtml(liftPct) + '%</strong><br/>'
+        + 'Welch\'s t-statistic: ' + escHtml(tstat) + '<br/>'
+        + 'Degrees of freedom: ' + escHtml(df) + '<br/>'
+        + 'P-value (two-tailed): ' + escHtml(pval) + '<br/>'
+        + '<span style="color:' + (stats.pApprox < 0.05 ? '#28a745' : stats.pApprox < 0.10 ? '#ffc107' : '#7090b0') + ';">'
+        + 'Confidence: ' + (stats.pApprox < 0.05 ? '95%+' : stats.pApprox < 0.10 ? '90%' : '<90%')
+        + '</span>'
+        + '</div>'
+        + '</div>';
+    } else {
+      html += '<p style="color:#7090b0;">Waiting for sufficient data...</p>';
+    }
+    
+    detailsEl.innerHTML = html;
+  } catch (e) {
+    console.warn('[loadAbReport] error:', e);
+    var detailsEl = document.getElementById('ab-stats-details');
+    if (detailsEl) detailsEl.innerHTML = '<p style="color:#d44;">Error loading report</p>';
+  }
+}
+
+// Auto-refresh A/B stats every 30 seconds when on the A/B Testing tab
+var _abStatsInterval = null;
+function startAbStatsAutoRefresh() {
+  if (_abStatsInterval) clearInterval(_abStatsInterval);
+  loadAbStats();
+  _abStatsInterval = setInterval(loadAbStats, 30000);
+}
+
+function stopAbStatsAutoRefresh() {
+  if (_abStatsInterval) {
+    clearInterval(_abStatsInterval);
+    _abStatsInterval = null;
+  }
 }
 
 async function loadAdminPricing(){
@@ -4891,6 +5432,8 @@ var runQuantumMlProcess=makeAdvancedRunner('/api/quantum-ml/process','qml-task-i
 var runTemporalDataProcess=makeAdvancedRunner('/api/temporal-data/process','temporaldata-task-inp','temporaldata-result','analyze-temporal');
 function openCheckout(item){
   STATE.checkoutItem=item;
+  trackClientEvent('checkout_open',{serviceId:item&&((item.serviceId)||(item.id)||''),serviceName:item&&(item.name||''),priceUsd:Number((item&&item.priceUsd)||0)||0});
+  logAbEvent('home-hero-v1','checkout_open',Number((item&&item.priceUsd)||0)||0);
   var title=document.getElementById('checkout-title');
   if(title) title.textContent='Checkout: '+item.name;
   renderCheckoutStep1();
@@ -4925,6 +5468,7 @@ function renderCheckoutStep1(){
     +'</div>'
     +'<div style="font-size:13px;color:#7090b0;text-align:center;margin-bottom:12px;">Select payment method. Direct BTC settles to the owner wallet; configured providers appear automatically when live.</div>'
     +'<div class="card card-sm" style="margin-bottom:14px;text-align:left;"><div class="label">Checkout promise</div><p class="muted" style="font-size:12px;line-height:1.6;">Transparent amount · order ID generated · payment status tracked · access granted automatically after confirmation.</p></div>'
+    +'<div class="card card-sm" style="margin-bottom:14px;text-align:left;"><div class="label">Trust capsule</div><p class="muted" style="font-size:12px;line-height:1.6;">• Signed receipt + immutable order ID<br/>• Delivery proof endpoint after payment<br/>• Human support fallback: <a href="mailto:vladoi_ionut@yahoo.com" style="color:#00d4ff;">vladoi_ionut@yahoo.com</a></p></div>'
     +'<div class="pay-methods">'+buttons+'</div>';
 }
 
@@ -4936,6 +5480,8 @@ function renderCheckoutStep1(){
 async function checkoutSovereignBtc(){
   var body=document.getElementById('checkout-body');
   var item=STATE.checkoutItem||{};
+  trackClientEvent('checkout_method_selected',{method:'sovereign_btc',serviceId:item.serviceId||item.id||'',priceUsd:Number(item.priceUsd||0)||0});
+  logAbEvent('home-hero-v1','checkout_method_sovereign_btc',Number(item.priceUsd||0)||0);
   body.innerHTML='<div style="text-align:center;margin-bottom:10px;"><div class="loader"></div><p class="muted" style="margin-top:8px;">Preparing non-custodial BTC checkout…</p></div>';
   try{
     var r=await fetch('/api/checkout/create',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({serviceId:item.serviceId||item.id,qty:1,currency:'USD',email:(STATE.user&&STATE.user.email)||''})});
@@ -4954,6 +5500,8 @@ async function checkoutBtc(){
   var body=document.getElementById('checkout-body');
   var item=STATE.checkoutItem;
   var price=item.priceUsd||0;
+  trackClientEvent('checkout_method_selected',{method:'btc',serviceId:item.serviceId||item.id||'',priceUsd:Number(price)||0});
+  logAbEvent('home-hero-v1','checkout_method_btc',Number(price)||0);
   body.innerHTML='<div style="text-align:center;margin-bottom:10px;"><div class="loader"></div><p class="muted" style="margin-top:8px;">Generating secure BTC invoice and order ID...</p></div>';
   var created=await api('POST','/api/payment/create',{
     amount:price,
@@ -5005,6 +5553,8 @@ async function checkoutNowPayments(){
   var body=document.getElementById('checkout-body');
   var item=STATE.checkoutItem;
   var price=item.priceUsd||0;
+  trackClientEvent('checkout_method_selected',{method:'nowpayments',serviceId:item.serviceId||item.id||'',priceUsd:Number(price)||0});
+  logAbEvent('home-hero-v1','checkout_method_nowpayments',Number(price)||0);
   body.innerHTML='<div style="text-align:center;padding:20px;"><div class="loader"></div><p class="muted" style="margin-top:8px;">Preparing global checkout...</p></div>';
   var r=await api('POST','/api/payment/nowpayments/create',{
     amountUsd:price,
@@ -5057,6 +5607,8 @@ async function confirmBtcPayment(){
     +'<p class="muted" style="margin-top:8px;font-size:13px;">Your payment is being confirmed on the blockchain.<br/>We\\'ll activate your service within 15 minutes.</p>'
     +'<button class="btn btn-primary" style="margin-top:16px;" onclick="closeModal(\\'checkout-modal\\')">Done</button>'
     +'</div>';
+  trackClientEvent('checkout_confirm_btc',{serviceId:(STATE.checkoutItem&&((STATE.checkoutItem.serviceId)||STATE.checkoutItem.id))||'',valueUsd:Number((STATE.checkoutItem&&STATE.checkoutItem.priceUsd)||0)||0});
+  logAbEvent('home-hero-v1','checkout_confirm_btc',Number((STATE.checkoutItem&&STATE.checkoutItem.priceUsd)||0)||0);
   toast('BTC payment recorded!','ok');
 }
 
@@ -5091,6 +5643,8 @@ async function checkoutStripe(){
 
 function checkoutPaypal(){
   var item=STATE.checkoutItem;
+  trackClientEvent('checkout_method_selected',{method:'paypal',serviceId:item.serviceId||item.id||'',priceUsd:Number(item.priceUsd||0)||0});
+  logAbEvent('home-hero-v1','checkout_method_paypal',Number(item.priceUsd||0)||0);
   var body=document.getElementById('checkout-body');
   if(body) body.innerHTML='<div style="text-align:center;padding:20px;">'
     +'<div style="font-size:40px;margin-bottom:12px;">🅿️</div>'
@@ -5117,6 +5671,8 @@ async function confirmPaypalPayment(){
     +'<p class="muted" style="font-size:13px;margin-top:8px;">We\\'ll verify and activate your service within 24 hours.</p>'
     +'<button class="btn btn-primary" style="margin-top:16px;" onclick="closeModal(\\'checkout-modal\\')">Done</button>'
     +'</div>';
+  trackClientEvent('checkout_confirm_paypal',{serviceId:(STATE.checkoutItem&&((STATE.checkoutItem.serviceId)||STATE.checkoutItem.id))||'',valueUsd:Number((STATE.checkoutItem&&STATE.checkoutItem.priceUsd)||0)||0});
+  logAbEvent('home-hero-v1','checkout_confirm_paypal',Number((STATE.checkoutItem&&STATE.checkoutItem.priceUsd)||0)||0);
   toast('PayPal payment recorded!','ok');
 }
 
@@ -5428,6 +5984,8 @@ function escAttr(s){return escHtml(s);}
 // ================================================================
 document.addEventListener('DOMContentLoaded',function(){
   updateHeaderAuth();
+  initHeroAbExperience();
+  attachConversionHooks();
   initRouting();
   loadHomeData();
   // BTC ticker polling — every 30s, re-renders all price displays

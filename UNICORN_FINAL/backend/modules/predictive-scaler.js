@@ -12,10 +12,22 @@
 'use strict';
 
 const { execSync } = require('child_process');
+const os = require('os');
 let lastScale = Date.now();
 let lastProcs = 1;
 let pm2Available;
 const PM2_SCALE_APP = process.env.PREDICTIVE_SCALER_APP || process.env.PM2_SCALE_APP || 'unicorn-site';
+// SAFETY CAPS (2026-05-29). Historically this module used RANDOM fake metrics and
+// scaled unicorn-site up to 8 workers * ~1.4 GB = ~11 GB RSS → OOM thrash on the
+// 8 GB box. It is now: (1) OFF by default (fail-safe), (2) driven by REAL os
+// metrics, (3) hard memory-guarded, (4) capped low. Enable explicitly with
+// PREDICTIVE_SCALER_ENABLED=1 only on a node with measured headroom.
+// PLAFOANE DE SIGURANȚĂ: implicit oprit, metrici reale, gardă de memorie, cap mic.
+const MAX_PROCS = Math.max(1, parseInt(process.env.PREDICTIVE_SCALER_MAX || '2', 10));
+const MIN_PROCS = Math.max(1, parseInt(process.env.PREDICTIVE_SCALER_MIN || '1', 10));
+const MIN_FREE_MB = parseInt(process.env.PREDICTIVE_SCALER_MIN_FREE_MB || '1200', 10);
+const SCALE_UP_LOAD_RATIO = parseFloat(process.env.PREDICTIVE_SCALER_UP_LOAD || '0.85'); // loadavg/core
+const SCALE_DOWN_LOAD_RATIO = parseFloat(process.env.PREDICTIVE_SCALER_DOWN_LOAD || '0.35');
 
 function hasPm2() {
   if (pm2Available !== undefined) return pm2Available;
@@ -30,19 +42,25 @@ function hasPm2() {
 }
 
 function getTrafficMetrics() {
-  // Exemplu: folosește metrici reali din logs, API sau random pentru demo
+  // REAL metrics only (no random/demo data). loadavg normalized per core +
+  // actual free memory. Metrici reale: încărcare pe nucleu + memorie liberă reală.
+  const cores = Math.max(1, os.cpus().length);
+  const load1 = os.loadavg()[0] || 0;
   return {
-    rps: 10 + Math.floor(Math.random() * 100), // requests/sec
-    cpu: 20 + Math.random() * 60, // CPU %
-    mem: 200 + Math.random() * 800 // MB
+    loadRatio: load1 / cores,
+    freeMb: Math.round(os.freemem() / (1024 * 1024)),
   };
 }
 
 function predictNeededProcs(metrics) {
-  // AI simplificat: dacă rps > 80 sau cpu > 70%, scalează up
-  if (metrics.rps > 80 || metrics.cpu > 70) return Math.min(lastProcs + 1, 8);
-  // Dacă rps < 20 și cpu < 30%, scalează down
-  if (metrics.rps < 20 && metrics.cpu < 30) return Math.max(lastProcs - 1, 1);
+  // Scale up only under REAL sustained load AND with memory headroom.
+  if (metrics.loadRatio > SCALE_UP_LOAD_RATIO && metrics.freeMb >= MIN_FREE_MB) {
+    return Math.min(lastProcs + 1, MAX_PROCS);
+  }
+  // Scale down when comfortably idle.
+  if (metrics.loadRatio < SCALE_DOWN_LOAD_RATIO) {
+    return Math.max(lastProcs - 1, MIN_PROCS);
+  }
   return lastProcs;
 }
 
@@ -50,6 +68,11 @@ function autoScale() {
   const metrics = getTrafficMetrics();
   const needed = predictNeededProcs(metrics);
   if (needed === lastProcs || Date.now() - lastScale <= 60000) return;
+  // Hard memory guard: never scale UP without headroom, regardless of prediction.
+  if (needed > lastProcs && metrics.freeMb < MIN_FREE_MB) {
+    console.warn(`[predictive-scaler] Refusing scale-up: free=${metrics.freeMb}MB < ${MIN_FREE_MB}MB`);
+    return;
+  }
   try {
     if (!hasPm2()) return;
     // Snapshot real PM2 state once and decide off it. Counting instances by
@@ -70,7 +93,7 @@ function autoScale() {
     }
     try {
       execSync(`pm2 scale ${PM2_SCALE_APP} ${needed}`, { stdio: ['ignore', 'pipe', 'pipe'] });
-      console.log(`[predictive-scaler] Scaled ${PM2_SCALE_APP} ${currentRunning}\u2192${needed} procs (rps=${metrics.rps}, cpu=${metrics.cpu.toFixed(1)}%)`);
+      console.log(`[predictive-scaler] Scaled ${PM2_SCALE_APP} ${currentRunning}\u2192${needed} procs (loadRatio=${metrics.loadRatio.toFixed(2)}, free=${metrics.freeMb}MB)`);
     } catch (e) {
       const out = String((e && (e.stderr || e.stdout || e.message)) || '');
       // PM2 prints "Nothing to do" when scale target equals current — that's a
@@ -97,8 +120,11 @@ function autoScale() {
 // (otherwise tests that load src/index.js hang forever and CI deploys time out).
 // Replica workers in PM2 cluster mode set PREDICTIVE_SCALER_DISABLED=1 so only
 // instance 0 issues `pm2 scale` (avoid N workers racing on the same command).
+// FAIL-SAFE: OFF unless PREDICTIVE_SCALER_ENABLED=1 is explicitly set. This
+// prevents the historical random-metric OOM storm from ever auto-arming.
+// IMPLICIT OPRIT: pornește doar cu PREDICTIVE_SCALER_ENABLED=1.
 let _scalerTimer = null;
-if (process.env.PREDICTIVE_SCALER_DISABLED !== '1') {
+if (process.env.PREDICTIVE_SCALER_ENABLED === '1' && process.env.PREDICTIVE_SCALER_DISABLED !== '1') {
   _scalerTimer = setInterval(autoScale, 120000);
   if (typeof _scalerTimer.unref === 'function') _scalerTimer.unref();
 }

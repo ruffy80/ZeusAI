@@ -24,7 +24,7 @@ Push to `main` touching any of:
 - `UNICORN_FINAL/scripts/**` · `UNICORN_FINAL/templates/**` · `UNICORN_FINAL/templates_saas_2026/**`
 - `UNICORN_FINAL/package.json` · `UNICORN_FINAL/package-lock.json`
 - `UNICORN_FINAL/ecosystem.config.js` · `UNICORN_FINAL/Dockerfile` · `UNICORN_FINAL/.nvmrc`
-- `generate_unicorn_final*.js` · `github-vercel-hetzner-connector.js` · `setup_hetzner.js`
+- `generate_unicorn_final*.js` · `setup_hetzner.js`
 - `scripts/**` · `.github/workflows/deploy.yml`
 
 → Triggers `.github/workflows/deploy.yml`:

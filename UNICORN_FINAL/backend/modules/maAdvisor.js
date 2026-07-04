@@ -218,13 +218,11 @@ class MAndAAdvisor {
 
   identifyTargets(criteria) {
     const { industry, minRevenue, maxRevenue, region } = criteria;
-    const mockTargets = [
-      { name: 'AI Corp', revenue: 50000000, industry: 'AI', region: 'US', synergyScore: 0.85 },
-      { name: 'CloudTech', revenue: 75000000, industry: 'Cloud', region: 'EU', synergyScore: 0.78 },
-      { name: 'DataLabs', revenue: 30000000, industry: 'AI', region: 'Asia', synergyScore: 0.92 }
-    ];
+    const candidates = Array.isArray(criteria.candidates)
+      ? criteria.candidates
+      : (Array.isArray(criteria.targetUniverse) ? criteria.targetUniverse : []);
 
-    const filtered = mockTargets.filter(t =>
+    const filtered = candidates.filter(t =>
       (!minRevenue || t.revenue >= minRevenue) &&
       (!maxRevenue || t.revenue <= maxRevenue) &&
       (!industry || t.industry === industry) &&

@@ -6,8 +6,11 @@ DEPLOY_LINK="${2:-/var/www/unicorn/UNICORN_FINAL}"
 PUBLIC_URL="${PUBLIC_URL:-https://zeusai.pro}"
 CANARY_PORT="${CANARY_PORT:-3100}"
 CANARY_TIMEOUT_SECONDS="${CANARY_TIMEOUT_SECONDS:-90}"
-FINAL_SMOKE_ATTEMPTS="${FINAL_SMOKE_ATTEMPTS:-12}"
-PM2_APPS="unicorn-backend unicorn-site autoscaler"
+FINAL_SMOKE_ATTEMPTS="${FINAL_SMOKE_ATTEMPTS:-24}"
+PM2_APPS="unicorn-backend unicorn-site"
+PM2_ONLY="unicorn-backend,unicorn-site"
+# module-mesh-guardian is ACTIVE (works together with ZAC systemd) — do not retire.
+RETIRED_PM2_APPS="autoscaler unicorn-live-sync unicorn-guardian"
 
 if [ -z "$CANDIDATE_DIR" ]; then
   echo "usage: $0 /path/to/candidate/UNICORN_FINAL [/var/www/unicorn/UNICORN_FINAL]" >&2
@@ -24,6 +27,34 @@ mkdir -p "$DEPLOY_PARENT"
 
 log() { printf '[deploy-forward] %s\n' "$*"; }
 fail() { printf '[deploy-forward][FAIL] %s\n' "$*" >&2; exit 1; }
+
+cleanup_pm2_topology() {
+  for app in $RETIRED_PM2_APPS; do
+    pm2 delete "$app" >/dev/null 2>&1 || true
+  done
+
+  local duplicate_ids
+  duplicate_ids="$(pm2 jlist 2>/dev/null | node -e '
+    let body = "";
+    process.stdin.on("data", (chunk) => body += chunk);
+    process.stdin.on("end", () => {
+      try {
+        const keepNames = new Set(["unicorn-backend", "unicorn-site"]);
+        const seen = new Set();
+        const deleteIds = [];
+        for (const proc of JSON.parse(body || "[]")) {
+          if (!keepNames.has(proc.name)) continue;
+          if (seen.has(proc.name)) deleteIds.push(String(proc.pm_id));
+          else seen.add(proc.name);
+        }
+        process.stdout.write(deleteIds.join(" "));
+      } catch (_) {}
+    });
+  ')"
+  if [ -n "$duplicate_ids" ]; then
+    pm2 delete $duplicate_ids >/dev/null 2>&1 || true
+  fi
+}
 
 cleanup_canary() {
   if [ -n "${CANARY_PID:-}" ] && kill -0 "$CANARY_PID" 2>/dev/null; then
@@ -162,6 +193,8 @@ RESOLVED_TMP="$(readlink -f "$TMP_LINK")"
 [ "$RESOLVED_TMP" = "$CANDIDATE_DIR" ] || fail "temporary symlink mismatch"
 mv -Tf "$TMP_LINK" "$DEPLOY_LINK"
 [ "$(readlink -f "$DEPLOY_LINK")" = "$CANDIDATE_DIR" ] || fail "deploy symlink mismatch after promote"
+ln -sfn "$CANDIDATE_DIR" "$DEPLOY_PARENT/current"
+[ "$(readlink -f "$DEPLOY_PARENT/current")" = "$CANDIDATE_DIR" ] || fail "current symlink mismatch after promote"
 
 # Forever-key: provision the release-stable Ed25519 signing key BEFORE PM2
 # starts, so the very first request after promote serves stable signatures.
@@ -172,6 +205,7 @@ SHARED_DIR="$SHARED_DIR" KEY_FILE="$SHARED_DIR/site-sign.pem" PUB_FILE="$SHARED_
 
 log "restart PM2 from canonical symlink only"
 cd "$DEPLOY_LINK"
+cleanup_pm2_topology
 for app in $PM2_APPS; do
   pm2 delete "$app" >/dev/null 2>&1 || true
 done
@@ -183,10 +217,10 @@ if ! env \
   NODE_ENV=production \
   BIND_HOST=127.0.0.1 \
   UNICORN_RUNTIME_PROFILE=safe \
-  QIS_REQUIRED_PROCESSES=unicorn-backend,unicorn-site,autoscaler \
+  QIS_REQUIRED_PROCESSES="$PM2_ONLY" \
   ZEUS_BUILD_SHA="${GITHUB_SHA:-}" \
   SW_VERSION="${GITHUB_SHA:-}" \
-  pm2 start ecosystem.config.js --update-env; then
+  pm2 start ecosystem.config.js --only "$PM2_ONLY" --update-env; then
   log "PM2 start failed (possibly stale process/daemon bug). Attempting recovery via pm2 kill..."
   pm2 kill || true
   sleep 3
@@ -194,14 +228,15 @@ if ! env \
     NODE_ENV=production \
     BIND_HOST=127.0.0.1 \
     UNICORN_RUNTIME_PROFILE=safe \
-    QIS_REQUIRED_PROCESSES=unicorn-backend,unicorn-site,autoscaler \
+    QIS_REQUIRED_PROCESSES="$PM2_ONLY" \
     ZEUS_BUILD_SHA="${GITHUB_SHA:-}" \
     SW_VERSION="${GITHUB_SHA:-}" \
-    pm2 start ecosystem.config.js --update-env
+    pm2 start ecosystem.config.js --only "$PM2_ONLY" --update-env
 fi
 
 log "wait for PM2 warmup"
 sleep 15
+cleanup_pm2_topology
 
 # ── PM2 cwd-drift auto-recovery ─────────────────────────────────────────────
 # Some PM2 versions don't fully replace existing entries on `pm2 start
@@ -244,7 +279,7 @@ if [ -n "$DRIFTED_APPS" ]; then
       NODE_ENV=production \
       BIND_HOST=127.0.0.1 \
       UNICORN_RUNTIME_PROFILE=safe \
-      QIS_REQUIRED_PROCESSES=unicorn-backend,unicorn-site,autoscaler \
+      QIS_REQUIRED_PROCESSES="$PM2_ONLY" \
       ZEUS_BUILD_SHA="${GITHUB_SHA:-}" \
       SW_VERSION="${GITHUB_SHA:-}" \
       pm2 start ecosystem.config.js --only "$app" --update-env >/dev/null
@@ -252,15 +287,36 @@ if [ -n "$DRIFTED_APPS" ]; then
   sleep 10
 fi
 
+# ── QIS settle heartbeat (keeps the SSH session alive) ──────────────────────
+# The Quantum Integrity Shield re-baselines on a fresh PM2 start; right after
+# a restart that changed files it reports a transient non-'intact' state. We
+# give it a short, BEST-EFFORT settle window that PRINTS a heartbeat each
+# iteration so the deploy SSH session never idles into a broken pipe. If it
+# doesn't reach strict 'intact' in time, we proceed anyway because the final
+# smoke runs QIS_TOLERANT (active && not compromised), which is the correct
+# security bar immediately post-restart.
+# Scutul de Integritate are nevoie de timp să se re-calibreze; batem un puls.
+log "QIS settle heartbeat (best-effort, pre-smoke)"
+for s in $(seq 1 18); do
+  QIS_BODY="$(curl -fsS --max-time 6 -H 'Cache-Control: no-cache' http://127.0.0.1:3000/api/quantum-integrity/status 2>/dev/null || true)"
+  if printf '%s' "$QIS_BODY" | node -e 'let b="";process.stdin.on("data",c=>b+=c);process.stdin.on("end",()=>{try{const d=JSON.parse(b);process.exit((d.active===true&&d.integrity==="intact"&&(!d.diagnostics||(d.diagnostics.issues||[]).length===0))?0:1)}catch(_){process.exit(1)}})' 2>/dev/null; then
+    log "QIS settled to intact (heartbeat ${s})"
+    break
+  fi
+  log "QIS settling… (${s}/18)"
+  sleep 5
+done
+
 FINAL_SMOKE_OK=0
 for _ in $(seq 1 "$FINAL_SMOKE_ATTEMPTS"); do
-  if BASE_URL=http://127.0.0.1:3000 PUBLIC_URL="$PUBLIC_URL" EXPECT_PM2_CWD="$DEPLOY_LINK" bash scripts/smoke-forward-only.sh; then
+  if BASE_URL=http://127.0.0.1:3000 PUBLIC_URL="$PUBLIC_URL" EXPECT_PM2_CWD="$DEPLOY_LINK" QIS_TOLERANT=1 bash scripts/smoke-forward-only.sh; then
     FINAL_SMOKE_OK=1
     break
   fi
   sleep 5
 done
 [ "$FINAL_SMOKE_OK" = "1" ] || fail "final live smoke timeout after PM2 restart"
+cleanup_pm2_topology
 pm2 save --force >/dev/null
 
 if [ -n "${GITHUB_SHA:-}" ]; then

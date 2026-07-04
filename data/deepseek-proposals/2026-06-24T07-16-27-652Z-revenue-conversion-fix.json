@@ -1,0 +1,12 @@
+{
+  "schemaVersion": 1,
+  "createdAt": "2026-06-24T07:16:27.652Z",
+  "status": "pending-review",
+  "objectiveId": "revenue-conversion-fix",
+  "targetPath": "UNICORN_FINAL/backend/modules/checkout-conversion-fix.js",
+  "riskLevel": "medium",
+  "rationale": "Intercept checkout completion responses to log paidEvent, addressing brainstem directive that paidEvents remain zero.",
+  "proposedContent": "// Checkout conversion fix module\n// Ensures paidEvents are recorded when checkout completes\n\nconst { logEvent } = require('./eventLogger');\n\nmodule.exports = function fixCheckoutConversion(req, res, next) {\n  const originalJson = res.json.bind(res);\n  res.json = function (body) {\n    if (res.statusCode === 200 && req.path === '/api/checkout/complete') {\n      logEvent('paidEvent', {\n        userId: req.user?.id || 'anonymous',\n        amount: req.body?.amount || 0,\n        timestamp: new Date().toISOString()\n      });\n    }\n    return originalJson(body);\n  };\n  next();\n};\n",
+  "proposedContentBytes": 580,
+  "note": "Envelope only — code is NOT applied. Human/CI review required before any edit."
+}

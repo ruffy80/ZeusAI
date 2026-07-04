@@ -1,0 +1,12 @@
+{
+  "schemaVersion": 1,
+  "createdAt": "2026-06-24T06:15:04.052Z",
+  "status": "pending-review",
+  "objectiveId": "revenue-conversion-fix",
+  "targetPath": "UNICORN_FINAL/backend/modules/revenue-conversion-fix.js",
+  "riskLevel": "medium",
+  "rationale": "paidEvents remains zero because checkout completion does not trigger revenue event. This middleware intercepts successful checkout responses and records a paid event via revenueAutopilot.",
+  "proposedContent": "// Revenue conversion fix: ensure paidEvents increments on successful checkout\n// This module intercepts checkout completion and triggers revenue event\n\nconst revenueAutopilot = require('./revenue-autopilot');\n\nmodule.exports = function(req, res, next) {\n  const originalJson = res.json.bind(res);\n  res.json = function(body) {\n    if (req.path === '/api/checkout/complete' && res.statusCode === 200) {\n      // Trigger revenue event\n      revenueAutopilot.recordEvent('paid', { amount: body.amount || 0, currency: 'USD' });\n    }\n    return originalJson(body);\n  };\n  next();\n};\n",
+  "proposedContentBytes": 580,
+  "note": "Envelope only — code is NOT applied. Human/CI review required before any edit."
+}

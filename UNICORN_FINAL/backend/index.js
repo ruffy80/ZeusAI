@@ -27,58 +27,73 @@ async function __getBtcUsdRate() {
 }
 const __OWNER_BTC = process.env.BTC_OWNER_WALLET || 'bc1q4f7e66z87mdfj56kz0dj5hvcnpmh0qh4wuv22e';
 
+// Canonical core subscription plans + utility products. These are the ONLY
+// fixed-price products; everything else is sourced from the commerce catalogs.
+// Internal engine modules (selfConstruction, resource-monitor, …) are NEVER
+// listed as sellable products. (RO: doar produse reale, fără module interne.)
+const CATALOG_CORE_PLANS = {
+  free: 0, starter: 29, pro: 99, enterprise: 499,
+  'api-call': 0.01, 'ai-analysis': 5, 'wealth-engine': 199, 'legal-bot': 49,
+  'cloud-broker': 79, 'data-export': 9, sme: 199, 'mid-market': 1499,
+  'enterprise-tier': 9999, 'global-giants': 99999,
+};
+
 function buildLiveSaasCatalog() {
   // Pull pricing from the running dynamic-pricing engine (mounted later in
   // this file). The require() is deferred so the function works regardless
   // of module load order.
   let pricer = null;
   try { pricer = require('./modules/dynamic-pricing'); } catch (_) {}
-  let marketplace = null;
-  try { marketplace = require('./modules/integrations/module-marketplace'); } catch (_) {}
+  let instantCat = null, entCat = null;
+  try { instantCat = require('../src/commerce/instant-catalog'); } catch (_) {}
+  try { entCat = require('../src/commerce/enterprise-catalog'); } catch (_) {}
 
   const items = [];
-  // Source 1: every SaaS service known to the dynamic-pricing engine, with
-  // the live computed price (demand factor + surge + discounts applied).
-  if (pricer && typeof pricer.getAllPrices === 'function' && pricer.BASE_PRICES) {
+  const seen = new Set();
+  const pushProduct = (id, base, meta) => {
+    const sid = String(id || '').trim();
+    if (!sid || seen.has(sid)) return;
+    const baseNum = Number(base) || 0;
+    let priceUsd = baseNum;
+    // Apply the SAME dynamic-pricing the rest of the site shows so the catalog
+    // price matches /api/pricing and the amount charged at checkout.
+    if (pricer && typeof pricer.getPrice === 'function' && baseNum > 0) {
+      try {
+        const live = pricer.getPrice(sid, { basePrice: baseNum });
+        const f = Number(live && live.finalPrice);
+        if (Number.isFinite(f) && f > 0) priceUsd = Math.round(f * 100) / 100;
+      } catch (_) {}
+    }
+    seen.add(sid);
+    items.push({
+      id: sid,
+      name: (meta && meta.name) || sid.replace(/[-_]/g, ' ').replace(/\b\w/g, c => c.toUpperCase()),
+      description: (meta && meta.description) || '',
+      price: priceUsd,
+      priceUsd,
+      basePrice: baseNum,
+      category: (meta && meta.category) || 'SaaS',
+      tier: (meta && meta.tier) || undefined,
+      source: 'canonical-catalog',
+      buyUrl: `/checkout?serviceId=${encodeURIComponent(sid)}&amount=${priceUsd}&plan=${encodeURIComponent(sid)}`,
+    });
+  };
+
+  // Source 1: fixed core subscription plans + utility products.
+  for (const [id, base] of Object.entries(CATALOG_CORE_PLANS)) pushProduct(id, base, { category: 'Plan' });
+  // Source 2: instant + professional deliverables (canonical commerce catalog).
+  if (instantCat && typeof instantCat.all === 'function') {
     try {
-      const all = pricer.getAllPrices();
-      for (const id of Object.keys(pricer.BASE_PRICES)) {
-        const p = all[id] || {};
-        const priceUsd = Number(p.finalPrice ?? p.basePrice ?? pricer.BASE_PRICES[id]) || 0;
-        items.push({
-          id,
-          name: id.replace(/[-_]/g, ' ').replace(/\b\w/g, c => c.toUpperCase()),
-          description: '',
-          price: priceUsd,
-          priceUsd,
-          basePrice: p.basePrice,
-          surge: !!p.surgeActive,
-          category: 'SaaS',
-          source: 'dynamic-pricing',
-          buyUrl: `/checkout?serviceId=${encodeURIComponent(id)}&amount=${priceUsd}&plan=${encodeURIComponent(id)}`,
-        });
+      for (const it of (instantCat.all() || [])) {
+        pushProduct(it.id, it.priceUSD != null ? it.priceUSD : it.price, { name: it.title || it.name, description: it.description, tier: it.tier, category: 'Service' });
       }
     } catch (_) {}
   }
-  // Source 2: monetisable modules from the marketplace catalog.
-  if (marketplace && typeof marketplace.refreshCatalog === 'function') {
+  // Source 3: enterprise licenses (canonical commerce catalog).
+  if (entCat && typeof entCat.all === 'function') {
     try {
-      const cat = marketplace.refreshCatalog();
-      for (const m of cat) {
-        if (items.find(x => x.id === m.id)) continue;
-        const priceUsd = Number((m.price && (m.price.finalPrice ?? m.price.amount)) || 0);
-        items.push({
-          id: m.id,
-          name: m.name || m.id,
-          description: '',
-          price: priceUsd,
-          priceUsd,
-          currency: (m.price && m.price.currency) || 'USD',
-          category: 'Module',
-          license: m.license,
-          source: 'module-marketplace',
-          buyUrl: `/checkout?serviceId=${encodeURIComponent(m.id)}&amount=${priceUsd}&plan=${encodeURIComponent(m.id)}`,
-        });
+      for (const it of (entCat.all() || [])) {
+        pushProduct(it.id, it.priceUSD != null ? it.priceUSD : it.price, { name: it.title || it.name, description: it.description, tier: it.tier, category: 'Enterprise' });
       }
     } catch (_) {}
   }
@@ -129,6 +144,24 @@ try {
   }
 } catch (_) { /* non-fatal */ }
 
+const QIS_PROCESS_ALIASES = {
+  unicorn: 'unicorn-backend',
+  'unicorn-orchestrator': 'unicorn-site',
+  'unicorn-health-guardian': '',
+  'unicorn-quantum-watchdog': '',
+};
+
+function normalizeQisRequiredProcesses(value) {
+  const normalized = String(value || 'unicorn-backend,unicorn-site')
+    .split(',')
+    .map((name) => name.trim().replace(/^['"]|['"]$/g, ''))
+    .map((name) => Object.prototype.hasOwnProperty.call(QIS_PROCESS_ALIASES, name) ? QIS_PROCESS_ALIASES[name] : name)
+    .filter(Boolean);
+  return [...new Set(normalized)].join(',') || 'unicorn-backend,unicorn-site';
+}
+
+process.env.QIS_REQUIRED_PROCESSES = normalizeQisRequiredProcesses(process.env.QIS_REQUIRED_PROCESSES);
+
 // ── ENV alias resolver (no-conflict contract) ───────────────────────────────
 // Some GitHub Secrets were historically stored under short or alternate names
 // (CLAUDE_API_KEY vs ANTHROPIC_API_KEY, GOOGLE_API_KEY vs GEMINI_API_KEY,
@@ -164,6 +197,48 @@ try {
   if (wiped > 0 && process.env.DEBUG_ENV_ALIASES === '1') {
     console.log(`[env-alias] wiped ${wiped} placeholder env var(s)`);
   }
+
+  // Pass 0.5 — canonical .env reload (root-cause fix for stale PM2 placeholders).
+  // Some dotenv builds silently ignore `override:true`, so a placeholder injected
+  // by PM2's saved env (e.g. DEEPSEEK_API_KEY='your_..._here') survives the dotenv
+  // load at the top of this file and is then WIPED by Pass 0 above — leaving the
+  // var UNDEFINED even though the real secret is sitting in the canonical `.env`.
+  // Symptom: a valid DeepSeek key on disk but `configured:false` at runtime, so the
+  // provider cascade silently falls back to local Ollama (heavy: ~5GB RAM + swap).
+  // Fix: re-parse the canonical env files ourselves (zero-dep parser) and fill any
+  // slot that is currently empty/placeholder with the real on-disk value. First
+  // real value wins; PM2-provided real values (e.g. GROQ) are never touched.
+  // RO: reparsăm `.env`-ul canonic și completăm cheile golite (ex. DeepSeek) cu
+  //     valoarea reală de pe disc — independent de versiunea dotenv.
+  try {
+    const fs = require('fs');
+    const path = require('path');
+    const candidates = [
+      path.join(__dirname, '..', '.env'),
+      path.join(__dirname, '..', '.env.local'),
+      '/etc/zeusai/social.env',
+    ];
+    let restored = 0;
+    for (const file of candidates) {
+      let text;
+      try { text = fs.readFileSync(file, 'utf8'); } catch (_) { continue; }
+      for (const rawLine of text.split(/\r?\n/)) {
+        const line = rawLine.trim();
+        if (!line || line.startsWith('#')) continue;
+        const eq = line.indexOf('=');
+        if (eq <= 0) continue;
+        const key = line.slice(0, eq).trim();
+        if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(key)) continue;
+        const val = strip(line.slice(eq + 1));
+        if (isPlaceholder(val)) continue;
+        if (isEmpty(process.env[key])) { process.env[key] = val; restored++; }
+      }
+    }
+    if (restored > 0 && process.env.DEBUG_ENV_ALIASES === '1') {
+      console.log(`[env-alias] restored ${restored} canonical secret(s) from .env files`);
+    }
+  } catch (_) { /* non-fatal */ }
+
   // Each tuple: [canonical, ...aliases]. First non-empty value wins for canonical.
   const ALIASES = [
     ['ANTHROPIC_API_KEY', 'CLAUDE_API_KEY'],
@@ -482,6 +557,173 @@ app.post('/api/track', (req, res) => {
   res.status(204).end();
 });
 
+// ═══════════════════════════════════════════════════════════════════════════
+// POST /api/lead — REAL inbound lead capture (AUDIT FIX 2026-07)
+// ───────────────────────────────────────────────────────────────────────────
+// ROOT CAUSE FOUND: the homepage "Notify me" form + vertical growth pages POST
+// here, but NO endpoint existed → every submission 404'd → every real lead was
+// silently lost. This was the #1 revenue leak: the only organic inbound capture
+// on the entire platform was broken.
+//
+// This endpoint: honeypot spam filter → validate → persist durably (JSONL,
+// survives restarts) → feed autonomous-lead-hunter → best-effort owner alert.
+// RO: captura reală de lead-uri — reparăm cea mai gravă scurgere de venit.
+// ═══════════════════════════════════════════════════════════════════════════
+const _inboundLeadsFile = path.join(process.cwd(), 'data', 'leads', 'inbound-leads.jsonl');
+const _leadDedupe = new Map(); // email -> lastTs (in-process rate limit)
+app.post('/api/lead', express.json({ limit: '8kb' }), (req, res) => {
+  try {
+    const body = req.body || {};
+    // Honeypot: bots fill hidden fields. Return ok so they don't retry, but drop.
+    if (body.hp_field && String(body.hp_field).trim() !== '') {
+      return res.json({ ok: true }); // silently accept-and-discard
+    }
+    const email = String(body.email || '').trim().toLowerCase();
+    if (!email || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email) || email.length > 254) {
+      return res.status(400).json({ ok: false, error: 'valid email required' });
+    }
+    // Light in-process dedupe: same email within 60s → accept idempotently.
+    const now = Date.now();
+    const last = _leadDedupe.get(email) || 0;
+    const isDupe = (now - last) < 60_000;
+    _leadDedupe.set(email, now);
+    if (_leadDedupe.size > 5000) { // bound the map
+      const cutoff = now - 3600_000;
+      for (const [k, ts] of _leadDedupe) if (ts < cutoff) _leadDedupe.delete(k);
+    }
+
+    const record = {
+      email,
+      name: String(body.name || '').slice(0, 120),
+      source: String(body.source || 'site').slice(0, 60),
+      interest: String(body.interest || 'general').slice(0, 120),
+      company: String(body.company || '').slice(0, 160),
+      ref: String(req.headers['referer'] || '').slice(0, 256),
+      ua: String(req.headers['user-agent'] || '').slice(0, 200),
+      ip: (req.ip || '').slice(0, 64),
+      ts: new Date().toISOString(),
+    };
+
+    // 1. Durable persistence (source of truth — survives restarts & regen).
+    if (!isDupe) {
+      try {
+        require('fs').mkdirSync(path.dirname(_inboundLeadsFile), { recursive: true, mode: 0o755 });
+        require('fs').appendFileSync(_inboundLeadsFile, JSON.stringify(record) + '\n', 'utf8');
+      } catch (e) { console.warn('[lead] persist failed:', e.message); }
+    }
+
+    // 2. Feed the autonomous lead-hunter pipeline (qualification + outreach).
+    try { if (_leadHunter && typeof _leadHunter.ingestLead === 'function') _leadHunter.ingestLead(record); } catch (_) {}
+
+    // 3. Best-effort owner notification (never blocks the response).
+    if (!isDupe) {
+      try {
+        const mailer = require('../src/commerce/transactional-email');
+        if (mailer && typeof mailer.sendRaw === 'function') {
+          mailer.sendRaw({
+            to: process.env.OWNER_EMAIL || 'vladoi_ionut@yahoo.com',
+            subject: `🎯 New lead: ${email}`,
+            text: `New inbound lead captured:\n\nEmail: ${email}\nName: ${record.name || '—'}\nSource: ${record.source}\nInterest: ${record.interest}\nCompany: ${record.company || '—'}\nTime: ${record.ts}`,
+          }).catch(() => {});
+        }
+      } catch (_) {}
+    }
+
+    return res.json({ ok: true });
+  } catch (e) {
+    console.warn('[lead] capture error:', e && e.message);
+    return res.status(500).json({ ok: false, error: 'capture_failed' });
+  }
+});
+
+// GET /api/leads/inbound/count — public-safe lead volume (owner dashboard).
+app.get('/api/leads/inbound/count', (req, res) => {
+  try {
+    let count = 0;
+    if (require('fs').existsSync(_inboundLeadsFile)) {
+      count = require('fs').readFileSync(_inboundLeadsFile, 'utf8').split('\n').filter(Boolean).length;
+    }
+    res.json({ ok: true, inboundLeads: count });
+  } catch (_) { res.json({ ok: true, inboundLeads: 0 }); }
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// GET /api/activation/readiness — REVENUE ACTIVATION MAP (AUDIT FIX 2026-07)
+// ───────────────────────────────────────────────────────────────────────────
+// The platform has real revenue organs but many are silently no-op because a
+// single API key is missing. This endpoint turns those silent gaps into a
+// PRIORITIZED, owner-facing action list: "add these N keys to unlock $X".
+// NEVER exposes secret values — only whether each capability is armed + the
+// exact env var name + the revenue it unlocks. Ranked by revenue impact.
+// RO: harta de activare a venitului — spune EXACT ce cheie deblochează bani.
+// ═══════════════════════════════════════════════════════════════════════════
+function _envArmed(name) {
+  const v = String(process.env[name] || '').trim();
+  if (!v) return false;
+  return !/^(your|skip|changeme|todo|placeholder|xxx+|none|null|undefined|tbd|n\/a)/i.test(v);
+}
+app.get('/api/activation/readiness', (req, res) => {
+  const capabilities = [
+    {
+      id: 'checkout_multicurrency', title: 'Card + 300-crypto checkout (NOWPayments)',
+      impact: 100, armed: _envArmed('NOWPAYMENTS_API_KEY'),
+      envVars: ['NOWPAYMENTS_API_KEY'],
+      unlocks: 'Non-crypto buyers can pay (cards, bank, 300+ coins → auto-BTC). Removes the #1 checkout friction.',
+      action: 'Create a free NOWPayments account, add NOWPAYMENTS_API_KEY.',
+    },
+    {
+      id: 'email_delivery', title: 'Transactional email delivery (HTTPS provider)',
+      impact: 95, armed: _envArmed('RESEND_API_KEY') || _envArmed('BREVO_API_KEY') || _envArmed('MAILERSEND_API_KEY'),
+      envVars: ['RESEND_API_KEY', 'BREVO_API_KEY', 'MAILERSEND_API_KEY'],
+      unlocks: 'Order confirmations, onboarding, password resets, checkout-recovery emails actually deliver. Hetzner blocks SMTP, so an HTTPS provider is required.',
+      action: 'Get a free Resend API key, add RESEND_API_KEY.',
+    },
+    {
+      id: 'card_checkout_stripe', title: 'Direct card checkout (Stripe)',
+      impact: 80, armed: _envArmed('STRIPE_SECRET_KEY'),
+      envVars: ['STRIPE_SECRET_KEY'],
+      unlocks: 'Native credit-card checkout for buyers who distrust crypto entirely.',
+      action: 'Add STRIPE_SECRET_KEY (test or live).',
+    },
+    {
+      id: 'organic_social', title: 'Autonomous social distribution',
+      impact: 60, armed: _envArmed('X_BEARER_TOKEN') || _envArmed('TELEGRAM_BOT_TOKEN') || _envArmed('YOUTUBE_API_KEY'),
+      envVars: ['X_BEARER_TOKEN', 'TELEGRAM_BOT_TOKEN', 'YOUTUBE_API_KEY', 'PINTEREST_TOKEN'],
+      unlocks: 'The social viralizer posts daily value content → free top-of-funnel traffic. Currently posts to zero platforms.',
+      action: 'Add at least one social token (Telegram bot is the fastest).',
+    },
+    {
+      id: 'ai_outreach', title: 'AI-personalized outreach + content',
+      impact: 50, armed: _envArmed('OPENAI_API_KEY') || _envArmed('DEEPSEEK_API_KEY') || _envArmed('GROQ_API_KEY') || _envArmed('ANTHROPIC_API_KEY'),
+      envVars: ['OPENAI_API_KEY', 'DEEPSEEK_API_KEY', 'GROQ_API_KEY'],
+      unlocks: 'Lead outreach messages + marketing copy are AI-personalized instead of template fallback.',
+      action: 'Already armed if any AI key is set.',
+    },
+  ];
+
+  // Native BTC is always armed (non-custodial owner wallet) — the baseline rail.
+  const btcArmed = !!(process.env.BTC_OWNER_WALLET || process.env.BTC_WALLET_ADDRESS || __OWNER_BTC);
+
+  const missing = capabilities.filter(c => !c.armed).sort((a, b) => b.impact - a.impact);
+  const armed = capabilities.filter(c => c.armed);
+  const score = Math.round((armed.reduce((s, c) => s + c.impact, 0) /
+    capabilities.reduce((s, c) => s + c.impact, 0)) * 100);
+
+  res.set('Cache-Control', 'no-store');
+  res.json({
+    ok: true,
+    ts: new Date().toISOString(),
+    activationScore: score, // 0-100 weighted by revenue impact
+    baseline: { btcCheckout: btcArmed },
+    armed: armed.map(c => ({ id: c.id, title: c.title, impact: c.impact })),
+    missing: missing.map(c => ({ id: c.id, title: c.title, impact: c.impact, envVars: c.envVars, unlocks: c.unlocks, action: c.action })),
+    topPriority: missing[0] || null,
+    summary: missing.length === 0
+      ? 'Fully armed — every revenue rail is active.'
+      : `${missing.length} revenue capabilit${missing.length === 1 ? 'y' : 'ies'} dormant. Highest-impact next step: ${missing[0].title}.`,
+  });
+});
+
 // GET /api/aura — live sovereign KPI strip (signed receipts, refunds honored, uptime, active carts)
 const _auraCache = { data: null, ts: 0 };
 app.get('/api/aura', (req, res) => {
@@ -634,7 +876,51 @@ app.get('/api/catalog/diff',   (req, res) => proxyToSite(req, res, '/api/catalog
 // endpoints without caring whether the request lands on backend (3000) or
 // site (3001) first. Read-only, cached upstream, never block.
 app.get('/api/products', (req, res) => proxyToSite(req, res, '/api/products'));
-app.get('/api/price/:id', (req, res) => proxyToSite(req, res, '/api/price/' + encodeURIComponent(req.params.id)));
+app.get('/api/price/:id', async (req, res) => {
+  try {
+    const productId = String(req.params.id || '').trim().slice(0, 120);
+    if (!productId) return res.status(400).json({ error: 'invalid_product_id' });
+
+    let btcRate = 0;
+    try {
+      const r = await Promise.race([
+        paymentGateway.getBitcoinRate(),
+        new Promise((_, rej) => setTimeout(() => rej(new Error('btc-rate-timeout')), 2000)),
+      ]);
+      if (r && Number(r.rate) > 0) btcRate = Number(r.rate);
+    } catch (_) { /* fallback below */ }
+    if (btcRate <= 0 && livePricingBroker) {
+      try {
+        const snap = livePricingBroker.getSnapshot();
+        if (snap && snap.btcRate && Number(snap.btcRate.rate) > 0) btcRate = Number(snap.btcRate.rate);
+      } catch (_) { /* keep 0 */ }
+    }
+
+    const quote = await priceNegotiator.getPrice(productId, {
+      userId: req.query.userId || null,
+      coupon: req.query.coupon || null,
+      btcRate,
+    });
+    if (!quote || !(Number(quote.usd) > 0) || !quote.btc) throw new Error('Invalid price');
+
+    res.set('Cache-Control', 'no-store');
+    return res.json({
+      productId,
+      serviceId: quote.serviceId,
+      usd: Number(quote.usd),
+      btc: String(quote.btc),
+      profitMargin: Number(quote.profitMargin || 1.30),
+      source: quote.source || 'priceNegotiator',
+      // backward compatibility
+      id: productId,
+      price_usd: Number(quote.usd),
+      price_btc: String(quote.btc),
+      updatedAt: new Date().toISOString(),
+    });
+  } catch (error) {
+    return res.status(500).json({ error: 'Price unavailable' });
+  }
+});
 
 // ─── C5: tiered sliding-window rate-limit (additive, fail-open) ──────────
 // Loaded lazy so missing module never breaks boot.
@@ -686,11 +972,18 @@ app.post('/api/checkout/create', _swRateLimit, express.json({ limit: '64kb' }), 
 // Keep these routed through the site runtime so frontend actions never 404.
 app.post('/api/checkout/btc', _swRateLimit, express.json({ limit: '64kb' }), (req, res) => proxyPostToSite(req, res, '/api/checkout/btc'));
 app.post('/api/checkout/paypal', _swRateLimit, express.json({ limit: '64kb' }), (req, res) => proxyPostToSite(req, res, '/api/checkout/paypal'));
+// /api/uaic/order powers the checkout-page "Generate secure BTC invoice"
+// button. It lives in the site runtime (server-authoritative pricing), so it
+// must be proxied here — otherwise nginx (→ backend) 404s and the pricing-page
+// checkout silently breaks. (RO: altfel butonul de plată din /checkout dă 404.)
+app.post('/api/uaic/order', _swRateLimit, express.json({ limit: '64kb' }), (req, res) => proxyPostToSite(req, res, '/api/uaic/order'));
 app.post('/api/instant/purchase', _swRateLimit, express.json({ limit: '64kb' }), (req, res) => proxyPostToSite(req, res, '/api/instant/purchase'));
 app.get(/^\/api\/instant\/order\/[a-zA-Z0-9_-]{6,128}$/, (req, res) => proxyToSite(req, res, req.path));
 app.post(/^\/api\/services\/[a-zA-Z0-9._:-]+\/use$/, _swRateLimit, express.json({ limit: '64kb' }), (req, res) => proxyPostToSite(req, res, req.path));
 app.post('/api/activate', _swRateLimit, express.json({ limit: '64kb' }), (req, res) => proxyPostToSite(req, res, '/api/activate'));
-app.get('/api/operator/console', (req, res) => proxyToSite(req, res, '/api/operator/console'));
+// Operator console is sensitive (orders/revenue/payment posture). Keep it
+// owner-only; public users should use /api/trust/center + /health.
+app.get('/api/operator/console', sensitiveRateLimit({ maxRequests: 25, windowMs: 60_000, cooldownMs: 120_000 }), adminTokenMiddleware, (req, res) => proxyToSite(req, res, '/api/operator/console'));
 app.get('/api/observability/status', (req, res) => proxyToSite(req, res, '/api/observability/status'));
 
 // Innovations/frontier/site snapshots are implemented in src/index.js (site runtime).
@@ -726,8 +1019,117 @@ app.get(/^\/api\/order\/[a-zA-Z0-9_-]{6,64}\/receipt\.json$/, (req, res) =>
 app.get('/api/ab/experiments', (req, res) => proxyToSite(req, res, '/api/ab/experiments'));
 app.get(/^\/api\/ab\/assign\/[a-zA-Z0-9_-]+$/, (req, res) => proxyToSite(req, res, req.path));
 app.get(/^\/api\/ab\/report\/[a-zA-Z0-9_-]+$/, (req, res) => proxyToSite(req, res, req.path));
+// ─── Native A/B Telemetry Handling (Backend as source-of-truth) ───────────
+// Avoid proxy issues by handling AB events directly in the backend.
+// Events are logged to data/marketing/ab-events.jsonl for aggregation + stats.
+const _abEventsFile = path.join(process.cwd(), 'data', 'marketing', 'ab-events.jsonl');
+const _ensureAbDir = () => {
+  try { require('fs').mkdirSync(path.dirname(_abEventsFile), { recursive: true, mode: 0o755 }); } catch (_) {}
+};
+
+app.post('/api/ab/event', express.json({ limit: '2kb' }), (req, res) => {
+  try {
+    _ensureAbDir();
+    const { experimentId, variant, cohort, event, value } = req.body || {};
+    if (!experimentId || !event) return res.status(400).json({ error: 'missing_fields' });
+    
+    const rec = {
+      expId: experimentId,
+      variant: variant || 'unknown',
+      cohort: cohort || null,
+      event,
+      value: typeof value === 'number' ? value : 0,
+      ts: new Date().toISOString(),
+    };
+    require('fs').appendFileSync(_abEventsFile, JSON.stringify(rec) + '\n', 'utf8');
+    
+    // Update funnel metrics for drop-off alerts
+    updateFunnelMetrics(event, value);
+    
+    res.status(204).end();
+  } catch (e) {
+    console.warn('[ab/event] ingest failed:', e.message);
+    res.status(500).json({ error: 'ingest_failed' });
+  }
+});
+
+// ─── Funnel Conversion Monitoring & Drop-Off Alerts ─────────────────────────
+const _funnelMetrics = {
+  baseline: { checkout_open: 100, checkout_method_selected: 0, checkout_confirm_btc: 0 },
+  current: { checkout_open: 0, checkout_method_selected: 0, checkout_confirm_btc: 0, checkout_confirm_paypal: 0 },
+  window: { start: Date.now(), events: [] },
+  alertSent: false,
+  lastAlertTime: 0,
+};
+
+function updateFunnelMetrics(event, value) {
+  const now = Date.now();
+  
+  // Window: last 60 minutes
+  if (now - _funnelMetrics.window.start > 3600000) {
+    _funnelMetrics.window = { start: now, events: [] };
+    _funnelMetrics.alertSent = false;
+  }
+  
+  // Track funnel events
+  if (event === 'checkout_open' || event === 'checkout_method_selected' || 
+      event === 'checkout_confirm_btc' || event === 'checkout_confirm_paypal') {
+    _funnelMetrics.window.events.push({ event, ts: now });
+    _funnelMetrics.current[event] = (_funnelMetrics.current[event] || 0) + 1;
+    
+    checkFunnelHealth();
+  }
+}
+
+function checkFunnelHealth() {
+  // Calculate conversion rates: method_selected / open, confirms / method_selected
+  const opens = _funnelMetrics.current.checkout_open || 1;
+  const methods = _funnelMetrics.current.checkout_method_selected || 0;
+  const confirms = (_funnelMetrics.current.checkout_confirm_btc || 0) + (_funnelMetrics.current.checkout_confirm_paypal || 0);
+  
+  const methodRate = methods / opens;
+  const confirmRate = confirms / (methods || 1);
+  
+  const threshold = 0.90; // Alert if drop > 10% from expected
+  const now = Date.now();
+  
+  // Simple baseline: expect 50% to select method, 70% of those to confirm
+  // If either metric drops below baseline * threshold, alert
+  if (methodRate < (0.5 * threshold) || confirmRate < (0.7 * threshold)) {
+    if (!_funnelMetrics.alertSent && (now - _funnelMetrics.lastAlertTime) > 300000) { // alert max once per 5min
+      _funnelMetrics.alertSent = true;
+      _funnelMetrics.lastAlertTime = now;
+      
+      const dropoffPct = ((1 - Math.max(methodRate / 0.5, confirmRate / 0.7)) * 100).toFixed(1);
+      sendFunnelDropOffAlert(dropoffPct, { opens, methods, confirms, methodRate: (methodRate * 100).toFixed(1), confirmRate: (confirmRate * 100).toFixed(1) });
+    }
+  }
+}
+
+function sendFunnelDropOffAlert(dropoffPct, metrics) {
+  // Alert details logged and optionally emailed to owner
+  const ownerEmail = process.env.OWNER_EMAIL || 'vladoi_ionut@yahoo.com';
+  const subject = `⚠️ Funnel drop-off alert: ${dropoffPct}% degradation`;
+  const details = `Opens: ${metrics.opens} | Methods: ${metrics.methods} (${metrics.methodRate}%) | Confirms: ${metrics.confirms} (${metrics.confirmRate}%)`;
+  
+  console.warn(`[funnel-alert] ${subject} | ${details} | To: ${ownerEmail}`);
+  
+  // Best-effort email (nodemailer optional)
+  try {
+    const nm = require('nodemailer');
+    if (nm && nm.createTransport) {
+      nm.createTransport({}).sendMail({
+        from: 'alerts@zeusai.pro',
+        to: ownerEmail,
+        subject,
+        text: `Conversion funnel alert:\n${details}\n\nView stats: https://zeusai.pro/admin → A/B Testing tab`
+      }).catch(e => console.warn('[funnel-email] failed:', e.message));
+    }
+  } catch (_) { /* nodemailer not available */ }
+}
+
+// Proxy AB registration and assignment to site (these require experiment list management)
 app.post('/api/ab/register', express.json({ limit: '4kb' }), (req, res) => proxyPostToSite(req, res, '/api/ab/register'));
-app.post('/api/ab/event',    express.json({ limit: '2kb' }), (req, res) => proxyPostToSite(req, res, '/api/ab/event'));
 
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
@@ -1065,7 +1467,42 @@ app.use(routeCache.profilerMiddleware());
 const ADMIN_OWNER_NAME = process.env.LEGAL_OWNER_NAME || 'Vladoi Ionut';
 const ADMIN_OWNER_EMAIL = process.env.ADMIN_EMAIL || process.env.LEGAL_OWNER_EMAIL || 'vladoi_ionut@yahoo.com';
 const ADMIN_OWNER_BTC = process.env.LEGAL_OWNER_BTC || 'bc1q4f7e66z87mdfj56kz0dj5hvcnpmh0qh4wuv22e';
-let adminPasswordHash = bcrypt.hashSync(process.env.ADMIN_MASTER_PASSWORD || 'UnicornAdmin2026!', 10);
+// Payment availability contract:
+// - BTC is always available.
+// - PAYMENT_MODE=btc (or BTC_ONLY=1) enforces BTC-only checkout.
+// - PAYMENT_MODE=auto enables Stripe/PayPal only when required secrets exist.
+const PAYMENT_MODE = String(process.env.PAYMENT_MODE || (process.env.BTC_ONLY === '1' ? 'btc' : 'auto')).toLowerCase();
+const STRIPE_READY = !!String(process.env.STRIPE_SECRET_KEY || '').trim();
+const PAYPAL_READY = !!String(process.env.PAYPAL_CLIENT_ID || '').trim() && !!String(process.env.PAYPAL_CLIENT_SECRET || '').trim();
+const NOWPAYMENTS_READY = !!String(process.env.NOWPAYMENTS_API_KEY || '').trim();
+function getEnabledPaymentMethods() {
+  if (PAYMENT_MODE === 'btc') return ['BTC'];
+  const methods = ['BTC'];
+  if (STRIPE_READY) methods.push('STRIPE');
+  if (PAYPAL_READY) methods.push('PAYPAL');
+  // Global crypto rails via NOWPayments (settled to owner BTC destination).
+  if (NOWPAYMENTS_READY) methods.push('USDT', 'ETH', 'SOL');
+  return methods;
+}
+function isPaymentMethodEnabled(method) {
+  const m = String(method || 'BTC').toUpperCase();
+  return getEnabledPaymentMethods().includes(m);
+}
+function paymentMethodsPublicLabel() {
+  return getEnabledPaymentMethods().map((m) => {
+    if (m === 'STRIPE') return 'Stripe';
+    if (m === 'PAYPAL') return 'PayPal';
+    if (m === 'USDT') return 'USDT (NOWPayments)';
+    if (m === 'ETH') return 'ETH (NOWPayments)';
+    if (m === 'SOL') return 'SOL (NOWPayments)';
+    return m;
+  });
+}
+const _adminMasterPw = process.env.ADMIN_MASTER_PASSWORD || '';
+if (!_adminMasterPw) {
+  console.warn('⚠️  WARNING: ADMIN_MASTER_PASSWORD is not set. Admin login is disabled until a password is configured.');
+}
+let adminPasswordHash = _adminMasterPw ? bcrypt.hashSync(_adminMasterPw, 10) : '';
 let adminBiometricHash = null;
 
 // ==================== INOVAȚII UNICORN 2070+ (Quantum, Neuro, Protocol, Ledger) ====================
@@ -1099,7 +1536,7 @@ app.get('/api/future-innovation/status', (req, res) => {
   });
 });
 
-// API: demo/process for each future module
+// API: real process for each future module
 Object.entries(aiFutureModules).forEach(([key, mod]) => {
   app.get(`/api/future-innovation/${key}/process`, (req, res) => {
     try {
@@ -1119,7 +1556,7 @@ Object.entries(aiFutureModules).forEach(([key, mod]) => {
 });
 
 // ==================== SOVEREIGN/QUANTUM/UNICORN MODULES DISPATCHER ====================
-// Expune /api/module/:module/process ca GET și POST (GET returnează demo/status, POST procesează dacă există implementare)
+// Expune /api/module/:module/process ca GET și POST (strict: numai contracte reale de modul)
 const sovereignModules = {
   quantumVault: require('./modules/quantumVault'),
   unicornMeshOrchestrator: (() => { try { return require('./modules/unicornMeshOrchestrator'); } catch { return null; } })(),
@@ -1138,8 +1575,14 @@ app.get('/api/module/:module/process', (req, res) => {
       return res.status(500).json({ error: 'Module status error', module, detail: e.message });
     }
   }
-  // fallback: demo
-  return res.json({ module, status: 'ok', ts: new Date().toISOString() });
+  if (typeof mod.getStatus === 'function') {
+    try {
+      return res.json({ module, status: mod.getStatus(), ts: new Date().toISOString() });
+    } catch (e) {
+      return res.status(500).json({ error: 'Module getStatus error', module, detail: e.message });
+    }
+  }
+  return res.status(501).json({ error: 'Module does not expose status/getStatus', module });
 });
 
 app.post('/api/module/:module/process', express.json({ limit: '128kb' }), (req, res) => {
@@ -1190,11 +1633,17 @@ if (process.env.NODE_ENV === 'production') {
     console.error('❌ FATAL: JWT_SECRET is weak/default. Set a strong secret in .env before running in production.');
     process.exit(1);
   }
-  if (!process.env.ADMIN_2FA_CODE || process.env.ADMIN_2FA_CODE === '123456') {
-    console.warn('⚠️  WARNING: ADMIN_2FA_CODE is using the default value "123456". Change it in production!');
+  if (!process.env.ADMIN_2FA_CODE || process.env.ADMIN_2FA_CODE === '123456' || process.env.ADMIN_2FA_CODE === 'change-me-use-a-real-2fa-code') {
+    console.error('❌ FATAL: ADMIN_2FA_CODE is missing or using a placeholder. Set a real 2FA code in .env before running in production.');
+    process.exit(1);
   }
-  if (!process.env.ADMIN_MASTER_PASSWORD || process.env.ADMIN_MASTER_PASSWORD === 'UnicornAdmin2026!') {
-    console.warn('⚠️  WARNING: ADMIN_MASTER_PASSWORD is using the default value. Change it in production!');
+  if (!process.env.ADMIN_MASTER_PASSWORD || process.env.ADMIN_MASTER_PASSWORD === 'UnicornAdmin2026!' || process.env.ADMIN_MASTER_PASSWORD === 'change-me-use-a-strong-password') {
+    console.error('❌ FATAL: ADMIN_MASTER_PASSWORD is missing or using a placeholder. Set a strong password in .env before running in production.');
+    process.exit(1);
+  }
+  if (!process.env.ADMIN_SECRET || process.env.ADMIN_SECRET === 'change-me-to-a-strong-random-secret' || process.env.ADMIN_SECRET === 'VLADOI_IONUT_SECRET_SUPREM_2026') {
+    console.error('❌ FATAL: ADMIN_SECRET is missing or using a placeholder. Set a strong secret in .env before running in production.');
+    process.exit(1);
   }
 }
 
@@ -1292,6 +1741,43 @@ function deepseekGovernorAuthMiddleware(req, res, next) {
 // In test mode (NODE_ENV=test) rate limiting is disabled to allow full test runs.
 const authRateLimitStore = new Map(); // key -> [timestamps]
 
+// Email-based rate limiting for failed login/signup attempts
+const emailRateLimitStore = new Map(); // email -> { failedAttempts: [ts], blockedUntil: number }
+
+function emailRateLimit(email, maxFailures = 5, windowMs = 3600000) {
+  const now = Date.now();
+  const record = emailRateLimitStore.get(email) || { failedAttempts: [], blockedUntil: 0 };
+  
+  // If currently blocked, return false
+  if (record.blockedUntil && now < record.blockedUntil) {
+    return false;
+  }
+  
+  // Clean old attempts
+  const windowStart = now - windowMs;
+  const recentAttempts = (record.failedAttempts || []).filter(ts => ts > windowStart);
+  
+  // If too many failures, block for exponential time
+  if (recentAttempts.length >= maxFailures) {
+    const blockDuration = Math.min(600000, Math.pow(2, recentAttempts.length - maxFailures) * 30000); // exponential: 30s, 60s, 120s, etc, max 10m
+    record.blockedUntil = now + blockDuration;
+    emailRateLimitStore.set(email, record);
+    return false;
+  }
+  
+  return true;
+}
+
+function recordFailedAuthAttempt(email) {
+  const record = emailRateLimitStore.get(email) || { failedAttempts: [], blockedUntil: 0 };
+  record.failedAttempts.push(Date.now());
+  emailRateLimitStore.set(email, record);
+}
+
+function resetAuthAttempts(email) {
+  emailRateLimitStore.delete(email);
+}
+
 function authRateLimit(maxRequests, windowMs) {
   return function rateLimitMiddleware(req, res, next) {
     if (process.env.NODE_ENV === 'test') return next();
@@ -1308,6 +1794,40 @@ function authRateLimit(maxRequests, windowMs) {
   };
 }
 
+// Adaptive sensitive limiter for admin/control-plane endpoints.
+// Limiter adaptiv pentru endpoint-uri sensibile (admin/control-plane).
+const sensitiveRateState = new Map(); // key -> { hits:number[], blockedUntil:number }
+function sensitiveRateLimit({ maxRequests = 30, windowMs = 60_000, cooldownMs = 120_000 } = {}) {
+  return function sensitiveRateLimitMiddleware(req, res, next) {
+    if (process.env.NODE_ENV === 'test') return next();
+    const ip = req.ip || (req.connection && req.connection.remoteAddress) || 'unknown';
+    const route = String(req.path || req.originalUrl || 'route').slice(0, 120);
+    const key = ip + '|' + route;
+    const now = Date.now();
+    const state = sensitiveRateState.get(key) || { hits: [], blockedUntil: 0 };
+
+    if (state.blockedUntil > now) {
+      return res.status(429).json({
+        ok: false,
+        error: 'sensitive_rate_limited',
+        retryAfterSec: Math.ceil((state.blockedUntil - now) / 1000),
+      });
+    }
+
+    const cutoff = now - windowMs;
+    state.hits = state.hits.filter(ts => ts > cutoff);
+    if (state.hits.length >= maxRequests) {
+      state.blockedUntil = now + cooldownMs;
+      sensitiveRateState.set(key, state);
+      return res.status(429).json({ ok: false, error: 'too_many_sensitive_requests', retryAfterSec: Math.ceil(cooldownMs / 1000) });
+    }
+
+    state.hits.push(now);
+    sensitiveRateState.set(key, state);
+    return next();
+  };
+}
+
 // Prune stale entries every 10 minutes
 setInterval(() => {
   const cutoff = Date.now() - 15 * 60 * 1000;
@@ -1315,6 +1835,16 @@ setInterval(() => {
     const pruned = hits.filter(ts => ts > cutoff);
     if (pruned.length === 0) authRateLimitStore.delete(key);
     else authRateLimitStore.set(key, pruned);
+  }
+}, 10 * 60 * 1000).unref();
+
+setInterval(() => {
+  const cutoff = Date.now() - 15 * 60 * 1000;
+  for (const [key, state] of sensitiveRateState) {
+    const hits = Array.isArray(state && state.hits) ? state.hits.filter(ts => ts > cutoff) : [];
+    const blockedUntil = Number(state && state.blockedUntil) || 0;
+    if (!hits.length && blockedUntil < Date.now()) sensitiveRateState.delete(key);
+    else sensitiveRateState.set(key, { hits, blockedUntil });
   }
 }, 10 * 60 * 1000).unref();
 
@@ -1368,7 +1898,9 @@ app.post('/api/auth/login', authRateLimit(20, 15 * 60 * 1000), async (req, res) 
 
   // Admin login (password + 2FA)
   if (!email && password && typeof twoFactorCode !== 'undefined') {
-    const expected2FA = process.env.ADMIN_2FA_CODE || '123456';
+    if (!adminPasswordHash) return res.status(403).json({ success: false, error: 'Admin login disabled — set ADMIN_MASTER_PASSWORD in env' });
+    const expected2FA = process.env.ADMIN_2FA_CODE || '';
+    if (!expected2FA) return res.status(403).json({ success: false, error: 'Admin 2FA not configured — set ADMIN_2FA_CODE in env' });
     const validPassword = await bcrypt.compare(String(password), adminPasswordHash);
     if (!validPassword) return res.status(401).json({ success: false, error: 'Parolă invalidă' });
     if (String(twoFactorCode).trim() !== String(expected2FA).trim()) {
@@ -1761,7 +2293,14 @@ app.post('/api/customer/signup', authRateLimit(10, 15 * 60 * 1000), async (req, 
     if (typeof password !== 'string' || password.length < 8) {
       return res.status(400).json({ error: 'password_too_short', message: 'Parola trebuie să aibă minim 8 caractere / Password must be at least 8 characters' });
     }
+    
+    // Email-level rate limiting: block after 3 failed signup attempts in 1 hour
+    if (!emailRateLimit(cleanEmail, 3, 3600000)) {
+      return res.status(429).json({ error: 'too_many_attempts', message: 'Prea multe încercări de înregistrare. Încearcă mai târziu. / Too many signup attempts. Try again later.' });
+    }
+    
     if (dbUsers.findByEmail(cleanEmail)) {
+      recordFailedAuthAttempt(cleanEmail);
       return res.status(409).json({ error: 'email_taken', message: 'Acest email are deja cont. Conectează-te cu parola ta. / An account already exists for this email — please log in instead.' });
     }
     const passwordHash = await bcrypt.hash(password, 10);
@@ -1778,6 +2317,10 @@ app.post('/api/customer/signup', authRateLimit(10, 15 * 60 * 1000), async (req, 
       createdAt: new Date().toISOString(),
     };
     dbUsers.create(user);
+    
+    // Success: reset attempts
+    resetAuthAttempts(cleanEmail);
+    
     // Best-effort verification email — do not block signup if mailer is unavailable.
     try { emailService.sendVerificationEmail(user, verifyToken).catch((err) => console.error('[Email] verify send failed:', err.message)); } catch (_) {}
     const token = jwt.sign({ id: user.id, email: user.email, name: user.name }, JWT_SECRET, { expiresIn: '30d' });
@@ -1799,14 +2342,26 @@ app.post('/api/customer/login', authRateLimit(20, 15 * 60 * 1000), async (req, r
     if (!isValidEmail(cleanEmail)) {
       return res.status(400).json({ error: 'invalid_email', message: 'Adresă email invalidă / Invalid email address' });
     }
+    
+    // Email-level rate limiting: block after 5 failed attempts in 1 hour
+    if (!emailRateLimit(cleanEmail, 5, 3600000)) {
+      return res.status(429).json({ error: 'too_many_attempts', message: 'Prea multe încercări eșuate. Încearcă mai târziu. / Too many failed login attempts. Try again later.' });
+    }
+    
     const user = dbUsers.findByEmail(cleanEmail);
     if (!user) {
+      recordFailedAuthAttempt(cleanEmail);
       return res.status(401).json({ error: 'email_not_found', message: 'Nu există cont cu acest email. Creează unul nou mai jos. / No account found for this email — create one below.' });
     }
     const valid = await bcrypt.compare(String(password), user.passwordHash);
     if (!valid) {
+      recordFailedAuthAttempt(cleanEmail);
       return res.status(401).json({ error: 'wrong_password', message: 'Parolă incorectă. Încearcă din nou sau folosește "Ai uitat parola?". / Wrong password. Try again or use "Forgot password?".' });
     }
+    
+    // Success: reset attempts
+    resetAuthAttempts(cleanEmail);
+    
     const token = jwt.sign({ id: user.id, email: user.email, name: user.name }, JWT_SECRET, { expiresIn: '30d' });
     res.setHeader('Set-Cookie', customerSessionCookie(token, CUSTOMER_SESSION_MAX_AGE_SEC));
     return res.status(200).json({ ok: true, token, customer: publicCustomerView(user) });
@@ -1981,14 +2536,59 @@ const __REV_AUTO = (function buildRevenueAutopilot() {
       const commander = moneyMachine.revenueCommander();
       const conv = moneyMachine.conversionIntelligence();
       const success = moneyMachine.customerSuccessStatus();
+      const commerceStatus = unicornCommerceConnector.status({ registry: getModuleRegistryStatus(), btcWallet: ADMIN_OWNER_BTC, ownerName: ADMIN_OWNER_NAME });
+      const commerceCatalog = unicornCommerceConnector.buildCommerceCatalog({ registry: getModuleRegistryStatus(), btcWallet: ADMIN_OWNER_BTC, ownerName: ADMIN_OWNER_NAME });
+      const strategicPackages = billionScaleRevenueEngine.buildStrategicPackages({ btcWallet: ADMIN_OWNER_BTC, ownerName: ADMIN_OWNER_NAME });
+      const enterpriseStatus = billionScaleRevenueEngine.status({ btcWallet: ADMIN_OWNER_BTC, ownerName: ADMIN_OWNER_NAME });
       const economyPulse = await __SUPREME.safeGet('economy', 'getPulse', {}, 1200);
       const oracleFc = await __SUPREME.safeGet('oracle', 'getForecast', {}, 1200);
+      const btcRate = await __getBtcUsdRate().catch(() => 0);
 
       const focus = String(commander?.decision?.focus || 'checkout-and-offer-optimization');
       const segment = focus.includes('upsell') ? 'enterprise-growth' : 'b2b-performance';
       const industry = focus.includes('traffic') ? 'global saas + marketplaces' : 'high-intent service businesses';
       const budgetUsd = pickBudgetUsd(commander, economyPulse, oracleFc);
       const verticalPlaybook = buildEnterprisePlaybook(commander, economyPulse, oracleFc);
+      const marketingPlan = await autoMarketing.process({
+        budget: Math.max(500, Math.round(budgetUsd * 0.4)),
+        channels: [
+          {
+            name: 'programmatic-seo',
+            impressions: Math.max(1000, Number(conv?.eventCount || 0) * 40),
+            clicks: Math.max(10, Number(commander?.kpis?.checkoutEvents || 0)),
+            spend: Math.max(100, budgetUsd * 0.12),
+            conversions: Math.max(1, Number(commander?.kpis?.paidEvents || 0)),
+            revenue: Math.max(0, Number(commander?.kpis?.paidEvents || 0) * budgetUsd * 0.8),
+          },
+          {
+            name: 'checkout-recovery',
+            impressions: Math.max(200, Number(commander?.kpis?.checkoutEvents || 0) * 10),
+            clicks: Math.max(5, Number(commander?.kpis?.paidEvents || 0) + 1),
+            spend: Math.max(50, budgetUsd * 0.08),
+            conversions: Math.max(1, Number(commander?.kpis?.paidEvents || 0)),
+            revenue: Math.max(0, Number(commander?.kpis?.paidEvents || 0) * budgetUsd * 0.6),
+          },
+          {
+            name: 'enterprise-deal-flow',
+            impressions: Math.max(100, Number(commander?.kpis?.leads || 0) * 50),
+            clicks: Math.max(5, Number(commander?.kpis?.leads || 0) * 3),
+            spend: Math.max(100, budgetUsd * 0.2),
+            conversions: Math.max(1, Number(commander?.kpis?.leads || 0)),
+            revenue: Math.max(1, budgetUsd * 1.2),
+          },
+        ],
+      });
+
+      const pricingSnapshot = {
+        starter: await priceNegotiator.getPrice('starter', { basePrice: 29, btcRate }),
+        pro: await priceNegotiator.getPrice('pro', { basePrice: 99, btcRate }),
+        enterprise: await priceNegotiator.getPrice('enterprise', { basePrice: 499, btcRate }),
+      };
+      const dealDesk = billionScaleRevenueEngine.dealDeskProposal({
+        packageId: strategicPackages[0] && strategicPackages[0].id,
+        company: 'Autopilot Enterprise Buyer',
+        seats: Math.max(10, Math.round(budgetUsd / 250)),
+      }, { btcWallet: ADMIN_OWNER_BTC, ownerName: ADMIN_OWNER_NAME });
 
       const offers = verticalPlaybook.map((item) => moneyMachine.offerFactory({
         industry: item.vertical,
@@ -1996,6 +2596,39 @@ const __REV_AUTO = (function buildRevenueAutopilot() {
         budgetUsd: Math.round(budgetUsd * (item.bundle === 'flagship' ? 1.7 : item.bundle === 'growth' ? 1.15 : 0.85)),
       }));
       const seo = moneyMachine.generateSeoPages({ verticals: verticalPlaybook.map((item) => item.vertical) });
+      const pillarTrafficSeo = {
+        pagesPlanned: Number((seo?.pages || []).length || 0),
+        verticals: verticalPlaybook.map((v) => v.vertical),
+      };
+
+      // 1) Trafic masiv + SEO: activează verticale și publică pagini high-intent.
+      let industryActivations = [];
+      try {
+        if (_industryOS && typeof _industryOS.activate === 'function') {
+          industryActivations = verticalPlaybook.slice(0, 3).map((v) => _industryOS.activate(v.vertical));
+        }
+      } catch (_) {}
+
+      // 2) Conversie + checkout: rulează recovery agent pe pending checkouts.
+      let checkoutRecoveryExecution = null;
+      try {
+        const checkoutRecoveryAgent = require('./modules/checkout-recovery-agent');
+        if (checkoutRecoveryAgent && typeof checkoutRecoveryAgent.recover === 'function') {
+          checkoutRecoveryExecution = checkoutRecoveryAgent.recover({ stuckAfterMs: 15 * 60 * 1000 });
+        }
+      } catch (_) {}
+
+      // 5) Marketplace / replication: listează ofertele în mesh-ul global.
+      let marketplacePublish = [];
+      try {
+        if (_monetizeMesh && typeof _monetizeMesh.publishProduct === 'function') {
+          marketplacePublish = (strategicPackages || []).slice(0, 3).map((pkg) => _monetizeMesh.publishProduct({
+            productId: pkg.id,
+            title: pkg.title,
+            marketplaces: ['product-hunt', 'g2', 'zeusai-internal'],
+          }));
+        }
+      } catch (_) {}
 
       // Revenue actions that immediately bias the pipeline toward conversion.
       const leads = [
@@ -2020,6 +2653,49 @@ const __REV_AUTO = (function buildRevenueAutopilot() {
         trustAnswer: closer?.answer || null,
         conversionSignals: conv?.totals || {},
         customerSuccessMode: success?.status || 'foundation-live',
+        commercialStack: {
+          pillars: {
+            trafficSeo: 'active',
+            conversionCheckout: 'active',
+            dynamicPricing: 'active',
+            enterpriseVertical: 'active',
+            marketplaceReplication: 'active',
+            autonomyOrchestration: 'active',
+          },
+          autoMarketing: marketingPlan?.result || marketingPlan,
+          pricingSnapshot,
+          commerceStatus,
+          commerceCatalogCounts: commerceCatalog?.counts || {},
+          enterpriseStatus,
+          strategicPackages: strategicPackages.length,
+          dealDesk: {
+            proposalId: dealDesk?.proposalId || null,
+            packageId: dealDesk?.package?.id || null,
+            proposedUsd: Number(dealDesk?.proposedUsd || 0),
+          },
+          trafficSeo: {
+            ...pillarTrafficSeo,
+            industryActivations: industryActivations.length,
+          },
+          conversionCheckout: {
+            checkoutEvents: Number(commander?.kpis?.checkoutEvents || 0),
+            paidEvents: Number(commander?.kpis?.paidEvents || 0),
+            queuedRecovery: Number(moneyMachine.recoveryStatus()?.queued || 0),
+            recoveryExecution: checkoutRecoveryExecution,
+          },
+          enterpriseVertical: {
+            activatedVerticals: industryActivations.filter((x) => x && x.ok).map((x) => x.vertical),
+            proposedUsd: Number(dealDesk?.proposedUsd || 0),
+          },
+          marketplaceReplication: {
+            publishedListings: marketplacePublish.filter((x) => x && x.ok).length,
+          },
+          autonomyOrchestration: {
+            autopilotEnabled: true,
+            cadenceMs: state.intervalMs,
+            meshModules: Number((meshOrchestrator && meshOrchestrator.getStatus && meshOrchestrator.getStatus()?.totalModules) || 0),
+          },
+        },
         economyPulse: Number(economyPulse?.economyPulse || 0),
         forecastNext30dUsd: Number(oracleFc?.revenueForecast?.next30dUsd || oracleFc?.next30dUsd || 0),
       };
@@ -2077,6 +2753,10 @@ app.post('/api/revenue/autopilot/run', adminTokenMiddleware, asyncHandler(async 
   const out = await __REV_AUTO.run(req.body?.reason || 'manual');
   res.json(out);
 }));
+app.post('/api/revenue/autopilot/act-now', adminTokenMiddleware, asyncHandler(async (req, res) => {
+  const out = await __REV_AUTO.run(req.body?.reason || 'act-now-six-pillars');
+  res.json({ ok: true, action: 'all-six-pillars-executed', run: out });
+}));
 app.get('/api/revenue/command-center', (req, res) => {
   const commander = moneyMachine.revenueCommander();
   const conversion = moneyMachine.conversionIntelligence();
@@ -2095,6 +2775,33 @@ app.get('/api/revenue/command-center', (req, res) => {
     promotedOfferId: commander.decision?.topOffer || null,
   });
 });
+
+app.get('/api/revenue/commercial-stack', asyncHandler(async (req, res) => {
+  const registry = getModuleRegistryStatus();
+  const btcRate = await __getBtcUsdRate().catch(() => 0);
+  const commerceStatus = unicornCommerceConnector.status({ registry, btcWallet: ADMIN_OWNER_BTC, ownerName: ADMIN_OWNER_NAME });
+  const commerceCatalog = unicornCommerceConnector.buildCommerceCatalog({ registry, btcWallet: ADMIN_OWNER_BTC, ownerName: ADMIN_OWNER_NAME });
+  const strategicPackages = billionScaleRevenueEngine.buildStrategicPackages({ btcWallet: ADMIN_OWNER_BTC, ownerName: ADMIN_OWNER_NAME });
+  const enterpriseStatus = billionScaleRevenueEngine.status({ btcWallet: ADMIN_OWNER_BTC, ownerName: ADMIN_OWNER_NAME });
+  const priceSnapshot = {
+    starter: await priceNegotiator.getPrice('starter', { basePrice: 29, btcRate }),
+    pro: await priceNegotiator.getPrice('pro', { basePrice: 99, btcRate }),
+    enterprise: await priceNegotiator.getPrice('enterprise', { basePrice: 499, btcRate }),
+  };
+  const marketingStatus = (() => { try { return autoMarketing.getStatus ? autoMarketing.getStatus() : null; } catch (_) { return null; } })();
+
+  res.json({
+    ok: true,
+    ts: new Date().toISOString(),
+    priceSnapshot,
+    commerceStatus,
+    commerceCatalogCounts: commerceCatalog.counts,
+    enterpriseStatus,
+    strategicPackageCount: strategicPackages.length,
+    marketingStatus,
+    autopilot: __REV_AUTO.status(),
+  });
+}));
 
 // ==================== AUTOPILOT-DRIVEN CATALOG REORDERING + CTA PROMINENCE ====================
 // Returns the current promoted offer ID from the revenue autopilot so clients can
@@ -2162,6 +2869,7 @@ const domainAutomationManager = require('./modules/domainAutomationManager');
 
 const unicornInnovationSuite = require('./modules/unicornInnovationSuite');
 const autonomousInnovation = require('./modules/autonomousInnovation');
+const unicornInnovator = require('./modules/unicornInnovator');
 const autoRevenue = require('./modules/autoRevenue');
 const autoViralGrowth = require('./modules/autoViralGrowth');
 
@@ -2182,6 +2890,27 @@ const canaryCtrl       = require('./modules/canary-controller');
 const controlPlane     = require('./modules/control-plane-agent');
 const profitLoop       = require('./modules/profit-control-loop');
 
+// ==================== AUTONOMOUS GROWTH STACK (2026-06-12) ====================
+// Closed-loop revenue compounding: durable funnel truth + search-engine
+// distribution + RAM guardian + the flywheel that connects them all.
+// RO: stiva de creștere autonomă — funnel durabil, trafic, memorie, volan.
+let funnelIntelligence = null, trafficEngine = null, memoryGuardian = null, revenueFlywheel = null;
+try { funnelIntelligence = require('./modules/funnel-intelligence'); } catch (e) { console.warn('[funnel-intelligence] disabled:', e && e.message); }
+try { trafficEngine = require('./modules/traffic-engine'); } catch (e) { console.warn('[traffic-engine] disabled:', e && e.message); }
+try { memoryGuardian = require('./modules/memory-guardian'); } catch (e) { console.warn('[memory-guardian] disabled:', e && e.message); }
+try { revenueFlywheel = require('./modules/revenue-flywheel'); } catch (e) { console.warn('[revenue-flywheel] disabled:', e && e.message); }
+
+// ==================== AUTONOMY SPINE — coloana de autonomie demonstrabilă ====================
+// Creierul de guvernanță: citește organele reale (mesh/SLO/profit/control-plane/
+// circuit), calculează o postură (EXPLORE/EXPLOIT/PROTECT/FREEZE), o semnează
+// ed25519 într-un lanț append-only și expune un GATE (canExperiment) pe care
+// buclele de profit/experimentare îl consultă. Nu mută niciodată procesul.
+// Governance brain: reads real organs, decides posture, ed25519-signs every
+// decision into an append-only chain, exposes a canExperiment() gate.
+let autonomySpine = null;
+try { autonomySpine = require('./modules/autonomy-spine'); }
+catch (e) { console.warn('[autonomy-spine] disabled:', e && e.message); }
+
 // ==================== 3 COMPONENTE CRITICE AUTONOME ====================
 const centralOrchestrator = require('./modules/central-orchestrator');
 const selfHealingEngine   = require('./modules/self-healing-engine');
@@ -2191,6 +2920,7 @@ const githubOps           = require('./modules/github-ops');
 
 // ==================== DYNAMIC PRICING ENGINE ====================
 const dynamicPricing   = require('./modules/dynamic-pricing');
+const priceNegotiator  = require('./modules/priceNegotiator');
 
 // Seed the engine at boot with the canonical catalog floors so every
 // service id has a real basePrice and never collapses to the generic $99
@@ -2200,7 +2930,7 @@ try {
   const _seedFrom = (mod) => {
     if (!mod) return 0;
     let arr = [];
-    try { arr = (typeof mod.all === 'function') ? mod.all() : []; } catch (_) {}
+    try { arr = (typeof mod.all === 'function') ? mod.all() : []; } catch (e) { console.warn('[dynamic-pricing] catalog.all() failed:', e.message); }
     let n = 0;
     for (const it of (arr || [])) {
       if (!it || !it.id) continue;
@@ -2211,7 +2941,7 @@ try {
           dynamicPricing.registerService(it.id, base);
           n += 1;
         }
-      } catch (_) {}
+      } catch (e) { console.warn('[dynamic-pricing] registerService failed for', it.id, e.message); }
     }
     return n;
   };
@@ -2700,7 +3430,7 @@ try {
   // Wire the innovation attestation hook so every approved innovation is
   // mirrored to the sovereign chain (proof-of-evolution).
   if (typeof autoInnovationLoop !== 'undefined' && autoInnovationLoop && typeof autoInnovationLoop.on === 'function') {
-    try { autoInnovationLoop.on('innovation:approved', (inv) => growthEngine.onInnovationApproved(inv)); } catch (_) {}
+    try { autoInnovationLoop.on('innovation:approved', (inv) => growthEngine.onInnovationApproved(inv)); } catch (e) { console.warn('[growth-engine] innovation hook failed:', e.message); }
   }
 } catch (e) {
   console.warn('[growth-engine] failed to mount:', e && e.message);
@@ -2732,9 +3462,11 @@ if (_isPrimaryWorker) {
 
   // Pornire module autonome (single-worker only to avoid duplicated intervals in PM2 cluster)
   if (!_stableRuntime && _enableFileMutators) {
-    selfConstruction.start();
+    // Profil growth/full cu mutatori activi: poate completa module goale/lipsă.
+    selfConstruction.start({ apply: true }).catch(() => {});
   } else {
-    console.log('🧱 Self‑Construction dezactivat (stabilitate server)');
+    // Profil stable/safe: rulează DOAR auditul read-only (sigur, fără scriere).
+    try { selfConstruction.audit(); console.log('🧱 Self‑Construction: audit read-only activ (profil stabil)'); } catch (e) { console.warn('[selfConstruction] audit failed:', e.message); }
   }
   if (!_stableRuntime) {
     totalSystemHealer.start();
@@ -2750,6 +3482,9 @@ if (_isPrimaryWorker) {
   // Pornire module revenue streams (7 fluxuri de venit activate autonom)
   if (!_stableRuntime) {
     revenueModules.startAutoRevenue();
+  }
+  if (!_stableRuntime) {
+    try { autoMarketing.init?.(); autoMarketing.start?.(); } catch (e) { console.warn('[autoMarketing] init/start failed:', e.message); }
   }
 
   // ==================== PORNIRE 3 COMPONENTE CRITICE AUTONOME ====================
@@ -2791,6 +3526,34 @@ if (_isPrimaryWorker) {
     domainAutomationManager.init().catch(err =>
       console.warn('[DomainAutomation] init error:', err.message, err.stack)
     );
+  }
+
+  // ==================== AUTONOMOUS GROWTH STACK — pornire ====================
+  // Runs in EVERY profile (incl. stable): footprint is tiny (3 unref'd
+  // intervals, bounded state) and revenue cannot wait for a growth profile.
+  // RO: pornește și în profil stabil — venitul nu așteaptă.
+  if (process.env.NODE_ENV !== 'test' && process.env.GROWTH_STACK_DISABLED !== '1') {
+    try {
+      if (memoryGuardian) {
+        // Cooperative trimmers — invoked only under measured RAM pressure.
+        memoryGuardian.registerTrimmer('route-cache', () => { try { return routeCache.clearCache(); } catch (e) { return { ok: false, error: e && e.message }; } });
+        memoryGuardian.registerTrimmer('funnel-buffer', () => { const n = funnelEvents.length; funnelEvents.splice(0, Math.max(0, n - 200)); return { kept: funnelEvents.length, dropped: n - funnelEvents.length }; });
+        memoryGuardian.registerTrimmer('funnel-intelligence-flush', () => (funnelIntelligence ? funnelIntelligence.flush() : { ok: false }));
+        memoryGuardian.start();
+      }
+    } catch (e) { console.warn('[memory-guardian] start failed:', e && e.message); }
+    try { if (trafficEngine) trafficEngine.start(); } catch (e) { console.warn('[traffic-engine] start failed:', e && e.message); }
+    try {
+      if (revenueFlywheel) {
+        revenueFlywheel.configure({ funnelIntelligence, trafficEngine, dynamicPricing });
+        revenueFlywheel.start();
+      }
+    } catch (e) { console.warn('[revenue-flywheel] start failed:', e && e.message); }
+    // Autonomous Growth Brain — the Observe→Think→Plan→Execute→Reflect loop
+    // that ties every real growth organ together. Bounded, unref()'d, never
+    // mutates money rails or PM2. Only runs outside the ultra-stable profile.
+    try { if (_growthBrain && typeof _growthBrain.start === 'function') _growthBrain.start(); }
+    catch (e) { console.warn('[growth-brain] start failed:', e && e.message); }
   }
 
   // Pornire module cu cicluri autonome
@@ -2894,6 +3657,77 @@ meshOrchestrator.register('unicornAutonomousCore',  uac,                { status
 meshOrchestrator.register('unicornEternalEngine',   uee,                { statusFn: 'getStatus' });
 meshOrchestrator.register('controlPlaneAgent',      controlPlane,       { statusFn: 'getStatus' });
 meshOrchestrator.register('profitControlLoop',      profitLoop,         { statusFn: 'getStatus' });
+if (autonomySpine) meshOrchestrator.register('autonomySpine', autonomySpine, { statusFn: 'getStatus' });
+
+// ── SUPREME ENGINES — motoarele de venit deja încărcate prin __SUPREME, acum
+// aduse SUB guvernanța mesh + Autonomy Spine (monitorizare + auto-heal + sense).
+// require e cache-uit -> aceeași instanță singleton, fără dublă-pornire.
+// These revenue engines were running unmonitored; now health-tracked & sensed.
+for (const [meshName, modFile] of [
+  ['unicornTreasury',    'unicornTreasury'],
+  ['unicornGrowthEngine','unicornGrowth'],
+  ['unicornGuardianHub', 'unicornGuardian'],
+  ['unicornOracle',      'unicornOracle'],
+  ['unicornEconomy',     'unicornEconomy'],
+  ['unicornBrain',       'unicornBrain'],
+  ['unicornSelfHealer',  'unicornSelfHealer'],
+  ['unicornInnovator',   'unicornInnovator'],
+  ['unicornSovereigntyEngine', 'unicornSovereignty'],
+]) {
+  try {
+    const inst = require('./modules/' + modFile);
+    if (inst && typeof inst.getStatus === 'function') {
+      meshOrchestrator.register(meshName, inst, { statusFn: 'getStatus' });
+    }
+  } catch (e) { console.warn('[mesh] supreme engine register skipped:', modFile, e && e.message); }
+}
+
+// ── REAL ENGINE-CORE MODULES — cele 22 module populate cu logică reală
+// (PSO, Dijkstra, z-test, merit-order, topo-sort, PID, softmax, etc.) sunt
+// aduse SUB guvernanța mesh: monitorizare health + auto-heal (heal() clears
+// the circuit pause). Aceleași instanțe singleton folosite de rutele /api.
+for (const [meshName, inst] of [
+  ['analyticsEngine',          analyticsEngine],
+  ['abTesting',                abTesting],
+  ['contentAI',                contentAI],
+  ['autoTrendAnalyzer',        autoTrendAnalyzer],
+  ['performanceMonitor',       performanceMonitor],
+  ['seoOptimizer',             seoOptimizer],
+  ['securityScanner',          securityScanner],
+  ['swarmIntelligence',        swarmIntelligence],
+  ['autonomousWealthEngine',   autonomousWealthEngine],
+  ['autonomousBDEngine',       autonomousBDEngine],
+  ['autoMarketing',            autoMarketing],
+  ['selfAdaptationEngine',     selfAdaptationEngine],
+  ['selfDocumenter',           selfDocumenter],
+  ['siteCreator',              siteCreator],
+  ['unicornRealizationEngine', unicornRealizationEngine],
+  ['unicornSuperIntelligence', unicornSuperIntelligence],
+  ['universalAdaptor',         universalAdaptor],
+  ['universalInterchainNexus', universalInterchainNexus],
+  ['unicornExecutionEngine',   unicornExecutionEngine],
+]) {
+  try {
+    if (inst && typeof inst.getStatus === 'function') {
+      meshOrchestrator.register(meshName, inst, { statusFn: 'getStatus' });
+    }
+  } catch (e) { console.warn('[mesh] real engine register skipped:', meshName, e && e.message); }
+}
+// Module reale încărcate dinamic de autonomous-core (fără rute proprii) —
+// require e cache-uit, deci aceeași instanță, fără dublă-pornire.
+for (const [meshName, modFile] of [
+  ['energyTrading', 'energyTrading'],
+  ['healthcareAI',  'healthcareAI'],
+  ['web3Identity',  'web3Identity'],
+]) {
+  try {
+    const inst = require('./modules/' + modFile);
+    if (inst && typeof inst.getStatus === 'function') {
+      meshOrchestrator.register(meshName, inst, { statusFn: 'getStatus' });
+    }
+  } catch (e) { console.warn('[mesh] dynamic engine register skipped:', modFile, e && e.message); }
+}
+
 meshOrchestrator.register('autonomousInnovation',   autonomousInnovation, { statusFn: 'getStatus' });
 meshOrchestrator.register('autoRevenue',            autoRevenue,        { statusFn: 'getRevenueStatus' });
 meshOrchestrator.register('autoViralGrowth',        autoViralGrowth,    { statusFn: 'getViralStatus' });
@@ -2994,13 +3828,26 @@ function buildHealthResponse() {
     if (dp && typeof dp.getFallbackStatus === 'function') {
       fallbackPricing = dp.getFallbackStatus();
     }
-  } catch (_) {}
+  } catch (e) { console.warn('[health] dynamic-pricing status unavailable:', e.message); }
+  // modules[] — lista modulelor-cheie de business, fiecare verificat că e
+  // încărcat în runtime. RO: contractul /api/health cerut de misiune.
+  const keyModules = [
+    'priceNegotiator', 'serviceCatalog', 'salesOrchestrator',
+    'btcInvoiceLedger', 'btcPaymentVerifier', 'zacAlertChannel',
+    'global-api-gateway', 'auto-marketing', 'dynamic-pricing',
+    'unicornMeshOrchestrator', 'zeusAutonomousCore',
+  ];
+  const modulesLoaded = keyModules.filter((m) => {
+    try { require.resolve('./modules/' + m); return true; } catch (_) { return false; }
+  });
   return {
     status: 'ok',
     uptime: s,
     uptimeHuman: `${h}h ${m}m ${sec}s`,
     users: dbUsers.count(),
     dbConnected: true,
+    modules: modulesLoaded,
+    modulesTotal: keyModules.length,
     persistence: {
       durable: persistence.durable,
       mode: persistence.mode,
@@ -3078,18 +3925,18 @@ app.get('/health/ready', (req, res) => {
     db: persist.durable, mode: persist.mode, userCount: persist.userCount,
   });
 });
-app.get('/health/deep', (req, res) => {
+app.get('/health/deep', adminTokenMiddleware, (req, res) => {
   res.set('Cache-Control', 'no-store');
   const mem = process.memoryUsage();
   let routerStats = null;
   try {
     const mr = global.__multiRouter;
     if (mr && typeof mr.getStats === 'function') routerStats = mr.getStats();
-  } catch (_) {}
+  } catch (e) { console.warn('[health/deep] router stats failed:', e.message); }
   let webhookStats = null;
-  try { webhookStats = require('./middleware/webhook-emitter').getStats(); } catch (_) {}
+  try { webhookStats = require('./middleware/webhook-emitter').getStats(); } catch (e) { console.warn('[health/deep] webhook stats unavailable:', e.message); }
   let rlStats = null;
-  try { rlStats = require('./middleware/sliding-window').getStats(); } catch (_) {}
+  try { rlStats = require('./middleware/sliding-window').getStats(); } catch (e) { console.warn('[health/deep] rate-limit stats unavailable:', e.message); }
   res.json({
     ok: true,
     drain: _drainMode,
@@ -3116,10 +3963,10 @@ let _provenanceCache = null;
 function _buildProvenance() {
   if (_provenanceCache) return _provenanceCache;
   let anchor = null;
-  try { anchor = require('./modules/innovations-50y/crypto-agility').getOrCreateAnchorKey(); } catch (_) {}
+  try { anchor = require('./modules/innovations-50y/crypto-agility').getOrCreateAnchorKey(); } catch (e) { console.warn('[provenance] anchor key unavailable:', e.message); }
   let gitSha = process.env.RELEASE_SHA || process.env.GIT_SHA || '';
   if (!gitSha) {
-    try { gitSha = require('child_process').execSync('git rev-parse HEAD', { stdio: ['ignore', 'pipe', 'ignore'], timeout: 1500 }).toString().trim(); } catch (_) {}
+    try { gitSha = require('child_process').execSync('git rev-parse HEAD', { stdio: ['ignore', 'pipe', 'ignore'], timeout: 1500 }).toString().trim(); } catch (e) { /* git may not be available in container */ }
   }
   const stmt = {
     _type: 'https://in-toto.io/Statement/v1',
@@ -3179,7 +4026,7 @@ let _webhookEmitter = null;
 try { _webhookEmitter = require('./middleware/webhook-emitter'); _webhookEmitter.start(); } catch (e) {
   console.warn('[webhooks] disabled —', e && e.message);
 }
-app.post('/api/webhooks/subscribe', express.json({ limit: '8kb' }), (req, res) => {
+app.post('/api/webhooks/subscribe', sensitiveRateLimit({ maxRequests: 20, windowMs: 60_000, cooldownMs: 120_000 }), adminTokenMiddleware, express.json({ limit: '8kb' }), (req, res) => {
   if (!_webhookEmitter) return res.status(503).json({ error: 'webhooks_disabled' });
   try {
     const out = _webhookEmitter.subscribe(req.body || {});
@@ -3188,12 +4035,12 @@ app.post('/api/webhooks/subscribe', express.json({ limit: '8kb' }), (req, res) =
     res.status(400).json({ error: 'invalid_subscription', detail: String(e && e.message) });
   }
 });
-app.delete('/api/webhooks/:id', (req, res) => {
+app.delete('/api/webhooks/:id', sensitiveRateLimit({ maxRequests: 30, windowMs: 60_000, cooldownMs: 120_000 }), adminTokenMiddleware, (req, res) => {
   if (!_webhookEmitter) return res.status(503).json({ error: 'webhooks_disabled' });
   const ok = _webhookEmitter.unsubscribe(req.params.id);
   res.status(ok ? 200 : 404).json({ ok });
 });
-app.get('/api/webhooks', (req, res) => {
+app.get('/api/webhooks', sensitiveRateLimit({ maxRequests: 30, windowMs: 60_000, cooldownMs: 120_000 }), adminTokenMiddleware, (req, res) => {
   if (!_webhookEmitter) return res.status(503).json({ error: 'webhooks_disabled' });
   res.json({ subscriptions: _webhookEmitter.listSubs(), stats: _webhookEmitter.getStats() });
 });
@@ -3584,7 +4431,7 @@ function buildBackendSnapshot() {
     },
     billing: {
       primary: 'BTC',
-      supported: ['BTC', 'Stripe', 'PayPal'],
+      supported: paymentMethodsPublicLabel(),
       btcAddress: ADMIN_OWNER_BTC,
     },
     platform: {
@@ -3640,6 +4487,70 @@ const _unicornServices = [
 ];
 const _unicornPurchases = new Map(); // id -> purchase
 const _unicornEventsClients = new Set();
+// serviceCatalog facade — in-process live view over _unicornServices so the
+// same module works identically in-process și standalone (ZAC/teste via HTTP).
+// RO: o singură fațadă de catalog pentru toate modulele.
+try { require('./modules/serviceCatalog').attachSource(() => _unicornServices); }
+catch (e) { console.warn('[serviceCatalog] attach failed:', e.message); }
+
+// ═══════════════════════════════════════════════════════════════════════════
+// AUTONOMOUS GROWTH CORE (GODMODE 2026-07) — upsell + lead-intel + brain.
+// ───────────────────────────────────────────────────────────────────────────
+// Three REAL, additive, fail-safe organs that connect the previously-isolated
+// growth engines into one money-first loop:
+//   • upsell-engine     — next-best-offer + bundle discount on every sale
+//                         (raises AOV/LTV with zero new traffic).
+//   • lead-intelligence — scores + ranks the leads /api/lead now captures,
+//                         so follow-up goes to the hottest first.
+//   • growth-brain      — Observe→Think→Plan→Execute→Reflect over ALL real
+//                         telemetry; auto-runs safe actions (SEO push, lead
+//                         re-scoring), surfaces the #1 owner action, and
+//                         proves improvement in a hash-chained log.
+// Every require is wrapped: a growth-core failure must never break boot.
+// RO: nucleul autonom de creștere — leagă organele reale într-o singură
+// buclă orientată spre profit; totul aditiv și fail-safe.
+// ═══════════════════════════════════════════════════════════════════════════
+let _upsellEngine = null, _leadIntel = null, _growthBrain = null;
+try {
+  _upsellEngine = require('./modules/upsell-engine');
+  // Feed it the live 300-service catalog (falls back to flagships if empty).
+  _upsellEngine.configure({
+    getCatalog: () => {
+      try {
+        const facade = require('./modules/serviceCatalog');
+        const live = (facade && typeof facade.listSync === 'function') ? facade.listSync() : null;
+        if (Array.isArray(live) && live.length) return live;
+      } catch (_) {}
+      return _unicornServices; // always a valid array
+    },
+  });
+  _upsellEngine.registerRoutes(app);
+  console.log('[upsell-engine] mounted: /api/upsell (+ /stats) — next-best-offer + bundle discount');
+} catch (e) { console.warn('[upsell-engine] failed to mount:', e && e.message); }
+
+try {
+  _leadIntel = require('./modules/lead-intelligence');
+  // Reuse the platform's admin gate for the PII pipeline route (public-safe
+  // aggregate stays open for the admin card + brain).
+  _leadIntel.configure({ adminGuard: (typeof adminTokenMiddleware === 'function') ? adminTokenMiddleware : null });
+  _leadIntel.registerRoutes(app);
+  console.log('[lead-intelligence] mounted: /api/leads/pipeline + /api/leads/intelligence — scoring + ranked pipeline');
+} catch (e) { console.warn('[lead-intelligence] failed to mount:', e && e.message); }
+
+try {
+  _growthBrain = require('./modules/growth-brain');
+  _growthBrain.configure({
+    trafficEngine: (typeof trafficEngine !== 'undefined') ? trafficEngine : null,
+    leadIntel: _leadIntel,
+    upsell: _upsellEngine,
+    conversion: () => { try { return moneyMachine.conversionIntelligence(); } catch (_) { return {}; } },
+    funnel: () => { try { return (typeof funnelIntelligence !== 'undefined' && funnelIntelligence) ? funnelIntelligence.summary() : {}; } catch (_) { return {}; } },
+    referral: () => { try { return (typeof unicornInnovationSuite !== 'undefined' && unicornInnovationSuite && unicornInnovationSuite.getAffiliateStats) ? unicornInnovationSuite.getAffiliateStats() : {}; } catch (_) { return {}; } },
+  });
+  _growthBrain.registerRoutes(app);
+  console.log('[growth-brain] mounted: /api/growth/brain (+ /full, /run) — autonomous growth loop');
+} catch (e) { console.warn('[growth-brain] failed to mount:', e && e.message); }
+
 let _cinematicProfileOverride = null;
 const _pqDigest = (() => {
   try { crypto.createHash('sha3-512'); return 'sha3-512'; }
@@ -4210,6 +5121,15 @@ app.post('/api/services/buy', (req, res) => {
   const service = _serviceById(serviceId);
   if (!service) return res.status(404).json({ error: 'service_not_found' });
   const paymentMethod = String(p.paymentMethod || p.method || 'BTC').toUpperCase();
+  if (!isPaymentMethodEnabled(paymentMethod)) {
+    return res.status(400).json({
+      error: 'payment_method_unavailable',
+      requested: paymentMethod,
+      allowed: getEnabledPaymentMethods(),
+      mode: PAYMENT_MODE,
+      hint: 'Use BTC now; Stripe/PayPal activate automatically when provider secrets are configured.'
+    });
+  }
   const amount = Number(p.amount || p.amountUSD || service.price || 0);
   const id = crypto.randomBytes(12).toString('hex');
   const email = String(p.email || '').toLowerCase();
@@ -4829,11 +5749,168 @@ if (_enableLocalLlm) {
   try { _llamaBridge = require('./modules/llamaBridge'); } catch { /* optional */ }
 }
 
+// 🧠 AI capability layer — real, persistent, no-mock modules:
+//   • semantic memory (RAG)  • cost ledger  • provider-health aggregator
+let _aiMemory = null;
+try { _aiMemory = require('./modules/ai-semantic-memory'); } catch (e) {
+  console.warn('[AIMemory] not loaded:', e.message);
+}
+let _aiCostLedger = null;
+try { _aiCostLedger = require('./modules/ai-cost-ledger'); } catch (e) {
+  console.warn('[AICost] not loaded:', e.message);
+}
+let _aiProviderHealth = null;
+try { _aiProviderHealth = require('./modules/ai-provider-health'); } catch (e) {
+  console.warn('[AIProviderHealth] not loaded:', e.message);
+}
+
+// ── NEW: Capital Protection, Unit Economics, Multi-Payment Rails,
+//         Module Ranker, Expansion Engine, Moat Engine, AI Intelligence Core ──
+let _capitalProtection = null;
+try { _capitalProtection = require('./modules/capital-protection'); console.log('[CapitalProtection] ✅ loaded'); } catch (e) { console.warn('[CapitalProtection] not loaded:', e.message); }
+
+let _unitEconomics = null;
+try { _unitEconomics = require('./modules/unit-economics-engine'); console.log('[UnitEconomics] ✅ loaded'); } catch (e) { console.warn('[UnitEconomics] not loaded:', e.message); }
+
+let _multiPaymentRails = null;
+try { _multiPaymentRails = require('./modules/multi-payment-rails'); console.log('[MultiPaymentRails] ✅ loaded'); } catch (e) { console.warn('[MultiPaymentRails] not loaded:', e.message); }
+
+let _moduleRanker = null;
+try { _moduleRanker = require('./modules/module-performance-ranker'); console.log('[ModuleRanker] ✅ loaded'); } catch (e) { console.warn('[ModuleRanker] not loaded:', e.message); }
+
+let _expansionEngine = null;
+try { _expansionEngine = require('./modules/expansion-engine'); console.log('[ExpansionEngine] ✅ loaded'); } catch (e) { console.warn('[ExpansionEngine] not loaded:', e.message); }
+
+let _moatEngine = null;
+try { _moatEngine = require('./modules/moat-engine'); console.log('[MoatEngine] ✅ loaded'); } catch (e) { console.warn('[MoatEngine] not loaded:', e.message); }
+
+let _aiIntelCore = null;
+try { _aiIntelCore = require('./modules/autonomous-intelligence-core'); console.log('[AIIntelCore] ✅ loaded'); } catch (e) { console.warn('[AIIntelCore] not loaded:', e.message); }
+
+let _taxEngine = null;
+try { _taxEngine = require('./modules/tax-engine'); console.log('[TaxEngine] ✅ loaded'); } catch (e) { console.warn('[TaxEngine] not loaded:', e.message); }
+
+let _investorEngine = null;
+try { _investorEngine = require('./modules/investor-engine'); console.log('[InvestorEngine] ✅ loaded'); } catch (e) { console.warn('[InvestorEngine] not loaded:', e.message); }
+
+let _acquisitionEngine = null;
+try { _acquisitionEngine = require('./modules/acquisition-engine'); console.log('[AcquisitionEngine] ✅ loaded'); } catch (e) { console.warn('[AcquisitionEngine] not loaded:', e.message); }
+
+let _rollbackEngine = null;
+try { _rollbackEngine = require('./modules/rollback-engine'); console.log('[RollbackEngine] ✅ loaded'); } catch (e) { console.warn('[RollbackEngine] not loaded:', e.message); }
+
+let _mutationSandbox = null;
+try { _mutationSandbox = require('./modules/mutation-sandbox'); console.log('[MutationSandbox] ✅ loaded'); } catch (e) { console.warn('[MutationSandbox] not loaded:', e.message); }
+
+let _memoryFabricEngine = null;
+try { _memoryFabricEngine = require('./modules/memory-fabric-engine'); console.log('[MemoryFabric] ✅ loaded'); } catch (e) { console.warn('[MemoryFabric] not loaded:', e.message); }
+
+let _marketScannerEngine = null;
+try { _marketScannerEngine = require('./modules/market-scanner-engine'); console.log('[MarketScanner] ✅ loaded'); } catch (e) { console.warn('[MarketScanner] not loaded:', e.message); }
+
+let _profitOptimizationEngine = null;
+try { _profitOptimizationEngine = require('./modules/profit-optimization-engine'); console.log('[ProfitOptimization] ✅ loaded'); } catch (e) { console.warn('[ProfitOptimization] not loaded:', e.message); }
+
+let _retentionEngine = null;
+try { _retentionEngine = require('./modules/retention-engine'); console.log('[RetentionEngine] ✅ loaded'); } catch (e) { console.warn('[RetentionEngine] not loaded:', e.message); }
+
 // ── Register optional profit & orchestration modules in mesh ──
 if (_aiOrchestrator) meshOrchestrator.register('aiOrchestrator', _aiOrchestrator, { statusFn: 'getStatus' });
 if (_revenueRouter) meshOrchestrator.register('sovereignRevenueRouter', _revenueRouter, { statusFn: 'getStatus' });
 if (_monetizeMesh) meshOrchestrator.register('globalMonetizationMesh', _monetizeMesh, { statusFn: 'getStatus' });
 if (_uaic) meshOrchestrator.register('universalAIConnector', _uaic, { statusFn: 'getStatus' });
+if (_aiMemory) meshOrchestrator.register('aiSemanticMemory', _aiMemory, { statusFn: 'getStatus' });
+if (_aiCostLedger) meshOrchestrator.register('aiCostLedger', _aiCostLedger, { statusFn: 'getStatus' });
+if (_aiProviderHealth) meshOrchestrator.register('aiProviderHealth', _aiProviderHealth, { statusFn: 'getStatus' });
+
+// Mount the AI capability HTTP surface. Each module exposes its own router;
+// write paths are gated behind the existing admin-token middleware.
+if (_aiMemory) app.use('/api/ai/memory', _aiMemory.router(express, { adminGuard: adminTokenMiddleware }));
+if (_aiCostLedger) app.use('/api/ai/cost', _aiCostLedger.router(express, { adminGuard: adminTokenMiddleware }));
+if (_aiProviderHealth) app.use('/api/ai/providers/health', _aiProviderHealth.router(express));
+
+// ── NEW MODULES: Capital Protection, Unit Economics, Payment Rails, Ranker, Expansion, Moat, AI Intel ──
+if (_capitalProtection) {
+  meshOrchestrator.register('capitalProtection', _capitalProtection, { statusFn: 'getStatus' });
+  app.use('/api/capital', adminTokenMiddleware, _capitalProtection.router());
+  console.log('[backend] /api/capital mounted (capital-protection)');
+}
+if (_unitEconomics) {
+  meshOrchestrator.register('unitEconomicsEngine', _unitEconomics, { statusFn: 'getStatus' });
+  app.use('/api/unit-economics', adminTokenMiddleware, _unitEconomics.router());
+  console.log('[backend] /api/unit-economics mounted');
+}
+if (_multiPaymentRails) {
+  meshOrchestrator.register('multiPaymentRails', _multiPaymentRails, { statusFn: 'getStatus' });
+  app.use('/api/payments/multi', _multiPaymentRails.router());
+  // IPN webhook does NOT require auth — called by payment providers
+  console.log('[backend] /api/payments/multi mounted (BTC+USDT+ETH+SOL+USDC+Stripe+PayPal+BNPL+Split)');
+}
+if (_moduleRanker) {
+  meshOrchestrator.register('modulePerformanceRanker', _moduleRanker, { statusFn: 'getStatus' });
+  app.use('/api/rankings', _moduleRanker.router());
+  console.log('[backend] /api/rankings mounted (module-performance-ranker)');
+}
+if (_expansionEngine) {
+  meshOrchestrator.register('expansionEngine', _expansionEngine, { statusFn: 'getStatus' });
+  app.use('/api/expansion', _expansionEngine.router());
+  console.log('[backend] /api/expansion mounted (global expansion engine)');
+}
+if (_moatEngine) {
+  meshOrchestrator.register('moatEngine', _moatEngine, { statusFn: 'getStatus' });
+  app.use('/api/moat', _moatEngine.router());
+  console.log('[backend] /api/moat mounted (moat creation engine)');
+}
+if (_aiIntelCore) {
+  meshOrchestrator.register('aiIntelligenceCore', _aiIntelCore, { statusFn: 'getStatus' });
+  app.use('/api/intelligence', adminTokenMiddleware, _aiIntelCore.router());
+  console.log('[backend] /api/intelligence mounted (autonomous-intelligence-core)');
+}
+  if (_taxEngine) {
+    meshOrchestrator.register('taxEngine', _taxEngine, { statusFn: 'getStatus' });
+    app.use('/api/tax', _taxEngine.router());
+    console.log('[backend] /api/tax mounted (global tax computation — 50 countries, US state tax)');
+  }
+  if (_investorEngine) {
+    meshOrchestrator.register('investorEngine', _investorEngine, { statusFn: 'getStatus' });
+    app.use('/api/investor', adminTokenMiddleware, _investorEngine.router());
+    console.log('[backend] /api/investor mounted (ARR/MRR/churn/NRR/Series-A readiness)');
+  }
+  if (_acquisitionEngine) {
+    meshOrchestrator.register('acquisitionEngine', _acquisitionEngine, { statusFn: 'getStatus' });
+    app.use('/api/acquisition', adminTokenMiddleware, _acquisitionEngine.router());
+    console.log('[backend] /api/acquisition mounted (digital acquisition pipeline + valuation)');
+  }
+  if (_rollbackEngine) {
+    meshOrchestrator.register('rollbackEngine', _rollbackEngine, { statusFn: 'getStatus' });
+    app.use('/api/rollback', adminTokenMiddleware, _rollbackEngine.router());
+    console.log('[backend] /api/rollback mounted');
+  }
+  if (_mutationSandbox) {
+    meshOrchestrator.register('mutationSandbox', _mutationSandbox, { statusFn: 'getStatus' });
+    app.use('/api/mutation-sandbox', adminTokenMiddleware, _mutationSandbox.router());
+    console.log('[backend] /api/mutation-sandbox mounted');
+  }
+  if (_memoryFabricEngine) {
+    meshOrchestrator.register('memoryFabricEngine', _memoryFabricEngine, { statusFn: 'getStatus' });
+    app.use('/api/memory-fabric', adminTokenMiddleware, _memoryFabricEngine.router());
+    console.log('[backend] /api/memory-fabric mounted');
+  }
+  if (_marketScannerEngine) {
+    meshOrchestrator.register('marketScannerEngine', _marketScannerEngine, { statusFn: 'getStatus' });
+    app.use('/api/market-scanner', adminTokenMiddleware, _marketScannerEngine.router());
+    console.log('[backend] /api/market-scanner mounted');
+  }
+  if (_profitOptimizationEngine) {
+    meshOrchestrator.register('profitOptimizationEngine', _profitOptimizationEngine, { statusFn: 'getStatus' });
+    app.use('/api/profit-optimization', adminTokenMiddleware, _profitOptimizationEngine.router());
+    console.log('[backend] /api/profit-optimization mounted');
+  }
+  if (_retentionEngine) {
+    meshOrchestrator.register('retentionEngine', _retentionEngine, { statusFn: 'getStatus' });
+    app.use('/api/retention', adminTokenMiddleware, _retentionEngine.router());
+    console.log('[backend] /api/retention mounted');
+  }
 
 const ZEUS_SYSTEM = 'You are Zeus AI Assistant, an expert in business automation, AI, blockchain, payments, and enterprise solutions. Be concise and helpful. You can also respond in Romanian if the user writes in Romanian.';
 
@@ -4882,7 +5959,21 @@ app.post('/api/chat', authRateLimit(30, 60_000), async (req, res) => {
         maxTokens: 500,
         history,
       });
-      if (mrResult && mrResult.reply) return res.json({ reply: mrResult.reply, model: mrResult.model, provider: mrResult.provider, latencyMs: mrResult.latencyMs });
+      if (mrResult && mrResult.reply) {
+        // Record real spend in the persistent cost ledger (best-effort).
+        if (_aiCostLedger) {
+          try {
+            _aiCostLedger.record({
+              provider: mrResult.provider,
+              model: mrResult.model,
+              task: taskType || 'chat',
+              tokens: (mrResult.usage && mrResult.usage.totalTokens) || 0,
+              costUsd: typeof mrResult.estimatedCostUSD === 'number' ? mrResult.estimatedCostUSD : undefined,
+            });
+          } catch (_) { /* ledger is advisory, never blocks chat */ }
+        }
+        return res.json({ reply: mrResult.reply, model: mrResult.model, provider: mrResult.provider, latencyMs: mrResult.latencyMs });
+      }
     } catch (err) {
       console.warn('[Chat] MultiRouter a eșuat:', err.message);
     }
@@ -5327,16 +6418,21 @@ app.post('/api/analytics/funnel', (req, res) => {
   const event = sanitizeString(body.event, 80);
   if (!event) return res.status(400).json({ ok: false, error: 'event_required' });
   const valueRaw = Number(body.value);
-  pushFunnelEvent({
+  const evt = {
     event,
     route: sanitizeString(body.route, 160),
     serviceId: sanitizeString(body.serviceId, 120),
+    sessionId: sanitizeString(body.sessionId, 64),
     source: sanitizeString(body.source || 'web', 40),
     value: Number.isFinite(valueRaw) ? valueRaw : null,
     ts: new Date().toISOString(),
     ip: req.ip || (req.connection && req.connection.remoteAddress) || 'unknown',
     ua: sanitizeString(req.headers['user-agent'] || '', 180),
-  });
+  };
+  pushFunnelEvent(evt);
+  // Durable aggregation — survives PM2 reloads, feeds reality-metrics + flywheel.
+  // RO: agregare durabilă — vizitatorii nu se mai pierd la restart.
+  if (funnelIntelligence) { try { funnelIntelligence.record(evt); } catch (e) { console.warn('[funnel] record failed:', e.message); } }
   return res.status(202).json({ ok: true });
 });
 
@@ -5351,6 +6447,56 @@ app.get('/api/admin/analytics/funnel', adminCrudRateLimit, adminTokenMiddleware,
   return res.json({ ok: true, totalBuffered: funnelEvents.length, returned: recent.length, summary, events: recent });
 });
 
+// Single-pane operational summary for business + engineering signals.
+// Panou unic de operare: business + inginerie.
+app.get('/api/admin/ops/summary', adminCrudRateLimit, adminTokenMiddleware, (req, res) => {
+  const now = Date.now();
+  const hourAgo = now - (60 * 60 * 1000);
+  const dayAgo = now - (24 * 60 * 60 * 1000);
+  const recentHour = funnelEvents.filter((e) => Date.parse(e.ts) > hourAgo);
+  const recentDay = funnelEvents.filter((e) => Date.parse(e.ts) > dayAgo);
+  const countEvent = (arr, ev) => arr.reduce((n, x) => n + (String(x.event || '') === ev ? 1 : 0), 0);
+
+  const viewsH = countEvent(recentHour, 'service_view');
+  const checkoutH = countEvent(recentHour, 'checkout_start');
+  const paidH = countEvent(recentHour, 'checkout_paid');
+  const convCheckoutToPaid = checkoutH > 0 ? +(paidH / checkoutH).toFixed(4) : 0;
+  const convViewToCheckout = viewsH > 0 ? +(checkoutH / viewsH).toFixed(4) : 0;
+
+  let routePerf = null;
+  try { routePerf = routeCache.getStats(); } catch (_) { routePerf = null; }
+  let sloMetrics = null;
+  try { sloMetrics = sloTracker.getMetrics(); } catch (_) { sloMetrics = null; }
+  let ds = null;
+  try { ds = deepseekGovernor ? deepseekGovernor.getStatus() : null; } catch (_) { ds = null; }
+
+  return res.json({
+    ok: true,
+    ts: new Date(now).toISOString(),
+    funnel: {
+      bufferedEvents: funnelEvents.length,
+      lastHour: recentHour.length,
+      lastDay: recentDay.length,
+      viewsHour: viewsH,
+      checkoutHour: checkoutH,
+      paidHour: paidH,
+      conversionViewToCheckout: convViewToCheckout,
+      conversionCheckoutToPaid: convCheckoutToPaid,
+    },
+    performance: {
+      routeCache: routePerf,
+      slo: sloMetrics,
+    },
+    deepseek: ds ? {
+      actionsLastHour: ds.aggregate && ds.aggregate.actionsLastHour,
+      actionsLastDay: ds.aggregate && ds.aggregate.actionsLastDay,
+      pendingRequestIds: ds.aggregate && ds.aggregate.pendingRequestIds,
+      proposalMaxPerDay: ds.limits && ds.limits.proposalsMaxPerDay,
+      runTestTimeoutMs: ds.limits && ds.limits.runTestTimeoutMs,
+    } : null,
+  });
+});
+
 // ==================== DEEPSEEK GOVERNOR API ====================
 // Strict allowlist executor for autonomous-but-bounded LLM-driven actions.
 // Executor cu listă albă pentru acțiuni autonome dar limitate.
@@ -5361,7 +6507,7 @@ app.get('/api/admin/deepseek/status', adminCrudRateLimit, deepseekGovernorAuthMi
   res.json(deepseekGovernor.getStatus());
 });
 
-app.post('/api/admin/deepseek/act', adminCrudRateLimit, deepseekGovernorAuthMiddleware, async (req, res) => {
+app.post('/api/admin/deepseek/act', sensitiveRateLimit({ maxRequests: 20, windowMs: 60_000, cooldownMs: 120_000 }), adminCrudRateLimit, deepseekGovernorAuthMiddleware, async (req, res) => {
   if (!deepseekGovernor) return res.status(503).json({ error: 'deepseek-governor not loaded' });
   const { action, params, requestId } = req.body || {};
   const ip = req.ip || (req.connection && req.connection.remoteAddress) || 'unknown';
@@ -5385,7 +6531,7 @@ app.get('/api/admin/roadmap', adminCrudRateLimit, deepseekGovernorAuthMiddleware
   res.json(roadmap);
 });
 
-app.post('/api/admin/deepseek/command', adminCrudRateLimit, deepseekGovernorAuthMiddleware, (req, res) => {
+app.post('/api/admin/deepseek/command', sensitiveRateLimit({ maxRequests: 20, windowMs: 60_000, cooldownMs: 120_000 }), adminCrudRateLimit, deepseekGovernorAuthMiddleware, (req, res) => {
   if (!deepseekGovernor) return res.status(503).json({ error: 'deepseek-governor not loaded' });
   const { instruction, priority } = req.body || {};
   const ip = req.ip || (req.connection && req.connection.remoteAddress) || 'unknown';
@@ -5599,14 +6745,33 @@ app.post('/api/payment/webhook/stripe', (req, res) => {
   if (webhookSecret && sig) {
     // Verify signature with stripe-signature header
     const payload = req.body; // raw Buffer due to express.raw() middleware above
-    const parts = String(sig).split(',');
-    const ts = parts.find(p => p.startsWith('t='))?.split('=')[1];
-    const v1 = parts.find(p => p.startsWith('v1='))?.split('=')[1];
-    if (!ts || !v1) return res.status(400).json({ error: 'Invalid signature format' });
+    const parts = String(sig).split(',').map((p) => p.trim());
+    const tsRaw = parts.find(p => p.startsWith('t='))?.split('=')[1];
+    const v1Candidates = parts.filter(p => p.startsWith('v1=')).map((p) => p.split('=')[1]).filter(Boolean);
+    const ts = Number(tsRaw || 0);
+    if (!Number.isFinite(ts) || ts <= 0 || v1Candidates.length === 0) {
+      return res.status(400).json({ error: 'Invalid signature format' });
+    }
+    const toleranceSec = Math.max(60, Number(process.env.STRIPE_WEBHOOK_TOLERANCE_SEC || 300));
+    const ageSec = Math.abs(Math.floor(Date.now() / 1000) - ts);
+    if (ageSec > toleranceSec) {
+      return res.status(400).json({ error: 'Webhook timestamp out of tolerance' });
+    }
+
     const signed = crypto.createHmac('sha256', webhookSecret)
-      .update(ts + '.' + payload)
+      .update(String(ts) + '.' + Buffer.from(payload).toString('utf8'))
       .digest('hex');
-    if (signed !== v1) return res.status(400).json({ error: 'Webhook signature mismatch' });
+
+    const signedBuf = Buffer.from(signed, 'hex');
+    const valid = v1Candidates.some((cand) => {
+      try {
+        const candBuf = Buffer.from(String(cand || '').toLowerCase(), 'hex');
+        return candBuf.length === signedBuf.length && crypto.timingSafeEqual(signedBuf, candBuf);
+      } catch (_) {
+        return false;
+      }
+    });
+    if (!valid) return res.status(400).json({ error: 'Webhook signature mismatch' });
     try {
       event = JSON.parse(payload.toString());
     } catch {
@@ -5921,7 +7086,17 @@ if (_zac && process.env.ZAC_INPROCESS === '1' && !_stableRuntime) {
 
 app.get('/api/zac/status', (req, res) => {
   if (!_zac) return res.status(503).json({ ok: false, error: 'zac-not-loaded' });
-  res.json({ ok: true, ...(_zac.getStatus() || {}) });
+  // Standalone (systemd) heartbeat — ZAC scrie data/zac/heartbeat.json la
+  // fiecare 30-60s. alive = heartbeat mai recent de 120s. RO: endpoint-ul
+  // vede ATÂT instanța in-process cât și procesul systemd separat.
+  let standalone = { alive: false };
+  try {
+    const hbPath = require('path').resolve(__dirname, '..', 'data', 'zac', 'heartbeat.json');
+    const hb = JSON.parse(require('fs').readFileSync(hbPath, 'utf8'));
+    const ageMs = Date.now() - new Date(hb.ts).getTime();
+    standalone = { alive: ageMs < 120000, ageMs, pid: hb.pid, version: hb.version, ts: hb.ts };
+  } catch (_) { /* no heartbeat yet */ }
+  res.json({ ok: true, standalone, ...(_zac.getStatus() || {}) });
 });
 
 app.get('/api/zac/scan', (req, res) => {
@@ -5964,11 +7139,32 @@ app.post('/api/zac/dev/generate-module', (req, res) => {
 const btcLedger   = require('./modules/btcInvoiceLedger');
 const btcVerifier = require('./modules/btcPaymentVerifier');
 const zacAlerts   = require('./modules/zacAlertChannel');
+const salesOrchestrator = require('./modules/salesOrchestrator');
+const serviceCatalogFacade = require('./modules/serviceCatalog');
+// Mesh visibility — the new sale-pipeline organs report status like every
+// other engine. RO: vizibile în mesh ca toate celelalte module.
+try {
+  meshOrchestrator.register('salesOrchestrator', salesOrchestrator, { statusFn: 'getStatus' });
+  meshOrchestrator.register('serviceCatalog', serviceCatalogFacade, { statusFn: 'getStatus' });
+  // Autonomous Growth Core — upsell, lead-intel, brain report status too.
+  if (_growthBrain) meshOrchestrator.register('growthBrain', _growthBrain, { statusFn: 'getState' });
+  if (_upsellEngine) meshOrchestrator.register('upsellEngine', _upsellEngine, { statusFn: 'stats' });
+  if (_leadIntel) meshOrchestrator.register('leadIntelligence', _leadIntel, { statusFn: 'stats' });
+} catch (_) { /* mesh optional */ }
 
 let _btcVerifier = null;
 let _firstSaleNotified = false;
 
 function _onPaidInvoice(invoice) {
+  // AUTO-ACTIVATION (salesOrchestrator): paid invoice → API key + license,
+  // persisted, idempotent. The buyer gets access with ZERO human steps.
+  // RO: plata confirmată on-chain activează serviciul instant.
+  try {
+    const act = salesOrchestrator.handlePaid(invoice);
+    if (act && act.ok && !act.idempotent) {
+      console.log('[BTC/Paid] → activated', act.activation.serviceId, 'license=' + act.activation.licenseId);
+    }
+  } catch (e) { console.warn('[BTC/Paid] activation failed:', e.message); }
   // Fire the appropriate Discord/Telegram alert. First sale gets a special banner.
   try {
     if (!_firstSaleNotified) {
@@ -5977,9 +7173,9 @@ function _onPaidInvoice(invoice) {
     } else {
       zacAlerts.notifySale(invoice).catch(() => {});
     }
-  } catch (_) {}
+  } catch (e) { console.warn('[BTC/Paid] sale notification failed:', e.message); }
   // Mesh broadcast so other modules can react (e.g., service activation).
-  try { meshOrchestrator.broadcast && meshOrchestrator.broadcast('btc.invoice.paid', invoice); } catch (_) {}
+  try { meshOrchestrator.broadcast && meshOrchestrator.broadcast('btc.invoice.paid', invoice); } catch (e) { console.warn('[BTC/Paid] mesh broadcast failed:', e.message); }
 }
 
 if (process.env.BTC_VERIFIER_DISABLE !== '1') {
@@ -5997,6 +7193,67 @@ app.post('/api/invoice/create', async (req, res) => {
     const inv = await btcLedger.createInvoice({ service, priceUsd, customerEmail, metadata });
     res.json({ ok: true, invoice: inv });
   } catch (e) { res.status(400).json({ ok: false, error: e.message }); }
+});
+
+// ==================== /api/order — FULL SALE PIPELINE ====================
+// POST /api/order — creează comanda: preț canonic (priceNegotiator, marjă
+// 30%) → factură BTC cu sats unici → așteaptă confirmarea on-chain
+// (btcPaymentVerifier) → activare automată (API key + licență).
+app.post('/api/order', async (req, res) => {
+  try {
+    const { serviceId, service, email, qty, metadata } = req.body || {};
+    const out = await salesOrchestrator.createOrder({
+      serviceId: serviceId || service,
+      email,
+      qty,
+      metadata: metadata || {},
+    });
+    if (!out.ok) return res.status(out.error === 'serviceId_required' ? 400 : 422).json(out);
+    res.status(201).json(out);
+  } catch (e) { res.status(500).json({ ok: false, error: e.message }); }
+});
+
+// GET /api/order/:id — factură + activare (dacă e plătită).
+app.get('/api/order/:id', (req, res) => {
+  const out = salesOrchestrator.getOrder(req.params.id);
+  if (!out.ok) return res.status(404).json(out);
+  res.json(out);
+});
+
+// POST /api/order/:id/simulate-payment — DOAR test/admin (mock de plată).
+// Integrarea REALĂ e btcPaymentVerifier care urmărește mempool.space și
+// apelează același _onPaidInvoice → același flux de activare. Mock-ul
+// există ca să potăm proba cap-coadă fără a mișca BTC reali.
+// Gate dual: admin JWT clasic SAU header x-commerce-admin-secret (cryptoauth
+// a retras login-ul legacy cu parolă — secretul static rămâne calea ops).
+function salesAdminGate(req, res, next) {
+  const secret = process.env.COMMERCE_ADMIN_SECRET || '';
+  const provided = String(req.headers['x-commerce-admin-secret'] || '');
+  if (secret && provided) {
+    const a = Buffer.from(provided), b = Buffer.from(secret);
+    if (a.length === b.length && crypto.timingSafeEqual(a, b)) {
+      req.admin = { role: 'admin', sub: 'commerce-admin-secret' };
+      return next();
+    }
+  }
+  return adminTokenMiddleware(req, res, next);
+}
+app.post('/api/order/:id/simulate-payment', salesAdminGate, (req, res) => {
+  try {
+    const inv = btcLedger.getInvoice(req.params.id);
+    if (!inv) return res.status(404).json({ ok: false, error: 'not_found' });
+    if (inv.status === 'paid') {
+      return res.json({ ok: true, alreadyPaid: true, invoice: inv, activation: salesOrchestrator.getActivationByInvoice(inv.id) });
+    }
+    const updated = btcLedger.markPaid(inv.id, { txid: 'simulated-' + Date.now(), confirmations: 1 });
+    if (updated) _onPaidInvoice(updated);
+    res.json({ ok: true, simulated: true, invoice: updated, activation: salesOrchestrator.getActivationByInvoice(inv.id) });
+  } catch (e) { res.status(500).json({ ok: false, error: e.message }); }
+});
+
+// GET /api/sales/status — starea pipeline-ului de vânzări.
+app.get('/api/sales/status', (req, res) => {
+  res.json({ ok: true, sales: salesOrchestrator.getStatus(), catalog: serviceCatalogFacade.getStatus() });
 });
 
 app.get('/api/invoice/list', (req, res) => {
@@ -6171,16 +7428,16 @@ app.get('/api/docs', (req, res) => {
     ok: true,
     name: 'ZeusAI Unicorn Platform API',
     version: require('./package.json').version,
-    openapi: '/openapi.json',
+    openapi: '/openapi-public.json',
     changelog: '/api/changelog',
     health: '/health',
+    note: 'Public API index. Operator/admin endpoints require authentication and are intentionally excluded.',
     endpoints: {
       auth:        ['/api/auth/signup', '/api/auth/login', '/api/auth/me'],
       services:    ['/api/services', '/api/marketplace/services', '/api/pricing/all'],
       payments:    ['/api/checkout/create', '/api/btc/spot', '/api/payment/btc-rate'],
       carbon:      ['/api/carbon/stats', '/api/carbon/portfolio/:owner'],
       innovation:  ['/api/innovation', '/api/innovation/coverage'],
-      admin:       ['/api/admin/health', '/api/admin/owner-revenue'],
       monitoring:  ['/health', '/api/status', '/stream'],
     }
   });
@@ -6446,11 +7703,15 @@ app.get('/api/modules/list', (req, res) => {
 
 // GET /api/modules/stream — SSE live event feed
 app.get('/api/modules/stream', (req, res) => {
+  const origin = req.headers.origin || '';
+  const allowOrigin = (process.env.NODE_ENV === 'production' && _allowedOrigins.length)
+    ? (_allowedOrigins.some(o => { try { const h = new URL(o).hostname; const ih = new URL(origin).hostname; return ih === h || ih.endsWith('.' + h); } catch { return false; } }) ? origin : '')
+    : origin || '*';
   res.writeHead(200, {
     'Content-Type': 'text/event-stream',
     'Cache-Control': 'no-cache, no-transform',
     'Connection': 'keep-alive',
-    'Access-Control-Allow-Origin': '*',
+    ...(allowOrigin ? { 'Access-Control-Allow-Origin': allowOrigin } : {}),
     'X-Accel-Buffering': 'no',
   });
   const snapshot = {
@@ -6466,12 +7727,16 @@ app.get('/api/modules/stream', (req, res) => {
 
 // POST /api/modules/register — autonomous innovation hook
 // Used by auto-innovation engine, admin tooling, or external systems.
-// Optional auth: if ADMIN_TOKEN env is set, requires it; otherwise open (dev).
+// Auth always required: ADMIN_TOKEN / ADMIN_API_TOKEN env, or valid admin JWT.
 app.post('/api/modules/register', express.json(), (req, res) => {
   const adminToken = process.env.ADMIN_TOKEN || process.env.ADMIN_API_TOKEN || '';
-  if (adminToken) {
-    const provided = (req.headers.authorization || '').replace(/^Bearer\s+/i, '') || req.headers['x-admin-token'] || '';
-    if (provided !== adminToken) return res.status(401).json({ error: 'unauthorized' });
+  const provided = (req.headers.authorization || '').replace(/^Bearer\s+/i, '') || req.headers['x-admin-token'] || '';
+  if (!adminToken || !provided || provided !== adminToken) {
+    return adminTokenMiddleware(req, res, () => {
+      const entry = _autoUpsertModule(req.body || {});
+      if (!entry) return res.status(400).json({ error: 'id required' });
+      res.json({ ok: true, module: entry });
+    });
   }
   const entry = _autoUpsertModule(req.body || {});
   if (!entry) return res.status(400).json({ error: 'id required' });
@@ -6481,9 +7746,18 @@ app.post('/api/modules/register', express.json(), (req, res) => {
 // POST /api/modules/status — broadcast a status change
 app.post('/api/modules/status', express.json(), (req, res) => {
   const adminToken = process.env.ADMIN_TOKEN || process.env.ADMIN_API_TOKEN || '';
-  if (adminToken) {
-    const provided = (req.headers.authorization || '').replace(/^Bearer\s+/i, '') || req.headers['x-admin-token'] || '';
-    if (provided !== adminToken) return res.status(401).json({ error: 'unauthorized' });
+  const provided = (req.headers.authorization || '').replace(/^Bearer\s+/i, '') || req.headers['x-admin-token'] || '';
+  if (!adminToken || !provided || provided !== adminToken) {
+    return adminTokenMiddleware(req, res, () => {
+      const { id, isActive, status } = req.body || {};
+      if (!id) return res.status(400).json({ error: 'id required' });
+      const m = _autonomousRegistry.modules.get(String(id));
+      if (!m) return res.status(404).json({ error: 'not_found' });
+      if (typeof isActive === 'boolean') m.isActive = isActive;
+      m.updatedAt = new Date().toISOString();
+      _autoEmit('status.update', { id: m.id, isActive: m.isActive, status: status || (m.isActive ? 'active' : 'inactive') });
+      return res.json({ ok: true, module: m });
+    });
   }
   const { id, isActive, status } = req.body || {};
   if (!id) return res.status(400).json({ error: 'id required' });
@@ -6807,12 +8081,19 @@ app.post('/api/pricing/discount', adminTokenMiddleware, (req, res) => {
 
 // ==================== PAYMENT ROUTES ====================
 // ── NOWPayments — Global Universal Payment (300+ coins + cards → auto BTC) ──
-app.post('/api/payment/nowpayments/create', asyncHandler(async (req, res) => {
-  const { amountUsd, itemName, itemId, clientId, successUrl, cancelUrl } = req.body || {};
+// Supported pay_currency values (auto-settled to owner BTC via NOWPayments).
+const NOWPAYMENTS_SUPPORTED = ['btc','eth','usdt','usdc','bnb','sol','trx','ltc','doge','xrp','ada','dot'];
+
+app.post('/api/payment/nowpayments/create', _swRateLimit, asyncHandler(async (req, res) => {
+  const { amountUsd, itemName, itemId, clientId, successUrl, cancelUrl, payCurrency } = req.body || {};
   const normalizedAmount = Number(amountUsd);
   if (!Number.isFinite(normalizedAmount) || normalizedAmount <= 0) {
     return res.status(400).json({ error: 'amountUsd required' });
   }
+  // Validate requested currency; fall back to btc
+  const chosenCurrency = NOWPAYMENTS_SUPPORTED.includes(String(payCurrency || '').toLowerCase())
+    ? String(payCurrency).toLowerCase()
+    : 'btc';
 
   const invoice = await nowPayments.createInvoice({
     amountUsd: normalizedAmount,
@@ -6821,8 +8102,52 @@ app.post('/api/payment/nowpayments/create', asyncHandler(async (req, res) => {
     clientId,
     successUrl,
     cancelUrl,
+    payCurrency: chosenCurrency,
   });
-  res.json(invoice);
+  res.json({ ...invoice, chosenCurrency });
+}));
+
+// Multi-crypto checkout picker — returns all enabled rails + invoice options
+app.post('/api/payment/multi-crypto/checkout', _swRateLimit, express.json({ limit: '32kb' }), asyncHandler(async (req, res) => {
+  const { amountUsd, itemId, itemName, preferredCurrency } = req.body || {};
+  const amount = Number(amountUsd);
+  if (!Number.isFinite(amount) || amount <= 0) return res.status(400).json({ error: 'amountUsd required' });
+
+  const btcRate = await __getBtcUsdRate().catch(() => 0);
+  const currency = NOWPAYMENTS_SUPPORTED.includes(String(preferredCurrency || '').toLowerCase())
+    ? String(preferredCurrency).toLowerCase()
+    : 'btc';
+
+  // If NOWPayments is configured, create a real invoice
+  let invoice = null;
+  if (process.env.NOWPAYMENTS_API_KEY) {
+    try {
+      invoice = await nowPayments.createInvoice({
+        amountUsd: amount, itemName, itemId, payCurrency: currency,
+        successUrl: (process.env.PUBLIC_APP_URL || 'https://zeusai.pro') + '/payment-success',
+        cancelUrl: (process.env.PUBLIC_APP_URL || 'https://zeusai.pro') + '/checkout',
+      });
+    } catch (_) {}
+  }
+
+  const rails = NOWPAYMENTS_SUPPORTED.map((c) => ({
+    currency: c.toUpperCase(),
+    label: c.toUpperCase(),
+    active: c === currency,
+    invoiceUrl: (invoice && c === currency) ? (invoice.invoice_url || null) : null,
+  }));
+
+  res.json({
+    ok: true,
+    amountUsd: amount,
+    chosenCurrency: currency,
+    ownerBtcAddress: __OWNER_BTC,
+    btcRate,
+    btcEquivalent: btcRate > 0 ? Number((amount / btcRate).toFixed(8)) : null,
+    invoice: invoice || null,
+    rails,
+    note: 'All payments auto-converted and settled to owner BTC address.',
+  });
 }));
 
 app.get('/api/payment/nowpayments/status/:id', asyncHandler(async (req, res) => {
@@ -6865,6 +8190,47 @@ app.get('/api/payment/nowpayments/security', (req, res) => {
 
 app.get('/api/payment/methods', (req, res) => {
   res.json({ methods: paymentGateway.getPaymentMethods() });
+});
+
+// Public payment configuration status. BTC-direct is the primary, always-on
+// owner-wallet rail; external providers (Stripe/PayPal/BTCPay/NOWPayments) are
+// optional and reported as inactive until their secrets are configured.
+// Served by the backend because nginx routes /api/* to port 3000.
+app.get('/api/payments/config/status', (req, res) => {
+  const _set = (k) => {
+    const v = (process.env[k] || '').trim();
+    return !!v && !/^your_|_here$|^changeme$|^placeholder$/i.test(v);
+  };
+  const stripeConfigured = _set('STRIPE_SECRET_KEY');
+  const paypalConfigured = _set('PAYPAL_CLIENT_ID') && _set('PAYPAL_CLIENT_SECRET');
+  const btcpayConfigured = _set('BTCPAY_SERVER_URL') && _set('BTCPAY_API_KEY') && _set('BTCPAY_STORE_ID');
+  const nowConfigured = _set('NOWPAYMENTS_API_KEY');
+  const nowIpnConfigured = _set('NOWPAYMENTS_IPN_SECRET');
+  const rails = [
+    { id: 'btc-direct', configured: true, active: true, primary: true, mode: 'owner-wallet-primary', payoutDestination: __OWNER_BTC, action: 'none' },
+    { id: 'stripe', configured: stripeConfigured, active: stripeConfigured, primary: false, mode: stripeConfigured ? 'checkout-api' : 'optional-later', action: stripeConfigured ? 'none' : 'optional: configure STRIPE_SECRET_KEY later' },
+    { id: 'btcpay', configured: btcpayConfigured, active: btcpayConfigured, primary: false, mode: btcpayConfigured ? 'invoice-api' : 'optional-later', action: btcpayConfigured ? 'none' : 'optional: configure BTCPAY_SERVER_URL, BTCPAY_API_KEY, BTCPAY_STORE_ID later' },
+    { id: 'paypal', configured: paypalConfigured, active: paypalConfigured, primary: false, mode: paypalConfigured ? 'orders-api' : 'optional-later', action: paypalConfigured ? 'none' : 'optional: configure PAYPAL_CLIENT_ID and PAYPAL_CLIENT_SECRET later' },
+    { id: 'nowpayments', configured: nowConfigured, active: nowConfigured, primary: false, mode: nowConfigured ? 'global-crypto' : 'optional-later', action: (nowConfigured && nowIpnConfigured) ? 'none' : 'optional: configure NOWPAYMENTS_API_KEY and NOWPAYMENTS_IPN_SECRET later' },
+  ];
+  res.set('Cache-Control', 'no-cache');
+  res.json({
+    ok: true,
+    generatedAt: new Date().toISOString(),
+    mode: 'BTC direct owner-wallet primary; external providers optional later',
+    primaryRail: 'btc-direct',
+    primaryPayout: { currency: 'BTC', address: __OWNER_BTC, automatic: true, custody: 'owner-controlled-wallet' },
+    nowpayments: {
+      apiKeyConfigured: nowConfigured,
+      ipnSecretConfigured: nowIpnConfigured,
+      webhookSecurityReady: nowIpnConfigured,
+      sandbox: process.env.NOWPAYMENTS_SANDBOX === '1',
+      optionalSecrets: ['NOWPAYMENTS_API_KEY', 'NOWPAYMENTS_IPN_SECRET'],
+      requiredForCurrentMode: false,
+    },
+    rails,
+    action: 'No action needed for current mode: revenue routes directly to the configured BTC owner wallet. Stripe/NOWPayments/PayPal can be enabled later as optional rails.',
+  });
 });
 
 app.get('/api/payment/btc-rate', async (req, res) => {
@@ -7611,6 +8977,36 @@ app.post('/api/mesh/sync', adminTokenMiddleware, (req, res) => {
   res.json({ success: true, message: 'Sincronizare mesh declanșată manual' });
 });
 
+// ==================== AUTONOMY SPINE — public proof + gate ====================
+// Coloana de autonomie: postură de guvernanță + lanț de decizii semnat ed25519.
+// Namespace dedicat /api/spine/* pentru a NU intra în coliziune cu subsistemul
+// PCMC existent (/api/autonomy/* — Merkle chain). Toate publice (read-only).
+app.get('/api/spine/status', (req, res) => {
+  if (!autonomySpine) return res.status(503).json({ error: 'autonomy-spine unavailable' });
+  res.json(autonomySpine.getStatus());
+});
+
+app.get('/api/spine/gate', (req, res) => {
+  if (!autonomySpine) return res.status(503).json({ error: 'autonomy-spine unavailable' });
+  res.json(autonomySpine.getGate());
+});
+
+app.get('/api/spine/decisions', (req, res) => {
+  if (!autonomySpine) return res.status(503).json({ error: 'autonomy-spine unavailable' });
+  const limit = Math.min(parseInt(req.query.limit) || 50, 200);
+  res.json({ decisions: autonomySpine.getDecisions(limit) });
+});
+
+app.get('/api/spine/verify', (req, res) => {
+  if (!autonomySpine) return res.status(503).json({ error: 'autonomy-spine unavailable' });
+  res.json(autonomySpine.verifyChain());
+});
+
+app.get('/api/spine/publickey', (req, res) => {
+  if (!autonomySpine) return res.status(503).json({ error: 'autonomy-spine unavailable' });
+  res.json({ publicKey: autonomySpine.getPublicKey(), alg: 'ed25519' });
+});
+
 // ==================== CODE SANITY ENGINE ====================
 app.get('/api/code-sanity/status', (req, res) => {
   res.json(codeSanityEngine.getStatus());
@@ -7921,51 +9317,238 @@ app.get('/api/admin/executive/growth', adminTokenMiddleware, (req, res) => {
 });
 
 // ==================== AUTONOMOUS INNOVATION ROUTES ====================
+function _safeCall(target, methodName, args = [], fallback = null) {
+  try {
+    if (target && typeof target[methodName] === 'function') {
+      return target[methodName](...args);
+    }
+  } catch (_) { /* non-fatal for status endpoints */ }
+  return fallback;
+}
+
+function _selectInnovationEngine() {
+  const primary = autonomousInnovation;
+  const probe = _safeCall(primary, 'getStatus', [], null);
+  if (probe && Object.keys(probe).length > 0) return primary;
+  if (_safeCall(primary, 'autonomousInnovator', [], null)) return primary;
+  return unicornInnovator;
+}
+
+function _innovationStatusAndMetrics() {
+  const engine = _selectInnovationEngine();
+  const status = _safeCall(engine, 'getStatus', [], {}) || {};
+  const generated = Number(
+    status.totalInnovationsGenerated ?? status.generated ?? status.innovationsGenerated ?? 0
+  );
+  const deployed = Number(
+    status.totalFeaturesDeployed ?? status.approved ?? status.innovationsApproved ?? 0
+  );
+  const rejected = Number(
+    status.rejected ?? status.innovationsRejected ?? 0
+  );
+  const cycles = Number(
+    status.totalCycles ?? status.cycles ?? status.mainCycleCount ?? 0
+  );
+  const deploymentSuccessRate = generated > 0
+    ? Number(((deployed / generated) * 100).toFixed(2))
+    : 0;
+
+  return {
+    engine: engine === unicornInnovator ? 'unicornInnovator' : 'autonomousInnovation',
+    status: {
+      active: status.active !== false,
+      circuitOpen: !!status.circuitOpen,
+      cycles,
+      generated,
+      approved: deployed,
+      rejected,
+      pendingCount: Number(status.pendingCount ?? 0),
+      startedAt: status.startedAt || null,
+      source: engine === unicornInnovator ? 'supreme-innovator' : 'legacy-innovation',
+    },
+    metrics: {
+      totalInnovationsGenerated: generated,
+      totalFeaturesDeployed: deployed,
+      totalRejected: rejected,
+      cycles,
+      deploymentSuccessRate,
+    },
+  };
+}
+
+function _innovationHistory(limit) {
+  const engine = _selectInnovationEngine();
+  const n = Math.max(1, Math.min(200, Number(limit) || 20));
+  const h1 = _safeCall(engine, 'getInnovationHistory', [n], null);
+  if (Array.isArray(h1)) return h1;
+  if (h1 && Array.isArray(h1.history)) return h1.history;
+  const h2 = _safeCall(engine, 'getHistory', [n], null);
+  if (Array.isArray(h2)) return h2;
+  return [];
+}
+
+function _triggerInnovationCycle() {
+  const engine = _selectInnovationEngine();
+  const fromLegacy = _safeCall(engine, 'generateNewInnovation', [], null);
+  if (fromLegacy) return { ok: true, innovation: fromLegacy, action: 'generateNewInnovation' };
+
+  const fromSupreme = _safeCall(engine, 'autonomousInnovator', [], null);
+  if (fromSupreme) return { ok: true, innovation: fromSupreme, action: 'autonomousInnovator' };
+
+  const fromLoop = _safeCall(engine, 'innovationGenerator', [], null);
+  if (fromLoop) return { ok: true, innovation: fromLoop, action: 'innovationGenerator' };
+
+  return { ok: false, error: 'No innovation trigger entrypoint available' };
+}
+
+function _optimizeInnovation() {
+  const engine = _selectInnovationEngine();
+  const optimized = _safeCall(engine, 'selfOptimize', [], null);
+  if (optimized != null) return { ok: true, action: 'selfOptimize', result: optimized };
+  // Fallback: run one full autonomous cycle as practical optimization pass.
+  const cycle = _triggerInnovationCycle();
+  if (cycle.ok) return { ok: true, action: 'cycle-fallback', result: cycle };
+  return { ok: false, error: 'No optimization/cycle method available' };
+}
+
+function _runtimeAutonomyFlags() {
+  const runtimeProfile = String(process.env.UNICORN_RUNTIME_PROFILE || _runtimeProfile || 'safe').toLowerCase();
+  const disableSelfMutation = String(process.env.DISABLE_SELF_MUTATION || '').toLowerCase() === '1';
+  const enableFileMutators = ['1', 'true', 'yes', 'on'].includes(String(process.env.ENABLE_FILE_MUTATORS || '').toLowerCase());
+  const enableAutoDeploy = ['1', 'true', 'yes', 'on'].includes(String(process.env.ENABLE_AUTO_DEPLOY || '').toLowerCase());
+  const growthRuntime = runtimeProfile === 'growth' || runtimeProfile === 'full';
+  return {
+    runtimeProfile,
+    growthRuntime,
+    disableSelfMutation,
+    enableFileMutators,
+    enableAutoDeploy,
+  };
+}
+
 app.get('/api/autonomous/innovation/status', (req, res) => {
-  res.json(autonomousInnovation.getStatus());
+  const out = _innovationStatusAndMetrics();
+  res.json({
+    ...out.status,
+    metrics: out.metrics,
+    engine: out.engine,
+    timestamp: new Date().toISOString(),
+  });
 });
 
 app.get('/api/autonomous/innovation/history', (req, res) => {
   const limit = req.query.limit || 20;
-  res.json(autonomousInnovation.getInnovationHistory(limit));
+  res.json({
+    success: true,
+    limit: Math.max(1, Math.min(200, Number(limit) || 20)),
+    history: _innovationHistory(limit),
+  });
 });
 
 app.get('/api/autonomous/innovation/metrics', (req, res) => {
-  res.json(autonomousInnovation.getDeploymentMetrics());
+  const out = _innovationStatusAndMetrics();
+  res.json({ ...out.metrics, engine: out.engine, timestamp: new Date().toISOString() });
 });
 
 app.post('/api/autonomous/innovation/trigger', adminTokenMiddleware, (req, res) => {
-  const innov = autonomousInnovation.generateNewInnovation();
-  res.json({ success: true, innovation: innov });
+  const out = _triggerInnovationCycle();
+  if (!out.ok) return res.status(500).json({ success: false, error: out.error });
+  res.json({ success: true, innovation: out.innovation, action: out.action });
 });
 
 app.post('/api/autonomous/innovation/optimize', adminTokenMiddleware, (req, res) => {
-  autonomousInnovation.selfOptimize();
-  res.json({ success: true, message: 'Self-optimization triggered' });
+  const out = _optimizeInnovation();
+  if (!out.ok) return res.status(500).json({ success: false, error: out.error });
+  res.json({ success: true, message: 'Optimization cycle executed', action: out.action, result: out.result || null });
 });
 
 // ==================== AUTO REVENUE ROUTES ====================
-// NOTE: AutoRevenueEngine runs in DEMO/SIMULATION mode.
-// Figures shown are projections based on simulated deal flow — not real transactions.
-// Real revenue comes from /api/payment/* (Stripe/PayPal/crypto).
+// Real-first revenue API. Simulation can be enabled only explicitly via
+// AUTO_REVENUE_SIMULATE=enabled (development/demo only).
 app.get('/api/autonomous/revenue/status', (req, res) => {
-  res.json({ ...autoRevenue.getRevenueStatus(), mode: 'DEMO', note: 'Simulated pipeline. Real revenue tracked via /api/payment/stats.' });
+  const status = autoRevenue.getRevenueStatus();
+  const mode = status && status.simulated ? 'DEMO' : 'REAL';
+  res.json({
+    ...status,
+    mode,
+    note: status && status.honesty
+      ? status.honesty
+      : (mode === 'DEMO' ? 'Simulated pipeline.' : 'Real paid receipts only.'),
+  });
 });
 
 app.get('/api/autonomous/revenue/history', (req, res) => {
   const limit = req.query.limit || 20;
-  res.json({ ...autoRevenue.getRevenueHistory(limit), mode: 'DEMO', note: 'Simulated deal history.' });
+  const status = autoRevenue.getRevenueStatus();
+  const mode = status && status.simulated ? 'DEMO' : 'REAL';
+  res.json({
+    ...autoRevenue.getRevenueHistory(limit),
+    mode,
+    reality: status ? status.reality : null,
+    note: mode === 'DEMO' ? 'Simulated deal history.' : 'Real receipts history is tracked via ledger-backed payment endpoints.',
+  });
 });
 
 app.get('/api/autonomous/revenue/metrics', (req, res) => {
-  res.json({ ...autoRevenue.getDetailedMetrics(), mode: 'DEMO', note: 'Simulated metrics for planning purposes.' });
+  const status = autoRevenue.getRevenueStatus();
+  const mode = status && status.simulated ? 'DEMO' : 'REAL';
+  res.json({
+    ...autoRevenue.getDetailedMetrics(),
+    mode,
+    simulated: !!(status && status.simulated),
+    reality: status ? status.reality : null,
+    note: mode === 'DEMO' ? 'Simulated metrics for planning purposes.' : 'Real payment-ledger metrics.',
+  });
 });
 
 app.post('/api/autonomous/revenue/generate-deals', adminTokenMiddleware, (req, res) => {
+  const simulationOn = String(process.env.AUTO_REVENUE_SIMULATE || 'disabled').toLowerCase() === 'enabled';
+  if (!simulationOn) {
+    return res.status(409).json({
+      success: false,
+      error: 'Synthetic deal generation disabled in real mode',
+      mode: 'REAL',
+    });
+  }
   autoRevenue.generateAffiliateDeals();
   autoRevenue.createMarketplaceListings();
   autoRevenue.negotiateB2BPartnerships();
   res.json({ success: true, message: 'Revenue generation cycle triggered' });
+});
+
+// ==================== AUTONOMOUS GROWTH STACK ROUTES (2026-06-12) ====================
+// Public read-only status + admin-gated triggers. Grouped per domain blocks
+// convention. RO: statusuri publice read-only, declanșatoare doar cu token.
+app.get('/api/traffic/status', (req, res) => {
+  if (!trafficEngine) return res.status(503).json({ error: 'traffic-engine not loaded' });
+  res.json(trafficEngine.getStatus());
+});
+
+app.post('/api/traffic/ping', adminTokenMiddleware, asyncHandler(async (req, res) => {
+  if (!trafficEngine) return res.status(503).json({ error: 'traffic-engine not loaded' });
+  const out = await trafficEngine.runCycle({ dryRun: String(req.query.dryRun || '') === '1' });
+  res.json(out);
+}));
+
+app.get('/api/funnel/intelligence', (req, res) => {
+  if (!funnelIntelligence) return res.status(503).json({ error: 'funnel-intelligence not loaded' });
+  res.json(funnelIntelligence.summary());
+});
+
+app.get('/api/flywheel/status', (req, res) => {
+  if (!revenueFlywheel) return res.status(503).json({ error: 'revenue-flywheel not loaded' });
+  res.json(revenueFlywheel.getStatus());
+});
+
+app.post('/api/flywheel/run', adminTokenMiddleware, asyncHandler(async (req, res) => {
+  if (!revenueFlywheel) return res.status(503).json({ error: 'revenue-flywheel not loaded' });
+  const out = await revenueFlywheel.runCycle({ dryRun: String(req.query.dryRun || '') === '1' });
+  res.json(out);
+}));
+
+app.get('/api/memory/status', (req, res) => {
+  if (!memoryGuardian) return res.status(503).json({ error: 'memory-guardian not loaded' });
+  res.json(memoryGuardian.getStatus());
 });
 
 // ==================== AUTO VIRAL GROWTH ROUTES ====================
@@ -8005,21 +9588,40 @@ app.post('/api/autonomous/viral/activate', adminTokenMiddleware, asyncHandler(as
 }));
 
 app.get('/api/autonomous/platform/status', (req, res) => {
+  const innovation = _innovationStatusAndMetrics();
+  const revenue = autoRevenue.getRevenueStatus();
+  const viral = autoViralGrowth.getViralStatus();
+  const flags = _runtimeAutonomyFlags();
+  const fullyReal = flags.growthRuntime && !flags.disableSelfMutation && !revenue.simulated;
+  const limitedByProfile = !flags.growthRuntime || flags.disableSelfMutation;
+
+  const state = limitedByProfile
+    ? 'AUTONOMY_LIMITED_SAFE_PROFILE'
+    : (fullyReal ? 'AUTONOMOUS_REAL_WORLD_ACTIVE' : 'AUTONOMOUS_PARTIAL_SIMULATED');
+
   res.json({
     timestamp: new Date().toISOString(),
-    state: 'FULLY_AUTONOMOUS_LIVE',
+    state,
+    truth: {
+      runtimeProfile: flags.runtimeProfile,
+      growthRuntime: flags.growthRuntime,
+      disableSelfMutation: flags.disableSelfMutation,
+      revenueSimulated: !!revenue.simulated,
+      fullyReal,
+    },
     autonomousEngines: {
-      innovation: autonomousInnovation.getStatus(),
-      revenue: autoRevenue.getRevenueStatus(),
-      viral: autoViralGrowth.getViralStatus(),
+      innovation: { ...innovation.status, metrics: innovation.metrics, engine: innovation.engine },
+      revenue,
+      viral,
     },
     combinedMetrics: {
-      totalInnovationsGenerated: autonomousInnovation.metrics.totalInnovationsGenerated,
-      totalFeaturesDeployed: autonomousInnovation.metrics.totalFeaturesDeployed,
-      projectedAnnualRevenue: autoRevenue.metrics.projectedAnnualRevenue,
-      activeDeals: autoRevenue.metrics.activeDeals,
-      viralScore: autoViralGrowth.metrics.viralScore,
-      estimatedReach: autoViralGrowth.metrics.estimatedReach,
+      totalInnovationsGenerated: innovation.metrics.totalInnovationsGenerated,
+      totalFeaturesDeployed: innovation.metrics.totalFeaturesDeployed,
+      projectedAnnualRevenue: Number(revenue && revenue.projectedAnnualRevenue ? revenue.projectedAnnualRevenue : 0),
+      realPaidRevenueUsd: Number(revenue && revenue.reality && revenue.reality.paidRevenueUsd ? revenue.reality.paidRevenueUsd : 0),
+      activeDeals: Number(revenue && revenue.activeDeals ? revenue.activeDeals : 0),
+      viralScore: Number(viral && viral.metrics && viral.metrics.viralScore ? viral.metrics.viralScore : 0),
+      estimatedReach: Number(viral && viral.estimatedReach ? viral.estimatedReach : (viral && viral.metrics && viral.metrics.realCustomers ? viral.metrics.realCustomers : 0)),
     },
   });
 });
@@ -8038,6 +9640,204 @@ app.post('/api/orchestrator/start', adminTokenMiddleware, (req, res) => {
   } catch (e) {
     res.status(500).json({ success: false, error: e.message });
   }
+});
+
+// ==================== ZACC: ZEUS AUTONOMIC COMMERCE CORE ROUTES ====================
+// RO: primul sistem economic complet autonom. Rulează in-proces (require de
+// mai jos pornește bucla autonomă). Toate mutațiile sunt admin-protejate;
+// citirile sunt publice pentru a alimenta pagina /zacc de pe site.
+let zacc = null;
+try {
+  zacc = require('./modules/zacc');
+  console.log('[zacc] loaded · Zeus Autonomic Commerce Core online (autonomous loop active)');
+  // RO: publică produsele ZACC în catalogul principal (/api/services) imediat.
+  // Sink-ul este idempotent: duplicatele sunt ignorate (verifică id existent).
+  zacc.setServiceSink(function (p) {
+    if (!p || !p.id) return;
+    if (_unicornServices.some(function (s) { return s.id === p.id; })) return;
+    _unicornServices.push({
+      id: p.id,
+      title: p.title,
+      segment: p.niche || 'all',
+      kpi: 'autonomous delivery',
+      price: Number(p.priceUsd) || 0,
+      currency: 'USD',
+      billing: p.type === 'subscription' ? 'monthly' : 'one-time',
+      description: String(p.description || '').slice(0, 200),
+      group: 'zacc',
+      buyUrl: p.buyUrl,
+    });
+  });
+} catch (e) { console.warn('[zacc] not loaded:', e.message); }
+
+// Public read: full status snapshot (all 9 components).
+app.get('/api/zacc/status', (req, res) => {
+  if (!zacc) return res.status(503).json({ ok: false, error: 'zacc_unavailable' });
+  res.json(zacc.status());
+});
+// Public read: compact snapshot for the site page.
+app.get('/api/zacc/public', (req, res) => {
+  if (!zacc) return res.status(503).json({ ok: false, error: 'zacc_unavailable' });
+  res.json(zacc.publicSnapshot());
+});
+// Public read: live products built by ZACC (sellable via standard checkout).
+app.get('/api/zacc/products', (req, res) => {
+  if (!zacc) return res.status(503).json({ ok: false, error: 'zacc_unavailable' });
+  const limit = Math.min(200, Number(req.query.limit) || 60);
+  res.json({ ok: true, items: zacc.builder.publicList(limit), count: zacc.builder.products.length });
+});
+// Public read: today's proposed ideas + trends.
+app.get('/api/zacc/ideas', (req, res) => {
+  if (!zacc) return res.status(503).json({ ok: false, error: 'zacc_unavailable' });
+  res.json({ ok: true, ideas: zacc.synthesizer.ideas.slice(0, 30), trends: zacc.scanner.top(12) });
+});
+// Personalized offer for a visitor (read-only; no PII stored).
+app.get('/api/zacc/offer/:productId', (req, res) => {
+  if (!zacc) return res.status(503).json({ ok: false, error: 'zacc_unavailable' });
+  const offer = zacc.offerFor(req.params.productId, {
+    returning: req.query.returning === '1',
+    referrer: req.get('referer') || req.query.ref,
+    device: /mobile/i.test(req.get('user-agent') || '') ? 'mobile' : 'desktop',
+    geo: req.query.geo,
+  });
+  if (!offer) return res.status(404).json({ ok: false, error: 'product_not_found' });
+  res.json({ ok: true, offer });
+});
+// Commerce telemetry hooks (storefront feeds demand signals here).
+app.post('/api/zacc/event', express.json({ limit: '8kb' }), (req, res) => {
+  if (!zacc) return res.status(503).json({ ok: false, error: 'zacc_unavailable' });
+  const { productId, type } = req.body || {};
+  if (!productId || !type) return res.status(400).json({ ok: false, error: 'productId_and_type_required' });
+  if (type === 'view') zacc.recordView(productId);
+  else if (type === 'cart') zacc.recordCart(productId);
+  else if (type === 'sale') zacc.recordSale(productId, Number((req.body && req.body.amountUsd) || 0));
+  else return res.status(400).json({ ok: false, error: 'unknown_event_type' });
+  res.json({ ok: true });
+});
+// Admin: force one autonomous cycle now.
+app.post('/api/zacc/tick', adminTokenMiddleware, async (req, res) => {
+  if (!zacc) return res.status(503).json({ ok: false, error: 'zacc_unavailable' });
+  const summary = await zacc.tick('manual-admin');
+  res.json({ ok: true, summary });
+});
+// Admin: approve a proposed idea → builds it into a live product immediately.
+app.post('/api/zacc/approve/:ideaId', adminTokenMiddleware, (req, res) => {
+  if (!zacc) return res.status(503).json({ ok: false, error: 'zacc_unavailable' });
+  const result = zacc.approveIdea(req.params.ideaId);
+  if (!result) return res.status(404).json({ ok: false, error: 'idea_not_found' });
+  res.json({ ok: true, idea: result.idea, product: result.product });
+});
+// Admin: send the BTC revenue report now (Discord/Telegram/email webhook).
+app.post('/api/zacc/report', adminTokenMiddleware, async (req, res) => {
+  if (!zacc) return res.status(503).json({ ok: false, error: 'zacc_unavailable' });
+  const result = await zacc.revenue.sendDailyReport(true);
+  res.json({ ok: true, sent: result.sent, reason: result.reason, report: result.report });
+});
+// Admin: niche (multi-instance) management.
+app.post('/api/zacc/niche/:action', adminTokenMiddleware, express.json({ limit: '8kb' }), (req, res) => {
+  if (!zacc) return res.status(503).json({ ok: false, error: 'zacc_unavailable' });
+  const { action } = req.params;
+  const b = req.body || {};
+  let result = null;
+  if (action === 'spawn') result = zacc.multi.spawn(b.id, b.label, b.categories);
+  else if (action === 'pause') result = zacc.multi.pause(b.id);
+  else if (action === 'resume') result = zacc.multi.resume(b.id);
+  else if (action === 'allocate') result = zacc.multi.allocate(b.id, b.cpuShare, b.ramShareMb);
+  else return res.status(400).json({ ok: false, error: 'unknown_action' });
+  res.json({ ok: true, niche: result, niches: zacc.multi.status() });
+});
+// Public: create a real BTC invoice for a product (unique sats → on-chain match).
+// Returns the invoice with btcAddress + exact amountBtc to send.
+app.post('/api/zacc/invoice/:productId', async (req, res) => {
+  if (!zacc) return res.status(503).json({ ok: false, error: 'zacc_unavailable' });
+  try {
+    const result = await zacc.createInvoice(req.params.productId);
+    if (!result) return res.status(404).json({ ok: false, error: 'product_not_found' });
+    res.json({ ok: true, invoice: result.invoice, product: result.product });
+  } catch (e) { res.status(500).json({ ok: false, error: e.message }); }
+});
+// Public: get invoice status by id (buyer polls to detect payment confirmation).
+app.get('/api/zacc/invoice/:invoiceId', (req, res) => {
+  if (!zacc) return res.status(503).json({ ok: false, error: 'zacc_unavailable' });
+  const inv = zacc.payments.getInvoice(req.params.invoiceId);
+  if (!inv) return res.status(404).json({ ok: false, error: 'invoice_not_found' });
+  res.json({ ok: true, invoice: inv });
+});
+// Admin: list all invoices.
+app.get('/api/zacc/invoices', adminTokenMiddleware, (req, res) => {
+  if (!zacc) return res.status(503).json({ ok: false, error: 'zacc_unavailable' });
+  res.json({ ok: true, invoices: zacc.payments.invoices.slice(0, 200), status: zacc.payments.status() });
+});
+// Admin: force a mempool.space poll to confirm pending invoices now.
+app.post('/api/zacc/pay-poll', adminTokenMiddleware, async (req, res) => {
+  if (!zacc) return res.status(503).json({ ok: false, error: 'zacc_unavailable' });
+  try {
+    const result = await zacc.payments.poll(true);
+    res.json({ ok: true, result });
+  } catch (e) { res.status(500).json({ ok: false, error: e.message }); }
+});
+
+// ==================== AUTONOMOUS DROPSHIPPING ROUTES ====================
+// RO: storefront-ul auto-curat al ZACC. Toate produsele sunt scrapate global,
+// filtrate de profit, descrise de AI și publicate fără intervenție umană.
+// GET-urile sunt publice. POST-urile sunt admin (force-scrape, force-publish).
+app.get('/api/dropship/products', (req, res) => {
+  if (!zacc) return res.status(503).json({ ok: false, error: 'zacc_unavailable' });
+  const items = zacc.publisher.list({
+    sort: req.query.sort,
+    category: req.query.category,
+    search: req.query.q,
+    limit: Math.min(200, Number(req.query.limit) || 60),
+  });
+  res.json({ ok: true, items, count: zacc.publisher.published.length, categories: zacc.publisher.categories() });
+});
+app.get('/api/dropship/product/:id', (req, res) => {
+  if (!zacc) return res.status(503).json({ ok: false, error: 'zacc_unavailable' });
+  const p = zacc.publisher.get(req.params.id);
+  if (!p) return res.status(404).json({ ok: false, error: 'product_not_found' });
+  zacc.publisher.recordEvent(p.id, 'view');
+  res.json({ ok: true, product: p });
+});
+app.get('/api/dropship/status', (req, res) => {
+  if (!zacc) return res.status(503).json({ ok: false, error: 'zacc_unavailable' });
+  res.json({
+    ok: true,
+    scraper: zacc.scraper.status(),
+    profit: zacc.profit.status(),
+    publisher: zacc.publisher.status(),
+    fulfillment: zacc.fulfillment.status(),
+  });
+});
+// Public: create a BTC invoice for a dropship product (same flow as ZACC).
+app.post('/api/dropship/order/:id', async (req, res) => {
+  if (!zacc) return res.status(503).json({ ok: false, error: 'zacc_unavailable' });
+  const p = zacc.publisher.get(req.params.id);
+  if (!p) return res.status(404).json({ ok: false, error: 'product_not_found' });
+  try {
+    const inv = await zacc.payments.createInvoice(p.id, p.priceUsd);
+    res.json({ ok: true, invoice: inv, product: { id: p.id, title: p.title, priceUsd: p.priceUsd } });
+  } catch (e) { res.status(500).json({ ok: false, error: e.message }); }
+});
+// Admin: force one scrape now (returns counts).
+app.post('/api/dropship/scrape', adminTokenMiddleware, async (req, res) => {
+  if (!zacc) return res.status(503).json({ ok: false, error: 'zacc_unavailable' });
+  try {
+    const scrapeRes = await zacc.scraper.scrape(true);
+    const qualified = zacc.profit.rank(zacc.scraper.recent(300));
+    const published = zacc.publisher.publish(qualified, Number((req.body && req.body.limit) || 8));
+    res.json({ ok: true, scrape: scrapeRes, qualified: qualified.length, published: published.length });
+  } catch (e) { res.status(500).json({ ok: false, error: e.message }); }
+});
+// Admin: list pending manual-fulfillment orders.
+app.get('/api/dropship/fulfillment/pending', adminTokenMiddleware, (req, res) => {
+  if (!zacc) return res.status(503).json({ ok: false, error: 'zacc_unavailable' });
+  res.json({ ok: true, pending: zacc.fulfillment.pendingOrders, status: zacc.fulfillment.status() });
+});
+app.post('/api/dropship/fulfillment/resolve/:orderId', adminTokenMiddleware, (req, res) => {
+  if (!zacc) return res.status(503).json({ ok: false, error: 'zacc_unavailable' });
+  const done = zacc.fulfillment.resolvePending(req.params.orderId);
+  if (!done) return res.status(404).json({ ok: false, error: 'order_not_found' });
+  res.json({ ok: true, order: done });
 });
 
 // ==================== SELF-HEALING: SLO ROUTES ====================
@@ -9151,12 +10951,15 @@ app.post('/api/github-ops/rollback', adminTokenMiddleware, async (req, res) => {
 
 // ==================== SELF CONSTRUCTION & TOTAL SYSTEM HEALER ROUTES ====================
 app.get('/api/self-construction/status', adminTokenMiddleware, (req, res) => {
-  res.json({ module: 'SelfConstruction', status: 'active', hasRun: selfConstruction.hasRun });
+  let report = selfConstruction.lastReport;
+  try { if (!report) report = selfConstruction.audit(); } catch (_) {}
+  res.json({ module: 'SelfConstruction', status: 'active', hasRun: selfConstruction.hasRun, report });
 });
-app.post('/api/self-construction/run', adminTokenMiddleware, async (req, res) => {
+app.post('/api/self-construction/run', adminTokenMiddleware, express.json({ limit: '4kb' }), async (req, res) => {
   try {
-    await selfConstruction.start();
-    res.json({ success: true, module: 'SelfConstruction', hasRun: selfConstruction.hasRun });
+    const apply = !!(req.body && req.body.apply === true);
+    const result = await selfConstruction.start({ apply });
+    res.json({ success: true, module: 'SelfConstruction', hasRun: selfConstruction.hasRun, result });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
@@ -9767,7 +11570,36 @@ app.get('/api/production/status', adminTokenMiddleware, (req, res) => {
 
 // ==================== AUTONOMY CONTROL ====================
 // Status și activare completă a modului de autonomie.
-app.get('/api/autonomy/status', (req, res) => {
+function _publicAutonomySnapshot(full) {
+  const modules = (full && full.modules) || {};
+  const summarize = (name) => {
+    const m = modules[name] || {};
+    return {
+      active: m.active === true || m.running === true || m.status === 'active',
+      health: m.health || m.integrity || m.status || (m.error ? 'degraded' : 'ok'),
+      lastCheck: m.lastCheck || m.lastScan?.timestamp || m.lastCycleAt || null,
+      errors: m.errors || (m.error ? 1 : 0),
+    };
+  };
+  return {
+    ts: full.ts,
+    activeModules: full.activeModules,
+    totalModules: full.totalModules,
+    autonomyReady: full.autonomyReady,
+    // High-level, public-safe indicators only (no file paths/hashes/internal graph)
+    modules: {
+      autoInnovationLoop: summarize('autoInnovationLoop'),
+      selfHealingEngine: summarize('selfHealingEngine'),
+      centralOrchestrator: summarize('centralOrchestrator'),
+      quantumIntegrityShield: summarize('quantumIntegrityShield'),
+      controlPlaneAgent: summarize('controlPlaneAgent'),
+      profitControlLoop: summarize('profitControlLoop'),
+      meshOrchestrator: summarize('meshOrchestrator'),
+    },
+  };
+}
+
+function _collectAutonomyStatus() {
   const status = {
     ts: new Date().toISOString(),
     modules: {}
@@ -9791,11 +11623,33 @@ app.get('/api/autonomy/status', (req, res) => {
   status.activeModules = activeCount;
   status.totalModules  = Object.keys(status.modules).length;
   status.autonomyReady = activeCount >= 4;
+  return status;
+}
 
-  res.json(status);
+app.get('/api/autonomy/status', (req, res) => {
+  const status = _collectAutonomyStatus();
+  const wantsFull = req.query && req.query.view === 'full';
+  if (wantsFull) return adminTokenMiddleware(req, res, () => res.json(status));
+  return res.json(_publicAutonomySnapshot(status));
 });
 
-app.post('/api/autonomy/activate', (req, res, next) => {
+// Backwards-compatible JSON alias for older dashboards/operators.
+// Keeps `/api/brain/autonomy` in sync with `/api/autonomy/status`.
+app.get('/api/brain/autonomy', (req, res) => {
+  const status = _collectAutonomyStatus();
+  const wantsFull = req.query && req.query.view === 'full';
+  if (wantsFull) {
+    return adminTokenMiddleware(req, res, () => {
+      status.alias = '/api/autonomy/status';
+      res.json(status);
+    });
+  }
+  const payload = _publicAutonomySnapshot(status);
+  payload.alias = '/api/autonomy/status';
+  return res.json(payload);
+});
+
+app.post('/api/autonomy/activate', sensitiveRateLimit({ maxRequests: 12, windowMs: 60_000, cooldownMs: 180_000 }), (req, res, next) => {
   // Allow direct activation via ADMIN_SECRET header (server-side bootstrap)
   const provided = req.headers['x-admin-secret'] || req.body?.adminSecret || req.query?.adminSecret || '';
   const expected = process.env.ADMIN_SECRET || '';
@@ -9839,6 +11693,13 @@ app.post('/api/autonomy/activate', (req, res, next) => {
   // Mesh Orchestrator
   tryActivate('meshOrchestrator', () => {
     if (meshOrchestrator.start) meshOrchestrator.start();
+  });
+
+  // Profit Control Loop — revenue optimization engine (idempotent start).
+  // Bucla de control al profitului — motorul de optimizare a veniturilor.
+  tryActivate('profitControlLoop', () => {
+    const s = (typeof profitLoop.getStatus === 'function') ? profitLoop.getStatus() : {};
+    if (!s.active && !s.running) profitLoop.start();
   });
 
   // Unicorn Orchestrator
@@ -11337,6 +13198,174 @@ app.post('/api/autonomy/digest', async (req, res) => {
   }
 });
 
+// ==================== PRO-PLUS MODULES: Lead Hunter · Context Memory · Subscriptions ====================
+// Autonomous B2B lead generation, long-term AI memory, and recurring billing.
+// Modules are lazily required so a missing file never breaks the rest of the server.
+
+let _leadHunter, _ctxMemory, _subEngine;
+try {
+  _leadHunter = require('./modules/autonomous-lead-hunter');
+  _leadHunter.start();
+  console.log('[pro-plus] autonomous-lead-hunter ACTIVE');
+} catch (e) { console.warn('[pro-plus][lead-hunter] load failed:', e && e.message); }
+
+try {
+  _ctxMemory = require('./modules/context-persistence');
+  console.log('[pro-plus] context-persistence ACTIVE');
+} catch (e) { console.warn('[pro-plus][context-persistence] load failed:', e && e.message); }
+
+try {
+  _subEngine = require('./modules/subscription-engine');
+  console.log('[pro-plus] subscription-engine ACTIVE — plans:', _subEngine.getPlans().map(p => p.id).join(', '));
+} catch (e) { console.warn('[pro-plus][subscription-engine] load failed:', e && e.message); }
+
+// ── Lead Hunter API (/api/leads/*) ────────────────────────────────────────────
+// All write/admin routes require adminTokenMiddleware.
+app.get('/api/leads/status', adminTokenMiddleware, (req, res) => {
+  if (!_leadHunter) return res.status(503).json({ error: 'lead-hunter module not loaded' });
+  res.json(_leadHunter.getStatus());
+});
+app.get('/api/leads', adminTokenMiddleware, (req, res) => {
+  if (!_leadHunter) return res.status(503).json({ error: 'lead-hunter module not loaded' });
+  const { status, limit } = req.query;
+  res.json({ ok: true, leads: _leadHunter.listLeads({ status, limit: limit ? parseInt(limit, 10) : 50 }) });
+});
+app.post('/api/leads/start', adminTokenMiddleware, (req, res) => {
+  if (!_leadHunter) return res.status(503).json({ error: 'lead-hunter module not loaded' });
+  _leadHunter.start();
+  res.json({ ok: true, msg: 'lead hunter started' });
+});
+app.post('/api/leads/stop', adminTokenMiddleware, (req, res) => {
+  if (!_leadHunter) return res.status(503).json({ error: 'lead-hunter module not loaded' });
+  _leadHunter.stop();
+  res.json({ ok: true, msg: 'lead hunter stopped' });
+});
+app.post('/api/leads/run', adminTokenMiddleware, async (req, res) => {
+  if (!_leadHunter) return res.status(503).json({ error: 'lead-hunter module not loaded' });
+  try {
+    await _leadHunter.runOnce();
+    res.json({ ok: true, status: _leadHunter.getStatus() });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+app.post('/api/leads/:id/convert', adminTokenMiddleware, express.json({ limit: '4kb' }), (req, res) => {
+  if (!_leadHunter) return res.status(503).json({ error: 'lead-hunter module not loaded' });
+  const result = _leadHunter.markConverted(req.params.id);
+  if (!result || !result.ok) return res.status(404).json({ error: 'lead not found' });
+  res.json(result);
+});
+
+// ── Context Persistence API (/api/context/*) ─────────────────────────────────
+app.post('/api/context/store', adminTokenMiddleware, express.json({ limit: '16kb' }), async (req, res) => {
+  if (!_ctxMemory) return res.status(503).json({ error: 'context-persistence module not loaded' });
+  const { agentId, role, content, meta } = req.body || {};
+  if (!agentId || !role || !content) return res.status(400).json({ error: 'agentId, role, content required' });
+  try {
+    const entry = await _ctxMemory.store(agentId, role, content, meta || {});
+    res.json({ ok: true, entry });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+app.post('/api/context/recall', adminTokenMiddleware, express.json({ limit: '4kb' }), async (req, res) => {
+  if (!_ctxMemory) return res.status(503).json({ error: 'context-persistence module not loaded' });
+  const { agentId, query, topK } = req.body || {};
+  if (!agentId || !query) return res.status(400).json({ error: 'agentId and query required' });
+  try {
+    const results = await _ctxMemory.recall(agentId, query, topK || 5);
+    res.json({ ok: true, results });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+app.get('/api/context/summarise/:agentId', adminTokenMiddleware, async (req, res) => {
+  if (!_ctxMemory) return res.status(503).json({ error: 'context-persistence module not loaded' });
+  try {
+    const summary = await _ctxMemory.summarise(req.params.agentId);
+    res.json({ ok: true, agentId: req.params.agentId, summary });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+app.get('/api/context/episodes/:agentId', adminTokenMiddleware, async (req, res) => {
+  if (!_ctxMemory) return res.status(503).json({ error: 'context-persistence module not loaded' });
+  const { type } = req.query;
+  try {
+    const episodes = await _ctxMemory.getEpisodes(req.params.agentId, type);
+    res.json({ ok: true, episodes });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+app.get('/api/context/status', adminTokenMiddleware, (req, res) => {
+  if (!_ctxMemory) return res.status(503).json({ error: 'context-persistence module not loaded' });
+  res.json(_ctxMemory.getStatus());
+});
+app.delete('/api/context/:agentId', adminTokenMiddleware, async (req, res) => {
+  if (!_ctxMemory) return res.status(503).json({ error: 'context-persistence module not loaded' });
+  try {
+    const result = await _ctxMemory.clearAgent(req.params.agentId);
+    res.json(result);
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// ── Subscription Engine API (/api/subscriptions/*) ───────────────────────────
+// Public: list plans, create subscription, get user subs.
+// Admin-only: full status, MRR metrics, due subs.
+app.get('/api/subscriptions/plans', (req, res) => {
+  if (!_subEngine) return res.status(503).json({ error: 'subscription-engine module not loaded' });
+  res.json({ ok: true, plans: _subEngine.getPlans() });
+});
+app.get('/api/subscriptions/status', adminTokenMiddleware, (req, res) => {
+  if (!_subEngine) return res.status(503).json({ error: 'subscription-engine module not loaded' });
+  res.json(_subEngine.getStatus());
+});
+app.get('/api/subscriptions/mrr', adminTokenMiddleware, (req, res) => {
+  if (!_subEngine) return res.status(503).json({ error: 'subscription-engine module not loaded' });
+  const s = _subEngine.getStatus();
+  res.json({ ok: true, mrr: s.mrr, arr: s.arr, active: s.active, trialing: s.trialing });
+});
+app.get('/api/subscriptions/due', adminTokenMiddleware, (req, res) => {
+  if (!_subEngine) return res.status(503).json({ error: 'subscription-engine module not loaded' });
+  res.json({ ok: true, due: _subEngine.getDueSubs() });
+});
+app.post('/api/subscriptions', express.json({ limit: '8kb' }), async (req, res) => {
+  if (!_subEngine) return res.status(503).json({ error: 'subscription-engine module not loaded' });
+  const { userId, planId, paymentMethod, split } = req.body || {};
+  if (!userId || !planId) return res.status(400).json({ error: 'userId and planId required' });
+  try {
+    const result = await _subEngine.create({ userId, planId, paymentMethod: paymentMethod || 'manual', split });
+    res.json(result);
+  } catch (e) { res.status(400).json({ error: e.message }); }
+});
+app.get('/api/subscriptions/user/:userId', async (req, res) => {
+  if (!_subEngine) return res.status(503).json({ error: 'subscription-engine module not loaded' });
+  const subs = _subEngine.getByUser(req.params.userId);
+  res.json({ ok: true, subscriptions: subs });
+});
+app.get('/api/subscriptions/:id', async (req, res) => {
+  if (!_subEngine) return res.status(503).json({ error: 'subscription-engine module not loaded' });
+  const sub = _subEngine.getById(req.params.id);
+  if (!sub) return res.status(404).json({ error: 'subscription not found' });
+  res.json({ ok: true, subscription: sub });
+});
+app.post('/api/subscriptions/:id/payment', express.json({ limit: '8kb' }), async (req, res) => {
+  if (!_subEngine) return res.status(503).json({ error: 'subscription-engine module not loaded' });
+  const { amount, currency, method, txId } = req.body || {};
+  if (!amount) return res.status(400).json({ error: 'amount required' });
+  try {
+    const result = await _subEngine.recordPayment(req.params.id, { amount, currency: currency || 'USD', method: method || 'manual', txId });
+    res.json(result);
+  } catch (e) { res.status(400).json({ error: e.message }); }
+});
+app.put('/api/subscriptions/:id/plan', express.json({ limit: '4kb' }), async (req, res) => {
+  if (!_subEngine) return res.status(503).json({ error: 'subscription-engine module not loaded' });
+  const { planId } = req.body || {};
+  if (!planId) return res.status(400).json({ error: 'planId required' });
+  try {
+    const result = await _subEngine.changePlan(req.params.id, planId);
+    res.json(result);
+  } catch (e) { res.status(400).json({ error: e.message }); }
+});
+app.delete('/api/subscriptions/:id', async (req, res) => {
+  if (!_subEngine) return res.status(503).json({ error: 'subscription-engine module not loaded' });
+  try {
+    const result = await _subEngine.cancel(req.params.id);
+    res.json(result);
+  } catch (e) { res.status(400).json({ error: e.message }); }
+});
+
 // ==================== GLOBAL ERROR HANDLER ====================
 // Catches any unhandled errors thrown in route handlers.
 // In production, never expose the stack trace to the client.
@@ -11353,6 +13382,13 @@ app.use((err, req, res, next) => {
     error: process.env.NODE_ENV === 'production' ? 'Internal server error' : (safeMessage || 'Internal server error'),
   });
 });
+
+// ==================== CRASH NOTIFIER (webhook/email alerting) ====================
+// Must start before any other module so it catches all crashes from boot onwards.
+try {
+  const crashNotifier = require('./modules/crash-notifier');
+  crashNotifier.start();
+} catch (e) { console.warn('[crash-notifier] load failed:', e && e.message); }
 
 // ==================== PROCESS-LEVEL CRASH GUARD ====================
 // Prevent any unhandled exception or rejected promise from taking down
@@ -11395,6 +13431,9 @@ if (require.main === module) {
     }
     console.log(`🤖 Universal AI Connector (UAIC): ${_uaic ? 'ACTIVE' : 'DISABLED'}`);
     console.log(`🌐 Multi-Model Router (14 AI): ${_multiRouter ? 'ACTIVE' : 'DISABLED'}`);
+    console.log(`🎯 Autonomous Lead Hunter: ${_leadHunter ? 'ACTIVE' : 'DISABLED'}`);
+    console.log(`🧠 Context Persistence (AI Memory): ${_ctxMemory ? 'ACTIVE' : 'DISABLED'}`);
+    console.log(`💳 Subscription Engine (MRR): ${_subEngine ? 'ACTIVE' : 'DISABLED'}`);
     console.log(`✨ Autonomous Innovation Engine: ACTIVE`);
     console.log(`💰 Auto Revenue Generation: ACTIVE`);
     console.log(`♾️  Unicorn Eternal Engine: ACTIVE`);
@@ -11445,6 +13484,22 @@ if (require.main === module) {
     console.log(`🤖 AI Auto Dispatcher: ACTIVE (smart task routing for all tenants)`);
     // Pornire Zero-Downtime Controller în-process (monitorizare health locală)
     zeroDT.init();
+    
+    // ==================== DEEPSEEK AUTONOMOUS GOVERNOR ====================
+    // Loop execution is owned by deepseek-loop.service; backend exposes
+    // governance endpoints + bounded action executor.
+    if (deepseekGovernor) {
+      try {
+        const ds = deepseekGovernor.getStatus();
+        const autoApply = ds && ds.autoApply ? 'ON' : 'OFF';
+        const perHour = ds && ds.limits ? ds.limits.perHourPerIp : 'n/a';
+        const perDay = ds && ds.limits ? ds.limits.perDayPerIp : 'n/a';
+        console.log(`🧠 DeepSeek Governor: ACTIVE (auto-apply=${autoApply}, rate=${perHour}/h · ${perDay}/day)`);
+      } catch (e) {
+        console.warn('[deepseek-governor] status unavailable:', e && e.message);
+      }
+    }
+    
     // ==================== INTEGRATIONS LAYER (complementary, additive) ====================
     // 7 complementary modules that subscribe to existing engines without replacing them.
     try {

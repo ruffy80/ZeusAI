@@ -41,13 +41,13 @@ const bus = new EventEmitter();
 let state = { ts: 0, cycles: 0, last: null };
 let timer = null;
 
-function ensureDir() { try { fs.mkdirSync(DIR, { recursive: true }); } catch (_) {} }
+function ensureDir() { try { fs.mkdirSync(DIR, { recursive: true }); } catch (e) { console.warn('[unicornEconomy] ensureDir failed:', e.message); } }
 function loadState() {
-  try { if (fs.existsSync(STATE_FILE)) state = Object.assign(state, JSON.parse(fs.readFileSync(STATE_FILE, 'utf8'))); } catch (_) {}
+  try { if (fs.existsSync(STATE_FILE)) state = Object.assign(state, JSON.parse(fs.readFileSync(STATE_FILE, 'utf8'))); } catch (e) { console.warn('[unicornEconomy] state load failed:', e.message); }
 }
-function persistState() { try { fs.writeFileSync(STATE_FILE, JSON.stringify(state)); } catch (_) {} }
-function rotateIfNeeded() { try { const st = fs.statSync(LEDGER); if (st.size > ROTATE_BYTES) fs.renameSync(LEDGER, LEDGER + '.' + Date.now() + '.bak'); } catch (_) {} }
-function appendLedger(rec) { try { rotateIfNeeded(); fs.appendFileSync(LEDGER, JSON.stringify(rec) + '\n'); } catch (_) {} }
+function persistState() { try { fs.writeFileSync(STATE_FILE, JSON.stringify(state)); } catch (e) { console.error('[unicornEconomy] state persist failed:', e.message); } }
+function rotateIfNeeded() { try { const st = fs.statSync(LEDGER); if (st.size > ROTATE_BYTES) fs.renameSync(LEDGER, LEDGER + '.' + Date.now() + '.bak'); } catch (e) { console.warn('[unicornEconomy] ledger rotation failed:', e.message); } }
+function appendLedger(rec) { try { rotateIfNeeded(); fs.appendFileSync(LEDGER, JSON.stringify(rec) + '\n'); } catch (e) { console.error('[unicornEconomy] ledger append failed:', e.message); } }
 
 function safeCall(modName, method) {
   const mod = safeRequire('./' + modName);

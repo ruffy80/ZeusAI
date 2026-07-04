@@ -19,7 +19,26 @@ const crypto = require('crypto');
 
 const DATA_DIR = process.env.UNICORN_COMMERCE_DIR || path.join(__dirname, '..', '..', 'data', 'commerce');
 const RECEIPTS_FILE = path.join(DATA_DIR, 'uaic-receipts.jsonl');
+const SMOKE_RECEIPTS_FILE = path.join(DATA_DIR, 'uaic-smoke-receipts.jsonl');
 const ENTITLEMENTS_FILE = path.join(DATA_DIR, 'uaic-entitlements.jsonl');
+
+// SMOKE ISOLATION (audit 2026-06-12): deploy smoke-tests used to append
+// thousands of loopback receipts into the canonical ledger (6.5MB of
+// smoke@zeusai.pro rows). CI artifacts now land in a separate file so the
+// canonical ledger stays pure revenue truth. In-memory index keeps them so
+// the smoke flow itself still verifies end-to-end during the run.
+// RO: chitanțele de smoke-test merg în fișier separat — ledger-ul canonic
+// rămâne doar adevăr de venit.
+const SMOKE_EMAILS = new Set(['smoke@zeusai.pro', 'test@test.com']);
+function isSmokeReceipt(r) {
+  try {
+    if (!r) return false;
+    if (SMOKE_EMAILS.has(String(r.email || '').toLowerCase())) return true;
+    if (String(r.txid || '') === 'smoke-test-loopback') return true;
+    if (r.confirmation && String(r.confirmation.txid || '') === 'smoke-test-loopback') return true;
+  } catch (_) {}
+  return false;
+}
 
 const _btcSpot = { usdPerBtc: Number(process.env.BTC_USD_FALLBACK) || 95000, fetchedAt: 0 };
 
@@ -50,7 +69,11 @@ function persistReceipt(receipt) {
   const existing = _receiptsById.get(receipt.id);
   if (existing) Object.assign(existing, receipt); else { _receiptsById.set(receipt.id, receipt); _receipts.push(receipt); }
   ensureDir();
-  try { fs.appendFileSync(RECEIPTS_FILE, JSON.stringify(receipt) + '\n'); } catch (e) { console.warn('[uaic] persist failed:', e.message); }
+  // Route CI/deploy smoke receipts to the isolated ledger — canonical file
+  // holds only potentially-real commerce rows (reality-metrics truth guard
+  // remains the final filter for on-chain verification).
+  const targetFile = isSmokeReceipt(receipt) ? SMOKE_RECEIPTS_FILE : RECEIPTS_FILE;
+  try { fs.appendFileSync(targetFile, JSON.stringify(receipt) + '\n'); } catch (e) { console.warn('[uaic] persist failed:', e.message); }
   // Auto-issue entitlement on paid receipts.
   if (receipt.status === 'paid') {
     try { _issueEntitlement(receipt); } catch (e) { console.warn('[uaic] entitlement failed:', e.message); }
@@ -239,8 +262,19 @@ async function handle(req, res, ctx) {
       const body = await _readBody(req);
       const p = JSON.parse(body || '{}');
       const method = String(p.method || 'BTC').toUpperCase();
-      const amount = Number(p.amount || p.amount_usd || p.amountUSD || p.priceUSD || 0);
       const plan = String(p.plan || p.serviceId || 'starter');
+      // Server-authoritative price (RO: prețul oficial calculat pe server).
+      // For any KNOWN product the catalog price ALWAYS wins over the
+      // client-supplied amount, so a $500,000 service can never be invoiced at
+      // $70 (and nobody can tamper the amount field to underpay).
+      const _clientAmount = Number(p.amount || p.amount_usd || p.amountUSD || p.priceUSD || 0);
+      let amount = _clientAmount;
+      try {
+        if (ctxSafe && typeof ctxSafe.resolvePrice === 'function') {
+          const canon = ctxSafe.resolvePrice(plan);
+          if (canon != null && Number.isFinite(Number(canon))) amount = Number(canon);
+        }
+      } catch (_) { /* keep client amount on resolver failure */ }
       const email = String(p.email || (p.customer && p.customer.email) || '').toLowerCase();
       const portal = ctxSafe.portal;
       let customerId = p.customerId || null;
@@ -304,8 +338,9 @@ module.exports = {
   convert, refreshBtcRate,
   persistReceipt, getReceipts,
   issueLicense,
+  isSmokeReceipt,
   listEntitlementsByEmail, listEntitlementsByCustomer,
   buildCatalog,
   // for tests
-  _resetForTests: () => { _receipts.length = 0; _receiptsById.clear(); _entitlements.length = 0; if (_btcRateInterval) { clearInterval(_btcRateInterval); _btcRateInterval = null; } try { fs.rmSync(RECEIPTS_FILE, { force: true }); fs.rmSync(ENTITLEMENTS_FILE, { force: true }); } catch (_) {} }
+  _resetForTests: () => { _receipts.length = 0; _receiptsById.clear(); _entitlements.length = 0; if (_btcRateInterval) { clearInterval(_btcRateInterval); _btcRateInterval = null; } try { fs.rmSync(RECEIPTS_FILE, { force: true }); fs.rmSync(SMOKE_RECEIPTS_FILE, { force: true }); fs.rmSync(ENTITLEMENTS_FILE, { force: true }); } catch (_) {} }
 };

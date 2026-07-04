@@ -263,8 +263,8 @@ html::before{content:"";position:fixed;inset:0;pointer-events:none;z-index:1;bac
 /* ============ SECTIONS ============ */
 section{position:relative;z-index:3;padding:80px 32px;max-width:1480px;margin:0 auto}
 .section-title{display:flex;align-items:flex-end;justify-content:space-between;margin-bottom:32px;gap:24px;flex-wrap:wrap}
-.section-title h2{font-size:clamp(30px,3.2vw,44px);margin:0;font-weight:700;letter-spacing:-.5px}
-.section-title h2 .grad{background:linear-gradient(120deg,#fff,var(--violet2));-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent}
+.section-title h1,.section-title h2{font-size:clamp(30px,3.2vw,44px);margin:0;font-weight:700;letter-spacing:-.5px}
+.section-title h1 .grad,.section-title h2 .grad{background:linear-gradient(120deg,#fff,var(--violet2));-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent}
 .section-title p{color:var(--ink-dim);max-width:520px;margin:0;font-size:15px;line-height:1.6}
 .kicker{display:inline-block;font-size:11px;letter-spacing:4px;text-transform:uppercase;color:var(--violet2);margin-bottom:10px}
 
@@ -551,7 +551,7 @@ body{overflow-x:hidden;min-height:100vh;min-height:100dvh}
 /* fluid typography — universal */
 .hero h1{font-size:clamp(36px,7vw,88px)}
 .hero p.lead{font-size:clamp(14px,1.6vw,19px)}
-.section-title h2{font-size:clamp(26px,4vw,44px)}
+.section-title h1,.section-title h2{font-size:clamp(26px,4vw,44px)}
 .section-title p{font-size:clamp(13px,1.3vw,15px)}
 
 /* hamburger — hidden on desktop */
@@ -640,7 +640,7 @@ nav.nav[data-nav-open="true"] .nav-toggle-bar:nth-child(3){transform:translateY(
   .dash-grid{grid-template-columns:1fr;gap:12px}
   section{padding:44px 14px}
   footer{padding:36px 14px 24px;margin-top:48px}
-  .section-title h2{font-size:clamp(22px,7vw,30px)}
+  .section-title h1,.section-title h2{font-size:clamp(22px,7vw,30px)}
   .filters{gap:6px}
   .chip{padding:7px 12px;font-size:12.5px}
   .btn{min-height:44px}
@@ -727,7 +727,7 @@ nav.nav[data-nav-open="true"] .nav-toggle-bar:nth-child(3){transform:translateY(
   .nav,.nav-toggle,footer,.concierge,.toasts,.zeus-cookie,.zeus-buy-bar,.zeus-exit,.hero-canvas,.galaxy-bg,.zeus-page-bg,.fx-orb-a,.fx-orb-b,.fx-orb-c,.fx-scan,.fx-grid{display:none !important}
   body{background:#fff;color:#000}
   .hero,section{padding:18px;page-break-inside:avoid}
-  .hero h1,.section-title h2{color:#000;-webkit-text-fill-color:#000;background:none;filter:none}
+  .hero h1,.section-title h1,.section-title h2{color:#000;-webkit-text-fill-color:#000;background:none;filter:none}
   a{color:#0033cc;text-decoration:underline}
 }
 
@@ -740,37 +740,35 @@ nav.nav[data-nav-open="true"] .nav-toggle-bar:nth-child(3){transform:translateY(
    the full-bleed hero) and on print. Respects reduced-motion. */
 .zeus-page-bg{position:fixed;inset:0;z-index:0;pointer-events:none;overflow:hidden;opacity:0;transition:opacity 1.1s ease}
 .zeus-page-bg.is-active{opacity:1}
-.zeus-page-bg__layer{position:absolute;inset:-4% -4%;background-position:center 32%;background-size:cover;background-repeat:no-repeat;filter:contrast(1.06) saturate(1.08) brightness(.78);opacity:0;transition:opacity 1.4s ease, transform 22s ease-out;transform:scale(1.04)}
-.zeus-page-bg__layer.is-on{opacity:.9;transform:scale(1.0)}
+/* Cinematic Zeus portrait — now clearly visible & beautiful on EVERY content
+   page (not just marketplace/pricing/store). The dedicated layer stays bright
+   enough to read as a real portrait while the veil keeps copy crisp. */
+.zeus-page-bg__layer{position:absolute;inset:-4% -4%;background-position:center 30%;background-size:cover;background-repeat:no-repeat;filter:contrast(1.1) saturate(1.12) brightness(.86);opacity:0;transition:opacity 1.4s ease, transform 22s ease-out;transform:scale(1.04)}
+.zeus-page-bg__layer.is-on{opacity:.97;transform:scale(1.0)}
 .zeus-page-bg__veil{position:absolute;inset:0;background:
-  radial-gradient(900px 700px at 50% 28%,rgba(8,5,20,0) 0%,rgba(8,5,20,.40) 55%,rgba(5,4,10,.86) 92%),
-  linear-gradient(180deg,rgba(5,4,10,.55) 0%,rgba(5,4,10,.25) 40%,rgba(5,4,10,.85) 100%),
-  radial-gradient(1100px 600px at 50% 100%,rgba(138,92,255,.12),transparent 65%)}
+  radial-gradient(960px 720px at 50% 26%,rgba(8,5,20,0) 0%,rgba(8,5,20,.26) 58%,rgba(5,4,10,.76) 94%),
+  linear-gradient(180deg,rgba(5,4,10,.40) 0%,rgba(5,4,10,.16) 42%,rgba(5,4,10,.80) 100%),
+  radial-gradient(1100px 600px at 50% 100%,rgba(138,92,255,.14),transparent 65%)}
 /* Home already shows zeus full-bleed via .zeus-hero-image — hide the global backdrop to avoid double-exposure. */
 body[data-route="/"] .zeus-page-bg{opacity:0 !important}
-/* Marketplace / Pricing / Store: boost Zeus portrait clarity.
-   We intentionally soften the generic body overlays here so the dedicated
-   .zeus-page-bg layer remains visible and cinematic behind cards. */
-body[data-route="/services"]::before,
-body[data-route="/pricing"]::before,
-body[data-route="/store"]::before{opacity:.08}
-body[data-route="/services"]::after,
-body[data-route="/pricing"]::after,
-body[data-route="/store"]::after{opacity:.10}
-body[data-route="/services"] .zeus-page-bg,
-body[data-route="/pricing"] .zeus-page-bg,
-body[data-route="/store"] .zeus-page-bg{opacity:1}
+/* Soften the generic violet/blue body overlays on EVERY non-home page so the
+   dedicated Zeus portrait reads cinematically instead of being muddied. */
+body:not([data-route="/"])::before{opacity:.07}
+body:not([data-route="/"])::after{opacity:.10}
+body:not([data-route="/"]) .zeus-page-bg{opacity:1}
+/* Marketplace / Pricing / Store: extra portrait clarity behind the card grids
+   (slightly thinner veil because these pages have dense product cards on top). */
 body[data-route="/services"] .zeus-page-bg__layer.is-on,
 body[data-route="/pricing"] .zeus-page-bg__layer.is-on,
-body[data-route="/store"] .zeus-page-bg__layer.is-on{opacity:.98;filter:contrast(1.1) saturate(1.12) brightness(.86)}
+body[data-route="/store"] .zeus-page-bg__layer.is-on{opacity:.99;filter:contrast(1.12) saturate(1.14) brightness(.9)}
 body[data-route="/services"] .zeus-page-bg__veil,
 body[data-route="/pricing"] .zeus-page-bg__veil,
 body[data-route="/store"] .zeus-page-bg__veil{background:
-  radial-gradient(900px 700px at 50% 28%,rgba(8,5,20,0) 0%,rgba(8,5,20,.28) 58%,rgba(5,4,10,.72) 94%),
-  linear-gradient(180deg,rgba(5,4,10,.38) 0%,rgba(5,4,10,.14) 42%,rgba(5,4,10,.72) 100%),
+  radial-gradient(960px 720px at 50% 26%,rgba(8,5,20,0) 0%,rgba(8,5,20,.22) 60%,rgba(5,4,10,.68) 95%),
+  linear-gradient(180deg,rgba(5,4,10,.32) 0%,rgba(5,4,10,.12) 44%,rgba(5,4,10,.70) 100%),
   radial-gradient(1100px 600px at 50% 100%,rgba(138,92,255,.14),transparent 65%)}
 @media (max-width:900px){
-  .zeus-page-bg__layer{background-position:50% 28%;filter:contrast(1.04) saturate(1.06) brightness(.72)}
+  .zeus-page-bg__layer{background-position:50% 26%;filter:contrast(1.08) saturate(1.1) brightness(.8)}
 }
 @media (prefers-reduced-motion: reduce){
   .zeus-page-bg,.zeus-page-bg__layer{transition:opacity .3s ease}

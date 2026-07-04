@@ -131,6 +131,15 @@ function _liveTierPrice(tierId, fallback) {
 // this process (split site/backend mode) — the client-side hydration then
 // fetches `/api/catalog/master` via SSE and fills the section non-stop.
 function _loadFullLibrary(excludeIds) {
+  // CLEANUP 2026-05-29: the auto-published "full library" dumped ~185 internal
+  // engine modules (resource-monitor, deepseek-governor, circuit-breaker…) and
+  // 144 near-identical "Adaptive/Engine Pool" clones onto /store, most with the
+  // Romanian placeholder "Serviciu AI avansat pentru…". They are NOT real,
+  // differentiated deliverables and destroyed buyer trust + SEO. The store now
+  // shows only the curated 3-tier catalogue. Set ZEUS_SHOW_FULL_LIBRARY=1 to
+  // re-enable (only after each module gets a real title/description/price).
+  // Bilingual note (RO): biblioteca auto a fost dezactivată — doar produse reale.
+  if (String(process.env.ZEUS_SHOW_FULL_LIBRARY || '') !== '1') return [];
   const exclude = new Set(Array.isArray(excludeIds) ? excludeIds.map(String) : []);
   let marketplace = null;
   try { marketplace = require('../../../backend/modules/serviceMarketplace'); } catch (_) {}
@@ -195,7 +204,7 @@ function _libraryCard(p) {
     </div>
     <h3 style="margin:2px 0 0;font-size:14px;line-height:1.3" itemprop="name">${title}</h3>
     <p style="margin:0;color:var(--ink-dim);font-size:12px;line-height:1.4;flex:1" itemprop="description">${desc}</p>
-    <a class="btn btn-ghost" href="/checkout?serviceId=${encodeURIComponent(id)}&plan=${encodeURIComponent(id)}" data-link aria-label="Buy ${title} with Bitcoin" style="font-size:12px;padding:6px 10px">Buy →</a>
+    <a class="btn btn-ghost" href="/checkout/?serviceId=${encodeURIComponent(id)}&plan=${encodeURIComponent(id)}" data-link aria-label="Buy ${title} with Bitcoin" style="font-size:12px;padding:6px 10px">Buy →</a>
   </article>`;
 }
 function _tierBadge(tier) {
@@ -235,7 +244,7 @@ function _catalogCard(p) {
     <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px">${_tierBadge(p.tier)}<span style="font-family:var(--mono);font-size:18px;color:var(--gold);text-align:right" itemprop="offers" itemscope itemtype="https://schema.org/Offer"><meta itemprop="priceCurrency" content="USD"/><span itemprop="price" data-pricing-value="${id}">${priceTxt}</span>${billing}${liveBadge}<span class="btc-line" data-price-btc-value="${id}" style="display:block;font-size:11.5px;color:#f7a13b;font-weight:600;margin-top:3px;letter-spacing:.2px">${btcTxt}</span></span></div>
     <h3 style="margin:4px 0 0;font-size:18px;line-height:1.25" itemprop="name">${title}</h3>
     <p style="margin:0;color:var(--ink-dim);font-size:13px;line-height:1.45;flex:1" itemprop="description">${desc}</p>
-    <div style="display:flex;gap:8px;margin-top:6px"><a class="btn btn-primary" href="/checkout?plan=${encodeURIComponent(id)}" data-link aria-label="Buy ${title} with Bitcoin for ${btcTxt || priceTxt}" style="flex:1;justify-content:center">Buy with BTC →</a><a class="btn btn-ghost" href="/services/${encodeURIComponent(id)}" data-link aria-label="View details for ${title}">Details</a></div>
+    <div style="display:flex;gap:8px;margin-top:6px"><a class="btn btn-primary" href="/checkout/?plan=${encodeURIComponent(id)}" data-link aria-label="Buy ${title} with Bitcoin for ${btcTxt || priceTxt}" style="flex:1;justify-content:center">Buy with BTC →</a><a class="btn btn-ghost" href="/services/${encodeURIComponent(id)}" data-link aria-label="View details for ${title}">Details</a></div>
   </article>`;
 }
 function _ssrCatalogGrid(items, opts) {
@@ -295,9 +304,10 @@ function buildJsonLd(title, route, canonical, desc, opts) {
     items.push({ '@type': 'ListItem', position: i + 2, name: s.replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase()), item: base + acc });
   });
   blocks.push({ '@context': 'https://schema.org', '@type': 'BreadcrumbList', itemListElement: items });
-  // 5) FAQPage on /how and /pricing — small but valuable for rich results.
-  if (route === '/how' || route === '/pricing') {
-    const faq = route === '/pricing' ? [
+  // 5) FAQPage on /how, /pricing and /faq — small but valuable for rich results.
+  if (route === '/how' || route === '/pricing' || route === '/faq') {
+    const faq = route === '/faq' ? FAQ_ITEMS.map((f) => ({ q: f.q, a: f.a }))
+    : route === '/pricing' ? [
       { q: 'How do I pay?', a: 'Direct BTC checkout is the primary production rail. Card/Stripe, PayPal and NOWPayments appear only when configured in runtime env. Every receipt is Ed25519-signed and stored in your account.' },
       { q: 'Is there a refund?', a: 'Yes — a cryptographic refund guarantee: SLA breach → automatic refund, plus 30-day money-back, no questions asked.' },
       { q: 'Do you store my data?', a: 'Minimal data, no resale, no model training on personal data. See our DPA and Privacy Policy for full details.' }
@@ -330,7 +340,7 @@ function buildJsonLd(title, route, canonical, desc, opts) {
 // container there to let the existing CSS rule
 // `body[data-route="/"] .zeus-page-bg{opacity:0}` apply.
 const _ZEUS_BG_HERO  = ['/services','/enterprise','/wizard','/frontier','/dashboard','/checkout','/security','/trust','/operator'];
-const _ZEUS_BG_BRAND = ['/pricing','/store','/innovations','/docs','/account','/about','/legal','/status','/observability','/transparency','/responsible-ai','/dpa','/payment-terms','/refund','/sla','/pledge','/cancel','/gift','/aura','/api-explorer','/changelog','/terms','/privacy','/innovation-log','/admin'];
+const _ZEUS_BG_BRAND = ['/pricing','/store','/innovations','/docs','/account','/about','/legal','/status','/observability','/transparency','/responsible-ai','/dpa','/payment-terms','/refund','/sla','/pledge','/cancel','/gift','/aura','/api-explorer','/changelog','/terms','/privacy','/innovation-log','/admin','/contact','/faq','/blog','/affiliate','/partners','/roadmap','/careers','/press'];
 function _pickZeusBgSSR(route) {
   if (!route || route === '/') return null;
   // Exact match first.
@@ -498,7 +508,7 @@ function navBar(route, opts) {
   <span class="nav-toggle-bar"></span><span class="nav-toggle-bar"></span><span class="nav-toggle-bar"></span>
 </button>
 <div class="nav-links" id="nav-links">
-${L('/', 'Home')}${L('/services', 'Marketplace')}${L('/wizard', 'Find my plan')}${L('/store', 'Store')}${L('/crypto-fiat-bridge', 'Crypto Bridge')}${L('/enterprise', 'Enterprise')}${L('/pricing', 'Pricing')}${L('/innovations', 'Innovations')}${L('/frontier', 'Frontier')}${L('/docs', 'API')}${L('/status', 'Status')}
+${L('/', 'Home')}<a class="nav-link nav-link-zacc" href="/zacc" data-link aria-label="Autonomous Dropshipping (ZACC)">🛒 Autonomous Dropshipping <span style="display:inline-block;margin-left:6px;padding:1px 7px;font-size:10px;font-weight:700;letter-spacing:.08em;border-radius:999px;background:linear-gradient(135deg,#8a5cff,#3ea0ff);color:#05060e;vertical-align:middle">LIVE</span></a>${L('/services', 'Marketplace')}${L('/wizard', 'Find my plan')}${L('/store', 'Store')}${L('/crypto-fiat-bridge', 'Crypto Bridge')}${L('/enterprise', 'Enterprise')}${L('/pricing', 'Pricing')}${L('/innovations', 'Innovations')}${L('/frontier', 'Frontier')}${L('/docs', 'API')}${L('/status', 'Status')}
 </div>
 <div class="nav-cta">
 ${langToggle}
@@ -520,6 +530,7 @@ function footer(route, opts) {
       <p style="color:var(--ink-dim);font-size:13.5px;line-height:1.6;max-width:360px">Autonomous AI operating system. Every module signed with W3C DID. Every outcome routed through Merkle-chained receipts. Property of ${OWNER.name}.</p>
     </div>
     <div><h3 class="footer-col-title">Product</h3><ul>
+      <li><a href="/zacc" data-link><strong style="color:#8a5cff">🛒 Autonomous Dropshipping</strong></a></li>
       <li><a href="/services" data-link>Marketplace</a></li>
       <li><a href="/wizard" data-link>Find my plan</a></li>
       <li><a href="/pricing" data-link>Pricing</a></li>
@@ -553,6 +564,14 @@ function footer(route, opts) {
     </ul></div>
     <div><h3 class="footer-col-title">Company</h3><ul>
       <li><a href="/about" data-link>About</a></li>
+      <li><a href="/contact" data-link>Contact</a></li>
+      <li><a href="/faq" data-link>FAQ</a></li>
+      <li><a href="/blog" data-link>Insights</a></li>
+      <li><a href="/roadmap" data-link>Roadmap</a></li>
+      <li><a href="/partners" data-link>Partners</a></li>
+      <li><a href="/affiliate" data-link>Affiliate</a></li>
+      <li><a href="/careers" data-link>Careers</a></li>
+      <li><a href="/press" data-link>Press</a></li>
       <li><a href="/changelog" data-link>Changelog</a></li>
       <li><a href="/legal" data-link>Legal</a></li>
       <li><a href="/terms" data-link>Terms</a></li>
@@ -561,7 +580,6 @@ function footer(route, opts) {
       <li><a href="/payment-terms" data-link>Payment Terms</a></li>
       <li><a href="/operator" data-link>Operator Console</a></li>
       <li><a href="mailto:${OWNER.email}">${OWNER.email}</a></li>
-      <li><a href="${OWNER.domain}">${OWNER.domain.replace(/^https?:\/\//,'')}</a></li>
     </ul></div>
   </div>
   <div class="foot-bot">
@@ -761,10 +779,7 @@ function globalChrome(N) {
   <div class="zeus-cookie-text">We use only first-party, signed analytics — no trackers, no ad networks. <a href="/privacy" data-link>Privacy</a> · <a href="/pledge" data-link>Pledge</a>.</div>
   <div class="zeus-cookie-cta"><button id="zeus-cookie-accept" class="btn btn-primary btn-sm">Accept</button><button id="zeus-cookie-deny" class="btn btn-ghost btn-sm">Deny</button></div>
 </div>
-<div id="zeus-buy-bar" class="zeus-buy-bar" hidden>
-  <div class="zeus-buy-text"><b>Ready to deploy ZeusAI?</b><span>30-day refund · direct BTC owner wallet · cancel any time</span></div>
-  <div class="zeus-buy-cta"><a class="btn btn-ghost btn-sm" href="/wizard" data-link>Find my plan</a><a class="btn btn-primary btn-sm" href="/services" data-link>Buy now →</a></div>
-</div>
+<!-- Removed: zeus-buy-bar footer CTA banner permanently (2026-06-09) -->
 <!-- Founders' brief exit-intent popup removed — was blocking /account access for logged-in users.
      Newsletter signup remains available in the footer (non-blocking). -->
 <script${N}>
@@ -868,17 +883,7 @@ function globalChrome(N) {
     } catch(_){ }
   }
   pullAura(); setInterval(pullAura, 30000);
-  // Sticky buy bar — shown after scroll on home/services/pricing
-  try {
-    var route = (document.documentElement.getAttribute('data-route')||'/');
-    var bar = document.getElementById('zeus-buy-bar');
-    // NB: this code lives inside a backtick template literal, so backslashes
-    // get unescaped before reaching the browser. Use new RegExp(...) to keep
-    // the literal slash intact (otherwise '/^\\/(...)/' -> '/^/(...)/' -> SyntaxError).
-    if (bar && new RegExp('^/(?:|services|pricing|how|frontier)$').test(route)) {
-      window.addEventListener('scroll', function(){ if (scrollY > 320) bar.hidden = false; }, { passive:true });
-    }
-  } catch(_){ }
+  // Sticky buy bar permanently removed (2026-06-09)
   // Exit-intent popup permanently removed — was blocking /account access for
   // logged-in users. Newsletter signup lives in the footer (non-blocking).
   // Defensive cleanup: if a stale modal element ever lingers in the DOM
@@ -901,12 +906,10 @@ function globalChrome(N) {
 .zeus-aura-strip .dot{width:8px;height:8px;border-radius:50%;background:#3effa1;box-shadow:0 0 12px #3effa1;animation:zpulse 1.4s ease-in-out infinite}
 .zeus-aura-more{color:#7aa9ff;text-decoration:none;margin-left:4px}
 @keyframes zpulse{0%,100%{opacity:.7}50%{opacity:1}}
-.zeus-buy-bar{position:fixed;left:0;right:0;bottom:0;z-index:80;background:linear-gradient(180deg,rgba(8,10,18,0),rgba(5,4,10,.96) 40%);padding:12px 18px;display:flex;gap:16px;align-items:center;justify-content:space-between;border-top:1px solid rgba(120,140,200,.18);font:14px/1.4 system-ui;color:#e7ecf3}
-.zeus-buy-text b{display:block;font-size:14.5px}.zeus-buy-text span{color:#9aa6bd;font-size:12.5px}
-.zeus-buy-cta{display:flex;gap:8px}
+/* .zeus-buy-bar, .zeus-buy-text, .zeus-buy-cta removed permanently (2026-06-09) */
 .btn-sm{padding:8px 14px;font-size:13px}
 [hidden]{display:none !important}
-.zeus-buy-bar[hidden]{display:none !important}
+/* .zeus-buy-bar[hidden] removed — buy bar element itself removed (2026-06-09) */
 .zeus-cookie[hidden]{display:none !important}
 /* .zeus-exit*: removed (founders' brief popup eliminated) */
 /* Heading-rename visual preservation (a11y h2→h3 chain, no visual regression) */
@@ -929,12 +932,34 @@ function pageHome() {
   const _featuredHtml = _featured.length
     ? `<section id="homeFeatured" style="margin:40px 0 0">
   <div class="section-title">
-    <div><span class="kicker">Featured · ${_all.length} live products in catalog</span><h2>Buy a real ZeusAI service <span class="grad">in under a minute.</span></h2></div>
-    <p>These are six concrete deliverables you can pay for right now in BTC. Full catalogue at <a href="/services" data-link>/services</a>.</p>
+    <div><span class="kicker">Featured services</span><h2>Buy a real ZeusAI service <span class="grad">in under a minute.</span></h2></div>
+    <p>These are six concrete deliverables you can pay for right now in BTC. Browse the full catalogue on <a href="/services" data-link>/services</a>.</p>
   </div>
   ${_ssrCatalogGrid(_featured, { gridId: 'homeFeaturedGrid', minCol: 280 })}
-  <p style="text-align:center;margin:18px 0 0"><a class="btn btn-ghost" href="/services" data-link>See all ${_all.length} products →</a></p>
+  <p style="text-align:center;margin:18px 0 0"><a class="btn btn-ghost" href="/services" data-link>Browse the full catalogue →</a></p>
 </section>` : '';
+  // ZACC — Zeus Autonomic Commerce Core banner. Shown right after the hero,
+  // before any other section, so the world\u2019s first fully-autonomous economic
+  // engine is impossible to miss from the homepage.
+  const _zaccBanner = `<section id="homeZacc" style="margin:48px 0 0">
+  <div class="card" style="padding:36px;background:linear-gradient(135deg,rgba(138,92,255,.18),rgba(62,160,255,.10));border:1px solid rgba(138,92,255,.45);border-radius:18px;display:grid;grid-template-columns:1.4fr 1fr;gap:32px;align-items:center">
+    <div>
+      <span class="hero-eyebrow" style="background:linear-gradient(135deg,#8a5cff,#3ea0ff);color:#05060e;font-weight:800;padding:5px 12px;border-radius:999px;font-size:11px;letter-spacing:.1em">\u26a1 NEW \u00b7 WORLD-FIRST</span>
+      <h2 style="margin:14px 0 6px;font-size:clamp(26px,3vw,40px);line-height:1.1">Zeus Autonomic Commerce <span class="grad">\u2014 the first fully-autonomous economic engine</span></h2>
+      <p style="color:var(--ink-dim);font-size:15px;margin:0 0 18px;line-height:1.55">It scans 20+ market sources, synthesises product ideas, builds &amp; prices them, sells in BTC (confirmed on-chain via mempool.space), heals itself, learns weekly and evolves monthly. <strong>Zero human in the loop.</strong></p>
+      <div style="display:flex;gap:12px;flex-wrap:wrap">
+        <a class="btn btn-primary" href="/zacc" data-link>\u26a1 Open Autonomous Commerce \u2192</a>
+        <a class="btn btn-ghost" href="/api/zacc/public" target="_blank" rel="noopener">Live JSON snapshot</a>
+      </div>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:10px">
+      <div style="background:rgba(0,0,0,.25);border-radius:12px;padding:14px"><div style="font-size:11px;color:var(--ink-dim);text-transform:uppercase;letter-spacing:.08em">9 components</div><div style="font-size:18px;font-weight:700;margin-top:4px">All autonomous</div></div>
+      <div style="background:rgba(0,0,0,.25);border-radius:12px;padding:14px"><div style="font-size:11px;color:var(--ink-dim);text-transform:uppercase;letter-spacing:.08em">21 sources</div><div style="font-size:18px;font-weight:700;margin-top:4px">Market scanner</div></div>
+      <div style="background:rgba(0,0,0,.25);border-radius:12px;padding:14px"><div style="font-size:11px;color:var(--ink-dim);text-transform:uppercase;letter-spacing:.08em">BTC \u00b7 on-chain</div><div style="font-size:18px;font-weight:700;margin-top:4px">Verified payouts</div></div>
+      <div style="background:rgba(0,0,0,.25);border-radius:12px;padding:14px"><div style="font-size:11px;color:var(--ink-dim);text-transform:uppercase;letter-spacing:.08em">Persistent</div><div style="font-size:18px;font-weight:700;margin-top:4px">Self-learning</div></div>
+    </div>
+  </div>
+</section>`;
   return `<section class="hero">
   <div class="zeus-scene" aria-hidden="true">
     <picture><source type="image/avif" srcset="${assetPath('/assets/zeus/hero-640.avif')} 640w, ${assetPath('/assets/zeus/hero.avif')} 800w" sizes="100vw"/><source type="image/webp" srcset="${assetPath('/assets/zeus/hero-640.webp')} 640w, ${assetPath('/assets/zeus/hero.webp')} 800w" sizes="100vw"/><img id="zeusHeroImg" class="zeus-hero-image" src="${assetPath('/assets/zeus/hero-640.jpg')}" srcset="${assetPath('/assets/zeus/hero-640.jpg')} 640w, ${assetPath('/assets/zeus/hero.jpg')} 800w" sizes="100vw" data-zeus-src="${assetPath('/assets/zeus/hero.jpg')}" alt="" width="1600" height="900" decoding="async" fetchpriority="high" loading="eager" onerror="this.onerror=null;this.src='${assetPath('/assets/zeus/placeholder.svg')}'"/></picture>
@@ -957,8 +982,11 @@ function pageHome() {
       <p class="lead">Live autonomous AI commerce platform: ZeusAI turns modules, verticals and marketplaces into buyable AI services with direct BTC checkout, signed receipts and instant delivery.</p>
       <div class="hero-cta">
         <a class="btn btn-primary" href="/services" data-link>Buy AI Service →</a>
-        <a class="btn" href="/unicorn-status.html" data-link>Live Status</a>
-        <a class="btn" href="/innovations" data-link>Innovations</a>
+      </div>
+      <div style="display:flex;gap:14px;flex-wrap:wrap;margin-top:10px;font-size:13px;color:var(--ink-dim)">
+        <a href="/status" data-link style="color:var(--violet2)">Live status</a>
+        <a href="/pricing" data-link style="color:var(--violet2)">Transparent pricing</a>
+        <a href="/trust" data-link style="color:var(--violet2)">Trust center</a>
       </div>
       <div class="hero-stats" id="heroStats">
         <div class="hero-stat"><b id="statModules">169</b><span>Live modules</span></div>
@@ -967,21 +995,23 @@ function pageHome() {
         <div class="hero-stat"><b id="statChain">—</b><span>Chain length</span></div>
       </div>
       <div class="hero-stats" style="margin-top:14px">
-        <div class="hero-stat"><b>Forward-only</b><span>Deploy guarded</span></div>
-        <div class="hero-stat"><b>QIS intact</b><span>Integrity live</span></div>
-        <div class="hero-stat"><b>BTC direct</b><span>Checkout promise</span></div>
-        <div class="hero-stat"><b>Live API</b><span>Live API is protecting orders</span></div>
+        <div class="hero-stat"><b>Signed receipts</b><span>Every order verifiable</span></div>
+        <div class="hero-stat"><b>&lt; 60s checkout</b><span>BTC direct owner wallet</span></div>
+        <div class="hero-stat"><b>Live pricing</b><span>Server-validated at pay time</span></div>
+        <div class="hero-stat"><b>Refund contract</b><span>Public guarantee page</span></div>
       </div>
     </div>
   </div>
 </section>
 
+${_zaccBanner}
+
 ${_featuredHtml}
 
 <section id="commerceProof">
   <div class="section-title">
-    <div><span class="kicker">Live commerce proof · ${_all.length} live products</span><h2>Tot ce am adăugat azi este <span class="grad">legat în site.</span></h2></div>
-    <p>Nu doar API-uri ascunse: catalogul, checkout-ul BTC/BTCPay-ready, livrarea automată, portalul client și cockpit-ul admin sunt acum vizibile și testabile direct din interfață.</p>
+    <div><span class="kicker">Live commerce proof</span><h2>Everything we ship is <span class="grad">wired into the site.</span></h2></div>
+    <p>Not just hidden APIs: the catalogue, BTC/BTCPay-ready checkout, automatic delivery, the customer portal and the admin cockpit are all visible and testable directly from the interface.</p>
   </div>
   <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(245px,1fr));gap:14px">
     <div class="card" style="border-color:rgba(255,211,106,.42)">
@@ -994,7 +1024,7 @@ ${_featuredHtml}
       <span class="tag" style="background:rgba(247,147,26,.15);color:#f7931a">BTC / BTCPay</span>
       <h3 id="commerceProofBtcProvider">Checking payment rail…</h3>
       <p id="commerceProofPaymentCopy">BTC direct is primary. Card/Stripe, PayPal and global crypto appear only when configured live.</p>
-      <a class="btn btn-primary" href="/checkout?plan=adaptive-ai" data-link>Test checkout →</a>
+      <a class="btn btn-primary" href="/checkout/?plan=adaptive-ai" data-link>Test checkout →</a>
     </div>
     <div class="card" style="border-color:rgba(110,231,183,.42)">
       <span class="tag" style="background:rgba(110,231,183,.16);color:#6ee7b7">Delivery Registry</span>
@@ -1016,7 +1046,7 @@ ${_featuredHtml}
     </div>
     <div class="card" style="border-color:rgba(62,160,255,.42)">
       <span class="tag" style="background:rgba(62,160,255,.16);color:#6fd3ff">Live Smoke</span>
-      <h3 id="commerceProofSmoke">EXPECTED_MIN_CATALOG_ITEMS=65</h3>
+      <h3 id="commerceProofSmoke">EXPECTED_MIN_CATALOG_ITEMS=25</h3>
       <p>Post-deploy smoke validates catalog, checkout, confirmation, license, delivery, refund protection and cleanup.</p>
       <a class="btn btn-ghost" href="/health">Health JSON →</a>
     </div>
@@ -1197,8 +1227,12 @@ function pageServices() {
   const summary = `${catalog.length} live products · ${counts.instant || 0} instant · ${counts.professional || 0} professional · ${counts.enterprise || 0} enterprise`;
   return `<section style="padding-top:140px">
   <div class="section-title">
-    <div><span class="kicker">Marketplace · Master Catalog · ${_esc(summary)}</span><h2>Every ZeusAI deliverable, <span class="grad">one sovereign storefront.</span></h2></div>
+    <div><span class="kicker">Marketplace · Master Catalog · ${_esc(summary)}</span><h1 style="font-size:clamp(34px,4.4vw,56px);margin:10px 0 18px">Every ZeusAI deliverable, <span class="grad">one sovereign storefront.</span></h1></div>
     <p>Strategic services + Frontier inventions + Vertical OSes + Adaptive AI modules — all live from the ZeusAI fabric. Buy any item directly in BTC. Receipt is Ed25519-signed and revenue routes 100% to the owner wallet.</p>
+  </div>
+  <div id="servicesStickySummary" class="card" style="position:sticky;top:88px;z-index:4;margin:12px 0 18px;padding:12px 14px;background:rgba(11,15,23,.88);backdrop-filter:blur(8px);border:1px solid var(--stroke);display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap">
+    <div style="font-size:13px;color:var(--ink-dim)">Live catalog synced from server pricing. Final amount is revalidated before payment.</div>
+    <a class="btn btn-primary" href="/checkout/?plan=custom" data-link>Quick BTC checkout →</a>
   </div>
   <div class="card" style="margin:16px 0 22px;background:linear-gradient(135deg,rgba(247,147,26,.10),rgba(127,90,240,.10));border:1px solid rgba(247,147,26,.45)">
     <div style="display:flex;flex-wrap:wrap;gap:18px;align-items:center;justify-content:space-between">
@@ -1210,7 +1244,7 @@ function pageServices() {
       </div>
       <div style="display:flex;flex-direction:column;gap:8px;min-width:200px">
         <div id="catCounts" style="font-size:12px;color:var(--ink-dim);text-align:right;font-family:var(--mono)">${_esc(summary)}</div>
-        <a class="btn btn-primary" href="/checkout?plan=custom" data-link>Quick BTC checkout →</a>
+        <a class="btn btn-primary" href="/checkout/?plan=custom" data-link>Quick BTC checkout →</a>
       </div>
     </div>
   </div>
@@ -1258,8 +1292,14 @@ function pagePricing() {
   };
   return `<section style="padding-top:140px">
   <div class="section-title">
-    <div><span class="kicker">Pricing · live AI-negotiated rates</span><h2>Fair. Sovereign. <span class="grad">Outcome‑aligned.</span></h2></div>
+    <div><span class="kicker">Pricing · live AI-negotiated rates</span><h1 style="font-size:clamp(34px,4.4vw,56px);margin:10px 0 18px">Fair. Sovereign. <span class="grad">Outcome‑aligned.</span></h1></div>
     <p>Simple plans for teams. Prices below are computed live by the ZeusAI dynamic-pricing engine (demand × peak × per-tier variance × surge). For enterprise verticals, ZeusAI ships outcome‑based pricing — you pay a share of measured value delivered, auto‑invoiced via the Value‑Proof Ledger.</p>
+  </div>
+  <div class="card" style="margin:10px 0 16px;padding:12px 14px;font-size:13px;color:var(--ink-dim)">
+    Prices are refreshed from live APIs and revalidated at checkout. Last sync: <span id="pricingLastSync" style="font-family:var(--mono)">pending…</span>
+  </div>
+  <div class="card" id="pricingExperimentHint" style="margin:0 0 16px;padding:10px 12px;font-size:12px;color:var(--ink-dim)">
+    Conversion optimizer is calibrating your pricing layout…
   </div>
   <div class="pricing">
     <div class="plan" data-pricing-plan="starter">
@@ -1272,7 +1312,7 @@ function pagePricing() {
         <li id="pricingPaymentRail">Direct BTC checkout · optional rails only when configured</li>
         <li>14-day trial · community support</li>
       </ul>
-      <a class="btn" href="/checkout?plan=starter" data-link>Start Starter</a>
+      <a class="btn" data-plan-cta="starter" href="/checkout/?plan=starter" data-link>Start Starter</a>
     </div>
     <div class="plan highlight" data-pricing-plan="pro">
       <h3>Growth</h3>
@@ -1284,7 +1324,7 @@ function pagePricing() {
         <li>Quantum Blockchain · M&amp;A Advisor · Legal Contracts</li>
         <li>SSO, priority support · signed outcome reports</li>
       </ul>
-      <a class="btn btn-primary" href="/checkout?plan=pro" data-link>Go Growth</a>
+      <a class="btn btn-primary" data-plan-cta="pro" href="/checkout/?plan=pro" data-link>Go Growth</a>
     </div>
     <div class="plan" data-pricing-plan="enterprise">
       <h3>Enterprise</h3>
@@ -1296,13 +1336,29 @@ function pagePricing() {
         <li>Dedicated Zeus cluster · SLA 99.9%</li>
         <li>Value‑Proof Ledger (bps share)</li>
       </ul>
-      <a class="btn btn-gold" href="/checkout?plan=enterprise" data-link>Talk to Zeus</a>
+      <a class="btn btn-gold" data-plan-cta="enterprise" href="/checkout/?plan=enterprise" data-link>Talk to Zeus</a>
     </div>
+  </div>
+  <div class="card" style="margin-top:16px;padding:12px 14px">
+    <b>Use-case playbooks:</b>
+    <a href="/solutions/ai-pricing" data-link style="margin-left:8px">AI pricing engine</a> ·
+    <a href="/solutions/ai-checkout" data-link>AI checkout optimizer</a> ·
+    <a href="/solutions/ai-self-healing" data-link>AI self-healing ops</a>
   </div>
 </section>`;
 }
 
-function pageCheckout() {
+function pageCheckout(params) {
+  // CONVERSION SSR (2026-06): when the buyer lands from a card click
+  // (/checkout/?plan=adaptive-ai), the plan id AND its canonical live price
+  // are already rendered server-side — the exact number from the card they
+  // clicked. No "computing…", no price flicker, no mismatch. RO: prețul de
+  // pe card e în HTML înainte de orice JS.
+  const p = params || {};
+  const ssrPlan = String(p.plan || 'starter').replace(/[^a-zA-Z0-9_-]/g, '').slice(0, 120) || 'starter';
+  const ssrUsd = (Number.isFinite(Number(p.planUsd)) && Number(p.planUsd) > 0) ? Number(p.planUsd) : null;
+  const ssrAmountAttr = ssrUsd != null ? String(ssrUsd) : '';
+  const ssrAmountSummary = ssrUsd != null ? ('$' + ssrUsd.toFixed(2)) : '—';
   return `<section style="padding-top:140px">
   <div class="section-title">
     <div><span class="kicker">Checkout promise</span><h2>Pay direct in BTC. <span class="grad">Activation is automatic.</span></h2></div>
@@ -1321,14 +1377,14 @@ function pageCheckout() {
       <div id="coPanelBtc">
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:18px;align-items:start">
           <div>
-            <div class="field"><label for="coAmount">Amount (USD)</label><input id="coAmount" type="number" min="1" step="1" value=""/></div>
-            <div class="field"><label for="coPlan">Plan / product</label><input id="coPlan" value="starter"/></div>
-            <div class="field"><label for="coEmail">Email for activation</label><input id="coEmail" type="email" placeholder="you@company.com"/></div>
+            <div class="field"><label for="coAmount">Amount (USD)</label><input id="coAmount" type="number" min="1" step="1" value="${ssrAmountAttr}"/></div>
+            <div class="field"><label for="coPlan">Plan / product</label><input id="coPlan" value="${ssrPlan}"/></div>
+            <div class="field"><label for="coEmail">Email for activation</label><input id="coEmail" type="email" autocomplete="email" placeholder="you@company.com" required/></div>
             <div class="field"><label for="coBtc">BTC quote</label><input id="coBtc" readonly value="computing…"/></div>
             <div class="btc-addr" id="btcAddr">${OWNER.btc}</div>
             <div id="coFxStrip" style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px"></div>
             <button class="btn btn-primary" id="coPay" style="margin-top:14px;width:100%;justify-content:center">Generate secure BTC invoice</button>
-            <p style="color:var(--ink-dim);font-size:12px;margin-top:8px">Generating secure BTC invoice and order ID. After you send BTC, the server watches the mempool every 30s and auto‑issues a signed license on confirmation.</p>
+            <p id="coQuickHint" style="color:var(--ink-dim);font-size:12px;margin-top:8px">Generating secure BTC invoice and order ID. After you send BTC, the server watches the mempool every 30s and auto‑issues a signed license on confirmation.</p>
           </div>
           <div class="co-qr"><canvas id="btcQr" width="320" height="320"></canvas></div>
         </div>
@@ -1345,8 +1401,8 @@ function pageCheckout() {
     </div>
     <aside class="co-box">
       <h3 style="margin:0 0 8px">Order summary</h3>
-      <div style="display:flex;justify-content:space-between;color:var(--ink-dim);font-size:14px;padding:10px 0;border-bottom:1px solid var(--stroke)"><span>Plan</span><b id="sumPlan" style="color:#fff">starter</b></div>
-      <div style="display:flex;justify-content:space-between;color:var(--ink-dim);font-size:14px;padding:10px 0;border-bottom:1px solid var(--stroke)"><span>Amount</span><b id="sumAmount" style="color:#fff">—</b></div>
+      <div style="display:flex;justify-content:space-between;color:var(--ink-dim);font-size:14px;padding:10px 0;border-bottom:1px solid var(--stroke)"><span>Plan</span><b id="sumPlan" style="color:#fff">${ssrPlan}</b></div>
+      <div style="display:flex;justify-content:space-between;color:var(--ink-dim);font-size:14px;padding:10px 0;border-bottom:1px solid var(--stroke)"><span>Amount</span><b id="sumAmount" style="color:#fff">${ssrAmountSummary}</b></div>
       <div style="display:flex;justify-content:space-between;color:var(--ink-dim);font-size:14px;padding:10px 0;border-bottom:1px solid var(--stroke)"><span>Owner</span><b style="color:#fff">${OWNER.name}</b></div>
       <div style="display:flex;justify-content:space-between;color:var(--ink-dim);font-size:14px;padding:10px 0"><span>Receipt</span><b style="color:var(--ok)">Ed25519 signed</b></div>
       <p style="color:var(--ink-dim);font-size:12.5px;line-height:1.6;margin-top:14px">Every receipt is routed by <code class="inline">sovereignRevenueRouter</code>. On enterprise plans, a share of delivered value is auto‑invoiced via the Value‑Proof Ledger.</p>
@@ -1355,10 +1411,61 @@ function pageCheckout() {
 </section>`;
 }
 
+function pageSolution(kind) {
+  const key = String(kind || '').toLowerCase();
+  const cfg = {
+    pricing: {
+      kicker: 'AI pricing solution',
+      title: 'Adaptive AI Pricing Engine',
+      copy: 'Continuously re-prices your catalog from demand, competition and conversion telemetry. Every quote remains auditable and revalidated at checkout.',
+      bullets: ['Real-time quote updates', 'Bandit-aware offer ranking', 'Signed quote history'],
+      cta: '/pricing',
+      ctaLabel: 'Open live pricing'
+    },
+    checkout: {
+      kicker: 'AI checkout solution',
+      title: 'AI Checkout Conversion Optimizer',
+      copy: 'Improves payment completion with live quote confidence, route fallback and automatic recovery after pending payments.',
+      bullets: ['Inline validation + trust copy', 'Payment rail fallback', 'Receipt + delivery auto-issue'],
+      cta: '/checkout/?plan=starter',
+      ctaLabel: 'Open optimized checkout'
+    },
+    'ai-self-healing': {
+      kicker: 'AI reliability solution',
+      title: 'AI Self-Healing Operations',
+      copy: 'Tracks latency, error patterns and module health to auto-diagnose faults while keeping customer-facing flows stable.',
+      bullets: ['SLO + route latency telemetry', 'Autonomous recovery playbooks', 'Operator-safe guardrails'],
+      cta: '/observability',
+      ctaLabel: 'Open observability'
+    }
+  }[key] || {
+    kicker: 'AI solution',
+    title: 'ZeusAI Solution',
+    copy: 'Deploy an autonomous AI capability with signed outcomes and sovereign commerce.',
+    bullets: ['Sovereign architecture', 'Signed receipts', 'Live AI governance'],
+    cta: '/services',
+    ctaLabel: 'Browse services'
+  };
+
+  return `<section style="padding-top:140px">
+  <div class="section-title">
+    <div><span class="kicker">${_esc(cfg.kicker)}</span><h1>${_esc(cfg.title)}</h1></div>
+    <p>${_esc(cfg.copy)}</p>
+  </div>
+  <div class="card" style="padding:18px">
+    <ul style="margin:0;padding-left:18px;line-height:1.8;color:var(--ink-dim)">${cfg.bullets.map((b) => `<li>${_esc(b)}</li>`).join('')}</ul>
+    <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:16px">
+      <a class="btn btn-primary" href="${_esc(cfg.cta)}" data-link>${_esc(cfg.ctaLabel)} →</a>
+      <a class="btn" href="/services" data-link>View marketplace</a>
+    </div>
+  </div>
+</section>`;
+}
+
 function pageDashboard() {
   return `<section style="padding-top:140px">
   <div class="section-title">
-    <div><span class="kicker">Dashboard</span><h2>My <span class="grad">ZeusAI</span></h2></div>
+    <div><span class="kicker">Dashboard</span><h1>My <span class="grad">ZeusAI</span></h1></div>
     <p>Live telemetry from your ZeusAI instance. All numbers sourced from the server — no mocks.</p>
   </div>
   <div class="co-box" id="passkeyBox" style="margin-bottom:22px;display:flex;gap:14px;align-items:center;justify-content:space-between;flex-wrap:wrap">
@@ -1428,7 +1535,7 @@ function pageHow() {
 function pageDocs() {
   return `<section style="padding-top:140px">
   <div class="section-title">
-    <div><span class="kicker">API &amp; Docs</span><h2>Talk to <span class="grad">ZeusAI.</span></h2></div>
+    <div><span class="kicker">API &amp; Docs</span><h1>Talk to <span class="grad">ZeusAI.</span></h1></div>
     <p>All endpoints live on the same server that rendered this page. Everything is JSON. Auth where required is capability token (CBAT) — issued per action.</p>
   </div>
   <table class="doc">
@@ -1615,19 +1722,151 @@ function pageOperator() {
   <p style="color:var(--ink-dim);font-size:16px;line-height:1.7;max-width:860px">Sanitized operator view for orders, payments, leads, AI provider readiness, errors, revenue proof, deploy health and webhook failures. Admin-only actions remain protected.</p>
   <div class="grid" id="opGrid" style="margin-top:22px"><div class="card"><p>Operator snapshot will appear here.</p></div></div>
   <pre class="code" id="opRaw" style="margin-top:18px;max-height:420px;overflow:auto">Operator summary will appear here.</pre>
+  <div class="card" style="margin-top:18px;padding:14px">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap">
+      <div>
+        <span class="tag">Admin ops summary</span>
+        <h3 style="margin:8px 0 4px">Funnel, SLO and DeepSeek in one panel</h3>
+        <p style="margin:0;color:var(--ink-dim);font-size:13px">Uses <code class="inline">/api/admin/ops/summary</code>. Token is stored in <code class="inline">sessionStorage</code> only.</p>
+      </div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;min-width:min(100%,520px)">
+        <input id="opAdminToken" type="password" placeholder="Admin JWT token" style="flex:1;min-width:220px;padding:10px;border-radius:10px;border:1px solid var(--stroke);background:rgba(5,4,10,.55);color:var(--ink);font-family:var(--mono)"/>
+        <button class="btn btn-primary" id="opLoadAdmin">Load admin KPIs</button>
+        <button class="btn" id="opClearAdmin">Clear token</button>
+        <button class="btn" id="opAutoRefresh">Auto refresh: ON</button>
+      </div>
+    </div>
+    <div class="grid" id="opOpsGrid" style="margin-top:14px;grid-template-columns:repeat(auto-fit,minmax(170px,1fr))"><div class="card"><p style="margin:0;color:var(--ink-dim)">Admin KPIs locked.</p></div></div>
+    <pre class="code" id="opOpsRaw" style="margin-top:12px;max-height:260px;overflow:auto">Awaiting admin token…</pre>
+  </div>
   <script>
-  fetch('/api/operator/console').then(r=>r.json()).then(d=>{
-    const cards=[['Orders', d.orders.total], ['Paid', d.orders.paid], ['Revenue', '$'+d.revenue.totalUsd], ['Payment rail', d.payments.mode], ['AI providers', d.ai.active+'/'+d.ai.total], ['Deploy', d.deploy.sha], ['Errors', d.errors.count], ['Webhooks', d.webhooks.status]];
-    document.getElementById('opGrid').innerHTML=cards.map(c=>'<div class="card"><span class="tag">'+c[0]+'</span><h3>'+c[1]+'</h3></div>').join('');
-    document.getElementById('opRaw').textContent='deploy '+(d.deploy.sha||'—')+' · payments '+(d.payments.mode||'—')+' · revenue $'+(d.revenue.totalUsd||0).toLocaleString();
-  }).catch(e=>{
-    // Never leave the SSR "Operator snapshot will appear here." placeholder
-    // stuck on screen — same regression class as the /services BTC spot rate bug.
-    const g = document.getElementById('opGrid');
-    if (g) g.innerHTML = '<div class="card"><p style="color:var(--ink-dim)">Operator snapshot unavailable. Retrying.</p></div>';
-    const r = document.getElementById('opRaw');
-    if (r) r.textContent = 'Operator console unavailable: '+(e && e.message || e);
-  });
+  (function(){
+    const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, (m) => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[m]));
+    const fmtNum = (n) => {
+      const v = Number(n || 0);
+      if (!Number.isFinite(v)) return '0';
+      return v.toLocaleString('en-US', { maximumFractionDigits: 2 });
+    };
+
+    function loadPublic(){
+      fetch('/api/operator/console').then(r=>r.json()).then(d=>{
+        const cards=[['Orders', d.orders.total], ['Paid', d.orders.paid], ['Revenue', '$'+fmtNum(d.revenue.totalUsd)], ['Payment rail', d.payments.mode], ['AI providers', d.ai.active+'/'+d.ai.total], ['Deploy', d.deploy.sha], ['Errors', d.errors.count], ['Webhooks', d.webhooks.status]];
+        const g = document.getElementById('opGrid');
+        if (g) g.innerHTML=cards.map(c=>'<div class="card"><span class="tag">'+esc(c[0])+'</span><h3>'+esc(c[1])+'</h3></div>').join('');
+        const r = document.getElementById('opRaw');
+        if (r) r.textContent='deploy '+(d.deploy.sha||'—')+' · payments '+(d.payments.mode||'—')+' · revenue $'+fmtNum(d.revenue.totalUsd);
+      }).catch(e=>{
+        const g = document.getElementById('opGrid');
+        if (g) g.innerHTML = '<div class="card"><p style="color:var(--ink-dim)">Operator snapshot unavailable. Retrying.</p></div>';
+        const r = document.getElementById('opRaw');
+        if (r) r.textContent = 'Operator console unavailable: '+(e && e.message || e);
+      });
+    }
+
+    function loadAdminOps(token){
+      const opsGrid = document.getElementById('opOpsGrid');
+      const opsRaw = document.getElementById('opOpsRaw');
+      if (!token) {
+        if (opsGrid) opsGrid.innerHTML = '<div class="card"><p style="margin:0;color:var(--ink-dim)">Admin KPIs locked.</p></div>';
+        if (opsRaw) opsRaw.textContent = 'Awaiting admin token…';
+        return;
+      }
+      if (opsRaw) opsRaw.textContent = 'Loading admin ops summary…';
+      fetch('/api/admin/ops/summary', { headers: { Authorization: 'Bearer ' + token } }).then(async (r) => {
+        const txt = await r.text();
+        let d = null; try { d = txt ? JSON.parse(txt) : null; } catch (_) { d = null; }
+        if (!r.ok) {
+          throw new Error((d && (d.error || d.reason)) || ('HTTP ' + r.status));
+        }
+        return d || {};
+      }).then((d) => {
+        const f = d.funnel || {};
+        const ds = d.deepseek || {};
+        const cards = [
+          ['Views/h', fmtNum(f.viewsHour)],
+          ['Checkout/h', fmtNum(f.checkoutHour)],
+          ['Paid/h', fmtNum(f.paidHour)],
+          ['View→Checkout', (Number(f.conversionViewToCheckout || 0) * 100).toFixed(1) + '%'],
+          ['Checkout→Paid', (Number(f.conversionCheckoutToPaid || 0) * 100).toFixed(1) + '%'],
+          ['DeepSeek actions/h', fmtNum(ds.actionsLastHour)],
+          ['DeepSeek actions/day', fmtNum(ds.actionsLastDay)],
+          ['Pending req ids', fmtNum(ds.pendingRequestIds)]
+        ];
+        if (opsGrid) {
+          opsGrid.innerHTML = cards.map((c) => '<div class="card"><span class="tag">' + esc(c[0]) + '</span><h3>' + esc(c[1]) + '</h3></div>').join('');
+        }
+        if (opsRaw) {
+          opsRaw.textContent = 'ts ' + (d.ts || '—') + '\n' +
+            'funnel events buffered: ' + fmtNum(f.bufferedEvents) + '\n' +
+            'perf.slo: ' + JSON.stringify((d.performance && d.performance.slo) || {}, null, 2);
+        }
+      }).catch((e) => {
+        if (opsGrid) opsGrid.innerHTML = '<div class="card"><p style="margin:0;color:#ffb4b4">Admin summary unavailable.</p></div>';
+        if (opsRaw) opsRaw.textContent = 'Admin ops summary error: ' + (e && e.message || e);
+      });
+    }
+
+    const tokenInput = document.getElementById('opAdminToken');
+    const loadBtn = document.getElementById('opLoadAdmin');
+    const clearBtn = document.getElementById('opClearAdmin');
+    const autoBtn = document.getElementById('opAutoRefresh');
+    let autoTimer = null;
+    let autoOn = true;
+
+    function setAutoRefresh(on){
+      autoOn = !!on;
+      if (autoBtn) autoBtn.textContent = 'Auto refresh: ' + (autoOn ? 'ON' : 'OFF');
+      try { sessionStorage.setItem('zeus_admin_ops_autorefresh', autoOn ? '1' : '0'); } catch (_) {}
+    }
+
+    function armAutoRefresh(token){
+      if (autoTimer) { clearInterval(autoTimer); autoTimer = null; }
+      if (!autoOn || !token) return;
+      autoTimer = setInterval(function(){ loadAdminOps(token); }, 30000);
+    }
+
+    let saved = '';
+    try { saved = sessionStorage.getItem('zeus_admin_jwt') || ''; } catch (_) { saved = ''; }
+    if (tokenInput && saved) tokenInput.value = saved;
+    try { setAutoRefresh((sessionStorage.getItem('zeus_admin_ops_autorefresh') || '1') === '1'); } catch (_) { setAutoRefresh(true); }
+    if (loadBtn) {
+      loadBtn.addEventListener('click', function(){
+        const t = tokenInput ? String(tokenInput.value || '').trim() : '';
+        try {
+          if (t) sessionStorage.setItem('zeus_admin_jwt', t);
+          else sessionStorage.removeItem('zeus_admin_jwt');
+        } catch (_) {}
+        loadAdminOps(t);
+        armAutoRefresh(t);
+      });
+    }
+    if (tokenInput) {
+      tokenInput.addEventListener('keydown', function(ev){
+        if (ev.key === 'Enter' && loadBtn) { ev.preventDefault(); loadBtn.click(); }
+      });
+    }
+    if (clearBtn) {
+      clearBtn.addEventListener('click', function(){
+        if (tokenInput) tokenInput.value = '';
+        try { sessionStorage.removeItem('zeus_admin_jwt'); } catch (_) {}
+        loadAdminOps('');
+        armAutoRefresh('');
+      });
+    }
+    if (autoBtn) {
+      autoBtn.addEventListener('click', function(){
+        setAutoRefresh(!autoOn);
+        const t = tokenInput ? String(tokenInput.value || '').trim() : '';
+        armAutoRefresh(t);
+      });
+    }
+
+    loadPublic();
+    if (saved) {
+      loadAdminOps(saved);
+      armAutoRefresh(saved);
+    }
+  })();
   </script>
 </section>`;
 }
@@ -1971,16 +2210,19 @@ function pageAccount(opts) {
     });
   }
 
-  // ── Server interactions (30s timeout; network failures return status 0) ──
-  function api(path, body) {
+  // ── Server interactions ──
+  // Each attempt has a 15s timeout; transient failures (server cold-start,
+  // restart race, nginx 502/timeout → status 0) are auto-retried with
+  // exponential backoff so a briefly-unresponsive server self-recovers
+  // instead of dumping "Server timeout" on the user.
+  var API_TIMEOUT_MS = 15000;
+  var API_MAX_ATTEMPTS = 3; // 1 initial + 2 retries
+  function _delay(ms){ return new Promise(function(resolve){ setTimeout(resolve, ms); }); }
+  function _fetchOnce(path, opts) {
     var ctrl = typeof AbortController !== 'undefined' ? new AbortController() : null;
-    var tid = ctrl ? setTimeout(function(){ ctrl.abort(); }, 30000) : null;
-    return fetch(path, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body || {}),
-      signal: ctrl ? ctrl.signal : undefined
-    }).then(function(r){
+    var tid = ctrl ? setTimeout(function(){ ctrl.abort(); }, API_TIMEOUT_MS) : null;
+    opts.signal = ctrl ? ctrl.signal : undefined;
+    return fetch(path, opts).then(function(r){
       if (tid) clearTimeout(tid);
       return r.json().then(function(j){ return { status: r.status, body: j }; });
     }).catch(function(e){
@@ -1989,19 +2231,28 @@ function pageAccount(opts) {
       return { status: 0, body: { ok: false, error: code } };
     });
   }
+  // Retry only on transient transport failures (status 0). Real HTTP responses
+  // (4xx/5xx) are returned to the caller unchanged so existing handlers keep
+  // their precise error semantics (e.g. challenge_invalid_or_expired retries).
+  function _fetchRetry(path, opts, attempt) {
+    attempt = attempt || 1;
+    return _fetchOnce(path, opts).then(function(res){
+      if (res.status === 0 && attempt < API_MAX_ATTEMPTS) {
+        return _delay(600 * Math.pow(2, attempt - 1)).then(function(){ return _fetchRetry(path, opts, attempt + 1); });
+      }
+      return res;
+    });
+  }
+  function api(path, body) {
+    return _fetchRetry(path, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body || {})
+    });
+  }
   function apiGet(path, token) {
-    var ctrl = typeof AbortController !== 'undefined' ? new AbortController() : null;
-    var tid = ctrl ? setTimeout(function(){ ctrl.abort(); }, 30000) : null;
-    return fetch(path, {
-      headers: token ? { 'Authorization': 'Bearer ' + token } : {},
-      signal: ctrl ? ctrl.signal : undefined
-    }).then(function(r){
-      if (tid) clearTimeout(tid);
-      return r.json().then(function(j){ return { status: r.status, body: j }; });
-    }).catch(function(e){
-      if (tid) clearTimeout(tid);
-      var code = (e && e.name === 'AbortError') ? 'timeout' : 'network_error';
-      return { status: 0, body: { ok: false, error: code } };
+    return _fetchRetry(path, {
+      headers: token ? { 'Authorization': 'Bearer ' + token } : {}
     });
   }
   function friendlyError(code) {
@@ -2069,7 +2320,7 @@ function pageAccount(opts) {
         '<div style=\"flex:1;min-width:200px\">' +
           '<div style=\"font-size:18px;font-weight:600\">' + html(user.name || 'Signed in') + '</div>' +
           '<div style=\"color:var(--ink-dim);font-size:13px\">' + (user.email ? html(user.email) + ' \u00b7 ' : '') + '<code style=\"font-size:12px;color:#9ab4ff\">' + html(user.userId) + '</code></div>' +
-          '<div style=\"color:var(--ink-dim);font-size:12px;margin-top:4px\">Member since ' + html(new Date(user.createdAt).toLocaleDateString()) + '</div>' +
+          '<div style=\"color:var(--ink-dim);font-size:12px;margin-top:4px\">' + (function(){ var d = user.createdAt ? new Date(user.createdAt) : null; return (d && !isNaN(d.getTime())) ? 'Member since ' + html(d.toLocaleDateString()) : 'Active account'; })() + '</div>' +
         '</div>' +
         '<span style=\"background:rgba(124,255,184,.15);color:#7cffb8;padding:6px 12px;border-radius:20px;font-size:12px;font-weight:600\">\u25cf Signed in</span>' +
       '</div>');
@@ -2262,6 +2513,7 @@ function pageAccount(opts) {
           });
         } catch (e) { statusError('Could not parse vault file.'); }
       };
+      reader.onerror = function(){ statusError('Could not read the vault file. Try selecting it again.'); };
       reader.readAsText(file);
     });
   }
@@ -2754,7 +3006,11 @@ function renderRoute(route, params = {}) {
     case '/': return pageHome();
     case '/services': return pageServices();
     case '/pricing': return pagePricing();
-    case '/checkout': return pageCheckout();
+    case '/solutions/ai-pricing': return pageSolution('pricing');
+    case '/solutions/ai-checkout': return pageSolution('checkout');
+    case '/solutions/ai-self-healing': return pageSolution('ai-self-healing');
+    case '/checkout':
+    case '/checkout/': return pageCheckout(params);
     case '/dashboard': return pageDashboard();
     case '/how': return pageHow();
     case '/docs': return pageDocs();
@@ -2795,6 +3051,14 @@ function renderRoute(route, params = {}) {
     case '/frontier': return pageFrontier();
     case '/deepseek-cockpit': return pageDeepseekCockpit();
     case '/marketplace': return pageServices();
+    case '/contact': return pageContact();
+    case '/faq': return pageFaq();
+    case '/blog': return pageBlog();
+    case '/affiliate': return pageAffiliate();
+    case '/partners': return pagePartners();
+    case '/roadmap': return pageRoadmap();
+    case '/careers': return pageCareers();
+    case '/press': return pagePress();
     default:
       if (route.startsWith('/services/')) return pageService(params.id || route.slice(10));
       return pageNotFound(route);
@@ -3295,11 +3559,12 @@ function pageApiExplorer() {
   return `<section style="padding-top:140px;max-width:1080px">
   <span class="kicker">API Explorer</span>
   <h1 style="font-size:clamp(34px,4.4vw,56px);margin:10px 0 18px">Try every <span class="grad">endpoint</span> live.</h1>
-  <p style="color:var(--ink-dim);font-size:15px">OpenAPI 3.1 spec at <a href="/openapi.json" target="_blank">/openapi.json</a>. Below is the live endpoint inventory.</p>
+  <p style="color:var(--ink-dim);font-size:15px">Public OpenAPI 3.1 spec at <a href="/openapi-public.json" target="_blank">/openapi-public.json</a>. Below is the live public endpoint inventory.</p>
   <div id="apiList" class="card" style="padding:22px;margin-top:18px;font-family:var(--mono);font-size:13px;line-height:1.9;max-height:80vh;overflow:auto">Endpoint inventory will appear here.</div>
   <script>
-  fetch('/openapi.json').then(r=>r.json()).then(d=>{
-    const rows = Object.entries(d.paths).map(([p,ops])=>{
+  fetch('/openapi-public.json').then(r=>r.json()).then(d=>{
+    const privatePath = (p)=>/^\/api\/(admin|operator|autonomy|brain\/autonomy|internal|deepseek|observability)/.test(p);
+    const rows = Object.entries(d.paths).filter(([p])=>!privatePath(p)).map(([p,ops])=>{
       const ms = Object.keys(ops).map(m=>'<code class="inline" style="text-transform:uppercase">'+m+'</code>').join(' ');
       return '<div style="padding:6px 0;border-bottom:1px solid var(--stroke)">'+ms+' <a href="'+p+'" target="_blank" style="color:var(--violet2)">'+p+'</a> <span style="color:var(--ink-dim);font-size:12px">'+ (Object.values(ops)[0].summary || '') +'</span></div>';
     });
@@ -3341,7 +3606,7 @@ function pageFrontier() {
     <div class="card"><span class="tag">F1</span><h3>Crypto Refund Guarantee</h3><p>Self-executing SLA. If breached, refund auto-issues.</p><a class="btn" href="/refund" data-link>Open</a></div>
     <div class="card"><span class="tag">F2</span><h3>Live Conversion Aura</h3><p>Real-time, signed, public KPI heartbeat.</p><a class="btn" href="/aura" data-link>Open</a></div>
     <div class="card"><span class="tag">F3</span><h3>Outcome-Anchored Pricing</h3><p>Signed before/after deltas → auto-bps invoice.</p><a class="btn" href="/api/outcome/list" target="_blank">JSON</a></div>
-    <div class="card"><span class="tag">F4</span><h3>Self-Healing Checkout Cascade</h3><p>BTC → Lightning → Stripe → PayPal → Wire.</p><a class="btn" href="/checkout" data-link>Try</a></div>
+    <div class="card"><span class="tag">F4</span><h3>Self-Healing Checkout Cascade</h3><p>BTC → Lightning → Stripe → PayPal → Wire.</p><a class="btn" href="/checkout/" data-link>Try</a></div>
     <div class="card"><span class="tag">F5</span><h3>Time-Locked Discount Vault</h3><p>VDF-anchored "wait N s, get X% off".</p></div>
     <div class="card"><span class="tag">F6</span><h3>Sovereign Receipt NFT</h3><p>Portable, dual-signed proof. Verifiable offline.</p></div>
     <div class="card"><span class="tag">F7</span><h3>Provable Email Delivery</h3><p>Signed manifest + Merkle inclusion proof.</p></div>
@@ -3366,6 +3631,202 @@ function pageFrontier() {
     if (out) out.textContent = 'Frontier status unavailable: '+(e.message||e);
   });
   </script>
+</section>`;
+}
+
+// ── REAL CONTENT PAGES (2026-06) ───────────────────────────────────────────
+// Until now /contact /faq /blog /affiliate /partners /roadmap /careers /press
+// fell through to the homepage clone — duplicate-content SEO poison and a
+// dead end for buyers. Each page below is honest (no invented testimonials,
+// no fake jobs), wired to REAL endpoints that already exist in production:
+//   • /api/enterprise/contact  → persists leads to enterprise-leads.jsonl
+//   • /api/uaic/affiliate/track → logs referral hits to affiliate-track.jsonl
+// RO: pagini reale, conectate la API-uri reale, zero conținut fals.
+
+function pageContact() {
+  return `<section style="padding-top:140px;max-width:980px">
+  <span class="kicker">Contact</span>
+  <h1 style="font-size:clamp(34px,4.4vw,56px);margin:10px 0 14px">Talk to the <span class="grad">owner-operator.</span></h1>
+  <p style="color:var(--ink-dim);max-width:640px">ZeusAI is sovereign-run — your message lands directly with ${OWNER.name}, not a ticket queue. Sales, enterprise licensing, partnerships, security reports: same door.</p>
+  <div class="grid" style="grid-template-columns:1.4fr 1fr;gap:18px;margin-top:26px;align-items:start">
+    <form id="contactForm" class="card" style="padding:22px;display:grid;gap:12px">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+        <div><label style="font-size:12px;color:var(--ink-dim)">Name *</label><input name="name" required placeholder="Ada Lovelace" style="width:100%;padding:11px;background:#0b0f17;border:1px solid #1f2a3b;color:#e7ecf3;border-radius:8px"></div>
+        <div><label style="font-size:12px;color:var(--ink-dim)">Email *</label><input name="email" type="email" required placeholder="you@company.com" style="width:100%;padding:11px;background:#0b0f17;border:1px solid #1f2a3b;color:#e7ecf3;border-radius:8px"></div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+        <div><label style="font-size:12px;color:var(--ink-dim)">Company</label><input name="company" placeholder="Acme Corp" style="width:100%;padding:11px;background:#0b0f17;border:1px solid #1f2a3b;color:#e7ecf3;border-radius:8px"></div>
+        <div><label style="font-size:12px;color:var(--ink-dim)">Topic</label><select name="interest" style="width:100%;padding:11px;background:#0b0f17;border:1px solid #1f2a3b;color:#e7ecf3;border-radius:8px"><option value="sales">Sales / pricing</option><option value="enterprise">Enterprise license</option><option value="partnership">Partnership</option><option value="affiliate">Affiliate program</option><option value="security">Security report</option><option value="press">Press / media</option><option value="other">Other</option></select></div>
+      </div>
+      <div><label style="font-size:12px;color:var(--ink-dim)">Message *</label><textarea name="message" required rows="5" placeholder="What do you want to automate?" style="width:100%;padding:11px;background:#0b0f17;border:1px solid #1f2a3b;color:#e7ecf3;border-radius:8px;resize:vertical"></textarea></div>
+      <button class="btn btn-primary" type="submit" style="justify-content:center">Send message →</button>
+      <span id="contactMsg" style="font-size:13px;min-height:18px;color:var(--ink-dim)"></span>
+    </form>
+    <div style="display:grid;gap:12px">
+      <div class="card" style="padding:18px"><span class="tag">Direct</span><p style="margin:10px 0 0;color:var(--ink-dim);font-size:14px">Email: <a href="mailto:${OWNER.email}">${OWNER.email}</a><br>Response target: &lt; 24h.</p></div>
+      <div class="card" style="padding:18px"><span class="tag">Security</span><p style="margin:10px 0 0;color:var(--ink-dim);font-size:14px">Vulnerability reports get priority routing. See <a href="/security" data-link>/security</a> for scope and our disclosure policy.</p></div>
+      <div class="card" style="padding:18px"><span class="tag">Proof</span><p style="margin:10px 0 0;color:var(--ink-dim);font-size:14px">Your message is persisted server-side instantly and surfaces in the operator console — nothing disappears into a CRM black hole.</p></div>
+    </div>
+  </div>
+  <script>
+  (function(){var f=document.getElementById('contactForm');if(!f)return;f.addEventListener('submit',async function(ev){ev.preventDefault();var m=document.getElementById('contactMsg');m.textContent='Sending…';var fd=new FormData(f);var body={};fd.forEach(function(v,k){body[k]=v});try{var r=await fetch('/api/enterprise/contact',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});var j=await r.json().catch(function(){return{}});if(r.ok){m.style.color='#7fffd4';m.textContent='✓ Sent — lead '+(j.id||'recorded')+'. We reply within 24h.';f.reset();}else{m.style.color='#ff6b6b';m.textContent=j.error||'Failed — email us directly instead.';}}catch(e){m.style.color='#ff6b6b';m.textContent='Network error — email ${OWNER.email}';}});})();
+  </script>
+</section>`;
+}
+
+const FAQ_ITEMS = [
+  { q: 'What exactly am I buying?', a: 'A live AI capability: vertical OS, frontier module or strategic service. Every purchase mints an Ed25519-signed entitlement credential plus an API key — verifiable offline, owned by you.' },
+  { q: 'How does payment work?', a: 'Direct BTC checkout settles on-chain to the owner wallet — no custodian, no processor in the middle. A 10% sovereign discount applies automatically to BTC checkouts. Cards/PayPal appear only when those rails are configured live.' },
+  { q: 'Is the card price the same as the checkout price?', a: 'Yes — one canonical price engine quotes the card, the /pricing page and checkout. The quote is locked for 90 seconds so it never shifts mid-purchase.' },
+  { q: 'What happens right after I pay?', a: 'The server watches the mempool, auto-confirms settlement, then issues the signed receipt, license token and delivery credentials — typically within one confirmation.' },
+  { q: 'Can I verify my receipt independently?', a: 'Yes. Receipts are Ed25519-signed and Merkle-chained. Fetch the public key from /.well-known/keys.json and verify offline — no trust in us required.' },
+  { q: 'Is there a refund?', a: 'A cryptographic refund guarantee: if a signed service promise is breached, refund is automatic. Plus a 30-day money-back window, no questions asked. See /refund.' },
+  { q: 'Can I cancel anytime?', a: 'Yes — /cancel ends any subscription in one click. No retention flows, no dark patterns (see /pledge).' },
+  { q: 'Do you train AI models on my data?', a: 'No. Minimal data collection, no resale, no model training on personal data. Full details in /privacy and /dpa.' },
+  { q: 'Can software agents buy from you autonomously?', a: 'Yes — the catalog is machine-readable (/agents.json, /openapi.json) and checkout is a single signed POST. Agent-to-agent commerce is a first-class flow.' },
+  { q: 'Who is behind ZeusAI?', a: `Owner-operated by ${OWNER.name}. No VC obligations, no exit pressure — built for a 30-year horizon. See /about.` },
+];
+
+function pageFaq() {
+  return `<section style="padding-top:140px;max-width:880px">
+  <span class="kicker">FAQ</span>
+  <h1 style="font-size:clamp(34px,4.4vw,56px);margin:10px 0 14px">Questions, <span class="grad">answered straight.</span></h1>
+  <p style="color:var(--ink-dim)">Every answer below is backed by a live page or API you can verify right now.</p>
+  <div style="display:grid;gap:10px;margin-top:24px">
+    ${FAQ_ITEMS.map((f) => `<details class="card" style="padding:16px 18px"><summary style="cursor:pointer;font-weight:600;font-size:15.5px">${f.q}</summary><p style="color:var(--ink-dim);font-size:14.5px;line-height:1.7;margin:12px 0 0">${f.a}</p></details>`).join('')}
+  </div>
+  <div class="card" style="padding:18px;margin-top:22px;display:flex;gap:12px;align-items:center;flex-wrap:wrap">
+    <span style="color:var(--ink-dim);font-size:14px">Still stuck?</span>
+    <a class="btn btn-primary" href="/contact" data-link>Contact us →</a>
+    <a class="btn" href="/docs" data-link>Read the docs</a>
+    <a class="btn" href="/wizard" data-link>Find my plan</a>
+  </div>
+</section>`;
+}
+
+function pageBlog() {
+  // Honest "insights" index: every entry links to a REAL live page — no
+  // fabricated articles, no fake authors. The product itself is the content.
+  const posts = [
+    { href: '/frontier', tag: 'Frontier', title: 'F1–F12: inventions that ship as products, not papers', sub: 'Refund guarantees, live conversion aura, self-healing checkout — each frontier module is live and purchasable.' },
+    { href: '/innovations', tag: 'Durability', title: '30-year cryptographic durability by design', sub: 'Post-quantum readiness, Merkle-chained receipts and constitution hashing on every response.' },
+    { href: '/transparency', tag: 'Pricing', title: 'Why our pricing experiments are public', sub: 'Every bandit experiment behind a price you see is published. Radical transparency converts better than tricks.' },
+    { href: '/trust', tag: 'Trust', title: 'Proof over promises: the Trust Center', sub: 'Deploy SHA, integrity signature, wallet proof and audit logs — verifiable live, not in a PDF.' },
+    { href: '/how', tag: 'Architecture', title: 'How a sovereign AI OS routes a dollar', sub: 'From quote → invoice → on-chain settlement → signed delivery, with zero custodians.' },
+    { href: '/changelog', tag: 'Shipping', title: 'The changelog is the roadmap receipt', sub: 'Everything we said we would build, with the commit that proves we did.' },
+  ];
+  return `<section style="padding-top:140px;max-width:1080px">
+  <span class="kicker">Insights</span>
+  <h1 style="font-size:clamp(34px,4.4vw,56px);margin:10px 0 14px">The product <span class="grad">is the publication.</span></h1>
+  <p style="color:var(--ink-dim);max-width:640px">No ghost-written thought-leadership. Each insight below links to a live, verifiable part of the system.</p>
+  <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:14px;margin-top:26px">
+    ${posts.map((p) => `<a class="card" href="${p.href}" data-link style="padding:20px;text-decoration:none;display:block"><span class="tag">${p.tag}</span><h3 style="margin:12px 0 8px;font-size:17px;color:#fff">${p.title}</h3><p style="color:var(--ink-dim);font-size:13.5px;line-height:1.6;margin:0">${p.sub}</p><span style="display:inline-block;margin-top:12px;color:var(--blue2);font-size:13px">Read live →</span></a>`).join('')}
+  </div>
+</section>`;
+}
+
+function pageAffiliate() {
+  return `<section style="padding-top:140px;max-width:980px">
+  <span class="kicker">Affiliate</span>
+  <h1 style="font-size:clamp(34px,4.4vw,56px);margin:10px 0 14px">Refer revenue, <span class="grad">get paid in BTC.</span></h1>
+  <p style="color:var(--ink-dim);max-width:640px">Referral tracking is live in production today. Generate your link below — every visit is logged server-side with your ref code and tied to purchases from that session.</p>
+  <div class="card" style="padding:22px;margin-top:24px;display:grid;gap:12px;max-width:640px">
+    <label style="font-size:12px;color:var(--ink-dim)">Your ref code (pick anything unique — your brand, handle, etc.)</label>
+    <div style="display:flex;gap:10px;flex-wrap:wrap">
+      <input id="affCode" placeholder="yourbrand" style="flex:1;min-width:200px;padding:11px;background:#0b0f17;border:1px solid #1f2a3b;color:#e7ecf3;border-radius:8px">
+      <button class="btn btn-primary" id="affGen">Generate link</button>
+    </div>
+    <div id="affOut" style="display:none;background:#0b0f17;border:1px solid #1f2a3b;border-radius:8px;padding:12px;font-family:var(--mono);font-size:13px;word-break:break-all"></div>
+    <button class="btn" id="affCopy" style="display:none;justify-content:center">Copy link</button>
+  </div>
+  <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px;margin-top:22px">
+    <div class="card" style="padding:18px"><span class="tag">1 · Share</span><p style="color:var(--ink-dim);font-size:14px;margin:10px 0 0">Your link points at any ZeusAI page with <code class="inline">?ref=you</code>. The tracker beacon fires automatically on landing.</p></div>
+    <div class="card" style="padding:18px"><span class="tag">2 · Tracked</span><p style="color:var(--ink-dim);font-size:14px;margin:10px 0 0">Hits are appended to a server-side ledger (timestamp + ref). Honest infrastructure: no cookies-of-doom, no third-party pixels.</p></div>
+    <div class="card" style="padding:18px"><span class="tag">3 · Paid</span><p style="color:var(--ink-dim);font-size:14px;margin:10px 0 0">Commission terms are agreed per partner (typ. 10–25% of first-year revenue), settled in BTC to your wallet. <a href="/contact" data-link>Apply via contact</a> — mention your ref code.</p></div>
+  </div>
+  <p style="color:var(--ink-dim);font-size:13px;margin-top:18px">Program status: early-access — tracking live, payouts handled directly by the owner until self-serve dashboards ship. Everything above is real today; nothing more is promised.</p>
+  <script>
+  (function(){var g=document.getElementById('affGen'),c=document.getElementById('affCode'),o=document.getElementById('affOut'),cp=document.getElementById('affCopy');if(!g)return;function gen(){var code=(c.value||'').trim().replace(/[^a-zA-Z0-9_-]/g,'').slice(0,64);if(!code){o.style.display='block';o.textContent='Enter a code first.';return;}var link=location.origin+'/?ref='+encodeURIComponent(code);o.style.display='block';o.textContent=link;cp.style.display='flex';try{localStorage.setItem('aff_code',code)}catch(_){}}g.addEventListener('click',gen);c.addEventListener('keydown',function(e){if(e.key==='Enter')gen()});cp.addEventListener('click',function(){try{navigator.clipboard.writeText(o.textContent);cp.textContent='✓ Copied';setTimeout(function(){cp.textContent='Copy link'},1500)}catch(_){}});try{var saved=localStorage.getItem('aff_code');if(saved){c.value=saved;}}catch(_){}})();
+  </script>
+</section>`;
+}
+
+function pagePartners() {
+  return `<section style="padding-top:140px;max-width:980px">
+  <span class="kicker">Partners</span>
+  <h1 style="font-size:clamp(34px,4.4vw,56px);margin:10px 0 14px">Build on the <span class="grad">sovereign fabric.</span></h1>
+  <p style="color:var(--ink-dim);max-width:640px">Three partnership lanes, all with direct owner access and BTC-native settlement.</p>
+  <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:14px;margin-top:26px">
+    <div class="card" style="padding:22px"><span class="tag">Reseller</span><h3 style="margin:12px 0 8px">Sell ZeusAI services</h3><p style="color:var(--ink-dim);font-size:14px;line-height:1.7">White-label or co-branded. You own the client relationship; delivery, receipts and licensing run on our signed infrastructure. Margin agreed per vertical.</p></div>
+    <div class="card" style="padding:22px"><span class="tag">Integrator</span><h3 style="margin:12px 0 8px">Deploy vertical OSes</h3><p style="color:var(--ink-dim);font-size:14px;line-height:1.7">Implement the ${'18'} vertical AI operating systems for your clients. Full API access (<a href="/docs" data-link>docs</a>, <a href="/openapi.json">OpenAPI</a>), signed outcomes, your services on top.</p></div>
+    <div class="card" style="padding:22px"><span class="tag">Technology</span><h3 style="margin:12px 0 8px">Agent-to-agent commerce</h3><p style="color:var(--ink-dim);font-size:14px;line-height:1.7">Your AI agents can buy capabilities from ours autonomously via <code class="inline">/agents.json</code> + signed checkout. The first commerce protocol designed for non-human buyers.</p></div>
+  </div>
+  <div class="card" style="padding:18px;margin-top:22px;display:flex;gap:12px;align-items:center;flex-wrap:wrap">
+    <span style="color:var(--ink-dim);font-size:14px">Start the conversation:</span>
+    <a class="btn btn-primary" href="/contact" data-link>Apply as partner →</a>
+    <a class="btn" href="/affiliate" data-link>Or join the affiliate program</a>
+  </div>
+</section>`;
+}
+
+function pageRoadmap() {
+  return `<section style="padding-top:140px;max-width:980px">
+  <span class="kicker">Roadmap</span>
+  <h1 style="font-size:clamp(34px,4.4vw,56px);margin:10px 0 14px">Where this is going — <span class="grad">in public.</span></h1>
+  <p style="color:var(--ink-dim);max-width:660px">Shipped means live on this domain right now (click and verify). Next means actively being built by the autonomous loop. No vapor decade-out promises.</p>
+  <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:14px;margin-top:26px">
+    <div class="card" style="padding:22px;border-color:rgba(127,255,212,.35)"><span class="tag" style="background:rgba(127,255,212,.12);color:#7fffd4">✓ Shipped &amp; live</span>
+      <ul style="margin:14px 0 0;padding-left:18px;color:var(--ink-dim);font-size:14px;line-height:1.9">
+        <li><a href="/services" data-link>25+ services marketplace</a> with BTC checkout</li>
+        <li><a href="/verticals">18 vertical AI operating systems</a></li>
+        <li><a href="/frontier" data-link>Frontier F1–F12 inventions</a></li>
+        <li>Ed25519-signed receipts + <a href="/trust" data-link>Trust Center</a></li>
+        <li><a href="/transparency" data-link>Public pricing-bandit transparency</a></li>
+        <li>Autonomous traffic engine (IndexNow) + revenue flywheel</li>
+      </ul></div>
+    <div class="card" style="padding:22px;border-color:rgba(255,211,106,.35)"><span class="tag" style="background:rgba(255,211,106,.12);color:#ffd36a">⚙ Now building</span>
+      <ul style="margin:14px 0 0;padding-left:18px;color:var(--ink-dim);font-size:14px;line-height:1.9">
+        <li>Self-optimizing conversion funnel (yield-ranked URL promotion)</li>
+        <li>Checkout abandonment recovery agent</li>
+        <li>Affiliate self-serve dashboard with on-chain payout proofs</li>
+        <li>Deeper agent-to-agent commerce (machine-negotiated quotes)</li>
+      </ul></div>
+    <div class="card" style="padding:22px"><span class="tag">→ Next horizon</span>
+      <ul style="margin:14px 0 0;padding-left:18px;color:var(--ink-dim);font-size:14px;line-height:1.9">
+        <li>Post-quantum signature migration (hybrid Ed25519+ML-DSA)</li>
+        <li>Multi-region sovereign replicas</li>
+        <li>Customer-deployable vertical OS instances (BYO-infra)</li>
+        <li>Revenue-share marketplace for third-party modules</li>
+      </ul></div>
+  </div>
+  <p style="color:var(--ink-dim);font-size:13.5px;margin-top:22px">Receipts for the past live in the <a href="/changelog" data-link>changelog</a>. The system also proposes its own roadmap items — see <a href="/innovations" data-link>30Y innovations</a>.</p>
+</section>`;
+}
+
+function pageCareers() {
+  return `<section style="padding-top:140px;max-width:880px">
+  <span class="kicker">Careers</span>
+  <h1 style="font-size:clamp(34px,4.4vw,56px);margin:10px 0 14px">The workforce here <span class="grad">is autonomous.</span></h1>
+  <p style="color:var(--ink-dim);max-width:640px;line-height:1.8">ZeusAI is an owner-operated, AI-run company. The modules you see in the <a href="/services" data-link>marketplace</a> do the work a traditional startup hires dozens of people for — pricing, delivery, monitoring, even writing their own roadmap proposals.</p>
+  <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:14px;margin-top:26px">
+    <div class="card" style="padding:20px"><span class="tag">Open roles</span><p style="color:var(--ink-dim);font-size:14px;margin:10px 0 0">None right now — and we'll never post ghost jobs to look bigger. When a human role opens, it appears here first.</p></div>
+    <div class="card" style="padding:20px"><span class="tag">Collaborate anyway</span><p style="color:var(--ink-dim);font-size:14px;margin:10px 0 0">Exceptional engineers, vertical-domain experts and growth partners: pitch a collaboration via <a href="/contact" data-link>contact</a>. Paid per outcome, settled in BTC.</p></div>
+    <div class="card" style="padding:20px"><span class="tag">Build on top</span><p style="color:var(--ink-dim);font-size:14px;margin:10px 0 0">The fastest way to "work here" is to build with the API — <a href="/docs" data-link>docs</a> + <a href="/partners" data-link>partner lanes</a> are open.</p></div>
+  </div>
+</section>`;
+}
+
+function pagePress() {
+  return `<section style="padding-top:140px;max-width:980px">
+  <span class="kicker">Press kit</span>
+  <h1 style="font-size:clamp(34px,4.4vw,56px);margin:10px 0 14px">ZeusAI — <span class="grad">facts &amp; assets.</span></h1>
+  <p style="color:var(--ink-dim);max-width:640px">Everything below is independently verifiable on this domain — link to the proofs, not to us.</p>
+  <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:14px;margin-top:26px">
+    <div class="card" style="padding:20px"><span class="tag">What it is</span><p style="color:var(--ink-dim);font-size:14px;line-height:1.7;margin:10px 0 0">A sovereign autonomous AI operating system: 25+ live AI services, 18 vertical OSes, BTC-native checkout, Ed25519-signed receipts, self-healing operations. Owner-operated by ${OWNER.name}, no external custodians.</p></div>
+    <div class="card" style="padding:20px"><span class="tag">Verifiable claims</span><p style="color:var(--ink-dim);font-size:14px;line-height:1.7;margin:10px 0 0">Live status: <a href="/status" data-link>/status</a> · Deploy SHA + integrity: <a href="/trust" data-link>/trust</a> · Pricing experiments: <a href="/transparency" data-link>/transparency</a> · Signed catalog: <a href="/agents.json">/agents.json</a></p></div>
+    <div class="card" style="padding:20px"><span class="tag">Brand</span><p style="color:var(--ink-dim);font-size:14px;line-height:1.7;margin:10px 0 0">Name: <b>ZeusAI</b> (one word, capital Z + AI) · Logo: <a href="/assets/icons/icon-512.png">icon-512.png</a> · Domain: ${OWNER.domain.replace(/^https?:\/\//,'')} · Palette: violet #8a5cff / gold #ffd36a on deep space.</p></div>
+    <div class="card" style="padding:20px"><span class="tag">Media contact</span><p style="color:var(--ink-dim);font-size:14px;line-height:1.7;margin:10px 0 0">${OWNER.name} — <a href="mailto:${OWNER.email}">${OWNER.email}</a> (or the <a href="/contact" data-link>contact form</a>, topic "Press"). Interviews, technical deep-dives and architecture walkthroughs welcome.</p></div>
+  </div>
 </section>`;
 }
 
@@ -3407,7 +3868,7 @@ function _legalSub(title, body) {
 function routeTitle(route) {
   if (route === '/') return 'Sovereign AI OS';
   if (route.startsWith('/services/')) return 'Service';
-  const map = { '/services':'Marketplace', '/marketplace':'Marketplace', '/pricing':'Pricing', '/checkout':'Checkout', '/dashboard':'Dashboard', '/how':'How it works', '/docs':'API & Docs', '/about':'About', '/legal':'Legal', '/trust':'Trust Center', '/security':'Security', '/responsible-ai':'Responsible AI', '/dpa':'Data Processing Agreement', '/payment-terms':'Payment Terms', '/operator':'Operator Console', '/observability':'Observability', '/enterprise':'Enterprise Licenses', '/store':'Instant Store', '/account':'Account', '/innovations':'30Y Cryptographic Durability', '/wizard':'Find my plan', '/status':'Live status', '/changelog':'Changelog', '/terms':'Terms of Service', '/privacy':'Privacy Policy', '/refund':'Refund Guarantee', '/sla':'SLA', '/pledge':'Anti-Dark-Pattern Pledge', '/cancel':'Universal Cancel', '/gift':'Gift-as-Capability', '/aura':'Live Conversion Aura', '/api-explorer':'API Explorer', '/transparency':'Pricing Bandit Transparency', '/frontier':'Frontier Inventions', '/deepseek-cockpit':'DeepSeek Autonomy Cockpit' };
+  const map = { '/services':'Marketplace', '/marketplace':'Marketplace', '/pricing':'Pricing', '/solutions/ai-pricing':'AI Pricing Engine', '/solutions/ai-checkout':'AI Checkout Optimizer', '/solutions/ai-self-healing':'AI Self-Healing Ops', '/checkout':'Checkout', '/dashboard':'Dashboard', '/how':'How it works', '/docs':'API & Docs', '/about':'About', '/legal':'Legal', '/trust':'Trust Center', '/security':'Security', '/responsible-ai':'Responsible AI', '/dpa':'Data Processing Agreement', '/payment-terms':'Payment Terms', '/operator':'Operator Console', '/observability':'Observability', '/enterprise':'Enterprise Licenses', '/store':'Instant Store', '/account':'Account', '/innovations':'30Y Cryptographic Durability', '/wizard':'Find my plan', '/status':'Live status', '/changelog':'Changelog', '/terms':'Terms of Service', '/privacy':'Privacy Policy', '/refund':'Refund Guarantee', '/sla':'SLA', '/pledge':'Anti-Dark-Pattern Pledge', '/cancel':'Universal Cancel', '/gift':'Gift-as-Capability', '/aura':'Live Conversion Aura', '/api-explorer':'API Explorer', '/transparency':'Pricing Bandit Transparency', '/frontier':'Frontier Inventions', '/deepseek-cockpit':'DeepSeek Autonomy Cockpit', '/contact':'Contact', '/faq':'FAQ', '/blog':'Insights', '/affiliate':'Affiliate Program', '/partners':'Partners', '/roadmap':'Public Roadmap', '/careers':'Careers', '/press':'Press Kit' };
   return map[route] || 'ZeusAI';
 }
 
@@ -3416,6 +3877,9 @@ function routeDescription(route) {
     '/': 'ZeusAI is a sovereign autonomous AI operating system with signed outcomes, BTC-native commerce and self-healing automation.',
     '/services': 'Browse ZeusAI services, frontier inventions and vertical AI operating systems with instant BTC checkout.',
     '/pricing': 'Transparent ZeusAI pricing with signed receipts, BTC checkout, refund guarantees and enterprise licensing.',
+    '/solutions/ai-pricing': 'AI pricing engine for real-time quote optimization, conversion-aware offer ranking and auditable checkout revalidation.',
+    '/solutions/ai-checkout': 'AI checkout optimizer for higher completion rates, better payment reliability and faster delivery activation.',
+    '/solutions/ai-self-healing': 'AI self-healing operations with SLO tracking, error pattern detection and guarded autonomous remediation.',
     '/checkout': 'Create a ZeusAI invoice, pay with BTC or supported rails, and receive signed delivery credentials instantly.',
     '/dashboard': 'Operator dashboard for ZeusAI receipts, services, revenue proof, system health and live commerce telemetry.',
     '/how': 'How ZeusAI routes quotes, invoices, receipts, AI modules and delivery through verifiable autonomous workflows.',
@@ -3447,14 +3911,71 @@ function routeDescription(route) {
     '/api-explorer': 'Explore ZeusAI OpenAPI, signed catalog, payment routes, receipts and agent commerce endpoints.',
     '/transparency': 'Public pricing bandit transparency for ZeusAI experiments, offers and conversion governance.',
     '/frontier': 'Frontier ZeusAI inventions: refund guarantee, live aura, self-healing checkout and verifiable receipts.',
-    '/deepseek-cockpit': 'Admin-only DeepSeek autonomy cockpit: roadmap, governor status, operator command queue and code_proposal envelopes.'
+    '/deepseek-cockpit': 'Admin-only DeepSeek autonomy cockpit: roadmap, governor status, operator command queue and code_proposal envelopes.',
+    '/contact': 'Contact ZeusAI directly — sales, enterprise licensing, partnerships and security reports land with the owner-operator within 24h.',
+    '/faq': 'Straight answers about ZeusAI payments, BTC checkout, signed receipts, refunds, cancellation, privacy and agent commerce.',
+    '/blog': 'ZeusAI insights: frontier inventions, 30-year cryptographic durability, public pricing transparency and sovereign commerce architecture.',
+    '/affiliate': 'ZeusAI affiliate program with live server-side referral tracking and BTC commission payouts — generate your link instantly.',
+    '/partners': 'Partner with ZeusAI: reseller, integrator and agent-to-agent technology lanes with BTC-native settlement and direct owner access.',
+    '/roadmap': 'ZeusAI public roadmap: shipped capabilities you can verify live, what the autonomous loop is building now, and the next horizon.',
+    '/careers': 'ZeusAI is an autonomous, owner-operated AI company — open human roles appear here first; outcome-based collaborations welcome.',
+    '/press': 'ZeusAI press kit: verifiable facts, live proof links, brand assets and direct media contact.'
   };
   return map[route] || 'ZeusAI sovereign AI operating system with verifiable commerce and autonomous delivery.';
 }
 
 function getHtml(route = '/', params = {}) {
   // Backward-compat: accept either getHtml(url) or getHtml(url, { lang, nonce })
-  return head(routeTitle(route), route, params) + renderRoute(route, params) + footer(route, params);
+  const normalized = route === '/' ? '/' : String(route || '/').replace(/\/$/, '') || '/';
+  return head(routeTitle(normalized), normalized, params) + renderRoute(normalized, params) + footer(normalized, params);
 }
 
-module.exports = { getHtml, CSS, OWNER };
+// ── UNIFIED CHROME BRIDGE ──────────────────────────────────────────────────
+// renderInShell() wraps an arbitrary legacy page body + hydration script inside
+// the full v2 chrome (head + galaxy + Zeus backdrop + nav + footer) so every
+// operator/dashboard page (cockpit, revenue-command, proof, revenue-share,
+// zacc, dropship) shares ONE cinematic design system instead of the old
+// teal/system-ui template. The legacy body markup (h2 + .grid/.card/.v/.sub/
+// .pill/.price/.banner) is re-themed onto the v2 violet/gold tokens via a tiny
+// scoped bridge stylesheet, and the page script is given the request CSP nonce
+// so `strict-dynamic` accepts it (fixes a latent CSP block on modern browsers).
+// RO: paginile vechi capata acelasi chrome v2 + fundal Zeus, cu nonce corect.
+function renderInShell(route, opts = {}) {
+  const { title, bodyHtml = '', pageScript = '', nonce = '', lang, autoLang, country } = opts;
+  const o = { nonce, lang, autoLang, country };
+  const N = nonce ? ` nonce="${nonce}"` : '';
+  const bridge = `<style${N}>
+main#app{position:relative;z-index:3;max-width:1200px;margin:0 auto;padding:96px 24px 48px}
+main#app h2{margin:0 0 6px;font-size:26px;font-weight:700;letter-spacing:-.01em}
+main#app .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:16px;margin:24px 0}
+main#app .card{padding:18px}
+main#app .card h3{margin:0 0 6px;font-size:11px;font-weight:500;color:var(--ink-dim);text-transform:uppercase;letter-spacing:.09em}
+main#app .card .v{font-size:26px;font-weight:700;color:var(--gold);font-family:var(--mono);line-height:1.1}
+main#app .card .sub{font-size:11px;color:var(--ink-dim);margin-top:6px}
+main#app .price{font-size:32px;color:var(--gold);font-weight:700;margin:8px 0}
+main#app .pill{display:inline-block;padding:3px 10px;border-radius:999px;font-size:11px;background:rgba(138,92,255,.16);color:var(--violet2);border:1px solid var(--stroke)}
+main#app .row{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}
+main#app .banner{display:none;padding:12px 18px;border:1px solid var(--gold);background:rgba(255,211,106,.1);color:var(--gold);border-radius:10px;margin:0 0 16px;font-size:13px}
+main#app .banner.show{display:block}
+main#app .ok{color:#7fffd4}main#app .warn{color:#ffd36a}main#app .err{color:#ff6b6b}
+main#app button{background:linear-gradient(135deg,var(--violet),var(--blue));color:#fff;border:0;padding:10px 18px;border-radius:10px;font-weight:600;cursor:pointer;font-family:inherit}
+main#app button:hover{filter:brightness(1.08)}
+main#app .btn-ghost{background:rgba(255,255,255,.06);color:var(--ink);border:1px solid var(--stroke)}
+main#app code{font-family:var(--mono);font-size:12px}
+main#app a{color:var(--blue2)}
+</style>`;
+  const banner = '<div id="degraded-banner" class="banner">⚠️ Reconnecting to live data…</div>';
+  const ttPolicy = `<script${N}>(function(){try{if(window.trustedTypes&&window.trustedTypes.createPolicy){window.trustedTypes.createPolicy("default",{createHTML:function(s){return s},createScript:function(s){return s},createScriptURL:function(s){return s}});}}catch(_){}})();</script>`;
+  const healthJs = `<script${N}>(function(){var f=0;function c(){fetch("/health",{cache:"no-store"}).then(function(r){if(r.ok){f=0;var b=document.getElementById("degraded-banner");if(b)b.classList.remove("show");}else{throw 0;}}).catch(function(){f++;if(f>=3){var b=document.getElementById("degraded-banner");if(b)b.classList.add("show");}});}c();setInterval(c,10000);})();</script>`;
+  const pageJs = pageScript ? `<script${N}>${pageScript}</script>` : '';
+  return head(title || routeTitle(route), route, o)
+    + bridge
+    + banner
+    + bodyHtml
+    + footer(route, o)
+    + ttPolicy
+    + pageJs
+    + healthJs;
+}
+
+module.exports = { getHtml, renderInShell, CSS, OWNER };

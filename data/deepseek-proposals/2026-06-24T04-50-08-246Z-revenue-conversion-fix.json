@@ -1,0 +1,12 @@
+{
+  "schemaVersion": 1,
+  "createdAt": "2026-06-24T04:50:08.246Z",
+  "status": "pending-review",
+  "objectiveId": "revenue-conversion-fix",
+  "targetPath": "UNICORN_FINAL/backend/modules/checkout-conversion-fix.js",
+  "riskLevel": "medium",
+  "rationale": "Brainstem directive: paidEvents still zero. This module ensures that on successful payment completion, a revenue event is inserted and session status updated, fixing the conversion tracking gap.",
+  "proposedContent": "// Checkout conversion fix: ensure paidEvents increment on successful payment\nconst { db } = require('../constants/database');\n\nmodule.exports = async function processCheckout(sessionId, paymentResult) {\n  if (!sessionId || !paymentResult || paymentResult.status !== 'completed') {\n    return { error: 'invalid_payment' };\n  }\n  // Record paid event\n  await db.query(\n    `INSERT INTO revenue_events (session_id, amount, currency, status, created_at) VALUES ($1, $2, $3, 'paid', NOW())`,\n    [sessionId, paymentResult.amount, paymentResult.currency || 'USD']\n  );\n  // Update session status\n  await db.query(\n    `UPDATE checkout_sessions SET status = 'paid', paid_at = NOW() WHERE id = $1`,\n    [sessionId]\n  );\n  return { success: true, paidEvent: true };\n};",
+  "proposedContentBytes": 760,
+  "note": "Envelope only — code is NOT applied. Human/CI review required before any edit."
+}

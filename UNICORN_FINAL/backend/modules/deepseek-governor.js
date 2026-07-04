@@ -41,6 +41,17 @@ const LOG_PATH            = process.env.DEEPSEEK_GOVERNOR_LOG_PATH
                           || path.join(__dirname, '..', '..', 'data', 'logs', 'deepseek-governor.log');
 const LOG_MAX_BYTES       = parseInt(process.env.DEEPSEEK_GOVERNOR_LOG_MAX_BYTES || String(2 * 1024 * 1024), 10);
 
+// Auto-apply mode: when DEEPSEEK_AUTO_APPLY=1, code_proposal writes the
+// proposed content directly to the target file IN ADDITION to the quarantine
+// envelope. This gives DeepSeek full autonomous power to modify production
+// code without human review. Safety rails (deny suffixes, deny segments,
+// extension allowlist) still apply — the governor itself, the loop script,
+// package.json, .env, and .github/ remain immutable.
+// Modul auto-apply: când DEEPSEEK_AUTO_APPLY=1, code_proposal scrie conținutul
+// propus direct în fișierul țintă PE LÂNGĂ plicul din carantină. Restul
+// regulilor de siguranță rămân active.
+const AUTO_APPLY = String(process.env.DEEPSEEK_AUTO_APPLY || '') === '1';
+
 // read_file safety envelope / Plicul de siguranță pentru read_file
 const AUTONOMY_ROOT = path.resolve(process.env.DEEPSEEK_GOVERNOR_AUTONOMY_ROOT || '/opt/unicorn');
 const READ_FILE_ROOT      = path.resolve(process.env.DEEPSEEK_GOVERNOR_READ_ROOT || AUTONOMY_ROOT);
@@ -107,12 +118,12 @@ const ALLOWED_ACTIONS = Object.freeze([
 ]);
 
 // code_proposal safety envelope / Plicul de siguranță pentru code_proposal
-// Proposals are written to a quarantine directory and require human/CI review
-// to land in source. The governor itself never applies them.
-// Propunerile se scriu într-un director-carantină; aplicarea cere review.
+// When AUTO_APPLY=1, proposals are written BOTH to quarantine AND to the target
+// file on disk (auto-applied). Otherwise, quarantine-only (human review).
+// Când AUTO_APPLY=1, propunerile se scriu ȘI în carantină ȘI în fișierul țintă.
 const PROPOSALS_DIR = process.env.DEEPSEEK_GOVERNOR_PROPOSALS_DIR
                    || path.join(__dirname, '..', '..', 'data', 'deepseek-proposals');
-const PROPOSAL_MAX_BYTES = parseInt(process.env.DEEPSEEK_GOVERNOR_PROPOSAL_MAX_BYTES || String(32 * 1024), 10);
+const PROPOSAL_MAX_BYTES = parseInt(process.env.DEEPSEEK_GOVERNOR_PROPOSAL_MAX_BYTES || String(128 * 1024), 10);
 const PROPOSAL_MAX_FILES_PER_DAY = parseInt(process.env.DEEPSEEK_GOVERNOR_PROPOSAL_MAX_PER_DAY || '50', 10);
 // Target file path inside the proposal must respect the same deny-segments and
 // deny-substrings as read_file. We additionally reject any path that would
@@ -121,8 +132,19 @@ const PROPOSAL_MAX_FILES_PER_DAY = parseInt(process.env.DEEPSEEK_GOVERNOR_PROPOS
 // Calea țintă a propunerii respectă aceleași reguli ca read_file + interdicții
 // suplimentare pentru CI/.env/package.json/governor.
 const PROPOSAL_TARGET_DENY_PREFIXES = Object.freeze([
+  'server/',
   '.github/',
   'node_modules/',
+]);
+const PROPOSAL_TARGET_ALLOW_PREFIXES = Object.freeze([
+  'UNICORN_FINAL/backend/',
+  'UNICORN_FINAL/src/',
+  'UNICORN_FINAL/test/',
+  'UNICORN_FINAL/scripts/',
+  'UNICORN_FINAL/data/',
+  'UNICORN_FINAL/docs/',
+  'UNICORN_FINAL/client/',
+  'docs/',
 ]);
 const PROPOSAL_TARGET_DENY_SUFFIXES = Object.freeze([
   '/deepseek-governor.js',
@@ -1219,13 +1241,25 @@ function _validateProposalTargetPath(targetPath) {
   if (targetPath.indexOf('\0') !== -1)        return { ok: false, reason: 'invalid_target' };
   if (path.isAbsolute(targetPath))            return { ok: false, reason: 'target_must_be_relative' };
   // Normalize without resolving (we don't need the file to exist).
-  const norm = path.posix.normalize(targetPath.replace(/\\/g, '/'));
+  let norm = path.posix.normalize(targetPath.replace(/\\/g, '/'));
   if (norm.startsWith('../') || norm === '..' || norm.indexOf('/../') !== -1) {
     return { ok: false, reason: 'path_traversal' };
+  }
+  // Auto-prefix bare app subdirs with UNICORN_FINAL/ so advisor proposals that
+  // omit the deploy prefix still resolve into the correct tree.
+  // Prefixeaza automat subdirectoarele aplicatiei cu UNICORN_FINAL/.
+  {
+    const _bareAppDirs = ['backend/', 'src/', 'test/', 'scripts/', 'data/', 'client/'];
+    for (const _b of _bareAppDirs) {
+      if (norm === _b.slice(0, -1) || norm.startsWith(_b)) { norm = 'UNICORN_FINAL/' + norm; break; }
+    }
   }
   const lower = norm.toLowerCase();
   for (const pfx of PROPOSAL_TARGET_DENY_PREFIXES) {
     if (lower.startsWith(pfx.toLowerCase())) return { ok: false, reason: 'target_prefix_denied', match: pfx };
+  }
+  if (!PROPOSAL_TARGET_ALLOW_PREFIXES.some((pfx) => norm.startsWith(pfx))) {
+    return { ok: false, reason: 'target_prefix_not_allowed', allowed: PROPOSAL_TARGET_ALLOW_PREFIXES };
   }
   for (const sfx of PROPOSAL_TARGET_DENY_SUFFIXES) {
     if (lower === sfx.toLowerCase() || lower.endsWith(sfx.toLowerCase())) {
@@ -1249,7 +1283,31 @@ function _validateProposalTargetPath(targetPath) {
   return { ok: true, normalized: norm };
 }
 
-function _action_code_proposal(params) {
+async function _verifyAutoApplyGuards(targetAbsolute, targetRelative) {
+  const ext = path.extname(targetAbsolute).toLowerCase();
+  const syntaxExt = new Set(['.js', '.mjs', '.cjs']);
+  const checks = [];
+
+  if (syntaxExt.has(ext)) {
+    const syntax = await _runCommand('node', ['--check', targetAbsolute], {
+      cwd: AUTONOMY_ROOT,
+      timeoutMs: Math.max(RUN_TEST_TIMEOUT_MS, 60_000),
+    });
+    checks.push({ name: 'node_check', ok: !!syntax.ok, detail: syntax });
+    if (!syntax.ok) return { ok: false, reason: 'syntax_check_failed', checks };
+  }
+
+  const lint = await _runCommand('npm', ['run', 'lint'], {
+    cwd: path.join(AUTONOMY_ROOT, 'UNICORN_FINAL'),
+    timeoutMs: Math.max(RUN_TEST_TIMEOUT_MS, 120_000),
+  });
+  checks.push({ name: 'lint', ok: !!lint.ok, detail: lint });
+  if (!lint.ok) return { ok: false, reason: 'lint_failed', checks };
+
+  return { ok: true, reason: 'guards_passed', targetPath: targetRelative, checks };
+}
+
+async function _action_code_proposal(params) {
   const targetPath = params && params.targetPath;
   const rationale  = params && typeof params.rationale === 'string' ? params.rationale.slice(0, 4000) : '';
   const objectiveId = params && typeof params.objectiveId === 'string' ? params.objectiveId.slice(0, 128) : '';
@@ -1294,23 +1352,95 @@ function _action_code_proposal(params) {
   const fileName = `${ts}-${safeSlug}.json`;
   const fullPath = path.join(PROPOSALS_DIR, fileName);
 
+  const autoApplyEligible = AUTO_APPLY && riskLevel === 'low';
   const envelope = {
     schemaVersion: 1,
     createdAt: new Date().toISOString(),
-    status: 'pending-review',
+    status: autoApplyEligible ? 'auto-apply-pending-guard' : 'pending-review',
     objectiveId: objectiveId || null,
     targetPath: targetCheck.normalized,
     riskLevel,
     rationale,
     proposedContent,
     proposedContentBytes: contentBytes,
-    note: 'Envelope only — code is NOT applied. Human/CI review required before any edit.',
+    note: autoApplyEligible
+      ? 'Auto-apply requested for low-risk proposal. Runtime guard checks must pass before file mutation is accepted.'
+      : (AUTO_APPLY
+        ? 'Auto-apply blocked: only riskLevel=low is eligible. Envelope stored for human/CI review.'
+        : 'Envelope only — code is NOT applied. Human/CI review required before any edit.'),
   };
 
   try {
     fs.writeFileSync(fullPath, JSON.stringify(envelope, null, 2), { encoding: 'utf8' });
   } catch (e) {
     return { ok: false, action: 'code_proposal', reason: 'write_failed', error: String(e && e.message || e).slice(0, 200) };
+  }
+
+  // Auto-apply: write the proposed content directly to the target file.
+  // The AUTONOMY_ROOT is used as the base for resolving the target path.
+  // Auto-apply: scrie conținutul propus direct în fișierul țintă.
+  let autoApplied = false;
+  if (autoApplyEligible) {
+    try {
+      const targetAbsolute = path.resolve(AUTONOMY_ROOT, targetCheck.normalized);
+      // Re-verify the resolved path stays under AUTONOMY_ROOT
+      if (!targetAbsolute.startsWith(AUTONOMY_ROOT + path.sep) && targetAbsolute !== AUTONOMY_ROOT) {
+        return { ok: false, action: 'code_proposal', reason: 'auto_apply_path_escape', resolved: targetAbsolute };
+      }
+      const previousContent = fs.existsSync(targetAbsolute)
+        ? fs.readFileSync(targetAbsolute, 'utf8')
+        : null;
+      fs.mkdirSync(path.dirname(targetAbsolute), { recursive: true });
+      fs.writeFileSync(targetAbsolute, proposedContent, { encoding: 'utf8' });
+
+      const guards = await _verifyAutoApplyGuards(targetAbsolute, targetCheck.normalized);
+      if (!guards.ok) {
+        try {
+          if (previousContent === null) fs.unlinkSync(targetAbsolute);
+          else fs.writeFileSync(targetAbsolute, previousContent, { encoding: 'utf8' });
+        } catch (_) { /* best-effort rollback */ }
+        return {
+          ok: false,
+          action: 'code_proposal',
+          proposalId: fileName,
+          targetPath: targetCheck.normalized,
+          objectiveId: objectiveId || null,
+          riskLevel,
+          autoApplied: false,
+          reason: 'auto_apply_guard_failed',
+          guardFailure: guards.reason,
+          checks: guards.checks,
+          note: 'Proposal envelope saved, but auto-apply was rolled back because mandatory checks failed.',
+          timestamp: new Date().toISOString(),
+        };
+      }
+
+      const canaryCommand = _enqueueCommand({
+        instruction: `canary_verify target=${targetCheck.normalized} proposal=${fileName}`,
+        priority: 8,
+        actor: 'deepseek-governor',
+        ip: '127.0.0.1',
+      });
+      autoApplied = true;
+      envelope.status = 'auto-applied-verified';
+      envelope.canaryCommand = canaryCommand && canaryCommand.ok ? canaryCommand.id : null;
+      try { fs.writeFileSync(fullPath, JSON.stringify(envelope, null, 2), { encoding: 'utf8' }); } catch (_) { /* best-effort metadata update */ }
+    } catch (e) {
+      // Auto-apply failed but quarantine envelope was written — report partial success
+      return {
+        ok: true,
+        action: 'code_proposal',
+        proposalId: fileName,
+        targetPath: targetCheck.normalized,
+        objectiveId: objectiveId || null,
+        riskLevel,
+        bytes: contentBytes,
+        autoApplied: false,
+        autoApplyError: String(e && e.message || e).slice(0, 200),
+        note: 'Quarantine envelope written but auto-apply to target file failed.',
+        timestamp: new Date().toISOString(),
+      };
+    }
   }
 
   return {
@@ -1321,7 +1451,10 @@ function _action_code_proposal(params) {
     objectiveId: objectiveId || null,
     riskLevel,
     bytes: contentBytes,
-    note: 'Proposal stored under PROPOSALS_DIR; requires human/CI review before apply.',
+    autoApplied,
+    note: autoApplied
+      ? 'Proposal auto-applied to target file and stored in PROPOSALS_DIR.'
+      : 'Proposal stored under PROPOSALS_DIR; requires human/CI review before apply.',
     timestamp: new Date().toISOString(),
   };
 }
@@ -1523,7 +1656,7 @@ async function dispatch({ action, params, requestId, actor, ip }) {
       case 'restore_backup':  result = await _action_restore_backup(params); break;
       case 'analyze_logs':    result = _action_analyze_logs(params); break;
       case 'rollback_deploy': result = _action_rollback_deploy(params); break;
-      case 'code_proposal':   result = _action_code_proposal(params); break;
+      case 'code_proposal':   result = await _action_code_proposal(params); break;
       case 'roadmap_update':  result = _action_roadmap_update(params); break;
       default:                result = { ok: false, reason: 'unreachable' };
     }

@@ -11,8 +11,8 @@ This project now has **enterprise-grade secret management** in place. All change
 ### 1. **Environment File Cleanup**
 
 #### `.env.auto-connector.example` (Root)
-- ❌ **Removed real secrets**: GitHub tokens, Vercel tokens, Hetzner API keys, etc.
-- ✅ **Added placeholders**: `ghp_YOUR_PERSONAL_ACCESS_TOKEN_HERE`, `vcp_YOUR_VERCEL_TOKEN_HERE`, etc.
+- ❌ **Removed real secrets**: GitHub tokens, Hetzner tokens, Hetzner API keys, etc.
+- ✅ **Added placeholders**: `ghp_YOUR_PERSONAL_ACCESS_TOKEN_HERE`, `vcp_YOUR_HETZNER_legacy_TOKEN_HERE`, etc.
 - ✅ **Added helpful comments**: Links to where to get each credential
 - ✅ **Added usage notes**: "DO NOT COMMIT .env.auto-connector to git"
 
@@ -83,7 +83,7 @@ A comprehensive guide covering:
 ├──────────────────────────────────────────────────────────────┤
 │ 1. Checks out code                                            │
 │ 2. Validates with tests & lint                               │
-│ 3. Deploys to Vercel (VERCEL_TOKEN)                          │
+│ 3. Deploys to Hetzner (HETZNER_legacy_TOKEN)                          │
 │ 4. Deploys to Hetzner (HETZNER_API_KEY + SSH)                │
 │ 5. Injects secrets into .env file on server                  │
 └────────────────────┬─────────────────────────────────────────┘
@@ -106,10 +106,10 @@ A comprehensive guide covering:
 - `GITHUB_TOKEN` - Repository access
 - `GITHUB_OWNER`, `GITHUB_REPO` - Repo identification
 
-### Vercel (Frontend)
-- `VERCEL_TOKEN` - Deployment authorization
-- `VERCEL_ORG_ID` - Organization ID
-- `VERCEL_PROJECT_ID` - Project ID
+### Hetzner (Frontend)
+- `HETZNER_legacy_TOKEN` - Deployment authorization
+- `HETZNER_legacy_ORG_ID` - Organization ID
+- `HETZNER_legacy_PROJECT_ID` - Project ID
 
 ### Hetzner (Backend)
 - `HETZNER_API_KEY` - Cloud API access
@@ -174,7 +174,7 @@ A comprehensive guide covering:
 - [ ] **Verify deployment succeeded**
   - Check GitHub Actions workflow logs
   - Verify Hetzner app is running: `ssh -i key user@host "ps aux | grep node"`
-  - Check Vercel deployment: https://vercel.com/dashboard
+  - Check Hetzner deployment: https://hetzner.com/dashboard
 
 - [ ] **Test API endpoints**
   - Health check: `curl https://your-app.com/health`
@@ -195,7 +195,7 @@ A comprehensive guide covering:
 3. **[UNICORN_FINAL/.env.example](UNICORN_FINAL/.env.example)** ← Template for runtime vars
 4. **[.gitignore](.gitignore)** ← Ensures `.env` files are never committed
 5. **[UNICORN_FINAL/.gitignore](UNICORN_FINAL/.gitignore)** ← Additional protection for app
-6. **[.github/workflows/vercel-deploy.yml](.github/workflows/vercel-deploy.yml)** ← Uses `${{ secrets.* }}` syntax (✅ already correct)
+6. **[.github/workflows/hetzner-deploy.yml](.github/workflows/hetzner-deploy.yml)** ← Uses `${{ secrets.* }}` syntax (✅ already correct)
 
 ---
 
@@ -256,10 +256,10 @@ A comprehensive guide covering:
    gh secret set GITHUB_TOKEN --body "ghp_new_token"
    ```
 
-2. **Vercel Token**
+2. **Hetzner Token**
    ```bash
-   # Generate new token: https://vercel.com/account/tokens
-   gh secret set VERCEL_TOKEN --body "vcp_new_token"
+   # Generate new token: https://hetzner.com/account/tokens
+   gh secret set HETZNER_legacy_TOKEN --body "vcp_new_token"
    ```
 
 3. **Hetzner API Key**
@@ -286,7 +286,7 @@ A comprehensive guide covering:
 
 1. **Regenerate exposed tokens**
    - GitHub: https://github.com/settings/tokens
-   - Vercel: https://vercel.com/account/tokens
+   - Hetzner: https://hetzner.com/account/tokens
    - Hetzner: https://console.hetzner.cloud/projects
 
 2. **Update GitHub Secrets**

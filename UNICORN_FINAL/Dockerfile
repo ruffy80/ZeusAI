@@ -32,13 +32,13 @@ RUN npm ci --omit=dev --no-audit --no-fund
 # Copy backend source
 COPY backend/ ./backend/
 COPY src/ ./src/
+COPY scripts/ ./scripts/
 
 # Copy built frontend from previous stage
 COPY --from=frontend-builder /app/client/build ./client/build
 
 # Copy configuration files
 COPY ecosystem.config.js ./
-COPY vercel.json ./
 
 # Create required directories
 RUN mkdir -p logs backups/config

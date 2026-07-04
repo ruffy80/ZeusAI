@@ -54,10 +54,26 @@ const ADAPTIVE_IDS = Array.from({length: ADAPTIVE_COUNT}, (_, i) => `AdaptiveMod
 const adaptiveLayers = {};
 ADAPTIVE_IDS.forEach(id => { adaptiveLayers[id] = createAdaptiveLayer(id); });
 
-// Coordonator de conflicte (placeholder, extins la nevoie)
+// Coordonator de conflicte — detectează și rezolvă conflicte între straturile
+// adaptive (ex: un strat care raportează erori repetate). Rezolvarea pune în
+// carantină temporară stratul în „error-storm” (>5 erori); va fi reactivat de
+// ciclul de auto-recuperare. Conflict coordinator (real, non-destructive).
 function conflictCoordinator() {
-  // TODO: Implementare logică de detecție/rezolvare conflicte
-  return null;
+  const conflicts = [];
+  for (const [id, layer] of Object.entries(adaptiveLayers)) {
+    const st = (layer && layer.state) || {};
+    if (st.errorCount && st.errorCount > 5) conflicts.push({ id, type: 'error-storm', errorCount: st.errorCount });
+  }
+  let resolved = 0;
+  for (const c of conflicts) {
+    const layer = adaptiveLayers[c.id];
+    if (layer && layer.state && layer.state.active) {
+      layer.state.active = false;
+      layer.state.quarantinedAt = new Date().toISOString();
+      resolved++;
+    }
+  }
+  return conflicts.length ? { ok: true, conflicts: conflicts.length, resolved, details: conflicts } : { ok: true, conflicts: 0 };
 }
 
 // Ciclu principal unic
@@ -71,6 +87,9 @@ setInterval(() => {
       layer.process({ tick: mainCycleCount });
     }
   });
+  if (mainCycleCount % 30 === 0) {
+    try { conflictCoordinator(); } catch (_) { /* never break the brain cycle */ }
+  }
   lastStatus = getStatus();
   meshBus.emit('brain:tick', { mainCycleCount, status: lastStatus });
 }, MAIN_INTERVAL);

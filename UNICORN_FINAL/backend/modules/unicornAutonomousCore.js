@@ -239,7 +239,7 @@ class UnicornAutonomousCore {
     const timestamp = new Date().toISOString();
     const logLine = `[${timestamp}] ${message}
 `;
-    try { fs.appendFileSync(this.logFile, logLine); } catch(e) {}
+    try { fs.appendFileSync(this.logFile, logLine); } catch(e) { console.warn('[UAC] log write failed:', e.message); }
     console.log(`🧠 UAC: ${message}`);
   }
 
@@ -356,13 +356,15 @@ class UnicornAutonomousCore {
     try {
       const filePath = path.join(this.modulesDir, moduleFile);
       let content = fs.readFileSync(filePath, 'utf8');
-      if (!content.includes('this.cache') && content.includes('constructor()')) {
-        content = content.replace('constructor()', 'constructor()\n    this.cache = new Map(); this.cacheTTL = 60000;');
+      // Insert AFTER the opening brace so we never produce invalid syntax
+      // (the old version inserted before `{`, corrupting fresh modules).
+      if (!content.includes('this.cache') && content.includes('constructor() {')) {
+        content = content.replace('constructor() {', 'constructor() {\n    this.cache = new Map(); this.cacheTTL = 60000;');
         fs.writeFileSync(filePath, content);
         this.log(`📈 Îmbunătățit: ${moduleFile}`);
         return true;
       }
-    } catch(e) {}
+    } catch(e) { this.log(`⚠️ optimize failed for ${moduleFile}: ${e.message}`); }
     return false;
   }
 

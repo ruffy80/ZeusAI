@@ -37,7 +37,7 @@ let _queue = []; // [{eventId, subId, url, secret, body, attempt, nextAt}]
 let _started = false;
 
 function _ensureDir() {
-  try { fs.mkdirSync(DATA_DIR, { recursive: true, mode: 0o755 }); } catch (_) {}
+  try { fs.mkdirSync(DATA_DIR, { recursive: true, mode: 0o755 }); } catch (e) { console.warn('[webhook-emitter] ensureDir failed:', e.message); }
 }
 
 function _loadSubs() {
@@ -53,7 +53,7 @@ function _loadSubs() {
         const idx = _subs.findIndex(s => s.id === rec.id);
         if (idx >= 0) _subs[idx] = rec; else _subs.push(rec);
       }
-    } catch (_) {}
+    } catch (e) { console.warn('[webhook-emitter] malformed subscription line skipped:', e.message); }
   }
   _subs = _subs.filter(s => s.active !== false);
 }
@@ -64,11 +64,11 @@ function _appendSub(rec) {
 }
 
 function _appendDlq(rec) {
-  try { fs.appendFileSync(DLQ_FILE, JSON.stringify(rec) + '\n', 'utf8'); } catch (_) {}
+  try { fs.appendFileSync(DLQ_FILE, JSON.stringify(rec) + '\n', 'utf8'); } catch (e) { console.error('[webhook-emitter] DLQ write failed — webhook delivery data lost:', e.message); }
 }
 
 function _appendDelivered(rec) {
-  try { fs.appendFileSync(DELIVERED_FILE, JSON.stringify(rec) + '\n', 'utf8'); } catch (_) {}
+  try { fs.appendFileSync(DELIVERED_FILE, JSON.stringify(rec) + '\n', 'utf8'); } catch (e) { console.warn('[webhook-emitter] delivered log write failed:', e.message); }
 }
 
 function subscribe({ url, events, secret }) {

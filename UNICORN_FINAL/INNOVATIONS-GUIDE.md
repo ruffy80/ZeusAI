@@ -751,7 +751,6 @@ PORT=3001 npm start
 ## 📚 Related Documentation
 
 - [SETUP-HETZNER-GUIDE.md](SETUP-HETZNER-GUIDE.md) - Server deployment guide
-- [GITHUB-VERCEL-HETZNER-CONNECTOR.md](GITHUB-VERCEL-HETZNER-CONNECTOR.md) - Deployment automation
 - [IMPLEMENTATION-GUIDE.md](IMPLEMENTATION-GUIDE.md) - Complete setup guide
 
 ---

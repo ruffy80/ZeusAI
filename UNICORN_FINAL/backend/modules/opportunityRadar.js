@@ -224,16 +224,29 @@ class OpportunityRadar {
   }
 
   async scanSource(source) {
-    void axios;
-    const mockData = {
-      trending_github: [{ title: 'AI Agent Framework', description: 'New framework for autonomous agents', relevance: 0.9, link: 'https://github.com/ai-agent' }],
-      startup_grants: [{ title: 'EU Innovation Grant', description: '€100,000 for AI startups', deadline: '2025-05-15', amount: 100000, relevance: 0.95 }],
-      government_programs: [{ title: 'Digital Transformation Program', description: 'Funding for SMEs', deadline: '2025-06-01', amount: 25000, relevance: 0.7 }],
-      industry_events: [{ title: 'AI Summit 2025', description: 'Global AI conference', date: '2025-05-20', location: 'London', relevance: 0.85 }],
-      funding_rounds: [{ title: 'VC Fund: AI & Automation', description: 'Seeking early-stage AI startups', amount: '2M-5M', deadline: '2025-07-01', relevance: 0.9 }],
-      partnership_opportunities: [{ title: 'AWS Partner Program', description: 'Join AWS partner network', benefits: 'co-marketing, funding', relevance: 0.95 }]
-    };
-    return mockData[source] || [];
+    if (source === 'trending_github') {
+      try {
+        const q = encodeURIComponent('autonomous AI OR agent framework stars:>200');
+        const res = await axios.get(`https://api.github.com/search/repositories?q=${q}&sort=stars&order=desc&per_page=8`, {
+          timeout: 5000,
+          headers: { 'Accept': 'application/vnd.github+json' }
+        });
+        const items = Array.isArray(res.data && res.data.items) ? res.data.items : [];
+        return items.map((r) => ({
+          source,
+          title: r.full_name,
+          description: r.description || 'GitHub repository',
+          relevance: 0.7,
+          stars: Number(r.stargazers_count || 0),
+          link: r.html_url,
+          fetchedAt: new Date().toISOString(),
+        }));
+      } catch (_) {
+        return [];
+      }
+    }
+    // Pentru celelalte surse nu publicăm date inventate.
+    return [];
   }
 
   async scanAllSources() {

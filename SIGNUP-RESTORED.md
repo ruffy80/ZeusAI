@@ -9,7 +9,7 @@
 3. Rebuild complet pe serverul Hetzner (204.168.230.142):
    - Eliminat erori de build legate de git hooks și lipsă fișiere.
    - Rezolvat conflict port 3000 (kill procese node vechi).
-   - Copiat `vercel.json` în contextul de build.
+   - Copiat `hetzner.json` în contextul de build.
    - Rulat `docker-compose down`, `docker system prune -a -f`, `docker-compose up -d --build --force-recreate`.
 4. Verificat live https://zeusai.pro/account — secțiunea "Create account / Cont nou" este vizibilă și funcțională.
 

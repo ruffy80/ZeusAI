@@ -4,6 +4,7 @@
  * Seteaza automat GitHub Actions Secrets pentru repo-ul ZeusAI.
  * 
  * Rulare: GITHUB_TOKEN=ghp_xxx node setup-github-secrets.js
+ *         (also accepts ghs_... App installation tokens)
  * 
  * Secrets generate automat (nu ai nevoie de nimic extern):
  *   JWT_SECRET, ADMIN_SECRET, ADMIN_MASTER_PASSWORD, ADMIN_2FA_CODE,
@@ -22,7 +23,7 @@ const OWNER = 'ruffy80';
 const REPO  = 'ZeusAI';
 
 if (!GITHUB_TOKEN) {
-  console.error('❌  Set GITHUB_TOKEN=ghp_... before running this script.');
+  console.error('❌  Set GITHUB_TOKEN=ghp_... or ghs_... before running this script.');
   process.exit(1);
 }
 

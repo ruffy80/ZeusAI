@@ -81,8 +81,8 @@ Three detailed guides have been created:
 **GitHub & CI/CD**
 - GITHUB_TOKEN, GITHUB_OWNER, GITHUB_REPO
 
-**Vercel (Frontend)**
-- VERCEL_TOKEN, VERCEL_ORG_ID, VERCEL_PROJECT_ID, VERCEL_PROJECT
+**Hetzner (Frontend)**
+- HETZNER_legacy_TOKEN, HETZNER_legacy_ORG_ID, HETZNER_legacy_PROJECT_ID, HETZNER_legacy_PROJECT
 
 **Hetzner (Backend)**
 - HETZNER_API_KEY, HETZNER_HOST, HETZNER_USER, HETZNER_DEPLOY_USER, HETZNER_DEPLOY_PORT, HETZNER_DEPLOY_PATH
@@ -115,7 +115,7 @@ Three detailed guides have been created:
                ▼
 ┌─ GitHub Secrets ─────────────────┐
 │ GITHUB_TOKEN = ghp_...           │
-│ VERCEL_TOKEN = vcp_...           │
+│ HETZNER_legacy_TOKEN = vcp_...           │
 │ HETZNER_API_KEY = ...            │
 │ [stored encrypted, hidden]        │
 └──────────────┬────────────────────┘
@@ -130,7 +130,7 @@ Three detailed guides have been created:
       ┌────────┴────────┐
       │                 │
       ▼                 ▼
-   Vercel           Hetzner Server
+   Hetzner           Hetzner Server
    Deploy           • Code synced via SSH
                     • .env created with secrets injected
                     • App starts, reads from .env
@@ -164,7 +164,7 @@ grep "\.env" .gitignore
 # .env.auto-connector
 
 # 2. Verify no real secrets in example files
-grep -E "ghp_[A-Za-z0-9]+|vcp_[A-Za-z0-9]+|204\.168" .env*.example
+grep -E "gh[pousr]_[A-Za-z0-9]+|github_pat_[A-Za-z0-9]+|vcp_[A-Za-z0-9]+|204\.168" .env*.example
 # Expected output: (empty - no real secrets found)
 
 # 3. Verify SSH key permissions
@@ -193,7 +193,7 @@ ssh -i ~/.ssh/hetzner_rsa root@your.server.ip "ps aux | grep node"
 # Should show: node process running
 
 # 4. Check app is accessible
-curl https://your-vercel-url.com/health
+curl https://your-hetzner-url.com/health
 # Should return: 200 OK
 ```
 
@@ -252,7 +252,7 @@ curl https://your-vercel-url.com/health
 - ❌ Print secrets in logs or console output
 - ❌ Use same token for multiple environments
 - ❌ Store secrets in comments or documentation
-- ❌ Share GitHub/Vercel/Hetzner credentials directly
+- ❌ Share GitHub/Hetzner/Hetzner credentials directly
 
 ---
 
@@ -263,7 +263,7 @@ curl https://your-vercel-url.com/health
 ```bash
 # 1. Regenerate all exposed tokens
 # GitHub: https://github.com/settings/tokens
-# Vercel: https://vercel.com/account/tokens
+# Hetzner: https://hetzner.com/account/tokens
 # Hetzner: https://console.hetzner.cloud
 
 # 2. Update GitHub Secrets

@@ -179,7 +179,7 @@ jobs:
       - name: 🏗️ Build React client UI
         working-directory: ./UNICORN_FINAL/client
         # CI=false: react-scripts treats warnings as errors when CI=true (GitHub Actions default).
-        # The project already uses this flag in the vercel-build script for the same reason.
+        # Keep CI=false for the same warning behavior in local and CI builds.
         run: |
           # Tolerate orphaned npm install racing on node_modules (e.g. from ui-auto-builder
           # GODMODE loop loaded by the previous test step). npm ci itself wipes node_modules,
@@ -202,6 +202,11 @@ jobs:
             'FIREWORKS_API_KEY','SAMBANOVA_API_KEY','NVIDIA_NIM_API_KEY','STRIPE_SECRET_KEY','STRIPE_PUBLISHABLE_KEY','STRIPE_WEBHOOK_SECRET',
             'STRIPE_PRICE_STARTER_MONTHLY','STRIPE_PRICE_STARTER_YEARLY','STRIPE_PRICE_PRO_MONTHLY','STRIPE_PRICE_PRO_YEARLY',
             'STRIPE_PRICE_ENTERPRISE_MONTHLY','STRIPE_PRICE_ENTERPRISE_YEARLY','PAYPAL_CLIENT_ID','PAYPAL_CLIENT_SECRET','PAYPAL_WEBHOOK_ID',
+            // NOWPayments — #1 owner-armed revenue unlock (activation impact 100):
+            // card/bank/300+ coin checkout that auto-settles to BTC. Optional; the
+            // platform still runs BTC-direct without it. Must be forwarded here or a
+            // configured repo secret would silently never reach the server .env.
+            'NOWPAYMENTS_API_KEY','NOWPAYMENTS_IPN_SECRET',
             'SMTP_HOST','SMTP_PORT','SMTP_USER','SMTP_PASS','SMTP_FROM','EMAIL_FROM_NAME','RESEND_API_KEY','RESEND_FROM','BREVO_API_KEY',
             'MAILERSEND_API_KEY','OWNER_EMAIL','HETZNER_API_KEY','HETZNER_API_TOKEN','HETZNER_HOST','HETZNER_DNS_API_KEY',
             'VAULT_MASTER_SECRET','VAULT_EMERGENCY_CODE','MASTER_CONFIG_SECRET','TELEGRAM_BOT_TOKEN','TELEGRAM_CHAT_ID',
@@ -212,7 +217,8 @@ jobs:
             // every deploy. All default-OFF: setting them as repo secrets is
             // the explicit operator opt-in for full-power mode (PR #547/#548).
             'DEEPSEEK_LOOP_ENABLED','DEEPSEEK_LOOP_EXECUTE','DEEPSEEK_LOOP_ADMIN_TOKEN',
-            'DEEPSEEK_LOOP_INTERVAL_MS','DEEPSEEK_LOOP_BACKEND_URL'
+            'DEEPSEEK_LOOP_INTERVAL_MS','DEEPSEEK_LOOP_BACKEND_URL',
+            'DEEPSEEK_AUTO_APPLY'
           ];
           const out = [];
           for (const key of allow) {
@@ -314,8 +320,10 @@ jobs:
           DEPLOY_LINK="/var/www/unicorn/UNICORN_FINAL"
 
           ssh -o StrictHostKeyChecking=no root@${{ secrets.HETZNER_HOST }} "mkdir -p $RELEASE_ROOT && mkdir -p $RELEASE_PATH"
+          # ZAC e serviciu de primă clasă (misiunea autonomiei) — NU se mai
+          # dezactivează la deploy; e repornit după switch ca să ia codul nou.
           ssh -o StrictHostKeyChecking=no root@${{ secrets.HETZNER_HOST }} \
-            "systemctl disable --now zac.service 2>/dev/null || true; systemctl reset-failed zac.service 2>/dev/null || true; systemctl disable --now unicorn-rescue-backend.service 2>/dev/null || true; systemctl reset-failed unicorn-rescue-backend.service 2>/dev/null || true; pm2 delete unicorn-guardian 2>/dev/null || true; pm2 save --force 2>/dev/null || true"
+            "systemctl disable --now unicorn-rescue-backend.service 2>/dev/null || true; systemctl reset-failed unicorn-rescue-backend.service 2>/dev/null || true; pm2 delete unicorn-guardian 2>/dev/null || true; pm2 save --force 2>/dev/null || true"
           rsync -avz --no-times --delete \
             --exclude='.git' \
             --exclude='node_modules' \
@@ -332,7 +340,6 @@ jobs:
             --exclude='UNICORN_FINAL/logs' \
             --exclude='UNICORN_FINAL/.archive' \
             --exclude='UNICORN_FINAL/.unicorn-backups' \
-            --exclude='UNICORN_FINAL/.vercel' \
             --exclude='UNICORN_FINAL/generated' \
             --exclude='UNICORN_FINAL/public' \
             --exclude='UNICORN_FINAL/*.log' \
@@ -417,8 +424,9 @@ jobs:
           # server-doctor.sh handles: Node.js install, pm2 install, npm ci, nginx, firewall,
           # pm2 startup systemd, pm2 delete all + start ecosystem.config.js + pm2 save.
           export UNICORN_GUARDIAN=0
-          systemctl disable --now zac.service 2>/dev/null || true
+          # ZAC rămâne enabled; restart după switch ca să ruleze codul release-ului nou.
           systemctl reset-failed zac.service 2>/dev/null || true
+          systemctl try-restart zac.service 2>/dev/null || true
           systemctl disable --now unicorn-rescue-backend.service 2>/dev/null || true
           systemctl reset-failed unicorn-rescue-backend.service 2>/dev/null || true
           pm2 delete unicorn-guardian 2>/dev/null || true
@@ -438,7 +446,20 @@ jobs:
           done
           pm2 save --force 2>/dev/null || true
           bash "$DEPLOY_PATH/server-doctor.sh" "$DEPLOY_PATH" "$DOMAIN" || true
-          # Ensure SSL / HTTPS is active:
+          # Keep production topology lean after server-doctor. The doctor may
+          # start the full ecosystem for recovery, but steady-state is backend
+          # + site + module-mesh-guardian. The guardian is the ONLY external
+          # healer able to restart a HUNG (event-loop-blocked, still "online")
+          # backend that PM2/in-process watchdogs cannot detect. Removing it
+          # previously left a blocked backend down until manual intervention.
+          # The heavier sidecars (autoscaler, live-sync, legacy guardian) stay
+          # opt-in and are removed; duplicate site workers are pruned too.
+          pm2 delete autoscaler unicorn-live-sync unicorn-guardian 2>/dev/null || true
+          pm2 start ecosystem.config.js --only module-mesh-guardian --update-env 2>/dev/null \
+            || pm2 restart module-mesh-guardian --update-env 2>/dev/null || true
+          DUP_SITE_IDS=$(pm2 jlist 2>/dev/null | python3 -c 'import json,sys; ids=[str(p.get("pm_id")) for p in json.load(sys.stdin) if p.get("name")=="unicorn-site"]; print(" ".join(ids[1:]))' 2>/dev/null || true)
+          if [ -n "$DUP_SITE_IDS" ]; then pm2 delete $DUP_SITE_IDS 2>/dev/null || true; fi
+          pm2 save --force 2>/dev/null || true
           #   - preserves certbot SSL blocks if already present
           #   - reinstalls SSL blocks if cert exists but blocks were wiped (recovery)
           #   - obtains new cert on fresh install
@@ -521,6 +542,11 @@ jobs:
             # which has no implementation and would 404 the Buy flow.
             python3 "$DEPLOY_PATH/scripts/nginx-patch-sovereign-commerce-routes.py" || \
               echo "[nginx-patch-sovereign-commerce-routes] patch failed (continuing)"
+            # ZEUS-ATTESTATION: route /api/attestation/{publickey,verify-html}
+            # to the SITE service (:3001) — implementations live in
+            # UNICORN_FINAL/src/index.js. Idempotent.
+            python3 "$DEPLOY_PATH/scripts/nginx-patch-attestation-routes.py" || \
+              echo "[nginx-patch-attestation-routes] patch failed (continuing)"
             # ZEUS-NEVER-502: install the static maintenance fallback so that
             # when both unicorn-site:3001 and unicorn-backend:3000 are down
             # (mid pm2 reload, OOM, post-rsync race) nginx serves a friendly
@@ -584,6 +610,31 @@ jobs:
           UNIT_DST=/etc/systemd/system/deepseek-loop.service
           ENV_FILE="$DEPLOY_PATH/.env"
 
+          # ── Reconcile AI keys from the persistent host store ──────────────────
+          # create-env.sh runs on the GitHub runner, where the host secret store
+          # does not exist, so an unset GitHub Actions secret leaves a placeholder
+          # (your_deepseek_api_key_here) in .env which then overwrites the live
+          # key on rsync. Here, ON THE SERVER, we force-merge any real keys from
+          # /etc/zeusai/secrets/ai-keys.env (outside the release tree, survives
+          # deploys) back into .env so the backend + loop always get valid keys.
+          # (RO) Reconciliază cheile reale din store-ul persistent în .env după
+          # fiecare deploy, astfel încât cheia DeepSeek validă să rămână activă.
+          STORE=/etc/zeusai/secrets/ai-keys.env
+          if [ -f "$STORE" ] && [ -f "$ENV_FILE" ]; then
+            while IFS= read -r _l; do
+              case "$_l" in ''|\#*) continue ;; *=*) : ;; *) continue ;; esac
+              _k="${_l%%=*}"; _v="${_l#*=}"
+              _v="${_v%\"}"; _v="${_v#\"}"; _v="${_v%\'}"; _v="${_v#\'}"
+              [ -z "$_k" ] && continue
+              [ -z "$_v" ] && continue
+              grep -vE "^${_k}=" "$ENV_FILE" > "$ENV_FILE.tmp" 2>/dev/null || true
+              printf "%s='%s'\n" "$_k" "$_v" >> "$ENV_FILE.tmp"
+              mv "$ENV_FILE.tmp" "$ENV_FILE"
+            done < "$STORE"
+            chmod 600 "$ENV_FILE" 2>/dev/null || true
+            echo "🔐 Reconciled AI keys from $STORE into .env"
+          fi
+
           if [ ! -f "$UNIT_SRC" ]; then
             echo "⚠️  $UNIT_SRC missing — skipping DeepSeek loop install"
             exit 0
@@ -644,16 +695,28 @@ jobs:
           mkdir -p /usr/local/bin /var/lib/unicorn /var/log /etc/cron.d /etc/logrotate.d /opt/unicorn
           install -m 0755 "$DEPLOY_PATH/scripts/unicorn-health-bot.sh" /usr/local/bin/unicorn-health-bot.sh
           install -m 0755 "$DEPLOY_PATH/scripts/unicorn-payment-monitor.sh" /usr/local/bin/unicorn-payment-monitor.sh
-          # Forward-only fast-path autoheal: 1-minute /health probe, threshold-3,
-          # cooldown-10min PM2 reload. Complements (does not replace) the 5-minute
-          # unicorn-health-bot. Disable instantly with: touch /var/run/unicorn-autoheal-min.disabled
+          # SINGLE-HEALER CONTRACT (enforced 2026-05-29 — anti restart-storm).
+          # Only `autoheal-min` may restart PM2: it has threshold(3)+cooldown(600s)+
+          # disable-flag. Running multiple uncoordinated restarters (health-bot 5-min
+          # restart loop, safe-watchdog, healer.timer, zeusai-autonomy, deepseek-autonomy)
+          # caused a 41-restarts-in-8-min storm. Those are NEVER reinstalled here and are
+          # actively purged below so a redeploy can never resurrect the storm.
+          # Contract cu un singur healer — doar autoheal-min poate reporni PM2.
           install -m 0755 "$DEPLOY_PATH/scripts/autoheal-min.sh" /usr/local/bin/autoheal-min.sh
           chmod +x "$DEPLOY_PATH/scripts/unicorn-payment-monitor.js" 2>/dev/null || true
+          # Purge any legacy aggressive restarters left on the box (idempotent).
+          rm -f /etc/cron.d/unicorn-safe-watchdog /etc/cron.d/deepseek-autonomy 2>/dev/null || true
+          for U in unicorn-healer.timer unicorn-healer.service zeusai-autonomy.timer \
+                   zeusai-autonomy.service unicorn_godmode_v4.timer unicorn_godmode_v4.service \
+                   deepseek-unified.service; do
+            systemctl disable --now "$U" 2>/dev/null || true
+          done
           cat > /etc/cron.d/unicorn-health-bot <<'CRON'
           SHELL=/bin/bash
           PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
-          */5 * * * * root DEPLOY_PATH=/var/www/unicorn/UNICORN_FINAL UNICORN_HEALTH_BASE_URL=http://127.0.0.1:3000 UNICORN_HEALTH_SITE_URL=http://127.0.0.1:3001 /usr/local/bin/unicorn-health-bot.sh
+          # payment-monitor = benign (no PM2 restart, revenue telemetry only).
           * * * * * root DEPLOY_PATH=/var/www/unicorn/UNICORN_FINAL UNICORN_LOCAL_URL=http://127.0.0.1:3001 /usr/local/bin/unicorn-payment-monitor.sh
+          # autoheal-min = the ONLY sanctioned PM2 restarter (threshold+cooldown).
           * * * * * root /usr/local/bin/autoheal-min.sh >>/var/log/unicorn-autoheal-min.log 2>&1
           CRON
           chmod 0644 /etc/cron.d/unicorn-health-bot
@@ -669,7 +732,6 @@ jobs:
           }
           ROTATE
           chmod 0644 /etc/logrotate.d/unicorn-transactions
-          /usr/local/bin/unicorn-health-bot.sh || true
           /usr/local/bin/unicorn-payment-monitor.sh || true
           /usr/local/bin/autoheal-min.sh || true
           echo "✅ autonomous health/payment bots installed"
@@ -781,7 +843,12 @@ jobs:
           set -euo pipefail
           DEPLOY_PATH=/var/www/unicorn/UNICORN_FINAL
           cd "$DEPLOY_PATH"
-          for attempt in $(seq 1 8); do
+          for attempt in $(seq 1 24); do
+            if ! ss -ltn 2>/dev/null | grep -q '127.0.0.1:3001'; then
+              echo "loopback attempt=${attempt}/24 port=3001 status=warming"
+              sleep 5
+              continue
+            fi
             BODY="$(curl -fsS --max-time 15 -H 'Cache-Control: no-cache' -H 'Accept: application/json' http://127.0.0.1:3001/api/catalog/master || true)"
             read -r STATUS COUNT MODE <<<"$(printf '%s' "$BODY" | node -e '
               let body = "";
@@ -794,15 +861,10 @@ jobs:
                 process.stdout.write(`${parsed ? 200 : 0} ${count} ${mode}`);
               });
             ')"
-            echo "loopback attempt=${attempt}/8 status=${STATUS} count=${COUNT} mode=${MODE}"
+            echo "loopback attempt=${attempt}/24 status=${STATUS} count=${COUNT} mode=${MODE}"
             if [ "$STATUS" = "200" ] && [ "${COUNT:-0}" -ge 65 ] && [ "$MODE" != "rescue" ]; then
               echo "✅ loopback site catalog healthy"
               exit 0
-            fi
-            if [ "$attempt" -eq 4 ]; then
-              echo "↻ restart unicorn-site after slow/failed warmup"
-              pm2 restart unicorn-site --update-env >/dev/null 2>&1 || \
-                pm2 start ecosystem.config.js --only unicorn-site --update-env >/dev/null 2>&1 || true
             fi
             sleep 5
           done
@@ -1049,3 +1111,23 @@ jobs:
             process.exit(1);
           })();
           NODE
+
+      - name: 🧹 Final PM2 topology cleanup
+        if: always()
+        run: |
+          ssh -o StrictHostKeyChecking=no root@${{ secrets.HETZNER_HOST }} bash -s << 'SSHEOF'
+          set -uo pipefail
+          DEPLOY_PATH=/var/www/unicorn/UNICORN_FINAL
+          cd "$DEPLOY_PATH" 2>/dev/null || true
+          # Keep the external healer (module-mesh-guardian) alive in steady
+          # state — it is the only process that can restart a HUNG backend.
+          pm2 delete autoscaler unicorn-live-sync unicorn-guardian 2>/dev/null || true
+          pm2 start ecosystem.config.js --only module-mesh-guardian --update-env 2>/dev/null \
+            || pm2 restart module-mesh-guardian --update-env 2>/dev/null || true
+          DUP_SITE_IDS=$(pm2 jlist 2>/dev/null | python3 -c 'import json,sys; ids=[str(p.get("pm_id")) for p in json.load(sys.stdin) if p.get("name")=="unicorn-site"]; print(" ".join(ids[1:]))' 2>/dev/null || true)
+          if [ -n "$DUP_SITE_IDS" ]; then pm2 delete $DUP_SITE_IDS 2>/dev/null || true; fi
+          TARGET=$(readlink -f /var/www/unicorn/UNICORN_FINAL 2>/dev/null || true)
+          if [ -n "$TARGET" ]; then ln -sfn "$TARGET" /var/www/unicorn/current; fi
+          pm2 save --force 2>/dev/null || true
+          pm2 jlist | python3 -c 'import json,sys; d=json.load(sys.stdin); [print(p.get("pm_id"), p.get("name"), p.get("pm2_env",{}).get("status")) for p in d if p.get("name") in ["unicorn-backend","unicorn-site","autoscaler","module-mesh-guardian","unicorn-live-sync","unicorn-guardian"]]' || true
+          SSHEOF

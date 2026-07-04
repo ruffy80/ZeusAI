@@ -1,7 +1,7 @@
 name: 🤖 DeepSeek Autopilot (autonomous loop in CI)
 
 # Purpose:
-#   Run ONE DeepSeek governor tick every 30 minutes inside GitHub Actions and
+#   Run ONE DeepSeek governor tick every 12 hours inside GitHub Actions and
 #   open a draft Pull Request whenever DeepSeek produces a `code_proposal` or
 #   `roadmap_update`. This closes the loop that previously ended on the Hetzner
 #   side: envelopes were written to `data/deepseek-proposals/` but nothing
@@ -19,12 +19,12 @@ name: 🤖 DeepSeek Autopilot (autonomous loop in CI)
 #     every allowlist + deny-prefix + size cap + per-day cap applies here too.
 #   * PRs are opened as DRAFT — never auto-merged. CI runs lint+tests on them.
 #   * If no provider key is set, the tick logs a hint and exits 0 (silent).
-#   * `concurrency` prevents overlapping ticks if a long run takes > 30 min.
+#   * `concurrency` prevents overlapping ticks if a long run takes > 12 hours.
 
 on:
   schedule:
-    # Every 30 minutes. Cron in UTC. / La fiecare 30 de minute (UTC).
-    - cron: '*/30 * * * *'
+    # Every 12 hours at :00 UTC. / La fiecare 12 ore (UTC).
+    - cron: '0 */12 * * *'
   workflow_dispatch:
     inputs:
       reason:
@@ -46,13 +46,13 @@ jobs:
     timeout-minutes: 10
     steps:
       - name: 📥 Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           fetch-depth: 0
           token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: 🟢 Setup Node 20
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v5
         with:
           node-version: '20'
 
@@ -77,9 +77,11 @@ jobs:
             echo "provider_count=${count}" >> "$GITHUB_OUTPUT"
             echo "✅ ${count} provider key(s) detected — autopilot will run."
           else
-            echo "has_provider=0" >> "$GITHUB_OUTPUT"
+            # No keyed provider — autopilot will auto-connect to free/keyless
+            # providers (pollinations, huggingface). Workflow still runs.
+            echo "has_provider=1" >> "$GITHUB_OUTPUT"
             echo "provider_count=0" >> "$GITHUB_OUTPUT"
-            echo "::notice::No DEEPSEEK_API_KEY / OPENROUTER_API_KEY / GROQ_API_KEY secret set — autopilot will log a hint and skip. Set one to activate."
+            echo "::notice::No DEEPSEEK_API_KEY / OPENROUTER_API_KEY / GROQ_API_KEY secret set — autopilot will auto-connect to free keyless providers (pollinations, huggingface)."
           fi
 
       - name: 🧠 Run autopilot tick
@@ -196,7 +198,7 @@ jobs:
 
       - name: 📤 Upload tick log artifact
         if: always() && steps.detect.outputs.has_provider == '1'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: deepseek-autopilot-tick-log-${{ github.run_id }}
           path: UNICORN_FINAL/tick-output.log

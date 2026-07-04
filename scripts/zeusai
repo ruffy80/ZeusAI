@@ -4,7 +4,7 @@
 #   ./scripts/zeusai ssh                  → conectare SSH la server (root@204.168.230.142)
 #   ./scripts/zeusai logs                 → pm2 logs live pentru unicorn
 #   ./scripts/zeusai status               → pm2 status + /health local + domain
-#   ./scripts/zeusai deploy               → git add/commit/push → triggerează hetzner-deploy.yml
+#   ./scripts/zeusai deploy               → commit/push safe changes → triggerează deploy.yml
 #   ./scripts/zeusai restart              → pm2 restart unicorn pe server
 #   ./scripts/zeusai exec '<cmd>'         → rulează comandă ad-hoc pe server
 #   ./scripts/zeusai health               → verifică /health pe server + domain HTTPS
@@ -57,13 +57,22 @@ case "$cmd" in
   deploy)
     cd "$REPO_DIR"
     MSG="${*:-deploy: $(date '+%Y-%m-%d %H:%M:%S')}"
-    git add -A -- . ':!ZeusAI'
-    if git diff --cached --quiet; then
+
+    CHANGED=("${(@f)$(
+      git ls-files -m -o --exclude-standard \
+        | grep -Ev '^(blockchainDB3|defaultDB2|minerPoolDB|poolDB|serverPoolDB|transactionsDB)/' \
+        | grep -Ev '^\.vscode/tasks\.json$' \
+        | grep -Ev '^\.env\.auto-connector$' \
+        | grep -Ev '^\.env\.' \
+        | grep -Ev '^tmp/' \
+        | sort -u
+    )}")
+
+    if [[ ${#CHANGED[@]} -eq 0 ]]; then
       echo "Nimic de commit. Trigger deploy manual:"
-      gh workflow run hetzner-deploy.yml --repo ruffy80/ZeusAI || true
+      gh workflow run deploy.yml --repo ruffy80/ZeusAI || true
     else
-      git commit -m "$MSG"
-      git push origin main
+      "$REPO_DIR/scripts/ship.sh" "$MSG" "${CHANGED[@]}"
     fi
     echo "--- Ultimul run pe GitHub Actions ---"
     gh run list --repo ruffy80/ZeusAI --limit 3 || true
@@ -83,7 +92,7 @@ zeusai — comenzi disponibile:
   restart           pm2 restart unicorn + pm2 save
   exec '<cmd>'      Rulează o comandă arbitrară pe server
   health            Check rapid HTTP/HTTPS zeusai.pro + pm2
-  deploy [msg]      git add/commit/push pe main (trigger deploy CI/CD)
+  deploy [msg]      commit/push safe changes pe main (trigger deploy CI/CD)
   pull              git pull --rebase origin main
 USAGE
     ;;

@@ -1,7 +1,7 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState, lazy, Suspense } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import ZEUS3D from '../components/ZEUS3D';
+const ZEUS3D = lazy(() => import('../components/ZEUS3D'));
 import SEOMeta from '../components/SEOMeta';
 import StatsBar from '../components/StatsBar';
 import FeatureGrid from '../components/FeatureGrid';
@@ -218,7 +218,7 @@ export default function Home() {
             zIndex: 1,
           }}
         >
-          <ZEUS3D onCommand={setZeusCommand} />
+          <Suspense fallback={null}><ZEUS3D onCommand={setZeusCommand} /></Suspense>
           {zeusCommand && (
             <div style={{
               marginTop: 10, textAlign: 'center', color: '#fbbf24', fontSize: 13,

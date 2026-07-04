@@ -7,15 +7,4 @@
 // =====================================================================
 
 'use strict';
-// SHIM auto-generated: auto-repair.js -> unicornSelfHealer
-// Original code preserved in auto-repair.js.legacy.bak
-let supreme = null;
-try { supreme = require('./unicornSelfHealer'); } catch (_) { supreme = null; }
-const noop = () => ({ ok: false, shim: true });
-module.exports = new Proxy(supreme || {}, {
-  get(target, prop) {
-    if (prop === 'then') return undefined;
-    if (target && prop in target) return target[prop];
-    return noop;
-  }
-});
+module.exports = require('./supreme-self-healer-adapter');

@@ -175,9 +175,17 @@ class ProfitControlLoop {
   }
 
   _promoteShadowVariants() {
-    const variants = shadowTester.getAllVariants();
+    // shadow-tester resolves to the supreme-innovator-adapter Proxy, whose
+    // unsupported methods (getAllVariants is one) return an object
+    // ({ ok:false, error:'unsupported_method', ... }) rather than throwing.
+    // Guard against any non-iterable so the PCL tick never crashes with
+    // "variants is not iterable" (which previously aborted every cycle).
+    const raw = (typeof shadowTester.getAllVariants === 'function')
+      ? shadowTester.getAllVariants()
+      : [];
+    const variants = Array.isArray(raw) ? raw : (Array.isArray(raw && raw.variants) ? raw.variants : []);
     for (const v of variants) {
-      if (v.status === 'SHADOW' && v.readyForAB) {
+      if (v && v.status === 'SHADOW' && v.readyForAB) {
         try {
           shadowTester.promoteToAB(v.id);
           console.log(`[PCL] 📈 Shadow variant ${v.id} promoted to A/B (uplift=${(v.avgUplift * 100).toFixed(2)}%)`);
@@ -226,7 +234,7 @@ class ProfitControlLoop {
       console.warn('[PCL] failed to persist scale recommendation:', e && e.message);
     }
     if (typeof this.onScaleRecommendation === 'function') {
-      try { this.onScaleRecommendation(rec); } catch (_) {}
+      try { this.onScaleRecommendation(rec); } catch (e) { console.warn('[PCL] onScaleRecommendation callback failed:', e.message); }
     }
     console.log(`[PCL] 📐 scale recommendation: ${action} (${reason}) reward=${rec.reward} health=${rec.healthScore}`);
     return rec;

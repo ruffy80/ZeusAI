@@ -73,7 +73,7 @@ function installResilientFetch(){
 installResilientFetch();
 
 const THREE = window.THREE;
-const STATE = { route: location.pathname, snapshot: null, services: [], pricingArms: {}, paymentMethods: [{ id:'crypto_btc', active:true }] };
+const STATE = { route: (location.pathname.replace(/\/$/, '') || '/'), snapshot: null, services: [], pricingArms: {}, paymentMethods: [{ id:'crypto_btc', active:true }] };
 const cfg = window.__UNICORN__ || {};
 
 // ================= UTIL =================
@@ -94,13 +94,27 @@ async function api(path, opts){
     return j;
   } catch (e) { console.warn('api', path, e.message); return null; }
 }
+function funnelSessionId(){
+  // Stable anonymous session id (per browser) so funnel-intelligence can
+  // count REAL unique visitors. No PII — random hex only.
+  // RO: id de sesiune anonim, persistent — vizitatori reali, fără PII.
+  try {
+    let sid = localStorage.getItem('u_sid');
+    if (!sid) {
+      sid = Array.from(crypto.getRandomValues(new Uint8Array(16))).map(b=>b.toString(16).padStart(2,'0')).join('');
+      localStorage.setItem('u_sid', sid);
+    }
+    return sid;
+  } catch(_) { return 'no-storage'; }
+}
 function trackFunnel(event, meta){
   try {
     if (!event) return;
     const payload = {
       event: String(event).slice(0, 80),
-      route: location.pathname,
+      route: (location.pathname.replace(/\/$/, '') || '/'),
       source: 'site-v2',
+      sessionId: funnelSessionId(),
       ts: new Date().toISOString(),
       ...(meta || {}),
     };
@@ -124,14 +138,15 @@ function domSafeId(s){ return String(s==null?'':s).replace(/[^a-zA-Z0-9_-]/g, '-
 function normalizeLivePricing(serviceId, payload){
   const p = payload || {};
   const usd = Number(
-    p.price_usd != null ? p.price_usd
+    p.usd != null ? p.usd
+      : (p.price_usd != null ? p.price_usd
       : (p.priceUsd != null ? p.priceUsd
       : (p.finalPrice != null ? p.finalPrice
-      : (p.pricing && p.pricing.usd != null ? p.pricing.usd : NaN)))
+      : (p.pricing && p.pricing.usd != null ? p.pricing.usd : NaN))))
   );
-  const btcRaw = p.price_btc != null ? p.price_btc : (p.btcEquivalent != null ? p.btcEquivalent : (p.pricing && p.pricing.btc != null ? p.pricing.btc : null));
+  const btcRaw = p.btc != null ? p.btc : (p.price_btc != null ? p.price_btc : (p.btcEquivalent != null ? p.btcEquivalent : (p.pricing && p.pricing.btc != null ? p.pricing.btc : null)));
   return {
-    serviceId: String(p.serviceId || p.moduleId || serviceId || 'unknown-service'),
+    serviceId: String(p.serviceId || p.productId || p.moduleId || serviceId || 'unknown-service'),
     // Never silently substitute a hardcoded fallback — callers MUST check
     // Number.isFinite(price_usd) before rendering or accepting an order.
     price_usd: Number.isFinite(usd) ? usd : NaN,
@@ -177,13 +192,18 @@ async function fetchLivePricing(serviceId, opts){
   const qp = new URLSearchParams();
   if (options.userId) qp.set('userId', String(options.userId));
   if (options.coupon) qp.set('coupon', String(options.coupon));
-  const url = '/api/pricing/' + encodeURIComponent(sid) + (qp.toString() ? ('?' + qp.toString()) : '');
+  const q = qp.toString();
+  const priceUrl = '/api/price/' + encodeURIComponent(sid) + (q ? ('?' + q) : '');
+  const pricingUrl = '/api/pricing/' + encodeURIComponent(sid) + (q ? ('?' + q) : '');
   let slowTimer = null;
   try {
     if (typeof options.onSlow === 'function') {
       slowTimer = setTimeout(function(){ try { options.onSlow(); } catch(_){} }, 2000);
     }
-    const r = await fetch(url, { headers: { Accept: 'application/json' }, cache: 'no-store' });
+    let r = await fetch(priceUrl, { headers: { Accept: 'application/json' }, cache: 'no-store' });
+    if (!r.ok) {
+      r = await fetch(pricingUrl, { headers: { Accept: 'application/json' }, cache: 'no-store' });
+    }
     if (slowTimer) clearTimeout(slowTimer);
     const j = await r.json().catch(function(){ return null; });
     if (!r.ok) throw new Error((j && (j.error || j.message)) || ('HTTP ' + r.status));
@@ -576,7 +596,7 @@ document.addEventListener('click', e => {
 // pieces. The previous version forced a full-page reload on every back/forward
 // which was both wasteful and caused a visible "auto-refresh" the user could
 // mistake for the page being broken.
-window.addEventListener('popstate', () => { STATE.route = location.pathname; hydratePage(STATE.route); });
+window.addEventListener('popstate', () => { STATE.route = routePath(location.pathname); hydratePage(STATE.route); });
 
 // ================= SSR CHIP FILTERS (architectural · 2026-05-09) =================
 // Server-rendered filter chips on /services and /home featured grids carry
@@ -1499,8 +1519,8 @@ async function hydrateCommerceProof(){
   try {
     const cat = STATE.masterCatalog || await api('/api/catalog/master');
     if (catalogEl && cat && cat.counts) catalogEl.textContent = cat.counts.total + ' live products';
-    if (deliveryEl && cat && cat.counts) deliveryEl.textContent = cat.counts.marketplace + ' deliverable modules';
-    if (smokeEl && cat && cat.counts) smokeEl.textContent = cat.counts.total >= 65 ? 'Live smoke threshold passed' : 'Catalog threshold needs attention';
+    if (deliveryEl && cat && cat.counts) deliveryEl.textContent = cat.counts.total + ' deliverable products';
+    if (smokeEl && cat && cat.counts) smokeEl.textContent = cat.counts.total >= 25 ? 'Live smoke threshold passed' : 'Catalog threshold needs attention';
   } catch (_) {
     if (catalogEl) catalogEl.textContent = 'Catalog API reachable from /services';
   }
@@ -1935,7 +1955,7 @@ function cardHtml(s){
     <div class="row"><span>${escapeHtml(s.kpi || 'SLA-backed')}</span><b data-live-price="${tag}">${price}</b></div>
     <div style="display:flex;gap:8px;margin-top:12px">
       <a class="btn btn-ghost" href="/services/${encodeURIComponent(s.id)}" data-link style="flex:1;justify-content:center">Details</a>
-      <a class="btn btn-primary" href="/checkout?plan=${encodeURIComponent(s.id)}" data-link style="flex:1;justify-content:center">Buy</a>
+      <a class="btn btn-primary" href="/checkout/?plan=${encodeURIComponent(s.id)}" data-link style="flex:1;justify-content:center">Buy</a>
     </div>
   </div>`;
 }
@@ -1977,6 +1997,33 @@ async function hydrateServiceCardPrices(services, root){
 }
 
 async function hydratePricingPage(){
+  const root = document.querySelector('.pricing');
+  const hint = document.getElementById('pricingExperimentHint');
+  const variantKey = 'zeus_pricing_variant_v1';
+  let variant = 'control';
+  try {
+    variant = localStorage.getItem(variantKey) || '';
+    if (!variant) {
+      variant = Math.random() < 0.5 ? 'control' : 'momentum';
+      localStorage.setItem(variantKey, variant);
+    }
+  } catch (_) {
+    variant = Math.random() < 0.5 ? 'control' : 'momentum';
+  }
+
+  if (variant === 'momentum' && root) {
+    const pro = root.querySelector('[data-pricing-plan="pro"]');
+    const starter = root.querySelector('[data-pricing-plan="starter"]');
+    if (pro && starter) root.insertBefore(pro, starter);
+    const ctaPro = root.querySelector('[data-plan-cta="pro"]');
+    const ctaStarter = root.querySelector('[data-plan-cta="starter"]');
+    if (ctaPro) ctaPro.textContent = 'Start Growth Now';
+    if (ctaStarter) ctaStarter.textContent = 'Start Lean';
+    if (hint) hint.textContent = 'Variant B active: Growth-first ordering + action-focused CTAs.';
+  } else if (hint) {
+    hint.textContent = 'Variant A active: baseline order + classic CTA copy.';
+  }
+
   const pairs = [
     { plan: 'starter', serviceId: 'starter' },
     { plan: 'pro', serviceId: 'pro' },
@@ -1987,12 +2034,14 @@ async function hydratePricingPage(){
     const priceEl = document.querySelector('[data-pricing-value="' + pair.plan + '"]');
     const planCard = document.querySelector('[data-pricing-plan="' + pair.plan + '"]');
     if (!priceEl || !planCard) continue;
-    const cta = planCard.querySelector('a[href*="/checkout?plan="]');
+    const cta = planCard.querySelector('a[href*="/checkout"][href*="plan="]');
     const live = await fetchLivePricing(pair.serviceId, { /* no onSlow placeholder — preserve SSR price */ });
     if (!live || !Number.isFinite(Number(live.price_usd))) continue;
     priceEl.innerHTML = '$' + Number(live.price_usd).toLocaleString('en-US', { maximumFractionDigits: 2 }) + '<small>/mo</small>';
-    if (cta) cta.setAttribute('href', '/checkout?plan=' + encodeURIComponent(pair.serviceId));
+    if (cta) cta.setAttribute('href', '/checkout/?plan=' + encodeURIComponent(pair.serviceId));
   }
+  const syncEl = document.getElementById('pricingLastSync');
+  if (syncEl) syncEl.textContent = new Date().toISOString();
 }
 
 // ============================================================
@@ -2036,7 +2085,7 @@ function masterCardHtml(it){
   // at 30% of the listed price (configurable server-side via COMMERCE_PREORDER_PCT).
   const isPreorderEligible = it.group === 'future-invention' && priceUsd > 0;
   const buyBtn = priceUsd > 0
-    ? '<a class="btn btn-primary" href="/checkout?plan=' + encodeURIComponent(id) + '" data-link data-sovereign-buy="' + idAttr + '" aria-label="Buy ' + title + ' with Bitcoin" style="flex:1;justify-content:center">Buy with BTC →</a>'
+    ? '<a class="btn btn-primary" href="/checkout/?plan=' + encodeURIComponent(id) + '" data-link data-sovereign-buy="' + idAttr + '" aria-label="Buy ' + title + ' with Bitcoin" style="flex:1;justify-content:center">Buy with BTC →</a>'
     : '<a class="btn btn-ghost" href="/services/' + encodeURIComponent(id) + '" data-link style="flex:1;justify-content:center">Activate free</a>';
   const preorderBtn = isPreorderEligible
     ? '<button type="button" class="btn btn-ghost" data-sovereign-buy="' + idAttr + '" data-sovereign-preorder="1" style="justify-content:center;border-color:#7cf3ff66;color:#7cf3ff" title="Reserve early access at 30% now — locks the price for 365 days">⏳ Reserve 30%</button>'
@@ -2264,6 +2313,13 @@ async function hydrateMasterCatalog(){
   // the catalog API was slow/empty, leaving the hero stuck on "live rate
   // loading…".)
   if (counts) counts.textContent = cat.counts.total + ' real services · ' + (cat.counts.instant || 0) + ' instant · ' + (cat.counts.professional || 0) + ' professional · ' + (cat.counts.enterprise || 0) + ' enterprise';
+  const stickySummary = document.getElementById('servicesStickySummary');
+  if (stickySummary) {
+    const ts = new Date().toISOString();
+    const msg = cat.counts.total + ' products live · synced ' + ts + ' · checkout revalidates final quote before payment';
+    const infoNode = stickySummary.querySelector('div');
+    if (infoNode) infoNode.textContent = msg;
+  }
   // Catalogue contract: exactly 3 tiers (instant / professional / enterprise),
   // capped at 25 products. Filter chips reflect that contract — no
   // marketplace / industry / strategic / frontier groups any more.
@@ -2481,6 +2537,13 @@ function hydrateCheckout(){
   const set = (id, v) => { const el = document.getElementById(id); if (el) el.value = v; };
   set('coAmount', amount != null ? amount : ''); set('coPlan', plan);
   set('coAmountPP', amount != null ? amount : ''); set('coPlanPP', plan);
+  try {
+    const rememberedEmail = localStorage.getItem('u_email') || '';
+    if (rememberedEmail && !q.get('email')) {
+      set('coEmail', rememberedEmail);
+      set('coEmailPP', rememberedEmail);
+    }
+  } catch (_) {}
   const sumP = $('#sumPlan'); if (sumP) sumP.textContent = plan;
   // Try cache first so the checkout summary shows the price instantly.
   if (amount == null) {
@@ -2507,9 +2570,19 @@ function hydrateCheckout(){
 
   const btc = cfg.owner && cfg.owner.btc ? cfg.owner.btc : '';
   loadFx();
+  const hint = $('#coQuickHint');
 
   let currentReceipt = null;
   let pollTimer = null;
+
+  const setBusy = (btnId, busy, busyText) => {
+    const btn = document.getElementById(btnId);
+    if (!btn) return;
+    if (!btn.dataset.baseLabel) btn.dataset.baseLabel = btn.textContent || '';
+    btn.disabled = !!busy;
+    btn.textContent = busy ? busyText : btn.dataset.baseLabel;
+  };
+  const validEmail = (v) => /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(String(v || '').trim());
 
   const draw = () => {
     const amt = Number(($('#coAmount')||{}).value || 0);
@@ -2605,25 +2678,32 @@ function hydrateCheckout(){
     const email = (($('#coEmailPP')||{}).value || ($('#coEmail')||{}).value || '');
     const ref = getRef();
     if (!amt || amt < 1) { toast('Enter a valid amount','err'); return; }
+    if (!validEmail(email)) { toast('Enter a valid activation email','err'); return; }
+    try { localStorage.setItem('u_email', String(email).trim()); } catch(_) {}
+    setBusy('coPayPP', true, 'Creating PayPal order…');
     toast('Creating PayPal order…','ok');
     const customerToken = getCustToken();
-    const r = await api('/api/uaic/order', { method:'POST', body: JSON.stringify({ method:'PAYPAL', plan:pl, amount_usd:amt, email, ref, customerToken }) });
-    if (r && r.receipt) {
-      currentReceipt = r.receipt;
-      showReceiptStatus(r.receipt);
-      if (r.receipt.approveHref) {
-        toast('Order created · opening PayPal…','ok');
-        window.open(r.receipt.approveHref, '_blank', 'noopener');
-        startPolling(r.receipt.id);
-      } else if (ppHandle) {
-        const fallback = ppHandle.startsWith('http') ? ppHandle
-          : (!ppHandle.includes('@') ? `https://paypal.me/${encodeURIComponent(ppHandle)}/${amt}`
-          : `mailto:${encodeURIComponent(ppHandle)}?subject=ZeusAI%20-%20${encodeURIComponent(pl)}%20%24${amt}`);
-        toast('Opening paypal.me fallback…','ok');
-        window.open(fallback, '_blank', 'noopener');
-        startPolling(r.receipt.id);
-      } else toast('PayPal link missing','err');
-    } else toast('Could not start PayPal order','err');
+    try {
+      const r = await api('/api/uaic/order', { method:'POST', body: JSON.stringify({ method:'PAYPAL', plan:pl, amount_usd:amt, email, ref, customerToken }) });
+      if (r && r.receipt) {
+        currentReceipt = r.receipt;
+        showReceiptStatus(r.receipt);
+        if (r.receipt.approveHref) {
+          toast('Order created · opening PayPal…','ok');
+          window.open(r.receipt.approveHref, '_blank', 'noopener');
+          startPolling(r.receipt.id);
+        } else if (ppHandle) {
+          const fallback = ppHandle.startsWith('http') ? ppHandle
+            : (!ppHandle.includes('@') ? `https://paypal.me/${encodeURIComponent(ppHandle)}/${amt}`
+            : `mailto:${encodeURIComponent(ppHandle)}?subject=ZeusAI%20-%20${encodeURIComponent(pl)}%20%24${amt}`);
+          toast('Opening paypal.me fallback…','ok');
+          window.open(fallback, '_blank', 'noopener');
+          startPolling(r.receipt.id);
+        } else toast('PayPal link missing','err');
+      } else toast('Could not start PayPal order','err');
+    } finally {
+      setBusy('coPayPP', false);
+    }
   });
 
   // BTC pay — create UAIC order with persistent, watched receipt
@@ -2633,14 +2713,27 @@ function hydrateCheckout(){
     const email = ($('#coEmail')||{}).value || '';
     const ref = getRef();
     const customerToken = getCustToken();
-    const r = await api('/api/uaic/order', { method:'POST', body: JSON.stringify({ method:'BTC', plan:pl, amount_usd:amt, email, ref, customerToken }) });
-    if (r && r.receipt) {
-      currentReceipt = r.receipt;
-      toast(`Receipt ${r.receipt.id.slice(0,10)}… · watching blockchain`, 'ok');
-      if (r.receipt.btcUri) renderQr('btcQr', r.receipt.btcUri);
-      showReceiptStatus(r.receipt);
-      startPolling(r.receipt.id);
-    } else toast('Could not create order','err');
+    if (!amt || amt < 1) { toast('Enter a valid amount','err'); return; }
+    if (!validEmail(email)) { toast('Enter a valid activation email','err'); return; }
+    try { localStorage.setItem('u_email', String(email).trim()); } catch(_) {}
+    if (hint) hint.textContent = 'Generating secure invoice… this usually takes 1-2 seconds.';
+    setBusy('coPay', true, 'Generating invoice…');
+    try {
+      const r = await api('/api/uaic/order', { method:'POST', body: JSON.stringify({ method:'BTC', plan:pl, amount_usd:amt, email, ref, customerToken }) });
+      if (r && r.receipt) {
+        currentReceipt = r.receipt;
+        toast(`Receipt ${r.receipt.id.slice(0,10)}… · watching blockchain`, 'ok');
+        if (r.receipt.btcUri) renderQr('btcQr', r.receipt.btcUri);
+        showReceiptStatus(r.receipt);
+        startPolling(r.receipt.id);
+        if (hint) hint.textContent = 'Invoice ready. Send BTC and keep this tab open for automatic license delivery.';
+      } else {
+        toast('Could not create order','err');
+        if (hint) hint.textContent = 'Invoice failed. Verify amount/email and retry.';
+      }
+    } finally {
+      setBusy('coPay', false);
+    }
   });
 
   function showReceiptStatus(r){
@@ -3783,6 +3876,9 @@ window.addEventListener('DOMContentLoaded', () => {
   openPricingStream();
   subscribeAutonomousEvents();
   hydratePage(STATE.route);
+  // Real visitor counting: one page_view beacon per load → durable funnel.
+  // RO: un beacon page_view per încărcare — vizitatori reali, durabili.
+  trackFunnel('page_view', {});
 });
 
 // ===================== AUTONOMOUS LIVE BRIDGE =====================
@@ -3896,7 +3992,7 @@ function renderAutonomousServicesGrid(target){
       ? '$' + Number(m.defaultPrice).toLocaleString('en-US', { maximumFractionDigits: 2 })
       : '—';
     const buyHref = (m.defaultPrice != null && Number(m.defaultPrice) > 0)
-      ? '/checkout?plan=' + encodeURIComponent(m.id)
+      ? '/checkout/?plan=' + encodeURIComponent(m.id)
       : '/services/' + encodeURIComponent(m.id);
     const buyLabel = (m.defaultPrice != null && Number(m.defaultPrice) > 0) ? 'Buy now' : 'Learn more';
     const safeName = escapeHtml(m.name);

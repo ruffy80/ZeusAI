@@ -138,6 +138,35 @@ upsert GIT_REMOTE_URL     "${GIT_REMOTE_URL:-https://github.com/ruffy80/ZeusAI.g
 upsert GITHUB_TOKEN       "${GITHUB_TOKEN:-}"
 upsert GH_PAT             "${GH_PAT:-${GITHUB_TOKEN:-}}"
 
+# ── Persistent secret store (survives deploys) ──────────────────────────────────
+# (EN) Load API keys from the host-level secret store that lives OUTSIDE the
+# release tree (so it is not wiped by a new release). This is the same path the
+# adi-core key-vault scans (EXTRA_DIRS=/etc/zeusai/secrets, ~/.zeusai/keys.env).
+# Values here are used ONLY as a fallback: GitHub Actions secrets still win
+# because the env vars below use `${VAR:-<persistent>}` precedence.
+# (RO) Încarcă cheile din store-ul persistent de pe host (în afara release-ului),
+# folosit ca fallback când secret-ul din GitHub Actions lipsește. Astfel cheile
+# valide (ex. DEEPSEEK_API_KEY) supraviețuiesc fiecărui deploy fără intervenție.
+_load_persistent_secrets() {
+  local f
+  for f in /etc/zeusai/secrets/ai-keys.env /etc/zeusai/secrets/*.env "$HOME/.zeusai/keys.env"; do
+    [ -f "$f" ] || continue
+    while IFS= read -r _line; do
+      case "$_line" in ''|\#*) continue ;; esac
+      case "$_line" in *=*) : ;; *) continue ;; esac
+      local _k="${_line%%=*}"
+      local _v="${_line#*=}"
+      # strip surrounding quotes
+      _v="${_v%\"}"; _v="${_v#\"}"; _v="${_v%\'}"; _v="${_v#\'}"
+      # only set if not already provided by the environment (GH secret wins)
+      if [ -n "$_k" ] && [ -z "$(eval "printf '%s' \"\${$_k:-}\"")" ] && [ -n "$_v" ]; then
+        export "$_k=$_v"
+      fi
+    done < "$f"
+  done
+}
+_load_persistent_secrets
+
 # ── AI Providers ───────────────────────────────────────────────────────────────
 upsert OPENAI_API_KEY     "${OPENAI_API_KEY:-}"
 upsert DEEPSEEK_API_KEY   "${DEEPSEEK_API_KEY:-}"
@@ -173,6 +202,14 @@ upsert PAYPAL_CLIENT_ID     "${PAYPAL_CLIENT_ID:-}"
 upsert PAYPAL_CLIENT_SECRET "${PAYPAL_CLIENT_SECRET:-}"
 upsert PAYPAL_ENV           "${PAYPAL_ENV:-sandbox}"
 upsert PAYPAL_WEBHOOK_ID    "${PAYPAL_WEBHOOK_ID:-}"
+
+# ── NOWPayments (global crypto rail — cards/bank/300+ coins → auto-BTC) ──────────
+# #1 owner-armed revenue unlock (activation impact 100). Optional: the platform
+# still runs BTC-direct checkout without it. Set NOWPAYMENTS_API_KEY as a repo
+# secret and the next deploy arms card/300-coin checkout automatically. upsert
+# skips empty values, so absence never overwrites an existing key.
+upsert NOWPAYMENTS_API_KEY    "${NOWPAYMENTS_API_KEY:-}"
+upsert NOWPAYMENTS_IPN_SECRET "${NOWPAYMENTS_IPN_SECRET:-}"
 
 # ── Email ──────────────────────────────────────────────────────────────────────
 upsert SMTP_HOST    "${SMTP_HOST:-smtp.mail.yahoo.com}"
@@ -313,7 +350,7 @@ upsert HEALER_WATCHDOG_MS   "${HEALER_WATCHDOG_MS:-30000}"
 upsert HEAL_INTERVAL_MS     "${HEAL_INTERVAL_MS:-60000}"
 upsert QIS_SCAN_INTERVAL_MS "${QIS_SCAN_INTERVAL_MS:-300000}"
 upsert QIS_AUTO_HEAL_ENABLED "${QIS_AUTO_HEAL_ENABLED:-true}"
-upsert QIS_REQUIRED_PROCESSES "${QIS_REQUIRED_PROCESSES:-unicorn,unicorn-orchestrator,unicorn-health-guardian}"
+upsert QIS_REQUIRED_PROCESSES "${QIS_REQUIRED_PROCESSES:-unicorn-backend,unicorn-site}"
 upsert CANARY_EVAL_MS        "${CANARY_EVAL_MS:-60000}"
 upsert CANARY_MIN_SAMPLES    "${CANARY_MIN_SAMPLES:-50}"
 upsert CANARY_RAMP_STEP_MS   "${CANARY_RAMP_STEP_MS:-300000}"
@@ -343,8 +380,11 @@ upsert PROFIT_LOOP_INTERVAL_MS "${PROFIT_LOOP_INTERVAL_MS:-300000}"
 # GitHub Actions secret but has NOT explicitly set DEEPSEEK_LOOP_ENABLED,
 # default DEEPSEEK_LOOP_ENABLED=1 so the Hetzner systemd loop activates
 # automatically — the operator no longer needs to remember the second flag.
-# Likewise, when a DEEPSEEK_LOOP_ADMIN_TOKEN is provided we default
-# DEEPSEEK_LOOP_EXECUTE=1. Per PR #547 the server-side governor still
+# Likewise, when a DEEPSEEK_LOOP_ADMIN_TOKEN is provided (or auto-generated
+# below) we default DEEPSEEK_LOOP_EXECUTE=1. If no token is provided but the
+# loop is enabled, a random 40-char token is auto-generated so the loop and
+# backend can authenticate with each other via the shared .env file.
+# Per PR #547 the server-side governor still
 # re-validates every action against its hardcoded allowlist regardless.
 # Opt-out: set DEEPSEEK_LOOP_ENABLED=0 (or empty after this run) explicitly.
 # (RO) Dacă există DEEPSEEK_API_KEY și nu ai setat explicit DEEPSEEK_LOOP_ENABLED,
@@ -355,16 +395,37 @@ if [ -z "$_ds_loop_enabled_default" ] && { [ -n "${DEEPSEEK_API_KEY:-}" ] || [ -
   _ds_loop_enabled_default=1
   echo "ℹ️  DEEPSEEK_LOOP_ENABLED auto-defaulted to 1 (advisor key present, operator did not set it explicitly)"
 fi
+# Auto-generate DEEPSEEK_LOOP_ADMIN_TOKEN when loop is enabled but no token
+# was provided. Both the loop script and the backend read from the same .env,
+# so a locally-generated token works for authentication between them.
+# (RO) Generează automat un token admin dacă loop-ul e activat dar nu s-a
+# furnizat un token — atât loop-ul cât și backend-ul citesc din același .env.
+_ds_admin_token="${DEEPSEEK_LOOP_ADMIN_TOKEN:-}"
+if [ -z "$_ds_admin_token" ] && [ "$_ds_loop_enabled_default" = "1" ]; then
+  _ds_admin_token=$(head -c 32 /dev/urandom | base64 | tr -d '/+=' | head -c 40)
+  echo "ℹ️  DEEPSEEK_LOOP_ADMIN_TOKEN auto-generated (40-char random token, loop enabled but no token provided)"
+fi
 _ds_loop_execute_default="${DEEPSEEK_LOOP_EXECUTE:-}"
-if [ -z "$_ds_loop_execute_default" ] && [ -n "${DEEPSEEK_LOOP_ADMIN_TOKEN:-}" ] && [ "$_ds_loop_enabled_default" = "1" ]; then
+if [ -z "$_ds_loop_execute_default" ] && [ -n "$_ds_admin_token" ] && [ "$_ds_loop_enabled_default" = "1" ]; then
   _ds_loop_execute_default=1
   echo "ℹ️  DEEPSEEK_LOOP_EXECUTE auto-defaulted to 1 (admin token present + loop enabled)"
 fi
+# Auto-apply: when the loop is enabled and execute mode is active, default
+# DEEPSEEK_AUTO_APPLY=1 so code_proposal writes directly to target files.
+# The owner wants full autonomous operation without human review gates.
+# (RO) Când bucla e activă și modul execute e pornit, activăm auto-apply
+# pentru ca DeepSeek să poată modifica codul direct, fără review uman.
+_ds_auto_apply_default="${DEEPSEEK_AUTO_APPLY:-}"
+if [ -z "$_ds_auto_apply_default" ] && [ "$_ds_loop_execute_default" = "1" ] && [ "$_ds_loop_enabled_default" = "1" ]; then
+  _ds_auto_apply_default=1
+  echo "ℹ️  DEEPSEEK_AUTO_APPLY auto-defaulted to 1 (loop enabled + execute mode active → full autonomous power)"
+fi
 upsert DEEPSEEK_LOOP_ENABLED       "$_ds_loop_enabled_default"
 upsert DEEPSEEK_LOOP_EXECUTE       "$_ds_loop_execute_default"
-upsert DEEPSEEK_LOOP_ADMIN_TOKEN   "${DEEPSEEK_LOOP_ADMIN_TOKEN:-}"
+upsert DEEPSEEK_LOOP_ADMIN_TOKEN   "$_ds_admin_token"
 upsert DEEPSEEK_LOOP_INTERVAL_MS   "${DEEPSEEK_LOOP_INTERVAL_MS:-}"
 upsert DEEPSEEK_LOOP_BACKEND_URL   "${DEEPSEEK_LOOP_BACKEND_URL:-}"
+upsert DEEPSEEK_AUTO_APPLY         "$_ds_auto_apply_default"
 upsert ORCHESTRATOR_POLL_MS  "${ORCHESTRATOR_POLL_MS:-60000}"
 upsert ORCHESTRATOR_GH_MS    "${ORCHESTRATOR_GH_MS:-120000}"
 upsert ORCHESTRATOR_DNS_MS   "${ORCHESTRATOR_DNS_MS:-300000}"

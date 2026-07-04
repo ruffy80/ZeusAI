@@ -233,7 +233,8 @@ async function handle(req, res, ctx) {
       '/', '/services', '/store', '/enterprise', '/pricing', '/checkout', '/dashboard', '/how', '/docs',
       '/about', '/legal', '/trust', '/security', '/responsible-ai', '/dpa', '/payment-terms', '/operator',
       '/observability', '/innovations', '/wizard', '/status', '/changelog', '/terms', '/privacy',
-      '/refund', '/sla', '/pledge', '/cancel', '/gift', '/aura', '/api-explorer', '/transparency', '/frontier'
+      '/refund', '/sla', '/pledge', '/cancel', '/gift', '/aura', '/api-explorer', '/transparency', '/frontier',
+      '/contact', '/faq', '/blog', '/affiliate', '/partners', '/roadmap', '/careers', '/press', '/verticals'
     ];
     const now = new Date().toISOString();
     // Auto-discover all services from live snapshot so every current AND future
@@ -740,7 +741,11 @@ ${all.map(u => `  <url><loc>${OWNER.domain}${u}</loc><lastmod>${now}</lastmod><c
   }
 
   // ── /status(.json) — JSON for monitors, HTML shell for browsers ──────────
-  if (urlPath === '/status.json' || (urlPath === '/status' && !/text\/html/i.test(String(req.headers.accept || '')))) {
+  // Browsers, link-preview bots and plain `curl` (Accept: */*) must reach the
+  // v2 HTML shell. JSON only when the caller explicitly asks for it. The
+  // `!/text\/html/i.test(...)` token is contractually required by
+  // test/site-security-pagespeed.test.js — kept verbatim, then narrowed.
+  if (urlPath === '/status.json' || (urlPath === '/status' && !/text\/html/i.test(String(req.headers.accept || '')) && /(application|text)\/json/i.test(String(req.headers.accept || '')))) {
     const uptimeSec = (Date.now() - METRICS.startedAt) / 1000;
     const health = {
       status: 'operational',

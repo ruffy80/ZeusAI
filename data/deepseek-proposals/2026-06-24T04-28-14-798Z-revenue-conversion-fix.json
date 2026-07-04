@@ -1,0 +1,12 @@
+{
+  "schemaVersion": 1,
+  "createdAt": "2026-06-24T04:28:14.799Z",
+  "status": "pending-review",
+  "objectiveId": "revenue-conversion-fix",
+  "targetPath": "UNICORN_FINAL/backend/modules/checkout-conversion.js",
+  "riskLevel": "low",
+  "rationale": "Create a dedicated checkout conversion module that logs paid events to a file and maintains a counter. This ensures the revenue autopilot can detect paid events. The module is simple, uses no external dependencies, and integrates with the existing file-based logging pattern.",
+  "proposedContent": "// Checkout conversion module - ensures paidEvents are tracked\nconst fs = require('fs');\nconst path = require('path');\n\nconst REVENUE_LOG = '/var/log/revenue_events.log';\n\nfunction logPaidEvent(details) {\n  const entry = {\n    ts: new Date().toISOString(),\n    type: 'paid',\n    ...details\n  };\n  fs.appendFileSync(REVENUE_LOG, JSON.stringify(entry) + '\\n');\n  // Also update in-memory counter via a simple file\n  const counterPath = '/tmp/paid_events_counter';\n  let count = 0;\n  try {\n    count = parseInt(fs.readFileSync(counterPath, 'utf8')) || 0;\n  } catch (e) {}\n  count++;\n  fs.writeFileSync(counterPath, String(count));\n  return count;\n}\n\nfunction getPaidEventCount() {\n  const counterPath = '/tmp/paid_events_counter';\n  try {\n    return parseInt(fs.readFileSync(counterPath, 'utf8')) || 0;\n  } catch (e) {\n    return 0;\n  }\n}\n\nmodule.exports = { logPaidEvent, getPaidEventCount };\n",
+  "proposedContentBytes": 891,
+  "note": "Envelope only — code is NOT applied. Human/CI review required before any edit."
+}

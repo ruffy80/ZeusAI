@@ -168,14 +168,14 @@ function buildEnterpriseRouter({
   router.post('/api/admin/users/:id/suspend', adminTokenMiddleware, (req, res) => {
     const u = dbModule.users.findById(req.params.id);
     if (!u) return res.status(404).json({ ok: false, error: 'user not found' });
-    try { dbModule.users.setPlanId(u.id, 'suspended'); } catch (_) {}
+    try { dbModule.users.setPlanId(u.id, 'suspended'); } catch (e) { console.error('[enterprise-router] failed to suspend user:', u.id, e.message); return res.status(500).json({ ok: false, error: 'suspend_failed', message: e.message }); }
     enterprise.audit.log({ action: 'admin.user.suspend', ip: req.ip, metadata: { adminEmail: req.admin && req.admin.email, userId: u.id } });
     res.json({ ok: true, userId: u.id, status: 'suspended' });
   });
   router.post('/api/admin/users/:id/reactivate', adminTokenMiddleware, (req, res) => {
     const u = dbModule.users.findById(req.params.id);
     if (!u) return res.status(404).json({ ok: false, error: 'user not found' });
-    try { dbModule.users.setPlanId(u.id, 'starter'); } catch (_) {}
+    try { dbModule.users.setPlanId(u.id, 'starter'); } catch (e) { console.error('[enterprise-router] failed to reactivate user:', u.id, e.message); return res.status(500).json({ ok: false, error: 'reactivate_failed', message: e.message }); }
     enterprise.audit.log({ action: 'admin.user.reactivate', ip: req.ip, metadata: { adminEmail: req.admin && req.admin.email, userId: u.id } });
     res.json({ ok: true, userId: u.id, status: 'reactivated' });
   });
@@ -312,7 +312,7 @@ window.react=async id=>{const t=$('#tok').value;await fetch('/api/admin/users/'+
 function startBackgroundWorkers({ enabled = true, sampleEveryMs = 60_000, renewEveryMs = 60 * 60_000 } = {}) {
   if (!enabled) return { stop() {} };
   const t1 = setInterval(() => {
-    try { enterprise.metrics.record({}); } catch (_) {}
+    try { enterprise.metrics.record({}); } catch (e) { console.warn('[enterprise-router] metrics record failed:', e.message); }
   }, sampleEveryMs);
   if (typeof t1.unref === 'function') t1.unref();
 
@@ -329,10 +329,10 @@ function startBackgroundWorkers({ enabled = true, sampleEveryMs = 60_000, renewE
             fs.mkdirSync(dir, { recursive: true });
             fs.writeFileSync(path.join(dir, `${s.id}.txt`),
               enterprise.subscriptions.buildInvoiceText({ ...s, lastRenewedAt: new Date().toISOString() }));
-          } catch (_) {}
+          } catch (e) { console.warn('[enterprise-router] invoice write failed for subscription:', s.id, e.message); }
         }
       }
-    } catch (_) {}
+    } catch (e) { console.error('[enterprise-router] subscription renewal cycle error:', e.message); }
   }, renewEveryMs);
   if (typeof t2.unref === 'function') t2.unref();
 

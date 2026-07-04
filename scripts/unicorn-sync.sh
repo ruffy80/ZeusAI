@@ -78,7 +78,6 @@ rsync -az --delete \
   --exclude '.env.auto-connector' \
   --exclude '.deployed-commit' \
   --exclude '.unicorn-backups/' \
-  --exclude '.vercel/' \
   --exclude 'client/build/' \
   --exclude 'client/build_mirror/' \
   --exclude 'generated/' \

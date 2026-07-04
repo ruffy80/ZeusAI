@@ -218,6 +218,17 @@
 
 const crypto = require('crypto');
 
+function loadRealitySnapshot() {
+  try {
+    const realityMetrics = require('./reality-metrics');
+    return realityMetrics && typeof realityMetrics.snapshot === 'function'
+      ? realityMetrics.snapshot()
+      : null;
+  } catch (_) {
+    return null;
+  }
+}
+
 // 🦙 Llama bridge — optional; falls back gracefully when Ollama is unavailable
 let llamaBridge;
 try { llamaBridge = require('./llamaBridge'); } catch { llamaBridge = null; }
@@ -601,10 +612,7 @@ class AutoRevenueEngine {
   // ================================================================
 
   getRevenueStatus() {
-    // Reality first — read from receipt ledger.
-    let realityMetrics;
-    try { realityMetrics = require('./reality-metrics'); } catch { realityMetrics = null; }
-    const real = realityMetrics ? realityMetrics.snapshot() : null;
+    const real = loadRealitySnapshot();
     const simulationOn = String(process.env.AUTO_REVENUE_SIMULATE || 'disabled').toLowerCase() === 'enabled';
 
     const streamDetails = Array.from(this.revenueStreams.entries()).map(([key, stream]) => ({
@@ -641,6 +649,20 @@ class AutoRevenueEngine {
   }
 
   getRevenueHistory(limit = 20) {
+    const simulationOn = String(process.env.AUTO_REVENUE_SIMULATE || 'disabled').toLowerCase() === 'enabled';
+    const real = loadRealitySnapshot();
+    if (!simulationOn && real) {
+      return {
+        totalDeals: 0,
+        totalCompleted: real.orders.paid,
+        recentDeals: [],
+        recentTransactions: (real.recentPaid || []).slice(-limit).map((t) => ({
+          transactionId: t.id || t.orderId || 'paid-order',
+          amount: Number(t.amountUsd || t.amount || 0).toFixed(2),
+          processedAt: t.paidAt || t.createdAt || new Date().toISOString(),
+        })),
+      };
+    }
     return {
       totalDeals: this.activeDeals.length,
       totalCompleted: this.completedTransactions.length,
@@ -661,6 +683,30 @@ class AutoRevenueEngine {
   }
 
   getDetailedMetrics() {
+    const simulationOn = String(process.env.AUTO_REVENUE_SIMULATE || 'disabled').toLowerCase() === 'enabled';
+    const real = loadRealitySnapshot();
+    if (!simulationOn && real) {
+      const paidUsd = Number(real.revenue && real.revenue.paidUsd || 0);
+      return {
+        totalRevenueGenerated: paidUsd,
+        activeDeals: 0,
+        completedDeals: Number(real.orders && real.orders.paid || 0),
+        totalAffiliateCommissions: 0,
+        totalMarketplaceRevenue: 0,
+        totalBillingRevenue: paidUsd,
+        revenuePerDay: 0,
+        projectedAnnualRevenue: 0,
+        totalMonthlyRevenue: paidUsd,
+        revenueStreamsBreakdown: {
+          REAL_RECEIPTS: {
+            monthly: paidUsd.toFixed(2),
+            annual: '0.00',
+            deals: Number(real.orders && real.orders.paid || 0),
+            percentage: '100.0',
+          },
+        },
+      };
+    }
     return {
       ...this.metrics,
       totalMonthlyRevenue: Array.from(this.revenueStreams.values()).reduce(

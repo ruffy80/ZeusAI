@@ -119,9 +119,15 @@ A companion script that polls a status snapshot, asks DeepSeek for one
 recommended action from the allowlist, and either logs the recommendation
 (advisory mode, default) or posts it to `/api/admin/deepseek/act` (execute mode).
 
-**Activation (2026-05-17 update — full-power one-key activation):** when the
-operator has set `DEEPSEEK_API_KEY` (or `OPENROUTER_API_KEY` / `GROQ_API_KEY` as
-a fallback advisor) as a GitHub Actions secret, `scripts/create-env.sh` now
+**Activation (2026-05-27 update — full autonomous execute mode activated):**
+All required secrets are configured: `DEEPSEEK_API_KEY`, `DEEPSEEK_LOOP_ENABLED`,
+`DEEPSEEK_LOOP_EXECUTE`, `DEEPSEEK_LOOP_ADMIN_TOKEN`, `DEEPSEEK_MODEL`. The loop
+runs in **full execute mode** — reading roadmap objectives, consuming operator
+commands, generating `code_proposal` envelopes, and updating roadmap status
+autonomously every 60s on the Hetzner server.
+
+When the operator has set `DEEPSEEK_API_KEY` (or `OPENROUTER_API_KEY` / `GROQ_API_KEY` as
+a fallback advisor) as a GitHub Actions secret, `scripts/create-env.sh`
 **auto-defaults `DEEPSEEK_LOOP_ENABLED=1`** so the systemd unit activates on
 the next deploy without requiring a second secret. If `DEEPSEEK_LOOP_ADMIN_TOKEN`
 is also present, `DEEPSEEK_LOOP_EXECUTE=1` is auto-defaulted as well. To
@@ -186,4 +192,41 @@ loop.
 explicit rejection of `write_file` / `deploy` / `git_commit`), idempotency,
 intent-only restart semantics, and the 401 denial contract for both HTTP
 endpoints.
+
+## AI Capability Layer (real, no-mock)
+
+Three persistent, dependency-light modules upgrade the AI stack beyond raw
+provider routing. All three persist to `data/` (atomic writes) and are
+git-ignored at runtime.
+
+### Semantic Memory / RAG — `backend/modules/ai-semantic-memory.js`
+Real retrieval-augmented memory: a deterministic feature-hashing embedder
+(uni-/bi-gram TF, signed hashing, L2-normalised) ranks documents by genuine
+cosine similarity, fully offline. When `EMBEDDINGS_PROVIDER=cohere|openai`
+(and the matching key is set) real API embeddings are used instead, with
+automatic fallback to the local embedder on any error.
+- `GET  /api/ai/memory/stats`
+- `GET  /api/ai/memory/search?q=…&k=5`
+- `POST /api/ai/memory/upsert` (admin) — `{ text, meta?, id? }`
+- `POST /api/ai/memory/remove` (admin) — `{ id }`
+
+### Cost Ledger — `backend/modules/ai-cost-ledger.js`
+Replaces the previously-static `costStrategy` with a live, persistent ledger.
+Every multi-router chat call records `{provider, model, task, tokens, costUsd}`.
+Budget state (`spentUsd`, `usedRatio`, `alerting`, `overBudget`) is derived
+from real current-month spend against `AI_MONTHLY_BUDGET_USD` (default 100,
+alert threshold `AI_BUDGET_ALERT_THRESHOLD`, default 0.8).
+- `GET  /api/ai/cost/summary?days=30`
+- `GET  /api/ai/cost/estimate?model=gpt-4o&tokens=1000`
+- `POST /api/ai/cost/record` (admin)
+
+### Provider Health — `backend/modules/ai-provider-health.js`
+An honest answer to "how many providers are actually usable right now?". A
+provider counts as configured only if its API key exists, is ≥ 20 chars and
+is not a placeholder — so dashboards stop reporting "15 providers" when only
+two have keys.
+- `GET /api/ai/providers/health`
+- `GET /api/ai/providers/health/probe` (optional live connectivity test)
+
+Covered by `test/ai-capability-layer.test.js` (23 checks).
 

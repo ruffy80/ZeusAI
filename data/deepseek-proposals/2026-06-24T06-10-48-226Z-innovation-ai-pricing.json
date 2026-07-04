@@ -1,0 +1,12 @@
+{
+  "schemaVersion": 1,
+  "createdAt": "2026-06-24T06:10:48.227Z",
+  "status": "pending-review",
+  "objectiveId": "innovation-ai-pricing",
+  "targetPath": "UNICORN_FINAL/backend/modules/aiPersonalizedPricing.js",
+  "riskLevel": "medium",
+  "rationale": "Implements AI-personalized pricing per visitor, a feature no competing SaaS has. Uses visitor intent and location to adjust price in real-time, increasing conversion and revenue.",
+  "proposedContent": "// AI-Personalized Pricing per Visitor\n// Dynamically adjusts pricing based on visitor behavior, location, and intent.\n// No competing SaaS offers real-time per-visitor AI pricing.\n\nconst pricingModel = require('./pricingModel');\nconst visitorProfile = require('./visitorProfile');\n\nasync function getPersonalizedPrice(visitorId, basePrice) {\n  const profile = await visitorProfile.get(visitorId);\n  let multiplier = 1.0;\n  if (profile.intentScore > 0.8) multiplier = 1.2;\n  else if (profile.intentScore < 0.3) multiplier = 0.85;\n  if (profile.location === 'emerging') multiplier *= 0.9;\n  return Math.round(basePrice * multiplier * 100) / 100;\n}\n\nmodule.exports = { getPersonalizedPrice };\n",
+  "proposedContentBytes": 691,
+  "note": "Envelope only — code is NOT applied. Human/CI review required before any edit."
+}

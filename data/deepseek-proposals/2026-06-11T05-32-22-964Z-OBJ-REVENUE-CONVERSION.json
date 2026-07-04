@@ -1,0 +1,12 @@
+{
+  "schemaVersion": 1,
+  "createdAt": "2026-06-11T05:32:22.964Z",
+  "status": "pending-review",
+  "objectiveId": "OBJ-REVENUE-CONVERSION",
+  "targetPath": "UNICORN_FINAL/backend/modules/checkout-conversion.js",
+  "riskLevel": "medium",
+  "rationale": "Brainstem directive: paidEvents still zero. This module ensures checkout flow records a paid_event to revenue system. Integrate with existing event-logger.",
+  "proposedContent": "// Checkout conversion module - ensures paid events are recorded\nconst { logEvent } = require('./event-logger');\n\nasync function processCheckout(sessionId, amount, currency) {\n  // Validate session\n  if (!sessionId || !amount) {\n    logEvent('checkout_error', { sessionId, reason: 'missing_params' });\n    return { success: false, error: 'Missing required parameters' };\n  }\n  // Record paid event\n  const event = {\n    type: 'paid_event',\n    sessionId,\n    amount,\n    currency: currency || 'USD',\n    timestamp: new Date().toISOString()\n  };\n  await logEvent('revenue_event', event);\n  return { success: true, event };\n}\n\nmodule.exports = { processCheckout };\n",
+  "proposedContentBytes": 663,
+  "note": "Envelope only — code is NOT applied. Human/CI review required before any edit."
+}

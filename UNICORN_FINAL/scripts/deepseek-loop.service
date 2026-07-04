@@ -31,6 +31,14 @@ Wants=network-online.target
 [Service]
 Type=simple
 EnvironmentFile=-/var/www/unicorn/UNICORN_FINAL/.env
+# Persistent host-level secret store (outside the release tree, survives every
+# deploy). Loaded AFTER .env so real keys here OVERRIDE any placeholder that a
+# deploy may have written into .env (e.g. your_deepseek_api_key_here when the
+# GitHub Actions secret is unset). This is the durable source of truth for the
+# DeepSeek/Groq API keys. The leading `-` makes it optional (no error if absent).
+# (RO) Store-ul persistent de chei: suprascrie placeholder-ele din .env după
+# fiecare deploy, deci cheia DeepSeek validă rămâne activă fără intervenție.
+EnvironmentFile=-/etc/zeusai/secrets/ai-keys.env
 WorkingDirectory=/var/www/unicorn/UNICORN_FINAL
 ExecStart=/usr/bin/node /var/www/unicorn/UNICORN_FINAL/scripts/deepseek-loop.js
 Restart=on-failure

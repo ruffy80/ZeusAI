@@ -123,7 +123,7 @@ const intelligenceHub = {
     const ev = { type: 'intelligence_decision', context };
     appendLedger(ev);
     guardianBus.emit('guardian:decision', ev);
-    return { ok: true, decision: 'observe', confidence: 0.5, shim: !unicornSuperIntel };
+    return { ok: true, decision: 'observe', confidence: 0.5, source: unicornSuperIntel ? 'super-intel' : 'fallback-policy', degraded: !unicornSuperIntel };
   },
 };
 
@@ -134,7 +134,7 @@ const ethicsGate = {
       if (aiDigitalEthics && typeof aiDigitalEthics.evaluate === 'function') return aiDigitalEthics.evaluate(action);
       if (aiEthics && typeof aiEthics.evaluate === 'function') return aiEthics.evaluate(action);
     } catch (_) { /* silent */ }
-    return { ok: true, approved: true, shim: true };
+    return { ok: true, approved: true, source: 'fallback-policy', degraded: true };
   },
 };
 
@@ -145,7 +145,7 @@ const crisisManager = {
     try {
       if (aiCrisisAnticipator && typeof aiCrisisAnticipator.scan === 'function') return aiCrisisAnticipator.scan();
     } catch (_) { /* silent */ }
-    return { ok: true, level: 'green', threats: [], shim: true };
+    return { ok: true, level: 'green', threats: [], source: 'fallback-local', degraded: true };
   },
 };
 
@@ -168,7 +168,7 @@ const securityMesh = {
     try {
       if (securityScanner && typeof securityScanner.scan === 'function') return securityScanner.scan();
     } catch (_) { /* silent */ }
-    return { ok: true, vulnerabilities: [], shim: true };
+    return { ok: true, vulnerabilities: [], source: 'fallback-local', degraded: true };
   },
 };
 
@@ -187,7 +187,7 @@ const legalMesh = {
     try {
       if (blockchainAudit && typeof blockchainAudit.audit === 'function') return blockchainAudit.audit(entity);
     } catch (_) { /* silent */ }
-    return { ok: true, audit: 'pass', shim: true };
+    return { ok: true, audit: 'pass', source: 'fallback-policy', degraded: true };
   },
 };
 

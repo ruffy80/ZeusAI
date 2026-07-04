@@ -1,0 +1,12 @@
+{
+  "schemaVersion": 1,
+  "createdAt": "2026-06-24T07:53:54.797Z",
+  "status": "pending-review",
+  "objectiveId": "revenue-conversion-fix",
+  "targetPath": "UNICORN_FINAL/backend/modules/checkoutConversion.js",
+  "riskLevel": "medium",
+  "rationale": "Brainstem directive: paidEvents zero. Ensure checkout flow calls revenueAutopilot.logRevenueEvent on successful payment to increment paidEvents counter.",
+  "proposedContent": "// Checkout conversion fix: ensure paidEvents increment on successful payment\nconst { logRevenueEvent } = require('./revenueAutopilot');\n\nmodule.exports = async function processCheckout(session) {\n  // ... existing checkout logic ...\n  if (session.paymentSuccess) {\n    await logRevenueEvent({ type: 'paid', amount: session.amount });\n    // additional conversion tracking\n  }\n  return { status: 'ok' };\n};",
+  "proposedContentBytes": 406,
+  "note": "Envelope only — code is NOT applied. Human/CI review required before any edit."
+}

@@ -1,0 +1,12 @@
+{
+  "schemaVersion": 1,
+  "createdAt": "2026-06-24T04:41:38.109Z",
+  "status": "pending-review",
+  "objectiveId": "revenue-conversion-fix",
+  "targetPath": "UNICORN_FINAL/backend/modules/checkout-conversion-fix.js",
+  "riskLevel": "medium",
+  "rationale": "paidEvents remains zero despite 61 revenue runs. This module adds explicit conversion tracking on successful payment, writing to a counter file and log. Integrate with checkout webhook to call trackConversion on paid orders.",
+  "proposedContent": "// Checkout conversion fix: ensure paidEvents increments on successful payment\n// This module intercepts the checkout completion webhook and forces conversion tracking\n\nconst fs = require('fs');\nconst path = require('path');\n\nconst REVENUE_LOG = '/var/log/revenue_events.log';\n\nfunction trackConversion(event) {\n  if (!event || !event.paid) return;\n  const entry = {\n    ts: new Date().toISOString(),\n    type: 'paidEvent',\n    amount: event.amount || 0,\n    currency: event.currency || 'USD',\n    orderId: event.orderId || 'unknown'\n  };\n  fs.appendFileSync(REVENUE_LOG, JSON.stringify(entry) + '\\n');\n  // Also update in-memory counter via a simple file-based counter\n  const counterPath = '/tmp/paid_events_counter';\n  let count = 0;\n  try {\n    count = parseInt(fs.readFileSync(counterPath, 'utf8')) || 0;\n  } catch (e) {}\n  count++;\n  fs.writeFileSync(counterPath, count.toString());\n  console.log('[CheckoutFix] Tracked paid event:', entry);\n}\n\n// Hook into checkout completion (assumes event emitter or webhook)\n// This is a placeholder — integrate with actual payment gateway callback\nmodule.exports = { trackConversion };\n",
+  "proposedContentBytes": 1133,
+  "note": "Envelope only — code is NOT applied. Human/CI review required before any edit."
+}

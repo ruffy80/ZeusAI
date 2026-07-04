@@ -89,6 +89,26 @@ async function run() {
       assert.equal(r.status, 200, `${path} should return 200`);
     }
 
+    // /services must serve the v2 SSR storefront: real server-rendered product
+    // cards (USD + BTC + schema.org Product) — never the empty client-only
+    // grid. Golden rule: ≥ 1 SSR card with a price in the raw HTML.
+    // RO: vitrina trebuie să aibă carduri reale în HTML, nu doar hidratare JS.
+    {
+      const svc = await request('/services');
+      const cardCount = (svc.text.match(/data-product-id=/g) || []).length;
+      assert.ok(cardCount >= 1, `/services must SSR >= 1 product card (got ${cardCount})`);
+      assert.ok(svc.text.includes('itemtype="https://schema.org/Product"'), '/services must include schema.org Product markup');
+      assert.ok(/data-pricing-value=/.test(svc.text), '/services must include live pricing hooks');
+      console.log(`[ok] /services SSR renders ${cardCount} product cards with schema.org + pricing hooks`);
+
+      // Legacy deep-link compat: /services?buy=<id> → 302 /checkout/?plan=<id>
+      const buyRes = await fetch(base + '/services?buy=adaptive-ai', { redirect: 'manual' });
+      assert.equal(buyRes.status, 302, '/services?buy= should redirect to checkout');
+      const loc = String(buyRes.headers.get('location') || '');
+      assert.ok(loc.startsWith('/checkout/?plan=adaptive-ai'), `redirect target should be checkout (got ${loc})`);
+      console.log('[ok] /services?buy=<id> redirects to /checkout/?plan=<id>');
+    }
+
     const routeExpectations = {
       '/terms': 'Terms of Service — ZEUSAI',
       '/privacy': 'Privacy Policy — ZEUSAI',
@@ -126,11 +146,14 @@ async function run() {
     assert.equal(integrity.status, 200, '/.well-known/unicorn-integrity.json should return 200');
     assert.equal(integrity.body.alg, 'Ed25519');
 
-    for (const path of ['/api/trust/center', '/api/operator/console', '/api/observability/status', '/api/secret-sync/status', '/api/payments/config/status', '/api/security/pq/status', '/api/commerce/protocol', '/api/innovation/coverage', '/api/checkout/synthetic-probe', '/api/capability/credential/smoke']) {
+    for (const path of ['/api/trust/center', '/api/observability/status', '/api/secret-sync/status', '/api/payments/config/status', '/api/security/pq/status', '/api/commerce/protocol', '/api/innovation/coverage', '/api/checkout/synthetic-probe', '/api/capability/credential/smoke']) {
       const r = await request(path);
       assert.equal(r.status, 200, `${path} should return 200`);
       assert.equal(r.body.ok, true, `${path} should return ok:true`);
     }
+
+    const operatorConsolePublic = await request('/api/operator/console');
+    assert.equal(operatorConsolePublic.status, 401, '/api/operator/console should require admin auth on public surface');
 
     const paymentStatus = await request('/api/payments/config/status');
     assert.equal(paymentStatus.body.primaryRail, 'btc-direct');

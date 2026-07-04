@@ -5,7 +5,7 @@
 Your Unicorn platform is now **fully autonomous, self-sustaining, and production-ready**. 
 
 **What This Means:**
-- ✅ Platform auto-deploys every 5 minutes (GitHub → Vercel → Hetzner)
+- ✅ Platform auto-deploys every 5 minutes (GitHub → Hetzner → Hetzner)
 - ✅ Platform generates new features autonomously every 60 seconds
 - ✅ Platform generates revenue autonomously every 30 seconds
 - ✅ Platform self-heals and optimizes based on performance
@@ -21,7 +21,7 @@ Your Unicorn platform is now **fully autonomous, self-sustaining, and production
 Continuously generates new product features:
 - Generates 1-2 new features per minute
 - Auto-evaluates based on confidence, impact, feasibility
-- Auto-deploys to Vercel when approved
+- Auto-deploys to Hetzner when approved
 - Self-optimizes generation rate based on success
 - Tracks: 5 innovation types (API, Security, Performance, Features, Data)
 
@@ -55,7 +55,7 @@ Master control system that coordinates everything:
 **Deployment Cycle (every 5 minutes):**
 - Auto-commits changes to Git
 - Pushes to GitHub main branch
-- Triggers Vercel build
+- Triggers Hetzner build
 - Deploys to Hetzner via SSH
 - Runs health checks
 
@@ -121,11 +121,11 @@ Master control system that coordinates everything:
 
 ### 6. **GitHub Actions Enhancement**
 
-`.github/workflows/vercel-deploy.yml` now includes:
+`.github/workflows/hetzner-deploy.yml` now includes:
 
 **Deployment Jobs:**
 1. Validate (lint + test)
-2. Deploy to Vercel
+2. Deploy to Hetzner
 3. Deploy to Hetzner
 4. Autonomous Innovation Job (triggers innovation)
 5. Autonomous Revenue Job (triggers revenue)
@@ -204,7 +204,7 @@ node autonomous-orchestrator.js &
 - First deployment cycle
 - Commits to Git
 - Pushes to GitHub
-- Vercel builds
+- Hetzner builds
 - Hetzner deploys
 
 ### Then... (Continuously)
@@ -220,7 +220,7 @@ node autonomous-orchestrator.js &
 
 **Every 5 minutes:**
 - Full deployment cycle
-- GitHub → Vercel → Hetzner
+- GitHub → Hetzner → Hetzner
 
 ---
 
@@ -343,7 +343,7 @@ AUTONOMY_LEVEL=5             # Balanced autonomy
 - Autonomous deal negotiation
 
 ✅ **Self-Deploying**
-- GitHub → Vercel → Hetzner pipeline
+- GitHub → Hetzner → Hetzner pipeline
 - Automated every 5 minutes
 - Fallback mechanisms included
 
@@ -421,7 +421,7 @@ To enable automatic pushing to GitHub:
 3. System will auto-push every deployment cycle
 
 ### Custom GitHub Actions
-To add more automation, edit `.github/workflows/vercel-deploy.yml`:
+To add more automation, edit `.github/workflows/hetzner-deploy.yml`:
 - Add custom jobs for notifications
 - Integrate with monitoring systems
 - Add custom analytics triggers
@@ -448,7 +448,7 @@ UNICORN_FINAL/
 ├── QUICKSTART-AUTONOMOUS.sh ⭐ NEW
 ├── AUTONOMOUS-UNICORN.md ⭐ NEW
 ├── .github/workflows/
-│   └── vercel-deploy.yml (enhanced with autonomous jobs)
+│   └── hetzner-deploy.yml (enhanced with autonomous jobs)
 └── [other directories]
 ```
 

@@ -1,0 +1,12 @@
+{
+  "schemaVersion": 1,
+  "createdAt": "2026-06-11T05:55:08.625Z",
+  "status": "pending-review",
+  "objectiveId": "OBJ-REVENUE-CONVERSION",
+  "targetPath": "UNICORN_FINAL/backend/modules/conversionOffer.js",
+  "riskLevel": "medium",
+  "rationale": "Brainstem directive: paidEvents zero. Inject conversion offer into checkout flow to increase conversion rate.",
+  "proposedContent": "// Conversion offer logic: when paidEvents is zero, inject a discount offer into checkout\nmodule.exports = function conversionOffer(req, res, next) {\n  if (req.path === '/api/checkout' && req.method === 'POST') {\n    // Add a 10% discount offer to the response\n    const originalJson = res.json.bind(res);\n    res.json = function(body) {\n      if (body && typeof body === 'object') {\n        body.offer = { discount: 10, message: 'Complete your purchase now and save 10%!' };\n      }\n      return originalJson(body);\n    };\n  }\n  next();\n};\n",
+  "proposedContentBytes": 541,
+  "note": "Envelope only — code is NOT applied. Human/CI review required before any edit."
+}

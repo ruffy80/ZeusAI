@@ -1,0 +1,64 @@
+name: 🛰️ Live Autopilot Watchdog
+
+on:
+  workflow_run:
+    workflows: ["🚀 Unicorn Stable Deploy"]
+    types: [completed]
+  schedule:
+    - cron: '*/20 * * * *'
+  workflow_dispatch:
+
+concurrency:
+  group: live-autopilot-watchdog
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  actions: write
+
+jobs:
+  verify-live:
+    if: ${{ github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - name: 📥 Checkout
+        uses: actions/checkout@v5
+
+      - name: ✅ Run live smoke checks
+        id: verify
+        continue-on-error: true
+        run: |
+          set +e
+          bash scripts/live-smoke.sh
+          rc_smoke=$?
+          bash scripts/live-contract-check.sh
+          rc_contract=$?
+          set -e
+
+          if [ "$rc_smoke" -eq 0 ] && [ "$rc_contract" -eq 0 ]; then
+            echo "failed=false" >> "$GITHUB_OUTPUT"
+            echo "✅ live smoke + contract checks passed"
+          else
+            echo "failed=true" >> "$GITHUB_OUTPUT"
+            echo "❌ verification failed (smoke=$rc_smoke, contract=$rc_contract)"
+          fi
+
+      - name: 🩺 Auto-dispatch Diagnose & Repair
+        if: ${{ steps.verify.outputs.failed == 'true' }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+        run: |
+          curl -fsS -X POST \
+            -H "Authorization: Bearer ${GH_TOKEN}" \
+            -H "Accept: application/vnd.github+json" \
+            "https://api.github.com/repos/${REPO}/actions/workflows/diagnose-and-repair.yml/dispatches" \
+            -d '{"ref":"main","inputs":{"do_repair":true}}'
+          echo "✅ diagnose-and-repair workflow dispatched"
+
+      - name: 🚨 Mark watchdog failed when checks fail
+        if: ${{ steps.verify.outputs.failed == 'true' }}
+        run: |
+          echo "Live verification failed and auto-repair was dispatched."
+          exit 1

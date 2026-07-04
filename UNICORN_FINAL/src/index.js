@@ -400,6 +400,11 @@ if (process.env.TOPOLOGY_ENDPOINT_DISABLED !== '1') {
 let _abTesting = null;
 try { _abTesting = require('./site/ab-testing'); } catch (_) {}
 if (_abTesting) {
+  // Default website experiment (idempotent): conversion-oriented hero copy.
+  // Forward-safe: if already registered, registerExperiment throws and we ignore.
+  try {
+    _abTesting.registerExperiment({ id: 'home-hero-v1', variants: ['control', 'valueproof'], metric: 'checkout_intent' });
+  } catch (_) {}
   app.get('/api/ab/experiments', (req, res) => {
     res.setHeader('Cache-Control', 'no-store');
     res.json({ experiments: _abTesting.listExperiments() });
@@ -660,12 +665,60 @@ const SITE_FALLBACK_MOCKS = {
     source: 'site-fallback-mock'
   }
 };
+
+// ==================== SITE-PROXY CIRCUIT BREAKER ====================
+// Prevents cascading 502s when backend is restarting or unresponsive.
+// States: CLOSED (normal) → OPEN (all requests short-circuit to fallback) → HALF_OPEN (probe one request).
+// Opens after THRESHOLD consecutive failures; closes on first successful probe.
+const _siteProxyCB = {
+  state: 'CLOSED',     // CLOSED | OPEN | HALF_OPEN
+  failures: 0,
+  lastFailTs: 0,
+  lastSuccessTs: Date.now(),
+  threshold: Number(process.env.SITE_PROXY_CB_THRESHOLD || 3),
+  cooldownMs: Number(process.env.SITE_PROXY_CB_COOLDOWN_MS || 10000), // 10s before probe
+  tripped: 0,          // total times opened
+};
+function _cbRecordSuccess() {
+  _siteProxyCB.failures = 0;
+  _siteProxyCB.lastSuccessTs = Date.now();
+  if (_siteProxyCB.state !== 'CLOSED') {
+    _siteProxyCB.state = 'CLOSED';
+    console.log('[site-proxy-cb] Circuit CLOSED — backend recovered');
+  }
+}
+function _cbRecordFailure() {
+  _siteProxyCB.failures++;
+  _siteProxyCB.lastFailTs = Date.now();
+  if (_siteProxyCB.state === 'HALF_OPEN') {
+    _siteProxyCB.state = 'OPEN';
+    _siteProxyCB.tripped++;
+    console.warn('[site-proxy-cb] Circuit OPEN — probe failed, re-opening');
+  } else if (_siteProxyCB.state === 'CLOSED' && _siteProxyCB.failures >= _siteProxyCB.threshold) {
+    _siteProxyCB.state = 'OPEN';
+    _siteProxyCB.tripped++;
+    console.warn('[site-proxy-cb] Circuit OPEN — backend unreachable after ' + _siteProxyCB.failures + ' failures');
+  }
+}
+function _cbShouldAllow() {
+  if (_siteProxyCB.state === 'CLOSED') return true;
+  if (_siteProxyCB.state === 'OPEN') {
+    if ((Date.now() - _siteProxyCB.lastFailTs) >= _siteProxyCB.cooldownMs) {
+      _siteProxyCB.state = 'HALF_OPEN';
+      return true; // allow one probe
+    }
+    return false;
+  }
+  // HALF_OPEN — already allowing one probe
+  return true;
+}
+
 function siteProxyToUnicorn(routePath, opts) {
   const method = (opts && opts.method) || 'GET';
   return async (req, res) => {
     const backendUrl = process.env.BACKEND_API_URL;
     const fallback = SITE_FALLBACK_MOCKS[routePath];
-    if (backendUrl) {
+    if (backendUrl && _cbShouldAllow()) {
       const controller = new AbortController();
       const timer = setTimeout(() => controller.abort(), SITE_PROXY_TIMEOUT_MS);
       try {
@@ -687,18 +740,22 @@ function siteProxyToUnicorn(routePath, opts) {
         const r = await fetch(target, init);
         clearTimeout(timer);
         if (r.ok) {
+          _cbRecordSuccess();
           const data = await r.json();
           return res.json(data);
         }
+        _cbRecordFailure();
         console.warn('[site-proxy] ' + method + ' ' + routePath + ' upstream ' + r.status + ' → fallback mock');
       } catch (err) {
         clearTimeout(timer);
+        _cbRecordFailure();
         console.warn('[site-proxy] ' + method + ' ' + routePath + ' failed: ' + (err && err.message) + ' → fallback mock');
       }
-    } else {
+    } else if (!backendUrl) {
       console.warn('[site-proxy] BACKEND_API_URL not set, serving mock for ' + routePath);
     }
-    res.set('X-Source', 'site-fallback-mock');
+    // Circuit is OPEN or backend failed — serve fallback instantly
+    res.set('X-Source', _siteProxyCB.state === 'OPEN' ? 'site-circuit-breaker' : 'site-fallback-mock');
     return res.json(fallback);
   };
 }
@@ -768,80 +825,73 @@ app.get('/api/pricing/module/:moduleId', async (req, res) => {
 // Dynamic per-service pricing — proxies to Unicorn /api/pricing/:serviceId so
 // the public site shows live prices. No mock fallback for unknown services;
 // returns the raw upstream JSON when reachable, otherwise a stable shape.
-app.get('/api/pricing/:serviceId', async (req, res) => {
-  const serviceId = String(req.params.serviceId || '').slice(0, 80);
-  // Helper: look up the canonical catalog floor for this id across the three
-  // catalogs the site already loads. Used both as a fallback when the backend
-  // is unreachable AND as a corrective override when the backend's engine
-  // returned its generic $99 default for an id it doesn't yet know about.
-  function _catalogBaseFor(id) {
-    const probe = (mod) => {
-      if (!mod) return null;
-      try {
-        if (typeof mod.byId === 'function') {
-          const it = mod.byId(id);
-          if (it) return Number(it.priceUSD != null ? it.priceUSD : it.price);
-        }
-        if (typeof mod.all === 'function') {
-          const arr = mod.all() || [];
-          const it = arr.find(x => x && x.id === id);
-          if (it) return Number(it.priceUSD != null ? it.priceUSD : it.price);
-        }
-      } catch (_) {}
-      return null;
-    };
-    return probe(unifiedCatalog) || probe(instantCatalog) || probe(entCatalog) || null;
-  }
-  function _recomputeWithRealBase(upstream, realBase) {
-    // Reverse-derive the engine multipliers from the upstream response and
-    // apply them to the catalog's real floor. The engine returns
-    // demandFactor (effective = global × per-service variance) and surgeActive,
-    // so the multiplier is upstream.price_usd / upstream.basePrice for the
-    // discount/surge/peak combination already baked in. We replay it on
-    // the real base so the rendered USD/BTC numbers are dynamic but anchored
-    // to the catalog's intended floor.
+//
+// PRICE COHERENCE BY CONSTRUCTION (2026-06): the resolution pipeline below is
+// extracted into quotePublicPricing() and shared by BOTH this public route
+// AND the sovereign-commerce checkout (ctx.canonicalUsd). One code path → the
+// card, /pricing and the BTC invoice can never disagree. (RO: o singură
+// funcție decide prețul public; checkout-ul o refolosește identic.)
+function _catalogBaseForPricing(id) {
+  const probe = (mod) => {
+    if (!mod) return null;
     try {
-      const upstreamBase = Number(upstream.basePrice);
-      const upstreamPrice = Number(upstream.price_usd);
-      if (!(upstreamBase > 0) || !(upstreamPrice > 0)) return upstream;
-      const multiplier = upstreamPrice / upstreamBase;
-      const realFinal = Math.round(realBase * multiplier * 100) / 100;
-      const out = Object.assign({}, upstream, {
-        basePrice: realBase,
-        price_usd: realFinal,
-        finalPrice: realFinal,
-        source: (upstream.source || 'dynamic-pricing') + '-catalog-seeded',
-      });
-      if (upstream.btcRate && upstream.btcRate > 0) {
-        out.price_btc = Number((realFinal / upstream.btcRate).toFixed(8));
+      if (typeof mod.byId === 'function') {
+        const it = mod.byId(id);
+        if (it) return Number(it.priceUSD != null ? it.priceUSD : it.price);
       }
-      return out;
-    } catch (_) { return upstream; }
-  }
+      if (typeof mod.all === 'function') {
+        const arr = mod.all() || [];
+        const it = arr.find(x => x && x.id === id);
+        if (it) return Number(it.priceUSD != null ? it.priceUSD : it.price);
+      }
+    } catch (_) {}
+    return null;
+  };
+  return probe(unifiedCatalog) || probe(instantCatalog) || probe(entCatalog) || null;
+}
+function _recomputePricingWithRealBase(upstream, realBase) {
+  // Reverse-derive the engine multipliers from the upstream response and
+  // apply them to the catalog's real floor, so rendered numbers stay dynamic
+  // but anchored to the intended floor.
+  try {
+    const upstreamBase = Number(upstream.basePrice);
+    const upstreamPrice = Number(upstream.price_usd);
+    if (!(upstreamBase > 0) || !(upstreamPrice > 0)) return upstream;
+    const multiplier = upstreamPrice / upstreamBase;
+    const realFinal = Math.round(realBase * multiplier * 100) / 100;
+    const out = Object.assign({}, upstream, {
+      basePrice: realBase,
+      price_usd: realFinal,
+      finalPrice: realFinal,
+      source: (upstream.source || 'dynamic-pricing') + '-catalog-seeded',
+    });
+    if (upstream.btcRate && upstream.btcRate > 0) {
+      out.price_btc = Number((realFinal / upstream.btcRate).toFixed(8));
+    }
+    return out;
+  } catch (_) { return upstream; }
+}
+async function quotePublicPricing(serviceId, query) {
   const backendUrl = process.env.BACKEND_API_URL;
   if (backendUrl) {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), SITE_PROXY_TIMEOUT_MS);
     try {
-      const qp = new URLSearchParams(req.query || {}).toString();
+      const qp = new URLSearchParams(query || {}).toString();
       const target = backendUrl.replace(/\/$/, '') + '/api/pricing/' + encodeURIComponent(serviceId) + (qp ? ('?' + qp) : '');
       const r = await fetch(target, { headers: { Accept: 'application/json' }, signal: controller.signal });
       clearTimeout(timer);
       if (r.ok) {
         const upstream = await r.json();
-        // If the backend returned the engine's generic default (it doesn't
-        // know this id), correct it locally so the site never shows a wrong
-        // price for any catalog item — even if the backend hasn't been
-        // restarted with the seeding patch yet.
-        const realBase = _catalogBaseFor(serviceId);
+        const realBase = _catalogBaseForPricing(serviceId);
         if (realBase && (
           (upstream.source && /default/i.test(upstream.source)) ||
           (upstream.baseSource === 'fallback-default') ||
           (Number(upstream.basePrice) === 99 && realBase !== 99)
         )) {
-          return res.json(_recomputeWithRealBase(upstream, realBase));
+          return { payload: _recomputePricingWithRealBase(upstream, realBase), headerSource: null };
         }
-        return res.json(upstream);
+        return { payload: upstream, headerSource: null };
       }
       console.warn('[site-proxy] /api/pricing/' + serviceId + ' upstream ' + r.status);
     } catch (err) {
@@ -849,46 +899,54 @@ app.get('/api/pricing/:serviceId', async (req, res) => {
       console.warn('[site-proxy] /api/pricing/' + serviceId + ' failed: ' + (err && err.message));
     }
   }
-  // Backend unreachable — fall back to a local computation if we have the
-  // catalog floor, else return a static-fallback shape (keeps the contract
-  // stable but never invents a wrong concrete number for catalog items).
-  const realBase = _catalogBaseFor(serviceId);
+  // Backend unreachable — local computation anchored to the catalog floor.
+  const realBase = _catalogBaseForPricing(serviceId);
   if (realBase) {
     try {
       const dp = require('../backend/modules/dynamic-pricing');
       const live = dp.getPrice(serviceId, { basePrice: realBase });
-      res.set('X-Source', 'site-local-pricing');
-      return res.json({
-        serviceId,
-        price_usd: live.finalPrice,
-        price_btc: null,
-        currency: 'USD',
-        interval: 'month',
-        negotiated: false,
-        timestamp: new Date().toISOString(),
-        basePrice: live.basePrice,
-        finalPrice: live.finalPrice,
-        demandFactor: live.demandFactor,
-        peakHours: live.peakHours,
-        surgeActive: live.surgeActive,
-        discountApplied: live.discountApplied,
-        source: 'site-local-pricing-catalog-seeded',
-      });
+      return {
+        headerSource: 'site-local-pricing',
+        payload: {
+          serviceId,
+          price_usd: live.finalPrice,
+          price_btc: null,
+          currency: 'USD',
+          interval: 'month',
+          negotiated: false,
+          timestamp: new Date().toISOString(),
+          basePrice: live.basePrice,
+          finalPrice: live.finalPrice,
+          demandFactor: live.demandFactor,
+          peakHours: live.peakHours,
+          surgeActive: live.surgeActive,
+          discountApplied: live.discountApplied,
+          source: 'site-local-pricing-catalog-seeded',
+        }
+      };
     } catch (_) { /* fall through to mock */ }
   }
-  res.set('X-Source', 'site-fallback-mock');
   const negotiated = /enterprise|global|giants|tier/i.test(serviceId);
-  res.json({
-    serviceId,
-    price_usd: realBase || 99,
-    price_btc: null,
-    currency: 'USD',
-    interval: 'month',
-    negotiated,
-    timestamp: new Date().toISOString(),
-    source: realBase ? 'site-fallback-catalog' : 'site-fallback-mock',
-    note: realBase ? 'Backend unreachable — using catalog floor.' : 'Backend unreachable — fallback pricing active.',
-  });
+  return {
+    headerSource: 'site-fallback-mock',
+    payload: {
+      serviceId,
+      price_usd: realBase || 99,
+      price_btc: null,
+      currency: 'USD',
+      interval: 'month',
+      negotiated,
+      timestamp: new Date().toISOString(),
+      source: realBase ? 'site-fallback-catalog' : 'site-fallback-mock',
+      note: realBase ? 'Backend unreachable — using catalog floor.' : 'Backend unreachable — fallback pricing active.',
+    }
+  };
+}
+app.get('/api/pricing/:serviceId', async (req, res) => {
+  const serviceId = String(req.params.serviceId || '').slice(0, 80);
+  const { payload, headerSource } = await quotePublicPricing(serviceId, req.query);
+  if (headerSource) res.set('X-Source', headerSource);
+  return res.json(payload);
 });
 // Autoviralization — read-only status proxies are public; the trigger POST
 // is admin-gated by the backend (adminTokenMiddleware on /api/autonomous/viral/trigger
@@ -922,7 +980,8 @@ try { require('./../backend/modules/recovery-orchestrator'); } catch (e) { conso
 // === Self-documenting API /api/docs ===
 const apiDocs = require('./../backend/modules/api-docs');
 app.get('/api/docs', (req, res) => {
-  const routes = apiDocs.extractRoutes(app);
+  const privateRoute = (r) => /\/api\/(admin|operator|autonomy|brain\/autonomy|internal|deepseek|observability)/.test(String(r || ''));
+  const routes = (apiDocs.extractRoutes(app) || []).filter((r) => !privateRoute(r));
   res.setHeader('Content-Type', 'text/html');
   res.send(apiDocs.docsHtml(routes));
 });
@@ -1390,6 +1449,41 @@ function __continueDispatch(req, res, method, earlyPath) {
     // bypass (which carries hundreds of /api/* mutation routes).
     applySiteTopologyHeaders(req, res);
     if (applySiteWriteGuard(req, res, earlyPath, method)) return; // 503 enforced
+    // ── HTML build-attestation universal hook ─────────────────────────────
+    // Wrap res.end ONCE per request so any response that ends up being HTML
+    // (text/html Content-Type) gets the Ed25519 attestation meta injected
+    // automatically — works across every render path (v2 shell, legacy
+    // renderPage, sovereign portal, etc.) without per-handler wiring.
+    // Skipped for HEAD, non-2xx, and non-HTML responses. Non-fatal.
+    try {
+      if (!res.__zeusAttestPatched) {
+        res.__zeusAttestPatched = true;
+        const __origEnd = res.end.bind(res);
+        res.end = function (chunk, encoding, cb) {
+          try {
+            const ct = String(res.getHeader('Content-Type') || '').toLowerCase();
+            const sc = res.statusCode || 200;
+            if (method !== 'HEAD' && sc >= 200 && sc < 300 && ct.includes('text/html') && chunk && !res.__zeusAttested) {
+              const buf = Buffer.isBuffer(chunk) ? chunk : Buffer.from(String(chunk), encoding || 'utf8');
+              const html = buf.toString('utf8');
+              if (html.length > 64 && /<head[^>]*>/i.test(html) && !/x-zeus-attestation/i.test(html.slice(0, 4096))) {
+                const fe = require('./frontier-engine');
+                if (fe && typeof fe.attestHtml === 'function') {
+                  const signed = fe.attestHtml(html, { build: (typeof ZEUS_BUILD !== 'undefined' && ZEUS_BUILD && ZEUS_BUILD.sha) || process.env.ZEUS_BUILD_SHA || '' });
+                  if (signed && signed !== html) {
+                    res.__zeusAttested = true;
+                    const out = Buffer.from(signed, 'utf8');
+                    if (res.getHeader('Content-Length')) res.setHeader('Content-Length', out.length);
+                    return __origEnd(out, cb);
+                  }
+                }
+              }
+            }
+          } catch (_) { /* attestation must never break a response */ }
+          return __origEnd(chunk, encoding, cb);
+        };
+      }
+    } catch (_) {}
     // ── Predictive prefetch: record same-origin transition + emit 103 Early
     // Hints for navigable GET HTML requests. Best-effort, never throws, runs
     // before any handler so the 103 frame goes out while we render.
@@ -1546,6 +1640,14 @@ function shouldProxyBeforeExpress(pathname, method) {
   if (!pathname.startsWith('/api/') || ['GET', 'HEAD', 'OPTIONS'].includes(method)) return false;
   if (SITE_OWNED_MUTATIONS.includes(pathname)) return false;
   if (EXPRESS_OWNED_MUTATIONS.has(pathname)) return false;
+  // Passwordless auth (/api/cryptoauth/*) is handled LOCALLY by this process via
+  // the cryptoauth dispatcher in unicornHandler. The challenge store is now
+  // cross-process durable (data/cryptoauth/challenges.json), so the resilient
+  // site cluster can serve register/challenge/login/recover/logout directly
+  // instead of funnelling every account operation through the single backend
+  // fork — which previously turned any backend restart into a hard
+  // "server not responding" for all account flows. Never proxy these away.
+  if (pathname.startsWith('/api/cryptoauth/')) return false;
   return true;
 }
 const APP_URL = process.env.PUBLIC_APP_URL || 'https://zeusai.pro';
@@ -1575,6 +1677,64 @@ function clampUsdPrice(value, context) {
     logTransactionEvent('pricing_clamped', { raw: safe, clamped, context: context || null, min: 1, max: 10000000 });
   }
   return Math.round(clamped * 100) / 100;
+}
+
+// ── Canonical, server-authoritative price (RO: prețul oficial calculat pe server) ──
+// SINGLE source of truth shared by the storefront (/api/catalog, /api/pricing)
+// AND every order endpoint, so the amount actually charged ALWAYS equals the
+// price the buyer saw for that exact service. This closes the class of bugs
+// where the card shows $500,000 but the BTC invoice came out at ~$70 (the
+// client-supplied / URL amount was trusted blindly). For any KNOWN product the
+// client amount is ignored entirely; only unknown/custom ids fall back to a
+// clamped client value.
+const CANONICAL_CORE_PLANS = {
+  free: 0, starter: 29, pro: 99, enterprise: 499,
+  'api-call': 0.01, 'ai-analysis': 5, 'wealth-engine': 199, 'legal-bot': 49,
+  'cloud-broker': 79, 'data-export': 9, sme: 199, 'mid-market': 1499,
+  'enterprise-tier': 9999, 'global-giants': 99999,
+};
+// Resolve the catalog FLOOR price (USD) for a service id across the canonical
+// commerce catalogs and the fixed core-plan table. Returns null for ids that
+// are not real, sellable products (e.g. internal engine modules).
+function canonicalBaseForService(serviceId) {
+  const id = String(serviceId || '').trim();
+  if (!id || id === 'custom') return null;
+  const probe = (mod) => {
+    if (!mod || typeof mod.byId !== 'function') return null;
+    try {
+      const it = mod.byId(id);
+      if (it) {
+        const n = Number(it.priceUSD != null ? it.priceUSD : it.price);
+        return Number.isFinite(n) ? n : null;
+      }
+    } catch (_) {}
+    return null;
+  };
+  const fromCatalog = probe(instantCatalog);
+  if (fromCatalog != null) return fromCatalog;
+  const fromEnt = probe(entCatalog);
+  if (fromEnt != null) return fromEnt;
+  const fromUnified = probe(unifiedCatalog);
+  if (fromUnified != null) return fromUnified;
+  if (Object.prototype.hasOwnProperty.call(CANONICAL_CORE_PLANS, id)) return CANONICAL_CORE_PLANS[id];
+  return null;
+}
+// Returns the live USD price for a KNOWN product applying the same
+// dynamic-pricing the storefront displays; null for unknown/custom ids so the
+// caller can decide a safe fallback. Never throws.
+function resolveCanonicalUsd(serviceId) {
+  const base = canonicalBaseForService(serviceId);
+  if (base == null) return null;
+  if (!(base > 0)) return 0; // free tier
+  try {
+    const dp = require('../backend/modules/dynamic-pricing');
+    if (dp && typeof dp.getPrice === 'function') {
+      const live = dp.getPrice(String(serviceId).trim(), { basePrice: base });
+      const f = Number(live && live.finalPrice);
+      if (Number.isFinite(f) && f > 0) return clampUsdPrice(f, { source: 'canonical-dynamic', serviceId });
+    }
+  } catch (_) { /* fall through to floor */ }
+  return clampUsdPrice(base, { source: 'canonical-base', serviceId });
 }
 
 function fallbackUsdForService(service) {
@@ -1956,49 +2116,114 @@ function getSiteFallbackModuleRegistry() {
 async function buildMasterCatalog() {
   const usdPerBtc = await getBtcUsdSpot().catch(() => 95000);
   if (process.env.BACKEND_API_URL) await refreshBackendRuntimeState(true).catch(() => {});
+
+  // ── CANONICAL PUBLIC CATALOG (2026-05-29 cleanup) ─────────────────────────
+  // The storefront contract guarantees a curated 3-tier catalogue
+  // (instant | professional | enterprise). We source it from unified-catalog
+  // (which itself merges instant-catalog + enterprise-catalog + a capped slice
+  // of real runtime services), so /api/products, /api/catalog, /services,
+  // /pricing and the homepage all show the SAME real, differentiated products.
+  //
+  // DELIBERATELY EXCLUDED (this was the bug the owner flagged): the ~185
+  // internal engine modules (resource-monitor, deepseek-governor, circuit-
+  // breaker…), the auto-packaged "UNICORN-AUTO-MODULE" services, the 144
+  // near-identical "Adaptive Pool / Engine Pool" clones, the Romanian
+  // placeholder "Serviciu AI avansat pentru…" cards, and speculative
+  // "future-invention" primitives. None of those are real deliverables a
+  // customer should be able to buy, and they destroyed trust + SEO.
+  // Bilingual note (RO): catalog public = doar produse reale, 3 niveluri.
   const sources = getRuntimeDataSources();
+
+  // Canonical 3-tier storefront (instant | professional | enterprise) from
+  // unified-catalog — the curated, real, differentiated core (25 products).
+  let canonical = [];
+  try {
+    if (unifiedCatalog && typeof unifiedCatalog.all === 'function') canonical = unifiedCatalog.all() || [];
+  } catch (_) { canonical = []; }
+  if (!canonical.length) {
+    try { if (instantCatalog && typeof instantCatalog.all === 'function') canonical = canonical.concat(instantCatalog.all() || []); } catch (_) {}
+    try { if (entCatalog && typeof entCatalog.all === 'function') canonical = canonical.concat(entCatalog.all() || []); } catch (_) {}
+  }
+  const canonItems = canonical.map(p => {
+    const tier = String(p.tier || p.group || 'professional').toLowerCase();
+    return {
+      id: p.id,
+      title: p.title || p.name || p.id,
+      group: tier,
+      tier,
+      priceUsd: Number(p.priceUSD != null ? p.priceUSD : (p.priceUsd != null ? p.priceUsd : p.price)) || 0,
+      kpi: p.kpi || '',
+      description: p.description || ('ZeusAI ' + (p.title || p.id)),
+      segment: tier,
+    };
+  });
+
+  // Real strategic / frontier / vertical deliverables — human titles + prices.
   const strategic = (sources.services || []).map(s => ({
     id: s.id, title: s.title, group: 'strategic',
     priceUsd: Number(s.price || 0), kpi: s.kpi || 'automation',
     description: s.description || ('Sovereign service: ' + (s.title || s.id)),
-    segment: s.segment || s.category || 'all'
+    segment: s.segment || s.category || 'strategic'
   }));
-  // Auto-publish ALL marketplace modules (no cap). serviceMarketplace
-  // discovers ~185 modules from backend/modules/*.js at boot and refreshes
-  // every 60s, so removing the slice() here makes every current AND future
-  // module become a sellable item on the site automatically. The previous
-  // slice(0, 30) was a UI-throttle from when /api/catalog/master fed a
-  // single hero strip; the site now has a dedicated "Full Unicorn Library"
-  // section in pageStore() that renders the long tail.
-  const marketplace = Array.isArray(sources.marketplace) ? sources.marketplace.map(m => ({
-    id: m.id, title: m.title || m.name || m.id, group: 'marketplace',
-    priceUsd: Number(m.price || m.basePrice || 0), kpi: m.kpi || m.category || 'module',
-    description: m.description || 'Adaptive AI module — dynamic-priced, BTC settled.',
-    segment: m.category || 'modules',
-    autoPublished: true
-  })) : [];
   const frontierItems = frontier ? FRONTIER_DELIVERABLES.map(x => ({ ...x, segment: 'frontier' })) : [];
   const verticals = VERTICAL_OS_DELIVERABLES.map(x => ({ ...x, segment: 'enterprise' }));
-  const connectorCatalog = unicornCommerceConnector.buildCommerceCatalog({ registry: sources.moduleRegistry || getSiteFallbackModuleRegistry(), btcWallet: BTC_WALLET, ownerName: OWNER_NAME });
+
+  // Billion-scale enterprise packages + activation products (real, high-ACV).
   const strategicPackages = billionScaleRevenueEngine.buildStrategicPackages({ btcWallet: BTC_WALLET, ownerName: OWNER_NAME });
   const activationProducts = billionScaleActivationOrchestrator.buildActivationProducts({ btcWallet: BTC_WALLET, ownerName: OWNER_NAME });
-  const all = [...activationProducts, ...strategicPackages, ...strategic, ...frontierItems, ...verticals, ...marketplace, ...CATALOG_EXPANSION_DELIVERABLES, ...connectorCatalog.items];
-  // attach btc fields
+
+  // Connector catalog gives us the future-invention primitives (genuinely novel
+  // R&D deliverables the owner wants showcased) plus the auto-module registry
+  // counts. We KEEP the future-invention items but DELIBERATELY EXCLUDE the
+  // ~185 'unicorn-auto-module' clones, the raw serviceMarketplace dump and the
+  // CATALOG_EXPANSION placeholders from the PUBLIC storefront — those internal
+  // engine modules (resource-monitor, deepseek-governor…) and Romanian
+  // placeholder cards were the trust-destroying junk the owner flagged.
+  // Bilingual note (RO): păstrăm inovațiile reale, scoatem modulele interne.
+  const connectorCatalog = unicornCommerceConnector.buildCommerceCatalog({ registry: sources.moduleRegistry || getSiteFallbackModuleRegistry(), btcWallet: BTC_WALLET, ownerName: OWNER_NAME });
+  const futureInventions = (connectorCatalog.items || []).filter(it => it.group === 'future-invention');
+
+  const all = [
+    ...activationProducts,
+    ...strategicPackages,
+    ...canonItems,
+    ...strategic,
+    ...frontierItems,
+    ...verticals,
+    ...futureInventions,
+  ];
+
+  // Seed dynamic-pricing so /api/pricing/{id} and /api/pricing/all return the
+  // real catalogue floor for every listed product (not the generic $99 fallback).
+  try {
+    const dpe = require('../backend/modules/dynamic-pricing');
+    if (dpe && typeof dpe.registerServices === 'function') dpe.registerServices(all, { force: false });
+  } catch (_) {}
+
+  // attach btc + checkout fields (preserve any checkout set by the builders)
   for (const item of all) {
     item.priceBtc = usdToBtc(item.priceUsd, usdPerBtc);
     item.currency = 'USD';
-    item.buyUrl = `/checkout?serviceId=${encodeURIComponent(item.id)}&amount=${item.priceUsd}&plan=${encodeURIComponent(item.id)}`;
+    item.buyUrl = `/checkout?serviceId=${encodeURIComponent(item.id)}&plan=${encodeURIComponent(item.id)}`;
     item.btcUri = item.priceUsd > 0 ? buildBtcUri(BTC_WALLET, item.priceBtc, 'ZeusAI-' + item.id) : null;
+    item.checkout = item.checkout || { btcAddress: BTC_WALLET, priceUsd: item.priceUsd, priceBtc: item.priceBtc };
   }
   // dedupe by id
   const seen = new Set(); const out = [];
   for (const it of all) { if (!seen.has(it.id)) { seen.add(it.id); out.push(it); } }
+  const groupCount = (g) => out.filter(x => x.group === g).length;
   return {
     updatedAt: new Date().toISOString(),
     owner: { name: OWNER_NAME, btcAddress: BTC_WALLET },
     btcSpot: { usdPerBtc, fetchedAt: new Date(_btcSpotCache.fetchedAt).toISOString() },
-    counts: { total: out.length, strategic: strategic.length, strategicPackages: strategicPackages.length, activationProducts: activationProducts.length, frontier: frontierItems.length, vertical: verticals.length, marketplace: marketplace.length + CATALOG_EXPANSION_DELIVERABLES.length, unicornAuto: connectorCatalog.counts.registry, futurePrimitives: connectorCatalog.counts.futurePrimitives },
-    groups: ['billion-scale-activation', 'billion-scale-package', 'strategic', 'frontier', 'vertical', 'marketplace', 'unicorn-auto-module', 'future-invention'],
+    counts: {
+      total: out.length,
+      instant: groupCount('instant'), professional: groupCount('professional'), enterprise: groupCount('enterprise'),
+      strategic: strategic.length, frontier: frontierItems.length, vertical: verticals.length,
+      strategicPackages: strategicPackages.length, activationProducts: activationProducts.length,
+      unicornAuto: connectorCatalog.counts.registry, futurePrimitives: connectorCatalog.counts.futurePrimitives
+    },
+    groups: ['billion-scale-activation', 'billion-scale-package', 'instant', 'professional', 'enterprise', 'strategic', 'frontier', 'vertical', 'future-invention'],
     connector: { source: connectorCatalog.source, payout: connectorCatalog.payout, counts: connectorCatalog.counts },
     items: out
   };
@@ -3240,18 +3465,34 @@ async function unicornHandler(req, res) {
     try {
       const handled = await commerce.handle(req, res, {
         buildSnapshot,
+        // PRICE COHERENCE BY CONSTRUCTION: checkout calls the SAME
+        // quotePublicPricing() pipeline that serves GET /api/pricing/:id —
+        // the number on the card IS the number on the invoice. (RO: aceeași
+        // funcție, același preț, fără excepții.)
+        canonicalUsd: async (id) => {
+          try {
+            const { payload } = await quotePublicPricing(String(id || '').slice(0, 80), {});
+            const v = Number(payload && (payload.price_usd != null ? payload.price_usd : payload.finalPrice));
+            if (Number.isFinite(v) && v > 0) return v;
+          } catch (_) { /* fall back to local canonical below */ }
+          return resolveCanonicalUsd(id);
+        },
         // Allow sovereign-commerce to resolve any item from /api/catalog/master
         // (Vertical OS, Frontier, Activation packages, Future R&D primitives,
         // auto-discovered modules) so the buyer pays directly to the owner BTC
         // wallet without going through Stripe/PayPal. Cached 60s via _masterCatalogCache.
         resolveCatalogItem: async (id) => {
+          // Canonical, server-authoritative price — same number the storefront
+          // shows. Overrides any divergent catalog price so /api/checkout/create
+          // matches /api/catalog & /api/pricing. (RO: prețul oficial unic.)
+          const _canon = resolveCanonicalUsd(id);
           if (unifiedCatalog && typeof unifiedCatalog.byId === 'function') {
             const u = unifiedCatalog.byId(id);
             if (u && u.id) {
               return {
                 id: u.id,
                 title: u.title || u.name || u.id,
-                priceUsd: Number(u.priceUSD != null ? u.priceUSD : (u.priceUsd != null ? u.priceUsd : (u.price || 0))),
+                priceUsd: _canon != null ? _canon : Number(u.priceUSD != null ? u.priceUSD : (u.priceUsd != null ? u.priceUsd : (u.price || 0))),
                 description: u.description || '',
                 group: u.group || u.tier || 'service',
                 segment: u.tier || u.group || 'service',
@@ -3260,8 +3501,17 @@ async function unicornHandler(req, res) {
             }
           }
           const cat = await getCachedMasterCatalog().catch(() => null);
-          if (!cat || !Array.isArray(cat.items)) return null;
-          return cat.items.find((it) => String(it.id) === String(id)) || null;
+          if (cat && Array.isArray(cat.items)) {
+            const hit = cat.items.find((it) => String(it.id) === String(id));
+            if (hit) return _canon != null ? Object.assign({}, hit, { priceUsd: _canon, price: _canon }) : hit;
+          }
+          // Real core/catalog product missing from the master catalog (e.g.
+          // pro, mid-market, ent-*) — synthesize it so checkout never returns
+          // service_not_found for a genuinely sellable product.
+          if (_canon != null) {
+            return { id: String(id), title: String(id), priceUsd: _canon, description: '', group: 'service', segment: 'service', kpi: '' };
+          }
+          return null;
         }
       });
       if (handled) return;
@@ -3428,7 +3678,33 @@ async function unicornHandler(req, res) {
       // Sitemap + robots + openapi
       if (fu === '/sitemap.xml' || fu === '/seo/sitemap.xml')   return ftext(200, frontier.sitemapXml(APP_URL), 'application/xml; charset=utf-8');
       if (fu === '/robots.txt'  || fu === '/seo/robots.txt')    return ftext(200, frontier.robotsTxt(APP_URL));
+      // IndexNow key file — must match backend traffic-engine derivation
+      // (sha256('zeusai-indexnow:'+host) → 32 hex). Search engines fetch this
+      // to verify URL-submission ownership. RO: fișierul-cheie IndexNow.
+      if (/^\/indexnow-[0-9a-f]{16,64}\.txt$/.test(fu)) {
+        const inHost = (() => { try { return new URL(APP_URL).host; } catch (_) { return 'zeusai.pro'; } })();
+        const inKey = process.env.INDEXNOW_KEY
+          ? String(process.env.INDEXNOW_KEY).slice(0, 64)
+          : crypto.createHash('sha256').update('zeusai-indexnow:' + inHost).digest('hex').slice(0, 32);
+        if (fu === '/indexnow-' + inKey + '.txt') return ftext(200, inKey);
+        return ftext(404, 'unknown indexnow key');
+      }
       if (fu === '/openapi.json' || fu === '/api/openapi')  return fsend(200, frontier.openApiSpec());
+      if (fu === '/openapi-public.json' || fu === '/api/openapi/public') {
+        const all = frontier.openApiSpec() || {};
+        const privatePath = (p) => /^\/api\/(admin|operator|autonomy|brain\/autonomy|internal|deepseek|observability)/.test(String(p || ''));
+        const paths = Object.fromEntries(Object.entries(all.paths || {}).filter(([p]) => !privatePath(p)));
+        const pub = {
+          ...all,
+          info: {
+            ...(all.info || {}),
+            title: ((all.info && all.info.title) || 'ZeusAI API') + ' (Public)',
+            description: 'Public API surface only. Operator/internal endpoints are intentionally omitted.'
+          },
+          paths,
+        };
+        return fsend(200, pub);
+      }
 
       // Cart engine
       if (fu === '/api/cart/create' && req.method === 'POST') return fbody(p => fsend(200, frontier.cartCreate(p)));
@@ -3688,7 +3964,7 @@ async function unicornHandler(req, res) {
   // 30Y-LTS: local-first routes served by this site process (not proxied to backend).
   // Only routes that are implemented locally in this file are matched here;
   // backend-only endpoints (/api/v1/deprecations, /api/v1/events/*) keep flowing to the backend.
-  const isLts = /^\/api\/(v1\/)?(contract|i18n\/|crypto\/public-keys|succession\/attestation|anchors)(\/|$|\.)/.test(urlPath) || urlPath === '/api/v1/contract' || urlPath === '/api/contract';  const isLocalV2Api = isLts || LOCAL_V2_API.has(urlPath) || urlPath.startsWith('/api/services/') || urlPath.startsWith('/services/') || urlPath.startsWith('/api/enterprise/') || urlPath.startsWith('/api/outreach/') || urlPath.startsWith('/api/vault/') || urlPath.startsWith('/api/governance/') || urlPath.startsWith('/api/whales/') || urlPath.startsWith('/api/webhooks/') || urlPath.startsWith('/api/admin/') || urlPath.startsWith('/api/instant/') || urlPath.startsWith('/api/customer/') || urlPath.startsWith('/api/user/') || urlPath.startsWith('/api/unicorn-ai/') || urlPath.startsWith('/api/unicorn-commerce/') || urlPath.startsWith('/api/billion-scale/') || urlPath.startsWith('/api/checkout/') || urlPath.startsWith('/api/uaic/') || urlPath.startsWith('/api/receipt/') || urlPath.startsWith('/api/invoice/') || urlPath.startsWith('/api/license/') || urlPath.startsWith('/api/delivery/') || urlPath.startsWith('/api/wire/') || urlPath === '/api/payments/btc/confirm' || urlPath === '/api/payments/paypal/confirm' || urlPath === '/api/payments/config/status' || urlPath === '/api/checkout/synthetic-probe' || urlPath === '/api/qr' || urlPath.startsWith('/api/cart/') || urlPath.startsWith('/api/coupons') || urlPath.startsWith('/api/leads') || urlPath.startsWith('/api/lead') || urlPath.startsWith('/api/referral/') || urlPath.startsWith('/api/transparency') || urlPath.startsWith('/api/keys') || urlPath.startsWith('/api/newsletter/') || urlPath.startsWith('/api/wizard/') || urlPath.startsWith('/api/fx/') || urlPath.startsWith('/api/tax/') || urlPath.startsWith('/api/webhooks/') || urlPath === '/api/status' || urlPath === '/api/track' || urlPath.startsWith('/api/analytics/') || urlPath.startsWith('/api/refund/') || urlPath === '/api/aura' || urlPath.startsWith('/api/outcome/') || urlPath.startsWith('/api/discount/') || urlPath.startsWith('/api/receipt/nft/') || urlPath.startsWith('/api/capability/') || urlPath.startsWith('/api/email/proof') || urlPath.startsWith('/api/gift/') || urlPath.startsWith('/api/pledge') || urlPath.startsWith('/api/cancel/') || urlPath.startsWith('/api/bandit/') || urlPath.startsWith('/api/carbon/') || urlPath.startsWith('/api/abandon-cart') || urlPath === '/api/frontier/status' || urlPath.startsWith('/api/trust/') || urlPath.startsWith('/api/funnel/') || urlPath.startsWith('/api/dr/') || urlPath.startsWith('/api/innovation/') || urlPath === '/api/services/changed' || urlPath === '/api/operator/console' || urlPath === '/api/observability/status' || urlPath === '/api/secret-sync/status' || urlPath === '/api/security/pq/status' || urlPath === '/api/commerce/protocol' || urlPath === '/api/innovation/coverage' || urlPath === '/openapi.json' || urlPath === '/api/openapi' || urlPath === '/seo/sitemap.xml' || urlPath === '/seo/sitemap-services.xml' || urlPath === '/seo/robots.txt' || urlPath === '/api/catalog/master' || urlPath === '/api/catalog/diff' || urlPath === '/api/products' || urlPath.startsWith('/api/price/') || urlPath === '/api/commerce/recent-sales' || urlPath === '/api/admin/owner-revenue' || urlPath === '/agents.json' || urlPath === '/.well-known/agents.json' || urlPath === '/api/btc/spot' || urlPath === '/api/btc/rate' || urlPath === '/api/payment/btc-rate' || urlPath.startsWith('/api/payments/btc/verify/');
+  const isLts = /^\/api\/(v1\/)?(contract|i18n\/|crypto\/public-keys|succession\/attestation|anchors)(\/|$|\.)/.test(urlPath) || urlPath === '/api/v1/contract' || urlPath === '/api/contract';  const isLocalV2Api = isLts || LOCAL_V2_API.has(urlPath) || urlPath.startsWith('/api/services/') || urlPath.startsWith('/services/') || urlPath.startsWith('/api/enterprise/') || urlPath.startsWith('/api/outreach/') || urlPath.startsWith('/api/vault/') || urlPath.startsWith('/api/governance/') || urlPath.startsWith('/api/whales/') || urlPath.startsWith('/api/webhooks/') || urlPath.startsWith('/api/admin/') || urlPath.startsWith('/api/instant/') || urlPath.startsWith('/api/customer/') || urlPath.startsWith('/api/user/') || urlPath.startsWith('/api/unicorn-ai/') || urlPath.startsWith('/api/unicorn-commerce/') || urlPath.startsWith('/api/billion-scale/') || urlPath.startsWith('/api/checkout/') || urlPath.startsWith('/api/uaic/') || urlPath.startsWith('/api/receipt/') || urlPath.startsWith('/api/invoice/') || urlPath.startsWith('/api/license/') || urlPath.startsWith('/api/delivery/') || urlPath.startsWith('/api/wire/') || urlPath === '/api/payments/btc/confirm' || urlPath === '/api/payments/paypal/confirm' || urlPath === '/api/payments/config/status' || urlPath === '/api/checkout/synthetic-probe' || urlPath === '/api/qr' || urlPath.startsWith('/api/cart/') || urlPath.startsWith('/api/coupons') || urlPath.startsWith('/api/leads') || urlPath.startsWith('/api/lead') || urlPath.startsWith('/api/referral/') || urlPath.startsWith('/api/transparency') || urlPath.startsWith('/api/keys') || urlPath.startsWith('/api/newsletter/') || urlPath.startsWith('/api/wizard/') || urlPath.startsWith('/api/fx/') || urlPath.startsWith('/api/tax/') || urlPath.startsWith('/api/webhooks/') || urlPath === '/api/status' || urlPath === '/api/track' || urlPath.startsWith('/api/analytics/') || urlPath.startsWith('/api/refund/') || urlPath === '/api/aura' || urlPath.startsWith('/api/outcome/') || urlPath.startsWith('/api/discount/') || urlPath.startsWith('/api/receipt/nft/') || urlPath.startsWith('/api/capability/') || urlPath.startsWith('/api/email/proof') || urlPath.startsWith('/api/gift/') || urlPath.startsWith('/api/pledge') || urlPath.startsWith('/api/cancel/') || urlPath.startsWith('/api/bandit/') || urlPath.startsWith('/api/carbon/') || urlPath.startsWith('/api/abandon-cart') || urlPath === '/api/frontier/status' || urlPath.startsWith('/api/attestation/') || urlPath.startsWith('/api/trust/') || urlPath.startsWith('/api/funnel/') || urlPath.startsWith('/api/dr/') || urlPath.startsWith('/api/innovation/') || urlPath === '/api/services/changed' || urlPath === '/api/operator/console' || urlPath === '/api/observability/status' || urlPath === '/api/secret-sync/status' || urlPath === '/api/security/pq/status' || urlPath === '/api/commerce/protocol' || urlPath === '/api/innovation/coverage' || urlPath === '/openapi.json' || urlPath === '/api/openapi' || urlPath === '/seo/sitemap.xml' || urlPath === '/seo/sitemap-services.xml' || urlPath === '/seo/robots.txt' || urlPath === '/api/catalog/master' || urlPath === '/api/catalog/diff' || urlPath === '/api/products' || urlPath.startsWith('/api/price/') || urlPath === '/api/commerce/recent-sales' || urlPath === '/api/admin/owner-revenue' || urlPath === '/agents.json' || urlPath === '/.well-known/agents.json' || urlPath === '/api/btc/spot' || urlPath === '/api/btc/rate' || urlPath === '/api/payment/btc-rate' || urlPath.startsWith('/api/payments/btc/verify/');
   const isUaic = !!(uaic && uaic.matches(urlPath)) && urlPath !== '/api/uaic/status';
   const isUse  = !!(USE && USE.matches(urlPath)) && !urlPath.startsWith('/api/user/') && !urlPath.startsWith('/api/ai/');
   const backendUrl = process.env.BACKEND_API_URL;
@@ -3878,6 +4154,10 @@ async function unicornHandler(req, res) {
   }
 
   if (urlPath === '/api/operator/console') {
+    if (!isAdminAuthorized()) {
+      res.writeHead(401, { 'Content-Type':'application/json', 'Cache-Control':'no-store' });
+      return res.end(JSON.stringify({ error: 'unauthorized', message: 'admin token required', publicAlternative: '/api/trust/center' }));
+    }
     const receipts = getAllReceipts();
     const paid = receipts.filter(r => String(r && r.status || '').toLowerCase() === 'paid');
     const totalUsd = paid.reduce((sum, r) => sum + Number(r.amountUSD != null ? r.amountUSD : r.amount || 0), 0);
@@ -3957,9 +4237,20 @@ async function unicornHandler(req, res) {
     try {
       const seo = require('../backend/modules/programmatic-seo-engine');
       const list = seo.listVerticals();
-      const html = `<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><title>Vertical OS Catalog · ZeusAI</title><meta name="description" content="ZeusAI vertical AI operating systems — 18 industries, BTC-settled.">
-<style>body{font:16px/1.6 -apple-system,Segoe UI,Roboto,sans-serif;max-width:880px;margin:2rem auto;padding:0 1rem;color:#111}h1{font-size:2rem}ul{list-style:none;padding:0}li{border-bottom:1px solid #eee;padding:.75rem 0}a{color:#06c;text-decoration:none;font-weight:600}.kpi{color:#0a7;font-size:.85rem;margin-left:.5rem}.price{float:right;color:#000;font-weight:700}</style></head>
-<body><h1>Vertical AI Operating Systems</h1><p>18 turn-key vertical OSes. Same sovereign infra, different KPI focus. BTC-settled.</p><ul>${list.map((v) => `<li><a href="/vertical/${v.id}">${v.title}</a><span class="kpi">${v.kpi}</span><span class="price">$${v.priceUsd}</span></li>`).join('')}</ul><p><a href="/">← Home</a> · <a href="/sitemap.xml">Sitemap</a></p></body></html>`;
+      // CONVERSION UPGRADE (2026-06): the old index was bare <li> links with
+      // ZERO buy CTAs — visitors had to click through twice to find a price
+      // action. Now every vertical is a card with KPI, live price and TWO
+      // direct actions (landing + instant BTC checkout). RO: cumpărare din
+      // index, fără fricțiune.
+      const cards = list.map((v) => `<li class="card">
+<div class="meta"><a class="title" href="/vertical/${v.id}">${v.title}</a><span class="kpi">${v.kpi}</span></div>
+<div class="act"><span class="price">$${v.priceUsd}<small>/mo</small></span>
+<a class="btn ghost" href="/vertical/${v.id}">Details</a>
+<a class="btn buy" href="/checkout/?plan=${encodeURIComponent(v.id)}" data-vertical-buy="${v.id}">Deploy → BTC −10%</a></div>
+</li>`).join('');
+      const html = `<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><title>Vertical OS Catalog · ZeusAI</title><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="description" content="ZeusAI vertical AI operating systems — ${list.length} industries, BTC-settled, instant deploy.">
+<style>body{font:16px/1.6 -apple-system,Segoe UI,Roboto,sans-serif;max-width:980px;margin:2rem auto;padding:0 1rem;color:#e7ecf3;background:#070510}h1{font-size:2.1rem;background:linear-gradient(135deg,#8a5cff,#4ea1ff);-webkit-background-clip:text;background-clip:text;color:transparent}p.lead{color:#9aa3b5}ul{list-style:none;padding:0;display:grid;gap:12px}li.card{border:1px solid #221d3d;border-radius:12px;padding:16px 18px;display:flex;justify-content:space-between;align-items:center;gap:14px;flex-wrap:wrap;background:#0d0a1c}.meta{display:flex;flex-direction:column;gap:4px;min-width:220px}.title{color:#cfd6ff;text-decoration:none;font-weight:700;font-size:1.05rem}.title:hover{color:#fff}.kpi{color:#7fffd4;font-size:.8rem}.act{display:flex;align-items:center;gap:10px;flex-wrap:wrap}.price{color:#ffd36a;font-weight:800;font-size:1.2rem}.price small{color:#9aa3b5;font-weight:400}.btn{padding:8px 14px;border-radius:9px;text-decoration:none;font-weight:600;font-size:.88rem}.btn.buy{background:linear-gradient(135deg,#8a5cff,#4ea1ff);color:#fff}.btn.ghost{border:1px solid #2c2752;color:#cfd6ff}.foot{color:#9aa3b5;margin-top:24px;font-size:.9rem}a{color:#4ea1ff}</style></head>
+<body><h1>Vertical AI Operating Systems</h1><p class="lead">${list.length} turn-key vertical OSes. Same sovereign infra, different KPI focus. Pay in BTC — 10% sovereign discount applied automatically at checkout, Ed25519-signed receipt included.</p><ul>${cards}</ul><p class="foot"><a href="/">← Home</a> · <a href="/services">Marketplace</a> · <a href="/sitemap.xml">Sitemap</a></p></body></html>`;
       res.writeHead(200, { 'Content-Type':'text/html; charset=utf-8', 'Cache-Control':'public, max-age=300' });
       return res.end(html);
     } catch (e) {
@@ -4195,7 +4486,7 @@ async function unicornHandler(req, res) {
   // ---- UAIC (Unicorn Autonomous Commerce) ----
   if (isUaic) {
     const runtimeSources = getRuntimeDataSources();
-    return uaic.handle(req, res, { sources: { marketplace: runtimeSources.marketplace, industries: runtimeSources.industries, modules }, portal }).catch(err => {
+    return uaic.handle(req, res, { sources: { marketplace: runtimeSources.marketplace, industries: runtimeSources.industries, modules }, portal, resolvePrice: resolveCanonicalUsd }).catch(err => {
       try { res.writeHead(500, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ error: 'uaic_error', message: err && err.message })); } catch (_) {}
     });
   }
@@ -4308,14 +4599,34 @@ async function unicornHandler(req, res) {
   }
   // ==================== END FAZA 2 / VAL 5 ====================
 
-  // ==================== FAZA 2 / VAL 5 (COMPLETARE): COCKPIT + SERVICES + STATUS HTML ====================
-  // Three SSR HTML pages share the same chrome (header + footer) as the rest of
-  // the site. They hydrate live from /unicorn-status (cockpit), /api/products
-  // (services) and /api/supreme/digest (status). All additive, never break the
-  // existing template. Each page is server-rendered, returns a full HTML doc,
-  // and includes a tiny client script that polls every 5s.
-  if (urlPath === '/unicorn-cockpit' || urlPath === '/services' || urlPath === '/status' || urlPath === '/unicorn-status.html' || urlPath === '/revenue-command' || urlPath === '/proof' || urlPath === '/revenue-share' || urlPath === '/pricing') {
+  // ==================== FAZA 2 / VAL 5 (COMPLETARE): COCKPIT + STATUS HTML ====================
+  // SSR HTML operator pages share the same chrome (header + footer) as the rest
+  // of the site. They hydrate live from /unicorn-status (cockpit) and
+  // /api/supreme/digest (status). All additive, never break the existing
+  // template. Each page is server-rendered, returns a full HTML doc, and
+  // includes a tiny client script that polls every 5s.
+  // NOTE 2026-06-12: '/services' was removed from this intercept — it now falls
+  // through to the v2 SSR storefront (pageServices) below, which server-renders
+  // the full 25-product catalog with USD+BTC prices and schema.org Product
+  // markup. The old handler here rendered ZERO SSR cards (client-only grid),
+  // which violated the "≥1 SSR service card" golden rule and hurt SEO.
+  // RO: /services e servit acum de vitrina v2 SSR — carduri reale în HTML.
+  if (urlPath === '/unicorn-cockpit' || urlPath === '/unicorn-status.html' || urlPath === '/revenue-command' || urlPath === '/proof' || urlPath === '/revenue-share' || urlPath === '/zacc' || urlPath === '/dropship' || urlPath.indexOf('/dropship/product/') === 0) {
     const renderPage = (title, bodyHtml, pageScript) => {
+      // Unified chrome: render every legacy operator/dashboard page inside the
+      // full v2 shell (nav + Zeus backdrop + footer + violet/gold theme) so the
+      // entire site is one cinematic design system. The legacy body markup and
+      // its live hydration script are preserved verbatim — only the surrounding
+      // chrome changes. The request CSP nonce is forwarded so `strict-dynamic`
+      // accepts the inline page script (fixes a latent CSP block on modern
+      // browsers, where the old non-nonced inline script was silently dropped).
+      // Falls back to the standalone legacy document only if v2 is unavailable.
+      if (v2 && typeof v2.renderInShell === 'function') {
+        try {
+          const nonce = String(req.headers['x-csp-nonce'] || crypto.randomBytes(12).toString('base64'));
+          return v2.renderInShell(urlPath, { title, bodyHtml, pageScript, nonce });
+        } catch (_) { /* fall through to legacy standalone doc */ }
+      }
       // Use the existing template engine if available; otherwise emit a minimal SEO-clean doc
       // that still passes the site's chrome heuristics (lang, charset, viewport, meta).
       const css = `
@@ -4372,7 +4683,7 @@ async function unicornHandler(req, res) {
         '<style>' + css + '</style>',
         '</head><body class="' + pageClass + ' ' + zeusProfile + '">',
         '<header><h1>🦄 ZeusAI</h1><nav class="site-nav" aria-label="Primary"><div class="site-nav-links">',
-        '<a href="/">Home</a><a href="/pricing">Pricing</a><a href="/revenue-share">Revenue Share</a><a href="/proof">Proof</a><a href="/unicorn-cockpit">Cockpit</a><a href="/services">Services</a><a href="/status">Status</a>',
+        '<a href="/">Home</a><a href="/zacc" style="color:#8a5cff;font-weight:700">🛒 Autonomous Dropshipping</a><a href="/dropship" style="color:#8a5cff;font-weight:700">🌐 Live Store</a><a href="/pricing">Pricing</a><a href="/revenue-share">Revenue Share</a><a href="/proof">Proof</a><a href="/unicorn-cockpit">Cockpit</a><a href="/services">Services</a><a href="/status">Status</a>',
         '</div></nav>',
         '</header>',
         '<main>',
@@ -4411,57 +4722,8 @@ async function unicornHandler(req, res) {
       return res.end(renderPage('Unicorn Cockpit', body, js));
     }
 
-    if (urlPath === '/services') {
-      // Live SSR services marketplace — backed by /api/pricing/* (dynamic-pricing engine)
-      // and /api/products (catalog metadata). SSE-first for sub-second price updates,
-      // 5s polling fallback. Each Buy click re-confirms the price against the engine,
-      // then opens a checkout modal that hits /api/checkout/create + /api/checkout/{btc,stripe}.
-      const body =
-        '<h2 style="margin:0">Services · ZeusAI Marketplace</h2>' +
-        '<p style="color:var(--muted);margin:8px 0 16px">Every price below is computed live by the Unicorn dynamic-pricing engine (USD + BTC, demand-aware). Updates push via SSE within 1 second.</p>' +
-        '<div id="price-ticker" class="card" style="margin-bottom:16px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">' +
-          '<div><h3 style="margin:0">Live pricing feed</h3><div class="sub" id="ticker-sub">Connecting to pricing engine…</div></div>' +
-          '<div><span class="pill" id="ticker-status">⏳ connecting</span> <span class="sub" id="ticker-btc">BTC: —</span></div>' +
-        '</div>' +
-        '<div id="services" class="grid"></div>' +
-        '<div id="checkout-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:1000;align-items:center;justify-content:center;padding:16px">' +
-          '<div class="card" style="max-width:560px;width:100%;background:#0a0f1e">' +
-            '<h3 id="ck-title" style="margin:0 0 8px">Checkout</h3>' +
-            '<div id="ck-body"></div>' +
-            '<div class="row" style="margin-top:16px"><button id="ck-btc">⚡ Pay with BTC</button><button class="btn-ghost" id="ck-stripe">💳 Pay with Card (Stripe)</button><button class="btn-ghost" id="ck-close">Cancel</button></div>' +
-            '<div id="ck-result" style="margin-top:12px;font-size:12px;color:var(--muted)"></div>' +
-          '</div>' +
-        '</div>';
-      const js = [
-        "(function(){",
-        "var STATE={services:{},prices:{},btcRate:null,current:null};",
-        "function esc(s){return String(s||'').replace(/[&<>\"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','\"':'&quot;'}[c];});}",
-        "function fmt(n){return Number(n||0).toLocaleString('en-US',{maximumFractionDigits:2,minimumFractionDigits:2});}",
-        "function fmtBtc(n){return n==null?'—':Number(n).toFixed(8)+' BTC';}",
-        "function setStatus(state){var el=document.getElementById('ticker-status');if(!el)return;if(state==='live'){el.textContent='● LIVE';el.style.color='var(--accent)';}else if(state==='polling'){el.textContent='⟳ polling';el.style.color='#f0c674';}else{el.textContent='⏳ connecting';el.style.color='#7a8499';}}",
-        "function render(){var grid=document.getElementById('services');if(!grid)return;var items=Object.values(STATE.services);if(!items.length){grid.innerHTML='<div class=\"card\"><h3>Catalog warming up</h3><div class=\"sub\">Real services appear within seconds. No fake prices ever shown.</div></div>';return;}",
-        "grid.innerHTML=items.map(function(s){var p=STATE.prices[s.id]||{};var usd=Number(p.price_usd!=null?p.price_usd:(p.finalPrice!=null?p.finalPrice:s.priceUsd))||0;var btc=p.price_btc!=null?p.price_btc:null;var surge=p.surgeActive?'<span class=\"pill\" style=\"background:#ff4444;color:#fff;border-color:#ff4444\">⚡ SURGE</span>':'';var promoted=s.isPromoted?'<span class=\"pill\" style=\"background:rgba(204,146,249,0.2);border-color:#cc92f9;color:#cc92f9\">★ Featured</span>':'';return '<div class=\"card\" data-sid=\"'+esc(s.id)+'\"><h3>'+esc(s.group||'service')+' '+promoted+'</h3><div style=\"font-size:16px;font-weight:600;margin:4px 0\">'+esc(s.title||s.id)+'</div><div class=\"price\" data-price-for=\"'+esc(s.id)+'\">$'+fmt(usd)+'</div>'+(btc!=null?'<div class=\"sub\" style=\"font-family:monospace\">≈ '+fmtBtc(btc)+'</div>':'')+' '+surge+'<p style=\"color:var(--muted);font-size:12px;margin:8px 0 12px\">'+esc(s.description||'AI service')+'</p><button onclick=\"window.__buy(\\''+encodeURIComponent(s.id)+'\\')\">Buy now →</button></div>';}).join('');}",
-        "function applyPrice(sid,p){STATE.prices[sid]=p;var n=document.querySelector('[data-price-for=\"'+sid+'\"]');if(n){var usd=Number(p.price_usd!=null?p.price_usd:p.finalPrice||0);n.textContent='$'+fmt(usd);}}",
-        "function applySnapshot(snap){if(!snap)return;if(snap.btcRate){STATE.btcRate=Number(snap.btcRate.rate||snap.btcRate);var bt=document.getElementById('ticker-btc');if(bt)bt.textContent='BTC: $'+fmt(STATE.btcRate);}var prices=snap.prices||snap.items||{};if(Array.isArray(prices)){prices.forEach(function(p){if(p&&p.serviceId)applyPrice(p.serviceId,p);});}else{Object.keys(prices).forEach(function(k){applyPrice(k,prices[k]||{});});}document.getElementById('ticker-sub').textContent='Last update: '+new Date().toLocaleTimeString()+' · '+Object.keys(STATE.services).length+' services';}",
-        "async function loadCatalog(){try{var r=await fetch('/api/products',{cache:'no-store'});var d=await r.json();var arr=Array.isArray(d)?d:(d.products||d.items||[]);arr.forEach(function(x){STATE.services[x.id]={id:x.id,title:x.title||x.name||x.id,description:x.description||'',group:x.group||x.category||'AI',priceUsd:Number(x.priceUsd||x.price||0),isPromoted:!!x.isPromoted};});render();}catch(e){}}",
-        "async function pollAll(){try{var r=await fetch('/api/pricing/all',{cache:'no-store'});if(!r.ok)throw new Error('http '+r.status);var d=await r.json();var prices=d&&d.prices||{};Object.keys(prices).forEach(function(k){applyPrice(k,{price_usd:prices[k].finalPrice,finalPrice:prices[k].finalPrice,surgeActive:prices[k].surgeActive,demandFactor:prices[k].demandFactor});});document.getElementById('ticker-sub').textContent='Polling · '+new Date().toLocaleTimeString();setStatus('polling');}catch(e){setStatus('connecting');}}",
-        "function connectSSE(){if(typeof EventSource!=='function')return false;try{var es=new EventSource('/api/pricing/live/stream');es.addEventListener('pricing',function(ev){try{applySnapshot(JSON.parse(ev.data));setStatus('live');}catch(_){}});es.onerror=function(){setStatus('connecting');};es.onopen=function(){setStatus('live');};return true;}catch(e){return false;}}",
-        "window.__buy=async function(encId){var sid=decodeURIComponent(encId);var svc=STATE.services[sid];if(!svc)return;var fresh=null;try{fresh=await fetch('/api/pricing/'+encodeURIComponent(sid),{cache:'no-store'}).then(function(r){return r.json();});}catch(_){}",
-        "var usd=fresh&&fresh.price_usd!=null?Number(fresh.price_usd):Number(svc.priceUsd||0);var btc=fresh&&fresh.price_btc!=null?fresh.price_btc:null;STATE.current={id:sid,title:svc.title,priceUsd:usd,priceBtc:btc};",
-        "document.getElementById('ck-title').textContent='Checkout: '+svc.title;document.getElementById('ck-body').innerHTML='<div style=\"font-size:14px;margin-top:8px\">Total: <b class=\"ok\">$'+fmt(usd)+'</b>'+(btc!=null?' <span class=\"sub\">(≈ '+fmtBtc(btc)+')</span>':'')+'</div><div class=\"sub\" style=\"margin-top:6px\">Price verified live · '+new Date().toLocaleTimeString()+'</div>';document.getElementById('ck-result').textContent='';document.getElementById('checkout-modal').style.display='flex';};",
-        "function closeModal(){document.getElementById('checkout-modal').style.display='none';}",
-        "async function pay(method){var cur=STATE.current;if(!cur)return;var out=document.getElementById('ck-result');out.innerHTML='Processing '+method+'…';try{var orderRes=await fetch('/api/checkout/create',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({serviceId:cur.id,plan:cur.id,qty:1,currency:'USD',paymentMethod:method==='stripe'?'STRIPE':'BTC'})});var order=await orderRes.json();if(!orderRes.ok||(order&&order.error)){throw new Error((order&&(order.error||order.message))||('http '+orderRes.status));}var orderId=order.orderId||order.id||(order.order&&order.order.id);var railPath=method==='stripe'?'/api/checkout/stripe':'/api/checkout/btc';var railRes=await fetch(railPath,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({orderId:orderId,serviceId:cur.id,amount:cur.priceUsd})});var rail=await railRes.json();",
-        "if(method==='stripe'&&rail&&rail.url){out.innerHTML='<span class=\"ok\">✓ Order '+esc(orderId||'')+' created</span> · redirecting to Stripe…';setTimeout(function(){window.location.href=rail.url;},600);return;}",
-        "if(method==='btc'&&(rail.btcAddress||rail.address||rail.btcUri)){var addr=rail.btcAddress||rail.address||'';var uri=rail.btcUri||('bitcoin:'+addr+'?amount='+(rail.btcAmount||cur.priceBtc||''));out.innerHTML='<span class=\"ok\">✓ Order '+esc(orderId||'')+' created</span><br>Send <b>'+(rail.btcAmount||cur.priceBtc||'')+' BTC</b> to <code style=\"word-break:break-all\">'+esc(addr)+'</code><br><a href=\"'+esc(uri)+'\" style=\"color:var(--accent)\">Open in wallet →</a> · <a href=\"/checkout/'+esc(orderId||'')+'\" style=\"color:var(--accent)\">Receipt + delivery →</a>';return;}",
-        "out.innerHTML='<span class=\"ok\">✓ '+esc((rail&&rail.message)||'Order created')+'</span> '+(orderId?'· order '+esc(orderId):'')+' · <a href=\"/checkout/'+esc(orderId||'')+'\" style=\"color:var(--accent)\">View receipt →</a>';}catch(e){out.innerHTML='<span class=\"err\">✗ '+esc(e.message||String(e))+'</span>';}}",
-        "document.getElementById('ck-btc').onclick=function(){pay('btc');};document.getElementById('ck-stripe').onclick=function(){pay('stripe');};document.getElementById('ck-close').onclick=closeModal;document.getElementById('checkout-modal').addEventListener('click',function(e){if(e.target.id==='checkout-modal')closeModal();});",
-        "loadCatalog();pollAll();var sse=connectSSE();if(!sse){setInterval(pollAll,5000);}else{setInterval(pollAll,15000);}setInterval(loadCatalog,60000);",
-        "var qs=new URLSearchParams(location.search);var pre=qs.get('buy');if(pre){setTimeout(function(){window.__buy(encodeURIComponent(pre));},1500);}",
-        "})();",
-      ].join('');
-      try { res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store', 'X-Unicorn-Page': 'services' }); } catch (_) {}
-      return res.end(renderPage('Services', body, js));
-    }
+    // (legacy '/services' client-only handler removed 2026-06-12 — the v2 SSR
+    // storefront below now serves /services with real server-rendered cards.)
 
     if (urlPath === '/revenue-command') {
       const body =
@@ -4471,8 +4733,15 @@ async function unicornHandler(req, res) {
         '<h3 style="margin:32px 0 8px">Action Queue</h3>' +
         '<div id="rc-actions" class="grid"></div>' +
         '<h3 style="margin:32px 0 8px">Vertical Playbook</h3>' +
-        '<div id="rc-playbook" class="grid"></div>';
-      const js = "(function(){function card(t,v,s){return '<div class=\"card\"><h3>'+t+'</h3><div class=\"v\">'+v+'</div><div class=\"sub\">'+(s||'')+'</div></div>'}function refresh(){fetch('/api/revenue/command-center',{cache:'no-store'}).then(function(r){return r.json()}).then(function(d){var c=d&&d.commander||{};var a=d&&d.autopilot||{};var last=a.last||{};var acts=(c.decision&&c.decision.actions)||[];var play=last.verticalPlaybook||[];document.getElementById('rc-summary').innerHTML=card('Top offer',c.decision&&c.decision.topOffer||'—',(c.decision&&c.decision.focus)||'')+card('Leads',c.kpis&&c.kpis.leads||0,'qualified pipeline')+card('Autopilot runs',a.runs||0,'every '+(a.intervalMs||0)+'ms')+card('Offers / cycle',last.offersGenerated||0,'latest cycle')+card('SEO pages / cycle',last.seoPagesPlanned||0,'latest cycle')+card('Budget / cycle','$'+(last.budgetUsd||0),'latest cycle');document.getElementById('rc-actions').innerHTML=(acts.length?acts.map(function(x){return card(x.action,x.count!=null?x.count:(x.offerId||'ready'),x.expectedImpact||x.channel||'')}).join(''):card('Actions','warming','autopilot booting'));document.getElementById('rc-playbook').innerHTML=(play.length?play.map(function(p){return card(p.vertical,p.bundle,p.angle+' · '+p.nextAction)}).join(''):card('Playbook','warming','waiting for first cycle'));}).catch(function(){document.getElementById('rc-summary').innerHTML=card('Revenue center','offline','retrying')})}refresh();setInterval(refresh,5000);})();";
+        '<div id="rc-playbook" class="grid"></div>' +
+        '<h3 style="margin:40px 0 8px">🧠 Autonomous Growth Brain</h3>' +
+        '<p style="color:var(--muted);margin:0 0 8px">Self-driving Observe → Think → Plan → Execute → Reflect loop across the full funnel. Live at <code>/api/growth/brain</code>.</p>' +
+        '<div id="gb-summary" class="grid"></div>' +
+        '<h3 style="margin:32px 0 8px">Funnel Stage Health</h3>' +
+        '<div id="gb-stages" class="grid"></div>' +
+        '<h3 style="margin:32px 0 8px">Next Best Actions · ranked by ROI</h3>' +
+        '<div id="gb-actions" class="grid"></div>';
+      const js = "(function(){function card(t,v,s){return '<div class=\"card\"><h3>'+t+'</h3><div class=\"v\">'+v+'</div><div class=\"sub\">'+(s||'')+'</div></div>'}function refresh(){fetch('/api/revenue/command-center',{cache:'no-store'}).then(function(r){return r.json()}).then(function(d){var c=d&&d.commander||{};var a=d&&d.autopilot||{};var last=a.last||{};var acts=(c.decision&&c.decision.actions)||[];var play=last.verticalPlaybook||[];document.getElementById('rc-summary').innerHTML=card('Top offer',c.decision&&c.decision.topOffer||'—',(c.decision&&c.decision.focus)||'')+card('Leads',c.kpis&&c.kpis.leads||0,'qualified pipeline')+card('Autopilot runs',a.runs||0,'every '+(a.intervalMs||0)+'ms')+card('Offers / cycle',last.offersGenerated||0,'latest cycle')+card('SEO pages / cycle',last.seoPagesPlanned||0,'latest cycle')+card('Budget / cycle','$'+(last.budgetUsd||0),'latest cycle');document.getElementById('rc-actions').innerHTML=(acts.length?acts.map(function(x){return card(x.action,x.count!=null?x.count:(x.offerId||'ready'),x.expectedImpact||x.channel||'')}).join(''):card('Actions','warming','autopilot booting'));document.getElementById('rc-playbook').innerHTML=(play.length?play.map(function(p){return card(p.vertical,p.bundle,p.angle+' · '+p.nextAction)}).join(''):card('Playbook','warming','waiting for first cycle'));}).catch(function(){document.getElementById('rc-summary').innerHTML=card('Revenue center','offline','retrying')});fetch('/api/growth/brain',{cache:'no-store'}).then(function(r){return r.json()}).then(function(d){var gs=(d.growthScore!=null?d.growthScore:'—');document.getElementById('gb-summary').innerHTML=card('Growth score',gs+' / 100',(d.warming?'warming · first cycle':'live · self-optimizing'))+card('Stages tracked',Object.keys(d.stages||{}).length,'full funnel')+card('Actions ranked',(d.topActions||[]).length,'by ROI impact');var st=d.stages||{};var sh='';Object.keys(st).forEach(function(k){sh+=card(k,st[k],'health 0-100')});document.getElementById('gb-stages').innerHTML=sh;var ta=d.topActions||[];document.getElementById('gb-actions').innerHTML=(ta.length?ta.map(function(a){return card((a.title||a.id||'action'),'impact '+(a.impact!=null?a.impact:'—'),(a.detail||a.stage||''))}).join(''):card('Actions','warming','brain booting'));}).catch(function(){var g=document.getElementById('gb-summary');if(g){g.innerHTML=card('Growth brain','offline','retrying')}})}refresh();setInterval(refresh,5000);})();";
       try { res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store', 'X-Unicorn-Page': 'revenue-command' }); } catch (_) {}
       return res.end(renderPage('Revenue Command Center', body, js));
     }
@@ -4482,12 +4751,16 @@ async function unicornHandler(req, res) {
         '<h2 style="margin:0">Public Status</h2>' +
         '<p style="color:var(--muted);margin:8px 0 24px">Transparent live state. Cryptographic attestation every 5 minutes (ed25519 + SHA-256 chain).</p>' +
         '<div id="summary" class="grid"></div>' +
+        '<h3 style="margin:32px 0 8px">Autonomy Spine · governance you can trust</h3>' +
+        '<p style="color:var(--muted);margin:0 0 12px;font-size:13px">Every autonomous decision is reversible and cryptographically provable. The spine reads real organs (mesh / SLO / profit), resolves a governance posture, and signs it into an append-only ed25519 chain. It never mutates the process.</p>' +
+        '<div id="autonomy" class="grid"></div>' +
+        '<div id="autonomy-chain" class="card" style="margin-top:12px"><h3>Decision chain…</h3></div>' +
         '<h3 style="margin:32px 0 8px">Revenue autopilot</h3>' +
         '<div id="autopilot" class="grid"></div>' +
         '<h3 style="margin:32px 0 8px">Sovereignty chain</h3>' +
         '<div id="chain" class="card"><h3>Loading…</h3></div>' +
-        '<div style="margin-top:24px;font-size:12px;color:var(--muted)">Public key: <a href="/api/sovereignty/publickey" style="color:var(--accent)">/api/sovereignty/publickey</a> · Verify: <a href="/api/sovereignty/verify" style="color:var(--accent)">/api/sovereignty/verify</a> · Build SHA: <a href="/api/build" style="color:var(--accent)">/api/build</a></div>';
-      const js = "(function(){function card(t,v,s){return '<div class=\"card\"><h3>'+t+'</h3><div class=\"v\">'+v+'</div><div class=\"sub\">'+(s||'')+'</div></div>'}function refresh(){fetch('/api/supreme/digest').then(function(r){return r.json()}).then(function(d){var m=d.modules||{};var html='';Object.keys(m).forEach(function(k){html+=card(k,(m[k].ok?'<span class=\"ok\">●</span>':'<span class=\"err\">●</span>')+' '+(m[k].cycles||0),'cycles')});if(d.economyPulse!=null)html+=card('Economy pulse',d.economyPulse,'0-100');if(d.revenueForecast)html+=card('Forecast/day','$'+(d.revenueForecast.daily||0).toFixed(2),'oracle');document.getElementById('summary').innerHTML=html;}).catch(function(){});fetch('/api/revenue/autopilot/status').then(function(r){return r.json()}).then(function(d){var last=d.last||{};document.getElementById('autopilot').innerHTML=card('Autopilot runs',d.runs||0,'interval '+(d.intervalMs||0)+'ms')+card('Offers generated',last.offersGenerated||0,'latest cycle')+card('SEO pages',last.seoPagesPlanned||0,'latest cycle')+card('Budget','$'+(last.budgetUsd||0),(last.focus||'warming'))+card('Economy pulse',last.economyPulse||0,'latest cycle')+card('Forecast 30d','$'+(last.forecastNext30dUsd||0).toFixed(2),'oracle');}).catch(function(){document.getElementById('autopilot').innerHTML=card('Autopilot','offline','retrying')});fetch('/api/sovereignty/verify').then(function(r){return r.json()}).then(function(d){var c=d.chain||{};var status=c.ok?'<span class=\"ok\">✓ valid</span>':'<span class=\"warn\">⚠ '+(c.breaks?c.breaks.length:'?')+' break(s)</span>';var sub='length '+(c.length||0)+', head '+((c.head||'').slice(0,16))+'…'+(c.currentChain?(' · current sub-chain: '+c.currentChain.length+' attestations'):'');document.getElementById('chain').innerHTML='<h3>Chain status</h3><div class=\"v\">'+status+'</div><div class=\"sub\">'+sub+'</div>'}).catch(function(){})}refresh();setInterval(refresh,5000);})();";
+        '<div style="margin-top:24px;font-size:12px;color:var(--muted)">Public key: <a href="/api/sovereignty/publickey" style="color:var(--accent)">/api/sovereignty/publickey</a> · Verify: <a href="/api/sovereignty/verify" style="color:var(--accent)">/api/sovereignty/verify</a> · Autonomy verify: <a href="/api/spine/verify" style="color:var(--accent)">/api/spine/verify</a> · Build SHA: <a href="/api/build" style="color:var(--accent)">/api/build</a></div>';
+      const js = "(function(){function card(t,v,s){return '<div class=\"card\"><h3>'+t+'</h3><div class=\"v\">'+v+'</div><div class=\"sub\">'+(s||'')+'</div></div>'}function modeColor(m){return m==='EXPLORE'?'ok':(m==='PROTECT'||m==='FREEZE'?'warn':'')}function refresh(){fetch('/api/supreme/digest').then(function(r){return r.json()}).then(function(d){var m=d.modules||{};var html='';Object.keys(m).forEach(function(k){html+=card(k,(m[k].ok?'<span class=\"ok\">●</span>':'<span class=\"err\">●</span>')+' '+(m[k].cycles||0),'cycles')});if(d.economyPulse!=null)html+=card('Economy pulse',d.economyPulse,'0-100');if(d.revenueForecast)html+=card('Forecast/day','$'+(d.revenueForecast.daily||0).toFixed(2),'oracle');document.getElementById('summary').innerHTML=html;}).catch(function(){});fetch('/api/spine/status').then(function(r){return r.json()}).then(function(d){if(!d||d.error){document.getElementById('autonomy').innerHTML=card('Autonomy Spine','warming','booting');return;}var g=d.gate||{};var mc=modeColor(d.mode);document.getElementById('autonomy').innerHTML=card('Governance mode','<span class=\"'+mc+'\">'+(d.mode||'—')+'</span>',(d.enforce?'enforcing':'observe+attest'))+card('Experiments gate',(g.canExperiment?'<span class=\"ok\">● allowed</span>':'<span class=\"warn\">● held</span>'),(g.reasons&&g.reasons[0])||'')+card('Decisions signed',d.seq||0,'tick '+((d.tickMs||0)/1000)+'s')+card('Mode counts','E '+((d.modeCounts&&d.modeCounts.EXPLORE)||0)+' / X '+((d.modeCounts&&d.modeCounts.EXPLOIT)||0),'P '+((d.modeCounts&&d.modeCounts.PROTECT)||0)+' / F '+((d.modeCounts&&d.modeCounts.FREEZE)||0));}).catch(function(){document.getElementById('autonomy').innerHTML=card('Autonomy Spine','offline','retrying')});fetch('/api/spine/verify').then(function(r){return r.json()}).then(function(d){var status=d.secure?'<span class=\"ok\">✓ secure</span>':'<span class=\"err\">✗ '+((d.tamperBreaks&&d.tamperBreaks.length)||'?')+' tamper</span>';var sub='length '+(d.length||0)+', head '+((d.head||'').slice(0,16))+'… · '+(d.alg||'')+(d.restartBoundaries?(' · '+d.restartBoundaries+' restart boundaries'):'');document.getElementById('autonomy-chain').innerHTML='<h3>Decision chain ('+(d.alg||'signed')+')</h3><div class=\"v\">'+status+'</div><div class=\"sub\">'+sub+'</div>'}).catch(function(){});fetch('/api/revenue/autopilot/status').then(function(r){return r.json()}).then(function(d){var last=d.last||{};document.getElementById('autopilot').innerHTML=card('Autopilot runs',d.runs||0,'interval '+(d.intervalMs||0)+'ms')+card('Offers generated',last.offersGenerated||0,'latest cycle')+card('SEO pages',last.seoPagesPlanned||0,'latest cycle')+card('Budget','$'+(last.budgetUsd||0),(last.focus||'warming'))+card('Economy pulse',last.economyPulse||0,'latest cycle')+card('Forecast 30d','$'+(last.forecastNext30dUsd||0).toFixed(2),'oracle');}).catch(function(){document.getElementById('autopilot').innerHTML=card('Autopilot','offline','retrying')});fetch('/api/sovereignty/verify').then(function(r){return r.json()}).then(function(d){var c=d.chain||{};var status=c.ok?'<span class=\"ok\">✓ valid</span>':'<span class=\"warn\">⚠ '+(c.breaks?c.breaks.length:'?')+' break(s)</span>';var sub='length '+(c.length||0)+', head '+((c.head||'').slice(0,16))+'…'+(c.currentChain?(' · current sub-chain: '+c.currentChain.length+' attestations'):'');document.getElementById('chain').innerHTML='<h3>Chain status</h3><div class=\"v\">'+status+'</div><div class=\"sub\">'+sub+'</div>'}).catch(function(){})}refresh();setInterval(refresh,5000);})();";
       try { res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'public, max-age=15', 'X-Unicorn-Page': 'status' }); } catch (_) {}
       return res.end(renderPage('Status', body, js));
     }
@@ -4569,6 +4842,408 @@ async function unicornHandler(req, res) {
       const js = "(function(){function esc(s){return String(s||'').replace(/[&<>\"]/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','\"':'&quot;'}[c]})}function card(t,v,s){return '<div class=\"card\"><h3>'+esc(t)+'</h3><div class=\"v\">'+v+'</div><div class=\"sub\">'+esc(s||'')+'</div></div>'}fetch('/api/growth/revenue-share',{cache:'no-store'}).then(function(r){return r.json()}).then(function(d){var html='';html+=card('Revenue share',d.pct+'%','of net-new revenue');html+=card('Minimum MRR','$'+(d.minMrrUsd||0),'to qualify');html+=card('Setup fee','$0','zero upfront');html+=card('Term','month-to-month','cancel anytime');document.getElementById('terms').innerHTML=html;var p=document.getElementById('pct-inline');if(p)p.textContent=d.pct+'%';}).catch(function(){document.getElementById('terms').innerHTML=card('Terms','offline','retrying')});var f=document.getElementById('apply');if(f){f.addEventListener('submit',function(e){e.preventDefault();var data={};(new FormData(f)).forEach(function(v,k){data[k]=v});var btn=f.querySelector('button[type=submit]');var out=document.getElementById('apply-result');btn.disabled=true;out.textContent='Sending…';fetch('/api/growth/revenue-share/apply',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)}).then(function(r){return r.json()}).then(function(j){if(j&&j.ok){out.innerHTML='<span class=\"ok\">✓ Application received. ID: '+esc(j.appId||'—')+'. We will email you within 1 business day.</span>';f.reset()}else{out.innerHTML='<span class=\"err\">Could not submit: '+esc((j&&j.error)||'unknown')+'</span>';btn.disabled=false}}).catch(function(err){out.innerHTML='<span class=\"err\">Network error. Try again or email founders@zeusai.pro.</span>';btn.disabled=false})})}})();";
       try { res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store', 'X-Unicorn-Page': 'revenue-share' }); } catch (_) {}
       return res.end(renderPage('Revenue Share', body, js));
+    }
+
+    // ==================== ZACC · ZEUS AUTONOMIC COMMERCE CORE (2026-05-29) ====================
+    // Public dashboard for the world's first fully-autonomous commerce core.
+    // Everything is fetched live from /api/zacc/public (backend, port 3000 via
+    // nginx). No fake numbers; the page renders exactly what the loop produced.
+    if (urlPath === '/zacc') {
+      const body =
+        '<h2 style="margin:0">Autonomous Dropshipping Platform <span style="font-size:13px;color:var(--accent);border:1px solid var(--accent);border-radius:999px;padding:2px 10px;vertical-align:middle">ZACC \u00b7 LIVE</span></h2>' +
+        '<p style="color:var(--muted);margin:8px 0 24px">The world\u2019s first fully-autonomous AI dropshipping store. The engine scrapes 20+ global sources (Amazon, AliExpress, Etsy, eBay\u2026), filters the highest-margin winners, writes the listings, sets BTC prices, fulfils orders via CJ Dropshipping and delivers digital services instantly. Payments are verified on-chain. You own the BTC wallet \u2014 the AI does product research, pricing, listing, fulfilment, support and learning, 24/7. Every number below is produced live.</p>' +
+        '<div id="zc-summary" class="grid"></div>' +
+        // Prominent CTA into the customer-facing auto-curated store.
+        '<div style="margin:26px 0;padding:22px 24px;border:1px solid var(--accent);border-radius:14px;background:linear-gradient(135deg,rgba(124,58,237,.14),rgba(124,58,237,.04));display:flex;flex-wrap:wrap;gap:14px;align-items:center;justify-content:space-between">' +
+        '  <div><div style="font-size:18px;font-weight:700">\ud83c\udf10 Live auto-curated store is open</div><div id="zc-store-sub" style="color:var(--muted);font-size:13px;margin-top:4px">Products are scraped, profit-scored and published automatically.</div></div>' +
+        '  <a href="/dropship" style="background:var(--accent);color:#fff;padding:12px 22px;border-radius:10px;font-weight:600;text-decoration:none;white-space:nowrap">Browse the store \u2192</a>' +
+        '</div>' +
+        // Autonomous dropshipping pipeline status (scraper -> profit -> publisher -> fulfillment).
+        '<h3 style="margin:32px 0 8px">Autonomous dropshipping pipeline</h3>' +
+        '<div id="zc-pipeline" class="grid"></div>' +
+        // Auto-scraped + auto-published products (the real dropship catalog).
+        '<h3 style="margin:32px 0 8px">Auto-scraped winning products <span class="sub" style="font-weight:400">(global sources \u00b7 profit-filtered \u00b7 BTC checkout)</span></h3>' +
+        '<div id="zc-dropship" class="grid" style="grid-template-columns:repeat(auto-fit,minmax(280px,1fr))"></div>' +
+        '<h3 style="margin:32px 0 8px">Winning products being researched right now <span id="zc-admin-hint" style="font-size:11px;font-weight:400;color:var(--muted)"></span></h3>' +
+        '<div id="zc-ideas" class="grid"></div>' +
+        '<h3 style="margin:32px 0 8px">Live store · buy now in BTC <span class="sub" style="font-weight:400">(on-chain settled, Printful + AI fulfilment)</span></h3>' +
+        '<div id="zc-products" class="grid" style="grid-template-columns:repeat(auto-fit,minmax(290px,1fr))"></div>' +
+        '<div id="zc-invoice-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:9999;align-items:center;justify-content:center">' +
+        '<div style="background:var(--card,#1a1a2e);border:1px solid var(--accent,#7c3aed);border-radius:12px;padding:32px;max-width:420px;width:90%;position:relative">' +
+        '<button onclick="document.getElementById(\'zc-invoice-modal\').style.display=\'none\'" style="position:absolute;top:12px;right:16px;background:none;border:none;color:var(--muted);font-size:20px;cursor:pointer">\u00d7</button>' +
+        '<h3 style="margin:0 0 8px" id="zc-inv-title">BTC Invoice</h3>' +
+        '<p style="color:var(--muted);font-size:12px;margin:0 0 16px" id="zc-inv-product"></p>' +
+        '<div style="background:#0d0d1a;border-radius:8px;padding:16px;margin-bottom:16px">' +
+        '<div style="font-size:11px;color:var(--muted);margin-bottom:4px">Send EXACTLY</div>' +
+        '<div id="zc-inv-btc" style="font-size:22px;font-weight:700;font-family:monospace;color:var(--accent)"></div>' +
+        '<div id="zc-inv-usd" style="font-size:13px;color:var(--muted);margin-top:4px"></div>' +
+        '</div>' +
+        '<div style="font-size:11px;color:var(--muted);margin-bottom:4px">To address</div>' +
+        '<div id="zc-inv-addr" style="font-family:monospace;font-size:12px;word-break:break-all;color:var(--accent);margin-bottom:16px"></div>' +
+        '<div id="zc-inv-status" style="font-size:13px;color:var(--muted);text-align:center"></div>' +
+        '<p style="font-size:11px;color:var(--muted);margin:12px 0 0;text-align:center">The exact amount is unique to your order. Payment confirmed automatically on-chain via mempool.space.</p>' +
+        '</div></div>' +
+        '<h3 style="margin:32px 0 8px">Market demand the AI is tracking</h3>' +
+        '<div id="zc-trends" class="grid"></div>' +
+        '<h3 style="margin:32px 0 8px">Roadmap \u00b7 next dropshipping integrations</h3>' +
+        '<div id="zc-evo" class="grid"></div>' +
+        '<div style="margin-top:24px;font-size:12px;color:var(--muted)">Pipeline: Trend Scanner \u00b7 Idea Synthesizer \u00b7 Auto-Builder \u00b7 Dynamic Pricing \u00b7 Self-Healing \u00b7 BTC Revenue Autopilot \u00b7 Multi-niche Store Manager \u00b7 Self-Learning \u00b7 Eternal Evolution \u00b7 On-chain Payment Watcher. Full status: <a href="/api/zacc/status" style="color:var(--accent)">/api/zacc/status</a></div>';
+      const js = [
+        '(function(){',
+        'function esc(s){return String(s==null?"":s).replace(/[&<>"]/g,function(c){return{"&":"&amp;","<":"&lt;",">":"&gt;",\'"\':"&quot;"}[c];});}',
+        'function card(t,v,s){return\'<div class="card"><h3>\'+esc(t)+\'</h3><div class="v">\'+v+\'</div><div class="sub">\'+esc(s||"")+\'</div></div>\';}',
+        'function money(n){return"$"+Number(n||0).toLocaleString("en-US",{maximumFractionDigits:2});}',
+        // Robust product media: a real <img> (lazy-loaded) over a gradient/category
+        // placeholder. If the remote photo 404s or the source is offline the <img>
+        // removes itself (onerror) and the placeholder shows — the store never
+        // renders as a grid of broken images. Single/double quotes are valid HTML
+        // here (NEVER backslash-escaped quotes, which silently break the attribute).
+        'function imgBox(p,rad,mb){var r=rad||"8px";var m=mb?"margin-bottom:"+mb+"px;":"";var ph=\'<span style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.06em">\'+esc(p.category||"product")+\'</span>\';var im=p.image?\'<img src="\'+esc(p.image)+\'" alt="\'+esc(p.title||"")+\'" loading="lazy" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover" onerror="this.remove()">\':"";return \'<div style="position:relative;aspect-ratio:1/1;border-radius:\'+r+\';overflow:hidden;\'+m+\'background:linear-gradient(135deg,#1a1a2e,#0d0d1a)">\'+ph+im+\'</div>\';}',
+        // Admin token from sessionStorage (set once, stays for session)
+        'function adminToken(){return sessionStorage.getItem("zacc_admin_token")||"";}',
+        // Approve idea (admin-only)
+        'function approveIdea(ideaId,btn){',
+        '  var tok=adminToken();',
+        '  if(!tok){tok=prompt("Admin token:");if(tok)sessionStorage.setItem("zacc_admin_token",tok);}',
+        '  if(!tok)return;',
+        '  btn.disabled=true;btn.textContent="Approving\u2026";',
+        '  fetch("/api/zacc/approve/"+encodeURIComponent(ideaId),{method:"POST",headers:{"x-admin-token":tok}})',
+        '  .then(function(r){return r.json();})',
+        '  .then(function(d){btn.textContent=d.ok?"Approved \u2713":"Error";setTimeout(refresh,1500);})',
+        '  .catch(function(){btn.textContent="Error";});',
+        '}',
+        // BTC invoice modal
+        'var _invPollTimer=null;',
+        'function openInvoice(productId,productTitle,priceUsd){',
+        '  var m=document.getElementById("zc-invoice-modal");',
+        '  document.getElementById("zc-inv-title").textContent="BTC Invoice";',
+        '  document.getElementById("zc-inv-product").textContent=productTitle;',
+        '  document.getElementById("zc-inv-btc").textContent="Loading\u2026";',
+        '  document.getElementById("zc-inv-usd").textContent="";',
+        '  document.getElementById("zc-inv-addr").textContent="";',
+        '  document.getElementById("zc-inv-status").textContent="Creating invoice\u2026";',
+        '  m.style.display="flex";',
+        '  if(_invPollTimer){clearInterval(_invPollTimer);_invPollTimer=null;}',
+        '  fetch("/api/zacc/invoice/"+encodeURIComponent(productId),{method:"POST"})',
+        '  .then(function(r){return r.json();})',
+        '  .then(function(d){',
+        '    if(!d.ok||!d.invoice){document.getElementById("zc-inv-status").textContent="Invoice error";return;}',
+        '    var inv=d.invoice;',
+        '    document.getElementById("zc-inv-btc").textContent=(inv.amountBtc||0).toFixed(8)+" BTC";',
+        '    document.getElementById("zc-inv-usd").textContent="= "+money(inv.amountUsd);',
+        '    document.getElementById("zc-inv-addr").textContent=inv.btcAddress||"";',
+        '    document.getElementById("zc-inv-status").textContent=inv.status==="rate-unavailable"?"BTC rate unavailable \u2014 send any BTC to confirm":"Waiting for payment\u2026";',
+        '    var invId=inv.id;',
+        '    _invPollTimer=setInterval(function(){',
+        '      fetch("/api/zacc/invoice/"+encodeURIComponent(invId))',
+        '      .then(function(r){return r.json();})',
+        '      .then(function(d2){',
+        '        if(d2.invoice&&d2.invoice.status==="paid"){',
+        '          document.getElementById("zc-inv-status").textContent="\u2714 Payment confirmed! Delivery in progress.";',
+        '          clearInterval(_invPollTimer);_invPollTimer=null;',
+        '          setTimeout(function(){document.getElementById("zc-invoice-modal").style.display="none";refresh();},3000);',
+        '        }',
+        '      }).catch(function(){});',
+        '    },8000);',
+        '  }).catch(function(){document.getElementById("zc-inv-status").textContent="Network error";});',
+        '}',
+        // Main refresh
+        'function refresh(){fetch("/api/zacc/public",{cache:"no-store"}).then(function(r){return r.json();}).then(function(d){',
+        '  if(!d||!d.ok){document.getElementById("zc-summary").innerHTML=card("ZACC","warming up","autonomous loop booting");return;}',
+        '  var c=d.counts||{};',
+        '  var payI=(d.payments&&d.payments.openInvoices)||0;',
+        '  var payP=(d.payments&&d.payments.paidInvoices)||0;',
+        '  document.getElementById("zc-summary").innerHTML=',
+        '    card("Autonomous cycles",d.ticks||0,"last: "+(d.lastTickAt?new Date(d.lastTickAt).toLocaleTimeString():"\u2014"))+',
+        '    card("Products scraped",c.scraped||0,"qualified: "+(c.qualified||0))+',
+        '    card("Published live",c.dropshipPublished||0,"auto-listed dropship products")+',
+        '    card("Lifetime revenue",money(d.revenue&&d.revenue.lifetimeUsd),"24h: "+money(d.revenue&&d.revenue.last24hUsd))+',
+        '    card("BTC invoices",payP+" paid",""+payI+" open \u00b7 on-chain verified")+',
+        '    card("Orders routed",c.ordersRouted||0,(c.ordersPending||0)+" pending fulfilment");',
+        // Pipeline status fed from /api/dropship/status (scraper/profit/publisher/fulfillment).
+        '  var sub=document.getElementById("zc-store-sub");',
+        '  if(sub)sub.textContent=(c.dropshipPublished||0)+" products live \u00b7 "+(c.scraped||0)+" scraped \u00b7 "+(c.qualified||0)+" qualified by the profit engine.";',
+        // Ideas with Approve button for proposed ones
+        '  var ideas=d.ideas||[];',
+        '  document.getElementById("zc-ideas").innerHTML=ideas.length?ideas.map(function(i){',
+        '    var approveBtn=i.status==="proposed"?\'<button type="button" data-approve data-id="\'+esc(i.id)+\'" style="margin-top:10px;font-size:11px;padding:4px 10px">Approve \u2192</button>\':"";',
+        '    return \'<div class="card"><h3>\'+esc(i.name)+\'</h3><div class="v">\'+money(i.priceUsd)+\'</div><div class="sub">\'+esc(i.type)+\' \u00b7 margin \'+Math.round(i.marginPct||0)+\'% \u00b7 \'+esc(i.status)+\'</div>\'+approveBtn+\'</div>\';',
+        '  }).join(""):card("Ideas","synthesising\u2026","first batch within the hour");',
+        // Products with BTC Invoice button
+        '  var prods=d.products||[];',
+        '  document.getElementById("zc-products").innerHTML=prods.length?prods.map(function(p){',
+        '    return \'<div class="card" style="padding:22px">\'',
+        '    +\'<h3 style="font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--accent)">\'+esc(p.type)+\' \u00b7 \'+esc(p.niche)+\'</h3>\'',
+        '    +\'<div style="font-size:16px;font-weight:600;margin:6px 0">\'+esc(p.title)+\'</div>\'',
+        '    +\'<div class="v">\'+money(p.priceUsd)+\'</div>\'',
+        '    +\'<p style="color:var(--muted);font-size:12px;margin:8px 0 14px;min-height:48px">\'+esc((p.description||"").slice(0,140))+\'</p>\'',
+        '    +\'<button type="button" data-buy data-pid="\'+esc(p.id)+\'" data-title="\'+esc(p.title)+\'" data-price="\'+Number(p.priceUsd||0)+\'" style="width:100%">Pay with BTC (on-chain) \u2192</button>\'',
+        '    +\'</div>\';',
+        '  }).join(""):card("Products","building\u2026","approved ideas materialise here");',
+        // Auto-scraped dropship products — clickable through to the product page.
+        '  var ds=d.dropship||[];',
+        '  document.getElementById("zc-dropship").innerHTML=ds.length?ds.map(function(p){',
+        '    var img=imgBox(p,"8px",10);',
+        '    var badge=p.netProfitUsd>0?\'<span style="display:inline-block;background:rgba(124,58,237,.18);color:var(--accent);font-size:10px;padding:2px 8px;border-radius:999px;margin-left:6px">+\'+money(p.netProfitUsd)+\'</span>\':"";',
+        '    return \'<a href="/dropship/product/\'+encodeURIComponent(p.id)+\'" style="text-decoration:none;color:inherit"><div class="card" style="padding:16px">\'+img',
+        '    +\'<div style="font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:var(--accent)">\'+esc(p.category||"general")+\' \u00b7 \'+esc(p.source||"sourced")+\'</div>\'',
+        '    +\'<div style="font-size:14px;font-weight:600;margin:5px 0 4px;min-height:38px">\'+esc(p.title)+\'</div>\'',
+        '    +\'<div class="v" style="font-size:20px">\'+money(p.priceUsd)+badge+\'</div>\'',
+        '    +\'<div style="font-size:11px;color:var(--muted);margin-top:4px">\u2605 \'+(Math.round((p.rating||0)*10)/10)+\' \u00b7 \'+Math.round(p.marginPct||0)+\'% margin \u00b7 buy \u2192</div>\'',
+        '    +\'</div></a>\';',
+        '  }).join(""):card("Store","warming up","first scrape publishes within minutes");',
+        '  var tr=d.trends||[];',
+        '  document.getElementById("zc-trends").innerHTML=tr.length?tr.map(function(t){return card(t.label,Math.round((t.score||0)*100)+"%","demand \u00b7 "+esc(t.category||""));}).join(""):card("Trends","scanning\u2026","");',
+        '  var evo=d.evolution||[];',
+        '  document.getElementById("zc-evo").innerHTML=evo.length?evo.map(function(e){return card(e.label,Math.round((e.advantage||0)*100)+"%",esc(e.area)+" \u00b7 "+esc(e.status));}).join(""):card("Evolution","idle","monthly scan");',
+        '}).catch(function(){document.getElementById("zc-summary").innerHTML=card("ZACC","offline","retrying");});}',
+        // Pipeline status (scraper/profit/publisher/fulfillment) — separate cheap fetch.
+        'function refreshPipeline(){fetch("/api/dropship/status",{cache:"no-store"}).then(function(r){return r.json();}).then(function(d){',
+        '  if(!d||!d.ok)return;',
+        '  var sc=d.scraper||{},pr=d.profit||{},pb=d.publisher||{},fl=d.fulfillment||{};',
+        '  var th=pr.thresholds||{};',
+        '  document.getElementById("zc-pipeline").innerHTML=',
+        '    card("1 \u00b7 Scraper",(sc.cached||0)+" cached","every "+(sc.intervalHours||6)+"h \u00b7 "+(sc.scrapes||0)+" runs")+',
+        '    card("2 \u00b7 Profit engine",(pr.qualified||0)+" qualified","min margin "+(th.minMarginPct||0)+"% \u00b7 markup "+(th.markup||0)+"x")+',
+        '    card("3 \u00b7 Publisher",(pb.published||0)+" live",(pb.perTick||0)+"/tick \u00b7 "+(pb.lifetime||0)+" lifetime")+',
+        '    card("4 \u00b7 Fulfilment",(fl.routed||0)+" routed",(fl.pending||0)+" pending \u00b7 "+(fl.autoFulfilled||0)+" auto");',
+        '}).catch(function(){});}',
+        // Bind delegated click handlers ONCE (the grids are re-rendered every few
+        // seconds; inline onclick with embedded product data is both fragile and
+        // XSS-prone, so we read id/title/price from data-* attributes instead).
+        'var _zp=document.getElementById("zc-products");if(_zp)_zp.addEventListener("click",function(e){var b=e.target&&e.target.closest?e.target.closest("[data-buy]"):null;if(!b)return;openInvoice(b.getAttribute("data-pid"),b.getAttribute("data-title")||"",Number(b.getAttribute("data-price")||0));});',
+        'var _zi=document.getElementById("zc-ideas");if(_zi)_zi.addEventListener("click",function(e){var b=e.target&&e.target.closest?e.target.closest("[data-approve]"):null;if(!b)return;approveIdea(b.getAttribute("data-id"),b);});',
+        'refresh();setInterval(refresh,5000);',
+        'refreshPipeline();setInterval(refreshPipeline,8000);',
+        '})();',
+      ].join('');
+      try { res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store', 'X-Unicorn-Page': 'zacc' }); } catch (_) {}
+      return res.end(renderPage('Autonomous Dropshipping Platform · ZACC', body, js));
+    }
+
+    // ==================== /DROPSHIP · AUTO-CURATED GLOBAL STORE ====================
+    // The customer-facing storefront. Every product is scraped, profit-filtered,
+    // AI-described and listed without human intervention. Buying = BTC invoice
+    // → auto-routed to CJ Dropshipping / webhook / admin queue. Single SSR shell,
+    // hydrated from /api/dropship/products + /api/dropship/status every 10s.
+    if (urlPath === '/dropship') {
+      const body =
+        '<h2 style="margin:0">Global AI Dropshipping Store <span style="font-size:13px;color:var(--accent);border:1px solid var(--accent);border-radius:999px;padding:2px 10px;vertical-align:middle">LIVE \u00b7 AUTO-CURATED</span></h2>' +
+        '<p style="color:var(--muted);margin:8px 0 18px">Zeus Autonomic Commerce Core scans Amazon, AliExpress, Etsy, eBay and other public sources every few hours, filters the highest-margin winners and publishes them here automatically. Every listing has a real cost, real margin, real BTC checkout, and ships globally. The store fills itself \u2014 you don\u2019t.</p>' +
+        '<div id="ds-summary" class="grid"></div>' +
+        '<div style="display:flex;gap:10px;flex-wrap:wrap;margin:24px 0 12px;align-items:center">' +
+        '  <input id="ds-search" placeholder="Search products\u2026" style="flex:1;min-width:200px;padding:10px 14px;border-radius:8px;border:1px solid var(--border,#333);background:var(--card,#1a1a2e);color:inherit" />' +
+        '  <select id="ds-sort" style="padding:10px 14px;border-radius:8px;border:1px solid var(--border,#333);background:var(--card,#1a1a2e);color:inherit">' +
+        '    <option value="profit">Most profitable</option>' +
+        '    <option value="newest">Newest</option>' +
+        '    <option value="sales">Best-selling</option>' +
+        '    <option value="price-asc">Price \u2191</option>' +
+        '    <option value="price-desc">Price \u2193</option>' +
+        '  </select>' +
+        '  <select id="ds-category" style="padding:10px 14px;border-radius:8px;border:1px solid var(--border,#333);background:var(--card,#1a1a2e);color:inherit">' +
+        '    <option value="">All categories</option>' +
+        '  </select>' +
+        '</div>' +
+        '<div id="ds-grid" class="grid" style="grid-template-columns:repeat(auto-fit,minmax(280px,1fr))"></div>' +
+        // Reuse the same invoice modal markup so the BTC pay flow is identical.
+        '<div id="zc-invoice-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:9999;align-items:center;justify-content:center">' +
+        '<div style="background:var(--card,#1a1a2e);border:1px solid var(--accent,#7c3aed);border-radius:12px;padding:32px;max-width:420px;width:90%;position:relative">' +
+        '<button onclick="document.getElementById(\'zc-invoice-modal\').style.display=\'none\'" style="position:absolute;top:12px;right:16px;background:none;border:none;color:var(--muted);font-size:20px;cursor:pointer">\u00d7</button>' +
+        '<h3 style="margin:0 0 8px" id="zc-inv-title">BTC Invoice</h3>' +
+        '<p style="color:var(--muted);font-size:12px;margin:0 0 16px" id="zc-inv-product"></p>' +
+        '<div style="background:#0d0d1a;border-radius:8px;padding:16px;margin-bottom:16px">' +
+        '<div style="font-size:11px;color:var(--muted);margin-bottom:4px">Send EXACTLY</div>' +
+        '<div id="zc-inv-btc" style="font-size:22px;font-weight:700;font-family:monospace;color:var(--accent)"></div>' +
+        '<div id="zc-inv-usd" style="font-size:13px;color:var(--muted);margin-top:4px"></div>' +
+        '</div>' +
+        '<div style="font-size:11px;color:var(--muted);margin-bottom:4px">To address</div>' +
+        '<div id="zc-inv-addr" style="font-family:monospace;font-size:12px;word-break:break-all;color:var(--accent);margin-bottom:16px"></div>' +
+        '<div id="zc-inv-status" style="font-size:13px;color:var(--muted);text-align:center"></div>' +
+        '<p style="font-size:11px;color:var(--muted);margin:12px 0 0;text-align:center">The exact amount is unique to your order. Payment confirmed automatically on-chain via mempool.space. Fulfilment is routed automatically to the supplier.</p>' +
+        '</div></div>' +
+        '<div style="margin-top:24px;font-size:12px;color:var(--muted)">Sources: scraper + profit-maximizer + auto-publisher + fulfillment router. Status: <a href="/api/dropship/status" style="color:var(--accent)">/api/dropship/status</a></div>';
+      const js = [
+        '(function(){',
+        'function esc(s){return String(s==null?"":s).replace(/[&<>"]/g,function(c){return{"&":"&amp;","<":"&lt;",">":"&gt;",\'"\':"&quot;"}[c];});}',
+        'function card(t,v,s){return\'<div class="card"><h3>\'+esc(t)+\'</h3><div class="v">\'+v+\'</div><div class="sub">\'+esc(s||"")+\'</div></div>\';}',
+        'function money(n){return"$"+Number(n||0).toLocaleString("en-US",{maximumFractionDigits:2});}',
+        'var _invPollTimer=null;',
+        'function openInvoice(productId,productTitle){',
+        '  var m=document.getElementById("zc-invoice-modal");',
+        '  document.getElementById("zc-inv-title").textContent="BTC Invoice";',
+        '  document.getElementById("zc-inv-product").textContent=productTitle;',
+        '  document.getElementById("zc-inv-btc").textContent="Loading\u2026";',
+        '  document.getElementById("zc-inv-usd").textContent="";',
+        '  document.getElementById("zc-inv-addr").textContent="";',
+        '  document.getElementById("zc-inv-status").textContent="Creating invoice\u2026";',
+        '  m.style.display="flex";',
+        '  if(_invPollTimer){clearInterval(_invPollTimer);_invPollTimer=null;}',
+        '  fetch("/api/dropship/order/"+encodeURIComponent(productId),{method:"POST"})',
+        '  .then(function(r){return r.json();})',
+        '  .then(function(d){',
+        '    if(!d.ok||!d.invoice){document.getElementById("zc-inv-status").textContent="Invoice error";return;}',
+        '    var inv=d.invoice;',
+        '    document.getElementById("zc-inv-btc").textContent=(inv.amountBtc||0).toFixed(8)+" BTC";',
+        '    document.getElementById("zc-inv-usd").textContent="= "+money(inv.amountUsd);',
+        '    document.getElementById("zc-inv-addr").textContent=inv.btcAddress||"";',
+        '    document.getElementById("zc-inv-status").textContent=inv.status==="rate-unavailable"?"BTC rate unavailable \u2014 send any BTC to confirm":"Waiting for payment\u2026";',
+        '    var invId=inv.id;',
+        '    _invPollTimer=setInterval(function(){',
+        '      fetch("/api/zacc/invoice/"+encodeURIComponent(invId))',
+        '      .then(function(r){return r.json();})',
+        '      .then(function(d2){',
+        '        if(d2.invoice&&d2.invoice.status==="paid"){',
+        '          document.getElementById("zc-inv-status").textContent="\u2714 Payment confirmed! Supplier is routing your order.";',
+        '          clearInterval(_invPollTimer);_invPollTimer=null;',
+        '        }',
+        '      }).catch(function(){});',
+        '    },8000);',
+        '  }).catch(function(){document.getElementById("zc-inv-status").textContent="Network error";});',
+        '}',
+        'var _cats=[];',
+        'function setCats(cats){',
+        '  if(!cats||!cats.length)return;',
+        '  var same=cats.length===_cats.length&&cats.every(function(c,i){return c===_cats[i];});',
+        '  if(same)return;',
+        '  _cats=cats.slice();',
+        '  var sel=document.getElementById("ds-category");',
+        '  var cur=sel.value;',
+        '  sel.innerHTML=\'<option value="">All categories</option>\'+cats.map(function(c){return\'<option value="\'+esc(c)+\'">\'+esc(c)+\'</option>\';}).join("");',
+        '  sel.value=cur;',
+        '}',
+        // Robust product media — real lazy <img> over a gradient/category placeholder
+        // with an onerror fallback so a dead remote photo never breaks the layout.
+        'function imgBox(p,rad,mb){var r=rad||"8px";var m=mb?"margin-bottom:"+mb+"px;":"";var ph=\'<span style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.06em">\'+esc(p.category||"product")+\'</span>\';var im=p.image?\'<img src="\'+esc(p.image)+\'" alt="\'+esc(p.title||"")+\'" loading="lazy" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover" onerror="this.remove()">\':"";return \'<div style="position:relative;aspect-ratio:1/1;border-radius:\'+r+\';overflow:hidden;\'+m+\'background:linear-gradient(135deg,#1a1a2e,#0d0d1a)">\'+ph+im+\'</div>\';}',
+        'function renderGrid(items){',
+        '  var g=document.getElementById("ds-grid");',
+        '  if(!items||!items.length){g.innerHTML=card("Catalog","warming up","first scrape running \u2014 products appear within minutes");return;}',
+        '  g.innerHTML=items.map(function(p){',
+        '    var img=imgBox(p,"8px",12);',
+        '    var stars=Math.round((p.rating||0)*10)/10;',
+        '    var profitBadge=p.netProfitUsd>0?\'<span style="display:inline-block;background:rgba(124,58,237,.18);color:var(--accent);font-size:10px;padding:2px 8px;border-radius:999px;margin-left:6px">+\'+money(p.netProfitUsd)+\' margin</span>\':"";',
+        '    return \'<div class="card" style="padding:18px">\'+img',
+        '    +\'<div style="font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:var(--accent)">\'+esc(p.category||"general")+\' \u00b7 \'+esc(p.source||"sourced")+\'</div>\'',
+        '    +\'<div style="font-size:15px;font-weight:600;margin:6px 0 4px;min-height:42px">\'+esc(p.title)+\'</div>\'',
+        '    +\'<div class="v" style="font-size:22px">\'+money(p.priceUsd)+profitBadge+\'</div>\'',
+        '    +\'<div style="font-size:11px;color:var(--muted);margin:6px 0">\u2605 \'+stars+\' \u00b7 \'+Number(p.reviews||0).toLocaleString()+\' reviews\u00b7 \'+Math.round(p.marginPct||0)+\'% margin</div>\'',
+        '    +\'<p style="color:var(--muted);font-size:12px;margin:8px 0 14px;min-height:48px">\'+esc((p.description||"").slice(0,120))+\'\u2026</p>\'',
+        '    +\'<button type="button" data-buy data-pid="\'+esc(p.id)+\'" data-title="\'+esc(p.title)+\'" style="width:100%">Buy with BTC \u2192</button>\'',
+        '    +\'</div>\';',
+        '  }).join("");',
+        '}',
+        'function refresh(){',
+        '  var sort=document.getElementById("ds-sort").value;',
+        '  var cat=document.getElementById("ds-category").value;',
+        '  var q=document.getElementById("ds-search").value;',
+        '  var url="/api/dropship/products?sort="+encodeURIComponent(sort)+"&limit=48"+(cat?"&category="+encodeURIComponent(cat):"")+(q?"&q="+encodeURIComponent(q):"");',
+        '  fetch(url,{cache:"no-store"}).then(function(r){return r.json();}).then(function(d){',
+        '    if(d&&d.categories)setCats(d.categories);',
+        '    renderGrid(d&&d.items||[]);',
+        '  }).catch(function(){renderGrid([]);});',
+        '  fetch("/api/dropship/status",{cache:"no-store"}).then(function(r){return r.json();}).then(function(d){',
+        '    if(!d||!d.ok)return;',
+        '    document.getElementById("ds-summary").innerHTML=',
+        '      card("Products live",(d.publisher&&d.publisher.published)||0,"auto-published")+',
+        '      card("Scraped",(d.scraper&&d.scraper.cached)||0,"qualified: "+((d.profit&&d.profit.qualified)||0))+',
+        '      card("Orders routed",(d.fulfillment&&d.fulfillment.routed)||0,"pending: "+((d.fulfillment&&d.fulfillment.pending)||0))+',
+        '      card("Min margin",((d.profit&&d.profit.thresholds&&d.profit.thresholds.minMarginPct)||0)+"%","markup: "+((d.profit&&d.profit.thresholds&&d.profit.thresholds.markup)||0)+"x")+',
+        '      card("Last scrape",(d.scraper&&d.scraper.lastScrapeAt)?new Date(d.scraper.lastScrapeAt).toLocaleTimeString():"queued","every "+((d.scraper&&d.scraper.intervalHours)||6)+"h")+',
+        '      card("Payout","BTC","on-chain self-custody");',
+        '  }).catch(function(){});',
+        '}',
+        'document.getElementById("ds-sort").addEventListener("change",refresh);',
+        'document.getElementById("ds-category").addEventListener("change",refresh);',
+        'var _qt;document.getElementById("ds-search").addEventListener("input",function(){clearTimeout(_qt);_qt=setTimeout(refresh,300);});',
+        // Delegated Buy handler bound ONCE — the grid re-renders every 10s, so we
+        // read the product id/title from data-* attributes instead of fragile
+        // inline onclick (which also breaks on titles containing quotes).
+        'document.getElementById("ds-grid").addEventListener("click",function(e){var b=e.target&&e.target.closest?e.target.closest("[data-buy]"):null;if(!b)return;openInvoice(b.getAttribute("data-pid"),b.getAttribute("data-title")||"");});',
+        'refresh();setInterval(refresh,10000);',
+        '})();',
+      ].join('');
+      try { res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store', 'X-Unicorn-Page': 'dropship' }); } catch (_) {}
+      return res.end(renderPage('Global AI Dropshipping Store · ZACC', body, js));
+    }
+
+    // /dropship/product/:id — individual SSR product page (deep-link friendly).
+    if (urlPath.indexOf('/dropship/product/') === 0) {
+      const pid = urlPath.slice('/dropship/product/'.length).split('?')[0];
+      const safePid = String(pid || '').slice(0, 120);
+      const body =
+        '<a href="/dropship" style="color:var(--accent);font-size:13px">\u2190 Back to store</a>' +
+        '<div id="dp-root" style="margin-top:16px"><p style="color:var(--muted)">Loading product\u2026</p></div>' +
+        '<div id="zc-invoice-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:9999;align-items:center;justify-content:center">' +
+        '<div style="background:var(--card,#1a1a2e);border:1px solid var(--accent,#7c3aed);border-radius:12px;padding:32px;max-width:420px;width:90%;position:relative">' +
+        '<button onclick="document.getElementById(\'zc-invoice-modal\').style.display=\'none\'" style="position:absolute;top:12px;right:16px;background:none;border:none;color:var(--muted);font-size:20px;cursor:pointer">\u00d7</button>' +
+        '<h3 style="margin:0 0 8px">BTC Invoice</h3>' +
+        '<p style="color:var(--muted);font-size:12px;margin:0 0 16px" id="zc-inv-product"></p>' +
+        '<div style="background:#0d0d1a;border-radius:8px;padding:16px;margin-bottom:16px">' +
+        '<div style="font-size:11px;color:var(--muted);margin-bottom:4px">Send EXACTLY</div>' +
+        '<div id="zc-inv-btc" style="font-size:22px;font-weight:700;font-family:monospace;color:var(--accent)"></div>' +
+        '<div id="zc-inv-usd" style="font-size:13px;color:var(--muted);margin-top:4px"></div>' +
+        '</div>' +
+        '<div style="font-size:11px;color:var(--muted);margin-bottom:4px">To address</div>' +
+        '<div id="zc-inv-addr" style="font-family:monospace;font-size:12px;word-break:break-all;color:var(--accent);margin-bottom:16px"></div>' +
+        '<div id="zc-inv-status" style="font-size:13px;color:var(--muted);text-align:center"></div>' +
+        '</div></div>';
+      const js = [
+        '(function(){',
+        'var PID=' + JSON.stringify(safePid) + ';',
+        'function esc(s){return String(s==null?"":s).replace(/[&<>"]/g,function(c){return{"&":"&amp;","<":"&lt;",">":"&gt;",\'"\':"&quot;"}[c];});}',
+        'function money(n){return"$"+Number(n||0).toLocaleString("en-US",{maximumFractionDigits:2});}',
+        'var _invPollTimer=null;',
+        'function openInvoice(productId,productTitle){',
+        '  var m=document.getElementById("zc-invoice-modal");',
+        '  document.getElementById("zc-inv-product").textContent=productTitle;',
+        '  document.getElementById("zc-inv-btc").textContent="Loading\u2026";',
+        '  document.getElementById("zc-inv-usd").textContent="";',
+        '  document.getElementById("zc-inv-addr").textContent="";',
+        '  document.getElementById("zc-inv-status").textContent="Creating invoice\u2026";',
+        '  m.style.display="flex";',
+        '  if(_invPollTimer){clearInterval(_invPollTimer);_invPollTimer=null;}',
+        '  fetch("/api/dropship/order/"+encodeURIComponent(productId),{method:"POST"})',
+        '  .then(function(r){return r.json();})',
+        '  .then(function(d){',
+        '    if(!d.ok||!d.invoice){document.getElementById("zc-inv-status").textContent="Invoice error";return;}',
+        '    var inv=d.invoice;',
+        '    document.getElementById("zc-inv-btc").textContent=(inv.amountBtc||0).toFixed(8)+" BTC";',
+        '    document.getElementById("zc-inv-usd").textContent="= "+money(inv.amountUsd);',
+        '    document.getElementById("zc-inv-addr").textContent=inv.btcAddress||"";',
+        '    document.getElementById("zc-inv-status").textContent="Waiting for payment\u2026";',
+        '    var invId=inv.id;',
+        '    _invPollTimer=setInterval(function(){',
+        '      fetch("/api/zacc/invoice/"+encodeURIComponent(invId)).then(function(r){return r.json();}).then(function(d2){',
+        '        if(d2.invoice&&d2.invoice.status==="paid"){document.getElementById("zc-inv-status").textContent="\u2714 Payment confirmed! Order routed to supplier.";clearInterval(_invPollTimer);_invPollTimer=null;}',
+        '      }).catch(function(){});',
+        '    },8000);',
+        '  }).catch(function(){document.getElementById("zc-inv-status").textContent="Network error";});',
+        '}',
+        'function render(p){',
+        // Robust product media — real lazy <img> with onerror fallback to a
+        // gradient/category placeholder (never a broken image).
+        '  var img=\'<div style="position:relative;aspect-ratio:1/1;border-radius:12px;overflow:hidden;background:linear-gradient(135deg,#1a1a2e,#0d0d1a)"><span style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:var(--muted)">\'+esc(p.category||"product")+\'</span>\'+(p.image?\'<img src="\'+esc(p.image)+\'" alt="\'+esc(p.title||"")+\'" loading="lazy" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover" onerror="this.remove()">\':"")+\'</div>\';',
+        '  document.getElementById("dp-root").innerHTML=\'<div style="display:grid;grid-template-columns:1fr 1.4fr;gap:32px;align-items:start">\'',
+        '    +img',
+        '    +\'<div><div style="font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--accent)">\'+esc(p.category||"general")+\' \u00b7 \'+esc(p.source||"sourced")+\'</div>\'',
+        '    +\'<h1 style="margin:8px 0 6px;font-size:28px">\'+esc(p.title)+\'</h1>\'',
+        '    +\'<div style="font-size:13px;color:var(--muted);margin-bottom:18px">\u2605 \'+Number(p.rating||0)+\' \u00b7 \'+Number(p.reviews||0).toLocaleString()+\' reviews</div>\'',
+        '    +\'<div class="v" style="font-size:32px">\'+money(p.priceUsd)+\'</div>\'',
+        '    +\'<div style="font-size:12px;color:var(--muted);margin:4px 0 18px">Margin \'+Math.round(p.marginPct||0)+\'% \u00b7 ETA \'+esc((p.delivery&&p.delivery.etaDays)||"7-21 days")+\'</div>\'',
+        '    +\'<p style="color:var(--text);font-size:15px;line-height:1.6;margin:0 0 20px">\'+esc(p.description||"")+\'</p>\'',
+        '    +\'<button type="button" id="dp-buy" style="padding:14px 26px;font-size:16px">Buy with BTC (on-chain) \u2192</button>\'',
+        '    +\'<p style="font-size:11px;color:var(--muted);margin-top:14px">Payments verified on-chain via mempool.space. Fulfilment auto-routed to supplier. No accounts required.</p>\'',
+        '    +\'</div></div>\';',
+        // Bind the Buy button from the product closure — quote-safe, no inline JS.
+        '  var bb=document.getElementById("dp-buy");if(bb)bb.addEventListener("click",function(){openInvoice(p.id,p.title);});',
+        '}',
+        'fetch("/api/dropship/product/"+encodeURIComponent(PID),{cache:"no-store"}).then(function(r){return r.json();}).then(function(d){',
+        '  if(!d.ok||!d.product){document.getElementById("dp-root").innerHTML=\'<p style="color:var(--muted)">Product not found or still being prepared. <a href="/dropship" style="color:var(--accent)">Browse the store \u2192</a></p>\';return;}',
+        '  render(d.product);',
+        '}).catch(function(){document.getElementById("dp-root").innerHTML=\'<p style="color:var(--muted)">Could not load product.</p>\';});',
+        '})();',
+      ].join('');
+      try { res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store', 'X-Unicorn-Page': 'dropship-product' }); } catch (_) {}
+      return res.end(renderPage('Product · Global AI Dropshipping', body, js));
     }
   }
   // ==================== END FAZA 2 / VAL 5 COMPLETARE ====================
@@ -4731,8 +5406,16 @@ async function unicornHandler(req, res) {
   }
 
   if (urlPath === '/me') {
-    res.writeHead(200, { 'Content-Type': 'application/json' });
-    return res.end(JSON.stringify(userProfile));
+    // SECURITY/HONESTY (2026-06): this route used to return a hardcoded
+    // demo-user profile to EVERYONE — fake data presented as real on a live
+    // domain. Now it answers honestly: no session → 401 + pointer to the
+    // real account flow. (RO: fără date false pe rute publice.)
+    res.writeHead(401, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
+    return res.end(JSON.stringify({
+      error: 'auth_required',
+      message: 'No active session. Sign in at /account — license-token and receipt lookups live there.',
+      login: '/account'
+    }));
   }
 
   if (urlPath === '/telemetry') {
@@ -5902,6 +6585,36 @@ async function unicornHandler(req, res) {
   if (mPrice) {
     try {
       const id = decodeURIComponent(mPrice[1]);
+      let priceNegotiator = null;
+      try { priceNegotiator = require('../backend/modules/priceNegotiator'); } catch (_) { priceNegotiator = null; }
+      const btcRate = await getBtcUsdSpot().catch(() => 0);
+      const quote = priceNegotiator && typeof priceNegotiator.getPrice === 'function'
+        ? await priceNegotiator.getPrice(id, { userId: null, btcRate })
+        : null;
+
+      if (quote && Number(quote.usd) > 0 && quote.btc) {
+        res.writeHead(200, { 'Content-Type':'application/json', 'Cache-Control':'no-store' });
+        return res.end(JSON.stringify({
+          productId: id,
+          serviceId: quote.serviceId,
+          usd: Number(quote.usd),
+          btc: String(quote.btc),
+          profitMargin: Number(quote.profitMargin || 1.30),
+          source: quote.source || 'priceNegotiator',
+          // backward-compatible fields
+          id,
+          title: id,
+          priceUsd: Number(quote.usd),
+          priceBtc: Number(quote.btc),
+          currency: 'USD',
+          btcUri: buildBtcUri(BTC_WALLET, Number(quote.btc), 'ZeusAI-' + id),
+          buyUrl: '/checkout?serviceId=' + encodeURIComponent(id) + '&plan=' + encodeURIComponent(id),
+          price_usd: Number(quote.usd),
+          price_btc: String(quote.btc),
+          updatedAt: new Date().toISOString(),
+        }));
+      }
+
       const cat = await getCachedMasterCatalog();
       const it = (cat.items || []).find(x => x.id === id);
       if (!it) {
@@ -5910,6 +6623,9 @@ async function unicornHandler(req, res) {
       }
       res.writeHead(200, { 'Content-Type':'application/json', 'Cache-Control':'public, max-age=10' });
       return res.end(JSON.stringify({
+        productId: id,
+        usd: Number(it.priceUsd || it.price || 0),
+        btc: it.priceBtc != null ? String(it.priceBtc) : null,
         id: it.id,
         title: it.title || it.name || it.id,
         priceUsd: Number(it.priceUsd || it.price || 0),
@@ -6468,7 +7184,10 @@ setInterval(()=>{loadOrder().then(render);},10000);
         const p = JSON.parse(body || '{}');
         const serviceId = String(p.serviceId || p.service_id || p.plan || 'starter');
         const paymentMethod = String(p.paymentMethod || p.payment_method || p.method || 'BTC').toUpperCase();
-        let amount = Number(p.amount || p.amountUSD || p.priceUSD || 0);
+        // Server-authoritative price first: for any known product the catalog
+        // price always wins over a client-supplied amount. (RO: prețul oficial.)
+        const _canonBuy = resolveCanonicalUsd(serviceId);
+        let amount = _canonBuy != null ? _canonBuy : Number(p.amount || p.amountUSD || p.priceUSD || 0);
         // Look up authoritative price from catalog when client does not pass one (RO+EN)
         // Caută prețul oficial în catalog dacă clientul nu a trimis un preț — evită checkout cu amount=0
         if (!amount || amount <= 0) {
@@ -8019,8 +8738,15 @@ ${invoice.payer ? `<h2>Payer</h2><table><tr><th>Legal entity</th><td>${esc(invoi
       try {
         const p = JSON.parse(body || '{}');
         const method = String(p.method || 'BTC').toUpperCase();
-        const amount = Number(p.amount || p.amount_usd || p.amountUSD || p.priceUSD || 0);
         const plan = String(p.plan || p.serviceId || 'starter');
+        // Server-authoritative price: for any known product the catalog price
+        // wins over whatever the client posted (URL/edited field). Prevents
+        // "$500,000 service charged $70". (RO: prețul oficial decis pe server.)
+        const _clientAmount = Number(p.amount || p.amount_usd || p.amountUSD || p.priceUSD || 0);
+        const _canonAmount = resolveCanonicalUsd(plan);
+        const amount = _canonAmount != null
+          ? _canonAmount
+          : (_clientAmount > 0 ? clampUsdPrice(_clientAmount, { source: 'uaic-custom', serviceId: plan }) : 0);
         const email = String(p.email || (p.customer && p.customer.email) || '');
         const receiptId = crypto.randomBytes(16).toString('hex');
         if (method === 'PAYPAL') {
@@ -8069,7 +8795,13 @@ ${invoice.payer ? `<h2>Payer</h2><table><tr><th>Legal entity</th><td>${esc(invoi
         const p = JSON.parse(body || '{}');
         // Delegate to UAIC for persistent, watched, license-issuing receipts
         if (uaic) {
-          const amount = Number(p.amount || p.amount_usd || p.amountUSD || p.priceUSD || 0);
+          const _planBtc = String(p.plan || p.serviceId || 'starter');
+          // Server-authoritative price (RO: prețul oficial calculat pe server)
+          const _canonBtc = resolveCanonicalUsd(_planBtc);
+          const _clientBtc = Number(p.amount || p.amount_usd || p.amountUSD || p.priceUSD || 0);
+          const amount = _canonBtc != null
+            ? _canonBtc
+            : (_clientBtc > 0 ? clampUsdPrice(_clientBtc, { source: 'checkout-btc-custom', serviceId: _planBtc }) : 0);
           const btcAmount = uaic.convert(amount, 'BTC');
           const receiptId = crypto.randomBytes(16).toString('hex');
           // Thread customer identity so /account activeServices and dashboard show it
@@ -8114,10 +8846,15 @@ ${invoice.payer ? `<h2>Payer</h2><table><tr><th>Legal entity</th><td>${esc(invoi
         }
         // Fallback (no uaic) — still compute live btcAmount + btcUri so frontend QR works
         const receiptId = crypto.randomBytes(16).toString('hex');
-        const amountUsdF = Number(p.amount || p.amount_usd || p.amountUSD || p.priceUSD || 0);
+        const planF = String(p.plan || p.serviceId || 'starter');
+        // Server-authoritative price (RO: prețul oficial calculat pe server)
+        const _canonF = resolveCanonicalUsd(planF);
+        const _clientF = Number(p.amount || p.amount_usd || p.amountUSD || p.priceUSD || 0);
+        const amountUsdF = _canonF != null
+          ? _canonF
+          : (_clientF > 0 ? clampUsdPrice(_clientF, { source: 'checkout-btc-fallback-custom', serviceId: planF }) : 0);
         const usdPerBtcF = await getBtcUsdSpot().catch(() => 95000);
         const btcAmountF = usdToBtc(amountUsdF, usdPerBtcF);
-        const planF = p.plan || 'starter';
         const btcUriF = amountUsdF > 0 ? buildBtcUri(BTC_WALLET, btcAmountF, 'ZeusAI-' + planF + '-' + receiptId.slice(0, 8)) : null;
         const invoice = {
           receiptId, method: 'BTC', amount: amountUsdF, currency: p.currency || 'USD',
@@ -8618,6 +9355,50 @@ ${invoice.payer ? `<h2>Payer</h2><table><tr><th>Legal entity</th><td>${esc(invoi
     res.writeHead(200,{'Content-Type':'application/json'}); return res.end(JSON.stringify({ items: [] }));
   }
 
+  // ─── HTML BUILD-ATTESTATION endpoints (inovație 2026-06-03) ────────────
+  // MUST be before the /api/* catch-all that proxies to backend, otherwise
+  // these site-only endpoints get forwarded to :3000 and 404.
+  // /api/attestation/publickey  — Ed25519 public key + verifier instructions
+  // /api/attestation/verify-html — POST html (raw or {html}) → verdict
+  // Anti-MITM, anti-cache-poisoning, anti-impersonation. Cheie:
+  // data/frontier.key.pem (PKCS8, 0600).
+  if (urlPath === '/api/attestation/publickey' && req.method === 'GET') {
+    try {
+      const fe = require('./frontier-engine');
+      const out = fe.attestationPublicKey();
+      res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'public, max-age=300' });
+      return res.end(JSON.stringify(out, null, 2));
+    } catch (e) {
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      return res.end(JSON.stringify({ error: (e && e.message) || 'attestation_pubkey_failed' }));
+    }
+  }
+  if (urlPath === '/api/attestation/verify-html' && req.method === 'POST') {
+    let body = '';
+    req.on('data', c => { body += c; if (body.length > 5 * 1024 * 1024) req.destroy(); });
+    req.on('end', () => {
+      try {
+        let html;
+        const ct = String(req.headers['content-type'] || '').toLowerCase();
+        if (ct.includes('application/json')) {
+          let parsed = {};
+          try { parsed = JSON.parse(body || '{}'); } catch (_) { parsed = {}; }
+          html = String(parsed.html || '');
+        } else {
+          html = body;
+        }
+        const fe = require('./frontier-engine');
+        const verdict = fe.verifyAttestedHtml(html);
+        res.writeHead(verdict.ok ? 200 : 422, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' });
+        return res.end(JSON.stringify(verdict, null, 2));
+      } catch (e) {
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        return res.end(JSON.stringify({ ok: false, reason: 'verify_exception:' + ((e && e.message) || 'unknown') }));
+      }
+    });
+    return;
+  }
+
   // Final API fallback: if site runtime doesn't implement the route,
   // transparently forward to backend (when configured).
   if (urlPath.startsWith('/api/')) {
@@ -8651,8 +9432,15 @@ ${invoice.payer ? `<h2>Payer</h2><table><tr><th>Legal entity</th><td>${esc(invoi
     return;
   }
 
-  // 30Y-LTS — public status endpoint. JSON for monitors; browser HTML falls through to the v2 shell.
-  if (urlPath === '/status.json' || (urlPath === '/status' && !/text\/html/i.test(String(req.headers.accept || '')))) {
+  // 30Y-LTS — public status endpoint. JSON only on explicit request (monitors
+  // sending `Accept: application/json`, the `/status.json` path, or `?format=json`).
+  // Everything else — real browsers, link-preview crawlers and plain `curl`
+  // (Accept: */*) — falls through to the cinematic v2 HTML status page.
+  // The `!/text\/html/i.test(...)` guard is contractually required by
+  // test/site-security-pagespeed.test.js. We additionally require that the
+  // caller actually asked for JSON (Accept: application/json or ?format=json),
+  // so a bare `Accept: */*` does NOT collapse to JSON.
+  if (urlPath === '/status.json' || (urlPath === '/status' && !/text\/html/i.test(String(req.headers.accept || '')) && (/(application|text)\/json/i.test(String(req.headers.accept || '')) || String(requestUrl.searchParams.get('format') || '').toLowerCase() === 'json'))) {
     const wantHtml = false;
     let snap = {};
     try { snap = buildSnapshot(); } catch (_) {}
@@ -8818,17 +9606,39 @@ a{color:#8a5cff;text-decoration:none}
     return res.end('Redirecting to /crypto-fiat-bridge');
   }
 
+  if (urlPath === '/dropshipping') {
+    res.writeHead(302, { Location: '/dropship', 'Cache-Control': 'no-store' });
+    return res.end('Redirecting to /dropship');
+  }
+
+  // Legacy deep-link compat: /services?buy=<id> used to open a checkout modal
+  // on the old client-rendered services page. The v2 SSR storefront links each
+  // card to /checkout/?plan=<id>, so we 302 buyers straight into checkout.
+  // RO: linkurile vechi de cumpărare ajung direct în checkout — zero fricțiune.
+  if (urlPath === '/services' && requestUrl.searchParams.get('buy')) {
+    const buyId = String(requestUrl.searchParams.get('buy')).slice(0, 120);
+    res.writeHead(302, { Location: '/checkout/?plan=' + encodeURIComponent(buyId), 'Cache-Control': 'no-store' });
+    return res.end('Redirecting to checkout');
+  }
+
   // Any SPA route → v2 shell
   const v2Routes = [
     '/', '/services', '/pricing', '/checkout', '/dashboard', '/how', '/docs', '/about', '/legal',
     '/trust', '/security', '/responsible-ai', '/dpa', '/payment-terms', '/operator', '/observability',
     '/enterprise', '/store', '/account', '/innovations', '/wizard', '/status', '/changelog',
     '/terms', '/privacy', '/refund', '/sla', '/pledge', '/cancel', '/gift', '/aura',
-    '/api-explorer', '/transparency', '/frontier', '/crypto-fiat-bridge', '/marketplace'
+    '/api-explorer', '/transparency', '/frontier', '/crypto-fiat-bridge', '/marketplace',
+    // Real SSR pages (2026-06): previously these fell through to the legacy
+    // homepage clone — duplicate-content SEO poison + dead-end UX. Each now
+    // has a dedicated page in src/site/v2/shell.js. RO: pagini reale, nu clone.
+    '/contact', '/faq', '/blog', '/affiliate', '/partners', '/roadmap', '/careers', '/press'
   ];
-  const isV2Route = v2Routes.includes(urlPath) || urlPath.startsWith('/services/');
+  // Normalize trailing slash so '/checkout/' '/pricing/' etc. resolve to the
+  // same SSR page instead of falling through to the homepage clone.
+  const v2Path = (urlPath.length > 1 && urlPath.endsWith('/')) ? urlPath.replace(/\/+$/, '') : urlPath;
+  const isV2Route = v2Routes.includes(v2Path) || v2Path.startsWith('/services/');
   if (isV2Route) {
-    const route = urlPath;
+    const route = v2Path;
     // 30Y-LTS: per-request CSP nonce (Nginx forwards X-CSP-Nonce as $request_id;
     // if absent — local dev — we generate one. Inline scripts get this nonce.
     const nonce = String(req.headers['x-csp-nonce'] || crypto.randomBytes(12).toString('base64'));
@@ -8924,7 +9734,31 @@ a{color:#8a5cff;text-decoration:none}
     })();
     const autoLang = geoLang || acceptLang || 'en';
     const lang = cookieLang || autoLang;
-    let html = v2.getHtml(route, { lang, autoLang, country, nonce });
+    // CONVERSION SSR (2026-06): deep links like /checkout/?plan=adaptive-ai
+    // render the plan AND its canonical live price directly into the HTML —
+    // zero flicker, zero "computing…", price identical to the card the buyer
+    // clicked. (RO: prețul corect e în pagină înainte să ruleze orice JS.)
+    const ssrParams = { lang, autoLang, country, nonce };
+    if (route === '/checkout') {
+      const planQ = String(requestUrl.searchParams.get('plan') || requestUrl.searchParams.get('serviceId') || requestUrl.searchParams.get('service') || '').slice(0, 120);
+      if (planQ) {
+        ssrParams.plan = planQ;
+        try {
+          // Same pipeline as GET /api/pricing/:id → SSR shows the exact
+          // number the buyer will be invoiced. (RO: coerență totală.)
+          const { payload } = await quotePublicPricing(planQ, {});
+          const usd = Number(payload && (payload.price_usd != null ? payload.price_usd : payload.finalPrice));
+          if (Number.isFinite(usd) && usd > 0) ssrParams.planUsd = usd;
+        } catch (_) { /* price stays client-resolved */ }
+        if (ssrParams.planUsd == null) {
+          try {
+            const usd = resolveCanonicalUsd(planQ);
+            if (Number.isFinite(Number(usd)) && Number(usd) > 0) ssrParams.planUsd = Number(usd);
+          } catch (_) { /* price stays client-resolved */ }
+        }
+      }
+    }
+    let html = v2.getHtml(route, ssrParams);
     // Inject verifiable build marker so the freshly deployed variant is
     // always distinguishable from any stale browser cache.
     const buildMeta = '<meta name="x-zeus-build" content="' + ZEUS_BUILD.sha + '"><meta name="x-zeus-built-at" content="' + ZEUS_BUILD.ts + '">';
@@ -9006,6 +9840,16 @@ a{color:#8a5cff;text-decoration:none}
       responseHeaders['Accept-CH'] = 'Save-Data, Sec-CH-Prefers-Reduced-Data, ECT, Downlink';
     }
     res.writeHead(200, responseHeaders);
+    // ─── HTML BUILD-ATTESTATION (per-response cryptographic proof) ────────
+    // Sign the HTML right before it leaves. Verifiers strip the meta tag,
+    // re-hash, and check sig vs /api/attestation/publickey. Non-fatal: any
+    // failure returns the original html untouched. See frontier-engine.js.
+    try {
+      const fe = require('./frontier-engine');
+      if (fe && typeof fe.attestHtml === 'function') {
+        html = fe.attestHtml(html, { build: ZEUS_BUILD.sha });
+      }
+    } catch (_) { /* skip attestation if frontier-engine missing */ }
     return res.end(html);
   }
 

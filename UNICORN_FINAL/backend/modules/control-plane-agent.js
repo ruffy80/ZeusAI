@@ -100,6 +100,19 @@ const circuitBreaker = require('./circuit-breaker');
 const HEAL_INTERVAL_MS   = parseInt(process.env.HEAL_INTERVAL_MS   || '30000', 10);
 const CANARY_EVAL_MS     = parseInt(process.env.CANARY_EVAL_MS     || '60000', 10);
 const MAX_DECISIONS      = 1000;
+const RESTART_COOLDOWN_MS = parseInt(process.env.CPA_RESTART_COOLDOWN_MS || '300000', 10);
+const MIN_CONSECUTIVE_BREACHES = parseInt(process.env.CPA_RESTART_MIN_CONSECUTIVE_BREACHES || '3', 10);
+const BREACH_RESET_MS = parseInt(process.env.CPA_BREACH_RESET_MS || '180000', 10);
+
+// ── Golden Rule #6 guards (transient/cold-start latency must NOT kill backend) ──
+// Fereastra SLO (5 min) reține sample-ul de cold-start după un deploy/restart;
+// primul request poate dura secunde bune cât se încălzesc cache-urile. În acest
+// interval doar OBSERVĂM breach-urile, nu escaladăm niciodată la restart.
+const PROCESS_WARMUP_MS = parseInt(process.env.CPA_WARMUP_MS || '120000', 10);
+// Latency-only breach (errorRate ~0, error budget intact) = serviciu LENT dar
+// SĂNĂTOS. Un restart pe lentoare îl face mai lent (cache rece) și intră în buclă.
+// Restart-ul rămâne posibil DOAR la epuizarea reală a error budget-ului.
+const RESTART_ON_LATENCY_ONLY = process.env.CPA_RESTART_ON_LATENCY === '1'; // default OFF
 
 class ControlPlaneAgent {
   constructor() {
@@ -111,6 +124,7 @@ class ControlPlaneAgent {
     this.lastHealAt      = null;
     this.rollbackHistory = [];
     this.startedAt       = Date.now();
+    this.routeBreachState = new Map();
 
     // Pluggable action hooks (override in production)
     this.onRollback      = async (version, reason) => {
@@ -178,16 +192,80 @@ class ControlPlaneAgent {
   }
 
   async _handleSLOBreach(route, stats) {
+    const now = Date.now();
+    const prev = this.routeBreachState.get(route) || { count: 0, lastBreachAt: 0, lastRestartAt: 0 };
+    const withinResetWindow = (now - prev.lastBreachAt) <= BREACH_RESET_MS;
+    const nextCount = withinResetWindow ? (prev.count + 1) : 1;
+
+    const state = {
+      count: nextCount,
+      lastBreachAt: now,
+      lastRestartAt: prev.lastRestartAt,
+    };
+    this.routeBreachState.set(route, state);
+
+    const p99 = Number(stats && stats.p99);
+    const thresholdP99 = Number(stats && stats.thresholds && stats.thresholds.p99Ms);
+    const errorRatePct = Number(stats && stats.errorRate) * 100;
+    const budgetRemainingPct = Number(stats && stats.budgetRemaining) * 100;
+
     const reason = [
       `SLO breach on route "${route}"`,
-      `p99=${stats.p99}ms (threshold=${stats.thresholds.p99Ms}ms)`,
-      `errorRate=${(stats.errorRate * 100).toFixed(3)}%`,
-      `budgetRemaining=${(stats.budgetRemaining * 100).toFixed(4)}%`,
+      `p99=${Number.isFinite(p99) ? p99 : 'n/a'}ms (threshold=${Number.isFinite(thresholdP99) ? thresholdP99 : 'n/a'}ms)`,
+      `errorRate=${Number.isFinite(errorRatePct) ? errorRatePct.toFixed(3) : 'n/a'}%`,
+      `budgetRemaining=${Number.isFinite(budgetRemainingPct) ? budgetRemainingPct.toFixed(4) : 'n/a'}%`,
     ].join(', ');
+
+    // ── Transient-latency guard (Golden Rule #6) ──────────────────────
+    // (a) Warm-up grace: imediat după pornire/deploy, cold-start-ul rămâne în
+    //     fereastra SLO de 5 min și ridică artificial p99. Observăm, nu restartăm.
+    const uptimeMs = now - this.startedAt;
+    const inWarmup = uptimeMs < PROCESS_WARMUP_MS;
+    // (b) Latency-only: error budget intact ⇒ lent dar sănătos ⇒ nu restartăm.
+    const budgetExhausted = Number.isFinite(budgetRemainingPct) ? budgetRemainingPct <= 0 : false;
+    const latencyOnly = !budgetExhausted;
+
+    if (inWarmup || (latencyOnly && !RESTART_ON_LATENCY_ONLY)) {
+      const why = inWarmup
+        ? `warmup grace (${Math.round(uptimeMs / 1000)}s/${Math.round(PROCESS_WARMUP_MS / 1000)}s)`
+        : 'latency-only breach (error budget intact)';
+      await this._logDecision(
+        'SLO_BREACH_OBSERVED',
+        `${reason}, action=observe-only [${why}]`,
+        { route, stats, state, inWarmup, latencyOnly }
+      );
+      // Nu acumulăm spre restart pe lentoare tranzitorie.
+      state.count = 0;
+      this.routeBreachState.set(route, state);
+      return;
+    }
+
+    if (state.count < MIN_CONSECUTIVE_BREACHES) {
+      await this._logDecision(
+        'SLO_BREACH_OBSERVED',
+        `${reason}, consecutiveBreaches=${state.count}/${MIN_CONSECUTIVE_BREACHES}`,
+        { route, stats, state }
+      );
+      return;
+    }
+
+    const inCooldown = (now - state.lastRestartAt) < RESTART_COOLDOWN_MS;
+    if (inCooldown) {
+      const msRemaining = Math.max(0, RESTART_COOLDOWN_MS - (now - state.lastRestartAt));
+      await this._logDecision(
+        'RESTART_SUPPRESSED_COOLDOWN',
+        `${reason}, cooldownMsRemaining=${msRemaining}`,
+        { route, stats, state }
+      );
+      return;
+    }
 
     await this._logDecision('RESTART', reason, { route, stats });
     this.lastHealAt = new Date().toISOString();
     await this.onRestart('unicorn-backend', reason);
+    state.lastRestartAt = now;
+    state.count = 0;
+    this.routeBreachState.set(route, state);
     this.rollbackHistory.push({ ts: Date.now(), action: 'RESTART', reason, route });
     if (this.rollbackHistory.length > 100) this.rollbackHistory.shift();
   }
@@ -237,11 +315,24 @@ class ControlPlaneAgent {
   // ── Public API ────────────────────────────────────────────────────
 
   getStatus() {
+    const routeBreaches = Array.from(this.routeBreachState.entries()).map(([route, st]) => ({
+      route,
+      consecutiveBreaches: st.count,
+      lastBreachAt: st.lastBreachAt ? new Date(st.lastBreachAt).toISOString() : null,
+      lastRestartAt: st.lastRestartAt ? new Date(st.lastRestartAt).toISOString() : null,
+    }));
     return {
+      active: this._healingActive,
       healingActive: this._healingActive,
       healthScore:   this.healthScore,
       lastHealAt:    this.lastHealAt,
       uptimeMs:      Date.now() - this.startedAt,
+      restartPolicy: {
+        minConsecutiveBreaches: MIN_CONSECUTIVE_BREACHES,
+        cooldownMs: RESTART_COOLDOWN_MS,
+        breachResetMs: BREACH_RESET_MS,
+      },
+      routeBreaches,
       sloStats:      sloTracker.getAllStats(),
       circuitBreaker: circuitBreaker.getStatus(),
     };

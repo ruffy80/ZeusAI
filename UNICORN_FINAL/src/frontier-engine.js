@@ -88,6 +88,102 @@ const publicKeyHex = () => {
   catch (_) { return 'pub-error'; }
 };
 
+// ─── HTML BUILD-ATTESTATION ─────────────────────────────────────────────
+// Per-response cryptographic proof that a captured HTML snippet really came
+// from this ZeusAI build. We hash the HTML body that the visitor receives
+// (after every other transformation), sign the hash with the same Ed25519
+// site key used for receipts, and inject a single <meta name="x-zeus-attestation">
+// tag near the <head> tag so the proof travels with the document. Anyone
+// can re-hash the body (excluding the meta tag itself) and verify the
+// signature against /api/attestation/publickey, with no server round-trip
+// required for the public key.
+//
+// Footprint: SHA-256 (~0.05ms / 50KB) + Ed25519 sign (~0.1ms). Safe to run
+// on every HTML request. Failure is non-fatal — if anything throws we
+// return the original HTML untouched and the meta tag is simply absent.
+//
+// EN+RO: dovadă criptografică per-pagină că HTML-ul servit este autentic
+// (anti-MITM, anti-cache-poisoning, total transparent).
+const ATTESTATION_META_RE = /<meta\s+name="x-zeus-attestation"[^>]*>\s*/i;
+function attestHtml(html, extra) {
+  try {
+    if (typeof html !== 'string' || html.length < 32) return html;
+    if (ATTESTATION_META_RE.test(html)) return html; // already attested
+    const headIdx = html.search(/<head[^>]*>/i);
+    if (headIdx < 0) return html;
+    // Hash the canonical body that the visitor will receive AFTER the meta
+    // is removed — this is what verifiers will recompute. We compute the
+    // hash on the html as it stands now (no meta yet), then inject. The
+    // verifier must strip the meta tag before re-hashing — published
+    // alongside the public key.
+    const sha256 = crypto.createHash('sha256').update(Buffer.from(html, 'utf8')).digest('hex');
+    const meta = {
+      v: 1,
+      alg: 'ed25519',
+      hash: 'sha256:' + sha256,
+      build: (extra && extra.build) || (process.env.ZEUS_BUILD_SHA || ''),
+      ts: new Date().toISOString(),
+      pub: 'spki:der:hex:' + publicKeyHex().slice(0, 24) + '…' // hint, full key is at /api/attestation/publickey
+    };
+    // Sign the canonical preimage: hash + build + ts. Stable order.
+    const preimage = `zeus-html-attest|v=${meta.v}|hash=${meta.hash}|build=${meta.build}|ts=${meta.ts}`;
+    meta.sig = sign(preimage);
+    const tag = `<meta name="x-zeus-attestation" content='${JSON.stringify(meta).replace(/'/g, '&#39;')}'/>`;
+    // Inject right after the opening <head ...> tag.
+    return html.replace(/<head[^>]*>/i, m => m + tag);
+  } catch (_) {
+    return html;
+  }
+}
+
+// Verify a captured HTML document. The verifier strips the attestation
+// meta tag, recomputes sha256 over the rest, then checks the signature.
+// Returns { ok, reason, build, ts, hash }.
+function verifyAttestedHtml(html) {
+  try {
+    if (typeof html !== 'string') return { ok: false, reason: 'not_a_string' };
+    // attestHtml always wraps content in single quotes and HTML-encodes any
+    // internal single quote as &#39;, so we can match content='...' safely.
+    let m = html.match(/<meta\s+name="x-zeus-attestation"\s+content='([^']+)'\s*\/?>/i);
+    if (!m) m = html.match(/<meta\s+name="x-zeus-attestation"\s+content="([^"]+)"\s*\/?>/i);
+    if (!m) return { ok: false, reason: 'no_attestation_meta' };
+    let meta;
+    try { meta = JSON.parse(m[1].replace(/&#39;/g, "'")); } catch (e) { return { ok: false, reason: 'meta_json_invalid' }; }
+    if (!meta || meta.v !== 1 || meta.alg !== 'ed25519' || !meta.hash || !meta.sig) return { ok: false, reason: 'meta_shape' };
+    // Strip the meta tag and trailing whitespace exactly as injected.
+    const stripped = html.replace(ATTESTATION_META_RE, '').replace(/<meta\s+name="x-zeus-attestation"[^>]*\/?>\s*/i, '');
+    const sha256 = 'sha256:' + crypto.createHash('sha256').update(Buffer.from(stripped, 'utf8')).digest('hex');
+    if (sha256 !== meta.hash) return { ok: false, reason: 'hash_mismatch', expected: meta.hash, computed: sha256 };
+    const preimage = `zeus-html-attest|v=${meta.v}|hash=${meta.hash}|build=${meta.build}|ts=${meta.ts}`;
+    const sigBuf = Buffer.from(String(meta.sig || ''), 'hex');
+    const ok = crypto.verify(null, Buffer.from(preimage), KEY.pub, sigBuf);
+    return ok
+      ? { ok: true, build: meta.build, ts: meta.ts, hash: meta.hash, alg: meta.alg }
+      : { ok: false, reason: 'signature_invalid' };
+  } catch (e) {
+    return { ok: false, reason: 'exception:' + (e && e.message || 'unknown') };
+  }
+}
+
+// Public-key in standard formats so verifiers don't depend on Node internals.
+function attestationPublicKey() {
+  try {
+    return {
+      alg: 'ed25519',
+      spkiPem: KEY.pub.export({ type: 'spki', format: 'pem' }),
+      spkiDerHex: publicKeyHex(),
+      did: 'did:web:zeusai.pro',
+      verifyAlgorithm: 'EdDSA',
+      preimageRule: "zeus-html-attest|v=<v>|hash=sha256:<hex>|build=<sha>|ts=<iso>",
+      hashRule: "Strip the <meta name=\"x-zeus-attestation\"> tag (with trailing whitespace) before SHA-256 over UTF-8 bytes",
+      meta: '<meta name="x-zeus-attestation" content="{...}"/> in <head>',
+      verifyEndpoint: '/api/attestation/verify-html'
+    };
+  } catch (e) {
+    return { error: e && e.message || 'unknown' };
+  }
+}
+
 // ═══════════════════════════════════════════════════════════════════════════
 // CART ENGINE
 // ═══════════════════════════════════════════════════════════════════════════
@@ -744,5 +840,10 @@ module.exports = {
   // status
   frontierStatus,
   // utility
-  publicKeyHex
+  publicKeyHex,
+  sign,
+  // HTML build-attestation (inovație 2026-06-03)
+  attestHtml,
+  verifyAttestedHtml,
+  attestationPublicKey
 };

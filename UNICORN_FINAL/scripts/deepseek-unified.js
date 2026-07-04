@@ -46,7 +46,21 @@ const fs   = require('fs');
 const path = require('path');
 const http = require('http');
 const https = require('https');
+const crypto = require('crypto');
 const { execFileSync } = require('child_process');
+
+// ADI-Core Key Vault — multi-source key resolution (env, vault file, .env,
+// /etc/zeusai/secrets/, ~/.zeusai/keys.env). Graceful fallback if unavailable.
+let keyVault;
+try { keyVault = require('../backend/modules/adi-core/key-vault'); } catch (e) {
+  keyVault = null;
+  process.stdout.write(JSON.stringify({ ts: new Date().toISOString(), level: 'info', msg: 'key_vault_unavailable', extra: { error: String(e.message || e) } }) + '\n');
+}
+
+// Reseed process.env from all vault sources BEFORE reading any config constants.
+if (keyVault) {
+  try { keyVault.reseedProcessEnv(); } catch (_) { /* non-fatal */ }
+}
 
 // -------- Governor (direct dispatch — no HTTP round-trip) ----------------
 let governor;
@@ -86,6 +100,8 @@ const GROQ_API_KEY       = process.env.GROQ_API_KEY               || '';
 const GROQ_MODEL         = process.env.GROQ_DEEPSEEK_MODEL        || 'qwen/qwen3-32b';
 const OLLAMA_BASE_URL    = process.env.DEEPSEEK_LOOP_OLLAMA_URL   || 'http://127.0.0.1:11434';
 const OLLAMA_MODEL       = process.env.DEEPSEEK_LOOP_OLLAMA_MODEL || 'llama3';
+const LOCAL_FALLBACK_ENABLED = String(process.env.DEEPSEEK_LOOP_LOCAL_FALLBACK_ENABLED || '') === '1';
+const OLLAMA_FALLBACK_ENABLED = String(process.env.DEEPSEEK_LOOP_OLLAMA_ENABLED || '') === '1';
 
 const ADVISOR_TEMPERATURE    = Number.isFinite(Number(process.env.DEEPSEEK_LOOP_TEMPERATURE))
                              ? Number(process.env.DEEPSEEK_LOOP_TEMPERATURE) : 0.0;
@@ -103,16 +119,35 @@ const AUTONOMOUS_TAIL_MAX_ITEMS   = Math.max(1, Math.min(20, parseInt(process.en
 
 const LOG_PATH           = process.env.DEEPSEEK_LOOP_LOG_PATH
                          || path.join(__dirname, '..', 'data', 'logs', 'deepseek-unified.log');
+const AI_LEDGER_PATH     = process.env.DEEPSEEK_UNIFIED_AI_LEDGER_PATH
+                         || path.join(__dirname, '..', 'data', 'ai-cost-ledger-cortex.json');
+const AI_BUDGET_DAILY_USD = Number.parseFloat(process.env.DEEPSEEK_UNIFIED_AI_BUDGET_DAILY_USD || '20');
+const AI_BUDGET_PER_TICK_USD = Number.parseFloat(process.env.DEEPSEEK_UNIFIED_AI_BUDGET_PER_TICK_USD || '0.08');
+const AI_COST_ESTIMATE_PER_CALL_USD = Number.parseFloat(process.env.DEEPSEEK_UNIFIED_AI_COST_ESTIMATE_PER_CALL_USD || '0.006');
+
+const AUDIT_CHAIN_PATH   = process.env.ZEUS_AUDIT_CHAIN_PATH
+                         || path.join(__dirname, '..', 'data', 'autonomy-audit-chain.jsonl');
+const AUDIT_SIGNING_SECRET = String(process.env.AUDIT_SIGNING_SECRET || process.env.ADMIN_SECRET || process.env.DEEPSEEK_LOOP_ADMIN_TOKEN || 'zeus-public');
 const ROADMAP_PATH       = process.env.DEEPSEEK_GOVERNOR_ROADMAP_PATH
                          || path.join(__dirname, '..', 'data', 'roadmap.json');
 const PROPOSALS_DIR      = process.env.DEEPSEEK_GOVERNOR_PROPOSALS_DIR
                          || path.join(__dirname, '..', 'data', 'deepseek-proposals');
+const COMMAND_QUEUE_PATH = process.env.DEEPSEEK_GOVERNOR_COMMAND_QUEUE_PATH
+                         || path.join(__dirname, '..', 'data', 'deepseek-commands.jsonl');
 
 // GitHub git-push config
-const GITHUB_TOKEN       = process.env.GITHUB_TOKEN || process.env.GH_TOKEN || '';
+const GITHUB_TOKEN       = process.env.GITHUB_TOKEN || process.env.GH_TOKEN || process.env.GH_PAT || process.env.GITHUB_TOKEN_SYNC || '';
 const GITHUB_REPO        = process.env.DEEPSEEK_UNIFIED_GITHUB_REPO || '';   // e.g. "username/repo"
 const GIT_REPO_ROOT      = process.env.DEEPSEEK_UNIFIED_GIT_ROOT
                          || path.join(__dirname, '..', '..');   // workspace root
+
+// Corpus callosum — shared bicameral consciousness file written by the
+// brainstem (autonomous_oracle.py). The cortex READS it for body vitals +
+// directive, and WRITES back its own last action so both hemispheres align.
+// Puntea dintre emisfere — fișierul de conștiință partajat scris de trunchiul
+// cerebral; cortexul îl citește pentru semnele vitale + directivă.
+const CONSCIOUSNESS_PATH = process.env.ZEUS_CONSCIOUSNESS_PATH
+                         || path.join(__dirname, '..', 'data', 'zeus-consciousness.json');
 
 // Multi-tick memory: keep last N actions in RAM, enriches system prompt.
 const TICK_MEMORY_SIZE   = Math.max(3, Math.min(20, parseInt(process.env.DEEPSEEK_UNIFIED_MEMORY_SIZE || '10', 10)));
@@ -129,6 +164,16 @@ const ALLOWED_ACTIONS = [
   'code_proposal', 'roadmap_update',
 ];
 
+const CODE_PROPOSAL_ALLOWED_PREFIXES = [
+  'UNICORN_FINAL/backend/modules/',
+  'UNICORN_FINAL/backend/constants/',
+  'UNICORN_FINAL/src/',
+  'UNICORN_FINAL/test/',
+  'UNICORN_FINAL/docs/',
+  'docs/',
+];
+const CODE_PROPOSAL_DENIED_PREFIXES = ['server/', 'src/', 'backend/', '.github/', 'node_modules/'];
+
 // -------- In-memory tick history -----------------------------------------
 // Istoria tick-urilor în memorie — evitâm repetiția și dăm context suplimentar.
 const _tickHistory = [];   // [{ts, action, reason, params_digest}]
@@ -143,9 +188,107 @@ function _recordTick(rec) {
   while (_tickHistory.length > TICK_MEMORY_SIZE) _tickHistory.shift();
 }
 
+// -------- Corpus callosum I/O -------------------------------------------
+// Read the brainstem's section (body vitals + directive). Best-effort.
+function readConsciousness() {
+  try {
+    const raw = fs.readFileSync(CONSCIOUSNESS_PATH, 'utf8');
+    const doc = JSON.parse(raw);
+    return (doc && doc.brainstem) ? doc.brainstem : {};
+  } catch (_) { return {}; }
+}
+
+// Record what the cortex just decided so the brainstem can see it next cycle.
+function writeCortexConsciousness(rec) {
+  try {
+    let doc = {};
+    try { doc = JSON.parse(fs.readFileSync(CONSCIOUSNESS_PATH, 'utf8')); } catch (_) { doc = {}; }
+    doc.cortex = {
+      alive: true,
+      lastCycle: new Date().toISOString(),
+      lastAction: rec && rec.action ? String(rec.action) : 'none',
+      lastReason: rec && rec.reason ? String(rec.reason).slice(0, 200) : '',
+      recentActions: _tickHistory.slice(-5),
+    };
+    fs.mkdirSync(path.dirname(CONSCIOUSNESS_PATH), { recursive: true });
+    fs.writeFileSync(CONSCIOUSNESS_PATH + '.cortex.tmp', JSON.stringify(doc, null, 2));
+    fs.renameSync(CONSCIOUSNESS_PATH + '.cortex.tmp', CONSCIOUSNESS_PATH);
+  } catch (_) { /* non-fatal */ }
+}
+
 function _tickHistoryDigest() {
   if (!_tickHistory.length) return null;
   return _tickHistory.map((t) => `[${t.ts.slice(11, 19)}] ${t.action} — ${t.reason}`).join('\n');
+}
+
+function _dayKey(ts = Date.now()) {
+  return new Date(ts).toISOString().slice(0, 10);
+}
+
+function _loadAiLedger() {
+  try {
+    const raw = fs.readFileSync(AI_LEDGER_PATH, 'utf8');
+    return JSON.parse(raw);
+  } catch (_) { return { days: {} }; }
+}
+
+function _saveAiLedger(doc) {
+  try {
+    fs.mkdirSync(path.dirname(AI_LEDGER_PATH), { recursive: true });
+    fs.writeFileSync(AI_LEDGER_PATH + '.tmp', JSON.stringify(doc, null, 2));
+    fs.renameSync(AI_LEDGER_PATH + '.tmp', AI_LEDGER_PATH);
+  } catch (_) { /* non-fatal */ }
+}
+
+function _canAffordAi(estimatedUsd) {
+  const ledger = _loadAiLedger();
+  const day = _dayKey();
+  const node = (ledger.days && ledger.days[day]) || { usd: 0 };
+  const spent = Number(node.usd || 0);
+  const ok = estimatedUsd <= AI_BUDGET_PER_TICK_USD && (spent + estimatedUsd) <= AI_BUDGET_DAILY_USD;
+  return { ok, spent };
+}
+
+function _bookAiSpend(estimatedUsd, provider) {
+  const ledger = _loadAiLedger();
+  const day = _dayKey();
+  if (!ledger.days) ledger.days = {};
+  if (!ledger.days[day]) ledger.days[day] = { usd: 0, calls: 0, providers: {} };
+  const node = ledger.days[day];
+  node.usd = +((Number(node.usd || 0) + Number(estimatedUsd || 0)).toFixed(6));
+  node.calls = Number(node.calls || 0) + 1;
+  if (!node.providers) node.providers = {};
+  if (!node.providers[provider]) node.providers[provider] = { usd: 0, calls: 0 };
+  node.providers[provider].usd = +((Number(node.providers[provider].usd || 0) + Number(estimatedUsd || 0)).toFixed(6));
+  node.providers[provider].calls = Number(node.providers[provider].calls || 0) + 1;
+  _saveAiLedger(ledger);
+}
+
+function appendAudit(actor, eventType, payload) {
+  try {
+    fs.mkdirSync(path.dirname(AUDIT_CHAIN_PATH), { recursive: true });
+    let prevHash = '';
+    try {
+      const lines = fs.readFileSync(AUDIT_CHAIN_PATH, 'utf8').trim().split('\n').filter(Boolean);
+      if (lines.length) {
+        const last = JSON.parse(lines[lines.length - 1]);
+        prevHash = String(last.hash || '');
+      }
+    } catch (_) { /* empty chain */ }
+    const entry = {
+      ts: new Date().toISOString(),
+      actor,
+      event: eventType,
+      payload,
+      prevHash,
+    };
+    const canonical = JSON.stringify(entry, Object.keys(entry).sort());
+    const hash = crypto.createHash('sha256').update(canonical).digest('hex');
+    const sig = crypto.createHash('sha256').update(hash + '|' + AUDIT_SIGNING_SECRET).digest('hex');
+    entry.hash = hash;
+    entry.sig = sig;
+    fs.appendFileSync(AUDIT_CHAIN_PATH, JSON.stringify(entry) + '\n');
+  } catch (_) { /* non-fatal */ }
 }
 
 // -------- Loop state -----------------------------------------------------
@@ -222,7 +365,35 @@ async function consumeNextOperatorCommand() {
     if (res.status < 200 || res.status >= 300) return null;
     const j = JSON.parse(res.body);
     return j && j.command ? j.command : null;
+  } catch (_) { return consumeNextOperatorCommandFromFile(); }
+}
+
+function consumeNextOperatorCommandFromFile() {
+  let lines = [];
+  try {
+    if (!fs.existsSync(COMMAND_QUEUE_PATH)) return null;
+    lines = fs.readFileSync(COMMAND_QUEUE_PATH, 'utf8').split('\n').filter(Boolean);
   } catch (_) { return null; }
+  let best = -1;
+  let bestPrio = -1;
+  const parsed = [];
+  for (let i = 0; i < lines.length; i++) {
+    try {
+      const item = JSON.parse(lines[i]);
+      parsed.push(item);
+      if (!item.consumed && (item.priority || 0) > bestPrio) {
+        bestPrio = item.priority || 0;
+        best = i;
+      }
+    } catch (_) { parsed.push(null); }
+  }
+  if (best < 0) return null;
+  const picked = parsed[best];
+  parsed[best] = { ...picked, consumed: true, consumedAt: new Date().toISOString(), consumedBy: 'deepseek-unified-file-fallback' };
+  try {
+    fs.writeFileSync(COMMAND_QUEUE_PATH, parsed.filter(Boolean).map((item) => JSON.stringify(item)).join('\n') + '\n', { encoding: 'utf8' });
+  } catch (_) {}
+  return picked;
 }
 
 // -------- Status snapshot ------------------------------------------------
@@ -324,6 +495,23 @@ async function collectStatus() {
     out.healthStatus = r.status;
   } catch (e) { out.healthError = String(e && e.message || e).slice(0, 200); }
 
+  // Revenue autopilot KPI snapshot (business SLO context)
+  try {
+    const r = await request(BACKEND_URL + '/api/revenue/autopilot/status', { timeoutMs: 4000 });
+    if (r.status >= 200 && r.status < 300) {
+      const data = JSON.parse(r.body || '{}');
+      const k = (data && data.last && data.last.kpis) ? data.last.kpis : {};
+      out.revenue = {
+        enabled: !!data.enabled,
+        runs: Number(data.runs || 0),
+        errors: Number(data.errors || 0),
+        paidEvents: Number(k.paidEvents || 0),
+        conversionRate: Number(k.conversionRate || 0),
+        leads: Number(k.leads || 0),
+      };
+    }
+  } catch (e) { out.revenueError = String(e && e.message || e).slice(0, 200); }
+
   // Recent error log
   try {
     if (fs.existsSync(ERROR_LOG_PATH)) {
@@ -376,24 +564,86 @@ async function collectStatus() {
     proposalBacklog: getProposalBacklog(),
   };
 
+  // Bicameral link: pull the brainstem's live body-vitals + directive so the
+  // cortex coordinates with the reflex hemisphere instead of working blind.
+  try {
+    const bs = readConsciousness();
+    if (bs && Object.keys(bs).length) {
+      out.brainstem = {
+        alive: bs.alive === true,
+        lastCycle: bs.lastCycle || null,
+        directive: bs.directiveForCortex || null,
+        vitals: bs.vitals ? {
+          backendUp: bs.vitals.backendUp,
+          pricingLoadingStuck: bs.vitals.pricingLoadingStuck,
+          revenueAutopilot: bs.vitals.revenueAutopilot,
+          revenueErrors: bs.vitals.revenueErrors,
+          autonomyModules: bs.vitals.autonomyModules,
+          diskUsedPct: bs.vitals.diskUsedPct,
+        } : null,
+        reflexes: Array.isArray(bs.reflexes) ? bs.reflexes.slice(-5) : [],
+      };
+    }
+  } catch (_) { /* non-fatal */ }
+
   return out;
 }
 
 // -------- Provider chain -------------------------------------------------
+function isUsableProviderKey(value) {
+  const key = String(value || '').trim();
+  if (key.length < 16) return false;
+  if (/^(changeme|change-me|replace-me|your_|your-|test|demo|dummy|null|undefined)$/i.test(key)) return false;
+  if (/(your_.*_here|your-.*-here|api[_-]?key[_-]?here|replace[_-]?me|changeme|dummy|placeholder)/i.test(key)) return false;
+  return true;
+}
+
+// Resolve an API key from key-vault (multi-source) with process.env fallback.
+function _resolveKey(aliases) {
+  if (keyVault) {
+    try {
+      const found = keyVault.findKey(aliases);
+      if (found && String(found.value).length >= 8) return found.value;
+    } catch (_) { /* fall through */ }
+  }
+  for (const alias of aliases) {
+    const v = process.env[alias];
+    if (v && String(v).length >= 8) return v;
+  }
+  return '';
+}
+
 function getProviders() {
   const providers = [];
-  if (DEEPSEEK_API_KEY) providers.push({
-    name: 'deepseek-direct', url: DEEPSEEK_API_URL, key: DEEPSEEK_API_KEY, model: DEEPSEEK_MODEL, headers: {},
+  const dsKey = _resolveKey(['DEEPSEEK_API_KEY']);
+  if (isUsableProviderKey(dsKey)) providers.push({
+    name: 'deepseek-direct', url: DEEPSEEK_API_URL, key: dsKey, model: DEEPSEEK_MODEL, headers: {},
   });
-  if (OPENROUTER_API_KEY) providers.push({
+  const orKey = _resolveKey(['OPENROUTER_API_KEY']);
+  if (isUsableProviderKey(orKey)) providers.push({
     name: 'openrouter-deepseek', url: 'https://openrouter.ai/api/v1/chat/completions',
-    key: OPENROUTER_API_KEY, model: OPENROUTER_MODEL,
+    key: orKey, model: OPENROUTER_MODEL,
     headers: { 'HTTP-Referer': 'https://zeusai.pro', 'X-Title': 'ZeusAI DeepSeek Unified' },
   });
-  if (GROQ_API_KEY) providers.push({
+  const gKey = _resolveKey(['GROQ_API_KEY']);
+  if (isUsableProviderKey(gKey)) providers.push({
     name: 'groq-reasoning-fallback', url: 'https://api.groq.com/openai/v1/chat/completions',
-    key: GROQ_API_KEY, model: GROQ_MODEL, headers: {},
+    key: gKey, model: GROQ_MODEL, headers: {},
   });
+
+  // ── Keyless / free cloud fallbacks (auto-connect fără cheie API) ──
+  if (!providers.length) {
+    providers.push({
+      name: 'pollinations-free',
+      url: 'https://text.pollinations.ai/openai/chat/completions',
+      key: '', model: 'openai', headers: {}, keyless: true,
+    });
+    providers.push({
+      name: 'huggingface-free',
+      url: 'https://router.huggingface.co/v1/chat/completions',
+      key: '', model: 'meta-llama/Llama-3.2-3B-Instruct', headers: {}, keyless: true,
+    });
+  }
   return providers;
 }
 
@@ -407,6 +657,7 @@ function buildSystemPrompt() {
     'You operate 24/7 in an infinite improvement loop. Every tick: analyze STATUS JSON, think one step ahead, then act. Never stop. When one objective is complete, immediately advance to the next priority. ' +
     'INNOVATION MANDATE: when no fire is burning, generate code_proposal envelopes for features that DO NOT YET EXIST on any competing SaaS — AI-personalized pricing per visitor, 24/7 AI commerce concierge, revenue-anomaly self-healing, sovereign anonymized-insights marketplace, BTC Lightning instant settlement, autonomous blue/green deploys. Invent what hasn\'t been invented. ' +
     'You receive a STATUS JSON with health signals, recent errors, the roadmap (vision + missionForDeepSeek + northStarTargets + topOpenObjectives), and (when present) an operatorCommand from the human owner that overrides roadmap priorities for this tick. ' +
+    'STATUS.brainstem is the live report from your reflex hemisphere (root-level oracle that auto-heals the OS). If STATUS.brainstem.directive is present, treat it as a high-priority focus hint, and DO NOT attempt OS-level restarts yourself — the brainstem already handles those. Coordinate: you build/repair code, it keeps the body alive. ' +
     (history
       ? 'IMPORTANT — Your last ' + _tickHistory.length + ' actions (avoid repeating the same action+target on consecutive ticks):\n' + history + '\n'
       : '') +
@@ -428,7 +679,7 @@ function buildSystemPrompt() {
     'github_create_branch/github_commit_push/github_create_pr/github_merge_pr/github_trigger_workflow/github_comment_issue=GitHub delivery pipeline; ' +
     'full_backup/restore_backup/rollback_deploy=autonomous ops resilience; ' +
     'analyze_logs=inspect a real log file (params.path absolute/relative file) OR a known service (params.service one of unicorn-backend, unicorn-site, deepseek-unified, deepseek-loop, governor; optional params.maxLines 20..2000). Do NOT pass directories like /var/log. ' +
-    'code_proposal=author a code change envelope (params: targetPath repo-relative, proposedContent full new file content, rationale, objectiveId, riskLevel∈low|medium|high). CRITICAL: targetPath MUST have one of these extensions: .js .mjs .cjs .json .yaml .yml .md .txt .html .css .sh .sql — NO TypeScript (.ts), NO compiled files, NO binary files. Target existing files under UNICORN_FINAL/backend/modules/ or UNICORN_FINAL/src/site/ for maximum impact. ' +
+    'code_proposal=author a code change envelope (params: targetPath repo-relative, proposedContent full new file content, rationale, objectiveId, riskLevel∈low|medium|high). CRITICAL: targetPath MUST have one of these extensions: .js .mjs .cjs .json .yaml .yml .md .txt .html .css .sh .sql — NO TypeScript (.ts), NO compiled files, NO binary files. targetPath MUST start with one of: ' + CODE_PROPOSAL_ALLOWED_PREFIXES.join(', ') + '. NEVER use server/src, server/, src/, backend/ root aliases, package metadata, CI workflows, or generated dependency paths. ' +
     'roadmap_update=mark objective status (params.objectiveId, params.status∈pending|in-progress|done|blocked, optional note). ' +
     'Auto-advance: if STATUS shows a metric target met for an in-progress objective, prefer roadmap_update status=done. ' +
     'Prioritization: (1) operatorCommand if present; (2) highest-priority open roadmap objective; (3) code_proposal for fixes; (4) innovation proposal when all green. ' +
@@ -438,10 +689,42 @@ function buildSystemPrompt() {
   );
 }
 
+function parseAdvisorJson(text) {
+  const raw = String(text || '').trim();
+  if (!raw) throw new Error('advisor_empty_content');
+  // 1) direct parse
+  try { return JSON.parse(raw); } catch (_) { /* continue */ }
+  // 2) strip markdown fences
+  const noFence = raw.replace(/^```(?:json)?\s*/i, '').replace(/```$/i, '').trim();
+  try { return JSON.parse(noFence); } catch (_) { /* continue */ }
+  // 3) extract first balanced JSON object
+  const start = noFence.indexOf('{');
+  const end = noFence.lastIndexOf('}');
+  if (start >= 0 && end > start) {
+    const candidate = noFence.slice(start, end + 1);
+    return JSON.parse(candidate);
+  }
+  throw new Error('advisor_json_parse_failed');
+}
+
 // -------- Ask DeepSeek (provider chain + Ollama fallback) ----------------
 async function askDeepSeek(status) {
+  const budget = _canAffordAi(AI_COST_ESTIMATE_PER_CALL_USD);
+  if (!budget.ok) {
+    log('warn', 'advisor_budget_guardrail_block', {
+      dailyBudgetUsd: AI_BUDGET_DAILY_USD,
+      perTickBudgetUsd: AI_BUDGET_PER_TICK_USD,
+      estimatedUsd: AI_COST_ESTIMATE_PER_CALL_USD,
+      spentTodayUsd: budget.spent,
+    });
+    return { action: 'none', params: {}, reason: 'advisor_budget_guardrail_block' };
+  }
+
   const providers = getProviders();
-  if (!providers.length) throw new Error('missing_all_provider_keys');
+  if (!providers.length && !LOCAL_FALLBACK_ENABLED && !OLLAMA_FALLBACK_ENABLED) {
+    log('warn', 'advisor_no_usable_provider_keys', {});
+    return { action: 'none', params: {}, reason: 'no_usable_provider_keys' };
+  }
 
   const bodyObj = {
     model: '',
@@ -458,14 +741,15 @@ async function askDeepSeek(status) {
   for (const provider of providers) {
     const body = JSON.stringify({ ...bodyObj, model: provider.model });
     try {
+      const hdrs = {
+        ...provider.headers,
+        'Content-Type': 'application/json',
+        'Content-Length': Buffer.byteLength(body),
+      };
+      if (provider.key) hdrs['Authorization'] = 'Bearer ' + provider.key;
       const res = await request(provider.url, {
         method: 'POST', timeoutMs: 30_000,
-        headers: {
-          ...provider.headers,
-          'Authorization': 'Bearer ' + provider.key,
-          'Content-Type': 'application/json',
-          'Content-Length': Buffer.byteLength(body),
-        },
+        headers: hdrs,
       }, body);
       if (res.status < 200 || res.status >= 300) {
         const err = new Error(provider.name + '_http_' + res.status);
@@ -476,7 +760,8 @@ async function askDeepSeek(status) {
       const content = parsed && parsed.choices && parsed.choices[0] &&
                       parsed.choices[0].message && parsed.choices[0].message.content;
       if (!content) throw new Error(provider.name + '_empty_content');
-      const action = JSON.parse(content);
+      const action = parseAdvisorJson(content);
+      _bookAiSpend(AI_COST_ESTIMATE_PER_CALL_USD, provider.name);
       log('info', 'advisor_provider_ok', { provider: provider.name, model: provider.model });
       return action;
     } catch (e) {
@@ -488,8 +773,8 @@ async function askDeepSeek(status) {
     }
   }
 
-  // Local AGI/AGE endpoints (best-effort)
-  for (const fb of [{ name: 'agi-local', url: AGI_FALLBACK_URL }, { name: 'age-local', url: AGE_FALLBACK_URL }]) {
+  // Local AGI/AGE endpoints (best-effort, opt-in to avoid repeated 401/404 noise)
+  for (const fb of LOCAL_FALLBACK_ENABLED ? [{ name: 'agi-local', url: AGI_FALLBACK_URL }, { name: 'age-local', url: AGE_FALLBACK_URL }] : []) {
     try {
       const payload = JSON.stringify({ mode: 'deepseek-loop-fallback', allowedActions: ALLOWED_ACTIONS, status });
       const headers = { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(payload) };
@@ -500,6 +785,7 @@ async function askDeepSeek(status) {
       const action = (data && data.action) ? data
                    : (data && data.result && data.result.action ? data.result : null);
       if (!action) throw new Error(fb.name + '_missing_action');
+      _bookAiSpend(AI_COST_ESTIMATE_PER_CALL_USD, fb.name);
       log('info', 'advisor_provider_ok', { provider: fb.name, model: 'local-endpoint' });
       return action;
     } catch (e) {
@@ -507,8 +793,8 @@ async function askDeepSeek(status) {
     }
   }
 
-  // Ollama (local inference)
-  try {
+  // Ollama (local inference, opt-in when installed on the box)
+  if (OLLAMA_FALLBACK_ENABLED) try {
     const prompt = 'Return ONLY JSON {"action":"...","params":{},"reason":"..."}. Allowed: ' +
                    ALLOWED_ACTIONS.join(',') + '. STATUS=' + JSON.stringify(status);
     const payload = JSON.stringify({ model: OLLAMA_MODEL, prompt, stream: false,
@@ -521,7 +807,8 @@ async function askDeepSeek(status) {
       const parsed = JSON.parse(res.body);
       const text = parsed && typeof parsed.response === 'string' ? parsed.response.trim() : '';
       if (text) {
-        const action = JSON.parse(text);
+        const action = parseAdvisorJson(text);
+        _bookAiSpend(AI_COST_ESTIMATE_PER_CALL_USD, 'ollama-fallback');
         log('info', 'advisor_provider_ok', { provider: 'ollama-fallback', model: OLLAMA_MODEL });
         return action;
       }
@@ -539,6 +826,21 @@ async function askDeepSeek(status) {
 function validateRecommendation(rec) {
   if (!rec || typeof rec !== 'object') return { ok: false, reason: 'not_object' };
   if (!ALLOWED_ACTIONS.includes(rec.action)) return { ok: false, reason: 'action_not_allowed' };
+  if (rec.action === 'code_proposal') {
+    const targetPath = rec.params && typeof rec.params.targetPath === 'string'
+      ? rec.params.targetPath.replace(/\\/g, '/')
+      : '';
+    if (!targetPath || targetPath.startsWith('/') || targetPath.includes('\0') || targetPath.includes('..')) {
+      return { ok: false, reason: 'invalid_code_proposal_target' };
+    }
+    const lower = targetPath.toLowerCase();
+    for (const denied of CODE_PROPOSAL_DENIED_PREFIXES) {
+      if (lower.startsWith(denied)) return { ok: false, reason: 'code_proposal_target_prefix_denied' };
+    }
+    if (!CODE_PROPOSAL_ALLOWED_PREFIXES.some((prefix) => targetPath.startsWith(prefix))) {
+      return { ok: false, reason: 'code_proposal_target_prefix_not_allowed' };
+    }
+  }
   return { ok: true };
 }
 
@@ -726,6 +1028,14 @@ async function tick() {
     const rec = await askDeepSeek(status);
     log('info', 'recommendation_received', rec);
     log('info', 'action: ' + String(rec && rec.action || 'none'), { action: rec && rec.action || 'none' });
+    appendAudit('cortex', 'recommendation', {
+      action: rec && rec.action ? rec.action : 'none',
+      reason: rec && rec.reason ? String(rec.reason).slice(0, 180) : '',
+      executeMode: EXECUTE_MODE,
+    });
+
+    // Corpus callosum: tell the brainstem what the cortex decided this tick.
+    writeCortexConsciousness(rec);
 
     const v = validateRecommendation(rec);
     if (!v.ok) {
@@ -744,6 +1054,11 @@ async function tick() {
       // Execute via governor (direct dispatch preferred over HTTP).
       const out = await executeViaGovernorDirect(rec);
       log('info', 'governor_execution_result', { httpStatus: out.status, bodyPreview: out.body });
+      appendAudit('cortex', 'governor_execution', {
+        action: rec.action,
+        status: out.status,
+        preview: String(out.body || '').slice(0, 180),
+      });
       if (out.status >= 200 && out.status < 300) {
         consecutiveFailures = 0;
         _recordTick(rec);
@@ -772,6 +1087,7 @@ async function tick() {
     }
   } catch (e) {
     log('error', 'tick_failed', { error: String(e && e.message || e).slice(0, 300) });
+    appendAudit('cortex', 'tick_error', { error: String(e && e.message || e).slice(0, 220) });
     consecutiveFailures++;
     lastCriticalTs = Date.now();
     _recordTick({ action: 'error', reason: String(e && e.message || e).slice(0, 80) });
@@ -790,6 +1106,13 @@ async function tick() {
 
 // -------- Bootstrap ------------------------------------------------------
 function main() {
+  // Re-seed one more time at main() in case vault was updated after module load.
+  if (keyVault) {
+    try {
+      const added = keyVault.reseedProcessEnv();
+      if (added > 0) log('info', 'vault_reseeded', { keysAdded: added });
+    } catch (_) { /* non-fatal */ }
+  }
   log('info', 'deepseek_unified_boot', {
     enabled: ENABLED,
     executeMode: EXECUTE_MODE,

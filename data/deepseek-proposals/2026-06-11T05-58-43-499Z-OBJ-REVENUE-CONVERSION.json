@@ -1,0 +1,12 @@
+{
+  "schemaVersion": 1,
+  "createdAt": "2026-06-11T05:58:43.499Z",
+  "status": "pending-review",
+  "objectiveId": "OBJ-REVENUE-CONVERSION",
+  "targetPath": "UNICORN_FINAL/backend/modules/revenue/conversionOffer.js",
+  "riskLevel": "medium",
+  "rationale": "Implement conversion offer logic to convert leads into paid events. Brainstem directive: paidEvents zero, need checkout/offer conversion code.",
+  "proposedContent": "// Conversion offer logic: when a lead is detected, present a time-limited offer to convert to paid.\n// This module hooks into the lead capture flow and triggers a conversion offer.\n\nconst offers = [\n  { id: 'early_bird', discount: 0.2, durationHours: 24, label: 'Early Bird 20% off' },\n  { id: 'volume', discount: 0.15, durationHours: 48, label: 'Volume discount 15% off' },\n  { id: 'loyalty', discount: 0.1, durationHours: 72, label: 'Loyalty discount 10% off' }\n];\n\nfunction getOfferForLead(lead) {\n  // Simple rotation based on lead count\n  const index = lead.id % offers.length;\n  return offers[index];\n}\n\nfunction presentOffer(lead) {\n  const offer = getOfferForLead(lead);\n  // In production, this would push to a queue or update a database\n  console.log(`[ConversionOffer] Presenting offer ${offer.id} to lead ${lead.id}`);\n  return { success: true, offer };\n}\n\nmodule.exports = { presentOffer, offers };\n",
+  "proposedContentBytes": 913,
+  "note": "Envelope only — code is NOT applied. Human/CI review required before any edit."
+}

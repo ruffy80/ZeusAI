@@ -184,6 +184,1185 @@
 				"ssh -o StrictHostKeyChecking=no root@204.168.230.142 \"grep -R --line-number -E '^(GITHUB_TOKEN|GH_PAT|GH_TOKEN|GITHUB_TOKEN_SYNC)=' /var/www/unicorn /root /etc 2>/dev/null | head -n 200 | sed 's/=.*/=<set>/'\""
 			],
 			"isBackground": false
+		},
+		{
+			"label": "commit-and-push-stability",
+			"type": "shell",
+			"command": "zsh tmp/do_commit.sh"
+		},
+		{
+			"label": "investigate-sync",
+			"type": "shell",
+			"command": "zsh tmp/investigate.sh"
+		},
+		{
+			"label": "fetch-inv",
+			"type": "shell",
+			"command": "zsh tmp/fetch_inv.sh"
+		},
+		{
+			"label": "audit2",
+			"type": "shell",
+			"command": "zsh tmp/audit2.sh"
+		},
+		{
+			"label": "apply-loop",
+			"type": "shell",
+			"command": "zsh tmp/apply_loop.sh"
+		},
+		{
+			"label": "fetch-apply",
+			"type": "shell",
+			"command": "zsh tmp/fetch_apply.sh"
+		},
+		{
+			"label": "load-check",
+			"type": "shell",
+			"command": "zsh tmp/load.sh"
+		},
+		{
+			"label": "spawn-check",
+			"type": "shell",
+			"command": "zsh tmp/spawn.sh"
+		},
+		{
+			"label": "drain-check",
+			"type": "shell",
+			"command": "sleep 20 && zsh tmp/drain.sh"
+		},
+		{
+			"label": "clean-pileup",
+			"type": "shell",
+			"command": "zsh tmp/clean.sh"
+		},
+		{
+			"label": "commit-push2",
+			"type": "shell",
+			"command": "zsh tmp/commit_push2.sh"
+		},
+		{
+			"label": "final-verify",
+			"type": "shell",
+			"command": "sleep 90 && zsh tmp/final.sh"
+		},
+		{
+			"label": "deploy-watch",
+			"type": "shell",
+			"command": "sleep 60 && zsh tmp/dep.sh"
+		},
+		{
+			"label": "deploy-watch2",
+			"type": "shell",
+			"command": "sleep 75 && zsh tmp/dep.sh"
+		},
+		{
+			"label": "hunt-keys",
+			"type": "shell",
+			"command": "zsh tmp/hunt_keys.sh"
+		},
+		{
+			"label": "validate-keys",
+			"type": "shell",
+			"command": "zsh tmp/validate_keys.sh"
+		},
+		{
+			"label": "run-inject",
+			"type": "shell",
+			"command": "zsh tmp/run_inject.sh"
+		},
+		{
+			"label": "verify-ds",
+			"type": "shell",
+			"command": "zsh tmp/run_verify_ds.sh"
+		},
+		{
+			"label": "check-tools",
+			"type": "shell",
+			"command": "zsh tmp/run_check_tools.sh"
+		},
+		{
+			"label": "run-persist",
+			"type": "shell",
+			"command": "zsh tmp/run_persist.sh"
+		},
+		{
+			"label": "commit-push3",
+			"type": "shell",
+			"command": "zsh tmp/commit_push3.sh"
+		},
+		{
+			"label": "verify-durable",
+			"type": "shell",
+			"command": "sleep 150 && zsh tmp/run_verify_durable.sh"
+		},
+		{
+			"label": "verify-durable2",
+			"type": "shell",
+			"command": "sleep 150 && zsh tmp/run_verify_durable.sh"
+		},
+		{
+			"label": "verify-final",
+			"type": "shell",
+			"command": "zsh tmp/run_verify_durable.sh"
+		},
+		{
+			"label": "apply-service",
+			"type": "shell",
+			"command": "zsh tmp/run_apply_service.sh"
+		},
+		{
+			"label": "commit-push4",
+			"type": "shell",
+			"command": "zsh tmp/commit_push4.sh"
+		},
+		{
+			"label": "verify-e2e",
+			"type": "shell",
+			"command": "sleep 200 && zsh tmp/run_verify_durable.sh"
+		},
+		{
+			"label": "ssh-unicorn-shell",
+			"type": "shell",
+			"command": "ssh -o BatchMode=yes -o StrictHostKeyChecking=no root@204.168.230.142"
+		},
+		{
+			"label": "live-sync-unicorn-now",
+			"type": "shell",
+			"command": "zsh /Users/ionutvladoi/Desktop/generate-unicorn/scripts/live_sync_unicorn.sh"
+		},
+		{
+			"label": "push-main-and-watch-deploy",
+			"type": "shell",
+			"command": "zsh /Users/ionutvladoi/Desktop/generate-unicorn/scripts/push_main_and_watch_deploy.sh"
+		},
+		{
+			"label": "commit-push-growth",
+			"type": "shell",
+			"command": "zsh /Users/ionutvladoi/Desktop/generate-unicorn/tmp/commit_growth.sh",
+			"isBackground": false,
+			"problemMatcher": [],
+			"group": "build"
+		},
+		{
+			"label": "push-growth",
+			"type": "shell",
+			"command": "zsh /Users/ionutvladoi/Desktop/generate-unicorn/tmp/push_growth.sh",
+			"isBackground": false,
+			"problemMatcher": [],
+			"group": "build"
+		},
+		{
+			"label": "verify-push-growth",
+			"type": "shell",
+			"command": "cd /Users/ionutvladoi/Desktop/generate-unicorn && git log --oneline -1 && git status --short | head -8 && git rev-parse origin/main | head -c 8 && echo \" =origin\"",
+			"isBackground": false,
+			"problemMatcher": [],
+			"group": "build"
+		},
+		{
+			"label": "live-sync-growth",
+			"type": "shell",
+			"command": "zsh /Users/ionutvladoi/Desktop/generate-unicorn/scripts/live_sync_unicorn.sh",
+			"isBackground": false,
+			"problemMatcher": [],
+			"group": "build"
+		},
+		{
+			"label": "verify-growth-live",
+			"type": "shell",
+			"command": "zsh /Users/ionutvladoi/Desktop/generate-unicorn/tmp/verify_growth.sh",
+			"isBackground": false,
+			"problemMatcher": [],
+			"group": "build"
+		},
+		{
+			"label": "verify-growth-live2",
+			"type": "shell",
+			"command": "zsh /Users/ionutvladoi/Desktop/generate-unicorn/tmp/verify_growth2.sh",
+			"isBackground": false,
+			"problemMatcher": [],
+			"group": "build"
+		},
+		{
+			"label": "verify-growth-live3",
+			"type": "shell",
+			"command": "zsh /Users/ionutvladoi/Desktop/generate-unicorn/tmp/verify_growth3.sh",
+			"isBackground": false,
+			"problemMatcher": [],
+			"group": "build"
+		},
+		{
+			"label": "verify-growth-live4",
+			"type": "shell",
+			"command": "zsh /Users/ionutvladoi/Desktop/generate-unicorn/tmp/verify_growth4.sh",
+			"isBackground": false,
+			"problemMatcher": [],
+			"group": "build"
+		},
+		{
+			"label": "verify-growth-live5",
+			"type": "shell",
+			"command": "zsh /Users/ionutvladoi/Desktop/generate-unicorn/tmp/verify_growth5.sh",
+			"isBackground": false,
+			"problemMatcher": [],
+			"group": "build"
+		},
+		{
+			"label": "watch-deploy-growth",
+			"type": "shell",
+			"command": "zsh /Users/ionutvladoi/Desktop/generate-unicorn/tmp/watch_deploy_growth.sh",
+			"isBackground": true,
+			"problemMatcher": [],
+			"group": "build"
+		},
+		{
+			"label": "verify-shared-data",
+			"type": "shell",
+			"command": "ssh -o BatchMode=yes -o StrictHostKeyChecking=no root@204.168.230.142 'ls -ld /var/www/unicorn/current/data; ls /var/www/unicorn/shared/data/funnel /var/www/unicorn/shared/data/traffic 2>/dev/null; echo ---; cat /var/www/unicorn/shared/data/funnel/funnel-intelligence.json 2>/dev/null | head -c 200'",
+			"isBackground": false,
+			"problemMatcher": [],
+			"group": "build"
+		},
+		{
+			"label": "wait-deploy-4min",
+			"type": "shell",
+			"command": "sleep 240 && echo waited",
+			"isBackground": false,
+			"problemMatcher": [],
+			"group": "build"
+		},
+		{
+			"label": "wait-deploy-more",
+			"type": "shell",
+			"command": "sleep 330 && echo waited2",
+			"isBackground": false,
+			"problemMatcher": [],
+			"group": "build"
+		},
+		{
+			"label": "final-deploy-check",
+			"type": "shell",
+			"command": "sleep 300 && zsh /Users/ionutvladoi/Desktop/generate-unicorn/tmp/check_deploy_final.sh",
+			"isBackground": false,
+			"problemMatcher": [],
+			"group": "build"
+		},
+		{
+			"label": "wait-final",
+			"type": "shell",
+			"command": "sleep 360 && echo done-waiting",
+			"isBackground": false,
+			"problemMatcher": [],
+			"group": "build"
+		},
+		{
+			"label": "final-check-now",
+			"type": "shell",
+			"command": "zsh /Users/ionutvladoi/Desktop/generate-unicorn/tmp/check_deploy_final.sh",
+			"isBackground": false,
+			"problemMatcher": [],
+			"group": "build"
+		},
+		{
+			"label": "gh-run-status",
+			"type": "shell",
+			"command": "set +H; cd /Users/ionutvladoi/Desktop/generate-unicorn; SHA=$(git rev-parse HEAD); curl -fsS \"https://api.github.com/repos/ruffy80/ZeusAI/actions/runs?head_sha=$SHA&per_page=5\" | python3 -c 'import sys,json; d=json.load(sys.stdin); [print(r[\"name\"],\"->\",r[\"status\"],r.get(\"conclusion\") or \"-\",\"#\"+str(r[\"run_number\"])) for r in d.get(\"workflow_runs\",[])]'; ssh -o BatchMode=yes -o StrictHostKeyChecking=no root@204.168.230.142 'echo build=$(head -c 8 /var/www/unicorn/current/.build-sha 2>/dev/null)'",
+			"isBackground": false,
+			"problemMatcher": [],
+			"group": "build"
+		},
+		{
+			"label": "proof-live-full",
+			"type": "shell",
+			"command": "zsh /Users/ionutvladoi/Desktop/generate-unicorn/tmp/proof_live_full.sh 2>&1",
+			"isBackground": false,
+			"problemMatcher": [],
+			"group": "build"
+		},
+		{
+			"label": "proof-live-rest",
+			"type": "shell",
+			"command": "zsh /Users/ionutvladoi/Desktop/generate-unicorn/tmp/proof_live_rest.sh 2>&1 | tee /Users/ionutvladoi/Desktop/generate-unicorn/tmp/proof_rest_out.txt | tail -5; echo '--- full file: ---'; cat /Users/ionutvladoi/Desktop/generate-unicorn/tmp/proof_rest_out.txt",
+			"isBackground": false,
+			"problemMatcher": [],
+			"group": "build"
+		},
+		{
+			"label": "probe-raw",
+			"type": "shell",
+			"command": "ssh -o BatchMode=yes -o StrictHostKeyChecking=no root@204.168.230.142 'echo RAW_REVENUE:; curl -fsS http://127.0.0.1:3000/api/autonomous/revenue/status | head -c 700; echo; echo; echo RAW_TRAFFIC_HISTORY:; curl -fsS http://127.0.0.1:3000/api/traffic/status | python3 -c \"import sys,json;d=json.load(sys.stdin);print(json.dumps(d.get('history'),indent=1))\"'",
+			"isBackground": false,
+			"problemMatcher": [],
+			"group": "build"
+		},
+		{
+			"label": "probe-raw2",
+			"type": "shell",
+			"command": "zsh /Users/ionutvladoi/Desktop/generate-unicorn/tmp/probe_raw.sh",
+			"isBackground": false,
+			"problemMatcher": [],
+			"group": "build"
+		},
+		{
+			"label": "inventory-local",
+			"type": "shell",
+			"command": "zsh /Users/ionutvladoi/Desktop/generate-unicorn/tmp/inventory_local.sh",
+			"isBackground": false,
+			"problemMatcher": [],
+			"group": "build"
+		},
+		{
+			"label": "compare-server",
+			"type": "shell",
+			"command": "zsh /Users/ionutvladoi/Desktop/generate-unicorn/tmp/compare_server.sh > /Users/ionutvladoi/Desktop/generate-unicorn/tmp/compare_out.txt 2>&1; echo EXIT=$?; tail -3 /Users/ionutvladoi/Desktop/generate-unicorn/tmp/compare_out.txt",
+			"isBackground": false,
+			"problemMatcher": [],
+			"group": "build"
+		},
+		{
+			"label": "compare-server2",
+			"type": "shell",
+			"command": "zsh /Users/ionutvladoi/Desktop/generate-unicorn/tmp/compare_server2.sh > /Users/ionutvladoi/Desktop/generate-unicorn/tmp/compare2_out.txt 2>&1; echo EXIT=$?; wc -l /Users/ionutvladoi/Desktop/generate-unicorn/tmp/compare2_out.txt",
+			"isBackground": false,
+			"problemMatcher": [],
+			"group": "build"
+		},
+		{
+			"label": "verify-nested",
+			"type": "shell",
+			"command": "zsh /Users/ionutvladoi/Desktop/generate-unicorn/tmp/verify_nested.sh; cat /Users/ionutvladoi/Desktop/generate-unicorn/tmp/verify_nested.txt",
+			"isBackground": false,
+			"problemMatcher": [],
+			"group": "build"
+		},
+		{
+			"label": "check-seeds",
+			"type": "shell",
+			"command": "zsh /Users/ionutvladoi/Desktop/generate-unicorn/tmp/check_seeds.sh; cat /Users/ionutvladoi/Desktop/generate-unicorn/tmp/inv_seeds.txt",
+			"isBackground": false,
+			"problemMatcher": [],
+			"group": "build"
+		},
+		{
+			"label": "swiss-check",
+			"type": "shell",
+			"command": "zsh /Users/ionutvladoi/Desktop/generate-unicorn/tmp/swiss_check.sh; wc -l /Users/ionutvladoi/Desktop/generate-unicorn/tmp/swiss_check.txt",
+			"isBackground": false,
+			"problemMatcher": [],
+			"group": "build"
+		},
+		{
+			"label": "err-investigate",
+			"type": "shell",
+			"command": "zsh /Users/ionutvladoi/Desktop/generate-unicorn/tmp/err_investigate.sh; cat /Users/ionutvladoi/Desktop/generate-unicorn/tmp/err_investigate.txt",
+			"isBackground": false,
+			"problemMatcher": [],
+			"group": "build"
+		},
+		{
+			"label": "read-err-out",
+			"type": "shell",
+			"command": "sleep 25; cat /Users/ionutvladoi/Desktop/generate-unicorn/tmp/err_investigate.txt",
+			"isBackground": false,
+			"problemMatcher": [],
+			"group": "build"
+		},
+		{
+			"label": "cleanup-security",
+			"type": "shell",
+			"command": "zsh /Users/ionutvladoi/Desktop/generate-unicorn/tmp/cleanup_security.sh 2>&1 | tail -25",
+			"isBackground": false,
+			"problemMatcher": [],
+			"group": "build"
+		},
+		{
+			"label": "gitignore-sanity",
+			"type": "shell",
+			"command": "cd /Users/ionutvladoi/Desktop/generate-unicorn && echo test > /tmp/gi_test.js && git check-ignore -v UNICORN_FINAL/UNICORN_FINAL/data/x.js UNICORN_FINAL/backend/modules/traffic-engine.js UNICORN_FINAL/data/invoices/_counter.json 2>&1; echo '---'; git status --short | wc -l",
+			"isBackground": false,
+			"problemMatcher": [],
+			"group": "build"
+		},
+		{
+			"label": "commit-security",
+			"type": "shell",
+			"command": "zsh /Users/ionutvladoi/Desktop/generate-unicorn/tmp/commit_security.sh 2>&1 | tail -12",
+			"isBackground": false,
+			"problemMatcher": [],
+			"group": "build"
+		},
+		{
+			"label": "swiss-final",
+			"type": "shell",
+			"command": "zsh /Users/ionutvladoi/Desktop/generate-unicorn/tmp/swiss_final.sh; cat /Users/ionutvladoi/Desktop/generate-unicorn/tmp/swiss_final.txt",
+			"isBackground": false,
+			"problemMatcher": [],
+			"group": "build"
+		},
+		{
+			"label": "nested-server-purge",
+			"type": "shell",
+			"command": "ssh -o BatchMode=yes -o StrictHostKeyChecking=no root@204.168.230.142 'echo nested pe server:; ls -d /var/www/unicorn/releases/*/UNICORN_FINAL/UNICORN_FINAL 2>/dev/null | head -5 || echo \"(niciuna)\"; find /var/www/unicorn/releases -maxdepth 4 -name \"contract-signing-key.pem\" -path \"*UNICORN_FINAL/UNICORN_FINAL*\" 2>/dev/null | head -3; echo cleanup:; rm -rf /var/www/unicorn/releases/*/UNICORN_FINAL/UNICORN_FINAL 2>/dev/null; echo done; ls -d /var/www/unicorn/releases/*/UNICORN_FINAL/UNICORN_FINAL 2>/dev/null | wc -l'",
+			"isBackground": false,
+			"problemMatcher": [],
+			"group": "build"
+		},
+		{
+			"label": "post-purge-sanity",
+			"type": "shell",
+			"command": "ssh -o BatchMode=yes -o StrictHostKeyChecking=no root@204.168.230.142 'echo date runtime legitime:; ls /var/www/unicorn/shared/data/commerce/ | head -8; echo; echo sanity dupa purge:; curl -s -o /dev/null -w \"/health=%{http_code} \" https://zeusai.pro/health; curl -s -o /dev/null -w \"/services=%{http_code} \" https://zeusai.pro/services; curl -fsS http://127.0.0.1:3000/api/flywheel/status | python3 -c \"import sys,json;print(\\\"flywheel=\\\",json.load(sys.stdin)[\\\"running\\\"])\"; pm2 jlist | python3 -c \"import sys,json;[print(p[\\\"name\\\"],p[\\\"pm2_env\\\"][\\\"status\\\"]) for p in json.load(sys.stdin) if p[\\\"name\\\"].startswith(\\\"unicorn\\\")]\"'",
+			"isBackground": false,
+			"problemMatcher": [],
+			"group": "build"
+		},
+		{
+			"label": "audit-pages",
+			"type": "shell",
+			"command": "zsh /Users/ionutvladoi/Desktop/generate-unicorn/tmp/audit_pages.sh > /Users/ionutvladoi/Desktop/generate-unicorn/tmp/audit_pages_out.txt 2>&1; echo EXIT=$?; wc -l /Users/ionutvladoi/Desktop/generate-unicorn/tmp/audit_pages_out.txt",
+			"isBackground": false,
+			"problemMatcher": [],
+			"group": "build"
+		},
+		{
+			"label": "read-audit-pages",
+			"type": "shell",
+			"command": "sleep 50; cat /Users/ionutvladoi/Desktop/generate-unicorn/tmp/audit_pages_out.txt",
+			"isBackground": false,
+			"problemMatcher": [],
+			"group": "build"
+		},
+		{
+			"label": "audit-checkout",
+			"type": "shell",
+			"command": "zsh /Users/ionutvladoi/Desktop/generate-unicorn/tmp/audit_checkout.sh > /Users/ionutvladoi/Desktop/generate-unicorn/tmp/audit_checkout_out.txt 2>&1; sleep 1; cat /Users/ionutvladoi/Desktop/generate-unicorn/tmp/audit_checkout_out.txt",
+			"isBackground": false,
+			"problemMatcher": [],
+			"group": "build"
+		},
+		{
+			"label": "syntax-check-fixes",
+			"type": "shell",
+			"command": "zsh /Users/ionutvladoi/Desktop/generate-unicorn/tmp/syntax_check.sh 2>&1 | tail -20",
+			"args": [],
+			"isBackground": false,
+			"problemMatcher": [],
+			"group": "build"
+		},
+		{
+			"label": "fix-smoke",
+			"type": "shell",
+			"command": "zsh /Users/ionutvladoi/Desktop/generate-unicorn/tmp/fix_smoke.sh > /Users/ionutvladoi/Desktop/generate-unicorn/tmp/fix_smoke_out.txt 2>&1; echo EXIT=$?; tail -45 /Users/ionutvladoi/Desktop/generate-unicorn/tmp/fix_smoke_out.txt",
+			"args": [],
+			"isBackground": false,
+			"problemMatcher": [],
+			"group": "build"
+		},
+		{
+			"label": "inspect-coherence",
+			"type": "shell",
+			"command": "grep -A2 'card=' /Users/ionutvladoi/Desktop/generate-unicorn/tmp/fix_smoke_out.txt; echo ---LOG---; grep -iE 'pricing|canonical|commerce' /tmp/zeus-fix-test.log | head -15",
+			"args": [],
+			"isBackground": false,
+			"problemMatcher": [],
+			"group": "build"
+		},
+		{
+			"label": "inspect-coherence2",
+			"type": "shell",
+			"command": "grep -B1 -A1 'PRICE-COHER' /Users/ionutvladoi/Desktop/generate-unicorn/tmp/fix_smoke_out.txt",
+			"args": [],
+			"isBackground": false,
+			"problemMatcher": [],
+			"group": "build"
+		},
+		{
+			"label": "debug-coherence",
+			"type": "shell",
+			"command": "zsh /Users/ionutvladoi/Desktop/generate-unicorn/tmp/debug_coherence.sh 2>&1 | head -25",
+			"args": [],
+			"isBackground": false,
+			"problemMatcher": [],
+			"group": "build"
+		},
+		{
+			"label": "grep-canon",
+			"type": "shell",
+			"command": "cd /Users/ionutvladoi/Desktop/generate-unicorn/UNICORN_FINAL && grep -n 'canonicalUsd' src/site/sovereign-commerce.js src/index.js > /Users/ionutvladoi/Desktop/generate-unicorn/tmp/grep_canon.txt 2>&1; cat /Users/ionutvladoi/Desktop/generate-unicorn/tmp/grep_canon.txt",
+			"args": [],
+			"isBackground": false,
+			"problemMatcher": [],
+			"group": "build"
+		},
+		{
+			"label": "price-base-check",
+			"type": "shell",
+			"command": "cd /Users/ionutvladoi/Desktop/generate-unicorn/UNICORN_FINAL && /opt/homebrew/bin/node -e \"const dp=require('./backend/modules/dynamic-pricing');console.log('engine has adaptive-ai:',dp.hasService&&dp.hasService('adaptive-ai'));const p=dp.getPrice('adaptive-ai');console.log('engine price no-base:',JSON.stringify({base:p.basePrice,final:p.finalPrice}));const p2=dp.getPrice('adaptive-ai',{basePrice:499});console.log('engine price base499:',JSON.stringify({base:p2.basePrice,final:p2.finalPrice}))\" 2>&1 | tail -5",
+			"args": [],
+			"isBackground": false,
+			"problemMatcher": [],
+			"group": "build"
+		},
+		{
+			"label": "price-probe",
+			"type": "shell",
+			"command": "cd /Users/ionutvladoi/Desktop/generate-unicorn/UNICORN_FINAL && /opt/homebrew/bin/node /Users/ionutvladoi/Desktop/generate-unicorn/tmp/price_probe.js > /Users/ionutvladoi/Desktop/generate-unicorn/tmp/price_probe_out.txt 2>&1; cat /Users/ionutvladoi/Desktop/generate-unicorn/tmp/price_probe_out.txt",
+			"args": [],
+			"isBackground": false,
+			"problemMatcher": [],
+			"group": "build"
+		},
+		{
+			"label": "fix-smoke2",
+			"type": "shell",
+			"command": "zsh /Users/ionutvladoi/Desktop/generate-unicorn/tmp/fix_smoke.sh > /Users/ionutvladoi/Desktop/generate-unicorn/tmp/fix_smoke_out2.txt 2>&1; echo EXIT=$?; grep -E 'PASS|FAIL|card=|SSR amount|RESULT' /Users/ionutvladoi/Desktop/generate-unicorn/tmp/fix_smoke_out2.txt",
+			"args": [],
+			"isBackground": false,
+			"problemMatcher": [],
+			"group": "build"
+		},
+		{
+			"label": "full-test",
+			"type": "shell",
+			"command": "zsh /Users/ionutvladoi/Desktop/generate-unicorn/tmp/full_test.sh > /Users/ionutvladoi/Desktop/generate-unicorn/tmp/full_test_out.txt 2>&1; tail -40 /Users/ionutvladoi/Desktop/generate-unicorn/tmp/full_test_out.txt",
+			"args": [],
+			"isBackground": false,
+			"problemMatcher": [],
+			"group": "build"
+		},
+		{
+			"label": "wait-test-out",
+			"type": "shell",
+			"command": "sleep 90; tail -45 /Users/ionutvladoi/Desktop/generate-unicorn/tmp/full_test_out.txt",
+			"args": [],
+			"isBackground": false,
+			"problemMatcher": [],
+			"group": "build"
+		},
+		{
+			"label": "wait-test-out2",
+			"type": "shell",
+			"command": "sleep 150; tail -35 /Users/ionutvladoi/Desktop/generate-unicorn/tmp/full_test_out.txt",
+			"args": [],
+			"isBackground": false,
+			"problemMatcher": [],
+			"group": "build"
+		},
+		{
+			"label": "full-test2",
+			"type": "shell",
+			"command": "zsh /Users/ionutvladoi/Desktop/generate-unicorn/tmp/full_test.sh > /Users/ionutvladoi/Desktop/generate-unicorn/tmp/full_test_out2.txt 2>&1; echo DONE; grep -cE '^✓|^ *✓' /Users/ionutvladoi/Desktop/generate-unicorn/tmp/full_test_out2.txt; grep -E 'FAIL|Error|AssertionError|EXIT' /Users/ionutvladoi/Desktop/generate-unicorn/tmp/full_test_out2.txt | head -10; tail -8 /Users/ionutvladoi/Desktop/generate-unicorn/tmp/full_test_out2.txt",
+			"args": [],
+			"isBackground": false,
+			"problemMatcher": [],
+			"group": "build"
+		},
+		{
+			"label": "wait-test2",
+			"type": "shell",
+			"command": "sleep 240; echo '=== checks ==='; grep -E 'AssertionError|FAIL|failed' /Users/ionutvladoi/Desktop/generate-unicorn/tmp/full_test_out2.txt | head -8; echo '=== tail ==='; tail -12 /Users/ionutvladoi/Desktop/generate-unicorn/tmp/full_test_out2.txt",
+			"args": [],
+			"isBackground": false,
+			"problemMatcher": [],
+			"group": "build"
+		},
+		{
+			"label": "wait-test3",
+			"type": "shell",
+			"command": "sleep 200; echo '=== checks ==='; grep -E 'AssertionError|failed' /Users/ionutvladoi/Desktop/generate-unicorn/tmp/full_test_out2.txt | head -8; echo '=== tail ==='; tail -14 /Users/ionutvladoi/Desktop/generate-unicorn/tmp/full_test_out2.txt",
+			"args": [],
+			"isBackground": false,
+			"problemMatcher": [],
+			"group": "build"
+		},
+		{
+			"label": "final-test-read",
+			"type": "shell",
+			"command": "wc -l /Users/ionutvladoi/Desktop/generate-unicorn/tmp/full_test_out2.txt; grep -cE 'AssertionError' /Users/ionutvladoi/Desktop/generate-unicorn/tmp/full_test_out2.txt; tail -16 /Users/ionutvladoi/Desktop/generate-unicorn/tmp/full_test_out2.txt",
+			"args": [],
+			"isBackground": false,
+			"problemMatcher": [],
+			"group": "build"
+		},
+		{
+			"label": "commit-push-fixes",
+			"type": "shell",
+			"command": "zsh /Users/ionutvladoi/Desktop/generate-unicorn/tmp/commit_push_fixes.sh > /Users/ionutvladoi/Desktop/generate-unicorn/tmp/commit_push_out.txt 2>&1; cat /Users/ionutvladoi/Desktop/generate-unicorn/tmp/commit_push_out.txt",
+			"args": [],
+			"isBackground": false,
+			"problemMatcher": [],
+			"group": "build"
+		},
+		{
+			"label": "live-sync-fixes",
+			"type": "shell",
+			"command": "zsh /Users/ionutvladoi/Desktop/generate-unicorn/scripts/live_sync_unicorn.sh > /Users/ionutvladoi/Desktop/generate-unicorn/tmp/live_sync_out.txt 2>&1; echo EXIT=$?; tail -25 /Users/ionutvladoi/Desktop/generate-unicorn/tmp/live_sync_out.txt",
+			"args": [],
+			"isBackground": false,
+			"problemMatcher": [],
+			"group": "build"
+		},
+		{
+			"label": "read-sync-out",
+			"type": "shell",
+			"command": "sleep 60; echo EXIT_FILE:; tail -25 /Users/ionutvladoi/Desktop/generate-unicorn/tmp/live_sync_out.txt",
+			"args": [],
+			"isBackground": false,
+			"problemMatcher": [],
+			"group": "build"
+		},
+		{
+			"label": "verify-live-fixes",
+			"type": "shell",
+			"command": "zsh /Users/ionutvladoi/Desktop/generate-unicorn/tmp/verify_live_fixes.sh > /Users/ionutvladoi/Desktop/generate-unicorn/tmp/verify_live_out.txt 2>&1; echo SCRIPT_DONE; grep -E 'PASS|FAIL|RESULT|card=|/me ->|CTAs|x-zeus' /Users/ionutvladoi/Desktop/generate-unicorn/tmp/verify_live_out.txt",
+			"args": [],
+			"isBackground": false,
+			"problemMatcher": [],
+			"group": "build"
+		},
+		{
+			"label": "read-live-verify",
+			"type": "shell",
+			"command": "sleep 45; cat /Users/ionutvladoi/Desktop/generate-unicorn/tmp/verify_live_out.txt",
+			"args": [],
+			"isBackground": false,
+			"problemMatcher": [],
+			"group": "build"
+		},
+		{
+			"label": "check-deploy-run",
+			"type": "shell",
+			"command": "cd /Users/ionutvladoi/Desktop/generate-unicorn && gh run list --limit 3 --json displayTitle,status,conclusion,name 2>/dev/null | /opt/homebrew/bin/node -e 'let d=\"\";process.stdin.on(\"data\",c=>d+=c).on(\"end\",()=>{try{JSON.parse(d).forEach(r=>console.log(r.name,\"->\",r.status,r.conclusion||\"\"))}catch(e){console.log(\"gh unavailable\")}})'",
+			"args": [],
+			"isBackground": false,
+			"problemMatcher": [],
+			"group": "build"
+		},
+		{
+			"label": "watch-deploy-final",
+			"type": "shell",
+			"command": "sleep 420; cd /Users/ionutvladoi/Desktop/generate-unicorn && gh run list --limit 2 --json displayTitle,status,conclusion,name 2>/dev/null | /opt/homebrew/bin/node -e 'let d=\"\";process.stdin.on(\"data\",c=>d+=c).on(\"end\",()=>{try{JSON.parse(d).forEach(r=>console.log(r.name,\"->\",r.status,r.conclusion||\"\"))}catch(e){console.log(\"gh unavailable\")}})'; echo '== live build =='; curl -sI https://zeusai.pro/ | grep -i x-zeus-build",
+			"args": [],
+			"isBackground": false,
+			"problemMatcher": [],
+			"group": "build"
+		},
+		{
+			"label": "watch-deploy-final2",
+			"type": "shell",
+			"command": "sleep 360; cd /Users/ionutvladoi/Desktop/generate-unicorn && gh run list --limit 2 --json status,conclusion,name 2>/dev/null > /Users/ionutvladoi/Desktop/generate-unicorn/tmp/run_status.json; cat /Users/ionutvladoi/Desktop/generate-unicorn/tmp/run_status.json; echo; curl -sI https://zeusai.pro/ | grep -i x-zeus-build",
+			"args": [],
+			"isBackground": false,
+			"problemMatcher": [],
+			"group": "build"
+		},
+		{
+			"label": "final-deploy-status",
+			"type": "shell",
+			"command": "sleep 240; cat /Users/ionutvladoi/Desktop/generate-unicorn/tmp/run_status.json 2>/dev/null || echo 'not yet'; echo; curl -sI https://zeusai.pro/ | grep -i x-zeus-build",
+			"args": [],
+			"isBackground": false,
+			"problemMatcher": [],
+			"group": "build"
+		},
+		{
+			"label": "deploy-status-late",
+			"type": "shell",
+			"command": "sleep 300; cd /Users/ionutvladoi/Desktop/generate-unicorn && gh run list --limit 1 --workflow 'unicorn-stable-deploy.yml' --json status,conclusion 2>/dev/null | head -2; gh run list --limit 3 2>/dev/null | head -4; echo '== live build =='; curl -sI https://zeusai.pro/ | grep -i x-zeus-build",
+			"args": [],
+			"isBackground": false,
+			"problemMatcher": [],
+			"group": "build"
+		},
+		{
+			"label": "deploy-quick-check",
+			"type": "shell",
+			"command": "cd /Users/ionutvladoi/Desktop/generate-unicorn && gh run list --limit 2 2>/dev/null | cat; echo '== live build =='; curl -sI https://zeusai.pro/ | grep -i x-zeus-build",
+			"args": [],
+			"isBackground": false,
+			"problemMatcher": [],
+			"group": "build"
+		},
+		{
+			"label": "stable-deploy-check",
+			"type": "shell",
+			"command": "cd /Users/ionutvladoi/Desktop/generate-unicorn && gh run list --limit 4 2>/dev/null | grep -E 'Stable Deploy' | head -2",
+			"args": [],
+			"isBackground": false,
+			"problemMatcher": [],
+			"group": "build"
+		},
+		{
+			"label": "stable-deploy-final",
+			"type": "shell",
+			"command": "sleep 270; cd /Users/ionutvladoi/Desktop/generate-unicorn && gh run list --limit 4 2>/dev/null | grep -E 'Stable Deploy' | head -1; curl -sI https://zeusai.pro/ | grep -i x-zeus-build",
+			"args": [],
+			"isBackground": false,
+			"problemMatcher": [],
+			"group": "build"
+		},
+		{
+			"label": "stable-deploy-read",
+			"type": "shell",
+			"command": "sleep 200; cd /Users/ionutvladoi/Desktop/generate-unicorn && gh run list --limit 4 2>/dev/null | grep -E 'Stable Deploy' | head -1 > tmp/deploy_final.txt; curl -sI https://zeusai.pro/ | grep -i x-zeus-build >> tmp/deploy_final.txt; cat tmp/deploy_final.txt",
+			"args": [],
+			"isBackground": false,
+			"problemMatcher": [],
+			"group": "build"
+		},
+		{
+			"label": "deploy-final-read2",
+			"type": "shell",
+			"command": "sleep 230; cat /Users/ionutvladoi/Desktop/generate-unicorn/tmp/deploy_final.txt 2>/dev/null || (cd /Users/ionutvladoi/Desktop/generate-unicorn && gh run list --limit 4 2>/dev/null | grep 'Stable Deploy' | head -1; curl -sI https://zeusai.pro/ | grep -i x-zeus-build)",
+			"args": [],
+			"isBackground": false,
+			"problemMatcher": [],
+			"group": "build"
+		},
+		{
+			"label": "deploy-final-cat",
+			"type": "shell",
+			"command": "sleep 280; cat /Users/ionutvladoi/Desktop/generate-unicorn/tmp/deploy_final.txt",
+			"args": [],
+			"isBackground": false,
+			"problemMatcher": [],
+			"group": "build"
+		},
+		{
+			"label": "ds-now",
+			"type": "shell",
+			"command": "cd /Users/ionutvladoi/Desktop/generate-unicorn && gh run list --limit 5 2>/dev/null | grep 'Stable Deploy' | head -1 > tmp/ds.txt 2>&1; curl -sI https://zeusai.pro/ | grep -i x-zeus-build >> tmp/ds.txt; cat tmp/ds.txt",
+			"args": [],
+			"isBackground": false,
+			"problemMatcher": [],
+			"group": "build"
+		},
+		{
+			"label": "zac-inspect",
+			"type": "shell",
+			"command": "zsh /Users/ionutvladoi/Desktop/generate-unicorn/tmp/zac_inspect.sh > /Users/ionutvladoi/Desktop/generate-unicorn/tmp/zac_inspect_out.txt 2>&1; echo EXIT=$?; cat /Users/ionutvladoi/Desktop/generate-unicorn/tmp/zac_inspect_out.txt",
+			"args": [],
+			"isBackground": false,
+			"problemMatcher": [],
+			"group": "build"
+		},
+		{
+			"label": "zac-inspect-read",
+			"type": "shell",
+			"command": "sleep 50; cat /Users/ionutvladoi/Desktop/generate-unicorn/tmp/zac_inspect_out.txt",
+			"args": [],
+			"isBackground": false,
+			"problemMatcher": [],
+			"group": "build"
+		},
+		{
+			"label": "zac-inspect2",
+			"type": "shell",
+			"command": "zsh /Users/ionutvladoi/Desktop/generate-unicorn/tmp/zac_inspect2.sh > /Users/ionutvladoi/Desktop/generate-unicorn/tmp/zac_inspect2_out.txt 2>&1; echo EXIT=$?; wc -l /Users/ionutvladoi/Desktop/generate-unicorn/tmp/zac_inspect2_out.txt",
+			"args": [],
+			"isBackground": false,
+			"problemMatcher": [],
+			"group": "build"
+		},
+		{
+			"label": "zac-inspect3",
+			"type": "shell",
+			"command": "zsh /Users/ionutvladoi/Desktop/generate-unicorn/tmp/zac_inspect3.sh > /Users/ionutvladoi/Desktop/generate-unicorn/tmp/zac_inspect3_out.txt 2>&1; echo EXIT=$?; wc -l /Users/ionutvladoi/Desktop/generate-unicorn/tmp/zac_inspect3_out.txt",
+			"args": [],
+			"isBackground": false,
+			"problemMatcher": [],
+			"group": "build"
+		},
+		{
+			"label": "check-syntax-wiring",
+			"type": "shell",
+			"command": "zsh /Users/ionutvladoi/Desktop/generate-unicorn/tmp/check_syntax.sh",
+			"isBackground": false,
+			"problemMatcher": [],
+			"group": "test"
+		},
+		{
+			"label": "run-comm-test",
+			"type": "shell",
+			"command": "zsh /Users/ionutvladoi/Desktop/generate-unicorn/tmp/run_comm_test.sh",
+			"isBackground": false,
+			"problemMatcher": [],
+			"group": "test"
+		},
+		{
+			"label": "full-test-mission",
+			"type": "shell",
+			"command": "zsh /Users/ionutvladoi/Desktop/generate-unicorn/tmp/full_test_b.sh",
+			"isBackground": false,
+			"problemMatcher": [],
+			"group": "test"
+		},
+		{
+			"label": "wait-test-mission",
+			"type": "shell",
+			"command": "zsh /Users/ionutvladoi/Desktop/generate-unicorn/tmp/wait_test.sh",
+			"isBackground": false,
+			"problemMatcher": [],
+			"group": "test"
+		},
+		{
+			"label": "wait-test-mission2",
+			"type": "shell",
+			"command": "zsh /Users/ionutvladoi/Desktop/generate-unicorn/tmp/wait_test2.sh",
+			"isBackground": false,
+			"problemMatcher": [],
+			"group": "test"
+		},
+		{
+			"label": "wait-test-mission3",
+			"type": "shell",
+			"command": "zsh /Users/ionutvladoi/Desktop/generate-unicorn/tmp/wait_test3.sh",
+			"isBackground": false,
+			"problemMatcher": [],
+			"group": "test"
+		},
+		{
+			"label": "git-status-check",
+			"type": "shell",
+			"command": "zsh /Users/ionutvladoi/Desktop/generate-unicorn/tmp/git_status_check.sh",
+			"isBackground": false,
+			"problemMatcher": [],
+			"group": "test"
+		},
+		{
+			"label": "diff-pn-check",
+			"type": "shell",
+			"command": "zsh /Users/ionutvladoi/Desktop/generate-unicorn/tmp/diff_pn.sh",
+			"isBackground": false,
+			"problemMatcher": [],
+			"group": "test"
+		},
+		{
+			"label": "commit-push-autonomy",
+			"type": "shell",
+			"command": "zsh /Users/ionutvladoi/Desktop/generate-unicorn/tmp/commit_push_autonomy.sh",
+			"isBackground": false,
+			"problemMatcher": [],
+			"group": "build"
+		},
+		{
+			"label": "live-sync-autonomy",
+			"type": "shell",
+			"command": "zsh /Users/ionutvladoi/Desktop/generate-unicorn/tmp/live_sync_autonomy.sh",
+			"isBackground": false,
+			"problemMatcher": [],
+			"group": "build"
+		},
+		{
+			"label": "live-sync-autonomy2",
+			"type": "shell",
+			"command": "zsh /Users/ionutvladoi/Desktop/generate-unicorn/tmp/live_sync_autonomy.sh",
+			"isBackground": false,
+			"problemMatcher": [],
+			"group": "build"
+		},
+		{
+			"label": "zac-activate",
+			"type": "shell",
+			"command": "zsh /Users/ionutvladoi/Desktop/generate-unicorn/tmp/zac_activate.sh",
+			"isBackground": false,
+			"problemMatcher": [],
+			"group": "build"
+		},
+		{
+			"label": "wait-zac-activate",
+			"type": "shell",
+			"command": "zsh /Users/ionutvladoi/Desktop/generate-unicorn/tmp/wait_zac.sh",
+			"isBackground": false,
+			"problemMatcher": [],
+			"group": "build"
+		},
+		{
+			"label": "e2e-live-proof",
+			"type": "shell",
+			"command": "zsh /Users/ionutvladoi/Desktop/generate-unicorn/tmp/e2e_live.sh",
+			"isBackground": false,
+			"problemMatcher": [],
+			"group": "test"
+		},
+		{
+			"label": "wait-e2e-proof",
+			"type": "shell",
+			"command": "zsh /Users/ionutvladoi/Desktop/generate-unicorn/tmp/wait_e2e.sh",
+			"isBackground": false,
+			"problemMatcher": [],
+			"group": "test"
+		},
+		{
+			"label": "wait-e2e-proof2",
+			"type": "shell",
+			"command": "zsh /Users/ionutvladoi/Desktop/generate-unicorn/tmp/wait_e2e2.sh",
+			"isBackground": false,
+			"problemMatcher": [],
+			"group": "test"
+		},
+		{
+			"label": "e2e-check-hang",
+			"type": "shell",
+			"command": "zsh /Users/ionutvladoi/Desktop/generate-unicorn/tmp/e2e_check.sh",
+			"isBackground": false,
+			"problemMatcher": [],
+			"group": "test"
+		},
+		{
+			"label": "e2e-live-proof2",
+			"type": "shell",
+			"command": "zsh /Users/ionutvladoi/Desktop/generate-unicorn/tmp/e2e_live2.sh",
+			"isBackground": false,
+			"problemMatcher": [],
+			"group": "test"
+		},
+		{
+			"label": "wait-e2e-proof3",
+			"type": "shell",
+			"command": "zsh /Users/ionutvladoi/Desktop/generate-unicorn/tmp/wait_e2e3.sh",
+			"isBackground": false,
+			"problemMatcher": [],
+			"group": "test"
+		},
+		{
+			"label": "diag-301",
+			"type": "shell",
+			"command": "zsh /Users/ionutvladoi/Desktop/generate-unicorn/tmp/diag301.sh && sleep 2 && cat /Users/ionutvladoi/Desktop/generate-unicorn/tmp/diag301.out",
+			"isBackground": false,
+			"problemMatcher": [],
+			"group": "test"
+		},
+		{
+			"label": "nginx-order-rules",
+			"type": "shell",
+			"command": "zsh /Users/ionutvladoi/Desktop/generate-unicorn/tmp/nginx_order.sh && cat /Users/ionutvladoi/Desktop/generate-unicorn/tmp/nginx_order.out",
+			"isBackground": false,
+			"problemMatcher": [],
+			"group": "test"
+		},
+		{
+			"label": "fix-e2e-apply",
+			"type": "shell",
+			"command": "zsh /Users/ionutvladoi/Desktop/generate-unicorn/tmp/fix_e2e.sh",
+			"isBackground": false,
+			"problemMatcher": [],
+			"group": "test"
+		},
+		{
+			"label": "wait-fix-e2e",
+			"type": "shell",
+			"command": "zsh /Users/ionutvladoi/Desktop/generate-unicorn/tmp/wait_fix_e2e.sh",
+			"isBackground": false,
+			"problemMatcher": [],
+			"group": "test"
+		},
+		{
+			"label": "wait-fix-e2e2",
+			"type": "shell",
+			"command": "zsh /Users/ionutvladoi/Desktop/generate-unicorn/tmp/wait_fix_e2e2.sh",
+			"isBackground": false,
+			"problemMatcher": [],
+			"group": "test"
+		},
+		{
+			"label": "wait-fix-e2e3",
+			"type": "shell",
+			"command": "zsh /Users/ionutvladoi/Desktop/generate-unicorn/tmp/wait_fix_e2e3.sh",
+			"isBackground": false,
+			"problemMatcher": [],
+			"group": "test"
+		},
+		{
+			"label": "sim-debug",
+			"type": "shell",
+			"command": "zsh /Users/ionutvladoi/Desktop/generate-unicorn/tmp/sim_debug.sh",
+			"isBackground": false,
+			"problemMatcher": [],
+			"group": "test"
+		},
+		{
+			"label": "sim-final-proof",
+			"type": "shell",
+			"command": "zsh /Users/ionutvladoi/Desktop/generate-unicorn/tmp/sim_final.sh && cat /Users/ionutvladoi/Desktop/generate-unicorn/tmp/sim_final.out",
+			"isBackground": false,
+			"problemMatcher": [],
+			"group": "test"
+		},
+		{
+			"label": "wait-sim-final",
+			"type": "shell",
+			"command": "zsh /Users/ionutvladoi/Desktop/generate-unicorn/tmp/wait_sim_final.sh",
+			"isBackground": false,
+			"problemMatcher": [],
+			"group": "test"
+		},
+		{
+			"label": "wait-sim-final2",
+			"type": "shell",
+			"command": "sleep 60 && cat /Users/ionutvladoi/Desktop/generate-unicorn/tmp/sim_final.out",
+			"isBackground": false,
+			"problemMatcher": [],
+			"group": "test"
+		},
+		{
+			"label": "probe4",
+			"type": "shell",
+			"command": "zsh /Users/ionutvladoi/Desktop/generate-unicorn/tmp/probe4.sh",
+			"isBackground": false,
+			"problemMatcher": [],
+			"group": "test"
+		},
+		{
+			"label": "envlink-check",
+			"type": "shell",
+			"command": "zsh /Users/ionutvladoi/Desktop/generate-unicorn/tmp/envlink.sh",
+			"isBackground": false,
+			"problemMatcher": [],
+			"group": "test"
+		},
+		{
+			"label": "sim-final2",
+			"type": "shell",
+			"command": "zsh /Users/ionutvladoi/Desktop/generate-unicorn/tmp/sim_final2.sh && cat /Users/ionutvladoi/Desktop/generate-unicorn/tmp/sim_final2.out",
+			"isBackground": false,
+			"problemMatcher": [],
+			"group": "test"
+		},
+		{
+			"label": "wait-sim-final3",
+			"type": "shell",
+			"command": "sleep 75 && cat /Users/ionutvladoi/Desktop/generate-unicorn/tmp/sim_final2.out",
+			"isBackground": false,
+			"problemMatcher": [],
+			"group": "test"
+		},
+		{
+			"label": "wait-sim-final4",
+			"type": "shell",
+			"command": "sleep 90; cat /Users/ionutvladoi/Desktop/generate-unicorn/tmp/sim_final2.out",
+			"isBackground": false,
+			"problemMatcher": [],
+			"group": "test"
+		},
+		{
+			"label": "cat-sim-final2",
+			"type": "shell",
+			"command": "wc -l /Users/ionutvladoi/Desktop/generate-unicorn/tmp/sim_final2.out; cat /Users/ionutvladoi/Desktop/generate-unicorn/tmp/sim_final2.out",
+			"isBackground": false,
+			"problemMatcher": [],
+			"group": "test"
+		},
+		{
+			"label": "sim-final3",
+			"type": "shell",
+			"command": "zsh /Users/ionutvladoi/Desktop/generate-unicorn/tmp/sim_final3.sh; cat /Users/ionutvladoi/Desktop/generate-unicorn/tmp/sim_final3.out",
+			"isBackground": false,
+			"problemMatcher": [],
+			"group": "test"
+		},
+		{
+			"label": "commit-push-sales",
+			"type": "shell",
+			"command": "zsh /Users/ionutvladoi/Desktop/generate-unicorn/tmp/commit_push_sales.sh; cat /Users/ionutvladoi/Desktop/generate-unicorn/tmp/commit_push_sales.out",
+			"isBackground": false,
+			"problemMatcher": [],
+			"group": "build"
+		},
+		{
+			"label": "final-validation",
+			"type": "shell",
+			"command": "zsh /Users/ionutvladoi/Desktop/generate-unicorn/tmp/final_validation.sh; echo '── done, reading ──'; cat /Users/ionutvladoi/Desktop/generate-unicorn/tmp/final_validation.out",
+			"isBackground": false,
+			"problemMatcher": [],
+			"group": "test"
+		},
+		{
+			"label": "wait-final-validation",
+			"type": "shell",
+			"command": "for i in {1..25}; do grep -q '^EXIT=' /Users/ionutvladoi/Desktop/generate-unicorn/tmp/final_validation.out 2>/dev/null && break; sleep 12; done; cat /Users/ionutvladoi/Desktop/generate-unicorn/tmp/final_validation.out",
+			"isBackground": false,
+			"problemMatcher": [],
+			"group": "test"
+		},
+		{
+			"label": "wait-final-validation2",
+			"type": "shell",
+			"command": "for i in {1..30}; do grep -q '^EXIT=' /Users/ionutvladoi/Desktop/generate-unicorn/tmp/final_validation.out 2>/dev/null && break; sleep 15; done; wc -l /Users/ionutvladoi/Desktop/generate-unicorn/tmp/final_validation.out",
+			"isBackground": false,
+			"problemMatcher": [],
+			"group": "test"
+		},
+		{
+			"label": "read-final-validation",
+			"type": "shell",
+			"command": "sleep 100; grep -c '' /Users/ionutvladoi/Desktop/generate-unicorn/tmp/final_validation.out; tail -n 60 /Users/ionutvladoi/Desktop/generate-unicorn/tmp/final_validation.out",
+			"isBackground": false,
+			"problemMatcher": [],
+			"group": "test"
+		},
+		{
+			"label": "zac-why-inactive",
+			"type": "shell",
+			"command": "zsh /Users/ionutvladoi/Desktop/generate-unicorn/tmp/zac_why.sh",
+			"isBackground": false,
+			"problemMatcher": [],
+			"group": "test"
+		},
+		{
+			"label": "zac-policy-final",
+			"type": "shell",
+			"command": "zsh /Users/ionutvladoi/Desktop/generate-unicorn/tmp/zac_policy.sh; cat /Users/ionutvladoi/Desktop/generate-unicorn/tmp/zac_policy.out",
+			"isBackground": false,
+			"problemMatcher": [],
+			"group": "build"
+		},
+		{
+			"label": "read-zac-policy",
+			"type": "shell",
+			"command": "for i in {1..12}; do grep -q '^EXIT=' /Users/ionutvladoi/Desktop/generate-unicorn/tmp/zac_policy.out 2>/dev/null && break; sleep 10; done; cat /Users/ionutvladoi/Desktop/generate-unicorn/tmp/zac_policy.out",
+			"isBackground": false,
+			"problemMatcher": [],
+			"group": "build"
+		},
+		{
+			"label": "deploy-watch-mission",
+			"type": "shell",
+			"command": "zsh /Users/ionutvladoi/Desktop/generate-unicorn/tmp/deploy_watch_m.sh",
+			"isBackground": false,
+			"problemMatcher": [],
+			"group": "test"
+		},
+		{
+			"label": "post-deploy-final",
+			"type": "shell",
+			"command": "zsh /Users/ionutvladoi/Desktop/generate-unicorn/tmp/post_deploy.sh; tail -n 30 /Users/ionutvladoi/Desktop/generate-unicorn/tmp/post_deploy.out",
+			"isBackground": false,
+			"problemMatcher": [],
+			"group": "test"
+		},
+		{
+			"label": "wait-post-deploy",
+			"type": "shell",
+			"command": "for i in {1..30}; do grep -q '^EXIT=' /Users/ionutvladoi/Desktop/generate-unicorn/tmp/post_deploy.out 2>/dev/null && break; sleep 25; done; cat /Users/ionutvladoi/Desktop/generate-unicorn/tmp/post_deploy.out",
+			"isBackground": false,
+			"problemMatcher": [],
+			"group": "test"
+		},
+		{
+			"label": "wait-post-deploy2",
+			"type": "shell",
+			"command": "for i in {1..40}; do grep -q '^EXIT=' /Users/ionutvladoi/Desktop/generate-unicorn/tmp/post_deploy.out 2>/dev/null && break; sleep 25; done; sed -n '1,60p' /Users/ionutvladoi/Desktop/generate-unicorn/tmp/post_deploy.out",
+			"isBackground": false,
+			"problemMatcher": [],
+			"group": "test"
+		},
+		{
+			"label": "wait-post-deploy3",
+			"type": "shell",
+			"command": "for i in {1..40}; do grep -q 'pm2 stabil' /Users/ionutvladoi/Desktop/generate-unicorn/tmp/post_deploy.out 2>/dev/null && grep -q '^EXIT=' /Users/ionutvladoi/Desktop/generate-unicorn/tmp/post_deploy.out 2>/dev/null && break; sleep 25; done; echo '────'; cat /Users/ionutvladoi/Desktop/generate-unicorn/tmp/post_deploy.out",
+			"isBackground": false,
+			"problemMatcher": [],
+			"group": "test"
 		}
 	]
 }

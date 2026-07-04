@@ -129,10 +129,10 @@ function bootstrap({
 
 function shutdown() {
   if (!state.isStarted) return { ok: true, alreadyStopped: true };
-  try { state.healer && state.healer.stop(); } catch (_) {}
-  try { state.bridge && state.bridge.stop(); } catch (_) {}
-  try { state.innovator && state.innovator.stop(); } catch (_) {}
-  try { state.profit && state.profit.stop(); } catch (_) {}
+  try { state.healer && state.healer.stop(); } catch (e) { console.warn('[ZAC] healer stop failed:', e.message); }
+  try { state.bridge && state.bridge.stop(); } catch (e) { console.warn('[ZAC] bridge stop failed:', e.message); }
+  try { state.innovator && state.innovator.stop(); } catch (e) { console.warn('[ZAC] innovator stop failed:', e.message); }
+  try { state.profit && state.profit.stop(); } catch (e) { console.warn('[ZAC] profit stop failed:', e.message); }
   state.isStarted = false;
   return { ok: true };
 }
@@ -186,7 +186,7 @@ function writeHeartbeat() {
     fs.writeFileSync(path.join(dir, 'heartbeat.json'), JSON.stringify({
       ts: new Date().toISOString(), pid: process.pid, version: VERSION,
     }));
-  } catch (_) {}
+  } catch (e) { console.warn('[ZAC] heartbeat write failed:', e.message); }
 }
 
 const _heartbeatTimer = setInterval(writeHeartbeat, 30_000);
@@ -212,8 +212,8 @@ module.exports = {
 // Standalone mode (systemd entrypoint)
 if (require.main === module) {
   // Survive transient errors so systemd doesn't churn restart-loops.
-  process.on('uncaughtException',  (e) => { try { recordAlert({ kind: 'uncaughtException',  error: e.message }); } catch (_) {} });
-  process.on('unhandledRejection', (e) => { try { recordAlert({ kind: 'unhandledRejection', error: (e && e.message) || String(e) }); } catch (_) {} });
+  process.on('uncaughtException',  (e) => { try { recordAlert({ kind: 'uncaughtException',  error: e.message }); } catch (ae) { console.error('[ZAC] alert record failed during uncaughtException:', ae.message); } });
+  process.on('unhandledRejection', (e) => { try { recordAlert({ kind: 'unhandledRejection', error: (e && e.message) || String(e) }); } catch (ae) { console.error('[ZAC] alert record failed during unhandledRejection:', ae.message); } });
 
   bootstrap();
   // Keep alive forever

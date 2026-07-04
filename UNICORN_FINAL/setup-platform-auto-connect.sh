@@ -8,7 +8,7 @@ YELLOW='\033[1;33m'
 RED='\033[0;31m'
 NC='\033[0m'
 
-echo -e "${BLUE}🚀 GitHub + Vercel + Hetzner bootstrap${NC}\n"
+echo -e "${BLUE}🚀 GitHub + Hetzner bootstrap${NC}\n"
 
 if [ ! -f ".env.auto-connector" ]; then
   echo -e "${RED}❌ Missing .env.auto-connector${NC}"

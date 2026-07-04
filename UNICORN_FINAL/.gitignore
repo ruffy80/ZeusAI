@@ -1,8 +1,6 @@
 .DS_Store
 .env
 node_modules/
-.vercel/
-.vercel
 
 logs/
 *.local
@@ -17,6 +15,10 @@ data/logs/deepseek-governor.log
 data/logs/deepseek-governor.log.1
 data/logs/deepseek-loop.log
 data/**/secrets*.json
+# Autonomous Growth Brain runtime reflection log (written at runtime — not committed)
+data/growth/brain-log.jsonl
+# Inbound-lead capture (PII, written at runtime — never committed)
+data/leads/
 # Sovereign-commerce runtime state (orders, signing key, catalog-seen, txid cache)
 data/commerce/
 # Owner notifications (audit log written at runtime — not committed)
@@ -49,5 +51,34 @@ data/sovereignty/sovereignty-keypair.json
 data/sovereignty/sovereignty-state.json
 data/sovereignty/attestations.jsonl
 data/sovereignty/attestations.jsonl.*
+# Autonomy Spine — ed25519 private key + per-host decision ledger (NEVER commit)
+data/autonomy/spine-ed25519.json
+data/autonomy/spine-state.json
+data/autonomy/decisions.jsonl
+data/autonomy/decisions-*.jsonl
 data/oracle/oracle-state.json
 data/economy/economy-state.json
+# ZACC autonomous commerce core — per-process runtime state (products, sales,
+# invoices, scraped catalogue). Auto-created at runtime; must never reach git.
+data/zacc-state.json
+
+# AI capability layer runtime stores (semantic memory + cost ledger)
+UNICORN_FINAL/data/ai-memory/
+UNICORN_FINAL/data/ai-cost/
+data/ai-memory/
+data/ai-cost/
+
+# SECURITY GUARD (audit 2026-06-12): a nested UNICORN_FINAL/UNICORN_FINAL/
+# tree was accidentally committed containing private keys (.pem),
+# portal.secret and customer SQLite DBs. Removed from the index; this rule
+# prevents any future re-add of the duplicated path.
+# RO: gardă — calea dublată cu chei private nu mai are voie în git.
+UNICORN_FINAL/
+# BTC invoice runtime ledger (btcInvoiceLedger.js appends at runtime; test
+# artifacts like txid "deadbeef" must never be committed as seeds)
+data/invoices/
+
+# Growth-stack runtime state (durable on server under shared/data — never in git)
+data/funnel/
+data/traffic/
+data/flywheel/

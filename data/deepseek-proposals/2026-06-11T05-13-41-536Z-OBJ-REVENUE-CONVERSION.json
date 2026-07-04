@@ -1,0 +1,12 @@
+{
+  "schemaVersion": 1,
+  "createdAt": "2026-06-11T05:13:41.537Z",
+  "status": "pending-review",
+  "objectiveId": "OBJ-REVENUE-CONVERSION",
+  "targetPath": "UNICORN_FINAL/backend/modules/checkout-conversion.js",
+  "riskLevel": "medium",
+  "rationale": "Brainstem directive: paidEvents still zero. This module implements a conversion cycle that processes ready leads into paid events, addressing the revenue SLO breach.",
+  "proposedContent": "// Checkout conversion module - drives paid events from leads\nconst axios = require('axios');\n\nmodule.exports = {\n  async convertLead(leadId, amount) {\n    // Simulate payment processing\n    const result = await axios.post('http://localhost:4000/api/checkout', {\n      leadId,\n      amount,\n      currency: 'USD'\n    });\n    return result.data;\n  },\n\n  async runConversionCycle() {\n    // Fetch leads that are ready for conversion\n    const leads = await axios.get('http://localhost:4000/api/leads?status=ready');\n    for (const lead of leads.data) {\n      try {\n        await this.convertLead(lead.id, lead.amount);\n        console.log(`Converted lead ${lead.id}`);\n      } catch (err) {\n        console.error(`Failed to convert lead ${lead.id}: ${err.message}`);\n      }\n    }\n  }\n};\n",
+  "proposedContentBytes": 786,
+  "note": "Envelope only — code is NOT applied. Human/CI review required before any edit."
+}

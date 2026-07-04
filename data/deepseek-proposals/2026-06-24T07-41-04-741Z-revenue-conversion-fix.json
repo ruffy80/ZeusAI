@@ -1,0 +1,12 @@
+{
+  "schemaVersion": 1,
+  "createdAt": "2026-06-24T07:41:04.741Z",
+  "status": "pending-review",
+  "objectiveId": "revenue-conversion-fix",
+  "targetPath": "UNICORN_FINAL/backend/modules/checkoutConversion.js",
+  "riskLevel": "medium",
+  "rationale": "Intercept successful checkout responses to increment paidEvents counter, addressing zero conversion rate.",
+  "proposedContent": "// Checkout conversion fix: ensure paidEvents increments on successful payment\nconst { logEvent } = require('./logger');\n\nmodule.exports = function checkoutConversionFix(req, res, next) {\n  const originalJson = res.json.bind(res);\n  res.json = function (body) {\n    if (res.statusCode === 200 && body && body.success) {\n      // Increment paidEvents via revenue module\n      const revenue = require('./revenue');\n      revenue.recordPaidEvent({ amount: body.amount || 0, currency: 'USD' });\n      logEvent('checkout_conversion', { status: 'success' });\n    }\n    return originalJson(body);\n  };\n  next();\n};",
+  "proposedContentBytes": 607,
+  "note": "Envelope only — code is NOT applied. Human/CI review required before any edit."
+}

@@ -58,11 +58,11 @@ function _rateCheck(key) {
 
 // ---- helpers ----------------------------------------------------------------
 function _audit(orgId, action, metadata = {}) {
-  try { enterprise.audit.log({ orgId, action: 'enterprise.' + action, metadata }); } catch (_) {}
+  try { enterprise.audit.log({ orgId, action: 'enterprise.' + action, metadata }); } catch (e) { console.warn('[enterprise-cloud-router] audit log failed:', e.message); }
 }
 
 function _sample(orgId, endpoint, started, ok) {
-  try { enterprise.sla.record({ orgId, endpoint, latencyMs: Date.now() - started, ok }); } catch (_) {}
+  try { enterprise.sla.record({ orgId, endpoint, latencyMs: Date.now() - started, ok }); } catch (e) { console.warn('[enterprise-cloud-router] SLA record failed:', e.message); }
 }
 
 // ---- module surface (cloud-aware) -------------------------------------------
