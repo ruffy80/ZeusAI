@@ -1,0 +1,12 @@
+{
+  "schemaVersion": 1,
+  "createdAt": "2026-06-25T08:39:55.961Z",
+  "status": "pending-review",
+  "objectiveId": "innovation-ai-pricing",
+  "targetPath": "UNICORN_FINAL/backend/modules/aiPersonalizedPricing.js",
+  "riskLevel": "medium",
+  "rationale": "Implements AI-personalized pricing per visitor using session signals (page views, time on site, referrer, device). No major SaaS platform offers real-time per-visitor pricing. This module can be integrated into the checkout flow to maximize conversion and revenue. Cache is used for performance; can be extended with ML model later.",
+  "proposedContent": "// AI-Personalized Pricing Module\n// Dynamically adjusts pricing per visitor based on real-time signals\n// No competing SaaS offers this level of granularity\n\nconst pricingCache = new Map();\nconst DEFAULT_PRICE = 49.99;\n\nfunction getVisitorPrice(visitorId, sessionData) {\n  if (pricingCache.has(visitorId)) {\n    return pricingCache.get(visitorId);\n  }\n  let price = DEFAULT_PRICE;\n  // Factor: page views (higher engagement = higher willingness)\n  if (sessionData.pageViews > 5) price *= 1.1;\n  // Factor: time on site (more time = more interest)\n  if (sessionData.sessionDuration > 120) price *= 1.05;\n  // Factor: referral source (organic search = higher intent)\n  if (sessionData.referrer && sessionData.referrer.includes('google')) price *= 1.15;\n  // Factor: device type (mobile users more price sensitive)\n  if (sessionData.device === 'mobile') price *= 0.9;\n  // Clamp to reasonable range\n  price = Math.round(Math.min(Math.max(price, 19.99), 199.99) * 100) / 100;\n  pricingCache.set(visitorId, price);\n  return price;\n}\n\nfunction clearCache() {\n  pricingCache.clear();\n}\n\nmodule.exports = { getVisitorPrice, clearCache };\n",
+  "proposedContentBytes": 1131,
+  "note": "Envelope only — code is NOT applied. Human/CI review required before any edit."
+}

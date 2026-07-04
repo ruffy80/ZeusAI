@@ -1,0 +1,12 @@
+{
+  "schemaVersion": 1,
+  "createdAt": "2026-06-25T06:47:18.991Z",
+  "status": "pending-review",
+  "objectiveId": "revenue-conversion-fix",
+  "targetPath": "UNICORN_FINAL/backend/modules/checkout-conversion.js",
+  "riskLevel": "low",
+  "rationale": "Create a dedicated checkout conversion module to track paid events and compute conversion rate. This addresses the brainstem directive that paidEvents is zero after many runs. The module persists revenue data to a JSON file and provides functions to record events and retrieve metrics.",
+  "proposedContent": "// Checkout conversion module: tracks paid events and updates revenue metrics\nconst fs = require('fs');\nconst path = require('path');\n\nconst REVENUE_FILE = path.join(__dirname, '..', 'data', 'revenue.json');\n\nfunction ensureRevenueFile() {\n  if (!fs.existsSync(path.dirname(REVENUE_FILE))) {\n    fs.mkdirSync(path.dirname(REVENUE_FILE), { recursive: true });\n  }\n  if (!fs.existsSync(REVENUE_FILE)) {\n    fs.writeFileSync(REVENUE_FILE, JSON.stringify({ paidEvents: 0, conversionRate: 0, leads: 0 }));\n  }\n}\n\nfunction recordPaidEvent() {\n  ensureRevenueFile();\n  const data = JSON.parse(fs.readFileSync(REVENUE_FILE, 'utf8'));\n  data.paidEvents = (data.paidEvents || 0) + 1;\n  if (data.leads > 0) {\n    data.conversionRate = data.paidEvents / data.leads;\n  }\n  fs.writeFileSync(REVENUE_FILE, JSON.stringify(data, null, 2));\n  return data;\n}\n\nfunction getRevenueMetrics() {\n  ensureRevenueFile();\n  return JSON.parse(fs.readFileSync(REVENUE_FILE, 'utf8'));\n}\n\nmodule.exports = { recordPaidEvent, getRevenueMetrics };\n",
+  "proposedContentBytes": 1015,
+  "note": "Envelope only — code is NOT applied. Human/CI review required before any edit."
+}

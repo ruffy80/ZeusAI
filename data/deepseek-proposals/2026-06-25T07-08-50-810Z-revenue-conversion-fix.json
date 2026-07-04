@@ -1,0 +1,12 @@
+{
+  "schemaVersion": 1,
+  "createdAt": "2026-06-25T07:08:50.810Z",
+  "status": "pending-review",
+  "objectiveId": "revenue-conversion-fix",
+  "targetPath": "UNICORN_FINAL/backend/modules/revenue-conversion-fix.js",
+  "riskLevel": "medium",
+  "rationale": "Brainstem directive: paidEvents still zero. This module provides a dedicated conversion capture function to be called during checkout/offer acceptance. It posts to the internal revenue endpoint, ensuring events are recorded. Integrate into checkout flow to fix zero paidEvents.",
+  "proposedContent": "// revenue-conversion-fix.js\n// Brainstem directive: paidEvents still zero after many runs.\n// This module hooks into checkout/offer flow to ensure conversion events are captured.\n\nconst axios = require('axios');\n\nmodule.exports = async function captureConversionEvent(eventData) {\n  // eventData: { userId, offerId, amount, currency, timestamp }\n  try {\n    // Simulate posting to internal revenue endpoint\n    const response = await axios.post('http://localhost:4000/api/revenue/event', {\n      type: 'conversion',\n      ...eventData\n    });\n    return response.data;\n  } catch (error) {\n    console.error('Revenue conversion capture failed:', error.message);\n    // Retry logic could be added here\n    return null;\n  }\n};\n",
+  "proposedContentBytes": 725,
+  "note": "Envelope only — code is NOT applied. Human/CI review required before any edit."
+}

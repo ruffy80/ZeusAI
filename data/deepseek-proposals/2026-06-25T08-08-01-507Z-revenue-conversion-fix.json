@@ -1,0 +1,12 @@
+{
+  "schemaVersion": 1,
+  "createdAt": "2026-06-25T08:08:01.507Z",
+  "status": "pending-review",
+  "objectiveId": "revenue-conversion-fix",
+  "targetPath": "UNICORN_FINAL/backend/modules/checkout.js",
+  "riskLevel": "medium",
+  "rationale": "Brainstem directive: paidEvents zero. Ensure checkout handler calls logPaidEvent on successful payment to fix revenue tracking.",
+  "proposedContent": "// Checkout handler with paidEvent logging\nconst { logPaidEvent } = require('./revenue');\n\nmodule.exports = async function checkout(req, res) {\n  try {\n    // ... existing payment processing logic ...\n    const paymentSuccess = await processPayment(req.body);\n    if (paymentSuccess) {\n      await logPaidEvent({ amount: req.body.amount, currency: 'USD', timestamp: Date.now() });\n      res.status(200).json({ status: 'ok' });\n    } else {\n      res.status(402).json({ error: 'payment_failed' });\n    }\n  } catch (err) {\n    console.error('Checkout error:', err);\n    res.status(500).json({ error: 'internal_error' });\n  }\n};",
+  "proposedContentBytes": 625,
+  "note": "Envelope only — code is NOT applied. Human/CI review required before any edit."
+}

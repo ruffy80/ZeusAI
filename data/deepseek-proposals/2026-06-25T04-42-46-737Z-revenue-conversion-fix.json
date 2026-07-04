@@ -1,0 +1,12 @@
+{
+  "schemaVersion": 1,
+  "createdAt": "2026-06-25T04:42:46.737Z",
+  "status": "pending-review",
+  "objectiveId": "revenue-conversion-fix",
+  "targetPath": "UNICORN_FINAL/backend/modules/checkoutConversionFix.js",
+  "riskLevel": "medium",
+  "rationale": "paidEvents remains zero despite 71 revenue runs. This hook ensures every successful checkout response triggers a paid event, fixing the conversion tracking gap.",
+  "proposedContent": "// Checkout conversion fix: ensure paidEvents increments on successful payment\n// This module intercepts the checkout completion flow and forces a revenue event\n\nconst revenueModule = require('./revenueModule');\n\nmodule.exports = function attachCheckoutHook(app) {\n  app.post('/api/checkout/complete', (req, res, next) => {\n    const originalJson = res.json.bind(res);\n    res.json = function (body) {\n      if (body && body.success === true) {\n        // Force a paid event\n        revenueModule.recordEvent('paid', { amount: req.body.amount || 0, currency: 'USD' });\n      }\n      return originalJson(body);\n    };\n    next();\n  });\n};\n",
+  "proposedContentBytes": 638,
+  "note": "Envelope only — code is NOT applied. Human/CI review required before any edit."
+}

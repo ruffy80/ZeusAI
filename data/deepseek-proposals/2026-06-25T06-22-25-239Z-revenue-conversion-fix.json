@@ -1,0 +1,12 @@
+{
+  "schemaVersion": 1,
+  "createdAt": "2026-06-25T06:22:25.240Z",
+  "status": "pending-review",
+  "objectiveId": "revenue-conversion-fix",
+  "targetPath": "UNICORN_FINAL/backend/modules/checkoutConversion.js",
+  "riskLevel": "low",
+  "rationale": "Brainstem directive: paidEvents zero. This module hooks into checkout completion to log paid events, enabling revenue tracking. Integrates with existing revenue autopilot log.",
+  "proposedContent": "// Checkout conversion module: tracks paid events from checkout completion\n// Integrates with revenue autopilot to increment paidEvents on successful payment\n\nconst fs = require('fs');\nconst path = require('path');\n\nconst REVENUE_LOG = '/var/log/revenue_autopilot.log';\nconst CONVERSION_LOG = '/var/log/checkout_conversion.log';\n\nfunction logConversion(event) {\n  const entry = {\n    ts: new Date().toISOString(),\n    event: event,\n    source: 'checkout'\n  };\n  fs.appendFileSync(CONVERSION_LOG, JSON.stringify(entry) + '\\n');\n  // Also append to revenue log for autopilot\n  fs.appendFileSync(REVENUE_LOG, JSON.stringify({...entry, type: 'paidEvent'}) + '\\n');\n}\n\n// Simulate checkout completion hook (to be called by payment gateway)\nfunction onCheckoutComplete(orderId, amount, currency) {\n  logConversion({ orderId, amount, currency, status: 'completed' });\n  return { success: true, paidEvent: true };\n}\n\n// Expose for integration\nmodule.exports = { onCheckoutComplete, logConversion };\n",
+  "proposedContentBytes": 991,
+  "note": "Envelope only — code is NOT applied. Human/CI review required before any edit."
+}

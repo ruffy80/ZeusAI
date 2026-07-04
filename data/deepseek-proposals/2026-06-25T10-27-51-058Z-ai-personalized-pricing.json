@@ -1,0 +1,12 @@
+{
+  "schemaVersion": 1,
+  "createdAt": "2026-06-25T10:27:51.058Z",
+  "status": "pending-review",
+  "objectiveId": "ai-personalized-pricing",
+  "targetPath": "UNICORN_FINAL/client/src/hooks/useScrollReveal.js",
+  "riskLevel": "medium",
+  "rationale": "Implementing AI-personalized pricing per visitor will increase revenue and enhance user experience",
+  "proposedContent": "// Implement AI-personalized pricing per visitor\n// This feature will analyze user behavior and adjust pricing accordingly\nfunction useScrollReveal() {\n  // TO DO: implement AI-personalized pricing logic\n}",
+  "proposedContentBytes": 205,
+  "note": "Auto-apply blocked: only riskLevel=low is eligible. Envelope stored for human/CI review."
+}

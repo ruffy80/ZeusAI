@@ -1,0 +1,12 @@
+{
+  "schemaVersion": 1,
+  "createdAt": "2026-07-03T04:51:50.346Z",
+  "status": "pending-review",
+  "objectiveId": "revenue-conversion-zero",
+  "targetPath": "UNICORN_FINAL/backend/modules/checkout-conversion.js",
+  "riskLevel": "medium",
+  "rationale": "Brainstem directive: paidEvents zero after many runs. This module applies best offer at checkout to drive conversions. Integrates with existing offer-engine and revenue-logger.",
+  "proposedContent": "// Checkout conversion module: auto-apply best offer to convert zero paidEvents\nconst { getBestOffer } = require('./offer-engine');\nconst { logRevenueEvent } = require('./revenue-logger');\n\nasync function applyConversionOffer(session) {\n  const offer = await getBestOffer(session);\n  if (!offer) return null;\n  // Apply offer to session\n  session.appliedOffer = offer;\n  // Log conversion event\n  await logRevenueEvent({\n    type: 'conversion',\n    sessionId: session.id,\n    offerId: offer.id,\n    amount: offer.price,\n    currency: 'USD',\n    timestamp: new Date().toISOString()\n  });\n  return offer;\n}\n\nmodule.exports = { applyConversionOffer };\n",
+  "proposedContentBytes": 649,
+  "note": "Envelope only — code is NOT applied. Human/CI review required before any edit."
+}

@@ -1,0 +1,12 @@
+{
+  "schemaVersion": 1,
+  "createdAt": "2026-06-25T06:41:41.584Z",
+  "status": "pending-review",
+  "objectiveId": "revenue-conversion-fix",
+  "targetPath": "UNICORN_FINAL/backend/modules/checkout-conversion.js",
+  "riskLevel": "medium",
+  "rationale": "Brainstem directive: paidEvents zero after many runs. Create a dedicated checkout conversion module to log paid events and compute conversion rate. This will be integrated into the checkout flow to fix revenue tracking.",
+  "proposedContent": "// Checkout conversion module - tracks paid events and fixes revenue tracking\nconst fs = require('fs');\nconst path = require('path');\n\nconst CONVERSION_LOG = path.join(__dirname, '..', 'data', 'conversion_events.log');\n\nfunction ensureLogDir() {\n  const dir = path.dirname(CONVERSION_LOG);\n  if (!fs.existsSync(dir)) {\n    fs.mkdirSync(dir, { recursive: true });\n  }\n}\n\nfunction logConversion(event) {\n  ensureLogDir();\n  const entry = {\n    ts: new Date().toISOString(),\n    event: event,\n    paid: true\n  };\n  fs.appendFileSync(CONVERSION_LOG, JSON.stringify(entry) + '\\n');\n  return entry;\n}\n\nfunction getConversionCount() {\n  ensureLogDir();\n  if (!fs.existsSync(CONVERSION_LOG)) return 0;\n  const lines = fs.readFileSync(CONVERSION_LOG, 'utf-8').trim().split('\\n').filter(l => l);\n  return lines.length;\n}\n\nfunction getConversionRate(leads) {\n  const conversions = getConversionCount();\n  if (leads === 0) return 0;\n  return (conversions / leads) * 100;\n}\n\nmodule.exports = { logConversion, getConversionCount, getConversionRate };\n",
+  "proposedContentBytes": 1037,
+  "note": "Envelope only — code is NOT applied. Human/CI review required before any edit."
+}
