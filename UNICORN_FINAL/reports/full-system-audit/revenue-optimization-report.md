@@ -1,15 +1,15 @@
 # Revenue Optimization Report
 
-Generated: 2026-07-03T13:19:35.620Z
+Generated: 2026-07-07T17:47:57.083Z
 
 ## Classification
-- High-profit candidates: 23
+- High-profit candidates: 24
 - Low-profit candidates: 7
 - Unused monetization-related modules: 3
 - Enterprise-ready: 4
-- API-ready: 15
+- API-ready: 16
 - White-label-ready: 11
-- Recurring-revenue-ready: 5
+- Recurring-revenue-ready: 7
 
 ## High-profit (sample)
 - backend/modules/ai-marketplace.js
@@ -21,6 +21,7 @@ Generated: 2026-07-03T13:19:35.620Z
 - backend/modules/enterprise-deal-desk.js
 - backend/modules/enterprise-router.js
 - backend/modules/enterprisePartnership.js
+- backend/modules/growth-brain.js
 - backend/modules/growth-engine.js
 - backend/modules/improvements-pack/revenue-dashboard.js
 - backend/modules/integrations/module-marketplace.js
@@ -38,8 +39,10 @@ Generated: 2026-07-03T13:19:35.620Z
 
 ## Recurring revenue ready (sample)
 - backend/modules/billing-engine.js
+- backend/modules/multi-payment-rails.js
 - backend/modules/paymentGateway.js
 - backend/modules/paymentSystems.js
+- backend/modules/subscription-engine.js
 - backend/modules/tenant-billing.js
 - backend/modules/zacc/payments.js
 

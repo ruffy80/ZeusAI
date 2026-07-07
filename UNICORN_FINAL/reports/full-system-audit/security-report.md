@@ -1,16 +1,15 @@
 # Security Report
 
-Generated: 2026-07-03T13:19:35.620Z
+Generated: 2026-07-07T17:47:57.083Z
 
 ## Findings
 - Rate-limiting and auth middleware detected in backend routes: yes
 - Webhook signature handlers detected: yes
 - Potential eval/new Function usage files: 2
-- Potential sync/blocking IO files: 126
+- Potential sync/blocking IO files: 140
 
 ## Potential risks
-- Possible weak webhook compare files: 1
-  - backend/index.js
+- Possible weak webhook compare files: 0
 - Possible eval/new Function files: 2
   - backend/modules/deepseek-governor.js
   - backend/modules/self-evolving-engine.js

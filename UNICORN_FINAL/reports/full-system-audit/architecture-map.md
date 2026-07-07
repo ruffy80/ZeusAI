@@ -1,10 +1,10 @@
 # Full Architecture Map
 
-Generated: 2026-07-03T13:19:35.613Z
+Generated: 2026-07-07T17:47:57.079Z
 
 ## Core map
 - Core engine: backend/index.js
-- Backend modules: 403
+- Backend modules: 425
 - Site modules: 7
 
 ## Orchestration
@@ -12,6 +12,8 @@ Generated: 2026-07-03T13:19:35.613Z
 - backend/modules/ai_future_innovations/selfEvolvingUX.js
 - backend/modules/auto-evolve.js
 - backend/modules/autonomous-bd-engine.js
+- backend/modules/autonomous-intelligence-core.js
+- backend/modules/autonomous-lead-hunter.js
 - backend/modules/autonomous-wealth-engine.js
 - backend/modules/autonomousInnovation.js
 - backend/modules/autonomousLegalEntity.js
@@ -31,8 +33,6 @@ Generated: 2026-07-03T13:19:35.613Z
 - backend/modules/sovereign_innovations/selfEvolvingLawEngine.js
 - backend/modules/sovereign_innovations/universalAutonomousNegotiationProtocol.js
 - backend/modules/ui-evolution.js
-- backend/modules/unicornAutonomousCore.js
-- backend/modules/unicornMeshOrchestrator.js
 
 ## Event systems
 - backend/middleware/webhook-emitter.js
@@ -71,6 +71,7 @@ Generated: 2026-07-03T13:19:35.613Z
 - backend/modules/improvements-pack/snapshot-cache.js
 - backend/modules/innovation/globalTrustLedger.js
 - backend/modules/innovation/quantumMemory.js
+- backend/modules/memory-fabric-engine.js
 - backend/modules/memory-guardian.js
 - backend/modules/route-cache.js
 - backend/modules/sovereign_innovations/globalValueLedger.js
@@ -83,6 +84,7 @@ Generated: 2026-07-03T13:19:35.613Z
 - backend/modules/btcInvoiceLedger.js
 - backend/modules/btcPaymentVerifier.js
 - backend/modules/checkout-recovery-agent.js
+- backend/modules/multi-payment-rails.js
 - backend/modules/nowPayments.js
 - backend/modules/paymentGateway.js
 - backend/modules/paymentSystems.js

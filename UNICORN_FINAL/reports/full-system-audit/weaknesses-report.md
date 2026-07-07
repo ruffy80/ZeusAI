@@ -1,16 +1,15 @@
 # Weaknesses Report
 
-Generated: 2026-07-03T13:19:35.620Z
+Generated: 2026-07-07T17:47:57.083Z
 
-- Circular import cycles detected: 2
+- Circular import cycles detected: 1
 - Potential dead modules: 85
 - Duplicate logic groups (identical file hash): 5
-- Files with sync/blocking IO patterns: 126
-- Files with setInterval but no clearInterval in file: 50
+- Files with sync/blocking IO patterns: 140
+- Files with setInterval but no clearInterval in file: 51
 
 ## Circular imports (sample)
 - backend/modules/adi-core/world-scanner.js -> backend/modules/adi-core/world-scanner.js
-- src/index.js -> src/site/v2/shell.js -> src/index.js
 
 ## Potential dead modules (sample)
 - backend/modules/Engine1.js

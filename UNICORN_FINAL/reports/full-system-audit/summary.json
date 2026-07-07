@@ -1,9 +1,9 @@
 {
-  "generatedAt": "2026-07-03T13:19:35.620Z",
+  "generatedAt": "2026-07-07T17:47:57.083Z",
   "root": "/Users/ionutvladoi/Desktop/generate-unicorn/UNICORN_FINAL",
   "totals": {
-    "files": 467,
-    "cycles": 2,
+    "files": 489,
+    "cycles": 1,
     "deadModules": 85,
     "duplicateGroups": 5
   },
@@ -14,6 +14,8 @@
       "backend/modules/ai_future_innovations/selfEvolvingUX.js",
       "backend/modules/auto-evolve.js",
       "backend/modules/autonomous-bd-engine.js",
+      "backend/modules/autonomous-intelligence-core.js",
+      "backend/modules/autonomous-lead-hunter.js",
       "backend/modules/autonomous-wealth-engine.js",
       "backend/modules/autonomousInnovation.js",
       "backend/modules/autonomousLegalEntity.js",
@@ -32,9 +34,7 @@
       "backend/modules/self-evolving-engine.js",
       "backend/modules/sovereign_innovations/selfEvolvingLawEngine.js",
       "backend/modules/sovereign_innovations/universalAutonomousNegotiationProtocol.js",
-      "backend/modules/ui-evolution.js",
-      "backend/modules/unicornAutonomousCore.js",
-      "backend/modules/unicornMeshOrchestrator.js"
+      "backend/modules/ui-evolution.js"
     ],
     "eventSystems": [
       "backend/middleware/webhook-emitter.js",
@@ -73,6 +73,7 @@
       "backend/modules/improvements-pack/snapshot-cache.js",
       "backend/modules/innovation/globalTrustLedger.js",
       "backend/modules/innovation/quantumMemory.js",
+      "backend/modules/memory-fabric-engine.js",
       "backend/modules/memory-guardian.js",
       "backend/modules/route-cache.js",
       "backend/modules/sovereign_innovations/globalValueLedger.js",
@@ -85,6 +86,7 @@
       "backend/modules/btcInvoiceLedger.js",
       "backend/modules/btcPaymentVerifier.js",
       "backend/modules/checkout-recovery-agent.js",
+      "backend/modules/multi-payment-rails.js",
       "backend/modules/nowPayments.js",
       "backend/modules/paymentGateway.js",
       "backend/modules/paymentSystems.js",
@@ -210,7 +212,7 @@
       "backend/modules/service-watchdog.js"
     ],
     "inventory": {
-      "backendModules": 403,
+      "backendModules": 425,
       "siteModules": 7
     }
   },
@@ -221,6 +223,7 @@
       "backend/middleware/webhook-emitter.js",
       "backend/modules/FeatureFlagManager.js",
       "backend/modules/ModuleLoader.js",
+      "backend/modules/acquisition-engine.js",
       "backend/modules/adi-core/discovery.js",
       "backend/modules/adi-core/key-vault.js",
       "backend/modules/adi-core/provider-catalog.js",
@@ -232,11 +235,15 @@
       "backend/modules/ai-sdr-agent.js",
       "backend/modules/ai-semantic-memory.js",
       "backend/modules/ai_future_innovations/aiFutureDb.js",
+      "backend/modules/autonomous-intelligence-core.js",
+      "backend/modules/autonomous-lead-hunter.js",
       "backend/modules/autonomousMoneyMachine.js",
       "backend/modules/autonomy-spine.js",
       "backend/modules/blockchain-audit.js",
       "backend/modules/btcInvoiceLedger.js",
+      "backend/modules/capital-protection.js",
       "backend/modules/configurationManager.js",
+      "backend/modules/context-persistence.js",
       "backend/modules/conversion-intelligence-layer.js",
       "backend/modules/cryptoBridge/index.js",
       "backend/modules/cryptoauth/index.js",
@@ -247,6 +254,7 @@
       "backend/modules/executiveDashboard.js",
       "backend/modules/feedback-ai.js",
       "backend/modules/funnel-intelligence.js",
+      "backend/modules/growth-brain.js",
       "backend/modules/growth-engine.js",
       "backend/modules/improvements-pack/csp-report.js",
       "backend/modules/improvements-pack/funnel-tracker.js",
@@ -263,6 +271,8 @@
       "backend/modules/integrations/evolution-executor.js",
       "backend/modules/integrations/module-marketplace.js",
       "backend/modules/integrations/predictive-healing-bridge.js",
+      "backend/modules/investor-engine.js",
+      "backend/modules/lead-intelligence.js",
       "backend/modules/legalFortress.js",
       "backend/modules/log-monitor.js",
       "backend/modules/marketing-innovations/affiliate-revenue.js",
@@ -276,6 +286,8 @@
       "backend/modules/marketing-innovations/scheduler.js",
       "backend/modules/marketing-innovations/self-innovation-loop.js",
       "backend/modules/marketing-innovations/waitlist-mechanic.js",
+      "backend/modules/memory-fabric-engine.js",
+      "backend/modules/module-performance-ranker.js",
       "backend/modules/observability.js",
       "backend/modules/orchestrator-v4.js",
       "backend/modules/performance-100y/index.js",
@@ -288,12 +300,15 @@
       "backend/modules/reality-metrics.js",
       "backend/modules/revenue-conversion-auto.js",
       "backend/modules/revenue-flywheel.js",
+      "backend/modules/rollback-engine.js",
       "backend/modules/salesOrchestrator.js",
       "backend/modules/self-evolving-engine.js",
       "backend/modules/selfConstruction.js",
       "backend/modules/serviceMarketplace.js",
       "backend/modules/socialMediaViralizer.js",
       "backend/modules/sovereignRevenueRouter.js",
+      "backend/modules/subscription-engine.js",
+      "backend/modules/tax-engine.js",
       "backend/modules/traffic-engine.js",
       "backend/modules/ui-auto-builder.js",
       "backend/modules/unicornAutonomousCore.js",
@@ -307,6 +322,7 @@
       "backend/modules/unicornSelfHealer.js",
       "backend/modules/unicornSovereignty.js",
       "backend/modules/unicornTreasury.js",
+      "backend/modules/unit-economics-engine.js",
       "backend/modules/universal-ai-connector/index.js",
       "backend/modules/valueProofLedger.js",
       "backend/modules/worldStandard.js",
@@ -375,6 +391,7 @@
       "backend/modules/integrations/evolution-executor.js",
       "backend/modules/integrations/module-marketplace.js",
       "backend/modules/kpi-analytics.js",
+      "backend/modules/module-performance-ranker.js",
       "backend/modules/observability.js",
       "backend/modules/opportunityRadar.js",
       "backend/modules/predictive-market-intelligence.js",
@@ -410,9 +427,7 @@
       "backend/modules/deepseek-governor.js",
       "backend/modules/self-evolving-engine.js"
     ],
-    "weakWebhookCompare": [
-      "backend/index.js"
-    ]
+    "weakWebhookCompare": []
   },
   "revenue": {
     "highProfit": [
@@ -425,6 +440,7 @@
       "backend/modules/enterprise-deal-desk.js",
       "backend/modules/enterprise-router.js",
       "backend/modules/enterprisePartnership.js",
+      "backend/modules/growth-brain.js",
       "backend/modules/growth-engine.js",
       "backend/modules/improvements-pack/revenue-dashboard.js",
       "backend/modules/integrations/module-marketplace.js",
@@ -463,6 +479,7 @@
     "apiReady": [
       "backend/modules/adi-core/router.js",
       "backend/modules/api-docs.js",
+      "backend/modules/capital-protection.js",
       "backend/modules/enterprise-cloud-router.js",
       "backend/modules/enterprise-router.js",
       "backend/modules/global-api-gateway.js",
@@ -492,8 +509,10 @@
     ],
     "recurringRevenueReady": [
       "backend/modules/billing-engine.js",
+      "backend/modules/multi-payment-rails.js",
       "backend/modules/paymentGateway.js",
       "backend/modules/paymentSystems.js",
+      "backend/modules/subscription-engine.js",
       "backend/modules/tenant-billing.js",
       "backend/modules/zacc/payments.js"
     ]

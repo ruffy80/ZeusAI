@@ -1,10 +1,10 @@
 # Scalability Report
 
-Generated: 2026-07-03T13:19:35.620Z
+Generated: 2026-07-07T17:47:57.083Z
 
-- Node JS files scanned: 467
-- Route-bearing files: 15
-- Circular dependency cycles: 2
+- Node JS files scanned: 489
+- Route-bearing files: 18
+- Circular dependency cycles: 1
 - Potential dead modules: 85
 
 ## 100x readiness actions
