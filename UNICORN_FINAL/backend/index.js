@@ -3019,6 +3019,7 @@ const analyticsEngine         = require('./modules/analytics');
 const contentAI               = require('./modules/content-ai');
 const autoMarketing           = require('./modules/auto-marketing');
 const profitAutopilot         = require('./modules/profit-autopilot');
+const zkRevenueProof          = require('./modules/zk-revenue-proof');
 const performanceMonitor      = require('./modules/performance-monitor');
 const unicornRealizationEngine = require('./modules/unicorn-realization-engine');
 const autoTrendAnalyzer       = require('./modules/auto-trend-analyzer');
@@ -9683,6 +9684,9 @@ try {
   try {
     profitAutopilot.configure({ marketplace, dynamicPricing, livePricingBroker, autoMarketing, tenantBilling, zacc, socialViralizer, upsellEngine: _upsellEngine, subscriptionEngine: null });
   } catch (_) {}
+  try {
+    zkRevenueProof.configure({ subscriptionEngine: null, zacc, profitAutopilot, tenantBilling });
+  } catch (_) {}
 } catch (e) { console.warn('[zacc] not loaded:', e.message); }
 
 // Public read: full status snapshot (all 9 components).
@@ -11013,6 +11017,7 @@ registerModuleRoutes('analytics',                  analyticsEngine);
 registerModuleRoutes('content-ai',                 contentAI);
 registerModuleRoutes('auto-marketing',             autoMarketing);
 registerModuleRoutes('profit-autopilot',           profitAutopilot);
+registerModuleRoutes('zk-revenue-proof',           zkRevenueProof);
 registerModuleRoutes('performance-monitor',        performanceMonitor);
 registerModuleRoutes('unicorn-realization-engine', unicornRealizationEngine);
 registerModuleRoutes('auto-trend-analyzer',        autoTrendAnalyzer);
@@ -13242,6 +13247,9 @@ try {
   console.log('[pro-plus] subscription-engine ACTIVE — plans:', _subEngine.getPlans().map(p => p.id).join(', '));
   try {
     profitAutopilot.configure({ marketplace, dynamicPricing, livePricingBroker, autoMarketing, tenantBilling, zacc, socialViralizer, upsellEngine: _upsellEngine, subscriptionEngine: _subEngine });
+  } catch (_) {}
+  try {
+    zkRevenueProof.configure({ subscriptionEngine: _subEngine, zacc, profitAutopilot, tenantBilling });
   } catch (_) {}
 } catch (e) { console.warn('[pro-plus][subscription-engine] load failed:', e && e.message); }
 
