@@ -510,7 +510,7 @@ function navBar(route, opts) {
 </button>
 <div class="nav-links" id="nav-links">
 ${L('/', 'Home')}<a class="nav-link nav-link-zacc" href="/zacc" data-link aria-label="Autonomous Dropshipping (ZACC)">🛒 Autonomous Dropshipping <span style="display:inline-block;margin-left:6px;padding:1px 7px;font-size:10px;font-weight:700;letter-spacing:.08em;border-radius:999px;background:linear-gradient(135deg,#8a5cff,#3ea0ff);color:#05060e;vertical-align:middle">LIVE</span></a>${L('/services', 'Marketplace')}${L('/wizard', 'Find my plan')}${L('/store', 'Store')}${L('/crypto-fiat-bridge', 'Crypto Bridge')}${L('/enterprise', 'Enterprise')}${L('/pricing', 'Pricing')}${L('/innovations', 'Innovations')}${L('/frontier', 'Frontier')}${L('/docs', 'API')}${L('/status', 'Status')}
-${L('/social-network', 'Social Network')}
+${L('/social-network', 'ZEUS NETWORK')}
 </div>
 <div class="nav-cta">
 ${langToggle}
@@ -3071,20 +3071,47 @@ function renderRoute(route, params = {}) {
 
 function pageSocialNetwork() {
   return `<section class="section"><div class="container">
-    <div class="kicker">Autonomous Layer</div>
-    <h1 class="h1">Zeus Core Social Network</h1>
-    <p style="color:var(--ink-dim);max-width:860px">Self-healing, self-optimization, self-innovation, self-promotion and AI decisioning in a single autonomous social stack.</p>
-    <div class="grid" id="snSummary" style="margin-top:16px"></div>
-    <h2 style="margin-top:24px">Modules</h2>
+    <div class="kicker">Global Social Layer</div>
+    <h1 class="h1">ZEUS NETWORK</h1>
+    <p style="color:var(--ink-dim);max-width:860px">A real social interface: stories, composer, live feed, trending and creator activity — powered by autonomous orchestration.</p>
+
+    <div class="card" style="margin-top:14px;padding:14px">
+      <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+        <div style="width:38px;height:38px;border-radius:999px;background:linear-gradient(135deg,#7cf7c0,#3b82f6);display:flex;align-items:center;justify-content:center;font-weight:700;color:#04131d">Z</div>
+        <input disabled value="What's happening in ZEUS NETWORK?" style="flex:1;min-width:220px;background:#0d1528;border:1px solid #2b3a59;color:#9fb2d7;border-radius:999px;padding:10px 14px" />
+        <button class="btn" disabled>Post</button>
+      </div>
+    </div>
+
+    <h2 style="margin-top:18px">Stories</h2>
+    <div id="snStories" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px"></div>
+
+    <h2 style="margin-top:22px">Live Feed</h2>
+    <div id="snFeed" style="display:grid;gap:12px"></div>
+
+    <h2 style="margin-top:22px">Network Pulse</h2>
+    <div class="grid" id="snSummary"></div>
+
+    <h2 style="margin-top:22px">Trending & Modules</h2>
     <div class="grid" id="snModules"></div>
-    <h2 style="margin-top:24px">Decisions</h2>
-    <div class="grid" id="snDecisions"></div>
+
     <div class="card" style="margin-top:16px"><p style="margin:0;color:var(--ink-dim)">Admin view: <a href="/admin/social-network" data-link>/admin/social-network</a></p></div>
   </div>
   <script>
   (function(){
-    function card(t,v,s){return '<div class="card"><span class="tag">'+t+'</span><h3 style="margin:8px 0">'+v+'</h3><p style="color:var(--ink-dim);margin:0">'+(s||'')+'</p></div>'}
+    function esc(s){return String(s||'').replace(/[&<>\"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','\"':'&quot;'}[c]})}
+    function card(t,v,s){return '<div class="card"><span class="tag">'+esc(t)+'</span><h3 style="margin:8px 0">'+v+'</h3><p style="color:var(--ink-dim);margin:0">'+esc(s||'')+'</p></div>'}
     function b(st){return st==='active'?'<span style="color:#7ee2a8">● active</span>':(st==='degraded'?'<span style="color:#f0c674">● degraded</span>':'<span style="color:#ff6b6b">● inactive</span>')}
+    function feedCard(author,text,meta){
+      return '<div class="card" style="padding:14px">'+
+        '<div style="display:flex;align-items:center;gap:10px">'+
+          '<div style="width:34px;height:34px;border-radius:999px;background:#17233c;display:flex;align-items:center;justify-content:center;color:#7cf7c0;font-weight:700">'+esc((author||'Z').slice(0,1).toUpperCase())+'</div>'+
+          '<div><strong>'+esc(author||'Zeus Node')+'</strong><div style="color:var(--ink-dim);font-size:12px">'+esc(meta||'live now')+'</div></div>'+
+        '</div>'+
+        '<p style="margin:10px 0 12px;line-height:1.5">'+esc(text||'')+'</p>'+
+        '<div style="display:flex;gap:14px;color:var(--ink-dim);font-size:13px"><span>♥ Like</span><span>💬 Comment</span><span>↗ Share</span></div>'+
+      '</div>';
+    }
     async function r(){
       try{
         const d=await (await fetch('/api/social-orchestrator/status',{cache:'no-store'})).json();
@@ -3094,11 +3121,29 @@ function pageSocialNetwork() {
           card('Health runs', String(d.healthRuns||0), d.lastHealthAt||'n/a')+
           card('Profit/day', '$'+(m.profitUsdDay||0), (m.profitBtcDay||0)+' BTC')+
           card('User growth', (m.userGrowthPct24h||0)+'%', 'active users '+(m.activeUsers||0));
+
+        const stories=[
+          {n:'Global',v:'🌍 '+(m.activeUsers||0)+' online'},
+          {n:'Growth',v:'📈 '+(m.userGrowthPct24h||0)+'% / 24h'},
+          {n:'Revenue',v:'💸 $'+(m.profitUsdDay||0)+'/day'},
+          {n:'Safety',v:'🛡 '+(d.mode||'dry-run')},
+        ];
+        document.getElementById('snStories').innerHTML=stories.map(function(s){return '<div class="card" style="padding:12px"><div style="font-size:12px;color:var(--ink-dim)">'+esc(s.n)+'</div><div style="margin-top:6px;font-weight:700">'+esc(s.v)+'</div></div>';}).join('');
+
         const mods=Array.isArray(d.modules)?d.modules:[];
         document.getElementById('snModules').innerHTML=mods.map(function(x){return card(x.name,b(x.state),x.lastUpdate||'n/a')}).join('')||card('Modules','warming','booting');
+
         const dec=Array.isArray(d.lastDecisions)?d.lastDecisions:[];
-        document.getElementById('snDecisions').innerHTML=dec.slice(0,8).map(function(x){return card(x.title||'decision',x.result||'logged',x.ts||'')}).join('')||card('Decisions','none yet','waiting first cycle');
-      }catch(_){ document.getElementById('snSummary').innerHTML=card('social-network','offline','retrying') }
+        const feed=[];
+        for(var i=0;i<Math.min(dec.length,8);i++){
+          var x=dec[i]||{};
+          feed.push(feedCard('Zeus Strategy', (x.title||'decision')+': '+(x.result||'logged'), x.ts||'just now'));
+        }
+        if(!feed.length){
+          feed.push(feedCard('ZEUS NETWORK', 'Feed is warming up. First autonomous stories will appear in seconds.', 'booting'));
+        }
+        document.getElementById('snFeed').innerHTML=feed.join('');
+      }catch(_){ document.getElementById('snSummary').innerHTML=card('zeus-network','offline','retrying') }
     }
     r(); setInterval(r,10000);
   })();
@@ -3108,7 +3153,7 @@ function pageSocialNetwork() {
 
 function pageAdminSocialNetwork() {
   return `<section class="section"><div class="container">
-    <h1 class="h1">Admin · Social Network</h1>
+    <h1 class="h1">Admin · ZEUS NETWORK</h1>
     <p style="color:var(--ink-dim)">Protected operator panel. Requires admin authentication token/cookie.</p>
     <div class="card" id="snAdminCard" style="margin-top:12px"><p style="margin:0;color:var(--ink-dim)">Loading dashboard…</p></div>
   </div>
@@ -3937,7 +3982,7 @@ function _legalSub(title, body) {
 function routeTitle(route) {
   if (route === '/') return 'Sovereign AI OS';
   if (route.startsWith('/services/')) return 'Service';
-  const map = { '/services':'Marketplace', '/marketplace':'Marketplace', '/pricing':'Pricing', '/solutions/ai-pricing':'AI Pricing Engine', '/solutions/ai-checkout':'AI Checkout Optimizer', '/solutions/ai-self-healing':'AI Self-Healing Ops', '/checkout':'Checkout', '/dashboard':'Dashboard', '/how':'How it works', '/docs':'API & Docs', '/about':'About', '/legal':'Legal', '/trust':'Trust Center', '/security':'Security', '/responsible-ai':'Responsible AI', '/dpa':'Data Processing Agreement', '/payment-terms':'Payment Terms', '/operator':'Operator Console', '/observability':'Observability', '/enterprise':'Enterprise Licenses', '/store':'Instant Store', '/account':'Account', '/innovations':'30Y Cryptographic Durability', '/wizard':'Find my plan', '/status':'Live status', '/social-network':'Social Network', '/admin/social-network':'Admin Social Network', '/changelog':'Changelog', '/terms':'Terms of Service', '/privacy':'Privacy Policy', '/refund':'Refund Guarantee', '/sla':'SLA', '/pledge':'Anti-Dark-Pattern Pledge', '/cancel':'Universal Cancel', '/gift':'Gift-as-Capability', '/aura':'Live Conversion Aura', '/api-explorer':'API Explorer', '/transparency':'Pricing Bandit Transparency', '/frontier':'Frontier Inventions', '/deepseek-cockpit':'DeepSeek Autonomy Cockpit', '/contact':'Contact', '/faq':'FAQ', '/blog':'Insights', '/affiliate':'Affiliate Program', '/partners':'Partners', '/roadmap':'Public Roadmap', '/careers':'Careers', '/press':'Press Kit' };
+  const map = { '/services':'Marketplace', '/marketplace':'Marketplace', '/pricing':'Pricing', '/solutions/ai-pricing':'AI Pricing Engine', '/solutions/ai-checkout':'AI Checkout Optimizer', '/solutions/ai-self-healing':'AI Self-Healing Ops', '/checkout':'Checkout', '/dashboard':'Dashboard', '/how':'How it works', '/docs':'API & Docs', '/about':'About', '/legal':'Legal', '/trust':'Trust Center', '/security':'Security', '/responsible-ai':'Responsible AI', '/dpa':'Data Processing Agreement', '/payment-terms':'Payment Terms', '/operator':'Operator Console', '/observability':'Observability', '/enterprise':'Enterprise Licenses', '/store':'Instant Store', '/account':'Account', '/innovations':'30Y Cryptographic Durability', '/wizard':'Find my plan', '/status':'Live status', '/social-network':'ZEUS NETWORK', '/admin/social-network':'Admin ZEUS NETWORK', '/changelog':'Changelog', '/terms':'Terms of Service', '/privacy':'Privacy Policy', '/refund':'Refund Guarantee', '/sla':'SLA', '/pledge':'Anti-Dark-Pattern Pledge', '/cancel':'Universal Cancel', '/gift':'Gift-as-Capability', '/aura':'Live Conversion Aura', '/api-explorer':'API Explorer', '/transparency':'Pricing Bandit Transparency', '/frontier':'Frontier Inventions', '/deepseek-cockpit':'DeepSeek Autonomy Cockpit', '/contact':'Contact', '/faq':'FAQ', '/blog':'Insights', '/affiliate':'Affiliate Program', '/partners':'Partners', '/roadmap':'Public Roadmap', '/careers':'Careers', '/press':'Press Kit' };
   return map[route] || 'ZeusAI';
 }
 
@@ -3968,8 +4013,8 @@ function routeDescription(route) {
     '/innovations': '30-year cryptographic durability, post-quantum readiness and frontier ZeusAI inventions.',
     '/wizard': 'Plan wizard that maps your business goal to the right ZeusAI service, price and delivery path.',
     '/status': 'Live ZeusAI status, uptime, build health and production service checks.',
-    '/social-network': 'Zeus Core Social: autonomous social network orchestration with self-healing, innovation loop, viral engine and AI strategy decisions.',
-    '/admin/social-network': 'Admin social-network control panel with autonomous module state, decisions, growth and profit telemetry.',
+    '/social-network': 'ZEUS NETWORK: autonomous social feed with stories, live timeline, creator-first growth and AI orchestration.',
+    '/admin/social-network': 'Admin ZEUS NETWORK control panel with autonomous module state, decisions, growth and profit telemetry.',
     '/changelog': 'Latest ZeusAI product changes, frontier releases, security upgrades and commerce improvements.',
     '/terms': 'Terms of Service for ZeusAI, including capability tokens, signed outputs, SLA and refund references.',
     '/privacy': 'Privacy Policy for ZeusAI: minimal data, no resale, no model training on personal data and GDPR rights.',

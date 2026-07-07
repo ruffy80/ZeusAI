@@ -18,10 +18,10 @@ function renderAdminSocialNetwork(data = {}) {
 
   return [
     '<!doctype html><html lang="en"><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/>',
-    '<title>Admin · Social Network</title>',
+    '<title>Admin · ZEUS NETWORK</title>',
     '<style>body{font-family:Inter,system-ui;background:#090d18;color:#e8eefc;margin:0;padding:24px}h1,h2{margin:0 0 10px}.muted{color:#9eb0d0}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px}.card{background:#11192b;border:1px solid #263453;border-radius:12px;padding:14px}.mono{font-family:ui-monospace,Menlo,monospace;font-size:12px}.pill{display:inline-block;padding:3px 8px;border-radius:999px;font-size:11px;background:#1b2742}table{width:100%;border-collapse:collapse;font-size:13px}th,td{border-bottom:1px solid #243454;padding:8px;text-align:left}</style>',
     '</head><body>',
-    '<h1>Zeus Core Social · Admin Dashboard</h1>',
+    '<h1>ZEUS NETWORK · Admin Dashboard</h1>',
     '<div class="muted">Passive view only · orchestrator decisions, module states, growth and profit streams.</div>',
     '<div class="grid" style="margin-top:14px">',
     `<div class="card"><div class="muted">Mode</div><div style="font-size:22px">${esc(data.mode || 'dry-run')}</div><div class="mono">dry-run until: ${esc(data.dryRunUntil || 'n/a')}</div></div>`,
