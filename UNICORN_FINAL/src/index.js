@@ -9665,6 +9665,7 @@ a{color:#8a5cff;text-decoration:none}
     '/enterprise', '/store', '/account', '/innovations', '/wizard', '/status', '/changelog',
     '/terms', '/privacy', '/refund', '/sla', '/pledge', '/cancel', '/gift', '/aura',
     '/api-explorer', '/transparency', '/frontier', '/crypto-fiat-bridge', '/marketplace',
+    '/social-network', '/admin/social-network',
     // Real SSR pages (2026-06): previously these fell through to the legacy
     // homepage clone — duplicate-content SEO poison + dead-end UX. Each now
     // has a dedicated page in src/site/v2/shell.js. RO: pagini reale, nu clone.
