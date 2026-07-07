@@ -645,7 +645,6 @@ app.post('/api/lead', express.json({ limit: '8kb' }), (req, res) => {
 app.get('/api/leads/inbound/count', asyncHandler(async (req, res) => {
   try {
     let count = 0;
-    const fs = require('fs');
     const fsPromises = require('fs').promises;
     try {
       const data = await fsPromises.readFile(_inboundLeadsFile, 'utf8');
