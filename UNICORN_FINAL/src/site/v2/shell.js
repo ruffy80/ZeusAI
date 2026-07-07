@@ -510,6 +510,7 @@ function navBar(route, opts) {
 </button>
 <div class="nav-links" id="nav-links">
 ${L('/', 'Home')}<a class="nav-link nav-link-zacc" href="/zacc" data-link aria-label="Autonomous Dropshipping (ZACC)">🛒 Autonomous Dropshipping <span style="display:inline-block;margin-left:6px;padding:1px 7px;font-size:10px;font-weight:700;letter-spacing:.08em;border-radius:999px;background:linear-gradient(135deg,#8a5cff,#3ea0ff);color:#05060e;vertical-align:middle">LIVE</span></a>${L('/services', 'Marketplace')}${L('/wizard', 'Find my plan')}${L('/store', 'Store')}${L('/crypto-fiat-bridge', 'Crypto Bridge')}${L('/enterprise', 'Enterprise')}${L('/pricing', 'Pricing')}${L('/innovations', 'Innovations')}${L('/frontier', 'Frontier')}${L('/docs', 'API')}${L('/status', 'Status')}
+${L('/social-network', 'Social Network')}
 </div>
 <div class="nav-cta">
 ${langToggle}
@@ -3005,6 +3006,7 @@ function pageDeepseekCockpit() {
 function renderRoute(route, params = {}) {
   switch (route) {
     case '/': return pageHome();
+    case '/social-network': return pageSocialNetwork();
     case '/services': return pageServices();
     case '/pricing': return pagePricing();
     case '/solutions/ai-pricing': return pageSolution('pricing');
@@ -3034,6 +3036,7 @@ function renderRoute(route, params = {}) {
     case '/login': return pageAccount(params);
     case '/signup': return pageAccount(params);
     case '/admin/services': return pageAdminServices();
+    case '/admin/social-network': return pageAdminSocialNetwork();
     case '/admin': return pageAdminLogin();
     case '/admin/login': return pageAdminLogin();
     case '/wizard': return pageWizard();
@@ -3064,6 +3067,71 @@ function renderRoute(route, params = {}) {
       if (route.startsWith('/services/')) return pageService(params.id || route.slice(10));
       return pageNotFound(route);
   }
+}
+
+function pageSocialNetwork() {
+  return `<section class="section"><div class="container">
+    <div class="kicker">Autonomous Layer</div>
+    <h1 class="h1">Zeus Core Social Network</h1>
+    <p style="color:var(--ink-dim);max-width:860px">Self-healing, self-optimization, self-innovation, self-promotion and AI decisioning in a single autonomous social stack.</p>
+    <div class="grid" id="snSummary" style="margin-top:16px"></div>
+    <h2 style="margin-top:24px">Modules</h2>
+    <div class="grid" id="snModules"></div>
+    <h2 style="margin-top:24px">Decisions</h2>
+    <div class="grid" id="snDecisions"></div>
+    <div class="card" style="margin-top:16px"><p style="margin:0;color:var(--ink-dim)">Admin view: <a href="/admin/social-network" data-link>/admin/social-network</a></p></div>
+  </div>
+  <script>
+  (function(){
+    function card(t,v,s){return '<div class="card"><span class="tag">'+t+'</span><h3 style="margin:8px 0">'+v+'</h3><p style="color:var(--ink-dim);margin:0">'+(s||'')+'</p></div>'}
+    function b(st){return st==='active'?'<span style="color:#7ee2a8">● active</span>':(st==='degraded'?'<span style="color:#f0c674">● degraded</span>':'<span style="color:#ff6b6b">● inactive</span>')}
+    async function r(){
+      try{
+        const d=await (await fetch('/api/social-orchestrator/status',{cache:'no-store'})).json();
+        const m=d.metrics||{};
+        document.getElementById('snSummary').innerHTML=
+          card('Mode', d.mode||'—', d.dryRun?'dry-run':'live')+
+          card('Health runs', String(d.healthRuns||0), d.lastHealthAt||'n/a')+
+          card('Profit/day', '$'+(m.profitUsdDay||0), (m.profitBtcDay||0)+' BTC')+
+          card('User growth', (m.userGrowthPct24h||0)+'%', 'active users '+(m.activeUsers||0));
+        const mods=Array.isArray(d.modules)?d.modules:[];
+        document.getElementById('snModules').innerHTML=mods.map(function(x){return card(x.name,b(x.state),x.lastUpdate||'n/a')}).join('')||card('Modules','warming','booting');
+        const dec=Array.isArray(d.lastDecisions)?d.lastDecisions:[];
+        document.getElementById('snDecisions').innerHTML=dec.slice(0,8).map(function(x){return card(x.title||'decision',x.result||'logged',x.ts||'')}).join('')||card('Decisions','none yet','waiting first cycle');
+      }catch(_){ document.getElementById('snSummary').innerHTML=card('social-network','offline','retrying') }
+    }
+    r(); setInterval(r,10000);
+  })();
+  </script>
+  </section>`;
+}
+
+function pageAdminSocialNetwork() {
+  return `<section class="section"><div class="container">
+    <h1 class="h1">Admin · Social Network</h1>
+    <p style="color:var(--ink-dim)">Protected operator panel. Requires admin authentication token/cookie.</p>
+    <div class="card" id="snAdminCard" style="margin-top:12px"><p style="margin:0;color:var(--ink-dim)">Loading dashboard…</p></div>
+  </div>
+  <script>
+  (function(){
+    async function r(){
+      const box=document.getElementById('snAdminCard');
+      try{
+        const p=await fetch('/api/social-orchestrator/process',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'dashboard'})});
+        const d=await p.json();
+        if(!p.ok||!d||!d.ok){ throw new Error((d&&d.error)||('http '+p.status)); }
+        const x=d.dashboard||{};
+        box.innerHTML='<div class="grid">'+
+          '<div class="card"><span class="tag">Mode</span><h3>'+String(x.mode||'—')+'</h3><p style="color:var(--ink-dim)">Dry-run until '+String(x.dryRunUntil||'n/a')+'</p></div>'+
+          '<div class="card"><span class="tag">Profit BTC/day</span><h3>'+String(x.profitBtcDay||0)+'</h3><p style="color:var(--ink-dim)">USD/day '+String(x.profitUsdDay||0)+'</p></div>'+
+          '<div class="card"><span class="tag">Users growth</span><h3>'+String(x.userGrowthPct24h||0)+'%</h3><p style="color:var(--ink-dim)">active '+String(x.activeUsers||0)+'</p></div>'+
+          '</div>';
+      }catch(e){ box.innerHTML='<p style="margin:0;color:#ff6b6b">Access denied or unavailable: '+String(e&&e.message||e)+'</p>'; }
+    }
+    r(); setInterval(r,15000);
+  })();
+  </script>
+  </section>`;
 }
 
 function pageAdminLogin() {
@@ -3869,7 +3937,7 @@ function _legalSub(title, body) {
 function routeTitle(route) {
   if (route === '/') return 'Sovereign AI OS';
   if (route.startsWith('/services/')) return 'Service';
-  const map = { '/services':'Marketplace', '/marketplace':'Marketplace', '/pricing':'Pricing', '/solutions/ai-pricing':'AI Pricing Engine', '/solutions/ai-checkout':'AI Checkout Optimizer', '/solutions/ai-self-healing':'AI Self-Healing Ops', '/checkout':'Checkout', '/dashboard':'Dashboard', '/how':'How it works', '/docs':'API & Docs', '/about':'About', '/legal':'Legal', '/trust':'Trust Center', '/security':'Security', '/responsible-ai':'Responsible AI', '/dpa':'Data Processing Agreement', '/payment-terms':'Payment Terms', '/operator':'Operator Console', '/observability':'Observability', '/enterprise':'Enterprise Licenses', '/store':'Instant Store', '/account':'Account', '/innovations':'30Y Cryptographic Durability', '/wizard':'Find my plan', '/status':'Live status', '/changelog':'Changelog', '/terms':'Terms of Service', '/privacy':'Privacy Policy', '/refund':'Refund Guarantee', '/sla':'SLA', '/pledge':'Anti-Dark-Pattern Pledge', '/cancel':'Universal Cancel', '/gift':'Gift-as-Capability', '/aura':'Live Conversion Aura', '/api-explorer':'API Explorer', '/transparency':'Pricing Bandit Transparency', '/frontier':'Frontier Inventions', '/deepseek-cockpit':'DeepSeek Autonomy Cockpit', '/contact':'Contact', '/faq':'FAQ', '/blog':'Insights', '/affiliate':'Affiliate Program', '/partners':'Partners', '/roadmap':'Public Roadmap', '/careers':'Careers', '/press':'Press Kit' };
+  const map = { '/services':'Marketplace', '/marketplace':'Marketplace', '/pricing':'Pricing', '/solutions/ai-pricing':'AI Pricing Engine', '/solutions/ai-checkout':'AI Checkout Optimizer', '/solutions/ai-self-healing':'AI Self-Healing Ops', '/checkout':'Checkout', '/dashboard':'Dashboard', '/how':'How it works', '/docs':'API & Docs', '/about':'About', '/legal':'Legal', '/trust':'Trust Center', '/security':'Security', '/responsible-ai':'Responsible AI', '/dpa':'Data Processing Agreement', '/payment-terms':'Payment Terms', '/operator':'Operator Console', '/observability':'Observability', '/enterprise':'Enterprise Licenses', '/store':'Instant Store', '/account':'Account', '/innovations':'30Y Cryptographic Durability', '/wizard':'Find my plan', '/status':'Live status', '/social-network':'Social Network', '/admin/social-network':'Admin Social Network', '/changelog':'Changelog', '/terms':'Terms of Service', '/privacy':'Privacy Policy', '/refund':'Refund Guarantee', '/sla':'SLA', '/pledge':'Anti-Dark-Pattern Pledge', '/cancel':'Universal Cancel', '/gift':'Gift-as-Capability', '/aura':'Live Conversion Aura', '/api-explorer':'API Explorer', '/transparency':'Pricing Bandit Transparency', '/frontier':'Frontier Inventions', '/deepseek-cockpit':'DeepSeek Autonomy Cockpit', '/contact':'Contact', '/faq':'FAQ', '/blog':'Insights', '/affiliate':'Affiliate Program', '/partners':'Partners', '/roadmap':'Public Roadmap', '/careers':'Careers', '/press':'Press Kit' };
   return map[route] || 'ZeusAI';
 }
 
@@ -3900,6 +3968,8 @@ function routeDescription(route) {
     '/innovations': '30-year cryptographic durability, post-quantum readiness and frontier ZeusAI inventions.',
     '/wizard': 'Plan wizard that maps your business goal to the right ZeusAI service, price and delivery path.',
     '/status': 'Live ZeusAI status, uptime, build health and production service checks.',
+    '/social-network': 'Zeus Core Social: autonomous social network orchestration with self-healing, innovation loop, viral engine and AI strategy decisions.',
+    '/admin/social-network': 'Admin social-network control panel with autonomous module state, decisions, growth and profit telemetry.',
     '/changelog': 'Latest ZeusAI product changes, frontier releases, security upgrades and commerce improvements.',
     '/terms': 'Terms of Service for ZeusAI, including capability tokens, signed outputs, SLA and refund references.',
     '/privacy': 'Privacy Policy for ZeusAI: minimal data, no resale, no model training on personal data and GDPR rights.',
