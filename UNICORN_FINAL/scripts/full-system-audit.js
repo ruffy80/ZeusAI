@@ -172,7 +172,14 @@ function main() {
     if (/\b(execSync|spawnSync)\b/.test(c)) risk.blockingExec.push(rel(f));
     if (/setInterval\(/.test(c) && !/clearInterval\(/.test(c)) risk.unboundedIntervals.push(rel(f));
     if (/\beval\(|new Function\(/.test(c)) risk.evalLike.push(rel(f));
-    if (/Webhook signature mismatch/.test(c) && /!==/.test(c)) risk.weakWebhookCompare.push(rel(f));
+    // Flag only likely-insecure webhook compares (direct `!==` on signatures)
+    // and avoid false positives in files that already use timingSafeEqual.
+    const hasWebhookMismatchMsg = /Webhook signature mismatch/.test(c);
+    const hasDirectSigCompare = /\b(signed|expected|computed|signature)\s*!==\s*(v1|sig|signature|provided)\b/.test(c);
+    const hasTimingSafe = /timingSafeEqual\(/.test(c);
+    if (hasWebhookMismatchMsg && hasDirectSigCompare && !hasTimingSafe) {
+      risk.weakWebhookCompare.push(rel(f));
+    }
   }
 
   const cycles = findCycles(graph);
