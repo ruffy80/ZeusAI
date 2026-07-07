@@ -637,15 +637,18 @@ app.post('/api/lead', express.json({ limit: '8kb' }), (req, res) => {
 });
 
 // GET /api/leads/inbound/count — public-safe lead volume (owner dashboard).
-app.get('/api/leads/inbound/count', (req, res) => {
+app.get('/api/leads/inbound/count', asyncHandler(async (req, res) => {
   try {
     let count = 0;
-    if (require('fs').existsSync(_inboundLeadsFile)) {
-      count = require('fs').readFileSync(_inboundLeadsFile, 'utf8').split('\n').filter(Boolean).length;
-    }
+    const fs = require('fs');
+    const fsPromises = require('fs').promises;
+    try {
+      const data = await fsPromises.readFile(_inboundLeadsFile, 'utf8');
+      count = data.split('\n').filter(Boolean).length;
+    } catch (_) { /* file doesn't exist yet */ }
     res.json({ ok: true, inboundLeads: count });
   } catch (_) { res.json({ ok: true, inboundLeads: 0 }); }
-});
+}));
 
 // ═══════════════════════════════════════════════════════════════════════════
 // GET /api/activation/readiness — REVENUE ACTIVATION MAP (AUDIT FIX 2026-07)
@@ -1023,13 +1026,13 @@ app.get(/^\/api\/ab\/report\/[a-zA-Z0-9_-]+$/, (req, res) => proxyToSite(req, re
 // Avoid proxy issues by handling AB events directly in the backend.
 // Events are logged to data/marketing/ab-events.jsonl for aggregation + stats.
 const _abEventsFile = path.join(process.cwd(), 'data', 'marketing', 'ab-events.jsonl');
-const _ensureAbDir = () => {
-  try { require('fs').mkdirSync(path.dirname(_abEventsFile), { recursive: true, mode: 0o755 }); } catch (_) {}
+const _ensureAbDir = async () => {
+  try { await require('fs').promises.mkdir(path.dirname(_abEventsFile), { recursive: true, mode: 0o755 }); } catch (_) {}
 };
 
-app.post('/api/ab/event', express.json({ limit: '2kb' }), (req, res) => {
+app.post('/api/ab/event', express.json({ limit: '2kb' }), asyncHandler(async (req, res) => {
   try {
-    _ensureAbDir();
+    await _ensureAbDir();
     const { experimentId, variant, cohort, event, value } = req.body || {};
     if (!experimentId || !event) return res.status(400).json({ error: 'missing_fields' });
     
@@ -1041,7 +1044,7 @@ app.post('/api/ab/event', express.json({ limit: '2kb' }), (req, res) => {
       value: typeof value === 'number' ? value : 0,
       ts: new Date().toISOString(),
     };
-    require('fs').appendFileSync(_abEventsFile, JSON.stringify(rec) + '\n', 'utf8');
+    await require('fs').promises.appendFile(_abEventsFile, JSON.stringify(rec) + '\n', 'utf8');
     
     // Update funnel metrics for drop-off alerts
     updateFunnelMetrics(event, value);
@@ -1051,7 +1054,7 @@ app.post('/api/ab/event', express.json({ limit: '2kb' }), (req, res) => {
     console.warn('[ab/event] ingest failed:', e.message);
     res.status(500).json({ error: 'ingest_failed' });
   }
-});
+}));
 
 // ─── Funnel Conversion Monitoring & Drop-Off Alerts ─────────────────────────
 const _funnelMetrics = {
