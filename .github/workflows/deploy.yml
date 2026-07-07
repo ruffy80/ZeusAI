@@ -878,7 +878,8 @@ jobs:
           # din GitHub Actions. Warmup-ul intern al site-ului se verifică acum
           # prin SSH + loopback înaintea probei publice; aici păstrăm doar
           # adevărul de producție: https://zeusai.pro/api/catalog/master.
-          node - <<'NODE'
+          probe_catalog() {
+            node - <<'NODE'
           const MIN = 65;
           const MAX_ATTEMPTS = 8;
           const RETRY_MS = 5000;
@@ -927,6 +928,28 @@ jobs:
             process.exit(1);
           })();
           NODE
+          }
+
+          if ! probe_catalog; then
+            echo "⚠️  public catalog probe failed — attempting automatic backend rescue-exit to canonical backend/index.js"
+            ssh -o StrictHostKeyChecking=no root@${{ secrets.HETZNER_HOST }} bash -s << 'SSHEOF'
+            set -euo pipefail
+            cd /var/www/unicorn/UNICORN_FINAL
+            if pm2 describe unicorn-backend 2>/dev/null | grep -q 'scripts/rescue-backend.js'; then
+              echo '[self-heal] unicorn-backend is on rescue-backend.js, restoring canonical ecosystem backend'
+              pm2 delete unicorn-backend || true
+              pm2 start ecosystem.config.js --only unicorn-backend --update-env
+              sleep 12
+            else
+              echo '[self-heal] unicorn-backend already canonical; forcing restart from ecosystem'
+              pm2 startOrReload ecosystem.config.js --only unicorn-backend --update-env
+              sleep 8
+            fi
+            curl -fsS --max-time 10 http://127.0.0.1:3000/health >/dev/null
+            SSHEOF
+            echo "--- Re-probe live domain catalog after self-heal ---"
+            probe_catalog
+          fi
 
       - name: 🛡️  50Y smoke (additive · non-fatal)
         # Verifică reziliența noului layer 50Y: /.well-known/did.json + /api/v50/*.
