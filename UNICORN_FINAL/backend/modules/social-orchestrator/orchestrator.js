@@ -5,6 +5,9 @@ const HealthGuardian = require('./health-guardian');
 const DecisionCore = require('./decision-core');
 const InnovationLoop = require('./innovation-loop');
 const ViralEngine = require('./viral-engine');
+const GlobalPresence = require('./global-presence');
+const FeatureParityValidator = require('./feature-parity');
+const NovelInnovationGenerator = require('./novel-innovations');
 const { renderAdminSocialNetwork } = require('./dashboard');
 
 const NAME = 'zeus-core-social';
@@ -41,6 +44,9 @@ const guardian = new HealthGuardian();
 const decisionCore = new DecisionCore();
 const innovationLoop = new InnovationLoop();
 const viralEngine = new ViralEngine();
+const globalPresence = new GlobalPresence();
+const featureParity = new FeatureParityValidator();
+const novelInnovations = new NovelInnovationGenerator();
 
 const schedulers = [];
 
@@ -238,6 +244,29 @@ async function _runViral() {
   return out;
 }
 
+async function _runNovelInnovations() {
+  _maybeAutoSwitchRealMode();
+  const out = await novelInnovations.runOnce({
+    dryRun: state.dryRun,
+    llm: _llm,
+    applyInnovation: async (proposal) => ({ ok: true, proposal: proposal.id, dryRun: state.dryRun }),
+  });
+  _log('novel-innovations', out);
+  return out;
+}
+
+async function _checkGlobalPresence() {
+  const health = await globalPresence.healthCheckRegions();
+  _log('global-presence-health', health);
+  return health;
+}
+
+async function _validateFeatureParity() {
+  const validation = featureParity.validate();
+  _log('feature-parity-check', validation);
+  return validation;
+}
+
 function configure(nextDeps = {}) {
   Object.assign(deps, nextDeps || {});
   return { ok: true, name: NAME };
@@ -254,17 +283,25 @@ function start() {
   state.mode = state.dryRun ? 'dry-run' : 'live';
   state.started = true;
 
+  // Core autonomous loops
   const job1 = cron.schedule('*/1 * * * *', () => { _runHealth().catch(() => {}); }, { timezone: 'UTC' });
   const job2 = cron.schedule('*/5 * * * *', () => { _runDecision().catch(() => {}); }, { timezone: 'UTC' });
   const job3 = cron.schedule('0 3 * * *', () => { _runViral().catch(() => {}); }, { timezone: 'UTC' });
   const job4 = cron.schedule('0 4 * * 1', () => { _runInnovation().catch(() => {}); }, { timezone: 'UTC' });
 
-  schedulers.push(job1, job2, job3, job4);
-  _decision('orchestrator-start', `mode=${state.mode}`);
+  // Novel innovation & global presence monitoring (new)
+  const job5 = cron.schedule('0 6 * * 0', () => { _runNovelInnovations().catch(() => {}); }, { timezone: 'UTC' }); // Weekly
+  const job6 = cron.schedule('*/10 * * * *', () => { _checkGlobalPresence().catch(() => {}); }, { timezone: 'UTC' }); // Every 10min
+  const job7 = cron.schedule('0 2 * * *', () => { _validateFeatureParity().catch(() => {}); }, { timezone: 'UTC' }); // Daily
+
+  schedulers.push(job1, job2, job3, job4, job5, job6, job7);
+  _decision('orchestrator-start', `mode=${state.mode}, 10 autonomous loops active`);
 
   // Warm first pass immediately.
   _runHealth().catch(() => {});
   _runDecision().catch(() => {});
+  _checkGlobalPresence().catch(() => {});
+  _validateFeatureParity().catch(() => {});
 
   return { ok: true, mode: state.mode, dryRunUntil: new Date(state.dryRunUntilTs).toISOString() };
 }
@@ -296,6 +333,9 @@ function _status() {
     decisionCore: decisionCore.getStatus(),
     innovationLoop: innovationLoop.getStatus(),
     viralEngine: viralEngine.getStatus(),
+    novelInnovations: novelInnovations.getStatus(),
+    globalPresence: globalPresence.getStatus(),
+    featureParity: featureParity.getStatus(),
     metrics,
     lastDecisions: state.decisions.slice(0, 20),
     logsTail: state.logs.slice(-25),
@@ -332,6 +372,9 @@ async function runAction(input = {}) {
   if (action === 'run-decision') return _runDecision();
   if (action === 'run-innovation') return _runInnovation();
   if (action === 'run-viral') return _runViral();
+  if (action === 'run-novel-innovations') return _runNovelInnovations();
+  if (action === 'check-global-presence') return _checkGlobalPresence();
+  if (action === 'validate-feature-parity') return _validateFeatureParity();
   if (action === 'dashboard') return { ok: true, dashboard: _adminPayload() };
   if (action === 'enable-live') {
     state.dryRun = false;
