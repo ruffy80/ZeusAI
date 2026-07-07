@@ -1,0 +1,472 @@
+#!/usr/bin/env bash
+# ============================================================
+# UNICORN — Generare .env pe server din variabile de mediu CI
+# Folosit de hetzner-bootstrap.yml și hetzner-deploy.yml
+#
+# Utilizare:
+#   DEPLOY_PATH=/root/unicorn-final bash scripts/create-env.sh
+#   sau
+#   bash scripts/create-env.sh /root/unicorn-final
+# ============================================================
+set -euo pipefail
+
+DEPLOY_PATH="${1:-${DEPLOY_PATH:-/var/www/unicorn}}"
+ENV_FILE="$DEPLOY_PATH/.env"
+
+if [ -f "$ENV_FILE" ]; then
+  echo "ℹ️  .env există deja la $ENV_FILE — actualizare variabile noi fără a șterge valorile existente"
+fi
+
+# Citează o valoare astfel încât să fie sigură atât pentru `bash source` cât și
+# pentru parserul `dotenv` din Node. Folosim ghilimele simple — bash nu mai
+# interpretează spațiile/`$`/backtick/etc., iar dotenv strip-uie ghilimelele
+# (single & double) automat. Singurul caracter pe care trebuie să-l escape-ăm
+# este `'` (închiderea ghilimelei), folosind secvența standard `'\''`.
+# Fără asta, valori cu spații (ex. EMAIL_FROM_NAME="Zeus AI", OWNER_NAME="Vladoi Ionut")
+# transformau .env într-un fișier care, sourced de server-doctor.sh sub `set -e`,
+# trigger-uia "AI: command not found" și bloca `pm2 start ecosystem.config.js`.
+_env_quote() {
+  local v="$1"
+  local escaped
+  # Escape orice apostrof intern folosind idiom-ul standard bash: `'\''`
+  # = închidere ghilimea simplă, apostrof escape-uit cu backslash, redeschidere
+  # ghilimea simplă. În sed, fiecare `\` și fiecare `'` din replacement trebuie
+  # dublate la nivelul shell + sed, de unde cei 4 backslash-uri din pattern.
+  escaped=$(printf '%s' "$v" | sed "s/'/'\\\\''/g")
+  printf "'%s'" "$escaped"
+}
+
+# Funcție pentru upsert: adaugă sau actualizează o variabilă în .env
+# Sare dacă valoarea este goală (nu suprascrie cu gol)
+upsert() {
+  local key="$1"
+  local value="$2"
+  [ -z "$value" ] && return 0   # nu suprascrie cu gol
+  local quoted
+  quoted=$(_env_quote "$value")
+  if [ -f "$ENV_FILE" ] && grep -q "^${key}=" "$ENV_FILE"; then
+    # Folosim python3 pentru înlocuire sigură (evită problemele cu / | & în valori la sed)
+    # Folosim lambda în re.sub ca să tratăm valoarea ca literal (nu ca replacement
+    # template cu \1, \g<...> etc.).
+    python3 -c "
+import sys, re
+key, val, path = sys.argv[1], sys.argv[2], sys.argv[3]
+with open(path) as f: content = f.read()
+pattern = re.compile(r'^' + re.escape(key) + r'=.*$', re.MULTILINE)
+new_content = pattern.sub(lambda _m: key + '=' + val, content)
+with open(path, 'w') as f: f.write(new_content)
+" "$key" "$quoted" "$ENV_FILE"
+  else
+    echo "${key}=${quoted}" >> "$ENV_FILE"
+  fi
+}
+
+# force_upsert: ca upsert, dar suprascrie ÎNTOTDEAUNA dacă valoarea curentă din
+# .env este diferită de cea cerută. Folosit pentru chei critice (LEGAL_OWNER_BTC,
+# NODE_ENV, PORT, BTC_WALLET_ADDRESS) unde o valoare stale pe server (ex. PORT=80
+# moștenit dintr-un deploy vechi sau LEGAL_OWNER_BTC gol) ar bloca backend-ul
+# să pornească corect și ar lăsa frontend-ul pe loading.
+force_upsert() {
+  local key="$1"
+  local value="$2"
+  [ -z "$value" ] && return 0
+  local quoted
+  quoted=$(_env_quote "$value")
+  if [ -f "$ENV_FILE" ] && grep -q "^${key}=" "$ENV_FILE"; then
+    python3 -c "
+import sys, re
+key, val, path = sys.argv[1], sys.argv[2], sys.argv[3]
+with open(path) as f: content = f.read()
+pattern = re.compile(r'^' + re.escape(key) + r'=.*$', re.MULTILINE)
+new_content = pattern.sub(lambda _m: key + '=' + val, content)
+with open(path, 'w') as f: f.write(new_content)
+" "$key" "$quoted" "$ENV_FILE"
+  else
+    echo "${key}=${quoted}" >> "$ENV_FILE"
+  fi
+}
+
+# Creează fișierul dacă nu există
+touch "$ENV_FILE"
+chmod 600 "$ENV_FILE"
+
+# ── Core (FORCE — backend nu pornește corect dacă acestea sunt stale) ────────
+force_upsert NODE_ENV         "${NODE_ENV:-production}"
+# IMPORTANT: do NOT bake a global PORT into .env. server-doctor.sh sources .env
+# before `pm2 start ecosystem.config.js --update-env`, which would propagate the
+# .env PORT to BOTH unicorn-backend (3000) and unicorn-site (3001) via PM2's
+# --update-env, causing EADDRINUSE. ecosystem.config.js is the single source
+# of truth for per-app PORT. We strip any pre-existing PORT line below.
+sed -i '/^PORT=/d' "$ENV_FILE" 2>/dev/null || true
+upsert PUBLIC_APP_URL   "${PUBLIC_APP_URL:-https://zeusai.pro}"
+upsert SITE_DOMAIN      "${SITE_DOMAIN:-zeusai.pro}"
+upsert UNICORN_DOMAIN   "${UNICORN_DOMAIN:-www.zeusai.pro}"
+upsert DOMAIN           "${DOMAIN:-${SITE_DOMAIN:-zeusai.pro}}"
+# CORS: permite cereri de la ambele variante ale domeniului
+_DOMAIN="${SITE_DOMAIN:-zeusai.pro}"
+upsert CORS_ORIGINS     "${CORS_ORIGINS:-https://${_DOMAIN},https://www.${_DOMAIN},https://api.${_DOMAIN},https://orchestrator.${_DOMAIN}}"
+
+# ── Auth Secrets (CRITICE - backend nu pornește corect fără acestea) ──────────
+upsert JWT_SECRET            "${JWT_SECRET:-}"
+upsert ADMIN_SECRET          "${ADMIN_SECRET:-}"
+upsert ADMIN_MASTER_PASSWORD "${ADMIN_MASTER_PASSWORD:-}"
+upsert ADMIN_2FA_CODE        "${ADMIN_2FA_CODE:-}"
+upsert WEBHOOK_SECRET        "${WEBHOOK_SECRET:-}"
+upsert HETZNER_WEBHOOK_SECRET "${HETZNER_WEBHOOK_SECRET:-${WEBHOOK_SECRET:-}}"
+
+# Generează JWT_SECRET dacă lipsește complet
+if ! grep -q "^JWT_SECRET=" "$ENV_FILE" 2>/dev/null || \
+   grep -q "^JWT_SECRET=$" "$ENV_FILE" 2>/dev/null; then
+  JWT_GEN="$(openssl rand -hex 32 2>/dev/null || cat /proc/sys/kernel/random/uuid 2>/dev/null | tr -d '-' || echo '')"
+  [ -n "$JWT_GEN" ] && upsert JWT_SECRET "$JWT_GEN"
+fi
+
+# Generează ADMIN_SECRET dacă lipsește complet
+if ! grep -q "^ADMIN_SECRET=" "$ENV_FILE" 2>/dev/null || \
+   grep -q "^ADMIN_SECRET=$" "$ENV_FILE" 2>/dev/null; then
+  ADM_GEN="$(openssl rand -hex 24 2>/dev/null || echo '')"
+  [ -n "$ADM_GEN" ] && upsert ADMIN_SECRET "$ADM_GEN"
+fi
+
+upsert ADMIN_MASTER_PASSWORD "${ADMIN_MASTER_PASSWORD:-UnicornAdmin2026!}"
+upsert ADMIN_2FA_CODE         "${ADMIN_2FA_CODE:-123456}"
+
+# ── GitHub ─────────────────────────────────────────────────────────────────────
+upsert GITHUB_OWNER       "${GITHUB_OWNER:-ruffy80}"
+upsert GITHUB_REPO        "${GITHUB_REPO:-ZeusAI}"
+upsert GIT_REMOTE_URL     "${GIT_REMOTE_URL:-https://github.com/ruffy80/ZeusAI.git}"
+upsert GITHUB_TOKEN       "${GITHUB_TOKEN:-}"
+upsert GH_PAT             "${GH_PAT:-${GITHUB_TOKEN:-}}"
+
+# ── Persistent secret store (survives deploys) ──────────────────────────────────
+# (EN) Load API keys from the host-level secret store that lives OUTSIDE the
+# release tree (so it is not wiped by a new release). This is the same path the
+# adi-core key-vault scans (EXTRA_DIRS=/etc/zeusai/secrets, ~/.zeusai/keys.env).
+# Values here are used ONLY as a fallback: GitHub Actions secrets still win
+# because the env vars below use `${VAR:-<persistent>}` precedence.
+# (RO) Încarcă cheile din store-ul persistent de pe host (în afara release-ului),
+# folosit ca fallback când secret-ul din GitHub Actions lipsește. Astfel cheile
+# valide (ex. DEEPSEEK_API_KEY) supraviețuiesc fiecărui deploy fără intervenție.
+_load_persistent_secrets() {
+  local f
+  for f in /etc/zeusai/secrets/ai-keys.env /etc/zeusai/secrets/*.env "$HOME/.zeusai/keys.env"; do
+    [ -f "$f" ] || continue
+    while IFS= read -r _line; do
+      case "$_line" in ''|\#*) continue ;; esac
+      case "$_line" in *=*) : ;; *) continue ;; esac
+      local _k="${_line%%=*}"
+      local _v="${_line#*=}"
+      # strip surrounding quotes
+      _v="${_v%\"}"; _v="${_v#\"}"; _v="${_v%\'}"; _v="${_v#\'}"
+      # only set if not already provided by the environment (GH secret wins)
+      if [ -n "$_k" ] && [ -z "$(eval "printf '%s' \"\${$_k:-}\"")" ] && [ -n "$_v" ]; then
+        export "$_k=$_v"
+      fi
+    done < "$f"
+  done
+}
+_load_persistent_secrets
+
+# ── AI Providers ───────────────────────────────────────────────────────────────
+upsert OPENAI_API_KEY     "${OPENAI_API_KEY:-}"
+upsert DEEPSEEK_API_KEY   "${DEEPSEEK_API_KEY:-}"
+upsert ANTHROPIC_API_KEY  "${ANTHROPIC_API_KEY:-}"
+upsert GEMINI_API_KEY     "${GEMINI_API_KEY:-}"
+upsert MISTRAL_API_KEY    "${MISTRAL_API_KEY:-}"
+upsert COHERE_API_KEY     "${COHERE_API_KEY:-}"
+upsert XAI_API_KEY        "${XAI_API_KEY:-}"
+upsert GROQ_API_KEY       "${GROQ_API_KEY:-}"
+upsert OPENROUTER_API_KEY "${OPENROUTER_API_KEY:-}"
+upsert HF_API_KEY              "${HF_API_KEY:-${HUGGINGFACE_API_KEY:-}}"
+upsert HUGGINGFACE_API_KEY     "${HUGGINGFACE_API_KEY:-${HF_API_KEY:-}}"
+upsert PERPLEXITY_API_KEY      "${PERPLEXITY_API_KEY:-}"
+upsert TOGETHER_API_KEY   "${TOGETHER_API_KEY:-}"
+upsert FIREWORKS_API_KEY  "${FIREWORKS_API_KEY:-}"
+upsert SAMBANOVA_API_KEY  "${SAMBANOVA_API_KEY:-}"
+upsert NVIDIA_NIM_API_KEY "${NVIDIA_NIM_API_KEY:-}"
+# (duplicate AI provider block removed — all keys declared above)
+
+# ── Social Orchestrator (Zeus Core Social) ───────────────────────────────────
+upsert SOCIAL_ORCH_FORCE_REAL        "${SOCIAL_ORCH_FORCE_REAL:-0}"
+upsert SOCIAL_ORCH_DRY_RUN_HOURS     "${SOCIAL_ORCH_DRY_RUN_HOURS:-48}"
+upsert SOCIAL_DECISION_MODEL         "${SOCIAL_DECISION_MODEL:-deepseek-chat}"
+upsert SOCIAL_DECISION_MAX_ACTIONS   "${SOCIAL_DECISION_MAX_ACTIONS:-3}"
+upsert SOCIAL_DECISION_MIN_CONFIDENCE "${SOCIAL_DECISION_MIN_CONFIDENCE:-0.55}"
+upsert SOCIAL_INNOVATION_MIN_LIFT_PCT "${SOCIAL_INNOVATION_MIN_LIFT_PCT:-5}"
+upsert SOCIAL_INNOVATION_MAX_PROPOSALS "${SOCIAL_INNOVATION_MAX_PROPOSALS:-5}"
+upsert SOCIAL_VIRAL_MAX_POSTS        "${SOCIAL_VIRAL_MAX_POSTS:-3}"
+upsert SOCIAL_VIRAL_CREATOR_FIRST_WEIGHT "${SOCIAL_VIRAL_CREATOR_FIRST_WEIGHT:-0.65}"
+upsert SOCIAL_VIRAL_MANIPULATION_THRESHOLD "${SOCIAL_VIRAL_MANIPULATION_THRESHOLD:-0.75}"
+upsert SOCIAL_HEALTH_BASE_URL        "${SOCIAL_HEALTH_BASE_URL:-http://127.0.0.1:3000}"
+upsert SOCIAL_HEALTH_ENDPOINT_BUDGET_MS "${SOCIAL_HEALTH_ENDPOINT_BUDGET_MS:-500}"
+upsert SOCIAL_HEALTH_MEM_WARN_PCT    "${SOCIAL_HEALTH_MEM_WARN_PCT:-80}"
+upsert SOCIAL_HEALTH_CPU_WARN_PCT    "${SOCIAL_HEALTH_CPU_WARN_PCT:-80}"
+upsert SOCIAL_GLOBAL_EDGE_ENABLED    "${SOCIAL_GLOBAL_EDGE_ENABLED:-1}"
+upsert SOCIAL_GLOBAL_TARGET_P95_MS   "${SOCIAL_GLOBAL_TARGET_P95_MS:-100}"
+upsert SOCIAL_GLOBAL_REGIONS         "${SOCIAL_GLOBAL_REGIONS:-us-east,eu-west,asia-sg,asia-jp,asia-in,latam-br,africa-ng,mena-ae}"
+upsert SOCIAL_FEDERATION_ACTIVITYPUB "${SOCIAL_FEDERATION_ACTIVITYPUB:-1}"
+upsert SOCIAL_FEDERATION_IPFS        "${SOCIAL_FEDERATION_IPFS:-1}"
+upsert SOCIAL_FEDERATION_DID         "${SOCIAL_FEDERATION_DID:-1}"
+upsert SOCIAL_FEDERATION_DISCOVERY_INTERVAL_MIN "${SOCIAL_FEDERATION_DISCOVERY_INTERVAL_MIN:-15}"
+upsert SOCIAL_NOVEL_INNOVATION_ENABLED "${SOCIAL_NOVEL_INNOVATION_ENABLED:-1}"
+upsert SOCIAL_NOVEL_WEEKLY_COUNT     "${SOCIAL_NOVEL_WEEKLY_COUNT:-5}"
+upsert SOCIAL_ACCESSIBILITY_AUTO_CAPTIONS "${SOCIAL_ACCESSIBILITY_AUTO_CAPTIONS:-1}"
+upsert SOCIAL_ACCESSIBILITY_AUTO_TRANSLATE_LANGS "${SOCIAL_ACCESSIBILITY_AUTO_TRANSLATE_LANGS:-100}"
+
+# ── Stripe ─────────────────────────────────────────────────────────────────────
+upsert STRIPE_SECRET_KEY            "${STRIPE_SECRET_KEY:-}"
+upsert STRIPE_PUBLISHABLE_KEY       "${STRIPE_PUBLISHABLE_KEY:-}"
+upsert STRIPE_WEBHOOK_SECRET        "${STRIPE_WEBHOOK_SECRET:-}"
+upsert STRIPE_PRICE_STARTER_MONTHLY   "${STRIPE_PRICE_STARTER_MONTHLY:-}"
+upsert STRIPE_PRICE_STARTER_YEARLY    "${STRIPE_PRICE_STARTER_YEARLY:-}"
+upsert STRIPE_PRICE_PRO_MONTHLY       "${STRIPE_PRICE_PRO_MONTHLY:-}"
+upsert STRIPE_PRICE_PRO_YEARLY        "${STRIPE_PRICE_PRO_YEARLY:-}"
+upsert STRIPE_PRICE_ENTERPRISE_MONTHLY "${STRIPE_PRICE_ENTERPRISE_MONTHLY:-}"
+upsert STRIPE_PRICE_ENTERPRISE_YEARLY  "${STRIPE_PRICE_ENTERPRISE_YEARLY:-}"
+
+# ── PayPal ─────────────────────────────────────────────────────────────────────
+upsert PAYPAL_CLIENT_ID     "${PAYPAL_CLIENT_ID:-}"
+upsert PAYPAL_CLIENT_SECRET "${PAYPAL_CLIENT_SECRET:-}"
+upsert PAYPAL_ENV           "${PAYPAL_ENV:-sandbox}"
+upsert PAYPAL_WEBHOOK_ID    "${PAYPAL_WEBHOOK_ID:-}"
+
+# ── NOWPayments (global crypto rail — cards/bank/300+ coins → auto-BTC) ──────────
+# #1 owner-armed revenue unlock (activation impact 100). Optional: the platform
+# still runs BTC-direct checkout without it. Set NOWPAYMENTS_API_KEY as a repo
+# secret and the next deploy arms card/300-coin checkout automatically. upsert
+# skips empty values, so absence never overwrites an existing key.
+upsert NOWPAYMENTS_API_KEY    "${NOWPAYMENTS_API_KEY:-}"
+upsert NOWPAYMENTS_IPN_SECRET "${NOWPAYMENTS_IPN_SECRET:-}"
+
+# ── Email ──────────────────────────────────────────────────────────────────────
+upsert SMTP_HOST    "${SMTP_HOST:-smtp.mail.yahoo.com}"
+upsert SMTP_PORT    "${SMTP_PORT:-587}"
+upsert SMTP_USER    "${SMTP_USER:-}"
+upsert SMTP_PASS    "${SMTP_PASS:-}"
+upsert SMTP_FROM    "${SMTP_FROM:-}"
+upsert ADMIN_EMAIL  "${ADMIN_EMAIL:-${SMTP_USER:-vladoi_ionut@yahoo.com}}"
+upsert EMAIL_FROM_NAME "${EMAIL_FROM_NAME:-Zeus AI}"
+# HTTPS email providers (preferred on Hetzner — outbound SMTP ports often blocked).
+# Setting any of these enables real password-reset / transactional emails without SMTP.
+upsert RESEND_API_KEY     "${RESEND_API_KEY:-}"
+upsert RESEND_FROM        "${RESEND_FROM:-}"
+upsert BREVO_API_KEY      "${BREVO_API_KEY:-}"
+upsert MAILERSEND_API_KEY "${MAILERSEND_API_KEY:-}"
+
+# ── Hetzner ─────────────────────────────────────────────────────────────────────
+HETZ_VAL="${HETZNER_API_KEY:-${HETZNER_API_TOKEN:-}}"
+upsert HETZNER_API_KEY   "$HETZ_VAL"
+upsert HETZNER_API_TOKEN "$HETZ_VAL"
+
+# ── Owner / BTC (FORCE — sovereign checkout smoke verifică EXPECTED_BTC) ─────
+BTC="${BTC_WALLET_ADDRESS:-bc1q4f7e66z87mdfj56kz0dj5hvcnpmh0qh4wuv22e}"
+force_upsert BTC_WALLET_ADDRESS  "$BTC"
+force_upsert OWNER_BTC_ADDRESS   "$BTC"
+force_upsert LEGAL_OWNER_BTC     "$BTC"
+upsert OWNER_NAME          "${OWNER_NAME:-Vladoi Ionut}"
+upsert OWNER_EMAIL         "${OWNER_EMAIL:-vladoi_ionut@yahoo.com}"
+upsert LEGAL_OWNER_NAME    "${OWNER_NAME:-Vladoi Ionut}"
+upsert LEGAL_OWNER_EMAIL   "${OWNER_EMAIL:-vladoi_ionut@yahoo.com}"
+
+# ── Autonomy ───────────────────────────────────────────────────────────────────
+upsert AUTONOMY_LEVEL         "10"
+upsert AUTO_COMMIT_ENABLED    "true"
+upsert AUTO_PUSH_ENABLED      "false"
+upsert INNOVATION_INTERVAL    "60"
+upsert REVENUE_INTERVAL       "30"
+upsert DEPLOYMENT_INTERVAL    "300"
+
+# ── App URL aliases ────────────────────────────────────────────────────────────
+_APP_DOMAIN="${SITE_DOMAIN:-zeusai.pro}"
+upsert APP_BASE_URL       "${APP_BASE_URL:-https://${_APP_DOMAIN}}"
+upsert FRONTEND_URL       "${FRONTEND_URL:-https://${_APP_DOMAIN}}"
+upsert DOMAIN             "${DOMAIN:-${_APP_DOMAIN}}"
+
+# ── Hetzner runtime vars ───────────────────────────────────────────────────────
+upsert HETZNER_HOST           "${HETZNER_HOST:-204.168.230.142}"
+upsert HETZNER_IP             "${HETZNER_IP:-${HETZNER_HOST:-204.168.230.142}}"
+upsert HETZNER_USER           "${HETZNER_USER:-root}"
+upsert HETZNER_DEPLOY_USER    "${HETZNER_DEPLOY_USER:-root}"
+upsert HETZNER_DEPLOY_PORT    "${HETZNER_DEPLOY_PORT:-22}"
+upsert HETZNER_DEPLOY_PATH    "${HETZNER_DEPLOY_PATH:-/var/www/unicorn}"
+upsert HETZNER_APP_PORT       "${HETZNER_APP_PORT:-3000}"
+upsert HETZNER_BACKEND_URL    "${HETZNER_BACKEND_URL:-http://127.0.0.1:3000}"
+upsert HETZNER_SSH_KEY_PATH   "${HETZNER_SSH_KEY_PATH:-/root/.ssh/id_rsa}"
+upsert HETZNER_PASSWORD       "${HETZNER_PASSWORD:-}"
+upsert HETZNER_DNS_API_KEY    "${HETZNER_DNS_API_KEY:-}"
+upsert EXEC_SERVERS           "${EXEC_SERVERS:-${HETZNER_HOST:-204.168.230.142}}"
+
+# ── GitHub runtime vars ────────────────────────────────────────────────────────
+upsert GITHUB_REPO_OWNER      "${GITHUB_REPO_OWNER:-ruffy80}"
+upsert GITHUB_REPO_NAME       "${GITHUB_REPO_NAME:-ZeusAI}"
+upsert GITHUB_REPO_FULL       "${GITHUB_REPO_FULL:-ruffy80/ZeusAI}"
+upsert GITHUB_REPOSITORY      "${GITHUB_REPOSITORY:-ruffy80/ZeusAI}"
+upsert GITHUB_DEFAULT_BRANCH  "${GITHUB_DEFAULT_BRANCH:-main}"
+upsert GITHUB_BRANCH          "${GITHUB_BRANCH:-main}"
+upsert BRANCH                 "${BRANCH:-main}"
+upsert INNOV_BASE_BRANCH      "${INNOV_BASE_BRANCH:-main}"
+upsert GIT_REPO_URL           "${GIT_REPO_URL:-https://github.com/ruffy80/ZeusAI.git}"
+upsert GIT_REMOTE_URL         "${GIT_REMOTE_URL:-https://github.com/ruffy80/ZeusAI.git}"
+upsert DEV_API_KEY            "${DEV_API_KEY:-}"
+
+# ── AI model names ─────────────────────────────────────────────────────────────
+upsert OPENAI_MODEL      "${OPENAI_MODEL:-gpt-4o-mini}"
+upsert DEEPSEEK_MODEL    "${DEEPSEEK_MODEL:-deepseek-chat}"
+upsert ANTHROPIC_MODEL   "${ANTHROPIC_MODEL:-claude-3-haiku-20240307}"
+upsert GEMINI_MODEL      "${GEMINI_MODEL:-gemini-1.5-flash}"
+upsert MISTRAL_MODEL     "${MISTRAL_MODEL:-mistral-small-latest}"
+upsert COHERE_MODEL      "${COHERE_MODEL:-command-r}"
+upsert GROK_MODEL        "${GROK_MODEL:-grok-beta}"
+upsert GROQ_MODEL        "${GROQ_MODEL:-llama-3.3-70b-versatile}"
+upsert OPENROUTER_MODEL  "${OPENROUTER_MODEL:-mistralai/mistral-7b-instruct:free}"
+upsert PERPLEXITY_MODEL  "${PERPLEXITY_MODEL:-llama-3.1-sonar-small-128k-online}"
+upsert TOGETHER_MODEL    "${TOGETHER_MODEL:-meta-llama/Meta-Llama-3.1-8B-Instruct-Turbo}"
+upsert FIREWORKS_MODEL   "${FIREWORKS_MODEL:-accounts/fireworks/models/llama-v3p1-8b-instruct}"
+upsert SAMBANOVA_MODEL   "${SAMBANOVA_MODEL:-Meta-Llama-3.1-8B-Instruct}"
+upsert NVIDIA_NIM_MODEL  "${NVIDIA_NIM_MODEL:-meta/llama-3.1-8b-instruct}"
+upsert HF_MODEL          "${HF_MODEL:-mistralai/Mistral-7B-Instruct-v0.3}"
+upsert OLLAMA_MODEL      "${OLLAMA_MODEL:-llama3.2:3b-instruct-q4_K_M}"
+upsert OLLAMA_URL        "${OLLAMA_URL:-http://localhost:11434}"
+
+# ── Crypto wallets ─────────────────────────────────────────────────────────────
+upsert ETH_WALLET_ADDRESS  "${ETH_WALLET_ADDRESS:-}"
+upsert USDC_WALLET_ADDRESS "${USDC_WALLET_ADDRESS:-}"
+
+# ── Vault secrets ──────────────────────────────────────────────────────────────
+upsert VAULT_MASTER_SECRET  "${VAULT_MASTER_SECRET:-}"
+upsert VAULT_EMERGENCY_CODE "${VAULT_EMERGENCY_CODE:-}"
+upsert MASTER_CONFIG_SECRET "${MASTER_CONFIG_SECRET:-}"
+
+# ── Social / marketing APIs ────────────────────────────────────────────────────
+upsert TELEGRAM_BOT_TOKEN         "${TELEGRAM_BOT_TOKEN:-}"
+upsert TELEGRAM_CHAT_ID           "${TELEGRAM_CHAT_ID:-}"
+upsert X_BEARER_TOKEN             "${X_BEARER_TOKEN:-}"
+upsert X_ACCESS_TOKEN             "${X_ACCESS_TOKEN:-}"
+upsert X_ACCESS_SECRET            "${X_ACCESS_SECRET:-}"
+upsert YOUTUBE_API_KEY            "${YOUTUBE_API_KEY:-}"
+upsert YOUTUBE_OAUTH_CLIENT_ID    "${YOUTUBE_OAUTH_CLIENT_ID:-}"
+upsert PINTEREST_TOKEN            "${PINTEREST_TOKEN:-}"
+upsert PINTEREST_BOARD_ID         "${PINTEREST_BOARD_ID:-}"
+upsert PRODUCTHUNT_API_KEY        "${PRODUCTHUNT_API_KEY:-}"
+upsert PRODUCTHUNT_API_SECRET     "${PRODUCTHUNT_API_SECRET:-}"
+upsert PRODUCTHUNT_DEVELOPER_TOKEN "${PRODUCTHUNT_DEVELOPER_TOKEN:-}"
+upsert META_API_KEY               "${META_API_KEY:-}"
+upsert GOOGLE_API_KEY             "${GOOGLE_API_KEY:-}"
+upsert MICROSOFT_API_KEY          "${MICROSOFT_API_KEY:-}"
+upsert AMAZON_API_KEY             "${AMAZON_API_KEY:-}"
+upsert APPLE_API_KEY              "${APPLE_API_KEY:-}"
+upsert SAV_API_TOKEN              "${SAV_API_TOKEN:-}"
+
+# ── Crypto exchanges ───────────────────────────────────────────────────────────
+upsert BINANCE_API_KEY  "${BINANCE_API_KEY:-}"
+upsert BINANCE_SECRET   "${BINANCE_SECRET:-}"
+upsert COINBASE_API_KEY "${COINBASE_API_KEY:-}"
+upsert COINBASE_SECRET  "${COINBASE_SECRET:-}"
+upsert KRAKEN_API_KEY   "${KRAKEN_API_KEY:-}"
+upsert KRAKEN_SECRET    "${KRAKEN_SECRET:-}"
+upsert BYBIT_API_KEY    "${BYBIT_API_KEY:-}"
+upsert BYBIT_SECRET     "${BYBIT_SECRET:-}"
+upsert OKX_API_KEY      "${OKX_API_KEY:-}"
+upsert OKX_SECRET       "${OKX_SECRET:-}"
+upsert OKX_PASSWORD     "${OKX_PASSWORD:-}"
+
+# ── System tuning defaults (modules read these at startup) ────────────────────
+upsert HEALER_COOLDOWN_MS   "${HEALER_COOLDOWN_MS:-60000}"
+upsert HEALER_MAX_HEAP_MB   "${HEALER_MAX_HEAP_MB:-512}"
+upsert HEALER_WATCHDOG_MS   "${HEALER_WATCHDOG_MS:-30000}"
+upsert HEAL_INTERVAL_MS     "${HEAL_INTERVAL_MS:-60000}"
+upsert QIS_SCAN_INTERVAL_MS "${QIS_SCAN_INTERVAL_MS:-300000}"
+upsert QIS_AUTO_HEAL_ENABLED "${QIS_AUTO_HEAL_ENABLED:-true}"
+upsert QIS_REQUIRED_PROCESSES "${QIS_REQUIRED_PROCESSES:-unicorn-backend,unicorn-site}"
+upsert CANARY_EVAL_MS        "${CANARY_EVAL_MS:-60000}"
+upsert CANARY_MIN_SAMPLES    "${CANARY_MIN_SAMPLES:-50}"
+upsert CANARY_RAMP_STEP_MS   "${CANARY_RAMP_STEP_MS:-300000}"
+upsert CANARY_UPLIFT_THRESHOLD "${CANARY_UPLIFT_THRESHOLD:-0.05}"
+upsert SLO_WINDOW_SEC        "${SLO_WINDOW_SEC:-3600}"
+upsert SLO_ERROR_BUDGET      "${SLO_ERROR_BUDGET:-0.001}"
+upsert SHADOW_MIN_SAMPLES    "${SHADOW_MIN_SAMPLES:-20}"
+upsert SHADOW_UPLIFT_THRESH  "${SHADOW_UPLIFT_THRESH:-0.05}"
+upsert INNOVATION_CYCLE_MS   "${INNOVATION_CYCLE_MS:-3600000}"
+upsert INNOV_CYCLE_MS        "${INNOV_CYCLE_MS:-3600000}"
+upsert INNOV_MAX_PENDING     "${INNOV_MAX_PENDING:-5}"
+upsert INNOV_PR_POLL_MS      "${INNOV_PR_POLL_MS:-60000}"
+upsert REVENUE_CYCLE_MS      "${REVENUE_CYCLE_MS:-1800000}"
+upsert VIRAL_CYCLE_MS        "${VIRAL_CYCLE_MS:-3600000}"
+upsert VIRAL_CONTENT_PER_CYCLE "${VIRAL_CONTENT_PER_CYCLE:-3}"
+upsert VIRAL_REFERRALS_PER_CYCLE "${VIRAL_REFERRALS_PER_CYCLE:-5}"
+upsert PROFIT_LOOP_INTERVAL_MS "${PROFIT_LOOP_INTERVAL_MS:-300000}"
+
+# ── DeepSeek Advisory/Execute Loop (default-OFF; opt-in via CI secrets) ───────
+# When the operator sets these as GH Actions repository secrets, every deploy
+# propagates them to /var/www/unicorn/UNICORN_FINAL/.env so the systemd unit
+# `deepseek-loop.service` (installed in the post-deploy step) picks them up via
+# its EnvironmentFile= directive.
+#
+# Auto-activation (2026-05-17, PR DeepSeek full-power activation):
+# If the operator has set DEEPSEEK_API_KEY (or a fallback advisor key) as a
+# GitHub Actions secret but has NOT explicitly set DEEPSEEK_LOOP_ENABLED,
+# default DEEPSEEK_LOOP_ENABLED=1 so the Hetzner systemd loop activates
+# automatically — the operator no longer needs to remember the second flag.
+# Likewise, when a DEEPSEEK_LOOP_ADMIN_TOKEN is provided (or auto-generated
+# below) we default DEEPSEEK_LOOP_EXECUTE=1. If no token is provided but the
+# loop is enabled, a random 40-char token is auto-generated so the loop and
+# backend can authenticate with each other via the shared .env file.
+# Per PR #547 the server-side governor still
+# re-validates every action against its hardcoded allowlist regardless.
+# Opt-out: set DEEPSEEK_LOOP_ENABLED=0 (or empty after this run) explicitly.
+# (RO) Dacă există DEEPSEEK_API_KEY și nu ai setat explicit DEEPSEEK_LOOP_ENABLED,
+# bucla DeepSeek se activează automat pe Hetzner. Pentru a o opri, setează
+# DEEPSEEK_LOOP_ENABLED=0 în secrete sau direct în .env.
+_ds_loop_enabled_default="${DEEPSEEK_LOOP_ENABLED:-}"
+if [ -z "$_ds_loop_enabled_default" ] && { [ -n "${DEEPSEEK_API_KEY:-}" ] || [ -n "${OPENROUTER_API_KEY:-}" ] || [ -n "${GROQ_API_KEY:-}" ]; }; then
+  _ds_loop_enabled_default=1
+  echo "ℹ️  DEEPSEEK_LOOP_ENABLED auto-defaulted to 1 (advisor key present, operator did not set it explicitly)"
+fi
+# Auto-generate DEEPSEEK_LOOP_ADMIN_TOKEN when loop is enabled but no token
+# was provided. Both the loop script and the backend read from the same .env,
+# so a locally-generated token works for authentication between them.
+# (RO) Generează automat un token admin dacă loop-ul e activat dar nu s-a
+# furnizat un token — atât loop-ul cât și backend-ul citesc din același .env.
+_ds_admin_token="${DEEPSEEK_LOOP_ADMIN_TOKEN:-}"
+if [ -z "$_ds_admin_token" ] && [ "$_ds_loop_enabled_default" = "1" ]; then
+  _ds_admin_token=$(head -c 32 /dev/urandom | base64 | tr -d '/+=' | head -c 40)
+  echo "ℹ️  DEEPSEEK_LOOP_ADMIN_TOKEN auto-generated (40-char random token, loop enabled but no token provided)"
+fi
+_ds_loop_execute_default="${DEEPSEEK_LOOP_EXECUTE:-}"
+if [ -z "$_ds_loop_execute_default" ] && [ -n "$_ds_admin_token" ] && [ "$_ds_loop_enabled_default" = "1" ]; then
+  _ds_loop_execute_default=1
+  echo "ℹ️  DEEPSEEK_LOOP_EXECUTE auto-defaulted to 1 (admin token present + loop enabled)"
+fi
+# Auto-apply: when the loop is enabled and execute mode is active, default
+# DEEPSEEK_AUTO_APPLY=1 so code_proposal writes directly to target files.
+# The owner wants full autonomous operation without human review gates.
+# (RO) Când bucla e activă și modul execute e pornit, activăm auto-apply
+# pentru ca DeepSeek să poată modifica codul direct, fără review uman.
+_ds_auto_apply_default="${DEEPSEEK_AUTO_APPLY:-}"
+if [ -z "$_ds_auto_apply_default" ] && [ "$_ds_loop_execute_default" = "1" ] && [ "$_ds_loop_enabled_default" = "1" ]; then
+  _ds_auto_apply_default=1
+  echo "ℹ️  DEEPSEEK_AUTO_APPLY auto-defaulted to 1 (loop enabled + execute mode active → full autonomous power)"
+fi
+upsert DEEPSEEK_LOOP_ENABLED       "$_ds_loop_enabled_default"
+upsert DEEPSEEK_LOOP_EXECUTE       "$_ds_loop_execute_default"
+upsert DEEPSEEK_LOOP_ADMIN_TOKEN   "$_ds_admin_token"
+upsert DEEPSEEK_LOOP_INTERVAL_MS   "${DEEPSEEK_LOOP_INTERVAL_MS:-}"
+upsert DEEPSEEK_LOOP_BACKEND_URL   "${DEEPSEEK_LOOP_BACKEND_URL:-}"
+upsert DEEPSEEK_AUTO_APPLY         "$_ds_auto_apply_default"
+upsert ORCHESTRATOR_POLL_MS  "${ORCHESTRATOR_POLL_MS:-60000}"
+upsert ORCHESTRATOR_GH_MS    "${ORCHESTRATOR_GH_MS:-120000}"
+upsert ORCHESTRATOR_DNS_MS   "${ORCHESTRATOR_DNS_MS:-300000}"
+upsert MARKETPLACE_LISTINGS_MIN "${MARKETPLACE_LISTINGS_MIN:-3}"
+upsert MARKETPLACE_LISTINGS_MAX "${MARKETPLACE_LISTINGS_MAX:-20}"
+upsert AFFILIATE_DEALS_MIN   "${AFFILIATE_DEALS_MIN:-2}"
+upsert AFFILIATE_DEALS_MAX   "${AFFILIATE_DEALS_MAX:-10}"
+upsert LTV_DECAY             "${LTV_DECAY:-0.9}"
+upsert REWARD_WINDOW_MS      "${REWARD_WINDOW_MS:-604800000}"
+upsert PAYPAL_ENV            "${PAYPAL_ENV:-sandbox}"
+
+# Build identity — set by CI; drives browser asset cache-busting (app.js?v=<sha>)
+upsert ZEUS_BUILD_SHA        "${ZEUS_BUILD_SHA:-}"
+upsert SW_VERSION            "${ZEUS_BUILD_SHA:-${SW_VERSION:-}}"
+
+echo "✅ .env configurat la $ENV_FILE"
+echo "   Linii active: $(grep -c '.' "$ENV_FILE" 2>/dev/null || echo '?')"
