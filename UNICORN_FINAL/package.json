@@ -28,6 +28,7 @@
     "cors": "^2.8.5",
     "data-uri-to-buffer": "4.0.1",
     "dotenv": "^17.4.2",
+    "dockerode": "^4.0.9",
     "express": "^5.2.1",
     "express-rate-limit": "^8.5.1",
     "fetch-blob": "3.2.0",

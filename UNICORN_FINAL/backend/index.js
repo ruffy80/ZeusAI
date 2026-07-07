@@ -3021,6 +3021,7 @@ const autoMarketing           = require('./modules/auto-marketing');
 const profitAutopilot         = require('./modules/profit-autopilot');
 const zkRevenueProof          = require('./modules/zk-revenue-proof');
 const pnlTimeMachine          = require('./modules/pnl-time-machine');
+const socialOrchestrator      = require('./modules/social-orchestrator/orchestrator');
 const performanceMonitor      = require('./modules/performance-monitor');
 const unicornRealizationEngine = require('./modules/unicorn-realization-engine');
 const autoTrendAnalyzer       = require('./modules/auto-trend-analyzer');
@@ -9691,6 +9692,9 @@ try {
   try {
     pnlTimeMachine.configure({ profitAutopilot, subscriptionEngine: null, zacc, tenantBilling, dynamicPricing, marketplace });
   } catch (_) {}
+  try {
+    socialOrchestrator.configure({ socialViralizer, profitAutopilot, pnlTimeMachine, zkRevenueProof, zacc, subscriptionEngine: null });
+  } catch (_) {}
 } catch (e) { console.warn('[zacc] not loaded:', e.message); }
 
 // Public read: full status snapshot (all 9 components).
@@ -11023,6 +11027,7 @@ registerModuleRoutes('auto-marketing',             autoMarketing);
 registerModuleRoutes('profit-autopilot',           profitAutopilot);
 registerModuleRoutes('zk-revenue-proof',           zkRevenueProof);
 registerModuleRoutes('pnl-time-machine',           pnlTimeMachine);
+registerModuleRoutes('social-orchestrator',        socialOrchestrator);
 registerModuleRoutes('performance-monitor',        performanceMonitor);
 registerModuleRoutes('unicorn-realization-engine', unicornRealizationEngine);
 registerModuleRoutes('auto-trend-analyzer',        autoTrendAnalyzer);
@@ -11050,6 +11055,18 @@ registerModuleRoutes('competitor-spy-agent',           competitorSpyAgent);
 registerModuleRoutes('ai-cfo-agent',                   aiCfoAgent);
 registerModuleRoutes('sentiment-analysis-engine',      sentimentAnalysisEngine);
 registerModuleRoutes('ai-product-generator',           aiProductGenerator);
+
+// ==================== SOCIAL NETWORK ADMIN DASHBOARD ====================
+app.get('/admin/social-network', adminTokenMiddleware, (req, res) => {
+  try {
+    const html = socialOrchestrator.renderDashboardHtml();
+    res.setHeader('Content-Type', 'text/html; charset=utf-8');
+    res.setHeader('Cache-Control', 'no-store');
+    return res.send(html);
+  } catch (e) {
+    return res.status(500).send('<h1>social-network dashboard unavailable</h1><pre>' + String(e && e.message ? e.message : e) + '</pre>');
+  }
+});
 
 
 // ==================== SPECIAL MODULES — ROUTES ====================
@@ -13259,7 +13276,17 @@ try {
   try {
     pnlTimeMachine.configure({ profitAutopilot, subscriptionEngine: _subEngine, zacc, tenantBilling, dynamicPricing, marketplace });
   } catch (_) {}
+  try {
+    socialOrchestrator.configure({ socialViralizer, profitAutopilot, pnlTimeMachine, zkRevenueProof, zacc, subscriptionEngine: _subEngine });
+  } catch (_) {}
 } catch (e) { console.warn('[pro-plus][subscription-engine] load failed:', e && e.message); }
+
+try {
+  socialOrchestrator.start();
+  console.log('[social-orchestrator] ACTIVE (Zeus Core Social)');
+} catch (e) {
+  console.warn('[social-orchestrator] start failed:', e && e.message ? e.message : e);
+}
 
 // ── Lead Hunter API (/api/leads/*) ────────────────────────────────────────────
 // All write/admin routes require adminTokenMiddleware.

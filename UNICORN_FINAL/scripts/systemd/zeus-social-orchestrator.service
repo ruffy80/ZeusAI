@@ -1,0 +1,20 @@
+[Unit]
+Description=Zeus Core Social Orchestrator
+After=network.target
+Wants=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=/var/www/unicorn/current/UNICORN_FINAL
+Environment=NODE_ENV=production
+Environment=SOCIAL_ORCH_DRY_RUN_HOURS=48
+ExecStart=/usr/bin/node backend/modules/social-orchestrator/service.js
+Restart=always
+RestartSec=5
+User=www-data
+Group=www-data
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
