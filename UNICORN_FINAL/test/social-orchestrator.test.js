@@ -32,9 +32,21 @@ Promise.resolve(orchestrator.process({ action: 'run-health' })).then((h) => {
   return orchestrator.process({ action: 'run-viral' });
 }).then((v) => {
   assert.equal(v.ok, true);
+  return orchestrator.process({ action: 'check-global-presence' });
+}).then((g) => {
+  assert.equal(g.ok, true);
+  return orchestrator.process({ action: 'validate-feature-parity' });
+}).then((p) => {
+  assert.equal(typeof p.ok, 'boolean');
+  return orchestrator.process({ action: 'discover-federation-peers' });
+}).then((f) => {
+  assert.equal(f.ok, true);
   const s = orchestrator.getStatus();
   assert.equal(s.ok, true);
   assert.ok(Array.isArray(s.modules) && s.modules.length >= 10);
+  assert.ok(s.globalPresence && s.globalPresence.ok);
+  assert.ok(s.featureParity && s.featureParity.ok);
+  assert.ok(s.federation && s.federation.ok);
   console.log('✅ social-orchestrator.test.js: passed');
 }).catch((err) => {
   console.error(err);

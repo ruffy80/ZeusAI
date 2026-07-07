@@ -3,8 +3,58 @@
 class ViralEngine {
   constructor(opts = {}) {
     this.maxPostsPerRun = Number(process.env.SOCIAL_VIRAL_MAX_POSTS || 3);
+    this.creatorFirstWeight = Number(process.env.SOCIAL_VIRAL_CREATOR_FIRST_WEIGHT || 0.65);
+    this.manipulationThreshold = Number(process.env.SOCIAL_VIRAL_MANIPULATION_THRESHOLD || 0.75);
     this.lastRun = null;
     this.totalRuns = 0;
+  }
+
+  _safeNumber(v, fallback = 0) {
+    const n = Number(v);
+    return Number.isFinite(n) ? n : fallback;
+  }
+
+  _creatorFirstScore(item = {}) {
+    const quality = this._safeNumber(item.qualityScore, this._safeNumber(item.score, 0));
+    const creatorTrust = this._safeNumber(item.creatorTrust, 50);
+    const retention = this._safeNumber(item.retentionPct, 30);
+    const engagement = this._safeNumber(item.engagementRate, 10);
+    return Math.round((quality * this.creatorFirstWeight + creatorTrust * 0.2 + retention * 0.1 + engagement * 0.05) * 100) / 100;
+  }
+
+  _manipulationRisk(item = {}) {
+    const botSignal = this._safeNumber(item.botSignal, 0);
+    const velocitySpike = this._safeNumber(item.velocitySpike, 0);
+    const suspiciousRatio = this._safeNumber(item.suspiciousRatio, 0);
+    const risk = Math.max(0, Math.min(1, botSignal * 0.5 + velocitySpike * 0.3 + suspiciousRatio * 0.2));
+    return Math.round(risk * 1000) / 1000;
+  }
+
+  _trendingSignal(item = {}) {
+    const interactions = this._safeNumber(item.interactions, this._safeNumber(item.likes, 0));
+    const comments = this._safeNumber(item.comments, 0);
+    const saves = this._safeNumber(item.saves, 0);
+    const shares = this._safeNumber(item.shares, 0);
+    const freshnessHours = Math.max(1, this._safeNumber(item.freshnessHours, 6));
+    const signal = (interactions + comments * 1.4 + saves * 1.8 + shares * 2.2) / freshnessHours;
+    return Math.round(signal * 100) / 100;
+  }
+
+  rankItems(items = []) {
+    const ranked = [];
+    for (const raw of Array.isArray(items) ? items : []) {
+      const item = Object.assign({}, raw);
+      item.creatorFirstScore = this._creatorFirstScore(item);
+      item.manipulationRisk = this._manipulationRisk(item);
+      item.trendingSignal = this._trendingSignal(item);
+      item.safeForBoost = item.manipulationRisk < this.manipulationThreshold;
+      item.finalRankScore = Math.round((item.creatorFirstScore * 0.6 + item.trendingSignal * 0.4) * 100) / 100;
+      ranked.push(item);
+    }
+
+    return ranked
+      .filter((x) => x.safeForBoost)
+      .sort((a, b) => (b.finalRankScore || 0) - (a.finalRankScore || 0));
   }
 
   buildFallbackCopy(item) {
@@ -29,7 +79,8 @@ class ViralEngine {
     const items = typeof ctx.getTopPosts === 'function'
       ? await Promise.resolve(ctx.getTopPosts())
       : [];
-    const top = (Array.isArray(items) ? items : []).slice(0, this.maxPostsPerRun);
+    const ranked = this.rankItems(items);
+    const top = ranked.slice(0, this.maxPostsPerRun);
     const posts = [];
     for (const item of top) {
       posts.push({ item, text: await this.generateCopy(item, ctx) });
@@ -46,7 +97,9 @@ class ViralEngine {
       ok: true,
       dryRun: !!ctx.dryRun,
       ts: new Date().toISOString(),
+      analyzed: Array.isArray(items) ? items.length : 0,
       selected: top.length,
+      blockedForManipulation: (Array.isArray(items) ? items.length : 0) - ranked.length,
       drafts: posts,
       published,
     };
@@ -63,6 +116,8 @@ class ViralEngine {
       lastRunAt: this.lastRun ? this.lastRun.ts : null,
       lastRun: this.lastRun,
       maxPostsPerRun: this.maxPostsPerRun,
+      creatorFirstWeight: this.creatorFirstWeight,
+      manipulationThreshold: this.manipulationThreshold,
     };
   }
 }

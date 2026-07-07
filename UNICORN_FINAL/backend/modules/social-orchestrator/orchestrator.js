@@ -8,6 +8,7 @@ const ViralEngine = require('./viral-engine');
 const GlobalPresence = require('./global-presence');
 const FeatureParityValidator = require('./feature-parity');
 const NovelInnovationGenerator = require('./novel-innovations');
+const FederationHandler = require('./federation-handler');
 const { renderAdminSocialNetwork } = require('./dashboard');
 
 const NAME = 'zeus-core-social';
@@ -47,6 +48,7 @@ const viralEngine = new ViralEngine();
 const globalPresence = new GlobalPresence();
 const featureParity = new FeatureParityValidator();
 const novelInnovations = new NovelInnovationGenerator();
+const federationHandler = new FederationHandler();
 
 const schedulers = [];
 
@@ -244,6 +246,26 @@ async function _runViral() {
   return out;
 }
 
+async function _discoverFederationPeers() {
+  const out = await federationHandler.discoverPeers();
+  _log('federation-discovery', out);
+  return out;
+}
+
+async function _runFederationBroadcast() {
+  const top = _getTopPosts();
+  const post = top[0] || { id: 'autonomous-social-update', title: 'Zeus Core Social update', score: 0 };
+  const payload = {
+    id: String(post.id || 'autonomous-social-update'),
+    content: `Zeus Core Social: ${String(post.title || 'Network update')} • score ${Number(post.score || 0)}`,
+    creator: { id: 'https://zeusai.pro/users/zeus-core', username: 'zeus-core', displayName: 'Zeus Core' },
+    hashtags: ['ZeusAI', 'SocialNetwork', 'Autonomous'],
+  };
+  const out = await federationHandler.federatePost(payload);
+  _log('federation-broadcast', out);
+  return out;
+}
+
 async function _runNovelInnovations() {
   _maybeAutoSwitchRealMode();
   const out = await novelInnovations.runOnce({
@@ -293,15 +315,18 @@ function start() {
   const job5 = cron.schedule('0 6 * * 0', () => { _runNovelInnovations().catch(() => {}); }, { timezone: 'UTC' }); // Weekly
   const job6 = cron.schedule('*/10 * * * *', () => { _checkGlobalPresence().catch(() => {}); }, { timezone: 'UTC' }); // Every 10min
   const job7 = cron.schedule('0 2 * * *', () => { _validateFeatureParity().catch(() => {}); }, { timezone: 'UTC' }); // Daily
+  const job8 = cron.schedule('*/15 * * * *', () => { _discoverFederationPeers().catch(() => {}); }, { timezone: 'UTC' }); // Every 15min
+  const job9 = cron.schedule('30 3 * * *', () => { _runFederationBroadcast().catch(() => {}); }, { timezone: 'UTC' }); // Daily
 
-  schedulers.push(job1, job2, job3, job4, job5, job6, job7);
-  _decision('orchestrator-start', `mode=${state.mode}, 10 autonomous loops active`);
+  schedulers.push(job1, job2, job3, job4, job5, job6, job7, job8, job9);
+  _decision('orchestrator-start', `mode=${state.mode}, 9 autonomous loops active`);
 
   // Warm first pass immediately.
   _runHealth().catch(() => {});
   _runDecision().catch(() => {});
   _checkGlobalPresence().catch(() => {});
   _validateFeatureParity().catch(() => {});
+  _discoverFederationPeers().catch(() => {});
 
   return { ok: true, mode: state.mode, dryRunUntil: new Date(state.dryRunUntilTs).toISOString() };
 }
@@ -336,6 +361,7 @@ function _status() {
     novelInnovations: novelInnovations.getStatus(),
     globalPresence: globalPresence.getStatus(),
     featureParity: featureParity.getStatus(),
+    federation: federationHandler.getStatus(),
     metrics,
     lastDecisions: state.decisions.slice(0, 20),
     logsTail: state.logs.slice(-25),
@@ -361,6 +387,9 @@ function _adminPayload() {
     userGrowthPct24h: s.metrics.userGrowthPct24h,
     profitUsdDay: s.metrics.profitUsdDay,
     profitBtcDay: s.metrics.profitBtcDay,
+    globalPresence: s.globalPresence,
+    featureParity: s.featureParity,
+    federation: s.federation,
   };
 }
 
@@ -375,6 +404,8 @@ async function runAction(input = {}) {
   if (action === 'run-novel-innovations') return _runNovelInnovations();
   if (action === 'check-global-presence') return _checkGlobalPresence();
   if (action === 'validate-feature-parity') return _validateFeatureParity();
+  if (action === 'discover-federation-peers') return _discoverFederationPeers();
+  if (action === 'run-federation-broadcast') return _runFederationBroadcast();
   if (action === 'dashboard') return { ok: true, dashboard: _adminPayload() };
   if (action === 'enable-live') {
     state.dryRun = false;
