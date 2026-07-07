@@ -9553,7 +9553,13 @@ app.get('/api/memory/status', (req, res) => {
 
 // ==================== AUTO VIRAL GROWTH ROUTES ====================
 app.get('/api/autonomous/viral/status', (req, res) => {
-  res.json(autoViralGrowth.getViralStatus());
+  const raw = autoViralGrowth.getViralStatus() || {};
+  const metrics = Object.assign({}, raw.metrics || {});
+  if (!('viralScore' in metrics)) metrics.viralScore = Number(raw.viralScore || 0);
+  if (!('estimatedReach' in metrics)) {
+    metrics.estimatedReach = Number(raw.estimatedReach || raw.realCustomers || metrics.realCustomers || 0);
+  }
+  res.json(Object.assign({}, raw, { metrics }));
 });
 
 app.post('/api/autonomous/viral/trigger', adminTokenMiddleware, (req, res) => {
@@ -12046,10 +12052,17 @@ app.post('/webhooks/stripe', async (req, res) => {
     if (secret && sig) {
       const parts = String(sig).split(',');
       const ts = parts.find(p => p.startsWith('t='))?.split('=')[1];
-      const v1 = parts.find(p => p.startsWith('v1='))?.split('=')[1];
-      if (!ts || !v1) return res.status(400).json({ ok: false, error: 'invalid_signature_format' });
+      const v1cands = parts.filter(p => p.startsWith('v1=')).map(p => p.split('=')[1]).filter(Boolean);
+      if (!ts || !v1cands.length) return res.status(400).json({ ok: false, error: 'invalid_signature_format' });
       const signed = crypto.createHmac('sha256', secret).update(ts + '.' + payload).digest('hex');
-      if (signed !== v1) return res.status(400).json({ ok: false, error: 'signature_mismatch' });
+      const signedBuf = Buffer.from(signed, 'hex');
+      const valid = v1cands.some((cand) => {
+        try {
+          const candBuf = Buffer.from(String(cand), 'hex');
+          return candBuf.length === signedBuf.length && crypto.timingSafeEqual(signedBuf, candBuf);
+        } catch (_) { return false; }
+      });
+      if (!valid) return res.status(400).json({ ok: false, error: 'signature_mismatch' });
       event = JSON.parse(payload.toString());
     } else if (process.env.NODE_ENV !== 'production') {
       console.warn('⚠️  [/webhooks/stripe] STRIPE_WEBHOOK_SECRET not set — dev unverified path');
