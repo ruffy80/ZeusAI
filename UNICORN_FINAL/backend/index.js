@@ -3549,11 +3549,6 @@ if (_isPrimaryWorker) {
         revenueFlywheel.start();
       }
     } catch (e) { console.warn('[revenue-flywheel] start failed:', e && e.message); }
-    // Autonomous Growth Brain — the Observe→Think→Plan→Execute→Reflect loop
-    // that ties every real growth organ together. Bounded, unref()'d, never
-    // mutates money rails or PM2. Only runs outside the ultra-stable profile.
-    try { if (_growthBrain && typeof _growthBrain.start === 'function') _growthBrain.start(); }
-    catch (e) { console.warn('[growth-brain] start failed:', e && e.message); }
   }
 
   // Pornire module cu cicluri autonome
@@ -4548,6 +4543,12 @@ try {
     referral: () => { try { return (typeof unicornInnovationSuite !== 'undefined' && unicornInnovationSuite && unicornInnovationSuite.getAffiliateStats) ? unicornInnovationSuite.getAffiliateStats() : {}; } catch (_) { return {}; } },
   });
   _growthBrain.registerRoutes(app);
+  if (process.env.NODE_ENV !== 'test' && process.env.GROWTH_STACK_DISABLED !== '1' && typeof _growthBrain.start === 'function') {
+    try {
+      _growthBrain.start();
+      console.log('[growth-brain] autonomous loop started');
+    } catch (e) { console.warn('[growth-brain] start failed:', e && e.message); }
+  }
   console.log('[growth-brain] mounted: /api/growth/brain (+ /full, /run) — autonomous growth loop');
 } catch (e) { console.warn('[growth-brain] failed to mount:', e && e.message); }
 
