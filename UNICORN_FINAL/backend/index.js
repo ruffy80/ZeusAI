@@ -302,6 +302,11 @@ const routeCache = require('./modules/route-cache');
 const app = express();
 const PORT = process.env.PORT || 3000;
 
+// ==================== ASYNC ERROR HANDLER WRAPPER ====================
+// Wraps async route handlers and catches any promise rejections.
+// Essential for routes using async/await to prevent unhandled rejections.
+const asyncHandler = (fn) => (req, res, next) => Promise.resolve(fn(req, res, next)).catch(next);
+
 // ==================== FAZA 2 / VAL 4: SUPREME MODULE REGISTRY ====================
 // Centralizează cele 6 module supreme (Brain, SelfHealer, Innovator, Treasury,
 // Growth, Guardian). safeGet() oferă timeout + cache + fallback ca rutele
@@ -1182,9 +1187,6 @@ app.use(cors({
 }));
 
 app.use(express.json());
-
-// Wrap async route handlers and forward errors to Express middleware
-const asyncHandler = (fn) => (req, res, next) => Promise.resolve(fn(req, res, next)).catch(next);
 
 // ==================== GLOBAL BODY SANITIZATION (AutoInnovation Security #13) ====================
 // Recursively trim, strip control characters, and truncate all string values in req.body
