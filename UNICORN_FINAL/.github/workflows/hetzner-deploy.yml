@@ -10,12 +10,13 @@ on:
 
 concurrency:
   group: unicorn-final-production
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 jobs:
   validate:
     name: Validate UNICORN_FINAL
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     defaults:
       run:
         working-directory: UNICORN_FINAL
@@ -29,7 +30,7 @@ jobs:
           node-version-file: 'UNICORN_FINAL/.nvmrc'
 
       - name: Install dependencies
-        run: npm install
+        run: npm ci --no-audit --no-fund --loglevel=error
 
       - name: Lint
         run: CI=1 npm run lint
@@ -46,11 +47,26 @@ jobs:
   deploy-hetzner:
     name: Deploy to Hetzner
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     needs: validate
     # if eliminat temporar pentru validare YAML completă
     steps:
       - name: Checkout
         uses: actions/checkout@v5
+
+      - name: Required deploy secrets gate
+        env:
+          HETZNER_HOST: ${{ secrets.HETZNER_HOST }}
+          HETZNER_SSH_PRIVATE_KEY: ${{ secrets.HETZNER_SSH_PRIVATE_KEY }}
+        run: |
+          set -euo pipefail
+          for k in HETZNER_HOST HETZNER_SSH_PRIVATE_KEY; do
+            if [ -z "${!k:-}" ]; then
+              echo "::error::Missing required secret: $k"
+              exit 1
+            fi
+          done
+          echo "✅ required deploy secrets present"
 
       - name: Resolve Hetzner API credential
         run: |

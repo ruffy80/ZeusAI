@@ -4,10 +4,16 @@ on:
   workflow_dispatch:
   push:
     branches: [ "main" ]
+    paths:
+      - 'UNICORN_FINAL/**'
+      - '.github/workflows/deploy.yml'
+      - '.github/workflows/no-downgrade-guard.yml'
+      - '.github/baselines/**'
+      - 'VERSION_LOCK'
 
 concurrency:
   group: unicorn-stable-deploy-main
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 jobs:
   deploy:
@@ -25,6 +31,47 @@ jobs:
         uses: actions/checkout@v5
         with:
           fetch-depth: 0
+
+      - name: 🔐 Required deploy secrets gate
+        env:
+          HETZNER_HOST: ${{ secrets.HETZNER_HOST }}
+          HETZNER_SSH_PRIVATE_KEY: ${{ secrets.HETZNER_SSH_PRIVATE_KEY }}
+        run: |
+          set -euo pipefail
+          miss=0
+          for k in HETZNER_HOST HETZNER_SSH_PRIVATE_KEY; do
+            v="${!k:-}"
+            if [ -z "$v" ]; then
+              echo "::error::Missing required secret: $k"
+              miss=1
+            fi
+          done
+          if [ "$miss" -ne 0 ]; then
+            echo "::error::Autodeploy blocked: required Hetzner secrets are not fully configured."
+            exit 1
+          fi
+          echo "✅ required deploy secrets present"
+
+      - name: 🌐 SSH reachability preflight (retry)
+        env:
+          HETZNER_HOST: ${{ secrets.HETZNER_HOST }}
+          HETZNER_DEPLOY_PORT: ${{ secrets.HETZNER_DEPLOY_PORT || '22' }}
+        run: |
+          set -euo pipefail
+          ok=0
+          for i in 1 2 3 4 5; do
+            if timeout 15s bash -c "</dev/tcp/${HETZNER_HOST}/${HETZNER_DEPLOY_PORT}" 2>/dev/null; then
+              echo "✅ ssh port reachable on attempt $i"
+              ok=1
+              break
+            fi
+            echo "⚠️ ssh port not reachable (attempt $i/5), retrying..."
+            sleep $((i*2))
+          done
+          if [ "$ok" -ne 1 ]; then
+            echo "::error::Hetzner SSH endpoint not reachable after retries (${HETZNER_HOST}:${HETZNER_DEPLOY_PORT})"
+            exit 1
+          fi
 
       # ── No-downgrade pre-flight ──────────────────────────────────────────
       # HARD GATE: this step must pass or no SSH/rsync ever happens.
