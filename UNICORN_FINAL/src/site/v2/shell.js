@@ -34,12 +34,13 @@ function _esc(s) {
 // "≈ X BTC" line at first paint, which the client then keeps refreshed via
 // openPricingStream() over SSE.
 function _btcSpotUsd() {
+  // IMPORTANT: avoid requiring ../../index.js from here; that created a
+  // circular import (index -> shell -> index) in audits. The site and server
+  // share process globals, so read the cache bridge exposed by src/index.js.
   try {
-    const idx = require('../../index.js');
-    if (idx && idx._btcSpotCache && Number(idx._btcSpotCache.usdPerBtc) > 0) {
-      return Number(idx._btcSpotCache.usdPerBtc);
-    }
-  } catch (_) { /* circular or unavailable */ }
+    const cache = global.__btcSpotCache || global._btcSpotCache;
+    if (cache && Number(cache.usdPerBtc) > 0) return Number(cache.usdPerBtc);
+  } catch (_) { /* unavailable */ }
   // Conservative last-known fallback — same default the rest of the app
   // uses, so the BTC amount will be in the right order of magnitude even
   // before the first /api/btc/spot refresh lands.

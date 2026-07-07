@@ -713,6 +713,23 @@ function _cbShouldAllow() {
   return true;
 }
 
+function _normalizeProxyShape(routePath, data) {
+  const fallback = SITE_FALLBACK_MOCKS[routePath] || {};
+  if (!data || typeof data !== 'object') return fallback;
+  // Keep test/public contract stable even if upstream payload evolves.
+  if (routePath === '/api/autonomous/viral/status') {
+    const out = Object.assign({}, data);
+    out.metrics = Object.assign({}, fallback.metrics || {}, out.metrics || {});
+    if (!('estimatedReach' in out.metrics)) out.metrics.estimatedReach = Number(out.estimatedReach || 0);
+    if (!('viralScore' in out.metrics)) out.metrics.viralScore = 0;
+    return out;
+  }
+  if (routePath === '/api/viral/status') {
+    return Object.assign({}, fallback, data);
+  }
+  return data;
+}
+
 function siteProxyToUnicorn(routePath, opts) {
   const method = (opts && opts.method) || 'GET';
   return async (req, res) => {
@@ -742,7 +759,7 @@ function siteProxyToUnicorn(routePath, opts) {
         if (r.ok) {
           _cbRecordSuccess();
           const data = await r.json();
-          return res.json(data);
+          return res.json(_normalizeProxyShape(routePath, data));
         }
         _cbRecordFailure();
         console.warn('[site-proxy] ' + method + ' ' + routePath + ' upstream ' + r.status + ' → fallback mock');
@@ -2009,6 +2026,9 @@ function runDeliveryForReceipt(receipt, opts) {
 // Median din 3+ surse evită manipularea single-feed și reduce divergența.
 // ===================================================================
 const _btcSpotCache = { usdPerBtc: 95000, fetchedAt: 0, source: 'bootstrap', lastDivergence: 0 };
+// Shared bridge for SSR templates (e.g. src/site/v2/shell.js) without
+// importing this file and creating circular dependencies.
+global.__btcSpotCache = _btcSpotCache;
 const BTC_DIVERGENCE_MAX_PCT = Number(process.env.UNICORN_BTC_DIVERGENCE_MAX_PCT || 5); // %
 async function getBtcUsdSpot() {
   const now = Date.now();
