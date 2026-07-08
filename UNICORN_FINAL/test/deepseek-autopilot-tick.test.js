@@ -47,6 +47,7 @@ fs.writeFileSync(process.env.DEEPSEEK_GOVERNOR_ROADMAP_PATH, JSON.stringify({
 delete process.env.DEEPSEEK_API_KEY;
 delete process.env.OPENROUTER_API_KEY;
 delete process.env.GROQ_API_KEY;
+process.env.DEEPSEEK_AUTOPILOT_DISABLE_KEYLESS_FALLBACK = '1';
 
 const { runTick } = require('../scripts/deepseek-autopilot-tick');
 

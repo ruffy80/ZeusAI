@@ -52,6 +52,7 @@ const OPENROUTER_API_KEY = (process.env.OPENROUTER_API_KEY  || '').trim();
 const OPENROUTER_MODEL   = process.env.OPENROUTER_DEEPSEEK_MODEL || 'deepseek/deepseek-v4-flash:free';
 const GROQ_API_KEY       = (process.env.GROQ_API_KEY        || '').trim();
 const GROQ_MODEL         = process.env.GROQ_DEEPSEEK_MODEL  || 'qwen/qwen3-32b';
+const DISABLE_KEYLESS_FALLBACK = process.env.DEEPSEEK_AUTOPILOT_DISABLE_KEYLESS_FALLBACK === '1';
 
 const PROVIDER_TIMEOUT_MS = parseInt(process.env.DEEPSEEK_AUTOPILOT_TIMEOUT_MS || '45000', 10);
 
@@ -84,7 +85,7 @@ function getProviders() {
   // If no keyed provider found, fall back to free providers so the autopilot
   // can run without any API key — matches deepseek-loop.js behaviour.
   // Dacă nu există nicio cheie, folosim provideri gratuiți (identic cu deepseek-loop.js).
-  if (!out.length) {
+  if (!out.length && !DISABLE_KEYLESS_FALLBACK) {
     out.push({
       name: 'pollinations-free',
       url: 'https://text.pollinations.ai/openai/chat/completions',
