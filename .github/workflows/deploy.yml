@@ -1184,7 +1184,13 @@ jobs:
 
       - name: 🧹 Final PM2 topology cleanup
         if: always()
+        env:
+          HETZNER_HOST: ${{ secrets.HETZNER_HOST }}
         run: |
+          if [ -z "${HETZNER_HOST:-}" ] || [ -z "${SSH_AUTH_SOCK:-}" ]; then
+            echo "ℹ️  Skipping final PM2 cleanup: SSH agent/session not available."
+            exit 0
+          fi
           ssh -o StrictHostKeyChecking=no root@${{ secrets.HETZNER_HOST }} bash -s << 'SSHEOF'
           set -uo pipefail
           DEPLOY_PATH=/var/www/unicorn/UNICORN_FINAL
