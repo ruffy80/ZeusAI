@@ -42,12 +42,16 @@ const ERROR_LOG_PATH = process.env.DEEPSEEK_AUTOPILOT_ERROR_LOG
                      || path.join(__dirname, '..', 'data', 'logs', 'deepseek-loop.log');
 
 const DEEPSEEK_API_URL = process.env.DEEPSEEK_API_URL || 'https://api.deepseek.com/v1/chat/completions';
-const DEEPSEEK_API_KEY = process.env.DEEPSEEK_API_KEY || '';
-const DEEPSEEK_MODEL   = process.env.DEEPSEEK_MODEL   || 'deepseek-reasoner';
-const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY || '';
+// Trim whitespace/newlines from secrets — a secret set to " sk-..." or "sk-...\n"
+// must still be treated as present. Without trimming, padded secrets pass the
+// truthiness check but produce "Missing Authentication header" 401 errors.
+// Eliminăm spațiile din chei — un secret cu spații/newline produce 401 de la provider.
+const DEEPSEEK_API_KEY   = (process.env.DEEPSEEK_API_KEY   || '').trim();
+const DEEPSEEK_MODEL     = process.env.DEEPSEEK_MODEL       || 'deepseek-reasoner';
+const OPENROUTER_API_KEY = (process.env.OPENROUTER_API_KEY  || '').trim();
 const OPENROUTER_MODEL   = process.env.OPENROUTER_DEEPSEEK_MODEL || 'deepseek/deepseek-v4-flash:free';
-const GROQ_API_KEY       = process.env.GROQ_API_KEY || '';
-const GROQ_MODEL         = process.env.GROQ_DEEPSEEK_MODEL || 'qwen/qwen3-32b';
+const GROQ_API_KEY       = (process.env.GROQ_API_KEY        || '').trim();
+const GROQ_MODEL         = process.env.GROQ_DEEPSEEK_MODEL  || 'qwen/qwen3-32b';
 
 const PROVIDER_TIMEOUT_MS = parseInt(process.env.DEEPSEEK_AUTOPILOT_TIMEOUT_MS || '45000', 10);
 
@@ -74,6 +78,22 @@ function getProviders() {
       name: 'groq-reasoning-fallback',
       url: 'https://api.groq.com/openai/v1/chat/completions',
       key: GROQ_API_KEY, model: GROQ_MODEL, headers: {},
+    });
+  }
+  // ── Keyless / free cloud fallbacks (auto-connect fără cheie API) ──
+  // If no keyed provider found, fall back to free providers so the autopilot
+  // can run without any API key — matches deepseek-loop.js behaviour.
+  // Dacă nu există nicio cheie, folosim provideri gratuiți (identic cu deepseek-loop.js).
+  if (!out.length) {
+    out.push({
+      name: 'pollinations-free',
+      url: 'https://text.pollinations.ai/openai/chat/completions',
+      key: '', model: 'openai', headers: {}, keyless: true,
+    });
+    out.push({
+      name: 'huggingface-free',
+      url: 'https://router.huggingface.co/v1/chat/completions',
+      key: '', model: 'meta-llama/Llama-3.2-3B-Instruct', headers: {}, keyless: true,
     });
   }
   return out;
@@ -150,15 +170,20 @@ async function askProvider(provider, status) {
       { role: 'user',   content: 'STATUS:\n' + JSON.stringify(status, null, 2) },
     ],
     temperature: 0.1,
-    response_format: { type: 'json_object' },
+    // Skip response_format for keyless providers — not universally supported.
+    // Omitem response_format la provideri keyless — nu toți îl suportă.
+    ...(provider.keyless ? {} : { response_format: { type: 'json_object' } }),
   });
+  const headers = {
+    ...provider.headers,
+    'Content-Type': 'application/json',
+  };
+  // Only set Authorization for keyed providers (keyless/free providers have no ******
+  // Setăm Authorization doar dacă există o cheie (providerii gratuiți nu au token).
+  if (provider.key) headers['Authorization'] = 'Bearer ' + provider.key;
   const res = await fetchWithTimeout(provider.url, {
     method: 'POST',
-    headers: {
-      ...provider.headers,
-      'Authorization': 'Bearer ' + provider.key,
-      'Content-Type': 'application/json',
-    },
+    headers,
     body,
   }, PROVIDER_TIMEOUT_MS);
   if (!res.ok) {
@@ -200,12 +225,15 @@ async function getRecommendation(status) {
       });
     }
   }
-  // If ALL providers failed with 401, surface a clear hint.
-  // Dacă toți providerii au eșuat cu 401, afișăm un hint clar.
-  const allAuth = providers.every(() => /http_401/.test(String(lastErr && lastErr.message || '')));
-  if (allAuth && providers.length > 0) {
+  // If ALL keyed providers failed with 401, surface a clear hint.
+  // Dacă toți providerii cu cheie au eșuat cu 401, afișăm un hint clar.
+  const keyedProviders = providers.filter(p => !p.keyless);
+  const allAuth = keyedProviders.length > 0 && keyedProviders.every(
+    () => /http_401/.test(String(lastErr && lastErr.message || ''))
+  );
+  if (allAuth) {
     log('error', 'all_providers_auth_failed', {
-      count: providers.length,
+      count: keyedProviders.length,
       hint: 'All API keys returned 401. Update secrets: DEEPSEEK_API_KEY, OPENROUTER_API_KEY, or GROQ_API_KEY. Free: https://console.groq.com/keys',
     });
   }
