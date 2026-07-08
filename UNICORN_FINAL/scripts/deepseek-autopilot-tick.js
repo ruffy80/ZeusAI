@@ -178,7 +178,7 @@ async function askProvider(provider, status) {
     ...provider.headers,
     'Content-Type': 'application/json',
   };
-  // Only set Authorization for keyed providers (keyless/free providers have no ******
+  // Only set Authorization for keyed providers — keyless/free providers have no API token.
   // Setăm Authorization doar dacă există o cheie (providerii gratuiți nu au token).
   if (provider.key) headers['Authorization'] = 'Bearer ' + provider.key;
   const res = await fetchWithTimeout(provider.url, {
