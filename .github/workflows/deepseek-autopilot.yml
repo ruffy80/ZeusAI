@@ -187,14 +187,40 @@ jobs:
             echo "Opened as **draft** — review the envelope or roadmap status flip, then mark ready for review when satisfied. Allowlist + deny-prefixes were enforced by \`deepseek-governor.dispatch\`."
           } > "$body_file"
 
+          manual_pr_url="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/pull/new/${branch}"
           gh label create deepseek-autopilot --color BFD4F2 --description "Opened by the DeepSeek Autopilot workflow" 2>/dev/null || true
+          pr_log=$(mktemp)
+          set +e
           gh pr create \
             --base main \
             --head "$branch" \
             --title "🤖 DeepSeek Autopilot: ${action} (${ts})" \
             --body-file "$body_file" \
             --draft \
-            --label deepseek-autopilot
+            --label deepseek-autopilot >"$pr_log" 2>&1
+          pr_status=$?
+          set -e
+          if [ "$pr_status" -eq 0 ]; then
+            cat "$pr_log"
+            pr_url=$(grep -Eo 'https://github.com/[^[:space:]]+/pull/[0-9]+' "$pr_log" | tail -1 || true)
+            if [ -n "$pr_url" ]; then
+              echo "✅ Draft PR opened: $pr_url"
+              echo "- Draft PR: $pr_url" >> "$GITHUB_STEP_SUMMARY"
+            fi
+          elif grep -q 'GitHub Actions is not permitted to create or approve pull requests' "$pr_log"; then
+            echo "::warning title=DeepSeek Autopilot PR fallback::Branch ${branch} was pushed, but repository policy blocks GITHUB_TOKEN from creating pull requests automatically. Open the draft PR manually: ${manual_pr_url}"
+            {
+              echo "## 🤖 DeepSeek Autopilot PR fallback"
+              echo ""
+              echo "- Branch pushed successfully: \`${branch}\`"
+              echo "- Automatic PR creation is blocked for \`GITHUB_TOKEN\` by repository policy."
+              echo "- Open the draft PR manually: ${manual_pr_url}"
+            } >> "$GITHUB_STEP_SUMMARY"
+            cat "$pr_log"
+          else
+            cat "$pr_log"
+            exit "$pr_status"
+          fi
 
       - name: 📤 Upload tick log artifact
         if: always() && steps.detect.outputs.has_provider == '1'

@@ -61,16 +61,30 @@ git commit -m "$COMMIT_MSG"
 
 git push -u origin "$BRANCH"
 
+REMOTE_URL="$(git remote get-url origin 2>/dev/null || true)"
+REMOTE_SLUG="$(printf '%s' "$REMOTE_URL" | sed -E 's#^git@github.com:##; s#^https://github.com/##; s#\.git$##')"
+MANUAL_PR_URL="https://github.com/${REMOTE_SLUG}/pull/new/${BRANCH}"
+
 if command -v gh >/dev/null 2>&1; then
-  gh pr create \
+  pr_log="$(mktemp)"
+  if gh pr create \
     --title "$TITLE" \
     --body "$BODY"$'\n\n*Opened by `propose-innovation.sh`. Requires human review. Do not merge automatically.*' \
     --base main \
     --head "$BRANCH" \
-    --label "auto-evolve,needs-review" 2>/dev/null || \
-  gh pr create --title "$TITLE" --body "$BODY" --base main --head "$BRANCH"
+    --label "auto-evolve,needs-review" >"$pr_log" 2>&1 || \
+    gh pr create --title "$TITLE" --body "$BODY" --base main --head "$BRANCH" >"$pr_log" 2>&1; then
+    cat "$pr_log"
+  else
+    echo "⚠️ gh could not open the PR automatically; branch was pushed successfully." >&2
+    if grep -q 'GitHub Actions is not permitted to create or approve pull requests' "$pr_log"; then
+      echo "ℹ️ Repository policy blocks GitHub Actions from creating PRs with the current token." >&2
+    fi
+    cat "$pr_log" >&2
+    echo "ℹ Open the PR manually: $MANUAL_PR_URL"
+  fi
 else
-  echo "ℹ gh CLI not found — branch pushed; open PR manually: $BRANCH"
+  echo "ℹ gh CLI not found — branch pushed; open PR manually: $MANUAL_PR_URL"
 fi
 
 echo "✓ proposal branch: $BRANCH"
