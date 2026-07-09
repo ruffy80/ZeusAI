@@ -1,0 +1,12 @@
+{
+  "schemaVersion": 1,
+  "createdAt": "2026-07-09T17:51:06.348Z",
+  "status": "pending-review",
+  "objectiveId": "checkout-conversion-instrumentation",
+  "targetPath": "UNICORN_FINAL/backend/modules/checkout/instrumentation.js",
+  "riskLevel": "medium",
+  "rationale": "Implement end-to-end conversion tracking for checkout flow to measure view → checkout → paid metrics. This enables data-driven optimization of revenue-critical pathways.",
+  "proposedContent": "// End-to-end conversion instrumentation\n// Tracks view → checkout → paid flow\n\nexport const trackConversionStep = (userId, step, metadata = {}) => {\n  // Log to data/conversion-events/\n  console.log(`[CONVERSION] ${userId} - ${step}`, metadata);\n  // Add analytics event\n  analytics.track(`Checkout Conversion ${step}`, {\n    ...metadata,\n    timestamp: new Date().toISOString()\n  });\n};",
+  "proposedContentBytes": 392,
+  "note": "Envelope only — code is NOT applied. Human/CI review required before any edit."
+}
