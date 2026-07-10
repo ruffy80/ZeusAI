@@ -12,9 +12,23 @@ set -euo pipefail
 
 DEPLOY_PATH="${1:-${DEPLOY_PATH:-/var/www/unicorn}}"
 ENV_FILE="$DEPLOY_PATH/.env"
+ALT_RUNTIME_PATH=""
+ALT_ENV_FILE=""
+
+# În unele release-uri istorice aplicația a fost împachetată nested în
+# $DEPLOY_PATH/UNICORN_FINAL. Dacă o detectăm, menținem .env sincronizat și
+# acolo, astfel backend/site citesc aceleași secrete indiferent de layout.
+if [ -d "$DEPLOY_PATH/UNICORN_FINAL/src" ]; then
+  ALT_RUNTIME_PATH="$DEPLOY_PATH/UNICORN_FINAL"
+  ALT_ENV_FILE="$ALT_RUNTIME_PATH/.env"
+fi
 
 if [ -f "$ENV_FILE" ]; then
   echo "ℹ️  .env există deja la $ENV_FILE — actualizare variabile noi fără a șterge valorile existente"
+fi
+
+if [ -n "$ALT_ENV_FILE" ] && [ -f "$ALT_ENV_FILE" ]; then
+  echo "ℹ️  layout nested detectat — se va sincroniza și $ALT_ENV_FILE"
 fi
 
 # Citează o valoare astfel încât să fie sigură atât pentru `bash source` cât și
@@ -86,6 +100,17 @@ with open(path, 'w') as f: f.write(new_content)
   fi
 }
 
+# Șterge o cheie din .env într-un mod portabil (GNU/BSD), fără sed -i.
+delete_key() {
+  local key="$1"
+  local file="$2"
+  [ -f "$file" ] || return 0
+  local tmp
+  tmp="${file}.tmp.$$"
+  awk -F= -v k="$key" '$1 != k { print $0 }' "$file" > "$tmp"
+  mv "$tmp" "$file"
+}
+
 # Creează fișierul dacă nu există
 touch "$ENV_FILE"
 chmod 600 "$ENV_FILE"
@@ -97,7 +122,10 @@ force_upsert NODE_ENV         "${NODE_ENV:-production}"
 # .env PORT to BOTH unicorn-backend (3000) and unicorn-site (3001) via PM2's
 # --update-env, causing EADDRINUSE. ecosystem.config.js is the single source
 # of truth for per-app PORT. We strip any pre-existing PORT line below.
-sed -i '/^PORT=/d' "$ENV_FILE" 2>/dev/null || true
+delete_key PORT "$ENV_FILE"
+if [ -n "$ALT_ENV_FILE" ]; then
+  delete_key PORT "$ALT_ENV_FILE"
+fi
 upsert PUBLIC_APP_URL   "${PUBLIC_APP_URL:-https://zeusai.pro}"
 upsert SITE_DOMAIN      "${SITE_DOMAIN:-zeusai.pro}"
 upsert UNICORN_DOMAIN   "${UNICORN_DOMAIN:-www.zeusai.pro}"
@@ -272,6 +300,8 @@ upsert LEGAL_OWNER_EMAIL   "${OWNER_EMAIL:-vladoi_ionut@yahoo.com}"
 upsert AUTONOMY_LEVEL         "10"
 upsert AUTO_COMMIT_ENABLED    "true"
 upsert AUTO_PUSH_ENABLED      "false"
+force_upsert ENABLE_AUTO_DEPLOY "0"
+force_upsert DISABLE_SELF_MUTATION "1"
 upsert INNOVATION_INTERVAL    "60"
 upsert REVENUE_INTERVAL       "30"
 upsert DEPLOYMENT_INTERVAL    "300"
@@ -467,6 +497,13 @@ upsert PAYPAL_ENV            "${PAYPAL_ENV:-sandbox}"
 # Build identity — set by CI; drives browser asset cache-busting (app.js?v=<sha>)
 upsert ZEUS_BUILD_SHA        "${ZEUS_BUILD_SHA:-}"
 upsert SW_VERSION            "${ZEUS_BUILD_SHA:-${SW_VERSION:-}}"
+
+# Menține același .env și în runtime-ul nested, dacă există.
+if [ -n "$ALT_ENV_FILE" ]; then
+  cp "$ENV_FILE" "$ALT_ENV_FILE"
+  chmod 600 "$ALT_ENV_FILE" || true
+  echo "✅ .env sincronizat și la $ALT_ENV_FILE"
+fi
 
 echo "✅ .env configurat la $ENV_FILE"
 echo "   Linii active: $(grep -c '.' "$ENV_FILE" 2>/dev/null || echo '?')"

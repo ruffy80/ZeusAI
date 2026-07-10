@@ -3725,6 +3725,21 @@ async function unicornHandler(req, res) {
         };
         return fsend(200, pub);
       }
+      if (fu === '/.well-known/contract' || fu === '/api/contract') {
+        const all = frontier.openApiSpec() || {};
+        const privatePath = (p) => /^\/api\/(admin|operator|autonomy|brain\/autonomy|internal|deepseek|observability)/.test(String(p || ''));
+        const paths = Object.fromEntries(Object.entries(all.paths || {}).filter(([p]) => !privatePath(p)));
+        const contract = {
+          ...all,
+          info: {
+            ...(all.info || {}),
+            title: ((all.info && all.info.title) || 'ZeusAI API') + ' (Contract)',
+            description: 'Canonical frontend/backend contract. Public surface only.',
+          },
+          paths,
+        };
+        return fsend(200, contract);
+      }
 
       // Cart engine
       if (fu === '/api/cart/create' && req.method === 'POST') return fbody(p => fsend(200, frontier.cartCreate(p)));

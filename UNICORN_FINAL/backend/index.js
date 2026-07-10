@@ -877,6 +877,9 @@ async function proxyToSite(req, res, urlPath) {
 }
 app.get('/api/catalog/master', (req, res) => proxyToSite(req, res, '/api/catalog/master'));
 app.get('/api/catalog/diff',   (req, res) => proxyToSite(req, res, '/api/catalog/diff'));
+// API contract bridge: single public source for frontend/backend compatibility.
+app.get('/api/contract', (req, res) => proxyToSite(req, res, '/openapi-public.json'));
+app.get('/.well-known/contract', (req, res) => proxyToSite(req, res, '/openapi-public.json'));
 // /api/products + /api/price/:id are implemented in src/index.js (the site
 // process) on top of the master catalog. Proxy them through so consumers can
 // hit the canonical https://zeusai.pro/api/products and /api/price/<id>
@@ -1222,6 +1225,9 @@ const globalPublicRateLimit = rateLimit({
   max: parseInt(process.env.PUBLIC_RATE_LIMIT || '200', 10),
   standardHeaders: true,
   legacyHeaders: false,
+  // Health probes (local + public) trebuie să rămână mereu accesibile.
+  // Altfel monitorizarea internă poate intra în buclă de "degraded" din 429.
+  skip: (req) => req.path === '/health' || req.path === '/api/health',
   message: { error: 'Too many requests — try again later' },
 });
 
