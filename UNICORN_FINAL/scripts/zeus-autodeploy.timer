@@ -1,0 +1,15 @@
+[Unit]
+Description=Run ZeusAI self-deploy check periodically
+Documentation=https://github.com/ruffy80/ZeusAI
+
+[Timer]
+# First run shortly after boot, then every 3 minutes. Randomized delay avoids
+# hammering GitHub exactly on the minute.
+OnBootSec=90s
+OnUnitActiveSec=3min
+RandomizedDelaySec=30s
+Persistent=true
+Unit=zeus-autodeploy.service
+
+[Install]
+WantedBy=timers.target

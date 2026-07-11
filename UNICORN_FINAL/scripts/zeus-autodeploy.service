@@ -1,0 +1,18 @@
+[Unit]
+Description=ZeusAI billing-independent self-deploy (forward-only, canary-gated)
+Documentation=https://github.com/ruffy80/ZeusAI
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+# The script is installed to a stable path outside the release tree so it keeps
+# working across atomic symlink switches.
+ExecStart=/usr/local/bin/zeus-auto-pull-deploy.sh
+Nice=10
+TimeoutStartSec=1200
+# Never let a failed tick mark the unit as failed forever — the timer retries.
+SuccessExitStatus=0 1
+
+[Install]
+WantedBy=multi-user.target
