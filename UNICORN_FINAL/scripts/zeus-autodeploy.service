@@ -6,6 +6,13 @@ Wants=network-online.target
 
 [Service]
 Type=oneshot
+# CRITICAL: PM2 keys its daemon off $HOME ($HOME/.pm2). Without HOME set, a
+# systemd service defaults to /etc/.pm2 — a DIFFERENT daemon than the live
+# processes under root's /root/.pm2 — so pm2 restart/start would silently miss
+# the running backend/site and the deploy's build-SHA smoke would fail. Pin
+# HOME/PM2_HOME to root's so the poller drives the same daemon as the live box.
+Environment=HOME=/root
+Environment=PM2_HOME=/root/.pm2
 # The script is installed to a stable path outside the release tree so it keeps
 # working across atomic symlink switches.
 ExecStart=/usr/local/bin/zeus-auto-pull-deploy.sh
