@@ -2584,6 +2584,14 @@ function hydrateCheckout(){
   };
   const validEmail = (v) => /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(String(v || '').trim());
 
+  // Live BTC/USD state — declared BEFORE the first draw()/updatePP() call so
+  // estBtcUsd() never hits a `let` temporal-dead-zone (ReferenceError: Cannot
+  // access 'btcUsdLive' before initialization), which previously left the BTC
+  // quote stuck on "computing…" and blocked invoice/QR rendering.
+  let btcUsdLive = 0;
+  let btcUsdLastFetch = 0;
+  let btcUsdFetchPromise = null;
+
   const draw = () => {
     const amt = Number(($('#coAmount')||{}).value || 0);
     updateBtcQuote(amt, btc);
@@ -2635,10 +2643,8 @@ function hydrateCheckout(){
   $('#coPlanPP')?.addEventListener('input', updatePP);
 
   // --- Live BTC/USD helpers (hoisted inside hydrateCheckout) ---
-  let btcUsdLive = 0;
-  let btcUsdLastFetch = 0;
-  let btcUsdFetchPromise = null;
-
+  // Note: btcUsdLive/btcUsdLastFetch/btcUsdFetchPromise are declared earlier
+  // (before the first draw()) to avoid a temporal-dead-zone ReferenceError.
   async function refreshBtcUsd(force){
     const now = Date.now();
     if (!force && btcUsdLive > 0 && (now - btcUsdLastFetch) < 30000) return btcUsdLive;
