@@ -69,3 +69,19 @@ UNICORN_FINAL/data/value-proof/
 UNICORN_FINAL/data/revenue/
 UNICORN_FINAL/data/notifications.jsonl
 UNICORN_FINAL/data/zacc-state.json
+
+# --- Secrets / private keys / DB snapshots committed by accident (scrubbed) ---
+# NOTE: these were previously committed; untracking + ignoring stops further
+# leakage, but they remain in git history — ROTATE the affected keys and purge
+# history separately. Public keys (*.pub, *-pub.pem) are safe to keep tracked.
+/data/runtime-secrets.json
+/data/autonomy/spine-ed25519.json
+/data/commerce/signing.pem
+/data/commerce/contract-signing-key.pem
+/data/frontier/frontier.key.pem
+/data/sovereignty/sovereignty-keypair.json
+/data/*.db
+/data/*.db-shm
+/data/*.db-wal
+backups/auth-db/
+UNICORN_FINAL/backups/auth-db/
