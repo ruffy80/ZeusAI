@@ -3,6 +3,20 @@
 const assert = require('assert');
 const http = require('http');
 
+const sensitiveProbePaths = [
+  '/.env', '/.git/config', '/wp-config.php', '/package-lock.json',
+  '/%2eenv', '/%252eenv', '/%2egit/config', '/%77p-config.php', '/package%2dlock.json',
+];
+
+async function assertSensitiveProbesBlocked(base, layer) {
+  for (const probePath of sensitiveProbePaths) {
+    const probe = await fetch(base + probePath);
+    assert.equal(probe.status, 404, `${layer}: ${probePath} must return 404`);
+    assert.ok(!(probe.headers.get('content-type') || '').includes('text/html'),
+      `${layer}: ${probePath} must not return the site shell`);
+  }
+}
+
 async function run() {
   const app = require('../backend/index');
   assert.ok(app && typeof app.listen === 'function', 'backend app must be express-compatible');
@@ -37,10 +51,22 @@ async function run() {
     const docsRaw = JSON.stringify(docsJson);
     assert.ok(!/\/api\/admin\//.test(docsRaw), 'public docs must not include /api/admin/* routes');
 
-    console.log('public-surface-guard: passed');
+    // 5) Sensitive config/repository probes must never fall through to HTML.
+    await assertSensitiveProbesBlocked(base, 'backend');
   } finally {
     await new Promise((resolve) => server.close(() => resolve()));
   }
+
+  const siteServer = require('../src/index');
+  await new Promise((resolve) => siteServer.listen(0, '127.0.0.1', resolve));
+  const siteBase = 'http://127.0.0.1:' + siteServer.address().port;
+  try {
+    await assertSensitiveProbesBlocked(siteBase, 'site');
+  } finally {
+    await new Promise((resolve) => siteServer.close(() => resolve()));
+  }
+
+  console.log('public-surface-guard: passed');
 }
 
 run().then(() => process.exit(0)).catch((err) => {

@@ -1,0 +1,64 @@
+{
+  "version": "1.0.0",
+  "createdAt": "2026-05-13T00:00:00.000Z",
+  "identity": {
+    "name": "Unicorn",
+    "codename": "ZeusAI",
+    "owner": "Vladoi Ionut",
+    "ownerEmail": "vladoi_ionut@yahoo.com",
+    "btcAddress": "bc1q4f7e66z87mdfj56kz0dj5hvcnpmh0qh4wuv22e",
+    "domain": "zeusai.pro"
+  },
+  "mission": "Construct an autonomous, self-healing, self-evolving AI platform that generates revenue and grows continuously.",
+  "supremeModules": {
+    "unicornBrain": {
+      "role": "orchestration",
+      "absorbs": "AdaptiveModule01..82",
+      "mainCycleMs": 1000
+    },
+    "unicornSelfHealer": {
+      "role": "healing",
+      "absorbs": "GroupA (selfhealing/repair/watchdog)"
+    },
+    "unicornInnovator": {
+      "role": "innovation",
+      "absorbs": "GroupC (evolution/genesis/innovation)"
+    },
+    "unicornTreasury": {
+      "role": "revenue",
+      "absorbs": "GroupD (billing/crypto/pricing/marketplace/payments)"
+    },
+    "unicornGrowth": {
+      "role": "marketing",
+      "absorbs": "GroupE (viral/seo/landing/content)"
+    },
+    "unicornGuardian": {
+      "role": "security+agents",
+      "absorbs": "GroupF+G (agents + security)"
+    }
+  },
+  "modules": {
+    "adaptiveLayers": {
+      "count": 82,
+      "naming": "AdaptiveModuleNN",
+      "behavior": "identical: process/getStatus/init/start/state"
+    }
+  },
+  "policies": {
+    "forwardOnly": true,
+    "noDestructive": true,
+    "legacyRenamedTo": ".legacy.bak",
+    "newRoutesPrefixed": true,
+    "siteOnPort": 3001,
+    "backendOnPort": 3000
+  },
+  "evolution": {
+    "autoEvolve": true,
+    "approvalGate": "shadowTester",
+    "rollbackOnFail": true
+  },
+  "integrity": {
+    "schemaVersion": 1,
+    "checksumAlgo": "sha256"
+  }
+}

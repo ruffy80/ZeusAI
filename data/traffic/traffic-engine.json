@@ -1,0 +1,42 @@
+{
+  "startedAt": null,
+  "lastRunAt": "2026-07-03T20:49:10.356Z",
+  "runs": 1,
+  "lastSubmission": {
+    "at": "2026-07-03T20:49:10.356Z",
+    "urlCount": 60,
+    "keyLocation": "https://zeusai.pro/indexnow-1aa130e226c2219006d6eb466e2195dc.txt",
+    "engines": [
+      {
+        "engine": "indexnow.org",
+        "status": 403,
+        "ok": false
+      },
+      {
+        "engine": "bing",
+        "status": 403,
+        "ok": false
+      },
+      {
+        "engine": "google",
+        "status": "sitemap-discovery",
+        "ok": null,
+        "note": "ping API retired 2023; sitemap.xml + sitemap-services.xml referenced in robots.txt"
+      }
+    ],
+    "dryRun": false
+  },
+  "history": [
+    {
+      "at": "2026-07-03T20:49:10.356Z",
+      "urlCount": 60,
+      "ok": 0,
+      "dryRun": false
+    }
+  ],
+  "outreach": {
+    "builtAt": "2026-07-03T20:49:11.181Z",
+    "queued": 0,
+    "sending": "blocked: SMTP credentials not configured — queue persisted, nothing fabricated"
+  }
+}

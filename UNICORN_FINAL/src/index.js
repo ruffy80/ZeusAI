@@ -1461,6 +1461,23 @@ function createServer() {
 }
 
 function __continueDispatch(req, res, method, earlyPath) {
+    let securityPath = earlyPath;
+    for (let pass = 0; pass < 2; pass += 1) {
+      try {
+        const decoded = decodeURIComponent(securityPath);
+        if (decoded === securityPath) break;
+        securityPath = decoded;
+      } catch (_) {
+        break;
+      }
+    }
+    if (/(?:^|\/)\.(?:env|git|aws|ssh|svn|hg)(?:$|\/|\.)|(?:^|\/)(?:wp-config\.php|composer\.(?:json|lock)|package-lock\.json)(?:$|\/)/i.test(securityPath)) {
+      res.statusCode = 404;
+      res.setHeader('Content-Type', 'application/json; charset=utf-8');
+      res.setHeader('Cache-Control', 'no-store');
+      res.end(JSON.stringify({ error: 'not_found' }));
+      return;
+    }
     // Topology headers + write-guard run BEFORE any dispatcher decision, so
     // they apply uniformly across the Express path AND the unicornHandler
     // bypass (which carries hundreds of /api/* mutation routes).

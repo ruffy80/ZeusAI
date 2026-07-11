@@ -25,10 +25,65 @@ const now = () => new Date().toISOString();
 const id = (prefix) => `${prefix}_${crypto.randomBytes(8).toString('hex')}`;
 const hash = (value) => crypto.createHash('sha256').update(typeof value === 'string' ? value : JSON.stringify(value)).digest('hex');
 
-function readJsonl(file) {
+function withFileLock(file, action) {
+  const lockDir = `${file}.lock.d`;
+  const waitBuffer = new Int32Array(new SharedArrayBuffer(4));
+  const attempts = 300;
+  for (let attempt = 0; attempt < attempts; attempt += 1) {
+    try {
+      fs.mkdirSync(lockDir);
+      try {
+        return action();
+      } finally {
+        fs.rmSync(lockDir, { recursive: true, force: true });
+      }
+    } catch (error) {
+      if (error.code !== 'EEXIST') throw error;
+      try {
+        const ageMs = Date.now() - fs.statSync(lockDir).mtimeMs;
+        if (ageMs > 15 * 60 * 1000) {
+          fs.rmSync(lockDir, { recursive: true, force: true });
+          continue;
+        }
+      } catch (statError) {
+        if (statError.code !== 'ENOENT') throw statError;
+        continue;
+      }
+      Atomics.wait(waitBuffer, 0, 0, 100);
+    }
+  }
+  throw new Error(`Timed out waiting for ledger lock: ${path.basename(file)}`);
+}
+
+function readJsonl(file, options = {}) {
   try {
     if (!fs.existsSync(file)) return [];
-    return fs.readFileSync(file, 'utf8').split('\n').filter(Boolean).map((line) => JSON.parse(line));
+    const maxBytes = Math.max(64 * 1024, Number(options.maxBytes || 8 * 1024 * 1024));
+    const maxRows = Math.max(1, Number(options.maxRows || 10000));
+    const stat = fs.statSync(file);
+    const bytesToRead = Math.min(stat.size, maxBytes);
+    const offset = Math.max(0, stat.size - bytesToRead);
+    const handle = fs.openSync(file, 'r');
+    const buffer = Buffer.allocUnsafe(bytesToRead);
+    try {
+      fs.readSync(handle, buffer, 0, bytesToRead, offset);
+    } finally {
+      fs.closeSync(handle);
+    }
+    let text = buffer.toString('utf8');
+    if (offset > 0) {
+      const firstNewline = text.indexOf('\n');
+      text = firstNewline >= 0 ? text.slice(firstNewline + 1) : '';
+    }
+    return text.split('\n').filter(Boolean).slice(-maxRows).reduce((rows, line) => {
+      try {
+        rows.push(JSON.parse(line));
+      } catch (_) {
+        // Ignore a malformed or concurrently truncated row without hiding
+        // all previously valid ledger entries.
+      }
+      return rows;
+    }, []);
   } catch (_) {
     return [];
   }
@@ -36,7 +91,9 @@ function readJsonl(file) {
 
 function appendJsonl(file, entry) {
   fs.mkdirSync(path.dirname(file), { recursive: true });
-  fs.appendFileSync(file, JSON.stringify(entry) + '\n', { mode: 0o600 });
+  withFileLock(file, () => {
+    fs.appendFileSync(file, JSON.stringify(entry) + '\n', { mode: 0o600 });
+  });
   return entry;
 }
 
@@ -61,7 +118,7 @@ function offerFactory(input = {}) {
     roiAngle: `${product.promise} for ${industry}`,
     createdAt: now(),
   }));
-  generated.forEach((offer) => appendJsonl(OFFERS_FILE, offer));
+  if (input.persist === true) generated.forEach((offer) => appendJsonl(OFFERS_FILE, offer));
   return { ok: true, generatedAt: now(), offers: generated, count: generated.length };
 }
 
@@ -69,7 +126,7 @@ function revenueCommander() {
   const events = readJsonl(EVENTS_FILE);
   const leads = readJsonl(LEADS_FILE);
   const recoveries = readJsonl(RECOVERY_FILE);
-  const offers = readJsonl(OFFERS_FILE).slice(-20);
+  const offers = readJsonl(OFFERS_FILE, { maxBytes: 2 * 1024 * 1024, maxRows: 20 });
   const checkoutEvents = events.filter((event) => event.type === 'checkout_started').length;
   const paidEvents = events.filter((event) => event.type === 'payment_confirmed').length;
   const conversionRate = checkoutEvents ? Number(((paidEvents / checkoutEvents) * 100).toFixed(2)) : 0;

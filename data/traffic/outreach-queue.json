@@ -1,0 +1,6 @@
+{
+  "builtAt": "2026-07-03T20:49:11.181Z",
+  "queued": 0,
+  "sending": "blocked: SMTP credentials not configured — queue persisted, nothing fabricated",
+  "topLeads": []
+}

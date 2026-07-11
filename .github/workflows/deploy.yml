@@ -750,9 +750,21 @@ jobs:
           # actively purged below so a redeploy can never resurrect the storm.
           # Contract cu un singur healer — doar autoheal-min poate reporni PM2.
           install -m 0755 "$DEPLOY_PATH/scripts/autoheal-min.sh" /usr/local/bin/autoheal-min.sh
+          install -m 0755 "$DEPLOY_PATH/scripts/alignment-monitor.sh" /usr/local/bin/unicorn-alignment-monitor.sh
+          install -m 0755 "$DEPLOY_PATH/scripts/shared-data-retention.sh" /usr/local/bin/unicorn-shared-data-retention.sh
           chmod +x "$DEPLOY_PATH/scripts/unicorn-payment-monitor.js" 2>/dev/null || true
           # Purge any legacy aggressive restarters left on the box (idempotent).
           rm -f /etc/cron.d/unicorn-safe-watchdog /etc/cron.d/deepseek-autonomy 2>/dev/null || true
+          # Purge legacy root-crontab jobs replaced by the versioned /etc/cron.d
+          # contract below. Keeping both created duplicate backups and a stale
+          # alignment monitor pinned to /opt/unicorn instead of the live release.
+          LEGACY_CRON=$(mktemp)
+          crontab -l 2>/dev/null \
+            | grep -v '/opt/unicorn/UNICORN_FINAL/scripts/alignment-monitor.sh' \
+            | grep -v 'unicorn-safenet-hourly' \
+            > "$LEGACY_CRON" || true
+          crontab "$LEGACY_CRON" 2>/dev/null || true
+          rm -f "$LEGACY_CRON"
           for U in unicorn-healer.timer unicorn-healer.service zeusai-autonomy.timer \
                    zeusai-autonomy.service unicorn_godmode_v4.timer unicorn_godmode_v4.service \
                    deepseek-unified.service; do
@@ -765,12 +777,15 @@ jobs:
           * * * * * root DEPLOY_PATH=/var/www/unicorn/UNICORN_FINAL UNICORN_LOCAL_URL=http://127.0.0.1:3001 /usr/local/bin/unicorn-payment-monitor.sh
           # autoheal-min = the ONLY sanctioned PM2 restarter (threshold+cooldown).
           * * * * * root /usr/local/bin/autoheal-min.sh >>/var/log/unicorn-autoheal-min.log 2>&1
+          */5 * * * * root ALIGNMENT_ROOT_DIR=/var/www/unicorn/current /usr/local/bin/unicorn-alignment-monitor.sh
+          17 * * * * root /usr/local/bin/unicorn-shared-data-retention.sh >>/var/log/unicorn-retention.log 2>&1
           CRON
           chmod 0644 /etc/cron.d/unicorn-health-bot
           cat > /etc/logrotate.d/unicorn-transactions <<'ROTATE'
-          /var/log/unicorn-transactions.log /var/log/unicorn-health-bot.log {
+            /var/log/unicorn-transactions.log /var/log/unicorn-health-bot.log /var/log/unicorn-autoheal-min.log /var/log/alignment-monitor.log /var/log/unicorn-retention.log /var/www/unicorn/shared/logs/*.log {
               daily
               rotate 30
+              size 100M
               missingok
               notifempty
               compress
@@ -862,6 +877,23 @@ jobs:
           BASE_URL=https://zeusai.pro SMOKE_RETRIES=4 SMOKE_SLEEP=3 \
             bash scripts/smoke-tests.sh || echo "⚠️  nginx-front smoke had failures (poate fi cache/SSL warmup)"
           SSHEOF
+
+      - name: 🔒 Sensitive path exposure gate
+        run: |
+          set -euo pipefail
+          failed=0
+          for path in '/.env' '/%2eenv' '/%252eenv' '/.git/config' '/wp-config.php' '/package-lock.json'; do
+            result=$(curl --path-as-is -sS --connect-timeout 5 --max-time 15 \
+              -o /dev/null -w '%{http_code} %{content_type}' "https://zeusai.pro${path}")
+            status=${result%% *}
+            content_type=${result#* }
+            echo "${path} -> ${status} ${content_type}"
+            if [ "$status" != "404" ] || [[ "$content_type" == *text/html* ]]; then
+              echo "::error::Sensitive path is exposed through the public fallback: ${path} (${result})"
+              failed=1
+            fi
+          done
+          [ "$failed" -eq 0 ]
 
       - name: 🧊 Cache correctness checks (HTML no-cache + hashed assets)
         run: |

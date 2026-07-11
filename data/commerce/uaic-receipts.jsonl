@@ -1,0 +1,2 @@
+{"id":"rcpt_test_1","method":"BTC","plan":"pro","amount":199,"currency":"USD","email":"alice@example.com","customerId":"cust_b851a54284231f2c","services":["svc-a","svc-b"],"createdAt":"2026-06-12T20:57:02.164Z","status":"paid","paidAt":"2026-06-12T20:57:02.164Z"}
+{"id":"rcpt_test_1","method":"BTC","plan":"pro","amount":199,"currency":"USD","email":"alice@example.com","customerId":"cust_b851a54284231f2c","services":["svc-a","svc-b"],"createdAt":"2026-06-12T20:57:02.164Z","status":"paid","paidAt":"2026-06-12T20:57:02.164Z"}

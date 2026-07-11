@@ -302,6 +302,24 @@ const routeCache = require('./modules/route-cache');
 const app = express();
 const PORT = process.env.PORT || 3000;
 
+app.use((req, res, next) => {
+  let requestPath = String(req.path || req.url || '/');
+  for (let pass = 0; pass < 2; pass += 1) {
+    try {
+      const decoded = decodeURIComponent(requestPath);
+      if (decoded === requestPath) break;
+      requestPath = decoded;
+    } catch (_) {
+      break;
+    }
+  }
+  if (/(?:^|\/)\.(?:env|git|aws|ssh|svn|hg)(?:$|\/|\.)|(?:^|\/)(?:wp-config\.php|composer\.(?:json|lock)|package-lock\.json)(?:$|\/)/i.test(requestPath)) {
+    res.set('Cache-Control', 'no-store');
+    return res.status(404).json({ error: 'not_found' });
+  }
+  return next();
+});
+
 // ==================== ASYNC ERROR HANDLER WRAPPER ====================
 // Wraps async route handlers and catches any promise rejections.
 // Essential for routes using async/await to prevent unhandled rejections.
@@ -2457,8 +2475,8 @@ app.post('/api/privacy/delete-request', authMiddleware, (req, res) => res.json({
 app.get('/api/money-machine/status', (req, res) => res.json(moneyMachine.status()));
 app.get('/api/revenue/commander', (req, res) => res.json(moneyMachine.revenueCommander()));
 app.post('/api/revenue/commander/run', adminTokenMiddleware, (req, res) => res.json({ ok: true, run: moneyMachine.revenueCommander() }));
-app.get('/api/offers/factory', (req, res) => res.json(moneyMachine.offerFactory({ industry: req.query.industry, segment: req.query.segment, budgetUsd: req.query.budgetUsd })));
-app.post('/api/offers/factory', (req, res) => res.json(moneyMachine.offerFactory(req.body || {})));
+app.get('/api/offers/factory', authRateLimit(60, 60_000), (req, res) => res.json(moneyMachine.offerFactory({ industry: req.query.industry, segment: req.query.segment, budgetUsd: req.query.budgetUsd, persist: false })));
+app.post('/api/offers/factory', authRateLimit(20, 60_000), (req, res) => res.json(moneyMachine.offerFactory({ ...(req.body || {}), persist: true })));
 app.post('/api/conversion/event', (req, res) => res.json(moneyMachine.recordConversionEvent(req.body || {})));
 app.get('/api/conversion/intelligence', (req, res) => res.json(moneyMachine.conversionIntelligence()));
 app.post('/api/checkout/recovery', (req, res) => res.json(moneyMachine.queueCheckoutRecovery(req.body || {})));
@@ -2604,6 +2622,7 @@ const __REV_AUTO = (function buildRevenueAutopilot() {
         industry: item.vertical,
         segment: `${segment}:${item.bundle}`,
         budgetUsd: Math.round(budgetUsd * (item.bundle === 'flagship' ? 1.7 : item.bundle === 'growth' ? 1.15 : 0.85)),
+        persist: false,
       }));
       const seo = moneyMachine.generateSeoPages({ verticals: verticalPlaybook.map((item) => item.vertical) });
       const pillarTrafficSeo = {

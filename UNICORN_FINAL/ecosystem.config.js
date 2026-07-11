@@ -297,7 +297,7 @@ module.exports = {
         MESH_GUARDIAN_FAIL_THRESHOLD: process.env.MESH_GUARDIAN_FAIL_THRESHOLD || '4',
         MESH_GUARDIAN_HEAL_COOLDOWN_MS: process.env.MESH_GUARDIAN_HEAL_COOLDOWN_MS || '300000',
         MESH_GUARDIAN_STARTUP_GRACE_MS: process.env.MESH_GUARDIAN_STARTUP_GRACE_MS || '45000',
-        MESH_GUARDIAN_AUTOREPAIR: process.env.MESH_GUARDIAN_AUTOREPAIR || '1',
+        MESH_GUARDIAN_AUTOREPAIR: process.env.MESH_GUARDIAN_AUTOREPAIR || '0',
       },
       error_file: 'logs/mesh-guardian-error.log',
       out_file:   'logs/mesh-guardian-out.log',

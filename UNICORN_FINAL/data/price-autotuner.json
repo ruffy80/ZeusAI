@@ -60,7 +60,11 @@
     "zacc-tutoring-suite-rlqvtj": 89.15,
     "dropship-electric-milk-frother-usb-c-bcd8rt": 15.99,
     "dropship-heated-eyelash-curler-usb-vlx00j": 12.99,
-    "dropship-magnetic-phone-car-mount-p326mp": 11.99
+    "dropship-magnetic-phone-car-mount-p326mp": 11.99,
+    "zacc-sovereign-autonomous-agents-z92gpt": 200.99,
+    "zacc-ai-on-brand-image-studio-nb7yjy": 192.22,
+    "zacc-sovereign-real-time-translation-k5xo2z": 183.55,
+    "zacc-private-rag-doc-search-autopilot-284v5x": 190.86
   },
   "multipliers": {
     "starter": 1,
@@ -123,8 +127,12 @@
     "zacc-tutoring-suite-rlqvtj": 1,
     "dropship-electric-milk-frother-usb-c-bcd8rt": 1,
     "dropship-heated-eyelash-curler-usb-vlx00j": 1,
-    "dropship-magnetic-phone-car-mount-p326mp": 1
+    "dropship-magnetic-phone-car-mount-p326mp": 1,
+    "zacc-sovereign-autonomous-agents-z92gpt": 1,
+    "zacc-ai-on-brand-image-studio-nb7yjy": 1,
+    "zacc-sovereign-real-time-translation-k5xo2z": 1,
+    "zacc-private-rag-doc-search-autopilot-284v5x": 1
   },
-  "lastRunIso": "2026-07-04T11:22:33.193Z",
-  "runs": 3
+  "lastRunIso": "2026-07-10T15:01:56.889Z",
+  "runs": 4
 }
