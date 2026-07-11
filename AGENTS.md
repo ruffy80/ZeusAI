@@ -33,6 +33,14 @@ cd UNICORN_FINAL && PORT=3001 \
 - Root `npm start` runs **only** the site server (`src/index.js`) on port 3000.
   Run alone it works but `/health` reports `backend.ok:false` / degraded because
   no backend is listening — that is expected, not a bug.
+- **Important — self-mutation rewrites source files:** the backend runs an
+  autonomous "self-construction" loop that will **overwrite backend module
+  source files** (e.g. `backend/modules/*.js`) with auto-generated stubs while
+  it runs, dirtying the git tree. Always start the backend with
+  `DISABLE_SELF_MUTATION=1` during local/dev work to keep the repo clean (the
+  test suite already sets this). It also continuously writes runtime state under
+  `UNICORN_FINAL/data/**` (heartbeats, rankings) — those churn is benign and
+  should not be committed; `git checkout -- UNICORN_FINAL/data/...` to discard.
 - Health checks: backend `GET /api/health`; site `GET /health` (the site health
   includes a `backend` sub-object that should show `ok:true` once both run).
 - The public marketplace/commerce flow (used for smoke-testing) is:
