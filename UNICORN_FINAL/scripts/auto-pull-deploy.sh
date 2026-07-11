@@ -70,6 +70,20 @@ NEW="$(git rev-parse "origin/${BRANCH}" 2>/dev/null || true)"
 
 CUR="$(cat "$DEPLOY_LINK/.deployed-commit" 2>/dev/null | head -c 64 | tr -d '[:space:]' || true)"
 
+# Fallback: if .deployed-commit is missing (e.g. a prior deploy aborted after
+# promoting the symlink but before stamping the SHA), derive the live commit
+# from the release dir the symlink points at ("…/releases/<sha>-<ts>/…"). This
+# prevents treating the box as a fresh install and rescanning full history
+# (which would trip the AutoInnovation gate on old commits and refuse forever).
+if [ -z "$CUR" ]; then
+  RESOLVED="$(readlink -f "$DEPLOY_LINK" 2>/dev/null || true)"
+  DERIVED="$(printf '%s' "$RESOLVED" | grep -oE '/releases/[0-9a-f]{40}-' | head -1 | grep -oE '[0-9a-f]{40}' || true)"
+  if [ -n "$DERIVED" ]; then
+    CUR="$DERIVED"
+    log "derived live SHA from release symlink (no .deployed-commit): $CUR"
+  fi
+fi
+
 if [ "$NEW" = "$CUR" ]; then
   log "up-to-date (live=$NEW) — nothing to deploy"
   exit 0
