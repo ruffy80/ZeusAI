@@ -24,13 +24,28 @@ echo "[install-autodeploy] installing systemd units"
 install -m 0644 "$SCRIPT_DIR/zeus-autodeploy.service" "$UNIT_DIR/zeus-autodeploy.service"
 install -m 0644 "$SCRIPT_DIR/zeus-autodeploy.timer"   "$UNIT_DIR/zeus-autodeploy.timer"
 
+# Post-deploy health sentinel (known-good tracking + rollback; monitor-mode default)
+if [ -f "$SCRIPT_DIR/zeus-deploy-sentinel.sh" ]; then
+  echo "[install-autodeploy] installing deploy sentinel → /usr/local/bin/zeus-deploy-sentinel.sh"
+  install -m 0755 "$SCRIPT_DIR/zeus-deploy-sentinel.sh" /usr/local/bin/zeus-deploy-sentinel.sh
+  install -m 0644 "$SCRIPT_DIR/zeus-deploy-sentinel.service" "$UNIT_DIR/zeus-deploy-sentinel.service"
+  install -m 0644 "$SCRIPT_DIR/zeus-deploy-sentinel.timer"   "$UNIT_DIR/zeus-deploy-sentinel.timer"
+  touch /var/log/zeus-deploy-sentinel.log 2>/dev/null || true
+fi
+
 mkdir -p /opt/zeus-autodeploy
 touch /var/log/zeus-autodeploy.log 2>/dev/null || true
 
-echo "[install-autodeploy] reload + enable timer"
+echo "[install-autodeploy] reload + enable timers"
 systemctl daemon-reload
 systemctl enable --now zeus-autodeploy.timer
+if [ -f "$UNIT_DIR/zeus-deploy-sentinel.timer" ]; then
+  systemctl enable --now zeus-deploy-sentinel.timer
+fi
 
 echo "[install-autodeploy] status:"
-systemctl status zeus-autodeploy.timer --no-pager -l 2>&1 | head -8 || true
-echo "[install-autodeploy] done. Kill-switch: touch /etc/zeus-autodeploy.disabled"
+systemctl status zeus-autodeploy.timer --no-pager -l 2>&1 | head -6 || true
+systemctl status zeus-deploy-sentinel.timer --no-pager -l 2>&1 | head -6 || true
+echo "[install-autodeploy] done."
+echo "  Kill-switch (autodeploy): touch /etc/zeus-autodeploy.disabled"
+echo "  Sentinel rollback (opt-in): systemctl edit zeus-deploy-sentinel.service -> Environment=ZEUS_SENTINEL_MODE=act"

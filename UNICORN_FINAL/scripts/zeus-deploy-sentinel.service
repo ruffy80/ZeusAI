@@ -1,0 +1,21 @@
+[Unit]
+Description=ZeusAI post-deploy health sentinel (known-good tracking + rollback)
+Documentation=https://github.com/ruffy80/ZeusAI
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+# Same PM2 daemon as the live box (see zeus-autodeploy.service for the why).
+Environment=HOME=/root
+Environment=PM2_HOME=/root/.pm2
+# Default is monitor-only (logs, never acts). Flip to act by overriding this
+# with `systemctl edit zeus-deploy-sentinel.service` -> Environment=ZEUS_SENTINEL_MODE=act
+Environment=ZEUS_SENTINEL_MODE=monitor
+ExecStart=/usr/local/bin/zeus-deploy-sentinel.sh
+Nice=10
+TimeoutStartSec=300
+SuccessExitStatus=0 1
+
+[Install]
+WantedBy=multi-user.target
