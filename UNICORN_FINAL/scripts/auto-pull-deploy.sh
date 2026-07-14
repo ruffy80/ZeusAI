@@ -77,6 +77,15 @@ fi
 
 log "candidate NEW=$NEW  current live=${CUR:-none}"
 
+# ── Quarantine guard: skip a SHA the deploy-sentinel rolled back as unhealthy ─
+# Prevents an auto-forward-deploy vs auto-rollback fight; a newer commit that is
+# not quarantined supersedes it normally.
+QUARANTINE_FILE="${ZEUS_QUARANTINE_FILE:-/opt/zeus-autodeploy/quarantine.txt}"
+if [ -f "$QUARANTINE_FILE" ] && grep -qxF "$NEW" "$QUARANTINE_FILE" 2>/dev/null; then
+  log "candidate $NEW is quarantined (rolled back as unhealthy) — skipping"
+  exit 0
+fi
+
 # ── Forward-only guard: NEW must be a descendant of the live commit ─────────
 if [ -n "$CUR" ] && git cat-file -e "${CUR}^{commit}" 2>/dev/null; then
   if ! git merge-base --is-ancestor "$CUR" "$NEW"; then

@@ -1,0 +1,13 @@
+[Unit]
+Description=Run ZeusAI post-deploy health sentinel periodically
+Documentation=https://github.com/ruffy80/ZeusAI
+
+[Timer]
+OnBootSec=120s
+OnUnitActiveSec=2min
+RandomizedDelaySec=20s
+Persistent=true
+Unit=zeus-deploy-sentinel.service
+
+[Install]
+WantedBy=timers.target
