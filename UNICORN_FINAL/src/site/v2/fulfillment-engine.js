@@ -32,8 +32,25 @@ let deliveryRegistry = null;
 try { deliveryRegistry = require('./delivery-registry'); } catch (_) { deliveryRegistry = null; }
 
 const MAX_ARTIFACT_CHARS = Number(process.env.FULFILLMENT_MAX_CHARS || 24000);
+// High-ticket / enterprise services (>= this USD, or matched by id) are NOT
+// auto-"delivered" as a finished product — that would be fraud. Instead the
+// engine instantly delivers a real, closable ENGAGEMENT PROPOSAL and flags the
+// order for milestone-based human-led execution.
+const ENTERPRISE_THRESHOLD_USD = Number(process.env.FULFILLMENT_ENTERPRISE_USD || 5000);
+const ENTERPRISE_ID_RE = /sovereign|private[-_]?(deployment|cloud)|platform[-_]?license|acquisition|white[-_]?label|franchise|revenue[-_]?share|enterprise|\bent-|transformation|not-yet-invented/;
 
 function h(str) { return String(str || '').toLowerCase(); }
+
+function receiptAmountUsd(receipt) {
+  const cands = [receipt && receipt.amount, receipt && receipt.amountUsd, receipt && receipt.amount_usd, receipt && receipt.subtotal_fiat, receipt && receipt.unit_price_full_fiat];
+  for (const c of cands) { const n = Number(c); if (Number.isFinite(n) && n > 0) return n; }
+  return 0;
+}
+
+function isEnterprise(receipt, serviceId) {
+  if (ENTERPRISE_ID_RE.test(h(serviceId))) return true;
+  return receiptAmountUsd(receipt) >= ENTERPRISE_THRESHOLD_USD;
+}
 
 // Each recipe: how to detect it, what to produce, and the prompt to the model.
 const RECIPES = [
@@ -117,6 +134,26 @@ const GENERIC_RECIPE = {
   prompt: (ctx) => `Produce a concrete, tailored action plan for delivering the purchased service below: objectives, a step-by-step execution plan, deliverable templates the customer can use immediately, KPIs, risks, and a 30-day timeline. Be specific and immediately usable. Context: ${ctx}.`
 };
 
+// High-ticket engagements deliver a real, closable proposal instantly — the
+// correct deliverable for a big-ticket sale — while the product itself is
+// executed as a milestone-based, human-led engagement (honest, no fake claim).
+const ENTERPRISE_RECIPE = {
+  id: 'enterprise-engagement', format: 'markdown',
+  title: 'Enterprise Engagement Proposal & Kickoff Plan',
+  system: 'You are a top enterprise solutions architect and deal lead who structures multi-million-dollar B2B engagements. Be concrete, credible, and commercially rigorous.',
+  prompt: (ctx) => `Produce a complete enterprise ENGAGEMENT PROPOSAL (Markdown) for the high-value service below. This is delivered instantly to the buyer to start a milestone-based engagement (NOT a claim that the full system is already delivered). Include, with real specifics:
+1. Executive summary & business outcomes
+2. Solution architecture (components, data flow, security/compliance model)
+3. Scope of Work broken into 4-6 delivery phases
+4. Milestone payment schedule (deposit + per-milestone %, tied to explicit acceptance criteria) that sums to the contract value
+5. Timeline with durations per phase
+6. Security, compliance (SOC2/GDPR as relevant), SLA & support model
+7. Team, governance & communication cadence
+8. Risks & mitigations
+9. Commercials summary + clear next steps to sign and kick off
+End with a short note: "This document is your engagement proposal and kickoff plan; delivery is executed by the ZeusAI team across the milestones above." Context: ${ctx}.`
+};
+
 function pickRecipe(serviceId) {
   const s = h(serviceId);
   return RECIPES.find(r => r.match(s)) || GENERIC_RECIPE;
@@ -137,20 +174,27 @@ function extension(format) {
 // Produce a real artifact for one service via the LLM layer. Returns an
 // artifact object or a { pending } marker; never throws.
 async function fulfillService(receipt, serviceId) {
-  const recipe = pickRecipe(serviceId);
+  const enterprise = isEnterprise(receipt, serviceId);
+  const recipe = enterprise ? ENTERPRISE_RECIPE : pickRecipe(serviceId);
+  const tier = enterprise ? 'enterprise' : 'standard';
   if (!aiProviders || typeof aiProviders.chat !== 'function') {
-    return { serviceId, recipe: recipe.id, status: 'pending_ai_layer', title: recipe.title };
+    return { serviceId, recipe: recipe.id, tier, status: 'pending_ai_layer', title: recipe.title };
   }
   try {
-    const result = await aiProviders.chat(recipe.prompt(contextFor(receipt, serviceId)), [], { });
+    const result = await aiProviders.chat(recipe.prompt(contextFor(receipt, serviceId)), [], enterprise ? { premiumOnly: false } : {});
     const reply = result && result.reply ? String(result.reply) : '';
     if (!reply) {
-      return { serviceId, recipe: recipe.id, status: 'pending_ai_key', title: recipe.title };
+      return { serviceId, recipe: recipe.id, tier, status: 'pending_ai_key', title: recipe.title };
     }
     const content = reply.slice(0, MAX_ARTIFACT_CHARS);
     return {
       serviceId,
       recipe: recipe.id,
+      tier,
+      // Enterprise: the PROPOSAL is delivered now; the product is executed as a
+      // milestone-based, human-led engagement (flagged so ops/concierge follows up).
+      deliverableType: enterprise ? 'enterprise-proposal' : 'product',
+      requiresHumanFulfillment: enterprise,
       title: recipe.title,
       status: 'delivered',
       format: recipe.format,
@@ -161,7 +205,7 @@ async function fulfillService(receipt, serviceId) {
       createdAt: new Date().toISOString()
     };
   } catch (e) {
-    return { serviceId, recipe: recipe.id, status: 'error', title: recipe.title, error: String(e && e.message || e) };
+    return { serviceId, recipe: recipe.id, tier, status: 'error', title: recipe.title, error: String(e && e.message || e) };
   }
 }
 
@@ -194,10 +238,11 @@ async function fulfillReceipt(receipt, opts = {}) {
     : delivered > 0 ? 'ai_partial'
       : (artifacts.some(a => a.status === 'pending_ai_key' || a.status === 'pending_ai_layer') ? 'pending_ai_key' : 'error');
 
+  const requiresHumanFulfillment = artifacts.some(a => a.requiresHumanFulfillment);
   if (deliveryRegistry && typeof deliveryRegistry.attachArtifacts === 'function') {
     try { deliveryRegistry.attachArtifacts(receipt.id, artifacts, fulfillmentStatus); } catch (_) { /* non-fatal */ }
   }
-  return { ok: true, receiptId: receipt.id, fulfillmentStatus, delivered, total: artifacts.length, artifacts };
+  return { ok: true, receiptId: receipt.id, fulfillmentStatus, delivered, total: artifacts.length, requiresHumanFulfillment, artifacts };
 }
 
-module.exports = { fulfillReceipt, fulfillService, pickRecipe, RECIPES, GENERIC_RECIPE };
+module.exports = { fulfillReceipt, fulfillService, pickRecipe, isEnterprise, RECIPES, GENERIC_RECIPE, ENTERPRISE_RECIPE };
