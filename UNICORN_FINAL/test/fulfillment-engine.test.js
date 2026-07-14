@@ -76,6 +76,27 @@ function check(name, fn) { fn(); pass++; console.log('  \u2713 ' + name); }
     assert.ok(!('content' in list.artifacts[0]), 'list view must not leak bulky content');
   });
 
+  // ── High-ticket / enterprise => proposal deliverable, flagged human-led ───
+  check('detects enterprise by service id ($4M sovereign)', () => {
+    assert.strictEqual(engine.isEnterprise({}, 'ent-sovereign-deployment'), true);
+  });
+  check('detects enterprise by amount threshold', () => {
+    assert.strictEqual(engine.isEnterprise({ amount: 4000000 }, 'some-service'), true);
+    assert.strictEqual(engine.isEnterprise({ amount: 49 }, 'instant-logo'), false);
+  });
+  {
+    registry.deliver({ id: 'rent', email: 'ceo@corp.com', services: ['ent-sovereign-deployment'], amount: 4000000 });
+    const outE = await engine.fulfillReceipt({ id: 'rent', email: 'ceo@corp.com', services: ['ent-sovereign-deployment'], amount: 4000000 });
+    check('enterprise order delivers a real proposal + flags human fulfillment', () => {
+      assert.strictEqual(outE.requiresHumanFulfillment, true);
+      const a = outE.artifacts[0];
+      assert.strictEqual(a.recipe, 'enterprise-engagement');
+      assert.strictEqual(a.tier, 'enterprise');
+      assert.strictEqual(a.deliverableType, 'enterprise-proposal');
+      assert.ok(a.content && a.content.length > 0);
+    });
+  }
+
   // ── No provider key (chat returns null) => graceful pending, no fake deliver
   aiProviders.chat = async () => null;
   const out2 = await engine.fulfillReceipt({ id: 'r2', services: ['instant-landing-page'] }, { force: true });
