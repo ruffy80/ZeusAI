@@ -589,6 +589,11 @@ jobs:
             # which has no implementation and would 404 the Buy flow.
             python3 "$DEPLOY_PATH/scripts/nginx-patch-sovereign-commerce-routes.py" || \
               echo "[nginx-patch-sovereign-commerce-routes] patch failed (continuing)"
+            # ZEUS-DELIVERY-ROUTES: route /api/delivery/* (AI fulfillment deliverable
+            # download, served by src/index.js on the SITE service :3001) so paying
+            # customers can fetch their generated artifact publicly. Idempotent.
+            python3 "$DEPLOY_PATH/scripts/nginx-patch-delivery-routes.py" || \
+              echo "[nginx-patch-delivery-routes] patch failed (continuing)"
             # ZEUS-ATTESTATION: route /api/attestation/{publickey,verify-html}
             # to the SITE service (:3001) — implementations live in
             # UNICORN_FINAL/src/index.js. Idempotent.
