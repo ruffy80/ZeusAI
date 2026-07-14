@@ -140,6 +140,19 @@ function deliver(receipt, opts = {}) {
   return delivery;
 }
 
+// Attach real AI-generated deliverables (from fulfillment-engine) to an
+// existing delivery record. Idempotent per receipt; never throws to caller.
+function attachArtifacts(receiptId, artifacts, fulfillmentStatus) {
+  const deliveries = all();
+  const idx = deliveries.findIndex(d => d.receiptId === receiptId || d.id === receiptId);
+  if (idx < 0) return null;
+  deliveries[idx].artifacts = Array.isArray(artifacts) ? artifacts : [];
+  deliveries[idx].fulfillmentStatus = fulfillmentStatus || 'unknown';
+  deliveries[idx].updatedAt = new Date().toISOString();
+  save(deliveries);
+  return deliveries[idx];
+}
+
 function get(receiptId) {
   return all().find(d => d.receiptId === receiptId || d.id === receiptId) || null;
 }
@@ -164,4 +177,23 @@ function renderPayload(delivery, format, serviceId) {
   return item;
 }
 
-module.exports = { all, list, get, deliver, renderPayload };
+// Render the AI-generated deliverables. `format=artifacts` lists metadata (no
+// bulky content); `format=artifact` + serviceId returns one artifact's content.
+function renderArtifacts(delivery, format, serviceId) {
+  if (!delivery || !Array.isArray(delivery.artifacts)) return null;
+  if (format === 'artifacts') {
+    return {
+      fulfillmentStatus: delivery.fulfillmentStatus || 'unknown',
+      artifacts: delivery.artifacts.map(a => ({
+        serviceId: a.serviceId, recipe: a.recipe, title: a.title, status: a.status,
+        format: a.format, filename: a.filename, bytes: a.bytes, generatedBy: a.generatedBy
+      }))
+    };
+  }
+  const item = serviceId
+    ? delivery.artifacts.find(a => a.serviceId === serviceId)
+    : delivery.artifacts[0];
+  return item || null;
+}
+
+module.exports = { all, list, get, deliver, renderPayload, attachArtifacts, renderArtifacts };
