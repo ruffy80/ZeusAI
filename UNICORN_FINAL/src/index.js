@@ -2029,6 +2029,18 @@ function runDeliveryForReceipt(receipt, opts) {
     receipt.delivery = delivery;
     receipt.deliveryStatus = delivery.status;
     receipt.deliverables = delivery.items.flatMap(item => item.files || []);
+    // Real AI-backed fulfillment (feature-flagged OFF by default). Fire-and-forget
+    // so checkout stays fast; artifacts are attached to the delivery record async
+    // and served via /api/delivery/:id?format=artifact. Zero effect on the live
+    // money path unless FULFILLMENT_AI_ENABLED=1 and an AI provider key is set.
+    if (process.env.FULFILLMENT_AI_ENABLED === '1') {
+      try {
+        const fulfillmentEngine = require('./site/v2/fulfillment-engine');
+        Promise.resolve(fulfillmentEngine.fulfillReceipt(receipt))
+          .then(r => { if (r && r.ok) console.log('[fulfillment] receipt=' + receipt.id + ' status=' + r.fulfillmentStatus + ' delivered=' + r.delivered + '/' + r.total); })
+          .catch(e => console.warn('[fulfillment] async error for ' + receipt.id + ':', e.message));
+      } catch (e) { console.warn('[fulfillment] engine load failed:', e.message); }
+    }
     return delivery;
   } catch (e) {
     receipt.deliveryStatus = 'failed';
@@ -3485,9 +3497,25 @@ async function unicornHandler(req, res) {
   if (earlyPath.startsWith('/api/delivery/')) {
     const id = decodeURIComponent(earlyPath.slice('/api/delivery/'.length));
     const params = requestUrl.searchParams;
+    const fmt = params.get('format');
     const delivery = deliveryRegistry && deliveryRegistry.get ? deliveryRegistry.get(id) : null;
+    // Real AI-generated deliverables (from fulfillment-engine).
+    if ((fmt === 'artifacts' || fmt === 'artifact') && deliveryRegistry && deliveryRegistry.renderArtifacts) {
+      const art = deliveryRegistry.renderArtifacts(delivery, fmt, params.get('serviceId'));
+      if (!art) { res.writeHead(404, { 'Content-Type':'application/json' }); return res.end(JSON.stringify({ error:'artifact_not_found' })); }
+      // A single artifact with content can be served raw for direct download.
+      if (fmt === 'artifact' && art.content) {
+        const ctype = art.format === 'html' ? 'text/html; charset=utf-8'
+          : art.format === 'json' ? 'application/json; charset=utf-8'
+            : 'text/markdown; charset=utf-8';
+        res.writeHead(200, { 'Content-Type': ctype, 'Cache-Control':'no-cache', 'Content-Disposition': `inline; filename="${(art.filename||'deliverable').replace(/[^\w.-]/g,'_')}"` });
+        return res.end(art.content);
+      }
+      res.writeHead(200, { 'Content-Type':'application/json', 'Cache-Control':'no-cache' });
+      return res.end(JSON.stringify({ ok:true, delivery: art }));
+    }
     const payload = deliveryRegistry && deliveryRegistry.renderPayload
-      ? deliveryRegistry.renderPayload(delivery, params.get('format'), params.get('serviceId'))
+      ? deliveryRegistry.renderPayload(delivery, fmt, params.get('serviceId'))
       : delivery;
     if (!payload) { res.writeHead(404, { 'Content-Type':'application/json' }); return res.end(JSON.stringify({ error:'delivery_not_found' })); }
     res.writeHead(200, { 'Content-Type':'application/json', 'Cache-Control':'no-cache' });
