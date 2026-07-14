@@ -1,0 +1,13 @@
+[Unit]
+Description=Run ZeusAI SQLite DB backup hourly
+Documentation=https://github.com/ruffy80/ZeusAI
+
+[Timer]
+OnBootSec=5min
+OnCalendar=hourly
+RandomizedDelaySec=90s
+Persistent=true
+Unit=zeus-db-backup.service
+
+[Install]
+WantedBy=timers.target

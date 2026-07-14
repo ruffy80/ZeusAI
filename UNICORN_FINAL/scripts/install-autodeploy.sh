@@ -33,6 +33,15 @@ if [ -f "$SCRIPT_DIR/zeus-deploy-sentinel.sh" ]; then
   touch /var/log/zeus-deploy-sentinel.log 2>/dev/null || true
 fi
 
+# Consistent SQLite DB backups (unicorn.db, tenants.db) — hourly
+if [ -f "$SCRIPT_DIR/zeus-db-backup.sh" ]; then
+  echo "[install-autodeploy] installing DB backup → /usr/local/bin/zeus-db-backup.sh"
+  install -m 0755 "$SCRIPT_DIR/zeus-db-backup.sh" /usr/local/bin/zeus-db-backup.sh
+  install -m 0644 "$SCRIPT_DIR/zeus-db-backup.service" "$UNIT_DIR/zeus-db-backup.service"
+  install -m 0644 "$SCRIPT_DIR/zeus-db-backup.timer"   "$UNIT_DIR/zeus-db-backup.timer"
+  touch /var/log/zeus-db-backup.log 2>/dev/null || true
+fi
+
 mkdir -p /opt/zeus-autodeploy
 touch /var/log/zeus-autodeploy.log 2>/dev/null || true
 
@@ -41,6 +50,9 @@ systemctl daemon-reload
 systemctl enable --now zeus-autodeploy.timer
 if [ -f "$UNIT_DIR/zeus-deploy-sentinel.timer" ]; then
   systemctl enable --now zeus-deploy-sentinel.timer
+fi
+if [ -f "$UNIT_DIR/zeus-db-backup.timer" ]; then
+  systemctl enable --now zeus-db-backup.timer
 fi
 
 echo "[install-autodeploy] status:"
