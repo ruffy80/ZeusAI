@@ -49,6 +49,33 @@ cd UNICORN_FINAL && PORT=3001 \
   then `GET /api/order/:orderId/status`. A human checkout page renders at
   `GET /checkout/:orderId`.
 
+### Deploy & self-update (autonomy)
+
+Production is a single Hetzner VPS (`zeusai.pro`) behind nginx, PM2-managed
+(`unicorn-backend`, `unicorn-site`). Code reaches it two independent ways:
+
+- **GitHub Actions** (`.github/workflows/deploy.yml`) on push to `main` — primary
+  path (rsync + `scripts/deploy-atomic-forward.sh` + PM2 restart).
+- **On-server self-deploy poller** (`scripts/auto-pull-deploy.sh` via the
+  `zeus-autodeploy.timer` systemd timer, ~every 3 min) — a billing-independent
+  safety net that polls `origin/main` over public HTTPS and runs the same
+  canary-gated `deploy-atomic-forward.sh`. A merge to `main` therefore goes live
+  within ~3 min even if Actions is down. Kill-switch: `touch /etc/zeus-autodeploy.disabled`.
+- **Post-deploy sentinel** (`scripts/zeus-deploy-sentinel.sh` via
+  `zeus-deploy-sentinel.timer`) records the last known-good release and can roll
+  back one that regresses after promotion. Default `ZEUS_SENTINEL_MODE=monitor`
+  (logs only); `act` enables rollback and quarantines the bad SHA so the poller
+  won't redeploy it.
+
+`deploy-atomic-forward.sh` canaries on port 3100 and only promotes the live
+symlink after health/QIS/smoke pass. Live mutable state (`.env`, `data`, `db`)
+lives in `/var/www/unicorn/shared` and is symlinked into each release — never
+ship snapshots of it. Current live build SHA: `GET /integrity.json` (`version`).
+
+**Browser-testing gotcha:** the site registers a service worker that aggressively
+caches assets, so a hard reload alone may still serve stale JS. Visit `/sw-reset`
+once (unregisters the SW + purges caches) before verifying front-end changes.
+
 ### Environment / secrets
 
 - No secrets are required for local dev, lint, or the test suite. `.env` is
