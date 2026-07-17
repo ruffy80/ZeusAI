@@ -1,6 +1,6 @@
 # CURSOR-WORKFLOW.md — GitHub-independent deploy & operations
 
-_Last updated: 2026-07-14 by the Cursor agent._
+_Last updated: 2026-07-17 by the Cursor agent._
 
 ## TL;DR — how zeusai.pro actually runs (read this before deploying)
 - The live app is served by **nginx (:80/:443) + PM2 (`unicorn-backend` :3000, `unicorn-site` :3001)** from **`/var/www/unicorn/UNICORN_FINAL`** (a symlink to the current release under `/var/www/unicorn/releases/<sha>-<ts>/`).
@@ -11,17 +11,23 @@ _Last updated: 2026-07-14 by the Cursor agent._
 ## Deploying WITHOUT GitHub (three ways, all safe, all canary-gated)
 All three run the same `scripts/deploy-atomic-forward.sh` (canary on :3100 → health/QIS/smoke → atomic symlink promote → PM2 restart → final smoke → stamp `.deployed-commit`).
 
-1. **Cursor Cloud / local SSH** — preferred when Actions is billing-locked:
+1. **On-server self-deploy poller** — **primary path when Actions is billing-locked**:
+   `zeus-autodeploy.timer` (~every 3 min) pulls `origin/main` over public HTTPS and runs canary-gated `deploy-atomic-forward.sh`. Kill-switch: `touch /etc/zeus-autodeploy.disabled`.
+   **This is how `git push origin main` reaches live without SSH or Actions.**
+2. **Cursor Cloud / local SSH** — instant deploy when a private key is available:
    ```bash
-   bash UNICORN_FINAL/scripts/zeus-ssh-deploy.sh HEAD
-   # or: ZEUS_SSH_KEY=~/.ssh/deploy_key bash UNICORN_FINAL/scripts/deploy-local.sh HEAD
+   ZEUS_SSH_KEY=~/.ssh/deploy_key bash UNICORN_FINAL/scripts/zeus-ssh-deploy.sh HEAD
    ```
-   Uses `/run/host-services/ssh-auth.sock` when present. Every promote also runs
-   `ensure-cursor-cloud-ssh.sh` so Cursor agent pubkeys stay in `authorized_keys`.
-2. **On-server self-deploy poller** — `zeus-autodeploy.timer` (systemd, ~every 3 min) pulls `origin/main` over public HTTPS and deploys forward automatically. Kill-switch: `touch /etc/zeus-autodeploy.disabled`.
+   Every promote runs `ensure-cursor-cloud-ssh.sh` (appends Cursor agent **public** keys to root `authorized_keys`).
 3. **GitHub Actions** (`.github/workflows/deploy.yml`) on push to `main` — when the GitHub account is not billing-locked.
 
-> NOTE: GitHub billing was **already unblocked** on 2026-07-14 — Actions runs again. The manual/poller paths remain as GitHub-independent fallbacks (belt & braces).
+### Where is `HETZNER_SSH_PRIVATE_KEY`?
+- **Not in the unicorn working tree** (never commit private keys).
+- **Exists as a GitHub Actions secret** — agents cannot read secret values via `gh` (403).
+- **Optional Cursor Runtime Secret** — set `HETZNER_SSH_PRIVATE_KEY` in Cursor Dashboard → Cloud Agents → Secrets; `.cursor/environment.json` materializes it to `~/.ssh/deploy_key`.
+- **Bootstrap without the secret:** add the agent's **public** key to `UNICORN_FINAL/scripts/ensure-cursor-cloud-ssh.sh` → push `main` → poller promotes → server installs the pubkey → SSH with the matching local private key works.
+
+> NOTE: If GitHub Actions is billing-locked, rely on the poller (path 1). SSH is optional acceleration.
 
 ## Safety nets running on the box
 - **Post-deploy sentinel** (`zeus-deploy-sentinel.timer`, `act` mode): rolls back to the last known-good release if a release regresses after promotion; quarantines the bad SHA so the poller won't redeploy it.

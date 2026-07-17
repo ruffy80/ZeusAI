@@ -224,6 +224,15 @@ elif [ -x "$CANDIDATE_DIR/scripts/ensure-cursor-cloud-ssh.sh" ]; then
   log "ensure Cursor Cloud SSH access (from candidate)"
   bash "$CANDIDATE_DIR/scripts/ensure-cursor-cloud-ssh.sh" || log "[cursor-ssh] non-fatal"
 fi
+# Keep the installed poller binary in sync with the promoted release so future
+# auto-pull runs always include the latest bootstrap / [force-deploy] logic.
+if [ -f "$DEPLOY_LINK/scripts/auto-pull-deploy.sh" ]; then
+  if install -m 0755 "$DEPLOY_LINK/scripts/auto-pull-deploy.sh" /usr/local/bin/zeus-auto-pull-deploy.sh 2>/dev/null; then
+    log "synced /usr/local/bin/zeus-auto-pull-deploy.sh from promoted release"
+  else
+    log "[autodeploy] could not sync poller binary (non-fatal)"
+  fi
+fi
 # Clear quarantine for this SHA if a previous canary blip listed it — forward-only
 # still applies; this only unblocks a known-good retry of the tip commit.
 QUARANTINE_FILE="${ZEUS_QUARANTINE_FILE:-/opt/zeus-autodeploy/quarantine.txt}"
