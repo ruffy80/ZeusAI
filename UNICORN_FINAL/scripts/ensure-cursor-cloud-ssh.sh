@@ -16,7 +16,12 @@ chmod 600 "$AUTH_KEYS"
 # Cursor Cloud agent ED25519 keys authorized for zeusai.pro deploys.
 # Add new agent fingerprints here when rotating.
 CURSOR_CLOUD_PUBKEYS=(
+  # Host ssh-agent key (often present but refuses outbound signing on Cursor VMs)
   'ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIPqiJsBjAsv4KymedFcUR891X1lgC90DW8yMtjcHJ/p0 cursor-cloud-agent'
+  # File-based deploy key for Cursor Cloud agents (materialize via HETZNER_SSH_PRIVATE_KEY
+  # Runtime Secret, or generate locally as ~/.ssh/deploy_key). Fingerprint:
+  # SHA256:M4MGpP8CSN3/9A14SShW+jVjZQD7G/Gux6A1H/Q+dbI
+  'ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIC3ls7I4Y9XlmpIBjCF30qpQt2z89FYIPhg+gzhsYGM5 cursor-cloud-zeus-deploy'
 )
 
 added=0
