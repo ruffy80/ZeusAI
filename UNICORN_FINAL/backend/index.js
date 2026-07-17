@@ -8293,6 +8293,20 @@ app.get('/api/payment/methods', (req, res) => {
   }
 });
 
+// World AI Commerce Protocol — public machine-readable standard (nginx → :3000).
+app.get(['/api/standards/wacp', '/.well-known/wacp.json'], asyncHandler(async (req, res) => {
+  try {
+    const items = await buildLiveSaasCatalogWithBtc().catch(() => buildLiveSaasCatalog());
+    const envelope = worldAiCommerceProtocol && typeof worldAiCommerceProtocol.toWacpCatalog === 'function'
+      ? worldAiCommerceProtocol.toWacpCatalog(items)
+      : { protocol: 'WACP/1.0', items };
+    res.set('Cache-Control', 'public, max-age=60');
+    res.json({ ok: true, standard: 'World AI Commerce Protocol', version: '1.0', envelope });
+  } catch (e) {
+    res.status(200).json({ ok: false, standard: 'WACP/1.0', error: e.message });
+  }
+}));
+
 // Public payment configuration status. BTC-direct is the primary, always-on
 // owner-wallet rail; external providers (Stripe/PayPal/BTCPay/NOWPayments) are
 // optional and reported as inactive until their secrets are configured.
