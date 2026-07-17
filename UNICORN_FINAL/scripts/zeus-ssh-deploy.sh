@@ -19,8 +19,18 @@ if [ -z "${SSH_AUTH_SOCK:-}" ] && [ -S /run/host-services/ssh-auth.sock ]; then
   export SSH_AUTH_SOCK=/run/host-services/ssh-auth.sock
 fi
 
+# Central secrets module: materialize HETZNER_SSH_PRIVATE_KEY → ~/.ssh/deploy_key
+if [ -f "$ROOT/UNICORN_FINAL/src/config/secrets.js" ]; then
+  node -e "
+    const s=require('$ROOT/UNICORN_FINAL/src/config/secrets');
+    s.bootstrap({log:false,persistGenerated:false});
+    const m=s.materializeDeployKey();
+    if (m.HETZNER_KEY_PATH) console.log('[zeus-ssh-deploy] secrets materialize:', m.HETZNER_KEY_PATH);
+  " 2>/dev/null || true
+fi
+
 KEY=""
-for cand in "${ZEUS_SSH_KEY:-}" "$HOME/.ssh/deploy_key" "$HOME/.ssh/hetzner_rsa" "$HOME/.ssh/id_ed25519"; do
+for cand in "${ZEUS_SSH_KEY:-}" "${HETZNER_KEY_PATH:-}" "$HOME/.ssh/deploy_key" "$HOME/.ssh/hetzner_rsa" "$HOME/.ssh/id_ed25519"; do
   [ -n "$cand" ] && [ -f "$cand" ] && KEY="$cand" && break
 done
 

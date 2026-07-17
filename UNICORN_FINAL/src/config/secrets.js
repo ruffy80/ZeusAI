@@ -2,6 +2,7 @@
 
 const fs = require('fs');
 const path = require('path');
+const os = require('os');
 const crypto = require('crypto');
 
 let ALL_SECRET_KEYS = [];
@@ -196,6 +197,66 @@ function generateMissingInternalSecrets(options = {}) {
   return resolved;
 }
 
+/**
+ * Keep HETZNER_SSH_PRIVATE_KEY ↔ ~/.ssh/deploy_key (or HETZNER_KEY_PATH) in sync.
+ * Called from bootstrap so quantumVault / configurationManager / deploy scripts
+ * all see the same deploy artifact without manual file copies.
+ */
+function materializeDeployKey() {
+  const resolved = {};
+  const defaultPath = path.join(os.homedir(), '.ssh', 'deploy_key');
+  let keyPath = String(
+    process.env.HETZNER_KEY_PATH
+    || process.env.HETZNER_SSH_KEY_PATH
+    || process.env.SSH_KEY_PATH
+    || ''
+  ).trim() || defaultPath;
+
+  // File → env (when only the path/file exists)
+  if (!configured('HETZNER_SSH_PRIVATE_KEY') && keyPath && fs.existsSync(keyPath)) {
+    try {
+      const fromFile = fs.readFileSync(keyPath, 'utf8').replace(/\r\n/g, '\n').trim();
+      if (fromFile.includes('PRIVATE KEY')) {
+        process.env.HETZNER_SSH_PRIVATE_KEY = fromFile;
+        resolved.HETZNER_SSH_PRIVATE_KEY = 'file:' + keyPath;
+      }
+    } catch (_) {
+      // best-effort
+    }
+  }
+
+  // Env may store PEM with literal \n escapes (common in .env files)
+  if (configured('HETZNER_SSH_PRIVATE_KEY')) {
+    let pem = String(process.env.HETZNER_SSH_PRIVATE_KEY).replace(/\r\n/g, '\n');
+    if (pem.includes('\\n') && !pem.includes('\n-----') && pem.includes('PRIVATE KEY')) {
+      pem = pem.replace(/\\n/g, '\n');
+      process.env.HETZNER_SSH_PRIVATE_KEY = pem;
+      resolved.HETZNER_SSH_PRIVATE_KEY_UNESCAPE = 'dotenv-escapes';
+    }
+    pem = String(process.env.HETZNER_SSH_PRIVATE_KEY).replace(/\r\n/g, '\n').trim() + '\n';
+    try {
+      fs.mkdirSync(path.dirname(keyPath), { recursive: true, mode: 0o700 });
+      const existing = fs.existsSync(keyPath) ? fs.readFileSync(keyPath, 'utf8') : '';
+      if (existing.replace(/\r\n/g, '\n').trim() !== pem.trim()) {
+        fs.writeFileSync(keyPath, pem, { mode: 0o600 });
+        resolved.HETZNER_KEY_PATH = 'materialized';
+      } else {
+        resolved.HETZNER_KEY_PATH = 'already-current';
+      }
+      process.env.HETZNER_KEY_PATH = keyPath;
+      process.env.HETZNER_SSH_KEY_PATH = keyPath;
+      process.env.SSH_KEY_PATH = keyPath;
+      if (!configured('SSH_PRIVATE_KEY')) {
+        process.env.SSH_PRIVATE_KEY = process.env.HETZNER_SSH_PRIVATE_KEY;
+        resolved.SSH_PRIVATE_KEY = 'HETZNER_SSH_PRIVATE_KEY';
+      }
+    } catch (e) {
+      resolved.HETZNER_KEY_PATH_ERROR = e.message;
+    }
+  }
+  return resolved;
+}
+
 function composeDerivedValues() {
   const resolved = {};
   if (!configured('DOMAIN') && configured('PUBLIC_APP_URL')) {
@@ -286,6 +347,8 @@ function bootstrap(options = {}) {
     ...generateMissingInternalSecrets(options),
     ...normalizeAliases(),
     ...composeDerivedValues(),
+    ...materializeDeployKey(),
+    ...normalizeAliases(),
   };
   const features = Object.fromEntries(Object.entries(FEATURE_GROUPS).map(([name, keys]) => [name, groupStatus(keys)]));
   const knownConfigured = ALL_SECRET_KEYS.filter(configured);
@@ -323,4 +386,14 @@ function requireSecret(name) {
   return v;
 }
 
-module.exports = { bootstrap, configured, features, getSecret, requireSecret, FEATURE_GROUPS, ALIASES, DEFAULT_VALUES };
+module.exports = {
+  bootstrap,
+  configured,
+  features,
+  getSecret,
+  requireSecret,
+  materializeDeployKey,
+  FEATURE_GROUPS,
+  ALIASES,
+  DEFAULT_VALUES,
+};
