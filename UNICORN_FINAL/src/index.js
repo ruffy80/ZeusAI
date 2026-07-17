@@ -2029,17 +2029,60 @@ function runDeliveryForReceipt(receipt, opts) {
     receipt.delivery = delivery;
     receipt.deliveryStatus = delivery.status;
     receipt.deliverables = delivery.items.flatMap(item => item.files || []);
-    // Real AI-backed fulfillment (feature-flagged OFF by default). Fire-and-forget
-    // so checkout stays fast; artifacts are attached to the delivery record async
-    // and served via /api/delivery/:id?format=artifact. Zero effect on the live
-    // money path unless FULFILLMENT_AI_ENABLED=1 and an AI provider key is set.
-    if (process.env.FULFILLMENT_AI_ENABLED === '1') {
+    const artifactIdentity = (artifact) => {
+      if (!artifact || typeof artifact !== 'object') return '';
+      return String(
+        artifact.filename
+        || artifact.contentId
+        || artifact.downloadUrl
+        || [artifact.serviceId, artifact.recipe, artifact.title].filter(Boolean).join(':')
+      ).trim();
+    };
+    const artifactHashesForDelivery = (deliveryRecord) => {
+      const identifiers = [];
+      for (const item of Array.isArray(deliveryRecord && deliveryRecord.items) ? deliveryRecord.items : []) {
+        for (const file of Array.isArray(item && item.files) ? item.files : []) {
+          const ref = artifactIdentity(file);
+          if (ref) identifiers.push(ref);
+        }
+      }
+      for (const artifact of Array.isArray(deliveryRecord && deliveryRecord.artifacts) ? deliveryRecord.artifacts : []) {
+        const ref = artifactIdentity(artifact);
+        if (ref) identifiers.push(ref);
+      }
+      return [...new Set(identifiers)].map((ref) => crypto.createHash('sha256').update(ref).digest('hex'));
+    };
+    const recordProofOfDelivery = (deliveryRecord) => {
       try {
-        const fulfillmentEngine = require('./site/v2/fulfillment-engine');
-        Promise.resolve(fulfillmentEngine.fulfillReceipt(receipt))
-          .then(r => { if (r && r.ok) console.log('[fulfillment] receipt=' + receipt.id + ' status=' + r.fulfillmentStatus + ' delivered=' + r.delivered + '/' + r.total); })
-          .catch(e => console.warn('[fulfillment] async error for ' + receipt.id + ':', e.message));
-      } catch (e) { console.warn('[fulfillment] engine load failed:', e.message); }
+        const proofOfDeliveryLedger = require('../backend/modules/proof-of-delivery-ledger');
+        if (!proofOfDeliveryLedger || typeof proofOfDeliveryLedger.recordDelivery !== 'function') return;
+        const artifactHashes = artifactHashesForDelivery(deliveryRecord);
+        proofOfDeliveryLedger.recordDelivery({
+          orderId: receipt.orderId || receipt.id,
+          deliveryId: deliveryRecord && deliveryRecord.id ? deliveryRecord.id : (receipt.delivery && receipt.delivery.id) || receipt.id,
+          artifactHashes,
+          buyerEmailHash: receipt.customerEmail || receipt.email || ''
+        });
+      } catch (e) {
+        console.warn('[delivery-proof] best-effort record failed for ' + receipt.id + ':', e.message);
+      }
+    };
+    try {
+      const fulfillmentEngine = require('./site/v2/fulfillment-engine');
+      Promise.resolve(fulfillmentEngine.fulfillReceipt(receipt))
+        .then((r) => {
+          if (r && r.ok) console.log('[fulfillment] receipt=' + receipt.id + ' status=' + r.fulfillmentStatus + ' delivered=' + r.delivered + '/' + r.total);
+          const latestDelivery = deliveryRegistry && typeof deliveryRegistry.get === 'function' ? deliveryRegistry.get(receipt.id) : delivery;
+          recordProofOfDelivery(latestDelivery || delivery);
+        })
+        .catch((e) => {
+          console.warn('[fulfillment] async error for ' + receipt.id + ':', e.message);
+          const latestDelivery = deliveryRegistry && typeof deliveryRegistry.get === 'function' ? deliveryRegistry.get(receipt.id) : delivery;
+          recordProofOfDelivery(latestDelivery || delivery);
+        });
+    } catch (e) {
+      console.warn('[fulfillment] engine load failed:', e.message);
+      recordProofOfDelivery(delivery);
     }
     return delivery;
   } catch (e) {

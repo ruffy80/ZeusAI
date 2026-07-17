@@ -171,20 +171,172 @@ function extension(format) {
   return format === 'html' ? 'html' : format === 'json' ? 'json' : 'md';
 }
 
+function publicAppUrl() {
+  return String(process.env.PUBLIC_APP_URL || 'https://zeusai.pro').replace(/\/$/, '');
+}
+
+function firstNonEmpty(values) {
+  for (const value of values) {
+    if (value == null) continue;
+    const text = String(value).trim();
+    if (text) return text;
+  }
+  return '';
+}
+
+function compactLines(lines) {
+  return lines.filter((line, index) => line != null && (String(line).trim() || (index > 0 && String(lines[index - 1] || '').trim())));
+}
+
+function receiptRefs(receipt) {
+  return {
+    orderId: firstNonEmpty([receipt && receipt.orderId, receipt && receipt.id]),
+    btcAmount: firstNonEmpty([
+      receipt && receipt.btcAmount,
+      receipt && receipt.amount_btc,
+      receipt && receipt.btcpay && receipt.btcpay.btcAmount,
+      receipt && receipt.destination && receipt.destination.btcAmount
+    ]),
+    btcAddress: firstNonEmpty([
+      receipt && receipt.btcAddress,
+      receipt && receipt.destination && receipt.destination.address,
+      receipt && receipt.destination && receipt.destination.btcAddress
+    ]),
+    btcUri: firstNonEmpty([
+      receipt && receipt.btcUri,
+      receipt && receipt.destination && receipt.destination.btcUri
+    ]),
+    btcpayInvoiceId: firstNonEmpty([
+      receipt && receipt.btcpay && receipt.btcpay.invoiceId,
+      receipt && receipt.btcpay && receipt.btcpay.id,
+      receipt && receipt.destination && receipt.destination.invoiceId
+    ]),
+    btcpayCheckoutUrl: firstNonEmpty([
+      receipt && receipt.btcpayCheckoutUrl,
+      receipt && receipt.btcpay && receipt.btcpay.checkoutUrl,
+      receipt && receipt.destination && receipt.destination.btcpayCheckoutUrl
+    ]),
+    txids: [...new Set([
+      ...(Array.isArray(receipt && receipt.txids) ? receipt.txids : []),
+      receipt && receipt.txid,
+      receipt && receipt.confirmation && receipt.confirmation.txid
+    ].map((txid) => String(txid || '').trim()).filter(Boolean))]
+  };
+}
+
+function downloadInstructions(receipt, serviceId) {
+  const base = publicAppUrl();
+  const receiptId = encodeURIComponent(receipt.id);
+  const encodedServiceId = encodeURIComponent(serviceId);
+  return [
+    `Signed receipt JSON: ${base}/api/invoice/${receiptId}`,
+    `License token: ${base}/api/license/${receiptId}`,
+    `Delivery overview: ${base}/api/delivery/${receiptId}`,
+    `Onboarding inputs: ${base}/api/delivery/${receiptId}?format=onboarding&serviceId=${encodedServiceId}`,
+    `API/workspace payload: ${base}/api/delivery/${receiptId}?serviceId=${encodedServiceId}`,
+    `Fulfillment artifact list: ${base}/api/delivery/${receiptId}?format=artifacts`,
+    `This activation pack: ${base}/api/delivery/${receiptId}?format=artifact&serviceId=${encodedServiceId}`
+  ];
+}
+
+function buildDeterministicArtifact(receipt, serviceId, recipe, opts = {}) {
+  const enterprise = !!opts.enterprise;
+  const refs = receiptRefs(receipt);
+  const nextSteps = enterprise
+    ? [
+        'Review the engagement scope and milestone plan in this pack.',
+        'Reply with the implementation owner, kickoff window, and security/compliance contacts.',
+        'Use the delivery overview and receipt links below for procurement and internal approval.',
+        'ZeusAI follows up to schedule the milestone-based kickoff and delivery cadence.'
+      ]
+    : [
+        'Download the signed receipt and license token from the links below.',
+        'Open the onboarding payload and provide the required business inputs.',
+        'Use the API/workspace payload to begin activation for this service.',
+        'Check the fulfillment artifact endpoint for updated deliverables or follow-on instructions.'
+      ];
+  const content = compactLines([
+    '# Service Activation Pack',
+    '',
+    `Generated: ${new Date().toISOString()}`,
+    `Fulfillment mode: deterministic`,
+    enterprise
+      ? 'Track: enterprise engagement kickoff (milestone-based human fulfillment follows).'
+      : 'Track: digital activation pack (deterministic fallback because AI fulfillment was unavailable or disabled).',
+    opts.reason ? `Fallback reason: ${opts.reason}` : '',
+    '',
+    '## Order Summary',
+    `- Order ID: ${refs.orderId || 'unknown'}`,
+    `- Service ID: ${serviceId}`,
+    `- Service Name: ${receipt && (receipt.serviceName || receipt.plan) ? (receipt.serviceName || receipt.plan) : recipe.title}`,
+    `- Customer: ${receipt && receipt.email ? receipt.email : 'not provided'}`,
+    `- Payment Status: ${receipt && receipt.status ? receipt.status : 'paid'}`,
+    `- Price (USD): ${receiptAmountUsd(receipt) > 0 ? receiptAmountUsd(receipt).toFixed(2) : 'not recorded'}`,
+    '',
+    '## What Is Included',
+    enterprise
+      ? `This pack is the immediate, honest deliverable for the high-ticket service "${recipe.title}". It captures the commercial kickoff, delivery coordination, and download references while the ZeusAI team executes the actual engagement across milestones.`
+      : `This pack is the immediate activation deliverable for "${recipe.title}". It gives the buyer concrete next steps, receipt references, and download locations so every paid digital SKU receives a useful, non-placeholder artifact.`,
+    '',
+    '## Next Steps',
+    ...nextSteps.map((step, index) => `${index + 1}. ${step}`),
+    '',
+    '## BTC Receipt References',
+    `- BTC Amount: ${refs.btcAmount || 'not recorded'}`,
+    `- BTC Address: ${refs.btcAddress || 'not recorded'}`,
+    `- BIP21 URI: ${refs.btcUri || 'not recorded'}`,
+    `- BTCPay Invoice ID: ${refs.btcpayInvoiceId || 'not recorded'}`,
+    `- BTCPay Checkout URL: ${refs.btcpayCheckoutUrl || 'not recorded'}`,
+    `- Transaction IDs: ${refs.txids.length ? refs.txids.join(', ') : 'not recorded yet'}`,
+    '',
+    '## Download Instructions',
+    ...downloadInstructions(receipt, serviceId).map((line) => `- ${line}`),
+    '',
+    '## Delivery Notes',
+    enterprise
+      ? 'This document is your engagement proposal and kickoff pack; the underlying enterprise system is delivered by the ZeusAI team according to the agreed milestones.'
+      : 'This artifact is intentionally deterministic and never claims AI generation when AI was not actually used.',
+  ]).join('\n');
+
+  return {
+    serviceId,
+    recipe: recipe.id,
+    tier: enterprise ? 'enterprise' : 'standard',
+    deliverableType: enterprise ? 'enterprise-proposal' : 'product',
+    requiresHumanFulfillment: enterprise,
+    title: 'Service Activation Pack',
+    status: 'delivered',
+    format: 'markdown',
+    filename: `${serviceId}-service-activation-pack.${extension('markdown')}`,
+    generatedBy: 'deterministic-engine',
+    fulfillmentMode: 'deterministic',
+    bytes: Buffer.byteLength(content, 'utf8'),
+    content,
+    createdAt: new Date().toISOString()
+  };
+}
+
 // Produce a real artifact for one service via the LLM layer. Returns an
 // artifact object or a { pending } marker; never throws.
 async function fulfillService(receipt, serviceId) {
   const enterprise = isEnterprise(receipt, serviceId);
   const recipe = enterprise ? ENTERPRISE_RECIPE : pickRecipe(serviceId);
   const tier = enterprise ? 'enterprise' : 'standard';
-  if (!aiProviders || typeof aiProviders.chat !== 'function') {
-    return { serviceId, recipe: recipe.id, tier, status: 'pending_ai_layer', title: recipe.title };
+  const shouldUseAi = process.env.FULFILLMENT_AI_ENABLED === '1';
+  if (!shouldUseAi || !aiProviders || typeof aiProviders.chat !== 'function') {
+    return buildDeterministicArtifact(receipt, serviceId, recipe, {
+      enterprise,
+      reason: !shouldUseAi ? 'ai_disabled' : 'ai_layer_unavailable'
+    });
   }
   try {
     const result = await aiProviders.chat(recipe.prompt(contextFor(receipt, serviceId)), [], enterprise ? { premiumOnly: false } : {});
     const reply = result && result.reply ? String(result.reply) : '';
     if (!reply) {
-      return { serviceId, recipe: recipe.id, tier, status: 'pending_ai_key', title: recipe.title };
+      return buildDeterministicArtifact(receipt, serviceId, recipe, {
+        enterprise,
+        reason: 'ai_null_response'
+      });
     }
     const content = reply.slice(0, MAX_ARTIFACT_CHARS);
     return {
@@ -200,12 +352,16 @@ async function fulfillService(receipt, serviceId) {
       format: recipe.format,
       filename: `${serviceId}-${recipe.id}.${extension(recipe.format)}`,
       generatedBy: (result && (result.provider || result.model)) || 'ai',
+      fulfillmentMode: 'ai',
       bytes: Buffer.byteLength(content, 'utf8'),
       content,
       createdAt: new Date().toISOString()
     };
   } catch (e) {
-    return { serviceId, recipe: recipe.id, tier, status: 'error', title: recipe.title, error: String(e && e.message || e) };
+    return buildDeterministicArtifact(receipt, serviceId, recipe, {
+      enterprise,
+      reason: 'ai_error:' + String(e && e.message || e)
+    });
   }
 }
 
@@ -221,9 +377,6 @@ function serviceIds(receipt) {
 // Generate real deliverables for every service on the receipt and attach them
 // to the delivery record. Returns a summary; never throws.
 async function fulfillReceipt(receipt, opts = {}) {
-  if (process.env.FULFILLMENT_AI_ENABLED !== '1' && !opts.force) {
-    return { ok: false, skipped: 'disabled', hint: 'set FULFILLMENT_AI_ENABLED=1 and configure an AI provider key' };
-  }
   if (!receipt || !receipt.id) return { ok: false, error: 'receipt_required' };
 
   const ids = serviceIds(receipt);
@@ -233,10 +386,9 @@ async function fulfillReceipt(receipt, opts = {}) {
     artifacts.push(await fulfillService(receipt, id));
   }
   const delivered = artifacts.filter(a => a.status === 'delivered').length;
-  const fulfillmentStatus = delivered === artifacts.length && delivered > 0
-    ? 'ai_delivered'
-    : delivered > 0 ? 'ai_partial'
-      : (artifacts.some(a => a.status === 'pending_ai_key' || a.status === 'pending_ai_layer') ? 'pending_ai_key' : 'error');
+  const fulfillmentStatus = delivered > 0 && artifacts.every(a => a.fulfillmentMode === 'ai')
+    ? 'ai'
+    : 'deterministic';
 
   const requiresHumanFulfillment = artifacts.some(a => a.requiresHumanFulfillment);
   if (deliveryRegistry && typeof deliveryRegistry.attachArtifacts === 'function') {
