@@ -22,10 +22,18 @@ All three run the same `scripts/deploy-atomic-forward.sh` (canary on :3100 → h
 3. **GitHub Actions** (`.github/workflows/deploy.yml`) on push to `main` — when the GitHub account is not billing-locked.
 
 ### Where is `HETZNER_SSH_PRIVATE_KEY`?
-- **Not in the unicorn working tree** (never commit private keys).
-- **Exists as a GitHub Actions secret** — agents cannot read secret values via `gh` (403).
-- **Optional Cursor Runtime Secret** — set `HETZNER_SSH_PRIVATE_KEY` in Cursor Dashboard → Cloud Agents → Secrets; `.cursor/environment.json` materializes it to `~/.ssh/deploy_key`.
-- **Bootstrap without the secret:** add the agent's **public** key to `UNICORN_FINAL/scripts/ensure-cursor-cloud-ssh.sh` → push `main` → poller promotes → server installs the pubkey → SSH with the matching local private key works.
+Managed by the **central Unicorn secrets module** (`src/config/secrets.js` + `quantumVault` / `configurationManager` + `backend/constants/secretKeys.js`):
+
+- **Never commit private keys** to git.
+- **Canonical name** `HETZNER_SSH_PRIVATE_KEY` (alias `SSH_PRIVATE_KEY`) is in `ALL_SECRET_KEYS` / `deploySync` feature group.
+- **Bootstrap** auto-materializes PEM ↔ `HETZNER_KEY_PATH` / `~/.ssh/deploy_key`.
+- **Propagate** (server `.env` + GitHub Actions secrets) via:
+  ```bash
+  node UNICORN_FINAL/scripts/propagate-deploy-secret.js --key-file ~/.ssh/deploy_key --ensure-ssh
+  ```
+  (uses `GH_PAT` from the secrets registry — does **not** regenerate AI keys).
+- **Cursor Runtime Secret** (optional): same name → `.cursor/environment.json` writes `~/.ssh/deploy_key`.
+- **sync-all-secrets.yml** pushes the key into the live server `.env` with the rest of `ALL_SECRET_KEYS`.
 
 > NOTE: If GitHub Actions is billing-locked, rely on the poller (path 1). SSH is optional acceleration.
 

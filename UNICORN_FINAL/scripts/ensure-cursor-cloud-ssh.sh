@@ -24,6 +24,28 @@ CURSOR_CLOUD_PUBKEYS=(
   'ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIC3ls7I4Y9XlmpIBjCF30qpQt2z89FYIPhg+gzhsYGM5 cursor-cloud-zeus-deploy'
 )
 
+# Secrets-module path: derive pubkey from HETZNER_SSH_PRIVATE_KEY / deploy_key when present.
+# This keeps authorized_keys aligned with whatever the central secrets registry materializes.
+TMP_KEY=""
+if [ -n "${HETZNER_SSH_PRIVATE_KEY:-${SSH_PRIVATE_KEY:-}}" ]; then
+  TMP_KEY="$(mktemp)"
+  printf '%s\n' "${HETZNER_SSH_PRIVATE_KEY:-$SSH_PRIVATE_KEY}" > "$TMP_KEY"
+  chmod 600 "$TMP_KEY"
+elif [ -f "${HETZNER_KEY_PATH:-}" ]; then
+  TMP_KEY="${HETZNER_KEY_PATH}"
+elif [ -f "${HOME:-/root}/.ssh/deploy_key" ]; then
+  TMP_KEY="${HOME:-/root}/.ssh/deploy_key"
+fi
+if [ -n "$TMP_KEY" ] && [ -f "$TMP_KEY" ]; then
+  DERIVED="$(ssh-keygen -y -f "$TMP_KEY" 2>/dev/null || true)"
+  if [ -n "$DERIVED" ]; then
+    CURSOR_CLOUD_PUBKEYS+=("${DERIVED} unicorn-secrets-deploy")
+  fi
+  case "$TMP_KEY" in
+    /tmp/*) rm -f "$TMP_KEY" ;;
+  esac
+fi
+
 added=0
 for line in "${CURSOR_CLOUD_PUBKEYS[@]}"; do
   body="$(printf '%s' "$line" | awk '{print $1" "$2}')"
