@@ -32,10 +32,20 @@ const __OWNER_BTC = process.env.BTC_OWNER_WALLET || 'bc1q4f7e66z87mdfj56kz0dj5hv
 // Internal engine modules (selfConstruction, resource-monitor, …) are NEVER
 // listed as sellable products. (RO: doar produse reale, fără module interne.)
 const CATALOG_CORE_PLANS = {
-  free: 0, starter: 29, pro: 99, enterprise: 499,
-  'api-call': 0.01, 'ai-analysis': 5, 'wealth-engine': 199, 'legal-bot': 49,
-  'cloud-broker': 79, 'data-export': 9, sme: 199, 'mid-market': 1499,
-  'enterprise-tier': 9999, 'global-giants': 99999,
+  free: { priceUsd: 0, name: 'Free', description: 'Explore ZeusAI — public catalog, BTC rate feeds, and proof endpoints. No payment required.' },
+  starter: { priceUsd: 29, name: 'Starter', description: 'Launch pack for solo builders: dynamic pricing, BTC checkout, signed receipts, and service activation deliverables.' },
+  pro: { priceUsd: 99, name: 'Pro', description: 'Growth tier with priority fulfillment, referral credits, conversion-truth metrics, and expanded AI commerce toolkit.' },
+  enterprise: { priceUsd: 499, name: 'Enterprise', description: 'Team-ready ZeusAI workspace: SLA-minded delivery, WACP catalog export, proof-of-delivery ledger, and owner settlement to BTC.' },
+  'api-call': { priceUsd: 0.01, name: 'API Call', description: 'Pay-per-call access unit for ZeusAI public commerce APIs — metered, receipted, BTC-settled.' },
+  'ai-analysis': { priceUsd: 5, name: 'AI Analysis', description: 'On-demand AI analysis pack: structured brief, recommendations, and downloadable activation artifact.' },
+  'wealth-engine': { priceUsd: 199, name: 'Wealth Engine', description: 'Autonomous monetization toolkit — pricing, checkout recovery hooks, and revenue-honesty dashboards.' },
+  'legal-bot': { priceUsd: 49, name: 'Legal Bot', description: 'Contract & compliance starter pack: templates, checklist, and signed delivery receipt.' },
+  'cloud-broker': { priceUsd: 79, name: 'Cloud Broker', description: 'Multi-cloud cost & routing advisory pack with actionable provisioning checklist.' },
+  'data-export': { priceUsd: 9, name: 'Data Export', description: 'Structured export of your ZeusAI orders, receipts, and proof-of-delivery chain.' },
+  sme: { priceUsd: 199, name: 'SME', description: 'Small-business autonomy suite: catalog, BTC checkout, fulfillment packs, and referral growth loop.' },
+  'mid-market': { priceUsd: 1499, name: 'Mid Market', description: 'Scaled commerce OS for growing orgs — multi-SKU catalog, attestation, and engagement-ready delivery.' },
+  'enterprise-tier': { priceUsd: 9999, name: 'Enterprise Tier', description: 'High-ticket enterprise engagement: milestone proposal + human-led execution path with cryptographic receipts.' },
+  'global-giants': { priceUsd: 99999, name: 'Global Giants', description: 'Sovereign global deployment track — white-glove engagement, WACP interchange, and BTC settlement at scale.' },
 };
 
 function buildLiveSaasCatalog() {
@@ -79,8 +89,15 @@ function buildLiveSaasCatalog() {
     });
   };
 
-  // Source 1: fixed core subscription plans + utility products.
-  for (const [id, base] of Object.entries(CATALOG_CORE_PLANS)) pushProduct(id, base, { category: 'Plan' });
+  // Source 1: fixed core subscription plans + utility products (with real copy).
+  for (const [id, meta] of Object.entries(CATALOG_CORE_PLANS)) {
+    const base = typeof meta === 'number' ? meta : Number(meta && meta.priceUsd);
+    pushProduct(id, base, {
+      category: 'Plan',
+      name: (meta && meta.name) || undefined,
+      description: (meta && meta.description) || '',
+    });
+  }
   // Source 2: instant + professional deliverables (canonical commerce catalog).
   if (instantCat && typeof instantCat.all === 'function') {
     try {
@@ -3468,6 +3485,22 @@ try {
   growthEngine.registerRoutes(app);
   // Wire the innovation attestation hook so every approved innovation is
   // mirrored to the sovereign chain (proof-of-evolution).
+  // unicornInnovator emits `innovator:approved` on its bus; the old
+  // `innovation:approved` EventEmitter API was never wired (0 approved forever).
+  try {
+    const bus = unicornInnovator && typeof unicornInnovator.getBus === 'function' ? unicornInnovator.getBus() : null;
+    if (bus && typeof bus.on === 'function') {
+      bus.on('innovator:approved', (inv) => {
+        try { growthEngine.onInnovationApproved(inv); } catch (e) { console.warn('[growth-engine] attest failed:', e.message); }
+        try {
+          if (process.env.INNOVATION_AUTO_SHIP !== '0' && innovationShipGate && typeof innovationShipGate.evaluateAndShip === 'function') {
+            // Best-effort ship of safe (data/) artifacts after manual/auto approve.
+            innovationShipGate.evaluateAndShip(unicornInnovator);
+          }
+        } catch (e) { console.warn('[innovation-ship-gate] post-approve failed:', e.message); }
+      });
+    }
+  } catch (e) { console.warn('[growth-engine] innovation bus hook failed:', e.message); }
   if (typeof autoInnovationLoop !== 'undefined' && autoInnovationLoop && typeof autoInnovationLoop.on === 'function') {
     try { autoInnovationLoop.on('innovation:approved', (inv) => growthEngine.onInnovationApproved(inv)); } catch (e) { console.warn('[growth-engine] innovation hook failed:', e.message); }
   }
@@ -3598,7 +3631,9 @@ if (_isPrimaryWorker) {
       }
     } catch (e) { console.warn('[memory-pressure-guardian] start failed:', e && e.message); }
   }
-  if (process.env.NODE_ENV !== 'test' && process.env.INNOVATION_AUTO_SHIP === '1') {
+  // Default ON: approve+ship safe commerce innovations as data/ docs artifacts.
+  // Kill-switch: INNOVATION_AUTO_SHIP=0
+  if (process.env.NODE_ENV !== 'test' && String(process.env.INNOVATION_AUTO_SHIP || '1') !== '0') {
     try { innovationShipGate.startAutoCycle(unicornInnovator); }
     catch (e) { console.warn('[innovation-ship-gate] auto cycle failed:', e && e.message); }
   }
@@ -8242,7 +8277,20 @@ app.get('/api/payment/nowpayments/security', (req, res) => {
 });
 
 app.get('/api/payment/methods', (req, res) => {
-  res.json({ methods: paymentGateway.getPaymentMethods() });
+  // Derive public methods from the same honesty rails as /api/payments/config/status
+  // so the storefront never advertises ETH/Bank/Stripe when they cannot settle.
+  try {
+    const truth = typeof conversionTruthLayer !== 'undefined' && conversionTruthLayer;
+    const raw = paymentGateway.getPaymentMethods();
+    const sanitized = truth && typeof truth.sanitizePublicMetrics === 'function'
+      ? (truth.sanitizePublicMetrics({ methods: raw }).methods || raw)
+      : raw;
+    const methods = (Array.isArray(sanitized) ? sanitized : raw).filter((m) => m && m.active);
+    res.set('Cache-Control', 'no-cache');
+    return res.json({ methods, honesty: 'config-backed', primaryRail: 'btc-direct' });
+  } catch (_) {
+    res.json({ methods: paymentGateway.getPaymentMethods().filter((m) => m && m.active), honesty: 'gateway-fallback', primaryRail: 'btc-direct' });
+  }
 });
 
 // Public payment configuration status. BTC-direct is the primary, always-on

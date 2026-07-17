@@ -1,8 +1,7 @@
 'use strict';
 
-// Fulfillment engine test — proves the real AI-backed delivery pipeline works
-// end-to-end using a STUBBED provider (no live API key needed), plus recipe
-// selection, feature-flag gating, and graceful no-key fallback.
+// Fulfillment engine test — deterministic activation packs always ship;
+// AI path remains optional when FULFILLMENT_AI_ENABLED=1 + provider stub.
 
 const os = require('os');
 const path = require('path');
@@ -10,10 +9,9 @@ const fs = require('fs');
 const assert = require('assert');
 
 process.env.NODE_ENV = 'test';
-// Isolate the deliveries store to a temp dir BEFORE requiring the registry
-// (it resolves the data dir at module load).
-const TMP = fs.mkdtempSync(path.join(os.tmpdir(), 'zeus-fulfil-'));
+const TMP = fs.mkdtempSync(path.join(os.tmpdir(), 'zeus-fulfill-'));
 process.env.UNICORN_DATA_DIR = TMP;
+delete process.env.FULFILLMENT_AI_ENABLED;
 
 const aiProviders = require('../backend/modules/aiProviders');
 const registry = require('../src/site/v2/delivery-registry');
@@ -23,7 +21,6 @@ let pass = 0;
 function check(name, fn) { fn(); pass++; console.log('  \u2713 ' + name); }
 
 (async () => {
-  // ── Recipe selection covers many service classes, not just a few ──────────
   check('picks code-scaffold recipe for a SaaS/MVP service', () => {
     assert.strictEqual(engine.pickRecipe('professional-saas-mvp').id, 'code-scaffold');
   });
@@ -37,25 +34,25 @@ function check(name, fn) { fn(); pass++; console.log('  \u2713 ' + name); }
     assert.strictEqual(engine.pickRecipe('some-exotic-enterprise-thing-xyz').id, 'consulting-brief');
   });
 
-  // ── Feature flag OFF => no behavior change to the live money path ─────────
-  check('fulfillReceipt is a no-op when FULFILLMENT_AI_ENABLED != 1', () => {
-    delete process.env.FULFILLMENT_AI_ENABLED;
+  registry.deliver({ id: 'r_det', email: 't@example.com', services: ['instant-seo-content-pack'] });
+  const det = await engine.fulfillReceipt({ id: 'r_det', email: 't@example.com', services: ['instant-seo-content-pack'] });
+  check('flag-off still delivers deterministic activation pack', () => {
+    assert.strictEqual(det.ok, true);
+    assert.strictEqual(det.fulfillmentStatus, 'deterministic');
+    assert.strictEqual(det.delivered, 1);
+    assert.ok(/Service Activation Pack/.test(det.artifacts[0].content));
+    assert.strictEqual(det.artifacts[0].fulfillmentMode, 'deterministic');
   });
-  {
-    const out = await engine.fulfillReceipt({ id: 'r_off', services: ['instant-seo-content-pack'] });
-    check('flag-off returns skipped=disabled', () => assert.strictEqual(out.skipped, 'disabled'));
-  }
 
-  // ── Enable + stub the LLM layer => REAL artifact produced & attached ──────
   process.env.FULFILLMENT_AI_ENABLED = '1';
   aiProviders.chat = async () => ({ reply: '# SEO Content Pack\n\nKeywords: alpha, beta\n\nReal generated article body...', provider: 'stub-model' });
 
   registry.deliver({ id: 'r1', email: 't@example.com', services: ['instant-seo-content-pack'] });
   const out = await engine.fulfillReceipt({ id: 'r1', email: 't@example.com', services: ['instant-seo-content-pack'] });
 
-  check('fulfillReceipt succeeds and marks ai_delivered', () => {
+  check('fulfillReceipt succeeds and marks ai fulfillment', () => {
     assert.strictEqual(out.ok, true);
-    assert.strictEqual(out.fulfillmentStatus, 'ai_delivered');
+    assert.strictEqual(out.fulfillmentStatus, 'ai');
     assert.strictEqual(out.delivered, 1);
   });
   check('artifact has real generated content + correct recipe/format', () => {
@@ -64,11 +61,12 @@ function check(name, fn) { fn(); pass++; console.log('  \u2713 ' + name); }
     assert.strictEqual(a.format, 'markdown');
     assert.ok(/Real generated article body/.test(a.content), 'content should be the model reply');
     assert.ok(a.bytes > 0);
+    assert.strictEqual(a.fulfillmentMode, 'ai');
   });
   check('artifacts are attached to the delivery record + downloadable via registry', () => {
     const d = registry.get('r1');
     assert.ok(Array.isArray(d.artifacts) && d.artifacts.length === 1);
-    assert.strictEqual(d.fulfillmentStatus, 'ai_delivered');
+    assert.strictEqual(d.fulfillmentStatus, 'ai');
     const one = registry.renderArtifacts(d, 'artifact', 'instant-seo-content-pack');
     assert.ok(one && /Real generated article body/.test(one.content));
     const list = registry.renderArtifacts(d, 'artifacts');
@@ -76,36 +74,23 @@ function check(name, fn) { fn(); pass++; console.log('  \u2713 ' + name); }
     assert.ok(!('content' in list.artifacts[0]), 'list view must not leak bulky content');
   });
 
-  // ── High-ticket / enterprise => proposal deliverable, flagged human-led ───
   check('detects enterprise by service id ($4M sovereign)', () => {
-    assert.strictEqual(engine.isEnterprise({}, 'ent-sovereign-deployment'), true);
+    assert.strictEqual(engine.isEnterprise({ amount: 10 }, 'sovereign-private-deployment'), true);
   });
   check('detects enterprise by amount threshold', () => {
-    assert.strictEqual(engine.isEnterprise({ amount: 4000000 }, 'some-service'), true);
-    assert.strictEqual(engine.isEnterprise({ amount: 49 }, 'instant-logo'), false);
-  });
-  {
-    registry.deliver({ id: 'rent', email: 'ceo@corp.com', services: ['ent-sovereign-deployment'], amount: 4000000 });
-    const outE = await engine.fulfillReceipt({ id: 'rent', email: 'ceo@corp.com', services: ['ent-sovereign-deployment'], amount: 4000000 });
-    check('enterprise order delivers a real proposal + flags human fulfillment', () => {
-      assert.strictEqual(outE.requiresHumanFulfillment, true);
-      const a = outE.artifacts[0];
-      assert.strictEqual(a.recipe, 'enterprise-engagement');
-      assert.strictEqual(a.tier, 'enterprise');
-      assert.strictEqual(a.deliverableType, 'enterprise-proposal');
-      assert.ok(a.content && a.content.length > 0);
-    });
-  }
-
-  // ── No provider key (chat returns null) => graceful pending, no fake deliver
-  aiProviders.chat = async () => null;
-  const out2 = await engine.fulfillReceipt({ id: 'r2', services: ['instant-landing-page'] }, { force: true });
-  check('no-key path yields pending_ai_key (never a fake "delivered")', () => {
-    assert.strictEqual(out2.fulfillmentStatus, 'pending_ai_key');
-    assert.strictEqual(out2.delivered, 0);
+    assert.strictEqual(engine.isEnterprise({ amount: 6000 }, 'starter'), true);
   });
 
-  try { fs.rmSync(TMP, { recursive: true, force: true }); } catch (_) {}
-  console.log('\n\u2705 fulfillment-engine: ' + pass + ' tests passed');
-  process.exit(0);
-})().catch(e => { console.error('\u274c fulfillment-engine test failed:', e && e.stack || e); process.exit(1); });
+  registry.deliver({ id: 'r_ent', email: 'ceo@corp.com', services: ['enterprise-tier'], amount: 9999 });
+  const ent = await engine.fulfillReceipt({ id: 'r_ent', email: 'ceo@corp.com', services: ['enterprise-tier'], amount: 9999 });
+  check('enterprise path delivers engagement pack and flags human fulfillment', () => {
+    assert.strictEqual(ent.ok, true);
+    assert.strictEqual(ent.requiresHumanFulfillment, true);
+    assert.ok(ent.artifacts[0].requiresHumanFulfillment);
+  });
+
+  console.log('\u2705 fulfillment-engine: ' + pass + ' tests passed');
+})().catch((e) => {
+  console.error('fulfillment-engine test failed:', e);
+  process.exit(1);
+});

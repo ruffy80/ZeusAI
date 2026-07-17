@@ -1721,12 +1721,31 @@ function clampUsdPrice(value, context) {
 // client-supplied / URL amount was trusted blindly). For any KNOWN product the
 // client amount is ignored entirely; only unknown/custom ids fall back to a
 // clamped client value.
+// Canonical core plans: priceUsd + human copy so /api/catalog never ships empty
+// descriptions for the storefront SKUs customers actually buy.
 const CANONICAL_CORE_PLANS = {
-  free: 0, starter: 29, pro: 99, enterprise: 499,
-  'api-call': 0.01, 'ai-analysis': 5, 'wealth-engine': 199, 'legal-bot': 49,
-  'cloud-broker': 79, 'data-export': 9, sme: 199, 'mid-market': 1499,
-  'enterprise-tier': 9999, 'global-giants': 99999,
+  free: { priceUsd: 0, title: 'Free', description: 'Explore ZeusAI — public catalog, BTC rate feeds, and proof endpoints. No payment required.' },
+  starter: { priceUsd: 29, title: 'Starter', description: 'Launch pack for solo builders: dynamic pricing, BTC checkout, signed receipts, and service activation deliverables.' },
+  pro: { priceUsd: 99, title: 'Pro', description: 'Growth tier with priority fulfillment, referral credits, conversion-truth metrics, and expanded AI commerce toolkit.' },
+  enterprise: { priceUsd: 499, title: 'Enterprise', description: 'Team-ready ZeusAI workspace: SLA-minded delivery, WACP catalog export, proof-of-delivery ledger, and owner settlement to BTC.' },
+  'api-call': { priceUsd: 0.01, title: 'API Call', description: 'Pay-per-call access unit for ZeusAI public commerce APIs — metered, receipted, BTC-settled.' },
+  'ai-analysis': { priceUsd: 5, title: 'AI Analysis', description: 'On-demand AI analysis pack: structured brief, recommendations, and downloadable activation artifact.' },
+  'wealth-engine': { priceUsd: 199, title: 'Wealth Engine', description: 'Autonomous monetization toolkit — pricing, checkout recovery hooks, and revenue-honesty dashboards.' },
+  'legal-bot': { priceUsd: 49, title: 'Legal Bot', description: 'Contract & compliance starter pack: templates, checklist, and signed delivery receipt.' },
+  'cloud-broker': { priceUsd: 79, title: 'Cloud Broker', description: 'Multi-cloud cost & routing advisory pack with actionable provisioning checklist.' },
+  'data-export': { priceUsd: 9, title: 'Data Export', description: 'Structured export of your ZeusAI orders, receipts, and proof-of-delivery chain.' },
+  sme: { priceUsd: 199, title: 'SME', description: 'Small-business autonomy suite: catalog, BTC checkout, fulfillment packs, and referral growth loop.' },
+  'mid-market': { priceUsd: 1499, title: 'Mid Market', description: 'Scaled commerce OS for growing orgs — multi-SKU catalog, attestation, and engagement-ready delivery.' },
+  'enterprise-tier': { priceUsd: 9999, title: 'Enterprise Tier', description: 'High-ticket enterprise engagement: milestone proposal + human-led execution path with cryptographic receipts.' },
+  'global-giants': { priceUsd: 99999, title: 'Global Giants', description: 'Sovereign global deployment track — white-glove engagement, WACP interchange, and BTC settlement at scale.' },
 };
+function canonicalPlanMeta(serviceId) {
+  const id = String(serviceId || '').trim();
+  const meta = CANONICAL_CORE_PLANS[id];
+  if (!meta) return null;
+  if (typeof meta === 'number') return { priceUsd: meta, title: id, description: '' };
+  return meta;
+}
 // Resolve the catalog FLOOR price (USD) for a service id across the canonical
 // commerce catalogs and the fixed core-plan table. Returns null for ids that
 // are not real, sellable products (e.g. internal engine modules).
@@ -1750,7 +1769,8 @@ function canonicalBaseForService(serviceId) {
   if (fromEnt != null) return fromEnt;
   const fromUnified = probe(unifiedCatalog);
   if (fromUnified != null) return fromUnified;
-  if (Object.prototype.hasOwnProperty.call(CANONICAL_CORE_PLANS, id)) return CANONICAL_CORE_PLANS[id];
+  const core = canonicalPlanMeta(id);
+  if (core) return Number(core.priceUsd);
   return null;
 }
 // Returns the live USD price for a KNOWN product applying the same
@@ -3617,7 +3637,16 @@ async function unicornHandler(req, res) {
           // pro, mid-market, ent-*) — synthesize it so checkout never returns
           // service_not_found for a genuinely sellable product.
           if (_canon != null) {
-            return { id: String(id), title: String(id), priceUsd: _canon, description: '', group: 'service', segment: 'service', kpi: '' };
+            const meta = canonicalPlanMeta(id) || {};
+            return {
+              id: String(id),
+              title: meta.title || String(id),
+              priceUsd: _canon,
+              description: meta.description || ('ZeusAI ' + (meta.title || id) + ' — BTC-settled activation with signed delivery.'),
+              group: 'service',
+              segment: 'service',
+              kpi: 'activation'
+            };
           }
           return null;
         }
@@ -6633,24 +6662,62 @@ async function unicornHandler(req, res) {
   if (urlPath === '/api/catalog') {
     try {
       const cat = await getCachedMasterCatalog();
-      const items = (cat.items || []).map(item => ({
-        id: item.id,
-        name: item.title || item.name || item.id,
-        title: item.title || item.name || item.id,
-        description: item.description || '',
-        price: Number(item.priceUsd || item.price || 0),
-        priceUsd: Number(item.priceUsd || item.price || 0),
-        priceBtc: item.priceBtc,
-        btcUri: item.btcUri,
-        category: item.segment || item.group || item.category || 'AI',
-        group: item.group || item.segment || 'marketplace',
-        buyUrl: item.buyUrl
-      }));
+      const items = (cat.items || []).map(item => {
+        const meta = canonicalPlanMeta(item.id) || {};
+        const description = item.description || meta.description || ('ZeusAI ' + (item.title || item.name || item.id) + ' — BTC-settled activation with signed delivery.');
+        return {
+          id: item.id,
+          name: item.title || item.name || meta.title || item.id,
+          title: item.title || item.name || meta.title || item.id,
+          description,
+          price: Number(item.priceUsd || item.price || 0),
+          priceUsd: Number(item.priceUsd || item.price || 0),
+          priceBtc: item.priceBtc,
+          btcUri: item.btcUri,
+          category: item.segment || item.group || item.category || 'AI',
+          group: item.group || item.segment || 'marketplace',
+          buyUrl: item.buyUrl
+        };
+      });
+      // Ensure core plans always appear even if master catalog omitted them.
+      for (const id of Object.keys(CANONICAL_CORE_PLANS)) {
+        if (items.some((it) => it.id === id)) continue;
+        const meta = canonicalPlanMeta(id);
+        const priceUsd = resolveCanonicalUsd(id);
+        if (priceUsd == null) continue;
+        items.unshift({
+          id,
+          name: meta.title || id,
+          title: meta.title || id,
+          description: meta.description || '',
+          price: priceUsd,
+          priceUsd,
+          category: 'Plan',
+          group: 'service',
+          buyUrl: '/checkout?serviceId=' + encodeURIComponent(id) + '&plan=' + encodeURIComponent(id)
+        });
+      }
       res.writeHead(200, { 'Content-Type':'application/json', 'Cache-Control':'public, max-age=30' });
       return res.end(JSON.stringify(items));
     } catch (e) {
       res.writeHead(500, { 'Content-Type':'application/json' });
       return res.end(JSON.stringify({ error: 'catalog_failed', detail: e.message }));
+    }
+  }
+
+  // World AI Commerce Protocol — public machine-readable standard surface
+  if (urlPath === '/api/standards/wacp' || urlPath === '/.well-known/wacp.json') {
+    try {
+      const wacp = require('../backend/modules/world-ai-commerce-protocol');
+      const cat = await getCachedMasterCatalog().catch(() => ({ items: [] }));
+      const envelope = typeof wacp.toWacpCatalog === 'function'
+        ? wacp.toWacpCatalog(cat.items || [])
+        : { protocol: 'WACP/1.0', items: cat.items || [] };
+      res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'public, max-age=60' });
+      return res.end(JSON.stringify({ ok: true, standard: 'World AI Commerce Protocol', version: '1.0', envelope }));
+    } catch (e) {
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      return res.end(JSON.stringify({ ok: false, standard: 'WACP/1.0', error: e.message }));
     }
   }
 

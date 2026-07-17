@@ -215,9 +215,15 @@ async function evaluateAndShip(innovatorApi) {
   };
 }
 
+function autoShipEnabled() {
+  // Default ON — ship safe data/docs artifacts. Set INNOVATION_AUTO_SHIP=0 to disable.
+  return String(process.env.INNOVATION_AUTO_SHIP || '1').toLowerCase() !== '0'
+    && !['false', 'off', 'no'].includes(String(process.env.INNOVATION_AUTO_SHIP || '').toLowerCase());
+}
+
 function startAutoCycle(innovatorApi, intervalMs = AUTO_INTERVAL_MS) {
   if (autoTimer) return { ok: true, alreadyRunning: true };
-  if (process.env.INNOVATION_AUTO_SHIP !== '1') return { ok: false, reason: 'disabled_by_env' };
+  if (!autoShipEnabled()) return { ok: false, reason: 'disabled_by_env' };
   autoTimer = setInterval(() => {
     evaluateAndShip(innovatorApi).catch((error) => {
       console.warn('[innovation-ship-gate] auto cycle failed:', error && error.message);
@@ -237,7 +243,7 @@ function getStatus() {
   ensureDir();
   return {
     module: NAME,
-    autoShipEnabled: process.env.INNOVATION_AUTO_SHIP === '1',
+    autoShipEnabled: autoShipEnabled(),
     disableSelfMutation: process.env.DISABLE_SELF_MUTATION === '1',
     shippedDir: shippedDir(),
     autoRunning: !!autoTimer,
@@ -261,7 +267,7 @@ async function processInput(input = {}) {
   if (action === 'score') return { ok: true, action, score: score(payload.innovation || payload) };
   if (action === 'evaluate') return evaluateAndShip(payload.innovatorApi || input.innovatorApi);
   if (action === 'cycle') {
-    if (process.env.INNOVATION_AUTO_SHIP !== '1') {
+    if (!autoShipEnabled()) {
       return { ok: false, action, error: 'INNOVATION_AUTO_SHIP disabled' };
     }
     return evaluateAndShip(payload.innovatorApi || input.innovatorApi);

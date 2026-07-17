@@ -75,25 +75,41 @@ function evolutionTracker() {
   };
 }
 
+// Deterministic commerce-first idea pool — scored without Math.random so
+// innovation-ship-gate can approve/ship real data/ artifacts (never source mutation).
+const COMMERCE_IDEAS = [
+  { title: 'Checkout recovery email for abandoned BTC invoices', tags: ['checkout', 'email', 'commerce'], score: 0.86 },
+  { title: 'WACP catalog export for partner marketplaces', tags: ['catalog', 'wacp', 'commerce', 'trust'], score: 0.91 },
+  { title: 'Proof-of-delivery hash on every paid activation pack', tags: ['delivery', 'trust', 'commerce'], score: 0.93 },
+  { title: 'SEO landing pages per catalog SKU with honest pricing', tags: ['seo', 'catalog', 'commerce'], score: 0.84 },
+  { title: 'Referral credit loop for paid starter/pro upgrades', tags: ['referral', 'growth', 'commerce'], score: 0.88 },
+  { title: 'Conversion-truth badge on pricing and status pages', tags: ['trust', 'conversion', 'commerce'], score: 0.87 },
+  { title: 'Deterministic fulfillment recipes for legal-bot and data-export', tags: ['delivery', 'fulfillment', 'commerce'], score: 0.9 },
+  { title: 'Memory-pressure cache trim under 1.2GB heap soft limit', tags: ['reliability', 'ops'], score: 0.72 },
+];
+
+function scoreIdea(idea) {
+  const base = Number(idea.score) || 0.5;
+  const tagBoost = Array.isArray(idea.tags)
+    ? idea.tags.reduce((acc, t) => acc + (/commerce|checkout|delivery|trust|catalog|seo/i.test(t) ? 0.02 : 0), 0)
+    : 0;
+  return Math.max(0, Math.min(1, Math.round((base + tagBoost) * 1000) / 1000));
+}
+
 // innovationGenerator — generează idei noi (sursă: auto-innovation-loop.js)
 function innovationGenerator() {
   if (state.circuitOpen) return null;
-  const ideas = [
-    'Adaugă endpoint nou pentru analytics',
-    'Optimizează cache-ul SSR',
-    'Implementează rate-limit pe API critic',
-    'Adaugă predictive-prefetch pentru pagini noi',
-    'Îmbunătățește scorul SEO pentru landing',
-    'Adaugă noi metode de plată',
-    'Optimizează query-urile pentru dashboard'
-  ];
-  const idx = (state.generated + Date.now()) % ideas.length;
+  const idx = state.generated % COMMERCE_IDEAS.length;
+  const idea = COMMERCE_IDEAS[idx];
   return {
     id: `inv-${Date.now()}-${state.generated}`,
-    title: ideas[idx],
+    title: idea.title,
+    description: 'Safe-scope commerce innovation for ZeusAI world standard (data/artifacts only).',
+    tags: idea.tags.slice(),
     ts: new Date().toISOString(),
     status: 'pending',
-    score: Math.random()
+    score: scoreIdea(idea),
+    safeScope: true
   };
 }
 
