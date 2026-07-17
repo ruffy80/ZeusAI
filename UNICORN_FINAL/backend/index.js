@@ -2872,6 +2872,11 @@ const reputationProtocol = require('./modules/reputationProtocol');
 const opportunityRadar = require('./modules/opportunityRadar');
 const businessBlueprint = require('./modules/businessBlueprint');
 const paymentGateway = require('./modules/paymentGateway');
+const worldAiCommerceProtocol = require('./modules/world-ai-commerce-protocol');
+const conversionTruthLayer = require('./modules/conversion-truth-layer');
+const proofOfDeliveryLedger = require('./modules/proof-of-delivery-ledger');
+const innovationShipGate = require('./modules/innovation-ship-gate');
+const memoryPressureGuardian = require('./modules/memory-pressure-guardian');
 const nowPayments = require('./modules/nowPayments');
 const aviationModule = require('./modules/aviationModule');
 const paymentSystems = require('./modules/paymentSystems');
@@ -3582,6 +3587,19 @@ if (_isPrimaryWorker) {
         revenueFlywheel.start();
       }
     } catch (e) { console.warn('[revenue-flywheel] start failed:', e && e.message); }
+  }
+  if (process.env.NODE_ENV !== 'test') {
+    try {
+      if (memoryPressureGuardian) {
+        memoryPressureGuardian.registerCacheClearer('route-cache', () => { try { return routeCache.clearCache(); } catch (e) { return { ok: false, error: e && e.message }; } });
+        memoryPressureGuardian.registerCacheClearer('funnel-buffer', () => { const n = funnelEvents.length; funnelEvents.splice(0, Math.max(0, n - 200)); return { kept: funnelEvents.length, dropped: n - funnelEvents.length }; });
+        memoryPressureGuardian.start();
+      }
+    } catch (e) { console.warn('[memory-pressure-guardian] start failed:', e && e.message); }
+  }
+  if (process.env.NODE_ENV !== 'test' && process.env.INNOVATION_AUTO_SHIP === '1') {
+    try { innovationShipGate.startAutoCycle(unicornInnovator); }
+    catch (e) { console.warn('[innovation-ship-gate] auto cycle failed:', e && e.message); }
   }
 
   // Pornire module cu cicluri autonome
@@ -11050,6 +11068,11 @@ registerModuleRoutes('analytics',                  analyticsEngine);
 registerModuleRoutes('content-ai',                 contentAI);
 registerModuleRoutes('auto-marketing',             autoMarketing);
 registerModuleRoutes('profit-autopilot',           profitAutopilot);
+registerModuleRoutes('world-ai-commerce-protocol', worldAiCommerceProtocol);
+registerModuleRoutes('conversion-truth-layer',     conversionTruthLayer);
+registerModuleRoutes('proof-of-delivery-ledger',   proofOfDeliveryLedger);
+registerModuleRoutes('innovation-ship-gate',       innovationShipGate);
+registerModuleRoutes('memory-pressure-guardian',   memoryPressureGuardian);
 registerModuleRoutes('zk-revenue-proof',           zkRevenueProof);
 registerModuleRoutes('pnl-time-machine',           pnlTimeMachine);
 registerModuleRoutes('social-orchestrator',        socialOrchestrator);
