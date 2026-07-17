@@ -682,6 +682,24 @@ async function handle(req, res, ctx) {
     }
     const out = await createOrder(ctx, body);
     if (out.error) return sendJson(res, out.status || 400, { error: out.error, serviceId: out.serviceId }), true;
+    try {
+      const tx = require('../commerce/transactional-email');
+      const buyerEmail = String(out.order && out.order.buyer && out.order.buyer.email || '').trim().toLowerCase();
+      if (tx && typeof tx.sendTransactional === 'function' && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(buyerEmail)) {
+        Promise.resolve(tx.sendTransactional({
+          to: buyerEmail,
+          template: 'payment_pending',
+          data: {
+            orderId: out.order.orderId,
+            checkout_url: out.order.checkout_url,
+            amount_btc: out.order.amount_btc,
+            btcAmount: out.order.amount_btc,
+            serviceName: out.order.serviceName,
+            priceUSD: out.order.subtotal_fiat
+          }
+        })).catch(() => {});
+      }
+    } catch (_) {}
     if (idemKey) _idempotencySet(idemKey, 201, out.order);
     return sendJson(res, 201, out.order), true;
   }

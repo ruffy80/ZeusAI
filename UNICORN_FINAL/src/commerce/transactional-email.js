@@ -52,11 +52,26 @@ const TEMPLATES = {
     text: `Hi ${name || 'there'},\n\nYour ZeusAI account is live. Manage services at ${envAppUrl()}/account.\n\n— ZeusAI`,
     html: `<p>Hi ${escapeHtml(name || 'there')},</p><p>Your ZeusAI account is live. Manage services at <a href="${envAppUrl()}/account">${envAppUrl()}/account</a>.</p><p>— ZeusAI · Self-custody · BTC-first</p>`
   }),
-  payment_pending: ({ orderId, btcAddress, btcAmount, priceUSD }) => ({
-    subject: `Payment pending · Order ${orderId}`,
-    text: `Send exactly ${btcAmount} BTC ($${priceUSD}) to ${btcAddress}.\nTrack: ${envAppUrl()}/order/${orderId}`,
-    html: `<p>Send exactly <b>${btcAmount} BTC</b> ($${priceUSD}) to:</p><p><code>${escapeHtml(btcAddress)}</code></p><p>Track live: <a href="${envAppUrl()}/order/${orderId}">${envAppUrl()}/order/${orderId}</a></p>`
-  }),
+  payment_pending: ({ orderId, btcAddress, btcAmount, amount_btc, priceUSD, checkout_url, serviceName }) => {
+    const amountBtc = btcAmount || amount_btc || 'pending';
+    const safeService = serviceName || 'your service';
+    const checkoutUrl = checkout_url || `${envAppUrl()}/checkout/${orderId}`;
+    const usdNote = Number(priceUSD) > 0 ? ` ($${priceUSD})` : '';
+    return {
+      subject: `Payment pending · ${safeService} · Order ${orderId}`,
+      text:
+        `Service: ${safeService}\n` +
+        `Order: ${orderId}\n` +
+        `Send exactly ${amountBtc} BTC${usdNote} to ${btcAddress || 'the provided BTC address'}.\n` +
+        `Checkout: ${checkoutUrl}`,
+      html:
+        `<p><b>Service:</b> ${escapeHtml(safeService)}</p>` +
+        `<p><b>Order:</b> ${escapeHtml(orderId)}</p>` +
+        `<p>Send exactly <b>${escapeHtml(String(amountBtc))} BTC</b>${usdNote} to:</p>` +
+        `<p><code>${escapeHtml(btcAddress || 'the provided BTC address')}</code></p>` +
+        `<p>Checkout: <a href="${escapeHtml(checkoutUrl)}">${escapeHtml(checkoutUrl)}</a></p>`
+    };
+  },
   payment_activated: ({ orderId, serviceId }) => ({
     subject: `✅ Activated · ${serviceId}`,
     text: `Payment confirmed. ${serviceId} is active. Visit ${envAppUrl()}/account.`,

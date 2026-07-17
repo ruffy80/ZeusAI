@@ -67,6 +67,10 @@ UNICORN_FINAL/data/money-machine/
 UNICORN_FINAL/data/world-standard/
 UNICORN_FINAL/data/value-proof/
 UNICORN_FINAL/data/revenue/
+UNICORN_FINAL/data/ledgers/
+UNICORN_FINAL/data/referrals/
+UNICORN_FINAL/data/wacp/
+UNICORN_FINAL/data/innovations/shipped/
 UNICORN_FINAL/data/notifications.jsonl
 UNICORN_FINAL/data/zacc-state.json
 
