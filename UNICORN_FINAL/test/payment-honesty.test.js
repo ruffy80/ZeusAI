@@ -57,4 +57,110 @@ check('ETH becomes active when wallet configured', () => {
   delete process.env.ETH_WALLET_ADDRESS;
 });
 
+// ── UI payment-labels honesty helper (mirrors client.js paymentLabels logic) ──
+function paymentLabels(methods) {
+  const ids = (methods || []).filter((m) => m && m.active !== false).map((m) => m.id || m.provider || '');
+  const labels = ['BTC direct'];
+  if (ids.includes('card') || ids.includes('stripe')) labels.push('Card/Stripe');
+  if (ids.includes('paypal')) labels.push('PayPal');
+  if (ids.includes('nowpayments')) labels.push('global crypto');
+  return labels;
+}
+
+check('paymentLabels: BTC-only when no optional methods configured', () => {
+  const labels = paymentLabels([{ id: 'crypto_btc', active: true }]);
+  assert.deepStrictEqual(labels, ['BTC direct']);
+});
+
+check('paymentLabels: adds Card/Stripe only when stripe is active', () => {
+  const labels = paymentLabels([
+    { id: 'crypto_btc', active: true },
+    { id: 'stripe', active: true },
+  ]);
+  assert.ok(labels.includes('Card/Stripe'));
+  assert.ok(!labels.includes('PayPal'));
+});
+
+check('paymentLabels: PayPal excluded when inactive', () => {
+  const labels = paymentLabels([
+    { id: 'crypto_btc', active: true },
+    { id: 'paypal', active: false },
+  ]);
+  assert.ok(!labels.includes('PayPal'));
+});
+
+check('paymentLabels: all rails present when all active', () => {
+  const labels = paymentLabels([
+    { id: 'crypto_btc', active: true },
+    { id: 'stripe', active: true },
+    { id: 'paypal', active: true },
+    { id: 'nowpayments', active: true },
+  ]);
+  assert.ok(labels.includes('BTC direct'));
+  assert.ok(labels.includes('Card/Stripe'));
+  assert.ok(labels.includes('PayPal'));
+  assert.ok(labels.includes('global crypto'));
+});
+
+// ── Sovereign-commerce delivery hook wiring ───────────────────────────────
+const os = require('os');
+const path = require('path');
+const fs = require('fs');
+const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ph-test-'));
+process.env.COMMERCE_DATA_DIR = path.join(tmpDir, 'commerce');
+// Suppress watcher/price timers during test
+process.env.COMMERCE_WATCH_MS = '9999999';
+
+const sovereignCommerce = require('../src/site/sovereign-commerce');
+
+check('setDeliveryHook is exported as a function', () => {
+  assert.strictEqual(typeof sovereignCommerce.setDeliveryHook, 'function');
+});
+
+check('_fireDelivery invokes registered hook with a correct receipt-like object', () => {
+  // Build a synthetic paid sovereign order (same shape scanIncoming produces)
+  const orderId = 'ord_hooktest_' + Date.now();
+  const fakeTxid = 'txid_test_' + Date.now();
+  const order = {
+    orderId,
+    serviceId: 'test-svc',
+    serviceName: 'Test Service',
+    buyer: { email: 'test@example.com' },
+    access_token: 't_abc123',
+    entitlement_id: 'ent_test',
+    amount_sats: 103579,
+    amount_btc: 0.00103579,
+    currency: 'USD',
+    subtotal_fiat: 99,
+    paid_at: new Date().toISOString(),
+    txids: [fakeTxid],
+  };
+
+  const received = [];
+  sovereignCommerce.setDeliveryHook((r) => { received.push(r); });
+  // _fireDelivery maps a sovereign order to a receipt-like object and calls the hook
+  sovereignCommerce._fireDelivery(order);
+
+  assert.strictEqual(received.length, 1);
+  const r = received[0];
+  assert.strictEqual(r.id, orderId, 'receipt id must be orderId');
+  assert.strictEqual(r.orderId, orderId);
+  assert.strictEqual(r.serviceId, 'test-svc');
+  assert.strictEqual(r.status, 'paid');
+  assert.strictEqual(r.method, 'BTC');
+  assert.strictEqual(r.email, 'test@example.com');
+  assert.strictEqual(r.customerEmail, 'test@example.com');
+  assert.strictEqual(r.txid, fakeTxid);
+  assert.strictEqual(r.access_token, 't_abc123');
+  assert.strictEqual(r.entitlement_id, 'ent_test');
+
+  try { fs.rmSync(tmpDir, { recursive: true, force: true }); } catch (_) {}
+});
+
+check('_fireDelivery is a no-op when no hook is registered', () => {
+  sovereignCommerce.setDeliveryHook(null);
+  // Should not throw
+  sovereignCommerce._fireDelivery({ orderId: 'ord_nohook', serviceId: 's', serviceName: 's', buyer: {}, txids: [] });
+});
+
 console.log('✅ payment-honesty: ' + pass + ' tests passed');

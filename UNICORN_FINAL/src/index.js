@@ -1237,6 +1237,19 @@ try {
 } catch (e) {
   console.warn('[commerce] not loaded:', e && e.stack ? e.stack : e.message);
 }
+// Wire sovereign-commerce paid→delivery: register runDeliveryForReceipt as the
+// delivery hook so on-chain confirmed orders trigger the same fulfillment path
+// used by UAIC receipts. Deferred until after runDeliveryForReceipt is defined.
+function _wireCommerceDeliveryHook() {
+  try {
+    if (commerce && typeof commerce.setDeliveryHook === 'function') {
+      commerce.setDeliveryHook(runDeliveryForReceipt);
+      console.log('[commerce] delivery hook registered → runDeliveryForReceipt');
+    }
+  } catch (e) {
+    console.warn('[commerce] delivery hook wiring error:', e.message);
+  }
+}
 const V2_CLIENT_PATH = path.join(__dirname, 'site', 'v2', 'client.js');
 // In-memory cache for the v2 static JS bundles. The previous implementation
 // called `fs.readFileSync(V2_CLIENT_PATH, 'utf8')` on EVERY request to
@@ -2112,6 +2125,9 @@ function runDeliveryForReceipt(receipt, opts) {
     return null;
   }
 }
+
+// Wire the sovereign-commerce delivery hook now that runDeliveryForReceipt is defined.
+_wireCommerceDeliveryHook();
 
 // ===================================================================
 // BTC SPOT — multi-source MEDIAN USD/BTC rate (60s cache) + circuit breaker
@@ -5020,7 +5036,7 @@ async function unicornHandler(req, res) {
     if (urlPath === '/zacc') {
       const body =
         '<h2 style="margin:0">Autonomous Dropshipping Platform <span style="font-size:13px;color:var(--accent);border:1px solid var(--accent);border-radius:999px;padding:2px 10px;vertical-align:middle">ZACC \u00b7 LIVE</span></h2>' +
-        '<p style="color:var(--muted);margin:8px 0 24px">The world\u2019s first fully-autonomous AI dropshipping store. The engine scrapes 20+ global sources (Amazon, AliExpress, Etsy, eBay\u2026), filters the highest-margin winners, writes the listings, sets BTC prices, fulfils orders via CJ Dropshipping and delivers digital services instantly. Payments are verified on-chain. You own the BTC wallet \u2014 the AI does product research, pricing, listing, fulfilment, support and learning, 24/7. Every number below is produced live.</p>' +
+        '<p style="color:var(--muted);margin:8px 0 24px">Autonomous AI dropshipping platform. Sources products from a curated seed catalogue plus live marketplace APIs when provider keys are configured (eBay, AliExpress, Etsy, Amazon PA). Filters highest-margin winners, writes listings and sets BTC prices. Orders are routed to CJ Dropshipping automatically when <code>ZACC_CJ_API_KEY</code> is set; otherwise queued for manual fulfilment. Payments verified on-chain. Every number below is produced live from the running loop.</p>' +
         '<div id="zc-summary" class="grid"></div>' +
         // Prominent CTA into the customer-facing auto-curated store.
         '<div style="margin:26px 0;padding:22px 24px;border:1px solid var(--accent);border-radius:14px;background:linear-gradient(135deg,rgba(124,58,237,.14),rgba(124,58,237,.04));display:flex;flex-wrap:wrap;gap:14px;align-items:center;justify-content:space-between">' +
@@ -5041,7 +5057,11 @@ async function unicornHandler(req, res) {
         '<div style="background:var(--card,#1a1a2e);border:1px solid var(--accent,#7c3aed);border-radius:12px;padding:32px;max-width:420px;width:90%;position:relative">' +
         '<button onclick="document.getElementById(\'zc-invoice-modal\').style.display=\'none\'" style="position:absolute;top:12px;right:16px;background:none;border:none;color:var(--muted);font-size:20px;cursor:pointer">\u00d7</button>' +
         '<h3 style="margin:0 0 8px" id="zc-inv-title">BTC Invoice</h3>' +
-        '<p style="color:var(--muted);font-size:12px;margin:0 0 16px" id="zc-inv-product"></p>' +
+        '<p style="color:var(--muted);font-size:12px;margin:0 0 12px" id="zc-inv-product"></p>' +
+        '<label style="display:block;font-size:11px;color:var(--muted);margin-bottom:4px">Your email (required for order updates)</label>' +
+        '<input id="zc-inv-email" type="email" placeholder="you@example.com" style="width:100%;box-sizing:border-box;padding:8px 10px;border-radius:6px;border:1px solid #333;background:#0d0d1a;color:#e0e0e0;font-size:13px;margin-bottom:12px">' +
+        '<button id="zc-inv-confirm" style="width:100%;padding:10px;border-radius:6px;background:var(--accent,#7c3aed);color:#fff;border:0;font-size:14px;font-weight:600;cursor:pointer">Create BTC Invoice \u2192</button>' +
+        '<div id="zc-inv-payment" style="display:none;margin-top:14px">' +
         '<div style="background:#0d0d1a;border-radius:8px;padding:16px;margin-bottom:16px">' +
         '<div style="font-size:11px;color:var(--muted);margin-bottom:4px">Send EXACTLY</div>' +
         '<div id="zc-inv-btc" style="font-size:22px;font-weight:700;font-family:monospace;color:var(--accent)"></div>' +
@@ -5049,8 +5069,9 @@ async function unicornHandler(req, res) {
         '</div>' +
         '<div style="font-size:11px;color:var(--muted);margin-bottom:4px">To address</div>' +
         '<div id="zc-inv-addr" style="font-family:monospace;font-size:12px;word-break:break-all;color:var(--accent);margin-bottom:16px"></div>' +
-        '<div id="zc-inv-status" style="font-size:13px;color:var(--muted);text-align:center"></div>' +
-        '<p style="font-size:11px;color:var(--muted);margin:12px 0 0;text-align:center">The exact amount is unique to your order. Payment confirmed automatically on-chain via mempool.space.</p>' +
+        '</div>' +
+        '<div id="zc-inv-status" style="font-size:13px;color:var(--muted);text-align:center;margin-top:10px"></div>' +
+        '<p style="font-size:11px;color:var(--muted);margin:12px 0 0;text-align:center">Payment confirmed on-chain via mempool.space. Order recorded — fulfilment confirmation sent to your email.</p>' +
         '</div></div>' +
         '<h3 style="margin:32px 0 8px">Market demand the AI is tracking</h3>' +
         '<div id="zc-trends" class="grid"></div>' +
@@ -5087,34 +5108,45 @@ async function unicornHandler(req, res) {
         '  var m=document.getElementById("zc-invoice-modal");',
         '  document.getElementById("zc-inv-title").textContent="BTC Invoice";',
         '  document.getElementById("zc-inv-product").textContent=productTitle;',
-        '  document.getElementById("zc-inv-btc").textContent="Loading\u2026";',
+        '  document.getElementById("zc-inv-btc").textContent="";',
         '  document.getElementById("zc-inv-usd").textContent="";',
         '  document.getElementById("zc-inv-addr").textContent="";',
-        '  document.getElementById("zc-inv-status").textContent="Creating invoice\u2026";',
+        '  document.getElementById("zc-inv-status").textContent="";',
+        '  document.getElementById("zc-inv-payment").style.display="none";',
+        '  document.getElementById("zc-inv-email").value="";',
         '  m.style.display="flex";',
         '  if(_invPollTimer){clearInterval(_invPollTimer);_invPollTimer=null;}',
-        '  fetch("/api/zacc/invoice/"+encodeURIComponent(productId),{method:"POST"})',
-        '  .then(function(r){return r.json();})',
-        '  .then(function(d){',
-        '    if(!d.ok||!d.invoice){document.getElementById("zc-inv-status").textContent="Invoice error";return;}',
-        '    var inv=d.invoice;',
-        '    document.getElementById("zc-inv-btc").textContent=(inv.amountBtc||0).toFixed(8)+" BTC";',
-        '    document.getElementById("zc-inv-usd").textContent="= "+money(inv.amountUsd);',
-        '    document.getElementById("zc-inv-addr").textContent=inv.btcAddress||"";',
-        '    document.getElementById("zc-inv-status").textContent=inv.status==="rate-unavailable"?"BTC rate unavailable \u2014 send any BTC to confirm":"Waiting for payment\u2026";',
-        '    var invId=inv.id;',
-        '    _invPollTimer=setInterval(function(){',
-        '      fetch("/api/zacc/invoice/"+encodeURIComponent(invId))',
-        '      .then(function(r){return r.json();})',
-        '      .then(function(d2){',
-        '        if(d2.invoice&&d2.invoice.status==="paid"){',
-        '          document.getElementById("zc-inv-status").textContent="\u2714 Payment confirmed! Delivery in progress.";',
-        '          clearInterval(_invPollTimer);_invPollTimer=null;',
-        '          setTimeout(function(){document.getElementById("zc-invoice-modal").style.display="none";refresh();},3000);',
-        '        }',
-        '      }).catch(function(){});',
-        '    },8000);',
-        '  }).catch(function(){document.getElementById("zc-inv-status").textContent="Network error";});',
+        '  var confirmBtn=document.getElementById("zc-inv-confirm");',
+        '  confirmBtn.onclick=function(){',
+        '    var email=document.getElementById("zc-inv-email").value.trim();',
+        '    if(!email||!email.includes("@")){document.getElementById("zc-inv-status").textContent="Please enter a valid email to receive order updates.";return;}',
+        '    confirmBtn.disabled=true;confirmBtn.textContent="Creating invoice\u2026";',
+        '    document.getElementById("zc-inv-status").textContent="";',
+        '    fetch("/api/zacc/invoice/"+encodeURIComponent(productId),{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({email:email})})',
+        '    .then(function(r){return r.json();})',
+        '    .then(function(d){',
+        '      confirmBtn.disabled=false;confirmBtn.textContent="Create BTC Invoice \u2192";',
+        '      if(!d.ok||!d.invoice){document.getElementById("zc-inv-status").textContent="Invoice error: "+(d.error||"unknown");return;}',
+        '      document.getElementById("zc-inv-payment").style.display="block";',
+        '      var inv=d.invoice;',
+        '      document.getElementById("zc-inv-btc").textContent=(inv.amountBtc||0).toFixed(8)+" BTC";',
+        '      document.getElementById("zc-inv-usd").textContent="= "+money(inv.amountUsd);',
+        '      document.getElementById("zc-inv-addr").textContent=inv.btcAddress||"";',
+        '      document.getElementById("zc-inv-status").textContent=inv.status==="rate-unavailable"?"BTC rate unavailable \u2014 send any BTC to confirm":"Waiting for payment\u2026";',
+        '      var invId=inv.id;',
+        '      _invPollTimer=setInterval(function(){',
+        '        fetch("/api/zacc/invoice/"+encodeURIComponent(invId))',
+        '        .then(function(r){return r.json();})',
+        '        .then(function(d2){',
+        '          if(d2.invoice&&d2.invoice.status==="paid"){',
+        '            document.getElementById("zc-inv-status").textContent="\u2714 Payment confirmed! Order recorded \u2014 fulfilment confirmation sent to "+email+".";',
+        '            clearInterval(_invPollTimer);_invPollTimer=null;',
+        '            setTimeout(function(){document.getElementById("zc-invoice-modal").style.display="none";refresh();},4000);',
+        '          }',
+        '        }).catch(function(){});',
+        '      },8000);',
+        '    }).catch(function(){confirmBtn.disabled=false;confirmBtn.textContent="Create BTC Invoice \u2192";document.getElementById("zc-inv-status").textContent="Network error";});',
+        '  };',
         '}',
         // Main refresh
         'function refresh(){fetch("/api/zacc/public",{cache:"no-store"}).then(function(r){return r.json();}).then(function(d){',
@@ -5198,7 +5230,7 @@ async function unicornHandler(req, res) {
     if (urlPath === '/dropship') {
       const body =
         '<h2 style="margin:0">Global AI Dropshipping Store <span style="font-size:13px;color:var(--accent);border:1px solid var(--accent);border-radius:999px;padding:2px 10px;vertical-align:middle">LIVE \u00b7 AUTO-CURATED</span></h2>' +
-        '<p style="color:var(--muted);margin:8px 0 18px">Zeus Autonomic Commerce Core scans Amazon, AliExpress, Etsy, eBay and other public sources every few hours, filters the highest-margin winners and publishes them here automatically. Every listing has a real cost, real margin, real BTC checkout, and ships globally. The store fills itself \u2014 you don\u2019t.</p>' +
+        '<p style="color:var(--muted);margin:8px 0 18px">Zeus Autonomic Commerce Core sources products from a curated seed catalogue plus live marketplace APIs when provider keys are configured. Every listed product has a real cost, real margin and BTC checkout. Orders route to CJ Dropshipping automatically when configured; otherwise queued for manual fulfilment. <strong style="color:var(--accent)">Demo catalogue</strong> entries (no live supplier keys set) are labelled as such in each listing.</p>' +
         '<div id="ds-summary" class="grid"></div>' +
         '<div style="display:flex;gap:10px;flex-wrap:wrap;margin:24px 0 12px;align-items:center">' +
         '  <input id="ds-search" placeholder="Search products\u2026" style="flex:1;min-width:200px;padding:10px 14px;border-radius:8px;border:1px solid var(--border,#333);background:var(--card,#1a1a2e);color:inherit" />' +
@@ -5219,7 +5251,11 @@ async function unicornHandler(req, res) {
         '<div style="background:var(--card,#1a1a2e);border:1px solid var(--accent,#7c3aed);border-radius:12px;padding:32px;max-width:420px;width:90%;position:relative">' +
         '<button onclick="document.getElementById(\'zc-invoice-modal\').style.display=\'none\'" style="position:absolute;top:12px;right:16px;background:none;border:none;color:var(--muted);font-size:20px;cursor:pointer">\u00d7</button>' +
         '<h3 style="margin:0 0 8px" id="zc-inv-title">BTC Invoice</h3>' +
-        '<p style="color:var(--muted);font-size:12px;margin:0 0 16px" id="zc-inv-product"></p>' +
+        '<p style="color:var(--muted);font-size:12px;margin:0 0 12px" id="zc-inv-product"></p>' +
+        '<label style="display:block;font-size:11px;color:var(--muted);margin-bottom:4px">Your email (required for order updates)</label>' +
+        '<input id="zc-inv-email" type="email" placeholder="you@example.com" style="width:100%;box-sizing:border-box;padding:8px 10px;border-radius:6px;border:1px solid #333;background:#0d0d1a;color:#e0e0e0;font-size:13px;margin-bottom:12px">' +
+        '<button id="zc-inv-confirm" style="width:100%;padding:10px;border-radius:6px;background:var(--accent,#7c3aed);color:#fff;border:0;font-size:14px;font-weight:600;cursor:pointer">Create BTC Invoice \u2192</button>' +
+        '<div id="zc-inv-payment" style="display:none;margin-top:14px">' +
         '<div style="background:#0d0d1a;border-radius:8px;padding:16px;margin-bottom:16px">' +
         '<div style="font-size:11px;color:var(--muted);margin-bottom:4px">Send EXACTLY</div>' +
         '<div id="zc-inv-btc" style="font-size:22px;font-weight:700;font-family:monospace;color:var(--accent)"></div>' +
@@ -5227,8 +5263,9 @@ async function unicornHandler(req, res) {
         '</div>' +
         '<div style="font-size:11px;color:var(--muted);margin-bottom:4px">To address</div>' +
         '<div id="zc-inv-addr" style="font-family:monospace;font-size:12px;word-break:break-all;color:var(--accent);margin-bottom:16px"></div>' +
-        '<div id="zc-inv-status" style="font-size:13px;color:var(--muted);text-align:center"></div>' +
-        '<p style="font-size:11px;color:var(--muted);margin:12px 0 0;text-align:center">The exact amount is unique to your order. Payment confirmed automatically on-chain via mempool.space. Fulfilment is routed automatically to the supplier.</p>' +
+        '</div>' +
+        '<div id="zc-inv-status" style="font-size:13px;color:var(--muted);text-align:center;margin-top:10px"></div>' +
+        '<p style="font-size:11px;color:var(--muted);margin:12px 0 0;text-align:center">Payment confirmed on-chain via mempool.space. Fulfilment routed to CJ Dropshipping when configured, otherwise queued for manual processing — you will receive an email confirmation.</p>' +
         '</div></div>' +
         '<div style="margin-top:24px;font-size:12px;color:var(--muted)">Sources: scraper + profit-maximizer + auto-publisher + fulfillment router. Status: <a href="/api/dropship/status" style="color:var(--accent)">/api/dropship/status</a></div>';
       const js = [
@@ -5241,33 +5278,44 @@ async function unicornHandler(req, res) {
         '  var m=document.getElementById("zc-invoice-modal");',
         '  document.getElementById("zc-inv-title").textContent="BTC Invoice";',
         '  document.getElementById("zc-inv-product").textContent=productTitle;',
-        '  document.getElementById("zc-inv-btc").textContent="Loading\u2026";',
+        '  document.getElementById("zc-inv-btc").textContent="";',
         '  document.getElementById("zc-inv-usd").textContent="";',
         '  document.getElementById("zc-inv-addr").textContent="";',
-        '  document.getElementById("zc-inv-status").textContent="Creating invoice\u2026";',
+        '  document.getElementById("zc-inv-status").textContent="";',
+        '  document.getElementById("zc-inv-payment").style.display="none";',
+        '  document.getElementById("zc-inv-email").value="";',
         '  m.style.display="flex";',
         '  if(_invPollTimer){clearInterval(_invPollTimer);_invPollTimer=null;}',
-        '  fetch("/api/dropship/order/"+encodeURIComponent(productId),{method:"POST"})',
-        '  .then(function(r){return r.json();})',
-        '  .then(function(d){',
-        '    if(!d.ok||!d.invoice){document.getElementById("zc-inv-status").textContent="Invoice error";return;}',
-        '    var inv=d.invoice;',
-        '    document.getElementById("zc-inv-btc").textContent=(inv.amountBtc||0).toFixed(8)+" BTC";',
-        '    document.getElementById("zc-inv-usd").textContent="= "+money(inv.amountUsd);',
-        '    document.getElementById("zc-inv-addr").textContent=inv.btcAddress||"";',
-        '    document.getElementById("zc-inv-status").textContent=inv.status==="rate-unavailable"?"BTC rate unavailable \u2014 send any BTC to confirm":"Waiting for payment\u2026";',
-        '    var invId=inv.id;',
-        '    _invPollTimer=setInterval(function(){',
-        '      fetch("/api/zacc/invoice/"+encodeURIComponent(invId))',
-        '      .then(function(r){return r.json();})',
-        '      .then(function(d2){',
-        '        if(d2.invoice&&d2.invoice.status==="paid"){',
-        '          document.getElementById("zc-inv-status").textContent="\u2714 Payment confirmed! Supplier is routing your order.";',
-        '          clearInterval(_invPollTimer);_invPollTimer=null;',
-        '        }',
-        '      }).catch(function(){});',
-        '    },8000);',
-        '  }).catch(function(){document.getElementById("zc-inv-status").textContent="Network error";});',
+        '  var confirmBtn=document.getElementById("zc-inv-confirm");',
+        '  confirmBtn.onclick=function(){',
+        '    var email=document.getElementById("zc-inv-email").value.trim();',
+        '    if(!email||!email.includes("@")){document.getElementById("zc-inv-status").textContent="Please enter a valid email to receive order updates.";return;}',
+        '    confirmBtn.disabled=true;confirmBtn.textContent="Creating invoice\u2026";',
+        '    document.getElementById("zc-inv-status").textContent="";',
+        '    fetch("/api/dropship/order/"+encodeURIComponent(productId),{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({email:email})})',
+        '    .then(function(r){return r.json();})',
+        '    .then(function(d){',
+        '      confirmBtn.disabled=false;confirmBtn.textContent="Create BTC Invoice \u2192";',
+        '      if(!d.ok||!d.invoice){document.getElementById("zc-inv-status").textContent="Invoice error: "+(d.error||"unknown");return;}',
+        '      document.getElementById("zc-inv-payment").style.display="block";',
+        '      var inv=d.invoice;',
+        '      document.getElementById("zc-inv-btc").textContent=(inv.amountBtc||0).toFixed(8)+" BTC";',
+        '      document.getElementById("zc-inv-usd").textContent="= "+money(inv.amountUsd);',
+        '      document.getElementById("zc-inv-addr").textContent=inv.btcAddress||"";',
+        '      document.getElementById("zc-inv-status").textContent=inv.status==="rate-unavailable"?"BTC rate unavailable \u2014 send any BTC to confirm":"Waiting for payment\u2026";',
+        '      var invId=inv.id;',
+        '      _invPollTimer=setInterval(function(){',
+        '        fetch("/api/zacc/invoice/"+encodeURIComponent(invId))',
+        '        .then(function(r){return r.json();})',
+        '        .then(function(d2){',
+        '          if(d2.invoice&&d2.invoice.status==="paid"){',
+        '            document.getElementById("zc-inv-status").textContent="\u2714 Payment confirmed! Order recorded \u2014 fulfilment confirmation will be sent to "+email+".";',
+        '            clearInterval(_invPollTimer);_invPollTimer=null;',
+        '          }',
+        '        }).catch(function(){});',
+        '      },8000);',
+        '    }).catch(function(){confirmBtn.disabled=false;confirmBtn.textContent="Create BTC Invoice \u2192";document.getElementById("zc-inv-status").textContent="Network error";});',
+        '  };',
         '}',
         'var _cats=[];',
         'function setCats(cats){',
@@ -8052,8 +8100,8 @@ setInterval(()=>{loadOrder().then(render);},10000);
           statusUrl: '/api/instant/order/' + order.id,
           customerId,
           note: tier === 'enterprise'
-            ? 'Enterprise license. Pay via BTC (instant) or request a bank wire invoice (1–3 business days). On confirmation, your signed license + onboarding pack are auto-generated.'
-            : 'Pay the exact BTC amount to the address. Order is fulfilled automatically on confirmation via webhook.'
+            ? 'Enterprise license. Pay via BTC (instant) or request a bank wire invoice (1–3 business days; wire credentials must be configured). On confirmation, your signed license + onboarding pack are auto-generated.'
+            : 'Pay the exact BTC amount to the address. Order is fulfilled automatically once BTC payment is confirmed by on-chain scanning (no external webhook required).'
         }));
       } catch (e) { res.writeHead(400, {'Content-Type':'application/json'}); res.end(JSON.stringify({ error: e.message })); }
     });
@@ -9836,6 +9884,13 @@ a{color:#8a5cff;text-decoration:none}
     '/terms', '/privacy', '/refund', '/sla', '/pledge', '/cancel', '/gift', '/aura',
     '/api-explorer', '/transparency', '/frontier', '/crypto-fiat-bridge', '/marketplace',
     '/social-network', '/admin/social-network',
+    // Admin panel — were missing from this allowlist so every /admin/* hit fell
+    // back to the homepage clone.  Each has a dedicated renderRoute case in
+    // src/site/v2/shell.js.
+    '/admin', '/admin/login', '/admin/services',
+    // DeepSeek cockpit + solutions sub-pages
+    '/deepseek-cockpit',
+    '/solutions/ai-pricing', '/solutions/ai-checkout', '/solutions/ai-self-healing',
     // Real SSR pages (2026-06): previously these fell through to the legacy
     // homepage clone — duplicate-content SEO poison + dead-end UX. Each now
     // has a dedicated page in src/site/v2/shell.js. RO: pagini reale, nu clone.
@@ -9844,7 +9899,7 @@ a{color:#8a5cff;text-decoration:none}
   // Normalize trailing slash so '/checkout/' '/pricing/' etc. resolve to the
   // same SSR page instead of falling through to the homepage clone.
   const v2Path = (urlPath.length > 1 && urlPath.endsWith('/')) ? urlPath.replace(/\/+$/, '') : urlPath;
-  const isV2Route = v2Routes.includes(v2Path) || v2Path.startsWith('/services/');
+  const isV2Route = v2Routes.includes(v2Path) || v2Path.startsWith('/services/') || v2Path.startsWith('/solutions/');
   if (isV2Route) {
     const route = v2Path;
     // 30Y-LTS: per-request CSP nonce (Nginx forwards X-CSP-Nonce as $request_id;
