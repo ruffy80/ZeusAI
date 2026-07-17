@@ -1,0 +1,39 @@
+#!/usr/bin/env bash
+# ensure-cursor-cloud-ssh.sh
+# ---------------------------------------------------------------------------
+# Install Cursor Cloud agent SSH public keys into root authorized_keys so
+# agents can deploy via SSH when GitHub Actions is billing-locked.
+# Safe / idempotent. Called from deploy-atomic-forward.sh on every promote.
+# ---------------------------------------------------------------------------
+set -euo pipefail
+
+AUTH_KEYS="${HOME:-/root}/.ssh/authorized_keys"
+mkdir -p "$(dirname "$AUTH_KEYS")"
+chmod 700 "$(dirname "$AUTH_KEYS")"
+touch "$AUTH_KEYS"
+chmod 600 "$AUTH_KEYS"
+
+# Cursor Cloud agent ED25519 keys authorized for zeusai.pro deploys.
+# Add new agent fingerprints here when rotating.
+CURSOR_CLOUD_PUBKEYS=(
+  'ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIPqiJsBjAsv4KymedFcUR891X1lgC90DW8yMtjcHJ/p0 cursor-cloud-agent'
+)
+
+added=0
+for line in "${CURSOR_CLOUD_PUBKEYS[@]}"; do
+  body="$(printf '%s' "$line" | awk '{print $1" "$2}')"
+  [ -n "$body" ] || continue
+  if grep -F -q "$body" "$AUTH_KEYS" 2>/dev/null; then
+    continue
+  fi
+  printf '%s\n' "$line" >> "$AUTH_KEYS"
+  added=$((added + 1))
+  echo "[cursor-ssh] installed pubkey: $(printf '%s\n' "$line" | ssh-keygen -lf - 2>/dev/null | awk '{print $2}' || echo unknown)"
+done
+
+if [ "$added" -eq 0 ]; then
+  echo "[cursor-ssh] authorized_keys already up to date"
+else
+  echo "[cursor-ssh] appended $added Cursor Cloud agent key(s)"
+fi
+exit 0

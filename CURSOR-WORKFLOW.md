@@ -11,10 +11,15 @@ _Last updated: 2026-07-14 by the Cursor agent._
 ## Deploying WITHOUT GitHub (three ways, all safe, all canary-gated)
 All three run the same `scripts/deploy-atomic-forward.sh` (canary on :3100 → health/QIS/smoke → atomic symlink promote → PM2 restart → final smoke → stamp `.deployed-commit`).
 
-1. **Manual from your machine** — `scripts/deploy-local.sh [git-ref]` (default `origin/main`).
-   Ships a clean `git archive` of the ref, then runs the atomic deploy. Env overrides: `ZEUS_SSH_KEY`, `ZEUS_HOST`, `ZEUS_USER`, `ZEUS_PUBLIC_URL`.
+1. **Cursor Cloud / local SSH** — preferred when Actions is billing-locked:
+   ```bash
+   bash UNICORN_FINAL/scripts/zeus-ssh-deploy.sh HEAD
+   # or: ZEUS_SSH_KEY=~/.ssh/deploy_key bash UNICORN_FINAL/scripts/deploy-local.sh HEAD
+   ```
+   Uses `/run/host-services/ssh-auth.sock` when present. Every promote also runs
+   `ensure-cursor-cloud-ssh.sh` so Cursor agent pubkeys stay in `authorized_keys`.
 2. **On-server self-deploy poller** — `zeus-autodeploy.timer` (systemd, ~every 3 min) pulls `origin/main` over public HTTPS and deploys forward automatically. Kill-switch: `touch /etc/zeus-autodeploy.disabled`.
-3. **GitHub Actions** (`.github/workflows/deploy.yml`) on push to `main` — the primary path when GitHub is available.
+3. **GitHub Actions** (`.github/workflows/deploy.yml`) on push to `main` — when the GitHub account is not billing-locked.
 
 > NOTE: GitHub billing was **already unblocked** on 2026-07-14 — Actions runs again. The manual/poller paths remain as GitHub-independent fallbacks (belt & braces).
 

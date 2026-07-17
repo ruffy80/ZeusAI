@@ -23,15 +23,31 @@ set -euo pipefail
 REF="${1:-origin/main}"
 HOST="${ZEUS_HOST:-204.168.230.142}"
 USER="${ZEUS_USER:-root}"
-KEY="${ZEUS_SSH_KEY:-$HOME/.ssh/deploy_key}"
+KEY="${ZEUS_SSH_KEY:-}"
 PUBLIC_URL="${ZEUS_PUBLIC_URL:-https://zeusai.pro}"
 DEPLOY_LINK="/var/www/unicorn/UNICORN_FINAL"
 RELEASE_ROOT="/var/www/unicorn/releases"
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"   # repo root
 cd "$ROOT"
-[ -f "$KEY" ] || { echo "SSH key not found: $KEY (set ZEUS_SSH_KEY)"; exit 1; }
-SSHK=(-i "$KEY" -o StrictHostKeyChecking=no -o IdentitiesOnly=yes)
+
+# Prefer Cursor Cloud SSH agent, then explicit key files.
+if [ -z "${SSH_AUTH_SOCK:-}" ] && [ -S /run/host-services/ssh-auth.sock ]; then
+  export SSH_AUTH_SOCK=/run/host-services/ssh-auth.sock
+fi
+if [ -z "$KEY" ]; then
+  for cand in "$HOME/.ssh/deploy_key" "$HOME/.ssh/hetzner_rsa" "$HOME/.ssh/id_ed25519"; do
+    [ -f "$cand" ] && KEY="$cand" && break
+  done
+fi
+SSHK=(-o StrictHostKeyChecking=no -o IdentitiesOnly=yes -o BatchMode=yes -o ConnectTimeout=20)
+if [ -n "$KEY" ] && [ -f "$KEY" ]; then
+  SSHK=(-i "$KEY" "${SSHK[@]}")
+elif [ -n "${SSH_AUTH_SOCK:-}" ]; then
+  echo "[deploy-local] using SSH agent at $SSH_AUTH_SOCK (no key file)"
+else
+  echo "SSH key not found and no SSH agent (set ZEUS_SSH_KEY or start agent)"; exit 1
+fi
 
 git fetch origin --quiet 2>/dev/null || echo "[deploy-local] warn: git fetch failed (offline?) — using local objects"
 SHA="$(git rev-parse "$REF")"
