@@ -205,10 +205,24 @@ SHARED_DIR="$SHARED_DIR" KEY_FILE="$SHARED_DIR/site-sign.pem" PUB_FILE="$SHARED_
 
 log "restart PM2 from canonical symlink only"
 cd "$DEPLOY_LINK"
+# Stamp build SHA into the release so /api/health + /api/build can prove reload.
+if [ -n "${GITHUB_SHA:-}" ]; then
+  printf '%s\n' "$GITHUB_SHA" > "$DEPLOY_LINK/.build-sha" || true
+fi
 cleanup_pm2_topology
 for app in $PM2_APPS; do
   pm2 delete "$app" >/dev/null 2>&1 || true
 done
+# Hard-clear listeners on app ports. Fork-mode unicorn-backend has historically
+# survived `pm2 delete` as an orphan on :3000 (site reloads, API stays stale).
+for port in 3000 3001; do
+  if command -v fuser >/dev/null 2>&1; then
+    fuser -k "${port}/tcp" >/dev/null 2>&1 || true
+  elif command -v lsof >/dev/null 2>&1; then
+    lsof -tiTCP:"$port" -sTCP:LISTEN | xargs -r kill -9 >/dev/null 2>&1 || true
+  fi
+done
+sleep 2
 # DO NOT set a global PORT here. ecosystem.config.js is the single source of
 # truth for per-app PORT (backend:3000, site:3001). Setting PORT=3000 in the
 # shell env propagates via `--update-env` to ALL apps and forces site to also
@@ -286,6 +300,39 @@ if [ -n "$DRIFTED_APPS" ]; then
   done
   sleep 10
 fi
+
+# Prove the LIVE backend on :3000 is the freshly started process — not a 28h orphan.
+log "verify backend process is fresh (uptime < 180s)"
+BACKEND_UPTIME="$(curl -fsS --max-time 5 http://127.0.0.1:3000/api/health 2>/dev/null | node -e '
+  let b=""; process.stdin.on("data",d=>b+=d); process.stdin.on("end",()=>{
+    try { const j=JSON.parse(b||"{}"); process.stdout.write(String(j.uptime||999999)); }
+    catch(_) { process.stdout.write("999999"); }
+  });
+' || echo 999999)"
+if [ "${BACKEND_UPTIME:-999999}" -gt 180 ]; then
+  log "backend uptime=${BACKEND_UPTIME}s looks stale — killing :3000 and respawning unicorn-backend"
+  pm2 delete unicorn-backend >/dev/null 2>&1 || true
+  if command -v fuser >/dev/null 2>&1; then fuser -k 3000/tcp >/dev/null 2>&1 || true; fi
+  sleep 2
+  cd "$DEPLOY_LINK"
+  env \
+    NODE_ENV=production \
+    BIND_HOST=127.0.0.1 \
+    UNICORN_RUNTIME_PROFILE=safe \
+    QIS_REQUIRED_PROCESSES="$PM2_ONLY" \
+    ZEUS_BUILD_SHA="${GITHUB_SHA:-}" \
+    SW_VERSION="${GITHUB_SHA:-}" \
+    pm2 start ecosystem.config.js --only unicorn-backend --update-env
+  sleep 12
+  BACKEND_UPTIME="$(curl -fsS --max-time 5 http://127.0.0.1:3000/api/health 2>/dev/null | node -e '
+    let b=""; process.stdin.on("data",d=>b+=d); process.stdin.on("end",()=>{
+      try { const j=JSON.parse(b||"{}"); process.stdout.write(String(j.uptime||999999)); }
+      catch(_) { process.stdout.write("999999"); }
+    });
+  ' || echo 999999)"
+  [ "${BACKEND_UPTIME:-999999}" -le 180 ] || fail "backend still stale after force-respawn (uptime=${BACKEND_UPTIME}s)"
+fi
+log "backend fresh — uptime=${BACKEND_UPTIME}s"
 
 # ── QIS settle heartbeat (keeps the SSH session alive) ──────────────────────
 # The Quantum Integrity Shield re-baselines on a fresh PM2 start; right after

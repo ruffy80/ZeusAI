@@ -3947,6 +3947,7 @@ function buildHealthResponse() {
     node: process.version,
     env: process.env.NODE_ENV || 'development',
     version: APP_VERSION,
+    buildSha: process.env.ZEUS_BUILD_SHA || process.env.GITHUB_SHA || process.env.SW_VERSION || null,
     timestamp: new Date().toISOString(),
     fallbackPricing,
   };
