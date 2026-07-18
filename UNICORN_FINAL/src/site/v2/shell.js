@@ -245,7 +245,10 @@ function _catalogCard(p) {
     <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px">${_tierBadge(p.tier)}<span style="font-family:var(--mono);font-size:18px;color:var(--gold);text-align:right" itemprop="offers" itemscope itemtype="https://schema.org/Offer"><meta itemprop="priceCurrency" content="USD"/><span itemprop="price" data-pricing-value="${id}">${priceTxt}</span>${billing}${liveBadge}<span class="btc-line" data-price-btc-value="${id}" style="display:block;font-size:11.5px;color:#f7a13b;font-weight:600;margin-top:3px;letter-spacing:.2px">${btcTxt}</span></span></div>
     <h3 style="margin:4px 0 0;font-size:18px;line-height:1.25" itemprop="name">${title}</h3>
     <p style="margin:0;color:var(--ink-dim);font-size:13px;line-height:1.45;flex:1" itemprop="description">${desc}</p>
-    <div style="display:flex;gap:8px;margin-top:6px"><a class="btn btn-primary" href="/checkout/?plan=${encodeURIComponent(id)}" data-link aria-label="Buy ${title} with Bitcoin for ${btcTxt || priceTxt}" style="flex:1;justify-content:center">Buy with BTC →</a><a class="btn btn-ghost" href="/services/${encodeURIComponent(id)}" data-link aria-label="View details for ${title}">Details</a></div>
+    <div style="display:flex;gap:8px;margin-top:6px">${price > 0
+      ? `<a class="btn btn-primary" href="/checkout/?plan=${encodeURIComponent(id)}" data-sovereign-buy="${id}" aria-label="Buy ${title} with Bitcoin for ${btcTxt || priceTxt}" style="flex:1;justify-content:center">Buy with BTC →</a>`
+      : `<a class="btn btn-ghost" href="/services/${encodeURIComponent(id)}" data-link aria-label="Activate ${title}" style="flex:1;justify-content:center">Activate free</a>`
+    }<a class="btn btn-ghost" href="/services/${encodeURIComponent(id)}" data-link aria-label="View details for ${title}">Details</a></div>
   </article>`;
 }
 function _ssrCatalogGrid(items, opts) {
@@ -1266,7 +1269,7 @@ function pageServices() {
   <section id="unicornModulesMirror" aria-label="Live Unicorn modules" style="margin:28px 0 10px">
     <div style="display:flex;justify-content:space-between;align-items:baseline;flex-wrap:wrap;gap:8px;margin-bottom:14px">
       <h3 style="margin:0;font-size:20px;letter-spacing:-0.01em">🧬 Live Unicorn modules <small style="color:var(--ink-dim);font-size:12px;font-weight:400">— operational mirror from backend (not the buyable 25-SKU catalog)</small></h3>
-      <span id="autonomousModulesHint" style="font-size:11px;color:var(--ink-dim);font-family:var(--mono)">waiting for /api/modules/list…</span>
+      <span id="autonomousModulesHint" style="font-size:11px;color:var(--ink-dim);font-family:var(--mono)">connecting to Unicorn modules…</span>
     </div>
     <div id="autonomousServicesGrid" class="grid" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:14px"></div>
   </section>
@@ -3069,6 +3072,7 @@ function renderRoute(route, params = {}) {
     case '/roadmap': return pageRoadmap();
     case '/careers': return pageCareers();
     case '/press': return pagePress();
+    case '/__not-found__': return pageNotFound(params.missingPath || route);
     default:
       if (route.startsWith('/services/')) return pageService(params.id || route.slice(10));
       return pageNotFound(route);

@@ -5562,6 +5562,21 @@ async function unicornHandler(req, res) {
   }
 
   if (urlPath === '/modules') {
+    // Browsers / SPA partials → live modules mirror on Marketplace.
+    // Explicit JSON clients keep the legacy static modules array.
+    const accept = String(req.headers['accept'] || '');
+    const fetchDest = String(req.headers['sec-fetch-dest'] || '').toLowerCase();
+    const fetchMode = String(req.headers['sec-fetch-mode'] || '').toLowerCase();
+    const wantsHtml = (
+      req.headers['x-unicorn-partial'] === '1'
+      || fetchDest === 'document'
+      || fetchMode === 'navigate'
+      || (accept.indexOf('text/html') !== -1 && accept.indexOf('application/json') === -1)
+    );
+    if (wantsHtml && req.method === 'GET') {
+      res.writeHead(302, { Location: '/services#unicornModulesMirror', 'Cache-Control': 'no-store' });
+      return res.end('Redirecting to /services#unicornModulesMirror');
+    }
     res.writeHead(200, { 'Content-Type': 'application/json' });
     return res.end(JSON.stringify({ updatedAt: new Date().toISOString(), modules }));
   }
@@ -5575,17 +5590,15 @@ async function unicornHandler(req, res) {
     // would collapse to blank a fragment of a second after navigation
     // (the "blank Marketplace" regression).
     //
-    // The fix is content-negotiation: real browser navigations get a
-    // permanent-feeling 302 to `/services` so the SSR shell renders the
-    // proper page (and bookmarks/SW caches heal themselves), while
-    // programmatic JSON consumers (the legacy `loadServices()` fallback
-    // in `src/site/v2/client.js` and any historical scripts) continue to
-    // receive the same `{ updatedAt, modules }` body they always did.
+    // The fix is content-negotiation: real browser navigations + SPA
+    // partial fetches get a 302 to `/services`, while programmatic JSON
+    // consumers (legacy `loadServices()` and scripts) keep the modules body.
     const accept = String(req.headers['accept'] || '');
     const fetchDest = String(req.headers['sec-fetch-dest'] || '').toLowerCase();
     const fetchMode = String(req.headers['sec-fetch-mode'] || '').toLowerCase();
     const isHtmlNavigation = (
-      fetchDest === 'document'
+      req.headers['x-unicorn-partial'] === '1'
+      || fetchDest === 'document'
       || fetchMode === 'navigate'
       || (accept.indexOf('text/html') !== -1 && accept.indexOf('application/json') === -1)
     );
@@ -5595,6 +5608,23 @@ async function unicornHandler(req, res) {
     }
     res.writeHead(200, { 'Content-Type': 'application/json' });
     return res.end(JSON.stringify({ updatedAt: new Date().toISOString(), modules: getRuntimeDataSources().marketplace }));
+  }
+
+  // Alias redirects — these used to fall through to a homepage clone (200),
+  // which made /unicorn, /catalog, /orders, /wallet look "broken".
+  if (req.method === 'GET') {
+    const aliasMap = {
+      '/unicorn': '/unicorn-cockpit',
+      '/catalog': '/services',
+      '/orders': '/account',
+      '/wallet': '/account',
+      '/shop': '/store',
+      '/buy': '/services'
+    };
+    if (aliasMap[urlPath]) {
+      res.writeHead(302, { Location: aliasMap[urlPath], 'Cache-Control': 'no-store' });
+      return res.end('Redirecting to ' + aliasMap[urlPath]);
+    }
   }
 
   if (urlPath === '/codex') {
@@ -10186,9 +10216,23 @@ a{color:#8a5cff;text-decoration:none}
     return res.end(html);
   }
 
-  // Legacy fallback
-  res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
-  return res.end(v2.getHtml('/'));
+  // Unknown HTML path → real 404 (not a silent homepage clone).
+  // Assets/API should have been handled above; this is last-resort for humans.
+  try {
+    const nonce = String(req.headers['x-csp-nonce'] || crypto.randomBytes(12).toString('base64'));
+    const html404 = (v2 && typeof v2.getHtml === 'function')
+      ? v2.getHtml('/__not-found__', { missingPath: urlPath })
+      : '<!doctype html><title>Not found</title><h1>404</h1><p>Page not found.</p><a href="/">Home</a>';
+    res.writeHead(404, {
+      'Content-Type': 'text/html; charset=utf-8',
+      'Cache-Control': 'no-store',
+      'X-CSP-Nonce': nonce
+    });
+    return res.end(html404);
+  } catch (_) {
+    res.writeHead(404, { 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': 'no-store' });
+    return res.end('Not found');
+  }
 }
 
 // ===================================================================
