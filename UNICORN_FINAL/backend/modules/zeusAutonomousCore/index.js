@@ -42,9 +42,12 @@ const { completeSite } = require('./siteCompleter');
 
 const VERSION = '1.0.0';
 const STARTED_AT = new Date().toISOString();
-const SELF_HEALER_ENABLED = process.env.ZAC_ENABLE_HEALER === '1'
-  && process.env.ZAC_DISABLE_HEALER !== '1'
-  && process.env.DISABLE_SELF_MUTATION !== '1'
+// Process healing (PM2 restart on unhealthy /health) is independent of
+// DISABLE_SELF_MUTATION — that flag only blocks source-file rewrites.
+// Default ON outside test/safe; opt out with ZAC_DISABLE_HEALER=1 or ZAC_ENABLE_HEALER=0.
+const SELF_HEALER_ENABLED = process.env.ZAC_DISABLE_HEALER !== '1'
+  && process.env.ZAC_ENABLE_HEALER !== '0'
+  && process.env.NODE_ENV !== 'test'
   && process.env.UNICORN_RUNTIME_PROFILE !== 'safe';
 
 const state = {

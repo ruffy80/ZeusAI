@@ -5,9 +5,10 @@
 # Verifică /health la fiecare tick; dacă pică 3× în 5min → restart PM2 apps.
 # NU folosește docker. Sigur pentru deploy-ul actual (cluster + fork).
 # Variabile env (override):
-#   HEALTH_URL         (default http://127.0.0.1:3000/health)
+#   HEALTH_URL         (default http://127.0.0.1:3000/api/health)
+#   SITE_HEALTH_URL    (default http://127.0.0.1:3001/health)
 #   PM2_BIN            (default detect via npm root -g)
-#   PM2_APPS           (default "unicorn-backend unicorn-site autoscaler")
+#   PM2_APPS           (default "unicorn-backend unicorn-site")
 #   FAIL_THRESHOLD     (default 3)
 #   FAIL_WINDOW_SEC    (default 300)
 #   CHECK_TIMEOUT_SEC  (default 5)
@@ -16,8 +17,9 @@
 # =============================================================================
 set -euo pipefail
 
-HEALTH_URL="${HEALTH_URL:-http://127.0.0.1:3000/health}"
-PM2_APPS="${PM2_APPS:-unicorn-backend unicorn-site autoscaler}"
+HEALTH_URL="${HEALTH_URL:-http://127.0.0.1:3000/api/health}"
+SITE_HEALTH_URL="${SITE_HEALTH_URL:-http://127.0.0.1:3001/health}"
+PM2_APPS="${PM2_APPS:-unicorn-backend unicorn-site}"
 FAIL_THRESHOLD="${FAIL_THRESHOLD:-3}"
 FAIL_WINDOW_SEC="${FAIL_WINDOW_SEC:-300}"
 CHECK_TIMEOUT_SEC="${CHECK_TIMEOUT_SEC:-5}"
@@ -60,11 +62,19 @@ send_webhook() {
     -d "$payload" "$WEBHOOK_URL" --max-time 8 >/dev/null 2>&1 || true
 }
 
-check_health() {
+check_one() {
+  local url="$1"
   local code
   code=$(curl -sf -o /dev/null -w "%{http_code}" \
-    --max-time "$CHECK_TIMEOUT_SEC" "$HEALTH_URL" 2>/dev/null || echo "000")
+    --max-time "$CHECK_TIMEOUT_SEC" "$url" 2>/dev/null || echo "000")
   [ "$code" = "200" ]
+}
+
+check_health() {
+  # Both backend and site must be healthy (autoscaler/guardian PM2 apps retired).
+  check_one "$HEALTH_URL" || return 1
+  check_one "$SITE_HEALTH_URL" || return 1
+  return 0
 }
 
 count_fails_window() {
