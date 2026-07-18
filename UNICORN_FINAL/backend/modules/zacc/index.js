@@ -247,16 +247,22 @@ class ZeusAutonomicCommerceCore {
   async ensureWorldCatalog() {
     try {
       const live = this.publisher.published || [];
-      const modern = live.filter((p) => p && p.proofOfMargin && (p.source === 'zeus-curated' || p.demoOnly === true)).length;
-      if (modern >= 12 && live.length >= 12) return { rebuilt: false, modern, live: live.length };
-      log.info('ensureWorldCatalog · rebuilding storefront from zeus-curated (modern=' + modern + ', live=' + live.length + ')');
+      const modern = live.filter((p) => p && p.proofOfMargin && (p.source === 'zeus-curated' || p.demoOnly === true || String(p.source || '').includes('world'))).length;
+      const withImages = live.filter((p) => p && p.image && !/picsum\.photos/i.test(String(p.image))).length;
+      const worldish = live.filter((p) => p && /world|dummyjson|fakestore|escuela|ebay|etsy|aliexpress/i.test(String(p.source || ''))).length;
+      // Rebuild when catalogue is thin, images are broken placeholders, or we
+      // have zero worldwide-feed SKUs (autonomy requires global intake).
+      if (modern >= 12 && live.length >= 18 && withImages >= 12 && worldish >= 6) {
+        return { rebuilt: false, modern, live: live.length, withImages, worldish };
+      }
+      log.info('ensureWorldCatalog · rebuilding storefront from world feeds + curated (modern=' + modern + ', live=' + live.length + ', imgs=' + withImages + ', world=' + worldish + ')');
       this.publisher.published = [];
       if (this.publisher.byId && typeof this.publisher.byId.clear === 'function') this.publisher.byId.clear();
       if (this.publisher.publishedAt && typeof this.publisher.publishedAt.clear === 'function') this.publisher.publishedAt.clear();
       this.scraper.products = [];
       await this.scraper.scrape(true);
-      const qualified = this.profit.rank(this.scraper.recent(400));
-      const published = this.publisher.publish(qualified, Math.max(24, Number(process.env.ZACC_BOOT_PUBLISH || 24)));
+      const qualified = this.profit.rank(this.scraper.recent(500));
+      const published = this.publisher.publish(qualified, Math.max(48, Number(process.env.ZACC_BOOT_PUBLISH || 48)));
       this._persist(true);
       return { rebuilt: true, modern: published.length, live: this.publisher.published.length };
     } catch (e) {

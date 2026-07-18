@@ -43,9 +43,11 @@ class FulfillmentRouter {
   async _viaCjDropshipping(order) {
     if (!CJ_API_KEY || typeof fetch !== 'function') return { ok: false, reason: 'cj_not_configured' };
     // A real CJ order needs a supplier variant id (vid). Curated / demo SKUs
-    // have no supplierRef, so we must NOT invent one — skip CJ and let the
-    // order fall through to the manual queue.
-    if (!order.supplierRef) return { ok: false, reason: order.demoOnly ? 'cj_skipped_demo_only' : 'cj_no_supplier_ref' };
+    // and free world-feed refs (dummyjson:123) must NOT be sent to CJ.
+    const vid = order.supplierRef != null ? String(order.supplierRef) : '';
+    if (!vid || vid.includes(':') || order.demoOnly) {
+      return { ok: false, reason: order.demoOnly ? 'cj_skipped_demo_only' : 'cj_no_supplier_ref' };
+    }
     try {
       const body = {
         orderNumber: order.id,
@@ -57,7 +59,7 @@ class FulfillmentRouter {
         shippingZip: order.shipping && order.shipping.zip,
         shippingPhone: order.shipping && order.shipping.phone,
         remark: 'ZACC autonomous · ' + order.productTitle,
-        products: [{ vid: order.supplierRef, quantity: Math.max(1, Number(order.qty) || 1) }],
+        products: [{ vid, quantity: Math.max(1, Number(order.qty) || 1) }],
       };
       const r = await fetch(CJ_ENDPOINT, {
         method: 'POST',

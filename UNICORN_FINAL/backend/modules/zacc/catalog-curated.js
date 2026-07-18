@@ -15,11 +15,12 @@
 'use strict';
 
 const { slug } = require('./util');
+const { coverPath } = require('./product-cover');
 
-// picsum.photos serves stable placeholder imagery keyed by seed so the
-// storefront looks like a real shop before any live source is connected.
+// Self-hosted cinematic SVG covers (same origin) — never blank the grid when
+// third-party image CDNs block hotlinking / fail DNS.
 function img(name) {
-  return 'https://picsum.photos/seed/' + slug(name) + '/640/480';
+  return coverPath(slug(name));
 }
 
 // 24 premium physical SKUs across electronics, home, fitness, beauty, pets and
