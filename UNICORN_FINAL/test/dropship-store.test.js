@@ -92,6 +92,48 @@ assert.ok(
   'EXPECTED: the /dropship/product page should bind #dp-buy via addEventListener.'
 );
 
-console.log('\u2713 dropship-store: images render as robust <img>, Buy/Approve use delegated data-* handlers');
+// ---------- 3) storefront structure + checkout contracts ----------------
+assert.ok(
+  SRC.includes('ZEUS DROPSHIP OS') &&
+  SRC.includes('The store that sources, prices, and ships itself.') &&
+  SRC.includes('Shop the store \\u2193') &&
+  SRC.includes('Autonomy cockpit \\u2192'),
+  'EXPECTED: /dropship must render the approved single-composition hero.'
+);
+assert.ok(
+  SRC.includes('CURATED \\u00b7 AUTO') &&
+  SRC.includes('LIVE \\u00b7 AUTO') &&
+  SRC.includes('configuredSources'),
+  'EXPECTED: storefront status must default to curated and only switch live from supplier configuration.'
+);
+for (const field of ['ds-email', 'ds-name', 'ds-address', 'ds-city', 'ds-region', 'ds-zip', 'ds-country', 'ds-phone']) {
+  assert.ok(SRC.includes('id="' + field + '"'), 'EXPECTED: checkout field #' + field + ' must be present.');
+}
+const quoteAt = SRC.indexOf('requestJson("/api/dropship/quote"');
+const orderAt = SRC.indexOf('requestJson("/api/dropship/order/"');
+assert.ok(quoteAt !== -1 && orderAt > quoteAt, 'EXPECTED: live quote must precede dropship order creation.');
+assert.ok(
+  SRC.includes('requestJson("/api/zacc/invoice/"') &&
+  SRC.includes('data-copy-target="ds-btc-address"') &&
+  SRC.includes('data-copy-target="ds-btc-amount"'),
+  'EXPECTED: BTC invoice status polling and payment copy controls must be wired.'
+);
+assert.ok(
+  SRC.includes("urlPath.indexOf('/dropship/order/') === 0") &&
+  SRC.includes('fetch("/api/dropship/order/"+encodeURIComponent(TOKEN)'),
+  'EXPECTED: the no-login order passport route must fetch its public order contract.'
+);
+assert.ok(
+  SRC.includes('fetch("/api/dropship/products?limit=200"') &&
+  SRC.includes('Proof-of-Margin'),
+  'EXPECTED: PDP must use the products contract and expose the margin breakdown.'
+);
+assert.ok(
+  SRC.includes("if (urlPath === '/dropshipping')") &&
+  SRC.includes("Location: '/dropship'"),
+  'EXPECTED: the legacy /dropshipping redirect must remain intact.'
+);
+
+console.log('\u2713 dropship-store: robust media, quote-gated shipping checkout, order passport, and PDP contracts present');
 console.log('\nDropship storefront regression guard passed.');
 process.exit(0);
