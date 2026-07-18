@@ -22,7 +22,11 @@ function run() {
     if (items.length) {
       assert.ok(items.every((p) => p.image && /^https?:\/\//i.test(p.image)), 'world items have https images');
       assert.ok(items.every((p) => p.costUsd > 0), 'world items have cost');
-      console.log('  ✓ world feeds returned', items.length, 'products with images');
+      assert.ok(items.every((p) => Number(p.rating) >= 4), 'world items meet rating floor');
+      assert.ok(items.every((p) => Number(p.reviews) >= 100), 'world items clear review gate');
+      const sources = new Set(items.map((p) => p.source));
+      assert.ok(sources.size >= 1, 'at least one world source');
+      console.log('  ✓ world feeds returned', items.length, 'products with images from', [...sources].join(', '));
     } else {
       console.log('  ✓ world feeds returned 0 (network unavailable — fail-soft ok)');
     }

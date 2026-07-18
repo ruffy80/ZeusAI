@@ -250,10 +250,12 @@ class ZeusAutonomicCommerceCore {
       const modern = live.filter((p) => p && p.proofOfMargin && (p.source === 'zeus-curated' || p.demoOnly === true || String(p.source || '').includes('world'))).length;
       const withImages = live.filter((p) => p && p.image && !/picsum\.photos/i.test(String(p.image))).length;
       const worldish = live.filter((p) => p && /world|dummyjson|fakestore|escuela|ebay|etsy|aliexpress/i.test(String(p.source || ''))).length;
+      const hasDummy = live.some((p) => p && p.source === 'dummyjson-world');
+      const hasHttpsImg = live.some((p) => p && /^https?:\/\//i.test(String(p.image || '')));
       // Rebuild when catalogue is thin, images are broken placeholders, or we
-      // have zero worldwide-feed SKUs (autonomy requires global intake).
-      if (modern >= 12 && live.length >= 18 && withImages >= 12 && worldish >= 6) {
-        return { rebuilt: false, modern, live: live.length, withImages, worldish };
+      // lack a multi-source worldwide intake (autonomy requires global SKUs).
+      if (modern >= 12 && live.length >= 24 && withImages >= 18 && worldish >= 10 && hasDummy && hasHttpsImg) {
+        return { rebuilt: false, modern, live: live.length, withImages, worldish, hasDummy };
       }
       log.info('ensureWorldCatalog · rebuilding storefront from world feeds + curated (modern=' + modern + ', live=' + live.length + ', imgs=' + withImages + ', world=' + worldish + ')');
       this.publisher.published = [];
