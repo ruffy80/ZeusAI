@@ -71,19 +71,48 @@ async function _sendWebhook(event, payload) {
   } catch (e) { return { ok: false, reason: 'webhook_exception', message: e.message }; }
 }
 
+async function _sendEmail(event, payload) {
+  const to = process.env.ZACC_ADMIN_EMAIL || process.env.OWNER_EMAIL || '';
+  if (!to) return { ok: false, reason: 'owner_email_missing' };
+  try {
+    const email = require('../../email');
+    if (!email || typeof email.sendMail !== 'function') return { ok: false, reason: 'email_module_missing' };
+    const text = _format(event, payload);
+    const subject = '[ZACC] ' + String(event).replace(/_/g, ' ').toUpperCase()
+      + (payload && payload.orderToken ? ' · ' + payload.orderToken : '');
+    const ship = payload && payload.shipping
+      ? '\n\nShip to:\n' + JSON.stringify(payload.shipping, null, 2)
+      : '';
+    const r = await email.sendMail({
+      to,
+      subject,
+      text: text + ship + '\n\nDesk: https://zeusai.pro/api/dropship/fulfillment/readiness',
+      html: '<pre style="font-family:ui-monospace,monospace;white-space:pre-wrap">'
+        + String(text + ship).replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]))
+        + '</pre>',
+    });
+    // sendMail queues to outbox when SMTP_PASS missing — still ok:true queued
+    return { ok: true, queued: !!(r && r.queued), reason: r && r.queued ? 'smtp_outbox' : null };
+  } catch (e) {
+    return { ok: false, reason: 'email_exception', message: e && e.message };
+  }
+}
+
 // Fire all configured channels. Returns a per-channel result but never rejects.
 async function notify(event, payload) {
-  const channels = { console: true, telegram: false, webhook: false };
+  const channels = { console: true, telegram: false, webhook: false, email: false };
   try {
     log.info(_format(event, payload).replace(/\n/g, ' · '));
   } catch (_) { /* noop */ }
   const text = _format(event, payload);
-  const [tg, wh] = await Promise.all([
+  const [tg, wh, em] = await Promise.all([
     _sendTelegram(text).catch((e) => ({ ok: false, reason: 'telegram_error', message: e && e.message })),
     _sendWebhook(event, payload).catch((e) => ({ ok: false, reason: 'webhook_error', message: e && e.message })),
+    _sendEmail(event, payload).catch((e) => ({ ok: false, reason: 'email_error', message: e && e.message })),
   ]);
   channels.telegram = tg;
   channels.webhook = wh;
+  channels.email = em;
   return { ok: true, event, channels };
 }
 

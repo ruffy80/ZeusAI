@@ -84,10 +84,13 @@ class AutoPublisher {
     const supplierRef = scored.supplierRef != null ? scored.supplierRef : null;
     const weightKg = Number(scored.weightKg) || 0;
     const originCountry = scored.originCountry || null;
-    const hasCj = !!process.env.ZACC_CJ_API_KEY;
-    // Demo-only SKUs (no real supplier) or a missing CJ key can only be
-    // fulfilled by a human — surface that honestly in the delivery mode.
-    const deliveryMode = (demoOnly || !hasCj) ? 'manual-queue' : 'global-dropship';
+    const hasCj = !!String(process.env.ZACC_CJ_API_KEY || '').trim();
+    // Honest delivery mode:
+    //  - CJ key + real supplierRef → global CJ dropship
+    //  - otherwise → Zeus Fulfillment Desk (durable owner queue; not "fake auto")
+    const deliveryMode = (demoOnly || !hasCj)
+      ? 'zeus-fulfillment-desk'
+      : 'cj-global-dropship';
     const item = {
       id,
       title: scored.name,
