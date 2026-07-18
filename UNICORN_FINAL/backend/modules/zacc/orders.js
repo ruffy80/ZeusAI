@@ -129,7 +129,8 @@ class OrderStore {
     fulfilment = fulfilment || {};
     const provider = fulfilment.provider || (fulfilment.result && fulfilment.result.provider) || null;
     order.fulfilment = fulfilment;
-    order.status = (provider && provider !== 'manual-queue') ? 'fulfillment_routed' : 'fulfillment_queued';
+    const deskProviders = { 'manual-queue': 1, 'zeus-fulfillment-desk': 1 };
+    order.status = (provider && !deskProviders[provider]) ? 'fulfillment_routed' : 'fulfillment_queued';
     order.updatedAt = now();
     this._appendTimeline(order, order.status, { provider });
     this._persist();

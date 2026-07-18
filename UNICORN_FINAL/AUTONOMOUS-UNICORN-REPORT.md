@@ -73,10 +73,25 @@ Full table: [`MODULE-INVENTORY.md`](./MODULE-INVENTORY.md).
 
 ---
 
+## Dropship / CJ key (honest)
+
+**A real `ZACC_CJ_API_KEY` cannot be invented by the agent.** It is issued only from a CJ Dropshipping account:
+`cjdropshipping.com → My CJ → Authorization → API → Generate`.
+
+Until then, Zeus runs the **Zeus Fulfillment Desk** (durable queue + owner email outbox + public readiness). Arm later with:
+
+```bash
+bash UNICORN_FINAL/scripts/arm-zacc-cj-key.sh 'YOUR_CJ_TOKEN' --remote
+# or POST /api/dropship/fulfillment/arm-cj with admin auth
+curl -sS https://zeusai.pro/api/dropship/fulfillment/readiness | jq .
+```
+
+Also needed for outbound mail (currently outbox-only): `SMTP_PASS` (Yahoo app password). `TELEGRAM_BOT_TOKEN` optional.
+
 ## Owner actions that unlock more autonomy
 
-1. `ZACC_CJ_API_KEY` — real dropship dispatch  
-2. `RESEND_API_KEY` / SMTP — buyer email delivery  
+1. `ZACC_CJ_API_KEY` — real CJ auto-dispatch (see above)  
+2. `SMTP_PASS` — flush email outbox to owner/buyers  
 3. Social tokens — auto-marketing publish  
 4. `DR_S3_BUCKET` + AWS keys — offsite backups  
 5. `CRASH_WEBHOOK_URL` — human-visible incident alerts  

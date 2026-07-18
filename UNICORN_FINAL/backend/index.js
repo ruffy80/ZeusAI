@@ -9974,11 +9974,82 @@ app.get('/api/dropship/status', (req, res) => {
     orders: zacc.orders.status(),
     suppliers: {
       curated: zacc.publisher.published.filter(p => p.supplier === 'manual' || p.demoOnly).length,
-      cjConfigured: !!process.env.ZACC_CJ_API_KEY,
+      cjConfigured: !!String(process.env.ZACC_CJ_API_KEY || '').trim(),
       webhookConfigured: !!process.env.ZACC_FULFILL_WEBHOOK_URL,
       shippingZones: Object.keys(zacc.shipping.ZONES),
     },
+    fulfillmentReadiness: typeof zacc.fulfillment.readiness === 'function'
+      ? zacc.fulfillment.readiness()
+      : null,
   });
+});
+// Public: how fulfillment works without inventing a CJ key + how to arm one.
+app.get('/api/dropship/fulfillment/readiness', (req, res) => {
+  if (!zacc) return res.status(503).json({ ok: false, error: 'zacc_unavailable' });
+  res.json(zacc.fulfillment.readiness());
+});
+// Admin: paste a real CJ API key → write shared .env + process.env + reprocess desk.
+app.post('/api/dropship/fulfillment/arm-cj', deepseekGovernorAuthMiddleware, express.json({ limit: '4kb' }), async (req, res) => {
+  if (!zacc) return res.status(503).json({ ok: false, error: 'zacc_unavailable' });
+  const apiKey = String((req.body && (req.body.apiKey || req.body.key || req.body.ZACC_CJ_API_KEY)) || '').trim();
+  if (!apiKey || apiKey.length < 16) {
+    return res.status(400).json({
+      ok: false,
+      error: 'api_key_required',
+      howToGet: 'https://cjdropshipping.com → My CJ → Authorization → API → Generate',
+      armScript: 'bash UNICORN_FINAL/scripts/arm-zacc-cj-key.sh \'YOUR_KEY\'',
+    });
+  }
+  if (/your_|changeme|xxx|placeholder|example/i.test(apiKey)) {
+    return res.status(400).json({ ok: false, error: 'placeholder_rejected' });
+  }
+  try {
+    const fs = require('fs');
+    const path = require('path');
+    const candidates = [
+      process.env.UNICORN_SHARED_ENV,
+      '/var/www/unicorn/shared/.env',
+      path.join(__dirname, '..', '.env'),
+      path.join(__dirname, '.env'),
+    ].filter(Boolean);
+    let written = null;
+    for (const envPath of candidates) {
+      try {
+        let body = '';
+        if (fs.existsSync(envPath)) body = fs.readFileSync(envPath, 'utf8');
+        if (/^ZACC_CJ_API_KEY=/m.test(body)) {
+          body = body.replace(/^ZACC_CJ_API_KEY=.*$/m, 'ZACC_CJ_API_KEY=' + apiKey);
+        } else {
+          body = body.replace(/\s*$/, '\n') + 'ZACC_CJ_API_KEY=' + apiKey + '\n';
+        }
+        fs.writeFileSync(envPath, body, { mode: 0o600 });
+        written = envPath;
+        break;
+      } catch (_) { /* try next */ }
+    }
+    process.env.ZACC_CJ_API_KEY = apiKey;
+    const re = await zacc.fulfillment.reprocessPending();
+    res.json({
+      ok: true,
+      armed: true,
+      writtenTo: written,
+      keyLen: apiKey.length,
+      reprocess: re,
+      readiness: zacc.fulfillment.readiness(),
+      note: 'Key armed in-process. PM2 restart recommended so all workers reload env: pm2 restart unicorn-backend',
+    });
+  } catch (e) {
+    res.status(500).json({ ok: false, error: e.message });
+  }
+});
+app.post('/api/dropship/fulfillment/reprocess', deepseekGovernorAuthMiddleware, async (req, res) => {
+  if (!zacc) return res.status(503).json({ ok: false, error: 'zacc_unavailable' });
+  try {
+    const re = await zacc.fulfillment.reprocessPending();
+    res.json({ ok: true, reprocess: re, readiness: zacc.fulfillment.readiness() });
+  } catch (e) {
+    res.status(500).json({ ok: false, error: e.message });
+  }
 });
 // Public: shipping quote for a product to a destination country.
 app.post('/api/dropship/quote', (req, res) => {
