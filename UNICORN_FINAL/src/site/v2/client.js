@@ -268,6 +268,7 @@ async function hydratePaymentRails(){
 function clearStaleLoadingPlaceholders(){
   const nodes = Array.from(document.querySelectorAll('p, h3, pre, div, span, td'));
   nodes.forEach((el) => {
+    if (el.closest && (el.closest('#ds-grid') || el.closest('[data-ds-boot]') || el.closest('.ds-world'))) return;
     const t = (el.textContent || '').trim();
     if (!t) return;
     const isLoading = /^Loading(\.{3}|…)?$/i.test(t) || /^Loading\s+.+/i.test(t);
