@@ -9940,17 +9940,74 @@ app.get('/api/dropship/status', (req, res) => {
     profit: zacc.profit.status(),
     publisher: zacc.publisher.status(),
     fulfillment: zacc.fulfillment.status(),
+    orders: zacc.orders.status(),
+    suppliers: {
+      curated: zacc.publisher.published.filter(p => p.supplier === 'manual' || p.demoOnly).length,
+      cjConfigured: !!process.env.ZACC_CJ_API_KEY,
+      webhookConfigured: !!process.env.ZACC_FULFILL_WEBHOOK_URL,
+      shippingZones: Object.keys(zacc.shipping.ZONES),
+    },
   });
 });
-// Public: create a BTC invoice for a dropship product (same flow as ZACC).
+// Public: shipping quote for a product to a destination country.
+app.post('/api/dropship/quote', (req, res) => {
+  if (!zacc) return res.status(503).json({ ok: false, error: 'zacc_unavailable' });
+  const b = req.body || {};
+  const p = zacc.publisher.get(b.productId);
+  if (!p) return res.status(404).json({ ok: false, error: 'product_not_found' });
+  const qty = Math.max(1, Number(b.qty) || 1);
+  const quote = zacc.shipping.quote({
+    country: b.country || 'US',
+    costUsd: p.priceUsd,
+    shippingUsdBase: p.shippingUsd,
+    qty,
+    weightKg: p.weightKg,
+  });
+  const totalUsd = Math.round((p.priceUsd * qty + quote.shippingUsd) * 100) / 100;
+  res.json({ ok: true, quote: Object.assign({}, quote, { itemUsd: Math.round(p.priceUsd * qty * 100) / 100, totalUsd }), product: { id: p.id, title: p.title, priceUsd: p.priceUsd } });
+});
+// Public: place a dropship order. REQUIRES buyer email + shipping address so
+// the order can actually be delivered. Mints a BTC invoice + returns the token.
 app.post('/api/dropship/order/:id', async (req, res) => {
   if (!zacc) return res.status(503).json({ ok: false, error: 'zacc_unavailable' });
-  const p = zacc.publisher.get(req.params.id);
-  if (!p) return res.status(404).json({ ok: false, error: 'product_not_found' });
+  const b = req.body || {};
+  const email = (b.email || '').trim();
+  const shipping = b.shipping || null;
+  if (!email || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) {
+    return res.status(400).json({ ok: false, error: 'valid_email_required' });
+  }
+  if (!shipping || !shipping.name || !shipping.address || !shipping.country) {
+    return res.status(400).json({ ok: false, error: 'shipping_name_address_country_required' });
+  }
   try {
-    const inv = await zacc.payments.createInvoice(p.id, p.priceUsd);
-    res.json({ ok: true, invoice: inv, product: { id: p.id, title: p.title, priceUsd: p.priceUsd } });
+    const result = await zacc.createDropshipOrder({
+      productId: req.params.id,
+      email,
+      shipping,
+      qty: b.qty,
+    });
+    if (!result || !result.ok) return res.status(404).json({ ok: false, error: (result && result.error) || 'product_not_found' });
+    res.json(result);
   } catch (e) { res.status(500).json({ ok: false, error: e.message }); }
+});
+// Public: order passport — buyer polls this to track status + shipment.
+app.get('/api/dropship/order/:token', (req, res) => {
+  if (!zacc) return res.status(503).json({ ok: false, error: 'zacc_unavailable' });
+  const view = zacc.orders.publicView(req.params.token);
+  if (!view) return res.status(404).json({ ok: false, error: 'order_not_found' });
+  res.json({ ok: true, order: view });
+});
+// Admin: mark an order shipped (carrier + tracking) and notify the buyer/owner.
+app.post('/api/dropship/fulfillment/ship/:token', adminTokenMiddleware, async (req, res) => {
+  if (!zacc) return res.status(503).json({ ok: false, error: 'zacc_unavailable' });
+  const b = req.body || {};
+  const order = zacc.orders.markShipped(req.params.token, { carrier: b.carrier, number: b.number || b.trackingNumber, note: b.note });
+  if (!order) return res.status(404).json({ ok: false, error: 'order_not_found' });
+  try {
+    const notify = require('./modules/zacc/notify');
+    notify.orderShipped({ orderToken: order.token, productTitle: order.productTitle, email: order.email, carrier: order.carrier, trackingNumber: order.trackingNumber });
+  } catch (_) { /* fail-soft */ }
+  res.json({ ok: true, order: zacc.orders.publicView(order.token) });
 });
 // Admin: force one scrape now (returns counts).
 app.post('/api/dropship/scrape', adminTokenMiddleware, async (req, res) => {

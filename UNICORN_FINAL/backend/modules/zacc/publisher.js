@@ -69,6 +69,24 @@ class AutoPublisher {
   _materialize(scored) {
     const id = 'dropship-' + slug(scored.name) + '-' + shortId('').slice(-6);
     const description = describe.template(scored);
+    const costUsd = round2(scored.costUsd);
+    const shippingUsd = round2(scored.shippingUsd || 0);
+    const priceUsd = round2(scored.retailUsd);
+    const netProfitUsd = round2(scored.netProfitUsd);
+    const marginPct = round2(scored.marginPct);
+    // feeUsd = whatever retail is left over after cost, shipping and net
+    // profit — i.e. the processor/handling fees the ProfitMaximizer subtracted.
+    const feeUsd = round2(Math.max(0, priceUsd - costUsd - shippingUsd - netProfitUsd));
+    // Supplier + logistics metadata carried from the scraper/profit stages.
+    const demoOnly = scored.demoOnly === true;
+    const supplier = scored.supplier || (scored.source === 'zeus-curated' ? 'manual' : (scored.source || 'unknown'));
+    const supplierRef = scored.supplierRef != null ? scored.supplierRef : null;
+    const weightKg = Number(scored.weightKg) || 0;
+    const originCountry = scored.originCountry || null;
+    const hasCj = !!process.env.ZACC_CJ_API_KEY;
+    // Demo-only SKUs (no real supplier) or a missing CJ key can only be
+    // fulfilled by a human — surface that honestly in the delivery mode.
+    const deliveryMode = (demoOnly || !hasCj) ? 'manual-queue' : 'global-dropship';
     const item = {
       id,
       title: scored.name,
@@ -77,22 +95,28 @@ class AutoPublisher {
       source: scored.source || 'seed',
       sourceUrl: scored.url || '',
       image: scored.image || '',
-      costUsd: round2(scored.costUsd),
-      shippingUsd: round2(scored.shippingUsd || 0),
-      priceUsd: round2(scored.retailUsd),
-      netProfitUsd: round2(scored.netProfitUsd),
-      marginPct: round2(scored.marginPct),
+      costUsd,
+      shippingUsd,
+      priceUsd,
+      netProfitUsd,
+      marginPct,
       profitPotential: round2(scored.profitPotential),
       rating: Number(scored.rating) || 0,
       reviews: Number(scored.reviews) || 0,
+      supplier,
+      supplierRef,
+      demoOnly,
+      weightKg,
+      originCountry,
+      proofOfMargin: { costUsd, shippingUsd, feeUsd, netProfitUsd, marginPct },
       description,
       type: 'physical',
       niche: 'dropship',
       group: 'dropship',
       page: '/dropship/product/' + id,
       buyUrl: '/checkout?serviceId=' + encodeURIComponent(id) + '&plan=' + encodeURIComponent(id),
-      checkout: { btcAddress: OWNER_BTC, priceUsd: round2(scored.retailUsd) },
-      delivery: { mode: 'global-dropship', automated: !!process.env.ZACC_CJ_API_KEY, etaDays: '7-21' },
+      checkout: { btcAddress: OWNER_BTC, priceUsd },
+      delivery: { mode: deliveryMode, automated: hasCj && !demoOnly, etaDays: '7-21' },
       metrics: { views: 0, carts: 0, sales: 0, revenueUsd: 0, delivered: 0 },
       status: 'active',
       publishedAt: now(),

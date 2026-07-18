@@ -17,6 +17,7 @@
 'use strict';
 
 const { now, shortId, logger } = require('./util');
+const notify = require('./notify');
 
 const log = logger('fulfillment');
 
@@ -41,6 +42,10 @@ class FulfillmentRouter {
 
   async _viaCjDropshipping(order) {
     if (!CJ_API_KEY || typeof fetch !== 'function') return { ok: false, reason: 'cj_not_configured' };
+    // A real CJ order needs a supplier variant id (vid). Curated / demo SKUs
+    // have no supplierRef, so we must NOT invent one — skip CJ and let the
+    // order fall through to the manual queue.
+    if (!order.supplierRef) return { ok: false, reason: order.demoOnly ? 'cj_skipped_demo_only' : 'cj_no_supplier_ref' };
     try {
       const body = {
         orderNumber: order.id,
@@ -52,7 +57,7 @@ class FulfillmentRouter {
         shippingZip: order.shipping && order.shipping.zip,
         shippingPhone: order.shipping && order.shipping.phone,
         remark: 'ZACC autonomous · ' + order.productTitle,
-        products: [{ vid: order.productId, quantity: 1 }],
+        products: [{ vid: order.supplierRef, quantity: Math.max(1, Number(order.qty) || 1) }],
       };
       const r = await fetch(CJ_ENDPOINT, {
         method: 'POST',
@@ -89,17 +94,33 @@ class FulfillmentRouter {
     if (this.pendingOrders.length > 100) this.pendingOrders.pop();
     this.manualQueued += 1;
     log.warn('MANUAL FULFILLMENT NEEDED · ' + order.id + ' · ' + order.productTitle + ' · contact ' + ADMIN_EMAIL);
+    // Best-effort owner alert (Telegram/webhook/log). Never blocks or throws.
+    try {
+      notify.orderManualNeeded({
+        orderToken: order.orderToken || order.id,
+        productTitle: order.productTitle,
+        qty: order.qty,
+        amountUsd: order.amountUsd,
+        email: order.email,
+        reason: order.queueReason,
+      });
+    } catch (_) { /* fail-soft */ }
     return { ok: true, provider: 'manual-queue', adminEmail: ADMIN_EMAIL };
   }
 
   // Main entry — called by orchestrator on every paid invoice.
-  async onOrder({ productId, productTitle, amountUsd, invoiceId, shipping }) {
+  async onOrder({ productId, productTitle, amountUsd, invoiceId, shipping, email, qty, supplierRef, demoOnly, orderToken }) {
     if (!productId) return { ok: false, reason: 'no_product_id' };
     const order = {
       id: 'order-' + shortId('').slice(-8),
       invoiceId: invoiceId || null,
+      orderToken: orderToken || null,
       productId, productTitle: productTitle || productId,
       amountUsd: Number(amountUsd) || 0,
+      qty: Math.max(1, Number(qty) || 1),
+      email: email || null,
+      supplierRef: supplierRef != null ? supplierRef : null,
+      demoOnly: demoOnly === true,
       shipping: shipping || null,
       createdAt: now(),
     };
