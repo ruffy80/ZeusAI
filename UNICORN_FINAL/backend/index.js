@@ -1262,7 +1262,14 @@ const globalPublicRateLimit = rateLimit({
   legacyHeaders: false,
   // Health probes (local + public) trebuie să rămână mereu accesibile.
   // Altfel monitorizarea internă poate intra în buclă de "degraded" din 429.
-  skip: (req) => req.path === '/health' || req.path === '/api/health',
+  // Dropship product covers are also exempt: a 48-card grid would otherwise
+  // 429 the image plane and look like "no product images".
+  skip: (req) => {
+    const p = String(req.path || '');
+    return p === '/health' || p === '/api/health'
+      || p.startsWith('/api/dropship/cover/')
+      || p.startsWith('/api/dropship/cover');
+  },
   message: { error: 'Too many requests — try again later' },
 });
 

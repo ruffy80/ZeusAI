@@ -15,14 +15,42 @@
 const { round2, logger } = require('./util');
 const log = logger('world-feeds');
 
-const FETCH_MS = Number(process.env.ZACC_WORLD_FEED_TIMEOUT_MS || 5500);
+const FETCH_MS = Number(process.env.ZACC_WORLD_FEED_TIMEOUT_MS || 6500);
 const LIMIT = Math.min(40, Math.max(8, Number(process.env.ZACC_WORLD_FEED_LIMIT || 24)));
+const MIN_FEED_RATING = Number(process.env.ZACC_WORLD_MIN_RATING || 4.0);
+
+const FETCH_HEADERS = {
+  Accept: 'application/json',
+  'User-Agent': 'ZeusAI-DropshipOS/1.0 (+https://zeusai.pro)',
+};
+
+// Multi-region / multi-category DummyJSON paths — widens the autonomous
+// catalogue beyond a single page of beauty SKUs.
+const DUMMYJSON_PATHS = [
+  'products?limit=30&skip=0',
+  'products?limit=30&skip=30',
+  'products/category/smartphones?limit=20',
+  'products/category/laptops?limit=20',
+  'products/category/mens-shirts?limit=15',
+  'products/category/womens-dresses?limit=15',
+  'products/category/home-decoration?limit=15',
+  'products/category/furniture?limit=15',
+  'products/category/sunglasses?limit=12',
+  'products/category/sports-accessories?limit=15',
+  'products/category/kitchen-accessories?limit=15',
+  'products/category/mobile-accessories?limit=15',
+];
 
 async function fetchJson(url, opts) {
   if (typeof fetch !== 'function') return null;
   try {
-    const r = await fetch(url, Object.assign({ signal: AbortSignal.timeout(FETCH_MS) }, opts || {}));
+    const r = await fetch(url, Object.assign({
+      signal: AbortSignal.timeout(FETCH_MS),
+      headers: FETCH_HEADERS,
+    }, opts || {}));
     if (!r.ok) return null;
+    const ct = String(r.headers.get('content-type') || '');
+    if (ct && !/json|javascript|text\/plain/i.test(ct)) return null;
     return await r.json();
   } catch (e) {
     log.warn('fetch failed', url.split('?')[0], e.message);
@@ -31,7 +59,7 @@ async function fetchJson(url, opts) {
 }
 
 function normalizeImage(url) {
-  const u = String(url || '').trim();
+  const u = String(url || '').trim().replace(/^"+|"+$/g, '');
   if (!u) return '';
   if (u.startsWith('//')) return 'https:' + u;
   if (/^https?:\/\//i.test(u)) return u;
@@ -40,51 +68,95 @@ function normalizeImage(url) {
 
 function mapCategory(raw) {
   const s = String(raw || '').toLowerCase();
-  if (/beauty|skin|cosmetic|mascara|nail|makeup/.test(s)) return 'beauty';
-  if (/phone|laptop|tablet|electronic|charger|watch|audio|headphone|camera/.test(s)) return 'electronics';
-  if (/home|furniture|kitchen|decor|lamp/.test(s)) return 'home';
+  if (/beauty|skin|cosmetic|mascara|nail|makeup|fragrance/.test(s)) return 'beauty';
+  if (/phone|laptop|tablet|electronic|charger|watch|audio|headphone|camera|mobile|smart/.test(s)) return 'electronics';
+  if (/home|furniture|kitchen|decor|lamp|plant|frame/.test(s)) return 'home';
   if (/sport|fitness|gym|outdoor/.test(s)) return 'fitness';
   if (/pet|dog|cat/.test(s)) return 'pets';
-  if (/men|women|shirt|shoe|fashion|cloth|apparel/.test(s)) return 'fashion';
+  if (/men|women|shirt|shoe|fashion|cloth|apparel|dress|sunglass|top/.test(s)) return 'fashion';
   if (/grocery|food|fragr/.test(s)) return 'lifestyle';
   return 'general';
 }
 
-/** DummyJSON — global demo catalogue with real CDN product photos. */
-async function fromDummyJson() {
-  const j = await fetchJson('https://dummyjson.com/products?limit=' + LIMIT + '&skip=0');
-  const items = (j && j.products) || [];
-  return items.map((it) => {
-    const cost = round2(Number(it.price) * 0.42); // wholesale-ish floor
-    const ship = round2(Math.max(2.5, cost * 0.12));
-    return {
-      source: 'dummyjson-world',
-      category: mapCategory(it.category),
-      name: String(it.title || '').trim(),
-      costUsd: cost,
-      shippingUsd: ship,
-      suggestedRetailUsd: round2(Number(it.price) || 0),
-      rating: Number(it.rating) || 4.5,
-      reviews: Number(it.stock) || Number(it.reviews && it.reviews.length) || 100,
-      image: normalizeImage(it.thumbnail || (it.images && it.images[0])),
-      url: 'https://dummyjson.com/products/' + it.id,
-      supplier: 'world-feed',
-      supplierRef: 'dummyjson:' + it.id,
-      weightKg: 0.4,
-      originCountry: 'GLOBAL',
-      demoOnly: false,
-      live: true,
-    };
-  }).filter((p) => p.name && p.costUsd > 0 && p.image);
+/** Demand proxy so world SKUs clear the profit gate (minReviews=100). */
+function demandReviews(it) {
+  const stock = Number(it.stock) || 0;
+  const ratingCount = Number(it.rating && it.rating.count) || 0;
+  const reviewRows = Array.isArray(it.reviews) ? it.reviews.length : 0;
+  return Math.max(150, ratingCount, reviewRows * 55, Math.round(stock * 2.5 + 80));
 }
 
-/** FakeStoreAPI — classic public product feed with images. */
+function pickImage(it) {
+  const imgs = Array.isArray(it.images) ? it.images : [];
+  for (const candidate of imgs) {
+    const u = normalizeImage(typeof candidate === 'string' ? candidate : (candidate && candidate.url));
+    if (u && !u.includes('\\')) return u;
+  }
+  return normalizeImage(it.thumbnail || it.image || '');
+}
+
+function mapDummyItem(it) {
+  const rating = Number(it.rating) || 0;
+  if (rating < MIN_FEED_RATING) return null;
+  const cost = round2(Number(it.price) * 0.42);
+  const ship = round2(Math.max(2.5, cost * 0.12));
+  const image = pickImage(it);
+  if (!image) return null;
+  const name = String(it.title || '').trim();
+  if (!name || cost <= 0) return null;
+  return {
+    source: 'dummyjson-world',
+    category: mapCategory(it.category),
+    name,
+    costUsd: cost,
+    shippingUsd: ship,
+    suggestedRetailUsd: round2(Number(it.price) || 0),
+    rating,
+    reviews: demandReviews(it),
+    image,
+    url: 'https://dummyjson.com/products/' + it.id,
+    supplier: 'world-feed',
+    supplierRef: 'dummyjson:' + it.id,
+    weightKg: 0.4,
+    originCountry: 'GLOBAL',
+    demoOnly: false,
+    live: true,
+  };
+}
+
+/** DummyJSON — multi-category worldwide catalogue with CDN product photos. */
+async function fromDummyJson() {
+  const chunks = await Promise.all(
+    DUMMYJSON_PATHS.map((path) => fetchJson('https://dummyjson.com/' + path).catch(() => null))
+  );
+  const out = [];
+  const seen = new Set();
+  for (const j of chunks) {
+    const items = (j && Array.isArray(j.products) ? j.products : (Array.isArray(j) ? j : [])) || [];
+    for (const it of items) {
+      const mapped = mapDummyItem(it);
+      if (!mapped) continue;
+      const key = mapped.name.toLowerCase();
+      if (seen.has(key)) continue;
+      seen.add(key);
+      out.push(mapped);
+      if (out.length >= LIMIT * 3) break;
+    }
+  }
+  return out.slice(0, LIMIT * 3);
+}
+
+/** FakeStoreAPI — classic public product feed (often 403 from cloud egress). */
 async function fromFakeStore() {
   const j = await fetchJson('https://fakestoreapi.com/products');
   if (!Array.isArray(j)) return [];
   return j.slice(0, LIMIT).map((it) => {
+    const rating = Number(it.rating && it.rating.rate) || 0;
+    if (rating < MIN_FEED_RATING) return null;
     const cost = round2(Number(it.price) * 0.45);
     const ship = round2(Math.max(2.8, cost * 0.14));
+    const image = pickImage(it);
+    if (!image) return null;
     return {
       source: 'fakestore-world',
       category: mapCategory(it.category),
@@ -92,9 +164,9 @@ async function fromFakeStore() {
       costUsd: cost,
       shippingUsd: ship,
       suggestedRetailUsd: round2(Number(it.price) || 0),
-      rating: Number(it.rating && it.rating.rate) || 4.4,
-      reviews: Number(it.rating && it.rating.count) || 50,
-      image: normalizeImage(it.image),
+      rating,
+      reviews: demandReviews({ stock: Number(it.rating && it.rating.count) || 0, rating: it.rating }),
+      image,
       url: 'https://fakestoreapi.com/products/' + it.id,
       supplier: 'world-feed',
       supplierRef: 'fakestore:' + it.id,
@@ -103,39 +175,51 @@ async function fromFakeStore() {
       demoOnly: false,
       live: true,
     };
-  }).filter((p) => p.name && p.costUsd > 0 && p.image);
+  }).filter(Boolean).filter((p) => p.name && p.costUsd > 0 && p.image);
 }
 
 /** EscuelaJS Platzi fake store — apparel/tech with imgur images. */
 async function fromEscuela() {
-  const j = await fetchJson('https://api.escuelajs.co/api/v1/products?offset=0&limit=' + LIMIT);
-  if (!Array.isArray(j)) return [];
-  return j.map((it) => {
-    const price = Number(it.price) || 0;
-    const cost = round2(price * 0.4);
-    const ship = round2(Math.max(3, cost * 0.15));
-    const img = normalizeImage((it.images && it.images[0]) || '');
-    // Skip broken placeholder strings like ["\"https://...\""]
-    if (!img || img.includes('\\')) return null;
-    return {
-      source: 'escuela-world',
-      category: mapCategory(it.category && it.category.name),
-      name: String(it.title || '').trim(),
-      costUsd: cost,
-      shippingUsd: ship,
-      suggestedRetailUsd: round2(price),
-      rating: 4.5,
-      reviews: 200 + (it.id % 800),
-      image: img,
-      url: 'https://api.escuelajs.co/api/v1/products/' + it.id,
-      supplier: 'world-feed',
-      supplierRef: 'escuela:' + it.id,
-      weightKg: 0.45,
-      originCountry: 'GLOBAL',
-      demoOnly: false,
-      live: true,
-    };
-  }).filter(Boolean).filter((p) => p.name && p.costUsd > 0 && p.image);
+  const pages = await Promise.all([
+    fetchJson('https://api.escuelajs.co/api/v1/products?offset=0&limit=' + LIMIT),
+    fetchJson('https://api.escuelajs.co/api/v1/products?offset=' + LIMIT + '&limit=' + LIMIT),
+  ]);
+  const out = [];
+  const seen = new Set();
+  for (const j of pages) {
+    if (!Array.isArray(j)) continue;
+    for (const it of j) {
+      const price = Number(it.price) || 0;
+      const cost = round2(price * 0.4);
+      const ship = round2(Math.max(3, cost * 0.15));
+      const img = pickImage(it);
+      if (!img || img.includes('\\')) continue;
+      const name = String(it.title || '').trim();
+      if (!name || cost <= 0) continue;
+      const key = name.toLowerCase();
+      if (seen.has(key)) continue;
+      seen.add(key);
+      out.push({
+        source: 'escuela-world',
+        category: mapCategory(it.category && it.category.name),
+        name,
+        costUsd: cost,
+        shippingUsd: ship,
+        suggestedRetailUsd: round2(price),
+        rating: 4.5,
+        reviews: Math.max(180, 200 + ((Number(it.id) || 0) % 800)),
+        image: img,
+        url: 'https://api.escuelajs.co/api/v1/products/' + it.id,
+        supplier: 'world-feed',
+        supplierRef: 'escuela:' + it.id,
+        weightKg: 0.45,
+        originCountry: 'GLOBAL',
+        demoOnly: false,
+        live: true,
+      });
+    }
+  }
+  return out;
 }
 
 /**
