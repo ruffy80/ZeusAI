@@ -241,10 +241,39 @@ class ZeusAutonomicCommerceCore {
     return { economyPulse: 50 + (this.ticks % 30) };
   }
 
+  // After restore, stale seed listings (pre–Dropship OS) may lack proofOfMargin
+  // / zeus-curated metadata. Rebuild from the curated catalogue so the live
+  // storefront always looks world-class even with zero supplier API keys.
+  async ensureWorldCatalog() {
+    try {
+      const live = this.publisher.published || [];
+      const modern = live.filter((p) => p && p.proofOfMargin && (p.source === 'zeus-curated' || p.demoOnly === true)).length;
+      if (modern >= 12 && live.length >= 12) return { rebuilt: false, modern, live: live.length };
+      log.info('ensureWorldCatalog · rebuilding storefront from zeus-curated (modern=' + modern + ', live=' + live.length + ')');
+      this.publisher.published = [];
+      if (this.publisher.byId && typeof this.publisher.byId.clear === 'function') this.publisher.byId.clear();
+      if (this.publisher.publishedAt && typeof this.publisher.publishedAt.clear === 'function') this.publisher.publishedAt.clear();
+      this.scraper.products = [];
+      await this.scraper.scrape(true);
+      const qualified = this.profit.rank(this.scraper.recent(400));
+      const published = this.publisher.publish(qualified, Math.max(24, Number(process.env.ZACC_BOOT_PUBLISH || 24)));
+      this._persist(true);
+      return { rebuilt: true, modern: published.length, live: this.publisher.published.length };
+    } catch (e) {
+      log.warn('ensureWorldCatalog failed:', e.message);
+      return { rebuilt: false, error: e.message };
+    }
+  }
+
   start() {
     if (this.timer) return;
-    // Kick an initial tick shortly after boot so the page has data fast.
-    setTimeout(() => this.tick('boot').catch(e => log.warn('boot tick', e.message)), 4000);
+    // Rebuild curated storefront ASAP, then run a full boot tick.
+    setTimeout(() => {
+      this.ensureWorldCatalog()
+        .then((r) => log.info('ensureWorldCatalog', JSON.stringify(r)))
+        .catch((e) => log.warn('ensureWorldCatalog', e.message))
+        .finally(() => this.tick('boot').catch((e) => log.warn('boot tick', e.message)));
+    }, 2500);
     this.timer = setInterval(() => {
       this.tick('interval').catch(e => log.warn('interval tick', e.message));
     }, TICK_INTERVAL_MS);

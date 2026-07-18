@@ -168,13 +168,19 @@ class GlobalScraper {
   _seedRotation() {
     const daySeed = hash32(new Date().toISOString().slice(0, 10) + ':zacc-scrape:' + this.scrapes);
     const r = rng(daySeed);
+    // Serve the full curated catalogue (not just MAX_PER_SOURCE) so the
+    // world-standard storefront always has a dense, premium assortment when
+    // live supplier APIs are offline.
     return SEED_PRODUCTS.map(p => {
       const drift = 0.92 + 0.16 * r();
       return Object.assign({}, p, {
         costUsd: round2(p.costUsd * drift),
         shippingUsd: round2(p.shippingUsd * (0.95 + 0.1 * r())),
+        source: p.source || 'zeus-curated',
+        supplier: p.supplier || 'manual',
+        demoOnly: p.demoOnly !== false,
       });
-    }).sort(() => r() - 0.5).slice(0, MAX_PER_SOURCE);
+    }).sort(() => r() - 0.5);
   }
 
   // Full scrape cycle: queries every configured source in parallel, normalizes.
