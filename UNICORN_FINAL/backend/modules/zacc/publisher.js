@@ -16,6 +16,7 @@
 
 const { OWNER_BTC, now, slug, round2, shortId, logger } = require('./util');
 const describe = require('./describe');
+const { coverPath } = require('./product-cover');
 
 const log = logger('publisher');
 
@@ -94,7 +95,7 @@ class AutoPublisher {
       category: scored.category || 'general',
       source: scored.source || 'seed',
       sourceUrl: scored.url || '',
-      image: scored.image || '',
+      image: String(scored.image || '').trim() || coverPath(slug(scored.name)),
       costUsd,
       shippingUsd,
       priceUsd,

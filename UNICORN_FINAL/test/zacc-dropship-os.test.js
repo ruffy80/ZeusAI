@@ -36,7 +36,7 @@ function check(name, fn) {
       assert.ok(p.name && p.category, 'product needs name + category');
       assert.ok(Number(p.costUsd) > 0, 'product needs a positive cost');
       assert.ok(Number(p.shippingUsd) >= 0, 'product needs shipping cost');
-      assert.ok(/^https:\/\/picsum\.photos\/seed\//.test(p.image), 'product image must be a picsum seed url');
+      assert.ok(/^\/api\/dropship\/cover\//.test(p.image), 'product image must be a self-hosted cover path');
       assert.equal(p.source, 'zeus-curated', 'source must be zeus-curated');
       assert.equal(p.supplier, 'manual', 'supplier must be manual');
       assert.equal(p.supplierRef, null, 'curated SKUs must have no supplierRef');

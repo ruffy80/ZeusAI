@@ -9915,6 +9915,30 @@ app.post('/api/zacc/pay-poll', adminTokenMiddleware, async (req, res) => {
 // RO: storefront-ul auto-curat al ZACC. Toate produsele sunt scrapate global,
 // filtrate de profit, descrise de AI și publicate fără intervenție umană.
 // GET-urile sunt publice. POST-urile sunt admin (force-scrape, force-publish).
+// Self-hosted SVG product covers (same-origin — never blank the storefront).
+app.get('/api/dropship/cover/:slug', (req, res) => {
+  try {
+    const { renderCoverSvg } = require('./modules/zacc/product-cover');
+    const raw = String(req.params.slug || 'product').replace(/\.svg$/i, '');
+    const title = raw.replace(/[-_]+/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
+    const svg = renderCoverSvg({ title, category: req.query.cat || 'product', slug: raw });
+    res.setHeader('Content-Type', 'image/svg+xml; charset=utf-8');
+    res.setHeader('Cache-Control', 'public, max-age=86400, stale-while-revalidate=604800');
+    res.status(200).send(svg);
+  } catch (e) {
+    res.status(500).type('text/plain').send('cover_error');
+  }
+});
+// Public JSON feed of worldwide free catalogues (also used internally).
+app.get('/api/dropship/world-feed', async (req, res) => {
+  try {
+    const worldFeeds = require('./modules/zacc/world-feeds');
+    const items = await worldFeeds.pullWorldFeeds();
+    res.json({ ok: true, count: items.length, items, sources: ['dummyjson-world', 'fakestore-world', 'escuela-world'] });
+  } catch (e) {
+    res.status(500).json({ ok: false, error: e.message });
+  }
+});
 app.get('/api/dropship/products', (req, res) => {
   if (!zacc) return res.status(503).json({ ok: false, error: 'zacc_unavailable' });
   const items = zacc.publisher.list({

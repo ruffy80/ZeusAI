@@ -24,6 +24,8 @@
 
 const { now, slug, round2, shortId, rng, hash32, logger } = require('./util');
 const { CURATED_PRODUCTS } = require('./catalog-curated');
+const worldFeeds = require('./world-feeds');
+const { coverPath } = require('./product-cover');
 
 const log = logger('scraper');
 
@@ -183,29 +185,50 @@ class GlobalScraper {
     }).sort(() => r() - 0.5);
   }
 
-  // Full scrape cycle: queries every configured source in parallel, normalizes.
+  // Full scrape cycle: keyed marketplaces + FREE worldwide feeds in parallel.
+  // Always merges DummyJSON / FakeStore / Escuela so the store stays stocked
+  // autonomously without CJ/eBay/Etsy secrets. Curated seed fills any gap.
   async scrape(force) {
     if (!force && !this.dueForScrape()) return { scraped: 0, reason: 'throttled' };
     this.lastScrapeAt = Date.now();
     this.scrapes += 1;
 
-    const [ebay, ali, etsy, ext] = await Promise.all([
-      this._ebayFinding(), this._aliexpressAffiliate(), this._etsyListings(), this._externalAggregator(),
+    const [ebay, ali, etsy, ext, world] = await Promise.all([
+      this._ebayFinding(),
+      this._aliexpressAffiliate(),
+      this._etsyListings(),
+      this._externalAggregator(),
+      worldFeeds.pullWorldFeeds().catch(() => []),
     ]);
-    let merged = ebay.concat(ali, etsy, ext);
-    // If absolutely no live source returned items, fall back to seed catalogue.
-    if (!merged.length) merged = this._seedRotation();
+    let merged = [].concat(ebay, ali, etsy, ext, world || []);
+    // Always blend curated archetypes so high-margin staples stay listed.
+    const curated = this._seedRotation();
+    if (!merged.length) merged = curated;
+    else merged = merged.concat(curated);
 
-    // Assign IDs, drop obvious noise.
+    // Assign IDs, guarantee an image (self-hosted cover fallback).
     const enriched = merged
       .filter(p => p.name && p.costUsd > 0)
-      .map(p => Object.assign({}, p, {
-        id: 'scrape-' + slug(p.source + '-' + p.name) + '-' + shortId('').slice(-6),
-        scrapedAt: now(),
-      }));
+      .map(p => {
+        const s = slug(p.source + '-' + p.name);
+        const image = String(p.image || '').trim() || coverPath(s);
+        return Object.assign({}, p, {
+          id: 'scrape-' + s + '-' + shortId('').slice(-6),
+          image,
+          scrapedAt: now(),
+        });
+      });
     this.products = enriched.concat(this.products).slice(0, this.maxProducts);
-    log.info('scraped', enriched.length, 'products from', ['ebay:' + ebay.length, 'ali:' + ali.length, 'etsy:' + etsy.length, 'ext:' + ext.length].join(' '));
-    return { scraped: enriched.length, bySource: { ebay: ebay.length, aliexpress: ali.length, etsy: etsy.length, external: ext.length, seed: merged === enriched ? 0 : SEED_PRODUCTS.length } };
+    const bySource = {
+      ebay: ebay.length,
+      aliexpress: ali.length,
+      etsy: etsy.length,
+      external: ext.length,
+      world: (world || []).length,
+      curated: curated.length,
+    };
+    log.info('scraped', enriched.length, 'products from', Object.entries(bySource).map(([k, v]) => k + ':' + v).join(' '));
+    return { scraped: enriched.length, bySource };
   }
 
   recent(limit) { return this.products.slice(0, limit || 60); }
@@ -225,6 +248,8 @@ class GlobalScraper {
         aliexpress: !!process.env.ZACC_ALIEXPRESS_ENDPOINT,
         etsy: !!process.env.ZACC_ETSY_KEY,
         external: !!process.env.ZACC_PRODUCT_FEED_URL,
+        worldFeeds: true, // DummyJSON + FakeStore + Escuela — always on, no keys
+        cj: !!process.env.ZACC_CJ_API_KEY,
       },
     };
   }
