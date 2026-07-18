@@ -2492,35 +2492,16 @@ function initServiceNarrative(service){
   const buy = document.getElementById('svcBuyBtn');
   if (!runBtn || !out || !bar || !pct) return;
 
-  let timer = null;
+  // Honest preview — no fake activation progress. Buy is always available for real BTC checkout.
+  if (buy) buy.classList.add('cinema-unlocked');
+  bar.style.width = '100%';
+  pct.textContent = 'ready';
+  out.textContent = 'Real path: BTC checkout → on-chain confirm → activation pack at /api/delivery/{orderId}. No simulated unlock.';
+  runBtn.textContent = 'Continue to BTC checkout →';
   runBtn.onclick = function(){
-    if (timer) clearInterval(timer);
-    runBtn.disabled = true;
-    let p = 0;
-    const phases = [
-      'Phase 01/04 · Calibrating service context…',
-      'Phase 02/04 · Hardening anti-quantum payment path…',
-      'Phase 03/04 · Preparing activation receipt signature…',
-      'Phase 04/04 · Unlock complete. Redirect-ready.'
-    ];
-    out.textContent = phases[0];
-    timer = setInterval(function(){
-      p += 7;
-      if (p > 100) p = 100;
-      bar.style.width = p + '%';
-      pct.textContent = p + '%';
-      if (p > 25) out.textContent = phases[1];
-      if (p > 55) out.textContent = phases[2];
-      if (p > 88) out.textContent = phases[3];
-      if (p >= 100) {
-        clearInterval(timer);
-        timer = null;
-        runBtn.disabled = false;
-        runBtn.textContent = 'Run again';
-        if (buy) buy.classList.add('cinema-unlocked');
-        out.textContent = 'Service ' + (service && service.id ? service.id : 'module') + ' is unlock-ready. Continue to checkout.';
-      }
-    }, document.documentElement.classList.contains('reduced-motion') ? 120 : 90);
+    const sid = service && service.id ? encodeURIComponent(service.id) : '';
+    if (sid) location.href = '/checkout/?plan=' + sid;
+    else location.href = '/services';
   };
 }
 

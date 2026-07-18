@@ -8990,14 +8990,66 @@ ${invoice.payer ? `<h2>Payer</h2><table><tr><th>Legal entity</th><td>${esc(invoi
       statusUrl: `/api/receipt/${r.id}`, invoiceUrl: `/api/invoice/${r.id}`
     })));
 
+    // Merge sovereign BTC marketplace orders (primary Buy path) by email so /account
+    // is a single ledger across portal + UAIC + sovereign rails.
+    const sovereignOrders = [];
+    try {
+      const emailLc = String(c.email || '').toLowerCase();
+      if (emailLc && commerce && commerce.ORDERS) {
+        for (const o of commerce.ORDERS.values()) {
+          if (String(o.email || '').toLowerCase() !== emailLc) continue;
+          sovereignOrders.push({
+            id: o.orderId,
+            productId: o.serviceId || o.plan,
+            status: o.status,
+            priceUSD: o.amount_usd,
+            btcAmount: o.amount_btc,
+            createdAt: o.created_at,
+            rail: 'sovereign',
+            checkoutUrl: `/checkout/${encodeURIComponent(o.orderId)}`,
+            statusUrl: `/api/order/${encodeURIComponent(o.orderId)}/status`,
+            deliveryUrl: o.status === 'paid' ? `/api/delivery/${encodeURIComponent(o.orderId)}` : null,
+          });
+          if (o.status === 'paid') {
+            activeServices.push({
+              id: `sovereign:${o.orderId}`,
+              receiptId: o.orderId,
+              serviceId: o.serviceId || o.plan,
+              title: o.serviceId || o.plan,
+              plan: o.plan || o.serviceId,
+              amount: o.amount_usd,
+              currency: 'USD',
+              deliveryUrl: `/api/delivery/${encodeURIComponent(o.orderId)}`,
+              useUrl: `/checkout/${encodeURIComponent(o.orderId)}`,
+            });
+          } else if (o.status === 'pending') {
+            pendingOrders.push({
+              receiptId: o.orderId,
+              plan: o.serviceId || o.plan,
+              amount: o.amount_usd,
+              method: 'BTC',
+              btcAmount: o.amount_btc,
+              btcAddress: o.address,
+              createdAt: o.created_at,
+              statusUrl: `/api/order/${encodeURIComponent(o.orderId)}/status`,
+              invoiceUrl: `/checkout/${encodeURIComponent(o.orderId)}`,
+              rail: 'sovereign',
+            });
+          }
+        }
+      }
+    } catch (e) {
+      console.warn('[customer/me] sovereign order merge failed:', e.message);
+    }
+
     res.writeHead(200, {'Content-Type':'application/json'});
     res.end(JSON.stringify({
       customer: portal.publicCustomer(c),
       token: tok || undefined,
       apiKeys: (c.apiKeys||[]).map(k => ({ productId:k.productId, orderId:k.orderId, issuedAt:k.issuedAt, keyPreview: k.key.slice(0,16)+'…', active:k.active })),
-      orders,
-      activeServices,   // NEW
-      pendingOrders,    // NEW
+      orders: orders.concat(sovereignOrders),
+      activeServices,
+      pendingOrders,
       deliveries: fallbackDeliveries
     }));
     return;
