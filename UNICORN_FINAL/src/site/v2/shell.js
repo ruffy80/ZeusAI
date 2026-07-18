@@ -1262,7 +1262,13 @@ function pageServices() {
       <span id="autonomousStatus" style="font-size:11px;color:var(--ink-dim);font-family:var(--mono)">${catalog.length} products SSR · hydrating…</span>
     </div>
     ${_ssrCatalogGrid(catalog, { gridId: 'catalogGrid', minCol: 300 })}
-    <div id="autonomousServicesGrid" hidden></div>
+  </section>
+  <section id="unicornModulesMirror" aria-label="Live Unicorn modules" style="margin:28px 0 10px">
+    <div style="display:flex;justify-content:space-between;align-items:baseline;flex-wrap:wrap;gap:8px;margin-bottom:14px">
+      <h3 style="margin:0;font-size:20px;letter-spacing:-0.01em">🧬 Live Unicorn modules <small style="color:var(--ink-dim);font-size:12px;font-weight:400">— operational mirror from backend (not the buyable 25-SKU catalog)</small></h3>
+      <span id="autonomousModulesHint" style="font-size:11px;color:var(--ink-dim);font-family:var(--mono)">waiting for /api/modules/list…</span>
+    </div>
+    <div id="autonomousServicesGrid" class="grid" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:14px"></div>
   </section>
 </section>`;
 }

@@ -206,6 +206,23 @@ app.get('/health', (req, res) => {
     snapshot: (typeof streamClients !== 'undefined' && streamClients) ? streamClients.size : 0,
     unicorn:  (typeof unicornEventClients !== 'undefined' && unicornEventClients) ? unicornEventClients.size : 0
   };
+  let modulesMirror = { rev: 0, count: 0, upstreamConnected: false, updatedAt: null };
+  let masterCatalogAgeMs = null;
+  try {
+    if (typeof MODULES_CACHE !== 'undefined' && MODULES_CACHE) {
+      modulesMirror = {
+        rev: Number(MODULES_CACHE.rev) || 0,
+        count: MODULES_CACHE.modules ? MODULES_CACHE.modules.size : 0,
+        upstreamConnected: !!MODULES_CACHE.upstreamConnected,
+        updatedAt: MODULES_CACHE.updatedAt || null,
+      };
+    }
+  } catch (_) { /* MODULES_CACHE may not be initialized yet at very early boot */ }
+  try {
+    if (typeof _masterCatalogCache !== 'undefined' && _masterCatalogCache && _masterCatalogCache.fetchedAt) {
+      masterCatalogAgeMs = Math.max(0, Date.now() - _masterCatalogCache.fetchedAt);
+    }
+  } catch (_) { /* cache not ready */ }
   res.json({
     ok: true,
     status: 'healthy',
@@ -222,6 +239,11 @@ app.get('/health', (req, res) => {
       lastCode: Number.isFinite(mon.lastCode) ? mon.lastCode : null,
       lastBodyOk: typeof mon.lastBodyOk === 'boolean' ? mon.lastBodyOk : null,
       reason: mon.reason || null
+    },
+    unicornSync: {
+      modulesMirror,
+      masterCatalogAgeMs,
+      eventBridge: !!process.env.BACKEND_API_URL,
     },
     sse
   });
@@ -2396,7 +2418,10 @@ async function buildMasterCatalog() {
 const _masterCatalogCache = { catalog: null, fetchedAt: 0 };
 async function getCachedMasterCatalog(options = {}) {
   const now = Date.now();
-  if (!_masterCatalogCache.catalog || now - _masterCatalogCache.fetchedAt >= 60000) {
+  // Short TTL so Unicorn→site catalog mirrors land within seconds (invalidate
+  // on services.changed still wins for immediate refresh).
+  const catalogTtlMs = Math.max(2000, Number(process.env.MASTER_CATALOG_TTL_MS || 10_000));
+  if (!_masterCatalogCache.catalog || now - _masterCatalogCache.fetchedAt >= catalogTtlMs) {
     const cat = await buildMasterCatalog();
     _masterCatalogCache.catalog = cat;
     _masterCatalogCache.fetchedAt = now;
@@ -2875,6 +2900,10 @@ function startBackendEventBridge() {
             // React to services.changed → force immediate local refresh so /api/services serves fresh data
             if (evt && (evt.type === 'services.changed' || (evt.data && evt.data.action && evt.service))) {
               runtimeSyncState.lastSyncAt = 0;
+              try {
+                _masterCatalogCache.catalog = null;
+                _masterCatalogCache.fetchedAt = 0;
+              } catch (_) { /* cache shape defensive */ }
               refreshBackendRuntimeState(true).catch(() => {});
             }
           }
@@ -6751,7 +6780,7 @@ async function unicornHandler(req, res) {
     try {
       const includeSynthetic = publicCatalogFilter.wantsIncludeSynthetic(requestUrl);
       const cat = await getCachedMasterCatalog({ includeSynthetic });
-      res.writeHead(200, { 'Content-Type':'application/json', 'Cache-Control':'public, max-age=30' });
+      res.writeHead(200, { 'Content-Type':'application/json', 'Cache-Control':'public, max-age=5, stale-while-revalidate=15' });
       return res.end(JSON.stringify(cat));
     } catch (e) {
       res.writeHead(500, { 'Content-Type':'application/json' });
