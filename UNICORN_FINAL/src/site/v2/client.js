@@ -1282,7 +1282,15 @@ let cinematicBound = false;
 function initCinematicInteractions(){
   // reveal sections
   const sections = Array.from(document.querySelectorAll('section'));
-  sections.forEach(function(s){ s.setAttribute('data-reveal',''); });
+  sections.forEach(function(s){
+    // Dropship OS storefront must never start at opacity:0 — the product grid
+    // was invisible while data-reveal waited on IntersectionObserver.
+    if (s.closest && s.closest('.ds-world')) {
+      s.classList.add('revealed');
+      return;
+    }
+    s.setAttribute('data-reveal','');
+  });
   // Fail-safe: reveal the first section immediately so no route can render as
   // a fully blank screen even if IntersectionObserver is delayed/throttled.
   if (sections[0]) sections[0].classList.add('revealed');
