@@ -45,10 +45,11 @@ function _config() {
   // DR_BACKEND chooses the backup target:
   //   's3'    → AWS S3 (requires DR_S3_BUCKET + DR_AWS_* keys)
   //   'local' → local filesystem (DR_LOCAL_DIR, free, zero external deps)
-  // Default: 'local' if DR_LOCAL_DIR is set, otherwise 's3' for backwards-compat.
+  // Default: local when no S3 bucket is configured (zero-secret DR).
   const explicitBackend = String(process.env.DR_BACKEND || '').toLowerCase();
+  const hasS3 = !!String(process.env.DR_S3_BUCKET || '').trim();
   const backend = explicitBackend
-    || (process.env.DR_LOCAL_DIR ? 'local' : 's3');
+    || (hasS3 ? 's3' : 'local');
   return {
     backend,
     // S3 fields
@@ -331,7 +332,16 @@ function stopCron() {
 function init() {
   _state.startedAt = new Date().toISOString();
   console.log('🦄 Disaster Recovery Autopilot loaded.');
-  if (String(process.env.DR_AUTOPILOT_ENABLED || '0') === '1') startCron();
+  // Local backups: default ON (opt-out DR_AUTOPILOT_ENABLED=0).
+  // S3: still requires explicit DR_AUTOPILOT_ENABLED=1 + bucket/keys.
+  // Tests: stay off unless explicitly enabled.
+  const flag = String(process.env.DR_AUTOPILOT_ENABLED || '').toLowerCase();
+  const cfg = _config();
+  const isTest = process.env.NODE_ENV === 'test';
+  const armLocal = !isTest && cfg.backend === 'local' && flag !== '0' && flag !== 'false';
+  const armS3 = !isTest && cfg.backend === 's3' && (flag === '1' || flag === 'true');
+  if (armLocal || armS3) startCron();
+  else if (!isTest) console.log('⚠️  [disaster-recovery] autopilot idle (set DR_AUTOPILOT_ENABLED=1 for S3, or leave unset for local)');
 }
 
 async function processFn(input = {}) {

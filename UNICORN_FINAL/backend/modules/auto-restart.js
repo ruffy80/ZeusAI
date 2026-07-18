@@ -17,9 +17,12 @@ const CHECK_INTERVAL_MS   = parseInt(process.env.AUTO_RESTART_INTERVAL_MS  || '3
 const MAX_RESTART_HISTORY = parseInt(process.env.AUTO_RESTART_MAX_HISTORY  || '200',   10);
 const ORCHESTRATOR_URL    = process.env.ORCH_HEALTH_URL || 'http://127.0.0.1:3000/api/health';
 
+// Live PM2 topology is unicorn-backend + unicorn-site (see deploy-atomic-forward
+// RETIRED_PM2_APPS). Legacy guardian/watchdog names were phantoms → restarter no-op.
 const CRITICAL_PROCESSES = (
   process.env.SHIELD_REQUIRED_PROCS ||
-  'unicorn,unicorn-orchestrator,unicorn-health-guardian,unicorn-quantum-watchdog,unicorn-shield,unicorn-health-daemon'
+  process.env.QIS_REQUIRED_PROCESSES ||
+  'unicorn-backend,unicorn-site'
 ).split(',').map(p => p.trim()).filter(Boolean);
 
 const _state = {

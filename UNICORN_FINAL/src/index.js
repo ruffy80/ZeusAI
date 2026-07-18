@@ -2420,7 +2420,9 @@ async function getCachedMasterCatalog(options = {}) {
   const now = Date.now();
   // Short TTL so Unicorn→site catalog mirrors land within seconds (invalidate
   // on services.changed still wins for immediate refresh).
-  const catalogTtlMs = Math.max(2000, Number(process.env.MASTER_CATALOG_TTL_MS || 10_000));
+  // Default 5s so Unicorn price/catalog changes surface on the site within the
+  // autonomy SLA (<5s). Override with MASTER_CATALOG_TTL_MS (floor 2s).
+  const catalogTtlMs = Math.max(2000, Number(process.env.MASTER_CATALOG_TTL_MS || 5_000));
   if (!_masterCatalogCache.catalog || now - _masterCatalogCache.fetchedAt >= catalogTtlMs) {
     const cat = await buildMasterCatalog();
     _masterCatalogCache.catalog = cat;

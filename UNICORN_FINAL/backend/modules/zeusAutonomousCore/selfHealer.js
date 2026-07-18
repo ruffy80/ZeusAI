@@ -20,8 +20,8 @@ const http = require('http');
 const { execFile } = require('child_process');
 
 const DEFAULT_TARGETS = [
-  { name: 'backend', url: 'http://127.0.0.1:3000/health' },
-  { name: 'site',    url: 'http://127.0.0.1:3000/health' },
+  { name: 'backend', url: process.env.ZAC_BACKEND_HEALTH_URL || 'http://127.0.0.1:3000/api/health' },
+  { name: 'site',    url: process.env.ZAC_SITE_HEALTH_URL || 'http://127.0.0.1:3001/health' },
 ];
 
 function ping(url, timeoutMs = 3000) {
