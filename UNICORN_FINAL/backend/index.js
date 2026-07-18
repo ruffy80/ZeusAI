@@ -10011,7 +10011,7 @@ app.get('/api/dropship/pulse', (req, res) => {
 app.get('/api/dropship/ledger', (req, res) => {
   if (!zacc || !zacc.shelf) return res.status(503).json({ ok: false, error: 'zacc_unavailable' });
   res.set('Cache-Control', 'public, max-age=5, stale-while-revalidate=20');
-  res.json(zacc.shelf.ledger(req.query.limit));
+  res.json(zacc.shelf.getLedger(req.query.limit));
 });
 app.get('/api/dropship/shelf', (req, res) => {
   if (!zacc || !zacc.shelf) return res.status(503).json({ ok: false, error: 'zacc_unavailable' });

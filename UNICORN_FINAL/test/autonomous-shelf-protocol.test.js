@@ -48,8 +48,8 @@ check('tournament reorders shelf and hash-chains ledger', () => {
   assert.strictEqual(pub.published[0].id, 'b');
   assert.strictEqual(pub.published[0].shelf.rank, 1);
   assert.ok(pub.published[3].shelfHidden === true, '4th SKU hidden under SHELF_CAP=3');
-  assert.ok(shelf.ledger.length >= 1);
-  assert.strictEqual(shelf.ledger[0].type, 'shelf_tournament');
+  assert.ok(shelf.entries.length >= 1);
+  assert.strictEqual(shelf.entries[0].type, 'shelf_tournament');
   assert.strictEqual(shelf.verifyChain().ok, true);
 
   // Second tournament still keeps chain intact
@@ -71,11 +71,15 @@ check('margin seal commits Proof-of-Margin into ledger', () => {
   }, { country: 'RO' });
   assert.strictEqual(seal.ok, true);
   assert.ok(seal.seal && seal.seal.length >= 32);
-  assert.strictEqual(shelf.ledger[0].type, 'margin_seal');
+  assert.strictEqual(shelf.entries[0].type, 'margin_seal');
   assert.strictEqual(shelf.verifyChain().ok, true);
   const pulse = shelf.pulse(5);
   assert.strictEqual(pulse.protocol, PROTOCOL);
   assert.ok(pulse.invention.includes('Shelf'));
+  const view = shelf.getLedger(5);
+  assert.strictEqual(view.ok, true);
+  assert.ok(view.count >= 1);
+  assert.strictEqual(view.intact, true);
 });
 
 check('publisher list sorts by shelf and hides soft-archived', () => {

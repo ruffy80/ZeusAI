@@ -622,11 +622,11 @@ class ZeusAutonomicCommerceCore {
         tournaments: this.shelf.tournaments,
         seals: this.shelf.seals,
         lastTournament: this.shelf.lastTournament,
-        ledgerHead: (this.shelf.ledger[0] && {
-          hash: this.shelf.ledger[0].hash,
-          seq: this.shelf.ledger[0].seq,
-          type: this.shelf.ledger[0].type,
-          at: this.shelf.ledger[0].at,
+        ledgerHead: (this.shelf.entries[0] && {
+          hash: this.shelf.entries[0].hash,
+          seq: this.shelf.entries[0].seq,
+          type: this.shelf.entries[0].type,
+          at: this.shelf.entries[0].at,
         }) || null,
       },
       evolution: this.evolution.proposals.slice(0, 4),

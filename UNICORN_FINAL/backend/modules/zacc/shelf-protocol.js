@@ -61,7 +61,7 @@ function why(p, score, rank) {
 class AutonomousShelfProtocol {
   constructor(ctx) {
     this.ctx = ctx || {};
-    this.ledger = []; // newest-first, hash-chained
+    this.entries = []; // newest-first, hash-chained yield ledger
     this.lastTournament = null;
     this.tournaments = 0;
     this.seals = 0;
@@ -73,14 +73,14 @@ class AutonomousShelfProtocol {
   }
 
   _append(entry) {
-    const prev = this.ledger[0] || null;
+    const prev = this.entries[0] || null;
     const prevHash = prev ? prev.hash : 'genesis';
     const seq = prev ? (Number(prev.seq) || 0) + 1 : 1;
     const core = Object.assign({ protocol: PROTOCOL, at: now(), prevHash, seq }, entry);
     const hash = this._hash(core);
     const rec = Object.assign({}, core, { hash });
-    this.ledger.unshift(rec);
-    if (this.ledger.length > MAX_LEDGER) this.ledger.length = MAX_LEDGER;
+    this.entries.unshift(rec);
+    if (this.entries.length > MAX_LEDGER) this.entries.length = MAX_LEDGER;
     return rec;
   }
 
@@ -191,41 +191,43 @@ class AutonomousShelfProtocol {
       seals: this.seals,
       shelfCap: SHELF_CAP,
       lastTournament: this.lastTournament,
-      ledgerHead: this.ledger[0] || null,
-      recent: this.ledger.slice(0, n),
+      ledgerHead: this.entries[0] || null,
+      recent: this.entries.slice(0, n),
       startedAt: this.startedAt,
     };
   }
 
-  ledger(limit) {
+  /** Public yield-ledger view (method name must not clash with entries[]). */
+  getLedger(limit) {
     const n = Math.max(1, Math.min(200, Number(limit) || 50));
     return {
       ok: true,
       protocol: PROTOCOL,
-      count: this.ledger.length,
-      items: this.ledger.slice(0, n),
+      count: this.entries.length,
+      items: this.entries.slice(0, n),
       intact: this.verifyChain().ok,
     };
   }
 
   verifyChain() {
-    if (!this.ledger.length) return { ok: true, checked: 0 };
-    // ledger is newest-first; walk from oldest to newest for chain check
-    const chronological = this.ledger.slice().reverse();
+    if (!this.entries.length) return { ok: true, checked: 0 };
+    // entries are newest-first; walk oldest → newest for chain check
+    const chronological = this.entries.slice().reverse();
     let prevHash = 'genesis';
     for (let i = 0; i < chronological.length; i++) {
       const rec = chronological[i];
       if (rec.prevHash !== prevHash) {
         return { ok: false, brokenAt: rec.seq, expectedPrev: prevHash, gotPrev: rec.prevHash };
       }
-      const { hash, ...core } = rec;
+      const core = Object.assign({}, rec);
+      delete core.hash;
       const expect = this._hash(core);
-      if (hash !== expect) {
+      if (rec.hash !== expect) {
         return { ok: false, brokenAt: rec.seq, reason: 'hash_mismatch' };
       }
-      prevHash = hash;
+      prevHash = rec.hash;
     }
-    return { ok: true, checked: chronological.length, head: this.ledger[0].hash };
+    return { ok: true, checked: chronological.length, head: this.entries[0].hash };
   }
 
   status() {
@@ -234,7 +236,7 @@ class AutonomousShelfProtocol {
       protocol: PROTOCOL,
       tournaments: this.tournaments,
       seals: this.seals,
-      ledger: this.ledger.length,
+      ledger: this.entries.length,
       shelfCap: SHELF_CAP,
       lastTournamentAt: this.lastTournament && this.lastTournament.at,
       chainIntact: this.verifyChain().ok,
@@ -243,7 +245,7 @@ class AutonomousShelfProtocol {
 
   toState() {
     return {
-      ledger: this.ledger.slice(0, 100),
+      ledger: this.entries.slice(0, 100),
       tournaments: this.tournaments,
       seals: this.seals,
       lastTournament: this.lastTournament,
@@ -253,7 +255,8 @@ class AutonomousShelfProtocol {
 
   fromState(s) {
     if (!s) return;
-    if (Array.isArray(s.ledger)) this.ledger = s.ledger.slice(0, MAX_LEDGER);
+    if (Array.isArray(s.ledger)) this.entries = s.ledger.slice(0, MAX_LEDGER);
+    if (Array.isArray(s.entries)) this.entries = s.entries.slice(0, MAX_LEDGER);
     if (Number.isFinite(s.tournaments)) this.tournaments = s.tournaments;
     if (Number.isFinite(s.seals)) this.seals = s.seals;
     if (s.lastTournament) this.lastTournament = s.lastTournament;
