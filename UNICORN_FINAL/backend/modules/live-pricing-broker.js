@@ -43,7 +43,9 @@ try { dynamicPricing = require('./dynamic-pricing'); }   catch (_) {}
 try { paymentGateway = require('./paymentGateway'); }    catch (_) {}
 try { aiNegotiator   = require('./aiNegotiator'); }      catch (_) {}
 
-const REFRESH_MS = Number(process.env.LIVE_PRICING_REFRESH_MS || 60_000); // 1 min
+// Default 5s so site mirrors backend price moves within the Unicorn↔site SLA.
+// Override with LIVE_PRICING_REFRESH_MS (ms). Floor 2s to avoid stampeding BTC APIs.
+const REFRESH_MS = Math.max(2000, Number(process.env.LIVE_PRICING_REFRESH_MS || 5_000));
 const SATS_PER_BTC = 100_000_000;
 
 class LivePricingBroker extends EventEmitter {

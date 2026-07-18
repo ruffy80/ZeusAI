@@ -1264,7 +1264,8 @@ async function hydratePage(route){
   } catch (e) { console.warn('hydratePage:tbDispose', e && e.message); }
 
   try { if (route === '/') { if (THREE && !window.__UNICORN_THREE_STUB__) initTourbillon(); await hydrateHome(); initPillars(); } } catch (e) { console.warn('hydratePage:home', e && e.message); }
-  try { if (route === '/services') await hydrateMasterCatalog(); } catch (e) { console.warn('hydratePage:services', e && e.message); }  try { if (route === '/pricing') await hydratePricingPage(); } catch (e) { console.warn('hydratePage:pricing', e && e.message); }
+  try { if (route === '/services' || route === '/marketplace' || route === '/store') await hydrateMasterCatalog(); } catch (e) { console.warn('hydratePage:services', e && e.message); }
+  try { if (route === '/pricing') await hydratePricingPage(); } catch (e) { console.warn('hydratePage:pricing', e && e.message); }
   try { if (route.startsWith('/services/')) await hydrateServiceDetail(route.slice(10)); } catch (e) { console.warn('hydratePage:serviceDetail', e && e.message); }
   try { if (route === '/checkout') hydrateCheckout(); } catch (e) { console.warn('hydratePage:checkout', e && e.message); }
   try { if (route === '/dashboard') await hydrateDashboard(); } catch (e) { console.warn('hydratePage:dashboard', e && e.message); }
@@ -2248,8 +2249,14 @@ async function hydrateMasterCatalog(){
 
   let cat = null;
   try {
-    const j = await api('/api/instant/catalog');
-    const products = Array.isArray(j && j.products) ? j.products : [];
+    // Prefer master catalog (full public sellable set), fall back to instant 25.
+    let j = await api('/api/catalog/master');
+    let products = Array.isArray(j && j.items) ? j.items
+      : (Array.isArray(j && j.products) ? j.products : []);
+    if (!products.length) {
+      j = await api('/api/instant/catalog');
+      products = Array.isArray(j && j.products) ? j.products : [];
+    }
     const normalizeGroup = function(p){
       const g = String((p && p.group) || '').toLowerCase();
       const t = String((p && p.tier) || '').toLowerCase();
@@ -3981,10 +3988,16 @@ function applyAutonomousSnapshot(){
     if (target) renderAutonomousServicesGrid(target);
   }
   const statusEl = document.getElementById('autonomousStatus');
+  const hintEl = document.getElementById('autonomousModulesHint');
+  const count = Object.keys(window.AUTONOMOUS_MODULES.byId || {}).length;
+  const liveTxt = '● live · ' + count + ' modules · rev ' + (window.AUTONOMOUS_MODULES.rev || 0);
   if (statusEl) {
-    const count = Object.keys(window.AUTONOMOUS_MODULES.byId || {}).length;
-    statusEl.textContent = '● live · ' + count + ' modules · rev ' + (window.AUTONOMOUS_MODULES.rev || 0);
+    statusEl.textContent = liveTxt;
     statusEl.style.color = '#a3ffce';
+  }
+  if (hintEl) {
+    hintEl.textContent = liveTxt + (window.AUTONOMOUS_MODULES.upstreamConnected === false ? ' · cache' : ' · unicorn');
+    hintEl.style.color = '#a3ffce';
   }
 }
 
