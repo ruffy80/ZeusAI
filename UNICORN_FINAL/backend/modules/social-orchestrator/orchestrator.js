@@ -17,9 +17,12 @@ const GlobalPresence = require('./global-presence');
 const FeatureParityValidator = require('./feature-parity');
 const NovelInnovationGenerator = require('./novel-innovations');
 const FederationHandler = require('./federation-handler');
+const { AutonomousSignalProtocol } = require('./signal-protocol');
 const { renderAdminSocialNetwork } = require('./dashboard');
 
-const NAME = 'zeus-core-social';
+const NAME = 'zeusai-social';
+const BRAND = 'ZeusAI Social';
+const signalProtocol = new AutonomousSignalProtocol();
 
 const deps = {
   socialViralizer: null,
@@ -64,6 +67,12 @@ function _log(type, payload) {
   const row = { ts: new Date().toISOString(), type, payload };
   state.logs.push(row);
   if (state.logs.length > 500) state.logs.shift();
+  try {
+    signalProtocol.append('system-signal', {
+      type: String(type || 'system'),
+      note: payload && (payload.note || payload.action || payload.result || payload.mode) || type,
+    });
+  } catch (_) { /* fail-soft */ }
   return row;
 }
 
@@ -71,6 +80,9 @@ function _decision(title, result) {
   const row = { ts: new Date().toISOString(), title, result };
   state.decisions.unshift(row);
   if (state.decisions.length > 200) state.decisions.pop();
+  try {
+    signalProtocol.append('strategy-signal', { title, result });
+  } catch (_) { /* fail-soft */ }
   return row;
 }
 
@@ -126,7 +138,7 @@ async function _llm(prompt, opts = {}) {
       model,
       temperature: Number(opts.temperature == null ? 0.2 : opts.temperature),
       messages: [
-        { role: 'system', content: 'You are Zeus Core Social autonomous strategist. Return JSON only when requested.' },
+        { role: 'system', content: 'You are ZeusAI Social autonomous strategist. Return JSON only when requested.' },
         { role: 'user', content: String(prompt || '') },
       ],
       response_format: { type: 'json_object' },
@@ -262,12 +274,12 @@ async function _discoverFederationPeers() {
 
 async function _runFederationBroadcast() {
   const top = _getTopPosts();
-  const post = top[0] || { id: 'autonomous-social-update', title: 'Zeus Core Social update', score: 0 };
+  const post = top[0] || { id: 'autonomous-social-update', title: 'ZeusAI Social update', score: 0 };
   const payload = {
     id: String(post.id || 'autonomous-social-update'),
-    content: `Zeus Core Social: ${String(post.title || 'Network update')} • score ${Number(post.score || 0)}`,
-    creator: { id: 'https://zeusai.pro/users/zeus-core', username: 'zeus-core', displayName: 'Zeus Core' },
-    hashtags: ['ZeusAI', 'SocialNetwork', 'Autonomous'],
+    content: `ZeusAI Social: ${String(post.title || 'Network update')} • score ${Number(post.score || 0)}`,
+    creator: { id: 'https://zeusai.pro/users/zeusai-social', username: 'zeusai-social', displayName: 'ZeusAI Social' },
+    hashtags: ['ZeusAI', 'ZeusAISocial', 'Autonomous'],
   };
   const out = await federationHandler.federatePost(payload);
   _log('federation-broadcast', out);
@@ -350,17 +362,59 @@ function stop() {
   return { ok: true };
 }
 
+function getPublicFeed(limit = 24) {
+  const viral = viralEngine.getStatus ? viralEngine.getStatus() : null;
+  const feed = signalProtocol.materializeFeed(state.decisions, state.logs, viral);
+  return feed.slice(0, Math.max(1, Math.min(40, Number(limit) || 24)));
+}
+
+function getPulse(limit) {
+  const metrics = state.lastMetrics || _deriveMetrics();
+  const modules = Object.values(state.moduleState);
+  const pulse = signalProtocol.pulse(limit);
+  const reach = signalProtocol.proofOfReach(metrics, modules, state.mode);
+  return Object.assign({}, pulse, {
+    brand: BRAND,
+    name: NAME,
+    mode: state.mode,
+    dryRun: state.dryRun,
+    proofOfReach: reach,
+    commerceMirror: {
+      usdDay: metrics.profitUsdDay,
+      btcDay: metrics.profitBtcDay,
+      note: 'Mirrors Zeus revenue engines — not scraped social vanity metrics.',
+    },
+    loops: {
+      health: true,
+      decision: true,
+      viral: true,
+      innovation: true,
+      novel: true,
+      globalPresence: true,
+      featureParity: true,
+      federationDiscover: true,
+      federationBroadcast: true,
+    },
+    feedPreview: getPublicFeed(8),
+  });
+}
+
 function _status() {
   const metrics = state.lastMetrics || _deriveMetrics();
+  const modules = Object.values(state.moduleState);
+  const pulse = getPulse(12);
   return {
     ok: true,
     name: NAME,
+    brand: BRAND,
+    version: '2.0.0',
+    protocol: pulse.protocol,
     started: state.started,
     mode: state.mode,
     dryRun: state.dryRun,
     dryRunUntil: state.dryRunUntilTs ? new Date(state.dryRunUntilTs).toISOString() : null,
     startedAt: state.startedAt ? new Date(state.startedAt).toISOString() : null,
-    modules: Object.values(state.moduleState),
+    modules,
     healthRuns: state.healthRuns,
     lastHealthAt: state.lastHealthAt,
     decisionCore: decisionCore.getStatus(),
@@ -371,6 +425,9 @@ function _status() {
     featureParity: featureParity.getStatus(),
     federation: federationHandler.getStatus(),
     metrics,
+    pulse,
+    proofOfReach: pulse.proofOfReach,
+    feed: getPublicFeed(12),
     lastDecisions: state.decisions.slice(0, 20),
     logsTail: state.logs.slice(-25),
   };
@@ -383,6 +440,8 @@ function getStatus() {
 function _adminPayload() {
   const s = _status();
   return {
+    brand: BRAND,
+    name: NAME,
     mode: s.mode,
     dryRunUntil: s.dryRunUntil,
     modules: s.modules,
@@ -398,6 +457,8 @@ function _adminPayload() {
     globalPresence: s.globalPresence,
     featureParity: s.featureParity,
     federation: s.federation,
+    pulse: s.pulse,
+    proofOfReach: s.proofOfReach,
   };
 }
 
@@ -428,4 +489,17 @@ function renderDashboardHtml() {
   return renderAdminSocialNetwork(_adminPayload());
 }
 
-module.exports = { name: NAME, configure, start, stop, getStatus, process: runAction, runAction, renderDashboardHtml };
+module.exports = {
+  name: NAME,
+  brand: BRAND,
+  configure,
+  start,
+  stop,
+  getStatus,
+  getPublicFeed,
+  getPulse,
+  verifyChain: () => signalProtocol.verifyChain(),
+  process: runAction,
+  runAction,
+  renderDashboardHtml,
+};

@@ -323,6 +323,10 @@ section{position:relative;z-index:3;padding:80px 32px;max-width:1480px;margin:0 
 /* section reveal motion */
 section[data-reveal]{opacity:0;transform:translateY(20px) scale(.99);transition:opacity .65s ease,transform .65s cubic-bezier(.2,.8,.2,1)}
 section[data-reveal].revealed{opacity:1;transform:translateY(0) scale(1)}
+/* Commerce surfaces must never stay invisible (nested sections + SPA re-hydrate). */
+#autonomousLiveSection,#unicornModulesMirror,#catalogGrid,#storeGrid,#storeCheckout,#servicePage,
+.ds-world section,[data-reveal].commerce-visible{opacity:1!important;transform:none!important}
+#autonomousLiveSection[data-reveal],#unicornModulesMirror[data-reveal]{opacity:1!important;transform:none!important}
 
 /* holographic button polish */
 .btn{position:relative;overflow:hidden}
@@ -775,7 +779,68 @@ body[data-route="/store"] .zeus-page-bg__veil{background:
   .zeus-page-bg__layer.is-on{transform:none}
 }
 
-/* ============ PAGESPEED PASS-3 (additive, zero-regression) ============
+/* ============ ZEUSAI SOCIAL — Autonomous Signal Protocol surface ============ */
+.za-social{position:relative;isolation:isolate}
+.za-social-hero{position:relative;min-height:min(92vh,820px);display:flex;align-items:flex-end;padding:0 0 72px;overflow:hidden}
+.za-social-hero__atm{position:absolute;inset:0;background:
+  radial-gradient(120% 80% at 18% 12%,rgba(124,247,192,.22),transparent 55%),
+  radial-gradient(90% 70% at 88% 28%,rgba(62,160,255,.18),transparent 50%),
+  linear-gradient(165deg,#061018 0%,#0a1220 42%,#05060e 100%);
+  animation:za-social-drift 18s ease-in-out infinite alternate}
+.za-social-hero__atm::after{content:"";position:absolute;inset:0;background:
+  repeating-linear-gradient(-12deg,transparent,transparent 46px,rgba(124,247,192,.03) 46px,rgba(124,247,192,.03) 47px);
+  animation:za-social-scan 12s linear infinite;opacity:.7}
+.za-social-hero__inner{position:relative;z-index:1;width:min(920px,92vw);margin:0 auto;padding:0 4vw}
+.za-social-live{display:inline-flex;align-items:center;gap:8px;margin:0 0 18px;font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:rgba(232,238,252,.72)}
+.za-social-live__dot{width:8px;height:8px;border-radius:50%;background:#7cf7c0;box-shadow:0 0 0 0 rgba(124,247,192,.55);animation:za-social-ping 1.8s ease-out infinite}
+.za-social-brand{margin:0;font-family:"Segoe UI",ui-sans-serif,system-ui,sans-serif;font-size:clamp(3rem,9vw,5.6rem);line-height:.95;letter-spacing:-.04em;font-weight:800;color:#f4f7ff}
+.za-social-brand span{color:#7cf7c0;display:inline-block;animation:za-social-rise .9s ease both}
+.za-social-lead{margin:18px 0 0;max-width:34em;font-size:clamp(1.05rem,2.2vw,1.25rem);line-height:1.55;color:rgba(214,224,245,.82)}
+.za-social-cta{display:flex;flex-wrap:wrap;gap:12px;margin-top:28px}
+.za-social-body{padding:48px 0 80px}
+.za-social-sec{margin:0 0 56px}
+.za-social-h2{margin:0 0 8px;font-size:clamp(1.45rem,3vw,1.9rem);letter-spacing:-.02em}
+.za-social-sub{margin:0 0 22px;max-width:40em;color:var(--ink-dim);font-size:15px;line-height:1.55}
+.za-social-feed{display:grid;gap:12px}
+.za-social-signal{padding:16px 18px;border-left:2px solid rgba(124,247,192,.55);background:linear-gradient(90deg,rgba(124,247,192,.06),transparent 70%);animation:za-social-in .55s ease both}
+.za-social-signal header{display:flex;justify-content:space-between;gap:12px;font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:rgba(214,224,245,.55)}
+.za-social-signal h3{margin:8px 0 6px;font-size:1.05rem}
+.za-social-signal p{margin:0;color:var(--ink-dim);line-height:1.5;font-size:14.5px}
+.za-social-signal footer{display:flex;justify-content:space-between;gap:10px;margin-top:12px;font-size:12px;color:rgba(214,224,245,.55)}
+.za-social-kind{color:#7cf7c0}
+.za-social-proof{font-family:ui-monospace,Menlo,monospace}
+.za-social-metrics{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:14px}
+.za-social-metric{display:flex;flex-direction:column;gap:4px;padding:4px 0}
+.za-social-metric__l{font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:rgba(214,224,245,.5)}
+.za-social-metric__v{font-size:1.55rem;font-weight:700;color:#f4f7ff;letter-spacing:-.02em}
+.za-social-metric__h{font-size:12.5px;color:var(--ink-dim)}
+.za-social-diffs{margin:18px 0 0;padding:0;list-style:none;display:grid;gap:8px}
+.za-social-diffs li{padding-left:14px;border-left:2px solid rgba(62,160,255,.45);color:rgba(214,224,245,.78);font-size:13.5px;line-height:1.45}
+.za-social-loops{display:flex;flex-wrap:wrap;gap:10px 14px}
+.za-social-loop{display:inline-flex;align-items:center;gap:8px;font-size:13px;color:rgba(214,224,245,.55)}
+.za-social-loop.is-on{color:#d6e0f5}
+.za-social-loop__dot{width:7px;height:7px;border-radius:50%;background:#3a4660}
+.za-social-loop.is-on .za-social-loop__dot{background:#7cf7c0;animation:za-social-ping 2.2s ease-out infinite}
+.za-social-ledger__head{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:14px}
+.za-social-ledger__head span{display:block;font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:rgba(214,224,245,.5);margin-bottom:4px}
+.za-social-ledger__head strong,.za-social-ledger__head code{font-size:13px;word-break:break-all;color:#e8eefc}
+.za-social-ledger__hash code{font-family:ui-monospace,Menlo,monospace;font-size:12px;color:#7cf7c0}
+.za-social-empty,.za-social-foot{color:var(--ink-dim);font-size:13.5px}
+.za-social-foot{margin-top:8px}
+@keyframes za-social-drift{from{transform:scale(1) translate3d(0,0,0)}to{transform:scale(1.04) translate3d(-1.5%,1%,0)}}
+@keyframes za-social-scan{from{background-position:0 0}to{background-position:0 120px}}
+@keyframes za-social-ping{0%{box-shadow:0 0 0 0 rgba(124,247,192,.55)}70%{box-shadow:0 0 0 10px rgba(124,247,192,0)}100%{box-shadow:0 0 0 0 rgba(124,247,192,0)}}
+@keyframes za-social-rise{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:none}}
+@keyframes za-social-in{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+@media (max-width:720px){
+  .za-social-hero{min-height:78vh;padding-bottom:48px;align-items:center}
+  .za-social-brand{font-size:clamp(2.6rem,14vw,3.6rem)}
+}
+@media (prefers-reduced-motion:reduce){
+  .za-social-hero__atm,.za-social-hero__atm::after,.za-social-live__dot,.za-social-brand span,.za-social-signal,.za-social-loop.is-on .za-social-loop__dot{animation:none !important}
+}
+
+/* ============ PAGESPEED PASS-3 (additive, zero-regression) ============ */
    1. Composer hints on every node we already animate so the browser
       promotes them to their own layer once and avoids forced reflow.
    2. content-visibility: auto on below-the-fold sections so the browser

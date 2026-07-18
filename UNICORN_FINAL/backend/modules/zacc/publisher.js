@@ -84,10 +84,13 @@ class AutoPublisher {
     const supplierRef = scored.supplierRef != null ? scored.supplierRef : null;
     const weightKg = Number(scored.weightKg) || 0;
     const originCountry = scored.originCountry || null;
-    const hasCj = !!process.env.ZACC_CJ_API_KEY;
-    // Demo-only SKUs (no real supplier) or a missing CJ key can only be
-    // fulfilled by a human — surface that honestly in the delivery mode.
-    const deliveryMode = (demoOnly || !hasCj) ? 'manual-queue' : 'global-dropship';
+    const hasCj = !!String(process.env.ZACC_CJ_API_KEY || '').trim();
+    // Honest delivery mode:
+    //  - CJ key + real supplierRef → global CJ dropship
+    //  - otherwise → Zeus Fulfillment Desk (durable owner queue; not "fake auto")
+    const deliveryMode = (demoOnly || !hasCj)
+      ? 'zeus-fulfillment-desk'
+      : 'cj-global-dropship';
     const item = {
       id,
       title: scored.name,
@@ -184,6 +187,31 @@ class AutoPublisher {
 
   get(id) { return this.byId.get(id) || null; }
 
+  /** Cache-busting revision for ETag / If-None-Match on the products API. */
+  revision() {
+    return 'r' + this.published.length + '-' + (this.lastPublishAt || 0) + '-' + this.publishes;
+  }
+
+  /**
+   * Related SKUs for AOV lift: same category first, then profitPotential.
+   * Excludes self. Used by PDP SSR + GET /api/dropship/product/:id.
+   */
+  related(id, n) {
+    const self = this.get(id);
+    if (!self) return [];
+    const limit = Math.max(1, Math.min(12, Number(n) || 4));
+    const cat = self.category;
+    return this.published
+      .filter((p) => p && p.id !== id)
+      .sort((a, b) => {
+        const ac = a.category === cat ? 1 : 0;
+        const bc = b.category === cat ? 1 : 0;
+        if (bc !== ac) return bc - ac;
+        return (b.profitPotential || 0) - (a.profitPotential || 0);
+      })
+      .slice(0, limit);
+  }
+
   recordEvent(id, type, amountUsd) {
     const p = this.get(id);
     if (!p) return null;
@@ -195,8 +223,11 @@ class AutoPublisher {
   }
 
   list(opts) {
-    const { sort = 'profit', category, limit = 60, search } = opts || {};
+    const { sort = 'profit', category, limit = 60, search, includeHidden } = opts || {};
     let items = this.published.slice();
+    // Autonomous Shelf Protocol: soft-hidden SKUs stay in memory but leave the
+    // public storefront unless an operator explicitly asks for them.
+    if (!includeHidden) items = items.filter((p) => !p.shelfHidden);
     if (category) items = items.filter(p => p.category === category);
     if (search) {
       const q = String(search).toLowerCase();
@@ -206,6 +237,14 @@ class AutoPublisher {
     else if (sort === 'price-asc') items.sort((a, b) => a.priceUsd - b.priceUsd);
     else if (sort === 'price-desc') items.sort((a, b) => b.priceUsd - a.priceUsd);
     else if (sort === 'sales') items.sort((a, b) => (b.metrics.sales || 0) - (a.metrics.sales || 0));
+    else if (sort === 'shelf') {
+      items.sort((a, b) => {
+        const ar = (a.shelf && a.shelf.rank) || 9999;
+        const br = (b.shelf && b.shelf.rank) || 9999;
+        if (ar !== br) return ar - br;
+        return (b.shelf && b.shelf.fitness || 0) - (a.shelf && a.shelf.fitness || 0);
+      });
+    }
     else items.sort((a, b) => b.profitPotential - a.profitPotential); // default: profit
     return items.slice(0, Math.min(MAX_PUBLISHED, limit));
   }

@@ -43,10 +43,14 @@ Promise.resolve(orchestrator.process({ action: 'run-health' })).then((h) => {
   assert.equal(f.ok, true);
   const s = orchestrator.getStatus();
   assert.equal(s.ok, true);
+  assert.equal(s.brand, 'ZeusAI Social');
+  assert.equal(s.name, 'zeusai-social');
   assert.ok(Array.isArray(s.modules) && s.modules.length >= 10);
   assert.ok(s.globalPresence && s.globalPresence.ok);
   assert.ok(s.featureParity && s.featureParity.ok);
   assert.ok(s.federation && s.federation.ok);
+  assert.ok(s.pulse && s.pulse.ok);
+  assert.ok(Array.isArray(s.feed));
   console.log('✅ social-orchestrator.test.js: passed');
 }).catch((err) => {
   console.error(err);

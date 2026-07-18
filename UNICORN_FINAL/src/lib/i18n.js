@@ -2,11 +2,11 @@
 
 const CATALOG = {
   en: {
-    app_name: 'ZEUS NETWORK',
+    app_name: 'ZeusAI Social',
     status_live: 'Live',
   },
   ro: {
-    app_name: 'REȚEAUA ZEUS',
+    app_name: 'ZeusAI Social',
     status_live: 'Live',
   },
 };

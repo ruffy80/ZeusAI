@@ -110,6 +110,29 @@ function repairDaemon() {
   return attempts;
 }
 
+// processGuardian — real PM2 restarts for live apps (no source mutation).
+// Delegates to auto-restart which watches unicorn-backend + unicorn-site.
+function processGuardian() {
+  try {
+    // Lazy require avoids circular load during boot.
+    const ar = require('./auto-restart');
+    if (!ar || typeof ar.checkAndRestart !== 'function') return 0;
+    Promise.resolve(ar.checkAndRestart()).then((n) => {
+      const count = Number(n) || 0;
+      if (count > 0) {
+        state.healings += count;
+        appendLedger({ type: 'process-restart', count });
+        healerBus.emit('healer:process-restart', { count });
+      }
+    }).catch((e) => {
+      appendLedger({ type: 'process-restart-error', message: e && e.message });
+    });
+    return 1;
+  } catch (_) {
+    return 0;
+  }
+}
+
 // watchdogDaemon — monitorizează procesul (sursă: ops-watchdog.js + service-watchdog.js)
 function watchdogDaemon() {
   const mem = process.memoryUsage();
@@ -169,6 +192,7 @@ function mainCycle() {
     moduleScanner();
     healerCore();
     const repairs = repairDaemon();
+    processGuardian();
     const wd = watchdogDaemon();
     const pred = predictiveHealer();
     state.history.push({ type: 'cycle', cycle: state.cycles, repairs, wd, pred, ts: state.lastCheck });
@@ -229,6 +253,7 @@ module.exports = {
   moduleScanner,
   healerCore,
   repairDaemon,
+  processGuardian,
   watchdogDaemon,
   predictiveHealer,
   disasterRecovery,

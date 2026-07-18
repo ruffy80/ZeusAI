@@ -1,124 +1,110 @@
 # Autonomous Unicorn Report — Honest Operating State
 
-**Generated:** 2026-07-18  
-**Task branch:** `cursor/autonomous-unicorn-global-os-c3b6`  
+**Generated:** 2026-07-18 (supreme harden pass)  
+**Task branch:** `cursor/autonomy-supreme-harden-c3b6`  
 **Owner BTC settlement:** `bc1q4f7e66z87mdfj56kz0dj5hvcnpmh0qh4wuv22e`  
-**Live domain:** https://zeusai.pro
+**Live domain:** https://zeusai.pro  
+**Deploy path:** SSH `deploy-local.sh` (GitHub Actions billing-blocked)
 
 ---
 
 ## Executive verdict (no fantasy)
 
-ZeusAI / Unicorn is a **large, multi-engine Node platform** with real autonomy *scaffolding* (healing controllers, pricing broker, module SSE, innovation adapters, dropship OS). It is **not** a magical perpetual-motion machine that will “generate billions with zero intervention” without:
+ZeusAI / Unicorn is a **large, multi-engine Node platform** with real autonomy scaffolding. It is **not** a perpetual-motion machine that guarantees “billions forever with zero humans.”
 
-1. Real demand and paid orders  
-2. Armed supplier / payment / marketing secrets (CJ, SMTP, social tokens, etc.)  
-3. Operator governance for high-risk mutations  
-
-This report documents what was **audited, wired, and verified**, and what remains **honestly gated**.
-
----
-
-## PAS 1 — Inventory (accurate counts)
+Measured inventory (not the marketing “236” figure):
 
 | Metric | Value |
 |---|---:|
-| Backend module JS files (`backend/modules/**`) | **405** |
-| Site helper modules (`src/modules/**`) | **7** |
-| Backend top-level entries | **284** |
-| Heuristic boot-required / started | **~205** |
-| Thin aliases / shims | **~28** |
-| Marketplace directory-sweep only | **~46** |
+| Backend module JS files | **405** |
+| Top-level module entries | **284** |
+| Live `/api/modules/list` | **~372** |
+| Heuristic boot-started | **~205** |
 
 Full table: [`MODULE-INVENTORY.md`](./MODULE-INVENTORY.md).
 
-> The marketing figure “236 modules” does **not** match the filesystem. We use the measured inventory above.
+---
+
+## What this pass hardened (safe ROI)
+
+1. **ZAC process healer** — no longer disabled by `DISABLE_SELF_MUTATION` (mutation ≠ process restart). Site ping fixed to `:3001/health`.
+2. **`auto-restart`** — watches live `unicorn-backend,unicorn-site` (phantoms removed).
+3. **`unicornSelfHealer.processGuardian`** — delegates real PM2 restarts via `auto-restart`.
+4. **Disaster Recovery** — defaults to **local** backups and arms autopilot outside tests (opt-out `DR_AUTOPILOT_ENABLED=0`). S3 still explicit.
+5. **`healer-pm2.sh`** — dropped retired `autoscaler`; checks backend + site health.
+6. **Catalog TTL** — default **5s** (`MASTER_CATALOG_TTL_MS`) to match &lt;5s Unicorn→site SLA (prices already 5s via live-pricing-broker).
+7. Prior site repair (PR #625) — reveal, sovereign Buy, modules BFF nginx, aliases/404 — remains live.
 
 ---
 
-## PAS 2–4 — Activation, repair, Unicorn ↔ site sync
+## Autonomy stack (armed vs gated)
 
-### Done in this pass
-
-1. **Regenerated module inventory** from disk (not a stale 2026-05 cleanup sheet).  
-2. **Master catalog cache invalidation** on `services.changed` (instant rebuild path).  
-3. **Shorter catalog TTL** (`MASTER_CATALOG_TTL_MS`, default 10s) + HTTP `max-age=5`.  
-4. **Live pricing broker** default refresh **5s** (`LIVE_PRICING_REFRESH_MS`).  
-5. **Services / marketplace / store hydration** prefers `/api/catalog/master`, falls back to `/api/instant/catalog`.  
-6. **Visible “Live Unicorn modules” mirror** on the services page (`#autonomousServicesGrid` no longer permanently `hidden`).  
-7. **Nginx SSE routes** for `/api/pricing/live/stream`, `/api/modules/stream`, `/api/unicorn/events` (no buffering).  
-8. **Site `/health`** now exposes `unicornSync.modulesMirror` + catalog age.
-
-### Deliberate non-goals (trust / honesty)
-
-- Internal engines are **not** auto-listed as buyable SKUs without fulfillment recipes (`public-catalog-filter`).  
-- Synthetic “billion-scale” packaging remains labeled/strategic — not silently sold as shipped OS unless recipe exists.  
-- Self-mutation of source remains **off** in tests / recommended prod posture via `DISABLE_SELF_MUTATION=1` for agent work.
-
----
-
-## PAS 5–9 — Autonomy stack (existing + strengthened)
-
-| Capability | Implementation | Armed without secrets? |
+| Capability | Status | Needs secrets / flags? |
 |---|---|---|
-| Auto-healing | `unicornSelfHealer`, `control-plane-agent`, adapters | Partial (local restarts / circuit) |
-| Auto-monitoring | `/health`, `/site/observe`, SLO tracker, crash-notifier | Yes (webhook needs URL) |
-| Auto-pricing | `dynamic-pricing` + `live-pricing-broker` SSE | Yes |
-| Auto-innovation | `unicornInnovator` + adapters | Gated / observe-first |
-| Auto-marketing | `auto-marketing`, `socialMediaViralizer`, marketing-innovations | Needs platform tokens |
-| Auto-revenue / BTC | BTC invoices, sovereign commerce, dropship | Wallet set; rails optional |
-| Auto-backup / DR | `disaster-recovery.js` | Needs storage credentials |
-| Dropship autonomy | ZACC world feeds + covers + orders | Listing yes; CJ dispatch needs key |
+| Catalog + price sync ≤5s | **Armed** | — |
+| Modules mirror (SSE + list) | **Armed** | nginx BFF for `/api/modules` |
+| Process heal (ZAC + auto-restart + systemd timer) | **Armed** | opt-out `ZAC_DISABLE_HEALER=1` |
+| Predictive horizontal scaler | **Off by default** | `PREDICTIVE_SCALER_ENABLED=1` (8GB box risk) |
+| Innovation proposals + safe data ship | **Armed** | code apply needs `ZAC_AUTO_APPLY=1` |
+| Viral publish | **Idle without tokens** | X / Telegram / etc. |
+| Local DR backups | **Armed (default)** | S3 needs bucket + keys |
+| BTC receive / verify / sovereign checkout | **Armed** | SMTP/CJ optional |
+| BTC hot-wallet auto-sweep | **Does not exist** (correct) | would need spend keys — not added |
 
 ---
 
-## PAS 10 — Tests
-
-- Inventory generator runnable via Node one-shot (produces `MODULE-INVENTORY.md`).  
-- Unit: `test/unicorn-site-sync.test.js` (cache invalidation contract + pricing refresh default).  
-- Prior suite remains authoritative: `cd UNICORN_FINAL && npm test`.
-
----
-
-## PAS 11 — Deploy / live verification checklist
-
-After merge → autodeploy (~3 min) or SSH:
-
-```bash
-curl -sS https://zeusai.pro/health | jq '.unicornSync,.backend'
-curl -sS https://zeusai.pro/api/catalog/master | jq '.counts'
-curl -sS https://zeusai.pro/api/modules/list | jq '.count,.rev'
-curl -sS https://zeusai.pro/api/pricing/live | jq '.updatedAt,.refreshMs'
-# Browser: /sw-reset → /services — curated grid + Live Unicorn modules panel
-```
-
-Apply nginx conf snippet for SSE if the live VPS still uses an older `nginx-unicorn.conf`.
-
----
-
-## PAS 12 — Autonomy declaration (precise)
+## Honesty table (required negatives)
 
 | Claim | Status |
 |---|---|
-| Modules exist and load | **Yes** (405 files / 284 top-level) |
-| Many autonomy controllers start | **Yes** (profile-dependent) |
-| Site mirrors sellable catalog dynamically | **Improved** (master + short TTL + invalidate) |
-| Site mirrors operational modules live | **Improved** (visible grid + SSE/nginx) |
-| Zero hardcoding anywhere | **No** — curated seeds still exist; SSR fallbacks remain for resilience |
-| All modules generate revenue | **No** — only sellable SKUs + paid orders do |
-| Billions guaranteed | **No** — depends on market + operations |
-| Forever without humans | **No** — keys, governance, and incidents still need an owner |
+| Modules exist and load | **Yes** (405 files / ~372 live) |
+| Process heal + catalog sync ≤5s | **Yes** (this pass) |
+| Zero hardcoding anywhere | **No** — curated seeds + SSR fallbacks remain |
+| All modules generate revenue | **No** — only paid SKUs + orders |
+| Billions guaranteed | **No** — market + ops dependent |
+| Forever without humans | **No** — secrets, legal, incidents need an owner |
 
-**Operating doctrine:** Unicorn automates *execution loops*; the owner remains the *sovereign* for secrets, legal liability, and high-risk promotions.
+## Deliberate non-goals
+
+- No “all 405 modules are sellable SKUs.”
+- No source self-mutation in agent/dev (`DISABLE_SELF_MUTATION=1` still correct for code safety).
+- No BTC private-key sweep.
+- No forced predictive scaler on the production VPS without capacity proof.
 
 ---
 
+## Dropship / CJ key (honest)
+
+**A real `ZACC_CJ_API_KEY` cannot be invented by the agent.** It is issued only from a CJ Dropshipping account:
+`cjdropshipping.com → My CJ → Authorization → API → Generate`.
+
+Until then, Zeus runs the **Zeus Fulfillment Desk** (durable queue + owner email outbox + public readiness). Arm later with:
+
+```bash
+bash UNICORN_FINAL/scripts/arm-zacc-cj-key.sh 'YOUR_CJ_TOKEN' --remote
+# or POST /api/dropship/fulfillment/arm-cj with admin auth
+curl -sS https://zeusai.pro/api/dropship/fulfillment/readiness | jq .
+```
+
+Also needed for outbound mail (currently outbox-only): `SMTP_PASS` (Yahoo app password). `TELEGRAM_BOT_TOKEN` optional.
+
 ## Owner actions that unlock more autonomy
 
-1. `ZACC_CJ_API_KEY` — real dropship dispatch  
-2. `RESEND_API_KEY` / SMTP — buyer receipts  
+1. `ZACC_CJ_API_KEY` — real CJ auto-dispatch (see above)  
+2. `SMTP_PASS` — flush email outbox to owner/buyers  
 3. Social tokens — auto-marketing publish  
-4. `CRASH_WEBHOOK_URL` — Discord/Slack/Telegram alerts  
-5. Backup storage credentials for DR offsite  
+4. `DR_S3_BUCKET` + AWS keys — offsite backups  
+5. `CRASH_WEBHOOK_URL` — human-visible incident alerts  
 
-Settlement wallet (already in tree / live): `bc1q4f7e66z87mdfj56kz0dj5hvcnpmh0qh4wuv22e`
+---
+
+## Verify live (SSH deploy, no GitHub Actions)
+
+```bash
+curl -sS https://zeusai.pro/health | jq '.unicornSync,.backend'
+curl -sS https://zeusai.pro/api/modules/list | jq '.count,.rev'
+curl -sS https://zeusai.pro/api/catalog/master | jq '.counts,.updatedAt'
+# Browser: /sw-reset → /services — curated catalog + Live Unicorn modules
+```
+
+**Operating doctrine:** Unicorn automates execution loops; the owner remains sovereign for secrets, legal liability, and high-risk promotions.

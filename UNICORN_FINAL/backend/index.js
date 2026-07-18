@@ -9948,23 +9948,114 @@ app.get('/api/dropship/world-feed', async (req, res) => {
 });
 app.get('/api/dropship/products', (req, res) => {
   if (!zacc) return res.status(503).json({ ok: false, error: 'zacc_unavailable' });
+  const etag = '"' + zacc.publisher.revision() + '"';
+  if (req.headers['if-none-match'] === etag) {
+    res.status(304).set('ETag', etag).set('Cache-Control', 'public, max-age=30, stale-while-revalidate=120').end();
+    return;
+  }
   const items = zacc.publisher.list({
     sort: req.query.sort,
     category: req.query.category,
     search: req.query.q,
     limit: Math.min(200, Number(req.query.limit) || 60),
   });
-  res.json({ ok: true, items, count: zacc.publisher.published.length, categories: zacc.publisher.categories() });
+  res.set('ETag', etag);
+  res.set('Cache-Control', 'public, max-age=30, stale-while-revalidate=120');
+  res.json({
+    ok: true,
+    items,
+    count: zacc.publisher.published.length,
+    categories: zacc.publisher.categories(),
+    revision: zacc.publisher.revision(),
+  });
 });
 app.get('/api/dropship/product/:id', (req, res) => {
   if (!zacc) return res.status(503).json({ ok: false, error: 'zacc_unavailable' });
   const p = zacc.publisher.get(req.params.id);
   if (!p) return res.status(404).json({ ok: false, error: 'product_not_found' });
   zacc.publisher.recordEvent(p.id, 'view');
-  res.json({ ok: true, product: p });
+  let compare = null;
+  try {
+    compare = require('./modules/zacc/margin-os').compareToShopify(p);
+  } catch (_) { /* fail-soft */ }
+  const related = zacc.publisher.related(p.id, Math.min(6, Number(req.query.related) || 4));
+  res.set('Cache-Control', 'public, max-age=60, stale-while-revalidate=300');
+  res.json({ ok: true, product: p, related, compare });
+});
+app.get('/api/dropship/margin-os', (req, res) => {
+  if (!zacc) return res.status(503).json({ ok: false, error: 'zacc_unavailable' });
+  try {
+    const marginOs = require('./modules/zacc/margin-os');
+    const yieldSnap = marginOs.yieldSnapshot(
+      zacc.publisher,
+      zacc.profit.status(),
+      zacc.scraper.status()
+    );
+    res.set('Cache-Control', 'public, max-age=15, stale-while-revalidate=60');
+    res.json({
+      ok: true,
+      yield: yieldSnap,
+      shopifyBaseline: marginOs.shopifyTaxOnSale(49),
+      differentiators: yieldSnap.differentiators,
+    });
+  } catch (e) {
+    res.status(500).json({ ok: false, error: e.message });
+  }
+});
+// ZEUS ASP — Autonomous Shelf Protocol (public pulse + yield ledger).
+app.get('/api/dropship/pulse', (req, res) => {
+  if (!zacc || !zacc.shelf) return res.status(503).json({ ok: false, error: 'zacc_unavailable' });
+  res.set('Cache-Control', 'public, max-age=5, stale-while-revalidate=20');
+  res.json(zacc.shelf.pulse(req.query.limit));
+});
+app.get('/api/dropship/ledger', (req, res) => {
+  if (!zacc || !zacc.shelf) return res.status(503).json({ ok: false, error: 'zacc_unavailable' });
+  res.set('Cache-Control', 'public, max-age=5, stale-while-revalidate=20');
+  res.json(zacc.shelf.getLedger(req.query.limit));
+});
+app.get('/api/dropship/shelf', (req, res) => {
+  if (!zacc || !zacc.shelf) return res.status(503).json({ ok: false, error: 'zacc_unavailable' });
+  const items = zacc.publisher.list({
+    sort: 'shelf',
+    limit: Math.min(80, Number(req.query.limit) || 24),
+  }).map((p) => ({
+    id: p.id,
+    title: p.title,
+    priceUsd: p.priceUsd,
+    marginPct: p.marginPct,
+    netProfitUsd: p.netProfitUsd,
+    shelf: p.shelf || null,
+    category: p.category,
+  }));
+  res.set('Cache-Control', 'public, max-age=10, stale-while-revalidate=30');
+  res.json({
+    ok: true,
+    protocol: 'zeus-asp-v1',
+    status: zacc.shelf.status(),
+    items,
+    lastTournament: zacc.shelf.lastTournament,
+  });
+});
+app.post('/api/dropship/shelf/tournament', adminTokenMiddleware, (req, res) => {
+  if (!zacc || !zacc.shelf) return res.status(503).json({ ok: false, error: 'zacc_unavailable' });
+  try {
+    const result = zacc.shelf.runTournament(zacc.publisher);
+    try { zacc._persist(true); } catch (_) { /* fail-soft */ }
+    res.json(result);
+  } catch (e) {
+    res.status(500).json({ ok: false, error: e.message });
+  }
 });
 app.get('/api/dropship/status', (req, res) => {
   if (!zacc) return res.status(503).json({ ok: false, error: 'zacc_unavailable' });
+  let marginOs = null;
+  try {
+    marginOs = require('./modules/zacc/margin-os').yieldSnapshot(
+      zacc.publisher,
+      zacc.profit.status(),
+      zacc.scraper.status()
+    );
+  } catch (_) { /* fail-soft */ }
   res.json({
     ok: true,
     scraper: zacc.scraper.status(),
@@ -9972,13 +10063,86 @@ app.get('/api/dropship/status', (req, res) => {
     publisher: zacc.publisher.status(),
     fulfillment: zacc.fulfillment.status(),
     orders: zacc.orders.status(),
+    marginOs,
+    shelf: zacc.shelf ? zacc.shelf.status() : null,
     suppliers: {
       curated: zacc.publisher.published.filter(p => p.supplier === 'manual' || p.demoOnly).length,
-      cjConfigured: !!process.env.ZACC_CJ_API_KEY,
+      cjConfigured: !!String(process.env.ZACC_CJ_API_KEY || '').trim(),
       webhookConfigured: !!process.env.ZACC_FULFILL_WEBHOOK_URL,
       shippingZones: Object.keys(zacc.shipping.ZONES),
     },
+    fulfillmentReadiness: typeof zacc.fulfillment.readiness === 'function'
+      ? zacc.fulfillment.readiness()
+      : null,
   });
+});
+// Public: how fulfillment works without inventing a CJ key + how to arm one.
+app.get('/api/dropship/fulfillment/readiness', (req, res) => {
+  if (!zacc) return res.status(503).json({ ok: false, error: 'zacc_unavailable' });
+  res.json(zacc.fulfillment.readiness());
+});
+// Admin: paste a real CJ API key → write shared .env + process.env + reprocess desk.
+app.post('/api/dropship/fulfillment/arm-cj', deepseekGovernorAuthMiddleware, express.json({ limit: '4kb' }), async (req, res) => {
+  if (!zacc) return res.status(503).json({ ok: false, error: 'zacc_unavailable' });
+  const apiKey = String((req.body && (req.body.apiKey || req.body.key || req.body.ZACC_CJ_API_KEY)) || '').trim();
+  if (!apiKey || apiKey.length < 16) {
+    return res.status(400).json({
+      ok: false,
+      error: 'api_key_required',
+      howToGet: 'https://cjdropshipping.com → My CJ → Authorization → API → Generate',
+      armScript: 'bash UNICORN_FINAL/scripts/arm-zacc-cj-key.sh \'YOUR_KEY\'',
+    });
+  }
+  if (/your_|changeme|xxx|placeholder|example/i.test(apiKey)) {
+    return res.status(400).json({ ok: false, error: 'placeholder_rejected' });
+  }
+  try {
+    const fs = require('fs');
+    const path = require('path');
+    const candidates = [
+      process.env.UNICORN_SHARED_ENV,
+      '/var/www/unicorn/shared/.env',
+      path.join(__dirname, '..', '.env'),
+      path.join(__dirname, '.env'),
+    ].filter(Boolean);
+    let written = null;
+    for (const envPath of candidates) {
+      try {
+        let body = '';
+        if (fs.existsSync(envPath)) body = fs.readFileSync(envPath, 'utf8');
+        if (/^ZACC_CJ_API_KEY=/m.test(body)) {
+          body = body.replace(/^ZACC_CJ_API_KEY=.*$/m, 'ZACC_CJ_API_KEY=' + apiKey);
+        } else {
+          body = body.replace(/\s*$/, '\n') + 'ZACC_CJ_API_KEY=' + apiKey + '\n';
+        }
+        fs.writeFileSync(envPath, body, { mode: 0o600 });
+        written = envPath;
+        break;
+      } catch (_) { /* try next */ }
+    }
+    process.env.ZACC_CJ_API_KEY = apiKey;
+    const re = await zacc.fulfillment.reprocessPending();
+    res.json({
+      ok: true,
+      armed: true,
+      writtenTo: written,
+      keyLen: apiKey.length,
+      reprocess: re,
+      readiness: zacc.fulfillment.readiness(),
+      note: 'Key armed in-process. PM2 restart recommended so all workers reload env: pm2 restart unicorn-backend',
+    });
+  } catch (e) {
+    res.status(500).json({ ok: false, error: e.message });
+  }
+});
+app.post('/api/dropship/fulfillment/reprocess', deepseekGovernorAuthMiddleware, async (req, res) => {
+  if (!zacc) return res.status(503).json({ ok: false, error: 'zacc_unavailable' });
+  try {
+    const re = await zacc.fulfillment.reprocessPending();
+    res.json({ ok: true, reprocess: re, readiness: zacc.fulfillment.readiness() });
+  } catch (e) {
+    res.status(500).json({ ok: false, error: e.message });
+  }
 });
 // Public: shipping quote for a product to a destination country.
 app.post('/api/dropship/quote', (req, res) => {
@@ -9995,7 +10159,33 @@ app.post('/api/dropship/quote', (req, res) => {
     weightKg: p.weightKg,
   });
   const totalUsd = Math.round((p.priceUsd * qty + quote.shippingUsd) * 100) / 100;
-  res.json({ ok: true, quote: Object.assign({}, quote, { itemUsd: Math.round(p.priceUsd * qty * 100) / 100, totalUsd }), product: { id: p.id, title: p.title, priceUsd: p.priceUsd } });
+  let marginSeal = null;
+  try {
+    if (zacc.shelf && typeof zacc.shelf.sealMargin === 'function') {
+      marginSeal = zacc.shelf.sealMargin(p, {
+        qty,
+        country: b.country || (b.shipping && b.shipping.country) || 'US',
+        shippingUsd: quote.shippingUsd,
+        totalUsd,
+      });
+    }
+  } catch (_) { /* fail-soft */ }
+  res.json({
+    ok: true,
+    quote: Object.assign({}, quote, {
+      itemUsd: Math.round(p.priceUsd * qty * 100) / 100,
+      totalUsd,
+      marginSeal: marginSeal && marginSeal.seal,
+      ledgerHash: marginSeal && marginSeal.ledgerHash,
+    }),
+    marginSeal,
+    product: {
+      id: p.id,
+      title: p.title,
+      priceUsd: p.priceUsd,
+      shelf: p.shelf || null,
+    },
+  });
 });
 // Public: place a dropship order. REQUIRES buyer email + shipping address so
 // the order can actually be delivered. Mints a BTC invoice + returns the token.
@@ -10016,6 +10206,7 @@ app.post('/api/dropship/order/:id', async (req, res) => {
       email,
       shipping,
       qty: b.qty,
+      addons: b.addons || b.addonIds || [],
     });
     if (!result || !result.ok) return res.status(404).json({ ok: false, error: (result && result.error) || 'product_not_found' });
     res.json(result);
@@ -11229,6 +11420,40 @@ registerModuleRoutes('memory-pressure-guardian',   memoryPressureGuardian);
 registerModuleRoutes('zk-revenue-proof',           zkRevenueProof);
 registerModuleRoutes('pnl-time-machine',           pnlTimeMachine);
 registerModuleRoutes('social-orchestrator',        socialOrchestrator);
+registerModuleRoutes('zeusai-social',              socialOrchestrator);
+
+// ZeusAI Social — public Autonomous Signal Protocol surfaces
+app.get('/api/zeusai-social/pulse', (req, res) => {
+  try {
+    res.set('Cache-Control', 'public, max-age=5, stale-while-revalidate=20');
+    res.json(socialOrchestrator.getPulse(req.query.limit));
+  } catch (e) {
+    res.status(500).json({ ok: false, error: e && e.message ? e.message : String(e) });
+  }
+});
+app.get('/api/zeusai-social/feed', (req, res) => {
+  try {
+    res.set('Cache-Control', 'public, max-age=5, stale-while-revalidate=20');
+    res.json({
+      ok: true,
+      brand: 'ZeusAI Social',
+      protocol: 'zeusai-social-asp-v1',
+      items: socialOrchestrator.getPublicFeed(req.query.limit),
+      chain: socialOrchestrator.verifyChain(),
+    });
+  } catch (e) {
+    res.status(500).json({ ok: false, error: e && e.message ? e.message : String(e) });
+  }
+});
+app.get('/api/zeusai-social/reach', (req, res) => {
+  try {
+    const pulse = socialOrchestrator.getPulse(8);
+    res.set('Cache-Control', 'public, max-age=5, stale-while-revalidate=20');
+    res.json(Object.assign({ ok: true, brand: 'ZeusAI Social' }, pulse.proofOfReach || {}));
+  } catch (e) {
+    res.status(500).json({ ok: false, error: e && e.message ? e.message : String(e) });
+  }
+});
 registerModuleRoutes('performance-monitor',        performanceMonitor);
 registerModuleRoutes('unicorn-realization-engine', unicornRealizationEngine);
 registerModuleRoutes('auto-trend-analyzer',        autoTrendAnalyzer);
@@ -13484,7 +13709,7 @@ try {
 
 try {
   socialOrchestrator.start();
-  console.log('[social-orchestrator] ACTIVE (Zeus Core Social)');
+  console.log('[social-orchestrator] ACTIVE (ZeusAI Social)');
 } catch (e) {
   console.warn('[social-orchestrator] start failed:', e && e.message ? e.message : e);
 }

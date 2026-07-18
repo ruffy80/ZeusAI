@@ -33,6 +33,7 @@ const { ProfitMaximizer } = require('./profit');
 const { AutoPublisher } = require('./publisher');
 const { FulfillmentRouter } = require('./fulfillment');
 const { OrderStore } = require('./orders');
+const { AutonomousShelfProtocol } = require('./shelf-protocol');
 const shipping = require('./shipping');
 const notify = require('./notify');
 const store = require('./store');
@@ -84,6 +85,8 @@ class ZeusAutonomicCommerceCore {
     // Order backbone: source-of-truth for buyer contact, shipping, invoice
     // linkage, margin and an auditable timeline (persists to data/zacc/orders.json).
     this.orders = new OrderStore(ctx);
+    // ASP — Autonomous Shelf Protocol (novel public shelf tournament + ledger).
+    this.shelf = new AutonomousShelfProtocol(ctx);
     this.shipping = shipping;
 
     // Register components with the watchdog (reinit = re-run their step).
@@ -181,10 +184,27 @@ class ZeusAutonomicCommerceCore {
   // Creates an order (buyer contact + shipping quote), mints a BTC invoice with
   // the order linkage in meta, and links the two together. Returns everything
   // the checkout UI needs. Never throws unhandled — routes wrap in try/catch.
-  async createDropshipOrder({ productId, email, shipping: ship, qty }) {
+  async createDropshipOrder({ productId, email, shipping: ship, qty, addons }) {
     const product = this.publisher.get(productId);
     if (!product) return { ok: false, error: 'product_not_found' };
     const quantity = Math.max(1, Number(qty) || 1);
+
+    // Optional AOV add-ons (max 3) — related margin-qualified SKUs.
+    const addonIds = Array.isArray(addons) ? addons : [];
+    const addonProducts = [];
+    let addonUsd = 0;
+    let addonMargin = 0;
+    for (const rawId of addonIds.slice(0, 3)) {
+      const ap = this.publisher.get(rawId);
+      if (!ap || ap.id === product.id) continue;
+      if (addonProducts.some((x) => x.id === ap.id)) continue;
+      addonProducts.push(ap);
+      addonUsd += Number(ap.priceUsd) || 0;
+      addonMargin += Number(ap.netProfitUsd) || 0;
+      try { this.publisher.recordEvent(ap.id, 'cart'); } catch (_) { /* fail-soft */ }
+    }
+    addonUsd = Math.round(addonUsd * 100) / 100;
+    addonMargin = Math.round(addonMargin * 100) / 100;
 
     // 2) Shipping quote for the destination country. Pass the retail price as
     // the item cost so the returned quote.totalUsd is the buyer-facing total.
@@ -197,8 +217,8 @@ class ZeusAutonomicCommerceCore {
       weightKg: product.weightKg,
     });
     const itemUsd = Math.round(product.priceUsd * quantity * 100) / 100;
-    const amountUsd = Math.round((itemUsd + quote.shippingUsd) * 100) / 100;
-    const marginUsd = Math.round(((product.netProfitUsd || 0) * quantity) * 100) / 100;
+    const amountUsd = Math.round((itemUsd + quote.shippingUsd + addonUsd) * 100) / 100;
+    const marginUsd = Math.round((((product.netProfitUsd || 0) * quantity) + addonMargin) * 100) / 100;
 
     // 3) Create the order record.
     const order = this.orders.create({
@@ -210,6 +230,8 @@ class ZeusAutonomicCommerceCore {
       amountUsd,
       shippingUsd: quote.shippingUsd,
       marginUsd,
+      addonUsd,
+      addons: addonProducts.map((a) => ({ id: a.id, title: a.title, priceUsd: a.priceUsd })),
       demoOnly: product.demoOnly === true,
     });
 
@@ -220,6 +242,8 @@ class ZeusAutonomicCommerceCore {
       qty: quantity,
       orderToken: order.token,
       shippingUsd: quote.shippingUsd,
+      addonUsd,
+      addons: addonProducts.map((a) => a.id),
     });
 
     // 5) Link invoice → order (moves order to awaiting_payment).
@@ -230,7 +254,8 @@ class ZeusAutonomicCommerceCore {
       ok: true,
       orderToken: order.token,
       invoice,
-      quote,
+      quote: Object.assign({}, quote, { itemUsd, addonUsd, totalUsd: amountUsd }),
+      addons: addonProducts.map((a) => ({ id: a.id, title: a.title, priceUsd: a.priceUsd })),
       product: { id: product.id, title: product.title, priceUsd: product.priceUsd, image: product.image, demoOnly: product.demoOnly === true },
     };
   }
@@ -265,6 +290,7 @@ class ZeusAutonomicCommerceCore {
       await this.scraper.scrape(true);
       const qualified = this.profit.rank(this.scraper.recent(500));
       const published = this.publisher.publish(qualified, Math.max(48, Number(process.env.ZACC_BOOT_PUBLISH || 48)));
+      try { this.shelf.runTournament(this.publisher); } catch (_) { /* fail-soft */ }
       this._persist(true);
       return { rebuilt: true, modern: published.length, live: this.publisher.published.length };
     } catch (e) {
@@ -401,6 +427,18 @@ class ZeusAutonomicCommerceCore {
       summary.stages.publish = { added: added.length, total: this.publisher.published.length };
     } catch (e) { summary.stages.publish = { error: e.message }; }
 
+    // 13) SHELF TOURNAMENT — Autonomous Shelf Protocol (invented differentiator).
+    // SKUs compete for rank by living fitness; decisions land in the public ledger.
+    try {
+      const shelfRes = this.shelf.runTournament(this.publisher);
+      summary.stages.shelf = {
+        ok: !!(shelfRes && shelfRes.ok),
+        tournaments: this.shelf.tournaments,
+        visible: shelfRes && shelfRes.tournament && shelfRes.tournament.visible,
+        ledgerHash: shelfRes && shelfRes.ledgerHash,
+      };
+    } catch (e) { summary.stages.shelf = { error: e.message }; }
+
     this.ticks += 1;
     this.lastTickAt = now();
     summary.durationMs = Date.now() - t0;
@@ -467,6 +505,7 @@ class ZeusAutonomicCommerceCore {
       publisher: this.publisher.toState(),
       fulfillment: this.fulfillment.toState(),
       orders: this.orders.toState(),
+      shelf: this.shelf.toState(),
     };
   }
 
@@ -492,6 +531,11 @@ class ZeusAutonomicCommerceCore {
     // Orders persist to their own file (data/zacc/orders.json); restore them
     // from there, falling back to any snapshot embedded in the main state.
     if (!this.orders.restore() && s.orders) this.orders.fromState(s.orders);
+    if (s.shelf) this.shelf.fromState(s.shelf);
+    // Re-rank shelf after restore so fitness reflects current metrics / env.
+    try {
+      if (this.publisher.published.length) this.shelf.runTournament(this.publisher);
+    } catch (_) { /* fail-soft */ }
     log.info('state restored · products', this.builder.products.length, '· dropship', this.publisher.published.length, '· orders', this.orders.orders.length, '· lifetime $' + this.revenue.totalUsd);
     return true;
   }
@@ -533,6 +577,7 @@ class ZeusAutonomicCommerceCore {
         publisher: this.publisher.status(),
         fulfillment: this.fulfillment.status(),
         orders: this.orders.status(),
+        shelf: this.shelf.status(),
       },
       shipping: { zones: Object.keys(this.shipping.ZONES) },
       lastCycle: this._lastSummary || null,
@@ -570,8 +615,20 @@ class ZeusAutonomicCommerceCore {
       trends: this.scanner.top(6),
       ideas: this.synthesizer.ideas.slice(0, 6).map(i => ({ name: i.name, type: i.type, priceUsd: i.priceUsd, marginPct: i.marginPct, status: i.status })),
       products: this.builder.publicList(12),
-      dropship: this.publisher.list({ limit: 12 }),
+      dropship: this.publisher.list({ sort: 'shelf', limit: 12 }),
       dropshipCategories: this.publisher.categories(),
+      shelf: {
+        protocol: 'zeus-asp-v1',
+        tournaments: this.shelf.tournaments,
+        seals: this.shelf.seals,
+        lastTournament: this.shelf.lastTournament,
+        ledgerHead: (this.shelf.entries[0] && {
+          hash: this.shelf.entries[0].hash,
+          seq: this.shelf.entries[0].seq,
+          type: this.shelf.entries[0].type,
+          at: this.shelf.entries[0].at,
+        }) || null,
+      },
       evolution: this.evolution.proposals.slice(0, 4),
       generatedAt: now(),
     };

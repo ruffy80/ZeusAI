@@ -66,6 +66,8 @@ class OrderStore {
       amountUsd: round2(Number(input.amountUsd) || 0),
       shippingUsd: round2(Number(input.shippingUsd) || 0),
       marginUsd: round2(Number(input.marginUsd) || 0),
+      addonUsd: round2(Number(input.addonUsd) || 0),
+      addons: Array.isArray(input.addons) ? input.addons.slice(0, 3) : [],
       invoiceId: input.invoiceId || null,
       demoOnly: input.demoOnly !== false,
       status: 'created',
@@ -129,7 +131,8 @@ class OrderStore {
     fulfilment = fulfilment || {};
     const provider = fulfilment.provider || (fulfilment.result && fulfilment.result.provider) || null;
     order.fulfilment = fulfilment;
-    order.status = (provider && provider !== 'manual-queue') ? 'fulfillment_routed' : 'fulfillment_queued';
+    const deskProviders = { 'manual-queue': 1, 'zeus-fulfillment-desk': 1 };
+    order.status = (provider && !deskProviders[provider]) ? 'fulfillment_routed' : 'fulfillment_queued';
     order.updatedAt = now();
     this._appendTimeline(order, order.status, { provider });
     this._persist();
