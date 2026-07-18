@@ -1335,6 +1335,7 @@ let whales = null; try { whales = require('./commerce/whale-tracker'); } catch (
 let notifier = null; try { notifier = require('./commerce/notifier'); } catch (e) { console.warn('[notifier] not loaded:', e.message); }
 let instantCatalog = null; try { instantCatalog = require('./commerce/instant-catalog'); } catch (e) { console.warn('[instant-catalog] not loaded:', e.message); }
 let unifiedCatalog = null; try { unifiedCatalog = require('./commerce/unified-catalog'); } catch (e) { console.warn('[unified-catalog] not loaded:', e.message); }
+const publicCatalogFilter = require('./commerce/public-catalog-filter');
 let productEngine = null; try { productEngine = require('./commerce/product-engine'); } catch (e) { console.warn('[product-engine] not loaded:', e.message); }
 let portal = null; try { portal = require('./commerce/customer-portal'); } catch (e) { console.warn('[portal] not loaded:', e.message); }
 let provisioner = null; try { provisioner = require('./commerce/provisioner'); } catch (e) { console.warn('[provisioner] not loaded:', e.message); }
@@ -2209,13 +2210,21 @@ const FRONTIER_DELIVERABLES = [
   { id: 'frontier-carbon-checkout', title: 'Carbon-Inclusive Checkout',   priceUsd: 39,  group: 'frontier', kpi: 'esg',         description: 'Auto-prices and offsets gCO2 per transaction. BTC-settled.' }
 ];
 const VERTICAL_OS_DELIVERABLES = [
-  ['fintech-os', 'Fintech OS', 4999], ['health-os', 'HealthTech OS', 4999], ['retail-os', 'Retail OS', 3499],
-  ['logistics-os', 'Logistics OS', 3999], ['manufacturing-os', 'Manufacturing OS', 4499], ['energy-os', 'Energy OS', 4499],
-  ['agri-os', 'AgriTech OS', 2999], ['edu-os', 'EduTech OS', 2499], ['govtech-os', 'GovTech OS', 5999],
-  ['legaltech-os', 'LegalTech OS', 3499], ['hospitality-os', 'Hospitality OS', 2799], ['media-os', 'Media OS', 2499],
-  ['gaming-os', 'Gaming OS', 2999], ['realestate-os', 'RealEstate OS', 3299], ['mobility-os', 'Mobility OS', 3499],
-  ['biotech-os', 'BioTech OS', 5499], ['security-os', 'Security OS', 4999], ['climate-os', 'ClimateTech OS', 3999]
-].map(([id, title, priceUsd]) => ({ id, title, priceUsd, group: 'vertical', kpi: 'industry adoption', description: title + ' — turn-key vertical AI OS, signed-outcome billing, BTC settled.' }));
+  ['fintech-os', 'Fintech OS Architecture Pack', 4999], ['health-os', 'HealthTech OS Architecture Pack', 4999], ['retail-os', 'Retail OS Architecture Pack', 3499],
+  ['logistics-os', 'Logistics OS Architecture Pack', 3999], ['manufacturing-os', 'Manufacturing OS Architecture Pack', 4499], ['energy-os', 'Energy OS Architecture Pack', 4499],
+  ['agri-os', 'AgriTech OS Architecture Pack', 2999], ['edu-os', 'EduTech OS Architecture Pack', 2499], ['govtech-os', 'GovTech OS Architecture Pack', 5999],
+  ['legaltech-os', 'LegalTech OS Architecture Pack', 3499], ['hospitality-os', 'Hospitality OS Architecture Pack', 2799], ['media-os', 'Media OS Architecture Pack', 2499],
+  ['gaming-os', 'Gaming OS Architecture Pack', 2999], ['realestate-os', 'RealEstate OS Architecture Pack', 3299], ['mobility-os', 'Mobility OS Architecture Pack', 3499],
+  ['biotech-os', 'BioTech OS Architecture Pack', 5499], ['security-os', 'Security OS Architecture Pack', 4999], ['climate-os', 'ClimateTech OS Architecture Pack', 3999]
+].map(([id, title, priceUsd]) => ({
+  id,
+  title,
+  priceUsd,
+  group: 'vertical',
+  kpi: 'engagement kickoff',
+  description: title + ' — engagement kickoff / architecture pack with milestone plan and signed receipt. Not a finished OS shipped on payment; human-led delivery follows. BTC settled.',
+  deliveryKind: 'engagement-kickoff-pack'
+}));
 const CATALOG_EXPANSION_DELIVERABLES = [
   ['ai-sales-closer', 'AI Sales Closer', 299, 'conversion'], ['ai-cfo-agent', 'AI CFO Agent', 399, 'profit control'], ['auto-marketing-engine', 'Auto Marketing Engine', 249, 'campaign velocity'],
   ['competitor-spy-agent', 'Competitor Spy Agent', 199, 'market intelligence'], ['seo-optimizer', 'SEO Optimizer', 149, 'organic growth'], ['content-ai-studio', 'Content AI Studio', 179, 'content throughput'],
@@ -2287,12 +2296,27 @@ async function buildMasterCatalog() {
   });
 
   // Real strategic / frontier / vertical deliverables — human titles + prices.
-  const strategic = (sources.services || []).map(s => ({
-    id: s.id, title: s.title, group: 'strategic',
-    priceUsd: Number(s.price || 0), kpi: s.kpi || 'automation',
-    description: s.description || ('Sovereign service: ' + (s.title || s.id)),
-    segment: s.segment || s.category || 'strategic'
-  }));
+  // Preserve original group (e.g. zacc) so the public filter can exclude
+  // synthetic/trend-clone SKUs that the backend service sink may inject.
+  const strategic = (sources.services || []).map(s => {
+    const id = String(s.id || '');
+    const rawGroup = String(s.group || s.segment || s.category || 'strategic').toLowerCase();
+    const synthetic = publicCatalogFilter.isSyntheticCatalogItem(s)
+      || /^zacc-/i.test(id)
+      || rawGroup === 'zacc';
+    return {
+      id: s.id,
+      title: s.title,
+      group: synthetic ? (rawGroup === 'zacc' || /^zacc-/i.test(id) ? 'zacc' : rawGroup) : 'strategic',
+      priceUsd: Number(s.price != null ? s.price : (s.priceUsd != null ? s.priceUsd : 0)),
+      kpi: s.kpi || 'automation',
+      description: s.description || ('Sovereign service: ' + (s.title || s.id)),
+      segment: s.segment || s.category || 'strategic',
+      synthetic: synthetic || undefined,
+      autoPublished: s.autoPublished,
+      fulfillmentRecipe: s.fulfillmentRecipe || s.recipe || s.deliveryRecipe
+    };
+  });
   const frontierItems = frontier ? FRONTIER_DELIVERABLES.map(x => ({ ...x, segment: 'frontier' })) : [];
   const verticals = VERTICAL_OS_DELIVERABLES.map(x => ({ ...x, segment: 'enterprise' }));
 
@@ -2310,6 +2334,9 @@ async function buildMasterCatalog() {
   // Bilingual note (RO): păstrăm inovațiile reale, scoatem modulele interne.
   const connectorCatalog = unicornCommerceConnector.buildCommerceCatalog({ registry: sources.moduleRegistry || getSiteFallbackModuleRegistry(), btcWallet: BTC_WALLET, ownerName: OWNER_NAME });
   const futureInventions = (connectorCatalog.items || []).filter(it => it.group === 'future-invention');
+  // Keep auto-modules in the full/internal catalog so ?includeSynthetic=1 / admin
+  // can inspect them — public endpoints filter them out by default.
+  const autoModules = (connectorCatalog.items || []).filter(it => it.group === 'unicorn-auto-module');
 
   const all = [
     ...activationProducts,
@@ -2319,6 +2346,7 @@ async function buildMasterCatalog() {
     ...frontierItems,
     ...verticals,
     ...futureInventions,
+    ...autoModules,
   ];
 
   // Seed dynamic-pricing so /api/pricing/{id} and /api/pricing/all return the
@@ -2335,6 +2363,7 @@ async function buildMasterCatalog() {
     item.buyUrl = `/checkout?serviceId=${encodeURIComponent(item.id)}&plan=${encodeURIComponent(item.id)}`;
     item.btcUri = item.priceUsd > 0 ? buildBtcUri(BTC_WALLET, item.priceBtc, 'ZeusAI-' + item.id) : null;
     item.checkout = item.checkout || { btcAddress: BTC_WALLET, priceUsd: item.priceUsd, priceBtc: item.priceBtc };
+    if (publicCatalogFilter.isSyntheticCatalogItem(item)) item.synthetic = true;
   }
   // dedupe by id
   const seen = new Set(); const out = [];
@@ -2347,11 +2376,12 @@ async function buildMasterCatalog() {
     counts: {
       total: out.length,
       instant: groupCount('instant'), professional: groupCount('professional'), enterprise: groupCount('enterprise'),
-      strategic: strategic.length, frontier: frontierItems.length, vertical: verticals.length,
+      strategic: groupCount('strategic'), frontier: frontierItems.length, vertical: verticals.length,
       strategicPackages: strategicPackages.length, activationProducts: activationProducts.length,
-      unicornAuto: connectorCatalog.counts.registry, futurePrimitives: connectorCatalog.counts.futurePrimitives
+      unicornAuto: connectorCatalog.counts.registry, futurePrimitives: connectorCatalog.counts.futurePrimitives,
+      synthetic: out.filter((it) => publicCatalogFilter.isSyntheticCatalogItem(it)).length
     },
-    groups: ['billion-scale-activation', 'billion-scale-package', 'instant', 'professional', 'enterprise', 'strategic', 'frontier', 'vertical', 'future-invention'],
+    groups: ['billion-scale-activation', 'billion-scale-package', 'instant', 'professional', 'enterprise', 'strategic', 'frontier', 'vertical', 'future-invention', 'unicorn-auto-module', 'zacc'],
     connector: { source: connectorCatalog.source, payout: connectorCatalog.payout, counts: connectorCatalog.counts },
     items: out
   };
@@ -2362,18 +2392,26 @@ async function buildMasterCatalog() {
 //   • /services/:id detail pages
 //   • /seo/sitemap-services.xml
 // Avoids paying the full buildMasterCatalog cost on every page hit.
+// Cache stores the FULL catalog; public endpoints apply the synthetic filter.
 const _masterCatalogCache = { catalog: null, fetchedAt: 0 };
-async function getCachedMasterCatalog() {
+async function getCachedMasterCatalog(options = {}) {
   const now = Date.now();
-  if (_masterCatalogCache.catalog && now - _masterCatalogCache.fetchedAt < 60000) {
-    return _masterCatalogCache.catalog;
+  if (!_masterCatalogCache.catalog || now - _masterCatalogCache.fetchedAt >= 60000) {
+    const cat = await buildMasterCatalog();
+    _masterCatalogCache.catalog = cat;
+    _masterCatalogCache.fetchedAt = now;
+    // Track first-seen ids so /api/catalog/diff can return "🆕 new this week".
+    // Record the public (filtered) set so storefront diffs stay honest.
+    try {
+      if (commerce && typeof commerce.recordCatalogItems === 'function') {
+        const publicItems = publicCatalogFilter.filterPublicCatalogItems(cat.items, { includeSynthetic: false });
+        commerce.recordCatalogItems(publicItems);
+      }
+    } catch (_) {}
   }
-  const cat = await buildMasterCatalog();
-  _masterCatalogCache.catalog = cat;
-  _masterCatalogCache.fetchedAt = now;
-  // Track first-seen ids so /api/catalog/diff can return "🆕 new this week".
-  try { if (commerce && typeof commerce.recordCatalogItems === 'function') commerce.recordCatalogItems(cat.items); } catch (_) {}
-  return cat;
+  const includeSynthetic = options.includeSynthetic === true;
+  if (includeSynthetic) return _masterCatalogCache.catalog;
+  return publicCatalogFilter.applyPublicCatalogFilter(_masterCatalogCache.catalog, { includeSynthetic: false });
 }
 
 const modules = [
@@ -2449,13 +2487,13 @@ function buildLocalServiceCatalog() {
   }));
   industries.forEach((vertical) => services.push({
     id: 'vertical-' + vertical.id,
-    title: vertical.title + ' OS',
+    title: vertical.title + ' OS Architecture Pack',
     segment: 'vertical',
     kpi: (vertical.outcomes || []).join(' · '),
     price: 2499,
     currency: 'USD',
     billing: 'monthly',
-    description: 'Pre‑wired ' + vertical.title + ' vertical OS — compliance, KPIs, marketplace lineage included.'
+    description: 'Engagement kickoff / architecture pack for ' + vertical.title + ' — milestone plan and signed receipt; not a finished OS shipped on payment.'
   }));
   return services;
 }
@@ -3644,7 +3682,9 @@ async function unicornHandler(req, res) {
               };
             }
           }
-          const cat = await getCachedMasterCatalog().catch(() => null);
+          // Resolve against the full catalog (including synthetics) so deep-link
+          // / legacy orders still work; public listings remain filtered.
+          const cat = await getCachedMasterCatalog({ includeSynthetic: true }).catch(() => null);
           if (cat && Array.isArray(cat.items)) {
             const hit = cat.items.find((it) => String(it.id) === String(id));
             if (hit) return _canon != null ? Object.assign({}, hit, { priceUsd: _canon, price: _canon }) : hit;
@@ -4418,7 +4458,7 @@ async function unicornHandler(req, res) {
 </li>`).join('');
       const html = `<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><title>Vertical OS Catalog · ZeusAI</title><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="description" content="ZeusAI vertical AI operating systems — ${list.length} industries, BTC-settled, instant deploy.">
 <style>body{font:16px/1.6 -apple-system,Segoe UI,Roboto,sans-serif;max-width:980px;margin:2rem auto;padding:0 1rem;color:#e7ecf3;background:#070510}h1{font-size:2.1rem;background:linear-gradient(135deg,#8a5cff,#4ea1ff);-webkit-background-clip:text;background-clip:text;color:transparent}p.lead{color:#9aa3b5}ul{list-style:none;padding:0;display:grid;gap:12px}li.card{border:1px solid #221d3d;border-radius:12px;padding:16px 18px;display:flex;justify-content:space-between;align-items:center;gap:14px;flex-wrap:wrap;background:#0d0a1c}.meta{display:flex;flex-direction:column;gap:4px;min-width:220px}.title{color:#cfd6ff;text-decoration:none;font-weight:700;font-size:1.05rem}.title:hover{color:#fff}.kpi{color:#7fffd4;font-size:.8rem}.act{display:flex;align-items:center;gap:10px;flex-wrap:wrap}.price{color:#ffd36a;font-weight:800;font-size:1.2rem}.price small{color:#9aa3b5;font-weight:400}.btn{padding:8px 14px;border-radius:9px;text-decoration:none;font-weight:600;font-size:.88rem}.btn.buy{background:linear-gradient(135deg,#8a5cff,#4ea1ff);color:#fff}.btn.ghost{border:1px solid #2c2752;color:#cfd6ff}.foot{color:#9aa3b5;margin-top:24px;font-size:.9rem}a{color:#4ea1ff}</style></head>
-<body><h1>Vertical AI Operating Systems</h1><p class="lead">${list.length} turn-key vertical OSes. Same sovereign infra, different KPI focus. Pay in BTC — 10% sovereign discount applied automatically at checkout, Ed25519-signed receipt included.</p><ul>${cards}</ul><p class="foot"><a href="/">← Home</a> · <a href="/services">Marketplace</a> · <a href="/sitemap.xml">Sitemap</a></p></body></html>`;
+<body><h1>Vertical AI Architecture Packs</h1><p class="lead">${list.length} industry architecture packs — engagement kickoff with milestone plan and signed receipt. Not a finished OS shipped on payment. Pay in BTC — 10% sovereign discount at checkout.</p><ul>${cards}</ul><p class="foot"><a href="/">← Home</a> · <a href="/services">Marketplace</a> · <a href="/sitemap.xml">Sitemap</a></p></body></html>`;
       res.writeHead(200, { 'Content-Type':'text/html; charset=utf-8', 'Cache-Control':'public, max-age=300' });
       return res.end(html);
     } catch (e) {
@@ -6560,36 +6600,57 @@ async function unicornHandler(req, res) {
   // /pricing pages always render the full catalogue, never a stub.
   if (urlPath === '/api/services/list') {
     if (process.env.BACKEND_API_URL) await refreshBackendRuntimeState(true).catch((error) => logTransactionEvent('pricing_sync_failed', { error: error && error.message }));
+    const includeSynthetic = publicCatalogFilter.wantsIncludeSynthetic(requestUrl);
     const snapshot = buildSnapshot();
     const baseServices = unifiedCatalogToServices();
-    const merged = mergeBackendServicesIntoCatalogue(baseServices, snapshot.services || []);
-    const services = await enrichServicesWithLivePricing(merged);
+    const runtimeServices = publicCatalogFilter.filterPublicCatalogItems(snapshot.services || [], { includeSynthetic });
+    const merged = mergeBackendServicesIntoCatalogue(baseServices, runtimeServices);
+    const services = await enrichServicesWithLivePricing(
+      publicCatalogFilter.filterPublicCatalogItems(merged, { includeSynthetic })
+    );
     res.writeHead(200, { 'Content-Type':'application/json', 'Cache-Control':'no-store' });
-    return res.end(JSON.stringify({ updatedAt: new Date().toISOString(), source: 'zeusai', sourceLegacy: 'unicorn', sync: snapshot.source, services }));
+    return res.end(JSON.stringify({
+      updatedAt: new Date().toISOString(),
+      source: 'zeusai',
+      sourceLegacy: 'unicorn',
+      sync: snapshot.source,
+      includeSynthetic,
+      services
+    }));
   }
   if (urlPath === '/api/services') {
     // Hydrate from the master catalog (auto-includes marketplace modules,
     // activation products, strategic packages, frontier deliverables, vertical
     // OSes, connector items). Falls back to the curated unifiedCatalog if the
     // master build fails for any reason.
+    // Default storefront excludes zacc/synthetic clones; opt-in via ?includeSynthetic=1.
+    const includeSynthetic = publicCatalogFilter.wantsIncludeSynthetic(requestUrl);
     let services = [];
     try {
-      const cat = await buildMasterCatalog();
+      const cat = await getCachedMasterCatalog({ includeSynthetic });
       services = (cat && Array.isArray(cat.items)) ? cat.items.map(it => ({
         id: it.id, title: it.title, group: it.group, segment: it.segment,
         kpi: it.kpi, description: it.description,
         priceUsd: it.priceUsd, priceBtc: it.priceBtc, currency: it.currency || 'USD',
         buyUrl: it.buyUrl, btcUri: it.btcUri,
-        autoPublished: !!it.autoPublished
+        autoPublished: !!it.autoPublished,
+        synthetic: !!it.synthetic
       })) : [];
     } catch (_) { /* fall through */ }
     if (!services.length) {
       const baseServices = unifiedCatalogToServices();
       const runtimeServices = getRuntimeDataSources().services || [];
       services = mergeBackendServicesIntoCatalogue(baseServices, runtimeServices);
+      services = publicCatalogFilter.filterPublicCatalogItems(services, { includeSynthetic });
     }
     res.writeHead(200, { 'Content-Type':'application/json' });
-    return res.end(JSON.stringify({ updatedAt: new Date().toISOString(), source: 'zeusai-site', count: services.length, services }));
+    return res.end(JSON.stringify({
+      updatedAt: new Date().toISOString(),
+      source: 'zeusai-site',
+      count: services.length,
+      includeSynthetic,
+      services
+    }));
   }
 
   if (urlPath === '/api/unicorn-commerce/status') {
@@ -6704,12 +6765,12 @@ async function unicornHandler(req, res) {
     return;
   }
 
-  // /api/catalog — legacy UI-compatible array backed by the full master catalog.
-  // Keeps the marketplace grid populated with all sellable services instead of
-  // falling back to the tiny two-item mock when no separate backend is present.
+  // /api/catalog — legacy UI-compatible array backed by the master catalog.
+  // Default storefront excludes zacc/synthetic clones (?includeSynthetic=1 to opt in).
   if (urlPath === '/api/catalog') {
     try {
-      const cat = await getCachedMasterCatalog();
+      const includeSynthetic = publicCatalogFilter.wantsIncludeSynthetic(requestUrl);
+      const cat = await getCachedMasterCatalog({ includeSynthetic });
       const items = (cat.items || []).map(item => {
         const meta = canonicalPlanMeta(item.id) || {};
         const description = item.description || meta.description || ('ZeusAI ' + (item.title || item.name || item.id) + ' — BTC-settled activation with signed delivery.');
@@ -6724,7 +6785,8 @@ async function unicornHandler(req, res) {
           btcUri: item.btcUri,
           category: item.segment || item.group || item.category || 'AI',
           group: item.group || item.segment || 'marketplace',
-          buyUrl: item.buyUrl
+          buyUrl: item.buyUrl,
+          synthetic: !!item.synthetic
         };
       });
       // Ensure core plans always appear even if master catalog omitted them.
@@ -6757,7 +6819,8 @@ async function unicornHandler(req, res) {
   if (urlPath === '/api/standards/wacp' || urlPath === '/.well-known/wacp.json') {
     try {
       const wacp = require('../backend/modules/world-ai-commerce-protocol');
-      const cat = await getCachedMasterCatalog().catch(() => ({ items: [] }));
+      const includeSynthetic = publicCatalogFilter.wantsIncludeSynthetic(requestUrl);
+      const cat = await getCachedMasterCatalog({ includeSynthetic }).catch(() => ({ items: [] }));
       const envelope = typeof wacp.toWacpCatalog === 'function'
         ? wacp.toWacpCatalog(cat.items || [])
         : { protocol: 'WACP/1.0', items: cat.items || [] };
@@ -6770,11 +6833,13 @@ async function unicornHandler(req, res) {
   }
 
   // ===================================================================
-  // /api/catalog/master — every deliverable Unicorn can sell, BTC-priced
+  // /api/catalog/master — public buyable catalog (filtered by default)
+  // Opt-in synthetics: ?includeSynthetic=1
   // ===================================================================
   if (urlPath === '/api/catalog/master') {
     try {
-      const cat = await getCachedMasterCatalog();
+      const includeSynthetic = publicCatalogFilter.wantsIncludeSynthetic(requestUrl);
+      const cat = await getCachedMasterCatalog({ includeSynthetic });
       res.writeHead(200, { 'Content-Type':'application/json', 'Cache-Control':'public, max-age=30' });
       return res.end(JSON.stringify(cat));
     } catch (e) {
@@ -6793,7 +6858,8 @@ async function unicornHandler(req, res) {
   // ===================================================================
   if (urlPath === '/api/products') {
     try {
-      const cat = await getCachedMasterCatalog();
+      const includeSynthetic = publicCatalogFilter.wantsIncludeSynthetic(requestUrl);
+      const cat = await getCachedMasterCatalog({ includeSynthetic });
       // Fetch the current promoted offer from autopilot
       const promotedId = (() => {
         try {
@@ -6805,7 +6871,7 @@ async function unicornHandler(req, res) {
         } catch (_) {}
         return null;
       })();
-      
+
       let items = (cat.items || []).map(it => ({
         id: it.id,
         title: it.title || it.name || it.id,
@@ -6816,21 +6882,33 @@ async function unicornHandler(req, res) {
         btcUri: it.btcUri,
         buyUrl: it.buyUrl || ('/checkout?serviceId=' + encodeURIComponent(it.id) + '&plan=' + encodeURIComponent(it.id)),
         group: it.group || it.segment || 'marketplace',
+        synthetic: !!it.synthetic,
         isPromoted: promotedId && it.id === promotedId,
         ctaPromptStrength: promotedId && it.id === promotedId ? 'primary' : 'secondary',
       }));
-      
-      // REORDER: Move promoted item to front if it exists
-      if (promotedId) {
+
+      // Never promote a synthetic SKU on the public storefront.
+      if (promotedId && !includeSynthetic) {
+        const promoted = items.find((x) => x.id === promotedId);
+        if (promoted && publicCatalogFilter.isSyntheticCatalogItem(promoted)) {
+          /* drop promotion */
+        } else if (promotedId) {
+          const promotedIdx = items.findIndex(x => x.id === promotedId);
+          if (promotedIdx > 0) {
+            const moved = items.splice(promotedIdx, 1);
+            items.unshift(moved[0]);
+          }
+        }
+      } else if (promotedId) {
         const promotedIdx = items.findIndex(x => x.id === promotedId);
         if (promotedIdx > 0) {
-          const promoted = items.splice(promotedIdx, 1);
-          items.unshift(promoted[0]);
+          const moved = items.splice(promotedIdx, 1);
+          items.unshift(moved[0]);
         }
       }
-      
+
       res.writeHead(200, { 'Content-Type':'application/json', 'Cache-Control':'public, max-age=30' });
-      return res.end(JSON.stringify({ count: items.length, products: items, promoted: promotedId || null }));
+      return res.end(JSON.stringify({ count: items.length, products: items, promoted: promotedId || null, includeSynthetic }));
     } catch (e) {
       res.writeHead(500, { 'Content-Type':'application/json' });
       return res.end(JSON.stringify({ error: 'products_failed', detail: e.message }));
@@ -10383,4 +10461,16 @@ if (require.main === module) {
 const _siteServerSingleton = createServer();
 _siteServerSingleton.unicornHandler = unicornHandler;
 _siteServerSingleton.createServer = createServer;
+// Test-only hooks for catalog reality assertions (inject synthetic SKUs safely).
+_siteServerSingleton.__catalogTest = {
+  injectServices(services) {
+    runtimeSyncState.serviceCatalog = Array.isArray(services) ? services : [];
+    _masterCatalogCache.catalog = null;
+    _masterCatalogCache.fetchedAt = 0;
+  },
+  clearCache() {
+    _masterCatalogCache.catalog = null;
+    _masterCatalogCache.fetchedAt = 0;
+  }
+};
 module.exports = _siteServerSingleton;

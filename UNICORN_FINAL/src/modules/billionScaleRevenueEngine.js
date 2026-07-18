@@ -16,7 +16,7 @@ const STRATEGIC_PACKAGES = [
     title: 'ZeusAI Autonomous SaaS OS',
     priceUsd: 75000,
     target: 'founders, agencies and SaaS teams that want a productized autonomous platform',
-    promise: 'Deploy catalog, billing, delivery, customer success, API gateway and module automation as one SaaS OS.',
+    promise: 'Engagement kickoff / architecture pack to design catalog, billing, delivery, customer success and API gateway as one SaaS OS — milestone delivery, not a finished OS shipped on payment.',
     modules: ['Unicorn Commerce Connector', 'Billing Engine', 'Provisioning Engine', 'SaaS Orchestrator', 'Customer Success Autopilot'],
   },
   {

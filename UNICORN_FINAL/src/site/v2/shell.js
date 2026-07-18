@@ -1217,7 +1217,7 @@ ${_featuredHtml}
 <section>
   <div class="section-title">
     <div><span class="kicker">Verticals</span><h2>Eighteen industries. <span class="grad">One sovereign brain.</span></h2></div>
-    <p>From finance to pharma, ZeusAI ships pre‑configured vertical OSes — each with its own compliance, pricing, and marketplace lineage.</p>
+    <p>From finance to pharma, ZeusAI offers vertical architecture packs — engagement kickoff with compliance, pricing, and marketplace lineage. Not a finished OS shipped on payment.</p>
   </div>
   <div class="grid" id="verticals"></div>
 </section>`;
@@ -3790,7 +3790,7 @@ function pageContact() {
 }
 
 const FAQ_ITEMS = [
-  { q: 'What exactly am I buying?', a: 'A live AI capability: vertical OS, frontier module or strategic service. Every purchase mints an Ed25519-signed entitlement credential plus an API key — verifiable offline, owned by you.' },
+  { q: 'What exactly am I buying?', a: 'A real deliverable: curated instant/professional SKUs with fulfillment recipes, or an engagement kickoff / architecture pack for frontier and vertical offers (not a finished OS shipped on payment). Every purchase mints an Ed25519-signed entitlement credential plus an API key — verifiable offline, owned by you.' },
   { q: 'How does payment work?', a: 'Direct BTC checkout settles on-chain to the owner wallet — no custodian, no processor in the middle. A 10% sovereign discount applies automatically to BTC checkouts. Cards/PayPal appear only when those rails are configured live.' },
   { q: 'Is the card price the same as the checkout price?', a: 'Yes — one canonical price engine quotes the card, the /pricing page and checkout. The quote is locked for 90 seconds so it never shifts mid-purchase.' },
   { q: 'What happens right after I pay?', a: 'The server watches the mempool, auto-confirms settlement, then issues the signed receipt, license token and delivery credentials — typically within one confirmation.' },
@@ -3844,7 +3844,7 @@ function pageAffiliate() {
   return `<section style="padding-top:140px;max-width:980px">
   <span class="kicker">Affiliate</span>
   <h1 style="font-size:clamp(34px,4.4vw,56px);margin:10px 0 14px">Refer revenue, <span class="grad">get paid in BTC.</span></h1>
-  <p style="color:var(--ink-dim);max-width:640px">Referral tracking is live in production today. Generate your link below — every visit is logged server-side with your ref code and tied to purchases from that session.</p>
+  <p style="color:var(--ink-dim);max-width:640px">Referral tracking is live today — every visit is logged server-side with your ref code and tied to purchases. <strong style="color:#fff">BTC payouts are manual / early-access</strong>: the owner settles directly until automated payout rails ship.</p>
   <div class="card" style="padding:22px;margin-top:24px;display:grid;gap:12px;max-width:640px">
     <label style="font-size:12px;color:var(--ink-dim)">Your ref code (pick anything unique — your brand, handle, etc.)</label>
     <div style="display:flex;gap:10px;flex-wrap:wrap">
@@ -3857,7 +3857,7 @@ function pageAffiliate() {
   <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px;margin-top:22px">
     <div class="card" style="padding:18px"><span class="tag">1 · Share</span><p style="color:var(--ink-dim);font-size:14px;margin:10px 0 0">Your link points at any ZeusAI page with <code class="inline">?ref=you</code>. The tracker beacon fires automatically on landing.</p></div>
     <div class="card" style="padding:18px"><span class="tag">2 · Tracked</span><p style="color:var(--ink-dim);font-size:14px;margin:10px 0 0">Hits are appended to a server-side ledger (timestamp + ref). Honest infrastructure: no cookies-of-doom, no third-party pixels.</p></div>
-    <div class="card" style="padding:18px"><span class="tag">3 · Paid</span><p style="color:var(--ink-dim);font-size:14px;margin:10px 0 0">Commission terms are agreed per partner (typ. 10–25% of first-year revenue), settled in BTC to your wallet. <a href="/contact" data-link>Apply via contact</a> — mention your ref code.</p></div>
+    <div class="card" style="padding:18px"><span class="tag">3 · Paid</span><p style="color:var(--ink-dim);font-size:14px;margin:10px 0 0">Commission terms agreed per partner (typ. 10–25% of first-year revenue). <strong style="color:#fff">Payouts are currently manual</strong> — the owner settles directly in BTC to your wallet (early-access). <a href="/contact" data-link>Apply via contact</a> — mention your ref code.</p></div>
   </div>
   <p style="color:var(--ink-dim);font-size:13px;margin-top:18px">Program status: early-access — tracking live, payouts handled directly by the owner until self-serve dashboards ship. Everything above is real today; nothing more is promised.</p>
   <script>
@@ -3873,7 +3873,7 @@ function pagePartners() {
   <p style="color:var(--ink-dim);max-width:640px">Three partnership lanes, all with direct owner access and BTC-native settlement.</p>
   <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:14px;margin-top:26px">
     <div class="card" style="padding:22px"><span class="tag">Reseller</span><h3 style="margin:12px 0 8px">Sell ZeusAI services</h3><p style="color:var(--ink-dim);font-size:14px;line-height:1.7">White-label or co-branded. You own the client relationship; delivery, receipts and licensing run on our signed infrastructure. Margin agreed per vertical.</p></div>
-    <div class="card" style="padding:22px"><span class="tag">Integrator</span><h3 style="margin:12px 0 8px">Deploy vertical OSes</h3><p style="color:var(--ink-dim);font-size:14px;line-height:1.7">Implement the ${'18'} vertical AI operating systems for your clients. Full API access (<a href="/docs" data-link>docs</a>, <a href="/openapi.json">OpenAPI</a>), signed outcomes, your services on top.</p></div>
+    <div class="card" style="padding:22px"><span class="tag">Integrator</span><h3 style="margin:12px 0 8px">Deliver vertical architecture packs</h3><p style="color:var(--ink-dim);font-size:14px;line-height:1.7">Implement the ${'18'} vertical engagement kickoff / architecture packs for your clients. Full API access (<a href="/docs" data-link>docs</a>, <a href="/openapi.json">OpenAPI</a>), signed outcomes, your services on top.</p></div>
     <div class="card" style="padding:22px"><span class="tag">Technology</span><h3 style="margin:12px 0 8px">Agent-to-agent commerce</h3><p style="color:var(--ink-dim);font-size:14px;line-height:1.7">Your AI agents can buy capabilities from ours autonomously via <code class="inline">/agents.json</code> + signed checkout. The first commerce protocol designed for non-human buyers.</p></div>
   </div>
   <div class="card" style="padding:18px;margin-top:22px;display:flex;gap:12px;align-items:center;flex-wrap:wrap">
