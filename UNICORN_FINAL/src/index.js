@@ -5266,6 +5266,8 @@ async function unicornHandler(req, res) {
     const dropshipUiCss = `
 <style>
 .ds-world{--bg:#050710;--card:rgba(13,17,31,.86);--accent:#9a7cff;--accent2:#55d6be;--muted:#98a3c3;--line:rgba(174,185,229,.16);width:100vw;margin-left:calc(50% - 50vw);color:#f3f5ff;font-family:"Space Grotesk","Avenir Next","Trebuchet MS",sans-serif;background:var(--bg)}
+/* Defeat v2 section[data-reveal]{opacity:0} so the product grid never paints blank. */
+.ds-world section,.ds-world section[data-reveal]{opacity:1!important;transform:none!important}
 .ds-world *{box-sizing:border-box}.ds-world a{text-decoration:none}.ds-wrap{width:min(1160px,calc(100% - 48px));margin:0 auto}
 .ds-hero{position:relative;isolation:isolate;min-height:calc(100svh - 96px);display:grid;align-items:center;overflow:hidden;border-bottom:1px solid var(--line);background:radial-gradient(900px 580px at 78% 32%,rgba(71,108,255,.2),transparent 65%),radial-gradient(780px 520px at 16% 72%,rgba(85,214,190,.12),transparent 68%),linear-gradient(135deg,#050710 5%,#0a0c1b 55%,#080b16)}
 .ds-hero:before{content:"";position:absolute;inset:0;z-index:-2;background:linear-gradient(rgba(154,124,255,.045) 1px,transparent 1px),linear-gradient(90deg,rgba(154,124,255,.045) 1px,transparent 1px);background-size:68px 68px;mask-image:linear-gradient(to bottom,rgba(0,0,0,.72),transparent 88%)}

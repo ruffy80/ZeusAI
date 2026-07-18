@@ -4082,17 +4082,23 @@ main#app code{font-family:var(--mono);font-size:12px}
 main#app a{color:var(--blue2)}
 </style>`;
   const banner = '<div id="degraded-banner" class="banner">⚠️ Reconnecting to live data…</div>';
+  // Trusted Types + page hydration must run BEFORE </body></html> from footer(),
+  // otherwise some browsers treat trailing scripts inconsistently and the
+  // dropship catalog never paints even when /api/dropship/products returns 200.
   const ttPolicy = `<script${N}>(function(){try{if(window.trustedTypes&&window.trustedTypes.createPolicy){window.trustedTypes.createPolicy("default",{createHTML:function(s){return s},createScript:function(s){return s},createScriptURL:function(s){return s}});}}catch(_){}})();</script>`;
   const healthJs = `<script${N}>(function(){var f=0;function c(){fetch("/health",{cache:"no-store"}).then(function(r){if(r.ok){f=0;var b=document.getElementById("degraded-banner");if(b)b.classList.remove("show");}else{throw 0;}}).catch(function(){f++;if(f>=3){var b=document.getElementById("degraded-banner");if(b)b.classList.add("show");}});}c();setInterval(c,10000);})();</script>`;
   const pageJs = pageScript ? `<script${N}>${pageScript}</script>` : '';
+  const foot = footer(route, o);
+  const closeAt = Math.max(foot.lastIndexOf('</body>'), foot.lastIndexOf('</html>'));
+  const inject = ttPolicy + pageJs + healthJs;
+  const footWithScripts = closeAt > 0
+    ? foot.slice(0, foot.lastIndexOf('</body>') > -1 ? foot.lastIndexOf('</body>') : closeAt) + inject + foot.slice(foot.lastIndexOf('</body>') > -1 ? foot.lastIndexOf('</body>') : closeAt)
+    : foot + inject;
   return head(title || routeTitle(route), route, o)
     + bridge
     + banner
     + bodyHtml
-    + footer(route, o)
-    + ttPolicy
-    + pageJs
-    + healthJs;
+    + footWithScripts;
 }
 
 module.exports = { getHtml, renderInShell, CSS, OWNER };
