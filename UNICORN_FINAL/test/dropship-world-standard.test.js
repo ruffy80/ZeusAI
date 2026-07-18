@@ -125,7 +125,10 @@ run('SSR PDP includes Proof-of-Margin + JSON-LD', () => {
 run('site source wires SSR + single-product API + Margin OS', () => {
   const SRC = fs.readFileSync(path.join(__dirname, '..', 'src', 'index.js'), 'utf8');
   assert.ok(SRC.includes("require('./site/dropship-ssr')"));
-  assert.ok(SRC.includes('await fetchBackendJson(base, \'/api/dropship/products?sort=profit&limit=12\')'));
+  assert.ok(
+    SRC.includes('await fetchBackendJson(base, \'/api/dropship/products?sort=shelf&limit=12\')') ||
+    SRC.includes('await fetchBackendJson(base, \'/api/dropship/products?sort=profit&limit=12\')')
+  );
   assert.ok(SRC.includes('/api/dropship/product/'));
   assert.ok(SRC.includes('id="ds-upsell"'));
   assert.ok(SRC.includes('addons:addons'));

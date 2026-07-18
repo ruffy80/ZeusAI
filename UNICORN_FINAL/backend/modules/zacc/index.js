@@ -33,6 +33,7 @@ const { ProfitMaximizer } = require('./profit');
 const { AutoPublisher } = require('./publisher');
 const { FulfillmentRouter } = require('./fulfillment');
 const { OrderStore } = require('./orders');
+const { AutonomousShelfProtocol } = require('./shelf-protocol');
 const shipping = require('./shipping');
 const notify = require('./notify');
 const store = require('./store');
@@ -84,6 +85,8 @@ class ZeusAutonomicCommerceCore {
     // Order backbone: source-of-truth for buyer contact, shipping, invoice
     // linkage, margin and an auditable timeline (persists to data/zacc/orders.json).
     this.orders = new OrderStore(ctx);
+    // ASP — Autonomous Shelf Protocol (novel public shelf tournament + ledger).
+    this.shelf = new AutonomousShelfProtocol(ctx);
     this.shipping = shipping;
 
     // Register components with the watchdog (reinit = re-run their step).
@@ -287,6 +290,7 @@ class ZeusAutonomicCommerceCore {
       await this.scraper.scrape(true);
       const qualified = this.profit.rank(this.scraper.recent(500));
       const published = this.publisher.publish(qualified, Math.max(48, Number(process.env.ZACC_BOOT_PUBLISH || 48)));
+      try { this.shelf.runTournament(this.publisher); } catch (_) { /* fail-soft */ }
       this._persist(true);
       return { rebuilt: true, modern: published.length, live: this.publisher.published.length };
     } catch (e) {
@@ -423,6 +427,18 @@ class ZeusAutonomicCommerceCore {
       summary.stages.publish = { added: added.length, total: this.publisher.published.length };
     } catch (e) { summary.stages.publish = { error: e.message }; }
 
+    // 13) SHELF TOURNAMENT — Autonomous Shelf Protocol (invented differentiator).
+    // SKUs compete for rank by living fitness; decisions land in the public ledger.
+    try {
+      const shelfRes = this.shelf.runTournament(this.publisher);
+      summary.stages.shelf = {
+        ok: !!(shelfRes && shelfRes.ok),
+        tournaments: this.shelf.tournaments,
+        visible: shelfRes && shelfRes.tournament && shelfRes.tournament.visible,
+        ledgerHash: shelfRes && shelfRes.ledgerHash,
+      };
+    } catch (e) { summary.stages.shelf = { error: e.message }; }
+
     this.ticks += 1;
     this.lastTickAt = now();
     summary.durationMs = Date.now() - t0;
@@ -489,6 +505,7 @@ class ZeusAutonomicCommerceCore {
       publisher: this.publisher.toState(),
       fulfillment: this.fulfillment.toState(),
       orders: this.orders.toState(),
+      shelf: this.shelf.toState(),
     };
   }
 
@@ -514,6 +531,11 @@ class ZeusAutonomicCommerceCore {
     // Orders persist to their own file (data/zacc/orders.json); restore them
     // from there, falling back to any snapshot embedded in the main state.
     if (!this.orders.restore() && s.orders) this.orders.fromState(s.orders);
+    if (s.shelf) this.shelf.fromState(s.shelf);
+    // Re-rank shelf after restore so fitness reflects current metrics / env.
+    try {
+      if (this.publisher.published.length) this.shelf.runTournament(this.publisher);
+    } catch (_) { /* fail-soft */ }
     log.info('state restored · products', this.builder.products.length, '· dropship', this.publisher.published.length, '· orders', this.orders.orders.length, '· lifetime $' + this.revenue.totalUsd);
     return true;
   }
@@ -555,6 +577,7 @@ class ZeusAutonomicCommerceCore {
         publisher: this.publisher.status(),
         fulfillment: this.fulfillment.status(),
         orders: this.orders.status(),
+        shelf: this.shelf.status(),
       },
       shipping: { zones: Object.keys(this.shipping.ZONES) },
       lastCycle: this._lastSummary || null,
@@ -592,8 +615,20 @@ class ZeusAutonomicCommerceCore {
       trends: this.scanner.top(6),
       ideas: this.synthesizer.ideas.slice(0, 6).map(i => ({ name: i.name, type: i.type, priceUsd: i.priceUsd, marginPct: i.marginPct, status: i.status })),
       products: this.builder.publicList(12),
-      dropship: this.publisher.list({ limit: 12 }),
+      dropship: this.publisher.list({ sort: 'shelf', limit: 12 }),
       dropshipCategories: this.publisher.categories(),
+      shelf: {
+        protocol: 'zeus-asp-v1',
+        tournaments: this.shelf.tournaments,
+        seals: this.shelf.seals,
+        lastTournament: this.shelf.lastTournament,
+        ledgerHead: (this.shelf.ledger[0] && {
+          hash: this.shelf.ledger[0].hash,
+          seq: this.shelf.ledger[0].seq,
+          type: this.shelf.ledger[0].type,
+          at: this.shelf.ledger[0].at,
+        }) || null,
+      },
       evolution: this.evolution.proposals.slice(0, 4),
       generatedAt: now(),
     };

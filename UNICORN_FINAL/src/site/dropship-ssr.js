@@ -67,6 +67,10 @@ function productCardHtml(p) {
   const fb = coverFor(slug);
   const margin = Math.max(0, Math.round(Number(p.marginPct) || 0));
   const pid = encodeURIComponent(p.id);
+  const shelf = p.shelf && p.shelf.rank
+    ? ('<span class="ds-badge ds-badge-shelf">SHELF #' + p.shelf.rank +
+      (p.shelf.fitness != null ? (' \u00b7 ' + Math.round(Number(p.shelf.fitness))) : '') + '</span>')
+    : '';
   return (
     '<article class="ds-product" data-ssr="1">' +
       '<a class="ds-media" href="/dropship/product/' + pid + '">' +
@@ -81,6 +85,7 @@ function productCardHtml(p) {
         '<div class="ds-badges">' +
           '<span class="ds-badge ' + (mode.live ? 'ds-badge-live' : '') + '">' + mode.label + '</span>' +
           '<span class="ds-badge ' + fulfil.cls + '">' + fulfil.label + '</span>' +
+          shelf +
           '<span class="ds-badge ds-badge-margin">Proof-of-Margin \u00b7 ' + margin + '% margin</span>' +
         '</div>' +
         '<a class="ds-product-title" href="/dropship/product/' + pid + '">' +

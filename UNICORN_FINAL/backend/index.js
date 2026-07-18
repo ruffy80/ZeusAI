@@ -10002,6 +10002,50 @@ app.get('/api/dropship/margin-os', (req, res) => {
     res.status(500).json({ ok: false, error: e.message });
   }
 });
+// ZEUS ASP — Autonomous Shelf Protocol (public pulse + yield ledger).
+app.get('/api/dropship/pulse', (req, res) => {
+  if (!zacc || !zacc.shelf) return res.status(503).json({ ok: false, error: 'zacc_unavailable' });
+  res.set('Cache-Control', 'public, max-age=5, stale-while-revalidate=20');
+  res.json(zacc.shelf.pulse(req.query.limit));
+});
+app.get('/api/dropship/ledger', (req, res) => {
+  if (!zacc || !zacc.shelf) return res.status(503).json({ ok: false, error: 'zacc_unavailable' });
+  res.set('Cache-Control', 'public, max-age=5, stale-while-revalidate=20');
+  res.json(zacc.shelf.ledger(req.query.limit));
+});
+app.get('/api/dropship/shelf', (req, res) => {
+  if (!zacc || !zacc.shelf) return res.status(503).json({ ok: false, error: 'zacc_unavailable' });
+  const items = zacc.publisher.list({
+    sort: 'shelf',
+    limit: Math.min(80, Number(req.query.limit) || 24),
+  }).map((p) => ({
+    id: p.id,
+    title: p.title,
+    priceUsd: p.priceUsd,
+    marginPct: p.marginPct,
+    netProfitUsd: p.netProfitUsd,
+    shelf: p.shelf || null,
+    category: p.category,
+  }));
+  res.set('Cache-Control', 'public, max-age=10, stale-while-revalidate=30');
+  res.json({
+    ok: true,
+    protocol: 'zeus-asp-v1',
+    status: zacc.shelf.status(),
+    items,
+    lastTournament: zacc.shelf.lastTournament,
+  });
+});
+app.post('/api/dropship/shelf/tournament', adminTokenMiddleware, (req, res) => {
+  if (!zacc || !zacc.shelf) return res.status(503).json({ ok: false, error: 'zacc_unavailable' });
+  try {
+    const result = zacc.shelf.runTournament(zacc.publisher);
+    try { zacc._persist(true); } catch (_) { /* fail-soft */ }
+    res.json(result);
+  } catch (e) {
+    res.status(500).json({ ok: false, error: e.message });
+  }
+});
 app.get('/api/dropship/status', (req, res) => {
   if (!zacc) return res.status(503).json({ ok: false, error: 'zacc_unavailable' });
   let marginOs = null;
@@ -10020,6 +10064,7 @@ app.get('/api/dropship/status', (req, res) => {
     fulfillment: zacc.fulfillment.status(),
     orders: zacc.orders.status(),
     marginOs,
+    shelf: zacc.shelf ? zacc.shelf.status() : null,
     suppliers: {
       curated: zacc.publisher.published.filter(p => p.supplier === 'manual' || p.demoOnly).length,
       cjConfigured: !!process.env.ZACC_CJ_API_KEY,
@@ -10043,7 +10088,33 @@ app.post('/api/dropship/quote', (req, res) => {
     weightKg: p.weightKg,
   });
   const totalUsd = Math.round((p.priceUsd * qty + quote.shippingUsd) * 100) / 100;
-  res.json({ ok: true, quote: Object.assign({}, quote, { itemUsd: Math.round(p.priceUsd * qty * 100) / 100, totalUsd }), product: { id: p.id, title: p.title, priceUsd: p.priceUsd } });
+  let marginSeal = null;
+  try {
+    if (zacc.shelf && typeof zacc.shelf.sealMargin === 'function') {
+      marginSeal = zacc.shelf.sealMargin(p, {
+        qty,
+        country: b.country || (b.shipping && b.shipping.country) || 'US',
+        shippingUsd: quote.shippingUsd,
+        totalUsd,
+      });
+    }
+  } catch (_) { /* fail-soft */ }
+  res.json({
+    ok: true,
+    quote: Object.assign({}, quote, {
+      itemUsd: Math.round(p.priceUsd * qty * 100) / 100,
+      totalUsd,
+      marginSeal: marginSeal && marginSeal.seal,
+      ledgerHash: marginSeal && marginSeal.ledgerHash,
+    }),
+    marginSeal,
+    product: {
+      id: p.id,
+      title: p.title,
+      priceUsd: p.priceUsd,
+      shelf: p.shelf || null,
+    },
+  });
 });
 // Public: place a dropship order. REQUIRES buyer email + shipping address so
 // the order can actually be delivered. Mints a BTC invoice + returns the token.
