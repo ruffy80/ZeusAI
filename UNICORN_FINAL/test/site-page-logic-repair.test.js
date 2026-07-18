@@ -52,10 +52,19 @@ check('store hydrate preserves SSR on empty API', () => {
   assert.ok(client.includes("grid.dataset.storeTabsWired"), 'tabs bound once');
 });
 
-check('modules mirror seeds from /api/modules', () => {
+check('modules mirror seeds from public /api/modules/list', () => {
   assert.ok(client.includes('seedAutonomousModulesFromApi'), 'seed fn');
-  assert.ok(client.includes("fetch('/api/modules'"), 'GET /api/modules');
+  assert.ok(client.includes("/api/modules/list"), 'public list first');
+  assert.ok(client.includes('/api/modules/stream'), 'SSE modules stream');
   assert.ok(client.includes('seedAutonomousModulesFromApi()'), 'called on subscribe');
+});
+
+check('nginx routes site BFF /api/modules + /api/events', () => {
+  const nginx = read('scripts/nginx-unicorn.conf');
+  assert.ok(nginx.includes('location = /api/modules'), 'modules location');
+  assert.ok(nginx.includes('location = /api/events'), 'events location');
+  assert.ok(/location = \/api\/modules \{[\s\S]*?unicorn_site/.test(nginx), 'modules → site');
+  assert.ok(/location = \/api\/events \{[\s\S]*?unicorn_site/.test(nginx), 'events → site');
 });
 
 check('alias routes redirect instead of homepage clone', () => {

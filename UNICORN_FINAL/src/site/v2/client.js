@@ -3918,24 +3918,31 @@ window.addEventListener('DOMContentLoaded', () => {
 window.AUTONOMOUS_MODULES = window.AUTONOMOUS_MODULES || { byId: {}, rev: 0, updatedAt: null };
 
 function seedAutonomousModulesFromApi(){
-  // Immediate paint for #autonomousServicesGrid — do not wait only on SSE.
-  fetch('/api/modules', { headers: { Accept: 'application/json' } })
-    .then(function(r){ return r.ok ? r.json() : null; })
-    .then(function(d){
-      if (!d) return;
-      const list = Array.isArray(d.modules) ? d.modules : (Array.isArray(d) ? d : []);
-      if (!list.length) return;
-      window.AUTONOMOUS_MODULES.byId = {};
-      for (let i = 0; i < list.length; i++) {
-        const m = list[i];
-        if (m && m.id) window.AUTONOMOUS_MODULES.byId[m.id] = m;
-      }
-      window.AUTONOMOUS_MODULES.rev = d.rev || window.AUTONOMOUS_MODULES.rev || 0;
-      window.AUTONOMOUS_MODULES.updatedAt = d.updatedAt || d.at || new Date().toISOString();
-      window.AUTONOMOUS_MODULES.upstreamConnected = d.upstreamConnected !== false;
-      applyAutonomousSnapshot();
-    })
-    .catch(function(){});
+  // Public nginx → backend exposes /api/modules/list (auth-free).
+  // Site BFF /api/modules is often 401 at the edge because /api/* hits :3000.
+  const urls = ['/api/modules/list', '/api/modules'];
+  function apply(d){
+    if (!d) return false;
+    const list = Array.isArray(d.modules) ? d.modules : (Array.isArray(d) ? d : []);
+    if (!list.length) return false;
+    window.AUTONOMOUS_MODULES.byId = {};
+    for (let i = 0; i < list.length; i++) {
+      const m = list[i];
+      if (m && m.id) window.AUTONOMOUS_MODULES.byId[m.id] = m;
+    }
+    window.AUTONOMOUS_MODULES.rev = d.rev || window.AUTONOMOUS_MODULES.rev || 0;
+    window.AUTONOMOUS_MODULES.updatedAt = d.updatedAt || d.at || new Date().toISOString();
+    window.AUTONOMOUS_MODULES.upstreamConnected = d.upstreamConnected !== false;
+    applyAutonomousSnapshot();
+    return true;
+  }
+  (function tryNext(i){
+    if (i >= urls.length) return;
+    fetch(urls[i], { headers: { Accept: 'application/json' } })
+      .then(function(r){ return r.ok ? r.json() : null; })
+      .then(function(d){ if (!apply(d)) tryNext(i + 1); })
+      .catch(function(){ tryNext(i + 1); });
+  })(0);
 }
 
 function subscribeAutonomousEvents(){
@@ -3943,9 +3950,14 @@ function subscribeAutonomousEvents(){
   if (typeof EventSource === 'undefined') return;
   let es = null;
   let backoff = 1500;
+  // Prefer backend /api/modules/stream (public + has event:snapshot with modules).
+  // Fall back to /api/events (site BFF when nginx routes it).
+  const streamUrls = ['/api/modules/stream', '/api/events'];
+  let streamIdx = 0;
   function connect(){
-    try { es = new EventSource('/api/events'); }
-    catch(_) { setTimeout(connect, backoff); backoff = Math.min(backoff * 2, 30000); return; }
+    const url = streamUrls[streamIdx % streamUrls.length];
+    try { es = new EventSource(url); }
+    catch(_) { streamIdx += 1; setTimeout(connect, backoff); backoff = Math.min(backoff * 2, 30000); return; }
     es.addEventListener('snapshot', (ev) => {
       try {
         const d = JSON.parse(ev.data);
@@ -3997,6 +4009,7 @@ function subscribeAutonomousEvents(){
     });
     es.onerror = () => {
       try { es.close(); } catch(_){}
+      streamIdx += 1;
       setTimeout(connect, backoff);
       backoff = Math.min(backoff * 2, 30000);
     };
