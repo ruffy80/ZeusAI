@@ -184,6 +184,31 @@ class AutoPublisher {
 
   get(id) { return this.byId.get(id) || null; }
 
+  /** Cache-busting revision for ETag / If-None-Match on the products API. */
+  revision() {
+    return 'r' + this.published.length + '-' + (this.lastPublishAt || 0) + '-' + this.publishes;
+  }
+
+  /**
+   * Related SKUs for AOV lift: same category first, then profitPotential.
+   * Excludes self. Used by PDP SSR + GET /api/dropship/product/:id.
+   */
+  related(id, n) {
+    const self = this.get(id);
+    if (!self) return [];
+    const limit = Math.max(1, Math.min(12, Number(n) || 4));
+    const cat = self.category;
+    return this.published
+      .filter((p) => p && p.id !== id)
+      .sort((a, b) => {
+        const ac = a.category === cat ? 1 : 0;
+        const bc = b.category === cat ? 1 : 0;
+        if (bc !== ac) return bc - ac;
+        return (b.profitPotential || 0) - (a.profitPotential || 0);
+      })
+      .slice(0, limit);
+  }
+
   recordEvent(id, type, amountUsd) {
     const p = this.get(id);
     if (!p) return null;

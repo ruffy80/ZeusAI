@@ -9948,23 +9948,70 @@ app.get('/api/dropship/world-feed', async (req, res) => {
 });
 app.get('/api/dropship/products', (req, res) => {
   if (!zacc) return res.status(503).json({ ok: false, error: 'zacc_unavailable' });
+  const etag = '"' + zacc.publisher.revision() + '"';
+  if (req.headers['if-none-match'] === etag) {
+    res.status(304).set('ETag', etag).set('Cache-Control', 'public, max-age=30, stale-while-revalidate=120').end();
+    return;
+  }
   const items = zacc.publisher.list({
     sort: req.query.sort,
     category: req.query.category,
     search: req.query.q,
     limit: Math.min(200, Number(req.query.limit) || 60),
   });
-  res.json({ ok: true, items, count: zacc.publisher.published.length, categories: zacc.publisher.categories() });
+  res.set('ETag', etag);
+  res.set('Cache-Control', 'public, max-age=30, stale-while-revalidate=120');
+  res.json({
+    ok: true,
+    items,
+    count: zacc.publisher.published.length,
+    categories: zacc.publisher.categories(),
+    revision: zacc.publisher.revision(),
+  });
 });
 app.get('/api/dropship/product/:id', (req, res) => {
   if (!zacc) return res.status(503).json({ ok: false, error: 'zacc_unavailable' });
   const p = zacc.publisher.get(req.params.id);
   if (!p) return res.status(404).json({ ok: false, error: 'product_not_found' });
   zacc.publisher.recordEvent(p.id, 'view');
-  res.json({ ok: true, product: p });
+  let compare = null;
+  try {
+    compare = require('./modules/zacc/margin-os').compareToShopify(p);
+  } catch (_) { /* fail-soft */ }
+  const related = zacc.publisher.related(p.id, Math.min(6, Number(req.query.related) || 4));
+  res.set('Cache-Control', 'public, max-age=60, stale-while-revalidate=300');
+  res.json({ ok: true, product: p, related, compare });
+});
+app.get('/api/dropship/margin-os', (req, res) => {
+  if (!zacc) return res.status(503).json({ ok: false, error: 'zacc_unavailable' });
+  try {
+    const marginOs = require('./modules/zacc/margin-os');
+    const yieldSnap = marginOs.yieldSnapshot(
+      zacc.publisher,
+      zacc.profit.status(),
+      zacc.scraper.status()
+    );
+    res.set('Cache-Control', 'public, max-age=15, stale-while-revalidate=60');
+    res.json({
+      ok: true,
+      yield: yieldSnap,
+      shopifyBaseline: marginOs.shopifyTaxOnSale(49),
+      differentiators: yieldSnap.differentiators,
+    });
+  } catch (e) {
+    res.status(500).json({ ok: false, error: e.message });
+  }
 });
 app.get('/api/dropship/status', (req, res) => {
   if (!zacc) return res.status(503).json({ ok: false, error: 'zacc_unavailable' });
+  let marginOs = null;
+  try {
+    marginOs = require('./modules/zacc/margin-os').yieldSnapshot(
+      zacc.publisher,
+      zacc.profit.status(),
+      zacc.scraper.status()
+    );
+  } catch (_) { /* fail-soft */ }
   res.json({
     ok: true,
     scraper: zacc.scraper.status(),
@@ -9972,6 +10019,7 @@ app.get('/api/dropship/status', (req, res) => {
     publisher: zacc.publisher.status(),
     fulfillment: zacc.fulfillment.status(),
     orders: zacc.orders.status(),
+    marginOs,
     suppliers: {
       curated: zacc.publisher.published.filter(p => p.supplier === 'manual' || p.demoOnly).length,
       cjConfigured: !!process.env.ZACC_CJ_API_KEY,
@@ -10016,6 +10064,7 @@ app.post('/api/dropship/order/:id', async (req, res) => {
       email,
       shipping,
       qty: b.qty,
+      addons: b.addons || b.addonIds || [],
     });
     if (!result || !result.ok) return res.status(404).json({ ok: false, error: (result && result.error) || 'product_not_found' });
     res.json(result);

@@ -66,6 +66,8 @@ class OrderStore {
       amountUsd: round2(Number(input.amountUsd) || 0),
       shippingUsd: round2(Number(input.shippingUsd) || 0),
       marginUsd: round2(Number(input.marginUsd) || 0),
+      addonUsd: round2(Number(input.addonUsd) || 0),
+      addons: Array.isArray(input.addons) ? input.addons.slice(0, 3) : [],
       invoiceId: input.invoiceId || null,
       demoOnly: input.demoOnly !== false,
       status: 'created',

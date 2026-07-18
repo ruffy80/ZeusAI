@@ -181,10 +181,27 @@ class ZeusAutonomicCommerceCore {
   // Creates an order (buyer contact + shipping quote), mints a BTC invoice with
   // the order linkage in meta, and links the two together. Returns everything
   // the checkout UI needs. Never throws unhandled — routes wrap in try/catch.
-  async createDropshipOrder({ productId, email, shipping: ship, qty }) {
+  async createDropshipOrder({ productId, email, shipping: ship, qty, addons }) {
     const product = this.publisher.get(productId);
     if (!product) return { ok: false, error: 'product_not_found' };
     const quantity = Math.max(1, Number(qty) || 1);
+
+    // Optional AOV add-ons (max 3) — related margin-qualified SKUs.
+    const addonIds = Array.isArray(addons) ? addons : [];
+    const addonProducts = [];
+    let addonUsd = 0;
+    let addonMargin = 0;
+    for (const rawId of addonIds.slice(0, 3)) {
+      const ap = this.publisher.get(rawId);
+      if (!ap || ap.id === product.id) continue;
+      if (addonProducts.some((x) => x.id === ap.id)) continue;
+      addonProducts.push(ap);
+      addonUsd += Number(ap.priceUsd) || 0;
+      addonMargin += Number(ap.netProfitUsd) || 0;
+      try { this.publisher.recordEvent(ap.id, 'cart'); } catch (_) { /* fail-soft */ }
+    }
+    addonUsd = Math.round(addonUsd * 100) / 100;
+    addonMargin = Math.round(addonMargin * 100) / 100;
 
     // 2) Shipping quote for the destination country. Pass the retail price as
     // the item cost so the returned quote.totalUsd is the buyer-facing total.
@@ -197,8 +214,8 @@ class ZeusAutonomicCommerceCore {
       weightKg: product.weightKg,
     });
     const itemUsd = Math.round(product.priceUsd * quantity * 100) / 100;
-    const amountUsd = Math.round((itemUsd + quote.shippingUsd) * 100) / 100;
-    const marginUsd = Math.round(((product.netProfitUsd || 0) * quantity) * 100) / 100;
+    const amountUsd = Math.round((itemUsd + quote.shippingUsd + addonUsd) * 100) / 100;
+    const marginUsd = Math.round((((product.netProfitUsd || 0) * quantity) + addonMargin) * 100) / 100;
 
     // 3) Create the order record.
     const order = this.orders.create({
@@ -210,6 +227,8 @@ class ZeusAutonomicCommerceCore {
       amountUsd,
       shippingUsd: quote.shippingUsd,
       marginUsd,
+      addonUsd,
+      addons: addonProducts.map((a) => ({ id: a.id, title: a.title, priceUsd: a.priceUsd })),
       demoOnly: product.demoOnly === true,
     });
 
@@ -220,6 +239,8 @@ class ZeusAutonomicCommerceCore {
       qty: quantity,
       orderToken: order.token,
       shippingUsd: quote.shippingUsd,
+      addonUsd,
+      addons: addonProducts.map((a) => a.id),
     });
 
     // 5) Link invoice → order (moves order to awaiting_payment).
@@ -230,7 +251,8 @@ class ZeusAutonomicCommerceCore {
       ok: true,
       orderToken: order.token,
       invoice,
-      quote,
+      quote: Object.assign({}, quote, { itemUsd, addonUsd, totalUsd: amountUsd }),
+      addons: addonProducts.map((a) => ({ id: a.id, title: a.title, priceUsd: a.priceUsd })),
       product: { id: product.id, title: product.title, priceUsd: product.priceUsd, image: product.image, demoOnly: product.demoOnly === true },
     };
   }

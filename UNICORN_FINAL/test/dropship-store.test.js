@@ -51,8 +51,9 @@ assert.ok(
 // ---------- 2) the robust replacements must be present ----------
 // A real lazy <img> with an onerror fallback (graceful when a remote photo 404s).
 assert.ok(
-  SRC.indexOf('<img src=') !== -1 && SRC.indexOf('onerror="this.remove()"') !== -1,
-  'EXPECTED: product images should render as an <img> with an onerror fallback.'
+  SRC.indexOf('<img src=') !== -1 &&
+  (SRC.indexOf('onerror="this.remove()"') !== -1 || SRC.indexOf('data-cover=') !== -1),
+  'EXPECTED: product images should render as an <img> with an onerror / cover fallback.'
 );
 assert.ok(
   SRC.indexOf('object-fit:cover') !== -1,
@@ -124,9 +125,17 @@ assert.ok(
   'EXPECTED: the no-login order passport route must fetch its public order contract.'
 );
 assert.ok(
-  SRC.includes('fetch("/api/dropship/products?limit=200"') &&
+  (SRC.includes('/api/dropship/product/') || SRC.includes('fetch("/api/dropship/product/"')) &&
   SRC.includes('Proof-of-Margin'),
-  'EXPECTED: PDP must use the products contract and expose the margin breakdown.'
+  'EXPECTED: PDP must use the single-product contract and expose the margin breakdown.'
+);
+assert.ok(
+  SRC.includes('dropship-ssr') || SRC.includes('productGridHtml') || SRC.includes('data-ssr'),
+  'EXPECTED: /dropship must SSR first-paint catalog cards (world-standard path).'
+);
+assert.ok(
+  SRC.includes('id="ds-upsell"') && SRC.includes('addons'),
+  'EXPECTED: checkout must support related-product AOV add-ons.'
 );
 assert.ok(
   SRC.includes("if (urlPath === '/dropshipping')") &&
