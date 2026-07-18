@@ -48,6 +48,43 @@ const http     = require('http');
 const https    = require('https');
 const crypto   = require('crypto');
 
+// ── Delivery hook (set by src/index.js after module load) ───────────────────
+// Avoids a circular require: index.js registers runDeliveryForReceipt here
+// after both modules are loaded. sovereign-commerce calls it fire-and-forget
+// when an order transitions to 'paid'. Signature: hook(receiptLike) -> any.
+let _deliveryHook = null;
+function setDeliveryHook(fn) {
+  _deliveryHook = typeof fn === 'function' ? fn : null;
+}
+function _fireDelivery(order) {
+  if (!_deliveryHook || !order) return;
+  try {
+    const receiptLike = {
+      id: order.orderId,
+      orderId: order.orderId,
+      serviceId: order.serviceId,
+      serviceName: order.serviceName,
+      email: (order.buyer && order.buyer.email) || '',
+      customerEmail: (order.buyer && order.buyer.email) || '',
+      status: 'paid',
+      method: 'BTC',
+      txid: (order.txids && order.txids[0]) || null,
+      amount_sats: order.amount_sats,
+      amount_btc: order.amount_btc,
+      currency: order.currency,
+      subtotal_fiat: order.subtotal_fiat,
+      paid_at: order.paid_at,
+      access_token: order.access_token,
+      entitlement_id: order.entitlement_id,
+    };
+    Promise.resolve(_deliveryHook(receiptLike)).catch((e) =>
+      console.warn('[commerce] delivery hook error for ' + order.orderId + ':', e.message)
+    );
+  } catch (e) {
+    console.warn('[commerce] delivery hook fire error for ' + order.orderId + ':', e.message);
+  }
+}
+
 // ── Config ──────────────────────────────────────────────────────────────────
 const OWNER_BTC = (process.env.BTC_WALLET_ADDRESS || process.env.OWNER_BTC_ADDRESS || 'bc1q4f7e66z87mdfj56kz0dj5hvcnpmh0qh4wuv22e').trim();
 const OWNER_NAME   = process.env.OWNER_NAME  || 'Vladoi Ionut';
@@ -509,6 +546,8 @@ async function scanIncoming() {
         SEEN_TXIDS.add(tx.txid);
         matched++;
         console.log('[commerce] PAID', order.orderId, 'service=' + order.serviceId, 'sats=' + outSats, 'txid=' + tx.txid);
+        // ─── Delivery hook: forward-only, fire-and-forget via registered hook ─
+        _fireDelivery(order);
         // ─── C1: emit `order.paid` webhook (forward-only, fire-and-forget) ───
         // Backend webhook-emitter is reached via internal HTTP (loopback).
         // Failure is silent — order state is already persisted; subscribers
@@ -615,7 +654,7 @@ a{color:var(--acc)}
   <a class="cta" style="background:#14132a;color:#eaf0ff;border:1px solid var(--line)" href="${OWNER_DOMAIN}" target="_blank" rel="noopener">Back to site</a></p>
 </div>
 
-<div class="grant" id="grant">
+  <div class="grant" id="grant">
   <h2 style="margin:0 0 6px">✅ Payment received — service activated</h2>
   <p style="margin:0 0 12px">Your access token is ready. Keep it safe — it is the cryptographic proof of purchase.</p>
   <div class="row"><span class="k">Access token</span><span class="v mono" id="tok"></span></div>
@@ -623,7 +662,9 @@ a{color:var(--acc)}
   <div class="row"><span class="k">Txid</span><span class="v mono" id="tx">—</span></div>
   <p class="note">A W3C Verifiable Credential receipt has been issued. Use the verify button below to check the entitlement.</p>
   <p style="margin-top:10px"><a class="cta" id="walletDl" download="zeusai-entitlement.json" href="/api/entitlements/${TOK}/wallet.json" style="background:#f7931a;color:#05040a">💼 Add to wallet (VC)</a>
-  <a class="cta" style="background:#14132a;color:#eaf0ff;border:1px solid var(--line)" id="verifyLink" href="/api/entitlements/${TOK}">🔎 Verify entitlement</a></p>
+  <a class="cta" style="background:#14132a;color:#eaf0ff;border:1px solid var(--line)" id="verifyLink" href="/api/entitlements/${TOK}">🔎 Verify entitlement</a>
+  <a class="cta" style="background:#14132a;color:#eaf0ff;border:1px solid var(--line)" id="deliveryLink" href="/api/delivery/${order.orderId}">📦 View delivery package</a></p>
+  <p class="note" style="margin-top:8px">Delivery is processing automatically. The delivery link above will show your artifacts once ready.</p>
 </div>
 
 <footer>Settlement: direct on-chain to owner wallet · No custodian · 30Y-LTS sovereign commerce · ${OWNER_DOMAIN}</footer>
@@ -1054,4 +1095,4 @@ setInterval(() => { getBtcPrice().catch((e) => console.warn('[commerce] BTC pric
 
 console.log('[commerce] ready · addr=' + OWNER_BTC + ' · data=' + DATA_DIR + ' · watch=' + WATCH_MS + 'ms · min_confs=' + MIN_CONFS);
 
-module.exports = { handle, scanIncoming, getBtcPrice, createOrder, ORDERS, WATCH_STATE, recordCatalogItems };
+module.exports = { handle, scanIncoming, getBtcPrice, createOrder, ORDERS, WATCH_STATE, recordCatalogItems, setDeliveryHook, _fireDelivery };

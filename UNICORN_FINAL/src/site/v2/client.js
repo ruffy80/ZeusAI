@@ -1496,12 +1496,12 @@ async function hydrateHome(){
       { id:'manufacturing', title:'Manufacturing', outcomes:['downtime reduction','predictive maintenance'] }
     ];
     vroot.innerHTML = verts.slice(0,12).map(v => `
-      <div class="card">
+      <a class="card" href="/services" data-link style="display:block;text-decoration:none;color:inherit">
         <span class="tag">${escapeHtml(v.id||'')}</span>
         <h3>${escapeHtml(v.title)}</h3>
         <p>Pre‑configured ${escapeHtml(v.title)} OS — compliance, pricing & marketplace lineage shipped by default.</p>
         <div class="row"><span>${(v.outcomes||[]).slice(0,2).map(escapeHtml).join(' · ')}</span><b>→</b></div>
-      </div>`).join('');
+      </a>`).join('');
   }
   if (snap && snap.telemetry) { $('#statModules') && ($('#statModules').textContent = snap.modules?.length || 169); }
   hydrateCommerceProof();
@@ -1931,7 +1931,9 @@ function initFinalLive(services){
         body: JSON.stringify({ message: prompt, taskType: 'analysis', ai: 'auto' })
       }).then(function(r){ return r.json(); }).catch(function(e){ return { error: String(e) }; });
       if (aiModeEl && res && res.selection) aiModeEl.textContent = (res.selection.selected || 'auto') + ' selected';
-      const txt = res && res.reply ? String(res.reply).slice(0, 1200) : JSON.stringify(res, null, 2);
+      const isFallback = res && (res.fallback === true || res.provider === 'fallback');
+      const prefix = isFallback ? '[Fallback response — no live AI provider reachable]\n\n' : '';
+      const txt = res && res.reply ? prefix + String(res.reply).slice(0, 1200) : JSON.stringify(res, null, 2);
       aiOut.textContent = txt;
     };
   }
@@ -2490,35 +2492,16 @@ function initServiceNarrative(service){
   const buy = document.getElementById('svcBuyBtn');
   if (!runBtn || !out || !bar || !pct) return;
 
-  let timer = null;
+  // Honest preview — no fake activation progress. Buy is always available for real BTC checkout.
+  if (buy) buy.classList.add('cinema-unlocked');
+  bar.style.width = '100%';
+  pct.textContent = 'ready';
+  out.textContent = 'Real path: BTC checkout → on-chain confirm → activation pack at /api/delivery/{orderId}. No simulated unlock.';
+  runBtn.textContent = 'Continue to BTC checkout →';
   runBtn.onclick = function(){
-    if (timer) clearInterval(timer);
-    runBtn.disabled = true;
-    let p = 0;
-    const phases = [
-      'Phase 01/04 · Calibrating service context…',
-      'Phase 02/04 · Hardening anti-quantum payment path…',
-      'Phase 03/04 · Preparing activation receipt signature…',
-      'Phase 04/04 · Unlock complete. Redirect-ready.'
-    ];
-    out.textContent = phases[0];
-    timer = setInterval(function(){
-      p += 7;
-      if (p > 100) p = 100;
-      bar.style.width = p + '%';
-      pct.textContent = p + '%';
-      if (p > 25) out.textContent = phases[1];
-      if (p > 55) out.textContent = phases[2];
-      if (p > 88) out.textContent = phases[3];
-      if (p >= 100) {
-        clearInterval(timer);
-        timer = null;
-        runBtn.disabled = false;
-        runBtn.textContent = 'Run again';
-        if (buy) buy.classList.add('cinema-unlocked');
-        out.textContent = 'Service ' + (service && service.id ? service.id : 'module') + ' is unlock-ready. Continue to checkout.';
-      }
-    }, document.documentElement.classList.contains('reduced-motion') ? 120 : 90);
+    const sid = service && service.id ? encodeURIComponent(service.id) : '';
+    if (sid) location.href = '/checkout/?plan=' + sid;
+    else location.href = '/services';
   };
 }
 
@@ -2691,21 +2674,29 @@ function hydrateCheckout(){
     const customerToken = getCustToken();
     try {
       const r = await api('/api/uaic/order', { method:'POST', body: JSON.stringify({ method:'PAYPAL', plan:pl, amount_usd:amt, email, ref, customerToken }) });
-      if (r && r.receipt) {
+        if (r && r.receipt) {
         currentReceipt = r.receipt;
         showReceiptStatus(r.receipt);
         if (r.receipt.approveHref) {
           toast('Order created · opening PayPal…','ok');
           window.open(r.receipt.approveHref, '_blank', 'noopener');
           startPolling(r.receipt.id);
-        } else if (ppHandle) {
-          const fallback = ppHandle.startsWith('http') ? ppHandle
-            : (!ppHandle.includes('@') ? `https://paypal.me/${encodeURIComponent(ppHandle)}/${amt}`
-            : `mailto:${encodeURIComponent(ppHandle)}?subject=ZeusAI%20-%20${encodeURIComponent(pl)}%20%24${amt}`);
-          toast('Opening paypal.me fallback…','ok');
-          window.open(fallback, '_blank', 'noopener');
-          startPolling(r.receipt.id);
-        } else toast('PayPal link missing','err');
+        } else {
+          // Only fall back to paypal.me when PayPal is genuinely configured as
+          // a payment rail — not when it's just the owner contact email.
+          const paypalConfigured = (STATE.paymentMethods || []).some(
+            (m) => (m.id === 'paypal') && m.active !== false
+          );
+          if (paypalConfigured && ppHandle && !ppHandle.includes('@')) {
+            const fallback = ppHandle.startsWith('http') ? ppHandle
+              : `https://paypal.me/${encodeURIComponent(ppHandle)}/${amt}`;
+            toast('Opening paypal.me…','ok');
+            window.open(fallback, '_blank', 'noopener');
+            startPolling(r.receipt.id);
+          } else {
+            toast('PayPal is not configured. Use BTC checkout instead.','err');
+          }
+        }
       } else toast('Could not start PayPal order','err');
     } finally {
       setBusy('coPayPP', false);
@@ -4105,7 +4096,7 @@ async function hydrateStore(){
   const tierNotes = {
     instant: 'One-time purchase · deliverable generated in <60s after BTC settlement · Ed25519-signed HTML/JSON artifacts',
     professional: 'Monthly SaaS subscription · API key + features provisioned on first payment · BTC or card (Stripe if configured)',
-    enterprise: 'Signed enterprise license · BTC on-chain or SWIFT/SEPA wire · Full onboarding runbook + dedicated SRE on activation'
+    enterprise: 'Signed enterprise license · BTC on-chain · SWIFT/SEPA wire available when runtime wire credentials are configured · Full onboarding runbook + dedicated SRE on activation'
   };
   function showTier(tier){
     tabs.forEach(t => {

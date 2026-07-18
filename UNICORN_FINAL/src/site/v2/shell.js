@@ -948,7 +948,7 @@ function pageHome() {
     <div>
       <span class="hero-eyebrow" style="background:linear-gradient(135deg,#8a5cff,#3ea0ff);color:#05060e;font-weight:800;padding:5px 12px;border-radius:999px;font-size:11px;letter-spacing:.1em">\u26a1 NEW \u00b7 WORLD-FIRST</span>
       <h2 style="margin:14px 0 6px;font-size:clamp(26px,3vw,40px);line-height:1.1">Zeus Autonomic Commerce <span class="grad">\u2014 the first fully-autonomous economic engine</span></h2>
-      <p style="color:var(--ink-dim);font-size:15px;margin:0 0 18px;line-height:1.55">It scans 20+ market sources, synthesises product ideas, builds &amp; prices them, sells in BTC (confirmed on-chain via mempool.space), heals itself, learns weekly and evolves monthly. <strong>Zero human in the loop.</strong></p>
+      <p style="color:var(--ink-dim);font-size:15px;margin:0 0 18px;line-height:1.55">Sources products from a seed catalogue plus live marketplace APIs when provider keys are configured. Synthesises ideas, prices them, sells in BTC (confirmed on-chain via mempool.space), and heals itself. Orders route to CJ Dropshipping automatically when configured; otherwise queued for manual fulfilment.</p>
       <div style="display:flex;gap:12px;flex-wrap:wrap">
         <a class="btn btn-primary" href="/zacc" data-link>\u26a1 Open Autonomous Commerce \u2192</a>
         <a class="btn btn-ghost" href="/api/zacc/public" target="_blank" rel="noopener">Live JSON snapshot</a>
@@ -991,7 +991,7 @@ function pageHome() {
         <a href="/trust" data-link style="color:var(--violet2)">Trust center</a>
       </div>
       <div class="hero-stats" id="heroStats">
-        <div class="hero-stat"><b id="statModules">169</b><span>Live modules</span></div>
+        <div class="hero-stat"><b id="statModules">169</b><span>Modules</span></div>
         <div class="hero-stat"><b id="statVerticals">18</b><span>Verticals</span></div>
         <div class="hero-stat"><b id="statMarkets">41</b><span>Marketplaces</span></div>
         <div class="hero-stat"><b id="statChain">—</b><span>Chain length</span></div>
@@ -1172,8 +1172,8 @@ ${_featuredHtml}
     <div class="panel pillar" data-pillar="quarantine" tabindex="0" role="button" aria-label="Open Quarantine Buffer live view"><div class="ic">🛡️</div><h3 class="pillar-title">Quarantine Buffer</h3><p>Quantum Integrity Shield isolates suspect modules before they touch the core. Safe‑code‑writer enforces review gates.</p><span class="pillar-cta">Open live quarantine →</span></div>
     <div class="panel pillar" data-pillar="did" tabindex="0" role="button" aria-label="Open Self-Sovereign DIDs live view"><div class="ic">🪪</div><h3 class="pillar-title">Self‑Sovereign DIDs</h3><p>Ed25519 identities per module. Every receipt, every invoice, every module action is independently verifiable.</p><span class="pillar-cta">Resolve & verify →</span></div>
     <div class="panel pillar" data-pillar="outcome" tabindex="0" role="button" aria-label="Open Outcome Economics live view"><div class="ic">💎</div><h3 class="pillar-title">Outcome Economics</h3><p>Value‑Proof Ledger meters delivered value in $. Auto‑invoices a share. Owner keeps sovereignty through direct BTC settlement.</p><span class="pillar-cta">Record outcome →</span></div>
-    <div class="panel pillar" data-pillar="giants" tabindex="0" role="button" aria-label="Open Giant Integration Fabric live view"><div class="ic">🌐</div><h3 class="pillar-title">Giant Integration Fabric</h3><p>42 hyperscalers and enterprise giants (AWS, Azure, GCP, SF, SAP, SNOW, OpenAI, NVIDIA…) behind a single markup‑aware bus.</p><span class="pillar-cta">Dispatch to giants →</span></div>
-    <div class="panel pillar" data-pillar="monetize" tabindex="0" role="button" aria-label="Open Global Monetization Mesh live view"><div class="ic">🚀</div><h3 class="pillar-title">Global Monetization Mesh</h3><p>41 marketplaces, multi‑armed bandit pricing. 572M+ reach. Publish once, sell everywhere.</p><span class="pillar-cta">Publish listing →</span></div></div>
+    <div class="panel pillar" data-pillar="giants" tabindex="0" role="button" aria-label="Open Giant Integration Fabric live view"><div class="ic">🌐</div><h3 class="pillar-title">Giant Integration Fabric</h3><p>42 hyperscaler / enterprise adapters (AWS, Azure, GCP, SF, SAP, SNOW, OpenAI, NVIDIA…). In-memory orchestration — live dispatch requires provider API keys.</p><span class="pillar-cta">Open local orchestrator →</span></div>
+    <div class="panel pillar" data-pillar="monetize" tabindex="0" role="button" aria-label="Open Global Monetization Mesh live view"><div class="ic">🚀</div><h3 class="pillar-title">Global Monetization Mesh</h3><p>41 marketplace adapters, multi‑armed bandit pricing. In-memory listing planner — live publish requires marketplace API keys.</p><span class="pillar-cta">Open listing planner →</span></div></div>
   <div id="pillarLive" class="pillar-live" aria-live="polite"></div>
 </section>
 
@@ -1217,7 +1217,7 @@ ${_featuredHtml}
 <section>
   <div class="section-title">
     <div><span class="kicker">Verticals</span><h2>Eighteen industries. <span class="grad">One sovereign brain.</span></h2></div>
-    <p>From finance to pharma, ZeusAI ships pre‑configured vertical OSes — each with its own compliance, pricing, and marketplace lineage.</p>
+    <p>From finance to pharma, ZeusAI offers vertical architecture packs — engagement kickoff with compliance, pricing, and marketplace lineage. Not a finished OS shipped on payment.</p>
   </div>
   <div class="grid" id="verticals"></div>
 </section>`;
@@ -1514,7 +1514,7 @@ function pageHow() {
     <div class="panel"><div class="ic">4</div><h3 class="pillar-title">Quarantine Shield</h3><p>Isolates suspect behavior. No auto‑restart loops. Safe‑code‑writer gates every change.</p></div>
     <div class="panel"><div class="ic">5</div><h3 class="pillar-title">Revenue Router</h3><p>Every $ is Ed25519‑signed and routed to the owner's BTC. Zero custodians.</p></div>
     <div class="panel"><div class="ic">6</div><h3 class="pillar-title">Value‑Proof Ledger</h3><p>Every outcome is measured in $. Auto‑invoice (bps share) on proven value.</p></div>
-    <div class="panel"><div class="ic">7</div><h3 class="pillar-title">Monetization Mesh</h3><p>41 marketplaces, multi‑armed bandit pricing. Publish once, sell everywhere.</p></div>
+    <div class="panel"><div class="ic">7</div><h3 class="pillar-title">Monetization Mesh</h3><p>41 marketplace adapters, multi‑armed bandit pricing. In-memory listing planner — live publish requires marketplace API keys.</p></div>
   </div>
 </section>
 
@@ -1930,8 +1930,8 @@ function pageStore() {
   return `<section class="enterprise-hero" style="padding-top:120px">
   <div style="max-width:1280px;margin:0 auto;padding:0 28px">
     <span class="kicker" style="color:#ffd36a">ZeusAI Store · ${totalSellable} sellable services across the curated catalogue + auto-published Unicorn library · $${totalCatalogueValue.toLocaleString('en-US', { maximumFractionDigits: 0 })} total catalogue value</span>
-    <h1 style="font-size:clamp(36px,5vw,64px);line-height:1.04;margin:14px 0 18px;letter-spacing:-0.02em;background:linear-gradient(135deg,#fff 0%,#ffd36a 40%,#8a5cff 100%);-webkit-background-clip:text;background-clip:text;color:transparent">Buy it. Pay with BTC, card or wire. Use it instantly.</h1>
-    <p style="color:var(--ink-dim);font-size:18px;max-width:900px;line-height:1.55">Every service ZeusAI offers — from $29 digital deliverables to enterprise licenses, plus every backend module auto-published from the live Unicorn — purchasable directly from this page. Bitcoin on-chain for instant fulfillment, Stripe for cards, SWIFT/SEPA wire for enterprise. Every artifact Ed25519-signed.</p>
+    <h1 style="font-size:clamp(36px,5vw,64px);line-height:1.04;margin:14px 0 18px;letter-spacing:-0.02em;background:linear-gradient(135deg,#fff 0%,#ffd36a 40%,#8a5cff 100%);-webkit-background-clip:text;background-clip:text;color:transparent">Buy it. Pay with BTC. Use it instantly.</h1>
+    <p style="color:var(--ink-dim);font-size:18px;max-width:900px;line-height:1.55">Every service ZeusAI offers — from $29 digital deliverables to enterprise licenses, plus every backend module auto-published from the live Unicorn — purchasable directly from this page. Bitcoin on-chain for instant fulfillment. Card/Stripe and SWIFT/SEPA wire appear only when runtime credentials are configured. Every artifact Ed25519-signed.</p>
 
     <div id="storeStats" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:14px;margin:30px 0 20px">
       <div class="card"><span class="tag">Instant</span><h3 style="margin:6px 0 0;font-size:24px">${counts.instant}</h3></div>
@@ -3071,16 +3071,17 @@ function renderRoute(route, params = {}) {
 
 function pageSocialNetwork() {
   return `<section class="section"><div class="container">
-    <div class="kicker">Global Social Layer</div>
+    <div class="kicker">Autonomous Social Layer</div>
     <h1 class="h1">ZEUS NETWORK</h1>
-    <p style="color:var(--ink-dim);max-width:860px">A real social interface: stories, composer, live feed, trending and creator activity — powered by autonomous orchestration.</p>
+    <p style="color:var(--ink-dim);max-width:860px">Feed driven by ZeusAI's autonomous orchestration module. Metrics (active users, growth) reflect the module's internal simulation state — not external social platform users. Read-only view.</p>
 
-    <div class="card" style="margin-top:14px;padding:14px">
+    <div class="card" style="margin-top:14px;padding:14px;opacity:.7">
       <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
         <div style="width:38px;height:38px;border-radius:999px;background:linear-gradient(135deg,#7cf7c0,#3b82f6);display:flex;align-items:center;justify-content:center;font-weight:700;color:#04131d">Z</div>
-        <input disabled value="What's happening in ZEUS NETWORK?" style="flex:1;min-width:220px;background:#0d1528;border:1px solid #2b3a59;color:#9fb2d7;border-radius:999px;padding:10px 14px" />
-        <button class="btn" disabled>Post</button>
+        <input disabled value="Publishing requires connected social providers" style="flex:1;min-width:220px;background:#0d1528;border:1px solid #2b3a59;color:#9fb2d7;border-radius:999px;padding:10px 14px" />
+        <button class="btn" disabled title="Connect social providers to enable posting">Post</button>
       </div>
+      <p style="margin:8px 0 0;font-size:12px;color:var(--ink-dim)">Posting is disabled — no external social providers are connected. This feed reflects module state only.</p>
     </div>
 
     <h2 style="margin-top:18px">Stories</h2>
@@ -3109,7 +3110,7 @@ function pageSocialNetwork() {
           '<div><strong>'+esc(author||'Zeus Node')+'</strong><div style="color:var(--ink-dim);font-size:12px">'+esc(meta||'live now')+'</div></div>'+
         '</div>'+
         '<p style="margin:10px 0 12px;line-height:1.5">'+esc(text||'')+'</p>'+
-        '<div style="display:flex;gap:14px;color:var(--ink-dim);font-size:13px"><span>♥ Like</span><span>💬 Comment</span><span>↗ Share</span></div>'+
+        '<div style="display:flex;gap:14px;color:var(--ink-dim);font-size:13px;opacity:.45;pointer-events:none;user-select:none"><span>♥ Like</span><span>💬 Comment</span><span>↗ Share</span></div>'+
       '</div>';
     }
     async function r(){
@@ -3120,11 +3121,11 @@ function pageSocialNetwork() {
           card('Mode', d.mode||'—', d.dryRun?'dry-run':'live')+
           card('Health runs', String(d.healthRuns||0), d.lastHealthAt||'n/a')+
           card('Profit/day', '$'+(m.profitUsdDay||0), (m.profitBtcDay||0)+' BTC')+
-          card('User growth', (m.userGrowthPct24h||0)+'%', 'active users '+(m.activeUsers||0));
+          card('Module metric', (m.userGrowthPct24h||0)+'% growth', 'internal simulation · not live user count');
 
         const stories=[
-          {n:'Global',v:'🌍 '+(m.activeUsers||0)+' online'},
-          {n:'Growth',v:'📈 '+(m.userGrowthPct24h||0)+'% / 24h'},
+          {n:'Module state',v:'⚙️ '+(d.mode||'dry-run')},
+          {n:'Growth signal',v:'📈 '+(m.userGrowthPct24h||0)+'% / 24h'},
           {n:'Revenue',v:'💸 $'+(m.profitUsdDay||0)+'/day'},
           {n:'Safety',v:'🛡 '+(d.mode||'dry-run')},
         ];
@@ -3581,12 +3582,12 @@ function pagePledge() {
 function pageCancel() {
   return `<section style="padding-top:140px;max-width:680px">
   <span class="kicker">Universal Cancel · F10</span>
-  <h1 style="font-size:clamp(34px,4.4vw,56px);margin:10px 0 18px">One click. <span class="grad">Everything cancels.</span></h1>
-  <p style="color:var(--ink-dim);font-size:16px;line-height:1.7">No friction. No "are you sure". No retention chat-bot. Type your email — every active subscription is cancelled within 60 seconds. You receive a signed cryptographic confirmation by email.</p>
+  <h1 style="font-size:clamp(34px,4.4vw,56px);margin:10px 0 18px">One click. <span class="grad">Cancellation recorded.</span></h1>
+  <p style="color:var(--ink-dim);font-size:16px;line-height:1.7">No dark patterns, no retention chat-bot. Type your email — your cancellation request is cryptographically signed and recorded immediately. The owner is notified to process it. A confirmation (with cancellation proof) follows by email once your active subscriptions are cancelled.</p>
   <div class="card" style="padding:24px;margin-top:18px">
     <div class="field"><label>Email on account</label><input id="cnEmail" type="email" placeholder="you@company.com"></div>
     <div class="field"><label>Reason (optional)</label><input id="cnReason" placeholder="moving on, no hard feelings"></div>
-    <button class="btn btn-primary" id="cnBtn" style="width:100%;justify-content:center">Cancel everything · 1 click</button>
+    <button class="btn btn-primary" id="cnBtn" style="width:100%;justify-content:center">Record cancellation request →</button>
     <div id="cnOut" style="margin-top:14px;color:var(--ink-dim);font-size:13.5px"></div>
   </div>
   <script>
@@ -3608,14 +3609,14 @@ function pageGift() {
   return `<section style="padding-top:140px;max-width:880px">
   <span class="kicker">Gift-as-Capability · F8</span>
   <h1 style="font-size:clamp(34px,4.4vw,56px);margin:10px 0 18px">Send ZeusAI as a <span class="grad">cryptographic gift.</span></h1>
-  <p style="color:var(--ink-dim);font-size:16px;line-height:1.7">No account required for the recipient. They click your link, redeem the signed capability, get the service activated.</p>
+  <p style="color:var(--ink-dim);font-size:16px;line-height:1.7">No account required for the recipient. A signed gift code is generated and logged — the recipient can redeem it via the link you share. Fulfilment (service activation) is handled manually by the owner after redemption; this is a gift-intent / code-logging system, not automated instant delivery.</p>
   <div class="card" style="padding:24px;margin-top:18px">
     <div class="field"><label>Service / SKU</label><input id="gtSku" value="adaptive-ai"></div>
     <div class="field"><label>Value (USD)</label><input id="gtVal" type="number" value=""></div>
     <div class="field"><label>From email</label><input id="gtFrom" type="email"></div>
     <div class="field"><label>To email (optional)</label><input id="gtTo" type="email"></div>
     <div class="field"><label>Message</label><input id="gtMsg" placeholder="Use ZeusAI on me 🎁"></div>
-    <button class="btn btn-primary" id="gtBtn" style="width:100%;justify-content:center">Mint signed gift →</button>
+    <button class="btn btn-primary" id="gtBtn" style="width:100%;justify-content:center">Generate signed gift code →</button>
     <div id="gtOut" style="margin-top:14px"></div>
   </div>
   <script>
@@ -3629,7 +3630,7 @@ function pageGift() {
     };
     const r = await fetch('/api/gift/mint', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) });
     const d = await r.json();
-    document.getElementById('gtOut').innerHTML = '<div class="card" style="border-color:var(--violet)"><h3>'+d.code+'</h3><p style="color:var(--ink-dim)">Share this URL: <code class="inline">'+location.origin+d.redeemUrl+'</code></p><p style="color:var(--ink-dim);font-size:12px">Signed at '+d.mintedAt+'</p></div>';
+    document.getElementById('gtOut').innerHTML = '<div class="card" style="border-color:var(--violet)"><h3>'+d.code+'</h3><p style="color:var(--ink-dim)">Share this redemption URL: <code class="inline">'+location.origin+d.redeemUrl+'</code></p><p style="color:var(--ink-dim);font-size:12px">Signed at '+d.mintedAt+' · recipient redeems the code; the owner will activate the service manually.</p></div>';
   });
   </script>
 </section>`;
@@ -3789,7 +3790,7 @@ function pageContact() {
 }
 
 const FAQ_ITEMS = [
-  { q: 'What exactly am I buying?', a: 'A live AI capability: vertical OS, frontier module or strategic service. Every purchase mints an Ed25519-signed entitlement credential plus an API key — verifiable offline, owned by you.' },
+  { q: 'What exactly am I buying?', a: 'A real deliverable: curated instant/professional SKUs with fulfillment recipes, or an engagement kickoff / architecture pack for frontier and vertical offers (not a finished OS shipped on payment). Every purchase mints an Ed25519-signed entitlement credential plus an API key — verifiable offline, owned by you.' },
   { q: 'How does payment work?', a: 'Direct BTC checkout settles on-chain to the owner wallet — no custodian, no processor in the middle. A 10% sovereign discount applies automatically to BTC checkouts. Cards/PayPal appear only when those rails are configured live.' },
   { q: 'Is the card price the same as the checkout price?', a: 'Yes — one canonical price engine quotes the card, the /pricing page and checkout. The quote is locked for 90 seconds so it never shifts mid-purchase.' },
   { q: 'What happens right after I pay?', a: 'The server watches the mempool, auto-confirms settlement, then issues the signed receipt, license token and delivery credentials — typically within one confirmation.' },
@@ -3843,7 +3844,7 @@ function pageAffiliate() {
   return `<section style="padding-top:140px;max-width:980px">
   <span class="kicker">Affiliate</span>
   <h1 style="font-size:clamp(34px,4.4vw,56px);margin:10px 0 14px">Refer revenue, <span class="grad">get paid in BTC.</span></h1>
-  <p style="color:var(--ink-dim);max-width:640px">Referral tracking is live in production today. Generate your link below — every visit is logged server-side with your ref code and tied to purchases from that session.</p>
+  <p style="color:var(--ink-dim);max-width:640px">Referral tracking is live today — every visit is logged server-side with your ref code and tied to purchases. <strong style="color:#fff">BTC payouts are manual / early-access</strong>: the owner settles directly until automated payout rails ship.</p>
   <div class="card" style="padding:22px;margin-top:24px;display:grid;gap:12px;max-width:640px">
     <label style="font-size:12px;color:var(--ink-dim)">Your ref code (pick anything unique — your brand, handle, etc.)</label>
     <div style="display:flex;gap:10px;flex-wrap:wrap">
@@ -3856,7 +3857,7 @@ function pageAffiliate() {
   <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px;margin-top:22px">
     <div class="card" style="padding:18px"><span class="tag">1 · Share</span><p style="color:var(--ink-dim);font-size:14px;margin:10px 0 0">Your link points at any ZeusAI page with <code class="inline">?ref=you</code>. The tracker beacon fires automatically on landing.</p></div>
     <div class="card" style="padding:18px"><span class="tag">2 · Tracked</span><p style="color:var(--ink-dim);font-size:14px;margin:10px 0 0">Hits are appended to a server-side ledger (timestamp + ref). Honest infrastructure: no cookies-of-doom, no third-party pixels.</p></div>
-    <div class="card" style="padding:18px"><span class="tag">3 · Paid</span><p style="color:var(--ink-dim);font-size:14px;margin:10px 0 0">Commission terms are agreed per partner (typ. 10–25% of first-year revenue), settled in BTC to your wallet. <a href="/contact" data-link>Apply via contact</a> — mention your ref code.</p></div>
+    <div class="card" style="padding:18px"><span class="tag">3 · Paid</span><p style="color:var(--ink-dim);font-size:14px;margin:10px 0 0">Commission terms agreed per partner (typ. 10–25% of first-year revenue). <strong style="color:#fff">Payouts are currently manual</strong> — the owner settles directly in BTC to your wallet (early-access). <a href="/contact" data-link>Apply via contact</a> — mention your ref code.</p></div>
   </div>
   <p style="color:var(--ink-dim);font-size:13px;margin-top:18px">Program status: early-access — tracking live, payouts handled directly by the owner until self-serve dashboards ship. Everything above is real today; nothing more is promised.</p>
   <script>
@@ -3872,7 +3873,7 @@ function pagePartners() {
   <p style="color:var(--ink-dim);max-width:640px">Three partnership lanes, all with direct owner access and BTC-native settlement.</p>
   <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:14px;margin-top:26px">
     <div class="card" style="padding:22px"><span class="tag">Reseller</span><h3 style="margin:12px 0 8px">Sell ZeusAI services</h3><p style="color:var(--ink-dim);font-size:14px;line-height:1.7">White-label or co-branded. You own the client relationship; delivery, receipts and licensing run on our signed infrastructure. Margin agreed per vertical.</p></div>
-    <div class="card" style="padding:22px"><span class="tag">Integrator</span><h3 style="margin:12px 0 8px">Deploy vertical OSes</h3><p style="color:var(--ink-dim);font-size:14px;line-height:1.7">Implement the ${'18'} vertical AI operating systems for your clients. Full API access (<a href="/docs" data-link>docs</a>, <a href="/openapi.json">OpenAPI</a>), signed outcomes, your services on top.</p></div>
+    <div class="card" style="padding:22px"><span class="tag">Integrator</span><h3 style="margin:12px 0 8px">Deliver vertical architecture packs</h3><p style="color:var(--ink-dim);font-size:14px;line-height:1.7">Implement the ${'18'} vertical engagement kickoff / architecture packs for your clients. Full API access (<a href="/docs" data-link>docs</a>, <a href="/openapi.json">OpenAPI</a>), signed outcomes, your services on top.</p></div>
     <div class="card" style="padding:22px"><span class="tag">Technology</span><h3 style="margin:12px 0 8px">Agent-to-agent commerce</h3><p style="color:var(--ink-dim);font-size:14px;line-height:1.7">Your AI agents can buy capabilities from ours autonomously via <code class="inline">/agents.json</code> + signed checkout. The first commerce protocol designed for non-human buyers.</p></div>
   </div>
   <div class="card" style="padding:18px;margin-top:22px;display:flex;gap:12px;align-items:center;flex-wrap:wrap">
