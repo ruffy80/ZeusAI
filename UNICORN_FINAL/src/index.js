@@ -5674,7 +5674,7 @@ seedSsrMap();if(document.getElementById("ds-sort")&&!document.getElementById("ds
 
   // Alias redirects — these used to fall through to a homepage clone (200),
   // which made /unicorn, /catalog, /orders, /wallet look "broken".
-  if (req.method === 'GET') {
+  if (req.method === 'GET' || req.method === 'HEAD') {
     const aliasMap = {
       '/unicorn': '/unicorn-cockpit',
       '/catalog': '/services',
@@ -5687,6 +5687,7 @@ seedSsrMap();if(document.getElementById("ds-sort")&&!document.getElementById("ds
     };
     if (aliasMap[urlPath]) {
       res.writeHead(302, { Location: aliasMap[urlPath], 'Cache-Control': 'no-store' });
+      if (req.method === 'HEAD') return res.end();
       return res.end('Redirecting to ' + aliasMap[urlPath]);
     }
   }
