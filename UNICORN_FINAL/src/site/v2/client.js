@@ -559,6 +559,8 @@ document.addEventListener('click', (e) => {
 document.addEventListener('click', e => {
   const a = e.target.closest('a[data-link]');
   if (!a) return;
+  // Sovereign checkout owns the click (capture handler) — never SPA-navigate.
+  if (a.hasAttribute('data-sovereign-buy') || e.target.closest('[data-sovereign-buy]')) return;
   const href = a.getAttribute('href');
   if (!href || href.startsWith('http') || href.startsWith('mailto:')) return;
   if (href.startsWith('#')) {
@@ -1264,7 +1266,7 @@ async function hydratePage(route){
   } catch (e) { console.warn('hydratePage:tbDispose', e && e.message); }
 
   try { if (route === '/') { if (THREE && !window.__UNICORN_THREE_STUB__) initTourbillon(); await hydrateHome(); initPillars(); } } catch (e) { console.warn('hydratePage:home', e && e.message); }
-  try { if (route === '/services' || route === '/marketplace' || route === '/store') await hydrateMasterCatalog(); } catch (e) { console.warn('hydratePage:services', e && e.message); }
+  try { if (route === '/services' || route === '/marketplace') await hydrateMasterCatalog(); } catch (e) { console.warn('hydratePage:services', e && e.message); }
   try { if (route === '/pricing') await hydratePricingPage(); } catch (e) { console.warn('hydratePage:pricing', e && e.message); }
   try { if (route.startsWith('/services/')) await hydrateServiceDetail(route.slice(10)); } catch (e) { console.warn('hydratePage:serviceDetail', e && e.message); }
   try { if (route === '/checkout') hydrateCheckout(); } catch (e) { console.warn('hydratePage:checkout', e && e.message); }
@@ -1280,39 +1282,52 @@ async function hydratePage(route){
 }
 
 let cinematicBound = false;
+function _sectionMustStayVisible(s){
+  if (!s) return false;
+  // Commerce / catalog / modules / dropship must never sit at opacity:0.
+  // Nested <section>s inside /services were left invisible because only the
+  // outer section got .revealed while the safety net checked "any visible".
+  if (s.closest && s.closest('.ds-world')) return true;
+  const id = String(s.id || '');
+  if (id === 'autonomousLiveSection' || id === 'unicornModulesMirror' || id === 'catalogGrid' || id === 'storeGrid' || id === 'storeCheckout' || id === 'servicePage') return true;
+  if (s.querySelector && s.querySelector('#catalogGrid, #storeGrid, #autonomousServicesGrid, [data-product-id], .store-buy, [data-sovereign-buy]')) return true;
+  return false;
+}
 function initCinematicInteractions(){
-  // reveal sections
+  // reveal sections — stamp once; never re-hide on SPA re-hydrate
   const sections = Array.from(document.querySelectorAll('section'));
   sections.forEach(function(s){
-    // Dropship OS storefront must never start at opacity:0 — the product grid
-    // was invisible while data-reveal waited on IntersectionObserver.
-    if (s.closest && s.closest('.ds-world')) {
+    if (_sectionMustStayVisible(s)) {
       s.classList.add('revealed');
+      s.setAttribute('data-reveal', '');
       return;
     }
-    s.setAttribute('data-reveal','');
+    if (s.getAttribute('data-reveal') == null) s.setAttribute('data-reveal', '');
   });
   // Fail-safe: reveal the first section immediately so no route can render as
   // a fully blank screen even if IntersectionObserver is delayed/throttled.
   if (sections[0]) sections[0].classList.add('revealed');
+  // Nested commerce sections: reveal immediately (IO often misses offscreen nests).
+  sections.forEach(function(s){
+    if (_sectionMustStayVisible(s)) s.classList.add('revealed');
+  });
   if ('IntersectionObserver' in window) {
     const io = new IntersectionObserver(function(entries){
       entries.forEach(function(en){
         if (en.isIntersecting) en.target.classList.add('revealed');
       });
-    }, { threshold: 0.12 });
+    }, { threshold: 0.08, rootMargin: '80px 0px' });
     sections.forEach(function(s){ io.observe(s); });
   } else {
     sections.forEach(function(s){ s.classList.add('revealed'); });
   }
-  // Extra safety net for browsers/device modes where observers can stall on
-  // first paint: force-reveal after a short delay if nothing became visible.
+  // Force-reveal ALL remaining sections — not just when zero are visible.
+  // (Previously nested marketplace grids stayed opacity:0 forever.)
   setTimeout(function(){
     try {
-      const anyVisible = sections.some(function(s){ return s.classList.contains('revealed'); });
-      if (!anyVisible) sections.forEach(function(s){ s.classList.add('revealed'); });
+      sections.forEach(function(s){ s.classList.add('revealed'); });
     } catch (_) {}
-  }, 900);
+  }, 700);
 
   // tilt surfaces
   var tiltTargets = Array.from(document.querySelectorAll('.card, .panel'));
@@ -2096,8 +2111,9 @@ function masterCardHtml(it){
   // Pre-order eligible: speculative R&D primitives are sold as forward-locks
   // at 30% of the listed price (configurable server-side via COMMERCE_PREORDER_PCT).
   const isPreorderEligible = it.group === 'future-invention' && priceUsd > 0;
+  // Sovereign BTC only on Buy — no data-link (SPA fetch raced with checkout create).
   const buyBtn = priceUsd > 0
-    ? '<a class="btn btn-primary" href="/checkout/?plan=' + encodeURIComponent(id) + '" data-link data-sovereign-buy="' + idAttr + '" aria-label="Buy ' + title + ' with Bitcoin" style="flex:1;justify-content:center">Buy with BTC →</a>'
+    ? '<a class="btn btn-primary" href="/checkout/?plan=' + encodeURIComponent(id) + '" data-sovereign-buy="' + idAttr + '" aria-label="Buy ' + title + ' with Bitcoin" style="flex:1;justify-content:center">Buy with BTC →</a>'
     : '<a class="btn btn-ghost" href="/services/' + encodeURIComponent(id) + '" data-link style="flex:1;justify-content:center">Activate free</a>';
   const preorderBtn = isPreorderEligible
     ? '<button type="button" class="btn btn-ghost" data-sovereign-buy="' + idAttr + '" data-sovereign-preorder="1" style="justify-content:center;border-color:#7cf3ff66;color:#7cf3ff" title="Reserve early access at 30% now — locks the price for 365 days">⏳ Reserve 30%</button>'
@@ -2153,10 +2169,12 @@ if (typeof window !== 'undefined') {
       const t = ev.target && ev.target.closest && ev.target.closest('[data-sovereign-buy]');
       if (!t) return;
       ev.preventDefault();
+      ev.stopPropagation();
+      if (typeof ev.stopImmediatePropagation === 'function') ev.stopImmediatePropagation();
       const id = t.getAttribute('data-sovereign-buy');
       const preorder = t.getAttribute('data-sovereign-preorder') === '1';
       if (id) sovereignBuy(id, { preorder });
-    });
+    }, true);
   }
 }
 
@@ -3899,13 +3917,47 @@ window.addEventListener('DOMContentLoaded', () => {
 // changes or a new module appears. Auto-reconnects with exponential backoff.
 window.AUTONOMOUS_MODULES = window.AUTONOMOUS_MODULES || { byId: {}, rev: 0, updatedAt: null };
 
+function seedAutonomousModulesFromApi(){
+  // Public nginx → backend exposes /api/modules/list (auth-free).
+  // Site BFF /api/modules is often 401 at the edge because /api/* hits :3000.
+  const urls = ['/api/modules/list', '/api/modules'];
+  function apply(d){
+    if (!d) return false;
+    const list = Array.isArray(d.modules) ? d.modules : (Array.isArray(d) ? d : []);
+    if (!list.length) return false;
+    window.AUTONOMOUS_MODULES.byId = {};
+    for (let i = 0; i < list.length; i++) {
+      const m = list[i];
+      if (m && m.id) window.AUTONOMOUS_MODULES.byId[m.id] = m;
+    }
+    window.AUTONOMOUS_MODULES.rev = d.rev || window.AUTONOMOUS_MODULES.rev || 0;
+    window.AUTONOMOUS_MODULES.updatedAt = d.updatedAt || d.at || new Date().toISOString();
+    window.AUTONOMOUS_MODULES.upstreamConnected = d.upstreamConnected !== false;
+    applyAutonomousSnapshot();
+    return true;
+  }
+  (function tryNext(i){
+    if (i >= urls.length) return;
+    fetch(urls[i], { headers: { Accept: 'application/json' } })
+      .then(function(r){ return r.ok ? r.json() : null; })
+      .then(function(d){ if (!apply(d)) tryNext(i + 1); })
+      .catch(function(){ tryNext(i + 1); });
+  })(0);
+}
+
 function subscribeAutonomousEvents(){
+  seedAutonomousModulesFromApi();
   if (typeof EventSource === 'undefined') return;
   let es = null;
   let backoff = 1500;
+  // Prefer backend /api/modules/stream (public + has event:snapshot with modules).
+  // Fall back to /api/events (site BFF when nginx routes it).
+  const streamUrls = ['/api/modules/stream', '/api/events'];
+  let streamIdx = 0;
   function connect(){
-    try { es = new EventSource('/api/events'); }
-    catch(_) { setTimeout(connect, backoff); backoff = Math.min(backoff * 2, 30000); return; }
+    const url = streamUrls[streamIdx % streamUrls.length];
+    try { es = new EventSource(url); }
+    catch(_) { streamIdx += 1; setTimeout(connect, backoff); backoff = Math.min(backoff * 2, 30000); return; }
     es.addEventListener('snapshot', (ev) => {
       try {
         const d = JSON.parse(ev.data);
@@ -3957,6 +4009,7 @@ function subscribeAutonomousEvents(){
     });
     es.onerror = () => {
       try { es.close(); } catch(_){}
+      streamIdx += 1;
       setTimeout(connect, backoff);
       backoff = Math.min(backoff * 2, 30000);
     };
@@ -4005,27 +4058,40 @@ function renderAutonomousServicesGrid(target){
   const modules = Object.values(window.AUTONOMOUS_MODULES.byId || {})
     .filter(m => m && m.isActive !== false)
     .sort((a, b) => String(a.category).localeCompare(String(b.category)) || String(a.name).localeCompare(String(b.name)));
-  if (!modules.length) { target.innerHTML = '<div class="card" style="padding:18px;text-align:center;color:var(--ink-dim)">Module catalogue refreshing — open <a href="/services" data-link style="color:#bda4ff">/services</a> for the marketplace.</div>'; return; }
-  target.innerHTML = modules.map(m => {
+  if (!modules.length) {
+    target.innerHTML = '<div class="card" style="padding:18px;text-align:center;color:var(--ink-dim)">Module catalogue refreshing from Unicorn… <button type="button" class="btn btn-ghost" id="retryModulesSeed" style="margin-left:8px">Retry</button></div>';
+    const btn = document.getElementById('retryModulesSeed');
+    if (btn) btn.addEventListener('click', function(){ seedAutonomousModulesFromApi(); });
+    return;
+  }
+  // Cap paint size — full registry is hundreds of modules; show a useful slice.
+  const shown = modules.slice(0, 48);
+  target.innerHTML = shown.map(m => {
     const priceTxt = (m.defaultPrice != null && Number.isFinite(Number(m.defaultPrice)))
       ? '$' + Number(m.defaultPrice).toLocaleString('en-US', { maximumFractionDigits: 2 })
       : '—';
-    const buyHref = (m.defaultPrice != null && Number(m.defaultPrice) > 0)
+    const priced = m.defaultPrice != null && Number(m.defaultPrice) > 0;
+    const buyHref = priced
       ? '/checkout/?plan=' + encodeURIComponent(m.id)
       : '/services/' + encodeURIComponent(m.id);
-    const buyLabel = (m.defaultPrice != null && Number(m.defaultPrice) > 0) ? 'Buy now' : 'Learn more';
-    const safeName = escapeHtml(m.name);
-    const safeDesc = escapeHtml(m.description || (m.category + ' module'));
+    const buyLabel = priced ? 'Buy now' : 'Learn more';
+    const safeName = escapeHtml(m.name || m.id);
+    const safeDesc = escapeHtml(m.description || ((m.category || 'module') + ' module'));
+    const buyAttrs = priced
+      ? ' data-sovereign-buy="' + escapeHtml(m.id) + '"'
+      : ' data-link';
     return `<div class="card" data-autonomous-module="${escapeHtml(m.id)}" style="padding:20px;display:flex;flex-direction:column;gap:10px;border:1px solid rgba(255,255,255,.08)">
-      <div style="font-size:10px;letter-spacing:.18em;text-transform:uppercase;color:var(--ink-dim)">${escapeHtml(m.category)}</div>
+      <div style="font-size:10px;letter-spacing:.18em;text-transform:uppercase;color:var(--ink-dim)">${escapeHtml(m.category || 'module')}</div>
       <h3 style="margin:0;font-size:18px;letter-spacing:-0.01em">${safeName}</h3>
       <p style="margin:0;color:var(--ink-dim);font-size:13px;line-height:1.5">${safeDesc}</p>
       <div style="display:flex;justify-content:space-between;align-items:center;padding-top:12px;border-top:1px solid rgba(255,255,255,.06);margin-top:auto">
         <span data-live-price="${escapeHtml(m.id)}" style="font-weight:700;font-size:18px;color:#ffd36a">${priceTxt}</span>
-        <a class="btn btn-primary" href="${buyHref}" data-link style="padding:8px 14px;font-size:13px">${buyLabel}</a>
+        <a class="btn btn-primary" href="${buyHref}"${buyAttrs} style="padding:8px 14px;font-size:13px">${buyLabel}</a>
       </div>
     </div>`;
-  }).join('');
+  }).join('') + (modules.length > shown.length
+    ? '<div class="card" style="padding:16px;text-align:center;color:var(--ink-dim)">Showing ' + shown.length + ' of ' + modules.length + ' live modules · full buyable catalog is above</div>'
+    : '');
 }
 // ===================== END AUTONOMOUS LIVE BRIDGE =====================
 
@@ -4077,10 +4143,38 @@ function escStore(s){ return String(s==null?'':s).replace(/[&<>"]/g, c => ({'&':
 async function hydrateStore(){
   const grid = document.getElementById('storeGrid');
   if (!grid) return;
+  const ssrCards = grid.querySelectorAll('[data-product-id], .store-buy, article.card').length;
   const j = await fetch('/api/instant/catalog').then(r=>r.json()).catch(()=>({products:[], summary:null, _fetchError: true}));
   const rawProducts = Array.isArray(j.products) ? j.products : [];
+  // Preserve SSR when the API is empty/unhealthy (same pattern as /services).
+  if ((!rawProducts.length || j._fetchError) && ssrCards > 0) {
+    const note = document.getElementById('storeTabNote');
+    if (note) note.textContent = 'Showing server-rendered catalog (live hydrate pending).';
+    // Still wire tier tabs against SSR <details data-tier> blocks.
+    if (grid.dataset.storeTabsWired !== '1') {
+      grid.dataset.storeTabsWired = '1';
+      const tabs = document.querySelectorAll('.store-tab');
+      tabs.forEach(function(t){
+        t.addEventListener('click', function(){
+          const tier = t.dataset.tier;
+          tabs.forEach(function(x){
+            const on = x.dataset.tier === tier;
+            x.style.background = on ? 'linear-gradient(135deg,#8a5cff,#6d28d9)' : 'rgba(138,92,255,.1)';
+            x.style.color = on ? '#fff' : 'var(--ink)';
+          });
+          grid.querySelectorAll('.store-tier-block[data-tier]').forEach(function(block){
+            const show = block.getAttribute('data-tier') === tier;
+            block.style.display = show ? '' : 'none';
+            if (show) block.setAttribute('open', '');
+          });
+        });
+      });
+    }
+    return;
+  }
   if (j._fetchError && rawProducts.length === 0) {
-    grid.innerHTML = '<div style="color:#ffb86c;padding:40px;text-align:center">⚠️ Store catalog temporarily unavailable. Please refresh the page.</div>';
+    grid.innerHTML = '<div style="color:#ffb86c;padding:40px;text-align:center">Store catalog temporarily unavailable. Please refresh the page.</div>';
+    return;
   }
   const normTier = (t) => {
     if (t === 'instant' || t === 'professional' || t === 'enterprise') return t;
@@ -4112,7 +4206,7 @@ async function hydrateStore(){
       <div class="card" style="padding:16px"><div style="color:var(--ink-dim);font-size:12px;text-transform:uppercase;letter-spacing:.1em">Enterprise</div><div style="font-size:26px;font-weight:700;color:#ffd36a">${summary.counts.enterprise}</div></div>`;
   }
 
-  // Tab behavior
+  // Tab behavior (bind once)
   const tabs = document.querySelectorAll('.store-tab');
   const noteEl = document.getElementById('storeTabNote');
   const tierNotes = {
@@ -4129,7 +4223,10 @@ async function hydrateStore(){
     if (noteEl) noteEl.textContent = tierNotes[tier] || '';
     renderStoreGrid(products.filter(p => (p.tier||'instant') === tier), grid);
   }
-  tabs.forEach(t => t.addEventListener('click', () => showTier(t.dataset.tier)));
+  if (grid.dataset.storeTabsWired !== '1') {
+    grid.dataset.storeTabsWired = '1';
+    tabs.forEach(t => t.addEventListener('click', () => showTier(t.dataset.tier)));
+  }
   showTier('instant');
 }
 

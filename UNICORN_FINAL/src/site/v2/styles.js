@@ -323,6 +323,10 @@ section{position:relative;z-index:3;padding:80px 32px;max-width:1480px;margin:0 
 /* section reveal motion */
 section[data-reveal]{opacity:0;transform:translateY(20px) scale(.99);transition:opacity .65s ease,transform .65s cubic-bezier(.2,.8,.2,1)}
 section[data-reveal].revealed{opacity:1;transform:translateY(0) scale(1)}
+/* Commerce surfaces must never stay invisible (nested sections + SPA re-hydrate). */
+#autonomousLiveSection,#unicornModulesMirror,#catalogGrid,#storeGrid,#storeCheckout,#servicePage,
+.ds-world section,[data-reveal].commerce-visible{opacity:1!important;transform:none!important}
+#autonomousLiveSection[data-reveal],#unicornModulesMirror[data-reveal]{opacity:1!important;transform:none!important}
 
 /* holographic button polish */
 .btn{position:relative;overflow:hidden}
