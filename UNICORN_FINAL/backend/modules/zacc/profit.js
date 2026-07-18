@@ -82,6 +82,13 @@ class ProfitMaximizer {
 
       passed.push(Object.assign({}, p, {
         retailUsd, netProfitUsd, marginPct, demandWeight: round2(demand), profitPotential,
+        // Carry supplier + logistics metadata through so the publisher can
+        // prove margins and route fulfillment (manual-queue for demo SKUs).
+        supplier: p.supplier || (p.source === 'zeus-curated' ? 'manual' : (p.source || 'unknown')),
+        supplierRef: p.supplierRef != null ? p.supplierRef : null,
+        demoOnly: p.demoOnly === true,
+        weightKg: Number(p.weightKg) || 0,
+        originCountry: p.originCountry || null,
         qualifiedAt: new Date().toISOString(),
       }));
     }

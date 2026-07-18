@@ -58,8 +58,10 @@ class BtcPayments {
   }
 
   // Create an invoice with a UNIQUE sats amount so payments to the single
-  // owner address can be attributed back to this exact order.
-  async createInvoice(productId, amountUsd) {
+  // owner address can be attributed back to this exact order. `meta` carries
+  // the buyer contact + order linkage (email, shipping, qty, orderToken,
+  // shippingUsd) so the paid-hook can route real fulfillment.
+  async createInvoice(productId, amountUsd, meta = {}) {
     const usd = round2(Number(amountUsd) || 0);
     const rate = await this._rate();
     let baseSats = rate > 0 ? Math.round((usd / rate) * SATS_PER_BTC) : 0;
@@ -67,6 +69,7 @@ class BtcPayments {
     // wallet UX but guarantees a distinct expected amount per open invoice.
     const offset = (this._offsetSeq++ % 999) + 1;
     const amountSats = baseSats > 0 ? baseSats + offset : 0;
+    meta = meta || {};
     const inv = {
       id: 'inv-' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
       productId,
@@ -77,6 +80,12 @@ class BtcPayments {
       btcAddress: this.address,
       status: rate > 0 ? 'pending' : 'rate-unavailable',
       txid: null,
+      // Order linkage + buyer contact (attached from the dropship order flow).
+      email: meta.email || null,
+      shipping: meta.shipping || null,
+      qty: Math.max(1, Number(meta.qty) || 1),
+      orderToken: meta.orderToken || null,
+      shippingUsd: round2(Number(meta.shippingUsd) || 0),
       createdAt: now(),
       expiresAt: new Date(Date.now() + INVOICE_TTL_MS).toISOString(),
       paidAt: null,

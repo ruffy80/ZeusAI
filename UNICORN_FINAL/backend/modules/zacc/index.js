@@ -32,6 +32,9 @@ const { GlobalScraper } = require('./scraper');
 const { ProfitMaximizer } = require('./profit');
 const { AutoPublisher } = require('./publisher');
 const { FulfillmentRouter } = require('./fulfillment');
+const { OrderStore } = require('./orders');
+const shipping = require('./shipping');
+const notify = require('./notify');
 const store = require('./store');
 
 const log = logger('core');
@@ -43,7 +46,7 @@ const MAX_ACTIVE_PRODUCTS = Number(process.env.ZACC_MAX_PRODUCTS || 120);
 
 class ZeusAutonomicCommerceCore {
   constructor() {
-    this.version = '1.0.0';
+    this.version = '2.0.0';
     this.startedAt = now();
     this.enabled = ENABLED;
     this.ticks = 0;
@@ -78,6 +81,10 @@ class ZeusAutonomicCommerceCore {
     this.profit = new ProfitMaximizer(ctx);
     this.publisher = new AutoPublisher(ctx);
     this.fulfillment = new FulfillmentRouter(ctx);
+    // Order backbone: source-of-truth for buyer contact, shipping, invoice
+    // linkage, margin and an auditable timeline (persists to data/zacc/orders.json).
+    this.orders = new OrderStore(ctx);
+    this.shipping = shipping;
 
     // Register components with the watchdog (reinit = re-run their step).
     this.health.register('scanner', () => this.scanner.scan().catch(() => {}));
@@ -124,20 +131,108 @@ class ZeusAutonomicCommerceCore {
       this.recordSale(invoice.productId, invoice.amountUsd);
       this.builder.recordEvent(invoice.productId, 'delivered');
       this.publisher.recordEvent(invoice.productId, 'sale', invoice.amountUsd);
-      // If this is a dropship product, route to real fulfillment provider.
+
+      // Reconcile the order backbone: find the order via invoice id (fall back
+      // to the token embedded on the invoice) and mark it paid.
+      const order = this.orders.getByInvoiceId(invoice.id)
+        || (invoice.orderToken ? this.orders.getByToken(invoice.orderToken) : null);
+      if (order) this.orders.markPaid(order.token, { txid: invoice.txid || null });
+
+      // If this is a dropship product, route to a real fulfillment provider
+      // with the full buyer contact captured on the order/invoice.
       const dropship = this.publisher.get(invoice.productId);
       if (dropship) {
-        this.fulfillment.onOrder({
+        const contact = {
           productId: invoice.productId,
           productTitle: dropship.title,
           amountUsd: invoice.amountUsd,
           invoiceId: invoice.id,
-          shipping: invoice.shipping || null,
+          orderToken: order ? order.token : (invoice.orderToken || null),
+          email: (order && order.email) || invoice.email || null,
+          shipping: (order && order.shipping) || invoice.shipping || null,
+          qty: (order && order.qty) || invoice.qty || 1,
+          supplierRef: dropship.supplierRef != null ? dropship.supplierRef : null,
+          demoOnly: dropship.demoOnly === true,
+        };
+        this.fulfillment.onOrder(contact).then((routed) => {
+          if (order && routed && routed.order) {
+            this.orders.markRouted(order.token, { provider: routed.order.result && routed.order.result.provider, result: routed.order.result });
+          }
         }).catch(e => log.warn('fulfillment route failed:', e.message));
       }
+
+      // Best-effort owner alert that money landed.
+      try {
+        notify.orderPaid({
+          orderToken: order ? order.token : (invoice.orderToken || null),
+          productTitle: dropship ? dropship.title : invoice.productId,
+          qty: (order && order.qty) || invoice.qty || 1,
+          amountUsd: invoice.amountUsd,
+          email: (order && order.email) || invoice.email || null,
+        });
+      } catch (_) { /* fail-soft */ }
+
       log.info('delivered', invoice.productId, 'for invoice', invoice.id, '($' + invoice.amountUsd + ')');
       this._persist(true);
     } catch (e) { log.warn('_onPaid failed:', e.message); }
+  }
+
+  // ---- Dropship order backbone (called by /api/dropship/order routes) ----
+  // Creates an order (buyer contact + shipping quote), mints a BTC invoice with
+  // the order linkage in meta, and links the two together. Returns everything
+  // the checkout UI needs. Never throws unhandled — routes wrap in try/catch.
+  async createDropshipOrder({ productId, email, shipping: ship, qty }) {
+    const product = this.publisher.get(productId);
+    if (!product) return { ok: false, error: 'product_not_found' };
+    const quantity = Math.max(1, Number(qty) || 1);
+
+    // 2) Shipping quote for the destination country. Pass the retail price as
+    // the item cost so the returned quote.totalUsd is the buyer-facing total.
+    const country = (ship && (ship.country || ship.countryCode)) || 'US';
+    const quote = this.shipping.quote({
+      country,
+      costUsd: product.priceUsd,
+      shippingUsdBase: product.shippingUsd,
+      qty: quantity,
+      weightKg: product.weightKg,
+    });
+    const itemUsd = Math.round(product.priceUsd * quantity * 100) / 100;
+    const amountUsd = Math.round((itemUsd + quote.shippingUsd) * 100) / 100;
+    const marginUsd = Math.round(((product.netProfitUsd || 0) * quantity) * 100) / 100;
+
+    // 3) Create the order record.
+    const order = this.orders.create({
+      productId: product.id,
+      productTitle: product.title,
+      email,
+      shipping: ship || null,
+      qty: quantity,
+      amountUsd,
+      shippingUsd: quote.shippingUsd,
+      marginUsd,
+      demoOnly: product.demoOnly === true,
+    });
+
+    // 4) Mint the BTC invoice with order linkage in meta.
+    const invoice = await this.payments.createInvoice(product.id, amountUsd, {
+      email,
+      shipping: ship || null,
+      qty: quantity,
+      orderToken: order.token,
+      shippingUsd: quote.shippingUsd,
+    });
+
+    // 5) Link invoice → order (moves order to awaiting_payment).
+    this.orders.linkInvoice(order.token, invoice.id);
+
+    this._persist(true);
+    return {
+      ok: true,
+      orderToken: order.token,
+      invoice,
+      quote,
+      product: { id: product.id, title: product.title, priceUsd: product.priceUsd, image: product.image, demoOnly: product.demoOnly === true },
+    };
   }
 
   // Best-effort live economy pulse. Kept local + cheap; the scanner blends it
@@ -334,6 +429,7 @@ class ZeusAutonomicCommerceCore {
       profit: this.profit.toState(),
       publisher: this.publisher.toState(),
       fulfillment: this.fulfillment.toState(),
+      orders: this.orders.toState(),
     };
   }
 
@@ -356,7 +452,10 @@ class ZeusAutonomicCommerceCore {
     if (s.profit) this.profit.fromState(s.profit);
     if (s.publisher) this.publisher.fromState(s.publisher);
     if (s.fulfillment) this.fulfillment.fromState(s.fulfillment);
-    log.info('state restored · products', this.builder.products.length, '· dropship', this.publisher.published.length, '· lifetime $' + this.revenue.totalUsd);
+    // Orders persist to their own file (data/zacc/orders.json); restore them
+    // from there, falling back to any snapshot embedded in the main state.
+    if (!this.orders.restore() && s.orders) this.orders.fromState(s.orders);
+    log.info('state restored · products', this.builder.products.length, '· dropship', this.publisher.published.length, '· orders', this.orders.orders.length, '· lifetime $' + this.revenue.totalUsd);
     return true;
   }
 
@@ -396,7 +495,9 @@ class ZeusAutonomicCommerceCore {
         profit: this.profit.status(),
         publisher: this.publisher.status(),
         fulfillment: this.fulfillment.status(),
+        orders: this.orders.status(),
       },
+      shipping: { zones: Object.keys(this.shipping.ZONES) },
       lastCycle: this._lastSummary || null,
     };
   }
@@ -422,6 +523,9 @@ class ZeusAutonomicCommerceCore {
         dropshipPublished: this.publisher.published.length,
         ordersRouted: this.fulfillment.routed,
         ordersPending: this.fulfillment.pendingOrders.length,
+        orders: this.orders.orders.length,
+        ordersPaid: this.orders.status().counts.paid,
+        ordersShipped: this.orders.status().counts.shipped,
       },
       revenue: { lifetimeUsd: this.revenue.totalUsd, last24hUsd: this.revenue.status().last24hUsd },
       payments: { openInvoices: this.payments.status().openInvoices, paidInvoices: this.payments.status().paidInvoices, onChain: true },

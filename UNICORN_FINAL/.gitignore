@@ -60,6 +60,8 @@ data/economy/economy-state.json
 # ZACC autonomous commerce core — per-process runtime state (products, sales,
 # invoices, scraped catalogue). Auto-created at runtime; must never reach git.
 data/zacc-state.json
+# ZACC dropship order backbone — buyer contact + shipping PII (0600), runtime.
+data/zacc/
 
 # AI capability layer runtime stores (semantic memory + cost ledger)
 UNICORN_FINAL/data/ai-memory/
