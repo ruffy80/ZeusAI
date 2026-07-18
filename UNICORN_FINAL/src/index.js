@@ -4923,7 +4923,7 @@ async function unicornHandler(req, res) {
         '<style>' + css + '</style>',
         '</head><body class="' + pageClass + ' ' + zeusProfile + '">',
         '<header><h1>🦄 ZeusAI</h1><nav class="site-nav" aria-label="Primary"><div class="site-nav-links">',
-        '<a href="/">Home</a><a href="/social-network" style="color:#7cf7c0;font-weight:700">🌍 ZEUS NETWORK</a><a href="/zacc" style="color:#8a5cff;font-weight:700">🛒 Dropship OS</a><a href="/dropship" style="color:#8a5cff;font-weight:700">🌐 Live Store</a><a href="/pricing">Pricing</a><a href="/revenue-share">Revenue Share</a><a href="/proof">Proof</a><a href="/unicorn-cockpit">Cockpit</a><a href="/services">Services</a><a href="/status">Status</a>',
+        '<a href="/">Home</a><a href="/social-network" style="color:#7cf7c0;font-weight:700">ZeusAI Social</a><a href="/zacc" style="color:#8a5cff;font-weight:700">🛒 Dropship OS</a><a href="/dropship" style="color:#8a5cff;font-weight:700">🌐 Live Store</a><a href="/pricing">Pricing</a><a href="/revenue-share">Revenue Share</a><a href="/proof">Proof</a><a href="/unicorn-cockpit">Cockpit</a><a href="/services">Services</a><a href="/status">Status</a>',
         '</div></nav>',
         '</header>',
         '<main>',
@@ -5086,8 +5086,8 @@ async function unicornHandler(req, res) {
 
     if (urlPath === '/social-network') {
       const body =
-        '<h2 style="margin:0">Zeus Core Social <span style="font-size:13px;color:var(--accent);border:1px solid var(--accent);border-radius:999px;padding:2px 10px;vertical-align:middle">AUTONOMOUS</span></h2>' +
-        '<p style="color:var(--muted);margin:8px 0 24px">Global social network layer powered by autonomous orchestration: self-healing, self-optimization, innovation loop, viral growth and strategic decisioning.</p>' +
+        '<h2 style="margin:0">ZeusAI Social <span style="font-size:13px;color:var(--accent);border:1px solid var(--accent);border-radius:999px;padding:2px 10px;vertical-align:middle">AUTONOMOUS</span></h2>' +
+        '<p style="color:var(--muted);margin:8px 0 24px">ZeusAI Social — Autonomous Signal Protocol with Proof-of-Reach, commerce mirror, and nine autopilot loops. No fake likes.</p>' +
         '<div id="sn-summary" class="grid"></div>' +
         '<h3 style="margin:32px 0 8px">Subordinate modules</h3>' +
         '<div id="sn-modules" class="grid"></div>' +
@@ -5098,7 +5098,7 @@ async function unicornHandler(req, res) {
         '<div class="card" style="margin-top:18px"><h3>Operator view</h3><div class="sub">Admin dashboard: <a href="/admin/social-network" style="color:var(--accent)">/admin/social-network</a> (admin token required)</div></div>';
       const js = "(function(){function esc(s){return String(s||'').replace(/[&<>\"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','\"':'&quot;'}[c]})}function card(t,v,s){return '<div class=\"card\"><h3>'+esc(t)+'</h3><div class=\"v\">'+v+'</div><div class=\"sub\">'+esc(s||'')+'</div></div>'}function badge(st){if(st==='active')return '<span class=\"ok\">● active</span>';if(st==='degraded')return '<span class=\"warn\">● degraded</span>';return '<span class=\"err\">● inactive</span>'}function refresh(){fetch('/api/social-orchestrator/status',{cache:'no-store'}).then(function(r){return r.json()}).then(function(d){var m=d.metrics||{};document.getElementById('sn-summary').innerHTML=card('Mode',d.mode||'—',(d.dryRun?'dry-run':'live')+' · dry-run until '+(d.dryRunUntil||'n/a'))+card('Health checks',d.healthRuns||0,d.lastHealthAt||'n/a')+card('Profit/day','$'+(m.profitUsdDay||0),(m.profitBtcDay||0)+' BTC')+card('Users active',m.activeUsers||0,'growth '+(m.userGrowthPct24h||0)+'% / 24h');var mods=Array.isArray(d.modules)?d.modules:[];document.getElementById('sn-modules').innerHTML=(mods.length?mods.map(function(x){return card(x.name,badge(x.state),x.lastUpdate||'n/a')}).join(''):card('modules','warming','orchestrator booting'));var ds=Array.isArray(d.lastDecisions)?d.lastDecisions:[];document.getElementById('sn-decisions').innerHTML=(ds.length?ds.slice(0,8).map(function(x){return card(x.title||'decision',esc(x.result||'logged'),x.ts||'')}).join(''):card('decisions','none yet','waiting for first cycle'));fetch('/api/profit-autopilot/status',{cache:'no-store'}).then(function(r){return r.json()}).then(function(p){var pp=p.profitPotentialUsd||{};document.getElementById('sn-metrics').innerHTML=card('Profit range / month','$'+(pp.low||0)+' → $'+(pp.high||0),'modules '+(p.modulesTracked||0))+card('Campaigns active',p.campaignCount||0,'autopilot synthesis')+card('Top offers',Array.isArray(p.topOffers)?p.topOffers.length:0,'live pricing + zacc')+card('System',p.ok?'healthy':'degraded',p.lastSyncAt||'');}).catch(function(){document.getElementById('sn-metrics').innerHTML=card('metrics','offline','retrying')});}).catch(function(){document.getElementById('sn-summary').innerHTML=card('social network','offline','retrying')})}refresh();setInterval(refresh,10000);})();";
       try { res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store', 'X-Unicorn-Page': 'social-network' }); } catch (_) {}
-      return res.end(renderPage('ZEUS NETWORK', body, js));
+      return res.end(renderPage('ZeusAI Social', body, js));
     }
 
     // ==================== ZACC · ZEUS AUTONOMIC COMMERCE CORE (2026-05-29) ====================
@@ -5681,7 +5681,9 @@ seedSsrMap();if(document.getElementById("ds-sort")&&!document.getElementById("ds
       '/orders': '/account',
       '/wallet': '/account',
       '/shop': '/store',
-      '/buy': '/services'
+      '/buy': '/services',
+      '/social': '/social-network',
+      '/zeusai-social': '/social-network',
     };
     if (aliasMap[urlPath]) {
       res.writeHead(302, { Location: aliasMap[urlPath], 'Cache-Control': 'no-store' });

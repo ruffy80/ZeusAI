@@ -513,7 +513,7 @@ function navBar(route, opts) {
 </button>
 <div class="nav-links" id="nav-links">
 ${L('/', 'Home')}<a class="nav-link nav-link-zacc" href="/zacc" data-link aria-label="Zeus Dropship OS autonomy cockpit">🛒 Dropship OS <span style="display:inline-block;margin-left:6px;padding:1px 7px;font-size:10px;font-weight:700;letter-spacing:.08em;border-radius:999px;background:linear-gradient(135deg,#8a5cff,#3ea0ff);color:#05060e;vertical-align:middle">LIVE</span></a>${L('/services', 'Marketplace')}${L('/wizard', 'Find my plan')}${L('/store', 'Store')}${L('/crypto-fiat-bridge', 'Crypto Bridge')}${L('/enterprise', 'Enterprise')}${L('/pricing', 'Pricing')}${L('/innovations', 'Innovations')}${L('/frontier', 'Frontier')}${L('/docs', 'API')}${L('/status', 'Status')}
-${L('/social-network', 'ZEUS NETWORK')}
+${L('/social-network', 'ZeusAI Social')}
 </div>
 <div class="nav-cta">
 ${langToggle}
@@ -536,6 +536,7 @@ function footer(route, opts) {
     </div>
     <div><h3 class="footer-col-title">Product</h3><ul>
       <li><a href="/zacc" data-link><strong style="color:#8a5cff">🛒 Zeus Dropship OS</strong></a></li>
+      <li><a href="/social-network" data-link><strong style="color:#7cf7c0">ZeusAI Social</strong></a></li>
       <li><a href="/services" data-link>Marketplace</a></li>
       <li><a href="/wizard" data-link>Find my plan</a></li>
       <li><a href="/pricing" data-link>Pricing</a></li>
@@ -3080,83 +3081,105 @@ function renderRoute(route, params = {}) {
 }
 
 function pageSocialNetwork() {
-  return `<section class="section"><div class="container">
-    <div class="kicker">Autonomous Social Layer</div>
-    <h1 class="h1">ZEUS NETWORK</h1>
-    <p style="color:var(--ink-dim);max-width:860px">Feed driven by ZeusAI's autonomous orchestration module. Metrics (active users, growth) reflect the module's internal simulation state — not external social platform users. Read-only view.</p>
-
-    <div class="card" style="margin-top:14px;padding:14px;opacity:.7">
-      <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
-        <div style="width:38px;height:38px;border-radius:999px;background:linear-gradient(135deg,#7cf7c0,#3b82f6);display:flex;align-items:center;justify-content:center;font-weight:700;color:#04131d">Z</div>
-        <input disabled value="Publishing requires connected social providers" style="flex:1;min-width:220px;background:#0d1528;border:1px solid #2b3a59;color:#9fb2d7;border-radius:999px;padding:10px 14px" />
-        <button class="btn" disabled title="Connect social providers to enable posting">Post</button>
+  return `<section class="za-social">
+  <header class="za-social-hero">
+    <div class="za-social-hero__atm" aria-hidden="true"></div>
+    <div class="za-social-hero__inner">
+      <p class="za-social-live"><span class="za-social-live__dot"></span> Autonomous · always on</p>
+      <h1 class="za-social-brand">ZeusAI <span>Social</span></h1>
+      <p class="za-social-lead">The social layer that runs itself — hash-chained decisions, Proof-of-Reach without fake likes, and a live commerce mirror into Zeus revenue engines.</p>
+      <div class="za-social-cta">
+        <a class="btn btn-primary" href="#za-signal-stream">Open Signal Stream</a>
+        <a class="btn btn-ghost" href="#za-proof-reach">See Proof-of-Reach</a>
       </div>
-      <p style="margin:8px 0 0;font-size:12px;color:var(--ink-dim)">Posting is disabled — no external social providers are connected. This feed reflects module state only.</p>
     </div>
+  </header>
 
-    <h2 style="margin-top:18px">Stories</h2>
-    <div id="snStories" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px"></div>
+  <div class="container za-social-body">
+    <section class="za-social-sec" id="za-signal-stream">
+      <h2 class="za-social-h2">Signal Stream</h2>
+      <p class="za-social-sub">Every autonomy cycle becomes a public signal. No invented likes, comments, or follower counts.</p>
+      <div id="zaFeed" class="za-social-feed" aria-live="polite"></div>
+    </section>
 
-    <h2 style="margin-top:22px">Live Feed</h2>
-    <div id="snFeed" style="display:grid;gap:12px"></div>
+    <section class="za-social-sec" id="za-proof-reach">
+      <h2 class="za-social-h2">Proof-of-Reach</h2>
+      <p class="za-social-sub">Transparent capacity of the autonomous social layer — not scraped vanity metrics from third-party networks.</p>
+      <div id="zaReach" class="za-social-metrics"></div>
+      <ul id="zaDiffs" class="za-social-diffs"></ul>
+    </section>
 
-    <h2 style="margin-top:22px">Network Pulse</h2>
-    <div class="grid" id="snSummary"></div>
+    <section class="za-social-sec">
+      <h2 class="za-social-h2">Commerce Mirror</h2>
+      <p class="za-social-sub">Social autonomy is wired to live Zeus profit engines. Numbers below come from the running platform.</p>
+      <div id="zaCommerce" class="za-social-metrics"></div>
+    </section>
 
-    <h2 style="margin-top:22px">Trending & Modules</h2>
-    <div class="grid" id="snModules"></div>
+    <section class="za-social-sec">
+      <h2 class="za-social-h2">Autopilot Loops</h2>
+      <p class="za-social-sub">Nine schedulers heal, decide, distribute, innovate, and federate — without a human in the loop.</p>
+      <div id="zaLoops" class="za-social-loops"></div>
+    </section>
 
-    <div class="card" style="margin-top:16px"><p style="margin:0;color:var(--ink-dim)">Admin view: <a href="/admin/social-network" data-link>/admin/social-network</a></p></div>
+    <section class="za-social-sec">
+      <h2 class="za-social-h2">Ledger Head</h2>
+      <p class="za-social-sub">Autonomous Signal Protocol — SHA-256 chained. Verify integrity live.</p>
+      <div id="zaLedger" class="za-social-ledger"></div>
+    </section>
+
+    <p class="za-social-foot">Operator desk: <a href="/admin/social-network" data-link>/admin/social-network</a> · API <code class="inline">/api/zeusai-social/pulse</code></p>
   </div>
   <script>
   (function(){
     function esc(s){return String(s||'').replace(/[&<>\"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','\"':'&quot;'}[c]})}
-    function card(t,v,s){return '<div class="card"><span class="tag">'+esc(t)+'</span><h3 style="margin:8px 0">'+v+'</h3><p style="color:var(--ink-dim);margin:0">'+esc(s||'')+'</p></div>'}
-    function b(st){return st==='active'?'<span style="color:#7ee2a8">● active</span>':(st==='degraded'?'<span style="color:#f0c674">● degraded</span>':'<span style="color:#ff6b6b">● inactive</span>')}
-    function feedCard(author,text,meta){
-      return '<div class="card" style="padding:14px">'+
-        '<div style="display:flex;align-items:center;gap:10px">'+
-          '<div style="width:34px;height:34px;border-radius:999px;background:#17233c;display:flex;align-items:center;justify-content:center;color:#7cf7c0;font-weight:700">'+esc((author||'Z').slice(0,1).toUpperCase())+'</div>'+
-          '<div><strong>'+esc(author||'Zeus Node')+'</strong><div style="color:var(--ink-dim);font-size:12px">'+esc(meta||'live now')+'</div></div>'+
-        '</div>'+
-        '<p style="margin:10px 0 12px;line-height:1.5">'+esc(text||'')+'</p>'+
-        '<div style="display:flex;gap:14px;color:var(--ink-dim);font-size:13px;opacity:.45;pointer-events:none;user-select:none"><span>♥ Like</span><span>💬 Comment</span><span>↗ Share</span></div>'+
-      '</div>';
+    function metric(label,value,hint){
+      return '<div class="za-social-metric"><span class="za-social-metric__l">'+esc(label)+'</span><strong class="za-social-metric__v">'+value+'</strong><span class="za-social-metric__h">'+esc(hint||'')+'</span></div>';
     }
-    async function r(){
+    function signalRow(item){
+      var kind=esc(item.kind||'signal');
+      return '<article class="za-social-signal" data-kind="'+kind+'">'+
+        '<header><span class="za-social-kind">'+kind+'</span><time>'+esc(item.at||'')+'</time></header>'+
+        '<h3>'+esc(item.title||'signal')+'</h3>'+
+        '<p>'+esc(item.body||'')+'</p>'+
+        '<footer><span>'+esc(item.author||'ZeusAI Social')+'</span><span class="za-social-proof">'+esc(item.proof||'ledger')+'</span></footer>'+
+      '</article>';
+    }
+    async function refresh(){
       try{
-        const d=await (await fetch('/api/social-orchestrator/status',{cache:'no-store'})).json();
-        const m=d.metrics||{};
-        document.getElementById('snSummary').innerHTML=
-          card('Mode', d.mode||'—', d.dryRun?'dry-run':'live')+
-          card('Health runs', String(d.healthRuns||0), d.lastHealthAt||'n/a')+
-          card('Profit/day', '$'+(m.profitUsdDay||0), (m.profitBtcDay||0)+' BTC')+
-          card('Module metric', (m.userGrowthPct24h||0)+'% growth', 'internal simulation · not live user count');
-
-        const stories=[
-          {n:'Module state',v:'⚙️ '+(d.mode||'dry-run')},
-          {n:'Growth signal',v:'📈 '+(m.userGrowthPct24h||0)+'% / 24h'},
-          {n:'Revenue',v:'💸 $'+(m.profitUsdDay||0)+'/day'},
-          {n:'Safety',v:'🛡 '+(d.mode||'dry-run')},
-        ];
-        document.getElementById('snStories').innerHTML=stories.map(function(s){return '<div class="card" style="padding:12px"><div style="font-size:12px;color:var(--ink-dim)">'+esc(s.n)+'</div><div style="margin-top:6px;font-weight:700">'+esc(s.v)+'</div></div>';}).join('');
-
-        const mods=Array.isArray(d.modules)?d.modules:[];
-        document.getElementById('snModules').innerHTML=mods.map(function(x){return card(x.name,b(x.state),x.lastUpdate||'n/a')}).join('')||card('Modules','warming','booting');
-
-        const dec=Array.isArray(d.lastDecisions)?d.lastDecisions:[];
-        const feed=[];
-        for(var i=0;i<Math.min(dec.length,8);i++){
-          var x=dec[i]||{};
-          feed.push(feedCard('Zeus Strategy', (x.title||'decision')+': '+(x.result||'logged'), x.ts||'just now'));
-        }
-        if(!feed.length){
-          feed.push(feedCard('ZEUS NETWORK', 'Feed is warming up. First autonomous stories will appear in seconds.', 'booting'));
-        }
-        document.getElementById('snFeed').innerHTML=feed.join('');
-      }catch(_){ document.getElementById('snSummary').innerHTML=card('zeus-network','offline','retrying') }
+        var pulse=await (await fetch('/api/zeusai-social/pulse',{cache:'no-store'})).json();
+        var feed=await (await fetch('/api/zeusai-social/feed?limit=16',{cache:'no-store'})).json();
+        var reach=pulse.proofOfReach||{};
+        var cm=pulse.commerceMirror||{};
+        var items=(feed&&feed.items)||pulse.feedPreview||[];
+        document.getElementById('zaFeed').innerHTML=items.length
+          ? items.map(signalRow).join('')
+          : '<p class="za-social-empty">Signal stream warming — first autonomous cycle lands within seconds.</p>';
+        document.getElementById('zaReach').innerHTML=
+          metric('Autonomy coverage', (reach.autonomyCoveragePct!=null?reach.autonomyCoveragePct:'—')+'%', (reach.modulesActive||0)+' / '+(reach.modulesTotal||0)+' modules')+
+          metric('Signals sealed', String(reach.signalCount||pulse.signals||0), 'hash-chained ledger')+
+          metric('Attention Arbitrage', String(reach.attentionArbitrageScore!=null?reach.attentionArbitrageScore:'—'), 'economic density · not vanity')+
+          metric('Mode', esc(pulse.mode||reach.mode||'—'), pulse.dryRun?'dry-run honest':'live');
+        var diffs=Array.isArray(reach.differentiators)?reach.differentiators:[];
+        document.getElementById('zaDiffs').innerHTML=diffs.map(function(d){return '<li>'+esc(d)+'</li>';}).join('');
+        document.getElementById('zaCommerce').innerHTML=
+          metric('Mirror USD/day', '$'+Number(cm.usdDay||0), cm.note||'Zeus revenue engines')+
+          metric('Mirror BTC/day', String(cm.btcDay||0), 'on-chain aligned')+
+          metric('Chain', pulse.chainIntact?'intact':'checking', pulse.protocol||'zeusai-social-asp-v1');
+        var loops=pulse.loops||{};
+        var loopNames=['health','decision','viral','innovation','novel','globalPresence','featureParity','federationDiscover','federationBroadcast'];
+        document.getElementById('zaLoops').innerHTML=loopNames.map(function(n){
+          var on=loops[n]!==false;
+          return '<div class="za-social-loop'+(on?' is-on':'')+'"><span class="za-social-loop__dot"></span><span>'+esc(n)+'</span></div>';
+        }).join('');
+        var head=pulse.ledgerHead;
+        document.getElementById('zaLedger').innerHTML=head
+          ? '<div class="za-social-ledger__head"><div><span>seq</span><strong>'+esc(head.seq)+'</strong></div><div><span>type</span><strong>'+esc(head.type)+'</strong></div><div class="za-social-ledger__hash"><span>hash</span><code>'+esc(head.hash)+'</code></div><div class="za-social-ledger__hash"><span>prev</span><code>'+esc(head.prevHash)+'</code></div></div>'
+          : '<p class="za-social-empty">Ledger genesis pending first sealed signal.</p>';
+      }catch(_){
+        document.getElementById('zaFeed').innerHTML='<p class="za-social-empty">ZeusAI Social pulse offline — retrying…</p>';
+      }
     }
-    r(); setInterval(r,10000);
+    refresh(); setInterval(refresh,8000);
   })();
   </script>
   </section>`;
@@ -3164,8 +3187,8 @@ function pageSocialNetwork() {
 
 function pageAdminSocialNetwork() {
   return `<section class="section"><div class="container">
-    <h1 class="h1">Admin · ZEUS NETWORK</h1>
-    <p style="color:var(--ink-dim)">Protected operator panel. Requires admin authentication token/cookie.</p>
+    <h1 class="h1">Admin · ZeusAI Social</h1>
+    <p style="color:var(--ink-dim)">Protected operator panel for ZeusAI Social autonomy. Requires admin authentication token/cookie.</p>
     <div class="card" id="snAdminCard" style="margin-top:12px"><p style="margin:0;color:var(--ink-dim)">Loading dashboard…</p></div>
   </div>
   <script>
@@ -3177,10 +3200,11 @@ function pageAdminSocialNetwork() {
         const d=await p.json();
         if(!p.ok||!d||!d.ok){ throw new Error((d&&d.error)||('http '+p.status)); }
         const x=d.dashboard||{};
+        const reach=x.proofOfReach||{};
         box.innerHTML='<div class="grid">'+
-          '<div class="card"><span class="tag">Mode</span><h3>'+String(x.mode||'—')+'</h3><p style="color:var(--ink-dim)">Dry-run until '+String(x.dryRunUntil||'n/a')+'</p></div>'+
-          '<div class="card"><span class="tag">Profit BTC/day</span><h3>'+String(x.profitBtcDay||0)+'</h3><p style="color:var(--ink-dim)">USD/day '+String(x.profitUsdDay||0)+'</p></div>'+
-          '<div class="card"><span class="tag">Users growth</span><h3>'+String(x.userGrowthPct24h||0)+'%</h3><p style="color:var(--ink-dim)">active '+String(x.activeUsers||0)+'</p></div>'+
+          '<div class="card"><span class="tag">Brand</span><h3>'+String(x.brand||'ZeusAI Social')+'</h3><p style="color:var(--ink-dim)">mode '+String(x.mode||'—')+' · dry-run until '+String(x.dryRunUntil||'n/a')+'</p></div>'+
+          '<div class="card"><span class="tag">Commerce mirror</span><h3>$'+String(x.profitUsdDay||0)+'</h3><p style="color:var(--ink-dim)">'+String(x.profitBtcDay||0)+' BTC/day</p></div>'+
+          '<div class="card"><span class="tag">Proof-of-Reach</span><h3>'+String(reach.autonomyCoveragePct!=null?reach.autonomyCoveragePct:'—')+'%</h3><p style="color:var(--ink-dim)">signals '+String(reach.signalCount||0)+' · arbitrage '+String(reach.attentionArbitrageScore||'—')+'</p></div>'+
           '</div>';
       }catch(e){ box.innerHTML='<p style="margin:0;color:#ff6b6b">Access denied or unavailable: '+String(e&&e.message||e)+'</p>'; }
     }
@@ -3993,7 +4017,7 @@ function _legalSub(title, body) {
 function routeTitle(route) {
   if (route === '/') return 'Sovereign AI OS';
   if (route.startsWith('/services/')) return 'Service';
-  const map = { '/services':'Marketplace', '/marketplace':'Marketplace', '/pricing':'Pricing', '/solutions/ai-pricing':'AI Pricing Engine', '/solutions/ai-checkout':'AI Checkout Optimizer', '/solutions/ai-self-healing':'AI Self-Healing Ops', '/checkout':'Checkout', '/dashboard':'Dashboard', '/how':'How it works', '/docs':'API & Docs', '/about':'About', '/legal':'Legal', '/trust':'Trust Center', '/security':'Security', '/responsible-ai':'Responsible AI', '/dpa':'Data Processing Agreement', '/payment-terms':'Payment Terms', '/operator':'Operator Console', '/observability':'Observability', '/enterprise':'Enterprise Licenses', '/store':'Instant Store', '/account':'Account', '/innovations':'30Y Cryptographic Durability', '/wizard':'Find my plan', '/status':'Live status', '/social-network':'ZEUS NETWORK', '/admin/social-network':'Admin ZEUS NETWORK', '/changelog':'Changelog', '/terms':'Terms of Service', '/privacy':'Privacy Policy', '/refund':'Refund Guarantee', '/sla':'SLA', '/pledge':'Anti-Dark-Pattern Pledge', '/cancel':'Universal Cancel', '/gift':'Gift-as-Capability', '/aura':'Live Conversion Aura', '/api-explorer':'API Explorer', '/transparency':'Pricing Bandit Transparency', '/frontier':'Frontier Inventions', '/deepseek-cockpit':'DeepSeek Autonomy Cockpit', '/contact':'Contact', '/faq':'FAQ', '/blog':'Insights', '/affiliate':'Affiliate Program', '/partners':'Partners', '/roadmap':'Public Roadmap', '/careers':'Careers', '/press':'Press Kit' };
+  const map = { '/services':'Marketplace', '/marketplace':'Marketplace', '/pricing':'Pricing', '/solutions/ai-pricing':'AI Pricing Engine', '/solutions/ai-checkout':'AI Checkout Optimizer', '/solutions/ai-self-healing':'AI Self-Healing Ops', '/checkout':'Checkout', '/dashboard':'Dashboard', '/how':'How it works', '/docs':'API & Docs', '/about':'About', '/legal':'Legal', '/trust':'Trust Center', '/security':'Security', '/responsible-ai':'Responsible AI', '/dpa':'Data Processing Agreement', '/payment-terms':'Payment Terms', '/operator':'Operator Console', '/observability':'Observability', '/enterprise':'Enterprise Licenses', '/store':'Instant Store', '/account':'Account', '/innovations':'30Y Cryptographic Durability', '/wizard':'Find my plan', '/status':'Live status', '/social-network':'ZeusAI Social', '/admin/social-network':'Admin ZeusAI Social', '/changelog':'Changelog', '/terms':'Terms of Service', '/privacy':'Privacy Policy', '/refund':'Refund Guarantee', '/sla':'SLA', '/pledge':'Anti-Dark-Pattern Pledge', '/cancel':'Universal Cancel', '/gift':'Gift-as-Capability', '/aura':'Live Conversion Aura', '/api-explorer':'API Explorer', '/transparency':'Pricing Bandit Transparency', '/frontier':'Frontier Inventions', '/deepseek-cockpit':'DeepSeek Autonomy Cockpit', '/contact':'Contact', '/faq':'FAQ', '/blog':'Insights', '/affiliate':'Affiliate Program', '/partners':'Partners', '/roadmap':'Public Roadmap', '/careers':'Careers', '/press':'Press Kit' };
   return map[route] || 'ZeusAI';
 }
 
@@ -4024,8 +4048,8 @@ function routeDescription(route) {
     '/innovations': '30-year cryptographic durability, post-quantum readiness and frontier ZeusAI inventions.',
     '/wizard': 'Plan wizard that maps your business goal to the right ZeusAI service, price and delivery path.',
     '/status': 'Live ZeusAI status, uptime, build health and production service checks.',
-    '/social-network': 'ZEUS NETWORK: autonomous social feed with stories, live timeline, creator-first growth and AI orchestration.',
-    '/admin/social-network': 'Admin ZEUS NETWORK control panel with autonomous module state, decisions, growth and profit telemetry.',
+    '/social-network': 'ZeusAI Social — autonomous Signal Protocol, Proof-of-Reach without fake likes, commerce mirror into Zeus revenue engines.',
+    '/admin/social-network': 'Admin ZeusAI Social control panel with autonomous module state, decisions, Proof-of-Reach and commerce mirror.',
     '/changelog': 'Latest ZeusAI product changes, frontier releases, security upgrades and commerce improvements.',
     '/terms': 'Terms of Service for ZeusAI, including capability tokens, signed outputs, SLA and refund references.',
     '/privacy': 'Privacy Policy for ZeusAI: minimal data, no resale, no model training on personal data and GDPR rights.',

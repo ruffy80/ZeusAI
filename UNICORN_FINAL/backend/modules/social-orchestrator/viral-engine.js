@@ -68,7 +68,7 @@ class ViralEngine {
   buildFallbackCopy(item) {
     const title = String(item.title || item.id || 'Top community moment');
     const score = Number(item.score || item.likes || 0);
-    return `🔥 ${title}\n\nThe community is moving fast. Join Zeus Core Social and ride the momentum. Score: ${score}. #ZeusAI #SocialNetwork #AI`;
+    return `${title}\n\nZeusAI Social autonomy is moving. Score: ${score}. #ZeusAI #ZeusAISocial #Autonomous`;
   }
 
   async generateCopy(item, ctx = {}) {

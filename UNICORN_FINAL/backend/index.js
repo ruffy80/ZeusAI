@@ -11420,6 +11420,40 @@ registerModuleRoutes('memory-pressure-guardian',   memoryPressureGuardian);
 registerModuleRoutes('zk-revenue-proof',           zkRevenueProof);
 registerModuleRoutes('pnl-time-machine',           pnlTimeMachine);
 registerModuleRoutes('social-orchestrator',        socialOrchestrator);
+registerModuleRoutes('zeusai-social',              socialOrchestrator);
+
+// ZeusAI Social — public Autonomous Signal Protocol surfaces
+app.get('/api/zeusai-social/pulse', (req, res) => {
+  try {
+    res.set('Cache-Control', 'public, max-age=5, stale-while-revalidate=20');
+    res.json(socialOrchestrator.getPulse(req.query.limit));
+  } catch (e) {
+    res.status(500).json({ ok: false, error: e && e.message ? e.message : String(e) });
+  }
+});
+app.get('/api/zeusai-social/feed', (req, res) => {
+  try {
+    res.set('Cache-Control', 'public, max-age=5, stale-while-revalidate=20');
+    res.json({
+      ok: true,
+      brand: 'ZeusAI Social',
+      protocol: 'zeusai-social-asp-v1',
+      items: socialOrchestrator.getPublicFeed(req.query.limit),
+      chain: socialOrchestrator.verifyChain(),
+    });
+  } catch (e) {
+    res.status(500).json({ ok: false, error: e && e.message ? e.message : String(e) });
+  }
+});
+app.get('/api/zeusai-social/reach', (req, res) => {
+  try {
+    const pulse = socialOrchestrator.getPulse(8);
+    res.set('Cache-Control', 'public, max-age=5, stale-while-revalidate=20');
+    res.json(Object.assign({ ok: true, brand: 'ZeusAI Social' }, pulse.proofOfReach || {}));
+  } catch (e) {
+    res.status(500).json({ ok: false, error: e && e.message ? e.message : String(e) });
+  }
+});
 registerModuleRoutes('performance-monitor',        performanceMonitor);
 registerModuleRoutes('unicorn-realization-engine', unicornRealizationEngine);
 registerModuleRoutes('auto-trend-analyzer',        autoTrendAnalyzer);
@@ -13675,7 +13709,7 @@ try {
 
 try {
   socialOrchestrator.start();
-  console.log('[social-orchestrator] ACTIVE (Zeus Core Social)');
+  console.log('[social-orchestrator] ACTIVE (ZeusAI Social)');
 } catch (e) {
   console.warn('[social-orchestrator] start failed:', e && e.message ? e.message : e);
 }
