@@ -271,18 +271,27 @@ class ZeusAutonomicCommerceCore {
   // storefront always looks world-class even with zero supplier API keys.
   async ensureWorldCatalog() {
     try {
+      const purged = (typeof this.publisher.purgeJunk === 'function')
+        ? this.publisher.purgeJunk()
+        : { removed: 0, remaining: (this.publisher.published || []).length };
+      this._junkPurgedTotal = (this._junkPurgedTotal || 0) + (purged.removed || 0);
+
       const live = this.publisher.published || [];
       const modern = live.filter((p) => p && p.proofOfMargin && (p.source === 'zeus-curated' || p.demoOnly === true || String(p.source || '').includes('world'))).length;
-      const withImages = live.filter((p) => p && p.image && !/picsum\.photos/i.test(String(p.image))).length;
-      const worldish = live.filter((p) => p && /world|dummyjson|fakestore|escuela|ebay|etsy|aliexpress/i.test(String(p.source || ''))).length;
+      const withImages = live.filter((p) => p && p.image && !/picsum\.photos|placeimg|placehold/i.test(String(p.image))).length;
+      const worldish = live.filter((p) => p && /world|dummyjson|fakestore|ebay|etsy|aliexpress/i.test(String(p.source || ''))).length;
       const hasDummy = live.some((p) => p && p.source === 'dummyjson-world');
       const hasHttpsImg = live.some((p) => p && /^https?:\/\//i.test(String(p.image || '')));
-      // Rebuild when catalogue is thin, images are broken placeholders, or we
-      // lack a multi-source worldwide intake (autonomy requires global SKUs).
-      if (modern >= 12 && live.length >= 24 && withImages >= 18 && worldish >= 10 && hasDummy && hasHttpsImg) {
-        return { rebuilt: false, modern, live: live.length, withImages, worldish, hasDummy };
+      const escuelaJunk = live.some((p) => p && p.source === 'escuela-world');
+      // Rebuild when catalogue is thin, junk was purged, images are broken, or
+      // we lack a multi-source worldwide intake (autonomy requires global SKUs).
+      if (
+        purged.removed === 0 && !escuelaJunk
+        && modern >= 12 && live.length >= 24 && withImages >= 18 && worldish >= 10 && hasDummy && hasHttpsImg
+      ) {
+        return { rebuilt: false, modern, live: live.length, withImages, worldish, hasDummy, junkPurged: purged.removed };
       }
-      log.info('ensureWorldCatalog · rebuilding storefront from world feeds + curated (modern=' + modern + ', live=' + live.length + ', imgs=' + withImages + ', world=' + worldish + ')');
+      log.info('ensureWorldCatalog · rebuilding storefront from world feeds + curated (modern=' + modern + ', live=' + live.length + ', imgs=' + withImages + ', world=' + worldish + ', junkPurged=' + purged.removed + ')');
       this.publisher.published = [];
       if (this.publisher.byId && typeof this.publisher.byId.clear === 'function') this.publisher.byId.clear();
       if (this.publisher.publishedAt && typeof this.publisher.publishedAt.clear === 'function') this.publisher.publishedAt.clear();
@@ -290,9 +299,10 @@ class ZeusAutonomicCommerceCore {
       await this.scraper.scrape(true);
       const qualified = this.profit.rank(this.scraper.recent(500));
       const published = this.publisher.publish(qualified, Math.max(48, Number(process.env.ZACC_BOOT_PUBLISH || 48)));
+      if (typeof this.publisher.purgeJunk === 'function') this.publisher.purgeJunk();
       try { this.shelf.runTournament(this.publisher); } catch (_) { /* fail-soft */ }
       this._persist(true);
-      return { rebuilt: true, modern: published.length, live: this.publisher.published.length };
+      return { rebuilt: true, modern: published.length, live: this.publisher.published.length, junkPurged: purged.removed };
     } catch (e) {
       log.warn('ensureWorldCatalog failed:', e.message);
       return { rebuilt: false, error: e.message };
@@ -304,7 +314,14 @@ class ZeusAutonomicCommerceCore {
     // Rebuild curated storefront ASAP, then run a full boot tick.
     setTimeout(() => {
       this.ensureWorldCatalog()
-        .then((r) => log.info('ensureWorldCatalog', JSON.stringify(r)))
+        .then((r) => {
+          log.info('ensureWorldCatalog', JSON.stringify(r));
+          if (typeof this.publisher.purgeJunk === 'function') {
+            const p = this.publisher.purgeJunk();
+            this._junkPurgedTotal = (this._junkPurgedTotal || 0) + (p.removed || 0);
+            if (p.removed) this._persist(true);
+          }
+        })
         .catch((e) => log.warn('ensureWorldCatalog', e.message))
         .finally(() => this.tick('boot').catch((e) => log.warn('boot tick', e.message)));
     }, 2500);
@@ -581,6 +598,11 @@ class ZeusAutonomicCommerceCore {
       },
       shipping: { zones: Object.keys(this.shipping.ZONES) },
       lastCycle: this._lastSummary || null,
+      catalogQuality: {
+        junkPurged: this._junkPurgedTotal || 0,
+        qualityGate: true,
+        live: this.publisher.published.length,
+      },
     };
   }
 
@@ -594,6 +616,10 @@ class ZeusAutonomicCommerceCore {
       ticks: this.ticks,
       lastTickAt: this.lastTickAt,
       payout: { method: 'BTC', btcAddress: OWNER_BTC },
+      catalogQuality: {
+        junkPurged: this._junkPurgedTotal || 0,
+        qualityGate: true,
+      },
       counts: {
         sources: this.scanner.sourceCount(),
         trends: this.scanner.trends.length,

@@ -24,6 +24,42 @@ const FETCH_HEADERS = {
   'User-Agent': 'ZeusAI-DropshipOS/1.0 (+https://zeusai.pro)',
 };
 
+// EscuelaJS is a publicly writable sandbox — disabled unless explicitly armed.
+const ENABLE_ESCUELA = process.env.ZACC_ENABLE_ESCUELA === '1';
+
+const JUNK_TITLE_RE = /^(test|asdf|null|undefined|product|item|sample|n\/a|demo|xxx|foo|bar)$/i;
+const HEX_ID_RE = /^[0-9a-f]{6,}$/i;
+const PLACEHOLDER_IMG_RE = /placeimg\.com|placehold\.co|via\.placeholder|placeholder\.com|picsum\.photos|dummyimage\.com|lorempixel|fakestoreapi\.com\/img\/placeholder/i;
+const LONE_NAME_RE = /^(rajesh|john|jane|admin|user|guest|testuser|asdf)$/i;
+
+/** Reject numeric/hex/junk titles that polluted the live storefront. */
+function isQualityTitle(name) {
+  const t = String(name || '').trim();
+  if (!t || t.length < 6 || t.length > 120) return false;
+  if (HEX_ID_RE.test(t)) return false;
+  if (/^\d+(\.\d+)?$/.test(t)) return false;
+  const letters = (t.match(/[a-zA-Z]/g) || []).length;
+  if (letters < 4) return false;
+  const digitRatio = (t.match(/\d/g) || []).length / t.length;
+  if (digitRatio > 0.55) return false;
+  // Allow brand+model tokens ("Oppo K1", "iPhone 13 Pro") via alphanumerics.
+  const words = t.split(/[^a-zA-Z0-9]+/).filter((w) => w.length >= 2);
+  if (words.length < 1) return false;
+  if (words.length < 2 && letters < 12) return false; // lone short words / names
+  if (JUNK_TITLE_RE.test(t) || LONE_NAME_RE.test(t)) return false;
+  return true;
+}
+
+/** Reject dead placeholder CDNs that 404 and force numeric cover fallbacks. */
+function isQualityImage(url) {
+  const u = String(url || '').trim();
+  if (!u) return false;
+  if (u.startsWith('/api/dropship/cover/')) return true;
+  if (!/^https?:\/\//i.test(u)) return false;
+  if (PLACEHOLDER_IMG_RE.test(u)) return false;
+  return true;
+}
+
 // Multi-region / multi-category DummyJSON paths — widens the autonomous
 // catalogue beyond a single page of beauty SKUs.
 const DUMMYJSON_PATHS = [
@@ -103,7 +139,8 @@ function mapDummyItem(it) {
   const image = pickImage(it);
   if (!image) return null;
   const name = String(it.title || '').trim();
-  if (!name || cost <= 0) return null;
+  if (!isQualityTitle(name) || cost <= 0) return null;
+  if (!isQualityImage(image)) return null;
   return {
     source: 'dummyjson-world',
     category: mapCategory(it.category),
@@ -156,11 +193,13 @@ async function fromFakeStore() {
     const cost = round2(Number(it.price) * 0.45);
     const ship = round2(Math.max(2.8, cost * 0.14));
     const image = pickImage(it);
-    if (!image) return null;
+    if (!isQualityImage(image)) return null;
+    const name = String(it.title || '').trim();
+    if (!isQualityTitle(name)) return null;
     return {
       source: 'fakestore-world',
       category: mapCategory(it.category),
-      name: String(it.title || '').trim(),
+      name,
       costUsd: cost,
       shippingUsd: ship,
       suggestedRetailUsd: round2(Number(it.price) || 0),
@@ -178,8 +217,12 @@ async function fromFakeStore() {
   }).filter(Boolean).filter((p) => p.name && p.costUsd > 0 && p.image);
 }
 
-/** EscuelaJS Platzi fake store — apparel/tech with imgur images. */
+/** EscuelaJS Platzi fake store — opt-in only (writable sandbox pollutes titles). */
 async function fromEscuela() {
+  if (!ENABLE_ESCUELA) {
+    log.info('escuela world feed skipped (set ZACC_ENABLE_ESCUELA=1 to arm)');
+    return [];
+  }
   const pages = await Promise.all([
     fetchJson('https://api.escuelajs.co/api/v1/products?offset=0&limit=' + LIMIT),
     fetchJson('https://api.escuelajs.co/api/v1/products?offset=' + LIMIT + '&limit=' + LIMIT),
@@ -193,9 +236,9 @@ async function fromEscuela() {
       const cost = round2(price * 0.4);
       const ship = round2(Math.max(3, cost * 0.15));
       const img = pickImage(it);
-      if (!img || img.includes('\\')) continue;
+      if (!isQualityImage(img) || img.includes('\\')) continue;
       const name = String(it.title || '').trim();
-      if (!name || cost <= 0) continue;
+      if (!isQualityTitle(name) || cost <= 0) continue;
       const key = name.toLowerCase();
       if (seen.has(key)) continue;
       seen.add(key);
@@ -236,13 +279,14 @@ async function pullWorldFeeds() {
   const out = [];
   for (const list of chunks) {
     for (const p of list) {
+      if (!p || !isQualityTitle(p.name) || !isQualityImage(p.image)) continue;
       const key = String(p.name || '').toLowerCase();
       if (!key || seen.has(key)) continue;
       seen.add(key);
       out.push(p);
     }
   }
-  log.info('world feeds pulled', out.length, 'products');
+  log.info('world feeds pulled', out.length, 'quality products');
   return out;
 }
 
@@ -251,4 +295,6 @@ module.exports = {
   fromDummyJson,
   fromFakeStore,
   fromEscuela,
+  isQualityTitle,
+  isQualityImage,
 };

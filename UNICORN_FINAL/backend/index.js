@@ -10036,8 +10036,15 @@ app.get('/api/dropship/world-feed', async (req, res) => {
     res.status(500).json({ ok: false, error: e.message });
   }
 });
-app.get('/api/dropship/products', (req, res) => {
+app.get('/api/dropship/products', async (req, res) => {
   if (!zacc) return res.status(503).json({ ok: false, error: 'zacc_unavailable' });
+  // One-shot self-heal per process: purge numeric/junk titles then rebuild if needed.
+  if (!zacc._qualityBootstrapped) {
+    zacc._qualityBootstrapped = true;
+    try {
+      await zacc.ensureWorldCatalog();
+    } catch (_) { /* fail-soft */ }
+  }
   const etag = '"' + zacc.publisher.revision() + '"';
   if (req.headers['if-none-match'] === etag) {
     res.status(304).set('ETag', etag).set('Cache-Control', 'public, max-age=30, stale-while-revalidate=120').end();
@@ -10057,7 +10064,25 @@ app.get('/api/dropship/products', (req, res) => {
     count: zacc.publisher.published.length,
     categories: zacc.publisher.categories(),
     revision: zacc.publisher.revision(),
+    catalogQuality: { qualityGate: true, junkPurged: zacc._junkPurgedTotal || 0 },
   });
+});
+app.post('/api/dropship/catalog/purge', async (req, res) => {
+  if (!zacc) return res.status(503).json({ ok: false, error: 'zacc_unavailable' });
+  try {
+    const purged = zacc.publisher.purgeJunk();
+    zacc._junkPurgedTotal = (zacc._junkPurgedTotal || 0) + (purged.removed || 0);
+    const rebuild = await zacc.ensureWorldCatalog();
+    res.json({
+      ok: true,
+      purged,
+      rebuild,
+      count: zacc.publisher.published.length,
+      catalogQuality: { qualityGate: true, junkPurged: zacc._junkPurgedTotal || 0 },
+    });
+  } catch (e) {
+    res.status(500).json({ ok: false, error: e && e.message ? e.message : String(e) });
+  }
 });
 app.get('/api/dropship/product/:id', (req, res) => {
   if (!zacc) return res.status(503).json({ ok: false, error: 'zacc_unavailable' });

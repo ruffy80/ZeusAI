@@ -17,6 +17,7 @@
 const { OWNER_BTC, now, slug, round2, shortId, logger } = require('./util');
 const describe = require('./describe');
 const { coverPath } = require('./product-cover');
+const { isQualityTitle, isQualityImage } = require('./world-feeds');
 
 const log = logger('publisher');
 
@@ -64,6 +65,31 @@ class AutoPublisher {
     const set = new Set();
     for (const p of this.published) set.add(this._sourceKey({ source: p.source, name: p.title }));
     return set;
+  }
+
+  _passesQuality(cand) {
+    if (!cand || !isQualityTitle(cand.name || cand.title)) return false;
+    const img = String(cand.image || '').trim();
+    if (!img) return true; // coverPath will fill in
+    if (img.startsWith('/api/dropship/cover/')) return true;
+    return isQualityImage(img);
+  }
+
+  /** Evict numeric/hex/junk titles and dead placeholder images from the live shelf. */
+  purgeJunk() {
+    const before = this.published.length;
+    const kept = [];
+    for (const p of this.published) {
+      const titleOk = isQualityTitle(p && p.title);
+      const img = String((p && p.image) || '').trim();
+      const imgOk = !img || img.startsWith('/api/dropship/cover/') || isQualityImage(img);
+      if (titleOk && imgOk) kept.push(p);
+      else if (p && p.id) this.byId.delete(p.id);
+    }
+    this.published = kept;
+    const removed = before - kept.length;
+    if (removed) log.info('purgeJunk removed', removed, 'junk SKUs · remaining', kept.length);
+    return { removed, remaining: kept.length };
   }
 
   // Build a single publishable product from a scored candidate.
@@ -147,6 +173,7 @@ class AutoPublisher {
     for (const cand of (scoredTop || [])) {
       if (added.length >= max) break;
       if (!cand || !cand.name) continue;
+      if (!this._passesQuality(cand)) continue;
       // Never list the same product twice.
       if (liveKeys.has(this._sourceKey(cand))) continue;
       // Respect the republish cooldown only while the catalogue is healthy.
