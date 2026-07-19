@@ -438,10 +438,16 @@ function router() {
 function getStatus() {
   const all = getAllPerformances();
   const avgSuccess = all.length > 0 ? all.reduce((s, a) => s + a.successRate, 0) / all.length : 0;
+  // Cold start (no tracked agents / no performance data yet) is a healthy idle
+  // state — NOT 'critical'. Only report degraded/critical once there is real
+  // performance data to judge against.
+  const health = all.length === 0
+    ? 'idle'
+    : (avgSuccess >= 70 ? 'good' : avgSuccess >= 40 ? 'degraded' : 'critical');
   return {
     name:           'autonomous-intelligence-core',
     label:          'Autonomous Intelligence Core (TPEORIM)',
-    health:         avgSuccess >= 70 ? 'good' : avgSuccess >= 40 ? 'degraded' : 'critical',
+    health,
     trackedAgents:  _memories.size,
     queueSize:      _taskQueue.filter(t => t.status === 'queued').length,
     avgSuccessRate: +avgSuccess.toFixed(1),

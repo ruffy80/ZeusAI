@@ -319,6 +319,21 @@ const routeCache = require('./modules/route-cache');
 const app = express();
 const PORT = process.env.PORT || 3000;
 
+// ── Runtime data directories — ensure ledger/state dirs exist at boot so the
+// economy & sovereignty engines (and genome backups) don't emit ENOENT noise
+// on their first write. Best-effort: never block boot on a mkdir failure.
+(function ensureRuntimeDataDirs() {
+  const fsBoot = require('fs');
+  const dirs = [
+    path.join(__dirname, '..', 'data', 'economy'),
+    path.join(__dirname, '..', 'data', 'sovereignty'),
+    path.join(__dirname, '..', 'data', 'backups', 'genome'),
+  ];
+  for (const d of dirs) {
+    try { fsBoot.mkdirSync(d, { recursive: true }); } catch (_) { /* best-effort */ }
+  }
+})();
+
 app.use((req, res, next) => {
   let requestPath = String(req.path || req.url || '/');
   for (let pass = 0; pass < 2; pass += 1) {
@@ -403,14 +418,30 @@ const __SUPREME = (function buildSupremeRegistry() {
   return { reg, safeGet };
 })();
 
-// Generic JSON helper
+// Generic JSON helper — ALWAYS ends the response. If the payload can't be
+// serialized (e.g. circular refs), fall back to a bounded 500 JSON body so the
+// socket is never left hanging.
 function __supremeSend(res, payload, status) {
+  let httpStatus = status || 200;
+  let body;
   try {
-    res.status(status || 200);
-    res.setHeader('Content-Type', 'application/json; charset=utf-8');
-    res.setHeader('Cache-Control', 'no-store');
-    res.end(JSON.stringify(payload));
-  } catch (_) { /* socket closed */ }
+    body = JSON.stringify(payload);
+    if (typeof body !== 'string') throw new Error('non-serializable payload');
+  } catch (_) {
+    httpStatus = 500;
+    body = '{"ok":false,"error":"serialization_failed"}';
+  }
+  try {
+    if (!res.headersSent) {
+      res.status(httpStatus);
+      res.setHeader('Content-Type', 'application/json; charset=utf-8');
+      res.setHeader('Cache-Control', 'no-store');
+    }
+    res.end(body);
+  } catch (_) {
+    // Headers already flushed or socket closed — still guarantee end().
+    try { res.end(); } catch (_) { /* socket closed */ }
+  }
 }
 
 // Wire all 6 supreme modules — same shape for each: /status, /history, /force (POST)
@@ -3872,6 +3903,65 @@ meshOrchestrator.register('autonomousBDEngine',     autonomousBDEngine,  { statu
 meshOrchestrator.register('autoMarketing',          autoMarketing,       { statusFn: 'getStatus' });
 meshOrchestrator.register('domainAutomationMgr',    domainAutomationManager, { statusFn: 'getStatus' });
 meshOrchestrator.register('centralOrchestrator',    centralOrchestrator, { statusFn: 'getStatus' });
+
+// ── Wire Forward-Only Safety harmony registry ──────────────────────────────
+// registerEngine() existed but was never called, so /api/autonomy/harmony/status
+// always reported `no_engines_active`. Bridge every mesh-registered engine into
+// the harmony registry via a normalized status wrapper. Harmony treats an engine
+// as `active` unless it emits an explicit negative health/status signal (mirrors
+// the mesh blacklist heuristic), and `error` only on a real fault — so genuine
+// engine health is reflected without false-degraded noise. Fail-soft per engine.
+(function wireForwardOnlySafetyHarmony() {
+  const BAD = new Set(['error', 'failed', 'down', 'critical', 'compromised', 'crashed']);
+  try {
+    for (const [meshName, entry] of meshOrchestrator.registry) {
+      // Never register forwardOnlySafety into its own registry (self-recursion).
+      if (meshName === 'forwardOnlySafety') continue;
+      const inst = entry && entry.instance;
+      const statusFn = entry && entry.statusFn;
+      if (!inst || !statusFn || typeof inst[statusFn] !== 'function') continue;
+      try {
+        forwardOnlySafety.registerEngine(meshName, () => {
+          let raw;
+          try {
+            raw = inst[statusFn]();
+          } catch (e) {
+            return { active: false, error: String((e && e.message) || e) };
+          }
+          // Async status getter — assume the engine is live rather than blocking.
+          if (raw && typeof raw.then === 'function') return { active: true, error: null };
+          // Mirror the mesh blacklist heuristic: only an explicit negative
+          // health/status string is a fault. A generic `error`/`ok:false` field
+          // (e.g. adapter `unsupported_method` stubs) is NOT an engine fault.
+          const health = raw && typeof raw.health === 'string' ? raw.health.toLowerCase() : null;
+          const st = raw && typeof raw.status === 'string' ? raw.status.toLowerCase() : null;
+          const bad = (health && BAD.has(health)) || (st && BAD.has(st));
+          return { active: !bad, error: bad ? `unhealthy:${health || st}` : null };
+        });
+      } catch (_) { /* fail-soft: skip this engine */ }
+    }
+  } catch (e) {
+    console.warn('[forward-only-safety] harmony wiring skipped:', e && e.message);
+  }
+})();
+
+// ── Seed W3C DID identities for every mesh-registered engine ───────────────
+// moduleIdentity previously only seeded social-orchestrator (1 DID). Now the
+// entire live mesh gets a did:zeus:* so /api/autonomy/did reflects reality.
+(function seedMeshModuleIdentities() {
+  try {
+    const ident = require('./modules/moduleIdentity');
+    if (!ident || typeof ident.ensureMany !== 'function') return;
+    const names = [];
+    try {
+      for (const [meshName] of meshOrchestrator.registry) names.push(meshName);
+    } catch (_) { /* registry shape */ }
+    const r = ident.ensureMany(names);
+    console.log('[moduleIdentity] seeded DIDs for mesh engines:', r && r.count);
+  } catch (e) {
+    console.warn('[moduleIdentity] mesh DID seed skipped:', e && e.message);
+  }
+})();
 
 // Pornim orchestratorul — Swiss-watch mode
 if (!_stableRuntime) {

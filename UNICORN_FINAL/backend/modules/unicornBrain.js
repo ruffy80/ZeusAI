@@ -78,19 +78,25 @@ function conflictCoordinator() {
 
 // Ciclu principal unic
 let mainCycleCount = 0;
-let lastStatus = {};
+// IMPORTANT: keep only a SLIM tick snapshot here — never the full getStatus()
+// object. getStatus() embeds lastStatus, so storing getStatus() into lastStatus
+// creates unbounded self-nesting that makes JSON.stringify (and therefore
+// /api/brain/status & /api/supreme/status) hang.
+let lastStatus = null;
 const MAIN_INTERVAL = 1000; // 1s
 setInterval(() => {
   mainCycleCount++;
+  let activeLayers = 0;
   Object.values(adaptiveLayers).forEach(layer => {
     if (layer.state.active) {
+      activeLayers++;
       layer.process({ tick: mainCycleCount });
     }
   });
   if (mainCycleCount % 30 === 0) {
     try { conflictCoordinator(); } catch (_) { /* never break the brain cycle */ }
   }
-  lastStatus = getStatus();
+  lastStatus = { mainCycleCount, activeLayers, timestamp: new Date().toISOString() };
   meshBus.emit('brain:tick', { mainCycleCount, status: lastStatus });
 }, MAIN_INTERVAL);
 
@@ -101,6 +107,7 @@ function getStatus() {
     layers: Object.fromEntries(
       Object.entries(adaptiveLayers).map(([id, layer]) => [id, layer.getStatus()])
     ),
+    // Slim, non-recursive snapshot of the most recent tick (see setInterval above).
     lastStatus,
     timestamp: new Date().toISOString()
   };
