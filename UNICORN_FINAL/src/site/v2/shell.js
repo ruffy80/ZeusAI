@@ -3139,6 +3139,7 @@ function pageSocialNetwork() {
       <button type="button" class="za-rail-btn" data-pane="explore" role="tab">Explore</button>
       <button type="button" class="za-rail-btn" data-pane="messages" role="tab">Messages</button>
       <button type="button" class="za-rail-btn" data-pane="inventions" role="tab">Inventions</button>
+      <button type="button" class="za-rail-btn" data-pane="world" role="tab">World Standard</button>
       <button type="button" class="za-rail-btn" data-pane="ledger" role="tab">Ledger</button>
     </div>
 
@@ -3187,6 +3188,93 @@ function pageSocialNetwork() {
         <div id="zaMessages" class="za-messages"></div>
       </section>
       <section class="za-pane" data-pane="inventions" id="za-inventions"><div id="zaInventions" class="za-inv-grid">${ssrInventions}</div></section>
+      <section class="za-pane" data-pane="world" id="zaPaneWorld">
+        <div class="za-world-head">
+          <h2 class="za-social-h2">World Standard · 12 inventions</h2>
+          <p class="za-social-sub">Live primitives that outclass every existing social network — all wired to your cryptoauth identity.</p>
+        </div>
+        <div id="zaWorldStatus" class="za-social-metrics"></div>
+        <div class="za-world-grid">
+          <article class="za-world-card">
+            <h3>Attention Ledger</h3>
+            <p id="zaAttnBal">Balance —</p>
+            <button type="button" id="zaAttnRefresh" class="btn btn-ghost">Refresh</button>
+            <button type="button" id="zaAttnDonate" class="btn btn-primary">Donate 60s to @zeusai</button>
+          </article>
+          <article class="za-world-card">
+            <h3>Proof-of-Human Light</h3>
+            <p id="zaHumanPrompt">Challenge idle</p>
+            <button type="button" id="zaHumanStart" class="btn btn-ghost">Get challenge</button>
+            <input id="zaHumanAns" placeholder="Answer" maxlength="8"/>
+            <button type="button" id="zaHumanVerify" class="btn btn-primary">Verify</button>
+          </article>
+          <article class="za-world-card">
+            <h3>Emotional Bandwidth</h3>
+            <p>Cap aggressive density · override if needed</p>
+            <button type="button" id="zaBwOverride" class="btn btn-primary">Override 30 min</button>
+          </article>
+          <article class="za-world-card">
+            <h3>Consent Graph</h3>
+            <p>Peer handle + channels</p>
+            <input id="zaConsentPeer" placeholder="aria.builds" maxlength="40"/>
+            <label><input type="checkbox" id="zaCFeed" checked/> feed</label>
+            <label><input type="checkbox" id="zaCStory" checked/> story</label>
+            <label><input type="checkbox" id="zaCDm" checked/> dm</label>
+            <label><input type="checkbox" id="zaCRec" checked/> recommend</label>
+            <button type="button" id="zaConsentSave" class="btn btn-primary">Save consent</button>
+          </article>
+          <article class="za-world-card">
+            <h3>Anti-Deepfake Bond</h3>
+            <input id="zaBondPost" placeholder="post id" maxlength="64"/>
+            <input id="zaBondAmt" placeholder="0.0001 BTC" maxlength="16"/>
+            <button type="button" id="zaBondPostBtn" class="btn btn-primary">Post bond</button>
+            <div id="zaBondList"></div>
+          </article>
+          <article class="za-world-card">
+            <h3>Ambiguity / Claim</h3>
+            <input id="zaClaimPost" placeholder="post id" maxlength="64"/>
+            <select id="zaClaimState"><option value="unverified">unverified</option><option value="contested">contested</option><option value="verified">verified</option></select>
+            <input id="zaClaimEv" placeholder="evidence" maxlength="200"/>
+            <button type="button" id="zaClaimSave" class="btn btn-primary">Set claim</button>
+          </article>
+          <article class="za-world-card">
+            <h3>Creator Split</h3>
+            <input id="zaSplitPost" placeholder="post id" maxlength="64"/>
+            <input id="zaSplitPeer" placeholder="co-creator handle" maxlength="40"/>
+            <button type="button" id="zaSplitSave" class="btn btn-primary">50/50 split</button>
+          </article>
+          <article class="za-world-card">
+            <h3>Intent Ads (Zero default)</h3>
+            <p id="zaAdPolicy">Ads off unless intent=trade</p>
+            <button type="button" id="zaAdSlot" class="btn btn-primary">Sign ad slot (trade)</button>
+          </article>
+          <article class="za-world-card">
+            <h3>Exit-Complete Export</h3>
+            <p>Full portable pack — leave anytime</p>
+            <button type="button" id="zaExport" class="btn btn-primary">Download exit pack</button>
+          </article>
+          <article class="za-world-card">
+            <h3>Re-anchor Virality</h3>
+            <input id="zaReanchorPost" placeholder="your post id" maxlength="64"/>
+            <button type="button" id="zaReanchor" class="btn btn-primary">Re-anchor 72h</button>
+          </article>
+          <article class="za-world-card">
+            <h3>Federation Mesh</h3>
+            <p>Every compose pins a content-addressed CID. Lookup by post id.</p>
+            <input id="zaFedPost" placeholder="post id" maxlength="64"/>
+            <button type="button" id="zaFedLookup" class="btn btn-primary">Lookup CID</button>
+            <p id="zaFedOut" class="za-social-sub">—</p>
+          </article>
+          <article class="za-world-card">
+            <h3>Reputation Without Mob</h3>
+            <p>Trust from bonds, anchors, ledger — not likes.</p>
+            <input id="zaRepHandle" placeholder="handle" maxlength="40"/>
+            <button type="button" id="zaRepLookup" class="btn btn-primary">Lookup score</button>
+            <p id="zaRepOut" class="za-social-sub">—</p>
+          </article>
+        </div>
+        <div id="zaWorldInv" class="za-inv-grid" style="margin-top:22px"></div>
+      </section>
       <section class="za-pane" data-pane="ledger" id="zaPaneLedger">
         <div id="zaReach" class="za-social-metrics"></div>
         <div id="zaParity" class="za-parity"></div>
@@ -3223,8 +3311,12 @@ function pageSocialNetwork() {
       return '<article class="za-post" data-id="'+esc(p.id)+'" data-cue="'+esc(p.platformCue)+'">'+
         '<header class="za-post-head"><div class="za-avatar" data-presence="'+esc(a.presence||'quiet')+'">'+esc((a.displayName||'?').slice(0,1))+'</div>'+
         '<div class="za-post-meta"><strong>'+esc(a.displayName||'')+(a.verified?' <span class="za-verified">✓</span>':'')+(a.system?' <span class="za-system">official</span>':'')+'</strong>'+
-        '<span>@'+esc(a.handle||'')+' · '+esc(p.platformCue||'')+' · passport '+esc(a.passport)+'</span></div></header>'+
-        '<p class="za-post-text">'+esc(p.text)+'</p>'+media+
+        '<span>@'+esc(a.handle||'')+' · '+esc(p.platformCue||'')+' · passport '+esc(a.passport)+' · rep '+esc(a.reputation)+'</span></div></header>'+
+        '<p class="za-post-text">'+esc(p.text)+'</p>'+
+        '<div class="za-post-flags"><span data-claim="'+esc(p.claimState||'unverified')+'">claim:'+esc(p.claimState||'unverified')+'</span>'+
+        (p.virality&&p.virality.expired?'<span class="za-viral-expired">virality expired</span>':'<span class="za-viral-live">viral window</span>')+
+        (p.federationCid?'<span class="za-cid" title="'+esc(p.federationCid)+'">CID</span>':'')+
+        '</div>'+media+
         '<footer class="za-post-foot">'+
           '<button type="button" data-react="like" data-id="'+esc(p.id)+'">Like '+(p.stats&&p.stats.likes||0)+'</button>'+
           '<button type="button" data-react="comment" data-id="'+esc(p.id)+'">Reply '+(p.stats&&p.stats.comments||0)+'</button>'+
@@ -3389,6 +3481,8 @@ function pageSocialNetwork() {
           document.getElementById('zaInventions').innerHTML=(inv.items||[]).map(function(i){
             return '<article class="za-inv"><h3>'+esc(i.title)+'</h3><p>'+esc(i.problem)+'</p><p class="za-inv-sol">'+esc(i.solution)+'</p></article>';
           }).join('');
+        } else if(name==='world'){
+          await loadWorld();
         } else if(name==='ledger'){
           var pulse=await api('/api/zeusai-social/pulse');
           var parity=await api('/api/zeusai-social/parity');
@@ -3422,6 +3516,142 @@ function pageSocialNetwork() {
         }
       }catch(err){ console.warn('za-social',err); }
     }
+
+    async function loadWorld(){
+      var st=await api('/api/zeusai-social/world');
+      var box=document.getElementById('zaWorldStatus');
+      if(box&&st&&st.counts){
+        var c=st.counts;
+        box.innerHTML=
+          '<div class="za-social-metric"><span class="za-social-metric__l">Inventions</span><strong class="za-social-metric__v">'+esc(st.inventionsLive)+'</strong></div>'+
+          '<div class="za-social-metric"><span class="za-social-metric__l">Attention accts</span><strong class="za-social-metric__v">'+esc(c.attentionAccounts)+'</strong></div>'+
+          '<div class="za-social-metric"><span class="za-social-metric__l">Bonds</span><strong class="za-social-metric__v">'+esc(c.bonds)+'</strong></div>'+
+          '<div class="za-social-metric"><span class="za-social-metric__l">Consent edges</span><strong class="za-social-metric__v">'+esc(c.consentEdges)+'</strong></div>'+
+          '<div class="za-social-metric"><span class="za-social-metric__l">Federation pins</span><strong class="za-social-metric__v">'+esc(c.federationPins)+'</strong></div>'+
+          '<div class="za-social-metric"><span class="za-social-metric__l">Claims</span><strong class="za-social-metric__v">'+esc(c.claims)+'</strong></div>';
+      }
+      var inv=await api('/api/zeusai-social/world/inventions');
+      document.getElementById('zaWorldInv').innerHTML=(inv.items||[]).map(function(i){
+        return '<article class="za-inv"><h3>'+esc(i.title)+'</h3><p>'+esc(i.problem)+'</p><p class="za-inv-sol">'+esc(i.solution)+'</p><span class="za-system">'+esc(i.status)+'</span></article>';
+      }).join('');
+      var pol=await api('/api/zeusai-social/world/ads-policy');
+      var pe=document.getElementById('zaAdPolicy');
+      if(pe) pe.textContent='defaultAds='+String(pol.defaultAds)+' · requires intent='+esc(pol.requiresIntent);
+      var bonds=await api('/api/zeusai-social/world/bonds?limit=8');
+      document.getElementById('zaBondList').innerHTML=(bonds.items||[]).slice(0,5).map(function(b){
+        return '<div class="za-bond-row"><code>'+esc(b.id)+'</code> · '+esc(b.status)+' · '+esc(b.amountBtc)+' BTC · post '+esc(b.postId)+
+          ' <button type="button" data-challenge-bond="'+esc(b.id)+'">Challenge</button></div>';
+      }).join('');
+      if(token()){
+        var att=await api('/api/zeusai-social/world/attention');
+        if(att&&att.ok) document.getElementById('zaAttnBal').textContent='Balance '+att.balanceSec+' seconds owned';
+      }
+    }
+    var _humChallengeId=null;
+    function wireWorld(){
+      document.getElementById('zaAttnRefresh').onclick=async function(){ if(!token()){needAuth();return;} var a=await api('/api/zeusai-social/world/attention'); if(a&&a.ok) document.getElementById('zaAttnBal').textContent='Balance '+a.balanceSec+' seconds owned'; };
+      document.getElementById('zaAttnDonate').onclick=async function(){
+        if(!token()){needAuth();return;}
+        var prof=await api('/api/zeusai-social/user/zeusai');
+        if(!prof||!prof.ok){alert('zeusai not found');return;}
+        var r=await api('/api/zeusai-social/world/attention/donate',{method:'POST',body:{toUserId:prof.profile.id,seconds:60}});
+        if(r&&r.status===401){needAuth();return;}
+        alert(r&&r.ok?('Donated. Balance '+r.balanceSec+'s'):(r&&r.error)||'fail');
+        loadWorld();
+      };
+      document.getElementById('zaHumanStart').onclick=async function(){
+        if(!token()){needAuth();return;}
+        var r=await api('/api/zeusai-social/world/human/challenge',{method:'POST',body:{}});
+        if(r&&r.status===401){needAuth();return;}
+        _humChallengeId=r.challengeId;
+        document.getElementById('zaHumanPrompt').textContent=r.prompt||'—';
+      };
+      document.getElementById('zaHumanVerify').onclick=async function(){
+        if(!token()){needAuth();return;}
+        var r=await api('/api/zeusai-social/world/human/verify',{method:'POST',body:{challengeId:_humChallengeId,answer:document.getElementById('zaHumanAns').value}});
+        alert(r&&r.ok?'Human verified':'Failed: '+(r&&r.error));
+      };
+      document.getElementById('zaBwOverride').onclick=async function(){
+        if(!token()){needAuth();return;}
+        var r=await api('/api/zeusai-social/world/bandwidth/override',{method:'POST',body:{minutes:30}});
+        alert(r&&r.ok?('Override until '+r.overrideUntil):(r&&r.error)||'fail');
+      };
+      document.getElementById('zaConsentSave').onclick=async function(){
+        if(!token()){needAuth();return;}
+        var handle=document.getElementById('zaConsentPeer').value.trim().replace(/^@/,'');
+        var prof=await api('/api/zeusai-social/user/'+encodeURIComponent(handle));
+        if(!prof||!prof.ok){alert('user not found');return;}
+        var r=await api('/api/zeusai-social/world/consent',{method:'POST',body:{
+          peerId:prof.profile.id,
+          feed:document.getElementById('zaCFeed').checked,
+          story:document.getElementById('zaCStory').checked,
+          dm:document.getElementById('zaCDm').checked,
+          recommend:document.getElementById('zaCRec').checked
+        }});
+        alert(r&&r.ok?'Consent saved':(r&&r.error)||'fail');
+      };
+      document.getElementById('zaBondPostBtn').onclick=async function(){
+        if(!token()){needAuth();return;}
+        var r=await api('/api/zeusai-social/world/bond',{method:'POST',body:{postId:document.getElementById('zaBondPost').value,amountBtc:document.getElementById('zaBondAmt').value||0.0001}});
+        alert(r&&r.ok?('Bond '+r.bond.id):(r&&r.error)||'fail'); loadWorld();
+      };
+      document.getElementById('zaClaimSave').onclick=async function(){
+        if(!token()){needAuth();return;}
+        var r=await api('/api/zeusai-social/world/claim',{method:'POST',body:{postId:document.getElementById('zaClaimPost').value,state:document.getElementById('zaClaimState').value,evidence:document.getElementById('zaClaimEv').value}});
+        alert(r&&r.ok?'Claim set':(r&&r.error)||'fail');
+      };
+      document.getElementById('zaSplitSave').onclick=async function(){
+        if(!token()){needAuth();return;}
+        var handle=document.getElementById('zaSplitPeer').value.trim().replace(/^@/,'');
+        var prof=await api('/api/zeusai-social/user/'+encodeURIComponent(handle));
+        if(!prof||!prof.ok||!me||!me.profile){alert('need peer + signed in');return;}
+        var r=await api('/api/zeusai-social/world/split',{method:'POST',body:{postId:document.getElementById('zaSplitPost').value,shares:[{userId:me.profile.id,pct:50},{userId:prof.profile.id,pct:50}]}});
+        alert(r&&r.ok?'Split saved':(r&&r.error)||'fail');
+      };
+      document.getElementById('zaAdSlot').onclick=async function(){
+        if(!token()){needAuth();return;}
+        await api('/api/zeusai-social/intent',{method:'POST',body:{intent:'trade'}});
+        var r=await api('/api/zeusai-social/world/ad-slot',{method:'POST',body:{intent:'trade',creativeId:'demo-trade'}});
+        alert(r&&r.ok?('Ad slot signed '+r.slot.id):(r&&r.error)||'fail');
+      };
+      document.getElementById('zaExport').onclick=async function(){
+        if(!token()){needAuth();return;}
+        var r=await api('/api/zeusai-social/world/export');
+        if(r&&r.status===401){needAuth();return;}
+        if(!r||!r.ok){alert((r&&r.error)||'export failed');return;}
+        var blob=new Blob([JSON.stringify(r.pack,null,2)],{type:'application/json'});
+        var a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='zeusai-social-exit-'+Date.now()+'.json'; a.click();
+      };
+      document.getElementById('zaReanchor').onclick=async function(){
+        if(!token()){needAuth();return;}
+        var r=await api('/api/zeusai-social/world/reanchor',{method:'POST',body:{postId:document.getElementById('zaReanchorPost').value}});
+        alert(r&&r.ok?'Re-anchored 72h':(r&&r.error)||'fail');
+      };
+      document.getElementById('zaFedLookup').onclick=async function(){
+        var id=document.getElementById('zaFedPost').value.trim();
+        if(!id){alert('post id required');return;}
+        var r=await api('/api/zeusai-social/world/federation/'+encodeURIComponent(id));
+        document.getElementById('zaFedOut').textContent=r&&r.ok&&r.cid?('CID '+r.cid):((r&&r.error)||'not pinned');
+      };
+      document.getElementById('zaRepLookup').onclick=async function(){
+        var handle=document.getElementById('zaRepHandle').value.trim().replace(/^@/,'');
+        var prof=await api('/api/zeusai-social/user/'+encodeURIComponent(handle));
+        if(!prof||!prof.ok){alert('user not found');return;}
+        var r=await api('/api/zeusai-social/world/reputation/'+encodeURIComponent(prof.profile.id));
+        document.getElementById('zaRepOut').textContent=r&&r.ok?('score '+r.score+' · events '+(r.events&&r.events.length||0)):(r&&r.error)||'fail';
+      };
+      document.getElementById('zaBondList').addEventListener('click',async function(e){
+        var b=e.target.closest('[data-challenge-bond]');
+        if(!b) return;
+        if(!token()){needAuth();return;}
+        var reason=prompt('Challenge reason');
+        if(!reason) return;
+        var r=await api('/api/zeusai-social/world/bond/challenge',{method:'POST',body:{bondId:b.getAttribute('data-challenge-bond'),reason:reason,evidence:'user challenge'}});
+        alert(r&&r.ok?'Bond contested':(r&&r.error)||'fail'); loadWorld();
+      });
+    }
+
+    wireWorld();
     refreshMe().then(function(){ loadPane('home'); });
     setInterval(function(){ var on=document.querySelector('.za-rail-btn.is-on'); if(on) loadPane(on.getAttribute('data-pane')); },15000);
   })();

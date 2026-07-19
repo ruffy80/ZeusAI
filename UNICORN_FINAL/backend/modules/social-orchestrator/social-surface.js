@@ -12,6 +12,8 @@ const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 
+const worldStandard = require('./world-standard');
+
 const DATA_DIR = process.env.ZEUSAI_SOCIAL_DATA_DIR
   || path.join(__dirname, '../../../data/zeusai-social');
 const DATA_FILE = path.join(DATA_DIR, 'surface.json');
@@ -82,6 +84,17 @@ const WORLD_INVENTIONS = [
     status: 'live',
   },
 ];
+
+// Merge the 12 world-standard inventions (dedupe by id).
+(() => {
+  const seen = new Set(WORLD_INVENTIONS.map((i) => i.id));
+  for (const inv of worldStandard.INVENTIONS || []) {
+    if (!seen.has(inv.id)) {
+      WORLD_INVENTIONS.push(inv);
+      seen.add(inv.id);
+    }
+  }
+})();
 
 function _now() { return new Date().toISOString(); }
 function _id(prefix) {
@@ -353,6 +366,11 @@ class SocialSurface {
 
   _enrichPost(p) {
     const author = this._user(p.authorId) || { handle: 'unknown', displayName: 'Unknown', verified: false, presence: 'quiet', passport: 0 };
+    const viral = worldStandard.viralScore(p);
+    const fed = worldStandard.getFederation(p.id);
+    const claim = worldStandard.getClaim(p.id);
+    const split = worldStandard.getSplit(p.id);
+    const rep = worldStandard.getReputation(author.id || p.authorId);
     return {
       id: p.id,
       kind: p.kind,
@@ -365,6 +383,12 @@ class SocialSurface {
       proofOfAuthorship: p.proofOfAuthorship,
       truthAnchor: p.truthAnchor,
       royaltyHintBtc: p.royaltyHintBtc,
+      viralReanchorAt: p.viralReanchorAt || null,
+      virality: viral,
+      federationCid: fed.ok ? fed.cid : null,
+      claimState: claim.claim ? claim.claim.state : 'unverified',
+      claim,
+      split: split.ok ? split.split : null,
       author: {
         id: author.id,
         handle: author.handle,
@@ -373,6 +397,7 @@ class SocialSurface {
         system: !!author.system,
         presence: author.presence,
         passport: author.passport,
+        reputation: rep.score,
       },
     };
   }
@@ -411,10 +436,20 @@ class SocialSurface {
     if (this.state.receipts.length > 200) this.state.receipts.length = 200;
     post.stats.views = (post.stats.views || 0) + 1;
     this._save();
+    let attn = worldStandard.spendAttention(viewer, {
+      seconds: 5,
+      creatorId: post.authorId,
+      action: 'view',
+    });
+    if (!attn.ok && attn.error === 'attention_insufficient') {
+      // Soft-fail: receipt still stands; ledger simply notes depletion.
+      attn = { ok: false, depleted: true, balanceSec: attn.balanceSec, invention: 'attention-economy-ledger' };
+    }
     return {
       ok: true,
       receipt,
       wellbeing: this.getWellbeing(viewer),
+      attention: attn,
       invention: 'attention-receipt',
     };
   }
@@ -538,11 +573,22 @@ class SocialSurface {
     };
   }
 
-  compose({ authorId, text, kind = 'text', platformCue = 'x', tags = [] } = {}) {
+  compose({
+    authorId, text, kind = 'text', platformCue = 'x', tags = [],
+    bondBtc, splitShares, claimState, bandwidthOverride,
+  } = {}) {
     if (!authorId) return { ok: false, error: 'auth_required' };
     this.ensureProfile(authorId);
     const body = String(text || '').trim().slice(0, 2000);
     if (!body) return { ok: false, error: 'empty' };
+    const tagList = Array.isArray(tags) ? tags.slice(0, 8) : [];
+    const bw = worldStandard.checkBandwidth(authorId, { text: body, tags: tagList });
+    if (!bw.allowed && !bandwidthOverride) {
+      return { ok: false, error: 'emotional_bandwidth_cap', bandwidth: bw };
+    }
+    if (!worldStandard.isHumanFresh(authorId)) {
+      // Soft gate: still allow, but flag — UI prompts challenge.
+    }
     const id = _id('p');
     const post = {
       id,
@@ -553,17 +599,41 @@ class SocialSurface {
       media: kind === 'short' || kind === 'reel'
         ? { type: 'video', aspect: '9:16', poster: 'gradient-mint', durationSec: 15, sound: 'Signal Pulse · original' }
         : null,
-      tags: Array.isArray(tags) ? tags.slice(0, 8) : [],
+      tags: tagList,
       createdAt: _now(),
       stats: { likes: 0, comments: 0, shares: 0, saves: 0, views: 0 },
       proofOfAuthorship: _hash({ id, text: body, authorId }),
       truthAnchor: _hash({ claim: body.slice(0, 80), id }).slice(0, 16),
       royaltyHintBtc: 0,
+      viralReanchorAt: null,
     };
     this.state.posts.unshift(post);
     if (this.state.posts.length > 200) this.state.posts.length = 200;
     this._save();
-    return { ok: true, post: this._enrichPost(post), invention: 'proof-of-authorship' };
+
+    const fed = worldStandard.pinFederation(authorId, { postId: id, text: body });
+    let bond = null;
+    if (bondBtc != null) {
+      bond = worldStandard.postBond(authorId, { postId: id, amountBtc: bondBtc });
+    }
+    let split = null;
+    if (Array.isArray(splitShares) && splitShares.length) {
+      split = worldStandard.setSplit(authorId, { postId: id, shares: splitShares });
+    }
+    if (claimState) {
+      worldStandard.setClaimState(authorId, { postId: id, state: claimState });
+    }
+
+    return {
+      ok: true,
+      post: this._enrichPost(post),
+      invention: 'proof-of-authorship',
+      federation: fed,
+      bond,
+      split,
+      bandwidth: bw,
+      humanFresh: worldStandard.isHumanFresh(authorId),
+    };
   }
 
   react({ postId, type = 'like', actorId } = {}) {
@@ -592,6 +662,10 @@ class SocialSurface {
     if (!followerId) return { ok: false, error: 'auth_required' };
     this.ensureProfile(followerId);
     if (!targetId || !this._user(targetId)) return { ok: false, error: 'target_not_found' };
+    // Consent Graph: target must allow follower on feed channel
+    if (!worldStandard.allows(targetId, followerId, 'feed')) {
+      return { ok: false, error: 'consent_denied', channel: 'feed', invention: 'consent-graph' };
+    }
     const exists = this.state.follows.some((f) => f[0] === followerId && f[1] === targetId);
     if (!exists) {
       this.state.follows.push([followerId, targetId]);
@@ -606,6 +680,10 @@ class SocialSurface {
     if (!from) return { ok: false, error: 'auth_required' };
     this.ensureProfile(from);
     if (!to || !this._user(to)) return { ok: false, error: 'target_not_found' };
+    // Consent Graph: recipient must allow sender on dm channel
+    if (!worldStandard.allows(to, from, 'dm')) {
+      return { ok: false, error: 'consent_denied', channel: 'dm', invention: 'consent-graph' };
+    }
     const body = String(text || '').trim().slice(0, 1000);
     if (!body) return { ok: false, error: 'empty' };
     let thread = this.state.threads.find((t) => t.participants.includes(from) && t.participants.includes(to));
@@ -620,7 +698,43 @@ class SocialSurface {
   }
 
   inventions() {
-    return { ok: true, brand: 'ZeusAI Social', items: WORLD_INVENTIONS };
+    return {
+      ok: true,
+      brand: 'ZeusAI Social',
+      items: WORLD_INVENTIONS,
+      worldStandard: worldStandard.status(),
+    };
+  }
+
+  /** Re-anchor virality (author only). */
+  reanchorPost(authorId, postId) {
+    if (!authorId || !postId) return { ok: false, error: 'auth_required' };
+    const post = this.state.posts.find((p) => p.id === postId);
+    if (!post) return { ok: false, error: 'post_not_found' };
+    if (post.authorId !== authorId) return { ok: false, error: 'forbidden' };
+    post.viralReanchorAt = _now();
+    this._save();
+    return { ok: true, post: this._enrichPost(post), invention: 'time-bounded-virality' };
+  }
+
+  exportExit(userId) {
+    if (!userId) return { ok: false, error: 'auth_required' };
+    const myPosts = this.state.posts.filter((p) => p.authorId === userId).map((p) => this._enrichPost(p));
+    const following = this.state.follows.filter((f) => f[0] === userId);
+    const followers = this.state.follows.filter((f) => f[1] === userId);
+    const profile = this._publicProfile(this._user(userId));
+    return worldStandard.exportPortable(userId, {
+      profile,
+      posts: myPosts,
+      following,
+      followers,
+      receipts: this.state.receipts.filter((r) => r.viewer === userId).slice(0, 200),
+      bookmarks: this.state.bookmarks.filter((b) => b.actorId === userId),
+    });
+  }
+
+  world() {
+    return worldStandard;
   }
 
   parity() {
@@ -696,10 +810,11 @@ class SocialSurface {
   <p class="za-post-text">${esc(p.text)}</p>
   ${media}
   <footer class="za-post-foot">
-    <button type="button" data-react="like" data-id="${esc(p.id)}">♥ ${esc(p.stats.likes)}</button>
-    <button type="button" data-react="comment" data-id="${esc(p.id)}">💬 ${esc(p.stats.comments)}</button>
-    <button type="button" data-react="share" data-id="${esc(p.id)}">↗ ${esc(p.stats.shares)}</button>
-    <button type="button" data-react="save" data-id="${esc(p.id)}">Bookmark ${esc(p.stats.saves)}</button>
+    <button type="button" data-react="like" data-id="${esc(p.id)}">Like ${esc(p.stats.likes)}</button>
+    <button type="button" data-react="comment" data-id="${esc(p.id)}">Reply ${esc(p.stats.comments)}</button>
+    <button type="button" data-react="share" data-id="${esc(p.id)}">Share ${esc(p.stats.shares)}</button>
+    <button type="button" data-react="save" data-id="${esc(p.id)}">Save ${esc(p.stats.saves)}</button>
+    <span class="za-post-flags" data-claim="${esc(p.claimState || 'unverified')}">claim:${esc(p.claimState || 'unverified')}</span>
     <span class="za-post-proof" title="Proof-of-Authorship">${esc((p.proofOfAuthorship || '').slice(0, 10))}…</span>
   </footer>
 </article>`;

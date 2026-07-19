@@ -11623,7 +11623,7 @@ app.get('/api/zeusai-social/reach', (req, res) => {
   app.get('/api/zeusai-social/messages', wrap((req, res) => {
     const u = requireAuth(req, res);
     if (!u) return undefined;
-    return surface.messages();
+    return surface.messages(u.userId);
   }));
   app.get('/api/zeusai-social/innovations', wrap(() => surface.inventions()));
   app.get('/api/zeusai-social/parity', wrap(() => surface.parity()));
@@ -11683,6 +11683,99 @@ app.get('/api/zeusai-social/reach', (req, res) => {
     const u = requireAuth(req, res);
     if (!u) return undefined;
     return surface.sharePost(req.body && req.body.postId, u.userId);
+  }));
+
+  // ── World-standard inventions (12 primitives) ──────────────────────────
+  const ws = () => surface.world();
+  app.get('/api/zeusai-social/world', wrap(() => ws().status()));
+  app.get('/api/zeusai-social/world/inventions', wrap(() => ws().list()));
+  app.get('/api/zeusai-social/world/ads-policy', wrap(() => ws().listAdPolicy()));
+  app.get('/api/zeusai-social/world/bonds', wrap((req) => ws().listBonds(req.query.limit)));
+  app.get('/api/zeusai-social/world/attention', wrap((req, res) => {
+    const u = requireAuth(req, res);
+    if (!u) return undefined;
+    return ws().getAttentionLedger(u.userId);
+  }));
+  app.get('/api/zeusai-social/world/consent', wrap((req, res) => {
+    const u = requireAuth(req, res);
+    if (!u) return undefined;
+    return ws().getConsent(u.userId, req.query.peerId);
+  }));
+  app.get('/api/zeusai-social/world/reputation/:userId', wrap((req) => ws().getReputation(req.params.userId)));
+  app.get('/api/zeusai-social/world/claim/:postId', wrap((req) => ws().getClaim(req.params.postId)));
+  app.get('/api/zeusai-social/world/split/:postId', wrap((req) => ws().getSplit(req.params.postId)));
+  app.get('/api/zeusai-social/world/federation/:postId', wrap((req) => ws().getFederation(req.params.postId)));
+  app.get('/api/zeusai-social/world/export', wrap((req, res) => {
+    const u = requireAuth(req, res);
+    if (!u) return undefined;
+    return surface.exportExit(u.userId);
+  }));
+
+  app.post('/api/zeusai-social/world/attention/spend', wrap((req, res) => {
+    const u = requireAuth(req, res);
+    if (!u) return undefined;
+    return ws().spendAttention(u.userId, req.body || {});
+  }));
+  app.post('/api/zeusai-social/world/attention/donate', wrap((req, res) => {
+    const u = requireAuth(req, res);
+    if (!u) return undefined;
+    return ws().donateAttention(u.userId, req.body || {});
+  }));
+  app.post('/api/zeusai-social/world/bond', wrap((req, res) => {
+    const u = requireAuth(req, res);
+    if (!u) return undefined;
+    return ws().postBond(u.userId, req.body || {});
+  }));
+  app.post('/api/zeusai-social/world/bond/challenge', wrap((req, res) => {
+    const u = requireAuth(req, res);
+    if (!u) return undefined;
+    return ws().challengeBond(u.userId, req.body || {});
+  }));
+  app.post('/api/zeusai-social/world/bond/resolve', wrap((req, res) => {
+    const u = requireAuth(req, res);
+    if (!u) return undefined;
+    return ws().resolveBond(u.userId, req.body || {});
+  }));
+  app.post('/api/zeusai-social/world/consent', wrap((req, res) => {
+    const u = requireAuth(req, res);
+    if (!u) return undefined;
+    return ws().setConsent(u.userId, req.body || {});
+  }));
+  app.post('/api/zeusai-social/world/reanchor', wrap((req, res) => {
+    const u = requireAuth(req, res);
+    if (!u) return undefined;
+    return surface.reanchorPost(u.userId, req.body && req.body.postId);
+  }));
+  app.post('/api/zeusai-social/world/split', wrap((req, res) => {
+    const u = requireAuth(req, res);
+    if (!u) return undefined;
+    return ws().setSplit(u.userId, req.body || {});
+  }));
+  app.post('/api/zeusai-social/world/claim', wrap((req, res) => {
+    const u = requireAuth(req, res);
+    if (!u) return undefined;
+    return ws().setClaimState(u.userId, req.body || {});
+  }));
+  app.post('/api/zeusai-social/world/bandwidth/override', wrap((req, res) => {
+    const u = requireAuth(req, res);
+    if (!u) return undefined;
+    return ws().overrideBandwidth(u.userId, req.body || {});
+  }));
+  app.post('/api/zeusai-social/world/ad-slot', wrap((req, res) => {
+    const u = requireAuth(req, res);
+    if (!u) return undefined;
+    const intent = (req.body && req.body.intent) || (surface.me(u.userId).session && surface.me(u.userId).session.intent);
+    return ws().signAdSlot(u.userId, Object.assign({}, req.body || {}, { intent }));
+  }));
+  app.post('/api/zeusai-social/world/human/challenge', wrap((req, res) => {
+    const u = requireAuth(req, res);
+    if (!u) return undefined;
+    return ws().issueHumanChallenge(u.userId);
+  }));
+  app.post('/api/zeusai-social/world/human/verify', wrap((req, res) => {
+    const u = requireAuth(req, res);
+    if (!u) return undefined;
+    return ws().verifyHumanChallenge(u.userId, req.body || {});
   }));
 })();
 
