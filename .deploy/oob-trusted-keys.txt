@@ -1,0 +1,11 @@
+# oob-trusted-keys.txt — trusted Ed25519 public keys for the OOB deploy channel.
+# ---------------------------------------------------------------------------
+# One key per line, in OpenSSH one-line form ("ssh-ed25519 AAAA... comment") or
+# PEM SPKI. A POST /api/oob-deploy request signed (ed25519=<base64>) by the
+# matching PRIVATE key is accepted. Lines starting with '#' are ignored.
+#
+# This is an ADDITIONAL auth path alongside the HMAC shared secret
+# (ZEUS_OOB_DEPLOY_SECRET). Either mechanism alone is sufficient. Leaving this
+# file empty and setting no secret keeps the channel fail-closed (disabled).
+#
+# SECURITY: only public keys belong here. Never commit a private key.

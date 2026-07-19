@@ -10693,6 +10693,17 @@ app.post('/deploy', (req, res) => {
   res.json({ ok: true, message: 'Deploy initiated', source, action, timestamp: new Date().toISOString() });
 });
 
+// ==================== OUT-OF-BAND (GitHub-independent) DEPLOY CHANNEL ========
+// Signed (HMAC-SHA256 or Ed25519), replay-protected, canary+smoke-gated deploy
+// trigger. Fail-closed: inert unless ZEUS_OOB_DEPLOY_SECRET or a trusted
+// Ed25519 key is configured. See backend/modules/oob-deploy.js.
+try {
+  require('./modules/oob-deploy').register(app, { express });
+  console.log('[oob-deploy] channel registered (fail-closed; enabled only when a signing secret/pubkey is configured)');
+} catch (e) {
+  console.warn('[oob-deploy] not registered:', e.message);
+}
+
 // ==================== CREDIT SYSTEM ROUTES ====================
 app.get('/api/credits/usage', authMiddleware, (req, res) => {
   const db_ = require('./db');

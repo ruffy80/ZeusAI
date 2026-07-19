@@ -8,6 +8,8 @@ data/*.db
 data/*.db-shm
 data/*.db-wal
 data/runtime-secrets.json
+data/oob-deploy-nonces.json
+data/oob-deploy-status.json
 data/**/*.secret
 data/deepseek-commands.jsonl
 data/logs/deepseek-governor.log
