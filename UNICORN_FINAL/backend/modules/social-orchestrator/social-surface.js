@@ -93,11 +93,11 @@ function _hash(payload) {
 
 function _seed() {
   const users = [
-    { id: 'u_zeus', handle: 'zeusai', displayName: 'ZeusAI', bio: 'Autonomous commerce social layer', verified: true, presence: 'active', passport: 98, intent: 'create', followers: 12840, following: 42 },
-    { id: 'u_aria', handle: 'aria.builds', displayName: 'Aria Builds', bio: 'Creator · short-form ops', verified: true, presence: 'recent', passport: 91, intent: 'create', followers: 6402, following: 210 },
-    { id: 'u_nova', handle: 'nova.lens', displayName: 'Nova Lens', bio: 'Photo essays · stories', verified: false, presence: 'active', passport: 77, intent: 'connect', followers: 2104, following: 390 },
-    { id: 'u_orbit', handle: 'orbit.trade', displayName: 'Orbit Trade', bio: 'BTC-native commerce signals', verified: true, presence: 'quiet', passport: 88, intent: 'trade', followers: 9330, following: 120 },
-    { id: 'u_mira', handle: 'mira.learn', displayName: 'Mira Learn', bio: 'Learning threads · anti-doomscroll', verified: false, presence: 'recent', passport: 84, intent: 'learn', followers: 1588, following: 640 },
+    { id: 'u_zeus', handle: 'zeusai', displayName: 'ZeusAI', bio: 'Autonomous commerce social layer', verified: true, system: true, presence: 'active', passport: 98, intent: 'create', followers: 12840, following: 42 },
+    { id: 'u_aria', handle: 'aria.builds', displayName: 'Aria Builds', bio: 'Creator · short-form ops', verified: true, system: true, presence: 'recent', passport: 91, intent: 'create', followers: 6402, following: 210 },
+    { id: 'u_nova', handle: 'nova.lens', displayName: 'Nova Lens', bio: 'Photo essays · stories', verified: false, system: true, presence: 'active', passport: 77, intent: 'connect', followers: 2104, following: 390 },
+    { id: 'u_orbit', handle: 'orbit.trade', displayName: 'Orbit Trade', bio: 'BTC-native commerce signals', verified: true, system: true, presence: 'quiet', passport: 88, intent: 'trade', followers: 9330, following: 120 },
+    { id: 'u_mira', handle: 'mira.learn', displayName: 'Mira Learn', bio: 'Learning threads · anti-doomscroll', verified: false, system: true, presence: 'recent', passport: 84, intent: 'learn', followers: 1588, following: 640 },
   ];
 
   const posts = [
@@ -217,6 +217,9 @@ class SocialSurface {
     if (!this.state.session) {
       this.state.session = { startedAt: Date.now(), views: 0, wellbeingScore: 100, intent: 'discover' };
     }
+    if (!this.state.sessions || typeof this.state.sessions !== 'object') {
+      this.state.sessions = {};
+    }
   }
 
   _save() {
@@ -228,6 +231,124 @@ class SocialSurface {
 
   _user(id) {
     return this.state.users.find((u) => u.id === id) || null;
+  }
+
+  _session(userId) {
+    const key = userId || '_anon';
+    if (!this.state.sessions) this.state.sessions = {};
+    if (!this.state.sessions[key]) {
+      this.state.sessions[key] = { startedAt: Date.now(), views: 0, wellbeingScore: 100, intent: 'discover' };
+    }
+    return this.state.sessions[key];
+  }
+
+  ensureProfile(userId, meta = {}) {
+    if (!userId || typeof userId !== 'string') return { ok: false, error: 'auth_required' };
+    let u = this._user(userId);
+    if (!u) {
+      const base = String(meta.handle || meta.name || userId.replace(/^zid_/, 'user')).toLowerCase()
+        .replace(/[^a-z0-9._]/g, '').slice(0, 24) || ('u' + userId.slice(-6));
+      let handle = base;
+      let n = 0;
+      while (this.state.users.some((x) => x.handle === handle && x.id !== userId)) {
+        n += 1;
+        handle = (base.slice(0, 20) + n).slice(0, 24);
+      }
+      u = {
+        id: userId,
+        handle,
+        displayName: String(meta.name || handle).slice(0, 64),
+        bio: String(meta.bio || 'ZeusAI Social member').slice(0, 160),
+        email: meta.email || null,
+        verified: false,
+        system: false,
+        presence: 'active',
+        passport: 50,
+        intent: 'discover',
+        followers: 0,
+        following: 0,
+        createdAt: _now(),
+      };
+      this.state.users.push(u);
+      this._session(userId);
+      this._save();
+    } else {
+      let dirty = false;
+      if (meta.name && meta.name !== u.displayName) { u.displayName = String(meta.name).slice(0, 64); dirty = true; }
+      if (meta.email && meta.email !== u.email) { u.email = meta.email; dirty = true; }
+      u.presence = 'active';
+      if (dirty) this._save();
+    }
+    return { ok: true, profile: this._publicProfile(u) };
+  }
+
+  _publicProfile(u) {
+    if (!u) return null;
+    return {
+      id: u.id,
+      handle: u.handle,
+      displayName: u.displayName,
+      bio: u.bio || '',
+      verified: !!u.verified,
+      system: !!u.system,
+      presence: u.presence || 'quiet',
+      passport: u.passport || 0,
+      followers: u.followers || 0,
+      following: u.following || 0,
+      intent: u.intent || 'discover',
+    };
+  }
+
+  getPost(id) {
+    const p = this.state.posts.find((x) => x.id === id);
+    if (!p) return { ok: false, error: 'post_not_found' };
+    return { ok: true, post: this._enrichPost(p), shareUrl: '/social-network?post=' + encodeURIComponent(p.id) };
+  }
+
+  getProfileByHandle(handle) {
+    const h = String(handle || '').replace(/^@/, '').toLowerCase();
+    const u = this.state.users.find((x) => x.handle === h || x.id === handle);
+    if (!u) return { ok: false, error: 'user_not_found' };
+    const posts = this.state.posts.filter((p) => p.authorId === u.id).map((p) => this._enrichPost(p));
+    return { ok: true, profile: this._publicProfile(u), posts };
+  }
+
+  me(userId) {
+    if (!userId) return { ok: false, error: 'auth_required' };
+    const ensured = this.ensureProfile(userId);
+    const sess = this._session(userId);
+    return {
+      ok: true,
+      profile: ensured.profile,
+      wellbeing: this.getWellbeing(userId),
+      followingIds: this.state.follows.filter((f) => f[0] === userId).map((f) => f[1]),
+      session: { intent: sess.intent, views: sess.views },
+    };
+  }
+
+  viewStory(storyId, viewerId) {
+    const s = this.state.stories.find((x) => x.id === storyId);
+    if (!s) return { ok: false, error: 'story_not_found' };
+    s.unseen = false;
+    if (viewerId) {
+      const sess = this._session(viewerId);
+      sess.views += 1;
+    }
+    this._save();
+    const author = this._user(s.authorId);
+    return { ok: true, story: { id: s.id, author: this._publicProfile(author), items: s.items, unseen: false } };
+  }
+
+  sharePost(postId, actorId) {
+    const post = this.state.posts.find((p) => p.id === postId);
+    if (!post) return { ok: false, error: 'post_not_found' };
+    if (!actorId) return { ok: false, error: 'auth_required' };
+    post.stats.shares = (post.stats.shares || 0) + 1;
+    post.royaltyHintBtc = Number(((post.stats.likes + post.stats.shares * 2) * 1.2e-9).toFixed(8));
+    this.state.reactions.unshift({ postId, type: 'share', actorId, at: _now() });
+    this._save();
+    const url = '/social-network?post=' + encodeURIComponent(postId);
+    return { ok: true, stats: post.stats, shareUrl: url, royaltyHintBtc: post.royaltyHintBtc };
   }
 
   _enrichPost(p) {
@@ -249,28 +370,35 @@ class SocialSurface {
         handle: author.handle,
         displayName: author.displayName,
         verified: !!author.verified,
+        system: !!author.system,
         presence: author.presence,
         passport: author.passport,
       },
     };
   }
 
-  setIntent(intent) {
+  setIntent(intent, userId) {
+    if (!userId) return { ok: false, error: 'auth_required' };
     const allowed = ['discover', 'learn', 'connect', 'create', 'trade'];
     const next = allowed.includes(String(intent)) ? String(intent) : 'discover';
-    this.state.session.intent = next;
+    const sess = this._session(userId);
+    sess.intent = next;
+    const u = this._user(userId);
+    if (u) u.intent = next;
+    this.state.session.intent = next; // keep global default for anonymous reads
     this._save();
     return { ok: true, intent: next };
   }
 
-  issueAttentionReceipt(postId, viewer = 'guest') {
+  issueAttentionReceipt(postId, viewer) {
+    if (!viewer) return { ok: false, error: 'auth_required' };
     const post = this.state.posts.find((p) => p.id === postId);
     if (!post) return { ok: false, error: 'post_not_found' };
-    this.state.session.views += 1;
-    // Wellbeing decays gently with compulsive viewing; Learn/create intents decay slower.
-    const intent = this.state.session.intent || 'discover';
+    const sess = this._session(viewer);
+    sess.views += 1;
+    const intent = sess.intent || 'discover';
     const decay = intent === 'learn' || intent === 'create' ? 0.4 : 1.2;
-    this.state.session.wellbeingScore = Math.max(12, Number((this.state.session.wellbeingScore - decay).toFixed(1)));
+    sess.wellbeingScore = Math.max(12, Number((sess.wellbeingScore - decay).toFixed(1)));
     const receipt = {
       id: _id('rcpt'),
       postId,
@@ -286,33 +414,35 @@ class SocialSurface {
     return {
       ok: true,
       receipt,
-      wellbeing: this.getWellbeing(),
+      wellbeing: this.getWellbeing(viewer),
       invention: 'attention-receipt',
     };
   }
 
-  getWellbeing() {
-    const score = this.state.session.wellbeingScore;
+  getWellbeing(userId) {
+    const sess = this._session(userId || '_anon');
+    const score = sess.wellbeingScore;
     let advice = 'Flow is healthy — explore with intent.';
     if (score < 40) advice = 'Circuit breaker: take a 3-minute pause. Switch intent to Learn.';
     else if (score < 70) advice = 'Soft nudge: you are drifting toward compulsive scroll.';
     return {
       score,
       advice,
-      viewsThisSession: this.state.session.views,
-      intent: this.state.session.intent,
+      viewsThisSession: sess.views,
+      intent: sess.intent,
       invention: 'wellbeing-circuit',
     };
   }
 
-  timeline(mode = 'for-you', limit = 24) {
+  timeline(mode = 'for-you', limit = 24, actorId = null) {
     const lim = Math.max(1, Math.min(40, Number(limit) || 24));
     let items = this.state.posts.map((p) => this._enrichPost(p));
-    const intent = this.state.session.intent || 'discover';
+    const intent = (actorId ? this._session(actorId).intent : this.state.session.intent) || 'discover';
 
     if (mode === 'following') {
-      const following = new Set(this.state.follows.filter((f) => f[0] === 'u_zeus').map((f) => f[1]));
-      items = items.filter((p) => following.has(p.author.id) || p.author.id === 'u_zeus');
+      if (!actorId) return { ok: false, error: 'auth_required', items: [] };
+      const following = new Set(this.state.follows.filter((f) => f[0] === actorId).map((f) => f[1]));
+      items = items.filter((p) => following.has(p.author.id) || p.author.id === actorId);
     } else if (mode === 'chrono') {
       items = items.slice().sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)));
     } else {
@@ -388,12 +518,14 @@ class SocialSurface {
     };
   }
 
-  messages() {
+  messages(userId) {
+    if (!userId) return { ok: false, error: 'auth_required', threads: [] };
+    const threads = this.state.threads.filter((t) => Array.isArray(t.participants) && t.participants.includes(userId));
     return {
       ok: true,
       encryptedDefault: true,
       invention: 'presence-without-stalking',
-      threads: this.state.threads.map((t) => ({
+      threads: threads.map((t) => ({
         id: t.id,
         encrypted: t.encrypted,
         participants: t.participants.map((id) => {
@@ -406,7 +538,9 @@ class SocialSurface {
     };
   }
 
-  compose({ authorId = 'u_zeus', text, kind = 'text', platformCue = 'x', tags = [] } = {}) {
+  compose({ authorId, text, kind = 'text', platformCue = 'x', tags = [] } = {}) {
+    if (!authorId) return { ok: false, error: 'auth_required' };
+    this.ensureProfile(authorId);
     const body = String(text || '').trim().slice(0, 2000);
     if (!body) return { ok: false, error: 'empty' };
     const id = _id('p');
@@ -432,7 +566,8 @@ class SocialSurface {
     return { ok: true, post: this._enrichPost(post), invention: 'proof-of-authorship' };
   }
 
-  react({ postId, type = 'like', actorId = 'guest' } = {}) {
+  react({ postId, type = 'like', actorId } = {}) {
+    if (!actorId) return { ok: false, error: 'auth_required' };
     const post = this.state.posts.find((p) => p.id === postId);
     if (!post) return { ok: false, error: 'post_not_found' };
     const t = String(type || 'like');
@@ -453,7 +588,9 @@ class SocialSurface {
     };
   }
 
-  follow({ followerId = 'u_zeus', targetId } = {}) {
+  follow({ followerId, targetId } = {}) {
+    if (!followerId) return { ok: false, error: 'auth_required' };
+    this.ensureProfile(followerId);
     if (!targetId || !this._user(targetId)) return { ok: false, error: 'target_not_found' };
     const exists = this.state.follows.some((f) => f[0] === followerId && f[1] === targetId);
     if (!exists) {
@@ -465,7 +602,10 @@ class SocialSurface {
     return { ok: true, following: true, targetId };
   }
 
-  sendDm({ from = 'u_zeus', to = 'u_aria', text } = {}) {
+  sendDm({ from, to, text } = {}) {
+    if (!from) return { ok: false, error: 'auth_required' };
+    this.ensureProfile(from);
+    if (!to || !this._user(to)) return { ok: false, error: 'target_not_found' };
     const body = String(text || '').trim().slice(0, 1000);
     if (!body) return { ok: false, error: 'empty' };
     let thread = this.state.threads.find((t) => t.participants.includes(from) && t.participants.includes(to));
@@ -528,7 +668,7 @@ class SocialSurface {
       shorts: this.state.posts.filter((p) => p.kind === 'short' || p.kind === 'reel').length,
       threads: this.state.threads.length,
       groups: this.state.groups.length,
-      wellbeing: this.getWellbeing(),
+      wellbeing: this.getWellbeing('_anon'),
       inventions: WORLD_INVENTIONS.length,
       parity: this.parity().totals,
       feedPreview: tl.items,

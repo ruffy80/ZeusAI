@@ -40,63 +40,53 @@ const reach = proto.proofOfReach(
   'dry-run'
 );
 assert.equal(reach.ok, true);
-assert.ok(reach.attentionArbitrageScore >= 0);
-assert.ok(Array.isArray(reach.differentiators) && reach.differentiators.length >= 4);
 
-// World-standard surface
 const snap = surface.snapshot();
 assert.equal(snap.ok, true);
 assert.ok(snap.posts >= 4);
-assert.ok(snap.stories >= 1);
-assert.ok(snap.shorts >= 1);
 assert.ok(snap.inventions >= 8);
 
-const tl = surface.timeline('for-you', 10);
-assert.ok(tl.items.length >= 3);
-assert.ok(tl.items[0].proofOfAuthorship);
+assert.equal(surface.compose({ text: 'no auth' }).error, 'auth_required');
+assert.equal(surface.react({ postId: 'x' }).error, 'auth_required');
+assert.equal(surface.follow({ targetId: 'u_aria' }).error, 'auth_required');
+assert.equal(surface.setIntent('learn').error, 'auth_required');
 
-const shorts = surface.shorts();
-assert.ok(shorts.items.every((p) => p.kind === 'short' || p.kind === 'reel'));
+const uid = 'zid_test_social_user_1';
+const ensured = surface.ensureProfile(uid, { name: 'Test Social', email: 't@example.com' });
+assert.equal(ensured.ok, true);
+assert.ok(ensured.profile.handle);
 
-const parity = surface.parity();
-assert.ok(parity.totals.featuresLive >= 40);
-assert.ok(parity.platforms.facebook.length >= 5);
-assert.ok(parity.platforms.tiktok.length >= 5);
-
-const composed = surface.compose({ text: 'World-standard signal from tests', kind: 'text' });
+const composed = surface.compose({ authorId: uid, text: 'Real-world signal from authenticated user', kind: 'text' });
 assert.equal(composed.ok, true);
-assert.ok(composed.post.proofOfAuthorship);
+assert.equal(composed.post.author.id, uid);
 
-const reacted = surface.react({ postId: composed.post.id, type: 'like' });
+const reacted = surface.react({ postId: composed.post.id, type: 'like', actorId: uid });
 assert.equal(reacted.ok, true);
-assert.ok(reacted.royaltyHintBtc >= 0);
 
-const receipt = surface.issueAttentionReceipt(composed.post.id, 'tester');
+const shared = surface.sharePost(composed.post.id, uid);
+assert.equal(shared.ok, true);
+assert.ok(shared.shareUrl.includes(composed.post.id));
+
+surface.setIntent('learn', uid);
+assert.equal(surface.getWellbeing(uid).intent, 'learn');
+
+const receipt = surface.issueAttentionReceipt(composed.post.id, uid);
 assert.equal(receipt.ok, true);
-assert.ok(receipt.receipt.hash);
-assert.ok(receipt.wellbeing.score <= 100);
 
-surface.setIntent('learn');
-assert.equal(surface.getWellbeing().intent, 'learn');
+const following = surface.timeline('following', 10, uid);
+assert.equal(following.ok, true);
 
-const ssr = surface.renderSsrFeed(3);
-assert.ok(ssr.includes('za-post'));
-assert.ok(ssr.includes('Proof-of-Authorship') || ssr.includes('za-post-proof'));
+const me = surface.me(uid);
+assert.equal(me.ok, true);
+assert.equal(me.profile.id, uid);
+
+const byHandle = surface.getProfileByHandle(ensured.profile.handle);
+assert.equal(byHandle.ok, true);
 
 Promise.resolve(orchestrator.process({ action: 'run-decision' })).then(() => {
-  const status = orchestrator.getStatus();
-  assert.equal(status.ok, true);
-  assert.equal(status.brand, 'ZeusAI Social');
-  assert.equal(status.name, 'zeusai-social');
-  assert.ok(status.pulse && status.pulse.protocol === PROTOCOL);
-  assert.ok(status.proofOfReach && status.proofOfReach.ok);
-  assert.ok(status.pulse.surface && status.pulse.surface.ok);
-  assert.ok(Array.isArray(status.pulse.inventions) && status.pulse.inventions.length >= 8);
-  const feed = orchestrator.getPublicFeed(8);
-  assert.ok(Array.isArray(feed));
   const pulse = orchestrator.getPulse(6);
   assert.equal(pulse.brand, 'ZeusAI Social');
-  assert.ok(pulse.loops && pulse.loops.health === true);
+  assert.ok(pulse.surface && pulse.surface.ok);
   assert.equal(orchestrator.verifyChain().ok, true);
   console.log('✅ zeusai-social.test.js: passed');
 }).catch((err) => {

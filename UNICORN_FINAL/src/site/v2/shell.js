@@ -2335,8 +2335,15 @@ function pageAccount(opts) {
           '<div style=\"color:var(--ink-dim);font-size:12px;margin-top:4px\">' + (function(){ var d = user.createdAt ? new Date(user.createdAt) : null; return (d && !isNaN(d.getTime())) ? 'Member since ' + html(d.toLocaleDateString()) : 'Active account'; })() + '</div>' +
         '</div>' +
         '<span style=\"background:rgba(124,255,184,.15);color:#7cffb8;padding:6px 12px;border-radius:20px;font-size:12px;font-weight:600\">\u25cf Signed in</span>' +
+        '<a class=\"btn btn-primary\" href=\"/social-network\" data-link style=\"margin-left:auto\">Open ZeusAI Social \u2192</a>' +
       '</div>');
     setHtml($panels, '');
+    try {
+      var next = new URLSearchParams(location.search).get('next');
+      if (next && next.charAt(0) === '/' && next.indexOf('//') < 0 && next.indexOf('/api') !== 0) {
+        setTimeout(function(){ location.replace(next); }, 400);
+      }
+    } catch (_) {}
   }
 
   function renderLoggedOut() {
@@ -3107,17 +3114,23 @@ function pageSocialNetwork() {
     <div class="za-social-hero__atm" aria-hidden="true"></div>
     <div class="za-social-hero__plane" aria-hidden="true"></div>
     <div class="za-social-hero__inner">
-      <p class="za-social-live"><span class="za-social-live__dot"></span> Live world-standard surface</p>
+      <p class="za-social-live"><span class="za-social-live__dot"></span> Live · same account as the rest of ZeusAI</p>
       <h1 class="za-social-brand">ZeusAI <span>Social</span></h1>
-      <p class="za-social-lead">Facebook, X, Instagram and TikTok — in one autonomous layer — plus inventions the world still does not have.</p>
+      <p class="za-social-lead">Create, follow, message and go viral with the exact cryptoauth identity you use on /account — every button hits a real API.</p>
       <div class="za-social-cta">
         <a class="btn btn-primary" href="#za-app">Enter the feed</a>
-        <a class="btn btn-ghost" href="#za-inventions">See inventions</a>
+        <a class="btn btn-ghost" id="zaHeroAuth" href="/account?next=/social-network" data-link>Create account / Sign in</a>
       </div>
     </div>
   </header>
 
   <div class="za-social-body" id="za-app">
+    <div class="za-authbar" id="zaAuthBar">
+      <span id="zaAuthLabel">Checking session…</span>
+      <a class="btn btn-primary" id="zaAuthCta" href="/account?next=/social-network" data-link>Sign in</a>
+      <button type="button" class="btn btn-ghost" id="zaSharePage">Share ZeusAI Social</button>
+    </div>
+
     <div class="za-rail" role="tablist" aria-label="ZeusAI Social modes">
       <button type="button" class="za-rail-btn is-on" data-pane="home" role="tab" aria-selected="true">For You</button>
       <button type="button" class="za-rail-btn" data-pane="following" role="tab">Following</button>
@@ -3141,7 +3154,7 @@ function pageSocialNetwork() {
 
     <form class="za-composer" id="zaComposer">
       <label class="za-sr" for="zaComposeText">Compose</label>
-      <textarea id="zaComposeText" maxlength="2000" rows="2" placeholder="Share a signal — sealed with Proof-of-Authorship"></textarea>
+      <textarea id="zaComposeText" maxlength="2000" rows="2" placeholder="Share a signal — sealed with Proof-of-Authorship (sign in required)"></textarea>
       <div class="za-composer-actions">
         <select id="zaComposeKind" aria-label="Post kind">
           <option value="text">Post (X / FB)</option>
@@ -3149,11 +3162,13 @@ function pageSocialNetwork() {
           <option value="short">Short (TikTok)</option>
           <option value="reel">Reel (IG)</option>
         </select>
-        <button class="btn btn-primary" type="submit">Publish</button>
+        <button class="btn btn-primary" type="submit" id="zaPublishBtn">Publish</button>
       </div>
+      <p class="za-auth-hint" id="zaComposeHint" hidden>Sign in with your ZeusAI account to publish.</p>
     </form>
 
     <div class="za-stories" id="zaStories">${ssrStories}</div>
+    <div id="zaStoryViewer" class="za-story-viewer" hidden></div>
 
     <div class="za-panes">
       <section class="za-pane is-on" data-pane="home" id="zaPaneHome">
@@ -3163,7 +3178,14 @@ function pageSocialNetwork() {
       <section class="za-pane" data-pane="stories" id="zaPaneStories"><div id="zaStoriesPane" class="za-feed"></div></section>
       <section class="za-pane" data-pane="shorts" id="zaPaneShorts"><div id="zaShorts" class="za-shorts"></div></section>
       <section class="za-pane" data-pane="explore" id="zaPaneExplore"><div id="zaExplore" class="za-explore"></div></section>
-      <section class="za-pane" data-pane="messages" id="zaPaneMessages"><div id="zaMessages" class="za-messages"></div></section>
+      <section class="za-pane" data-pane="messages" id="zaPaneMessages">
+        <form class="za-dm-compose" id="zaDmForm">
+          <input id="zaDmTo" placeholder="Handle (e.g. aria.builds)" maxlength="40"/>
+          <input id="zaDmText" placeholder="Encrypted message…" maxlength="1000"/>
+          <button class="btn btn-primary" type="submit">Send DM</button>
+        </form>
+        <div id="zaMessages" class="za-messages"></div>
+      </section>
       <section class="za-pane" data-pane="inventions" id="za-inventions"><div id="zaInventions" class="za-inv-grid">${ssrInventions}</div></section>
       <section class="za-pane" data-pane="ledger" id="zaPaneLedger">
         <div id="zaReach" class="za-social-metrics"></div>
@@ -3172,26 +3194,72 @@ function pageSocialNetwork() {
         <div id="zaLoops" class="za-social-loops"></div>
       </section>
     </div>
-    <p class="za-social-foot">Operator · <a href="/admin/social-network" data-link>/admin/social-network</a> · APIs under <code class="inline">/api/zeusai-social/*</code></p>
+    <p class="za-social-foot">Account · <a href="/account?next=/social-network" data-link>/account</a> (create · sign in · vault recovery) · APIs <code class="inline">/api/zeusai-social/*</code> · Share this page worldwide</p>
   </div>
   <script>
   (function(){
+    var TOKEN_KEY='zeus_cryptoauth_token';
+    var me=null;
     function esc(s){return String(s||'').replace(/[&<>\"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','\"':'&quot;',\"'\":'&#39;'}[c]})}
+    function token(){try{return localStorage.getItem(TOKEN_KEY)}catch(_){return null}}
+    function authHeaders(json){
+      var h={}; if(json) h['Content-Type']='application/json';
+      var t=token(); if(t) h['Authorization']='Bearer '+t;
+      return h;
+    }
+    function needAuth(){
+      location.href='/account?next='+encodeURIComponent('/social-network'+location.search);
+    }
+    async function api(path, opts){
+      opts=opts||{};
+      var r=await fetch(path,{method:opts.method||'GET',headers:authHeaders(!!opts.body),body:opts.body?JSON.stringify(opts.body):undefined,cache:'no-store'});
+      var j=await r.json().catch(function(){return{}});
+      if(r.status===401){ return {ok:false,error:'auth_required',status:401, body:j}; }
+      j.status=r.status; return j;
+    }
     function postHtml(p){
       var media=p.media?'<div class="za-post-media za-post-media--'+esc(p.media.poster||'gradient-mint')+'" data-aspect="'+esc(p.media.aspect||'1:1')+'"><span>'+esc(p.kind)+'</span>'+(p.media.sound?'<em>'+esc(p.media.sound)+'</em>':'')+'</div>':'';
       var a=p.author||{};
       return '<article class="za-post" data-id="'+esc(p.id)+'" data-cue="'+esc(p.platformCue)+'">'+
         '<header class="za-post-head"><div class="za-avatar" data-presence="'+esc(a.presence||'quiet')+'">'+esc((a.displayName||'?').slice(0,1))+'</div>'+
-        '<div class="za-post-meta"><strong>'+esc(a.displayName||'')+(a.verified?' <span class="za-verified">✓</span>':'')+'</strong>'+
+        '<div class="za-post-meta"><strong>'+esc(a.displayName||'')+(a.verified?' <span class="za-verified">✓</span>':'')+(a.system?' <span class="za-system">official</span>':'')+'</strong>'+
         '<span>@'+esc(a.handle||'')+' · '+esc(p.platformCue||'')+' · passport '+esc(a.passport)+'</span></div></header>'+
         '<p class="za-post-text">'+esc(p.text)+'</p>'+media+
         '<footer class="za-post-foot">'+
           '<button type="button" data-react="like" data-id="'+esc(p.id)+'">Like '+(p.stats&&p.stats.likes||0)+'</button>'+
           '<button type="button" data-react="comment" data-id="'+esc(p.id)+'">Reply '+(p.stats&&p.stats.comments||0)+'</button>'+
-          '<button type="button" data-react="share" data-id="'+esc(p.id)+'">Share '+(p.stats&&p.stats.shares||0)+'</button>'+
+          '<button type="button" data-share="'+esc(p.id)+'">Share '+(p.stats&&p.stats.shares||0)+'</button>'+
           '<button type="button" data-react="save" data-id="'+esc(p.id)+'">Save '+(p.stats&&p.stats.saves||0)+'</button>'+
+          '<button type="button" data-follow="'+esc(a.id)+'">Follow</button>'+
           '<span class="za-post-proof" title="Proof-of-Authorship">'+esc(String(p.proofOfAuthorship||'').slice(0,10))+'…</span>'+
         '</footer></article>';
+    }
+    function setAuthUi(){
+      var label=document.getElementById('zaAuthLabel');
+      var cta=document.getElementById('zaAuthCta');
+      var hero=document.getElementById('zaHeroAuth');
+      var hint=document.getElementById('zaComposeHint');
+      var pub=document.getElementById('zaPublishBtn');
+      if(me&&me.profile){
+        label.textContent='Signed in as @'+me.profile.handle+' · '+me.profile.displayName;
+        cta.textContent='My Account'; cta.href='/account';
+        if(hero){ hero.textContent='Open feed as @'+me.profile.handle; hero.href='#za-app'; }
+        if(hint) hint.hidden=true;
+        if(pub) pub.disabled=false;
+      } else {
+        label.textContent='Not signed in — create / login / recover vault on /account (same system as the whole site)';
+        cta.textContent='Create account / Sign in'; cta.href='/account?next=/social-network';
+        if(hero){ hero.textContent='Create account / Sign in'; hero.href='/account?next=/social-network'; }
+        if(hint) hint.hidden=false;
+        if(pub) pub.disabled=false; // click still redirects via 401
+      }
+    }
+    async function refreshMe(){
+      var t=token();
+      if(!t){ me=null; setAuthUi(); return; }
+      var j=await api('/api/zeusai-social/me');
+      if(j&&j.ok) me=j; else me=null;
+      setAuthUi();
     }
     function showPane(name){
       document.querySelectorAll('.za-rail-btn').forEach(function(b){var on=b.getAttribute('data-pane')===name;b.classList.toggle('is-on',on);b.setAttribute('aria-selected',on?'true':'false')});
@@ -3200,66 +3268,130 @@ function pageSocialNetwork() {
     document.querySelectorAll('.za-rail-btn').forEach(function(b){b.addEventListener('click',function(){showPane(b.getAttribute('data-pane')); loadPane(b.getAttribute('data-pane'))})});
     document.querySelectorAll('[data-intent]').forEach(function(b){
       b.addEventListener('click',async function(){
+        if(!token()){ needAuth(); return; }
         document.querySelectorAll('[data-intent]').forEach(function(x){x.classList.remove('is-on')});
         b.classList.add('is-on');
-        await fetch('/api/zeusai-social/intent',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({intent:b.getAttribute('data-intent')})});
+        var r=await api('/api/zeusai-social/intent',{method:'POST',body:{intent:b.getAttribute('data-intent')}});
+        if(r&&r.status===401){ needAuth(); return; }
         loadPane('home');
       });
     });
     document.getElementById('zaComposer').addEventListener('submit',async function(e){
       e.preventDefault();
+      if(!token()){ needAuth(); return; }
       var text=document.getElementById('zaComposeText').value;
       var kind=document.getElementById('zaComposeKind').value;
-      var r=await (await fetch('/api/zeusai-social/compose',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({text:text,kind:kind,platformCue:kind==='short'?'tiktok':kind==='reel'?'instagram':kind==='image'?'instagram':'x'})})).json();
-      if(r&&r.ok){document.getElementById('zaComposeText').value='';loadPane('home')}
+      var cue=kind==='short'?'tiktok':kind==='reel'||kind==='image'?'instagram':'x';
+      var r=await api('/api/zeusai-social/compose',{method:'POST',body:{text:text,kind:kind,platformCue:cue}});
+      if(r&&r.status===401){ needAuth(); return; }
+      if(r&&r.ok){document.getElementById('zaComposeText').value=''; loadPane('home'); }
+      else { alert((r&&r.error)||'Publish failed'); }
+    });
+    document.getElementById('zaDmForm').addEventListener('submit',async function(e){
+      e.preventDefault();
+      if(!token()){ needAuth(); return; }
+      var handle=document.getElementById('zaDmTo').value.trim().replace(/^@/,'');
+      var text=document.getElementById('zaDmText').value;
+      var prof=await api('/api/zeusai-social/user/'+encodeURIComponent(handle));
+      if(!prof||!prof.ok){ alert('User not found'); return; }
+      var r=await api('/api/zeusai-social/dm',{method:'POST',body:{to:prof.profile.id,text:text}});
+      if(r&&r.status===401){ needAuth(); return; }
+      if(r&&r.ok){ document.getElementById('zaDmText').value=''; loadPane('messages'); }
+      else alert((r&&r.error)||'DM failed');
     });
     document.body.addEventListener('click',async function(e){
+      var story=e.target.closest('[data-story]');
+      if(story){
+        if(!token()){ needAuth(); return; }
+        var sid=story.getAttribute('data-story');
+        var r=await api('/api/zeusai-social/story/view',{method:'POST',body:{storyId:sid}});
+        if(r&&r.status===401){ needAuth(); return; }
+        if(r&&r.ok){
+          var box=document.getElementById('zaStoryViewer');
+          box.hidden=false;
+          box.innerHTML='<div class="za-story-view"><strong>'+esc(r.story.author&&r.story.author.displayName)+'</strong><p>'+(r.story.items||[]).map(function(i){return esc(i.text||i.kind)}).join(' · ')+'</p><button type="button" id="zaCloseStory">Close</button></div>';
+          document.getElementById('zaCloseStory').onclick=function(){ box.hidden=true; };
+          story.classList.remove('is-unseen');
+        }
+        return;
+      }
+      var share=e.target.closest('[data-share]');
+      if(share){
+        if(!token()){ needAuth(); return; }
+        var pid=share.getAttribute('data-share');
+        var r=await api('/api/zeusai-social/share',{method:'POST',body:{postId:pid}});
+        if(r&&r.status===401){ needAuth(); return; }
+        if(r&&r.ok){
+          var url=location.origin+(r.shareUrl||('/social-network?post='+pid));
+          if(navigator.share){ try{ await navigator.share({title:'ZeusAI Social',url:url,text:'See this on ZeusAI Social'}); }catch(_){}}
+          else { try{ await navigator.clipboard.writeText(url); alert('Link copied — share it worldwide'); }catch(_){ prompt('Copy link', url); } }
+          loadPane(document.querySelector('.za-rail-btn.is-on').getAttribute('data-pane')||'home');
+        }
+        return;
+      }
+      var follow=e.target.closest('[data-follow]');
+      if(follow){
+        if(!token()){ needAuth(); return; }
+        var r=await api('/api/zeusai-social/follow',{method:'POST',body:{targetId:follow.getAttribute('data-follow')}});
+        if(r&&r.status===401){ needAuth(); return; }
+        if(r&&r.ok) follow.textContent='Following';
+        return;
+      }
       var btn=e.target.closest('[data-react]');
       if(!btn) return;
+      if(!token()){ needAuth(); return; }
       var id=btn.getAttribute('data-id');
       var type=btn.getAttribute('data-react');
-      await fetch('/api/zeusai-social/react',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({postId:id,type:type})});
-      await fetch('/api/zeusai-social/receipt',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({postId:id})});
+      var r1=await api('/api/zeusai-social/react',{method:'POST',body:{postId:id,type:type}});
+      if(r1&&r1.status===401){ needAuth(); return; }
+      await api('/api/zeusai-social/receipt',{method:'POST',body:{postId:id}});
       loadPane(document.querySelector('.za-rail-btn.is-on').getAttribute('data-pane')||'home');
+    });
+    document.getElementById('zaSharePage').addEventListener('click',async function(){
+      var url=location.origin+'/social-network';
+      if(navigator.share){ try{ await navigator.share({title:'ZeusAI Social',text:'The world-standard social layer — FB+X+IG+TikTok with real inventions.',url:url}); return;}catch(_){}}
+      try{ await navigator.clipboard.writeText(url); alert('Link copied — paste anywhere to go viral'); }catch(_){ prompt('Copy', url); }
     });
     async function loadPane(name){
       try{
         if(name==='home'||name==='following'){
           var mode=name==='following'?'following':'for-you';
-          var tl=await (await fetch('/api/zeusai-social/timeline?mode='+mode+'&limit=20',{cache:'no-store'})).json();
+          var tl=await api('/api/zeusai-social/timeline?mode='+mode+'&limit=20');
+          if(mode==='following'&&tl&&tl.error==='auth_required'){ needAuth(); return; }
           var box=name==='following'?document.getElementById('zaFollowing'):document.getElementById('zaFeed');
-          box.innerHTML=(tl.items||[]).map(postHtml).join('')||'<p class="za-social-empty">No posts yet.</p>';
-          if(tl.intent){/* wellbeing refresh below */}
+          box.innerHTML=(tl.items||[]).map(postHtml).join('')||'<p class="za-social-empty">No posts yet — be the first to publish.</p>';
         } else if(name==='stories'){
-          var st=await (await fetch('/api/zeusai-social/stories',{cache:'no-store'})).json();
+          var st=await api('/api/zeusai-social/stories');
           document.getElementById('zaStoriesPane').innerHTML=(st.items||[]).map(function(s){
-            return '<article class="za-post"><header class="za-post-head"><strong>'+esc(s.author&&s.author.displayName)+'</strong></header><p class="za-post-text">'+(s.items||[]).map(function(i){return esc(i.text||i.kind)}).join(' · ')+'</p></article>';
+            return '<button type="button" class="za-post" data-story="'+esc(s.id)+'"><header class="za-post-head"><strong>'+esc(s.author&&s.author.displayName)+'</strong></header><p class="za-post-text">'+(s.items||[]).map(function(i){return esc(i.text||i.kind)}).join(' · ')+'</p></button>';
           }).join('');
         } else if(name==='shorts'){
-          var sh=await (await fetch('/api/zeusai-social/shorts',{cache:'no-store'})).json();
+          var sh=await api('/api/zeusai-social/shorts');
           document.getElementById('zaShorts').innerHTML=(sh.items||[]).map(function(p){
             return '<article class="za-short">'+postHtml(p)+'<div class="za-royalty">Royalty mirror · '+esc(p.royaltyHintBtc)+' BTC</div></article>';
           }).join('');
         } else if(name==='explore'){
-          var ex=await (await fetch('/api/zeusai-social/explore',{cache:'no-store'})).json();
+          var ex=await api('/api/zeusai-social/explore');
           document.getElementById('zaExplore').innerHTML=
             '<div class="za-tags">'+(ex.trending||[]).map(function(t){return '<span>'+esc(t)+'</span>'}).join('')+'</div>'+
             '<div class="za-creators">'+(ex.creators||[]).map(function(c){return '<button type="button" data-follow="'+esc(c.id)+'"><strong>'+esc(c.displayName)+'</strong><span>@'+esc(c.handle)+' · passport '+esc(c.passport)+'</span></button>'}).join('')+'</div>'+
             '<div class="za-grid">'+(ex.grid||[]).map(postHtml).join('')+'</div>';
         } else if(name==='messages'){
-          var ms=await (await fetch('/api/zeusai-social/messages',{cache:'no-store'})).json();
+          if(!token()){ document.getElementById('zaMessages').innerHTML='<p class="za-social-empty">Sign in to read encrypted DMs.</p>'; return; }
+          var ms=await api('/api/zeusai-social/messages');
+          if(ms&&ms.status===401){ needAuth(); return; }
           document.getElementById('zaMessages').innerHTML=(ms.threads||[]).map(function(t){
             return '<article class="za-dm"><header>E2E · '+(t.participants||[]).map(function(p){return esc(p.displayName)+' <i data-presence="'+esc(p.presence)+'"></i>'}).join(' · ')+'</header>'+
               (t.messages||[]).map(function(m){return '<p><strong>'+esc(m.from)+'</strong> '+esc(m.text)+'</p>'}).join('')+'</article>';
-          }).join('')||'<p class="za-social-empty">No threads yet.</p>';
+          }).join('')||'<p class="za-social-empty">No threads yet — send the first DM above.</p>';
         } else if(name==='inventions'){
-          var inv=await (await fetch('/api/zeusai-social/innovations',{cache:'no-store'})).json();
+          var inv=await api('/api/zeusai-social/innovations');
           document.getElementById('zaInventions').innerHTML=(inv.items||[]).map(function(i){
             return '<article class="za-inv"><h3>'+esc(i.title)+'</h3><p>'+esc(i.problem)+'</p><p class="za-inv-sol">'+esc(i.solution)+'</p></article>';
           }).join('');
         } else if(name==='ledger'){
-          var pulse=await (await fetch('/api/zeusai-social/pulse',{cache:'no-store'})).json();
-          var parity=await (await fetch('/api/zeusai-social/parity',{cache:'no-store'})).json();
+          var pulse=await api('/api/zeusai-social/pulse');
+          var parity=await api('/api/zeusai-social/parity');
           var reach=pulse.proofOfReach||{};
           document.getElementById('zaReach').innerHTML=
             '<div class="za-social-metric"><span class="za-social-metric__l">Coverage</span><strong class="za-social-metric__v">'+(reach.autonomyCoveragePct!=null?reach.autonomyCoveragePct:'—')+'%</strong></div>'+
@@ -3276,18 +3408,22 @@ function pageSocialNetwork() {
             return '<div class="za-social-loop'+(loops[n]!==false?' is-on':'')+'"><span class="za-social-loop__dot"></span><span>'+esc(n)+'</span></div>';
           }).join('');
         }
-        var wb=await (await fetch('/api/zeusai-social/wellbeing',{cache:'no-store'})).json();
+        var wb=await api('/api/zeusai-social/wellbeing');
         var el=document.getElementById('zaWellbeing');
         if(el) el.textContent='Wellbeing '+Math.round(wb.score||0)+' · '+(wb.advice||'');
+        // Deep-link ?post=
+        var q=new URLSearchParams(location.search).get('post');
+        if(q&&name==='home'){
+          var one=await api('/api/zeusai-social/post/'+encodeURIComponent(q));
+          if(one&&one.ok&&one.post){
+            var feed=document.getElementById('zaFeed');
+            feed.insertAdjacentHTML('afterbegin', postHtml(one.post));
+          }
+        }
       }catch(err){ console.warn('za-social',err); }
     }
-    document.getElementById('zaExplore').addEventListener('click',async function(e){
-      var f=e.target.closest('[data-follow]');
-      if(!f) return;
-      await fetch('/api/zeusai-social/follow',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({targetId:f.getAttribute('data-follow')})});
-    });
-    loadPane('home');
-    setInterval(function(){ var on=document.querySelector('.za-rail-btn.is-on'); if(on) loadPane(on.getAttribute('data-pane')); },12000);
+    refreshMe().then(function(){ loadPane('home'); });
+    setInterval(function(){ var on=document.querySelector('.za-rail-btn.is-on'); if(on) loadPane(on.getAttribute('data-pane')); },15000);
   })();
   </script>
   </section>`;
@@ -4156,7 +4292,7 @@ function routeDescription(route) {
     '/innovations': '30-year cryptographic durability, post-quantum readiness and frontier ZeusAI inventions.',
     '/wizard': 'Plan wizard that maps your business goal to the right ZeusAI service, price and delivery path.',
     '/status': 'Live ZeusAI status, uptime, build health and production service checks.',
-    '/social-network': 'ZeusAI Social — autonomous Signal Protocol, Proof-of-Reach without fake likes, commerce mirror into Zeus revenue engines.',
+    '/social-network': 'ZeusAI Social — world-standard feed with Facebook, X, Instagram and TikTok surfaces, real cryptoauth accounts, and inventions Big Social still lacks. Share globally.',
     '/admin/social-network': 'Admin ZeusAI Social control panel with autonomous module state, decisions, Proof-of-Reach and commerce mirror.',
     '/changelog': 'Latest ZeusAI product changes, frontier releases, security upgrades and commerce improvements.',
     '/terms': 'Terms of Service for ZeusAI, including capability tokens, signed outputs, SLA and refund references.',

@@ -4126,15 +4126,24 @@ function refreshCustomerNav(){
   try {
     const token = getCustToken();
     const customer = getCustProfile();
-    const active = !!(token || (customer && customer.email));
+    let cryptoToken = null;
+    let cryptoUser = null;
+    try {
+      cryptoToken = localStorage.getItem('zeus_cryptoauth_token');
+      cryptoUser = localStorage.getItem('zeus_cryptoauth_userid');
+    } catch (_) {}
+    const active = !!(token || (customer && customer.email) || cryptoToken);
     document.documentElement.setAttribute('data-customer-authenticated', active ? '1' : '0');
+    document.documentElement.setAttribute('data-cryptoauth', cryptoToken ? '1' : '0');
     document.querySelectorAll('[data-customer-link]').forEach((el) => {
       el.textContent = active ? 'My Account' : 'Create Account';
       if (customer && customer.email) el.setAttribute('title', customer.email);
+      else if (cryptoUser) el.setAttribute('title', cryptoUser);
     });
     document.querySelectorAll('[data-customer-cta]').forEach((el) => {
       el.textContent = active ? 'My Account' : 'Sign in';
       if (customer && customer.email) el.setAttribute('title', customer.email);
+      else if (cryptoUser) el.setAttribute('title', cryptoUser);
     });
   } catch(_) {}
 }

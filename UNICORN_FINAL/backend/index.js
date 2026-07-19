@@ -11557,50 +11557,133 @@ app.get('/api/zeusai-social/reach', (req, res) => {
 });
 
 // ZeusAI Social — world-standard surface (FB / X / IG / TikTok + inventions)
+// Mutations require the SAME cryptoauth JWT as /account (no parallel auth).
 (() => {
   const surface = socialOrchestrator.surface;
+  let cryptoauthMod = null;
+  try { cryptoauthMod = require('./modules/cryptoauth'); } catch (_) { cryptoauthMod = null; }
+
+  const bearerOf = (req) => {
+    const h = req.headers && (req.headers.authorization || req.headers.Authorization);
+    if (!h || typeof h !== 'string' || !h.toLowerCase().startsWith('bearer ')) return '';
+    return h.slice(7).trim();
+  };
+  const authUser = (req) => {
+    if (!cryptoauthMod || !cryptoauthMod._internals || !cryptoauthMod._internals._verifyToken) return null;
+    const decoded = cryptoauthMod._internals._verifyToken(bearerOf(req));
+    if (!decoded || !decoded.sub) return null;
+    const users = cryptoauthMod._internals._loadUsers() || {};
+    const row = users[decoded.sub] || {};
+    const ensured = surface.ensureProfile(decoded.sub, { name: row.name, email: row.email });
+    return { userId: decoded.sub, profile: ensured.profile, name: row.name, email: row.email };
+  };
+  const requireAuth = (req, res) => {
+    const u = authUser(req);
+    if (!u) {
+      res.status(401).json({
+        ok: false,
+        error: 'auth_required',
+        message: 'Sign in with the same ZeusAI cryptoauth account used on /account',
+        loginUrl: '/account?next=/social-network',
+      });
+      return null;
+    }
+    return u;
+  };
+
   const wrap = (fn) => (req, res) => {
     try {
       res.set('Cache-Control', 'no-store');
       const out = fn(req, res);
       if (out && typeof out.then === 'function') {
-        out.then((body) => res.json(body)).catch((e) => {
-          res.status(500).json({ ok: false, error: e && e.message ? e.message : String(e) });
+        out.then((body) => { if (!res.headersSent) res.json(body); }).catch((e) => {
+          if (!res.headersSent) res.status(500).json({ ok: false, error: e && e.message ? e.message : String(e) });
         });
         return;
       }
+      if (out === undefined) return; // handler already wrote response
       if (!res.headersSent) res.json(out);
     } catch (e) {
-      res.status(500).json({ ok: false, error: e && e.message ? e.message : String(e) });
+      if (!res.headersSent) res.status(500).json({ ok: false, error: e && e.message ? e.message : String(e) });
     }
   };
+
   app.get('/api/zeusai-social/surface', wrap(() => surface.snapshot()));
-  app.get('/api/zeusai-social/timeline', wrap((req) => surface.timeline(req.query.mode || 'for-you', req.query.limit)));
+  app.get('/api/zeusai-social/timeline', wrap((req) => {
+    const u = authUser(req);
+    const mode = req.query.mode || 'for-you';
+    if (mode === 'following' && !u) {
+      return { ok: false, error: 'auth_required', items: [], loginUrl: '/account?next=/social-network' };
+    }
+    return surface.timeline(mode, req.query.limit, u && u.userId);
+  }));
   app.get('/api/zeusai-social/stories', wrap(() => surface.stories()));
   app.get('/api/zeusai-social/shorts', wrap((req) => surface.shorts(req.query.limit)));
   app.get('/api/zeusai-social/explore', wrap(() => surface.explore()));
-  app.get('/api/zeusai-social/messages', wrap(() => surface.messages()));
+  app.get('/api/zeusai-social/messages', wrap((req, res) => {
+    const u = requireAuth(req, res);
+    if (!u) return undefined;
+    return surface.messages();
+  }));
   app.get('/api/zeusai-social/innovations', wrap(() => surface.inventions()));
   app.get('/api/zeusai-social/parity', wrap(() => surface.parity()));
-  app.get('/api/zeusai-social/wellbeing', wrap(() => ({ ok: true, ...(surface.getWellbeing()) })));
-  app.post('/api/zeusai-social/intent', wrap((req) => surface.setIntent(req.body && req.body.intent)));
-  app.post('/api/zeusai-social/compose', wrap((req) => {
-    const body = req.body || {};
+  app.get('/api/zeusai-social/wellbeing', wrap((req) => {
+    const u = authUser(req);
+    return { ok: true, ...(surface.getWellbeing(u && u.userId)) };
+  }));
+  app.get('/api/zeusai-social/me', wrap((req, res) => {
+    const u = requireAuth(req, res);
+    if (!u) return undefined;
+    return surface.me(u.userId);
+  }));
+  app.get('/api/zeusai-social/post/:id', wrap((req) => surface.getPost(req.params.id)));
+  app.get('/api/zeusai-social/user/:handle', wrap((req) => surface.getProfileByHandle(req.params.handle)));
+
+  app.post('/api/zeusai-social/intent', wrap((req, res) => {
+    const u = requireAuth(req, res);
+    if (!u) return undefined;
+    return surface.setIntent(req.body && req.body.intent, u.userId);
+  }));
+  app.post('/api/zeusai-social/compose', wrap((req, res) => {
+    const u = requireAuth(req, res);
+    if (!u) return undefined;
+    const body = Object.assign({}, req.body || {}, { authorId: u.userId });
     const made = surface.compose(body);
     if (made.ok && made.post) {
-      try {
-        socialOrchestrator.process({ action: 'run-decision' });
-      } catch (_) { /* fail-soft */ }
+      try { socialOrchestrator.process({ action: 'run-decision' }); } catch (_) { /* fail-soft */ }
     }
     return made;
   }));
-  app.post('/api/zeusai-social/react', wrap((req) => surface.react(req.body || {})));
-  app.post('/api/zeusai-social/follow', wrap((req) => surface.follow(req.body || {})));
-  app.post('/api/zeusai-social/dm', wrap((req) => surface.sendDm(req.body || {})));
-  app.post('/api/zeusai-social/receipt', wrap((req) => surface.issueAttentionReceipt(
-    req.body && req.body.postId,
-    (req.body && req.body.viewer) || 'guest'
-  )));
+  app.post('/api/zeusai-social/react', wrap((req, res) => {
+    const u = requireAuth(req, res);
+    if (!u) return undefined;
+    return surface.react(Object.assign({}, req.body || {}, { actorId: u.userId }));
+  }));
+  app.post('/api/zeusai-social/follow', wrap((req, res) => {
+    const u = requireAuth(req, res);
+    if (!u) return undefined;
+    return surface.follow(Object.assign({}, req.body || {}, { followerId: u.userId }));
+  }));
+  app.post('/api/zeusai-social/dm', wrap((req, res) => {
+    const u = requireAuth(req, res);
+    if (!u) return undefined;
+    return surface.sendDm(Object.assign({}, req.body || {}, { from: u.userId }));
+  }));
+  app.post('/api/zeusai-social/receipt', wrap((req, res) => {
+    const u = requireAuth(req, res);
+    if (!u) return undefined;
+    return surface.issueAttentionReceipt(req.body && req.body.postId, u.userId);
+  }));
+  app.post('/api/zeusai-social/story/view', wrap((req, res) => {
+    const u = requireAuth(req, res);
+    if (!u) return undefined;
+    return surface.viewStory(req.body && req.body.storyId, u.userId);
+  }));
+  app.post('/api/zeusai-social/share', wrap((req, res) => {
+    const u = requireAuth(req, res);
+    if (!u) return undefined;
+    return surface.sharePost(req.body && req.body.postId, u.userId);
+  }));
 })();
 
 registerModuleRoutes('performance-monitor',        performanceMonitor);

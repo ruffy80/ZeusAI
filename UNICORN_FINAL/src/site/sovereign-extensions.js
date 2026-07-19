@@ -234,7 +234,8 @@ async function handle(req, res, ctx) {
       '/about', '/legal', '/trust', '/security', '/responsible-ai', '/dpa', '/payment-terms', '/operator',
       '/observability', '/innovations', '/wizard', '/status', '/changelog', '/terms', '/privacy',
       '/refund', '/sla', '/pledge', '/cancel', '/gift', '/aura', '/api-explorer', '/transparency', '/frontier',
-      '/contact', '/faq', '/blog', '/affiliate', '/partners', '/roadmap', '/careers', '/press', '/verticals'
+      '/contact', '/faq', '/blog', '/affiliate', '/partners', '/roadmap', '/careers', '/press', '/verticals',
+      '/social-network', '/social', '/zeusai-social', '/account'
     ];
     const now = new Date().toISOString();
     // Auto-discover all services from live snapshot so every current AND future

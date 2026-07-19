@@ -799,6 +799,16 @@ body[data-route="/store"] .zeus-page-bg__veil{background:
 .za-social-lead{margin:18px 0 0;max-width:32em;font-size:clamp(1.05rem,2.1vw,1.28rem);line-height:1.5;color:var(--za-dim)}
 .za-social-cta{display:flex;flex-wrap:wrap;gap:12px;margin-top:28px}
 .za-social-body{width:min(880px,94vw);margin:0 auto;padding:36px 0 88px}
+.za-authbar{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin:0 0 16px;padding:12px 0;border-bottom:1px solid rgba(111,242,192,.12);font-size:13.5px;color:var(--za-dim)}
+.za-authbar #zaAuthLabel{flex:1 1 220px}
+.za-auth-hint{margin:0;font-size:12.5px;color:var(--za-amber)}
+.za-system{font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--za-amber);margin-left:4px}
+.za-dm-compose{display:grid;grid-template-columns:1fr 2fr auto;gap:8px;margin:0 0 14px}
+.za-dm-compose input{border:1px solid rgba(111,242,192,.2);background:rgba(8,14,22,.65);color:var(--za-ink);padding:10px 12px;font:500 14px "Source Sans 3",sans-serif}
+.za-story-viewer{margin:0 0 16px}
+.za-story-view{padding:16px;border:1px solid rgba(111,242,192,.25);background:rgba(8,14,22,.75)}
+.za-story-view button{margin-top:10px;border:0;background:transparent;color:var(--za-mint);cursor:pointer;font:600 13px Syne,sans-serif}
+@media (max-width:720px){.za-dm-compose{grid-template-columns:1fr}}
 .za-rail{display:flex;gap:6px;overflow-x:auto;padding:4px 0 14px;scrollbar-width:thin;position:sticky;top:0;z-index:5;background:linear-gradient(180deg,rgba(5,8,15,.96),rgba(5,8,15,.88) 70%,transparent);backdrop-filter:blur(8px)}
 .za-rail-btn{flex:0 0 auto;border:0;background:transparent;color:var(--za-dim);font:600 13px/1 Syne,sans-serif;letter-spacing:.04em;padding:10px 12px;cursor:pointer;border-bottom:2px solid transparent}
 .za-rail-btn.is-on{color:var(--za-mint);border-bottom-color:var(--za-mint)}
