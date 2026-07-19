@@ -12,8 +12,9 @@
 # it to the existing, canary-gated `deploy-atomic-forward.sh`.
 #
 # SAFETY ENVELOPE (defense in depth):
-#   * forward-only        — refuses anything that is not a descendant of the
-#                           currently-deployed commit (no downgrade / no divergent)
+#   * upgrade-only         — NEVER promotes a downgrade (NEW ancestor of live).
+#                           Divergent reunite only with [force-deploy] subject.
+#                           See scripts/lib/upgrade-only-guard.sh
 #   * AutoInnovation gate  — refuses unreviewed [AutoInnovation] commits, mirroring
 #                            .github/workflows/deploy.yml
 #   * canary + smoke       — deploy-atomic-forward.sh boots a canary on :3100 and
@@ -25,6 +26,7 @@
 # ---------------------------------------------------------------------------
 set -uo pipefail
 
+SCRIPT_DIR="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)"
 REPO_URL="${ZEUS_REPO_URL:-https://github.com/ruffy80/ZeusAI.git}"
 BRANCH="${ZEUS_DEPLOY_BRANCH:-main}"
 MIRROR_DIR="${ZEUS_MIRROR_DIR:-/opt/zeus-autodeploy/repo}"
@@ -37,6 +39,24 @@ LOCK_FILE="${ZEUS_AUTODEPLOY_LOCK:-/var/run/zeus-autodeploy.lock}"
 KEEP_RELEASES="${ZEUS_KEEP_RELEASES:-5}"
 
 log() { printf '%s [auto-pull-deploy] %s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$*" | tee -a "$LOG_FILE" >&2; }
+
+# Resolve upgrade-only guard whether we run from the release tree or the
+# installed copy at /usr/local/bin/zeus-auto-pull-deploy.sh.
+_GUARD_LOADED=0
+for _g in \
+  "$SCRIPT_DIR/lib/upgrade-only-guard.sh" \
+  /usr/local/lib/zeus/upgrade-only-guard.sh \
+  "$DEPLOY_LINK/scripts/lib/upgrade-only-guard.sh"
+do
+  if [ -f "$_g" ]; then
+    # shellcheck source=lib/upgrade-only-guard.sh
+    . "$_g"
+    _GUARD_LOADED=1
+    break
+  fi
+done
+[ "$_GUARD_LOADED" = "1" ] || { log "FATAL: upgrade-only-guard.sh not found — refusing to deploy without upgrade-only contract"; exit 1; }
+unset _g _GUARD_LOADED
 
 # ── Single-flight lock ──────────────────────────────────────────────────────
 exec 9>"$LOCK_FILE" 2>/dev/null || true
@@ -109,22 +129,27 @@ if [ -f "$QUARANTINE_FILE" ] && grep -qxF "$NEW" "$QUARANTINE_FILE" 2>/dev/null;
   fi
 fi
 
-# ── Forward-only guard: NEW must be a descendant of the live commit ─────────
-# Escape hatch: a tip whose subject contains [force-deploy] may reunite a box
-# whose live checkout diverged (e.g. a feature branch was SSH-deployed, then
-# main advanced via squash-merge). Canary+smoke in deploy-atomic-forward.sh
-# still gates the promote — this only unlocks the ancestor check.
-if [ -n "$CUR" ] && git cat-file -e "${CUR}^{commit}" 2>/dev/null; then
-  if ! git merge-base --is-ancestor "$CUR" "$NEW"; then
-    SUBJECT_NEW="$(git log -1 --format=%s "$NEW" 2>/dev/null || true)"
-    if printf '%s' "$SUBJECT_NEW" | grep -qiF '[force-deploy]'; then
-      log "ANCESTOR BYPASS: $NEW not descendant of $CUR but [force-deploy] present — continuing (canary still gates)"
-    else
-      log "REFUSED: $NEW is not a descendant of live $CUR (downgrade/divergent) — no deploy"
-      exit 1
-    fi
-  fi
-fi
+# ── Upgrade-only guard: NEVER promote a downgrade ───────────────────────────
+# Divergent reunite (squash/SSH tip) allowed only with [force-deploy] subject.
+# True downgrade (NEW ancestor of live) is refused even with [force-deploy].
+SUBJECT_NEW="$(git log -1 --format=%s "$NEW" 2>/dev/null || true)"
+DECISION="$(upgrade_only_guard "$CUR" "$NEW" "$SUBJECT_NEW" || true)"
+case "$DECISION" in
+  UPGRADE|SAME|COLD)
+    log "upgrade-only: $DECISION (live=${CUR:-none} → $NEW)"
+    ;;
+  REUNITE)
+    log "upgrade-only: REUNITE allowed ([force-deploy]) live=${CUR:-none} → $NEW — canary still gates"
+    ;;
+  DOWNGRADE)
+    log "REFUSED: DOWNGRADE blocked forever (candidate $NEW is ancestor of live $CUR) — no deploy"
+    exit 1
+    ;;
+  *)
+    log "REFUSED: divergent/non-upgrade live=${CUR:-none} → $NEW (need [force-deploy] for reunite only) — no deploy"
+    exit 1
+    ;;
+esac
 
 # ── AutoInnovation approval gate (mirrors deploy.yml) ───────────────────────
 APPROVED_FILE="$MIRROR_DIR/.github/baselines/innovation-approved-shas.txt"

@@ -10,10 +10,8 @@
 #   2. Clears any deploy-sentinel quarantine entries
 #   3. Builds a CLEAN release of origin/main from PUBLIC GitHub HTTPS and
 #      promotes it via the canary+smoke-gated deploy-atomic-forward.sh.
-#      This deliberately bypasses the poller's forward-only *ancestor* guard so
-#      it also recovers a box whose live checkout DIVERGED from main (e.g. a
-#      feature branch was deployed directly). Safety is preserved by the canary
-#      gate — the live symlink only moves after a green :3100 canary.
+#      Allows divergent REUNITE (live SSH tip vs main) but NEVER a true
+#      downgrade (candidate ancestor of live) — see upgrade-only-guard.sh.
 #   4. Re-installs + enables the zeus-autodeploy.timer (via the freshly
 #      deployed release's install-autodeploy.sh) so future merges auto-deploy.
 #   5. Optionally installs an SSH public key into root authorized_keys so a
@@ -26,6 +24,10 @@
 #   ZEUS_REPO_URL          repo                     (default: ruffy80/ZeusAI)
 # ---------------------------------------------------------------------------
 set -uo pipefail
+
+SCRIPT_DIR="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)"
+# shellcheck source=lib/upgrade-only-guard.sh
+. "$SCRIPT_DIR/lib/upgrade-only-guard.sh"
 
 REF="${ZEUS_DEPLOY_REF:-origin/main}"
 REPO_URL="${ZEUS_REPO_URL:-https://github.com/ruffy80/ZeusAI.git}"
@@ -78,6 +80,31 @@ SHA="$(git rev-parse --verify "${REF}^{commit}" 2>/dev/null || git rev-parse --v
 [ -n "$SHA" ] || { log "cannot resolve $REF — abort"; exit 1; }
 log "resolved $REF → $SHA"
 
+CUR="$(upgrade_only_live_sha "$DEPLOY_LINK")"
+SUBJECT="$(git log -1 --format=%s "$SHA" 2>/dev/null || true)"
+export ZEUS_ALLOW_DIVERGENT_REUNITE="${ZEUS_ALLOW_DIVERGENT_REUNITE:-1}"
+DECISION="$(upgrade_only_guard "$CUR" "$SHA" "$SUBJECT" || true)"
+case "$DECISION" in
+  SAME)
+    log "upgrade-only: SAME — already live at $SHA; continuing to re-enable poller only"
+    ;;
+  UPGRADE|COLD|REUNITE)
+    log "upgrade-only: $DECISION (live=${CUR:-none} → $SHA)"
+    ;;
+  DOWNGRADE)
+    log "REFUSED: DOWNGRADE blocked forever (candidate $SHA is ancestor of live $CUR)"
+    exit 1
+    ;;
+  *)
+    log "REFUSED: non-upgrade live=${CUR:-none} → $SHA"
+    exit 1
+    ;;
+esac
+
+if [ "$DECISION" = "SAME" ]; then
+  log "── step 4 skipped (already on tip) — jump to poller enable ──"
+else
+
 STAGE="$(mktemp -d /tmp/zeus-resus.XXXXXX)"; trap 'rm -rf "$STAGE"' EXIT
 git archive "$SHA" | tar -x -C "$STAGE" || { log "git archive failed"; exit 1; }
 ( cd "$STAGE" && rm -rf \
@@ -99,6 +126,8 @@ else
   log "❌ deploy failed — live symlink unchanged (canary gated). Inspect output above."
   exit 1
 fi
+
+fi  # end upgrade deploy (skipped when SAME)
 
 log "── step 5: (re)install + enable the auto-deploy poller ──"
 if [ -x "$DEPLOY_LINK/scripts/install-autodeploy.sh" ]; then

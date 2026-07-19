@@ -1,25 +1,24 @@
 #!/usr/bin/env bash
 # zeus-deploy-sentinel.sh
 # ---------------------------------------------------------------------------
-# Post-deploy health sentinel with known-good tracking + auto-rollback.
+# Post-deploy health sentinel with known-good tracking.
 #
 # WHY: deploy-atomic-forward.sh canaries a release BEFORE promoting the live
 # symlink, which catches boot-time failures. But a release can still regress
-# AFTER promotion (memory leak, a route that only fails under real traffic, a
-# dependency that dies minutes later). The existing healers (autoheal-min,
-# module-mesh-guardian) RESTART the current release — they never roll BACK to
-# the last release that was actually proven healthy. This sentinel closes that
-# gap: it remembers the last release that stayed healthy for a sustained
-# window and, if the current release becomes sustainedly unhealthy, rolls the
-# live symlink back to that known-good release.
+# AFTER promotion. Healers (autoheal-min, module-mesh-guardian) RESTART the
+# current release. This sentinel remembers the last release that stayed healthy
+# and, on sustained unhealth, quarantines the bad SHA so auto-pull will not
+# keep redeploying it.
+#
+# UPGRADE-ONLY CONTRACT (2026-07):
+#   This sentinel NEVER rolls the live symlink backwards. Downgrades are
+#   forbidden forever. Recovery is always a forward-fix commit on main
+#   (optionally with [force-deploy]) promoted through canary+smoke.
 #
 # SAFETY:
-#   * MODE=monitor (default) only LOGS what it would do — zero action, safe to
-#     run on production from day one. Set ZEUS_SENTINEL_MODE=act to enable
-#     actual rollback.
-#   * On rollback (act mode) it QUARANTINES the bad SHA (writes it to
-#     $QUARANTINE_FILE) so auto-pull-deploy.sh will NOT immediately redeploy the
-#     same broken commit — preventing a rollback/redeploy fight.
+#   * MODE=monitor (default) only LOGS — zero action.
+#   * MODE=act quarantines the bad SHA and leaves healers to restart in place.
+#     It does NOT move the live symlink to an older release.
 #   * single-flight flock; never touches .env/data/db (those live in shared/).
 # ---------------------------------------------------------------------------
 set -uo pipefail
@@ -78,39 +77,26 @@ log "UNHEALTHY check ${FAILS}/${FAIL_THRESHOLD} (current=$CURRENT)"
 [ "$FAILS" -ge "$FAIL_THRESHOLD" ] || exit 0
 
 GOOD="$(cat "$GOOD_FILE" 2>/dev/null || true)"
-if [ -z "$GOOD" ] || [ ! -d "$GOOD" ] || [ "$GOOD" = "$CURRENT" ]; then
-  log "sustained unhealthy but no distinct known-good release to roll back to (good='${GOOD:-none}') — leaving to in-process healers"
-  exit 0
-fi
-
-# Derive the bad SHA (release dir is …/releases/<sha>-<ts>/UNICORN_FINAL) to quarantine it.
 BAD_SHA="$(printf '%s' "$CURRENT" | grep -oE '/releases/[0-9a-f]{40}-' | head -1 | grep -oE '[0-9a-f]{40}' || true)"
 
 if [ "$MODE" != "act" ]; then
-  log "[monitor] WOULD roll back: $CURRENT -> $GOOD (quarantine SHA=${BAD_SHA:-unknown}). Set ZEUS_SENTINEL_MODE=act to enable."
+  log "[monitor] sustained unhealthy — WOULD quarantine SHA=${BAD_SHA:-unknown} (last-good=${GOOD:-none}). NEVER rollback symlink (upgrade-only). Set ZEUS_SENTINEL_MODE=act to quarantine."
   exit 0
 fi
 
-# ── ACT: atomic rollback to known-good + quarantine bad SHA ─────────────────
-[ -n "$BAD_SHA" ] && { touch "$QUARANTINE_FILE"; grep -qxF "$BAD_SHA" "$QUARANTINE_FILE" 2>/dev/null || printf '%s\n' "$BAD_SHA" >> "$QUARANTINE_FILE"; log "quarantined bad SHA $BAD_SHA"; }
-
-DEPLOY_PARENT="$(dirname "$DEPLOY_LINK")"
-TMP_LINK="${DEPLOY_LINK}.rollback.$$"
-ln -sfn "$GOOD" "$TMP_LINK"
-mv -Tf "$TMP_LINK" "$DEPLOY_LINK"
-ln -sfn "$GOOD" "$DEPLOY_PARENT/current" 2>/dev/null || true
-log "ROLLED BACK live symlink -> $GOOD; restarting PM2"
-
-export HOME="${HOME:-/root}" PM2_HOME="${PM2_HOME:-/root/.pm2}"
-( cd "$DEPLOY_LINK" && env NODE_ENV=production BIND_HOST=127.0.0.1 UNICORN_RUNTIME_PROFILE=safe \
-    pm2 startOrReload ecosystem.config.js --only unicorn-backend,unicorn-site --update-env >>"$LOG_FILE" 2>&1 ) || \
-  ( cd "$DEPLOY_LINK" && pm2 restart unicorn-backend unicorn-site --update-env >>"$LOG_FILE" 2>&1 ) || true
-pm2 save --force >>"$LOG_FILE" 2>&1 || true
-echo 0 > "$FAILS_FILE"
-
-sleep 12
-if healthy; then
-  log "✅ rollback healthy — live restored on known-good release"
+# ── ACT: quarantine bad SHA only — NEVER move live symlink backwards ────────
+if [ -n "$BAD_SHA" ]; then
+  touch "$QUARANTINE_FILE"
+  if ! grep -qxF "$BAD_SHA" "$QUARANTINE_FILE" 2>/dev/null; then
+    printf '%s\n' "$BAD_SHA" >> "$QUARANTINE_FILE"
+    log "quarantined bad SHA $BAD_SHA (upgrade-only: no symlink rollback)"
+  else
+    log "bad SHA $BAD_SHA already quarantined"
+  fi
 else
-  log "⚠️ still unhealthy after rollback — escalating to in-process healers"
+  log "could not derive bad SHA from $CURRENT — leaving to in-process healers"
 fi
+
+log "UPGRADE-ONLY: refusing symlink rollback (would be a downgrade). Heal in place; ship a forward-fix on main."
+echo 0 > "$FAILS_FILE"
+exit 0

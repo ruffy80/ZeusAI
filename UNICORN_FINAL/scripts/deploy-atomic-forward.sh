@@ -28,11 +28,50 @@ mkdir -p "$DEPLOY_PARENT"
 log() { printf '[deploy-forward] %s\n' "$*"; }
 fail() { printf '[deploy-forward][FAIL] %s\n' "$*" >&2; exit 1; }
 
+SCRIPT_DIR="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)"
+if [ -f "$SCRIPT_DIR/lib/upgrade-only-guard.sh" ]; then
+  # shellcheck source=lib/upgrade-only-guard.sh
+  . "$SCRIPT_DIR/lib/upgrade-only-guard.sh"
+elif [ -f "$CANDIDATE_DIR/scripts/lib/upgrade-only-guard.sh" ]; then
+  # shellcheck source=lib/upgrade-only-guard.sh
+  . "$CANDIDATE_DIR/scripts/lib/upgrade-only-guard.sh"
+fi
+
 # EARLY: install Cursor Cloud SSH keys even before canary, so a failed canary
 # still unlocks SSH for the next agent (break GitHub-billing chicken/egg).
 if [ -x "$CANDIDATE_DIR/scripts/ensure-cursor-cloud-ssh.sh" ]; then
   log "early Cursor Cloud SSH bootstrap"
   bash "$CANDIDATE_DIR/scripts/ensure-cursor-cloud-ssh.sh" || log "[cursor-ssh] early bootstrap non-fatal"
+fi
+
+# Upgrade-only last line of defence before canary work: refuse promoting a
+# candidate whose SHA is a strict ancestor of the live SHA (true downgrade).
+# Divergent reunite is allowed when caller set ZEUS_ALLOW_DIVERGENT_REUNITE=1
+# or the candidate subject contains [force-deploy]. Requires a git mirror with
+# both objects — skipped cleanly when unavailable (cold / archive-only).
+if type upgrade_only_guard >/dev/null 2>&1 && [ -n "${GITHUB_SHA:-}" ]; then
+  LIVE_SHA="$(upgrade_only_live_sha "$DEPLOY_LINK")"
+  SUBJ=""
+  MIRROR="${ZEUS_MIRROR_DIR:-/opt/zeus-autodeploy/repo}"
+  if [ -d "$MIRROR/.git" ]; then
+    SUBJ="$(git -C "$MIRROR" log -1 --format=%s "$GITHUB_SHA" 2>/dev/null || true)"
+    DEC="$(
+      cd "$MIRROR" && upgrade_only_guard "$LIVE_SHA" "$GITHUB_SHA" "$SUBJ" || true
+    )"
+    case "$DEC" in
+      DOWNGRADE)
+        fail "UPGRADE-ONLY: refusing downgrade live=${LIVE_SHA:-none} → candidate=$GITHUB_SHA"
+        ;;
+      DIVERGENT)
+        fail "UPGRADE-ONLY: refusing divergent promote without [force-deploy] live=${LIVE_SHA:-none} → $GITHUB_SHA"
+        ;;
+      UPGRADE|SAME|COLD|REUNITE|'')
+        log "upgrade-only pre-canary: ${DEC:-skip} (live=${LIVE_SHA:-none} → $GITHUB_SHA)"
+        ;;
+    esac
+  else
+    log "upgrade-only: no git mirror at $MIRROR — SHA ancestry check deferred to caller"
+  fi
 fi
 
 cleanup_pm2_topology() {
@@ -224,14 +263,27 @@ elif [ -x "$CANDIDATE_DIR/scripts/ensure-cursor-cloud-ssh.sh" ]; then
   log "ensure Cursor Cloud SSH access (from candidate)"
   bash "$CANDIDATE_DIR/scripts/ensure-cursor-cloud-ssh.sh" || log "[cursor-ssh] non-fatal"
 fi
-# Keep the installed poller binary in sync with the promoted release so future
-# auto-pull runs always include the latest bootstrap / [force-deploy] logic.
+# Keep the installed poller + upgrade-only guard in sync with the promoted
+# release so future auto-pull runs always refuse downgrades.
 if [ -f "$DEPLOY_LINK/scripts/auto-pull-deploy.sh" ]; then
   if install -m 0755 "$DEPLOY_LINK/scripts/auto-pull-deploy.sh" /usr/local/bin/zeus-auto-pull-deploy.sh 2>/dev/null; then
     log "synced /usr/local/bin/zeus-auto-pull-deploy.sh from promoted release"
   else
     log "[autodeploy] could not sync poller binary (non-fatal)"
   fi
+fi
+if [ -f "$DEPLOY_LINK/scripts/lib/upgrade-only-guard.sh" ]; then
+  mkdir -p /usr/local/lib/zeus 2>/dev/null || true
+  if install -m 0644 "$DEPLOY_LINK/scripts/lib/upgrade-only-guard.sh" /usr/local/lib/zeus/upgrade-only-guard.sh 2>/dev/null; then
+    log "synced /usr/local/lib/zeus/upgrade-only-guard.sh from promoted release"
+  else
+    log "[autodeploy] could not sync upgrade-only guard (non-fatal)"
+  fi
+fi
+if [ -f "$DEPLOY_LINK/scripts/zeus-deploy-sentinel.sh" ]; then
+  install -m 0755 "$DEPLOY_LINK/scripts/zeus-deploy-sentinel.sh" /usr/local/bin/zeus-deploy-sentinel.sh 2>/dev/null \
+    && log "synced /usr/local/bin/zeus-deploy-sentinel.sh from promoted release" \
+    || log "[sentinel] could not sync sentinel binary (non-fatal)"
 fi
 # Clear quarantine for this SHA if a previous canary blip listed it — forward-only
 # still applies; this only unblocks a known-good retry of the tip commit.

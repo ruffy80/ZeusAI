@@ -6,17 +6,18 @@
 # `deploy-atomic-forward.sh`. Invoked (detached) by backend/modules/oob-deploy.js
 # after it has verified the signed request. Can also be run by hand on the box.
 #
-# DIFFERENCE vs auto-pull-deploy.sh: this deliberately does NOT enforce the
-# forward-only *ancestor* guard, because the OOB channel exists precisely to
-# RECOVER when the live checkout has diverged from main (e.g. a feature branch
-# was deployed directly). Safety is still guaranteed by the canary + smoke gate
-# inside deploy-atomic-forward.sh — the live symlink is only promoted after a
-# fresh backend on :3100 passes health + quantum-integrity + smoke. A bad ref
-# therefore fails closed and leaves the running site untouched.
+# Upgrade-only: true downgrades (candidate ancestor of live) are ALWAYS refused.
+# Divergent reunite (live SSH tip vs main) is allowed here with
+# ZEUS_ALLOW_DIVERGENT_REUNITE=1 (set by default for OOB recovery). Canary+smoke
+# in deploy-atomic-forward.sh still gates the promote.
 #
 # Usage:  oob-deploy-runner.sh [git-ref]     # default: origin/main
 # ---------------------------------------------------------------------------
 set -uo pipefail
+
+SCRIPT_DIR="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)"
+# shellcheck source=lib/upgrade-only-guard.sh
+. "$SCRIPT_DIR/lib/upgrade-only-guard.sh"
 
 REF_RAW="${1:-origin/main}"
 # Re-validate the ref here too (defence in depth; the caller already checked).
@@ -69,6 +70,30 @@ git fetch --no-tags --prune origin '+refs/heads/*:refs/remotes/origin/*' >>"$LOG
 SHA="$(git rev-parse --verify "${REF}^{commit}" 2>/dev/null || git rev-parse --verify "origin/${REF}^{commit}" 2>/dev/null || true)"
 [ -n "$SHA" ] || { log "cannot resolve ref '$REF' to a commit — abort"; exit 1; }
 log "resolved $REF → $SHA"
+
+# Upgrade-only: never walk the live symlink backwards.
+CUR="$(upgrade_only_live_sha "$DEPLOY_LINK")"
+SUBJECT="$(git log -1 --format=%s "$SHA" 2>/dev/null || true)"
+# OOB exists to reunite divergent boxes; still NEVER allow true downgrade.
+export ZEUS_ALLOW_DIVERGENT_REUNITE="${ZEUS_ALLOW_DIVERGENT_REUNITE:-1}"
+DECISION="$(upgrade_only_guard "$CUR" "$SHA" "$SUBJECT" || true)"
+case "$DECISION" in
+  SAME)
+    log "upgrade-only: SAME — already live at $SHA — nothing to do"
+    exit 0
+    ;;
+  UPGRADE|COLD|REUNITE)
+    log "upgrade-only: $DECISION (live=${CUR:-none} → $SHA)"
+    ;;
+  DOWNGRADE)
+    log "REFUSED: DOWNGRADE blocked forever (candidate $SHA is ancestor of live $CUR)"
+    exit 1
+    ;;
+  *)
+    log "REFUSED: non-upgrade live=${CUR:-none} → $SHA"
+    exit 1
+    ;;
+esac
 
 # Export a clean tree (never a dirty/self-mutated working copy).
 STAGE="$(mktemp -d /tmp/zeus-oob.XXXXXX)"
