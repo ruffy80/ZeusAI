@@ -11734,7 +11734,9 @@ app.get('/api/zeusai-social/reach', (req, res) => {
   app.post('/api/zeusai-social/world/bond/resolve', wrap((req, res) => {
     const u = requireAuth(req, res);
     if (!u) return undefined;
-    return ws().resolveBond(u.userId, req.body || {});
+    const out = ws().resolveBond(u.userId, req.body || {});
+    if (out && !out.ok && out.error === 'forbidden') { res.status(403).json(out); return undefined; }
+    return out;
   }));
   app.post('/api/zeusai-social/world/consent', wrap((req, res) => {
     const u = requireAuth(req, res);
@@ -11749,12 +11751,19 @@ app.get('/api/zeusai-social/reach', (req, res) => {
   app.post('/api/zeusai-social/world/split', wrap((req, res) => {
     const u = requireAuth(req, res);
     if (!u) return undefined;
-    return ws().setSplit(u.userId, req.body || {});
+    const body = req.body || {};
+    const got = surface.getPost(body.postId);
+    const postAuthorId = got && got.ok ? got.post.author.id : null;
+    const out = ws().setSplit(u.userId, Object.assign({}, body, { authorCheckPostAuthorId: postAuthorId }));
+    if (out && !out.ok && out.error === 'forbidden') { res.status(403).json(out); return undefined; }
+    return out;
   }));
   app.post('/api/zeusai-social/world/claim', wrap((req, res) => {
     const u = requireAuth(req, res);
     if (!u) return undefined;
-    return ws().setClaimState(u.userId, req.body || {});
+    const out = ws().setClaimState(u.userId, req.body || {});
+    if (out && !out.ok && out.error === 'forbidden') { res.status(403).json(out); return undefined; }
+    return out;
   }));
   app.post('/api/zeusai-social/world/bandwidth/override', wrap((req, res) => {
     const u = requireAuth(req, res);
@@ -11776,6 +11785,46 @@ app.get('/api/zeusai-social/reach', (req, res) => {
     const u = requireAuth(req, res);
     if (!u) return undefined;
     return ws().verifyHumanChallenge(u.userId, req.body || {});
+  }));
+
+  // ── Supreme layer: comments, notifications, bookmarks, quotes, royalty ──
+  app.post('/api/zeusai-social/comment', wrap((req, res) => {
+    const u = requireAuth(req, res);
+    if (!u) return undefined;
+    return surface.addComment(Object.assign({}, req.body || {}, { actorId: u.userId }));
+  }));
+  app.get('/api/zeusai-social/comments/:postId', wrap((req) => surface.getComments(req.params.postId, req.query.limit)));
+  app.get('/api/zeusai-social/notifications', wrap((req, res) => {
+    const u = requireAuth(req, res);
+    if (!u) return undefined;
+    return surface.getNotifications(u.userId, req.query.limit);
+  }));
+  app.post('/api/zeusai-social/notifications/read', wrap((req, res) => {
+    const u = requireAuth(req, res);
+    if (!u) return undefined;
+    return surface.markNotificationsRead(u.userId);
+  }));
+  app.get('/api/zeusai-social/bookmarks', wrap((req, res) => {
+    const u = requireAuth(req, res);
+    if (!u) return undefined;
+    return surface.getBookmarks(u.userId);
+  }));
+  app.post('/api/zeusai-social/unfollow', wrap((req, res) => {
+    const u = requireAuth(req, res);
+    if (!u) return undefined;
+    return surface.unfollow(Object.assign({}, req.body || {}, { followerId: u.userId }));
+  }));
+  app.post('/api/zeusai-social/quote', wrap((req, res) => {
+    const u = requireAuth(req, res);
+    if (!u) return undefined;
+    return surface.quoteRepost(Object.assign({}, req.body || {}, { actorId: u.userId }));
+  }));
+  app.get('/api/zeusai-social/world/royalty/:postId', wrap((req) => ws().getRoyalty(req.params.postId)));
+  app.post('/api/zeusai-social/world/royalty/accrue', wrap((req, res) => {
+    const u = requireAuth(req, res);
+    if (!u) return undefined;
+    const body = req.body || {};
+    return surface.accrueEngagementRoyalty(body.postId, body.amountBtc);
   }));
 })();
 

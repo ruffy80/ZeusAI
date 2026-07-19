@@ -3138,6 +3138,9 @@ function pageSocialNetwork() {
       <button type="button" class="za-rail-btn" data-pane="shorts" role="tab">Shorts</button>
       <button type="button" class="za-rail-btn" data-pane="explore" role="tab">Explore</button>
       <button type="button" class="za-rail-btn" data-pane="messages" role="tab">Messages</button>
+      <button type="button" class="za-rail-btn" data-pane="notifications" role="tab">Notifications <span class="za-notif-badge" id="zaNotifBadge" hidden>0</span></button>
+      <button type="button" class="za-rail-btn" data-pane="bookmarks" role="tab">Bookmarks</button>
+      <button type="button" class="za-rail-btn" data-pane="profile" role="tab">Profile</button>
       <button type="button" class="za-rail-btn" data-pane="inventions" role="tab">Inventions</button>
       <button type="button" class="za-rail-btn" data-pane="world" role="tab">World Standard</button>
       <button type="button" class="za-rail-btn" data-pane="ledger" role="tab">Ledger</button>
@@ -3150,6 +3153,7 @@ function pageSocialNetwork() {
       <button type="button" data-intent="connect">Connect</button>
       <button type="button" data-intent="create">Create</button>
       <button type="button" data-intent="trade">Trade</button>
+      <strong id="zaIntentAttn" class="za-attn-strip" hidden>Attention —</strong>
       <strong id="zaWellbeing" class="za-wellbeing">Wellbeing —</strong>
     </div>
 
@@ -3162,9 +3166,19 @@ function pageSocialNetwork() {
           <option value="image">Image (IG)</option>
           <option value="short">Short (TikTok)</option>
           <option value="reel">Reel (IG)</option>
+          <option value="story">Story (IG / FB)</option>
         </select>
         <button class="btn btn-primary" type="submit" id="zaPublishBtn">Publish</button>
       </div>
+      <details class="za-composer-extra">
+        <summary>Advanced · bond, claim, co-creator split, bandwidth</summary>
+        <div class="za-composer-extra-grid">
+          <label>Anti-deepfake bond (BTC)<input id="zaCxBond" type="text" inputmode="decimal" placeholder="0.0001" maxlength="16"/></label>
+          <label>Claim state<select id="zaCxClaim"><option value="">none</option><option value="unverified">unverified</option><option value="contested">contested</option><option value="verified">verified</option></select></label>
+          <label>Co-creator handle (50/50 split)<input id="zaCxSplit" placeholder="aria.builds" maxlength="40"/></label>
+          <label class="za-cx-check"><input type="checkbox" id="zaCxBandwidth"/> Override emotional-bandwidth cap</label>
+        </div>
+      </details>
       <p class="za-auth-hint" id="zaComposeHint" hidden>Sign in with your ZeusAI account to publish.</p>
     </form>
 
@@ -3187,6 +3201,12 @@ function pageSocialNetwork() {
         </form>
         <div id="zaMessages" class="za-messages"></div>
       </section>
+      <section class="za-pane" data-pane="notifications" id="zaPaneNotifications">
+        <div class="za-notif-head"><button type="button" class="btn btn-ghost" id="zaNotifReadAll">Mark all read</button></div>
+        <div id="zaNotifs" class="za-feed"></div>
+      </section>
+      <section class="za-pane" data-pane="bookmarks" id="zaPaneBookmarks"><div id="zaBookmarks" class="za-feed"></div></section>
+      <section class="za-pane" data-pane="profile" id="zaPaneProfile"><div id="zaProfile" class="za-profile"></div></section>
       <section class="za-pane" data-pane="inventions" id="za-inventions"><div id="zaInventions" class="za-inv-grid">${ssrInventions}</div></section>
       <section class="za-pane" data-pane="world" id="zaPaneWorld">
         <div class="za-world-head">
@@ -3305,26 +3325,68 @@ function pageSocialNetwork() {
       if(r.status===401){ return {ok:false,error:'auth_required',status:401, body:j}; }
       j.status=r.status; return j;
     }
+    function isFollowing(id){ return !!(id&&me&&me.followingIds&&me.followingIds.indexOf(id)>=0); }
+    function quotedHtml(q){
+      if(!q) return '';
+      var qa=q.author||{};
+      return '<blockquote class="za-quote" data-profile="'+esc(qa.handle||'')+'">'+
+        '<span class="za-quote-h"><strong>'+esc(qa.displayName||'')+'</strong> @'+esc(qa.handle||'')+'</span>'+
+        '<span class="za-quote-t">'+esc(q.text||'')+'</span></blockquote>';
+    }
     function postHtml(p){
       var media=p.media?'<div class="za-post-media za-post-media--'+esc(p.media.poster||'gradient-mint')+'" data-aspect="'+esc(p.media.aspect||'1:1')+'"><span>'+esc(p.kind)+'</span>'+(p.media.sound?'<em>'+esc(p.media.sound)+'</em>':'')+'</div>':'';
       var a=p.author||{};
+      var followed=isFollowing(a.id);
+      var quoted=p.quotedPost?quotedHtml(p.quotedPost):'';
       return '<article class="za-post" data-id="'+esc(p.id)+'" data-cue="'+esc(p.platformCue)+'">'+
-        '<header class="za-post-head"><div class="za-avatar" data-presence="'+esc(a.presence||'quiet')+'">'+esc((a.displayName||'?').slice(0,1))+'</div>'+
+        '<header class="za-post-head"><div class="za-avatar" data-profile="'+esc(a.handle||'')+'" data-presence="'+esc(a.presence||'quiet')+'">'+esc((a.displayName||'?').slice(0,1))+'</div>'+
         '<div class="za-post-meta"><strong>'+esc(a.displayName||'')+(a.verified?' <span class="za-verified">✓</span>':'')+(a.system?' <span class="za-system">official</span>':'')+'</strong>'+
-        '<span>@'+esc(a.handle||'')+' · '+esc(p.platformCue||'')+' · passport '+esc(a.passport)+' · rep '+esc(a.reputation)+'</span></div></header>'+
-        '<p class="za-post-text">'+esc(p.text)+'</p>'+
+        '<span><button type="button" class="za-handle" data-profile="'+esc(a.handle||'')+'">@'+esc(a.handle||'')+'</button> · '+esc(p.platformCue||'')+' · passport '+esc(a.passport)+' · rep '+esc(a.reputation)+'</span></div></header>'+
+        '<p class="za-post-text">'+esc(p.text)+'</p>'+quoted+
         '<div class="za-post-flags"><span data-claim="'+esc(p.claimState||'unverified')+'">claim:'+esc(p.claimState||'unverified')+'</span>'+
         (p.virality&&p.virality.expired?'<span class="za-viral-expired">virality expired</span>':'<span class="za-viral-live">viral window</span>')+
         (p.federationCid?'<span class="za-cid" title="'+esc(p.federationCid)+'">CID</span>':'')+
         '</div>'+media+
         '<footer class="za-post-foot">'+
           '<button type="button" data-react="like" data-id="'+esc(p.id)+'">Like '+(p.stats&&p.stats.likes||0)+'</button>'+
-          '<button type="button" data-react="comment" data-id="'+esc(p.id)+'">Reply '+(p.stats&&p.stats.comments||0)+'</button>'+
+          '<button type="button" data-comment="'+esc(p.id)+'">Reply '+(p.stats&&p.stats.comments||0)+'</button>'+
+          '<button type="button" data-quote="'+esc(p.id)+'">Quote</button>'+
           '<button type="button" data-share="'+esc(p.id)+'">Share '+(p.stats&&p.stats.shares||0)+'</button>'+
           '<button type="button" data-react="save" data-id="'+esc(p.id)+'">Save '+(p.stats&&p.stats.saves||0)+'</button>'+
-          '<button type="button" data-follow="'+esc(a.id)+'">Follow</button>'+
+          '<button type="button" data-follow="'+esc(a.id)+'"'+(a.handle?' data-handle="'+esc(a.handle)+'"':'')+'>'+(followed?'Following':'Follow')+'</button>'+
           '<span class="za-post-proof" title="Proof-of-Authorship">'+esc(String(p.proofOfAuthorship||'').slice(0,10))+'…</span>'+
-        '</footer></article>';
+        '</footer>'+
+        '<div class="za-comments" data-comments-for="'+esc(p.id)+'" hidden></div>'+
+        '</article>';
+    }
+    function commentHtml(c){
+      var a=c.author||{};
+      var name=a.displayName||a.handle||c.authorHandle||c.from||'anon';
+      var handle=a.handle||c.authorHandle||'';
+      return '<div class="za-comment"><strong'+(handle?' class="za-handle" data-profile="'+esc(handle)+'"':'')+'>'+esc(name)+'</strong>'+
+        (handle?' <span class="za-comment-h">@'+esc(handle)+'</span>':'')+
+        '<p>'+esc(c.text||'')+'</p></div>';
+    }
+    async function loadComments(postId, box){
+      box.innerHTML='<p class="za-social-sub">Loading replies…</p>';
+      var r=await api('/api/zeusai-social/comments/'+encodeURIComponent(postId));
+      var items=(r&&r.items)||[];
+      var list=items.map(commentHtml).join('')||'<p class="za-social-empty">No replies yet — be the first.</p>';
+      box.innerHTML='<div class="za-comment-list">'+list+'</div>'+
+        '<form class="za-comment-form"><input class="za-comment-input" maxlength="500" placeholder="Write a reply…"/><button type="button" class="btn btn-primary za-comment-send">Reply</button></form>';
+      var form=box.querySelector('.za-comment-form');
+      var send=form.querySelector('.za-comment-send');
+      var inp=form.querySelector('.za-comment-input');
+      send.onclick=async function(){
+        if(!token()){ needAuth(); return; }
+        var txt=(inp.value||'').trim();
+        if(!txt) return;
+        var cr=await api('/api/zeusai-social/comment',{method:'POST',body:{postId:postId,text:txt}});
+        if(cr&&cr.status===401){ needAuth(); return; }
+        if(cr&&cr.ok){ inp.value=''; await loadComments(postId, box); }
+        else alert((cr&&cr.error)||'Reply failed');
+      };
+      inp.addEventListener('keydown',function(ev){ if(ev.key==='Enter'){ ev.preventDefault(); send.click(); } });
     }
     function setAuthUi(){
       var label=document.getElementById('zaAuthLabel');
@@ -3363,21 +3425,66 @@ function pageSocialNetwork() {
         if(!token()){ needAuth(); return; }
         document.querySelectorAll('[data-intent]').forEach(function(x){x.classList.remove('is-on')});
         b.classList.add('is-on');
-        var r=await api('/api/zeusai-social/intent',{method:'POST',body:{intent:b.getAttribute('data-intent')}});
+        var nextIntent=b.getAttribute('data-intent');
+        var r=await api('/api/zeusai-social/intent',{method:'POST',body:{intent:nextIntent}});
         if(r&&r.status===401){ needAuth(); return; }
-        loadPane('home');
+        if(r&&r.ok){ me=me||{}; me.session=me.session||{}; me.session.intent=(r.intent||nextIntent); _adSlotCache=null; }
+        showPane('home'); loadPane('home');
       });
     });
+    async function doCompose(extra){
+      var text=document.getElementById('zaComposeText').value;
+      var kind=document.getElementById('zaComposeKind').value;
+      var cue=kind==='short'?'tiktok':(kind==='reel'||kind==='image'||kind==='story')?'instagram':'x';
+      var body={text:text,kind:kind,platformCue:cue};
+      var bond=(document.getElementById('zaCxBond').value||'').trim();
+      if(bond) body.bondBtc=bond;
+      var claim=document.getElementById('zaCxClaim').value;
+      if(claim) body.claimState=claim;
+      if(document.getElementById('zaCxBandwidth').checked) body.bandwidthOverride=true;
+      var splitHandle=(document.getElementById('zaCxSplit').value||'').trim().replace(/^@/,'');
+      if(splitHandle&&me&&me.profile){
+        var pr=await api('/api/zeusai-social/user/'+encodeURIComponent(splitHandle));
+        if(pr&&pr.ok&&pr.profile) body.splitShares=[{userId:me.profile.id,pct:50},{userId:pr.profile.id,pct:50}];
+      }
+      if(extra) Object.assign(body,extra);
+      return api('/api/zeusai-social/compose',{method:'POST',body:body});
+    }
+    async function submitCompose(extra){
+      var r=await doCompose(extra);
+      if(r&&r.status===401){ needAuth(); return; }
+      if(r&&r.ok){
+        document.getElementById('zaComposeText').value='';
+        document.getElementById('zaCxBond').value='';
+        document.getElementById('zaCxSplit').value='';
+        document.getElementById('zaCxClaim').value='';
+        document.getElementById('zaCxBandwidth').checked=false;
+        showPane('home'); loadPane('home');
+        return;
+      }
+      if(r&&r.error==='needs_human_challenge'){
+        var ch=await api('/api/zeusai-social/world/human/challenge',{method:'POST',body:{}});
+        if(ch&&ch.ok){
+          var ans=prompt('Human check — '+(ch.prompt||'answer the challenge'));
+          if(ans==null) return;
+          var v=await api('/api/zeusai-social/world/human/verify',{method:'POST',body:{challengeId:ch.challengeId,answer:ans}});
+          if(v&&v.ok){ await submitCompose(extra); }
+          else alert('Human check failed — try publishing again.');
+        } else alert('Could not load human check.');
+        return;
+      }
+      if(r&&r.error==='emotional_bandwidth_cap'){
+        if(confirm('Emotional-bandwidth cap reached. Override and publish anyway?')){
+          await submitCompose(Object.assign({},extra||{},{bandwidthOverride:true}));
+        }
+        return;
+      }
+      alert((r&&r.error)||'Publish failed');
+    }
     document.getElementById('zaComposer').addEventListener('submit',async function(e){
       e.preventDefault();
       if(!token()){ needAuth(); return; }
-      var text=document.getElementById('zaComposeText').value;
-      var kind=document.getElementById('zaComposeKind').value;
-      var cue=kind==='short'?'tiktok':kind==='reel'||kind==='image'?'instagram':'x';
-      var r=await api('/api/zeusai-social/compose',{method:'POST',body:{text:text,kind:kind,platformCue:cue}});
-      if(r&&r.status===401){ needAuth(); return; }
-      if(r&&r.ok){document.getElementById('zaComposeText').value=''; loadPane('home'); }
-      else { alert((r&&r.error)||'Publish failed'); }
+      await submitCompose(null);
     });
     document.getElementById('zaDmForm').addEventListener('submit',async function(e){
       e.preventDefault();
@@ -3424,11 +3531,57 @@ function pageSocialNetwork() {
       var follow=e.target.closest('[data-follow]');
       if(follow){
         if(!token()){ needAuth(); return; }
-        var r=await api('/api/zeusai-social/follow',{method:'POST',body:{targetId:follow.getAttribute('data-follow')}});
+        var tid=follow.getAttribute('data-follow');
+        var currently=isFollowing(tid);
+        var path=currently?'/api/zeusai-social/unfollow':'/api/zeusai-social/follow';
+        var r=await api(path,{method:'POST',body:{targetId:tid}});
         if(r&&r.status===401){ needAuth(); return; }
-        if(r&&r.ok) follow.textContent='Following';
+        if(r&&r.ok){
+          var nowFollowing=!currently;
+          me=me||{}; me.followingIds=me.followingIds||[];
+          if(nowFollowing){ if(me.followingIds.indexOf(tid)<0) me.followingIds.push(tid); }
+          else { me.followingIds=me.followingIds.filter(function(x){return x!==tid}); }
+          document.querySelectorAll('[data-follow]').forEach(function(bb){
+            if(bb.getAttribute('data-follow')!==tid) return;
+            if(bb.classList.contains('za-profile-follow')){
+              bb.textContent=nowFollowing?'Unfollow':'Follow';
+              bb.classList.toggle('btn-primary',!nowFollowing);
+              bb.classList.toggle('btn-ghost',nowFollowing);
+            } else { bb.textContent=nowFollowing?'Following':'Follow'; }
+          });
+        } else if(r&&r.error){ alert(r.error); }
         return;
       }
+      var cbtn=e.target.closest('[data-comment]');
+      if(cbtn){
+        var pid=cbtn.getAttribute('data-comment');
+        var art=cbtn.closest('.za-post');
+        var cbox=art&&art.querySelector('.za-comments');
+        if(!cbox) return;
+        if(!cbox.hidden){ cbox.hidden=true; return; }
+        cbox.hidden=false;
+        await loadComments(pid, cbox);
+        return;
+      }
+      var quote=e.target.closest('[data-quote]');
+      if(quote){
+        if(!token()){ needAuth(); return; }
+        var qid=quote.getAttribute('data-quote');
+        var qtext=prompt('Add your take (quote this post):');
+        if(qtext==null) return;
+        var qr=await api('/api/zeusai-social/quote',{method:'POST',body:{postId:qid,text:qtext}});
+        if(qr&&qr.status===401){ needAuth(); return; }
+        if(qr&&qr.ok){ showPane('home'); loadPane('home'); }
+        else alert((qr&&qr.error)||'Quote failed');
+        return;
+      }
+      var prof=e.target.closest('[data-profile]');
+      if(prof){
+        var ph=prof.getAttribute('data-profile');
+        if(ph){ showPane('profile'); openProfile(ph); return; }
+      }
+      var tagEl=e.target.closest('[data-tag]');
+      if(tagEl){ showPane('home'); loadTag(tagEl.getAttribute('data-tag')); return; }
       var btn=e.target.closest('[data-react]');
       if(!btn) return;
       if(!token()){ needAuth(); return; }
@@ -3452,6 +3605,15 @@ function pageSocialNetwork() {
           if(mode==='following'&&tl&&tl.error==='auth_required'){ needAuth(); return; }
           var box=name==='following'?document.getElementById('zaFollowing'):document.getElementById('zaFeed');
           box.innerHTML=(tl.items||[]).map(postHtml).join('')||'<p class="za-social-empty">No posts yet — be the first to publish.</p>';
+          if(name==='home') await maybeRenderAdSlot();
+        } else if(name==='notifications'){
+          await loadNotifications();
+        } else if(name==='bookmarks'){
+          await loadBookmarks();
+        } else if(name==='profile'){
+          if(!_profileHandle&&me&&me.profile) _profileHandle=me.profile.handle;
+          if(_profileHandle){ await openProfile(_profileHandle,true); }
+          else document.getElementById('zaProfile').innerHTML='<p class="za-social-empty">Sign in on /account to view your profile.</p>';
         } else if(name==='stories'){
           var st=await api('/api/zeusai-social/stories');
           document.getElementById('zaStoriesPane').innerHTML=(st.items||[]).map(function(s){
@@ -3465,7 +3627,7 @@ function pageSocialNetwork() {
         } else if(name==='explore'){
           var ex=await api('/api/zeusai-social/explore');
           document.getElementById('zaExplore').innerHTML=
-            '<div class="za-tags">'+(ex.trending||[]).map(function(t){return '<span>'+esc(t)+'</span>'}).join('')+'</div>'+
+            '<div class="za-tags">'+(ex.trending||[]).map(function(t){return '<button type="button" class="za-tag" data-tag="'+esc(t)+'">'+esc(t)+'</button>'}).join('')+'</div>'+
             '<div class="za-creators">'+(ex.creators||[]).map(function(c){return '<button type="button" data-follow="'+esc(c.id)+'"><strong>'+esc(c.displayName)+'</strong><span>@'+esc(c.handle)+' · passport '+esc(c.passport)+'</span></button>'}).join('')+'</div>'+
             '<div class="za-grid">'+(ex.grid||[]).map(postHtml).join('')+'</div>';
         } else if(name==='messages'){
@@ -3473,8 +3635,9 @@ function pageSocialNetwork() {
           var ms=await api('/api/zeusai-social/messages');
           if(ms&&ms.status===401){ needAuth(); return; }
           document.getElementById('zaMessages').innerHTML=(ms.threads||[]).map(function(t){
+            var pm={}; (t.participants||[]).forEach(function(p){ pm[p.id]=p.displayName||('@'+(p.handle||'')); });
             return '<article class="za-dm"><header>E2E · '+(t.participants||[]).map(function(p){return esc(p.displayName)+' <i data-presence="'+esc(p.presence)+'"></i>'}).join(' · ')+'</header>'+
-              (t.messages||[]).map(function(m){return '<p><strong>'+esc(m.from)+'</strong> '+esc(m.text)+'</p>'}).join('')+'</article>';
+              (t.messages||[]).map(function(m){return '<p><strong>'+esc(pm[m.from]||m.from)+'</strong> '+esc(m.text)+'</p>'}).join('')+'</article>';
           }).join('')||'<p class="za-social-empty">No threads yet — send the first DM above.</p>';
         } else if(name==='inventions'){
           var inv=await api('/api/zeusai-social/innovations');
@@ -3505,6 +3668,8 @@ function pageSocialNetwork() {
         var wb=await api('/api/zeusai-social/wellbeing');
         var el=document.getElementById('zaWellbeing');
         if(el) el.textContent='Wellbeing '+Math.round(wb.score||0)+' · '+(wb.advice||'');
+        refreshAttnStrip();
+        refreshNotifBadge();
         // Deep-link ?post=
         var q=new URLSearchParams(location.search).get('post');
         if(q&&name==='home'){
@@ -3546,6 +3711,117 @@ function pageSocialNetwork() {
         var att=await api('/api/zeusai-social/world/attention');
         if(att&&att.ok) document.getElementById('zaAttnBal').textContent='Balance '+att.balanceSec+' seconds owned';
       }
+    }
+    var _profileHandle=null;
+    var _adSlotCache=null;
+    async function openProfile(handle){
+      handle=String(handle||'').replace(/^@/,'');
+      if(!handle) return;
+      _profileHandle=handle;
+      showPane('profile');
+      var box=document.getElementById('zaProfile');
+      box.innerHTML='<p class="za-social-sub">Loading profile…</p>';
+      var r=await api('/api/zeusai-social/user/'+encodeURIComponent(handle));
+      if(!r||!r.ok||!r.profile){ box.innerHTML='<p class="za-social-empty">Profile not found.</p>'; return; }
+      var pr=r.profile;
+      var rep=await api('/api/zeusai-social/world/reputation/'+encodeURIComponent(pr.id));
+      var repScore=(rep&&rep.ok&&rep.score!=null)?rep.score:'—';
+      var followed=isFollowing(pr.id);
+      var isMe=!!(me&&me.profile&&me.profile.id===pr.id);
+      box.innerHTML=
+        '<header class="za-profile-head">'+
+          '<div class="za-avatar za-profile-av" data-presence="'+esc(pr.presence||'quiet')+'">'+esc((pr.displayName||'?').slice(0,1))+'</div>'+
+          '<div class="za-profile-id"><h2>'+esc(pr.displayName||'')+(pr.verified?' <span class="za-verified">✓</span>':'')+(pr.system?' <span class="za-system">official</span>':'')+'</h2>'+
+          '<span>@'+esc(pr.handle||'')+'</span></div>'+
+          (isMe?'':'<button type="button" class="btn '+(followed?'btn-ghost':'btn-primary')+' za-profile-follow" data-follow="'+esc(pr.id)+'"'+(pr.handle?' data-handle="'+esc(pr.handle)+'"':'')+'>'+(followed?'Unfollow':'Follow')+'</button>')+
+        '</header>'+
+        '<p class="za-profile-bio">'+esc(pr.bio||'No bio yet.')+'</p>'+
+        '<div class="za-profile-stats">'+
+          '<span>Passport <strong>'+esc(pr.passport)+'</strong></span>'+
+          '<span>Reputation <strong>'+esc(repScore)+'</strong></span>'+
+          '<span>Followers <strong>'+esc(pr.followers)+'</strong></span>'+
+          '<span>Following <strong>'+esc(pr.following)+'</strong></span>'+
+          '<span>Intent <strong>'+esc(pr.intent)+'</strong></span>'+
+        '</div>'+
+        '<div class="za-profile-posts">'+((r.posts||[]).map(postHtml).join('')||'<p class="za-social-empty">No posts yet.</p>')+'</div>';
+    }
+    async function loadTag(tag){
+      var t=String(tag||'').replace(/^#/,'');
+      if(!t) return;
+      var box=document.getElementById('zaFeed');
+      box.innerHTML='<p class="za-social-sub">Loading #'+esc(t)+'…</p>';
+      var tl=await api('/api/zeusai-social/timeline?mode='+encodeURIComponent('tag:#'+t)+'&limit=20');
+      box.innerHTML='<div class="za-tag-head">#'+esc(t)+'</div>'+((tl.items||[]).map(postHtml).join('')||'<p class="za-social-empty">No posts for #'+esc(t)+' yet.</p>');
+    }
+    function notifHtml(n){
+      var unread=(n.read===false)||(n.unread===true)||(n.seen===false);
+      var who=(n.actor&&(n.actor.displayName||n.actor.handle))||n.fromHandle||n.from||'';
+      var text=n.text||n.message||n.body||(n.type?String(n.type).replace(/_/g,' '):'Activity');
+      var when=n.createdAt||n.at||'';
+      return '<article class="za-notif'+(unread?' is-unread':'')+'"'+(n.postId?' data-notif-post="'+esc(n.postId)+'"':'')+'>'+
+        (who?'<strong'+(n.actor&&n.actor.handle?' class="za-handle" data-profile="'+esc(n.actor.handle)+'"':'')+'>'+esc(who)+'</strong> ':'')+
+        '<span>'+esc(text)+'</span>'+
+        (when?' <em>'+esc(String(when).slice(0,19).replace('T',' '))+'</em>':'')+'</article>';
+    }
+    function unreadCount(items){
+      return (items||[]).filter(function(n){return (n.read===false)||(n.unread===true)||(n.seen===false);}).length;
+    }
+    function updateNotifBadge(items){
+      var badge=document.getElementById('zaNotifBadge');
+      if(!badge) return;
+      var u=unreadCount(items);
+      if(u>0){ badge.textContent=u>99?'99+':String(u); badge.hidden=false; }
+      else { badge.hidden=true; }
+    }
+    async function refreshNotifBadge(){
+      var badge=document.getElementById('zaNotifBadge');
+      if(!token()){ if(badge) badge.hidden=true; return; }
+      var r=await api('/api/zeusai-social/notifications');
+      if(r&&r.ok) updateNotifBadge(r.items||[]);
+    }
+    async function loadNotifications(){
+      var box=document.getElementById('zaNotifs');
+      if(!token()){ box.innerHTML='<p class="za-social-empty">Sign in to see notifications.</p>'; return; }
+      var r=await api('/api/zeusai-social/notifications');
+      if(r&&r.status===401){ needAuth(); return; }
+      var items=(r&&r.items)||[];
+      box.innerHTML=items.map(notifHtml).join('')||'<p class="za-social-empty">No notifications yet.</p>';
+      updateNotifBadge(items);
+    }
+    async function loadBookmarks(){
+      var box=document.getElementById('zaBookmarks');
+      if(!token()){ box.innerHTML='<p class="za-social-empty">Sign in to see your bookmarks.</p>'; return; }
+      var r=await api('/api/zeusai-social/bookmarks');
+      if(r&&r.status===401){ needAuth(); return; }
+      var items=(r&&r.items)||[];
+      var posts=items.map(function(it){ return (it&&it.post)?it.post:it; }).filter(function(p){return p&&p.id;});
+      box.innerHTML=posts.map(postHtml).join('')||'<p class="za-social-empty">No saved posts yet — tap Save on any post.</p>';
+    }
+    async function refreshAttnStrip(){
+      var el=document.getElementById('zaIntentAttn');
+      if(!el) return;
+      if(!token()){ el.hidden=true; return; }
+      var a=await api('/api/zeusai-social/world/attention');
+      if(a&&a.ok){ el.textContent='Attention '+a.balanceSec+'s'; el.hidden=false; }
+      else el.hidden=true;
+    }
+    async function maybeRenderAdSlot(){
+      var feed=document.getElementById('zaFeed');
+      if(!feed) return;
+      var intent=(me&&me.session&&me.session.intent)||null;
+      if(!token()||intent!=='trade'){ _adSlotCache=null; return; }
+      if(!_adSlotCache){
+        var r=await api('/api/zeusai-social/world/ad-slot',{method:'POST',body:{intent:'trade',creativeId:'feed-trade'}});
+        if(r&&r.ok&&r.slot) _adSlotCache=r.slot; else return;
+      }
+      var slot=_adSlotCache;
+      var sig=String(slot.signature||slot.sig||slot.id||'').slice(0,16);
+      var el=document.createElement('article');
+      el.className='za-adslot';
+      el.innerHTML='<span class="za-adslot-tag">Sponsored · intent trade · signed</span>'+
+        '<p class="za-adslot-body">Signed intent ad slot — shown only because your intent is Trade.</p>'+
+        '<span class="za-adslot-sig">slot '+esc(slot.id||'')+' · '+esc(sig)+'…</span>';
+      feed.insertBefore(el, feed.firstChild);
     }
     var _humChallengeId=null;
     function wireWorld(){
@@ -3651,9 +3927,22 @@ function pageSocialNetwork() {
       });
     }
 
+    var _notifReadBtn=document.getElementById('zaNotifReadAll');
+    if(_notifReadBtn) _notifReadBtn.onclick=async function(){
+      if(!token()){ needAuth(); return; }
+      var r=await api('/api/zeusai-social/notifications/read',{method:'POST',body:{}});
+      if(r&&r.status===401){ needAuth(); return; }
+      await loadNotifications();
+      refreshNotifBadge();
+    };
     wireWorld();
-    refreshMe().then(function(){ loadPane('home'); });
-    setInterval(function(){ var on=document.querySelector('.za-rail-btn.is-on'); if(on) loadPane(on.getAttribute('data-pane')); },15000);
+    refreshMe().then(function(){
+      refreshAttnStrip(); refreshNotifBadge();
+      var qUser=new URLSearchParams(location.search).get('user');
+      if(qUser){ showPane('profile'); openProfile(qUser); }
+      else loadPane('home');
+    });
+    setInterval(function(){ var on=document.querySelector('.za-rail-btn.is-on'); if(on) loadPane(on.getAttribute('data-pane')); refreshNotifBadge(); },15000);
   })();
   </script>
   </section>`;

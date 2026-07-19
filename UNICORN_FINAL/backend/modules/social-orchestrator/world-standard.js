@@ -76,6 +76,7 @@ function _empty() {
     splits: {},                // postId -> { shares: [{userId, pct}], createdAt }
     bandwidth: {},             // userId -> { hourKey, aggressiveSeen, overrideUntil }
     claims: {},                // postId -> { state, evidenceFor:[], evidenceAgainst:[] }
+    royaltyLedger: {},         // postId -> { accruedBtc, paid: [], updatedAt }
     adSlots: [],               // signed intent-ad receipts
     humanChallenges: {},       // userId -> { challenge, expiresAt, passedAt }
     updatedAt: _now(),
@@ -217,6 +218,22 @@ class WorldStandardEngine {
     if (!resolverId || !bondId) return { ok: false, error: 'auth_required' };
     const bond = this.state.bonds.find((b) => b.id === bondId);
     if (!bond) return { ok: false, error: 'bond_not_found' };
+    // A bond may never be resolved by its own author (conflict of interest)…
+    if (resolverId === bond.authorId) {
+      return { ok: false, error: 'forbidden', reason: 'author_cannot_resolve', invention: 'anti-deepfake-bond' };
+    }
+    // …nor by anyone who filed a challenge against it (they are a party).
+    const isChallenger = (bond.challenges || []).some((c) => c.challengerId === resolverId);
+    if (isChallenger) {
+      return { ok: false, error: 'forbidden', reason: 'challenger_cannot_resolve', invention: 'anti-deepfake-bond' };
+    }
+    // Neutral resolver must either carry sufficient reputation or the bond must
+    // still have an open challenge that needs adjudication.
+    const hasOpenChallenge = (bond.challenges || []).some((c) => c.status === 'open');
+    const rep = this.getReputation(resolverId).score;
+    if (rep < 60 && !hasOpenChallenge) {
+      return { ok: false, error: 'forbidden', reason: 'insufficient_reputation', needed: 60, score: rep, invention: 'anti-deepfake-bond' };
+    }
     if (outcome === 'slash' && bond.challenges.length) {
       bond.status = 'slashed';
       const victim = bond.challenges[0].challengerId;
@@ -226,6 +243,9 @@ class WorldStandardEngine {
     } else {
       bond.status = 'upheld';
       this._bumpRep(bond.authorId, 5, 'bond_upheld', bond.postId);
+    }
+    for (const c of bond.challenges || []) {
+      if (c.status === 'open') c.status = 'resolved';
     }
     bond.resolvedAt = _now();
     bond.resolvedBy = resolverId;
@@ -333,9 +353,13 @@ class WorldStandardEngine {
   }
 
   // ── 7. Creator Split Contracts ───────────────────────────────────────
-  setSplit(authorId, { postId, shares } = {}) {
+  setSplit(authorId, { postId, shares, authorCheckPostAuthorId } = {}) {
     if (!authorId || !postId || !Array.isArray(shares) || !shares.length) {
       return { ok: false, error: 'invalid_split' };
+    }
+    // When the caller supplies the real post author, only that author may set a split.
+    if (authorCheckPostAuthorId != null && authorCheckPostAuthorId !== authorId) {
+      return { ok: false, error: 'forbidden', reason: 'only_author_may_set_split', invention: 'creator-split-contracts' };
     }
     const norm = shares.map((s) => ({
       userId: String(s.userId),
@@ -367,6 +391,52 @@ class WorldStandardEngine {
         btc: Number(((amt * x.pct) / 100).toFixed(8)),
       })),
       invention: 'creator-split-contracts',
+    };
+  }
+
+  /**
+   * Record an engagement-royalty allocation for a post. Allocates via the
+   * post's split contract (if any), persists the running total into the
+   * royalty ledger, and nudges shareholder reputation upward slightly.
+   */
+  recordRoyaltyAllocation(postId, amountBtc) {
+    if (!postId) return { ok: false, error: 'invalid_post' };
+    const amt = Math.max(0, Number(amountBtc) || 0);
+    const alloc = this.allocateRoyalty(postId, amt);
+    const allocations = alloc.ok ? alloc.allocations : [];
+    if (!this.state.royaltyLedger[postId]) {
+      this.state.royaltyLedger[postId] = { accruedBtc: 0, paid: [], updatedAt: _now() };
+    }
+    const led = this.state.royaltyLedger[postId];
+    led.accruedBtc = Number((led.accruedBtc + amt).toFixed(8));
+    const entry = { at: _now(), amountBtc: Number(amt.toFixed(8)), allocations };
+    led.paid.unshift(entry);
+    if (led.paid.length > 200) led.paid.length = 200;
+    led.updatedAt = _now();
+    for (const a of allocations) this._bumpRep(a.userId, 1, 'royalty_accrued', postId);
+    this._save();
+    return {
+      ok: true,
+      postId,
+      accruedBtc: led.accruedBtc,
+      allocation: alloc,
+      entry,
+      hasSplit: alloc.ok,
+      invention: 'creator-royalty-mirror',
+    };
+  }
+
+  getRoyalty(postId) {
+    const led = this.state.royaltyLedger[postId];
+    if (!led) return { ok: true, postId, accruedBtc: 0, paid: [], exists: false, invention: 'creator-royalty-mirror' };
+    return {
+      ok: true,
+      postId,
+      accruedBtc: led.accruedBtc,
+      paid: led.paid.slice(0, 40),
+      updatedAt: led.updatedAt,
+      exists: true,
+      invention: 'creator-royalty-mirror',
     };
   }
 
@@ -418,6 +488,14 @@ class WorldStandardEngine {
     if (!actorId || !postId) return { ok: false, error: 'auth_required' };
     const allowed = ['verified', 'contested', 'unverified'];
     const st = allowed.includes(state) ? state : 'unverified';
+    // Marking a claim 'verified' is a strong assertion — gate it behind reputation.
+    // Anyone may set 'contested' / 'unverified' (optionally with evidence).
+    if (st === 'verified') {
+      const rep = this.getReputation(actorId).score;
+      if (rep < 70) {
+        return { ok: false, error: 'forbidden', reason: 'verified_requires_reputation', needed: 70, score: rep, invention: 'ambiguity-mode' };
+      }
+    }
     if (!this.state.claims[postId]) {
       this.state.claims[postId] = { state: 'unverified', evidenceFor: [], evidenceAgainst: [], history: [] };
     }
@@ -551,6 +629,7 @@ class WorldStandardEngine {
         reputationProfiles: Object.keys(this.state.reputation).length,
         splits: Object.keys(this.state.splits).length,
         claims: Object.keys(this.state.claims).length,
+        royaltyPosts: Object.keys(this.state.royaltyLedger).length,
         adSlots: this.state.adSlots.length,
         humanChallenges: Object.keys(this.state.humanChallenges).length,
       },

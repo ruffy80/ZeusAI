@@ -56,6 +56,15 @@ const ensured = surface.ensureProfile(uid, { name: 'Test Social', email: 't@exam
 assert.equal(ensured.ok, true);
 assert.ok(ensured.profile.handle);
 
+// Composing now requires a fresh Proof-of-Human challenge.
+const ws = surface.world();
+function humanize(u) {
+  const ch = ws.issueHumanChallenge(u);
+  const m = /(\d+)\+(\d+)/.exec(ch.prompt);
+  ws.verifyHumanChallenge(u, { challengeId: ch.challengeId, answer: String(Number(m[1]) + Number(m[2])) });
+}
+humanize(uid);
+
 const composed = surface.compose({ authorId: uid, text: 'Real-world signal from authenticated user', kind: 'text' });
 assert.equal(composed.ok, true);
 assert.equal(composed.post.author.id, uid);

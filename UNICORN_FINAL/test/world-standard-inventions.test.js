@@ -20,8 +20,19 @@ function check(name, fn) {
 
 const uid = 'zid_ws_user_a';
 const uid2 = 'zid_ws_user_b';
+const uid3 = 'zid_ws_user_c'; // neutral bond resolver
 surface.ensureProfile(uid, { name: 'WS A' });
 surface.ensureProfile(uid2, { name: 'WS B' });
+surface.ensureProfile(uid3, { name: 'WS C' });
+
+// Composing enforces a fresh Proof-of-Human challenge.
+function humanize(u) {
+  const ch = ws.issueHumanChallenge(u);
+  const m = /(\d+)\+(\d+)/.exec(ch.prompt);
+  ws.verifyHumanChallenge(u, { challengeId: ch.challengeId, answer: String(Number(m[1]) + Number(m[2])) });
+}
+humanize(uid);
+humanize(uid2);
 
 check('lists 12 world inventions', () => {
   const list = ws.list();
@@ -46,7 +57,11 @@ check('anti-deepfake bond challenge + resolve', () => {
   const ch = ws.challengeBond(uid2, { bondId: bond.bond.id, reason: 'possible deepfake', evidence: 'hash mismatch' });
   assert.equal(ch.ok, true);
   assert.equal(ch.bond.status, 'contested');
-  const res = ws.resolveBond(uid2, { bondId: bond.bond.id, outcome: 'slash' });
+  // Neither author nor challenger may resolve their own bond.
+  assert.equal(ws.resolveBond(uid, { bondId: bond.bond.id, outcome: 'slash' }).error, 'forbidden');
+  assert.equal(ws.resolveBond(uid2, { bondId: bond.bond.id, outcome: 'slash' }).error, 'forbidden');
+  // A neutral resolver adjudicates the open challenge.
+  const res = ws.resolveBond(uid3, { bondId: bond.bond.id, outcome: 'slash' });
   assert.equal(res.ok, true);
   assert.equal(res.bond.status, 'slashed');
 });

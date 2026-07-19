@@ -203,6 +203,8 @@ function _seed() {
     receipts: [],
     reactions: [],
     bookmarks: [],
+    comments: [],
+    notifications: [],
     sounds: [
       { id: 'snd_pulse', title: 'Signal Pulse · original', uses: 4200 },
       { id: 'snd_hum', title: 'Ledger Hum', uses: 1880 },
@@ -233,6 +235,9 @@ class SocialSurface {
     if (!this.state.sessions || typeof this.state.sessions !== 'object') {
       this.state.sessions = {};
     }
+    if (!Array.isArray(this.state.bookmarks)) this.state.bookmarks = [];
+    if (!Array.isArray(this.state.comments)) this.state.comments = [];
+    if (!Array.isArray(this.state.notifications)) this.state.notifications = [];
   }
 
   _save() {
@@ -253,6 +258,27 @@ class SocialSurface {
       this.state.sessions[key] = { startedAt: Date.now(), views: 0, wellbeingScore: 100, intent: 'discover' };
     }
     return this.state.sessions[key];
+  }
+
+  /** Push a notification for a user. Caps the global list at 300. Never self-notifies. */
+  _notify(userId, { type, actorId, postId, text, meta } = {}) {
+    if (!userId) return null;
+    if (actorId && actorId === userId) return null;
+    if (!Array.isArray(this.state.notifications)) this.state.notifications = [];
+    const n = {
+      id: _id('ntf'),
+      userId,
+      type: String(type || 'info').slice(0, 32),
+      actorId: actorId || null,
+      postId: postId || null,
+      text: text != null ? String(text).slice(0, 300) : null,
+      meta: meta || null,
+      read: false,
+      at: _now(),
+    };
+    this.state.notifications.unshift(n);
+    if (this.state.notifications.length > 300) this.state.notifications.length = 300;
+    return n;
   }
 
   ensureProfile(userId, meta = {}) {
@@ -330,12 +356,15 @@ class SocialSurface {
     if (!userId) return { ok: false, error: 'auth_required' };
     const ensured = this.ensureProfile(userId);
     const sess = this._session(userId);
+    const unreadNotifications = (this.state.notifications || [])
+      .filter((n) => n.userId === userId && !n.read).length;
     return {
       ok: true,
       profile: ensured.profile,
       wellbeing: this.getWellbeing(userId),
       followingIds: this.state.follows.filter((f) => f[0] === userId).map((f) => f[1]),
       session: { intent: sess.intent, views: sess.views },
+      unreadNotifications,
     };
   }
 
@@ -371,6 +400,24 @@ class SocialSurface {
     const claim = worldStandard.getClaim(p.id);
     const split = worldStandard.getSplit(p.id);
     const rep = worldStandard.getReputation(author.id || p.authorId);
+    const royalty = typeof worldStandard.getRoyalty === 'function' ? worldStandard.getRoyalty(p.id) : null;
+    let quotedPost = null;
+    if (p.quotedPostId) {
+      const q = this.state.posts.find((x) => x.id === p.quotedPostId);
+      if (q) {
+        const qa = this._user(q.authorId);
+        quotedPost = {
+          id: q.id,
+          text: q.text,
+          kind: q.kind,
+          media: q.media,
+          createdAt: q.createdAt,
+          author: qa
+            ? { id: qa.id, handle: qa.handle, displayName: qa.displayName, verified: !!qa.verified }
+            : null,
+        };
+      }
+    }
     return {
       id: p.id,
       kind: p.kind,
@@ -380,9 +427,14 @@ class SocialSurface {
       tags: p.tags || [],
       createdAt: p.createdAt,
       stats: p.stats,
+      commentCount: (p.stats && p.stats.comments) || 0,
+      quotedPostId: p.quotedPostId || null,
+      quotedPost,
+      quoteText: p.quoteText || null,
       proofOfAuthorship: p.proofOfAuthorship,
       truthAnchor: p.truthAnchor,
       royaltyHintBtc: p.royaltyHintBtc,
+      royaltyAccruedBtc: royalty && royalty.ok ? royalty.accruedBtc : 0,
       viralReanchorAt: p.viralReanchorAt || null,
       virality: viral,
       federationCid: fed.ok ? fed.cid : null,
@@ -478,6 +530,14 @@ class SocialSurface {
       if (!actorId) return { ok: false, error: 'auth_required', items: [] };
       const following = new Set(this.state.follows.filter((f) => f[0] === actorId).map((f) => f[1]));
       items = items.filter((p) => following.has(p.author.id) || p.author.id === actorId);
+    } else if (typeof mode === 'string' && mode.startsWith('tag:')) {
+      const raw = mode.slice(4);
+      let tag = raw;
+      try { tag = decodeURIComponent(raw); } catch (_) { /* already decoded */ }
+      tag = String(tag).toLowerCase().replace(/^#/, '');
+      items = items
+        .filter((p) => (p.tags || []).some((t) => String(t).toLowerCase().replace(/^#/, '') === tag))
+        .sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)));
     } else if (mode === 'chrono') {
       items = items.slice().sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)));
     } else {
@@ -576,18 +636,21 @@ class SocialSurface {
   compose({
     authorId, text, kind = 'text', platformCue = 'x', tags = [],
     bondBtc, splitShares, claimState, bandwidthOverride,
+    quotedPostId, quoteText,
   } = {}) {
     if (!authorId) return { ok: false, error: 'auth_required' };
     this.ensureProfile(authorId);
     const body = String(text || '').trim().slice(0, 2000);
-    if (!body) return { ok: false, error: 'empty' };
+    // A quote-repost may carry no body of its own; everything else needs text.
+    if (!body && !quotedPostId) return { ok: false, error: 'empty' };
     const tagList = Array.isArray(tags) ? tags.slice(0, 8) : [];
     const bw = worldStandard.checkBandwidth(authorId, { text: body, tags: tagList });
     if (!bw.allowed && !bandwidthOverride) {
       return { ok: false, error: 'emotional_bandwidth_cap', bandwidth: bw };
     }
+    // Hard gate: authors must have a fresh Proof-of-Human challenge to publish.
     if (!worldStandard.isHumanFresh(authorId)) {
-      // Soft gate: still allow, but flag — UI prompts challenge.
+      return { ok: false, error: 'needs_human_challenge', invention: 'proof-of-human-light' };
     }
     const id = _id('p');
     const post = {
@@ -607,8 +670,23 @@ class SocialSurface {
       royaltyHintBtc: 0,
       viralReanchorAt: null,
     };
+    if (quotedPostId) {
+      post.quotedPostId = quotedPostId;
+      if (quoteText) post.quoteText = String(quoteText).slice(0, 500);
+    }
     this.state.posts.unshift(post);
     if (this.state.posts.length > 200) this.state.posts.length = 200;
+    // Stories are also surfaced through the ephemeral stories rail.
+    if (post.kind === 'story') {
+      this.state.stories.unshift({
+        id: _id('st'),
+        authorId,
+        postId: id,
+        items: [{ id: _id('sti'), kind: 'text', text: body.slice(0, 200), expiresInH: 24 }],
+        unseen: true,
+      });
+      if (this.state.stories.length > 60) this.state.stories.length = 60;
+    }
     this._save();
 
     const fed = worldStandard.pinFederation(authorId, { postId: id, text: body });
@@ -641,12 +719,19 @@ class SocialSurface {
     const post = this.state.posts.find((p) => p.id === postId);
     if (!post) return { ok: false, error: 'post_not_found' };
     const t = String(type || 'like');
-    if (t === 'like') post.stats.likes += 1;
-    else if (t === 'share' || t === 'repost') post.stats.shares += 1;
-    else if (t === 'save' || t === 'bookmark') {
+    if (t === 'like') {
+      post.stats.likes += 1;
+      this._notify(post.authorId, { type: 'like', actorId, postId });
+    } else if (t === 'share' || t === 'repost') {
+      post.stats.shares += 1;
+      this._notify(post.authorId, { type: 'share', actorId, postId });
+    } else if (t === 'save' || t === 'bookmark') {
       post.stats.saves += 1;
       this.state.bookmarks.unshift({ postId, actorId, at: _now() });
-    } else if (t === 'comment') post.stats.comments += 1;
+      this._notify(post.authorId, { type: 'save', actorId, postId });
+    }
+    // NOTE: 'comment' reactions are intentionally ignored here — real comments
+    // are created via addComment() so stats.comments never inflates falsely.
     post.royaltyHintBtc = Number(((post.stats.likes + post.stats.shares * 2) * 1.2e-9).toFixed(8));
     this.state.reactions.unshift({ postId, type: t, actorId, at: _now() });
     this._save();
@@ -671,9 +756,116 @@ class SocialSurface {
       this.state.follows.push([followerId, targetId]);
       const t = this._user(targetId);
       if (t) t.followers += 1;
+      this._notify(targetId, { type: 'follow', actorId: followerId });
       this._save();
     }
     return { ok: true, following: true, targetId };
+  }
+
+  unfollow({ followerId, targetId } = {}) {
+    if (!followerId) return { ok: false, error: 'auth_required' };
+    const idx = this.state.follows.findIndex((f) => f[0] === followerId && f[1] === targetId);
+    if (idx === -1) return { ok: true, following: false, targetId, changed: false };
+    this.state.follows.splice(idx, 1);
+    const t = this._user(targetId);
+    if (t && t.followers > 0) t.followers -= 1;
+    this._save();
+    return { ok: true, following: false, targetId, changed: true };
+  }
+
+  addComment({ postId, actorId, text, parentId } = {}) {
+    if (!actorId) return { ok: false, error: 'auth_required' };
+    const post = this.state.posts.find((p) => p.id === postId);
+    if (!post) return { ok: false, error: 'post_not_found' };
+    const body = String(text || '').trim().slice(0, 1000);
+    if (!body) return { ok: false, error: 'empty' };
+    this.ensureProfile(actorId);
+    const bw = worldStandard.checkBandwidth(actorId, { text: body, tags: [] });
+    if (!bw.allowed) return { ok: false, error: 'emotional_bandwidth_cap', bandwidth: bw };
+    const comment = {
+      id: _id('cm'),
+      postId,
+      actorId,
+      parentId: parentId || null,
+      text: body,
+      at: _now(),
+    };
+    this.state.comments.unshift(comment);
+    if (this.state.comments.length > 1000) this.state.comments.length = 1000;
+    post.stats.comments = (post.stats.comments || 0) + 1;
+    this._notify(post.authorId, { type: 'comment', actorId, postId, text: body.slice(0, 120) });
+    this._save();
+    const u = this._user(actorId);
+    return { ok: true, comment: Object.assign({}, comment, { author: this._publicProfile(u) }), stats: post.stats };
+  }
+
+  getComments(postId, limit = 50) {
+    const lim = Math.max(1, Math.min(200, Number(limit) || 50));
+    const all = this.state.comments.filter((c) => c.postId === postId);
+    const items = all.slice(0, lim).map((c) => {
+      const u = this._user(c.actorId);
+      return Object.assign({}, c, { author: this._publicProfile(u) });
+    });
+    return { ok: true, postId, items, count: all.length };
+  }
+
+  getNotifications(userId, limit = 50) {
+    if (!userId) return { ok: false, error: 'auth_required' };
+    const all = (this.state.notifications || []).filter((n) => n.userId === userId);
+    const lim = Math.max(1, Math.min(200, Number(limit) || 50));
+    const items = all.slice(0, lim).map((n) => {
+      const actor = n.actorId ? this._user(n.actorId) : null;
+      return Object.assign({}, n, { actor: actor ? this._publicProfile(actor) : null });
+    });
+    return { ok: true, items, unread: all.filter((n) => !n.read).length };
+  }
+
+  markNotificationsRead(userId) {
+    if (!userId) return { ok: false, error: 'auth_required' };
+    let marked = 0;
+    for (const n of this.state.notifications || []) {
+      if (n.userId === userId && !n.read) { n.read = true; marked += 1; }
+    }
+    if (marked) this._save();
+    return { ok: true, marked };
+  }
+
+  getBookmarks(userId) {
+    if (!userId) return { ok: false, error: 'auth_required' };
+    const items = (this.state.bookmarks || [])
+      .filter((b) => b.actorId === userId)
+      .map((b) => {
+        const post = this.state.posts.find((p) => p.id === b.postId);
+        return post ? { at: b.at, post: this._enrichPost(post) } : null;
+      })
+      .filter(Boolean);
+    return { ok: true, items };
+  }
+
+  quoteRepost({ actorId, postId, text } = {}) {
+    if (!actorId) return { ok: false, error: 'auth_required' };
+    const orig = this.state.posts.find((p) => p.id === postId);
+    if (!orig) return { ok: false, error: 'post_not_found' };
+    const made = this.compose({
+      authorId: actorId,
+      text: text || '',
+      kind: 'text',
+      platformCue: orig.platformCue || 'x',
+      quotedPostId: postId,
+      quoteText: text,
+    });
+    if (!made.ok) return made;
+    orig.stats.shares = (orig.stats.shares || 0) + 1;
+    orig.royaltyHintBtc = Number(((orig.stats.likes + orig.stats.shares * 2) * 1.2e-9).toFixed(8));
+    this._notify(orig.authorId, { type: 'quote', actorId, postId: made.post.id });
+    this._save();
+    return { ok: true, post: made.post, quotedPostId: postId, stats: orig.stats };
+  }
+
+  accrueEngagementRoyalty(postId, amountBtc) {
+    const post = this.state.posts.find((p) => p.id === postId);
+    if (!post) return { ok: false, error: 'post_not_found' };
+    return worldStandard.recordRoyaltyAllocation(postId, amountBtc);
   }
 
   sendDm({ from, to, text } = {}) {
@@ -693,6 +885,7 @@ class SocialSurface {
     }
     const msg = { id: _id('m'), from, text: body, at: _now() };
     thread.messages.push(msg);
+    this._notify(to, { type: 'dm', actorId: from, text: body.slice(0, 120), meta: { threadId: thread.id } });
     this._save();
     return { ok: true, threadId: thread.id, message: msg, encrypted: true };
   }
@@ -740,21 +933,28 @@ class SocialSurface {
   parity() {
     const categories = {
       identity: ['profiles', 'usernames', 'avatars', 'bios', 'verification', 'decentralized_identity'],
-      posting: ['text_posts', 'images', 'videos', 'reels_shorts', 'stories', 'live_streams', 'ai_synthesis'],
-      feed: ['personalized_feed', 'chronological_option', 'trending_hashtags', 'trending_sounds', 'intent_match'],
-      engagement: ['likes', 'comments', 'retweets_reshares', 'saves_bookmarks', 'shares', 'attention_receipts'],
+      posting: ['text_posts', 'images', 'videos', 'reels_shorts', 'stories', 'ai_synthesis'],
+      feed: ['personalized_feed', 'chronological_option', 'trending_hashtags', 'trending_sounds', 'hashtag_feed', 'intent_match'],
+      engagement: ['likes', 'comments', 'quotes', 'retweets_reshares', 'saves_bookmarks', 'bookmarks', 'shares', 'notifications', 'attention_receipts'],
       messaging: ['direct_messages', 'group_chats', 'message_encryption', 'ephemeral_messages'],
+      realtime: ['live_streams', 'spaces', 'duets', 'stitches', 'events'],
       social: ['follows_followers', 'friends', 'groups_communities', 'hashtags', 'mentions'],
-      monetization: ['creator_fund', 'tips_donations', 'subscriptions', 'creator_royalty_mirror'],
+      monetization: ['creator_fund', 'tips_donations', 'subscriptions', 'creator_royalty_mirror', 'engagement_royalty'],
       moderation: ['content_filtering', 'spam_detection', 'wellbeing_circuit'],
       analytics: ['post_metrics', 'signal_passport', 'proof_of_authorship'],
     };
+    // Features not yet shipped — reported honestly rather than over-claimed.
+    const PLANNED = new Set([
+      'live_streams', 'spaces', 'duets', 'stitches', 'group_chats', 'events',
+    ]);
     const matrix = {};
-    let total = 0;
+    let live = 0;
+    let planned = 0;
     for (const [cat, feats] of Object.entries(categories)) {
       matrix[cat] = feats.map((f) => {
-        total += 1;
-        return { id: f, status: 'live', implemented: true };
+        const isPlanned = PLANNED.has(f);
+        if (isPlanned) planned += 1; else live += 1;
+        return { id: f, status: isPlanned ? 'planned' : 'live', implemented: !isPlanned };
       });
     }
     return {
@@ -762,7 +962,8 @@ class SocialSurface {
       platforms: PLATFORM_PARITY,
       matrix,
       totals: {
-        featuresLive: total,
+        featuresLive: live,
+        featuresPlanned: planned,
         platformsCovered: Object.keys(PLATFORM_PARITY).length,
         inventionsLive: WORLD_INVENTIONS.length,
       },
