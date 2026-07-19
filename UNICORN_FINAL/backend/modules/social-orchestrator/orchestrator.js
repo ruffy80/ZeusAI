@@ -19,6 +19,7 @@ const NovelInnovationGenerator = require('./novel-innovations');
 const FederationHandler = require('./federation-handler');
 const { AutonomousSignalProtocol } = require('./signal-protocol');
 const { renderAdminSocialNetwork } = require('./dashboard');
+const socialSurface = require('./social-surface');
 
 const NAME = 'zeusai-social';
 const BRAND = 'ZeusAI Social';
@@ -396,6 +397,9 @@ function getPulse(limit) {
       federationBroadcast: true,
     },
     feedPreview: getPublicFeed(8),
+    surface: socialSurface.snapshot(),
+    inventions: socialSurface.inventions().items,
+    parity: socialSurface.parity().totals,
   });
 }
 
@@ -502,4 +506,5 @@ module.exports = {
   process: runAction,
   runAction,
   renderDashboardHtml,
+  surface: socialSurface,
 };

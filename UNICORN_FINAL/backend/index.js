@@ -11555,6 +11555,54 @@ app.get('/api/zeusai-social/reach', (req, res) => {
     res.status(500).json({ ok: false, error: e && e.message ? e.message : String(e) });
   }
 });
+
+// ZeusAI Social — world-standard surface (FB / X / IG / TikTok + inventions)
+(() => {
+  const surface = socialOrchestrator.surface;
+  const wrap = (fn) => (req, res) => {
+    try {
+      res.set('Cache-Control', 'no-store');
+      const out = fn(req, res);
+      if (out && typeof out.then === 'function') {
+        out.then((body) => res.json(body)).catch((e) => {
+          res.status(500).json({ ok: false, error: e && e.message ? e.message : String(e) });
+        });
+        return;
+      }
+      if (!res.headersSent) res.json(out);
+    } catch (e) {
+      res.status(500).json({ ok: false, error: e && e.message ? e.message : String(e) });
+    }
+  };
+  app.get('/api/zeusai-social/surface', wrap(() => surface.snapshot()));
+  app.get('/api/zeusai-social/timeline', wrap((req) => surface.timeline(req.query.mode || 'for-you', req.query.limit)));
+  app.get('/api/zeusai-social/stories', wrap(() => surface.stories()));
+  app.get('/api/zeusai-social/shorts', wrap((req) => surface.shorts(req.query.limit)));
+  app.get('/api/zeusai-social/explore', wrap(() => surface.explore()));
+  app.get('/api/zeusai-social/messages', wrap(() => surface.messages()));
+  app.get('/api/zeusai-social/innovations', wrap(() => surface.inventions()));
+  app.get('/api/zeusai-social/parity', wrap(() => surface.parity()));
+  app.get('/api/zeusai-social/wellbeing', wrap(() => ({ ok: true, ...(surface.getWellbeing()) })));
+  app.post('/api/zeusai-social/intent', wrap((req) => surface.setIntent(req.body && req.body.intent)));
+  app.post('/api/zeusai-social/compose', wrap((req) => {
+    const body = req.body || {};
+    const made = surface.compose(body);
+    if (made.ok && made.post) {
+      try {
+        socialOrchestrator.process({ action: 'run-decision' });
+      } catch (_) { /* fail-soft */ }
+    }
+    return made;
+  }));
+  app.post('/api/zeusai-social/react', wrap((req) => surface.react(req.body || {})));
+  app.post('/api/zeusai-social/follow', wrap((req) => surface.follow(req.body || {})));
+  app.post('/api/zeusai-social/dm', wrap((req) => surface.sendDm(req.body || {})));
+  app.post('/api/zeusai-social/receipt', wrap((req) => surface.issueAttentionReceipt(
+    req.body && req.body.postId,
+    (req.body && req.body.viewer) || 'guest'
+  )));
+})();
+
 registerModuleRoutes('performance-monitor',        performanceMonitor);
 registerModuleRoutes('unicorn-realization-engine', unicornRealizationEngine);
 registerModuleRoutes('auto-trend-analyzer',        autoTrendAnalyzer);

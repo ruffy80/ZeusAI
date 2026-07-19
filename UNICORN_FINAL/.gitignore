@@ -64,6 +64,7 @@ data/economy/economy-state.json
 data/zacc-state.json
 # ZACC dropship order backbone — buyer contact + shipping PII (0600), runtime.
 data/zacc/
+data/zeusai-social/
 
 # AI capability layer runtime stores (semantic memory + cost ledger)
 UNICORN_FINAL/data/ai-memory/

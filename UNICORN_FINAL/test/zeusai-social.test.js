@@ -2,10 +2,12 @@
 
 process.env.NODE_ENV = 'test';
 process.env.DISABLE_SELF_MUTATION = '1';
+process.env.ZEUSAI_SOCIAL_DATA_DIR = require('path').join(require('os').tmpdir(), 'zeusai-social-test-' + process.pid);
 
 const assert = require('assert');
 const { AutonomousSignalProtocol, PROTOCOL } = require('../backend/modules/social-orchestrator/signal-protocol');
 const orchestrator = require('../backend/modules/social-orchestrator/orchestrator');
+const surface = require('../backend/modules/social-orchestrator/social-surface');
 
 orchestrator.configure({
   profitAutopilot: {
@@ -41,6 +43,46 @@ assert.equal(reach.ok, true);
 assert.ok(reach.attentionArbitrageScore >= 0);
 assert.ok(Array.isArray(reach.differentiators) && reach.differentiators.length >= 4);
 
+// World-standard surface
+const snap = surface.snapshot();
+assert.equal(snap.ok, true);
+assert.ok(snap.posts >= 4);
+assert.ok(snap.stories >= 1);
+assert.ok(snap.shorts >= 1);
+assert.ok(snap.inventions >= 8);
+
+const tl = surface.timeline('for-you', 10);
+assert.ok(tl.items.length >= 3);
+assert.ok(tl.items[0].proofOfAuthorship);
+
+const shorts = surface.shorts();
+assert.ok(shorts.items.every((p) => p.kind === 'short' || p.kind === 'reel'));
+
+const parity = surface.parity();
+assert.ok(parity.totals.featuresLive >= 40);
+assert.ok(parity.platforms.facebook.length >= 5);
+assert.ok(parity.platforms.tiktok.length >= 5);
+
+const composed = surface.compose({ text: 'World-standard signal from tests', kind: 'text' });
+assert.equal(composed.ok, true);
+assert.ok(composed.post.proofOfAuthorship);
+
+const reacted = surface.react({ postId: composed.post.id, type: 'like' });
+assert.equal(reacted.ok, true);
+assert.ok(reacted.royaltyHintBtc >= 0);
+
+const receipt = surface.issueAttentionReceipt(composed.post.id, 'tester');
+assert.equal(receipt.ok, true);
+assert.ok(receipt.receipt.hash);
+assert.ok(receipt.wellbeing.score <= 100);
+
+surface.setIntent('learn');
+assert.equal(surface.getWellbeing().intent, 'learn');
+
+const ssr = surface.renderSsrFeed(3);
+assert.ok(ssr.includes('za-post'));
+assert.ok(ssr.includes('Proof-of-Authorship') || ssr.includes('za-post-proof'));
+
 Promise.resolve(orchestrator.process({ action: 'run-decision' })).then(() => {
   const status = orchestrator.getStatus();
   assert.equal(status.ok, true);
@@ -48,6 +90,8 @@ Promise.resolve(orchestrator.process({ action: 'run-decision' })).then(() => {
   assert.equal(status.name, 'zeusai-social');
   assert.ok(status.pulse && status.pulse.protocol === PROTOCOL);
   assert.ok(status.proofOfReach && status.proofOfReach.ok);
+  assert.ok(status.pulse.surface && status.pulse.surface.ok);
+  assert.ok(Array.isArray(status.pulse.inventions) && status.pulse.inventions.length >= 8);
   const feed = orchestrator.getPublicFeed(8);
   assert.ok(Array.isArray(feed));
   const pulse = orchestrator.getPulse(6);
