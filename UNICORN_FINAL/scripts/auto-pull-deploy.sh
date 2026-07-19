@@ -110,10 +110,19 @@ if [ -f "$QUARANTINE_FILE" ] && grep -qxF "$NEW" "$QUARANTINE_FILE" 2>/dev/null;
 fi
 
 # ── Forward-only guard: NEW must be a descendant of the live commit ─────────
+# Escape hatch: a tip whose subject contains [force-deploy] may reunite a box
+# whose live checkout diverged (e.g. a feature branch was SSH-deployed, then
+# main advanced via squash-merge). Canary+smoke in deploy-atomic-forward.sh
+# still gates the promote — this only unlocks the ancestor check.
 if [ -n "$CUR" ] && git cat-file -e "${CUR}^{commit}" 2>/dev/null; then
   if ! git merge-base --is-ancestor "$CUR" "$NEW"; then
-    log "REFUSED: $NEW is not a descendant of live $CUR (downgrade/divergent) — no deploy"
-    exit 1
+    SUBJECT_NEW="$(git log -1 --format=%s "$NEW" 2>/dev/null || true)"
+    if printf '%s' "$SUBJECT_NEW" | grep -qiF '[force-deploy]'; then
+      log "ANCESTOR BYPASS: $NEW not descendant of $CUR but [force-deploy] present — continuing (canary still gates)"
+    else
+      log "REFUSED: $NEW is not a descendant of live $CUR (downgrade/divergent) — no deploy"
+      exit 1
+    fi
   fi
 fi
 
