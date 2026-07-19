@@ -3186,10 +3186,10 @@ function pageSocialNetwork() {
         '<span>@'+esc(a.handle||'')+' · '+esc(p.platformCue||'')+' · passport '+esc(a.passport)+'</span></div></header>'+
         '<p class="za-post-text">'+esc(p.text)+'</p>'+media+
         '<footer class="za-post-foot">'+
-          '<button type="button" data-react="like" data-id="'+esc(p.id)+'">♥ '+(p.stats&&p.stats.likes||0)+'</button>'+
-          '<button type="button" data-react="comment" data-id="'+esc(p.id)+'">💬 '+(p.stats&&p.stats.comments||0)+'</button>'+
-          '<button type="button" data-react="share" data-id="'+esc(p.id)+'">↗ '+(p.stats&&p.stats.shares||0)+'</button>'+
-          '<button type="button" data-react="save" data-id="'+esc(p.id)+'">Bookmark '+(p.stats&&p.stats.saves||0)+'</button>'+
+          '<button type="button" data-react="like" data-id="'+esc(p.id)+'">Like '+(p.stats&&p.stats.likes||0)+'</button>'+
+          '<button type="button" data-react="comment" data-id="'+esc(p.id)+'">Reply '+(p.stats&&p.stats.comments||0)+'</button>'+
+          '<button type="button" data-react="share" data-id="'+esc(p.id)+'">Share '+(p.stats&&p.stats.shares||0)+'</button>'+
+          '<button type="button" data-react="save" data-id="'+esc(p.id)+'">Save '+(p.stats&&p.stats.saves||0)+'</button>'+
           '<span class="za-post-proof" title="Proof-of-Authorship">'+esc(String(p.proofOfAuthorship||'').slice(0,10))+'…</span>'+
         '</footer></article>';
     }
