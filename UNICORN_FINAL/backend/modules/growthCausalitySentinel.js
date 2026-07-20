@@ -90,7 +90,7 @@ function _loadJson(file, fb) {
 function _saveState() {
   _ensureDir();
   try {
-    fs.writeFileSync(STATE_FILE, `${JSON.stringify({
+    const payload = {
       silenced: state.silenced,
       postsToday: state.postsToday,
       postsDayKey: state.postsDayKey,
@@ -100,7 +100,17 @@ function _saveState() {
       hookScores: state.hookScores,
       cycles: state.cycles,
       savedAt: new Date().toISOString(),
-    }, null, 2)}\n`);
+    };
+    fs.writeFileSync(STATE_FILE, `${JSON.stringify(payload, null, 2)}\n`);
+  } catch (_) { /* ignore */ }
+  _publishStatusFile();
+}
+
+function _publishStatusFile() {
+  _ensureDir();
+  try {
+    const pub = path.join(DATA_DIR, 'status-public.json');
+    fs.writeFileSync(pub, `${JSON.stringify(getStatus(), null, 2)}\n`);
   } catch (_) { /* ignore */ }
 }
 
@@ -559,6 +569,14 @@ function formatPulse(st) {
 }
 
 function getStatus() {
+  // Prefer the durable public status written by zeus-unicorn-bot when this
+  // module is only mounted read-only inside unicorn-backend.
+  if (!_started) {
+    const pub = _loadJson(path.join(DATA_DIR, 'status-public.json'), null);
+    if (pub && typeof pub === 'object' && pub.module === NAME) {
+      return { ...pub, source: 'status-public.json' };
+    }
+  }
   return { ..._lastStatus, started: _started, silenced: state.silenced || SILENCE() };
 }
 
