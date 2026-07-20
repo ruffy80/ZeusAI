@@ -884,20 +884,34 @@ app.get('/api/pricing/module/:moduleId', async (req, res) => {
 //   2) If no snapshot exists either, we return HTTP 503 with an honest
 //      degraded message — never a fabricated Math.random / hardcoded $99.
 // The snapshot file lives outside the git tree and is safe to lose.
-const _PUBLIC_PRICING_SNAPSHOT_FILE = process.env.SITE_PUBLIC_PRICING_SNAPSHOT
-  || path.join(__dirname, '..', 'data', 'site-pricing-snapshots.json');
+// NOTE: `fs` and `path` are declared later in this file (~line 1170), so we
+// resolve the snapshot file lazily on first use to avoid a temporal-dead-zone.
 const _PUBLIC_PRICING_MAX_AGE_MS = Number(process.env.SITE_PRICING_SNAPSHOT_MAX_AGE_MS
   || 24 * 60 * 60 * 1000); // 24h honest ceiling — after this we fail closed even with a snapshot.
 const _publicPricingSnapshots = new Map();
 let _publicPricingSnapshotsLoaded = false;
 let _publicPricingSnapshotsDirty = false;
 let _publicPricingPersistTimer = null;
+let _publicPricingSnapshotFileResolved = null;
+function _publicPricingSnapshotFile() {
+  if (_publicPricingSnapshotFileResolved) return _publicPricingSnapshotFileResolved;
+  const envOverride = process.env.SITE_PUBLIC_PRICING_SNAPSHOT;
+  if (envOverride) {
+    _publicPricingSnapshotFileResolved = envOverride;
+    return envOverride;
+  }
+  const _path = require('path');
+  _publicPricingSnapshotFileResolved = _path.join(__dirname, '..', 'data', 'site-pricing-snapshots.json');
+  return _publicPricingSnapshotFileResolved;
+}
 function _loadPublicPricingSnapshots() {
   if (_publicPricingSnapshotsLoaded) return;
   _publicPricingSnapshotsLoaded = true;
   try {
-    if (!fs.existsSync(_PUBLIC_PRICING_SNAPSHOT_FILE)) return;
-    const raw = fs.readFileSync(_PUBLIC_PRICING_SNAPSHOT_FILE, 'utf8');
+    const _fs = require('fs');
+    const file = _publicPricingSnapshotFile();
+    if (!_fs.existsSync(file)) return;
+    const raw = _fs.readFileSync(file, 'utf8');
     const parsed = JSON.parse(raw);
     if (parsed && typeof parsed === 'object' && parsed.snapshots) {
       for (const [k, v] of Object.entries(parsed.snapshots)) {
@@ -925,9 +939,12 @@ function _recordPublicPricingSnapshot(kind, key, payload) {
       if (!_publicPricingSnapshotsDirty) return;
       _publicPricingSnapshotsDirty = false;
       try {
-        fs.mkdirSync(path.dirname(_PUBLIC_PRICING_SNAPSHOT_FILE), { recursive: true });
+        const _fs = require('fs');
+        const _path = require('path');
+        const file = _publicPricingSnapshotFile();
+        _fs.mkdirSync(_path.dirname(file), { recursive: true });
         const dump = { savedAt: new Date().toISOString(), snapshots: Object.fromEntries(_publicPricingSnapshots) };
-        fs.writeFileSync(_PUBLIC_PRICING_SNAPSHOT_FILE, JSON.stringify(dump));
+        _fs.writeFileSync(file, JSON.stringify(dump));
       } catch (e) { console.warn('[public-pricing] snapshot save failed:', e.message); }
     }, 2000);
     if (typeof _publicPricingPersistTimer.unref === 'function') _publicPricingPersistTimer.unref();
