@@ -110,6 +110,13 @@ log "reloading PM2 from $PM2_ECOSYSTEM with safe autonomy env"
 pm2 startOrReload "$PM2_ECOSYSTEM" --update-env
 pm2 save
 
+# Ensure Telegram autobind survives activate / PM2 respawns (non-fatal).
+if [ -x "$DEPLOY_LINK/scripts/install-telegram-autobind.sh" ]; then
+  log "ensure zeus-telegram-autobind"
+  UNICORN_LIVE="$DEPLOY_LINK" bash "$DEPLOY_LINK/scripts/install-telegram-autobind.sh" \
+    || warn "telegram-autobind install non-fatal"
+fi
+
 # ── 5. Read-only module audit (report only — NEVER create stubs) ─────────────
 log "read-only module audit (report only)"
 MODULES_DIR="$DEPLOY_LINK/backend/modules" node <<'NODE' || warn "module audit encountered an error (non-fatal)"

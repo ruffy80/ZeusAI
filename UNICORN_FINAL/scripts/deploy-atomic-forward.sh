@@ -465,6 +465,14 @@ if [ -x "$DEPLOY_LINK/scripts/install-healer.sh" ]; then
     || log "[healer] non-fatal: install-healer.sh exited non-zero"
 fi
 
+# Telegram chat autobind: long-polls until @ZEUSAIIBOT is granted Post Messages
+# (or /bind), then upserts TELEGRAM_CHAT_ID and reloads unicorn-backend.
+if [ -x "$DEPLOY_LINK/scripts/install-telegram-autobind.sh" ]; then
+  log "ensure zeus-telegram-autobind is installed"
+  UNICORN_LIVE="$DEPLOY_LINK" bash "$DEPLOY_LINK/scripts/install-telegram-autobind.sh" \
+    || log "[tg-autobind] non-fatal: install-telegram-autobind.sh exited non-zero"
+fi
+
 # SAFE full-autonomy activation: turn business autonomy ON while keeping
 # source-file mutators OFF, reload PM2 with the safe env, and install the
 # health-watch cron. Best-effort / non-fatal so a watch/cron glitch never
