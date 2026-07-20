@@ -11883,6 +11883,216 @@ app.get('/api/zeusai-social/reach', (req, res) => {
     const body = req.body || {};
     return surface.accrueEngagementRoyalty(body.postId, body.amountBtc);
   }));
+
+  // ── Real media upload + BTC tip flow ───────────────────────────────────
+  // The Social product needs real, portable, on-disk media — not gradient
+  // placeholders — and a non-custodial tip flow that never fakes a "tip
+  // completed" without on-chain payment proof. These endpoints:
+  //
+  //   • POST /api/zeusai-social/media/upload
+  //       Auth-required. Accepts a base64 image (multipart/form-data alt.
+  //       via a small manual boundary parser). Validates MIME (png/jpg/gif/
+  //       webp) and size (<= MEDIA_MAX_BYTES, default 5 MB). Stores the file
+  //       under data/zeusai-social/media/<sha256>.<ext> so it is content-
+  //       addressable + dedup'd. Returns { ok, url:'/media/za/<sha>.<ext>',
+  //       sha256, mime, bytes } which the compose() endpoint accepts on the
+  //       new `mediaUrl` field.
+  //   • GET /media/za/:file  (registered at the top-level below)
+  //       Public static serve for uploaded media (immutable, content-
+  //       addressable, safe caching).
+  //   • POST /api/zeusai-social/tip
+  //       Auth-required. Records a tip INTENT (recipient, amount BTC,
+  //       optional postId, tipper). Persists to data/zeusai-social/tips.jsonl
+  //       and returns a `bitcoin:` URI targeting the recipient's own BTC
+  //       address when they have one, else the platform owner's wallet as a
+  //       transparent fallback. We NEVER mark the tip as completed here —
+  //       payment must be verified on-chain by an out-of-band watcher.
+  //   • POST /api/zeusai-social/profile/btc
+  //       Auth-required. Lets a creator publish their BTC tip address so
+  //       future tips route to them directly.
+  //   • GET /api/zeusai-social/tips/:userId
+  //       Public tip-intent history for a user (informational only —
+  //       "recorded intents", not "confirmed payments").
+  //
+  // RO: incarcare media reala + intentie de tip BTC. Nu marcam niciodata
+  //     un tip ca finalizat fara dovada on-chain.
+  const path = require('path');
+  const fsMedia = require('fs');
+  const cryptoMedia = require('crypto');
+  const MEDIA_DIR = process.env.ZEUSAI_SOCIAL_MEDIA_DIR
+    || path.join(__dirname, '..', 'data', 'zeusai-social', 'media');
+  const TIPS_LEDGER = process.env.ZEUSAI_SOCIAL_TIPS_LEDGER
+    || path.join(__dirname, '..', 'data', 'zeusai-social', 'tips.jsonl');
+  const MEDIA_MAX_BYTES = Math.max(1024, Number(process.env.ZEUSAI_SOCIAL_MEDIA_MAX_BYTES) || 5 * 1024 * 1024);
+  try { fsMedia.mkdirSync(MEDIA_DIR, { recursive: true }); } catch (_) {}
+  try { fsMedia.mkdirSync(path.dirname(TIPS_LEDGER), { recursive: true }); } catch (_) {}
+  const OWNER_BTC = process.env.BTC_WALLET_ADDRESS
+    || process.env.OWNER_BTC_ADDRESS
+    || 'bc1q4f7e66z87mdfj56kz0dj5hvcnpmh0qh4wuv22e';
+
+  const MIME_TO_EXT = { 'image/png': 'png', 'image/jpeg': 'jpg', 'image/jpg': 'jpg', 'image/gif': 'gif', 'image/webp': 'webp' };
+  const EXT_TO_MIME = Object.fromEntries(Object.entries(MIME_TO_EXT).map(([m, e]) => [e, m]));
+
+  app.post('/api/zeusai-social/media/upload', express.json({ limit: '8mb' }), (req, res) => {
+    try {
+      const u = requireAuth(req, res);
+      if (!u) return;
+      const body = req.body || {};
+      const dataUri = typeof body.dataUri === 'string' ? body.dataUri : null;
+      let mime = String(body.mime || '').toLowerCase();
+      let b64 = typeof body.base64 === 'string' ? body.base64 : null;
+      // Accept a `data:image/png;base64,...` URI as an alternative to the
+      // structured {mime, base64} pair — matches the browser FileReader
+      // .readAsDataURL() output shape without any extra encoding step.
+      if (dataUri && !b64) {
+        const m = /^data:([-\w./+]+);base64,(.+)$/.exec(dataUri);
+        if (!m) return res.status(400).json({ ok: false, error: 'invalid_data_uri' });
+        mime = m[1].toLowerCase();
+        b64 = m[2];
+      }
+      if (!b64) return res.status(400).json({ ok: false, error: 'missing_image_data', hint: 'Send { mime, base64 } or { dataUri }' });
+      if (!MIME_TO_EXT[mime]) return res.status(415).json({ ok: false, error: 'unsupported_mime', supported: Object.keys(MIME_TO_EXT) });
+      let buf;
+      try { buf = Buffer.from(b64, 'base64'); }
+      catch (_) { return res.status(400).json({ ok: false, error: 'base64_decode_failed' }); }
+      if (!buf || !buf.length) return res.status(400).json({ ok: false, error: 'empty_media' });
+      if (buf.length > MEDIA_MAX_BYTES) return res.status(413).json({ ok: false, error: 'too_large', maxBytes: MEDIA_MAX_BYTES, gotBytes: buf.length });
+      const sha = cryptoMedia.createHash('sha256').update(buf).digest('hex');
+      const ext = MIME_TO_EXT[mime];
+      const filename = `${sha}.${ext}`;
+      const outPath = path.join(MEDIA_DIR, filename);
+      try {
+        if (!fsMedia.existsSync(outPath)) fsMedia.writeFileSync(outPath, buf);
+      } catch (e) {
+        return res.status(500).json({ ok: false, error: 'write_failed', message: e && e.message });
+      }
+      return res.json({
+        ok: true,
+        url: '/media/za/' + filename,
+        sha256: sha,
+        mime,
+        bytes: buf.length,
+        dedup: !fsMedia.existsSync(outPath) ? false : true,
+      });
+    } catch (e) {
+      if (!res.headersSent) res.status(500).json({ ok: false, error: e && e.message ? e.message : String(e) });
+    }
+  });
+
+  // Static serve for uploaded media. Only exact filenames matching the
+  // <64-hex>.<ext> content-address shape are served — anything else is a
+  // 404 (defence-in-depth against path traversal).
+  app.get('/media/za/:file', (req, res) => {
+    const file = String(req.params.file || '');
+    if (!/^[a-f0-9]{16,64}\.(png|jpg|jpeg|gif|webp)$/i.test(file)) {
+      return res.status(404).json({ ok: false, error: 'not_found' });
+    }
+    const p = path.join(MEDIA_DIR, file);
+    try {
+      const st = fsMedia.statSync(p);
+      if (!st.isFile()) return res.status(404).json({ ok: false, error: 'not_found' });
+      const ext = (file.split('.').pop() || '').toLowerCase();
+      res.set('Content-Type', EXT_TO_MIME[ext] || 'application/octet-stream');
+      res.set('Cache-Control', 'public, max-age=31536000, immutable');
+      res.set('Content-Length', String(st.size));
+      fsMedia.createReadStream(p).pipe(res);
+    } catch (_) {
+      return res.status(404).json({ ok: false, error: 'not_found' });
+    }
+  });
+
+  app.post('/api/zeusai-social/profile/btc', wrap((req, res) => {
+    const u = requireAuth(req, res);
+    if (!u) return undefined;
+    return surface.setBtcTipAddress(u.userId, req.body && req.body.btcAddress);
+  }));
+
+  app.post('/api/zeusai-social/tip', express.json({ limit: '4kb' }), (req, res) => {
+    try {
+      const u = requireAuth(req, res);
+      if (!u) return;
+      const body = req.body || {};
+      const amountBtc = Math.max(0, Number(body.amountBtc) || 0);
+      if (!(amountBtc > 0) || amountBtc > 1) {
+        return res.status(400).json({ ok: false, error: 'invalid_amount', hint: 'amountBtc must be > 0 and <= 1 BTC' });
+      }
+      const postId = body.postId ? String(body.postId).slice(0, 80) : null;
+      const explicitRecipient = body.recipientId ? String(body.recipientId).slice(0, 80) : null;
+      const resolved = surface.resolveTipBtcAddress({ postId, recipientId: explicitRecipient });
+      if (!resolved.ok) return res.status(404).json({ ok: false, error: resolved.error });
+      // Tip target: recipient's own address if set, else transparent
+      // fallback to the platform owner's wallet. This is DISCLOSED to the
+      // tipper — we don't hide the fallback.
+      const btcAddress = resolved.btcTipAddress || OWNER_BTC;
+      const targetIsOwnerFallback = !resolved.btcTipAddress;
+      const memo = String(body.memo || '').slice(0, 120);
+      const tipId = 'tip_' + cryptoMedia.randomBytes(10).toString('hex');
+      const record = {
+        id: tipId,
+        at: new Date().toISOString(),
+        tipperId: u.userId,
+        recipientId: resolved.recipientId,
+        postId,
+        amountBtc,
+        btcAddress,
+        targetIsOwnerFallback,
+        memo: memo || null,
+        status: 'intent_recorded', // NEVER 'completed' without on-chain proof
+      };
+      try {
+        fsMedia.appendFileSync(TIPS_LEDGER, JSON.stringify(record) + '\n');
+      } catch (e) {
+        return res.status(500).json({ ok: false, error: 'ledger_write_failed', message: e && e.message });
+      }
+      // Standard BIP21 URI. Wallets will pre-fill amount + label.
+      const label = 'ZeusAI Social · ' + (resolved.profile ? resolved.profile.handle : resolved.recipientId);
+      const uri = `bitcoin:${btcAddress}?amount=${amountBtc.toFixed(8)}&label=${encodeURIComponent(label)}`
+        + (memo ? `&message=${encodeURIComponent(memo)}` : '');
+      return res.json({
+        ok: true,
+        tipId,
+        status: 'intent_recorded',
+        btcAddress,
+        amountBtc,
+        bitcoinUri: uri,
+        recipient: resolved.profile,
+        targetIsOwnerFallback,
+        honesty: targetIsOwnerFallback
+          ? 'Recipient has not published a BTC address yet — the tip URI targets the platform owner wallet as a transparent fallback.'
+          : 'Tip URI targets the recipient\'s own published BTC address.',
+        completedNote: 'This endpoint records intent only. The tip is not marked completed unless on-chain confirmation is observed by an out-of-band watcher.',
+      });
+    } catch (e) {
+      if (!res.headersSent) res.status(500).json({ ok: false, error: e && e.message ? e.message : String(e) });
+    }
+  });
+
+  app.get('/api/zeusai-social/tips/:userId', (req, res) => {
+    try {
+      const uid = String(req.params.userId || '').slice(0, 80);
+      const lim = Math.min(200, Math.max(1, Number(req.query.limit) || 50));
+      let lines = [];
+      try { lines = fsMedia.readFileSync(TIPS_LEDGER, 'utf8').split('\n').filter(Boolean); }
+      catch (_) { lines = []; }
+      const items = [];
+      for (let i = lines.length - 1; i >= 0 && items.length < lim; i--) {
+        try {
+          const rec = JSON.parse(lines[i]);
+          if (rec && (rec.recipientId === uid || rec.tipperId === uid)) items.push(rec);
+        } catch (_) { /* skip malformed */ }
+      }
+      res.set('Cache-Control', 'no-store');
+      res.json({
+        ok: true,
+        userId: uid,
+        count: items.length,
+        items,
+        honesty: 'All entries are intent records — not confirmed on-chain payments. Cross-verify each btcAddress on mempool.space.',
+      });
+    } catch (e) {
+      if (!res.headersSent) res.status(500).json({ ok: false, error: e && e.message ? e.message : String(e) });
+    }
+  });
 })();
 
 registerModuleRoutes('performance-monitor',        performanceMonitor);
