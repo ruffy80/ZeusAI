@@ -275,7 +275,6 @@ async function run() {
     INNOV_BASE_BRANCH:     'main',
     GIT_REPO_URL:          'https://github.com/ruffy80/ZeusAI.git',
     HETZNER_BACKEND_URL:   'http://127.0.0.1:3000',
-    HETZNER_APP_PORT:      '3000',
     OLLAMA_URL:            process.env.OLLAMA_URL  || 'http://localhost:11434',
     OLLAMA_MODEL:          process.env.OLLAMA_MODEL || 'llama3.2:3b-instruct-q4_K_M',
     ...(process.env.OTEL_EXPORTER_OTLP_ENDPOINT ? { OTEL_EXPORTER_OTLP_ENDPOINT: process.env.OTEL_EXPORTER_OTLP_ENDPOINT } : {}),
@@ -296,8 +295,6 @@ async function run() {
     HF_MODEL:              process.env.HF_MODEL         || 'mistralai/Mistral-7B-Instruct-v0.3',
     PAYPAL_ENV:            process.env.PAYPAL_ENV      || 'sandbox',
     ADMIN_EMAIL:           process.env.SMTP_USER       || 'vladoi_ionut@yahoo.com',
-    OWNER_EMAIL:           process.env.SMTP_USER       || 'vladoi_ionut@yahoo.com',
-    SITE_HEALTH_URL:       `https://${process.env.SITE_DOMAIN || 'zeusai.pro'}/health`,
     APP_BASE_URL:          `https://${process.env.SITE_DOMAIN || 'zeusai.pro'}`,
     FRONTEND_URL:          `https://${process.env.SITE_DOMAIN || 'zeusai.pro'}`,
     DOMAIN:                process.env.SITE_DOMAIN || 'zeusai.pro',
@@ -307,7 +304,7 @@ async function run() {
     LEGAL_OWNER_EMAIL:     process.env.LEGAL_OWNER_EMAIL || 'vladoi_ionut@yahoo.com',
     LEGAL_OWNER_BTC:       process.env.LEGAL_OWNER_BTC   || 'bc1q4f7e66z87mdfj56kz0dj5hvcnpmh0qh4wuv22e',
     // ── Social defaults (known static) ──────────────────────────────────────
-    TELEGRAM_CHAT_ID:      process.env.TELEGRAM_CHAT_ID  || '@unicorn_ai_channel',
+    TELEGRAM_CHAT_ID:      process.env.TELEGRAM_CHAT_ID  || '@unicorn_platform',
     // ── User-provided secrets (pass-through — optional, write only if present) ──
     // Vault / config
     ...(process.env.VAULT_MASTER_SECRET  ? { VAULT_MASTER_SECRET:  process.env.VAULT_MASTER_SECRET }  : {}),
