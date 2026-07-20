@@ -46,10 +46,14 @@ const assert = require('assert');
   // 4. configuredProviders() returns empty when nothing is set --------------
   assert.deepStrictEqual(mod.configuredProviders(), [], 'no providers should be configured in test env');
 
-  // 5. sendTransactional() returns skipped:'unconfigured' (no providers) ----
+  // 5. sendTransactional() is fail-honest when no providers are configured -
+  //    Previously we returned ok:true+skipped, but that silently hid failed
+  //    password-reset deliveries. The updated contract (2026-07) requires
+  //    ok:false + reason:'email_unconfigured' so operators can surface the
+  //    problem instead of pretending the email was sent.
   const r1 = await mod.sendTransactional({ to: 'test@example.com', template: 'password_reset', data: { resetUrl: url } });
-  assert.equal(r1.ok, true, 'no-provider mode should return ok:true (no-op)');
-  assert.equal(r1.skipped, 'unconfigured', 'no-provider mode should mark as skipped');
+  assert.equal(r1.ok, false, 'no-provider mode must return ok:false (nothing was sent)');
+  assert.equal(r1.reason, 'email_unconfigured', 'no-provider mode must expose reason:email_unconfigured');
 
   // 6. Unknown template surfaces an explicit error --------------------------
   const r2 = await mod.sendTransactional({ to: 'test@example.com', template: 'no_such_template', data: {} });
@@ -67,7 +71,16 @@ const assert = require('assert');
   const mod2 = require('../src/commerce/transactional-email');
   const provs = mod2.configuredProviders();
   assert.ok(provs.includes('resend'), 'resend must be reported as configured when RESEND_API_KEY set');
+  assert.equal(mod2.isConfigured(), true, 'isConfigured() must be true when a provider is set');
   delete process.env.RESEND_API_KEY;
+
+  // 9. SENDINBLUE_API_KEY is honored as an alias for BREVO_API_KEY ---------
+  process.env.SENDINBLUE_API_KEY = 'test-sendinblue-key';
+  delete require.cache[modulePath];
+  const mod3 = require('../src/commerce/transactional-email');
+  const provs3 = mod3.configuredProviders();
+  assert.ok(provs3.includes('brevo'), 'SENDINBLUE_API_KEY must register the brevo provider (legacy alias)');
+  delete process.env.SENDINBLUE_API_KEY;
 
   console.log('password-reset-email test passed ✓');
   process.exit(0);

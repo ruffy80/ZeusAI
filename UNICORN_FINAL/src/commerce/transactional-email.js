@@ -1,15 +1,24 @@
 // commerce/transactional-email.js — Multi-transport transactional email (RO+EN).
-// Trimite emailuri la signup, payment_pending, payment_activated, refund, password_reset.
+// Trimite emailuri la signup, payment_pending, payment_activated, refund, password_reset,
+// order_receipt, delivery_artifact.
 //
 // Transport priority (first one configured wins):
-//   1. RESEND_API_KEY     → POST https://api.resend.com/emails  (HTTPS, recommended on Hetzner)
-//   2. BREVO_API_KEY      → POST https://api.brevo.com/v3/smtp/email
-//   3. MAILERSEND_API_KEY → POST https://api.mailersend.com/v1/email
-//   4. SMTP_HOST + SMTP_USER + SMTP_PASS → nodemailer
+//   1. RESEND_API_KEY                        → POST https://api.resend.com/emails
+//   2. BREVO_API_KEY / SENDINBLUE_API_KEY    → POST https://api.brevo.com/v3/smtp/email
+//   3. MAILERSEND_API_KEY                    → POST https://api.mailersend.com/v1/email
+//   4. SMTP_HOST + SMTP_USER + SMTP_PASS     → nodemailer
 //
 // HTTPS providers are preferred on Hetzner because outbound SMTP ports (25/465/587)
 // are often filtered. They use only Node's built-in `https` module — no extra deps.
-// Returnează { ok:true, skipped:'unconfigured' } dacă niciun transport nu e configurat.
+//
+// Fail-honest contract (2026-07 upgrade):
+//   When NO transport is configured, sendTransactional/sendRaw return
+//     { ok:false, reason:'email_unconfigured' }
+//   The previous shape { ok:true, skipped:'unconfigured' } lied about the outcome
+//   (nothing was actually sent) so security-sensitive flows like password reset
+//   could not tell whether an email left the box. Callers must treat ok:false
+//   as "not delivered" and either surface it, retry with another provider, or
+//   log for operator follow-up. NEVER pretend the mail was sent.
 
 const https = require('https');
 
@@ -77,6 +86,75 @@ const TEMPLATES = {
     text: `Payment confirmed. ${serviceId} is active. Visit ${envAppUrl()}/account.`,
     html: `<p>Payment confirmed. <b>${escapeHtml(serviceId)}</b> is active.</p><p>Visit <a href="${envAppUrl()}/account">${envAppUrl()}/account</a> for delivery and API keys.</p>`
   }),
+  order_receipt: ({ orderId, serviceId, serviceName, priceUSD, amount_btc, btcAmount, txid, paid_at }) => {
+    const svc = serviceName || serviceId || 'your ZeusAI service';
+    const btc = amount_btc || btcAmount;
+    const usd = Number(priceUSD) > 0 ? '$' + Number(priceUSD).toFixed(2) : null;
+    const paidLine = paid_at ? ('Paid at: ' + paid_at + '\n') : '';
+    const txLine = txid ? ('BTC txid: ' + txid + '\n') : '';
+    const amountLine = usd ? ('Amount: ' + usd + (btc ? ' (' + btc + ' BTC)' : '') + '\n') : (btc ? ('Amount: ' + btc + ' BTC\n') : '');
+    return {
+      subject: 'Receipt · ' + svc + ' · Order ' + orderId,
+      text:
+        'Thank you for your purchase.\n\n' +
+        'Order: ' + orderId + '\n' +
+        'Service: ' + svc + '\n' +
+        amountLine + paidLine + txLine +
+        '\nYour account and any generated artifacts are available at ' + envAppUrl() + '/account.\n\n' +
+        (txid ? ('On-chain proof: https://mempool.space/tx/' + txid + '\n\n') : '') +
+        '— ZeusAI · Self-custody · BTC-first',
+      html:
+        '<div style="font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;max-width:560px;margin:0 auto;padding:24px;color:#0f172a;">' +
+          '<h2 style="margin:0 0 12px;font-size:20px;">✅ Receipt · ' + escapeHtml(svc) + '</h2>' +
+          '<p style="margin:0 0 12px;">Thank you for your purchase. Your order is confirmed.</p>' +
+          '<table style="border-collapse:collapse;font-size:14px;margin:12px 0;">' +
+            '<tr><td style="padding:4px 12px 4px 0;color:#475569;">Order</td><td style="padding:4px 0;font-family:ui-monospace,SFMono-Regular,monospace;">' + escapeHtml(orderId || '—') + '</td></tr>' +
+            '<tr><td style="padding:4px 12px 4px 0;color:#475569;">Service</td><td style="padding:4px 0;">' + escapeHtml(svc) + '</td></tr>' +
+            (usd ? '<tr><td style="padding:4px 12px 4px 0;color:#475569;">Amount</td><td style="padding:4px 0;">' + escapeHtml(usd) + (btc ? ' <span style="color:#64748b;">(' + escapeHtml(String(btc)) + ' BTC)</span>' : '') + '</td></tr>' : '') +
+            (paid_at ? '<tr><td style="padding:4px 12px 4px 0;color:#475569;">Paid</td><td style="padding:4px 0;">' + escapeHtml(paid_at) + '</td></tr>' : '') +
+            (txid ? '<tr><td style="padding:4px 12px 4px 0;color:#475569;">Bitcoin TX</td><td style="padding:4px 0;"><a href="https://mempool.space/tx/' + escapeHtml(txid) + '" style="color:#0369a1;font-family:ui-monospace,SFMono-Regular,monospace;">' + escapeHtml(txid.slice(0, 12)) + '…</a></td></tr>' : '') +
+          '</table>' +
+          '<p style="margin:16px 0;"><a href="' + escapeHtml(envAppUrl()) + '/account" style="background:#0ea5e9;color:#fff;text-decoration:none;padding:10px 20px;border-radius:8px;display:inline-block;font-weight:600;">Open your account</a></p>' +
+          '<p style="margin:16px 0 0;font-size:11px;color:#94a3b8;">— ZeusAI · Self-custody · BTC-first</p>' +
+        '</div>'
+    };
+  },
+  delivery_artifact: ({ orderId, serviceId, serviceName, artifactCount, deliveryUrl, artifacts }) => {
+    const svc = serviceName || serviceId || 'your ZeusAI service';
+    const url = deliveryUrl || (envAppUrl() + '/account?order=' + encodeURIComponent(orderId || ''));
+    const count = Number(artifactCount) || (Array.isArray(artifacts) ? artifacts.length : 0) || 1;
+    const list = Array.isArray(artifacts) ? artifacts.slice(0, 12) : [];
+    const listText = list.length
+      ? '\nIncluded artifacts:\n' + list.map((a) => '  - ' + (a.filename || a.title || a.kind || 'artifact')).join('\n') + '\n'
+      : '';
+    const listHtml = list.length
+      ? '<ul style="margin:8px 0 16px;padding-left:20px;font-size:14px;">' +
+          list.map((a) => '<li style="margin:2px 0;">' + escapeHtml(a.filename || a.title || a.kind || 'artifact') + '</li>').join('') +
+        '</ul>'
+      : '';
+    return {
+      subject: '📦 Delivery ready · ' + svc,
+      text:
+        'Your ZeusAI delivery is ready.\n\n' +
+        'Order: ' + orderId + '\n' +
+        'Service: ' + svc + '\n' +
+        'Artifacts: ' + count + '\n' +
+        listText +
+        '\nDownload / open: ' + url + '\n\n' +
+        'The link is bound to your account. Keep the order token safe — it is proof of purchase.\n\n' +
+        '— ZeusAI · Self-custody · BTC-first',
+      html:
+        '<div style="font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;max-width:560px;margin:0 auto;padding:24px;color:#0f172a;">' +
+          '<h2 style="margin:0 0 12px;font-size:20px;">📦 Delivery ready · ' + escapeHtml(svc) + '</h2>' +
+          '<p style="margin:0 0 12px;">Your delivery package for order <b>' + escapeHtml(orderId || '—') + '</b> is ready.</p>' +
+          '<p style="margin:0 0 8px;">Included: <b>' + count + ' artifact' + (count === 1 ? '' : 's') + '</b>.</p>' +
+          listHtml +
+          '<p style="margin:16px 0;"><a href="' + escapeHtml(url) + '" style="background:#0ea5e9;color:#fff;text-decoration:none;padding:10px 20px;border-radius:8px;display:inline-block;font-weight:600;">Open delivery package</a></p>' +
+          '<p style="margin:16px 0 0;font-size:12px;color:#64748b;">The link is bound to your account. Keep your order token safe — it is proof of purchase.</p>' +
+          '<p style="margin:16px 0 0;font-size:11px;color:#94a3b8;">— ZeusAI · Self-custody · BTC-first</p>' +
+        '</div>'
+    };
+  },
   password_reset: ({ resetUrl, expiresInMinutes }) => {
     const url = String(resetUrl || envAppUrl() + '/reset-password');
     const ttl = Number(expiresInMinutes) > 0 ? Number(expiresInMinutes) : 60;
@@ -195,7 +273,9 @@ async function sendViaResend({ to, subject, text, html }) {
 }
 
 async function sendViaBrevo({ to, subject, text, html }) {
-  const apiKey = process.env.BREVO_API_KEY;
+  // Brevo was formerly named Sendinblue; the SENDINBLUE_API_KEY env var is
+  // still widely used in existing deployments, so accept both names.
+  const apiKey = process.env.BREVO_API_KEY || process.env.SENDINBLUE_API_KEY;
   if (!apiKey) return null;
   const fromAddr = envFrom();
   const fromName = envFromName();
@@ -251,10 +331,17 @@ async function sendViaSmtp({ to, subject, text, html }) {
 function configuredProviders() {
   const out = [];
   if (process.env.RESEND_API_KEY) out.push('resend');
-  if (process.env.BREVO_API_KEY) out.push('brevo');
+  if (process.env.BREVO_API_KEY || process.env.SENDINBLUE_API_KEY) out.push('brevo');
   if (process.env.MAILERSEND_API_KEY) out.push('mailersend');
   if (nodemailer && process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASS) out.push('smtp');
   return out;
+}
+
+// Public helper — true when at least one transport (HTTPS or SMTP) is
+// configured. Used by activation-readiness checks and by callers that want
+// to short-circuit ("send if we can, otherwise skip cleanly").
+function isConfigured() {
+  return configuredProviders().length > 0;
 }
 
 async function sendTransactional({ to, template, data }) {
@@ -263,7 +350,10 @@ async function sendTransactional({ to, template, data }) {
   if (!tpl) return { ok: false, error: 'unknown_template' };
   const { subject, text, html } = tpl(data || {});
   const providers = configuredProviders();
-  if (providers.length === 0) return { ok: true, skipped: 'unconfigured' };
+  if (providers.length === 0) {
+    // Fail-honest: nothing was sent. Callers must NOT treat this as success.
+    return { ok: false, reason: 'email_unconfigured', skipped: 'unconfigured' };
+  }
 
   // Try providers in priority order; fall through to next on failure so a single
   // misconfigured key doesn't drop a critical email (e.g. password reset).
@@ -284,11 +374,14 @@ async function sendTransactional({ to, template, data }) {
 
 // sendRaw — send an ad-hoc subject/text/html (no template) via the same
 // provider cascade. Used by owner alerts (new lead, funnel drop-off).
-// Returns { ok:true, skipped:'unconfigured' } when no transport is available.
+// Returns { ok:false, reason:'email_unconfigured' } when no transport is
+// available (fail-honest — nothing was actually sent).
 async function sendRaw({ to, subject, text, html }) {
   if (!to) return { ok: false, error: 'missing_to' };
   const providers = configuredProviders();
-  if (providers.length === 0) return { ok: true, skipped: 'unconfigured' };
+  if (providers.length === 0) {
+    return { ok: false, reason: 'email_unconfigured', skipped: 'unconfigured' };
+  }
   const order = [sendViaResend, sendViaBrevo, sendViaMailerSend, sendViaSmtp];
   const errors = [];
   for (const fn of order) {
@@ -300,4 +393,4 @@ async function sendRaw({ to, subject, text, html }) {
   return { ok: false, error: errors.join(' | ') || 'all_providers_failed' };
 }
 
-module.exports = { sendTransactional, sendRaw, TEMPLATES, configuredProviders };
+module.exports = { sendTransactional, sendRaw, TEMPLATES, configuredProviders, isConfigured };
