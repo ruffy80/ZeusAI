@@ -110,6 +110,12 @@ log "reloading PM2 from $PM2_ECOSYSTEM with safe autonomy env"
 pm2 startOrReload "$PM2_ECOSYSTEM" --update-env
 pm2 save
 
+if [ -x "$DEPLOY_LINK/scripts/install-zeus-unicorn-bot.sh" ]; then
+  log "ensure zeus-unicorn-bot (Causal Virality Reflex)"
+  UNICORN_LIVE="$DEPLOY_LINK" bash "$DEPLOY_LINK/scripts/install-zeus-unicorn-bot.sh" \
+    || warn "unicorn-bot install non-fatal"
+fi
+
 # ── 5. Read-only module audit (report only — NEVER create stubs) ─────────────
 log "read-only module audit (report only)"
 MODULES_DIR="$DEPLOY_LINK/backend/modules" node <<'NODE' || warn "module audit encountered an error (non-fatal)"

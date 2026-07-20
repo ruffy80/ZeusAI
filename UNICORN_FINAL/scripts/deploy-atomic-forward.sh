@@ -465,6 +465,13 @@ if [ -x "$DEPLOY_LINK/scripts/install-healer.sh" ]; then
     || log "[healer] non-fatal: install-healer.sh exited non-zero"
 fi
 
+# ZeusAI Unicorn Bot — Causal Virality Reflex + Telegram mission control
+if [ -x "$DEPLOY_LINK/scripts/install-zeus-unicorn-bot.sh" ]; then
+  log "ensure zeus-unicorn-bot (CVR) is installed"
+  UNICORN_LIVE="$DEPLOY_LINK" bash "$DEPLOY_LINK/scripts/install-zeus-unicorn-bot.sh" \
+    || log "[unicorn-bot] non-fatal: install-zeus-unicorn-bot.sh exited non-zero"
+fi
+
 # SAFE full-autonomy activation: turn business autonomy ON while keeping
 # source-file mutators OFF, reload PM2 with the safe env, and install the
 # health-watch cron. Best-effort / non-fatal so a watch/cron glitch never

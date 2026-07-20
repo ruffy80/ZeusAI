@@ -4739,6 +4739,20 @@ try {
   console.log('[growth-brain] mounted: /api/growth/brain (+ /full, /run) — autonomous growth loop');
 } catch (e) { console.warn('[growth-brain] failed to mount:', e && e.message); }
 
+try {
+  const _cvr = require('./modules/growthCausalitySentinel');
+  app.get('/api/growth/cvr', (req, res) => {
+    try { res.json(_cvr.getStatus()); }
+    catch (e) { res.status(500).json({ ok: false, error: e && e.message }); }
+  });
+  app.get('/api/growth/cvr/pulse', (req, res) => {
+    try { res.type('text/plain').send(_cvr.formatPulse()); }
+    catch (e) { res.status(500).type('text/plain').send(String(e && e.message)); }
+  });
+  // CVR loop runs in zeus-unicorn-bot PM2 — backend only exposes status.
+  console.log('[growth-cvr] mounted: /api/growth/cvr (+ /pulse) — Causal Virality Reflex status');
+} catch (e) { console.warn('[growth-cvr] failed to mount:', e && e.message); }
+
 let _cinematicProfileOverride = null;
 const _pqDigest = (() => {
   try { crypto.createHash('sha3-512'); return 'sha3-512'; }
