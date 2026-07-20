@@ -120,12 +120,18 @@ class AutoPublisher {
     // line. World-feed and curated refs are NOT dispatchable and MUST NOT be
     // advertised as "ships automatically".
     const rawSupplierRef = supplierRef != null ? String(supplierRef) : '';
+    const supplierLower = String(supplier || '').toLowerCase();
+    const sourceLower = String(scored.source || '').toLowerCase();
     const dispatchable = hasCj
       && !demoOnly
       && !!rawSupplierRef
       && !rawSupplierRef.includes(':') // world-feed refs like "dummyjson:1" carry a colon
       && supplier !== 'world-feed'
-      && supplier !== 'manual';
+      && supplier !== 'manual'
+      && supplierLower !== 'escuela-world'
+      && !sourceLower.includes('escuela')
+      && !sourceLower.includes('dummyjson')
+      && !sourceLower.includes('fakestore');
     const deliveryMode = dispatchable ? 'cj-global-dropship' : 'zeus-fulfillment-desk';
     const fulfillmentMode = dispatchable ? 'cj-auto' : 'desk';
     const item = {
@@ -243,7 +249,55 @@ class AutoPublisher {
     return added;
   }
 
-  get(id) { return this.byId.get(id) || null; }
+  get(id) {
+    const p = this.byId.get(id) || null;
+    if (p) this._ensureHonesty(p);
+    return p;
+  }
+
+  /**
+   * Restamp honesty fields on a live product that may have been published
+   * before fulfillmentMode / fulfillmentRecipe existed. Mutates in place;
+   * never invents AUTO-SHIP without a real CJ vid + armed key.
+   */
+  _ensureHonesty(p) {
+    if (!p || typeof p !== 'object') return p;
+    const hasCj = !!String(process.env.ZACC_CJ_API_KEY || '').trim();
+    const demoOnly = p.demoOnly === true;
+    const supplier = p.supplier || (p.source === 'zeus-curated' ? 'manual' : (p.source || 'unknown'));
+    const rawSupplierRef = p.supplierRef != null ? String(p.supplierRef) : '';
+    const dispatchable = hasCj
+      && !demoOnly
+      && !!rawSupplierRef
+      && !rawSupplierRef.includes(':')
+      && supplier !== 'world-feed'
+      && supplier !== 'manual'
+      && supplier !== 'escuela-world'
+      && !String(p.source || '').includes('escuela')
+      && !String(p.source || '').includes('dummyjson')
+      && !String(p.source || '').includes('fakestore');
+    const fulfillmentMode = dispatchable ? 'cj-auto' : 'desk';
+    p.supplier = supplier;
+    p.dispatchable = dispatchable;
+    p.fulfillmentMode = fulfillmentMode;
+    p.fulfillmentRecipe = {
+      kind: dispatchable ? 'cj-dropship' : 'zeus-fulfillment-desk',
+      supplier,
+      supplierRef: p.supplierRef != null ? p.supplierRef : null,
+      automated: dispatchable,
+      badge: dispatchable ? 'AUTO-SHIP' : 'DESK-FULFIL',
+      note: dispatchable
+        ? 'Ships automatically via CJ Dropshipping using variant ' + rawSupplierRef + '.'
+        : (hasCj
+            ? 'No CJ variant id for this SKU — routed through the Zeus Fulfillment Desk (owner-cleared queue).'
+            : 'No CJ API key armed yet — routed through the Zeus Fulfillment Desk (owner-cleared queue).'),
+    };
+    if (!p.delivery || typeof p.delivery !== 'object') p.delivery = {};
+    p.delivery.mode = dispatchable ? 'cj-global-dropship' : 'zeus-fulfillment-desk';
+    p.delivery.automated = dispatchable;
+    if (!p.delivery.etaDays) p.delivery.etaDays = dispatchable ? '7-21' : '7-30';
+    return p;
+  }
 
   /** Cache-busting revision for ETag / If-None-Match on the products API. */
   revision() {
@@ -286,6 +340,9 @@ class AutoPublisher {
     // Autonomous Shelf Protocol: soft-hidden SKUs stay in memory but leave the
     // public storefront unless an operator explicitly asks for them.
     if (!includeHidden) items = items.filter((p) => !p.shelfHidden);
+    // Restamp honesty badges on every list so pre-upgrade SKUs never claim
+    // AUTO-SHIP without a real CJ vid.
+    for (const p of items) this._ensureHonesty(p);
     if (category) items = items.filter(p => p.category === category);
     if (search) {
       const q = String(search).toLowerCase();

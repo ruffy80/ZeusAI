@@ -121,5 +121,14 @@ check('routeTitle and routeDescription cover the new routes', () => {
   assert.ok(/Order Passport/i.test(orderHtml), 'title reflects Order Passport');
 });
 
+check('src/index.js v2Routes allowlist includes /agents (so nginx→site does not 404)', () => {
+  const fs = require('fs');
+  const path = require('path');
+  const src = fs.readFileSync(path.join(__dirname, '..', 'src', 'index.js'), 'utf8');
+  assert.ok(/['"]\/agents['"]/.test(src), '/agents must be in the v2Routes allowlist');
+  assert.ok(/startsWith\('\/order\/'\)/.test(src) || /v2Path\.startsWith\('\/order\/'\)/.test(src),
+    '/order/:id must be recognized as a v2 route');
+});
+
 console.log('\n✅ site-spine-p1:', passed, 'tests passed');
 process.exit(0);

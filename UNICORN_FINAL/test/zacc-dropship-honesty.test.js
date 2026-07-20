@@ -186,5 +186,38 @@ check('cj-api rejects obvious placeholder keys as unconfigured', () => {
   }
 });
 
+check('list() restamps pre-upgrade SKUs to DESK-FULFIL (never silent AUTO-SHIP)', () => {
+  delete process.env.ZACC_CJ_API_KEY;
+  const pub = new AutoPublisher({});
+  // Inject a legacy product that lacks honesty fields (as persisted on disk
+  // before the P0 upgrade).
+  const legacy = {
+    id: 'dropship-legacy-hoodie-xyz',
+    title: 'Legacy Hoodie',
+    slug: 'legacy-hoodie',
+    category: 'fashion',
+    source: 'escuela-world',
+    supplier: 'escuela-world',
+    supplierRef: 'escuela:4',
+    priceUsd: 49,
+    costUsd: 12,
+    shippingUsd: 5,
+    netProfitUsd: 20,
+    marginPct: 40,
+    profitPotential: 18,
+    metrics: { views: 0, carts: 0, sales: 0, revenueUsd: 0, delivered: 0 },
+    status: 'active',
+    publishedAt: new Date().toISOString(),
+  };
+  pub.published = [legacy];
+  pub.byId.set(legacy.id, legacy);
+  const listed = pub.list({ limit: 10 });
+  assert.equal(listed.length, 1);
+  assert.equal(listed[0].fulfillmentMode, 'desk');
+  assert.equal(listed[0].dispatchable, false);
+  assert.equal(listed[0].fulfillmentRecipe.badge, 'DESK-FULFIL');
+  assert.equal(listed[0].delivery.automated, false);
+});
+
 console.log('\n\u2705 zacc-dropship-honesty: ' + passed + ' tests passed');
 process.exit(0);
