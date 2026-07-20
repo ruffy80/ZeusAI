@@ -5019,7 +5019,7 @@ async function unicornHandler(req, res) {
   // markup. The old handler here rendered ZERO SSR cards (client-only grid),
   // which violated the "≥1 SSR service card" golden rule and hurt SEO.
   // RO: /services e servit acum de vitrina v2 SSR — carduri reale în HTML.
-  if (urlPath === '/unicorn-cockpit' || urlPath === '/unicorn-status.html' || urlPath === '/revenue-command' || urlPath === '/proof' || urlPath === '/revenue-share' || urlPath === '/zacc' || urlPath === '/dropship' || urlPath.indexOf('/dropship/product/') === 0 || urlPath.indexOf('/dropship/order/') === 0) {
+  if (urlPath === '/unicorn-cockpit' || urlPath === '/unicorn-status.html' || urlPath === '/revenue-command' || urlPath === '/proof' || urlPath === '/revenue-share' || urlPath === '/zacc' || urlPath === '/dropship' || urlPath.indexOf('/dropship/product/') === 0 || urlPath.indexOf('/dropship/order/') === 0 || urlPath === '/pomx' || urlPath === '/exchange' || urlPath === '/proof-of-margin') {
     const renderPage = (title, bodyHtml, pageScript) => {
       // Unified chrome: render every legacy operator/dashboard page inside the
       // full v2 shell (nav + Zeus backdrop + footer + violet/gold theme) so the
@@ -5657,6 +5657,51 @@ seedSsrMap();if(document.getElementById("ds-sort")&&!document.getElementById("ds
 })();`;
       try { res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': product ? 'public, max-age=60, stale-while-revalidate=300' : 'no-store', 'X-Unicorn-Page': 'dropship-product' }); } catch (_) {}
       return res.end(renderPage(pageTitle, body, js));
+    }
+
+    // PoMX/1.0 human surface — must stay inside this block so renderPage is in scope
+    if (urlPath === '/pomx' || urlPath === '/exchange' || urlPath === '/proof-of-margin') {
+      const body = `
+<section style="min-height:88vh;display:flex;flex-direction:column;justify-content:flex-end;padding:8vh 6vw 10vh;background:radial-gradient(1200px 600px at 10% 0%,rgba(78,161,255,.22),transparent 55%),radial-gradient(900px 500px at 90% 20%,rgba(255,180,80,.12),transparent 50%),linear-gradient(165deg,#05060e 0%,#0b1020 45%,#12101f 100%);color:#e8edf7;position:relative;overflow:hidden">
+  <p style="font-family:Georgia,'Times New Roman',serif;font-size:clamp(2.6rem,7vw,5.2rem);letter-spacing:-.03em;margin:0 0 .4rem;line-height:1;position:relative">Zeus <span style="color:#7fd0ff">PoMX</span></p>
+  <h1 style="font-family:Georgia,serif;font-weight:500;font-size:clamp(1.35rem,3.2vw,2.1rem);max-width:18ch;margin:0 0 1rem;line-height:1.25">The world&rsquo;s first Proof-of-Margin Exchange.</h1>
+  <p style="max-width:36rem;font-size:1.05rem;color:#a9b4c9;margin:0 0 1.75rem">Every ZeusAI SKU — SaaS, verticals, dropship — carries a cryptographically signed margin attestation. Agents verify before they buy. Settlement mints an instant capability credential. Platform take-rate: <strong style="color:#fff">$0</strong>.</p>
+  <div style="display:flex;gap:12px;flex-wrap:wrap">
+    <a href="/api/pomx/exchange" style="padding:14px 22px;border-radius:10px;background:linear-gradient(135deg,#4ea1ff,#8a5cff);color:#fff;text-decoration:none;font-weight:700">Open the exchange →</a>
+    <a href="/.well-known/pomx.json" style="padding:14px 22px;border-radius:10px;border:1px solid #2c3550;color:#cfd6ff;text-decoration:none;font-weight:600">Protocol spec</a>
+    <a href="/services" style="padding:14px 22px;border-radius:10px;border:1px solid #2c3550;color:#cfd6ff;text-decoration:none;font-weight:600">Human catalog</a>
+  </div>
+</section>
+<section style="padding:4rem 6vw;background:#070a12;color:#d7deec">
+  <h2 style="font-family:Georgia,serif;font-size:1.8rem;margin:0 0 .5rem">Multi-product. Not a single SKU.</h2>
+  <p style="color:#8b95a8;max-width:40rem;margin:0 0 2rem">PoMX publishes the full ZeusAI inventory as one machine-tradable mesh — AI agents and humans share the same honest economics.</p>
+  <div id="pomx-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:14px"></div>
+  <p id="pomx-meta" style="margin-top:1.5rem;color:#6f7a90;font-size:.9rem">Loading exchange…</p>
+</section>`;
+      const js = `(function(){
+  function esc(s){return String(s==null?"":s).replace(/[&<>"]/g,function(c){return {"&":"&amp;","<":"&lt;",">":"&gt;","\\"":"&quot;"}[c];});}
+  function money(n){return "$"+Number(n||0).toLocaleString("en-US",{minimumFractionDigits:0,maximumFractionDigits:2});}
+  fetch("/api/pomx/exchange?limit=48",{cache:"no-store"}).then(function(r){return r.json();}).then(function(d){
+    var grid=document.getElementById("pomx-grid"), meta=document.getElementById("pomx-meta");
+    if(!d||!d.ok){meta.textContent="Exchange warming up.";return;}
+    var list=(d.listings||[]).slice(0,48);
+    grid.innerHTML=list.map(function(L){
+      return '<article style="border:1px solid #1c2438;border-radius:12px;padding:16px;background:#0c111c">'
+        +'<div style="display:flex;justify-content:space-between;gap:8px;margin-bottom:8px"><span style="font-size:.72rem;letter-spacing:.04em;color:#7fd0ff;text-transform:uppercase">'+esc(L.group||L.source)+'</span>'
+        +'<span style="font-size:.72rem;color:#7fffd4">'+esc(String(L.marginPct))+'% margin</span></div>'
+        +'<h3 style="margin:0 0 8px;font-size:1.05rem;color:#fff">'+esc(L.title)+'</h3>'
+        +'<div style="display:flex;justify-content:space-between;align-items:center;gap:8px">'
+        +'<strong style="color:#ffd36a;font-size:1.15rem">'+money(L.retailUsd)+'</strong>'
+        +'<a href="'+esc(L.page||"/services")+'" style="color:#9ec5ff;text-decoration:none;font-size:.85rem">Buy →</a></div>'
+        +'<p style="margin:10px 0 0;font-size:.72rem;color:#5f6b82;word-break:break-all">PoM '+esc(String(L.claimsHash||"").slice(0,18))+'…</p>'
+        +'</article>';
+    }).join("");
+    var s=d.summary||{};
+    meta.textContent=(s.listings||list.length)+" attested listings · avg margin "+(s.avgMarginPct||0)+"% · take-rate 0% · "+(s.settlementRail||"btc-direct");
+  }).catch(function(){var m=document.getElementById("pomx-meta");if(m)m.textContent="Exchange temporarily unreachable — retry shortly.";});
+})();`;
+      try { res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'public, max-age=30', 'X-Unicorn-Page': 'pomx' }); } catch (_) {}
+      return res.end(renderPage('PoMX · Proof-of-Margin Exchange · ZeusAI', body, js));
     }
   }
   // ==================== END FAZA 2 / VAL 5 COMPLETARE ====================
@@ -7019,50 +7064,6 @@ seedSsrMap();if(document.getElementById("ds-sort")&&!document.getElementById("ds
       res.writeHead(200, { 'Content-Type': 'application/json' });
       return res.end(JSON.stringify({ ok: false, error: e.message }));
     }
-  }
-
-  if (urlPath === '/pomx' || urlPath === '/exchange' || urlPath === '/proof-of-margin') {
-    const body = `
-<section style="min-height:88vh;display:flex;flex-direction:column;justify-content:flex-end;padding:8vh 6vw 10vh;background:radial-gradient(1200px 600px at 10% 0%,rgba(78,161,255,.22),transparent 55%),radial-gradient(900px 500px at 90% 20%,rgba(255,180,80,.12),transparent 50%),linear-gradient(165deg,#05060e 0%,#0b1020 45%,#12101f 100%);color:#e8edf7;position:relative;overflow:hidden">
-  <p style="font-family:Georgia,'Times New Roman',serif;font-size:clamp(2.6rem,7vw,5.2rem);letter-spacing:-.03em;margin:0 0 .4rem;line-height:1;position:relative">Zeus <span style="color:#7fd0ff">PoMX</span></p>
-  <h1 style="font-family:Georgia,serif;font-weight:500;font-size:clamp(1.35rem,3.2vw,2.1rem);max-width:18ch;margin:0 0 1rem;line-height:1.25">The world&rsquo;s first Proof-of-Margin Exchange.</h1>
-  <p style="max-width:36rem;font-size:1.05rem;color:#a9b4c9;margin:0 0 1.75rem">Every ZeusAI SKU — SaaS, verticals, dropship — carries a cryptographically signed margin attestation. Agents verify before they buy. Settlement mints an instant capability credential. Platform take-rate: <strong style="color:#fff">$0</strong>.</p>
-  <div style="display:flex;gap:12px;flex-wrap:wrap">
-    <a href="/api/pomx/exchange" style="padding:14px 22px;border-radius:10px;background:linear-gradient(135deg,#4ea1ff,#8a5cff);color:#fff;text-decoration:none;font-weight:700">Open the exchange →</a>
-    <a href="/.well-known/pomx.json" style="padding:14px 22px;border-radius:10px;border:1px solid #2c3550;color:#cfd6ff;text-decoration:none;font-weight:600">Protocol spec</a>
-    <a href="/services" style="padding:14px 22px;border-radius:10px;border:1px solid #2c3550;color:#cfd6ff;text-decoration:none;font-weight:600">Human catalog</a>
-  </div>
-</section>
-<section style="padding:4rem 6vw;background:#070a12;color:#d7deec">
-  <h2 style="font-family:Georgia,serif;font-size:1.8rem;margin:0 0 .5rem">Multi-product. Not a single SKU.</h2>
-  <p style="color:#8b95a8;max-width:40rem;margin:0 0 2rem">PoMX publishes the full ZeusAI inventory as one machine-tradable mesh — AI agents and humans share the same honest economics.</p>
-  <div id="pomx-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:14px"></div>
-  <p id="pomx-meta" style="margin-top:1.5rem;color:#6f7a90;font-size:.9rem">Loading exchange…</p>
-</section>`;
-    const js = `(function(){
-  function esc(s){return String(s==null?"":s).replace(/[&<>"]/g,function(c){return {"&":"&amp;","<":"&lt;",">":"&gt;","\\"":"&quot;"}[c];});}
-  function money(n){return "$"+Number(n||0).toLocaleString("en-US",{minimumFractionDigits:0,maximumFractionDigits:2});}
-  fetch("/api/pomx/exchange?limit=48",{cache:"no-store"}).then(function(r){return r.json();}).then(function(d){
-    var grid=document.getElementById("pomx-grid"), meta=document.getElementById("pomx-meta");
-    if(!d||!d.ok){meta.textContent="Exchange warming up.";return;}
-    var list=(d.listings||[]).slice(0,48);
-    grid.innerHTML=list.map(function(L){
-      return '<article style="border:1px solid #1c2438;border-radius:12px;padding:16px;background:#0c111c">'
-        +'<div style="display:flex;justify-content:space-between;gap:8px;margin-bottom:8px"><span style="font-size:.72rem;letter-spacing:.04em;color:#7fd0ff;text-transform:uppercase">'+esc(L.group||L.source)+'</span>'
-        +'<span style="font-size:.72rem;color:#7fffd4">'+esc(String(L.marginPct))+'% margin</span></div>'
-        +'<h3 style="margin:0 0 8px;font-size:1.05rem;color:#fff">'+esc(L.title)+'</h3>'
-        +'<div style="display:flex;justify-content:space-between;align-items:center;gap:8px">'
-        +'<strong style="color:#ffd36a;font-size:1.15rem">'+money(L.retailUsd)+'</strong>'
-        +'<a href="'+esc(L.page||"/services")+'" style="color:#9ec5ff;text-decoration:none;font-size:.85rem">Buy →</a></div>'
-        +'<p style="margin:10px 0 0;font-size:.72rem;color:#5f6b82;word-break:break-all">PoM '+esc(String(L.claimsHash||"").slice(0,18))+'…</p>'
-        +'</article>';
-    }).join("");
-    var s=d.summary||{};
-    meta.textContent=(s.listings||list.length)+" attested listings · avg margin "+(s.avgMarginPct||0)+"% · take-rate 0% · "+(s.settlementRail||"btc-direct");
-  }).catch(function(){var m=document.getElementById("pomx-meta");if(m)m.textContent="Exchange temporarily unreachable — retry shortly.";});
-})();`;
-    try { res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'public, max-age=30', 'X-Unicorn-Page': 'pomx' }); } catch (_) {}
-    return res.end(renderPage('PoMX · Proof-of-Margin Exchange · ZeusAI', body, js));
   }
 
   // World AI Commerce Protocol — public machine-readable standard surface
