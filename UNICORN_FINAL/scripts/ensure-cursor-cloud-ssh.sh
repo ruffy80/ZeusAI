@@ -22,6 +22,8 @@ CURSOR_CLOUD_PUBKEYS=(
   # Runtime Secret, or generate locally as ~/.ssh/deploy_key). Fingerprint:
   # SHA256:M4MGpP8CSN3/9A14SShW+jVjZQD7G/Gux6A1H/Q+dbI
   'ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIC3ls7I4Y9XlmpIBjCF30qpQt2z89FYIPhg+gzhsYGM5 cursor-cloud-zeus-deploy'
+  # c3b6 full-autonomy activation agent key.
+  'ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIHA7c/ZKX3ZBpNC9vmgiUcKMhogxZFw6Hfg5LhH6QTm0 cursor-cloud-zeus-deploy-c3b6'
 )
 
 # Secrets-module path: derive pubkey from HETZNER_SSH_PRIVATE_KEY / deploy_key when present.

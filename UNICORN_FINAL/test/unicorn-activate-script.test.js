@@ -1,0 +1,93 @@
+'use strict';
+/**
+ * unicorn-activate-script.test.js
+ * Guards the SAFE full-autonomy activation scripts against re-introducing the
+ * dangerous "pm2 start per module file" / "stub module source" patterns, and
+ * asserts the intended safe behaviour + SSH key rollout.
+ */
+const assert = require('assert');
+const fs = require('fs');
+const path = require('path');
+
+process.env.NODE_ENV = 'test';
+process.env.DISABLE_SELF_MUTATION = '1';
+
+const SCRIPTS = path.join(__dirname, '..', 'scripts');
+const ACTIVATE = path.join(SCRIPTS, 'unicorn-full-activate.sh');
+const HEALTH_WATCH = path.join(SCRIPTS, 'unicorn-health-watch.sh');
+const SSH_SCRIPT = path.join(SCRIPTS, 'ensure-cursor-cloud-ssh.sh');
+
+const NEW_PUBKEY =
+  'ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIHA7c/ZKX3ZBpNC9vmgiUcKMhogxZFw6Hfg5LhH6QTm0 cursor-cloud-zeus-deploy-c3b6';
+
+let passed = 0;
+function check(name, fn) {
+  fn();
+  console.log(`✓ ${name}`);
+  passed += 1;
+}
+
+check('unicorn-full-activate.sh exists', () => {
+  assert.ok(fs.existsSync(ACTIVATE), 'activation script missing');
+});
+
+const activate = fs.readFileSync(ACTIVATE, 'utf8');
+
+check('activate targets /var/www/unicorn/UNICORN_FINAL (not /root/ZeusAI)', () => {
+  assert.ok(activate.includes('/var/www/unicorn/UNICORN_FINAL'), 'deploy link default missing');
+  assert.doesNotMatch(activate, /\/root\/ZeusAI/, 'must not reference /root/ZeusAI');
+});
+
+check('activate does NOT pm2-start module files per-file', () => {
+  // Dangerous pattern: `pm2 start "modules/...` or `pm2 start modules/...`
+  assert.doesNotMatch(activate, /pm2 start\s+["']?modules\//, 'must not pm2 start module files');
+});
+
+check('activate does NOT create stub module source', () => {
+  assert.doesNotMatch(activate, /echo\s+["']module\.exports = \{ run/, 'must not echo stub modules');
+  assert.doesNotMatch(activate, /module\.exports = \{ run/, 'must not write stub module.exports');
+});
+
+check('activate keeps source-file mutators OFF', () => {
+  assert.ok(activate.includes('ENABLE_FILE_MUTATORS=0'));
+  assert.ok(activate.includes('ENABLE_SELF_CONSTRUCTION=0'));
+  assert.ok(activate.includes('DISABLE_SELF_MUTATION=1'));
+});
+
+check('activate turns business autonomy ON via growth profile', () => {
+  assert.ok(activate.includes('UNICORN_RUNTIME_PROFILE=growth'));
+  assert.ok(activate.includes('ENABLE_AUTO_REPAIR=1'));
+  assert.ok(activate.includes('ENABLE_AUTO_RESTART=1'));
+});
+
+check('activate reloads canonical PM2 apps, not per-module processes', () => {
+  assert.ok(activate.includes('startOrReload'), 'should use pm2 startOrReload');
+  assert.ok(activate.includes('ecosystem.config.js'), 'should reload ecosystem.config.js');
+});
+
+check('activate mentions frontierAI as absent / WARN, never stubbed', () => {
+  assert.match(activate, /frontierAI/);
+  // The audit must WARN about absence and explicitly NOT create a stub.
+  assert.match(activate, /not creating a stub|NOT stubbed|do not invent/i);
+});
+
+check('activate installs only the safe health-watch cron (no selfConstruction --cron)', () => {
+  assert.ok(activate.includes('unicorn-health-watch.sh'), 'should install health-watch cron');
+  assert.doesNotMatch(activate, /selfConstruction\s+--cron/, 'must not schedule selfConstruction --cron');
+});
+
+check('unicorn-health-watch.sh exists and only restarts on repeated failure', () => {
+  assert.ok(fs.existsSync(HEALTH_WATCH), 'health-watch script missing');
+  const watch = fs.readFileSync(HEALTH_WATCH, 'utf8');
+  assert.ok(watch.includes('/var/log/zeus-health-watch.log'), 'should log to /var/log/zeus-health-watch.log');
+  assert.match(watch, /pm2 restart unicorn-backend/);
+  assert.match(watch, /pm2 restart unicorn-site/);
+  assert.doesNotMatch(watch, /module\.exports = \{ run/, 'health-watch must not write stub modules');
+});
+
+check('ensure-cursor-cloud-ssh.sh contains the new c3b6 pubkey', () => {
+  const ssh = fs.readFileSync(SSH_SCRIPT, 'utf8');
+  assert.ok(ssh.includes(NEW_PUBKEY), 'new pubkey not present in ssh script');
+});
+
+console.log(`\n✅ unicorn-activate-script: ${passed} tests passed\n`);

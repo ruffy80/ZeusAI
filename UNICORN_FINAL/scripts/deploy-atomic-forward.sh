@@ -465,4 +465,14 @@ if [ -x "$DEPLOY_LINK/scripts/install-healer.sh" ]; then
     || log "[healer] non-fatal: install-healer.sh exited non-zero"
 fi
 
+# SAFE full-autonomy activation: turn business autonomy ON while keeping
+# source-file mutators OFF, reload PM2 with the safe env, and install the
+# health-watch cron. Best-effort / non-fatal so a watch/cron glitch never
+# fails an otherwise-green deploy.
+if [ -f "$DEPLOY_LINK/scripts/unicorn-full-activate.sh" ]; then
+  log "SAFE full-autonomy activation"
+  DEPLOY_LINK="$DEPLOY_LINK" PUBLIC_URL="$PUBLIC_URL" \
+    bash "$DEPLOY_LINK/scripts/unicorn-full-activate.sh" || log "unicorn-full-activate non-fatal"
+fi
+
 log "forward-only deploy complete"
