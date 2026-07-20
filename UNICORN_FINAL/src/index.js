@@ -832,32 +832,36 @@ app.get('/api/pricing/module/:moduleId', async (req, res) => {
       const target = backendUrl.replace(/\/$/, '') + '/api/pricing/module/' + encodeURIComponent(moduleId) + (qp ? ('?' + qp) : '');
       const r = await fetch(target, { headers: { Accept: 'application/json' }, signal: controller.signal });
       clearTimeout(timer);
-      if (r.ok) return res.json(await r.json());
+      if (r.ok) {
+        const payload = await r.json();
+        _recordPublicPricingSnapshot('module', moduleId, payload);
+        return res.json(payload);
+      }
       console.warn('[site-proxy] /api/pricing/module/' + moduleId + ' upstream ' + r.status);
     } catch (err) {
       clearTimeout(timer);
       console.warn('[site-proxy] /api/pricing/module/' + moduleId + ' failed: ' + (err && err.message));
     }
   }
-  res.set('X-Source', 'site-fallback-mock');
-  res.json({
+  // Fail-closed fallback: prefer last-known-good snapshot; otherwise 503 with
+  // an honest message. Never invent a $99 fake price for a customer.
+  const snap = _readPublicPricingSnapshot('module', moduleId);
+  if (snap && snap.payload) {
+    res.set('X-Source', 'site-last-known-good');
+    return res.json(Object.assign({}, snap.payload, {
+      stale: true,
+      staleSince: snap.at,
+      note: 'Backend unreachable — serving last-known-good module pricing from ' + snap.at + '.',
+    }));
+  }
+  res.set('X-Source', 'site-fail-closed');
+  res.set('Cache-Control', 'no-store');
+  res.status(503).json({
+    ok: false,
     moduleId,
-    segment: null,
-    pricing: {
-      usd: 99,
-      btc: null,
-      sats: null,
-      currency: 'USD',
-      btcCurrency: 'BTC',
-      btcRate: null,
-      btcRateSource: 'site-fallback-mock',
-      basePrice: 99,
-      demandFactor: 1,
-      peakHours: false,
-      surgeActive: false,
-      discountApplied: false,
-    },
-    source: 'site-fallback-mock',
+    error: 'module_pricing_unavailable',
+    note: 'Backend unreachable and no last-known-good snapshot exists for this module. Public storefront refuses to fabricate a placeholder price. Please retry shortly.',
+    degraded: true,
     updatedAt: new Date().toISOString(),
   });
 });
@@ -870,6 +874,74 @@ app.get('/api/pricing/module/:moduleId', async (req, res) => {
 // AND the sovereign-commerce checkout (ctx.canonicalUsd). One code path → the
 // card, /pricing and the BTC invoice can never disagree. (RO: o singură
 // funcție decide prețul public; checkout-ul o refolosește identic.)
+// ── Fail-closed public pricing snapshot store ────────────────────────────
+// When the backend is unreachable AND the local catalog cannot anchor a real
+// floor for the requested serviceId, we refuse to invent a $99 fake price for
+// customers. Instead:
+//   1) We consult a persistent last-known-good snapshot (populated on every
+//      previous successful upstream response) and serve it with a stale flag
+//      so buyers still see a real price the site once served for that id.
+//   2) If no snapshot exists either, we return HTTP 503 with an honest
+//      degraded message — never a fabricated Math.random / hardcoded $99.
+// The snapshot file lives outside the git tree and is safe to lose.
+const _PUBLIC_PRICING_SNAPSHOT_FILE = process.env.SITE_PUBLIC_PRICING_SNAPSHOT
+  || path.join(__dirname, '..', 'data', 'site-pricing-snapshots.json');
+const _PUBLIC_PRICING_MAX_AGE_MS = Number(process.env.SITE_PRICING_SNAPSHOT_MAX_AGE_MS
+  || 24 * 60 * 60 * 1000); // 24h honest ceiling — after this we fail closed even with a snapshot.
+const _publicPricingSnapshots = new Map();
+let _publicPricingSnapshotsLoaded = false;
+let _publicPricingSnapshotsDirty = false;
+let _publicPricingPersistTimer = null;
+function _loadPublicPricingSnapshots() {
+  if (_publicPricingSnapshotsLoaded) return;
+  _publicPricingSnapshotsLoaded = true;
+  try {
+    if (!fs.existsSync(_PUBLIC_PRICING_SNAPSHOT_FILE)) return;
+    const raw = fs.readFileSync(_PUBLIC_PRICING_SNAPSHOT_FILE, 'utf8');
+    const parsed = JSON.parse(raw);
+    if (parsed && typeof parsed === 'object' && parsed.snapshots) {
+      for (const [k, v] of Object.entries(parsed.snapshots)) {
+        if (v && typeof v === 'object' && v.at && v.payload) {
+          _publicPricingSnapshots.set(String(k), v);
+        }
+      }
+    }
+  } catch (e) { console.warn('[public-pricing] snapshot load failed:', e.message); }
+}
+function _recordPublicPricingSnapshot(kind, key, payload) {
+  if (!payload || typeof payload !== 'object') return;
+  _loadPublicPricingSnapshots();
+  const record = {
+    kind: String(kind || 'service'),
+    key: String(key),
+    at: new Date().toISOString(),
+    payload,
+  };
+  _publicPricingSnapshots.set(kind + ':' + key, record);
+  _publicPricingSnapshotsDirty = true;
+  if (!_publicPricingPersistTimer) {
+    _publicPricingPersistTimer = setTimeout(() => {
+      _publicPricingPersistTimer = null;
+      if (!_publicPricingSnapshotsDirty) return;
+      _publicPricingSnapshotsDirty = false;
+      try {
+        fs.mkdirSync(path.dirname(_PUBLIC_PRICING_SNAPSHOT_FILE), { recursive: true });
+        const dump = { savedAt: new Date().toISOString(), snapshots: Object.fromEntries(_publicPricingSnapshots) };
+        fs.writeFileSync(_PUBLIC_PRICING_SNAPSHOT_FILE, JSON.stringify(dump));
+      } catch (e) { console.warn('[public-pricing] snapshot save failed:', e.message); }
+    }, 2000);
+    if (typeof _publicPricingPersistTimer.unref === 'function') _publicPricingPersistTimer.unref();
+  }
+}
+function _readPublicPricingSnapshot(kind, key) {
+  _loadPublicPricingSnapshots();
+  const rec = _publicPricingSnapshots.get(kind + ':' + key);
+  if (!rec) return null;
+  const age = Date.now() - Date.parse(rec.at || '');
+  if (!Number.isFinite(age) || age > _PUBLIC_PRICING_MAX_AGE_MS) return null;
+  return rec;
+}
+
 function _catalogBaseForPricing(id) {
   const probe = (mod) => {
     if (!mod) return null;
@@ -923,14 +995,18 @@ async function quotePublicPricing(serviceId, query) {
       if (r.ok) {
         const upstream = await r.json();
         const realBase = _catalogBaseForPricing(serviceId);
+        let payload;
         if (realBase && (
           (upstream.source && /default/i.test(upstream.source)) ||
           (upstream.baseSource === 'fallback-default') ||
           (Number(upstream.basePrice) === 99 && realBase !== 99)
         )) {
-          return { payload: _recomputePricingWithRealBase(upstream, realBase), headerSource: null };
+          payload = _recomputePricingWithRealBase(upstream, realBase);
+        } else {
+          payload = upstream;
         }
-        return { payload: upstream, headerSource: null };
+        _recordPublicPricingSnapshot('service', serviceId, payload);
+        return { payload, headerSource: null };
       }
       console.warn('[site-proxy] /api/pricing/' + serviceId + ' upstream ' + r.status);
     } catch (err) {
@@ -944,46 +1020,56 @@ async function quotePublicPricing(serviceId, query) {
     try {
       const dp = require('../backend/modules/dynamic-pricing');
       const live = dp.getPrice(serviceId, { basePrice: realBase });
-      return {
-        headerSource: 'site-local-pricing',
-        payload: {
-          serviceId,
-          price_usd: live.finalPrice,
-          price_btc: null,
-          currency: 'USD',
-          interval: 'month',
-          negotiated: false,
-          timestamp: new Date().toISOString(),
-          basePrice: live.basePrice,
-          finalPrice: live.finalPrice,
-          demandFactor: live.demandFactor,
-          peakHours: live.peakHours,
-          surgeActive: live.surgeActive,
-          discountApplied: live.discountApplied,
-          source: 'site-local-pricing-catalog-seeded',
-        }
+      const payload = {
+        serviceId,
+        price_usd: live.finalPrice,
+        price_btc: null,
+        currency: 'USD',
+        interval: 'month',
+        negotiated: false,
+        timestamp: new Date().toISOString(),
+        basePrice: live.basePrice,
+        finalPrice: live.finalPrice,
+        demandFactor: live.demandFactor,
+        peakHours: live.peakHours,
+        surgeActive: live.surgeActive,
+        discountApplied: live.discountApplied,
+        source: 'site-local-pricing-catalog-seeded',
       };
-    } catch (_) { /* fall through to mock */ }
+      _recordPublicPricingSnapshot('service', serviceId, payload);
+      return { headerSource: 'site-local-pricing', payload };
+    } catch (_) { /* fall through to snapshot / fail-closed */ }
   }
-  const negotiated = /enterprise|global|giants|tier/i.test(serviceId);
-  return {
-    headerSource: 'site-fallback-mock',
-    payload: {
-      serviceId,
-      price_usd: realBase || 99,
-      price_btc: null,
-      currency: 'USD',
-      interval: 'month',
-      negotiated,
-      timestamp: new Date().toISOString(),
-      source: realBase ? 'site-fallback-catalog' : 'site-fallback-mock',
-      note: realBase ? 'Backend unreachable — using catalog floor.' : 'Backend unreachable — fallback pricing active.',
-    }
-  };
+  // No local anchor — consult the last-known-good snapshot for this exact id.
+  const snap = _readPublicPricingSnapshot('service', serviceId);
+  if (snap && snap.payload && Number(snap.payload.price_usd) > 0) {
+    const stalePayload = Object.assign({}, snap.payload, {
+      stale: true,
+      staleSince: snap.at,
+      source: (snap.payload.source || 'site-local-pricing') + '-cached',
+      note: 'Backend unreachable — serving last-known-good price from ' + snap.at + '. This price is stale and may be superseded once the backend recovers.',
+    });
+    return { headerSource: 'site-last-known-good', payload: stalePayload };
+  }
+  // Fail closed — no honest price available. Return null so the caller can
+  // signal HTTP 503; NEVER invent a $99 fake for a customer-facing quote.
+  return { headerSource: 'site-fail-closed', payload: null };
 }
 app.get('/api/pricing/:serviceId', async (req, res) => {
   const serviceId = String(req.params.serviceId || '').slice(0, 80);
   const { payload, headerSource } = await quotePublicPricing(serviceId, req.query);
+  if (!payload) {
+    if (headerSource) res.set('X-Source', headerSource);
+    res.set('Cache-Control', 'no-store');
+    return res.status(503).json({
+      ok: false,
+      serviceId,
+      error: 'pricing_unavailable',
+      note: 'Backend unreachable and no last-known-good snapshot exists for this service. The public storefront refuses to invent a placeholder price for a customer. Please retry shortly.',
+      degraded: true,
+      timestamp: new Date().toISOString(),
+    });
+  }
   if (headerSource) res.set('X-Source', headerSource);
   return res.json(payload);
 });
@@ -2079,6 +2165,23 @@ async function createBtcpayInvoice(receipt) {
     return { provider: 'static-wallet-fallback', error: e.message };
   }
 }
+// Fire-and-forget bridge into src/commerce/pay-fulfill: sends the unified
+// order_receipt + delivery_artifact emails once per orderId. Fail-honest: if
+// no email provider is configured the mailer returns ok:false and we log it
+// rather than pretending success. Called from runDeliveryForReceipt below.
+function _firePayFulfillNotify(receipt, deliveryPackage) {
+  try {
+    if (!receipt || receipt.status !== 'paid') return;
+    const payFulfill = require('./commerce/pay-fulfill');
+    Promise.resolve(payFulfill.sendOrderReceiptEmail(receipt)).catch(() => {});
+    if (deliveryPackage) {
+      Promise.resolve(payFulfill.sendDeliveryArtifactEmail(receipt, deliveryPackage)).catch(() => {});
+    }
+  } catch (e) {
+    console.warn('[pay-fulfill] notify bridge failed:', e && e.message);
+  }
+}
+
 function runDeliveryForReceipt(receipt, opts) {
   if (!receipt || !deliveryRegistry || typeof deliveryRegistry.deliver !== 'function') return null;
   try {
@@ -2131,15 +2234,18 @@ function runDeliveryForReceipt(receipt, opts) {
           if (r && r.ok) console.log('[fulfillment] receipt=' + receipt.id + ' status=' + r.fulfillmentStatus + ' delivered=' + r.delivered + '/' + r.total);
           const latestDelivery = deliveryRegistry && typeof deliveryRegistry.get === 'function' ? deliveryRegistry.get(receipt.id) : delivery;
           recordProofOfDelivery(latestDelivery || delivery);
+          _firePayFulfillNotify(receipt, latestDelivery || delivery);
         })
         .catch((e) => {
           console.warn('[fulfillment] async error for ' + receipt.id + ':', e.message);
           const latestDelivery = deliveryRegistry && typeof deliveryRegistry.get === 'function' ? deliveryRegistry.get(receipt.id) : delivery;
           recordProofOfDelivery(latestDelivery || delivery);
+          _firePayFulfillNotify(receipt, latestDelivery || delivery);
         });
     } catch (e) {
       console.warn('[fulfillment] engine load failed:', e.message);
       recordProofOfDelivery(delivery);
+      _firePayFulfillNotify(receipt, delivery);
     }
     return delivery;
   } catch (e) {
@@ -3202,6 +3308,24 @@ global.__USE_ON_RECEIPT__ = function onReceiptBridge(r) {
     });
     console.log('[activation] service.activated emitted for receipt=' + r.id + ' services=' + JSON.stringify(serviceIds));
   } catch (e) { console.warn('[activation] broadcast failed:', e.message); }
+
+  // Unified pay→fulfill tail. This bridges the Stripe webhook path (which
+  // reaches us via provisioner.handleWebhookSettle) into the same delivery +
+  // notification pipeline as BTC and PayPal. Idempotent per orderId — the
+  // pay-fulfill ledger prevents a second run when a webhook fires twice.
+  try {
+    if (!r || r.status !== 'paid') return;
+    const payFulfill = require('./commerce/pay-fulfill');
+    if (typeof runDeliveryForReceipt === 'function') {
+      payFulfill.runDeliveryOnce(r, runDeliveryForReceipt);
+    } else {
+      // Delivery function isn't wired yet — still try to notify so the buyer
+      // gets a receipt email even before the delivery registry is live.
+      Promise.resolve(payFulfill.sendOrderReceiptEmail(r)).catch(() => {});
+    }
+  } catch (e) {
+    console.warn('[pay-fulfill] hook load failed:', e.message);
+  }
 };
 
 const streamTimer = setInterval(() => {
@@ -8840,7 +8964,7 @@ ${invoice.payer ? `<h2>Payer</h2><table><tr><th>Legal entity</th><td>${esc(invoi
               })).catch(e => { console.warn('[pwreset] transactional-email failed:', e.message); return null; });
               emailSent = !!(r && r.ok && !r.skipped);
               if (!r) { /* already logged inside catch */ }
-              else if (r.skipped) console.warn('[pwreset] email skipped: ' + r.skipped + ' (set RESEND_API_KEY, BREVO_API_KEY, MAILERSEND_API_KEY, or SMTP_* to enable real delivery)');
+              else if (r.reason === 'email_unconfigured' || r.skipped === 'unconfigured') console.warn('[pwreset] email NOT sent: email_unconfigured (set RESEND_API_KEY, BREVO_API_KEY/SENDINBLUE_API_KEY, MAILERSEND_API_KEY, or SMTP_* to enable real delivery — the reset link is logged below for manual delivery)');
               else if (r.ok) console.log('[pwreset] email sent via ' + (r.provider || 'unknown') + ' · messageId=' + (r.messageId || 'n/a'));
               else if (r.error) console.warn('[pwreset] email send failed: ' + r.error);
               else console.warn('[pwreset] email returned unexpected shape: ' + JSON.stringify(r).slice(0, 200));
@@ -9076,6 +9200,106 @@ ${invoice.payer ? `<h2>Payer</h2><table><tr><th>Legal entity</th><td>${esc(invoi
     return;
   }
 
+  // Customer order lookup via signed order-access token.
+  //   GET /api/customer/order-lookup?token=<order-token>
+  // Returns { order:{...}, deliverables:[...] } for exactly the order the
+  // token was issued for. Fail-closed on unknown/expired tokens (401). Used
+  // by the /account?token=… deep-link in purchase confirmation emails.
+  if (urlPath === '/api/customer/order-lookup' && req.method === 'GET') {
+    if (!portal || typeof portal.verifyOrderAccessToken !== 'function') {
+      res.writeHead(503, {'Content-Type':'application/json'}); return res.end('{"error":"portal_offline"}');
+    }
+    const orderTok = String(requestUrl.searchParams.get('token') || req.headers['x-order-token'] || '').trim();
+    if (!orderTok) { res.writeHead(400, {'Content-Type':'application/json'}); return res.end('{"error":"missing_token"}'); }
+    const verified = portal.verifyOrderAccessToken(orderTok);
+    if (!verified) { res.writeHead(401, {'Content-Type':'application/json'}); return res.end('{"error":"invalid_or_expired_token"}'); }
+    const order = portal.getOrder(verified.orderId);
+    if (!order) { res.writeHead(404, {'Content-Type':'application/json'}); return res.end('{"error":"order_not_found"}'); }
+    const deliverables = Array.isArray(order.deliverables)
+      ? order.deliverables.map((d) => (typeof d === 'string' ? { name: d, url: '/api/customer/deliverable/' + order.id + '/' + encodeURIComponent(d) + '?token=' + encodeURIComponent(orderTok) } : {
+          name: d.name || d.filename || 'artifact',
+          url: (d.url || '/api/customer/deliverable/' + order.id + '/' + encodeURIComponent(d.name || d.filename || 'artifact')) + (String(d.url || '').includes('?') ? '&' : '?') + 'token=' + encodeURIComponent(orderTok),
+          kind: d.kind || null
+        }))
+      : [];
+    res.writeHead(200, {'Content-Type':'application/json','Cache-Control':'private, no-store'});
+    return res.end(JSON.stringify({
+      ok: true,
+      order: {
+        id: order.id,
+        productId: order.productId,
+        status: order.status,
+        priceUSD: order.priceUSD,
+        btcAmount: order.btcAmount,
+        createdAt: order.createdAt,
+        paidAt: order.paidAt || null,
+        deliveredAt: order.deliveredAt || null,
+        summary: order.summary || null
+      },
+      deliverables,
+      contactSupportUrl: '/api/customer/support'
+    }));
+  }
+
+  // Customer support contact form. Accepts { email, message, orderId? } and
+  // relays to owner via the transactional-email pipeline. Fail-honest: when
+  // no email provider is configured we persist the message to the outbox
+  // ledger AND return ok:false so the browser can show a fallback contact
+  // (mailto: link) instead of silently swallowing the request.
+  if (urlPath === '/api/customer/support' && req.method === 'POST') {
+    let body = ''; req.on('data', (c) => { body += c; if (body.length > 16 * 1024) req.destroy(); });
+    req.on('end', async () => {
+      try {
+        const p = JSON.parse(body || '{}');
+        const from = String(p.email || '').trim().toLowerCase();
+        const message = String(p.message || '').trim();
+        const orderId = String(p.orderId || '').trim();
+        if (!from || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(from) || message.length < 10) {
+          res.writeHead(400, { 'Content-Type': 'application/json' });
+          return res.end(JSON.stringify({ ok: false, error: 'invalid_input', hint: 'email + at least 10 chars of message required' }));
+        }
+        const owner = String(process.env.OWNER_EMAIL || process.env.SUPPORT_EMAIL || 'support@zeusai.pro').trim();
+        const subj = 'Support · ' + (orderId ? ('order=' + orderId + ' · ') : '') + from;
+        const text = 'From: ' + from + '\n' + (orderId ? ('Order: ' + orderId + '\n') : '') + '\nMessage:\n' + message.slice(0, 4000) + '\n';
+        const html = '<div style="font-family:system-ui,sans-serif;">' +
+          '<p><b>From:</b> ' + from.replace(/[<>]/g, '') + '</p>' +
+          (orderId ? '<p><b>Order:</b> ' + orderId.replace(/[<>]/g, '') + '</p>' : '') +
+          '<p style="white-space:pre-wrap;">' + message.replace(/[<>]/g, '').slice(0, 4000) + '</p></div>';
+        let sent = null;
+        try {
+          const tx = require('./commerce/transactional-email');
+          sent = await tx.sendRaw({ to: owner, subject: subj, text, html });
+        } catch (e) { sent = { ok: false, error: e.message }; }
+        // Log to a support-inbox JSONL regardless of send outcome so operators
+        // can still triage manually if email is misconfigured.
+        try {
+          const fsx = require('fs');
+          const pathx = require('path');
+          const inboxDir = path.join(__dirname, '..', 'data', 'support-inbox');
+          fsx.mkdirSync(inboxDir, { recursive: true });
+          fsx.appendFileSync(pathx.join(inboxDir, 'inbox.jsonl'),
+            JSON.stringify({ at: new Date().toISOString(), from, orderId: orderId || null, message: message.slice(0, 4000), sent: !!(sent && sent.ok), provider: sent && sent.provider || null, reason: sent && sent.reason || null }) + '\n');
+        } catch (_) { /* best effort */ }
+        if (sent && sent.ok) {
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          return res.end(JSON.stringify({ ok: true, delivered: true, provider: sent.provider }));
+        }
+        // Fail-honest — the message is persisted, but email did not leave the box.
+        res.writeHead(202, { 'Content-Type': 'application/json' });
+        return res.end(JSON.stringify({
+          ok: false,
+          persisted: true,
+          reason: (sent && sent.reason) || 'email_unconfigured',
+          contactFallback: 'mailto:' + owner
+        }));
+      } catch (e) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ ok: false, error: e.message }));
+      }
+    });
+    return;
+  }
+
   // Deliverable download (customer-token protected OR public if order id + filename match)
   if (urlPath.startsWith('/api/customer/deliverable/')) {
     if (!portal || !productEngine) { res.writeHead(503); return res.end(); }
@@ -9085,11 +9309,17 @@ ${invoice.payer ? `<h2>Payer</h2><table><tr><th>Legal entity</th><td>${esc(invoi
       const filename = decodeURIComponent(parts[1] || '');
       const order = portal.getOrder(orderId);
       if (!order || order.status !== 'delivered') { res.writeHead(404); return res.end('not ready'); }
-      // If customer-token provided, require it matches; otherwise allow (deliverables are unguessable by order-id + filename)
+      // Auth: accept either the logged-in customer's session token OR a signed
+      // order-access token (from purchase emails). Order-access lets a buyer
+      // open the exact order that emailed them without full account login.
       const tok = readCustomerToken(req);
+      const orderTok = String(requestUrl.searchParams.get('token') || req.headers['x-order-token'] || '');
       if (tok) {
         const cid = portal.verifyToken(tok);
         if (cid && order.customerId && cid !== order.customerId) { res.writeHead(403); return res.end('forbidden'); }
+      } else if (orderTok && typeof portal.verifyOrderAccessToken === 'function') {
+        const ok = portal.verifyOrderAccessToken(orderTok);
+        if (!ok || ok.orderId !== order.id) { res.writeHead(403); return res.end('forbidden'); }
       }
       const buf = productEngine.readDeliverable(orderId, filename);
       const mime = filename.endsWith('.html') ? 'text/html; charset=utf-8'
