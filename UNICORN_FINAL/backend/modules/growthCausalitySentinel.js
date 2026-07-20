@@ -531,7 +531,6 @@ async function cycle({ force = false } = {}) {
     starvingScore: snapshot.starvingScore,
     hookId: hypothesis && hypothesis.hookId,
   };
-  _saveState();
   _lastStatus = {
     ok: true,
     module: NAME,
@@ -553,6 +552,7 @@ async function cycle({ force = false } = {}) {
       outboundReady: snapshot.outboundReady,
     },
   };
+  _saveState();
   _append(LEDGER, { ts: new Date().toISOString(), type: 'cycle', ...state.lastCycle });
   return _lastStatus;
 }
