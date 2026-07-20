@@ -35,11 +35,18 @@ const http = require('http');
 const https = require('https');
 
 const NAME = 'growthCausalitySentinel';
-const DATA_DIR = process.env.ZEUS_CVR_DATA_DIR
-  || path.join(process.cwd(), 'data', 'growth', 'causality');
+function _defaultDataDir() {
+  const shared = '/var/www/unicorn/shared/data/growth/causality';
+  try {
+    if (fs.existsSync('/var/www/unicorn/shared')) return shared;
+  } catch (_) { /* ignore */ }
+  return path.join(process.cwd(), 'data', 'growth', 'causality');
+}
+const DATA_DIR = process.env.ZEUS_CVR_DATA_DIR || _defaultDataDir();
 const LEDGER = path.join(DATA_DIR, 'causal-ledger.jsonl');
 const STATE_FILE = path.join(DATA_DIR, 'state.json');
 const DEDUPE_FILE = path.join(DATA_DIR, 'dedupe.json');
+const STATUS_PUBLIC = path.join(DATA_DIR, 'status-public.json');
 
 const TICK_MS = Math.max(60_000, Number(process.env.ZEUS_CVR_TICK_MS) || 5 * 60_000);
 const ATTRIB_MS = Math.max(5 * 60_000, Number(process.env.ZEUS_CVR_ATTRIB_MS) || 45 * 60_000);
@@ -109,8 +116,7 @@ function _saveState() {
 function _publishStatusFile() {
   _ensureDir();
   try {
-    const pub = path.join(DATA_DIR, 'status-public.json');
-    fs.writeFileSync(pub, `${JSON.stringify(getStatus(), null, 2)}\n`);
+    fs.writeFileSync(STATUS_PUBLIC, `${JSON.stringify(getStatus(), null, 2)}\n`);
   } catch (_) { /* ignore */ }
 }
 
@@ -572,7 +578,7 @@ function getStatus() {
   // Prefer the durable public status written by zeus-unicorn-bot when this
   // module is only mounted read-only inside unicorn-backend.
   if (!_started) {
-    const pub = _loadJson(path.join(DATA_DIR, 'status-public.json'), null);
+    const pub = _loadJson(STATUS_PUBLIC, null);
     if (pub && typeof pub === 'object' && pub.module === NAME) {
       return { ...pub, source: 'status-public.json' };
     }
@@ -598,6 +604,7 @@ function start(opts) {
   _timer = setInterval(() => { cycle().catch(() => {}); }, ms);
   if (_timer.unref) _timer.unref();
   _lastStatus = { ok: true, module: NAME, started: true, intervalMs: ms };
+  _publishStatusFile();
   return { ok: true, intervalMs: ms };
 }
 
