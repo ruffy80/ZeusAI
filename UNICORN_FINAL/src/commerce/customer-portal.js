@@ -425,6 +425,53 @@ function listOrdersByCustomer(cid) {
   return jsonState.orders.filter(o => o.customerId === cid).sort((a,b) => (b.createdAt||'').localeCompare(a.createdAt||''));
 }
 
+// listOrdersByEmail — email → orders for the customer-portal /account UI and
+// for the customer-support lookup flow. Returns [] when the email has no
+// matching customer, so callers can safely respond 200 without PII disclosure.
+function listOrdersByEmail(email) {
+  const c = byEmail(email);
+  if (!c) return [];
+  return listOrdersByCustomer(c.id);
+}
+
+// signOrderAccessToken — issues a short-signed token that lets a buyer open
+// their delivery/status page without going through full login. Used in the
+// order-status link emailed after purchase and in the /account?token=… URL.
+// Payload: { oid, cid, exp }. Signed with the portal HMAC (JWT_SECRET or the
+// stable per-install secret from loadOrCreateSecret). Same rotation semantics
+// as the session token: JWT_SECRET_PREVIOUS still verifies.
+function signOrderAccessToken(orderId, opts) {
+  const o = getOrder(orderId);
+  if (!o) return null;
+  const ttlMs = Math.max(60 * 1000, Number(opts && opts.ttlMs) || 30 * 24 * 3600 * 1000);
+  return signToken({ oid: o.id, cid: o.customerId || null, iat: Date.now(), exp: Date.now() + ttlMs, kind: 'order-access' });
+}
+
+// verifyOrderAccessToken — returns { orderId, customerId } when the token is
+// valid AND still bound to a real order (defends against orphaned tokens).
+// Returns null otherwise. Keeps token verification centralized so /account
+// and the artifact-download endpoint stay in sync.
+function verifyOrderAccessToken(token) {
+  try {
+    const [h, b, s] = String(token || '').split('.');
+    if (!h || !b || !s) return null;
+    const candidate = Buffer.from(s);
+    let matched = false;
+    for (const secret of tokenSecretsAll()) {
+      const expected = Buffer.from(b64url(crypto.createHmac('sha256', secret).update(h + '.' + b).digest()));
+      if (candidate.length === expected.length && crypto.timingSafeEqual(candidate, expected)) { matched = true; break; }
+    }
+    if (!matched) return null;
+    const payload = JSON.parse(fromB64url(b).toString('utf8'));
+    if (payload.exp && Date.now() > payload.exp) return null;
+    if (payload.kind !== 'order-access') return null;
+    if (!payload.oid) return null;
+    const order = getOrder(payload.oid);
+    if (!order) return null;
+    return { orderId: order.id, customerId: order.customerId || payload.cid || null };
+  } catch (_) { return null; }
+}
+
 // ── API keys ─────────────────────────────────────────────────────────────
 function issueApiKey(customerId, productId, orderId) {
   const c = getById(customerId);
@@ -659,7 +706,9 @@ function consumePasswordResetToken(token, newPassword) {
 module.exports = {
   signup, login, upsertFromBackend, verifyToken,
   byEmail, getById, publicCustomer,
-  createOrder, getOrder, updateOrder, listOrdersByCustomer,
+  createOrder, getOrder, updateOrder, listOrdersByCustomer, listOrdersByEmail,
+  // Signed short-lived order-access tokens for email delivery links.
+  signOrderAccessToken, verifyOrderAccessToken,
   issueApiKey, findByApiKey,
   // Password reset (1h tokens, single-use)
   createPasswordResetToken, verifyPasswordResetToken, consumePasswordResetToken,
