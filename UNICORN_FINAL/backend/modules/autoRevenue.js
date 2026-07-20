@@ -614,6 +614,8 @@ class AutoRevenueEngine {
   getRevenueStatus() {
     const real = loadRealitySnapshot();
     const simulationOn = String(process.env.AUTO_REVENUE_SIMULATE || 'disabled').toLowerCase() === 'enabled';
+    const paidCount = real ? Number((real.orders && real.orders.paid) || 0) : 0;
+    const paidUsd = real ? Number((real.revenue && real.revenue.paidUsd) || 0) : 0;
 
     const streamDetails = Array.from(this.revenueStreams.entries()).map(([key, stream]) => ({
       stream: key,
@@ -624,9 +626,20 @@ class AutoRevenueEngine {
       simulated: simulationOn,
     }));
 
+    // Honest state reporting: when simulation is OFF and no settled receipts
+    // exist, we return `idle_unconfigured` — the module has nothing real to
+    // say yet. Only after a confirmed on-chain BTC / Stripe paid webhook
+    // lands does it transition to AUTONOMOUS_REVENUE_REAL.
+    // RO: cand simularea e OFF si nu exista incasari confirmate, raportam
+    // idle_unconfigured — nu inventam venituri.
+    let state;
+    if (simulationOn) state = 'SIMULATED_REVENUE_DEMO';
+    else if (paidCount > 0) state = 'AUTONOMOUS_REVENUE_REAL';
+    else state = 'idle_unconfigured';
+
     return {
       timestamp: new Date().toISOString(),
-      state: simulationOn ? 'SIMULATED_REVENUE_DEMO' : 'AUTONOMOUS_REVENUE_REAL',
+      state,
       simulated: simulationOn,
       reality: real ? {
         paidCustomers: real.orders.paid,
@@ -636,15 +649,17 @@ class AutoRevenueEngine {
       } : null,
       totalMonthlyRevenue: simulationOn
         ? Array.from(this.revenueStreams.values()).reduce((sum, s) => sum + (s.revenue || 0), 0).toFixed(2)
-        : (real ? real.revenue.paidUsd.toFixed(2) : '0.00'),
+        : paidUsd.toFixed(2),
       projectedAnnualRevenue: simulationOn ? this.metrics.projectedAnnualRevenue.toFixed(2) : '0.00',
       activeDeals: simulationOn ? this.metrics.activeDeals : 0,
-      completedTransactions: simulationOn ? this.metrics.completedDeals : (real ? real.orders.paid : 0),
+      completedTransactions: simulationOn ? this.metrics.completedDeals : paidCount,
       revenueStreams: simulationOn ? streamDetails : [],
       llamaStrategy: this.llamaStrategySuggestion,
       honesty: simulationOn
         ? 'Simulation mode is ON (AUTO_REVENUE_SIMULATE=enabled). Numbers above are fabricated for demos. Reality block contains the truth.'
-        : 'Simulation OFF. Only real paid receipts are reported. Set AUTO_REVENUE_SIMULATE=enabled for demo populated dashboards.',
+        : (paidCount > 0
+            ? 'Simulation OFF. Numbers are settled receipts only (on-chain BTC confirmed / Stripe paid).'
+            : 'Simulation OFF and no settled revenue yet — module is idle_unconfigured. Numbers stay 0 until the first confirmed receipt.'),
     };
   }
 

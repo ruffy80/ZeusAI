@@ -25,6 +25,7 @@
 const { now, slug, round2, shortId, rng, hash32, logger } = require('./util');
 const { CURATED_PRODUCTS } = require('./catalog-curated');
 const worldFeeds = require('./world-feeds');
+const cjApi = require('./cj-api');
 const { coverPath } = require('./product-cover');
 
 const log = logger('scraper');
@@ -193,14 +194,17 @@ class GlobalScraper {
     this.lastScrapeAt = Date.now();
     this.scrapes += 1;
 
-    const [ebay, ali, etsy, ext, world] = await Promise.all([
+    const [ebay, ali, etsy, ext, world, cj] = await Promise.all([
       this._ebayFinding(),
       this._aliexpressAffiliate(),
       this._etsyListings(),
       this._externalAggregator(),
       worldFeeds.pullWorldFeeds().catch(() => []),
+      cjApi.isConfigured()
+        ? cjApi.searchProducts({ limit: MAX_PER_SOURCE, keywords: process.env.ZACC_CJ_KEYWORDS || 'trending' }).catch(() => [])
+        : Promise.resolve([]),
     ]);
-    let merged = [].concat(ebay, ali, etsy, ext, world || []);
+    let merged = [].concat(ebay, ali, etsy, ext, world || [], cj || []);
     // Always blend curated archetypes so high-margin staples stay listed.
     const curated = this._seedRotation();
     if (!merged.length) merged = curated;
@@ -225,6 +229,7 @@ class GlobalScraper {
       etsy: etsy.length,
       external: ext.length,
       world: (world || []).length,
+      cj: (cj || []).length,
       curated: curated.length,
     };
     log.info('scraped', enriched.length, 'products from', Object.entries(bySource).map(([k, v]) => k + ':' + v).join(' '));

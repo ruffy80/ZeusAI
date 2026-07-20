@@ -15,11 +15,14 @@
 // simply records the intent in the JSONL ledger (`data/marketing/
 // outbound-ledger.jsonl`).
 //
-// Default behavior is DRY-RUN — set MARKETING_OUTBOUND_DRYRUN=0 to
-// actually emit network traffic. This is a safety net for production.
+// Dry-run is only forced when explicit (OUTBOUND_DRY_RUN=1 or the legacy
+// MARKETING_OUTBOUND_DRYRUN=1) or when NODE_ENV=test. Otherwise the module
+// attempts real network I/O when credentials are configured and returns
+// {ok:false, reason:'no_credentials'} when they are missing — we NEVER
+// fake a "posted" result.
 //
 // Adapters:
-//   - telegram   (TG_BOT_TOKEN + TG_CHAT_ID)
+//   - telegram   (TELEGRAM_BOT_TOKEN + TELEGRAM_CHAT_ID; legacy: TG_BOT_TOKEN + TG_CHAT_ID)
 //   - discord    (DISCORD_WEBHOOK_URL)
 //   - mastodon   (MASTODON_INSTANCE + MASTODON_TOKEN)
 //   - bluesky    (BLUESKY_HANDLE + BLUESKY_APP_PASSWORD) — best-effort
@@ -42,10 +45,35 @@ const LEDGER = process.env.MARKETING_OUTBOUND_LEDGER
 const RSS_FILE = process.env.MARKETING_OUTBOUND_RSS
   || path.join(DATA_DIR, 'rss.xml');
 
-// Default-on dry-run: only emit real network when explicitly disabled.
-const DRYRUN = String(process.env.MARKETING_OUTBOUND_DRYRUN || '1') !== '0';
+// Dry-run policy:
+//   • `OUTBOUND_DRY_RUN=1`  — canonical, mission-mandated flag: forces dry-run
+//     for EVERY outbound adapter (never touches the network).
+//   • `MARKETING_OUTBOUND_DRYRUN=1` — legacy alias, kept for back-compat.
+//   • `NODE_ENV=test` — always dry-run so the unit suite is hermetic.
+//   • Otherwise: no dry-run — real network is attempted when credentials are
+//     present, and adapters return `{ok:false, reason:'no_credentials'}`
+//     when they are missing. We NEVER fake a "posted" outcome.
+//
+// RO: dry-run se activeaza doar explicit (OUTBOUND_DRY_RUN=1) sau in teste;
+//     nu simulam niciodata trimiterea unui mesaj real.
+function _isDryRun() {
+  if (String(process.env.OUTBOUND_DRY_RUN || '') === '1') return true;
+  if (String(process.env.MARKETING_OUTBOUND_DRYRUN || '') === '1') return true;
+  if (String(process.env.NODE_ENV || '').toLowerCase() === 'test') return true;
+  return false;
+}
 const DISABLED = process.env.MARKETING_OUTBOUND_DISABLED === '1';
 const RATE_LIMIT_PER_MIN = Math.max(1, Number(process.env.MARKETING_OUTBOUND_RATE_PER_MIN) || 30);
+
+// Canonical Telegram credential resolver. Matches the pair used everywhere
+// else in ZeusAI (socialMediaViralizer, zacAlertChannel, TG bot bridge).
+// Legacy env vars `TG_BOT_TOKEN` / `TG_CHAT_ID` still work as a fallback so
+// existing deployments do not break.
+function _telegramCreds() {
+  const token = process.env.TELEGRAM_BOT_TOKEN || process.env.TG_BOT_TOKEN || '';
+  const chat = process.env.TELEGRAM_CHAT_ID || process.env.TG_CHAT_ID || '';
+  return { token, chat, has: !!(token && chat) };
+}
 
 const _windows = new Map(); // platform → [timestamps]
 const _breakers = new Map(); // platform → { fails, openedUntil }
@@ -88,7 +116,7 @@ function _record(platform, intent, result) {
   const evt = {
     ts: new Date().toISOString(),
     platform,
-    dryRun: DRYRUN,
+    dryRun: _isDryRun(),
     intent: { ...intent, body: typeof intent.body === 'string' ? intent.body.slice(0, 500) : intent.body },
     result,
   };
@@ -99,21 +127,28 @@ function _record(platform, intent, result) {
 // ── Adapters ───────────────────────────────────────────────────────────
 
 async function _publishTelegram(intent) {
-  const token = process.env.TG_BOT_TOKEN || '';
-  const chat = process.env.TG_CHAT_ID || '';
-  if (!token || !chat) return { ok: false, reason: 'no_credentials' };
-  if (DRYRUN) return { ok: true, dryRun: true };
-  return _safeFetch(`https://api.telegram.org/bot${encodeURIComponent(token)}/sendMessage`, {
+  const { token, chat, has } = _telegramCreds();
+  if (!has) {
+    return {
+      ok: false,
+      reason: 'no_credentials',
+      platform: 'telegram',
+      hint: 'Set TELEGRAM_BOT_TOKEN + TELEGRAM_CHAT_ID (or legacy TG_BOT_TOKEN + TG_CHAT_ID) to enable real Telegram posting. We never fake a "posted" result.',
+    };
+  }
+  if (_isDryRun()) return { ok: true, dryRun: true, platform: 'telegram' };
+  const r = await _safeFetch(`https://api.telegram.org/bot${encodeURIComponent(token)}/sendMessage`, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify({ chat_id: chat, text: String(intent.body || ''), disable_web_page_preview: false }),
   });
+  return { ...r, platform: 'telegram' };
 }
 
 async function _publishDiscord(intent) {
   const url = process.env.DISCORD_WEBHOOK_URL || '';
-  if (!url) return { ok: false, reason: 'no_credentials' };
-  if (DRYRUN) return { ok: true, dryRun: true };
+  if (!url) return { ok: false, reason: 'no_credentials', platform: 'discord' };
+  if (_isDryRun()) return { ok: true, dryRun: true, platform: 'discord' };
   return _safeFetch(url, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
@@ -124,8 +159,8 @@ async function _publishDiscord(intent) {
 async function _publishMastodon(intent) {
   const inst = (process.env.MASTODON_INSTANCE || '').replace(/\/$/, '');
   const tok = process.env.MASTODON_TOKEN || '';
-  if (!inst || !tok) return { ok: false, reason: 'no_credentials' };
-  if (DRYRUN) return { ok: true, dryRun: true };
+  if (!inst || !tok) return { ok: false, reason: 'no_credentials', platform: 'mastodon' };
+  if (_isDryRun()) return { ok: true, dryRun: true, platform: 'mastodon' };
   return _safeFetch(`${inst}/api/v1/statuses`, {
     method: 'POST',
     headers: { 'content-type': 'application/json', 'authorization': `Bearer ${tok}` },
@@ -136,8 +171,8 @@ async function _publishMastodon(intent) {
 async function _publishBluesky(intent) {
   const handle = process.env.BLUESKY_HANDLE || '';
   const pwd = process.env.BLUESKY_APP_PASSWORD || '';
-  if (!handle || !pwd) return { ok: false, reason: 'no_credentials' };
-  if (DRYRUN) return { ok: true, dryRun: true };
+  if (!handle || !pwd) return { ok: false, reason: 'no_credentials', platform: 'bluesky' };
+  if (_isDryRun()) return { ok: true, dryRun: true, platform: 'bluesky' };
   // Best-effort 2-step: createSession → createRecord.
   try {
     const session = await fetch('https://bsky.social/xrpc/com.atproto.server.createSession', {
@@ -160,8 +195,8 @@ async function _publishBluesky(intent) {
 
 async function _publishGeneric(intent) {
   const url = process.env.GENERIC_WEBHOOK_URL || '';
-  if (!url) return { ok: false, reason: 'no_credentials' };
-  if (DRYRUN) return { ok: true, dryRun: true };
+  if (!url) return { ok: false, reason: 'no_credentials', platform: 'generic' };
+  if (_isDryRun()) return { ok: true, dryRun: true, platform: 'generic' };
   return _safeFetch(url, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
@@ -237,23 +272,30 @@ async function publish(intent) {
 async function broadcast(intent) {
   const platforms = Array.isArray(intent && intent.platforms) ? intent.platforms : Object.keys(ADAPTERS);
   const results = await Promise.all(platforms.map((p) => publish({ ...intent, platform: p })));
-  return { ok: true, dryRun: DRYRUN, count: results.length, results: platforms.map((p, i) => ({ platform: p, ...results[i] })) };
+  return { ok: true, dryRun: _isDryRun(), count: results.length, results: platforms.map((p, i) => ({ platform: p, ...results[i] })) };
 }
 
 function status() {
+  const tg = _telegramCreds();
   return {
     disabled: DISABLED,
-    dryRun: DRYRUN,
+    dryRun: _isDryRun(),
     rateLimitPerMin: RATE_LIMIT_PER_MIN,
     adapters: Object.keys(ADAPTERS),
     enabledAdapters: Object.keys(ADAPTERS).filter((k) => _adapterReady(k)),
+    telegramEnv: {
+      hasCredentials: tg.has,
+      envSource: tg.has
+        ? (process.env.TELEGRAM_BOT_TOKEN ? 'TELEGRAM_BOT_TOKEN' : 'TG_BOT_TOKEN (legacy)')
+        : null,
+    },
     breakers: Array.from(_breakers.entries()).map(([p, b]) => ({ platform: p, ...b })),
   };
 }
 
 function _adapterReady(k) {
   switch (k) {
-    case 'telegram': return !!(process.env.TG_BOT_TOKEN && process.env.TG_CHAT_ID);
+    case 'telegram': return _telegramCreds().has;
     case 'discord': return !!process.env.DISCORD_WEBHOOK_URL;
     case 'mastodon': return !!(process.env.MASTODON_INSTANCE && process.env.MASTODON_TOKEN);
     case 'bluesky': return !!(process.env.BLUESKY_HANDLE && process.env.BLUESKY_APP_PASSWORD);

@@ -1,3 +1,11 @@
+// =====================================================================
+// OWNERSHIP: Acest fișier este proprietatea exclusivă a lui Vladoi Ionut
+// Email: vladoi_ionut@yahoo.com
+// BTC Address: bc1q4f7e66z87mdfj56kz0dj5hvcnpmh0qh4wuv22e
+// Data: 2026-07-20T12:45:25.032Z
+// Orice copiere, modificare sau distribuție neautorizată este interzisă.
+// =====================================================================
+
 'use strict';
 
 /**
@@ -335,6 +343,51 @@ class SocialSurface {
       followers: u.followers || 0,
       following: u.following || 0,
       intent: u.intent || 'discover',
+      // Owner-set BTC address for tips. Only exposed when the user has
+      // explicitly published one — we do NOT publish the platform owner's
+      // wallet as a default here (that fallback is applied at tip-intent
+      // time, not on every profile view).
+      btcTipAddress: u.btcTipAddress || null,
+    };
+  }
+
+  // Update a user's tip-receiving BTC address. Called by the profile-edit
+  // endpoint. Validates the address is a plausible Bitcoin format (bech32 or
+  // legacy) and idempotently stores it on the profile — this is the address
+  // that new tips will target when the recipient is this user.
+  // RO: seteaza adresa BTC pentru primire tips pe profil.
+  setBtcTipAddress(userId, address) {
+    if (!userId) return { ok: false, error: 'auth_required' };
+    const u = this._user(userId);
+    if (!u) return { ok: false, error: 'user_not_found' };
+    const addr = String(address || '').trim();
+    if (!addr) { u.btcTipAddress = null; this._save(); return { ok: true, cleared: true }; }
+    if (!/^(bc1[0-9a-z]{20,90}|tb1[0-9a-z]{20,90}|[13][A-HJ-NP-Za-km-z1-9]{20,40})$/.test(addr)) {
+      return { ok: false, error: 'invalid_btc_address' };
+    }
+    u.btcTipAddress = addr;
+    this._save();
+    return { ok: true, profile: this._publicProfile(u) };
+  }
+
+  // Look up the effective BTC destination for a tip intent — the post
+  // author's own address if set, else the referenced creator's address, else
+  // null (the caller falls back to the platform owner's wallet). Never
+  // fabricates an address.
+  resolveTipBtcAddress({ postId, recipientId } = {}) {
+    let userId = recipientId || null;
+    if (!userId && postId) {
+      const post = this.state.posts.find((p) => p.id === postId);
+      if (post) userId = post.authorId;
+    }
+    if (!userId) return { ok: false, error: 'recipient_unknown' };
+    const u = this._user(userId);
+    if (!u) return { ok: false, error: 'user_not_found' };
+    return {
+      ok: true,
+      recipientId: userId,
+      btcTipAddress: u.btcTipAddress || null,
+      profile: this._publicProfile(u),
     };
   }
 
@@ -637,12 +690,15 @@ class SocialSurface {
     authorId, text, kind = 'text', platformCue = 'x', tags = [],
     bondBtc, splitShares, claimState, bandwidthOverride,
     quotedPostId, quoteText,
+    mediaUrl, mediaMime, mediaHash,
   } = {}) {
     if (!authorId) return { ok: false, error: 'auth_required' };
     this.ensureProfile(authorId);
     const body = String(text || '').trim().slice(0, 2000);
-    // A quote-repost may carry no body of its own; everything else needs text.
-    if (!body && !quotedPostId) return { ok: false, error: 'empty' };
+    // A quote-repost or a media-only post may carry no body of its own;
+    // everything else needs text.
+    const hasMedia = typeof mediaUrl === 'string' && /^\/media\/za\/[a-f0-9]{16,64}\.(png|jpg|jpeg|gif|webp)$/i.test(mediaUrl);
+    if (!body && !quotedPostId && !hasMedia) return { ok: false, error: 'empty' };
     const tagList = Array.isArray(tags) ? tags.slice(0, 8) : [];
     const bw = worldStandard.checkBandwidth(authorId, { text: body, tags: tagList });
     if (!bw.allowed && !bandwidthOverride) {
@@ -652,20 +708,32 @@ class SocialSurface {
     if (!worldStandard.isHumanFresh(authorId)) {
       return { ok: false, error: 'needs_human_challenge', invention: 'proof-of-human-light' };
     }
+    // A media-only post is auto-classified as `image` unless the caller
+    // explicitly chose a video/short/reel kind. Guarantees the media surface
+    // renders a real attachment instead of a gradient placeholder.
+    const effectiveKind = hasMedia && kind === 'text' ? 'image' : kind;
     const id = _id('p');
     const post = {
       id,
       authorId,
-      kind: ['text', 'image', 'video', 'short', 'reel', 'story'].includes(kind) ? kind : 'text',
+      kind: ['text', 'image', 'video', 'short', 'reel', 'story'].includes(effectiveKind) ? effectiveKind : 'text',
       platformCue,
       text: body,
-      media: kind === 'short' || kind === 'reel'
-        ? { type: 'video', aspect: '9:16', poster: 'gradient-mint', durationSec: 15, sound: 'Signal Pulse · original' }
-        : null,
+      media: hasMedia
+        ? {
+            type: /video|short|reel/.test(effectiveKind) ? 'video' : 'image',
+            url: mediaUrl,
+            mime: (typeof mediaMime === 'string' ? mediaMime : '').slice(0, 40) || null,
+            sha256: (typeof mediaHash === 'string' ? mediaHash : '').slice(0, 64) || null,
+            aspect: /video|short|reel/.test(effectiveKind) ? '9:16' : '4:5',
+          }
+        : (effectiveKind === 'short' || effectiveKind === 'reel'
+            ? { type: 'video', aspect: '9:16', poster: 'gradient-mint', durationSec: 15, sound: 'Signal Pulse · original' }
+            : null),
       tags: tagList,
       createdAt: _now(),
       stats: { likes: 0, comments: 0, shares: 0, saves: 0, views: 0 },
-      proofOfAuthorship: _hash({ id, text: body, authorId }),
+      proofOfAuthorship: _hash({ id, text: body, authorId, mediaHash }),
       truthAnchor: _hash({ claim: body.slice(0, 80), id }).slice(0, 16),
       royaltyHintBtc: 0,
       viralReanchorAt: null,

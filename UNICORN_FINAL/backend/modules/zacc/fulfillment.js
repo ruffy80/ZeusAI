@@ -20,6 +20,7 @@ const fs = require('fs');
 const path = require('path');
 const { now, shortId, logger } = require('./util');
 const notify = require('./notify');
+const cjApi = require('./cj-api');
 
 const log = logger('fulfillment');
 
@@ -114,8 +115,49 @@ class FulfillmentRouter {
       });
       const data = await r.json().catch(() => ({}));
       if (!r.ok || data.result === false) return { ok: false, reason: 'cj_error', details: data };
-      return { ok: true, provider: 'cj-dropshipping', externalId: (data.data && data.data.orderId) || null };
+      const cjOrderId = (data.data && (data.data.orderId || data.data.cjOrderId)) || null;
+      return {
+        ok: true,
+        provider: 'cj-dropshipping',
+        externalId: cjOrderId,
+        cjOrderId,
+      };
     } catch (e) { return { ok: false, reason: 'cj_exception', message: e.message }; }
+  }
+
+  // Poll CJ for shipping tracking of every routed CJ order. Returns a summary
+  // and applies each result to the caller-provided orderStore (so the buyer
+  // passport sees fresh events). Fail-honest — never throws.
+  async pollCjTracking(orderStore) {
+    if (!cjApi.isConfigured()) return { ok: true, polled: 0, reason: 'cj_not_configured' };
+    let polled = 0; let updated = 0;
+    const results = [];
+    for (const order of this.orders.slice(0, 100)) {
+      const r = order && order.result;
+      if (!r || r.provider !== 'cj-dropshipping' || !r.cjOrderId) continue;
+      polled += 1;
+      const detail = await cjApi.queryOrderDetail(r.cjOrderId);
+      let tracking = null;
+      if (detail && detail.ok && detail.trackNumber) {
+        tracking = await cjApi.queryTracking(detail.trackNumber);
+        if (tracking && tracking.ok) {
+          tracking.carrier = tracking.carrier || detail.carrier || null;
+        }
+      }
+      if (tracking && tracking.ok && orderStore && order.orderToken) {
+        orderStore.attachTracking(order.orderToken, tracking);
+        updated += 1;
+      }
+      results.push({
+        orderId: order.id,
+        orderToken: order.orderToken,
+        cjOrderId: r.cjOrderId,
+        status: detail && detail.ok ? detail.status : null,
+        trackNumber: detail && detail.ok ? detail.trackNumber : null,
+        events: tracking && tracking.ok ? tracking.events.length : 0,
+      });
+    }
+    return { ok: true, polled, updated, results };
   }
 
   async _viaWebhook(order) {

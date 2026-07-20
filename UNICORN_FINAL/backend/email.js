@@ -229,9 +229,25 @@ function getSmtpConfig() {
   };
 }
 
-function isConfigured() {
+function smtpIsConfigured() {
   const cfg = getSmtpConfig();
   return Boolean(cfg.host && cfg.user && cfg.pass);
+}
+
+// Lazy-loaded HTTPS transactional provider bridge (Resend / Brevo / Sendinblue /
+// MailerSend). Kept optional so backend/email.js still works if the file is
+// missing (e.g. bootstrap or partial checkout). Return values follow the
+// { ok, provider, reason, error } contract exported by src/commerce/transactional-email.
+function _httpsMailer() {
+  try { return require('../src/commerce/transactional-email'); }
+  catch (_) { return null; }
+}
+function httpsIsConfigured() {
+  const m = _httpsMailer();
+  return !!(m && typeof m.configuredProviders === 'function' && m.configuredProviders().length > 0);
+}
+function isConfigured() {
+  return httpsIsConfigured() || smtpIsConfigured();
 }
 
 let _transporter = null;
@@ -273,33 +289,61 @@ function _persistOutbox(entry) {
 
 async function sendMail({ to, subject, html, text }) {
   const startedAt = Date.now();
-  if (!isConfigured()) {
-    const queued = _persistOutbox({
-      at: new Date().toISOString(),
-      to, subject, html, text,
-      reason: 'smtp_not_configured',
-    });
-    console.log(`[email] queued -> outbox to=${to} subject="${subject}" persisted=${queued}`);
-    return { queued: true, persisted: queued, outbox: OUTBOX_FILE };
+
+  // 1. Prefer HTTPS transactional providers (Resend/Brevo/Sendinblue/MailerSend).
+  //    On Hetzner outbound SMTP is frequently firewalled; HTTPS providers work
+  //    out of the box with just an API key and land in the recipient inbox.
+  //    We route through the shared src/commerce/transactional-email.js so that
+  //    provider order, retries and headers stay consistent site-wide.
+  if (httpsIsConfigured()) {
+    const m = _httpsMailer();
+    try {
+      const r = await m.sendRaw({ to, subject, text, html });
+      if (r && r.ok) {
+        console.log(`[email] sent via ${r.provider} to=${to} messageId=${r.messageId || 'n/a'} latencyMs=${Date.now() - startedAt}`);
+        return { ok: true, provider: r.provider, messageId: r.messageId || null, latencyMs: Date.now() - startedAt };
+      }
+      // HTTPS provider present but the send failed — fall through to SMTP if
+      // configured, otherwise persist to outbox with the underlying error.
+      console.warn(`[email] https provider send failed to=${to} err=${(r && r.error) || 'unknown'}`);
+    } catch (e) {
+      console.warn(`[email] https provider threw to=${to} err=${e && e.message}`);
+    }
   }
-  const cfg = getSmtpConfig();
-  try {
-    const info = await getTransporter().sendMail({
-      from: `"${cfg.fromName}" <${cfg.fromEmail}>`,
-      to, subject, html, text,
-    });
-    console.log(`[email] sent to=${to} messageId=${info.messageId} latencyMs=${Date.now() - startedAt}`);
-    return info;
-  } catch (err) {
-    _persistOutbox({
-      at: new Date().toISOString(),
-      to, subject, html, text,
-      reason: 'smtp_send_failed',
-      error: err && err.message,
-    });
-    console.error(`[email] send failed -> queued to=${to} err=${err && err.message}`);
-    throw err;
+
+  // 2. Fallback: SMTP via nodemailer (traditional path).
+  if (smtpIsConfigured()) {
+    const cfg = getSmtpConfig();
+    try {
+      const info = await getTransporter().sendMail({
+        from: `"${cfg.fromName}" <${cfg.fromEmail}>`,
+        to, subject, html, text,
+      });
+      console.log(`[email] sent via smtp to=${to} messageId=${info.messageId} latencyMs=${Date.now() - startedAt}`);
+      return info;
+    } catch (err) {
+      _persistOutbox({
+        at: new Date().toISOString(),
+        to, subject, html, text,
+        reason: 'smtp_send_failed',
+        error: err && err.message,
+      });
+      console.error(`[email] smtp send failed -> queued to=${to} err=${err && err.message}`);
+      throw err;
+    }
   }
+
+  // 3. No transport configured — persist to outbox and return a fail-honest
+  //    result. We keep `queued:true` so the smtp-replay job can still ship
+  //    it later, but ok:false + reason surface the current state to callers
+  //    that actually check the return value.
+  const queued = _persistOutbox({
+    at: new Date().toISOString(),
+    to, subject, html, text,
+    reason: 'email_unconfigured',
+  });
+  console.log(`[email] queued -> outbox to=${to} subject="${subject}" persisted=${queued}`);
+  return { ok: false, queued: true, persisted: queued, outbox: OUTBOX_FILE, reason: 'email_unconfigured' };
 }
 
 async function sendVerificationEmail(user, token) {

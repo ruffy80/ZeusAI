@@ -512,8 +512,23 @@ function navBar(route, opts) {
   <span class="nav-toggle-bar"></span><span class="nav-toggle-bar"></span><span class="nav-toggle-bar"></span>
 </button>
 <div class="nav-links" id="nav-links">
-${L('/', 'Home')}<a class="nav-link nav-link-zacc" href="/zacc" data-link aria-label="Zeus Dropship OS autonomy cockpit">🛒 Dropship OS <span style="display:inline-block;margin-left:6px;padding:1px 7px;font-size:10px;font-weight:700;letter-spacing:.08em;border-radius:999px;background:linear-gradient(135deg,#8a5cff,#3ea0ff);color:#05060e;vertical-align:middle">LIVE</span></a>${L('/services', 'Marketplace')}${L('/wizard', 'Find my plan')}${L('/store', 'Store')}${L('/crypto-fiat-bridge', 'Crypto Bridge')}${L('/enterprise', 'Enterprise')}${L('/pricing', 'Pricing')}${L('/innovations', 'Innovations')}${L('/frontier', 'Frontier')}${L('/docs', 'API')}${L('/status', 'Status')}
-${L('/social-network', 'ZeusAI Social')}
+${L('/', 'Home')}${L('/services', 'Marketplace')}<a class="nav-link nav-link-zacc" href="/zacc" data-link aria-label="Zeus Dropship OS autonomy cockpit">🛒 Dropship <span style="display:inline-block;margin-left:6px;padding:1px 7px;font-size:10px;font-weight:700;letter-spacing:.08em;border-radius:999px;background:linear-gradient(135deg,#8a5cff,#3ea0ff);color:#05060e;vertical-align:middle">LIVE</span></a>${L('/pricing', 'Pricing')}${L('/account', 'Account')}
+<div class="nav-more" data-nav-more>
+  <button type="button" class="nav-more-btn" aria-haspopup="menu" aria-expanded="false" aria-controls="nav-more-menu" data-nav-more-btn>More <span aria-hidden="true" style="display:inline-block;margin-left:4px">▾</span></button>
+  <div class="nav-more-menu" id="nav-more-menu" role="menu" data-nav-more-menu hidden>
+    ${L('/social-network', 'ZeusAI Social')}
+    ${L('/frontier', 'Frontier')}
+    ${L('/innovations', 'Innovations')}
+    ${L('/agents', 'Agents')}
+    ${L('/wizard', 'Find my plan')}
+    ${L('/store', 'Store')}
+    ${L('/crypto-fiat-bridge', 'Crypto Bridge')}
+    ${L('/enterprise', 'Enterprise')}
+    ${L('/docs', 'API &amp; Docs')}
+    ${L('/status', 'Status')}
+    ${L('/trust', 'Trust Center')}
+  </div>
+</div>
 </div>
 <div class="nav-cta">
 ${langToggle}
@@ -864,6 +879,35 @@ function globalChrome(N) {
       });
       // Close on Esc
       document.addEventListener('keydown', function(e){ if (e.key === 'Escape') setOpen(false); });
+    }
+  } catch(_){ }
+  // Nav "More" overflow menu (Social / Frontier / Innovations / Docs / Trust)
+  // Opens on click, closes on outside click / Escape / route change. Reuses
+  // the mobile hamburger's overlay pattern.
+  try {
+    var moreEl = document.querySelector('[data-nav-more]');
+    if (moreEl) {
+      var moreBtn = moreEl.querySelector('[data-nav-more-btn]');
+      var moreMenu = moreEl.querySelector('[data-nav-more-menu]');
+      var setMore = function(open){
+        moreEl.setAttribute('data-open', open ? 'true' : 'false');
+        if (moreBtn) moreBtn.setAttribute('aria-expanded', open ? 'true' : 'false');
+        if (moreMenu){
+          if (open) moreMenu.removeAttribute('hidden');
+          else moreMenu.setAttribute('hidden', '');
+        }
+      };
+      if (moreBtn) moreBtn.addEventListener('click', function(e){
+        e.stopPropagation();
+        setMore(moreEl.getAttribute('data-open') !== 'true');
+      });
+      document.addEventListener('click', function(e){
+        if (!moreEl.contains(e.target)) setMore(false);
+      });
+      document.addEventListener('keydown', function(e){ if (e.key === 'Escape') setMore(false); });
+      if (moreMenu) moreMenu.addEventListener('click', function(e){
+        if (e.target && e.target.tagName === 'A') setMore(false);
+      });
     }
   } catch(_){ }
   // Cookie banner
@@ -1278,8 +1322,129 @@ function pageServices() {
 }
 
 function pageService(id) {
-  return `<section style="padding-top:140px" id="servicePage" data-id="${id}">
-  <div id="serviceMain"><div class="card"><p>Loading service ${id}…</p></div></div>
+  // SSR the full product card on the first paint (no "Loading…" stub).
+  // We look up the service in the unified catalog / serviceMarketplace with
+  // live-priced enrichment already baked in by _loadCatalog(). If the id is
+  // not in the catalog (e.g. one of the many marketplace-only modules), we
+  // still SSR a real card sourced from the module registry so the URL is
+  // never a dead placeholder. The v2 client-side hydration (hydratePage in
+  // client.js) still runs on top and refreshes the price / narrative UI.
+  //
+  // RO: prima pictura contine deja detaliile produsului — fara "Loading…".
+  const safeId = String(id || '').replace(/[^a-zA-Z0-9_.:-]/g, '').slice(0, 120);
+  if (!safeId) return `<section style="padding-top:140px"><div class="card"><p>Missing service id.</p><a class="btn" href="/services" data-link>Back to marketplace</a></div></section>`;
+
+  let s = null;
+  try {
+    const catalog = _loadCatalog() || [];
+    s = catalog.find((p) => String(p.id) === safeId) || null;
+  } catch (_) { s = null; }
+  if (!s) {
+    // Fallback: pull straight from the module registry if the id isn't
+    // in the canonical unified catalog. Keeps every module URL alive.
+    try {
+      const marketplace = require('../../../backend/modules/serviceMarketplace');
+      if (marketplace && typeof marketplace.getService === 'function') {
+        const m = marketplace.getService(safeId);
+        if (m) {
+          s = {
+            id: String(m.id || safeId),
+            title: String(m.name || safeId),
+            description: String(m.description || ''),
+            priceUSD: Number(m.price || m.basePrice || 0),
+            category: String(m.category || 'core'),
+            tier: 'professional',
+          };
+        }
+      }
+    } catch (_) { /* module not loadable in split-process mode */ }
+  }
+
+  if (!s) {
+    return `<section style="padding-top:140px" id="servicePage" data-id="${_esc(safeId)}">
+  <div id="serviceMain"><div class="card" style="max-width:640px;margin:24px auto"><h1 style="margin:0 0 10px">Service not found</h1><p style="color:var(--ink-dim)">The id <code>${_esc(safeId)}</code> is not in the live catalog. Browse the marketplace to find a matching product.</p><a class="btn btn-primary" href="/services" data-link style="margin-top:14px">← All services</a></div></div>
+</section>`;
+  }
+
+  const title = String(s.title || s.name || s.id);
+  const desc = String(s.description || 'Core ZeusAI service delivering measurable, signed outcomes across the platform.');
+  const price = Number(s.priceUSD != null ? s.priceUSD : (s.priceUsd != null ? s.priceUsd : (s.price != null ? s.price : 0))) || 0;
+  const hasFrac = Math.abs(price - Math.round(price)) > 0.0049;
+  const priceTxt = price > 0
+    ? ('$' + price.toLocaleString('en-US', { minimumFractionDigits: hasFrac ? 2 : 0, maximumFractionDigits: 2 }))
+    : 'Custom';
+  const priceBtcNum = Number(s.priceBtc || 0) || _toBtc(price);
+  const btcTxt = priceBtcNum > 0 ? ('≈ ' + priceBtcNum.toFixed(8) + ' BTC') : '';
+  const liveBadge = s.livePriceSource && s.livePriceSource !== 'static-fallback'
+    ? `<span class="tag" title="Live AI-negotiated price · source=${_esc(s.livePriceSource)}" style="background:rgba(127,255,212,.12);color:#7fffd4;border:1px solid rgba(127,255,212,.35);font-size:10px;margin-left:6px">⚡ live</span>`
+    : '';
+  const tierBadge = _tierBadge(s.tier || 'professional');
+  const category = _esc(s.category || s.segment || 'core');
+  const encId = encodeURIComponent(safeId);
+  const canonical = OWNER.domain.replace(/\/$/, '') + '/services/' + encId;
+
+  // JSON-LD Product markup so the URL is a real, indexable product page —
+  // not a client-hydrated shell.
+  const jsonLd = {
+    '@context': 'https://schema.org',
+    '@type': 'Product',
+    name: title,
+    description: desc.slice(0, 400),
+    url: canonical,
+    brand: { '@type': 'Brand', name: 'ZeusAI' },
+    offers: {
+      '@type': 'Offer',
+      priceCurrency: 'USD',
+      price: price > 0 ? price.toFixed(2) : undefined,
+      availability: 'https://schema.org/InStock',
+      url: OWNER.domain.replace(/\/$/, '') + '/checkout/?plan=' + encId,
+    },
+  };
+
+  return `<section style="padding-top:140px" id="servicePage" data-id="${_esc(safeId)}">
+<script type="application/ld+json">${JSON.stringify(jsonLd)}</script>
+<div id="serviceMain">
+  <div style="display:grid;grid-template-columns:1.3fr 1fr;gap:28px" class="svc-grid-ssr">
+    <div class="svc-cine-card" data-tilt itemscope itemtype="https://schema.org/Product">
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+        ${tierBadge}<span class="kicker">${category}</span>${liveBadge}
+      </div>
+      <h1 style="font-size:clamp(34px,4vw,52px);margin:10px 0 20px;line-height:1.05" itemprop="name">${_esc(title)}</h1>
+      <p style="color:var(--ink-dim);font-size:17px;line-height:1.7" itemprop="description">${_esc(desc)}</p>
+      <div class="svc-storyline" id="svcStoryline">
+        <div class="svc-step"><span>Phase 01</span><b>Signal capture</b><p>Collects live intent and context from your workflow.</p></div>
+        <div class="svc-step"><span>Phase 02</span><b>Model orchestration</b><p>Routes workload through best-fit adapters and guardrails.</p></div>
+        <div class="svc-step"><span>Phase 03</span><b>Proof + settlement</b><p>Signs outputs and links monetization to verifiable outcomes.</p></div>
+      </div>
+      <div class="svc-unlock" id="svcUnlock">
+        <div class="svc-unlock-top"><b>Checkout unlock sequence</b><span id="svcStoryPct">ready</span></div>
+        <div class="svc-unlock-bar"><i id="svcStoryBar" style="width:100%"></i></div>
+        <div class="pl-actions" style="margin-top:10px">
+          <button class="pl-btn" id="svcStoryRun">Continue to BTC checkout →</button>
+        </div>
+        <div class="pl-output" id="svcStoryOut">Real path: BTC checkout → on-chain confirm → activation pack at /api/delivery/{orderId}. No simulated unlock.</div>
+      </div>
+      <div class="panels" style="margin-top:20px">
+        <div class="panel"><div class="ic">✓</div><h4>Signed outcomes</h4><p>Every run produces an Ed25519‑signed proof in the Value‑Proof Ledger.</p></div>
+        <div class="panel"><div class="ic">🔌</div><h4>API first</h4><p>REST + SSE. Integrates with all 42 giant connectors through the Integration Fabric.</p></div>
+        <div class="panel"><div class="ic">💎</div><h4>Outcome pricing</h4><p>Enterprise plans bill a share of measured value delivered.</p></div>
+      </div>
+    </div>
+    <aside class="co-box" itemprop="offers" itemscope itemtype="https://schema.org/Offer">
+      <meta itemprop="priceCurrency" content="USD"/>
+      <span class="kicker">Pricing</span>
+      <h3 style="margin:6px 0 10px">${_esc(title)}</h3>
+      <div class="price" id="svcLivePrice" data-pricing-value="${_esc(safeId)}" style="font-size:42px;font-weight:700;background:linear-gradient(120deg,#fff,var(--violet2));-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent">
+        <span itemprop="price" content="${price > 0 ? price.toFixed(2) : ''}">${priceTxt}</span><small style="font-size:14px;color:var(--ink-dim);-webkit-text-fill-color:var(--ink-dim)">/mo</small>
+      </div>
+      <div id="svcLiveBtc" style="font-size:12px;color:var(--ink-dim);margin-top:4px">${btcTxt}</div>
+      <p style="color:var(--ink-dim);font-size:13.5px">Activate instantly. Cancel anytime. Signed receipt on every invoice.</p>
+      <button type="button" class="btn btn-primary" id="svcBuyBtn" data-sovereign-buy="${_esc(safeId)}" style="width:100%;justify-content:center;margin-top:10px">₿ Buy now → BTC checkout</button>
+      <a class="btn" href="/services" data-link style="width:100%;justify-content:center;margin-top:8px">← All services</a>
+      <link itemprop="availability" href="https://schema.org/InStock"/>
+    </aside>
+  </div>
+</div>
 </section>`;
 }
 
@@ -3080,9 +3245,11 @@ function renderRoute(route, params = {}) {
     case '/roadmap': return pageRoadmap();
     case '/careers': return pageCareers();
     case '/press': return pagePress();
+    case '/agents': return pageAgents();
     case '/__not-found__': return pageNotFound(params.missingPath || route);
     default:
       if (route.startsWith('/services/')) return pageService(params.id || route.slice(10));
+      if (route.startsWith('/order/')) return pageOrderPassport(params.id || route.slice(7));
       return pageNotFound(route);
   }
 }
@@ -4742,6 +4909,202 @@ function pagePress() {
 </section>`;
 }
 
+// /agents — human-readable Agent Commerce Protocol page.
+//
+// Read the canonical /agents.json manifest live and pretty-print the
+// endpoints an AI agent can talk to (catalog, quote, order, receipt).
+// This gives non-human buyers a direct on-ramp to ZeusAI commerce without
+// scraping the marketing pages, and gives humans a peek at the interface.
+// RO: pagina care documenteaza cum agentii AI pot cumpara de la ZeusAI.
+function pageAgents() {
+  let manifest = null;
+  try {
+    const fs = require('fs');
+    const path = require('path');
+    const candidates = [
+      path.join(__dirname, '..', '..', '..', 'agents.json'),
+      path.join(__dirname, '..', '..', '..', 'public', 'agents.json'),
+      path.join(__dirname, '..', '..', '..', 'backend', 'agents.json'),
+    ];
+    for (const c of candidates) {
+      try {
+        if (fs.existsSync(c)) { manifest = JSON.parse(fs.readFileSync(c, 'utf8')); break; }
+      } catch (_) { /* try next */ }
+    }
+  } catch (_) { /* fs unavailable */ }
+
+  const endpoints = (manifest && Array.isArray(manifest.endpoints))
+    ? manifest.endpoints
+    : [
+        { method: 'GET',  path: '/agents.json',           purpose: 'Discovery manifest — capabilities, pricing lanes, contact.' },
+        { method: 'GET',  path: '/api/catalog',           purpose: 'Machine-readable product catalog with USD + BTC prices.' },
+        { method: 'GET',  path: '/api/payment/btc-rate',  purpose: 'Live USD ↔ BTC spot for quote validation.' },
+        { method: 'POST', path: '/api/agent/quote',       purpose: 'Ask for a signed quote (agent-negotiated pricing).' },
+        { method: 'POST', path: '/api/agent/order',       purpose: 'Place an order with a signed intent + email.' },
+        { method: 'POST', path: '/api/checkout/create',   purpose: 'Human-shaped checkout endpoint that agents can also drive.' },
+        { method: 'GET',  path: '/api/order/:id/status',  purpose: 'Poll order status: awaiting_payment → paid → activated.' },
+        { method: 'GET',  path: '/api/delivery/:orderId', purpose: 'Fetch the signed delivery pack after settlement.' },
+      ];
+
+  const endpointRows = endpoints.map((e) => {
+    const m = _esc(String(e.method || 'GET').toUpperCase().slice(0, 8));
+    const p = _esc(String(e.path || '/'));
+    const d = _esc(String(e.purpose || e.description || ''));
+    return `<tr><td style="padding:10px 12px;font-family:var(--mono);font-size:12.5px;color:#7fffd4">${m}</td><td style="padding:10px 12px;font-family:var(--mono);font-size:13px">${p}</td><td style="padding:10px 12px;color:var(--ink-dim);font-size:14px">${d}</td></tr>`;
+  }).join('');
+
+  const ownerBtc = _esc(OWNER.btc);
+  const manifestJson = manifest ? JSON.stringify(manifest, null, 2) : null;
+
+  return `<section style="padding-top:140px;max-width:1040px">
+  <span class="kicker">Agent Commerce Protocol · ZeusAI</span>
+  <h1 style="font-size:clamp(34px,4.4vw,56px);margin:10px 0 18px">Machines can buy here <span class="grad">without asking a human.</span></h1>
+  <p style="color:var(--ink-dim);max-width:720px;font-size:16px;line-height:1.7">ZeusAI ships an <strong style="color:var(--ink)">agent-first commerce surface</strong>: a discoverable manifest, a signed quote endpoint, a BTC-native checkout and cryptographic delivery receipts. AI agents can transact end-to-end with zero human-in-the-loop. The same endpoints work for humans, so nothing is hidden.</p>
+  <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:12px;margin:26px 0">
+    <div class="card" style="padding:20px"><span class="tag">1 · Discover</span><h3 style="margin:10px 0 6px;font-size:17px">GET <code>/agents.json</code></h3><p style="color:var(--ink-dim);font-size:13.5px;line-height:1.6">The manifest lists capabilities, pricing lanes, receipt schema, and the owner's BTC endpoint. Standard <em>well-known</em>-style discovery.</p></div>
+    <div class="card" style="padding:20px"><span class="tag">2 · Quote &amp; buy</span><h3 style="margin:10px 0 6px;font-size:17px">POST <code>/api/agent/order</code></h3><p style="color:var(--ink-dim);font-size:13.5px;line-height:1.6">Send a JSON body { serviceId, qty, email } and receive a signed order intent + a BTC pay-to address. Every step is reproducible.</p></div>
+    <div class="card" style="padding:20px"><span class="tag">3 · Settle &amp; verify</span><h3 style="margin:10px 0 6px;font-size:17px">GET <code>/api/order/:id/status</code></h3><p style="color:var(--ink-dim);font-size:13.5px;line-height:1.6">Poll until <code>status=paid</code>. Delivery pack (Ed25519-signed) becomes available at <code>/api/delivery/:orderId</code>. No opaque webhooks.</p></div>
+  </div>
+  <div class="card" style="padding:0;overflow:auto;margin:20px 0">
+    <table style="width:100%;border-collapse:collapse">
+      <thead><tr style="background:rgba(138,92,255,.08)"><th style="text-align:left;padding:12px 12px;font-size:12px;color:var(--ink-dim);text-transform:uppercase;letter-spacing:.06em">Method</th><th style="text-align:left;padding:12px 12px;font-size:12px;color:var(--ink-dim);text-transform:uppercase;letter-spacing:.06em">Endpoint</th><th style="text-align:left;padding:12px 12px;font-size:12px;color:var(--ink-dim);text-transform:uppercase;letter-spacing:.06em">Purpose</th></tr></thead>
+      <tbody>${endpointRows}</tbody>
+    </table>
+  </div>
+  <div class="card" style="padding:22px;margin:20px 0">
+    <span class="tag">Owner BTC endpoint</span>
+    <p style="color:var(--ink-dim);font-size:14px;line-height:1.7;margin:10px 0 6px">All settled orders route directly to the owner's Bitcoin wallet. No custodial layer, no re-routing.</p>
+    <div class="btc-addr" data-copy="${ownerBtc}" title="Click to copy">${ownerBtc}</div>
+  </div>
+  <div class="card" style="padding:22px;margin:20px 0">
+    <span class="tag">Live manifest</span>
+    <h3 style="margin:10px 0 6px;font-size:18px">GET <a href="/agents.json"><code>/agents.json</code></a></h3>
+    ${manifestJson
+      ? `<p style="color:var(--ink-dim);font-size:13px;margin:6px 0 10px">Rendered from the on-disk manifest — this is exactly what agents see.</p><pre style="background:#0b0f17;border:1px solid var(--stroke);border-radius:10px;padding:14px;overflow:auto;max-height:360px;font-family:var(--mono);font-size:12.5px;line-height:1.55;color:#c8d3e6">${_esc(manifestJson)}</pre>`
+      : `<p style="color:var(--ink-dim);font-size:13.5px;margin:10px 0 0">The live manifest is served at <a href="/agents.json"><code>/agents.json</code></a>. Click the link to fetch the current JSON.</p>`}
+  </div>
+  <p style="color:var(--ink-dim);font-size:13.5px;margin-top:22px">Signed receipts, cryptographic refund guarantee (<a href="/refund" data-link>/refund</a>) and the same terms apply as for human buyers. Agents are first-class citizens.</p>
+</section>`;
+}
+
+// /order/:id — digital-order passport. Similar spirit to the dropship
+// passport page but for digital goods: receipt, delivery link, verify entitlement.
+// The first paint shows the order id + a live loading card; the client-side
+// hydration polls /api/order/:id/status and refreshes the timeline until
+// settlement (paid → activated). Never fakes a "paid" state.
+// RO: pasaport digital pentru comenzi — receipt + livrare + verificare.
+function pageOrderPassport(id) {
+  const safeId = String(id || '').replace(/[^A-Za-z0-9_\-:]/g, '').slice(0, 120);
+  if (!safeId) {
+    return `<section style="padding-top:140px;max-width:720px"><div class="card"><h1 style="margin:0 0 10px">Missing order id</h1><p style="color:var(--ink-dim)">Return to <a href="/account" data-link>your account</a> to find your recent orders.</p></div></section>`;
+  }
+  return `<section style="padding-top:140px;max-width:920px" id="orderPassport" data-order-id="${_esc(safeId)}">
+  <span class="kicker">Digital Order · Passport</span>
+  <h1 style="font-size:clamp(30px,3.6vw,44px);margin:10px 0 8px">Order <code style="font-family:var(--mono);font-size:.85em">${_esc(safeId)}</code></h1>
+  <p style="color:var(--ink-dim);max-width:640px">Every ZeusAI digital order gets a signed passport: settlement proof, delivery credentials, entitlement verification. Nothing is marked as delivered before on-chain confirmation.</p>
+  <div class="grid" style="grid-template-columns:1.2fr 1fr;gap:20px;margin-top:26px" class="op-grid-ssr">
+    <div class="card" style="padding:22px">
+      <span class="tag" id="opStateTag" style="background:rgba(138,92,255,.14)">Loading…</span>
+      <h3 style="margin:14px 0 6px;font-size:18px" id="opTitle">Fetching order status</h3>
+      <p style="color:var(--ink-dim);font-size:14px" id="opSummary">Reading the live receipt ledger…</p>
+      <ol class="op-timeline" id="opTimeline" style="margin:22px 0 0;padding:0;list-style:none;display:flex;flex-direction:column;gap:12px">
+        <li data-op-step="created" data-active="1" style="display:flex;gap:12px;align-items:flex-start"><span class="op-dot" style="width:14px;height:14px;border-radius:50%;background:var(--violet2);flex:none;margin-top:4px"></span><div><b style="display:block">Order created</b><span style="color:var(--ink-dim);font-size:13px" id="opCreatedAt">—</span></div></li>
+        <li data-op-step="pending" style="display:flex;gap:12px;align-items:flex-start"><span class="op-dot" style="width:14px;height:14px;border-radius:50%;background:rgba(138,92,255,.25);flex:none;margin-top:4px"></span><div><b style="display:block">Awaiting BTC payment</b><span style="color:var(--ink-dim);font-size:13px" id="opPaymentHint">Send exact amount to the address on the right.</span></div></li>
+        <li data-op-step="paid" style="display:flex;gap:12px;align-items:flex-start"><span class="op-dot" style="width:14px;height:14px;border-radius:50%;background:rgba(138,92,255,.25);flex:none;margin-top:4px"></span><div><b style="display:block">Payment confirmed on-chain</b><span style="color:var(--ink-dim);font-size:13px" id="opPaidAt">—</span></div></li>
+        <li data-op-step="activated" style="display:flex;gap:12px;align-items:flex-start"><span class="op-dot" style="width:14px;height:14px;border-radius:50%;background:rgba(138,92,255,.25);flex:none;margin-top:4px"></span><div><b style="display:block">Delivery pack issued</b><span style="color:var(--ink-dim);font-size:13px" id="opDeliveredAt">—</span></div></li>
+      </ol>
+    </div>
+    <aside class="co-box" style="padding:22px">
+      <span class="kicker">Payment</span>
+      <h3 style="margin:6px 0 10px;font-size:18px">₿ Bitcoin</h3>
+      <p style="color:var(--ink-dim);font-size:13px;margin:0 0 10px">Send the exact BTC amount below to activate. Payment is verified against mempool.space; nothing is marked paid without an on-chain confirmation.</p>
+      <div id="opBtcAmount" style="font-family:var(--mono);font-size:18px;color:var(--gold);margin-bottom:8px">—</div>
+      <div class="btc-addr" id="opBtcAddr" data-copy="${_esc(OWNER.btc)}" title="Click to copy">${_esc(OWNER.btc)}</div>
+      <a class="btn btn-primary" id="opBtcWallet" href="#" style="margin-top:12px;width:100%;justify-content:center">Open in BTC wallet</a>
+      <p style="color:var(--ink-dim);font-size:12px;margin:12px 0 0">Owner: ${_esc(OWNER.name)}</p>
+    </aside>
+  </div>
+  <div class="card" style="padding:22px;margin-top:18px" id="opDeliveryCard" hidden>
+    <span class="tag" style="background:rgba(127,255,212,.14);color:#7fffd4">Delivery</span>
+    <h3 style="margin:12px 0 6px">Your entitlement is live</h3>
+    <p style="color:var(--ink-dim);font-size:14px">The signed delivery pack is ready. Verify the signature against the public key at <a href="/api/v1/crypto/public-keys"><code>/api/v1/crypto/public-keys</code></a>.</p>
+    <div id="opDeliveryLinks" style="margin-top:10px;display:flex;gap:10px;flex-wrap:wrap"></div>
+  </div>
+  <p style="color:var(--ink-dim);font-size:12.5px;margin-top:18px">Passport is bookmarkable. Refresh anytime — the status is fetched live.</p>
+  <script>
+  (function(){
+    var ORDER_ID = ${JSON.stringify(safeId)};
+    var stateTag = document.getElementById('opStateTag');
+    var title = document.getElementById('opTitle');
+    var summary = document.getElementById('opSummary');
+    var btcAmount = document.getElementById('opBtcAmount');
+    var btcAddr = document.getElementById('opBtcAddr');
+    var btcWallet = document.getElementById('opBtcWallet');
+    var createdAtEl = document.getElementById('opCreatedAt');
+    var paidAtEl = document.getElementById('opPaidAt');
+    var deliveredAtEl = document.getElementById('opDeliveredAt');
+    var deliveryCard = document.getElementById('opDeliveryCard');
+    var deliveryLinks = document.getElementById('opDeliveryLinks');
+    function markStep(step, active){
+      var li = document.querySelector('[data-op-step="'+step+'"]');
+      if (!li) return;
+      li.setAttribute('data-active', active ? '1' : '0');
+      var dot = li.querySelector('.op-dot');
+      if (dot) dot.style.background = active ? 'var(--violet2)' : 'rgba(138,92,255,.25)';
+    }
+    function fmt(ts){ try { return new Date(ts).toLocaleString(); } catch(_) { return String(ts||'—'); } }
+    async function tick(){
+      try {
+        var r = await fetch('/api/order/'+encodeURIComponent(ORDER_ID)+'/status', {cache:'no-store'});
+        var j = r && r.ok ? await r.json() : null;
+        if (!j) {
+          var r2 = await fetch('/api/uaic/receipt/'+encodeURIComponent(ORDER_ID), {cache:'no-store'});
+          j = r2 && r2.ok ? await r2.json() : null;
+        }
+        if (!j || j.ok === false) {
+          if (stateTag) { stateTag.textContent = 'Not found'; stateTag.style.background = 'rgba(255,107,107,.14)'; stateTag.style.color = '#ff6b6b'; }
+          if (title) title.textContent = 'Order not found';
+          if (summary) summary.textContent = 'This order id is not in the ledger yet. If you just paid, wait a minute and refresh.';
+          return;
+        }
+        var status = String(j.status || j.state || 'pending').toLowerCase();
+        if (stateTag) stateTag.textContent = status;
+        if (title) title.textContent = 'Status: ' + status.replace(/_/g, ' ');
+        if (summary) summary.textContent = j.summary || j.message || 'Live status refreshed every 8 seconds.';
+        if (createdAtEl) createdAtEl.textContent = j.createdAt ? fmt(j.createdAt) : '—';
+        var pi = j.paymentInstructions || j.payment || {};
+        var amt = pi.btcAmount || j.btcAmount || pi.amount || null;
+        var addr = pi.btcAddress || j.btcAddress || pi.address || ${JSON.stringify(OWNER.btc)};
+        var uri = pi.btcUri || j.btcUri || (addr && amt ? ('bitcoin:'+addr+'?amount='+amt) : null);
+        if (btcAmount) btcAmount.textContent = amt ? (amt + ' BTC') : '—';
+        if (btcAddr) { btcAddr.textContent = addr; btcAddr.dataset.copy = addr; }
+        if (btcWallet) {
+          if (uri) { btcWallet.href = uri; btcWallet.style.opacity='1'; btcWallet.style.pointerEvents='auto'; }
+          else { btcWallet.href = '#'; btcWallet.style.opacity='.5'; btcWallet.style.pointerEvents='none'; }
+        }
+        markStep('pending', ['pending','awaiting_payment','created','new'].includes(status));
+        if (['paid','confirmed','activated','delivered','completed'].includes(status)) {
+          markStep('paid', true);
+          if (paidAtEl) paidAtEl.textContent = j.paidAt ? fmt(j.paidAt) : (j.confirmedAt ? fmt(j.confirmedAt) : 'confirmed on-chain');
+        }
+        if (['activated','delivered','completed'].includes(status)) {
+          markStep('activated', true);
+          if (deliveredAtEl) deliveredAtEl.textContent = j.deliveredAt ? fmt(j.deliveredAt) : 'delivered';
+          if (deliveryCard) { deliveryCard.hidden = false; }
+          if (deliveryLinks) {
+            deliveryLinks.innerHTML = '<a class="btn btn-primary" href="/api/delivery/'+encodeURIComponent(ORDER_ID)+'">Download signed delivery pack</a>'
+              + '<a class="btn" href="/account" data-link>Go to my account</a>';
+          }
+        }
+      } catch (_) { /* keep last render */ }
+    }
+    tick();
+    setInterval(tick, 8000);
+  })();
+  </script>
+</section>`;
+}
+
 function pageNotFound(route) {
   return `<section style="padding-top:160px;max-width:780px;text-align:center">
   <span class="kicker">404</span>
@@ -4780,7 +5143,8 @@ function _legalSub(title, body) {
 function routeTitle(route) {
   if (route === '/') return 'Sovereign AI OS';
   if (route.startsWith('/services/')) return 'Service';
-  const map = { '/services':'Marketplace', '/marketplace':'Marketplace', '/pricing':'Pricing', '/solutions/ai-pricing':'AI Pricing Engine', '/solutions/ai-checkout':'AI Checkout Optimizer', '/solutions/ai-self-healing':'AI Self-Healing Ops', '/checkout':'Checkout', '/dashboard':'Dashboard', '/how':'How it works', '/docs':'API & Docs', '/about':'About', '/legal':'Legal', '/trust':'Trust Center', '/security':'Security', '/responsible-ai':'Responsible AI', '/dpa':'Data Processing Agreement', '/payment-terms':'Payment Terms', '/operator':'Operator Console', '/observability':'Observability', '/enterprise':'Enterprise Licenses', '/store':'Instant Store', '/account':'Account', '/innovations':'30Y Cryptographic Durability', '/wizard':'Find my plan', '/status':'Live status', '/social-network':'ZeusAI Social', '/admin/social-network':'Admin ZeusAI Social', '/changelog':'Changelog', '/terms':'Terms of Service', '/privacy':'Privacy Policy', '/refund':'Refund Guarantee', '/sla':'SLA', '/pledge':'Anti-Dark-Pattern Pledge', '/cancel':'Universal Cancel', '/gift':'Gift-as-Capability', '/aura':'Live Conversion Aura', '/api-explorer':'API Explorer', '/transparency':'Pricing Bandit Transparency', '/frontier':'Frontier Inventions', '/deepseek-cockpit':'DeepSeek Autonomy Cockpit', '/contact':'Contact', '/faq':'FAQ', '/blog':'Insights', '/affiliate':'Affiliate Program', '/partners':'Partners', '/roadmap':'Public Roadmap', '/careers':'Careers', '/press':'Press Kit' };
+  if (route.startsWith('/order/')) return 'Order Passport';
+  const map = { '/agents':'Agent Commerce Protocol', '/services':'Marketplace', '/marketplace':'Marketplace', '/pricing':'Pricing', '/solutions/ai-pricing':'AI Pricing Engine', '/solutions/ai-checkout':'AI Checkout Optimizer', '/solutions/ai-self-healing':'AI Self-Healing Ops', '/checkout':'Checkout', '/dashboard':'Dashboard', '/how':'How it works', '/docs':'API & Docs', '/about':'About', '/legal':'Legal', '/trust':'Trust Center', '/security':'Security', '/responsible-ai':'Responsible AI', '/dpa':'Data Processing Agreement', '/payment-terms':'Payment Terms', '/operator':'Operator Console', '/observability':'Observability', '/enterprise':'Enterprise Licenses', '/store':'Instant Store', '/account':'Account', '/innovations':'30Y Cryptographic Durability', '/wizard':'Find my plan', '/status':'Live status', '/social-network':'ZeusAI Social', '/admin/social-network':'Admin ZeusAI Social', '/changelog':'Changelog', '/terms':'Terms of Service', '/privacy':'Privacy Policy', '/refund':'Refund Guarantee', '/sla':'SLA', '/pledge':'Anti-Dark-Pattern Pledge', '/cancel':'Universal Cancel', '/gift':'Gift-as-Capability', '/aura':'Live Conversion Aura', '/api-explorer':'API Explorer', '/transparency':'Pricing Bandit Transparency', '/frontier':'Frontier Inventions', '/deepseek-cockpit':'DeepSeek Autonomy Cockpit', '/contact':'Contact', '/faq':'FAQ', '/blog':'Insights', '/affiliate':'Affiliate Program', '/partners':'Partners', '/roadmap':'Public Roadmap', '/careers':'Careers', '/press':'Press Kit' };
   return map[route] || 'ZeusAI';
 }
 
@@ -4833,8 +5197,10 @@ function routeDescription(route) {
     '/partners': 'Partner with ZeusAI: reseller, integrator and agent-to-agent technology lanes with BTC-native settlement and direct owner access.',
     '/roadmap': 'ZeusAI public roadmap: shipped capabilities you can verify live, what the autonomous loop is building now, and the next horizon.',
     '/careers': 'ZeusAI is an autonomous, owner-operated AI company — open human roles appear here first; outcome-based collaborations welcome.',
-    '/press': 'ZeusAI press kit: verifiable facts, live proof links, brand assets and direct media contact.'
+    '/press': 'ZeusAI press kit: verifiable facts, live proof links, brand assets and direct media contact.',
+    '/agents': 'Agent Commerce Protocol: how AI agents discover, quote, buy and settle ZeusAI capabilities autonomously via /agents.json + BTC checkout + Ed25519 receipts.'
   };
+  if (route.startsWith('/order/')) return 'Digital order passport with signed receipt, BTC payment status and delivery credentials.';
   return map[route] || 'ZeusAI sovereign AI operating system with verifiable commerce and autonomous delivery.';
 }
 

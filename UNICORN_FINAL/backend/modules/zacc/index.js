@@ -444,6 +444,13 @@ class ZeusAutonomicCommerceCore {
       summary.stages.publish = { added: added.length, total: this.publisher.published.length };
     } catch (e) { summary.stages.publish = { error: e.message }; }
 
+    // 12b) CJ TRACKING POLL — honest buyer status. Only runs when a CJ key is
+    // armed AND there is at least one CJ-routed order to poll. Fail-honest.
+    try {
+      const pollRes = await this.fulfillment.pollCjTracking(this.orders);
+      if (pollRes && pollRes.polled) summary.stages.trackingPoll = pollRes;
+    } catch (e) { summary.stages.trackingPoll = { error: e.message }; }
+
     // 13) SHELF TOURNAMENT — Autonomous Shelf Protocol (invented differentiator).
     // SKUs compete for rank by living fitness; decisions land in the public ledger.
     try {

@@ -112,11 +112,22 @@ class AutoPublisher {
     const originCountry = scored.originCountry || null;
     const hasCj = !!String(process.env.ZACC_CJ_API_KEY || '').trim();
     // Honest delivery mode:
-    //  - CJ key + real supplierRef → global CJ dropship
-    //  - otherwise → Zeus Fulfillment Desk (durable owner queue; not "fake auto")
-    const deliveryMode = (demoOnly || !hasCj)
-      ? 'zeus-fulfillment-desk'
-      : 'cj-global-dropship';
+    //  - CJ key + real dispatchable supplierRef (variant id, not a world-feed
+    //    reference like "dummyjson:123" and not curated demoOnly) → global CJ
+    //    dropship (truly auto-shippable)
+    //  - otherwise → Zeus Fulfillment Desk (durable owner queue; not "fake auto").
+    // Dispatchable = CJ variant id (`vid`) that CJ will accept as a real order
+    // line. World-feed and curated refs are NOT dispatchable and MUST NOT be
+    // advertised as "ships automatically".
+    const rawSupplierRef = supplierRef != null ? String(supplierRef) : '';
+    const dispatchable = hasCj
+      && !demoOnly
+      && !!rawSupplierRef
+      && !rawSupplierRef.includes(':') // world-feed refs like "dummyjson:1" carry a colon
+      && supplier !== 'world-feed'
+      && supplier !== 'manual';
+    const deliveryMode = dispatchable ? 'cj-global-dropship' : 'zeus-fulfillment-desk';
+    const fulfillmentMode = dispatchable ? 'cj-auto' : 'desk';
     const item = {
       id,
       title: scored.name,
@@ -146,7 +157,27 @@ class AutoPublisher {
       page: '/dropship/product/' + id,
       buyUrl: '/checkout?serviceId=' + encodeURIComponent(id) + '&plan=' + encodeURIComponent(id),
       checkout: { btcAddress: OWNER_BTC, priceUsd },
-      delivery: { mode: deliveryMode, automated: hasCj && !demoOnly, etaDays: '7-21' },
+      fulfillmentMode,
+      dispatchable,
+      // A real fulfillment recipe (what actually gets delivered when the
+      // invoice is paid): either a CJ variant we can order, or the Zeus
+      // Fulfillment Desk queue owner clears manually. Non-dispatchable SKUs
+      // are honest about that — no "ships automatically" claim.
+      fulfillmentRecipe: {
+        kind: dispatchable ? 'cj-dropship' : 'zeus-fulfillment-desk',
+        supplier,
+        supplierRef: supplierRef != null ? supplierRef : null,
+        automated: dispatchable,
+        badge: dispatchable ? 'AUTO-SHIP' : 'DESK-FULFIL',
+        note: dispatchable
+          ? 'Ships automatically via CJ Dropshipping using variant ' + rawSupplierRef + '.'
+          : (demoOnly
+              ? 'Curated demo SKU — routed through the Zeus Fulfillment Desk (owner-cleared queue).'
+              : (hasCj
+                  ? 'No CJ variant id for this SKU — routed through the Zeus Fulfillment Desk (owner-cleared queue).'
+                  : 'No CJ API key armed yet — routed through the Zeus Fulfillment Desk (owner-cleared queue).')),
+      },
+      delivery: { mode: deliveryMode, automated: dispatchable, etaDays: dispatchable ? '7-21' : '7-30' },
       metrics: { views: 0, carts: 0, sales: 0, revenueUsd: 0, delivered: 0 },
       status: 'active',
       publishedAt: now(),

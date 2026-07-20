@@ -167,6 +167,13 @@ html::before{content:"";position:fixed;inset:0;pointer-events:none;z-index:1;bac
 .nav-links{display:flex;gap:4px;align-items:center}
 .nav-links a{color:var(--ink);padding:9px 14px;border-radius:12px;font-size:14px;font-weight:500;opacity:.8;transition:transform .2s,opacity .2s,background-color .2s,border-color .2s,color .2s}
 .nav-links a:hover,.nav-links a.active{background:rgba(138,92,255,.12);opacity:1;color:var(--violet2)}
+.nav-more{position:relative}
+.nav-more-btn{background:transparent;border:1px solid transparent;color:var(--ink);padding:9px 12px;border-radius:12px;font-size:14px;font-weight:500;opacity:.8;cursor:pointer;font-family:inherit;transition:opacity .2s,background-color .2s,border-color .2s,color .2s}
+.nav-more-btn:hover,.nav-more[data-open="true"] .nav-more-btn{background:rgba(138,92,255,.12);opacity:1;color:var(--violet2);border-color:var(--stroke)}
+.nav-more-menu{position:absolute;top:calc(100% + 8px);right:0;min-width:220px;background:rgba(11,10,18,.96);border:1px solid var(--stroke);border-radius:14px;padding:8px;display:flex;flex-direction:column;gap:2px;box-shadow:0 20px 60px -20px rgba(0,0,0,.6);z-index:60}
+.nav-more-menu[hidden]{display:none}
+.nav-more-menu a{padding:10px 12px;border-radius:10px;font-size:13.5px;color:var(--ink);opacity:.85;display:block}
+.nav-more-menu a:hover,.nav-more-menu a.active{background:rgba(138,92,255,.14);color:var(--violet2);opacity:1}
 .nav-cta{display:flex;gap:10px;align-items:center}
 .lang-switch{display:inline-flex;border:1px solid rgba(160,200,255,.18);border-radius:8px;overflow:hidden;font:600 11px/1 'JetBrains Mono',monospace}
 .lang-switch .lang-btn{background:transparent;color:var(--ink-dim);border:none;padding:6px 9px;cursor:pointer;letter-spacing:.5px;transition:background .15s,color .15s}
@@ -574,6 +581,10 @@ nav.nav[data-nav-open="true"] .nav-toggle-bar:nth-child(3){transform:translateY(
   .nav-links a{padding:14px 12px;border-radius:12px;font-size:15px;min-height:44px;display:flex;align-items:center}
   .nav-links a:hover,.nav-links a.active{background:rgba(138,92,255,.12)}
   nav.nav[data-nav-open="true"] .nav-links{display:flex}
+  .nav-more{width:100%}
+  .nav-more-btn{width:100%;text-align:left;padding:14px 12px;font-size:15px;min-height:44px}
+  .nav-more-menu{position:static;background:transparent;border:none;padding:0 0 0 12px;box-shadow:none;margin-top:4px}
+  .nav-more-menu a{padding:12px 10px;font-size:14px}
   .nav-cta{margin-left:auto;flex-wrap:wrap;gap:8px}
   .nav-cta .btn{padding:10px 14px;font-size:13px;min-height:44px}
   .lang-switch{order:1}

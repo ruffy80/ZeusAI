@@ -218,6 +218,8 @@ class OrderStore {
   publicView(token) {
     const o = this.getByToken(token);
     if (!o) return null;
+    const provider = (o.fulfilment && (o.fulfilment.provider || (o.fulfilment.result && o.fulfilment.result.provider))) || null;
+    const isDeskProvider = provider === 'manual-queue' || provider === 'zeus-fulfillment-desk' || !provider;
     return {
       token: o.token,
       productId: o.productId,
@@ -228,6 +230,19 @@ class OrderStore {
       status: o.status,
       carrier: o.carrier,
       trackingNumber: o.trackingNumber,
+      // Buyer-facing tracking timeline (populated by CJ poller when
+      // available). Empty array is honest — we don't invent updates.
+      tracking: {
+        provider: provider || 'zeus-fulfillment-desk',
+        fulfillmentMode: isDeskProvider ? 'desk' : 'cj-auto',
+        carrier: o.carrier || null,
+        trackNumber: o.trackingNumber || null,
+        lastCheckedAt: o.trackingLastCheckedAt || null,
+        events: Array.isArray(o.trackingEvents) ? o.trackingEvents.slice(0, 25) : [],
+        note: isDeskProvider
+          ? 'Order is routed through the Zeus Fulfillment Desk. Buyer will receive a real tracking number once fulfilled.'
+          : 'Order was auto-dispatched via CJ Dropshipping. Tracking is refreshed from CJ.',
+      },
       invoiceId: o.invoiceId,
       email: o.email ? _maskEmail(o.email) : null,
       demoOnly: o.demoOnly,
@@ -236,6 +251,33 @@ class OrderStore {
       paidAt: o.paidAt,
       shippedAt: o.shippedAt,
     };
+  }
+
+  // Attach a freshly-polled tracking result from the CJ poller. Fail-soft:
+  // never throws into the loop. Persists the last events + carrier on the
+  // order record so the public passport surfaces them without another API call.
+  attachTracking(token, tracking) {
+    const o = this.getByToken(token);
+    if (!o || !tracking) return null;
+    o.trackingLastCheckedAt = now();
+    if (tracking.carrier) o.carrier = String(tracking.carrier);
+    if (tracking.trackNumber) o.trackingNumber = String(tracking.trackNumber);
+    if (Array.isArray(tracking.events)) {
+      o.trackingEvents = tracking.events.slice(0, 50).map((e) => ({
+        at: String(e.at || ''),
+        status: String(e.status || ''),
+        location: String(e.location || ''),
+        description: String(e.description || ''),
+      }));
+    }
+    o.updatedAt = now();
+    this._appendTimeline(o, 'tracking_refreshed', {
+      carrier: o.carrier || null,
+      trackNumber: o.trackingNumber || null,
+      events: (o.trackingEvents || []).length,
+    });
+    this._persist();
+    return o;
   }
 
   // ---- Persistence -----------------------------------------------------

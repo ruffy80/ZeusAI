@@ -158,8 +158,38 @@ let _timer = null;
 
 function _usageFor(providerId) {
   const u = _state.usage[providerId];
-  if (!u) return { calls: 0, ok: 0, fail: 0, totalLatencyMs: 0, lastUsedAt: null };
+  if (!u) return { calls: 0, ok: 0, fail: 0, totalLatencyMs: 0, lastUsedAt: null, costUsd: 0 };
   return u;
+}
+
+// ────────────────────────────────────────────────────────────────────────
+// Kill-switch + daily-cap plumbing.
+//
+// The kill-switch is intentionally OFF by default (`FRONTIER_AI_EXECUTE`
+// unset or !== '1') so a fresh boot never accidentally spends money on
+// premium provider tokens. Autonomy still works: recommend()/route()/tick()
+// are read-only and remain callable — only execute() is gated.
+//
+// FRONTIER_AI_MAX_DAILY_USD is a soft cap. When set, once the running
+// per-UTC-day spend + the caller's estCostUsd would exceed the cap, execute()
+// refuses. The cap does not include free/local providers (costUsd == 0).
+// RO: intrerupator sigur + plafon zilnic pentru cheltuiala reala.
+// ────────────────────────────────────────────────────────────────────────
+function _isExecuteEnabled() {
+  return String(process.env.FRONTIER_AI_EXECUTE || '0') === '1';
+}
+function _dailyCapUsd() {
+  const v = Number(process.env.FRONTIER_AI_MAX_DAILY_USD);
+  return Number.isFinite(v) && v >= 0 ? v : null;
+}
+function _todayKey() {
+  return new Date().toISOString().slice(0, 10); // YYYY-MM-DD UTC
+}
+function _resetDayIfStale() {
+  const today = _todayKey();
+  if (!_state.dailyBudget || _state.dailyBudget.day !== today) {
+    _state.dailyBudget = { day: today, spentUsd: 0, calls: 0, blocked: 0 };
+  }
 }
 
 function _successRate(providerId) {
@@ -357,18 +387,23 @@ function route(input = {}) {
 }
 
 // Record a real usage outcome so routing can adapt to observed reliability.
+// Also accumulates `costUsd` (when provided) into the persistent ledger and
+// the per-UTC-day budget — this is how we know how much money each provider
+// actually cost us and how close we are to FRONTIER_AI_MAX_DAILY_USD.
 function recordUsage(input = {}) {
   const provider = String(input.provider || '').trim().toLowerCase();
   if (!provider) return { ok: false, error: 'provider required' };
   const ok = input.ok !== false; // default success unless explicitly false
   const latencyMs = Math.max(0, Number(input.latencyMs) || 0);
   const domain = input.domain ? _normalizeDomain(input.domain) : null;
+  const costUsd = Math.max(0, Number(input.costUsd) || 0);
 
-  const u = _state.usage[provider] || { calls: 0, ok: 0, fail: 0, totalLatencyMs: 0, lastUsedAt: null };
+  const u = _state.usage[provider] || { calls: 0, ok: 0, fail: 0, totalLatencyMs: 0, lastUsedAt: null, costUsd: 0 };
   u.calls += 1;
   if (ok) u.ok += 1; else u.fail += 1;
   u.totalLatencyMs += latencyMs;
   u.lastUsedAt = new Date().toISOString();
+  u.costUsd = Number(u.costUsd || 0) + costUsd;
   _state.usage[provider] = u;
 
   if (domain) {
@@ -377,6 +412,20 @@ function recordUsage(input = {}) {
     if (ok) d.ok += 1; else d.fail += 1;
     _state.domainUsage[domain] = d;
   }
+
+  // Persistent cost ledger + per-UTC-day budget accumulator.
+  const led = _state.ledger || (_state.ledger = { totalCostUsd: 0, totalCalls: 0, byProvider: {}, startedAt: new Date().toISOString() });
+  led.totalCostUsd = Number(led.totalCostUsd || 0) + costUsd;
+  led.totalCalls = Number(led.totalCalls || 0) + 1;
+  const bp = led.byProvider[provider] || { costUsd: 0, calls: 0, lastAt: null };
+  bp.costUsd = Number(bp.costUsd || 0) + costUsd;
+  bp.calls = Number(bp.calls || 0) + 1;
+  bp.lastAt = u.lastUsedAt;
+  led.byProvider[provider] = bp;
+
+  _resetDayIfStale();
+  _state.dailyBudget.spentUsd = Number(_state.dailyBudget.spentUsd || 0) + costUsd;
+  _state.dailyBudget.calls = Number(_state.dailyBudget.calls || 0) + 1;
 
   _state.updatedAt = new Date().toISOString();
   _saveState(_state);
@@ -390,7 +439,93 @@ function recordUsage(input = {}) {
       fail: Math.round(u.fail * 100) / 100,
       successRate: u.calls ? Math.round((u.ok / u.calls) * 100) / 100 : null,
       avgLatencyMs: u.calls ? Math.round(u.totalLatencyMs / u.calls) : null,
+      costUsd: Math.round(u.costUsd * 1e6) / 1e6,
     },
+    ledger: {
+      totalCostUsd: Math.round(led.totalCostUsd * 1e6) / 1e6,
+      providerCostUsd: Math.round(bp.costUsd * 1e6) / 1e6,
+    },
+    dailyBudget: { ..._state.dailyBudget },
+  };
+}
+
+// Gate expensive execute() calls. Returns { ok, allowed, reason, ... }.
+// - recommend/route/tick are unaffected — they are read-only and free.
+// - When kill-switch is off (FRONTIER_AI_EXECUTE !== '1', the default),
+//   refuses with reason=FRONTIER_AI_EXECUTE_disabled.
+// - When FRONTIER_AI_MAX_DAILY_USD is set and today's spend + estCostUsd
+//   would exceed the cap, refuses with reason=daily_cap_exceeded.
+// - On success, records an execution audit entry (does NOT deduct cost yet;
+//   the caller MUST call recordUsage({ provider, costUsd, ... }) after the
+//   real API call so the ledger tracks ACTUAL spend, not estimates).
+// RO: gateway pentru apeluri scumpe — refuza cand kill-switch e OFF sau
+//     cand estimarea depaseste plafonul zilnic.
+function execute(input = {}) {
+  const provider = String(input.provider || '').trim().toLowerCase();
+  const model = input.model ? String(input.model).slice(0, 80) : null;
+  const domain = input.domain ? _normalizeDomain(input.domain) : null;
+  const estCostUsd = Math.max(0, Number(input.estCostUsd) || 0);
+  if (!provider) return { ok: false, error: 'provider required' };
+
+  _resetDayIfStale();
+  const cap = _dailyCapUsd();
+  const executeEnabled = _isExecuteEnabled();
+
+  const audit = {
+    at: new Date().toISOString(),
+    provider, model, domain,
+    estCostUsd,
+    allowed: false,
+    reason: null,
+  };
+
+  const recordAudit = () => {
+    if (!Array.isArray(_state.executions)) _state.executions = [];
+    _state.executions.push(audit);
+    if (_state.executions.length > 100) _state.executions = _state.executions.slice(-100);
+    _saveState(_state);
+  };
+
+  if (!executeEnabled) {
+    audit.reason = 'FRONTIER_AI_EXECUTE_disabled';
+    _state.dailyBudget.blocked = Number(_state.dailyBudget.blocked || 0) + 1;
+    recordAudit();
+    return {
+      ok: false,
+      allowed: false,
+      reason: 'FRONTIER_AI_EXECUTE_disabled',
+      hint: 'Set FRONTIER_AI_EXECUTE=1 in the environment to enable expensive execute() calls. recommend()/route()/tick() are always available.',
+      killSwitch: { executeEnabled: false, dailyCapUsd: cap },
+      dailyBudget: { ..._state.dailyBudget },
+    };
+  }
+
+  if (cap != null && (Number(_state.dailyBudget.spentUsd || 0) + estCostUsd) > cap + 1e-9) {
+    audit.reason = 'daily_cap_exceeded';
+    _state.dailyBudget.blocked = Number(_state.dailyBudget.blocked || 0) + 1;
+    recordAudit();
+    return {
+      ok: false,
+      allowed: false,
+      reason: 'daily_cap_exceeded',
+      hint: `FRONTIER_AI_MAX_DAILY_USD=${cap} would be exceeded (spent=${Number(_state.dailyBudget.spentUsd || 0).toFixed(6)}, est=${estCostUsd.toFixed(6)}).`,
+      killSwitch: { executeEnabled: true, dailyCapUsd: cap },
+      dailyBudget: { ..._state.dailyBudget, capUsd: cap },
+    };
+  }
+
+  audit.allowed = true;
+  audit.reason = 'allowed';
+  recordAudit();
+  return {
+    ok: true,
+    allowed: true,
+    provider,
+    model,
+    domain,
+    killSwitch: { executeEnabled: true, dailyCapUsd: cap },
+    dailyBudget: { ..._state.dailyBudget, capUsd: cap },
+    note: 'Caller MUST call recordUsage({ provider, costUsd, latencyMs, ok }) after the real API call so the ledger tracks actual spend.',
   };
 }
 
@@ -465,6 +600,9 @@ function tick() {
 function getStatus() {
   const live = _computeScore();
   const health = _health(live.score, live.enabledProviders.length);
+  _resetDayIfStale();
+  const cap = _dailyCapUsd();
+  const led = _state.ledger || { totalCostUsd: 0, totalCalls: 0, byProvider: {} };
   return {
     module: 'frontierAI',
     name: 'Frontier AI Capability Router',
@@ -481,6 +619,25 @@ function getStatus() {
     providers: _listProviders(),
     lastRecommendations: _state.lastRecommendations.slice(0, 5),
     probe: _state.probe,
+    // Kill-switch + daily budget + persistent cost ledger — makes it obvious
+    // to any dashboard whether the module is allowed to spend money right
+    // now, how much it has spent today, and how much per provider lifetime.
+    killSwitch: {
+      executeEnabled: _isExecuteEnabled(),
+      dailyCapUsd: cap,
+      envSource: 'FRONTIER_AI_EXECUTE + FRONTIER_AI_MAX_DAILY_USD',
+    },
+    dailyBudget: { ..._state.dailyBudget, capUsd: cap },
+    ledger: {
+      totalCostUsd: Math.round((led.totalCostUsd || 0) * 1e6) / 1e6,
+      totalCalls: led.totalCalls || 0,
+      byProvider: Object.fromEntries(Object.entries(led.byProvider || {}).map(([k, v]) => [k, {
+        costUsd: Math.round(Number(v.costUsd || 0) * 1e6) / 1e6,
+        calls: v.calls || 0,
+        lastAt: v.lastAt || null,
+      }])),
+      startedAt: led.startedAt || null,
+    },
     createdAt: _state.createdAt,
     updatedAt: _state.updatedAt,
   };
@@ -506,13 +663,17 @@ async function runAction(input = {}) {
       return route(input);
     case 'usage':
       return recordUsage(input);
+    case 'execute':
+      return execute(input);
+    case 'ledger':
+      return { ok: true, action: 'ledger', ledger: getStatus().ledger, dailyBudget: getStatus().dailyBudget, killSwitch: getStatus().killSwitch };
     case 'status':
       return getStatus();
     default:
       return {
         ok: false,
         error: `unknown action: ${action}`,
-        supported: ['tick', 'score', 'list', 'recommend', 'route', 'usage', 'status'],
+        supported: ['tick', 'score', 'list', 'recommend', 'route', 'usage', 'execute', 'ledger', 'status'],
       };
   }
 }
@@ -549,6 +710,7 @@ module.exports = {
   recommend,
   route,
   recordUsage,
+  execute,
   start,
   stop,
   CAPABILITY_DOMAINS,
