@@ -469,7 +469,7 @@ class SocialMediaViralizer {
   async postToTelegram(content) {
     try {
       const response = await axios.post('https://api.telegram.org/bot' + this.tokens.telegram + '/sendMessage', {
-        chat_id: process.env.TELEGRAM_CHAT_ID || '@unicorn_ai_channel',
+        chat_id: process.env.TELEGRAM_CHAT_ID || '@unicorn_platform',
         text: String(content.text || ''),
         parse_mode: 'HTML'
       }, { timeout: 15000 });

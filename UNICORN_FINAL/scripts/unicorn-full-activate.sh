@@ -114,6 +114,12 @@ if [ -x "$DEPLOY_LINK/scripts/install-zeus-unicorn-bot.sh" ]; then
   log "ensure zeus-unicorn-bot (Causal Virality Reflex)"
   UNICORN_LIVE="$DEPLOY_LINK" bash "$DEPLOY_LINK/scripts/install-zeus-unicorn-bot.sh" \
     || warn "unicorn-bot install non-fatal"
+
+# Ensure Telegram autobind survives activate / PM2 respawns (non-fatal).
+if [ -x "$DEPLOY_LINK/scripts/install-telegram-autobind.sh" ]; then
+  log "ensure zeus-telegram-autobind"
+  UNICORN_LIVE="$DEPLOY_LINK" bash "$DEPLOY_LINK/scripts/install-telegram-autobind.sh" \
+    || warn "telegram-autobind install non-fatal"
 fi
 
 # ── 5. Read-only module audit (report only — NEVER create stubs) ─────────────

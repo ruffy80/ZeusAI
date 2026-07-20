@@ -108,7 +108,15 @@ async function _safeFetch(url, init) {
   const timeout = setTimeout(() => { try { ctrl && ctrl.abort(); } catch (_) {} }, 8000);
   try {
     const r = await fetch(url, Object.assign({ signal: ctrl ? ctrl.signal : undefined }, init));
-    return { ok: r.ok, status: r.status };
+    let description = null;
+    try {
+      const ct = String(r.headers.get('content-type') || '');
+      if (ct.includes('application/json')) {
+        const j = await r.clone().json();
+        if (j && typeof j.description === 'string') description = j.description;
+      }
+    } catch (_) { /* ignore */ }
+    return { ok: r.ok, status: r.status, ...(description ? { description } : {}) };
   } finally { clearTimeout(timeout); }
 }
 
