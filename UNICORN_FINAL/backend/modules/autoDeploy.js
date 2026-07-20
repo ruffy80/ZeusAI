@@ -313,6 +313,32 @@ class AutoDeploy {
       }
     }
   }
+
+  // ── Autonomy surface (getStatus/process) ──────────────────────────────────
+  // Read-only. process() reports state only; it never starts the file watcher
+  // or pushes commits, so it is safe on a heartbeat. Actual auto-deploy is
+  // gated behind start() + ENABLE_AUTO_DEPLOY=1 (unchanged).
+  getStatus() {
+    const enabled = process.env.DISABLE_SELF_MUTATION !== '1' && process.env.ENABLE_AUTO_DEPLOY === '1';
+    return {
+      module: 'autoDeploy',
+      name: 'Auto-Deploy',
+      status: 'active',
+      autoDeployEnabled: enabled,
+      updatedAt: new Date().toISOString(),
+    };
+  }
+
+  async process(input = {}) {
+    const action = (input && input.action) || 'tick';
+    switch (action) {
+      case 'tick':
+      case 'status':
+        return this.getStatus();
+      default:
+        return { ok: false, error: `unknown action: ${action}`, supported: ['tick', 'status'] };
+    }
+  }
 }
 
 module.exports = new AutoDeploy();

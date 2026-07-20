@@ -362,7 +362,23 @@ async function init() {
 }
 
 function getStatus() {
-  return { ...status, configuredDomains };
+  return { module: 'domainAutomationManager', name: 'Domain Automation Manager', ...status, configuredDomains };
 }
 
-module.exports = { init, configureSavDNS, setupGitHubWebhook, getStatus };
+// ── Autonomy surface (process) ───────────────────────────────────────────────
+// Read-only heartbeat. process() reports DNS/webhook status only; it never
+// mutates DNS records (that is done via init/configureSavDNS on demand).
+// NOTE: named runAction (not `process`) to avoid shadowing Node's global
+// `process` object inside this module scope. Exported below as `process`.
+async function runAction(input = {}) {
+  const action = (input && input.action) || 'tick';
+  switch (action) {
+    case 'tick':
+    case 'status':
+      return getStatus();
+    default:
+      return { ok: false, error: `unknown action: ${action}`, supported: ['tick', 'status'] };
+  }
+}
+
+module.exports = { init, configureSavDNS, setupGitHubWebhook, getStatus, process: runAction };

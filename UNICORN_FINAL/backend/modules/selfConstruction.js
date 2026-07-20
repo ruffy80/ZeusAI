@@ -319,6 +319,49 @@ const selfConstruction = {
     ].join('\n');
   },
 
+  // ── Autonomy surface (getStatus/process) ──────────────────────────────────
+  // READ-ONLY. process() NEVER applies skeletons — it only runs the audit so
+  // the standalone PM2 runner can heartbeat safely (apply:false semantics).
+  getStatus() {
+    let totals = null;
+    try {
+      const scan = this.scan();
+      totals = {
+        modules: scan.total,
+        empty: scan.empty.length,
+        noExports: scan.noExports.length,
+        placeholders: scan.placeholders.length,
+        duplicateOwnership: scan.duplicateOwnership.length,
+      };
+    } catch (_) { totals = null; }
+    return {
+      module: 'selfConstruction',
+      name: 'Self-Construction (read-only audit)',
+      status: 'active',
+      mode: 'read-only-audit',
+      hasRun: this.hasRun,
+      totals,
+      lastReportAt: this.lastReport && this.lastReport.generatedAt ? this.lastReport.generatedAt : null,
+      updatedAt: new Date().toISOString(),
+    };
+  },
+
+  async process(input = {}) {
+    const action = (input && input.action) || 'tick';
+    switch (action) {
+      case 'tick':
+      case 'audit': {
+        const report = this.audit();
+        this.hasRun = true;
+        return { ok: true, action: 'audit', applied: false, report };
+      }
+      case 'status':
+        return this.getStatus();
+      default:
+        return { ok: false, error: `unknown action: ${action}`, supported: ['tick', 'audit', 'status'] };
+    }
+  },
+
   async start(opts = {}) {
     const apply = opts.apply === true || process.env.SELF_CONSTRUCTION_APPLY === '1';
     const report = this.audit();

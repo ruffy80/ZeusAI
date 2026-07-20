@@ -346,6 +346,33 @@ class AINegotiator {
       expired: negotiations.filter(n => n.status === 'expired').length
     };
   }
+
+  // ── Autonomy surface (getStatus/process) ──────────────────────────────────
+  // Added for the autonomous PM2 runner + registerModuleRoutes. Read-only.
+  getStatus() {
+    const stats = this.getStats();
+    return {
+      module: 'aiNegotiator',
+      name: 'AI Negotiator',
+      status: 'active',
+      strategies: Object.keys(this.strategies),
+      negotiations: stats,
+      updatedAt: new Date().toISOString()
+    };
+  }
+
+  async process(input = {}) {
+    const action = (input && input.action) || 'tick';
+    switch (action) {
+      case 'tick':
+      case 'status':
+        return this.getStatus();
+      case 'stats':
+        return { ok: true, action: 'stats', stats: this.getStats() };
+      default:
+        return { ok: false, error: `unknown action: ${action}`, supported: ['tick', 'status', 'stats'] };
+    }
+  }
 }
 
 module.exports = new AINegotiator();

@@ -33,9 +33,15 @@ check('unicorn-full-activate.sh exists', () => {
 
 const activate = fs.readFileSync(ACTIVATE, 'utf8');
 
-check('activate targets /var/www/unicorn/UNICORN_FINAL (not /root/ZeusAI)', () => {
+check('activate deploy target is /var/www/unicorn/UNICORN_FINAL; /root/ZeusAI only for owner symlink', () => {
   assert.ok(activate.includes('/var/www/unicorn/UNICORN_FINAL'), 'deploy link default missing');
-  assert.doesNotMatch(activate, /\/root\/ZeusAI/, 'must not reference /root/ZeusAI');
+  // DEPLOY_LINK must default to the /var/www path, NOT /root/ZeusAI.
+  assert.match(activate, /DEPLOY_LINK="\$\{DEPLOY_LINK:-\/var\/www\/unicorn\/UNICORN_FINAL\}"/,
+    'DEPLOY_LINK default must be the /var/www path');
+  // /root/ZeusAI is allowed ONLY as the owner-path symlink (ln -sfn ...).
+  assert.match(activate, /ln -sfn "\$DEPLOY_LINK" "\$OWNER_ROOT\/UNICORN_FINAL"/,
+    'must create /root/ZeusAI/UNICORN_FINAL owner symlink to the deploy link');
+  assert.ok(activate.includes('/root/ZeusAI'), 'owner path /root/ZeusAI should be referenced');
 });
 
 check('activate does NOT pm2-start module files per-file', () => {
@@ -65,15 +71,19 @@ check('activate reloads canonical PM2 apps, not per-module processes', () => {
   assert.ok(activate.includes('ecosystem.config.js'), 'should reload ecosystem.config.js');
 });
 
-check('activate mentions frontierAI as absent / WARN, never stubbed', () => {
+check('activate audits frontierAI + marketAnalytics, still never stubs absent modules', () => {
   assert.match(activate, /frontierAI/);
-  // The audit must WARN about absence and explicitly NOT create a stub.
+  assert.match(activate, /marketAnalytics/);
+  // Even though these modules now exist, the audit must retain its never-stub guard.
   assert.match(activate, /not creating a stub|NOT stubbed|do not invent/i);
 });
 
-check('activate installs only the safe health-watch cron (no selfConstruction --cron)', () => {
+check('activate installs the safe health-watch cron + read-only self-heal audit cron (no selfConstruction --cron / apply)', () => {
   assert.ok(activate.includes('unicorn-health-watch.sh'), 'should install health-watch cron');
+  assert.ok(activate.includes('zeus-selfheal-audit.js'), 'should install read-only self-heal audit cron');
   assert.doesNotMatch(activate, /selfConstruction\s+--cron/, 'must not schedule selfConstruction --cron');
+  // The audit cron must be read-only: never apply skeletons.
+  assert.match(activate, /SELF_CONSTRUCTION_APPLY=0/, 'audit cron must force apply-off');
 });
 
 check('unicorn-health-watch.sh exists and only restarts on repeated failure', () => {

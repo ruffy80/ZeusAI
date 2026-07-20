@@ -3148,6 +3148,8 @@ const gect                         = require('./modules/globalEnergyCarbonTrader
 const qrBaaS                       = require('./modules/quantumResistantBaaS');
 const amaa                         = require('./modules/autonomousMAdvisor');
 const uaitm                        = require('./modules/universalAITrainingMarketplace');
+const frontierAI                   = require('./modules/frontierAI');
+const marketAnalytics              = require('./modules/marketAnalytics');
 
 // ==================== FORWARD-ONLY SAFETY (Activation Guardian) ====================
 // Ensures all autonomous engines operate with guaranteed forward-only semantics:
@@ -11547,6 +11549,8 @@ registerModuleRoutes('zk-revenue-proof',           zkRevenueProof);
 registerModuleRoutes('pnl-time-machine',           pnlTimeMachine);
 registerModuleRoutes('social-orchestrator',        socialOrchestrator);
 registerModuleRoutes('zeusai-social',              socialOrchestrator);
+registerModuleRoutes('frontier-ai',                frontierAI);
+registerModuleRoutes('market-analytics',           marketAnalytics);
 
 // ZeusAI Social — public Autonomous Signal Protocol surfaces
 app.get('/api/zeusai-social/pulse', (req, res) => {

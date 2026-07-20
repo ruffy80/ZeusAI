@@ -1,21 +1,30 @@
 #!/usr/bin/env bash
 # unicorn-full-activate.sh
 # ---------------------------------------------------------------------------
-# SAFE full-autonomy activation for ZeusAI / Unicorn Platform on the Hetzner
-# box. Modules load IN-PROCESS via backend/index.js + ecosystem.config.js
-# (`unicorn-backend`, `unicorn-site`). This script therefore NEVER starts a
-# PM2 process per module file and NEVER creates stub module source files.
+# FULL autonomy activation for ZeusAI / Unicorn Platform on the Hetzner box.
+#
+# Dual architecture (both run together):
+#   1. Modules load IN-PROCESS via backend/index.js + ecosystem.config.js
+#      (`unicorn-backend`, `unicorn-site`) — the source of truth. Untouched.
+#   2. Each ESSENTIAL module ALSO runs as a standalone autonomous PM2 process
+#      (zeus-*) via scripts/zeus-module-autonomous.js. These runners drive the
+#      module's heartbeat/tick loop only — they NEVER open a second Express
+#      server and NEVER write SQLite. selfConstruction runs audit-only.
 #
 # It:
+#   - ensures the owner's canonical path /root/ZeusAI/UNICORN_FINAL resolves
 #   - turns business autonomy ON (growth profile, auto-repair, auto-restart)
 #   - keeps source-file mutators OFF (prevents auto-generated stubs from
 #     overwriting the real backend modules)
 #   - reloads the two canonical PM2 apps with the safe env
 #   - runs a read-only module audit (report only, never create stubs)
+#   - starts the zeus-* autonomous PM2 runners (one per essential module)
+#   - installs a read-only self-heal audit cron (15 min, audit-only)
+#   - installs a SAFE health-watch cron (5 min)
 #   - verifies backend + site + public health
-#   - installs a SAFE 5-min health-watch cron (no self-construction cron)
 #
 # Idempotent and best-effort where noted. Exits non-zero on health failure.
+# NEVER creates stub module source files.
 # ---------------------------------------------------------------------------
 set -euo pipefail
 
@@ -40,6 +49,20 @@ if [ ! -d "$DEPLOY_LINK" ]; then
 fi
 cd "$DEPLOY_LINK"
 log "deploy_link=$DEPLOY_LINK ($(readlink -f "$DEPLOY_LINK" 2>/dev/null || echo "$DEPLOY_LINK"))"
+
+# ── 0b. Ensure the owner's canonical path /root/ZeusAI/UNICORN_FINAL works ────
+# The owner's prompts reference /root/ZeusAI; make that path resolve to the live
+# deploy without moving anything. Best-effort (needs root); never fatal.
+OWNER_ROOT="${OWNER_ROOT:-/root/ZeusAI}"
+if mkdir -p "$OWNER_ROOT" 2>/dev/null; then
+  if ln -sfn "$DEPLOY_LINK" "$OWNER_ROOT/UNICORN_FINAL" 2>/dev/null; then
+    log "owner path ready: $OWNER_ROOT/UNICORN_FINAL -> $DEPLOY_LINK"
+  else
+    warn "could not create symlink $OWNER_ROOT/UNICORN_FINAL (non-fatal)"
+  fi
+else
+  warn "could not create $OWNER_ROOT (non-root?) — skipping owner-path symlink"
+fi
 
 # ── 1. Ensure dependencies (only if missing — do NOT always reinstall) ───────
 if [ ! -d node_modules ]; then
@@ -88,7 +111,6 @@ pm2 startOrReload "$PM2_ECOSYSTEM" --update-env
 pm2 save
 
 # ── 5. Read-only module audit (report only — NEVER create stubs) ─────────────
-# frontierAI.js is known NOT to exist; report it as absent, do not invent it.
 log "read-only module audit (report only)"
 MODULES_DIR="$DEPLOY_LINK/backend/modules" node <<'NODE' || warn "module audit encountered an error (non-fatal)"
 const path = require('path');
@@ -104,6 +126,7 @@ const targets = [
   ['dynamicPricing',          ['dynamic-pricing', 'dynamicPricing']],
   ['ModuleLoader',            ['ModuleLoader']],
   ['frontierAI',              ['frontierAI']],
+  ['marketAnalytics',         ['marketAnalytics']],
 ];
 let present = 0;
 let missing = 0;
@@ -135,6 +158,61 @@ console.log(`  audit: ${present} present, ${missing} absent (absent modules are 
 // explicitly so this short-lived audit process never hangs the deploy.
 process.exit(0);
 NODE
+
+# ── 5b. Start standalone autonomous PM2 runners (one per essential module) ───
+# Each runner requires the module and drives its heartbeat/tick loop WITHOUT
+# opening a second Express server and WITHOUT writing SQLite. The in-process
+# module routes (registerModuleRoutes) keep working independently.
+RUNNER="$DEPLOY_LINK/scripts/zeus-module-autonomous.js"
+if [ -f "$RUNNER" ]; then
+  # "pm2-name<TAB>module-file" pairs. selfConstruction runs audit-only (the
+  # runner hard-guards apply:false regardless).
+  start_runner() {
+    local pm2name="$1"; local modfile="$2"
+    if [ ! -f "$DEPLOY_LINK/$modfile" ]; then
+      warn "module file missing, skipping $pm2name: $modfile"
+      return 0
+    fi
+    # Idempotent: delete any prior instance so we don't stack duplicates, then
+    # start fresh with the safe autonomy env already sourced above.
+    pm2 delete "$pm2name" >/dev/null 2>&1 || true
+    if pm2 start "$RUNNER" --name "$pm2name" --time -- "$modfile" --autonomous >/dev/null 2>&1; then
+      log "started PM2 runner: $pm2name ($modfile)"
+    else
+      warn "failed to start PM2 runner: $pm2name ($modfile)"
+    fi
+  }
+
+  start_runner zeus-payments   backend/modules/quantumPaymentNexus.js
+  start_runner zeus-negotiator backend/modules/aiNegotiator.js
+  start_runner zeus-selfheal   backend/modules/selfConstruction.js
+  start_runner zeus-deploy     backend/modules/autoDeploy.js
+  start_runner zeus-dns        backend/modules/domainAutomationManager.js
+  start_runner zeus-analytics  backend/modules/marketAnalytics.js
+  start_runner zeus-frontier   backend/modules/frontierAI.js
+
+  pm2 save || true
+else
+  warn "autonomous runner not found at $RUNNER — skipping zeus-* PM2 processes"
+fi
+
+# ── 5c. Install the read-only self-heal audit cron (15 min) ──────────────────
+# Runs selfConstruction.audit() ONLY (read-only). NEVER applies skeletons.
+SELFHEAL_AUDIT="$DEPLOY_LINK/scripts/zeus-selfheal-audit.js"
+if [ -f "$SELFHEAL_AUDIT" ] && command -v crontab >/dev/null 2>&1; then
+  NODE_BIN="$(command -v node || echo node)"
+  AUDIT_LOG="${AUDIT_LOG:-/var/log/zeus-selfheal-audit.log}"
+  AUDIT_CRON="*/15 * * * * cd $DEPLOY_LINK && DISABLE_SELF_MUTATION=1 SELF_CONSTRUCTION_APPLY=0 $NODE_BIN $SELFHEAL_AUDIT >> $AUDIT_LOG 2>&1"
+  EXISTING_AUDIT="$(crontab -l 2>/dev/null || true)"
+  if printf '%s\n' "$EXISTING_AUDIT" | grep -Fq "zeus-selfheal-audit.js"; then
+    log "self-heal audit cron already installed"
+  else
+    { printf '%s\n' "$EXISTING_AUDIT"; printf '%s\n' "$AUDIT_CRON"; } | grep -v '^$' | crontab -
+    log "installed read-only self-heal audit cron (every 15 min)"
+  fi
+else
+  warn "self-heal audit script or crontab unavailable — skipping audit cron"
+fi
 
 # ── 6. Install the SAFE health-watch cron (5 min) ────────────────────────────
 # This cron runs ONLY the read-only-ish health watch. It NEVER schedules a
@@ -189,6 +267,8 @@ fi
 # ── 8. Report PM2 topology ───────────────────────────────────────────────────
 log "PM2 process list:"
 pm2 list || true
+log "zeus-* autonomous runners:"
+pm2 list 2>/dev/null | grep -E 'zeus-(payments|negotiator|selfheal|deploy|dns|analytics|frontier)' || warn "no zeus-* runners visible in pm2 list"
 
 if [ "$HEALTH_OK" != "1" ]; then
   fail "local health checks failed — see WARN lines above"

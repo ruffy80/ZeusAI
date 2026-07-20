@@ -371,12 +371,48 @@ function confirmBtcPayment(paymentId) {
   return { ok: false, error: 'Payment not found' };
 }
 
+// ── Autonomy surface (getStatus/process) ────────────────────────────────────
+// Added for the autonomous PM2 runner + registerModuleRoutes. Read-only: never
+// mutates payment state, only reports a live revenue snapshot.
+function getStatus() {
+  let summary = null;
+  try { summary = getRevenueSummary(); } catch (_) { summary = null; }
+  return {
+    module: 'quantumPaymentNexus',
+    name: 'Quantum Payment Nexus',
+    status: 'active',
+    btcAddress: BTC_ADDRESS,
+    totalTransactions: summary ? summary.totalTransactions : 0,
+    completedTransactions: summary ? summary.completedTransactions : 0,
+    totalRevenue: summary ? summary.totalRevenue : { usd: 0, btc: 0, btcAddress: BTC_ADDRESS },
+    updatedAt: new Date().toISOString(),
+  };
+}
+
+// NOTE: named runAction (not `process`) to avoid shadowing Node's global
+// `process` object inside this module scope. Exported below as `process`.
+async function runAction(input = {}) {
+  const action = (input && input.action) || 'tick';
+  switch (action) {
+    case 'tick':
+    case 'status':
+      return getStatus();
+    case 'summary':
+      try { return { ok: true, action: 'summary', summary: getRevenueSummary() }; }
+      catch (e) { return { ok: false, error: e.message }; }
+    default:
+      return { ok: false, error: `unknown action: ${action}`, supported: ['tick', 'status', 'summary'] };
+  }
+}
+
 module.exports = {
   processPayment,
   getPaymentStatus,
   getTransactionHistory,
   getRevenueSummary,
   confirmBtcPayment,
+  getStatus,
+  process: runAction,
   BTC_ADDRESS,
   usdToBtc,
 };
