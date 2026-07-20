@@ -34,7 +34,8 @@ const SOL_ADDRESS   = process.env.SOL_ADDRESS        || '';
 const NOWPAY_KEY    = process.env.NOWPAYMENTS_API_KEY || '';
 const STRIPE_KEY    = process.env.STRIPE_SECRET_KEY  || '';
 const PAYPAL_ID     = process.env.PAYPAL_CLIENT_ID   || '';
-const PAYPAL_SECRET = process.env.PAYPAL_SECRET      || '';
+// Canonical secret is PAYPAL_CLIENT_SECRET; PAYPAL_SECRET is a legacy alias.
+const PAYPAL_SECRET = process.env.PAYPAL_CLIENT_SECRET || process.env.PAYPAL_SECRET || '';
 
 // Crypto price cache (USD) / Cache preț crypto
 let _prices = { BTC: 80000, ETH: 3500, SOL: 180, USDT: 1.0, USDC: 1.0 };

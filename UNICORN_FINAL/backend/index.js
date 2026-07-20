@@ -736,6 +736,9 @@ function _envArmed(name) {
   return !/^(your|skip|changeme|todo|placeholder|xxx+|none|null|undefined|tbd|n\/a)/i.test(v);
 }
 app.get('/api/activation/readiness', (req, res) => {
+  const stripePricesArmed = _envArmed('STRIPE_PRICE_STARTER_MONTHLY')
+    || _envArmed('STRIPE_PRICE_PRO_MONTHLY')
+    || _envArmed('STRIPE_PRICE_ENTERPRISE_MONTHLY');
   const capabilities = [
     {
       id: 'checkout_multicurrency', title: 'Card + 300-crypto checkout (NOWPayments)',
@@ -743,6 +746,13 @@ app.get('/api/activation/readiness', (req, res) => {
       envVars: ['NOWPAYMENTS_API_KEY'],
       unlocks: 'Non-crypto buyers can pay (cards, bank, 300+ coins → auto-BTC). Removes the #1 checkout friction.',
       action: 'Create a free NOWPayments account, add NOWPAYMENTS_API_KEY.',
+    },
+    {
+      id: 'nowpayments_ipn', title: 'NOWPayments IPN webhook security',
+      impact: 90, armed: _envArmed('NOWPAYMENTS_IPN_SECRET'),
+      envVars: ['NOWPAYMENTS_IPN_SECRET'],
+      unlocks: 'Verified payment:confirmed webhooks → auto-fulfill + activation. Without IPN secret, production rejects callbacks.',
+      action: 'Copy the IPN secret from NOWPayments dashboard into NOWPAYMENTS_IPN_SECRET.',
     },
     {
       id: 'email_delivery', title: 'Transactional email delivery (HTTPS provider)',
@@ -759,11 +769,48 @@ app.get('/api/activation/readiness', (req, res) => {
       action: 'Add STRIPE_SECRET_KEY (test or live).',
     },
     {
+      id: 'stripe_subscriptions', title: 'Stripe Billing price IDs (subscriptions)',
+      impact: 70, armed: stripePricesArmed,
+      envVars: ['STRIPE_PRICE_STARTER_MONTHLY', 'STRIPE_PRICE_PRO_MONTHLY', 'STRIPE_PRICE_ENTERPRISE_MONTHLY'],
+      unlocks: 'Recurring SaaS plans can create real Stripe Checkout sessions instead of price-less stubs.',
+      action: 'Create Stripe Price objects and set STRIPE_PRICE_*_MONTHLY/YEARLY.',
+    },
+    {
+      id: 'stripe_webhooks', title: 'Stripe webhook signature secret',
+      impact: 65, armed: _envArmed('STRIPE_WEBHOOK_SECRET'),
+      envVars: ['STRIPE_WEBHOOK_SECRET'],
+      unlocks: 'Verified checkout.session.completed → pay-fulfill settle + entitlement activation.',
+      action: 'Add STRIPE_WEBHOOK_SECRET from the Stripe webhook endpoint.',
+    },
+    {
+      id: 'paypal_rail', title: 'PayPal Orders API rail',
+      impact: 75, armed: _envArmed('PAYPAL_CLIENT_ID') && (_envArmed('PAYPAL_CLIENT_SECRET') || _envArmed('PAYPAL_SECRET')),
+      envVars: ['PAYPAL_CLIENT_ID', 'PAYPAL_CLIENT_SECRET'],
+      unlocks: 'PayPal create + capture + webhook settle path for buyers who prefer PayPal.',
+      action: 'Add PAYPAL_CLIENT_ID and PAYPAL_CLIENT_SECRET (PAYPAL_SECRET alias accepted).',
+    },
+    {
+      id: 'paypal_webhooks', title: 'PayPal webhook verification',
+      impact: 55, armed: _envArmed('PAYPAL_WEBHOOK_ID'),
+      envVars: ['PAYPAL_WEBHOOK_ID'],
+      unlocks: 'Verified PAYMENT.CAPTURE.COMPLETED → mark paid + fulfill.',
+      action: 'Register a PayPal webhook and set PAYPAL_WEBHOOK_ID.',
+    },
+    {
+      id: 'cj_dropship', title: 'CJ Dropshipping auto-fulfill',
+      impact: 60, armed: _envArmed('ZACC_CJ_API_KEY') || _envArmed('CJ_API_KEY'),
+      envVars: ['ZACC_CJ_API_KEY', 'CJ_API_KEY'],
+      unlocks: 'Physical SKUs with real CJ variant IDs ship automatically (AUTO-SHIP badge).',
+      action: 'Add ZACC_CJ_API_KEY from CJ Dropshipping API.',
+    },
+    {
       id: 'organic_social', title: 'Autonomous social distribution',
-      impact: 60, armed: _envArmed('X_BEARER_TOKEN') || _envArmed('TELEGRAM_BOT_TOKEN') || _envArmed('YOUTUBE_API_KEY'),
-      envVars: ['X_BEARER_TOKEN', 'TELEGRAM_BOT_TOKEN', 'YOUTUBE_API_KEY', 'PINTEREST_TOKEN'],
-      unlocks: 'The social viralizer posts daily value content → free top-of-funnel traffic. Currently posts to zero platforms.',
-      action: 'Add at least one social token (Telegram bot is the fastest).',
+      impact: 60,
+      armed: _envArmed('X_BEARER_TOKEN') || _envArmed('TELEGRAM_BOT_TOKEN') || _envArmed('YOUTUBE_API_KEY')
+        || _envArmed('DISCORD_WEBHOOK_URL') || _envArmed('DISCORD_WEBHOOK'),
+      envVars: ['X_BEARER_TOKEN', 'TELEGRAM_BOT_TOKEN', 'YOUTUBE_API_KEY', 'PINTEREST_TOKEN', 'DISCORD_WEBHOOK_URL'],
+      unlocks: 'The social viralizer posts daily value content → free top-of-funnel traffic.',
+      action: 'Add at least one social token (Telegram bot or Discord webhook is fastest).',
     },
     {
       id: 'ai_outreach', title: 'AI-personalized outreach + content',
@@ -2934,6 +2981,15 @@ const globalReferralLoop = require('./modules/global-referral-loop');
 const innovationShipGate = require('./modules/innovation-ship-gate');
 const memoryPressureGuardian = require('./modules/memory-pressure-guardian');
 const nowPayments = require('./modules/nowPayments');
+// Ensure a process-wide event bus exists so NOWPayments (and other rails)
+// can emit payment:confirmed even before listeners are attached later.
+try {
+  const { EventEmitter } = require('events');
+  if (!(global._unicornEventBus instanceof EventEmitter)) {
+    global._unicornEventBus = new EventEmitter();
+    global._unicornEventBus.setMaxListeners(50);
+  }
+} catch (_) {}
 const aviationModule = require('./modules/aviationModule');
 const paymentSystems = require('./modules/paymentSystems');
 const governmentModule = require('./modules/governmentModule');
@@ -4728,6 +4784,22 @@ try {
     conversion: () => { try { return moneyMachine.conversionIntelligence(); } catch (_) { return {}; } },
     funnel: () => { try { return (typeof funnelIntelligence !== 'undefined' && funnelIntelligence) ? funnelIntelligence.summary() : {}; } catch (_) { return {}; } },
     referral: () => { try { return (typeof unicornInnovationSuite !== 'undefined' && unicornInnovationSuite && unicornInnovationSuite.getAffiliateStats) ? unicornInnovationSuite.getAffiliateStats() : {}; } catch (_) { return {}; } },
+    // Lazy getters — retention/offer modules may load later in boot order.
+    retention: () => {
+      try {
+        const re = require('./modules/retention-engine');
+        return (re && typeof re.getStatus === 'function') ? re.getStatus() : {};
+      } catch (_) { return {}; }
+    },
+    offer: {
+      rotate: () => {
+        try {
+          const of = require('./modules/offer-factory');
+          if (of && typeof of.listRecent === 'function') return { ok: true, offers: of.listRecent(5) };
+          return { ok: true, rotated: true };
+        } catch (e) { return { ok: false, error: e && e.message }; }
+      },
+    },
   });
   _growthBrain.registerRoutes(app);
   if (process.env.NODE_ENV !== 'test' && process.env.GROWTH_STACK_DISABLED !== '1' && typeof _growthBrain.start === 'function') {
@@ -7042,6 +7114,41 @@ app.post('/api/payment/webhook/stripe', (req, res) => {
               .catch(err => console.error('[Email] payment confirmation failed:', err.message));
           }
         }
+        // Unified fulfill + notify (idempotent). Covers one-shot service purchases
+        // and any session that carries order/service metadata.
+        try {
+          const orderId = txId || session.metadata?.orderId || session.id;
+          const email = session.customer_email
+            || (session.customer_details && session.customer_details.email)
+            || session.metadata?.email
+            || null;
+          _settleProviderPayment({
+            orderId,
+            id: orderId,
+            email,
+            amount: Number(session.amount_total || 0) / 100,
+            serviceId: session.metadata?.serviceId || planId || null,
+            plan: planId || null,
+            status: 'paid',
+            paidAt: new Date().toISOString(),
+            confirmation: { network: 'stripe', sessionId: session.id, txId: txId || null },
+          }, 'stripe');
+          // Also activate SaaS entitlements when a serviceId is present.
+          if (session.metadata?.serviceId || planId) {
+            try {
+              _onPaidInvoice({
+                id: String(orderId),
+                service: session.metadata?.serviceId || planId,
+                serviceId: session.metadata?.serviceId || planId,
+                customerEmail: email,
+                txid: session.id,
+                metadata: { email, provider: 'stripe' },
+              });
+            } catch (_) {}
+          }
+        } catch (e) {
+          console.warn('[Stripe Webhook] settle failed:', e && e.message);
+        }
       }
       break;
     }
@@ -7157,13 +7264,41 @@ app.post('/api/payment/webhook/paypal', async (req, res) => {
       dbPayments.save(updated);
       paymentGateway.payments.set(payment.txId, updated);
       console.log('[PayPal Webhook] Payment completed:', payment.txId);
-      // Send payment confirmation email
+      let user = null;
       if (payment.clientId && payment.clientId !== 'guest') {
-        const user = dbUsers.findById(payment.clientId);
+        user = dbUsers.findById(payment.clientId);
         if (user) {
           emailService.sendPaymentConfirmation(user, { amount: payment.total, method: 'paypal' })
             .catch(err => console.error('[Email] PayPal confirmation failed:', err.message));
         }
+      }
+      // Unified fulfill + activate (idempotent via pay-fulfill ledger).
+      try {
+        const settleId = payment.txId || orderId || hint;
+        const md = payment.metadata || {};
+        const email = md.email || payment.email || (user && user.email) || null;
+        _settleProviderPayment({
+          orderId: settleId,
+          id: settleId,
+          email,
+          amount: Number(payment.total || payment.amount || 0),
+          serviceId: md.serviceId || md.planId || null,
+          status: 'paid',
+          paidAt: new Date().toISOString(),
+          confirmation: { network: 'paypal', orderId: orderId || payment.providerPaymentId },
+        }, 'paypal');
+        if (md.serviceId || md.planId) {
+          _onPaidInvoice({
+            id: String(settleId),
+            service: md.serviceId || md.planId,
+            serviceId: md.serviceId || md.planId,
+            customerEmail: email,
+            txid: orderId || payment.providerPaymentId,
+            metadata: { email, provider: 'paypal' },
+          });
+        }
+      } catch (e) {
+        console.warn('[PayPal Webhook] settle failed:', e && e.message);
       }
     }
   };
@@ -7407,6 +7542,65 @@ function _onPaidInvoice(invoice) {
   } catch (e) { console.warn('[BTC/Paid] sale notification failed:', e.message); }
   // Mesh broadcast so other modules can react (e.g., service activation).
   try { meshOrchestrator.broadcast && meshOrchestrator.broadcast('btc.invoice.paid', invoice); } catch (e) { console.warn('[BTC/Paid] mesh broadcast failed:', e.message); }
+}
+
+// Unified settle tail for Stripe / PayPal / NOWPayments confirmations.
+// Idempotent via pay-fulfill ledger; never throws into the webhook handler.
+function _settleProviderPayment(receipt, source) {
+  try {
+    const payFulfill = require('../src/commerce/pay-fulfill');
+    Promise.resolve(payFulfill.settleAndNotify({ receipt, source }))
+      .then((r) => {
+        if (r && r.ok) console.log('[pay-fulfill]', source, 'settled', r.orderId);
+      })
+      .catch((err) => console.warn('[pay-fulfill]', source, 'settle failed:', err && err.message));
+  } catch (e) {
+    console.warn('[pay-fulfill] load failed:', e && e.message);
+  }
+}
+
+// NOWPayments → activation + fulfill. Listens for payment:confirmed emitted
+// by nowPayments.processWebhook (creates the bus if missing).
+try {
+  const { EventEmitter } = require('events');
+  if (!(global._unicornEventBus instanceof EventEmitter)) {
+    global._unicornEventBus = new EventEmitter();
+    global._unicornEventBus.setMaxListeners(50);
+  }
+  if (!global._unicornEventBus._nowPayListenerBound) {
+    global._unicornEventBus.on('payment:confirmed', (evt) => {
+      try {
+        if (!evt || evt.provider !== 'nowpayments') return;
+        const orderId = String(evt.orderId || evt.paymentId || '').trim();
+        if (!orderId) return;
+        const invoiceLike = {
+          id: orderId,
+          service: evt.serviceId || 'unknown',
+          serviceId: evt.serviceId || 'unknown',
+          customerEmail: evt.clientId || null,
+          txid: evt.paymentId || null,
+          metadata: { email: evt.clientId || null, provider: 'nowpayments' },
+        };
+        _onPaidInvoice(invoiceLike);
+        _settleProviderPayment({
+          orderId,
+          id: orderId,
+          email: evt.clientId || null,
+          amount: Number(evt.amountUsd || 0),
+          serviceId: evt.serviceId || null,
+          status: 'paid',
+          paidAt: new Date().toISOString(),
+          confirmation: { network: 'nowpayments', paymentId: evt.paymentId, payCurrency: evt.payCurrency },
+        }, 'nowpayments');
+      } catch (e) {
+        console.warn('[NOWPayments] payment:confirmed handler failed:', e && e.message);
+      }
+    });
+    global._unicornEventBus._nowPayListenerBound = true;
+    console.log('[NOWPayments] payment:confirmed → settle+activate listener armed');
+  }
+} catch (e) {
+  console.warn('[NOWPayments] event bus wire failed:', e && e.message);
 }
 
 if (process.env.BTC_VERIFIER_DISABLE !== '1') {

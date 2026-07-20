@@ -19,6 +19,12 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 
+// Hermetic outbound: force dry-run so broadcast asserts stay stable even when
+// the parent process did not set NODE_ENV=test.
+process.env.NODE_ENV = process.env.NODE_ENV || 'test';
+process.env.OUTBOUND_DRY_RUN = '1';
+process.env.DISABLE_SELF_MUTATION = '1';
+
 const tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'marketing-pack-'));
 process.env.MARKETING_BANDIT_FILE = path.join(tmpRoot, 'bandit.jsonl');
 process.env.MARKETING_TOUCH_FILE = path.join(tmpRoot, 'touchpoints.jsonl');

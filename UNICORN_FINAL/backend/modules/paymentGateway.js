@@ -240,8 +240,9 @@ class PaymentGateway {
       },
       paypal: {
         clientId:     process.env.PAYPAL_CLIENT_ID     || '',
-        clientSecret: process.env.PAYPAL_CLIENT_SECRET || '',
-        environment:  (process.env.PAYPAL_ENV || 'sandbox').toLowerCase(),
+        // Canonical PAYPAL_CLIENT_SECRET + legacy PAYPAL_SECRET alias.
+        clientSecret: process.env.PAYPAL_CLIENT_SECRET || process.env.PAYPAL_SECRET || '',
+        environment:  (process.env.PAYPAL_ENV || process.env.PAYPAL_MODE || 'sandbox').toLowerCase(),
       },
     };
   }

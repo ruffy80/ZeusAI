@@ -52,6 +52,7 @@ const FETCH_TIMEOUT_MS = 8000;
 // RO: cheia e derivată determinist ca site-ul și backend-ul să coincidă.
 function indexNowKey() {
   if (process.env.INDEXNOW_KEY) return String(process.env.INDEXNOW_KEY).slice(0, 64);
+  if (process.env.MARKETING_INDEXNOW_KEY) return String(process.env.MARKETING_INDEXNOW_KEY).slice(0, 64);
   return crypto.createHash('sha256').update('zeusai-indexnow:' + HOST).digest('hex').slice(0, 32);
 }
 

@@ -39,13 +39,18 @@ function safeImage(url, slug) {
 function sourceMode(p) {
   const source = String(p.source || '').toLowerCase();
   const supplier = String(p.supplier || '').toLowerCase();
-  const live = p.demoOnly !== true && (
+  // LIVE only for real supplier rails — never demo / world-feed scrapers.
+  const isWorldFeed = source.indexOf('world') !== -1
+    || source.indexOf('dummyjson') !== -1
+    || source.indexOf('fakestore') !== -1
+    || source.indexOf('escuela') !== -1
+    || supplier === 'world-feed';
+  const liveSources = ['ebay', 'aliexpress', 'etsy', 'external', 'cj', 'cjdropshipping'];
+  const live = p.demoOnly !== true && !isWorldFeed && (
     p.live === true ||
     p.sourceMode === 'live' ||
-    ['ebay', 'aliexpress', 'etsy', 'external', 'cj', 'cjdropshipping',
-      'dummyjson-world', 'fakestore-world', 'escuela-world'].indexOf(source) !== -1 ||
-    source.indexOf('world') !== -1 ||
-    (supplier && supplier !== 'manual' && supplier !== 'unknown')
+    liveSources.indexOf(source) !== -1 ||
+    (supplier && supplier !== 'manual' && supplier !== 'unknown' && supplier !== 'world-feed')
   );
   return { label: live ? 'LIVE' : 'ZEUS-CURATED', live };
 }
@@ -53,7 +58,8 @@ function sourceMode(p) {
 function fulfillBadge(p) {
   const mode = (p.delivery && p.delivery.mode) || '';
   const automated = p.delivery && p.delivery.automated === true;
-  if (automated && mode === 'global-dropship') {
+  // Publisher uses cj-global-dropship; accept legacy global-dropship too.
+  if (automated && (mode === 'cj-global-dropship' || mode === 'global-dropship')) {
     return { label: 'AUTO-FULFIL', cls: 'ds-badge-live' };
   }
   return { label: 'DESK-FULFIL', cls: '' };
