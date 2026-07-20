@@ -1075,8 +1075,10 @@ async function quotePublicPricing(serviceId, query) {
       return { headerSource: 'site-local-pricing', payload };
     } catch (_) { /* fall through to snapshot / fail-closed */ }
   }
-  // No local anchor — consult the last-known-good snapshot for this exact id.
-  const snap = _readPublicPricingSnapshot('service', serviceId);
+  // No local anchor for THIS id means we must not resurrect a poisoned
+  // snapshot that was recorded when the site used to echo invented $99
+  // upstream quotes. Snapshots are only honest for catalog-anchored ids.
+  const snap = (realBase > 0) ? _readPublicPricingSnapshot('service', serviceId) : null;
   if (snap && snap.payload && Number(snap.payload.price_usd) > 0) {
     const stalePayload = Object.assign({}, snap.payload, {
       stale: true,
@@ -7154,14 +7156,17 @@ seedSsrMap();if(document.getElementById("ds-sort")&&!document.getElementById("ds
     }
   }
 
-  // /services/:id — public detail page for any catalog item (auto-generated).
-  // Renders a self-contained HTML page from buildMasterCatalog() metadata so
-  // every current AND future Unicorn deliverable becomes presentable + sellable
-  // with zero per-service work. Buy button routes to sovereign BTC checkout
-  // (/api/checkout/create), which settles directly on-chain to BTC_WALLET.
+  // /services/:id — public detail page. Prefer the cinematic v2 shell SSR
+  // (real product data on first paint). Fall back to a minimal HTML page
+  // only when the v2 shell is unavailable in this process.
   if (req.method === 'GET' && /^\/services\/[A-Za-z0-9_\-:.]{1,80}$/.test(urlPath)) {
     try {
-      const id = urlPath.slice('/services/'.length);
+      const id = urlPath.slice('/services/'.length).split('?')[0];
+      if (v2 && typeof v2.getHtml === 'function') {
+        const html = v2.getHtml('/services/' + id, { id });
+        res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store', 'X-Unicorn-Page': 'service-detail-v2' });
+        return res.end(html);
+      }
       let item = null;
       if (unifiedCatalog && typeof unifiedCatalog.byId === 'function') {
         const u = unifiedCatalog.byId(id);
