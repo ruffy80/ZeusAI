@@ -958,7 +958,17 @@ function _catalogBaseForPricing(id) {
     } catch (_) {}
     return null;
   };
-  return probe(unifiedCatalog) || probe(instantCatalog) || probe(entCatalog) || null;
+  const fromCatalogs = probe(unifiedCatalog) || probe(instantCatalog) || probe(entCatalog);
+  if (fromCatalogs != null && Number.isFinite(fromCatalogs)) return fromCatalogs;
+  // Canonical core plans (`free`, `starter`, `pro`, `enterprise`, ...) are
+  // ALWAYS real, fulfillable products — even when the catalog modules haven't
+  // been loaded yet. Anchoring their price here means the fail-closed pricing
+  // path still resolves them without inventing a $99 placeholder.
+  try {
+    const core = typeof canonicalPlanMeta === 'function' ? canonicalPlanMeta(id) : null;
+    if (core && Number.isFinite(Number(core.priceUsd))) return Number(core.priceUsd);
+  } catch (_) { /* fall through */ }
+  return null;
 }
 function _recomputePricingWithRealBase(upstream, realBase) {
   // Reverse-derive the engine multipliers from the upstream response and
