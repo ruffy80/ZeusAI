@@ -4766,8 +4766,20 @@ try {
       res.json(JSON.parse(fs.readFileSync(file, 'utf8')));
     } catch (e) { res.status(500).json({ ok: false, error: e && e.message }); }
   });
+  app.get('/api/growth/rss.xml', (req, res) => {
+    try {
+      const fs = require('fs');
+      const path = require('path');
+      const file = process.env.MARKETING_OUTBOUND_RSS
+        || path.join(process.cwd(), 'data', 'marketing', 'rss.xml');
+      if (!fs.existsSync(file)) {
+        return res.status(404).type('text/plain').send('rss_not_ready');
+      }
+      res.type('application/rss+xml').send(fs.readFileSync(file, 'utf8'));
+    } catch (e) { res.status(500).type('text/plain').send(String(e && e.message)); }
+  });
   // CVR loop runs in zeus-unicorn-bot PM2 — backend exposes status + public feed.
-  console.log('[growth-cvr] mounted: /api/growth/cvr (+ /pulse /channels /feed) — Causal Virality Reflex');
+  console.log('[growth-cvr] mounted: /api/growth/cvr (+ /pulse /channels /feed /rss.xml) — Causal Virality Reflex');
 } catch (e) { console.warn('[growth-cvr] failed to mount:', e && e.message); }
 
 let _cinematicProfileOverride = null;

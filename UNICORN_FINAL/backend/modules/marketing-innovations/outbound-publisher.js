@@ -146,7 +146,11 @@ async function _publishTelegram(intent) {
 }
 
 async function _publishDiscord(intent) {
-  const url = process.env.DISCORD_WEBHOOK_URL || '';
+  const url = process.env.DISCORD_WEBHOOK_URL
+    || process.env.DISCORD_WEBHOOK
+    || process.env.ZAC_DISCORD_WEBHOOK
+    || process.env.WATCHDOG_DISCORD_WEBHOOK
+    || '';
   if (!url) return { ok: false, reason: 'no_credentials', platform: 'discord' };
   if (_isDryRun()) return { ok: true, dryRun: true, platform: 'discord' };
   return _safeFetch(url, {
@@ -194,14 +198,69 @@ async function _publishBluesky(intent) {
 }
 
 async function _publishGeneric(intent) {
-  const url = process.env.GENERIC_WEBHOOK_URL || '';
+  const url = process.env.GENERIC_WEBHOOK_URL
+    || process.env.WEBHOOK_URL
+    || process.env.GH_WEBHOOK_URL
+    || process.env.HETZNER_WEBHOOK_URL
+    || '';
   if (!url) return { ok: false, reason: 'no_credentials', platform: 'generic' };
   if (_isDryRun()) return { ok: true, dryRun: true, platform: 'generic' };
   return _safeFetch(url, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ ...intent, ts: new Date().toISOString() }),
+    body: JSON.stringify({ ...intent, source: 'zeusai-cvr', ts: new Date().toISOString() }),
   });
+}
+
+async function _publishLinkedIn(intent) {
+  const token = process.env.LINKEDIN_ACCESS_TOKEN || '';
+  const author = process.env.LINKEDIN_AUTHOR_URN || '';
+  if (!token || !author) return { ok: false, reason: 'no_credentials', platform: 'linkedin' };
+  if (_isDryRun()) return { ok: true, dryRun: true, platform: 'linkedin' };
+  const text = String(intent.body || '').slice(0, 2800);
+  const r = await _safeFetch('https://api.linkedin.com/v2/ugcPosts', {
+    method: 'POST',
+    headers: {
+      'content-type': 'application/json',
+      authorization: `Bearer ${token}`,
+      'X-Restli-Protocol-Version': '2.0.0',
+    },
+    body: JSON.stringify({
+      author,
+      lifecycleState: 'PUBLISHED',
+      specificContent: {
+        'com.linkedin.ugc.ShareContent': {
+          shareCommentary: { text },
+          shareMediaCategory: 'NONE',
+        },
+      },
+      visibility: { 'com.linkedin.ugc.MemberNetworkVisibility': 'PUBLIC' },
+    }),
+  });
+  return { ...r, platform: 'linkedin' };
+}
+
+async function _publishPinterest(intent) {
+  const token = process.env.PINTEREST_TOKEN || '';
+  const board = process.env.PINTEREST_BOARD_ID || '';
+  if (!token || !board) return { ok: false, reason: 'no_credentials', platform: 'pinterest' };
+  if (_isDryRun()) return { ok: true, dryRun: true, platform: 'pinterest' };
+  const link = String(intent.url || process.env.PUBLIC_APP_URL || 'https://zeusai.pro');
+  const r = await _safeFetch('https://api.pinterest.com/v5/pins', {
+    method: 'POST',
+    headers: {
+      'content-type': 'application/json',
+      authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify({
+      board_id: board,
+      title: String(intent.title || 'ZeusAI Unicorn').slice(0, 100),
+      description: String(intent.body || '').slice(0, 500),
+      link,
+      media_source: { source_type: 'image_url', url: `${link}/og-default.png` },
+    }),
+  });
+  return { ...r, platform: 'pinterest' };
 }
 
 async function _publishX(intent) {
@@ -281,6 +340,8 @@ const ADAPTERS = {
   bluesky: _publishBluesky,
   x: _publishX,
   devto: _publishDevto,
+  linkedin: _publishLinkedIn,
+  pinterest: _publishPinterest,
   generic: _publishGeneric,
   rss: async (i) => _publishRss(i),
 };
@@ -340,12 +401,24 @@ function status() {
 function _adapterReady(k) {
   switch (k) {
     case 'telegram': return _telegramCreds().has;
-    case 'discord': return !!process.env.DISCORD_WEBHOOK_URL;
+    case 'discord': return !!(
+      process.env.DISCORD_WEBHOOK_URL
+      || process.env.DISCORD_WEBHOOK
+      || process.env.ZAC_DISCORD_WEBHOOK
+      || process.env.WATCHDOG_DISCORD_WEBHOOK
+    );
     case 'mastodon': return !!(process.env.MASTODON_INSTANCE && process.env.MASTODON_TOKEN);
     case 'bluesky': return !!(process.env.BLUESKY_HANDLE && process.env.BLUESKY_APP_PASSWORD);
     case 'x': return !!(process.env.X_ACCESS_TOKEN || process.env.X_BEARER_TOKEN);
     case 'devto': return !!process.env.DEV_API_KEY;
-    case 'generic': return !!process.env.GENERIC_WEBHOOK_URL;
+    case 'linkedin': return !!(process.env.LINKEDIN_ACCESS_TOKEN && process.env.LINKEDIN_AUTHOR_URN);
+    case 'pinterest': return !!(process.env.PINTEREST_TOKEN && process.env.PINTEREST_BOARD_ID);
+    case 'generic': return !!(
+      process.env.GENERIC_WEBHOOK_URL
+      || process.env.WEBHOOK_URL
+      || process.env.GH_WEBHOOK_URL
+      || process.env.HETZNER_WEBHOOK_URL
+    );
     case 'rss': return true;
     default: return false;
   }

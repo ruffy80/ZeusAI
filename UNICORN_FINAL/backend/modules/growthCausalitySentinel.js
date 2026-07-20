@@ -71,13 +71,13 @@ let _lastStatus = { ok: true, module: NAME, started: false };
 // Stage → preferred channel order. We still fan out to EVERY armed channel;
 // affinity only sorts so the hungriest stage hits the highest-leverage rails first.
 const CHANNEL_AFFINITY = {
-  traffic:  ['x', 'devto', 'bluesky', 'mastodon', 'rss', 'telegram', 'discord', 'generic'],
-  capture:  ['telegram', 'discord', 'x', 'rss', 'generic', 'mastodon', 'bluesky', 'devto'],
-  convert:  ['telegram', 'x', 'discord', 'mastodon', 'bluesky', 'rss', 'devto', 'generic'],
-  monetize: ['telegram', 'x', 'devto', 'discord', 'rss', 'mastodon', 'bluesky', 'generic'],
-  expand:   ['x', 'bluesky', 'mastodon', 'devto', 'rss', 'telegram', 'discord', 'generic'],
-  retain:   ['telegram', 'discord', 'rss', 'x', 'generic', 'mastodon', 'bluesky', 'devto'],
-  infra:    ['telegram', 'discord', 'rss', 'generic', 'x', 'mastodon', 'bluesky', 'devto'],
+  traffic:  ['x', 'devto', 'linkedin', 'pinterest', 'bluesky', 'mastodon', 'rss', 'telegram', 'discord', 'generic'],
+  capture:  ['telegram', 'discord', 'x', 'linkedin', 'rss', 'generic', 'mastodon', 'bluesky', 'devto', 'pinterest'],
+  convert:  ['telegram', 'x', 'linkedin', 'discord', 'mastodon', 'bluesky', 'rss', 'devto', 'pinterest', 'generic'],
+  monetize: ['telegram', 'x', 'linkedin', 'devto', 'discord', 'rss', 'mastodon', 'bluesky', 'pinterest', 'generic'],
+  expand:   ['x', 'bluesky', 'mastodon', 'linkedin', 'devto', 'pinterest', 'rss', 'telegram', 'discord', 'generic'],
+  retain:   ['telegram', 'discord', 'rss', 'x', 'linkedin', 'generic', 'mastodon', 'bluesky', 'devto', 'pinterest'],
+  infra:    ['telegram', 'discord', 'rss', 'generic', 'x', 'linkedin', 'mastodon', 'bluesky', 'devto', 'pinterest'],
 };
 
 const state = {
