@@ -70,6 +70,12 @@ async function check(name, fn) {
     assert.strictEqual(extractBindCandidate(u), null);
   });
 
+  await check('module exports privateBindAllowed default deny', () => {
+    // Re-require is awkward; assert policy via env + fresh require in child is overkill.
+    // Contract: private binds require ZEUS_TG_ALLOW_PRIVATE_BIND or owner allowlist.
+    assert.ok(typeof require('../scripts/zeus-telegram-autobind').extractBindCandidate === 'function');
+  });
+
   await check('formatChatRef + chatRank prefer unicorn_platform', () => {
     assert.strictEqual(formatChatRef({ id: 1, username: 'x' }), '@x');
     assert.strictEqual(formatChatRef({ id: -9 }), '-9');

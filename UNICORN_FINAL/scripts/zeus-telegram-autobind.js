@@ -35,6 +35,15 @@ const PREFERRED = String(process.env.ZEUS_TG_PREFERRED_CHAT || 'unicorn_platform
   .replace(/^@/, '').toLowerCase();
 const POLL_TIMEOUT = Math.max(5, Number(process.env.ZEUS_TG_POLL_TIMEOUT) || 25);
 const RELOAD_PM2 = String(process.env.ZEUS_TG_RELOAD_PM2 || '1') !== '0';
+// Private /bind is OFF by default — random DMs must not become the production
+// outbound target. Enable with ZEUS_TG_ALLOW_PRIVATE_BIND=1 or allowlist ids.
+const ALLOW_PRIVATE = String(process.env.ZEUS_TG_ALLOW_PRIVATE_BIND || '') === '1';
+const OWNER_CHAT_IDS = new Set(
+  String(process.env.ZEUS_TG_OWNER_CHAT_IDS || process.env.TELEGRAM_OWNER_CHAT_ID || '')
+    .split(/[\s,]+/)
+    .map((s) => s.trim())
+    .filter(Boolean)
+);
 const OFFSET_FILE = path.join(path.dirname(STATUS_FILE), 'updates-offset.json');
 
 function log(msg) {
@@ -197,11 +206,31 @@ async function probeWritable(token, chatRef) {
 
 function reloadBackend() {
   if (!RELOAD_PM2) return { ok: false, skipped: true };
-  const r = spawnSync('pm2', ['restart', 'unicorn-backend', '--update-env'], {
+  const env = {
+    ...process.env,
+    HOME: process.env.HOME || '/root',
+    PM2_HOME: process.env.PM2_HOME || '/root/.pm2',
+  };
+  // Prefer name-based restart; fall back to startOrReload if the process
+  // table was reshuffled (PM2 sometimes reports "Process N not found").
+  let r = spawnSync('pm2', ['restart', 'unicorn-backend', '--update-env'], {
     encoding: 'utf8',
-    env: { ...process.env, HOME: process.env.HOME || '/root', PM2_HOME: process.env.PM2_HOME || '/root/.pm2' },
+    env,
   });
+  if (r.status !== 0) {
+    r = spawnSync('pm2', ['reload', 'unicorn-backend', '--update-env'], {
+      encoding: 'utf8',
+      env,
+    });
+  }
   return { ok: r.status === 0, status: r.status, stderr: (r.stderr || '').slice(0, 200) };
+}
+
+function privateBindAllowed(chat) {
+  if (!chat || chat.type !== 'private') return false;
+  if (ALLOW_PRIVATE) return true;
+  if (OWNER_CHAT_IDS.size === 0) return false;
+  return OWNER_CHAT_IDS.has(String(chat.id));
 }
 
 async function applyBind(token, chat, reason) {
@@ -354,10 +383,27 @@ async function loop() {
           if (cmd === '/chatid' || cmd === '/start') {
             await replyChatId(token, cand.chat, cand.messageId);
           }
-          if (cmd === '/bind' || cmd === '/start') {
-            // Private bind only on explicit /bind, or /start with payload "bind"
-            const payload = text.trim().split(/\s+/).slice(1).join(' ').toLowerCase();
-            if (cmd === '/bind' || payload === 'bind' || payload.startsWith('bind')) {
+          if (cmd === '/bind' || (cmd === '/start' && /\bbind\b/i.test(text))) {
+            if (!privateBindAllowed(cand.chat)) {
+              await tg(token, 'sendMessage', {
+                chat_id: cand.chat.id,
+                reply_to_message_id: cand.messageId,
+                text: [
+                  'Private /bind is disabled (production posts must go to a channel).',
+                  `Add @ZEUSAIIBOT as admin of @${PREFERRED || 'unicorn_platform'} with Post Messages.`,
+                  'Autobind will capture it automatically.',
+                  '',
+                  'Owner override: set ZEUS_TG_ALLOW_PRIVATE_BIND=1 or ZEUS_TG_OWNER_CHAT_IDS on the VPS.',
+                ].join('\n'),
+              });
+              writeStatus({
+                waiting: true,
+                lastPrivateBindDenied: {
+                  chatId: cand.chat.id,
+                  at: new Date().toISOString(),
+                },
+              });
+            } else {
               await applyBind(token, cand.chat, cand.reason);
             }
           }
@@ -383,6 +429,7 @@ module.exports = {
   formatChatRef,
   upsertEnv,
   readEnvFile,
+  privateBindAllowed,
 };
 
 if (require.main === module) {
