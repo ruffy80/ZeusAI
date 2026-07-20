@@ -158,19 +158,26 @@ else
   warn "health-watch script not found at $HEALTH_WATCH — skipping cron install"
 fi
 
-# ── 7. Health checks ─────────────────────────────────────────────────────────
-HEALTH_OK=1
-check_health() {
-  local label="$1" url="$2"
-  if curl -fsS --max-time 8 "$url" >/dev/null 2>&1; then
-    log "health OK: $label ($url)"
-  else
-    warn "health FAIL: $label ($url)"
-    HEALTH_OK=0
-  fi
+# ── 7. Health checks (retry — backend needs a few seconds after PM2 reload) ──
+HEALTH_OK=0
+check_health_once() {
+  local url="$1"
+  curl -fsS --max-time 8 "$url" >/dev/null 2>&1
 }
-check_health "backend"       "http://127.0.0.1:${BACKEND_PORT}/api/health"
-check_health "site"          "http://127.0.0.1:${SITE_PORT}/health"
+for attempt in 1 2 3 4 5 6 8 10 12; do
+  if check_health_once "http://127.0.0.1:${BACKEND_PORT}/api/health" \
+    && check_health_once "http://127.0.0.1:${SITE_PORT}/health"; then
+    HEALTH_OK=1
+    log "health OK: backend+site (attempt ${attempt})"
+    break
+  fi
+  warn "health warming… attempt ${attempt}"
+  sleep 5
+done
+if [ "$HEALTH_OK" != "1" ]; then
+  warn "health FAIL: backend (http://127.0.0.1:${BACKEND_PORT}/api/health)"
+  warn "health FAIL: site (http://127.0.0.1:${SITE_PORT}/health)"
+fi
 # Public health is best-effort — a network/DNS blip should not by itself fail
 # activation when both local services are healthy.
 if curl -fsS --max-time 10 "${PUBLIC_URL%/}/health" >/dev/null 2>&1; then
