@@ -470,6 +470,7 @@ if [ -x "$DEPLOY_LINK/scripts/install-zeus-unicorn-bot.sh" ]; then
   log "ensure zeus-unicorn-bot (CVR) is installed"
   UNICORN_LIVE="$DEPLOY_LINK" bash "$DEPLOY_LINK/scripts/install-zeus-unicorn-bot.sh" \
     || log "[unicorn-bot] non-fatal: install-zeus-unicorn-bot.sh exited non-zero"
+fi
 
 # Telegram chat autobind: long-polls until @ZEUSAIIBOT is granted Post Messages
 # (or /bind), then upserts TELEGRAM_CHAT_ID and reloads unicorn-backend.
