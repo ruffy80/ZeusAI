@@ -66,6 +66,17 @@ async function run() {
       assert.ok(res.body && res.body.degraded === true, 'must flag degraded=true');
     });
 
+    await check('unknown service refuses invented upstream even if BACKEND_API_URL is set', async () => {
+      // Simulate a live backend that invents $99-base quotes for ANY id by
+      // pointing BACKEND_API_URL at this same site process — which for an
+      // unknown id will now fail closed rather than echo the invention.
+      // (When a real backend invents, quotePublicPricing rejects because
+      // _catalogBaseForPricing returns null.)
+      const res = await request(base, '/api/pricing/definitely-not-a-real-service-xyz-999');
+      assert.strictEqual(res.status, 503);
+      assert.ok(!res.body || res.body.price_usd == null, 'must not echo invented price_usd');
+    });
+
     await check('unknown module without snapshot → HTTP 503 (no fake $99)', async () => {
       const res = await request(base, '/api/pricing/module/some-unknown-module-id-xyz');
       assert.strictEqual(res.status, 503);
