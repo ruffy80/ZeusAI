@@ -2975,6 +2975,7 @@ const opportunityRadar = require('./modules/opportunityRadar');
 const businessBlueprint = require('./modules/businessBlueprint');
 const paymentGateway = require('./modules/paymentGateway');
 const worldAiCommerceProtocol = require('./modules/world-ai-commerce-protocol');
+const proofOfMarginExchange = require('./modules/proof-of-margin-exchange');
 const conversionTruthLayer = require('./modules/conversion-truth-layer');
 const proofOfDeliveryLedger = require('./modules/proof-of-delivery-ledger');
 const globalReferralLoop = require('./modules/global-referral-loop');
@@ -7557,6 +7558,28 @@ function _settleProviderPayment(receipt, source) {
   } catch (e) {
     console.warn('[pay-fulfill] load failed:', e && e.message);
   }
+  // PoMX: emit cryptographically signed capability credential on every settle.
+  try {
+    if (proofOfMarginExchange && typeof proofOfMarginExchange.attestSettlement === 'function') {
+      const cred = proofOfMarginExchange.attestSettlement({
+        orderId: receipt && (receipt.orderId || receipt.id),
+        payment: {
+          rail: source || 'unknown',
+          txid: receipt && (receipt.txid || (receipt.confirmation && receipt.confirmation.txid)),
+          amountUsd: receipt && (receipt.amount || receipt.priceUSD),
+          email: receipt && (receipt.email || receipt.customerEmail),
+          paidAt: receipt && (receipt.paidAt || new Date().toISOString()),
+          serviceId: receipt && (receipt.serviceId || receipt.plan),
+        },
+        activation: null,
+      });
+      if (cred && cred.ok) {
+        console.log('[PoMX] capability credential', cred.settlementId, cred.credentialHash);
+      }
+    }
+  } catch (e) {
+    console.warn('[PoMX] settlement attest failed:', e && e.message);
+  }
 }
 
 // NOWPayments → activation + fulfill. Listens for payment:confirmed emitted
@@ -8643,6 +8666,100 @@ app.get(['/api/standards/wacp', '/.well-known/wacp.json'], asyncHandler(async (r
     res.status(200).json({ ok: false, standard: 'WACP/1.0', error: e.message });
   }
 }));
+
+// ═══════════════════════════════════════════════════════════════════════════
+// PoMX/1.0 — Proof-of-Margin Exchange (WORLD-FIRST multi-SKU protocol)
+// Cryptographically attested margin on EVERY listing; agent-verifiable;
+// instant capability credential on settlement. $0 platform take-rate.
+// ═══════════════════════════════════════════════════════════════════════════
+function _pomxSources() {
+  let saas = [];
+  try { saas = buildLiveSaasCatalog(); } catch (_) { saas = []; }
+  let dropship = [];
+  try {
+    const z = require('./modules/zacc');
+    if (z && z.publisher && typeof z.publisher.list === 'function') {
+      dropship = z.publisher.list({ limit: 100 }) || [];
+    } else if (z && typeof z.getPublicSnapshot === 'function') {
+      const snap = z.getPublicSnapshot();
+      dropship = (snap && snap.dropship) || [];
+    }
+  } catch (_) {}
+  let verticals = [];
+  try {
+    const seo = require('./modules/programmatic-seo-engine');
+    if (seo && typeof seo.listVerticals === 'function') verticals = seo.listVerticals() || [];
+  } catch (_) {}
+  return { saas, dropship, verticals, marketplace: saas };
+}
+
+app.get(['/api/pomx', '/api/pomx/discovery', '/.well-known/pomx.json'], (req, res) => {
+  res.set('Cache-Control', 'public, max-age=60');
+  res.json(proofOfMarginExchange.discovery());
+});
+
+app.get('/api/pomx/exchange', (req, res) => {
+  try {
+    const limit = Number(req.query.limit) || 200;
+    const out = proofOfMarginExchange.buildExchange(_pomxSources(), { limit });
+    res.set('Cache-Control', 'public, max-age=30');
+    res.json(out);
+  } catch (e) {
+    res.status(500).json({ ok: false, error: e.message });
+  }
+});
+
+app.get('/api/pomx/sku/:id', (req, res) => {
+  const out = proofOfMarginExchange.getSkuAttestation(req.params.id, _pomxSources());
+  if (!out.ok) return res.status(404).json(out);
+  res.set('Cache-Control', 'public, max-age=30');
+  res.json(out);
+});
+
+app.post('/api/pomx/verify', express.json({ limit: '256kb' }), (req, res) => {
+  res.json(proofOfMarginExchange.verifyAttestation(req.body || {}));
+});
+
+app.post('/api/pomx/quote', express.json({ limit: '64kb' }), (req, res) => {
+  const body = req.body || {};
+  const out = proofOfMarginExchange.createQuote({
+    skuId: body.skuId || body.serviceId || body.id,
+    qty: body.qty,
+    buyer: body.buyer || null,
+    sources: _pomxSources(),
+  });
+  if (!out.ok) return res.status(400).json(out);
+  res.status(201).json(out);
+});
+
+app.post('/api/pomx/order', express.json({ limit: '64kb' }), asyncHandler(async (req, res) => {
+  const body = req.body || {};
+  const out = proofOfMarginExchange.createOrder({
+    quoteId: body.quoteId,
+    quoteHash: body.quoteHash,
+    buyerEmail: body.email || body.buyerEmail,
+    sources: _pomxSources(),
+  });
+  if (!out.ok) return res.status(400).json(out);
+  const sales = await proofOfMarginExchange.openSalesOrder(out);
+  res.status(201).json({ ...out, sales: sales || null });
+}));
+
+app.get('/api/pomx/order/:id', (req, res) => {
+  const out = proofOfMarginExchange.getOrder(req.params.id);
+  if (!out.ok) return res.status(404).json(out);
+  res.json(out);
+});
+
+app.get('/api/pomx/settlement/:id', (req, res) => {
+  const out = proofOfMarginExchange.getSettlement(req.params.id);
+  if (!out.ok) return res.status(404).json(out);
+  res.json(out);
+});
+
+app.get('/api/pomx/status', (req, res) => {
+  res.json(proofOfMarginExchange.getStatus());
+});
 
 // Public payment configuration status. BTC-direct is the primary, always-on
 // owner-wallet rail; external providers (Stripe/PayPal/BTCPay/NOWPayments) are
@@ -11811,6 +11928,7 @@ registerModuleRoutes('content-ai',                 contentAI);
 registerModuleRoutes('auto-marketing',             autoMarketing);
 registerModuleRoutes('profit-autopilot',           profitAutopilot);
 registerModuleRoutes('world-ai-commerce-protocol', worldAiCommerceProtocol);
+registerModuleRoutes('proof-of-margin-exchange',   proofOfMarginExchange);
 registerModuleRoutes('conversion-truth-layer',     conversionTruthLayer);
 registerModuleRoutes('proof-of-delivery-ledger',   proofOfDeliveryLedger);
 registerModuleRoutes('global-referral-loop',       globalReferralLoop);
