@@ -10162,6 +10162,12 @@ app.get('/api/dropship/shelf', (req, res) => {
     netProfitUsd: p.netProfitUsd,
     shelf: p.shelf || null,
     category: p.category,
+    // Honesty fields — storefront must never imply AUTO-SHIP for desk SKUs.
+    fulfillmentMode: p.fulfillmentMode || 'desk',
+    dispatchable: p.dispatchable === true,
+    fulfillmentRecipe: p.fulfillmentRecipe || null,
+    delivery: p.delivery || null,
+    image: p.image || null,
   }));
   res.set('Cache-Control', 'public, max-age=10, stale-while-revalidate=30');
   res.json({
