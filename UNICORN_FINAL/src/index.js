@@ -7585,14 +7585,29 @@ ${secretFeatures ? `<table><tr><th>Feature group</th><th>Configured</th><th>Miss
   }
 
   // ============================================================
-  // /order/:id — live SSE-driven order status page
+  // /order/:id — digital-order passport rendered inside the v2 cinematic
+  // shell (same design system as /services/:id and /dropship/order/:token).
+  // The v2 shell owns nav + galaxy backdrop + SSE hydration script; this
+  // handler simply delegates and lets shell.getHtml('/order/:id', {id})
+  // paint the timeline + BTC payment card. Fallback to a minimal HTML page
+  // if the v2 shell is unavailable in this process.
   // ============================================================
   if (req.method === 'GET' && /^\/order\/[A-Za-z0-9_\-:]{4,}$/.test(urlPath)) {
     const orderId = urlPath.slice('/order/'.length);
     const escId = orderId.replace(/[^A-Za-z0-9_\-:]/g, '');
-    const html = `<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Order ${escId} · ZeusAI</title>
+    try {
+      if (v2 && typeof v2.getHtml === 'function') {
+        const html = v2.getHtml('/order/' + escId, { id: escId });
+        res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store' });
+        return res.end(html);
+      }
+    } catch (e) {
+      console.warn('[order-passport] v2 render failed:', e && e.message ? e.message : e);
+    }
+    // Fallback minimal passport (v2 unavailable).
+    const fallback = `<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Order ${escId} · ZeusAI</title>
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<style>body{font-family:-apple-system,Segoe UI,Roboto,sans-serif;max-width:680px;margin:30px auto;padding:0 18px;color:#111}.card{border:1px solid #e6e6e6;border-radius:14px;padding:22px;margin:14px 0;box-shadow:0 1px 0 rgba(0,0,0,.02)}h1{margin:0 0 6px 0}.s-pending{color:#a35200}.s-paid{color:#0a7a30}.s-active{color:#0050ff}.s-cancelled{color:#a00}code{background:#f4f4f4;padding:3px 8px;border-radius:6px;display:block;word-break:break-all}.qr{display:block;margin:12px 0}.btn{display:inline-block;background:#0050ff;color:#fff;padding:10px 16px;border-radius:8px;text-decoration:none}.muted{color:#777;font-size:13px}</style>
+<style>body{font-family:-apple-system,Segoe UI,Roboto,sans-serif;max-width:680px;margin:30px auto;padding:0 18px;color:#111}.card{border:1px solid #e6e6e6;border-radius:14px;padding:22px;margin:14px 0}h1{margin:0 0 6px}code{background:#f4f4f4;padding:3px 8px;border-radius:6px;display:block;word-break:break-all}.btn{display:inline-block;background:#0050ff;color:#fff;padding:10px 16px;border-radius:8px;text-decoration:none}.muted{color:#777;font-size:13px}</style>
 </head><body>
 <a href="/">← ZeusAI</a><h1>Order status</h1>
 <div class="card" id="orderCard"><div id="status">—</div><div id="details" class="muted"></div></div>
@@ -7600,49 +7615,26 @@ ${secretFeatures ? `<table><tr><th>Feature group</th><th>Configured</th><th>Miss
 <script>
 const ORDER_ID=${JSON.stringify(escId)};
 async function loadOrder(){
-  try{
-    const r=await fetch('/api/uaic/receipt/'+encodeURIComponent(ORDER_ID),{credentials:'same-origin'});
+  try{ const r=await fetch('/api/uaic/receipt/'+encodeURIComponent(ORDER_ID),{credentials:'same-origin'});
     if(!r.ok){const r2=await fetch('/api/receipt/'+encodeURIComponent(ORDER_ID));if(r2.ok)return r2.json();return null;}
-    return r.json();
-  }catch(e){return null;}
-}
+    return r.json(); }catch(e){return null;} }
 function render(o){
-  if(!o){document.getElementById('status').textContent='Order not found / Comandă inexistentă.';return;}
+  if(!o){document.getElementById('status').textContent='Order not found.';return;}
   const status=String(o.status||o.state||'pending').toLowerCase();
-  const cls={pending:'s-pending',awaiting_payment:'s-pending',paid:'s-paid',active:'s-active',activated:'s-active',cancelled:'s-cancelled',expired:'s-cancelled'}[status]||'';
-  document.getElementById('status').innerHTML='<span class="'+cls+'">●</span> Status: <b>'+status.replace(/_/g,' ')+'</b>';
-  const meta=[];
-  if(o.serviceId||o.plan)meta.push('Service: '+(o.serviceId||o.plan));
-  if(o.priceUSD||o.amount)meta.push('Amount: $'+(o.priceUSD||o.amount));
-  if(o.btcAmount)meta.push('BTC: '+o.btcAmount);
-  if(o.confirmations!=null)meta.push('Confirmations: '+o.confirmations+(o.confs_required?'/'+o.confs_required:''));
-  if(o.createdAt||o.created_at)meta.push('Created: '+new Date(o.createdAt||o.created_at).toLocaleString());
-  document.getElementById('details').innerHTML=meta.join(' · ');
-  const pi=o.paymentInstructions||o.payment_instructions||{};
-  const addr=pi.btcAddress||o.btcAddress||o.btc_address;
-  const uri=pi.btcUri||o.btcUri||o.btc_uri;
-  const amt=pi.btcAmount||o.btcAmount||o.btc_amount;
+  document.getElementById('status').textContent='Status: '+status.replace(/_/g,' ');
+  const pi=o.paymentInstructions||{};
+  const addr=pi.btcAddress||o.btcAddress||''; const amt=pi.btcAmount||o.btcAmount||''; const uri=pi.btcUri||o.btcUri||'';
   if(status==='pending'||status==='awaiting_payment'){
-    document.getElementById('payInstr').innerHTML=
-      '<b>Send exactly '+(amt||'?')+' BTC to:</b><code>'+(addr||'?')+'</code>'+
-      (uri?'<a class="btn" href="'+uri+'">Open in BTC wallet</a>':'')+
-      '<p class="muted">Status updates live · auto-confirm runs every 30s · larger amounts require additional on-chain confirmations.</p>';
-  }else if(status==='paid'||status==='active'||status==='activated'){
-    document.getElementById('payInstr').innerHTML='<b>✅ Payment confirmed.</b> Your service is being activated. Visit <a href="/account">/account</a> for delivery and API keys.';
-  }else{
-    document.getElementById('payInstr').innerHTML='Order is '+status+'.';
-  }
+    document.getElementById('payInstr').innerHTML='<b>Send exactly '+(amt||'?')+' BTC to:</b><code>'+(addr||'?')+'</code>'+(uri?'<a class="btn" href="'+uri+'">Open in BTC wallet</a>':'');
+  } else if(status==='paid'||status==='active'||status==='activated'){
+    document.getElementById('payInstr').innerHTML='<b>✅ Payment confirmed.</b> Visit <a href="/account">/account</a>.';
+  } else { document.getElementById('payInstr').textContent='Order is '+status+'.'; }
 }
 loadOrder().then(render);
-const es=new EventSource('/api/unicorn/events');
-es.addEventListener('message',()=>{loadOrder().then(render);});
-es.addEventListener('order',()=>{loadOrder().then(render);});
-es.addEventListener('payment',()=>{loadOrder().then(render);});
-es.addEventListener('error',()=>{});
-setInterval(()=>{loadOrder().then(render);},10000);
+setInterval(function(){loadOrder().then(render);},10000);
 </script></body></html>`;
     res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store' });
-    return res.end(html);
+    return res.end(fallback);
   }
 
   // /api/btc/spot + aliases — live USD/BTC rate (cached 60s)
