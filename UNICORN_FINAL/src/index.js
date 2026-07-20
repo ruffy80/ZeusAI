@@ -1022,18 +1022,26 @@ async function quotePublicPricing(serviceId, query) {
       if (r.ok) {
         const upstream = await r.json();
         const realBase = _catalogBaseForPricing(serviceId);
-        let payload;
-        if (realBase && (
-          (upstream.source && /default/i.test(upstream.source)) ||
-          (upstream.baseSource === 'fallback-default') ||
-          (Number(upstream.basePrice) === 99 && realBase !== 99)
-        )) {
-          payload = _recomputePricingWithRealBase(upstream, realBase);
+        // Fail-honest: if this id is NOT in the local catalog / core plans,
+        // the backend's dynamic-pricing engine will invent a $99-base quote
+        // for ANY string. Never echo that invention to a customer — fall
+        // through to last-known-good snapshot or HTTP 503.
+        if (!(realBase > 0)) {
+          console.warn('[site-proxy] /api/pricing/' + serviceId + ' upstream invented (no catalog floor) — refusing');
         } else {
-          payload = upstream;
+          let payload;
+          if (
+            (upstream.source && /default/i.test(upstream.source)) ||
+            (upstream.baseSource === 'fallback-default') ||
+            (Number(upstream.basePrice) === 99 && realBase !== 99)
+          ) {
+            payload = _recomputePricingWithRealBase(upstream, realBase);
+          } else {
+            payload = upstream;
+          }
+          _recordPublicPricingSnapshot('service', serviceId, payload);
+          return { payload, headerSource: null };
         }
-        _recordPublicPricingSnapshot('service', serviceId, payload);
-        return { payload, headerSource: null };
       }
       console.warn('[site-proxy] /api/pricing/' + serviceId + ' upstream ' + r.status);
     } catch (err) {
@@ -10294,12 +10302,14 @@ a{color:#8a5cff;text-decoration:none}
     // Real SSR pages (2026-06): previously these fell through to the legacy
     // homepage clone — duplicate-content SEO poison + dead-end UX. Each now
     // has a dedicated page in src/site/v2/shell.js. RO: pagini reale, nu clone.
-    '/contact', '/faq', '/blog', '/affiliate', '/partners', '/roadmap', '/careers', '/press'
+    '/contact', '/faq', '/blog', '/affiliate', '/partners', '/roadmap', '/careers', '/press',
+    // Real-customer spine (P1): Agent Commerce Protocol + auth aliases.
+    '/agents', '/login', '/signup', '/auth',
   ];
   // Normalize trailing slash so '/checkout/' '/pricing/' etc. resolve to the
   // same SSR page instead of falling through to the homepage clone.
   const v2Path = (urlPath.length > 1 && urlPath.endsWith('/')) ? urlPath.replace(/\/+$/, '') : urlPath;
-  const isV2Route = v2Routes.includes(v2Path) || v2Path.startsWith('/services/') || v2Path.startsWith('/solutions/');
+  const isV2Route = v2Routes.includes(v2Path) || v2Path.startsWith('/services/') || v2Path.startsWith('/solutions/') || v2Path.startsWith('/order/');
   if (isV2Route) {
     const route = v2Path;
     // 30Y-LTS: per-request CSP nonce (Nginx forwards X-CSP-Nonce as $request_id;
