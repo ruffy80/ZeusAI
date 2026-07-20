@@ -4749,8 +4749,25 @@ try {
     try { res.type('text/plain').send(_cvr.formatPulse()); }
     catch (e) { res.status(500).type('text/plain').send(String(e && e.message)); }
   });
-  // CVR loop runs in zeus-unicorn-bot PM2 — backend only exposes status.
-  console.log('[growth-cvr] mounted: /api/growth/cvr (+ /pulse) — Causal Virality Reflex status');
+  app.get('/api/growth/cvr/channels', async (req, res) => {
+    try { res.json(await _cvr.process({ action: 'channels' })); }
+    catch (e) { res.status(500).json({ ok: false, error: e && e.message }); }
+  });
+  app.get('/api/growth/cvr/feed', (req, res) => {
+    try {
+      const fs = require('fs');
+      const path = require('path');
+      const shared = process.env.ZEUS_CVR_DATA_DIR
+        || (fs.existsSync('/var/www/unicorn/shared')
+          ? '/var/www/unicorn/shared/data/growth/causality'
+          : path.join(process.cwd(), 'data', 'growth', 'causality'));
+      const file = path.join(shared, 'public-feed.json');
+      if (!fs.existsSync(file)) return res.json({ ok: true, items: [], note: 'no_posts_yet' });
+      res.json(JSON.parse(fs.readFileSync(file, 'utf8')));
+    } catch (e) { res.status(500).json({ ok: false, error: e && e.message }); }
+  });
+  // CVR loop runs in zeus-unicorn-bot PM2 — backend exposes status + public feed.
+  console.log('[growth-cvr] mounted: /api/growth/cvr (+ /pulse /channels /feed) — Causal Virality Reflex');
 } catch (e) { console.warn('[growth-cvr] failed to mount:', e && e.message); }
 
 let _cinematicProfileOverride = null;

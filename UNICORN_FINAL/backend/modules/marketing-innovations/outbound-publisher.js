@@ -204,6 +204,48 @@ async function _publishGeneric(intent) {
   });
 }
 
+async function _publishX(intent) {
+  // Twitter/X API v2 — needs user-context token. Accept X_ACCESS_TOKEN (preferred)
+  // or fall back to X_BEARER_TOKEN when that is a user token (legacy viralizer path).
+  const bearer = process.env.X_ACCESS_TOKEN || process.env.X_BEARER_TOKEN || '';
+  if (!bearer) return { ok: false, reason: 'no_credentials', platform: 'x' };
+  if (_isDryRun()) return { ok: true, dryRun: true, platform: 'x' };
+  const text = String(intent.body || intent.title || '').slice(0, 280);
+  const r = await _safeFetch('https://api.twitter.com/2/tweets', {
+    method: 'POST',
+    headers: {
+      'content-type': 'application/json',
+      authorization: `Bearer ${bearer}`,
+    },
+    body: JSON.stringify({ text }),
+  });
+  return { ...r, platform: 'x' };
+}
+
+async function _publishDevto(intent) {
+  const key = process.env.DEV_API_KEY || '';
+  if (!key) return { ok: false, reason: 'no_credentials', platform: 'devto' };
+  if (_isDryRun()) return { ok: true, dryRun: true, platform: 'devto' };
+  const title = String(intent.title || 'ZeusAI Unicorn Update').slice(0, 120);
+  const body = String(intent.body || '');
+  const r = await _safeFetch('https://dev.to/api/articles', {
+    method: 'POST',
+    headers: {
+      'content-type': 'application/json',
+      'api-key': key,
+    },
+    body: JSON.stringify({
+      article: {
+        title,
+        body_markdown: `${body}\n\n---\nPublished by ZeusAI Causal Virality Reflex.`,
+        published: true,
+        tags: ['ai', 'opensource', 'webdev', 'productivity'],
+      },
+    }),
+  });
+  return { ...r, platform: 'devto' };
+}
+
 function _publishRss(intent) {
   // Append a new <item> to a minimal RSS file. Always succeeds.
   try {
@@ -212,9 +254,9 @@ function _publishRss(intent) {
     let footer = '</channel></rss>';
     if (!fs.existsSync(RSS_FILE)) {
       header = '<?xml version="1.0" encoding="UTF-8"?>\n<rss version="2.0"><channel>\n'
-        + '<title>Unicorn Marketing Feed</title>\n'
-        + '<link>https://unicorn.local/</link>\n'
-        + '<description>Additive marketing publication feed</description>\n';
+        + '<title>ZeusAI / Unicorn Growth Feed</title>\n'
+        + `<link>${String(process.env.PUBLIC_APP_URL || 'https://zeusai.pro').replace(/\/$/, '')}</link>\n`
+        + '<description>Causal Virality Reflex + marketing publication feed</description>\n';
       fs.writeFileSync(RSS_FILE, header + footer);
     }
     const cur = fs.readFileSync(RSS_FILE, 'utf8');
@@ -237,6 +279,8 @@ const ADAPTERS = {
   discord: _publishDiscord,
   mastodon: _publishMastodon,
   bluesky: _publishBluesky,
+  x: _publishX,
+  devto: _publishDevto,
   generic: _publishGeneric,
   rss: async (i) => _publishRss(i),
 };
@@ -282,7 +326,7 @@ function status() {
     dryRun: _isDryRun(),
     rateLimitPerMin: RATE_LIMIT_PER_MIN,
     adapters: Object.keys(ADAPTERS),
-    enabledAdapters: Object.keys(ADAPTERS).filter((k) => _adapterReady(k)),
+    enabledAdapters: enabledPlatforms(),
     telegramEnv: {
       hasCredentials: tg.has,
       envSource: tg.has
@@ -299,10 +343,16 @@ function _adapterReady(k) {
     case 'discord': return !!process.env.DISCORD_WEBHOOK_URL;
     case 'mastodon': return !!(process.env.MASTODON_INSTANCE && process.env.MASTODON_TOKEN);
     case 'bluesky': return !!(process.env.BLUESKY_HANDLE && process.env.BLUESKY_APP_PASSWORD);
+    case 'x': return !!(process.env.X_ACCESS_TOKEN || process.env.X_BEARER_TOKEN);
+    case 'devto': return !!process.env.DEV_API_KEY;
     case 'generic': return !!process.env.GENERIC_WEBHOOK_URL;
     case 'rss': return true;
     default: return false;
   }
+}
+
+function enabledPlatforms() {
+  return Object.keys(ADAPTERS).filter((k) => _adapterReady(k));
 }
 
 function recent(limit) {
@@ -316,4 +366,4 @@ function recent(limit) {
 
 function _resetForTests() { _windows.clear(); _breakers.clear(); }
 
-module.exports = { publish, broadcast, status, recent, _resetForTests };
+module.exports = { publish, broadcast, status, recent, enabledPlatforms, _resetForTests };

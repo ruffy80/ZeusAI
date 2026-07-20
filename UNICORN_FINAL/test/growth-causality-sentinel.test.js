@@ -50,10 +50,18 @@ async function check(name, fn) {
     cvr.setSilenced(false);
   });
 
-  await check('shouldAct · telegram not ready', () => {
+  await check('shouldAct · no channels', () => {
     const g = cvr.shouldAct({ outboundReady: false, healthOk: true, siteOk: true, starvingScore: 10 });
     assert.strictEqual(g.act, false);
-    assert.strictEqual(g.reason, 'telegram_not_ready');
+    assert.strictEqual(g.reason, 'no_channels_armed');
+  });
+
+  await check('selectPlatforms · includes rss and sorts by stage', () => {
+    process.env.TELEGRAM_BOT_TOKEN = 't';
+    process.env.TELEGRAM_CHAT_ID = '1';
+    const plats = cvr.selectPlatforms({ starvingStage: 'traffic' });
+    assert.ok(Array.isArray(plats));
+    assert.ok(plats.includes('rss'));
   });
 
   await check('shouldAct · hunger open when starving', () => {

@@ -175,20 +175,14 @@ async function handleCommand(msg) {
     await reply(chat.id, [
       '🦄 ZeusAI Unicorn Bot — Causal Virality Reflex',
       '',
-      'I do not spray posts on a calendar.',
-      'I measure funnel hunger → post → attribute BEFORE/AFTER lift → adapt.',
+      'I analyze funnel hunger, then fan out to EVERY armed rail:',
+      'Telegram · Discord · X · Mastodon · Bluesky · DEV.to · RSS · webhooks',
+      '+ IndexNow SEO + social viralizer + public site feed.',
       '',
-      '/pulse   live scores',
-      '/boost   force one growth cycle',
-      '/status  machine status',
-      '/catalog top services',
-      '/silence pause auto-posts',
-      '/resume  resume',
-      '/bind    bind this chat (owner)',
-      '/chatid  show id',
+      '/pulse /boost /channels /catalog /silence /resume /status',
       '',
-      'Innovation: Causal Virality Reflex (CVR) — first permanent agent',
-      'that ties each outbound to a measured site delta.',
+      'Innovation: posts only when expected lift clears the noise floor,',
+      'then attributes BEFORE→AFTER site deltas.',
     ].join('\n'), mid);
     return;
   }
@@ -211,16 +205,6 @@ async function handleCommand(msg) {
   if (cmd === '/pulse') {
     const st = await cvr.process({ action: 'pulse' });
     await reply(chat.id, st.text || cvr.formatPulse(), mid);
-    return;
-  }
-  if (cmd === '/boost') {
-    await reply(chat.id, '⚡ Forcing CVR cycle…', mid);
-    const st = await cvr.process({ action: 'boost' });
-    const a = st.lastCycle && st.lastCycle.action;
-    await reply(chat.id, [
-      a && a.ok ? `✅ Posted (${a.id}) lift≈${(a.expectedLift || 0).toFixed(2)}` : `⏸ ${a && a.reason ? a.reason : (st.lastCycle && st.lastCycle.gate && st.lastCycle.gate.reason) || 'no_act'}`,
-      cvr.formatPulse(st),
-    ].join('\n\n'), mid);
     return;
   }
   if (cmd === '/status') {
@@ -251,6 +235,30 @@ async function handleCommand(msg) {
     const lines = (snap.topServices || []).map((s, i) => `${i + 1}. ${s.name || s.id} ${s.price != null ? `($${s.price})` : ''}`);
     await reply(chat.id, lines.length ? `Catalog top:\n${lines.join('\n')}\n\n${process.env.PUBLIC_APP_URL || 'https://zeusai.pro'}/services` : 'Catalog empty or API unreachable.', mid);
     return;
+  }
+  if (cmd === '/channels') {
+    const ch = await cvr.process({ action: 'channels' });
+    await reply(chat.id, [
+      '📡 CVR armed channels (auto fan-out):',
+      ...(ch.armed || []).map((p) => `• ${p}`),
+      '',
+      'Also triggers: IndexNow SEO + socialMediaViralizer + public site feed',
+      'Feed: https://zeusai.pro/api/growth/cvr/feed',
+    ].join('\n'), mid);
+    return;
+  }
+  if (cmd === '/boost') {
+    await reply(chat.id, '⚡ Forcing multi-channel CVR cycle…', mid);
+    const st = await cvr.process({ action: 'boost' });
+    const a = st.lastCycle && st.lastCycle.action;
+    const posted = (st.lastCycle && st.lastCycle.posted) || [];
+    const failed = (st.lastCycle && st.lastCycle.failed) || [];
+    await reply(chat.id, [
+      a && a.ok
+        ? `✅ Fan-out ok (${a.id})\nposted: ${posted.join(', ') || '—'}\nfailed: ${failed.map((f) => f.platform).join(', ') || '—'}`
+        : `⏸ ${a && a.reason ? a.reason : (st.lastCycle && st.lastCycle.gate && st.lastCycle.gate.reason) || 'no_act'}`,
+      cvr.formatPulse(st),
+    ].join('\n\n'), mid);
   }
 }
 
@@ -321,7 +329,8 @@ async function main() {
     await tg('setMyCommands', {
       commands: [
         { command: 'pulse', description: 'Live CVR funnel scores' },
-        { command: 'boost', description: 'Force one virality cycle' },
+        { command: 'boost', description: 'Force multi-channel virality cycle' },
+        { command: 'channels', description: 'List armed outbound rails' },
         { command: 'status', description: 'Machine status' },
         { command: 'catalog', description: 'Top catalog offers' },
         { command: 'silence', description: 'Pause auto-posts' },

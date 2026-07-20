@@ -64,7 +64,21 @@ let _started = false;
 let _outbound = null;
 let _funnel = null;
 let _content = null;
+let _traffic = null;
+let _viralizer = null;
 let _lastStatus = { ok: true, module: NAME, started: false };
+
+// Stage → preferred channel order. We still fan out to EVERY armed channel;
+// affinity only sorts so the hungriest stage hits the highest-leverage rails first.
+const CHANNEL_AFFINITY = {
+  traffic:  ['x', 'devto', 'bluesky', 'mastodon', 'rss', 'telegram', 'discord', 'generic'],
+  capture:  ['telegram', 'discord', 'x', 'rss', 'generic', 'mastodon', 'bluesky', 'devto'],
+  convert:  ['telegram', 'x', 'discord', 'mastodon', 'bluesky', 'rss', 'devto', 'generic'],
+  monetize: ['telegram', 'x', 'devto', 'discord', 'rss', 'mastodon', 'bluesky', 'generic'],
+  expand:   ['x', 'bluesky', 'mastodon', 'devto', 'rss', 'telegram', 'discord', 'generic'],
+  retain:   ['telegram', 'discord', 'rss', 'x', 'generic', 'mastodon', 'bluesky', 'devto'],
+  infra:    ['telegram', 'discord', 'rss', 'generic', 'x', 'mastodon', 'bluesky', 'devto'],
+};
 
 const state = {
   silenced: false,
@@ -164,6 +178,40 @@ function _lazyDeps() {
   if (!_content) {
     _content = _safe(() => require('./marketing-innovations/content-multichannel'), null);
   }
+  if (!_traffic) {
+    _traffic = _safe(() => require('./traffic-engine'), null);
+  }
+  if (!_viralizer) {
+    // Module exports a ready singleton instance.
+    _viralizer = _safe(() => require('./socialMediaViralizer'), null);
+  }
+}
+
+function _armedChannels() {
+  _lazyDeps();
+  if (_outbound && typeof _outbound.enabledPlatforms === 'function') {
+    return _outbound.enabledPlatforms();
+  }
+  const st = _outbound && typeof _outbound.status === 'function' ? _outbound.status() : null;
+  return (st && st.enabledAdapters) || ['rss'];
+}
+
+function selectPlatforms(snapshot) {
+  const armed = _armedChannels();
+  const allow = String(process.env.ZEUS_CVR_PLATFORMS || '')
+    .split(/[\s,]+/)
+    .map((s) => s.trim().toLowerCase())
+    .filter(Boolean);
+  const pool = allow.length ? armed.filter((p) => allow.includes(p)) : armed.slice();
+  const stage = (snapshot && snapshot.starvingStage) || 'traffic';
+  const pref = CHANNEL_AFFINITY[stage] || CHANNEL_AFFINITY.traffic;
+  pool.sort((a, b) => {
+    const ia = pref.indexOf(a); const ib = pref.indexOf(b);
+    return (ia < 0 ? 999 : ia) - (ib < 0 ? 999 : ib);
+  });
+  // Always keep rss as a discovery surface when present.
+  if (!pool.includes('rss') && armed.includes('rss')) pool.push('rss');
+  return pool;
 }
 
 function _rollDay() {
@@ -229,6 +277,8 @@ async function sense() {
   const stages = _scoreStages(funnel, health, site, services.length);
   const starving = Object.entries(stages)
     .sort((a, b) => a[1] - b[1])[0] || ['traffic', 0];
+  const channels = selectPlatforms({ starvingStage: starving[0] });
+  const networkChannels = channels.filter((c) => c !== 'rss');
 
   return {
     at: new Date().toISOString(),
@@ -240,8 +290,11 @@ async function sense() {
     stages,
     starvingStage: starving[0],
     starvingScore: starving[1],
-    outboundReady: !!( _outbound && _safe(() => _outbound.status(), {}).telegramEnv
-      && _outbound.status().telegramEnv.hasCredentials),
+    channels,
+    channelsArmed: channels.length,
+    networkChannelsArmed: networkChannels.length,
+    // Ready when any distribution rail exists (rss always; prefer network).
+    outboundReady: channels.length > 0,
   };
 }
 
@@ -335,18 +388,26 @@ function pickHypothesis(snapshot) {
     }))
     .sort((a, b) => b.score - a.score);
   const best = ranked[0];
-  let body = best.build(snapshot);
-  // Optional multichannel polish for Telegram-length
+  const body = best.build(snapshot);
+  const variants = { default: body };
+  // Per-channel tailored copy when content-multichannel is available.
+  const channelMap = {
+    x: 'X', telegram: 'Facebook', discord: 'Facebook', mastodon: 'Reddit',
+    bluesky: 'X', devto: 'LinkedIn', rss: 'Email', generic: 'PushNotification',
+  };
   if (_content && typeof _content.generateVariant === 'function') {
-    const polished = _safe(() => _content.generateVariant('X', {
-      topic: snapshot.starvingStage,
-      seed: best.id + _dayKey(),
-    }), null);
-    if (polished && (polished.text || polished.body)) {
-      body = `${body}\n\n—\n${String(polished.text || polished.body).slice(0, 280)}`;
+    for (const [plat, ch] of Object.entries(channelMap)) {
+      const polished = _safe(() => _content.generateVariant(ch, {
+        topic: `${stage}:${best.id}`,
+        seed: `${best.id}:${plat}:${_dayKey()}`,
+      }), null);
+      if (polished && polished.body) {
+        const max = plat === 'x' || plat === 'bluesky' ? 280 : 1800;
+        variants[plat] = `${body}\n\n—\n${String(polished.body).slice(0, max)}`.slice(0, max === 280 ? 280 : 3500);
+      }
     }
   }
-  return { hookId: best.id, stage: best.stage, body, score: best.score };
+  return { hookId: best.id, stage: best.stage, body, variants, score: best.score };
 }
 
 function _expectedLift(hookId, snapshot) {
@@ -360,7 +421,7 @@ function shouldAct(snapshot) {
     return { act: false, reason: 'silenced_or_disabled' };
   }
   if (!snapshot.outboundReady) {
-    return { act: false, reason: 'telegram_not_ready' };
+    return { act: false, reason: 'no_channels_armed' };
   }
   if (!snapshot.healthOk && !snapshot.siteOk) {
     return { act: false, reason: 'infra_down' };
@@ -383,6 +444,66 @@ function shouldAct(snapshot) {
   return { act: true, reason: 'hunger_gate_open' };
 }
 
+async function _writePublicFeed(entry) {
+  _ensureDir();
+  const feedFile = path.join(DATA_DIR, 'public-feed.json');
+  let items = [];
+  try {
+    const cur = _loadJson(feedFile, { items: [] });
+    items = Array.isArray(cur.items) ? cur.items : [];
+  } catch (_) { items = []; }
+  items.unshift(entry);
+  items = items.slice(0, 50);
+  try {
+    fs.writeFileSync(feedFile, `${JSON.stringify({
+      ok: true,
+      source: 'growthCausalitySentinel',
+      updatedAt: new Date().toISOString(),
+      site: SITE_ORIGIN,
+      items,
+    }, null, 2)}\n`);
+  } catch (_) { /* ignore */ }
+  return { ok: true, count: items.length };
+}
+
+async function _fanoutExtras(hypothesis, snapshot) {
+  const extras = [];
+  // SEO: IndexNow + sitemap inventory via traffic-engine
+  if (_traffic && typeof _traffic.pingAll === 'function' && (snapshot.starvingStage === 'traffic' || snapshot.starvingStage === 'expand' || snapshot.starvingScore < 40)) {
+    try {
+      const ping = await _traffic.pingAll({ reason: 'cvr', hookId: hypothesis.hookId });
+      extras.push({ platform: 'indexnow', ok: !!(ping && (ping.ok || ping.submitted || ping.engines)), detail: ping && (ping.status || ping) });
+    } catch (e) {
+      extras.push({ platform: 'indexnow', ok: false, error: e && e.message });
+    }
+  }
+  // Legacy viralizer — posts to every social token it knows (X/YT/Pin/TG/DEV/PH)
+  if (_viralizer && typeof _viralizer.postToAllPlatforms === 'function') {
+    try {
+      const r = await _viralizer.postToAllPlatforms();
+      const channels = r && typeof r === 'object' ? Object.keys(r) : [];
+      extras.push({
+        platform: 'socialMediaViralizer',
+        ok: channels.length > 0,
+        channels,
+      });
+    } catch (e) {
+      extras.push({ platform: 'socialMediaViralizer', ok: false, error: e && e.message });
+    }
+  }
+  // Public site feed (always)
+  const feed = await _writePublicFeed({
+    id: crypto.randomBytes(6).toString('hex'),
+    ts: new Date().toISOString(),
+    hookId: hypothesis.hookId,
+    stage: hypothesis.stage || snapshot.starvingStage,
+    body: hypothesis.body,
+    url: SITE_ORIGIN,
+  });
+  extras.push({ platform: 'site_feed', ok: !!feed.ok, count: feed.count });
+  return extras;
+}
+
 async function act(hypothesis, snapshot, { force = false } = {}) {
   _lazyDeps();
   if (!_outbound || typeof _outbound.publish !== 'function') {
@@ -397,27 +518,34 @@ async function act(hypothesis, snapshot, { force = false } = {}) {
     return { ok: false, reason: 'lift_below_noise', expectedLift: lift };
   }
 
-  const platforms = ['telegram', 'rss'];
+  const platforms = selectPlatforms(snapshot);
   const results = [];
   for (const platform of platforms) {
+    const body = (hypothesis.variants && hypothesis.variants[platform]) || hypothesis.body;
     // eslint-disable-next-line no-await-in-loop
     const r = await _outbound.publish({
       platform,
-      body: hypothesis.body,
-      title: `CVR:${hypothesis.hookId}`,
+      body,
+      title: `ZeusAI CVR · ${hypothesis.hookId}`,
+      url: SITE_ORIGIN,
     });
     results.push({ platform, ...r });
   }
-  const tg = results.find((r) => r.platform === 'telegram');
-  const ok = !!(tg && tg.ok);
+
+  const extras = await _fanoutExtras(hypothesis, snapshot);
+  const okNetwork = results.some((r) => r.ok && r.platform !== 'rss' && r.reason !== 'no_credentials');
+  const okRss = results.some((r) => r.ok && r.platform === 'rss');
+  const okExtra = extras.some((r) => r.ok);
+  const ok = okNetwork || okRss || okExtra;
   if (!ok) {
     _append(LEDGER, {
       ts: new Date().toISOString(),
       type: 'act_failed',
-      hypothesis,
+      hypothesis: { hookId: hypothesis.hookId },
       results,
+      extras,
     });
-    return { ok: false, reason: 'publish_failed', results };
+    return { ok: false, reason: 'publish_failed', results, extras };
   }
 
   _dedupeAdd(fp);
@@ -427,6 +555,7 @@ async function act(hypothesis, snapshot, { force = false } = {}) {
     fingerprint: fp,
     hookId: hypothesis.hookId,
     body: hypothesis.body.slice(0, 500),
+    platforms,
     pre: {
       stages: snapshot.stages,
       starvingStage: snapshot.starvingStage,
@@ -448,9 +577,20 @@ async function act(hypothesis, snapshot, { force = false } = {}) {
     hookId: hypothesis.hookId,
     expectedLift: lift,
     fingerprint: fp,
+    platforms,
     results,
+    extras,
   });
-  return { ok: true, id, expectedLift: lift, results };
+  return {
+    ok: true,
+    id,
+    expectedLift: lift,
+    platforms,
+    posted: results.filter((r) => r.ok).map((r) => r.platform),
+    failed: results.filter((r) => !r.ok).map((r) => ({ platform: r.platform, reason: r.reason || r.description || r.error })),
+    results,
+    extras,
+  };
 }
 
 async function attributeIfDue() {
@@ -550,8 +690,18 @@ async function cycle({ force = false } = {}) {
       starvingStage: snapshot.starvingStage,
       starvingScore: snapshot.starvingScore,
       outboundReady: snapshot.outboundReady,
+      channels: snapshot.channels,
+      channelsArmed: snapshot.channelsArmed,
+      networkChannelsArmed: snapshot.networkChannelsArmed,
     },
   };
+  // Enrich lastCycle with post fanout summary when we acted
+  if (action && action.posted) {
+    state.lastCycle.posted = action.posted;
+    state.lastCycle.failed = action.failed;
+    state.lastCycle.extras = (action.extras || []).map((e) => ({ platform: e.platform, ok: e.ok }));
+    _lastStatus.lastCycle = state.lastCycle;
+  }
   _saveState();
   _append(LEDGER, { ts: new Date().toISOString(), type: 'cycle', ...state.lastCycle });
   return _lastStatus;
@@ -561,14 +711,16 @@ function formatPulse(st) {
   const s = st || getStatus();
   const snap = s.snapshot || {};
   const stages = snap.stages || {};
+  const ch = snap.channels || s.lastCycle && s.lastCycle.posted || [];
   const lines = [
-    `🦄 ZeusAI CVR pulse`,
-    `infra: health=${snap.healthOk ? 'OK' : 'DOWN'} site=${snap.siteOk ? 'OK' : 'DOWN'} tg=${snap.outboundReady ? 'ARMED' : 'WAIT'}`,
+    `🦄 ZeusAI CVR pulse (multi-channel)`,
+    `infra: health=${snap.healthOk ? 'OK' : 'DOWN'} site=${snap.siteOk ? 'OK' : 'DOWN'} rails=${snap.outboundReady ? 'ARMED' : 'WAIT'}`,
     `starving: ${snap.starvingStage || '?'} (${snap.starvingScore ?? '?'}/100)`,
+    `channels: ${(Array.isArray(ch) ? ch : snap.channelsArmed != null ? `${snap.channelsArmed} armed` : '—')}`,
     `catalog: ${snap.catalogCount ?? 0} · postsToday: ${s.postsToday || 0} · cadence: ${Math.round((s.cadenceMs || 0) / 60000)}m`,
     `stages: ${Object.entries(stages).map(([k, v]) => `${k}=${v}`).join(' ')}`,
     s.pending ? `attrib pending: ${s.pending.hookId} (${Math.round((s.pending.ageMs || 0) / 60000)}m)` : 'attrib: idle',
-    s.silenced ? '⚠ SILENCED' : 'armed',
+    s.silenced ? '⚠ SILENCED' : 'armed · fans out to every credentialed rail',
     SITE_ORIGIN,
   ];
   return lines.join('\n');
@@ -620,6 +772,15 @@ async function processAction(msg) {
   if (action === 'tick' || action === 'cycle') return cycle();
   if (action === 'boost' || action === 'force') return cycle({ force: true });
   if (action === 'pulse') return { ok: true, text: formatPulse(), status: getStatus() };
+  if (action === 'channels') {
+    _lazyDeps();
+    return {
+      ok: true,
+      armed: _armedChannels(),
+      affinity: CHANNEL_AFFINITY,
+      outbound: _outbound && typeof _outbound.status === 'function' ? _outbound.status() : null,
+    };
+  }
   if (action === 'silence') return setSilenced(true);
   if (action === 'resume') return setSilenced(false);
   if (action === 'status') return getStatus();
@@ -636,6 +797,7 @@ module.exports = {
   sense,
   shouldAct,
   pickHypothesis,
+  selectPlatforms,
   formatPulse,
   getStatus,
   setSilenced,
