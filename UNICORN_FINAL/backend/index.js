@@ -9903,6 +9903,25 @@ try {
   } catch (_) {}
 } catch (e) { console.warn('[zacc] not loaded:', e.message); }
 
+// Best-effort autonomy warm-up: once ZACC (the live inventory source) has been
+// wired above, prime the market-analytics demand picture from the live catalog
+// and refresh the frontier-AI capability router. Both are fully in-process and
+// fail-soft — a failure here must NEVER break boot. Skipped under test.
+if (process.env.NODE_ENV !== 'test') {
+  // Schedule after ZACC's own boot rebuild (~2.5s) so the catalog is populated.
+  const _warmupTimer = setTimeout(() => {
+    Promise.resolve()
+      .then(() => marketAnalytics.process({ action: 'ingest' }))
+      .then((r) => { if (r && r.products) console.log('[market-analytics] boot ingest ·', r.products, 'products · top', (r.top && r.top[0] && r.top[0].category) || 'n/a'); })
+      .catch((err) => console.warn('[market-analytics] boot ingest skipped:', err && err.message));
+    Promise.resolve()
+      .then(() => frontierAI.process({ action: 'tick' }))
+      .then((r) => { if (r && r.ok) console.log('[frontier-ai] boot tick · coverage', r.score, '· health', r.health); })
+      .catch((err) => console.warn('[frontier-ai] boot tick skipped:', err && err.message));
+  }, 4000);
+  if (typeof _warmupTimer.unref === 'function') _warmupTimer.unref();
+}
+
 // Public read: full status snapshot (all 9 components).
 app.get('/api/zacc/status', (req, res) => {
   if (!zacc) return res.status(503).json({ ok: false, error: 'zacc_unavailable' });
