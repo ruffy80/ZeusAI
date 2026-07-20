@@ -10280,6 +10280,15 @@ app.post('/api/dropship/fulfillment/reprocess', deepseekGovernorAuthMiddleware, 
     res.status(500).json({ ok: false, error: e.message });
   }
 });
+// Admin: force a poll of CJ Dropshipping shipping tracking for routed orders.
+// Fails honestly when no CJ key is armed instead of pretending it succeeded.
+app.post('/api/dropship/fulfillment/poll-tracking', deepseekGovernorAuthMiddleware, async (req, res) => {
+  if (!zacc) return res.status(503).json({ ok: false, error: 'zacc_unavailable' });
+  try {
+    const r = await zacc.fulfillment.pollCjTracking(zacc.orders);
+    res.json({ ok: true, ...r });
+  } catch (e) { res.status(500).json({ ok: false, error: e.message }); }
+});
 // Public: shipping quote for a product to a destination country.
 app.post('/api/dropship/quote', (req, res) => {
   if (!zacc) return res.status(503).json({ ok: false, error: 'zacc_unavailable' });
