@@ -180,17 +180,19 @@ function processWebhook(payload) {
     processedConfirmations.add(confirmationKey);
     try {
       const { EventEmitter } = require('events');
-      if (global._unicornEventBus instanceof EventEmitter) {
-        global._unicornEventBus.emit('payment:confirmed', {
-          provider: 'nowpayments',
-          paymentId: id,
-          orderId: order_id,
-          serviceId: entry.itemId,
-          clientId: entry.clientId,
-          amountUsd: price_amount,
-          payCurrency: pay_currency
-        });
+      if (!(global._unicornEventBus instanceof EventEmitter)) {
+        global._unicornEventBus = new EventEmitter();
+        try { global._unicornEventBus.setMaxListeners(50); } catch (_) {}
       }
+      global._unicornEventBus.emit('payment:confirmed', {
+        provider: 'nowpayments',
+        paymentId: id,
+        orderId: order_id,
+        serviceId: entry.itemId,
+        clientId: entry.clientId,
+        amountUsd: price_amount,
+        payCurrency: pay_currency
+      });
     } catch (_) {}
   }
 

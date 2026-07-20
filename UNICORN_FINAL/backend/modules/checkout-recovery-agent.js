@@ -31,7 +31,8 @@ const NAME = 'checkout-recovery-agent';
 let portal = null;
 try { portal = require(path.join(__dirname, '..', '..', 'src', 'commerce', 'customer-portal.js')); } catch (_) {}
 let mailer = null;
-try { mailer = require(path.join(__dirname, 'transactional-email.js')); } catch (_) {}
+// Canonical mailer lives under src/commerce — never a sibling stub under backend/modules.
+try { mailer = require(path.join(__dirname, '..', '..', 'src', 'commerce', 'transactional-email.js')); } catch (_) {}
 
 const _sentLog = new Map(); // orderId → lastTs
 const RECOVERY_WINDOW_MS = 24 * 3600 * 1000;
@@ -87,7 +88,16 @@ function recover(opts) {
     try {
       const subject = `Your Unicorn order ${item.orderId} — payment still pending`;
       const body = `Hello ${customer.name || customer.email},\n\nYour order ${item.orderId} (${item.productId}) for $${item.priceUSD} (≈ ${item.btcAmount} BTC) is awaiting payment for ${item.ageMinutes} minutes.\n\nPay any time at:\n${item.invoiceUri || ('bitcoin:' + item.btcAddress)}\n\nQuestions? Reply to this email.\n\n— ZeusAI / Unicorn`;
-      if (typeof mailer.send === 'function') mailer.send({ to: customer.email, subject, text: body });
+      // Prefer HTTPS providers via sendRaw; fall back to legacy send() if present.
+      if (typeof mailer.sendRaw === 'function') {
+        Promise.resolve(mailer.sendRaw({ to: customer.email, subject, text: body }))
+          .catch((err) => console.warn('[checkout-recovery] sendRaw failed:', err && err.message));
+      } else if (typeof mailer.send === 'function') {
+        mailer.send({ to: customer.email, subject, text: body });
+      } else {
+        skipped.push({ orderId: item.orderId, reason: 'no_mailer_api' });
+        continue;
+      }
       _sentLog.set(item.orderId, Date.now());
       sent.push({ orderId: item.orderId, email: customer.email });
     } catch (e) {

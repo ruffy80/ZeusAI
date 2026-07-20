@@ -112,7 +112,9 @@ function buildSitemap(items) {
  */
 async function indexNowPing(opts) {
   const o = opts || {};
-  const key = process.env.MARKETING_INDEXNOW_KEY || '';
+  // Prefer marketing-specific key; fall back to traffic-engine INDEXNOW_KEY so
+  // a single armed key unlocks both SEO surfaces.
+  const key = process.env.MARKETING_INDEXNOW_KEY || process.env.INDEXNOW_KEY || '';
   if (!key) return { ok: false, reason: 'no_key', urls: o.urls || [] };
   const rawHost = String(o.host || 'unicorn.local');
   // Strip optional scheme + any path, without using regex (avoids polynomial-redos).
@@ -143,7 +145,7 @@ function status() {
     disabled: DISABLED,
     sitemapFile: SITEMAP_FILE,
     sitemapExists: exists,
-    indexNowConfigured: !!process.env.MARKETING_INDEXNOW_KEY,
+    indexNowConfigured: !!(process.env.MARKETING_INDEXNOW_KEY || process.env.INDEXNOW_KEY),
   };
 }
 

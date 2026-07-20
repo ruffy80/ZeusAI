@@ -237,6 +237,77 @@ function _json(res, code, obj) {
   try { res.writeHead(code, { 'Content-Type':'application/json' }); res.end(JSON.stringify(obj)); } catch (_) {}
 }
 
+// PayPal credential gate — canonical PAYPAL_CLIENT_SECRET + legacy PAYPAL_SECRET alias.
+function _paypalClientId() {
+  return String(process.env.PAYPAL_CLIENT_ID || '').trim();
+}
+function _paypalSecret() {
+  return String(process.env.PAYPAL_CLIENT_SECRET || process.env.PAYPAL_SECRET || '').trim();
+}
+function _paypalConfigured() {
+  return !!( _paypalClientId() && _paypalSecret() );
+}
+function _paypalBaseUrl() {
+  const env = String(process.env.PAYPAL_ENV || process.env.PAYPAL_MODE || 'sandbox').toLowerCase();
+  return env === 'live' || env === 'production'
+    ? 'https://api-m.paypal.com'
+    : 'https://api-m.sandbox.paypal.com';
+}
+async function _paypalAccessToken() {
+  const id = _paypalClientId();
+  const secret = _paypalSecret();
+  if (!id || !secret) throw new Error('paypal_not_configured');
+  if (typeof fetch !== 'function') throw new Error('fetch_unavailable');
+  const r = await fetch(_paypalBaseUrl() + '/v1/oauth2/token', {
+    method: 'POST',
+    headers: {
+      Authorization: 'Basic ' + Buffer.from(id + ':' + secret).toString('base64'),
+      'Content-Type': 'application/x-www-form-urlencoded',
+    },
+    body: 'grant_type=client_credentials',
+  });
+  if (!r.ok) throw new Error('paypal_auth_failed:' + r.status);
+  const d = await r.json();
+  if (!d || !d.access_token) throw new Error('paypal_auth_empty');
+  return d.access_token;
+}
+async function _createPaypalOrder({ amountUsd, description, customId }) {
+  const token = await _paypalAccessToken();
+  const r = await fetch(_paypalBaseUrl() + '/v2/checkout/orders', {
+    method: 'POST',
+    headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      intent: 'CAPTURE',
+      purchase_units: [{
+        reference_id: customId || undefined,
+        custom_id: customId || undefined,
+        description: description || 'ZeusAI Service',
+        amount: { currency_code: 'USD', value: Number(amountUsd || 0).toFixed(2) },
+      }],
+    }),
+  });
+  if (!r.ok) throw new Error('paypal_order_create_failed:' + r.status);
+  const d = await r.json();
+  const approvalUrl = Array.isArray(d.links) ? (d.links.find((l) => l.rel === 'approve') || {}).href : null;
+  return { orderId: d.id, approvalUrl, status: d.status };
+}
+async function _capturePaypalOrder(orderId) {
+  if (!orderId || !/^[A-Za-z0-9_-]{1,100}$/.test(orderId)) {
+    throw new Error('invalid_paypal_order_id');
+  }
+  const token = await _paypalAccessToken();
+  const r = await fetch(_paypalBaseUrl() + '/v2/checkout/orders/' + encodeURIComponent(orderId) + '/capture', {
+    method: 'POST',
+    headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' },
+  });
+  if (!r.ok) {
+    let detail = '';
+    try { detail = await r.text(); } catch (_) {}
+    throw new Error('paypal_capture_failed:' + r.status + (detail ? (':' + detail.slice(0, 200)) : ''));
+  }
+  return await r.json();
+}
+
 async function handle(req, res, ctx) {
   const ctxSafe = ctx || {};
   const u = (req.url || '/').split('?')[0];
@@ -291,6 +362,31 @@ async function handle(req, res, ctx) {
         affiliate: p.ref ? { ref: p.ref, split: 0.1 } : null,
         did: p.did || null
       };
+      // PayPal: create a real Orders API order when credentials are armed.
+      // Accepts PAYPAL_CLIENT_SECRET (canonical) or legacy PAYPAL_SECRET alias.
+      if (method === 'PAYPAL' && _paypalConfigured()) {
+        try {
+          const created = await _createPaypalOrder({
+            amountUsd: amount,
+            description: 'ZeusAI ' + plan,
+            customId: receiptId,
+          });
+          if (created && created.orderId) {
+            receipt.paypalOrderId = created.orderId;
+            receipt.approveHref = created.approvalUrl || null;
+            receipt.destination = { kind: 'paypal', orderId: created.orderId };
+          }
+        } catch (e) {
+          console.warn('[uaic] paypal order create failed:', e && e.message);
+        }
+      }
+      if (method === 'PAYPAL' && !receipt.approveHref) {
+        const handle = process.env.PAYPAL_ME || process.env.PAYPAL_EMAIL || '';
+        receipt.destination = receipt.destination || { kind: 'paypal', handle, owner: process.env.OWNER_NAME || 'ZeusAI' };
+        receipt.approveHref = handle && !String(handle).includes('@')
+          ? ('https://paypal.me/' + encodeURIComponent(handle) + '/' + amount)
+          : (handle ? ('mailto:' + encodeURIComponent(handle) + '?subject=Unicorn%20' + encodeURIComponent(plan)) : null);
+      }
       persistReceipt(receipt);
       return _json(res, 200, { ok: true, receipt });
     } catch (e) {
@@ -303,17 +399,42 @@ async function handle(req, res, ctx) {
       const p = JSON.parse(body || '{}');
       const receipt = _receiptsById.get(String(p.receiptId || ''));
       if (!receipt) return _json(res, 404, { error: 'receipt_not_found' });
-      // PayPal credentials gate — if not configured, mark as pending+manual.
-      if (!process.env.PAYPAL_CLIENT_ID || !process.env.PAYPAL_SECRET) {
+      if (!_paypalConfigured()) {
         return _json(res, 503, { error: 'paypal_not_configured' });
       }
-      // Mark paid (real capture would call api-m.paypal.com — kept minimal here).
+      const paypalOrderId = String(p.paypalOrderId || receipt.paypalOrderId || '').trim();
+      if (!paypalOrderId) {
+        return _json(res, 400, { error: 'paypal_order_id_required' });
+      }
+      // Real Capture API — never mark paid without a COMPLETED capture.
+      const capture = await _capturePaypalOrder(paypalOrderId);
+      const captureStatus = String(capture && capture.status || '').toUpperCase();
+      const unitOk = Array.isArray(capture && capture.purchase_units)
+        && capture.purchase_units.some((u) => {
+          const caps = u && u.payments && u.payments.captures;
+          return Array.isArray(caps) && caps.some((c) => String(c.status || '').toUpperCase() === 'COMPLETED');
+        });
+      if (captureStatus !== 'COMPLETED' && !unitOk) {
+        return _json(res, 402, {
+          error: 'paypal_capture_incomplete',
+          status: captureStatus || null,
+          paypalOrderId,
+        });
+      }
       receipt.status = 'paid';
       receipt.paidAt = new Date().toISOString();
-      receipt.confirmation = { network: 'paypal', by: 'capture', at: receipt.paidAt };
+      receipt.paypalOrderId = paypalOrderId;
+      receipt.confirmation = {
+        network: 'paypal',
+        by: 'capture',
+        at: receipt.paidAt,
+        paypalOrderId,
+        captureId: (capture && capture.id) || null,
+        status: captureStatus,
+      };
       receipt.license = receipt.license || issueLicense(receipt);
       persistReceipt(receipt);
-      return _json(res, 200, { ok: true, receipt });
+      return _json(res, 200, { ok: true, receipt, capture: { status: captureStatus, id: capture && capture.id } });
     } catch (e) {
       return _json(res, 400, { error: 'bad_request', detail: e.message });
     }
