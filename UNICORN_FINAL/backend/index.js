@@ -1589,6 +1589,24 @@ try { _marketingPack = require('./modules/marketing-innovations'); console.log('
 catch (e) { console.warn('[marketing-pack] not loaded:', e.message); }
 if (_marketingPack) app.use(_marketingPack.middleware());
 
+// ── Earth Outcome Protocol (EOP/1.0) — interdomain Outcome Passports ──
+let _eop = null;
+try {
+  _eop = require('./modules/earth-outcome-protocol');
+  console.log('[eop] Earth Outcome Protocol loaded ·', _eop.PROTOCOL);
+} catch (e) {
+  console.warn('[eop] not loaded:', e.message);
+}
+if (_eop) {
+  app.use(async (req, res, next) => {
+    try {
+      const handled = await _eop.handle(req, res);
+      if (handled) return;
+    } catch (e) { console.warn('[eop] handler error:', e.message); }
+    next();
+  });
+}
+
 // ==================== ROUTE PROFILER (PR #194 — Performance Optimization) ====================
 // Înregistrează timpii de răspuns pentru toate rutele → expus la /api/perf/stats
 app.use(routeCache.profilerMiddleware());
@@ -11931,6 +11949,13 @@ registerModuleRoutes('world-ai-commerce-protocol', worldAiCommerceProtocol);
 registerModuleRoutes('proof-of-margin-exchange',   proofOfMarginExchange);
 registerModuleRoutes('conversion-truth-layer',     conversionTruthLayer);
 registerModuleRoutes('proof-of-delivery-ledger',   proofOfDeliveryLedger);
+try {
+  const earthOutcomeProtocol = require('./modules/earth-outcome-protocol');
+  registerModuleRoutes('earth-outcome-protocol', earthOutcomeProtocol);
+  registerModuleRoutes('eop', earthOutcomeProtocol);
+} catch (e) {
+  console.warn('[eop] registerModuleRoutes skipped:', e.message);
+}
 registerModuleRoutes('global-referral-loop',       globalReferralLoop);
 registerModuleRoutes('innovation-ship-gate',       innovationShipGate);
 registerModuleRoutes('memory-pressure-guardian',   memoryPressureGuardian);

@@ -264,7 +264,7 @@ function _summarizeArtifacts(pkg) {
 // (each once). Safe to call from any payment-confirmation path.
 async function settleAndNotify({ receipt, deliveryFn, source }) {
   const orderId = receiptOrderId(receipt);
-  const result = { orderId, source: source || 'unknown', delivery: null, emails: {} };
+  const result = { orderId, source: source || 'unknown', delivery: null, emails: {}, eop: null };
   if (!orderId) return { ok: false, error: 'missing_orderId' };
   if (typeof deliveryFn === 'function') {
     const delivered = runDeliveryOnce(receipt, deliveryFn);
@@ -277,6 +277,13 @@ async function settleAndNotify({ receipt, deliveryFn, source }) {
   if (pkg && (Array.isArray(pkg.items) || Array.isArray(pkg.artifacts) || Array.isArray(pkg.deliverables))) {
     result.emails.artifact = await sendDeliveryArtifactEmail(receipt, pkg);
   }
+  // Earth Outcome Protocol — mint interdomain passport (never fail settlement)
+  try {
+    const eop = require('../../backend/modules/earth-outcome-protocol');
+    if (eop && typeof eop.mintFromSettlement === 'function') {
+      result.eop = eop.mintFromSettlement(receipt, result.delivery, source || 'pay-fulfill');
+    }
+  } catch (_) { /* additive */ }
   return { ok: true, ...result };
 }
 

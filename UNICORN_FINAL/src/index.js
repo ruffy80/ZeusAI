@@ -4365,7 +4365,7 @@ async function unicornHandler(req, res) {
   // 30Y-LTS: local-first routes served by this site process (not proxied to backend).
   // Only routes that are implemented locally in this file are matched here;
   // backend-only endpoints (/api/v1/deprecations, /api/v1/events/*) keep flowing to the backend.
-  const isLts = /^\/api\/(v1\/)?(contract|i18n\/|crypto\/public-keys|succession\/attestation|anchors)(\/|$|\.)/.test(urlPath) || urlPath === '/api/v1/contract' || urlPath === '/api/contract';  const isLocalV2Api = isLts || LOCAL_V2_API.has(urlPath) || urlPath.startsWith('/api/services/') || urlPath.startsWith('/services/') || urlPath.startsWith('/api/enterprise/') || urlPath.startsWith('/api/outreach/') || urlPath.startsWith('/api/vault/') || urlPath.startsWith('/api/governance/') || urlPath.startsWith('/api/whales/') || urlPath.startsWith('/api/webhooks/') || urlPath.startsWith('/api/admin/') || urlPath.startsWith('/api/instant/') || urlPath.startsWith('/api/customer/') || urlPath.startsWith('/api/user/') || urlPath.startsWith('/api/unicorn-ai/') || urlPath.startsWith('/api/unicorn-commerce/') || urlPath.startsWith('/api/billion-scale/') || urlPath.startsWith('/api/checkout/') || urlPath.startsWith('/api/uaic/') || urlPath.startsWith('/api/receipt/') || urlPath.startsWith('/api/invoice/') || urlPath.startsWith('/api/license/') || urlPath.startsWith('/api/delivery/') || urlPath.startsWith('/api/wire/') || urlPath === '/api/payments/btc/confirm' || urlPath === '/api/payments/paypal/confirm' || urlPath === '/api/payments/config/status' || urlPath === '/api/checkout/synthetic-probe' || urlPath === '/api/qr' || urlPath.startsWith('/api/cart/') || urlPath.startsWith('/api/coupons') || urlPath.startsWith('/api/leads') || urlPath.startsWith('/api/lead') || urlPath.startsWith('/api/referral/') || urlPath.startsWith('/api/transparency') || urlPath.startsWith('/api/keys') || urlPath.startsWith('/api/newsletter/') || urlPath.startsWith('/api/wizard/') || urlPath.startsWith('/api/fx/') || urlPath.startsWith('/api/tax/') || urlPath.startsWith('/api/webhooks/') || urlPath === '/api/status' || urlPath === '/api/track' || urlPath.startsWith('/api/analytics/') || urlPath.startsWith('/api/refund/') || urlPath === '/api/aura' || urlPath.startsWith('/api/outcome/') || urlPath.startsWith('/api/discount/') || urlPath.startsWith('/api/receipt/nft/') || urlPath.startsWith('/api/capability/') || urlPath.startsWith('/api/email/proof') || urlPath.startsWith('/api/gift/') || urlPath.startsWith('/api/pledge') || urlPath.startsWith('/api/cancel/') || urlPath.startsWith('/api/bandit/') || urlPath.startsWith('/api/carbon/') || urlPath.startsWith('/api/abandon-cart') || urlPath === '/api/frontier/status' || urlPath.startsWith('/api/attestation/') || urlPath.startsWith('/api/trust/') || urlPath.startsWith('/api/funnel/') || urlPath.startsWith('/api/dr/') || urlPath.startsWith('/api/innovation/') || urlPath === '/api/services/changed' || urlPath === '/api/operator/console' || urlPath === '/api/observability/status' || urlPath === '/api/secret-sync/status' || urlPath === '/api/security/pq/status' || urlPath === '/api/commerce/protocol' || urlPath === '/api/innovation/coverage' || urlPath === '/openapi.json' || urlPath === '/api/openapi' || urlPath === '/seo/sitemap.xml' || urlPath === '/seo/sitemap-services.xml' || urlPath === '/seo/robots.txt' || urlPath === '/api/catalog/master' || urlPath === '/api/catalog/diff' || urlPath === '/api/products' || urlPath.startsWith('/api/price/') || urlPath === '/api/commerce/recent-sales' || urlPath === '/api/admin/owner-revenue' || urlPath === '/agents.json' || urlPath === '/.well-known/agents.json' || urlPath === '/api/btc/spot' || urlPath === '/api/btc/rate' || urlPath === '/api/payment/btc-rate' || urlPath.startsWith('/api/payments/btc/verify/');
+  const isLts = /^\/api\/(v1\/)?(contract|i18n\/|crypto\/public-keys|succession\/attestation|anchors)(\/|$|\.)/.test(urlPath) || urlPath === '/api/v1/contract' || urlPath === '/api/contract';  const isLocalV2Api = isLts || LOCAL_V2_API.has(urlPath) || urlPath.startsWith('/api/services/') || urlPath.startsWith('/services/') || urlPath.startsWith('/api/enterprise/') || urlPath.startsWith('/api/outreach/') || urlPath.startsWith('/api/vault/') || urlPath.startsWith('/api/governance/') || urlPath.startsWith('/api/whales/') || urlPath.startsWith('/api/webhooks/') || urlPath.startsWith('/api/admin/') || urlPath.startsWith('/api/instant/') || urlPath.startsWith('/api/customer/') || urlPath.startsWith('/api/user/') || urlPath.startsWith('/api/unicorn-ai/') || urlPath.startsWith('/api/unicorn-commerce/') || urlPath.startsWith('/api/billion-scale/') || urlPath.startsWith('/api/checkout/') || urlPath.startsWith('/api/uaic/') || urlPath.startsWith('/api/receipt/') || urlPath.startsWith('/api/invoice/') || urlPath.startsWith('/api/license/') || urlPath.startsWith('/api/delivery/') || urlPath.startsWith('/api/wire/') || urlPath === '/api/payments/btc/confirm' || urlPath === '/api/payments/paypal/confirm' || urlPath === '/api/payments/config/status' || urlPath === '/api/checkout/synthetic-probe' || urlPath === '/api/qr' || urlPath.startsWith('/api/cart/') || urlPath.startsWith('/api/coupons') || urlPath.startsWith('/api/leads') || urlPath.startsWith('/api/lead') || urlPath.startsWith('/api/referral/') || urlPath.startsWith('/api/transparency') || urlPath.startsWith('/api/keys') || urlPath.startsWith('/api/newsletter/') || urlPath.startsWith('/api/wizard/') || urlPath.startsWith('/api/fx/') || urlPath.startsWith('/api/tax/') || urlPath.startsWith('/api/webhooks/') || urlPath === '/api/status' || urlPath === '/api/track' || urlPath.startsWith('/api/analytics/') || urlPath.startsWith('/api/refund/') || urlPath === '/api/aura' || urlPath.startsWith('/api/outcome/') || urlPath.startsWith('/api/eop/') || urlPath === '/api/eop' || urlPath.startsWith('/api/discount/') || urlPath.startsWith('/api/receipt/nft/') || urlPath.startsWith('/api/capability/') || urlPath.startsWith('/api/email/proof') || urlPath.startsWith('/api/gift/') || urlPath.startsWith('/api/pledge') || urlPath.startsWith('/api/cancel/') || urlPath.startsWith('/api/bandit/') || urlPath.startsWith('/api/carbon/') || urlPath.startsWith('/api/abandon-cart') || urlPath === '/api/frontier/status' || urlPath.startsWith('/api/attestation/') || urlPath.startsWith('/api/trust/') || urlPath.startsWith('/api/funnel/') || urlPath.startsWith('/api/dr/') || urlPath.startsWith('/api/innovation/') || urlPath === '/api/services/changed' || urlPath === '/api/operator/console' || urlPath === '/api/observability/status' || urlPath === '/api/secret-sync/status' || urlPath === '/api/security/pq/status' || urlPath === '/api/commerce/protocol' || urlPath === '/api/innovation/coverage' || urlPath === '/openapi.json' || urlPath === '/api/openapi' || urlPath === '/seo/sitemap.xml' || urlPath === '/seo/sitemap-services.xml' || urlPath === '/seo/robots.txt' || urlPath === '/api/catalog/master' || urlPath === '/api/catalog/diff' || urlPath === '/api/products' || urlPath.startsWith('/api/price/') || urlPath === '/api/commerce/recent-sales' || urlPath === '/api/admin/owner-revenue' || urlPath === '/agents.json' || urlPath === '/.well-known/agents.json' || urlPath === '/api/btc/spot' || urlPath === '/api/btc/rate' || urlPath === '/api/payment/btc-rate' || urlPath.startsWith('/api/payments/btc/verify/');
   const isUaic = !!(uaic && uaic.matches(urlPath)) && urlPath !== '/api/uaic/status';
   const isUse  = !!(USE && USE.matches(urlPath)) && !urlPath.startsWith('/api/user/') && !urlPath.startsWith('/api/ai/');
   const backendUrl = process.env.BACKEND_API_URL;
@@ -5019,7 +5019,7 @@ async function unicornHandler(req, res) {
   // markup. The old handler here rendered ZERO SSR cards (client-only grid),
   // which violated the "≥1 SSR service card" golden rule and hurt SEO.
   // RO: /services e servit acum de vitrina v2 SSR — carduri reale în HTML.
-  if (urlPath === '/unicorn-cockpit' || urlPath === '/unicorn-status.html' || urlPath === '/revenue-command' || urlPath === '/proof' || urlPath === '/revenue-share' || urlPath === '/zacc' || urlPath === '/dropship' || urlPath.indexOf('/dropship/product/') === 0 || urlPath.indexOf('/dropship/order/') === 0 || urlPath === '/pomx' || urlPath === '/exchange' || urlPath === '/proof-of-margin') {
+  if (urlPath === '/unicorn-cockpit' || urlPath === '/unicorn-status.html' || urlPath === '/revenue-command' || urlPath === '/proof' || urlPath === '/revenue-share' || urlPath === '/zacc' || urlPath === '/dropship' || urlPath.indexOf('/dropship/product/') === 0 || urlPath.indexOf('/dropship/order/') === 0 || urlPath === '/pomx' || urlPath === '/exchange' || urlPath === '/proof-of-margin' || urlPath === '/earth' || urlPath === '/eop' || urlPath === '/outcome-passport') {
     const renderPage = (title, bodyHtml, pageScript) => {
       // Unified chrome: render every legacy operator/dashboard page inside the
       // full v2 shell (nav + Zeus backdrop + footer + violet/gold theme) so the
@@ -5702,6 +5702,60 @@ seedSsrMap();if(document.getElementById("ds-sort")&&!document.getElementById("ds
 })();`;
       try { res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'public, max-age=30', 'X-Unicorn-Page': 'pomx' }); } catch (_) {}
       return res.end(renderPage('PoMX · Proof-of-Margin Exchange · ZeusAI', body, js));
+    }
+
+    // EOP/1.0 — Earth Outcome Protocol (interdomain Outcome Passports)
+    if (urlPath === '/earth' || urlPath === '/eop' || urlPath === '/outcome-passport') {
+      const body = `
+<section style="min-height:88vh;display:flex;flex-direction:column;justify-content:flex-end;padding:8vh 6vw 10vh;background:radial-gradient(1100px 520px at 15% 10%,rgba(127,208,255,.18),transparent 55%),radial-gradient(800px 480px at 85% 0%,rgba(255,211,106,.10),transparent 50%),linear-gradient(168deg,#04060c 0%,#0a1218 48%,#10160f 100%);color:#e7eef6;overflow:hidden">
+  <p style="font-family:Georgia,'Times New Roman',serif;font-size:clamp(2.5rem,6.5vw,4.8rem);letter-spacing:-.03em;margin:0 0 .35rem;line-height:1">Zeus <span style="color:#9be7a8">Earth</span></p>
+  <h1 style="font-family:Georgia,serif;font-weight:500;font-size:clamp(1.3rem,3vw,2rem);max-width:20ch;margin:0 0 1rem;line-height:1.25">The world&rsquo;s first interdomain Outcome Passport.</h1>
+  <p style="max-width:36rem;font-size:1.05rem;color:#a7b4c4;margin:0 0 1.75rem">EOP/1.0 chains classification → economics → settlement → delivery → measurable outcome into one signed passport any agent can verify — across software, commerce, logistics, education, energy, civic, and more. Take-rate: <strong style="color:#fff">$0</strong>.</p>
+  <div style="display:flex;gap:12px;flex-wrap:wrap">
+    <a href="/api/eop/mesh" style="padding:14px 22px;border-radius:10px;background:linear-gradient(135deg,#3d9b6e,#4ea1ff);color:#fff;text-decoration:none;font-weight:700">Open the trust mesh →</a>
+    <a href="/.well-known/eop.json" style="padding:14px 22px;border-radius:10px;border:1px solid #2a3544;color:#cfe0d8;text-decoration:none;font-weight:600">Protocol spec</a>
+    <a href="/pomx" style="padding:14px 22px;border-radius:10px;border:1px solid #2a3544;color:#cfe0d8;text-decoration:none;font-weight:600">PoMX exchange</a>
+  </div>
+</section>
+<section style="padding:4rem 6vw;background:#070b10;color:#d5dde8">
+  <h2 style="font-family:Georgia,serif;font-size:1.75rem;margin:0 0 .5rem">Every domain. One verifiable passport.</h2>
+  <p style="color:#8793a3;max-width:42rem;margin:0 0 2rem">The missing layer of the machine economy: prove value was delivered — not only that money moved.</p>
+  <div id="eop-domains" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:12px;margin-bottom:2.5rem"></div>
+  <h3 style="font-family:Georgia,serif;font-size:1.25rem;margin:0 0 1rem">Recent mesh activity</h3>
+  <div id="eop-recent" style="display:grid;gap:10px"></div>
+  <p id="eop-meta" style="margin-top:1.5rem;color:#6a7688;font-size:.9rem">Loading Earth mesh…</p>
+</section>`;
+      const js = `(function(){
+  function esc(s){return String(s==null?"":s).replace(/[&<>"]/g,function(c){return {"&":"&amp;","<":"&lt;",">":"&gt;","\\"":"&quot;"}[c];});}
+  function money(n){return "$"+Number(n||0).toLocaleString("en-US",{maximumFractionDigits:2});}
+  Promise.all([
+    fetch("/api/eop/domains",{cache:"no-store"}).then(function(r){return r.json();}).catch(function(){return null;}),
+    fetch("/api/eop/mesh?limit=24",{cache:"no-store"}).then(function(r){return r.json();}).catch(function(){return null;})
+  ]).then(function(pair){
+    var dom=pair[0], mesh=pair[1];
+    var box=document.getElementById("eop-domains"), recent=document.getElementById("eop-recent"), meta=document.getElementById("eop-meta");
+    var domains=(dom&&dom.domains)||(mesh&&mesh.domains)||[];
+    box.innerHTML=domains.map(function(d){
+      var trust=(mesh&&mesh.domains||[]).find(function(x){return x.id===d.id;});
+      return '<div style="border:1px solid #1a2430;border-radius:12px;padding:14px;background:#0b1218">'
+        +'<div style="font-size:.72rem;letter-spacing:.05em;color:#9be7a8;text-transform:uppercase;margin-bottom:6px">'+esc(d.id)+'</div>'
+        +'<strong style="color:#fff;font-size:.95rem">'+esc(d.label||d.id)+'</strong>'
+        +'<div style="margin-top:8px;color:#7fd0ff;font-size:.85rem">trust '+(trust?Number(trust.trustScore||0).toFixed(0):"0")+'</div></div>';
+    }).join("");
+    var list=(mesh&&mesh.recent)||[];
+    if(!list.length){recent.innerHTML='<p style="color:#6a7688">No passports minted yet — the first settlement will open the mesh.</p>';}
+    else{
+      recent.innerHTML=list.map(function(p){
+        return '<div style="display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;border-bottom:1px solid #15202a;padding:10px 0">'
+          +'<div><strong style="color:#fff">'+esc(p.title)+'</strong> <span style="color:#7a8796;font-size:.8rem">· '+esc(p.domain)+'</span></div>'
+          +'<div style="color:#ffd36a">'+money(p.valueUsd)+' <span style="color:#9be7a8;font-size:.8rem">+'+esc(String(p.trustDelta))+' trust</span></div></div>';
+      }).join("");
+    }
+    meta.textContent=((mesh&&mesh.totalPassports)||0)+" passports · total trust "+((mesh&&mesh.totalTrust)||0)+" · take-rate 0% · EOP/1.0";
+  }).catch(function(){var m=document.getElementById("eop-meta");if(m)m.textContent="Earth mesh temporarily unreachable."});
+})();`;
+      try { res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'public, max-age=30', 'X-Unicorn-Page': 'earth-eop' }); } catch (_) {}
+      return res.end(renderPage('Earth · Outcome Protocol · ZeusAI', body, js));
     }
   }
   // ==================== END FAZA 2 / VAL 5 COMPLETARE ====================
@@ -7062,6 +7116,30 @@ seedSsrMap();if(document.getElementById("ds-sort")&&!document.getElementById("ds
       return res.end(JSON.stringify(pomx.discovery()));
     } catch (e) {
       res.writeHead(200, { 'Content-Type': 'application/json' });
+      return res.end(JSON.stringify({ ok: false, error: e.message }));
+    }
+  }
+
+  // EOP/1.0 — Earth Outcome Protocol discovery (site mirror; backend is source of mint/verify)
+  if (urlPath === '/.well-known/eop.json' || urlPath === '/api/eop/discovery') {
+    try {
+      const eop = require('../backend/modules/earth-outcome-protocol');
+      res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'public, max-age=60' });
+      return res.end(JSON.stringify(eop.discovery()));
+    } catch (e) {
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      return res.end(JSON.stringify({ ok: false, error: e.message }));
+    }
+  }
+
+  // EOP API surface on site (local-first so nginx→site path works without backend hop)
+  if (urlPath === '/api/eop' || urlPath.startsWith('/api/eop/')) {
+    try {
+      const eop = require('../backend/modules/earth-outcome-protocol');
+      const handled = await eop.handle(req, res);
+      if (handled) return;
+    } catch (e) {
+      res.writeHead(500, { 'Content-Type': 'application/json' });
       return res.end(JSON.stringify({ ok: false, error: e.message }));
     }
   }
