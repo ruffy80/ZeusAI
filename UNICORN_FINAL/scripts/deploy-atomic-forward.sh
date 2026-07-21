@@ -479,8 +479,6 @@ if pm2 describe zeus-telegram-autobind >/dev/null 2>&1; then
   pm2 save >/dev/null 2>&1 || true
 fi
 
-fi
-
 # SAFE full-autonomy activation: turn business autonomy ON while keeping
 # source-file mutators OFF, reload PM2 with the safe env, and install the
 # health-watch cron. Best-effort / non-fatal so a watch/cron glitch never

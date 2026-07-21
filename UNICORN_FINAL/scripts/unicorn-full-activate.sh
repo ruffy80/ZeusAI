@@ -123,8 +123,6 @@ if pm2 describe zeus-telegram-autobind >/dev/null 2>&1; then
   pm2 save >/dev/null 2>&1 || true
 fi
 
-fi
-
 # ── 5. Read-only module audit (report only — NEVER create stubs) ─────────────
 log "read-only module audit (report only)"
 MODULES_DIR="$DEPLOY_LINK/backend/modules" node <<'NODE' || warn "module audit encountered an error (non-fatal)"
