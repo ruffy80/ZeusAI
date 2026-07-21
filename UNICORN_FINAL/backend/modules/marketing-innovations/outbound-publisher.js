@@ -70,8 +70,13 @@ const RATE_LIMIT_PER_MIN = Math.max(1, Number(process.env.MARKETING_OUTBOUND_RAT
 // Legacy env vars `TG_BOT_TOKEN` / `TG_CHAT_ID` still work as a fallback so
 // existing deployments do not break.
 function _telegramCreds() {
-  const token = process.env.TELEGRAM_BOT_TOKEN || process.env.TG_BOT_TOKEN || '';
-  const chat = process.env.TELEGRAM_CHAT_ID || process.env.TG_CHAT_ID || '';
+  const token = process.env.TELEGRAM_BOT_TOKEN || process.env.TG_BOT_TOKEN || process.env.ZAC_TELEGRAM_TOKEN || '';
+  // Prefer Profit Group rail for marketing fan-out; fall back to owner/outbound chat.
+  const chat = process.env.ZEUS_TG_GROUP_CHAT_ID
+    || process.env.TELEGRAM_GROUP_CHAT_ID
+    || process.env.TELEGRAM_CHAT_ID
+    || process.env.TG_CHAT_ID
+    || '';
   return { token, chat, has: !!(token && chat) };
 }
 

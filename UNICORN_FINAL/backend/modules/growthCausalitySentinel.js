@@ -314,6 +314,30 @@ function _scoreStages(funnel, health, site, catalogN) {
   return { traffic, capture, convert, monetize, expand, retain, infra };
 }
 
+function _tracked(path, content) {
+  try {
+    const aff = require('./marketing-innovations/affiliate-revenue');
+    if (aff && typeof aff.buildLink === 'function') {
+      const built = aff.buildLink({
+        target: `${SITE_ORIGIN}${path}`,
+        code: 'tg-cvr',
+        source: 'telegram',
+        medium: 'cvr',
+        campaign: 'causal-virality',
+        content: String(content || 'hook').slice(0, 48),
+      });
+      if (built && built.ok) return built.url;
+    }
+  } catch (_) { /* fall through */ }
+  const u = new URL(`${SITE_ORIGIN}${path}`);
+  u.searchParams.set('utm_source', 'telegram');
+  u.searchParams.set('utm_medium', 'cvr');
+  u.searchParams.set('utm_campaign', 'causal-virality');
+  u.searchParams.set('utm_content', String(content || 'hook'));
+  u.searchParams.set('ref', 'tg-cvr');
+  return u.toString();
+}
+
 const HOOKS = [
   {
     id: 'starvation_signal',
@@ -321,7 +345,7 @@ const HOOKS = [
     build: (s) => [
       `⚡ ZeusAI pulse — funnel stage "${s.starvingStage}" is starving (score ${s.starvingScore}/100).`,
       `Live catalog: ${s.catalogCount} services. Site ${s.siteOk ? 'UP' : 'DEGRADED'}.`,
-      `Fix path: ${SITE_ORIGIN}/services`,
+      `Fix path: ${_tracked('/services', 'starvation')}`,
       `#ZeusAI #autonomousCommerce`,
     ].join('\n'),
   },
@@ -335,7 +359,7 @@ const HOOKS = [
       return [
         `🦄 Unicorn spotlight: ${name}${price}`,
         `Autonomous checkout · BTC-ready · no fake metrics.`,
-        `${SITE_ORIGIN}/checkout`,
+        `${_tracked('/checkout', 'spotlight')}`,
         `What should we ship next? Reply in this chat.`,
       ].join('\n');
     },
@@ -349,7 +373,7 @@ const HOOKS = [
       return [
         `📊 Honest 7d signal (no invented numbers):`,
         `sessions=${Number(w.sessions || 0)} · checkouts=${Number(w.checkoutStarts || 0)} · paid=${Number(w.paid || 0)}`,
-        `CVR posts only when lift is measurable. Watch ${SITE_ORIGIN}`,
+        `CVR posts only when lift is measurable. Watch ${_tracked('/', 'proof')}`,
       ].join('\n');
     },
   },
@@ -357,9 +381,9 @@ const HOOKS = [
     id: 'virality_invite',
     stage: 'expand',
     build: () => [
-      `🔗 Share Unicorn: ${SITE_ORIGIN}`,
+      `🔗 Share Unicorn: ${_tracked('/', 'invite')}`,
       `Agents, dropship shelf, BTC rails — one autonomous stack.`,
-      `Owner tip: /boost forces a CVR cycle · /pulse shows live scores.`,
+      `Group tip: /value drops Profit Group content · /profit shows the score.`,
     ].join('\n'),
   },
   {
@@ -367,8 +391,17 @@ const HOOKS = [
     stage: 'capture',
     build: () => [
       `🛒 Abandoned intent is revenue waiting to happen.`,
-      `Open ${SITE_ORIGIN}/services — finish checkout in one flow.`,
+      `Open ${_tracked('/services', 'recovery')} — finish checkout in one flow.`,
       `ZeusAI CVR is watching conversion deltas in real time.`,
+    ].join('\n'),
+  },
+  {
+    id: 'profit_group_gravity',
+    stage: 'expand',
+    build: () => [
+      `🚀 Telegram Profit Group OS is live — welcome gravity + value calendar + tracked CTAs.`,
+      `Join the signal, not the noise. Status: ${SITE_ORIGIN}/tg`,
+      `Shop the autonomous catalog → ${_tracked('/services', 'tpg')}`,
     ].join('\n'),
   },
 ];

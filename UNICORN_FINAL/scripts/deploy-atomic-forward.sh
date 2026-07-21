@@ -465,19 +465,20 @@ if [ -x "$DEPLOY_LINK/scripts/install-healer.sh" ]; then
     || log "[healer] non-fatal: install-healer.sh exited non-zero"
 fi
 
-# ZeusAI Unicorn Bot — Causal Virality Reflex + Telegram mission control
+# ZeusAI Unicorn Bot — CVR + Telegram Profit Group OS (single getUpdates owner).
+# Do NOT reinstall zeus-telegram-autobind here — dual pollers fight.
 if [ -x "$DEPLOY_LINK/scripts/install-zeus-unicorn-bot.sh" ]; then
-  log "ensure zeus-unicorn-bot (CVR) is installed"
+  log "ensure zeus-unicorn-bot (CVR + TPG) is installed"
   UNICORN_LIVE="$DEPLOY_LINK" bash "$DEPLOY_LINK/scripts/install-zeus-unicorn-bot.sh" \
     || log "[unicorn-bot] non-fatal: install-zeus-unicorn-bot.sh exited non-zero"
 fi
+if pm2 describe zeus-telegram-autobind >/dev/null 2>&1; then
+  log "stopping zeus-telegram-autobind (single getUpdates owner = unicorn-bot)"
+  pm2 stop zeus-telegram-autobind >/dev/null 2>&1 || true
+  pm2 delete zeus-telegram-autobind >/dev/null 2>&1 || true
+  pm2 save >/dev/null 2>&1 || true
+fi
 
-# Telegram chat autobind: long-polls until @ZEUSAIIBOT is granted Post Messages
-# (or /bind), then upserts TELEGRAM_CHAT_ID and reloads unicorn-backend.
-if [ -x "$DEPLOY_LINK/scripts/install-telegram-autobind.sh" ]; then
-  log "ensure zeus-telegram-autobind is installed"
-  UNICORN_LIVE="$DEPLOY_LINK" bash "$DEPLOY_LINK/scripts/install-telegram-autobind.sh" \
-    || log "[tg-autobind] non-fatal: install-telegram-autobind.sh exited non-zero"
 fi
 
 # SAFE full-autonomy activation: turn business autonomy ON while keeping

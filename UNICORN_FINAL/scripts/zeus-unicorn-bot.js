@@ -3,20 +3,15 @@
 // zeus-unicorn-bot.js — permanent ZeusAI Growth Mission-Control bot
 //
 // Owns Telegram long-poll (single consumer), owner commands, chat bind,
-// and the Causal Virality Reflex (growthCausalitySentinel).
+// the Causal Virality Reflex (growthCausalitySentinel), and the
+// Telegram Profit Group OS (autonomous community → site profit loop).
 //
 // Commands (owner allowlist or ZEUS_TG_ALLOW_PRIVATE_BIND=1):
 //   /start /help  — command card
-//   /pulse        — live CVR scores + infra
-//   /boost        — force one causality cycle (post if publishable)
-//   /status       — machine status JSON summary
-//   /catalog      — top catalog slice from local API
-//   /silence      — pause auto-posts
-//   /resume       — resume auto-posts
-//   /bind         — bind THIS chat as TELEGRAM_CHAT_ID (allowlisted)
-//   /chatid       — show chat id
+//   /pulse /boost /status /catalog /silence /resume /bind /bindgroup /chatid
+//   Group: /value /profit /invite /lead /cta
 //
-// Env: TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID, ZEUS_TG_OWNER_CHAT_IDS
+// Env: TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID, ZEUS_TG_GROUP_CHAT_ID, ZEUS_TG_OWNER_CHAT_IDS
 // =====================================================================
 'use strict';
 
@@ -81,6 +76,7 @@ function upsertEnv(file, pairs) {
 hydrateEnv();
 
 const cvr = require('../backend/modules/growthCausalitySentinel');
+const groupOs = require('../backend/modules/telegram-profit-group-os');
 
 function token() {
   return process.env.TELEGRAM_BOT_TOKEN || process.env.TG_BOT_TOKEN || process.env.ZAC_TELEGRAM_TOKEN || '';
@@ -160,6 +156,40 @@ async function applyBind(chat) {
   return { ok: true, chatId: chat.id };
 }
 
+/** Bind a group/channel as the PROFIT rail without overwriting owner alert chat. */
+async function applyGroupBind(chat) {
+  const pairs = {
+    ZEUS_TG_GROUP_CHAT_ID: String(chat.id),
+    TELEGRAM_GROUP_CHAT_ID: String(chat.id),
+  };
+  if (chat.username) pairs.ZEUS_TG_GROUP_REF = `@${chat.username}`;
+  upsertEnv(SHARED_ENV, pairs);
+  upsertEnv(SECRETS_ENV, pairs);
+  for (const [k, v] of Object.entries(pairs)) process.env[k] = v;
+  groupOs.bindGroupChat(chat);
+  writeBindStatus({
+    groupBound: true,
+    groupChatId: chat.id,
+    groupRef: chat.username ? `@${chat.username}` : String(chat.id),
+    groupType: chat.type,
+    groupTitle: chat.title || null,
+    groupBoundAt: new Date().toISOString(),
+  });
+  spawnSync('pm2', ['restart', 'unicorn-backend', '--update-env'], {
+    encoding: 'utf8',
+    env: { ...process.env, HOME: process.env.HOME || '/root', PM2_HOME: process.env.PM2_HOME || '/root/.pm2' },
+  });
+  await reply(chat.id, [
+    '🚀 Profit Group rail bound.',
+    `group_chat_id: ${chat.id}`,
+    'TPG/1.0 armed — welcome · value calendar · profit gravity · tracked CTAs.',
+    'Try /value · /profit · /invite',
+  ].join('\n'));
+  try { await groupOs.postValue(true); } catch (_) { /* ignore */ }
+  return { ok: true, groupChatId: chat.id };
+}
+
+
 async function handleCommand(msg) {
   const chat = msg.chat;
   const text = String(msg.text || '').trim();
@@ -173,17 +203,23 @@ async function handleCommand(msg) {
 
   if (cmd === '/start' || cmd === '/help') {
     await reply(chat.id, [
-      '🦄 ZeusAI Unicorn Bot — Causal Virality Reflex',
+      '🦄 ZeusAI Unicorn Bot — CVR + Telegram Profit Group OS',
       '',
-      'I analyze funnel hunger, then fan out to EVERY armed rail:',
-      'Telegram · Discord · X · Mastodon · Bluesky · DEV.to · RSS · webhooks',
-      '+ IndexNow SEO + social viralizer + public site feed.',
+      'I run two autonomous engines:',
+      '1) Causal Virality Reflex — multi-rail posts when funnel hunger clears the noise floor',
+      '2) Profit Group OS — welcome, daily value, tracked CTAs, leads, invite gravity',
       '',
-      '/pulse /boost /channels /catalog /silence /resume /status',
+      'Owner: /pulse /boost /channels /catalog /silence /resume /status /bind /bindgroup',
+      'Group: /value /profit /invite /lead you@email.com /cta',
       '',
-      'Innovation: posts only when expected lift clears the noise floor,',
-      'then attributes BEFORE→AFTER site deltas.',
+      'Site: https://zeusai.pro · Group status: https://zeusai.pro/tg',
     ].join('\n'), mid);
+    return;
+  }
+
+  // Public group commands (no owner gate)
+  if (['/value', '/drop', '/profit', '/group', '/invite', '/lead', '/cta'].includes(cmd)) {
+    await groupOs.handleCommand(msg);
     return;
   }
 
@@ -193,6 +229,15 @@ async function handleCommand(msg) {
       return;
     }
     await applyBind(chat);
+    return;
+  }
+
+  if (cmd === '/bindgroup') {
+    if (chat.type === 'private') {
+      await reply(chat.id, 'Run /bindgroup inside the target group/channel (bot must be admin).', mid);
+      return;
+    }
+    await applyGroupBind(chat);
     return;
   }
 
@@ -222,12 +267,14 @@ async function handleCommand(msg) {
   }
   if (cmd === '/silence') {
     cvr.setSilenced(true);
-    await reply(chat.id, '⏸ CVR silenced. /resume to arm.', mid);
+    groupOs.setSilenced(true);
+    await reply(chat.id, '⏸ CVR + Profit Group silenced. /resume to arm.', mid);
     return;
   }
   if (cmd === '/resume') {
     cvr.setSilenced(false);
-    await reply(chat.id, '▶️ CVR resumed.', mid);
+    groupOs.setSilenced(false);
+    await reply(chat.id, '▶️ CVR + Profit Group resumed.', mid);
     return;
   }
   if (cmd === '/catalog') {
@@ -279,8 +326,9 @@ async function handleMyChatMember(update) {
     || (neu.status === 'administrator' && (neu.can_post_messages === true || chat.type !== 'channel'));
   if (!canPost) return;
   if (chat.type === 'channel' || chat.type === 'supergroup' || chat.type === 'group') {
-    log(`channel grant on ${chat.username || chat.id} — binding`);
-    await applyBind(chat);
+    // Dual-rail: group/channel → profit group OS; keep owner private alert chat intact.
+    log(`group/channel grant on ${chat.username || chat.id} — binding profit rail`);
+    await applyGroupBind(chat);
   }
 }
 
@@ -292,7 +340,7 @@ async function pollLoop() {
       const data = await tg('getUpdates', {
         offset,
         timeout: POLL_TIMEOUT,
-        allowed_updates: ['message', 'my_chat_member', 'channel_post'],
+        allowed_updates: ['message', 'my_chat_member', 'channel_post', 'chat_member'],
       });
       if (!data.ok) {
         log(`getUpdates: ${data.description || data.error_code}`);
@@ -307,7 +355,10 @@ async function pollLoop() {
           await handleMyChatMember(u);
           continue;
         }
-        const msg = u.message;
+        // Profit Group OS: welcomes, moderation, engagement
+        // eslint-disable-next-line no-await-in-loop
+        await groupOs.handleUpdate(u).catch(() => {});
+        const msg = u.message || u.channel_post;
         if (msg && typeof msg.text === 'string' && msg.text.trim().startsWith('/')) {
           // eslint-disable-next-line no-await-in-loop
           await handleCommand(msg);
@@ -333,6 +384,11 @@ async function main() {
         { command: 'channels', description: 'List armed outbound rails' },
         { command: 'status', description: 'Machine status' },
         { command: 'catalog', description: 'Top catalog offers' },
+        { command: 'value', description: 'Force a Profit Group value drop' },
+        { command: 'profit', description: 'Group profit score' },
+        { command: 'invite', description: 'Auto invite link' },
+        { command: 'lead', description: 'Capture email lead' },
+        { command: 'bindgroup', description: 'Bind this group as profit rail' },
         { command: 'silence', description: 'Pause auto-posts' },
         { command: 'resume', description: 'Resume auto-posts' },
         { command: 'help', description: 'What this bot invents' },
@@ -342,14 +398,21 @@ async function main() {
 
   const started = cvr.start({ apply: false });
   log(`CVR start ${JSON.stringify(started)}`);
+  const gStarted = groupOs.start({ force: false });
+  log(`TPG start ${JSON.stringify(gStarted)}`);
 
   // Brief owner once on boot if chat known
   const chat = process.env.TELEGRAM_CHAT_ID || process.env.TG_CHAT_ID;
   if (token() && chat) {
+    const g = groupOs.getStatus();
     await reply(chat, [
       '🦄 ZeusAI Unicorn Bot online.',
-      'Causal Virality Reflex armed — posts only when funnel hunger + expected lift clear the noise floor.',
-      'Try /pulse or /boost.',
+      'CVR armed + Telegram Profit Group OS (TPG/1.0) armed.',
+      g.groupChatId
+        ? `Profit rail: ${g.groupChatId}${g.dualRail ? ' (dual-rail)' : ''}`
+        : 'Profit rail: add me as GROUP admin + /bindgroup (or auto-bind on admin grant).',
+      'Try /pulse · /boost · /profit · /value',
+      'Human: https://zeusai.pro/tg',
     ].join('\n')).catch(() => {});
   }
 
@@ -357,8 +420,8 @@ async function main() {
   else setInterval(() => {}, 60_000);
 }
 
-process.on('SIGTERM', () => { cvr.stop(); process.exit(0); });
-process.on('SIGINT', () => { cvr.stop(); process.exit(0); });
+process.on('SIGTERM', () => { cvr.stop(); groupOs.stop(); process.exit(0); });
+process.on('SIGINT', () => { cvr.stop(); groupOs.stop(); process.exit(0); });
 
 if (require.main === module) {
   main().catch((e) => {
@@ -367,4 +430,4 @@ if (require.main === module) {
   });
 }
 
-module.exports = { handleCommand, isOwner, readEnvFile };
+module.exports = { handleCommand, isOwner, readEnvFile, applyGroupBind, applyBind };

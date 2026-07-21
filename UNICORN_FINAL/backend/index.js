@@ -735,6 +735,17 @@ function _envArmed(name) {
   if (!v) return false;
   return !/^(your|skip|changeme|todo|placeholder|xxx+|none|null|undefined|tbd|n\/a)/i.test(v);
 }
+// GET /api/telegram/group-os — Telegram Profit Group OS status (no secrets)
+app.get(['/api/telegram/group-os', '/.well-known/telegram-profit-group.json'], (req, res) => {
+  try {
+    const tpg = require('./modules/telegram-profit-group-os');
+    res.set('Cache-Control', 'no-store');
+    res.json(tpg.getStatus());
+  } catch (e) {
+    res.status(500).json({ ok: false, error: e && e.message });
+  }
+});
+
 app.get('/api/activation/readiness', (req, res) => {
   const stripePricesArmed = _envArmed('STRIPE_PRICE_STARTER_MONTHLY')
     || _envArmed('STRIPE_PRICE_PRO_MONTHLY')
