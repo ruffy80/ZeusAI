@@ -7214,6 +7214,19 @@ seedSsrMap();if(document.getElementById("ds-sort")&&!document.getElementById("ds
     }
   }
 
+  // TPG/1.0 — Telegram Profit Group OS
+  if (urlPath === '/api/telegram/group-os' || urlPath === '/.well-known/telegram-profit-group.json' || urlPath === '/api/telegram/group-os/discovery') {
+    try {
+      const tpg = require('../backend/modules/telegram-profit-group-os');
+      const out = urlPath.endsWith('/discovery') ? tpg.discovery() : tpg.getStatus();
+      res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' });
+      return res.end(JSON.stringify(out));
+    } catch (e) {
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      return res.end(JSON.stringify({ ok: false, error: e.message }));
+    }
+  }
+
   // EOP API surface on site (local-first so nginx→site path works without backend hop)
   if (urlPath === '/api/eop' || urlPath.startsWith('/api/eop/')) {
     try {
