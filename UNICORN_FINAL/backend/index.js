@@ -3063,6 +3063,14 @@ let funnelIntelligence = null, trafficEngine = null, memoryGuardian = null, reve
 try { funnelIntelligence = require('./modules/funnel-intelligence'); } catch (e) { console.warn('[funnel-intelligence] disabled:', e && e.message); }
 try { trafficEngine = require('./modules/traffic-engine'); } catch (e) { console.warn('[traffic-engine] disabled:', e && e.message); }
 try { memoryGuardian = require('./modules/memory-guardian'); } catch (e) { console.warn('[memory-guardian] disabled:', e && e.message); }
+let neverDownKernel = null;
+try {
+  neverDownKernel = require('./modules/never-down-kernel');
+  neverDownKernel.start();
+  console.log('[never-down] kernel loaded ·', neverDownKernel.PROTOCOL);
+} catch (e) {
+  console.warn('[never-down] kernel disabled:', e && e.message);
+}
 try { revenueFlywheel = require('./modules/revenue-flywheel'); } catch (e) { console.warn('[revenue-flywheel] disabled:', e && e.message); }
 
 // ==================== AUTONOMY SPINE — coloana de autonomie demonstrabilă ====================
@@ -3726,6 +3734,11 @@ if (_isPrimaryWorker) {
         memoryGuardian.registerTrimmer('route-cache', () => { try { return routeCache.clearCache(); } catch (e) { return { ok: false, error: e && e.message }; } });
         memoryGuardian.registerTrimmer('funnel-buffer', () => { const n = funnelEvents.length; funnelEvents.splice(0, Math.max(0, n - 200)); return { kept: funnelEvents.length, dropped: n - funnelEvents.length }; });
         memoryGuardian.registerTrimmer('funnel-intelligence-flush', () => (funnelIntelligence ? funnelIntelligence.flush() : { ok: false }));
+        if (neverDownKernel && typeof neverDownKernel.registerCleaner === 'function') {
+          neverDownKernel.registerCleaner('memory-guardian-tick', () => {
+            try { memoryGuardian.tick(); return { ok: true }; } catch (e) { return { ok: false, error: e.message }; }
+          });
+        }
         memoryGuardian.start();
       }
     } catch (e) { console.warn('[memory-guardian] start failed:', e && e.message); }
@@ -4124,6 +4137,14 @@ function buildHealthResponse() {
     buildSha: process.env.ZEUS_BUILD_SHA || process.env.GITHUB_SHA || process.env.SW_VERSION || null,
     timestamp: new Date().toISOString(),
     fallbackPricing,
+    neverDown: (function () {
+      try {
+        const ndk = require('./modules/never-down-kernel');
+        return ndk.healthEnvelope();
+      } catch (_) {
+        return { protocol: 'NDK/1.0', health: 'unknown', neverKill: true, healerFail: false };
+      }
+    })(),
   };
 }
 
@@ -11955,6 +11976,17 @@ try {
   registerModuleRoutes('eop', earthOutcomeProtocol);
 } catch (e) {
   console.warn('[eop] registerModuleRoutes skipped:', e.message);
+}
+try {
+  const neverDownKernelMod = require('./modules/never-down-kernel');
+  registerModuleRoutes('never-down-kernel', neverDownKernelMod);
+  registerModuleRoutes('never-down', neverDownKernelMod);
+  app.get('/api/never-down/status', (req, res) => {
+    try { res.json(neverDownKernelMod.getStatus()); }
+    catch (e) { res.status(500).json({ ok: false, error: e.message }); }
+  });
+} catch (e) {
+  console.warn('[never-down] registerModuleRoutes skipped:', e.message);
 }
 registerModuleRoutes('global-referral-loop',       globalReferralLoop);
 registerModuleRoutes('innovation-ship-gate',       innovationShipGate);

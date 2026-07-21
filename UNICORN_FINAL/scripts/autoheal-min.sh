@@ -34,7 +34,7 @@ else
   trap 'rmdir "$LOCK_DIR" 2>/dev/null || true' EXIT
 fi
 
-BACKEND_HEALTH_URL="${BACKEND_HEALTH_URL:-http://127.0.0.1:3000/health}"
+BACKEND_HEALTH_URL="${BACKEND_HEALTH_URL:-http://127.0.0.1:3000/api/health}"
 SITE_HEALTH_URL="${SITE_HEALTH_URL:-http://127.0.0.1:3001/health}"
 THRESHOLD="${AUTOHEAL_MIN_FAIL_STREAK:-3}"
 COOLDOWN="${AUTOHEAL_MIN_COOLDOWN_S:-600}"
@@ -47,20 +47,33 @@ esac
 now=$(date +%s)
 ts() { date -u +"%Y-%m-%dT%H:%M:%SZ"; }
 
+# Probe returns unhealthy if HTTP != 200 OR never-down kernel signals event-loop hang.
+probe_ok() {
+  local url="$1"
+  local body code
+  body=$(curl -fsS -m 5 "$url" 2>/dev/null || true)
+  code=$(curl -fsS -m 5 -o /dev/null -w "%{http_code}" "$url" 2>/dev/null || true)
+  [ "$code" = "200" ] || return 1
+  # Optional NDK lag fail (backend /api/health embeds neverDown.healerFail)
+  if printf '%s' "$body" | grep -q '"healerFail"[[:space:]]*:[[:space:]]*true'; then
+    return 1
+  fi
+  return 0
+}
+
 probe_app() {
   local app="$1" url="$2"
   local streak_file="$STATE_DIR/${app}.fail-streak"
   local last_act_file="$STATE_DIR/${app}.last-action-epoch"
-  local code streak last_act since
-  code=$(curl -fsS -m 5 -o /dev/null -w "%{http_code}" "$url" 2>/dev/null || true)
-  if [ "$code" = "200" ]; then
+  local streak last_act since
+  if probe_ok "$url"; then
     echo 0 > "$streak_file"
     return 0
   fi
   streak=$(cat "$streak_file" 2>/dev/null || echo 0)
   streak=$((streak + 1))
   echo "$streak" > "$streak_file"
-  echo "$(ts) [autoheal-min] $app unhealthy code=${code:-000} streak=$streak/$THRESHOLD"
+  echo "$(ts) [autoheal-min] $app unhealthy streak=$streak/$THRESHOLD url=$url"
   [ "$streak" -ge "$THRESHOLD" ] || return 0
   last_act=$(cat "$last_act_file" 2>/dev/null || echo 0)
   since=$((now - last_act))

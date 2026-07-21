@@ -47,8 +47,14 @@ read_counter() {
 }
 
 healthy() {
-  curl -fsS --max-time 8 "http://127.0.0.1:${BACKEND_PORT}/api/health" >/dev/null 2>&1 \
-    && curl -fsS --max-time 8 "http://127.0.0.1:${SITE_PORT}/health" >/dev/null 2>&1
+  local body
+  body="$(curl -fsS --max-time 8 "http://127.0.0.1:${BACKEND_PORT}/api/health" 2>/dev/null || true)"
+  [ -n "$body" ] || return 1
+  # Never-down kernel: event-loop hang → treat as unhealthy even if process answers
+  if printf '%s' "$body" | grep -q '"healerFail"[[:space:]]*:[[:space:]]*true'; then
+    return 1
+  fi
+  curl -fsS --max-time 8 "http://127.0.0.1:${SITE_PORT}/health" >/dev/null 2>&1
 }
 
 if healthy; then

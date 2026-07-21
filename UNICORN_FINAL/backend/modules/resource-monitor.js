@@ -110,6 +110,13 @@ function _checkAlerts() {
   if (diskUsedPct > DISK_WARN_PCT) {
     alerts.push({ ts: now, type: 'disk', level: 'warning', value: diskUsedPct, threshold: DISK_WARN_PCT,
       msg: `Disk ${diskUsedPct}% > ${DISK_WARN_PCT}% (no auto-exit, only warning)` });
+    // Cooperative never-down cleaners (never kill)
+    try {
+      const ndk = require('./never-down-kernel');
+      if (diskUsedPct >= 92 && typeof ndk.runCleaners === 'function') {
+        Promise.resolve(ndk.runCleaners('resource-monitor-disk')).catch(() => {});
+      }
+    } catch (_) { /* optional */ }
   }
 
   for (const alert of alerts) {

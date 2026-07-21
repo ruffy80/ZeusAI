@@ -692,47 +692,25 @@ const SITE_FALLBACK_MOCKS = {
 // Prevents cascading 502s when backend is restarting or unresponsive.
 // States: CLOSED (normal) → OPEN (all requests short-circuit to fallback) → HALF_OPEN (probe one request).
 // Opens after THRESHOLD consecutive failures; closes on first successful probe.
-const _siteProxyCB = {
-  state: 'CLOSED',     // CLOSED | OPEN | HALF_OPEN
-  failures: 0,
-  lastFailTs: 0,
-  lastSuccessTs: Date.now(),
-  threshold: Number(process.env.SITE_PROXY_CB_THRESHOLD || 3),
-  cooldownMs: Number(process.env.SITE_PROXY_CB_COOLDOWN_MS || 10000), // 10s before probe
-  tripped: 0,          // total times opened
-};
+const { createSiteProxyCircuitBreaker } = require('./site-proxy-circuit-breaker');
+const _siteProxyBreaker = createSiteProxyCircuitBreaker();
+const _siteProxyCB = _siteProxyBreaker._state;
 function _cbRecordSuccess() {
-  _siteProxyCB.failures = 0;
-  _siteProxyCB.lastSuccessTs = Date.now();
-  if (_siteProxyCB.state !== 'CLOSED') {
-    _siteProxyCB.state = 'CLOSED';
+  const was = _siteProxyCB.state;
+  _siteProxyBreaker.recordSuccess();
+  if (was !== 'CLOSED' && _siteProxyCB.state === 'CLOSED') {
     console.log('[site-proxy-cb] Circuit CLOSED — backend recovered');
   }
 }
 function _cbRecordFailure() {
-  _siteProxyCB.failures++;
-  _siteProxyCB.lastFailTs = Date.now();
-  if (_siteProxyCB.state === 'HALF_OPEN') {
-    _siteProxyCB.state = 'OPEN';
-    _siteProxyCB.tripped++;
-    console.warn('[site-proxy-cb] Circuit OPEN — probe failed, re-opening');
-  } else if (_siteProxyCB.state === 'CLOSED' && _siteProxyCB.failures >= _siteProxyCB.threshold) {
-    _siteProxyCB.state = 'OPEN';
-    _siteProxyCB.tripped++;
+  const was = _siteProxyCB.state;
+  _siteProxyBreaker.recordFailure();
+  if (_siteProxyCB.state === 'OPEN' && was !== 'OPEN') {
     console.warn('[site-proxy-cb] Circuit OPEN — backend unreachable after ' + _siteProxyCB.failures + ' failures');
   }
 }
 function _cbShouldAllow() {
-  if (_siteProxyCB.state === 'CLOSED') return true;
-  if (_siteProxyCB.state === 'OPEN') {
-    if ((Date.now() - _siteProxyCB.lastFailTs) >= _siteProxyCB.cooldownMs) {
-      _siteProxyCB.state = 'HALF_OPEN';
-      return true; // allow one probe
-    }
-    return false;
-  }
-  // HALF_OPEN — already allowing one probe
-  return true;
+  return _siteProxyBreaker.shouldAllow();
 }
 
 function _normalizeProxyShape(routePath, data) {

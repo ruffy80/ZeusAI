@@ -249,6 +249,32 @@ else
   warn "health-watch script not found at $HEALTH_WATCH — skipping cron install"
 fi
 
+# ── 6b. Forever-up (NDK) + autoheal-min — hang/disk aware, cooldown gated ──
+NDK_WATCH="$DEPLOY_LINK/scripts/never-down-watch.sh"
+if [ -f "$NDK_WATCH" ] && command -v crontab >/dev/null 2>&1; then
+  chmod +x "$NDK_WATCH" 2>/dev/null || true
+  NDK_LINE="*/2 * * * * DEPLOY_LINK=$DEPLOY_LINK bash $NDK_WATCH >/dev/null 2>&1"
+  EXISTING="$(crontab -l 2>/dev/null || true)"
+  if printf '%s\n' "$EXISTING" | grep -Fq "never-down-watch.sh"; then
+    log "never-down-watch cron already installed"
+  else
+    { printf '%s\n' "$EXISTING"; printf '%s\n' "$NDK_LINE"; } | grep -v '^$' | crontab -
+    log "installed never-down-watch cron (every 2 min)"
+  fi
+fi
+AUTOHEAL_MIN="$DEPLOY_LINK/scripts/autoheal-min.sh"
+if [ -f "$AUTOHEAL_MIN" ] && command -v crontab >/dev/null 2>&1; then
+  chmod +x "$AUTOHEAL_MIN" 2>/dev/null || true
+  AH_LINE="* * * * * BACKEND_HEALTH_URL=http://127.0.0.1:${BACKEND_PORT}/api/health SITE_HEALTH_URL=http://127.0.0.1:${SITE_PORT}/health bash $AUTOHEAL_MIN >>/var/log/unicorn-autoheal-min.log 2>&1"
+  EXISTING="$(crontab -l 2>/dev/null || true)"
+  if printf '%s\n' "$EXISTING" | grep -Fq "autoheal-min.sh"; then
+    log "autoheal-min cron already installed"
+  else
+    { printf '%s\n' "$EXISTING"; printf '%s\n' "$AH_LINE"; } | grep -v '^$' | crontab -
+    log "installed autoheal-min cron (every 1 min, NDK-aware)"
+  fi
+fi
+
 # ── 7. Health checks (retry — backend needs a few seconds after PM2 reload) ──
 HEALTH_OK=0
 check_health_once() {
