@@ -4997,7 +4997,7 @@ async function unicornHandler(req, res) {
   // markup. The old handler here rendered ZERO SSR cards (client-only grid),
   // which violated the "≥1 SSR service card" golden rule and hurt SEO.
   // RO: /services e servit acum de vitrina v2 SSR — carduri reale în HTML.
-  if (urlPath === '/unicorn-cockpit' || urlPath === '/unicorn-status.html' || urlPath === '/revenue-command' || urlPath === '/proof' || urlPath === '/revenue-share' || urlPath === '/zacc' || urlPath === '/dropship' || urlPath.indexOf('/dropship/product/') === 0 || urlPath.indexOf('/dropship/order/') === 0 || urlPath === '/pomx' || urlPath === '/exchange' || urlPath === '/proof-of-margin' || urlPath === '/earth' || urlPath === '/eop' || urlPath === '/outcome-passport') {
+  if (urlPath === '/unicorn-cockpit' || urlPath === '/unicorn-status.html' || urlPath === '/revenue-command' || urlPath === '/proof' || urlPath === '/revenue-share' || urlPath === '/zacc' || urlPath === '/dropship' || urlPath.indexOf('/dropship/product/') === 0 || urlPath.indexOf('/dropship/order/') === 0 || urlPath === '/pomx' || urlPath === '/exchange' || urlPath === '/proof-of-margin' || urlPath === '/earth' || urlPath === '/eop' || urlPath === '/outcome-passport' || urlPath === '/pre-keys' || urlPath === '/activation') {
     const renderPage = (title, bodyHtml, pageScript) => {
       // Unified chrome: render every legacy operator/dashboard page inside the
       // full v2 shell (nav + Zeus backdrop + footer + violet/gold theme) so the
@@ -5734,6 +5734,40 @@ seedSsrMap();if(document.getElementById("ds-sort")&&!document.getElementById("ds
 })();`;
       try { res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'public, max-age=30', 'X-Unicorn-Page': 'earth-eop' }); } catch (_) {}
       return res.end(renderPage('Earth · Outcome Protocol · ZeusAI', body, js));
+    }
+    // Pre-keys activation — honest map of agent rails vs owner keys tomorrow
+    if (urlPath === '/pre-keys' || urlPath === '/activation') {
+      const body = `
+<section style="max-width:920px;margin:0 auto;padding:48px 20px 80px;color:#e8eef7">
+  <p style="letter-spacing:.18em;text-transform:uppercase;color:#8aa0b8;font-size:12px;margin:0 0 12px">PKA/1.0 · Pre-Keys Activation</p>
+  <h1 style="font-size:clamp(2rem,5vw,3.2rem);line-height:1.05;margin:0 0 12px;font-family:Georgia,serif">ZeusAI is armed. Payment keys land tomorrow.</h1>
+  <p style="max-width:54ch;color:#b7c5d6;font-size:1.05rem;margin:0 0 28px">Live status of everything agents can finish without NOWPayments, Stripe, PayPal, or email secrets — plus the exact owner checklist for tomorrow.</p>
+  <div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:28px">
+    <a href="/api/pre-keys/status" style="padding:14px 22px;border-radius:10px;background:linear-gradient(135deg,#3d8bfd,#1f6feb);color:#fff;text-decoration:none;font-weight:700">Open status JSON →</a>
+    <a href="/api/telegram/bind-status" style="padding:14px 22px;border-radius:10px;border:1px solid #2c3550;color:#cfd6ff;text-decoration:none;font-weight:600">Telegram bind</a>
+    <a href="/api/activation/readiness" style="padding:14px 22px;border-radius:10px;border:1px solid #2c3550;color:#cfd6ff;text-decoration:none;font-weight:600">Activation readiness</a>
+  </div>
+  <p id="pk-meta" style="color:#8aa0b8;margin:0 0 18px">Loading…</p>
+  <div id="pk-agent" style="display:grid;gap:10px;margin-bottom:28px"></div>
+  <h2 style="font-size:1.25rem;margin:0 0 12px">Owner keys tomorrow</h2>
+  <div id="pk-owner" style="display:grid;gap:10px"></div>
+</section>`;
+      const js = `(function(){
+  function row(c, tone){
+    var ok=!!c.armed;
+    return '<div style="display:flex;justify-content:space-between;gap:12px;padding:14px 16px;border:1px solid '+(ok?'#1f4d3a':'#3a3140')+';background:'+(ok?'rgba(30,90,60,.18)':'rgba(60,40,40,.18)')+'"><div><strong>'+c.title+'</strong><div style="color:#8aa0b8;font-size:12px;margin-top:4px">'+c.id+(c.optional?' · optional':'')+'</div></div><div style="font-weight:700;color:'+(ok?'#6dffb0':'#ffb087')+'">'+(ok?'ARMED':'WAITING')+'</div></div>';
+  }
+  fetch("/api/pre-keys/status",{cache:"no-store"}).then(function(r){return r.json();}).then(function(d){
+    var meta=document.getElementById("pk-meta");
+    var ag=document.getElementById("pk-agent");
+    var ow=document.getElementById("pk-owner");
+    if(meta) meta.textContent=d.summary||"";
+    if(ag) ag.innerHTML=(d.agentArmed||[]).map(row).join("");
+    if(ow) ow.innerHTML=(d.ownerTomorrow||[]).map(row).join("");
+  }).catch(function(){var m=document.getElementById("pk-meta");if(m)m.textContent="Status temporarily unreachable.";});
+})();`;
+      try { res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'public, max-age=30', 'X-Unicorn-Page': 'pre-keys' }); } catch (_) {}
+      return res.end(renderPage('Pre-Keys Activation · ZeusAI', body, js));
     }
   }
   // ==================== END FAZA 2 / VAL 5 COMPLETARE ====================
@@ -7110,6 +7144,33 @@ seedSsrMap();if(document.getElementById("ds-sort")&&!document.getElementById("ds
       return res.end(JSON.stringify(eop.discovery()));
     } catch (e) {
       res.writeHead(200, { 'Content-Type': 'application/json' });
+      return res.end(JSON.stringify({ ok: false, error: e.message }));
+    }
+  }
+
+  // PKA/1.0 — Pre-Keys Activation (agent rails vs owner-tomorrow keys)
+  if (urlPath === '/.well-known/pre-keys.json' || urlPath === '/api/pre-keys/status' || urlPath === '/api/pre-keys/discovery') {
+    try {
+      const preKeys = require('../backend/modules/pre-keys-activation');
+      const payload = urlPath === '/api/pre-keys/discovery'
+        ? preKeys.discovery()
+        : preKeys.getStatus();
+      res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' });
+      return res.end(JSON.stringify(payload));
+    } catch (e) {
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      return res.end(JSON.stringify({ ok: false, error: e.message }));
+    }
+  }
+
+  if (urlPath === '/api/telegram/bind-status' && req.method === 'GET') {
+    try {
+      const preKeys = require('../backend/modules/pre-keys-activation');
+      const st = preKeys.telegramBindStatus();
+      res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' });
+      return res.end(JSON.stringify({ ok: true, generatedAt: new Date().toISOString(), ...st }));
+    } catch (e) {
+      res.writeHead(500, { 'Content-Type': 'application/json' });
       return res.end(JSON.stringify({ ok: false, error: e.message }));
     }
   }
@@ -8917,11 +8978,53 @@ ${invoice.payer ? `<h2>Payer</h2><table><tr><th>Legal entity</th><td>${esc(invoi
   if ((urlPath === '/api/dr/status' || urlPath === '/api/dr/health') && req.method === 'GET') {
     try {
       let dr = null;
-      try { const m = require('../backend/modules/disaster-recovery'); dr = (m && m.status) ? m.status() : null; } catch(_){}
+      try {
+        const m = require('../backend/modules/disaster-recovery');
+        dr = (m && typeof m.getStatus === 'function') ? m.getStatus() : null;
+      } catch(_){}
       const payload = { ok:true, generatedAt:new Date().toISOString(), enabled: !!dr, dr: dr || { mode:'local-only', backups: [], lastBackup: null } };
       res.writeHead(200,{'Content-Type':'application/json'});
       return res.end(JSON.stringify(payload));
     } catch(e){ res.writeHead(500,{'Content-Type':'application/json'}); return res.end(JSON.stringify({ ok:false, error:e.message })); }
+  }
+
+  // GET /api/lightning/status — LND readiness (never invent a node)
+  if (urlPath === '/api/lightning/status' && req.method === 'GET') {
+    try {
+      const ln = lightning || (() => { try { return require('./lightning/lightning'); } catch (_) { return null; } })();
+      const st = ln && typeof ln.getStatus === 'function' ? ln.getStatus() : { ok: false, configured: false };
+      res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
+      return res.end(JSON.stringify({ ok: true, generatedAt: new Date().toISOString(), lightning: st }));
+    } catch (e) {
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      return res.end(JSON.stringify({ ok: false, error: e.message }));
+    }
+  }
+
+  // POST /api/lightning/invoice — gated; 503 when LND env missing
+  if (urlPath === '/api/lightning/invoice' && req.method === 'POST') {
+    const ln = lightning || (() => { try { return require('./lightning/lightning'); } catch (_) { return null; } })();
+    if (!ln || typeof ln.isConfigured !== 'function' || !ln.isConfigured()) {
+      res.writeHead(503, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
+      return res.end(JSON.stringify({
+        ok: false,
+        error: 'lightning_not_configured',
+        hint: 'Set LND_REST_URL + LND_MACAROON (and LIGHTNING_ENABLED=1) to enable invoices. No fake node is invented.',
+      }));
+    }
+    try {
+      let raw = '';
+      for await (const chunk of req) raw += chunk;
+      const body = raw ? JSON.parse(raw) : {};
+      const amountSats = Math.max(1, Number(body.amountSats || body.sats || 0));
+      const memo = String(body.memo || body.description || 'ZeusAI').slice(0, 200);
+      const inv = await ln.createInvoice(amountSats, memo);
+      res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
+      return res.end(JSON.stringify({ ok: true, invoice: inv }));
+    } catch (e) {
+      res.writeHead(502, { 'Content-Type': 'application/json' });
+      return res.end(JSON.stringify({ ok: false, error: e && e.message }));
+    }
   }
 
   // GET /api/services/changed — last catalog change announcement (JSON or SSE)

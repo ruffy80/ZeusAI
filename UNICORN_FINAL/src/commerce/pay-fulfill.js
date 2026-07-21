@@ -262,13 +262,38 @@ function _summarizeArtifacts(pkg) {
 
 // One-shot high-level entrypoint: run delivery (once) + fire both emails
 // (each once). Safe to call from any payment-confirmation path.
+function _recordFunnel(stage, receipt, extra) {
+  try {
+    const funnel = require('../../backend/modules/funnel-intelligence');
+    if (!funnel || typeof funnel.record !== 'function') return;
+    funnel.record({
+      event: stage,
+      stage,
+      serviceId: receipt && (receipt.serviceId || receipt.productId || receipt.plan || null),
+      productId: receipt && (receipt.productId || receipt.serviceId || null),
+      value: receipt && (receipt.amount || receipt.priceUSD || receipt.amountUsd || 0),
+      amountUsd: receipt && (receipt.amount || receipt.priceUSD || receipt.amountUsd || 0),
+      orderId: receipt && (receipt.orderId || receipt.id || null),
+      sessionId: receipt && (receipt.sessionId || receipt.orderId || receipt.id || null),
+      ...(extra || {}),
+    });
+  } catch (_) { /* never break settle */ }
+}
+
 async function settleAndNotify({ receipt, deliveryFn, source }) {
   const orderId = receiptOrderId(receipt);
-  const result = { orderId, source: source || 'unknown', delivery: null, emails: {}, eop: null };
+  const result = { orderId, source: source || 'unknown', delivery: null, emails: {}, eop: null, funnel: {} };
   if (!orderId) return { ok: false, error: 'missing_orderId' };
+  // Buy→paid truth: every confirmed settle records paid (idempotent at funnel day grain).
+  _recordFunnel('checkout_paid', receipt, { source: source || 'pay-fulfill' });
+  result.funnel.paid = true;
   if (typeof deliveryFn === 'function') {
     const delivered = runDeliveryOnce(receipt, deliveryFn);
     result.delivery = delivered;
+    if (delivered && (delivered.ok || delivered.delivery || delivered.alreadyDelivered)) {
+      _recordFunnel('delivered', receipt, { source: source || 'pay-fulfill' });
+      result.funnel.delivered = true;
+    }
   }
   // order_receipt first (works even without a delivery package)
   result.emails.receipt = await sendOrderReceiptEmail(receipt);
@@ -276,6 +301,10 @@ async function settleAndNotify({ receipt, deliveryFn, source }) {
   const pkg = result.delivery && result.delivery.delivery;
   if (pkg && (Array.isArray(pkg.items) || Array.isArray(pkg.artifacts) || Array.isArray(pkg.deliverables))) {
     result.emails.artifact = await sendDeliveryArtifactEmail(receipt, pkg);
+    if (!result.funnel.delivered) {
+      _recordFunnel('delivered', receipt, { source: source || 'pay-fulfill', via: 'artifact_email' });
+      result.funnel.delivered = true;
+    }
   }
   // Earth Outcome Protocol — mint interdomain passport (never fail settlement)
   try {

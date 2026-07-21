@@ -53,11 +53,16 @@ const STAGE_ALIASES = {
   checkout_confirm: 'checkout_confirm',
   checkout_paid: 'paid',
   paid: 'paid',
+  // Buy→paid→delivered truth chain (pre-keys activation pack)
+  delivered: 'delivered',
+  delivery_complete: 'delivered',
+  fulfillment_done: 'delivered',
+  order_delivered: 'delivered',
 };
 
 // state.days[YYYY-MM-DD] = { pageViews, productViews, checkoutStarts, paid,
-//                            sessions:Set|number, revenueUsd }
-// state.products[id]     = { views, checkouts, paid, revenueUsd, lastSeen }
+//                            delivered, sessions:Set|number, revenueUsd }
+// state.products[id]     = { views, checkouts, paid, delivered, revenueUsd, lastSeen }
 const state = { days: {}, products: {}, totalEvents: 0, loadedAt: null };
 let _flushTimer = null;
 let _dirty = false;
@@ -69,8 +74,13 @@ function _dayKey(ts) {
 
 function _ensureDay(key) {
   if (!state.days[key]) {
-    state.days[key] = { pageViews: 0, productViews: 0, checkoutStarts: 0, paid: 0, revenueUsd: 0, sessions: new Set() };
+    state.days[key] = {
+      pageViews: 0, productViews: 0, checkoutStarts: 0, paid: 0, delivered: 0,
+      revenueUsd: 0, sessions: new Set(),
+    };
     _pruneDays();
+  } else if (state.days[key].delivered == null) {
+    state.days[key].delivered = 0;
   }
   return state.days[key];
 }
@@ -114,6 +124,7 @@ function record(evt) {
       const v = Number(evt.value || evt.amountUsd || 0);
       if (Number.isFinite(v) && v > 0) day.revenueUsd = Math.round((day.revenueUsd + v) * 100) / 100;
     }
+    if (stage === 'delivered') day.delivered += 1;
     const pid = evt.serviceId || evt.productId ? String(evt.serviceId || evt.productId).slice(0, 120) : null;
     if (pid && stage !== 'page_view') {
       if (!state.products[pid] && Object.keys(state.products).length >= MAX_PRODUCTS) {
@@ -124,7 +135,10 @@ function record(evt) {
         }
         if (lruId) delete state.products[lruId];
       }
-      const p = state.products[pid] || (state.products[pid] = { views: 0, checkouts: 0, paid: 0, revenueUsd: 0, lastSeen: 0 });
+      const p = state.products[pid] || (state.products[pid] = {
+        views: 0, checkouts: 0, paid: 0, delivered: 0, revenueUsd: 0, lastSeen: 0,
+      });
+      if (p.delivered == null) p.delivered = 0;
       if (stage === 'product_view') p.views += 1;
       if (stage === 'checkout_start') p.checkouts += 1;
       if (stage === 'paid') {
@@ -132,6 +146,7 @@ function record(evt) {
         const v = Number(evt.value || evt.amountUsd || 0);
         if (Number.isFinite(v) && v > 0) p.revenueUsd = Math.round((p.revenueUsd + v) * 100) / 100;
       }
+      if (stage === 'delivered') p.delivered += 1;
       p.lastSeen = Date.now();
     }
     state.totalEvents += 1;
@@ -144,14 +159,18 @@ function record(evt) {
 
 function _windowTotals(daysBack) {
   const cutoff = Date.now() - daysBack * 24 * 3600 * 1000;
-  let pageViews = 0, productViews = 0, checkoutStarts = 0, paid = 0, revenueUsd = 0, sessions = 0;
+  let pageViews = 0, productViews = 0, checkoutStarts = 0, paid = 0, delivered = 0, revenueUsd = 0, sessions = 0;
   for (const [key, d] of Object.entries(state.days)) {
     if (Date.parse(key + 'T00:00:00Z') < cutoff) continue;
     pageViews += d.pageViews; productViews += d.productViews;
-    checkoutStarts += d.checkoutStarts; paid += d.paid; revenueUsd += d.revenueUsd;
+    checkoutStarts += d.checkoutStarts; paid += d.paid;
+    delivered += Number(d.delivered || 0); revenueUsd += d.revenueUsd;
     sessions += _sessionCount(d);
   }
-  return { pageViews, productViews, checkoutStarts, paid, revenueUsd: Math.round(revenueUsd * 100) / 100, sessions };
+  return {
+    pageViews, productViews, checkoutStarts, paid, delivered,
+    revenueUsd: Math.round(revenueUsd * 100) / 100, sessions,
+  };
 }
 
 /** Unique visitors (sessions) — the number reality-metrics was missing. */
@@ -173,11 +192,13 @@ function productYield(limit) {
     views: p.views,
     checkouts: p.checkouts,
     paid: p.paid,
+    delivered: Number(p.delivered || 0),
     revenueUsd: p.revenueUsd,
-    // Evidence-weighted score: a paid order is worth 100 views.
-    yieldScore: p.paid * 100 + p.checkouts * 10 + p.views,
+    // Evidence-weighted score: delivered > paid > checkout > view.
+    yieldScore: Number(p.delivered || 0) * 150 + p.paid * 100 + p.checkouts * 10 + p.views,
     viewToCheckout: p.views > 0 ? Math.round((p.checkouts / p.views) * 10000) / 10000 : 0,
     checkoutToPaid: p.checkouts > 0 ? Math.round((p.paid / p.checkouts) * 10000) / 10000 : 0,
+    paidToDelivered: p.paid > 0 ? Math.round((Number(p.delivered || 0) / p.paid) * 10000) / 10000 : 0,
   }));
   rows.sort((a, b) => b.yieldScore - a.yieldScore);
   return rows.slice(0, Math.max(1, Math.min(Number(limit) || 25, MAX_PRODUCTS)));
@@ -200,7 +221,9 @@ function summary() {
       viewToProduct: conv(w30.pageViews, w30.productViews),
       productToCheckout: conv(w30.productViews, w30.checkoutStarts),
       checkoutToPaid: conv(w30.checkoutStarts, w30.paid),
+      paidToDelivered: conv(w30.paid, w30.delivered),
       visitorToPaid: conv(w30.sessions, w30.paid),
+      visitorToDelivered: conv(w30.sessions, w30.delivered),
     },
     topProducts: productYield(10),
     totalEvents: state.totalEvents,
@@ -215,7 +238,8 @@ function _serialize() {
   for (const [k, d] of Object.entries(state.days)) {
     days[k] = {
       pageViews: d.pageViews, productViews: d.productViews,
-      checkoutStarts: d.checkoutStarts, paid: d.paid, revenueUsd: d.revenueUsd,
+      checkoutStarts: d.checkoutStarts, paid: d.paid,
+      delivered: Number(d.delivered || 0), revenueUsd: d.revenueUsd,
       // Persist today's session ids so reloads (PM2 restarts) don't double
       // count returning sessions within the same day; older days store counts.
       sessions: d.sessions instanceof Set ? Array.from(d.sessions) : Number(d.sessions || 0),
@@ -257,6 +281,7 @@ function _load() {
       state.days[k] = {
         pageViews: Number(d.pageViews || 0), productViews: Number(d.productViews || 0),
         checkoutStarts: Number(d.checkoutStarts || 0), paid: Number(d.paid || 0),
+        delivered: Number(d.delivered || 0),
         revenueUsd: Number(d.revenueUsd || 0),
         sessions: (k === today && Array.isArray(d.sessions)) ? new Set(d.sessions.slice(0, MAX_SESSIONS_PER_DAY))
           : (Array.isArray(d.sessions) ? d.sessions.length : Number(d.sessions || 0)),

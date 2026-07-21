@@ -821,6 +821,63 @@ app.get('/api/activation/readiness', (req, res) => {
     },
   ];
 
+  // Infra / agent rails that do not wait on payment provider keys (pre-keys pack).
+  try {
+    const preKeys = require('./modules/pre-keys-activation');
+    const pk = preKeys && typeof preKeys.getStatus === 'function' ? preKeys.getStatus() : null;
+    const tg = pk && pk.telegram;
+    capabilities.push({
+      id: 'telegram_bound', title: 'Telegram bot bound + outbound',
+      impact: 55,
+      armed: !!(tg && tg.bound && tg.tokenArmed),
+      envVars: ['TELEGRAM_BOT_TOKEN', 'TELEGRAM_CHAT_ID'],
+      unlocks: 'Owner alerts + CVR outbound posts without waiting for email.',
+      action: 'Already armed if bot token + chat id are set (verify /api/telegram/bind-status).',
+    });
+    capabilities.push({
+      id: 'funnel_instrumentation', title: 'Buy→paid→delivered funnel truth',
+      impact: 40,
+      armed: !!(pk && pk.funnel && pk.funnel.ok && pk.funnel.hasDeliveredStage),
+      envVars: [],
+      unlocks: 'Conversion chain from checkout to delivery is measurable in /api/analytics/funnel.',
+      action: 'Shipped in pre-keys pack — no owner key required.',
+    });
+    capabilities.push({
+      id: 'wacp_ed25519', title: 'WACP Ed25519 forever-key signing',
+      impact: 35,
+      armed: !!(pk && pk.wacp && pk.wacp.ed25519),
+      envVars: ['SITE_SIGN_PRIVATE_KEY', 'WACP_ED25519_PRIVATE_KEY'],
+      unlocks: 'Agent commerce envelopes signed with the same forever-key as PoMX/EOP.',
+      action: 'Uses shared site-sign.pem on VPS automatically.',
+    });
+    capabilities.push({
+      id: 'never_down', title: 'Never-Down Kernel',
+      impact: 45,
+      armed: !!(pk && pk.neverDown && pk.neverDown.ok),
+      envVars: [],
+      unlocks: 'Health enrichment + healerFail gate + neverKill protection.',
+      action: 'Shipped — no owner key required.',
+    });
+    capabilities.push({
+      id: 'dr_local', title: 'Local disaster-recovery backups',
+      impact: 30,
+      armed: !!(pk && pk.disasterRecovery && pk.disasterRecovery.ok),
+      envVars: ['DR_BACKEND', 'DR_LOCAL_DIR'],
+      unlocks: 'Zero-secret local backups of data/ (S3 optional later).',
+      action: 'Defaults to local backend when DR_S3_BUCKET is unset.',
+    });
+    capabilities.push({
+      id: 'lightning_network', title: 'Lightning Network (LND)',
+      impact: 25,
+      armed: !!(pk && pk.lightning && pk.lightning.configured),
+      envVars: ['LND_REST_URL', 'LND_MACAROON', 'LIGHTNING_ENABLED'],
+      unlocks: 'Native sats invoices when an LND node is connected — never invented.',
+      action: 'Optional: point LND_REST_URL + LND_MACAROON at your node.',
+    });
+  } catch (e) {
+    console.warn('[activation/readiness] pre-keys enrich failed:', e && e.message);
+  }
+
   // Native BTC is always armed (non-custodial owner wallet) — the baseline rail.
   const btcArmed = !!(process.env.BTC_OWNER_WALLET || process.env.BTC_WALLET_ADDRESS || __OWNER_BTC);
 
@@ -842,6 +899,29 @@ app.get('/api/activation/readiness', (req, res) => {
       ? 'Fully armed — every revenue rail is active.'
       : `${missing.length} revenue capabilit${missing.length === 1 ? 'y' : 'ies'} dormant. Highest-impact next step: ${missing[0].title}.`,
   });
+});
+
+// GET /api/telegram/bind-status — public, no secrets (token never returned)
+app.get('/api/telegram/bind-status', (req, res) => {
+  try {
+    const preKeys = require('./modules/pre-keys-activation');
+    const st = preKeys.telegramBindStatus();
+    res.set('Cache-Control', 'no-store');
+    res.json({ ok: true, generatedAt: new Date().toISOString(), ...st });
+  } catch (e) {
+    res.status(500).json({ ok: false, error: e && e.message });
+  }
+});
+
+// GET /api/pre-keys/status & /.well-known/pre-keys.json — agent vs owner-tomorrow map
+app.get(['/api/pre-keys/status', '/.well-known/pre-keys.json'], (req, res) => {
+  try {
+    const preKeys = require('./modules/pre-keys-activation');
+    res.set('Cache-Control', 'no-store');
+    res.json(preKeys.getStatus());
+  } catch (e) {
+    res.status(500).json({ ok: false, error: e && e.message });
+  }
 });
 
 // GET /api/aura — live sovereign KPI strip (signed receipts, refunds honored, uptime, active carts)
@@ -7565,12 +7645,30 @@ function _onPaidInvoice(invoice) {
   // AUTO-ACTIVATION (salesOrchestrator): paid invoice → API key + license,
   // persisted, idempotent. The buyer gets access with ZERO human steps.
   // RO: plata confirmată on-chain activează serviciul instant.
+  let activated = false;
   try {
     const act = salesOrchestrator.handlePaid(invoice);
-    if (act && act.ok && !act.idempotent) {
-      console.log('[BTC/Paid] → activated', act.activation.serviceId, 'license=' + act.activation.licenseId);
+    if (act && act.ok) {
+      activated = true;
+      if (!act.idempotent) {
+        console.log('[BTC/Paid] → activated', act.activation.serviceId, 'license=' + act.activation.licenseId);
+      }
     }
   } catch (e) { console.warn('[BTC/Paid] activation failed:', e.message); }
+  // Funnel truth: paid (+ delivered when entitlement activation succeeds).
+  try {
+    if (funnelIntelligence && typeof funnelIntelligence.record === 'function') {
+      const base = {
+        serviceId: invoice && (invoice.serviceId || invoice.service || null),
+        value: invoice && (invoice.priceUsd || invoice.amountUsd || invoice.amount || 0),
+        amountUsd: invoice && (invoice.priceUsd || invoice.amountUsd || invoice.amount || 0),
+        sessionId: invoice && (invoice.id || invoice.orderId || null),
+        orderId: invoice && (invoice.id || invoice.orderId || null),
+      };
+      funnelIntelligence.record({ event: 'checkout_paid', ...base });
+      if (activated) funnelIntelligence.record({ event: 'delivered', ...base });
+    }
+  } catch (e) { console.warn('[BTC/Paid] funnel record failed:', e.message); }
   // Fire the appropriate Discord/Telegram alert. First sale gets a special banner.
   try {
     if (!_firstSaleNotified) {

@@ -61,19 +61,39 @@ function writeExample(fileName, payload) {
 }
 
 function getSigningConfig() {
-  const privateKeyPem = process.env.WACP_ED25519_PRIVATE_KEY || '';
-  const publicKeyPem = process.env.WACP_ED25519_PUBLIC_KEY || '';
-  if (privateKeyPem) {
+  // Prefer forever-key / site-sign / WACP Ed25519 (same order as PoMX/EOP),
+  // so agent commerce envelopes are verifiable without a separate key ceremony.
+  const pemCandidates = [
+    process.env.SITE_SIGN_PRIVATE_KEY,
+    process.env.WACP_ED25519_PRIVATE_KEY,
+  ].filter(Boolean);
+  for (const pem of pemCandidates) {
     try {
-      const privateKey = crypto.createPrivateKey(privateKeyPem);
-      const publicKey = publicKeyPem
-        ? crypto.createPublicKey(publicKeyPem)
+      const privateKey = crypto.createPrivateKey(pem);
+      const publicKey = process.env.WACP_ED25519_PUBLIC_KEY
+        ? crypto.createPublicKey(process.env.WACP_ED25519_PUBLIC_KEY)
         : crypto.createPublicKey(privateKey);
       const keyId = 'ed25519:' + sha256(publicKey.export({ type: 'spki', format: 'pem' })).slice(0, 16);
-      return { mode: 'ed25519', privateKey, publicKey, keyId };
-    } catch (error) {
-      return { mode: 'invalid-ed25519', error: error.message };
+      return { mode: 'ed25519', privateKey, publicKey, keyId, source: 'env-pem' };
+    } catch (_) { /* try next candidate / filesystem forever-key */ }
+  }
+  try {
+    const pemPath = process.env.SITE_SIGN_KEY_FILE
+      || '/var/www/unicorn/shared/site-sign.pem';
+    if (fs.existsSync(pemPath)) {
+      const privateKey = crypto.createPrivateKey(fs.readFileSync(pemPath, 'utf8'));
+      const publicKey = crypto.createPublicKey(privateKey);
+      const keyId = 'ed25519:' + sha256(publicKey.export({ type: 'spki', format: 'pem' })).slice(0, 16);
+      return { mode: 'ed25519', privateKey, publicKey, keyId, source: 'site-sign.pem' };
     }
+  } catch (_) { /* fall through */ }
+  if (global.__SITE_SIGN_KEY__) {
+    try {
+      const privateKey = global.__SITE_SIGN_KEY__;
+      const publicKey = crypto.createPublicKey(privateKey);
+      const keyId = 'ed25519:' + sha256(publicKey.export({ type: 'spki', format: 'pem' })).slice(0, 16);
+      return { mode: 'ed25519', privateKey, publicKey, keyId, source: 'global' };
+    } catch (_) { /* fall through */ }
   }
   const secret = process.env.WACP_HMAC_SECRET || process.env.JWT_SECRET || FALLBACK_HMAC_SECRET;
   return {
