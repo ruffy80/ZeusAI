@@ -24,13 +24,15 @@ const os = require('os');
 const NAME = 'never-down-kernel';
 const PROTOCOL = 'NDK/1.0';
 
-const LAG_WARN_MS = Math.max(50, Number(process.env.NDK_LAG_WARN_MS || 250));
-const LAG_FAIL_MS = Math.max(LAG_WARN_MS + 50, Number(process.env.NDK_LAG_FAIL_MS || 1500));
+const LAG_WARN_MS = Math.max(50, Number(process.env.NDK_LAG_WARN_MS || 400));
+const LAG_FAIL_MS = Math.max(LAG_WARN_MS + 50, Number(process.env.NDK_LAG_FAIL_MS || 3000));
 const SAMPLE_MS = Math.max(1000, Number(process.env.NDK_SAMPLE_MS || 5000));
 const DISK_WARN_PCT = Math.max(50, Number(process.env.NDK_DISK_WARN_PCT || 85));
 const DISK_ACT_PCT = Math.max(DISK_WARN_PCT, Number(process.env.NDK_DISK_ACT_PCT || 92));
 const ACTION_COOLDOWN_MS = Math.max(30000, Number(process.env.NDK_ACTION_COOLDOWN_MS || 5 * 60 * 1000));
 const HISTORY_MAX = 120;
+const HEALER_FAIL_SAMPLES = Math.max(2, Number(process.env.NDK_HEALER_FAIL_SAMPLES || 3));
+const BOOT_GRACE_MS = Math.max(0, Number(process.env.NDK_BOOT_GRACE_MS || 90000));
 
 const cleaners = new Map(); // name → async|sync fn → { ok, freed? }
 const state = {
@@ -147,10 +149,18 @@ async function runCleaners(reason) {
 function _reevaluate() {
   const reasons = [];
   let health = 'good';
-  if (state.lagMs >= LAG_FAIL_MS || state.lagP95Ms >= LAG_FAIL_MS) {
+  const bootGrace = state.startedAt
+    ? (Date.now() - Date.parse(state.startedAt)) < BOOT_GRACE_MS
+    : true;
+  const lagCritical = !bootGrace
+    && state.lagSamples.length >= HEALER_FAIL_SAMPLES
+    && state.lagP95Ms >= LAG_FAIL_MS;
+  const lagWarn = state.lagMs >= LAG_WARN_MS || state.lagP95Ms >= LAG_WARN_MS;
+
+  if (lagCritical) {
     health = 'critical';
     reasons.push('event_loop_lag');
-  } else if (state.lagMs >= LAG_WARN_MS || state.lagP95Ms >= LAG_WARN_MS) {
+  } else if (lagWarn) {
     health = 'degraded';
     reasons.push('event_loop_lag_warn');
   }
@@ -171,7 +181,7 @@ function _reevaluate() {
   }
   state.health = health;
   state.reasons = reasons;
-  return { health, reasons };
+  return { health, reasons, bootGrace, lagCritical };
 }
 
 function sampleOnce() {
@@ -228,6 +238,8 @@ function getStatus() {
     lagP95Ms: state.lagP95Ms,
     lagWarnMs: LAG_WARN_MS,
     lagFailMs: LAG_FAIL_MS,
+    healerFailSamples: HEALER_FAIL_SAMPLES,
+    bootGraceMs: BOOT_GRACE_MS,
     diskUsedPct: state.diskUsedPct,
     diskWarnPct: DISK_WARN_PCT,
     diskActPct: DISK_ACT_PCT,
