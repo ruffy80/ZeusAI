@@ -7,13 +7,17 @@ After=network-online.target
 Type=oneshot
 EnvironmentFile=-/var/www/unicorn/.env
 EnvironmentFile=-/var/www/unicorn/.env.healer
-Environment=HEALTH_URL=http://127.0.0.1:3000/health
-Environment=PM2_APPS=unicorn-backend unicorn-site autoscaler
+# Backend source-of-truth health is /api/health (NOT /health — that is the site on :3001).
+# Wrong URL caused a 30s suicide loop: probe fail → pm2 restart → never-finish boot.
+Environment=HEALTH_URL=http://127.0.0.1:3000/api/health
+Environment=SITE_HEALTH_URL=http://127.0.0.1:3001/health
+# Only restart the app that failed the probe path; leave site/autoscaler alone.
+Environment=PM2_APPS=unicorn-backend
 Environment=PM2_BIN=/usr/bin/pm2
 Environment=PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
-Environment=FAIL_THRESHOLD=3
-Environment=FAIL_WINDOW_SEC=300
-Environment=CHECK_TIMEOUT_SEC=5
+Environment=FAIL_THRESHOLD=5
+Environment=FAIL_WINDOW_SEC=600
+Environment=CHECK_TIMEOUT_SEC=15
 Environment=LOG_FILE=/var/log/healer.log
 ExecStart=/usr/local/bin/unicorn-healer.sh
 StandardOutput=journal

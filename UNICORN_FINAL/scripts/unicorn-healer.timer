@@ -4,9 +4,10 @@ Description=ZeusAI Unicorn Self-Healer Timer
 Requires=unicorn-healer.service
 
 [Timer]
-OnBootSec=60
-OnUnitInactiveSec=30
-AccuracySec=5
+# Give cold boot room before first probe; tick every 2 min (was 30s — too aggressive).
+OnBootSec=120
+OnUnitInactiveSec=120
+AccuracySec=15
 Unit=unicorn-healer.service
 
 [Install]

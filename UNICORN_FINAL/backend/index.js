@@ -318,6 +318,10 @@ const routeCache = require('./modules/route-cache');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
+// nginx terminates TLS and sets X-Forwarded-For. Without trust proxy,
+// express-rate-limit v7 throws ValidationError on every proxied request
+// (ERR_ERL_UNEXPECTED_X_FORWARDED_FOR) and can destabilize the process.
+app.set('trust proxy', 1);
 
 // ── Runtime data directories — ensure ledger/state dirs exist at boot so the
 // economy & sovereignty engines (and genome backups) don't emit ENOENT noise
