@@ -36,6 +36,49 @@ import sys
 
 INCLUDE_FILENAME = "zeus-public-discovery.conf"
 
+# Extra self-heal blocks that MUST exist inside the installed snippet.
+# If the source snippet on disk is stale (older release without an autonomy
+# route, for example), we append a minimal proxy block to the target so the
+# route reaches the backend on :3000. Idempotent: we only append when the
+# exact-match location is missing from the installed snippet.
+_REQUIRED_LOCATIONS = [
+    {
+        "match": "location = /.well-known/autonomy.json",
+        "block": (
+            "\n"
+            "# ── /.well-known/autonomy.json — TAOS/1.0 live score (self-heal) ──\n"
+            "location = /.well-known/autonomy.json {\n"
+            "    proxy_pass http://127.0.0.1:3000;\n"
+            "    proxy_http_version 1.1;\n"
+            "    proxy_set_header Host $host;\n"
+            "    proxy_set_header X-Real-IP $remote_addr;\n"
+            "    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;\n"
+            "    proxy_set_header X-Forwarded-Proto $scheme;\n"
+            "    add_header Cache-Control \"no-store\" always;\n"
+            "}\n"
+        ),
+    },
+]
+
+
+def _ensure_required_locations(target_path):
+    """Read the installed snippet and append any REQUIRED_LOCATIONS whose
+    exact-match `location` header is not already present. Returns the number
+    of blocks appended (0 when the snippet is already complete)."""
+    try:
+        current = _read(target_path)
+    except FileNotFoundError:
+        return 0
+    appended = 0
+    for entry in _REQUIRED_LOCATIONS:
+        if entry["match"] in current:
+            continue
+        current += entry["block"]
+        appended += 1
+    if appended:
+        _write(target_path, current)
+    return appended
+
 
 def _read(path):
     with open(path, "r", encoding="utf-8") as f:
@@ -241,6 +284,13 @@ def main():
     shutil.copyfile(args.snippet, args.target)
     os.chmod(args.target, 0o644)
     print(f"[nginx-patch] snippet installed at {args.target}")
+
+    # Self-heal: if the freshly-installed snippet is missing any required
+    # exact-match locations (e.g. an older release predating TAOS/1.0
+    # /.well-known/autonomy.json), append minimal proxy blocks in place.
+    appended = _ensure_required_locations(args.target)
+    if appended:
+        print(f"[nginx-patch] appended {appended} missing exact-match location(s) to snippet")
 
     if not os.path.isfile(args.site):
         # No active unicorn site — nothing to patch. Snippet is in place,
