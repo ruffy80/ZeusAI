@@ -56,17 +56,20 @@ module.exports = {
         //   on single Hetzner node; only enable on multi-node or upgraded
         //   instance. Set on host via /etc/profile.d/zeusai.sh.
         // 'full': everything ON including file mutators (DANGEROUS, dev-only).
-        UNICORN_RUNTIME_PROFILE: process.env.UNICORN_RUNTIME_PROFILE || 'growth',
+        // Default stable on single-node VPS — growth profile + in-process ZeroDT
+        // previously suicide-looped unicorn-backend via pm2 restart-from-inside.
+        UNICORN_RUNTIME_PROFILE: process.env.UNICORN_RUNTIME_PROFILE || 'stable',
+        ZDT_ENABLED: process.env.ZDT_ENABLED || '0',
         // ── SELF-MUTATORS — DEFAULT VALUE DETERMINED BY PROFILE ──────────────
-        ENABLE_FILE_MUTATORS: process.env.ENABLE_FILE_MUTATORS || ((process.env.UNICORN_RUNTIME_PROFILE || 'growth').toLowerCase() === 'growth' ? '1' : '0'),
-        ENABLE_AUTO_DEPLOY: process.env.ENABLE_AUTO_DEPLOY || ((process.env.UNICORN_RUNTIME_PROFILE || 'growth').toLowerCase() === 'growth' ? '1' : '0'),
-        ENABLE_UI_AUTOBUILDER: process.env.ENABLE_UI_AUTOBUILDER || ((process.env.UNICORN_RUNTIME_PROFILE || 'growth').toLowerCase() === 'growth' ? '1' : '0'),
-        ENABLE_AUTO_REPAIR: process.env.ENABLE_AUTO_REPAIR || ((process.env.UNICORN_RUNTIME_PROFILE || 'growth').toLowerCase() === 'growth' ? '1' : '0'),
-        ENABLE_SELF_CONSTRUCTION: process.env.ENABLE_SELF_CONSTRUCTION || ((process.env.UNICORN_RUNTIME_PROFILE || 'growth').toLowerCase() === 'growth' ? '1' : '0'),
-        ENABLE_CODE_OPTIMIZER: process.env.ENABLE_CODE_OPTIMIZER || ((process.env.UNICORN_RUNTIME_PROFILE || 'growth').toLowerCase() === 'growth' ? '1' : '0'),
-        ENABLE_AUTO_EVOLVE: process.env.ENABLE_AUTO_EVOLVE || ((process.env.UNICORN_RUNTIME_PROFILE || 'growth').toLowerCase() === 'growth' ? '1' : '0'),
-        ENABLE_AUTO_RESTART: process.env.ENABLE_AUTO_RESTART || ((process.env.UNICORN_RUNTIME_PROFILE || 'growth').toLowerCase() === 'growth' ? '1' : '0'),
-        DISABLE_SELF_MUTATION: process.env.DISABLE_SELF_MUTATION || ((process.env.UNICORN_RUNTIME_PROFILE || 'growth').toLowerCase() === 'growth' ? '0' : '1'),
+        ENABLE_FILE_MUTATORS: process.env.ENABLE_FILE_MUTATORS || ((process.env.UNICORN_RUNTIME_PROFILE || 'stable').toLowerCase() === 'growth' ? '1' : '0'),
+        ENABLE_AUTO_DEPLOY: process.env.ENABLE_AUTO_DEPLOY || ((process.env.UNICORN_RUNTIME_PROFILE || 'stable').toLowerCase() === 'growth' ? '1' : '0'),
+        ENABLE_UI_AUTOBUILDER: process.env.ENABLE_UI_AUTOBUILDER || ((process.env.UNICORN_RUNTIME_PROFILE || 'stable').toLowerCase() === 'growth' ? '1' : '0'),
+        ENABLE_AUTO_REPAIR: process.env.ENABLE_AUTO_REPAIR || ((process.env.UNICORN_RUNTIME_PROFILE || 'stable').toLowerCase() === 'growth' ? '1' : '0'),
+        ENABLE_SELF_CONSTRUCTION: process.env.ENABLE_SELF_CONSTRUCTION || ((process.env.UNICORN_RUNTIME_PROFILE || 'stable').toLowerCase() === 'growth' ? '1' : '0'),
+        ENABLE_CODE_OPTIMIZER: process.env.ENABLE_CODE_OPTIMIZER || ((process.env.UNICORN_RUNTIME_PROFILE || 'stable').toLowerCase() === 'growth' ? '1' : '0'),
+        ENABLE_AUTO_EVOLVE: process.env.ENABLE_AUTO_EVOLVE || ((process.env.UNICORN_RUNTIME_PROFILE || 'stable').toLowerCase() === 'growth' ? '1' : '0'),
+        ENABLE_AUTO_RESTART: process.env.ENABLE_AUTO_RESTART || ((process.env.UNICORN_RUNTIME_PROFILE || 'stable').toLowerCase() === 'growth' ? '1' : '0'),
+        DISABLE_SELF_MUTATION: process.env.DISABLE_SELF_MUTATION || ((process.env.UNICORN_RUNTIME_PROFILE || 'stable').toLowerCase() === 'growth' ? '0' : '1'),
         // ── GROWTH ENGINE — public payment links (read-only Stripe URLs) ────
         // Generate at https://dashboard.stripe.com/payment-links and paste
         // here OR set on host via /etc/profile.d/zeusai.sh. Without these,

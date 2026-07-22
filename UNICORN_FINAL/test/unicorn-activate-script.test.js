@@ -60,10 +60,11 @@ check('activate keeps source-file mutators OFF', () => {
   assert.ok(activate.includes('DISABLE_SELF_MUTATION=1'));
 });
 
-check('activate turns business autonomy ON via growth profile', () => {
-  assert.ok(activate.includes('UNICORN_RUNTIME_PROFILE=growth'));
+check('activate keeps production stable profile (no in-process ZDT suicide)', () => {
+  assert.ok(activate.includes('UNICORN_RUNTIME_PROFILE=stable'));
   assert.ok(activate.includes('ENABLE_AUTO_REPAIR=1'));
   assert.ok(activate.includes('ENABLE_AUTO_RESTART=1'));
+  assert.ok(activate.includes('ZDT_ENABLED=0'));
 });
 
 check('activate reloads canonical PM2 apps, not per-module processes', () => {

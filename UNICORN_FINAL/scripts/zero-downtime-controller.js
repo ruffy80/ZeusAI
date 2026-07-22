@@ -246,7 +246,15 @@ async function _tick() {
 }
 
 // ── Pornire / Oprire ──────────────────────────────────────────────────────────
+// SAFETY: in-process ZeroDT must NOT auto-arm. When the event loop stalls
+// briefly (cold boot / sync scans), health probes fail and emergencyRecovery()
+// runs `pm2 restart unicorn-backend` against itself → SIGINT suicide loop.
+// Arm explicitly with ZDT_ENABLED=1 (standalone PM2 process only).
 function init() {
+  if (String(process.env.ZDT_ENABLED || '0').toLowerCase() !== '1') {
+    _log('init', 'Zero-Downtime Controller DISABLED (set ZDT_ENABLED=1 to arm)');
+    return;
+  }
   if (_state.running) return;
   _state.running  = true;
   _state.startedAt = new Date().toISOString();
