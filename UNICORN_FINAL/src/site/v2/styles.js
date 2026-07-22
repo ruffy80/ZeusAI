@@ -362,7 +362,7 @@ section[data-reveal].revealed{opacity:1;transform:translateY(0) scale(1)}
 .co-method .chip{flex:1;justify-content:center;display:flex;padding:12px}
 .co-method .chip.on{background:linear-gradient(135deg,var(--violet),var(--blue));color:#fff;border-color:transparent}
 .co-qr{aspect-ratio:1/1;border-radius:var(--radius);background:#fff;padding:14px;display:flex;align-items:center;justify-content:center}
-.co-qr canvas{width:100%;height:100%}
+.co-qr canvas{width:100%;height:100%;max-width:min(320px,100%);height:auto}
 .btc-addr{font-family:var(--mono);font-size:12px;word-break:break-all;background:rgba(0,0,0,.35);padding:10px 12px;border-radius:10px;border:1px solid var(--stroke);margin-top:12px;color:var(--gold2)}
 .field{display:flex;flex-direction:column;gap:6px;margin-bottom:14px}
 .field label{font-size:12px;letter-spacing:2px;text-transform:uppercase;color:var(--ink-dim)}
