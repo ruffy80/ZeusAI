@@ -57,6 +57,9 @@ data/autonomy/spine-ed25519.json
 data/autonomy/spine-state.json
 data/autonomy/decisions.jsonl
 data/autonomy/decisions-*.jsonl
+data/autonomy/os-state.json
+data/autonomy/*.json
+data/autonomy/*.jsonl
 data/oracle/oracle-state.json
 data/economy/economy-state.json
 # ZACC autonomous commerce core — per-process runtime state (products, sales,
