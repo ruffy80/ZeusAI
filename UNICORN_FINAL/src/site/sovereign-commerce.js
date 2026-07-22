@@ -601,15 +601,44 @@ function qrRedirect(data) {
 }
 
 // ── Checkout HTML page ──────────────────────────────────────────────────────
-function checkoutHtml(order) {
-  const price = `${order.subtotal_fiat.toFixed(2)} ${order.currency}`;
-  const btc = order.amount_btc.toFixed(8);
-  const sats = order.amount_sats;
-  const expiresIn = Math.max(0, Math.floor((order.expires_at_ms - Date.now()) / 1000));
+// Renders the human-facing /checkout/:orderId page. Historic bug: the template
+// referenced `${TOK}` as a JS expression (undefined) which threw at render
+// time AFTER `res.writeHead(200)` had already been sent — leaving nginx to
+// serve the "restoring service" maintenance page. Fixed by using the escaped
+// order.access_token directly for server-rendered hrefs, and by using
+// `${'${TOK}'}` (a literal `${TOK}` in the emitted JS) as a placeholder that
+// only the client-side <script> reads. All numeric formatters are wrapped in
+// Number(...||0).toFixed(...) so missing fields cannot throw.
+function checkoutHtml(order, opts) {
+  const o = order || {};
+  const nonce = opts && opts.nonce ? String(opts.nonce) : '';
+  const nonceAttr = nonce ? ` nonce="${escapeHtml(nonce)}"` : '';
+  const currency = escapeHtml(o.currency || 'USD');
+  const subtotal = Number(o.subtotal_fiat || 0).toFixed(2);
+  const price = `${subtotal} ${currency}`;
+  const btc = Number(o.amount_btc || 0).toFixed(8);
+  const sats = Number(o.amount_sats || 0);
+  const btcPriceAtQuote = Number(o.btc_price_at_quote || 0);
+  const expiresAtMs = Number(o.expires_at_ms || 0);
+  const expiresIn = Math.max(0, Math.floor((expiresAtMs - Date.now()) / 1000));
+  const orderId = escapeHtml(o.orderId || '');
+  const orderIdJs = jsStringEscape(o.orderId || '');
+  const serviceName = escapeHtml(o.serviceName || o.serviceId || 'Service');
+  const qty = Number(o.qty || 1);
+  const receiveAddress = escapeHtml(o.receive_address || '');
+  const bip21 = escapeHtml(o.bip21 || '');
+  const bip21Js = jsStringEscape(o.bip21 || '');
+  const receiveAddressJs = jsStringEscape(o.receive_address || '');
+  const btcJs = jsStringEscape(btc);
+  const priceSource = escapeHtml(o.price_source || '');
+  // Access token: use the actual escaped token for server-rendered hrefs, and
+  // pass it into the client-side script via a safely JS-escaped literal.
+  const accessToken = escapeHtml(o.access_token || '');
+  const accessTokenJs = jsStringEscape(o.access_token || '');
   return `<!doctype html>
 <html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Checkout · ${escapeHtml(order.serviceName)} · ZeusAI</title>
+<title>Checkout · ${serviceName} · ZeusAI</title>
 <meta name="robots" content="noindex">
 <style>
 :root{color-scheme:dark;--bg:#05040a;--fg:#eaf0ff;--mut:#9aa3b2;--acc:#7cf3ff;--ok:#28f088;--warn:#ffb86b;--line:#1a1a2e}
@@ -632,26 +661,26 @@ h1{font-size:22px;margin:0 0 4px}.sub{color:var(--mut);margin:0 0 24px}
 footer{color:var(--mut);font-size:12px;margin-top:32px;text-align:center}
 a{color:var(--acc)}
 </style></head><body><div class="wrap">
-<h1>Checkout</h1><p class="sub">${escapeHtml(order.serviceName)} · Order <span class="mono">${order.orderId}</span></p>
+<h1>Checkout</h1><p class="sub">${serviceName} · Order <span class="mono">${orderId}</span></p>
 
 <div class="card">
-  <div class="row"><span class="k">Service</span><span class="v">${escapeHtml(order.serviceName)}</span></div>
-  <div class="row"><span class="k">Quantity</span><span class="v">${order.qty}</span></div>
+  <div class="row"><span class="k">Service</span><span class="v">${serviceName}</span></div>
+  <div class="row"><span class="k">Quantity</span><span class="v">${qty}</span></div>
   <div class="row"><span class="k">Subtotal</span><span class="v">${price}</span></div>
   <div class="row"><span class="k">Pay exactly</span><span class="v mono">${btc} BTC <small class="k">(${sats.toLocaleString()} sats)</small></span></div>
-  <div class="row"><span class="k">BTC price at quote</span><span class="v">${order.btc_price_at_quote.toLocaleString()} ${order.currency} <small class="k">(${escapeHtml(order.price_source)})</small></span></div>
+  <div class="row"><span class="k">BTC price at quote</span><span class="v">${btcPriceAtQuote.toLocaleString()} ${currency} <small class="k">(${priceSource})</small></span></div>
   <div class="row"><span class="k">Status</span><span class="v"><span id="st" class="status pending">pending</span></span></div>
   <div class="row"><span class="k">Expires in</span><span class="v" id="cd">${expiresIn}s</span></div>
 </div>
 
 <div class="card">
-  <div class="qr"><img alt="BIP-21 QR" src="${qrRedirect(order.bip21)}" loading="lazy"></div>
+  <div class="qr"><img alt="BIP-21 QR" src="${escapeHtml(qrRedirect(o.bip21 || ''))}" loading="lazy"></div>
   <p class="note" style="text-align:center;margin-top:16px">Scan with any Bitcoin wallet (on-chain). The exact amount is critical — it is the payment identifier.</p>
-  <div class="row"><span class="k">Address</span><span class="v mono">${order.receive_address} <button class="copy" onclick="copy('${order.receive_address}')">copy</button></span></div>
-  <div class="row"><span class="k">Amount</span><span class="v mono">${btc} <button class="copy" onclick="copy('${btc}')">copy</button></span></div>
-  <div class="row"><span class="k">BIP-21 URI</span><span class="v mono">${order.bip21} <button class="copy" onclick="copy('${order.bip21}')">copy</button></span></div>
-  <p style="margin-top:16px"><a class="cta" href="${order.bip21}" target="_blank" rel="noopener">Open in wallet</a>
-  <a class="cta" style="background:#14132a;color:#eaf0ff;border:1px solid var(--line)" href="${OWNER_DOMAIN}" target="_blank" rel="noopener">Back to site</a></p>
+  <div class="row"><span class="k">Address</span><span class="v mono">${receiveAddress} <button class="copy" data-copy="${receiveAddress}">copy</button></span></div>
+  <div class="row"><span class="k">Amount</span><span class="v mono">${btc} <button class="copy" data-copy="${escapeHtml(btc)}">copy</button></span></div>
+  <div class="row"><span class="k">BIP-21 URI</span><span class="v mono">${bip21} <button class="copy" data-copy="${bip21}">copy</button></span></div>
+  <p style="margin-top:16px"><a class="cta" href="${bip21}" target="_blank" rel="noopener">Open in wallet</a>
+  <a class="cta" style="background:#14132a;color:#eaf0ff;border:1px solid var(--line)" href="${escapeHtml(OWNER_DOMAIN)}" target="_blank" rel="noopener">Back to site</a></p>
 </div>
 
   <div class="grant" id="grant">
@@ -661,40 +690,64 @@ a{color:var(--acc)}
   <div class="row"><span class="k">Entitlement</span><span class="v mono" id="ent">—</span></div>
   <div class="row"><span class="k">Txid</span><span class="v mono" id="tx">—</span></div>
   <p class="note">A W3C Verifiable Credential receipt has been issued. Use the verify button below to check the entitlement.</p>
-  <p style="margin-top:10px"><a class="cta" id="walletDl" download="zeusai-entitlement.json" href="/api/entitlements/${TOK}/wallet.json" style="background:#f7931a;color:#05040a">💼 Add to wallet (VC)</a>
-  <a class="cta" style="background:#14132a;color:#eaf0ff;border:1px solid var(--line)" id="verifyLink" href="/api/entitlements/${TOK}">🔎 Verify entitlement</a>
-  <a class="cta" style="background:#14132a;color:#eaf0ff;border:1px solid var(--line)" id="deliveryLink" href="/api/delivery/${order.orderId}">📦 View delivery package</a></p>
+  <p style="margin-top:10px"><a class="cta" id="walletDl" download="zeusai-entitlement.json" href="/api/entitlements/${accessToken}/wallet.json" style="background:#f7931a;color:#05040a">💼 Add to wallet (VC)</a>
+  <a class="cta" style="background:#14132a;color:#eaf0ff;border:1px solid var(--line)" id="verifyLink" href="/api/entitlements/${accessToken}">🔎 Verify entitlement</a>
+  <a class="cta" style="background:#14132a;color:#eaf0ff;border:1px solid var(--line)" id="deliveryLink" href="/api/delivery/${orderId}">📦 View delivery package</a></p>
   <p class="note" style="margin-top:8px">Delivery is processing automatically. The delivery link above will show your artifacts once ready.</p>
 </div>
 
-<footer>Settlement: direct on-chain to owner wallet · No custodian · 30Y-LTS sovereign commerce · ${OWNER_DOMAIN}</footer>
+<footer>Settlement: direct on-chain to owner wallet · No custodian · 30Y-LTS sovereign commerce · ${escapeHtml(OWNER_DOMAIN)}</footer>
 </div>
-<script>
-function copy(s){navigator.clipboard&&navigator.clipboard.writeText(s)}
-const TOK='${order.access_token}';
-let expSec=${expiresIn};
-setInterval(()=>{if(expSec>0){expSec--;document.getElementById('cd').textContent=expSec+'s'}},1000);
-async function poll(){
-  try{
-    const r=await fetch('/api/order/${order.orderId}/status',{cache:'no-store'});
-    const j=await r.json();
-    const s=document.getElementById('st');
-    s.className='status '+(j.status||'pending');s.textContent=j.status||'pending';
-    if(j.status==='paid'){
-      document.getElementById('grant').classList.add('on');
-      document.getElementById('tok').textContent=TOK;
-      document.getElementById('ent').textContent=j.entitlement_id||'—';
-      document.getElementById('tx').textContent=(j.txids&&j.txids[0])||'—';
-      var dl=document.getElementById('walletDl');if(dl){dl.href='/api/entitlements/'+TOK+'/wallet.json';}
-      var v=document.getElementById('verifyLink');if(v){v.href='/api/entitlements/'+TOK;}
-      return;
-    }
-    if(j.status==='expired')return;
-  }catch(e){}
-  setTimeout(poll,5000);
-}
-poll();
+<script${nonceAttr}>
+(function(){
+  var TOK='${accessTokenJs}';
+  var ORDER_ID='${orderIdJs}';
+  var expSec=${expiresIn};
+  function copy(s){try{navigator.clipboard&&navigator.clipboard.writeText(s)}catch(e){}}
+  document.addEventListener('click',function(ev){
+    var b=ev.target&&ev.target.closest&&ev.target.closest('button.copy[data-copy]');
+    if(b){copy(b.getAttribute('data-copy'));}
+  });
+  setInterval(function(){if(expSec>0){expSec--;var cd=document.getElementById('cd');if(cd)cd.textContent=expSec+'s';}},1000);
+  function poll(){
+    fetch('/api/order/'+encodeURIComponent(ORDER_ID)+'/status',{cache:'no-store'}).then(function(r){return r.json();}).then(function(j){
+      var s=document.getElementById('st');
+      if(s){s.className='status '+(j.status||'pending');s.textContent=j.status||'pending';}
+      if(j.status==='paid'){
+        var g=document.getElementById('grant');if(g)g.classList.add('on');
+        var tk=document.getElementById('tok');if(tk)tk.textContent=TOK;
+        var en=document.getElementById('ent');if(en)en.textContent=j.entitlement_id||'—';
+        var tx=document.getElementById('tx');if(tx)tx.textContent=(j.txids&&j.txids[0])||'—';
+        var dl=document.getElementById('walletDl');if(dl){dl.href='/api/entitlements/'+encodeURIComponent(TOK)+'/wallet.json';}
+        var v=document.getElementById('verifyLink');if(v){v.href='/api/entitlements/'+encodeURIComponent(TOK);}
+        return;
+      }
+      if(j.status==='expired')return;
+      setTimeout(poll,5000);
+    }).catch(function(){setTimeout(poll,5000);});
+  }
+  poll();
+})();
 </script></body></html>`;
+}
+
+// Escape a string for safe embedding inside a JavaScript single-quoted string
+// literal. Prevents `</script>` and quote-injection breakouts and also blocks
+// U+2028 / U+2029, which terminate JS lines but not HTML strings.
+function jsStringEscape(s) {
+  return String(s == null ? '' : s)
+    .replace(/\\/g, '\\\\')
+    .replace(/'/g, "\\'")
+    .replace(/"/g, '\\"')
+    .replace(/`/g, '\\`')
+    .replace(/</g, '\\u003c')
+    .replace(/>/g, '\\u003e')
+    .replace(/&/g, '\\u0026')
+    .replace(/\r/g, '\\r')
+    .replace(/\n/g, '\\n')
+    .replace(/\u2028/g, '\\u2028')
+    .replace(/\u2029/g, '\\u2029')
+    .replace(/\u0000/g, '\\u0000');
 }
 
 function escapeHtml(s) {
@@ -746,12 +799,28 @@ async function handle(req, res, ctx) {
   }
 
   // --- /checkout/:orderId (HTML) -------------------------------------------
+  // CRITICAL: render the HTML BEFORE calling writeHead so any template error
+  // (see historical `${TOK}` ReferenceError) surfaces as a 500 with a proper
+  // body instead of a half-written response that later throws
+  // ERR_HTTP_HEADERS_SENT and hangs the connection through nginx.
   const mCheckout = url.match(/^\/checkout\/([a-zA-Z0-9_-]{6,64})$/);
   if (mCheckout && req.method === 'GET') {
     const order = ORDERS.get(mCheckout[1]);
     if (!order) { res.writeHead(404, { 'Content-Type': 'text/plain' }); res.end('Order not found'); return true; }
+    let html;
+    try {
+      const nonce = (ctx && ctx.nonce) || String(req.headers['x-csp-nonce'] || '');
+      html = checkoutHtml(order, { nonce });
+    } catch (e) {
+      console.warn('[commerce] checkoutHtml render error for ' + mCheckout[1] + ':', e && e.message);
+      if (!res.headersSent) {
+        res.writeHead(500, { 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': 'no-store' });
+        res.end('Checkout page temporarily unavailable — order ' + mCheckout[1] + ' exists; please refresh.');
+      }
+      return true;
+    }
     res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store', 'X-Unicorn-Commerce': '1' });
-    res.end(checkoutHtml(order));
+    res.end(html);
     return true;
   }
 
@@ -1095,4 +1164,4 @@ setInterval(() => { getBtcPrice().catch((e) => console.warn('[commerce] BTC pric
 
 console.log('[commerce] ready · addr=' + OWNER_BTC + ' · data=' + DATA_DIR + ' · watch=' + WATCH_MS + 'ms · min_confs=' + MIN_CONFS);
 
-module.exports = { handle, scanIncoming, getBtcPrice, createOrder, ORDERS, WATCH_STATE, recordCatalogItems, setDeliveryHook, _fireDelivery };
+module.exports = { handle, scanIncoming, getBtcPrice, createOrder, ORDERS, WATCH_STATE, recordCatalogItems, setDeliveryHook, _fireDelivery, checkoutHtml, renderCheckoutPage: checkoutHtml };

@@ -3823,8 +3823,14 @@ async function unicornHandler(req, res) {
   // /api/catalog/diff.
   if (commerce) {
     try {
+      // Provide a CSP nonce so the sovereign-commerce checkout page can emit
+      // `<script nonce="…">` and remain compatible with strict-dynamic CSP.
+      // Prefer an already-attached header set by an upstream layer; otherwise
+      // synthesize one so the checkout script always has a valid nonce.
+      const _commerceNonce = String(req.headers['x-csp-nonce'] || crypto.randomBytes(12).toString('base64'));
       const handled = await commerce.handle(req, res, {
         buildSnapshot,
+        nonce: _commerceNonce,
         // PRICE COHERENCE BY CONSTRUCTION: checkout calls the SAME
         // quotePublicPricing() pipeline that serves GET /api/pricing/:id —
         // the number on the card IS the number on the invoice. (RO: aceeași
@@ -3886,7 +3892,19 @@ async function unicornHandler(req, res) {
         }
       });
       if (handled) return;
-    } catch (e) { console.warn('[commerce] handler error:', e.message); }
+    } catch (e) {
+      console.warn('[commerce] handler error:', e && e.message);
+      // If the commerce handler already committed a response before throwing
+      // (e.g. `res.writeHead()` was called and then rendering failed), the
+      // downstream fall-through would attempt another `writeHead` and blow up
+      // with ERR_HTTP_HEADERS_SENT, leaving the socket hung and nginx timing
+      // out to a 504 (the "restoring service" maintenance page). Terminate
+      // cleanly in that case rather than fall through.
+      if (res.headersSent) {
+        try { res.end(); } catch (_) {}
+        return;
+      }
+    }
   }
 
   // ── SOVEREIGN EXTENSIONS (30Y-LTS) — first-dispatch layer ───────────────
