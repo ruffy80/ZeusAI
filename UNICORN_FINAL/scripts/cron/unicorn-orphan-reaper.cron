@@ -1,0 +1,24 @@
+# /etc/cron.d/unicorn-orphan-reaper
+# Periodically reap orphaned `node backend/index.js` processes (PPID=1)
+# that survived crashed wrappers and can cause PM2 restart thrash loops.
+#
+# Install on the production server:
+#   sudo install -m 0644 UNICORN_FINAL/scripts/cron/unicorn-orphan-reaper.cron \
+#       /etc/cron.d/unicorn-orphan-reaper
+# (No reload required — cron picks up /etc/cron.d entries automatically.)
+#
+# Safety properties:
+#   - ORPHAN_REAPER_APPLY=1 enables killing; default is dry-run (report only).
+#   - Only targets PPID=1 (or 0) processes whose cmdline contains backend/index.js.
+#   - Skips any process whose parent cmdline includes "pm2" — never touches PM2-managed workers.
+#   - Never kills unicorn-site processes.
+#   - Runs as root so it can read /proc/<pid>/cmdline for all users.
+#
+# Log: /var/log/unicorn/orphan-reaper.cron.log (rotate via logrotate if desired).
+
+SHELL=/bin/bash
+PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+
+# Dry-run every 15 minutes (reports orphans without killing). Change to
+# ORPHAN_REAPER_APPLY=1 once confirmed safe on your deployment.
+*/15 * * * * root ORPHAN_REAPER_APPLY=0 /opt/unicorn/UNICORN_FINAL/scripts/orphan-backend-reaper.sh >> /var/log/unicorn/orphan-reaper.cron.log 2>&1

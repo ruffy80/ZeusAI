@@ -799,6 +799,13 @@ app.get('/api/adi-core/providers', siteProxyToUnicorn('/api/adi-core/providers')
 app.get('/api/adi-core/onboarding', siteProxyToUnicorn('/api/adi-core/onboarding'));
 app.get('/api/adi-core/world', siteProxyToUnicorn('/api/adi-core/world'));
 app.get('/api/pricing/segments', siteProxyToUnicorn('/api/pricing/segments'));
+// TAOS/1.0 — proxy /.well-known/autonomy.json and /api/autonomy/* to backend so
+// dev/canary mode (site on 3001) surfaces the same live score as production nginx.
+app.get('/.well-known/autonomy.json', siteProxyToUnicorn('/api/autonomy/os'));
+app.get('/api/autonomy/os', siteProxyToUnicorn('/api/autonomy/os'));
+app.get('/api/autonomy/score', siteProxyToUnicorn('/api/autonomy/score'));
+app.get('/api/autonomy/os/history', siteProxyToUnicorn('/api/autonomy/os/history'));
+app.get('/api/autonomy/smoke', siteProxyToUnicorn('/api/autonomy/smoke'));
 app.get('/api/pricing/module/:moduleId', async (req, res) => {
   const moduleId = String(req.params.moduleId || '').slice(0, 80);
   const backendUrl = process.env.BACKEND_API_URL;
@@ -5777,6 +5784,7 @@ seedSsrMap();if(document.getElementById("ds-sort")&&!document.getElementById("ds
   <h1 style="font-size:clamp(2rem,5vw,3.2rem);line-height:1.05;margin:0 0 12px;font-family:Georgia,serif">ZeusAI grows the most profitable Telegram group — autonomously.</h1>
   <p style="max-width:54ch;color:#b7c5d6;font-size:1.05rem;margin:0 0 28px">Welcome gravity, value calendar, profit score, tracked CTAs back to the Unicorn catalog. Zero human ops once the bot is group admin.</p>
   <div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:28px">
+    <a id="tg-join-btn" href="#" style="display:none;padding:14px 22px;border-radius:10px;background:linear-gradient(135deg,#0088cc,#005f8f);color:#fff;text-decoration:none;font-weight:700">🔗 Join the group →</a>
     <a href="/api/telegram/group-os" style="padding:14px 22px;border-radius:10px;background:linear-gradient(135deg,#2ea043,#1f6feb);color:#fff;text-decoration:none;font-weight:700">Live group status →</a>
     <a href="https://t.me/ZEUSAIIBOT" style="padding:14px 22px;border-radius:10px;border:1px solid #2c3550;color:#cfd6ff;text-decoration:none;font-weight:600">Open @ZEUSAIIBOT</a>
     <a href="/services" style="padding:14px 22px;border-radius:10px;border:1px solid #2c3550;color:#cfd6ff;text-decoration:none;font-weight:600">Catalog</a>
@@ -5803,6 +5811,9 @@ seedSsrMap();if(document.getElementById("ds-sort")&&!document.getElementById("ds
       card("Msgs/h",d.engagementVelocity||0),
       card("Group",d.groupChatId||"not bound")
     ].join("");
+    var inviteUrl=(d.lastInviteLink&&d.lastInviteLink.url)||null;
+    var joinBtn=document.getElementById("tg-join-btn");
+    if(joinBtn&&inviteUrl){joinBtn.href=inviteUrl;joinBtn.style.display="inline-block";}
   }).catch(function(){var m=document.getElementById("tg-meta"); if(m)m.textContent="Status temporarily unreachable.";});
 })();`;
       try { res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'public, max-age=30', 'X-Unicorn-Page': 'telegram-profit-group' }); } catch (_) {}

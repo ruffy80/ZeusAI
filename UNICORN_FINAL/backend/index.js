@@ -739,6 +739,35 @@ function _envArmed(name) {
   if (!v) return false;
   return !/^(your|skip|changeme|todo|placeholder|xxx+|none|null|undefined|tbd|n\/a)/i.test(v);
 }
+// GET /tg — human-friendly Telegram group shortlink.
+// Resolves the live invite link from TPG state, TELEGRAM_GROUP_URL env, or a
+// safe 404 JSON if neither is configured. Never reveals bot tokens.
+app.get('/tg', (req, res) => {
+  try {
+    const tpg = require('./modules/telegram-profit-group-os');
+    const st = tpg.getStatus();
+    const url = (st.lastInviteLink && st.lastInviteLink.url)
+      || process.env.TELEGRAM_GROUP_URL
+      || process.env.TELEGRAM_CHANNEL_URL
+      || null;
+    if (url) {
+      res.set('Cache-Control', 'no-store');
+      return res.redirect(302, url);
+    }
+  } catch (_) { /* fall through to 404 */ }
+  const fallback = process.env.TELEGRAM_GROUP_URL || process.env.TELEGRAM_CHANNEL_URL || null;
+  if (fallback) {
+    res.set('Cache-Control', 'no-store');
+    return res.redirect(302, fallback);
+  }
+  return res.status(404).json({
+    ok: false,
+    error: 'telegram_group_not_configured',
+    hint: 'Owner: set TELEGRAM_GROUP_URL env var or bind a group via /bindgroup in the bot to activate /tg.',
+    docs: '/api/telegram/group-os',
+  });
+});
+
 // GET /api/telegram/group-os — Telegram Profit Group OS status (no secrets)
 app.get(['/api/telegram/group-os', '/.well-known/telegram-profit-group.json'], (req, res) => {
   try {
@@ -9777,6 +9806,42 @@ app.get('/api/autonomy/os/history', (req, res) => {
   if (!totalAutonomyOs) return res.status(503).json({ ok: false, error: 'total-autonomy-os unavailable' });
   const limit = Math.min(parseInt(req.query.limit, 10) || 20, 40);
   return res.json({ ok: true, history: totalAutonomyOs.getHistory(limit) });
+});
+
+// GET /api/autonomy/smoke — lightweight self-smoke summary (subset of /api/autonomy/os).
+// Probes core organs (NDK, spine, pre-keys, QIS) and returns pass/fail per probe.
+// Designed for external synthetic monitors and CI health gates that need a lean
+// "all organs alive?" check without the full TAOS payload (~1-2 KB vs ~30 KB).
+app.get('/api/autonomy/smoke', (req, res) => {
+  if (!totalAutonomyOs) return res.status(503).json({ ok: false, error: 'total-autonomy-os unavailable' });
+  try {
+    const snap = totalAutonomyOs.getStatus();
+    const smoke = snap.smoke || {};
+    const score = snap.score != null ? snap.score : null;
+    const grade = snap.grade || '?';
+    const passed = smoke.passed != null ? smoke.passed : null;
+    const total = smoke.total != null ? smoke.total : null;
+    return res.json({
+      ok: smoke.ok !== false,
+      protocol: 'TAOS/1.0',
+      score,
+      grade,
+      mode: snap.mode || 'UNKNOWN',
+      smoke: {
+        ok: smoke.ok !== false,
+        passed,
+        total,
+        probes: smoke.probes || [],
+      },
+      ts: snap.ts || new Date().toISOString(),
+      links: {
+        full: '/api/autonomy/os',
+        history: '/api/autonomy/os/history',
+      },
+    });
+  } catch (e) {
+    return res.status(500).json({ ok: false, error: e && e.message });
+  }
 });
 
 app.post('/api/autonomy/os/tick', sensitiveRateLimit({ maxRequests: 30, windowMs: 60_000, cooldownMs: 30_000 }), (req, res) => {

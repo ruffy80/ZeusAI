@@ -59,6 +59,7 @@ function gradeFor(score) {
 
 class TotalAutonomyOs {
   constructor() {
+    this.cache = new Map(); this.cacheTTL = 60000;
     this._bus = new EventEmitter();
     this._bus.setMaxListeners(40);
     this.name = NAME;
@@ -331,11 +332,29 @@ class TotalAutonomyOs {
     const profileSafe = profile === 'stable' || profile === 'safe' || profile === 'growth';
     pillars.push(this._pillar(
       'runtime_profile',
-      8,
+      7,
       profileSafe,
       `profile=${profile};armedSafe=${this._armedSafe}`,
       profile === 'growth' || this._armedSafe ? 95 : profile === 'stable' || profile === 'safe' ? 80 : 40
     ));
+
+    // 10) Forward-only safety — mutation whitelist + harmony enforcement
+    let fosOk = false;
+    let fosDetail = 'unavailable';
+    let fosScore = 0;
+    try {
+      const fos = safeRequire('./forward-only-safety');
+      const st = fos && typeof fos.getStatus === 'function' ? fos.getStatus() : null;
+      if (st) {
+        const enforced = st.enforced !== false;
+        const healthy = st.health === 'good' || st.health === 'excellent';
+        const noViolations = (st.violationCount || 0) === 0;
+        fosOk = enforced && healthy;
+        fosScore = enforced ? (healthy ? (noViolations ? 100 : 70) : 45) : 0;
+        fosDetail = `enforced=${enforced};health=${st.health};violations=${st.violationCount || 0}`;
+      }
+    } catch (e) { fosDetail = e && e.message; }
+    pillars.push(this._pillar('forward_only', 9, fosOk, fosDetail, fosScore));
 
     return { pillars, spineMode };
   }
@@ -346,6 +365,9 @@ class TotalAutonomyOs {
 
     if (byId.mutator_safety && !byId.mutator_safety.ok) {
       next.push({ priority: 1, action: 'disable_file_mutators', text: 'Turn OFF ENABLE_FILE_MUTATORS / SELF_CONSTRUCTION_APPLY — keep DISABLE_SELF_MUTATION=1.' });
+    }
+    if (byId.forward_only && !byId.forward_only.ok) {
+      next.push({ priority: 2, action: 'check_forward_only_safety', text: 'Forward-only safety not enforced or unhealthy — check GET /api/forward-only/status for violations.' });
     }
     if (byId.tpg && byId.tpg.score < 100) {
       next.push({ priority: 2, action: 'bind_telegram_group', text: 'Owner: /bindgroup in a real Telegram group to arm TPG dual-rail.' });

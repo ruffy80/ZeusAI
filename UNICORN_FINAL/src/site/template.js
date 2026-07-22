@@ -516,10 +516,11 @@ select.form-inp option{background:#0a0e24;}
   </section>
 
     <!-- Stats Bar (flattened) -->
-    <div class="stats-bar">
+    <div class="stats-bar" style="grid-template-columns:repeat(4,1fr)">
       <div class="card card-sm"><span class="label">Active Users</span><span class="kpi-val" id="stat-users">—</span></div>
       <div class="card card-sm"><span class="label">Uptime</span><span class="kpi-val green" id="stat-uptime">—</span></div>
       <div class="card card-sm"><span class="label">BTC Rate</span><span class="kpi-val cyan" id="stat-btc">—</span></div>
+      <div class="card card-sm" onclick="navigate('status')" style="cursor:pointer" title="Click to open live status"><span class="label">Autonomy</span><span class="kpi-val" id="stat-taos-score">—</span></div>
     </div>
 
     <!-- How it works (flattened) -->
@@ -2029,14 +2030,20 @@ async function loadLiveStatus(force){
     fetchJsonStatus('/api/health'),
     fetchJsonStatus('/api/quantum-integrity/status'),
     fetchJsonStatus('/api/instant/catalog'),
-    fetchJsonStatus('/api/innovation/coverage')
+    fetchJsonStatus('/api/innovation/coverage'),
+    fetchJsonStatus('/api/autonomy/score')
   ]);
-  var site=results[0], backend=results[1], qis=results[2];
+  var site=results[0], backend=results[1], qis=results[2], taosR=results[5];
   var qisIntact=qis.ok&&qis.json&&qis.json.integrity==='intact';
+  var taosScore=taosR.ok&&taosR.json&&taosR.json.score!=null?taosR.json.score:null;
+  var taosGrade=taosR.ok&&taosR.json&&taosR.json.grade?taosR.json.grade:'?';
+  var taosMode=taosR.ok&&taosR.json&&taosR.json.mode?taosR.json.mode:'—';
+  var taosColor=taosScore==null?'':taosScore>=80?'green':taosScore>=55?'cyan':'purple';
+  var taosLabel=taosScore!=null?(taosGrade+' '+taosScore+'/100'):'—';
   grid.innerHTML=buildStatusCard('Site',site.ok?'Online':'Issue',site.ok?'green':'','HTTP '+site.status+' · '+site.ms+'ms')
     +buildStatusCard('Backend',backend.ok?'Online':'Limited',backend.ok?'green':'purple','HTTP '+backend.status+' · '+backend.ms+'ms')
     +buildStatusCard('QIS',qisIntact?'Intact':'Review',qisIntact?'green':'purple',qis.json&&qis.json.lastScan?'Last scan '+(qis.json.lastScan.status||'n/a'):'HTTP '+qis.status)
-    +buildStatusCard('Build',metaBuild().slice(0,7),'cyan','Forward-only live release');
+    +buildStatusCard('TAOS',taosLabel,taosColor,'mode='+taosMode+' · TAOS/1.0');
   checks.innerHTML=results.map(function(r){
     var ok=r.ok&&(r.status<400);
     var detail=r.status===429?'Rate limited safely':(r.json&&r.json.error?r.json.error:(r.ms+'ms'));
@@ -2383,6 +2390,18 @@ async function loadHomeData(){
   }
   updatePaymentCopy();
   loadCaseStudies();
+  // TAOS/1.0 live autonomy score badge on home stats bar
+  try{
+    var taosData=await fetch('/api/autonomy/score',{cache:'no-store'}).then(function(r){return r.ok?r.json():null;}).catch(function(){return null;});
+    if(taosData&&taosData.score!=null){
+      var tEl=document.getElementById('stat-taos-score');
+      if(tEl){
+        var tScore=taosData.score, tGrade=taosData.grade||'?';
+        tEl.textContent=tGrade+' '+tScore+'/100';
+        tEl.className='kpi-val '+(tScore>=80?'green':tScore>=55?'cyan':'purple');
+      }
+    }
+  }catch(e){}
 }
 
 async function loadCaseStudies(){
