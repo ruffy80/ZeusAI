@@ -237,6 +237,11 @@ function _catalogCard(p) {
   // with a sync fallback via _toBtc(usd) for items the broker hasn't tagged.
   const priceBtcNum = Number(p.priceBtc || 0) || _toBtc(price);
   const btcTxt = priceBtcNum > 0 ? ('≈ ' + priceBtcNum.toFixed(8) + ' BTC') : '';
+  // World-Profit-OS: reinforce the native-BTC advantage right next to every
+  // priced card. Only shown for paid items (free/activate cards omit it).
+  const btcDiscountNote = price > 0
+    ? `<span class="btc-discount" style="display:block;font-size:10.5px;color:#ffd36a;font-weight:600;margin-top:2px;letter-spacing:.2px;opacity:.85">10% BTC discount applied</span>`
+    : '';
   // When the live pricing engine produced this number, surface a small badge
   // so the user (and ops) can tell it is the AI-negotiated value, not a
   // static catalogue floor.
@@ -244,7 +249,7 @@ function _catalogCard(p) {
     ? `<span class="tag" title="Live AI-negotiated price · source=${_esc(p.livePriceSource)}${p.demandFactor ? ' · demand=' + Number(p.demandFactor).toFixed(2) : ''}" style="background:rgba(127,255,212,.12);color:#7fffd4;border:1px solid rgba(127,255,212,.35);font-size:10px;margin-left:6px">⚡ live${p.surgeActive ? ' · surge' : ''}</span>`
     : '';
   return `<article class="card" data-tier="${_esc(p.tier || '')}" data-product-id="${id}" data-price-source="${_esc(p.livePriceSource || 'static')}" itemscope itemtype="https://schema.org/Product" style="display:flex;flex-direction:column;gap:10px">
-    <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px">${_tierBadge(p.tier)}<span style="font-family:var(--mono);font-size:18px;color:var(--gold);text-align:right" itemprop="offers" itemscope itemtype="https://schema.org/Offer"><meta itemprop="priceCurrency" content="USD"/><span itemprop="price" data-pricing-value="${id}">${priceTxt}</span>${billing}${liveBadge}<span class="btc-line" data-price-btc-value="${id}" style="display:block;font-size:11.5px;color:#f7a13b;font-weight:600;margin-top:3px;letter-spacing:.2px">${btcTxt}</span></span></div>
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px">${_tierBadge(p.tier)}<span style="font-family:var(--mono);font-size:18px;color:var(--gold);text-align:right" itemprop="offers" itemscope itemtype="https://schema.org/Offer"><meta itemprop="priceCurrency" content="USD"/><span itemprop="price" data-pricing-value="${id}">${priceTxt}</span>${billing}${liveBadge}<span class="btc-line" data-price-btc-value="${id}" style="display:block;font-size:11.5px;color:#f7a13b;font-weight:600;margin-top:3px;letter-spacing:.2px">${btcTxt}</span>${btcDiscountNote}</span></div>
     <h3 style="margin:4px 0 0;font-size:18px;line-height:1.25" itemprop="name">${title}</h3>
     <p style="margin:0;color:var(--ink-dim);font-size:13px;line-height:1.45;flex:1" itemprop="description">${desc}</p>
     <div style="display:flex;gap:8px;margin-top:6px">${price > 0
@@ -977,19 +982,74 @@ function pageHome() {
   const _all = _loadCatalog();
   const _byTier = { instant: [], professional: [], enterprise: [] };
   _all.forEach(p => { const t = String(p.tier || 'professional'); if (_byTier[t]) _byTier[t].push(p); });
+  // World-Profit-OS: featured strip = instant + professional ONLY (no enterprise
+  // hero card spam). Enterprise gets its own explicit CTA row underneath so
+  // scaling buyers still have a signalled path.
   const _featured = []
     .concat(_byTier.instant.slice().sort((a,b)=>(a.priceUSD||0)-(b.priceUSD||0)).slice(0,2))
-    .concat(_byTier.professional.slice().sort((a,b)=>(a.priceUSD||0)-(b.priceUSD||0)).slice(0,2))
-    .concat(_byTier.enterprise.slice().sort((a,b)=>(a.priceUSD||0)-(b.priceUSD||0)).slice(0,2));
+    .concat(_byTier.professional.slice().sort((a,b)=>(a.priceUSD||0)-(b.priceUSD||0)).slice(0,2));
   const _featuredHtml = _featured.length
     ? `<section id="homeFeatured" style="margin:40px 0 0">
   <div class="section-title">
     <div><span class="kicker">Featured services</span><h2>Buy a real ZeusAI service <span class="grad">in under a minute.</span></h2></div>
-    <p>These are six concrete deliverables you can pay for right now in BTC. Browse the full catalogue on <a href="/services" data-link>/services</a>.</p>
+    <p>Four concrete deliverables you can pay for right now in BTC. Browse the full catalogue on <a href="/services" data-link>/services</a>.</p>
   </div>
   ${_ssrCatalogGrid(_featured, { gridId: 'homeFeaturedGrid', minCol: 280 })}
+  <div id="homeEnterpriseRow" class="card" style="margin:18px 0 0;padding:16px 18px;display:flex;flex-wrap:wrap;gap:12px;align-items:center;justify-content:space-between;background:linear-gradient(135deg,rgba(138,92,255,.10),rgba(62,160,255,.06));border:1px solid rgba(138,92,255,.35)">
+    <div style="min-width:240px;flex:1">
+      <span class="kicker">Building at scale?</span>
+      <h3 style="margin:6px 0 2px;font-size:18px">Enterprise · outcome-priced, signed SLAs, dedicated Zeus cluster.</h3>
+      <p style="margin:0;color:var(--ink-dim);font-size:13.5px">Value-Proof Ledger auto-invoices bps share on measured outcomes.</p>
+    </div>
+    <div style="display:flex;gap:10px;flex-wrap:wrap">
+      <a class="btn btn-ghost" href="/services" data-link>Explore Enterprise →</a>
+      <a class="btn" href="/pricing" data-link>See pricing</a>
+    </div>
+  </div>
   <p style="text-align:center;margin:18px 0 0"><a class="btn btn-ghost" href="/services" data-link>Browse the full catalogue →</a></p>
 </section>` : '';
+  // Post-featured commerce proof rail: live on-chain sales + BTC-discount chip.
+  // Both are SSR containers hydrated by client.js hydrateHomeProof().
+  const _homeProofRail = `<section id="homeProofRail" style="margin:26px 0 0">
+  <div class="grid" style="grid-template-columns:minmax(0,2fr) minmax(0,1fr);gap:16px">
+    <div id="homeLiveSales" class="card" style="background:linear-gradient(135deg,rgba(0,255,163,.06),rgba(0,212,255,.06));border:1px solid rgba(0,255,163,.30);padding:18px" data-home-live-sales>
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap">
+        <span class="kicker" style="color:#00ffa3">⚡ Live on-chain settlements</span>
+        <span style="font-size:11px;color:var(--ink-dim)">Verifiable on <a href="https://mempool.space" target="_blank" rel="noopener" style="color:#00ffa3">mempool.space</a></span>
+      </div>
+      <div id="homeLiveSalesBody" style="margin-top:10px;font-family:var(--mono);font-size:12.5px;line-height:1.7;color:var(--ink-dim)">Live paid orders load here — every entry is a verifiable BTC settlement to the owner wallet.</div>
+    </div>
+    <div id="homeBtcDiscount" class="card" style="padding:18px;background:linear-gradient(135deg,rgba(247,147,26,.14),rgba(255,211,106,.08));border:1px solid rgba(247,147,26,.45);display:flex;flex-direction:column;justify-content:center;gap:8px">
+      <span class="kicker" style="color:#f7931a">₿ Native Bitcoin pricing</span>
+      <h3 style="margin:0;font-size:22px;line-height:1.2">Pay in BTC → <span class="grad">save 10%</span></h3>
+      <p style="margin:0;color:var(--ink-dim);font-size:13px">Every catalog price already reflects the 10% BTC discount — instant, custodian-free, receipt signed Ed25519.</p>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:4px">
+        <a class="btn btn-primary" href="/services" data-link>Buy in BTC →</a>
+        <a class="btn btn-ghost" href="/wizard" data-link>Find my plan</a>
+      </div>
+    </div>
+  </div>
+</section>`;
+  // Hero quick-buy — pre-populated with top 6 catalog services (cheapest of
+  // each) so a first-time visitor can jump straight from the hero to a BTC
+  // invoice without touching the catalog. Hydrated by client.js.
+  const _heroQuickPicks = _all
+    .filter(p => Number(p.priceUSD || p.priceUsd || p.price || 0) > 0)
+    .sort((a,b)=> (Number(a.priceUSD||a.priceUsd||a.price||0) - Number(b.priceUSD||b.priceUsd||b.price||0)))
+    .slice(0, 6);
+  const _heroQuickOpts = _heroQuickPicks.map(p => {
+    const id = _esc(p.id || '');
+    const title = _esc(p.title || p.id || 'Service');
+    const price = Number(p.priceUSD || p.priceUsd || p.price || 0);
+    const label = price > 0 ? (title + ' · $' + price.toLocaleString('en-US', { maximumFractionDigits: 2 })) : title;
+    return `<option value="${id}">${label}</option>`;
+  }).join('');
+  const _heroQuickBuy = _heroQuickPicks.length ? `<form id="heroQuickBuy" data-hero-quick-buy class="card" style="margin:18px 0 0;padding:14px 16px;display:flex;flex-wrap:wrap;gap:10px;align-items:center;background:rgba(11,15,23,.55);border:1px solid var(--stroke)" onsubmit="return false">
+      <span class="kicker" style="width:100%;margin-bottom:4px">30-second BTC checkout</span>
+      <select id="heroQuickPick" aria-label="Pick a ZeusAI service" style="flex:2;min-width:180px;padding:10px 12px;border-radius:10px;border:1px solid var(--stroke);background:rgba(5,4,10,.55);color:var(--ink);font-size:13.5px">${_heroQuickOpts}</select>
+      <input id="heroQuickEmail" type="email" placeholder="you@company.com" autocomplete="email" aria-label="Email for activation" style="flex:2;min-width:180px;padding:10px 12px;border-radius:10px;border:1px solid var(--stroke);background:rgba(5,4,10,.55);color:var(--ink);font-size:13.5px"/>
+      <button type="button" class="btn btn-primary" id="heroQuickBuyBtn" data-hero-quick-buy-btn style="flex:1;min-width:180px;justify-content:center">Get BTC invoice →</button>
+    </form>` : '';
   // ZACC — Zeus Autonomic Commerce Core banner. Shown right after the hero,
   // before any other section, so the world\u2019s first fully-autonomous economic
   // engine is impossible to miss from the homepage.
@@ -1029,37 +1089,43 @@ function pageHome() {
   </div>
   <div class="hero-grid">
     <div class="hero-copy">
-      <span class="hero-eyebrow"><span class="dot"></span> Live · ${new Date().toISOString().slice(0,16).replace('T',' ')} UTC</span>
-      <h1>ZEUS AI / <span class="grad">Ship AI products at machine speed.</span></h1>
+      <span class="hero-eyebrow"><span class="dot"></span> ₿ Native Bitcoin · save 10% · instant delivery</span>
+      <h1>ZeusAI <span class="grad">Ship AI products at machine speed.</span></h1>
       <p class="lead">Live autonomous AI commerce platform: ZeusAI turns modules, verticals and marketplaces into buyable AI services with direct BTC checkout, signed receipts and instant delivery.</p>
       <div class="hero-cta">
         <a class="btn btn-primary" href="/services" data-link>Buy AI Service →</a>
       </div>
-      <div style="display:flex;gap:14px;flex-wrap:wrap;margin-top:10px;font-size:13px;color:var(--ink-dim)">
+      <div style="display:flex;gap:14px;flex-wrap:wrap;margin-top:10px;font-size:13.5px;color:var(--ink-dim)">
+        <a href="/wizard" data-link style="color:var(--violet2)">Not sure what to buy? → 30-second plan finder</a>
+      </div>
+      <div style="display:flex;gap:14px;flex-wrap:wrap;margin-top:8px;font-size:13px;color:var(--ink-dim)">
         <a href="/status" data-link style="color:var(--violet2)">Autonomy OS</a>
         <a href="/pricing" data-link style="color:var(--violet2)">Transparent pricing</a>
         <a href="/trust" data-link style="color:var(--violet2)">Trust center</a>
       </div>
-      <div class="hero-stats" id="heroStats">
-        <div class="hero-stat"><b id="statModules">169</b><span>Modules</span></div>
-        <div class="hero-stat"><b id="statVerticals">18</b><span>Verticals</span></div>
-        <div class="hero-stat"><b id="statMarkets">41</b><span>Marketplaces</span></div>
-        <div class="hero-stat"><b id="statChain">—</b><span>Chain length</span></div>
-        <div class="hero-stat"><b id="statTaos">—</b><span>Autonomy</span></div>
-      </div>
-      <div class="hero-stats" style="margin-top:14px">
+      ${_heroQuickBuy}
+      <div class="hero-stats" id="heroStats" style="margin-top:14px">
         <div class="hero-stat"><b>Signed receipts</b><span>Every order verifiable</span></div>
         <div class="hero-stat"><b>&lt; 60s checkout</b><span>BTC direct owner wallet</span></div>
         <div class="hero-stat"><b>Live pricing</b><span>Server-validated at pay time</span></div>
         <div class="hero-stat"><b>Refund contract</b><span>Public guarantee page</span></div>
       </div>
+      <div class="hero-stats" style="margin-top:14px">
+        <div class="hero-stat"><b id="statModules">169</b><span>Modules</span></div>
+        <div class="hero-stat"><b id="statVerticals">18</b><span>Verticals</span></div>
+        <div class="hero-stat"><b id="statMarkets">41</b><span>Marketplaces</span></div>
+        <div class="hero-stat"><b id="statBtcSave">10%</b><span>BTC discount</span></div>
+        <div class="hero-stat"><b id="statTaos">—</b><span>Autonomy</span></div>
+      </div>
     </div>
   </div>
 </section>
 
-${_zaccBanner}
-
 ${_featuredHtml}
+
+${_homeProofRail}
+
+${_zaccBanner}
 
 <section id="commerceProof">
   <div class="section-title">
@@ -1285,7 +1351,10 @@ function pageServices() {
   </div>
   <div id="servicesStickySummary" class="card" style="position:sticky;top:88px;z-index:4;margin:12px 0 18px;padding:12px 14px;background:rgba(11,15,23,.88);backdrop-filter:blur(8px);border:1px solid var(--stroke);display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap">
     <div style="font-size:13px;color:var(--ink-dim)">Live catalog synced from server pricing. Final amount is revalidated before payment.</div>
-    <a class="btn btn-primary" href="/checkout/?plan=custom" data-link>Quick BTC checkout →</a>
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      <a class="btn btn-primary" href="/wizard" data-link>Find my plan →</a>
+      <a class="btn btn-ghost" href="/checkout/?plan=custom" data-link title="Skip catalog and open a manual BTC invoice for a custom amount">Custom order</a>
+    </div>
   </div>
   <div class="card" style="margin:16px 0 22px;background:linear-gradient(135deg,rgba(247,147,26,.10),rgba(127,90,240,.10));border:1px solid rgba(247,147,26,.45)">
     <div style="display:flex;flex-wrap:wrap;gap:18px;align-items:center;justify-content:space-between">
@@ -1293,19 +1362,30 @@ function pageServices() {
         <span class="kicker">₿ Native Bitcoin commerce · zero custodian</span>
         <h3 style="margin:8px 0;font-size:22px">Pay any service direct in BTC. <span id="catBtcSpot" style="color:var(--gold);font-family:var(--mono);font-size:14px">—</span></h3>
         <p style="color:var(--ink-dim);margin:0;font-size:14px">Owner wallet routes 100% of revenue. Each invoice generates an Ed25519 receipt + on-chain proof via mempool.space.</p>
-        <div class="btc-addr" id="svcHeroBtcAddr" data-copy="${OWNER.btc}" title="Click to copy">${OWNER.btc}</div>
+        <div class="btc-addr" id="svcHeroBtcAddr" data-copy="${OWNER.btc}" title="Click to copy the full owner wallet address">${_esc(String(OWNER.btc).slice(0,10) + '…' + String(OWNER.btc).slice(-8))}</div>
+        <p style="color:var(--ink-dim);margin:6px 0 0;font-size:11.5px;font-style:italic">Revenue destination — use checkout for a unique per-order invoice.</p>
       </div>
       <div style="display:flex;flex-direction:column;gap:8px;min-width:200px">
         <div id="catCounts" style="font-size:12px;color:var(--ink-dim);text-align:right;font-family:var(--mono)">${_esc(summary)}</div>
-        <a class="btn btn-primary" href="/checkout/?plan=custom" data-link>Quick BTC checkout →</a>
+        <a class="btn btn-primary" href="/wizard" data-link>Find my plan →</a>
       </div>
     </div>
   </div>
+  <section id="catWhatYouReceive" class="card" style="margin:0 0 18px;padding:18px">
+    <span class="kicker">What you receive</span>
+    <h3 style="margin:6px 0 12px;font-size:20px">Every purchase ships a concrete artefact — not a promise.</h3>
+    <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px">
+      <div class="card" style="margin:0;padding:14px"><span class="tag">Website Audit</span><h4 style="margin:6px 0 4px;font-size:15px">HTML report</h4><p style="margin:0;color:var(--ink-dim);font-size:12.5px">Signed audit with performance, accessibility, SEO and conversion notes — delivered as a single self-contained HTML file.</p></div>
+      <div class="card" style="margin:0;padding:14px"><span class="tag">Logo Kit</span><h4 style="margin:6px 0 4px;font-size:15px">SVG + palette</h4><p style="margin:0;color:var(--ink-dim);font-size:12.5px">Vector logo, monochrome variants and a documented color palette. Import-ready in Figma, Illustrator, or any browser.</p></div>
+      <div class="card" style="margin:0;padding:14px"><span class="tag">SEO Pack</span><h4 style="margin:6px 0 4px;font-size:15px">Articles + brief</h4><p style="margin:0;color:var(--ink-dim);font-size:12.5px">Editorial-quality articles targeting your chosen keywords plus a linking + on-page brief. Markdown + HTML both included.</p></div>
+    </div>
+  </section>
   <div class="filters" id="catFilters" role="tablist" aria-label="Filter services by tier">
     <button class="chip on" data-group="all" type="button">All (${catalog.length})</button>
     <button class="chip" data-group="instant" type="button">⚡ Instant (${counts.instant || 0})</button>
     <button class="chip" data-group="professional" type="button">💼 Professional (${counts.professional || 0})</button>
     <button class="chip" data-group="enterprise" type="button">👑 Enterprise (${counts.enterprise || 0})</button>
+    <a class="chip" href="/wizard" data-link style="text-decoration:none">🧭 Find my plan →</a>
   </div>
   <section id="autonomousLiveSection" style="margin:20px 0 30px">
     <div style="display:flex;justify-content:space-between;align-items:baseline;flex-wrap:wrap;gap:8px;margin-bottom:14px">
@@ -1414,18 +1494,10 @@ function pageService(id) {
       </div>
       <h1 style="font-size:clamp(34px,4vw,52px);margin:10px 0 20px;line-height:1.05" itemprop="name">${_esc(title)}</h1>
       <p style="color:var(--ink-dim);font-size:17px;line-height:1.7" itemprop="description">${_esc(desc)}</p>
-      <div class="svc-storyline" id="svcStoryline">
-        <div class="svc-step"><span>Phase 01</span><b>Signal capture</b><p>Collects live intent and context from your workflow.</p></div>
-        <div class="svc-step"><span>Phase 02</span><b>Model orchestration</b><p>Routes workload through best-fit adapters and guardrails.</p></div>
-        <div class="svc-step"><span>Phase 03</span><b>Proof + settlement</b><p>Signs outputs and links monetization to verifiable outcomes.</p></div>
-      </div>
-      <div class="svc-unlock" id="svcUnlock">
-        <div class="svc-unlock-top"><b>Checkout unlock sequence</b><span id="svcStoryPct">ready</span></div>
-        <div class="svc-unlock-bar"><i id="svcStoryBar" style="width:100%"></i></div>
-        <div class="pl-actions" style="margin-top:10px">
-          <button class="pl-btn" id="svcStoryRun">Continue to BTC checkout →</button>
-        </div>
-        <div class="pl-output" id="svcStoryOut">Real path: BTC checkout → on-chain confirm → activation pack at /api/delivery/{orderId}. No simulated unlock.</div>
+      <div class="svc-delivery-timeline" id="svcDeliveryTimeline" style="margin:22px 0 6px;display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px">
+        <div class="card" style="margin:0;padding:14px;border-color:rgba(247,147,26,.35)"><span class="tag" style="background:rgba(247,147,26,.16);color:#f7931a">Step 1</span><h4 style="margin:6px 0 4px;font-size:15px">Pay BTC</h4><p style="margin:0;color:var(--ink-dim);font-size:12.5px">Scan the invoice QR or copy the BIP-21 URI. Direct on-chain — no custodian.</p></div>
+        <div class="card" style="margin:0;padding:14px;border-color:rgba(127,255,212,.32)"><span class="tag" style="background:rgba(127,255,212,.12);color:#7fffd4">Step 2</span><h4 style="margin:6px 0 4px;font-size:15px">Mempool confirm</h4><p style="margin:0;color:var(--ink-dim);font-size:12.5px">Server watches mempool.space every ~30s until your tx settles.</p></div>
+        <div class="card" style="margin:0;padding:14px;border-color:rgba(110,231,183,.42)"><span class="tag" style="background:rgba(110,231,183,.2);color:#6ee7b7">Step 3</span><h4 style="margin:6px 0 4px;font-size:15px">Signed delivery</h4><p style="margin:0;color:var(--ink-dim);font-size:12.5px">Ed25519 receipt + license + downloadable artefacts appear in your account.</p></div>
       </div>
       <div class="panels" style="margin-top:20px">
         <div class="panel"><div class="ic">✓</div><h4>Signed outcomes</h4><p>Every run produces an Ed25519‑signed proof in the Value‑Proof Ledger.</p></div>
@@ -1438,11 +1510,13 @@ function pageService(id) {
       <span class="kicker">Pricing</span>
       <h3 style="margin:6px 0 10px">${_esc(title)}</h3>
       <div class="price" id="svcLivePrice" data-pricing-value="${_esc(safeId)}" style="font-size:42px;font-weight:700;background:linear-gradient(120deg,#fff,var(--violet2));-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent">
-        <span itemprop="price" content="${price > 0 ? price.toFixed(2) : ''}">${priceTxt}</span><small style="font-size:14px;color:var(--ink-dim);-webkit-text-fill-color:var(--ink-dim)">/mo</small>
+        <span itemprop="price" content="${price > 0 ? price.toFixed(2) : ''}">${priceTxt}</span>${(s.billing === 'monthly' || String(s.tier || '').toLowerCase() === 'enterprise') ? '<small style="font-size:14px;color:var(--ink-dim);-webkit-text-fill-color:var(--ink-dim)">/mo</small>' : ''}
       </div>
       <div id="svcLiveBtc" style="font-size:12px;color:var(--ink-dim);margin-top:4px">${btcTxt}</div>
+      ${price > 0 ? '<div style="font-size:11.5px;color:#ffd36a;font-weight:600;margin-top:4px;letter-spacing:.2px">10% BTC discount applied</div>' : ''}
       <p style="color:var(--ink-dim);font-size:13.5px">Activate instantly. Cancel anytime. Signed receipt on every invoice.</p>
       <button type="button" class="btn btn-primary" id="svcBuyBtn" data-sovereign-buy="${_esc(safeId)}" style="width:100%;justify-content:center;margin-top:10px">₿ Buy now → BTC checkout</button>
+      <div id="svcUpsell" data-upsell-anchor="${_esc(safeId)}" style="margin-top:12px"></div>
       <a class="btn" href="/services" data-link style="width:100%;justify-content:center;margin-top:8px">← All services</a>
       <link itemprop="availability" href="https://schema.org/InStock"/>
     </aside>
@@ -1477,9 +1551,6 @@ function pagePricing() {
   </div>
   <div class="card" style="margin:10px 0 16px;padding:12px 14px;font-size:13px;color:var(--ink-dim)">
     Prices are refreshed from live APIs and revalidated at checkout. Last sync: <span id="pricingLastSync" style="font-family:var(--mono)">pending…</span>
-  </div>
-  <div class="card" id="pricingExperimentHint" style="margin:0 0 16px;padding:10px 12px;font-size:12px;color:var(--ink-dim)">
-    Conversion optimizer is calibrating your pricing layout…
   </div>
   <div class="pricing">
     <div class="plan" data-pricing-plan="starter">
@@ -1519,6 +1590,17 @@ function pagePricing() {
       <a class="btn btn-gold" data-plan-cta="enterprise" href="/checkout/?plan=enterprise" data-link>Talk to Zeus</a>
     </div>
   </div>
+  <div id="pricingCatalogCrossLink" class="card" style="margin-top:20px;padding:18px;display:flex;flex-wrap:wrap;gap:14px;align-items:center;justify-content:space-between;background:linear-gradient(135deg,rgba(247,147,26,.10),rgba(138,92,255,.06));border:1px solid rgba(247,147,26,.35)">
+    <div style="min-width:260px;flex:1">
+      <span class="kicker">One-time deliverables</span>
+      <h3 style="margin:6px 0 4px;font-size:20px">Prefer a one-shot BTC purchase?</h3>
+      <p style="margin:0;color:var(--ink-dim);font-size:13.5px">Browse the one-time catalog — signed artefacts, no subscription, no card. 10% BTC discount already baked into every price.</p>
+    </div>
+    <div style="display:flex;gap:10px;flex-wrap:wrap">
+      <a class="btn btn-primary" href="/services" data-link>Open one-time catalog →</a>
+      <a class="btn btn-ghost" href="/wizard" data-link>Find my plan</a>
+    </div>
+  </div>
   <div class="card" style="margin-top:16px;padding:12px 14px">
     <b>Use-case playbooks:</b>
     <a href="/solutions/ai-pricing" data-link style="margin-left:8px">AI pricing engine</a> ·
@@ -1539,10 +1621,24 @@ function pageCheckout(params) {
   const ssrUsd = (Number.isFinite(Number(p.planUsd)) && Number(p.planUsd) > 0) ? Number(p.planUsd) : null;
   const ssrAmountAttr = ssrUsd != null ? String(ssrUsd) : '';
   const ssrAmountSummary = ssrUsd != null ? ('$' + ssrUsd.toFixed(2)) : '—';
+  // A "known" catalog id (not one of the abstract subscription/custom tiers)
+  // means we can also offer a one-click sovereign-invoice path alongside the
+  // manual form. This keeps hydrateCheckout completely intact — the manual
+  // form still works and remains the default surface. The extra button only
+  // renders when the plan looks like a real, catalog-backed service id.
+  const _isCatalogLike = ssrPlan && !/^(starter|pro|enterprise|custom)$/i.test(ssrPlan);
   return `<section style="padding-top:140px">
   <div class="section-title">
     <div><span class="kicker">Checkout promise</span><h2>Pay direct in BTC. <span class="grad">Activation is automatic.</span></h2></div>
     <p>Every payment generates an Ed25519‑signed receipt appended to the Merkle chain. Keep this window open: ZeusAI watches settlement and unlocks delivery/license credentials automatically.</p>
+  </div>
+  <div id="checkoutBuying" class="card" style="margin:0 0 18px;padding:14px 18px;background:linear-gradient(135deg,rgba(247,147,26,.10),rgba(138,92,255,.10));border:1px solid rgba(247,147,26,.35);display:flex;flex-wrap:wrap;gap:14px;align-items:center;justify-content:space-between">
+    <div style="min-width:220px">
+      <span class="kicker">You are buying</span>
+      <h3 style="margin:6px 0 2px;font-size:20px" id="checkoutBuyingPlan">${_esc(ssrPlan)}</h3>
+      <p style="margin:0;color:var(--ink-dim);font-size:13px">Amount <b id="checkoutBuyingAmount" style="color:var(--gold)">${ssrAmountSummary}</b> · 10% BTC discount already applied.</p>
+    </div>
+    ${_isCatalogLike ? `<button type="button" class="btn btn-ghost" data-sovereign-buy="${_esc(ssrPlan)}" title="Skip the form — open a signed BTC invoice for this exact service" style="min-width:220px">⚡ Skip form — open sovereign invoice</button>` : ''}
   </div>
   <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px;margin:0 0 22px">
     <div class="card"><span class="tag">Step 1</span><h3>Select service</h3><p style="color:var(--ink-dim)">Choose plan/product and email so delivery can issue the entitlement.</p></div>
@@ -1588,6 +1684,16 @@ function pageCheckout(params) {
       <p style="color:var(--ink-dim);font-size:12.5px;line-height:1.6;margin-top:14px">Every receipt is routed by <code class="inline">sovereignRevenueRouter</code>. On enterprise plans, a share of delivered value is auto‑invoiced via the Value‑Proof Ledger.</p>
     </aside>
   </div>
+  <details id="checkoutFaq" class="card" style="margin:18px 0 0;padding:14px 18px">
+    <summary style="cursor:pointer;font-weight:600;font-size:15px">What happens after I send BTC?</summary>
+    <ol style="margin:12px 0 0;padding-left:20px;color:var(--ink-dim);font-size:13.5px;line-height:1.7">
+      <li><b style="color:var(--ink)">Broadcast:</b> your wallet sends the exact BTC amount from the invoice directly to the ZeusAI owner wallet — no custodian.</li>
+      <li><b style="color:var(--ink)">Mempool watch:</b> the server polls mempool.space every ~30s until your transaction is seen and reaches at least 1 confirmation.</li>
+      <li><b style="color:var(--ink)">Signed receipt:</b> an Ed25519 receipt is appended to the autonomy chain the moment payment is observed.</li>
+      <li><b style="color:var(--ink)">Delivery + license:</b> your entitlement token, license and downloadable artefacts are generated and become available on this page and in your account.</li>
+      <li><b style="color:var(--ink)">Refund contract:</b> if delivery fails, the public <a href="/refund" data-link>refund guarantee</a> applies — no email chase required.</li>
+    </ol>
+  </details>
 </section>`;
 }
 
@@ -1814,10 +1920,18 @@ function pageLegal() {
 }
 
 function pageTrustCenter() {
+  const btcShort = String(OWNER.btc || '').slice(0, 10) + '…' + String(OWNER.btc || '').slice(-8);
   return `<section style="padding-top:140px;max-width:1180px">
   <span class="kicker">Trust Center · public proofs</span>
   <h1 style="font-size:clamp(34px,4.4vw,58px);margin:10px 0 18px">Operational trust, <span class="grad">signed and inspectable.</span></h1>
   <p style="color:var(--ink-dim);font-size:16px;line-height:1.7;max-width:860px">This page combines uptime, deploy identity, integrity signatures, owner BTC routing, payment readiness, security posture, audit logs and incident history. No private secrets are exposed.</p>
+  <div id="trustStaticGrid" class="grid" style="margin-top:22px;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:14px">
+    <div class="card"><span class="tag">Owner BTC wallet</span><h3 style="margin:6px 0;font-size:16px;font-family:var(--mono)">${_esc(btcShort)}</h3><p style="color:var(--ink-dim);font-size:12.5px;margin:0">Revenue destination. 100% owner-routed — no custodian ever holds funds.</p><div style="margin-top:8px"><span class="btc-addr" data-copy="${OWNER.btc}" title="Click to copy full address">Copy full address</span></div></div>
+    <div class="card"><span class="tag">Integrity manifest</span><h3 style="margin:6px 0;font-size:16px">/integrity.json</h3><p style="color:var(--ink-dim);font-size:12.5px;margin:0">Deploy SHA + Ed25519 signature over the deployed bundle.</p><div style="margin-top:8px"><a class="btn btn-ghost" href="/integrity.json" target="_blank" rel="noopener">Open integrity.json →</a></div></div>
+    <div class="card"><span class="tag">Refund guarantee</span><h3 style="margin:6px 0;font-size:16px">/refund</h3><p style="color:var(--ink-dim);font-size:12.5px;margin:0">Public refund contract — no email chase, no fine print.</p><div style="margin-top:8px"><a class="btn btn-ghost" href="/refund" data-link>Read refund contract →</a></div></div>
+    <div class="card"><span class="tag">Anti-dark-pattern pledge</span><h3 style="margin:6px 0;font-size:16px">/pledge</h3><p style="color:var(--ink-dim);font-size:12.5px;margin:0">Signed pledge: no forced upsells, no hidden auto-renew, no fake scarcity.</p><div style="margin-top:8px"><a class="btn btn-ghost" href="/pledge" data-link>Read the pledge →</a></div></div>
+    <div class="card"><span class="tag">Public keys</span><h3 style="margin:6px 0;font-size:16px">/.well-known/keys.json</h3><p style="color:var(--ink-dim);font-size:12.5px;margin:0">Ed25519 verification keys used to sign receipts, licenses and integrity manifests.</p><div style="margin-top:8px"><a class="btn btn-ghost" href="/.well-known/keys.json" target="_blank" rel="noopener">Open keys.json →</a></div></div>
+  </div>
   <div class="grid" id="trustGrid" style="margin-top:22px"><div class="card"><p>Loading trust center…</p></div></div>
   <div class="card" style="padding:22px;margin-top:18px"><span class="kicker">Integrity document</span><pre class="code" id="trustRaw">—</pre></div>
   <script>
