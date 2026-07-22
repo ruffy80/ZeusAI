@@ -231,6 +231,10 @@ fi
 # ── 6. Install the SAFE health-watch cron (5 min) ────────────────────────────
 # This cron runs ONLY the read-only-ish health watch. It NEVER schedules a
 # self-construction cron job or any file-mutating job.
+# Kill-switch: /etc/zeus-healer.disabled skips arming restart crons (OOB stabilize).
+if [ -f /etc/zeus-healer.disabled ]; then
+  log "healer kill-switch present — skipping health-watch cron install"
+else
 HEALTH_WATCH="$DEPLOY_LINK/scripts/unicorn-health-watch.sh"
 if [ -f "$HEALTH_WATCH" ]; then
   chmod +x "$HEALTH_WATCH" 2>/dev/null || true
@@ -249,8 +253,15 @@ if [ -f "$HEALTH_WATCH" ]; then
 else
   warn "health-watch script not found at $HEALTH_WATCH — skipping cron install"
 fi
+fi
 
 # ── 6b. Forever-up (NDK) + autoheal-min — hang/disk aware, cooldown gated ──
+# Kill-switch mirrors install-healer.sh: skip arming thrashy restart crons
+# when /etc/zeus-healer.disabled is present (OOB / single-node stabilize).
+if [ -f /etc/zeus-healer.disabled ]; then
+  log "healer kill-switch present — skipping never-down/autoheal cron install"
+  touch /var/run/unicorn-autoheal-min.disabled /var/run/zeus-never-down-watch.disabled 2>/dev/null || true
+else
 NDK_WATCH="$DEPLOY_LINK/scripts/never-down-watch.sh"
 if [ -f "$NDK_WATCH" ] && command -v crontab >/dev/null 2>&1; then
   chmod +x "$NDK_WATCH" 2>/dev/null || true
@@ -274,6 +285,7 @@ if [ -f "$AUTOHEAL_MIN" ] && command -v crontab >/dev/null 2>&1; then
     { printf '%s\n' "$EXISTING"; printf '%s\n' "$AH_LINE"; } | grep -v '^$' | crontab -
     log "installed autoheal-min cron (every 1 min, NDK-aware)"
   fi
+fi
 fi
 
 # ── 7. Health checks (retry — backend needs a few seconds after PM2 reload) ──

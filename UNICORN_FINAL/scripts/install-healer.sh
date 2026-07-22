@@ -22,6 +22,14 @@ if [ -f /var/www/unicorn/.env.auto-connector ] && [ ! -f /var/www/unicorn/.env.h
 fi
 
 systemctl daemon-reload
+# Kill-switch: when present, install units but do NOT arm the timer.
+# Used during OOB deploys while GitHub Actions is blocked / healers thrash.
+if [ -f /etc/zeus-healer.disabled ]; then
+  systemctl disable --now unicorn-healer.timer >/dev/null 2>&1 || true
+  systemctl stop unicorn-healer.service >/dev/null 2>&1 || true
+  echo "✓ unicorn-healer units installed; timer LEFT DISABLED (/etc/zeus-healer.disabled)"
+  exit 0
+fi
 systemctl enable --now unicorn-healer.timer
 systemctl --no-pager status unicorn-healer.timer | head -20 || true
 echo "✓ unicorn-healer.timer installed and active"
