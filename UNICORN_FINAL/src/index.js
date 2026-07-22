@@ -6935,6 +6935,11 @@ seedSsrMap();if(document.getElementById("ds-sort")&&!document.getElementById("ds
         openapi:        '/openapi.json',
         ai_plugin:      '/.well-known/ai-plugin.json',
         mcp:            '/.well-known/mcp.json',
+        autonomy:          '/.well-known/autonomy.json',
+        autonomy_score:    '/api/autonomy/score',
+        autonomy_smoke:    '/api/autonomy/smoke',
+        status:            '/status',
+        telegram_group_os: '/api/telegram/group-os',
       },
       transactions: {
         quote:   { method: 'POST', endpoint: '/api/agent/quote' },
