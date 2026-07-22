@@ -2488,6 +2488,14 @@ async function hydrateMasterCatalog(){
       b.textContent = groupLabel[g];
       filters.appendChild(b);
     });
+    // Preserve World-Profit-OS wizard chip after filter rebuild.
+    const wiz = document.createElement('a');
+    wiz.className = 'chip';
+    wiz.href = '/wizard';
+    wiz.setAttribute('data-link', '');
+    wiz.style.textDecoration = 'none';
+    wiz.textContent = '🧭 Find my plan →';
+    filters.appendChild(wiz);
   }
   const render = (group) => {
     const list = group === 'all' ? cat.items : cat.items.filter(x => x.group === group);
@@ -2589,24 +2597,23 @@ async function hydrateServiceDetail(id){
   const localPrice = (s.priceUsd != null ? Number(s.priceUsd) : (s.price != null ? Number(s.price) : null));
   const _localHasFrac = Number.isFinite(localPrice) && Math.abs(localPrice - Math.round(localPrice)) > 0.0049;
   const priceText = Number.isFinite(localPrice) ? ('$' + localPrice.toLocaleString('en-US', { minimumFractionDigits: _localHasFrac ? 2 : 0, maximumFractionDigits: 2 })) : '—';
+  const billing = String(s.billing || '').toLowerCase();
+  const tier = String(s.tier || s.group || s.segment || '').toLowerCase();
+  const showMo = billing === 'monthly' || tier === 'enterprise' || /^(starter|pro|growth)$/.test(sid);
+  const moSuffix = showMo ? '<small style="font-size:14px;color:var(--ink-dim);-webkit-text-fill-color:var(--ink-dim)">/mo</small>' : '';
+  const discountLine = Number.isFinite(localPrice) && localPrice > 0
+    ? '<div style="font-size:11.5px;color:#ffd36a;font-weight:600;margin-top:4px;letter-spacing:.2px">10% BTC discount applied</div>'
+    : '';
   root.innerHTML = `
-    <div style="display:grid;grid-template-columns:1.3fr 1fr;gap:28px">
+    <div style="display:grid;grid-template-columns:1.3fr 1fr;gap:28px" class="svc-grid-ssr">
       <div class="svc-cine-card" data-tilt>
         <span class="kicker">${escapeHtml(s.segment||s.category||'core')}</span>
         <h1 style="font-size:clamp(34px,4vw,52px);margin:10px 0 20px;line-height:1.05">${escapeHtml(s.title||s.id)}</h1>
         <p style="color:var(--ink-dim);font-size:17px;line-height:1.7">${escapeHtml(s.description || 'Core ZeusAI service delivering measurable, signed outcomes across the platform.')}</p>
-        <div class="svc-storyline" id="svcStoryline">
-          <div class="svc-step"><span>Phase 01</span><b>Signal capture</b><p>Collects live intent and context from your workflow.</p></div>
-          <div class="svc-step"><span>Phase 02</span><b>Model orchestration</b><p>Routes workload through best-fit adapters and guardrails.</p></div>
-          <div class="svc-step"><span>Phase 03</span><b>Proof + settlement</b><p>Signs outputs and links monetization to verifiable outcomes.</p></div>
-        </div>
-        <div class="svc-unlock" id="svcUnlock">
-          <div class="svc-unlock-top"><b>Checkout unlock sequence</b><span id="svcStoryPct">0%</span></div>
-          <div class="svc-unlock-bar"><i id="svcStoryBar"></i></div>
-          <div class="pl-actions" style="margin-top:10px">
-            <button class="pl-btn" id="svcStoryRun">Run activation simulation</button>
-          </div>
-          <div class="pl-output" id="svcStoryOut">Ready to run cinematic activation.</div>
+        <div class="svc-delivery-timeline" id="svcDeliveryTimeline" style="margin:22px 0 6px;display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px">
+          <div class="svc-step"><span>①</span><b>Pay with BTC</b><p>Unique invoice · usually under 60 seconds.</p></div>
+          <div class="svc-step"><span>②</span><b>Mempool confirm</b><p>Server watches mempool.space — no manual steps.</p></div>
+          <div class="svc-step"><span>③</span><b>Signed delivery</b><p>License + pack to your email and account.</p></div>
         </div>
         <div class="panels" style="margin-top:20px">
           <div class="panel"><div class="ic">✓</div><h4>Signed outcomes</h4><p>Every run produces an Ed25519‑signed proof in the Value‑Proof Ledger.</p></div>
@@ -2617,10 +2624,12 @@ async function hydrateServiceDetail(id){
       <aside class="co-box">
         <span class="kicker">Pricing</span>
         <h3 style="margin:6px 0 10px">${escapeHtml(s.title||s.id)}</h3>
-        <div class="price" id="svcLivePrice" style="font-size:42px;font-weight:700;background:linear-gradient(120deg,#fff,var(--violet2));-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent">${priceText}<small style="font-size:14px;color:var(--ink-dim);-webkit-text-fill-color:var(--ink-dim)">/mo</small></div>
+        <div class="price" id="svcLivePrice" style="font-size:42px;font-weight:700;background:linear-gradient(120deg,#fff,var(--violet2));-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent">${priceText}${moSuffix}</div>
         <div id="svcLiveBtc" style="font-size:12px;color:var(--ink-dim);margin-top:4px"></div>
-        <p style="color:var(--ink-dim);font-size:13.5px">Activate instantly. Cancel anytime. Signed receipt on every invoice.</p>
+        ${discountLine}
+        <p style="color:var(--ink-dim);font-size:13.5px">Activate instantly after on-chain confirmation. Signed receipt on every invoice.</p>
         <button type="button" class="btn btn-primary" id="svcBuyBtn" data-sovereign-buy="${escapeHtml(s.id)}" style="width:100%;justify-content:center;margin-top:10px">₿ Buy now → BTC checkout</button>
+        <div id="svcUpsell" data-upsell-anchor="${escapeHtml(s.id)}" style="margin-top:12px"></div>
         <a class="btn" href="/services" data-link style="width:100%;justify-content:center;margin-top:8px">← All services</a>
       </aside>
     </div>`;
@@ -2630,7 +2639,7 @@ async function hydrateServiceDetail(id){
     s.price = Number(live.price_usd);
     var el = document.getElementById('svcLivePrice');
     var btcEl = document.getElementById('svcLiveBtc');
-    if (el) el.innerHTML = '$' + Number(live.price_usd).toLocaleString('en-US', { maximumFractionDigits: 2 }) + '<small style="font-size:14px;color:var(--ink-dim);-webkit-text-fill-color:var(--ink-dim)">/mo</small>';
+    if (el) el.innerHTML = '$' + Number(live.price_usd).toLocaleString('en-US', { maximumFractionDigits: 2 }) + moSuffix;
     if (btcEl) btcEl.textContent = live.price_btc != null ? ('≈ ' + Number(live.price_btc).toFixed(8) + ' BTC') : '';
   }).catch(function(){});
   initServiceNarrative(s);
@@ -2662,24 +2671,22 @@ async function hydrateServiceUpsell(service){
 }
 
 function initServiceNarrative(service){
-  const runBtn = document.getElementById('svcStoryRun');
-  const out = document.getElementById('svcStoryOut');
-  const bar = document.getElementById('svcStoryBar');
-  const pct = document.getElementById('svcStoryPct');
+  // World-Profit-OS: unlock/simulation UI retired. Buy is always available for real BTC checkout.
   const buy = document.getElementById('svcBuyBtn');
-  if (!runBtn || !out || !bar || !pct) return;
-
-  // Honest preview — no fake activation progress. Buy is always available for real BTC checkout.
   if (buy) buy.classList.add('cinema-unlocked');
-  bar.style.width = '100%';
-  pct.textContent = 'ready';
-  out.textContent = 'Real path: BTC checkout → on-chain confirm → activation pack at /api/delivery/{orderId}. No simulated unlock.';
-  runBtn.textContent = 'Continue to BTC checkout →';
-  runBtn.onclick = function(){
-    const sid = service && service.id ? encodeURIComponent(service.id) : '';
-    if (sid) location.href = '/checkout/?plan=' + sid;
-    else location.href = '/services';
-  };
+  const runBtn = document.getElementById('svcStoryRun');
+  if (runBtn) {
+    runBtn.textContent = 'Continue to BTC checkout →';
+    runBtn.onclick = function(){
+      const sid = service && service.id ? String(service.id) : '';
+      if (sid && typeof window.sovereignBuy === 'function') {
+        window.sovereignBuy(sid, { el: runBtn });
+        return;
+      }
+      if (sid) location.href = '/checkout/?plan=' + encodeURIComponent(sid);
+      else location.href = '/services';
+    };
+  }
 }
 
 // ================= CHECKOUT =================
