@@ -20,6 +20,8 @@ const REAPER = path.join(ROOT, 'scripts', 'orphan-backend-reaper.sh');
 const ACTIVATE = path.join(ROOT, 'scripts', 'unicorn-full-activate.sh');
 const DEPLOY = path.join(ROOT, 'scripts', 'deploy-local.sh');
 const SHELL = path.join(ROOT, 'src', 'site', 'v2', 'shell.js');
+const SITE_INDEX = path.join(ROOT, 'src', 'index.js');
+const ORPHAN_CRON = path.join(ROOT, 'scripts', 'cron', 'unicorn-orphan-reaper.cron');
 
 let passed = 0;
 function check(name, fn) {
@@ -135,6 +137,33 @@ check('backend wires TAOS routes', () => {
   assert.ok(idx.includes('/api/autonomy/score'));
   assert.ok(idx.includes('/api/autonomy/os/arm'));
   assert.ok(idx.includes('totalAutonomyOs.start'));
+});
+
+check('agents.json discovery advertises autonomy score + smoke', () => {
+  const src = fs.readFileSync(SITE_INDEX, 'utf8');
+  assert.ok(src.includes("/agents.json"), 'agents.json route missing');
+  assert.ok(src.includes('autonomy_score'), 'autonomy_score key missing from discovery');
+  assert.ok(src.includes('autonomy_smoke'), 'autonomy_smoke key missing from discovery');
+  assert.ok(src.includes("'/api/autonomy/score'"), 'autonomy_score endpoint literal missing');
+  assert.ok(src.includes("'/api/autonomy/smoke'"), 'autonomy_smoke endpoint literal missing');
+  assert.ok(src.includes("'/.well-known/autonomy.json'"), 'autonomy discovery endpoint literal missing');
+});
+
+check('shell.js hero exposes statTaos + machine-speed headline', () => {
+  const src = fs.readFileSync(SHELL, 'utf8');
+  assert.ok(src.includes('id="statTaos"'), 'statTaos hero stat missing');
+  assert.ok(src.includes('Ship AI products at machine speed'), 'softened headline missing');
+  assert.ok(!/Launch AI products faster\./.test(src), 'legacy headline still present');
+});
+
+check('orphan-reaper cron installs from /var/www/unicorn', () => {
+  const src = fs.readFileSync(ORPHAN_CRON, 'utf8');
+  assert.ok(src.includes('/var/www/unicorn/UNICORN_FINAL/scripts/orphan-backend-reaper.sh'),
+    'cron must point at /var/www/unicorn path');
+  assert.ok(!src.includes('/opt/unicorn/UNICORN_FINAL/scripts/orphan-backend-reaper.sh'),
+    'stale /opt path still present in cron');
+  assert.ok(src.includes('ORPHAN_REAPER_APPLY=0'), 'cron must default to dry-run');
+  assert.ok(src.includes('/var/log/unicorn/'), 'cron log dir note missing');
 });
 
 console.log(`\n✅ total-autonomy-os: ${passed} tests passed`);
