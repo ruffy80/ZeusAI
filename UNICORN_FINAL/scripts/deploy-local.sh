@@ -96,9 +96,44 @@ fi
 curl -sk --max-time 10 "http://127.0.0.1:3000/api/autonomy/score" || true
 REMOTE
 
+# Patch nginx public-discovery (idempotent) so /.well-known/autonomy.json → :3000
+# and install orphan-reaper cron (dry-run by default).
+ssh "${SSHK[@]}" "$USER@$HOST" 'bash -s' <<'REMOTE' || echo "[deploy-local] warn: nginx/cron ops non-fatal"
+set +e
+DEPLOY_LINK="${DEPLOY_LINK:-/var/www/unicorn/UNICORN_FINAL}"
+mkdir -p /var/log/unicorn /etc/nginx/snippets
+SNIP="$DEPLOY_LINK/scripts/nginx-public-discovery.snippet.conf"
+PATCH="$DEPLOY_LINK/scripts/nginx-patch-public-discovery.py"
+if [ -f "$PATCH" ] && [ -f "$SNIP" ]; then
+  # Prefer sites-available/unicorn; fall back to zeusai.conf if that is the live site.
+  SITE_CAND=""
+  for cand in /etc/nginx/sites-available/unicorn /etc/nginx/sites-available/zeusai \
+              /etc/nginx/sites-enabled/unicorn /etc/nginx/sites-enabled/zeusai.conf; do
+    [ -f "$cand" ] && SITE_CAND="$cand" && break
+  done
+  if [ -n "$SITE_CAND" ]; then
+    python3 "$PATCH" --snippet "$SNIP" --site "$SITE_CAND" --domain zeusai.pro \
+      && echo "[deploy-local] nginx public-discovery patched via $SITE_CAND" \
+      || echo "[deploy-local] nginx patch failed (non-fatal)"
+  else
+    # Still install snippet file for manual include
+    cp -f "$SNIP" /etc/nginx/snippets/zeus-public-discovery.conf
+    echo "[deploy-local] installed snippet only (no site file matched)"
+  fi
+else
+  echo "[deploy-local] nginx patch scripts missing — skip"
+fi
+CRON_SRC="$DEPLOY_LINK/scripts/cron/unicorn-orphan-reaper.cron"
+if [ -f "$CRON_SRC" ]; then
+  install -m 0644 "$CRON_SRC" /etc/cron.d/unicorn-orphan-reaper
+  echo "[deploy-local] installed /etc/cron.d/unicorn-orphan-reaper (dry-run)"
+fi
+REMOTE
+
 # Post-deploy health is informational only — the canary + smoke inside
 # deploy-atomic-forward.sh already gated the promote, so a flaky external curl
 # here must not mark the deploy as failed.
 echo -n "[deploy-local] live health: "; curl -sk -o /dev/null -w "https %{http_code}\n" --max-time 20 "$PUBLIC_URL/health" || echo "(post-check curl timed out; deploy already verified by canary+smoke)"
 echo -n "[deploy-local] taos score: "; curl -sk --max-time 15 "$PUBLIC_URL/api/autonomy/score" || echo "(taos score check skipped)"
+echo -n "[deploy-local] autonomy well-known: "; curl -sk -o /dev/null -w "%{http_code}\n" --max-time 15 "$PUBLIC_URL/.well-known/autonomy.json" || echo "(skipped)"
 echo "[deploy-local] done — deployed $SHA"
