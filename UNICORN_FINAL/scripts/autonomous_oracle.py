@@ -331,14 +331,39 @@ def collect_vitals():
 
 
 # -------- 2) REFLEXES — deterministic self-healing -------------------
+# ORACLE_REFLEX_PM2=0 disables pm2 restart reflexes (recommended on single-node
+# during cold boot — otherwise a brief "stopping"/health timeout triggers a
+# restart storm that never lets unicorn-backend finish warming).
+REFLEX_PM2 = os.environ.get("ORACLE_REFLEX_PM2", "1") == "1"
+BACKEND_GRACE_SEC = max(0, int(os.environ.get("ORACLE_BACKEND_GRACE_SEC", "180")))
+
+
 def reflexes(vitals):
     acted = []
 
-    # Restart dead PM2 critical apps.
-    for name, up in (vitals.get("pm2") or {}).items():
-        if not up:
+    # Restart dead PM2 critical apps (gated + grace after process start).
+    if REFLEX_PM2:
+        for name, up in (vitals.get("pm2") or {}).items():
+            if up:
+                continue
+            # Grace: skip restart if the process exists but is still launching.
+            ok_uptime, up_s = run(
+                f"pm2 jlist 2>/dev/null | python3 -c \"import sys,json,time; "
+                f"apps=json.load(sys.stdin); p=next((a for a in apps if a.get('name')=='{name}'),None); "
+                f"print(int((time.time()*1000 - (p or {{}}).get('pm2_env',{{}}).get('pm_uptime',0))/1000) if p else 99999)\"",
+                10,
+            )
+            try:
+                age = int(up_s.strip()) if ok_uptime and up_s.strip().isdigit() else 99999
+            except Exception:
+                age = 99999
+            if age < BACKEND_GRACE_SEC:
+                acted.append(f"reflex:pm2_restart:{name}:skipped_grace:{age}s")
+                continue
             ok, _ = run(f"pm2 restart {name}", 30)
             acted.append(f"reflex:pm2_restart:{name}:{'ok' if ok else 'fail'}")
+    else:
+        acted.append("reflex:pm2_restart:disabled")
 
     # Restart dead critical systemd units (e.g. dormant cortex).
     for unit, state in (vitals.get("systemd") or {}).items():
