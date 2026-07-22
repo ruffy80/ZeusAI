@@ -3222,7 +3222,7 @@ function renderRoute(route, params = {}) {
     case '/admin': return pageAdminLogin();
     case '/admin/login': return pageAdminLogin();
     case '/wizard': return pageWizard();
-    case '/status': return pageStatus();
+    case '/status': return pageStatus(params);
     case '/changelog': return pageChangelog();
     case '/terms': return pageTerms();
     case '/privacy': return pagePrivacy();
@@ -4433,7 +4433,9 @@ function pageWizard() {
 </section>`;
 }
 
-function pageStatus() {
+function pageStatus(params = {}) {
+  // CSP nonce required: script-src uses strict-dynamic; un-nonced inline scripts are dropped.
+  const N = params.nonce ? ` nonce="${String(params.nonce).replace(/"/g, '')}"` : '';
   return `<section style="padding-top:140px;max-width:1100px">
   <span class="kicker">Live status</span>
   <h1 style="font-size:clamp(34px,4.4vw,56px);margin:10px 0 18px">Live Unicorn Status · <span id="stHeadline" class="grad">operational.</span></h1>
@@ -4472,7 +4474,7 @@ function pageStatus() {
       <a class="btn btn-ghost" href="/api/autonomy/score" target="_blank" rel="noopener">Autonomy score</a>
     </div>
   </div>
-  <script>
+  <script${N}>
   function taosEsc(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
   function taosPillarPass(p){
     if(!p||typeof p!=='object') return false;

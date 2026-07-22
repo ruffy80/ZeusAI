@@ -124,6 +124,8 @@ check('status page renders Total Autonomy OS panel', () => {
   assert.ok(src.includes('Total Autonomy OS'));
   assert.ok(src.includes('/api/autonomy/os'));
   assert.ok(src.includes('taosPanel') || src.includes('taosScore'));
+  assert.ok(src.includes('pageStatus(params)'), 'pageStatus must accept params for CSP nonce');
+  assert.ok(src.includes('<script${N}>') || src.includes('script${N}'), 'status inline script must carry CSP nonce');
 });
 
 check('backend wires TAOS routes', () => {
