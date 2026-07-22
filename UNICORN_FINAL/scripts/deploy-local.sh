@@ -96,32 +96,33 @@ fi
 curl -sk --max-time 10 "http://127.0.0.1:3000/api/autonomy/score" || true
 REMOTE
 
-# Patch nginx public-discovery (idempotent) so /.well-known/autonomy.json → :3000
-# and install orphan-reaper cron (dry-run by default).
+# Install MINIMAL nginx overlay for /.well-known/autonomy.json → site :3001.
+# The full nginx-public-discovery.snippet.conf collides with locations already
+# present in zeusai.conf (/api/eop, /api/lightning, …) and must NOT be copied
+# wholesale into /etc/nginx/snippets on this host.
 ssh "${SSHK[@]}" "$USER@$HOST" 'bash -s' <<'REMOTE' || echo "[deploy-local] warn: nginx/cron ops non-fatal"
 set +e
 DEPLOY_LINK="${DEPLOY_LINK:-/var/www/unicorn/UNICORN_FINAL}"
 mkdir -p /var/log/unicorn /etc/nginx/snippets
-SNIP="$DEPLOY_LINK/scripts/nginx-public-discovery.snippet.conf"
-PATCH="$DEPLOY_LINK/scripts/nginx-patch-public-discovery.py"
-if [ -f "$PATCH" ] && [ -f "$SNIP" ]; then
-  # Prefer sites-available/unicorn; fall back to zeusai.conf if that is the live site.
-  SITE_CAND=""
-  for cand in /etc/nginx/sites-available/unicorn /etc/nginx/sites-available/zeusai \
-              /etc/nginx/sites-enabled/unicorn /etc/nginx/sites-enabled/zeusai.conf; do
-    [ -f "$cand" ] && SITE_CAND="$cand" && break
-  done
-  if [ -n "$SITE_CAND" ]; then
-    python3 "$PATCH" --snippet "$SNIP" --site "$SITE_CAND" --domain zeusai.pro \
-      && echo "[deploy-local] nginx public-discovery patched via $SITE_CAND" \
-      || echo "[deploy-local] nginx patch failed (non-fatal)"
-  else
-    # Still install snippet file for manual include
-    cp -f "$SNIP" /etc/nginx/snippets/zeus-public-discovery.conf
-    echo "[deploy-local] installed snippet only (no site file matched)"
-  fi
+cat > /etc/nginx/snippets/zeus-public-discovery.conf <<'EOF'
+# Minimal Zeus discovery overlay (production-safe).
+# Full snippet collides with zeusai.conf — keep ONLY autonomy here.
+location = /.well-known/autonomy.json {
+    proxy_pass http://127.0.0.1:3001;
+    proxy_http_version 1.1;
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+    add_header Cache-Control "no-store" always;
+}
+EOF
+if nginx -t 2>/tmp/nginx-t.out; then
+  systemctl reload nginx && echo "[deploy-local] nginx autonomy overlay reloaded" \
+    || echo "[deploy-local] nginx reload failed (non-fatal)"
 else
-  echo "[deploy-local] nginx patch scripts missing — skip"
+  echo "[deploy-local] nginx -t failed — left previous config running:"
+  tail -5 /tmp/nginx-t.out 2>/dev/null
 fi
 CRON_SRC="$DEPLOY_LINK/scripts/cron/unicorn-orphan-reaper.cron"
 if [ -f "$CRON_SRC" ]; then
