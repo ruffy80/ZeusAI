@@ -138,6 +138,15 @@ check('client: hydrateServiceUpsell fetches /api/upsell and renders recommend bu
   assert.ok(client.includes('/api/upsell?service='));
   assert.ok(client.includes('data-sovereign-buy'));
 });
+check('client: hydrateServiceDetail uses delivery timeline (no unlock simulation overwrite)', () => {
+  const idx = client.indexOf('async function hydrateServiceDetail');
+  const end = client.indexOf('async function hydrateServiceUpsell', idx + 1);
+  const block = client.slice(idx, end > idx ? end : idx + 8000);
+  assert.ok(block.includes('svcDeliveryTimeline'));
+  assert.ok(block.includes('svcUpsell'));
+  assert.ok(!block.includes('Checkout unlock sequence'));
+  assert.ok(!block.includes('Run activation simulation'));
+});
 
 // ── E) Checkout page ─────────────────────────────────────────────
 check('shell: pageCheckout has "You are buying" header with plan + amount', () => {
