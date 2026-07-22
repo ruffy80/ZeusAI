@@ -4437,15 +4437,111 @@ function pageStatus() {
   return `<section style="padding-top:140px;max-width:1100px">
   <span class="kicker">Live status</span>
   <h1 style="font-size:clamp(34px,4.4vw,56px);margin:10px 0 18px">Live Unicorn Status · <span id="stHeadline" class="grad">operational.</span></h1>
-  <p style="color:var(--ink-dim);font-size:15px">Live API is protecting the site: health, QIS, catalog and checkout checks are refreshed from production endpoints. Source: <code class="inline">/api/status</code>. Refreshes every 15s.</p>
+  <p style="color:var(--ink-dim);font-size:15px">Live API is protecting the site: health, QIS, catalog and checkout checks are refreshed from production endpoints. Source: <code class="inline">/api/status</code>. Total Autonomy OS from <code class="inline">/api/autonomy/os</code>. Refreshes every 15s.</p>
+
+  <div class="card" id="taosPanel" style="margin-top:22px;padding:26px" aria-live="polite">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:16px;flex-wrap:wrap">
+      <div>
+        <span class="kicker">Total Autonomy OS</span>
+        <div style="display:flex;align-items:baseline;gap:14px;flex-wrap:wrap;margin-top:4px">
+          <span id="taosScore" class="grad" style="font-size:clamp(48px,7vw,84px);font-weight:800;line-height:1;font-family:var(--mono,monospace)">—</span>
+          <span id="taosGrade" style="font-size:22px;font-weight:700;letter-spacing:.04em">—</span>
+        </div>
+        <p style="color:var(--ink-dim);font-size:13.5px;margin:10px 0 0">Governance mode · <b id="taosMode" style="color:#fff">—</b></p>
+      </div>
+      <a class="btn btn-ghost" href="/api/autonomy/os" target="_blank" rel="noopener" style="font-size:12px">OS JSON →</a>
+    </div>
+    <div id="taosPillars" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin-top:20px"></div>
+    <div style="margin-top:18px;padding-top:16px;border-top:1px solid var(--stroke,rgba(160,200,255,.14))">
+      <span class="tag">Next</span>
+      <ul id="taosNext" style="margin:10px 0 0;padding-left:18px;color:var(--ink-dim);font-size:14px;line-height:1.65"><li>Loading autonomy snapshot…</li></ul>
+    </div>
+    <p id="taosDoctrine" style="color:var(--ink-dim);font-size:13.5px;margin:16px 0 0;font-style:italic">—</p>
+  </div>
+
   <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;margin-top:18px">
     <div class="card"><span class="tag">Deploy</span><h3>Forward-only</h3><p style="color:var(--ink-dim)">Canary + smoke guarded.</p></div>
     <div class="card"><span class="tag">Integrity</span><h3>QIS guarded</h3><p style="color:var(--ink-dim)">Quantum Integrity Shield checked live.</p></div>
     <div class="card"><span class="tag">Commerce</span><h3>Catalog + BTC</h3><p style="color:var(--ink-dim)">Checkout path remains monitored.</p></div>
   </div>
   <div class="grid" id="stGrid" style="margin-top:22px"><div class="card"><p>—</p></div></div>
-  <div class="card" style="margin-top:22px;padding:22px"><span class="kicker">90-day uptime</span><h2 id="stUptime" style="margin:8px 0">—</h2><p style="color:var(--ink-dim)">Synthetic checks every 60s. Incidents publicly sealed (commit-reveal).</p><a class="btn" href="/api/incidents" target="_blank">Public incident log</a></div>
+  <div class="card" style="margin-top:22px;padding:22px"><span class="kicker">90-day uptime</span><h2 id="stUptime" style="margin:8px 0">—</h2><p style="color:var(--ink-dim)">Synthetic checks every 60s. Incidents publicly sealed (commit-reveal).</p>
+    <div style="display:flex;gap:12px;flex-wrap:wrap;margin-top:12px">
+      <a class="btn" href="/api/incidents" target="_blank" rel="noopener">Public incident log</a>
+      <a class="btn btn-ghost" href="/api/autonomy/os" target="_blank" rel="noopener">Autonomy OS JSON</a>
+      <a class="btn btn-ghost" href="/api/autonomy/score" target="_blank" rel="noopener">Autonomy score</a>
+    </div>
+  </div>
   <script>
+  function taosEsc(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+  function taosPillarPass(p){
+    if(!p||typeof p!=='object') return false;
+    if(p.pass===true||p.ok===true||p.passed===true) return true;
+    var st=String(p.status||p.state||p.result||'').toLowerCase();
+    return st==='pass'||st==='ok'||st==='passed'||st==='healthy'||st==='green';
+  }
+  function taosPillarName(p,i){
+    if(typeof p==='string') return p;
+    return (p&&(p.name||p.id||p.title||p.pillar))||('Pillar '+(i+1));
+  }
+  function taosActionText(a){
+    if(typeof a==='string') return a;
+    if(!a||typeof a!=='object') return '';
+    return a.text||a.action||a.title||a.next||a.label||JSON.stringify(a);
+  }
+  async function loadAutonomyOs(){
+    try {
+      var d = await (await fetch('/api/autonomy/os',{cache:'no-store'})).json();
+      var score = d.score!=null ? d.score : (d.os&&d.os.score);
+      var grade = d.grade!=null ? d.grade : (d.os&&d.os.grade);
+      var mode = d.mode||d.governanceMode||(d.governance&&(d.governance.mode||d.governance.state))||(d.os&&d.os.mode)||'—';
+      var doctrine = d.doctrine||(d.os&&d.os.doctrine)||'';
+      if(typeof doctrine==='object'&&doctrine) doctrine = doctrine.line||doctrine.summary||doctrine.text||'';
+      var scoreEl=document.getElementById('taosScore');
+      var gradeEl=document.getElementById('taosGrade');
+      var modeEl=document.getElementById('taosMode');
+      var doctrineEl=document.getElementById('taosDoctrine');
+      if(scoreEl) scoreEl.textContent = score!=null ? String(score) : '—';
+      if(gradeEl) gradeEl.textContent = grade!=null ? String(grade) : '—';
+      if(modeEl) modeEl.textContent = String(mode);
+      if(doctrineEl) doctrineEl.textContent = doctrine ? String(doctrine) : 'Doctrine unavailable.';
+      var pillars = Array.isArray(d.pillars) ? d.pillars : (d.os&&Array.isArray(d.os.pillars)?d.os.pillars:[]);
+      var pillarsEl=document.getElementById('taosPillars');
+      if(pillarsEl){
+        if(!pillars.length){
+          pillarsEl.innerHTML='<p style="color:var(--ink-dim);font-size:13.5px;margin:0">Pillars pending — backend Total Autonomy OS not yet reporting.</p>';
+        } else {
+          pillarsEl.innerHTML = pillars.slice(0,8).map(function(p,i){
+            var ok=taosPillarPass(p);
+            var label=taosEsc(taosPillarName(p,i));
+            var bg=ok?'rgba(59,255,176,.15)':'rgba(255,120,120,.12)';
+            var fg=ok?'#3bffb0':'#ff8a8a';
+            var st=ok?'PASS':'FAIL';
+            return '<div style="padding:12px 14px;border-radius:12px;border:1px solid var(--stroke,rgba(160,200,255,.14));background:rgba(0,0,0,.22)"><span class="tag" style="background:'+bg+';color:'+fg+';margin-bottom:8px">'+st+'</span><div style="font-size:14px;font-weight:600">'+label+'</div></div>';
+          }).join('');
+        }
+      }
+      var nextList = [];
+      if(Array.isArray(d.next)) nextList = d.next;
+      else if(Array.isArray(d.actions)) nextList = d.actions;
+      else if(d.next!=null) nextList = [d.next];
+      else if(d.recommended) nextList = Array.isArray(d.recommended)?d.recommended:[d.recommended];
+      var nextEl=document.getElementById('taosNext');
+      if(nextEl){
+        var items = nextList.map(taosActionText).filter(Boolean).slice(0,6);
+        nextEl.innerHTML = items.length
+          ? items.map(function(t){ return '<li>'+taosEsc(t)+'</li>'; }).join('')
+          : '<li>No recommended actions right now.</li>';
+      }
+    } catch(e) {
+      var scoreEl2=document.getElementById('taosScore');
+      var nextEl2=document.getElementById('taosNext');
+      var pillarsEl2=document.getElementById('taosPillars');
+      if(scoreEl2) scoreEl2.textContent='—';
+      if(nextEl2) nextEl2.innerHTML='<li style="color:var(--ink-dim)">Autonomy OS snapshot unavailable. Retrying every 15s.</li>';
+      if(pillarsEl2) pillarsEl2.innerHTML='';
+    }
+  }
   async function loadStatus(){
     try { const d = await (await fetch('/api/status')).json();
       document.getElementById('stHeadline').textContent = d.overall + '.';
@@ -4458,7 +4554,8 @@ function pageStatus() {
       if (g) g.innerHTML = '<div class="card"><p style="color:var(--ink-dim)">Status snapshot unavailable. Retrying every 15s.</p></div>';
     }
   }
-  loadStatus(); setInterval(loadStatus, 15000);
+  function loadAllStatus(){ loadStatus(); loadAutonomyOs(); }
+  loadAllStatus(); setInterval(loadAllStatus, 15000);
   </script>
 </section>`;
 }
