@@ -14,6 +14,15 @@
 
 const { execSync } = require('child_process');
 
+// Default OFF on single-node VPS. A stale forever-process under
+// /var/www/unicorn/current was suicide-looping unicorn-backend whenever
+// /api/health briefly timed out during cold boot. Arm only with
+// WATCHDOG_ENABLED=1 (and prefer external cron healers with grace).
+if (String(process.env.WATCHDOG_ENABLED || '0').toLowerCase() !== '1') {
+  console.log('[watchdog] DISABLED (set WATCHDOG_ENABLED=1 to arm)');
+  process.exit(0);
+}
+
 const BASE_URL = process.env.WATCHDOG_BASE || 'https://zeusai.pro';
 const POLL_MS = Number(process.env.WATCHDOG_POLL_MS || 60_000);
 const FAIL_THRESHOLD = Number(process.env.WATCHDOG_FAIL_THRESHOLD || 3);
