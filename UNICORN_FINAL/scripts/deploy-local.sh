@@ -72,8 +72,33 @@ tar czf - -C "$STAGE" . | ssh "${SSHK[@]}" "$USER@$HOST" "tar xzf - -C '$REL'"
 # daemon (/root/.pm2), not /etc/.pm2.
 ssh "${SSHK[@]}" "$USER@$HOST" "export HOME=/root; chmod +x '$REL/UNICORN_FINAL/scripts/'*.sh 2>/dev/null || true; GITHUB_SHA='$SHA' PUBLIC_URL='$PUBLIC_URL' bash '$REL/UNICORN_FINAL/scripts/deploy-atomic-forward.sh' '$REL/UNICORN_FINAL' '$DEPLOY_LINK'"
 
+# Post-promote: reap orphan node backend/index.js (PPID=1) that can thrash PM2.
+ssh "${SSHK[@]}" "$USER@$HOST" "ORPHAN_REAPER_APPLY=1 bash '$DEPLOY_LINK/scripts/orphan-backend-reaper.sh'" \
+  || echo "[deploy-local] warn: orphan-reaper non-fatal"
+
+# Soft-arm Total Autonomy OS SAFE loops (admin secret from shared .env if present).
+ssh "${SSHK[@]}" "$USER@$HOST" 'bash -s' <<'REMOTE' || echo "[deploy-local] warn: taos arm non-fatal"
+set +e
+DEPLOY_LINK="${DEPLOY_LINK:-/var/www/unicorn/UNICORN_FINAL}"
+ENVF="/var/www/unicorn/shared/.env"
+SECRET=""
+if [ -f "$ENVF" ]; then
+  SECRET="$(grep -E '^ADMIN_SECRET=' "$ENVF" | head -1 | cut -d= -f2- | tr -d '"' | tr -d "'")"
+fi
+if [ -n "$SECRET" ]; then
+  curl -sk -X POST -H "x-admin-secret: $SECRET" -H "content-type: application/json" \
+    --max-time 15 "http://127.0.0.1:3000/api/autonomy/os/arm" >/tmp/taos-arm.json 2>/dev/null \
+    && echo "[deploy-local] taos arm: $(head -c 200 /tmp/taos-arm.json)" \
+    || echo "[deploy-local] taos arm curl skipped/failed"
+else
+  echo "[deploy-local] no ADMIN_SECRET — skip remote arm (TAOS still scores on boot)"
+fi
+curl -sk --max-time 10 "http://127.0.0.1:3000/api/autonomy/score" || true
+REMOTE
+
 # Post-deploy health is informational only — the canary + smoke inside
 # deploy-atomic-forward.sh already gated the promote, so a flaky external curl
 # here must not mark the deploy as failed.
 echo -n "[deploy-local] live health: "; curl -sk -o /dev/null -w "https %{http_code}\n" --max-time 20 "$PUBLIC_URL/health" || echo "(post-check curl timed out; deploy already verified by canary+smoke)"
+echo -n "[deploy-local] taos score: "; curl -sk --max-time 15 "$PUBLIC_URL/api/autonomy/score" || echo "(taos score check skipped)"
 echo "[deploy-local] done — deployed $SHA"

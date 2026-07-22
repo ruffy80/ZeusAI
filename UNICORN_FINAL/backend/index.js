@@ -3179,6 +3179,13 @@ let autonomySpine = null;
 try { autonomySpine = require('./modules/autonomy-spine'); }
 catch (e) { console.warn('[autonomy-spine] disabled:', e && e.message); }
 
+// Total Autonomy OS — unified sense→score→safe-act plane (TAOS/1.0).
+// Runs even under stable profile: observe + score + optional SAFE arm.
+// Never enables file mutators or in-process PM2 restart.
+let totalAutonomyOs = null;
+try { totalAutonomyOs = require('./modules/totalAutonomyOs'); }
+catch (e) { console.warn('[total-autonomy-os] disabled:', e && e.message); }
+
 // ==================== 3 COMPONENTE CRITICE AUTONOME ====================
 const centralOrchestrator = require('./modules/central-orchestrator');
 const selfHealingEngine   = require('./modules/self-healing-engine');
@@ -3804,6 +3811,14 @@ if (_isPrimaryWorker) {
       opsWatchdog.start();
     }
   } catch (e) { console.warn('[ops-watchdog] not loaded:', e.message); }
+
+  // Total Autonomy OS — always-on under every profile (incl. stable).
+  // Scores NDK/spine/commerce/pre-keys/TPG, self-smokes, optional SAFE arm.
+  try {
+    if (process.env.NODE_ENV !== 'test' && process.env.TAOS_DISABLED !== '1' && totalAutonomyOs) {
+      totalAutonomyOs.start({ immediate: true });
+    }
+  } catch (e) { console.warn('[total-autonomy-os] start failed:', e && e.message); }
   // Componenta 3 — Auto-Innovation Loop (analiză cod + PR automate + CI monitoring)
   if (!_stableRuntime && _enableFileMutators) {
     autoInnovationLoop.start();
@@ -4238,6 +4253,22 @@ function buildHealthResponse() {
         return ndk.healthEnvelope();
       } catch (_) {
         return { protocol: 'NDK/1.0', health: 'unknown', neverKill: true, healerFail: false };
+      }
+    })(),
+    totalAutonomy: (function () {
+      try {
+        if (!totalAutonomyOs) return { protocol: 'TAOS/1.0', available: false };
+        const s = totalAutonomyOs.getScore();
+        return {
+          protocol: 'TAOS/1.0',
+          available: true,
+          score: s.score,
+          grade: s.grade,
+          mode: s.mode,
+          armedSafe: !!s.armedSafe,
+        };
+      } catch (_) {
+        return { protocol: 'TAOS/1.0', available: false };
       }
     })(),
   };
@@ -9726,6 +9757,47 @@ app.get('/api/spine/verify', (req, res) => {
 app.get('/api/spine/publickey', (req, res) => {
   if (!autonomySpine) return res.status(503).json({ error: 'autonomy-spine unavailable' });
   res.json({ publicKey: autonomySpine.getPublicKey(), alg: 'ed25519' });
+});
+
+// ==================== TOTAL AUTONOMY OS (TAOS/1.0) ====================
+// Unified autonomy score + safe arm. Public read; arm is admin-gated.
+app.get(['/api/autonomy/os', '/.well-known/autonomy.json'], (req, res) => {
+  if (!totalAutonomyOs) return res.status(503).json({ ok: false, error: 'total-autonomy-os unavailable' });
+  try { return res.json(totalAutonomyOs.getStatus()); }
+  catch (e) { return res.status(500).json({ ok: false, error: e.message }); }
+});
+
+app.get('/api/autonomy/score', (req, res) => {
+  if (!totalAutonomyOs) return res.status(503).json({ ok: false, error: 'total-autonomy-os unavailable' });
+  try { return res.json(totalAutonomyOs.getScore()); }
+  catch (e) { return res.status(500).json({ ok: false, error: e.message }); }
+});
+
+app.get('/api/autonomy/os/history', (req, res) => {
+  if (!totalAutonomyOs) return res.status(503).json({ ok: false, error: 'total-autonomy-os unavailable' });
+  const limit = Math.min(parseInt(req.query.limit, 10) || 20, 40);
+  return res.json({ ok: true, history: totalAutonomyOs.getHistory(limit) });
+});
+
+app.post('/api/autonomy/os/tick', sensitiveRateLimit({ maxRequests: 30, windowMs: 60_000, cooldownMs: 30_000 }), (req, res) => {
+  if (!totalAutonomyOs) return res.status(503).json({ ok: false, error: 'total-autonomy-os unavailable' });
+  try { return res.json(totalAutonomyOs.tick()); }
+  catch (e) { return res.status(500).json({ ok: false, error: e.message }); }
+});
+
+app.post('/api/autonomy/os/arm', sensitiveRateLimit({ maxRequests: 8, windowMs: 60_000, cooldownMs: 180_000 }), (req, res, next) => {
+  const provided = req.headers['x-admin-secret'] || req.body?.adminSecret || req.query?.adminSecret || '';
+  const expected = process.env.ADMIN_SECRET || '';
+  if (expected && provided && provided === expected) { req._adminBypass = true; return next(); }
+  return adminTokenMiddleware(req, res, next);
+}, (req, res) => {
+  if (!totalAutonomyOs) return res.status(503).json({ ok: false, error: 'total-autonomy-os unavailable' });
+  try {
+    const result = totalAutonomyOs.armSafe({ source: 'api' });
+    return res.status(result.ok ? 200 : 409).json(result);
+  } catch (e) {
+    return res.status(500).json({ ok: false, error: e.message });
+  }
 });
 
 // ==================== CODE SANITY ENGINE ====================

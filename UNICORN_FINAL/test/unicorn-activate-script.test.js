@@ -68,6 +68,12 @@ check('activate keeps production stable profile (no in-process ZDT suicide)', ()
   assert.ok(activate.includes('ZDT_ENABLED=0'));
 });
 
+check('activate enables Total Autonomy OS safe-arm + orphan reaper', () => {
+  assert.ok(activate.includes('TOTAL_AUTONOMY_SAFE_ARM=1'));
+  assert.ok(activate.includes('orphan-backend-reaper.sh'));
+  assert.ok(activate.includes('totalAutonomyOs'));
+});
+
 check('activate reloads canonical PM2 apps, not per-module processes', () => {
   assert.ok(activate.includes('startOrReload'), 'should use pm2 startOrReload');
   assert.ok(activate.includes('ecosystem.config.js'), 'should reload ecosystem.config.js');

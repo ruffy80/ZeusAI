@@ -96,6 +96,8 @@ ENABLE_AUTO_EVOLVE=0
 ENABLE_AUTO_RESTART=0
 WATCHDOG_AUTOSTART=0
 ZDT_ENABLED=0
+TAOS_DISABLED=0
+TOTAL_AUTONOMY_SAFE_ARM=1
 ENV
 log "wrote safe autonomy env → $AUTONOMY_ENV_FILE"
 
@@ -142,6 +144,7 @@ const targets = [
   ['ModuleLoader',            ['ModuleLoader']],
   ['frontierAI',              ['frontierAI']],
   ['marketAnalytics',         ['marketAnalytics']],
+  ['totalAutonomyOs',         ['totalAutonomyOs']],
 ];
 let present = 0;
 let missing = 0;
@@ -287,6 +290,16 @@ if [ -f "$AUTOHEAL_MIN" ] && command -v crontab >/dev/null 2>&1; then
     log "installed autoheal-min cron (every 1 min, NDK-aware)"
   fi
 fi
+fi
+
+# ── 6c. Orphan backend reaper (PPID=1 node backend/index.js suicide prevention) ──
+REAPER="$DEPLOY_LINK/scripts/orphan-backend-reaper.sh"
+if [ -f "$REAPER" ]; then
+  chmod +x "$REAPER" 2>/dev/null || true
+  log "orphan-backend-reaper (apply)"
+  ORPHAN_REAPER_APPLY=1 bash "$REAPER" || warn "orphan-reaper non-fatal"
+else
+  warn "orphan-reaper missing at $REAPER"
 fi
 
 # ── 7. Health checks (retry — backend needs a few seconds after PM2 reload) ──
