@@ -525,7 +525,7 @@ ${L('/', 'Home')}${L('/services', 'Marketplace')}<a class="nav-link nav-link-zac
     ${L('/crypto-fiat-bridge', 'Crypto Bridge')}
     ${L('/enterprise', 'Enterprise')}
     ${L('/docs', 'API &amp; Docs')}
-    ${L('/status', 'Status')}
+    ${L('/status', 'Autonomy OS')}
     ${L('/trust', 'Trust Center')}
   </div>
 </div>
@@ -1028,13 +1028,13 @@ function pageHome() {
   <div class="hero-grid">
     <div class="hero-copy">
       <span class="hero-eyebrow"><span class="dot"></span> Live · ${new Date().toISOString().slice(0,16).replace('T',' ')} UTC</span>
-      <h1>ZEUS AI / <span class="grad">Launch AI products faster.</span></h1>
+      <h1>ZEUS AI / <span class="grad">Ship AI products at machine speed.</span></h1>
       <p class="lead">Live autonomous AI commerce platform: ZeusAI turns modules, verticals and marketplaces into buyable AI services with direct BTC checkout, signed receipts and instant delivery.</p>
       <div class="hero-cta">
         <a class="btn btn-primary" href="/services" data-link>Buy AI Service →</a>
       </div>
       <div style="display:flex;gap:14px;flex-wrap:wrap;margin-top:10px;font-size:13px;color:var(--ink-dim)">
-        <a href="/status" data-link style="color:var(--violet2)">Live status</a>
+        <a href="/status" data-link style="color:var(--violet2)">Autonomy OS</a>
         <a href="/pricing" data-link style="color:var(--violet2)">Transparent pricing</a>
         <a href="/trust" data-link style="color:var(--violet2)">Trust center</a>
       </div>
@@ -1043,6 +1043,7 @@ function pageHome() {
         <div class="hero-stat"><b id="statVerticals">18</b><span>Verticals</span></div>
         <div class="hero-stat"><b id="statMarkets">41</b><span>Marketplaces</span></div>
         <div class="hero-stat"><b id="statChain">—</b><span>Chain length</span></div>
+        <div class="hero-stat"><b id="statTaos">—</b><span>Autonomy</span></div>
       </div>
       <div class="hero-stats" style="margin-top:14px">
         <div class="hero-stat"><b>Signed receipts</b><span>Every order verifiable</span></div>

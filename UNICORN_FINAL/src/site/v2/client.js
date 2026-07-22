@@ -532,6 +532,25 @@ function applySnapshot(s){
   if (s.autonomy && s.autonomy.chain) set('statChain', s.autonomy.chain.length || '—');
 }
 
+// Total Autonomy OS (TAOS/1.0) hero-stat + nav hydrator. Fetches the live
+// score from the backend and paints `#statTaos` / `#navTaos` (`${grade} ${score}`).
+// Fails silently: if the endpoint is unavailable or shape is wrong, the SSR
+// placeholder ("—") stays.
+async function hydrateAutonomyScore(){
+  try {
+    const r = await fetch('/api/autonomy/score', { cache: 'no-store' });
+    if (!r || !r.ok) return;
+    const j = await r.json();
+    if (!j || j.ok !== true) return;
+    const label = (j.grade && (j.score != null)) ? `${j.grade} ${j.score}` : (j.grade || (j.score != null ? String(j.score) : ''));
+    if (!label) return;
+    const taos = document.getElementById('statTaos');
+    if (taos) taos.textContent = label;
+    const nav = document.getElementById('navTaos');
+    if (nav) nav.textContent = label;
+  } catch (_) { /* silent */ }
+}
+
 // ================= ROUTER =================
 function routePath(value){
   try { return new URL(String(value || '/'), location.origin).pathname.replace(/\/$/, '') || '/'; } catch (_) { return String(value || '/').split('?')[0].replace(/\/$/, '') || '/'; }
@@ -1529,6 +1548,7 @@ async function hydrateHome(){
       </a>`).join('');
   }
   if (snap && snap.telemetry) { $('#statModules') && ($('#statModules').textContent = snap.modules?.length || 169); }
+  hydrateAutonomyScore().catch(function(){});
   hydrateCommerceProof();
   initFinalLive(services);
 }
