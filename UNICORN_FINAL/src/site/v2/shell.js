@@ -205,7 +205,9 @@ function _libraryCard(p) {
     </div>
     <h3 style="margin:2px 0 0;font-size:14px;line-height:1.3" itemprop="name">${title}</h3>
     <p style="margin:0;color:var(--ink-dim);font-size:12px;line-height:1.4;flex:1" itemprop="description">${desc}</p>
-    <a class="btn btn-ghost" href="/checkout/?serviceId=${encodeURIComponent(id)}&plan=${encodeURIComponent(id)}" data-link aria-label="Buy ${title} with Bitcoin" style="font-size:12px;padding:6px 10px">Buy →</a>
+    ${price > 0
+      ? `<a class="btn btn-primary" href="/checkout/?plan=${encodeURIComponent(id)}" data-sovereign-buy="${id}" aria-label="Buy ${title} with Bitcoin" style="font-size:12px;padding:6px 10px">Buy →</a>`
+      : `<a class="btn btn-ghost" href="/services/${encodeURIComponent(id)}" data-link aria-label="View ${title}" style="font-size:12px;padding:6px 10px">View →</a>`}
   </article>`;
 }
 function _tierBadge(tier) {

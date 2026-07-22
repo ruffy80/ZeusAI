@@ -2163,19 +2163,49 @@ function masterCardHtml(it){
 // sat-amount on-chain and issues an Ed25519 entitlement automatically. Funds
 // settle directly to the owner's wallet — no Stripe/PayPal in the loop.
 async function sovereignBuy(serviceId, opts){
+  const preorder = !!(opts && opts.preorder);
+  const el = opts && opts.el;
+  const prevCursor = document.body ? document.body.style.cursor : '';
+  const prevBtnDisabled = el ? el.disabled : null;
+  const prevBtnText = el && el.tagName === 'BUTTON' ? el.textContent : null;
   try {
-    const preorder = !!(opts && opts.preorder);
+    if (document.body) document.body.style.cursor = 'wait';
+    if (el) {
+      try { el.disabled = true; } catch (_) {}
+      if (el.tagName === 'BUTTON') { try { el.textContent = 'Creating BTC invoice…'; } catch (_) {} }
+      try { el.setAttribute('aria-busy', 'true'); } catch (_) {}
+    }
     trackFunnel('checkout_start', { serviceId: String(serviceId || ''), value: null, checkoutType: preorder ? 'preorder' : 'direct' });
     const r = await fetch('/api/checkout/create', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ serviceId, qty: 1, currency: 'USD', preorder }) });
-    const j = await r.json();
-    if (!r.ok || !j || !j.checkout_url) {
-      alert('Could not create checkout: ' + ((j && j.error) || ('HTTP ' + r.status)));
-      return;
+    let j = null;
+    try { j = await r.json(); } catch (_) { j = null; }
+    // Accept either an explicit checkout_url or fall back to a relative
+    // /checkout/:orderId redirect so the flow works even if the server
+    // omits/mangles checkout_url. Prefer same-origin navigation to avoid
+    // cross-origin edge cases in production behind nginx.
+    const orderId = j && j.orderId;
+    let target = null;
+    if (j && j.checkout_url) target = String(j.checkout_url);
+    else if (orderId) target = '/checkout/' + encodeURIComponent(String(orderId));
+    if (!r.ok || !target) {
+      throw new Error((j && j.error) || ('HTTP ' + r.status));
     }
-    trackFunnel('checkout_redirect', { serviceId: String(serviceId || ''), checkoutUrl: String(j.checkout_url || '').slice(0, 160) });
-    window.location.href = j.checkout_url;
+    trackFunnel('checkout_redirect', { serviceId: String(serviceId || ''), checkoutUrl: target.slice(0, 160) });
+    // If target is same-origin, use a relative path so we don't leave the
+    // current host during the redirect (helps with proxies + dev environments).
+    try {
+      const u = new URL(target, window.location.origin);
+      if (u.origin === window.location.origin) target = u.pathname + u.search + u.hash;
+    } catch (_) {}
+    window.location.href = target;
   } catch (e) {
-    alert('Network error creating checkout: ' + (e && e.message ? e.message : e));
+    if (document.body) document.body.style.cursor = prevCursor || '';
+    if (el) {
+      try { el.disabled = prevBtnDisabled == null ? false : prevBtnDisabled; } catch (_) {}
+      if (prevBtnText != null && el.tagName === 'BUTTON') { try { el.textContent = prevBtnText; } catch (_) {} }
+      try { el.removeAttribute('aria-busy'); } catch (_) {}
+    }
+    alert('Could not create BTC checkout: ' + (e && e.message ? e.message : e));
   }
 }
 if (typeof window !== 'undefined') {
@@ -2193,7 +2223,7 @@ if (typeof window !== 'undefined') {
       if (typeof ev.stopImmediatePropagation === 'function') ev.stopImmediatePropagation();
       const id = t.getAttribute('data-sovereign-buy');
       const preorder = t.getAttribute('data-sovereign-preorder') === '1';
-      if (id) sovereignBuy(id, { preorder });
+      if (id) sovereignBuy(id, { preorder, el: t });
     }, true);
   }
 }
