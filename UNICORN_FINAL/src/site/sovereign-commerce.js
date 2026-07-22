@@ -694,6 +694,16 @@ a{color:var(--acc)}
   <a class="cta" style="background:#14132a;color:#eaf0ff;border:1px solid var(--line)" id="verifyLink" href="/api/entitlements/${accessToken}">🔎 Verify entitlement</a>
   <a class="cta" style="background:#14132a;color:#eaf0ff;border:1px solid var(--line)" id="deliveryLink" href="/api/delivery/${orderId}">📦 View delivery package</a></p>
   <p class="note" style="margin-top:8px">Delivery is processing automatically. The delivery link above will show your artifacts once ready.</p>
+  <div style="margin-top:14px;padding-top:12px;border-top:1px dashed #165232">
+    <p style="margin:0 0 6px"><b>🎁 Gift this service</b></p>
+    <p class="note" style="margin:0 0 8px">Mint a signed redemption code — recipient gets ZeusAI on you. Public endpoint, no login.</p>
+    <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">
+      <input id="giftFrom" type="email" placeholder="Your email" style="flex:1;min-width:160px;background:#14132a;border:1px solid var(--line);color:var(--fg);padding:8px 10px;border-radius:8px;font-size:13px"/>
+      <input id="giftTo" type="email" placeholder="Recipient email (optional)" style="flex:1;min-width:180px;background:#14132a;border:1px solid var(--line);color:var(--fg);padding:8px 10px;border-radius:8px;font-size:13px"/>
+      <button type="button" class="cta" id="giftBtn" style="background:#8a5cff;color:#fff">Mint gift code →</button>
+    </div>
+    <div id="giftOut" class="note" style="margin-top:8px"></div>
+  </div>
 </div>
 
 <footer>Settlement: direct on-chain to owner wallet · No custodian · 30Y-LTS sovereign commerce · ${escapeHtml(OWNER_DOMAIN)}</footer>
@@ -727,6 +737,16 @@ a{color:var(--acc)}
     }).catch(function(){setTimeout(poll,5000);});
   }
   poll();
+  var gb=document.getElementById('giftBtn');
+  if(gb){gb.addEventListener('click',function(){
+    var out=document.getElementById('giftOut');
+    var payload={ sku:'${jsStringEscape(o.serviceId || '')}', valueUsd:${Number(o.subtotal_fiat || 0)}, fromEmail:(document.getElementById('giftFrom')||{}).value||'', toEmail:(document.getElementById('giftTo')||{}).value||'', message:'Use ZeusAI on me 🎁' };
+    fetch('/api/gift/mint',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)}).then(function(r){return r.json();}).then(function(d){
+      if(!out) return;
+      if(d && d.code){ var url=location.origin+(d.redeemUrl||('/redeem/'+d.code)); out.innerHTML='<b>'+d.code+'</b> — share: <code>'+url+'</code>'; }
+      else { out.textContent='Could not mint gift'; }
+    }).catch(function(e){ if(out) out.textContent='Gift mint failed: '+(e&&e.message||e); });
+  });}
 })();
 </script></body></html>`;
 }
