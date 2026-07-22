@@ -1550,7 +1550,75 @@ async function hydrateHome(){
   if (snap && snap.telemetry) { $('#statModules') && ($('#statModules').textContent = snap.modules?.length || 169); }
   hydrateAutonomyScore().catch(function(){});
   hydrateCommerceProof();
+  hydrateHomeProof().catch(function(){});
+  bindHeroQuickBuy();
   initFinalLive(services);
+}
+
+// World-Profit-OS: paint SSR `#homeLiveSales` with real recent on-chain sales
+// and, when the owner-revenue endpoint is reachable (admin/dev), surface the
+// running BTC receipts total on `#statBtcReceived`. Everything degrades to
+// static SSR copy on failure — no visible errors on the homepage.
+async function hydrateHomeProof(){
+  const body = document.getElementById('homeLiveSalesBody');
+  if (body) {
+    try {
+      const r = await api('/api/commerce/recent-sales?limit=8');
+      const sales = (r && Array.isArray(r.sales)) ? r.sales : [];
+      if (!sales.length) {
+        body.innerHTML = '<span style="color:var(--ink-dim)">No on-chain settlements yet — be the first. Every paid order will appear here with a mempool.space proof link.</span>';
+      } else {
+        const fmtTime = function(iso){
+          try {
+            const d = new Date(iso); const diff = (Date.now() - d.getTime()) / 1000;
+            if (diff < 60) return Math.floor(diff) + 's ago';
+            if (diff < 3600) return Math.floor(diff/60) + 'm ago';
+            if (diff < 86400) return Math.floor(diff/3600) + 'h ago';
+            return Math.floor(diff/86400) + 'd ago';
+          } catch (_) { return ''; }
+        };
+        body.innerHTML = sales.map(function(s){
+          const name = escapeHtml((s.service && (s.service.name || s.service.id)) || 'service');
+          const sats = (s.amount_sats || 0).toLocaleString();
+          const proof = s.proof_url ? ' · <a href="' + escapeHtml(s.proof_url) + '" target="_blank" rel="noopener" style="color:#00ffa3">tx ' + escapeHtml(String(s.txid||'').slice(0,10)) + '…</a>' : '';
+          return '<div>✓ <b style="color:var(--ink)">' + name + '</b> · ' + sats + ' sats · ' + escapeHtml(fmtTime(s.paid_at)) + proof + '</div>';
+        }).join('');
+      }
+    } catch (_) { /* keep SSR fallback copy */ }
+  }
+  const statBtc = document.getElementById('statBtcReceived');
+  if (statBtc) {
+    try {
+      const rev = await api('/api/admin/owner-revenue');
+      const paid = rev && (rev.paid_sats || rev.paidSats || 0);
+      if (paid) statBtc.textContent = (Number(paid) / 1e8).toFixed(4) + ' BTC';
+    } catch (_) { /* owner-revenue is admin-only; keep SSR fallback silently */ }
+  }
+}
+
+function bindHeroQuickBuy(){
+  const form = document.getElementById('heroQuickBuy');
+  if (!form || form.__wpOsBound) return;
+  form.__wpOsBound = true;
+  const btn = form.querySelector('[data-hero-quick-buy-btn]');
+  const pick = document.getElementById('heroQuickPick');
+  const emailEl = document.getElementById('heroQuickEmail');
+  const submit = function(){
+    const id = pick && pick.value;
+    if (!id) return;
+    const email = String((emailEl && emailEl.value) || '').trim();
+    if (email) {
+      try { localStorage.setItem('u_email', email); } catch (_) {}
+    }
+    try { trackFunnel('hero_quick_buy_click', { serviceId: id, hasEmail: !!email }); } catch (_) {}
+    if (typeof window.sovereignBuy === 'function') {
+      window.sovereignBuy(id, { el: btn });
+    } else {
+      window.location.href = '/checkout/?plan=' + encodeURIComponent(id);
+    }
+  };
+  if (btn) btn.addEventListener('click', function(ev){ ev.preventDefault(); submit(); });
+  form.addEventListener('submit', function(ev){ ev.preventDefault(); submit(); });
 }
 
 async function hydrateCommerceProof(){
@@ -2566,6 +2634,31 @@ async function hydrateServiceDetail(id){
     if (btcEl) btcEl.textContent = live.price_btc != null ? ('≈ ' + Number(live.price_btc).toFixed(8) + ' BTC') : '';
   }).catch(function(){});
   initServiceNarrative(s);
+  hydrateServiceUpsell(s).catch(function(){});
+}
+
+async function hydrateServiceUpsell(service){
+  const host = document.getElementById('svcUpsell');
+  if (!host) return;
+  const anchor = String((service && service.id) || host.getAttribute('data-upsell-anchor') || '');
+  if (!anchor) return;
+  let recs = [];
+  try {
+    const r = await api('/api/upsell?service=' + encodeURIComponent(anchor));
+    if (r && Array.isArray(r.recommendations)) recs = r.recommendations.slice(0, 3);
+  } catch (_) { recs = []; }
+  if (!recs.length) return;
+  const chips = recs.map(function(rec){
+    const rid = String(rec.id || rec.serviceId || rec.sku || '');
+    if (!rid) return '';
+    const title = escapeHtml(String(rec.title || rec.name || rid));
+    const price = Number(rec.priceUSD || rec.priceUsd || rec.price || 0);
+    const priceTxt = price > 0 ? (' · $' + price.toLocaleString('en-US', { maximumFractionDigits: 2 })) : '';
+    const why = rec.why ? ('<div style="font-size:11.5px;color:var(--ink-dim);margin-top:2px">' + escapeHtml(String(rec.why)) + '</div>') : '';
+    return '<button type="button" class="btn btn-ghost" data-sovereign-buy="' + escapeHtml(rid) + '" style="width:100%;justify-content:flex-start;text-align:left;flex-direction:column;align-items:flex-start;gap:2px;padding:10px 12px;margin-top:6px"><b style="font-size:13px">Also useful: ' + title + priceTxt + '</b>' + why + '</button>';
+  }).join('');
+  if (!chips.trim()) return;
+  host.innerHTML = '<span class="kicker" style="font-size:10.5px">Recommended add-ons</span>' + chips;
 }
 
 function initServiceNarrative(service){
@@ -2876,7 +2969,49 @@ function hydrateCheckout(){
                 ${deliveryLinks}
                 <a class="btn btn-ghost" href="/dashboard" data-link>Go to dashboard</a>
               </div>
+            </div>
+            <div class="card" id="postPaidGiftCard" style="margin-top:10px;border-color:rgba(138,92,255,.35);background:linear-gradient(135deg,rgba(138,92,255,.06),rgba(62,160,255,.04))">
+              <span class="tag" style="background:rgba(138,92,255,.16);color:var(--violet2)">🎁 Gift this service</span>
+              <h3 style="margin:6px 0 4px;font-size:16px">Send a signed gift code — friend gets ZeusAI on you.</h3>
+              <p style="color:var(--ink-dim);font-size:13px;margin:0 0 10px">Mints an Ed25519-signed redemption code. Public endpoint — no login required.</p>
+              <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:8px">
+                <input id="ppGiftSku" placeholder="SKU (e.g. adaptive-ai)" value="${escapeHtml(String(r.plan || r.serviceId || ''))}" style="padding:9px 11px;border-radius:8px;border:1px solid var(--stroke);background:rgba(5,4,10,.55);color:var(--ink);font-size:13px"/>
+                <input id="ppGiftVal" type="number" min="1" step="1" placeholder="USD value" value="${escapeHtml(String(Number(r.amountUsd || 0) || ''))}" style="padding:9px 11px;border-radius:8px;border:1px solid var(--stroke);background:rgba(5,4,10,.55);color:var(--ink);font-size:13px"/>
+                <input id="ppGiftFrom" type="email" placeholder="From email" style="padding:9px 11px;border-radius:8px;border:1px solid var(--stroke);background:rgba(5,4,10,.55);color:var(--ink);font-size:13px"/>
+                <input id="ppGiftTo" type="email" placeholder="Recipient email (optional)" style="padding:9px 11px;border-radius:8px;border:1px solid var(--stroke);background:rgba(5,4,10,.55);color:var(--ink);font-size:13px"/>
+              </div>
+              <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap">
+                <button type="button" class="btn btn-primary" id="ppGiftBtn">Mint gift code →</button>
+                <a class="btn btn-ghost" href="/dashboard" data-link title="Sign in to view your referral link">Get referral link (login required)</a>
+              </div>
+              <div id="ppGiftOut" style="margin-top:10px"></div>
             </div>`);
+          const giftBtn = document.getElementById('ppGiftBtn');
+          if (giftBtn && !giftBtn.__bound) {
+            giftBtn.__bound = true;
+            giftBtn.addEventListener('click', async function(){
+              const out = document.getElementById('ppGiftOut');
+              const payload = {
+                sku: (document.getElementById('ppGiftSku')||{}).value || '',
+                valueUsd: Number((document.getElementById('ppGiftVal')||{}).value || 0),
+                fromEmail: (document.getElementById('ppGiftFrom')||{}).value || '',
+                toEmail: (document.getElementById('ppGiftTo')||{}).value || '',
+                message: 'Use ZeusAI on me 🎁'
+              };
+              try {
+                const gr = await fetch('/api/gift/mint', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) });
+                const gd = await gr.json();
+                if (gd && gd.code && out) {
+                  const url = location.origin + (gd.redeemUrl || ('/redeem/' + gd.code));
+                  out.innerHTML = '<div class="card" style="margin:0;padding:10px 12px;border-color:var(--violet)"><b style="color:var(--violet2)">' + escapeHtml(String(gd.code)) + '</b><div style="color:var(--ink-dim);font-size:12px;margin-top:4px">Share this URL: <code class="inline">' + escapeHtml(url) + '</code></div></div>';
+                } else if (out) {
+                  out.innerHTML = '<div style="color:var(--danger);font-size:12.5px">Could not mint gift: ' + escapeHtml(String((gd && gd.error) || 'unknown')) + '</div>';
+                }
+              } catch (e) {
+                if (out) out.innerHTML = '<div style="color:var(--danger);font-size:12.5px">Gift mint failed: ' + escapeHtml(String((e && e.message) || e)) + '</div>';
+              }
+            });
+          }
         }
       }
     } else if (r.status === 'pending') {
