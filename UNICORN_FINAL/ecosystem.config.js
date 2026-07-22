@@ -101,7 +101,7 @@ module.exports = {
         // (totalSystemHealer cron) re-pull it. Production explicitly turns
         // it on here. Probe URL is auto-resolved from PORT below, but we
         // pin it for clarity. Override per-host via WATCHDOG_DISABLED=1.
-        WATCHDOG_AUTOSTART: process.env.WATCHDOG_AUTOSTART || '1',
+        WATCHDOG_AUTOSTART: process.env.WATCHDOG_AUTOSTART || '0',
         WATCHDOG_BACKEND_URL: process.env.WATCHDOG_BACKEND_URL || 'http://127.0.0.1:3000/api/health',
         WATCHDOG_INTERVAL_MS: process.env.WATCHDOG_INTERVAL_MS || '30000',
         WATCHDOG_FAIL_THRESHOLD: process.env.WATCHDOG_FAIL_THRESHOLD || '3',

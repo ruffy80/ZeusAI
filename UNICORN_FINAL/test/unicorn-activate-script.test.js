@@ -63,7 +63,8 @@ check('activate keeps source-file mutators OFF', () => {
 check('activate keeps production stable profile (no in-process ZDT suicide)', () => {
   assert.ok(activate.includes('UNICORN_RUNTIME_PROFILE=stable'));
   assert.ok(activate.includes('ENABLE_AUTO_REPAIR=1'));
-  assert.ok(activate.includes('ENABLE_AUTO_RESTART=1'));
+  assert.ok(activate.includes('ENABLE_AUTO_RESTART=0'));
+  assert.ok(activate.includes('WATCHDOG_AUTOSTART=0'));
   assert.ok(activate.includes('ZDT_ENABLED=0'));
 });
 

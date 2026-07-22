@@ -162,6 +162,12 @@ async function run(input = {}) {
   };
 }
 
-start();
+// Do NOT autostart on require. Orphan backend processes (PPID=1 after a
+// botched pm2 restart) kept this timer alive for hours/days and spam
+// `pm2 restart unicorn-backend` forever. Arm only when ENABLE_AUTO_RESTART=1
+// AND the caller invokes start() from the live PM2-managed process.
+if (String(process.env.ENABLE_AUTO_RESTART || '0') === '1') {
+  start();
+}
 
 module.exports = { start, stop, run, getStatus, checkAndRestart, name: 'auto-restart' };
