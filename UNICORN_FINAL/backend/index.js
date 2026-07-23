@@ -4333,10 +4333,14 @@ function buildPublicHealthResponse() {
 }
 
 // /health (non-prefixed) — used by uptime monitors. Public + redacted.
-app.get(['/health', '/api/health'], (req, res) => {
+// Keep separate app.get('/health' and app.get('/api/health' registrations —
+// preflight-forward-only.js asserts those exact critical-route needles.
+function _publicHealthHandler(req, res) {
   res.set('Cache-Control', 'no-store, no-cache');
   res.json(buildPublicHealthResponse());
-});
+}
+app.get('/health', _publicHealthHandler);
+app.get('/api/health', _publicHealthHandler);
 
 // Full, unredacted health — admin-only diagnostic surface.
 app.get('/api/health/full', adminTokenMiddleware, (req, res) => {
