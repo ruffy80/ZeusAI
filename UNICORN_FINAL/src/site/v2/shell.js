@@ -4578,6 +4578,21 @@ function pageStatus(params = {}) {
     <p id="taosDoctrine" style="color:var(--ink-dim);font-size:13.5px;margin:16px 0 0;font-style:italic">—</p>
   </div>
 
+  <div class="card" id="pfosPanel" style="margin-top:18px;padding:26px" aria-live="polite">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:16px;flex-wrap:wrap">
+      <div>
+        <span class="kicker">Platform Foundation OS</span>
+        <div style="display:flex;align-items:baseline;gap:14px;flex-wrap:wrap;margin-top:4px">
+          <span id="pfosScore" class="grad" style="font-size:clamp(36px,5vw,56px);font-weight:800;line-height:1;font-family:var(--mono,monospace)">—</span>
+          <span id="pfosGrade" style="font-size:18px;font-weight:700;letter-spacing:.04em">—</span>
+        </div>
+        <p style="color:var(--ink-dim);font-size:13.5px;margin:10px 0 0">Long-term security · health hygiene · mutator safety · commerce validation · funnel visibility.</p>
+      </div>
+      <a class="btn btn-ghost" href="/api/platform/foundation" target="_blank" rel="noopener" style="font-size:12px">PFOS JSON →</a>
+    </div>
+    <div id="pfosPillars" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin-top:18px"></div>
+  </div>
+
   <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;margin-top:18px">
     <div class="card"><span class="tag">Deploy</span><h3>Forward-only</h3><p style="color:var(--ink-dim)">Canary + smoke guarded.</p></div>
     <div class="card"><span class="tag">Integrity</span><h3>QIS guarded</h3><p style="color:var(--ink-dim)">Quantum Integrity Shield checked live.</p></div>
@@ -4589,6 +4604,8 @@ function pageStatus(params = {}) {
       <a class="btn" href="/api/incidents" target="_blank" rel="noopener">Public incident log</a>
       <a class="btn btn-ghost" href="/api/autonomy/os" target="_blank" rel="noopener">Autonomy OS JSON</a>
       <a class="btn btn-ghost" href="/api/autonomy/score" target="_blank" rel="noopener">Autonomy score</a>
+      <a class="btn btn-ghost" href="/api/platform/foundation" target="_blank" rel="noopener">Platform Foundation</a>
+      <a class="btn btn-ghost" href="/.well-known/platform.json" target="_blank" rel="noopener">/.well-known/platform.json</a>
     </div>
   </div>
   <script${N}>
@@ -4673,7 +4690,38 @@ function pageStatus(params = {}) {
       if (g) g.innerHTML = '<div class="card"><p style="color:var(--ink-dim)">Status snapshot unavailable. Retrying every 15s.</p></div>';
     }
   }
-  function loadAllStatus(){ loadStatus(); loadAutonomyOs(); }
+  async function loadPlatformFoundation(){
+    try {
+      var d = await (await fetch('/api/platform/foundation',{cache:'no-store'})).json();
+      var scoreEl=document.getElementById('pfosScore');
+      var gradeEl=document.getElementById('pfosGrade');
+      var pillarsEl=document.getElementById('pfosPillars');
+      if(scoreEl) scoreEl.textContent = d.score!=null ? String(d.score) : '—';
+      if(gradeEl) gradeEl.textContent = d.grade!=null ? String(d.grade) : '—';
+      var pillars = Array.isArray(d.pillars) ? d.pillars : [];
+      if(pillarsEl){
+        if(!pillars.length){
+          pillarsEl.innerHTML='<p style="color:var(--ink-dim);font-size:13.5px;margin:0">Foundation pillars pending.</p>';
+        } else {
+          pillarsEl.innerHTML = pillars.slice(0,8).map(function(p,i){
+            var ok=taosPillarPass(p);
+            var label=taosEsc(taosPillarName(p,i));
+            var detail=taosEsc((p&&p.detail)||'');
+            var bg=ok?'rgba(59,255,176,.15)':'rgba(255,120,120,.12)';
+            var fg=ok?'#3bffb0':'#ff8a8a';
+            var st=ok?'PASS':'FAIL';
+            return '<div style="padding:12px 14px;border-radius:12px;border:1px solid var(--stroke,rgba(160,200,255,.14));background:rgba(0,0,0,.22)"><span class="tag" style="background:'+bg+';color:'+fg+';margin-bottom:8px">'+st+'</span><div style="font-size:14px;font-weight:600">'+label+'</div>'+(detail?'<div style="font-size:11.5px;color:var(--ink-dim);margin-top:4px">'+detail+'</div>':'')+'</div>';
+          }).join('');
+        }
+      }
+    } catch(e) {
+      var se=document.getElementById('pfosScore');
+      var pe=document.getElementById('pfosPillars');
+      if(se) se.textContent='—';
+      if(pe) pe.innerHTML='<p style="color:var(--ink-dim);font-size:13.5px;margin:0">Platform Foundation snapshot unavailable.</p>';
+    }
+  }
+  function loadAllStatus(){ loadStatus(); loadAutonomyOs(); loadPlatformFoundation(); }
   loadAllStatus(); setInterval(loadAllStatus, 15000);
   </script>
 </section>`;
