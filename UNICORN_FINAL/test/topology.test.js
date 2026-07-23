@@ -93,11 +93,13 @@ async function run() {
   const backendBase = 'http://127.0.0.1:' + backendPort;
 
   try {
-    // 1. Role header on a typical backend endpoint
-    const metricsRes = await fetch(backendBase + '/api/metrics');
+    // 1. Role header on a typical PUBLIC backend endpoint. /api/metrics is now
+    // admin-gated (process cpu/memory internals), so use the public health
+    // endpoint — it carries the same role/source-of-truth topology headers.
+    const metricsRes = await fetch(backendBase + '/api/health');
     assert.equal(metricsRes.status, 200);
     assert.equal(metricsRes.headers.get('x-unicorn-role'), 'backend',
-      'backend /api/metrics must announce X-Unicorn-Role: backend');
+      'backend /api/health must announce X-Unicorn-Role: backend');
     assert.equal(metricsRes.headers.get('x-unicorn-source-of-truth'), '1',
       'backend must announce X-Unicorn-Source-Of-Truth: 1');
 

@@ -66,13 +66,32 @@ async function runTests() {
 
   // ── Health ──────────────────────────────────────────────────────────────────
   console.log('Health endpoint:');
-  await test('GET /api/health returns ok', async () => {
+  await test('GET /api/health returns ok (redacted public contract)', async () => {
     const r = await apiRequest('GET', '/api/health');
     assert.equal(r.status, 200);
     assert.equal(r.body.status, 'ok');
-    assert.ok(typeof r.body.uptime === 'number');
-    assert.ok(r.body.memory && r.body.memory.heapUsed);
+    assert.equal(r.body.ok, true);
+    assert.ok(typeof r.body.uptime === 'number', 'uptime must stay numeric seconds (canary reads j.uptime)');
     assert.ok(r.body.version);
+    assert.ok('buildSha' in r.body);
+    assert.ok(r.body.timestamp);
+    assert.ok(r.body.neverDown && typeof r.body.neverDown.healerFail === 'boolean');
+    assert.ok(r.body.totalAutonomy);
+    // Public health is REDACTED — operational internals must NOT leak.
+    assert.ok(!r.body.memory, 'public health must not expose memory internals');
+    assert.ok(!r.body.modules, 'public health must not expose module inventory');
+    assert.ok(r.body.node === undefined, 'public health must not expose node version');
+    assert.ok(r.body.users === undefined, 'public health must not expose user count');
+  });
+
+  await test('GET /api/health/full requires admin token', async () => {
+    const r = await apiRequest('GET', '/api/health/full');
+    assert.equal(r.status, 401);
+  });
+
+  await test('GET /api/metrics requires admin token', async () => {
+    const r = await apiRequest('GET', '/api/metrics');
+    assert.equal(r.status, 401);
   });
 
   await test('GET /api/health has security headers', async () => {
