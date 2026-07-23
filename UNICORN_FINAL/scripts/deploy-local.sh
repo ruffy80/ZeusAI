@@ -106,7 +106,7 @@ DEPLOY_LINK="${DEPLOY_LINK:-/var/www/unicorn/UNICORN_FINAL}"
 mkdir -p /var/log/unicorn /etc/nginx/snippets
 cat > /etc/nginx/snippets/zeus-public-discovery.conf <<'EOF'
 # Minimal Zeus discovery overlay (production-safe).
-# Full snippet collides with zeusai.conf — keep ONLY autonomy here.
+# Full snippet collides with zeusai.conf — keep ONLY autonomy + platform here.
 location = /.well-known/autonomy.json {
     proxy_pass http://127.0.0.1:3001;
     proxy_http_version 1.1;
@@ -116,7 +116,34 @@ location = /.well-known/autonomy.json {
     proxy_set_header X-Forwarded-Proto $scheme;
     add_header Cache-Control "no-store" always;
 }
+# Platform Foundation OS (PFOS/1.0) — served by the backend on :3000.
+location = /.well-known/platform.json {
+    proxy_pass http://127.0.0.1:3000;
+    proxy_http_version 1.1;
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+    add_header Cache-Control "no-store" always;
+}
 EOF
+# Install additive security-headers snippet (server_tokens off + nosniff etc).
+# Written verbatim from scripts/nginx-security-headers.snippet.conf. This only
+# installs the snippet file; whether it is `include`d is left to the live
+# zeusai.conf (we never wholesale-rewrite it here).
+SEC_SRC="$DEPLOY_LINK/scripts/nginx-security-headers.snippet.conf"
+if [ -f "$SEC_SRC" ]; then
+  install -m 0644 "$SEC_SRC" /etc/nginx/snippets/zeus-security-headers.conf \
+    && echo "[deploy-local] installed /etc/nginx/snippets/zeus-security-headers.conf"
+else
+  cat > /etc/nginx/snippets/zeus-security-headers.conf <<'EOF'
+server_tokens off;
+add_header X-Content-Type-Options "nosniff" always;
+add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+add_header X-Permitted-Cross-Domain-Policies "none" always;
+EOF
+  echo "[deploy-local] wrote fallback /etc/nginx/snippets/zeus-security-headers.conf"
+fi
 if nginx -t 2>/tmp/nginx-t.out; then
   systemctl reload nginx && echo "[deploy-local] nginx autonomy overlay reloaded" \
     || echo "[deploy-local] nginx reload failed (non-fatal)"
