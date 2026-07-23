@@ -363,6 +363,17 @@ const selfConstruction = {
   },
 
   async start(opts = {}) {
+    // ── Hard mutator gate (fail-closed) ──────────────────────────────────
+    // Refuse to ever write files when self-mutation is disabled OR the
+    // explicit file-mutator opt-in is not set. This runs BEFORE any audit or
+    // writeFileSync so no source file can be overwritten in dev/CI/prod-stable.
+    // Audit/tick (process()) stay read-only and are unaffected.
+    if (process.env.DISABLE_SELF_MUTATION === '1') {
+      return { applied: false, refused: true, reason: 'DISABLE_SELF_MUTATION=1' };
+    }
+    if (!['1', 'true', 'yes', 'on'].includes(String(process.env.ENABLE_FILE_MUTATORS || '').toLowerCase())) {
+      return { applied: false, refused: true, reason: 'ENABLE_FILE_MUTATORS not set' };
+    }
     const apply = opts.apply === true || process.env.SELF_CONSTRUCTION_APPLY === '1';
     const report = this.audit();
     this.hasRun = true;
