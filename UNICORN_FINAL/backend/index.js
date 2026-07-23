@@ -1076,7 +1076,9 @@ if (process.env.HOST_SANITY_DISABLED !== '1') {
 }
 
 // --- API: Metrics (CPU, RAM, uptime) ---
-app.get('/api/metrics', (req, res) => {
+// /api/metrics exposes process cpu/memory internals — admin-only.
+app.get('/api/metrics', adminTokenMiddleware, (req, res) => {
+  res.set('Cache-Control', 'no-store');
   res.json({
     cpu: process.cpuUsage(),
     memory: process.memoryUsage(),
@@ -4303,10 +4305,60 @@ function buildHealthResponse() {
   };
 }
 
-// /health (non-prefixed) — used by uptime monitors
-app.get('/health', (req, res) => res.json(buildHealthResponse()));
+// buildPublicHealthResponse() — REDACTED subset of buildHealthResponse().
+// The public /health and /api/health endpoints must not leak operational
+// internals (user counts, module inventory, memory/node/env details,
+// persistence internals, pricing internals). Ops + the deploy canary depend
+// on a stable public contract, so the fields below are KEPT verbatim:
+//   status, uptime (numeric seconds — canary reads j.uptime), uptimeHuman,
+//   version, buildSha, timestamp, neverDown (incl healerFail), totalAutonomy,
+//   runtimeProfile, quantumIntegrityShield (string), dbConnected (boolean).
+// Everything else stays behind /api/health/full (admin-gated).
+function buildPublicHealthResponse() {
+  const full = buildHealthResponse();
+  return {
+    status: full.status,
+    ok: full.status === 'ok',
+    uptime: full.uptime,
+    uptimeHuman: full.uptimeHuman,
+    version: full.version,
+    buildSha: full.buildSha,
+    timestamp: full.timestamp,
+    runtimeProfile: full.runtimeProfile,
+    quantumIntegrityShield: full.quantumIntegrityShield,
+    dbConnected: full.dbConnected === true,
+    neverDown: full.neverDown,
+    totalAutonomy: full.totalAutonomy,
+  };
+}
 
-app.get('/api/health', (req, res) => res.json(buildHealthResponse()));
+// /health (non-prefixed) — used by uptime monitors. Public + redacted.
+app.get(['/health', '/api/health'], (req, res) => {
+  res.set('Cache-Control', 'no-store, no-cache');
+  res.json(buildPublicHealthResponse());
+});
+
+// Full, unredacted health — admin-only diagnostic surface.
+app.get('/api/health/full', adminTokenMiddleware, (req, res) => {
+  res.set('Cache-Control', 'no-store');
+  res.json(buildHealthResponse());
+});
+
+// ── Platform Foundation OS (PFOS/1.0) ──────────────────────────────────────
+// Public, no-secret self-attestation of foundational safety/hygiene pillars.
+// Also served at /.well-known/platform.json for discovery.
+let _platformFoundation = null;
+try { _platformFoundation = require('./modules/platform-foundation'); }
+catch (e) { console.warn('[platform-foundation] module unavailable:', e.message); }
+function _platformFoundationHandler(req, res) {
+  res.set('Cache-Control', 'no-store');
+  if (!_platformFoundation || typeof _platformFoundation.getStatus !== 'function') {
+    return res.status(503).json({ ok: false, error: 'platform_foundation_unavailable' });
+  }
+  return res.json(_platformFoundation.getStatus());
+}
+app.get('/api/platform/foundation', _platformFoundationHandler);
+app.get('/.well-known/platform.json', _platformFoundationHandler);
 
 // Public deploy-verification endpoint (forward-only addition).
 // Returns the build SHA stamped by .github/workflows/deploy.yml on every CI
@@ -11367,9 +11419,17 @@ app.post('/api/bd/leads', adminCrudRateLimit, adminTokenMiddleware, (req, res) =
 // ==================== WEBHOOK DEPLOY (Hetzner fallback) ====================
 // Called by GitHub Actions when SSH deploy fails (HETZNER_WEBHOOK_URL points here)
 app.post('/deploy', (req, res) => {
-  const incomingSecret = req.headers['x-webhook-secret'] || '';
+  const incomingSecret = String(req.headers['x-webhook-secret'] || '');
   const expectedSecret = process.env.WEBHOOK_SECRET || process.env.HETZNER_WEBHOOK_SECRET || '';
-  if (!expectedSecret || incomingSecret !== expectedSecret) {
+  // Fail-closed when no secret is configured. Otherwise compare in constant
+  // time to avoid leaking the secret length/prefix via response timing.
+  if (!expectedSecret) {
+    return res.status(403).json({ error: 'Forbidden', detail: 'Invalid webhook secret' });
+  }
+  const incomingBuf = Buffer.from(incomingSecret);
+  const expectedBuf = Buffer.from(expectedSecret);
+  if (incomingBuf.length !== expectedBuf.length
+      || !crypto.timingSafeEqual(incomingBuf, expectedBuf)) {
     return res.status(403).json({ error: 'Forbidden', detail: 'Invalid webhook secret' });
   }
   const source = sanitizeString((req.body && req.body.source) || 'unknown', 100);
