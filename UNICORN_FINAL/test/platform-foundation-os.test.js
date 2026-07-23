@@ -150,9 +150,11 @@ async function run() {
 
   check('public health handlers set Cache-Control no-store', () => {
     const src = fs.readFileSync(path.join(__dirname, '..', 'backend', 'index.js'), 'utf8');
-    const hIdx = src.indexOf("app.get(['/health', '/api/health']");
-    assert.ok(hIdx > 0, 'combined health route present');
-    const region = src.slice(hIdx, hIdx + 300);
+    assert.ok(src.includes("app.get('/health'"), "app.get('/health' registration present");
+    assert.ok(src.includes("app.get('/api/health'"), "app.get('/api/health' registration present");
+    const hIdx = src.indexOf('function _publicHealthHandler');
+    assert.ok(hIdx > 0, '_publicHealthHandler present');
+    const region = src.slice(hIdx, hIdx + 350);
     assert.ok(/no-store/.test(region), 'no-store on health handler');
     assert.ok(region.includes('buildPublicHealthResponse'), 'health handler uses redacted builder');
   });
