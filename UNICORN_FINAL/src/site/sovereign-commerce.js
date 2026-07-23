@@ -406,9 +406,38 @@ const BTC_DISCOUNT_PCT = Math.max(0, Math.min(50, +(process.env.COMMERCE_BTC_DIS
 const PREORDER_PCT  = Math.max(5, Math.min(90, +(process.env.COMMERCE_PREORDER_PCT  || 30)));
 const PREORDER_DAYS = Math.max(7, Math.min(3650, +(process.env.COMMERCE_PREORDER_DAYS || 365)));
 
+// ── Input validation + conversion funnel (forward-only) ─────────────────────
+// Simple, permissive email check (empty email stays allowed — email is
+// optional for sovereign BTC checkout). serviceId is sanitized to a safe id
+// charset before it is ever used to resolve/allocate an order.
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const _commerceFunnel = { create: 0, open: 0, paid: 0 };
+const FUNNEL_URL = (process.env.UNICORN_BACKEND_INTERNAL_URL || 'http://127.0.0.1:3000').replace(/\/+$/, '') + '/api/analytics/funnel';
+// Fire-and-forget conversion event to the backend funnel. Never throws, never
+// blocks the checkout path; a dead backend simply drops the beacon.
+function _fireFunnel(event, extra) {
+  try {
+    if (event === 'checkout_create') _commerceFunnel.create++;
+    else if (event === 'checkout_open') _commerceFunnel.open++;
+    else if (event === 'checkout_paid') _commerceFunnel.paid++;
+    if (typeof fetch !== 'function') return;
+    fetch(FUNNEL_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(Object.assign({ event, source: 'sovereign' }, extra || {})),
+      signal: AbortSignal.timeout(1500),
+    }).catch(() => {});
+  } catch (_) { /* funnel is best-effort only */ }
+}
+
 async function createOrder(ctx, input) {
-  const { serviceId, qty = 1, email = '', currency = 'USD', preorder = false } = input || {};
+  const { qty = 1, currency = 'USD', preorder = false } = input || {};
+  // Sanitize serviceId to a safe id charset before any resolution/allocation.
+  const serviceId = String((input && input.serviceId) || '').trim().slice(0, 128).replace(/[^\w.:-]/g, '');
   if (!serviceId) return { error: 'serviceId_required', status: 400 };
+  // Email is optional; if present it must look like an email. Normalize first.
+  const email = String((input && input.email) || '').trim().toLowerCase().slice(0, 254);
+  if (email && !EMAIL_RE.test(email)) return { error: 'invalid_email', status: 400 };
   const svc = await resolveService(ctx, serviceId);
   if (!svc) return { error: 'service_not_found', serviceId, status: 404 };
 
@@ -479,6 +508,7 @@ async function createOrder(ctx, input) {
   ORDERS.set(orderId, order);
   AMT_INDEX.set(order.amount_sats, orderId);
   persistOrder(order);
+  _fireFunnel('checkout_create', { serviceId, value: subtotalFiat });
   return { order, status: 201 };
 }
 
@@ -548,6 +578,7 @@ async function scanIncoming() {
         console.log('[commerce] PAID', order.orderId, 'service=' + order.serviceId, 'sats=' + outSats, 'txid=' + tx.txid);
         // ─── Delivery hook: forward-only, fire-and-forget via registered hook ─
         _fireDelivery(order);
+        _fireFunnel('checkout_paid', { serviceId: order.serviceId, value: order.subtotal_fiat });
         // ─── C1: emit `order.paid` webhook (forward-only, fire-and-forget) ───
         // Backend webhook-emitter is reached via internal HTTP (loopback).
         // Failure is silent — order state is already persisted; subscribers
@@ -841,6 +872,7 @@ async function handle(req, res, ctx) {
     }
     res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store', 'X-Unicorn-Commerce': '1' });
     res.end(html);
+    _fireFunnel('checkout_open', { serviceId: order.serviceId, value: order.subtotal_fiat });
     return true;
   }
 
@@ -1155,6 +1187,17 @@ async function handle(req, res, ctx) {
       order_ttl_min: ORDER_TTL_MS / 60000,
       min_confirmations: MIN_CONFS,
     }), true;
+  }
+
+  // --- /api/commerce/funnel (public conversion counters) ------------------
+  if (url === '/api/commerce/funnel' && req.method === 'GET') {
+    return sendJson(res, 200, {
+      ok: true,
+      create: _commerceFunnel.create,
+      open: _commerceFunnel.open,
+      paid: _commerceFunnel.paid,
+      ts: new Date().toISOString(),
+    }, { 'Cache-Control': 'no-store' }), true;
   }
 
   // --- /api/commerce/reconcile (admin-triggered manual scan) --------------
