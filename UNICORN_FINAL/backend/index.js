@@ -4364,6 +4364,23 @@ function _platformFoundationHandler(req, res) {
 app.get('/api/platform/foundation', _platformFoundationHandler);
 app.get('/.well-known/platform.json', _platformFoundationHandler);
 
+// ── Enterprise Standard OS (ESOS/1.0) ──────────────────────────────────────
+// Public, no-secret self-attestation of enterprise-grade pillars (money-path
+// integrity, real commerce metrics, nginx contract, rate limiting, mutator
+// safety, PFOS, AI-cost visibility). Also served at /.well-known/enterprise.json.
+let _enterpriseStandard = null;
+try { _enterpriseStandard = require('./modules/enterprise-standard-os'); }
+catch (e) { console.warn('[enterprise-standard-os] module unavailable:', e.message); }
+function _enterpriseStandardHandler(req, res) {
+  res.set('Cache-Control', 'no-store');
+  if (!_enterpriseStandard || typeof _enterpriseStandard.getStatus !== 'function') {
+    return res.status(503).json({ ok: false, error: 'enterprise_standard_unavailable' });
+  }
+  return res.json(_enterpriseStandard.getStatus());
+}
+app.get('/api/enterprise/standard', _enterpriseStandardHandler);
+app.get('/.well-known/enterprise.json', _enterpriseStandardHandler);
+
 // Public deploy-verification endpoint (forward-only addition).
 // Returns the build SHA stamped by .github/workflows/deploy.yml on every CI
 // deploy. Lets anyone verify with one curl that the site updates after every

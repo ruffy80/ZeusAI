@@ -126,6 +126,16 @@ location = /.well-known/platform.json {
     proxy_set_header X-Forwarded-Proto $scheme;
     add_header Cache-Control "no-store" always;
 }
+# Enterprise Standard OS (ESOS/1.0) — served by the backend on :3000.
+location = /.well-known/enterprise.json {
+    proxy_pass http://127.0.0.1:3000;
+    proxy_http_version 1.1;
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+    add_header Cache-Control "no-store" always;
+}
 EOF
 # Install additive security-headers snippet (server_tokens off + nosniff etc).
 # Written verbatim from scripts/nginx-security-headers.snippet.conf. This only

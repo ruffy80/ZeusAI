@@ -237,6 +237,16 @@ function router(express, opts = {}) {
     res.json(estimateCost(req.query.model, req.query.tokens));
   });
 
+  // Public, redacted month-to-date rollup (ESOS/1.0). Exposes ONLY aggregate
+  // call count + provider NAMES — never API keys, prompts, costs, or models.
+  // Admin routes above remain the source for detailed spend.
+  r.get('/public', (req, res) => {
+    const s = summary({ sinceMs: _monthStartMs() });
+    const providers = Object.keys(s.byProvider || {});
+    res.set('Cache-Control', 'no-store');
+    res.json({ ok: true, calls: s.calls, providers, capped: true });
+  });
+
   r.post('/record', adminGuard, (req, res) => {
     const row = record(req.body || {});
     res.json({ ok: true, entry: row, budget: budget() });
