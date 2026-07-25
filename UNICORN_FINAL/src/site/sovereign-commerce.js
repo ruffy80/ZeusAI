@@ -48,6 +48,33 @@ const http     = require('http');
 const https    = require('https');
 const crypto   = require('crypto');
 
+// ── Real commerce metrics (kills fake Math.random on the SITE path) ─────────
+// Counters live in src/monitoring/commerce-metrics.js. Best-effort require so
+// the money path never depends on the metrics module being present.
+let _metrics = null;
+try { _metrics = require('../monitoring/commerce-metrics'); } catch (_) { _metrics = null; }
+function _metricInc(name) { try { if (_metrics) _metrics.inc(name); } catch (_) { /* metrics are best-effort */ } }
+
+// ── Defense-in-depth rate limiter for POST /api/checkout/create ─────────────
+// Per-IP token bucket. Bypassed in tests and when COMMERCE_RATE_LIMIT=0 so the
+// unit suite and internal reconciliation flows are never throttled.
+const _RATE_LIMIT_DISABLED = process.env.NODE_ENV === 'test' || String(process.env.COMMERCE_RATE_LIMIT || '') === '0';
+let _checkoutLimiter = null;
+try {
+  const { createLimiter } = require('../lib/rate-limiter');
+  _checkoutLimiter = createLimiter({
+    max: Math.max(1, +(process.env.COMMERCE_CHECKOUT_RATE_MAX || 20)),
+    windowMs: 60 * 1000,
+  });
+} catch (_) { _checkoutLimiter = null; }
+function _clientIp(req) {
+  const xf = String((req && req.headers && req.headers['x-forwarded-for']) || '').split(',')[0].trim();
+  if (xf) return xf;
+  return (req && req.socket && req.socket.remoteAddress)
+    || (req && req.connection && req.connection.remoteAddress)
+    || 'unknown';
+}
+
 // ── Delivery hook (set by src/index.js after module load) ───────────────────
 // Avoids a circular require: index.js registers runDeliveryForReceipt here
 // after both modules are loaded. sovereign-commerce calls it fire-and-forget
@@ -221,6 +248,38 @@ function sign(obj) {
     if (!k) return null;
     return crypto.sign(null, Buffer.from(JSON.stringify(obj)), k).toString('base64');
   } catch { return null; }
+}
+// Public verify path — mirrors sign() exactly (Ed25519, canonical JSON body).
+// Derives the public key from the same site signing key. Exported so the
+// money-path integrity verifier (src/site/commerce-integrity.js) can validate
+// entitlement signatures WITHOUT reimplementing or altering money logic.
+function getVerifyKey() {
+  try {
+    const k = getSigningKey();
+    if (!k) return null;
+    return crypto.createPublicKey(k);
+  } catch { return null; }
+}
+function verify(obj, signatureB64) {
+  try {
+    const pub = getVerifyKey();
+    if (!pub || !signatureB64) return false;
+    return crypto.verify(null, Buffer.from(JSON.stringify(obj)), pub, Buffer.from(String(signatureB64), 'base64'));
+  } catch { return false; }
+}
+// Verify a persisted entitlement: the `.signature` field was appended AFTER
+// sign() ran over the rest of the object, so we strip it and verify the
+// remaining canonical body (same key order preserved by JSON round-trip).
+function verifyEntitlement(ent) {
+  if (!ent || typeof ent !== 'object') return false;
+  const sig = ent.signature;
+  if (!sig) return false;
+  const rest = {};
+  for (const key of Object.keys(ent)) {
+    if (key === 'signature') continue;
+    rest[key] = ent[key];
+  }
+  return verify(rest, sig);
 }
 
 // ── HTTP helpers ────────────────────────────────────────────────────────────
@@ -454,7 +513,7 @@ async function createOrder(ctx, input) {
 
   const price = await getBtcPrice();
   const fiatPerBtc = String(currency).toUpperCase() === 'EUR' ? price.eur : price.usd;
-  if (!(fiatPerBtc > 0)) return { error: 'price_oracle_unavailable', status: 503 };
+  if (!(fiatPerBtc > 0)) { _metricInc('price_oracle_fail'); return { error: 'price_oracle_unavailable', status: 503 }; }
 
   const baseSats = Math.max(1000, Math.round((subtotalFiat / fiatPerBtc) * 1e8)); // dust floor 1000 sat
   const alloc = allocateUniqueAmount(baseSats);
@@ -509,6 +568,7 @@ async function createOrder(ctx, input) {
   AMT_INDEX.set(order.amount_sats, orderId);
   persistOrder(order);
   _fireFunnel('checkout_create', { serviceId, value: subtotalFiat });
+  _metricInc('orders_created');
   return { order, status: 201 };
 }
 
@@ -575,6 +635,7 @@ async function scanIncoming() {
         AMT_INDEX.delete(outSats);
         SEEN_TXIDS.add(tx.txid);
         matched++;
+        _metricInc('orders_paid');
         console.log('[commerce] PAID', order.orderId, 'service=' + order.serviceId, 'sats=' + outSats, 'txid=' + tx.txid);
         // ─── Delivery hook: forward-only, fire-and-forget via registered hook ─
         _fireDelivery(order);
@@ -811,6 +872,13 @@ async function handle(req, res, ctx) {
 
   // --- /api/checkout/create -------------------------------------------------
   if (url === '/api/checkout/create' && req.method === 'POST') {
+    // Defense-in-depth: per-IP token bucket in front of order allocation.
+    if (!_RATE_LIMIT_DISABLED && _checkoutLimiter) {
+      const verdict = _checkoutLimiter(_clientIp(req));
+      if (!verdict.ok) {
+        return sendJson(res, 429, { error: 'rate_limited', retryAfter: verdict.retryAfter }, { 'Retry-After': String(verdict.retryAfter) }), true;
+      }
+    }
     const body = await readBody(req);
     // ── #3 Idempotency-Key (forward-only): if the client sends an
     //    Idempotency-Key header, replay the prior 201 response for 24h
@@ -873,6 +941,7 @@ async function handle(req, res, ctx) {
     res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store', 'X-Unicorn-Commerce': '1' });
     res.end(html);
     _fireFunnel('checkout_open', { serviceId: order.serviceId, value: order.subtotal_fiat });
+    _metricInc('checkout_open');
     return true;
   }
 
@@ -1189,6 +1258,35 @@ async function handle(req, res, ctx) {
     }), true;
   }
 
+  // --- /api/commerce/integrity (ESOS money-path verifier) -----------------
+  // Reads orders.jsonl + entitlements.jsonl from the commerce data dir and
+  // validates entitlement signatures + invariants. No buyer PII in the body.
+  if (url === '/api/commerce/integrity' && req.method === 'GET') {
+    let result;
+    try {
+      const integrity = require('./commerce-integrity');
+      result = integrity.verify({ dataDir: DATA_DIR });
+    } catch (e) {
+      return sendJson(res, 500, { ok: false, protocol: 'ESOS/1.0', error: 'integrity_verifier_unavailable' }), true;
+    }
+    _metricInc(result && result.ok ? 'integrity_ok' : 'integrity_fail');
+    return sendJson(res, 200, result, { 'Cache-Control': 'no-store' }), true;
+  }
+
+  // --- /api/commerce/metrics (public-safe real counters) ------------------
+  if (url === '/api/commerce/metrics' && req.method === 'GET') {
+    const snap = _metrics ? _metrics.json() : { ok: false, protocol: 'ESOS/1.0', error: 'metrics_unavailable' };
+    return sendJson(res, 200, snap, { 'Cache-Control': 'no-store' }), true;
+  }
+
+  // --- /metrics/commerce (Prometheus text exposition, optional) -----------
+  if (url === '/metrics/commerce' && req.method === 'GET') {
+    const text = _metrics ? _metrics.promText() : '';
+    res.writeHead(200, { 'Content-Type': 'text/plain; version=0.0.4; charset=utf-8', 'Cache-Control': 'no-store' });
+    res.end(text);
+    return true;
+  }
+
   // --- /api/commerce/funnel (public conversion counters) ------------------
   if (url === '/api/commerce/funnel' && req.method === 'GET') {
     return sendJson(res, 200, {
@@ -1227,4 +1325,4 @@ setInterval(() => { getBtcPrice().catch((e) => console.warn('[commerce] BTC pric
 
 console.log('[commerce] ready · addr=' + OWNER_BTC + ' · data=' + DATA_DIR + ' · watch=' + WATCH_MS + 'ms · min_confs=' + MIN_CONFS);
 
-module.exports = { handle, scanIncoming, getBtcPrice, createOrder, ORDERS, WATCH_STATE, recordCatalogItems, setDeliveryHook, _fireDelivery, checkoutHtml, renderCheckoutPage: checkoutHtml };
+module.exports = { handle, scanIncoming, getBtcPrice, createOrder, ORDERS, WATCH_STATE, recordCatalogItems, setDeliveryHook, _fireDelivery, checkoutHtml, renderCheckoutPage: checkoutHtml, sign, verify, verifyEntitlement };

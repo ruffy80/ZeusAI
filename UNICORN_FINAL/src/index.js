@@ -1216,13 +1216,20 @@ try {
   });
 } catch (e) { console.warn('[ai-digital-ethics] not loaded:', e.message); }
 
-// Loghează metrici cheie periodic
-setInterval(() => {
-  observability.logMetric('latency', Math.random() * 2000);
-  observability.logMetric('error', Math.random() > 0.95 ? 1 : 0);
-  observability.logMetric('scaling', Math.floor(Math.random() * 8) + 1);
-  observability.logMetric('cache', Math.random() * 100);
-}, 60000);
+// Loghează metrici cheie periodic — SYNTHETIC ONLY.
+// ESOS/1.0: fabricated Math.random observability values are NO LONGER pushed on
+// the production path. Real commerce counters live in
+// src/monitoring/commerce-metrics.js (served at /api/commerce/metrics). This
+// legacy demo loop is disabled by default and only runs when explicitly opted
+// in via FAKE_OBS_METRICS=1 (local dashboard demos), never in production.
+if (process.env.FAKE_OBS_METRICS === '1') {
+  setInterval(() => {
+    observability.logMetric('latency', Math.random() * 2000);
+    observability.logMetric('error', Math.random() > 0.95 ? 1 : 0);
+    observability.logMetric('scaling', Math.floor(Math.random() * 8) + 1);
+    observability.logMetric('cache', Math.random() * 100);
+  }, 60000);
+}
 
 // Endpoint dashboard live metrici
 app.get('/api/metrics', (req, res) => {
