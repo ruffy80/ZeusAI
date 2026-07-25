@@ -1375,9 +1375,9 @@ function pageServices() {
     <span class="kicker">What you receive</span>
     <h3 style="margin:6px 0 12px;font-size:20px">Every purchase ships a concrete artefact — not a promise.</h3>
     <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px">
-      <div class="card" style="margin:0;padding:14px"><span class="tag">Website Audit</span><h4 style="margin:6px 0 4px;font-size:15px">HTML report</h4><p style="margin:0;color:var(--ink-dim);font-size:12.5px">Signed audit with performance, accessibility, SEO and conversion notes — delivered as a single self-contained HTML file.</p></div>
-      <div class="card" style="margin:0;padding:14px"><span class="tag">Logo Kit</span><h4 style="margin:6px 0 4px;font-size:15px">SVG + palette</h4><p style="margin:0;color:var(--ink-dim);font-size:12.5px">Vector logo, monochrome variants and a documented color palette. Import-ready in Figma, Illustrator, or any browser.</p></div>
-      <div class="card" style="margin:0;padding:14px"><span class="tag">SEO Pack</span><h4 style="margin:6px 0 4px;font-size:15px">Articles + brief</h4><p style="margin:0;color:var(--ink-dim);font-size:12.5px">Editorial-quality articles targeting your chosen keywords plus a linking + on-page brief. Markdown + HTML both included.</p></div>
+      <div class="card" style="margin:0;padding:14px"><span class="tag">Website Audit</span><p class="card-title" style="margin:6px 0 4px;font-size:15px">HTML report</p><p style="margin:0;color:var(--ink-dim);font-size:12.5px">Signed audit with performance, accessibility, SEO and conversion notes — delivered as a single self-contained HTML file.</p></div>
+      <div class="card" style="margin:0;padding:14px"><span class="tag">Logo Kit</span><p class="card-title" style="margin:6px 0 4px;font-size:15px">SVG + palette</p><p style="margin:0;color:var(--ink-dim);font-size:12.5px">Vector logo, monochrome variants and a documented color palette. Import-ready in Figma, Illustrator, or any browser.</p></div>
+      <div class="card" style="margin:0;padding:14px"><span class="tag">SEO Pack</span><p class="card-title" style="margin:6px 0 4px;font-size:15px">Articles + brief</p><p style="margin:0;color:var(--ink-dim);font-size:12.5px">Editorial-quality articles targeting your chosen keywords plus a linking + on-page brief. Markdown + HTML both included.</p></div>
     </div>
   </section>
   <div class="filters" id="catFilters" role="tablist" aria-label="Filter services by tier">
@@ -1495,14 +1495,14 @@ function pageService(id) {
       <h1 style="font-size:clamp(34px,4vw,52px);margin:10px 0 20px;line-height:1.05" itemprop="name">${_esc(title)}</h1>
       <p style="color:var(--ink-dim);font-size:17px;line-height:1.7" itemprop="description">${_esc(desc)}</p>
       <div class="svc-delivery-timeline" id="svcDeliveryTimeline" style="margin:22px 0 6px;display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px">
-        <div class="card" style="margin:0;padding:14px;border-color:rgba(247,147,26,.35)"><span class="tag" style="background:rgba(247,147,26,.16);color:#f7931a">Step 1</span><h4 style="margin:6px 0 4px;font-size:15px">Pay BTC</h4><p style="margin:0;color:var(--ink-dim);font-size:12.5px">Scan the invoice QR or copy the BIP-21 URI. Direct on-chain — no custodian.</p></div>
-        <div class="card" style="margin:0;padding:14px;border-color:rgba(127,255,212,.32)"><span class="tag" style="background:rgba(127,255,212,.12);color:#7fffd4">Step 2</span><h4 style="margin:6px 0 4px;font-size:15px">Mempool confirm</h4><p style="margin:0;color:var(--ink-dim);font-size:12.5px">Server watches mempool.space every ~30s until your tx settles.</p></div>
-        <div class="card" style="margin:0;padding:14px;border-color:rgba(110,231,183,.42)"><span class="tag" style="background:rgba(110,231,183,.2);color:#6ee7b7">Step 3</span><h4 style="margin:6px 0 4px;font-size:15px">Signed delivery</h4><p style="margin:0;color:var(--ink-dim);font-size:12.5px">Ed25519 receipt + license + downloadable artefacts appear in your account.</p></div>
+        <div class="card" style="margin:0;padding:14px;border-color:rgba(247,147,26,.35)"><span class="tag" style="background:rgba(247,147,26,.16);color:#f7931a">Step 1</span><p class="card-title" style="margin:6px 0 4px;font-size:15px">Pay BTC</p><p style="margin:0;color:var(--ink-dim);font-size:12.5px">Scan the invoice QR or copy the BIP-21 URI. Direct on-chain — no custodian.</p></div>
+        <div class="card" style="margin:0;padding:14px;border-color:rgba(127,255,212,.32)"><span class="tag" style="background:rgba(127,255,212,.12);color:#7fffd4">Step 2</span><p class="card-title" style="margin:6px 0 4px;font-size:15px">Mempool confirm</p><p style="margin:0;color:var(--ink-dim);font-size:12.5px">Server watches mempool.space every ~30s until your tx settles.</p></div>
+        <div class="card" style="margin:0;padding:14px;border-color:rgba(110,231,183,.42)"><span class="tag" style="background:rgba(110,231,183,.2);color:#6ee7b7">Step 3</span><p class="card-title" style="margin:6px 0 4px;font-size:15px">Signed delivery</p><p style="margin:0;color:var(--ink-dim);font-size:12.5px">Ed25519 receipt + license + downloadable artefacts appear in your account.</p></div>
       </div>
       <div class="panels" style="margin-top:20px">
-        <div class="panel"><div class="ic">✓</div><h4>Signed outcomes</h4><p>Every run produces an Ed25519‑signed proof in the Value‑Proof Ledger.</p></div>
-        <div class="panel"><div class="ic">🔌</div><h4>API first</h4><p>REST + SSE. Integrates with all 42 giant connectors through the Integration Fabric.</p></div>
-        <div class="panel"><div class="ic">💎</div><h4>Outcome pricing</h4><p>Enterprise plans bill a share of measured value delivered.</p></div>
+        <div class="panel"><div class="ic">✓</div><p class="card-title">Signed outcomes</p><p>Every run produces an Ed25519‑signed proof in the Value‑Proof Ledger.</p></div>
+        <div class="panel"><div class="ic">🔌</div><p class="card-title">API first</p><p>REST + SSE. Integrates with all 42 giant connectors through the Integration Fabric.</p></div>
+        <div class="panel"><div class="ic">💎</div><p class="card-title">Outcome pricing</p><p>Enterprise plans bill a share of measured value delivered.</p></div>
       </div>
     </div>
     <aside class="co-box" itemprop="offers" itemscope itemtype="https://schema.org/Offer">
