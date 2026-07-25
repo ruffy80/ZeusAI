@@ -84,7 +84,11 @@ module.exports = {
         // Auto-attest every approved innovation on the sovereign ed25519
         // ledger. Makes evolution publicly verifiable for 30+ years.
         GROWTH_AUTO_ATTEST_INNOVATIONS: process.env.GROWTH_AUTO_ATTEST_INNOVATIONS || '1',
-        QIS_AUTO_HEAL_ENABLED: 'true',
+        // Default OFF: QIS "auto-heal" + external healers previously suicide-
+        // looped cold boots (health timeout → restart → never finish warmup).
+        // Enable explicitly on the host via QIS_AUTO_HEAL_ENABLED=true only
+        // after cold-boot settle is proven stable.
+        QIS_AUTO_HEAL_ENABLED: process.env.QIS_AUTO_HEAL_ENABLED || 'false',
         QIS_REQUIRED_PROCESSES: 'unicorn-backend,unicorn-site',
         // ── AUTH-GUARDIAN: DISABLED PERMANENTLY ────────────────────────
         // auth-guardian probes /api/auth/test and on failure runs

@@ -9,9 +9,10 @@
 #   SITE_HEALTH_URL    (default http://127.0.0.1:3001/health)
 #   PM2_BIN            (default detect via npm root -g)
 #   PM2_APPS           (default "unicorn-backend unicorn-site")
-#   FAIL_THRESHOLD     (default 3)
-#   FAIL_WINDOW_SEC    (default 300)
-#   CHECK_TIMEOUT_SEC  (default 5)
+#   FAIL_THRESHOLD     (default 5)
+#   FAIL_WINDOW_SEC    (default 600)
+#   CHECK_TIMEOUT_SEC  (default 20)
+#   BOOT_GRACE_SEC     (default 180 — skip restarts during cold boot)
 #   LOG_FILE           (default /var/log/healer.log)
 #   WEBHOOK_URL        (Discord webhook opțional)
 # =============================================================================
@@ -20,9 +21,10 @@ set -euo pipefail
 HEALTH_URL="${HEALTH_URL:-http://127.0.0.1:3000/api/health}"
 SITE_HEALTH_URL="${SITE_HEALTH_URL:-http://127.0.0.1:3001/health}"
 PM2_APPS="${PM2_APPS:-unicorn-backend unicorn-site}"
-FAIL_THRESHOLD="${FAIL_THRESHOLD:-3}"
-FAIL_WINDOW_SEC="${FAIL_WINDOW_SEC:-300}"
-CHECK_TIMEOUT_SEC="${CHECK_TIMEOUT_SEC:-5}"
+FAIL_THRESHOLD="${FAIL_THRESHOLD:-5}"
+FAIL_WINDOW_SEC="${FAIL_WINDOW_SEC:-600}"
+CHECK_TIMEOUT_SEC="${CHECK_TIMEOUT_SEC:-20}"
+BOOT_GRACE_SEC="${BOOT_GRACE_SEC:-180}"
 LOG_FILE="${LOG_FILE:-/var/log/healer.log}"
 WEBHOOK_URL="${WEBHOOK_URL:-${DISCORD_WEBHOOK:-}}"
 
@@ -111,7 +113,35 @@ restart_pm2_apps() {
   send_webhook "🩺 unicorn-healer: PM2 apps restartate ($PM2_APPS)"
 }
 
+pm2_min_uptime_s() {
+  # Youngest required app uptime (seconds). Empty if PM2 unavailable.
+  command -v "$PM2_BIN" >/dev/null 2>&1 || { command -v pm2 >/dev/null 2>&1 || return 0; }
+  local bin="${PM2_BIN:-pm2}"
+  "$bin" jlist 2>/dev/null | node -e '
+    let b=""; process.stdin.on("data",c=>b+=c); process.stdin.on("end",()=>{
+      try {
+        const want = new Set(String(process.argv[1]||"").split(/\s+/).filter(Boolean));
+        const list = JSON.parse(b || "[]");
+        let min = Infinity;
+        for (const p of list) {
+          if (!p || !want.has(p.name) || !p.pm2_env || !p.pm2_env.created_at) continue;
+          const up = Math.max(0, Math.floor((Date.now() - Number(p.pm2_env.created_at)) / 1000));
+          if (up < min) min = up;
+        }
+        process.stdout.write(min === Infinity ? "" : String(min));
+      } catch (_) { process.stdout.write(""); }
+    });
+  ' "$PM2_APPS" 2>/dev/null || true
+}
+
 main() {
+  local uptime_s
+  uptime_s="$(pm2_min_uptime_s)"
+  if [ -n "$uptime_s" ] && [ "$uptime_s" -lt "$BOOT_GRACE_SEC" ] 2>/dev/null; then
+    log "OK" "Boot grace active (min uptime=${uptime_s}s/${BOOT_GRACE_SEC}s) — skip heal"
+    exit 0
+  fi
+
   if check_health; then
     if [ -f "$FAIL_TIMES_FILE" ]; then
       reset_fails

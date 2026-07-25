@@ -4694,7 +4694,7 @@ function renderAccountAuth(root, topError){
       </div>
       <div id="acPasskeyMsg" style="font-size:13px;margin-top:12px;color:var(--ink-dim);line-height:1.5"></div>
     </div>
-    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:28px">
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(min(320px,100%),1fr));gap:28px">
       <div class="card" style="padding:28px">
         <h3 style="margin:0 0 6px">Log in / Conectare</h3>
         <div style="color:var(--ink-dim);font-size:13px;margin-bottom:14px">Dacă ai deja un cont — intră aici. / If you already have an account — log in here.</div>
@@ -5011,7 +5011,7 @@ function renderAccountDashboard(root, me){
     </div>
 
     <h2 style="margin:28px 0 14px;font-size:24px">🚀 Active Services (${(me.activeServices||[]).length})</h2>
-    ${(me.activeServices||[]).length ? `<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:14px">${me.activeServices.map(s => `
+    ${(me.activeServices||[]).length ? `<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(min(300px,100%),1fr));gap:14px">${me.activeServices.map(s => `
       <div class="card" style="padding:20px;border:1px solid rgba(124,255,184,.35);background:linear-gradient(180deg,rgba(20,40,30,.5),rgba(8,6,18,.6))">
         <div style="display:flex;justify-content:space-between;align-items:start;gap:10px">
           <div>

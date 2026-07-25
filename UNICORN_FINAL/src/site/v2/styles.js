@@ -691,6 +691,46 @@ nav.nav[data-nav-open="true"] .nav-toggle-bar:nth-child(3){transform:translateY(
   .immersive-strip{gap:8px}
 }
 
+/* ============ PHONE FIT (≤768px) — kill horizontal overflow from inline grids ============
+   Many SSR/client templates use fixed minmax(320|380px) or 1.xfr/1fr two-column
+   layouts. On a ~390px phone those force overflow. Collapse to one column and
+   clamp auto-fit tracks to the viewport. Additive; desktop unchanged. */
+@media (max-width:768px){
+  html,body{overflow-x:clip;max-width:100%}
+  main,#app,#root,.page,section,.card,.co-box,.panel,.plan{max-width:100%}
+  .svc-grid-ssr,.op-grid-ssr,#homeProofRail > .grid,#homeZacc > .card,
+  #entContactForm,#contactForm .grid,.phone-stack,
+  #coPanelBtc > div[style*="grid-template-columns"],
+  #serviceMain > .svc-grid-ssr,#orderPassport > .op-grid-ssr{
+    grid-template-columns:1fr!important
+  }
+  #entProductsGrid,#entModulesGrid,#entSummary,
+  .store-tier-block .grid,details.store-tier-block > div.grid{
+    grid-template-columns:repeat(auto-fit,minmax(min(100%,280px),1fr))!important
+  }
+  #contactForm > div[style*="grid-template-columns"],
+  #entContactForm > label{min-width:0}
+  #contactForm div[style*="grid-template-columns:1fr 1fr"],
+  #contactForm div[style*="grid-template-columns: 1fr 1fr"]{
+    grid-template-columns:1fr!important
+  }
+  .co-qr{max-width:min(280px,72vw);margin:0 auto}
+  .co-qr canvas{max-width:100%!important;height:auto!important}
+  .btc-addr{word-break:break-all;overflow-wrap:anywhere}
+  pre.code,table.doc{display:block;max-width:100%;overflow-x:auto;-webkit-overflow-scrolling:touch}
+  #heroQuickBuy{flex-direction:column;align-items:stretch}
+  #heroQuickBuy select,#heroQuickBuy input,#heroQuickBuy button{min-width:0!important;width:100%;flex:1 1 auto}
+  .za-creators,.za-social-metrics,.za-social-ledger__head,.za-composer-extra-grid{
+    grid-template-columns:1fr!important
+  }
+}
+@media (max-width:480px){
+  #homeZacc > .card > div[style*="grid-template-columns:repeat(2"]{
+    grid-template-columns:1fr 1fr!important
+  }
+  .svc-delivery-timeline{grid-template-columns:1fr!important}
+}
+
 /* Large desktop — widen container, tighten gutters */
 @media (min-width:1600px){
   section,.foot-grid,.hero-grid,.foot-bot{max-width:1640px}

@@ -17,7 +17,8 @@ Environment=PM2_BIN=/usr/bin/pm2
 Environment=PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 Environment=FAIL_THRESHOLD=5
 Environment=FAIL_WINDOW_SEC=600
-Environment=CHECK_TIMEOUT_SEC=15
+Environment=CHECK_TIMEOUT_SEC=20
+Environment=BOOT_GRACE_SEC=180
 Environment=LOG_FILE=/var/log/healer.log
 ExecStart=/usr/local/bin/unicorn-healer.sh
 StandardOutput=journal
