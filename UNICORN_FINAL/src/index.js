@@ -8288,8 +8288,38 @@ setInterval(function(){loadOrder().then(render);},10000);
           if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
           fs.appendFileSync(path.join(dir, 'enterprise-leads.jsonl'), JSON.stringify(lead) + '\n');
         } catch (e) { console.warn('[enterprise-contact] persist failed:', e.message); }
+        // Auto-build a deal-desk quote so the lead gets a real BTC URI immediately.
+        let quote = null;
+        try {
+          const desk = require('../backend/modules/enterprise-deal-desk');
+          const interestKey = (interest || 'enterprise-starter').toLowerCase().replace(/[^a-z0-9_-]+/g, '-').slice(0, 60) || 'enterprise-starter';
+          const priceHint = Math.max(500, Math.min(50000, Number(p.budgetUsd) || Number(p.budget) || 2500));
+          const seats = Math.max(1, Math.min(500, parseInt(p.seats, 10) || 5));
+          const slaTier = ['standard', 'enterprise', 'mission'].includes(String(p.slaTier || '').toLowerCase())
+            ? String(p.slaTier).toLowerCase()
+            : 'enterprise';
+          quote = desk.buildQuote({
+            items: [{ id: interestKey, title: interest || 'Enterprise starter', priceUsd: priceHint }],
+            seats,
+            slaTier,
+            customerId: email,
+            btcWallet: typeof BTC_WALLET !== 'undefined' ? BTC_WALLET : (process.env.LEGAL_OWNER_BTC || 'bc1q4f7e66z87mdfj56kz0dj5hvcnpmh0qh4wuv22e'),
+            btcSpotUsd: Number(p.btcSpotUsd) || 95000,
+          });
+          lead.quoteId = quote && quote.id ? quote.id : null;
+          lead.netUsd = quote && quote.netUsd != null ? quote.netUsd : null;
+          lead.btcUri = quote && quote.btcUri ? quote.btcUri : null;
+          try {
+            const fs2 = require('fs'); const path2 = require('path');
+            fs2.appendFileSync(path2.join(__dirname, '..', 'data', 'enterprise-quotes.jsonl'), JSON.stringify({
+              leadId: lead.id, quote, createdAt: new Date().toISOString(),
+            }) + '\n');
+          } catch (_) { /* best-effort */ }
+        } catch (e) {
+          console.warn('[enterprise-contact] quote build failed:', e && e.message ? e.message : e);
+        }
         // Notify owner: console + optional email via SMTP if configured
-        console.log('[ENTERPRISE-LEAD] 🔥 New lead:', JSON.stringify({ id: lead.id, name, email, company, interest }));
+        console.log('[ENTERPRISE-LEAD] 🔥 New lead:', JSON.stringify({ id: lead.id, name, email, company, interest, quoteId: lead.quoteId || null }));
         const ownerEmail = process.env.OWNER_EMAIL || process.env.ZEUS_OWNER_EMAIL || 'vladoi_ionut@yahoo.com';
         try {
           const smtpHost = process.env.SMTP_HOST;
@@ -8307,7 +8337,7 @@ setInterval(function(){loadOrder().then(render);},10000);
                 from: process.env.SMTP_FROM || ('zeusai@' + (process.env.PUBLIC_HOST || 'zeusai.pro')),
                 to: ownerEmail,
                 subject: `[ZeusAI Enterprise Lead] ${company || name} — ${interest || 'general'}`,
-                text: `New enterprise lead\n\nName: ${name}\nEmail: ${email}\nCompany: ${company}\nPhone: ${phone}\nInterest: ${interest}\n\nMessage:\n${message}\n\nLead ID: ${lead.id}\nSubmitted: ${lead.createdAt}`,
+                text: `New enterprise lead\n\nName: ${name}\nEmail: ${email}\nCompany: ${company}\nPhone: ${phone}\nInterest: ${interest}\n\nMessage:\n${message}\n\nLead ID: ${lead.id}\nQuote: ${lead.quoteId || 'n/a'} (${lead.netUsd != null ? '$' + lead.netUsd : 'n/a'})\nBTC: ${lead.btcUri || 'n/a'}\nSubmitted: ${lead.createdAt}`,
               }).catch(err => console.warn('[enterprise-contact] mail failed:', err.message));
             }
           }
@@ -8316,8 +8346,17 @@ setInterval(function(){loadOrder().then(render);},10000);
         return res.end(JSON.stringify({
           ok: true,
           leadId: lead.id,
-          message: 'Thank you. Our enterprise team will reply within 24 hours.',
-          messageRo: 'Mulțumim. Echipa noastră enterprise vă va contacta în 24 de ore.'
+          quote: quote ? {
+            id: quote.id,
+            netUsd: quote.netUsd,
+            btcAmount: quote.btcAmount,
+            btcAddress: quote.btcAddress,
+            btcUri: quote.btcUri,
+            slaTier: quote.slaTier && quote.slaTier.key,
+            seats: quote.seats,
+          } : null,
+          message: 'Thank you. Quote ready — our enterprise team will reply within 24 hours.',
+          messageRo: 'Mulțumim. Oferta este gata — echipa enterprise vă contactează în 24 de ore.'
         }));
       } catch (e) {
         res.writeHead(400, { 'Content-Type': 'application/json' });

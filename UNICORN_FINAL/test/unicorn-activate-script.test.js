@@ -108,4 +108,12 @@ check('ensure-cursor-cloud-ssh.sh contains the new c3b6 pubkey', () => {
   assert.ok(ssh.includes(NEW_PUBKEY), 'new pubkey not present in ssh script');
 });
 
+check('ensure-cursor-cloud-ssh.sh contains cloud-agent ephemeral pubkey', () => {
+  const ssh = fs.readFileSync(SSH_SCRIPT, 'utf8');
+  assert.ok(
+    ssh.includes('ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIIq+uCeIYtCITbLBmKTtELMMlggITZPAkxVdbp51y4PW'),
+    'ephemeral cloud-agent pubkey missing'
+  );
+});
+
 console.log(`\n✅ unicorn-activate-script: ${passed} tests passed\n`);

@@ -510,15 +510,75 @@ function markProviderUnstable(name) {
 }
 
 /**
+ * Hard-gate paid AI calls when the monthly budget is exhausted.
+ * Default ON; set AI_BUDGET_HARD_GATE=0 to disable. Pass opts.ignoreBudget
+ * for admin/diagnostic paths that must still run.
+ * @returns {{ok:true}|{ok:false,code:string,budget:object}}
+ */
+function assertWithinBudget(opts = {}) {
+  if (opts.ignoreBudget) return { ok: true };
+  if (String(process.env.AI_BUDGET_HARD_GATE || '1') === '0') return { ok: true };
+  try {
+    const ledger = require('./ai-cost-ledger');
+    const b = typeof ledger.budget === 'function' ? ledger.budget() : null;
+    if (b && b.overBudget) {
+      return { ok: false, code: 'AI_BUDGET_EXCEEDED', budget: b };
+    }
+  } catch (e) {
+    // Fail-open on ledger load errors so chat remains available.
+    console.warn('[AIProviders] budget check skipped:', e && e.message ? e.message : e);
+  }
+  return { ok: true };
+}
+
+function _estimateTokens(message, history, reply) {
+  const hist = Array.isArray(history) ? history : [];
+  const inChars = String(message || '').length
+    + hist.reduce((n, m) => n + String(m && m.content || '').length, 0);
+  const outChars = String(reply || '').length;
+  // ~4 chars/token heuristic — good enough for spend accounting when
+  // providers omit usage metadata.
+  return Math.max(1, Math.ceil((inChars + outChars) / 4));
+}
+
+function _recordChatSpend(providerName, result, message, history) {
+  try {
+    const ledger = require('./ai-cost-ledger');
+    const tokens = Number.isFinite(result && result.tokens)
+      ? Math.max(0, parseInt(result.tokens, 10) || 0)
+      : _estimateTokens(message, history, result && result.reply);
+    ledger.record({
+      provider: providerName,
+      model: (result && (result.model || result.provider)) || providerName,
+      task: 'chat',
+      tokens,
+      costUsd: typeof (result && result.costUsd) === 'number' ? result.costUsd : undefined,
+    });
+  } catch (e) {
+    console.warn('[AIProviders] cost record skipped:', e && e.message ? e.message : e);
+  }
+}
+
+/**
  * Cascade through all configured providers and return the first successful response.
  * Skips providers that are marked unstable (self-healing: auto-avoidance).
  * @param {string} message
  * @param {Array}  history  [{ role, content }, ...]
- * @param {Object} [opts]   { premiumOnly: bool, skipUnstable: bool }
+ * @param {Object} [opts]   { premiumOnly: bool, skipUnstable: bool, ignoreBudget: bool }
  * @returns {Promise<{reply: string, model: string}|null>}
  */
 async function chat(message, history = [], opts = {}) {
   const { premiumOnly = false, skipUnstable = true } = opts;
+
+  const budgetGate = assertWithinBudget(opts);
+  if (!budgetGate.ok) {
+    const err = new Error('AI monthly budget exceeded — refusing paid provider calls');
+    err.code = budgetGate.code;
+    err.budget = budgetGate.budget;
+    console.warn(`[AIProviders] 🛑 ${err.code} spent=$${budgetGate.budget.spentUsd} / $${budgetGate.budget.monthlyBudgetUsd}`);
+    throw err;
+  }
+
   const candidates = premiumOnly
     ? PROVIDERS.filter(p => p.tier === 'premium')
     : PROVIDERS;
@@ -537,6 +597,7 @@ async function chat(message, history = [], opts = {}) {
       const result = await withBackoff(() => provider.fn(message, history), RETRY_MAX, RETRY_BASE_MS);
       if (result && result.reply) {
         _recordSuccess(provider.name);
+        _recordChatSpend(provider.name, result, message, history);
         return result;
       }
     } catch (err) {
@@ -546,9 +607,11 @@ async function chat(message, history = [], opts = {}) {
     }
   }
 
-  // Last resort: retry all providers including unstable ones (ignore skipUnstable)
+  // Last resort: retry all providers including unstable ones (ignore skipUnstable).
+  // Budget was already checked on the first pass; pass ignoreBudget to avoid a
+  // redundant ledger read (overBudget state cannot flip mid-call).
   if (skipUnstable) {
-    return chat(message, history, { premiumOnly, skipUnstable: false });
+    return chat(message, history, { ...opts, premiumOnly, skipUnstable: false, ignoreBudget: true });
   }
 
   return null; // all providers failed or unconfigured
@@ -580,5 +643,6 @@ function getStatus() {
 module.exports = {
   chat, getStatus, PROVIDERS,
   isProviderUnstable, reintegrateProvider, markProviderUnstable,
-  _recordSuccess, _recordFailure,
+  assertWithinBudget,
+  _recordSuccess, _recordFailure, _recordChatSpend, _estimateTokens,
 };

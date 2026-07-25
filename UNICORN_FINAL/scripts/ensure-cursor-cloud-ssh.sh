@@ -24,6 +24,9 @@ CURSOR_CLOUD_PUBKEYS=(
   'ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIC3ls7I4Y9XlmpIBjCF30qpQt2z89FYIPhg+gzhsYGM5 cursor-cloud-zeus-deploy'
   # c3b6 full-autonomy activation agent key.
   'ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIHA7c/ZKX3ZBpNC9vmgiUcKMhogxZFw6Hfg5LhH6QTm0 cursor-cloud-zeus-deploy-c3b6'
+  # Ephemeral Cloud Agent key (this VM). Owner can also install via GitHub
+  # Actions → "Install local SSH pubkey on server" when agent signing is refused.
+  'ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIIq+uCeIYtCITbLBmKTtELMMlggITZPAkxVdbp51y4PW zeus-cloud-agent-ephemeral'
 )
 
 # Secrets-module path: derive pubkey from HETZNER_SSH_PRIVATE_KEY / deploy_key when present.
