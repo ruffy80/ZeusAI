@@ -27,6 +27,7 @@ CURSOR_CLOUD_PUBKEYS=(
   # Ephemeral Cloud Agent key (this VM). Owner can also install via GitHub
   # Actions → "Install local SSH pubkey on server" when agent signing is refused.
   'ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIIq+uCeIYtCITbLBmKTtELMMlggITZPAkxVdbp51y4PW zeus-cloud-agent-ephemeral'
+  'ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIBQdeHHTLRraxxanahITSWXxtbQ5CnR6ya3G40TXkR7Q cursor-cloud-zeus-deploy-recover'
 )
 
 # Secrets-module path: derive pubkey from HETZNER_SSH_PRIVATE_KEY / deploy_key when present.
