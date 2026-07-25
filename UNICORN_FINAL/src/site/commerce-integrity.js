@@ -18,13 +18,23 @@
  *     on unique amounts; a collision would credit the wrong order)
  *   • entitlement signature failures (forged / unsigned / tampered)
  *
- * Privacy: issues NEVER carry buyer emails or PII — only orderId and
- * entitlement_id (opaque identifiers) are surfaced.
+ * Privacy: issues NEVER carry buyer emails or PII. Public issue identifiers
+ * (orderId / entitlement_id) are additionally redacted to short one-way
+ * sha256 hashes (`ref` field) so raw order/entitlement ids are never exposed
+ * in the public /api/commerce/integrity body. Counts stay exact.
  */
 'use strict';
 
 const fs = require('fs');
 const path = require('path');
+const crypto = require('crypto');
+
+// One-way short reference for a public identifier: sha256 hex, first 12 chars.
+// Enough to correlate two issues about the same id without leaking the raw id.
+function _ref(id) {
+  if (id == null || id === '') return null;
+  return crypto.createHash('sha256').update(String(id)).digest('hex').slice(0, 12);
+}
 
 function _readJsonl(file) {
   const out = [];
@@ -69,14 +79,14 @@ function verify(opts = {}) {
     if (o.status !== 'paid') continue;
     paidOrders++;
     if (!entByOrder.has(o.orderId) && !o.entitlement_id) {
-      issues.push({ type: 'paid_order_missing_entitlement', orderId: o.orderId });
+      issues.push({ type: 'paid_order_missing_entitlement', order_ref: _ref(o.orderId) });
     }
   }
 
   // Check 2: orphan entitlements (reference an order that does not exist).
   for (const e of ents.values()) {
     if (e.orderId && !orders.has(e.orderId)) {
-      issues.push({ type: 'orphan_entitlement', orderId: e.orderId, entitlement_id: e.entitlement_id });
+      issues.push({ type: 'orphan_entitlement', order_ref: _ref(e.orderId), entitlement_ref: _ref(e.entitlement_id) });
     }
   }
 
@@ -87,7 +97,7 @@ function verify(opts = {}) {
     const amt = Number(o.amount_sats || 0);
     if (!amt) continue;
     if (pendingByAmount.has(amt)) {
-      issues.push({ type: 'duplicate_pending_amount', orderId: o.orderId, amount_sats: amt });
+      issues.push({ type: 'duplicate_pending_amount', order_ref: _ref(o.orderId), amount_sats: amt });
     } else {
       pendingByAmount.set(amt, o.orderId);
     }
@@ -103,7 +113,7 @@ function verify(opts = {}) {
       try { ok = !!verifyEntitlement(e); } catch (_) { ok = false; }
       if (!ok) {
         sigFailures++;
-        issues.push({ type: 'signature_verification_failed', orderId: e.orderId || null, entitlement_id: e.entitlement_id });
+        issues.push({ type: 'signature_verification_failed', order_ref: _ref(e.orderId), entitlement_ref: _ref(e.entitlement_id) });
       }
     }
   }

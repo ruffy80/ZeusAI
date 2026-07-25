@@ -17,8 +17,6 @@
 //   GET /.well-known/enterprise.json      (public discovery, same payload)
 'use strict';
 
-const path = require('path');
-
 function _bool(v) {
   return ['1', 'true', 'yes', 'on'].includes(String(v || '').toLowerCase());
 }
@@ -33,23 +31,27 @@ function _grade(score) {
 }
 
 function _moneyIntegrityPillar() {
-  // Prefer a live check against the commerce ledgers; degrade gracefully to a
-  // "verifier shipped" attestation if the verifier or ledgers are unavailable.
+  // Attest ONLY that the money-path verifier module is shipped and require-able
+  // (typeof verify === 'function'). We deliberately do NOT call verify() here:
+  // that pulls in sovereign-commerce and would start the BTC mempool watchers
+  // inside this (backend) process. Live verification stays on the site at
+  // GET /api/commerce/integrity, where the ledgers actually live.
   try {
     const integrity = require('../../src/site/commerce-integrity');
-    const dataDir = process.env.COMMERCE_DATA_DIR
-      || path.join(process.cwd(), 'data', 'commerce');
-    const r = integrity.verify({ dataDir });
-    const issues = (r && r.counts && typeof r.counts.issues === 'number')
-      ? r.counts.issues
-      : ((r && Array.isArray(r.issues)) ? r.issues.length : 0);
+    const shipped = !!(integrity && typeof integrity.verify === 'function');
     return {
       id: 'money_integrity',
-      ok: !!(r && r.ok),
-      detail: 'verifier_shipped · issues=' + issues + ' · score=' + (r ? r.score : 'n/a'),
+      ok: shipped,
+      detail: shipped
+        ? 'Money-path verifier shipped (require-able) — live verification at /api/commerce/integrity.'
+        : 'commerce-integrity module present but verify() missing.',
     };
   } catch (_) {
-    return { id: 'money_integrity', ok: true, detail: 'verifier_shipped' };
+    return {
+      id: 'money_integrity',
+      ok: false,
+      detail: 'commerce-integrity verifier module unavailable.',
+    };
   }
 }
 

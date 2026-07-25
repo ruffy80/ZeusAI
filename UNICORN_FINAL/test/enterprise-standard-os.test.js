@@ -155,6 +155,36 @@ check('verify() issues NEVER carry buyer PII', () => {
   assert.ok(!/buyer/i.test(blob), 'buyer field leaked into issues');
 });
 
+// ─── A) commerce-integrity: public issue identifiers are redacted to hashes ──
+check('verify() redacts raw order/entitlement ids to short sha256 refs', () => {
+  const crypto = require('crypto');
+  const shortHash = (id) => crypto.createHash('sha256').update(String(id)).digest('hex').slice(0, 12);
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'esos-redact-'));
+  // Orphan entitlement (references a missing order) → carries both ids.
+  const orphan = signEntitlement({
+    entitlement_id: 'ent_secret', orderId: 'ord_secret', serviceId: 'svc',
+    buyer: 'redact@example.com', amount_sats: 4444,
+  });
+  writeLedger(dir,
+    [{ orderId: 'other', status: 'pending', amount_sats: 100 }],
+    [orphan]);
+  const r = integrity.verify({ dataDir: dir });
+  const blob = JSON.stringify(r.issues);
+  // Raw identifiers must never appear in the public issue body.
+  assert.ok(!blob.includes('ord_secret'), 'raw orderId leaked into issues');
+  assert.ok(!blob.includes('ent_secret'), 'raw entitlement_id leaked into issues');
+  // Old raw-id field names must be gone; redacted *_ref fields present instead.
+  const orphanIssue = r.issues.find((i) => i.type === 'orphan_entitlement');
+  assert.ok(orphanIssue, 'orphan issue expected');
+  assert.strictEqual(orphanIssue.orderId, undefined, 'raw orderId field must be dropped');
+  assert.strictEqual(orphanIssue.entitlement_id, undefined, 'raw entitlement_id field must be dropped');
+  assert.strictEqual(orphanIssue.order_ref, shortHash('ord_secret'), 'order_ref must be sha256[0..12]');
+  assert.strictEqual(orphanIssue.entitlement_ref, shortHash('ent_secret'), 'entitlement_ref must be sha256[0..12]');
+  assert.ok(/^[0-9a-f]{12}$/.test(orphanIssue.order_ref), 'order_ref must be 12 hex chars');
+  // Counts stay exact regardless of redaction.
+  assert.strictEqual(r.counts.issues, r.issues.length);
+});
+
 // ─── B) commerce-metrics: real counters + prom exposition ───────────────────
 const metrics = require('../src/monitoring/commerce-metrics');
 
@@ -248,6 +278,19 @@ check('getStatus() returns the ESOS/1.0 shape with expected pillars', () => {
     'rate_limit', 'mutator_safety', 'pfos_present', 'ai_cost_visible']) {
     assert.ok(ids.includes(req), 'missing pillar ' + req);
   }
+});
+
+check('money_integrity pillar attests verifier shipped without live verify', () => {
+  const s = esos.getStatus();
+  const p = s.pillars.find((x) => x.id === 'money_integrity');
+  assert.ok(p, 'money_integrity pillar present');
+  // The pillar only attests the verifier module is require-able; live
+  // verification happens on the site (never starts BTC watchers in-process).
+  assert.strictEqual(p.ok, true, 'verifier module is require-able in test env');
+  assert.ok(/\/api\/commerce\/integrity/.test(p.detail),
+    'detail should point live verification at /api/commerce/integrity');
+  // Regression guard: must NOT run the ledger verifier (no issues/score leak).
+  assert.ok(!/issues=/.test(p.detail), 'pillar must not surface live verify issues count');
 });
 
 check('mutator_safety pillar ok when DISABLE_SELF_MUTATION=1 (high score)', () => {
