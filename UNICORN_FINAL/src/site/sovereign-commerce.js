@@ -872,20 +872,17 @@ async function handle(req, res, ctx) {
 
   // --- /api/checkout/create -------------------------------------------------
   if (url === '/api/checkout/create' && req.method === 'POST') {
-    // Defense-in-depth: per-IP token bucket in front of order allocation.
-    if (!_RATE_LIMIT_DISABLED && _checkoutLimiter) {
-      const verdict = _checkoutLimiter(_clientIp(req));
-      if (!verdict.ok) {
-        return sendJson(res, 429, { error: 'rate_limited', retryAfter: verdict.retryAfter }, { 'Retry-After': String(verdict.retryAfter) }), true;
-      }
-    }
-    const body = await readBody(req);
     // ── #3 Idempotency-Key (forward-only): if the client sends an
     //    Idempotency-Key header, replay the prior 201 response for 24h
     //    instead of allocating a NEW BTC amount. Critical for sovereign
     //    BTC checkout where double-click would otherwise create two
     //    distinct receive addresses and fragment funds. Standards-aligned
     //    with Stripe / IETF draft-ietf-httpapi-idempotency-key.
+    //
+    //    The idempotency check is headers-only, so it runs BEFORE the rate
+    //    limiter: a cached replay is not a "new" request and must never be
+    //    throttled with a 429 (a retrying client would otherwise be told to
+    //    back off from a response we already have on hand).
     const idemKey = String(req.headers['idempotency-key'] || req.headers['x-idempotency-key'] || '').slice(0, 128);
     if (idemKey) {
       const cached = _idempotencyGet(idemKey);
@@ -893,6 +890,15 @@ async function handle(req, res, ctx) {
         return sendJson(res, cached.statusCode, cached.body, { 'Idempotent-Replay': '1' }), true;
       }
     }
+    // Defense-in-depth: per-IP token bucket in front of order allocation.
+    // Applied only after the idempotency replay short-circuit above.
+    if (!_RATE_LIMIT_DISABLED && _checkoutLimiter) {
+      const verdict = _checkoutLimiter(_clientIp(req));
+      if (!verdict.ok) {
+        return sendJson(res, 429, { error: 'rate_limited', retryAfter: verdict.retryAfter }, { 'Retry-After': String(verdict.retryAfter) }), true;
+      }
+    }
+    const body = await readBody(req);
     const out = await createOrder(ctx, body);
     if (out.error) return sendJson(res, out.status || 400, { error: out.error, serviceId: out.serviceId }), true;
     try {
