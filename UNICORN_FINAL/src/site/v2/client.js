@@ -2604,6 +2604,12 @@ async function hydrateServiceDetail(id){
   const discountLine = Number.isFinite(localPrice) && localPrice > 0
     ? '<div style="font-size:11.5px;color:#ffd36a;font-weight:600;margin-top:4px;letter-spacing:.2px">10% BTC discount applied</div>'
     : '';
+  // Flicker guard: when the SSR already rendered this exact service detail
+  // (delivery timeline + upsell slot present), skip the full root wipe and
+  // only refresh the live price + hydrate the upsell. This avoids a visible
+  // re-layout on first paint / SPA navigation to an already-correct page.
+  const _ssrDetailReady = !!(document.getElementById('svcDeliveryTimeline') && document.getElementById('svcUpsell'));
+  if (!_ssrDetailReady) {
   root.innerHTML = `
     <div style="display:grid;grid-template-columns:1.3fr 1fr;gap:28px" class="svc-grid-ssr">
       <div class="svc-cine-card" data-tilt>
@@ -2633,6 +2639,7 @@ async function hydrateServiceDetail(id){
         <a class="btn" href="/services" data-link style="width:100%;justify-content:center;margin-top:8px">← All services</a>
       </aside>
     </div>`;
+  }
   fetchLivePricing(sid, { /* no onSlow placeholder — first paint already shows the SSR price */ }).then(function(live){
     if (!live || !Number.isFinite(Number(live.price_usd))) return;
     s.priceUsd = Number(live.price_usd);

@@ -1931,6 +1931,8 @@ function pageTrustCenter() {
     <div class="card"><span class="tag">Refund guarantee</span><h3 style="margin:6px 0;font-size:16px">/refund</h3><p style="color:var(--ink-dim);font-size:12.5px;margin:0">Public refund contract — no email chase, no fine print.</p><div style="margin-top:8px"><a class="btn btn-ghost" href="/refund" data-link>Read refund contract →</a></div></div>
     <div class="card"><span class="tag">Anti-dark-pattern pledge</span><h3 style="margin:6px 0;font-size:16px">/pledge</h3><p style="color:var(--ink-dim);font-size:12.5px;margin:0">Signed pledge: no forced upsells, no hidden auto-renew, no fake scarcity.</p><div style="margin-top:8px"><a class="btn btn-ghost" href="/pledge" data-link>Read the pledge →</a></div></div>
     <div class="card"><span class="tag">Public keys</span><h3 style="margin:6px 0;font-size:16px">/.well-known/keys.json</h3><p style="color:var(--ink-dim);font-size:12.5px;margin:0">Ed25519 verification keys used to sign receipts, licenses and integrity manifests.</p><div style="margin-top:8px"><a class="btn btn-ghost" href="/.well-known/keys.json" target="_blank" rel="noopener">Open keys.json →</a></div></div>
+    <div class="card"><span class="tag">Money-path integrity</span><h3 style="margin:6px 0;font-size:16px">/api/commerce/integrity</h3><p style="color:var(--ink-dim);font-size:12.5px;margin:0">ESOS/1.0 verifier: every paid order has a signed entitlement, no orphans, no signature failures.</p><div style="margin-top:8px"><a class="btn btn-ghost" href="/api/commerce/integrity" target="_blank" rel="noopener">Open integrity report →</a></div></div>
+    <div class="card"><span class="tag">Enterprise Standard OS</span><h3 style="margin:6px 0;font-size:16px">/.well-known/enterprise.json</h3><p style="color:var(--ink-dim);font-size:12.5px;margin:0">ESOS/1.0 posture: money integrity, real commerce metrics, rate-limit, AI-cost visibility.</p><div style="margin-top:8px"><a class="btn btn-ghost" href="/.well-known/enterprise.json" target="_blank" rel="noopener">Open enterprise.json →</a></div></div>
   </div>
   <div class="grid" id="trustGrid" style="margin-top:22px"><div class="card"><p>Loading trust center…</p></div></div>
   <div class="card" style="padding:22px;margin-top:18px"><span class="kicker">Integrity document</span><pre class="code" id="trustRaw">—</pre></div>
@@ -4593,6 +4595,26 @@ function pageStatus(params = {}) {
     <div id="pfosPillars" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin-top:18px"></div>
   </div>
 
+  <div class="card" id="esosPanel" style="margin-top:18px;padding:26px" aria-live="polite">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:16px;flex-wrap:wrap">
+      <div>
+        <span class="kicker">Enterprise Standard OS</span>
+        <div style="display:flex;align-items:baseline;gap:14px;flex-wrap:wrap;margin-top:4px">
+          <span id="esosScore" class="grad" style="font-size:clamp(36px,5vw,56px);font-weight:800;line-height:1;font-family:var(--mono,monospace)">—</span>
+          <span id="esosGrade" style="font-size:18px;font-weight:700;letter-spacing:.04em">—</span>
+        </div>
+        <p style="color:var(--ink-dim);font-size:13.5px;margin:10px 0 0">Money-path integrity · real commerce metrics · nginx contract · checkout rate-limit · AI-cost visibility.</p>
+      </div>
+      <a class="btn btn-ghost" href="/api/enterprise/standard" target="_blank" rel="noopener" style="font-size:12px">ESOS JSON →</a>
+    </div>
+    <div id="esosPillars" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin-top:18px"></div>
+    <div style="margin-top:16px;padding-top:14px;border-top:1px solid var(--stroke,rgba(160,200,255,.14));display:flex;gap:10px;flex-wrap:wrap">
+      <a class="btn btn-ghost" href="/api/commerce/integrity" target="_blank" rel="noopener" style="font-size:12px">Money-path integrity →</a>
+      <a class="btn btn-ghost" href="/api/commerce/metrics" target="_blank" rel="noopener" style="font-size:12px">Commerce metrics →</a>
+      <a class="btn btn-ghost" href="/.well-known/enterprise.json" target="_blank" rel="noopener" style="font-size:12px">/.well-known/enterprise.json →</a>
+    </div>
+  </div>
+
   <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;margin-top:18px">
     <div class="card"><span class="tag">Deploy</span><h3>Forward-only</h3><p style="color:var(--ink-dim)">Canary + smoke guarded.</p></div>
     <div class="card"><span class="tag">Integrity</span><h3>QIS guarded</h3><p style="color:var(--ink-dim)">Quantum Integrity Shield checked live.</p></div>
@@ -4721,7 +4743,38 @@ function pageStatus(params = {}) {
       if(pe) pe.innerHTML='<p style="color:var(--ink-dim);font-size:13.5px;margin:0">Platform Foundation snapshot unavailable.</p>';
     }
   }
-  function loadAllStatus(){ loadStatus(); loadAutonomyOs(); loadPlatformFoundation(); }
+  async function loadEnterpriseStandard(){
+    try {
+      var d = await (await fetch('/api/enterprise/standard',{cache:'no-store'})).json();
+      var scoreEl=document.getElementById('esosScore');
+      var gradeEl=document.getElementById('esosGrade');
+      var pillarsEl=document.getElementById('esosPillars');
+      if(scoreEl) scoreEl.textContent = d.score!=null ? String(d.score) : '—';
+      if(gradeEl) gradeEl.textContent = d.grade!=null ? String(d.grade) : '—';
+      var pillars = Array.isArray(d.pillars) ? d.pillars : [];
+      if(pillarsEl){
+        if(!pillars.length){
+          pillarsEl.innerHTML='<p style="color:var(--ink-dim);font-size:13.5px;margin:0">Enterprise pillars pending.</p>';
+        } else {
+          pillarsEl.innerHTML = pillars.slice(0,8).map(function(p,i){
+            var ok=taosPillarPass(p);
+            var label=taosEsc(taosPillarName(p,i));
+            var detail=taosEsc((p&&p.detail)||'');
+            var bg=ok?'rgba(59,255,176,.15)':'rgba(255,120,120,.12)';
+            var fg=ok?'#3bffb0':'#ff8a8a';
+            var st=ok?'PASS':'FAIL';
+            return '<div style="padding:12px 14px;border-radius:12px;border:1px solid var(--stroke,rgba(160,200,255,.14));background:rgba(0,0,0,.22)"><span class="tag" style="background:'+bg+';color:'+fg+';margin-bottom:8px">'+st+'</span><div style="font-size:14px;font-weight:600">'+label+'</div>'+(detail?'<div style="font-size:11.5px;color:var(--ink-dim);margin-top:4px">'+detail+'</div>':'')+'</div>';
+          }).join('');
+        }
+      }
+    } catch(e) {
+      var se=document.getElementById('esosScore');
+      var pe=document.getElementById('esosPillars');
+      if(se) se.textContent='—';
+      if(pe) pe.innerHTML='<p style="color:var(--ink-dim);font-size:13.5px;margin:0">Enterprise Standard snapshot unavailable.</p>';
+    }
+  }
+  function loadAllStatus(){ loadStatus(); loadAutonomyOs(); loadPlatformFoundation(); loadEnterpriseStandard(); }
   loadAllStatus(); setInterval(loadAllStatus, 15000);
   </script>
 </section>`;
