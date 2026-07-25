@@ -53,6 +53,13 @@ function assertSitePinned(pathToken) {
     pathToken + ' must proxy_pass to unicorn_site (got: ' + body.trim().slice(0, 120) + ')');
 }
 
+function assertBackendPinned(pathToken) {
+  const body = locationBlock(pathToken);
+  assert.ok(body, 'expected a location block for ' + pathToken);
+  assert.ok(/proxy_pass\s+http:\/\/unicorn_backend\b/.test(body),
+    pathToken + ' must proxy_pass to unicorn_backend (got: ' + body.trim().slice(0, 120) + ')');
+}
+
 console.log('nginx contract guard tests');
 
 // Upstreams must be declared.
@@ -69,11 +76,21 @@ const SITE_PINNED = [
   '/api/commerce/health',
   '/api/commerce/recent-sales',
   '/api/commerce/integrity',
+  '/api/commerce/metrics',
   '/api/order/',
   '/api/entitlements/',
 ];
 for (const p of SITE_PINNED) {
   check('site-pinned: ' + p + ' → unicorn_site', () => assertSitePinned(p));
+}
+
+// Backend-pinned public discovery docs (served by backend/index.js).
+const BACKEND_PINNED = [
+  '/.well-known/enterprise.json',
+  '/.well-known/platform.json',
+];
+for (const p of BACKEND_PINNED) {
+  check('backend-pinned: ' + p + ' → unicorn_backend', () => assertBackendPinned(p));
 }
 
 // Generic /api/ must go to the backend (source of truth).
