@@ -22,6 +22,11 @@ UNIT_DIR="/etc/systemd/system"
 echo "[install-autodeploy] installing poller → $BIN_DST"
 install -m 0755 "$SCRIPT_DIR/auto-pull-deploy.sh" "$BIN_DST"
 
+if [ -f "$SCRIPT_DIR/zeus-trust-sync.sh" ]; then
+  echo "[install-autodeploy] installing phoenix trust-sync → /usr/local/bin/zeus-trust-sync.sh"
+  install -m 0755 "$SCRIPT_DIR/zeus-trust-sync.sh" /usr/local/bin/zeus-trust-sync.sh
+fi
+
 if [ -f "$SCRIPT_DIR/lib/upgrade-only-guard.sh" ]; then
   echo "[install-autodeploy] installing upgrade-only guard → $LIB_DST_DIR/"
   mkdir -p "$LIB_DST_DIR"
