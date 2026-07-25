@@ -1110,9 +1110,14 @@ const blockchainAudit = require('./../backend/modules/blockchain-audit');
 function logCriticalAction(action, details) {
   try { blockchainAudit.logAction(action, details); } catch (e) { console.warn('[blockchain-audit] failed:', e.message); }
 }
-// Loghează scaling, feature flag, deploy, rollback (exemple)
-setInterval(() => { logCriticalAction('scaling', { procs: Math.floor(Math.random()*8)+1 }); }, 900000);
-setInterval(() => { logCriticalAction('feature-flag', { flag: 'ai-advanced-chat', enabled: Math.random()>0.5 }); }, 1200000);
+// Loghează scaling, feature flag, deploy, rollback (exemple).
+// ESOS/1.0: these are FABRICATED Math.random demo events — gated behind
+// FAKE_OBS_METRICS=1 (same flag as the synthetic observability loop below) so
+// the production audit chain is never polluted with invented actions.
+if (process.env.FAKE_OBS_METRICS === '1') {
+  setInterval(() => { logCriticalAction('scaling', { procs: Math.floor(Math.random()*8)+1 }); }, 900000);
+  setInterval(() => { logCriticalAction('feature-flag', { flag: 'ai-advanced-chat', enabled: Math.random()>0.5 }); }, 1200000);
+}
 // Endpoint audit chain
 app.get('/api/audit-chain', (req, res) => { res.json(blockchainAudit.getChain()); });
 // === Simulare future state AI ===
@@ -1241,9 +1246,10 @@ app.get('/api/innovation-dashboard', (req, res) => {
   const FeatureFlagManager = require('./../backend/modules/FeatureFlagManager');
   let scalerStatus = {};
   try { scalerStatus = require('./../backend/modules/predictive-scaler'); } catch (_) {}
-  // Exemplu metrici uptime/latency (de extins cu reali)
+  // Uptime is real; latency is a FABRICATED Math.random value, so it is only
+  // populated when FAKE_OBS_METRICS=1 (demo). Unset → null (no fake number).
   const uptime = process.uptime();
-  const latency = Math.random() * 2000;
+  const latency = process.env.FAKE_OBS_METRICS === '1' ? Math.random() * 2000 : null;
   res.json({
     cache: aiSmartCache.getStats(),
     featureFlags: FeatureFlagManager.getAllFlags(),
@@ -1260,14 +1266,18 @@ try { require('./../backend/modules/predictive-scaler'); } catch (e) { console.w
 const FeatureFlagManager = require('./../backend/modules/FeatureFlagManager');
 
 // === Auto-tune feature flags periodic (exemplu: la fiecare 5 min) ===
-setInterval(() => {
-  // Exemplu metrici: latency, engagement, cost, uptime (pot fi extinse)
-  const metrics = {
-    latency: Math.random() * 3000, // Înlocuiește cu metrici reali
-    engagement: 50 + Math.random() * 50 // Simulat, înlocuiește cu reali
-  };
-  FeatureFlagManager.autoTuneFlags(metrics);
-}, 300000);
+// ESOS/1.0: this loop drives autoTuneFlags with FABRICATED Math.random
+// latency/engagement, so it is gated behind FAKE_OBS_METRICS=1 (demo only).
+// When unset it is a no-op — feature flags are not tuned from invented data.
+if (process.env.FAKE_OBS_METRICS === '1') {
+  setInterval(() => {
+    const metrics = {
+      latency: Math.random() * 3000,
+      engagement: 50 + Math.random() * 50
+    };
+    FeatureFlagManager.autoTuneFlags(metrics);
+  }, 300000);
+}
 
 // === API: Feature Flags ===
 // ...express și app deja inițializate la început...
