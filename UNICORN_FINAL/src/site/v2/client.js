@@ -2244,7 +2244,11 @@ async function sovereignBuy(serviceId, opts){
       try { el.setAttribute('aria-busy', 'true'); } catch (_) {}
     }
     trackFunnel('checkout_start', { serviceId: String(serviceId || ''), value: null, checkoutType: preorder ? 'preorder' : 'direct' });
-    const r = await fetch('/api/checkout/create', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ serviceId, qty: 1, currency: 'USD', preorder }) });
+    // Idempotency-Key: guards against a double-click / retry allocating two
+    // distinct BTC invoices for the same intent. The server replays the prior
+    // 201 for 24h (see sovereign-commerce.handle). Stable per invocation.
+    const idemKey = 'sov-' + String(serviceId || 'svc') + '-' + (preorder ? 'pre-' : '') + Date.now() + '-' + Math.random().toString(36).slice(2, 8);
+    const r = await fetch('/api/checkout/create', { method:'POST', headers:{'Content-Type':'application/json','Idempotency-Key':idemKey}, body: JSON.stringify({ serviceId, qty: 1, currency: 'USD', preorder }) });
     let j = null;
     try { j = await r.json(); } catch (_) { j = null; }
     // Accept either an explicit checkout_url or fall back to a relative
@@ -2604,11 +2608,25 @@ async function hydrateServiceDetail(id){
   const discountLine = Number.isFinite(localPrice) && localPrice > 0
     ? '<div style="font-size:11.5px;color:#ffd36a;font-weight:600;margin-top:4px;letter-spacing:.2px">10% BTC discount applied</div>'
     : '';
-  // Flicker guard: when the SSR already rendered this exact service detail
-  // (delivery timeline + upsell slot present), skip the full root wipe and
-  // only refresh the live price + hydrate the upsell. This avoids a visible
+  // Flicker guard: when the SSR already rendered THIS EXACT service detail
+  // (delivery timeline + upsell slot present) skip the full root wipe and only
+  // refresh the live price + hydrate the upsell. This avoids a visible
   // re-layout on first paint / SPA navigation to an already-correct page.
-  const _ssrDetailReady = !!(document.getElementById('svcDeliveryTimeline') && document.getElementById('svcUpsell'));
+  //
+  // Critically, the guard must also confirm the currently-rendered page is for
+  // the SAME service id. On SPA navigation between two service pages the DOM
+  // still holds the PREVIOUS service's timeline/upsell nodes, so a shape-only
+  // check would wrongly keep stale content. Require #servicePage[data-id] (or
+  // the buy button's data-sovereign-buy) to match the requested sid; otherwise
+  // rewrite the HTML.
+  const _svcPageEl = document.getElementById('servicePage');
+  const _svcBuyEl = document.getElementById('svcBuyBtn');
+  const _renderedId = (_svcPageEl && _svcPageEl.getAttribute('data-id'))
+    || (_svcBuyEl && _svcBuyEl.getAttribute('data-sovereign-buy'))
+    || '';
+  const _idMatches = String(_renderedId) === sid;
+  const _ssrDetailReady = _idMatches
+    && !!(document.getElementById('svcDeliveryTimeline') && document.getElementById('svcUpsell'));
   if (!_ssrDetailReady) {
   root.innerHTML = `
     <div style="display:grid;grid-template-columns:1.3fr 1fr;gap:28px" class="svc-grid-ssr">
