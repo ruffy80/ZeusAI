@@ -24,8 +24,8 @@
 # in the commit message — the deploy gate looks for it explicitly.
 
 STABLE_SHA=91e7540d4292dbb925615fb8e4b6c4efe3114b98
-STABLE_TAG=2026-05-09-watchdog-autostart
-LAST_VERIFIED_AT=2026-05-09T14:07:00Z
+STABLE_TAG=2026-07-25-github-unblocked
+LAST_VERIFIED_AT=2026-07-25T23:08:00Z
 VERIFIED_BY=https://github.com/ruffy80/ZeusAI/actions/runs/25602922672
 
 # Mirror file (machine-read by deploy.yml + no-downgrade-guard.yml):
