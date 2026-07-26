@@ -100,11 +100,20 @@ class QuantumIntegrityShield {
       console.log('[QuantumIntegrityShield] rulează în mod non-mutating (DISABLE_SELF_MUTATION=1)');
     }
     this.active = true;
-    this._computeBaselineHashes();
-    this._computeBaselineFileHashes();
-    this._scheduleScan(2000);
-    setInterval(() => this._scheduleScan(0), SCAN_INTERVAL_MS);
-    console.log('[QuantumIntegrityShield] Activat — interval scan:', SCAN_INTERVAL_MS, 'ms');
+    this.startedAtMs = Date.now();
+    // Defer heavy sync hashing off the listen-critical path (Boot Immortal).
+    const bootDelay = Number(process.env.QIS_FIRST_SCAN_DELAY_MS || 15000);
+    setTimeout(() => {
+      try {
+        this._computeBaselineHashes();
+        this._computeBaselineFileHashes();
+      } catch (e) {
+        console.warn('[QuantumIntegrityShield] baseline hash deferred failed:', e && e.message);
+      }
+      this._scheduleScan(0);
+    }, bootDelay).unref?.();
+    setInterval(() => this._scheduleScan(0), SCAN_INTERVAL_MS).unref?.();
+    console.log('[QuantumIntegrityShield] Activat — first scan in', bootDelay, 'ms; interval', SCAN_INTERVAL_MS, 'ms');
   }
 
   stop() {
@@ -145,8 +154,22 @@ class QuantumIntegrityShield {
 
   _checkPm2Processes() {
     if (!REQUIRED_PM2_PROCESSES.length) return { ok: true, missing: [] };
+    // Boot Immortal: skip sync `pm2 jlist` during cold-boot settle window.
+    // execSync blocks the event loop; combined with UEE/code-sanity it made
+    // /api/health time out and restart loops look like "QIS pm2_process_missing".
+    const bootMs = Number(process.env.QIS_BOOT_GRACE_MS || 120000);
+    if (this.startedAtMs && (Date.now() - this.startedAtMs) < bootMs) {
+      return { ok: true, missing: [], deferred: true, reason: 'boot_grace' };
+    }
+    if (process.env.QIS_PM2_CHECK_DISABLED === '1') {
+      return { ok: true, missing: [], deferred: true, reason: 'disabled' };
+    }
     try {
-      const raw = execSync('pm2 jlist', { stdio: ['ignore', 'pipe', 'ignore'] }).toString('utf8');
+      const raw = execSync('pm2 jlist', {
+        stdio: ['ignore', 'pipe', 'ignore'],
+        timeout: Number(process.env.QIS_PM2_JLIST_TIMEOUT_MS || 2500),
+        maxBuffer: 2 * 1024 * 1024,
+      }).toString('utf8');
       const list = JSON.parse(raw || '[]');
       const online = new Set(
         list

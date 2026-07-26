@@ -333,7 +333,10 @@ module.exports = {
       watch: false,
       env: {
         NODE_ENV: 'production',
-        LIVE_SYNC_ENABLED: process.env.LIVE_SYNC_ENABLED || '1',
+        // Default OFF — startOrRestart of the whole ecosystem on any .js mtime
+        // change suicide-looped unicorn-backend during hot-patches / UEE writes.
+        // Arm explicitly with LIVE_SYNC_ENABLED=1 only on dedicated staging hosts.
+        LIVE_SYNC_ENABLED: process.env.LIVE_SYNC_ENABLED || '0',
         LIVE_SYNC_ROOT: APP_DIR,
         LIVE_SYNC_INTERVAL_MS: process.env.LIVE_SYNC_INTERVAL_MS || '10000',
         LIVE_SYNC_QUIET_MS: process.env.LIVE_SYNC_QUIET_MS || '2500',
