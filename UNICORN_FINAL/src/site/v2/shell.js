@@ -1553,15 +1553,15 @@ function pageService(id) {
       <a class="btn btn-gold" id="svcBuyBtn" href="${_esc(cta.ctaHref || '/enterprise#enterprise-contact')}" data-link style="width:100%;justify-content:center;margin-top:10px">${_esc(cta.ctaLabel || 'Request proposal →')}</a>`;
         }
         if (cta.mode === 'reserve') {
-          return `<p style="color:var(--ink-dim);font-size:13.5px">BTC reserve unlocks a signed kickoff pack immediately. The finished build is delivered by the ZeusAI team across stated milestones. Delivery email required.</p>
-      <label style="display:block;margin-top:10px;font-size:12px;color:var(--ink-dim)">Delivery email
-        <input id="svcBuyEmail" type="email" autocomplete="email" placeholder="you@company.com" style="width:100%;margin-top:4px;padding:10px 12px;border-radius:8px;border:1px solid var(--stroke);background:rgba(5,4,10,.55);color:var(--ink)"/>
+          return `<p style="color:var(--ink-dim);font-size:13.5px">BTC reserve unlocks a signed kickoff pack immediately. The finished build is delivered by the ZeusAI team across stated milestones. Email is optional — you can add it on the payment page.</p>
+      <label style="display:block;margin-top:10px;font-size:12px;color:var(--ink-dim)">Delivery email <span style="opacity:.7">(optional)</span>
+        <input id="svcBuyEmail" type="email" autocomplete="email" data-checkout-email="1" placeholder="you@company.com (optional)" style="width:100%;margin-top:4px;padding:10px 12px;border-radius:8px;border:1px solid var(--stroke);background:rgba(5,4,10,.55);color:var(--ink)"/>
       </label>
       <button type="button" class="btn btn-primary" id="svcBuyBtn" data-sovereign-buy="${_esc(safeId)}" data-buy-mode="reserve" style="width:100%;justify-content:center;margin-top:10px">₿ Reserve with BTC →</button>`;
         }
-        return `<p style="color:var(--ink-dim);font-size:13.5px">Pay with BTC, receive a signed receipt and the digital deliverable for this SKU. Delivery email required.</p>
-      <label style="display:block;margin-top:10px;font-size:12px;color:var(--ink-dim)">Delivery email
-        <input id="svcBuyEmail" type="email" autocomplete="email" placeholder="you@company.com" style="width:100%;margin-top:4px;padding:10px 12px;border-radius:8px;border:1px solid var(--stroke);background:rgba(5,4,10,.55);color:var(--ink)"/>
+        return `<p style="color:var(--ink-dim);font-size:13.5px">Pay with BTC, receive a signed receipt and the digital deliverable for this SKU. Click Buy to open the BTC invoice instantly — email is optional.</p>
+      <label style="display:block;margin-top:10px;font-size:12px;color:var(--ink-dim)">Delivery email <span style="opacity:.7">(optional)</span>
+        <input id="svcBuyEmail" type="email" autocomplete="email" data-checkout-email="1" placeholder="you@company.com (optional)" style="width:100%;margin-top:4px;padding:10px 12px;border-radius:8px;border:1px solid var(--stroke);background:rgba(5,4,10,.55);color:var(--ink)"/>
       </label>
       <button type="button" class="btn btn-primary" id="svcBuyBtn" data-sovereign-buy="${_esc(safeId)}" data-buy-mode="btc" style="width:100%;justify-content:center;margin-top:10px">₿ Buy now → BTC checkout</button>`;
       })()}

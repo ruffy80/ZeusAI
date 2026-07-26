@@ -96,14 +96,17 @@ async function run() {
     assert.ok(set.status === 'ready' || set.status === 'provisioned');
   });
 
-  await check('createOrder requires email for instant SKUs', async () => {
+  await check('createOrder allows instant SKUs without email (one-click BTC)', async () => {
     const ctx = {
       resolveCatalogItem: async (id) => ({
         id, title: 'Logo Kit', priceUsd: 99, group: 'instant', tier: 'instant',
       }),
     };
     const noEmail = await commerce.createOrder(ctx, { serviceId: 'instant-logo-kit', qty: 1 });
-    assert.strictEqual(noEmail.error, 'email_required');
+    assert.ok(noEmail.order, JSON.stringify(noEmail));
+    assert.ok(noEmail.order.orderId);
+    assert.ok(noEmail.order.checkout_url || noEmail.order.amount_btc > 0);
+    assert.strictEqual(String(noEmail.order.buyer && noEmail.order.buyer.email || ''), '');
   });
 
   await check('createOrder rejects enterprise self-serve', async () => {

@@ -526,11 +526,8 @@ async function createOrder(ctx, input) {
       status,
     };
   }
-  // Digital / reserve checkouts need a delivery email so the buyer can receive
-  // the artifact / kickoff pack. Empty email is no longer allowed for paid SKUs.
-  if (!email) {
-    return { error: 'email_required', status: 400, serviceId };
-  }
+  // Email is optional at invoice mint time (restores one-click Buy → BTC QR).
+  // Buyers can attach a delivery email on /checkout/:orderId if they skipped it.
 
   const buyerInputs = (input && input.inputs && typeof input.inputs === 'object' && !Array.isArray(input.inputs))
     ? input.inputs
@@ -825,7 +822,18 @@ a{color:var(--acc)}
   <div class="row"><span class="k">BTC price at quote</span><span class="v">${btcPriceAtQuote.toLocaleString()} ${currency} <small class="k">(${priceSource})</small></span></div>
   <div class="row"><span class="k">Status</span><span class="v"><span id="st" class="status pending">pending</span></span></div>
   <div class="row"><span class="k">Expires in</span><span class="v" id="cd">${expiresIn}s</span></div>
+  <div class="row"><span class="k">Delivery email</span><span class="v" id="buyerEmailLabel">${escapeHtml((o.buyer && o.buyer.email) || 'optional — add below')}</span></div>
 </div>
+
+${!String((o.buyer && o.buyer.email) || '').trim() ? `
+<div class="card" id="emailCaptureCard">
+  <p style="margin:0 0 10px"><b>Delivery email</b> <span class="k">(optional — for receipt + deliverable)</span></p>
+  <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+    <input id="deliveryEmail" type="email" autocomplete="email" placeholder="you@company.com" style="flex:1;min-width:200px;background:#14132a;border:1px solid var(--line);color:var(--fg);padding:10px 12px;border-radius:8px;font-size:14px"/>
+    <button type="button" class="cta" id="saveEmailBtn" style="background:#14132a;color:#eaf0ff;border:1px solid var(--line)">Save email</button>
+  </div>
+  <p class="note" id="emailSaveMsg" style="margin-top:8px">You can pay first — email can be added any time before delivery.</p>
+</div>` : ''}
 
 <div class="card">
   <div class="qr"><img alt="BIP-21 QR" src="${escapeHtml(qrRedirect(o.bip21 || ''))}" loading="lazy"></div>
@@ -891,6 +899,22 @@ a{color:var(--acc)}
     }).catch(function(){setTimeout(poll,5000);});
   }
   poll();
+  var saveEmailBtn=document.getElementById('saveEmailBtn');
+  if(saveEmailBtn){saveEmailBtn.addEventListener('click',function(){
+    var inp=document.getElementById('deliveryEmail');
+    var msg=document.getElementById('emailSaveMsg');
+    var email=String((inp&&inp.value)||'').trim().toLowerCase();
+    if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)){ if(msg) msg.textContent='Enter a valid email.'; return; }
+    fetch('/api/order/'+encodeURIComponent(ORDER_ID)+'/email',{
+      method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({ email: email, access_token: TOK })
+    }).then(function(r){return r.json().then(function(j){return {ok:r.ok,j:j};});}).then(function(res){
+      if(!res.ok){ if(msg) msg.textContent=(res.j&&res.j.error)||'Could not save email'; return; }
+      var lab=document.getElementById('buyerEmailLabel'); if(lab) lab.textContent=email;
+      var card=document.getElementById('emailCaptureCard'); if(card) card.style.display='none';
+      if(msg) msg.textContent='Email saved for delivery.';
+    }).catch(function(e){ if(msg) msg.textContent='Save failed: '+(e&&e.message||e); });
+  });}
   var gb=document.getElementById('giftBtn');
   if(gb){gb.addEventListener('click',function(){
     var out=document.getElementById('giftOut');
@@ -962,7 +986,15 @@ async function handle(req, res, ctx) {
     }
     const body = await readBody(req);
     const out = await createOrder(ctx, body);
-    if (out.error) return sendJson(res, out.status || 400, { error: out.error, serviceId: out.serviceId }), true;
+    if (out.error) {
+      return sendJson(res, out.status || 400, {
+        error: out.error,
+        reason: out.reason || undefined,
+        mode: out.mode || undefined,
+        contactHref: out.contactHref || undefined,
+        serviceId: out.serviceId,
+      }), true;
+    }
     try {
       const tx = require('../commerce/transactional-email');
       const buyerEmail = String(out.order && out.order.buyer && out.order.buyer.email || '').trim().toLowerCase();
@@ -1020,6 +1052,24 @@ async function handle(req, res, ctx) {
     if (!order) { res.writeHead(404); res.end(); return true; }
     res.writeHead(302, { Location: qrRedirect(order.bip21), 'Cache-Control': 'public, max-age=60' });
     res.end(); return true;
+  }
+
+  // --- /api/order/:orderId/email (attach delivery email after invoice mint) -
+  const mEmail = url.match(/^\/api\/order\/([a-zA-Z0-9_-]{6,64})\/email$/);
+  if (mEmail && req.method === 'POST') {
+    const order = ORDERS.get(mEmail[1]);
+    if (!order) return sendJson(res, 404, { error: 'order_not_found' }), true;
+    const body = await readBody(req);
+    const token = String((body && body.access_token) || '').trim();
+    if (!token || token !== String(order.access_token || '')) {
+      return sendJson(res, 401, { error: 'invalid_access_token' }), true;
+    }
+    const nextEmail = String((body && body.email) || '').trim().toLowerCase().slice(0, 254);
+    if (!EMAIL_RE.test(nextEmail)) return sendJson(res, 400, { error: 'invalid_email' }), true;
+    order.buyer = order.buyer || {};
+    order.buyer.email = nextEmail;
+    persistOrder(order);
+    return sendJson(res, 200, { ok: true, orderId: order.orderId, email: nextEmail }), true;
   }
 
   // --- /api/order/:orderId/status -----------------------------------------
