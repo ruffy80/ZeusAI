@@ -57,6 +57,31 @@ async function run() {
     assert.deepStrictEqual(out.map((x) => x.id), ['instant-seo-content-pack', 'pro']);
   });
 
+  await check('public catalog counts hide aspirational shelf', () => {
+    const filtered = filter.applyPublicCatalogFilter({
+      items: [
+        { id: 'instant-seo-content-pack', group: 'instant' },
+        { id: 'future-primitive-1', group: 'future-invention' },
+        { id: 'bs-pack', group: 'billion-scale-package' },
+        { id: 'bs-act', group: 'billion-scale-activation' },
+        { id: 'pro', group: 'service' },
+      ],
+      counts: {
+        total: 5,
+        strategicPackages: 9,
+        activationProducts: 3,
+        futurePrimitives: 12,
+        unicornAuto: 4,
+      },
+    });
+    assert.strictEqual(filtered.items.length, 2);
+    assert.strictEqual(filtered.counts.total, 2);
+    assert.strictEqual(filtered.counts.strategicPackages, 0);
+    assert.strictEqual(filtered.counts.activationProducts, 0);
+    assert.strictEqual(filtered.counts.futurePrimitives, 0);
+    assert.strictEqual(filtered.counts.unicornAuto, 0);
+  });
+
   await check('future-invention / billion-scale not self-serve buyable', () => {
     assert.strictEqual(buyability.assessBuyability({ id: 'future-x', group: 'future-invention', priceUSD: 99 }).buyable, false);
     assert.strictEqual(buyability.assessBuyability({ id: 'bs-1', group: 'billion-scale-package', priceUSD: 14000000 }).buyable, false);

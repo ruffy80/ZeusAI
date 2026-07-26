@@ -162,6 +162,16 @@ function applyPublicCatalogFilter(catalog, options = {}) {
       frontier: groupCount('frontier'),
       vertical: groupCount('vertical'),
     };
+    // Public storefront honesty: aspirational / synthetic shelf counts must
+    // reflect what is actually listed, not the internal full catalog.
+    if (!includeSynthetic) {
+      next.counts.strategicPackages = groupCount('billion-scale-package') + groupCount('strategic-package');
+      next.counts.activationProducts = groupCount('billion-scale-activation');
+      next.counts.futurePrimitives = groupCount('future-invention');
+      next.counts.unicornAuto = groupCount('unicorn-auto-module') + groupCount('auto-module');
+      next.counts.zacc = groupCount('zacc');
+      next.counts.synthetic = items.filter((x) => x && x.synthetic === true).length;
+    }
   }
   return next;
 }

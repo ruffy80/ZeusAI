@@ -18,7 +18,9 @@ const app = createServer();
 const port = Number(process.env.PORT);
 const base = `http://127.0.0.1:${port}`;
 const wallet = process.env.BTC_WALLET_ADDRESS;
-const expectedMinCatalogItems = Number(process.env.EXPECTED_MIN_CATALOG_ITEMS || 38);
+// Public storefront excludes aspirational/synthetic SKUs (Commercial Cycle OS).
+// Keep the floor on real deliverable recipe groups, not the internal full shelf.
+const expectedMinCatalogItems = Number(process.env.EXPECTED_MIN_CATALOG_ITEMS || 12);
 const smokeEmail = 'smoke@zeusai.pro';
 
 function cleanSmokeJsonArray(filePath) {
@@ -203,16 +205,44 @@ async function run() {
     assert.ok(Array.isArray(catalog.body.items), 'catalog.items must be an array');
     assert.ok(
       catalog.body.items.length >= expectedMinCatalogItems,
-      `master catalog must expose at least ${expectedMinCatalogItems} service deliverables`
+      `public master catalog must expose at least ${expectedMinCatalogItems} real deliverables`
     );
     assert.equal(catalog.body.connector.payout.btcAddress, wallet);
-    assert.ok(catalog.body.counts.strategicPackages >= 5, 'catalog must expose billion-scale strategic packages');
-    assert.ok(catalog.body.counts.activationProducts >= 1, 'catalog must expose Unicorn activation product');
-    assert.ok(catalog.body.counts.unicornAuto >= 1, 'catalog must auto-commercialize Unicorn modules');
-    assert.ok(catalog.body.counts.futurePrimitives >= 7, 'catalog must expose future invention primitives');
-    assert.ok(catalog.body.items.some(item => item.group === 'billion-scale-activation' && item.checkout.btcAddress === wallet));
-    assert.ok(catalog.body.items.some(item => item.group === 'billion-scale-package' && item.checkout.btcAddress === wallet));
-    assert.ok(catalog.body.items.some(item => item.group === 'future-invention' && item.checkout.btcAddress === wallet));
+    // Default public catalog is honesty-filtered: only curated fulfillment recipes.
+    const publicGroups = new Set(catalog.body.items.map((item) => String(item.group || '')));
+    assert.ok(
+      ['instant', 'professional', 'enterprise', 'vertical', 'frontier', 'service', 'strategic', 'core-plan']
+        .some((g) => publicGroups.has(g)),
+      'public catalog must include at least one curated recipe group'
+    );
+    assert.ok(catalog.body.items.every((item) => item.checkout && item.checkout.btcAddress === wallet),
+      'every public catalog item must route checkout to the owner BTC wallet');
+    assert.ok(!catalog.body.items.some((item) => item.group === 'billion-scale-activation'),
+      'public catalog must NOT list aspirational billion-scale-activation SKUs');
+    assert.ok(!catalog.body.items.some((item) => item.group === 'billion-scale-package'),
+      'public catalog must NOT list aspirational billion-scale-package SKUs');
+    assert.ok(!catalog.body.items.some((item) => item.group === 'future-invention'),
+      'public catalog must NOT list aspirational future-invention SKUs');
+    assert.equal(Number(catalog.body.counts.strategicPackages || 0), 0,
+      'public counts.strategicPackages must be 0 (aspirational shelf hidden)');
+    assert.equal(Number(catalog.body.counts.activationProducts || 0), 0,
+      'public counts.activationProducts must be 0 (aspirational shelf hidden)');
+    assert.equal(Number(catalog.body.counts.futurePrimitives || 0), 0,
+      'public counts.futurePrimitives must be 0 (aspirational shelf hidden)');
+
+    // Opt-in full shelf still exposes aspirational SKUs for admin/internal views.
+    const fullCatalog = await request('/api/catalog/master?includeSynthetic=1');
+    assert.equal(fullCatalog.status, 200);
+    assert.ok(Array.isArray(fullCatalog.body.items), 'includeSynthetic catalog.items must be an array');
+    assert.ok(fullCatalog.body.items.length > catalog.body.items.length,
+      'includeSynthetic=1 must expose a larger internal shelf than the public catalog');
+    assert.ok(fullCatalog.body.counts.strategicPackages >= 5, 'full catalog must expose billion-scale strategic packages');
+    assert.ok(fullCatalog.body.counts.activationProducts >= 1, 'full catalog must expose Unicorn activation product');
+    assert.ok(fullCatalog.body.counts.unicornAuto >= 1, 'full catalog must auto-commercialize Unicorn modules');
+    assert.ok(fullCatalog.body.counts.futurePrimitives >= 7, 'full catalog must expose future invention primitives');
+    assert.ok(fullCatalog.body.items.some(item => item.group === 'billion-scale-activation' && item.checkout.btcAddress === wallet));
+    assert.ok(fullCatalog.body.items.some(item => item.group === 'billion-scale-package' && item.checkout.btcAddress === wallet));
+    assert.ok(fullCatalog.body.items.some(item => item.group === 'future-invention' && item.checkout.btcAddress === wallet));
 
     const billionStatus = await request('/api/billion-scale/status');
     assert.equal(billionStatus.status, 200);
