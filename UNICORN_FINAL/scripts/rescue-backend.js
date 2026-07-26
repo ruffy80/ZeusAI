@@ -34,29 +34,36 @@ function sendJson(res, status, payload) {
 }
 
 function health() {
+  // Fail-closed identity: never advertise full commerce readiness.
+  // Healers/deploy smoke MUST treat mode=rescue as unhealthy.
   return {
-    ok: true,
-    status: 'healthy',
+    ok: false,
+    ready: false,
+    status: 'degraded',
     service: 'zeus-rescue-api',
     mode: 'rescue',
-    dbConnected: true,
+    dbConnected: false,
+    commerceAvailable: false,
     engines: {
-      pricing: true,
-      services: true,
-      payments: true,
-      quantumIntegrity: true,
+      pricing: false,
+      services: false,
+      payments: false,
+      quantumIntegrity: false,
     },
+    message: 'rescue liveness only — restore backend/index.js',
     ts: new Date().toISOString(),
   };
 }
 
 function checkoutHealth() {
   return {
-    ok: true,
-    status: 'healthy',
+    ok: false,
+    ready: false,
+    status: 'unavailable',
     service: 'checkout',
     mode: 'rescue',
-    payments: { btc: true, paypal: false, stripe: false },
+    commerceAvailable: false,
+    payments: { btc: false, paypal: false, stripe: false },
     ts: new Date().toISOString(),
   };
 }
@@ -202,15 +209,14 @@ const server = http.createServer((req, res) => {
     });
   }
   if (url.pathname === '/api/checkout/health' || url.pathname === '/checkout/health') {
-    return sendJson(res, 200, checkoutHealth());
+    return sendJson(res, 503, checkoutHealth());
   }
   if (url.pathname === '/api/checkout/create' || url.pathname === '/checkout/create' || url.pathname === '/api/checkout/btc') {
-    return sendJson(res, 200, {
-      ok: true,
+    return sendJson(res, 503, {
+      ok: false,
       mode: 'rescue',
-      checkoutId: 'rescue-' + Date.now(),
-      receipt: 'rescue-only',
-      message: 'rescue checkout path active',
+      error: 'commerce_unavailable_in_rescue',
+      message: 'Checkout disabled while rescue-backend is active — restore backend/index.js',
       ts: new Date().toISOString(),
     });
   }

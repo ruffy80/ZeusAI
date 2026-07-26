@@ -264,8 +264,8 @@ function _ssrCatalogGrid(items, opts) {
     return `<div class="card"><p style="color:var(--ink-dim);margin:0">Catalog refreshing… open <a href="/services" data-link>/services</a> for the marketplace.</p></div>`;
   }
   const cards = items.map(_catalogCard).join('');
-  const cols = o.minCol || 300;
-  return `<div class="grid" id="${_esc(o.gridId || 'catalogGrid')}" style="grid-template-columns:repeat(auto-fill,minmax(${cols}px,1fr));gap:16px">${cards}</div>`;
+  const cols = Math.max(160, Number(o.minCol) || 300);
+  return `<div class="grid" id="${_esc(o.gridId || 'catalogGrid')}" style="grid-template-columns:repeat(auto-fill,minmax(min(${cols}px,100%),1fr));gap:16px">${cards}</div>`;
 }
 
 function buildJsonLd(title, route, canonical, desc, opts) {

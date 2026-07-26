@@ -74,7 +74,8 @@ async function main() {
     assert.ok(!/BACKEND_HEALTH_URL:-\$\{BACKEND_HEALTH_URL:-http:\/\/127\.0\.0\.1:3000\/health\}/.test(sh));
     assert.ok(!sh.includes(':-http://127.0.0.1:3000/health}'));
     assert.ok(sh.includes('healerFail'));
-    assert.ok(sh.includes('AUTOHEAL_MIN_COOLDOWN_S:-600'));
+    assert.ok(sh.includes('AUTOHEAL_MIN_COOLDOWN_S:-900'));
+    assert.ok(sh.includes('BOOT_GRACE') || sh.includes('AUTOHEAL_MIN_BOOT_GRACE_S'));
   });
 
   check('health-watch honors healerFail', () => {

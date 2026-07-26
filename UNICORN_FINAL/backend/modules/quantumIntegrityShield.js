@@ -18,7 +18,9 @@ const { execSync } = require('child_process');
 
 const SCAN_INTERVAL_MS  = parseInt(process.env.QIS_SCAN_INTERVAL_MS  || '300000',  10); // 5 min
 const MAX_SCAN_HISTORY  = 100;
-const AUTO_HEAL_ENABLED = String(process.env.QIS_AUTO_HEAL_ENABLED || 'true').toLowerCase() !== 'false';
+// Default OFF: cold-boot event-loop lag previously looked like integrity
+// damage and queued auto-heal noise. Enable explicitly in env when desired.
+const AUTO_HEAL_ENABLED = String(process.env.QIS_AUTO_HEAL_ENABLED || 'false').toLowerCase() === 'true';
 // Default auto-heal: only references the live PM2 processes that actually
 // exist on production (unicorn-backend, unicorn-site). The legacy
 // 'unicorn-guardian' was retired and reloading it errored every cycle, which

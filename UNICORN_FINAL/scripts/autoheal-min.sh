@@ -76,6 +76,10 @@ probe_ok() {
   body=$(curl -fsS -m "$CURL_TIMEOUT" "$url" 2>/dev/null || true)
   code=$(curl -fsS -m "$CURL_TIMEOUT" -o /dev/null -w "%{http_code}" "$url" 2>/dev/null || true)
   [ "$code" = "200" ] || return 1
+  # Rescue API fabricates HTTP 200 — treat as unhealthy so we never perpetuate it.
+  if printf '%s' "$body" | grep -Eq '"mode"[[:space:]]*:[[:space:]]*"rescue"|"service"[[:space:]]*:[[:space:]]*"zeus-rescue-api"'; then
+    return 1
+  fi
   # Optional NDK lag fail (backend /api/health embeds neverDown.healerFail)
   if printf '%s' "$body" | grep -q '"healerFail"[[:space:]]*:[[:space:]]*true'; then
     return 1
@@ -110,6 +114,32 @@ probe_app() {
     return 0
   fi
   if command -v pm2 >/dev/null 2>&1; then
+    # If backend PM2 entry points at rescue-backend.js, reload would perpetuate
+    # rescue. Delete + start canonical ecosystem entry instead.
+    if [ "$app" = "unicorn-backend" ]; then
+      script="$(pm2 jlist 2>/dev/null | node -e '
+        let b=""; process.stdin.on("data",c=>b+=c); process.stdin.on("end",()=>{
+          try {
+            const p = JSON.parse(b||"[]").find(x => x && x.name === "unicorn-backend");
+            process.stdout.write(String((p && p.pm2_env && (p.pm2_env.pm_exec_path || p.pm2_env.script)) || ""));
+          } catch (_) { process.stdout.write(""); }
+        });
+      ' 2>/dev/null || true)"
+      case "$script" in
+        *rescue-backend*)
+          echo "$(ts) [autoheal-min] unicorn-backend on rescue — force ecosystem respawn"
+          pm2 delete unicorn-backend >/dev/null 2>&1 || true
+          if [ -f "${DEPLOY_LINK:-/var/www/unicorn/UNICORN_FINAL}/ecosystem.config.js" ]; then
+            cd "${DEPLOY_LINK:-/var/www/unicorn/UNICORN_FINAL}"
+            if env QIS_AUTO_HEAL_ENABLED=false pm2 start ecosystem.config.js --only unicorn-backend --update-env; then
+              echo "$now" > "$last_act_file"
+              echo 0 > "$streak_file"
+            fi
+          fi
+          return 0
+          ;;
+      esac
+    fi
     echo "$(ts) [autoheal-min] restarting only $app"
     if pm2 reload "$app" --update-env || pm2 restart "$app" --update-env; then
       echo "$now" > "$last_act_file"

@@ -36,6 +36,8 @@ check('shell uses viewport-safe minmax for enterprise/store grids', () => {
   assert.ok(shell.includes('class="grid op-grid-ssr phone-stack"'), 'order passport single class attr');
   assert.ok(!/class="grid"[^>]*class="op-grid-ssr"/.test(shell), 'no duplicate class= on op grid');
   assert.ok(shell.includes('phone-stack'), 'phone-stack markers present');
+  assert.ok(shell.includes('minmax(min(') && shell.includes('cols'), 'catalog grid uses viewport-safe minmax');
+
 });
 
 check('client account grid uses viewport-safe minmax', () => {
