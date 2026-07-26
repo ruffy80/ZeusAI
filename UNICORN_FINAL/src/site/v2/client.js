@@ -2199,19 +2199,21 @@ function masterCardHtml(it){
   // Pre-order eligible: speculative R&D primitives are sold as forward-locks
   // at 30% of the listed price (configurable server-side via COMMERCE_PREORDER_PCT).
   const isPreorderEligible = it.group === 'future-invention' && priceUsd > 0;
-  // Commerce Reality OS — CTA by tier (instant buy / professional reserve / enterprise contact).
-  const tierKey = String(tier || it.group || '').toLowerCase();
-  const isEnterpriseCard = tierKey === 'enterprise' || /^ent-/i.test(id);
-  const isProfessionalCard = tierKey === 'professional' || /^professional-/i.test(id);
+  // Commerce Reality OS — CTA must match server assessBuyability (never show
+  // Buy with BTC for contact/unavailable SKUs that would die after an email prompt).
+  const cta = clientBuyabilityCta(it);
   let buyBtn;
   if (!(priceUsd > 0)) {
     buyBtn = '<a class="btn btn-ghost" href="/services/' + encodeURIComponent(id) + '" data-link style="flex:1;justify-content:center">Activate free</a>';
-  } else if (isEnterpriseCard) {
-    buyBtn = '<a class="btn btn-gold" href="/enterprise#enterprise-contact" data-link aria-label="Request proposal for ' + title + '" style="flex:1;justify-content:center">Request proposal →</a>';
-  } else if (isProfessionalCard) {
-    buyBtn = '<a class="btn btn-primary" href="/checkout/?plan=' + encodeURIComponent(id) + '" data-sovereign-buy="' + idAttr + '" data-buy-mode="reserve" aria-label="Reserve ' + title + ' with Bitcoin" style="flex:1;justify-content:center">Reserve with BTC →</a>';
+  } else if (cta.mode === 'contact' || cta.buyable === false) {
+    const href = cta.ctaHref || (cta.mode === 'unavailable' ? ('/services/' + encodeURIComponent(id)) : '/enterprise#enterprise-contact');
+    const label = cta.ctaLabel || (cta.mode === 'unavailable' ? 'Not for sale' : 'Request proposal →');
+    const cls = cta.mode === 'unavailable' ? 'btn btn-ghost' : 'btn btn-gold';
+    buyBtn = '<a class="' + cls + '" href="' + href + '" data-link aria-label="' + escapeHtml(label) + ' ' + title + '" style="flex:1;justify-content:center">' + escapeHtml(label) + '</a>';
   } else {
-    buyBtn = '<a class="btn btn-primary" href="/checkout/?plan=' + encodeURIComponent(id) + '" data-sovereign-buy="' + idAttr + '" data-buy-mode="btc" aria-label="Buy ' + title + ' with Bitcoin" style="flex:1;justify-content:center">Buy with BTC →</a>';
+    const mode = cta.mode === 'reserve' ? 'reserve' : 'btc';
+    const label = cta.ctaLabel || (mode === 'reserve' ? 'Reserve with BTC →' : 'Buy with BTC →');
+    buyBtn = '<a class="btn btn-primary" href="/checkout/?plan=' + encodeURIComponent(id) + '" data-sovereign-buy="' + idAttr + '" data-buy-mode="' + mode + '" aria-label="' + escapeHtml(label) + ' ' + title + '" style="flex:1;justify-content:center">' + escapeHtml(label) + '</a>';
   }
   const preorderBtn = isPreorderEligible
     ? '<button type="button" class="btn btn-ghost" data-sovereign-buy="' + idAttr + '" data-sovereign-preorder="1" style="justify-content:center;border-color:#7cf3ff66;color:#7cf3ff" title="Reserve early access at 30% now — locks the price for 365 days">⏳ Reserve 30%</button>'
@@ -2236,6 +2238,35 @@ function masterCardHtml(it){
     + '</article>';
 }
 
+// Mirror of commerce-buyability.js for catalog cards (browser cannot require()).
+function clientBuyabilityCta(it) {
+  const id = String((it && (it.id || it.serviceId)) || '');
+  const tier = String((it && (it.tier || it.group || it.segment)) || '').toLowerCase();
+  const group = String((it && (it.group || it.segment || '')) || '').toLowerCase();
+  const price = Number((it && (it.priceUsd != null ? it.priceUsd : it.price)) || 0);
+  if (it && typeof it.buyable === 'boolean') {
+    return {
+      mode: String(it.buyMode || (it.buyable ? 'btc' : 'unavailable')),
+      buyable: it.buyable,
+      ctaLabel: it.ctaLabel || null,
+      ctaHref: it.ctaHref || null,
+    };
+  }
+  if (/^ent-/i.test(id) || group === 'enterprise' || tier === 'enterprise' || id === 'enterprise') {
+    return { mode: 'contact', buyable: false, ctaLabel: 'Request proposal →', ctaHref: '/enterprise#enterprise-contact' };
+  }
+  if (price >= 5000 || group === 'billion-scale-package' || group === 'billion-scale-activation' || group === 'strategic-package') {
+    return { mode: 'contact', buyable: false, ctaLabel: 'Request proposal →', ctaHref: '/enterprise#enterprise-contact' };
+  }
+  if (group === 'future-invention' || /^(activation-|billion-|future-)/i.test(id)) {
+    return { mode: 'unavailable', buyable: false, ctaLabel: 'Not available yet', ctaHref: null };
+  }
+  if (/^professional-/i.test(id) || group === 'professional' || tier === 'professional') {
+    return { mode: 'reserve', buyable: true, ctaLabel: 'Reserve with BTC →', ctaHref: '/checkout/?plan=' + encodeURIComponent(id) };
+  }
+  return { mode: 'btc', buyable: true, ctaLabel: 'Buy with BTC →', ctaHref: '/checkout/?plan=' + encodeURIComponent(id) };
+}
+
 // Sovereign BTC checkout: creates a non-custodial order on the server and
 // redirects the buyer to /checkout/:orderId. The watcher matches the unique
 // sat-amount on-chain and issues an Ed25519 entitlement automatically. Funds
@@ -2252,19 +2283,21 @@ async function sovereignBuy(serviceId, opts){
       window.location.href = '/enterprise#enterprise-contact';
       return;
     }
+    // Email is optional for invoice mint — restore one-click Buy → BTC QR.
+    // Prefer inline #svcBuyEmail / hero field / remembered email; never block
+    // on window.prompt (that was the "only asks for email" regression).
     let email = '';
     try {
-      const svcEmail = document.getElementById('svcBuyEmail');
+      const svcEmail = document.getElementById('svcBuyEmail')
+        || document.getElementById('heroQuickEmail')
+        || document.querySelector('input[type="email"][data-checkout-email]');
       email = String((svcEmail && svcEmail.value) || localStorage.getItem('u_email') || '').trim();
     } catch (_) { email = ''; }
-    if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-      email = String(window.prompt('Delivery email for this order (required):', email || '') || '').trim();
-    }
-    if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-      alert('A valid delivery email is required so we can send your receipt and deliverable.');
+    if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      alert('That email looks invalid. Clear it or enter a valid address — or continue without email and add it on the payment page.');
       return;
     }
-    try { localStorage.setItem('u_email', email); } catch (_) {}
+    if (email) { try { localStorage.setItem('u_email', email); } catch (_) {} }
 
     if (document.body) document.body.style.cursor = 'wait';
     if (el) {
@@ -2277,9 +2310,15 @@ async function sovereignBuy(serviceId, opts){
     // distinct BTC invoices for the same intent. The server replays the prior
     // 201 for 24h (see sovereign-commerce.handle). Stable per invocation.
     const idemKey = 'sov-' + String(serviceId || 'svc') + '-' + (preorder ? 'pre-' : '') + Date.now() + '-' + Math.random().toString(36).slice(2, 8);
-    const r = await fetch('/api/checkout/create', { method:'POST', headers:{'Content-Type':'application/json','Idempotency-Key':idemKey}, body: JSON.stringify({ serviceId, qty: 1, currency: 'USD', preorder, email }) });
+    const payload = { serviceId, qty: 1, currency: 'USD', preorder };
+    if (email) payload.email = email;
+    const r = await fetch('/api/checkout/create', { method:'POST', headers:{'Content-Type':'application/json','Idempotency-Key':idemKey}, body: JSON.stringify(payload) });
     let j = null;
     try { j = await r.json(); } catch (_) { j = null; }
+    if (j && j.error === 'contact_required') {
+      window.location.href = String(j.contactHref || '/enterprise#enterprise-contact');
+      return;
+    }
     // Accept either an explicit checkout_url or fall back to a relative
     // /checkout/:orderId redirect so the flow works even if the server
     // omits/mangles checkout_url. Prefer same-origin navigation to avoid
@@ -2289,7 +2328,8 @@ async function sovereignBuy(serviceId, opts){
     if (j && j.checkout_url) target = String(j.checkout_url);
     else if (orderId) target = '/checkout/' + encodeURIComponent(String(orderId));
     if (!r.ok || !target) {
-      throw new Error((j && j.error) || ('HTTP ' + r.status));
+      const detail = (j && (j.reason || j.error)) || ('HTTP ' + r.status);
+      throw new Error(detail);
     }
     trackFunnel('checkout_redirect', { serviceId: String(serviceId || ''), checkoutUrl: target.slice(0, 160) });
     // If target is same-origin, use a relative path so we don't leave the
@@ -2682,7 +2722,19 @@ async function hydrateServiceDetail(id){
         <div id="svcLiveBtc" style="font-size:12px;color:var(--ink-dim);margin-top:4px"></div>
         ${discountLine}
         <p style="color:var(--ink-dim);font-size:13.5px">Activate instantly after on-chain confirmation. Signed receipt on every invoice.</p>
-        <button type="button" class="btn btn-primary" id="svcBuyBtn" data-sovereign-buy="${escapeHtml(s.id)}" style="width:100%;justify-content:center;margin-top:10px">₿ Buy now → BTC checkout</button>
+        <label style="display:block;margin-top:12px;font-size:12px;color:var(--ink-dim)">Delivery email <span style="opacity:.7">(optional)</span>
+          <input id="svcBuyEmail" type="email" autocomplete="email" data-checkout-email="1" placeholder="you@company.com" style="width:100%;margin-top:4px;padding:10px 12px;border-radius:8px;border:1px solid var(--stroke);background:rgba(5,4,10,.55);color:var(--ink)"/>
+        </label>
+        ${(() => {
+          const cta = clientBuyabilityCta(s);
+          if (cta.mode === 'contact' || cta.buyable === false) {
+            const href = cta.ctaHref || '/enterprise#enterprise-contact';
+            const label = cta.ctaLabel || 'Request proposal →';
+            return '<a class="btn btn-gold" id="svcBuyBtn" href="' + href + '" data-link style="width:100%;justify-content:center;margin-top:10px">' + escapeHtml(label) + '</a>';
+          }
+          const label = cta.ctaLabel || '₿ Buy now → BTC checkout';
+          return '<button type="button" class="btn btn-primary" id="svcBuyBtn" data-sovereign-buy="' + escapeHtml(s.id) + '" data-buy-mode="' + escapeHtml(cta.mode || 'btc') + '" style="width:100%;justify-content:center;margin-top:10px">' + escapeHtml(label) + '</button>';
+        })()}
         <div id="svcUpsell" data-upsell-anchor="${escapeHtml(s.id)}" style="margin-top:12px"></div>
         <a class="btn" href="/services" data-link style="width:100%;justify-content:center;margin-top:8px">← All services</a>
       </aside>

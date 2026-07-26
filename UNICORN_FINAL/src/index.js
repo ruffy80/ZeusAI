@@ -2555,7 +2555,9 @@ async function buildMasterCatalog() {
     if (dpe && typeof dpe.registerServices === 'function') dpe.registerServices(all, { force: false });
   } catch (_) {}
 
-  // attach btc + checkout fields (preserve any checkout set by the builders)
+  // attach btc + checkout + buyability fields (preserve any checkout set by the builders)
+  let commerceBuyability = null;
+  try { commerceBuyability = require('./commerce/commerce-buyability'); } catch (_) { commerceBuyability = null; }
   for (const item of all) {
     item.priceBtc = usdToBtc(item.priceUsd, usdPerBtc);
     item.currency = 'USD';
@@ -2563,6 +2565,15 @@ async function buildMasterCatalog() {
     item.btcUri = item.priceUsd > 0 ? buildBtcUri(BTC_WALLET, item.priceBtc, 'ZeusAI-' + item.id) : null;
     item.checkout = item.checkout || { btcAddress: BTC_WALLET, priceUsd: item.priceUsd, priceBtc: item.priceBtc };
     if (publicCatalogFilter.isSyntheticCatalogItem(item)) item.synthetic = true;
+    if (commerceBuyability && typeof commerceBuyability.assessBuyability === 'function') {
+      try {
+        const a = commerceBuyability.assessBuyability(item);
+        item.buyable = a.buyable === true;
+        item.buyMode = a.mode;
+        item.ctaLabel = a.ctaLabel;
+        item.ctaHref = a.ctaHref;
+      } catch (_) { /* keep item without buyability hints */ }
+    }
   }
   // dedupe by id
   const seen = new Set(); const out = [];
