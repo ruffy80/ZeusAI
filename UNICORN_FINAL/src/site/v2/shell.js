@@ -1612,7 +1612,7 @@ function pagePricing() {
         <li id="pricingPaymentRail">Direct BTC checkout · optional rails only when configured</li>
         <li>14-day trial · community support</li>
       </ul>
-      <a class="btn" data-plan-cta="starter" href="/checkout/?plan=starter" data-link>Start Starter</a>
+      <a class="btn" data-plan-cta="starter" href="/checkout/?plan=starter" data-sovereign-buy="starter" data-buy-mode="btc">Get BTC invoice →</a>
     </div>
     <div class="plan highlight" data-pricing-plan="pro">
       <h3>Growth</h3>
@@ -1624,7 +1624,7 @@ function pagePricing() {
         <li>Quantum Blockchain · M&amp;A Advisor · Legal Contracts</li>
         <li>SSO, priority support · signed outcome reports</li>
       </ul>
-      <a class="btn btn-primary" data-plan-cta="pro" href="/checkout/?plan=pro" data-link>Go Growth</a>
+      <a class="btn btn-primary" data-plan-cta="pro" href="/checkout/?plan=pro" data-sovereign-buy="pro" data-buy-mode="btc">Get BTC invoice →</a>
     </div>
     <div class="plan" data-pricing-plan="enterprise">
       <h3>Enterprise</h3>
@@ -1636,7 +1636,7 @@ function pagePricing() {
         <li>Dedicated Zeus cluster · SLA 99.9%</li>
         <li>Value‑Proof Ledger (bps share)</li>
       </ul>
-      <a class="btn btn-gold" data-plan-cta="enterprise" href="/checkout/?plan=enterprise" data-link>Talk to Zeus</a>
+      <a class="btn btn-gold" data-plan-cta="enterprise" href="/enterprise#enterprise-contact" data-link>Request proposal →</a>
     </div>
   </div>
   <div id="pricingCatalogCrossLink" class="card" style="margin-top:20px;padding:18px;display:flex;flex-wrap:wrap;gap:14px;align-items:center;justify-content:space-between;background:linear-gradient(135deg,rgba(247,147,26,.10),rgba(138,92,255,.06));border:1px solid rgba(247,147,26,.35)">
@@ -1670,12 +1670,8 @@ function pageCheckout(params) {
   const ssrUsd = (Number.isFinite(Number(p.planUsd)) && Number(p.planUsd) > 0) ? Number(p.planUsd) : null;
   const ssrAmountAttr = ssrUsd != null ? String(ssrUsd) : '';
   const ssrAmountSummary = ssrUsd != null ? ('$' + ssrUsd.toFixed(2)) : '—';
-  // A "known" catalog id (not one of the abstract subscription/custom tiers)
-  // means we can also offer a one-click sovereign-invoice path alongside the
-  // manual form. This keeps hydrateCheckout completely intact — the manual
-  // form still works and remains the default surface. The extra button only
-  // renders when the plan looks like a real, catalog-backed service id.
-  const _isCatalogLike = ssrPlan && !/^(starter|pro|enterprise|custom)$/i.test(ssrPlan);
+  // Buy Immortal OS: every checkout landing exposes one-click sovereign mint
+  // as the primary CTA. The manual form remains as a secondary path.
   return `<section style="padding-top:140px">
   <div class="section-title">
     <div><span class="kicker">Checkout promise</span><h2>Pay direct in BTC. <span class="grad">Activation is automatic.</span></h2></div>
@@ -1687,12 +1683,12 @@ function pageCheckout(params) {
       <h3 style="margin:6px 0 2px;font-size:20px" id="checkoutBuyingPlan">${_esc(ssrPlan)}</h3>
       <p style="margin:0;color:var(--ink-dim);font-size:13px">Amount <b id="checkoutBuyingAmount" style="color:var(--gold)">${ssrAmountSummary}</b> · 10% BTC discount already applied.</p>
     </div>
-    ${_isCatalogLike ? `<button type="button" class="btn btn-ghost" data-sovereign-buy="${_esc(ssrPlan)}" title="Skip the form — open a signed BTC invoice for this exact service" style="min-width:220px">⚡ Skip form — open sovereign invoice</button>` : ''}
+    <button type="button" class="btn btn-primary" id="coSovereignPrimary" data-sovereign-buy="${_esc(ssrPlan)}" title="One-click signed BTC invoice — email optional on the payment page" style="min-width:240px">⚡ Get BTC invoice now</button>
   </div>
   <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px;margin:0 0 22px">
-    <div class="card"><span class="tag">Step 1</span><h3>Select service</h3><p style="color:var(--ink-dim)">Choose plan/product and email so delivery can issue the entitlement.</p></div>
-    <div class="card"><span class="tag">Step 2</span><h3>Quote / invoice</h3><p id="checkoutPaymentRailCopy" style="color:var(--ink-dim)">BTC quote and owner wallet are shown before payment. External providers appear only when configured live.</p></div>
-    <div class="card"><span class="tag">Step 3</span><h3>Delivery / license</h3><p style="color:var(--ink-dim)">After settlement, receipt, license token, API key and onboarding delivery become available.</p></div>
+    <div class="card"><span class="tag">Step 1</span><h3>Get BTC invoice</h3><p style="color:var(--ink-dim)">One click opens a signed sats-exact invoice. Email is optional — add it on the payment page for delivery.</p></div>
+    <div class="card"><span class="tag">Step 2</span><h3>Pay on-chain</h3><p id="checkoutPaymentRailCopy" style="color:var(--ink-dim)">Scan QR or open BIP-21 in any Bitcoin wallet. Exact amount identifies your order.</p></div>
+    <div class="card"><span class="tag">Step 3</span><h3>Delivery / license</h3><p style="color:var(--ink-dim)">After settlement, receipt, license token and deliverable unlock automatically.</p></div>
   </div>
   <div class="checkout">
     <div class="co-box">
@@ -1704,12 +1700,12 @@ function pageCheckout(params) {
           <div>
             <div class="field"><label for="coAmount">Amount (USD)</label><input id="coAmount" type="number" min="1" step="1" value="${ssrAmountAttr}"/></div>
             <div class="field"><label for="coPlan">Plan / product</label><input id="coPlan" value="${ssrPlan}"/></div>
-            <div class="field"><label for="coEmail">Email for activation</label><input id="coEmail" type="email" autocomplete="email" placeholder="you@company.com" required/></div>
+            <div class="field"><label for="coEmail">Email for delivery <span style="opacity:.7">(optional)</span></label><input id="coEmail" type="email" autocomplete="email" data-checkout-email="1" placeholder="you@company.com (optional)"/></div>
             <div class="field"><label for="coBtc">BTC quote</label><input id="coBtc" readonly value="computing…"/></div>
             <div class="btc-addr" id="btcAddr">${OWNER.btc}</div>
             <div id="coFxStrip" style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px"></div>
             <button class="btn btn-primary" id="coPay" style="margin-top:14px;width:100%;justify-content:center">Generate secure BTC invoice</button>
-            <p id="coQuickHint" style="color:var(--ink-dim);font-size:12px;margin-top:8px">Generating secure BTC invoice and order ID. After you send BTC, the server watches the mempool every 30s and auto‑issues a signed license on confirmation.</p>
+            <p id="coQuickHint" style="color:var(--ink-dim);font-size:12px;margin-top:8px">Prefer the gold button above for one-click sovereign invoice. This form also works — email is optional.</p>
           </div>
           <div class="co-qr"><canvas id="btcQr" width="320" height="320"></canvas></div>
         </div>

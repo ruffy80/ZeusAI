@@ -2063,6 +2063,19 @@ function cardHtml(s){
   const price = resolvedPrice != null
     ? ('$' + resolvedPrice.toLocaleString('en-US', { minimumFractionDigits: _resHasFrac ? 2 : 0, maximumFractionDigits: 2 }) + (s.billing === 'monthly' ? '/mo' : ''))
     : '—';
+  const cta = clientBuyabilityCta(s || {});
+  let buyBtn;
+  if (!(resolvedPrice > 0)) {
+    buyBtn = `<a class="btn btn-ghost" href="/services/${encodeURIComponent(sid)}" data-link style="flex:1;justify-content:center">Details</a>`;
+  } else if (cta.mode === 'contact' || cta.buyable === false) {
+    const href = cta.ctaHref || (cta.mode === 'unavailable' ? ('/services/' + encodeURIComponent(sid)) : '/enterprise#enterprise-contact');
+    const label = cta.ctaLabel || (cta.mode === 'unavailable' ? 'Not for sale' : 'Request proposal →');
+    const cls = cta.mode === 'unavailable' ? 'btn btn-ghost' : 'btn btn-gold';
+    buyBtn = `<a class="${cls}" href="${href}" data-link style="flex:1;justify-content:center">${escapeHtml(label)}</a>`;
+  } else {
+    const label = cta.ctaLabel || 'Get BTC invoice →';
+    buyBtn = `<a class="btn btn-primary" href="/checkout/?plan=${encodeURIComponent(sid)}" data-sovereign-buy="${escapeHtml(sid)}" data-buy-mode="${escapeHtml(cta.mode || 'btc')}" style="flex:1;justify-content:center">${escapeHtml(label)}</a>`;
+  }
   return `<div class="card">
     <span class="tag">${escapeHtml(s.segment || s.category || 'core')}</span>
     <h3>${escapeHtml(s.title || s.id)}</h3>
@@ -2070,7 +2083,7 @@ function cardHtml(s){
     <div class="row"><span>${escapeHtml(s.kpi || 'SLA-backed')}</span><b data-live-price="${tag}">${price}</b></div>
     <div style="display:flex;gap:8px;margin-top:12px">
       <a class="btn btn-ghost" href="/services/${encodeURIComponent(s.id)}" data-link style="flex:1;justify-content:center">Details</a>
-      <a class="btn btn-primary" href="/checkout/?plan=${encodeURIComponent(s.id)}" data-link style="flex:1;justify-content:center">Buy</a>
+      ${buyBtn}
     </div>
   </div>`;
 }
@@ -2215,7 +2228,8 @@ function masterCardHtml(it){
     const label = cta.ctaLabel || (mode === 'reserve' ? 'Reserve with BTC →' : 'Buy with BTC →');
     buyBtn = '<a class="btn btn-primary" href="/checkout/?plan=' + encodeURIComponent(id) + '" data-sovereign-buy="' + idAttr + '" data-buy-mode="' + mode + '" aria-label="' + escapeHtml(label) + ' ' + title + '" style="flex:1;justify-content:center">' + escapeHtml(label) + '</a>';
   }
-  const preorderBtn = isPreorderEligible
+  // Future-invention / aspirational: never offer self-serve preorder Buy.
+  const preorderBtn = (isPreorderEligible && cta.buyable === true)
     ? '<button type="button" class="btn btn-ghost" data-sovereign-buy="' + idAttr + '" data-sovereign-preorder="1" style="justify-content:center;border-color:#7cf3ff66;color:#7cf3ff" title="Reserve early access at 30% now — locks the price for 365 days">⏳ Reserve 30%</button>'
     : '';
   return '<article class="card" data-tier="' + escapeHtml(tier) + '" data-group="' + escapeHtml(it.group || '') + '" data-product-id="' + idAttr + '" data-price-source="' + escapeHtml(it.livePriceSource || 'static') + '" itemscope itemtype="https://schema.org/Product" style="display:flex;flex-direction:column;gap:10px">'
@@ -2251,6 +2265,13 @@ function clientBuyabilityCta(it) {
       ctaLabel: it.ctaLabel || null,
       ctaHref: it.ctaHref || null,
     };
+  }
+  if (
+    (it && (it.synthetic === true || it.demoOnly === true))
+    || group === 'zacc' || group === 'unicorn-auto-module' || group === 'auto-module' || group === 'synthetic'
+    || /^zacc-/i.test(id) || /^unicorn-(auto-)?module-/i.test(id)
+  ) {
+    return { mode: 'unavailable', buyable: false, ctaLabel: 'Not for sale', ctaHref: '/services/' + encodeURIComponent(id) };
   }
   if (/^ent-/i.test(id) || group === 'enterprise' || tier === 'enterprise' || id === 'enterprise') {
     return { mode: 'contact', buyable: false, ctaLabel: 'Request proposal →', ctaHref: '/enterprise#enterprise-contact' };
@@ -2294,8 +2315,13 @@ async function sovereignBuy(serviceId, opts){
       email = String((svcEmail && svcEmail.value) || localStorage.getItem('u_email') || '').trim();
     } catch (_) { email = ''; }
     if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-      alert('That email looks invalid. Clear it or enter a valid address — or continue without email and add it on the payment page.');
-      return;
+      // Soft-clear stale/invalid remembered email — never hard-block mint.
+      try { localStorage.removeItem('u_email'); } catch (_) {}
+      email = '';
+      try {
+        const bad = document.getElementById('svcBuyEmail') || document.getElementById('heroQuickEmail');
+        if (bad) bad.value = '';
+      } catch (_) {}
     }
     if (email) { try { localStorage.setItem('u_email', email); } catch (_) {} }
 
@@ -2499,7 +2525,12 @@ async function hydrateMasterCatalog(){
         segment: p.tier || p.group || 'service',
         kpi: p.deliverable || ((p.tier || 'instant') + ' delivery'),
         priceUsd,
-        priceBtc: btcSpot && btcSpot.usdPerBtc ? Number((priceUsd / btcSpot.usdPerBtc).toFixed(8)) : 0
+        priceBtc: btcSpot && btcSpot.usdPerBtc ? Number((priceUsd / btcSpot.usdPerBtc).toFixed(8)) : 0,
+        // Buy Immortal OS — preserve server honesty so CTAs never invent Buy.
+        buyable: p.buyable,
+        buyMode: p.buyMode,
+        ctaLabel: p.ctaLabel,
+        ctaHref: p.ctaHref,
       };
     });
     const counts = items.reduce(function(acc, it){
@@ -2771,6 +2802,19 @@ async function hydrateServiceUpsell(service){
     const price = Number(rec.priceUSD || rec.priceUsd || rec.price || 0);
     const priceTxt = price > 0 ? (' · $' + price.toLocaleString('en-US', { maximumFractionDigits: 2 })) : '';
     const why = rec.why ? ('<div style="font-size:11.5px;color:var(--ink-dim);margin-top:2px">' + escapeHtml(String(rec.why)) + '</div>') : '';
+    const cta = clientBuyabilityCta({
+      id: rid,
+      priceUsd: price,
+      group: rec.group || rec.tier,
+      buyable: rec.buyable,
+      buyMode: rec.buyMode,
+      ctaLabel: rec.ctaLabel,
+      ctaHref: rec.ctaHref,
+    });
+    if (cta.buyable === false || cta.mode === 'contact' || cta.mode === 'unavailable') {
+      const href = cta.ctaHref || ('/services/' + encodeURIComponent(rid));
+      return '<a class="btn btn-ghost" href="' + href + '" data-link style="width:100%;justify-content:flex-start;text-align:left;flex-direction:column;align-items:flex-start;gap:2px;padding:10px 12px;margin-top:6px"><b style="font-size:13px">Also useful: ' + title + priceTxt + '</b>' + why + '</a>';
+    }
     return '<button type="button" class="btn btn-ghost" data-sovereign-buy="' + escapeHtml(rid) + '" style="width:100%;justify-content:flex-start;text-align:left;flex-direction:column;align-items:flex-start;gap:2px;padding:10px 12px;margin-top:6px"><b style="font-size:13px">Also useful: ' + title + priceTxt + '</b>' + why + '</button>';
   }).join('');
   if (!chips.trim()) return;
@@ -2778,11 +2822,19 @@ async function hydrateServiceUpsell(service){
 }
 
 function initServiceNarrative(service){
-  // World-Profit-OS: unlock/simulation UI retired. Buy is always available for real BTC checkout.
+  // Buy Immortal OS: narrative CTA follows buyability — never invent Buy.
   const buy = document.getElementById('svcBuyBtn');
   if (buy) buy.classList.add('cinema-unlocked');
   const runBtn = document.getElementById('svcStoryRun');
   if (runBtn) {
+    const cta = clientBuyabilityCta(service || {});
+    if (cta.buyable === false || cta.mode === 'contact' || cta.mode === 'unavailable') {
+      runBtn.textContent = cta.ctaLabel || 'View options →';
+      runBtn.onclick = function(){
+        location.href = cta.ctaHref || '/enterprise#enterprise-contact';
+      };
+      return;
+    }
     runBtn.textContent = 'Continue to BTC checkout →';
     runBtn.onclick = function(){
       const sid = service && service.id ? String(service.id) : '';
@@ -2994,20 +3046,30 @@ function hydrateCheckout(){
     }
   });
 
-  // BTC pay — create UAIC order with persistent, watched receipt
+  // BTC pay — Buy Immortal OS: prefer sovereign one-click mint (email optional).
+  // Falls back to UAIC only if sovereignBuy is unavailable.
   $('#coPay')?.addEventListener('click', async () => {
     const amt = Number(($('#coAmount')||{}).value || 0);
     const pl = ($('#coPlan')||{}).value || 'starter';
-    const email = ($('#coEmail')||{}).value || '';
+    let email = String(($('#coEmail')||{}).value || '').trim();
     const ref = getRef();
     const customerToken = getCustToken();
     if (!amt || amt < 1) { toast('Enter a valid amount','err'); return; }
-    if (!validEmail(email)) { toast('Enter a valid activation email','err'); return; }
-    try { localStorage.setItem('u_email', String(email).trim()); } catch(_) {}
+    if (email && !validEmail(email)) {
+      toast('Email looks invalid — clear it or fix it (email is optional)', 'err');
+      return;
+    }
+    if (email) { try { localStorage.setItem('u_email', email); } catch(_) {} }
+    else { try { /* keep going without email */ } catch(_) {} }
+    if (typeof window.sovereignBuy === 'function' && pl && !/^custom$/i.test(pl)) {
+      if (hint) hint.textContent = 'Opening sovereign BTC invoice…';
+      await window.sovereignBuy(pl, { el: $('#coPay') });
+      return;
+    }
     if (hint) hint.textContent = 'Generating secure invoice… this usually takes 1-2 seconds.';
     setBusy('coPay', true, 'Generating invoice…');
     try {
-      const r = await api('/api/uaic/order', { method:'POST', body: JSON.stringify({ method:'BTC', plan:pl, amount_usd:amt, email, ref, customerToken }) });
+      const r = await api('/api/uaic/order', { method:'POST', body: JSON.stringify({ method:'BTC', plan:pl, amount_usd:amt, email: email || undefined, ref, customerToken }) });
       if (r && r.receipt) {
         currentReceipt = r.receipt;
         toast(`Receipt ${r.receipt.id.slice(0,10)}… · watching blockchain`, 'ok');
@@ -4380,22 +4442,27 @@ function renderAutonomousServicesGrid(target){
       ? '$' + Number(m.defaultPrice).toLocaleString('en-US', { maximumFractionDigits: 2 })
       : '—';
     const priced = m.defaultPrice != null && Number(m.defaultPrice) > 0;
-    const buyHref = priced
-      ? '/checkout/?plan=' + encodeURIComponent(m.id)
-      : '/services/' + encodeURIComponent(m.id);
-    const buyLabel = priced ? 'Buy now' : 'Learn more';
+    const cta = clientBuyabilityCta({
+      id: m.id,
+      priceUsd: m.defaultPrice,
+      group: 'unicorn-auto-module',
+      synthetic: true,
+      buyable: false,
+      buyMode: 'unavailable',
+      ctaLabel: 'View catalog →',
+      ctaHref: '/services',
+    });
+    const buyHref = cta.ctaHref || '/services';
+    const buyLabel = priced ? (cta.ctaLabel || 'View catalog →') : 'Learn more';
     const safeName = escapeHtml(m.name || m.id);
     const safeDesc = escapeHtml(m.description || ((m.category || 'module') + ' module'));
-    const buyAttrs = priced
-      ? ' data-sovereign-buy="' + escapeHtml(m.id) + '"'
-      : ' data-link';
     return `<div class="card" data-autonomous-module="${escapeHtml(m.id)}" style="padding:20px;display:flex;flex-direction:column;gap:10px;border:1px solid rgba(255,255,255,.08)">
       <div style="font-size:10px;letter-spacing:.18em;text-transform:uppercase;color:var(--ink-dim)">${escapeHtml(m.category || 'module')}</div>
       <h3 style="margin:0;font-size:18px;letter-spacing:-0.01em">${safeName}</h3>
       <p style="margin:0;color:var(--ink-dim);font-size:13px;line-height:1.5">${safeDesc}</p>
       <div style="display:flex;justify-content:space-between;align-items:center;padding-top:12px;border-top:1px solid rgba(255,255,255,.06);margin-top:auto">
         <span data-live-price="${escapeHtml(m.id)}" style="font-weight:700;font-size:18px;color:#ffd36a">${priceTxt}</span>
-        <a class="btn btn-primary" href="${buyHref}"${buyAttrs} style="padding:8px 14px;font-size:13px">${buyLabel}</a>
+        <a class="btn btn-ghost" href="${buyHref}" data-link style="padding:8px 14px;font-size:13px">${escapeHtml(buyLabel)}</a>
       </div>
     </div>`;
   }).join('') + (modules.length > shown.length
@@ -4528,7 +4595,7 @@ async function hydrateStore(){
   const tabs = document.querySelectorAll('.store-tab');
   const noteEl = document.getElementById('storeTabNote');
   const tierNotes = {
-    instant: 'One-time BTC purchase · digital deliverable + signed receipt after on-chain settlement · delivery email required',
+    instant: 'One-time BTC purchase · digital deliverable + signed receipt after on-chain settlement · email optional on payment page',
     professional: 'BTC reserve · signed kickoff pack immediately · human milestone delivery for the finished build (not an instant download)',
     enterprise: 'SOW / proposal only · Contact Enterprise Sales · not a self-serve cart · wire or BTC settlement agreed in contract'
   };
