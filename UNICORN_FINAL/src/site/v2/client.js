@@ -2199,10 +2199,20 @@ function masterCardHtml(it){
   // Pre-order eligible: speculative R&D primitives are sold as forward-locks
   // at 30% of the listed price (configurable server-side via COMMERCE_PREORDER_PCT).
   const isPreorderEligible = it.group === 'future-invention' && priceUsd > 0;
-  // Sovereign BTC only on Buy — no data-link (SPA fetch raced with checkout create).
-  const buyBtn = priceUsd > 0
-    ? '<a class="btn btn-primary" href="/checkout/?plan=' + encodeURIComponent(id) + '" data-sovereign-buy="' + idAttr + '" aria-label="Buy ' + title + ' with Bitcoin" style="flex:1;justify-content:center">Buy with BTC →</a>'
-    : '<a class="btn btn-ghost" href="/services/' + encodeURIComponent(id) + '" data-link style="flex:1;justify-content:center">Activate free</a>';
+  // Commerce Reality OS — CTA by tier (instant buy / professional reserve / enterprise contact).
+  const tierKey = String(tier || it.group || '').toLowerCase();
+  const isEnterpriseCard = tierKey === 'enterprise' || /^ent-/i.test(id);
+  const isProfessionalCard = tierKey === 'professional' || /^professional-/i.test(id);
+  let buyBtn;
+  if (!(priceUsd > 0)) {
+    buyBtn = '<a class="btn btn-ghost" href="/services/' + encodeURIComponent(id) + '" data-link style="flex:1;justify-content:center">Activate free</a>';
+  } else if (isEnterpriseCard) {
+    buyBtn = '<a class="btn btn-gold" href="/enterprise#enterprise-contact" data-link aria-label="Request proposal for ' + title + '" style="flex:1;justify-content:center">Request proposal →</a>';
+  } else if (isProfessionalCard) {
+    buyBtn = '<a class="btn btn-primary" href="/checkout/?plan=' + encodeURIComponent(id) + '" data-sovereign-buy="' + idAttr + '" data-buy-mode="reserve" aria-label="Reserve ' + title + ' with Bitcoin" style="flex:1;justify-content:center">Reserve with BTC →</a>';
+  } else {
+    buyBtn = '<a class="btn btn-primary" href="/checkout/?plan=' + encodeURIComponent(id) + '" data-sovereign-buy="' + idAttr + '" data-buy-mode="btc" aria-label="Buy ' + title + ' with Bitcoin" style="flex:1;justify-content:center">Buy with BTC →</a>';
+  }
   const preorderBtn = isPreorderEligible
     ? '<button type="button" class="btn btn-ghost" data-sovereign-buy="' + idAttr + '" data-sovereign-preorder="1" style="justify-content:center;border-color:#7cf3ff66;color:#7cf3ff" title="Reserve early access at 30% now — locks the price for 365 days">⏳ Reserve 30%</button>'
     : '';
@@ -2237,6 +2247,25 @@ async function sovereignBuy(serviceId, opts){
   const prevBtnDisabled = el ? el.disabled : null;
   const prevBtnText = el && el.tagName === 'BUTTON' ? el.textContent : null;
   try {
+    // Enterprise / contact-only SKUs must never mint a self-serve invoice.
+    if (/^ent-/i.test(String(serviceId || '')) || String(serviceId || '').toLowerCase() === 'enterprise') {
+      window.location.href = '/enterprise#enterprise-contact';
+      return;
+    }
+    let email = '';
+    try {
+      const svcEmail = document.getElementById('svcBuyEmail');
+      email = String((svcEmail && svcEmail.value) || localStorage.getItem('u_email') || '').trim();
+    } catch (_) { email = ''; }
+    if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      email = String(window.prompt('Delivery email for this order (required):', email || '') || '').trim();
+    }
+    if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      alert('A valid delivery email is required so we can send your receipt and deliverable.');
+      return;
+    }
+    try { localStorage.setItem('u_email', email); } catch (_) {}
+
     if (document.body) document.body.style.cursor = 'wait';
     if (el) {
       try { el.disabled = true; } catch (_) {}
@@ -2248,7 +2277,7 @@ async function sovereignBuy(serviceId, opts){
     // distinct BTC invoices for the same intent. The server replays the prior
     // 201 for 24h (see sovereign-commerce.handle). Stable per invocation.
     const idemKey = 'sov-' + String(serviceId || 'svc') + '-' + (preorder ? 'pre-' : '') + Date.now() + '-' + Math.random().toString(36).slice(2, 8);
-    const r = await fetch('/api/checkout/create', { method:'POST', headers:{'Content-Type':'application/json','Idempotency-Key':idemKey}, body: JSON.stringify({ serviceId, qty: 1, currency: 'USD', preorder }) });
+    const r = await fetch('/api/checkout/create', { method:'POST', headers:{'Content-Type':'application/json','Idempotency-Key':idemKey}, body: JSON.stringify({ serviceId, qty: 1, currency: 'USD', preorder, email }) });
     let j = null;
     try { j = await r.json(); } catch (_) { j = null; }
     // Accept either an explicit checkout_url or fall back to a relative

@@ -194,10 +194,14 @@ function productPdpHtml(p, compare, related) {
           '<div class="ds-proof-row ds-proof-net"><span>Net margin</span><strong>' + moneyMaybe(profit) + '</strong></div>' +
         '</div>' +
         compareBlock +
-        '<button class="ds-pdp-buy" type="button" id="dp-buy" data-buy data-pid="' +
-          escapeHtml(p.id) + '">Buy with BTC \u2192</button>' +
-        '<p class="ds-delivery-note">Live destination quote required before invoice \u00b7 ETA ' +
-          escapeHtml(String(eta)) + ' days \u00b7 ' + escapeHtml(fulfilNote) + '</p>' +
+        (p.demoOnly === true || p.dispatchable === false
+          ? ('<button class="ds-pdp-buy" type="button" disabled aria-disabled="true" style="opacity:.55;cursor:not-allowed">' +
+              'Preview \u00b7 not for sale</button>' +
+              '<p class="ds-delivery-note">This curated preview SKU is not available for checkout until a live supplier dispatch path is configured.</p>')
+          : ('<button class="ds-pdp-buy" type="button" id="dp-buy" data-buy data-pid="' +
+              escapeHtml(p.id) + '">Buy with BTC \u2192</button>' +
+              '<p class="ds-delivery-note">Live destination quote required before invoice \u00b7 ETA ' +
+              escapeHtml(String(eta)) + ' days \u00b7 ' + escapeHtml(fulfilNote) + '</p>')) +
       '</div>' +
     '</div>' +
     relatedHtml(related)

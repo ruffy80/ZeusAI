@@ -3888,29 +3888,51 @@ async function unicornHandler(req, res) {
                 priceUsd: _canon != null ? _canon : Number(u.priceUSD != null ? u.priceUSD : (u.priceUsd != null ? u.priceUsd : (u.price || 0))),
                 description: u.description || '',
                 group: u.group || u.tier || 'service',
+                tier: u.tier || u.group || 'service',
                 segment: u.tier || u.group || 'service',
-                kpi: u.kpi || ''
+                kpi: u.kpi || '',
+                inputs: u.inputs || [],
+                deliveryDays: u.deliveryDays,
+                deliveryMinutes: u.deliveryMinutes,
+                requiresHumanFulfillment: u.requiresHumanFulfillment === true,
+                buyMode: u.buyMode || undefined,
               };
             }
           }
-          // Resolve against the full catalog (including synthetics) so deep-link
-          // / legacy orders still work; public listings remain filtered.
-          const cat = await getCachedMasterCatalog({ includeSynthetic: true }).catch(() => null);
+          // Public / curated catalog only for new checkout resolution.
+          // Synthetics stay inspectable via ?includeSynthetic=1 listings but
+          // must not mint BTC invoices (Commerce Reality OS).
+          const cat = await getCachedMasterCatalog({ includeSynthetic: false }).catch(() => null);
           if (cat && Array.isArray(cat.items)) {
             const hit = cat.items.find((it) => String(it.id) === String(id));
-            if (hit) return _canon != null ? Object.assign({}, hit, { priceUsd: _canon, price: _canon }) : hit;
+            if (hit && !publicCatalogFilter.isSyntheticCatalogItem(hit) && hit.demoOnly !== true) {
+              return _canon != null ? Object.assign({}, hit, { priceUsd: _canon, price: _canon }) : hit;
+            }
           }
-          // Real core/catalog product missing from the master catalog (e.g.
-          // pro, mid-market, ent-*) — synthesize it so checkout never returns
-          // service_not_found for a genuinely sellable product.
-          if (_canon != null) {
+          // Synthesize ONLY known self-serve / contact core plans — never
+          // invent a priced SKU from a bare canonicalUsd hit on junk ids.
+          let buyability = null;
+          try {
+            buyability = require('./commerce/commerce-buyability');
+          } catch (_) { buyability = null; }
+          const selfServeCore = buyability && buyability.PUBLIC_SELF_SERVE_CORE_IDS;
+          const contactCore = buyability && buyability.CONTACT_CORE_IDS;
+          const allowedSynth = (selfServeCore && selfServeCore.has(String(id)))
+            || (contactCore && contactCore.has(String(id)))
+            || /^(instant-|professional-|ent-)/i.test(String(id));
+          if (_canon != null && allowedSynth) {
             const meta = canonicalPlanMeta(id) || {};
             return {
               id: String(id),
               title: meta.title || String(id),
               priceUsd: _canon,
               description: meta.description || ('ZeusAI ' + (meta.title || id) + ' — BTC-settled activation with signed delivery.'),
-              group: 'service',
+              group: /^ent-|enterprise/i.test(String(id)) ? 'enterprise'
+                : (/^professional-/i.test(String(id)) ? 'professional'
+                  : (/^instant-/i.test(String(id)) ? 'instant' : 'service')),
+              tier: /^ent-|enterprise/i.test(String(id)) ? 'enterprise'
+                : (/^professional-/i.test(String(id)) ? 'professional'
+                  : (/^instant-/i.test(String(id)) ? 'instant' : 'service')),
               segment: 'service',
               kpi: 'activation'
             };

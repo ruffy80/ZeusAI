@@ -36,16 +36,34 @@ function _coerceTier(value, fallback) {
 }
 
 function _normalize(item, defaults) {
+  const tier = _coerceTier(item.tier, _coerceTier(defaults.tier, 'professional'));
+  const requiresHuman = item.requiresHumanFulfillment === true
+    || tier === 'professional'
+    || tier === 'enterprise'
+    || /^professional-/i.test(String(item.id || ''))
+    || /^ent-/i.test(String(item.id || ''));
   return {
     id: item.id || item.slug || item.title,
     title: item.title || item.name || item.id,
-    tier: _coerceTier(item.tier, _coerceTier(defaults.tier, 'professional')),
+    tier,
     priceUSD: Number(item.priceUSD || item.priceUsd || item.price || 0),
     currency: item.currency || 'USD',
     description: item.description || '',
     inputs: item.inputs || [],
-    group: defaults.group
+    group: tier === 'enterprise' ? 'enterprise' : (tier === 'instant' ? 'instant' : (defaults.group || tier)),
+    deliveryMinutes: item.deliveryMinutes != null ? Number(item.deliveryMinutes) : undefined,
+    deliveryDays: item.deliveryDays != null ? Number(item.deliveryDays) : undefined,
+    requiresHumanFulfillment: requiresHuman,
+    buyMode: tier === 'enterprise' ? 'contact' : (tier === 'professional' ? 'reserve' : 'btc'),
   };
+}
+
+function publicServiceIds() {
+  return new Set(all().map((p) => String(p.id)).filter(Boolean));
+}
+
+function isPublicServiceId(id) {
+  return publicServiceIds().has(String(id || '').trim());
 }
 
 function all() {
@@ -119,4 +137,8 @@ function summarize() {
   };
 }
 
-module.exports = { all, byId, publicView, summarize, setRuntimeSources, MAX_PRODUCTS, TIERS };
+module.exports = {
+  all, byId, publicView, summarize, setRuntimeSources,
+  publicServiceIds, isPublicServiceId,
+  MAX_PRODUCTS, TIERS,
+};

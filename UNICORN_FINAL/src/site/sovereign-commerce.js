@@ -440,6 +440,7 @@ async function resolveService(ctx, serviceId) {
       const item = await ctx.resolveCatalogItem(serviceId);
       if (item && item.id) {
         // Normalize to the shape resolveService callers expect (.name + .price)
+        // Preserve honesty fields so createOrder can gate buyability.
         return withCanonical({
           id: item.id,
           name: item.title || item.name || item.id,
@@ -447,7 +448,15 @@ async function resolveService(ctx, serviceId) {
           price: Number(item.priceUsd != null ? item.priceUsd : (item.priceUSD != null ? item.priceUSD : (item.price || 0))),
           description: item.description || '',
           segment: item.segment || item.group || 'unicorn',
-          kpi: item.kpi || ''
+          group: item.group || item.tier || item.segment || 'unicorn',
+          tier: item.tier || item.group || item.segment || '',
+          kpi: item.kpi || '',
+          demoOnly: item.demoOnly === true,
+          synthetic: item.synthetic === true,
+          autoPublished: item.autoPublished === true,
+          requiresHumanFulfillment: item.requiresHumanFulfillment === true,
+          fulfillmentRecipe: item.fulfillmentRecipe || item.recipe || item.deliveryRecipe,
+          inputs: item.inputs || [],
         });
       }
     }
@@ -500,6 +509,34 @@ async function createOrder(ctx, input) {
   const svc = await resolveService(ctx, serviceId);
   if (!svc) return { error: 'service_not_found', serviceId, status: 404 };
 
+  // Commerce Reality OS — refuse invoices for non-deliverable / contact-only SKUs.
+  let buyability = { buyable: true, mode: 'btc', reason: 'legacy' };
+  try {
+    const commerceBuyability = require('../commerce/commerce-buyability');
+    buyability = commerceBuyability.assessBuyability(svc);
+  } catch (_) { /* fail-open only if module missing; tests load it */ }
+  if (!buyability.buyable) {
+    const status = buyability.mode === 'contact' ? 409 : 404;
+    return {
+      error: buyability.mode === 'contact' ? 'contact_required' : 'service_not_buyable',
+      reason: buyability.reason,
+      mode: buyability.mode,
+      contactHref: buyability.ctaHref || '/enterprise#enterprise-contact',
+      serviceId,
+      status,
+    };
+  }
+  // Digital / reserve checkouts need a delivery email so the buyer can receive
+  // the artifact / kickoff pack. Empty email is no longer allowed for paid SKUs.
+  if (!email) {
+    return { error: 'email_required', status: 400, serviceId };
+  }
+
+  const buyerInputs = (input && input.inputs && typeof input.inputs === 'object' && !Array.isArray(input.inputs))
+    ? input.inputs
+    : {};
+  const brief = String((input && input.brief) || buyerInputs.brief || '').trim().slice(0, 4000);
+
   const unitFull = svc.price != null ? Number(svc.price) : 0;
   // Pre-orders pay only PREORDER_PCT of full price; everyone gets BTC_DISCOUNT_PCT off.
   // Both factors are multiplicative so a pre-order also benefits from BTC discount.
@@ -548,7 +585,17 @@ async function createOrder(ctx, input) {
     checkout_url: `${OWNER_DOMAIN}/checkout/${orderId}`,
     status_url:   `${OWNER_DOMAIN}/api/order/${orderId}/status`,
     qr_url:       `${OWNER_DOMAIN}/api/checkout/${orderId}/qr.svg`,
-    buyer: { email: String(email || '').slice(0, 200) },
+    buyer: {
+      email: String(email || '').slice(0, 200),
+      inputs: buyerInputs,
+    },
+    meta: {
+      brief: brief || undefined,
+      inputs: buyerInputs,
+      buyMode: buyability.mode,
+      requiresHumanFulfillment: buyability.mode === 'reserve' || svc.requiresHumanFulfillment === true,
+    },
+    buy_mode: buyability.mode,
     access_token: accessToken,
     status: 'pending',
     created_at: new Date(nowMs).toISOString(),

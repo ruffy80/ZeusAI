@@ -38,6 +38,29 @@ const MAX_ARTIFACT_CHARS = Number(process.env.FULFILLMENT_MAX_CHARS || 24000);
 // order for milestone-based human-led execution.
 const ENTERPRISE_THRESHOLD_USD = Number(process.env.FULFILLMENT_ENTERPRISE_USD || 5000);
 const ENTERPRISE_ID_RE = /sovereign|private[-_]?(deployment|cloud)|platform[-_]?license|acquisition|white[-_]?label|franchise|revenue[-_]?share|enterprise|\bent-|transformation|not-yet-invented/;
+const PROFESSIONAL_ID_RE = /^professional-/;
+
+// Exact SKU → recipe id (wins over keyword matching so website-audit ≠ landing-page).
+const SKU_RECIPES = {
+  'instant-website-audit': 'website-audit',
+  'instant-logo-kit': 'brand-kit',
+  'instant-pitch-deck': 'pitch-deck',
+  'instant-seo-content-pack': 'seo-content-pack',
+  'instant-landing-page': 'landing-page',
+  'instant-brand-voice': 'brand-kit',
+  'instant-social-media-kit': 'social-kit',
+  'instant-email-sequence': 'email-sequence',
+  'instant-product-naming': 'brand-kit',
+  'instant-resume-makeover': 'resume',
+  'professional-saas-mvp': 'code-scaffold',
+  'professional-ai-agent': 'code-scaffold',
+  'professional-mobile-app': 'code-scaffold',
+  'professional-ecommerce-store': 'product-desc',
+  'professional-ai-chatbot': 'code-scaffold',
+  'professional-data-pipeline': 'code-scaffold',
+  'professional-ai-marketing': 'social-kit',
+  'professional-investor-package': 'pitch-deck',
+};
 
 function h(str) { return String(str || '').toLowerCase(); }
 
@@ -52,18 +75,34 @@ function isEnterprise(receipt, serviceId) {
   return receiptAmountUsd(receipt) >= ENTERPRISE_THRESHOLD_USD;
 }
 
+function needsHumanFulfillment(receipt, serviceId) {
+  if (isEnterprise(receipt, serviceId)) return true;
+  const sid = h(serviceId);
+  if (PROFESSIONAL_ID_RE.test(sid)) return true;
+  if (receipt && receipt.meta && receipt.meta.requiresHumanFulfillment === true) return true;
+  if (receipt && receipt.buy_mode === 'reserve') return true;
+  return false;
+}
+
 // Each recipe: how to detect it, what to produce, and the prompt to the model.
 const RECIPES = [
   {
+    id: 'website-audit', format: 'markdown',
+    match: (s) => /website-audit|site-audit|seo-audit|perf-audit/.test(s),
+    title: 'Website Audit (SEO + Performance + Accessibility)',
+    system: 'You are a senior web performance, SEO and accessibility auditor. Produce a concrete, prioritized audit with evidence-style findings — not a landing page.',
+    prompt: (ctx) => `Produce a full website audit in Markdown for the URL/context below. Include: (1) executive summary scorecard, (2) SEO findings (title/meta/headings/indexation/schema), (3) performance findings (CWV, assets, caching), (4) accessibility (WCAG 2.2 AA quick pass), (5) security/headers checklist, (6) prioritized 30-day fix plan with owner/effort. Context: ${ctx}.`
+  },
+  {
     id: 'seo-content-pack', format: 'markdown',
-    match: (s) => /seo|content|article|blog|copywrit/.test(s),
+    match: (s) => /seo-content|seo_content|content-pack|article|blog|copywrit/.test(s) && !/audit/.test(s),
     title: 'SEO Content Pack',
     system: 'You are a senior SEO strategist and copywriter. Produce publish-ready, original, non-plagiarized content with clear structure.',
     prompt: (ctx) => `Create a complete SEO content pack for the customer described below.\nProduce: (1) 5 primary + 10 long-tail keywords, (2) a title + meta description, (3) a 900-1200 word SEO-optimized article in Markdown with H2/H3 headings, (4) 3 internal-link anchor suggestions.\nCustomer context: ${ctx}.`
   },
   {
     id: 'landing-page', format: 'html',
-    match: (s) => /landing|website|site|page|funnel/.test(s),
+    match: (s) => /landing-page|landing_page|funnel/.test(s) || (/landing/.test(s) && !/audit/.test(s)),
     title: 'Landing Page (ready-to-ship HTML)',
     system: 'You are an expert conversion copywriter and front-end developer. Output a single self-contained, responsive HTML file with inline CSS. No external assets.',
     prompt: (ctx) => `Build a complete, self-contained responsive landing page (single HTML file, inline <style>, semantic, accessible, fast) for the offer below. Include hero, benefits, social-proof placeholder, FAQ and a clear CTA. Output ONLY the HTML.\nOffer context: ${ctx}.`
@@ -154,7 +193,29 @@ const ENTERPRISE_RECIPE = {
 End with a short note: "This document is your engagement proposal and kickoff plan; delivery is executed by the ZeusAI team across the milestones above." Context: ${ctx}.`
 };
 
+const PROFESSIONAL_RECIPE = {
+  id: 'professional-kickoff', format: 'markdown',
+  title: 'Professional Build Kickoff Pack & Milestone Plan',
+  system: 'You are a principal delivery lead who scopes mid-ticket software builds honestly.',
+  prompt: (ctx) => `Produce a PROFESSIONAL BUILD KICKOFF PACK (Markdown) for the paid engagement below. This is the immediate deliverable after BTC reserve — NOT a claim that the finished product is already shipped. Include:
+1. Restated goals from buyer inputs
+2. Scope / out-of-scope
+3. Architecture sketch
+4. Milestone plan with acceptance criteria
+5. Risks, dependencies, and communication cadence
+6. What the buyer already has (this pack + signed receipt) vs what the team will deliver next
+Context: ${ctx}.`
+};
+
 function pickRecipe(serviceId) {
+  const raw = String(serviceId || '').trim();
+  const exact = SKU_RECIPES[raw] || SKU_RECIPES[h(raw)];
+  if (exact) {
+    if (exact === 'website-audit') {
+      return RECIPES.find((r) => r.id === 'website-audit') || GENERIC_RECIPE;
+    }
+    return RECIPES.find((r) => r.id === exact) || GENERIC_RECIPE;
+  }
   const s = h(serviceId);
   return RECIPES.find(r => r.match(s)) || GENERIC_RECIPE;
 }
@@ -162,8 +223,17 @@ function pickRecipe(serviceId) {
 function contextFor(receipt, serviceId) {
   const parts = [`service="${serviceId}"`];
   if (receipt && receipt.email) parts.push(`customer="${receipt.email}"`);
+  if (receipt && receipt.buyer && receipt.buyer.email) parts.push(`customer="${receipt.buyer.email}"`);
   if (receipt && receipt.plan) parts.push(`plan="${receipt.plan}"`);
   if (receipt && receipt.meta && receipt.meta.brief) parts.push(`brief="${String(receipt.meta.brief).slice(0, 800)}"`);
+  const inputs = (receipt && receipt.meta && receipt.meta.inputs)
+    || (receipt && receipt.buyer && receipt.buyer.inputs)
+    || null;
+  if (inputs && typeof inputs === 'object') {
+    try {
+      parts.push(`inputs=${JSON.stringify(inputs).slice(0, 1200)}`);
+    } catch (_) { /* ignore */ }
+  }
   return parts.join(', ');
 }
 
@@ -240,43 +310,47 @@ function downloadInstructions(receipt, serviceId) {
 }
 
 function buildDeterministicArtifact(receipt, serviceId, recipe, opts = {}) {
+  const human = !!(opts.enterprise || opts.professional || opts.requiresHuman);
   const enterprise = !!opts.enterprise;
   const refs = receiptRefs(receipt);
-  const nextSteps = enterprise
+  const nextSteps = human
     ? [
         'Review the engagement scope and milestone plan in this pack.',
-        'Reply with the implementation owner, kickoff window, and security/compliance contacts.',
+        'Reply with the implementation owner, kickoff window, and any compliance contacts.',
         'Use the delivery overview and receipt links below for procurement and internal approval.',
         'ZeusAI follows up to schedule the milestone-based kickoff and delivery cadence.'
       ]
     : [
         'Download the signed receipt and license token from the links below.',
-        'Open the onboarding payload and provide the required business inputs.',
-        'Use the API/workspace payload to begin activation for this service.',
-        'Check the fulfillment artifact endpoint for updated deliverables or follow-on instructions.'
+        'Open the onboarding payload and provide any missing business inputs.',
+        'Check the fulfillment artifact endpoint for the SKU-specific deliverable (or regenerated AI pack when enabled).',
+        'If this pack is a deterministic fallback, treat it as your activation record — full AI generation runs when FULFILLMENT_AI_ENABLED=1 and a provider key is configured.'
       ];
+  const track = enterprise
+    ? 'Track: enterprise engagement kickoff (milestone-based human fulfillment follows).'
+    : (opts.professional
+      ? 'Track: professional build kickoff (human fulfillment follows across stated milestones).'
+      : 'Track: digital activation pack (deterministic fallback because AI fulfillment was unavailable or disabled).');
   const content = compactLines([
-    '# Service Activation Pack',
+    human ? '# Project Kickoff Pack' : '# Service Activation Pack',
     '',
     `Generated: ${new Date().toISOString()}`,
     `Fulfillment mode: deterministic`,
-    enterprise
-      ? 'Track: enterprise engagement kickoff (milestone-based human fulfillment follows).'
-      : 'Track: digital activation pack (deterministic fallback because AI fulfillment was unavailable or disabled).',
+    track,
     opts.reason ? `Fallback reason: ${opts.reason}` : '',
     '',
     '## Order Summary',
     `- Order ID: ${refs.orderId || 'unknown'}`,
     `- Service ID: ${serviceId}`,
     `- Service Name: ${receipt && (receipt.serviceName || receipt.plan) ? (receipt.serviceName || receipt.plan) : recipe.title}`,
-    `- Customer: ${receipt && receipt.email ? receipt.email : 'not provided'}`,
+    `- Customer: ${receipt && (receipt.email || (receipt.buyer && receipt.buyer.email)) ? (receipt.email || receipt.buyer.email) : 'not provided'}`,
     `- Payment Status: ${receipt && receipt.status ? receipt.status : 'paid'}`,
     `- Price (USD): ${receiptAmountUsd(receipt) > 0 ? receiptAmountUsd(receipt).toFixed(2) : 'not recorded'}`,
     '',
     '## What Is Included',
-    enterprise
-      ? `This pack is the immediate, honest deliverable for the high-ticket service "${recipe.title}". It captures the commercial kickoff, delivery coordination, and download references while the ZeusAI team executes the actual engagement across milestones.`
-      : `This pack is the immediate activation deliverable for "${recipe.title}". It gives the buyer concrete next steps, receipt references, and download locations so every paid digital SKU receives a useful, non-placeholder artifact.`,
+    human
+      ? `This pack is the immediate, honest deliverable for "${recipe.title}". It captures commercial kickoff, milestone coordination, and download references while the ZeusAI team executes the actual engagement. It is NOT a claim that the finished product is already shipped.`
+      : `This pack is the immediate activation deliverable for "${recipe.title}". It gives the buyer concrete next steps, receipt references, and download locations. When AI fulfillment is enabled, a SKU-specific generated artifact replaces or supplements this pack.`,
     '',
     '## Next Steps',
     ...nextSteps.map((step, index) => `${index + 1}. ${step}`),
@@ -293,18 +367,18 @@ function buildDeterministicArtifact(receipt, serviceId, recipe, opts = {}) {
     ...downloadInstructions(receipt, serviceId).map((line) => `- ${line}`),
     '',
     '## Delivery Notes',
-    enterprise
-      ? 'This document is your engagement proposal and kickoff pack; the underlying enterprise system is delivered by the ZeusAI team according to the agreed milestones.'
+    human
+      ? 'This document is your kickoff / engagement pack; the underlying product is delivered by the ZeusAI team according to the agreed milestones.'
       : 'This artifact is intentionally deterministic and never claims AI generation when AI was not actually used.',
   ]).join('\n');
 
   return {
     serviceId,
     recipe: recipe.id,
-    tier: enterprise ? 'enterprise' : 'standard',
-    deliverableType: enterprise ? 'enterprise-proposal' : 'product',
-    requiresHumanFulfillment: enterprise,
-    title: 'Service Activation Pack',
+    tier: enterprise ? 'enterprise' : (opts.professional ? 'professional' : 'standard'),
+    deliverableType: enterprise ? 'enterprise-proposal' : (opts.professional ? 'project-kickoff' : 'product'),
+    requiresHumanFulfillment: human,
+    title: human ? 'Project Kickoff Pack' : 'Service Activation Pack',
     status: 'delivered',
     format: 'markdown',
     filename: `${serviceId}-service-activation-pack.${extension('markdown')}`,
@@ -320,21 +394,29 @@ function buildDeterministicArtifact(receipt, serviceId, recipe, opts = {}) {
 // artifact object or a { pending } marker; never throws.
 async function fulfillService(receipt, serviceId) {
   const enterprise = isEnterprise(receipt, serviceId);
-  const recipe = enterprise ? ENTERPRISE_RECIPE : pickRecipe(serviceId);
-  const tier = enterprise ? 'enterprise' : 'standard';
+  const professional = !enterprise && needsHumanFulfillment(receipt, serviceId);
+  const human = enterprise || professional;
+  const recipe = enterprise
+    ? ENTERPRISE_RECIPE
+    : (professional ? PROFESSIONAL_RECIPE : pickRecipe(serviceId));
+  const tier = enterprise ? 'enterprise' : (professional ? 'professional' : 'standard');
   const shouldUseAi = process.env.FULFILLMENT_AI_ENABLED === '1';
   if (!shouldUseAi || !aiProviders || typeof aiProviders.chat !== 'function') {
     return buildDeterministicArtifact(receipt, serviceId, recipe, {
       enterprise,
+      professional,
+      requiresHuman: human,
       reason: !shouldUseAi ? 'ai_disabled' : 'ai_layer_unavailable'
     });
   }
   try {
-    const result = await aiProviders.chat(recipe.prompt(contextFor(receipt, serviceId)), [], enterprise ? { premiumOnly: false } : {});
+    const result = await aiProviders.chat(recipe.prompt(contextFor(receipt, serviceId)), [], human ? { premiumOnly: false } : {});
     const reply = result && result.reply ? String(result.reply) : '';
     if (!reply) {
       return buildDeterministicArtifact(receipt, serviceId, recipe, {
         enterprise,
+        professional,
+        requiresHuman: human,
         reason: 'ai_null_response'
       });
     }
@@ -343,10 +425,10 @@ async function fulfillService(receipt, serviceId) {
       serviceId,
       recipe: recipe.id,
       tier,
-      // Enterprise: the PROPOSAL is delivered now; the product is executed as a
-      // milestone-based, human-led engagement (flagged so ops/concierge follows up).
-      deliverableType: enterprise ? 'enterprise-proposal' : 'product',
-      requiresHumanFulfillment: enterprise,
+      // Human-led engagements: the KICKOFF/PROPOSAL is delivered now; the
+      // finished product is executed as a milestone-based engagement.
+      deliverableType: enterprise ? 'enterprise-proposal' : (professional ? 'project-kickoff' : 'product'),
+      requiresHumanFulfillment: human,
       title: recipe.title,
       status: 'delivered',
       format: recipe.format,
@@ -360,6 +442,8 @@ async function fulfillService(receipt, serviceId) {
   } catch (e) {
     return buildDeterministicArtifact(receipt, serviceId, recipe, {
       enterprise,
+      professional,
+      requiresHuman: human,
       reason: 'ai_error:' + String(e && e.message || e)
     });
   }
@@ -397,4 +481,7 @@ async function fulfillReceipt(receipt, opts = {}) {
   return { ok: true, receiptId: receipt.id, fulfillmentStatus, delivered, total: artifacts.length, requiresHumanFulfillment, artifacts };
 }
 
-module.exports = { fulfillReceipt, fulfillService, pickRecipe, isEnterprise, RECIPES, GENERIC_RECIPE, ENTERPRISE_RECIPE };
+module.exports = {
+  fulfillReceipt, fulfillService, pickRecipe, isEnterprise, needsHumanFulfillment,
+  RECIPES, GENERIC_RECIPE, ENTERPRISE_RECIPE, PROFESSIONAL_RECIPE, SKU_RECIPES,
+};

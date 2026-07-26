@@ -183,6 +183,40 @@ function _loadFullLibrary(excludeIds) {
   } catch (_) { /* swallow */ }
   return all;
 }
+function _ctaForProduct(p) {
+  try {
+    const buyability = require('../../commerce/commerce-buyability');
+    return buyability.assessBuyability(p);
+  } catch (_) {
+    const tier = String((p && (p.tier || p.group)) || '').toLowerCase();
+    const id = String((p && p.id) || '');
+    if (/^ent-/i.test(id) || tier === 'enterprise') {
+      return { mode: 'contact', buyable: false, ctaLabel: 'Request proposal →', ctaHref: '/enterprise#enterprise-contact' };
+    }
+    if (/^professional-/i.test(id) || tier === 'professional') {
+      return { mode: 'reserve', buyable: true, ctaLabel: 'Reserve with BTC →', ctaHref: '/checkout/?plan=' + encodeURIComponent(id) };
+    }
+    return { mode: 'btc', buyable: true, ctaLabel: 'Buy with BTC →', ctaHref: '/checkout/?plan=' + encodeURIComponent(id) };
+  }
+}
+
+function _primaryCtaHtml(p, opts) {
+  const o = opts || {};
+  const id = String((p && p.id) || '');
+  const title = _esc(p.title || p.id || 'Service');
+  const cta = _ctaForProduct(p);
+  const flex = o.flex ? 'flex:1;justify-content:center;' : '';
+  const size = o.compact ? 'font-size:12px;padding:6px 10px;' : '';
+  if (cta.mode === 'contact') {
+    return `<a class="btn btn-gold" href="${_esc(cta.ctaHref || '/enterprise#enterprise-contact')}" data-link aria-label="Request proposal for ${title}" style="${flex}${size}">${_esc(cta.ctaLabel || 'Request proposal →')}</a>`;
+  }
+  if (cta.mode === 'unavailable' || !cta.buyable) {
+    return `<a class="btn btn-ghost" href="/services/${encodeURIComponent(id)}" data-link aria-label="View ${title}" style="${flex}${size}">${_esc(cta.ctaLabel || 'Not for sale')}</a>`;
+  }
+  const label = cta.ctaLabel || 'Buy with BTC →';
+  return `<a class="btn btn-primary" href="/checkout/?plan=${encodeURIComponent(id)}" data-sovereign-buy="${_esc(id)}" data-buy-mode="${_esc(cta.mode)}" aria-label="${_esc(label)} ${title}" style="${flex}${size}">${_esc(label)}</a>`;
+}
+
 function _libraryCard(p) {
   const id = _esc(p.id || '');
   const title = _esc(p.title || p.id || 'Service');
@@ -194,20 +228,18 @@ function _libraryCard(p) {
     ? `<span class="tag" title="Live AI-negotiated price${p.demandFactor ? ' · demand=' + Number(p.demandFactor).toFixed(2) : ''}" style="background:rgba(127,255,212,.12);color:#7fffd4;border:1px solid rgba(127,255,212,.35);font-size:10px;margin-left:6px">⚡ live</span>`
     : '';
   const autoBadge = p.autoPublished
-    ? `<span class="tag" title="Auto-published from a backend module — appeared on the site without manual work" style="background:rgba(255,211,106,.10);color:#ffd36a;border:1px solid rgba(255,211,106,.30);font-size:10px;margin-left:6px">🤖 auto</span>`
+    ? `<span class="tag" title="Operational mirror from a backend module — not a public checkout SKU" style="background:rgba(255,211,106,.10);color:#ffd36a;border:1px solid rgba(255,211,106,.30);font-size:10px;margin-left:6px">🤖 mirror</span>`
     : '';
   const priceBtcNum = Number(p.priceBtc || 0) || _toBtc(price);
   const btcTxt = priceBtcNum > 0 ? ('≈ ' + priceBtcNum.toFixed(8) + ' BTC') : '';
-  return `<article class="card" data-product-id="${id}" data-price-source="${_esc(p.livePriceSource || 'marketplace')}" data-auto-published="${p.autoPublished ? '1' : '0'}" itemscope itemtype="https://schema.org/Product" style="display:flex;flex-direction:column;gap:8px;padding:14px">
+  return `<article class="card" data-product-id="${id}" data-price-source="${_esc(p.livePriceSource || 'marketplace')}" data-auto-published="${p.autoPublished ? '1' : '0'}" data-not-for-sale="1" itemscope itemtype="https://schema.org/Product" style="display:flex;flex-direction:column;gap:8px;padding:14px">
     <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px">
       <span class="tag" style="background:rgba(138,92,255,.12);color:#bda4ff;border:1px solid rgba(138,92,255,.30);font-size:10px">${cat}</span>
       <span style="font-family:var(--mono);font-size:14px;color:var(--gold);text-align:right" itemprop="offers" itemscope itemtype="https://schema.org/Offer"><meta itemprop="priceCurrency" content="USD"/><span itemprop="price" data-pricing-value="${id}">${priceTxt}</span>${liveBadge}${autoBadge}<span class="btc-line" data-price-btc-value="${id}" style="display:block;font-size:10.5px;color:#f7a13b;font-weight:600;margin-top:2px">${btcTxt}</span></span>
     </div>
     <h3 style="margin:2px 0 0;font-size:14px;line-height:1.3" itemprop="name">${title}</h3>
     <p style="margin:0;color:var(--ink-dim);font-size:12px;line-height:1.4;flex:1" itemprop="description">${desc}</p>
-    ${price > 0
-      ? `<a class="btn btn-primary" href="/checkout/?plan=${encodeURIComponent(id)}" data-sovereign-buy="${id}" aria-label="Buy ${title} with Bitcoin" style="font-size:12px;padding:6px 10px">Buy →</a>`
-      : `<a class="btn btn-ghost" href="/services/${encodeURIComponent(id)}" data-link aria-label="View ${title}" style="font-size:12px;padding:6px 10px">View →</a>`}
+    <a class="btn btn-ghost" href="/services/${encodeURIComponent(String(p.id || ''))}" data-link aria-label="View ${title} module mirror" style="font-size:12px;padding:6px 10px">Module mirror · not for sale</a>
   </article>`;
 }
 function _tierBadge(tier) {
@@ -253,7 +285,7 @@ function _catalogCard(p) {
     <h3 style="margin:4px 0 0;font-size:18px;line-height:1.25" itemprop="name">${title}</h3>
     <p style="margin:0;color:var(--ink-dim);font-size:13px;line-height:1.45;flex:1" itemprop="description">${desc}</p>
     <div style="display:flex;gap:8px;margin-top:6px">${price > 0
-      ? `<a class="btn btn-primary" href="/checkout/?plan=${encodeURIComponent(id)}" data-sovereign-buy="${id}" aria-label="Buy ${title} with Bitcoin for ${btcTxt || priceTxt}" style="flex:1;justify-content:center">Buy with BTC →</a>`
+      ? _primaryCtaHtml(p, { flex: true })
       : `<a class="btn btn-ghost" href="/services/${encodeURIComponent(id)}" data-link aria-label="Activate ${title}" style="flex:1;justify-content:center">Activate free</a>`
     }<a class="btn btn-ghost" href="/services/${encodeURIComponent(id)}" data-link aria-label="View details for ${title}">Details</a></div>
   </article>`;
@@ -1514,8 +1546,25 @@ function pageService(id) {
       </div>
       <div id="svcLiveBtc" style="font-size:12px;color:var(--ink-dim);margin-top:4px">${btcTxt}</div>
       ${price > 0 ? '<div style="font-size:11.5px;color:#ffd36a;font-weight:600;margin-top:4px;letter-spacing:.2px">10% BTC discount applied</div>' : ''}
-      <p style="color:var(--ink-dim);font-size:13.5px">Activate instantly. Cancel anytime. Signed receipt on every invoice.</p>
-      <button type="button" class="btn btn-primary" id="svcBuyBtn" data-sovereign-buy="${_esc(safeId)}" style="width:100%;justify-content:center;margin-top:10px">₿ Buy now → BTC checkout</button>
+      ${(() => {
+        const cta = _ctaForProduct(s);
+        if (cta.mode === 'contact') {
+          return `<p style="color:var(--ink-dim);font-size:13.5px">Enterprise engagements start with a signed SOW — not a self-serve cart. Request a proposal and our team responds with scope, milestones and settlement options.</p>
+      <a class="btn btn-gold" id="svcBuyBtn" href="${_esc(cta.ctaHref || '/enterprise#enterprise-contact')}" data-link style="width:100%;justify-content:center;margin-top:10px">${_esc(cta.ctaLabel || 'Request proposal →')}</a>`;
+        }
+        if (cta.mode === 'reserve') {
+          return `<p style="color:var(--ink-dim);font-size:13.5px">BTC reserve unlocks a signed kickoff pack immediately. The finished build is delivered by the ZeusAI team across stated milestones. Delivery email required.</p>
+      <label style="display:block;margin-top:10px;font-size:12px;color:var(--ink-dim)">Delivery email
+        <input id="svcBuyEmail" type="email" autocomplete="email" placeholder="you@company.com" style="width:100%;margin-top:4px;padding:10px 12px;border-radius:8px;border:1px solid var(--stroke);background:rgba(5,4,10,.55);color:var(--ink)"/>
+      </label>
+      <button type="button" class="btn btn-primary" id="svcBuyBtn" data-sovereign-buy="${_esc(safeId)}" data-buy-mode="reserve" style="width:100%;justify-content:center;margin-top:10px">₿ Reserve with BTC →</button>`;
+        }
+        return `<p style="color:var(--ink-dim);font-size:13.5px">Pay with BTC, receive a signed receipt and the digital deliverable for this SKU. Delivery email required.</p>
+      <label style="display:block;margin-top:10px;font-size:12px;color:var(--ink-dim)">Delivery email
+        <input id="svcBuyEmail" type="email" autocomplete="email" placeholder="you@company.com" style="width:100%;margin-top:4px;padding:10px 12px;border-radius:8px;border:1px solid var(--stroke);background:rgba(5,4,10,.55);color:var(--ink)"/>
+      </label>
+      <button type="button" class="btn btn-primary" id="svcBuyBtn" data-sovereign-buy="${_esc(safeId)}" data-buy-mode="btc" style="width:100%;justify-content:center;margin-top:10px">₿ Buy now → BTC checkout</button>`;
+      })()}
       <div id="svcUpsell" data-upsell-anchor="${_esc(safeId)}" style="margin-top:12px"></div>
       <a class="btn" href="/services" data-link style="width:100%;justify-content:center;margin-top:8px">← All services</a>
       <link itemprop="availability" href="https://schema.org/InStock"/>
@@ -2209,7 +2258,6 @@ function pageStore() {
   }
   const libCategories = Object.keys(libByCat).sort();
   const libCount = library.length;
-  const libValue = library.reduce((s, p) => s + Number(p.priceUSD || 0), 0);
   const renderLibrarySection = (cat, items) => {
     if (!items.length) return '';
     const label = cat.charAt(0).toUpperCase() + cat.slice(1);
@@ -2219,13 +2267,11 @@ function pageStore() {
     if (!items.length) return '';
     return `<details class="store-tier-block" data-tier="${tier}" open style="margin:0 0 30px"><summary style="cursor:pointer;list-style:none;display:flex;align-items:center;justify-content:space-between;gap:12px;padding:14px 18px;border-radius:12px;background:rgba(138,92,255,.08);border:1px solid rgba(138,92,255,.25);font-weight:600"><span>${_esc(label)} · ${items.length} products</span><span style="color:var(--ink-dim);font-family:var(--mono);font-size:12px">click to collapse</span></summary><div class="grid" style="grid-template-columns:repeat(auto-fill,minmax(min(320px,100%),1fr));gap:18px;margin-top:14px">${items.map(_catalogCard).join('')}</div></details>`;
   };
-  const totalSellable = catalog.length + libCount;
-  const totalCatalogueValue = totalUsd + libValue;
   return `<section class="enterprise-hero" style="padding-top:120px">
   <div style="max-width:1280px;margin:0 auto;padding:0 28px">
-    <span class="kicker" style="color:#ffd36a">ZeusAI Store · ${totalSellable} sellable services across the curated catalogue + auto-published Unicorn library · $${totalCatalogueValue.toLocaleString('en-US', { maximumFractionDigits: 0 })} total catalogue value</span>
-    <h1 style="font-size:clamp(36px,5vw,64px);line-height:1.04;margin:14px 0 18px;letter-spacing:-0.02em;background:linear-gradient(135deg,#fff 0%,#ffd36a 40%,#8a5cff 100%);-webkit-background-clip:text;background-clip:text;color:transparent">Buy it. Pay with BTC. Use it instantly.</h1>
-    <p style="color:var(--ink-dim);font-size:18px;max-width:900px;line-height:1.55">Every service ZeusAI offers — from $29 digital deliverables to enterprise licenses, plus every backend module auto-published from the live Unicorn — purchasable directly from this page. Bitcoin on-chain for instant fulfillment. Card/Stripe and SWIFT/SEPA wire appear only when runtime credentials are configured. Every artifact Ed25519-signed.</p>
+    <span class="kicker" style="color:#ffd36a">ZeusAI Store · ${catalog.length} curated products · honest checkout · $${totalUsd.toLocaleString('en-US', { maximumFractionDigits: 0 })} listed catalogue value</span>
+    <h1 style="font-size:clamp(36px,5vw,64px);line-height:1.04;margin:14px 0 18px;letter-spacing:-0.02em;background:linear-gradient(135deg,#fff 0%,#ffd36a 40%,#8a5cff 100%);-webkit-background-clip:text;background-clip:text;color:transparent">Real products. Real BTC settlement. Real delivery.</h1>
+    <p style="color:var(--ink-dim);font-size:18px;max-width:900px;line-height:1.55">Instant SKUs deliver digital packs after on-chain payment. Professional builds are BTC reserves with a signed kickoff pack now and human milestone delivery after. Enterprise licenses start as SOW proposals — not a self-serve cart. Module mirrors below are operational references, not checkout SKUs. Every receipt Ed25519-signed.</p>
 
     <div id="storeStats" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:14px;margin:30px 0 20px">
       <div class="card"><span class="tag">Instant</span><h3 style="margin:6px 0 0;font-size:24px">${counts.instant}</h3></div>
@@ -2236,26 +2282,26 @@ function pageStore() {
 
     <div id="storeTabs" style="display:flex;gap:8px;margin:30px 0 10px;flex-wrap:wrap;border-bottom:1px solid rgba(138,92,255,.2);padding-bottom:4px">
       <button class="store-tab" data-tier="instant" type="button" style="background:linear-gradient(135deg,#8a5cff,#6d28d9);color:#fff;border:0;padding:10px 22px;border-radius:6px 6px 0 0;cursor:pointer;font-weight:600;font-size:14px">⚡ Instant &lt;60s (${counts.instant})</button>
-      <button class="store-tab" data-tier="professional" type="button" style="background:rgba(138,92,255,.1);color:var(--ink);border:0;padding:10px 22px;border-radius:6px 6px 0 0;cursor:pointer;font-weight:600;font-size:14px">💼 Professional SaaS (${counts.professional})</button>
-      <button class="store-tab" data-tier="enterprise" type="button" style="background:rgba(138,92,255,.1);color:var(--ink);border:0;padding:10px 22px;border-radius:6px 6px 0 0;cursor:pointer;font-weight:600;font-size:14px">👑 Enterprise Licenses (${counts.enterprise})</button>
+      <button class="store-tab" data-tier="professional" type="button" style="background:rgba(138,92,255,.1);color:var(--ink);border:0;padding:10px 22px;border-radius:6px 6px 0 0;cursor:pointer;font-weight:600;font-size:14px">💼 Professional builds (${counts.professional})</button>
+      <button class="store-tab" data-tier="enterprise" type="button" style="background:rgba(138,92,255,.1);color:var(--ink);border:0;padding:10px 22px;border-radius:6px 6px 0 0;cursor:pointer;font-weight:600;font-size:14px">👑 Enterprise SOW (${counts.enterprise})</button>
     </div>
-    <div id="storeTabNote" style="color:var(--ink-dim);font-size:13px;margin:6px 0 20px">All ${catalog.length} curated products + ${libCount} auto-published library services rendered server-side · live JS hydration refreshes prices via SSE.</div>
+    <div id="storeTabNote" style="color:var(--ink-dim);font-size:13px;margin:6px 0 20px">${catalog.length} curated products rendered server-side · ${libCount} module mirrors listed as reference only (not for sale) · live JS hydration refreshes prices via SSE.</div>
 
     <div id="storeGrid" style="margin:20px 0 40px">
-      ${renderTierSection('instant', '⚡ Instant deliverables (under 60 seconds)', byTier.instant)}
-      ${renderTierSection('professional', '💼 Professional SaaS', byTier.professional)}
-      ${renderTierSection('enterprise', '👑 Enterprise licenses', byTier.enterprise)}
+      ${renderTierSection('instant', '⚡ Instant digital deliverables', byTier.instant)}
+      ${renderTierSection('professional', '💼 Professional build engagements (BTC reserve + human delivery)', byTier.professional)}
+      ${renderTierSection('enterprise', '👑 Enterprise licenses (request proposal)', byTier.enterprise)}
     </div>
 
     ${libCount > 0 ? `<div id="autoLibrary" style="margin:50px 0 80px">
       <div style="display:flex;align-items:baseline;justify-content:space-between;gap:14px;flex-wrap:wrap;margin-bottom:14px;border-top:1px solid rgba(138,92,255,.2);padding-top:30px">
         <div>
-          <span class="kicker" style="color:#ffd36a">🤖 Auto-published Unicorn library · live</span>
-          <h2 style="margin:6px 0 0;font-size:28px;line-height:1.2">Every backend module, on sale automatically.</h2>
+          <span class="kicker" style="color:#ffd36a">🤖 Unicorn module mirror · not for sale</span>
+          <h2 style="margin:6px 0 0;font-size:28px;line-height:1.2">Operational modules, shown for transparency.</h2>
         </div>
-        <span style="color:var(--ink-dim);font-size:13px;font-family:var(--mono)" data-library-count-label>${libCount} services · auto-refreshed via SSE 24/7</span>
+        <span style="color:var(--ink-dim);font-size:13px;font-family:var(--mono)" data-library-count-label>${libCount} mirrors · not checkout SKUs</span>
       </div>
-      <p style="color:var(--ink-dim);font-size:14px;line-height:1.55;max-width:820px;margin:0 0 20px">Every <code style="font-size:12px;background:rgba(138,92,255,.1);padding:2px 6px;border-radius:4px">backend/modules/*.js</code> file becomes a sellable service the moment it loads. Categories below are derived from each module's domain; prices come live from the AI-negotiated <code style="font-size:12px;background:rgba(127,255,212,.1);padding:2px 6px;border-radius:4px">dynamic-pricing</code> engine. No manual catalogue work — the unicorn announces new services automatically.</p>
+      <p style="color:var(--ink-dim);font-size:14px;line-height:1.55;max-width:820px;margin:0 0 20px">Backend modules appear here as an operational mirror so you can see what the platform runs. They are <b style="color:#fff;font-weight:600">not</b> public checkout products — buy only from the curated Instant / Professional / Enterprise catalogue above.</p>
       <div id="autoLibraryGrid">
         ${libCategories.map(c => renderLibrarySection(c, libByCat[c])).join('')}
       </div>
@@ -2905,7 +2951,7 @@ Content-Type: application/json
   <div style="max-width:1280px;margin:0 auto;padding:0 28px">
     <span class="kicker" style="color:#ffd36a">Enterprise · Hyperscaler grade</span>
     <h1 style="font-size:clamp(40px,5.4vw,72px);line-height:1.02;margin:14px 0 18px;letter-spacing:-0.02em;background:linear-gradient(135deg,#fff 0%,#ffd36a 40%,#8a5cff 100%);-webkit-background-clip:text;background-clip:text;color:transparent">Licenses built for AWS, Google, Microsoft, Meta, Apple, Amazon.</h1>
-    <p style="color:var(--ink-dim);font-size:19px;max-width:900px;line-height:1.55">Ten production-ready ZeusAI platforms plus a full module catalogue. Anchor pricing from <b style="color:#fff">$14M</b> to <b style="color:#fff">$150M</b>. Topstone deals up to <b style="color:#ffd36a">$2B</b>. Every license includes signed deliverables, sovereign key ceremony, 99.99%+ SLA, and a live <b style="color:#fff">autonomous negotiation desk</b> that closes without a human in the loop.</p>
+    <p style="color:var(--ink-dim);font-size:19px;max-width:900px;line-height:1.55">Enterprise licenses and transformations are scoped under a signed SOW with human deal leads — not a self-serve cart. Pricing is proposal-based from the catalogue anchors below. Every engagement includes signed deliverables, milestone acceptance, and BTC or wire settlement options agreed in the contract.</p>
 
     <div style="display:flex;gap:14px;flex-wrap:wrap;margin:28px 0 0">
       <a href="#enterprise-contact" class="btn btn-gold" style="font-size:16px;padding:14px 26px">📩 Contact Enterprise Sales</a>

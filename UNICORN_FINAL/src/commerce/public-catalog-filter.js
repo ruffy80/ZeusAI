@@ -60,9 +60,11 @@ const CURATED_RECIPE_GROUPS = new Set([
   'future-invention',
   'core-plan',
 ]);
+// Only core plans that have an honest self-serve or contact path.
+// Ghost metered SKUs (api-call, wealth-engine, …) are NOT treated as
+// fulfillment recipes for the public storefront.
 const CANONICAL_CORE_PLAN_IDS = new Set([
-  'free', 'starter', 'pro', 'enterprise', 'api-call', 'ai-analysis',
-  'wealth-engine', 'legal-bot', 'cloud-broker', 'data-export',
+  'free', 'starter', 'pro', 'enterprise', 'ai-analysis', 'data-export',
   'sme', 'mid-market', 'enterprise-tier', 'global-giants',
 ]);
 
