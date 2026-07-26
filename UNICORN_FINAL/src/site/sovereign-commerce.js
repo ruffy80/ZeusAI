@@ -586,6 +586,13 @@ async function scanIncoming() {
   WATCH_STATE.lastScanOk = true; WATCH_STATE.lastError = null;
 
   const txs = Array.isArray(r.data) ? r.data : [];
+  // Tip height once per scan — required for real confirmation depth
+  // (block_height alone is not confirmations).
+  let tipHeight = 0;
+  try {
+    const tip = await httpJson(`${MEMPOOL_BASE}/blocks/tip/height`);
+    if (tip && tip.ok) tipHeight = Number(tip.data) || 0;
+  } catch (_) { tipHeight = 0; }
   let matched = 0;
   for (const tx of txs) {
     if (!tx || !tx.txid) continue;
@@ -602,9 +609,17 @@ async function scanIncoming() {
     // small amounts may settle 0-conf, large amounts require N on-chain confs.
     const orderId = AMT_INDEX.get(outSats);
     const orderForTier = orderId ? ORDERS.get(orderId) : null;
-    const usdForTier = orderForTier && Number(orderForTier.price_usd || orderForTier.amount_usd || 0);
+    // Orders store fiat as subtotal_fiat (NOT price_usd/amount_usd).
+    const usdForTier = orderForTier && Number(
+      orderForTier.subtotal_fiat || orderForTier.price_usd || orderForTier.amount_usd || 0
+    );
     const neededConfs = requiredConfsForUsd(usdForTier || 0);
-    const txConfs = confirmed ? Math.max(1, Number((tx.status && tx.status.block_height) ? 1 : 1)) : 0;
+    const blockHeight = confirmed ? Number(tx.status && tx.status.block_height) || 0 : 0;
+    let txConfs = 0;
+    if (confirmed) {
+      if (tipHeight > 0 && blockHeight > 0) txConfs = Math.max(1, tipHeight - blockHeight + 1);
+      else txConfs = 1;
+    }
     if (orderId && (neededConfs === 0 ? true : txConfs >= neededConfs)) {
       const order = ORDERS.get(orderId);
       if (order && order.status === 'pending') {

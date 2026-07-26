@@ -98,10 +98,16 @@ case "$BASE_URL" in
     ;;
 esac
 
-assert_node_json "backend health status ok" "$BASE_URL/health" \
-  "if (!((data.status === 'ok' || data.ok === true) && data.dbConnected !== false)) process.exit(1);"
+# Prefer /api/health (canonical). Fall back to /health for older probes.
+_SMOKE_HEALTH_URL="$BASE_URL/api/health"
+if ! curl -fsS --max-time 8 "$_SMOKE_HEALTH_URL" >/dev/null 2>&1; then
+  _SMOKE_HEALTH_URL="$BASE_URL/health"
+fi
 
-assert_node_json "backend engines active" "$BASE_URL/health" \
+assert_node_json "backend is NOT rescue mode" "$_SMOKE_HEALTH_URL" \
+  "if (data.mode === 'rescue' || data.service === 'zeus-rescue-api') process.exit(1); if (!((data.status === 'ok' || data.ok === true) && data.dbConnected !== false)) process.exit(1);"
+
+assert_node_json "backend engines active" "$_SMOKE_HEALTH_URL" \
   "if (data.engines && !Object.values(data.engines).every(Boolean)) process.exit(1);"
 
 if [ "$SKIP_PUBLIC" = "1" ] || [ "$_QIS_TOLERANT_EFFECTIVE" = "1" ]; then
@@ -151,6 +157,11 @@ if command -v pm2 >/dev/null 2>&1 && { [ "$REQUIRE_PM2" = "1" ] || [ -n "$EXPECT
       if (name !== "unicorn-site" && group.length !== 1) failures.push(`${name}:expected_one_got_${group.length}`);
       for (const app of group) {
         if (app.pm2_env.status !== "online") failures.push(`${name}:status_${app.pm2_env.status}`);
+        if (name === "unicorn-backend") {
+          const script = String((app.pm2_env && (app.pm2_env.pm_exec_path || app.pm2_env.script)) || "");
+          if (/rescue-backend\.js/.test(script)) failures.push(`${name}:rescue_script`);
+          if (script && !/backend\/index\.js$/.test(script)) failures.push(`${name}:bad_script:${script}`);
+        }
       }
     }
     const siteCount = (byName.get("unicorn-site") || []).length;

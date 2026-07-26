@@ -771,8 +771,18 @@ function siteProxyToUnicorn(routePath, opts) {
     } else if (!backendUrl) {
       console.warn('[site-proxy] BACKEND_API_URL not set, serving mock for ' + routePath);
     }
-    // Circuit is OPEN or backend failed — serve fallback instantly
+    // Circuit is OPEN or backend failed — serve fallback instantly.
+    // Never emit HTTP 200 with an undefined body (Express serializes that as
+    // a zero-byte response — broke /.well-known/autonomy.json / TAOS probes).
     res.set('X-Source', _siteProxyCB.state === 'OPEN' ? 'site-circuit-breaker' : 'site-fallback-mock');
+    if (fallback == null) {
+      return res.status(503).json({
+        ok: false,
+        error: 'upstream_unavailable',
+        path: routePath,
+        circuit: _siteProxyCB.state,
+      });
+    }
     return res.json(fallback);
   };
 }

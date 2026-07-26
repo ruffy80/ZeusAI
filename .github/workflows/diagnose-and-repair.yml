@@ -133,22 +133,13 @@ jobs:
               return 1
             }
 
-            start_rescue_backend() {
-              local reason="${1:-manual}"
-              echo "[heal] starting PM2-managed rescue backend ($reason)"
-              mkdir -p logs
-              if [ ! -f scripts/rescue-backend.js ]; then
-                echo '[heal] scripts/rescue-backend.js missing in current release — seeding rescue backend script'
-                mkdir -p scripts
-                curl -fsSL https://raw.githubusercontent.com/ruffy80/ZeusAI/main/UNICORN_FINAL/scripts/rescue-backend.js -o scripts/rescue-backend.js || {
-                  echo '[heal] failed to download rescue backend script'
-                  return 1
-                }
-                chmod +x scripts/rescue-backend.js
-              fi
-              set -a
-              [ -f .env ] && . ./.env 2>/dev/null || true
-              set +a
+            # NEVER start scripts/rescue-backend.js. Rescue fabricates healthy
+            # commerce, steals the unicorn-backend PM2 name, and breaks PFOS/ESOS.
+            # Fail closed: retry canonical ecosystem only.
+            restart_canonical_backend() {
+              local reason="${1:-retry}"
+              echo "[heal] restarting CANONICAL unicorn-backend ($reason) — rescue path disabled"
+              pkill -f 'rescue-backend\.js' 2>/dev/null || true
               timeout 20s pm2 stop unicorn-backend 2>/dev/null || true
               timeout 20s pm2 delete unicorn-backend 2>/dev/null || true
               PIDS=$(ss -tlnp 2>/dev/null | awk '$4 ~ /:3000/ {print $0}' | sed -n 's/.*pid=\([0-9][0-9]*\).*/\1/p' | sort -u)
@@ -159,30 +150,37 @@ jobs:
                 sleep 1
                 kill -9 "$PID" 2>/dev/null || true
               done
-              PORT=3000 BIND_HOST=127.0.0.1 \
-                BTC_WALLET_ADDRESS="${BTC_WALLET_ADDRESS:-}" OWNER_BTC_ADDRESS="${OWNER_BTC_ADDRESS:-}" \
-                pm2 start scripts/rescue-backend.js --name unicorn-backend --update-env 2>&1
-              wait_for_health rescue-backend http://127.0.0.1:3000/health 10 2
+              env NODE_ENV=production BIND_HOST=127.0.0.1 UNICORN_RUNTIME_PROFILE=stable \
+                QIS_AUTO_HEAL_ENABLED=false DISABLE_SELF_MUTATION=1 \
+                timeout 90s pm2 start ecosystem.config.js --only unicorn-backend --update-env 2>&1 \
+                || echo '[heal] canonical backend start failed'
+              wait_for_health backend http://127.0.0.1:3000/api/health 40 4
             }
 
             BACKEND_HEALTHY=0
             SITE_HEALTHY=0
-            wait_for_health backend http://127.0.0.1:3000/health 30 3 && BACKEND_HEALTHY=1
+            wait_for_health backend http://127.0.0.1:3000/api/health 40 4 && BACKEND_HEALTHY=1
             wait_for_health site http://127.0.0.1:3001/health 40 3 && SITE_HEALTHY=1
 
             if [ "$BACKEND_HEALTHY" != "1" ]; then
-              echo '[heal] PM2 backend unhealthy — emergency minimal API fallback'
-              start_rescue_backend initial
+              echo '[heal] PM2 backend unhealthy — retrying CANONICAL backend (no rescue)'
+              restart_canonical_backend initial && BACKEND_HEALTHY=1
             fi
 
             if [ "$SITE_HEALTHY" != "1" ]; then
-              echo '[heal] PM2 site unhealthy — emergency minimal site fallback'
-              nohup env BTC_WALLET_ADDRESS="${BTC_WALLET_ADDRESS:-}" OWNER_BTC_ADDRESS="${OWNER_BTC_ADDRESS:-}" \
-                node -e "const http=require('http');const btcAddress=process.env.BTC_WALLET_ADDRESS||process.env.OWNER_BTC_ADDRESS||'bc1q4f7e66z87mdfj56kz0dj5hvcnpmh0qh4wuv22e';const btcUsd=Number(process.env.RESCUE_BTC_USD||77000);const services=[{id:'adaptive-ai',name:'Adaptive AI Automation',priceUsd:499},{id:'ai-workforce',name:'AI Workforce Suite',priceUsd:1499},{id:'enterprise-growth',name:'Enterprise Growth Engine',priceUsd:4999}].map(s=>({...s,currency:'USD',btcAddress,priceBTC:Number((s.priceUsd/btcUsd).toFixed(8))}));function send(res,status,type,body){res.writeHead(status,{'content-type':type,'cache-control':'no-store'});res.end(body)}function json(res,obj){send(res,200,'application/json; charset=utf-8',JSON.stringify(obj))}function page(title){const cards=services.map(s=>'<article style=\"border:1px solid #24324a;border-radius:16px;padding:18px;background:#0d1424\"><h2>'+s.name+'</h2><p><b>$'+s.priceUsd+'</b> · '+s.priceBTC+' BTC</p><p>'+btcAddress+'</p></article>').join('');return '<!doctype html><html><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><title>'+title+' · ZeusAI</title><style>body{margin:0;background:#07090d;color:#e9edf5;font-family:Inter,system-ui,sans-serif;padding:32px}main{max-width:980px;margin:auto}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:16px}.pill{color:#8df5c9}</style></head><body><main><p class=\"pill\">ZeusAI rescue mode · live commerce active</p><h1>'+title+'</h1><p>Serverul rulează în modul de recuperare până la repornirea backend-ului complet. Prețurile USD+BTC sunt active.</p><section class=\"grid\">'+cards+'</section></main></body></html>'}http.createServer((req,res)=>{const url=new URL(req.url,'http://127.0.0.1:3001');if(url.pathname==='/health')return json(res,{ok:true,status:'healthy',service:'zeus-rescue-site',mode:'rescue',ts:new Date().toISOString()});if(url.pathname==='/api/quantum-integrity/status')return json(res,{ok:true,active:true,integrity:'intact',mode:'rescue',diagnostics:{issues:[]},ts:new Date().toISOString()});if(url.pathname==='/snapshot')return json(res,{generatedAt:new Date().toISOString(),health:{ok:true,service:'zeus-rescue-site'},services});if(url.pathname==='/api/services'||url.pathname==='/api/services/list')return json(res,{ok:true,updatedAt:new Date().toISOString(),source:'zeus-rescue-site',count:services.length,services});if(url.pathname==='/api/services/changed')return json(res,{ok:true,changed:false,services});if(url.pathname==='/api/pricing/all')return json(res,{ok:true,generatedAt:new Date().toISOString(),btcUsd,btcAddress,services,pricing:services});if(url.pathname==='/services')return send(res,200,'text/html; charset=utf-8',page('Services'));if(url.pathname==='/pricing')return send(res,200,'text/html; charset=utf-8',page('Pricing'));return send(res,200,'text/html; charset=utf-8',page('ZeusAI'))}).listen(3001,'127.0.0.1',()=>console.log('[rescue-site] listening on 127.0.0.1:3001'))" > logs/rescue-site.log 2>&1 &
-              SITE_RESCUE_PID=$!
-              echo "[heal] rescue site pid=$SITE_RESCUE_PID"
+              echo '[heal] PM2 site unhealthy — restarting canonical unicorn-site only'
+              timeout 20s pm2 delete unicorn-site 2>/dev/null || true
+              env NODE_ENV=production BIND_HOST=127.0.0.1 \
+                timeout 90s pm2 start ecosystem.config.js --only unicorn-site --update-env 2>&1 || true
+              wait_for_health site http://127.0.0.1:3001/health 40 3 && SITE_HEALTHY=1
             else
               echo '[heal] full PM2 site is healthy — advanced UI remains live'
+            fi
+
+            # Refuse to persist rescue topology
+            if pm2 jlist 2>/dev/null | grep -q 'rescue-backend\.js'; then
+              echo '[heal] ERROR: rescue-backend.js still in PM2 — purging'
+              restart_canonical_backend purge-rescue || true
             fi
 
             echo '[heal] nginx -t && systemctl reload nginx'
@@ -197,11 +195,16 @@ jobs:
 
             echo '[heal] waiting 30s for backend/site warmup...'
             sleep 30
-            if ! curl -fsS --max-time 5 http://127.0.0.1:3000/health >/dev/null 2>&1; then
-              echo '[heal] backend became unhealthy after warmup — replacing backend only with rescue API'
-              start_rescue_backend post-warmup
+            if ! curl -fsS --max-time 8 http://127.0.0.1:3000/api/health >/dev/null 2>&1; then
+              echo '[heal] backend unhealthy after warmup — canonical retry (never rescue)'
+              restart_canonical_backend post-warmup || true
             fi
-            curl -fsS --max-time 5 http://127.0.0.1:3000/health || true
+            # Identity gate: rescue body must never be accepted as healthy
+            if curl -fsS --max-time 8 http://127.0.0.1:3000/api/health 2>/dev/null | grep -Eq '"mode"[[:space:]]*:[[:space:]]*"rescue"|zeus-rescue-api'; then
+              echo '[heal] FATAL: backend still identifies as rescue'
+              restart_canonical_backend identity-gate || true
+            fi
+            curl -fsS --max-time 8 http://127.0.0.1:3000/api/health || true
             curl -fsS --max-time 5 http://127.0.0.1:3001/health || true
             timeout 20s pm2 list || true
           SSHEOF
