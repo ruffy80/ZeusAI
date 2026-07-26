@@ -290,9 +290,18 @@ class UnicornEternalEngine {
     }
   }
 
+  _stableIdle() {
+    try {
+      const boot = require('./boot-immortal-os');
+      return boot.isStableProfile();
+    } catch (_) {
+      const profile = String(process.env.UNICORN_RUNTIME_PROFILE || '').toLowerCase();
+      return profile === 'safe' || profile === 'stable';
+    }
+  }
+
   async init() {
-    const profile = String(process.env.UNICORN_RUNTIME_PROFILE || '').toLowerCase();
-    if (profile === 'safe' || profile === 'stable') {
+    if (this._stableIdle()) {
       console.log('🛡️ UEE: Stable/Safe runtime profile detected. Skipping autonomous background timers/cycles startup.');
       return;
     }
@@ -305,6 +314,10 @@ class UnicornEternalEngine {
   }
 
   startEternalCycle() {
+    if (this._stableIdle()) {
+      console.log('🛡️ UEE: startEternalCycle blocked under stable/safe (Boot Immortal OS)');
+      return;
+    }
     cron.schedule('0 * * * *', async () => {
       await this.runEternalCycle();
     });
@@ -314,18 +327,21 @@ class UnicornEternalEngine {
   }
 
   startPredictiveInnovation() {
+    if (this._stableIdle()) return;
     cron.schedule('0 */6 * * *', async () => {
       await this.generateFutureInnovations();
     });
   }
 
   startSelfHealing() {
+    if (this._stableIdle()) return;
     cron.schedule('*/30 * * * *', async () => {
       await this.healEverything();
     });
   }
 
   async runEternalCycle() {
+    if (this._stableIdle()) return;
     console.log('♾️ Ciclu etern pornit – mențin Unicornul cu 44 de ani înainte');
     await this.generateFutureInnovations();
     await this.predictiveUpdate();

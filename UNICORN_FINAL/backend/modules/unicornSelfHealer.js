@@ -205,11 +205,47 @@ function mainCycle() {
   }
 }
 
-// Pornire ciclu
-ensureLedger();
-setInterval(mainCycle, MAIN_INTERVAL);
-// Rulează o dată la pornire pentru status imediat
-setTimeout(() => { try { mainCycle(); } catch(_){} }, 1000);
+// Boot Immortal OS: under stable/safe do NOT auto-start the 30s cycle.
+// processGuardian → auto-restart + sync module scans competed with /api/health
+// during cold boot and amplified restart thrash when UEE blocked the loop.
+function _stableIdle() {
+  try {
+    return require('./boot-immortal-os').isStableProfile();
+  } catch (_) {
+    const p = String(process.env.UNICORN_RUNTIME_PROFILE || '').toLowerCase();
+    return p === 'stable' || p === 'safe';
+  }
+}
+
+let _cycleTimer = null;
+function start() {
+  if (_cycleTimer) return { ok: true, already: true };
+  if (_stableIdle() && process.env.UNICORN_SELF_HEALER_FORCE !== '1') {
+    state.active = false;
+    console.log('🛡️ [unicornSelfHealer] IDLE under stable/safe (Boot Immortal OS)');
+    return { ok: true, idle: true };
+  }
+  state.active = true;
+  ensureLedger();
+  _cycleTimer = setInterval(mainCycle, MAIN_INTERVAL);
+  setTimeout(() => { try { mainCycle(); } catch (_) {} }, 1000).unref?.();
+  console.log('🩺 [unicornSelfHealer] cycle armed — interval', MAIN_INTERVAL, 'ms');
+  return { ok: true, active: true };
+}
+
+function stop() {
+  if (_cycleTimer) { clearInterval(_cycleTimer); _cycleTimer = null; }
+  state.active = false;
+  return { ok: true, active: false };
+}
+
+// Autostart only under growth/full (or explicit force).
+if (!_stableIdle() || process.env.UNICORN_SELF_HEALER_FORCE === '1') {
+  start();
+} else {
+  state.active = false;
+  console.log('🛡️ [unicornSelfHealer] require-idle under stable/safe');
+}
 
 // ---- API public ----
 function getStatus() {
@@ -243,6 +279,8 @@ function getLedger() {
 }
 
 module.exports = {
+  start,
+  stop,
   getStatus,
   getHistory,
   getModules,

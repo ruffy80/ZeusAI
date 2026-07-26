@@ -26,9 +26,9 @@ const adapter = {
   getBus: () => (typeof core.getBus === 'function' ? core.getBus() : null),
   getLedger: () => (typeof core.getLedger === 'function' ? core.getLedger() : { events: [] }),
 
-  // Legacy compatibility aliases (real behavior)
-  start: () => ({ ok: true, active: true, status: typeof core.getStatus === 'function' ? core.getStatus() : {} }),
-  stop: () => ({ ok: true, active: false }),
+  // Legacy compatibility aliases — delegate to core start/stop (Boot Immortal).
+  start: () => (typeof core.start === 'function' ? core.start() : { ok: true, active: true, status: typeof core.getStatus === 'function' ? core.getStatus() : {} }),
+  stop: () => (typeof core.stop === 'function' ? core.stop() : { ok: true, active: false }),
   run: () => forceHealSafe(),
   heal: () => forceHealSafe(),
   restart: () => forceHealSafe(),

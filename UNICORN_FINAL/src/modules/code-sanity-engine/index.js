@@ -209,6 +209,14 @@ class CodeSanityEngine {
 
   start() {
     if (this.isRunning) return;
+    // Boot Immortal OS: never run sync `node --check` inside the API process
+    // under stable/safe — it blocks the event loop and suicide-restarts PM2.
+    const profile = String(process.env.UNICORN_RUNTIME_PROFILE || '').toLowerCase();
+    const stable = profile === 'stable' || profile === 'safe';
+    if (stable || process.env.DISABLE_SELF_MUTATION === '1' || process.env.CODE_SANITY_DISABLED === '1') {
+      console.log('🛡️ CodeSanityEngine IDLE (stable/safe or DISABLE_SELF_MUTATION) — no in-process scans');
+      return;
+    }
     this.isRunning = true;
     console.log('🔍 CodeSanityEngine pornit - auto-scanare la fiecare 5 minute');
     // Prima scanare dupa 10 secunde (dupa startup)

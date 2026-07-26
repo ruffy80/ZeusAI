@@ -22,7 +22,9 @@
  *   7. Auto-Monitoring          — sloTracker + meshOrchestrator health + customerHealth
  *   8. Auto-Decision AI         — controlPlane agent + profitControlLoop AI decisions
  *
- * Toate ciclurile pornesc automat la require().
+ * Boot Immortal OS: NO auto-start on require(). backend/index.js starts this
+ * only under growth/full. Under stable/safe, start() is a no-op idle mode so
+ * require() cannot reopen the UEE "Ciclu etern" event-loop suicide path.
  * Expune getStatus() pentru ruta /api/orchestrator/status.
  */
 
@@ -31,6 +33,17 @@ const path = require('path');
 
 const MODULES_DIR = path.join(__dirname);
 const SRC_DIR     = path.join(__dirname, '../../src');
+
+let bootImmortal = null;
+try { bootImmortal = require('./boot-immortal-os'); } catch (_) { bootImmortal = null; }
+
+function _isStableProfile() {
+  if (bootImmortal && typeof bootImmortal.isStableProfile === 'function') {
+    return bootImmortal.isStableProfile();
+  }
+  const p = String(process.env.UNICORN_RUNTIME_PROFILE || '').toLowerCase();
+  return p === 'stable' || p === 'safe';
+}
 
 // ─── Încărcare engine-uri cu fallback graceful ────────────────────────────────
 function tryRequire(p, label) {
@@ -70,12 +83,19 @@ class UnicornOrchestrator extends EventEmitter {
       autoDecisionAI: { active: false, cycles: 0, lastRun: null, errors: 0 },
     };
 
-    // Auto-start imediat la require()
-    this.start('full');
+    // Boot Immortal: never auto-start on require(). Caller (backend/index.js)
+    // decides after computing _stableRuntime.
   }
 
   // ─── Start ─────────────────────────────────────────────────────────────────
   start(mode) {
+    if (_isStableProfile() && process.env.UNICORN_ORCHESTRATOR_FORCE !== '1') {
+      this.mode = 'idle';
+      this.startedAt = this.startedAt || Date.now();
+      console.log('🛡️ [UnicornOrchestrator] STABLE/SAFE — idle (no eternal/repair/deploy loops)');
+      return this;
+    }
+
     if (this._running) {
       // Allow upgrade from standard to full without full restart
       if (mode === 'full' && this.mode !== 'full') {
@@ -252,6 +272,11 @@ class UnicornOrchestrator extends EventEmitter {
 
   // ─── 2. Auto-Innovation Loop ────────────────────────────────────────────────
   _activateAutoInnovation() {
+    if (_isStableProfile()) {
+      this.stats.autoInnovation.active = false;
+      this._log('🛡️', 'Auto-Innovation Loop: IDLE (stable)');
+      return;
+    }
     const innov = tryRequire(path.join(MODULES_DIR, 'autonomousInnovation'), 'AutonomousInnovation');
     const uee   = tryRequire(path.join(MODULES_DIR, 'unicornEternalEngine'), 'UnicornEternalEngine');
 
@@ -296,6 +321,11 @@ class UnicornOrchestrator extends EventEmitter {
 
   // ─── 4. Auto-Repair ────────────────────────────────────────────────────────
   _activateAutoRepair() {
+    if (_isStableProfile()) {
+      this.stats.autoRepair.active = false;
+      this._log('🛡️', 'Auto-Repair: IDLE (stable — no in-process node --check)');
+      return;
+    }
     const sanity  = tryRequire(path.join(SRC_DIR, 'modules/code-sanity-engine'), 'CodeSanityEngine');
     const builder = tryRequire(path.join(MODULES_DIR, 'selfConstruction'), 'SelfConstruction');
 
@@ -458,7 +488,8 @@ class UnicornOrchestrator extends EventEmitter {
   }
 }
 
-// Export singleton — auto-starts on require
+// Export singleton — Boot Immortal: constructed idle; start() is explicit.
 module.exports = new UnicornOrchestrator();
 // Alias compatibil pentru consumatorii legacy.
 module.exports.statusFn = () => module.exports.getStatus();
+module.exports.UnicornOrchestrator = UnicornOrchestrator;

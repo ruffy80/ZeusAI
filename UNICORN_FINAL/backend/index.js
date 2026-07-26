@@ -3824,8 +3824,12 @@ if (_isPrimaryWorker) {
     // Profil growth/full cu mutatori activi: poate completa module goale/lipsă.
     selfConstruction.start({ apply: true }).catch(() => {});
   } else {
-    // Profil stable/safe: rulează DOAR auditul read-only (sigur, fără scriere).
-    try { selfConstruction.audit(); console.log('🧱 Self‑Construction: audit read-only activ (profil stabil)'); } catch (e) { console.warn('[selfConstruction] audit failed:', e.message); }
+    // Profil stable/safe: audit read-only, DEFERRED off the listen path
+    // (Boot Immortal OS — sync recursive fs walks must not block /api/health).
+    setTimeout(() => {
+      try { selfConstruction.audit(); console.log('🧱 Self‑Construction: audit read-only activ (profil stabil)'); }
+      catch (e) { console.warn('[selfConstruction] audit failed:', e.message); }
+    }, Number(process.env.SELF_CONSTRUCTION_AUDIT_DELAY_MS || 20000)).unref?.();
   }
   if (!_stableRuntime) {
     totalSystemHealer.start();
@@ -3860,9 +3864,12 @@ if (_isPrimaryWorker) {
   if (!_stableRuntime) {
     aiSelfHealing.init();
   }
-  // Auth Guardian — ALWAYS ON in production profile (independent of mutation/full mode)
-  if (process.env.NODE_ENV !== 'test') {
+  // Auth Guardian — OFF by default (PM2 AUTH_GUARDIAN_ENABLED=0). Historical
+  // suicide loop: probe fail → auth-repair.js → pm2 restart forever.
+  if (process.env.NODE_ENV !== 'test' && String(process.env.AUTH_GUARDIAN_ENABLED || '0') === '1') {
     authGuardian.start();
+  } else {
+    console.log('🛡️ Auth Guardian idle (AUTH_GUARDIAN_ENABLED!=1)');
   }
   // Ops watchdog — read-only ops/dashboard poller + deduplicated Discord alerts.
   // Always on in production: it never mutates state, it only observes via
@@ -3931,11 +3938,14 @@ if (_isPrimaryWorker) {
       }
     } catch (e) { console.warn('[memory-pressure-guardian] start failed:', e && e.message); }
   }
-  // Default ON: approve+ship safe commerce innovations as data/ docs artifacts.
-  // Kill-switch: INNOVATION_AUTO_SHIP=0
-  if (process.env.NODE_ENV !== 'test' && String(process.env.INNOVATION_AUTO_SHIP || '1') !== '0') {
+  // Innovation auto-ship: OFF under stable unless explicitly armed.
+  // Kill-switch remains INNOVATION_AUTO_SHIP=0; default under stable is off.
+  const _innovShip = String(process.env.INNOVATION_AUTO_SHIP || (_stableRuntime ? '0' : '1'));
+  if (process.env.NODE_ENV !== 'test' && _innovShip !== '0' && !_stableRuntime) {
     try { innovationShipGate.startAutoCycle(unicornInnovator); }
     catch (e) { console.warn('[innovation-ship-gate] auto cycle failed:', e && e.message); }
+  } else if (_stableRuntime) {
+    console.log('🛡️ Innovation auto-ship idle under stable');
   }
 
   // Pornire module cu cicluri autonome
@@ -15439,13 +15449,21 @@ if (require.main === module) {
       console.warn('[integrations] failed to mount:', e && e.message);
     }
 
-    // 30Y-SCALE: always-on revenue autopilot (offers + SEO + conversion focus)
-    // Disable only with UNICORN_REVENUE_AUTOPILOT_DISABLED=1.
-    try {
-      __REV_AUTO.start();
-      console.log(`💸 Revenue Autopilot: ACTIVE (${__REV_AUTO.status().intervalMs}ms cadence)`);
-    } catch (e) {
-      console.warn('[revenue-autopilot] start failed:', e && e.message);
+    // Boot Immortal OS: revenue autopilot stays OFF under stable/safe unless
+    // explicitly armed. Heavy interval work previously blocked cold-boot health.
+    const _revDisabled = String(process.env.UNICORN_REVENUE_AUTOPILOT_DISABLED || '').toLowerCase();
+    const _revForce = ['1', 'true', 'yes', 'on'].includes(String(process.env.UNICORN_REVENUE_AUTOPILOT || '').toLowerCase());
+    if (_stableRuntime && !_revForce) {
+      console.log('🛡️ Revenue Autopilot: IDLE under stable (set UNICORN_REVENUE_AUTOPILOT=1 to arm)');
+    } else if (_revDisabled === '1' || _revDisabled === 'true') {
+      console.log('💸 Revenue Autopilot: DISABLED via UNICORN_REVENUE_AUTOPILOT_DISABLED=1');
+    } else {
+      try {
+        __REV_AUTO.start();
+        console.log(`💸 Revenue Autopilot: ACTIVE (${__REV_AUTO.status().intervalMs}ms cadence)`);
+      } catch (e) {
+        console.warn('[revenue-autopilot] start failed:', e && e.message);
+      }
     }
   });
 
