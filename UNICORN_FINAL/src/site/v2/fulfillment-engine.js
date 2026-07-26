@@ -9,14 +9,13 @@
 // a per-service "recipe", then attaches the generated artifact(s) to the
 // delivery record for download.
 //
-// SAFETY / ROLLOUT:
-//   * Feature-flagged OFF by default — only runs when FULFILLMENT_AI_ENABLED=1.
-//     With the flag off, delivery behaves exactly as before (zero change to the
-//     live money path).
+// SAFETY / ROLLOUT (Fulfillment AI Eternal OS):
+//   * FULFILLMENT_AI_ENABLED=auto (default): armed when ≥1 real LLM key exists
+//     in process env or sanctum planes (.env / shared /etc/zeusai/secrets).
+//     `1`/`true` force-on (still needs a key at call time); `0`/`off` force-off.
 //   * Needs at least one configured AI provider key (OPENAI_API_KEY,
-//     DEEPSEEK_API_KEY, GROQ_API_KEY, …). Without a key, aiProviders.chat()
-//     returns null and we mark the delivery `pending_ai_key` (no crash, no
-//     false "delivered" artifact).
+//     DEEPSEEK_API_KEY, GROQ_API_KEY, …). Without a key, we ship a deterministic
+//     activation pack (no crash, no false "AI delivered" artifact).
 //   * Never throws to the caller; every failure is captured per-service.
 //
 // Recipes are keyword-matched over the serviceId so ONE recipe covers many
@@ -27,6 +26,10 @@
 let aiProviders = null;
 try { aiProviders = require('../../../backend/modules/aiProviders'); } catch (e) {
   try { aiProviders = require('../../backend/modules/aiProviders'); } catch (_) { aiProviders = null; }
+}
+let fulfillmentAiOs = null;
+try { fulfillmentAiOs = require('../../../backend/modules/fulfillment-ai-os'); } catch (e) {
+  try { fulfillmentAiOs = require('../../backend/modules/fulfillment-ai-os'); } catch (_) { fulfillmentAiOs = null; }
 }
 let deliveryRegistry = null;
 try { deliveryRegistry = require('./delivery-registry'); } catch (_) { deliveryRegistry = null; }
@@ -324,7 +327,7 @@ function buildDeterministicArtifact(receipt, serviceId, recipe, opts = {}) {
         'Download the signed receipt and license token from the links below.',
         'Open the onboarding payload and provide any missing business inputs.',
         'Check the fulfillment artifact endpoint for the SKU-specific deliverable (or regenerated AI pack when enabled).',
-        'If this pack is a deterministic fallback, treat it as your activation record — full AI generation runs when FULFILLMENT_AI_ENABLED=1 and a provider key is configured.'
+        'If this pack is a deterministic fallback, treat it as your activation record — full AI generation runs when Fulfillment AI Eternal OS is armed (FULFILLMENT_AI_ENABLED=auto|1 + a real provider key).'
       ];
   const track = enterprise
     ? 'Track: enterprise engagement kickoff (milestone-based human fulfillment follows).'
@@ -393,9 +396,11 @@ function buildDeterministicArtifact(receipt, serviceId, recipe, opts = {}) {
 // Produce a real artifact for one service via the LLM layer. Returns an
 // artifact object or a { pending } marker; never throws.
 function aiSkuAllowlist() {
+  if (fulfillmentAiOs && typeof fulfillmentAiOs.skuAllowlist === 'function') {
+    return fulfillmentAiOs.skuAllowlist();
+  }
   const raw = String(process.env.FULFILLMENT_AI_SKUS || '').trim();
   if (!raw) {
-    // Default digital SKUs when AI is armed — clear, recipe-backed packs only.
     return new Set([
       'instant-website-audit',
       'instant-seo-content-pack',
@@ -409,7 +414,17 @@ function aiSkuAllowlist() {
 }
 
 function shouldUseAiForSku(serviceId) {
-  if (process.env.FULFILLMENT_AI_ENABLED !== '1') return false;
+  if (fulfillmentAiOs && typeof fulfillmentAiOs.shouldUseAiForSku === 'function') {
+    return fulfillmentAiOs.shouldUseAiForSku(serviceId);
+  }
+  // Legacy fallback if Eternal OS module missing
+  const flag = String(process.env.FULFILLMENT_AI_ENABLED || '').trim().toLowerCase();
+  if (flag === '0' || flag === 'false' || flag === 'off') return false;
+  if (flag !== '1' && flag !== 'true' && flag !== 'on' && flag !== 'auto' && flag !== '') return false;
+  if (flag === 'auto' || flag === '') {
+    // Without OS module we cannot safely probe keys — stay off.
+    return false;
+  }
   const allow = aiSkuAllowlist();
   if (allow == null) return true;
   return allow.has(String(serviceId || '').trim());
@@ -425,6 +440,9 @@ async function fulfillService(receipt, serviceId) {
   const tier = enterprise ? 'enterprise' : (professional ? 'professional' : 'standard');
   // High-ticket / professional stays on engagement/kickoff packs (never fake "AI delivered product").
   const shouldUseAi = !human && shouldUseAiForSku(serviceId);
+  if (shouldUseAi && fulfillmentAiOs && typeof fulfillmentAiOs.reloadKeysFromSanctum === 'function') {
+    try { fulfillmentAiOs.reloadKeysFromSanctum(); } catch (_) { /* non-fatal */ }
+  }
   if (!shouldUseAi || !aiProviders || typeof aiProviders.chat !== 'function') {
     return buildDeterministicArtifact(receipt, serviceId, recipe, {
       enterprise,
@@ -508,5 +526,6 @@ async function fulfillReceipt(receipt, opts = {}) {
 module.exports = {
   fulfillReceipt, fulfillService, pickRecipe, isEnterprise, needsHumanFulfillment,
   shouldUseAiForSku, aiSkuAllowlist,
+  fulfillmentAiOs,
   RECIPES, GENERIC_RECIPE, ENTERPRISE_RECIPE, PROFESSIONAL_RECIPE, SKU_RECIPES,
 };

@@ -212,6 +212,13 @@ upsert TOGETHER_API_KEY   "${TOGETHER_API_KEY:-}"
 upsert FIREWORKS_API_KEY  "${FIREWORKS_API_KEY:-}"
 upsert SAMBANOVA_API_KEY  "${SAMBANOVA_API_KEY:-}"
 upsert NVIDIA_NIM_API_KEY "${NVIDIA_NIM_API_KEY:-}"
+# Fulfillment AI Eternal OS — default auto = armed whenever ≥1 real LLM key exists.
+# Force off with FULFILLMENT_AI_ENABLED=0; force on with =1 (still needs a key).
+upsert FULFILLMENT_AI_ENABLED "${FULFILLMENT_AI_ENABLED:-auto}"
+# Optional SKU allowlist (* or all = every non-human digital SKU).
+if [ -n "${FULFILLMENT_AI_SKUS:-}" ]; then
+  upsert FULFILLMENT_AI_SKUS "${FULFILLMENT_AI_SKUS}"
+fi
 # (duplicate AI provider block removed — all keys declared above)
 
 # ── Social Orchestrator (Zeus Core Social) ───────────────────────────────────

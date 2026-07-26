@@ -160,6 +160,19 @@ try {
     require('dotenv').config({ path: '/etc/zeusai/social.env', override: true });
   }
 } catch (_) { /* non-fatal */ }
+// Fulfillment AI Eternal OS — host-durable AI keys outside the release tree.
+// override:false so a real key already in process/.env is never clobbered;
+// empty/missing slots get filled from the sanctum.
+try {
+  if (require('fs').existsSync('/etc/zeusai/secrets/ai-keys.env')) {
+    require('dotenv').config({ path: '/etc/zeusai/secrets/ai-keys.env', override: false });
+  }
+} catch (_) { /* non-fatal */ }
+try {
+  if (require('fs').existsSync('/var/www/unicorn/shared/.env')) {
+    require('dotenv').config({ path: '/var/www/unicorn/shared/.env', override: false });
+  }
+} catch (_) { /* non-fatal */ }
 
 const QIS_PROCESS_ALIASES = {
   unicorn: 'unicorn-backend',
@@ -863,6 +876,24 @@ app.get('/api/activation/readiness', (req, res) => {
       unlocks: 'Lead outreach messages + marketing copy are AI-personalized instead of template fallback.',
       action: 'Already armed if any AI key is set.',
     },
+    (() => {
+      let st = null;
+      try {
+        const osMod = require('./modules/fulfillment-ai-os');
+        st = osMod && typeof osMod.getStatus === 'function' ? osMod.getStatus() : null;
+      } catch (_) { st = null; }
+      return {
+        id: 'fulfillment_ai_eternal',
+        title: 'Fulfillment AI Eternal OS (digital SKU generation)',
+        impact: 85,
+        armed: !!(st && st.armed),
+        envVars: ['FULFILLMENT_AI_ENABLED', 'OPENAI_API_KEY', 'DEEPSEEK_API_KEY', 'GROQ_API_KEY', 'OPENROUTER_API_KEY'],
+        unlocks: 'Allowlisted instant digital SKUs generate real AI artifacts after BTC payment (fail-soft to activation packs).',
+        action: st && st.armed
+          ? `Armed (mode=${st.mode}, providers=${st.providersConfigured}).`
+          : 'Set any real LLM key in /etc/zeusai/secrets/ai-keys.env or shared .env; leave FULFILLMENT_AI_ENABLED=auto.',
+      };
+    })(),
   ];
 
   // Infra / agent rails that do not wait on payment provider keys (pre-keys pack).
@@ -6334,6 +6365,14 @@ let _aiProviderHealth = null;
 try { _aiProviderHealth = require('./modules/ai-provider-health'); } catch (e) {
   console.warn('[AIProviderHealth] not loaded:', e.message);
 }
+let _fulfillmentAiOs = null;
+try {
+  _fulfillmentAiOs = require('./modules/fulfillment-ai-os');
+  try { _fulfillmentAiOs.getStatus(); } catch (_) { /* ledger best-effort */ }
+  console.log('[FulfillmentAiOs] ✅ Eternal OS loaded');
+} catch (e) {
+  console.warn('[FulfillmentAiOs] not loaded:', e.message);
+}
 
 // ── NEW: Capital Protection, Unit Economics, Multi-Payment Rails,
 //         Module Ranker, Expansion Engine, Moat Engine, AI Intelligence Core ──
@@ -6399,6 +6438,11 @@ if (_aiProviderHealth) meshOrchestrator.register('aiProviderHealth', _aiProvider
 if (_aiMemory) app.use('/api/ai/memory', _aiMemory.router(express, { adminGuard: adminTokenMiddleware }));
 if (_aiCostLedger) app.use('/api/ai/cost', _aiCostLedger.router(express, { adminGuard: adminTokenMiddleware }));
 if (_aiProviderHealth) app.use('/api/ai/providers/health', _aiProviderHealth.router(express));
+if (_fulfillmentAiOs) {
+  meshOrchestrator.register('fulfillmentAiOs', _fulfillmentAiOs, { statusFn: 'getStatus' });
+  app.use('/api/fulfillment/ai', _fulfillmentAiOs.expressRouter(express));
+  console.log('[backend] /api/fulfillment/ai mounted (Eternal OS)');
+}
 
 // ── NEW MODULES: Capital Protection, Unit Economics, Payment Rails, Ranker, Expansion, Moat, AI Intel ──
 if (_capitalProtection) {

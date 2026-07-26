@@ -26,6 +26,35 @@ const SITE_INSTANCES = Number(process.env.SITE_INSTANCES || 1);
 // below 2560M causes SIGKILL crash-loops within minutes of boot.
 const BACKEND_MEM = process.env.PM2_MAX_MEMORY || '2560M';
 
+// Fulfillment AI Eternal OS: never pin empty-string secrets into PM2 env.
+// Empty pins wipe dotenv-loaded keys (and get deleted by placeholder scrubbers),
+// leaving providers "configured:false" even when shared/.env has real keys.
+// Only forward a key when the parent shell already has a non-empty value;
+// otherwise let process dotenv + sanctum reload fill it at boot/call-time.
+function envIfSet(keys) {
+  const out = {};
+  for (const k of keys) {
+    const v = process.env[k];
+    if (v != null && String(v).trim() !== '') out[k] = v;
+  }
+  return out;
+}
+
+const AI_KEY_ENV_NAMES = [
+  'OPENAI_API_KEY', 'DEEPSEEK_API_KEY', 'ANTHROPIC_API_KEY', 'GEMINI_API_KEY',
+  'MISTRAL_API_KEY', 'COHERE_API_KEY', 'XAI_API_KEY', 'GROQ_API_KEY',
+  'OPENROUTER_API_KEY', 'HF_API_KEY', 'HUGGINGFACE_API_KEY', 'PERPLEXITY_API_KEY',
+  'TOGETHER_API_KEY', 'FIREWORKS_API_KEY', 'SAMBANOVA_API_KEY', 'NVIDIA_NIM_API_KEY',
+];
+
+const FULFILLMENT_AI_ENV = {
+  // auto = armed forever when ≥1 real LLM key exists (Key Continuum).
+  FULFILLMENT_AI_ENABLED: process.env.FULFILLMENT_AI_ENABLED || 'auto',
+  ...(process.env.FULFILLMENT_AI_SKUS
+    ? { FULFILLMENT_AI_SKUS: process.env.FULFILLMENT_AI_SKUS }
+    : {}),
+};
+
 module.exports = {
   apps: [
     // ── 1. Backend API — fork mode, single instance ──────────────────────────
@@ -95,9 +124,9 @@ module.exports = {
         // under UNICORN_RUNTIME_PROFILE=growth.
         INNOVATION_AUTO_SHIP: process.env.INNOVATION_AUTO_SHIP || '0',
         INNOVATION_GENERATE: process.env.INNOVATION_GENERATE || '0',
-        // Fulfillment AI stays OFF until owner sets FULFILLMENT_AI_ENABLED=1 + an LLM key.
-        // Optional allowlist: FULFILLMENT_AI_SKUS=instant-seo-content-pack,instant-landing-page,...
-        FULFILLMENT_AI_ENABLED: process.env.FULFILLMENT_AI_ENABLED || '0',
+        // Fulfillment AI Eternal OS — default auto (armed when keys exist).
+        // Optional allowlist: FULFILLMENT_AI_SKUS=instant-seo-content-pack,...
+        ...FULFILLMENT_AI_ENV,
         // ── AUTH-GUARDIAN: DISABLED PERMANENTLY ────────────────────────
         // auth-guardian probes /api/auth/test and on failure runs
         // scripts/auth-repair.js, which UNCONDITIONALLY calls
@@ -143,23 +172,9 @@ module.exports = {
         // the same path for the persistent on-disk default lookup.
         UNICORN_KEY_DIR:    process.env.UNICORN_KEY_DIR    || '/var/www/unicorn/shared',
         SITE_SIGN_KEY_FILE: process.env.SITE_SIGN_KEY_FILE || '/var/www/unicorn/shared/site-sign.pem',
-        // ── AI Provider API Keys (read from system env at spawn time) ──────
-        OPENAI_API_KEY:      process.env.OPENAI_API_KEY      || '',
-        DEEPSEEK_API_KEY:    process.env.DEEPSEEK_API_KEY    || '',
-        ANTHROPIC_API_KEY:   process.env.ANTHROPIC_API_KEY   || '',
-        GEMINI_API_KEY:      process.env.GEMINI_API_KEY      || '',
-        MISTRAL_API_KEY:     process.env.MISTRAL_API_KEY     || '',
-        COHERE_API_KEY:      process.env.COHERE_API_KEY      || '',
-        XAI_API_KEY:         process.env.XAI_API_KEY         || '',
-        GROQ_API_KEY:        process.env.GROQ_API_KEY        || '',
-        OPENROUTER_API_KEY:  process.env.OPENROUTER_API_KEY  || '',
-        HF_API_KEY:          process.env.HF_API_KEY          || '',
-        HUGGINGFACE_API_KEY: process.env.HUGGINGFACE_API_KEY || process.env.HF_API_KEY || '',
-        PERPLEXITY_API_KEY:  process.env.PERPLEXITY_API_KEY  || '',
-        TOGETHER_API_KEY:    process.env.TOGETHER_API_KEY    || '',
-        FIREWORKS_API_KEY:   process.env.FIREWORKS_API_KEY   || '',
-        SAMBANOVA_API_KEY:   process.env.SAMBANOVA_API_KEY   || '',
-        NVIDIA_NIM_API_KEY:  process.env.NVIDIA_NIM_API_KEY  || '',
+        // ── AI Provider API Keys (only if parent env already has them) ─────
+        // Never pin '' — that fights dotenv/sanctum and kills fulfillment AI.
+        ...envIfSet(AI_KEY_ENV_NAMES),
         // ── AI Smart Cache ─────────────────────────────────────────────────
         AI_CACHE_TTL_MS:        '120000',
         AI_CACHE_MAX_ENTRIES:   '1000',
@@ -240,27 +255,12 @@ module.exports = {
         // across deploys. See scripts/ensure-forever-key.sh.
         UNICORN_KEY_DIR:    process.env.UNICORN_KEY_DIR    || '/var/www/unicorn/shared',
         SITE_SIGN_KEY_FILE: process.env.SITE_SIGN_KEY_FILE || '/var/www/unicorn/shared/site-sign.pem',
-        // ── AI Provider API Keys — site needs them too because /api/ai/registry
-        // and /api/ai/use have local fallbacks in src/index.js when the backend
-        // is unreachable, and because some site-layer modules (UAIC, USE) read
-        // process.env.<PROVIDER>_API_KEY directly. Mirror everything from the
-        // backend block so site has full 24/7 access to the same providers.
-        OPENAI_API_KEY:      process.env.OPENAI_API_KEY      || '',
-        DEEPSEEK_API_KEY:    process.env.DEEPSEEK_API_KEY    || '',
-        ANTHROPIC_API_KEY:   process.env.ANTHROPIC_API_KEY   || '',
-        GEMINI_API_KEY:      process.env.GEMINI_API_KEY      || '',
-        MISTRAL_API_KEY:     process.env.MISTRAL_API_KEY     || '',
-        COHERE_API_KEY:      process.env.COHERE_API_KEY      || '',
-        XAI_API_KEY:         process.env.XAI_API_KEY         || '',
-        GROQ_API_KEY:        process.env.GROQ_API_KEY        || '',
-        OPENROUTER_API_KEY:  process.env.OPENROUTER_API_KEY  || '',
-        HF_API_KEY:          process.env.HF_API_KEY          || '',
-        HUGGINGFACE_API_KEY: process.env.HUGGINGFACE_API_KEY || process.env.HF_API_KEY || '',
-        PERPLEXITY_API_KEY:  process.env.PERPLEXITY_API_KEY  || '',
-        TOGETHER_API_KEY:    process.env.TOGETHER_API_KEY    || '',
-        FIREWORKS_API_KEY:   process.env.FIREWORKS_API_KEY   || '',
-        SAMBANOVA_API_KEY:   process.env.SAMBANOVA_API_KEY   || '',
-        NVIDIA_NIM_API_KEY:  process.env.NVIDIA_NIM_API_KEY  || '',
+        // Fulfillment AI runs on the SITE money path (fulfillment-engine.js).
+        // Mirror Eternal OS flag so site workers stay armed across deploys.
+        ...FULFILLMENT_AI_ENV,
+        // ── AI Provider API Keys — site needs them for fulfillment + /api/ai/*
+        // local fallbacks. Never pin empty strings (see envIfSet above).
+        ...envIfSet(AI_KEY_ENV_NAMES),
       },
       error_file: 'logs/site-error.log',
       out_file:   'logs/site-out.log',

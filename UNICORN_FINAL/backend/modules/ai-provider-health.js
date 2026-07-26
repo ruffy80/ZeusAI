@@ -151,7 +151,23 @@ function getStatus() {
 
 function router(express) {
   const r = express.Router();
-  r.get('/', (req, res) => res.json(snapshot()));
+  r.get('/', (req, res) => {
+    const snap = snapshot();
+    // Compose Eternal OS status here (not inside snapshot) to avoid require cycles.
+    try {
+      const eternal = require('./fulfillment-ai-os');
+      const st = eternal.getStatus();
+      snap.fulfillmentAi = {
+        invention: st.invention,
+        mode: st.mode,
+        armed: st.armed,
+        providersConfigured: st.providersConfigured,
+        skuPolicy: st.skuPolicy,
+        skuAllowlist: st.skuAllowlist,
+      };
+    } catch (_) { /* optional */ }
+    res.json(snap);
+  });
   r.get('/probe', async (req, res) => {
     try {
       res.json(await probe({ onlyConfigured: req.query.all !== '1' }));

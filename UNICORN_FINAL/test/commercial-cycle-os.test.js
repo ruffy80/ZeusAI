@@ -63,6 +63,7 @@ async function run() {
   });
 
   await check('fulfillment AI allowlist defaults to 5 clear digital SKUs', () => {
+    // Eternal OS: unset/auto without keys stays off; force-on uses allowlist.
     delete process.env.FULFILLMENT_AI_ENABLED;
     assert.strictEqual(engine.shouldUseAiForSku('instant-seo-content-pack'), false);
     process.env.FULFILLMENT_AI_ENABLED = '1';

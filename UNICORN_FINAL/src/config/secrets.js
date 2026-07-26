@@ -26,6 +26,10 @@ const ENV_FILES = [
   path.join(ROOT, '.env.local'),
   path.join(REPO_ROOT, '.env'),
   path.join(ROOT, '.env'),
+  // Host-durable AI sanctum (survives release switches; never commit keys).
+  '/var/www/unicorn/shared/.env',
+  '/etc/zeusai/secrets/ai-keys.env',
+  '/etc/zeusai/social.env',
 ];
 
 const ALIASES = {

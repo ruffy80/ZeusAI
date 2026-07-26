@@ -9020,6 +9020,18 @@ ${invoice.payer ? `<h2>Payer</h2><table><tr><th>Legal entity</th><td>${esc(invoi
     }
   }
 
+  // Fulfillment AI Eternal OS — public arm status (no secrets leaked).
+  if ((urlPath === '/api/fulfillment/ai' || urlPath === '/api/fulfillment/ai-status') && req.method === 'GET') {
+    try {
+      const osMod = require('../backend/modules/fulfillment-ai-os');
+      res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
+      return res.end(JSON.stringify(osMod.getStatus()));
+    } catch (e) {
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      return res.end(JSON.stringify({ ok: false, error: e.message }));
+    }
+  }
+
   // Reality-grounded growth metrics — no Math.random, only SQLite + JSONL ledgers.
   // Metrici reale, fără simulări — doar ce există în baza de date.
   if (urlPath === '/api/growth/real' && req.method === 'GET') {
