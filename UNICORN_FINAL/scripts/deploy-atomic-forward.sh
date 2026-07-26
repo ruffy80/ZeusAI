@@ -510,6 +510,27 @@ if [ -n "${GITHUB_SHA:-}" ]; then
   printf '%s\n' "$GITHUB_SHA" > "$DEPLOY_PARENT/.build-sha"
 fi
 
+# Neutralize host-local rescue thrashers that are NOT in git.
+# /usr/local/bin/unicorn-safe-watchdog.sh historically probed :3000/health
+# (wrong — backend is /api/health) and started unicorn-rescue-backend.service,
+# silently replacing PM2's backend/index.js with the minimal rescue API.
+log "neutralize unicorn-safe-watchdog + rescue-backend unit (if present)"
+if [ -f /usr/local/bin/unicorn-safe-watchdog.sh ]; then
+  cat > /usr/local/bin/unicorn-safe-watchdog.sh <<'WATCHDOG_EOF'
+#!/usr/bin/env bash
+# Neutralized by deploy-atomic-forward: never start rescue-backend.
+set -euo pipefail
+TS(){ date -u +"%Y-%m-%dT%H:%M:%SZ"; }
+LOG=/var/log/unicorn-safe-watchdog.log
+echo "$(TS) [watchdog] noop — rescue path disabled by deploy" >> "$LOG"
+exit 0
+WATCHDOG_EOF
+  chmod 755 /usr/local/bin/unicorn-safe-watchdog.sh || true
+fi
+systemctl disable --now unicorn-rescue-backend.service >/dev/null 2>&1 || true
+systemctl mask unicorn-rescue-backend.service >/dev/null 2>&1 || true
+pkill -f 'rescue-backend\.js' >/dev/null 2>&1 || true
+
 # Idempotent self-heal install: ensures unicorn-healer.timer is on every box.
 log "ensure unicorn-healer.timer is installed and active"
 if [ -x "$DEPLOY_LINK/scripts/install-healer.sh" ]; then

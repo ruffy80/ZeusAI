@@ -47,6 +47,7 @@ check('healers respect cold-boot grace + safer defaults', () => {
   assert.ok(autoheal.includes('AUTOHEAL_MIN_FAIL_STREAK:-5'), 'fail streak default 5');
   assert.ok(deploy.includes('rescue-backend'), 'deploy rejects rescue script');
   assert.ok(deploy.includes('verify unicorn-backend script is backend/index.js'), 'deploy script check');
+  assert.ok(deploy.includes('neutralize unicorn-safe-watchdog'), 'deploy neuters rescue watchdog');
   assert.ok(/QIS_AUTO_HEAL_ENABLED:\s*process\.env\.QIS_AUTO_HEAL_ENABLED\s*\|\|\s*'false'/.test(eco),
     'QIS auto-heal default false');
 });
