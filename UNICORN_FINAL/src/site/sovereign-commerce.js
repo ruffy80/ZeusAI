@@ -510,11 +510,27 @@ async function createOrder(ctx, input) {
   if (!svc) return { error: 'service_not_found', serviceId, status: 404 };
 
   // Commerce Reality OS — refuse invoices for non-deliverable / contact-only SKUs.
-  let buyability = { buyable: true, mode: 'btc', reason: 'legacy' };
+  // Buy Immortal OS: fail-closed — never mint when buyability cannot be assessed.
+  let buyability = {
+    buyable: false,
+    mode: 'unavailable',
+    reason: 'buyability_module_unavailable',
+    ctaHref: '/services',
+  };
   try {
     const commerceBuyability = require('../commerce/commerce-buyability');
     buyability = commerceBuyability.assessBuyability(svc);
-  } catch (_) { /* fail-open only if module missing; tests load it */ }
+  } catch (err) {
+    return {
+      error: 'service_not_buyable',
+      reason: 'buyability_fail_closed',
+      mode: 'unavailable',
+      contactHref: '/services',
+      serviceId,
+      status: 503,
+      detail: String(err && err.message || err).slice(0, 160),
+    };
+  }
   if (!buyability.buyable) {
     const status = buyability.mode === 'contact' ? 409 : 404;
     return {
@@ -839,10 +855,13 @@ ${!String((o.buyer && o.buyer.email) || '').trim() ? `
   <div class="qr"><img alt="BIP-21 QR" src="${escapeHtml(qrRedirect(o.bip21 || ''))}" loading="lazy"></div>
   <p class="note" style="text-align:center;margin-top:16px">Scan with any Bitcoin wallet (on-chain). The exact amount is critical — it is the payment identifier.</p>
   <div class="row"><span class="k">Address</span><span class="v mono">${receiveAddress} <button class="copy" data-copy="${receiveAddress}">copy</button></span></div>
-  <div class="row"><span class="k">Amount</span><span class="v mono">${btc} <button class="copy" data-copy="${escapeHtml(btc)}">copy</button></span></div>
+  <div class="row"><span class="k">Amount</span><span class="v mono">${btc} BTC <button class="copy" data-copy="${escapeHtml(btc)}">copy</button></span></div>
+  <div class="row"><span class="k">Exact sats</span><span class="v mono">${sats.toLocaleString()} <button class="copy" data-copy="${escapeHtml(String(sats))}">copy</button></span></div>
   <div class="row"><span class="k">BIP-21 URI</span><span class="v mono">${bip21} <button class="copy" data-copy="${bip21}">copy</button></span></div>
+  <div class="row"><span class="k">Share invoice</span><span class="v mono" id="shareInvoiceUrl">/checkout/${orderId} <button class="copy" data-copy="${escapeHtml(OWNER_DOMAIN)}/checkout/${orderId}">copy link</button></span></div>
   <p style="margin-top:16px"><a class="cta" href="${bip21}" target="_blank" rel="noopener">Open in wallet</a>
   <a class="cta" style="background:#14132a;color:#eaf0ff;border:1px solid var(--line)" href="${escapeHtml(OWNER_DOMAIN)}" target="_blank" rel="noopener">Back to site</a></p>
+  <p class="note">Air-gapped wallets: copy exact sats + address, or scan the QR. The unique sat amount is the payment identifier — no account required.</p>
 </div>
 
   <div class="grant" id="grant">
@@ -1364,6 +1383,8 @@ async function handle(req, res, ctx) {
   if (url === '/api/commerce/health' && req.method === 'GET') {
     const pending = Array.from(ORDERS.values()).filter((o) => o.status === 'pending').length;
     const paid = Array.from(ORDERS.values()).filter((o) => o.status === 'paid').length;
+    let buyImmortal = null;
+    try { buyImmortal = require('../commerce/buy-immortal').getStatus(); } catch (_) { buyImmortal = { ok: false }; }
     return sendJson(res, 200, {
       status: WATCH_STATE.lastScanOk ? 'ok' : 'degraded',
       receive_address: OWNER_BTC,
@@ -1373,6 +1394,7 @@ async function handle(req, res, ctx) {
       mempool_base: MEMPOOL_BASE,
       order_ttl_min: ORDER_TTL_MS / 60000,
       min_confirmations: MIN_CONFS,
+      buyImmortal,
     }), true;
   }
 
