@@ -8,10 +8,37 @@ trap 'rm -rf "$tmp_dir"' EXIT
 
 echo "[live-contract] base: $BASE_URL"
 
+http_code_only() {
+  # Never append a fallback onto a partial curl status (avoids "000000").
+  local raw
+  raw="$(curl -sS -o "$1" -w '%{http_code}' --connect-timeout 8 --max-time 25 "$2" 2>/dev/null || true)"
+  raw="$(printf '%s' "$raw" | tr -cd '0-9' | head -c 3)"
+  if [ -z "$raw" ]; then
+    raw="000"
+  fi
+  printf '%s' "$raw"
+}
+
 fetch() {
   local url="$1" out="$2" label="$3"
-  local code
-  code="$(curl -sS -o "$out" -w '%{http_code}' --max-time 20 "$url" || echo 000)"
+  local attempts="${LIVE_CONTRACT_RETRIES:-3}"
+  local attempt=1
+  local code="000"
+  local sleep_s=2
+
+  while [ "$attempt" -le "$attempts" ]; do
+    code="$(http_code_only "$out" "$url")"
+    if [ "$code" = "200" ] && [ -s "$out" ]; then
+      break
+    fi
+    if [ "$attempt" -lt "$attempts" ]; then
+      echo "⏳ ${label}: HTTP $code (attempt $attempt/$attempts) — retry in ${sleep_s}s"
+      sleep "$sleep_s"
+      sleep_s=$((sleep_s * 2))
+    fi
+    attempt=$((attempt + 1))
+  done
+
   if [ "$code" != "200" ]; then
     echo "❌ ${label}: HTTP $code from $url"
     head -c 160 "$out" 2>/dev/null || true
