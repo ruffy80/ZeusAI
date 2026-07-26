@@ -138,14 +138,18 @@ const SEED = [
     ]
   },
 
-  // ---------- PROFESSIONAL (8) — hand-built, days–weeks ----------
+  // ---------- PROFESSIONAL (8) — BTC reserve + human-built delivery ----------
+  // Honest contract: payment reserves the engagement and unlocks a signed
+  // kickoff / SOW pack immediately; the finished system is delivered by the
+  // ZeusAI team across the stated milestone window (not an instant download).
   {
     id: 'professional-saas-mvp',
-    title: 'Professional SaaS MVP (1-week build)',
+    title: 'SaaS MVP Build Engagement (≈7 days)',
     tier: 'professional',
     priceUSD: 1999,
     deliveryDays: 7,
-    description: 'Hand-built SaaS MVP with auth, billing, deployment to your domain on a managed cloud.',
+    requiresHumanFulfillment: true,
+    description: 'Reserve with BTC: you receive a signed project kickoff pack + SOW immediately. ZeusAI engineers then build your SaaS MVP (auth, billing, deploy) across ~7 day milestones.',
     inputs: [
       { key: 'spec', label: 'Product Spec', required: true, type: 'textarea' },
       { key: 'email', label: 'Project Email', required: true, type: 'email' }
@@ -153,11 +157,12 @@ const SEED = [
   },
   {
     id: 'professional-ai-agent',
-    title: 'Professional AI Agent (custom)',
+    title: 'Custom AI Agent Build Engagement (≈10 days)',
     tier: 'professional',
     priceUSD: 2999,
     deliveryDays: 10,
-    description: 'Custom AI agent with tool-calling, memory and a hosted UI — trained on your knowledge base and deployed to your domain.',
+    requiresHumanFulfillment: true,
+    description: 'BTC reserve unlocks the kickoff pack now; the custom agent (tools, memory, hosted UI, your knowledge base) is delivered by the team across ~10 day milestones.',
     inputs: [
       { key: 'useCase', label: 'Use Case', required: true, type: 'textarea' },
       { key: 'email', label: 'Project Email', required: true, type: 'email' }
@@ -165,11 +170,12 @@ const SEED = [
   },
   {
     id: 'professional-mobile-app',
-    title: 'Professional Mobile App (iOS + Android, 14 days)',
+    title: 'Mobile App Build Engagement (iOS + Android, ≈14 days)',
     tier: 'professional',
     priceUSD: 4499,
     deliveryDays: 14,
-    description: 'Cross-platform mobile app (React Native) with auth, push notifications and store-ready builds for iOS and Android.',
+    requiresHumanFulfillment: true,
+    description: 'Reserve with BTC for a signed kickoff pack. Cross-platform React Native app with auth, push, and store-ready builds — delivered by the team in ~14 days.',
     inputs: [
       { key: 'spec', label: 'App spec / wireframe', required: true, type: 'textarea' },
       { key: 'platforms', label: 'Platforms (iOS, Android, both)', required: true, type: 'text' },
@@ -178,11 +184,12 @@ const SEED = [
   },
   {
     id: 'professional-ecommerce-store',
-    title: 'Professional E-commerce Store (Shopify/Stripe-ready)',
+    title: 'E-commerce Store Build Engagement (≈10 days)',
     tier: 'professional',
     priceUSD: 2499,
     deliveryDays: 10,
-    description: 'Production-ready storefront with custom theme, payment, shipping, tax and a 30-product import — yours to operate.',
+    requiresHumanFulfillment: true,
+    description: 'BTC reserve + kickoff pack now; production storefront (theme, payments, shipping, tax, product import) built and handed over across ~10 day milestones.',
     inputs: [
       { key: 'brand', label: 'Brand / Niche', required: true, type: 'text' },
       { key: 'platform', label: 'Preferred platform (Shopify, WooCommerce, custom)', required: true, type: 'text' },
@@ -191,11 +198,12 @@ const SEED = [
   },
   {
     id: 'professional-ai-chatbot',
-    title: 'Professional AI Chatbot (RAG on your docs)',
+    title: 'RAG Chatbot Build Engagement (≈7 days)',
     tier: 'professional',
     priceUSD: 1499,
     deliveryDays: 7,
-    description: 'Retrieval-augmented chatbot trained on your documentation, deployed as a widget on your site with analytics.',
+    requiresHumanFulfillment: true,
+    description: 'Reserve with BTC: kickoff pack immediately; retrieval-augmented chatbot on your docs, site widget + analytics delivered by the team in ~7 days.',
     inputs: [
       { key: 'docsUrl', label: 'Docs URL / corpus location', required: true, type: 'url' },
       { key: 'goals', label: 'Use-case goals', required: true, type: 'textarea' },
@@ -204,11 +212,12 @@ const SEED = [
   },
   {
     id: 'professional-data-pipeline',
-    title: 'Professional Data Pipeline + Analytics Dashboard',
+    title: 'Data Pipeline + Dashboard Engagement (≈14 days)',
     tier: 'professional',
     priceUSD: 3499,
     deliveryDays: 14,
-    description: 'End-to-end ETL with a metrics warehouse (Postgres/BigQuery) and a Metabase/Looker-style dashboard for KPIs.',
+    requiresHumanFulfillment: true,
+    description: 'BTC reserve unlocks the SOW kickoff pack; ETL + warehouse + KPI dashboard delivered by the team across ~14 day milestones.',
     inputs: [
       { key: 'sources', label: 'Data sources (e.g. Stripe, Postgres, GA)', required: true, type: 'textarea' },
       { key: 'kpis', label: 'KPIs to track', required: true, type: 'textarea' },
@@ -217,11 +226,12 @@ const SEED = [
   },
   {
     id: 'professional-ai-marketing',
-    title: 'Professional 90-day Automated Marketing Engine',
+    title: '90-day Marketing Engine Engagement (≈7 days setup)',
     tier: 'professional',
     priceUSD: 1799,
     deliveryDays: 7,
-    description: 'AI-driven marketing engine for 90 days: content calendar, automated posting, lead capture, attribution dashboard.',
+    requiresHumanFulfillment: true,
+    description: 'Reserve with BTC for kickoff materials now; calendar, automation, lead capture and attribution dashboard configured by the team (~7 day setup, then 90-day runbook).',
     inputs: [
       { key: 'product', label: 'Product / Offer', required: true, type: 'textarea' },
       { key: 'audience', label: 'Target audience', required: true, type: 'text' },
@@ -230,11 +240,12 @@ const SEED = [
   },
   {
     id: 'professional-investor-package',
-    title: 'Professional Investor Package (deck + financials + memo)',
+    title: 'Investor Package Engagement (deck + model + memo)',
     tier: 'professional',
     priceUSD: 2299,
     deliveryDays: 10,
-    description: 'Investor-grade pitch deck, 5-year financial model, one-page memo and a curated warm-intro list of 50+ investors.',
+    requiresHumanFulfillment: true,
+    description: 'BTC reserve + kickoff pack immediately; investor-grade deck, financial model and memo produced by the team across ~10 day milestones.',
     inputs: [
       { key: 'company', label: 'Company / Idea (1 paragraph)', required: true, type: 'textarea' },
       { key: 'stage', label: 'Funding stage (pre-seed, seed, A…)', required: true, type: 'text' },

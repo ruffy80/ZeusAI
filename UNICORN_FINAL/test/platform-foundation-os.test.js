@@ -116,8 +116,10 @@ async function run() {
         services: [{ id: 'pfos-sku', name: 'PFOS SKU', title: 'PFOS SKU', price: 42 }],
       }),
     };
-    const created = await commerce.createOrder(ctx, { serviceId: 'pfos-sku', qty: 1, currency: 'USD' });
-    assert.ok(created && created.order, 'expected a created order');
+    const created = await commerce.createOrder(ctx, {
+      serviceId: 'pfos-sku', qty: 1, currency: 'USD', email: 'pfos@example.com',
+    });
+    assert.ok(created && created.order, 'expected a created order: ' + JSON.stringify(created && created.error));
     const after = await funnelCounts(commerce);
     assert.strictEqual(after.create, before.create + 1, 'create counter should increment by 1');
   });

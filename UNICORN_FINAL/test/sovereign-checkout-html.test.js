@@ -160,8 +160,10 @@ async function runHandlerIntegration() {
       services: [{ id: 'e2e-sku', name: 'E2E SKU', title: 'E2E SKU', price: 42 }],
     }),
   };
-  const created = await commerce.createOrder(ctx, { serviceId: 'e2e-sku', qty: 1, currency: 'USD' });
-  assert.ok(created && created.order, 'createOrder should return { order }');
+  const created = await commerce.createOrder(ctx, {
+    serviceId: 'e2e-sku', qty: 1, currency: 'USD', email: 'e2e@example.com',
+  });
+  assert.ok(created && created.order, 'createOrder should return { order }: ' + JSON.stringify(created && created.error));
   const order = created.order;
 
   // Build minimal fake req/res that captures writeHead + end.

@@ -187,6 +187,13 @@ class ZeusAutonomicCommerceCore {
   async createDropshipOrder({ productId, email, shipping: ship, qty, addons }) {
     const product = this.publisher.get(productId);
     if (!product) return { ok: false, error: 'product_not_found' };
+    // Commerce Reality OS — demo / world-feed SKUs must never take payment.
+    if (product.demoOnly === true && process.env.ALLOW_DEMO_CHECKOUT !== '1') {
+      return { ok: false, error: 'demo_not_for_sale', reason: 'demoOnly' };
+    }
+    if (product.dispatchable === false && process.env.ALLOW_DEMO_CHECKOUT !== '1') {
+      return { ok: false, error: 'demo_not_for_sale', reason: 'not_dispatchable' };
+    }
     const quantity = Math.max(1, Number(qty) || 1);
 
     // Optional AOV add-ons (max 3) — related margin-qualified SKUs.

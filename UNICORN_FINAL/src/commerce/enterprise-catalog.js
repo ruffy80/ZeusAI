@@ -18,7 +18,7 @@ const SEED = [
     priceUSD: 250000,
     billing: 'annual',
     currency: 'USD',
-    description: 'Annual enterprise license: full platform, multi-tenant, SLAs, on-prem option.',
+    description: 'SOW engagement (not self-serve checkout): annual enterprise license — full platform, multi-tenant, SLAs, on-prem option. Contact Enterprise Sales to start.',
     sla: '99.99% / 1h response',
     seats: 'unlimited',
     inputs: [
@@ -34,7 +34,7 @@ const SEED = [
     priceUSD: 4000000,
     billing: 'one-time',
     currency: 'USD',
-    description: 'Full source code transfer, brand assets, IP assignment, 12-month transition support.',
+    description: 'SOW / M&A engagement only: full source transfer, brand assets, IP assignment, 12-month transition. Not available via instant BTC checkout — request a proposal.',
     sla: 'priority engineering',
     inputs: [
       { key: 'legalEntity', label: 'Acquirer Legal Entity', required: true },
@@ -51,7 +51,7 @@ const SEED = [
     billing: 'one-time-setup',
     revenueShare: 0.20,
     currency: 'USD',
-    description: 'Setup fee + 20% net revenue share. Co-branded deployment, joint GTM.',
+    description: 'Partnership SOW: setup fee + 20% net revenue share, co-branded deployment, joint GTM. Contact sales — not a self-serve cart item.',
     inputs: [
       { key: 'legalEntity', label: 'Partner Legal Entity', required: true },
       { key: 'contactEmail', label: 'Partner Contact Email', required: true }
@@ -64,7 +64,7 @@ const SEED = [
     priceUSD: 150000,
     billing: 'annual',
     currency: 'USD',
-    description: 'Dedicated single-tenant cloud deployment with isolated data plane, dedicated keys, 99.99% SLA and 24/7 support.',
+    description: 'Enterprise SOW: dedicated single-tenant cloud, isolated data plane, dedicated keys, 99.99% SLA, 24/7 support. Proposal via Enterprise Sales.',
     sla: '99.99% / 30min response',
     seats: 'unlimited',
     inputs: [
@@ -80,7 +80,7 @@ const SEED = [
     priceUSD: 500000,
     billing: 'project',
     currency: 'USD',
-    description: 'Twelve-month enterprise AI transformation: discovery, roadmap, custom agents, internal copilots, change management and KPI lift.',
+    description: '12-month transformation programme under a signed SOW: discovery, roadmap, custom agents, copilots, change management. Contact Enterprise Sales.',
     sla: 'dedicated programme team',
     inputs: [
       { key: 'legalEntity', label: 'Legal Entity', required: true },
@@ -96,7 +96,7 @@ const SEED = [
     priceUSD: 350000,
     billing: 'annual',
     currency: 'USD',
-    description: 'Resell ZeusAI as your own platform: custom branding, custom domain, segregated catalog, partner revenue dashboard.',
+    description: 'White-label partner SOW: your branding/domain, segregated catalog, partner revenue dashboard. Not self-serve — request a proposal.',
     sla: '99.95% / 2h response',
     inputs: [
       { key: 'legalEntity', label: 'Partner Legal Entity', required: true },
@@ -111,7 +111,7 @@ const SEED = [
     priceUSD: 1200000,
     billing: 'one-time',
     currency: 'USD',
-    description: 'Full on-premises sovereign deployment with compliance audit suite (SOC2/ISO/GDPR), key custody, encrypted backups and 12-month onboarding.',
+    description: 'On-prem sovereign SOW: compliance audit suite, key custody, encrypted backups, 12-month onboarding. Contact Enterprise Sales to engage.',
     sla: 'on-prem dedicated SRE',
     inputs: [
       { key: 'legalEntity', label: 'Legal Entity', required: true },

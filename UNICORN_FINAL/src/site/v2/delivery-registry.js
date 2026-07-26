@@ -68,39 +68,49 @@ function deliverableSet(receipt, serviceId) {
   if (type.includes('api')) files.push({ filename: `${serviceId}-api-key-${receipt.id.slice(0, 8)}.json`, kind: 'api-key', downloadUrl: `/api/delivery/${encodeURIComponent(receipt.id)}?format=api-key&serviceId=${encodeURIComponent(serviceId)}` });
   files.push({ filename: `${serviceId}-onboarding-${receipt.id.slice(0, 8)}.json`, kind: 'onboarding', downloadUrl: `/api/delivery/${encodeURIComponent(receipt.id)}?format=onboarding&serviceId=${encodeURIComponent(serviceId)}` });
 
+  const isHumanLed = /^(ent-|professional-|enterprise)/i.test(String(serviceId || ''))
+    || String(type).includes('workspace');
   return {
     ...base,
     type,
-    status: 'delivered',
+    // Honest status: paperwork is provisioned now; finished product may still
+    // be in human/AI fulfillment. Never invent live workspace/task URLs.
+    status: isHumanLed ? 'provisioned' : 'ready',
     summary: type === 'report+automation'
-      ? 'Growth report, automation task and activation webhook prepared.'
+      ? 'Signed receipt, license and growth-plan download prepared.'
       : type === 'api+task'
-        ? 'API key, task runner and signed license prepared.'
+        ? 'Signed receipt, license and API-key payload prepared for download.'
         : type === 'workspace+agent'
-          ? 'Workspace, agent task and signed license prepared.'
-          : 'Onboarding, signed license and delivery workspace prepared.',
+          ? 'Signed receipt, license and onboarding workspace payload prepared.'
+          : 'Signed receipt, license and onboarding downloads prepared.',
     files,
     endpoints: {
-      workspace: `/workspace/${base.workspaceId}`,
-      task: `/api/unicorn/tasks/${base.taskId}`,
-      webhook: `/api/webhooks/service-delivery/${base.taskId}`
+      invoice: `/api/invoice/${encodeURIComponent(receipt.id)}`,
+      license: `/api/license/${encodeURIComponent(receipt.id)}`,
+      delivery: `/api/delivery/${encodeURIComponent(receipt.id)}`,
+      artifacts: `/api/delivery/${encodeURIComponent(receipt.id)}?format=artifacts`,
+      // Internal correlation ids only — not public app routes.
+      workspaceId: base.workspaceId,
+      taskId: base.taskId,
     },
     report: {
       serviceId,
       receiptId: receipt.id,
-      objective: `Activate ${serviceId} for ${receipt.email || 'customer'}`,
+      objective: `Fulfill ${serviceId} for ${receipt.email || 'customer'}`,
       nextSteps: [
         'Review signed license token',
-        'Open workspace and complete onboarding inputs',
-        'Use API key for programmatic access',
+        'Download delivery / onboarding payloads',
+        'Complete any required buyer inputs',
         'Track fulfilment through /api/delivery/:receiptId'
       ],
-      kpis: ['time-to-value', 'automation coverage', 'conversion lift', 'cost reduction']
+      kpis: ['time-to-value', 'delivery completion', 'buyer confirmation']
     },
     onboarding: {
       requiredInputs: ['company name', 'target market', 'desired KPI', 'preferred integration channel'],
-      sla: 'Initial autonomous setup within 15 minutes after confirmed payment; advanced fulfilment continues asynchronously.',
-      support: 'Concierge + service.activated SSE event + customer dashboard'
+      sla: isHumanLed
+        ? 'Kickoff pack available immediately after confirmed payment; human-led milestones follow the SOW timeline.'
+        : 'Digital activation pack available immediately after confirmed payment; AI-generated SKU artifacts when fulfillment AI is enabled.',
+      support: 'Customer dashboard + /api/delivery/:receiptId + owner concierge email'
     }
   };
 }
@@ -196,4 +206,4 @@ function renderArtifacts(delivery, format, serviceId) {
   return item || null;
 }
 
-module.exports = { all, list, get, deliver, renderPayload, attachArtifacts, renderArtifacts };
+module.exports = { all, list, get, deliver, deliverableSet, renderPayload, attachArtifacts, renderArtifacts };
