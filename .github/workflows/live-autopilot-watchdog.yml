@@ -45,11 +45,23 @@ jobs:
           fi
 
       - name: 🩺 Auto-dispatch Diagnose & Repair
+        id: repair
         if: ${{ steps.verify.outputs.failed == 'true' }}
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           REPO: ${{ github.repository }}
         run: |
+          set -euo pipefail
+          # Never stack repair on top of an in-flight Stable Deploy — that races
+          # canary promotion and can thrash PM2 / nginx during the switch window.
+          in_flight="$(gh api "repos/${REPO}/actions/workflows/deploy.yml/runs?status=in_progress&per_page=5" \
+            --jq '.workflow_runs | length' 2>/dev/null || echo 0)"
+          if [ "${in_flight:-0}" -gt 0 ]; then
+            echo "⏭️  Stable Deploy is in progress — skipping diagnose-and-repair dispatch (anti-thrash)"
+            echo "skipped_deploy_race=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          echo "skipped_deploy_race=false" >> "$GITHUB_OUTPUT"
           curl -fsS -X POST \
             -H "Authorization: Bearer ${GH_TOKEN}" \
             -H "Accept: application/vnd.github+json" \
@@ -58,7 +70,13 @@ jobs:
           echo "✅ diagnose-and-repair workflow dispatched"
 
       - name: 🚨 Mark watchdog failed when checks fail
-        if: ${{ steps.verify.outputs.failed == 'true' }}
+        if: ${{ steps.verify.outputs.failed == 'true' && steps.repair.outputs.skipped_deploy_race != 'true' }}
         run: |
           echo "Live verification failed and auto-repair was dispatched."
           exit 1
+
+      - name: ℹ️ Soft-pass when verify flaked during deploy window
+        if: ${{ steps.verify.outputs.failed == 'true' && steps.repair.outputs.skipped_deploy_race == 'true' }}
+        run: |
+          echo "Live checks flaked while Stable Deploy was in flight; no repair dispatched."
+          echo "This is an intentional soft-pass to avoid server thrash during canary promotion."

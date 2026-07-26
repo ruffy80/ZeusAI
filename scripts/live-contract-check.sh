@@ -19,22 +19,38 @@ http_code_only() {
   printf '%s' "$raw"
 }
 
+is_json_body() {
+  case "$(head -c 1 "$1" 2>/dev/null || true)" in
+    '{'|'[') return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
 fetch() {
   local url="$1" out="$2" label="$3"
-  local attempts="${LIVE_CONTRACT_RETRIES:-3}"
+  local attempts="${LIVE_CONTRACT_RETRIES:-5}"
   local attempt=1
   local code="000"
   local sleep_s=2
+  local wants_json=1
+  if [[ "$label" == *page* ]]; then
+    wants_json=0
+  fi
 
   while [ "$attempt" -le "$attempts" ]; do
     code="$(http_code_only "$out" "$url")"
     if [ "$code" = "200" ] && [ -s "$out" ]; then
-      break
+      if [ "$wants_json" -eq 0 ] || is_json_body "$out"; then
+        break
+      fi
+      echo "⏳ ${label}: HTTP 200 but non-JSON body (deploy window?) — retry in ${sleep_s}s"
+    elif [ "$attempt" -lt "$attempts" ]; then
+      echo "⏳ ${label}: HTTP $code (attempt $attempt/$attempts) — retry in ${sleep_s}s"
     fi
     if [ "$attempt" -lt "$attempts" ]; then
-      echo "⏳ ${label}: HTTP $code (attempt $attempt/$attempts) — retry in ${sleep_s}s"
       sleep "$sleep_s"
       sleep_s=$((sleep_s * 2))
+      if [ "$sleep_s" -gt 16 ]; then sleep_s=16; fi
     fi
     attempt=$((attempt + 1))
   done
@@ -49,17 +65,12 @@ fetch() {
     echo "❌ ${label}: empty body from $url"
     exit 1
   fi
-  case "$(head -c 1 "$out" 2>/dev/null || true)" in
-    '{'|'[') ;;
-    *)
-      # HTML pages are allowed for page fetches; JSON endpoints must be JSON.
-      if [[ "$label" == *page* ]]; then return 0; fi
-      echo "❌ ${label}: non-JSON body from $url"
-      head -c 120 "$out" || true
-      echo
-      exit 1
-      ;;
-  esac
+  if [ "$wants_json" -eq 1 ] && ! is_json_body "$out"; then
+    echo "❌ ${label}: non-JSON body from $url after ${attempts} attempts"
+    head -c 120 "$out" || true
+    echo
+    exit 1
+  fi
 }
 
 fetch "${BASE_URL}/health" "${tmp_dir}/health.json" "site health"
