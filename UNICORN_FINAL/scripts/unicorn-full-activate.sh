@@ -177,22 +177,19 @@ console.log(`  audit: ${present} present, ${missing} absent (absent modules are 
 process.exit(0);
 NODE
 
-# ── 5b. Start standalone autonomous PM2 runners (one per essential module) ───
-# Each runner requires the module and drives its heartbeat/tick loop WITHOUT
-# opening a second Express server and WITHOUT writing SQLite. The in-process
-# module routes (registerModuleRoutes) keep working independently.
+# ── 5b. Standalone zeus-* PM2 runners (OPT-IN) ───────────────────────────────
+# Default OFF on single-node Hetzner: these runners + cold-boot backend compete
+# for RAM/CPU and historically caused health timeouts → healer/rescue thrash.
+# Enable explicitly with ZEUS_START_MODULE_RUNNERS=1 on multi-core hosts.
+# In-process module routes (registerModuleRoutes) remain available either way.
 RUNNER="$DEPLOY_LINK/scripts/zeus-module-autonomous.js"
-if [ -f "$RUNNER" ]; then
-  # "pm2-name<TAB>module-file" pairs. selfConstruction runs audit-only (the
-  # runner hard-guards apply:false regardless).
+if [ "${ZEUS_START_MODULE_RUNNERS:-0}" = "1" ] && [ -f "$RUNNER" ]; then
   start_runner() {
     local pm2name="$1"; local modfile="$2"
     if [ ! -f "$DEPLOY_LINK/$modfile" ]; then
       warn "module file missing, skipping $pm2name: $modfile"
       return 0
     fi
-    # Idempotent: delete any prior instance so we don't stack duplicates, then
-    # start fresh with the safe autonomy env already sourced above.
     pm2 delete "$pm2name" >/dev/null 2>&1 || true
     if pm2 start "$RUNNER" --name "$pm2name" --time -- "$modfile" --autonomous >/dev/null 2>&1; then
       log "started PM2 runner: $pm2name ($modfile)"
@@ -211,7 +208,11 @@ if [ -f "$RUNNER" ]; then
 
   pm2 save || true
 else
-  warn "autonomous runner not found at $RUNNER — skipping zeus-* PM2 processes"
+  log "skipping zeus-* module runners (set ZEUS_START_MODULE_RUNNERS=1 to enable)"
+  # Ensure leftovers from older activates do not thrash the next cold boot.
+  for pm2name in zeus-payments zeus-negotiator zeus-selfheal zeus-deploy zeus-dns zeus-analytics zeus-frontier; do
+    pm2 stop "$pm2name" >/dev/null 2>&1 || true
+  done
 fi
 
 # ── 5c. Install the read-only self-heal audit cron (15 min) ──────────────────
