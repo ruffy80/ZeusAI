@@ -150,8 +150,22 @@ function assessBuyability(itemOrId, opts = {}) {
 
   // Curated strategic / frontier / vertical / future-invention deliverables:
   // self-serve when under the high-ticket threshold (handled above).
+  // Aspirational / billion-scale / future-invention: never self-serve.
+  if (
+    group === 'future-invention'
+    || group === 'billion-scale-package'
+    || group === 'billion-scale-activation'
+    || group === 'strategic-package'
+    || /^(activation-|billion-|future-)/i.test(id)
+  ) {
+    return {
+      mode: 'unavailable', buyable: false, reason: 'aspirational_not_for_sale',
+      ctaLabel: 'Not available yet', ctaHref: null,
+    };
+  }
+
   const curatedPublicGroups = new Set([
-    'strategic', 'frontier', 'vertical', 'future-invention', 'service', 'core-plan',
+    'strategic', 'frontier', 'vertical', 'service', 'core-plan',
   ]);
   if (curatedPublicGroups.has(group) || curatedPublicGroups.has(tier)) {
     return {

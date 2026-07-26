@@ -182,9 +182,30 @@ function mainCycle() {
   }
 }
 
+function innovationGenerationEnabled() {
+  // Safe/stable default: do NOT accumulate endless pending proposals.
+  // Opt in with UNICORN_RUNTIME_PROFILE=growth|full AND INNOVATION_GENERATE=1
+  // (or legacy INNOVATION_AUTO_SHIP=1 under growth).
+  const profile = String(process.env.UNICORN_RUNTIME_PROFILE || 'stable').toLowerCase();
+  if (profile === 'safe' || profile === 'stable' || profile === '') {
+    return String(process.env.INNOVATION_GENERATE || '0') === '1';
+  }
+  if (profile !== 'growth' && profile !== 'full') return false;
+  if (String(process.env.INNOVATION_GENERATE || '').trim() === '0') return false;
+  if (String(process.env.INNOVATION_AUTO_SHIP || '').trim() === '0') return false;
+  return true;
+}
+
 ensureStore();
-setInterval(mainCycle, MAIN_INTERVAL);
-setTimeout(() => { try { mainCycle(); } catch(_){} }, 2000);
+if (innovationGenerationEnabled()) {
+  setInterval(mainCycle, MAIN_INTERVAL);
+  setTimeout(() => { try { mainCycle(); } catch(_){} }, 2000);
+} else {
+  state.active = false;
+  try {
+    console.log('[unicornInnovator] generation idle (safe/stable profile — set INNOVATION_GENERATE=1 under growth to enable)');
+  } catch (_) { /* ignore */ }
+}
 
 // ---- API public ----
 function getStatus() {
@@ -231,6 +252,8 @@ module.exports = {
   approve,
   reject,
   getBus,
+  mainCycle,
+  innovationGenerationEnabled,
   // Sub-componente expuse
   evolutionTracker,
   innovationGenerator,

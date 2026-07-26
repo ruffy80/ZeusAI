@@ -90,6 +90,14 @@ module.exports = {
         // after cold-boot settle is proven stable.
         QIS_AUTO_HEAL_ENABLED: process.env.QIS_AUTO_HEAL_ENABLED || 'false',
         QIS_REQUIRED_PROCESSES: 'unicorn-backend,unicorn-site',
+        // Innovation generation + auto-ship OFF under safe/stable (Commercial Cycle).
+        // Arm only after money path is proven: INNOVATION_GENERATE=1 + INNOVATION_AUTO_SHIP=1
+        // under UNICORN_RUNTIME_PROFILE=growth.
+        INNOVATION_AUTO_SHIP: process.env.INNOVATION_AUTO_SHIP || '0',
+        INNOVATION_GENERATE: process.env.INNOVATION_GENERATE || '0',
+        // Fulfillment AI stays OFF until owner sets FULFILLMENT_AI_ENABLED=1 + an LLM key.
+        // Optional allowlist: FULFILLMENT_AI_SKUS=instant-seo-content-pack,instant-landing-page,...
+        FULFILLMENT_AI_ENABLED: process.env.FULFILLMENT_AI_ENABLED || '0',
         // ── AUTH-GUARDIAN: DISABLED PERMANENTLY ────────────────────────
         // auth-guardian probes /api/auth/test and on failure runs
         // scripts/auth-repair.js, which UNCONDITIONALLY calls

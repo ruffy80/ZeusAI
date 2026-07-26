@@ -392,6 +392,29 @@ function buildDeterministicArtifact(receipt, serviceId, recipe, opts = {}) {
 
 // Produce a real artifact for one service via the LLM layer. Returns an
 // artifact object or a { pending } marker; never throws.
+function aiSkuAllowlist() {
+  const raw = String(process.env.FULFILLMENT_AI_SKUS || '').trim();
+  if (!raw) {
+    // Default digital SKUs when AI is armed — clear, recipe-backed packs only.
+    return new Set([
+      'instant-website-audit',
+      'instant-seo-content-pack',
+      'instant-landing-page',
+      'instant-pitch-deck',
+      'instant-email-sequence',
+    ]);
+  }
+  if (raw === '*' || raw.toLowerCase() === 'all') return null; // all non-human SKUs
+  return new Set(raw.split(/[\s,]+/).map((s) => s.trim()).filter(Boolean));
+}
+
+function shouldUseAiForSku(serviceId) {
+  if (process.env.FULFILLMENT_AI_ENABLED !== '1') return false;
+  const allow = aiSkuAllowlist();
+  if (allow == null) return true;
+  return allow.has(String(serviceId || '').trim());
+}
+
 async function fulfillService(receipt, serviceId) {
   const enterprise = isEnterprise(receipt, serviceId);
   const professional = !enterprise && needsHumanFulfillment(receipt, serviceId);
@@ -400,7 +423,8 @@ async function fulfillService(receipt, serviceId) {
     ? ENTERPRISE_RECIPE
     : (professional ? PROFESSIONAL_RECIPE : pickRecipe(serviceId));
   const tier = enterprise ? 'enterprise' : (professional ? 'professional' : 'standard');
-  const shouldUseAi = process.env.FULFILLMENT_AI_ENABLED === '1';
+  // High-ticket / professional stays on engagement/kickoff packs (never fake "AI delivered product").
+  const shouldUseAi = !human && shouldUseAiForSku(serviceId);
   if (!shouldUseAi || !aiProviders || typeof aiProviders.chat !== 'function') {
     return buildDeterministicArtifact(receipt, serviceId, recipe, {
       enterprise,
@@ -483,5 +507,6 @@ async function fulfillReceipt(receipt, opts = {}) {
 
 module.exports = {
   fulfillReceipt, fulfillService, pickRecipe, isEnterprise, needsHumanFulfillment,
+  shouldUseAiForSku, aiSkuAllowlist,
   RECIPES, GENERIC_RECIPE, ENTERPRISE_RECIPE, PROFESSIONAL_RECIPE, SKU_RECIPES,
 };

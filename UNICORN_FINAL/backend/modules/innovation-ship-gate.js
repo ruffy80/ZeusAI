@@ -107,7 +107,39 @@ function score(innovation) {
   if (/buyer|order|trust|checkout/.test(text)) total += 0.06;
   const safety = isSafeInnovation(innovation);
   if (safety.safe) total += 0.08;
+  // Prefer the innovator's own commerce score when present (COMMERCE_IDEAS).
+  const declared = Number(innovation && (innovation.score != null ? innovation.score : innovation.priority));
+  if (Number.isFinite(declared) && declared > 0) {
+    total = Math.max(total, declared);
+  }
   return Number(clamp(total).toFixed(4));
+}
+
+function runtimeAllowsShip() {
+  const profile = String(process.env.UNICORN_RUNTIME_PROFILE || 'stable').toLowerCase();
+  if (profile === 'safe' || profile === 'stable') return { ok: false, reason: 'stable_profile' };
+  // QIS integrity — fail closed if shield reports critical.
+  try {
+    const qis = require('./quantumIntegrityShield');
+    if (qis && typeof qis.getStatus === 'function') {
+      const st = qis.getStatus();
+      const integrity = String((st && (st.integrity || st.status || st.health)) || '').toLowerCase();
+      if (integrity === 'critical' || integrity === 'fail' || integrity === 'unhealthy') {
+        return { ok: false, reason: 'qis_' + integrity };
+      }
+    }
+  } catch (_) { /* QIS optional in tests */ }
+  // Capital / profit emergency — do not ship when protection is tripped.
+  try {
+    const capital = require('./capital-protection');
+    if (capital && typeof capital.getStatus === 'function') {
+      const st = capital.getStatus();
+      if (st && (st.emergency === true || st.halted === true || st.mode === 'emergency')) {
+        return { ok: false, reason: 'capital_emergency' };
+      }
+    }
+  } catch (_) { /* optional */ }
+  return { ok: true, reason: 'runtime_ok' };
 }
 
 function buildSpec(innovation, computedScore, safety) {
@@ -160,11 +192,25 @@ async function evaluateAndShip(innovatorApi) {
   const pending = await Promise.resolve(api.getPending());
   const decisions = [];
 
+  const runtime = runtimeAllowsShip();
+
   for (const innovation of Array.isArray(pending) ? pending : []) {
     const innovationId = String(innovation && innovation.id || '');
     const innovationScore = score(innovation);
     const safety = isSafeInnovation(innovation);
     state.evaluated += 1;
+
+    if (!runtime.ok) {
+      state.deferred += 1;
+      decisions.push({
+        id: innovationId,
+        decision: 'deferred',
+        score: innovationScore,
+        safety: safety.reason,
+        runtime: runtime.reason,
+      });
+      continue;
+    }
 
     if (innovationScore >= APPROVE_THRESHOLD && safety.safe) {
       const approval = await Promise.resolve(api.approve(innovationId));
@@ -216,9 +262,13 @@ async function evaluateAndShip(innovatorApi) {
 }
 
 function autoShipEnabled() {
-  // Default ON — ship safe data/docs artifacts. Set INNOVATION_AUTO_SHIP=0 to disable.
-  return String(process.env.INNOVATION_AUTO_SHIP || '1').toLowerCase() !== '0'
-    && !['false', 'off', 'no'].includes(String(process.env.INNOVATION_AUTO_SHIP || '').toLowerCase());
+  // Safe/stable default OFF — only auto-ship under growth/full when explicitly armed.
+  const profile = String(process.env.UNICORN_RUNTIME_PROFILE || 'stable').toLowerCase();
+  if (profile === 'safe' || profile === 'stable' || profile === '') {
+    return String(process.env.INNOVATION_AUTO_SHIP || '0') === '1';
+  }
+  const flag = String(process.env.INNOVATION_AUTO_SHIP || '0').toLowerCase();
+  return flag === '1' || flag === 'true' || flag === 'on' || flag === 'yes';
 }
 
 function startAutoCycle(innovatorApi, intervalMs = AUTO_INTERVAL_MS) {
@@ -295,6 +345,8 @@ module.exports = {
   evaluateAndShip,
   startAutoCycle,
   stopAutoCycle,
+  autoShipEnabled,
+  runtimeAllowsShip,
   getStatus,
   process: processInput,
   _resetForTests,

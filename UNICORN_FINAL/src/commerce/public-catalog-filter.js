@@ -54,11 +54,17 @@ const CURATED_RECIPE_GROUPS = new Set([
   'vertical',
   'frontier',
   'service',
-  'strategic-package',
+  'strategic',
+  'core-plan',
+]);
+
+// Aspirational / not-yet-deliverable shelf — kept for admin/?includeSynthetic=1
+// but excluded from the default public storefront (Commercial Cycle OS).
+const ASPIRATIONAL_GROUPS = new Set([
+  'future-invention',
   'billion-scale-package',
   'billion-scale-activation',
-  'future-invention',
-  'core-plan',
+  'strategic-package',
 ]);
 // Only core plans that have an honest self-serve or contact path.
 // Ghost metered SKUs (api-call, wealth-engine, …) are NOT treated as
@@ -79,10 +85,21 @@ function hasFulfillmentRecipe(item) {
   return false;
 }
 
+function isAspirationalCatalogItem(item) {
+  if (!item || typeof item !== 'object') return false;
+  if (item.aspirational === true || item.stub === true) return true;
+  const group = String(item.group || item.tier || item.segment || '').trim().toLowerCase();
+  if (ASPIRATIONAL_GROUPS.has(group)) return true;
+  const id = String(item.id || item.serviceId || '').trim();
+  if (/^(activation-|billion-|future-|f\d{2}-)/i.test(id)) return true;
+  return false;
+}
+
 function isSyntheticCatalogItem(item) {
   if (!item || typeof item !== 'object') return false;
   if (item.synthetic === true) return true;
   if (item.syntheticOnly === true) return true;
+  if (isAspirationalCatalogItem(item)) return true;
 
   const id = String(item.id || item.serviceId || '').trim();
   if (/^zacc-/i.test(id)) return true;
@@ -151,11 +168,13 @@ function applyPublicCatalogFilter(catalog, options = {}) {
 
 module.exports = {
   isSyntheticCatalogItem,
+  isAspirationalCatalogItem,
   hasFulfillmentRecipe,
   filterPublicCatalogItems,
   applyPublicCatalogFilter,
   wantsIncludeSynthetic,
   truthyQueryFlag,
   CURATED_RECIPE_GROUPS,
+  ASPIRATIONAL_GROUPS,
   CANONICAL_CORE_PLAN_IDS,
 };
