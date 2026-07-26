@@ -117,7 +117,11 @@ function score(innovation) {
 
 function runtimeAllowsShip() {
   const profile = String(process.env.UNICORN_RUNTIME_PROFILE || 'stable').toLowerCase();
-  if (profile === 'safe' || profile === 'stable') return { ok: false, reason: 'stable_profile' };
+  const explicitArm = String(process.env.INNOVATION_AUTO_SHIP || '0') === '1';
+  // Safe/stable blocks auto-ship unless the owner explicitly arms INNOVATION_AUTO_SHIP=1.
+  if ((profile === 'safe' || profile === 'stable' || profile === '') && !explicitArm) {
+    return { ok: false, reason: 'stable_profile' };
+  }
   // QIS integrity — fail closed if shield reports critical.
   try {
     const qis = require('./quantumIntegrityShield');
