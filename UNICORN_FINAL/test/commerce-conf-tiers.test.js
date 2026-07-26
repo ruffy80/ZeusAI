@@ -63,5 +63,15 @@ check('stable deploy skips server-doctor destructive restart', () => {
   assert.ok(!/bash "\$DEPLOY_PATH\/server-doctor\.sh"/.test(yml));
 });
 
+check('deploy neutralizes autonomy reload thrashers', () => {
+  const sh = fs.readFileSync(
+    path.join(__dirname, '..', 'scripts', 'deploy-atomic-forward.sh'),
+    'utf8'
+  );
+  assert.ok(sh.includes('zeusai-autonomy.sh'));
+  assert.ok(sh.includes('unicorn-health-bot.sh'));
+});
+
+
 console.log('commerce-conf-tiers.test.js passed');
 process.exit(0);

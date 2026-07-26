@@ -514,22 +514,29 @@ fi
 # /usr/local/bin/unicorn-safe-watchdog.sh historically probed :3000/health
 # (wrong — backend is /api/health) and started unicorn-rescue-backend.service,
 # silently replacing PM2's backend/index.js with the minimal rescue API.
-log "neutralize unicorn-safe-watchdog + rescue-backend unit (if present)"
-if [ -f /usr/local/bin/unicorn-safe-watchdog.sh ]; then
-  cat > /usr/local/bin/unicorn-safe-watchdog.sh <<'WATCHDOG_EOF'
+log "neutralize host thrashers (rescue watchdog + autonomy reload loops)"
+for thrash in unicorn-safe-watchdog.sh zeusai-autonomy.sh unicorn-health-bot.sh; do
+  if [ -f "/usr/local/bin/$thrash" ]; then
+    cat > "/usr/local/bin/$thrash" <<'THRASH_EOF'
 #!/usr/bin/env bash
-# Neutralized by deploy-atomic-forward: never start rescue-backend.
-set -euo pipefail
-TS(){ date -u +"%Y-%m-%dT%H:%M:%SZ"; }
-LOG=/var/log/unicorn-safe-watchdog.log
-echo "$(TS) [watchdog] noop — rescue path disabled by deploy" >> "$LOG"
+# Neutralized by deploy-atomic-forward: must not restart/reload unicorn-backend.
 exit 0
-WATCHDOG_EOF
-  chmod 755 /usr/local/bin/unicorn-safe-watchdog.sh || true
-fi
-systemctl disable --now unicorn-rescue-backend.service >/dev/null 2>&1 || true
-systemctl mask unicorn-rescue-backend.service >/dev/null 2>&1 || true
+THRASH_EOF
+    chmod 755 "/usr/local/bin/$thrash" || true
+  fi
+done
+systemctl disable --now unicorn-rescue-backend.service zeusai-autonomy.timer zeusai-autonomy.service >/dev/null 2>&1 || true
+systemctl mask unicorn-rescue-backend.service zeusai-autonomy.timer zeusai-autonomy.service >/dev/null 2>&1 || true
 pkill -f 'rescue-backend\.js' >/dev/null 2>&1 || true
+pkill -f 'deepseek-unified\.js' >/dev/null 2>&1 || true
+pkill -f 'zeusAutonomousCore/index\.js' >/dev/null 2>&1 || true
+# Comment host cron lines that still call the thrashers
+for f in /etc/cron.d/*; do
+  [ -f "$f" ] || continue
+  if grep -qE 'zeusai-autonomy|unicorn-health-bot|unicorn-safe-watchdog' "$f" 2>/dev/null; then
+    sed -i -E 's@^([^#].*(zeusai-autonomy|unicorn-health-bot|unicorn-safe-watchdog).*)@# DISABLED_BY_DEPLOY \1@' "$f" || true
+  fi
+done
 
 # Idempotent self-heal install: ensures unicorn-healer.timer is on every box.
 log "ensure unicorn-healer.timer is installed and active"
