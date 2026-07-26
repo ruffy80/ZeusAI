@@ -15,8 +15,10 @@
 #   echo 1 > /var/run/unicorn-autoheal-min.disabled
 #
 # Tunables (env or first arg):
-#   AUTOHEAL_MIN_FAIL_STREAK   (default: 3 — i.e. 3 minutes of pain before action)
-#   AUTOHEAL_MIN_COOLDOWN_S    (default: 600 — wait 10 min between restarts)
+#   AUTOHEAL_MIN_FAIL_STREAK   (default: 5 — i.e. 5 minutes of pain before action)
+#   AUTOHEAL_MIN_COOLDOWN_S    (default: 900 — wait 15 min between restarts)
+#   AUTOHEAL_MIN_BOOT_GRACE_S  (default: 180 — never restart during cold boot)
+#   AUTOHEAL_MIN_CURL_TIMEOUT  (default: 8 — tolerate slow event-loop boots)
 # -----------------------------------------------------------------------------
 set -euo pipefail
 
@@ -36,23 +38,43 @@ fi
 
 BACKEND_HEALTH_URL="${BACKEND_HEALTH_URL:-http://127.0.0.1:3000/api/health}"
 SITE_HEALTH_URL="${SITE_HEALTH_URL:-http://127.0.0.1:3001/health}"
-THRESHOLD="${AUTOHEAL_MIN_FAIL_STREAK:-3}"
-COOLDOWN="${AUTOHEAL_MIN_COOLDOWN_S:-600}"
+THRESHOLD="${AUTOHEAL_MIN_FAIL_STREAK:-5}"
+COOLDOWN="${AUTOHEAL_MIN_COOLDOWN_S:-900}"
+BOOT_GRACE="${AUTOHEAL_MIN_BOOT_GRACE_S:-180}"
+CURL_TIMEOUT="${AUTOHEAL_MIN_CURL_TIMEOUT:-8}"
 
-case "$THRESHOLD:$COOLDOWN" in
-  *[!0-9:]*|:*|*:) echo "invalid autoheal threshold or cooldown" >&2; exit 2 ;;
+case "$THRESHOLD:$COOLDOWN:$BOOT_GRACE:$CURL_TIMEOUT" in
+  *[!0-9:]*|:*|*:) echo "invalid autoheal threshold, cooldown, boot grace or curl timeout" >&2; exit 2 ;;
 esac
 [ "$THRESHOLD" -gt 0 ] || { echo "AUTOHEAL_MIN_FAIL_STREAK must be greater than zero" >&2; exit 2; }
 
 now=$(date +%s)
 ts() { date -u +"%Y-%m-%dT%H:%M:%SZ"; }
 
+# PM2 created_at is ms; return uptime seconds or empty if unknown.
+pm2_uptime_s() {
+  local app="$1"
+  command -v pm2 >/dev/null 2>&1 || return 0
+  pm2 jlist 2>/dev/null | node -e '
+    let b=""; process.stdin.on("data",c=>b+=c); process.stdin.on("end",()=>{
+      try {
+        const name = process.argv[1];
+        const list = JSON.parse(b || "[]");
+        const p = list.find(x => x && x.name === name);
+        if (!p || !p.pm2_env || !p.pm2_env.created_at) { process.stdout.write(""); return; }
+        const up = Math.max(0, Math.floor((Date.now() - Number(p.pm2_env.created_at)) / 1000));
+        process.stdout.write(String(up));
+      } catch (_) { process.stdout.write(""); }
+    });
+  ' "$app" 2>/dev/null || true
+}
+
 # Probe returns unhealthy if HTTP != 200 OR never-down kernel signals event-loop hang.
 probe_ok() {
   local url="$1"
   local body code
-  body=$(curl -fsS -m 5 "$url" 2>/dev/null || true)
-  code=$(curl -fsS -m 5 -o /dev/null -w "%{http_code}" "$url" 2>/dev/null || true)
+  body=$(curl -fsS -m "$CURL_TIMEOUT" "$url" 2>/dev/null || true)
+  code=$(curl -fsS -m "$CURL_TIMEOUT" -o /dev/null -w "%{http_code}" "$url" 2>/dev/null || true)
   [ "$code" = "200" ] || return 1
   # Optional NDK lag fail (backend /api/health embeds neverDown.healerFail)
   if printf '%s' "$body" | grep -q '"healerFail"[[:space:]]*:[[:space:]]*true'; then
@@ -65,7 +87,13 @@ probe_app() {
   local app="$1" url="$2"
   local streak_file="$STATE_DIR/${app}.fail-streak"
   local last_act_file="$STATE_DIR/${app}.last-action-epoch"
-  local streak last_act since
+  local streak last_act since uptime_s
+  uptime_s="$(pm2_uptime_s "$app")"
+  if [ -n "$uptime_s" ] && [ "$uptime_s" -lt "$BOOT_GRACE" ] 2>/dev/null; then
+    echo "$(ts) [autoheal-min] $app boot-grace active (uptime=${uptime_s}s/${BOOT_GRACE}s) — skip"
+    echo 0 > "$streak_file"
+    return 0
+  fi
   if probe_ok "$url"; then
     echo 0 > "$streak_file"
     return 0

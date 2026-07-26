@@ -420,6 +420,58 @@ if [ "${BACKEND_UPTIME:-999999}" -gt 180 ]; then
 fi
 log "backend fresh — uptime=${BACKEND_UPTIME}s"
 
+# ── Never leave production on rescue-backend.js ─────────────────────────────
+# A prior thrash left PM2 pointing at scripts/rescue-backend.js (minimal API,
+# missing PFOS/ESOS/catalog). Detect and force-respawn from ecosystem.
+log "verify unicorn-backend script is backend/index.js (not rescue)"
+BACKEND_SCRIPT="$(pm2 jlist 2>/dev/null | node -e '
+  let b=""; process.stdin.on("data",c=>b+=c); process.stdin.on("end",()=>{
+    try {
+      const list = JSON.parse(b || "[]");
+      const p = list.find(x => x && x.name === "unicorn-backend");
+      const script = (p && p.pm2_env && (p.pm2_env.pm_exec_path || p.pm2_env.script)) || "";
+      process.stdout.write(String(script));
+    } catch (_) { process.stdout.write(""); }
+  });
+' || true)"
+case "$BACKEND_SCRIPT" in
+  *rescue-backend*)
+    log "FATAL topology: unicorn-backend is on rescue ($BACKEND_SCRIPT) — force ecosystem respawn"
+    pm2 delete unicorn-backend >/dev/null 2>&1 || true
+    if command -v fuser >/dev/null 2>&1; then fuser -k 3000/tcp >/dev/null 2>&1 || true; fi
+    sleep 2
+    cd "$DEPLOY_LINK"
+    env \
+      NODE_ENV=production \
+      BIND_HOST=127.0.0.1 \
+      UNICORN_RUNTIME_PROFILE=safe \
+      QIS_AUTO_HEAL_ENABLED=false \
+      QIS_REQUIRED_PROCESSES="$PM2_ONLY" \
+      ZEUS_BUILD_SHA="${GITHUB_SHA:-}" \
+      SW_VERSION="${GITHUB_SHA:-}" \
+      pm2 start ecosystem.config.js --only unicorn-backend --update-env
+    sleep 12
+    BACKEND_SCRIPT="$(pm2 jlist 2>/dev/null | node -e '
+      let b=""; process.stdin.on("data",c=>b+=c); process.stdin.on("end",()=>{
+        try {
+          const list = JSON.parse(b || "[]");
+          const p = list.find(x => x && x.name === "unicorn-backend");
+          const script = (p && p.pm2_env && (p.pm2_env.pm_exec_path || p.pm2_env.script)) || "";
+          process.stdout.write(String(script));
+        } catch (_) { process.stdout.write(""); }
+      });
+    ' || true)"
+    case "$BACKEND_SCRIPT" in
+      *rescue-backend*|"" ) fail "unicorn-backend still not on backend/index.js (got: $BACKEND_SCRIPT)" ;;
+      *backend/index.js*) log "backend script restored → $BACKEND_SCRIPT" ;;
+      *) fail "unicorn-backend unexpected script after rescue purge: $BACKEND_SCRIPT" ;;
+    esac
+    ;;
+  *backend/index.js*) log "backend script OK → $BACKEND_SCRIPT" ;;
+  "") log "WARN: could not read unicorn-backend script path from pm2 jlist" ;;
+  *) log "WARN: unexpected unicorn-backend script path: $BACKEND_SCRIPT" ;;
+esac
+
 # ── QIS settle heartbeat (keeps the SSH session alive) ──────────────────────
 # The Quantum Integrity Shield re-baselines on a fresh PM2 start; right after
 # a restart that changed files it reports a transient non-'intact' state. We
@@ -457,6 +509,27 @@ if [ -n "${GITHUB_SHA:-}" ]; then
   printf '%s\n' "$GITHUB_SHA" > "$DEPLOY_LINK/.build-sha"
   printf '%s\n' "$GITHUB_SHA" > "$DEPLOY_PARENT/.build-sha"
 fi
+
+# Neutralize host-local rescue thrashers that are NOT in git.
+# /usr/local/bin/unicorn-safe-watchdog.sh historically probed :3000/health
+# (wrong — backend is /api/health) and started unicorn-rescue-backend.service,
+# silently replacing PM2's backend/index.js with the minimal rescue API.
+log "neutralize unicorn-safe-watchdog + rescue-backend unit (if present)"
+if [ -f /usr/local/bin/unicorn-safe-watchdog.sh ]; then
+  cat > /usr/local/bin/unicorn-safe-watchdog.sh <<'WATCHDOG_EOF'
+#!/usr/bin/env bash
+# Neutralized by deploy-atomic-forward: never start rescue-backend.
+set -euo pipefail
+TS(){ date -u +"%Y-%m-%dT%H:%M:%SZ"; }
+LOG=/var/log/unicorn-safe-watchdog.log
+echo "$(TS) [watchdog] noop — rescue path disabled by deploy" >> "$LOG"
+exit 0
+WATCHDOG_EOF
+  chmod 755 /usr/local/bin/unicorn-safe-watchdog.sh || true
+fi
+systemctl disable --now unicorn-rescue-backend.service >/dev/null 2>&1 || true
+systemctl mask unicorn-rescue-backend.service >/dev/null 2>&1 || true
+pkill -f 'rescue-backend\.js' >/dev/null 2>&1 || true
 
 # Idempotent self-heal install: ensures unicorn-healer.timer is on every box.
 log "ensure unicorn-healer.timer is installed and active"

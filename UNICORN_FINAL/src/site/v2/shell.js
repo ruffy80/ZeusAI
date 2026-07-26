@@ -1011,7 +1011,7 @@ function pageHome() {
   // Post-featured commerce proof rail: live on-chain sales + BTC-discount chip.
   // Both are SSR containers hydrated by client.js hydrateHomeProof().
   const _homeProofRail = `<section id="homeProofRail" style="margin:26px 0 0">
-  <div class="grid" style="grid-template-columns:minmax(0,2fr) minmax(0,1fr);gap:16px">
+  <div class="grid phone-stack" style="grid-template-columns:minmax(0,2fr) minmax(0,1fr);gap:16px">
     <div id="homeLiveSales" class="card" style="background:linear-gradient(135deg,rgba(0,255,163,.06),rgba(0,212,255,.06));border:1px solid rgba(0,255,163,.30);padding:18px" data-home-live-sales>
       <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap">
         <span class="kicker" style="color:#00ffa3">⚡ Live on-chain settlements</span>
@@ -1054,7 +1054,7 @@ function pageHome() {
   // before any other section, so the world\u2019s first fully-autonomous economic
   // engine is impossible to miss from the homepage.
   const _zaccBanner = `<section id="homeZacc" style="margin:48px 0 0">
-  <div class="card" style="padding:36px;background:linear-gradient(135deg,rgba(138,92,255,.18),rgba(62,160,255,.10));border:1px solid rgba(138,92,255,.45);border-radius:18px;display:grid;grid-template-columns:1.4fr 1fr;gap:32px;align-items:center">
+  <div class="card phone-stack" style="padding:36px;background:linear-gradient(135deg,rgba(138,92,255,.18),rgba(62,160,255,.10));border:1px solid rgba(138,92,255,.45);border-radius:18px;display:grid;grid-template-columns:1.4fr 1fr;gap:32px;align-items:center">
     <div>
       <span class="hero-eyebrow" style="background:linear-gradient(135deg,#8a5cff,#3ea0ff);color:#05060e;font-weight:800;padding:5px 12px;border-radius:999px;font-size:11px;letter-spacing:.1em">\u26a1 NEW \u00b7 WORLD-FIRST</span>
       <h2 style="margin:14px 0 6px;font-size:clamp(26px,3vw,40px);line-height:1.1">Zeus Autonomic Commerce <span class="grad">\u2014 the first fully-autonomous economic engine</span></h2>
@@ -1324,7 +1324,7 @@ ${_zaccBanner}
         return `<div class="grid" id="liveServices"><div class="card"><p style="margin:0;color:var(--ink-dim)">Catalog refreshing — open <a href="/services" data-link style="color:var(--violet2)">/services</a> for the marketplace.</p></div></div>`;
       }
       const cards = picks.map(_catalogCard).join('');
-      return `<div class="grid" id="liveServices" style="grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:16px">${cards}</div>`;
+      return `<div class="grid" id="liveServices" style="grid-template-columns:repeat(auto-fill,minmax(min(300px,100%),1fr));gap:16px">${cards}</div>`;
     } catch (e) {
       return `<div class="grid" id="liveServices"><div class="card"><p style="margin:0;color:var(--ink-dim)">Catalog refreshing — open <a href="/services" data-link style="color:var(--violet2)">/services</a> for the marketplace.</p></div></div>`;
     }
@@ -1651,7 +1651,7 @@ function pageCheckout(params) {
         <button class="chip on" data-method="btc">₿ Bitcoin</button>
       </div>
       <div id="coPanelBtc">
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:18px;align-items:start">
+        <div class="phone-stack" style="display:grid;grid-template-columns:1fr 1fr;gap:18px;align-items:start">
           <div>
             <div class="field"><label for="coAmount">Amount (USD)</label><input id="coAmount" type="number" min="1" step="1" value="${ssrAmountAttr}"/></div>
             <div class="field"><label for="coPlan">Plan / product</label><input id="coPlan" value="${ssrPlan}"/></div>
@@ -1867,7 +1867,7 @@ function pageDocs() {
   <pre class="code">curl -s -X POST https://zeusai.pro/api/checkout/btc \\
   -H 'Content-Type: application/json' \\
   -d '{"amount":49,"currency":"USD","plan":"starter","email":"you@company.com"}'</pre>
-  <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:14px;margin-top:22px">
+  <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(min(320px,100%),1fr));gap:14px;margin-top:22px">
     <div class="card"><span class="tag">Node SDK quickstart</span><pre class="code">const order = await fetch('https://zeusai.pro/api/checkout/btc', {
   method: 'POST', headers: {'Content-Type':'application/json'},
   body: JSON.stringify({ plan:'starter', amountUSD:49, customer:{ email:'you@company.com' } })
@@ -2217,7 +2217,7 @@ function pageStore() {
   };
   const renderTierSection = (tier, label, items) => {
     if (!items.length) return '';
-    return `<details class="store-tier-block" data-tier="${tier}" open style="margin:0 0 30px"><summary style="cursor:pointer;list-style:none;display:flex;align-items:center;justify-content:space-between;gap:12px;padding:14px 18px;border-radius:12px;background:rgba(138,92,255,.08);border:1px solid rgba(138,92,255,.25);font-weight:600"><span>${_esc(label)} · ${items.length} products</span><span style="color:var(--ink-dim);font-family:var(--mono);font-size:12px">click to collapse</span></summary><div class="grid" style="grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:18px;margin-top:14px">${items.map(_catalogCard).join('')}</div></details>`;
+    return `<details class="store-tier-block" data-tier="${tier}" open style="margin:0 0 30px"><summary style="cursor:pointer;list-style:none;display:flex;align-items:center;justify-content:space-between;gap:12px;padding:14px 18px;border-radius:12px;background:rgba(138,92,255,.08);border:1px solid rgba(138,92,255,.25);font-weight:600"><span>${_esc(label)} · ${items.length} products</span><span style="color:var(--ink-dim);font-family:var(--mono);font-size:12px">click to collapse</span></summary><div class="grid" style="grid-template-columns:repeat(auto-fill,minmax(min(320px,100%),1fr));gap:18px;margin-top:14px">${items.map(_catalogCard).join('')}</div></details>`;
   };
   const totalSellable = catalog.length + libCount;
   const totalCatalogueValue = totalUsd + libValue;
@@ -2922,7 +2922,7 @@ Content-Type: application/json
 
     <h2 id="enterprise-modules" style="font-size:32px;letter-spacing:-0.01em;margin:60px 0 8px">Enterprise modules — production-ready</h2>
     <p style="color:var(--ink-dim);font-size:15px;max-width:800px;margin:0 0 24px">Seven flagship modules covering cloud reliability, cost, security and disaster recovery. Each is exposed as a public API, deployable on your VPC or ours, with signed audit trails.</p>
-    <div id="entModulesGrid" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:20px;margin-bottom:60px">${moduleCards}</div>
+    <div id="entModulesGrid" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(min(320px,100%),1fr));gap:20px;margin-bottom:60px">${moduleCards}</div>
 
     <h2 id="enterprise-api" style="font-size:32px;letter-spacing:-0.01em;margin:60px 0 8px">API endpoints exposed</h2>
     <p style="color:var(--ink-dim);font-size:15px;max-width:800px;margin:0 0 24px">Every enterprise module is fully programmatic. Request a sandbox token via the contact form below — typical turnaround &lt; 4 hours.</p>
@@ -2931,14 +2931,14 @@ Content-Type: application/json
 
     <h2 style="font-size:32px;letter-spacing:-0.01em;margin:60px 0 8px">Enterprise license catalogue</h2>
     <p style="color:var(--ink-dim);font-size:15px;max-width:800px;margin:0 0 24px">Ten pre-packaged Anchor &amp; Topstone licenses for hyperscalers and Fortune 50.</p>
-    <div id="entProductsGrid" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(380px,1fr));gap:22px;margin-bottom:50px"></div>
+    <div id="entProductsGrid" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(min(380px,100%),1fr));gap:22px;margin-bottom:50px"></div>
     <div id="entNegotiator" style="margin:40px 0"></div>
     <div id="entDeals" style="margin:40px 0 60px"></div>
 
     <section id="enterprise-contact" style="margin:60px 0 80px;padding:40px;border:1px solid rgba(255,211,106,.3);border-radius:14px;background:linear-gradient(180deg,rgba(255,211,106,.04),rgba(138,92,255,.04))">
       <h2 style="font-size:32px;letter-spacing:-0.01em;margin:0 0 6px;background:linear-gradient(135deg,#ffd36a 0%,#8a5cff 100%);-webkit-background-clip:text;background-clip:text;color:transparent">Contact Enterprise Sales</h2>
       <p style="color:var(--ink-dim);font-size:15px;max-width:700px;margin:0 0 24px">Tell us about your scale, your stack, and what you need to ship. We reply within <b style="color:#fff">24 hours</b>. For procurement &amp; legal, ask for the deal-desk packet.</p>
-      <form id="entContactForm" style="display:grid;grid-template-columns:1fr 1fr;gap:16px;max-width:760px" novalidate>
+      <form id="entContactForm" class="phone-stack" style="display:grid;grid-template-columns:1fr 1fr;gap:16px;max-width:760px" novalidate>
         <label style="display:flex;flex-direction:column;gap:6px;font-size:13px;color:var(--ink-dim)">Full name *
           <input name="name" required maxlength="200" placeholder="Jane Doe" style="padding:12px 14px;border:1px solid rgba(255,255,255,.12);background:rgba(0,0,0,.3);color:#fff;border-radius:8px;font-size:14px" />
         </label>
@@ -4998,7 +4998,7 @@ function pageFrontier() {
   return `<section style="padding-top:140px;max-width:1280px">
   <span class="kicker">Frontier · 12 sovereign inventions</span>
   <h1 style="font-size:clamp(34px,4.4vw,56px);margin:10px 0 18px">Things the web <span class="grad">didn't have</span> until today.</h1>
-  <div class="grid" style="margin-top:22px;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:14px">
+  <div class="grid" style="margin-top:22px;grid-template-columns:repeat(auto-fit,minmax(min(300px,100%),1fr));gap:14px">
     <div class="card"><span class="tag">F1</span><h3>Crypto Refund Guarantee</h3><p>Self-executing SLA. If breached, refund auto-issues.</p><a class="btn" href="/refund" data-link>Open</a></div>
     <div class="card"><span class="tag">F2</span><h3>Live Conversion Aura</h3><p>Real-time, signed, public KPI heartbeat.</p><a class="btn" href="/aura" data-link>Open</a></div>
     <div class="card"><span class="tag">F3</span><h3>Outcome-Anchored Pricing</h3><p>Signed before/after deltas → auto-bps invoice.</p><a class="btn" href="/api/outcome/list" target="_blank">JSON</a></div>
@@ -5044,13 +5044,13 @@ function pageContact() {
   <span class="kicker">Contact</span>
   <h1 style="font-size:clamp(34px,4.4vw,56px);margin:10px 0 14px">Talk to the <span class="grad">owner-operator.</span></h1>
   <p style="color:var(--ink-dim);max-width:640px">ZeusAI is sovereign-run — your message lands directly with ${OWNER.name}, not a ticket queue. Sales, enterprise licensing, partnerships, security reports: same door.</p>
-  <div class="grid" style="grid-template-columns:1.4fr 1fr;gap:18px;margin-top:26px;align-items:start">
+  <div class="grid phone-stack" style="grid-template-columns:1.4fr 1fr;gap:18px;margin-top:26px;align-items:start">
     <form id="contactForm" class="card" style="padding:22px;display:grid;gap:12px">
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+      <div class="phone-stack" style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
         <div><label style="font-size:12px;color:var(--ink-dim)">Name *</label><input name="name" required placeholder="Ada Lovelace" style="width:100%;padding:11px;background:#0b0f17;border:1px solid #1f2a3b;color:#e7ecf3;border-radius:8px"></div>
         <div><label style="font-size:12px;color:var(--ink-dim)">Email *</label><input name="email" type="email" required placeholder="you@company.com" style="width:100%;padding:11px;background:#0b0f17;border:1px solid #1f2a3b;color:#e7ecf3;border-radius:8px"></div>
       </div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+      <div class="phone-stack" style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
         <div><label style="font-size:12px;color:var(--ink-dim)">Company</label><input name="company" placeholder="Acme Corp" style="width:100%;padding:11px;background:#0b0f17;border:1px solid #1f2a3b;color:#e7ecf3;border-radius:8px"></div>
         <div><label style="font-size:12px;color:var(--ink-dim)">Topic</label><select name="interest" style="width:100%;padding:11px;background:#0b0f17;border:1px solid #1f2a3b;color:#e7ecf3;border-radius:8px"><option value="sales">Sales / pricing</option><option value="enterprise">Enterprise license</option><option value="partnership">Partnership</option><option value="affiliate">Affiliate program</option><option value="security">Security report</option><option value="press">Press / media</option><option value="other">Other</option></select></div>
       </div>
@@ -5115,7 +5115,7 @@ function pageBlog() {
   <span class="kicker">Insights</span>
   <h1 style="font-size:clamp(34px,4.4vw,56px);margin:10px 0 14px">The product <span class="grad">is the publication.</span></h1>
   <p style="color:var(--ink-dim);max-width:640px">No ghost-written thought-leadership. Each insight below links to a live, verifiable part of the system.</p>
-  <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:14px;margin-top:26px">
+  <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(min(300px,100%),1fr));gap:14px;margin-top:26px">
     ${posts.map((p) => `<a class="card" href="${p.href}" data-link style="padding:20px;text-decoration:none;display:block"><span class="tag">${p.tag}</span><h3 style="margin:12px 0 8px;font-size:17px;color:#fff">${p.title}</h3><p style="color:var(--ink-dim);font-size:13.5px;line-height:1.6;margin:0">${p.sub}</p><span style="display:inline-block;margin-top:12px;color:var(--blue2);font-size:13px">Read live →</span></a>`).join('')}
   </div>
 </section>`;
@@ -5319,7 +5319,7 @@ function pageOrderPassport(id) {
   <span class="kicker">Digital Order · Passport</span>
   <h1 style="font-size:clamp(30px,3.6vw,44px);margin:10px 0 8px">Order <code style="font-family:var(--mono);font-size:.85em">${_esc(safeId)}</code></h1>
   <p style="color:var(--ink-dim);max-width:640px">Every ZeusAI digital order gets a signed passport: settlement proof, delivery credentials, entitlement verification. Nothing is marked as delivered before on-chain confirmation.</p>
-  <div class="grid" style="grid-template-columns:1.2fr 1fr;gap:20px;margin-top:26px" class="op-grid-ssr">
+  <div class="grid op-grid-ssr phone-stack" style="grid-template-columns:1.2fr 1fr;gap:20px;margin-top:26px">
     <div class="card" style="padding:22px">
       <span class="tag" id="opStateTag" style="background:rgba(138,92,255,.14)">Loading…</span>
       <h3 style="margin:14px 0 6px;font-size:18px" id="opTitle">Fetching order status</h3>
