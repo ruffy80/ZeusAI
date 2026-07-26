@@ -156,9 +156,37 @@ function attachArtifacts(receiptId, artifacts, fulfillmentStatus) {
   const deliveries = all();
   const idx = deliveries.findIndex(d => d.receiptId === receiptId || d.id === receiptId);
   if (idx < 0) return null;
-  deliveries[idx].artifacts = Array.isArray(artifacts) ? artifacts : [];
+  const list = Array.isArray(artifacts) ? artifacts : [];
+  deliveries[idx].artifacts = list;
   deliveries[idx].fulfillmentStatus = fulfillmentStatus || 'unknown';
   deliveries[idx].updatedAt = new Date().toISOString();
+  // Surface downloadable artifact links alongside paperwork files so the
+  // customer portal / emails share one honest download list.
+  const rid = encodeURIComponent(String(deliveries[idx].receiptId || receiptId));
+  const items = Array.isArray(deliveries[idx].items) ? deliveries[idx].items : [];
+  for (const artifact of list) {
+    if (!artifact || !artifact.serviceId) continue;
+    let item = items.find((x) => x && x.serviceId === artifact.serviceId);
+    if (!item) {
+      item = { serviceId: artifact.serviceId, files: [] };
+      items.push(item);
+    }
+    if (!Array.isArray(item.files)) item.files = [];
+    const filename = artifact.filename || `${artifact.serviceId}-deliverable.md`;
+    const downloadUrl = `/api/delivery/${rid}?format=artifact&serviceId=${encodeURIComponent(artifact.serviceId)}`;
+    const already = item.files.some((f) => f && (f.downloadUrl === downloadUrl || f.filename === filename));
+    if (!already) {
+      item.files.push({
+        filename,
+        kind: artifact.deliverableType || 'artifact',
+        downloadUrl,
+        bytes: artifact.bytes || 0,
+        recipe: artifact.recipe || null,
+        requiresHumanFulfillment: !!artifact.requiresHumanFulfillment,
+      });
+    }
+  }
+  deliveries[idx].items = items;
   save(deliveries);
   return deliveries[idx];
 }

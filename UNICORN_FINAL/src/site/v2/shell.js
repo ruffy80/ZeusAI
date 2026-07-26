@@ -2667,7 +2667,23 @@ function pageAccount(opts) {
         '<span style=\"background:rgba(124,255,184,.15);color:#7cffb8;padding:6px 12px;border-radius:20px;font-size:12px;font-weight:600\">\u25cf Signed in</span>' +
         '<a class=\"btn btn-primary\" href=\"/social-network\" data-link style=\"margin-left:auto\">Open ZeusAI Social \u2192</a>' +
       '</div>');
-    setHtml($panels, '');
+    // Commerce ledger mount — paid orders, entitlements, downloadable deliverables.
+    setHtml($panels,
+      '<div id=\"accountRoot\" data-commerce-mount=\"1\"></div>' +
+      '<p style=\"color:var(--ink-dim);font-size:12.5px;margin:10px 0 0;line-height:1.5\">After BTC payment confirms, your signed receipt, license and deliverable appear below. Add the same email at checkout so orders bind to this account.</p>');
+    try {
+      if (user && user.email) localStorage.setItem('u_email', String(user.email));
+    } catch (_) {}
+    function tryHydrateCommerce(attempt) {
+      try {
+        if (typeof window.hydrateAccount === 'function') {
+          window.hydrateAccount();
+          return;
+        }
+      } catch (_) {}
+      if ((attempt || 0) < 25) setTimeout(function(){ tryHydrateCommerce((attempt || 0) + 1); }, 200);
+    }
+    tryHydrateCommerce(0);
     try {
       var next = new URLSearchParams(location.search).get('next');
       if (next && next.charAt(0) === '/' && next.indexOf('//') < 0 && next.indexOf('/api') !== 0) {

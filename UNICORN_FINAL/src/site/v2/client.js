@@ -2311,6 +2311,7 @@ async function sovereignBuy(serviceId, opts){
 }
 if (typeof window !== 'undefined') {
   window.sovereignBuy = sovereignBuy;
+  window.hydrateAccount = hydrateAccount;
   // Delegated click handler — avoids inline event handlers on dynamically
   // generated HTML and keeps the surface safe even if a service id ever
   // contains characters that would interact poorly with attribute parsing.
@@ -4711,7 +4712,16 @@ async function hydrateAccount(){
   const root = document.getElementById('accountRoot');
   if (!root) return;
   const tok = getCustToken();
-  const headers = tok ? { 'x-customer-token': tok } : {};
+  const headers = { 'Content-Type': 'application/json' };
+  if (tok) headers['x-customer-token'] = tok;
+  try {
+    const cryptoTok = localStorage.getItem('zeus_cryptoauth_token');
+    if (cryptoTok) headers['Authorization'] = 'Bearer ' + cryptoTok;
+  } catch (_) {}
+  try {
+    const email = (localStorage.getItem('u_email') || '').trim();
+    if (email) headers['x-user-email'] = email;
+  } catch (_) {}
   const resp = await fetch('/api/customer/me', { headers, credentials: 'same-origin', cache: 'no-store' }).catch(() => null);
   // Helper: auth form already rendered and wired — skip re-render to preserve user-typed input
   const authFormWired = () => root.dataset.accountWired === '1' && !!root.querySelector('#acLoginBtn');
@@ -5084,13 +5094,38 @@ function renderAccountDashboard(root, me){
             <div style="font-size:10px;color:var(--ink-dim)">${escStore(String(s.currency||'USD'))}</div>
           </div>
         </div>
-        <div style="font-size:11px;color:var(--ink-dim);margin-top:10px">Active until ${escStore(String(s.activeUntil||'').slice(0,10))}</div>
+        <div style="font-size:11px;color:var(--ink-dim);margin-top:10px">${s.activeUntil ? ('Active until ' + escStore(String(s.activeUntil).slice(0,10))) : 'Paid entitlement'}</div>
         <div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap">
-          <button class="btn btn-primary svc-use" data-sid="${escStore(s.serviceId)}" style="font-size:12px;padding:8px 14px">Use now →</button>
-          <a class="btn" href="${escStore(s.invoiceUrl)}" target="_blank" style="font-size:12px;padding:8px 14px">Invoice</a>
+          ${s.deliveryUrl ? `<a class="btn btn-primary" href="${escStore(s.deliveryUrl)}" target="_blank" rel="noopener" style="font-size:12px;padding:8px 14px">⬇ Deliverable</a>` : ''}
+          ${s.artifactsUrl ? `<a class="btn" href="${escStore(s.artifactsUrl)}" target="_blank" rel="noopener" style="font-size:12px;padding:8px 14px">Artifacts</a>` : ''}
+          ${s.licenseUrl ? `<a class="btn" href="${escStore(s.licenseUrl)}" target="_blank" rel="noopener" style="font-size:12px;padding:8px 14px">License</a>` : ''}
+          ${s.invoiceUrl ? `<a class="btn" href="${escStore(s.invoiceUrl)}" target="_blank" rel="noopener" style="font-size:12px;padding:8px 14px">Invoice</a>` : ''}
+          ${s.serviceId ? `<button class="btn svc-use" data-sid="${escStore(s.serviceId)}" style="font-size:12px;padding:8px 14px">Use →</button>` : ''}
         </div>
-        <div class="svc-out-${escStore(s.serviceId)}" style="margin-top:10px"></div>
+        <div class="svc-out-${escStore(s.serviceId||'')}" style="margin-top:10px"></div>
       </div>`).join('')}</div>` : '<div style="color:var(--ink-dim);font-size:14px">No active services yet. <a href="/services">Browse the marketplace →</a></div>'}
+
+    <h2 id="delivery" style="margin:36px 0 14px;font-size:24px">📦 Deliveries (${(me.deliveries||[]).length})</h2>
+    ${(me.deliveries||[]).length ? `<div style="display:grid;gap:14px">${me.deliveries.map(d => `
+      <div class="card" style="padding:18px;border:1px solid rgba(124,255,184,.28)">
+        <div style="display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap">
+          <div>
+            <div style="font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:#7cffb8">Delivery</div>
+            <div style="font-family:monospace;font-size:13px;margin-top:4px">${escStore(d.receiptId||d.id)}</div>
+            <div style="font-size:12px;color:var(--ink-dim);margin-top:4px">Status: ${escStore(d.status||'—')}${d.fulfillmentStatus ? ' · ' + escStore(d.fulfillmentStatus) : ''}</div>
+          </div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:flex-start">
+            ${d.deliveryUrl ? `<a class="btn btn-primary" href="${escStore(d.deliveryUrl)}" target="_blank" rel="noopener" style="font-size:12px;padding:8px 12px">Open pack</a>` : ''}
+            ${d.artifactsUrl ? `<a class="btn" href="${escStore(d.artifactsUrl)}" target="_blank" rel="noopener" style="font-size:12px;padding:8px 12px">List artifacts</a>` : ''}
+            ${d.licenseUrl ? `<a class="btn" href="${escStore(d.licenseUrl)}" target="_blank" rel="noopener" style="font-size:12px;padding:8px 12px">License</a>` : ''}
+            ${d.invoiceUrl ? `<a class="btn" href="${escStore(d.invoiceUrl)}" target="_blank" rel="noopener" style="font-size:12px;padding:8px 12px">Invoice</a>` : ''}
+          </div>
+        </div>
+        ${((d.artifacts||[]).length || (d.files||[]).length) ? `<div style="margin-top:12px;display:flex;flex-wrap:wrap;gap:8px">
+          ${(d.artifacts||[]).map(a => `<a class="btn btn-primary" href="${escStore(a.downloadUrl)}" target="_blank" rel="noopener" style="font-size:12px;padding:8px 12px">⬇ ${escStore(a.title||a.filename||a.serviceId||'artifact')}</a>`).join('')}
+          ${(d.files||[]).map(f => `<a class="btn" href="${escStore(f.downloadUrl)}" target="_blank" rel="noopener" style="font-size:12px;padding:8px 12px">⬇ ${escStore(f.filename||f.kind||'file')}</a>`).join('')}
+        </div>` : '<div style="margin-top:10px;font-size:12.5px;color:var(--ink-dim)">Packaging in progress — refresh shortly after payment confirms.</div>'}
+      </div>`).join('')}</div>` : '<div style="color:var(--ink-dim);font-size:14px">No deliveries yet. Pay a BTC invoice on <a href="/store">/store</a> with this account email to receive downloadable artifacts here.</div>'}
 
     ${(me.pendingOrders||[]).length ? `
     <h2 style="margin:36px 0 14px;font-size:22px">⏳ Awaiting payment (${me.pendingOrders.length})</h2>

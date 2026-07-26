@@ -2066,6 +2066,19 @@ function getPaymentConfigStatus() {
     action: 'No action needed for current mode: revenue routes directly to the configured BTC owner wallet. Stripe/NOWPayments/PayPal can be enabled later as optional rails.',
   };
 }
+function isBankWireConfigured() {
+  const iban = String(process.env.PAYEE_IBAN || process.env.BANK_ACCOUNT_IBAN || '').trim();
+  const swift = String(process.env.PAYEE_SWIFT || process.env.BANK_SWIFT || '').trim();
+  const bank = String(process.env.PAYEE_BANK_NAME || process.env.BANK_NAME || '').trim();
+  const enabled = String(process.env.BANK_TRANSFER_ENABLED || '').trim() === '1';
+  if (enabled && iban) return true;
+  // Require real coordinates — placeholders / empty strings never count as wired.
+  if (!iban || /^[—\-]/.test(iban) || /configure/i.test(iban)) return false;
+  if (!swift || /^[—\-]/.test(swift) || /configure/i.test(swift)) return false;
+  if (!bank || /^[—\-]/.test(bank) || /configure/i.test(bank)) return false;
+  return true;
+}
+
 function getPublicPaymentMethods() {
   const status = getPaymentConfigStatus();
   const methods = [
@@ -2081,7 +2094,15 @@ function getPublicPaymentMethods() {
   if (status.rails.some((rail) => rail.id === 'nowpayments' && rail.active)) {
     methods.push({ id: 'nowpayments', name: 'Global Crypto', currency: 'MULTI', active: true, primary: false, settlement: 'instant', provider: 'nowpayments' });
   }
-  return { methods, status };
+  // Never advertise ETH or bank unless explicitly configured with real coords.
+  // (Backend paymentGateway already filters; this site surface stays BTC-primary.)
+  if (isBankWireConfigured()) {
+    methods.push({
+      id: 'bank', name: 'Bank wire (SWIFT/SEPA)', currency: 'USD', active: true, primary: false,
+      settlement: '1-3 business days', provider: 'wire',
+    });
+  }
+  return { methods, status, honesty: { ethAdvertised: false, bankAdvertised: isBankWireConfigured() } };
 }
 function buildPublicSecurityPosture() {
   const payment = getPaymentConfigStatus();
@@ -8728,8 +8749,8 @@ setInterval(function(){loadOrder().then(render);},10000);
         if (process.env.STRIPE_SECRET_KEY && (tier === 'instant' || tier === 'professional') && priceUSD <= 999999) {
           paymentMethods.push({ kind:'card', label:'Credit card (Stripe)', createUrl: '/api/checkout/stripe', body: { orderId: order.id } });
         }
-        // Wire transfer for enterprise tier (real regulated payment rail)
-        if (tier === 'enterprise' || priceUSD >= 50000) {
+        // Wire transfer only when real bank coordinates are configured.
+        if ((tier === 'enterprise' || priceUSD >= 50000) && isBankWireConfigured()) {
           paymentMethods.push({
             kind:'wire',
             label:'Bank wire (SWIFT/SEPA)',
@@ -8828,6 +8849,10 @@ setInterval(function(){loadOrder().then(render);},10000);
     req.on('end', () => {
       try {
         const p = JSON.parse(body||'{}');
+        if (!isBankWireConfigured()) {
+          res.writeHead(503, {'Content-Type':'application/json'});
+          return res.end(JSON.stringify({ error: 'bank_not_configured', hint: 'Set PAYEE_IBAN + PAYEE_SWIFT + PAYEE_BANK_NAME (or BANK_TRANSFER_ENABLED=1 with IBAN).' }));
+        }
         if (!portal) { res.writeHead(503); return res.end('{}'); }
         const order = portal.getOrder(p.orderId);
         if (!order) { res.writeHead(404, {'Content-Type':'application/json'}); return res.end(JSON.stringify({ error:'order_not_found' })); }
@@ -8844,9 +8869,9 @@ setInterval(function(){loadOrder().then(render);},10000);
           payee: {
             legalName: process.env.PAYEE_LEGAL_NAME || process.env.OWNER_NAME || 'Unicorn / ZeusAI',
             address:   process.env.PAYEE_ADDRESS   || 'Romania',
-            bank:      process.env.PAYEE_BANK_NAME || '— configure PAYEE_BANK_NAME via /api/admin/config —',
-            iban:      process.env.PAYEE_IBAN      || '— configure PAYEE_IBAN via /api/admin/config —',
-            swift:     process.env.PAYEE_SWIFT     || '— configure PAYEE_SWIFT via /api/admin/config —',
+            bank:      process.env.PAYEE_BANK_NAME || process.env.BANK_NAME,
+            iban:      process.env.PAYEE_IBAN || process.env.BANK_ACCOUNT_IBAN,
+            swift:     process.env.PAYEE_SWIFT || process.env.BANK_SWIFT,
             email:     process.env.OWNER_EMAIL || 'vladoi_ionut@yahoo.com'
           },
           payer: order.inputs && order.inputs.legalEntity ? { legalEntity: order.inputs.legalEntity, contact: order.inputs.contactName || '' } : null,
@@ -9512,14 +9537,54 @@ ${invoice.payer ? `<h2>Payer</h2><table><tr><th>Legal entity</th><td>${esc(invoi
     return;
   }
   if (urlPath === '/api/customer/me') {
+    const resolveEmailFromCryptoauth = () => {
+      try {
+        if (!cryptoauth || !cryptoauth._internals || typeof cryptoauth._internals._verifyToken !== 'function') return '';
+        const h = req.headers && (req.headers.authorization || req.headers.Authorization || '');
+        const token = String(h).toLowerCase().startsWith('bearer ') ? String(h).slice(7).trim() : '';
+        const decoded = token ? cryptoauth._internals._verifyToken(token) : null;
+        if (!decoded || !decoded.sub) return '';
+        const users = cryptoauth._internals._loadUsers ? cryptoauth._internals._loadUsers() : {};
+        const user = users[decoded.sub];
+        return String((user && user.email) || '').toLowerCase();
+      } catch (_) { return ''; }
+    };
+    const enrichDeliveriesList = (list) => (list || []).map((d) => {
+      const rid = d.receiptId || d.id;
+      const files = [];
+      for (const item of Array.isArray(d.items) ? d.items : []) {
+        for (const f of Array.isArray(item && item.files) ? item.files : []) {
+          if (f && f.downloadUrl) files.push({
+            serviceId: item.serviceId, filename: f.filename, kind: f.kind, downloadUrl: f.downloadUrl,
+          });
+        }
+      }
+      const artifacts = (Array.isArray(d.artifacts) ? d.artifacts : []).map((a) => ({
+        serviceId: a.serviceId, title: a.title, recipe: a.recipe, filename: a.filename, status: a.status,
+        deliverableType: a.deliverableType, requiresHumanFulfillment: !!a.requiresHumanFulfillment,
+        downloadUrl: `/api/delivery/${encodeURIComponent(rid)}?format=artifact&serviceId=${encodeURIComponent(a.serviceId || '')}`,
+      }));
+      return {
+        id: d.id, receiptId: rid, email: d.email, status: d.status,
+        fulfillmentStatus: d.fulfillmentStatus || null, createdAt: d.createdAt,
+        deliveryUrl: `/api/delivery/${encodeURIComponent(rid)}`,
+        artifactsUrl: `/api/delivery/${encodeURIComponent(rid)}?format=artifacts`,
+        licenseUrl: `/api/license/${encodeURIComponent(rid)}`,
+        invoiceUrl: `/api/invoice/${encodeURIComponent(rid)}`,
+        files, artifacts,
+      };
+    });
+
     if (!portal) {
-      const email = String(req.headers['x-user-email'] || '').toLowerCase();
+      const email = String(req.headers['x-user-email'] || resolveEmailFromCryptoauth() || '').toLowerCase();
       if (!email) { res.writeHead(401, {'Content-Type':'application/json'}); return res.end('{"error":"unauthorized","hint":"x-user-email required when portal is unavailable"}'); }
       const receipts = getAllReceipts().filter(r => String(r.email || '').toLowerCase() === email);
       const deliveries = deliveryRegistry && deliveryRegistry.list ? deliveryRegistry.list({ email }) : [];
       const activeServices = receipts.filter(r => r.status === 'paid').flatMap(r => (Array.isArray(r.services) && r.services.length ? r.services : [r.plan || 'starter']).map(serviceId => ({
         receiptId: r.id, serviceId, title: serviceId, plan: r.plan, amount: r.amount, currency: r.currency,
-        invoiceUrl: `/api/invoice/${r.id}`, licenseUrl: `/api/license/${r.id}`, deliveryUrl: `/api/delivery/${r.id}`, useUrl: `/api/services/${encodeURIComponent(serviceId)}/use`
+        invoiceUrl: `/api/invoice/${r.id}`, licenseUrl: `/api/license/${r.id}`, deliveryUrl: `/api/delivery/${r.id}`,
+        artifactsUrl: `/api/delivery/${r.id}?format=artifacts`,
+        useUrl: `/api/services/${encodeURIComponent(serviceId)}/use`
       })));
       const pendingOrders = receipts.filter(r => r.status !== 'paid').map(r => ({
         receiptId: r.id, plan: r.plan, amount: r.amount, method: r.method, btcAmount: r.btcAmount,
@@ -9527,11 +9592,46 @@ ${invoice.payer ? `<h2>Payer</h2><table><tr><th>Legal entity</th><td>${esc(invoi
         createdAt: r.createdAt, statusUrl: `/api/receipt/${r.id}`, invoiceUrl: `/api/invoice/${r.id}`
       }));
       res.writeHead(200, {'Content-Type':'application/json'});
-      return res.end(JSON.stringify({ customer:{ email }, apiKeys:[], orders:receipts, activeServices, pendingOrders, deliveries }));
+      return res.end(JSON.stringify({ customer:{ email }, apiKeys:[], orders:receipts, activeServices, pendingOrders, deliveries: enrichDeliveriesList(deliveries) }));
     }
     const tok = readCustomerToken(req);
     const cid = portal.verifyToken(tok);
-    if (!cid) { res.writeHead(401, {'Content-Type':'application/json'}); return res.end('{"error":"unauthorized"}'); }
+    if (!cid) {
+      // Cryptoauth / email fallback — still surface paid deliveries for the account page.
+      const email = String(req.headers['x-user-email'] || resolveEmailFromCryptoauth() || '').toLowerCase();
+      if (!email) { res.writeHead(401, {'Content-Type':'application/json'}); return res.end('{"error":"unauthorized"}'); }
+      const receipts = getAllReceipts().filter(r => String(r.email || '').toLowerCase() === email);
+      const deliveries = deliveryRegistry && deliveryRegistry.list ? deliveryRegistry.list({ email }) : [];
+      const activeServices = receipts.filter(r => r.status === 'paid').flatMap(r => (Array.isArray(r.services) && r.services.length ? r.services : [r.plan || r.serviceId || 'starter']).map(serviceId => ({
+        receiptId: r.id, serviceId, title: serviceId, plan: r.plan, amount: r.amount, currency: r.currency || 'USD',
+        invoiceUrl: `/api/invoice/${r.id}`, licenseUrl: `/api/license/${r.id}`, deliveryUrl: `/api/delivery/${r.id}`,
+        artifactsUrl: `/api/delivery/${r.id}?format=artifacts`,
+      })));
+      // Sovereign ORDERS by buyer.email
+      try {
+        if (commerce && commerce.ORDERS) {
+          for (const o of commerce.ORDERS.values()) {
+            const buyerEmail = String((o.buyer && o.buyer.email) || o.email || '').toLowerCase();
+            if (buyerEmail !== email || o.status !== 'paid') continue;
+            const oid = o.orderId || o.id;
+            activeServices.push({
+              id: `sovereign:${oid}`, receiptId: oid, serviceId: o.serviceId || o.plan,
+              title: o.serviceName || o.serviceId || o.plan,
+              amount: o.subtotal_fiat != null ? o.subtotal_fiat : o.amount_usd, currency: 'USD',
+              invoiceUrl: `/api/invoice/${encodeURIComponent(oid)}`,
+              licenseUrl: `/api/license/${encodeURIComponent(oid)}`,
+              deliveryUrl: `/api/delivery/${encodeURIComponent(oid)}`,
+              artifactsUrl: `/api/delivery/${encodeURIComponent(oid)}?format=artifacts`,
+            });
+          }
+        }
+      } catch (_) { /* best-effort */ }
+      res.writeHead(200, {'Content-Type':'application/json'});
+      return res.end(JSON.stringify({
+        customer: { email }, apiKeys: [], orders: receipts, activeServices,
+        pendingOrders: [], deliveries: enrichDeliveriesList(deliveries), authMode: 'cryptoauth-email',
+      }));
+    }
     const c = portal.getById(cid);
     if (!c) { res.writeHead(404); return res.end('{}'); }
     const orders = portal.listOrdersByCustomer(cid).map(o => ({
@@ -9610,42 +9710,51 @@ ${invoice.payer ? `<h2>Payer</h2><table><tr><th>Legal entity</th><td>${esc(invoi
       const emailLc = String(c.email || '').toLowerCase();
       if (emailLc && commerce && commerce.ORDERS) {
         for (const o of commerce.ORDERS.values()) {
-          if (String(o.email || '').toLowerCase() !== emailLc) continue;
+          const buyerEmail = String(
+            (o.buyer && o.buyer.email) || o.email || o.customerEmail || ''
+          ).toLowerCase();
+          if (!buyerEmail || buyerEmail !== emailLc) continue;
+          const oid = o.orderId || o.id;
           sovereignOrders.push({
-            id: o.orderId,
+            id: oid,
             productId: o.serviceId || o.plan,
             status: o.status,
-            priceUSD: o.amount_usd,
+            priceUSD: o.subtotal_fiat != null ? o.subtotal_fiat : o.amount_usd,
             btcAmount: o.amount_btc,
             createdAt: o.created_at,
             rail: 'sovereign',
-            checkoutUrl: `/checkout/${encodeURIComponent(o.orderId)}`,
-            statusUrl: `/api/order/${encodeURIComponent(o.orderId)}/status`,
-            deliveryUrl: o.status === 'paid' ? `/api/delivery/${encodeURIComponent(o.orderId)}` : null,
+            checkoutUrl: `/checkout/${encodeURIComponent(oid)}`,
+            statusUrl: `/api/order/${encodeURIComponent(oid)}/status`,
+            deliveryUrl: o.status === 'paid' ? `/api/delivery/${encodeURIComponent(oid)}` : null,
+            artifactsUrl: o.status === 'paid' ? `/api/delivery/${encodeURIComponent(oid)}?format=artifacts` : null,
+            licenseUrl: o.status === 'paid' ? `/api/license/${encodeURIComponent(oid)}` : null,
           });
           if (o.status === 'paid') {
             activeServices.push({
-              id: `sovereign:${o.orderId}`,
-              receiptId: o.orderId,
+              id: `sovereign:${oid}`,
+              receiptId: oid,
               serviceId: o.serviceId || o.plan,
-              title: o.serviceId || o.plan,
+              title: o.serviceName || o.serviceId || o.plan,
               plan: o.plan || o.serviceId,
-              amount: o.amount_usd,
+              amount: o.subtotal_fiat != null ? o.subtotal_fiat : o.amount_usd,
               currency: 'USD',
-              deliveryUrl: `/api/delivery/${encodeURIComponent(o.orderId)}`,
-              useUrl: `/checkout/${encodeURIComponent(o.orderId)}`,
+              invoiceUrl: `/api/invoice/${encodeURIComponent(oid)}`,
+              licenseUrl: `/api/license/${encodeURIComponent(oid)}`,
+              deliveryUrl: `/api/delivery/${encodeURIComponent(oid)}`,
+              artifactsUrl: `/api/delivery/${encodeURIComponent(oid)}?format=artifacts`,
+              useUrl: `/checkout/${encodeURIComponent(oid)}`,
             });
           } else if (o.status === 'pending') {
             pendingOrders.push({
-              receiptId: o.orderId,
+              receiptId: oid,
               plan: o.serviceId || o.plan,
-              amount: o.amount_usd,
+              amount: o.subtotal_fiat != null ? o.subtotal_fiat : o.amount_usd,
               method: 'BTC',
               btcAmount: o.amount_btc,
-              btcAddress: o.address,
+              btcAddress: o.receive_address || o.address,
               createdAt: o.created_at,
-              statusUrl: `/api/order/${encodeURIComponent(o.orderId)}/status`,
-              invoiceUrl: `/checkout/${encodeURIComponent(o.orderId)}`,
+              statusUrl: `/api/order/${encodeURIComponent(oid)}/status`,
+              invoiceUrl: `/checkout/${encodeURIComponent(oid)}`,
               rail: 'sovereign',
             });
           }
@@ -9653,6 +9762,13 @@ ${invoice.payer ? `<h2>Payer</h2><table><tr><th>Legal entity</th><td>${esc(invoi
       }
     } catch (e) {
       console.warn('[customer/me] sovereign order merge failed:', e.message);
+    }
+
+    // Ensure UAIC entitlements also expose delivery/license URLs.
+    for (const s of activeServices) {
+      if (s.receiptId && !s.deliveryUrl) s.deliveryUrl = `/api/delivery/${encodeURIComponent(s.receiptId)}`;
+      if (s.receiptId && !s.licenseUrl) s.licenseUrl = `/api/license/${encodeURIComponent(s.receiptId)}`;
+      if (s.receiptId && !s.artifactsUrl) s.artifactsUrl = `/api/delivery/${encodeURIComponent(s.receiptId)}?format=artifacts`;
     }
 
     res.writeHead(200, {'Content-Type':'application/json'});
@@ -9663,7 +9779,7 @@ ${invoice.payer ? `<h2>Payer</h2><table><tr><th>Legal entity</th><td>${esc(invoi
       orders: orders.concat(sovereignOrders),
       activeServices,
       pendingOrders,
-      deliveries: fallbackDeliveries
+      deliveries: enrichDeliveriesList(fallbackDeliveries)
     }));
     return;
   }
