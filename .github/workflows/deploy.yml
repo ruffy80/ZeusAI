@@ -893,7 +893,9 @@ jobs:
           node --check src/site/v2/delivery-registry.js
           node --check test/site-commerce-smoke.test.js
           echo "--- Remote commerce smoke (self-cleaning) ---"
-          EXPECTED_MIN_CATALOG_ITEMS=65 PORT=31992 npm run test:site-commerce
+          # Public honesty shelf is curated deliverables only (~60 live).
+          # Keep a floor that still rejects rescue/empty catalogs.
+          EXPECTED_MIN_CATALOG_ITEMS=40 PORT=31992 npm run test:site-commerce
           echo "--- Smoke ledger cleanup proof ---"
           grep -R "smoke@zeusai.pro\|smoke-test-loopback" data/commerce-*.json 2>/dev/null && \
             echo "⚠️  stale smoke artifacts found in persistent commerce data; continuing because live ledgers are excluded from rsync and may contain historical smoke records" || true
@@ -922,7 +924,7 @@ jobs:
               });
             ')"
             echo "loopback attempt=${attempt}/24 status=${STATUS} count=${COUNT} mode=${MODE}"
-            if [ "$STATUS" = "200" ] && [ "${COUNT:-0}" -ge 65 ] && [ "$MODE" != "rescue" ]; then
+            if [ "$STATUS" = "200" ] && [ "${COUNT:-0}" -ge 40 ] && [ "$MODE" != "rescue" ]; then
               echo "✅ loopback site catalog healthy"
               exit 0
             fi
@@ -940,7 +942,7 @@ jobs:
           # adevărul de producție: https://zeusai.pro/api/catalog/master.
           probe_catalog() {
             node - <<'NODE'
-          const MIN = 65;
+          const MIN = 40;
           const MAX_ATTEMPTS = 8;
           const RETRY_MS = 5000;
           const target = { url: 'https://zeusai.pro/api/catalog/master', label: 'public-https' };
