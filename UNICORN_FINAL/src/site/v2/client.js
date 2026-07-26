@@ -3707,10 +3707,20 @@ async function hydrateEnterprise(){
         <div style="font-size:12.5px;color:var(--ink-dim);line-height:1.5"><b style="color:#fff">Model:</b> ${p.model}</div>
         <div style="font-size:12.5px;color:var(--ink-dim);line-height:1.5"><b style="color:#fff">Value captured:</b> ${p.valueCaptured}</div>
         <div style="font-size:12px;color:var(--ink-dim);line-height:1.55"><b style="color:#fff">Target accounts:</b> ${p.accounts.slice(0,4).join(' · ')}${p.accounts.length>4?' …':''}</div>
-        <button class="btn btn-primary ent-start" data-pid="${p.id}" data-title="${p.title.replace(/"/g,'&quot;')}" style="margin-top:auto;justify-content:center">Open autonomous negotiation →</button>
+        <a class="btn btn-gold" href="/enterprise#enterprise-contact" data-link data-pid="${p.id}" style="margin-top:auto;justify-content:center">Request proposal →</a>
       </div>
     `).join('');
-    grid.querySelectorAll('.ent-start').forEach(btn => btn.addEventListener('click', () => openEntNegotiator(btn.dataset.pid, btn.dataset.title)));
+    grid.querySelectorAll('a[href="#enterprise-contact"], a[href="/enterprise#enterprise-contact"]').forEach(btn => {
+      btn.addEventListener('click', (ev) => {
+        ev.preventDefault();
+        const sel = document.querySelector('#entContactForm select[name="interest"]');
+        if (sel && btn.dataset.pid) {
+          try { sel.value = btn.dataset.pid; } catch (_) {}
+        }
+        const el = document.getElementById('enterprise-contact');
+        if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      });
+    });
   }
   await renderEntDeals();
   await renderEntOps();
@@ -4465,9 +4475,9 @@ async function hydrateStore(){
   const tabs = document.querySelectorAll('.store-tab');
   const noteEl = document.getElementById('storeTabNote');
   const tierNotes = {
-    instant: 'One-time purchase · deliverable generated in <60s after BTC settlement · Ed25519-signed HTML/JSON artifacts',
-    professional: 'Monthly SaaS subscription · API key + features provisioned on first payment · BTC or card (Stripe if configured)',
-    enterprise: 'Signed enterprise license · BTC on-chain · SWIFT/SEPA wire available when runtime wire credentials are configured · Full onboarding runbook + dedicated SRE on activation'
+    instant: 'One-time BTC purchase · digital deliverable + signed receipt after on-chain settlement · delivery email required',
+    professional: 'BTC reserve · signed kickoff pack immediately · human milestone delivery for the finished build (not an instant download)',
+    enterprise: 'SOW / proposal only · Contact Enterprise Sales · not a self-serve cart · wire or BTC settlement agreed in contract'
   };
   function showTier(tier){
     tabs.forEach(t => {
@@ -4498,13 +4508,21 @@ function renderStoreGrid(products, grid){
     const tierBadge = p.tier === 'enterprise' ? '<span style="background:linear-gradient(135deg,#ffd36a,#d97706);color:#1a0d00;padding:3px 10px;border-radius:4px;font-size:10px;font-weight:700;letter-spacing:.1em">ENTERPRISE</span>'
                    : p.tier === 'professional' ? '<span style="background:linear-gradient(135deg,#8a5cff,#5b21b6);color:#fff;padding:3px 10px;border-radius:4px;font-size:10px;font-weight:700;letter-spacing:.1em">PRO</span>'
                    : '<span style="background:rgba(124,255,184,.15);color:#7cffb8;padding:3px 10px;border-radius:4px;font-size:10px;font-weight:700;letter-spacing:.1em">INSTANT</span>';
-    const ctaLabel = p.tier === 'enterprise' ? 'Acquire license →'
-                   : p.tier === 'professional' ? 'Subscribe →'
-                   : 'Buy now →';
+    const isEnt = p.tier === 'enterprise' || /^ent-/i.test(String(p.id || ''));
+    const isPro = p.tier === 'professional' || /^professional-/i.test(String(p.id || ''));
+    const ctaLabel = isEnt ? 'Request proposal →'
+                   : isPro ? 'Reserve with BTC →'
+                   : 'Buy with BTC →';
+    const ctaClass = isEnt ? 'btn btn-gold store-buy' : 'btn btn-primary store-buy';
     const features = p.features ? `<ul style="margin:10px 0;padding-left:18px;color:var(--ink-dim);font-size:12px">${p.features.slice(0,4).map(f => '<li>' + escStore(f) + '</li>').join('')}</ul>` : '';
     const accounts = p.targetAccounts ? `<div style="font-size:11px;color:var(--ink-dim);margin-top:8px"><b>Target:</b> ${p.targetAccounts.slice(0,3).map(escStore).join(', ')}${p.targetAccounts.length>3?'…':''}</div>` : '';
+    const deliverableNote = isEnt
+      ? 'SOW engagement — contact sales (not self-serve checkout)'
+      : isPro
+        ? 'Kickoff pack now · human milestone delivery for the build'
+        : escStore(p.deliverable || 'Signed digital deliverable');
     return `
-    <div class="card" style="padding:22px;display:flex;flex-direction:column;gap:10px">
+    <div class="card" style="padding:22px;display:flex;flex-direction:column;gap:10px" data-tier="${escStore(p.tier||'')}" data-product-id="${escStore(p.id)}">
       <div style="display:flex;justify-content:space-between;align-items:start;gap:8px">
         <div>${tierBadge}<div style="font-size:11px;text-transform:uppercase;letter-spacing:.12em;color:#8a5cff;margin-top:6px">${escStore(p.category||'')}</div>
           <h3 style="margin:4px 0 0;font-size:19px;line-height:1.25">${escStore(p.title)}</h3>
@@ -4513,9 +4531,9 @@ function renderStoreGrid(products, grid){
       </div>
       <p style="color:var(--ink-dim);font-size:13px;margin:4px 0 0;min-height:36px">${escStore(p.tagline)}</p>
       ${features}
-      <div style="font-size:11px;color:var(--ink-dim);padding:8px 10px;background:rgba(138,92,255,.08);border-radius:6px">📦 ${escStore(p.deliverable)}</div>
+      <div style="font-size:11px;color:var(--ink-dim);padding:8px 10px;background:rgba(138,92,255,.08);border-radius:6px">📦 ${deliverableNote}</div>
       ${accounts}
-      <button type="button" class="btn btn-primary store-buy" data-pid="${escStore(p.id)}" style="margin-top:auto">${ctaLabel}</button>
+      <button type="button" class="${ctaClass}" data-pid="${escStore(p.id)}" data-buy-mode="${isEnt ? 'contact' : (isPro ? 'reserve' : 'btc')}" style="margin-top:auto">${ctaLabel}</button>
     </div>`;
   }).join('');
   if (grid.dataset.storeWired !== '1') {
@@ -4523,6 +4541,11 @@ function renderStoreGrid(products, grid){
     grid.addEventListener('click', (ev) => {
       const button = ev.target && ev.target.closest ? ev.target.closest('.store-buy') : null;
       if (!button || !grid.contains(button)) return;
+      const mode = button.getAttribute('data-buy-mode') || '';
+      if (mode === 'contact') {
+        window.location.href = '/enterprise#enterprise-contact';
+        return;
+      }
       const all = window.__UNICORN_STORE_PRODUCTS__ || [];
       openStoreCheckout(all.find(x => x.id === button.dataset.pid));
     });
@@ -4532,15 +4555,23 @@ function renderStoreGrid(products, grid){
 function openStoreCheckout(product){
   const box = document.getElementById('storeCheckout');
   if (!box || !product) return;
+  if (String(product.tier || '').toLowerCase() === 'enterprise' || /^ent-/i.test(String(product.id || ''))) {
+    window.location.href = '/enterprise#enterprise-contact';
+    return;
+  }
+  const isPro = String(product.tier || '').toLowerCase() === 'professional' || /^professional-/i.test(String(product.id || ''));
   const fields = (product.inputs||[]).map(i => `
     <label style="display:block;margin:10px 0 4px;font-size:13px;color:var(--ink-dim)">${escStore(i.label)}${i.required?' *':''}</label>
     <input data-k="${escStore(i.key)}" type="${i.type||'text'}" style="width:100%;padding:10px 12px;border-radius:6px;border:1px solid rgba(138,92,255,.3);background:rgba(10,8,30,.4);color:#fff;font-size:14px">
   `).join('');
   const tok = getCustToken();
+  const timingNote = isPro
+    ? `$${product.priceUSD} · BTC reserve · kickoff pack now · human build across milestones`
+    : `$${product.priceUSD} · digital deliverable after BTC settlement` + (product.durationSec ? ` (target ~${product.durationSec}s when AI fulfillment is enabled)` : '');
   box.innerHTML = `
     <div class="card" style="padding:28px">
-      <h2 style="margin:0 0 4px">${escStore(product.title)} — Checkout</h2>
-      <div style="color:var(--ink-dim);font-size:14px;margin-bottom:20px">$${product.priceUSD} · delivered in ~${product.durationSec}s after payment</div>
+      <h2 style="margin:0 0 4px">${escStore(product.title)} — ${isPro ? 'Reserve' : 'Checkout'}</h2>
+      <div style="color:var(--ink-dim);font-size:14px;margin-bottom:20px">${timingNote}</div>
       ${fields}
       ${tok ? '' : `
         <label style="display:block;margin:16px 0 4px;font-size:13px;color:var(--ink-dim)">Email (deliverable link will be sent here)</label>
