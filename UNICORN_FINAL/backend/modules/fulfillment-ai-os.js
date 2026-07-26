@@ -121,21 +121,38 @@ function reloadKeysFromSanctum() {
 
 function configuredProviderSnapshot() {
   reloadKeysFromSanctum();
-  if (_health && typeof _health.snapshot === 'function') {
+  // Prefer _keyConfigured from ai-provider-health — never call snapshot() here
+  // (snapshot may compose Eternal OS status and would recurse).
+  if (_health && typeof _health._keyConfigured === 'function') {
     try {
-      const snap = _health.snapshot();
-      return {
-        configured: Number(snap.configured) || 0,
-        configuredNames: Array.isArray(snap.configuredNames) ? snap.configuredNames.slice() : [],
-        total: Number(snap.total) || 0,
-      };
+      const FALLBACK = [
+        { name: 'groq', envKey: 'GROQ_API_KEY' },
+        { name: 'deepseek', envKey: 'DEEPSEEK_API_KEY' },
+        { name: 'mistral', envKey: 'MISTRAL_API_KEY' },
+        { name: 'together', envKey: 'TOGETHER_API_KEY' },
+        { name: 'fireworks', envKey: 'FIREWORKS_API_KEY' },
+        { name: 'gemini', envKey: 'GEMINI_API_KEY' },
+        { name: 'cohere', envKey: 'COHERE_API_KEY' },
+        { name: 'huggingface', envKey: 'HUGGINGFACE_API_KEY' },
+        { name: 'sambanova', envKey: 'SAMBANOVA_API_KEY' },
+        { name: 'nvidia-nim', envKey: 'NVIDIA_NIM_API_KEY' },
+        { name: 'openai', envKey: 'OPENAI_API_KEY' },
+        { name: 'perplexity', envKey: 'PERPLEXITY_API_KEY' },
+        { name: 'openrouter', envKey: 'OPENROUTER_API_KEY' },
+        { name: 'claude', envKey: 'ANTHROPIC_API_KEY' },
+      ];
+      const names = [];
+      for (const p of FALLBACK) {
+        if (_health._keyConfigured(p.envKey)) names.push(p.name);
+      }
+      return { configured: names.length, configuredNames: names, total: FALLBACK.length };
     } catch (_) { /* fall through */ }
   }
   const names = [];
   for (const k of AI_ENV_KEYS) {
     if (keyConfigured(k)) names.push(k.replace(/_API_KEY$/, '').toLowerCase());
   }
-  return { configured: names.length, configuredNames: names, total: AI_ENV_KEYS.length };
+  return { configured: names.length, configuredNames: [...new Set(names)], total: AI_ENV_KEYS.length };
 }
 
 /**
