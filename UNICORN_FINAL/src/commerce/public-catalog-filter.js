@@ -74,10 +74,27 @@ const CANONICAL_CORE_PLAN_IDS = new Set([
   'sme', 'mid-market', 'enterprise-tier', 'global-giants',
 ]);
 
-function hasFulfillmentRecipe(item) {
+function hasExplicitFulfillmentRecipe(item) {
   if (!item || typeof item !== 'object') return false;
   if (item.fulfillmentRecipe && (item.fulfillmentRecipe.kind || item.fulfillmentRecipe.type)) return true;
   if (item.recipe || item.deliveryRecipe) return true;
+  return false;
+}
+
+function isPhysicalOrDropshipItem(item) {
+  if (!item || typeof item !== 'object') return false;
+  const type = String(item.type || '').trim().toLowerCase();
+  const niche = String(item.niche || '').trim().toLowerCase();
+  const group = String(item.group || '').trim().toLowerCase();
+  return type === 'physical' || niche === 'dropship' || group === 'dropship';
+}
+
+function hasFulfillmentRecipe(item) {
+  if (!item || typeof item !== 'object') return false;
+  if (hasExplicitFulfillmentRecipe(item)) return true;
+  // Physical / dropship SKUs require an explicit recipe — curated digital
+  // group membership alone must never invent a shippable fulfillment path.
+  if (isPhysicalOrDropshipItem(item)) return false;
   const id = String(item.id || item.serviceId || '').trim();
   if (CANONICAL_CORE_PLAN_IDS.has(id)) return true;
   const group = String(item.group || item.tier || item.segment || '').trim().toLowerCase();
@@ -113,13 +130,10 @@ function isSyntheticCatalogItem(item) {
     return true;
   }
 
-  // Physical / dropship SKUs must always carry a real fulfillment recipe.
+  // Physical / dropship SKUs must always carry an explicit fulfillment recipe.
   // If they don't, we have no honest way to deliver them and they are excluded
-  // from the public storefront regardless of any other flag.
-  const type = String(item.type || '').trim().toLowerCase();
-  const niche = String(item.niche || '').trim().toLowerCase();
-  const isPhysicalOrDropship = type === 'physical' || niche === 'dropship' || group === 'dropship';
-  if (isPhysicalOrDropship && !hasFulfillmentRecipe(item)) return true;
+  // from the public storefront regardless of curated digital group membership.
+  if (isPhysicalOrDropshipItem(item) && !hasExplicitFulfillmentRecipe(item)) return true;
 
   // Auto-published marketplace clones without a curated fulfillment recipe.
   if (item.autoPublished === true && (group === 'marketplace' || group === 'strategic' || !group)) {
@@ -180,6 +194,8 @@ module.exports = {
   isSyntheticCatalogItem,
   isAspirationalCatalogItem,
   hasFulfillmentRecipe,
+  hasExplicitFulfillmentRecipe,
+  isPhysicalOrDropshipItem,
   filterPublicCatalogItems,
   applyPublicCatalogFilter,
   wantsIncludeSynthetic,
