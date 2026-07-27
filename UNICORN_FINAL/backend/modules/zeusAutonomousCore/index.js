@@ -49,6 +49,12 @@ const SELF_HEALER_ENABLED = process.env.ZAC_DISABLE_HEALER !== '1'
   && process.env.ZAC_ENABLE_HEALER !== '0'
   && process.env.NODE_ENV !== 'test'
   && process.env.UNICORN_RUNTIME_PROFILE !== 'safe';
+// Under stable profile, ZAC healer OBSERVES only — PM2 restarts belong to
+// autoheal-min (cooldown + streak). Opt into in-process restarts with
+// ZAC_HEALER_AUTO_RESTART=1 or growth profile.
+const _zacProfile = String(process.env.UNICORN_RUNTIME_PROFILE || 'stable').toLowerCase();
+const SELF_HEALER_AUTO_RESTART = process.env.ZAC_HEALER_AUTO_RESTART === '1'
+  || (_zacProfile !== 'stable' && _zacProfile !== 'safe' && process.env.ZAC_HEALER_AUTO_RESTART !== '0');
 
 const state = {
   startedAt: STARTED_AT,
@@ -103,9 +109,9 @@ function bootstrap({
     try { state.bridge.start(); } catch (e) { recordAlert({ kind: 'bridge-failed', error: e.message }); }
   }
 
-  // 4. Healer
+  // 4. Healer — under stable, observe-only (autoRestart=false) unless opted in
   if (enableHealer) {
-    state.healer = createSelfHealer({ onAlert: recordAlert });
+    state.healer = createSelfHealer({ onAlert: recordAlert, autoRestart: SELF_HEALER_AUTO_RESTART });
     state.healer.start();
   }
 

@@ -4616,7 +4616,7 @@ function pageStatus(params = {}) {
   return `<section style="padding-top:140px;max-width:1100px">
   <span class="kicker">Live status</span>
   <h1 style="font-size:clamp(34px,4.4vw,56px);margin:10px 0 18px">Live Unicorn Status · <span id="stHeadline" class="grad">operational.</span></h1>
-  <p style="color:var(--ink-dim);font-size:15px">Live API is protecting the site: health, QIS, catalog and checkout checks are refreshed from production endpoints. Source: <code class="inline">/api/status</code>. Total Autonomy OS from <code class="inline">/api/autonomy/os</code>. Neural Autonomy OS from <code class="inline">/api/autonomy/neural</code>. Site↔Unicorn Bond from <code class="inline">/api/autonomy/bond</code>. Refreshes every 15s.</p>
+  <p style="color:var(--ink-dim);font-size:15px">Live API is protecting the site: health, QIS, catalog and checkout checks are refreshed from production endpoints. Source: <code class="inline">/api/status</code>. Total Autonomy OS from <code class="inline">/api/autonomy/os</code>. Neural Autonomy OS from <code class="inline">/api/autonomy/neural</code>. Site↔Unicorn Bond from <code class="inline">/api/autonomy/bond</code>. Triad Never-Down from <code class="inline">/api/autonomy/triad</code>. Refreshes every 15s.</p>
 
   <div class="card" id="taosPanel" style="margin-top:22px;padding:26px" aria-live="polite">
     <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:16px;flex-wrap:wrap">
@@ -4675,6 +4675,22 @@ function pageStatus(params = {}) {
     <p id="subosDoctrine" style="color:var(--ink-dim);font-size:13.5px;margin:16px 0 0;font-style:italic">—</p>
   </div>
 
+  <div class="card" id="tbosPanel" style="margin-top:18px;padding:26px" aria-live="polite">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:16px;flex-wrap:wrap">
+      <div>
+        <span class="kicker">Triad Never-Down</span>
+        <div style="display:flex;align-items:baseline;gap:14px;flex-wrap:wrap;margin-top:4px">
+          <span id="tbosScore" class="grad" style="font-size:clamp(36px,5vw,56px);font-weight:800;line-height:1;font-family:var(--mono,monospace)">—</span>
+          <span id="tbosGrade" style="font-size:18px;font-weight:700;letter-spacing:.04em">—</span>
+        </div>
+        <p style="color:var(--ink-dim);font-size:13.5px;margin:10px 0 0">Site · Unicorn · Server edge · forever-key · <b id="tbosBonded" style="color:#fff">—</b></p>
+      </div>
+      <a class="btn btn-ghost" href="/api/autonomy/triad" target="_blank" rel="noopener" style="font-size:12px">Triad JSON →</a>
+    </div>
+    <div id="tbosPillars" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin-top:18px"></div>
+    <p id="tbosDoctrine" style="color:var(--ink-dim);font-size:13.5px;margin:16px 0 0;font-style:italic">—</p>
+  </div>
+
   <div class="card" id="pfosPanel" style="margin-top:18px;padding:26px" aria-live="polite">
     <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:16px;flex-wrap:wrap">
       <div>
@@ -4723,6 +4739,7 @@ function pageStatus(params = {}) {
       <a class="btn btn-ghost" href="/api/autonomy/score" target="_blank" rel="noopener">Autonomy score</a>
       <a class="btn btn-ghost" href="/api/autonomy/neural" target="_blank" rel="noopener">Neural Autonomy</a>
       <a class="btn btn-ghost" href="/api/autonomy/bond" target="_blank" rel="noopener">Site↔Unicorn Bond</a>
+      <a class="btn btn-ghost" href="/api/autonomy/triad" target="_blank" rel="noopener">Triad Never-Down</a>
       <a class="btn btn-ghost" href="/api/platform/foundation" target="_blank" rel="noopener">Platform Foundation</a>
       <a class="btn btn-ghost" href="/.well-known/platform.json" target="_blank" rel="noopener">/.well-known/platform.json</a>
     </div>
@@ -4948,7 +4965,44 @@ function pageStatus(params = {}) {
       if(pe) pe.innerHTML='<p style="color:var(--ink-dim);font-size:13.5px;margin:0">Bond snapshot unavailable.</p>';
     }
   }
-  function loadAllStatus(){ loadStatus(); loadAutonomyOs(); loadNeuralOs(); loadSiteBond(); loadPlatformFoundation(); loadEnterpriseStandard(); }
+  async function loadTriadBond(){
+    try {
+      var d = await (await fetch('/api/autonomy/triad',{cache:'no-store'})).json();
+      var scoreEl=document.getElementById('tbosScore');
+      var gradeEl=document.getElementById('tbosGrade');
+      var bondedEl=document.getElementById('tbosBonded');
+      var doctrineEl=document.getElementById('tbosDoctrine');
+      var pillarsEl=document.getElementById('tbosPillars');
+      if(scoreEl) scoreEl.textContent = d.score!=null ? String(d.score) : '—';
+      if(gradeEl) gradeEl.textContent = d.grade!=null ? String(d.grade) : '—';
+      if(bondedEl) bondedEl.textContent = d.bonded ? 'TRIAD UP' : 'PEER DOWN';
+      var doctrine = d.doctrine;
+      if(typeof doctrine==='object'&&doctrine) doctrine = doctrine.line||doctrine.summary||doctrine.text||'';
+      if(doctrineEl) doctrineEl.textContent = doctrine ? String(doctrine) : 'Site · Unicorn · Server must all breathe.';
+      var pillars = Array.isArray(d.pillars) ? d.pillars : [];
+      if(pillarsEl){
+        if(!pillars.length){
+          pillarsEl.innerHTML='<p style="color:var(--ink-dim);font-size:13.5px;margin:0">Triad pillars pending.</p>';
+        } else {
+          pillarsEl.innerHTML = pillars.slice(0,6).map(function(p,i){
+            var ok=taosPillarPass(p);
+            var label=taosEsc(taosPillarName(p,i));
+            var detail=taosEsc((p&&p.detail)||'');
+            var bg=ok?'rgba(59,255,176,.15)':'rgba(255,120,120,.12)';
+            var fg=ok?'#3bffb0':'#ff8a8a';
+            var st=ok?'PASS':'FAIL';
+            return '<div style="padding:12px 14px;border-radius:12px;border:1px solid var(--stroke,rgba(160,200,255,.14));background:rgba(0,0,0,.22)"><span class="tag" style="background:'+bg+';color:'+fg+';margin-bottom:8px">'+st+'</span><div style="font-size:14px;font-weight:600">'+label+'</div>'+(detail?'<div style="font-size:11.5px;color:var(--ink-dim);margin-top:4px">'+detail+'</div>':'')+'</div>';
+          }).join('');
+        }
+      }
+    } catch(e) {
+      var se=document.getElementById('tbosScore');
+      var pe=document.getElementById('tbosPillars');
+      if(se) se.textContent='—';
+      if(pe) pe.innerHTML='<p style="color:var(--ink-dim);font-size:13.5px;margin:0">Triad snapshot unavailable.</p>';
+    }
+  }
+  function loadAllStatus(){ loadStatus(); loadAutonomyOs(); loadNeuralOs(); loadSiteBond(); loadTriadBond(); loadPlatformFoundation(); loadEnterpriseStandard(); }
   loadAllStatus(); setInterval(loadAllStatus, 15000);
   </script>
 </section>`;

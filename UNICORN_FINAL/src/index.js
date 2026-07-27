@@ -223,9 +223,11 @@ app.get('/health', (req, res) => {
       masterCatalogAgeMs = Math.max(0, Date.now() - _masterCatalogCache.fetchedAt);
     }
   } catch (_) { /* cache not ready */ }
+  const backendOk = !!mon.ok;
   res.json({
     ok: true,
-    status: 'healthy',
+    status: backendOk ? 'healthy' : 'degraded',
+    degraded: !backendOk,
     service: 'unicorn-final',
     brand: 'ZeusAI',
     ts: new Date().toISOString(),
@@ -259,6 +261,22 @@ app.get('/health', (req, res) => {
         };
       } catch (_) {
         return { protocol: 'SUBOS/1.0', available: false };
+      }
+    })(),
+    triadBond: (function () {
+      try {
+        const triad = require('../backend/modules/triad-bond-os');
+        const s = triad.getScore();
+        return {
+          protocol: 'TBOS/1.0',
+          available: true,
+          score: s.score,
+          grade: s.grade,
+          bonded: !!s.bonded,
+          stableIdleOk: !!s.stableIdleOk,
+        };
+      } catch (_) {
+        return { protocol: 'TBOS/1.0', available: false };
       }
     })(),
     sse
@@ -841,6 +859,10 @@ app.get('/api/autonomy', siteProxyToUnicorn('/api/autonomy/neural'));
 app.get('/.well-known/autonomy-bond.json', siteProxyToUnicorn('/api/autonomy/bond'));
 app.get('/api/autonomy/bond', siteProxyToUnicorn('/api/autonomy/bond'));
 app.get('/api/autonomy/bond/score', siteProxyToUnicorn('/api/autonomy/bond/score'));
+// TBOS/1.0 — Triad Never-Down (Site + Unicorn + Server)
+app.get('/.well-known/triad-bond.json', siteProxyToUnicorn('/api/autonomy/triad'));
+app.get('/api/autonomy/triad', siteProxyToUnicorn('/api/autonomy/triad'));
+app.get('/api/autonomy/triad/score', siteProxyToUnicorn('/api/autonomy/triad/score'));
 // PFOS / ESOS — status page panels (proxy to backend SoT)
 app.get('/api/platform/foundation', siteProxyToUnicorn('/api/platform/foundation'));
 app.get('/.well-known/platform.json', siteProxyToUnicorn('/api/platform/foundation'));
@@ -7071,6 +7093,8 @@ seedSsrMap();if(document.getElementById("ds-sort")&&!document.getElementById("ds
         neural_score:      '/api/autonomy/neural/score',
         autonomy_bond:     '/.well-known/autonomy-bond.json',
         bond_score:        '/api/autonomy/bond/score',
+        triad_bond:        '/.well-known/triad-bond.json',
+        triad_score:       '/api/autonomy/triad/score',
         status:            '/status',
         telegram_group_os: '/api/telegram/group-os',
       },
@@ -7419,6 +7443,29 @@ seedSsrMap();if(document.getElementById("ds-sort")&&!document.getElementById("ds
     } catch (e) {
       res.writeHead(200, { 'Content-Type': 'application/json' });
       return res.end(JSON.stringify({ ok: false, error: e.message, protocol: 'SUBOS/1.0' }));
+    }
+  }
+
+  // TBOS/1.0 — Triad Never-Down Bond (Site + Unicorn + Server edge)
+  if (
+    urlPath === '/.well-known/triad-bond.json'
+    || urlPath === '/api/autonomy/triad'
+    || urlPath === '/api/autonomy/triad/score'
+  ) {
+    try {
+      const triad = require('../backend/modules/triad-bond-os');
+      let payload;
+      if (urlPath === '/api/autonomy/triad/score') payload = triad.getScore();
+      else if (typeof triad.senseAsync === 'function' && process.env.NODE_ENV !== 'test') {
+        payload = await triad.senseAsync();
+      } else {
+        payload = triad.getStatus();
+      }
+      res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' });
+      return res.end(JSON.stringify(payload));
+    } catch (e) {
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      return res.end(JSON.stringify({ ok: false, error: e.message, protocol: 'TBOS/1.0' }));
     }
   }
 
