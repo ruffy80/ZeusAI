@@ -371,6 +371,22 @@ class TotalAutonomyOs {
     } catch (e) { bondDetail = e && e.message; }
     pillars.push(this._pillar('site_bond', 10, bondOk, bondDetail, bondScore));
 
+    // 12) Triad Never-Down — site + unicorn + server edge
+    let triadOk = false;
+    let triadDetail = 'unavailable';
+    let triadScore = 40;
+    try {
+      const triad = safeRequire('./triad-bond-os');
+      const st = triad && typeof triad.getStatus === 'function' ? triad.getStatus() : null;
+      if (st) {
+        triadOk = st.bonded === true || st.ok === true;
+        triadScore = typeof st.score === 'number' ? st.score : (triadOk ? 90 : 35);
+        const srv = st.peers && st.peers.server;
+        triadDetail = `grade=${st.grade || '?'};bonded=${!!st.bonded};server=${srv && srv.ok};key=${srv && srv.foreverKeyOk}`;
+      }
+    } catch (e) { triadDetail = e && e.message; }
+    pillars.push(this._pillar('triad_bond', 10, triadOk, triadDetail, triadScore));
+
     return { pillars, spineMode };
   }
 

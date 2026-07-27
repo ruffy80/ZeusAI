@@ -156,6 +156,35 @@ location = /.well-known/enterprise.json {
     proxy_set_header X-Forwarded-Proto $scheme;
     add_header Cache-Control "no-store" always;
 }
+# Forever Ed25519 site-sign key — MUST beat generic /.well-known/ deny (403).
+location = /.well-known/zeusai-key.pub {
+    proxy_pass http://127.0.0.1:3001;
+    proxy_http_version 1.1;
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+    add_header Cache-Control "public, max-age=300" always;
+}
+location = /.well-known/zeusai-pubkey {
+    proxy_pass http://127.0.0.1:3001;
+    proxy_http_version 1.1;
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+    add_header Cache-Control "public, max-age=300" always;
+}
+# Triad Never-Down Bond OS (TBOS/1.0) — served by the backend on :3000.
+location = /.well-known/triad-bond.json {
+    proxy_pass http://127.0.0.1:3000;
+    proxy_http_version 1.1;
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+    add_header Cache-Control "no-store" always;
+}
 EOF
 # Install additive security-headers snippet (server_tokens off + nosniff etc).
 # Written verbatim from scripts/nginx-security-headers.snippet.conf. This only

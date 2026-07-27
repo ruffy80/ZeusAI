@@ -3259,6 +3259,11 @@ let siteUnicornBondOs = null;
 try { siteUnicornBondOs = require('./modules/site-unicorn-bond-os'); }
 catch (e) { console.warn('[site-unicorn-bond-os] disabled:', e && e.message); }
 
+// Triad Never-Down Bond OS — Site + Unicorn + Server edge (TBOS/1.0).
+let triadBondOs = null;
+try { triadBondOs = require('./modules/triad-bond-os'); }
+catch (e) { console.warn('[triad-bond-os] disabled:', e && e.message); }
+
 // ==================== 3 COMPONENTE CRITICE AUTONOME ====================
 const centralOrchestrator = require('./modules/central-orchestrator');
 const selfHealingEngine   = require('./modules/self-healing-engine');
@@ -4385,6 +4390,22 @@ function buildHealthResponse() {
         return { protocol: 'SUBOS/1.0', available: false };
       }
     })(),
+    triadBond: (function () {
+      try {
+        if (!triadBondOs) return { protocol: 'TBOS/1.0', available: false };
+        const s = triadBondOs.getScore();
+        return {
+          protocol: 'TBOS/1.0',
+          available: true,
+          score: s.score,
+          grade: s.grade,
+          bonded: !!s.bonded,
+          stableIdleOk: !!s.stableIdleOk,
+        };
+      } catch (_) {
+        return { protocol: 'TBOS/1.0', available: false };
+      }
+    })(),
   };
 }
 
@@ -4414,6 +4435,7 @@ function buildPublicHealthResponse() {
     totalAutonomy: full.totalAutonomy,
     neuralAutonomy: full.neuralAutonomy,
     siteBond: full.siteBond,
+    triadBond: full.triadBond,
   };
 }
 
@@ -9995,6 +10017,24 @@ app.get('/api/autonomy/bond/score', (req, res) => {
   if (!siteUnicornBondOs) return res.status(503).json({ ok: false, error: 'site-unicorn-bond-os unavailable', protocol: 'SUBOS/1.0' });
   try { return res.json(siteUnicornBondOs.getScore()); }
   catch (e) { return res.status(500).json({ ok: false, error: e.message, protocol: 'SUBOS/1.0' }); }
+});
+
+// TBOS/1.0 — Triad Never-Down (Site + Unicorn + Server edge)
+app.get(['/api/autonomy/triad', '/.well-known/triad-bond.json'], async (req, res) => {
+  if (!triadBondOs) return res.status(503).json({ ok: false, error: 'triad-bond-os unavailable', protocol: 'TBOS/1.0' });
+  try {
+    if (typeof triadBondOs.senseAsync === 'function' && process.env.NODE_ENV !== 'test') {
+      return res.json(await triadBondOs.senseAsync());
+    }
+    return res.json(triadBondOs.getStatus());
+  } catch (e) {
+    return res.status(500).json({ ok: false, error: e.message, protocol: 'TBOS/1.0' });
+  }
+});
+app.get('/api/autonomy/triad/score', (req, res) => {
+  if (!triadBondOs) return res.status(503).json({ ok: false, error: 'triad-bond-os unavailable', protocol: 'TBOS/1.0' });
+  try { return res.json(triadBondOs.getScore()); }
+  catch (e) { return res.status(500).json({ ok: false, error: e.message, protocol: 'TBOS/1.0' }); }
 });
 
 app.get('/api/autonomy/score', (req, res) => {

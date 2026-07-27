@@ -246,7 +246,7 @@ function senseCvr() {
 function senseSiteBond() {
   const bond = safeRequire('./site-unicorn-bond-os');
   if (!bond || typeof bond.getStatus !== 'function') {
-    return organ('site_bond', 'integrated_kernel', 12, 'unarmed', 40, 'site-unicorn-bond-os unavailable');
+    return organ('site_bond', 'integrated_kernel', 10, 'unarmed', 40, 'site-unicorn-bond-os unavailable');
   }
   let st = {};
   try { st = bond.getStatus() || {}; } catch (_) { st = {}; }
@@ -259,12 +259,38 @@ function senseSiteBond() {
   return organ(
     'site_bond',
     'integrated_kernel',
-    12,
+    10,
     posture,
     score,
     bonded
       ? `SUBOS ${st.grade || '?'} · site↔unicorn bonded`
       : `Bond weak · ${st.grade || '?'} ${score}`
+  );
+}
+
+function senseTriadBond() {
+  const triad = safeRequire('./triad-bond-os');
+  if (!triad || typeof triad.getStatus !== 'function') {
+    return organ('triad_bond', 'never_down_triad', 12, 'unarmed', 40, 'triad-bond-os unavailable');
+  }
+  let st = {};
+  try { st = triad.getStatus() || {}; } catch (_) { st = {}; }
+  const bonded = st.bonded === true || st.ok === true;
+  const score = clamp(st.score != null ? st.score : (bonded ? 90 : 35), 0, 100);
+  const serverOk = !!(st.peers && st.peers.server && st.peers.server.ok);
+  let posture = 'degraded';
+  if (bonded && score >= 80) posture = 'live';
+  else if (st.stableIdleOk) posture = 'idle_stable';
+  else if (serverOk && score >= 55) posture = 'idle_stable';
+  return organ(
+    'triad_bond',
+    'never_down_triad',
+    12,
+    posture,
+    score,
+    bonded
+      ? `TBOS ${st.grade || '?'} · site+unicorn+server never-down`
+      : `Triad weak · server=${serverOk ? 'ok' : 'dark'} · ${st.grade || '?'} ${score}`
   );
 }
 
@@ -279,6 +305,7 @@ function composeOrgans() {
     senseNeverDown(),
     senseSpine(),
     senseSiteBond(),
+    senseTriadBond(),
     senseCvr(),
   ];
 }
@@ -336,12 +363,13 @@ function getStatus() {
       'money_path_honesty_delta',
       'stable_as_feature_attestation',
       'site_unicorn_bond_organ',
+      'triad_never_down_organ',
     ],
     doctrine: {
-      line: 'Compose immortal organs · site↔unicorn bonded · stable idle is a feature · never invent payment rails',
+      line: 'Compose immortal organs · site↔unicorn↔server triad · stable idle is a feature · never invent payment rails',
       moneyPath: 'Buy Immortal + commerce honesty gate self-serve BTC',
       mutators: 'Observe-only under NAOS — Boot Immortal keeps thrash loops idle',
-      bond: 'SUBOS/1.0 scores site peer + unicorn peer as one organism',
+      bond: 'SUBOS/1.0 + TBOS/1.0 score site, unicorn, and nginx edge as one organism',
     },
     next: [
       stableIdleOk
