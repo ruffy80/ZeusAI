@@ -8,14 +8,17 @@ Why this exists: server-doctor.sh refuses to overwrite
 ssl_certificate directives (a full overwrite would wipe HTTPS until a fresh
 certbot run). To still ship public-discovery routes, this script:
 
-  1. Copies scripts/nginx-public-discovery.snippet.conf to
+  1. Installs a collision-safe discovery snippet at
      /etc/nginx/snippets/zeus-public-discovery.conf
-  2. Parses /etc/nginx/sites-available/unicorn and injects
+     (additive self-heal of required /.well-known/* proxies; NEVER wholesale-
+     copies the full nginx-public-discovery.snippet.conf when it would
+     duplicate /api/eop etc. already present in live zeusai.conf).
+  2. Parses the active site config and injects
      `include /etc/nginx/snippets/zeus-public-discovery.conf;`
      into every `server { ... }` block whose `server_name` directive includes
      zeusai.pro or www.zeusai.pro — once. Idempotent: re-runs are no-ops.
   3. Validates with `nginx -t`. Reloads nginx via systemctl on success.
-  4. On validation failure, restores the timestamped backup and re-validates.
+  4. On validation failure, restores the timestamped site + snippet backups.
 
 Usage (must run as root on the Hetzner host):
   sudo python3 nginx-patch-public-discovery.py \
@@ -35,6 +38,51 @@ import sys
 
 
 INCLUDE_FILENAME = "zeus-public-discovery.conf"
+
+# Production-safe bootstrap when the snippet file is missing. The FULL
+# nginx-public-discovery.snippet.conf collides with locations already present
+# in live zeusai.conf (/api/eop, /api/lightning, …) and must NOT be copied
+# wholesale — that makes `nginx -t` fail and aborts reload (leaving new
+# well-known routes like neural-autonomy.json at 403 forever).
+_MINIMAL_SNIPPET = """# Minimal Zeus discovery overlay (production-safe).
+# Additive well-known proxies only — never redeclare /api/* routes that live in zeusai.conf.
+location = /.well-known/autonomy.json {
+    proxy_pass http://127.0.0.1:3000;
+    proxy_http_version 1.1;
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+    add_header Cache-Control "no-store" always;
+}
+location = /.well-known/neural-autonomy.json {
+    proxy_pass http://127.0.0.1:3000;
+    proxy_http_version 1.1;
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+    add_header Cache-Control "no-store" always;
+}
+location = /.well-known/platform.json {
+    proxy_pass http://127.0.0.1:3000;
+    proxy_http_version 1.1;
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+    add_header Cache-Control "no-store" always;
+}
+location = /.well-known/enterprise.json {
+    proxy_pass http://127.0.0.1:3000;
+    proxy_http_version 1.1;
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+    add_header Cache-Control "no-store" always;
+}
+"""
 
 # Extra self-heal blocks that MUST exist inside the installed snippet.
 # If the source snippet on disk is stale (older release without an autonomy
@@ -94,6 +142,103 @@ def _ensure_required_locations(target_path):
     if appended:
         _write(target_path, current)
     return appended
+
+
+def _snippet_looks_colliding(text):
+    """Heuristic: full public-discovery snippet redeclares /api/* routes that
+    already exist in live zeusai.conf (duplicate location → nginx -t fail)."""
+    if not text:
+        return False
+    markers = (
+        "location ^~ /api/eop",
+        "location ^~ /api/lightning",
+        "location ^~ /api/pre-keys",
+    )
+    return any(m in text for m in markers)
+
+
+def _install_snippet(snippet_src, target_path):
+    """Install or upgrade the discovery snippet without breaking nginx -t.
+
+    Strategy:
+      - Always backup existing target first (restored on validation failure).
+      - If target exists: additive self-heal only (append missing REQUIRED).
+        Never wholesale-overwrite a working minimal overlay with the full
+        colliding snippet.
+      - If target missing: write _MINIMAL_SNIPPET (safe), then ensure required.
+      - If an existing target already looks like the full colliding snippet,
+        rewrite it to minimal + required (so the next reload can succeed).
+
+    Returns (snippet_backup_path_or_None, note).
+    """
+    os.makedirs(os.path.dirname(target_path), exist_ok=True)
+    snippet_backup = None
+    if os.path.isfile(target_path):
+        ts = datetime.datetime.utcnow().strftime("%Y%m%dT%H%M%SZ")
+        backup_dir = "/var/backups/zeus-nginx-public-discovery"
+        try:
+            os.makedirs(backup_dir, exist_ok=True)
+            snippet_backup = os.path.join(
+                backup_dir, f"{os.path.basename(target_path)}.bak.{ts}"
+            )
+            shutil.copyfile(target_path, snippet_backup)
+        except OSError:
+            snippet_backup = target_path + f".bak.{ts}"
+            shutil.copyfile(target_path, snippet_backup)
+
+        current = _read(target_path)
+        if _snippet_looks_colliding(current):
+            _write(target_path, _MINIMAL_SNIPPET)
+            note = "replaced colliding full snippet with minimal overlay"
+        else:
+            note = "kept existing snippet (additive self-heal only)"
+    else:
+        # Prefer minimal bootstrap over wholesale full-snippet copy.
+        # Keep --snippet arg for provenance / future diffs, but do not install
+        # the full file when it would collide with live vhost locations.
+        _write(target_path, _MINIMAL_SNIPPET)
+        note = "installed minimal discovery overlay (full snippet skipped — collision-safe)"
+
+    os.chmod(target_path, 0o644)
+    appended = _ensure_required_locations(target_path)
+    if appended:
+        note += f"; appended {appended} required location(s)"
+    # Optional: if caller passed a non-colliding custom snippet and target was
+    # empty of autonomy routes, merge any exact well-known locations from src.
+    if snippet_src and os.path.isfile(snippet_src):
+        try:
+            src = _read(snippet_src)
+            if src and not _snippet_looks_colliding(src):
+                # Rare path: a custom safe snippet — merge missing exact locations.
+                tgt = _read(target_path)
+                for m in re.finditer(
+                    r"(location\s+=\s+/\.well-known/[^\s{]+)\s*\{", src
+                ):
+                    header = m.group(1).strip()
+                    if header in tgt:
+                        continue
+                    # Extract full block from src for this location header.
+                    start = m.start()
+                    depth = 0
+                    j = src.find("{", start)
+                    if j < 0:
+                        continue
+                    depth = 1
+                    k = j + 1
+                    while k < len(src) and depth:
+                        if src[k] == "{":
+                            depth += 1
+                        elif src[k] == "}":
+                            depth -= 1
+                        k += 1
+                    block = src[start:k]
+                    tgt += "\n" + block + "\n"
+                    _write(target_path, tgt)
+                    note += f"; merged {header} from source snippet"
+                    tgt = _read(target_path)
+        except OSError:
+            pass
+    return snippet_backup, note
 
 
 def _read(path):
@@ -295,18 +440,12 @@ def main():
         print(f"ERROR: snippet not found at {args.snippet}", file=sys.stderr)
         sys.exit(2)
 
-    # 1) Install snippet
-    os.makedirs(os.path.dirname(args.target), exist_ok=True)
-    shutil.copyfile(args.snippet, args.target)
-    os.chmod(args.target, 0o644)
-    print(f"[nginx-patch] snippet installed at {args.target}")
-
-    # Self-heal: if the freshly-installed snippet is missing any required
-    # exact-match locations (e.g. an older release predating TAOS/1.0
-    # /.well-known/autonomy.json), append minimal proxy blocks in place.
-    appended = _ensure_required_locations(args.target)
-    if appended:
-        print(f"[nginx-patch] appended {appended} missing exact-match location(s) to snippet")
+    # 1) Install / self-heal snippet (collision-safe: never wholesale-copy the
+    # full public-discovery file when it would duplicate /api/eop etc.).
+    snippet_backup, note = _install_snippet(args.snippet, args.target)
+    print(f"[nginx-patch] snippet at {args.target} — {note}")
+    if snippet_backup:
+        print(f"[nginx-patch] snippet backup → {snippet_backup}")
 
     if not os.path.isfile(args.site):
         # No active unicorn site — nothing to patch. Snippet is in place,
@@ -317,6 +456,8 @@ def main():
         v = nginx_validate()
         if v.returncode != 0:
             print(v.stderr or v.stdout, file=sys.stderr)
+            if snippet_backup and os.path.isfile(snippet_backup):
+                shutil.copyfile(snippet_backup, args.target)
             sys.exit(1)
         nginx_reload()
         sys.exit(0)
@@ -332,12 +473,17 @@ def main():
         _write(args.site, new_text)
         print(f"[nginx-patch] injected include into {edits} server block(s)")
 
+    def _restore_all():
+        shutil.copyfile(backup, args.site)
+        if snippet_backup and os.path.isfile(snippet_backup):
+            shutil.copyfile(snippet_backup, args.target)
+
     # 3) Validate
     v = nginx_validate()
     if v.returncode != 0:
         print("[nginx-patch] VALIDATION FAILED — restoring backup")
         sys.stderr.write((v.stderr or v.stdout) + "\n")
-        shutil.copyfile(backup, args.site)
+        _restore_all()
         v2 = nginx_validate()
         if v2.returncode == 0:
             nginx_reload()
@@ -348,7 +494,7 @@ def main():
     if r.returncode != 0:
         print("[nginx-patch] reload FAILED — restoring backup")
         sys.stderr.write((r.stderr or r.stdout) + "\n")
-        shutil.copyfile(backup, args.site)
+        _restore_all()
         nginx_validate()
         nginx_reload()
         sys.exit(1)
