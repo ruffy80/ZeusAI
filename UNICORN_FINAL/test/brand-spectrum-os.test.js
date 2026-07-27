@@ -87,6 +87,8 @@ check('backend + site wire CIC routes', () => {
   const site = fs.readFileSync(path.join(ROOT, 'src', 'index.js'), 'utf8');
   assert.ok(site.includes('brand-spectrum.json'));
   assert.ok(site.includes('/api/brand/spectrum'));
+  // Site serves CIC locally so brand continuum survives a dark/old backend.
+  assert.ok(site.includes("require('../backend/modules/brand-spectrum-os')"));
 });
 
 check('nav wordmark uses Volt Aurora blade letterforms + larger Zeus mark', () => {
@@ -97,6 +99,8 @@ check('nav wordmark uses Volt Aurora blade letterforms + larger Zeus mark', () =
   assert.ok(shell.includes('width="72"'));
   assert.ok(shell.includes('cicPanel') || shell.includes('Chromatic Identity Continuum'));
   const css = fs.readFileSync(path.join(ROOT, 'src', 'site', 'v2', 'styles.js'), 'utf8');
+  assert.ok(css.includes('zw-blade'));
+  assert.ok(css.includes('Nested spans break parent background-clip') || css.includes('background-clip:text'));
   assert.ok(css.includes('#FF3B5C'));
   assert.ok(css.includes('#00E8A0'));
   assert.ok(css.includes('width:72px'));

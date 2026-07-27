@@ -880,9 +880,28 @@ app.get('/api/autonomy/bond/score', siteProxyToUnicorn('/api/autonomy/bond/score
 app.get('/.well-known/triad-bond.json', siteProxyToUnicorn('/api/autonomy/triad'));
 app.get('/api/autonomy/triad', siteProxyToUnicorn('/api/autonomy/triad'));
 app.get('/api/autonomy/triad/score', siteProxyToUnicorn('/api/autonomy/triad/score'));
-app.get('/.well-known/brand-spectrum.json', siteProxyToUnicorn('/api/brand/spectrum'));
-app.get('/api/brand/spectrum', siteProxyToUnicorn('/api/brand/spectrum'));
-app.get('/api/brand/spectrum/score', siteProxyToUnicorn('/api/brand/spectrum/score'));
+// CIC/1.0 — serve locally first so brand continuum stays up even if backend is dark/old.
+app.get(['/api/brand/spectrum', '/.well-known/brand-spectrum.json'], (req, res) => {
+  try {
+    const cic = require('../backend/modules/brand-spectrum-os');
+    const payload = String(req.path || '').includes('brand-spectrum.json')
+      ? cic.getWellKnown()
+      : cic.getStatus();
+    res.set('Cache-Control', 'public, max-age=60');
+    return res.json(payload);
+  } catch (e) {
+    return res.status(503).json({ ok: false, error: e.message, protocol: 'CIC/1.0' });
+  }
+});
+app.get('/api/brand/spectrum/score', (req, res) => {
+  try {
+    const cic = require('../backend/modules/brand-spectrum-os');
+    res.set('Cache-Control', 'public, max-age=60');
+    return res.json(cic.getScore());
+  } catch (e) {
+    return res.status(503).json({ ok: false, error: e.message, protocol: 'CIC/1.0' });
+  }
+});
 // PFOS / ESOS — status page panels (proxy to backend SoT)
 app.get('/api/platform/foundation', siteProxyToUnicorn('/api/platform/foundation'));
 app.get('/.well-known/platform.json', siteProxyToUnicorn('/api/platform/foundation'));
