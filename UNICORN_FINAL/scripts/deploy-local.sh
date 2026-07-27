@@ -108,7 +108,7 @@ cat > /etc/nginx/snippets/zeus-public-discovery.conf <<'EOF'
 # Minimal Zeus discovery overlay (production-safe).
 # Full snippet collides with zeusai.conf — keep ONLY autonomy + platform here.
 location = /.well-known/autonomy.json {
-    proxy_pass http://127.0.0.1:3001;
+    proxy_pass http://127.0.0.1:3000;
     proxy_http_version 1.1;
     proxy_set_header Host $host;
     proxy_set_header X-Real-IP $remote_addr;
@@ -118,6 +118,16 @@ location = /.well-known/autonomy.json {
 }
 # Neural Autonomy OS (NAOS/1.0) — served by the backend on :3000.
 location = /.well-known/neural-autonomy.json {
+    proxy_pass http://127.0.0.1:3000;
+    proxy_http_version 1.1;
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+    add_header Cache-Control "no-store" always;
+}
+# Site↔Unicorn Bond OS (SUBOS/1.0) — served by the backend on :3000.
+location = /.well-known/autonomy-bond.json {
     proxy_pass http://127.0.0.1:3000;
     proxy_http_version 1.1;
     proxy_set_header Host $host;
