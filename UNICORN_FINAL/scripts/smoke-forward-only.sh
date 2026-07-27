@@ -211,7 +211,9 @@ if [ "$SKIP_PUBLIC" != "1" ]; then
   fi
 
   # Functional: confirm public site exposes the forever-key (best-effort, no fail).
-  if curl -fsS --max-time 8 "$PUBLIC_URL/.well-known/zeusai-key.pub" | head -c 32 | grep -q 'BEGIN PUBLIC KEY'; then
+  # IMPORTANT: never use curl -f here under `set -o pipefail` — a 403 would abort
+  # the whole smoke even though this check is documented as non-fatal.
+  if curl -sS --max-time 8 "$PUBLIC_URL/.well-known/zeusai-key.pub" 2>/dev/null | head -c 32 | grep -q 'BEGIN PUBLIC KEY'; then
     echo "✅ forever-key public PEM served"
   else
     echo "⚠ forever-key endpoint not yet serving PEM (non-fatal on first deploy)"
