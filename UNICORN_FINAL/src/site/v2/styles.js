@@ -94,21 +94,9 @@ html::before{content:"";position:fixed;inset:0;pointer-events:none;z-index:1;bac
          drop-shadow(0 0 16px rgba(255,159,28,.55))
          drop-shadow(0 0 28px rgba(255,59,92,.28));
   animation:cicAuroraFlow 4.8s ease-in-out infinite;
-  transform:skewX(-2.2deg);
-}
-.zeus-wordmark .zw-blade{
-  display:inline-block;transform:skewX(-8deg) scaleY(1.06);
-  margin-right:-.02em;
-  /* Nested spans break parent background-clip:text — re-apply continuum fill or Z vanishes */
-  background:linear-gradient(115deg,
-    var(--cic-zeus-a,#FF3B5C) 0%,
-    var(--cic-zeus-b,#FF9F1C) 35%,
-    var(--cic-zeus-c,#FFEE32) 70%,
-    var(--cic-zeus-d,#FF6B35) 100%);
-  background-size:220% 100%;
-  -webkit-background-clip:text;background-clip:text;
-  -webkit-text-fill-color:transparent;color:transparent;
-  animation:cicAuroraFlow 4.8s ease-in-out infinite;
+  transform:skewX(-1.6deg);
+  /* Blade letterform DNA without nested spans (nested clip:text hid the Z) */
+  font-variation-settings:"wght" 800;
 }
 .zeus-wordmark .ai{
   position:relative;

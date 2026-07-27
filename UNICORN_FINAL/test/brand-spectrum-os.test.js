@@ -93,18 +93,17 @@ check('backend + site wire CIC routes', () => {
 
 check('nav wordmark uses Volt Aurora blade letterforms + larger Zeus mark', () => {
   const shell = fs.readFileSync(path.join(ROOT, 'src', 'site', 'v2', 'shell.js'), 'utf8');
-  assert.ok(shell.includes('zw-blade'));
   assert.ok(shell.includes('data-cic="volt-aurora"'));
   assert.ok(shell.includes('brand-176.jpg'));
   assert.ok(shell.includes('width="72"'));
+  assert.ok(shell.includes('Zeus<span class="ai">AI</span>'));
   assert.ok(shell.includes('cicPanel') || shell.includes('Chromatic Identity Continuum'));
   const css = fs.readFileSync(path.join(ROOT, 'src', 'site', 'v2', 'styles.js'), 'utf8');
-  assert.ok(css.includes('zw-blade'));
-  assert.ok(css.includes('Nested spans break parent background-clip') || css.includes('background-clip:text'));
   assert.ok(css.includes('#FF3B5C'));
   assert.ok(css.includes('#00E8A0'));
   assert.ok(css.includes('width:72px'));
   assert.ok(css.includes('Avenir Next Condensed') || css.includes('Segoe UI Variable Display'));
+  assert.ok(css.includes('font-stretch:condensed') || css.includes('letter-spacing:-.038em'));
 });
 
 check('nginx self-heal requires brand-spectrum', () => {

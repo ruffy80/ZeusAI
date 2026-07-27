@@ -551,7 +551,7 @@ function navBar(route, opts) {
     : 'Display in English';
   const langToggle = `<button class="lang-toggle" type="button" data-target-lang="${targetLang}" aria-label="${targetTitle}" title="${targetTitle}">🌐 ${targetLabel}</button>`;
   return `<nav class="nav" data-nav-open="false">
-<div class="brand"><div class="brand-logo brand-logo-photo" aria-hidden="true"><picture><source type="image/avif" srcset="${assetPath('/assets/zeus/brand-176.avif')} 1x, ${assetPath('/assets/zeus/brand-264.avif')} 2x"/><source type="image/webp" srcset="${assetPath('/assets/zeus/brand-176.webp')} 1x, ${assetPath('/assets/zeus/brand-264.webp')} 2x"/><img src="${assetPath('/assets/zeus/brand-176.jpg')}" srcset="${assetPath('/assets/zeus/brand-176.jpg')} 1x, ${assetPath('/assets/zeus/brand-264.jpg')} 2x" alt="" width="72" height="72" decoding="async" fetchpriority="high" onerror="this.style.display='none'"/></picture></div><div><span class="zeus-wordmark" data-cic="volt-aurora" aria-label="ZeusAI"><span class="zw-blade">Z</span>eus<span class="ai">AI</span></span><small>Sovereign · Self-Evolving · Signed</small></div></div>
+<div class="brand"><div class="brand-logo brand-logo-photo" aria-hidden="true"><picture><source type="image/avif" srcset="${assetPath('/assets/zeus/brand-176.avif')} 1x, ${assetPath('/assets/zeus/brand-264.avif')} 2x"/><source type="image/webp" srcset="${assetPath('/assets/zeus/brand-176.webp')} 1x, ${assetPath('/assets/zeus/brand-264.webp')} 2x"/><img src="${assetPath('/assets/zeus/brand-176.jpg')}" srcset="${assetPath('/assets/zeus/brand-176.jpg')} 1x, ${assetPath('/assets/zeus/brand-264.jpg')} 2x" alt="" width="72" height="72" decoding="async" fetchpriority="high" onerror="this.style.display='none'"/></picture></div><div><span class="zeus-wordmark" data-cic="volt-aurora" aria-label="ZeusAI">Zeus<span class="ai">AI</span></span><small>Sovereign · Self-Evolving · Signed</small></div></div>
 <button class="nav-toggle" type="button" aria-label="Toggle navigation" aria-expanded="false" aria-controls="nav-links">
   <span class="nav-toggle-bar"></span><span class="nav-toggle-bar"></span><span class="nav-toggle-bar"></span>
 </button>
@@ -590,7 +590,7 @@ function footer(route, opts) {
 <footer>
   <div class="foot-grid">
     <div>
-      <div class="brand" style="margin-bottom:14px"><div class="brand-logo" aria-hidden="true"></div><div><span class="zeus-wordmark" data-cic="volt-aurora" aria-label="ZeusAI"><span class="zw-blade">Z</span>eus<span class="ai">AI</span></span><small>Sovereign · Self-Evolving · Signed</small></div></div>
+      <div class="brand" style="margin-bottom:14px"><div class="brand-logo" aria-hidden="true"></div><div><span class="zeus-wordmark" data-cic="volt-aurora" aria-label="ZeusAI">Zeus<span class="ai">AI</span></span><small>Sovereign · Self-Evolving · Signed</small></div></div>
       <p style="color:var(--ink-dim);font-size:13.5px;line-height:1.6;max-width:360px">Autonomous AI operating system. Every module signed with W3C DID. Every outcome routed through Merkle-chained receipts. Property of ${OWNER.name}.</p>
     </div>
     <div><h3 class="footer-col-title">Product</h3><ul>
