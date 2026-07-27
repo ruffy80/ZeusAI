@@ -63,7 +63,7 @@ check('stable + DISABLE_SELF_MUTATION ⇒ stableIdleOk', () => {
 check('organs include buy/boot/fulfillment/taos/never_down', () => {
   const st = naos.getStatus();
   const ids = st.organs.map((o) => o.id);
-  for (const need of ['buy_immortal', 'boot_immortal', 'fulfillment_ai', 'taos', 'never_down', 'mutator_safety']) {
+  for (const need of ['buy_immortal', 'boot_immortal', 'fulfillment_ai', 'taos', 'never_down', 'mutator_safety', 'site_bond']) {
     assert.ok(ids.includes(need), `missing organ ${need}`);
   }
 });

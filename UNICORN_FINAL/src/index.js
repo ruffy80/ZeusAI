@@ -245,6 +245,22 @@ app.get('/health', (req, res) => {
       masterCatalogAgeMs,
       eventBridge: !!process.env.BACKEND_API_URL,
     },
+    siteBond: (function () {
+      try {
+        const bond = require('../backend/modules/site-unicorn-bond-os');
+        const s = bond.getScore();
+        return {
+          protocol: 'SUBOS/1.0',
+          available: true,
+          score: s.score,
+          grade: s.grade,
+          bonded: !!s.bonded,
+          stableIdleOk: !!s.stableIdleOk,
+        };
+      } catch (_) {
+        return { protocol: 'SUBOS/1.0', available: false };
+      }
+    })(),
     sse
   });
 });
@@ -821,6 +837,15 @@ app.get('/.well-known/neural-autonomy.json', siteProxyToUnicorn('/api/autonomy/n
 app.get('/api/autonomy/neural', siteProxyToUnicorn('/api/autonomy/neural'));
 app.get('/api/autonomy/neural/score', siteProxyToUnicorn('/api/autonomy/neural/score'));
 app.get('/api/autonomy', siteProxyToUnicorn('/api/autonomy/neural'));
+// SUBOS/1.0 — Site↔Unicorn Bond (Integrated Autonomy Kernel)
+app.get('/.well-known/autonomy-bond.json', siteProxyToUnicorn('/api/autonomy/bond'));
+app.get('/api/autonomy/bond', siteProxyToUnicorn('/api/autonomy/bond'));
+app.get('/api/autonomy/bond/score', siteProxyToUnicorn('/api/autonomy/bond/score'));
+// PFOS / ESOS — status page panels (proxy to backend SoT)
+app.get('/api/platform/foundation', siteProxyToUnicorn('/api/platform/foundation'));
+app.get('/.well-known/platform.json', siteProxyToUnicorn('/api/platform/foundation'));
+app.get('/api/enterprise/standard', siteProxyToUnicorn('/api/enterprise/standard'));
+app.get('/.well-known/enterprise.json', siteProxyToUnicorn('/api/enterprise/standard'));
 app.get('/api/pricing/module/:moduleId', async (req, res) => {
   const moduleId = String(req.params.moduleId || '').slice(0, 80);
   const backendUrl = process.env.BACKEND_API_URL;
@@ -7044,6 +7069,8 @@ seedSsrMap();if(document.getElementById("ds-sort")&&!document.getElementById("ds
         autonomy_smoke:    '/api/autonomy/smoke',
         neural_autonomy:   '/.well-known/neural-autonomy.json',
         neural_score:      '/api/autonomy/neural/score',
+        autonomy_bond:     '/.well-known/autonomy-bond.json',
+        bond_score:        '/api/autonomy/bond/score',
         status:            '/status',
         telegram_group_os: '/api/telegram/group-os',
       },
@@ -7369,6 +7396,29 @@ seedSsrMap();if(document.getElementById("ds-sort")&&!document.getElementById("ds
     } catch (e) {
       res.writeHead(200, { 'Content-Type': 'application/json' });
       return res.end(JSON.stringify({ ok: false, error: e.message, protocol: 'NAOS/1.0' }));
+    }
+  }
+
+  // SUBOS/1.0 — Site↔Unicorn Bond OS (Integrated Autonomy Kernel)
+  if (
+    urlPath === '/.well-known/autonomy-bond.json'
+    || urlPath === '/api/autonomy/bond'
+    || urlPath === '/api/autonomy/bond/score'
+  ) {
+    try {
+      const bond = require('../backend/modules/site-unicorn-bond-os');
+      let payload;
+      if (urlPath === '/api/autonomy/bond/score') payload = bond.getScore();
+      else if (typeof bond.senseAsync === 'function' && process.env.NODE_ENV !== 'test') {
+        payload = await bond.senseAsync();
+      } else {
+        payload = bond.getStatus();
+      }
+      res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' });
+      return res.end(JSON.stringify(payload));
+    } catch (e) {
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      return res.end(JSON.stringify({ ok: false, error: e.message, protocol: 'SUBOS/1.0' }));
     }
   }
 

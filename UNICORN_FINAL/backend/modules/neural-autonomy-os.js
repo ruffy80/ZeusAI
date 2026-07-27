@@ -243,6 +243,31 @@ function senseCvr() {
   );
 }
 
+function senseSiteBond() {
+  const bond = safeRequire('./site-unicorn-bond-os');
+  if (!bond || typeof bond.getStatus !== 'function') {
+    return organ('site_bond', 'integrated_kernel', 12, 'unarmed', 40, 'site-unicorn-bond-os unavailable');
+  }
+  let st = {};
+  try { st = bond.getStatus() || {}; } catch (_) { st = {}; }
+  const bonded = st.bonded === true || st.ok === true;
+  const score = clamp(st.score != null ? st.score : (bonded ? 90 : 35), 0, 100);
+  let posture = 'degraded';
+  if (bonded && score >= 80) posture = 'live';
+  else if (st.stableIdleOk) posture = 'idle_stable';
+  else if (!bonded && score >= 50) posture = 'idle_stable';
+  return organ(
+    'site_bond',
+    'integrated_kernel',
+    12,
+    posture,
+    score,
+    bonded
+      ? `SUBOS ${st.grade || '?'} · site↔unicorn bonded`
+      : `Bond weak · ${st.grade || '?'} ${score}`
+  );
+}
+
 function composeOrgans() {
   return [
     senseMutatorSafety(),
@@ -253,6 +278,7 @@ function composeOrgans() {
     senseTaos(),
     senseNeverDown(),
     senseSpine(),
+    senseSiteBond(),
     senseCvr(),
   ];
 }
@@ -309,11 +335,13 @@ function getStatus() {
       'organ_continuum_map',
       'money_path_honesty_delta',
       'stable_as_feature_attestation',
+      'site_unicorn_bond_organ',
     ],
     doctrine: {
-      line: 'Compose immortal organs · stable idle is a feature · never invent payment rails · owner stays sovereign for secrets',
+      line: 'Compose immortal organs · site↔unicorn bonded · stable idle is a feature · never invent payment rails',
       moneyPath: 'Buy Immortal + commerce honesty gate self-serve BTC',
       mutators: 'Observe-only under NAOS — Boot Immortal keeps thrash loops idle',
+      bond: 'SUBOS/1.0 scores site peer + unicorn peer as one organism',
     },
     next: [
       stableIdleOk

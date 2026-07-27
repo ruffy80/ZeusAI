@@ -356,6 +356,21 @@ class TotalAutonomyOs {
     } catch (e) { fosDetail = e && e.message; }
     pillars.push(this._pillar('forward_only', 9, fosOk, fosDetail, fosScore));
 
+    // 11) Site↔Unicorn Bond — both peers must breathe (Integrated Autonomy Kernel)
+    let bondOk = false;
+    let bondDetail = 'unavailable';
+    let bondScore = 40;
+    try {
+      const bond = safeRequire('./site-unicorn-bond-os');
+      const st = bond && typeof bond.getStatus === 'function' ? bond.getStatus() : null;
+      if (st) {
+        bondOk = st.bonded === true || st.ok === true;
+        bondScore = typeof st.score === 'number' ? st.score : (bondOk ? 90 : 35);
+        bondDetail = `grade=${st.grade || '?'};bonded=${!!st.bonded};site=${st.peers && st.peers.site && st.peers.site.ok};unicorn=${st.peers && st.peers.unicorn && st.peers.unicorn.ok}`;
+      }
+    } catch (e) { bondDetail = e && e.message; }
+    pillars.push(this._pillar('site_bond', 10, bondOk, bondDetail, bondScore));
+
     return { pillars, spineMode };
   }
 

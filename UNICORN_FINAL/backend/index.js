@@ -3254,6 +3254,11 @@ let neuralAutonomyOs = null;
 try { neuralAutonomyOs = require('./modules/neural-autonomy-os'); }
 catch (e) { console.warn('[neural-autonomy-os] disabled:', e && e.message); }
 
+// Site↔Unicorn Bond OS — Integrated Autonomy Kernel (SUBOS/1.0).
+let siteUnicornBondOs = null;
+try { siteUnicornBondOs = require('./modules/site-unicorn-bond-os'); }
+catch (e) { console.warn('[site-unicorn-bond-os] disabled:', e && e.message); }
+
 // ==================== 3 COMPONENTE CRITICE AUTONOME ====================
 const centralOrchestrator = require('./modules/central-orchestrator');
 const selfHealingEngine   = require('./modules/self-healing-engine');
@@ -4349,6 +4354,37 @@ function buildHealthResponse() {
         return { protocol: 'TAOS/1.0', available: false };
       }
     })(),
+    neuralAutonomy: (function () {
+      try {
+        if (!neuralAutonomyOs) return { protocol: 'NAOS/1.0', available: false };
+        const s = neuralAutonomyOs.getScore();
+        return {
+          protocol: 'NAOS/1.0',
+          available: true,
+          score: s.score,
+          grade: s.grade,
+          stableIdleOk: !!s.stableIdleOk,
+        };
+      } catch (_) {
+        return { protocol: 'NAOS/1.0', available: false };
+      }
+    })(),
+    siteBond: (function () {
+      try {
+        if (!siteUnicornBondOs) return { protocol: 'SUBOS/1.0', available: false };
+        const s = siteUnicornBondOs.getScore();
+        return {
+          protocol: 'SUBOS/1.0',
+          available: true,
+          score: s.score,
+          grade: s.grade,
+          bonded: !!s.bonded,
+          stableIdleOk: !!s.stableIdleOk,
+        };
+      } catch (_) {
+        return { protocol: 'SUBOS/1.0', available: false };
+      }
+    })(),
   };
 }
 
@@ -4376,6 +4412,8 @@ function buildPublicHealthResponse() {
     dbConnected: full.dbConnected === true,
     neverDown: full.neverDown,
     totalAutonomy: full.totalAutonomy,
+    neuralAutonomy: full.neuralAutonomy,
+    siteBond: full.siteBond,
   };
 }
 
@@ -9939,6 +9977,24 @@ app.get('/api/autonomy/neural/score', (req, res) => {
   if (!neuralAutonomyOs) return res.status(503).json({ ok: false, error: 'neural-autonomy-os unavailable', protocol: 'NAOS/1.0' });
   try { return res.json(neuralAutonomyOs.getScore()); }
   catch (e) { return res.status(500).json({ ok: false, error: e.message, protocol: 'NAOS/1.0' }); }
+});
+
+// SUBOS/1.0 — Site↔Unicorn Bond (Integrated Autonomy Kernel)
+app.get(['/api/autonomy/bond', '/.well-known/autonomy-bond.json'], async (req, res) => {
+  if (!siteUnicornBondOs) return res.status(503).json({ ok: false, error: 'site-unicorn-bond-os unavailable', protocol: 'SUBOS/1.0' });
+  try {
+    if (typeof siteUnicornBondOs.senseAsync === 'function' && process.env.NODE_ENV !== 'test') {
+      return res.json(await siteUnicornBondOs.senseAsync());
+    }
+    return res.json(siteUnicornBondOs.getStatus());
+  } catch (e) {
+    return res.status(500).json({ ok: false, error: e.message, protocol: 'SUBOS/1.0' });
+  }
+});
+app.get('/api/autonomy/bond/score', (req, res) => {
+  if (!siteUnicornBondOs) return res.status(503).json({ ok: false, error: 'site-unicorn-bond-os unavailable', protocol: 'SUBOS/1.0' });
+  try { return res.json(siteUnicornBondOs.getScore()); }
+  catch (e) { return res.status(500).json({ ok: false, error: e.message, protocol: 'SUBOS/1.0' }); }
 });
 
 app.get('/api/autonomy/score', (req, res) => {
