@@ -279,6 +279,23 @@ app.get('/health', (req, res) => {
         return { protocol: 'TBOS/1.0', available: false };
       }
     })(),
+    brandSpectrum: (function () {
+      try {
+        const cic = require('../backend/modules/brand-spectrum-os');
+        const s = cic.getScore();
+        return {
+          protocol: 'CIC/1.0',
+          available: true,
+          score: s.score,
+          grade: s.grade,
+          continuumId: s.continuumId,
+          horizonYear: s.horizonYear,
+          signed: !!s.signed,
+        };
+      } catch (_) {
+        return { protocol: 'CIC/1.0', available: false };
+      }
+    })(),
     sse
   });
 });
@@ -863,6 +880,28 @@ app.get('/api/autonomy/bond/score', siteProxyToUnicorn('/api/autonomy/bond/score
 app.get('/.well-known/triad-bond.json', siteProxyToUnicorn('/api/autonomy/triad'));
 app.get('/api/autonomy/triad', siteProxyToUnicorn('/api/autonomy/triad'));
 app.get('/api/autonomy/triad/score', siteProxyToUnicorn('/api/autonomy/triad/score'));
+// CIC/1.0 — serve locally first so brand continuum stays up even if backend is dark/old.
+app.get(['/api/brand/spectrum', '/.well-known/brand-spectrum.json'], (req, res) => {
+  try {
+    const cic = require('../backend/modules/brand-spectrum-os');
+    const payload = String(req.path || '').includes('brand-spectrum.json')
+      ? cic.getWellKnown()
+      : cic.getStatus();
+    res.set('Cache-Control', 'public, max-age=60');
+    return res.json(payload);
+  } catch (e) {
+    return res.status(503).json({ ok: false, error: e.message, protocol: 'CIC/1.0' });
+  }
+});
+app.get('/api/brand/spectrum/score', (req, res) => {
+  try {
+    const cic = require('../backend/modules/brand-spectrum-os');
+    res.set('Cache-Control', 'public, max-age=60');
+    return res.json(cic.getScore());
+  } catch (e) {
+    return res.status(503).json({ ok: false, error: e.message, protocol: 'CIC/1.0' });
+  }
+});
 // PFOS / ESOS — status page panels (proxy to backend SoT)
 app.get('/api/platform/foundation', siteProxyToUnicorn('/api/platform/foundation'));
 app.get('/.well-known/platform.json', siteProxyToUnicorn('/api/platform/foundation'));
@@ -7095,6 +7134,8 @@ seedSsrMap();if(document.getElementById("ds-sort")&&!document.getElementById("ds
         bond_score:        '/api/autonomy/bond/score',
         triad_bond:        '/.well-known/triad-bond.json',
         triad_score:       '/api/autonomy/triad/score',
+        brand_spectrum:    '/.well-known/brand-spectrum.json',
+        brand_spectrum_score: '/api/brand/spectrum/score',
         status:            '/status',
         telegram_group_os: '/api/telegram/group-os',
       },
@@ -7466,6 +7507,26 @@ seedSsrMap();if(document.getElementById("ds-sort")&&!document.getElementById("ds
     } catch (e) {
       res.writeHead(200, { 'Content-Type': 'application/json' });
       return res.end(JSON.stringify({ ok: false, error: e.message, protocol: 'TBOS/1.0' }));
+    }
+  }
+
+  // CIC/1.0 — Chromatic Identity Continuum (40y brand spectrum)
+  if (
+    urlPath === '/.well-known/brand-spectrum.json'
+    || urlPath === '/api/brand/spectrum'
+    || urlPath === '/api/brand/spectrum/score'
+  ) {
+    try {
+      const cic = require('../backend/modules/brand-spectrum-os');
+      let payload;
+      if (urlPath === '/api/brand/spectrum/score') payload = cic.getScore();
+      else if (urlPath === '/.well-known/brand-spectrum.json') payload = cic.getWellKnown();
+      else payload = cic.getStatus();
+      res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'public, max-age=60' });
+      return res.end(JSON.stringify(payload));
+    } catch (e) {
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      return res.end(JSON.stringify({ ok: false, error: e.message, protocol: 'CIC/1.0' }));
     }
   }
 
