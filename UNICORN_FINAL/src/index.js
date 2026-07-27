@@ -816,6 +816,11 @@ app.get('/api/autonomy/os', siteProxyToUnicorn('/api/autonomy/os'));
 app.get('/api/autonomy/score', siteProxyToUnicorn('/api/autonomy/score'));
 app.get('/api/autonomy/os/history', siteProxyToUnicorn('/api/autonomy/os/history'));
 app.get('/api/autonomy/smoke', siteProxyToUnicorn('/api/autonomy/smoke'));
+// NAOS/1.0 — Neural Autonomy OS composition plane
+app.get('/.well-known/neural-autonomy.json', siteProxyToUnicorn('/api/autonomy/neural'));
+app.get('/api/autonomy/neural', siteProxyToUnicorn('/api/autonomy/neural'));
+app.get('/api/autonomy/neural/score', siteProxyToUnicorn('/api/autonomy/neural/score'));
+app.get('/api/autonomy', siteProxyToUnicorn('/api/autonomy/neural'));
 app.get('/api/pricing/module/:moduleId', async (req, res) => {
   const moduleId = String(req.params.moduleId || '').slice(0, 80);
   const backendUrl = process.env.BACKEND_API_URL;
@@ -7037,6 +7042,8 @@ seedSsrMap();if(document.getElementById("ds-sort")&&!document.getElementById("ds
         autonomy:          '/.well-known/autonomy.json',
         autonomy_score:    '/api/autonomy/score',
         autonomy_smoke:    '/api/autonomy/smoke',
+        neural_autonomy:   '/.well-known/neural-autonomy.json',
+        neural_score:      '/api/autonomy/neural/score',
         status:            '/status',
         telegram_group_os: '/api/telegram/group-os',
       },
@@ -7344,6 +7351,24 @@ seedSsrMap();if(document.getElementById("ds-sort")&&!document.getElementById("ds
     } catch (e) {
       res.writeHead(200, { 'Content-Type': 'application/json' });
       return res.end(JSON.stringify({ ok: false, error: e.message, protocol: 'TAOS/1.0' }));
+    }
+  }
+
+  // NAOS/1.0 — Neural Autonomy OS (compose immortal organs; site-local fallback)
+  if (
+    urlPath === '/.well-known/neural-autonomy.json'
+    || urlPath === '/api/autonomy/neural'
+    || urlPath === '/api/autonomy/neural/score'
+    || urlPath === '/api/autonomy'
+  ) {
+    try {
+      const naos = require('../backend/modules/neural-autonomy-os');
+      const payload = urlPath === '/api/autonomy/neural/score' ? naos.getScore() : naos.getStatus();
+      res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' });
+      return res.end(JSON.stringify(payload));
+    } catch (e) {
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      return res.end(JSON.stringify({ ok: false, error: e.message, protocol: 'NAOS/1.0' }));
     }
   }
 

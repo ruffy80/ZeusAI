@@ -4616,7 +4616,7 @@ function pageStatus(params = {}) {
   return `<section style="padding-top:140px;max-width:1100px">
   <span class="kicker">Live status</span>
   <h1 style="font-size:clamp(34px,4.4vw,56px);margin:10px 0 18px">Live Unicorn Status · <span id="stHeadline" class="grad">operational.</span></h1>
-  <p style="color:var(--ink-dim);font-size:15px">Live API is protecting the site: health, QIS, catalog and checkout checks are refreshed from production endpoints. Source: <code class="inline">/api/status</code>. Total Autonomy OS from <code class="inline">/api/autonomy/os</code>. Refreshes every 15s.</p>
+  <p style="color:var(--ink-dim);font-size:15px">Live API is protecting the site: health, QIS, catalog and checkout checks are refreshed from production endpoints. Source: <code class="inline">/api/status</code>. Total Autonomy OS from <code class="inline">/api/autonomy/os</code>. Neural Autonomy OS from <code class="inline">/api/autonomy/neural</code>. Refreshes every 15s.</p>
 
   <div class="card" id="taosPanel" style="margin-top:22px;padding:26px" aria-live="polite">
     <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:16px;flex-wrap:wrap">
@@ -4636,6 +4636,27 @@ function pageStatus(params = {}) {
       <ul id="taosNext" style="margin:10px 0 0;padding-left:18px;color:var(--ink-dim);font-size:14px;line-height:1.65"><li>Loading autonomy snapshot…</li></ul>
     </div>
     <p id="taosDoctrine" style="color:var(--ink-dim);font-size:13.5px;margin:16px 0 0;font-style:italic">—</p>
+  </div>
+
+  <div class="card" id="naosPanel" style="margin-top:18px;padding:26px" aria-live="polite">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:16px;flex-wrap:wrap">
+      <div>
+        <span class="kicker">Neural Autonomy OS</span>
+        <div style="display:flex;align-items:baseline;gap:14px;flex-wrap:wrap;margin-top:4px">
+          <span id="naosScore" class="grad" style="font-size:clamp(36px,5vw,56px);font-weight:800;line-height:1;font-family:var(--mono,monospace)">—</span>
+          <span id="naosGrade" style="font-size:18px;font-weight:700;letter-spacing:.04em">—</span>
+        </div>
+        <p style="color:var(--ink-dim);font-size:13.5px;margin:10px 0 0">Organ continuum · Buy Immortal · Boot Immortal · stable idle is a feature · <b id="naosIdle" style="color:#fff">—</b></p>
+      </div>
+      <a class="btn btn-ghost" href="/api/autonomy/neural" target="_blank" rel="noopener" style="font-size:12px">NAOS JSON →</a>
+    </div>
+    <div id="naosOrgans" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin-top:18px"></div>
+    <div style="margin-top:16px;padding-top:14px;border-top:1px solid var(--stroke,rgba(160,200,255,.14));display:flex;gap:10px;flex-wrap:wrap;align-items:center">
+      <span class="tag" id="naosContinuum">continuum —</span>
+      <a class="btn btn-ghost" href="/api/autonomy/neural/score" target="_blank" rel="noopener" style="font-size:12px">Score →</a>
+      <a class="btn btn-ghost" href="/.well-known/neural-autonomy.json" target="_blank" rel="noopener" style="font-size:12px">/.well-known/neural-autonomy.json →</a>
+    </div>
+    <p id="naosDoctrine" style="color:var(--ink-dim);font-size:13.5px;margin:16px 0 0;font-style:italic">—</p>
   </div>
 
   <div class="card" id="pfosPanel" style="margin-top:18px;padding:26px" aria-live="polite">
@@ -4684,6 +4705,7 @@ function pageStatus(params = {}) {
       <a class="btn" href="/api/incidents" target="_blank" rel="noopener">Public incident log</a>
       <a class="btn btn-ghost" href="/api/autonomy/os" target="_blank" rel="noopener">Autonomy OS JSON</a>
       <a class="btn btn-ghost" href="/api/autonomy/score" target="_blank" rel="noopener">Autonomy score</a>
+      <a class="btn btn-ghost" href="/api/autonomy/neural" target="_blank" rel="noopener">Neural Autonomy</a>
       <a class="btn btn-ghost" href="/api/platform/foundation" target="_blank" rel="noopener">Platform Foundation</a>
       <a class="btn btn-ghost" href="/.well-known/platform.json" target="_blank" rel="noopener">/.well-known/platform.json</a>
     </div>
@@ -4832,7 +4854,47 @@ function pageStatus(params = {}) {
       if(pe) pe.innerHTML='<p style="color:var(--ink-dim);font-size:13.5px;margin:0">Enterprise Standard snapshot unavailable.</p>';
     }
   }
-  function loadAllStatus(){ loadStatus(); loadAutonomyOs(); loadPlatformFoundation(); loadEnterpriseStandard(); }
+  async function loadNeuralOs(){
+    try {
+      var d = await (await fetch('/api/autonomy/neural',{cache:'no-store'})).json();
+      var scoreEl=document.getElementById('naosScore');
+      var gradeEl=document.getElementById('naosGrade');
+      var idleEl=document.getElementById('naosIdle');
+      var doctrineEl=document.getElementById('naosDoctrine');
+      var continuumEl=document.getElementById('naosContinuum');
+      var organsEl=document.getElementById('naosOrgans');
+      if(scoreEl) scoreEl.textContent = d.score!=null ? String(d.score) : '—';
+      if(gradeEl) gradeEl.textContent = d.grade!=null ? String(d.grade) : '—';
+      if(idleEl) idleEl.textContent = d.stableIdleOk ? 'stable idle OK' : 'stable idle pending';
+      var doctrine = d.doctrine;
+      if(typeof doctrine==='object'&&doctrine) doctrine = doctrine.line||doctrine.summary||doctrine.text||'';
+      if(doctrineEl) doctrineEl.textContent = doctrine ? String(doctrine) : 'Compose immortal organs · observe-only.';
+      var c = d.continuum||{};
+      if(continuumEl) continuumEl.textContent = 'live '+(c.live||0)+' · idle '+(c.idle_stable||0)+' · unarmed '+(c.unarmed||0)+' · degraded '+(c.degraded||0);
+      var organs = Array.isArray(d.organs) ? d.organs : (Array.isArray(d.pillars)?d.pillars:[]);
+      if(organsEl){
+        if(!organs.length){
+          organsEl.innerHTML='<p style="color:var(--ink-dim);font-size:13.5px;margin:0">Neural organs pending.</p>';
+        } else {
+          organsEl.innerHTML = organs.slice(0,9).map(function(p,i){
+            var ok=taosPillarPass(p);
+            var label=taosEsc(taosPillarName(p,i));
+            var detail=taosEsc((p&&(p.detail||p.posture))||'');
+            var bg=ok?'rgba(59,255,176,.15)':'rgba(255,120,120,.12)';
+            var fg=ok?'#3bffb0':'#ff8a8a';
+            var st=ok?'PASS':'FAIL';
+            return '<div style="padding:12px 14px;border-radius:12px;border:1px solid var(--stroke,rgba(160,200,255,.14));background:rgba(0,0,0,.22)"><span class="tag" style="background:'+bg+';color:'+fg+';margin-bottom:8px">'+st+'</span><div style="font-size:14px;font-weight:600">'+label+'</div>'+(detail?'<div style="font-size:11.5px;color:var(--ink-dim);margin-top:4px">'+detail+'</div>':'')+'</div>';
+          }).join('');
+        }
+      }
+    } catch(e) {
+      var se=document.getElementById('naosScore');
+      var pe=document.getElementById('naosOrgans');
+      if(se) se.textContent='—';
+      if(pe) pe.innerHTML='<p style="color:var(--ink-dim);font-size:13.5px;margin:0">Neural Autonomy snapshot unavailable.</p>';
+    }
+  }
+  function loadAllStatus(){ loadStatus(); loadAutonomyOs(); loadNeuralOs(); loadPlatformFoundation(); loadEnterpriseStandard(); }
   loadAllStatus(); setInterval(loadAllStatus, 15000);
   </script>
 </section>`;
