@@ -3248,6 +3248,12 @@ let totalAutonomyOs = null;
 try { totalAutonomyOs = require('./modules/totalAutonomyOs'); }
 catch (e) { console.warn('[total-autonomy-os] disabled:', e && e.message); }
 
+// Neural Autonomy OS — composition plane over immortal organs (NAOS/1.0).
+// Observe/score only. Never arms mutators or thrash loops.
+let neuralAutonomyOs = null;
+try { neuralAutonomyOs = require('./modules/neural-autonomy-os'); }
+catch (e) { console.warn('[neural-autonomy-os] disabled:', e && e.message); }
+
 // ==================== 3 COMPONENTE CRITICE AUTONOME ====================
 const centralOrchestrator = require('./modules/central-orchestrator');
 const selfHealingEngine   = require('./modules/self-healing-engine');
@@ -9921,6 +9927,18 @@ app.get(['/api/autonomy/os', '/.well-known/autonomy.json'], (req, res) => {
   if (!totalAutonomyOs) return res.status(503).json({ ok: false, error: 'total-autonomy-os unavailable' });
   try { return res.json(totalAutonomyOs.getStatus()); }
   catch (e) { return res.status(500).json({ ok: false, error: e.message }); }
+});
+
+// NAOS/1.0 — Neural Autonomy OS (compose immortal organs; observe-only)
+app.get(['/api/autonomy/neural', '/api/autonomy', '/.well-known/neural-autonomy.json'], (req, res) => {
+  if (!neuralAutonomyOs) return res.status(503).json({ ok: false, error: 'neural-autonomy-os unavailable', protocol: 'NAOS/1.0' });
+  try { return res.json(neuralAutonomyOs.getStatus()); }
+  catch (e) { return res.status(500).json({ ok: false, error: e.message, protocol: 'NAOS/1.0' }); }
+});
+app.get('/api/autonomy/neural/score', (req, res) => {
+  if (!neuralAutonomyOs) return res.status(503).json({ ok: false, error: 'neural-autonomy-os unavailable', protocol: 'NAOS/1.0' });
+  try { return res.json(neuralAutonomyOs.getScore()); }
+  catch (e) { return res.status(500).json({ ok: false, error: e.message, protocol: 'NAOS/1.0' }); }
 });
 
 app.get('/api/autonomy/score', (req, res) => {

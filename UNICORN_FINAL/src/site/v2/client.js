@@ -532,15 +532,24 @@ function applySnapshot(s){
   if (s.autonomy && s.autonomy.chain) set('statChain', s.autonomy.chain.length || '—');
 }
 
-// Total Autonomy OS (TAOS/1.0) hero-stat + nav hydrator. Fetches the live
-// score from the backend and paints `#statTaos` / `#navTaos` (`${grade} ${score}`).
-// Fails silently: if the endpoint is unavailable or shape is wrong, the SSR
-// placeholder ("—") stays.
+// Autonomy hero-stat + nav hydrator. Prefers Neural Autonomy OS (NAOS/1.0)
+// composition score, falls back to Total Autonomy OS (TAOS/1.0).
+// Paints `#statTaos` / `#navTaos` (`${grade} ${score}`). Fails silently.
 async function hydrateAutonomyScore(){
   try {
-    const r = await fetch('/api/autonomy/score', { cache: 'no-store' });
-    if (!r || !r.ok) return;
-    const j = await r.json();
+    let j = null;
+    try {
+      const nr = await fetch('/api/autonomy/neural/score', { cache: 'no-store' });
+      if (nr && nr.ok) {
+        const nj = await nr.json();
+        if (nj && nj.ok === true && (nj.score != null || nj.grade)) j = nj;
+      }
+    } catch (_) { /* fall through to TAOS */ }
+    if (!j) {
+      const r = await fetch('/api/autonomy/score', { cache: 'no-store' });
+      if (!r || !r.ok) return;
+      j = await r.json();
+    }
     if (!j || j.ok !== true) return;
     const label = (j.grade && (j.score != null)) ? `${j.grade} ${j.score}` : (j.grade || (j.score != null ? String(j.score) : ''));
     if (!label) return;
