@@ -51,97 +51,116 @@ html::before{content:"";position:fixed;inset:0;pointer-events:none;z-index:1;bac
 
 /* ============ NAV ============ */
 .nav{position:fixed;top:0;left:0;right:0;z-index:40;display:flex;align-items:center;justify-content:space-between;padding:18px 32px;backdrop-filter:blur(14px) saturate(140%);-webkit-backdrop-filter:blur(14px) saturate(140%);background:linear-gradient(180deg,rgba(5,4,10,.7),rgba(5,4,10,.3));border-bottom:1px solid var(--stroke)}
-.brand{display:flex;align-items:center;gap:14px;font-weight:700;letter-spacing:.5px;font-size:18px}
-.brand-logo{width:56px;height:56px;border-radius:14px;background:conic-gradient(from 210deg,var(--violet),var(--blue),var(--gold),var(--violet));box-shadow:0 0 30px rgba(138,92,255,.55),inset 0 0 10px rgba(255,255,255,.25);position:relative;overflow:hidden}
-.brand-logo::after{content:"";position:absolute;inset:4px;border-radius:7px;background:radial-gradient(circle at 30% 30%,rgba(255,255,255,.7),rgba(255,255,255,0) 60%),#0a0818}
+.brand{display:flex;align-items:center;gap:16px;font-weight:700;letter-spacing:.5px;font-size:18px}
+/* CIC/1.0 Volt Aurora frame — larger Zeus bust left of wordmark */
+.brand-logo{
+  --cic-frame:conic-gradient(from 210deg,var(--cic-zeus-a,#FF3B5C),var(--cic-zeus-b,#FF9F1C),var(--cic-zeus-c,#FFEE32),var(--cic-ai-a,#00E8A0),var(--cic-ai-b,#2DE2E6),var(--cic-zeus-a,#FF3B5C));
+  width:72px;height:72px;border-radius:22px;position:relative;overflow:hidden;
+  background:
+    linear-gradient(#0a0818,#0a0818) padding-box,
+    var(--cic-frame) border-box;
+  border:3px solid transparent;
+  box-shadow:0 0 36px var(--cic-frame-glow,rgba(255,159,28,.48)),0 0 56px rgba(0,232,160,.22),inset 0 0 12px rgba(255,255,255,.18);
+  animation:cicFramePulse 3.8s ease-in-out infinite;
+}
+.brand-logo::after{content:"";position:absolute;inset:5px;border-radius:16px;background:radial-gradient(circle at 30% 30%,rgba(255,255,255,.7),rgba(255,255,255,0) 60%),#0a0818}
 .brand-logo-photo::after{display:none}
-.brand-logo-photo img{width:100%;height:100%;object-fit:cover;display:block;filter:contrast(1.08) saturate(1.08)}
-.brand small{display:block;font-weight:500;font-size:10px;color:var(--ink-dim);letter-spacing:2.5px;text-transform:uppercase;font-family:'Orbitron',monospace;margin-top:3px;text-shadow:0 0 8px rgba(138,92,255,.4)}
+.brand-logo-photo img,.brand-logo-photo picture,.brand-logo-photo picture img{
+  width:100%;height:100%;object-fit:cover;object-position:center 18%;display:block;
+  filter:contrast(1.1) saturate(1.18) brightness(1.04);
+  border-radius:18px;
+}
+.brand small{display:block;font-weight:500;font-size:10px;color:var(--ink-dim);letter-spacing:2.5px;text-transform:uppercase;font-family:'Orbitron',ui-monospace,monospace;margin-top:3px;text-shadow:0 0 8px rgba(255,159,28,.35)}
 
-/* ============ ZEUS WORDMARK · cinematic gold+silver+lightning (matches brand image) ============ */
+/* ============ ZEUS WORDMARK · CIC Volt Aurora + blade-condensed letterforms ============ */
 .zeus-wordmark{
-  position:relative;display:inline-flex;align-items:center;gap:.22em;
-  font-family:'Cinzel',serif;font-weight:900;letter-spacing:.05em;line-height:1;
-  /* GOLD METAL — bevel ridge brighter at mid, deeper shadows top/bottom (matches image) */
-  background:linear-gradient(180deg,
-    #3a2405 0%,
-    #8a5e10 8%,
-    #d8a534 22%,
-    #ffe48a 42%,
-    #fff7c2 50%,
-    #ffd36a 58%,
-    #c98a18 78%,
-    #6a4208 92%,
-    #2a1a02 100%);
+  --cic-zeus-a:#FF3B5C;--cic-zeus-b:#FF9F1C;--cic-zeus-c:#FFEE32;--cic-zeus-d:#FF6B35;
+  --cic-ai-a:#00E8A0;--cic-ai-b:#2DE2E6;--cic-ai-c:#E8FFF8;--cic-ai-d:#7CF7C0;
+  position:relative;display:inline-flex;align-items:baseline;gap:.08em;
+  font-family:"Segoe UI Variable Display","Avenir Next Condensed","Futura","Century Gothic",system-ui,sans-serif;
+  font-weight:800;font-stretch:condensed;letter-spacing:-.038em;line-height:.92;
+  font-feature-settings:"kern" 1,"liga" 1;
+  background:linear-gradient(115deg,
+    var(--cic-zeus-a) 0%,
+    var(--cic-zeus-b) 28%,
+    var(--cic-zeus-c) 52%,
+    var(--cic-zeus-d) 78%,
+    var(--cic-zeus-a) 100%);
+  background-size:220% 100%;
   -webkit-background-clip:text;background-clip:text;
   -webkit-text-fill-color:transparent;color:transparent;
-  -webkit-text-stroke:.6px rgba(40,22,2,.7);
-  filter:drop-shadow(0 1px 0 rgba(0,0,0,.7))
-         drop-shadow(0 0 14px rgba(255,200,80,.4));
-  animation:zeusGoldPulse 3.6s ease-in-out infinite;
+  -webkit-text-stroke:.45px rgba(40,8,4,.55);
+  filter:drop-shadow(0 1px 0 rgba(0,0,0,.65))
+         drop-shadow(0 0 16px rgba(255,159,28,.55))
+         drop-shadow(0 0 28px rgba(255,59,92,.28));
+  animation:cicAuroraFlow 4.8s ease-in-out infinite;
+  transform:skewX(-2.2deg);
+}
+.zeus-wordmark .zw-blade{
+  display:inline-block;transform:skewX(-8deg) scaleY(1.06);
+  margin-right:-.02em;
 }
 .zeus-wordmark .ai{
   position:relative;
-  font-family:'Cinzel',serif;font-weight:900;font-size:1em;letter-spacing:.07em;margin-left:.18em;
-  /* SILVER / CHROME — mirror bevel */
-  background:linear-gradient(180deg,
-    #181d2a 0%,
-    #4d586d 10%,
-    #8e9aae 24%,
-    #d8e0ed 42%,
-    #ffffff 50%,
-    #cfd8e6 58%,
-    #7d8a9f 78%,
-    #2a3140 92%,
-    #0e131e 100%);
+  font-family:inherit;font-weight:800;font-size:1em;letter-spacing:-.02em;margin-left:.1em;
+  background:linear-gradient(125deg,
+    var(--cic-ai-a) 0%,
+    var(--cic-ai-b) 35%,
+    var(--cic-ai-c) 55%,
+    var(--cic-ai-d) 78%,
+    var(--cic-ai-a) 100%);
+  background-size:220% 100%;
   -webkit-background-clip:text;background-clip:text;
   -webkit-text-fill-color:transparent;color:transparent;
-  -webkit-text-stroke:.6px rgba(15,22,38,.7);
-  filter:drop-shadow(0 1px 0 rgba(0,0,0,.7))
-         drop-shadow(0 0 12px rgba(180,210,255,.4));
-  animation:zeusSilverPulse 3.6s ease-in-out infinite;
+  -webkit-text-stroke:.4px rgba(0,40,32,.45);
+  filter:drop-shadow(0 1px 0 rgba(0,0,0,.55))
+         drop-shadow(0 0 14px rgba(0,232,160,.55))
+         drop-shadow(0 0 26px rgba(45,226,230,.35));
+  animation:cicVoltFlow 4.8s ease-in-out infinite;
+  transform:skewX(3.8deg);
 }
-/* LIGHTNING BOLT — vertical, electric blue-white, sits between ZEUS and AI */
+/* VOLT BOLT — mint/cyan between Zeus and AI */
 .zeus-wordmark .ai::before{
   content:"";display:inline-block;vertical-align:middle;
-  width:.42em;height:1.42em;margin:0 .18em 0 -.04em;
+  width:.4em;height:1.28em;margin:0 .14em 0 -.02em;
   background:linear-gradient(180deg,
     #ffffff 0%,
-    #dff5ff 18%,
-    #7ec4ff 38%,
-    #00E6FF 52%,
-    #9fe7ff 70%,
-    #ffffff 88%,
-    #bfeeff 100%);
+    var(--cic-ai-c,#E8FFF8) 18%,
+    var(--cic-ai-d,#7CF7C0) 38%,
+    var(--cic-ai-a,#00E8A0) 52%,
+    var(--cic-ai-b,#2DE2E6) 72%,
+    #ffffff 100%);
   -webkit-mask:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 28 64' preserveAspectRatio='none'><path d='M17 0 L3 32 L11 32 L9 64 L25 28 L15 28 Z' fill='black'/></svg>") no-repeat center/contain;
           mask:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 28 64' preserveAspectRatio='none'><path d='M17 0 L3 32 L11 32 L9 64 L25 28 L15 28 Z' fill='black'/></svg>") no-repeat center/contain;
   filter:drop-shadow(0 0 4px #ffffff)
-         drop-shadow(0 0 12px #00E6FF)
-         drop-shadow(0 0 28px #0098c0)
-         drop-shadow(0 0 50px rgba(0,230,255,.45));
+         drop-shadow(0 0 12px var(--cic-ai-a,#00E8A0))
+         drop-shadow(0 0 28px var(--cic-ai-b,#2DE2E6));
   animation:zeusBoltPulse 1.8s ease-in-out infinite, zeusBoltFlicker 5.5s linear infinite;
-  transform-origin:center;
+  transform-origin:center;transform:skewX(0deg);
 }
-/* faint vertical electric crack trail behind the bolt */
 .zeus-wordmark::before{
-  content:"";position:absolute;left:50%;top:-22%;bottom:-22%;width:2px;transform:translateX(-50%);
+  content:"";position:absolute;left:48%;top:-22%;bottom:-22%;width:2px;transform:translateX(-50%);
   background:linear-gradient(180deg,
     transparent 0%,
-    rgba(0,230,255,.45) 30%,
-    rgba(180,235,255,.85) 50%,
-    rgba(0,230,255,.45) 70%,
+    rgba(255,159,28,.35) 28%,
+    rgba(0,232,160,.75) 50%,
+    rgba(45,226,230,.4) 72%,
     transparent 100%);
   filter:blur(1.4px);z-index:-1;pointer-events:none;
   animation:zeusBoltFlicker 5.5s linear infinite;
 }
 
-@keyframes zeusGoldPulse{
-  0%,100%{opacity:.85}
-  50%   {opacity:1}
+@keyframes cicAuroraFlow{
+  0%,100%{background-position:0% 50%;opacity:.92}
+  50%{background-position:100% 50%;opacity:1}
 }
-@keyframes zeusSilverPulse{
-  0%,100%{opacity:.85}
-  50%   {opacity:1}
+@keyframes cicVoltFlow{
+  0%,100%{background-position:100% 50%;opacity:.9}
+  50%{background-position:0% 50%;opacity:1}
+}
+@keyframes cicFramePulse{
+  0%,100%{box-shadow:0 0 28px var(--cic-frame-glow,rgba(255,159,28,.42)),0 0 44px rgba(0,232,160,.18),inset 0 0 10px rgba(255,255,255,.14)}
+  50%{box-shadow:0 0 44px var(--cic-frame-glow,rgba(255,159,28,.62)),0 0 70px rgba(0,232,160,.32),inset 0 0 14px rgba(255,255,255,.22)}
 }
 @keyframes zeusBoltPulse{
   0%,100%{transform:scaleY(1) scaleX(1);opacity:.92}
@@ -152,17 +171,19 @@ html::before{content:"";position:fixed;inset:0;pointer-events:none;z-index:1;bac
   20%{opacity:.55}44%{opacity:.7}84%{opacity:.45}
 }
 
-.brand .zeus-wordmark{font-size:24px}
+.brand .zeus-wordmark{font-size:26px}
 .zeus-wordmark-hero{display:inline-flex;font-size:clamp(72px,11vw,168px);margin:0 0 6px}
 .zeus-wordmark-hero .ai{font-size:1em}
 .zeus-wordmark-hero .ai::before{width:.46em;height:1.5em;margin:0 .22em 0 .04em}
-.zeus-tagline{display:block;font-family:'Cinzel',serif;font-weight:600;font-size:clamp(11px,1.15vw,15px);letter-spacing:.42em;text-transform:uppercase;margin:6px 0 22px;opacity:0;animation:zeusFadeUp 1.4s .3s ease-out forwards;text-align:center}
-.zeus-tagline .tg-a{background:linear-gradient(180deg,#b87914,#ffd36a 45%,#fff7c2 55%,#b87914);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;color:transparent;filter:drop-shadow(0 0 8px rgba(255,200,80,.35))}
-.zeus-tagline .tg-b{background:linear-gradient(180deg,#bfeeff,#00E6FF 50%,#bfeeff);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;color:transparent;filter:drop-shadow(0 0 8px rgba(0,230,255,.45))}
-.zeus-tagline::before,.zeus-tagline::after{content:"";display:inline-block;vertical-align:middle;width:clamp(60px,9vw,140px);height:1px;margin:0 14px;background:linear-gradient(90deg,transparent,#b87914 40%,#ffd36a 50%,#b87914 60%,transparent)}
-.zeus-tagline::after{background:linear-gradient(90deg,transparent,#b87914 40%,#ffd36a 50%,#b87914 60%,transparent)}
+.zeus-tagline{display:block;font-family:"Segoe UI Variable Display","Avenir Next Condensed","Futura",system-ui,sans-serif;font-weight:700;font-size:clamp(11px,1.15vw,15px);letter-spacing:.32em;text-transform:uppercase;margin:6px 0 22px;opacity:0;animation:zeusFadeUp 1.4s .3s ease-out forwards;text-align:center}
+.zeus-tagline .tg-a{background:linear-gradient(90deg,var(--cic-zeus-a,#FF3B5C),var(--cic-zeus-c,#FFEE32));-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;color:transparent;filter:drop-shadow(0 0 8px rgba(255,159,28,.4))}
+.zeus-tagline .tg-b{background:linear-gradient(90deg,var(--cic-ai-a,#00E8A0),var(--cic-ai-b,#2DE2E6));-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;color:transparent;filter:drop-shadow(0 0 8px rgba(0,232,160,.45))}
+.zeus-tagline::before,.zeus-tagline::after{content:"";display:inline-block;vertical-align:middle;width:clamp(60px,9vw,140px);height:1px;margin:0 14px;background:linear-gradient(90deg,transparent,var(--cic-zeus-b,#FF9F1C) 40%,var(--cic-zeus-c,#FFEE32) 50%,var(--cic-zeus-b,#FF9F1C) 60%,transparent)}
+.zeus-tagline::after{background:linear-gradient(90deg,transparent,var(--cic-ai-a,#00E8A0) 40%,var(--cic-ai-b,#2DE2E6) 50%,var(--cic-ai-a,#00E8A0) 60%,transparent)}
 @keyframes zeusFadeUp{0%{opacity:0;transform:translateY(8px)}100%{opacity:1;transform:translateY(0)}}
-@media (prefers-reduced-motion: reduce){.zeus-wordmark,.zeus-wordmark::after,.zeus-wordmark::before,.zeus-wordmark .ai,.zeus-wordmark .ai::before,.zeus-tagline span{animation:none}}
+@media (prefers-reduced-motion: reduce){
+  .zeus-wordmark,.zeus-wordmark::after,.zeus-wordmark::before,.zeus-wordmark .ai,.zeus-wordmark .ai::before,.zeus-tagline span,.brand-logo{animation:none}
+}
 
 .nav-links{display:flex;gap:4px;align-items:center}
 .nav-links a{color:var(--ink);padding:9px 14px;border-radius:12px;font-size:14px;font-weight:500;opacity:.8;transition:transform .2s,opacity .2s,background-color .2s,border-color .2s,color .2s}
@@ -590,8 +611,8 @@ nav.nav[data-nav-open="true"] .nav-toggle-bar:nth-child(3){transform:translateY(
   .lang-switch{order:1}
   .lang-btn{min-width:36px;min-height:36px}
   .brand small{display:none}
-  .brand-logo{width:48px;height:48px}
-  .zeus-wordmark{font-size:clamp(18px,4vw,24px) !important}
+  .brand-logo{width:58px;height:58px;border-radius:18px}
+  .brand .zeus-wordmark{font-size:clamp(18px,4vw,24px) !important}
 }
 
 /* Laptop: tighten hero grid */
@@ -668,8 +689,8 @@ nav.nav[data-nav-open="true"] .nav-toggle-bar:nth-child(3){transform:translateY(
 
 /* Small phone (iPhone SE / 360px range) */
 @media (max-width:480px){
-  .brand-logo{width:42px;height:42px}
-  .zeus-wordmark{font-size:18px !important;letter-spacing:1px !important}
+  .brand-logo{width:50px;height:50px;border-radius:16px;border-width:2px}
+  .brand .zeus-wordmark{font-size:18px !important;letter-spacing:-.02em !important}
   .lang-switch{padding:2px}
   .lang-btn{padding:5px 8px;font-size:11px;min-width:32px;min-height:32px}
   .hero h1{font-size:clamp(26px,9vw,38px)}
@@ -757,7 +778,7 @@ nav.nav[data-nav-open="true"] .nav-toggle-bar:nth-child(3){transform:translateY(
   .hero{min-height:auto;padding:80px 16px 24px}
   .hero-grid{min-height:auto}
   .nav{padding:8px 16px}
-  .brand-logo{width:38px;height:38px}
+  .brand-logo{width:44px;height:44px;border-radius:14px}
 }
 
 /* Touch-target compliance globally */

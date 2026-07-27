@@ -486,16 +486,21 @@ ${jsonLdBlocks}
    web-font requests). Eliminates blocking font I/O on slow 4G
    and removes the 4 silent 404s reported by Lighthouse.
    ============================================================ */
-:root{--bg:#05040a;--bg2:#0a0818;--ink:#e8ecff;--ink-dim:#8fa1d4;--violet:#8a5cff;--blue:#3ea0ff;--gold:#ffd36a;--stroke:rgba(163,138,255,.22);--radius:18px;--font:"Space Grotesk","Inter",system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+:root{--bg:#05040a;--bg2:#0a0818;--ink:#e8ecff;--ink-dim:#8fa1d4;--violet:#8a5cff;--blue:#3ea0ff;--gold:#ffd36a;--stroke:rgba(163,138,255,.22);--radius:18px;--font:"Space Grotesk","Inter",system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;--cic-zeus-a:#FF3B5C;--cic-zeus-b:#FF9F1C;--cic-zeus-c:#FFEE32;--cic-zeus-d:#FF6B35;--cic-ai-a:#00E8A0;--cic-ai-b:#2DE2E6;--cic-frame-glow:rgba(255,159,28,.48)}
 *{box-sizing:border-box}
 html,body{margin:0;padding:0;background:var(--bg);color:var(--ink);font-family:var(--font);-webkit-font-smoothing:antialiased;overflow-x:hidden}
-body{min-height:100vh;background:radial-gradient(1400px 900px at 50% 0%,rgba(138,92,255,.12),transparent 55%),radial-gradient(1200px 800px at 100% 100%,rgba(62,160,255,.08),transparent 60%),linear-gradient(180deg,#05040a 0%,#0a0818 100%)}
+body{min-height:100vh;background:radial-gradient(1400px 900px at 50% 0%,rgba(255,159,28,.10),transparent 55%),radial-gradient(1200px 800px at 100% 100%,rgba(0,232,160,.07),transparent 60%),linear-gradient(180deg,#05040a 0%,#0a0818 100%)}
 a{color:#6fd3ff;text-decoration:none}
 img{max-width:100%;display:block}
 .zeus-page-bg{position:fixed;inset:0;z-index:0;pointer-events:none;opacity:1}
 .zeus-page-bg__layer{position:absolute;inset:0;background-size:cover;background-position:center 28%;background-repeat:no-repeat}
 .zeus-page-bg__veil{position:absolute;inset:0;background:linear-gradient(180deg,rgba(5,4,10,.42),rgba(5,4,10,.74))}
 .nav{position:fixed;top:0;left:0;right:0;z-index:40;display:flex;align-items:center;justify-content:space-between;padding:18px 32px;backdrop-filter:blur(14px) saturate(140%);-webkit-backdrop-filter:blur(14px) saturate(140%);background:linear-gradient(180deg,rgba(5,4,10,.7),rgba(5,4,10,.3));border-bottom:1px solid var(--stroke)}
+.brand{display:flex;align-items:center;gap:16px}
+.brand-logo{width:72px;height:72px;border-radius:22px;border:3px solid transparent;background:linear-gradient(#0a0818,#0a0818) padding-box,conic-gradient(from 210deg,#FF3B5C,#FF9F1C,#FFEE32,#00E8A0,#2DE2E6,#FF3B5C) border-box;overflow:hidden;box-shadow:0 0 36px rgba(255,159,28,.48)}
+.brand-logo img{width:100%;height:100%;object-fit:cover;object-position:center 18%;border-radius:18px}
+.zeus-wordmark{font-family:"Segoe UI Variable Display","Avenir Next Condensed","Futura","Century Gothic",system-ui,sans-serif;font-weight:800;font-size:26px;letter-spacing:-.038em;background:linear-gradient(115deg,#FF3B5C,#FF9F1C,#FFEE32,#FF6B35);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;color:transparent}
+.zeus-wordmark .ai{background:linear-gradient(125deg,#00E8A0,#2DE2E6,#E8FFF8,#7CF7C0);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent}
 .btn{display:inline-block;padding:14px 20px;border-radius:14px;border:1px solid rgba(255,255,255,.18);color:#fff;text-decoration:none;background:rgba(255,255,255,.08)}
 .btn.primary{background:linear-gradient(135deg,var(--violet),var(--blue));border-color:transparent}
 .hero{position:relative;min-height:100vh;display:flex;align-items:center;padding:96px 7vw;overflow:hidden}
@@ -546,7 +551,7 @@ function navBar(route, opts) {
     : 'Display in English';
   const langToggle = `<button class="lang-toggle" type="button" data-target-lang="${targetLang}" aria-label="${targetTitle}" title="${targetTitle}">🌐 ${targetLabel}</button>`;
   return `<nav class="nav" data-nav-open="false">
-<div class="brand"><div class="brand-logo brand-logo-photo"><picture><source type="image/avif" srcset="${assetPath('/assets/zeus/brand-88.avif')} 1x, ${assetPath('/assets/zeus/brand-176.avif')} 2x, ${assetPath('/assets/zeus/brand-264.avif')} 3x"/><source type="image/webp" srcset="${assetPath('/assets/zeus/brand-88.webp')} 1x, ${assetPath('/assets/zeus/brand-176.webp')} 2x, ${assetPath('/assets/zeus/brand-264.webp')} 3x"/><img src="${assetPath('/assets/zeus/brand-88.jpg')}" srcset="${assetPath('/assets/zeus/brand-88.jpg')} 1x, ${assetPath('/assets/zeus/brand-176.jpg')} 2x, ${assetPath('/assets/zeus/brand-264.jpg')} 3x" alt="Zeus" width="44" height="44" decoding="async" loading="lazy" onerror="this.style.display='none'"/></picture></div><div><span class="zeus-wordmark">Zeus<span class="ai">AI</span></span><small>Sovereign · Self-Evolving · Signed</small></div></div>
+<div class="brand"><div class="brand-logo brand-logo-photo" aria-hidden="true"><picture><source type="image/avif" srcset="${assetPath('/assets/zeus/brand-176.avif')} 1x, ${assetPath('/assets/zeus/brand-264.avif')} 2x"/><source type="image/webp" srcset="${assetPath('/assets/zeus/brand-176.webp')} 1x, ${assetPath('/assets/zeus/brand-264.webp')} 2x"/><img src="${assetPath('/assets/zeus/brand-176.jpg')}" srcset="${assetPath('/assets/zeus/brand-176.jpg')} 1x, ${assetPath('/assets/zeus/brand-264.jpg')} 2x" alt="" width="72" height="72" decoding="async" fetchpriority="high" onerror="this.style.display='none'"/></picture></div><div><span class="zeus-wordmark" data-cic="volt-aurora" aria-label="ZeusAI"><span class="zw-blade">Z</span>eus<span class="ai">AI</span></span><small>Sovereign · Self-Evolving · Signed</small></div></div>
 <button class="nav-toggle" type="button" aria-label="Toggle navigation" aria-expanded="false" aria-controls="nav-links">
   <span class="nav-toggle-bar"></span><span class="nav-toggle-bar"></span><span class="nav-toggle-bar"></span>
 </button>
@@ -585,7 +590,7 @@ function footer(route, opts) {
 <footer>
   <div class="foot-grid">
     <div>
-      <div class="brand" style="margin-bottom:14px"><div class="brand-logo"></div><div><span class="zeus-wordmark">Zeus<span class="ai">AI</span></span><small>Sovereign · Self-Evolving · Signed</small></div></div>
+      <div class="brand" style="margin-bottom:14px"><div class="brand-logo" aria-hidden="true"></div><div><span class="zeus-wordmark" data-cic="volt-aurora" aria-label="ZeusAI"><span class="zw-blade">Z</span>eus<span class="ai">AI</span></span><small>Sovereign · Self-Evolving · Signed</small></div></div>
       <p style="color:var(--ink-dim);font-size:13.5px;line-height:1.6;max-width:360px">Autonomous AI operating system. Every module signed with W3C DID. Every outcome routed through Merkle-chained receipts. Property of ${OWNER.name}.</p>
     </div>
     <div><h3 class="footer-col-title">Product</h3><ul>
@@ -652,6 +657,22 @@ ${globalChrome(N)}
 <noscript><div style="position:fixed;bottom:0;left:0;right:0;padding:14px 18px;background:#05040a;color:#e8f0ff;border-top:1px solid #3ea0ff;font:14px/1.4 system-ui;z-index:99">This site works fully without JavaScript. Cinematic effects are disabled in no-JS mode; all services, pricing and APIs remain reachable.</div></noscript>
 <script${N}>window.__UNICORN__=${JSON.stringify({ owner: OWNER, route })};</script>
 <script${N}>window.__ZEUS_ASSETS__=${JSON.stringify(browserAssetManifest())};</script>
+<script${N}>
+/* CIC/1.0 — hydrate brand spectrum CSS vars site-wide (40y chromatic continuum) */
+(function(){
+  function apply(vars){
+    if(!vars||typeof vars!=='object') return;
+    try{
+      var root=document.documentElement;
+      Object.keys(vars).forEach(function(k){ if(String(k).indexOf('--')===0) root.style.setProperty(k, vars[k]); });
+    }catch(_){}
+  }
+  fetch('/api/brand/spectrum',{cache:'no-store'}).then(function(r){return r.json()}).then(function(d){
+    if(d&&d.cssVars) apply(d.cssVars);
+    else if(d&&d.spectrum&&d.spectrum.cssVars) apply(d.spectrum.cssVars);
+  }).catch(function(){});
+})();
+</script>
 <script${N} data-local-three-version="r160">
 // Trusted Types: register a passthrough 'default' policy early — before any
 // third-party script runs — so raw innerHTML / script.src assignments from any
@@ -4382,6 +4403,7 @@ function pageInnovations() {
 
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:14px;margin:22px 0">
       <div class="card" style="padding:18px"><span class="tag">Coverage API</span><h3>Live coverage</h3><p style="color:var(--ink-dim);font-size:13.5px">Runtime coverage summary for recent innovations and deployed modules.</p><a href="/api-explorer?endpoint=%2Fapi%2Finnovation%2Fcoverage" class="btn" style="margin-top:8px">Open in API Explorer</a></div>
+      <div class="card" style="padding:18px;border:1px solid rgba(255,159,28,.35)"><span class="tag" style="background:linear-gradient(135deg,#FF3B5C,#FF9F1C);color:#12080a">CIC/1.0 · 2066</span><h3 style="margin:8px 0">Chromatic Identity Continuum</h3><p style="color:var(--ink-dim);font-size:13.5px">World-first forever brand spectrum: Volt Aurora chromatics + blade-condensed letterform genome, signed to the forever-key so agents can verify the real ZeusAI look for 40+ years.</p><a href="/.well-known/brand-spectrum.json" target="_blank" rel="noopener" class="btn" style="margin-top:8px">Open spectrum JSON</a></div>
       <div class="card" style="padding:18px"><span class="tag">Forward-only</span><h3>No downgrade path</h3><p style="color:var(--ink-dim);font-size:13.5px">Every accepted innovation must pass canary, QIS and final smoke before promotion.</p></div>
       <div class="card" style="padding:18px"><span class="tag">Live site</span><h3>Innovation map</h3><p style="color:var(--ink-dim);font-size:13.5px">This page is the visible map for what changed and where to verify it.</p></div>
     </div>
@@ -4691,6 +4713,22 @@ function pageStatus(params = {}) {
     <p id="tbosDoctrine" style="color:var(--ink-dim);font-size:13.5px;margin:16px 0 0;font-style:italic">—</p>
   </div>
 
+  <div class="card" id="cicPanel" style="margin-top:18px;padding:26px;border:1px solid rgba(255,159,28,.28)" aria-live="polite">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:16px;flex-wrap:wrap">
+      <div>
+        <span class="kicker" style="background:linear-gradient(135deg,#FF3B5C,#FF9F1C);-webkit-background-clip:text;background-clip:text;color:transparent">Chromatic Identity Continuum</span>
+        <div style="display:flex;align-items:baseline;gap:14px;flex-wrap:wrap;margin-top:4px">
+          <span id="cicScore" class="grad" style="font-size:clamp(36px,5vw,56px);font-weight:800;line-height:1;font-family:var(--mono,monospace)">—</span>
+          <span id="cicGrade" style="font-size:18px;font-weight:700;letter-spacing:.04em">—</span>
+        </div>
+        <p style="color:var(--ink-dim);font-size:13.5px;margin:10px 0 0">Volt Aurora · blade letterforms · horizon <b id="cicHorizon" style="color:#fff">2066</b> · <b id="cicSigned" style="color:#fff">—</b></p>
+      </div>
+      <a class="btn btn-ghost" href="/.well-known/brand-spectrum.json" target="_blank" rel="noopener" style="font-size:12px">Brand spectrum →</a>
+    </div>
+    <div id="cicSwatches" style="display:flex;gap:8px;flex-wrap:wrap;margin-top:18px"></div>
+    <p id="cicDoctrine" style="color:var(--ink-dim);font-size:13.5px;margin:16px 0 0;font-style:italic">—</p>
+  </div>
+
   <div class="card" id="pfosPanel" style="margin-top:18px;padding:26px" aria-live="polite">
     <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:16px;flex-wrap:wrap">
       <div>
@@ -4740,6 +4778,7 @@ function pageStatus(params = {}) {
       <a class="btn btn-ghost" href="/api/autonomy/neural" target="_blank" rel="noopener">Neural Autonomy</a>
       <a class="btn btn-ghost" href="/api/autonomy/bond" target="_blank" rel="noopener">Site↔Unicorn Bond</a>
       <a class="btn btn-ghost" href="/api/autonomy/triad" target="_blank" rel="noopener">Triad Never-Down</a>
+      <a class="btn btn-ghost" href="/.well-known/brand-spectrum.json" target="_blank" rel="noopener">Brand Spectrum CIC</a>
       <a class="btn btn-ghost" href="/api/platform/foundation" target="_blank" rel="noopener">Platform Foundation</a>
       <a class="btn btn-ghost" href="/.well-known/platform.json" target="_blank" rel="noopener">/.well-known/platform.json</a>
     </div>
@@ -5002,7 +5041,45 @@ function pageStatus(params = {}) {
       if(pe) pe.innerHTML='<p style="color:var(--ink-dim);font-size:13.5px;margin:0">Triad snapshot unavailable.</p>';
     }
   }
-  function loadAllStatus(){ loadStatus(); loadAutonomyOs(); loadNeuralOs(); loadSiteBond(); loadTriadBond(); loadPlatformFoundation(); loadEnterpriseStandard(); }
+  async function loadBrandSpectrum(){
+    try {
+      var d = await (await fetch('/api/brand/spectrum',{cache:'no-store'})).json();
+      var se=document.getElementById('cicScore');
+      var ge=document.getElementById('cicGrade');
+      var he=document.getElementById('cicHorizon');
+      var sg=document.getElementById('cicSigned');
+      var sw=document.getElementById('cicSwatches');
+      var doc=document.getElementById('cicDoctrine');
+      if(se) se.textContent = (d&&d.score!=null)?d.score:'—';
+      if(ge) ge.textContent = (d&&d.grade)||'—';
+      if(he) he.textContent = (d&&d.horizonYear)||2066;
+      if(sg) sg.textContent = (d&&d.signed)?'signed · kid '+(d.kid||'…'):'unsigned continuum';
+      if(doc) doc.textContent = (d&&d.letterform&&d.letterform.genome)
+        ? ('Letterform genome: '+d.letterform.genome+' · continuum '+(d.continuumId||d.spectrum&&d.spectrum.id||'volt-aurora'))
+        : 'CIC continuum pending.';
+      if(sw){
+        var cols=[];
+        try {
+          var z=(d.spectrum&&d.spectrum.wordmark&&d.spectrum.wordmark.zeus)||['#FF3B5C','#FF9F1C','#FFEE32','#FF6B35'];
+          var a=(d.spectrum&&d.spectrum.wordmark&&d.spectrum.wordmark.ai)||['#00E8A0','#2DE2E6'];
+          cols=z.concat(a);
+        } catch(_){ cols=['#FF3B5C','#FF9F1C','#FFEE32','#00E8A0','#2DE2E6']; }
+        sw.innerHTML = cols.map(function(c){
+          return '<span title="'+taosEsc(c)+'" style="width:28px;height:28px;border-radius:9px;background:'+taosEsc(c)+';box-shadow:0 0 12px '+taosEsc(c)+'55;border:1px solid rgba(255,255,255,.18)"></span>';
+        }).join('');
+      }
+      if(d&&d.cssVars){
+        try {
+          var root=document.documentElement;
+          Object.keys(d.cssVars).forEach(function(k){ root.style.setProperty(k, d.cssVars[k]); });
+        } catch(_){}
+      }
+    } catch(e) {
+      var se2=document.getElementById('cicScore');
+      if(se2) se2.textContent='—';
+    }
+  }
+  function loadAllStatus(){ loadStatus(); loadAutonomyOs(); loadNeuralOs(); loadSiteBond(); loadTriadBond(); loadBrandSpectrum(); loadPlatformFoundation(); loadEnterpriseStandard(); }
   loadAllStatus(); setInterval(loadAllStatus, 15000);
   </script>
 </section>`;

@@ -3264,6 +3264,11 @@ let triadBondOs = null;
 try { triadBondOs = require('./modules/triad-bond-os'); }
 catch (e) { console.warn('[triad-bond-os] disabled:', e && e.message); }
 
+// Chromatic Identity Continuum — forever brand spectrum (CIC/1.0).
+let brandSpectrumOs = null;
+try { brandSpectrumOs = require('./modules/brand-spectrum-os'); }
+catch (e) { console.warn('[brand-spectrum-os] disabled:', e && e.message); }
+
 // ==================== 3 COMPONENTE CRITICE AUTONOME ====================
 const centralOrchestrator = require('./modules/central-orchestrator');
 const selfHealingEngine   = require('./modules/self-healing-engine');
@@ -4404,6 +4409,23 @@ function buildHealthResponse() {
         };
       } catch (_) {
         return { protocol: 'TBOS/1.0', available: false };
+      }
+    })(),
+    brandSpectrum: (function () {
+      try {
+        if (!brandSpectrumOs) return { protocol: 'CIC/1.0', available: false };
+        const s = brandSpectrumOs.getScore();
+        return {
+          protocol: 'CIC/1.0',
+          available: true,
+          score: s.score,
+          grade: s.grade,
+          continuumId: s.continuumId,
+          horizonYear: s.horizonYear,
+          signed: !!s.signed,
+        };
+      } catch (_) {
+        return { protocol: 'CIC/1.0', available: false };
       }
     })(),
   };
@@ -10035,6 +10057,24 @@ app.get('/api/autonomy/triad/score', (req, res) => {
   if (!triadBondOs) return res.status(503).json({ ok: false, error: 'triad-bond-os unavailable', protocol: 'TBOS/1.0' });
   try { return res.json(triadBondOs.getScore()); }
   catch (e) { return res.status(500).json({ ok: false, error: e.message, protocol: 'TBOS/1.0' }); }
+});
+
+// CIC/1.0 — Chromatic Identity Continuum (40y brand spectrum)
+app.get(['/api/brand/spectrum', '/.well-known/brand-spectrum.json'], (req, res) => {
+  if (!brandSpectrumOs) return res.status(503).json({ ok: false, error: 'brand-spectrum-os unavailable', protocol: 'CIC/1.0' });
+  try {
+    const payload = req.path.includes('brand-spectrum.json')
+      ? brandSpectrumOs.getWellKnown()
+      : brandSpectrumOs.getStatus();
+    return res.json(payload);
+  } catch (e) {
+    return res.status(500).json({ ok: false, error: e.message, protocol: 'CIC/1.0' });
+  }
+});
+app.get('/api/brand/spectrum/score', (req, res) => {
+  if (!brandSpectrumOs) return res.status(503).json({ ok: false, error: 'brand-spectrum-os unavailable', protocol: 'CIC/1.0' });
+  try { return res.json(brandSpectrumOs.getScore()); }
+  catch (e) { return res.status(500).json({ ok: false, error: e.message, protocol: 'CIC/1.0' }); }
 });
 
 app.get('/api/autonomy/score', (req, res) => {
