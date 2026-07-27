@@ -134,6 +134,8 @@ check('nginx discovery allowlists neural-autonomy.json', () => {
   assert.ok(snippet.includes('location = /.well-known/neural-autonomy.json'));
   const patch = fs.readFileSync(path.join(ROOT, 'scripts', 'nginx-patch-public-discovery.py'), 'utf8');
   assert.ok(patch.includes('location = /.well-known/neural-autonomy.json'));
+  assert.ok(patch.includes('_MINIMAL_SNIPPET') || patch.includes('_install_snippet'), 'collision-safe installer required');
+  assert.ok(patch.includes('collision') || patch.includes('/api/eop'), 'must document /api/eop collision avoidance');
 });
 
 console.log(`\n✅ neural-autonomy-os: ${passed} tests passed`);
