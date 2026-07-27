@@ -129,5 +129,12 @@ check('client hydrates autonomy from neural score with TAOS fallback', () => {
   assert.ok(src.includes('/api/autonomy/score'));
 });
 
+check('nginx discovery allowlists neural-autonomy.json', () => {
+  const snippet = fs.readFileSync(path.join(ROOT, 'scripts', 'nginx-public-discovery.snippet.conf'), 'utf8');
+  assert.ok(snippet.includes('location = /.well-known/neural-autonomy.json'));
+  const patch = fs.readFileSync(path.join(ROOT, 'scripts', 'nginx-patch-public-discovery.py'), 'utf8');
+  assert.ok(patch.includes('location = /.well-known/neural-autonomy.json'));
+});
+
 console.log(`\n✅ neural-autonomy-os: ${passed} tests passed`);
 process.exit(0);
