@@ -122,10 +122,11 @@ class UnicornMeshOrchestrator extends EventEmitter {
 
   // ------------------------------------------------------------------ start
 
-  start() {
+  start(opts = {}) {
     if (this.running) return;
     this.running = true;
-    this._log('🚀 UnicornMeshOrchestrator pornit — Swiss-watch mode activ');
+    this.mode = (opts && opts.mode) || 'full';
+    this._log(`🚀 UnicornMeshOrchestrator pornit — mode=${this.mode}`);
 
     // Puls imediat
     setTimeout(() => this._healthCycle(), 2000);
@@ -135,7 +136,7 @@ class UnicornMeshOrchestrator extends EventEmitter {
     this._timers.push(setInterval(() => this._syncCycle(),    SYNC_CYCLE_MS));
     this._timers.push(setInterval(() => this._reportCycle(),  REPORT_CYCLE_MS));
 
-    this.emit('orchestrator:started', { ts: new Date().toISOString() });
+    this.emit('orchestrator:started', { ts: new Date().toISOString(), mode: this.mode });
   }
 
   stop() {
@@ -167,7 +168,7 @@ class UnicornMeshOrchestrator extends EventEmitter {
         if (!entry.healthy) {
           this._log(`⚠️  Modul degradat: ${name} (erori: ${entry.errors})`);
           this.emit('module:unhealthy', { name, status, ts: new Date().toISOString() });
-          this._healModule(name, entry);
+          if (this.mode !== 'monitor') this._healModule(name, entry);
         }
       } catch (err) {
         entry.errors++;
@@ -276,6 +277,7 @@ class UnicornMeshOrchestrator extends EventEmitter {
     }
     return {
       running:        this.running,
+      mode:           this.mode || 'full',
       uptimeMs:       Date.now() - this.startedAt,
       cycleCount:     this.cycleCount,
       totalModules:   this.registry.size,

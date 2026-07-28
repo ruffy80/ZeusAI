@@ -912,6 +912,10 @@ app.get('/api/clos/agy', siteProxyToUnicorn('/api/clos/agy'));
 app.get('/api/clos/yield', siteProxyToUnicorn('/api/clos/yield'));
 app.get('/api/clos/cycles', siteProxyToUnicorn('/api/clos/cycles'));
 app.get('/.well-known/clos.json', siteProxyToUnicorn('/api/clos/status'));
+app.get('/api/aacos/status', siteProxyToUnicorn('/api/aacos/status'));
+app.get('/api/aacos/actions', siteProxyToUnicorn('/api/aacos/actions'));
+app.get('/.well-known/aacos.json', siteProxyToUnicorn('/api/aacos/status'));
+
 
 // PFOS / ESOS — status page panels (proxy to backend SoT)
 app.get('/api/platform/foundation', siteProxyToUnicorn('/api/platform/foundation'));
@@ -7157,6 +7161,8 @@ seedSsrMap();if(document.getElementById("ds-sort")&&!document.getElementById("ds
         clos:              '/.well-known/clos.json',
         clos_agy:          '/api/clos/agy',
         clos_yield:        '/api/clos/yield',
+        aacos:             '/.well-known/aacos.json',
+        aacos_actions:     '/api/aacos/actions',
 
         world_continuum:   '/api/dropship/world-continuum',
         dropship_store:    '/dropship',

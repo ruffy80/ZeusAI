@@ -277,8 +277,8 @@ class AutoViralGrowth {
     const paidOrders = real ? Number(real.orders && real.orders.paid || 0) : 0;
     const revenueUsd = real ? Number(real.revenue && real.revenue.paidUsd || 0) : 0;
 
-    // Queue outbound posts (these only get *sent* if X/Telegram/Pinterest tokens
-    // are configured in env — see socialMediaViralizer). No fake post counters.
+    // Queue outbound posts AND drain via Autonomy Action Continuum (AACOS).
+    // Content only publishes when outbound/social credentials exist — never fake.
     for (let i = 0; i < this.config.contentPerCycle; i++) {
       this.contentQueue.push({
         id: `CNT-${Date.now()}-${i}`,
@@ -287,6 +287,16 @@ class AutoViralGrowth {
         createdAt: new Date().toISOString(),
         status: 'queued',
       });
+    }
+
+    // Hand off to AACOS so viral ↔ outbound ↔ CLOS actually communicate.
+    if (this.metrics.growthLoopsExecuted % 2 === 0) {
+      try {
+        const aacos = require('./autonomy-action-continuum-os');
+        if (aacos && typeof aacos.tick === 'function') {
+          aacos.tick({ source: 'autoViralGrowth', force: false }).catch(() => {});
+        }
+      } catch (_) { /* continuum optional at boot race */ }
     }
 
     // Real social provider state — what is actually configured?
@@ -350,21 +360,44 @@ class AutoViralGrowth {
   }
 
   getViralStatus() {
+    let continuum = null;
+    try {
+      const aacos = require('./autonomy-action-continuum-os');
+      if (aacos && typeof aacos.discovery === 'function') {
+        const d = aacos.discovery();
+        continuum = {
+          protocol: d.protocol,
+          armed: d.armed,
+          ticks: d.ticks,
+          published: d.published,
+          skipped: d.skipped,
+          lastSkipReason: d.lastSkipReason,
+          readyToPublish: d.readyToPublish,
+          modulesLinked: d.modulesLinked,
+        };
+      }
+    } catch (_) {}
+    const loopRunning = !!this.interval;
+    const ready = !!(continuum && continuum.readyToPublish);
     return {
       timestamp: new Date().toISOString(),
-      state: 'AUTONOMOUS_VIRAL_GROWTH_ACTIVE',
+      state: ready
+        ? 'AUTONOMOUS_VIRAL_LIVE'
+        : (loopRunning ? 'AUTONOMOUS_VIRAL_LOOPING_AWAITING_CREDENTIALS' : 'AUTONOMOUS_VIRAL_IDLE'),
+      loopRunning,
       simulated: false,
-      source: 'reality-metrics (SQLite + JSONL ledgers)',
+      source: 'reality-metrics + AACOS continuum',
       metrics: this.metrics,
       nextCycleIn: `${Math.round(this.config.cycleMs / 1000)}s`,
       recentEvents: this.events.slice(-5),
       contentQueueDepth: this.contentQueue.length,
       llamaCopy: this.llamaCopy,
+      continuum,
       honesty: {
         simulationsRemoved: ['Math.random viral score', 'Math.random referral signups', 'Math.random social mentions', 'Math.random reach'],
-        nextStep: this.metrics.realPaidOrders === 0
-          ? 'Configure X_BEARER_TOKEN / TELEGRAM_BOT_TOKEN / DEV_API_KEY in env, then real posts start; first paid order seeds revenue metrics.'
-          : 'Scale outbound channels and paid acquisition; metrics here track ground truth.',
+        nextStep: !ready
+          ? 'Arm TELEGRAM_BOT_TOKEN+CHAT_ID / DISCORD_WEBHOOK_URL / X tokens — AACOS will publish live intents permanently.'
+          : 'Continuum publishing armed — watch /.well-known/aacos.json for live actions.',
       },
     };
   }

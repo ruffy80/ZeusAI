@@ -570,6 +570,46 @@ class SocialMediaViralizer {
         : `${configuredProviders.length} provider(s) ready. Posting cron will publish via these only.`,
     };
   }
+
+  /**
+   * Continuum entrypoint — used by unicornGrowth / AACOS.
+   * Never fakes a post: delegates to postToAllPlatforms or AACOS drain.
+   */
+  async broadcast(seed = {}) {
+    const status = this.getProviderStatus();
+    const configured = (status && status.configuredProviders) || [];
+    if (configured.length) {
+      try {
+        const result = await this.postToAllPlatforms();
+        return { ok: true, via: 'socialMediaViralizer', configured, result };
+      } catch (e) {
+        return { ok: false, error: e && e.message, configured };
+      }
+    }
+    // No social tokens — hand off to AACOS (outbound telegram/discord/rss).
+    try {
+      const aacos = require('./autonomy-action-continuum-os');
+      if (aacos && typeof aacos.handleIntent === 'function') {
+        const body = (seed && (seed.body || seed.text || seed.message))
+          || 'ZeusAI Unicorn autonomy continuum — https://zeusai.pro';
+        return aacos.handleIntent({
+          id: 'viralizer_' + Date.now(),
+          at: new Date().toISOString(),
+          source: 'socialMediaViralizer.broadcast',
+          body: String(body).slice(0, 500),
+          title: (seed && seed.title) || 'ZeusAI',
+          url: 'https://zeusai.pro',
+        }, { skipViralizer: true });
+      }
+    } catch (e) {
+      return { ok: false, reason: 'aacos_handoff_failed', error: e && e.message };
+    }
+    return {
+      ok: false,
+      reason: 'no_credentials',
+      note: 'No social or outbound credentials — continuum recorded skip',
+    };
+  }
 }
 
 module.exports = new SocialMediaViralizer();

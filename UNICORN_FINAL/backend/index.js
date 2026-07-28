@@ -4271,8 +4271,30 @@ if (!_stableRuntime) {
   console.log('🦄 Unicorn Orchestrator (8 engines): ACTIVE');
   console.log('🛡️  Forward-Only Safety: HARMONY MONITORING ACTIVE');
 } else {
-  console.log('🧯 Stable profile active: mesh/orchestrator background loops are paused');
+  // Stable: mesh monitor-only heartbeat so modules can still hear each other
+  // without enabling heavy heal/mutate loops.
+  try {
+    if (meshOrchestrator && typeof meshOrchestrator.start === 'function') {
+      meshOrchestrator.start({ mode: 'monitor' });
+      console.log('🧯 Stable profile: mesh monitor-only heartbeat armed (no heal/mutate)');
+    } else {
+      console.log('🧯 Stable profile active: mesh/orchestrator background loops are paused');
+    }
+  } catch (e) {
+    console.log('🧯 Stable profile active: mesh start skipped:', e && e.message);
+  }
   console.log('🛡️  Forward-Only Safety: enforcement enabled (monitoring-only, no harmony tracking in STABLE mode)');
+}
+
+// AACOS/1.0 — Autonomy Action Continuum: permanent live actions under EVERY profile
+let autonomyActionContinuumOs = null;
+try {
+  autonomyActionContinuumOs = require('./modules/autonomy-action-continuum-os');
+  if (process.env.NODE_ENV !== 'test' && process.env.AACOS_DISABLED !== '1') {
+    autonomyActionContinuumOs.start();
+  }
+} catch (e) {
+  console.warn('[AACOS] load/start failed:', e && e.message);
 }
 
 // ==================== RUTE API ====================
@@ -11371,6 +11393,42 @@ app.post('/api/clos/close', express.json({ limit: '32kb' }), (req, res) => {
   }
 });
 
+// AACOS/1.0 — Autonomy Action Continuum (permanent live module actions)
+app.get(['/api/aacos/status', '/api/aacos', '/.well-known/aacos.json'], (req, res) => {
+  try {
+    if (!autonomyActionContinuumOs) {
+      return res.status(503).json({ ok: false, error: 'aacos_unavailable', protocol: 'AACOS/1.0' });
+    }
+    const payload = autonomyActionContinuumOs.discovery();
+    res.set('Cache-Control', 'public, max-age=10');
+    return res.json(payload);
+  } catch (e) {
+    return res.status(500).json({ ok: false, error: e.message, protocol: 'AACOS/1.0' });
+  }
+});
+app.get('/api/aacos/actions', (req, res) => {
+  try {
+    if (!autonomyActionContinuumOs) {
+      return res.status(503).json({ ok: false, error: 'aacos_unavailable', protocol: 'AACOS/1.0' });
+    }
+    const actions = autonomyActionContinuumOs.listActions(parseInt(req.query.limit || '50', 10));
+    return res.json({ ok: true, protocol: 'AACOS/1.0', count: actions.length, actions });
+  } catch (e) {
+    return res.status(500).json({ ok: false, error: e.message, protocol: 'AACOS/1.0' });
+  }
+});
+app.post('/api/aacos/tick', adminTokenMiddleware, async (req, res) => {
+  try {
+    if (!autonomyActionContinuumOs) {
+      return res.status(503).json({ ok: false, error: 'aacos_unavailable', protocol: 'AACOS/1.0' });
+    }
+    const result = await autonomyActionContinuumOs.tick({ force: true, source: 'api-tick' });
+    return res.json(result);
+  } catch (e) {
+    return res.status(500).json({ ok: false, error: e.message, protocol: 'AACOS/1.0' });
+  }
+});
+
 // Public: how fulfillment works without inventing a CJ key + how to arm one.
 app.get('/api/dropship/fulfillment/readiness', (req, res) => {
   if (!zacc) return res.status(503).json({ ok: false, error: 'zacc_unavailable' });
@@ -12791,6 +12849,8 @@ try {
   registerModuleRoutes('module-reality-os', moduleRealityOsMod);
   const closedLoopCommerceOsMod = require('./modules/closed-loop-commerce-os');
   registerModuleRoutes('closed-loop-commerce-os', closedLoopCommerceOsMod);
+  const autonomyActionContinuumOsMod = require('./modules/autonomy-action-continuum-os');
+  registerModuleRoutes('autonomy-action-continuum-os', autonomyActionContinuumOsMod);
 } catch (e) {
   console.warn('[mrcos] registerModuleRoutes skipped:', e.message);
 }
