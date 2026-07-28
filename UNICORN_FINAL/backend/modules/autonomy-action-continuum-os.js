@@ -135,7 +135,9 @@ function collectEvidence() {
   try {
     const outbound = _safeRequire('./marketing-innovations/outbound-publisher');
     if (outbound && typeof outbound.enabledPlatforms === 'function') {
-      evidence.configuredOutbound = outbound.enabledPlatforms() || [];
+      // RSS alone is always-on ledger — not "live social publish ready".
+      evidence.configuredOutbound = (outbound.enabledPlatforms() || [])
+        .filter((p) => p && p !== 'rss');
     }
   } catch (_) {}
 
