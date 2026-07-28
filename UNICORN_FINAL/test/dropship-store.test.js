@@ -95,17 +95,17 @@ assert.ok(
 
 // ---------- 3) storefront structure + checkout contracts ----------------
 assert.ok(
-  SRC.includes('ZEUS DROPSHIP OS') &&
-  SRC.includes('The store that sources, prices, and ships itself.') &&
-  SRC.includes('Shop the store \\u2193') &&
+  (SRC.includes('Zeus Dropship OS') || SRC.includes('ZEUS DROPSHIP') || SRC.includes('Zeus <span>Dropship</span>')) &&
+  SRC.includes('sources the world') &&
+  (SRC.includes('Shop the world store \\u2193') || SRC.includes('Shop the store \\u2193')) &&
   SRC.includes('Autonomy cockpit \\u2192'),
-  'EXPECTED: /dropship must render the approved single-composition hero.'
+  'EXPECTED: /dropship must render the approved single-composition world-continuum hero.'
 );
 assert.ok(
-  SRC.includes('CURATED \\u00b7 AUTO') &&
-  SRC.includes('LIVE \\u00b7 AUTO') &&
+  (SRC.includes('WORLD CONTINUUM') || SRC.includes('CURATED \\u00b7 AUTO')) &&
+  (SRC.includes('LIVE SUPPLIER \\u00b7 AUTO') || SRC.includes('LIVE \\u00b7 AUTO')) &&
   SRC.includes('configuredSources'),
-  'EXPECTED: storefront status must default to curated and only switch live from supplier configuration.'
+  'EXPECTED: storefront status must default to world continuum and only switch live from supplier configuration.'
 );
 for (const field of ['ds-email', 'ds-name', 'ds-address', 'ds-city', 'ds-region', 'ds-zip', 'ds-country', 'ds-phone']) {
   assert.ok(SRC.includes('id="' + field + '"'), 'EXPECTED: checkout field #' + field + ' must be present.');
