@@ -164,8 +164,12 @@ run('WDOS world continuum module is permanent + honest', () => {
 
 run('home hero CSS keeps ZeusAI Ship AI ascenders visible', () => {
   const css = fs.readFileSync(path.join(__dirname, '..', 'src', 'site', 'v2', 'styles.js'), 'utf8');
-  assert.ok(css.includes('overflow-x:hidden;overflow-y:visible') || css.includes('overflow-y:visible'));
-  assert.ok(/\.hero h1\{[^}]*line-height:1\.1/.test(css.replace(/\n/g, '')) || css.includes('line-height:1.18'));
+  const flat = css.replace(/\s+/g, '');
+  // overflow-x:hidden + overflow-y:visible computes to overflow-y:auto and clips ascenders
+  assert.ok(/\.hero\{[^}]*overflow:visible/.test(flat), 'hero must use overflow:visible (not x:hidden/y:visible)');
+  assert.ok(!/\.hero\{[^}]*overflow-x:hidden;overflow-y:visible/.test(flat), 'hero must not use the clipping overflow combo');
+  assert.ok(/\.heroh1\{[^}]*line-height:1\.(2|3)/.test(flat) || css.includes('line-height:1.28'));
+  assert.ok(/\.heroh1\.grad\{[^}]*display:inline-block/.test(flat) || css.includes('display:inline-block'));
   assert.ok(css.includes('filter:none') || !/hero h1 \.grad\{[^}]*filter:drop-shadow/.test(css));
 });
 

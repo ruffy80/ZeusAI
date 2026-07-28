@@ -210,8 +210,10 @@ html::before{content:"";position:fixed;inset:0;pointer-events:none;z-index:1;bac
 .btn-ghost{background:transparent}
 
 /* ============ HERO ============ */
-/* overflow-x only — overflow:hidden clipped gradient-text ascenders on mobile */
-.hero{position:relative;min-height:100vh;padding:120px 32px 40px;overflow-x:hidden;overflow-y:visible}
+/* Hero must stay overflow:visible — CSS computes overflow-x:hidden + overflow-y:visible
+   as overflow-y:auto, which clips gradient-text ascenders ("ZeusAI Ship AI") on mobile.
+   Horizontal bleed is contained by .zeus-scene / .hero-fx (absolute, overflow:hidden). */
+.hero{position:relative;min-height:100vh;padding:120px 32px 40px;overflow:visible}
 .zeus-scene{position:absolute;inset:0;z-index:1;pointer-events:none;overflow:hidden}
 .zeus-hero-image{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:center center;filter:contrast(1.12) saturate(1.16) brightness(.84);transform:scale(1.02);animation:zeusDrift 18s ease-in-out infinite;will-change:transform}
 .zeus-vignette{position:absolute;inset:0;background:
@@ -257,10 +259,10 @@ html::before{content:"";position:fixed;inset:0;pointer-events:none;z-index:1;bac
 .hero-eyebrow{display:inline-flex;align-items:center;gap:8px;padding:6px 14px;border-radius:999px;border:1px solid var(--stroke);background:var(--glass);font-size:12px;letter-spacing:3px;text-transform:uppercase;color:var(--violet2)}
 .hero-eyebrow .dot{width:7px;height:7px;border-radius:50%;background:var(--ok);box-shadow:0 0 10px var(--ok);animation:pulse 1.8s infinite}
 @keyframes pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.4;transform:scale(.85)}}
-/* line-height + padding-block keep ascenders visible with background-clip:text */
-.hero h1{font-size:clamp(44px,6vw,88px);line-height:1.18;margin:16px 0 22px;padding-block:.12em .04em;letter-spacing:-1.5px;font-weight:700;overflow:visible}
-.hero h1 .grad{background:linear-gradient(120deg,#fff 0%,var(--violet2) 40%,var(--blue2) 75%,var(--gold) 100%);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;/* glow via text-shadow-safe layer — filter:drop-shadow clipped tops on mobile */
-  text-shadow:0 0 28px rgba(138,92,255,.28);filter:none;padding:.02em 0;display:inline}
+/* line-height + inline-block padding keep ascenders visible with background-clip:text */
+.hero h1{font-size:clamp(44px,6vw,88px);line-height:1.28;margin:20px 0 22px;padding-block:.22em .08em;letter-spacing:-1.5px;font-weight:700;overflow:visible}
+.hero h1 .grad{display:inline-block;padding:.18em .06em .1em;line-height:1.28;vertical-align:baseline;background:linear-gradient(120deg,#fff 0%,var(--violet2) 40%,var(--blue2) 75%,var(--gold) 100%);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;-webkit-box-decoration-break:clone;box-decoration-break:clone;/* no filter:drop-shadow — it reintroduces paint clipping on mobile */
+  text-shadow:0 0 28px rgba(138,92,255,.28);filter:none}
 .hero p.lead{font-size:clamp(15px,1.3vw,19px);color:var(--ink-dim);max-width:640px;line-height:1.6;margin:0 0 30px}
 .hero-cta{display:flex;gap:14px;flex-wrap:wrap}
 .hero-stats{margin-top:38px;display:grid;grid-template-columns:repeat(4,1fr);gap:16px;max-width:640px}
@@ -625,10 +627,11 @@ nav.nav[data-nav-open="true"] .nav-toggle-bar:nth-child(3){transform:translateY(
 
 /* Tablet portrait */
 @media (max-width:980px){
-  .hero{padding:96px 18px 36px;min-height:auto;overflow-x:hidden;overflow-y:visible}
+  .hero{padding:96px 18px 36px;min-height:auto;overflow:visible}
   .hero-grid{grid-template-columns:1fr;gap:28px;min-height:auto;text-align:center}
-  .hero-copy{padding:18px 4px 12px;overflow:visible}
-  .hero h1{line-height:1.2;padding-block:.16em .06em;margin-top:12px}
+  .hero-copy{padding:22px 4px 12px;overflow:visible}
+  .hero h1{line-height:1.3;padding-block:.24em .1em;margin-top:14px}
+  .hero h1 .grad{display:inline-block;padding:.2em .06em .1em;line-height:1.3}
   .hero-cta{justify-content:center}
   .hero-stats{margin-left:auto;margin-right:auto;grid-template-columns:repeat(auto-fit,minmax(130px,1fr))}
   .hero-side{align-items:center}
@@ -644,8 +647,9 @@ nav.nav[data-nav-open="true"] .nav-toggle-bar:nth-child(3){transform:translateY(
 
 /* Phone landscape / large phone */
 @media (max-width:768px){
-  .hero{padding:88px 16px 28px;overflow-x:hidden;overflow-y:visible}
-  .hero h1{margin:14px 0 16px;letter-spacing:-1px;line-height:1.22;padding-block:.18em .06em}
+  .hero{padding:88px 16px 28px;overflow:visible}
+  .hero h1{margin:16px 0 16px;letter-spacing:-1px;line-height:1.32;padding-block:.26em .1em}
+  .hero h1 .grad{display:inline-block;padding:.22em .06em .1em;line-height:1.32}
   .hero p.lead{margin-bottom:22px}
   .hero-stat{padding:12px 14px}
   .hero-stat b{font-size:18px}
@@ -669,9 +673,10 @@ nav.nav[data-nav-open="true"] .nav-toggle-bar:nth-child(3){transform:translateY(
   .nav-cta .btn-ghost{display:inline-flex !important;align-items:center;justify-content:center;padding:10px 14px;font-size:13px;min-height:44px;min-width:44px;border:1px solid var(--violet);background:rgba(138,92,255,.10);color:var(--ink)}
   .nav-cta .btn{padding:10px 12px;font-size:12.5px;min-height:44px}
   .nav-cta{flex-wrap:nowrap;gap:6px}
-  .hero{padding:80px 14px 24px;overflow-x:hidden;overflow-y:visible}
+  .hero{padding:80px 14px 24px;overflow:visible}
   .hero-eyebrow{font-size:11px;padding:5px 12px;letter-spacing:2px}
-  .hero h1{font-size:clamp(30px,8.5vw,46px);line-height:1.22;padding-block:.2em .08em}
+  .hero h1{font-size:clamp(30px,8.5vw,46px);line-height:1.34;padding-block:.28em .12em}
+  .hero h1 .grad{display:inline-block;padding:.24em .06em .12em;line-height:1.34}
   .hero p.lead{font-size:14.5px;line-height:1.55}
   .hero-cta .btn{flex:1;min-width:140px;justify-content:center;display:inline-flex;align-items:center}
   .hero-stats{grid-template-columns:repeat(2,1fr);gap:10px;margin-top:28px}

@@ -503,10 +503,10 @@ img{max-width:100%;display:block}
 .zeus-wordmark .ai{background:linear-gradient(125deg,#00E8A0,#2DE2E6,#E8FFF8,#7CF7C0);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent}
 .btn{display:inline-block;padding:14px 20px;border-radius:14px;border:1px solid rgba(255,255,255,.18);color:#fff;text-decoration:none;background:rgba(255,255,255,.08)}
 .btn.primary{background:linear-gradient(135deg,var(--violet),var(--blue));border-color:transparent}
-.hero{position:relative;min-height:100vh;display:flex;align-items:center;padding:96px 7vw;overflow-x:hidden;overflow-y:visible}
+.hero{position:relative;min-height:100vh;display:flex;align-items:center;padding:96px 7vw;overflow:visible}
 .hero-copy{padding:28px 0 20px;overflow:visible}
-.hero h1{line-height:1.18;padding-block:.12em .04em;overflow:visible;margin:16px 0 22px;font-size:clamp(44px,6vw,88px);font-weight:700;letter-spacing:-1.5px}
-.hero h1 .grad{background:linear-gradient(120deg,#fff 0%,#b89bff 40%,#6fd3ff 75%,#ffd36a 100%);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;text-shadow:0 0 28px rgba(138,92,255,.28);filter:none;display:inline}
+.hero h1{line-height:1.28;padding-block:.22em .08em;overflow:visible;margin:20px 0 22px;font-size:clamp(44px,6vw,88px);font-weight:700;letter-spacing:-1.5px}
+.hero h1 .grad{display:inline-block;padding:.18em .06em .1em;line-height:1.28;vertical-align:baseline;background:linear-gradient(120deg,#fff 0%,#b89bff 40%,#6fd3ff 75%,#ffd36a 100%);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;-webkit-box-decoration-break:clone;box-decoration-break:clone;text-shadow:0 0 28px rgba(138,92,255,.28);filter:none}
 /* Hide the Google Translate banner/iframe so the auto-translation is
    applied silently and the layout never shifts. The widget itself stays
    active in #google_translate_element (kept off-screen). */
