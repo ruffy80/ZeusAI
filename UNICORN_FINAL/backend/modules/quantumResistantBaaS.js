@@ -50,13 +50,15 @@ class PrivateBlockchain {
     this.name = name;
     this.nodes = nodes;
     this.consensus = consensus;
-    this.status = 'active';
+    this.status = 'demo';
+    this.pqc = false;
     this.chain = [];
     this.pendingTransactions = [];
     this.contracts = new Map();
-    this.endpoint = `https://qr-baas.unicorn.ai/chain/${this.id}`;
-    this.rpcEndpoint = `https://qr-baas.unicorn.ai/rpc/${this.id}`;
+    this.endpoint = null;
+    this.rpcEndpoint = null;
     this.createdAt = new Date().toISOString();
+    this.note = 'Local demo ledger — SHA3 is not post-quantum; no public qr-baas endpoint';
 
     // Genesis block
     this.chain.push(new Block({

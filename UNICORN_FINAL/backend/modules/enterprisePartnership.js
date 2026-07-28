@@ -275,20 +275,25 @@ class EnterprisePartnership {
       endpoint,
       payload,
       timestamp: new Date().toISOString(),
-      requestId: 'req_' + Math.random().toString(36).slice(2, 10)
+      requestId: 'req_' + Math.random().toString(36).slice(2, 10),
+      status: 'queued',
     };
     this.requestLog.push(entry);
     return {
-      success: true,
+      success: false,
+      accepted: false,
+      queued: true,
       requestId: entry.requestId,
       endpoint,
       partnerTier: partner.tier,
-      processedAt: new Date().toISOString(),
+      queuedAt: new Date().toISOString(),
+      error: 'partner_api_not_armed',
+      message: 'Partner request queued locally — external partner API not armed',
       data: {
-        accepted: true,
+        accepted: false,
         modules: partner.modules,
-        payloadSummary: Object.keys(payload)
-      }
+        payloadSummary: Object.keys(payload),
+      },
     };
   }
 

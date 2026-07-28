@@ -39,32 +39,36 @@ class AutonomousLegalEntity {
       countryName: countryInfo.name,
       entityType,
       companyData: { ...companyData },
-      status: 'pending',
+      status: 'demo_pending',
+      demo: true,
+      live: false,
       taxRate,
       currency: countryInfo.currency,
       documents: {
-        registrationCertificate: `https://registry.${country.toLowerCase()}.gov/cert/${id}.pdf`,
-        articlesOfAssociation: `https://registry.${country.toLowerCase()}.gov/aoa/${id}.pdf`,
-        taxRegistration: `https://tax.${country.toLowerCase()}.gov/reg/${id}.pdf`,
+        registrationCertificate: null,
+        articlesOfAssociation: null,
+        taxRegistration: null,
+        note: 'No government registry URLs — demo only until real API integration',
       },
       estimatedCompletionDays: countryInfo.processingDays,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
       _pendingTimerId: null,
-      // Hook: replace with real API call to country registry
-      _externalApiEndpoint: `https://api.${country.toLowerCase()}-registry.gov/v1/register`,
+      _externalApiEndpoint: null,
+      note: 'Autonomous legal entity is a demo surface — not a government filing',
     };
 
     registrations.set(id, registration);
 
-    // Simulate async approval after processingDays (demo: 5s).
-    // Timer ID is stored so it can be cancelled if the registration is deleted.
+    // Demo timer: stay demo_pending → demo_ready (never claim live government registration).
     registration._pendingTimerId = setTimeout(() => {
       const r = registrations.get(id);
-      if (r && r.status === 'pending') {
-        r.status = 'active';
+      if (r && (r.status === 'pending' || r.status === 'demo_pending')) {
+        r.status = 'demo_ready';
+        r.live = false;
+        r.demo = true;
         r.updatedAt = new Date().toISOString();
-        r.registrationNumber = country + '-' + Math.floor(Math.random() * 9000000 + 1000000);
+        r.registrationNumber = null;
         r._pendingTimerId = null;
         registrations.set(id, r);
       }
