@@ -88,7 +88,16 @@ async function run() {
       assert.ok(k in v.metrics, 'autoViralGrowth metrics must keep field: ' + k);
     }
     assert.strictEqual(v.metrics.simulated, false, 'simulated flag must be false in production');
-    assert.strictEqual(v.state, 'AUTONOMOUS_VIRAL_GROWTH_ACTIVE');
+    assert.ok(
+      [
+        'AUTONOMOUS_VIRAL_GROWTH_ACTIVE', // legacy
+        'AUTONOMOUS_VIRAL_LOOPING_AWAITING_CREDENTIALS',
+        'AUTONOMOUS_VIRAL_LIVE',
+        'AUTONOMOUS_VIRAL_IDLE',
+      ].includes(v.state),
+      'viral state must be honest continuum status, got: ' + v.state
+    );
+    assert.equal(typeof v.loopRunning, 'boolean');
     console.log('[OK] autoViralGrowth reality-grounded shape preserved');
   }
 

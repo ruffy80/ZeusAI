@@ -96,7 +96,15 @@ const viralGrowth = {
     appendLedger(ev);
     growthBus.emit('growth:viral', ev);
     try {
-      if (socialViralizer && typeof socialViralizer.broadcast === 'function') socialViralizer.broadcast(seed);
+      if (socialViralizer && typeof socialViralizer.broadcast === 'function') {
+        Promise.resolve(socialViralizer.broadcast(seed)).catch(() => {});
+      }
+    } catch (_) { /* silent */ }
+    try {
+      const aacos = require('./autonomy-action-continuum-os');
+      if (aacos && typeof aacos.tick === 'function') {
+        aacos.tick({ source: 'unicornGrowth.viral', force: true }).catch(() => {});
+      }
     } catch (_) { /* silent */ }
     return { ok: true };
   },
