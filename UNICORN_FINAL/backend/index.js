@@ -7936,6 +7936,47 @@ try {
 let _btcVerifier = null;
 let _firstSaleNotified = false;
 
+// CLOS/1.0 — Closed-Loop Commerce OS (paid → fulfill → attest → yield)
+let closedLoopCommerceOs = null;
+try { closedLoopCommerceOs = require('./modules/closed-loop-commerce-os'); } catch (_) { closedLoopCommerceOs = null; }
+
+function _closPayloadFromInvoice(invoice, extra) {
+  return {
+    orderId: invoice && (invoice.id || invoice.orderId || invoice.token),
+    id: invoice && (invoice.id || invoice.orderId || invoice.token),
+    serviceId: invoice && (invoice.serviceId || invoice.service || invoice.itemId || null),
+    amountUsd: invoice && (invoice.priceUsd || invoice.amountUsd || invoice.amount || 0),
+    email: invoice && (invoice.customerEmail || invoice.email || null),
+    txid: invoice && (invoice.txid || null),
+    rail: (extra && extra.rail) || 'btc',
+    paidAt: (invoice && invoice.paidAt) || new Date().toISOString(),
+    marginPct: invoice && (invoice.marginPct != null ? invoice.marginPct : null),
+    ...(extra || {}),
+  };
+}
+
+function _closOpenPaid(payload) {
+  try {
+    if (closedLoopCommerceOs && typeof closedLoopCommerceOs.openCycle === 'function') {
+      return closedLoopCommerceOs.openCycle(payload);
+    }
+  } catch (e) { console.warn('[CLOS] open failed:', e && e.message); }
+  return null;
+}
+
+function _closCloseDelivered(payload) {
+  try {
+    if (!closedLoopCommerceOs) return null;
+    if (typeof closedLoopCommerceOs.ackFulfillment === 'function') {
+      closedLoopCommerceOs.ackFulfillment(payload);
+    }
+    if (typeof closedLoopCommerceOs.closeLoop === 'function') {
+      return closedLoopCommerceOs.closeLoop(payload);
+    }
+  } catch (e) { console.warn('[CLOS] close failed:', e && e.message); }
+  return null;
+}
+
 function _onPaidInvoice(invoice) {
   // AUTO-ACTIVATION (salesOrchestrator): paid invoice → API key + license,
   // persisted, idempotent. The buyer gets access with ZERO human steps.
@@ -7950,6 +7991,14 @@ function _onPaidInvoice(invoice) {
       }
     }
   } catch (e) { console.warn('[BTC/Paid] activation failed:', e.message); }
+  // CLOS: open commercial cycle; close immediately when digital activation succeeds.
+  try {
+    const closPay = _closPayloadFromInvoice(invoice, { rail: 'btc' });
+    _closOpenPaid(closPay);
+    if (activated) {
+      _closCloseDelivered({ ...closPay, mode: 'digital_activation' });
+    }
+  } catch (e) { console.warn('[CLOS] paid wire failed:', e && e.message); }
   // Funnel truth: paid (+ delivered when entitlement activation succeeds).
   try {
     if (funnelIntelligence && typeof funnelIntelligence.record === 'function') {
@@ -7989,6 +8038,23 @@ function _settleProviderPayment(receipt, source) {
       .catch((err) => console.warn('[pay-fulfill]', source, 'settle failed:', err && err.message));
   } catch (e) {
     console.warn('[pay-fulfill] load failed:', e && e.message);
+  }
+  // CLOS: open on provider settle; digital/SaaS settles close the loop.
+  try {
+    const closPay = {
+      orderId: receipt && (receipt.orderId || receipt.id),
+      id: receipt && (receipt.orderId || receipt.id),
+      amountUsd: receipt && (receipt.amount || receipt.priceUSD || receipt.amountUsd || 0),
+      email: receipt && (receipt.email || receipt.customerEmail),
+      serviceId: receipt && (receipt.serviceId || receipt.plan),
+      txid: receipt && (receipt.txid || (receipt.confirmation && receipt.confirmation.txid)),
+      rail: source || 'provider',
+      paidAt: receipt && (receipt.paidAt || new Date().toISOString()),
+    };
+    _closOpenPaid(closPay);
+    _closCloseDelivered({ ...closPay, mode: 'provider_settle_' + String(source || 'unknown') });
+  } catch (e) {
+    console.warn('[CLOS] provider settle wire failed:', e && e.message);
   }
   // PoMX: emit cryptographically signed capability credential on every settle.
   try {
@@ -11219,6 +11285,92 @@ app.get(['/api/modules/reality', '/.well-known/module-reality.json'], (req, res)
     return res.status(500).json({ ok: false, error: e.message, protocol: 'MRCOS/1.0' });
   }
 });
+
+// CLOS/1.0 — Closed-Loop Commerce OS + Forever Yield Continuum + AGY
+app.get(['/api/clos/status', '/api/clos', '/.well-known/clos.json'], (req, res) => {
+  try {
+    if (!closedLoopCommerceOs) {
+      return res.status(503).json({ ok: false, error: 'clos_unavailable', protocol: 'CLOS/1.0' });
+    }
+    const payload = closedLoopCommerceOs.discovery();
+    res.set('Cache-Control', 'public, max-age=15');
+    return res.json(payload);
+  } catch (e) {
+    return res.status(500).json({ ok: false, error: e.message, protocol: 'CLOS/1.0' });
+  }
+});
+app.get('/api/clos/cycles', (req, res) => {
+  try {
+    if (!closedLoopCommerceOs) {
+      return res.status(503).json({ ok: false, error: 'clos_unavailable', protocol: 'CLOS/1.0' });
+    }
+    const cycles = closedLoopCommerceOs.listCycles({
+      status: req.query.status || undefined,
+      limit: parseInt(req.query.limit || '50', 10),
+    });
+    return res.json({ ok: true, protocol: 'CLOS/1.0', count: cycles.length, cycles });
+  } catch (e) {
+    return res.status(500).json({ ok: false, error: e.message, protocol: 'CLOS/1.0' });
+  }
+});
+app.get('/api/clos/agy', (req, res) => {
+  try {
+    if (!closedLoopCommerceOs) {
+      return res.status(503).json({ ok: false, error: 'clos_unavailable', protocol: 'CLOS/1.0' });
+    }
+    return res.json(closedLoopCommerceOs.agyIndex());
+  } catch (e) {
+    return res.status(500).json({ ok: false, error: e.message, protocol: 'CLOS/1.0' });
+  }
+});
+app.get('/api/clos/yield', (req, res) => {
+  try {
+    if (!closedLoopCommerceOs) {
+      return res.status(503).json({ ok: false, error: 'clos_unavailable', protocol: 'CLOS/1.0' });
+    }
+    const d = closedLoopCommerceOs.discovery();
+    return res.json({
+      ok: true,
+      protocol: 'CLOS/1.0',
+      invention: 'Forever Yield Continuum',
+      yieldQueue: d.yieldQueue || [],
+      proposals: d.totals && d.totals.yieldProposals,
+    });
+  } catch (e) {
+    return res.status(500).json({ ok: false, error: e.message, protocol: 'CLOS/1.0' });
+  }
+});
+app.post('/api/clos/open', express.json({ limit: '32kb' }), (req, res) => {
+  try {
+    if (!closedLoopCommerceOs) {
+      return res.status(503).json({ ok: false, error: 'clos_unavailable', protocol: 'CLOS/1.0' });
+    }
+    return res.json(closedLoopCommerceOs.openCycle(req.body || {}));
+  } catch (e) {
+    return res.status(400).json({ ok: false, error: e.message, protocol: 'CLOS/1.0' });
+  }
+});
+app.post('/api/clos/ack', express.json({ limit: '32kb' }), (req, res) => {
+  try {
+    if (!closedLoopCommerceOs) {
+      return res.status(503).json({ ok: false, error: 'clos_unavailable', protocol: 'CLOS/1.0' });
+    }
+    return res.json(closedLoopCommerceOs.ackFulfillment(req.body || {}));
+  } catch (e) {
+    return res.status(400).json({ ok: false, error: e.message, protocol: 'CLOS/1.0' });
+  }
+});
+app.post('/api/clos/close', express.json({ limit: '32kb' }), (req, res) => {
+  try {
+    if (!closedLoopCommerceOs) {
+      return res.status(503).json({ ok: false, error: 'clos_unavailable', protocol: 'CLOS/1.0' });
+    }
+    return res.json(closedLoopCommerceOs.closeLoop(req.body || {}));
+  } catch (e) {
+    return res.status(400).json({ ok: false, error: e.message, protocol: 'CLOS/1.0' });
+  }
+});
+
 // Public: how fulfillment works without inventing a CJ key + how to arm one.
 app.get('/api/dropship/fulfillment/readiness', (req, res) => {
   if (!zacc) return res.status(503).json({ ok: false, error: 'zacc_unavailable' });
@@ -11380,6 +11532,27 @@ app.post('/api/dropship/fulfillment/ship/:token', adminTokenMiddleware, async (r
   try {
     const notify = require('./modules/zacc/notify');
     notify.orderShipped({ orderToken: order.token, productTitle: order.productTitle, email: order.email, carrier: order.carrier, trackingNumber: order.trackingNumber });
+  } catch (_) { /* fail-soft */ }
+  // CLOS: physical/desk ship closes the commercial loop + Forever Yield.
+  try {
+    _closOpenPaid({
+      orderId: order.token,
+      id: order.token,
+      amountUsd: order.amountUsd || order.totalUsd || 0,
+      email: order.email || null,
+      serviceId: order.productId || order.productTitle || null,
+      rail: 'dropship_btc',
+    });
+    _closCloseDelivered({
+      orderId: order.token,
+      id: order.token,
+      mode: 'desk_ship',
+      fulfillmentMode: 'desk_ship',
+      amountUsd: order.amountUsd || order.totalUsd || 0,
+      email: order.email || null,
+      serviceId: order.productId || null,
+      rail: 'dropship_btc',
+    });
   } catch (_) { /* fail-soft */ }
   res.json({ ok: true, order: zacc.orders.publicView(order.token) });
 });
@@ -12616,6 +12789,8 @@ registerModuleRoutes('market-analytics',           marketAnalytics);
 try {
   const moduleRealityOsMod = require('./modules/module-reality-os');
   registerModuleRoutes('module-reality-os', moduleRealityOsMod);
+  const closedLoopCommerceOsMod = require('./modules/closed-loop-commerce-os');
+  registerModuleRoutes('closed-loop-commerce-os', closedLoopCommerceOsMod);
 } catch (e) {
   console.warn('[mrcos] registerModuleRoutes skipped:', e.message);
 }

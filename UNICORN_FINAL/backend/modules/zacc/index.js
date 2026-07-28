@@ -148,6 +148,24 @@ class ZeusAutonomicCommerceCore {
       // If this is a dropship product, route to a real fulfillment provider
       // with the full buyer contact captured on the order/invoice.
       const dropship = this.publisher.get(invoice.productId);
+
+      // CLOS: open commercial cycle on dropship BTC pay (closes on ship ack).
+      try {
+        const clos = require('../closed-loop-commerce-os');
+        if (clos && typeof clos.openCycle === 'function') {
+          clos.openCycle({
+            orderId: (order && order.token) || invoice.orderToken || invoice.id,
+            id: (order && order.token) || invoice.id,
+            amountUsd: invoice.amountUsd || 0,
+            email: (order && order.email) || invoice.email || null,
+            serviceId: invoice.productId || null,
+            rail: 'dropship_btc',
+            paidAt: new Date().toISOString(),
+            marginPct: dropship && dropship.marginPct != null ? dropship.marginPct : null,
+          });
+        }
+      } catch (_) { /* fail-soft */ }
+
       if (dropship) {
         const contact = {
           productId: invoice.productId,

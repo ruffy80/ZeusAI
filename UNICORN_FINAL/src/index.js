@@ -907,6 +907,12 @@ app.get('/api/dropship/world-continuum', siteProxyToUnicorn('/api/dropship/world
 app.get('/.well-known/world-dropship.json', siteProxyToUnicorn('/api/dropship/world-continuum'));
 app.get('/api/modules/reality', siteProxyToUnicorn('/api/modules/reality'));
 app.get('/.well-known/module-reality.json', siteProxyToUnicorn('/api/modules/reality'));
+app.get('/api/clos/status', siteProxyToUnicorn('/api/clos/status'));
+app.get('/api/clos/agy', siteProxyToUnicorn('/api/clos/agy'));
+app.get('/api/clos/yield', siteProxyToUnicorn('/api/clos/yield'));
+app.get('/api/clos/cycles', siteProxyToUnicorn('/api/clos/cycles'));
+app.get('/.well-known/clos.json', siteProxyToUnicorn('/api/clos/status'));
+
 // PFOS / ESOS — status page panels (proxy to backend SoT)
 app.get('/api/platform/foundation', siteProxyToUnicorn('/api/platform/foundation'));
 app.get('/.well-known/platform.json', siteProxyToUnicorn('/api/platform/foundation'));
@@ -7147,6 +7153,11 @@ seedSsrMap();if(document.getElementById("ds-sort")&&!document.getElementById("ds
         brand_spectrum:    '/.well-known/brand-spectrum.json',
         brand_spectrum_score: '/api/brand/spectrum/score',
         world_dropship:    '/.well-known/world-dropship.json',
+        module_reality:    '/.well-known/module-reality.json',
+        clos:              '/.well-known/clos.json',
+        clos_agy:          '/api/clos/agy',
+        clos_yield:        '/api/clos/yield',
+
         world_continuum:   '/api/dropship/world-continuum',
         dropship_store:    '/dropship',
         status:            '/status',
