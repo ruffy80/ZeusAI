@@ -164,13 +164,23 @@ run('WDOS world continuum module is permanent + honest', () => {
 
 run('home hero CSS keeps ZeusAI Ship AI ascenders visible', () => {
   const css = fs.readFileSync(path.join(__dirname, '..', 'src', 'site', 'v2', 'styles.js'), 'utf8');
+  const shell = fs.readFileSync(path.join(__dirname, '..', 'src', 'site', 'v2', 'shell.js'), 'utf8');
+  const client = fs.readFileSync(path.join(__dirname, '..', 'src', 'site', 'v2', 'client.js'), 'utf8');
   const flat = css.replace(/\s+/g, '');
   // overflow-x:hidden + overflow-y:visible computes to overflow-y:auto and clips ascenders
-  assert.ok(/\.hero\{[^}]*overflow:visible/.test(flat), 'hero must use overflow:visible (not x:hidden/y:visible)');
+  assert.ok(flat.includes('overflow:visible!important') || /\.hero[,{][^}]*overflow:visible/.test(flat));
   assert.ok(!/\.hero\{[^}]*overflow-x:hidden;overflow-y:visible/.test(flat), 'hero must not use the clipping overflow combo');
-  assert.ok(/\.heroh1\{[^}]*line-height:1\.(2|3)/.test(flat) || css.includes('line-height:1.28'));
-  assert.ok(/\.heroh1\.grad\{[^}]*display:inline-block/.test(flat) || css.includes('display:inline-block'));
-  assert.ok(css.includes('filter:none') || !/hero h1 \.grad\{[^}]*filter:drop-shadow/.test(css));
+  // background-clip:text paints clipped glyph tops on mobile — hero must not use it
+  const heroGrad = (flat.match(/\.heroh1\.grad\{[^}]+\}/) || [''])[0];
+  assert.ok(
+    heroGrad.includes('background:none') || heroGrad.includes('-webkit-background-clip:border-box'),
+    'hero .grad must not use background-clip:text'
+  );
+  assert.ok(shell.includes('hero-brand') && shell.includes('ZeusAI'));
+  assert.ok(css.includes('section.hero[data-reveal]') || client.includes("contains('hero')"));
+  assert.ok(!/hero h1 \.grad\{[^}]*filter:drop-shadow/.test(css));
+  // Fixed nav wraps on mobile — hero needs enough padding-top to clear it
+  assert.ok(/padding:\s*1(6|7)\dpx/.test(css) || css.includes('padding:176px') || css.includes('padding:168px'));
 });
 
 console.log('\n✅ dropship-world-standard:', passed, 'tests passed');

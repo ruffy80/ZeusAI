@@ -503,10 +503,15 @@ img{max-width:100%;display:block}
 .zeus-wordmark .ai{background:linear-gradient(125deg,#00E8A0,#2DE2E6,#E8FFF8,#7CF7C0);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent}
 .btn{display:inline-block;padding:14px 20px;border-radius:14px;border:1px solid rgba(255,255,255,.18);color:#fff;text-decoration:none;background:rgba(255,255,255,.08)}
 .btn.primary{background:linear-gradient(135deg,var(--violet),var(--blue));border-color:transparent}
-.hero{position:relative;min-height:100vh;display:flex;align-items:center;padding:96px 7vw;overflow:visible}
-.hero-copy{padding:28px 0 20px;overflow:visible}
-.hero h1{line-height:1.28;padding-block:.22em .08em;overflow:visible;margin:20px 0 22px;font-size:clamp(44px,6vw,88px);font-weight:700;letter-spacing:-1.5px}
-.hero h1 .grad{display:inline-block;padding:.18em .06em .1em;line-height:1.28;vertical-align:baseline;background:linear-gradient(120deg,#fff 0%,#b89bff 40%,#6fd3ff 75%,#ffd36a 100%);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;-webkit-box-decoration-break:clone;box-decoration-break:clone;text-shadow:0 0 28px rgba(138,92,255,.28);filter:none}
+.hero,.hero-grid,.hero-copy,.hero h1{overflow:visible!important}
+.hero{position:relative;min-height:100vh;display:flex;align-items:center;padding:96px 7vw}
+@media(max-width:980px){.hero{padding-top:168px}}
+@media(max-width:640px){.hero{padding-top:176px}}
+.hero-copy{padding:28px 0 20px}
+.hero h1{line-height:1.22;padding:0;margin:24px 0 22px;font-size:clamp(44px,6vw,88px);font-weight:700;letter-spacing:-1.5px;color:#f4f7ff;-webkit-text-fill-color:#f4f7ff}
+.hero h1 .hero-brand{color:#fff;-webkit-text-fill-color:#fff;text-shadow:0 0 28px rgba(255,255,255,.18)}
+.hero h1 .grad{background:none!important;-webkit-background-clip:border-box!important;background-clip:border-box!important;-webkit-text-fill-color:#9fd0ff;color:#9fd0ff;filter:none!important;text-shadow:0 0 34px rgba(111,211,255,.42),0 2px 18px rgba(0,0,0,.35)}
+section.hero[data-reveal],section.hero{opacity:1!important;transform:none!important}
 /* Hide the Google Translate banner/iframe so the auto-translation is
    applied silently and the layout never shifts. The widget itself stays
    active in #google_translate_element (kept off-screen). */
@@ -1146,7 +1151,7 @@ function pageHome() {
   <div class="hero-grid">
     <div class="hero-copy">
       <span class="hero-eyebrow"><span class="dot"></span> ₿ Native Bitcoin · save 10% · instant delivery</span>
-      <h1>ZeusAI <span class="grad">Ship AI products at machine speed.</span></h1>
+      <h1><span class="hero-brand">ZeusAI</span> <span class="grad">Ship AI products at machine speed.</span></h1>
       <p class="lead">Live autonomous AI commerce platform: ZeusAI turns modules, verticals and marketplaces into buyable AI services with direct BTC checkout, signed receipts and instant delivery.</p>
       <div class="hero-cta">
         <a class="btn btn-primary" href="/services" data-link>Buy AI Service →</a>
