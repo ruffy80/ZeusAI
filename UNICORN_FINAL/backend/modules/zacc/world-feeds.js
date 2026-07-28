@@ -65,16 +65,28 @@ function isQualityImage(url) {
 const DUMMYJSON_PATHS = [
   'products?limit=30&skip=0',
   'products?limit=30&skip=30',
+  'products?limit=30&skip=60',
+  'products?limit=30&skip=90',
   'products/category/smartphones?limit=20',
   'products/category/laptops?limit=20',
+  'products/category/tablets?limit=15',
   'products/category/mens-shirts?limit=15',
+  'products/category/mens-watches?limit=12',
   'products/category/womens-dresses?limit=15',
+  'products/category/womens-bags?limit=12',
+  'products/category/womens-jewellery?limit=12',
   'products/category/home-decoration?limit=15',
   'products/category/furniture?limit=15',
+  'products/category/lighting?limit=12',
   'products/category/sunglasses?limit=12',
   'products/category/sports-accessories?limit=15',
   'products/category/kitchen-accessories?limit=15',
   'products/category/mobile-accessories?limit=15',
+  'products/category/motorcycle?limit=12',
+  'products/category/vehicle?limit=12',
+  'products/category/skin-care?limit=15',
+  'products/category/fragrances?limit=12',
+  'products/category/groceries?limit=15',
 ];
 
 async function fetchJson(url, opts) {

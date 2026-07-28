@@ -30,7 +30,8 @@ const { coverPath } = require('./product-cover');
 
 const log = logger('scraper');
 
-const SCRAPE_INTERVAL_MS = Number(process.env.ZACC_SCRAPE_INTERVAL_MS || 6 * 60 * 60 * 1000); // 6h
+// Marketplace scrape (eBay/CJ/…). World continuum feeds separately every ~12m.
+const SCRAPE_INTERVAL_MS = Number(process.env.ZACC_SCRAPE_INTERVAL_MS || 2 * 60 * 60 * 1000); // 2h
 const MAX_PER_SOURCE = Number(process.env.ZACC_SCRAPE_LIMIT || 25);
 const FETCH_TIMEOUT_MS = 4500;
 

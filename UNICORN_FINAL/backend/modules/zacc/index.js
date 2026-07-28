@@ -34,6 +34,7 @@ const { AutoPublisher } = require('./publisher');
 const { FulfillmentRouter } = require('./fulfillment');
 const { OrderStore } = require('./orders');
 const { AutonomousShelfProtocol } = require('./shelf-protocol');
+const worldContinuum = require('./world-continuum');
 const shipping = require('./shipping');
 const notify = require('./notify');
 const store = require('./store');
@@ -44,6 +45,7 @@ const TICK_INTERVAL_MS = Number(process.env.ZACC_TICK_MS || 60 * 60 * 1000); // 
 const ENABLED = process.env.ZACC_ENABLED !== '0';
 const AUTO_APPROVE = process.env.ZACC_AUTO_APPROVE !== '0';
 const MAX_ACTIVE_PRODUCTS = Number(process.env.ZACC_MAX_PRODUCTS || 120);
+const WORLD_CONTINUUM_MS = worldContinuum.CONTINUUM_MS;
 
 class ZeusAutonomicCommerceCore {
   constructor() {
@@ -54,6 +56,8 @@ class ZeusAutonomicCommerceCore {
     this.lastTickAt = null;
     this.lastError = null;
     this.timer = null;
+    this.worldTimer = null;
+    this._worldContinuum = null;
 
     // External catalog sink (set by backend so ZACC products show in /services).
     this._serviceSink = null;
@@ -330,18 +334,53 @@ class ZeusAutonomicCommerceCore {
           }
         })
         .catch((e) => log.warn('ensureWorldCatalog', e.message))
-        .finally(() => this.tick('boot').catch((e) => log.warn('boot tick', e.message)));
+        .finally(() => {
+          this.tick('boot').catch((e) => log.warn('boot tick', e.message));
+          // Immediate continuum pulse so /dropship is fed before the first 12m tick.
+          this.worldFeedPulse('boot').catch((e) => log.warn('world continuum boot', e.message));
+        });
     }, 2500);
     this.timer = setInterval(() => {
       this.tick('interval').catch(e => log.warn('interval tick', e.message));
     }, TICK_INTERVAL_MS);
     if (typeof this.timer.unref === 'function') this.timer.unref();
-    log.info('ZACC started · autonomous loop every', Math.round(TICK_INTERVAL_MS / 60000), 'min · BTC payout', OWNER_BTC);
+    // WDOS/1.0 — permanent worldwide product continuum (independent of 6h scrape).
+    if (!this.worldTimer) {
+      this.worldTimer = setInterval(() => {
+        this.worldFeedPulse('interval').catch((e) => log.warn('world continuum', e.message));
+      }, WORLD_CONTINUUM_MS);
+      if (typeof this.worldTimer.unref === 'function') this.worldTimer.unref();
+    }
+    log.info(
+      'ZACC started · tick every', Math.round(TICK_INTERVAL_MS / 60000), 'min',
+      '· world continuum every', Math.round(WORLD_CONTINUUM_MS / 60000), 'min',
+      '· BTC payout', OWNER_BTC
+    );
   }
 
   stop() {
     if (this.timer) { clearInterval(this.timer); this.timer = null; }
+    if (this.worldTimer) { clearInterval(this.worldTimer); this.worldTimer = null; }
     log.info('ZACC stopped');
+  }
+
+  /** WDOS/1.0 pulse — keep /dropship stocked from worldwide feeds forever. */
+  async worldFeedPulse(trigger) {
+    try {
+      const r = await worldContinuum.pulse(this, trigger || 'manual');
+      this.health.heartbeat('scraper');
+      log.info('world continuum', JSON.stringify({
+        trigger: r.trigger, pulled: r.pulled, injected: r.injected, published: r.published, listed: r.listed,
+      }));
+      return r;
+    } catch (e) {
+      log.warn('world continuum failed:', e.message);
+      return { ok: false, error: e.message, protocol: worldContinuum.PROTOCOL };
+    }
+  }
+
+  worldContinuumStatus() {
+    return worldContinuum.status(this);
   }
 
   // One full autonomous cycle. Each stage is guarded so one failure self-heals
