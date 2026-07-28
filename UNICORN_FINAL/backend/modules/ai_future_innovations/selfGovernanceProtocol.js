@@ -14,7 +14,7 @@ module.exports = {
   name: 'AI Self-Governance Protocol',
   description: 'Autonomous AI protocol for self-regulation, audit, and ethical consensus. Evolves with global standards.',
   version: '1.0.0-future',
-  status: 'active',
+  status: 'spec',
   init(engine) {
     // Register protocol hooks, audit, and consensus logic
     engine.registerHook('audit', this.audit);
@@ -22,7 +22,7 @@ module.exports = {
   },
   async audit(context) {
     const db = require('./aiFutureDb');
-    let result = 'pass', details = 'Audit simulated. No violations.';
+    let result = 'pending', details = 'Audit pending — AI provider unavailable';
     try {
       const { askOpenAI } = require('./aiOpenAi');
       details = await askOpenAI([
@@ -30,14 +30,16 @@ module.exports = {
         { role: 'user', content: JSON.stringify(context) }
       ]);
       result = details.toLowerCase().includes('violation') ? 'fail' : 'pass';
-    } catch {}
+    } catch (_) {
+      // Keep pending — never fabricate a pass when the auditor is offline.
+    }
     const entry = { context, result, details };
     db.log('audit', entry);
     return { ...entry, timestamp: Date.now() };
   },
   async ethicsConsensus(context) {
     const db = require('./aiFutureDb');
-    let consensus = 'approved', participants = 42;
+    let consensus = 'unavailable', participants = 0;
     try {
       const { askOpenAI } = require('./aiOpenAi');
       const answer = await askOpenAI([
@@ -45,7 +47,11 @@ module.exports = {
         { role: 'user', content: JSON.stringify(context) }
       ]);
       consensus = answer.toLowerCase().includes('approved') ? 'approved' : 'rejected';
-    } catch {}
+      const m = String(answer).match(/(\d+)\s*participants?/i);
+      if (m) participants = Number(m[1]) || 0;
+    } catch (_) {
+      // Honest: zero participants when consensus engine is offline.
+    }
     const entry = { context, consensus, participants };
     db.log('consensus', entry);
     return { ...entry, timestamp: Date.now() };

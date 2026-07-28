@@ -14,7 +14,7 @@ module.exports = {
   name: 'Digital-Physical Convergence Layer',
   description: 'Unified orchestration of digital and physical systems (IoT, robotics, metaverse) via AI.',
   version: '1.0.0-future',
-  status: 'active',
+  status: 'spec',
   init(engine) {
     // Register convergence logic
     engine.registerHook('converge', this.converge);

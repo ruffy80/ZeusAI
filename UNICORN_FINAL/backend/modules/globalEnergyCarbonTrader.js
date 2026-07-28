@@ -87,9 +87,12 @@ class GlobalEnergyCarbonTrader {
       unitPrice,
       totalCost,
       currency: regionData.currency,
-      status: 'executed',
+      status: 'simulated',
+      simulated: true,
+      live: false,
+      note: 'Simulated energy trade — no exchange API settlement',
       timestamp: new Date().toISOString(),
-      settlement: new Date(Date.now() + 86400000).toISOString(), // T+1
+      settlement: null,
     };
 
     energyTrades.set(tradeId, trade);

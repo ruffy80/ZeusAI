@@ -139,17 +139,24 @@ class FederationHandler {
    * Store content on IPFS for permanent, decentralized access
    */
   async storeOnIPFS(content = '', opts = {}) {
-    // In production, would call real IPFS node
-    // For now, return mock IPFS hash
-    const hash = `QmVa${Math.random().toString(36).substring(2, 15)}${Date.now().toString(36)}`;
+    // Fail-honest: no IPFS node/API key → do not invent Qm* hashes or pinned:true.
+    const ipfsApi = process.env.IPFS_API_URL || process.env.IPFS_GATEWAY || '';
+    if (!ipfsApi) {
+      return {
+        ok: false,
+        error: 'ipfs_not_configured',
+        pinned: false,
+        contentType: opts.contentType || 'application/json',
+        note: 'Set IPFS_API_URL to enable permanent decentralized storage',
+      };
+    }
     return {
-      ok: true,
-      ipfsHash: hash,
-      ipfsUrl: `https://ipfs.io/ipfs/${hash}`,
-      gateway: `https://zeusai.pro/ipfs/${hash}`,
+      ok: false,
+      error: 'ipfs_upload_not_implemented',
+      pinned: false,
+      api: ipfsApi,
       contentType: opts.contentType || 'application/json',
-      pinned: true,
-      permanentUrl: `ipfs://${hash}`,
+      note: 'IPFS endpoint present but upload client not armed',
     };
   }
 
@@ -249,24 +256,24 @@ class FederationHandler {
       { name: 'Lemmy', url: 'https://lemmy.ml', type: 'activitypub' },
     ];
 
-    const discovered = [];
-    for (const peer of wellKnownPeers) {
-      discovered.push({
-        ...peer,
-        connected: true,
-        latency: Math.round(Math.random() * 200),
-        lastChecked: new Date().toISOString(),
-      });
-    }
+    // Catalog only — never claim connected:true without a network probe.
+    const discovered = wellKnownPeers.map((peer) => ({
+      ...peer,
+      connected: false,
+      probed: false,
+      lastChecked: new Date().toISOString(),
+    }));
 
     this.federated.peers = discovered;
-    this.state.activeConnections = discovered.filter(p => p.connected).length;
+    this.state.activeConnections = 0;
     this.state.lastPeerCheck = new Date().toISOString();
 
     return {
       ok: true,
       peersDiscovered: discovered.length,
-      connected: this.state.activeConnections,
+      connected: 0,
+      live: false,
+      note: 'peer_catalog_only_no_probe',
       peers: discovered,
     };
   }
@@ -278,23 +285,23 @@ class FederationHandler {
     const activityPub = this.toActivityPubCreate(post);
     const ipfs = await this.storeOnIPFS(JSON.stringify(post));
     const mastodonCompat = this.toMastodonStatus(post);
+    const federationArmed = process.env.ACTIVITYPUB_ENABLED === '1'
+      || process.env.MASTODON_ACCESS_TOKEN;
 
     const result = {
-      ok: true,
+      ok: false,
+      federatedLive: false,
+      error: federationArmed ? 'federation_delivery_not_armed' : 'federation_not_configured',
       postId: post.id,
-      federated: {
-        activitypub: { ok: true, id: activityPub.id },
-        ipfs: { ok: ipfs.ok, hash: ipfs.ipfsHash },
-        mastodon_api: { ok: true, id: mastodonCompat.id },
+      preview: {
+        activitypub: { id: activityPub.id },
+        ipfs: { ok: !!(ipfs && ipfs.ok), hash: ipfs && ipfs.ipfsHash, error: ipfs && ipfs.error },
+        mastodon_api: { id: mastodonCompat.id },
       },
-      peerResponses: this.federated.peers.map(p => ({
-        peer: p.name,
-        status: 'queued',
-        expectedDelivery: new Date(Date.now() + 30000).toISOString(),
-      })),
+      note: 'Transforms prepared — no network delivery without ActivityPub/Mastodon credentials',
+      peerResponses: [],
     };
 
-    this.federated.outboundPosts += 1;
     return result;
   }
 

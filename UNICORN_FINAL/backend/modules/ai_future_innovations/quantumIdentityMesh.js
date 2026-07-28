@@ -14,7 +14,7 @@ module.exports = {
   name: 'Quantum-Resilient Identity Mesh',
   description: 'Decentralized, quantum-resistant identity mesh for global, zero-trust authentication.',
   version: '1.0.0-future',
-  status: 'active',
+  status: 'spec',
   init(engine) {
     // Register identity mesh logic
     engine.registerHook('identity', this.issueIdentity);

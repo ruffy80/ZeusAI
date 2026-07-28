@@ -905,6 +905,8 @@ app.get('/api/brand/spectrum/score', (req, res) => {
 // WDOS/1.0 — World Dropship Continuum
 app.get('/api/dropship/world-continuum', siteProxyToUnicorn('/api/dropship/world-continuum'));
 app.get('/.well-known/world-dropship.json', siteProxyToUnicorn('/api/dropship/world-continuum'));
+app.get('/api/modules/reality', siteProxyToUnicorn('/api/modules/reality'));
+app.get('/.well-known/module-reality.json', siteProxyToUnicorn('/api/modules/reality'));
 // PFOS / ESOS — status page panels (proxy to backend SoT)
 app.get('/api/platform/foundation', siteProxyToUnicorn('/api/platform/foundation'));
 app.get('/.well-known/platform.json', siteProxyToUnicorn('/api/platform/foundation'));

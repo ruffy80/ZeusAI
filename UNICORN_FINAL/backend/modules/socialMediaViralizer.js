@@ -348,27 +348,29 @@ class SocialMediaViralizer {
   }
 
   async checkAndReplyComments() {
-    const mockComments = [
-      { platform: 'x', text: 'Wow, amazing!', userId: 'user1' },
-      { platform: 'telegram', text: 'How much does it cost?', userId: 'user2' }
-    ];
-    for (const comment of mockComments) {
-      const reply = this.generateAutoReply(comment.text);
-      await this.sendReply(comment.platform, comment.userId, reply);
+    // Idle unless real social APIs are armed — never invent mock comment traffic.
+    const armed = !!(
+      process.env.X_API_KEY
+      || process.env.TWITTER_BEARER_TOKEN
+      || process.env.TELEGRAM_BOT_TOKEN
+    );
+    if (!armed) {
+      return { ok: true, replied: 0, skipped: 'social_apis_not_configured' };
     }
+    return { ok: true, replied: 0, skipped: 'mention_poll_not_armed' };
   }
 
   generateAutoReply(commentText = '') {
     const lower = String(commentText).toLowerCase();
     if (lower.includes('cost') || lower.includes('price')) return 'Prețurile noastre sunt dinamice, începând de la $29/lună, cu 20% reducere față de piață. Vrei mai multe detalii?';
     if (lower.includes('how') || lower.includes('works')) return 'Unicornul este un sistem AI autonom care se auto-dezvoltă. Poți afla mai multe pe zeusai.pro/codex';
-    if (lower.includes('thank') || lower.includes('great')) return 'Mulțumim! Follow pentru mai multe noutăți. 🚀';
+    if (lower.includes('thank') || lower.includes('great')) return 'Mulțumim! Follow pentru mai multe noutăți.';
     return 'Mulțumim pentru interes! Pentru detalii, vizitează zeusai.pro';
   }
 
   async sendReply(platform, userId, reply) {
-    console.log('💬 Răspuns automat pe ' + platform + ' către ' + userId + ': "' + reply + '"');
-    return true;
+    console.log('💬 Răspuns pregătit (nedodestat) pe ' + platform + ' către ' + userId + ': "' + reply + '"');
+    return { ok: false, delivered: false, error: 'social_reply_api_not_armed', platform, userId };
   }
 
   startViralDetector() {

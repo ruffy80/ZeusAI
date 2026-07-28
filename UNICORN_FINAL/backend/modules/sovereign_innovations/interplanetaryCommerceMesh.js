@@ -13,7 +13,7 @@ module.exports = {
   title: 'Interplanetary Commerce Mesh',
   description: 'Infrastructură pentru comerț și colaborare AI pe mai multe planete, cu latență și reziliență adaptivă.',
   getStatus: () => ({
-    status: 'active',
+    status: 'spec',
     interplanetary: true,
     adaptiveLatency: true,
     aiCollaboration: true

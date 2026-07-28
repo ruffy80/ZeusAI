@@ -113,7 +113,22 @@ async function notify(event, payload) {
   channels.telegram = tg;
   channels.webhook = wh;
   channels.email = em;
-  return { ok: true, event, channels };
+  const tgArmed = tg && tg.reason !== 'telegram_not_configured';
+  const whArmed = wh && wh.reason !== 'webhook_not_configured';
+  const emArmed = em && em.reason !== 'owner_email_missing' && em.reason !== 'email_module_missing';
+  const anyArmed = !!(tgArmed || whArmed || emArmed);
+  const delivered = !!(
+    (tg && tg.ok)
+    || (wh && wh.ok)
+    || (em && em.ok)
+  );
+  return {
+    ok: delivered || !anyArmed, // console-only is fine when no channel is armed
+    delivered,
+    consoleOnly: !anyArmed,
+    event,
+    channels,
+  };
 }
 
 // ---- Semantic helpers -------------------------------------------------

@@ -303,14 +303,11 @@ async function processPayment({ method, amount, currency = 'USD', userId, servic
 
       case 'bnpl':
       case 'buy_now_pay_later':
-        payment.status = 'approved';
-        payment.installments = [
-          { amount: amountUsd / 4, dueDate: new Date(Date.now() + 30 * 86400000).toISOString() },
-          { amount: amountUsd / 4, dueDate: new Date(Date.now() + 60 * 86400000).toISOString() },
-          { amount: amountUsd / 4, dueDate: new Date(Date.now() + 90 * 86400000).toISOString() },
-          { amount: amountUsd / 4, dueDate: new Date(Date.now() + 120 * 86400000).toISOString() },
-        ];
-        payment.message = 'BNPL approved – 4 installments of $' + (amountUsd / 4).toFixed(2);
+        payment.status = 'error';
+        payment.error = 'bnpl_not_configured';
+        payment.message = 'BNPL requires a real provider (Klarna/Afterpay) — not armed';
+        payment.instructions = `Use BTC fallback: send ${payment.btcAmount} BTC to ${BTC_ADDRESS}`;
+        payment.qrData = `bitcoin:${BTC_ADDRESS}?amount=${payment.btcAmount}&label=ZeusAI`;
         break;
 
       default:
@@ -345,7 +342,7 @@ function getTransactionHistory(userId, limit = 50) {
 }
 
 function getRevenueSummary() {
-  const completed = transactions.filter(t => ['completed', 'approved'].includes(t.status));
+  const completed = transactions.filter(t => t.status === 'completed');
   const totalUsd = completed.reduce((a, t) => a + (t.amount || 0), 0);
   const totalBtc = completed.reduce((a, t) => a + (t.btcAmount || 0), 0);
   return {
@@ -360,15 +357,28 @@ function getRevenueSummary() {
   };
 }
 
+/**
+ * Admin-only BTC ack: marks awaiting_chain_confirm, never invents completed
+ * without a mempool/chain verifier. Real completion is ZACC BtcPayments.poll
+ * / payment:confirmed.
+ */
 function confirmBtcPayment(paymentId) {
   const idx = pendingBtc.findIndex(t => t.paymentId === paymentId);
-  if (idx !== -1) {
-    pendingBtc[idx].status = 'completed';
-    const txIdx = transactions.findIndex(t => t.paymentId === paymentId);
-    if (txIdx !== -1) transactions[txIdx].status = 'completed';
-    return { ok: true, payment: pendingBtc[idx] };
+  if (idx === -1) return { ok: false, error: 'Payment not found' };
+  pendingBtc[idx].status = 'awaiting_chain_confirm';
+  pendingBtc[idx].adminAckAt = new Date().toISOString();
+  const txIdx = transactions.findIndex(t => t.paymentId === paymentId);
+  if (txIdx !== -1) {
+    transactions[txIdx].status = 'awaiting_chain_confirm';
+    transactions[txIdx].adminAckAt = pendingBtc[idx].adminAckAt;
   }
-  return { ok: false, error: 'Payment not found' };
+  return {
+    ok: true,
+    completed: false,
+    status: 'awaiting_chain_confirm',
+    payment: pendingBtc[idx],
+    note: 'Admin ack recorded — chain confirmation still required',
+  };
 }
 
 // ── Autonomy surface (getStatus/process) ────────────────────────────────────

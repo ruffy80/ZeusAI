@@ -12,11 +12,11 @@ let runs = 0;
 
 function runOnce() {
   runs += 1;
-  return { ok: true, runs, ts: new Date().toISOString() };
+  return { ok: true, runs, action: 'noop', note: 'counter_only_no_revenue_actions', ts: new Date().toISOString() };
 }
 
 function status() {
-  return { ok: true, runs, intervalMs: 300000, ts: new Date().toISOString() };
+  return { ok: true, runs, intervalMs: 300000, liveRevenue: false, note: 'counter_only', ts: new Date().toISOString() };
 }
 
 module.exports = { runOnce, status };

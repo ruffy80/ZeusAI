@@ -13,7 +13,7 @@ module.exports = {
   title: 'Universal Autonomous Negotiation Protocol',
   description: 'Orice entitate (AI, om, companie) poate negocia, contracta și colabora autonom, fără intermediar.',
   getStatus: () => ({
-    status: 'active',
+    status: 'spec',
     autonomous: true,
     negotiation: true,
     contract: true

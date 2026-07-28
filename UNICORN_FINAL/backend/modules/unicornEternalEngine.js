@@ -729,6 +729,10 @@ module.exports = new ${name}();
     if (currentLoad <= 0.8) return null;
 
     const newServer = await this.provisionNewServer();
+    if (!newServer || newServer.ok === false || !newServer.ip) {
+      console.log('⚠️ Auto-replicare oprită — provisioning not armed:', newServer && newServer.error);
+      return newServer;
+    }
     await this.syncDataToServer(newServer);
     await this.updateLoadBalancer(newServer);
     console.log(`✅ Server nou creat: ${newServer.ip}`);
@@ -740,20 +744,39 @@ module.exports = new ${name}();
   }
 
   async provisionNewServer() {
+    if (!process.env.HETZNER_API_TOKEN) {
+      return {
+        ok: false,
+        error: 'hetzner_not_configured',
+        simulated: false,
+        provisioned: false,
+        note: 'Set HETZNER_API_TOKEN to enable real server provisioning',
+      };
+    }
+    // Token present but Cloud API client not armed in this module.
     return {
-      ip: '192.168.1.100',
-      id: Date.now(),
-      provider: 'hetzner-simulated',
-      apiTokenConfigured: Boolean(process.env.HETZNER_API_TOKEN)
+      ok: false,
+      error: 'hetzner_provision_not_armed',
+      simulated: false,
+      provisioned: false,
+      apiTokenConfigured: true,
+      note: 'Hetzner token present — wire Cloud API createServer before claiming IPs',
     };
   }
 
   async syncDataToServer(server) {
+    if (!server || !server.ip) {
+      console.log('📀 sync skipped — no live server');
+      return { ok: false, error: 'no_server' };
+    }
     console.log(`📀 Sincronizez date către ${server.ip}`);
+    return { ok: false, error: 'sync_not_armed' };
   }
 
   async updateLoadBalancer(server) {
+    if (!server || !server.ip) return { ok: false, error: 'no_server' };
     console.log(`⚖️ Adaug ${server.ip} în load balancer`);
+    return { ok: false, error: 'lb_not_armed' };
   }
 
   async generatePatent(innovation) {

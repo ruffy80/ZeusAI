@@ -276,7 +276,28 @@ class GlobalDigitalStandard {
   async linkPlatformIdentity(userId, platform, platformUserId) { const i = this.identities.get(userId); if (!i) throw new Error('Identity not found'); i.connectedPlatforms.push({ platform, userId: platformUserId, linkedAt: new Date().toISOString() }); return { success: true, userId, platform, platformUserId }; }
   async getUnifiedProfile(userId) { return this.identities.get(userId) || null; }
 
-  async processCrossPlatformPayment(params = {}) { const amount = Number(params.amount || 0); const fee = amount * this.feeRate; const tx = { id: crypto.randomBytes(16).toString('hex'), fromPlatform: params.fromPlatform, toPlatform: params.toPlatform, fromUserId: params.fromUserId, toUserId: params.toUserId, amount, currency: params.currency || 'USD', fee, netAmount: amount - fee, status: 'completed', timestamp: new Date().toISOString() }; this.transactions.push(tx); await this.recordRevenue('payment', fee); return tx; }
+  async processCrossPlatformPayment(params = {}) {
+    const amount = Number(params.amount || 0);
+    const fee = amount * this.feeRate;
+    const tx = {
+      id: crypto.randomBytes(16).toString('hex'),
+      fromPlatform: params.fromPlatform,
+      toPlatform: params.toPlatform,
+      fromUserId: params.fromUserId,
+      toUserId: params.toUserId,
+      amount,
+      currency: params.currency || 'USD',
+      fee,
+      netAmount: amount - fee,
+      status: 'not_configured',
+      error: 'cross_platform_rail_not_configured',
+      message: 'Cross-platform settlement requires a real payment rail — not armed',
+      timestamp: new Date().toISOString(),
+    };
+    this.transactions.push(tx);
+    // Do not recordRevenue on unconfigured rails.
+    return tx;
+  }
   async orchestrateAI(platform, task, data) { await this.recordRevenue('ai_orchestration', 0.001); return { result: { platform, task, data }, processingTime: 1, fee: 0.001 }; }
 
   startComplianceEngine() { cron.schedule('0 */6 * * *', async () => { await this.checkAllCompliance(); }); }

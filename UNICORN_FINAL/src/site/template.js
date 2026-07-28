@@ -5621,9 +5621,9 @@ async function confirmBtcPayment(){
   if(STATE.countdownTimer) clearInterval(STATE.countdownTimer);
   var body=document.getElementById('checkout-body');
   if(body) body.innerHTML='<div style="text-align:center;padding:30px;">'
-    +'<div style="font-size:48px;margin-bottom:12px;">✅</div>'
-    +'<div class="title-sm">Payment Received!</div>'
-    +'<p class="muted" style="margin-top:8px;font-size:13px;">Your payment is being confirmed on the blockchain.<br/>We\\'ll activate your service within 15 minutes.</p>'
+    +'<div style="font-size:48px;margin-bottom:12px;">⏳</div>'
+    +'<div class="title-sm">Payment Submitted</div>'
+    +'<p class="muted" style="margin-top:8px;font-size:13px;">Thanks — we recorded your send notice.<br/>Access unlocks after on-chain confirmation (usually within ~15 minutes).</p>'
     +'<button class="btn btn-primary" style="margin-top:16px;" onclick="closeModal(\\'checkout-modal\\')">Done</button>'
     +'</div>';
   trackClientEvent('checkout_confirm_btc',{serviceId:(STATE.checkoutItem&&((STATE.checkoutItem.serviceId)||STATE.checkoutItem.id))||'',valueUsd:Number((STATE.checkoutItem&&STATE.checkoutItem.priceUsd)||0)||0});

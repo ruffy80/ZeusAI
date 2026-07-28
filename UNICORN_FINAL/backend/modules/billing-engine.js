@@ -667,7 +667,7 @@ async function processPayment(tenantId, invoiceId, amount, currency = 'USD') {
   }
 
   // Attempt PayPal / Încearcă PayPal
-  if (process.env.PAYPAL_CLIENT_ID && process.env.PAYPAL_CLIENT_SECRET) {
+  if (process.env.PAYPAL_CLIENT_ID && (process.env.PAYPAL_CLIENT_SECRET || process.env.PAYPAL_SECRET)) {
     try {
       const ppResult = await _paypalCharge(tenant, amount, currency, invoiceId);
       if (ppResult.success) {
@@ -687,25 +687,12 @@ async function _stripeCharge(tenant, amount, currency, invoiceId) {
   const amountCents = Math.round(amount * 100);
   const customerId  = tenantEngine.getConfig(tenant.id, 'stripe_customer_id');
 
+  if (!process.env.STRIPE_SECRET_KEY) {
+    return { success: false, error: 'stripe_not_configured' };
+  }
   if (!customerId) {
-    // Charge without saved customer (demo path) / Plată fără client salvat (cale demonstrativă)
-    const response = await axios.post(
-      'https://api.stripe.com/v1/charges',
-      new URLSearchParams({
-        amount  : String(amountCents),
-        currency: currency.toLowerCase(),
-        description: `Invoice ${invoiceId} for tenant ${tenant.id}`,
-        // In production: add source/customer / În producție: adăugați source/customer
-      }).toString(),
-      {
-        headers: {
-          Authorization  : `Bearer ${process.env.STRIPE_SECRET_KEY}`,
-          'Content-Type' : 'application/x-www-form-urlencoded',
-        },
-        timeout: 10_000,
-      }
-    );
-    return { success: response.data.status === 'succeeded', transactionId: response.data.id };
+    // Fail-honest: Stripe rejects charges without source/customer.
+    return { success: false, error: 'no_stripe_customer_id' };
   }
 
   const response = await axios.post(
@@ -734,12 +721,22 @@ async function _stripeCharge(tenant, amount, currency, invoiceId) {
 
 /** Internal — PayPal charge via Orders v2 */
 async function _paypalCharge(tenant, amount, currency, invoiceId) {
+  const clientId = process.env.PAYPAL_CLIENT_ID;
+  const secret = process.env.PAYPAL_CLIENT_SECRET || process.env.PAYPAL_SECRET;
+  if (!clientId || !secret) {
+    return { success: false, error: 'paypal_not_configured' };
+  }
+  const mode = String(process.env.PAYPAL_MODE || 'sandbox').toLowerCase();
+  const host = mode === 'live' || mode === 'production'
+    ? 'https://api-m.paypal.com'
+    : 'https://api-m.sandbox.paypal.com';
+
   // Get access token / Obține token de acces
   const tokenRes = await axios.post(
-    'https://api-m.paypal.com/v1/oauth2/token',
+    host + '/v1/oauth2/token',
     'grant_type=client_credentials',
     {
-      auth   : { username: process.env.PAYPAL_CLIENT_ID, password: process.env.PAYPAL_CLIENT_SECRET },
+      auth   : { username: clientId, password: secret },
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
       timeout: 10_000,
     }
@@ -747,7 +744,7 @@ async function _paypalCharge(tenant, amount, currency, invoiceId) {
   const accessToken = tokenRes.data.access_token;
 
   const orderRes = await axios.post(
-    'https://api-m.paypal.com/v2/checkout/orders',
+    host + '/v2/checkout/orders',
     {
       intent            : 'CAPTURE',
       purchase_units    : [{
@@ -759,9 +756,16 @@ async function _paypalCharge(tenant, amount, currency, invoiceId) {
     { headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' }, timeout: 10_000 }
   );
 
+  // Create-only is not a charge. Success requires CAPTURE → COMPLETED.
+  // CREATED/APPROVED mean the buyer still needs to approve / we still need capture.
+  const st = String(orderRes.data.status || '');
   return {
-    success      : ['CREATED', 'APPROVED', 'COMPLETED'].includes(orderRes.data.status),
+    success      : st === 'COMPLETED',
+    pendingBuyer : st === 'CREATED' || st === 'APPROVED',
+    status       : st,
     transactionId: orderRes.data.id,
+    approveUrl   : (orderRes.data.links || []).find((l) => l && l.rel === 'approve')?.href || null,
+    error        : st === 'COMPLETED' ? null : 'paypal_capture_required',
   };
 }
 

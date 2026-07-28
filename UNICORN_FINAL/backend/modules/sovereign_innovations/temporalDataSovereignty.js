@@ -13,7 +13,7 @@ module.exports = {
   title: 'Temporal Data Sovereignty',
   description: 'Fiecare utilizator controlează nu doar datele, ci și “timpul” datelor sale (cine, când, cât timp, unde pot fi folosite).',
   getStatus: () => ({
-    status: 'active',
+    status: 'spec',
     timeControl: true,
     userControl: true
   }),

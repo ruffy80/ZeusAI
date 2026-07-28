@@ -653,28 +653,48 @@ class PaymentGateway {
       }
     }
 
+    // Direct BTC / manual rails: never mark completed on customer "I paid" ack.
+    // Real settle is mempool poll (ZACC BtcPayments) or provider webhook.
+    const method = String(payment.method || payment.provider || '').toLowerCase();
+    const isDirectBtc = ['btc', 'bitcoin', 'crypto', 'manual', ''].includes(method)
+      || payment.provider === 'btc'
+      || String(payment.currency || '').toUpperCase() === 'BTC';
+
+    if (isDirectBtc) {
+      const updatedPayment = {
+        ...payment,
+        status: payment.status === 'completed' ? 'completed' : 'awaiting_chain_confirm',
+        processorResponse: {
+          approved: false,
+          customerAck: details.approved === true,
+          reference: details.reference || (payment.processorResponse && payment.processorResponse.reference) || null,
+          note: details.note || 'Customer/admin ack recorded — awaiting on-chain confirmation',
+        },
+        updatedAt: new Date().toISOString(),
+      };
+      this.payments.set(txId, updatedPayment);
+      dbPayments.save(updatedPayment);
+      return updatedPayment;
+    }
+
     const nextStatus = payment.status === 'created'
       ? 'processing'
       : payment.status === 'pending'
         ? 'processing'
         : payment.status === 'processing'
-          ? 'completed'
+          ? 'processing'
           : payment.status;
 
     const updatedPayment = {
       ...payment,
       status: nextStatus,
       processorResponse: {
-        approved: nextStatus === 'completed' || details.approved === true,
+        approved: false,
         reference: details.reference || 'ref_' + Math.random().toString(36).slice(2, 10),
-        note: details.note || null
+        note: details.note || 'Awaiting provider confirmation — not auto-completed',
       },
       updatedAt: new Date().toISOString()
     };
-
-    if (updatedPayment.processorResponse.approved && nextStatus === 'processing') {
-      updatedPayment.status = 'completed';
-    }
 
     this.payments.set(txId, updatedPayment);
     dbPayments.save(updatedPayment);

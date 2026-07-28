@@ -13,6 +13,9 @@ function attestation() {
     ok: true,
     owner: 'Vladoi Ionut',
     policy: 'forward-only',
+    engine: 'spec',
+    live: false,
+    note: 'attestation_surface_only',
     ts: new Date().toISOString(),
   };
 }

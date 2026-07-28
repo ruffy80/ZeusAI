@@ -14,7 +14,7 @@ module.exports = {
   name: 'AI-Driven Societal Resilience Engine',
   description: 'AI engine for global crisis anticipation, simulation, and autonomous intervention.',
   version: '1.0.0-future',
-  status: 'active',
+  status: 'spec',
   init(engine) {
     // Register crisis simulation logic
     engine.registerHook('crisisSim', this.simulate);

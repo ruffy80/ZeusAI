@@ -346,6 +346,70 @@ async function sendMail({ to, subject, html, text }) {
   return { ok: false, queued: true, persisted: queued, outbox: OUTBOX_FILE, reason: 'email_unconfigured' };
 }
 
+/**
+ * Replay queued outbox messages once a transport is configured.
+ * Marks successfully sent lines by rewriting the JSONL without them.
+ */
+async function replayOutbox({ limit = 25 } = {}) {
+  if (!isConfigured()) {
+    return { ok: false, reason: 'email_unconfigured', replayed: 0, remaining: 0 };
+  }
+  let lines = [];
+  try {
+    if (!_fs.existsSync(OUTBOX_FILE)) return { ok: true, replayed: 0, remaining: 0 };
+    lines = _fs.readFileSync(OUTBOX_FILE, 'utf8').split(/\n/).filter(Boolean);
+  } catch (e) {
+    return { ok: false, error: e.message, replayed: 0 };
+  }
+  const keep = [];
+  let replayed = 0;
+  for (let i = 0; i < lines.length; i++) {
+    let entry;
+    try { entry = JSON.parse(lines[i]); } catch (_) { continue; }
+    if (replayed >= limit) { keep.push(lines[i]); continue; }
+    try {
+      const r = await sendMail({
+        to: entry.to,
+        subject: entry.subject,
+        html: entry.html,
+        text: entry.text,
+      });
+      if (r && (r.ok === true || r.messageId)) {
+        replayed += 1;
+      } else {
+        keep.push(lines[i]);
+      }
+    } catch (_) {
+      keep.push(lines[i]);
+    }
+  }
+  try {
+    _fs.mkdirSync(OUTBOX_DIR, { recursive: true });
+    _fs.writeFileSync(OUTBOX_FILE, keep.length ? keep.join('\n') + '\n' : '', 'utf8');
+  } catch (e) {
+    return { ok: false, error: e.message, replayed, remaining: keep.length };
+  }
+  return { ok: true, replayed, remaining: keep.length };
+}
+
+let _replayTimer = null;
+function startOutboxReplay(intervalMs) {
+  const ms = Math.max(60_000, Number(intervalMs || process.env.EMAIL_OUTBOX_REPLAY_MS || 10 * 60 * 1000) || 600_000);
+  if (_replayTimer) return { ok: true, already: true, intervalMs: ms };
+  _replayTimer = setInterval(() => {
+    replayOutbox().catch((e) => console.warn('[email] outbox replay failed:', e && e.message));
+  }, ms);
+  if (typeof _replayTimer.unref === 'function') _replayTimer.unref();
+  if (isConfigured()) {
+    replayOutbox().catch(() => {});
+  }
+  return { ok: true, intervalMs: ms };
+}
+
+function stopOutboxReplay() {
+  if (_replayTimer) { clearInterval(_replayTimer); _replayTimer = null; }
+}
+
 async function sendVerificationEmail(user, token) {
   const { appUrl } = getSmtpConfig();
   const link = `${appUrl}/verify-email?token=${token}`;
@@ -444,4 +508,7 @@ module.exports = {
   sendPasswordResetEmail,
   sendWelcomeEmail,
   sendPaymentConfirmation,
+  replayOutbox,
+  startOutboxReplay,
+  stopOutboxReplay,
 };
