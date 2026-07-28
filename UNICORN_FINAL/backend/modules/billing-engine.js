@@ -667,7 +667,7 @@ async function processPayment(tenantId, invoiceId, amount, currency = 'USD') {
   }
 
   // Attempt PayPal / Încearcă PayPal
-  if (process.env.PAYPAL_CLIENT_ID && process.env.PAYPAL_CLIENT_SECRET) {
+  if (process.env.PAYPAL_CLIENT_ID && (process.env.PAYPAL_CLIENT_SECRET || process.env.PAYPAL_SECRET)) {
     try {
       const ppResult = await _paypalCharge(tenant, amount, currency, invoiceId);
       if (ppResult.success) {
@@ -756,9 +756,16 @@ async function _paypalCharge(tenant, amount, currency, invoiceId) {
     { headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' }, timeout: 10_000 }
   );
 
+  // Create-only is not a charge. Success requires CAPTURE → COMPLETED.
+  // CREATED/APPROVED mean the buyer still needs to approve / we still need capture.
+  const st = String(orderRes.data.status || '');
   return {
-    success      : ['CREATED', 'APPROVED', 'COMPLETED'].includes(orderRes.data.status),
+    success      : st === 'COMPLETED',
+    pendingBuyer : st === 'CREATED' || st === 'APPROVED',
+    status       : st,
     transactionId: orderRes.data.id,
+    approveUrl   : (orderRes.data.links || []).find((l) => l && l.rel === 'approve')?.href || null,
+    error        : st === 'COMPLETED' ? null : 'paypal_capture_required',
   };
 }
 

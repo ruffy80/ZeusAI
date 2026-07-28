@@ -14,7 +14,7 @@ module.exports = {
   name: 'Self-Evolving UX/Protocol Layer',
   description: 'Adaptive UI and protocol logic that evolves with user, context, and technology.',
   version: '1.0.0-future',
-  status: 'active',
+  status: 'spec',
   init(engine) {
     // Register adaptive UX logic
     engine.registerHook('uxAdapt', this.adapt);

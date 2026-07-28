@@ -13,7 +13,7 @@ module.exports = {
   title: 'Global Value Ledger',
   description: 'Registru valoric universal, transparent, pentru orice tip de activ, reputație sau contribuție, recunoscut la nivel planetar.',
   getStatus: () => ({
-    status: 'active',
+    status: 'spec',
     universal: true,
     transparent: true,
     planetary: true

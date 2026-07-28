@@ -56,7 +56,7 @@ module.exports = {
   id: 'aiSovereignIdentityMesh',
   title: 'AI Sovereign Identity Mesh',
   description: 'Identitate digitală globală, descentralizată, cu control total pentru utilizator, interoperabilă cu orice sistem.',
-  getStatus: () => ({ status: 'active', mesh: true, decentralized: true, userControl: true, interoperable: true, identities: registry.size, scheme: 'ed25519/did:key' }),
+  getStatus: () => ({ status: 'spec', mesh: true, decentralized: true, userControl: true, interoperable: true, identities: registry.size, scheme: 'ed25519/did:key' }),
   createIdentity,
   verifyIdentity,
   federate,

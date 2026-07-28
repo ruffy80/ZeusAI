@@ -11,11 +11,11 @@
  * are absent — that lied to any consumer of the health signal.
  */
 async function status() {
+  // Region alone is not credentials — require key/profile.
   const configured = !!(
     process.env.AWS_ACCESS_KEY_ID
     || process.env.AWS_SECRET_ACCESS_KEY
     || process.env.AWS_PROFILE
-    || process.env.AWS_REGION
   );
   if (!configured) {
     return {

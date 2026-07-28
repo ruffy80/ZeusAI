@@ -14,7 +14,7 @@ module.exports = {
   name: 'AI Self-Governance Protocol',
   description: 'Autonomous AI protocol for self-regulation, audit, and ethical consensus. Evolves with global standards.',
   version: '1.0.0-future',
-  status: 'active',
+  status: 'spec',
   init(engine) {
     // Register protocol hooks, audit, and consensus logic
     engine.registerHook('audit', this.audit);

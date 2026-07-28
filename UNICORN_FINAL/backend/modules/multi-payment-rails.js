@@ -414,7 +414,8 @@ function getPayments({ userId, limit = 50 } = {}) {
   return list.slice(-limit).reverse();
 }
 function getRevenueSummary() {
-  const completed = [..._payments.values()].filter(p => ['completed', 'bnpl_approved', 'split_pending_upfront'].includes(p.status));
+  // Only count real completions — never phantom BNPL/split statuses.
+  const completed = [..._payments.values()].filter(p => p.status === 'completed');
   const total = completed.reduce((s, p) => s + (p.amountUsd || 0), 0);
   const byMethod = {};
   for (const p of completed) {
@@ -455,7 +456,12 @@ function router() {
   r.post('/pay', express.json(), async (req, res) => {
     try {
       const result = await processPayment(req.body || {});
-      res.json({ ok: true, payment: result });
+      const st = String((result && result.status) || '');
+      const hardFail = st === 'error'
+        || st.includes('not_configured')
+        || st === 'requires_provider_configuration';
+      const ok = !!(result && !hardFail);
+      res.status(ok ? 200 : 402).json({ ok, payment: result });
     } catch (e) {
       res.status(500).json({ ok: false, error: e.message });
     }

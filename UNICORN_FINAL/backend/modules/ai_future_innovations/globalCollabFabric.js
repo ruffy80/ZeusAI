@@ -14,7 +14,7 @@ module.exports = {
   name: 'Trustless Global Collaboration Fabric',
   description: 'Distributed, trustless collaboration and innovation fabric with AI-driven consensus.',
   version: '1.0.0-future',
-  status: 'active',
+  status: 'spec',
   init(engine) {
     // Register collaboration logic
     engine.registerHook('collab', this.collaborate);

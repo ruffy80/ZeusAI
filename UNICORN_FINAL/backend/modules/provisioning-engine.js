@@ -170,9 +170,35 @@ class ProvisioningEngine extends EventEmitter {
       case 'assign_support':
         job.result.supportTier = job.plan === 'enterprise' ? 'dedicated' : 'standard';
         break;
-      case 'send_welcome_email':
-        job.result.welcomeEmailSent = true;
+      case 'send_welcome_email': {
+        // Honest: only mark sent when transactional mailer accepts the queue/send.
+        let sent = false;
+        let queued = false;
+        let mailError = null;
+        try {
+          const email = require('../email');
+          const to = opts.email || opts.welcomeEmail || job.email || null;
+          if (!to) {
+            mailError = 'no_welcome_email_recipient';
+          } else if (typeof email.sendMail === 'function') {
+            const r = await email.sendMail({
+              to,
+              subject: 'Welcome to ZeusAI',
+              text: `Your tenant ${job.tenantId} is being provisioned on plan ${job.plan}.`,
+            });
+            queued = !!(r && r.queued);
+            sent = !!(r && (r.accepted || r.messageId || r.ok) && !r.queued);
+          } else {
+            mailError = 'mailer_unavailable';
+          }
+        } catch (e) {
+          mailError = e && e.message ? e.message : 'mailer_exception';
+        }
+        job.result.welcomeEmailSent = sent;
+        job.result.welcomeEmailQueued = queued;
+        if (mailError) job.result.welcomeEmailError = mailError;
         break;
+      }
       case 'activate':
         job.result.activatedAt = new Date().toISOString();
         break;

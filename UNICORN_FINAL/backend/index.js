@@ -8986,6 +8986,7 @@ app.post('/api/payment/nowpayments/create', _swRateLimit, asyncHandler(async (re
   });
   if (invoice && invoice.ok === false) {
     // Honest handoff to direct BTC ledger when NOWPayments is unarmed.
+    // Flatten fields so checkout + API smoke keep a stable contract.
     try {
       const inv = await btcLedger.createInvoice({
         service: itemName || itemId || 'service',
@@ -8993,13 +8994,21 @@ app.post('/api/payment/nowpayments/create', _swRateLimit, asyncHandler(async (re
         customerEmail: clientId || null,
         metadata: { itemId, source: 'nowpayments_fallback_btc' },
       });
+      const payAddress = (inv && (inv.payoutAddress || inv.btcAddress || inv.address)) || __OWNER_BTC;
       return res.json({
         ok: true,
-        fallback: 'btc_direct',
+        fallback: true,
+        fallbackRail: 'btc_direct',
         reason: invoice.reason || 'nowpayments_not_configured',
+        id: inv.id,
+        pay_currency: 'btc',
+        pay_address: payAddress,
+        price_amount: normalizedAmount,
+        price_currency: 'usd',
+        amountBtc: inv.amountBtc,
+        amountSats: inv.amountSats,
         chosenCurrency: 'btc',
         invoice: inv,
-        pay_address: (inv && (inv.btcAddress || inv.address)) || __OWNER_BTC,
       });
     } catch (e) {
       return res.status(503).json({

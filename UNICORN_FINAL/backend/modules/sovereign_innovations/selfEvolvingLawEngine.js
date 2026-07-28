@@ -13,7 +13,7 @@ module.exports = {
   title: 'Self-Evolving Law Engine',
   description: 'Sistem legal AI care se adaptează și evoluează automat, asigurând dreptate și echitate la scară globală și interplanetară.',
   getStatus: () => ({
-    status: 'active',
+    status: 'spec',
     selfEvolving: true,
     aiLaw: true,
     global: true

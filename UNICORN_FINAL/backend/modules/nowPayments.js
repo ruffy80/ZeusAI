@@ -193,9 +193,11 @@ function processWebhook(payload) {
 }
 
 async function getSupportedCurrencies() {
-  if (!NOWPAYMENTS_API_KEY) return { currencies: ['btc', 'eth', 'usdt', 'bnb', 'sol', 'xrp', 'ada', 'dot', 'ltc', 'doge'] };
+  if (!NOWPAYMENTS_API_KEY) {
+    return { currencies: [], error: 'nowpayments_not_configured', configured: false };
+  }
   try { return await nowRequest('GET', '/currencies'); }
-  catch (_) { return { currencies: [] }; }
+  catch (_) { return { currencies: [], error: 'nowpayments_currencies_unreachable' }; }
 }
 
 async function getMinimumPayment(currency) {

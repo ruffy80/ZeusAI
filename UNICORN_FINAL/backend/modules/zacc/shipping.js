@@ -59,10 +59,25 @@ function quote(input) {
     const itemUsd = round2(costUsd * qty);
     const totalUsd = round2(itemUsd + shippingUsd);
 
-    return { shippingUsd, etaDays: def.etaDays, zone, totalUsd };
+    return {
+      shippingUsd,
+      etaDays: def.etaDays,
+      zone,
+      totalUsd,
+      source: 'heuristic',
+      carrierLive: false,
+      note: 'Zone heuristic — not a live carrier quote',
+    };
   } catch (_) {
     // Absolute fallback — never throw into the commerce flow.
-    return { shippingUsd: 0, etaDays: ZONES.WORLD.etaDays, zone: 'WORLD', totalUsd: 0 };
+    return {
+      shippingUsd: 0,
+      etaDays: ZONES.WORLD.etaDays,
+      zone: 'WORLD',
+      totalUsd: 0,
+      source: 'heuristic',
+      carrierLive: false,
+    };
   }
 }
 

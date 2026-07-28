@@ -13,7 +13,7 @@ module.exports = {
   title: 'Quantum-Resilient Privacy Layer',
   description: 'Criptare și anonimizare automată, imposibil de spart chiar și de computere cuantice.',
   getStatus: () => ({
-    status: 'active',
+    status: 'spec',
     quantumSafe: true,
     autoEncrypt: true,
     autoAnonymize: true

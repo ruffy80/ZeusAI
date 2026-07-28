@@ -14,7 +14,7 @@ module.exports = {
   name: 'Universal Autonomous Value Ledger',
   description: 'AI-driven global ledger for any value type: currency, energy, data, reputation.',
   version: '1.0.0-future',
-  status: 'active',
+  status: 'spec',
   init(engine) {
     // Register value transfer logic
     engine.registerHook('valueTransfer', this.transfer);

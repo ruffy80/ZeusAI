@@ -207,5 +207,57 @@ check('selfGovernanceProtocol does not fabricate pass/42 participants', () => {
   assert.ok(src.includes('Audit pending') || src.includes("result = 'pending'"));
 });
 
+check('paymentGateway never completes BTC on customer approved ack', () => {
+  const src = fs.readFileSync(path.join(ROOT, 'backend/modules/paymentGateway.js'), 'utf8');
+  assert.ok(src.includes('awaiting_chain_confirm'));
+  assert.ok(src.includes('customerAck'));
+  assert.ok(!src.includes('approved: nextStatus === \'completed\' || details.approved === true'));
+});
+
+check('quantumPaymentNexus refuses phantom BNPL approval', () => {
+  const src = fs.readFileSync(path.join(ROOT, 'backend/modules/quantumPaymentNexus.js'), 'utf8');
+  assert.ok(src.includes('bnpl_not_configured'));
+  assert.ok(src.includes('awaiting_chain_confirm'));
+  assert.ok(!src.includes("payment.status = 'approved'"));
+});
+
+check('paymentSystems card path is fail-honest without processor', () => {
+  const ps = require('../backend/modules/paymentSystems');
+  const r = ps.processCardPayment({ number: '4242424242424242' }, 10);
+  assert.equal(r.success, false);
+  assert.equal(r.error, 'card_not_configured');
+});
+
+check('globalDigitalStandard does not complete cross-platform payments without rails', () => {
+  const src = fs.readFileSync(path.join(ROOT, 'backend/modules/globalDigitalStandard.js'), 'utf8');
+  assert.ok(src.includes('cross_platform_rail_not_configured'));
+  assert.ok(src.includes("status: 'not_configured'"));
+});
+
+check('billing PayPal create-order is not treated as captured success', () => {
+  const src = fs.readFileSync(path.join(ROOT, 'backend/modules/billing-engine.js'), 'utf8');
+  assert.ok(src.includes('paypal_capture_required'));
+  assert.ok(src.includes("st === 'COMPLETED'"));
+});
+
+check('NOWPayments currencies empty when unconfigured', () => {
+  const src = fs.readFileSync(path.join(ROOT, 'backend/modules/nowPayments.js'), 'utf8');
+  assert.ok(src.includes("currencies: [], error: 'nowpayments_not_configured'"));
+});
+
+check('shipping quotes are labeled heuristic (not live carrier)', () => {
+  const shipping = require('../backend/modules/zacc/shipping');
+  const q = shipping.quote({ country: 'US', costUsd: 10, shippingUsdBase: 5 });
+  assert.equal(q.source, 'heuristic');
+  assert.equal(q.carrierLive, false);
+});
+
+check('multi-payment /pay ok mirrors hard-fail statuses', () => {
+  const src = fs.readFileSync(path.join(ROOT, 'backend/modules/multi-payment-rails.js'), 'utf8');
+  assert.ok(src.includes('hardFail'));
+  assert.ok(src.includes("p.status === 'completed'"));
+  assert.ok(!src.includes('bnpl_approved'));
+});
+
 console.log('\n\u2705 real-world-module-completion: ' + passed + ' tests passed');
 process.exit(0);

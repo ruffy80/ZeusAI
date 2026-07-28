@@ -264,13 +264,16 @@ class PaymentSystems {
   }
 
   processCardPayment(cardDetails = {}, amount = 0) {
-    const last4 = String(cardDetails.number || '0000').slice(-4);
+    // Fail-honest: never mint AUTH* codes without a real card processor.
+    const last4 = String(cardDetails.number || '').replace(/\D/g, '').slice(-4);
     return {
-      success: true,
-      authorizationCode: 'AUTH' + Math.random().toString(36).slice(2, 8).toUpperCase(),
-      fee: Number((Number(amount || 0) * 0.02).toFixed(2)),
-      cardNetwork: cardDetails.network || 'Visa',
-      maskedCard: '**** **** **** ' + last4
+      success: false,
+      error: 'card_not_configured',
+      message: 'Card processor not armed — use Stripe/PayPal/BTC rails',
+      fee: 0,
+      cardNetwork: cardDetails.network || null,
+      maskedCard: last4 ? ('**** **** **** ' + last4) : null,
+      amount: Number(amount || 0),
     };
   }
 }
