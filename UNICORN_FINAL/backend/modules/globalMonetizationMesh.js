@@ -43,17 +43,26 @@ const _sales = [];
 const _maxInMemory = 5000;
 
 function listMarketplaces() {
-  return _MARKETPLACES.map((m) => ({ ...m }));
+  return _MARKETPLACES.map((m) => ({
+    ...m,
+    live: false,
+    listed: false,
+    reachUsers: m.reachUsers,
+    reachNote: 'catalog_estimate_not_live_traffic',
+  }));
 }
 
 function reach() {
   const totalReachUsers = _MARKETPLACES.reduce((s, m) => s + m.reachUsers, 0);
   return {
     ok: true,
+    simulated: true,
+    live: false,
     generatedAt: new Date().toISOString(),
     totalReachUsers,
     marketplaceCount: _MARKETPLACES.length,
     avgTakeRatePct: Number((_MARKETPLACES.reduce((s, m) => s + m.takeRatePct, 0) / _MARKETPLACES.length).toFixed(2)),
+    note: 'In-memory catalog estimates — no external marketplace APIs called',
   };
 }
 
@@ -89,9 +98,12 @@ function publishProduct(input = {}) {
     title,
     marketplaces: targets.map((m) => m.id),
     listedAt: new Date().toISOString(),
+    listedLive: false,
+    simulated: true,
+    note: 'In-memory listing only — no external marketplace API publish',
   };
   _listings.set(listingId, evt);
-  return { ok: true, listing: evt };
+  return { ok: true, listing: evt, live: false };
 }
 
 function quote(input = {}) {
@@ -117,6 +129,7 @@ function recordSale(input = {}) {
     amountUsd: q.amountUsd,
     takeUsd: q.takeUsd,
     netUsd: q.netUsd,
+    simulated: true,
   };
   _sales.push(evt);
   if (_sales.length > _maxInMemory) _sales.shift();
@@ -127,16 +140,19 @@ function recordSale(input = {}) {
     productId,
     tenantId: String(input.tenantId || 'self'),
   });
-  return { ok: true, sale: evt, routed: routed.event };
+  return { ok: true, sale: evt, routed: routed.event, live: false, simulated: true };
 }
 
 function getStatus() {
   return {
     ok: true,
     name: 'globalMonetizationMesh',
+    live: false,
+    simulated: true,
     marketplaces: _MARKETPLACES.length,
     listings: _listings.size,
     sales: _sales.length,
+    note: 'catalog_and_in_memory_only',
   };
 }
 
