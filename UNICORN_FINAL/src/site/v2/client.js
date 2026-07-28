@@ -1318,6 +1318,8 @@ function _sectionMustStayVisible(s){
   if (s.closest && s.closest('.ds-world')) return true;
   const id = String(s.id || '');
   if (id === 'autonomousLiveSection' || id === 'unicornModulesMirror' || id === 'catalogGrid' || id === 'storeGrid' || id === 'storeCheckout' || id === 'servicePage') return true;
+  // Home hero must never get reveal scale/transform — it clips "ZeusAI Ship AI" ascenders.
+  if (s.classList && s.classList.contains('hero')) return true;
   if (s.querySelector && s.querySelector('#catalogGrid, #storeGrid, #autonomousServicesGrid, [data-product-id], .store-buy, [data-sovereign-buy]')) return true;
   return false;
 }

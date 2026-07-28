@@ -333,6 +333,7 @@ const M = (p) => require('../backend/modules/' + p);
   console.log('energyTrading');
   const energy = M('energyTrading');
   check('energy merit-order clears at the marginal price', () => {
+    assert.strictEqual(typeof energy.clear, 'function', 'energyTrading.clear must be exported');
     const r = energy.clear([], [{ price: 30, mwh: 50 }, { price: 45, mwh: 50 }, { price: 60, mwh: 50 }], 120);
     assert.strictEqual(r.clearedMwh, 120);
     assert.strictEqual(r.marginalPrice, 60); // third (most expensive) unit needed

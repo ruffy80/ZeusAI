@@ -11122,6 +11122,12 @@ app.get('/api/dropship/status', (req, res) => {
       zacc.scraper.status()
     );
   } catch (_) { /* fail-soft */ }
+  let continuum = null;
+  try {
+    continuum = typeof zacc.worldContinuumStatus === 'function'
+      ? zacc.worldContinuumStatus()
+      : null;
+  } catch (_) { /* fail-soft */ }
   res.json({
     ok: true,
     scraper: zacc.scraper.status(),
@@ -11131,6 +11137,7 @@ app.get('/api/dropship/status', (req, res) => {
     orders: zacc.orders.status(),
     marginOs,
     shelf: zacc.shelf ? zacc.shelf.status() : null,
+    worldContinuum: continuum,
     suppliers: {
       curated: zacc.publisher.published.filter(p => p.supplier === 'manual' || p.demoOnly).length,
       cjConfigured: !!String(process.env.ZACC_CJ_API_KEY || '').trim(),
@@ -11141,6 +11148,20 @@ app.get('/api/dropship/status', (req, res) => {
       ? zacc.fulfillment.readiness()
       : null,
   });
+});
+
+// WDOS/1.0 — World Dropship Continuum (permanent worldwide product feed)
+app.get(['/api/dropship/world-continuum', '/.well-known/world-dropship.json'], (req, res) => {
+  if (!zacc) return res.status(503).json({ ok: false, error: 'zacc_unavailable', protocol: 'WDOS/1.0' });
+  try {
+    const payload = typeof zacc.worldContinuumStatus === 'function'
+      ? zacc.worldContinuumStatus()
+      : { ok: false, error: 'continuum_unavailable', protocol: 'WDOS/1.0' };
+    res.set('Cache-Control', 'public, max-age=30');
+    return res.json(payload);
+  } catch (e) {
+    return res.status(500).json({ ok: false, error: e.message, protocol: 'WDOS/1.0' });
+  }
 });
 // Public: how fulfillment works without inventing a CJ key + how to arm one.
 app.get('/api/dropship/fulfillment/readiness', (req, res) => {

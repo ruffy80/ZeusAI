@@ -67,4 +67,10 @@ class EnergyTrading {
   getStatus() { return { name: this.name, health: 'good', clears: this.state.clears, uptime: process.uptime() }; }
 }
 
-module.exports = new EnergyTrading();
+const instance = new EnergyTrading();
+// Explicit named exports so Node ESM/CJS interop and test loaders always see .clear
+module.exports = instance;
+module.exports.EnergyTrading = EnergyTrading;
+module.exports.clear = instance.clear.bind(instance);
+module.exports.process = instance.process.bind(instance);
+module.exports.getStatus = instance.getStatus.bind(instance);

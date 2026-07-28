@@ -210,7 +210,10 @@ html::before{content:"";position:fixed;inset:0;pointer-events:none;z-index:1;bac
 .btn-ghost{background:transparent}
 
 /* ============ HERO ============ */
-.hero{position:relative;min-height:100vh;padding:120px 32px 40px;overflow:hidden}
+/* Hero must stay overflow:visible — CSS computes overflow-x:hidden + overflow-y:visible
+   as overflow-y:auto, which clips gradient-text ascenders ("ZeusAI Ship AI") on mobile.
+   Horizontal bleed is contained by .zeus-scene / .hero-fx (absolute, overflow:hidden). */
+.hero{position:relative;min-height:100vh;padding:120px 32px 40px;overflow:visible}
 .zeus-scene{position:absolute;inset:0;z-index:1;pointer-events:none;overflow:hidden}
 .zeus-hero-image{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:center center;filter:contrast(1.12) saturate(1.16) brightness(.84);transform:scale(1.02);animation:zeusDrift 18s ease-in-out infinite;will-change:transform}
 .zeus-vignette{position:absolute;inset:0;background:
@@ -252,12 +255,16 @@ html::before{content:"";position:fixed;inset:0;pointer-events:none;z-index:1;bac
 .galaxy-bg{position:fixed;inset:0;z-index:0;pointer-events:none}
 .galaxy-bg canvas{width:100vw !important;height:100vh !important;display:block;opacity:.9}
 .hero-grid{position:relative;z-index:3;display:grid;grid-template-columns:1.35fr 1fr;gap:40px;align-items:center;max-width:1480px;margin:0 auto;min-height:calc(100vh - 160px)}
-.hero-copy{padding:20px 0}
+.hero-copy{padding:28px 0 20px;overflow:visible}
 .hero-eyebrow{display:inline-flex;align-items:center;gap:8px;padding:6px 14px;border-radius:999px;border:1px solid var(--stroke);background:var(--glass);font-size:12px;letter-spacing:3px;text-transform:uppercase;color:var(--violet2)}
 .hero-eyebrow .dot{width:7px;height:7px;border-radius:50%;background:var(--ok);box-shadow:0 0 10px var(--ok);animation:pulse 1.8s infinite}
 @keyframes pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.4;transform:scale(.85)}}
-.hero h1{font-size:clamp(44px,6vw,88px);line-height:1.02;margin:20px 0 22px;letter-spacing:-1.5px;font-weight:700}
-.hero h1 .grad{background:linear-gradient(120deg,#fff 0%,var(--violet2) 40%,var(--blue2) 75%,var(--gold) 100%);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;filter:drop-shadow(0 0 30px rgba(138,92,255,.35))}
+/* Hero headline: no background-clip:text — WebKit still paints clipped glyph tops on mobile
+   even when overflow is visible. Use solid fill + soft glow instead. */
+.hero,.hero-grid,.hero-copy,.hero h1{overflow:visible!important}
+.hero h1{font-size:clamp(44px,6vw,88px);line-height:1.22;margin:24px 0 22px;padding:0;letter-spacing:-1.5px;font-weight:700;color:#f4f7ff;-webkit-text-fill-color:#f4f7ff}
+.hero h1 .hero-brand{display:inline;padding:0;line-height:inherit;color:#ffffff;-webkit-text-fill-color:#ffffff;text-shadow:0 0 28px rgba(255,255,255,.18)}
+.hero h1 .grad{display:inline;padding:0;line-height:inherit;background:none!important;-webkit-background-clip:border-box!important;background-clip:border-box!important;-webkit-text-fill-color:#9fd0ff;color:#9fd0ff;filter:none!important;text-shadow:0 0 34px rgba(111,211,255,.42),0 2px 18px rgba(0,0,0,.35)}
 .hero p.lead{font-size:clamp(15px,1.3vw,19px);color:var(--ink-dim);max-width:640px;line-height:1.6;margin:0 0 30px}
 .hero-cta{display:flex;gap:14px;flex-wrap:wrap}
 .hero-stats{margin-top:38px;display:grid;grid-template-columns:repeat(4,1fr);gap:16px;max-width:640px}
@@ -317,7 +324,7 @@ section{position:relative;z-index:3;padding:80px 32px;max-width:1480px;margin:0 
 .panel[data-tilt]{transform-style:preserve-3d;will-change:transform}
 
 .cinema-boost .card{border-color:rgba(111,211,255,.35)}
-.cinema-boost .hero h1 .grad{filter:drop-shadow(0 0 46px rgba(138,92,255,.55))}
+.cinema-boost .hero h1 .grad{filter:none!important;background:none!important;-webkit-text-fill-color:#9fd0ff;color:#9fd0ff;text-shadow:0 0 36px rgba(111,211,255,.45)}
 .cinema-boost .tourbillon-wrap{box-shadow:0 40px 110px -20px rgba(138,92,255,.65),inset 0 0 80px rgba(138,92,255,.28)}
 .perf-safe-mode .hero-fx,.perf-safe-mode .fx-scan{display:none}
 .perf-safe-mode .im-tile::before{animation-duration:12s;opacity:.35}
@@ -349,6 +356,8 @@ section{position:relative;z-index:3;padding:80px 32px;max-width:1480px;margin:0 
 /* section reveal motion */
 section[data-reveal]{opacity:0;transform:translateY(20px) scale(.99);transition:opacity .65s ease,transform .65s cubic-bezier(.2,.8,.2,1)}
 section[data-reveal].revealed{opacity:1;transform:translateY(0) scale(1)}
+/* Never animate/transform the home hero — scale creates a containing block that clips ascenders */
+section.hero[data-reveal],section.hero{opacity:1!important;transform:none!important;overflow:visible!important}
 /* Commerce surfaces must never stay invisible (nested sections + SPA re-hydrate). */
 #autonomousLiveSection,#unicornModulesMirror,#catalogGrid,#storeGrid,#storeCheckout,#servicePage,
 .ds-world section,[data-reveal].commerce-visible{opacity:1!important;transform:none!important}
@@ -509,7 +518,7 @@ pre.code{font-family:var(--mono);background:rgba(0,0,0,.45);border:1px solid var
 @media(max-width:640px){
   .nav{padding:14px 16px}
   .nav-links{display:none}
-  .hero{padding:100px 18px 30px}
+  .hero{padding:176px 18px 30px}
   section{padding:50px 18px}
   footer{padding:40px 18px 30px}
   .foot-grid{grid-template-columns:1fr}
@@ -622,9 +631,12 @@ nav.nav[data-nav-open="true"] .nav-toggle-bar:nth-child(3){transform:translateY(
 
 /* Tablet portrait */
 @media (max-width:980px){
-  .hero{padding:96px 18px 36px;min-height:auto}
+  /* Nav wraps to 2 rows on tablet/phone — pad hero below the fixed nav stack */
+  .hero{padding:168px 18px 36px;min-height:auto;overflow:visible}
   .hero-grid{grid-template-columns:1fr;gap:28px;min-height:auto;text-align:center}
-  .hero-copy{padding:0}
+  .hero-copy{padding:22px 4px 12px;overflow:visible}
+  .hero h1{line-height:1.3;padding-block:.24em .1em;margin-top:14px}
+  .hero h1 .grad{display:inline-block;padding:.2em .06em .1em;line-height:1.3}
   .hero-cta{justify-content:center}
   .hero-stats{margin-left:auto;margin-right:auto;grid-template-columns:repeat(auto-fit,minmax(130px,1fr))}
   .hero-side{align-items:center}
@@ -640,8 +652,9 @@ nav.nav[data-nav-open="true"] .nav-toggle-bar:nth-child(3){transform:translateY(
 
 /* Phone landscape / large phone */
 @media (max-width:768px){
-  .hero{padding:88px 16px 28px}
-  .hero h1{margin:14px 0 16px;letter-spacing:-1px}
+  .hero{padding:172px 16px 28px;overflow:visible}
+  .hero h1{margin:16px 0 16px;letter-spacing:-1px;line-height:1.32;padding-block:.26em .1em}
+  .hero h1 .grad{display:inline-block;padding:.22em .06em .1em;line-height:1.32}
   .hero p.lead{margin-bottom:22px}
   .hero-stat{padding:12px 14px}
   .hero-stat b{font-size:18px}
@@ -665,9 +678,10 @@ nav.nav[data-nav-open="true"] .nav-toggle-bar:nth-child(3){transform:translateY(
   .nav-cta .btn-ghost{display:inline-flex !important;align-items:center;justify-content:center;padding:10px 14px;font-size:13px;min-height:44px;min-width:44px;border:1px solid var(--violet);background:rgba(138,92,255,.10);color:var(--ink)}
   .nav-cta .btn{padding:10px 12px;font-size:12.5px;min-height:44px}
   .nav-cta{flex-wrap:nowrap;gap:6px}
-  .hero{padding:80px 14px 24px}
+  .hero{padding:176px 14px 24px;overflow:visible}
   .hero-eyebrow{font-size:11px;padding:5px 12px;letter-spacing:2px}
-  .hero h1{font-size:clamp(30px,8.5vw,46px);line-height:1.05}
+  .hero h1{font-size:clamp(30px,8.5vw,46px);line-height:1.34;padding-block:.28em .12em}
+  .hero h1 .grad{display:inline-block;padding:.24em .06em .12em;line-height:1.34}
   .hero p.lead{font-size:14.5px;line-height:1.55}
   .hero-cta .btn{flex:1;min-width:140px;justify-content:center;display:inline-flex;align-items:center}
   .hero-stats{grid-template-columns:repeat(2,1fr);gap:10px;margin-top:28px}

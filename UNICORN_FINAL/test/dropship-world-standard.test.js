@@ -134,6 +134,9 @@ run('site source wires SSR + single-product API + Margin OS', () => {
   assert.ok(SRC.includes('addons:addons'));
   assert.ok(!SRC.includes('products?limit=200'));
   assert.ok(SRC.includes('Margin OS'));
+  assert.ok(SRC.includes('WORLD CONTINUUM') || SRC.includes('world-continuum'));
+  assert.ok(SRC.includes('ds-continuum') || SRC.includes('WDOS'));
+  assert.ok(SRC.includes('line-height:1.14') || SRC.includes('line-height:1.16'), 'dropship hero must not use sub-1.0 line-height');
 });
 
 run('backend exposes margin-os + related + cache headers', () => {
@@ -142,6 +145,42 @@ run('backend exposes margin-os + related + cache headers', () => {
   assert.ok(BE.includes('zacc.publisher.related'));
   assert.ok(BE.includes('stale-while-revalidate=120'));
   assert.ok(BE.includes('addons: b.addons'));
+  assert.ok(BE.includes('/api/dropship/world-continuum'));
+  assert.ok(BE.includes('world-dropship.json'));
+});
+
+run('WDOS world continuum module is permanent + honest', () => {
+  const wc = require('../backend/modules/zacc/world-continuum');
+  assert.strictEqual(wc.PROTOCOL, 'WDOS/1.0');
+  assert.ok(wc.CONTINUUM_MS <= 15 * 60 * 1000, 'continuum must refresh at least every 15 min');
+  assert.ok(wc.HORIZON_YEAR >= 2066);
+  const meta = wc.continuumMeta();
+  assert.ok(meta.discovery.page === '/dropship');
+  assert.ok(Array.isArray(meta.regions) && meta.regions.length >= 3);
+  const core = fs.readFileSync(path.join(__dirname, '..', 'backend', 'modules', 'zacc', 'index.js'), 'utf8');
+  assert.ok(core.includes('worldFeedPulse'));
+  assert.ok(core.includes('world-continuum'));
+});
+
+run('home hero CSS keeps ZeusAI Ship AI ascenders visible', () => {
+  const css = fs.readFileSync(path.join(__dirname, '..', 'src', 'site', 'v2', 'styles.js'), 'utf8');
+  const shell = fs.readFileSync(path.join(__dirname, '..', 'src', 'site', 'v2', 'shell.js'), 'utf8');
+  const client = fs.readFileSync(path.join(__dirname, '..', 'src', 'site', 'v2', 'client.js'), 'utf8');
+  const flat = css.replace(/\s+/g, '');
+  // overflow-x:hidden + overflow-y:visible computes to overflow-y:auto and clips ascenders
+  assert.ok(flat.includes('overflow:visible!important') || /\.hero[,{][^}]*overflow:visible/.test(flat));
+  assert.ok(!/\.hero\{[^}]*overflow-x:hidden;overflow-y:visible/.test(flat), 'hero must not use the clipping overflow combo');
+  // background-clip:text paints clipped glyph tops on mobile — hero must not use it
+  const heroGrad = (flat.match(/\.heroh1\.grad\{[^}]+\}/) || [''])[0];
+  assert.ok(
+    heroGrad.includes('background:none') || heroGrad.includes('-webkit-background-clip:border-box'),
+    'hero .grad must not use background-clip:text'
+  );
+  assert.ok(shell.includes('hero-brand') && shell.includes('ZeusAI'));
+  assert.ok(css.includes('section.hero[data-reveal]') || client.includes("contains('hero')"));
+  assert.ok(!/hero h1 \.grad\{[^}]*filter:drop-shadow/.test(css));
+  // Fixed nav wraps on mobile — hero needs enough padding-top to clear it
+  assert.ok(/padding:\s*1(6|7)\dpx/.test(css) || css.includes('padding:176px') || css.includes('padding:168px'));
 });
 
 console.log('\n✅ dropship-world-standard:', passed, 'tests passed');
