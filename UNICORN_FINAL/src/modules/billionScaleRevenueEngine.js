@@ -151,8 +151,9 @@ function status(options = {}) {
     minPackageUsd: Math.min(...packages.map((pkg) => pkg.priceUsd)),
     maxPackageUsd: Math.max(...packages.map((pkg) => pkg.priceUsd)),
     payout: { rail: 'btc-direct', btcAddress: options.btcWallet || DEFAULT_BTC_WALLET, automatic: true },
-    engines: ['strategic packages', 'enterprise deal desk', 'owner revenue dashboard', 'marketplace economics', 'vertical growth pages'],
-    caveat: 'This creates the commercial infrastructure for billion-scale revenue; actual revenue requires customers, distribution, proof, delivery and compliance.',
+    engines: ['strategic packages', 'enterprise deal desk', 'owner revenue dashboard', 'marketplace economics', 'vertical growth pages', 'CLOS closed-loop proof', 'AGY yield index'],
+    clos: { protocol: 'CLOS/1.0', discovery: '/.well-known/clos.json', agy: '/api/clos/agy' },
+    caveat: 'This creates the commercial infrastructure for billion-scale revenue; actual revenue requires customers, distribution, proof, delivery and compliance. CLOS/AGY compounds only from attested paid→delivered loops — never invents GMV.',
   };
 }
 
