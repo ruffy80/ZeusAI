@@ -76,25 +76,18 @@ function nowRequest(method, path, body) {
 
 async function createInvoice({ amountUsd, itemName, itemId, clientId, successUrl, cancelUrl }) {
   if (!NOWPAYMENTS_API_KEY) {
-    const fakeId = 'np_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8);
-    pendingPayments.set(fakeId, {
-      itemId,
-      itemName,
-      amountUsd,
-      clientId,
-      status: 'waiting',
-      createdAt: new Date().toISOString(),
-      method: 'btc_direct'
-    });
+    // Fail-honest: never mint a phantom np_* id that cannot be confirmed by IPN.
+    // Callers must route to ZACC BtcPayments / direct BTC ledger instead.
     return {
-      id: fakeId,
-      invoice_url: null,
+      ok: false,
+      error: 'nowpayments_not_configured',
+      reason: 'nowpayments_not_configured',
+      message: 'NOWPayments API key not configured — use direct BTC rail',
       pay_address: OWNER_BTC_ADDRESS,
       pay_currency: 'btc',
       price_amount: amountUsd,
       price_currency: 'usd',
-      fallback: true,
-      message: 'NOWPayments API key not configured — using direct BTC'
+      fallback: false,
     };
   }
 

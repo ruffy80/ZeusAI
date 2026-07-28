@@ -169,7 +169,9 @@ function mapDummyItem(it) {
     weightKg: 0.4,
     originCountry: 'GLOBAL',
     demoOnly: false,
-    live: true,
+    live: false,
+    dispatchable: false,
+    fulfillmentMode: 'desk-queue',
   };
 }
 
@@ -224,7 +226,9 @@ async function fromFakeStore() {
       weightKg: 0.35,
       originCountry: 'GLOBAL',
       demoOnly: false,
-      live: true,
+      live: false,
+      dispatchable: false,
+      fulfillmentMode: 'desk-queue',
     };
   }).filter(Boolean).filter((p) => p.name && p.costUsd > 0 && p.image);
 }
@@ -270,7 +274,9 @@ async function fromEscuela() {
         weightKg: 0.45,
         originCountry: 'GLOBAL',
         demoOnly: false,
-        live: true,
+        live: false,
+        dispatchable: false,
+        fulfillmentMode: 'desk-queue',
       });
     }
   }

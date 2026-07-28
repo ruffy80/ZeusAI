@@ -138,4 +138,74 @@ check('activation readiness includes PayPal, IPN, CJ, Stripe prices', () => {
   assert.ok(src.includes("id: 'stripe_subscriptions'"));
 });
 
+check('NOWPayments never mints phantom np_* invoices without API key', () => {
+  const src = fs.readFileSync(path.join(ROOT, 'backend/modules/nowPayments.js'), 'utf8');
+  assert.ok(src.includes('nowpayments_not_configured'));
+  assert.ok(!src.includes("fakeId = 'np_'") && !src.includes('fakeId = "np_"'));
+});
+
+check('world-feeds mark desk-queue (never live without CJ)', () => {
+  const src = fs.readFileSync(path.join(ROOT, 'backend/modules/zacc/world-feeds.js'), 'utf8');
+  assert.ok(src.includes("fulfillmentMode: 'desk-queue'"));
+  assert.ok(src.includes('live: false'));
+  assert.ok(!/live:\s*true/.test(src), 'world-feeds must not set live:true');
+});
+
+check('payment rails do not advertise BNPL/Split as configured', () => {
+  const src = fs.readFileSync(path.join(ROOT, 'backend/modules/multi-payment-rails.js'), 'utf8');
+  assert.ok(src.includes('bnpl_not_configured') || src.includes('bnpl:         false'));
+  assert.ok(src.includes('split_not_configured') || src.includes('split:        false'));
+  assert.ok(src.includes("reason: 'no_bnpl_provider'") || src.includes('experimental'));
+});
+
+check('cloud healers are fail-honest when credentials absent', () => {
+  const awsSrc = fs.readFileSync(path.join(ROOT, 'backend/modules/aws-auto-healer.js'), 'utf8');
+  const azSrc = fs.readFileSync(path.join(ROOT, 'backend/modules/azure-cost-optimizer.js'), 'utf8');
+  const gcpSrc = fs.readFileSync(path.join(ROOT, 'backend/modules/gcp-cost-optimizer.js'), 'utf8');
+  assert.ok(awsSrc.includes('configured: false') || awsSrc.includes('AWS credentials not set'));
+  assert.ok(azSrc.includes('Azure credentials not set') || azSrc.includes('configured'));
+  assert.ok(gcpSrc.includes('GCP credentials not set') || gcpSrc.includes('configured'));
+  assert.ok(!/healthy:\s*true,\s*ts:/.test(awsSrc), 'aws must not always report healthy:true');
+});
+
+check('email outbox exposes replay + boot arming', () => {
+  const src = fs.readFileSync(path.join(ROOT, 'backend/email.js'), 'utf8');
+  assert.ok(src.includes('function replayOutbox'));
+  assert.ok(src.includes('function startOutboxReplay'));
+  const boot = fs.readFileSync(path.join(ROOT, 'backend/index.js'), 'utf8');
+  assert.ok(boot.includes('startOutboxReplay'));
+});
+
+check('billing engine refuses Stripe charge without customer id', () => {
+  const src = fs.readFileSync(path.join(ROOT, 'backend/modules/billing-engine.js'), 'utf8');
+  assert.ok(src.includes("error: 'no_stripe_customer_id'"));
+  assert.ok(src.includes('PAYPAL_MODE') || src.includes('api-m.sandbox.paypal.com'));
+});
+
+check('MRCOS module-reality-os is wired + honest', () => {
+  const m = require('../backend/modules/module-reality-os');
+  const snap = m.snapshot();
+  assert.equal(snap.protocol, 'MRCOS/1.0');
+  assert.ok(snap.totals.files > 100);
+  const boot = fs.readFileSync(path.join(ROOT, 'backend/index.js'), 'utf8');
+  assert.ok(boot.includes('/api/modules/reality'));
+  assert.ok(boot.includes('module-reality.json'));
+  const site = fs.readFileSync(path.join(ROOT, 'src/index.js'), 'utf8');
+  assert.ok(site.includes('/api/modules/reality'));
+});
+
+check('provisioner ships starter packs for instant SKUs', () => {
+  const src = fs.readFileSync(path.join(ROOT, 'src/commerce/provisioner.js'), 'utf8');
+  assert.ok(src.includes('starterPackFor'));
+  assert.ok(src.includes('seo-starter-pack.md') || src.includes('landing-starter.html'));
+});
+
+check('selfGovernanceProtocol does not fabricate pass/42 participants', () => {
+  const src = fs.readFileSync(path.join(ROOT, 'backend/modules/ai_future_innovations/selfGovernanceProtocol.js'), 'utf8');
+  assert.ok(!src.includes('Audit simulated. No violations.'));
+  assert.ok(!src.includes('participants = 42'));
+  assert.ok(src.includes('Audit pending') || src.includes("result = 'pending'"));
+});
+
 console.log('\n\u2705 real-world-module-completion: ' + passed + ' tests passed');
+process.exit(0);

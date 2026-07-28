@@ -1575,6 +1575,11 @@ const {
   meta: dbMeta,
 } = require('./db');
 const emailService = require('./email');
+try {
+  if (emailService && typeof emailService.startOutboxReplay === 'function') {
+    emailService.startOutboxReplay();
+  }
+} catch (_) { /* fail-soft */ }
 const worldStandard = require('./modules/worldStandard');
 const moneyMachine = require('./modules/autonomousMoneyMachine');
 const unicornCommerceConnector = require('../src/modules/unicornCommerceConnector');
@@ -8979,7 +8984,33 @@ app.post('/api/payment/nowpayments/create', _swRateLimit, asyncHandler(async (re
     cancelUrl,
     payCurrency: chosenCurrency,
   });
-  res.json({ ...invoice, chosenCurrency });
+  if (invoice && invoice.ok === false) {
+    // Honest handoff to direct BTC ledger when NOWPayments is unarmed.
+    try {
+      const inv = await btcLedger.createInvoice({
+        service: itemName || itemId || 'service',
+        priceUsd: normalizedAmount,
+        customerEmail: clientId || null,
+        metadata: { itemId, source: 'nowpayments_fallback_btc' },
+      });
+      return res.json({
+        ok: true,
+        fallback: 'btc_direct',
+        reason: invoice.reason || 'nowpayments_not_configured',
+        chosenCurrency: 'btc',
+        invoice: inv,
+        pay_address: (inv && (inv.btcAddress || inv.address)) || __OWNER_BTC,
+      });
+    } catch (e) {
+      return res.status(503).json({
+        ok: false,
+        error: invoice.reason || 'nowpayments_not_configured',
+        message: invoice.message || e.message,
+        chosenCurrency,
+      });
+    }
+  }
+  res.json({ ...invoice, ok: true, chosenCurrency });
 }));
 
 // Multi-crypto checkout picker — returns all enabled rails + invoice options
@@ -11163,6 +11194,22 @@ app.get(['/api/dropship/world-continuum', '/.well-known/world-dropship.json'], (
     return res.status(500).json({ ok: false, error: e.message, protocol: 'WDOS/1.0' });
   }
 });
+
+// MRCOS/1.0 — Module Reality Completion OS
+let moduleRealityOs = null;
+try { moduleRealityOs = require('./modules/module-reality-os'); } catch (_) { moduleRealityOs = null; }
+app.get(['/api/modules/reality', '/.well-known/module-reality.json'], (req, res) => {
+  try {
+    if (!moduleRealityOs) return res.status(503).json({ ok: false, error: 'mrcos_unavailable', protocol: 'MRCOS/1.0' });
+    const payload = typeof moduleRealityOs.snapshot === 'function'
+      ? moduleRealityOs.snapshot()
+      : { ok: false, error: 'snapshot_unavailable', protocol: 'MRCOS/1.0' };
+    res.set('Cache-Control', 'public, max-age=60');
+    return res.json(payload);
+  } catch (e) {
+    return res.status(500).json({ ok: false, error: e.message, protocol: 'MRCOS/1.0' });
+  }
+});
 // Public: how fulfillment works without inventing a CJ key + how to arm one.
 app.get('/api/dropship/fulfillment/readiness', (req, res) => {
   if (!zacc) return res.status(503).json({ ok: false, error: 'zacc_unavailable' });
@@ -12557,6 +12604,12 @@ registerModuleRoutes('social-orchestrator',        socialOrchestrator);
 registerModuleRoutes('zeusai-social',              socialOrchestrator);
 registerModuleRoutes('frontier-ai',                frontierAI);
 registerModuleRoutes('market-analytics',           marketAnalytics);
+try {
+  const moduleRealityOsMod = require('./modules/module-reality-os');
+  registerModuleRoutes('module-reality-os', moduleRealityOsMod);
+} catch (e) {
+  console.warn('[mrcos] registerModuleRoutes skipped:', e.message);
+}
 
 // ZeusAI Social — public Autonomous Signal Protocol surfaces
 app.get('/api/zeusai-social/pulse', (req, res) => {

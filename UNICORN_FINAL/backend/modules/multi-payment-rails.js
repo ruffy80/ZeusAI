@@ -329,37 +329,26 @@ async function processPayment({
         break;
       }
 
-      // ── SPLIT PAYMENT ─────────────────────────────────────────────────
+      // ── SPLIT PAYMENT (not armed — no real escrow rail) ────────────────
       case 'split': {
-        const upfrontUsd = amountUsd * (splitPct / 100);
-        const escrowUsd  = amountUsd - upfrontUsd;
-        const escrowId   = `ESC_${Date.now()}`;
-        _escrows.set(escrowId, { escrowId, amountUsd: escrowUsd, status: 'held', paymentId, createdAt: ts });
-        record.status   = 'split_pending_upfront';
-        record.escrowId = escrowId;
-        record.upfrontUsd = upfrontUsd;
-        record.escrowUsd  = escrowUsd;
-        record.instructions = `Pay $${upfrontUsd.toFixed(2)} upfront, $${escrowUsd.toFixed(2)} held in escrow (released on delivery)`;
+        record.status = 'error';
+        record.error = 'split_not_configured';
+        record.message = 'Split escrow requires a real escrow provider — not armed';
         break;
       }
 
-      // ── BNPL ──────────────────────────────────────────────────────────
+      // ── BNPL (not armed — no Klarna/Afterpay integration) ──────────────
       case 'bnpl':
       case 'buy_now_pay_later': {
-        const installment = amountUsd / 4;
-        record.status = 'bnpl_approved';
-        record.installments = [0, 30, 60, 90].map(days => ({
-          amount:  +installment.toFixed(2),
-          dueDate: new Date(Date.now() + days * 86400_000).toISOString(),
-          status:  days === 0 ? 'due_now' : 'scheduled',
-        }));
-        record.message = `BNPL approved — 4 x $${installment.toFixed(2)}`;
+        record.status = 'error';
+        record.error = 'bnpl_not_configured';
+        record.message = 'BNPL requires a real provider (Klarna/Afterpay) — not armed';
         break;
       }
 
       default:
         record.status = 'error';
-        record.error  = `Unsupported payment method: ${method}. Supported: btc, usdt, eth, sol, usdc, card, subscription, paypal, split, bnpl`;
+        record.error  = `Unsupported payment method: ${method}. Supported when configured: btc, usdt, eth, sol, usdc, card, subscription, paypal`;
     }
   } catch (e) {
     record.status = 'error';
@@ -442,7 +431,11 @@ function router() {
   r.get('/supported', (_req, res) => {
     res.json({
       ok: true,
-      methods: ['btc', 'usdt', 'eth', 'sol', 'usdc', 'card', 'subscription', 'paypal', 'split', 'bnpl'],
+      methods: ['btc', 'usdt', 'eth', 'sol', 'usdc', 'card', 'subscription', 'paypal'],
+      experimental: {
+        bnpl: { configured: false, reason: 'no_bnpl_provider' },
+        split: { configured: false, reason: 'no_escrow_provider' },
+      },
       configured: {
         btc:          !!BTC_ADDRESS,
         usdt:         !!(USDT_ADDRESS || NOWPAY_KEY),
@@ -452,6 +445,8 @@ function router() {
         stripe:       !!STRIPE_KEY,
         paypal:       !!(PAYPAL_ID && PAYPAL_SECRET),
         nowpayments:  !!NOWPAY_KEY,
+        bnpl:         false,
+        split:        false,
       },
       prices: _prices,
     });
@@ -494,8 +489,9 @@ function getStatus() {
     name:            'multi-payment-rails',
     label:           'Multi-Payment Rails',
     health:          'good',
-    supportedRails:  ['BTC', 'USDT', 'ETH', 'SOL', 'USDC', 'Stripe', 'PayPal', 'BNPL', 'Split', 'Subscription'],
-    configuredRails: { btc: !!BTC_ADDRESS, usdt: !!(USDT_ADDRESS || NOWPAY_KEY), eth: !!(ETH_ADDRESS || NOWPAY_KEY), sol: !!(SOL_ADDRESS || NOWPAY_KEY), stripe: !!STRIPE_KEY, paypal: !!(PAYPAL_ID && PAYPAL_SECRET), nowpayments: !!NOWPAY_KEY },
+    supportedRails:  ['BTC', 'USDT', 'ETH', 'SOL', 'USDC', 'Stripe', 'PayPal', 'Subscription'],
+    experimentalRails: { BNPL: false, Split: false },
+    configuredRails: { btc: !!BTC_ADDRESS, usdt: !!(USDT_ADDRESS || NOWPAY_KEY), eth: !!(ETH_ADDRESS || NOWPAY_KEY), sol: !!(SOL_ADDRESS || NOWPAY_KEY), stripe: !!STRIPE_KEY, paypal: !!(PAYPAL_ID && PAYPAL_SECRET), nowpayments: !!NOWPAY_KEY, bnpl: false, split: false },
     totalRevenue:    rev.totalRevenue,
     transactions:    _payments.size,
   };
