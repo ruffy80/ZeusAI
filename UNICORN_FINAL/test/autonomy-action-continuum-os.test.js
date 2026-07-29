@@ -84,7 +84,10 @@ const ROOT = path.join(__dirname, '..');
   });
 
   await check('mesh start accepts monitor mode without heal', () => {
-    const src = fs.readFileSync(path.join(ROOT, 'backend/modules/unicornMeshOrchestrator.js'), 'utf8');
+    // Mesh public entry is an IAK shim; behaviour lives in integrated-autonomy-kernel.
+    const shim = fs.readFileSync(path.join(ROOT, 'backend/modules/unicornMeshOrchestrator.js'), 'utf8');
+    const src = fs.readFileSync(path.join(ROOT, 'backend/modules/integrated-autonomy-kernel.js'), 'utf8');
+    assert.ok(shim.includes('integrated-autonomy-kernel'));
     assert.ok(src.includes("this.mode = (opts && opts.mode) || 'full'"));
     assert.ok(src.includes("this.mode !== 'monitor'"));
   });
