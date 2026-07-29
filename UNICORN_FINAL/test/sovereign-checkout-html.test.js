@@ -79,16 +79,27 @@ check('emits orderId and serviceName in HTML', () => {
   assert.ok(html.includes('ZeusAI Flagship'), 'HTML must include serviceName');
 });
 
-check('server-rendered hrefs contain the access token, not "${TOK}"', () => {
+check('server-rendered entitlement links contain the access token, not "${TOK}"', () => {
   const html = commerce.checkoutHtml(baseOrder);
   assert.ok(html.includes('/api/entitlements/' + ACCESS_TOKEN), 'wallet download link must contain the access token');
-  assert.ok(html.includes('href="/api/entitlements/' + ACCESS_TOKEN + '"'), 'verify link must contain the access token');
+  assert.ok(
+    html.includes('data-live-inspect="/api/entitlements/' + ACCESS_TOKEN + '"')
+      || html.includes('href="/api/entitlements/' + ACCESS_TOKEN + '"'),
+    'verify control must contain the access token'
+  );
+  assert.ok(html.includes('data-live-inspect="/api/entitlements/' + ACCESS_TOKEN + '"'), 'verify must use live-inspect (no raw JSON tab)');
+  assert.ok(html.includes('data-live-inspect="/api/delivery/' + ORDER_ID + '"'), 'delivery must use live-inspect');
   // The literal string "${TOK}" must never appear in the emitted HTML — if it
   // did, the checkoutHtml template would have re-introduced the crash.
   assert.ok(!html.includes('${TOK}'), 'HTML must not contain the literal "${TOK}" placeholder');
   // Guard against the alternate accident where an undefined variable renders
   // as the string "undefined" instead of the actual token.
   assert.ok(!/\/api\/entitlements\/undefined/.test(html), 'entitlement hrefs must not contain "undefined"');
+});
+
+check('checkout page boots live-inspect for standalone HTML', () => {
+  const html = commerce.checkoutHtml(baseOrder);
+  assert.ok(html.includes('__zeusLiveInspectBoot') || html.includes('zeusLiveInspect'), 'live-inspect bootstrap must be present');
 });
 
 check('emits a client-side <script> block that receives the token safely', () => {

@@ -467,8 +467,9 @@ pre{background:#0f1626;border:1px solid #2a3a55;border-radius:6px;padding:10px;f
 <div class="card"><table id="aud"><thead><tr><th>When</th><th>Action</th><th>Metadata</th></tr></thead><tbody></tbody></table></div>
 
 <h2>OpenAPI</h2>
-<div class="card"><a href="/api/enterprise/openapi.json" target="_blank" style="color:#7ee0a6">/api/enterprise/openapi.json</a></div>
+<div class="card"><button type="button" data-live-inspect="/api/enterprise/openapi.json" data-live-title="Enterprise OpenAPI" style="background:#0f1626;color:#7ee0a6;border:1px solid #2a3a55;border-radius:6px;padding:8px 10px;cursor:pointer;font-size:13px">Inspect OpenAPI live</button></div>
 
+${(() => { try { return require('../../src/site/live-inspect-bootstrap').scriptTag(); } catch (_) { return ''; } })()}
 <script>
 const $=s=>document.querySelector(s);
 async function api(p, opts){

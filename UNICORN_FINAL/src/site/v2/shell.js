@@ -6019,7 +6019,7 @@ function pageOrderPassport(id) {
           if (deliveredAtEl) deliveredAtEl.textContent = j.deliveredAt ? fmt(j.deliveredAt) : 'delivered';
           if (deliveryCard) { deliveryCard.hidden = false; }
           if (deliveryLinks) {
-            deliveryLinks.innerHTML = '<a class="btn btn-primary" href="/api/delivery/'+encodeURIComponent(ORDER_ID)+'">Download signed delivery pack</a>'
+            deliveryLinks.innerHTML = '<a class="btn btn-primary" download href="/api/delivery/'+encodeURIComponent(ORDER_ID)+'">Download signed delivery pack</a>'
               + '<a class="btn" href="/account" data-link>Go to my account</a>';
           }
         }

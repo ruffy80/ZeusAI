@@ -583,7 +583,7 @@ document.addEventListener('click', (e) => {
   } else {
     href = String(a.getAttribute('href') || '').trim();
   }
-  if (!href || href.startsWith('http') || href.startsWith('mailto:') || href.startsWith('javascript:')) return;
+  if (!href || href.startsWith('http') || href.startsWith('mailto:') || href.startsWith('javascript:') || href.startsWith('#')) return;
 
   // Rewrite /api-explorer?endpoint=… CTAs into the live drawer too.
   let endpoint = href;
@@ -594,10 +594,17 @@ document.addEventListener('click', (e) => {
     }
   } catch (_) { /* keep href */ }
 
-  const isApiSurface = /^(\/api\/|\/internal\/|\/\.well-known\/|\/integrity\.json|\/openapi)/.test(endpoint);
+  // Plain /api-explorer (no ?endpoint=) is a real page — do not rewrite.
+  if (/^\/api-explorer\/?$/.test(href.split('?')[0]) && !endpoint) return;
+
+  const isApiSurface = /^(\/api\/|\/internal\/|\/\.well-known\/|\/integrity\.json|\/openapi)/.test(endpoint || href);
   const isInspectAttr = a.hasAttribute('data-live-inspect');
-  const isBtn = a.classList.contains('btn') || a.classList.contains('btn-ghost') || a.classList.contains('btn-primary');
-  if (!isInspectAttr && !(isApiSurface && isBtn)) return;
+  // Permanent site-wide guard: never navigate the tab to a raw JSON surface.
+  // CTA / blank-target / styled buttons are the historical offenders; we also
+  // catch any same-origin API/well-known anchor so footer "proof" links cannot
+  // dump JSON into a blank document again.
+  if (!isInspectAttr && !isApiSurface) return;
+  if (/\.(svg|png|jpe?g|gif|webp|csv|zip|pdf)$/i.test(endpoint || href)) return;
 
   e.preventDefault();
   e.stopPropagation();
@@ -745,9 +752,10 @@ document.addEventListener('click', (e) => {
   const a = e.target.closest('a[href]');
   if (!a) return;
   const href = String(a.getAttribute('href') || '').trim();
-  if (!href || href.startsWith('http') || href.startsWith('mailto:') || href.startsWith('javascript:')) return;
-  if (a.hasAttribute('download') || a.dataset.allowRaw === '1' || a.getAttribute('target') === '_blank') return;
-  if (/^(\/api\/|\/internal\/|\/.well-known\/)/.test(href)) {
+  if (!href || href.startsWith('http') || href.startsWith('mailto:') || href.startsWith('javascript:') || href.startsWith('#')) return;
+  if (a.hasAttribute('download') || a.dataset.allowRaw === '1') return;
+  // Catch remaining same-tab AND blank-tab dumps to API / well-known / openapi.
+  if (/^(\/api\/|\/internal\/|\/\.well-known\/|\/integrity\.json|\/openapi)/.test(href)) {
     e.preventDefault();
     openLiveInspect(href, a.textContent || 'Live inspect');
   }
