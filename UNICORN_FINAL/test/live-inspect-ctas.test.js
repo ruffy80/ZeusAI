@@ -62,7 +62,12 @@ check('API explorer inspects live instead of dumping raw links', () => {
 
 check('trust / status no longer open raw commerce integrity in blank tabs as primary CTA pattern', () => {
   assert.ok(shell.includes('data-live-inspect="/api/commerce/integrity"') || shell.includes("data-live-inspect=\"/api/commerce/integrity\""));
-  assert.ok(shell.includes('data-live-inspect="/.well-known/keys.json"'));
+  assert.ok(
+    shell.includes('data-live-inspect="/api/v50/keys.json"')
+      || shell.includes("data-live-inspect=\"/api/v50/keys.json\"")
+      || shell.includes('data-live-inspect="/.well-known/keys.json"'),
+    'public keys must be live-inspectable'
+  );
 });
 
 check('legacy template ADI buttons call zeusLiveInspect', () => {

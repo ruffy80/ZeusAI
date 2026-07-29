@@ -615,11 +615,11 @@ function footer(route, opts) {
     <div><h3 class="footer-col-title">Developers</h3><ul>
       <li><a href="/docs" data-link>API &amp; Docs</a></li>
       <li><a href="/api-explorer" data-link>API Explorer</a></li>
-      <li><a href="/openapi.json">OpenAPI 3.1</a></li>
-      <li><a href="/seo/sitemap.xml">Sitemap</a></li>
-      <li><a href="/snapshot">/snapshot</a></li>
-      <li><a href="/stream">/stream (SSE)</a></li>
-      <li><a href="/health">/health</a></li>
+      <li><button type="button" class="btn" data-live-inspect="/openapi.json" data-live-title="OpenAPI 3.1" style="background:none;border:0;padding:0;color:inherit;font:inherit;cursor:pointer;text-align:left">OpenAPI 3.1</button></li>
+      <li><a href="/seo/sitemap.xml" data-allow-raw="1">Sitemap</a></li>
+      <li><button type="button" class="btn" data-live-inspect="/snapshot" data-live-title="Live snapshot" style="background:none;border:0;padding:0;color:inherit;font:inherit;cursor:pointer;text-align:left">Live snapshot</button></li>
+      <li><a href="/api-explorer?endpoint=/health" data-link>Health explorer</a></li>
+      <li><button type="button" class="btn" data-live-inspect="/health" data-live-title="Health" style="background:none;border:0;padding:0;color:inherit;font:inherit;cursor:pointer;text-align:left">/health</button></li>
     </ul></div>
     <div><h3 class="footer-col-title">Trust</h3><ul>
       <li><a href="/trust" data-link>Trust Center</a></li>
@@ -631,7 +631,7 @@ function footer(route, opts) {
       <li><a href="/cancel" data-link>Universal Cancel</a></li>
       <li><a href="/transparency" data-link>Bandit Transparency</a></li>
       <li><a href="/aura" data-link>Live Aura</a></li>
-      <li><a href="/unicorn-status.html" data-link>Live Status</a></li>
+      <li><a href="/status" data-link>Live Status</a></li>
       <li><a href="/innovations" data-link>30Y Innovations</a></li>
       <li><a href="/frontier" data-link>Frontier (F1–F12)</a></li>
     </ul></div>
@@ -1843,11 +1843,11 @@ function pageDashboard() {
     <p style="color:var(--ink-dim);font-size:13.5px;margin:0 0 14px">Jump straight to the high-value live areas: checkout, platform health and innovation coverage.</p>
     <div style="display:flex;gap:10px;flex-wrap:wrap">
       <a class="btn btn-primary" href="/services" data-link>Buy AI Service</a>
-      <a class="btn" href="/unicorn-status.html" data-link>Live status</a>
+      <a class="btn" href="/status" data-link>Live status</a>
       <a class="btn" href="/innovations" data-link>Innovation map</a>
     </div>
   </div>
-  <div class="grid" id="dashServices"><div class="card"><p>Loading services…</p></div></div>
+  <div class="grid" id="dashServices"><div class="card"><p>Loading services…</p><p class="dash-offline" style="color:var(--ink-dim);font-size:12px;margin:8px 0 0">If this stays blank, open <a href="/services" data-link>Marketplace</a>.</p></div></div>
   <div class="section-title" style="margin-top:50px"><div><h2 style="font-size:24px">Recent receipts</h2></div></div>
   <div id="dashReceipts" class="card"><p>Loading receipts…</p></div>
   <div class="co-box" style="margin-top:22px">
@@ -1946,12 +1946,12 @@ function pageDocs() {
   method: 'POST', headers: {'Content-Type':'application/json'},
   body: JSON.stringify({ plan:'starter', amountUSD:49, customer:{ email:'you@company.com' } })
 }).then(r => r.json());
-console.log(order.receipt.id, order.btcUri);</pre></div>
+console.log(order.receiptId || order.orderId, order.btcUri || order.bip21);</pre></div>
     <div class="card"><span class="tag">Python SDK quickstart</span><pre class="code">import requests
 order = requests.post('https://zeusai.pro/api/checkout/btc', json={
   'plan':'starter', 'amountUSD':49, 'customer':{'email':'you@company.com'}
 }).json()
-print(order['receipt']['id'], order.get('btcUri'))</pre></div>
+print(order.get('receiptId') or order.get('orderId'), order.get('btcUri') or order.get('bip21'))</pre></div>
     <div class="card"><span class="tag">Webhook verification</span><pre class="code"># NOWPayments IPN
 GET  /api/payment/nowpayments/security
 POST /api/payment/nowpayments/webhook
@@ -1971,9 +1971,23 @@ function pageAbout() {
   <span class="kicker">About</span>
   <h1 style="font-size:clamp(34px,4.5vw,58px);margin:10px 0 24px;line-height:1.05">A sovereign AI operating system, <span style="background:linear-gradient(120deg,#fff,var(--violet2));-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent">hand‑forged</span> by its owner.</h1>
   <p style="color:var(--ink-dim);font-size:17px;line-height:1.7">ZeusAI began as one question: what if every action inside a SaaS platform could be cryptographically proven, and every dollar routed without a custodian?</p>
-  <p style="color:var(--ink-dim);font-size:17px;line-height:1.7">Two years later, it is a running operating system for the AI era. 169 living modules. 18 pre‑wired vertical industries. 42 hyperscaler integrations. 41 marketplaces. One Zeus core. All of it owned by one person — ${OWNER.name} — and designed so that no one else can silently take a slice.</p>
+  <p style="color:var(--ink-dim);font-size:17px;line-height:1.7">Today it is a running operating system for the AI era. <span id="aboutModules">—</span> living modules. <span id="aboutVerticals">—</span> pre‑wired vertical industries. Hyperscaler integrations and marketplaces under one Zeus core. All of it owned by one person — ${OWNER.name} — and designed so that no one else can silently take a slice.</p>
   <p style="color:var(--ink-dim);font-size:17px;line-height:1.7">It is not a product. It is a sovereign thesis: that intelligence, value, and property can finally be unified inside a single cryptographic chassis. This is the chassis.</p>
   <div style="display:flex;gap:14px;margin-top:30px"><a class="btn btn-primary" href="/services" data-link>See the fabric</a><a class="btn" href="mailto:${OWNER.email}">Contact the owner</a></div>
+  <script>
+  (function(){
+    function set(id,v){ var el=document.getElementById(id); if(el && v!=null) el.textContent=v; }
+    fetch('/api/innovation/coverage',{cache:'no-store'}).then(function(r){return r.json()}).then(function(d){
+      var s=d&&d.summary||{};
+      if (s.total!=null) set('aboutModules', s.total);
+    }).catch(function(){ set('aboutModules','160+'); });
+    fetch('/health',{cache:'no-store'}).then(function(r){return r.json()}).then(function(d){
+      var n = d && d.unicornSync && d.unicornSync.modulesMirror && d.unicornSync.modulesMirror.count;
+      if (n!=null) set('aboutModules', n);
+    }).catch(function(){});
+    fetch('/api/trust/center',{cache:'no-store'}).then(function(r){return r.json()}).then(function(){ set('aboutVerticals','18'); }).catch(function(){ set('aboutVerticals','18'); });
+  })();
+  </script>
 </section>`;
 }
 
@@ -2004,7 +2018,7 @@ function pageTrustCenter() {
     <div class="card"><span class="tag">Integrity manifest</span><h3 style="margin:6px 0;font-size:16px">/integrity.json</h3><p style="color:var(--ink-dim);font-size:12.5px;margin:0">Deploy SHA + Ed25519 signature over the deployed bundle.</p><div style="margin-top:8px"><button type="button" class="btn btn-ghost" data-live-inspect="/integrity.json" data-live-title="Inspect integrity">Inspect integrity live →</button></div></div>
     <div class="card"><span class="tag">Refund guarantee</span><h3 style="margin:6px 0;font-size:16px">/refund</h3><p style="color:var(--ink-dim);font-size:12.5px;margin:0">Public refund contract — no email chase, no fine print.</p><div style="margin-top:8px"><a class="btn btn-ghost" href="/refund" data-link>Read refund contract →</a></div></div>
     <div class="card"><span class="tag">Anti-dark-pattern pledge</span><h3 style="margin:6px 0;font-size:16px">/pledge</h3><p style="color:var(--ink-dim);font-size:12.5px;margin:0">Signed pledge: no forced upsells, no hidden auto-renew, no fake scarcity.</p><div style="margin-top:8px"><a class="btn btn-ghost" href="/pledge" data-link>Read the pledge →</a></div></div>
-    <div class="card"><span class="tag">Public keys</span><h3 style="margin:6px 0;font-size:16px">/.well-known/keys.json</h3><p style="color:var(--ink-dim);font-size:12.5px;margin:0">Ed25519 verification keys used to sign receipts, licenses and integrity manifests.</p><div style="margin-top:8px"><button type="button" class="btn" data-live-inspect="/.well-known/keys.json" data-live-title="Inspect keys" style="margin-top:8px">Inspect keys</button></div></div>
+    <div class="card"><span class="tag">Public keys</span><h3 style="margin:6px 0;font-size:16px">/api/v50/keys.json</h3><p style="color:var(--ink-dim);font-size:12.5px;margin:0">Ed25519 verification keys used to sign receipts, licenses and integrity manifests.</p><div style="margin-top:8px"><button type="button" class="btn" data-live-inspect="/api/v50/keys.json" data-live-title="Inspect public keys" style="margin-top:8px">Inspect keys</button></div></div>
     <div class="card"><span class="tag">Money-path integrity</span><h3 style="margin:6px 0;font-size:16px">/api/commerce/integrity</h3><p style="color:var(--ink-dim);font-size:12.5px;margin:0">ESOS/1.0 verifier: every paid order has a signed entitlement, no orphans, no signature failures.</p><div style="margin-top:8px"><button type="button" class="btn btn-ghost" data-live-inspect="/api/commerce/integrity" data-live-title="Open integrity report">Open integrity report</button></div></div>
     <div class="card"><span class="tag">Enterprise Standard OS</span><h3 style="margin:6px 0;font-size:16px">/.well-known/enterprise.json</h3><p style="color:var(--ink-dim);font-size:12.5px;margin:0">ESOS/1.0 posture: money integrity, real commerce metrics, rate-limit, AI-cost visibility.</p><div style="margin-top:8px"><button type="button" class="btn" data-live-inspect="/.well-known/enterprise.json" data-live-title="Inspect enterprise posture" style="margin-top:8px">Inspect enterprise posture</button></div></div>
   </div>
@@ -2306,7 +2320,7 @@ function pageStore() {
     </div>
 
     <div id="storeTabs" style="display:flex;gap:8px;margin:30px 0 10px;flex-wrap:wrap;border-bottom:1px solid rgba(138,92,255,.2);padding-bottom:4px">
-      <button class="store-tab" data-tier="instant" type="button" style="background:linear-gradient(135deg,#8a5cff,#6d28d9);color:#fff;border:0;padding:10px 22px;border-radius:6px 6px 0 0;cursor:pointer;font-weight:600;font-size:14px">⚡ Instant &lt;60s (${counts.instant})</button>
+      <button class="store-tab" data-tier="instant" type="button" style="background:linear-gradient(135deg,#8a5cff,#6d28d9);color:#fff;border:0;padding:10px 22px;border-radius:6px 6px 0 0;cursor:pointer;font-weight:600;font-size:14px">⚡ Instant digital (${counts.instant})</button>
       <button class="store-tab" data-tier="professional" type="button" style="background:rgba(138,92,255,.1);color:var(--ink);border:0;padding:10px 22px;border-radius:6px 6px 0 0;cursor:pointer;font-weight:600;font-size:14px">💼 Professional builds (${counts.professional})</button>
       <button class="store-tab" data-tier="enterprise" type="button" style="background:rgba(138,92,255,.1);color:var(--ink);border:0;padding:10px 22px;border-radius:6px 6px 0 0;cursor:pointer;font-weight:600;font-size:14px">👑 Enterprise SOW (${counts.enterprise})</button>
     </div>
@@ -3532,7 +3546,7 @@ function pageSocialNetwork() {
       `<article class="za-inv"><h3>${_esc(inv.title)}</h3><p>${_esc(inv.problem)}</p><p class="za-inv-sol">${_esc(inv.solution)}</p></article>`
     )).join('');
   } catch (_) {
-    ssrFeed = '<p class="za-social-empty">Surface warming…</p>';
+    ssrFeed = '<p class="za-social-empty">Feed offline — sign in or retry shortly to see the live surface.</p>';
   }
 
   return `<section class="za-social">
@@ -4711,10 +4725,10 @@ function pageInnovations() {
       else { $('invIncidents').innerHTML = inc.map(i => '<div style="padding:8px 0;border-bottom:1px solid #1f2a3b"><strong>'+i.incidentId.slice(0,20)+'</strong> · '+i.status+' · sealed '+(i.sealedAt||'').slice(0,10)+'</div>').join(''); }
     } catch(e) {}
     // v2 cards
-    try { const ca = await (await fetch('/api/compliance/attestation')).json(); $('invCompHash').textContent = (ca.hash||'').slice(0,24)+'…'; } catch(e) {}
-    try { const co = await (await fetch('/api/v2/carbon/attest')).json(); $('invCarbon').textContent = (co.totalGCO2||0).toFixed(4)+' gCO₂ today'; } catch(e) {}
-    try { const bt = await (await fetch('/api/v2/bounty/total')).json(); $('invBounty').textContent = '$'+(bt.totalUsd||0).toLocaleString()+' · '+(bt.open||0)+' open'; } catch(e) {}
-    try { const dr = await (await fetch('/api/v2/dr/list')).json(); $('invDR').textContent = (dr.count||0)+' drill'+(dr.count===1?'':'s')+(dr.last ? ' · last RTO '+dr.last.rtoSeconds+'s' : ''); } catch(e) {}
+    try { const ca = await (await fetch('/api/compliance/attestation')).json(); $('invCompHash').textContent = (ca.hash||'').slice(0,24)+'…'; } catch(e) { $('invCompHash').textContent = 'unavailable'; }
+    try { const co = await (await fetch('/api/v2/carbon/attest')).json(); $('invCarbon').textContent = (co.totalGCO2||0).toFixed(4)+' gCO₂ today'; } catch(e) { $('invCarbon').textContent = 'unavailable'; }
+    try { const bt = await (await fetch('/api/v2/bounty/total')).json(); $('invBounty').textContent = '$'+(bt.totalUsd||0).toLocaleString()+' · '+(bt.open||0)+' open'; } catch(e) { $('invBounty').textContent = 'unavailable'; }
+    try { const dr = await (await fetch('/api/v2/dr/list')).json(); $('invDR').textContent = (dr.count||0)+' drill'+(dr.count===1?'':'s')+(dr.last ? ' · last RTO '+dr.last.rtoSeconds+'s' : ''); } catch(e) { $('invDR').textContent = 'unavailable'; }
   })();
   </script>
 </section>`;
@@ -5220,17 +5234,19 @@ function pageChangelog() {
   <div class="card" style="padding:22px;margin-bottom:14px"><span class="tag">2026-04-25</span><h3>Frontier Engine v1.0 · 12 sovereign inventions</h3><p style="color:var(--ink-dim)">Crypto refund guarantee, live aura, outcome-anchored pricing, self-healing checkout, time-locked discounts, sovereign receipt NFTs, provable email delivery, gift-as-capability, anti-dark-pattern pledge, universal cancel, bandit transparency, carbon-inclusive checkout. + cart engine, coupons, leads, API keys, OpenAPI 3.1, sitemap.xml, plan wizard.</p></div>
   <div class="card" style="padding:22px;margin-bottom:14px"><span class="tag">2026-04-24</span><h3>30Y Innovations v2 · 15 more primitives</h3><p style="color:var(--ink-dim)">ZK commitments, threshold keys, federated learning, VRF, VDF, k-anon analytics, relay descriptor, reputation graph, compliance attestation, DR drills, carbon ledger, bug bounty escrow, did:web + did:key.</p></div>
   <div class="card" style="padding:22px;margin-bottom:14px"><span class="tag">2026-04-23</span><h3>30Y Innovations v1 · cryptographic durability</h3><p style="color:var(--ink-dim)">ML-DSA-65 hybrid signing, BTC-anchored Merkle receipts, public AI constitution, 4-of-7 Shamir time capsule, reproducible SBOM, sealed incident commit-reveal.</p></div>
+  <p id="chgBuild" style="color:var(--ink-dim);font-size:13px;margin-top:18px">Live build: …</p>
+  <script>fetch('/integrity.json',{cache:'no-store'}).then(r=>r.json()).then(d=>{var el=document.getElementById('chgBuild');if(!el)return;var v=(d&&d.payload&&d.payload.version)||(d&&d.version)||'—';el.textContent='Live build SHA: '+v+' · updated '+(d&&d.payload&&d.payload.generatedAt||d.generatedAt||'');}).catch(function(){var el=document.getElementById('chgBuild');if(el)el.textContent='Live build unavailable';});</script>
 </section>`;
 }
 
 function pageTerms()   { return _legalSub('Terms of Service', 'By using ZeusAI you agree that all outputs, telemetry and receipts are honestly generated and routed to the owner. You agree not to bypass capability tokens, forge signatures, or exploit the autonomy chain. Service is provided as-is with the SLA at /sla and refund guarantee at /refund.'); }
-function pagePrivacy() { return _legalSub('Privacy Policy', 'We store the minimum data necessary: email (activation), plan, receipts. No selling, no sharing, no model training on personal data. GDPR rights honoured at /api/privacy/dsr. Cryptographic receipts are append-only and owner-owned. Sub-processors disclosed at /api/compliance/attestation.'); }
+function pagePrivacy() { return _legalSub('Privacy Policy', 'We store the minimum data necessary: email (activation), plan, receipts. No selling, no sharing, no model training on personal data. GDPR export/delete: signed-in customers use /account (API: GET /api/privacy/export · POST /api/privacy/delete-request). Cryptographic receipts are append-only and owner-owned. Sub-processors: see /dpa and GET /api/compliance/attestation when available.'); }
 function pageRefund()  { return `<section style="padding-top:140px;max-width:880px">
   <span class="kicker">Refund Guarantee · F1</span>
   <h1 style="font-size:clamp(34px,4.4vw,56px);margin:10px 0 18px">Cryptographic <span class="grad">refund guarantee.</span></h1>
   <p style="color:var(--ink-dim);font-size:16px;line-height:1.7">A signed, public SLA promise. On confirmed breach, the system emits a signed <code class="inline">REFUND_INTENT</code> and records it in the refund audit trail. BTC reverse settlement is owner-executed against that signed intent — not an automatic on-chain clawback. 30-day money-back remains available via contact.</p>
   <pre class="code" id="rfOut" style="margin-top:18px">Signed promise will appear here.</pre>
-  <div id="rfRules" style="margin-top:16px;display:grid;gap:10px"></div>
+  <div id="rfRules" style="margin-top:16px;display:grid;gap:10px"><p style="color:var(--ink-dim);font-size:13px">Loading guarantee terms…</p></div>
   <p style="color:var(--ink-dim);font-size:13px;margin-top:14px">Audit: <button type="button" class="btn" data-live-inspect="/api/refund/audit" data-live-title="Refund audit" style="padding:6px 10px;font-size:12px">Inspect refund audit</button></p>
   <script>
   fetch('/api/refund/guarantee').then(r=>r.json()).then(d=>{
@@ -5255,11 +5271,11 @@ function pageSla() { return `<section style="padding-top:140px;max-width:880px">
   <ul style="color:var(--ink-dim);font-size:15.5px;line-height:1.9;padding-left:20px">
     <li><b style="color:#fff">Uptime</b> · 99.99% target for /api · 99.9% for /</li>
     <li><b style="color:#fff">Latency</b> · p95 &lt; 800ms global, p99 &lt; 1500ms</li>
-    <li><b style="color:#fff">Receipt</b> · every API call &lt; 60s eligible for inclusion in the next signed Merkle root</li>
+    <li><b style="color:#fff">Receipt</b> · every paid receipt is eligible for inclusion in the next daily signed Merkle root</li>
     <li><b style="color:#fff">Incident disclosure</b> · &lt; 72h public, sealed at /api/incidents</li>
-    <li><b style="color:#fff">Refund</b> · signed intent on breach (see /refund) + 30-day money-back</li>
+    <li><b style="color:#fff">Refund</b> · signed REFUND_INTENT on breach (see /refund) + 30-day pre-activation money-back</li>
   </ul>
-  <a class="btn btn-primary" href="/unicorn-status.html" data-link>Live status →</a>
+  <a class="btn btn-primary" href="/status" data-link>Live status →</a>
 </section>`; }
 
 function pagePledge() {
@@ -5450,8 +5466,18 @@ function pageApiExplorer() {
   <script>
   (function(){
     function openPath(p){
-      if (window.__zeusOpenLiveInspect) window.__zeusOpenLiveInspect(p, p);
-      else location.href = p;
+      if (window.__zeusOpenLiveInspect) { window.__zeusOpenLiveInspect(p, p); return; }
+      if (window.zeusLiveInspect) { window.zeusLiveInspect(p, p); return; }
+      var btn = document.getElementById('apiExploreBtn');
+      if (btn) { btn.textContent = 'Loading inspector…'; btn.disabled = true; }
+      var tries = 0;
+      (function wait(){
+        tries += 1;
+        if (window.__zeusOpenLiveInspect) { if (btn) { btn.disabled = false; btn.textContent = 'Inspect live →'; } window.__zeusOpenLiveInspect(p, p); return; }
+        if (tries < 40) return setTimeout(wait, 100);
+        if (btn) { btn.disabled = false; btn.textContent = 'Inspect live →'; }
+        alert('Live inspector is still loading — try again in a moment.');
+      })();
     }
     try {
       var q = new URLSearchParams(location.search);
@@ -5586,7 +5612,7 @@ function pageFrontier() {
       var out = document.getElementById('frCascadeOut');
       if (out) { out.style.display='block'; show('frCascadeOut','Probing…'); }
       try {
-        var d = await (await fetch('/api/checkout/cascade',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({amountUsd:49,email:'probe@zeusai.pro',prefer:'auto'})})).json();
+        var d = await (await fetch('/api/checkout/cascade',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({amountUsd:49,email:'probe@zeusai.pro',prefer:'auto',dryRun:true})})).json();
         show('frCascadeOut', d);
       } catch(e){ show('frCascadeOut','Error: '+(e.message||e)); }
     });
@@ -5686,7 +5712,7 @@ const FAQ_ITEMS = [
   { q: 'How does payment work?', a: 'Direct BTC checkout settles on-chain to the owner wallet — no custodian, no processor in the middle. A 10% sovereign discount applies automatically to BTC checkouts. Cards/PayPal appear only when those rails are configured live.' },
   { q: 'Is the card price the same as the checkout price?', a: 'Yes — one canonical price engine quotes the card, the /pricing page and checkout. The quote is locked for 90 seconds so it never shifts mid-purchase.' },
   { q: 'What happens right after I pay?', a: 'The server watches the mempool, auto-confirms settlement, then issues the signed receipt, license token and delivery credentials — typically within one confirmation.' },
-  { q: 'Can I verify my receipt independently?', a: 'Yes. Receipts are Ed25519-signed and Merkle-chained. Fetch the public key from /.well-known/keys.json and verify offline — no trust in us required.' },
+  { q: 'Can I verify my receipt independently?', a: 'Yes. Receipts are Ed25519-signed and Merkle-chained. Fetch the public key from /api/v50/keys.json (also /.well-known/keys.json) and verify offline — no trust in us required.' },
   { q: 'Is there a refund?', a: 'A cryptographic refund guarantee: if a signed service promise is breached, a signed REFUND_INTENT is sealed and owner/ops settles against it. Plus a 30-day money-back window. See /refund.' },
   { q: 'Can I cancel anytime?', a: 'Yes — /cancel records a signed cancellation intent in one click. No retention flows, no dark patterns (see /pledge). The owner processes active subscriptions and sends confirmation.' },
   { q: 'Do you train AI models on my data?', a: 'No. Minimal data collection, no resale, no model training on personal data. Full details in /privacy and /dpa.' },
@@ -5765,7 +5791,7 @@ function pagePartners() {
   <p style="color:var(--ink-dim);max-width:640px">Three partnership lanes, all with direct owner access and BTC-native settlement.</p>
   <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:14px;margin-top:26px">
     <div class="card" style="padding:22px"><span class="tag">Reseller</span><h3 style="margin:12px 0 8px">Sell ZeusAI services</h3><p style="color:var(--ink-dim);font-size:14px;line-height:1.7">White-label or co-branded. You own the client relationship; delivery, receipts and licensing run on our signed infrastructure. Margin agreed per vertical.</p></div>
-    <div class="card" style="padding:22px"><span class="tag">Integrator</span><h3 style="margin:12px 0 8px">Deliver vertical architecture packs</h3><p style="color:var(--ink-dim);font-size:14px;line-height:1.7">Implement the ${'18'} vertical engagement kickoff / architecture packs for your clients. Full API access (<a href="/docs" data-link>docs</a>, <a href="/openapi.json">OpenAPI</a>), signed outcomes, your services on top.</p></div>
+    <div class="card" style="padding:22px"><span class="tag">Integrator</span><h3 style="margin:12px 0 8px">Deliver vertical architecture packs</h3><p style="color:var(--ink-dim);font-size:14px;line-height:1.7">Implement the ${'18'} vertical engagement kickoff / architecture packs for your clients. Full API access (<a href="/docs" data-link>docs</a>, <button type="button" class="btn" data-live-inspect="/openapi.json" data-live-title="OpenAPI">OpenAPI</button>), signed outcomes, your services on top.</p></div>
     <div class="card" style="padding:22px"><span class="tag">Technology</span><h3 style="margin:12px 0 8px">Agent-to-agent commerce</h3><p style="color:var(--ink-dim);font-size:14px;line-height:1.7">Your AI agents can buy capabilities from ours autonomously via <code class="inline">/agents.json</code> + signed checkout. The first commerce protocol designed for non-human buyers.</p></div>
   </div>
   <div class="card" style="padding:18px;margin-top:22px;display:flex;gap:12px;align-items:center;flex-wrap:wrap">
@@ -6043,7 +6069,7 @@ function pageNotFound(route) {
     <a class="btn" href="/services" data-link>Marketplace</a>
     <a class="btn" href="/wizard" data-link>Find my plan</a>
     <a class="btn" href="/docs" data-link>API & docs</a>
-    <a class="btn" href="/unicorn-status.html" data-link>Status</a>
+    <a class="btn" href="/status" data-link>Status</a>
   </div>
 </section>`;
 }

@@ -593,16 +593,17 @@ function outcomeList(customer) {
 // ═══════════════════════════════════════════════════════════════════════════
 // F4. SELF-HEALING CHECKOUT CASCADE
 // ═══════════════════════════════════════════════════════════════════════════
-function checkoutCascade({ amountUsd, email, prefer='auto' }) {
+function checkoutCascade({ amountUsd, email, prefer='auto', dryRun=false }) {
   const order = ['btc','lightning','stripe','paypal','wire'];
   const transcript = [];
   for (const m of order) {
     transcript.push({ method: m, attemptedAt: nowIso(), available: _methodAvailable(m), reason: _methodReason(m) });
   }
   const chosen = transcript.find(t => t.available)?.method || 'btc';
-  const out = { amountUsd, email, prefer, chosen, transcript, decidedAt: nowIso() };
+  const out = { amountUsd, email, prefer, chosen, transcript, decidedAt: nowIso(), dryRun: !!dryRun };
   out.signature = sign(out);
-  append('cascade.jsonl', out);
+  // Probes from the public Frontier workshop must not pollute cascade.jsonl.
+  if (!dryRun) append('cascade.jsonl', out);
   return out;
 }
 function _methodAvailable(m) {
