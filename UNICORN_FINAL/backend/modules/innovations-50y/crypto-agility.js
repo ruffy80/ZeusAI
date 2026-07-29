@@ -77,7 +77,7 @@ function generateKeyPair(alg) {
     // Best-effort: try the @noble/post-quantum lib if installed.
     try {
       // Lazy require so absence does not break load.
-      const pq = require('@noble/post-quantum/ml-dsa');
+      const pq = require('@noble/post-quantum/ml-dsa.js');
       const seed = crypto.randomBytes(32);
       const keys = pq.ml_dsa65.keygen(seed);
       return {
@@ -117,7 +117,7 @@ function sign(data, opts) {
   }
   if (alg === ALG.ML_DSA_65) {
     try {
-      const pq = require('@noble/post-quantum/ml-dsa');
+      const pq = require('@noble/post-quantum/ml-dsa.js');
       if (!o.privateKey) throw new Error('ML-DSA: no privateKey provided');
       const sk = b64uDecode(o.privateKey);
       const sig = pq.ml_dsa65.sign(sk, payload);
@@ -153,7 +153,7 @@ function verify(data, signature, opts) {
   }
   if (alg === ALG.ML_DSA_65) {
     try {
-      const pq = require('@noble/post-quantum/ml-dsa');
+      const pq = require('@noble/post-quantum/ml-dsa.js');
       if (!o.publicKey) return false;
       const pk = b64uDecode(o.publicKey);
       return !!pq.ml_dsa65.verify(pk, payload, sig);
@@ -165,7 +165,7 @@ function verify(data, signature, opts) {
 function isAvailable(alg) {
   if (alg === ALG.ED25519 || alg === ALG.HMAC_SHA512) return true;
   if (alg === ALG.ML_DSA_65) {
-    try { require('@noble/post-quantum/ml-dsa'); return true; } catch (_) { return false; }
+    try { require('@noble/post-quantum/ml-dsa.js'); return true; } catch (_) { return false; }
   }
   return false;
 }

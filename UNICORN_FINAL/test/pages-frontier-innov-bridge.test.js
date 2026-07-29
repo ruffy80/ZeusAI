@@ -106,6 +106,11 @@ check('nginx routes frontier APIs to unicorn_site', () => {
   assert.ok(nginxSrc.includes('location ^~ /api/refund/'));
   assert.ok(nginxSrc.includes('location ^~ /api/bandit/'));
   assert.ok(nginxSrc.includes('location = /api/innovation/coverage'));
+  assert.ok(nginxSrc.includes('location = /api/carbon/cart'));
+  assert.ok(nginxSrc.includes('location = /api/outcome/list'));
+  assert.ok(nginxSrc.includes('location ^~ /api/v100/'));
+  assert.ok(!/location\s+\^~\s+\/api\/carbon\//.test(nginxSrc));
+  assert.ok(!/location\s+\^~\s+\/api\/outcome\//.test(nginxSrc));
 });
 
 check('backend proxies frontier/coverage to site (SPA catch-all defense)', () => {

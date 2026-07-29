@@ -142,6 +142,10 @@ function getStatus() {
     profit: _state.revenue - _state.expenses,
     latestDecision: _state.decisions[0] || null,
     forecastMonths: _state.forecast.length,
+    // Honesty: figures are scenario-simulated until wired to realityMetrics/UAIC.
+    dataMode: 'simulated',
+    simulated: true,
+    truthSource: 'scenario-model · not live ledger',
   };
 }
 

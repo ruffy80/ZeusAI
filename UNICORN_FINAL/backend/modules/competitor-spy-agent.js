@@ -118,6 +118,10 @@ function getStatus() {
     competitorsMonitored: _state.competitors.length,
     activeOpportunities: _state.opportunities.filter(o => o.urgency === 'HIGH').length,
     latestAlert: _state.alerts[0] || null,
+    // Honesty: competitor intel is scenario-generated until external feeds are wired.
+    dataMode: 'simulated',
+    simulated: true,
+    truthSource: 'scenario-model · not live competitor feeds',
   };
 }
 
