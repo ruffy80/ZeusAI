@@ -201,11 +201,12 @@ class IntegratedAutonomyKernel extends EventEmitter {
    * @param {string} [opts.guardianMode]
    */
   start(opts = {}) {
-    const mode = (opts && opts.mode) || this.mode || 'full';
-    this.mode = mode;
+    this.mode = (opts && opts.mode) || 'full';
 
     if (opts && opts.ensureFacets) {
-      this.ensureFacets({ guardianMode: opts.guardianMode || (mode === 'monitor' ? 'idle' : 'full') });
+      this.ensureFacets({
+        guardianMode: opts.guardianMode || (this.mode === 'monitor' ? 'idle' : 'full'),
+      });
     }
 
     if (this.running) {
@@ -381,12 +382,13 @@ class IntegratedAutonomyKernel extends EventEmitter {
   }
 
   _phaseHeal() {
-    if (this.mode === 'monitor') return;
-    for (const [name, entry] of this.registry) {
-      if (this.quarantine.has(name)) continue;
-      if (entry.healthy) continue;
-      if (!entry.depsReady) continue; // Causal Boot: don't thrash heal before deps
-      this._healModule(name, entry);
+    if (this.mode !== 'monitor') {
+      for (const [name, entry] of this.registry) {
+        if (this.quarantine.has(name)) continue;
+        if (entry.healthy) continue;
+        if (!entry.depsReady) continue; // Causal Boot: don't thrash heal before deps
+        this._healModule(name, entry);
+      }
     }
   }
 
