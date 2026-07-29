@@ -872,8 +872,8 @@ ${!String((o.buyer && o.buyer.email) || '').trim() ? `
   <div class="row"><span class="k">Txid</span><span class="v mono" id="tx">—</span></div>
   <p class="note">A W3C Verifiable Credential receipt has been issued. Use the verify button below to check the entitlement.</p>
   <p style="margin-top:10px"><a class="cta" id="walletDl" download="zeusai-entitlement.json" href="/api/entitlements/${accessToken}/wallet.json" style="background:#f7931a;color:#05040a">💼 Add to wallet (VC)</a>
-  <a class="cta" style="background:#14132a;color:#eaf0ff;border:1px solid var(--line)" id="verifyLink" href="/api/entitlements/${accessToken}">🔎 Verify entitlement</a>
-  <a class="cta" style="background:#14132a;color:#eaf0ff;border:1px solid var(--line)" id="deliveryLink" href="/api/delivery/${orderId}">📦 View delivery package</a></p>
+  <button type="button" class="cta" style="background:#14132a;color:#eaf0ff;border:1px solid var(--line)" id="verifyLink" data-live-inspect="/api/entitlements/${accessToken}" data-live-title="Verify entitlement">🔎 Verify entitlement</button>
+  <button type="button" class="cta" style="background:#14132a;color:#eaf0ff;border:1px solid var(--line)" id="deliveryLink" data-live-inspect="/api/delivery/${orderId}" data-live-title="Delivery package">📦 View delivery package</button></p>
   <p class="note" style="margin-top:8px">Delivery is processing automatically. The delivery link above will show your artifacts once ready.</p>
   <div style="margin-top:14px;padding-top:12px;border-top:1px dashed #165232">
     <p style="margin:0 0 6px"><b>🎁 Gift this service</b></p>
@@ -889,6 +889,7 @@ ${!String((o.buyer && o.buyer.email) || '').trim() ? `
 
 <footer>Settlement: direct on-chain to owner wallet · No custodian · 30Y-LTS sovereign commerce · ${escapeHtml(OWNER_DOMAIN)}</footer>
 </div>
+${require('./live-inspect-bootstrap').scriptTag().replace('<script>', `<script${nonceAttr}>`)}
 <script${nonceAttr}>
 (function(){
   var TOK='${accessTokenJs}';
@@ -910,7 +911,8 @@ ${!String((o.buyer && o.buyer.email) || '').trim() ? `
         var en=document.getElementById('ent');if(en)en.textContent=j.entitlement_id||'—';
         var tx=document.getElementById('tx');if(tx)tx.textContent=(j.txids&&j.txids[0])||'—';
         var dl=document.getElementById('walletDl');if(dl){dl.href='/api/entitlements/'+encodeURIComponent(TOK)+'/wallet.json';}
-        var v=document.getElementById('verifyLink');if(v){v.href='/api/entitlements/'+encodeURIComponent(TOK);}
+        var v=document.getElementById('verifyLink');if(v){v.setAttribute('data-live-inspect','/api/entitlements/'+encodeURIComponent(TOK));}
+        var del=document.getElementById('deliveryLink');if(del){del.setAttribute('data-live-inspect','/api/delivery/'+encodeURIComponent(ORDER_ID));}
         return;
       }
       if(j.status==='expired')return;

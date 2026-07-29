@@ -126,9 +126,10 @@ function renderGrowthHtml(slug, opts) {
 </p>
 
 <p class="small" style="margin-top:2rem;">
-  KPI proof: <a href="/api/uaic/receipts">/api/uaic/receipts</a> · Live transparency: <a href="/transparency/live">/transparency/live</a> · Sitemap: <a href="/sitemap.xml">/sitemap.xml</a>
+  KPI proof: <button type="button" data-live-inspect="/api/uaic/receipts" data-live-title="UAIC receipts" style="background:transparent;border:0;color:inherit;text-decoration:underline;cursor:pointer;padding:0;font:inherit">/api/uaic/receipts</button> · Live transparency: <a href="/transparency/live">/transparency/live</a> · Sitemap: <a href="/sitemap.xml">/sitemap.xml</a>
 </p>
 
+${(() => { try { return require('../../src/site/live-inspect-bootstrap').scriptTag(); } catch (_) { return ''; } })()}
 <script>
 (function(){
   try {

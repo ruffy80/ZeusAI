@@ -570,18 +570,194 @@ function navigate(to, push=true){
   hydratePage(STATE.route);
 }
 // Guardrail: user-facing button links should never dump raw JSON in the tab.
-// If a visual CTA points to /api/* or /.well-known/*, route users to
-// API Explorer with context instead of opening a raw payload page.
+// Prefer the in-page Live Inspect drawer. Fall back to API Explorer only when
+// the drawer cannot mount (extremely early boot / no-DOM edge cases).
+document.addEventListener('click', (e) => {
+  const a = e.target.closest('a[href],button[data-live-inspect]');
+  if (!a) return;
+  if (a.hasAttribute('download') || a.dataset.allowRaw === '1') return;
+
+  let href = '';
+  if (a.hasAttribute('data-live-inspect')) {
+    href = String(a.getAttribute('data-live-inspect') || a.getAttribute('href') || '').trim();
+  } else {
+    href = String(a.getAttribute('href') || '').trim();
+  }
+  if (!href || href.startsWith('http') || href.startsWith('mailto:') || href.startsWith('javascript:') || href.startsWith('#')) return;
+
+  // Rewrite /api-explorer?endpoint=… CTAs into the live drawer too.
+  let endpoint = href;
+  try {
+    if (href.indexOf('/api-explorer') === 0) {
+      const u = new URL(href, location.origin);
+      endpoint = u.searchParams.get('endpoint') || '';
+    }
+  } catch (_) { /* keep href */ }
+
+  // Plain /api-explorer (no ?endpoint=) is a real page — do not rewrite.
+  if (/^\/api-explorer\/?$/.test(href.split('?')[0]) && !endpoint) return;
+
+  const isApiSurface = /^(\/api\/|\/internal\/|\/\.well-known\/|\/integrity\.json|\/openapi)/.test(endpoint || href);
+  const isInspectAttr = a.hasAttribute('data-live-inspect');
+  // Permanent site-wide guard: never navigate the tab to a raw JSON surface.
+  // CTA / blank-target / styled buttons are the historical offenders; we also
+  // catch any same-origin API/well-known anchor so footer "proof" links cannot
+  // dump JSON into a blank document again.
+  if (!isInspectAttr && !isApiSurface) return;
+  if (/\.(svg|png|jpe?g|gif|webp|csv|zip|pdf)$/i.test(endpoint || href)) return;
+
+  e.preventDefault();
+  e.stopPropagation();
+  openLiveInspect(endpoint || href, a.getAttribute('data-live-title') || a.textContent || 'Live inspect');
+}, true);
+
+function liveInspectEsc(s) {
+  return String(s == null ? '' : s)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
+
+function liveInspectSummary(data, endpoint) {
+  if (data == null) return '<p style="color:var(--ink-dim)">Empty response.</p>';
+  if (typeof data !== 'object') return '<p>' + liveInspectEsc(data) + '</p>';
+  const parts = [];
+  if (data.title) parts.push('<div><b>' + liveInspectEsc(data.title) + '</b></div>');
+  if (data.version) parts.push('<div>Version · <code>' + liveInspectEsc(data.version) + '</code></div>');
+  if (data.ok != null) parts.push('<div>Status · <b style="color:#7fffd4">' + liveInspectEsc(data.ok ? 'ok' : 'degraded') + '</b></div>');
+  if (data.summary && typeof data.summary === 'object') {
+    const s = data.summary;
+    parts.push('<div>Coverage · ' + liveInspectEsc(s.total || 0) + ' items · ' + liveInspectEsc(s.live || 0) + ' live-100 · ' + liveInspectEsc(s.foundation || 0) + ' foundation</div>');
+  }
+  if (Array.isArray(data.items) && data.items.length) {
+    parts.push('<div style="margin-top:10px;display:grid;gap:6px">' + data.items.slice(0, 8).map(function (it) {
+      return '<div style="padding:8px 10px;border:1px solid rgba(163,138,255,.22);border-radius:10px"><b>' + liveInspectEsc(it.title || it.id || 'item') + '</b><div style="font-size:12px;color:#7fffd4">' + liveInspectEsc(it.status || '') + '</div></div>';
+    }).join('') + (data.items.length > 8 ? '<div style="color:var(--ink-dim);font-size:12px">+' + (data.items.length - 8) + ' more…</div>' : '') + '</div>');
+  }
+  if (Array.isArray(data.commitments)) {
+    parts.push('<ul style="margin:8px 0 0;padding-left:18px;color:var(--ink-dim)">' + data.commitments.slice(0, 8).map(function (c) {
+      return '<li>' + liveInspectEsc(c) + '</li>';
+    }).join('') + '</ul>');
+  }
+  if (Array.isArray(data.rights)) {
+    parts.push('<ul style="margin:8px 0 0;padding-left:18px;color:var(--ink-dim)">' + data.rights.slice(0, 10).map(function (c) {
+      return '<li>' + liveInspectEsc(typeof c === 'string' ? c : (c.title || c.id || JSON.stringify(c))) + '</li>';
+    }).join('') + '</ul>');
+  }
+  if (data.spectrum || data.cssVars || (data.colors && typeof data.colors === 'object')) {
+    const vars = (data.cssVars) || (data.spectrum && data.spectrum.cssVars) || data.colors || {};
+    const swatches = Object.keys(vars).filter(function (k) { return /^#|[rgb(]/.test(String(vars[k])) || String(k).indexOf('--cic') === 0 || String(k).indexOf('color') >= 0; }).slice(0, 12);
+    if (swatches.length) {
+      parts.push('<div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:10px">' + swatches.map(function (k) {
+        const v = String(vars[k]);
+        return '<div style="width:64px;text-align:center"><div style="height:40px;border-radius:10px;border:1px solid rgba(255,255,255,.2);background:' + liveInspectEsc(v) + '"></div><div style="font-size:10px;color:var(--ink-dim);margin-top:4px;word-break:break-all">' + liveInspectEsc(k.replace(/^--/, '')) + '</div></div>';
+      }).join('') + '</div>');
+    }
+  }
+  if (data.pillars && typeof data.pillars === 'object') {
+    parts.push('<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:8px;margin-top:10px">' + Object.keys(data.pillars).map(function (k) {
+      return '<div style="padding:10px;border:1px solid rgba(163,138,255,.22);border-radius:10px"><span class="tag">' + liveInspectEsc(k) + '</span></div>';
+    }).join('') + '</div>');
+  }
+  if (data.twapUsd != null) parts.push('<div style="font-size:22px;margin-top:8px">$' + liveInspectEsc(Number(data.twapUsd).toLocaleString()) + '</div>');
+  if (data.root) parts.push('<div>Merkle root · <code>' + liveInspectEsc(String(data.root).slice(0, 48)) + '…</code></div>');
+  if (data.hash || data.compositeHash) parts.push('<div>Hash · <code>' + liveInspectEsc(String(data.hash || data.compositeHash).slice(0, 40)) + '…</code></div>');
+  if (data.signature) parts.push('<div style="font-size:12px;color:var(--ink-dim)">Signed · <code>' + liveInspectEsc(String(data.signature).slice(0, 28)) + '…</code></div>');
+  if (data.generatedAt || data.issuedAt || data.ts) parts.push('<div style="font-size:12px;color:var(--ink-dim)">Updated · ' + liveInspectEsc(data.generatedAt || data.issuedAt || data.ts) + '</div>');
+  if (!parts.length) {
+    const keys = Object.keys(data).slice(0, 12);
+    parts.push('<div style="color:var(--ink-dim);font-size:13px">Keys: ' + keys.map(liveInspectEsc).join(', ') + (Object.keys(data).length > 12 ? '…' : '') + '</div>');
+  }
+  parts.unshift('<div style="font-size:12px;color:var(--ink-dim);margin-bottom:8px"><code>' + liveInspectEsc(endpoint) + '</code> · live from this domain</div>');
+  return parts.join('');
+}
+
+function ensureLiveInspectDrawer() {
+  let drawer = document.getElementById('zeusLiveInspect');
+  if (drawer) return drawer;
+  drawer = document.createElement('div');
+  drawer.id = 'zeusLiveInspect';
+  drawer.setAttribute('role', 'dialog');
+  drawer.setAttribute('aria-modal', 'true');
+  drawer.setAttribute('aria-label', 'Live inspect');
+  drawer.style.cssText = 'display:none;position:fixed;inset:0;z-index:12000;background:rgba(5,4,10,.72);backdrop-filter:blur(8px);padding:16px;align-items:flex-end;justify-content:center';
+  drawer.innerHTML = ''
+    + '<div id="zeusLiveInspectPanel" style="width:min(920px,100%);max-height:min(86vh,920px);overflow:auto;background:linear-gradient(180deg,#0b0f17,#05040a);border:1px solid rgba(163,138,255,.35);border-radius:18px 18px 12px 12px;box-shadow:0 24px 80px rgba(0,0,0,.55);padding:18px 18px 22px">'
+    + '<div style="display:flex;gap:10px;align-items:center;justify-content:space-between;flex-wrap:wrap">'
+    + '<div><span class="tag">Live inspect</span><h3 id="zeusLiveInspectTitle" style="margin:8px 0 0;font-size:18px">…</h3></div>'
+    + '<div style="display:flex;gap:8px;flex-wrap:wrap">'
+    + '<button type="button" class="btn" id="zeusLiveInspectCopy">Copy JSON</button>'
+    + '<button type="button" class="btn" id="zeusLiveInspectClose">Close</button>'
+    + '</div></div>'
+    + '<div id="zeusLiveInspectSummary" style="margin-top:14px"></div>'
+    + '<details style="margin-top:14px"><summary style="cursor:pointer;color:var(--ink-dim)">Raw JSON</summary>'
+    + '<pre id="zeusLiveInspectRaw" class="code" style="margin-top:10px;max-height:40vh;overflow:auto;font-size:12px"></pre></details>'
+    + '</div>';
+  document.body.appendChild(drawer);
+  drawer.addEventListener('click', function (ev) {
+    if (ev.target === drawer) closeLiveInspect();
+  });
+  document.getElementById('zeusLiveInspectClose').addEventListener('click', closeLiveInspect);
+  document.getElementById('zeusLiveInspectCopy').addEventListener('click', function () {
+    const raw = document.getElementById('zeusLiveInspectRaw');
+    const text = raw ? raw.textContent : '';
+    if (!text) return;
+    try {
+      navigator.clipboard.writeText(text);
+      this.textContent = 'Copied ✓';
+      const btn = this;
+      setTimeout(function () { btn.textContent = 'Copy JSON'; }, 1200);
+    } catch (_) { /* ignore */ }
+  });
+  document.addEventListener('keydown', function (ev) {
+    if (ev.key === 'Escape') closeLiveInspect();
+  });
+  return drawer;
+}
+
+function closeLiveInspect() {
+  const drawer = document.getElementById('zeusLiveInspect');
+  if (drawer) drawer.style.display = 'none';
+}
+
+async function openLiveInspect(endpoint, title) {
+  const drawer = ensureLiveInspectDrawer();
+  drawer.style.display = 'flex';
+  const titleEl = document.getElementById('zeusLiveInspectTitle');
+  const sumEl = document.getElementById('zeusLiveInspectSummary');
+  const rawEl = document.getElementById('zeusLiveInspectRaw');
+  if (titleEl) titleEl.textContent = String(title || 'Live inspect').replace(/\s+/g, ' ').trim().slice(0, 80);
+  if (sumEl) sumEl.innerHTML = '<p style="color:var(--ink-dim)">Loading ' + liveInspectEsc(endpoint) + '…</p>';
+  if (rawEl) rawEl.textContent = '';
+  try {
+    const r = await fetch(endpoint, { cache: 'no-store', headers: { Accept: 'application/json' } });
+    const ct = String(r.headers.get('content-type') || '');
+    let data;
+    if (ct.indexOf('json') >= 0) data = await r.json();
+    else {
+      const text = await r.text();
+      try { data = JSON.parse(text); } catch (_) { data = { ok: r.ok, status: r.status, body: text.slice(0, 4000) }; }
+    }
+    if (sumEl) sumEl.innerHTML = liveInspectSummary(data, endpoint);
+    if (rawEl) rawEl.textContent = JSON.stringify(data, null, 2);
+  } catch (err) {
+    if (sumEl) sumEl.innerHTML = '<p style="color:#ff6b6b">Could not load live data: ' + liveInspectEsc(err && err.message || err) + '</p>';
+    if (rawEl) rawEl.textContent = String(err && err.message || err);
+  }
+}
+
+window.__zeusOpenLiveInspect = openLiveInspect;
+window.__zeusCloseLiveInspect = closeLiveInspect;
+
 document.addEventListener('click', (e) => {
   const a = e.target.closest('a[href]');
   if (!a) return;
   const href = String(a.getAttribute('href') || '').trim();
-  if (!href || href.startsWith('http') || href.startsWith('mailto:') || href.startsWith('javascript:')) return;
-  if (a.hasAttribute('download') || a.dataset.allowRaw === '1' || a.getAttribute('target') === '_blank') return;
-  if (/^(\/api\/|\/internal\/|\/.well-known\/)/.test(href)) {
+  if (!href || href.startsWith('http') || href.startsWith('mailto:') || href.startsWith('javascript:') || href.startsWith('#')) return;
+  if (a.hasAttribute('download') || a.dataset.allowRaw === '1') return;
+  // Catch remaining same-tab AND blank-tab dumps to API / well-known / openapi.
+  if (/^(\/api\/|\/internal\/|\/\.well-known\/|\/integrity\.json|\/openapi)/.test(href)) {
     e.preventDefault();
-    const to = '/api-explorer?endpoint=' + encodeURIComponent(href);
-    navigate(to, true);
+    openLiveInspect(href, a.textContent || 'Live inspect');
   }
 });
 document.addEventListener('click', e => {

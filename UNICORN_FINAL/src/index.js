@@ -5748,7 +5748,7 @@ async function unicornHandler(req, res) {
         : '<option value="">All categories</option>';
       const body = dropshipUiCss + `
 <div class="ds-world">
-  <section class="ds-hero" aria-labelledby="ds-hero-title"><div class="ds-wrap ds-hero-copy"><div class="ds-brandline"><span class="ds-brandmark">Zeus <span>Dropship</span></span><span class="ds-status" id="ds-mode">WORLD CONTINUUM \u00b7 LIVE</span></div><h1 id="ds-hero-title">The store that <em>sources the world</em> and sells itself.</h1><p>Permanent worldwide product continuum. Margin-qualified listings, live delivery quotes, and on-chain BTC checkout\u2014fed forever by Zeus autonomy.</p><div class="ds-actions"><a class="ds-cta ds-cta-primary" href="#store">Shop the world store \u2193</a><a class="ds-cta ds-cta-secondary" href="/zacc">Autonomy cockpit \u2192</a><a class="ds-cta ds-cta-secondary" href="/.well-known/world-dropship.json" target="_blank" rel="noopener">WDOS continuum \u2192</a></div><div class="ds-regions" aria-label="Coverage regions"><span class="ds-region">Americas</span><span class="ds-region">EMEA</span><span class="ds-region">APAC</span><span class="ds-region">Global CDN</span></div></div></section>
+  <section class="ds-hero" aria-labelledby="ds-hero-title"><div class="ds-wrap ds-hero-copy"><div class="ds-brandline"><span class="ds-brandmark">Zeus <span>Dropship</span></span><span class="ds-status" id="ds-mode">WORLD CONTINUUM \u00b7 LIVE</span></div><h1 id="ds-hero-title">The store that <em>sources the world</em> and sells itself.</h1><p>Permanent worldwide product continuum. Margin-qualified listings, live delivery quotes, and on-chain BTC checkout\u2014fed forever by Zeus autonomy.</p><div class="ds-actions"><a class="ds-cta ds-cta-primary" href="#store">Shop the world store \u2193</a><a class="ds-cta ds-cta-secondary" href="/zacc">Autonomy cockpit \u2192</a><button type="button" class="ds-cta ds-cta-secondary" data-live-inspect="/.well-known/world-dropship.json" data-live-title="WDOS continuum">WDOS continuum \u2192</button></div><div class="ds-regions" aria-label="Coverage regions"><span class="ds-region">Americas</span><span class="ds-region">EMEA</span><span class="ds-region">APAC</span><span class="ds-region">Global CDN</span></div></div></section>
   <section class="ds-continuum" aria-label="World continuum feed"><div class="ds-wrap ds-continuum-inner"><div><span class="ds-kicker">Invention \u00b7 WDOS/1.0</span><h2 class="ds-continuum-title">World continuum feeding forever.</h2><p class="ds-continuum-meta" id="ds-continuum-meta">Pulling worldwide catalogs every few minutes \u00b7 shelf never starves</p></div><div class="ds-feed-ticker" id="ds-feed-ticker" aria-live="polite"><div class="ds-feed-row"><b>Bootstrapping worldwide intake\u2026</b><span>WDOS</span></div></div></div></section>
   <section class="ds-autonomy" aria-label="Autonomy pipeline"><div class="ds-wrap ds-strip"><div class="ds-metric"><span class="ds-metric-label">Sourced</span><strong class="ds-metric-value" id="ds-sourced">\u2014</strong></div><div class="ds-metric"><span class="ds-metric-label">Qualified</span><strong class="ds-metric-value" id="ds-qualified">\u2014</strong></div><div class="ds-metric"><span class="ds-metric-label">Listed</span><strong class="ds-metric-value" id="ds-listed">\u2014</strong></div><div class="ds-metric"><span class="ds-metric-label">World pulse</span><strong class="ds-metric-value" id="ds-world-pulse">\u2014</strong></div><div class="ds-metric"><span class="ds-metric-label">Pending fulfil</span><strong class="ds-metric-value" id="ds-pending">\u2014</strong></div></div></section>
   <section class="ds-section" id="store"><div class="ds-wrap"><div class="ds-section-head"><div><span class="ds-kicker">Autonomous world catalog</span><h2>Qualified to sell worldwide.</h2></div><p class="ds-section-note">Each listing exposes source mode and proof-of-margin. Shipping is quoted for your destination. Continuum keeps new SKUs arriving from global feeds.</p></div><div class="ds-controls" role="search"><input class="ds-control" id="ds-search" type="search" placeholder="Search the world catalog\u2026" aria-label="Search products"><select class="ds-control" id="ds-sort" aria-label="Sort products"><option value="shelf">Shelf fitness (ASP)</option><option value="profit">Highest margin signal</option><option value="newest">Newest listed</option><option value="sales">Best-selling</option><option value="price-asc">Price: low to high</option><option value="price-desc">Price: high to low</option></select><select class="ds-control" id="ds-category" aria-label="Filter by category">` + catOpts + `</select></div><div class="ds-product-grid" id="ds-grid" aria-live="polite">` + gridHtml + `</div></div></section>
@@ -5862,8 +5862,8 @@ seedSsrMap();if(document.getElementById("ds-sort")&&!document.getElementById("ds
   <h1 style="font-family:Georgia,serif;font-weight:500;font-size:clamp(1.35rem,3.2vw,2.1rem);max-width:18ch;margin:0 0 1rem;line-height:1.25">The world&rsquo;s first Proof-of-Margin Exchange.</h1>
   <p style="max-width:36rem;font-size:1.05rem;color:#a9b4c9;margin:0 0 1.75rem">Every ZeusAI SKU — SaaS, verticals, dropship — carries a cryptographically signed margin attestation. Agents verify before they buy. Settlement mints an instant capability credential. Platform take-rate: <strong style="color:#fff">$0</strong>.</p>
   <div style="display:flex;gap:12px;flex-wrap:wrap">
-    <a href="/api/pomx/exchange" style="padding:14px 22px;border-radius:10px;background:linear-gradient(135deg,#4ea1ff,#8a5cff);color:#fff;text-decoration:none;font-weight:700">Open the exchange →</a>
-    <a href="/.well-known/pomx.json" style="padding:14px 22px;border-radius:10px;border:1px solid #2c3550;color:#cfd6ff;text-decoration:none;font-weight:600">Protocol spec</a>
+    <button type="button" data-live-inspect="/api/pomx/exchange" data-live-title="PoMX exchange" style="padding:14px 22px;border-radius:10px;background:linear-gradient(135deg,#4ea1ff,#8a5cff);color:#fff;border:0;cursor:pointer;font-weight:700">Inspect exchange live →</button>
+    <button type="button" data-live-inspect="/.well-known/pomx.json" data-live-title="PoMX protocol" style="padding:14px 22px;border-radius:10px;border:1px solid #2c3550;color:#cfd6ff;background:transparent;cursor:pointer;font-weight:600">Inspect protocol live</button>
     <a href="/services" style="padding:14px 22px;border-radius:10px;border:1px solid #2c3550;color:#cfd6ff;text-decoration:none;font-weight:600">Human catalog</a>
   </div>
 </section>
@@ -5907,8 +5907,8 @@ seedSsrMap();if(document.getElementById("ds-sort")&&!document.getElementById("ds
   <h1 style="font-family:Georgia,serif;font-weight:500;font-size:clamp(1.3rem,3vw,2rem);max-width:20ch;margin:0 0 1rem;line-height:1.25">The world&rsquo;s first interdomain Outcome Passport.</h1>
   <p style="max-width:36rem;font-size:1.05rem;color:#a7b4c4;margin:0 0 1.75rem">EOP/1.0 chains classification → economics → settlement → delivery → measurable outcome into one signed passport any agent can verify — across software, commerce, logistics, education, energy, civic, and more. Take-rate: <strong style="color:#fff">$0</strong>.</p>
   <div style="display:flex;gap:12px;flex-wrap:wrap">
-    <a href="/api/eop/mesh" style="padding:14px 22px;border-radius:10px;background:linear-gradient(135deg,#3d9b6e,#4ea1ff);color:#fff;text-decoration:none;font-weight:700">Open the trust mesh →</a>
-    <a href="/.well-known/eop.json" style="padding:14px 22px;border-radius:10px;border:1px solid #2a3544;color:#cfe0d8;text-decoration:none;font-weight:600">Protocol spec</a>
+    <button type="button" data-live-inspect="/api/eop/mesh" data-live-title="EOP trust mesh" style="padding:14px 22px;border-radius:10px;background:linear-gradient(135deg,#3d9b6e,#4ea1ff);color:#fff;border:0;cursor:pointer;font-weight:700">Inspect trust mesh live →</button>
+    <button type="button" data-live-inspect="/.well-known/eop.json" data-live-title="EOP protocol" style="padding:14px 22px;border-radius:10px;border:1px solid #2a3544;color:#cfe0d8;background:transparent;cursor:pointer;font-weight:600">Inspect protocol live</button>
     <a href="/pomx" style="padding:14px 22px;border-radius:10px;border:1px solid #2a3544;color:#cfe0d8;text-decoration:none;font-weight:600">PoMX exchange</a>
   </div>
 </section>
@@ -5960,9 +5960,9 @@ seedSsrMap();if(document.getElementById("ds-sort")&&!document.getElementById("ds
   <h1 style="font-size:clamp(2rem,5vw,3.2rem);line-height:1.05;margin:0 0 12px;font-family:Georgia,serif">ZeusAI is armed. Payment keys land tomorrow.</h1>
   <p style="max-width:54ch;color:#b7c5d6;font-size:1.05rem;margin:0 0 28px">Live status of everything agents can finish without NOWPayments, Stripe, PayPal, or email secrets — plus the exact owner checklist for tomorrow.</p>
   <div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:28px">
-    <a href="/api/pre-keys/status" style="padding:14px 22px;border-radius:10px;background:linear-gradient(135deg,#3d8bfd,#1f6feb);color:#fff;text-decoration:none;font-weight:700">Open status JSON →</a>
-    <a href="/api/telegram/bind-status" style="padding:14px 22px;border-radius:10px;border:1px solid #2c3550;color:#cfd6ff;text-decoration:none;font-weight:600">Telegram bind</a>
-    <a href="/api/activation/readiness" style="padding:14px 22px;border-radius:10px;border:1px solid #2c3550;color:#cfd6ff;text-decoration:none;font-weight:600">Activation readiness</a>
+    <button type="button" data-live-inspect="/api/pre-keys/status" data-live-title="Pre-keys status" style="padding:14px 22px;border-radius:10px;background:linear-gradient(135deg,#3d8bfd,#1f6feb);color:#fff;border:0;cursor:pointer;font-weight:700">Inspect status live →</button>
+    <button type="button" data-live-inspect="/api/telegram/bind-status" data-live-title="Telegram bind" style="padding:14px 22px;border-radius:10px;border:1px solid #2c3550;color:#cfd6ff;background:transparent;cursor:pointer;font-weight:600">Inspect Telegram bind</button>
+    <button type="button" data-live-inspect="/api/activation/readiness" data-live-title="Activation readiness" style="padding:14px 22px;border-radius:10px;border:1px solid #2c3550;color:#cfd6ff;background:transparent;cursor:pointer;font-weight:600">Inspect readiness</button>
   </div>
   <p id="pk-meta" style="color:#8aa0b8;margin:0 0 18px">Loading…</p>
   <div id="pk-agent" style="display:grid;gap:10px;margin-bottom:28px"></div>
@@ -5995,7 +5995,7 @@ seedSsrMap();if(document.getElementById("ds-sort")&&!document.getElementById("ds
   <p style="max-width:54ch;color:#b7c5d6;font-size:1.05rem;margin:0 0 28px">Welcome gravity, value calendar, profit score, tracked CTAs back to the Unicorn catalog. Zero human ops once the bot is group admin.</p>
   <div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:28px">
     <a id="tg-join-btn" href="#" style="display:none;padding:14px 22px;border-radius:10px;background:linear-gradient(135deg,#0088cc,#005f8f);color:#fff;text-decoration:none;font-weight:700">🔗 Join the group →</a>
-    <a href="/api/telegram/group-os" style="padding:14px 22px;border-radius:10px;background:linear-gradient(135deg,#2ea043,#1f6feb);color:#fff;text-decoration:none;font-weight:700">Live group status →</a>
+    <button type="button" data-live-inspect="/api/telegram/group-os" data-live-title="Telegram group OS" style="padding:14px 22px;border-radius:10px;background:linear-gradient(135deg,#2ea043,#1f6feb);color:#fff;border:0;cursor:pointer;font-weight:700">Inspect group status live →</button>
     <a href="https://t.me/ZEUSAIIBOT" style="padding:14px 22px;border-radius:10px;border:1px solid #2c3550;color:#cfd6ff;text-decoration:none;font-weight:600">Open @ZEUSAIIBOT</a>
     <a href="/services" style="padding:14px 22px;border-radius:10px;border:1px solid #2c3550;color:#cfd6ff;text-decoration:none;font-weight:600">Catalog</a>
   </div>
@@ -7884,7 +7884,7 @@ footer{color:var(--mut);font-size:12px;margin-top:40px;text-align:center}
   <div class="row"><span class="k">Receipt</span><span class="v">W3C Verifiable Credential (Ed25519)</span></div>
   <p style="margin-top:20px">
     <button class="cta" id="buyBtn">Buy now → BTC checkout</button>
-    <a class="cta alt" href="/api/catalog/master#${esc(item.id)}">Inspect raw JSON</a>
+    <button type="button" class="cta alt" data-live-inspect="/api/catalog/master" data-live-title="Catalog master">Inspect catalog live</button>
   </p>
   <div id="err" class="err"></div>
 </div>
@@ -8068,7 +8068,7 @@ document.getElementById('buyBtn').addEventListener('click', async function(){
     } else if (slug === 'privacy') {
       body = `<h2>Data we store</h2><ul><li>Email + name (account)</li><li>Password hash (bcrypt)</li><li>Order history + payment status</li><li>API keys you create</li><li>Optional WebAuthn / TOTP factors</li></ul>
 <h2>Data we do NOT store</h2><ul><li>Raw passwords</li><li>Card numbers (BTC self-custody)</li><li>Tracking pixels from third parties on critical flows</li></ul>
-<h2>Your rights (GDPR)</h2><p>You can export <a href="/api/customer/export">all your data</a> or <a href="/account">delete your account</a> at any time. Programmatic access: <code>GET /api/customer/export</code> · <code>DELETE /api/customer/me</code>.</p>
+<h2>Your rights (GDPR)</h2><p>You can export <a href="/api/customer/export" download data-allow-raw="1">all your data</a> or <a href="/account">delete your account</a> at any time. Programmatic access: <code>GET /api/customer/export</code> · <code>DELETE /api/customer/me</code>.</p>
 <h2>Contact</h2><p>Email: <a href="mailto:${ownerEmail}">${ownerEmail}</a> · Operator: ${owner}.</p>`;
     } else if (slug.startsWith('refund')) {
       body = `<h2>Pre-activation</h2><p>If your order is still in <code>awaiting_payment</code> state, simply do not send Bitcoin. The order auto-cancels after 60 minutes.</p>

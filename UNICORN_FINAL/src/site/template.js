@@ -740,9 +740,9 @@ select.form-inp option{background:#0a0e24;}
       <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:14px;">
         <button class="btn btn-primary" onclick="loadAdiCore(true)">Refresh ADI-Core</button>
         <button class="btn btn-outline" onclick="adiDropKey()">+ Drop API Key</button>
-        <a class="btn btn-outline" href="/api/adi-core/onboarding" target="_blank" rel="noopener">Onboarding JSON</a>
-        <a class="btn btn-outline" href="/api/adi-core/status" target="_blank" rel="noopener">Status JSON</a>
-        <a class="btn btn-outline" href="/api/adi-core/world" target="_blank" rel="noopener">World-scan JSON</a>
+        <button type="button" class="btn btn-outline" onclick="zeusLiveInspect('/api/adi-core/onboarding','ADI onboarding')">Inspect onboarding live</button>
+        <button type="button" class="btn btn-outline" onclick="zeusLiveInspect('/api/adi-core/status','ADI status')">Inspect status live</button>
+        <button type="button" class="btn btn-outline" onclick="zeusLiveInspect('/api/adi-core/world','ADI world-scan')">Inspect world-scan live</button>
       </div>
     </div>
   </div><!-- end #view-status -->
@@ -1522,6 +1522,21 @@ function loadInnovationModulesStatus() {
 document.addEventListener('DOMContentLoaded',function(){
   setTimeout(debounce(loadInnovationModulesStatus, 1200), 1200);
 });
+// Lightweight live inspect for legacy SPA buttons (v2 uses client.js drawer).
+window.zeusLiveInspect = function(endpoint, title){
+  if (window.__zeusOpenLiveInspect) return window.__zeusOpenLiveInspect(endpoint, title);
+  var w = window.open('', '_blank', 'noopener,noreferrer,width=720,height=640');
+  if (!w) { location.href = endpoint; return; }
+  w.document.write('<pre style="background:#0b0f17;color:#e8ecff;padding:16px;font:12px/1.5 ui-monospace,monospace">Loading '+String(endpoint)+'…</pre>');
+  fetch(endpoint, { cache: 'no-store' }).then(function(r){ return r.text(); }).then(function(t){
+    try { t = JSON.stringify(JSON.parse(t), null, 2); } catch(_){}
+    w.document.title = title || endpoint;
+    w.document.body.innerHTML = '<pre style="background:#0b0f17;color:#e8ecff;padding:16px;margin:0;white-space:pre-wrap;font:12px/1.5 ui-monospace,monospace"></pre>';
+    w.document.querySelector('pre').textContent = t;
+  }).catch(function(e){
+    w.document.body.textContent = String(e && e.message || e);
+  });
+};
 // STATE
 // ================================================================
 var STATE = {
