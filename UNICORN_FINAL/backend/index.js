@@ -3401,6 +3401,7 @@ const { getSiteHtml }       = require('../src/site/template');
 
 // ==================== MESH ORCHESTRATOR — Swiss-watch inter-module bus ====================
 const meshOrchestrator     = require('./modules/unicornMeshOrchestrator');
+const integratedAutonomyKernel = meshOrchestrator; // IAK/1.0 singleton (legacy mesh entry)
 const unicornOrchestrator  = require('./modules/unicornOrchestrator');
 
 // ==================== SOVEREIGN INNOVATIONS (paradigm modules) ====================
@@ -4301,14 +4302,14 @@ meshOrchestrator.register('centralOrchestrator',    centralOrchestrator, { statu
   }
 })();
 
-// Pornim orchestratorul — Swiss-watch mode
+// Pornim Integrated Autonomy Kernel — un singur orchestrator master (IAK/1.0)
 if (!_stableRuntime) {
-  meshOrchestrator.start();
-  unicornOrchestrator.start('full'); // Orchestratorul central al unicornului — activează toate motoarele autonome (full mode)
+  meshOrchestrator.start({ mode: 'full' });
+  unicornOrchestrator.start('full'); // guardian facet — 8 motoare autonome
   // Start Forward-Only Safety harmony monitor
   forwardOnlySafety.startHarmonyMonitor();
-  console.log('🕰️  Unicorn Mesh Orchestrator: STARTED — toate modulele conectate');
-  console.log('🦄 Unicorn Orchestrator (8 engines): ACTIVE');
+  console.log('🧬 Integrated Autonomy Kernel (IAK/1.0): STARTED — harmonic mesh + facets');
+  console.log('🦄 Guardian engines (8): ACTIVE via IAK');
   console.log('🛡️  Forward-Only Safety: HARMONY MONITORING ACTIVE');
 } else {
   // Stable: mesh monitor-only heartbeat so modules can still hear each other
@@ -4316,12 +4317,12 @@ if (!_stableRuntime) {
   try {
     if (meshOrchestrator && typeof meshOrchestrator.start === 'function') {
       meshOrchestrator.start({ mode: 'monitor' });
-      console.log('🧯 Stable profile: mesh monitor-only heartbeat armed (no heal/mutate)');
+      console.log('🧯 Stable profile: IAK monitor-only heartbeat armed (no heal/mutate)');
     } else {
       console.log('🧯 Stable profile active: mesh/orchestrator background loops are paused');
     }
   } catch (e) {
-    console.log('🧯 Stable profile active: mesh start skipped:', e && e.message);
+    console.log('🧯 Stable profile active: IAK start skipped:', e && e.message);
   }
   console.log('🛡️  Forward-Only Safety: enforcement enabled (monitoring-only, no harmony tracking in STABLE mode)');
 }
@@ -10941,7 +10942,27 @@ app.get('/api/autonomous/platform/status', (req, res) => {
 
 // ==================== UNICORN ORCHESTRATOR — STATUS UNIFICAT ====================
 app.get('/api/orchestrator/status', (req, res) => {
-  res.json(unicornOrchestrator.getStatus());
+  const guardian = unicornOrchestrator.getStatus();
+  let iak = null;
+  try { iak = integratedAutonomyKernel && integratedAutonomyKernel.getStatus ? integratedAutonomyKernel.getStatus() : null; } catch (_) { iak = null; }
+  res.json({ ...guardian, iak: iak ? { id: iak.id, running: iak.running, meshHealthy: iak.meshHealthy, totalModules: iak.totalModules, quarantined: iak.quarantined, innovations: iak.innovations } : null });
+});
+
+// Integrated Autonomy Kernel — single master orchestrator status
+app.get('/api/iak/status', (req, res) => {
+  try {
+    res.json(integratedAutonomyKernel.getStatus());
+  } catch (e) {
+    res.status(500).json({ ok: false, error: e.message });
+  }
+});
+
+app.get('/api/iak/quarantine', (req, res) => {
+  try {
+    res.json({ ok: true, quarantine: integratedAutonomyKernel.getQuarantine() });
+  } catch (e) {
+    res.status(500).json({ ok: false, error: e.message });
+  }
 });
 
 // POST /api/orchestrator/start — pornește orchestratorul în modul specificat (default: full)
@@ -10949,6 +10970,11 @@ app.post('/api/orchestrator/start', adminTokenMiddleware, (req, res) => {
   const mode = (req.body && req.body.mode) || 'full';
   try {
     unicornOrchestrator.start(mode);
+    try {
+      if (integratedAutonomyKernel && typeof integratedAutonomyKernel.start === 'function') {
+        integratedAutonomyKernel.start({ mode: mode === 'full' ? 'full' : 'monitor' });
+      }
+    } catch (_) { /* mesh may already be running */ }
     res.json({ success: true, mode, status: unicornOrchestrator.getStatus() });
   } catch (e) {
     res.status(500).json({ success: false, error: e.message });
