@@ -734,7 +734,13 @@ function universalCancel({ email, reason=null, services='all' }) {
   const rec = { id:'cn_'+nid(8), email, reason, services, ts: nowIso(), action: 'cancellation_intent_recorded', execution: 'autonomous-1click' };
   rec.signature = sign(rec);
   append('cancellations.jsonl', rec);
-  return { ok:true, id: rec.id, message: 'All active subscriptions for this email will be cancelled within 60s. A signed confirmation email will follow.', signature: rec.signature };
+  return {
+    ok: true,
+    id: rec.id,
+    message: 'Cancellation request recorded and signed. The owner is notified to process active subscriptions; a confirmation with cancellation proof follows by email once complete.',
+    status: 'intent_recorded',
+    signature: rec.signature
+  };
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -781,8 +787,27 @@ function carbonForOrder(orderId) {
 // FRONTIER STATUS (single inventory endpoint)
 // ═══════════════════════════════════════════════════════════════════════════
 function frontierStatus() {
+  const inventions = {
+    F1_refundGuarantee: true,
+    F2_liveAura: true,
+    F3_outcomeAnchored: true,
+    F4_selfHealingCheckout: true,
+    F5_timeLockedDiscount: true,
+    F6_sovereignReceiptNft: true,
+    F7_provableEmail: true,
+    F8_giftAsCapability: true,
+    F9_antiDarkPatternPledge: true,
+    F10_universalCancel: true,
+    F11_banditTransparency: true,
+    F12_carbonInclusive: true
+  };
+  const inventionList = Object.keys(inventions);
+  const count = inventionList.length;
   return {
     version: '1.0.0',
+    ok: true,
+    mode: 'active',
+    status: 'active',
     publicKeyHex: publicKeyHex(),
     commerce: {
       cartsActive: carts.size,
@@ -791,23 +816,15 @@ function frontierStatus() {
       newsletter: newsletterStats().subscribers,
       apiKeysActive: apiKeys.keys.filter(k=>!k.revokedAt).length
     },
-    inventions: {
-      F1_refundGuarantee: true,
-      F2_liveAura: true,
-      F3_outcomeAnchored: true,
-      F4_selfHealingCheckout: true,
-      F5_timeLockedDiscount: true,
-      F6_sovereignReceiptNft: true,
-      F7_provableEmail: true,
-      F8_giftAsCapability: true,
-      F9_antiDarkPatternPledge: true,
-      F10_universalCancel: true,
-      F11_banditTransparency: true,
-      F12_carbonInclusive: true
-    },
+    inventions,
+    inventionList,
+    count,
+    inventionsAvailable: count,
     endpointsAdded: 38,
+    generatedAt: nowIso(),
+    updatedAt: nowIso(),
     signedAt: nowIso(),
-    signature: sign({ ts: nowIso() })
+    signature: sign({ ts: nowIso(), count })
   };
 }
 

@@ -1272,6 +1272,28 @@ app.get('/api/frontier/status', (req, res) => proxyToSite(req, res, '/api/fronti
 app.get('/api/vault/snapshot', (req, res) => proxyToSite(req, res, '/api/vault/snapshot'));
 app.get('/api/governance/snapshot', (req, res) => proxyToSite(req, res, '/api/governance/snapshot'));
 
+// Frontier F1–F12 APIs live in src/frontier-engine.js (site process). Without
+// these proxies, nginx `/api/` → backend returns the SPA HTML catch-all and
+// pages like /pledge, /gift, /refund, /transparency break in production.
+app.get('/api/refund/guarantee', (req, res) => proxyToSite(req, res, '/api/refund/guarantee'));
+app.get('/api/refund/audit', (req, res) => proxyToSite(req, res, '/api/refund/audit'));
+app.get('/api/pledge', (req, res) => proxyToSite(req, res, '/api/pledge'));
+app.post('/api/pledge/report', _swRateLimit, express.json({ limit: '64kb' }), (req, res) => proxyPostToSite(req, res, '/api/pledge/report'));
+app.post('/api/gift/mint', _swRateLimit, express.json({ limit: '64kb' }), (req, res) => proxyPostToSite(req, res, '/api/gift/mint'));
+app.post('/api/gift/redeem', _swRateLimit, express.json({ limit: '64kb' }), (req, res) => proxyPostToSite(req, res, '/api/gift/redeem'));
+app.get('/api/bandit/transparency', (req, res) => proxyToSite(req, res, '/api/bandit/transparency'));
+app.post('/api/cancel/universal', _swRateLimit, express.json({ limit: '64kb' }), (req, res) => proxyPostToSite(req, res, '/api/cancel/universal'));
+app.post('/api/checkout/cascade', _swRateLimit, express.json({ limit: '64kb' }), (req, res) => proxyPostToSite(req, res, '/api/checkout/cascade'));
+app.post('/api/discount/timelocked', _swRateLimit, express.json({ limit: '64kb' }), (req, res) => proxyPostToSite(req, res, '/api/discount/timelocked'));
+app.get('/api/discount/timelocked/redeem', (req, res) => proxyToSite(req, res, '/api/discount/timelocked/redeem'));
+app.get(/^\/api\/receipt\/nft\/[a-zA-Z0-9_-]{3,128}$/, (req, res) => proxyToSite(req, res, req.path));
+app.post('/api/email/proof', _swRateLimit, express.json({ limit: '64kb' }), (req, res) => proxyPostToSite(req, res, '/api/email/proof'));
+app.get('/api/email/proof/list', (req, res) => proxyToSite(req, res, '/api/email/proof/list'));
+app.get('/api/outcome/list', (req, res) => proxyToSite(req, res, '/api/outcome/list'));
+app.post('/api/outcome/anchor', _swRateLimit, express.json({ limit: '64kb' }), (req, res) => proxyPostToSite(req, res, '/api/outcome/anchor'));
+app.get('/api/carbon/cart', (req, res) => proxyToSite(req, res, '/api/carbon/cart'));
+app.get('/api/innovation/coverage', (req, res) => proxyToSite(req, res, '/api/innovation/coverage'));
+
 app.get('/api/constitution', (req, res) => proxyToSite(req, res, '/api/constitution'));
 app.get('/api/receipts/root', (req, res) => proxyToSite(req, res, '/api/receipts/root'));
 app.get(/^\/api\/receipts\/proof\/[a-zA-Z0-9_-]{3,128}$/, (req, res) => proxyToSite(req, res, req.path));

@@ -3062,9 +3062,9 @@ Content-Type: application/json
 
 function pageCryptoFiatBridge() {
   return `<section style="padding-top:140px;max-width:1120px">
-  <span class="kicker">Crypto Bridge Suite</span>
-  <h1 style="font-size:clamp(34px,4.4vw,56px);margin:10px 0 18px">Crypto ↔ Fiat intelligence, <span class="grad">non-custodial by design.</span></h1>
-  <p style="color:var(--ink-dim);font-size:16px;line-height:1.7;max-width:860px">ZeusAI computes optimal routing, fees and risk checks for crypto transfer workflows without ever holding funds. The platform only returns signed recommendations and owner-routed fee invoices.</p>
+  <span class="kicker">Transfer Intelligence · non-custodial</span>
+  <h1 style="font-size:clamp(34px,4.4vw,56px);margin:10px 0 18px">Crypto ↔ Fiat <span class="grad">routing intelligence.</span></h1>
+  <p style="color:var(--ink-dim);font-size:16px;line-height:1.7;max-width:860px">ZeusAI computes optimal routing, fees and destination risk checks for crypto transfer workflows <strong style="color:#fff">without ever holding funds</strong>. Responses are signed recommendations and optional owner-routed fee invoices — not a custodial bridge.</p>
 
   <div class="grid" id="cbCards" style="margin-top:22px"><div class="card" style="padding:18px"><p>Loading services…</p></div></div>
 
@@ -3074,22 +3074,50 @@ function pageCryptoFiatBridge() {
     <p id="cbRateMeta" style="color:var(--ink-dim);font-size:13px;margin:0">Fetching live source…</p>
   </div>
 
+  <div class="grid" style="margin-top:22px;grid-template-columns:repeat(auto-fit,minmax(min(300px,100%),1fr));gap:14px">
+    <div class="card" style="padding:18px">
+      <span class="tag">Tool · Destination check</span>
+      <h3 style="margin:8px 0 10px">Is this address safe to send to?</h3>
+      <div class="field"><label>BTC / ETH address</label><input id="cbDestAddr" placeholder="bc1q… or 0x…" style="width:100%;padding:10px;background:#0b0f17;border:1px solid #1f2a3b;color:#e7ecf3;border-radius:8px"></div>
+      <div class="field"><label>Amount USD (optional)</label><input id="cbDestUsd" type="number" value="100" style="width:100%;padding:10px;background:#0b0f17;border:1px solid #1f2a3b;color:#e7ecf3;border-radius:8px"></div>
+      <button class="btn btn-primary" id="cbDestBtn" style="width:100%;justify-content:center;margin-top:8px">Check destination →</button>
+      <pre class="code" id="cbDestOut" style="margin-top:12px;max-height:220px;overflow:auto;font-size:12px">Result will appear here.</pre>
+    </div>
+    <div class="card" style="padding:18px">
+      <span class="tag">Tool · Fee lock</span>
+      <h3 style="margin:8px 0 10px">Lock a mempool fee quote</h3>
+      <div class="field"><label>Amount BTC</label><input id="cbFeeAmt" type="number" step="0.0001" value="0.001" style="width:100%;padding:10px;background:#0b0f17;border:1px solid #1f2a3b;color:#e7ecf3;border-radius:8px"></div>
+      <div class="field"><label>Priority</label><select id="cbFeePri" style="width:100%;padding:10px;background:#0b0f17;border:1px solid #1f2a3b;color:#e7ecf3;border-radius:8px"><option value="fastestFee">fastest</option><option value="halfHourFee">~30 min</option><option value="hourFee">~1 hour</option><option value="economyFee">economy</option></select></div>
+      <button class="btn btn-primary" id="cbFeeBtn" style="width:100%;justify-content:center;margin-top:8px">Lock fee quote →</button>
+      <pre class="code" id="cbFeeOut" style="margin-top:12px;max-height:220px;overflow:auto;font-size:12px">Result will appear here.</pre>
+    </div>
+    <div class="card" style="padding:18px">
+      <span class="tag">Tool · Smart routing</span>
+      <h3 style="margin:8px 0 10px">Recommend a transfer path</h3>
+      <div class="field"><label>Destination address</label><input id="cbRouteAddr" placeholder="bc1q…" style="width:100%;padding:10px;background:#0b0f17;border:1px solid #1f2a3b;color:#e7ecf3;border-radius:8px"></div>
+      <div class="field"><label>Amount</label><input id="cbRouteAmt" type="number" step="0.0001" value="0.01" style="width:100%;padding:10px;background:#0b0f17;border:1px solid #1f2a3b;color:#e7ecf3;border-radius:8px"></div>
+      <div class="field"><label>Currency</label><select id="cbRouteCur" style="width:100%;padding:10px;background:#0b0f17;border:1px solid #1f2a3b;color:#e7ecf3;border-radius:8px"><option>BTC</option><option>ETH</option></select></div>
+      <button class="btn btn-primary" id="cbRouteBtn" style="width:100%;justify-content:center;margin-top:8px">Compute route →</button>
+      <pre class="code" id="cbRouteOut" style="margin-top:12px;max-height:220px;overflow:auto;font-size:12px">Result will appear here.</pre>
+    </div>
+  </div>
+
   <div class="card" style="margin-top:22px;padding:18px">
-    <h3 style="margin:0 0 8px">API endpoints</h3>
+    <h3 style="margin:0 0 8px">API surface</h3>
     <ul style="margin:0;padding-left:18px;color:var(--ink-dim);line-height:1.8">
       <li><code class="inline">GET /api/crypto-bridge/services</code></li>
       <li><code class="inline">GET /api/crypto-bridge/btc-rate</code></li>
+      <li><code class="inline">GET /api/crypto-bridge/destination-check</code></li>
+      <li><code class="inline">GET /api/crypto-bridge/fee-lock</code></li>
       <li><code class="inline">POST /api/crypto-bridge/smart-routing</code></li>
       <li><code class="inline">GET /api/crypto-bridge/health</code></li>
     </ul>
+    <p style="color:var(--ink-dim);font-size:13px;margin:12px 0 0">Honesty: ZeusAI never custodians, never re-routes value, never holds private keys. Tools return recommendations from public on-chain feeds.</p>
   </div>
 
   <script>
   (async function(){
-    // Always repaint placeholders on EVERY path — empty catch blocks left the
-    // "Loading services…", "$…", and "Fetching live source…" placeholders
-    // stuck whenever /api/crypto-bridge/* was unhealthy. Same regression class
-    // as pageOperatorConsole / pageObservability / pageRefund / pageAura.
+    function show(el, obj){ if(!el) return; el.textContent = typeof obj === 'string' ? obj : JSON.stringify(obj, null, 2); }
     var host = document.getElementById('cbCards');
     try {
       const servicesResp = await fetch('/api/crypto-bridge/services');
@@ -3107,9 +3135,7 @@ function pageCryptoFiatBridge() {
           : '<div class="card" style="padding:18px"><p style="color:var(--ink-dim)">No services available right now.</p></div>';
       }
     } catch(_) {
-      if (host) {
-        host.innerHTML = '<div class="card" style="padding:18px"><p style="color:var(--ink-dim)">Crypto bridge services unavailable. Try again in a moment.</p></div>';
-      }
+      if (host) host.innerHTML = '<div class="card" style="padding:18px"><p style="color:var(--ink-dim)">Crypto bridge services unavailable. Try again in a moment.</p></div>';
     }
 
     var rateEl = document.getElementById('cbRate');
@@ -3118,16 +3144,45 @@ function pageCryptoFiatBridge() {
       const rateResp = await fetch('/api/crypto-bridge/btc-rate');
       const rateJson = await rateResp.json();
       var rate = Number(rateJson && (rateJson.rate || rateJson.usd || 0));
-      if (rateEl) {
-        rateEl.textContent = rate > 0
-          ? '$' + rate.toLocaleString(undefined, { maximumFractionDigits: 2 })
-          : 'Rate unavailable';
-      }
-      if (meta) meta.textContent = 'Source: ' + ((rateJson && rateJson.source) || 'unknown') + ' · updated now';
+      if (rateEl) rateEl.textContent = rate > 0 ? '$' + rate.toLocaleString(undefined, { maximumFractionDigits: 2 }) : 'Rate unavailable';
+      if (meta) meta.textContent = 'Source: ' + ((rateJson && rateJson.source) || 'unknown') + (rateJson && rateJson.degraded ? ' · degraded fallback' : ' · live');
     } catch(_) {
       if (rateEl) rateEl.textContent = 'Rate unavailable';
       if (meta) meta.textContent = 'Live source temporarily offline';
     }
+
+    var destBtn = document.getElementById('cbDestBtn');
+    if (destBtn) destBtn.addEventListener('click', async function(){
+      var out = document.getElementById('cbDestOut'); show(out, 'Checking…');
+      try {
+        var q = new URLSearchParams({ address: (document.getElementById('cbDestAddr').value||'').trim(), amountUsd: document.getElementById('cbDestUsd').value||'0' });
+        var d = await (await fetch('/api/crypto-bridge/destination-check?'+q)).json();
+        show(out, d);
+      } catch(e) { show(out, 'Error: '+(e.message||e)); }
+    });
+    var feeBtn = document.getElementById('cbFeeBtn');
+    if (feeBtn) feeBtn.addEventListener('click', async function(){
+      var out = document.getElementById('cbFeeOut'); show(out, 'Locking…');
+      try {
+        var q = new URLSearchParams({ amount: document.getElementById('cbFeeAmt').value||'0.001', priority: document.getElementById('cbFeePri').value||'fastestFee' });
+        var d = await (await fetch('/api/crypto-bridge/fee-lock?'+q)).json();
+        show(out, d);
+      } catch(e) { show(out, 'Error: '+(e.message||e)); }
+    });
+    var routeBtn = document.getElementById('cbRouteBtn');
+    if (routeBtn) routeBtn.addEventListener('click', async function(){
+      var out = document.getElementById('cbRouteOut'); show(out, 'Computing…');
+      try {
+        var body = {
+          address: (document.getElementById('cbRouteAddr').value||'').trim(),
+          amount: Number(document.getElementById('cbRouteAmt').value)||0.01,
+          currency: document.getElementById('cbRouteCur').value||'BTC',
+          maxWaitHours: 1
+        };
+        var d = await (await fetch('/api/crypto-bridge/smart-routing', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body) })).json();
+        show(out, d);
+      } catch(e) { show(out, 'Error: '+(e.message||e)); }
+    });
   })();
   </script>
 </section>`;
@@ -3419,6 +3474,7 @@ function renderRoute(route, params = {}) {
     case '/crypto-bridge': return pageCryptoFiatBridge();
     case '/store': return pageStore();
     case '/innovations': return pageInnovations();
+    case '/innovation-log': return pageInnovations();
     case '/account': return pageAccount(params);
     case '/auth': return pageAccount(params);
     case '/login': return pageAccount(params);
@@ -4407,13 +4463,34 @@ function pageInnovations() {
   return `<section class="section">
   <div class="container">
     <h1 class="h1">Live Innovation Coverage</h1>
-    <p class="lead" style="max-width:880px">Innovation map for the live Unicorn: cryptographic durability, sovereign primitives and production coverage from <code class="inline">/api/innovation/coverage</code>, plus the 30-year proof layer below.</p>
+    <p class="lead" style="max-width:880px">Innovation map for the live Unicorn: cryptographic durability, sovereign primitives and production coverage from <code class="inline">/api/innovation/coverage</code>, plus the 30-year proof layer, 50Y standard and 100Y horizon below.</p>
+
+    <div class="card" style="padding:18px;margin:18px 0" id="invCoverageCard">
+      <span class="tag">Live coverage · hydrated</span>
+      <h3 style="margin:8px 0">Runtime coverage summary</h3>
+      <p id="invCoverageSummary" style="color:var(--ink-dim);font-size:14px;margin:0 0 10px">Loading /api/innovation/coverage…</p>
+      <div id="invCoverageGrid" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px"></div>
+      <p style="color:var(--ink-dim);font-size:12.5px;margin:12px 0 0"><strong style="color:#fff">Label key:</strong> <code class="inline">live-100*</code> = production API · <code class="inline">*foundation*</code> = shipped protocol, not full marketplace product · <code class="inline">*needs-secret*</code> = optional rail awaiting owner keys · <code class="inline">pledge</code> endpoints are signed commitments, not automatic chain settlement.</p>
+    </div>
 
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:14px;margin:22px 0">
       <div class="card" style="padding:18px"><span class="tag">Coverage API</span><h3>Live coverage</h3><p style="color:var(--ink-dim);font-size:13.5px">Runtime coverage summary for recent innovations and deployed modules.</p><a href="/api-explorer?endpoint=%2Fapi%2Finnovation%2Fcoverage" class="btn" style="margin-top:8px">Open in API Explorer</a></div>
       <div class="card" style="padding:18px;border:1px solid rgba(255,159,28,.35)"><span class="tag" style="background:linear-gradient(135deg,#FF3B5C,#FF9F1C);color:#12080a">CIC/1.0 · 2066</span><h3 style="margin:8px 0">Chromatic Identity Continuum</h3><p style="color:var(--ink-dim);font-size:13.5px">World-first forever brand spectrum: Volt Aurora chromatics + blade-condensed letterform genome, signed to the forever-key so agents can verify the real ZeusAI look for 40+ years.</p><a href="/.well-known/brand-spectrum.json" target="_blank" rel="noopener" class="btn" style="margin-top:8px">Open spectrum JSON</a></div>
       <div class="card" style="padding:18px"><span class="tag">Forward-only</span><h3>No downgrade path</h3><p style="color:var(--ink-dim);font-size:13.5px">Every accepted innovation must pass canary, QIS and final smoke before promotion.</p></div>
       <div class="card" style="padding:18px"><span class="tag">Live site</span><h3>Innovation map</h3><p style="color:var(--ink-dim);font-size:13.5px">This page is the visible map for what changed and where to verify it.</p></div>
+    </div>
+
+    <h2 id="zeus50y" style="margin-top:32px">50-year standard · permanence &amp; sovereignty <span class="tag" style="vertical-align:middle">2076</span></h2>
+    <p class="lead" style="max-width:880px;font-size:14.5px">Additive pillars under <code class="inline">/api/v50/*</code>: permanence, security, sovereignty, intelligence. Live status hydrates below.</p>
+    <div class="card" style="padding:18px;margin:14px 0 22px">
+      <span class="tag">GET /api/v50/status</span>
+      <h3 id="inv50Title" style="margin:8px 0">…</h3>
+      <p id="inv50Meta" style="color:var(--ink-dim);font-size:13.5px;margin:0 0 12px">Loading 50Y status…</p>
+      <div id="inv50Pillars" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px"></div>
+      <div style="margin-top:12px;display:flex;gap:10px;flex-wrap:wrap">
+        <a class="btn" href="/api/v50/status" target="_blank" rel="noopener">Open status JSON</a>
+        <a class="btn" href="/.well-known/did.json" target="_blank" rel="noopener">DID document</a>
+      </div>
     </div>
 
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:14px;margin:22px 0">
@@ -4571,6 +4648,38 @@ function pageInnovations() {
   <script>
   (async function(){
     const $ = (id) => document.getElementById(id);
+    function esc(s){ return String(s==null?'':s).replace(/[&<>"']/g, function(c){ return ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[c]; }); }
+    try {
+      const cov = await (await fetch('/api/innovation/coverage')).json();
+      const sum = cov && cov.summary || {};
+      if ($('invCoverageSummary')) {
+        $('invCoverageSummary').textContent = (sum.total||0)+' items · '+(sum.live||0)+' live-100 · '+(sum.foundation||0)+' foundation · generated '+(cov.generatedAt||'').slice(0,19);
+      }
+      const items = Array.isArray(cov && cov.items) ? cov.items.slice(0, 12) : [];
+      if ($('invCoverageGrid')) {
+        $('invCoverageGrid').innerHTML = items.map(function(it){
+          return '<div style="padding:12px;border:1px solid #1f2a3b;border-radius:10px;background:rgba(5,4,10,.4)"><div style="font-size:12px;color:var(--ink-dim)">'+esc(it.id)+'</div><div style="font-weight:600;margin:4px 0">'+esc(it.title)+'</div><div style="font-size:12px;color:#7fffd4">'+esc(it.status)+'</div></div>';
+        }).join('') || '<p style="color:var(--ink-dim)">No coverage items returned.</p>';
+      }
+    } catch(e) {
+      if ($('invCoverageSummary')) $('invCoverageSummary').textContent = 'Coverage unavailable: '+(e.message||e);
+    }
+    try {
+      const v50 = await (await fetch('/api/v50/status')).json();
+      if ($('inv50Title')) $('inv50Title').textContent = v50.version || '50Y Standard';
+      if ($('inv50Meta')) $('inv50Meta').textContent = 'Generated '+(v50.generatedAt||'').slice(0,19)+' · pillars: '+Object.keys(v50.pillars||{}).join(', ');
+      const pillars = v50.pillars || {};
+      if ($('inv50Pillars')) {
+        $('inv50Pillars').innerHTML = Object.keys(pillars).map(function(k){
+          const p = pillars[k] || {};
+          const keys = Object.keys(p).filter(function(x){ return p[x] === true; });
+          return '<div style="padding:12px;border:1px solid #1f2a3b;border-radius:10px"><div class="tag">'+esc(k)+'</div><div style="font-size:13px;color:var(--ink-dim);margin-top:8px">'+(keys.length?keys.slice(0,6).map(esc).join(' · '):'active')+'</div></div>';
+        }).join('') || '<p style="color:var(--ink-dim)">No pillars reported.</p>';
+      }
+    } catch(e) {
+      if ($('inv50Title')) $('inv50Title').textContent = '50Y offline';
+      if ($('inv50Meta')) $('inv50Meta').textContent = 'Status unavailable: '+(e.message||e);
+    }
     try { const s = await (await fetch('/api/innovations/status')).json();
       $('invConHash').textContent = (s.constitution && s.constitution.hashShort) || '—';
       if (s.models) $('invModels').innerHTML = s.models.map(m =>
@@ -5108,18 +5217,22 @@ function pagePrivacy() { return _legalSub('Privacy Policy', 'We store the minimu
 function pageRefund()  { return `<section style="padding-top:140px;max-width:880px">
   <span class="kicker">Refund Guarantee · F1</span>
   <h1 style="font-size:clamp(34px,4.4vw,56px);margin:10px 0 18px">Cryptographic <span class="grad">refund guarantee.</span></h1>
-  <p style="color:var(--ink-dim);font-size:16px;line-height:1.7">If we fail you, the system refunds itself. Below: live, signed promise. If breached, an autonomous compensator emits a signed REFUND_INTENT and the revenue router reverses the matching receipt within 24h.</p>
+  <p style="color:var(--ink-dim);font-size:16px;line-height:1.7">A signed, public SLA promise. On confirmed breach, the system emits a signed <code class="inline">REFUND_INTENT</code> and records it in the refund audit trail. BTC reverse settlement is owner-executed against that signed intent — not an automatic on-chain clawback. 30-day money-back remains available via contact.</p>
   <pre class="code" id="rfOut" style="margin-top:18px">Signed promise will appear here.</pre>
+  <div id="rfRules" style="margin-top:16px;display:grid;gap:10px"></div>
+  <p style="color:var(--ink-dim);font-size:13px;margin-top:14px">Audit: <a href="/api/refund/audit" target="_blank" rel="noopener"><code class="inline">/api/refund/audit</code></a></p>
   <script>
   fetch('/api/refund/guarantee').then(r=>r.json()).then(d=>{
     const out = document.getElementById('rfOut');
     if (!out) return;
-    const mode = d && (d.mode || d.status || 'active');
-    const windowH = d && (d.refundWindowHours || d.windowHours || 24);
+    const title = d && d.title || 'Refund guarantee';
     const sig = d && d.signature ? String(d.signature).slice(0,18)+'…' : 'n/a';
-    out.textContent = 'Mode: '+mode+'\nRefund window: '+windowH+'h\nSignature: '+sig;
+    const hash = d && d.hash ? String(d.hash).slice(0,18)+'…' : 'n/a';
+    out.textContent = title+'\\nIssued: '+(d.issuedAt||'—')+'\\nHash: '+hash+'\\nSignature: '+sig+'\\nSelf-execution: signed REFUND_INTENT + owner/ops settlement (not automatic chain reverse)';
+    const host = document.getElementById('rfRules');
+    const rules = Array.isArray(d && d.rules) ? d.rules : [];
+    if (host) host.innerHTML = rules.map(function(r){ return '<div class="card" style="padding:14px"><span class="tag">'+(r.id||'rule')+'</span><p style="margin:8px 0 0;color:var(--ink-dim);font-size:14px">'+(r.text||'')+'</p></div>'; }).join('');
   }).catch(e=>{
-    // Never leave the SSR "Signed promise will appear here." placeholder stuck.
     const out = document.getElementById('rfOut');
     if (out) out.textContent = 'Refund guarantee unavailable: '+(e && e.message || e);
   });
@@ -5133,7 +5246,7 @@ function pageSla() { return `<section style="padding-top:140px;max-width:880px">
     <li><b style="color:#fff">Latency</b> · p95 &lt; 800ms global, p99 &lt; 1500ms</li>
     <li><b style="color:#fff">Receipt</b> · every API call &lt; 60s eligible for inclusion in the next signed Merkle root</li>
     <li><b style="color:#fff">Incident disclosure</b> · &lt; 72h public, sealed at /api/incidents</li>
-    <li><b style="color:#fff">Refund</b> · auto on breach (see /refund)</li>
+    <li><b style="color:#fff">Refund</b> · signed intent on breach (see /refund) + 30-day money-back</li>
   </ul>
   <a class="btn btn-primary" href="/unicorn-status.html" data-link>Live status →</a>
 </section>`; }
@@ -5144,6 +5257,7 @@ function pagePledge() {
   <h1 style="font-size:clamp(34px,4.4vw,56px);margin:10px 0 18px">Public, signed, <span class="grad">self-enforcing.</span></h1>
   <p style="color:var(--ink-dim);font-size:16px;line-height:1.7">No fake scarcity. No forced accounts. No drip pricing. No retention dark patterns. No selling your data. One-click cancel at <a href="/cancel" data-link>/cancel</a>. The pledge below is signed Ed25519 — anyone can verify. On confirmed breach, an INCIDENT is publicly sealed.</p>
   <pre class="code" id="plOut" style="margin-top:18px">Pledge summary will appear here.</pre>
+  <div id="plCommitments" style="margin-top:14px;display:grid;gap:8px"></div>
   <div class="card" style="margin-top:22px;padding:22px"><h3 style="margin:0 0 10px">Report a breach</h3><p style="color:var(--ink-dim)">Suspect we broke our pledge? Report it. We seal the incident publicly within 72h.</p>
     <div class="field"><label>Email</label><input id="prEmail" type="email"></div>
     <div class="field"><label>Evidence</label><textarea id="prEv" rows="4" style="padding:12px;border-radius:12px;border:1px solid var(--stroke);background:rgba(5,4,10,.55);color:var(--ink);font-family:inherit;width:100%"></textarea></div>
@@ -5154,20 +5268,25 @@ function pagePledge() {
   fetch('/api/pledge').then(r=>r.json()).then(d=>{
     const out = document.getElementById('plOut');
     if (!out) return;
-    const principles = Array.isArray(d && d.principles) ? d.principles.slice(0,4) : [];
+    const commitments = Array.isArray(d && d.commitments) ? d.commitments : (Array.isArray(d && d.principles) ? d.principles : []);
     const sig = d && d.signature ? String(d.signature).slice(0,18)+'…' : 'n/a';
-    out.textContent = 'Pledge active\nPrinciples: '+(principles.length ? principles.join(' | ') : 'available')+'\nSignature: '+sig;
+    out.textContent = (d && d.title ? d.title : 'Pledge active')+'\\nCommitments: '+commitments.length+'\\nIssued: '+(d.issuedAt||'—')+'\\nSignature: '+sig;
+    const host = document.getElementById('plCommitments');
+    if (host) host.innerHTML = commitments.map(function(c,i){ return '<div class="card" style="padding:12px 14px;font-size:14px;color:var(--ink-dim)"><b style="color:#fff">'+(i+1)+'.</b> '+String(c)+'</div>'; }).join('');
   }).catch(e=>{
-    // Never leave the SSR "Pledge summary will appear here." placeholder stuck.
     const out = document.getElementById('plOut');
     if (out) out.textContent = 'Pledge summary unavailable: '+(e && e.message || e);
   });
   document.getElementById('prBtn').addEventListener('click', async () => {
     const email = document.getElementById('prEmail').value;
     const evidence = document.getElementById('prEv').value;
-    const r = await fetch('/api/pledge/report', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ email, evidence }) });
-    const d = await r.json();
-    document.getElementById('prOut').textContent = d.ok ? 'Recorded · '+d.id : 'Error';
+    try {
+      const r = await fetch('/api/pledge/report', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ email, evidence }) });
+      const d = await r.json();
+      document.getElementById('prOut').textContent = d.ok ? 'Recorded · '+d.id : ('Error: '+(d.error||r.status));
+    } catch(e) {
+      document.getElementById('prOut').textContent = 'Network error: '+(e.message||e);
+    }
   });
   </script>
 </section>`;
@@ -5188,12 +5307,16 @@ function pageCancel() {
   document.getElementById('cnBtn').addEventListener('click', async () => {
     const email = document.getElementById('cnEmail').value;
     const reason = document.getElementById('cnReason').value;
-    const r = await fetch('/api/cancel/universal', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ email, reason }) });
-    const d = await r.json();
-    const sig = d && d.signature ? String(d.signature).slice(0,22)+'…' : '';
-    document.getElementById('cnOut').innerHTML = d.ok
-      ? '<b style="color:#3bffb0">✓ '+d.message+'</b>' + (sig ? '<br><small style="font-family:var(--mono);font-size:11px">sig '+sig+'</small>' : '')
-      : '<b style="color:var(--danger)">Error</b>';
+    try {
+      const r = await fetch('/api/cancel/universal', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ email, reason }) });
+      const d = await r.json();
+      const sig = d && d.signature ? String(d.signature).slice(0,22)+'…' : '';
+      document.getElementById('cnOut').innerHTML = d.ok
+        ? '<b style="color:#3bffb0">✓ '+(d.message||'Recorded')+'</b>' + (sig ? '<br><small style="font-family:var(--mono);font-size:11px">sig '+sig+'</small>' : '')
+        : '<b style="color:var(--danger)">Error</b> '+(d.error||'');
+    } catch(e) {
+      document.getElementById('cnOut').textContent = 'Network error: '+(e.message||e);
+    }
   });
   </script>
 </section>`;
@@ -5203,29 +5326,62 @@ function pageGift() {
   return `<section style="padding-top:140px;max-width:880px">
   <span class="kicker">Gift-as-Capability · F8</span>
   <h1 style="font-size:clamp(34px,4.4vw,56px);margin:10px 0 18px">Send ZeusAI as a <span class="grad">cryptographic gift.</span></h1>
-  <p style="color:var(--ink-dim);font-size:16px;line-height:1.7">No account required for the recipient. A signed gift code is generated and logged — the recipient can redeem it via the link you share. Fulfilment (service activation) is handled manually by the owner after redemption; this is a gift-intent / code-logging system, not automated instant delivery.</p>
+  <p style="color:var(--ink-dim);font-size:16px;line-height:1.7">No account required for the recipient. A signed gift code is generated and logged — the recipient redeems it via the link you share. Fulfilment (service activation) is handled by the owner after redemption; this is a gift-intent / code-logging system, not automated instant delivery.</p>
   <div class="card" style="padding:24px;margin-top:18px">
     <div class="field"><label>Service / SKU</label><input id="gtSku" value="adaptive-ai"></div>
-    <div class="field"><label>Value (USD)</label><input id="gtVal" type="number" value=""></div>
+    <div class="field"><label>Value (USD)</label><input id="gtVal" type="number" value="49"></div>
     <div class="field"><label>From email</label><input id="gtFrom" type="email"></div>
     <div class="field"><label>To email (optional)</label><input id="gtTo" type="email"></div>
-    <div class="field"><label>Message</label><input id="gtMsg" placeholder="Use ZeusAI on me 🎁"></div>
+    <div class="field"><label>Message</label><input id="gtMsg" placeholder="Use ZeusAI on me"></div>
     <button class="btn btn-primary" id="gtBtn" style="width:100%;justify-content:center">Generate signed gift code →</button>
     <div id="gtOut" style="margin-top:14px"></div>
   </div>
+  <div class="card" style="padding:24px;margin-top:18px;border-color:rgba(127,255,212,.35)">
+    <span class="tag">Redeem</span>
+    <h3 style="margin:8px 0 10px">Redeem a gift code</h3>
+    <div class="field"><label>Gift code</label><input id="gtCode" placeholder="GIFT-…" style="width:100%;padding:10px;background:#0b0f17;border:1px solid #1f2a3b;color:#e7ecf3;border-radius:8px"></div>
+    <div class="field"><label>Your email (optional)</label><input id="gtBy" type="email" style="width:100%;padding:10px;background:#0b0f17;border:1px solid #1f2a3b;color:#e7ecf3;border-radius:8px"></div>
+    <button class="btn btn-primary" id="gtRedeemBtn" style="width:100%;justify-content:center;margin-top:8px">Redeem →</button>
+    <div id="gtRedeemOut" style="margin-top:12px;color:var(--ink-dim);font-size:13.5px"></div>
+  </div>
   <script>
-  document.getElementById('gtBtn').addEventListener('click', async () => {
-    const payload = {
-      sku: document.getElementById('gtSku').value,
-      valueUsd: Number(document.getElementById('gtVal').value)||0,
-      fromEmail: document.getElementById('gtFrom').value,
-      toEmail: document.getElementById('gtTo').value,
-      message: document.getElementById('gtMsg').value
-    };
-    const r = await fetch('/api/gift/mint', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) });
-    const d = await r.json();
-    document.getElementById('gtOut').innerHTML = '<div class="card" style="border-color:var(--violet)"><h3>'+d.code+'</h3><p style="color:var(--ink-dim)">Share this redemption URL: <code class="inline">'+location.origin+d.redeemUrl+'</code></p><p style="color:var(--ink-dim);font-size:12px">Signed at '+d.mintedAt+' · recipient redeems the code; the owner will activate the service manually.</p></div>';
-  });
+  (function(){
+    try {
+      var q = new URLSearchParams(location.search);
+      var c = q.get('c');
+      if (c) { var el = document.getElementById('gtCode'); if (el) el.value = c; }
+    } catch(_){}
+    document.getElementById('gtBtn').addEventListener('click', async () => {
+      const payload = {
+        sku: document.getElementById('gtSku').value,
+        valueUsd: Number(document.getElementById('gtVal').value)||0,
+        fromEmail: document.getElementById('gtFrom').value,
+        toEmail: document.getElementById('gtTo').value,
+        message: document.getElementById('gtMsg').value
+      };
+      try {
+        const r = await fetch('/api/gift/mint', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) });
+        const d = await r.json();
+        const url = location.origin + (d.redeemUrl || ('/gift?c='+encodeURIComponent(d.code||'')));
+        document.getElementById('gtOut').innerHTML = '<div class="card" style="border-color:var(--violet)"><h3>'+(d.code||'—')+'</h3><p style="color:var(--ink-dim)">Share this redemption URL: <code class="inline">'+url+'</code></p><p style="color:var(--ink-dim);font-size:12px">Signed at '+(d.mintedAt||'—')+' · recipient redeems the code; the owner will activate the service manually.</p></div>';
+      } catch(e) {
+        document.getElementById('gtOut').textContent = 'Mint failed: '+(e.message||e);
+      }
+    });
+    document.getElementById('gtRedeemBtn').addEventListener('click', async () => {
+      const out = document.getElementById('gtRedeemOut');
+      out.textContent = 'Redeeming…';
+      try {
+        const r = await fetch('/api/gift/redeem', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ code: document.getElementById('gtCode').value, byEmail: document.getElementById('gtBy').value || null }) });
+        const d = await r.json();
+        if (d.ok) {
+          out.innerHTML = '<b style="color:#3bffb0">✓ Redeemed</b> · SKU '+(d.gift && d.gift.sku || '—')+' · $'+(d.gift && d.gift.valueUsd || 0)+'. Owner will activate fulfilment.';
+        } else {
+          out.textContent = 'Redeem failed: '+(d.error || r.status);
+        }
+      } catch(e) { out.textContent = 'Network error: '+(e.message||e); }
+    });
+  })();
   </script>
 </section>`;
 }
@@ -5234,7 +5390,7 @@ function pageAura() {
   return `<section style="padding-top:140px;max-width:1080px">
   <span class="kicker">Live Conversion Aura · F2</span>
   <h1 style="font-size:clamp(34px,4.4vw,56px);margin:10px 0 18px">The <span class="grad">heartbeat</span> of ZeusAI.</h1>
-  <p style="color:var(--ink-dim);font-size:16px;line-height:1.7">Every metric below is fetched from <code class="inline">/api/aura</code>, signed Ed25519 at the moment of generation. No mocks, no inflation.</p>
+  <p style="color:var(--ink-dim);font-size:16px;line-height:1.7">Every metric below is fetched from <code class="inline">/api/aura</code>. Compatible with both the site frontier aura (<code class="inline">metrics</code>) and the backend KPI strip (<code class="inline">kpis</code>).</p>
   <div class="grid" id="auraGrid" style="margin-top:22px"><div class="card"><p>Live metrics will appear here.</p></div></div>
   <pre class="code" id="auraRaw" style="margin-top:18px;max-height:280px;overflow:auto">…</pre>
   <script>
@@ -5242,17 +5398,23 @@ function pageAura() {
     try {
       const d = await (await fetch('/api/aura')).json();
       const sig = d && d.signature ? String(d.signature).slice(0,24)+'…' : 'n/a';
-      document.getElementById('auraRaw').textContent = 'Updated: '+(d.generatedAt||new Date().toISOString())+' · signature: '+sig;
+      document.getElementById('auraRaw').textContent = 'Updated: '+(d.generatedAt||d.pulseAt||d.ts||new Date().toISOString())+' · signature: '+sig;
       const m = d.metrics || {};
-      document.getElementById('auraGrid').innerHTML = [
-        ['Orders total', m.ordersTotal],
+      const k = d.kpis || {};
+      const rows = [
+        ['Orders total', m.ordersTotal != null ? m.ordersTotal : k.signedReceipts],
         ['Orders 24h', m.ordersLast24h],
         ['Leads total', m.leadsTotal],
-        ['GMV USD', '$'+(m.gmvUsd||0).toLocaleString()],
-        ['Newsletter', m.newsletter]
-      ].map(([k,v])=>'<div class="card"><span class="tag">'+k+'</span><h2 style="margin:8px 0">'+(v==null?'—':v)+'</h2></div>').join('');
+        ['GMV USD', m.gmvUsd != null ? ('$'+(m.gmvUsd||0).toLocaleString()) : null],
+        ['Newsletter', m.newsletter],
+        ['Refunds honored', k.refundsHonored],
+        ['Uptime', k.uptime],
+        ['Active carts', k.activeCarts]
+      ].filter(function(row){ return row[1] != null && row[1] !== ''; });
+      document.getElementById('auraGrid').innerHTML = (rows.length ? rows : [['Status','online']]).map(function(pair){
+        return '<div class="card"><span class="tag">'+pair[0]+'</span><h2 style="margin:8px 0">'+(pair[1]==null?'—':pair[1])+'</h2></div>';
+      }).join('');
     } catch(e) {
-      // Never leave the SSR "Live metrics will appear here." placeholder stuck.
       const g = document.getElementById('auraGrid');
       if (g) g.innerHTML = '<div class="card"><p style="color:var(--ink-dim)">Live aura unavailable. Retrying every 5s.</p></div>';
       const r = document.getElementById('auraRaw');
@@ -5311,34 +5473,133 @@ function pageFrontier() {
   return `<section style="padding-top:140px;max-width:1280px">
   <span class="kicker">Frontier · 12 sovereign inventions</span>
   <h1 style="font-size:clamp(34px,4.4vw,56px);margin:10px 0 18px">Things the web <span class="grad">didn't have</span> until today.</h1>
+  <p style="color:var(--ink-dim);font-size:15px;max-width:820px;line-height:1.7">Each invention below has a live API. Cards marked <span class="tag">interactive</span> open tools on this page. Honesty: refund/cancel emit signed intents and owner-processed settlement — not automatic on-chain clawbacks.</p>
   <div class="grid" style="margin-top:22px;grid-template-columns:repeat(auto-fit,minmax(min(300px,100%),1fr));gap:14px">
-    <div class="card"><span class="tag">F1</span><h3>Crypto Refund Guarantee</h3><p>Self-executing SLA. If breached, refund auto-issues.</p><a class="btn" href="/refund" data-link>Open</a></div>
+    <div class="card"><span class="tag">F1</span><h3>Crypto Refund Guarantee</h3><p>Signed SLA + REFUND_INTENT audit trail.</p><a class="btn" href="/refund" data-link>Open</a></div>
     <div class="card"><span class="tag">F2</span><h3>Live Conversion Aura</h3><p>Real-time, signed, public KPI heartbeat.</p><a class="btn" href="/aura" data-link>Open</a></div>
     <div class="card"><span class="tag">F3</span><h3>Outcome-Anchored Pricing</h3><p>Signed before/after deltas → auto-bps invoice.</p><a class="btn" href="/api/outcome/list" target="_blank">JSON</a></div>
-    <div class="card"><span class="tag">F4</span><h3>Self-Healing Checkout Cascade</h3><p>BTC → Lightning → Stripe → PayPal → Wire.</p><a class="btn" href="/checkout/" data-link>Try</a></div>
-    <div class="card"><span class="tag">F5</span><h3>Time-Locked Discount Vault</h3><p>VDF-anchored "wait N s, get X% off".</p></div>
-    <div class="card"><span class="tag">F6</span><h3>Sovereign Receipt NFT</h3><p>Portable, dual-signed proof. Verifiable offline.</p></div>
-    <div class="card"><span class="tag">F7</span><h3>Provable Email Delivery</h3><p>Signed manifest + Merkle inclusion proof.</p></div>
-    <div class="card"><span class="tag">F8</span><h3>Gift-as-Capability</h3><p>Send a CBAT to anyone. No account needed.</p><a class="btn" href="/gift" data-link>Mint</a></div>
+    <div class="card"><span class="tag">F4</span><h3>Self-Healing Checkout Cascade</h3><p>BTC → Lightning → Stripe → PayPal → Wire.</p><a class="btn" href="/checkout/" data-link>Try</a> <button class="btn" id="frCascadeBtn" type="button">Probe cascade</button></div>
+    <div class="card"><span class="tag">F5 · interactive</span><h3>Time-Locked Discount Vault</h3><p>VDF-anchored "wait N s, get X% off".</p><a class="btn" href="#frWorkshop">Open tool</a></div>
+    <div class="card"><span class="tag">F6 · interactive</span><h3>Sovereign Receipt NFT</h3><p>Portable, dual-signed proof. Verifiable offline.</p><a class="btn" href="#frWorkshop">Lookup</a></div>
+    <div class="card"><span class="tag">F7 · interactive</span><h3>Provable Email Delivery</h3><p>Signed manifest + Merkle inclusion proof.</p><a class="btn" href="#frWorkshop">Prove</a></div>
+    <div class="card"><span class="tag">F8</span><h3>Gift-as-Capability</h3><p>Send a CBAT to anyone. No account needed.</p><a class="btn" href="/gift" data-link>Mint / Redeem</a></div>
     <div class="card"><span class="tag">F9</span><h3>Anti-Dark-Pattern Pledge</h3><p>Public, signed, self-enforcing.</p><a class="btn" href="/pledge" data-link>Open</a></div>
-    <div class="card"><span class="tag">F10</span><h3>Universal Cancel Link</h3><p>One URL cancels everything.</p><a class="btn" href="/cancel" data-link>Open</a></div>
+    <div class="card"><span class="tag">F10</span><h3>Universal Cancel Link</h3><p>One URL records a signed cancel intent.</p><a class="btn" href="/cancel" data-link>Open</a></div>
     <div class="card"><span class="tag">F11</span><h3>Public Bandit Transparency</h3><p>You see every price experiment.</p><a class="btn" href="/transparency" data-link>Open</a></div>
-    <div class="card"><span class="tag">F12</span><h3>Carbon-Inclusive Checkout</h3><p>Auto-attached signed gCO₂ + offset.</p></div>
+    <div class="card"><span class="tag">F12 · interactive</span><h3>Carbon-Inclusive Checkout</h3><p>Auto-attached signed gCO₂ + offset.</p><a class="btn" href="#frWorkshop">Estimate</a></div>
   </div>
   <pre class="code" id="frOut" style="margin-top:22px;max-height:340px;overflow:auto">Frontier status will appear here.</pre>
+
+  <div id="frWorkshop" class="card" style="margin-top:22px;padding:22px">
+    <span class="tag">Workshop · F5 / F6 / F7 / F12</span>
+    <h2 style="margin:10px 0 14px">Try frontier tools live</h2>
+    <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(min(260px,100%),1fr));gap:14px">
+      <div>
+        <h3 style="margin:0 0 8px;font-size:15px">F5 · Mint time-locked discount</h3>
+        <div class="field"><label>Percent off</label><input id="frTldPct" type="number" value="15" style="width:100%;padding:10px;background:#0b0f17;border:1px solid #1f2a3b;color:#e7ecf3;border-radius:8px"></div>
+        <div class="field"><label>Lock seconds</label><input id="frTldLock" type="number" value="30" style="width:100%;padding:10px;background:#0b0f17;border:1px solid #1f2a3b;color:#e7ecf3;border-radius:8px"></div>
+        <button class="btn btn-primary" id="frTldBtn" style="width:100%;justify-content:center;margin-top:8px">Vault discount →</button>
+        <div class="field" style="margin-top:10px"><label>Redeem code</label><input id="frTldCode" placeholder="TLD-…" style="width:100%;padding:10px;background:#0b0f17;border:1px solid #1f2a3b;color:#e7ecf3;border-radius:8px"></div>
+        <button class="btn" id="frTldRedeemBtn" style="width:100%;justify-content:center;margin-top:8px">Check redeem</button>
+        <pre class="code" id="frTldOut" style="margin-top:10px;max-height:160px;overflow:auto;font-size:12px">…</pre>
+      </div>
+      <div>
+        <h3 style="margin:0 0 8px;font-size:15px">F6 · Receipt NFT lookup</h3>
+        <div class="field"><label>Order ID</label><input id="frNftId" placeholder="ord_…" style="width:100%;padding:10px;background:#0b0f17;border:1px solid #1f2a3b;color:#e7ecf3;border-radius:8px"></div>
+        <button class="btn btn-primary" id="frNftBtn" style="width:100%;justify-content:center;margin-top:8px">Fetch NFT →</button>
+        <pre class="code" id="frNftOut" style="margin-top:10px;max-height:200px;overflow:auto;font-size:12px">…</pre>
+      </div>
+      <div>
+        <h3 style="margin:0 0 8px;font-size:15px">F7 · Email delivery proof</h3>
+        <div class="field"><label>To</label><input id="frEmTo" type="email" placeholder="you@company.com" style="width:100%;padding:10px;background:#0b0f17;border:1px solid #1f2a3b;color:#e7ecf3;border-radius:8px"></div>
+        <div class="field"><label>Subject</label><input id="frEmSub" value="ZeusAI delivery proof" style="width:100%;padding:10px;background:#0b0f17;border:1px solid #1f2a3b;color:#e7ecf3;border-radius:8px"></div>
+        <button class="btn btn-primary" id="frEmBtn" style="width:100%;justify-content:center;margin-top:8px">Seal proof →</button>
+        <pre class="code" id="frEmOut" style="margin-top:10px;max-height:200px;overflow:auto;font-size:12px">…</pre>
+      </div>
+      <div>
+        <h3 style="margin:0 0 8px;font-size:15px">F12 · Carbon for order</h3>
+        <div class="field"><label>Order ID</label><input id="frCarbId" placeholder="ord_…" style="width:100%;padding:10px;background:#0b0f17;border:1px solid #1f2a3b;color:#e7ecf3;border-radius:8px"></div>
+        <button class="btn btn-primary" id="frCarbBtn" style="width:100%;justify-content:center;margin-top:8px">Estimate carbon →</button>
+        <pre class="code" id="frCarbOut" style="margin-top:10px;max-height:200px;overflow:auto;font-size:12px">…</pre>
+      </div>
+    </div>
+    <pre class="code" id="frCascadeOut" style="margin-top:14px;max-height:180px;overflow:auto;font-size:12px;display:none"></pre>
+  </div>
+
   <script>
-  fetch('/api/frontier/status').then(r=>r.json()).then(d=>{
-    const out = document.getElementById('frOut');
-    if (!out) return;
-    const inv = d && (d.inventions || d.items || []);
-    const cnt = Array.isArray(inv) ? inv.length : (d && d.count) || 0;
-    const mode = d && (d.mode || d.status || 'active');
-    const updated = d && (d.generatedAt || d.updatedAt || new Date().toISOString());
-    out.textContent = 'Frontier status: '+mode+'\nInventions available: '+cnt+'\nUpdated: '+updated;
-  }).catch((e)=>{
-    const out = document.getElementById('frOut');
-    if (out) out.textContent = 'Frontier status unavailable: '+(e.message||e);
-  });
+  (function(){
+    function show(id, obj){ var el=document.getElementById(id); if(!el) return; el.textContent = typeof obj==='string'?obj:JSON.stringify(obj,null,2); }
+    fetch('/api/frontier/status').then(r=>r.json()).then(d=>{
+      const out = document.getElementById('frOut');
+      if (!out) return;
+      const inv = d && (d.inventions || d.items || {});
+      let cnt = 0;
+      if (Array.isArray(inv)) cnt = inv.length;
+      else if (inv && typeof inv === 'object') cnt = Object.keys(inv).length;
+      else cnt = Number(d && (d.inventionsAvailable || d.count)) || 0;
+      const mode = d && (d.mode || d.status || 'active');
+      const updated = d && (d.generatedAt || d.updatedAt || d.signedAt || new Date().toISOString());
+      const list = Array.isArray(d && d.inventionList) ? d.inventionList.join(', ') : (inv && typeof inv==='object' && !Array.isArray(inv) ? Object.keys(inv).join(', ') : '');
+      out.textContent = 'Frontier status: '+mode+'\\nInventions available: '+cnt+(list?'\\n'+list:'')+'\\nUpdated: '+updated;
+    }).catch((e)=>{
+      const out = document.getElementById('frOut');
+      if (out) out.textContent = 'Frontier status unavailable: '+(e.message||e);
+    });
+    var cascadeBtn = document.getElementById('frCascadeBtn');
+    if (cascadeBtn) cascadeBtn.addEventListener('click', async function(){
+      var out = document.getElementById('frCascadeOut');
+      if (out) { out.style.display='block'; show('frCascadeOut','Probing…'); }
+      try {
+        var d = await (await fetch('/api/checkout/cascade',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({amountUsd:49,email:'probe@zeusai.pro',prefer:'auto'})})).json();
+        show('frCascadeOut', d);
+      } catch(e){ show('frCascadeOut','Error: '+(e.message||e)); }
+    });
+    var tldBtn = document.getElementById('frTldBtn');
+    if (tldBtn) tldBtn.addEventListener('click', async function(){
+      show('frTldOut','Vaulting…');
+      try {
+        var d = await (await fetch('/api/discount/timelocked',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({pct:Number(document.getElementById('frTldPct').value)||15,lockSeconds:Number(document.getElementById('frTldLock').value)||30,sku:'any'})})).json();
+        show('frTldOut', d);
+        if (d && d.code) document.getElementById('frTldCode').value = d.code;
+      } catch(e){ show('frTldOut','Error: '+(e.message||e)); }
+    });
+    var tldRedeem = document.getElementById('frTldRedeemBtn');
+    if (tldRedeem) tldRedeem.addEventListener('click', async function(){
+      show('frTldOut','Checking…');
+      try {
+        var code = encodeURIComponent(document.getElementById('frTldCode').value||'');
+        var d = await (await fetch('/api/discount/timelocked/redeem?code='+code)).json();
+        show('frTldOut', d);
+      } catch(e){ show('frTldOut','Error: '+(e.message||e)); }
+    });
+    var nftBtn = document.getElementById('frNftBtn');
+    if (nftBtn) nftBtn.addEventListener('click', async function(){
+      show('frNftOut','Fetching…');
+      try {
+        var id = encodeURIComponent((document.getElementById('frNftId').value||'').trim());
+        var r = await fetch('/api/receipt/nft/'+id);
+        var d = await r.json();
+        show('frNftOut', d);
+      } catch(e){ show('frNftOut','Error: '+(e.message||e)); }
+    });
+    var emBtn = document.getElementById('frEmBtn');
+    if (emBtn) emBtn.addEventListener('click', async function(){
+      show('frEmOut','Sealing…');
+      try {
+        var d = await (await fetch('/api/email/proof',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({to:document.getElementById('frEmTo').value,subject:document.getElementById('frEmSub').value})})).json();
+        show('frEmOut', d);
+      } catch(e){ show('frEmOut','Error: '+(e.message||e)); }
+    });
+    var carbBtn = document.getElementById('frCarbBtn');
+    if (carbBtn) carbBtn.addEventListener('click', async function(){
+      show('frCarbOut','Estimating…');
+      try {
+        var id = encodeURIComponent((document.getElementById('frCarbId').value||'').trim());
+        var d = await (await fetch('/api/carbon/cart?orderId='+id)).json();
+        show('frCarbOut', d);
+      } catch(e){ show('frCarbOut','Error: '+(e.message||e)); }
+    });
+  })();
   </script>
 </section>`;
 }
@@ -5389,8 +5650,8 @@ const FAQ_ITEMS = [
   { q: 'Is the card price the same as the checkout price?', a: 'Yes — one canonical price engine quotes the card, the /pricing page and checkout. The quote is locked for 90 seconds so it never shifts mid-purchase.' },
   { q: 'What happens right after I pay?', a: 'The server watches the mempool, auto-confirms settlement, then issues the signed receipt, license token and delivery credentials — typically within one confirmation.' },
   { q: 'Can I verify my receipt independently?', a: 'Yes. Receipts are Ed25519-signed and Merkle-chained. Fetch the public key from /.well-known/keys.json and verify offline — no trust in us required.' },
-  { q: 'Is there a refund?', a: 'A cryptographic refund guarantee: if a signed service promise is breached, refund is automatic. Plus a 30-day money-back window, no questions asked. See /refund.' },
-  { q: 'Can I cancel anytime?', a: 'Yes — /cancel ends any subscription in one click. No retention flows, no dark patterns (see /pledge).' },
+  { q: 'Is there a refund?', a: 'A cryptographic refund guarantee: if a signed service promise is breached, a signed REFUND_INTENT is sealed and owner/ops settles against it. Plus a 30-day money-back window. See /refund.' },
+  { q: 'Can I cancel anytime?', a: 'Yes — /cancel records a signed cancellation intent in one click. No retention flows, no dark patterns (see /pledge). The owner processes active subscriptions and sends confirmation.' },
   { q: 'Do you train AI models on my data?', a: 'No. Minimal data collection, no resale, no model training on personal data. Full details in /privacy and /dpa.' },
   { q: 'Can software agents buy from you autonomously?', a: 'Yes — the catalog is machine-readable (/agents.json, /openapi.json) and checkout is a single signed POST. Agent-to-agent commerce is a first-class flow.' },
   { q: 'Who is behind ZeusAI?', a: `Owner-operated by ${OWNER.name}. No VC obligations, no exit pressure — built for a 30-year horizon. See /about.` },
