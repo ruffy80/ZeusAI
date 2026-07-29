@@ -7,7 +7,7 @@
 'use strict';
 
 /**
- * Integrated Autonomy Kernel — IAK/1.0
+ * Integrated Autonomy Kernel — IAK/1.1
  * =====================================
  * Single master orchestrator that consolidates the former competing
  * meta-orchestrators into one harmonic runtime:
@@ -17,12 +17,12 @@
  *   • External sense (Hetzner/DNS/GitHub)   (ex central-orchestrator)
  *   • Multi-tenant AI task queue            (ex saas-orchestrator-v4)
  *
- * Innovations nobody had wired before:
+ * Innovations:
  *   1. Harmonic Phased Tick — one master clock; phases sense→health→heal→sync→report
- *      so timers never thrash or race each other.
  *   2. Causal Boot Graph — register({ dependsOn }) delays "live" until deps healthy.
- *   3. Conflict Quarantine — duplicate capability claims are quarantined so two
- *      modules cannot fight over the same role.
+ *   3. Conflict Quarantine — duplicate capability claims cannot fight over one role.
+ *   4. Total Module Continuum — discover → causalStart → health → heal → rediscover forever.
+ *   5. Honesty Fence — commerce/mutator modules never auto-start when unsafe/unconfigured.
  *
  * Public legacy entry points re-export facets of this singleton (shims).
  */
@@ -33,11 +33,12 @@ const { EventEmitter } = require('events');
 const externalSense = require('./iak/external-sense');
 const tenantQueue = require('./iak/tenant-queue');
 const guardianEngines = require('./iak/guardian-engines');
+const moduleDiscovery = require('./iak/module-discovery');
 
 const HARMONIC_MS = parseInt(process.env.IAK_HARMONIC_MS || '15000', 10);
 const REPORT_EVERY = Math.max(1, parseInt(process.env.IAK_REPORT_EVERY || '20', 10)); // every N ticks
 const SYNC_EVERY = Math.max(1, parseInt(process.env.IAK_SYNC_EVERY || '4', 10));
-const KERNEL_ID = 'IAK/1.0';
+const KERNEL_ID = 'IAK/1.1';
 
 const PHASES = Object.freeze(['sense', 'health', 'heal', 'sync', 'report']);
 
@@ -62,11 +63,15 @@ class IntegratedAutonomyKernel extends EventEmitter {
     this.running = false;
     this.mode = null;
     this._facetBoot = { external: false, tenants: false, guardian: false };
+    this._discovery = { lastScan: null, registered: 0, started: 0, skipped: 0, continuumCycles: 0 };
+    this._startedByIak = new Set();
+    this._continuumEvery = Math.max(2, parseInt(process.env.IAK_CONTINUUM_EVERY || '8', 10));
 
     // Facet handles (same instances as public shims export)
     this.external = externalSense;
     this.tenants = tenantQueue;
     this.guardian = guardianEngines;
+    this.discovery = moduleDiscovery;
   }
 
   // ------------------------------------------------------------------ registry
@@ -119,18 +124,26 @@ class IntegratedAutonomyKernel extends EventEmitter {
       ? opts.dependsOn.map(String).filter(Boolean)
       : [];
 
+    // Merge if already registered — preserve health counters, upgrade metadata
+    const prev = this.registry.get(name);
     this.registry.set(name, {
       instance,
       statusFn,
-      lastStatus: null,
-      lastSeen: null,
-      healthy: true,
-      errors: 0,
+      lastStatus: prev ? prev.lastStatus : null,
+      lastSeen: prev ? prev.lastSeen : null,
+      healthy: prev ? prev.healthy : true,
+      errors: prev ? prev.errors : 0,
       dependsOn,
       bootPriority: Number.isFinite(opts.bootPriority) ? opts.bootPriority : 100,
       capabilities: caps,
       depsReady: dependsOn.length === 0,
       live: dependsOn.length === 0,
+      tier: opts.tier || (prev && prev.tier) || 'observe',
+      honestyClass: opts.honestyClass || (prev && prev.honestyClass) || 'observe',
+      hasStart: typeof instance.start === 'function',
+      hasInit: typeof instance.init === 'function',
+      hasHeal: typeof instance.heal === 'function',
+      startedByIak: prev ? !!prev.startedByIak : false,
     });
 
     for (const cap of caps) this.capabilities.set(cap, name);
@@ -309,15 +322,20 @@ class IntegratedAutonomyKernel extends EventEmitter {
   }
 
   _phaseSense() {
-    // Soft nudge: if external facet exposes forceCheck / checkNow, use it sparingly.
     try {
-      if (this.mode === 'monitor') return;
-      if (this.external && typeof this.external.emit === 'function') {
-        this.emit('iak:sense', {
-          external: typeof this.external.getStatus === 'function' ? this.external.getStatus() : null,
-          tenants: typeof this.tenants.getHealthReport === 'function' ? this.tenants.getHealthReport() : null,
-        });
+      // Perpetual Module Continuum — rediscover + causal-start gaps forever
+      if (this.cycleCount > 0 && this.cycleCount % this._continuumEvery === 0) {
+        this._continuumReconcile();
       }
+      if (this.mode === 'monitor') {
+        this.emit('iak:sense', { mode: 'monitor', continuum: this._discovery });
+        return;
+      }
+      this.emit('iak:sense', {
+        external: typeof this.external.getStatus === 'function' ? this.external.getStatus() : null,
+        tenants: typeof this.tenants.getHealthReport === 'function' ? this.tenants.getHealthReport() : null,
+        continuum: this._discovery,
+      });
     } catch (_) { /* sense is best-effort */ }
   }
 
@@ -434,7 +452,190 @@ class IntegratedAutonomyKernel extends EventEmitter {
     }
   }
 
+
+  // ------------------------------------------------------------------ discovery + continuum
+
+  /**
+   * Compat for sovereign_innovations registerSovereignInnovations.js
+   */
+  registerModule(instance, opts = {}) {
+    if (!instance) return { ok: false, reason: 'invalid_args' };
+    const name = opts.name
+      || instance.name
+      || instance.id
+      || instance.module
+      || instance.constructor && instance.constructor.name
+      || null;
+    if (!name || name === 'Object') {
+      return { ok: false, reason: 'missing_name' };
+    }
+    const cls = moduleDiscovery.classify(name);
+    return this.register(String(name), instance, {
+      statusFn: opts.statusFn,
+      dependsOn: opts.dependsOn,
+      capability: opts.capability || name,
+      bootPriority: opts.bootPriority != null ? opts.bootPriority : cls.bootPriority,
+      tier: opts.tier || cls.tier,
+      honestyClass: opts.honestyClass || cls.honestyClass,
+    });
+  }
+
+  /**
+   * Discover all runtime-capable modules and register them on the mesh.
+   * Idempotent — skips names already registered unless opts.replace.
+   */
+  discoverAndRegister(opts = {}) {
+    const manifest = moduleDiscovery.scan({
+      softRequireMissing: opts.softRequireMissing !== false,
+      maxSoftRequires: opts.maxSoftRequires,
+    });
+    let registered = 0;
+    let skipped = 0;
+    for (const m of manifest.modules) {
+      if (this.registry.has(m.name) && !opts.replace) {
+        skipped++;
+        continue;
+      }
+      // Capability: use name-scoped capability so we don't quarantine everything
+      const r = this.register(m.name, m.instance, {
+        statusFn: m.statusFn || undefined,
+        dependsOn: opts.ignoreDepends ? [] : moduleDiscovery.defaultDependsOn(m.name, m.tier),
+        capability: opts.uniqueCapabilities ? m.name : undefined,
+        bootPriority: m.bootPriority,
+        tier: m.tier,
+        honestyClass: m.honestyClass,
+      });
+      if (r && r.ok) registered++;
+      else skipped++;
+    }
+    this._discovery.lastScan = new Date().toISOString();
+    this._discovery.registered += registered;
+    this._discovery.skipped += skipped;
+    this._log(`🔎 Discovery: ${manifest.count} found · +${registered} registered · ${skipped} skipped · soft=${manifest.softRequires}`);
+    this.emit('iak:discovered', { found: manifest.count, registered, skipped });
+    return { found: manifest.count, registered, skipped, softRequires: manifest.softRequires, totalModules: this.registry.size };
+  }
+
+  /**
+   * Walk causal boot order and start modules allowed by profile + honesty fence.
+   */
+  causalStart(opts = {}) {
+    let bootImmortal = null;
+    try { bootImmortal = require('./boot-immortal-os'); } catch (_) { bootImmortal = null; }
+    const stable = bootImmortal && typeof bootImmortal.isStableProfile === 'function'
+      ? bootImmortal.isStableProfile()
+      : (String(process.env.UNICORN_RUNTIME_PROFILE || '').toLowerCase() === 'stable'
+        || String(process.env.UNICORN_RUNTIME_PROFILE || '').toLowerCase() === 'safe');
+    const selfMutationDisabled = String(process.env.DISABLE_SELF_MUTATION || '') === '1';
+
+    const order = this.bootOrder.length ? this.bootOrder : [...this.registry.keys()];
+    let started = 0;
+    let skipped = 0;
+    const details = [];
+
+    for (const name of order) {
+      if (this.quarantine.has(name)) { skipped++; continue; }
+      const entry = this.registry.get(name);
+      if (!entry) { skipped++; continue; }
+
+      const probe = {
+        name,
+        instance: entry.instance,
+        hasStart: entry.hasStart || typeof entry.instance.start === 'function',
+        hasInit: entry.hasInit || typeof entry.instance.init === 'function',
+        tier: entry.tier || 'observe',
+        honestyClass: entry.honestyClass || 'observe',
+      };
+
+      const gate = moduleDiscovery.mayStart(probe, { stable, selfMutationDisabled });
+      if (!gate.ok) {
+        skipped++;
+        details.push({ name, action: 'skip', reason: gate.reason });
+        continue;
+      }
+
+      // Already running?
+      try {
+        if (entry.statusFn && typeof entry.instance[entry.statusFn] === 'function') {
+          const st = entry.instance[entry.statusFn]();
+          if (st && (st.running === true || st.active === true || st.started === true)) {
+            skipped++;
+            details.push({ name, action: 'already_running' });
+            continue;
+          }
+        }
+      } catch (_) { /* proceed to start */ }
+
+      if (this._startedByIak.has(name) && !opts.force) {
+        skipped++;
+        details.push({ name, action: 'already_iak_started' });
+        continue;
+      }
+
+      try {
+        if (typeof entry.instance.init === 'function' && !entry.startedByIak) {
+          entry.instance.init();
+        }
+        if (typeof entry.instance.start === 'function') {
+          entry.instance.start(opts.startArg);
+        }
+        entry.startedByIak = true;
+        this._startedByIak.add(name);
+        started++;
+        details.push({ name, action: 'started', reason: gate.reason });
+      } catch (e) {
+        skipped++;
+        entry.errors = (entry.errors || 0) + 1;
+        details.push({ name, action: 'error', reason: e.message });
+        this._log(`⚠️ causalStart ${name}: ${e.message}`);
+      }
+    }
+
+    this._discovery.started += started;
+    this._log(`▶️  Causal start: +${started} started · ${skipped} skipped (stable=${stable})`);
+    this.emit('iak:causal-start', { started, skipped, stable });
+    return { started, skipped, stable, details: details.slice(0, 80) };
+  }
+
+  /**
+   * Forever reconcile: rediscover gaps + retry causal starts for modules that should be live.
+   */
+  _continuumReconcile() {
+    this._discovery.continuumCycles++;
+    try {
+      this.discoverAndRegister({ softRequireMissing: true, maxSoftRequires: 50 });
+    } catch (e) {
+      this._log(`⚠️ continuum discover failed: ${e.message}`);
+    }
+    try {
+      // Under monitor mode still allow stable allowlist starts (infra forever-on)
+      this.causalStart();
+    } catch (e) {
+      this._log(`⚠️ continuum causalStart failed: ${e.message}`);
+    }
+  }
+
+  /** Public alias used by /api/mesh/sync and legacy callers */
+  syncNow() {
+    this._phaseSync();
+    return { ok: true, ts: new Date().toISOString() };
+  }
+
+  /** Legacy UnicornMeshOrchestrator API */
+  _syncCycle() {
+    return this.syncNow();
+  }
+
+  _healthCycle() {
+    return this._phaseHealth();
+  }
+
+  _reportCycle() {
+    return this._phaseReport();
+  }
+
   // ------------------------------------------------------------------ helpers
+
 
   _isHealthy(status) {
     if (!status) return false;
@@ -494,6 +695,9 @@ class IntegratedAutonomyKernel extends EventEmitter {
         live: !!entry.live,
         capabilities: entry.capabilities || [],
         dependsOn: entry.dependsOn || [],
+        tier: entry.tier || 'observe',
+        honestyClass: entry.honestyClass || 'observe',
+        startedByIak: !!entry.startedByIak,
         lastSeen: entry.lastSeen ? new Date(entry.lastSeen).toISOString() : null,
       });
     }
@@ -532,10 +736,13 @@ class IntegratedAutonomyKernel extends EventEmitter {
       tenants: tenantStatus,
       guardian: guardianStatus,
       recentLog: this.eventLog.slice(-20),
+      discovery: { ...this._discovery, startedByIak: this._startedByIak.size },
       innovations: [
         'harmonic_phased_tick',
         'causal_boot_graph',
         'conflict_quarantine',
+        'total_module_continuum',
+        'honesty_fence',
       ],
     };
   }
