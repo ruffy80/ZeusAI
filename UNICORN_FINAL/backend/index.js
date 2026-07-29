@@ -1293,6 +1293,13 @@ app.get('/api/outcome/list', (req, res) => proxyToSite(req, res, '/api/outcome/l
 app.post('/api/outcome/anchor', _swRateLimit, express.json({ limit: '64kb' }), (req, res) => proxyPostToSite(req, res, '/api/outcome/anchor'));
 app.get('/api/carbon/cart', (req, res) => proxyToSite(req, res, '/api/carbon/cart'));
 app.get('/api/innovation/coverage', (req, res) => proxyToSite(req, res, '/api/innovation/coverage'));
+app.get('/api/commerce/health', (req, res) => proxyToSite(req, res, '/api/commerce/health'));
+app.get('/api/commerce/price', (req, res) => proxyToSite(req, res, '/api/commerce/price'));
+app.get('/api/commerce/recent-sales', (req, res) => proxyToSite(req, res, '/api/commerce/recent-sales'));
+app.get('/api/commerce/integrity', (req, res) => proxyToSite(req, res, '/api/commerce/integrity'));
+app.get('/api/commerce/metrics', (req, res) => proxyToSite(req, res, '/api/commerce/metrics'));
+app.get('/api/commerce/funnel', (req, res) => proxyToSite(req, res, '/api/commerce/funnel'));
+app.get('/.well-known/keys.json', (_req, res) => res.redirect(302, '/api/v50/keys.json'));
 
 app.get('/api/constitution', (req, res) => proxyToSite(req, res, '/api/constitution'));
 app.get('/api/receipts/root', (req, res) => proxyToSite(req, res, '/api/receipts/root'));
