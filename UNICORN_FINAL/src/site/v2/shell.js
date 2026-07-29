@@ -352,12 +352,12 @@ function buildJsonLd(title, route, canonical, desc, opts) {
     const faq = route === '/faq' ? FAQ_ITEMS.map((f) => ({ q: f.q, a: f.a }))
     : route === '/pricing' ? [
       { q: 'How do I pay?', a: 'Direct BTC checkout is the primary production rail. Card/Stripe, PayPal and NOWPayments appear only when configured in runtime env. Every receipt is Ed25519-signed and stored in your account.' },
-      { q: 'Is there a refund?', a: 'Yes — a cryptographic refund guarantee: SLA breach → automatic refund, plus 30-day money-back, no questions asked.' },
+      { q: 'Is there a refund?', a: 'Yes — a cryptographic refund guarantee: on SLA breach a signed REFUND_INTENT is sealed and owner-settled (not an automatic on-chain clawback). Plus a 30-day pre-activation money-back window. See /refund.' },
       { q: 'Do you store my data?', a: 'Minimal data, no resale, no model training on personal data. See our DPA and Privacy Policy for full details.' }
     ] : [
       { q: 'What is ZeusAI?', a: 'A sovereign autonomous AI operating system that ships signed outcomes, BTC-native commerce, and self-healing automation.' },
       { q: 'How does delivery work?', a: 'Each purchase mints a verifiable capability credential. Delivery runs autonomously and posts proof to your account.' },
-      { q: 'Can I cancel anytime?', a: 'Yes. The Universal Cancel page lets you cancel any subscription or order in one click — no dark patterns.' }
+      { q: 'Can I cancel anytime?', a: 'Yes. /cancel records a signed cancellation intent with no dark patterns; the owner processes active subscriptions against that intent.' }
     ];
     blocks.push({
       '@context': 'https://schema.org',
@@ -5553,8 +5553,8 @@ function pageFrontier() {
         <pre class="code" id="frEmOut" style="margin-top:10px;max-height:200px;overflow:auto;font-size:12px">…</pre>
       </div>
       <div>
-        <h3 style="margin:0 0 8px;font-size:15px">F12 · Carbon for order</h3>
-        <div class="field"><label>Order ID</label><input id="frCarbId" placeholder="ord_…" style="width:100%;padding:10px;background:#0b0f17;border:1px solid #1f2a3b;color:#e7ecf3;border-radius:8px"></div>
+        <h3 style="margin:0 0 8px;font-size:15px">F12 · Carbon estimate</h3>
+        <div class="field"><label>Order ID (optional — leave blank for $100 estimate)</label><input id="frCarbId" placeholder="ord_… or empty" style="width:100%;padding:10px;background:#0b0f17;border:1px solid #1f2a3b;color:#e7ecf3;border-radius:8px"></div>
         <button class="btn btn-primary" id="frCarbBtn" style="width:100%;justify-content:center;margin-top:8px">Estimate carbon →</button>
         <pre class="code" id="frCarbOut" style="margin-top:10px;max-height:200px;overflow:auto;font-size:12px">…</pre>
       </div>
@@ -5630,8 +5630,9 @@ function pageFrontier() {
     if (carbBtn) carbBtn.addEventListener('click', async function(){
       show('frCarbOut','Estimating…');
       try {
-        var id = encodeURIComponent((document.getElementById('frCarbId').value||'').trim());
-        var d = await (await fetch('/api/carbon/cart?orderId='+id)).json();
+        var id = (document.getElementById('frCarbId').value||'').trim();
+        var url = id ? ('/api/carbon/cart?orderId='+encodeURIComponent(id)) : '/api/carbon/cart?usd=100';
+        var d = await (await fetch(url)).json();
         show('frCarbOut', d);
       } catch(e){ show('frCarbOut','Error: '+(e.message||e)); }
     });

@@ -3255,6 +3255,17 @@ try {
 } catch (e) {
   console.warn('[never-down] kernel disabled:', e && e.message);
 }
+let zeroDefectSurfaceOs = null;
+try {
+  zeroDefectSurfaceOs = require('./modules/zero-defect-surface-os');
+  console.log('[zero-defect] surface OS loaded ·', zeroDefectSurfaceOs.PROTOCOL);
+  app.get('/api/zero-defect/status', (_req, res) => {
+    try { return res.json(zeroDefectSurfaceOs.getStatus()); }
+    catch (err) { return res.status(500).json({ ok: false, error: err && err.message }); }
+  });
+} catch (e) {
+  console.warn('[zero-defect] surface OS disabled:', e && e.message);
+}
 try { revenueFlywheel = require('./modules/revenue-flywheel'); } catch (e) { console.warn('[revenue-flywheel] disabled:', e && e.message); }
 
 // ==================== AUTONOMY SPINE — coloana de autonomie demonstrabilă ====================

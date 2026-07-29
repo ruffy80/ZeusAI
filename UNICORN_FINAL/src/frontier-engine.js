@@ -774,11 +774,26 @@ function _carbonForCart(c) {
   const offsetUsd = +(grams * 0.00002).toFixed(4); // very small auto offset
   return { grams, offsetUsd, assumption: '0.5gCO2 per USD digital service · auditable' };
 }
+function carbonEstimate(subtotalUsd) {
+  const subtotal = Math.max(0, Number(subtotalUsd) || 0);
+  const grams = +(subtotal * 0.5).toFixed(2);
+  const rec = {
+    ok: true,
+    mode: 'estimate',
+    subtotalUsd: subtotal,
+    grams,
+    offsetUsd: +(grams * 0.00002).toFixed(4),
+    assumption: '0.5gCO2 per USD digital service · auditable',
+    ts: nowIso()
+  };
+  rec.signature = sign(rec);
+  return rec;
+}
 function carbonForOrder(orderId) {
   const o = readAll('orders.jsonl').find(x => x.orderId === orderId);
   if (!o) return null;
   const grams = +((o.totals?.subtotalUsd || 0) * 0.5).toFixed(2);
-  const rec = { orderId, grams, offsetUsd: +(grams*0.00002).toFixed(4), ts: nowIso() };
+  const rec = { ok: true, mode: 'order', orderId, grams, offsetUsd: +(grams*0.00002).toFixed(4), ts: nowIso() };
   rec.signature = sign(rec);
   return rec;
 }
@@ -854,6 +869,7 @@ module.exports = {
   universalCancel,
   banditTransparency,
   carbonForOrder,
+  carbonEstimate,
   // status
   frontierStatus,
   // utility
