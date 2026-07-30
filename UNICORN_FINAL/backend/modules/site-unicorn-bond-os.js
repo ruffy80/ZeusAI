@@ -169,6 +169,8 @@ function composeStatus(siteProbe, unicornProbe, siteUrl, uniUrl) {
 
   const siteOk = !!(siteProbe && siteProbe.ok);
   const uniOk = !!(unicornProbe && unicornProbe.ok);
+  const pending = !!(siteProbe && siteProbe.error === 'cold')
+    || !!(unicornProbe && unicornProbe.error === 'cold');
 
   let syncScore = 50;
   let syncDetail = 'sync unknown';
@@ -195,9 +197,9 @@ function composeStatus(siteProbe, unicornProbe, siteUrl, uniUrl) {
   else bondScore = 8;
 
   // Blend peer bond (70%) + sync mirror (30%)
-  const score = clamp(Math.round(bondScore * 0.7 + syncScore * 0.3), 0, 100);
-  const grade = gradeFor(score);
-  const bonded = siteOk && uniOk;
+  const score = pending ? null : clamp(Math.round(bondScore * 0.7 + syncScore * 0.3), 0, 100);
+  const grade = pending ? 'P' : gradeFor(score);
+  const bonded = !pending && siteOk && uniOk;
   const stableIdleOk = !!(stable && mutatorsOff && bonded);
 
   const peers = {
@@ -229,13 +231,15 @@ function composeStatus(siteProbe, unicornProbe, siteUrl, uniUrl) {
   if (!next.length) next.push('Hold bond · observe-only · never invent payment rails');
 
   return {
-    ok: bonded && score >= 55,
+    ok: !pending && bonded && score >= 55,
     protocol: PROTOCOL,
     module: NAME,
     invention: 'site-unicorn-bond-os',
-    score,
+    score: score == null ? 0 : score,
     grade,
     bonded,
+    pending,
+    pendingReason: pending ? 'peer_cache_cold_warming' : null,
     stableIdleOk,
     profile: boot && typeof boot.runtimeProfile === 'function'
       ? boot.runtimeProfile()
@@ -362,6 +366,7 @@ function getScore() {
     score: st.score,
     grade: st.grade,
     bonded: st.bonded,
+    pending: !!st.pending,
     stableIdleOk: st.stableIdleOk,
     continuum: st.continuum,
   };
