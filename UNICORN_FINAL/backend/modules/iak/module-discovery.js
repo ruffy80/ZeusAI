@@ -64,6 +64,23 @@ const STABLE_START_ALLOW = new Set([
   'forwardOnlySafety',
   'platform-foundation',
   'platformFoundation',
+  'world-standard-inventions',
+  'worldStandardInventions',
+  'dual-plane-autonomy-kernel',
+  'dualPlaneAutonomyKernel',
+  'external-immortality-quorum',
+  'externalImmortalityQuorum',
+  'armed-rails-continuum',
+  'armedRailsContinuum',
+  'mutation-boundary-enforcer',
+  'mutationBoundaryEnforcer',
+  'proof-of-outcome-protocol',
+  'proofOfOutcomeProtocol',
+  'agent-capability-exchange',
+  'attention-revenue-continuum',
+  'commerce-twin-portable',
+  'delivery-passport-standard',
+  'vertical-outcome-machines',
 ]);
 
 /** Commerce / payment — monitor+register only unless configured */
