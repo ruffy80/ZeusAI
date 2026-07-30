@@ -822,6 +822,29 @@ if ('serviceWorker' in navigator) {
     }).catch(function(){});
   });
 }
+/* CCG/1.0 — Client Continuum Guardian: detect build SHA drift vs integrity.json.
+   Soft-only: one sessionStorage-gated hint banner, never infinite reload loops. */
+(function(){
+  try {
+    var meta = document.querySelector('meta[name="x-zeus-build"]');
+    var pageSha = meta && meta.getAttribute('content');
+    if (!pageSha) return;
+    fetch('/integrity.json', { cache: 'no-store' }).then(function(r){ return r.json(); }).then(function(d){
+      var live = (d && d.payload && d.payload.version) || (d && d.version) || '';
+      if (!live) return;
+      var a = String(pageSha).slice(0, 7);
+      var b = String(live).slice(0, 7);
+      if (!a || !b || a === b) return;
+      var key = 'zeus.ccg.drift.' + b;
+      try { if (sessionStorage.getItem(key)) return; sessionStorage.setItem(key, '1'); } catch(_){}
+      var bar = document.createElement('div');
+      bar.setAttribute('role', 'status');
+      bar.style.cssText = 'position:fixed;bottom:16px;left:16px;right:16px;z-index:80;max-width:560px;margin:0 auto;padding:12px 14px;border-radius:12px;background:rgba(5,4,10,.92);border:1px solid rgba(247,147,26,.45);color:#e8ecff;font:13px/1.45 system-ui;box-shadow:0 12px 40px rgba(0,0,0,.45)';
+      bar.innerHTML = 'Newer ZeusAI build is live (<code>'+b+'</code>). You are on <code>'+a+'</code>. <a href="/sw-reset" style="color:#ffd36a;font-weight:600">Clear cache &amp; reload</a>';
+      document.body.appendChild(bar);
+    }).catch(function(){});
+  } catch(_){}
+})();
 // CSP violation reporter (defensive)
 window.addEventListener('securitypolicyviolation', function(e){
   try{

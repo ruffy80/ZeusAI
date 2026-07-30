@@ -522,6 +522,16 @@ async function createOrder(ctx, input) {
   // Sanitize serviceId to a safe id charset before any resolution/allocation.
   const serviceId = String((input && input.serviceId) || '').trim().slice(0, 128).replace(/[^\w.:-]/g, '');
   if (!serviceId) return { error: 'serviceId_required', status: 400 };
+
+  // Immortality Continuum — Commerce Pressure Gate (fail-closed under disk/RAM critical)
+  try {
+    const cpg = require('../commerce/commerce-pressure-gate');
+    const pressure = cpg.assess();
+    if (pressure && pressure.commerceBlocked) {
+      return cpg.refusePayload(pressure);
+    }
+  } catch (_) { /* gate best-effort; buyability still applies */ }
+
   // Email is optional; if present it must look like an email. Normalize first.
   const email = String((input && input.email) || '').trim().toLowerCase().slice(0, 254);
   if (email && !EMAIL_RE.test(email)) return { error: 'invalid_email', status: 400 };

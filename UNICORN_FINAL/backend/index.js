@@ -4338,6 +4338,20 @@ try {
     console.warn('[WSI] boot failed:', e && e.message);
   }
 
+  // Immortality Continuum Protocol — DCA + EBS + commerce pressure signals
+  try {
+    const icp = require('./modules/immortality-continuum-protocol');
+    icp.start();
+    icp.mountRoutes(app);
+    try {
+      const sha = process.env.ZEUS_BUILD_SHA || process.env.GITHUB_SHA || process.env.SW_VERSION || '';
+      if (sha) icp.dca.recordPromote({ sha, note: 'boot_attestation' });
+    } catch (_) { /* ok */ }
+    console.log('♾️  ICP/1.0 Immortality Continuum: STARTED (DCA+EBS+CPG)');
+  } catch (e) {
+    console.warn('[ICP] boot failed:', e && e.message);
+  }
+
   try {
     if (meshOrchestrator && typeof meshOrchestrator.discoverAndRegister === 'function') {
       const discovered = meshOrchestrator.discoverAndRegister({ softRequireMissing: true });
@@ -4473,6 +4487,14 @@ function buildHealthResponse() {
         return ndk.healthEnvelope();
       } catch (_) {
         return { protocol: 'NDK/1.0', health: 'unknown', neverKill: true, healerFail: false };
+      }
+    })(),
+    immortality: (function () {
+      try {
+        const icp = require('./modules/immortality-continuum-protocol');
+        return icp.healthEnvelope();
+      } catch (_) {
+        return { protocol: 'ICP/1.0', available: false, neverKill: true, claimsAbsoluteUptime: false };
       }
     })(),
     totalAutonomy: (function () {
