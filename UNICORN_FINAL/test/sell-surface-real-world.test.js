@@ -90,6 +90,23 @@ check('renderRoute returns buy/outcomes/rails HTML', () => {
   assert.ok(twinDeep.includes('twin_abc'));
 });
 
+check('/vom renders human vertical cards (not primary JSON dump)', () => {
+  const v2 = require('../src/site/v2/shell');
+  const html = v2.getHtml('/vom', {});
+  assert.ok(html.includes('SEO Agency Outcome Machine') || html.includes('seo-agency'));
+  assert.ok(html.includes('Buy &amp; run loop') || html.includes('Buy & run loop') || html.includes('checkout/?plan='));
+  assert.ok(html.includes('id="vomGrid"'));
+  assert.ok(!/<pre[^>]*id="vomOut"/.test(html), 'must not use primary vomOut JSON pre');
+  assert.ok(!/textContent\s*=\s*JSON\.stringify\(\s*\{\s*status/.test(html), 'must not dump status+verticals JSON into textContent');
+});
+
+check('sell-surface never paints primary panels via textContent=JSON.stringify', () => {
+  const src = fs.readFileSync(path.join(ROOT, 'src', 'site', 'v2', 'sell-surface.js'), 'utf8');
+  assert.ok(!/textContent\s*=\s*JSON\.stringify/.test(src), 'no primary JSON textContent dumps in sell-surface');
+  assert.ok(src.includes('Technical detail'), 'raw JSON allowed only under details');
+  assert.ok(src.includes('vomGrid') && src.includes('Buy &amp; run loop'));
+});
+
 check('WSI settle bridge opens PoOP + CTP on paid order', () => {
   const bridge = require('../src/commerce/wsi-settle-bridge');
   const order = {
