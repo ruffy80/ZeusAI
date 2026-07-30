@@ -26,7 +26,41 @@ DEPLOY_PARENT="$(dirname "$DEPLOY_LINK")"
 mkdir -p "$DEPLOY_PARENT"
 
 log() { printf '[deploy-forward] %s\n' "$*"; }
-fail() { printf '[deploy-forward][FAIL] %s\n' "$*" >&2; exit 1; }
+# DCA/1.0 — durable canary-fail attestation (shared data dir or /tmp)
+dca_canary_fail() {
+  local reason="${1:-canary_failed}"
+  local sha="${GITHUB_SHA:-unknown}"
+  local shared_data="${DEPLOY_PARENT}/shared/data/immortality"
+  mkdir -p "$shared_data" 2>/dev/null || true
+  local file="${shared_data}/deploy-continuum.json"
+  python3 - "$file" "$sha" "$reason" <<'PY' 2>/dev/null || true
+import json, sys, datetime
+path, sha, reason = sys.argv[1:4]
+now = datetime.datetime.utcnow().strftime('%Y-%m-%dT%H:%M:%S.%fZ')
+data = {}
+try:
+    with open(path) as f: data = json.load(f)
+except Exception:
+    data = {}
+st = data.get('state') or {}
+st['lastCanaryFailAt'] = now
+st['lastCanaryFailSha'] = sha
+st['lastCanaryFailReason'] = reason[:240]
+ev = st.get('events') or []
+ev.insert(0, {'kind': 'canary_fail', 'at': now, 'sha': sha, 'reason': reason[:240]})
+st['events'] = ev[:40]
+data['protocol'] = 'DCA/1.0'
+data['state'] = st
+data['updatedAt'] = now
+with open(path, 'w') as f: json.dump(data, f, indent=2)
+print('dca canary_fail recorded', sha)
+PY
+}
+fail() {
+  printf '[deploy-forward][FAIL] %s\n' "$*" >&2
+  dca_canary_fail "$*" || true
+  exit 1
+}
 
 SCRIPT_DIR="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)"
 if [ -f "$SCRIPT_DIR/lib/upgrade-only-guard.sh" ]; then
@@ -509,6 +543,37 @@ if [ -n "${GITHUB_SHA:-}" ]; then
   printf '%s\n' "$GITHUB_SHA" > "$DEPLOY_LINK/.build-sha"
   printf '%s\n' "$GITHUB_SHA" > "$DEPLOY_PARENT/.build-sha"
 fi
+
+# DCA/1.0 — attest successful promote into shared immortality continuum
+SHARED_IMMORTALITY="${DEPLOY_PARENT}/shared/data/immortality"
+mkdir -p "$SHARED_IMMORTALITY" 2>/dev/null || true
+python3 - "${SHARED_IMMORTALITY}/deploy-continuum.json" "${GITHUB_SHA:-}" <<'PY' 2>/dev/null || true
+import json, sys, datetime
+path, sha = sys.argv[1:3]
+now = datetime.datetime.utcnow().strftime('%Y-%m-%dT%H:%M:%S.%fZ')
+data = {}
+try:
+    with open(path) as f: data = json.load(f)
+except Exception:
+    data = {}
+st = data.get('state') or {}
+if sha:
+    st['liveSha'] = sha
+    st['knownGoodSha'] = sha
+    st['lastPromoteAt'] = now
+    st['commitsBehindHint'] = 0
+    ev = st.get('events') or []
+    ev.insert(0, {'kind': 'promote', 'at': now, 'sha': sha, 'note': 'deploy-atomic-forward'})
+    st['events'] = ev[:40]
+data['protocol'] = 'DCA/1.0'
+data['state'] = st
+data['updatedAt'] = now
+with open(path, 'w') as f: json.dump(data, f, indent=2)
+print('dca promote recorded', sha)
+PY
+curl -fsS --max-time 3 -X POST http://127.0.0.1:3000/api/icp/dca/promote \
+  -H 'Content-Type: application/json' \
+  -d "{\"sha\":\"${GITHUB_SHA:-}\",\"note\":\"deploy-atomic-forward\"}" >/dev/null 2>&1 || true
 
 # Neutralize host-local rescue thrashers that are NOT in git.
 # /usr/local/bin/unicorn-safe-watchdog.sh historically probed :3000/health

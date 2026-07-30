@@ -915,6 +915,10 @@ app.get('/.well-known/clos.json', siteProxyToUnicorn('/api/clos/status'));
 app.get('/api/aacos/status', siteProxyToUnicorn('/api/aacos/status'));
 app.get('/api/aacos/actions', siteProxyToUnicorn('/api/aacos/actions'));
 app.get('/.well-known/aacos.json', siteProxyToUnicorn('/api/aacos/status'));
+app.get('/api/icp/status', siteProxyToUnicorn('/api/icp/status'));
+app.get('/api/icp/dca', siteProxyToUnicorn('/api/icp/dca'));
+app.get('/api/icp/edge-bond', siteProxyToUnicorn('/api/icp/edge-bond'));
+app.get('/.well-known/immortality.json', siteProxyToUnicorn('/api/icp/status'));
 
 
 // PFOS / ESOS — status page panels (proxy to backend SoT)

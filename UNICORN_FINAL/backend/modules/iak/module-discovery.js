@@ -51,6 +51,8 @@ const STABLE_START_ALLOW = new Set([
   'never-down-kernel',
   'neverDownKernel',
   'never-down',
+  'immortality-continuum-protocol',
+  'immortalityContinuumProtocol',
   'totalAutonomyOs',
   'total-autonomy-os',
   'autonomy-action-continuum-os',

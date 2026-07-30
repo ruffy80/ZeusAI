@@ -270,6 +270,8 @@ function healthEnvelope() {
     neverKill: true,
     // Healers: treat as fail only when critical lag (hang) — disk/ram stay 200 but degraded
     healerFail: s.health === 'critical' && s.reasons.includes('event_loop_lag'),
+    // Commerce Pressure Gate reads this via shared file + local assess
+    commerceBlocked: s.reasons.includes('disk_critical') || s.reasons.includes('ram_critical'),
   };
 }
 
