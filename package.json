@@ -2,7 +2,7 @@
   "name": "generate-unicorn-next",
   "private": true,
   "engines": {
-    "node": ">=20 <26",
+    "node": ">=22 <26",
     "npm": ">=10"
   },
   "scripts": {
