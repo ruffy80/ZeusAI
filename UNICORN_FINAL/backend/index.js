@@ -4302,10 +4302,42 @@ meshOrchestrator.register('centralOrchestrator',    centralOrchestrator, { statu
   }
 })();
 
+// World-Standard Inventions Pack (PoOP, ACE, ARC, DPAK, EIQ, CTP, ARK, DPS, MBE, VOM)
+let worldStandardInventions = null;
+try {
+  worldStandardInventions = require('./modules/world-standard-inventions');
+} catch (e) {
+  console.warn('[WSI] pack load failed:', e && e.message);
+}
+
 // Pornim Integrated Autonomy Kernel — IAK/1.1 Total Module Continuum
 // Discover every runtime-capable module, causal-start what the profile allows,
 // then arm the harmonic tick so health/heal/sync runs forever.
 (function bootIntegratedAutonomyKernel() {
+  // DPAK recommends IAK mode from dual-plane doctrine (safe vs growth)
+  let iakMode = _stableRuntime ? 'monitor' : 'full';
+  let ensureFacets = !_stableRuntime;
+  let guardianMode = _stableRuntime ? 'idle' : 'full';
+  try {
+    if (worldStandardInventions && worldStandardInventions.dpak) {
+      const rec = worldStandardInventions.dpak.recommendIakMode();
+      if (rec && rec.mode) iakMode = rec.mode;
+      if (typeof rec.ensureFacets === 'boolean') ensureFacets = rec.ensureFacets;
+      if (rec.guardianMode) guardianMode = rec.guardianMode;
+    }
+  } catch (_) { /* keep defaults */ }
+
+  try {
+    if (worldStandardInventions) {
+      worldStandardInventions.start();
+      worldStandardInventions.registerOnMesh(meshOrchestrator);
+      worldStandardInventions.mountRoutes(app, { adminTokenMiddleware });
+      console.log('🌍 WSI/1.0 World-Standard Inventions: STARTED (10 protocols)');
+    }
+  } catch (e) {
+    console.warn('[WSI] boot failed:', e && e.message);
+  }
+
   try {
     if (meshOrchestrator && typeof meshOrchestrator.discoverAndRegister === 'function') {
       const discovered = meshOrchestrator.discoverAndRegister({ softRequireMissing: true });
@@ -4332,8 +4364,8 @@ meshOrchestrator.register('centralOrchestrator',    centralOrchestrator, { statu
     console.warn('[IAK] causalStart failed:', e && e.message);
   }
 
-  if (!_stableRuntime) {
-    meshOrchestrator.start({ mode: 'full', ensureFacets: true, guardianMode: 'full' });
+  if (!_stableRuntime && iakMode === 'full') {
+    meshOrchestrator.start({ mode: 'full', ensureFacets, guardianMode });
     unicornOrchestrator.start('full'); // guardian facet — 8 motoare autonome
     forwardOnlySafety.startHarmonyMonitor();
     console.log('🧬 Integrated Autonomy Kernel (IAK/1.1): STARTED — total module continuum armed');
@@ -4343,14 +4375,14 @@ meshOrchestrator.register('centralOrchestrator',    centralOrchestrator, { statu
     try {
       if (meshOrchestrator && typeof meshOrchestrator.start === 'function') {
         meshOrchestrator.start({ mode: 'monitor' });
-        console.log('🧯 Stable profile: IAK/1.1 monitor continuum armed (infra allowlist starts only, no heal/mutate)');
+        console.log('🧯 Stable/DPAK safe-plane: IAK/1.1 monitor continuum armed (infra allowlist starts only, no heal/mutate)');
       } else {
         console.log('🧯 Stable profile active: mesh/orchestrator background loops are paused');
       }
     } catch (e) {
       console.log('🧯 Stable profile active: IAK start skipped:', e && e.message);
     }
-    console.log('🛡️  Forward-Only Safety: enforcement enabled (monitoring-only, no harmony tracking in STABLE mode)');
+    console.log('🛡️  Forward-Only Safety + MBE: enforcement armed on safe plane');
   }
 })();
 
@@ -8048,7 +8080,16 @@ function _closPayloadFromInvoice(invoice, extra) {
 function _closOpenPaid(payload) {
   try {
     if (closedLoopCommerceOs && typeof closedLoopCommerceOs.openCycle === 'function') {
-      return closedLoopCommerceOs.openCycle(payload);
+      const opened = closedLoopCommerceOs.openCycle(payload);
+      try {
+        if (worldStandardInventions && typeof worldStandardInventions.onPaymentConfirmed === 'function') {
+          worldStandardInventions.onPaymentConfirmed({
+            ...(payload || {}),
+            paid: true,
+          });
+        }
+      } catch (_) { /* WSI best-effort */ }
+      return opened;
     }
   } catch (e) { console.warn('[CLOS] open failed:', e && e.message); }
   return null;
@@ -8060,9 +8101,26 @@ function _closCloseDelivered(payload) {
     if (typeof closedLoopCommerceOs.ackFulfillment === 'function') {
       closedLoopCommerceOs.ackFulfillment(payload);
     }
+    let closed = null;
     if (typeof closedLoopCommerceOs.closeLoop === 'function') {
-      return closedLoopCommerceOs.closeLoop(payload);
+      closed = closedLoopCommerceOs.closeLoop(payload);
     }
+    try {
+      if (worldStandardInventions && typeof worldStandardInventions.onDeliveryCompleted === 'function') {
+        const artifact = (payload && (payload.artifact || payload.delivery)) || {
+          orderId: payload && payload.orderId,
+          closedAt: new Date().toISOString(),
+          source: 'clos-close',
+        };
+        worldStandardInventions.onDeliveryCompleted({
+          ...(payload || {}),
+          artifact,
+          artifactHash: payload && payload.artifactHash,
+          closReceiptHash: closed && closed.receipt && closed.receipt.receiptHash,
+        });
+      }
+    } catch (_) { /* WSI best-effort */ }
+    return closed;
   } catch (e) { console.warn('[CLOS] close failed:', e && e.message); }
   return null;
 }

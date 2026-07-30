@@ -437,6 +437,20 @@ class IntegratedAutonomyKernel extends EventEmitter {
 
   _healModule(name, entry) {
     try {
+      // MBE: refuse mutative heal/restart under safe plane / forbidden paths
+      try {
+        const mbe = require('./world-standard/mutation-boundary-enforcer');
+        const gate = mbe.enforce({
+          type: 'health.repair',
+          engine: 'iak:' + name,
+          targets: entry.tier === 'mutator' ? ['backend/modules/' + name + '.js'] : ['data/iak-heal/' + name],
+        });
+        if (gate && gate.ok === false && entry.tier === 'mutator') {
+          this._log(`🚧 MBE blocked heal for mutator ${name}: ${(gate.reasons || []).join(',')}`);
+          return;
+        }
+      } catch (_) { /* MBE optional */ }
+
       if (typeof entry.instance.heal === 'function') {
         entry.instance.heal();
         this._log(`🔧 heal() apelat pe: ${name}`);
