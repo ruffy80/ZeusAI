@@ -32,7 +32,11 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        node: [20, 22, 24]
+        # Forever policy: only Active/Current LTS lines with reliable
+        # better-sqlite3 prebuilds. Node 20 was removed after repeated
+        # node-gyp header fetch / native rebuild flakes (not app bugs).
+        # Production uses .nvmrc → lts/* (Node 22+). engines: ">=22 <26".
+        node: [22, 24]
 
     steps:
       - name: 📥 Checkout
@@ -47,9 +51,23 @@ jobs:
             UNICORN_FINAL/package-lock.json
             UNICORN_FINAL/client/package-lock.json
 
+      - name: 🧰 Native build toolchain (better-sqlite3 fallback)
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq build-essential python3
+
       - name: 📦 Install backend deps
         working-directory: ./UNICORN_FINAL
-        run: npm ci
+        run: |
+          set -e
+          for i in 1 2 3; do
+            npm ci && exit 0
+            echo "[compat] npm ci attempt $i failed — retrying in $((i*8))s"
+            sleep $((i*8))
+            rm -rf node_modules
+          done
+          echo "[compat] npm ci failed after 3 attempts" >&2
+          exit 1
 
       - name: 🔍 Lint backend + site
         working-directory: ./UNICORN_FINAL
@@ -62,5 +80,12 @@ jobs:
       - name: 🏗️ Build frontend
         working-directory: ./UNICORN_FINAL/client
         run: |
-          npm ci || (sleep 3 && rm -rf node_modules && npm ci)
+          set -e
+          for i in 1 2 3; do
+            npm ci && break
+            echo "[compat] client npm ci attempt $i failed — retrying"
+            sleep $((i*5))
+            rm -rf node_modules
+            if [ "$i" = "3" ]; then exit 1; fi
+          done
           CI=false npm run build

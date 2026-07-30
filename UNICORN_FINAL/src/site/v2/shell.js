@@ -7,6 +7,7 @@ const { BUILD_ID, assetPath, browserAssetManifest } = require('./build-id');
 const sellSurface = require('./sell-surface');
 const continuitySurface = require('./continuity-surface');
 const continuityAttestation = require('./continuity-attestation');
+const merchantStandardSurface = require('./merchant-standard-surface');
 
 const OWNER = {
   name: process.env.OWNER_NAME || 'Vladoi Ionut',
@@ -631,6 +632,7 @@ function footer(route, opts) {
     <div><h3 class="footer-col-title">Trust</h3><ul>
       <li><a href="/rails" data-link>Payment rails</a></li>
       <li><a href="/continuity" data-link>Continuity attestation</a></li>
+      <li><a href="/standard" data-link>Merchant standard</a></li>
       <li><a href="/trust" data-link>Trust Center</a></li>
       <li><a href="/security" data-link>Security</a></li>
       <li><a href="/responsible-ai" data-link>Responsible AI</a></li>
@@ -1217,6 +1219,8 @@ function pageHome() {
 </section>
 
 ${sellSurface.homeBuyStripHtml(_all.length)}
+
+${merchantStandardSurface.homeStripHtml()}
 
 ${_featuredHtml}
 
@@ -2058,6 +2062,7 @@ function pageTrustCenter() {
     <div class="card"><span class="tag">Money-path integrity</span><h3 style="margin:6px 0;font-size:16px">/api/commerce/integrity</h3><p style="color:var(--ink-dim);font-size:12.5px;margin:0">ESOS/1.0 verifier: every paid order has a signed entitlement, no orphans, no signature failures.</p><div style="margin-top:8px"><button type="button" class="btn btn-ghost" data-live-inspect="/api/commerce/integrity" data-live-title="Open integrity report">Open integrity report</button></div></div>
     <div class="card"><span class="tag">Enterprise Standard OS</span><h3 style="margin:6px 0;font-size:16px">/.well-known/enterprise.json</h3><p style="color:var(--ink-dim);font-size:12.5px;margin:0">ESOS/1.0 posture: money integrity, real commerce metrics, rate-limit, AI-cost visibility.</p><div style="margin-top:8px"><button type="button" class="btn" data-live-inspect="/.well-known/enterprise.json" data-live-title="Inspect enterprise posture" style="margin-top:8px">Inspect enterprise posture</button></div></div>
     ${continuityAttestation.trustCardHtml()}
+    <div class="card" data-mts-trust-card="1"><span class="tag">MTS/1.0 Merchant Standard</span><h3 style="margin:6px 0;font-size:16px">/standard</h3><p style="color:var(--ink-dim);font-size:12.5px;margin:0">Signed commerce-ready envelope — buyable floor, armed rails honesty, bond + continuity. Agents verify before paying.</p><div style="margin-top:8px"><a class="btn btn-ghost" href="/standard" data-link>Open merchant standard →</a></div></div>
   </div>
   <div class="grid" id="trustGrid" style="margin-top:22px"><div class="card"><p>Loading trust center…</p></div></div>
   <div class="card" style="padding:22px;margin-top:18px"><span class="kicker">Integrity document</span><pre class="code" id="trustRaw">—</pre></div>
@@ -3506,6 +3511,7 @@ function renderRoute(route, params = {}) {
     case '/twin': return sellSurface.pageTwin(params.twinId || params.id || '');
     case '/vom': return sellSurface.pageVom();
     case '/continuity': return continuitySurface.pageContinuity();
+    case '/standard': return merchantStandardSurface.pageStandard();
     case '/social-network': return pageSocialNetwork();
     case '/services': return pageServices();
     case '/pricing': return pagePricing();
@@ -6177,7 +6183,7 @@ function routeTitle(route) {
   if (route.startsWith('/services/')) return 'Service';
   if (route.startsWith('/order/')) return 'Order Passport';
   if (route.startsWith('/twin/')) return 'Buyer Twin';
-  const map = { '/buy':'Buy now', '/outcomes':'Outcomes', '/rails':'Payment rails', '/twin':'Buyer Twin', '/vom':'Vertical Outcome Machines', '/continuity':'Continuity Attestation', '/agents':'Agent Commerce Protocol', '/services':'Marketplace', '/marketplace':'Marketplace', '/pricing':'Pricing', '/solutions/ai-pricing':'AI Pricing Engine', '/solutions/ai-checkout':'AI Checkout Optimizer', '/solutions/ai-self-healing':'AI Self-Healing Ops', '/checkout':'Checkout', '/dashboard':'Dashboard', '/how':'How it works', '/docs':'API & Docs', '/about':'About', '/legal':'Legal', '/trust':'Trust Center', '/security':'Security', '/responsible-ai':'Responsible AI', '/dpa':'Data Processing Agreement', '/payment-terms':'Payment Terms', '/operator':'Operator Console', '/observability':'Observability', '/enterprise':'Enterprise Licenses', '/store':'Instant Store', '/account':'Account', '/innovations':'30Y Cryptographic Durability', '/wizard':'Find my plan', '/status':'Live status', '/social-network':'ZeusAI Social', '/admin/social-network':'Admin ZeusAI Social', '/changelog':'Changelog', '/terms':'Terms of Service', '/privacy':'Privacy Policy', '/refund':'Refund Guarantee', '/sla':'SLA', '/pledge':'Anti-Dark-Pattern Pledge', '/cancel':'Universal Cancel', '/gift':'Gift-as-Capability', '/aura':'Live Conversion Aura', '/api-explorer':'API Explorer', '/transparency':'Pricing Bandit Transparency', '/frontier':'Frontier Inventions', '/deepseek-cockpit':'DeepSeek Autonomy Cockpit', '/contact':'Contact', '/faq':'FAQ', '/blog':'Insights', '/affiliate':'Affiliate Program', '/partners':'Partners', '/roadmap':'Public Roadmap', '/careers':'Careers', '/press':'Press Kit' };
+  const map = { '/buy':'Buy now', '/outcomes':'Outcomes', '/rails':'Payment rails', '/twin':'Buyer Twin', '/vom':'Vertical Outcome Machines', '/continuity':'Continuity Attestation', '/standard':'Merchant Trust Standard', '/agents':'Agent Commerce Protocol', '/services':'Marketplace', '/marketplace':'Marketplace', '/pricing':'Pricing', '/solutions/ai-pricing':'AI Pricing Engine', '/solutions/ai-checkout':'AI Checkout Optimizer', '/solutions/ai-self-healing':'AI Self-Healing Ops', '/checkout':'Checkout', '/dashboard':'Dashboard', '/how':'How it works', '/docs':'API & Docs', '/about':'About', '/legal':'Legal', '/trust':'Trust Center', '/security':'Security', '/responsible-ai':'Responsible AI', '/dpa':'Data Processing Agreement', '/payment-terms':'Payment Terms', '/operator':'Operator Console', '/observability':'Observability', '/enterprise':'Enterprise Licenses', '/store':'Instant Store', '/account':'Account', '/innovations':'30Y Cryptographic Durability', '/wizard':'Find my plan', '/status':'Live status', '/social-network':'ZeusAI Social', '/admin/social-network':'Admin ZeusAI Social', '/changelog':'Changelog', '/terms':'Terms of Service', '/privacy':'Privacy Policy', '/refund':'Refund Guarantee', '/sla':'SLA', '/pledge':'Anti-Dark-Pattern Pledge', '/cancel':'Universal Cancel', '/gift':'Gift-as-Capability', '/aura':'Live Conversion Aura', '/api-explorer':'API Explorer', '/transparency':'Pricing Bandit Transparency', '/frontier':'Frontier Inventions', '/deepseek-cockpit':'DeepSeek Autonomy Cockpit', '/contact':'Contact', '/faq':'FAQ', '/blog':'Insights', '/affiliate':'Affiliate Program', '/partners':'Partners', '/roadmap':'Public Roadmap', '/careers':'Careers', '/press':'Press Kit' };
   return map[route] || 'ZeusAI';
 }
 
@@ -6190,6 +6196,7 @@ function routeDescription(route) {
     '/twin': 'Issue and export your portable Commerce Twin after a real ZeusAI payment.',
     '/vom': 'Vertical Outcome Machines — SEO and other real vertical loops from offer to passport.',
     '/continuity': 'Continuity Attestation Chain — signed proof the ZeusAI operator plane was bonded or honestly degraded during your payment window.',
+    '/standard': 'Merchant Trust Standard — signed commerce-ready envelope for humans and agents: buyable floor, rails honesty, bond and continuity.',
     '/services': 'Browse ZeusAI services, frontier inventions and vertical AI operating systems with instant BTC checkout.',
     '/pricing': 'Transparent ZeusAI pricing with signed receipts, BTC checkout, refund guarantees and enterprise licensing.',
     '/solutions/ai-pricing': 'AI pricing engine for real-time quote optimization, conversion-aware offer ranking and auditable checkout revalidation.',

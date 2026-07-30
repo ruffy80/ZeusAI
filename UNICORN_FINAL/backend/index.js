@@ -4352,6 +4352,15 @@ try {
     console.warn('[ICP] boot failed:', e && e.message);
   }
 
+  // Merchant Trust Standard — MTS/1.0 signed commerce-ready envelope
+  try {
+    const mts = require('./modules/merchant-trust-standard');
+    mts.mountRoutes(app);
+    console.log('🏪 MTS/1.0 Merchant Trust Standard: MOUNTED');
+  } catch (e) {
+    console.warn('[MTS] boot failed:', e && e.message);
+  }
+
   try {
     if (meshOrchestrator && typeof meshOrchestrator.discoverAndRegister === 'function') {
       const discovered = meshOrchestrator.discoverAndRegister({ softRequireMissing: true });
@@ -16029,6 +16038,18 @@ if (require.main === module) {
     } catch (e) {
       console.warn('[price-autotuner] could not start:', e.message);
     }
+    // Bond Boot Accelerator — warm SUBOS/TBOS peer caches so post-deploy
+    // health never falsely grades F while probes are still cold.
+    try {
+      if (siteUnicornBondOs && typeof siteUnicornBondOs.senseAsync === 'function') {
+        Promise.resolve(siteUnicornBondOs.senseAsync()).catch(() => {});
+      }
+    } catch (_) { /* isolate */ }
+    try {
+      if (triadBondOs && typeof triadBondOs.senseAsync === 'function') {
+        Promise.resolve(triadBondOs.senseAsync()).catch(() => {});
+      }
+    } catch (_) { /* isolate */ }
     console.log(`🤖 Universal AI Connector (UAIC): ${_uaic ? 'ACTIVE' : 'DISABLED'}`);
     console.log(`🌐 Multi-Model Router (14 AI): ${_multiRouter ? 'ACTIVE' : 'DISABLED'}`);
     console.log(`🎯 Autonomous Lead Hunter: ${_leadHunter ? 'ACTIVE' : 'DISABLED'}`);

@@ -51,10 +51,10 @@ jobs:
           fetch-depth: 0
           token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: 🟢 Setup Node 20
+      - name: 🟢 Setup Node 22
         uses: actions/setup-node@v5
         with:
-          node-version: '20'
+          node-version: '22'
 
       - name: 🔍 Detect provider key presence
         id: detect

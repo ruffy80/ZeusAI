@@ -930,6 +930,9 @@ app.get('/api/cac/passport/:id', async (req, res) => {
 app.post('/api/cac/bind', express.json({ limit: '32kb' }), siteProxyToUnicorn('/api/cac/bind', { method: 'POST' }));
 app.post('/api/cac/verify-passport', express.json({ limit: '64kb' }), siteProxyToUnicorn('/api/cac/verify-passport', { method: 'POST' }));
 app.get('/.well-known/continuity.json', siteProxyToUnicorn('/.well-known/continuity.json'));
+app.get('/api/merchant/standard', siteProxyToUnicorn('/api/merchant/standard'));
+app.get('/api/merchant/status', siteProxyToUnicorn('/api/merchant/status'));
+app.get('/.well-known/merchant.json', siteProxyToUnicorn('/.well-known/merchant.json'));
 
 
 // PFOS / ESOS — status page panels (proxy to backend SoT)
@@ -11140,6 +11143,8 @@ a{color:#8a5cff;text-decoration:none}
     '/buy', '/outcomes', '/rails', '/twin', '/vom',
     // Continuity Attestation Chain — CAC/1.0 public desk
     '/continuity',
+    // Merchant Trust Standard — MTS/1.0
+    '/standard',
   ];
   // Normalize trailing slash so '/checkout/' '/pricing/' etc. resolve to the
   // same SSR page instead of falling through to the homepage clone.

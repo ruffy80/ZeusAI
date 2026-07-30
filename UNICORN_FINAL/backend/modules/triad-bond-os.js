@@ -175,6 +175,10 @@ function composeStatus(siteP, uniP, keyP, integP, urls) {
   // Edge plane is green if forever-key OR integrity responds — but BONDED
   // requires forever-key specifically (known nginx 403 regression class).
   const serverOk = keyOk || integOk;
+  const pending = !!(siteP && siteP.error === 'cold')
+    || !!(uniP && uniP.error === 'cold')
+    || !!(keyP && keyP.error === 'cold')
+    || !!(integP && integP.error === 'cold');
 
   // Prefer SUBOS bond when available for sync detail
   let syncScore = 50;
@@ -201,10 +205,10 @@ function composeStatus(siteP, uniP, keyP, integP, urls) {
   if (!keyOk && integOk) triadScore = Math.min(triadScore, 78);
   if (keyP && keyP.code === 403) triadScore = Math.min(triadScore, 72);
 
-  const blend = clamp(Math.round(triadScore * 0.75 + syncScore * 0.25), 0, 100);
-  const grade = gradeFor(blend);
+  const blend = pending ? null : clamp(Math.round(triadScore * 0.75 + syncScore * 0.25), 0, 100);
+  const grade = pending ? 'P' : gradeFor(blend);
   // Forever-key is mandatory for bonded — integrity alone must not hide nginx 403.
-  const bonded = siteOk && uniOk && keyOk;
+  const bonded = !pending && siteOk && uniOk && keyOk;
   const stableIdleOk = !!(stable && mutatorsOff && bonded);
 
   const next = [];
@@ -219,13 +223,15 @@ function composeStatus(siteP, uniP, keyP, integP, urls) {
   if (!next.length) next.push('Hold triad · observe-only · never thrash PM2 from TBOS');
 
   return {
-    ok: bonded && blend >= 55,
+    ok: !pending && bonded && blend >= 55,
     protocol: PROTOCOL,
     module: NAME,
     invention: 'triad-bond-os',
-    score: blend,
+    score: blend == null ? 0 : blend,
     grade,
     bonded,
+    pending,
+    pendingReason: pending ? 'peer_cache_cold_warming' : null,
     stableIdleOk,
     profile: boot && typeof boot.runtimeProfile === 'function'
       ? boot.runtimeProfile()
@@ -384,6 +390,7 @@ function getScore() {
     score: st.score,
     grade: st.grade,
     bonded: st.bonded,
+    pending: !!st.pending,
     stableIdleOk: st.stableIdleOk,
     continuum: st.continuum,
   };
