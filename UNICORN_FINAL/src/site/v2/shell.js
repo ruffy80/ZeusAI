@@ -5568,7 +5568,9 @@ function pageFrontier() {
     <div class="card"><span class="tag">F11</span><h3>Public Bandit Transparency</h3><p>You see every price experiment.</p><a class="btn" href="/transparency" data-link>Open</a></div>
     <div class="card"><span class="tag">F12 · interactive</span><h3>Carbon-Inclusive Checkout</h3><p>Auto-attached signed gCO₂ + offset.</p><a class="btn" href="#frWorkshop">Estimate</a></div>
   </div>
-  <pre class="code" id="frOut" style="margin-top:22px;max-height:340px;overflow:auto">Frontier status will appear here.</pre>
+  <div id="frOut" class="card" style="margin-top:22px;padding:16px;display:flex;flex-wrap:wrap;gap:10px;align-items:center">
+    <span class="tag">Frontier status loading…</span>
+  </div>
 
   <div id="frWorkshop" class="card" style="margin-top:22px;padding:22px">
     <span class="tag">Workshop · F5 / F6 / F7 / F12</span>
@@ -5581,34 +5583,62 @@ function pageFrontier() {
         <button class="btn btn-primary" id="frTldBtn" style="width:100%;justify-content:center;margin-top:8px">Vault discount →</button>
         <div class="field" style="margin-top:10px"><label>Redeem code</label><input id="frTldCode" placeholder="TLD-…" style="width:100%;padding:10px;background:#0b0f17;border:1px solid #1f2a3b;color:#e7ecf3;border-radius:8px"></div>
         <button class="btn" id="frTldRedeemBtn" style="width:100%;justify-content:center;margin-top:8px">Check redeem</button>
-        <pre class="code" id="frTldOut" style="margin-top:10px;max-height:160px;overflow:auto;font-size:12px">…</pre>
+        <div id="frTldOut" style="margin-top:10px;font-size:13.5px;color:var(--ink-dim)">Ready.</div>
       </div>
       <div>
         <h3 style="margin:0 0 8px;font-size:15px">F6 · Receipt NFT lookup</h3>
         <div class="field"><label>Order ID</label><input id="frNftId" placeholder="ord_…" style="width:100%;padding:10px;background:#0b0f17;border:1px solid #1f2a3b;color:#e7ecf3;border-radius:8px"></div>
         <button class="btn btn-primary" id="frNftBtn" style="width:100%;justify-content:center;margin-top:8px">Fetch NFT →</button>
-        <pre class="code" id="frNftOut" style="margin-top:10px;max-height:200px;overflow:auto;font-size:12px">…</pre>
+        <div id="frNftOut" style="margin-top:10px;font-size:13.5px;color:var(--ink-dim)">Enter an order id.</div>
       </div>
       <div>
         <h3 style="margin:0 0 8px;font-size:15px">F7 · Email delivery proof</h3>
         <div class="field"><label>To</label><input id="frEmTo" type="email" placeholder="you@company.com" style="width:100%;padding:10px;background:#0b0f17;border:1px solid #1f2a3b;color:#e7ecf3;border-radius:8px"></div>
         <div class="field"><label>Subject</label><input id="frEmSub" value="ZeusAI delivery proof" style="width:100%;padding:10px;background:#0b0f17;border:1px solid #1f2a3b;color:#e7ecf3;border-radius:8px"></div>
         <button class="btn btn-primary" id="frEmBtn" style="width:100%;justify-content:center;margin-top:8px">Seal proof →</button>
-        <pre class="code" id="frEmOut" style="margin-top:10px;max-height:200px;overflow:auto;font-size:12px">…</pre>
+        <div id="frEmOut" style="margin-top:10px;font-size:13.5px;color:var(--ink-dim)">Ready.</div>
       </div>
       <div>
         <h3 style="margin:0 0 8px;font-size:15px">F12 · Carbon estimate</h3>
         <div class="field"><label>Order ID (optional — leave blank for $100 estimate)</label><input id="frCarbId" placeholder="ord_… or empty" style="width:100%;padding:10px;background:#0b0f17;border:1px solid #1f2a3b;color:#e7ecf3;border-radius:8px"></div>
         <button class="btn btn-primary" id="frCarbBtn" style="width:100%;justify-content:center;margin-top:8px">Estimate carbon →</button>
-        <pre class="code" id="frCarbOut" style="margin-top:10px;max-height:200px;overflow:auto;font-size:12px">…</pre>
+        <div id="frCarbOut" style="margin-top:10px;font-size:13.5px;color:var(--ink-dim)">Ready.</div>
       </div>
     </div>
-    <pre class="code" id="frCascadeOut" style="margin-top:14px;max-height:180px;overflow:auto;font-size:12px;display:none"></pre>
+    <div id="frCascadeOut" style="margin-top:14px;display:none"></div>
   </div>
 
   <script>
   (function(){
-    function show(id, obj){ var el=document.getElementById(id); if(!el) return; el.textContent = typeof obj==='string'?obj:JSON.stringify(obj,null,2); }
+    function esc(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+    function details(obj){
+      try { return '<details style="margin-top:8px"><summary style="cursor:pointer;font-size:12px;color:var(--ink-dim)">Technical detail</summary><pre class="code" style="margin-top:8px;font-size:11px;max-height:120px;overflow:auto">'+esc(JSON.stringify(obj,null,2))+'</pre></details>'; }
+      catch(_){ return ''; }
+    }
+    function show(id, obj){
+      var el=document.getElementById(id); if(!el) return;
+      if (typeof obj === 'string') { el.innerHTML = '<p style="margin:0">'+esc(obj)+'</p>'; return; }
+      if (!obj || typeof obj !== 'object') { el.innerHTML = '<p style="margin:0">'+esc(String(obj))+'</p>'; return; }
+      var lines = [];
+      if (obj.error || obj.reason) lines.push('<strong style="color:#ff9cbe">'+esc(obj.error||obj.reason)+'</strong>');
+      if (obj.code) lines.push('Code: <code>'+esc(obj.code)+'</code>');
+      if (obj.pct != null) lines.push(esc(obj.pct)+'% off');
+      if (obj.lockSeconds != null) lines.push('Lock '+esc(obj.lockSeconds)+'s');
+      if (obj.redeemable != null) lines.push(obj.redeemable ? 'Redeemable now' : 'Not redeemable yet');
+      if (obj.orderId) lines.push('Order '+esc(obj.orderId));
+      if (obj.receiptId) lines.push('Receipt '+esc(obj.receiptId));
+      if (obj.nftId || (obj.nft && obj.nft.id)) lines.push('NFT '+esc(obj.nftId||obj.nft.id));
+      if (obj.proofId || obj.manifestId) lines.push('Proof '+esc(obj.proofId||obj.manifestId));
+      if (obj.gCo2e != null || obj.gramsCo2 != null) lines.push((obj.gCo2e||obj.gramsCo2)+' gCO₂e');
+      if (obj.offsetUsd != null) lines.push('Offset ~$'+esc(obj.offsetUsd));
+      if (obj.dryRun) lines.push('Dry-run probe (no real charge)');
+      if (obj.selected || obj.rail || obj.path) lines.push('Rail: '+esc(obj.selected||obj.rail||obj.path));
+      if (Array.isArray(obj.cascade)) lines.push('Cascade steps: '+obj.cascade.length);
+      if (obj.ok === true && !lines.length) lines.push('<strong style="color:#7fffd4">OK</strong>');
+      if (obj.ok === false && !lines.length) lines.push('<strong style="color:#ff9cbe">Failed</strong>');
+      if (!lines.length) lines.push('Result ready');
+      el.innerHTML = '<div class="card" style="padding:12px"><p style="margin:0;line-height:1.55">'+lines.join(' · ')+'</p>'+details(obj)+'</div>';
+    }
     fetch('/api/frontier/status').then(r=>r.json()).then(d=>{
       const out = document.getElementById('frOut');
       if (!out) return;
@@ -5619,11 +5649,13 @@ function pageFrontier() {
       else cnt = Number(d && (d.inventionsAvailable || d.count)) || 0;
       const mode = d && (d.mode || d.status || 'active');
       const updated = d && (d.generatedAt || d.updatedAt || d.signedAt || new Date().toISOString());
-      const list = Array.isArray(d && d.inventionList) ? d.inventionList.join(', ') : (inv && typeof inv==='object' && !Array.isArray(inv) ? Object.keys(inv).join(', ') : '');
-      out.textContent = 'Frontier status: '+mode+'\\nInventions available: '+cnt+(list?'\\n'+list:'')+'\\nUpdated: '+updated;
+      out.innerHTML = '<span class="tag">Status: <strong>'+esc(mode)+'</strong></span>'
+        +'<span class="tag">Inventions: <strong>'+esc(cnt)+'</strong></span>'
+        +'<span class="tag">Updated: <strong>'+esc(updated)+'</strong></span>'
+        +details(d);
     }).catch((e)=>{
       const out = document.getElementById('frOut');
-      if (out) out.textContent = 'Frontier status unavailable: '+(e.message||e);
+      if (out) out.innerHTML = '<span class="tag">Frontier status unavailable</span><p style="margin:0;color:var(--ink-dim)">'+esc(e.message||e)+'</p>';
     });
     var cascadeBtn = document.getElementById('frCascadeBtn');
     if (cascadeBtn) cascadeBtn.addEventListener('click', async function(){
