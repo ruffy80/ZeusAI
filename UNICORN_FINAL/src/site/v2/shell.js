@@ -4,6 +4,7 @@
 
 const { CSS } = require('./styles');
 const { BUILD_ID, assetPath, browserAssetManifest } = require('./build-id');
+const sellSurface = require('./sell-surface');
 
 const OWNER = {
   name: process.env.OWNER_NAME || 'Vladoi Ionut',
@@ -564,7 +565,7 @@ function navBar(route, opts) {
   <span class="nav-toggle-bar"></span><span class="nav-toggle-bar"></span><span class="nav-toggle-bar"></span>
 </button>
 <div class="nav-links" id="nav-links">
-${L('/', 'Home')}${L('/services', 'Marketplace')}<a class="nav-link nav-link-zacc" href="/zacc" data-link aria-label="Zeus Dropship OS autonomy cockpit">🛒 Dropship <span style="display:inline-block;margin-left:6px;padding:1px 7px;font-size:10px;font-weight:700;letter-spacing:.08em;border-radius:999px;background:linear-gradient(135deg,#8a5cff,#3ea0ff);color:#05060e;vertical-align:middle">LIVE</span></a>${L('/pricing', 'Pricing')}${L('/account', 'Account')}
+${L('/', 'Home')}${L('/buy', 'Buy')}${L('/services', 'Marketplace')}<a class="nav-link nav-link-zacc" href="/zacc" data-link aria-label="Zeus Dropship OS autonomy cockpit">🛒 Dropship <span style="display:inline-block;margin-left:6px;padding:1px 7px;font-size:10px;font-weight:700;letter-spacing:.08em;border-radius:999px;background:linear-gradient(135deg,#8a5cff,#3ea0ff);color:#05060e;vertical-align:middle">LIVE</span></a>${L('/pricing', 'Pricing')}${L('/account', 'Account')}
 <div class="nav-more" data-nav-more>
   <button type="button" class="nav-more-btn" aria-haspopup="menu" aria-expanded="false" aria-controls="nav-more-menu" data-nav-more-btn>More <span aria-hidden="true" style="display:inline-block;margin-left:4px">▾</span></button>
   <div class="nav-more-menu" id="nav-more-menu" role="menu" data-nav-more-menu hidden>
@@ -602,9 +603,13 @@ function footer(route, opts) {
       <p style="color:var(--ink-dim);font-size:13.5px;line-height:1.6;max-width:360px">Autonomous AI operating system. Every module signed with W3C DID. Every outcome routed through Merkle-chained receipts. Property of ${OWNER.name}.</p>
     </div>
     <div><h3 class="footer-col-title">Product</h3><ul>
+      <li><a href="/buy" data-link><strong style="color:#f7931a">Buy now</strong></a></li>
       <li><a href="/zacc" data-link><strong style="color:#8a5cff">🛒 Zeus Dropship OS</strong></a></li>
       <li><a href="/social-network" data-link><strong style="color:#7cf7c0">ZeusAI Social</strong></a></li>
       <li><a href="/services" data-link>Marketplace</a></li>
+      <li><a href="/outcomes" data-link>Outcomes</a></li>
+      <li><a href="/twin" data-link>Buyer twin</a></li>
+      <li><a href="/vom" data-link>Vertical machines</a></li>
       <li><a href="/wizard" data-link>Find my plan</a></li>
       <li><a href="/pricing" data-link>Pricing</a></li>
       <li><a href="/how" data-link>How it works</a></li>
@@ -622,6 +627,7 @@ function footer(route, opts) {
       <li><button type="button" class="btn" data-live-inspect="/health" data-live-title="Health" style="background:none;border:0;padding:0;color:inherit;font:inherit;cursor:pointer;text-align:left">/health</button></li>
     </ul></div>
     <div><h3 class="footer-col-title">Trust</h3><ul>
+      <li><a href="/rails" data-link>Payment rails</a></li>
       <li><a href="/trust" data-link>Trust Center</a></li>
       <li><a href="/security" data-link>Security</a></li>
       <li><a href="/responsible-ai" data-link>Responsible AI</a></li>
@@ -634,6 +640,7 @@ function footer(route, opts) {
       <li><a href="/status" data-link>Live Status</a></li>
       <li><a href="/innovations" data-link>30Y Innovations</a></li>
       <li><a href="/frontier" data-link>Frontier (F1–F12)</a></li>
+      <li><a href="/sw-reset">Clear cache</a></li>
     </ul></div>
     <div><h3 class="footer-col-title">Company</h3><ul>
       <li><a href="/about" data-link>About</a></li>
@@ -1154,7 +1161,8 @@ function pageHome() {
       <h1><span class="hero-brand">ZeusAI</span> <span class="grad">Ship AI products at machine speed.</span></h1>
       <p class="lead">Live autonomous AI commerce platform: ZeusAI turns modules, verticals and marketplaces into buyable AI services with direct BTC checkout, signed receipts and instant delivery.</p>
       <div class="hero-cta">
-        <a class="btn btn-primary" href="/services" data-link>Buy AI Service →</a>
+        <a class="btn btn-primary" href="/buy" data-link>Buy what we deliver →</a>
+        <a class="btn btn-ghost" href="/services" data-link>Full marketplace</a>
       </div>
       <div style="display:flex;gap:14px;flex-wrap:wrap;margin-top:10px;font-size:13.5px;color:var(--ink-dim)">
         <a href="/wizard" data-link style="color:var(--violet2)">Not sure what to buy? → 30-second plan finder</a>
@@ -1181,6 +1189,8 @@ function pageHome() {
     </div>
   </div>
 </section>
+
+${sellSurface.homeBuyStripHtml(_all.length)}
 
 ${_featuredHtml}
 
@@ -3463,6 +3473,11 @@ function pageDeepseekCockpit() {
 function renderRoute(route, params = {}) {
   switch (route) {
     case '/': return pageHome();
+    case '/buy': return sellSurface.pageBuy();
+    case '/outcomes': return sellSurface.pageOutcomes();
+    case '/rails': return sellSurface.pageRails();
+    case '/twin': return sellSurface.pageTwin(params.twinId || params.id || '');
+    case '/vom': return sellSurface.pageVom();
     case '/social-network': return pageSocialNetwork();
     case '/services': return pageServices();
     case '/pricing': return pagePricing();
@@ -3526,6 +3541,7 @@ function renderRoute(route, params = {}) {
     default:
       if (route.startsWith('/services/')) return pageService(params.id || route.slice(10));
       if (route.startsWith('/order/')) return pageOrderPassport(params.id || route.slice(7));
+      if (route.startsWith('/twin/')) return sellSurface.pageTwin(params.twinId || params.id || route.slice(6));
       return pageNotFound(route);
   }
 }
@@ -3566,6 +3582,8 @@ function pageSocialNetwork() {
       </div>
     </div>
   </header>
+
+  ${sellSurface.socialArcPanelHtml()}
 
   <div class="za-social-body" id="za-app">
     <div class="za-authbar" id="zaAuthBar">
@@ -6098,13 +6116,19 @@ function routeTitle(route) {
   if (route === '/') return 'Sovereign AI OS';
   if (route.startsWith('/services/')) return 'Service';
   if (route.startsWith('/order/')) return 'Order Passport';
-  const map = { '/agents':'Agent Commerce Protocol', '/services':'Marketplace', '/marketplace':'Marketplace', '/pricing':'Pricing', '/solutions/ai-pricing':'AI Pricing Engine', '/solutions/ai-checkout':'AI Checkout Optimizer', '/solutions/ai-self-healing':'AI Self-Healing Ops', '/checkout':'Checkout', '/dashboard':'Dashboard', '/how':'How it works', '/docs':'API & Docs', '/about':'About', '/legal':'Legal', '/trust':'Trust Center', '/security':'Security', '/responsible-ai':'Responsible AI', '/dpa':'Data Processing Agreement', '/payment-terms':'Payment Terms', '/operator':'Operator Console', '/observability':'Observability', '/enterprise':'Enterprise Licenses', '/store':'Instant Store', '/account':'Account', '/innovations':'30Y Cryptographic Durability', '/wizard':'Find my plan', '/status':'Live status', '/social-network':'ZeusAI Social', '/admin/social-network':'Admin ZeusAI Social', '/changelog':'Changelog', '/terms':'Terms of Service', '/privacy':'Privacy Policy', '/refund':'Refund Guarantee', '/sla':'SLA', '/pledge':'Anti-Dark-Pattern Pledge', '/cancel':'Universal Cancel', '/gift':'Gift-as-Capability', '/aura':'Live Conversion Aura', '/api-explorer':'API Explorer', '/transparency':'Pricing Bandit Transparency', '/frontier':'Frontier Inventions', '/deepseek-cockpit':'DeepSeek Autonomy Cockpit', '/contact':'Contact', '/faq':'FAQ', '/blog':'Insights', '/affiliate':'Affiliate Program', '/partners':'Partners', '/roadmap':'Public Roadmap', '/careers':'Careers', '/press':'Press Kit' };
+  if (route.startsWith('/twin/')) return 'Buyer Twin';
+  const map = { '/buy':'Buy now', '/outcomes':'Outcomes', '/rails':'Payment rails', '/twin':'Buyer Twin', '/vom':'Vertical Outcome Machines', '/agents':'Agent Commerce Protocol', '/services':'Marketplace', '/marketplace':'Marketplace', '/pricing':'Pricing', '/solutions/ai-pricing':'AI Pricing Engine', '/solutions/ai-checkout':'AI Checkout Optimizer', '/solutions/ai-self-healing':'AI Self-Healing Ops', '/checkout':'Checkout', '/dashboard':'Dashboard', '/how':'How it works', '/docs':'API & Docs', '/about':'About', '/legal':'Legal', '/trust':'Trust Center', '/security':'Security', '/responsible-ai':'Responsible AI', '/dpa':'Data Processing Agreement', '/payment-terms':'Payment Terms', '/operator':'Operator Console', '/observability':'Observability', '/enterprise':'Enterprise Licenses', '/store':'Instant Store', '/account':'Account', '/innovations':'30Y Cryptographic Durability', '/wizard':'Find my plan', '/status':'Live status', '/social-network':'ZeusAI Social', '/admin/social-network':'Admin ZeusAI Social', '/changelog':'Changelog', '/terms':'Terms of Service', '/privacy':'Privacy Policy', '/refund':'Refund Guarantee', '/sla':'SLA', '/pledge':'Anti-Dark-Pattern Pledge', '/cancel':'Universal Cancel', '/gift':'Gift-as-Capability', '/aura':'Live Conversion Aura', '/api-explorer':'API Explorer', '/transparency':'Pricing Bandit Transparency', '/frontier':'Frontier Inventions', '/deepseek-cockpit':'DeepSeek Autonomy Cockpit', '/contact':'Contact', '/faq':'FAQ', '/blog':'Insights', '/affiliate':'Affiliate Program', '/partners':'Partners', '/roadmap':'Public Roadmap', '/careers':'Careers', '/press':'Press Kit' };
   return map[route] || 'ZeusAI';
 }
 
 function routeDescription(route) {
   const map = {
     '/': 'ZeusAI is a sovereign autonomous AI operating system with signed outcomes, BTC-native commerce and self-healing automation.',
+    '/buy': 'Buy only ZeusAI products with real fulfillment recipes — BTC self-serve, professional reserves, honest enterprise contact.',
+    '/outcomes': 'Verify Proof-of-Outcome escrows, Delivery Passports and Agent Capability Exchange listings on ZeusAI.',
+    '/rails': 'Honest Armed Rails Continuum: which payment and notify rails are armed vs idle until you add keys.',
+    '/twin': 'Issue and export your portable Commerce Twin after a real ZeusAI payment.',
+    '/vom': 'Vertical Outcome Machines — SEO and other real vertical loops from offer to passport.',
     '/services': 'Browse ZeusAI services, frontier inventions and vertical AI operating systems with instant BTC checkout.',
     '/pricing': 'Transparent ZeusAI pricing with signed receipts, BTC checkout, refund guarantees and enterprise licensing.',
     '/solutions/ai-pricing': 'AI pricing engine for real-time quote optimization, conversion-aware offer ranking and auditable checkout revalidation.',
@@ -6155,6 +6179,7 @@ function routeDescription(route) {
     '/agents': 'Agent Commerce Protocol: how AI agents discover, quote, buy and settle ZeusAI capabilities autonomously via /agents.json + BTC checkout + Ed25519 receipts.'
   };
   if (route.startsWith('/order/')) return 'Digital order passport with signed receipt, BTC payment status and delivery credentials.';
+  if (route.startsWith('/twin/')) return 'Portable buyer commerce twin with offline-verifiable export bundle.';
   return map[route] || 'ZeusAI sovereign AI operating system with verifiable commerce and autonomous delivery.';
 }
 
