@@ -919,6 +919,17 @@ app.get('/api/icp/status', siteProxyToUnicorn('/api/icp/status'));
 app.get('/api/icp/dca', siteProxyToUnicorn('/api/icp/dca'));
 app.get('/api/icp/edge-bond', siteProxyToUnicorn('/api/icp/edge-bond'));
 app.get('/.well-known/immortality.json', siteProxyToUnicorn('/api/icp/status'));
+app.get('/api/cac/status', siteProxyToUnicorn('/api/cac/status'));
+app.get('/api/cac/beats', siteProxyToUnicorn('/api/cac/beats'));
+app.get('/api/cac/verify-chain', siteProxyToUnicorn('/api/cac/verify-chain'));
+app.get('/api/cac/passport/:id', async (req, res) => {
+  const id = encodeURIComponent(String(req.params.id || '').slice(0, 120));
+  const handler = siteProxyToUnicorn('/api/cac/passport/' + id);
+  return handler(req, res);
+});
+app.post('/api/cac/bind', express.json({ limit: '32kb' }), siteProxyToUnicorn('/api/cac/bind', { method: 'POST' }));
+app.post('/api/cac/verify-passport', express.json({ limit: '64kb' }), siteProxyToUnicorn('/api/cac/verify-passport', { method: 'POST' }));
+app.get('/.well-known/continuity.json', siteProxyToUnicorn('/.well-known/continuity.json'));
 
 
 // PFOS / ESOS — status page panels (proxy to backend SoT)
@@ -11127,6 +11138,8 @@ a{color:#8a5cff;text-decoration:none}
     '/agents', '/login', '/signup', '/auth',
     // Real-world sell surface (WSI public UI + conversion storefront)
     '/buy', '/outcomes', '/rails', '/twin', '/vom',
+    // Continuity Attestation Chain — CAC/1.0 public desk
+    '/continuity',
   ];
   // Normalize trailing slash so '/checkout/' '/pricing/' etc. resolve to the
   // same SSR page instead of falling through to the homepage clone.

@@ -62,6 +62,39 @@ function _localWsi() {
   }
 }
 
+function _localCac() {
+  try {
+    return require('../../backend/modules/immortality/continuity-attestation-chain');
+  } catch (_) {
+    return null;
+  }
+}
+
+function _bindContinuity(payload) {
+  try {
+    const cac = _localCac();
+    if (cac && typeof cac.bindOrder === 'function') {
+      cac.bindOrder({
+        orderId: payload.orderId,
+        serviceId: payload.serviceId,
+        email: payload.email,
+        paidAt: new Date().toISOString(),
+      });
+    }
+  } catch (e) {
+    console.warn('[wsi-bridge] local CAC bind:', e && e.message);
+  }
+  const base = _backendBase();
+  if (base) {
+    Promise.resolve(_postJson(base + '/api/cac/bind', {
+      orderId: payload.orderId,
+      serviceId: payload.serviceId,
+      email: payload.email,
+      paidAt: new Date().toISOString(),
+    })).catch(() => {});
+  }
+}
+
 function payloadFromOrder(order, extra) {
   const email = (order && order.buyer && order.buyer.email)
     || (order && order.email)
@@ -111,6 +144,9 @@ function onPaymentConfirmed(order, extra) {
   } catch (e) {
     console.warn('[wsi-bridge] local onPaymentConfirmed:', e && e.message);
   }
+
+  // CAC/1.0 — Continuity Passport for the paid window (local + backend)
+  _bindContinuity(payload);
 
   const base = _backendBase();
   if (base) {

@@ -124,6 +124,15 @@ async function main() {
     assert.ok(routes.some((r) => r[1] === '/api/icp/status'));
     assert.ok(routes.some((r) => r[1] === '/.well-known/immortality.json'));
     assert.ok(routes.some((r) => r[1] === '/api/icp/dca/promote'));
+    assert.ok(routes.some((r) => r[1] === '/api/cac/status'));
+    assert.ok(routes.some((r) => r[1] === '/.well-known/continuity.json'));
+  });
+
+  await check('ICP status includes CAC continuity invention', () => {
+    const s = icp.getStatus();
+    assert.ok(s.inventions.some((i) => i.id === 'cac' && i.protocol === 'CAC/1.0'));
+    assert.ok(s.continuity);
+    assert.equal(s.claimsAbsoluteUptime, false);
   });
 
   await check('NDK envelope exposes commerceBlocked', () => {
@@ -155,9 +164,12 @@ async function main() {
   await check('nginx + site proxy immortality discovery', () => {
     const nginx = fs.readFileSync(path.join(ROOT, 'scripts', 'nginx-unicorn.conf'), 'utf8');
     assert.ok(nginx.includes('location = /.well-known/immortality.json'));
+    assert.ok(nginx.includes('location = /.well-known/continuity.json'));
     const indexJs = fs.readFileSync(path.join(ROOT, 'src', 'index.js'), 'utf8');
     assert.ok(indexJs.includes('/.well-known/immortality.json'));
     assert.ok(indexJs.includes('/api/icp/status'));
+    assert.ok(indexJs.includes('/.well-known/continuity.json'));
+    assert.ok(indexJs.includes('/api/cac/status'));
   });
 
   console.log(`✅ immortality-continuum: ${passed} tests passed`);
