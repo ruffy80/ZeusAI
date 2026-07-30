@@ -3401,7 +3401,7 @@ const { getSiteHtml }       = require('../src/site/template');
 
 // ==================== MESH ORCHESTRATOR — Swiss-watch inter-module bus ====================
 const meshOrchestrator     = require('./modules/unicornMeshOrchestrator');
-const integratedAutonomyKernel = meshOrchestrator; // IAK/1.0 singleton (legacy mesh entry)
+const integratedAutonomyKernel = meshOrchestrator; // IAK/1.1 singleton (legacy mesh entry)
 const unicornOrchestrator  = require('./modules/unicornOrchestrator');
 
 // ==================== SOVEREIGN INNOVATIONS (paradigm modules) ====================
@@ -4302,30 +4302,57 @@ meshOrchestrator.register('centralOrchestrator',    centralOrchestrator, { statu
   }
 })();
 
-// Pornim Integrated Autonomy Kernel — un singur orchestrator master (IAK/1.0)
-if (!_stableRuntime) {
-  meshOrchestrator.start({ mode: 'full' });
-  unicornOrchestrator.start('full'); // guardian facet — 8 motoare autonome
-  // Start Forward-Only Safety harmony monitor
-  forwardOnlySafety.startHarmonyMonitor();
-  console.log('🧬 Integrated Autonomy Kernel (IAK/1.0): STARTED — harmonic mesh + facets');
-  console.log('🦄 Guardian engines (8): ACTIVE via IAK');
-  console.log('🛡️  Forward-Only Safety: HARMONY MONITORING ACTIVE');
-} else {
-  // Stable: mesh monitor-only heartbeat so modules can still hear each other
-  // without enabling heavy heal/mutate loops.
+// Pornim Integrated Autonomy Kernel — IAK/1.1 Total Module Continuum
+// Discover every runtime-capable module, causal-start what the profile allows,
+// then arm the harmonic tick so health/heal/sync runs forever.
+(function bootIntegratedAutonomyKernel() {
   try {
-    if (meshOrchestrator && typeof meshOrchestrator.start === 'function') {
-      meshOrchestrator.start({ mode: 'monitor' });
-      console.log('🧯 Stable profile: IAK monitor-only heartbeat armed (no heal/mutate)');
-    } else {
-      console.log('🧯 Stable profile active: mesh/orchestrator background loops are paused');
+    if (meshOrchestrator && typeof meshOrchestrator.discoverAndRegister === 'function') {
+      const discovered = meshOrchestrator.discoverAndRegister({ softRequireMissing: true });
+      console.log('🧬 IAK discovery:', JSON.stringify({
+        found: discovered.found,
+        registered: discovered.registered,
+        total: discovered.totalModules,
+      }));
     }
   } catch (e) {
-    console.log('🧯 Stable profile active: IAK start skipped:', e && e.message);
+    console.warn('[IAK] discoverAndRegister failed:', e && e.message);
   }
-  console.log('🛡️  Forward-Only Safety: enforcement enabled (monitoring-only, no harmony tracking in STABLE mode)');
-}
+
+  try {
+    if (meshOrchestrator && typeof meshOrchestrator.causalStart === 'function') {
+      const boot = meshOrchestrator.causalStart();
+      console.log('🧬 IAK causalStart:', JSON.stringify({
+        started: boot.started,
+        skipped: boot.skipped,
+        stable: boot.stable,
+      }));
+    }
+  } catch (e) {
+    console.warn('[IAK] causalStart failed:', e && e.message);
+  }
+
+  if (!_stableRuntime) {
+    meshOrchestrator.start({ mode: 'full', ensureFacets: true, guardianMode: 'full' });
+    unicornOrchestrator.start('full'); // guardian facet — 8 motoare autonome
+    forwardOnlySafety.startHarmonyMonitor();
+    console.log('🧬 Integrated Autonomy Kernel (IAK/1.1): STARTED — total module continuum armed');
+    console.log('🦄 Guardian engines (8): ACTIVE via IAK');
+    console.log('🛡️  Forward-Only Safety: HARMONY MONITORING ACTIVE');
+  } else {
+    try {
+      if (meshOrchestrator && typeof meshOrchestrator.start === 'function') {
+        meshOrchestrator.start({ mode: 'monitor' });
+        console.log('🧯 Stable profile: IAK/1.1 monitor continuum armed (infra allowlist starts only, no heal/mutate)');
+      } else {
+        console.log('🧯 Stable profile active: mesh/orchestrator background loops are paused');
+      }
+    } catch (e) {
+      console.log('🧯 Stable profile active: IAK start skipped:', e && e.message);
+    }
+    console.log('🛡️  Forward-Only Safety: enforcement enabled (monitoring-only, no harmony tracking in STABLE mode)');
+  }
+})();
 
 // AACOS/1.0 — Autonomy Action Continuum: permanent live actions under EVERY profile
 let autonomyActionContinuumOs = null;
@@ -10138,8 +10165,24 @@ app.get('/api/mesh/log', adminTokenMiddleware, (req, res) => {
 });
 
 app.post('/api/mesh/sync', adminTokenMiddleware, (req, res) => {
-  meshOrchestrator._syncCycle();
-  res.json({ success: true, message: 'Sincronizare mesh declanșată manual' });
+  try {
+    if (typeof meshOrchestrator.syncNow === 'function') meshOrchestrator.syncNow();
+    else if (typeof meshOrchestrator._syncCycle === 'function') meshOrchestrator._syncCycle();
+    else if (typeof meshOrchestrator._phaseSync === 'function') meshOrchestrator._phaseSync();
+    res.json({ success: true, message: 'Sincronizare IAK/mesh declanșată manual' });
+  } catch (e) {
+    res.status(500).json({ success: false, error: e.message });
+  }
+});
+
+app.post('/api/iak/discover', adminTokenMiddleware, (req, res) => {
+  try {
+    const discovered = meshOrchestrator.discoverAndRegister({ softRequireMissing: true });
+    const started = meshOrchestrator.causalStart();
+    res.json({ ok: true, discovered, started, status: meshOrchestrator.getStatus() });
+  } catch (e) {
+    res.status(500).json({ ok: false, error: e.message });
+  }
 });
 
 // ==================== AUTONOMY SPINE — public proof + gate ====================

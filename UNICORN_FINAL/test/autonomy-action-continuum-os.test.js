@@ -90,6 +90,9 @@ const ROOT = path.join(__dirname, '..');
     assert.ok(shim.includes('integrated-autonomy-kernel'));
     assert.ok(src.includes("this.mode = (opts && opts.mode) || 'full'"));
     assert.ok(src.includes("this.mode !== 'monitor'"));
+    assert.ok(src.includes('discoverAndRegister'));
+    assert.ok(src.includes('causalStart'));
+    assert.ok(src.includes('total_module_continuum') || src.includes('Total Module Continuum'));
   });
 
   aacos.stop();

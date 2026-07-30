@@ -7,7 +7,7 @@
 'use strict';
 
 /**
- * Legacy public entry → Integrated Autonomy Kernel (IAK/1.0).
+ * Legacy public entry → Integrated Autonomy Kernel (IAK/1.1).
  * Former competing mesh orchestrator implementation retired.
  */
 module.exports = require('./integrated-autonomy-kernel');
