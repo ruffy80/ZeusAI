@@ -2403,6 +2403,17 @@ function runDeliveryForReceipt(receipt, opts) {
         console.warn('[delivery-proof] best-effort record failed for ' + receipt.id + ':', e.message);
       }
     };
+    const _emitWsiDelivered = (deliveryRecord) => {
+      try {
+        const wsiBridge = require('./commerce/wsi-settle-bridge');
+        const artifactHashes = artifactHashesForDelivery(deliveryRecord);
+        wsiBridge.onDeliveryCompleted(receipt, deliveryRecord, {
+          artifactHash: artifactHashes[0] || (deliveryRecord && deliveryRecord.id) || null,
+        });
+      } catch (e) {
+        console.warn('[wsi-bridge] delivery emit failed for ' + receipt.id + ':', e && e.message);
+      }
+    };
     try {
       const fulfillmentEngine = require('./site/v2/fulfillment-engine');
       Promise.resolve(fulfillmentEngine.fulfillReceipt(receipt))
@@ -2410,17 +2421,20 @@ function runDeliveryForReceipt(receipt, opts) {
           if (r && r.ok) console.log('[fulfillment] receipt=' + receipt.id + ' status=' + r.fulfillmentStatus + ' delivered=' + r.delivered + '/' + r.total);
           const latestDelivery = deliveryRegistry && typeof deliveryRegistry.get === 'function' ? deliveryRegistry.get(receipt.id) : delivery;
           recordProofOfDelivery(latestDelivery || delivery);
+          _emitWsiDelivered(latestDelivery || delivery);
           _firePayFulfillNotify(receipt, latestDelivery || delivery);
         })
         .catch((e) => {
           console.warn('[fulfillment] async error for ' + receipt.id + ':', e.message);
           const latestDelivery = deliveryRegistry && typeof deliveryRegistry.get === 'function' ? deliveryRegistry.get(receipt.id) : delivery;
           recordProofOfDelivery(latestDelivery || delivery);
+          _emitWsiDelivered(latestDelivery || delivery);
           _firePayFulfillNotify(receipt, latestDelivery || delivery);
         });
     } catch (e) {
       console.warn('[fulfillment] engine load failed:', e.message);
       recordProofOfDelivery(delivery);
+      _emitWsiDelivered(delivery);
       _firePayFulfillNotify(receipt, delivery);
     }
     return delivery;
@@ -6215,7 +6229,7 @@ seedSsrMap();if(document.getElementById("ds-sort")&&!document.getElementById("ds
       '/orders': '/account',
       '/wallet': '/account',
       '/shop': '/store',
-      '/buy': '/services',
+      // /buy is a real SSR conversion storefront (sell-surface) — not an alias
       '/social': '/social-network',
       '/zeusai-social': '/social-network',
     };
@@ -11107,11 +11121,13 @@ a{color:#8a5cff;text-decoration:none}
     '/contact', '/faq', '/blog', '/affiliate', '/partners', '/roadmap', '/careers', '/press',
     // Real-customer spine (P1): Agent Commerce Protocol + auth aliases.
     '/agents', '/login', '/signup', '/auth',
+    // Real-world sell surface (WSI public UI + conversion storefront)
+    '/buy', '/outcomes', '/rails', '/twin', '/vom',
   ];
   // Normalize trailing slash so '/checkout/' '/pricing/' etc. resolve to the
   // same SSR page instead of falling through to the homepage clone.
   const v2Path = (urlPath.length > 1 && urlPath.endsWith('/')) ? urlPath.replace(/\/+$/, '') : urlPath;
-  const isV2Route = v2Routes.includes(v2Path) || v2Path.startsWith('/services/') || v2Path.startsWith('/solutions/') || v2Path.startsWith('/order/');
+  const isV2Route = v2Routes.includes(v2Path) || v2Path.startsWith('/services/') || v2Path.startsWith('/solutions/') || v2Path.startsWith('/order/') || v2Path.startsWith('/twin/');
   if (isV2Route) {
     const route = v2Path;
     // 30Y-LTS: per-request CSP nonce (Nginx forwards X-CSP-Nonce as $request_id;
@@ -11232,6 +11248,16 @@ a{color:#8a5cff;text-decoration:none}
           } catch (_) { /* price stays client-resolved */ }
         }
       }
+    }
+    if (route.startsWith('/twin/')) {
+      ssrParams.twinId = String(route.slice(6) || '').slice(0, 120);
+      ssrParams.id = ssrParams.twinId;
+    }
+    if (route.startsWith('/services/')) {
+      if (!ssrParams.id) ssrParams.id = String(route.slice(10) || '').slice(0, 120);
+    }
+    if (route.startsWith('/order/')) {
+      if (!ssrParams.id) ssrParams.id = String(route.slice(7) || '').slice(0, 120);
     }
     let html = v2.getHtml(route, ssrParams);
     // Inject verifiable build marker so the freshly deployed variant is

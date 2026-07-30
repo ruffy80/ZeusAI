@@ -19,15 +19,16 @@ const VERTICALS = Object.freeze([
     id: 'seo-agency',
     title: 'SEO Agency Outcome Machine',
     serviceId: 'instant-seo-content-pack',
-    priceUsd: 49,
+    priceUsd: 79,
     promise: 'Keyword pack + content outline delivered with DPS passport',
   },
   {
     id: 'local-services',
     title: 'Local Services Outcome Machine',
-    serviceId: 'instant-ai-ops-audit',
-    priceUsd: 99,
-    promise: 'Ops audit pack for local service businesses',
+    // Must match a real instant-catalog SKU with fulfillment recipe
+    serviceId: 'instant-website-audit',
+    priceUsd: 49,
+    promise: 'Website audit pack for local service businesses',
   },
   {
     id: 'saas-onboarding',

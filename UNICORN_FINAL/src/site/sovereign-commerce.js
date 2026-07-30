@@ -84,7 +84,15 @@ function setDeliveryHook(fn) {
   _deliveryHook = typeof fn === 'function' ? fn : null;
 }
 function _fireDelivery(order) {
-  if (!_deliveryHook || !order) return;
+  if (!order) return;
+  // World-Standard settle bridge (PoOP escrow + CTP twin) — before pack delivery
+  try {
+    const wsiBridge = require('../commerce/wsi-settle-bridge');
+    wsiBridge.onPaymentConfirmed(order);
+  } catch (e) {
+    console.warn('[commerce] wsi paid bridge:', e && e.message);
+  }
+  if (!_deliveryHook) return;
   try {
     const receiptLike = {
       id: order.orderId,
@@ -103,6 +111,17 @@ function _fireDelivery(order) {
       paid_at: order.paid_at,
       access_token: order.access_token,
       entitlement_id: order.entitlement_id,
+      // Pass-through so fulfillment packs can personalize from checkout inputs
+      buyer: order.buyer || { email: (order.buyer && order.buyer.email) || '', inputs: {} },
+      meta: Object.assign({}, order.meta || {}, {
+        inputs: (order.meta && order.meta.inputs) || (order.buyer && order.buyer.inputs) || {},
+        brief: (order.meta && order.meta.brief) || undefined,
+        buyMode: order.buy_mode || (order.meta && order.meta.buyMode),
+        requiresHumanFulfillment: !!(order.meta && order.meta.requiresHumanFulfillment),
+      }),
+      buy_mode: order.buy_mode || (order.meta && order.meta.buyMode),
+      plan: order.serviceId,
+      amount: order.subtotal_fiat,
     };
     Promise.resolve(_deliveryHook(receiptLike)).catch((e) =>
       console.warn('[commerce] delivery hook error for ' + order.orderId + ':', e.message)
