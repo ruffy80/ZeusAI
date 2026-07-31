@@ -3394,6 +3394,9 @@ const neuralInterfaceAPI    = require('./generated/NeuralInterfaceAPI');
 const quantumInternet       = require('./generated/QuantumInternetProtocol');
 const quantumML             = require('./generated/QuantumMachineLearningCore');
 const temporalDataLayer     = require('./generated/TemporalDataLayer');
+let orchestratedCapabilityContinuum = null;
+try { orchestratedCapabilityContinuum = require('./modules/orchestrated-capability-continuum'); }
+catch (e) { console.warn('[OCC] not loaded:', e && e.message); }
 // ==================== SRC INNOVATION & DEPLOY MODULES ====================
 const innovationEngine      = require('../src/innovation/innovation-engine');
 const autoDeployOrchestrator = require('../src/modules/auto-deploy-orchestrator');
@@ -4243,6 +4246,23 @@ meshOrchestrator.register('autoMarketing',          autoMarketing,       { statu
 meshOrchestrator.register('domainAutomationMgr',    domainAutomationManager, { statusFn: 'getStatus' });
 meshOrchestrator.register('centralOrchestrator',    centralOrchestrator, { statusFn: 'getStatus' });
 
+// OCC/1.0 — future capabilities + AGE continuum (honest observe/tick)
+try {
+  if (orchestratedCapabilityContinuum && typeof orchestratedCapabilityContinuum.registerWithMesh === 'function') {
+    orchestratedCapabilityContinuum.registerWithMesh(meshOrchestrator);
+  } else {
+    meshOrchestrator.register('agiSelfEvolution', agiSelfEvolution, { statusFn: 'getStatus' });
+    meshOrchestrator.register('autonomousSpace', autonomousSpace, { statusFn: 'getStatus' });
+    meshOrchestrator.register('digitalTwinNetwork', digitalTwinNetwork, { statusFn: 'getStatus' });
+    meshOrchestrator.register('neuralInterfaceAPI', neuralInterfaceAPI, { statusFn: 'getStatus' });
+    meshOrchestrator.register('quantumInternet', quantumInternet, { statusFn: 'getStatus' });
+    meshOrchestrator.register('quantumML', quantumML, { statusFn: 'getStatus' });
+    meshOrchestrator.register('temporalDataLayer', temporalDataLayer, { statusFn: 'getStatus' });
+  }
+} catch (e) {
+  console.warn('[OCC] mesh register failed:', e && e.message);
+}
+
 // ── Wire Forward-Only Safety harmony registry ──────────────────────────────
 // registerEngine() existed but was never called, so /api/autonomy/harmony/status
 // always reported `no_engines_active`. Bridge every mesh-registered engine into
@@ -4359,6 +4379,21 @@ try {
     console.log('🏪 MTS/1.0 Merchant Trust Standard: MOUNTED');
   } catch (e) {
     console.warn('[MTS] boot failed:', e && e.message);
+  }
+
+  // OCC/1.0 — AGI/Space/Twin/Neural/Quantum/AGE continuum (honest observe/tick)
+  try {
+    if (orchestratedCapabilityContinuum) {
+      orchestratedCapabilityContinuum.start();
+      orchestratedCapabilityContinuum.mountRoutes(app);
+      console.log('🧬 OCC/1.0 Orchestrated Capability Continuum: STARTED');
+    } else {
+      for (const cap of [agiSelfEvolution, autonomousSpace, digitalTwinNetwork, neuralInterfaceAPI, quantumInternet, quantumML, temporalDataLayer]) {
+        try { if (cap && typeof cap.start === 'function') cap.start(); } catch (_) { /* isolate */ }
+      }
+    }
+  } catch (e) {
+    console.warn('[OCC] boot failed:', e && e.message);
   }
 
   try {
@@ -12658,9 +12693,18 @@ app.post('/api/sovereign/setup-totp', adminTokenMiddleware, async (req, res) => 
 
 // ==================== GENERATED FUTURE MODULES — RUTE ====================
 
+function _occStatus(mod, label) {
+  try {
+    if (mod && typeof mod.getStatus === 'function') return mod.getStatus();
+  } catch (e) {
+    return { ok: false, module: label, error: e.message };
+  }
+  return { ok: false, module: label, running: false, honesty: { stubTheater: true } };
+}
+
 // --- AGI Self-Evolution Engine ---
-app.get('/api/agi/status', adminTokenMiddleware, (req, res) => {
-  res.json({ module: 'AGI Self-Evolution Engine', status: 'active', ready: true });
+app.get('/api/agi/status', (req, res) => {
+  res.json(_occStatus(agiSelfEvolution, 'AGI Self-Evolution Engine'));
 });
 app.post('/api/agi/process', adminTokenMiddleware, async (req, res) => {
   try {
@@ -12671,7 +12715,7 @@ app.post('/api/agi/process', adminTokenMiddleware, async (req, res) => {
 
 // --- Autonomous Space Computing ---
 app.get('/api/space-computing/status', (req, res) => {
-  res.json({ module: 'Autonomous Space Computing', status: 'active', ready: true });
+  res.json(_occStatus(autonomousSpace, 'Autonomous Space Computing'));
 });
 app.post('/api/space-computing/process', adminTokenMiddleware, async (req, res) => {
   try {
@@ -12682,7 +12726,7 @@ app.post('/api/space-computing/process', adminTokenMiddleware, async (req, res) 
 
 // --- Decentralized Digital Twin Network ---
 app.get('/api/digital-twin/status', (req, res) => {
-  res.json({ module: 'Decentralized Digital Twin Network', status: 'active', ready: true });
+  res.json(_occStatus(digitalTwinNetwork, 'Decentralized Digital Twin Network'));
 });
 app.post('/api/digital-twin/process', adminTokenMiddleware, async (req, res) => {
   try {
@@ -12693,7 +12737,7 @@ app.post('/api/digital-twin/process', adminTokenMiddleware, async (req, res) => 
 
 // --- Neural Interface API ---
 app.get('/api/neural-interface/status', (req, res) => {
-  res.json({ module: 'Neural Interface API', status: 'active', ready: true });
+  res.json(_occStatus(neuralInterfaceAPI, 'Neural Interface API'));
 });
 app.post('/api/neural-interface/process', adminTokenMiddleware, async (req, res) => {
   try {
@@ -12704,7 +12748,7 @@ app.post('/api/neural-interface/process', adminTokenMiddleware, async (req, res)
 
 // --- Quantum Internet Protocol ---
 app.get('/api/quantum-internet/status', (req, res) => {
-  res.json({ module: 'Quantum Internet Protocol', status: 'active', ready: true });
+  res.json(_occStatus(quantumInternet, 'Quantum Internet Protocol'));
 });
 app.post('/api/quantum-internet/process', adminTokenMiddleware, async (req, res) => {
   try {
@@ -12715,7 +12759,7 @@ app.post('/api/quantum-internet/process', adminTokenMiddleware, async (req, res)
 
 // --- Quantum Machine Learning Core ---
 app.get('/api/quantum-ml/status', (req, res) => {
-  res.json({ module: 'Quantum Machine Learning Core', status: 'active', ready: true });
+  res.json(_occStatus(quantumML, 'Quantum Machine Learning Core'));
 });
 app.post('/api/quantum-ml/process', adminTokenMiddleware, async (req, res) => {
   try {
@@ -12726,7 +12770,7 @@ app.post('/api/quantum-ml/process', adminTokenMiddleware, async (req, res) => {
 
 // --- Temporal Data Layer ---
 app.get('/api/temporal-data/status', (req, res) => {
-  res.json({ module: 'Temporal Data Layer', status: 'active', ready: true });
+  res.json(_occStatus(temporalDataLayer, 'Temporal Data Layer'));
 });
 app.post('/api/temporal-data/process', adminTokenMiddleware, async (req, res) => {
   try {
@@ -14178,6 +14222,7 @@ function _publicAutonomySnapshot(full) {
       controlPlaneAgent: summarize('controlPlaneAgent'),
       profitControlLoop: summarize('profitControlLoop'),
       meshOrchestrator: summarize('meshOrchestrator'),
+      orchestratedCapabilityContinuum: summarize('orchestratedCapabilityContinuum'),
     },
   };
 }
@@ -14199,6 +14244,9 @@ function _collectAutonomyStatus() {
   collect('controlPlaneAgent',    () => controlPlane.getStatus());
   collect('profitControlLoop',    () => profitLoop.getStatus());
   collect('meshOrchestrator',     () => meshOrchestrator.getStatus ? meshOrchestrator.getStatus() : { active: true });
+  collect('orchestratedCapabilityContinuum', () => orchestratedCapabilityContinuum
+    ? orchestratedCapabilityContinuum.getStatus()
+    : { running: false });
 
   const activeCount = Object.values(status.modules).filter(
     m => m && (m.active === true || m.running === true || m.status === 'active')
