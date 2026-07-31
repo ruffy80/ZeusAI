@@ -76,6 +76,27 @@ class LivePricingBroker extends EventEmitter {
 
   getSnapshot() { return this._snapshot; }
 
+  /** IAK/mesh contract — never throws. */
+  getStatus() {
+    const snap = this._snapshot || {};
+    const rate = snap.btcRate && Number(snap.btcRate.rate);
+    return {
+      ok: true,
+      module: 'live-pricing-broker',
+      name: 'Live Pricing Broker',
+      running: !!this._timer,
+      refreshMs: snap.refreshMs || REFRESH_MS,
+      serviceCount: Array.isArray(snap.services) ? snap.services.length : 0,
+      itemCount: Array.isArray(snap.items) ? snap.items.length : 0,
+      btcRate: rate || 0,
+      btcSource: (snap.btcRate && snap.btcRate.source) || null,
+      updatedAt: snap.updatedAt || null,
+      health: 'ok',
+      disabled: String(process.env.LIVE_PRICING_DISABLED || '') === '1',
+      timestamp: new Date().toISOString(),
+    };
+  }
+
   subscribe(cb) {
     this.on('snapshot', cb);
     // immediate hydration

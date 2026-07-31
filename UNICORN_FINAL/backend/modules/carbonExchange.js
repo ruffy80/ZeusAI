@@ -418,6 +418,22 @@ class CarbonCreditExchange {
     });
   }
 
+  /** IAK/mesh contract */
+  getStatus() {
+    let stats = {};
+    try { stats = this.getMarketStats ? this.getMarketStats() : {}; } catch (_) { /* ok */ }
+    return {
+      ok: true,
+      module: 'carbonExchange',
+      name: 'Carbon Credit Exchange',
+      running: true,
+      health: 'ok',
+      transactionsCount: stats.transactionsCount || 0,
+      activeOrders: stats.activeOrders || 0,
+      timestamp: new Date().toISOString(),
+    };
+  }
+
 }
 
 module.exports = new CarbonCreditExchange();

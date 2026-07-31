@@ -77,10 +77,26 @@ class AutonomousLegalEntity {
     return { ...registration, _pendingTimerId: undefined };
   }
 
+  /** Module health for IAK/mesh — never throws when id is omitted. */
   getStatus(id) {
+    if (id == null || id === '') {
+      const all = this.listAll ? this.listAll() : Array.from(registrations.values());
+      return {
+        ok: true,
+        module: 'autonomousLegalEntity',
+        name: 'Autonomous Legal Entity',
+        running: true,
+        registrationCount: Array.isArray(all) ? all.length : 0,
+        timestamp: new Date().toISOString(),
+      };
+    }
     const reg = registrations.get(id);
     if (!reg) throw new Error(`Registration ${id} not found`);
     return reg;
+  }
+
+  getRegistrationStatus(id) {
+    return this.getStatus(id);
   }
 
   calculateTax(id, { annualRevenue, deductions = 0 }) {
@@ -121,11 +137,23 @@ class AutonomousLegalEntity {
   }
 }
 
-// MeshOrchestrator expects a status function (getStatus)
+// MeshOrchestrator / IAK expect getStatus() with no args to be non-throwing.
 const instance = new AutonomousLegalEntity();
-instance.getStatus = function() {
-  // Return all registrations, or supported countries if none
-  const regs = this.listAll();
-  return regs.length ? regs : { supportedCountries: this.getSupportedCountries() };
+const _protoGetStatus = instance.getStatus.bind(instance);
+instance.getStatus = function getStatus(id) {
+  if (id == null || id === '') {
+    const regs = this.listAll();
+    return {
+      ok: true,
+      module: 'autonomousLegalEntity',
+      name: 'Autonomous Legal Entity',
+      running: true,
+      health: 'ok',
+      registrationCount: regs.length,
+      supportedCountries: this.getSupportedCountries(),
+      timestamp: new Date().toISOString(),
+    };
+  }
+  return _protoGetStatus(id);
 };
 module.exports = instance;
