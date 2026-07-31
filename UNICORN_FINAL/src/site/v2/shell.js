@@ -1233,7 +1233,7 @@ function pageHome() {
         <span class="hero-vision-beam" aria-hidden="true"></span>
         <p class="hero-vision-kicker">Future in motion</p>
         <p class="hero-vision-title">Building the AI feature</p>
-        <p class="hero-vision-sub">We build the future — Construim viitorul.</p>
+        <p class="hero-vision-sub">We build the future.</p>
         <p class="hero-vision-line">Autonomous software that invents, ships, and sells itself.</p>
       </div>
     </aside>

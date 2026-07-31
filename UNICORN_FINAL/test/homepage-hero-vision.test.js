@@ -14,8 +14,8 @@ const styles = fs.readFileSync(path.join(__dirname, '..', 'src', 'site', 'v2', '
 
 assert.ok(shell.includes('class="hero-side hero-vision"'), 'hero-vision aside');
 assert.ok(shell.includes('Building the AI feature'), 'vision title copy');
-assert.ok(shell.includes('We build the future'), 'EN future signal');
-assert.ok(shell.includes('Construim viitorul'), 'RO future signal');
+assert.ok(shell.includes('We build the future.'), 'EN future signal');
+assert.ok(!shell.includes('Construim viitorul'), 'RO copy must stay off the vision panel');
 assert.ok(shell.includes('fonts.googleapis.com/css2?family=Syne'), 'non-blocking Syne/Orbitron load');
 assert.ok(styles.includes('.hero-vision-title'), 'vision title CSS');
 assert.ok(styles.includes('heroVisionShimmer'), 'shimmer keyframes');

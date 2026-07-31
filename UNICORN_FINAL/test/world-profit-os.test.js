@@ -46,8 +46,8 @@ check('shell: hero headline keeps ZeusAI brand + Ship AI products signal', () =>
 check('shell: hero right panel shows Building the AI feature vision', () => {
   assert.ok(shell.includes('hero-vision'), 'hero-vision aside missing');
   assert.ok(shell.includes('Building the AI feature'), 'vision title missing');
-  assert.ok(shell.includes('We build the future'), 'future signal missing');
-  assert.ok(shell.includes('Construim viitorul'), 'RO future signal missing');
+  assert.ok(shell.includes('We build the future.'), 'future signal missing');
+  assert.ok(!shell.includes('Construim viitorul'), 'RO copy must stay off the vision panel');
   const brandIdx = shell.indexOf('hero-brand');
   const visionIdx = shell.indexOf('Building the AI feature');
   assert.ok(brandIdx > 0 && visionIdx > brandIdx, 'vision panel must follow brand headline');
