@@ -4284,8 +4284,22 @@ async function unicornHandler(req, res) {
       if (fu === '/api/frontier/status') return fsend(200, frontier.frontierStatus());
 
       // Sitemap + robots + openapi
-      if (fu === '/sitemap.xml' || fu === '/seo/sitemap.xml')   return ftext(200, frontier.sitemapXml(APP_URL), 'application/xml; charset=utf-8');
-      if (fu === '/robots.txt'  || fu === '/seo/robots.txt')    return ftext(200, frontier.robotsTxt(APP_URL));
+      // Root /sitemap.xml is owned by sovereign-extensions (full urlset).
+      // Frontier only serves the SEO index + XSL stylesheet.
+      if (fu === '/seo/sitemap.xml' || fu === '/seo/sitemap-index.xml') {
+        return ftext(200, frontier.sitemapXml(APP_URL), 'application/xml; charset=utf-8');
+      }
+      if (fu === '/seo/sitemap.xsl') {
+        try {
+          const seo = require('./seo/sitemap-helpers');
+          return ftext(200, seo.sitemapXsl(), 'text/xsl; charset=utf-8');
+        } catch (e) {
+          return ftext(500, 'xsl unavailable');
+        }
+      }
+      if (fu === '/seo/robots.txt') return ftext(200, frontier.robotsTxt(APP_URL));
+      // Do NOT override /robots.txt here — sovereign-extensions owns the
+      // authoritative AI-agent-friendly robots.txt at the root.
       // IndexNow key file — must match backend traffic-engine derivation
       // (sha256('zeusai-indexnow:'+host) → 32 hex). Search engines fetch this
       // to verify URL-submission ownership. RO: fișierul-cheie IndexNow.
@@ -4592,7 +4606,7 @@ async function unicornHandler(req, res) {
   // 30Y-LTS: local-first routes served by this site process (not proxied to backend).
   // Only routes that are implemented locally in this file are matched here;
   // backend-only endpoints (/api/v1/deprecations, /api/v1/events/*) keep flowing to the backend.
-  const isLts = /^\/api\/(v1\/)?(contract|i18n\/|crypto\/public-keys|succession\/attestation|anchors)(\/|$|\.)/.test(urlPath) || urlPath === '/api/v1/contract' || urlPath === '/api/contract';  const isLocalV2Api = isLts || LOCAL_V2_API.has(urlPath) || urlPath.startsWith('/api/services/') || urlPath.startsWith('/services/') || urlPath.startsWith('/api/enterprise/') || urlPath.startsWith('/api/outreach/') || urlPath.startsWith('/api/vault/') || urlPath.startsWith('/api/governance/') || urlPath.startsWith('/api/whales/') || urlPath.startsWith('/api/webhooks/') || urlPath.startsWith('/api/admin/') || urlPath.startsWith('/api/instant/') || urlPath.startsWith('/api/customer/') || urlPath.startsWith('/api/user/') || urlPath.startsWith('/api/unicorn-ai/') || urlPath.startsWith('/api/unicorn-commerce/') || urlPath.startsWith('/api/billion-scale/') || urlPath.startsWith('/api/checkout/') || urlPath.startsWith('/api/uaic/') || urlPath.startsWith('/api/receipt/') || urlPath.startsWith('/api/invoice/') || urlPath.startsWith('/api/license/') || urlPath.startsWith('/api/delivery/') || urlPath.startsWith('/api/wire/') || urlPath === '/api/payments/btc/confirm' || urlPath === '/api/payments/paypal/confirm' || urlPath === '/api/payments/config/status' || urlPath === '/api/checkout/synthetic-probe' || urlPath === '/api/qr' || urlPath.startsWith('/api/cart/') || urlPath.startsWith('/api/coupons') || urlPath.startsWith('/api/leads') || urlPath.startsWith('/api/lead') || urlPath.startsWith('/api/referral/') || urlPath.startsWith('/api/transparency') || urlPath.startsWith('/api/keys') || urlPath.startsWith('/api/newsletter/') || urlPath.startsWith('/api/wizard/') || urlPath.startsWith('/api/fx/') || urlPath.startsWith('/api/tax/') || urlPath.startsWith('/api/webhooks/') || urlPath === '/api/status' || urlPath === '/api/track' || urlPath.startsWith('/api/analytics/') || urlPath.startsWith('/api/refund/') || urlPath === '/api/aura' || urlPath.startsWith('/api/outcome/') || urlPath.startsWith('/api/eop/') || urlPath === '/api/eop' || urlPath.startsWith('/api/discount/') || urlPath.startsWith('/api/receipt/nft/') || urlPath.startsWith('/api/capability/') || urlPath.startsWith('/api/email/proof') || urlPath.startsWith('/api/gift/') || urlPath.startsWith('/api/pledge') || urlPath.startsWith('/api/cancel/') || urlPath.startsWith('/api/bandit/') || urlPath.startsWith('/api/carbon/') || urlPath.startsWith('/api/abandon-cart') || urlPath === '/api/frontier/status' || urlPath.startsWith('/api/attestation/') || urlPath.startsWith('/api/trust/') || urlPath.startsWith('/api/funnel/') || urlPath.startsWith('/api/dr/') || urlPath.startsWith('/api/pre-keys') || urlPath === '/api/autonomy/os' || urlPath === '/api/autonomy/score' || urlPath.startsWith('/api/autonomy/os/') || urlPath.startsWith('/api/telegram/') || urlPath.startsWith('/api/lightning') || urlPath.startsWith('/api/innovation/') || urlPath === '/api/services/changed' || urlPath === '/api/operator/console' || urlPath === '/api/observability/status' || urlPath === '/api/secret-sync/status' || urlPath === '/api/security/pq/status' || urlPath === '/api/commerce/protocol' || urlPath === '/api/innovation/coverage' || urlPath === '/openapi.json' || urlPath === '/api/openapi' || urlPath === '/seo/sitemap.xml' || urlPath === '/seo/sitemap-services.xml' || urlPath === '/seo/robots.txt' || urlPath === '/api/catalog/master' || urlPath === '/api/catalog/diff' || urlPath === '/api/products' || urlPath.startsWith('/api/price/') || urlPath === '/api/commerce/health' || urlPath === '/api/commerce/price' || urlPath === '/api/commerce/integrity' || urlPath === '/api/commerce/metrics' || urlPath === '/api/commerce/funnel' || urlPath === '/api/commerce/recent-sales' || urlPath === '/api/admin/owner-revenue' || urlPath === '/agents.json' || urlPath === '/.well-known/agents.json' || urlPath === '/api/btc/spot' || urlPath === '/api/btc/rate' || urlPath === '/api/payment/btc-rate' || urlPath.startsWith('/api/payments/btc/verify/');
+  const isLts = /^\/api\/(v1\/)?(contract|i18n\/|crypto\/public-keys|succession\/attestation|anchors)(\/|$|\.)/.test(urlPath) || urlPath === '/api/v1/contract' || urlPath === '/api/contract';  const isLocalV2Api = isLts || LOCAL_V2_API.has(urlPath) || urlPath.startsWith('/api/services/') || urlPath.startsWith('/services/') || urlPath.startsWith('/api/enterprise/') || urlPath.startsWith('/api/outreach/') || urlPath.startsWith('/api/vault/') || urlPath.startsWith('/api/governance/') || urlPath.startsWith('/api/whales/') || urlPath.startsWith('/api/webhooks/') || urlPath.startsWith('/api/admin/') || urlPath.startsWith('/api/instant/') || urlPath.startsWith('/api/customer/') || urlPath.startsWith('/api/user/') || urlPath.startsWith('/api/unicorn-ai/') || urlPath.startsWith('/api/unicorn-commerce/') || urlPath.startsWith('/api/billion-scale/') || urlPath.startsWith('/api/checkout/') || urlPath.startsWith('/api/uaic/') || urlPath.startsWith('/api/receipt/') || urlPath.startsWith('/api/invoice/') || urlPath.startsWith('/api/license/') || urlPath.startsWith('/api/delivery/') || urlPath.startsWith('/api/wire/') || urlPath === '/api/payments/btc/confirm' || urlPath === '/api/payments/paypal/confirm' || urlPath === '/api/payments/config/status' || urlPath === '/api/checkout/synthetic-probe' || urlPath === '/api/qr' || urlPath.startsWith('/api/cart/') || urlPath.startsWith('/api/coupons') || urlPath.startsWith('/api/leads') || urlPath.startsWith('/api/lead') || urlPath.startsWith('/api/referral/') || urlPath.startsWith('/api/transparency') || urlPath.startsWith('/api/keys') || urlPath.startsWith('/api/newsletter/') || urlPath.startsWith('/api/wizard/') || urlPath.startsWith('/api/fx/') || urlPath.startsWith('/api/tax/') || urlPath.startsWith('/api/webhooks/') || urlPath === '/api/status' || urlPath === '/api/track' || urlPath.startsWith('/api/analytics/') || urlPath.startsWith('/api/refund/') || urlPath === '/api/aura' || urlPath.startsWith('/api/outcome/') || urlPath.startsWith('/api/eop/') || urlPath === '/api/eop' || urlPath.startsWith('/api/discount/') || urlPath.startsWith('/api/receipt/nft/') || urlPath.startsWith('/api/capability/') || urlPath.startsWith('/api/email/proof') || urlPath.startsWith('/api/gift/') || urlPath.startsWith('/api/pledge') || urlPath.startsWith('/api/cancel/') || urlPath.startsWith('/api/bandit/') || urlPath.startsWith('/api/carbon/') || urlPath.startsWith('/api/abandon-cart') || urlPath === '/api/frontier/status' || urlPath.startsWith('/api/attestation/') || urlPath.startsWith('/api/trust/') || urlPath.startsWith('/api/funnel/') || urlPath.startsWith('/api/dr/') || urlPath.startsWith('/api/pre-keys') || urlPath === '/api/autonomy/os' || urlPath === '/api/autonomy/score' || urlPath.startsWith('/api/autonomy/os/') || urlPath.startsWith('/api/telegram/') || urlPath.startsWith('/api/lightning') || urlPath.startsWith('/api/innovation/') || urlPath === '/api/services/changed' || urlPath === '/api/operator/console' || urlPath === '/api/observability/status' || urlPath === '/api/secret-sync/status' || urlPath === '/api/security/pq/status' || urlPath === '/api/commerce/protocol' || urlPath === '/api/innovation/coverage' || urlPath === '/openapi.json' || urlPath === '/api/openapi' || urlPath === '/seo/sitemap.xml' || urlPath === '/seo/sitemap-index.xml' || urlPath === '/seo/sitemap.xsl' || urlPath === '/seo/sitemap-services.xml' || urlPath === '/seo/robots.txt' || urlPath === '/api/catalog/master' || urlPath === '/api/catalog/diff' || urlPath === '/api/products' || urlPath.startsWith('/api/price/') || urlPath === '/api/commerce/health' || urlPath === '/api/commerce/price' || urlPath === '/api/commerce/integrity' || urlPath === '/api/commerce/metrics' || urlPath === '/api/commerce/funnel' || urlPath === '/api/commerce/recent-sales' || urlPath === '/api/admin/owner-revenue' || urlPath === '/agents.json' || urlPath === '/.well-known/agents.json' || urlPath === '/api/btc/spot' || urlPath === '/api/btc/rate' || urlPath === '/api/payment/btc-rate' || urlPath.startsWith('/api/payments/btc/verify/');
   const isUaic = !!(uaic && uaic.matches(urlPath)) && urlPath !== '/api/uaic/status';
   const isUse  = !!(USE && USE.matches(urlPath)) && !urlPath.startsWith('/api/user/') && !urlPath.startsWith('/api/ai/');
   const backendUrl = process.env.BACKEND_API_URL;
@@ -7960,14 +7974,16 @@ document.getElementById('buyBtn').addEventListener('click', async function(){
   // so search engines can index every current AND future Unicorn deliverable.
   if (urlPath === '/seo/sitemap-services.xml' && req.method === 'GET') {
     try {
+      const seo = require('./seo/sitemap-helpers');
       const cat = await getCachedMasterCatalog();
       const base = APP_URL.replace(/\/+$/, '');
       const items = (cat.items || []).filter((it) => it && it.id);
-      const lastmod = (cat.updatedAt || new Date().toISOString()).slice(0, 10);
-      const xml = ['<?xml version="1.0" encoding="UTF-8"?>',
-        '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">',
-        ...items.map((it) => `<url><loc>${base}/services/${encodeURIComponent(it.id)}</loc><lastmod>${lastmod}</lastmod><changefreq>weekly</changefreq><priority>0.7</priority></url>`),
-        '</urlset>'].join('\n');
+      const paths = items.map((it) => `/services/${encodeURIComponent(it.id)}`);
+      const xml = seo.buildUrlsetXml(base, paths, {
+        lastmod: (cat.updatedAt || new Date().toISOString()).slice(0, 10),
+        changefreq: 'weekly',
+        priority: '0.7',
+      });
       res.writeHead(200, { 'Content-Type': 'application/xml; charset=utf-8', 'Cache-Control': 'public, max-age=300' });
       return res.end(xml);
     } catch (e) {
@@ -11145,6 +11161,8 @@ a{color:#8a5cff;text-decoration:none}
     '/continuity',
     // Merchant Trust Standard — MTS/1.0
     '/standard',
+    // Human SEO desk
+    '/seo',
   ];
   // Normalize trailing slash so '/checkout/' '/pricing/' etc. resolve to the
   // same SSR page instead of falling through to the homepage clone.

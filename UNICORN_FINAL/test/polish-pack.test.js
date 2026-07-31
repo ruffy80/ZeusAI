@@ -88,6 +88,7 @@ const assert = require('assert');
     assert.strictEqual(handled, true);
     assert.match(body, /Sitemap: https:\/\/zeusai\.pro\/sitemap\.xml/);
     assert.match(body, /Sitemap: https:\/\/zeusai\.pro\/seo\/sitemap-services\.xml/);
+    assert.match(body, /Sitemap: https:\/\/zeusai\.pro\/seo\/sitemap-index\.xml/);
   }
 
   // --- sovereign-extensions: manifest has PNG + maskable + shortcuts + share_target ---

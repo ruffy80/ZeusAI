@@ -509,18 +509,32 @@ function openApiSpec(extraPaths={}) {
 // ═══════════════════════════════════════════════════════════════════════════
 const SITE_ROUTES = ['/', '/services', '/pricing', '/checkout', '/dashboard', '/how', '/docs', '/about', '/legal', '/store', '/enterprise', '/account', '/innovations', '/wizard', '/status', '/changelog', '/terms', '/privacy', '/refund', '/sla', '/pledge', '/cancel', '/gift', '/aura', '/api-explorer', '/transparency', '/trust', '/security', '/responsible-ai', '/dpa', '/payment-terms', '/frontier'];
 const VERTICAL_SLUGS = ['fintech-os','health-os','retail-os','logistics-os','manufacturing-os','energy-os','agri-os','edu-os','govtech-os','legaltech-os','hospitality-os','media-os','gaming-os','realestate-os','mobility-os','biotech-os','security-os','climate-os'];
-// sitemapXml() — emit a SITEMAP INDEX so search engines / AI crawlers
-// discover both the static-pages sitemap (sovereign-extensions /sitemap.xml,
-// 220+ entries incl. every service) AND the per-service sitemap
-// (/seo/sitemap-services.xml, 500+ entries with i18n alternates).
-// This keeps /seo/sitemap.xml authoritative without duplicating logic and
-// guarantees /services/:id pages are always indexed.
-function sitemapXml(base='https://zeusai.pro') {
-  const lastmod = nowIso();
-  return `<?xml version="1.0" encoding="UTF-8"?><sitemapindex xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"><sitemap><loc>${base}/sitemap.xml</loc><lastmod>${lastmod}</lastmod></sitemap><sitemap><loc>${base}/seo/sitemap-services.xml</loc><lastmod>${lastmod}</lastmod></sitemap></sitemapindex>`;
+// sitemapXml() — emit a SITEMAP INDEX (with XSL for humans) pointing at
+// /sitemap.xml (urlset from sovereign-extensions) + /seo/sitemap-services.xml.
+// Used ONLY by /seo/sitemap.xml and /seo/sitemap-index.xml — never override
+// the root /sitemap.xml urlset.
+function sitemapXml(base = 'https://zeusai.pro') {
+  const seo = require('./seo/sitemap-helpers');
+  return seo.buildSitemapIndexXml(base, [
+    '/sitemap.xml',
+    '/seo/sitemap-services.xml',
+  ]);
 }
-function robotsTxt(base='https://zeusai.pro') {
-  return `User-agent: *\nAllow: /\nDisallow: /admin\nDisallow: /api/admin\nSitemap: ${base}/sitemap.xml\nSitemap: ${base}/seo/sitemap-services.xml\n`;
+function robotsTxt(base = 'https://zeusai.pro') {
+  const b = String(base || 'https://zeusai.pro').replace(/\/+$/, '');
+  return [
+    'User-agent: *',
+    'Allow: /',
+    'Disallow: /admin',
+    'Disallow: /api/admin',
+    'Disallow: /dashboard',
+    'Disallow: /account',
+    '',
+    `Sitemap: ${b}/sitemap.xml`,
+    `Sitemap: ${b}/seo/sitemap-services.xml`,
+    `Sitemap: ${b}/seo/sitemap-index.xml`,
+    '',
+  ].join('\n');
 }
 
 // ═══════════════════════════════════════════════════════════════════════════

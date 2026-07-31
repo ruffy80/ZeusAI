@@ -8,6 +8,7 @@ const sellSurface = require('./sell-surface');
 const continuitySurface = require('./continuity-surface');
 const continuityAttestation = require('./continuity-attestation');
 const merchantStandardSurface = require('./merchant-standard-surface');
+const seoSurface = require('./seo-surface');
 
 const OWNER = {
   name: process.env.OWNER_NAME || 'Vladoi Ionut',
@@ -624,7 +625,8 @@ function footer(route, opts) {
       <li><a href="/docs" data-link>API &amp; Docs</a></li>
       <li><a href="/api-explorer" data-link>API Explorer</a></li>
       <li><button type="button" class="btn" data-live-inspect="/openapi.json" data-live-title="OpenAPI 3.1" style="background:none;border:0;padding:0;color:inherit;font:inherit;cursor:pointer;text-align:left">OpenAPI 3.1</button></li>
-      <li><a href="/seo/sitemap.xml" data-allow-raw="1">Sitemap</a></li>
+      <li><a href="/seo" data-link>SEO desk</a></li>
+      <li><a href="/sitemap.xml" data-allow-raw="1">Sitemap</a></li>
       <li><button type="button" class="btn" data-live-inspect="/snapshot" data-live-title="Live snapshot" style="background:none;border:0;padding:0;color:inherit;font:inherit;cursor:pointer;text-align:left">Live snapshot</button></li>
       <li><a href="/api-explorer?endpoint=/health" data-link>Health explorer</a></li>
       <li><button type="button" class="btn" data-live-inspect="/health" data-live-title="Health" style="background:none;border:0;padding:0;color:inherit;font:inherit;cursor:pointer;text-align:left">/health</button></li>
@@ -3512,6 +3514,7 @@ function renderRoute(route, params = {}) {
     case '/vom': return sellSurface.pageVom();
     case '/continuity': return continuitySurface.pageContinuity();
     case '/standard': return merchantStandardSurface.pageStandard();
+    case '/seo': return seoSurface.pageSeo();
     case '/social-network': return pageSocialNetwork();
     case '/services': return pageServices();
     case '/pricing': return pagePricing();
@@ -6183,7 +6186,7 @@ function routeTitle(route) {
   if (route.startsWith('/services/')) return 'Service';
   if (route.startsWith('/order/')) return 'Order Passport';
   if (route.startsWith('/twin/')) return 'Buyer Twin';
-  const map = { '/buy':'Buy now', '/outcomes':'Outcomes', '/rails':'Payment rails', '/twin':'Buyer Twin', '/vom':'Vertical Outcome Machines', '/continuity':'Continuity Attestation', '/standard':'Merchant Trust Standard', '/agents':'Agent Commerce Protocol', '/services':'Marketplace', '/marketplace':'Marketplace', '/pricing':'Pricing', '/solutions/ai-pricing':'AI Pricing Engine', '/solutions/ai-checkout':'AI Checkout Optimizer', '/solutions/ai-self-healing':'AI Self-Healing Ops', '/checkout':'Checkout', '/dashboard':'Dashboard', '/how':'How it works', '/docs':'API & Docs', '/about':'About', '/legal':'Legal', '/trust':'Trust Center', '/security':'Security', '/responsible-ai':'Responsible AI', '/dpa':'Data Processing Agreement', '/payment-terms':'Payment Terms', '/operator':'Operator Console', '/observability':'Observability', '/enterprise':'Enterprise Licenses', '/store':'Instant Store', '/account':'Account', '/innovations':'30Y Cryptographic Durability', '/wizard':'Find my plan', '/status':'Live status', '/social-network':'ZeusAI Social', '/admin/social-network':'Admin ZeusAI Social', '/changelog':'Changelog', '/terms':'Terms of Service', '/privacy':'Privacy Policy', '/refund':'Refund Guarantee', '/sla':'SLA', '/pledge':'Anti-Dark-Pattern Pledge', '/cancel':'Universal Cancel', '/gift':'Gift-as-Capability', '/aura':'Live Conversion Aura', '/api-explorer':'API Explorer', '/transparency':'Pricing Bandit Transparency', '/frontier':'Frontier Inventions', '/deepseek-cockpit':'DeepSeek Autonomy Cockpit', '/contact':'Contact', '/faq':'FAQ', '/blog':'Insights', '/affiliate':'Affiliate Program', '/partners':'Partners', '/roadmap':'Public Roadmap', '/careers':'Careers', '/press':'Press Kit' };
+  const map = { '/buy':'Buy now', '/outcomes':'Outcomes', '/rails':'Payment rails', '/twin':'Buyer Twin', '/vom':'Vertical Outcome Machines', '/continuity':'Continuity Attestation', '/standard':'Merchant Trust Standard', '/seo':'SEO desk', '/agents':'Agent Commerce Protocol', '/services':'Marketplace', '/marketplace':'Marketplace', '/pricing':'Pricing', '/solutions/ai-pricing':'AI Pricing Engine', '/solutions/ai-checkout':'AI Checkout Optimizer', '/solutions/ai-self-healing':'AI Self-Healing Ops', '/checkout':'Checkout', '/dashboard':'Dashboard', '/how':'How it works', '/docs':'API & Docs', '/about':'About', '/legal':'Legal', '/trust':'Trust Center', '/security':'Security', '/responsible-ai':'Responsible AI', '/dpa':'Data Processing Agreement', '/payment-terms':'Payment Terms', '/operator':'Operator Console', '/observability':'Observability', '/enterprise':'Enterprise Licenses', '/store':'Instant Store', '/account':'Account', '/innovations':'30Y Cryptographic Durability', '/wizard':'Find my plan', '/status':'Live status', '/social-network':'ZeusAI Social', '/admin/social-network':'Admin ZeusAI Social', '/changelog':'Changelog', '/terms':'Terms of Service', '/privacy':'Privacy Policy', '/refund':'Refund Guarantee', '/sla':'SLA', '/pledge':'Anti-Dark-Pattern Pledge', '/cancel':'Universal Cancel', '/gift':'Gift-as-Capability', '/aura':'Live Conversion Aura', '/api-explorer':'API Explorer', '/transparency':'Pricing Bandit Transparency', '/frontier':'Frontier Inventions', '/deepseek-cockpit':'DeepSeek Autonomy Cockpit', '/contact':'Contact', '/faq':'FAQ', '/blog':'Insights', '/affiliate':'Affiliate Program', '/partners':'Partners', '/roadmap':'Public Roadmap', '/careers':'Careers', '/press':'Press Kit' };
   return map[route] || 'ZeusAI';
 }
 
@@ -6197,6 +6200,7 @@ function routeDescription(route) {
     '/vom': 'Vertical Outcome Machines — SEO and other real vertical loops from offer to passport.',
     '/continuity': 'Continuity Attestation Chain — signed proof the ZeusAI operator plane was bonded or honestly degraded during your payment window.',
     '/standard': 'Merchant Trust Standard — signed commerce-ready envelope for humans and agents: buyable floor, rails honesty, bond and continuity.',
+    '/seo': 'ZeusAI SEO desk — human guide to sitemap.xml, sitemap index, service sitemaps and robots.txt.',
     '/services': 'Browse ZeusAI services, frontier inventions and vertical AI operating systems with instant BTC checkout.',
     '/pricing': 'Transparent ZeusAI pricing with signed receipts, BTC checkout, refund guarantees and enterprise licensing.',
     '/solutions/ai-pricing': 'AI pricing engine for real-time quote optimization, conversion-aware offer ranking and auditable checkout revalidation.',
