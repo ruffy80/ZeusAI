@@ -328,12 +328,19 @@ async function sendViaSmtp({ to, subject, text, html }) {
   }
 }
 
+function _realSecret(value) {
+  const v = String(value || '').trim();
+  if (!v || v.length < 8) return false;
+  if (/^your_|^changeme$|^placeholder|^skip$|^xxx|^TODO/i.test(v)) return false;
+  return true;
+}
+
 function configuredProviders() {
   const out = [];
-  if (process.env.RESEND_API_KEY) out.push('resend');
-  if (process.env.BREVO_API_KEY || process.env.SENDINBLUE_API_KEY) out.push('brevo');
-  if (process.env.MAILERSEND_API_KEY) out.push('mailersend');
-  if (nodemailer && process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASS) out.push('smtp');
+  if (_realSecret(process.env.RESEND_API_KEY)) out.push('resend');
+  if (_realSecret(process.env.BREVO_API_KEY) || _realSecret(process.env.SENDINBLUE_API_KEY)) out.push('brevo');
+  if (_realSecret(process.env.MAILERSEND_API_KEY)) out.push('mailersend');
+  if (nodemailer && _realSecret(process.env.SMTP_HOST) && _realSecret(process.env.SMTP_USER) && _realSecret(process.env.SMTP_PASS)) out.push('smtp');
   return out;
 }
 

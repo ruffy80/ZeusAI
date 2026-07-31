@@ -74,7 +74,7 @@ function scan(opts) {
   return stuck;
 }
 
-function _telegramNudge(item) {
+async function _telegramNudge(item) {
   try {
     const zac = require('./zacAlertChannel');
     if (!zac || typeof zac.sendTelegram !== 'function') return { ok: false, reason: 'no_telegram' };
@@ -85,18 +85,16 @@ function _telegramNudge(item) {
       item.productId ? `Product: ${item.productId}` : null,
       item.priceUSD != null ? `Amount: $${item.priceUSD}` : null,
       payUri ? `Pay: ${payUri}` : null,
-      'Email rail offline — Telegram nudge (no buyer email sent).',
+      'Email rail offline/failed — Telegram nudge (buyer email not confirmed sent).',
     ].filter(Boolean).join('\n');
-    Promise.resolve(zac.sendTelegram(text)).catch((err) => {
-      console.warn('[checkout-recovery] telegram nudge failed:', err && err.message);
-    });
-    return { ok: true, channel: 'telegram' };
+    const r = await Promise.resolve(zac.sendTelegram(text));
+    return { ok: !!(r && r.ok !== false), channel: 'telegram' };
   } catch (e) {
     return { ok: false, reason: e && e.message };
   }
 }
 
-function recover(opts) {
+async function recover(opts) {
   const stuck = scan(opts);
   const dryRun = !!(opts && opts.dryRun);
   const sent = [];
@@ -107,49 +105,49 @@ function recover(opts) {
     if (Date.now() - last < RECOVERY_WINDOW_MS) { skipped.push({ orderId: item.orderId, reason: 'cooldown' }); continue; }
     if (dryRun) {
       skipped.push({ orderId: item.orderId, reason: 'dry_run' });
-      _sentLog.set(item.orderId, Date.now());
       continue;
     }
     const customer = item.customerId && portal && typeof portal.getById === 'function'
       ? portal.getById(item.customerId) : null;
     const hasEmail = !!(customer && customer.email);
-    const canEmail = !!(mailer && portal && hasEmail);
+    const mailArmed = !!(mailer && typeof mailer.isConfigured === 'function' ? mailer.isConfigured() : mailer);
+    const canEmail = !!(mailer && hasEmail && mailArmed);
 
     if (canEmail) {
       try {
         const subject = `Your Unicorn order ${item.orderId} — payment still pending`;
         const body = `Hello ${customer.name || customer.email},\n\nYour order ${item.orderId} (${item.productId}) for $${item.priceUSD} (≈ ${item.btcAmount} BTC) is awaiting payment for ${item.ageMinutes} minutes.\n\nPay any time at:\n${item.invoiceUri || ('bitcoin:' + item.btcAddress)}\n\nQuestions? Reply to this email.\n\n— ZeusAI / Unicorn`;
+        let r = null;
         if (typeof mailer.sendRaw === 'function') {
-          Promise.resolve(mailer.sendRaw({ to: customer.email, subject, text: body }))
-            .catch((err) => console.warn('[checkout-recovery] sendRaw failed:', err && err.message));
+          r = await mailer.sendRaw({ to: customer.email, subject, text: body });
         } else if (typeof mailer.send === 'function') {
-          mailer.send({ to: customer.email, subject, text: body });
+          r = await Promise.resolve(mailer.send({ to: customer.email, subject, text: body }));
         } else {
           skipped.push({ orderId: item.orderId, reason: 'no_mailer_api' });
-          // Fall through to Telegram owner nudge
-          const tg = _telegramNudge(item);
-          if (tg.ok) {
-            _sentLog.set(item.orderId, Date.now());
-            telegramNudges.push({ orderId: item.orderId });
-          }
+        }
+        // Phase 2 honesty: only mark sent when provider reports ok.
+        if (r && r.ok) {
+          _sentLog.set(item.orderId, Date.now());
+          sent.push({ orderId: item.orderId, email: customer.email });
           continue;
         }
-        _sentLog.set(item.orderId, Date.now());
-        sent.push({ orderId: item.orderId, email: customer.email });
-        continue;
+        skipped.push({
+          orderId: item.orderId,
+          reason: 'email_' + String((r && (r.reason || r.error || r.skipped)) || 'send_failed').slice(0, 60),
+        });
       } catch (e) {
         skipped.push({ orderId: item.orderId, reason: 'send_failed:' + (e && e.message || 'unknown') });
       }
     }
 
-    // No email rail / no buyer email → Telegram owner nudge (pre-keys innovation).
-    const tg = _telegramNudge(item);
+    // No email rail / no buyer email / send failed → Telegram owner nudge.
+    const tg = await _telegramNudge(item);
     if (tg.ok) {
       _sentLog.set(item.orderId, Date.now());
       telegramNudges.push({ orderId: item.orderId });
       skipped.push({ orderId: item.orderId, reason: hasEmail ? 'email_unavailable_telegram_nudge' : 'no_email_telegram_nudge' });
-    } else {
-      skipped.push({ orderId: item.orderId, reason: hasEmail ? 'no_mailer' : 'no_email' });
+    } else if (!canEmail) {
+      skipped.push({ orderId: item.orderId, reason: hasEmail ? (mailArmed ? 'no_mailer' : 'email_unconfigured') : 'no_email' });
     }
   }
   return {
@@ -202,8 +200,8 @@ function start(opts) {
   const intervalMs = Math.max(60 * 1000, Number((opts && opts.intervalMs) || process.env.CHECKOUT_RECOVERY_INTERVAL_MS || 15 * 60 * 1000));
   const stuckAfterMs = Math.max(60 * 1000, Number((opts && opts.stuckAfterMs) || 15 * 60 * 1000));
   const tick = () => {
-    try { recover({ stuckAfterMs, dryRun: false }); }
-    catch (e) { console.warn('[checkout-recovery] tick failed:', e && e.message); }
+    Promise.resolve(recover({ stuckAfterMs, dryRun: false }))
+      .catch((e) => console.warn('[checkout-recovery] tick failed:', e && e.message));
   };
   setTimeout(tick, 20 * 1000);
   _timer = setInterval(tick, intervalMs);

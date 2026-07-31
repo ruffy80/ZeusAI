@@ -1,11 +1,23 @@
 'use strict';
 
+/**
+ * DEPRECATED credit-loop helper — Phase 6 consolidation.
+ * Money attribution SoT is src/commerce/referral-engine-real.js.
+ * This module keeps local USD_CREDIT bookkeeping for legacy UI, and
+ * dual-writes redemptions into the real ledger on attributePaidOrder.
+ */
+
 const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
 
 const NAME = 'global-referral-loop';
 const REWARD_RATE = 0.10;
+const DEPRECATED = {
+  deprecated: true,
+  sot: 'src/commerce/referral-engine-real.js',
+  note: 'Credit ledger is local; commission SoT is referral-engine-real.',
+};
 
 function statePath() {
   return process.env.GLOBAL_REFERRAL_LOOP_STATE_PATH
@@ -105,9 +117,17 @@ function createCode(userId) {
 
   const state = readState();
   const existing = safeCode(state.userCodes[safeUser]);
-  if (existing && state.codes[existing]) return state.codes[existing];
+  if (existing && state.codes[existing]) return { ...state.codes[existing], ...DEPRECATED };
 
-  const code = buildReferralCode(safeUser);
+  // Prefer SoT code so ?ref= settle can redeem the same identifier.
+  let code = buildReferralCode(safeUser);
+  try {
+    const real = require(path.join(__dirname, '..', '..', 'src', 'commerce', 'referral-engine-real.js'));
+    const ownerEmail = safeUser.includes('@') ? safeUser.toLowerCase() : (safeUser.slice(0, 32) + '@legacy.zeusai.pro');
+    const ensured = real.ensureTrackedCode(code, { ownerEmail });
+    if (ensured && ensured.code) code = ensured.code;
+  } catch (_) { /* local code still fine */ }
+
   const createdAt = nowIso();
   const entry = {
     code,
@@ -124,7 +144,7 @@ function createCode(userId) {
   state.userCodes[safeUser] = code;
   ensureCreditAccount(state, safeUser);
   writeState(state);
-  return entry;
+  return { ...entry, ...DEPRECATED };
 }
 
 function trackReferral(code, newUserId) {
@@ -219,12 +239,29 @@ function attributePaidOrder(orderId, amountUsd, code) {
   }
 
   writeState(state);
-  return orderAttribution;
+
+  // Dual-write commission into canonical referral ledger (SoT).
+  try {
+    const real = require(path.join(__dirname, '..', '..', 'src', 'commerce', 'referral-engine-real.js'));
+    real.ensureTrackedCode(referralCode);
+    orderAttribution.sotRedemption = real.recordRedemption({
+      code: referralCode,
+      referredEmail: null,
+      orderId: safeOrderId,
+      amountUsd: safeAmountUsd,
+    });
+  } catch (e) {
+    orderAttribution.sotRedemption = { ok: false, error: String(e && e.message || e).slice(0, 120) };
+  }
+
+  return { ...orderAttribution, ...DEPRECATED };
 }
 
 function getStatus() {
   const state = readState();
   const creditAccounts = Object.values(state.userCredits || {});
+  let sot = null;
+  try { sot = require(path.join(__dirname, '..', '..', 'src', 'commerce', 'referral-engine-real.js')).globalStats(); } catch (_) {}
   return {
     module: NAME,
     statePath: statePath(),
@@ -234,7 +271,9 @@ function getStatus() {
     attributedOrders: Object.keys(state.paidOrders || {}).length,
     creditLedgerEntries: state.creditLedger.length,
     totalCreditIssued: round2(creditAccounts.reduce((sum, account) => sum + Number(account.lifetimeIssued || 0), 0)),
-    activeReferrers: creditAccounts.filter((account) => Number(account.balance || 0) > 0).length
+    activeReferrers: creditAccounts.filter((account) => Number(account.balance || 0) > 0).length,
+    sot,
+    ...DEPRECATED,
   };
 }
 

@@ -201,14 +201,18 @@ async function _runCycle() {
           const subject = 'ZeusAI — quick note for ' + (lead.company || 'your team');
           const text = String(lead.outreach);
           if (mailer && typeof mailer.sendRaw === 'function') {
-            Promise.resolve(mailer.sendRaw({ to: lead.email, subject, text }))
-              .then((r) => {
+            // Phase 2/4 honesty: await send and only mark sent when provider ok.
+            try {
+              const r = await mailer.sendRaw({ to: lead.email, subject, text });
+              if (r && r.ok) {
                 lead.outreachSentAt = new Date().toISOString();
-                lead.outreachDelivery = (r && r.ok === false) ? (r.error || 'send_failed') : 'sent';
-              })
-              .catch((err) => {
-                lead.outreachDelivery = 'send_failed:' + String(err && err.message || 'unknown').slice(0, 80);
-              });
+                lead.outreachDelivery = 'sent';
+              } else {
+                lead.outreachDelivery = String((r && (r.reason || r.error || r.skipped)) || 'send_failed').slice(0, 80);
+              }
+            } catch (err) {
+              lead.outreachDelivery = 'send_failed:' + String(err && err.message || 'unknown').slice(0, 80);
+            }
           } else {
             lead.outreachDelivery = 'email_unconfigured';
           }
@@ -292,6 +296,16 @@ function stop() {
 }
 
 function getStatus() {
+  const all = [...leads.values()];
+  const outreach = {
+    sent: all.filter((l) => l.outreachDelivery === 'sent').length,
+    failed: all.filter((l) => {
+      const d = String(l.outreachDelivery || '');
+      return d && d !== 'sent' && d !== 'email_unconfigured' && d !== 'mailer_unavailable';
+    }).length,
+    unconfigured: all.filter((l) => l.outreachDelivery === 'email_unconfigured' || l.outreachDelivery === 'mailer_unavailable').length,
+    queued: all.filter((l) => l.outreach && !l.outreachDelivery).length,
+  };
   return {
     ok: true,
     name: 'autonomous-lead-hunter',
@@ -305,6 +319,7 @@ function getStatus() {
     lastCycleAt: state.lastCycleAt,
     confidenceThreshold: CONFIDENCE_THRESHOLD,
     lastReflection: state.memory.reflections.slice(-1)[0] || null,
+    outreach,
   };
 }
 

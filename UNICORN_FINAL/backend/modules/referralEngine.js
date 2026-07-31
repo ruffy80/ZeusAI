@@ -7,8 +7,14 @@
 // =====================================================================
 
 'use strict';
-// ==================== REFERRAL & AFFILIATE ENGINE ====================
+/**
+ * DEPRECATED thin facade — Phase 6 consolidation.
+ * Source of truth: src/commerce/referral-engine-real.js (SQLite ledger).
+ * Tier helpers remain for legacy callers; money attribution delegates to SoT.
+ */
+
 const crypto = require('crypto');
+const path = require('path');
 
 const TIER_CONFIG = {
   silver:   { minReferrals: 0,  commissionPct: 0.15, label: 'Silver' },
@@ -22,14 +28,18 @@ const PLAN_VALUES = {
   enterprise: 499,
 };
 
-let _db = null;
-function getDb() {
-  if (!_db) _db = require('../db');
-  return _db;
+const DEPRECATED = {
+  deprecated: true,
+  sot: 'src/commerce/referral-engine-real.js',
+  note: 'Use referral-engine-real for new code. This facade thin-delegates.',
+};
+
+function _real() {
+  return require(path.join(__dirname, '..', '..', 'src', 'commerce', 'referral-engine-real.js'));
 }
 
 function generateCode(userId) {
-  const prefix = userId.slice(0, 4).toUpperCase();
+  const prefix = String(userId || 'USER').slice(0, 4).toUpperCase();
   const suffix = crypto.randomBytes(3).toString('hex').toUpperCase();
   return `REF-${prefix}-${suffix}`;
 }
@@ -41,81 +51,129 @@ function computeTier(referralCount) {
 }
 
 function createReferral(userId, email) {
-  const db = getDb();
-  const code = generateCode(userId);
-  const referral = {
-    id: crypto.randomBytes(8).toString('hex'),
-    referrerId: userId,
-    code,
-    email: email || null,
-    status: 'pending',
-    tier: 'silver',
-    commissionPct: TIER_CONFIG.silver.commissionPct,
-    totalEarned: 0,
-    createdAt: new Date().toISOString(),
-  };
-  db.referrals.create(referral);
-  return referral;
+  const ownerEmail = String(email || '').trim().toLowerCase()
+    || (`${String(userId || 'user').slice(0, 32)}@legacy.zeusai.pro`);
+  try {
+    const real = _real();
+    const out = real.getOrCreateCode(ownerEmail, null);
+    return {
+      id: out.code,
+      referrerId: userId,
+      code: out.code,
+      email: ownerEmail,
+      status: 'pending',
+      tier: 'silver',
+      commissionPct: TIER_CONFIG.silver.commissionPct,
+      totalEarned: 0,
+      createdAt: new Date().toISOString(),
+      ...DEPRECATED,
+    };
+  } catch (_) {
+    // Last-resort local stub if SoT unloadable (should not happen in prod).
+    const code = generateCode(String(userId || 'USER'));
+    return {
+      id: crypto.randomBytes(8).toString('hex'),
+      referrerId: userId,
+      code,
+      email: email || null,
+      status: 'pending',
+      tier: 'silver',
+      commissionPct: TIER_CONFIG.silver.commissionPct,
+      totalEarned: 0,
+      createdAt: new Date().toISOString(),
+      ...DEPRECATED,
+      fallback: true,
+    };
+  }
 }
 
 function getReferralByCode(code) {
-  return getDb().referrals.findByCode(code);
+  try {
+    const c = _real().lookupCode(code);
+    if (!c) return null;
+    return {
+      code: c.code,
+      email: c.owner_email,
+      status: c.active ? 'active' : 'inactive',
+      discount_pct: c.discount_pct,
+      payout_pct: c.payout_pct,
+      ...DEPRECATED,
+    };
+  } catch (_) {
+    return null;
+  }
 }
 
 function getAffiliateStats(userId) {
-  const db = getDb();
-  const refs = db.referrals.listByReferrer(userId);
-  const converted = refs.filter(r => r.status === 'converted');
-  const tier = computeTier(converted.length);
-  const totalEarned = refs.reduce((s, r) => s + (r.totalEarned || 0), 0);
-  return {
-    userId,
-    tier,
-    tierConfig: TIER_CONFIG[tier],
-    totalReferrals: refs.length,
-    convertedReferrals: converted.length,
-    pendingReferrals: refs.length - converted.length,
-    totalEarned,
-    referrals: refs.map(r => ({
-      code: r.code,
-      status: r.status,
-      earned: r.totalEarned || 0,
-      convertedAt: r.convertedAt || null,
-    })),
-    nextTier: tier === 'platinum' ? null : Object.entries(TIER_CONFIG)
-      .find(([, v]) => v.minReferrals > TIER_CONFIG[tier].minReferrals),
-  };
+  const email = String(userId || '').includes('@')
+    ? String(userId).trim().toLowerCase()
+    : `${String(userId || '').slice(0, 32)}@legacy.zeusai.pro`;
+  try {
+    const stats = _real().statsFor(email);
+    const converted = (stats.redemptions || []).length;
+    const tier = computeTier(converted);
+    return {
+      userId,
+      tier,
+      tierConfig: TIER_CONFIG[tier],
+      totalReferrals: (stats.codes || []).length,
+      convertedReferrals: converted,
+      pendingReferrals: 0,
+      totalEarned: (stats.totals && stats.totals.payoutUsd) || 0,
+      referrals: (stats.redemptions || []).slice(0, 50).map((r) => ({
+        code: r.code,
+        status: r.payout_status || r.payoutStatus || 'pending',
+        earned: r.payout_usd || r.payoutUsd || 0,
+        convertedAt: r.redeemed_at || r.redeemedAt || null,
+      })),
+      nextTier: tier === 'platinum' ? null : Object.entries(TIER_CONFIG)
+        .find(([, v]) => v.minReferrals > TIER_CONFIG[tier].minReferrals),
+      ...DEPRECATED,
+    };
+  } catch (_) {
+    return {
+      userId,
+      tier: 'silver',
+      tierConfig: TIER_CONFIG.silver,
+      totalReferrals: 0,
+      convertedReferrals: 0,
+      pendingReferrals: 0,
+      totalEarned: 0,
+      referrals: [],
+      nextTier: ['gold', TIER_CONFIG.gold],
+      ...DEPRECATED,
+    };
+  }
 }
 
 function processConversion(code, newUserId, planId) {
-  const db = getDb();
-  const referral = db.referrals.findByCode(code);
-  if (!referral || referral.status === 'converted') return null;
-
-  db.referrals.convert(code, newUserId);
-
   const planValue = PLAN_VALUES[planId] || 0;
-  const refs = db.referrals.listByReferrer(referral.referrerId);
-  const converted = refs.filter(r => r.status === 'converted');
-  const tier = computeTier(converted.length);
-  const commissionPct = TIER_CONFIG[tier].commissionPct;
-  const commission = planValue * commissionPct;
-
-  if (commission > 0) {
-    db.referrals.addEarnings(referral.referrerId, commission);
+  try {
+    const real = _real();
+    const red = real.recordRedemption({
+      code,
+      referredEmail: String(newUserId || '').includes('@') ? String(newUserId).toLowerCase() : null,
+      orderId: 'legacy_conv_' + String(code || '').slice(0, 16) + '_' + String(planId || 'plan'),
+      amountUsd: planValue,
+    });
+    const tier = computeTier(1);
+    return {
+      referrerId: null,
+      code: (red && red.code) || code,
+      planId,
+      commission: (red && red.payoutUsd) || 0,
+      tier,
+      ...DEPRECATED,
+      sotRedemption: red,
+    };
+  } catch (e) {
+    return null;
   }
-
-  return {
-    referrerId: referral.referrerId,
-    code,
-    planId,
-    commission,
-    tier,
-  };
 }
 
 function listUserReferrals(userId) {
-  return getDb().referrals.listByReferrer(userId);
+  const stats = getAffiliateStats(userId);
+  return stats.referrals || [];
 }
 
 module.exports = {
@@ -127,4 +185,5 @@ module.exports = {
   processConversion,
   listUserReferrals,
   computeTier,
+  DEPRECATED,
 };

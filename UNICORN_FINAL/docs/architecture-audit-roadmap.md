@@ -45,6 +45,8 @@ Internet → nginx (zeusai.pro)
 
 Secondary: UAIC receipts, salesOrchestrator invoices, optional Stripe/PayPal/NOWPayments when secrets armed.
 
+**Canonical Settle Bridge (CSB/1.0):** sovereign ORDERS remain money SoT; each mint dual-writes a portal shadow (`meta.portalOrderId`) so recovery + dashboards share one invoice plane; paid settle mirrors `status:paid` onto the shadow.
+
 ### Module reality (~610 backend module files)
 
 - ~145 AdaptiveModule/Engine shims (pool workers — not commerce organs)
@@ -77,22 +79,55 @@ Secondary: UAIC receipts, salesOrchestrator invoices, optional Stripe/PayPal/NOW
 
 ## 3. Execution roadmap (priority order)
 
-| Phase | Focus | Exit criteria |
-|---|---|---|
-| **1** | Security harden money + control plane | Gift/redeem/confirm/ZAC/quarantine gated; tests green |
-| **2** | Revenue rails honesty + recovery delivery | Email status surfaced; card CTA only when armed; recovery awaits send result |
-| **3** | Canonical settle plane | One attribution path; portal↔sovereign bridge for recovery |
-| **4** | Affiliate payout + lead ops | Pending → paid BTC ledger; outreach metrics |
-| **5** | Performance | Cut first-paint JS; reduce idle timers under stable |
-| **6** | Consolidation | Deprecate duplicate referral/pricing SoTs |
+| Phase | Focus | Exit criteria | Status |
+|---|---|---|---|
+| **1** | Security harden money + control plane | Gift/redeem/confirm/ZAC/quarantine gated; tests green | **DONE** |
+| **2** | Revenue rails honesty + recovery delivery | Email status surfaced; card CTA only when armed; recovery awaits send result | **DONE** |
+| **3** | Canonical settle plane | One attribution path; portal↔sovereign bridge for recovery | **DONE** |
+| **4** | Affiliate payout + lead ops | Pending → paid BTC ledger; outreach metrics | **DONE** |
+| **5** | Performance | Cut first-paint JS; reduce idle timers under stable | **DONE** |
+| **6** | Consolidation | Deprecate duplicate referral/pricing SoTs | **DONE** |
 
 **Decision filter for every change:** improves reliability, user value, or revenue — otherwise skip.
 
-## 4. Phase 1 status
+## 4. Phase status detail
 
-Implemented in branch `cursor/phase1-security-harden-c3b6` (this doc ships with it):
+### Phase 1 — Security (`cursor/phase1-security-harden-c3b6`)
 
 - Close payment-confirm `open-dev` outside `NODE_ENV=test` / explicit allow
 - Gate gift mint behind paid-order proof or admin secret
 - Gate ZAC mutate + quarantine promote with admin secret/JWT
 - Gate public referral redeem (settle still redeems in-process)
+
+### Phase 2 — Rails honesty + recovery delivery
+
+- `recoverStuckPending` / `checkout-recovery-agent.recover` are **async** and only mark sent when `r.ok`
+- `/api/payment/methods` exposes `emailConfigured` (site + backend)
+- Stripe/PayPal/email reject placeholder secrets
+- Checkout **Armed Rails Continuum** strip (BTC / Card / Email live status)
+- `hydratePaymentRails` hides unarmed card chips and surfaces email arm state
+
+### Phase 3 — Canonical Settle Bridge (CSB/1.0)
+
+- New module: `src/commerce/canonical-settle-bridge.js`
+- Sovereign `createOrder` dual-writes portal shadow → `meta.portalOrderId`
+- `scanIncoming` paid path mirrors `status:paid` onto portal
+- Bridge failures never block mint or settle
+
+### Phase 4 — Affiliate payout + lead ops
+
+- `referral-engine-real.listPendingPayouts` / `markPaid(id, {txid})` — ledger-only, no fake chain send
+- Admin routes: `GET /api/referral/payouts/pending`, `POST /api/referral/payouts/mark-paid`
+- Lead hunter `getStatus().outreach` = `{ sent, failed, unconfigured, queued }`
+- Outreach send awaits provider result (no false "sent")
+
+### Phase 5 — Performance
+
+- Lead hunter idle under `UNICORN_RUNTIME_PROFILE=stable` unless `LEAD_HUNTER_FORCE=1`
+- Three.js loader skipped on non-home routes (`window.__UNICORN__.route !== '/'`)
+
+### Phase 6 — Referral consolidation
+
+- `backend/modules/referralEngine.js` → thin deprecated facade → `referral-engine-real`
+- `global-referral-loop` dual-writes SoT on `attributePaidOrder` / `createCode`
+- Roadmap + regression tests: `test/phases-2-6-completion.test.js`
