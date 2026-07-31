@@ -274,11 +274,110 @@ html::before{content:"";position:fixed;inset:0;pointer-events:none;z-index:1;bac
 
 .hero-side{position:relative;display:flex;flex-direction:column;gap:20px;align-items:flex-end;z-index:3}
 
+/* Homepage visionary panel — right column: "Building the AI feature" */
+.hero-vision{align-items:flex-end;width:100%}
+.hero-vision-frame{
+  position:relative;
+  width:min(440px,100%);
+  padding:30px 28px 28px;
+  border-radius:24px;
+  isolation:isolate;
+  background:
+    linear-gradient(160deg,rgba(8,14,24,.62),rgba(5,8,16,.38)) padding-box,
+    conic-gradient(from 200deg,#FF3B5C,#FF9F1C,#FFEE32,#00E8A0,#2DE2E6,#FF3B5C) border-box;
+  border:1.5px solid transparent;
+  box-shadow:
+    0 28px 70px -30px rgba(0,232,160,.4),
+    0 0 48px -12px rgba(255,159,28,.28),
+    inset 0 1px 0 rgba(255,255,255,.1);
+  overflow:hidden;
+  animation:heroVisionIn .9s cubic-bezier(.22,.8,.2,1) both;
+}
+.hero-vision-frame::before{
+  content:"";
+  position:absolute;inset:-40% -20%;
+  background:conic-gradient(from 0deg,transparent 0 60%,rgba(255,238,50,.18),rgba(0,232,160,.22),transparent 78%);
+  animation:heroVisionSpin 10s linear infinite;
+  z-index:0;pointer-events:none;
+}
+.hero-vision-frame::after{
+  content:"";
+  position:absolute;inset:1px;border-radius:22px;
+  background:linear-gradient(165deg,rgba(7,12,22,.88),rgba(5,8,16,.72) 55%,rgba(0,40,36,.55));
+  z-index:0;pointer-events:none;
+}
+.hero-vision-beam{
+  position:absolute;left:10%;right:10%;top:0;height:2px;z-index:2;
+  background:linear-gradient(90deg,transparent,#FF9F1C,#FFEE32,#00E8A0,#2DE2E6,transparent);
+  filter:blur(.4px);
+  animation:heroVisionBeam 3.2s ease-in-out infinite;
+}
+.hero-vision-kicker,
+.hero-vision-title,
+.hero-vision-sub,
+.hero-vision-line{position:relative;z-index:2}
+.hero-vision-kicker{
+  margin:0 0 14px;
+  font-family:Orbitron,"JetBrains Mono",ui-monospace,monospace;
+  font-size:11px;font-weight:700;letter-spacing:.3em;text-transform:uppercase;
+  color:#FF9F1C;
+  text-shadow:0 0 18px rgba(255,159,28,.55);
+}
+.hero-vision-title{
+  margin:0;
+  font-family:Syne,"Segoe UI Variable Display","Avenir Next",system-ui,sans-serif;
+  font-weight:800;
+  font-size:clamp(1.6rem,2.8vw,2.45rem);
+  line-height:1.02;
+  letter-spacing:-.035em;
+  background:linear-gradient(118deg,#FF3B5C 0%,#FF9F1C 26%,#FFEE32 48%,#00E8A0 74%,#2DE2E6 100%);
+  background-size:200% auto;
+  -webkit-background-clip:text;background-clip:text;
+  -webkit-text-fill-color:transparent;color:transparent;
+  animation:heroVisionShimmer 5.5s ease-in-out infinite;
+  filter:drop-shadow(0 2px 18px rgba(0,232,160,.22));
+}
+.hero-vision-sub{
+  margin:16px 0 0;
+  font-family:Syne,system-ui,sans-serif;
+  font-weight:700;
+  font-size:clamp(1.08rem,1.55vw,1.32rem);
+  line-height:1.25;
+  color:#E8FFF8;
+  text-shadow:0 0 28px rgba(0,232,160,.4),0 2px 12px rgba(0,0,0,.35);
+}
+.hero-vision-line{
+  margin:12px 0 0;
+  font-size:14.5px;line-height:1.5;
+  color:#9fd0ff;
+  max-width:36ch;
+}
+@keyframes heroVisionIn{
+  from{opacity:0;transform:translate3d(18px,12px,0) scale(.97)}
+  to{opacity:1;transform:none}
+}
+@keyframes heroVisionSpin{to{transform:rotate(360deg)}}
+@keyframes heroVisionBeam{
+  0%,100%{opacity:.45;transform:scaleX(.85)}
+  50%{opacity:1;transform:scaleX(1)}
+}
+@keyframes heroVisionShimmer{
+  0%,100%{background-position:0% center}
+  50%{background-position:100% center}
+}
+@media (prefers-reduced-motion: reduce){
+  .hero-vision-frame,
+  .hero-vision-frame::before,
+  .hero-vision-beam,
+  .hero-vision-title{animation:none!important}
+}
+
 @media(max-width:920px){
   body::before{opacity:.14;background-position:center top}
   body::after{opacity:.14;background-position:center bottom -90px;background-size:520px auto}
 }
 .hero-copy,.hero-side{text-shadow:0 2px 18px rgba(0,0,0,.46)}
+.hero-vision-title{-webkit-text-fill-color:transparent;text-shadow:none}
 .tourbillon-wrap{position:relative;width:420px;max-width:100%;aspect-ratio:1/1;border-radius:50%;background:radial-gradient(circle at 30% 30%,rgba(138,92,255,.2),transparent 60%),radial-gradient(circle at 70% 70%,rgba(62,160,255,.14),transparent 55%),rgba(10,8,24,.55);backdrop-filter:blur(18px);border:1px solid var(--stroke-hot);box-shadow:var(--shadow),inset 0 0 60px rgba(138,92,255,.2);transform:perspective(900px) rotateX(var(--watch-rx,0deg)) rotateY(var(--watch-ry,0deg));transition:transform .2s ease}
 .tourbillon-wrap canvas{position:absolute;inset:0;width:100% !important;height:100% !important;border-radius:50%}
 .watch-photo{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;border-radius:50%;filter:contrast(1.08) saturate(1.1) brightness(.88)}
@@ -509,7 +608,8 @@ pre.code{font-family:var(--mono);background:rgba(0,0,0,.45);border:1px solid var
 /* responsive */
 @media(max-width:1100px){
   .hero-grid{grid-template-columns:1fr;gap:30px}
-  .hero-side{align-items:center}
+  .hero-side,.hero-vision{align-items:center}
+  .hero-vision-frame{width:min(440px,100%);margin:0 auto}
   .tourbillon-wrap,.tourbillon-label{width:min(380px,90vw)}
   .hero-stats{grid-template-columns:repeat(2,1fr)}
   .foot-grid{grid-template-columns:1fr 1fr}
