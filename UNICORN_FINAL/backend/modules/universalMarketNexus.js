@@ -182,4 +182,29 @@ class UniversalMarketNexus {
   }
 }
 
-module.exports = new UniversalMarketNexus();
+const _umn = new UniversalMarketNexus();
+_umn.getStatus = function getStatus() {
+  const exchanges = this.exchanges || {};
+  const connected = Object.keys(exchanges).filter((k) => exchanges[k] != null);
+  return {
+    ok: true,
+    module: 'universalMarketNexus',
+    name: 'Universal Market Nexus',
+    connectedExchanges: connected,
+    exchangeCount: connected.length,
+    paperTrading: connected.length === 0,
+    honesty: {
+      claimsLiveExchange: connected.length > 0,
+      note: 'Paper/idle until real exchange API keys are configured.',
+    },
+    timestamp: new Date().toISOString(),
+  };
+};
+_umn.start = function start() {
+  if (typeof this.init === 'function') {
+    const r = this.init();
+    return r && typeof r.then === 'function' ? r.then(() => this.getStatus()) : this.getStatus();
+  }
+  return this.getStatus();
+};
+module.exports = _umn;

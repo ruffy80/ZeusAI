@@ -591,6 +591,32 @@ class QuantumResilienceCore {
     };
   }
 
+  /** Essential-module contract — honest status (no infinite-scale claim) */
+  getStatus() {
+    const stats = this.getStats ? this.getStats() : {};
+    return {
+      ok: true,
+      module: 'quantumResilienceCore',
+      name: 'Quantum Resilience Core',
+      running: true,
+      instancesCount: stats.instancesCount,
+      honesty: {
+        claimsInfiniteScale: false,
+        note: 'In-process monitors/scalers — not planetary infinite infrastructure.',
+      },
+      timestamp: new Date().toISOString(),
+    };
+  }
+
+  start() {
+    if (typeof this.init === 'function') this.init();
+    if (typeof this.startAutoScaler === 'function') this.startAutoScaler();
+    if (typeof this.startLoadBalancer === 'function') this.startLoadBalancer();
+    if (typeof this.startHealthMonitor === 'function') this.startHealthMonitor();
+    if (typeof this.startGlobalEdgeNetwork === 'function') this.startGlobalEdgeNetwork();
+    return this.getStatus();
+  }
+
   getRouter(secretMiddleware) {
     const router = require('express').Router();
     router.use(secretMiddleware);

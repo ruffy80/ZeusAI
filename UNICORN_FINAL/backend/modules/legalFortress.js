@@ -504,4 +504,21 @@ class LegalFortress {
   }
 }
 
-module.exports = new LegalFortress();
+const _lf = new LegalFortress();
+_lf.getStatus = function getStatus() {
+  const legal = typeof this.getLegalStatus === 'function' ? this.getLegalStatus() : {};
+  return Object.assign({
+    ok: true,
+    module: 'legalFortress',
+    honesty: { osimFilingIsLocalRecordOnly: true },
+    timestamp: new Date().toISOString(),
+  }, legal);
+};
+_lf.start = function start() {
+  if (typeof this.init === 'function') {
+    const r = this.init();
+    return r && typeof r.then === 'function' ? r.then(() => this.getStatus()) : this.getStatus();
+  }
+  return this.getStatus();
+};
+module.exports = _lf;

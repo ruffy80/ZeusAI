@@ -450,4 +450,23 @@ class GlobalDigitalStandard {
   }
 }
 
-module.exports = new GlobalDigitalStandard();
+const _gdes = new GlobalDigitalStandard();
+_gdes.getStatus = function getStatus() {
+  return {
+    ok: true,
+    module: 'globalDigitalStandard',
+    name: 'Global Digital Standard',
+    connectedPlatforms: this.connectedPlatforms ? this.connectedPlatforms.size : 0,
+    useRealAPIs: !!this.useRealAPIs,
+    honesty: { simulatedWhenKeysMissing: true },
+    timestamp: new Date().toISOString(),
+  };
+};
+_gdes.start = function start() {
+  if (typeof this.init === 'function') {
+    const r = this.init();
+    return r && typeof r.then === 'function' ? r.then(() => this.getStatus()) : this.getStatus();
+  }
+  return this.getStatus();
+};
+module.exports = _gdes;

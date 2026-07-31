@@ -313,6 +313,11 @@ class UnicornEternalEngine {
     this.startInfiniteLearning();
   }
 
+  /** Essential-module contract: start() → init() */
+  start() {
+    return this.init();
+  }
+
   startEternalCycle() {
     if (this._stableIdle()) {
       console.log('🛡️ UEE: startEternalCycle blocked under stable/safe (Boot Immortal OS)');
@@ -594,11 +599,17 @@ module.exports = createCapability({
   }
 
   async constructMissingParts() {
+    if (String(process.env.DISABLE_SELF_MUTATION || '') === '1'
+      || String(process.env.ENABLE_FILE_MUTATORS || '') !== '1') {
+      console.log('🛡️ UEE constructMissingParts gated (DISABLE_SELF_MUTATION or mutators off)');
+      return { ok: true, created: 0, gated: true };
+    }
     console.log('🏗️ Construcție componente lipsă...');
     const missing = await this.identifyMissingComponents();
     for (const component of missing) {
       await this.buildComponent(component);
     }
+    return { ok: true, created: missing.length };
   }
 
   async identifyMissingComponents() {

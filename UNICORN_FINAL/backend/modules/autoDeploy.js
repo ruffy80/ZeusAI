@@ -244,11 +244,35 @@ class AutoDeploy {
     return remoteUrl.replace('https://', `https://x-access-token:${encodeURIComponent(token)}@`);
   }
 
+  watchFiles() {
+    return this.start();
+  }
+
+  async commitAndPush(message) {
+    if (process.env.DISABLE_SELF_MUTATION === '1' || process.env.ENABLE_AUTO_DEPLOY !== '1') {
+      return { ok: false, pushed: false, note: 'gated — ENABLE_AUTO_DEPLOY=1 required' };
+    }
+    const git = simpleGit(path.join(__dirname, '../..'));
+    try {
+      const status = await git.status();
+      if (status.files.length > 0 || status.not_added.length > 0) {
+        await git.add('.');
+        await git.commit(message || ('Auto‑deploy: ' + new Date().toISOString()));
+        await git.push();
+        return { ok: true, pushed: true };
+      }
+      return { ok: true, pushed: false, note: 'clean_tree' };
+    } catch (err) {
+      return { ok: false, pushed: false, error: err.message };
+    }
+  }
+
   start() {
     if (process.env.DISABLE_SELF_MUTATION === '1' || process.env.ENABLE_AUTO_DEPLOY !== '1') {
       console.log('📡 Auto‑Deploy disabled (DISABLE_SELF_MUTATION=1 or ENABLE_AUTO_DEPLOY!=1)');
-      return;
+      return { ok: true, watching: false };
     }
+    if (this._watcherStarted) return { ok: true, watching: true };
     const git = simpleGit(path.join(__dirname, '../..'));
     let timeout = null;
 
@@ -271,25 +295,14 @@ class AutoDeploy {
       timeout = setTimeout(async () => {
         console.log(`📝 Modificare detectată: ${filePath}`);
         console.log('🔄 Auto‑deploy în curs...');
-
-        try {
-          const status = await git.status();
-          if (status.files.length > 0 || status.not_added.length > 0) {
-            await git.add('.');
-            await git.commit('Auto‑deploy: ' + new Date().toISOString());
-            await git.push();
-            console.log('✅ Push realizat pe GitHub. Webhook-ul va actualiza Hetzner.');
-          } else {
-            console.log('ℹ️ Nicio modificare de commitat.');
-          }
-        } catch (err) {
-          console.error('❌ Eroare auto‑deploy:', err.message);
-        }
+        await this.commitAndPush();
       }, 2000);
     });
 
+    this._watcherStarted = true;
     // Verifică și inițializează repo dacă nu există
     this.ensureRepo(git);
+    return { ok: true, watching: true };
   }
 
   async ensureRepo(git) {

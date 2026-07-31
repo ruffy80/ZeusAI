@@ -1,0 +1,12 @@
+# Thin alias — canonical deploy lives in deploy.yml / hetzner-deploy.yml
+name: deploy-hetzner (alias)
+on:
+  workflow_dispatch:
+jobs:
+  forward:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Point operators to canonical workflow
+        run: |
+          echo "Use workflow 'Deploy' (deploy.yml) or 'hetzner-deploy.yml' for production deploys."
+          echo "This alias exists for Essential Modules Continuum / AutoGenesis discoverability."

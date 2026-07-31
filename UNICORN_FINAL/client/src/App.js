@@ -225,6 +225,7 @@ function App() {
           <Route path="/capabilities" element={<ScrollReveal delay={0.2}><Capabilities /></ScrollReveal>} />
           <Route path="/wealth" element={<ScrollReveal delay={0.1}><Wealth /></ScrollReveal>} />
           <Route path="/marketplace" element={<ScrollReveal delay={0.2}><Marketplace /></ScrollReveal>} />
+          <Route path="/esim" element={<Navigate to="/marketplace" replace />} />
           <Route path="/payments" element={<ScrollReveal delay={0.15}><PaymentPage /></ScrollReveal>} />
           <Route path="/enterprise" element={<ScrollReveal delay={0.1}><EnterpriseHub /></ScrollReveal>} />
           <Route path="/enterprise/aviation" element={<ScrollReveal delay={0.12}><AviationOps /></ScrollReveal>} />

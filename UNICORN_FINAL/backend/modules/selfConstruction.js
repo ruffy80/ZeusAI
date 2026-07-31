@@ -404,4 +404,18 @@ const selfConstruction = {
   },
 };
 
+// Essential-module contract aliases
+selfConstruction.scanAllModules = function scanAllModules() {
+  return this.audit();
+};
+selfConstruction.enhanceModule = function enhanceModule(name) {
+  return { ok: true, module: name, enhanced: false, note: 'use start({apply:true}) under ENABLE_FILE_MUTATORS=1' };
+};
+selfConstruction.createMissingModules = async function createMissingModules() {
+  if (String(process.env.ENABLE_FILE_MUTATORS || '') !== '1') {
+    return { ok: true, created: 0, gated: true };
+  }
+  return this.start({ apply: true });
+};
+
 module.exports = selfConstruction;

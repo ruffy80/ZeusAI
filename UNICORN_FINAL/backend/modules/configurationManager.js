@@ -372,4 +372,35 @@ loadConfig();
 // Auto-inject la startup
 injectToEnv();
 
-module.exports = { get, set, backup, runWizard, getStatus, loadConfig, saveConfig, injectToEnv, getAllKeysStatus };
+function backupConfig() {
+  return backup();
+}
+
+function validateAll() {
+  if (!initialized) loadConfig();
+  const status = getAllKeysStatus();
+  const missingCritical = ['ADMIN_SECRET', 'JWT_SECRET', 'BTC_WALLET_ADDRESS']
+    .filter((k) => !(status[k] && status[k].set));
+  return {
+    ok: missingCritical.length === 0,
+    keys: Object.keys(status).length,
+    missingCritical,
+    initialized,
+  };
+}
+
+module.exports = {
+  get,
+  set,
+  backup,
+  backupConfig,
+  runWizard,
+  getStatus,
+  loadConfig,
+  saveConfig,
+  injectToEnv,
+  getAllKeysStatus,
+  encrypt,
+  decrypt,
+  validateAll,
+};
