@@ -220,6 +220,7 @@ async function handle(req, res, ctx) {
       '',
       `Sitemap: ${OWNER.domain}/sitemap.xml`,
       `Sitemap: ${OWNER.domain}/seo/sitemap-services.xml`,
+      `Sitemap: ${OWNER.domain}/seo/sitemap-index.xml`,
     ].join('\n');
     res.writeHead(200, { 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': 'public, max-age=3600' });
     res.end(body);
@@ -229,15 +230,8 @@ async function handle(req, res, ctx) {
 
   // ── /sitemap.xml ───────────────────────────────────────────────────────
   if (urlPath === '/sitemap.xml') {
-    const baseUrls = [
-      '/', '/services', '/store', '/enterprise', '/pricing', '/checkout', '/dashboard', '/how', '/docs',
-      '/about', '/legal', '/trust', '/security', '/responsible-ai', '/dpa', '/payment-terms', '/operator',
-      '/observability', '/innovations', '/wizard', '/status', '/changelog', '/terms', '/privacy',
-      '/refund', '/sla', '/pledge', '/cancel', '/gift', '/aura', '/api-explorer', '/transparency', '/frontier',
-      '/contact', '/faq', '/blog', '/affiliate', '/partners', '/roadmap', '/careers', '/press', '/verticals',
-      '/social-network', '/social', '/zeusai-social', '/account'
-    ];
-    const now = new Date().toISOString();
+    const seo = require('../seo/sitemap-helpers');
+    const baseUrls = seo.corePublicPaths();
     // Auto-discover all services from live snapshot so every current AND future
     // service is indexed by Google/Bing the moment it appears in /snapshot.
     let serviceUrls = [];
@@ -249,16 +243,17 @@ async function handle(req, res, ctx) {
         for (const s of items) {
           const id = s && (s.id || s.serviceId);
           if (!id || seen.has(id)) continue;
+          // Skip synthetic/demo catalog noise from the public index
+          if (/^synthetic[_-]/i.test(id) || /^unicorn-(auto-)?module-/i.test(id)) continue;
           seen.add(id);
           serviceUrls.push(`/services/${encodeURIComponent(id)}`);
         }
       }
-    } catch (_) {}
-    const all = baseUrls.concat(serviceUrls);
-    const xml = `<?xml version="1.0" encoding="UTF-8"?>
-<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
-${all.map(u => `  <url><loc>${OWNER.domain}${u}</loc><lastmod>${now}</lastmod><changefreq>daily</changefreq><priority>${u === '/' ? '1.0' : '0.7'}</priority></url>`).join('\n')}
-</urlset>`;
+    } catch (_) { /* ok */ }
+    const xml = seo.buildUrlsetXml(OWNER.domain, baseUrls.concat(serviceUrls), {
+      lastmod: seo.todayDate(),
+      changefreq: 'daily',
+    });
     res.writeHead(200, { 'Content-Type': 'application/xml; charset=utf-8', 'Cache-Control': 'public, max-age=600' });
     res.end(xml);
     recordMetric(urlPath, 200, xml.length);

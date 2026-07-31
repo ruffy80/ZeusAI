@@ -163,6 +163,33 @@ location = /.well-known/aacos.json {
     proxy_set_header X-Forwarded-Proto $scheme;
     add_header Cache-Control "public, max-age=10" always;
 }
+location = /.well-known/immortality.json {
+    proxy_pass http://127.0.0.1:3000;
+    proxy_http_version 1.1;
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+    add_header Cache-Control "no-store" always;
+}
+location = /.well-known/continuity.json {
+    proxy_pass http://127.0.0.1:3000;
+    proxy_http_version 1.1;
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+    add_header Cache-Control "no-store" always;
+}
+location = /.well-known/merchant.json {
+    proxy_pass http://127.0.0.1:3000;
+    proxy_http_version 1.1;
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+    add_header Cache-Control "no-store" always;
+}
 """
 
 # Extra self-heal blocks that MUST exist inside the installed snippet.
@@ -344,6 +371,54 @@ _REQUIRED_LOCATIONS = [
             "    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;\n"
             "    proxy_set_header X-Forwarded-Proto $scheme;\n"
             "    add_header Cache-Control \"public, max-age=10\" always;\n"
+            "}\n"
+        ),
+    },
+    {
+        "match": "location = /.well-known/immortality.json",
+        "block": (
+            "\n"
+            "# ── /.well-known/immortality.json — ICP/1.0 (self-heal) ──\n"
+            "location = /.well-known/immortality.json {\n"
+            "    proxy_pass http://127.0.0.1:3000;\n"
+            "    proxy_http_version 1.1;\n"
+            "    proxy_set_header Host $host;\n"
+            "    proxy_set_header X-Real-IP $remote_addr;\n"
+            "    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;\n"
+            "    proxy_set_header X-Forwarded-Proto $scheme;\n"
+            "    add_header Cache-Control \"no-store\" always;\n"
+            "}\n"
+        ),
+    },
+    {
+        "match": "location = /.well-known/continuity.json",
+        "block": (
+            "\n"
+            "# ── /.well-known/continuity.json — CAC/1.0 (self-heal) ──\n"
+            "location = /.well-known/continuity.json {\n"
+            "    proxy_pass http://127.0.0.1:3000;\n"
+            "    proxy_http_version 1.1;\n"
+            "    proxy_set_header Host $host;\n"
+            "    proxy_set_header X-Real-IP $remote_addr;\n"
+            "    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;\n"
+            "    proxy_set_header X-Forwarded-Proto $scheme;\n"
+            "    add_header Cache-Control \"no-store\" always;\n"
+            "}\n"
+        ),
+    },
+    {
+        "match": "location = /.well-known/merchant.json",
+        "block": (
+            "\n"
+            "# ── /.well-known/merchant.json — MTS/1.0 (self-heal) ──\n"
+            "location = /.well-known/merchant.json {\n"
+            "    proxy_pass http://127.0.0.1:3000;\n"
+            "    proxy_http_version 1.1;\n"
+            "    proxy_set_header Host $host;\n"
+            "    proxy_set_header X-Real-IP $remote_addr;\n"
+            "    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;\n"
+            "    proxy_set_header X-Forwarded-Proto $scheme;\n"
+            "    add_header Cache-Control \"no-store\" always;\n"
             "}\n"
         ),
     },

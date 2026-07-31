@@ -100,7 +100,7 @@ check('renderRoute covers all data-link footer paths (or explicit redirects)', (
   const hrefs = [...f.matchAll(/href="(\/[^"#?]+)"/g)].map((m) => m[1]);
   const allowedOutsideRender = new Set([
     '/zacc', '/dropship', // legacy renderPage path in index.js
-    '/seo/sitemap.xml', // XML allow-raw
+    '/sitemap.xml', // XML allow-raw (styled via XSL)
     '/sw-reset', // emergency SW kill-switch in src/index.js
   ]);
   // Extract case arms from renderRoute switch
