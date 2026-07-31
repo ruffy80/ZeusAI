@@ -469,12 +469,12 @@ ${hreflangs}
 <meta name="twitter:image" content="${ogImage}"/>
 ${jsonLdBlocks}
 <link rel="manifest" href="/manifest.webmanifest"/>
-<!-- Visionary display fonts (non-blocking): Syne + Orbitron for the homepage
-     hero-vision panel. media=print + onload keeps them off the critical path. -->
+<!-- Letterpress display fonts (non-blocking): Orbitron + Syne for
+     "Building the future" above the hero brand. Off critical path. -->
 <link rel="preconnect" href="https://fonts.googleapis.com"/>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=Orbitron:wght@600;700&display=swap" media="print" onload="this.media='all'"/>
-<noscript><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=Orbitron:wght@600;700&display=swap"/></noscript>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Orbitron:wght@600;700;800&family=Syne:wght@700;800&display=swap" media="print" onload="this.media='all'"/>
+<noscript><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Orbitron:wght@600;700;800&family=Syne:wght@700;800&display=swap"/></noscript>
 <!-- Responsive LCP preload: tiny mobile AVIF/WebP first, full hero only on wider viewports. -->
 <link rel="preload" as="image" type="image/avif" href="${assetPath('/assets/zeus/hero-640.avif')}" imagesrcset="${assetPath('/assets/zeus/hero-640.avif')} 640w" imagesizes="100vw" fetchpriority="high"/>
 <link rel="stylesheet" href="${assetPath('/assets/app.css')}"/>
@@ -518,15 +518,10 @@ img{max-width:100%;display:block}
 .hero h1{line-height:1.22;padding:0;margin:24px 0 22px;font-size:clamp(44px,6vw,88px);font-weight:700;letter-spacing:-1.5px;color:#f4f7ff;-webkit-text-fill-color:#f4f7ff}
 .hero h1 .hero-brand{color:#fff;-webkit-text-fill-color:#fff;text-shadow:0 0 28px rgba(255,255,255,.18)}
 .hero h1 .grad{background:none!important;-webkit-background-clip:border-box!important;background-clip:border-box!important;-webkit-text-fill-color:#9fd0ff;color:#9fd0ff;filter:none!important;text-shadow:0 0 34px rgba(111,211,255,.42),0 2px 18px rgba(0,0,0,.35)}
-.hero-grid{display:grid;grid-template-columns:minmax(0,1.35fr) minmax(280px,1fr);gap:40px;align-items:start;max-width:1480px;margin:0 auto;width:100%}
-.hero-side{position:relative;z-index:3;display:flex;justify-content:flex-end}
-.hero-vision{align-self:start;position:sticky;top:108px;margin-top:8px;z-index:4;width:100%}
-.hero-vision-frame{position:relative;width:min(420px,100%);padding:28px 26px 26px;border-radius:22px;background:linear-gradient(155deg,rgba(8,12,22,.55),rgba(5,8,16,.35));border:1px solid transparent;background-clip:padding-box;box-shadow:0 0 0 1px rgba(255,159,28,.28),0 24px 60px -28px rgba(0,232,160,.35),inset 0 1px 0 rgba(255,255,255,.08);overflow:hidden;margin-left:auto}
-.hero-vision-kicker{margin:0 0 12px;font-family:Orbitron,ui-monospace,monospace;font-size:11px;font-weight:600;letter-spacing:.28em;text-transform:uppercase;color:#FF9F1C}
-.hero-vision-title{margin:0;font-family:Syne,"Segoe UI Variable Display",system-ui,sans-serif;font-weight:800;font-size:clamp(1.55rem,2.6vw,2.35rem);line-height:1.05;letter-spacing:-.03em;background:linear-gradient(115deg,#FF3B5C 0%,#FF9F1C 28%,#FFEE32 52%,#00E8A0 78%,#2DE2E6 100%);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;color:transparent}
-.hero-vision-sub{margin:14px 0 0;font-family:Syne,system-ui,sans-serif;font-weight:700;font-size:clamp(1.05rem,1.5vw,1.25rem);line-height:1.25;color:#E8FFF8;text-shadow:0 0 24px rgba(0,232,160,.35)}
-.hero-vision-line{margin:10px 0 0;font-size:14px;line-height:1.45;color:#9fd0ff;max-width:34ch}
-@media(max-width:980px){.hero-grid{grid-template-columns:1fr}.hero-side,.hero-vision{justify-content:center;position:static}.hero-vision-frame{margin:0 auto}}
+.hero-grid{display:grid;grid-template-columns:1fr;gap:40px;align-items:start;max-width:1480px;margin:0 auto;width:100%}
+.hero-future{margin:18px 0 0;padding:0}
+.hero-future-plate{display:inline-block;padding:11px 18px 10px;border-radius:10px;background:linear-gradient(180deg,rgba(18,14,28,.72),rgba(5,8,16,.55));border:1px solid rgba(255,159,28,.45);box-shadow:inset 0 1px 0 rgba(255,255,255,.12),inset 0 -1px 0 rgba(0,0,0,.35),0 0 0 1px rgba(0,232,160,.18),0 12px 28px -16px rgba(255,159,28,.45)}
+.hero-future-type{display:inline-block;font-family:Orbitron,Syne,ui-monospace,monospace;font-weight:700;font-size:clamp(.95rem,1.6vw,1.2rem);letter-spacing:.18em;text-transform:uppercase;line-height:1.2;background:linear-gradient(115deg,#FF3B5C 0%,#FF9F1C 30%,#FFEE32 55%,#00E8A0 78%,#2DE2E6 100%);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;color:transparent}
 section.hero[data-reveal],section.hero{opacity:1!important;transform:none!important}
 /* Hide the Google Translate banner/iframe so the auto-translation is
    applied silently and the layout never shifts. The widget itself stays
@@ -1199,6 +1194,7 @@ function pageHome() {
   <div class="hero-grid">
     <div class="hero-copy">
       <span class="hero-eyebrow"><span class="dot"></span> ₿ Native Bitcoin · save 10% · instant delivery</span>
+      <p class="hero-future"><span class="hero-future-plate"><span class="hero-future-type">Building the future</span></span></p>
       <h1><span class="hero-brand">ZeusAI</span> <span class="grad">Ship AI products at machine speed.</span></h1>
       <p class="lead">Live autonomous AI commerce platform: ZeusAI turns modules, verticals and marketplaces into buyable AI services with direct BTC checkout, signed receipts and instant delivery.</p>
       <div class="hero-cta">
@@ -1228,15 +1224,6 @@ function pageHome() {
         <div class="hero-stat"><b id="statTaos">—</b><span>Autonomy</span></div>
       </div>
     </div>
-    <aside class="hero-side hero-vision" aria-label="Building the future">
-      <div class="hero-vision-frame">
-        <span class="hero-vision-beam" aria-hidden="true"></span>
-        <p class="hero-vision-kicker">Future in motion</p>
-        <p class="hero-vision-title">Building the AI feature</p>
-        <p class="hero-vision-sub">We build the future — Construim viitorul.</p>
-        <p class="hero-vision-line">Autonomous software that invents, ships, and sells itself.</p>
-      </div>
-    </aside>
   </div>
 </section>
 
