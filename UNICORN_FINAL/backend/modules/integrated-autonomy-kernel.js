@@ -362,9 +362,14 @@ class IntegratedAutonomyKernel extends EventEmitter {
       entry.depsReady = depsReady;
 
       try {
-        const status = entry.statusFn
-          ? entry.instance[entry.statusFn]()
-          : { health: 'unknown' };
+        // No statusFn → observe-only (healthy). Never invent health:'unknown'
+        // (that string used to trip BAD_HEALTH and spam "Modul degradat").
+        let status;
+        if (entry.statusFn && entry.instance && typeof entry.instance[entry.statusFn] === 'function') {
+          status = entry.instance[entry.statusFn]();
+        } else {
+          status = { ok: true, health: 'observe', note: 'no_status_fn' };
+        }
 
         entry.lastStatus = status;
         entry.lastSeen = Date.now();
@@ -653,8 +658,10 @@ class IntegratedAutonomyKernel extends EventEmitter {
 
   _isHealthy(status) {
     if (!status) return false;
-    const BAD_HEALTH = new Set(['error', 'failed', 'down', 'critical', 'compromised', 'crashed', 'unknown']);
+    // 'unknown' / 'observe' are NOT faults — only explicit negative health.
+    const BAD_HEALTH = new Set(['error', 'failed', 'down', 'critical', 'compromised', 'crashed']);
     const BAD_STATUS = new Set(['error', 'failed', 'down', 'compromised', 'crashed']);
+    if (status.ok === false && (status.error || status.fault)) return false;
     if (status.health && typeof status.health === 'string' && BAD_HEALTH.has(status.health.toLowerCase())) return false;
     if (status.status && typeof status.status === 'string' && BAD_STATUS.has(status.status.toLowerCase())) return false;
     return true;

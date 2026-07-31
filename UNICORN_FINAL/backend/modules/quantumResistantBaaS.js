@@ -160,10 +160,29 @@ class QuantumResistantBaaS {
     };
   }
 
+  /** Module health for IAK/mesh — never throws when id is omitted. */
   getStatus(id) {
+    if (id == null || id === '') {
+      const list = this.listChains();
+      return {
+        ok: true,
+        module: 'quantumResistantBaaS',
+        name: 'Quantum Resistant BaaS',
+        running: true,
+        chainCount: list.length,
+        chains: list.slice(0, 20),
+        supportedConsensus: CONSENSUS_TYPES,
+        honesty: { privateChainSimulator: true },
+        timestamp: new Date().toISOString(),
+      };
+    }
     const chain = chains.get(id);
     if (!chain) throw new Error(`Blockchain ${id} not found`);
     return chain.getStats();
+  }
+
+  getChainStatus(id) {
+    return this.getStatus(id);
   }
 
   deployContract(chainId, contractParams) {

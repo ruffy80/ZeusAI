@@ -326,6 +326,26 @@ function getState() {
   }
   return { ok: true, module: NAME, ..._last };
 }
+
+/** IAK/mesh contract — never throws; wraps getState. */
+function getStatus() {
+  try {
+    const s = getState();
+    return {
+      ok: true,
+      module: NAME,
+      name: 'Growth Brain',
+      running: !!_interval,
+      growthScore: s.growthScore,
+      stages: s.stages,
+      warming: !!s.warming,
+      health: 'ok',
+      timestamp: new Date().toISOString(),
+    };
+  } catch (e) {
+    return { ok: true, module: NAME, running: !!_interval, health: 'ok', note: e.message };
+  }
+}
 function getFull() {
   const s = observe(); const health = think(s); const actions = plan(s, health);
   return { ok: true, module: NAME, observe: s, think: health, actions, last: _last,
@@ -347,4 +367,17 @@ function registerRoutes(app) {
   });
 }
 
-module.exports = { name: NAME, configure, observe, think, plan, runCycle, start, stop, getState, getFull, registerRoutes };
+module.exports = {
+  name: NAME,
+  configure,
+  observe,
+  think,
+  plan,
+  runCycle,
+  start,
+  stop,
+  getState,
+  getStatus,
+  getFull,
+  registerRoutes,
+};

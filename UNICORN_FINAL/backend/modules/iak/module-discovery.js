@@ -128,7 +128,7 @@ const COMMERCE_NAMES = new Set([
   'money-machine',
 ]);
 
-const STATUS_FNS = ['getStatus', 'getRevenueStatus', 'getViralStatus', 'getMetrics', 'getAllStatus', 'getStats', 'getHealthReport'];
+const STATUS_FNS = ['getStatus', 'getRevenueStatus', 'getViralStatus', 'getMetrics', 'getAllStatus', 'getStats', 'getHealthReport', 'getState', 'getSnapshot'];
 
 function baseName(file) {
   return String(file || '').replace(/\.js$/i, '');
