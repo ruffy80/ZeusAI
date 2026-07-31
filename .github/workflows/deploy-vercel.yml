@@ -1,12 +1,42 @@
-# Thin alias — production is Hetzner (deploy.yml). Vercel is optional.
-name: deploy-vercel (alias)
+# Optional Vercel frontend publish — production traffic remains on Hetzner (zeusai.pro)
+name: ▲ Deploy Vercel (optional)
 on:
   workflow_dispatch:
+
 jobs:
-  point:
+  vercel:
     runs-on: ubuntu-latest
+    timeout-minutes: 25
     steps:
-      - name: Point operators to canonical deploy
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: UNICORN_FINAL/client/package-lock.json
+
+      - name: Build client (always — validates frontend compiles)
+        working-directory: UNICORN_FINAL/client
+        env:
+          CI: "false"
+          GENERATE_SOURCEMAP: "false"
         run: |
-          echo "Primary production deploy is Hetzner via deploy.yml + scripts/deploy-atomic-forward.sh."
-          echo "Vercel is not the live path for zeusai.pro — set VERCEL_TOKEN only if using DAM addDomainToVercel."
+          npm ci || npm install
+          npm run build
+          test -f build/index.html
+          echo "✅ client build ok"
+
+      - name: Publish to Vercel (when secrets present)
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+        run: |
+          if [ -z "${VERCEL_TOKEN:-}" ] || [ -z "${VERCEL_ORG_ID:-}" ] || [ -z "${VERCEL_PROJECT_ID:-}" ]; then
+            echo "::notice::Vercel secrets not configured — build validated; Hetzner remains primary publish path."
+            exit 0
+          fi
+          npm install -g vercel@39
+          cd UNICORN_FINAL/client
+          vercel deploy --prod --yes --token="$VERCEL_TOKEN"

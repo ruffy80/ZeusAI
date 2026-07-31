@@ -2,6 +2,7 @@ name: 🚀 Unicorn Stable Deploy
 
 on:
   workflow_dispatch:
+  workflow_call:
   push:
     branches: [ "main" ]
     paths:

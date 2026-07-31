@@ -1,12 +1,65 @@
-# Thin alias — autonomous loops live in deepseek-autopilot / auto-innovation-approve
-name: autonomous (alias)
+# Autonomous evolve + heal cadence (safe read-only by default)
+name: 🧬 Autonomous evolve/heal
 on:
   workflow_dispatch:
+  schedule:
+    # Every 6 hours
+    - cron: '0 */6 * * *'
+
+concurrency:
+  group: unicorn-autonomous
+  cancel-in-progress: false
+
 jobs:
-  point:
+  autonomous:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
-      - name: Point operators to canonical autonomy workflows
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: UNICORN_FINAL/package-lock.json
+
+      - name: Install (UNICORN_FINAL)
+        working-directory: UNICORN_FINAL
         run: |
-          echo "Use deepseek-autopilot.yml and auto-innovation-approve.yml for autonomous ops."
-          echo "Mutators remain gated by DISABLE_SELF_MUTATION / ENABLE_FILE_MUTATORS on the VPS."
+          for i in 1 2 3; do
+            npm ci && break
+            sleep $((i*4))
+          done
+
+      - name: Evolve (innovation sprint — status only / safe)
+        working-directory: UNICORN_FINAL
+        env:
+          DISABLE_SELF_MUTATION: '1'
+          NODE_ENV: test
+        run: npm run evolve
+
+      - name: Heal (health guardian)
+        working-directory: UNICORN_FINAL
+        env:
+          DISABLE_SELF_MUTATION: '1'
+          NODE_ENV: test
+        run: npm run heal
+
+      - name: Continuum smoke
+        working-directory: UNICORN_FINAL
+        env:
+          DISABLE_SELF_MUTATION: '1'
+          NODE_ENV: test
+          UNICORN_RUNTIME_PROFILE: stable
+        run: |
+          node -e "
+            const cho=require('./backend/modules/continuum-harmony-os');
+            const tep=require('./backend/modules/total-ecosystem-perfection-os');
+            tep.start();
+            const t=tep.getStatus();
+            console.log('TEP', t.modulesDirCount, 'adaptive', t.adaptiveShimCount, 'engines', t.engineShimCount);
+            if (!t.over200) { console.error('expected 200+ modules'); process.exit(1); }
+            if (t.adaptiveShimCount < 82 || t.engineShimCount < 62) process.exit(2);
+            console.log('OK');
+            process.exit(0);
+          "

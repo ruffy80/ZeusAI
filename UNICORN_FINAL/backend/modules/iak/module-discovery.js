@@ -104,6 +104,9 @@ const STABLE_START_ALLOW = new Set([
   'essentialModulesContinuum',
   'continuum-harmony-os',
   'continuumHarmonyOs',
+  'total-ecosystem-perfection-os',
+  'totalEcosystemPerfectionOs',
+  'adaptiveEnginePool',
 ]);
 
 /** Commerce / payment — monitor+register only unless configured */
