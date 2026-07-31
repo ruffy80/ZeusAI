@@ -83,6 +83,23 @@ const STABLE_START_ALLOW = new Set([
   'commerce-twin-portable',
   'delivery-passport-standard',
   'vertical-outcome-machines',
+  'orchestrated-capability-continuum',
+  'orchestratedCapabilityContinuum',
+  'AGE',
+  'agiSelfEvolution',
+  'AGISelf-EvolutionEngine',
+  'autonomousSpace',
+  'AutonomousSpaceComputing',
+  'digitalTwinNetwork',
+  'DecentralizedDigitalTwinNetwork',
+  'neuralInterfaceAPI',
+  'NeuralInterfaceAPI',
+  'quantumInternet',
+  'QuantumInternetProtocol',
+  'quantumML',
+  'QuantumMachineLearningCore',
+  'temporalDataLayer',
+  'TemporalDataLayer',
 ]);
 
 /** Commerce / payment — monitor+register only unless configured */
@@ -162,6 +179,18 @@ function listTopLevelModuleFiles() {
     files = [];
   }
   return files;
+}
+
+/** Also discover OCC-managed capabilities under backend/generated/ */
+function listGeneratedModuleFiles() {
+  const genDir = path.join(MODULES_DIR, '..', 'generated');
+  let files = [];
+  try {
+    files = fs.readdirSync(genDir).filter((f) => f.endsWith('.js'));
+  } catch (_) {
+    files = [];
+  }
+  return files.map((f) => ({ file: f, abs: path.join(genDir, f), name: baseName(f), sourceDir: 'generated' }));
 }
 
 function looksLikeModuleSource(filePath) {
@@ -261,6 +290,40 @@ function scan(opts = {}) {
         });
       } catch (_) { /* optional module */ }
     }
+
+    // 2b) OCC-managed capabilities in backend/generated/
+    for (const entry of listGeneratedModuleFiles()) {
+      if (byName.has(entry.name)) continue;
+      if (softCount >= maxSoftRequires) break;
+      try {
+        // Generated shims are short re-exports — allow even if head looks like shim
+        const head = fs.readFileSync(entry.abs, 'utf8').slice(0, 4000);
+        const isOcc = /orchestrated-capability-continuum|createCapability|getStatus/.test(head);
+        if (!isOcc && !looksLikeModuleSource(entry.abs)) continue;
+        softCount++;
+        const mod = require(entry.abs); // eslint-disable-line global-require
+        const instance = unwrapExport(mod);
+        if (!instance) continue;
+        const statusFn = detectStatusFn(instance);
+        if (!statusFn && typeof instance.start !== 'function' && typeof instance.heal !== 'function') continue;
+        const cls = classify(entry.name);
+        // Force infra tier for OCC continuum members so stable profile starts them
+        const tier = (STABLE_START_ALLOW.has(entry.name) || /AGE|AGISelf|AutonomousSpace|DigitalTwin|NeuralInterface|QuantumInternet|QuantumMachine|TemporalData|orchestrated/i.test(entry.name))
+          ? { tier: 'infra', honestyClass: 'infra', bootPriority: 15 }
+          : cls;
+        byName.set(entry.name, {
+          name: entry.name,
+          file: path.join('generated', entry.file),
+          instance,
+          statusFn,
+          hasStart: typeof instance.start === 'function',
+          hasInit: typeof instance.init === 'function',
+          hasHeal: typeof instance.heal === 'function',
+          ...tier,
+          source: 'generated',
+        });
+      } catch (_) { /* optional */ }
+    }
   }
 
   return {
@@ -330,4 +393,5 @@ module.exports = {
   baseName,
   camelFromKebab,
   listTopLevelModuleFiles,
+  listGeneratedModuleFiles,
 };
