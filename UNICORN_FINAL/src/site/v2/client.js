@@ -248,7 +248,7 @@ async function hydratePaymentRails(){
   let cardArmed = false;
   try {
     const payload = await api('/api/payment/methods');
-    const methods = payload && Array.isArray(payload.methods) ? payload.methods.filter(m => m && m.active !== false) : [];
+    const methods = payload && Array.isArray(payload.methods) ? payload.methods.filter(m => m && m.active !== false && m.settleReady !== false) : [];
     STATE.paymentMethods = methods.length ? methods : [{ id:'crypto_btc', active:true }];
     emailConfigured = !!(payload && payload.emailConfigured);
     cardArmed = methods.some(function (m) {
@@ -3193,25 +3193,12 @@ function hydrateCheckout(){
     if ($('#coPanelNow')) $('#coPanelNow').style.display = m==='nowpayments' ? '' : 'none';
   }));
 
-  // PayPal — create real order when creds available
-  const ppAnchor = $('#coPaypal');
-  const ppHandle = (cfg.owner && (cfg.owner.paypal || cfg.owner.paypalMe || cfg.owner.paypalEmail)) || '';
-  const updatePP = () => {
-    const amt = Number(($('#coAmountPP')||{}).value || 0);
-    const pl = (($('#coPlanPP')||{}).value || plan);
-    const rate = estBtcUsd();
-    const btcAmt = rate > 0 ? (amt / rate) : (amt * (fxRates.BTC || 0.0000095));
-    const href = ppHandle && ppHandle.startsWith('http') ? ppHandle : (ppHandle && !ppHandle.includes('@') ? `https://paypal.me/${encodeURIComponent(ppHandle)}/${amt}` : `mailto:${encodeURIComponent(ppHandle)}?subject=ZeusAI%20-%20${encodeURIComponent(pl)}%20%24${amt}`);
-    ppAnchor.href = href;
-  };
-  updatePP();
+  // PayPal — real Orders API only; no paypal.me/mailto fallback.
   refreshBtcUsd(true).then(draw).catch(()=>{});
   const liveRateTimer = setInterval(() => {
     refreshBtcUsd(false).then(draw).catch(()=>{});
   }, 30000);
   if (typeof liveRateTimer.unref === 'function') liveRateTimer.unref();
-  $('#coAmountPP')?.addEventListener('input', updatePP);
-  $('#coPlanPP')?.addEventListener('input', updatePP);
 
   // Checkout AOV lift — same upsell engine as /services/:id, on the money page.
   (async function hydrateCheckoutUpsell(){
@@ -3432,7 +3419,8 @@ function hydrateCheckout(){
       toast('Payment confirmed · license ready','ok');
       const lic = await api('/api/license/'+encodeURIComponent(id));
       if (lic && lic.license) {
-        const delivery = await api('/api/delivery/'+encodeURIComponent(id)).catch(function(){ return null; });
+        const deliveryToken = String(lic.license.token || '');
+        const delivery = await api('/api/delivery/'+encodeURIComponent(id)+'?access_token='+encodeURIComponent(deliveryToken)).catch(function(){ return null; });
         const deliveryLinks = delivery && Array.isArray(delivery.items)
           ? delivery.items.slice(0, 6).flatMap(function(item){ return item.files || []; }).slice(0, 8).map(function(file){
               return '<a class="btn btn-ghost" href="' + escapeHtml(file.downloadUrl) + '" target="_blank" rel="noopener">Download ' + escapeHtml(file.kind || 'deliverable') + '</a>';

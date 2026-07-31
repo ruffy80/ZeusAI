@@ -134,17 +134,46 @@ async function capturePaypalOrder(paypalOrderId) {
     err.status = captureStatus;
     throw err;
   }
-  const captureId = (() => {
+  const completed = (() => {
     try {
-      const units = capture.purchase_units || [];
+      const units = Array.isArray(capture.purchase_units) ? capture.purchase_units : [];
       for (const u of units) {
         const caps = u && u.payments && u.payments.captures;
-        if (Array.isArray(caps) && caps[0] && caps[0].id) return caps[0].id;
+        if (!Array.isArray(caps)) continue;
+        for (const c of caps) {
+          if (String(c && c.status || '').toUpperCase() === 'COMPLETED') {
+            return { unit: u, capture: c };
+          }
+        }
       }
     } catch (_) {}
-    return capture && capture.id || null;
+    return null;
   })();
-  return { ok: true, status: captureStatus, paypalOrderId, captureId, capture };
+  const unit = completed && completed.unit;
+  const completedCapture = completed && completed.capture;
+  const captureId = (completedCapture && completedCapture.id) || (capture && capture.id) || null;
+  const amountValue = completedCapture && completedCapture.amount && completedCapture.amount.value;
+  const currency = String((completedCapture && completedCapture.amount && completedCapture.amount.currency_code) || '').toUpperCase();
+  const amount = Number(amountValue);
+  const customId = String((unit && unit.custom_id) || '').trim();
+  const referenceId = String((unit && unit.reference_id) || '').trim();
+  if (!captureId) throw new Error('paypal_capture_id_missing');
+  if (!Number.isFinite(amount) || !(amount > 0)) throw new Error('paypal_capture_amount_missing');
+  if (!currency) throw new Error('paypal_capture_currency_missing');
+  if (!customId && !referenceId) throw new Error('paypal_capture_order_reference_missing');
+  return {
+    ok: true,
+    status: captureStatus,
+    paypalOrderId,
+    captureId,
+    amount,
+    currency,
+    custom_id: customId || null,
+    customId: customId || null,
+    reference_id: referenceId || null,
+    referenceId: referenceId || null,
+    capture,
+  };
 }
 
 async function createNowPaymentsInvoiceForSovereign(order, opts) {

@@ -139,9 +139,11 @@ const DATA_DIR     = process.env.COMMERCE_DATA_DIR || path.join(process.cwd(), '
 const ORDERS_FILE  = path.join(DATA_DIR, 'orders.jsonl');
 const ENTITL_FILE  = path.join(DATA_DIR, 'entitlements.jsonl');
 const STATE_FILE   = path.join(DATA_DIR, 'state.json');
+const EXCEPTIONS_FILE = path.join(DATA_DIR, 'payment-exceptions.jsonl');
 const WATCH_MS     = Math.max(15000, +(process.env.COMMERCE_WATCH_MS || 45000));
 const ORDER_TTL_MS = Math.max(5, +(process.env.COMMERCE_ORDER_TTL_MIN || 60)) * 60 * 1000;
 const MIN_CONFS    = Math.max(0, +(process.env.COMMERCE_MIN_CONFS || 0));
+const ACCEPT_LATE_PAY = String(process.env.SOVEREIGN_ACCEPT_LATE_PAY || '') === '1';
 // Tiered confirmation policy by USD amount (RO+EN):
 //   < $50         → 0-conf (mempool acceptable)
 //   $50–$1,000    → require 1 confirmation
@@ -162,6 +164,12 @@ function requiredConfsForUsd(usd) {
 }
 const ADMIN_SECRET = process.env.COMMERCE_ADMIN_SECRET || '';
 const MEMPOOL_BASE = (process.env.COMMERCE_MEMPOOL_BASE || 'https://mempool.space/api').replace(/\/+$/, '');
+const MEMPOOL_FALLBACKS = String(process.env.COMMERCE_MEMPOOL_FALLBACKS || 'https://blockstream.info/api,https://mempool.emzy.de/api')
+  .split(',')
+  .map((s) => String(s || '').trim().replace(/\/+$/, ''))
+  .filter(Boolean)
+  .filter((u) => u !== MEMPOOL_BASE);
+const EXPLORER_BASES = [MEMPOOL_BASE].concat(MEMPOOL_FALLBACKS);
 const PRICE_FALLBACK_USD = +(process.env.COMMERCE_PRICE_FALLBACK_USD || 60000);
 const CATALOG_SEEN_FILE = path.join(process.env.COMMERCE_DATA_DIR || path.join(process.cwd(), 'data', 'commerce'), 'catalog-seen.json');
 
@@ -171,6 +179,7 @@ const ORDERS = new Map();     // orderId -> order (in-memory; persisted on chang
 const AMT_INDEX = new Map();  // amountSats -> orderId (pending only; fast match)
 const SEEN_TXIDS = new Set(); // crediting txs already applied (from state file)
 const CATALOG_SEEN = new Map(); // serviceId -> firstSeenAtMs (for /api/catalog/diff)
+const PAYMENT_EXCEPTIONS = new Map(); // txid -> latest payment exception
 
 function loadState() {
   try {
@@ -196,6 +205,18 @@ function loadState() {
     }
   } catch (e) { console.warn('[commerce] replay error:', e.message); }
 }
+function loadPaymentExceptions() {
+  try {
+    if (!fs.existsSync(EXCEPTIONS_FILE)) return;
+    const lines = fs.readFileSync(EXCEPTIONS_FILE, 'utf8').split('\n').filter(Boolean);
+    for (const line of lines) {
+      try {
+        const ex = JSON.parse(line);
+        if (ex && ex.txid) PAYMENT_EXCEPTIONS.set(String(ex.txid), ex);
+      } catch (_) {}
+    }
+  } catch (e) { console.warn('[commerce] exception replay error:', e.message); }
+}
 function persistOrder(order) {
   try {
     fs.appendFileSync(ORDERS_FILE, JSON.stringify(order) + '\n');
@@ -211,6 +232,87 @@ function persistState() {
     const keep = Array.from(SEEN_TXIDS).slice(-5000);
     fs.writeFileSync(STATE_FILE, JSON.stringify({ seenTxids: keep, updatedAt: new Date().toISOString() }));
   } catch {}
+}
+function nearestPendingAmount(outSats) {
+  const target = Number(outSats || 0);
+  if (!(target > 0)) return { closestOrderId: null, delta: null };
+  let best = null;
+  for (const [amount, orderId] of AMT_INDEX) {
+    const amt = Number(amount);
+    if (!(amt > 0)) continue;
+    const delta = target - amt;
+    const pct = Math.abs(delta) / amt;
+    if (pct <= 0.05 && (!best || Math.abs(delta) < Math.abs(best.delta))) {
+      best = { closestOrderId: orderId, delta };
+    }
+  }
+  return best || { closestOrderId: null, delta: null };
+}
+function latestPaymentExceptionForOrder(orderId) {
+  const id = String(orderId || '');
+  let latest = null;
+  for (const ex of PAYMENT_EXCEPTIONS.values()) {
+    if (!ex || String(ex.closestOrderId || '') !== id) continue;
+    if (!latest || String(ex.createdAt || '') > String(latest.createdAt || '')) latest = ex;
+  }
+  return latest;
+}
+function findExpiredOrderByExactAmountSats(outSats, nowMs) {
+  const target = Number(outSats || 0);
+  if (!(target > 0)) return null;
+  for (const o of ORDERS.values()) {
+    if (!o || Number(o.amount_sats || 0) !== target) continue;
+    if (o.status === 'expired' || Number(nowMs || Date.now()) >= Number(o.expires_at_ms || 0)) return o;
+  }
+  return null;
+}
+function lateSettleAllowed(order, nowMs) {
+  if (!ACCEPT_LATE_PAY || !order || !order.expires_at_ms) return false;
+  const expiredBy = Number(nowMs || Date.now()) - Number(order.expires_at_ms || 0);
+  return expiredBy >= 0 && expiredBy <= ORDER_TTL_MS;
+}
+function paymentProviderRefs(order) {
+  if (!order) return [];
+  if (Array.isArray(order.provider_refs) && order.provider_refs.length) return order.provider_refs.filter(Boolean);
+  if (order.provider_settle && order.provider_settle.providerRef) return [order.provider_settle.providerRef];
+  return (order.txids || []).filter(Boolean);
+}
+function isBtcPaidOrder(order) {
+  const via = String((order && order.paid_via) || 'btc').toLowerCase();
+  return via === 'btc' || via === 'bitcoin' || via === 'onchain';
+}
+function proofUrlForOrder(order, ref) {
+  return ref && isBtcPaidOrder(order) ? `https://mempool.space/tx/${ref}` : null;
+}
+function recordPaymentException(fields) {
+  const ex = Object.assign({
+    txid: null,
+    outSats: 0,
+    closestOrderId: null,
+    delta: null,
+    createdAt: new Date().toISOString(),
+  }, fields || {});
+  if (!ex.txid) return null;
+  PAYMENT_EXCEPTIONS.set(String(ex.txid), ex);
+  try { fs.appendFileSync(EXCEPTIONS_FILE, JSON.stringify(ex) + '\n'); }
+  catch (e) { console.warn('[commerce] exception persist error:', e.message); }
+  try {
+    const zac = require('../../backend/modules/zacAlertChannel');
+    if (zac && typeof zac.sendTelegram === 'function') {
+      Promise.resolve(zac.sendTelegram([
+        '⚠️ *BTC payment exception*',
+        ex.kind ? `Kind: \`${ex.kind}\`` : null,
+        `Tx: \`${ex.txid}\``,
+        `Observed: ${ex.outSats} sats`,
+        ex.closestOrderId ? `Closest order: \`${ex.closestOrderId}\`` : 'No pending order within 5%',
+        ex.delta != null ? `Delta: ${ex.delta} sats` : null,
+      ].filter(Boolean).join('\n'))).catch(() => {});
+    }
+  } catch (_) { /* Telegram alerts are best-effort */ }
+  return ex;
+}
+function isBitcoinTxid(value) {
+  return /^[a-fA-F0-9]{64}$/.test(String(value || '').trim());
 }
 
 // ── Catalog diff tracking (first-seen timestamp per item id) ────────────────
@@ -326,8 +428,18 @@ function httpJson(url, timeoutMs = 8000) {
   });
 }
 
+async function httpJsonExplorer(pathname, timeoutMs = 8000) {
+  let last = { ok: false, error: 'no_explorer' };
+  for (const base of EXPLORER_BASES) {
+    const r = await httpJson(`${base}${pathname.startsWith('/') ? pathname : '/' + pathname}`, timeoutMs);
+    if (r && r.ok) return Object.assign({}, r, { explorer: base });
+    last = r || last;
+  }
+  return last;
+}
+
 // ── Price oracle (multi-source, 5 min cache) ────────────────────────────────
-const PRICE_CACHE = { usd: 0, eur: 0, fetchedAt: 0, source: 'none' };
+const PRICE_CACHE = { usd: 0, eur: 0, fetchedAt: 0, source: 'none', liveUpdatedAt: 0 };
 async function getBtcPrice() {
   if (Date.now() - PRICE_CACHE.fetchedAt < 5 * 60 * 1000 && PRICE_CACHE.usd > 0) return PRICE_CACHE;
 
@@ -338,6 +450,7 @@ async function getBtcPrice() {
     PRICE_CACHE.eur = Number(r.data.EUR || (r.data.USD * 0.93));
     PRICE_CACHE.fetchedAt = Date.now();
     PRICE_CACHE.source = 'mempool.space';
+    PRICE_CACHE.liveUpdatedAt = PRICE_CACHE.fetchedAt;
     return PRICE_CACHE;
   }
   // Fallback: coingecko
@@ -347,6 +460,11 @@ async function getBtcPrice() {
     PRICE_CACHE.eur = Number(r.data.bitcoin.eur || (r.data.bitcoin.usd * 0.93));
     PRICE_CACHE.fetchedAt = Date.now();
     PRICE_CACHE.source = 'coingecko';
+    PRICE_CACHE.liveUpdatedAt = PRICE_CACHE.fetchedAt;
+    return PRICE_CACHE;
+  }
+  // Keep accepting a recent live quote during transient oracle outages.
+  if (PRICE_CACHE.usd > 0 && PRICE_CACHE.liveUpdatedAt > 0 && Date.now() - PRICE_CACHE.liveUpdatedAt < 30 * 60 * 1000) {
     return PRICE_CACHE;
   }
   // Last resort: static fallback
@@ -357,6 +475,9 @@ async function getBtcPrice() {
     PRICE_CACHE.fetchedAt = Date.now();
   }
   return PRICE_CACHE;
+}
+function priceUnavailableForNewInvoices(price) {
+  return !!(price && price.source === 'fallback-static' && !price.liveUpdatedAt);
 }
 
 // ── Unique amount allocation ────────────────────────────────────────────────
@@ -601,6 +722,7 @@ async function createOrder(ctx, input) {
 
   const price = await getBtcPrice();
   const fiatPerBtc = String(currency).toUpperCase() === 'EUR' ? price.eur : price.usd;
+  if (priceUnavailableForNewInvoices(price)) { _metricInc('price_oracle_fail'); return { error: 'price_oracle_unavailable', status: 503 }; }
   if (!(fiatPerBtc > 0)) { _metricInc('price_oracle_fail'); return { error: 'price_oracle_unavailable', status: 503 }; }
 
   const baseSats = Math.max(1000, Math.round((subtotalFiat / fiatPerBtc) * 1e8)); // dust floor 1000 sat
@@ -702,7 +824,16 @@ function markOrderPaidFromProvider(orderId, proof) {
   order.status = 'paid';
   order.paid_at = new Date().toISOString();
   order.paid_via = provider;
-  order.txids = Array.from(new Set([...(order.txids || []), providerRef].filter(Boolean)));
+  const txids = (Array.isArray(order.txids) ? order.txids : []).filter(isBitcoinTxid);
+  if (isBitcoinTxid(providerRef)) txids.push(providerRef);
+  order.txids = Array.from(new Set(txids));
+  if (providerRef && provider !== 'btc' && provider !== 'bitcoin' && !isBitcoinTxid(providerRef)) {
+    const refs = Array.isArray(order.provider_refs) ? order.provider_refs.slice() : [];
+    if (!refs.some((r) => r && r.provider === provider && r.ref === providerRef)) {
+      refs.push({ provider, ref: providerRef, at: order.paid_at });
+    }
+    order.provider_refs = refs;
+  }
   order.confirmations = Number((proof && proof.confirmations) != null ? proof.confirmations : 1);
   order.provider_settle = {
     provider,
@@ -784,28 +915,88 @@ function markOrderPaidFromProvider(orderId, proof) {
   return { ok: true, orderId: id, entitlement_id: order.entitlement_id, paid_via: provider, access_token: order.access_token };
 }
 
+/**
+ * Revoke a paid sovereign order after PayPal refund/chargeback (or admin).
+ * Marks refunded and clears usable entitlement binding — idempotent.
+ */
+function revokeOrderFromProvider(orderId, proof) {
+  const id = String(orderId || '').trim();
+  const order = ORDERS.get(id);
+  if (!order) return { ok: false, error: 'order_not_found' };
+  if (order.status === 'refunded' || order.status === 'revoked') {
+    return { ok: true, duplicate: true, orderId: id, status: order.status };
+  }
+  if (order.status !== 'paid' && order.status !== 'pending') {
+    return { ok: false, error: 'order_not_revocable', status: order.status };
+  }
+  const provider = String((proof && proof.provider) || 'alt-rail').toLowerCase().slice(0, 32);
+  const providerRef = String((proof && (proof.providerRef || proof.paymentId || proof.paypalOrderId)) || '').slice(0, 128);
+  order.status = 'refunded';
+  order.refunded_at = new Date().toISOString();
+  order.entitlement_revoked = true;
+  order.refund = {
+    provider,
+    providerRef: providerRef || null,
+    reason: String((proof && proof.reason) || 'provider_refund').slice(0, 80),
+    at: order.refunded_at,
+  };
+  if (order.amount_sats) AMT_INDEX.delete(order.amount_sats);
+  persistOrder(order);
+  console.log('[commerce] REFUNDED via ' + provider, order.orderId, 'ref=' + providerRef);
+  try {
+    const zac = require('../../backend/modules/zacAlertChannel');
+    if (zac && typeof zac.sendTelegram === 'function') {
+      Promise.resolve(zac.sendTelegram([
+        '↩️ *Order refunded/revoked*',
+        `Order \`${order.orderId}\``,
+        `Provider: ${provider}`,
+        providerRef ? `Ref: ${providerRef}` : null,
+        order.serviceId ? `Service: ${order.serviceId}` : null,
+      ].filter(Boolean).join('\n'))).catch(() => {});
+    }
+  } catch (_) { /* optional */ }
+  return { ok: true, orderId: id, status: 'refunded', paid_via: order.paid_via || null };
+}
+
 // ── Payment watcher (mempool.space) ─────────────────────────────────────────
 const WATCH_STATE = { lastScanAt: 0, lastScanOk: false, lastError: null, totalScans: 0, totalMatched: 0 };
 async function scanIncoming() {
   WATCH_STATE.totalScans++;
   WATCH_STATE.lastScanAt = Date.now();
-  // No pending orders → skip network call
-  const hasPending = Array.from(ORDERS.values()).some((o) => o.status === 'pending' && Date.now() < o.expires_at_ms);
-  if (!hasPending) { WATCH_STATE.lastScanOk = true; return { skipped: true }; }
+  const scanNow = Date.now();
+  // Expire before matching so stale invoices cannot be paid by a late tx unless
+  // SOVEREIGN_ACCEPT_LATE_PAY=1 explicitly enables the bounded grace window.
+  for (const [, o] of ORDERS) {
+    if (o.status === 'pending' && scanNow >= o.expires_at_ms) {
+      o.status = 'expired';
+      AMT_INDEX.delete(o.amount_sats);
+      persistOrder(o);
+    }
+  }
+  const hasScannableOrder = Array.from(ORDERS.values()).some((o) => {
+    if (!o) return false;
+    if (o.status === 'pending' && scanNow < o.expires_at_ms) return true;
+    return (o.status === 'expired' || scanNow >= Number(o.expires_at_ms || 0))
+      && (scanNow - Number(o.expires_at_ms || 0) <= ORDER_TTL_MS);
+  });
+  if (!hasScannableOrder) { WATCH_STATE.lastScanOk = true; return { skipped: true }; }
 
-  const r = await httpJson(`${MEMPOOL_BASE}/address/${OWNER_BTC}/txs`);
+  // Primary mempool.space, then Blockstream / alternate Esplora mirrors.
+  const r = await httpJsonExplorer(`/address/${OWNER_BTC}/txs`);
   if (!r.ok) { WATCH_STATE.lastScanOk = false; WATCH_STATE.lastError = r.error || `status=${r.status}`; return { error: WATCH_STATE.lastError }; }
   WATCH_STATE.lastScanOk = true; WATCH_STATE.lastError = null;
+  WATCH_STATE.lastExplorer = r.explorer || MEMPOOL_BASE;
 
   const txs = Array.isArray(r.data) ? r.data : [];
   // Tip height once per scan — required for real confirmation depth
   // (block_height alone is not confirmations).
   let tipHeight = 0;
   try {
-    const tip = await httpJson(`${MEMPOOL_BASE}/blocks/tip/height`);
+    const tip = await httpJsonExplorer('/blocks/tip/height');
     if (tip && tip.ok) tipHeight = Number(tip.data) || 0;
   } catch (_) { tipHeight = 0; }
   let matched = 0;
+  let seenDirty = false;
   for (const tx of txs) {
     if (!tx || !tx.txid) continue;
     if (SEEN_TXIDS.has(tx.txid)) continue;
@@ -819,8 +1010,26 @@ async function scanIncoming() {
     const confirmed = !!(tx.status && tx.status.confirmed);
     // Match against exact amount (strictest). Apply tiered confirmation policy:
     // small amounts may settle 0-conf, large amounts require N on-chain confs.
-    const orderId = AMT_INDEX.get(outSats);
-    const orderForTier = orderId ? ORDERS.get(orderId) : null;
+    let orderId = AMT_INDEX.get(outSats);
+    let orderForTier = orderId ? ORDERS.get(orderId) : null;
+    if (!orderForTier) {
+      const exactExpired = findExpiredOrderByExactAmountSats(outSats, scanNow);
+      if (exactExpired && (exactExpired.status === 'expired' || scanNow >= Number(exactExpired.expires_at_ms || 0))) {
+        orderId = exactExpired.orderId;
+        orderForTier = exactExpired;
+      }
+    }
+    if (!orderForTier) {
+      const nearest = nearestPendingAmount(outSats);
+      recordPaymentException(Object.assign({
+        kind: 'payment_amount_mismatch',
+        txid: tx.txid,
+        outSats,
+      }, nearest));
+      SEEN_TXIDS.add(tx.txid);
+      seenDirty = true;
+      continue;
+    }
     // Orders store fiat as subtotal_fiat (NOT price_usd/amount_usd).
     const usdForTier = orderForTier && Number(
       orderForTier.subtotal_fiat || orderForTier.price_usd || orderForTier.amount_usd || 0
@@ -832,15 +1041,35 @@ async function scanIncoming() {
       if (tipHeight > 0 && blockHeight > 0) txConfs = Math.max(1, tipHeight - blockHeight + 1);
       else txConfs = 1;
     }
+    const expiredPayment = orderForTier.status === 'expired' || scanNow >= Number(orderForTier.expires_at_ms || 0);
+    if (expiredPayment && !lateSettleAllowed(orderForTier, scanNow)) {
+      if (orderForTier.status === 'pending') {
+        orderForTier.status = 'expired';
+        AMT_INDEX.delete(orderForTier.amount_sats);
+        persistOrder(orderForTier);
+      }
+      recordPaymentException({
+        kind: 'late_payment_expired',
+        txid: tx.txid,
+        outSats,
+        closestOrderId: orderForTier.orderId,
+        delta: outSats - Number(orderForTier.amount_sats || 0),
+      });
+      SEEN_TXIDS.add(tx.txid);
+      seenDirty = true;
+      continue;
+    }
     if (orderId && (neededConfs === 0 ? true : txConfs >= neededConfs)) {
       const order = ORDERS.get(orderId);
-      if (order && order.status === 'pending') {
+      if (order && (order.status === 'pending' || (order.status === 'expired' && lateSettleAllowed(order, scanNow)))) {
         order.status = 'paid';
         order.paid_at = new Date().toISOString();
+        order.paid_via = 'btc';
         order.txids = Array.from(new Set([...(order.txids || []), tx.txid]));
         order.confirmations = txConfs;
         order.confs_required = neededConfs;
         order.paid_sats_observed = outSats;
+        // BTC txids stay in order.txids only — provider_refs is for PayPal/NOW refs.
         // Grant entitlement
         const entitlement = {
           entitlement_id: 'ent_' + crypto.randomBytes(9).toString('hex'),
@@ -861,6 +1090,7 @@ async function scanIncoming() {
         persistOrder(order);
         AMT_INDEX.delete(outSats);
         SEEN_TXIDS.add(tx.txid);
+        seenDirty = true;
         matched++;
         _metricInc('orders_paid');
         console.log('[commerce] PAID', order.orderId, 'service=' + order.serviceId, 'sats=' + outSats, 'txid=' + tx.txid);
@@ -926,28 +1156,38 @@ async function scanIncoming() {
           }).catch(() => {});
         } catch (_) {}
       }
+    } else if (orderId && orderForTier && orderForTier.status === 'pending') {
+      orderForTier.txids = Array.from(new Set([...(orderForTier.txids || []), tx.txid]));
+      orderForTier.confirmations = Math.max(Number(orderForTier.confirmations || 0), txConfs);
+      orderForTier.confs_required = neededConfs;
+      orderForTier.paid_sats_observed = outSats;
+      orderForTier.tx_seen = true;
+      persistOrder(orderForTier);
+      continue;
     }
     // Mark tx seen even if not matched (avoid re-scan cost next cycle)
     SEEN_TXIDS.add(tx.txid);
+    seenDirty = true;
   }
-  if (matched > 0) { WATCH_STATE.totalMatched += matched; persistState(); }
-  // Expire old pending orders
-  const now = Date.now();
-  for (const [id, o] of ORDERS) {
-    if (o.status === 'pending' && now >= o.expires_at_ms) {
-      o.status = 'expired';
-      AMT_INDEX.delete(o.amount_sats);
-      persistOrder(o);
-    }
-  }
+  if (matched > 0) WATCH_STATE.totalMatched += matched;
+  if (seenDirty || matched > 0) persistState();
   return { matched, scanned: txs.length };
 }
 
-// ── QR SVG (BIP-21, zero-dependency numeric-data QR) ────────────────────────
-// To avoid adding a dep we use the free public QR API for rendering.
-// (Stays purely a redirect; we still control the data input.)
-function qrRedirect(data) {
-  return `https://api.qrserver.com/v1/create-qr-code/?size=360x360&margin=10&data=${encodeURIComponent(data)}`;
+// ── QR SVG (BIP-21, first-party endpoint) ───────────────────────────────────
+async function qrSvg(data) {
+  try {
+    const QR = require('qrcode');
+    return await QR.toString(String(data || ''), {
+      type: 'svg',
+      errorCorrectionLevel: 'M',
+      margin: 1,
+      width: 360,
+    });
+  } catch (_) {
+    const txt = escapeHtml(String(data || ''));
+    return `<svg xmlns="http://www.w3.org/2000/svg" width="360" height="360" viewBox="0 0 360 360"><rect width="360" height="360" fill="#fff"/><text x="20" y="180" font-family="monospace" font-size="12" fill="#000">${txt}</text></svg>`;
+  }
 }
 
 // ── Checkout HTML page ──────────────────────────────────────────────────────
@@ -1037,8 +1277,8 @@ a{color:var(--acc)}
   function set(id,t){var el=document.getElementById(id);if(el)el.textContent=t;}
   fetch('/api/payment/methods',{cache:'no-store'}).then(function(r){return r.json()}).then(function(j){
     var methods=(j&&j.methods)||[];
-    var paypal=methods.some(function(m){return String((m&&m.id)||'').toLowerCase()==='paypal'&&m.active!==false;});
-    var nowp=methods.some(function(m){return String((m&&m.id)||'').toLowerCase()==='nowpayments'&&m.active!==false;});
+    var paypal=methods.some(function(m){return String((m&&m.id)||'').toLowerCase()==='paypal'&&m.active!==false&&m.settleReady!==false;});
+    var nowp=methods.some(function(m){return String((m&&m.id)||'').toLowerCase()==='nowpayments'&&m.active!==false&&m.settleReady!==false;});
     var email=!!(j&&j.emailConfigured);
     set('arkPaypal', paypal ? 'armed · Orders API' : 'idle · needs PAYPAL_CLIENT_ID/SECRET');
     set('arkNow', nowp ? 'armed · hosted invoice' : 'idle · needs NOWPAYMENTS_API_KEY');
@@ -1067,7 +1307,7 @@ ${!String((o.buyer && o.buyer.email) || '').trim() ? `
 </div>` : ''}
 
 <div class="card">
-  <div class="qr"><img alt="BIP-21 QR" src="${escapeHtml(qrRedirect(o.bip21 || ''))}" loading="lazy"></div>
+  <div class="qr"><img alt="BIP-21 QR" src="/api/checkout/${orderId}/qr.svg" loading="lazy"></div>
   <p class="note" style="text-align:center;margin-top:16px">Scan with any Bitcoin wallet (on-chain). The exact amount is critical — it is the payment identifier.</p>
   <div class="row"><span class="k">Address</span><span class="v mono">${receiveAddress} <button class="copy" data-copy="${receiveAddress}">copy</button></span></div>
   <div class="row"><span class="k">Amount</span><span class="v mono">${btc} BTC <button class="copy" data-copy="${escapeHtml(btc)}">copy</button></span></div>
@@ -1088,6 +1328,11 @@ ${!String((o.buyer && o.buyer.email) || '').trim() ? `
   <p class="note" id="altRailsMsg">Buttons appear only when PayPal / NOWPayments secrets are armed at runtime.</p>
 </div>
 
+  <div class="grant" id="confirmWait" style="background:#2a210b;border-color:#5c4316;color:#ffdf9d">
+  <h2 style="margin:0 0 6px">⏳ Payment seen — awaiting confirmations</h2>
+  <p style="margin:0" id="confirmWaitText">Waiting for the required confirmation depth before activation.</p>
+  </div>
+
   <div class="grant" id="grant">
   <h2 style="margin:0 0 6px">✅ Payment received — service activated</h2>
   <p style="margin:0 0 12px">Your access token is ready. Keep it safe — it is the cryptographic proof of purchase.</p>
@@ -1097,7 +1342,7 @@ ${!String((o.buyer && o.buyer.email) || '').trim() ? `
   <p class="note">A W3C Verifiable Credential receipt has been issued. Use the verify button below to check the entitlement.</p>
   <p style="margin-top:10px"><a class="cta" id="walletDl" download="zeusai-entitlement.json" href="/api/entitlements/${accessToken}/wallet.json" style="background:#f7931a;color:#05040a">💼 Add to wallet (VC)</a>
   <button type="button" class="cta" style="background:#14132a;color:#eaf0ff;border:1px solid var(--line)" id="verifyLink" data-live-inspect="/api/entitlements/${accessToken}" data-live-title="Verify entitlement">🔎 Verify entitlement</button>
-  <button type="button" class="cta" style="background:#14132a;color:#eaf0ff;border:1px solid var(--line)" id="deliveryLink" data-live-inspect="/api/delivery/${orderId}" data-live-title="Delivery package">📦 View delivery package</button></p>
+  <button type="button" class="cta" style="background:#14132a;color:#eaf0ff;border:1px solid var(--line)" id="deliveryLink" data-live-inspect="/api/delivery/${orderId}?access_token=${accessToken}" data-live-title="Delivery package">📦 View delivery package</button></p>
   <p class="note" style="margin-top:8px">Delivery is processing automatically. The delivery link above will show your artifacts once ready.</p>
   <div style="margin-top:14px;padding-top:12px;border-top:1px dashed #165232">
     <p style="margin:0 0 6px"><b>🎁 Gift this service</b></p>
@@ -1129,6 +1374,15 @@ ${require('./live-inspect-bootstrap').scriptTag().replace('<script>', `<script${
     fetch('/api/order/'+encodeURIComponent(ORDER_ID)+'/status',{cache:'no-store'}).then(function(r){return r.json();}).then(function(j){
       var s=document.getElementById('st');
       if(s){s.className='status '+(j.status||'pending');s.textContent=j.status||'pending';}
+      var wait=document.getElementById('confirmWait');
+      var confs=Number((j&&j.confirmations)||0), req=Number((j&&j.confs_required)||0);
+      var hasTx=!!(j&&j.txids&&j.txids.length);
+      if(wait){
+        var waiting=(j.status==='pending' && (confs>0 || (req>0 && hasTx)));
+        wait.classList.toggle('on', waiting);
+        var wt=document.getElementById('confirmWaitText');
+        if(wt&&waiting) wt.textContent='Transaction seen: '+confs+'/'+req+' confirmations. Delivery unlocks automatically when confirmed.';
+      }
       if(j.status==='paid'){
         var g=document.getElementById('grant');if(g)g.classList.add('on');
         var tk=document.getElementById('tok');if(tk)tk.textContent=TOK;
@@ -1136,7 +1390,7 @@ ${require('./live-inspect-bootstrap').scriptTag().replace('<script>', `<script${
         var tx=document.getElementById('tx');if(tx)tx.textContent=(j.txids&&j.txids[0])||'—';
         var dl=document.getElementById('walletDl');if(dl){dl.href='/api/entitlements/'+encodeURIComponent(TOK)+'/wallet.json';}
         var v=document.getElementById('verifyLink');if(v){v.setAttribute('data-live-inspect','/api/entitlements/'+encodeURIComponent(TOK));}
-        var del=document.getElementById('deliveryLink');if(del){del.setAttribute('data-live-inspect','/api/delivery/'+encodeURIComponent(ORDER_ID));}
+        var del=document.getElementById('deliveryLink');if(del){del.setAttribute('data-live-inspect','/api/delivery/'+encodeURIComponent(ORDER_ID)+'?access_token='+encodeURIComponent(TOK));}
         return;
       }
       if(j.status==='expired')return;
@@ -1293,6 +1547,7 @@ async function handle(req, res, ctx) {
             checkout_url: out.order.checkout_url,
             amount_btc: out.order.amount_btc,
             btcAmount: out.order.amount_btc,
+            btcAddress: out.order.receive_address || OWNER_BTC,
             serviceName: out.order.serviceName,
             priceUSD: out.order.subtotal_fiat
           }
@@ -1331,13 +1586,14 @@ async function handle(req, res, ctx) {
     return true;
   }
 
-  // --- /api/checkout/:orderId/qr.svg → redirect to QR renderer -------------
+  // --- /api/checkout/:orderId/qr.svg → first-party QR renderer -------------
   const mQr = url.match(/^\/api\/checkout\/([a-zA-Z0-9_-]{6,64})\/qr\.svg$/);
   if (mQr && req.method === 'GET') {
     const order = ORDERS.get(mQr[1]);
     if (!order) { res.writeHead(404); res.end(); return true; }
-    res.writeHead(302, { Location: qrRedirect(order.bip21), 'Cache-Control': 'public, max-age=60' });
-    res.end(); return true;
+    const svg = await qrSvg(order.bip21);
+    res.writeHead(200, { 'Content-Type': 'image/svg+xml; charset=utf-8', 'Cache-Control': 'public, max-age=60' });
+    res.end(svg); return true;
   }
 
   // --- /api/order/:orderId/email (attach delivery email after invoice mint) -
@@ -1401,15 +1657,35 @@ async function handle(req, res, ctx) {
       const alt = require('../commerce/alt-rails-os');
       const paypalOrderId = String((body && body.paypalOrderId) || (order.meta && order.meta.paypalOrderId) || '').trim();
       const cap = await alt.capturePaypalOrder(paypalOrderId);
+      const captureCustomId = String(cap.custom_id || cap.customId || '').trim();
+      const captureReferenceId = String(cap.reference_id || cap.referenceId || '').trim();
+      if (captureCustomId !== order.orderId && captureReferenceId !== order.orderId) {
+        throw new Error('paypal_capture_order_mismatch');
+      }
+      const expectedAmount = Number(order.subtotal_fiat || 0);
+      const capturedAmount = Number(cap.amount);
+      if (!Number.isFinite(capturedAmount) || Math.abs(capturedAmount - expectedAmount) > 0.01) {
+        throw new Error('paypal_capture_amount_mismatch');
+      }
+      const expectedCurrency = String(order.currency || 'USD').toUpperCase();
+      if (String(cap.currency || '').toUpperCase() !== expectedCurrency) {
+        throw new Error('paypal_capture_currency_mismatch');
+      }
       const settled = markOrderPaidFromProvider(order.orderId, {
         provider: 'paypal',
         providerRef: cap.captureId || paypalOrderId,
         paypalOrderId,
-        meta: { captureStatus: cap.status },
+        meta: {
+          captureStatus: cap.status,
+          amount: cap.amount,
+          currency: cap.currency,
+          custom_id: cap.custom_id || null,
+          reference_id: cap.reference_id || null,
+        },
       });
       return sendJson(res, settled.ok ? 200 : 409, settled), true;
     } catch (e) {
-      const code = /incomplete|not_configured|invalid_/.test(String(e && e.message || '')) ? 402 : 502;
+      const code = /incomplete|not_configured|invalid_|mismatch|missing/.test(String(e && e.message || '')) ? 402 : 502;
       return sendJson(res, code, { error: 'paypal_capture_failed', detail: String(e && e.message || e).slice(0, 200) }), true;
     }
   }
@@ -1456,13 +1732,46 @@ async function handle(req, res, ctx) {
     if (!tokenOk && !secretOk) {
       return sendJson(res, 401, { error: 'unauthorized', honesty: 'provider_settle_requires_internal_secret_or_access_token' }), true;
     }
+    const hasAmount = body && body.amountUsd != null && String(body.amountUsd).trim() !== '';
+    if (hasAmount) {
+      const expectedAmount = Number(order.subtotal_fiat || 0);
+      const amountUsd = Number(body.amountUsd);
+      if (!Number.isFinite(amountUsd) || Math.abs(amountUsd - expectedAmount) > 0.05) {
+        return sendJson(res, 402, {
+          error: 'provider_amount_mismatch',
+          expectedAmountUsd: expectedAmount,
+          receivedAmountUsd: Number.isFinite(amountUsd) ? amountUsd : null,
+        }), true;
+      }
+    }
+    const meta = Object.assign({}, (body && body.meta) || {});
+    if (body && body.invoiceId) meta.invoiceId = String(body.invoiceId).slice(0, 128);
     const settled = markOrderPaidFromProvider(order.orderId, {
       provider: (body && body.provider) || 'alt-rail',
       providerRef: (body && (body.providerRef || body.txid || body.paymentId || body.paypalOrderId)) || null,
       confirmations: (body && body.confirmations) || 1,
-      meta: (body && body.meta) || undefined,
+      meta,
     });
     return sendJson(res, settled.ok ? 200 : 409, settled), true;
+  }
+
+  // --- /api/order/:orderId/provider-revoke — refund/chargeback bridge
+  const mProviderRevoke = url.match(/^\/api\/order\/([a-zA-Z0-9_-]{6,64})\/provider-revoke$/);
+  if (mProviderRevoke && req.method === 'POST') {
+    const order = ORDERS.get(mProviderRevoke[1]);
+    if (!order) return sendJson(res, 404, { error: 'order_not_found' }), true;
+    const body = await readBody(req);
+    const expected = process.env.INTERNAL_SETTLE_SECRET || process.env.COMMERCE_ADMIN_SECRET || process.env.ADMIN_SECRET || process.env.ADMIN_TOKEN || '';
+    const provided = String(req.headers['x-internal-settle-secret'] || req.headers['x-admin-secret'] || (body && body.settleSecret) || '');
+    if (!expected || !provided || provided !== expected) {
+      return sendJson(res, 401, { error: 'unauthorized' }), true;
+    }
+    const revoked = revokeOrderFromProvider(order.orderId, {
+      provider: (body && body.provider) || 'alt-rail',
+      providerRef: (body && (body.providerRef || body.paymentId || body.paypalOrderId)) || null,
+      reason: (body && body.reason) || 'provider_refund',
+    });
+    return sendJson(res, revoked.ok ? 200 : 409, revoked), true;
   }
 
   // --- /api/order/:orderId/status -----------------------------------------
@@ -1482,6 +1791,12 @@ async function handle(req, res, ctx) {
       expires_at: order.expires_at,
       paid_at: order.paid_at,
       txids: order.txids || [],
+      paid_via: order.paid_via || null,
+      confs_required: Number(order.confs_required != null ? order.confs_required : requiredConfsForUsd(order.subtotal_fiat || 0)),
+      confirmations: Number(order.confirmations || 0),
+      provider_refs: paymentProviderRefs(order),
+      payment_exception: latestPaymentExceptionForOrder(order.orderId),
+      tx_seen: !!(order.tx_seen || (order.txids && order.txids.length)),
       entitlement_id: order.entitlement_id || null,
       bip21: order.bip21,
       checkout_url: order.checkout_url,
@@ -1505,7 +1820,9 @@ async function handle(req, res, ctx) {
       amount: { sats: order.amount_sats, btc: order.amount_btc, fiat: order.subtotal_fiat, currency: order.currency },
       buyer: order.buyer,
       paid_at: order.paid_at,
+      paid_via: order.paid_via || 'btc',
       txids: order.txids || [],
+      provider_refs: paymentProviderRefs(order),
       entitlement_id: order.entitlement_id || null,
       issuer: { did: `did:web:${OWNER_DOMAIN.replace(/^https?:\/\//, '')}`, name: OWNER_NAME, btcAddress: order.receive_address },
     };
@@ -1600,7 +1917,7 @@ async function handle(req, res, ctx) {
         currency: found.currency,
         subtotal_fiat: found.subtotal_fiat,
         bitcoinTxId: txid,
-        proofUrl: txid ? `https://mempool.space/tx/${txid}` : null,
+        proofUrl: proofUrlForOrder(found, txid),
         receiveAddress: found.receive_address,
       },
       proof: {
@@ -1713,12 +2030,14 @@ async function handle(req, res, ctx) {
         orderId: o.orderId,
         service: { id: o.serviceId, name: o.serviceName },
         paid_at: o.paid_at,
+        paid_via: o.paid_via || 'btc',
         amount_btc: o.amount_btc,
         amount_sats: o.amount_sats,
         currency: o.currency,
         subtotal_fiat: o.subtotal_fiat,
         txid,
-        proof_url: txid ? `https://mempool.space/tx/${txid}` : null,
+        provider_refs: paymentProviderRefs(o),
+        proof_url: proofUrlForOrder(o, txid),
       });
     }
     paid.sort((a, b) => String(b.paid_at || '').localeCompare(String(a.paid_at || '')));
@@ -1871,15 +2190,17 @@ async function recoverStuckPending(opts) {
               checkout_url: o.checkout_url,
               amount_btc: o.amount_btc,
               btcAmount: o.amount_btc,
+              btcAddress: o.receive_address || OWNER_BTC,
               serviceName: o.serviceName,
               priceUSD: o.subtotal_fiat,
             },
           });
         } else if (typeof mailer.sendRaw === 'function') {
+          const addr = o.receive_address || OWNER_BTC;
           r = await mailer.sendRaw({
             to: buyerEmail,
             subject: `Your ZeusAI order ${o.orderId} — payment still pending`,
-            text: `Your order ${o.orderId} (${o.serviceName}) for $${o.subtotal_fiat} (≈ ${o.amount_btc} BTC) is still awaiting payment.\n\nPay here: ${o.checkout_url}\n\n— ZeusAI`,
+            text: `Your order ${o.orderId} (${o.serviceName}) for $${o.subtotal_fiat} (≈ ${o.amount_btc} BTC) is still awaiting payment.\n\nSend exactly ${o.amount_btc} BTC to ${addr}.\n\nPay here: ${o.checkout_url}\n\n— ZeusAI`,
           });
         }
         // Phase 2 honesty: only count as sent when provider reports ok.
@@ -1931,6 +2252,7 @@ function ageMsOf(o, now) {
 
 // ── Boot ────────────────────────────────────────────────────────────────────
 loadState();
+loadPaymentExceptions();
 loadCatalogSeen();
 // Initial non-blocking price warm-up + first scan
 setTimeout(() => { getBtcPrice().catch((e) => console.warn('[commerce] initial BTC price fetch error:', e.message)); scanIncoming().catch((e) => console.warn('[commerce] initial scan error:', e.message)); }, 3000);
@@ -1950,4 +2272,4 @@ setInterval(() => {
 
 console.log('[commerce] ready · addr=' + OWNER_BTC + ' · data=' + DATA_DIR + ' · watch=' + WATCH_MS + 'ms · min_confs=' + MIN_CONFS + ' · recovery=' + SOV_RECOVERY_INTERVAL_MS + 'ms');
 
-module.exports = { handle, scanIncoming, getBtcPrice, createOrder, ORDERS, WATCH_STATE, recordCatalogItems, setDeliveryHook, _fireDelivery, checkoutHtml, renderCheckoutPage: checkoutHtml, sign, verify, verifyEntitlement, recoverStuckPending, markOrderPaidFromProvider };
+module.exports = { handle, scanIncoming, getBtcPrice, createOrder, ORDERS, AMT_INDEX, PAYMENT_EXCEPTIONS, WATCH_STATE, recordCatalogItems, setDeliveryHook, _fireDelivery, checkoutHtml, renderCheckoutPage: checkoutHtml, sign, verify, verifyEntitlement, recoverStuckPending, markOrderPaidFromProvider, revokeOrderFromProvider };

@@ -342,19 +342,23 @@ async function run() {
     const license = await request('/api/license/' + encodeURIComponent(receiptId));
     assert.equal(license.status, 200);
     assert.ok(license.body.license && license.body.license.token, 'paid receipt must deliver a license token');
+    const deliveryToken = license.body.license.token;
 
-    const delivery = await request('/api/delivery/' + encodeURIComponent(receiptId));
+    const deliveryDenied = await request('/api/delivery/' + encodeURIComponent(receiptId));
+    assert.equal(deliveryDenied.status, 401, 'delivery must require an access token');
+
+    const delivery = await request('/api/delivery/' + encodeURIComponent(receiptId) + '?access_token=' + encodeURIComponent(deliveryToken));
     assert.equal(delivery.status, 200);
     assert.equal(delivery.body.ok, true);
     assert.equal(delivery.body.delivery.status, 'delivered');
     assert.ok(Array.isArray(delivery.body.delivery.items) && delivery.body.delivery.items.length >= 1, 'paid receipt must create delivery items');
     assert.ok(delivery.body.delivery.items[0].files.length >= 2, 'delivery must expose downloadable files');
 
-    const apiKeyDelivery = await request('/api/delivery/' + encodeURIComponent(receiptId) + '?format=api-key&serviceId=adaptive-ai');
+    const apiKeyDelivery = await request('/api/delivery/' + encodeURIComponent(receiptId) + '?format=api-key&serviceId=adaptive-ai&access_token=' + encodeURIComponent(deliveryToken));
     assert.equal(apiKeyDelivery.status, 200);
     assert.ok(apiKeyDelivery.body.delivery.apiKey && apiKeyDelivery.body.delivery.apiKey.startsWith('zai_'), 'delivery must expose a service API key');
 
-    const onboardingDelivery = await request('/api/delivery/' + encodeURIComponent(receiptId) + '?format=onboarding&serviceId=adaptive-ai');
+    const onboardingDelivery = await request('/api/delivery/' + encodeURIComponent(receiptId) + '?format=onboarding&serviceId=adaptive-ai&access_token=' + encodeURIComponent(deliveryToken));
     assert.equal(onboardingDelivery.status, 200);
     assert.ok(Array.isArray(onboardingDelivery.body.delivery.requiredInputs), 'delivery must expose onboarding inputs');
 

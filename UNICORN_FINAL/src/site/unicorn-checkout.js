@@ -149,8 +149,8 @@
         var id = String((m && (m.id || m.kind || m.method)) || '').toLowerCase();
         return (id === 'stripe' || id === 'card') && m.active !== false;
       });
-      var paypalOn = methods.some(function (m) { return String((m && m.id) || '').toLowerCase() === 'paypal' && m.active !== false; });
-      var nowOn = methods.some(function (m) { return String((m && m.id) || '').toLowerCase() === 'nowpayments' && m.active !== false; });
+      var paypalOn = methods.some(function (m) { return String((m && m.id) || '').toLowerCase() === 'paypal' && m.active !== false && m.settleReady !== false; });
+      var nowOn = methods.some(function (m) { return String((m && m.id) || '').toLowerCase() === 'nowpayments' && m.active !== false && m.settleReady !== false; });
       var emailOn = !!(j && j.emailConfigured);
       if (railsEl) {
         railsEl.textContent = 'Armed Rails Continuum: BTC armed · PayPal ' + (paypalOn ? 'armed' : 'idle')

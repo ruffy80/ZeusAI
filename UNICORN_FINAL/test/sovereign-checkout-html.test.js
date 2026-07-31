@@ -88,7 +88,8 @@ check('server-rendered entitlement links contain the access token, not "${TOK}"'
     'verify control must contain the access token'
   );
   assert.ok(html.includes('data-live-inspect="/api/entitlements/' + ACCESS_TOKEN + '"'), 'verify must use live-inspect (no raw JSON tab)');
-  assert.ok(html.includes('data-live-inspect="/api/delivery/' + ORDER_ID + '"'), 'delivery must use live-inspect');
+  assert.ok(html.includes('data-live-inspect="/api/delivery/' + ORDER_ID + '?access_token=' + ACCESS_TOKEN + '"'), 'delivery must use live-inspect with access token');
+  assert.ok(html.includes('src="/api/checkout/' + ORDER_ID + '/qr.svg"'), 'checkout QR must use first-party endpoint');
   // The literal string "${TOK}" must never appear in the emitted HTML — if it
   // did, the checkoutHtml template would have re-introduced the crash.
   assert.ok(!html.includes('${TOK}'), 'HTML must not contain the literal "${TOK}" placeholder');

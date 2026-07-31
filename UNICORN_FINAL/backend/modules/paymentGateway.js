@@ -262,12 +262,15 @@ class PaymentGateway {
     const bankConfigured = process.env.BANK_TRANSFER_ENABLED === '1'
       || Boolean(String(process.env.BANK_ACCOUNT_IBAN || process.env.BANK_ACCOUNT_NUMBER || process.env.BANK_ROUTING_NUMBER || process.env.BANK_BENEFICIARY || process.env.BANK_TRANSFER_IBAN || '').trim());
     const nowKey = String(process.env.NOWPAYMENTS_API_KEY || '').trim();
+    const nowIpn = String(process.env.NOWPAYMENTS_IPN_SECRET || '').trim();
     const nowConfigured = !!(nowKey && nowKey.length > 8 && !/^your_|^changeme$|^placeholder|^skip$/i.test(nowKey));
+    const nowSettleReady = nowConfigured && !!(nowIpn && nowIpn.length > 8 && !/^your_|^changeme$|^placeholder|^skip$/i.test(nowIpn));
+    const paypalSettleReady = this.isPayPalSettleReady();
     return [
       { id: 'card',       name: 'Credit Card',    currency: 'USD', active: this.isStripeConfigured(), feePercent: 2.9, settlement: 'instant',    provider: 'stripe' },
-      { id: 'paypal',     name: 'PayPal',          currency: 'USD', active: this.isPayPalConfigured(), feePercent: 3.4, settlement: 'instant',    provider: 'paypal' },
+      { id: 'paypal',     name: 'PayPal',          currency: 'USD', active: paypalSettleReady, settleReady: paypalSettleReady, feePercent: 3.4, settlement: 'instant',    provider: 'paypal' },
       { id: 'stripe',     name: 'Stripe',          currency: 'USD', active: this.isStripeConfigured(), feePercent: 2.9, settlement: 'instant',    provider: 'stripe' },
-      { id: 'nowpayments', name: 'Global Crypto', currency: 'MULTI', active: nowConfigured,           feePercent: 1.0, settlement: 'instant',    provider: 'nowpayments' },
+      { id: 'nowpayments', name: 'Global Crypto', currency: 'MULTI', active: nowSettleReady, settleReady: nowSettleReady, feePercent: 1.0, settlement: 'instant',    provider: 'nowpayments' },
       { id: 'crypto_btc', name: 'Bitcoin',         currency: 'BTC', active: true,                      feePercent: 1.2, settlement: '10-30 min', primary: true },
       { id: 'crypto_eth', name: 'Ethereum',        currency: 'ETH', active: ethConfigured,             feePercent: 1.4, settlement: '2-10 min'                      },
       { id: 'bank',       name: 'Bank Transfer',   currency: 'EUR', active: bankConfigured,            feePercent: 0.8, settlement: '1-2 days'                      },
@@ -291,6 +294,14 @@ class PaymentGateway {
     const secret = String(this.providers.paypal.clientSecret || '').trim();
     if (!id || !secret || id.length < 8 || secret.length < 8) return false;
     if (/^your_|^changeme$|^placeholder|^skip$/i.test(id) || /^your_|^changeme$|^placeholder|^skip$/i.test(secret)) return false;
+    return true;
+  }
+
+  isPayPalSettleReady() {
+    const webhookId = String(process.env.PAYPAL_WEBHOOK_ID || '').trim();
+    if (!this.isPayPalConfigured()) return false;
+    if (!webhookId || webhookId.length <= 6) return false;
+    if (/^your_|^changeme$|^placeholder|^skip$/i.test(webhookId)) return false;
     return true;
   }
 

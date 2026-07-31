@@ -2126,6 +2126,44 @@ function getAllReceipts() {
 function findReceipt(id) {
   return getAllReceipts().find(r => r && r.id === id) || null;
 }
+function safeTokenEqual(a, b) {
+  try {
+    const A = Buffer.from(String(a || ''));
+    const B = Buffer.from(String(b || ''));
+    return A.length > 0 && A.length === B.length && crypto.timingSafeEqual(A, B);
+  } catch (_) { return false; }
+}
+function verifyDeliveryAccess(id, req, params) {
+  const token = String(
+    (params && (params.get('access_token') || params.get('token')))
+    || (req && req.headers && (req.headers['x-access-token'] || req.headers['x-order-token']))
+    || ''
+  ).trim();
+  if (!token) return false;
+  try {
+    const order = commerce && commerce.ORDERS && typeof commerce.ORDERS.get === 'function'
+      ? commerce.ORDERS.get(id)
+      : null;
+    if (order && safeTokenEqual(token, order.access_token)) return true;
+  } catch (_) {}
+  try {
+    if (portal && typeof portal.verifyOrderAccessToken === 'function') {
+      const verified = portal.verifyOrderAccessToken(token);
+      if (verified && safeTokenEqual(verified.orderId, id)) return true;
+    }
+  } catch (_) {}
+  try {
+    const receipt = findReceipt(id);
+    const receiptTokens = [
+      receipt && receipt.access_token,
+      receipt && receipt.accessToken,
+      receipt && receipt.orderAccessToken,
+      receipt && receipt.license && receipt.license.token,
+    ].filter(Boolean);
+    if (receiptTokens.some((candidate) => safeTokenEqual(token, candidate))) return true;
+  } catch (_) {}
+  return false;
+}
 function issueFallbackLicense(receipt) {
   const body = {
     iss: 'ZeusAI',
@@ -2162,16 +2200,19 @@ function isConfiguredSecret(name) {
 function getPaymentConfigStatus() {
   const nowConfigured = isConfiguredSecret('NOWPAYMENTS_API_KEY');
   const nowIpnConfigured = isConfiguredSecret('NOWPAYMENTS_IPN_SECRET');
+  const nowSettleReady = nowConfigured && nowIpnConfigured;
   const stripeConfigured = isConfiguredSecret('STRIPE_SECRET_KEY');
   const paypalConfigured = isConfiguredSecret('PAYPAL_CLIENT_ID')
     && (isConfiguredSecret('PAYPAL_CLIENT_SECRET') || isConfiguredSecret('PAYPAL_SECRET'));
+  const paypalWebhookConfigured = isConfiguredSecret('PAYPAL_WEBHOOK_ID');
+  const paypalSettleReady = paypalConfigured && paypalWebhookConfigured;
   const btcpayConfigured = isConfiguredSecret('BTCPAY_SERVER_URL') && isConfiguredSecret('BTCPAY_API_KEY') && isConfiguredSecret('BTCPAY_STORE_ID');
   const rails = [
-    { id: 'btc-direct', configured: true, active: true, primary: true, mode: 'owner-wallet-primary', payoutDestination: BTC_WALLET, action: 'none' },
+    { id: 'btc-direct', configured: true, active: true, settleReady: true, primary: true, mode: 'owner-wallet-primary', payoutDestination: BTC_WALLET, action: 'none' },
     { id: 'stripe', configured: stripeConfigured, active: stripeConfigured, primary: false, mode: stripeConfigured ? 'checkout-api' : 'optional-later', action: stripeConfigured ? 'none' : 'optional: configure STRIPE_SECRET_KEY later' },
     { id: 'btcpay', configured: btcpayConfigured, active: btcpayConfigured, primary: false, mode: btcpayConfigured ? 'invoice-api' : 'optional-later', action: btcpayConfigured ? 'none' : 'optional: configure BTCPAY_SERVER_URL, BTCPAY_API_KEY, BTCPAY_STORE_ID later' },
-    { id: 'paypal', configured: paypalConfigured, active: paypalConfigured, primary: false, mode: paypalConfigured ? 'orders-api' : 'optional-later', action: paypalConfigured ? 'none' : 'optional: configure PAYPAL_CLIENT_ID and PAYPAL_CLIENT_SECRET later' },
-    { id: 'nowpayments', configured: nowConfigured, active: nowConfigured, primary: false, mode: nowConfigured ? 'global-crypto' : 'optional-later', action: nowConfigured && nowIpnConfigured ? 'none' : 'optional: configure NOWPAYMENTS_API_KEY and NOWPAYMENTS_IPN_SECRET later' },
+    { id: 'paypal', configured: paypalConfigured, active: paypalSettleReady, settleReady: paypalSettleReady, primary: false, mode: paypalConfigured ? 'orders-api' : 'optional-later', action: paypalSettleReady ? 'none' : 'optional: configure PAYPAL_CLIENT_ID, PAYPAL_CLIENT_SECRET, and PAYPAL_WEBHOOK_ID later' },
+    { id: 'nowpayments', configured: nowConfigured, active: nowSettleReady, settleReady: nowSettleReady, primary: false, mode: nowConfigured ? 'global-crypto' : 'optional-later', action: nowSettleReady ? 'none' : 'optional: configure NOWPAYMENTS_API_KEY and NOWPAYMENTS_IPN_SECRET later' },
   ];
   return {
     ok: true,
@@ -2183,8 +2224,16 @@ function getPaymentConfigStatus() {
       apiKeyConfigured: nowConfigured,
       ipnSecretConfigured: nowIpnConfigured,
       webhookSecurityReady: nowIpnConfigured,
+      settleReady: nowSettleReady,
       sandbox: process.env.NOWPAYMENTS_SANDBOX === '1',
       optionalSecrets: ['NOWPAYMENTS_API_KEY', 'NOWPAYMENTS_IPN_SECRET'],
+      requiredForCurrentMode: false,
+    },
+    paypal: {
+      credentialsConfigured: paypalConfigured,
+      webhookConfigured: paypalWebhookConfigured,
+      settleReady: paypalSettleReady,
+      optionalSecrets: ['PAYPAL_CLIENT_ID', 'PAYPAL_CLIENT_SECRET', 'PAYPAL_WEBHOOK_ID'],
       requiredForCurrentMode: false,
     },
     rails,
@@ -2218,11 +2267,11 @@ function getPublicPaymentMethods() {
     methods.push({ id: 'card', name: 'Credit Card', currency: 'USD', active: true, primary: false, settlement: 'instant', provider: 'stripe' });
     methods.push({ id: 'stripe', name: 'Stripe', currency: 'USD', active: true, primary: false, settlement: 'instant', provider: 'stripe' });
   }
-  if (status.rails.some((rail) => rail.id === 'paypal' && rail.active)) {
-    methods.push({ id: 'paypal', name: 'PayPal', currency: 'USD', active: true, primary: false, settlement: 'instant', provider: 'paypal' });
+  if (status.rails.some((rail) => rail.id === 'paypal' && rail.active && rail.settleReady)) {
+    methods.push({ id: 'paypal', name: 'PayPal', currency: 'USD', active: true, settleReady: true, primary: false, settlement: 'instant', provider: 'paypal' });
   }
-  if (status.rails.some((rail) => rail.id === 'nowpayments' && rail.active)) {
-    methods.push({ id: 'nowpayments', name: 'Global Crypto', currency: 'MULTI', active: true, primary: false, settlement: 'instant', provider: 'nowpayments' });
+  if (status.rails.some((rail) => rail.id === 'nowpayments' && rail.active && rail.settleReady)) {
+    methods.push({ id: 'nowpayments', name: 'Global Crypto', currency: 'MULTI', active: true, settleReady: true, primary: false, settlement: 'instant', provider: 'nowpayments' });
   }
   // Never advertise ETH or bank unless explicitly configured with real coords.
   // (Backend paymentGateway already filters; this site surface stays BTC-primary.)
@@ -4006,6 +4055,10 @@ async function unicornHandler(req, res) {
   if (earlyPath.startsWith('/api/delivery/')) {
     const id = decodeURIComponent(earlyPath.slice('/api/delivery/'.length));
     const params = requestUrl.searchParams;
+    if (!verifyDeliveryAccess(id, req, params)) {
+      res.writeHead(401, { 'Content-Type':'application/json', 'Cache-Control':'no-store' });
+      return res.end(JSON.stringify({ error:'unauthorized', hint:'access_token required' }));
+    }
     const fmt = params.get('format');
     const delivery = deliveryRegistry && deliveryRegistry.get ? deliveryRegistry.get(id) : null;
     // Real AI-generated deliverables (from fulfillment-engine).
@@ -4781,7 +4834,7 @@ async function unicornHandler(req, res) {
       },
       canonicalSecrets: { path: 'UNICORN_FINAL/backend/constants/secretKeys.js', present: fs.existsSync(canonicalPath), nowpaymentsIncluded: true },
       requiredOperationalSecrets: ['HETZNER_HOST', 'HETZNER_DEPLOY_USER', 'HETZNER_SSH_PRIVATE_KEY', 'JWT_SECRET', 'ADMIN_SECRET', 'BTC_WALLET_ADDRESS'],
-      optionalProviderSecrets: ['NOWPAYMENTS_API_KEY', 'NOWPAYMENTS_IPN_SECRET', 'PAYPAL_CLIENT_ID', 'PAYPAL_CLIENT_SECRET'],
+      optionalProviderSecrets: ['NOWPAYMENTS_API_KEY', 'NOWPAYMENTS_IPN_SECRET', 'PAYPAL_CLIENT_ID', 'PAYPAL_CLIENT_SECRET', 'PAYPAL_WEBHOOK_ID', 'PAYPAL_ENV'],
       autoPopulate: {
         enabled: true,
         resolvedCount: Object.keys(SECRETS_BOOT.resolved || {}).length,
@@ -4791,7 +4844,7 @@ async function unicornHandler(req, res) {
         doesNotGenerateExternalProviderKeys: true
       },
       featureGroups: liveFeatureGroups,
-      configured: ['JWT_SECRET', 'JWT_SECRET_PREVIOUS', 'ADMIN_SECRET', 'ADMIN_TOKEN', 'HETZNER_WEBHOOK_SECRET', 'COMMERCE_ADMIN_SECRET', 'ANCHOR_WEBHOOK_TOKEN', 'BTC_WALLET_ADDRESS', 'OWNER_BTC_ADDRESS', 'LEGAL_OWNER_BTC', 'PUBLIC_APP_URL', 'APP_BASE_URL', 'FRONTEND_URL', 'NOWPAYMENTS_API_KEY', 'NOWPAYMENTS_IPN_SECRET', 'PAYPAL_CLIENT_ID', 'PAYPAL_CLIENT_SECRET', 'REFERRAL_SECRET', 'X_BEARER_TOKEN', 'TELEGRAM_BOT_TOKEN', 'DEV_API_KEY', 'SMTP_HOST', 'SMTP_USER', 'SMTP_PASS'].map((name) => ({ name, configured: isConfiguredSecret(name) })),
+      configured: ['JWT_SECRET', 'JWT_SECRET_PREVIOUS', 'ADMIN_SECRET', 'ADMIN_TOKEN', 'HETZNER_WEBHOOK_SECRET', 'COMMERCE_ADMIN_SECRET', 'ANCHOR_WEBHOOK_TOKEN', 'BTC_WALLET_ADDRESS', 'OWNER_BTC_ADDRESS', 'LEGAL_OWNER_BTC', 'PUBLIC_APP_URL', 'APP_BASE_URL', 'FRONTEND_URL', 'NOWPAYMENTS_API_KEY', 'NOWPAYMENTS_IPN_SECRET', 'PAYPAL_CLIENT_ID', 'PAYPAL_CLIENT_SECRET', 'PAYPAL_WEBHOOK_ID', 'PAYPAL_ENV', 'REFERRAL_SECRET', 'X_BEARER_TOKEN', 'TELEGRAM_BOT_TOKEN', 'DEV_API_KEY', 'SMTP_HOST', 'SMTP_USER', 'SMTP_PASS'].map((name) => ({ name, configured: isConfiguredSecret(name) })),
       note: 'GitHub Actions secrets cannot be read by the app; this endpoint verifies code readiness and runtime env presence only.'
     };
     res.writeHead(200, { 'Content-Type':'application/json', 'Cache-Control':'no-cache' });
@@ -10548,7 +10601,9 @@ ${invoice.payer ? `<h2>Payer</h2><table><tr><th>Legal entity</th><td>${esc(invoi
         const provided = String(req.headers['x-payment-token'] || req.headers['x-admin-token'] || '');
         const ip = ((req.headers['x-forwarded-for'] || '').split(',')[0].trim()) || (req.socket && req.socket.remoteAddress) || '';
         const loopback = ip === '127.0.0.1' || ip === '::1' || ip === '::ffff:127.0.0.1';
-        const trusted = loopback || (confirmToken && provided === confirmToken);
+        const openConfirmAllowed = process.env.NODE_ENV === 'test' || String(process.env.ALLOW_OPEN_PAYMENT_CONFIRM || '') === '1';
+        const tokenTrusted = !!(confirmToken && provided === confirmToken);
+        const trusted = tokenTrusted || (openConfirmAllowed && loopback);
 
         const p = JSON.parse(body || '{}');
         const receiptId = String(p.receiptId || '');
@@ -10589,7 +10644,13 @@ ${invoice.payer ? `<h2>Payer</h2><table><tr><th>Legal entity</th><td>${esc(invoi
           if (receipt.status !== 'paid') {
             receipt.status = 'paid';
             receipt.paidAt = new Date().toISOString();
-            receipt.confirmation = { txid: p.txid || p.transactionId || receipt.txid || null, network: urlPath.includes('/btc/') ? 'btc' : 'paypal', amount: Number(p.amount || receipt.amount || 0), by: trusted ? (loopback ? 'loopback' : 'token') : 'self-service', at: new Date().toISOString() };
+            const btcConfirm = urlPath.includes('/btc/');
+            const proofTxid = p.txid || p.transactionId || receipt.txid || null;
+            if (btcConfirm && trusted && !proofTxid) {
+              res.writeHead(400, { 'Content-Type':'application/json' });
+              return res.end(JSON.stringify({ error: 'txid_required_for_btc_confirm', honesty: 'btc_manual_confirm_requires_chain_reference' }));
+            }
+            receipt.confirmation = { txid: proofTxid, network: btcConfirm ? 'btc' : 'paypal', amount: Number(p.amount || receipt.amount || 0), by: trusted ? (tokenTrusted ? 'token' : 'loopback') : 'self-service', at: new Date().toISOString() };
             receipt.license = receipt.license || issueFallbackLicense(receipt);
             runDeliveryForReceipt(receipt);
             persistFallbackReceipt(receipt);
@@ -10681,19 +10742,27 @@ ${invoice.payer ? `<h2>Payer</h2><table><tr><th>Legal entity</th><td>${esc(invoi
           return res.end(JSON.stringify({ ok: true, method: 'BTC', mode: 'self-service', match: matched, receipt }));
         }
 
-        // Trusted manual confirm path (webhooks / admin)
+        // Trusted manual confirm path (webhooks / admin). BTC still needs at
+        // least a txid/transactionId chain reference; loopback auto-confirm is
+        // disabled in production unless ALLOW_OPEN_PAYMENT_CONFIRM=1.
         if (!trusted) {
           res.writeHead(401, { 'Content-Type':'application/json' });
           return res.end(JSON.stringify({ error: 'unauthorized', hint: 'provide x-payment-token or run from loopback' }));
         }
         if (receipt.status !== 'paid') {
+          const btcConfirm = urlPath.includes('/btc/');
+          const proofTxid = p.txid || p.transactionId || null;
+          if (btcConfirm && !proofTxid) {
+            res.writeHead(400, { 'Content-Type':'application/json' });
+            return res.end(JSON.stringify({ error: 'txid_required_for_btc_confirm', honesty: 'btc_manual_confirm_requires_chain_reference' }));
+          }
           receipt.status = 'paid';
           receipt.paidAt = new Date().toISOString();
           receipt.confirmation = {
-            txid: p.txid || p.transactionId || null,
-            network: p.network || (urlPath.includes('/btc/') ? 'btc' : 'paypal'),
+            txid: proofTxid,
+            network: p.network || (btcConfirm ? 'btc' : 'paypal'),
             amount: Number(p.amount || receipt.amount || 0),
-            by: loopback ? 'loopback' : 'token',
+            by: tokenTrusted ? 'token' : 'loopback',
             at: new Date().toISOString()
           };
           receipt.license = receipt.license || uaic.issueLicense(receipt);

@@ -61,8 +61,12 @@ check('pledge() returns commitments array (UI reads commitments)', () => {
 });
 
 check('gift mint → redeem round-trip works', () => {
-  const minted = frontier.giftMint({ sku: 'adaptive-ai', valueUsd: 49, fromEmail: 'a@test.com' });
-  assert.ok(minted.code && minted.code.startsWith('GIFT-'));
+  // Phase-1 harden: public free mint closed — test uses adminAuth plane.
+  const denied = frontier.giftMint({ sku: 'adaptive-ai', valueUsd: 49, fromEmail: 'a@test.com' });
+  assert.strictEqual(denied.ok, false);
+  assert.strictEqual(denied.error, 'gift_mint_requires_paid_order_or_admin');
+  const minted = frontier.giftMint({ sku: 'adaptive-ai', valueUsd: 49, fromEmail: 'a@test.com', adminAuth: true });
+  assert.ok(minted.ok && minted.code && minted.code.startsWith('GIFT-'));
   assert.ok(String(minted.redeemUrl || '').includes('c='));
   const redeemed = frontier.giftRedeem({ code: minted.code, byEmail: 'b@test.com' });
   assert.strictEqual(redeemed.ok, true);

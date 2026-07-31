@@ -35,16 +35,20 @@ check('alt-rails-os honesty gates', () => {
   assert.ok(/BTC/.test(st.honesty));
 });
 
-check('paymentGateway surfaces nowpayments only when key armed', () => {
+check('paymentGateway surfaces nowpayments only when key and IPN armed', () => {
   delete process.env.NOWPAYMENTS_API_KEY;
+  delete process.env.NOWPAYMENTS_IPN_SECRET;
   const PaymentGateway = require('../backend/modules/paymentGateway');
   const gw = typeof PaymentGateway === 'function' ? new PaymentGateway() : PaymentGateway;
   assert.ok(!gw.getPaymentMethods().some((m) => m.id === 'nowpayments'));
   process.env.NOWPAYMENTS_API_KEY = 'np_live_test_key_abcdef123456';
+  assert.ok(!gw.getPaymentMethods().some((m) => m.id === 'nowpayments'));
+  process.env.NOWPAYMENTS_IPN_SECRET = 'np_ipn_secret_abcdef123456';
   const gw2 = typeof PaymentGateway === 'function' ? new PaymentGateway() : PaymentGateway;
-  assert.ok(gw2.getPaymentMethods().some((m) => m.id === 'nowpayments' && m.active));
+  assert.ok(gw2.getPaymentMethods().some((m) => m.id === 'nowpayments' && m.active && m.settleReady));
   assert.ok(gw2.getPaymentMethods().some((m) => m.id === 'crypto_btc' && m.active && m.primary));
   delete process.env.NOWPAYMENTS_API_KEY;
+  delete process.env.NOWPAYMENTS_IPN_SECRET;
 });
 
 check('nowPayments createInvoice accepts sovereign orderId + any currency', () => {
@@ -117,6 +121,8 @@ check('markOrderPaidFromProvider settles pending order idempotently', () => {
   assert.ok(r1.ok);
   assert.equal(commerce.ORDERS.get(orderId).status, 'paid');
   assert.equal(commerce.ORDERS.get(orderId).paid_via, 'paypal');
+  assert.deepEqual(commerce.ORDERS.get(orderId).txids, []);
+  assert.ok(commerce.ORDERS.get(orderId).provider_refs.some((r) => r.provider === 'paypal' && r.ref === 'CAP123'));
   const r2 = commerce.markOrderPaidFromProvider(orderId, { provider: 'paypal', providerRef: 'CAP123' });
   assert.ok(r2.ok && r2.duplicate);
 });
@@ -126,3 +132,4 @@ if (failed) {
   process.exit(1);
 }
 console.log('alt-rails-paypal-nowpayments.test.js: all assertions passed');
+process.exit(0);

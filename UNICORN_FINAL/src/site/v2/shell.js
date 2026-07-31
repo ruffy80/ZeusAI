@@ -1800,7 +1800,6 @@ function pageCheckout(params) {
         <div class="field"><label for="coPlanPP">Plan / product</label><input id="coPlanPP" value="starter"/></div>
         <div class="field"><label for="coEmailPP">Email for activation</label><input id="coEmailPP" type="email" placeholder="you@company.com"/></div>
         <button class="btn btn-primary" id="coPayPP" style="width:100%;justify-content:center;margin-bottom:8px">Start PayPal payment →</button>
-        <a class="btn btn-gold" id="coPaypal" style="width:100%;justify-content:center" target="_blank" rel="noopener">Or tip via paypal.me</a>
         <p id="paypalRailCopy" style="color:var(--ink-dim);font-size:13px;margin-top:14px">PayPal appears only when runtime credentials are configured. BTC direct remains the primary settle path.</p>
       </div>
       <div id="coPanelNow" style="display:none">
@@ -1808,7 +1807,7 @@ function pageCheckout(params) {
         <div class="field"><label for="coPlanNP">Plan / product</label><input id="coPlanNP" value="starter"/></div>
         <div class="field"><label for="coEmailNP">Email for delivery <span style="opacity:.7">(optional)</span></label><input id="coEmailNP" type="email" placeholder="you@company.com"/></div>
         <button class="btn btn-primary" id="coPayNP" style="width:100%;justify-content:center;margin-bottom:8px">Pay with card / crypto →</button>
-        <p id="nowRailCopy" style="color:var(--ink-dim);font-size:13px;margin-top:14px">NOWPayments hosted invoice (card + 300+ crypto → auto BTC). Appears only when API key is armed. Direct BTC checkout above stays primary.</p>
+        <p id="nowRailCopy" style="color:var(--ink-dim);font-size:13px;margin-top:14px">NOWPayments hosted invoice — pick card or any supported crypto on their page (settles to owner BTC). Appears only when API key <b>and</b> IPN secret are armed. Direct BTC checkout above stays primary.</p>
       </div>
     </div>
     <aside class="co-box">
@@ -6153,7 +6152,10 @@ function pageOrderPassport(id) {
           if (deliveredAtEl) deliveredAtEl.textContent = j.deliveredAt ? fmt(j.deliveredAt) : 'delivered';
           if (deliveryCard) { deliveryCard.hidden = false; }
           if (deliveryLinks) {
-            deliveryLinks.innerHTML = '<a class="btn btn-primary" download href="/api/delivery/'+encodeURIComponent(ORDER_ID)+'">Download signed delivery pack</a>'
+            var qs = new URLSearchParams(window.location.search || '');
+            var tok = qs.get('access_token') || qs.get('token') || '';
+            var deliveryHref = '/api/delivery/'+encodeURIComponent(ORDER_ID)+(tok ? '?access_token='+encodeURIComponent(tok) : '');
+            deliveryLinks.innerHTML = '<a class="btn btn-primary" download href="'+deliveryHref+'">Download signed delivery pack</a>'
               + '<a class="btn" href="/account" data-link>Go to my account</a>';
           }
         }

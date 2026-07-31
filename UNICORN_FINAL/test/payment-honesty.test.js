@@ -12,6 +12,8 @@ delete process.env.PAYPAL_CLIENT_ID;
 delete process.env.PAYPAL_CLIENT_SECRET;
 
 const assert = require('assert');
+const fs = require('fs');
+const path = require('path');
 const PaymentGateway = require('../backend/modules/paymentGateway');
 const truth = require('../backend/modules/conversion-truth-layer');
 
@@ -104,8 +106,6 @@ check('paymentLabels: all rails present when all active', () => {
 
 // ── Sovereign-commerce delivery hook wiring ───────────────────────────────
 const os = require('os');
-const path = require('path');
-const fs = require('fs');
 const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ph-test-'));
 process.env.COMMERCE_DATA_DIR = path.join(tmpDir, 'commerce');
 // Suppress watcher/price timers during test
@@ -161,6 +161,21 @@ check('_fireDelivery is a no-op when no hook is registered', () => {
   sovereignCommerce.setDeliveryHook(null);
   // Should not throw
   sovereignCommerce._fireDelivery({ orderId: 'ord_nohook', serviceId: 's', serviceName: 's', buyer: {}, txids: [] });
+});
+
+check('BTC perfection guards are present in sovereign commerce and site routes', () => {
+  const sovSrc = fs.readFileSync(path.join(__dirname, '..', 'src', 'site', 'sovereign-commerce.js'), 'utf8');
+  const siteSrc = fs.readFileSync(path.join(__dirname, '..', 'src', 'index.js'), 'utf8');
+  const monitorSrc = fs.readFileSync(path.join(__dirname, '..', 'scripts', 'unicorn-payment-monitor.js'), 'utf8');
+  assert.ok(sovSrc.includes('payment-exceptions.jsonl'), 'mismatch exceptions must append JSONL');
+  assert.ok(sovSrc.includes('late_payment_expired'), 'late expired BTC payments must be recorded');
+  assert.ok(sovSrc.includes("kind: 'payment_amount_mismatch'"), 'underpay/overpay mismatches must be classified');
+  assert.ok(sovSrc.includes('priceUnavailableForNewInvoices'), 'new invoices must fail closed on static fallback price');
+  assert.ok(sovSrc.includes("'/api/checkout/' +") || sovSrc.includes('/api/checkout/${orderId}/qr.svg'), 'checkout must use local QR route');
+  assert.ok(siteSrc.includes('ALLOW_OPEN_PAYMENT_CONFIRM'), 'loopback payment confirm must be gated');
+  assert.ok(siteSrc.includes('txid_required_for_btc_confirm'), 'trusted BTC confirm must require txid');
+  assert.ok(siteSrc.includes('verifyDeliveryAccess'), 'delivery route must require access token');
+  assert.ok(monitorSrc.includes('missing_chain_txid'), 'payment monitor must not fake-pay without chain proof');
 });
 
 console.log('✅ payment-honesty: ' + pass + ' tests passed');
