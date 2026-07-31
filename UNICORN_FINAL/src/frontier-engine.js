@@ -687,12 +687,88 @@ function emailProofList(limit=50) { return readAll('email-proof.jsonl').slice(-l
 // ═══════════════════════════════════════════════════════════════════════════
 // F8. GIFT-AS-CAPABILITY — single-use redeemable token
 // ═══════════════════════════════════════════════════════════════════════════
-function giftMint({ sku='adaptive-ai', valueUsd=49, fromEmail=null, toEmail=null, message='' }) {
+/**
+ * Gift mint — Phase-1 security harden.
+ * Public free mint is closed. Allowed when:
+ *   A) adminAuth:true (caller verified ADMIN_SECRET), or
+ *   B) paidOrderId + accessToken match a paid sovereign/UAIC order
+ *      and valueUsd ≤ paid amount (SKU should match when present).
+ * Redeem stays public (single-use ledger only — does NOT grant entitlement).
+ */
+function giftMint(input) {
+  const p = input && typeof input === 'object' ? input : {};
+  const sku = String(p.sku || 'adaptive-ai').slice(0, 120);
+  let valueUsd = Math.max(0, Number(p.valueUsd || 0));
+  const fromEmail = p.fromEmail || null;
+  const toEmail = p.toEmail || null;
+  const message = String(p.message || '').slice(0, 500);
+  const adminAuth = p.adminAuth === true;
+  const paidOrderId = String(p.paidOrderId || p.orderId || '').trim();
+  const accessToken = String(p.accessToken || p.access_token || '').trim();
+
+  let proof = null;
+  if (!adminAuth) {
+    if (!paidOrderId || !accessToken) {
+      return { ok: false, error: 'gift_mint_requires_paid_order_or_admin', status: 401 };
+    }
+    // Sovereign paid order proof
+    try {
+      const sov = require('./site/sovereign-commerce');
+      const order = sov && sov.ORDERS && sov.ORDERS.get(paidOrderId);
+      if (order && order.status === 'paid' && String(order.access_token || '') === accessToken) {
+        proof = {
+          plane: 'sovereign',
+          orderId: order.orderId,
+          serviceId: order.serviceId,
+          amountUsd: Number(order.subtotal_fiat || 0),
+        };
+      }
+    } catch (_) { /* optional */ }
+    // UAIC receipt proof (site process)
+    if (!proof) {
+      try {
+        const uaic = require('./commerce/uaic');
+        const list = (uaic && typeof uaic.getReceipts === 'function') ? uaic.getReceipts() : [];
+        const receipt = Array.isArray(list) ? list.find((x) => x && x.id === paidOrderId) : null;
+        if (receipt && String(receipt.status || '').toLowerCase() === 'paid') {
+          const tok = String(
+            (receipt.license && receipt.license.token)
+            || receipt.access_token
+            || receipt.accessToken
+            || ''
+          );
+          if (tok && tok === accessToken) {
+            proof = {
+              plane: 'uaic',
+              orderId: receipt.id || paidOrderId,
+              serviceId: receipt.plan || receipt.serviceId,
+              amountUsd: Number(receipt.amount_usd || receipt.amountUsd || receipt.amount || 0),
+            };
+          }
+        }
+      } catch (_) { /* optional */ }
+    }
+    if (!proof) return { ok: false, error: 'paid_order_proof_invalid', status: 403 };
+    if (proof.amountUsd > 0) valueUsd = Math.min(valueUsd || proof.amountUsd, proof.amountUsd);
+    if (!(valueUsd > 0)) valueUsd = proof.amountUsd || 0;
+    if (proof.serviceId && sku && proof.serviceId !== sku && !String(sku).startsWith(String(proof.serviceId))) {
+      // Soft preference: allow mint only for the paid SKU (or admin).
+      return { ok: false, error: 'sku_mismatch_paid_order', status: 409, paidServiceId: proof.serviceId };
+    }
+  } else if (!(valueUsd > 0)) {
+    valueUsd = 49;
+  }
+
   const code = 'GIFT-' + crypto.randomBytes(8).toString('hex').toUpperCase();
-  const cap = { code, sku, valueUsd, fromEmail, toEmail, message, mintedAt: nowIso(), redeemedAt: null, redeemUrl: `/gift?c=${code}` };
+  const cap = {
+    code, sku, valueUsd, fromEmail, toEmail, message,
+    mintedAt: nowIso(), redeemedAt: null, redeemUrl: `/gift?c=${code}`,
+    paidOrderId: proof ? proof.orderId : (adminAuth ? 'admin' : null),
+    plane: proof ? proof.plane : (adminAuth ? 'admin' : null),
+  };
   cap.signature = sign(cap);
   append('gifts.jsonl', cap);
-  return cap;
+  return { ok: true, ...cap };
 }
 function giftRedeem({ code, byEmail=null }) {
   const all = readAll('gifts.jsonl');
@@ -704,7 +780,8 @@ function giftRedeem({ code, byEmail=null }) {
   const rec = { code, byEmail, redeemedAt: nowIso() };
   rec.signature = sign(rec);
   append('gift-redemptions.jsonl', rec);
-  return { ok:true, gift: g, redemption: rec };
+  // Honesty: redeem records intent only — does NOT auto-grant entitlement/delivery.
+  return { ok:true, gift: g, redemption: rec, honesty: 'ledger_only_no_entitlement' };
 }
 
 // ═══════════════════════════════════════════════════════════════════════════

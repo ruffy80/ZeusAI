@@ -1000,11 +1000,11 @@ ${require('./live-inspect-bootstrap').scriptTag().replace('<script>', `<script${
   var gb=document.getElementById('giftBtn');
   if(gb){gb.addEventListener('click',function(){
     var out=document.getElementById('giftOut');
-    var payload={ sku:'${jsStringEscape(o.serviceId || '')}', valueUsd:${Number(o.subtotal_fiat || 0)}, fromEmail:(document.getElementById('giftFrom')||{}).value||'', toEmail:(document.getElementById('giftTo')||{}).value||'', message:'Use ZeusAI on me 🎁' };
+    var payload={ sku:'${jsStringEscape(o.serviceId || '')}', valueUsd:${Number(o.subtotal_fiat || 0)}, fromEmail:(document.getElementById('giftFrom')||{}).value||'', toEmail:(document.getElementById('giftTo')||{}).value||'', message:'Use ZeusAI on me', paidOrderId:ORDER_ID, accessToken:TOK };
     fetch('/api/gift/mint',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)}).then(function(r){return r.json();}).then(function(d){
       if(!out) return;
-      if(d && d.code){ var url=location.origin+(d.redeemUrl||('/redeem/'+d.code)); out.innerHTML='<b>'+d.code+'</b> — share: <code>'+url+'</code>'; }
-      else { out.textContent='Could not mint gift'; }
+      if(d && d.ok!==false && d.code){ var url=location.origin+(d.redeemUrl||('/gift?c='+d.code)); out.innerHTML='<b>'+d.code+'</b> — share: <code>'+url+'</code>'; }
+      else { out.textContent='Could not mint gift'+(d&&d.error?(': '+d.error):' — pay first, then mint'); }
     }).catch(function(e){ if(out) out.textContent='Gift mint failed: '+(e&&e.message||e); });
   });}
 })();
