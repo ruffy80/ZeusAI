@@ -664,6 +664,38 @@ jobs:
             echo "🔐 Reconciled AI keys from $STORE into .env"
           fi
 
+          # Reconcile PayPal + NOWPayments from durable host store (same pattern).
+          # Empty GitHub Actions secrets must never disarm rails already armed on-box.
+          PAY_STORE=/etc/zeusai/secrets/payment-rails.env
+          [ -f "$PAY_STORE" ] || PAY_STORE=/var/www/unicorn/shared/payment-rails.env
+          if [ -f "$PAY_STORE" ] && [ -f "$ENV_FILE" ]; then
+            while IFS= read -r _l; do
+              case "$_l" in ''|\#*) continue ;; *=*) : ;; *) continue ;; esac
+              _k="${_l%%=*}"; _v="${_l#*=}"
+              _v="${_v%\"}"; _v="${_v#\"}"; _v="${_v%\'}"; _v="${_v#\'}"
+              [ -z "$_k" ] && continue
+              [ -z "$_v" ] && continue
+              grep -vE "^${_k}=" "$ENV_FILE" > "$ENV_FILE.tmp" 2>/dev/null || true
+              printf "%s=%s\n" "$_k" "$_v" >> "$ENV_FILE.tmp"
+              mv "$ENV_FILE.tmp" "$ENV_FILE"
+            done < "$PAY_STORE"
+            chmod 600 "$ENV_FILE" 2>/dev/null || true
+            if [ -f /var/www/unicorn/shared/.env ]; then
+              while IFS= read -r _l; do
+                case "$_l" in ''|\#*) continue ;; *=*) : ;; *) continue ;; esac
+                _k="${_l%%=*}"; _v="${_l#*=}"
+                _v="${_v%\"}"; _v="${_v#\"}"; _v="${_v%\'}"; _v="${_v#\'}"
+                [ -z "$_k" ] && continue
+                [ -z "$_v" ] && continue
+                grep -vE "^${_k}=" /var/www/unicorn/shared/.env > /var/www/unicorn/shared/.env.tmp 2>/dev/null || true
+                printf "%s=%s\n" "$_k" "$_v" >> /var/www/unicorn/shared/.env.tmp
+                mv /var/www/unicorn/shared/.env.tmp /var/www/unicorn/shared/.env
+              done < "$PAY_STORE"
+              chmod 600 /var/www/unicorn/shared/.env 2>/dev/null || true
+            fi
+            echo "🔐 Reconciled payment rails from $PAY_STORE into .env"
+          fi
+
           if [ ! -f "$UNIT_SRC" ]; then
             echo "⚠️  $UNIT_SRC missing — skipping DeepSeek loop install"
             exit 0
