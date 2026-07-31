@@ -3170,7 +3170,7 @@ app.get('/api/catalog/promoted', (req, res) => {
 const autoDeploy = require('./modules/autoDeploy');
 const selfConstruction = require('./modules/selfConstruction');
 const totalSystemHealer = require('./modules/totalSystemHealer');
-const codeSanityEngine = require('../src/modules/code-sanity-engine');
+const codeSanityEngine = require('./modules/codeSanityEngine');
 
 // ==================== TOATE MODULELE ====================
 const qrIdentity = require('./modules/qrDigitalIdentity');
@@ -3397,6 +3397,9 @@ const temporalDataLayer     = require('./generated/TemporalDataLayer');
 let orchestratedCapabilityContinuum = null;
 try { orchestratedCapabilityContinuum = require('./modules/orchestrated-capability-continuum'); }
 catch (e) { console.warn('[OCC] not loaded:', e && e.message); }
+let essentialModulesContinuum = null;
+try { essentialModulesContinuum = require('./modules/essential-modules-continuum'); }
+catch (e) { console.warn('[EMC] not loaded:', e && e.message); }
 // ==================== SRC INNOVATION & DEPLOY MODULES ====================
 const innovationEngine      = require('../src/innovation/innovation-engine');
 const autoDeployOrchestrator = require('../src/modules/auto-deploy-orchestrator');
@@ -3430,7 +3433,7 @@ const unicornRealizationEngine = require('./modules/unicorn-realization-engine')
 const autoTrendAnalyzer       = require('./modules/auto-trend-analyzer');
 const selfAdaptationEngine    = require('./modules/self-adaptation-engine');
 const codeOptimizer           = require('./modules/code-optimizer');
-const selfDocumenter          = require('./modules/self-documenter');
+const selfDocumenter          = require('./modules/selfDocumenter');
 const uiEvolution             = require('./modules/ui-evolution');
 const securityScanner         = require('./modules/security-scanner');
 const disasterRecovery        = require('./modules/disaster-recovery');
@@ -4063,7 +4066,9 @@ app.use('/api/uee', uee.getRouter(adminSecretMiddleware));
   const genesisRouter = require('express').Router();
   genesisRouter.use(adminSecretMiddleware);
   genesisRouter.get('/status', (req, res) => {
-    res.json({ module: 'UnicornAutoGenesis', status: 'active', repo: unicornAutoGenesis.repo, branch: unicornAutoGenesis.branch });
+    res.json(typeof unicornAutoGenesis.getStatus === 'function'
+      ? unicornAutoGenesis.getStatus()
+      : { module: 'UnicornAutoGenesis', repo: unicornAutoGenesis.repo, branch: unicornAutoGenesis.branch });
   });
   genesisRouter.post('/run', async (req, res) => {
     try {
@@ -4263,6 +4268,15 @@ try {
   console.warn('[OCC] mesh register failed:', e && e.message);
 }
 
+// EMC/1.0 — essential modules continuum (UEE/QRC/Healer/…/DAM)
+try {
+  if (essentialModulesContinuum && typeof essentialModulesContinuum.registerWithMesh === 'function') {
+    essentialModulesContinuum.registerWithMesh(meshOrchestrator);
+  }
+} catch (e) {
+  console.warn('[EMC] mesh register failed:', e && e.message);
+}
+
 // ── Wire Forward-Only Safety harmony registry ──────────────────────────────
 // registerEngine() existed but was never called, so /api/autonomy/harmony/status
 // always reported `no_engines_active`. Bridge every mesh-registered engine into
@@ -4394,6 +4408,17 @@ try {
     }
   } catch (e) {
     console.warn('[OCC] boot failed:', e && e.message);
+  }
+
+  // EMC/1.0 — verify/complete/start essential module surface
+  try {
+    if (essentialModulesContinuum) {
+      essentialModulesContinuum.start({ stable: _stableRuntime });
+      essentialModulesContinuum.mountRoutes(app);
+      console.log('🧩 EMC/1.0 Essential Modules Continuum: STARTED');
+    }
+  } catch (e) {
+    console.warn('[EMC] boot failed:', e && e.message);
   }
 
   try {

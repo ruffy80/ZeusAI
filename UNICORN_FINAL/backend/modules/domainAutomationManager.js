@@ -381,4 +381,43 @@ async function runAction(input = {}) {
   }
 }
 
-module.exports = { init, configureSavDNS, setupGitHubWebhook, getStatus, process: runAction };
+async function runFullSetup() {
+  return init();
+}
+
+async function addDomainToVercel(domain) {
+  if (!process.env.VERCEL_TOKEN) {
+    return { ok: false, note: 'VERCEL_TOKEN unset — Vercel domain attach idle', domain: domain || process.env.DOMAIN };
+  }
+  return { ok: false, note: 'Vercel API attach not armed in this build — use Hetzner/nginx path', domain };
+}
+
+async function configureNginxSSL(domain) {
+  return {
+    ok: false,
+    executed: false,
+    domain: domain || process.env.DOMAIN,
+    note: 'SSL/nginx owned by server deploy scripts — not mutated in-process',
+  };
+}
+
+async function updateGitHubWebhook(repoUrl, webhookUrl) {
+  return setupGitHubWebhook(repoUrl, webhookUrl);
+}
+
+function start() {
+  return init();
+}
+
+module.exports = {
+  init,
+  start,
+  runFullSetup,
+  configureSavDNS,
+  addDomainToVercel,
+  configureNginxSSL,
+  updateGitHubWebhook,
+  setupGitHubWebhook,
+  getStatus,
+  process: runAction,
+};

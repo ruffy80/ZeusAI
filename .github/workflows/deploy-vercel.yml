@@ -1,0 +1,12 @@
+# Thin alias — production is Hetzner (deploy.yml). Vercel is optional.
+name: deploy-vercel (alias)
+on:
+  workflow_dispatch:
+jobs:
+  point:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Point operators to canonical deploy
+        run: |
+          echo "Primary production deploy is Hetzner via deploy.yml + scripts/deploy-atomic-forward.sh."
+          echo "Vercel is not the live path for zeusai.pro — set VERCEL_TOKEN only if using DAM addDomainToVercel."

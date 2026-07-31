@@ -1,0 +1,12 @@
+# Thin alias — autonomous loops live in deepseek-autopilot / auto-innovation-approve
+name: autonomous (alias)
+on:
+  workflow_dispatch:
+jobs:
+  point:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Point operators to canonical autonomy workflows
+        run: |
+          echo "Use deepseek-autopilot.yml and auto-innovation-approve.yml for autonomous ops."
+          echo "Mutators remain gated by DISABLE_SELF_MUTATION / ENABLE_FILE_MUTATORS on the VPS."

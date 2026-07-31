@@ -365,8 +365,54 @@ function getStatus() {
   };
 }
 
+async function verifyPassword(password, passwordHash) {
+  if (passwordHash && password) {
+    try { return await bcrypt.compare(password, passwordHash); } catch (_) { return false; }
+  }
+  if (password && process.env.ADMIN_MASTER_PASSWORD) {
+    return password === process.env.ADMIN_MASTER_PASSWORD;
+  }
+  return false;
+}
+
+function verify2FA(userId, totpToken) {
+  const secret = totpSecrets.get(userId);
+  if (!secret) return { ok: true, skipped: true, note: 'totp_not_enrolled' };
+  return { ok: !!verifyTOTP(secret, totpToken), step: '2fa' };
+}
+
+function createSession(userId, role = 'admin') {
+  const sessionToken = crypto.randomBytes(32).toString('hex');
+  activeSessions.set(sessionToken, {
+    userId,
+    role,
+    createdAt: new Date().toISOString(),
+    expiresAt: new Date(Date.now() + SESSION_TTL_MS).toISOString(),
+  });
+  return { ok: true, sessionToken, expiresIn: SESSION_TTL_MS };
+}
+
+function adminMiddleware(req, res, next) {
+  const token = (req.headers && (req.headers['x-admin-token'] || req.headers.authorization)) || '';
+  const clean = String(token).replace(/^Bearer\s+/i, '');
+  const session = verifySession(clean);
+  if (session && session.role === 'admin') {
+    req.admin = session;
+    return next();
+  }
+  if (process.env.ADMIN_SECRET && clean === process.env.ADMIN_SECRET) {
+    req.admin = { role: 'admin', via: 'ADMIN_SECRET' };
+    return next();
+  }
+  return res.status(401).json({ ok: false, error: 'unauthorized' });
+}
+
 module.exports = {
   authenticate,
+  verifyPassword,
+  verify2FA,
+  createSession,
+  adminMiddleware,
   verifySession,
   revokeSession,
   setupTOTP,

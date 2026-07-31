@@ -415,8 +415,57 @@ async function runAction(input = {}) {
   }
 }
 
+async function createCryptoPayment(opts = {}) {
+  return processPayment({
+    method: opts.method || 'btc',
+    amount: opts.amount,
+    currency: opts.currency || 'USD',
+    userId: opts.userId,
+    serviceId: opts.serviceId,
+    metadata: opts.metadata || {},
+  });
+}
+
+async function processCardPayment(opts = {}) {
+  return processPayment({
+    method: 'card',
+    amount: opts.amount,
+    currency: opts.currency || 'USD',
+    userId: opts.userId,
+    serviceId: opts.serviceId,
+    metadata: opts.metadata || {},
+  });
+}
+
+async function createRecurringPayment(opts = {}) {
+  return {
+    ok: false,
+    status: 'requires_provider_configuration',
+    error: 'recurring_not_armed',
+    note: 'Requires Stripe price/subscription IDs — BTC address remains settlement target',
+    btcAddress: BTC_ADDRESS,
+    amount: opts.amount,
+    interval: opts.interval || 'month',
+  };
+}
+
+async function createEscrow(opts = {}) {
+  return {
+    ok: false,
+    status: 'requires_provider_configuration',
+    error: 'escrow_not_armed',
+    note: 'Escrow rail idle until a real escrow provider is configured',
+    btcAddress: BTC_ADDRESS,
+    amount: opts.amount,
+  };
+}
+
 module.exports = {
   processPayment,
+  createCryptoPayment,
+  processCardPayment,
+  createRecurringPayment,
+  createEscrow,
   getPaymentStatus,
   getTransactionHistory,
   getRevenueSummary,

@@ -100,6 +100,8 @@ const STABLE_START_ALLOW = new Set([
   'QuantumMachineLearningCore',
   'temporalDataLayer',
   'TemporalDataLayer',
+  'essential-modules-continuum',
+  'essentialModulesContinuum',
 ]);
 
 /** Commerce / payment — monitor+register only unless configured */
