@@ -254,15 +254,57 @@ html::before{content:"";position:fixed;inset:0;pointer-events:none;z-index:1;bac
 .hero-canvas canvas{width:100% !important;height:100% !important;display:block}
 .galaxy-bg{position:fixed;inset:0;z-index:0;pointer-events:none}
 .galaxy-bg canvas{width:100vw !important;height:100vh !important;display:block;opacity:.9}
-.hero-grid{position:relative;z-index:3;display:grid;grid-template-columns:minmax(0,1.35fr) minmax(280px,1fr);gap:40px;align-items:start;max-width:1480px;margin:0 auto;min-height:calc(100vh - 160px)}
+.hero-grid{position:relative;z-index:3;display:grid;grid-template-columns:1fr;gap:40px;align-items:start;max-width:1480px;margin:0 auto;min-height:calc(100vh - 160px)}
 .hero-copy{padding:28px 0 20px;overflow:visible}
 .hero-eyebrow{display:inline-flex;align-items:center;gap:8px;padding:6px 14px;border-radius:999px;border:1px solid var(--stroke);background:var(--glass);font-size:12px;letter-spacing:3px;text-transform:uppercase;color:var(--violet2)}
 .hero-eyebrow .dot{width:7px;height:7px;border-radius:50%;background:var(--ok);box-shadow:0 0 10px var(--ok);animation:pulse 1.8s infinite}
 @keyframes pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.4;transform:scale(.85)}}
+/* Letterpress "Building the future" — sits directly above ZeusAI brand line */
+.hero-future{margin:18px 0 0;padding:0;max-width:100%}
+.hero-future-plate{
+  display:inline-block;
+  padding:12px 22px 11px;
+  border-radius:12px;
+  background:
+    linear-gradient(180deg,rgba(255,255,255,.07),transparent 42%),
+    linear-gradient(180deg,rgba(18,14,28,.78),rgba(5,8,16,.62));
+  border:1px solid rgba(255,159,28,.48);
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,.16),
+    inset 0 -1px 0 rgba(0,0,0,.4),
+    0 0 0 1px rgba(0,232,160,.2),
+    0 14px 36px -18px rgba(255,159,28,.5);
+  animation:heroFutureIn .7s cubic-bezier(.22,.8,.2,1) both;
+}
+.hero-future-type{
+  display:inline-block;
+  font-family:Orbitron,Syne,"Segoe UI Variable Display",ui-monospace,monospace;
+  font-weight:800;
+  font-size:clamp(1rem,1.85vw,1.35rem);
+  letter-spacing:.2em;
+  text-transform:uppercase;
+  line-height:1.15;
+  background:linear-gradient(118deg,#FF3B5C 0%,#FF9F1C 28%,#FFEE32 50%,#00E8A0 74%,#2DE2E6 100%);
+  background-size:180% auto;
+  -webkit-background-clip:text;background-clip:text;
+  -webkit-text-fill-color:transparent;color:transparent;
+  animation:heroFutureShimmer 6s ease-in-out infinite;
+}
+@keyframes heroFutureIn{
+  from{opacity:0;transform:translateY(8px)}
+  to{opacity:1;transform:none}
+}
+@keyframes heroFutureShimmer{
+  0%,100%{background-position:0% center}
+  50%{background-position:100% center}
+}
+@media (prefers-reduced-motion: reduce){
+  .hero-future-plate,.hero-future-type{animation:none!important}
+}
 /* Hero headline: no background-clip:text — WebKit still paints clipped glyph tops on mobile
    even when overflow is visible. Use solid fill + soft glow instead. */
 .hero,.hero-grid,.hero-copy,.hero h1{overflow:visible!important}
-.hero h1{font-size:clamp(44px,6vw,88px);line-height:1.22;margin:24px 0 22px;padding:0;letter-spacing:-1.5px;font-weight:700;color:#f4f7ff;-webkit-text-fill-color:#f4f7ff}
+.hero h1{font-size:clamp(44px,6vw,88px);line-height:1.22;margin:16px 0 22px;padding:0;letter-spacing:-1.5px;font-weight:700;color:#f4f7ff;-webkit-text-fill-color:#f4f7ff}
 .hero h1 .hero-brand{display:inline;padding:0;line-height:inherit;color:#ffffff;-webkit-text-fill-color:#ffffff;text-shadow:0 0 28px rgba(255,255,255,.18)}
 .hero h1 .grad{display:inline;padding:0;line-height:inherit;background:none!important;-webkit-background-clip:border-box!important;background-clip:border-box!important;-webkit-text-fill-color:#9fd0ff;color:#9fd0ff;filter:none!important;text-shadow:0 0 34px rgba(111,211,255,.42),0 2px 18px rgba(0,0,0,.35)}
 .hero p.lead{font-size:clamp(15px,1.3vw,19px);color:var(--ink-dim);max-width:640px;line-height:1.6;margin:0 0 30px}
@@ -274,118 +316,12 @@ html::before{content:"";position:fixed;inset:0;pointer-events:none;z-index:1;bac
 
 .hero-side{position:relative;display:flex;flex-direction:column;gap:20px;align-items:flex-end;z-index:3}
 
-/* Homepage visionary panel — right column: "Building the AI feature" */
-.hero-vision{
-  align-items:flex-end;
-  width:100%;
-  align-self:start;
-  position:sticky;
-  top:108px;
-  margin-top:8px;
-  z-index:4;
-}
-.hero-vision-frame{
-  position:relative;
-  width:min(440px,100%);
-  padding:30px 28px 28px;
-  border-radius:24px;
-  isolation:isolate;
-  background:
-    linear-gradient(160deg,rgba(8,14,24,.62),rgba(5,8,16,.38)) padding-box,
-    conic-gradient(from 200deg,#FF3B5C,#FF9F1C,#FFEE32,#00E8A0,#2DE2E6,#FF3B5C) border-box;
-  border:1.5px solid transparent;
-  box-shadow:
-    0 28px 70px -30px rgba(0,232,160,.4),
-    0 0 48px -12px rgba(255,159,28,.28),
-    inset 0 1px 0 rgba(255,255,255,.1);
-  overflow:hidden;
-  animation:heroVisionIn .9s cubic-bezier(.22,.8,.2,1) both;
-}
-.hero-vision-frame::before{
-  content:"";
-  position:absolute;inset:-40% -20%;
-  background:conic-gradient(from 0deg,transparent 0 60%,rgba(255,238,50,.18),rgba(0,232,160,.22),transparent 78%);
-  animation:heroVisionSpin 10s linear infinite;
-  z-index:0;pointer-events:none;
-}
-.hero-vision-frame::after{
-  content:"";
-  position:absolute;inset:1px;border-radius:22px;
-  background:linear-gradient(165deg,rgba(7,12,22,.88),rgba(5,8,16,.72) 55%,rgba(0,40,36,.55));
-  z-index:0;pointer-events:none;
-}
-.hero-vision-beam{
-  position:absolute;left:10%;right:10%;top:0;height:2px;z-index:2;
-  background:linear-gradient(90deg,transparent,#FF9F1C,#FFEE32,#00E8A0,#2DE2E6,transparent);
-  filter:blur(.4px);
-  animation:heroVisionBeam 3.2s ease-in-out infinite;
-}
-.hero-vision-kicker,
-.hero-vision-title,
-.hero-vision-sub,
-.hero-vision-line{position:relative;z-index:2}
-.hero-vision-kicker{
-  margin:0 0 14px;
-  font-family:Orbitron,"JetBrains Mono",ui-monospace,monospace;
-  font-size:11px;font-weight:700;letter-spacing:.3em;text-transform:uppercase;
-  color:#FF9F1C;
-  text-shadow:0 0 18px rgba(255,159,28,.55);
-}
-.hero-vision-title{
-  margin:0;
-  font-family:Syne,"Segoe UI Variable Display","Avenir Next",system-ui,sans-serif;
-  font-weight:800;
-  font-size:clamp(1.6rem,2.8vw,2.45rem);
-  line-height:1.02;
-  letter-spacing:-.035em;
-  background:linear-gradient(118deg,#FF3B5C 0%,#FF9F1C 26%,#FFEE32 48%,#00E8A0 74%,#2DE2E6 100%);
-  background-size:200% auto;
-  -webkit-background-clip:text;background-clip:text;
-  -webkit-text-fill-color:transparent;color:transparent;
-  animation:heroVisionShimmer 5.5s ease-in-out infinite;
-  filter:drop-shadow(0 2px 18px rgba(0,232,160,.22));
-}
-.hero-vision-sub{
-  margin:16px 0 0;
-  font-family:Syne,system-ui,sans-serif;
-  font-weight:700;
-  font-size:clamp(1.08rem,1.55vw,1.32rem);
-  line-height:1.25;
-  color:#E8FFF8;
-  text-shadow:0 0 28px rgba(0,232,160,.4),0 2px 12px rgba(0,0,0,.35);
-}
-.hero-vision-line{
-  margin:12px 0 0;
-  font-size:14.5px;line-height:1.5;
-  color:#9fd0ff;
-  max-width:36ch;
-}
-@keyframes heroVisionIn{
-  from{opacity:0;transform:translate3d(18px,12px,0) scale(.97)}
-  to{opacity:1;transform:none}
-}
-@keyframes heroVisionSpin{to{transform:rotate(360deg)}}
-@keyframes heroVisionBeam{
-  0%,100%{opacity:.45;transform:scaleX(.85)}
-  50%{opacity:1;transform:scaleX(1)}
-}
-@keyframes heroVisionShimmer{
-  0%,100%{background-position:0% center}
-  50%{background-position:100% center}
-}
-@media (prefers-reduced-motion: reduce){
-  .hero-vision-frame,
-  .hero-vision-frame::before,
-  .hero-vision-beam,
-  .hero-vision-title{animation:none!important}
-}
-
 @media(max-width:920px){
   body::before{opacity:.14;background-position:center top}
   body::after{opacity:.14;background-position:center bottom -90px;background-size:520px auto}
 }
 .hero-copy,.hero-side{text-shadow:0 2px 18px rgba(0,0,0,.46)}
-.hero-vision-title{-webkit-text-fill-color:transparent;text-shadow:none}
+.hero-future,.hero-future-type{text-shadow:none}
 .tourbillon-wrap{position:relative;width:420px;max-width:100%;aspect-ratio:1/1;border-radius:50%;background:radial-gradient(circle at 30% 30%,rgba(138,92,255,.2),transparent 60%),radial-gradient(circle at 70% 70%,rgba(62,160,255,.14),transparent 55%),rgba(10,8,24,.55);backdrop-filter:blur(18px);border:1px solid var(--stroke-hot);box-shadow:var(--shadow),inset 0 0 60px rgba(138,92,255,.2);transform:perspective(900px) rotateX(var(--watch-rx,0deg)) rotateY(var(--watch-ry,0deg));transition:transform .2s ease}
 .tourbillon-wrap canvas{position:absolute;inset:0;width:100% !important;height:100% !important;border-radius:50%}
 .watch-photo{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;border-radius:50%;filter:contrast(1.08) saturate(1.1) brightness(.88)}
@@ -745,8 +681,8 @@ nav.nav[data-nav-open="true"] .nav-toggle-bar:nth-child(3){transform:translateY(
   .hero h1 .grad{display:inline-block;padding:.2em .06em .1em;line-height:1.3}
   .hero-cta{justify-content:center}
   .hero-stats{margin-left:auto;margin-right:auto;grid-template-columns:repeat(auto-fit,minmax(130px,1fr))}
-  .hero-side,.hero-vision{align-items:center;position:static;margin-top:4px}
-  .hero-vision-frame{width:min(440px,100%);margin:0 auto}
+  .hero-side{align-items:center}
+  .hero-future{display:flex;justify-content:center}
   .tourbillon-wrap,.tourbillon-label{width:min(360px,86vw)}
   .immersive-strip{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
   .foot-grid{grid-template-columns:1fr 1fr;gap:24px}
