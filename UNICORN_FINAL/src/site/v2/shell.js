@@ -518,14 +518,15 @@ img{max-width:100%;display:block}
 .hero h1{line-height:1.22;padding:0;margin:24px 0 22px;font-size:clamp(44px,6vw,88px);font-weight:700;letter-spacing:-1.5px;color:#f4f7ff;-webkit-text-fill-color:#f4f7ff}
 .hero h1 .hero-brand{color:#fff;-webkit-text-fill-color:#fff;text-shadow:0 0 28px rgba(255,255,255,.18)}
 .hero h1 .grad{background:none!important;-webkit-background-clip:border-box!important;background-clip:border-box!important;-webkit-text-fill-color:#9fd0ff;color:#9fd0ff;filter:none!important;text-shadow:0 0 34px rgba(111,211,255,.42),0 2px 18px rgba(0,0,0,.35)}
-.hero-grid{display:grid;grid-template-columns:1.35fr 1fr;gap:40px;align-items:center;max-width:1480px;margin:0 auto;width:100%}
+.hero-grid{display:grid;grid-template-columns:minmax(0,1.35fr) minmax(280px,1fr);gap:40px;align-items:start;max-width:1480px;margin:0 auto;width:100%}
 .hero-side{position:relative;z-index:3;display:flex;justify-content:flex-end}
-.hero-vision-frame{position:relative;width:min(420px,100%);padding:28px 26px 26px;border-radius:22px;background:linear-gradient(155deg,rgba(8,12,22,.55),rgba(5,8,16,.35));border:1px solid transparent;background-clip:padding-box;box-shadow:0 0 0 1px rgba(255,159,28,.28),0 24px 60px -28px rgba(0,232,160,.35),inset 0 1px 0 rgba(255,255,255,.08);overflow:hidden}
+.hero-vision{align-self:start;position:sticky;top:108px;margin-top:8px;z-index:4;width:100%}
+.hero-vision-frame{position:relative;width:min(420px,100%);padding:28px 26px 26px;border-radius:22px;background:linear-gradient(155deg,rgba(8,12,22,.55),rgba(5,8,16,.35));border:1px solid transparent;background-clip:padding-box;box-shadow:0 0 0 1px rgba(255,159,28,.28),0 24px 60px -28px rgba(0,232,160,.35),inset 0 1px 0 rgba(255,255,255,.08);overflow:hidden;margin-left:auto}
 .hero-vision-kicker{margin:0 0 12px;font-family:Orbitron,ui-monospace,monospace;font-size:11px;font-weight:600;letter-spacing:.28em;text-transform:uppercase;color:#FF9F1C}
 .hero-vision-title{margin:0;font-family:Syne,"Segoe UI Variable Display",system-ui,sans-serif;font-weight:800;font-size:clamp(1.55rem,2.6vw,2.35rem);line-height:1.05;letter-spacing:-.03em;background:linear-gradient(115deg,#FF3B5C 0%,#FF9F1C 28%,#FFEE32 52%,#00E8A0 78%,#2DE2E6 100%);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;color:transparent}
 .hero-vision-sub{margin:14px 0 0;font-family:Syne,system-ui,sans-serif;font-weight:700;font-size:clamp(1.05rem,1.5vw,1.25rem);line-height:1.25;color:#E8FFF8;text-shadow:0 0 24px rgba(0,232,160,.35)}
 .hero-vision-line{margin:10px 0 0;font-size:14px;line-height:1.45;color:#9fd0ff;max-width:34ch}
-@media(max-width:1100px){.hero-grid{grid-template-columns:1fr}.hero-side{justify-content:center}}
+@media(max-width:980px){.hero-grid{grid-template-columns:1fr}.hero-side,.hero-vision{justify-content:center;position:static}.hero-vision-frame{margin:0 auto}}
 section.hero[data-reveal],section.hero{opacity:1!important;transform:none!important}
 /* Hide the Google Translate banner/iframe so the auto-translation is
    applied silently and the layout never shifts. The widget itself stays

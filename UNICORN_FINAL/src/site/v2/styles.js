@@ -254,7 +254,7 @@ html::before{content:"";position:fixed;inset:0;pointer-events:none;z-index:1;bac
 .hero-canvas canvas{width:100% !important;height:100% !important;display:block}
 .galaxy-bg{position:fixed;inset:0;z-index:0;pointer-events:none}
 .galaxy-bg canvas{width:100vw !important;height:100vh !important;display:block;opacity:.9}
-.hero-grid{position:relative;z-index:3;display:grid;grid-template-columns:1.35fr 1fr;gap:40px;align-items:center;max-width:1480px;margin:0 auto;min-height:calc(100vh - 160px)}
+.hero-grid{position:relative;z-index:3;display:grid;grid-template-columns:minmax(0,1.35fr) minmax(280px,1fr);gap:40px;align-items:start;max-width:1480px;margin:0 auto;min-height:calc(100vh - 160px)}
 .hero-copy{padding:28px 0 20px;overflow:visible}
 .hero-eyebrow{display:inline-flex;align-items:center;gap:8px;padding:6px 14px;border-radius:999px;border:1px solid var(--stroke);background:var(--glass);font-size:12px;letter-spacing:3px;text-transform:uppercase;color:var(--violet2)}
 .hero-eyebrow .dot{width:7px;height:7px;border-radius:50%;background:var(--ok);box-shadow:0 0 10px var(--ok);animation:pulse 1.8s infinite}
@@ -275,7 +275,15 @@ html::before{content:"";position:fixed;inset:0;pointer-events:none;z-index:1;bac
 .hero-side{position:relative;display:flex;flex-direction:column;gap:20px;align-items:flex-end;z-index:3}
 
 /* Homepage visionary panel — right column: "Building the AI feature" */
-.hero-vision{align-items:flex-end;width:100%}
+.hero-vision{
+  align-items:flex-end;
+  width:100%;
+  align-self:start;
+  position:sticky;
+  top:108px;
+  margin-top:8px;
+  z-index:4;
+}
 .hero-vision-frame{
   position:relative;
   width:min(440px,100%);
@@ -607,13 +615,11 @@ pre.code{font-family:var(--mono);background:rgba(0,0,0,.45);border:1px solid var
 
 /* responsive */
 @media(max-width:1100px){
-  .hero-grid{grid-template-columns:1fr;gap:30px}
-  .hero-side,.hero-vision{align-items:center}
-  .hero-vision-frame{width:min(440px,100%);margin:0 auto}
-  .tourbillon-wrap,.tourbillon-label{width:min(380px,90vw)}
+  .hero-grid{gap:28px}
   .hero-stats{grid-template-columns:repeat(2,1fr)}
   .foot-grid{grid-template-columns:1fr 1fr}
   .immersive-strip{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .tourbillon-wrap,.tourbillon-label{width:min(380px,90vw)}
 }
 @media(max-width:640px){
   .nav{padding:14px 16px}
@@ -739,7 +745,8 @@ nav.nav[data-nav-open="true"] .nav-toggle-bar:nth-child(3){transform:translateY(
   .hero h1 .grad{display:inline-block;padding:.2em .06em .1em;line-height:1.3}
   .hero-cta{justify-content:center}
   .hero-stats{margin-left:auto;margin-right:auto;grid-template-columns:repeat(auto-fit,minmax(130px,1fr))}
-  .hero-side{align-items:center}
+  .hero-side,.hero-vision{align-items:center;position:static;margin-top:4px}
+  .hero-vision-frame{width:min(440px,100%);margin:0 auto}
   .tourbillon-wrap,.tourbillon-label{width:min(360px,86vw)}
   .immersive-strip{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
   .foot-grid{grid-template-columns:1fr 1fr;gap:24px}
