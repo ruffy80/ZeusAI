@@ -249,12 +249,12 @@ jobs:
             'XAI_API_KEY','GROQ_API_KEY','OPENROUTER_API_KEY','HF_API_KEY','HUGGINGFACE_API_KEY','PERPLEXITY_API_KEY','TOGETHER_API_KEY',
             'FIREWORKS_API_KEY','SAMBANOVA_API_KEY','NVIDIA_NIM_API_KEY','STRIPE_SECRET_KEY','STRIPE_PUBLISHABLE_KEY','STRIPE_WEBHOOK_SECRET',
             'STRIPE_PRICE_STARTER_MONTHLY','STRIPE_PRICE_STARTER_YEARLY','STRIPE_PRICE_PRO_MONTHLY','STRIPE_PRICE_PRO_YEARLY',
-            'STRIPE_PRICE_ENTERPRISE_MONTHLY','STRIPE_PRICE_ENTERPRISE_YEARLY','PAYPAL_CLIENT_ID','PAYPAL_CLIENT_SECRET','PAYPAL_WEBHOOK_ID',
+            'STRIPE_PRICE_ENTERPRISE_MONTHLY','STRIPE_PRICE_ENTERPRISE_YEARLY','PAYPAL_CLIENT_ID','PAYPAL_CLIENT_SECRET','PAYPAL_WEBHOOK_ID','PAYPAL_ENV',
             // NOWPayments — #1 owner-armed revenue unlock (activation impact 100):
             // card/bank/300+ coin checkout that auto-settles to BTC. Optional; the
             // platform still runs BTC-direct without it. Must be forwarded here or a
             // configured repo secret would silently never reach the server .env.
-            'NOWPAYMENTS_API_KEY','NOWPAYMENTS_IPN_SECRET',
+            'NOWPAYMENTS_API_KEY','NOWPAYMENTS_IPN_SECRET','NOWPAYMENTS_SANDBOX',
             'SMTP_HOST','SMTP_PORT','SMTP_USER','SMTP_PASS','SMTP_FROM','EMAIL_FROM_NAME','RESEND_API_KEY','RESEND_FROM','BREVO_API_KEY',
             'MAILERSEND_API_KEY','OWNER_EMAIL','HETZNER_API_KEY','HETZNER_API_TOKEN','HETZNER_HOST','HETZNER_DNS_API_KEY',
             'VAULT_MASTER_SECRET','VAULT_EMERGENCY_CODE','MASTER_CONFIG_SECRET','TELEGRAM_BOT_TOKEN','TELEGRAM_CHAT_ID',
@@ -662,6 +662,38 @@ jobs:
             done < "$STORE"
             chmod 600 "$ENV_FILE" 2>/dev/null || true
             echo "🔐 Reconciled AI keys from $STORE into .env"
+          fi
+
+          # Reconcile PayPal + NOWPayments from durable host store (same pattern).
+          # Empty GitHub Actions secrets must never disarm rails already armed on-box.
+          PAY_STORE=/etc/zeusai/secrets/payment-rails.env
+          [ -f "$PAY_STORE" ] || PAY_STORE=/var/www/unicorn/shared/payment-rails.env
+          if [ -f "$PAY_STORE" ] && [ -f "$ENV_FILE" ]; then
+            while IFS= read -r _l; do
+              case "$_l" in ''|\#*) continue ;; *=*) : ;; *) continue ;; esac
+              _k="${_l%%=*}"; _v="${_l#*=}"
+              _v="${_v%\"}"; _v="${_v#\"}"; _v="${_v%\'}"; _v="${_v#\'}"
+              [ -z "$_k" ] && continue
+              [ -z "$_v" ] && continue
+              grep -vE "^${_k}=" "$ENV_FILE" > "$ENV_FILE.tmp" 2>/dev/null || true
+              printf "%s=%s\n" "$_k" "$_v" >> "$ENV_FILE.tmp"
+              mv "$ENV_FILE.tmp" "$ENV_FILE"
+            done < "$PAY_STORE"
+            chmod 600 "$ENV_FILE" 2>/dev/null || true
+            if [ -f /var/www/unicorn/shared/.env ]; then
+              while IFS= read -r _l; do
+                case "$_l" in ''|\#*) continue ;; *=*) : ;; *) continue ;; esac
+                _k="${_l%%=*}"; _v="${_l#*=}"
+                _v="${_v%\"}"; _v="${_v#\"}"; _v="${_v%\'}"; _v="${_v#\'}"
+                [ -z "$_k" ] && continue
+                [ -z "$_v" ] && continue
+                grep -vE "^${_k}=" /var/www/unicorn/shared/.env > /var/www/unicorn/shared/.env.tmp 2>/dev/null || true
+                printf "%s=%s\n" "$_k" "$_v" >> /var/www/unicorn/shared/.env.tmp
+                mv /var/www/unicorn/shared/.env.tmp /var/www/unicorn/shared/.env
+              done < "$PAY_STORE"
+              chmod 600 /var/www/unicorn/shared/.env 2>/dev/null || true
+            fi
+            echo "🔐 Reconciled payment rails from $PAY_STORE into .env"
           fi
 
           if [ ! -f "$UNIT_SRC" ]; then
