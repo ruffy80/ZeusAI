@@ -199,9 +199,9 @@ function _ctaForProduct(p) {
       return { mode: 'contact', buyable: false, ctaLabel: 'Request proposal →', ctaHref: '/enterprise#enterprise-contact' };
     }
     if (/^professional-/i.test(id) || tier === 'professional') {
-      return { mode: 'reserve', buyable: true, ctaLabel: 'Reserve with BTC →', ctaHref: '/checkout/?plan=' + encodeURIComponent(id) };
+      return { mode: 'reserve', buyable: true, ctaLabel: 'Reserve →', ctaHref: '/checkout/?plan=' + encodeURIComponent(id) };
     }
-    return { mode: 'btc', buyable: true, ctaLabel: 'Buy with BTC →', ctaHref: '/checkout/?plan=' + encodeURIComponent(id) };
+    return { mode: 'checkout', buyable: true, ctaLabel: 'Buy now →', ctaHref: '/checkout/?plan=' + encodeURIComponent(id) };
   }
 }
 
@@ -218,8 +218,9 @@ function _primaryCtaHtml(p, opts) {
   if (cta.mode === 'unavailable' || !cta.buyable) {
     return `<a class="btn btn-ghost" href="/services/${encodeURIComponent(id)}" data-link aria-label="View ${title}" style="${flex}${size}">${_esc(cta.ctaLabel || 'Not for sale')}</a>`;
   }
-  const label = cta.ctaLabel || 'Buy with BTC →';
-  return `<a class="btn btn-primary" href="/checkout/?plan=${encodeURIComponent(id)}" data-sovereign-buy="${_esc(id)}" data-buy-mode="${_esc(cta.mode)}" aria-label="${_esc(label)} ${title}" style="${flex}${size}">${_esc(label)}</a>`;
+  const label = cta.ctaLabel || 'Buy now →';
+  // data-buy-mode=checkout → client opens method chooser (BTC / PayPal / NOWPayments).
+  return `<a class="btn btn-primary" href="/checkout/?plan=${encodeURIComponent(id)}" data-sovereign-buy="${_esc(id)}" data-buy-mode="checkout" aria-label="${_esc(label)} ${title}" style="${flex}${size}">${_esc(label)}</a>`;
 }
 
 function _libraryCard(p) {
@@ -1634,17 +1635,17 @@ function pageService(id) {
       <a class="btn btn-gold" id="svcBuyBtn" href="${_esc(cta.ctaHref || '/enterprise#enterprise-contact')}" data-link style="width:100%;justify-content:center;margin-top:10px">${_esc(cta.ctaLabel || 'Request proposal →')}</a>`;
         }
         if (cta.mode === 'reserve') {
-          return `<p style="color:var(--ink-dim);font-size:13.5px">BTC reserve unlocks a signed kickoff pack immediately. The finished build is delivered by the ZeusAI team across stated milestones. Email is optional — you can add it on the payment page.</p>
+          return `<p style="color:var(--ink-dim);font-size:13.5px">Reserve unlocks a signed kickoff pack. Choose Bitcoin, PayPal, or card/crypto on the next step. Email is optional.</p>
       <label style="display:block;margin-top:10px;font-size:12px;color:var(--ink-dim)">Delivery email <span style="opacity:.7">(optional)</span>
         <input id="svcBuyEmail" type="email" autocomplete="email" data-checkout-email="1" placeholder="you@company.com (optional)" style="width:100%;margin-top:4px;padding:10px 12px;border-radius:8px;border:1px solid var(--stroke);background:rgba(5,4,10,.55);color:var(--ink)"/>
       </label>
-      <button type="button" class="btn btn-primary" id="svcBuyBtn" data-sovereign-buy="${_esc(safeId)}" data-buy-mode="reserve" style="width:100%;justify-content:center;margin-top:10px">₿ Reserve with BTC →</button>`;
+      <a class="btn btn-primary" id="svcBuyBtn" href="/checkout/?plan=${encodeURIComponent(safeId)}" data-sovereign-buy="${_esc(safeId)}" data-buy-mode="checkout" style="width:100%;justify-content:center;margin-top:10px">Reserve → choose payment</a>`;
         }
-        return `<p style="color:var(--ink-dim);font-size:13.5px">Pay with BTC, receive a signed receipt and the digital deliverable for this SKU. Click Buy to open the BTC invoice instantly — email is optional.</p>
+        return `<p style="color:var(--ink-dim);font-size:13.5px">Pay with Bitcoin (10% off), PayPal, or card/crypto. Click Buy to choose your rail — email is optional on checkout.</p>
       <label style="display:block;margin-top:10px;font-size:12px;color:var(--ink-dim)">Delivery email <span style="opacity:.7">(optional)</span>
         <input id="svcBuyEmail" type="email" autocomplete="email" data-checkout-email="1" placeholder="you@company.com (optional)" style="width:100%;margin-top:4px;padding:10px 12px;border-radius:8px;border:1px solid var(--stroke);background:rgba(5,4,10,.55);color:var(--ink)"/>
       </label>
-      <button type="button" class="btn btn-primary" id="svcBuyBtn" data-sovereign-buy="${_esc(safeId)}" data-buy-mode="btc" style="width:100%;justify-content:center;margin-top:10px">₿ Buy now → BTC checkout</button>`;
+      <a class="btn btn-primary" id="svcBuyBtn" href="/checkout/?plan=${encodeURIComponent(safeId)}" data-sovereign-buy="${_esc(safeId)}" data-buy-mode="checkout" style="width:100%;justify-content:center;margin-top:10px">Buy now → choose payment</a>`;
       })()}
       <div id="svcUpsell" data-upsell-anchor="${_esc(safeId)}" style="margin-top:12px"></div>
       <a class="btn" href="/services" data-link style="width:100%;justify-content:center;margin-top:8px">← All services</a>
@@ -1758,25 +1759,32 @@ function pageCheckout(params) {
     <div><span class="kicker">Checkout promise</span><h2>Pay direct in BTC. <span class="grad">Activation is automatic.</span></h2></div>
     <p>Every payment generates an Ed25519‑signed receipt appended to the Merkle chain. Keep this window open: ZeusAI watches settlement and unlocks delivery/license credentials automatically.</p>
   </div>
-  <div id="checkoutBuying" class="card" style="margin:0 0 18px;padding:14px 18px;background:linear-gradient(135deg,rgba(247,147,26,.10),rgba(138,92,255,.10));border:1px solid rgba(247,147,26,.35);display:flex;flex-wrap:wrap;gap:14px;align-items:center;justify-content:space-between">
-    <div style="min-width:220px">
-      <span class="kicker">You are buying</span>
-      <h3 style="margin:6px 0 2px;font-size:20px" id="checkoutBuyingPlan">${_esc(ssrPlan)}</h3>
-      <p style="margin:0;color:var(--ink-dim);font-size:13px">Amount <b id="checkoutBuyingAmount" style="color:var(--gold)">${ssrAmountSummary}</b> · 10% BTC discount already applied.</p>
+  <div id="checkoutBuying" class="card" style="margin:0 0 18px;padding:14px 18px;background:linear-gradient(135deg,rgba(247,147,26,.10),rgba(34,197,94,.08));border:1px solid rgba(247,147,26,.35)">
+    <div style="display:flex;flex-wrap:wrap;gap:14px;align-items:center;justify-content:space-between;margin-bottom:12px">
+      <div style="min-width:220px">
+        <span class="kicker">You are buying</span>
+        <h3 style="margin:6px 0 2px;font-size:20px" id="checkoutBuyingPlan">${_esc(ssrPlan)}</h3>
+        <p style="margin:0;color:var(--ink-dim);font-size:13px">Amount <b id="checkoutBuyingAmount" style="color:var(--gold)">${ssrAmountSummary}</b> · choose how you want to pay.</p>
+      </div>
     </div>
-    <button type="button" class="btn btn-primary" id="coSovereignPrimary" data-sovereign-buy="${_esc(ssrPlan)}" title="One-click signed BTC invoice — email optional on the payment page" style="min-width:240px">⚡ Get BTC invoice now</button>
+    <div id="checkoutRailCtas" style="display:flex;flex-wrap:wrap;gap:10px;align-items:stretch">
+      <button type="button" class="btn btn-primary" id="coSovereignPrimary" data-sovereign-buy="${_esc(ssrPlan)}" data-buy-mode="btc-direct" data-sovereign-instant title="One-click signed BTC invoice — email optional" style="min-width:200px;flex:1">⚡ Pay with Bitcoin</button>
+      <button type="button" class="btn btn-primary" id="coBuyPaypalTop" data-checkout-rail="paypal" style="min-width:180px;flex:1;background:#0070ba;border-color:#0070ba">Pay with PayPal</button>
+      <button type="button" class="btn btn-primary" id="coBuyNowTop" data-checkout-rail="nowpayments" style="min-width:180px;flex:1;background:#14132a;border:1px solid var(--stroke)">Pay with card / crypto</button>
+    </div>
+    <p id="checkoutRailHint" style="margin:10px 0 0;color:var(--ink-dim);font-size:12.5px">Bitcoin is primary (10% discount). PayPal and card/crypto appear when those rails are armed live.</p>
   </div>
   <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px;margin:0 0 22px">
-    <div class="card"><span class="tag">Step 1</span><h3>Get BTC invoice</h3><p style="color:var(--ink-dim)">One click opens a signed sats-exact invoice. Email is optional — add it on the payment page for delivery.</p></div>
-    <div class="card"><span class="tag">Step 2</span><h3>Pay on-chain</h3><p id="checkoutPaymentRailCopy" style="color:var(--ink-dim)">Scan QR or open BIP-21 in any Bitcoin wallet. Exact amount identifies your order.</p></div>
+    <div class="card"><span class="tag">Step 1</span><h3>Pick a payment rail</h3><p style="color:var(--ink-dim)">Bitcoin (primary), PayPal, or card/crypto via NOWPayments — same order, same delivery.</p></div>
+    <div class="card"><span class="tag">Step 2</span><h3>Pay securely</h3><p id="checkoutPaymentRailCopy" style="color:var(--ink-dim)">BTC QR / BIP-21, PayPal approve, or NOWPayments hosted invoice. Exact amount identifies your order.</p></div>
     <div class="card"><span class="tag">Step 3</span><h3>Delivery / license</h3><p style="color:var(--ink-dim)">After settlement, receipt, license token and deliverable unlock automatically.</p></div>
   </div>
   <div class="checkout">
     <div class="co-box">
-      <div class="co-method">
-        <button class="chip on" data-method="btc">₿ Bitcoin</button>
-        <button class="chip" data-method="paypal" style="display:none">PayPal</button>
-        <button class="chip" data-method="nowpayments" style="display:none">Card / crypto</button>
+      <div class="co-method" aria-label="Payment method">
+        <button type="button" class="chip on" data-method="btc">₿ Bitcoin</button>
+        <button type="button" class="chip" data-method="paypal">PayPal</button>
+        <button type="button" class="chip" data-method="nowpayments">Card / crypto</button>
       </div>
       <div id="coPanelBtc">
         <div class="phone-stack" style="display:grid;grid-template-columns:1fr 1fr;gap:18px;align-items:start">

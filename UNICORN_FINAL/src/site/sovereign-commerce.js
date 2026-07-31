@@ -1319,11 +1319,11 @@ ${!String((o.buyer && o.buyer.email) || '').trim() ? `
   <p class="note">Air-gapped wallets: copy exact sats + address, or scan the QR. The unique sat amount is the payment identifier — no account required.</p>
 </div>
 
-<div class="card" id="altRailsCard" style="display:none">
+<div class="card" id="altRailsCard">
   <p style="margin:0 0 10px"><b>Other payment rails</b> <span class="k">(optional — BTC above stays primary)</span></p>
   <p style="margin:0 0 12px;display:flex;gap:8px;flex-wrap:wrap">
-    <button type="button" class="cta" id="payPaypalBtn" style="display:none;background:#0070ba;color:#fff">Pay with PayPal</button>
-    <button type="button" class="cta" id="payNowBtn" style="display:none;background:#14132a;color:#eaf0ff;border:1px solid var(--line)">Pay with card / crypto (NOWPayments)</button>
+    <button type="button" class="cta" id="payPaypalBtn" style="background:#0070ba;color:#fff">Pay with PayPal</button>
+    <button type="button" class="cta" id="payNowBtn" style="background:#14132a;color:#eaf0ff;border:1px solid var(--line)">Pay with card / crypto (NOWPayments)</button>
   </p>
   <p class="note" id="altRailsMsg">Buttons appear only when PayPal / NOWPayments secrets are armed at runtime.</p>
 </div>
