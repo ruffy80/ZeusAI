@@ -667,6 +667,21 @@ async function createOrder(ctx, input) {
   ORDERS.set(orderId, order);
   AMT_INDEX.set(order.amount_sats, orderId);
   persistOrder(order);
+  // Canonical Settle Bridge — dual-write portal shadow for recovery/dashboard.
+  try {
+    const bridge = require('../commerce/canonical-settle-bridge');
+    const b = bridge.bridgeCreate(order);
+    if (b && b.ok && b.portalOrderId) {
+      order.meta = Object.assign({}, order.meta || {}, {
+        portalOrderId: b.portalOrderId,
+        portalCustomerId: b.customerId || undefined,
+        settleBridge: 'CSB/1.0',
+      });
+      persistOrder(order);
+    }
+  } catch (bridgeErr) {
+    console.warn('[commerce] settle bridge create skipped:', bridgeErr && bridgeErr.message);
+  }
   _fireFunnel('checkout_create', { serviceId, value: subtotalFiat });
   _metricInc('orders_created');
   return { order, status: 201 };
@@ -772,6 +787,16 @@ async function scanIncoming() {
           }
         } catch (affErr) {
           console.warn('[commerce] affiliate redeem skipped:', affErr && affErr.message);
+        }
+        // Canonical Settle Bridge — mirror paid onto portal shadow order.
+        try {
+          const bridge = require('../commerce/canonical-settle-bridge');
+          const bp = bridge.bridgePaid(order);
+          if (bp && !bp.ok && bp.reason !== 'no_portal_order') {
+            console.warn('[commerce] settle bridge paid:', bp.reason || bp.error);
+          }
+        } catch (bridgeErr) {
+          console.warn('[commerce] settle bridge paid skipped:', bridgeErr && bridgeErr.message);
         }
         // ─── Delivery hook: forward-only, fire-and-forget via registered hook ─
         _fireDelivery(order);
@@ -901,6 +926,31 @@ a{color:var(--acc)}
   <div class="row"><span class="k">Expires in</span><span class="v" id="cd">${expiresIn}s</span></div>
   <div class="row"><span class="k">Delivery email</span><span class="v" id="buyerEmailLabel">${escapeHtml((o.buyer && o.buyer.email) || 'optional — add below')}</span></div>
 </div>
+
+<div class="card" id="armedRailsContinuum" data-ark="1.0">
+  <p style="margin:0 0 8px"><b>Armed Rails Continuum</b> <span class="k">— live settle / notify status</span></p>
+  <div class="row"><span class="k">BTC</span><span class="v" id="arkBtc">armed · primary</span></div>
+  <div class="row"><span class="k">Card</span><span class="v" id="arkCard">checking…</span></div>
+  <div class="row"><span class="k">Email recovery</span><span class="v" id="arkEmail">checking…</span></div>
+  <p class="note" id="arkNote" style="margin-top:8px">Optional rails appear only when runtime keys are present. BTC owner-wallet is always the primary settle path.</p>
+</div>
+<script>
+(function(){
+  function set(id,t){var el=document.getElementById(id);if(el)el.textContent=t;}
+  fetch('/api/payment/methods',{cache:'no-store'}).then(function(r){return r.json()}).then(function(j){
+    var methods=(j&&j.methods)||[];
+    var card=methods.some(function(m){var id=String((m&&m.id)||'').toLowerCase();return (id==='card'||id==='stripe')&&m.active!==false;});
+    var email=!!(j&&j.emailConfigured);
+    set('arkCard', card ? 'armed · Stripe' : 'idle · needs STRIPE_SECRET_KEY');
+    set('arkEmail', email ? 'armed · recovery can email buyers' : 'idle · needs RESEND/BREVO/SMTP');
+    set('arkNote', card || email
+      ? 'Live rails: BTC'+(card?' · Card':'')+(email?' · Email':'')+'.'
+      : 'BTC direct is live. Card and email recovery stay idle until keys are armed — no fake CTAs.');
+  }).catch(function(){
+    set('arkCard','unknown'); set('arkEmail','unknown');
+  });
+})();
+</script>
 
 ${!String((o.buyer && o.buyer.email) || '').trim() ? `
 <div class="card" id="emailCaptureCard">
@@ -1524,7 +1574,7 @@ const SOV_RECOVERY_STUCK_MS = Math.max(5 * 60 * 1000, Number(process.env.SOVEREI
 const SOV_RECOVERY_COOLDOWN_MS = 24 * 3600 * 1000;
 const SOV_RECOVERY_INTERVAL_MS = Math.max(60 * 1000, Number(process.env.SOVEREIGN_RECOVERY_INTERVAL_MS || 15 * 60 * 1000));
 
-function recoverStuckPending(opts) {
+async function recoverStuckPending(opts) {
   const now = Date.now();
   const stuckAfter = Math.max(60 * 1000, Number((opts && opts.stuckAfterMs) || SOV_RECOVERY_STUCK_MS));
   const dryRun = !!(opts && opts.dryRun);
@@ -1547,10 +1597,12 @@ function recoverStuckPending(opts) {
     if (dryRun) { skipped.push({ orderId: o.orderId, reason: 'dry_run' }); continue; }
     const buyerEmail = String((o.buyer && o.buyer.email) || '').trim().toLowerCase();
     let emailed = false;
+    let emailReason = null;
     if (mailer && EMAIL_RE.test(buyerEmail)) {
       try {
+        let r = null;
         if (typeof mailer.sendTransactional === 'function') {
-          Promise.resolve(mailer.sendTransactional({
+          r = await mailer.sendTransactional({
             to: buyerEmail,
             template: 'payment_pending',
             data: {
@@ -1561,36 +1613,52 @@ function recoverStuckPending(opts) {
               serviceName: o.serviceName,
               priceUSD: o.subtotal_fiat,
             },
-          })).catch(() => {});
-          emailed = true;
+          });
         } else if (typeof mailer.sendRaw === 'function') {
-          Promise.resolve(mailer.sendRaw({
+          r = await mailer.sendRaw({
             to: buyerEmail,
             subject: `Your ZeusAI order ${o.orderId} — payment still pending`,
             text: `Your order ${o.orderId} (${o.serviceName}) for $${o.subtotal_fiat} (≈ ${o.amount_btc} BTC) is still awaiting payment.\n\nPay here: ${o.checkout_url}\n\n— ZeusAI`,
-          })).catch(() => {});
-          emailed = true;
+          });
         }
-      } catch (_) { emailed = false; }
+        // Phase 2 honesty: only count as sent when provider reports ok.
+        emailed = !!(r && r.ok);
+        if (!emailed) emailReason = (r && (r.reason || r.error || r.skipped)) || 'send_failed';
+      } catch (sendErr) {
+        emailed = false;
+        emailReason = String(sendErr && sendErr.message || 'send_failed').slice(0, 80);
+      }
+    } else if (!EMAIL_RE.test(buyerEmail)) {
+      emailReason = 'no_buyer_email';
+    } else {
+      emailReason = 'email_unconfigured';
     }
-    // Owner Telegram nudge when email rail missing / unarmed.
+    let telegramed = false;
+    // Owner Telegram nudge when email rail missing / unarmed / failed.
     if (!emailed) {
       try {
         const zac = require('../../backend/modules/zacAlertChannel');
         if (zac && typeof zac.sendTelegram === 'function') {
-          Promise.resolve(zac.sendTelegram([
+          const tg = await Promise.resolve(zac.sendTelegram([
             '🛒 *Sovereign checkout recovery*',
             `Order \`${o.orderId}\` still pending (${Math.floor(ageMsOf(o, now) / 60000)}m).`,
             o.serviceId ? `Service: ${o.serviceId}` : null,
             o.subtotal_fiat != null ? `Amount: $${o.subtotal_fiat}` : null,
             o.checkout_url ? `Pay: ${o.checkout_url}` : null,
             buyerEmail ? `Buyer: ${buyerEmail}` : 'No buyer email on invoice',
-          ].filter(Boolean).join('\n'))).catch(() => {});
+            emailReason ? `Email: ${emailReason}` : null,
+          ].filter(Boolean).join('\n')));
+          telegramed = !!(tg && tg.ok !== false);
         }
       } catch (_) { /* optional */ }
     }
-    _sovRecoverySent.set(o.orderId, now);
-    sent.push({ orderId: o.orderId, emailed, email: buyerEmail || null });
+    // Cooldown only after a real channel attempt succeeded (email or telegram).
+    if (emailed || telegramed) {
+      _sovRecoverySent.set(o.orderId, now);
+      sent.push({ orderId: o.orderId, emailed, telegramed, email: buyerEmail || null, emailReason });
+    } else {
+      skipped.push({ orderId: o.orderId, reason: emailReason || 'no_channel' });
+    }
   }
   return { ok: true, stuck: stuck.length, sent: sent.length, skipped: skipped.length, sentList: sent, skippedList: skipped };
 }
@@ -1611,10 +1679,12 @@ setInterval(() => { scanIncoming().catch((e) => console.warn('[commerce] scan er
 setInterval(() => { getBtcPrice().catch((e) => console.warn('[commerce] BTC price refresh error:', e.message)); }, 5 * 60 * 1000).unref();
 // Abandoned sovereign invoice recovery (always-on — not gated on revenue autopilot)
 setTimeout(() => {
-  try { recoverStuckPending({ dryRun: false }); } catch (e) { console.warn('[commerce] recovery boot:', e && e.message); }
+  Promise.resolve(recoverStuckPending({ dryRun: false }))
+    .catch((e) => console.warn('[commerce] recovery boot:', e && e.message));
 }, 45 * 1000);
 setInterval(() => {
-  try { recoverStuckPending({ dryRun: false }); } catch (e) { console.warn('[commerce] recovery tick:', e && e.message); }
+  Promise.resolve(recoverStuckPending({ dryRun: false }))
+    .catch((e) => console.warn('[commerce] recovery tick:', e && e.message));
 }, SOV_RECOVERY_INTERVAL_MS).unref();
 
 console.log('[commerce] ready · addr=' + OWNER_BTC + ' · data=' + DATA_DIR + ' · watch=' + WATCH_MS + 'ms · min_confs=' + MIN_CONFS + ' · recovery=' + SOV_RECOVERY_INTERVAL_MS + 'ms');

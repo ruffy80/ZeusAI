@@ -2205,6 +2205,11 @@ function isBankWireConfigured() {
 
 function getPublicPaymentMethods() {
   const status = getPaymentConfigStatus();
+  let emailConfigured = false;
+  try {
+    const mailer = require('./commerce/transactional-email');
+    emailConfigured = !!(mailer && typeof mailer.isConfigured === 'function' && mailer.isConfigured());
+  } catch (_) { emailConfigured = false; }
   const methods = [
     { id: 'crypto_btc', name: 'Bitcoin', currency: 'BTC', active: true, primary: true, settlement: '10-30 min', provider: 'btc-direct', btcAddress: BTC_WALLET },
   ];
@@ -2226,7 +2231,18 @@ function getPublicPaymentMethods() {
       settlement: '1-3 business days', provider: 'wire',
     });
   }
-  return { methods, status, honesty: { ethAdvertised: false, bankAdvertised: isBankWireConfigured() } };
+  return {
+    methods,
+    status,
+    emailConfigured,
+    primaryRail: 'btc-direct',
+    honesty: {
+      ethAdvertised: false,
+      bankAdvertised: isBankWireConfigured(),
+      cardAdvertised: methods.some((m) => m.id === 'card' || m.id === 'stripe'),
+      emailAdvertised: emailConfigured,
+    },
+  };
 }
 function buildPublicSecurityPosture() {
   const payment = getPaymentConfigStatus();
@@ -9413,6 +9429,49 @@ ${invoice.payer ? `<h2>Payer</h2><table><tr><th>Legal entity</th><td>${esc(invoi
       res.writeHead(200,{'Content-Type':'application/json'});
       return res.end(JSON.stringify(ref.globalStats()));
     } catch(e){ res.writeHead(500,{'Content-Type':'application/json'}); return res.end(JSON.stringify({ ok:false, error:e.message })); }
+  }
+
+  // Phase 4 — affiliate payout ledger (admin). Ledger-only; operator pastes real BTC txid.
+  if (urlPath === '/api/referral/payouts/pending' && req.method === 'GET') {
+    const expected = process.env.ADMIN_SECRET || process.env.ADMIN_TOKEN || '';
+    const provided = String(req.headers['x-admin-secret'] || req.headers['x-admin-token'] || '');
+    if (!expected || !provided || provided !== expected) {
+      res.writeHead(401, { 'Content-Type': 'application/json' });
+      return res.end(JSON.stringify({ ok: false, error: 'unauthorized' }));
+    }
+    try {
+      const ref = require('./commerce/referral-engine-real');
+      const u = new URL(req.url, 'http://x');
+      const limit = u.searchParams.get('limit');
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      return res.end(JSON.stringify(ref.listPendingPayouts(limit)));
+    } catch (e) {
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      return res.end(JSON.stringify({ ok: false, error: e.message }));
+    }
+  }
+  if (urlPath === '/api/referral/payouts/mark-paid' && req.method === 'POST') {
+    const expected = process.env.ADMIN_SECRET || process.env.ADMIN_TOKEN || '';
+    const provided = String(req.headers['x-admin-secret'] || req.headers['x-admin-token'] || '');
+    if (!expected || !provided || provided !== expected) {
+      res.writeHead(401, { 'Content-Type': 'application/json' });
+      return res.end(JSON.stringify({ ok: false, error: 'unauthorized' }));
+    }
+    let body = '';
+    req.on('data', (c) => { body += c; if (body.length > 4 * 1024) req.destroy(); });
+    req.on('end', () => {
+      try {
+        const p = JSON.parse(body || '{}');
+        const ref = require('./commerce/referral-engine-real');
+        const out = ref.markPaid(p.id, { txid: p.txid || p.payoutBtcTxid });
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify(out));
+      } catch (e) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ ok: false, error: e.message }));
+      }
+    });
+    return;
   }
 
   // GET /api/referral/me?email=... → personal referral stats

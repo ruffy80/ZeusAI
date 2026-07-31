@@ -718,7 +718,10 @@ ${globalChrome(N)}
 // PERF: defer until the browser is idle (or 1.5 s after load) so Three.js parsing
 // never blocks LCP / TBT. The galaxy canvas already has a CSS-only fallback
 // painted for the first frame so deferring is purely additive.
+// Phase 5: load Three.js only on the home route — other pages skip ~600KB parse.
 (function loadThree(){
+  var route = (window.__UNICORN__ && window.__UNICORN__.route) || '';
+  if (route && route !== '/') return;
   function inject(){
     if (window.__zeusThreeLoaded) return; window.__zeusThreeLoaded = true;
     function loadCdnFallback(){

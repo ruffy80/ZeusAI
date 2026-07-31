@@ -202,23 +202,71 @@ function globalStats() {
   if (usingSqlite && db) {
     const codes = db.prepare('SELECT COUNT(*) AS n FROM referral_codes WHERE active = 1').get();
     const reds = db.prepare('SELECT COUNT(*) AS n, COALESCE(SUM(amount_usd),0) AS gross, COALESCE(SUM(payout_usd),0) AS payout FROM referral_redemptions').get();
+    const pending = db.prepare(`SELECT COUNT(*) AS n, COALESCE(SUM(payout_usd),0) AS owed FROM referral_redemptions WHERE payout_status = 'pending'`).get();
     return {
       ok: true,
       codesActive: codes ? codes.n : 0,
       redemptions: reds ? reds.n : 0,
       grossReferredUsd: reds ? Math.round((reds.gross || 0) * 100) / 100 : 0,
-      payoutOwedUsd: reds ? Math.round((reds.payout || 0) * 100) / 100 : 0,
+      payoutOwedUsd: pending ? Math.round((pending.owed || 0) * 100) / 100 : 0,
+      pendingPayouts: pending ? pending.n : 0,
       source: 'referrals.sqlite (real, no Math.random)',
     };
   }
+  const pendingMem = memoryStore.redemptions.filter((r) => r.payoutStatus === 'pending');
   return {
     ok: true,
     codesActive: memoryStore.codes.filter((c) => c.active).length,
     redemptions: memoryStore.redemptions.length,
     grossReferredUsd: 0,
-    payoutOwedUsd: 0,
+    payoutOwedUsd: Math.round(pendingMem.reduce((s, r) => s + Number(r.payoutUsd || 0), 0) * 100) / 100,
+    pendingPayouts: pendingMem.length,
     source: 'memory fallback',
   };
+}
+
+/**
+ * Phase 4 — affiliate payout ledger (honesty: ledger-only).
+ * Operator sends real BTC off-platform, then marks paid with the chain txid.
+ * Never invents a broadcast / never claims auto-payout without a wallet signer.
+ */
+function listPendingPayouts(limit) {
+  _init();
+  const lim = Math.max(1, Math.min(500, Number(limit) || 100));
+  if (usingSqlite && db) {
+    const rows = db.prepare(
+      `SELECT id, code, referred_email, order_id, amount_usd, payout_usd, payout_status, payout_btc_txid, redeemed_at
+       FROM referral_redemptions WHERE payout_status = 'pending' ORDER BY id ASC LIMIT ?`
+    ).all(lim);
+    return { ok: true, pending: rows, count: rows.length, honesty: 'ledger_only_manual_btc' };
+  }
+  const pending = memoryStore.redemptions
+    .filter((r) => r.payoutStatus === 'pending')
+    .slice(0, lim);
+  return { ok: true, pending, count: pending.length, honesty: 'ledger_only_manual_btc' };
+}
+
+function markPaid(id, opts) {
+  _init();
+  const txid = String((opts && (opts.txid || opts.payoutBtcTxid)) || '').trim().slice(0, 128);
+  if (!txid || txid.length < 8) throw new Error('txid_required');
+  const rid = Number(id);
+  if (!Number.isFinite(rid) || rid < 1) throw new Error('invalid_id');
+  if (usingSqlite && db) {
+    const row = db.prepare('SELECT * FROM referral_redemptions WHERE id = ?').get(rid);
+    if (!row) throw new Error('not_found');
+    if (row.payout_status === 'paid') {
+      return { ok: true, id: row.id, payoutStatus: 'paid', payout_btc_txid: row.payout_btc_txid, duplicate: true, honesty: 'ledger_only_manual_btc' };
+    }
+    db.prepare(`UPDATE referral_redemptions SET payout_status = 'paid', payout_btc_txid = ? WHERE id = ?`).run(txid, rid);
+    return { ok: true, id: rid, payoutStatus: 'paid', payout_btc_txid: txid, honesty: 'ledger_only_manual_btc' };
+  }
+  const rec = memoryStore.redemptions.find((r) => r.id === rid);
+  if (!rec) throw new Error('not_found');
+  if (rec.payoutStatus === 'paid') return { ok: true, ...rec, duplicate: true, honesty: 'ledger_only_manual_btc' };
+  rec.payoutStatus = 'paid';
+  rec.payoutBtcTxid = txid;
+  return { ok: true, ...rec, honesty: 'ledger_only_manual_btc' };
 }
 
 function _resetForTests() {
@@ -227,4 +275,7 @@ function _resetForTests() {
   memoryStore = { codes: [], redemptions: [] };
 }
 
-module.exports = { getOrCreateCode, lookupCode, ensureTrackedCode, recordRedemption, statsFor, globalStats, _resetForTests };
+module.exports = {
+  getOrCreateCode, lookupCode, ensureTrackedCode, recordRedemption,
+  statsFor, globalStats, listPendingPayouts, markPaid, _resetForTests,
+};

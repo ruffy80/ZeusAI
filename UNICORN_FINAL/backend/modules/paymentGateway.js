@@ -276,11 +276,19 @@ class PaymentGateway {
   }
 
   isStripeConfigured() {
-    return Boolean(this.providers.stripe.secretKey);
+    // Honesty: reject empty / placeholder / non-sk_ keys so Card is never advertised unarmed.
+    const key = String(this.providers.stripe.secretKey || '').trim();
+    if (!key || key.length < 16) return false;
+    if (/^your_|^changeme$|^placeholder|^skip$|^xxx|^sk_(test|live)_xxx/i.test(key)) return false;
+    return /^sk_(test|live)_/i.test(key);
   }
 
   isPayPalConfigured() {
-    return Boolean(this.providers.paypal.clientId && this.providers.paypal.clientSecret);
+    const id = String(this.providers.paypal.clientId || '').trim();
+    const secret = String(this.providers.paypal.clientSecret || '').trim();
+    if (!id || !secret || id.length < 8 || secret.length < 8) return false;
+    if (/^your_|^changeme$|^placeholder|^skip$/i.test(id) || /^your_|^changeme$|^placeholder|^skip$/i.test(secret)) return false;
+    return true;
   }
 
   getPayPalBaseUrl() {

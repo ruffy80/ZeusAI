@@ -98,11 +98,13 @@
           '<button data-ck-stripe style="display:none;background:transparent;color:#e8eef9;border:1px solid rgba(255,255,255,0.2);padding:10px 18px;border-radius:8px;cursor:pointer">Pay with Card</button>' +
         '</div>' +
         '<div data-ck-status style="margin-top:10px;font-size:12px;color:#7a8499">Bitcoin checkout is live. Card appears only when Stripe is configured.</div>' +
+        '<div data-ck-rails style="margin-top:8px;font-size:11px;color:#7a8499;line-height:1.5">Armed Rails: BTC armed · Card… · Email…</div>' +
         '<div data-ck-extra></div>' +
       '</div>'
     );
     var btc = node.querySelector('[data-ck-btc]');
     var stripe = node.querySelector('[data-ck-stripe]');
+    var railsEl = node.querySelector('[data-ck-rails]');
     if (btc) btc.addEventListener('click', function () { payBtc(node); });
     fetch('/api/payment/methods').then(function (r) { return r.json(); }).then(function (j) {
       var methods = (j && (j.methods || j.paymentMethods)) || [];
@@ -110,6 +112,10 @@
         var id = String((m && (m.id || m.kind || m.method)) || '').toLowerCase();
         return (id === 'stripe' || id === 'card') && m.active !== false;
       });
+      var emailOn = !!(j && j.emailConfigured);
+      if (railsEl) {
+        railsEl.textContent = 'Armed Rails Continuum: BTC armed · Card ' + (stripeOn ? 'armed' : 'idle') + ' · Email ' + (emailOn ? 'armed' : 'idle');
+      }
       if (stripeOn && stripe) {
         stripe.style.display = '';
         stripe.addEventListener('click', function () {

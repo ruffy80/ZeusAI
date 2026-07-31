@@ -244,25 +244,41 @@ function paymentLabels(){
 }
 
 async function hydratePaymentRails(){
+  let emailConfigured = false;
+  let cardArmed = false;
   try {
     const payload = await api('/api/payment/methods');
     const methods = payload && Array.isArray(payload.methods) ? payload.methods.filter(m => m && m.active !== false) : [];
     STATE.paymentMethods = methods.length ? methods : [{ id:'crypto_btc', active:true }];
+    emailConfigured = !!(payload && payload.emailConfigured);
+    cardArmed = methods.some(function (m) {
+      var id = String((m && m.id) || '').toLowerCase();
+      return (id === 'card' || id === 'stripe') && m.active !== false;
+    });
   } catch (_) {
     STATE.paymentMethods = [{ id:'crypto_btc', active:true }];
   }
   const labels = paymentLabels();
-  const copy = 'Live payment rails: ' + labels.join(' · ') + '. Optional external providers appear only when configured.';
+  const emailLabel = emailConfigured ? 'Email recovery armed' : 'Email recovery idle';
+  const copy = 'Live payment rails: ' + labels.join(' · ') + '. ' + emailLabel + '. Optional external providers appear only when configured.';
   const setText = (id, value) => { const el = document.getElementById(id); if (el) el.textContent = value; };
   setText('commerceProofPaymentCopy', copy);
-  setText('pricingPaymentRail', labels.join(' · ') + ' · automatic activation');
+  setText('pricingPaymentRail', labels.join(' · ') + (emailConfigured ? ' · email armed' : ' · email idle') + ' · automatic activation');
   setText('checkoutPaymentRailCopy', copy + ' BTC quote and owner wallet are always shown before payment.');
   setText('paypalRailCopy', labels.includes('PayPal') ? 'PayPal is configured live and available for eligible orders.' : 'PayPal is hidden/parked until runtime credentials are configured; BTC direct remains live.');
+  setText('arkBtc', 'armed · primary');
+  setText('arkCard', cardArmed ? 'armed · Stripe' : 'idle · needs STRIPE_SECRET_KEY');
+  setText('arkEmail', emailConfigured ? 'armed · recovery can email buyers' : 'idle · needs RESEND/BREVO/SMTP');
+  setText('arkNote', 'Armed Rails Continuum: BTC always-on' + (cardArmed ? ' · Card armed' : ' · Card idle') + (emailConfigured ? ' · Email armed' : ' · Email idle') + '.');
   const paypalPanel = document.getElementById('coPanelPaypal');
   const paypalChip = document.querySelector('.co-method .chip[data-method="paypal"]');
   const paypalActive = labels.includes('PayPal');
   if (paypalPanel && !paypalActive) paypalPanel.style.display = 'none';
   if (paypalChip && !paypalActive) paypalChip.style.display = 'none';
+  const cardChip = document.querySelector('.co-method .chip[data-method="card"], .co-method .chip[data-method="stripe"]');
+  const cardPanel = document.getElementById('coPanelCard') || document.getElementById('coPanelStripe');
+  if (cardChip && !cardArmed) cardChip.style.display = 'none';
+  if (cardPanel && !cardArmed) cardPanel.style.display = 'none';
 }
 
 function clearStaleLoadingPlaceholders(){

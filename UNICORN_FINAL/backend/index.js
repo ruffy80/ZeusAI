@@ -9482,6 +9482,11 @@ app.get('/api/payment/nowpayments/security', (req, res) => {
 app.get('/api/payment/methods', (req, res) => {
   // Derive public methods from the same honesty rails as /api/payments/config/status
   // so the storefront never advertises ETH/Bank/Stripe when they cannot settle.
+  let emailConfigured = false;
+  try {
+    const mailer = require('../src/commerce/transactional-email');
+    emailConfigured = !!(mailer && typeof mailer.isConfigured === 'function' && mailer.isConfigured());
+  } catch (_) { emailConfigured = false; }
   try {
     const truth = typeof conversionTruthLayer !== 'undefined' && conversionTruthLayer;
     const raw = paymentGateway.getPaymentMethods();
@@ -9490,9 +9495,20 @@ app.get('/api/payment/methods', (req, res) => {
       : raw;
     const methods = (Array.isArray(sanitized) ? sanitized : raw).filter((m) => m && m.active);
     res.set('Cache-Control', 'no-cache');
-    return res.json({ methods, honesty: 'config-backed', primaryRail: 'btc-direct' });
+    return res.json({
+      methods,
+      emailConfigured,
+      honesty: 'config-backed',
+      primaryRail: 'btc-direct',
+      cardArmed: methods.some((m) => m && (m.id === 'card' || m.id === 'stripe')),
+    });
   } catch (_) {
-    res.json({ methods: paymentGateway.getPaymentMethods().filter((m) => m && m.active), honesty: 'gateway-fallback', primaryRail: 'btc-direct' });
+    res.json({
+      methods: paymentGateway.getPaymentMethods().filter((m) => m && m.active),
+      emailConfigured,
+      honesty: 'gateway-fallback',
+      primaryRail: 'btc-direct',
+    });
   }
 });
 
@@ -15947,8 +15963,14 @@ app.post('/api/autonomy/digest', async (req, res) => {
 let _leadHunter, _ctxMemory, _subEngine;
 try {
   _leadHunter = require('./modules/autonomous-lead-hunter');
-  _leadHunter.start();
-  console.log('[pro-plus] autonomous-lead-hunter ACTIVE');
+  // Phase 5: under stable profile, do not burn idle cycles unless forced.
+  const _leadForce = ['1', 'true', 'yes', 'on'].includes(String(process.env.LEAD_HUNTER_FORCE || '').toLowerCase());
+  if (!_stableRuntime || _leadForce) {
+    _leadHunter.start();
+    console.log('[pro-plus] autonomous-lead-hunter ACTIVE' + (_stableRuntime ? ' (LEAD_HUNTER_FORCE)' : ''));
+  } else {
+    console.log('[pro-plus] autonomous-lead-hunter loaded idle (stable profile — set LEAD_HUNTER_FORCE=1 to arm)');
+  }
 } catch (e) { console.warn('[pro-plus][lead-hunter] load failed:', e && e.message); }
 
 try {
