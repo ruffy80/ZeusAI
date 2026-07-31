@@ -3403,6 +3403,9 @@ catch (e) { console.warn('[EMC] not loaded:', e && e.message); }
 let continuumHarmonyOs = null;
 try { continuumHarmonyOs = require('./modules/continuum-harmony-os'); }
 catch (e) { console.warn('[CHO] not loaded:', e && e.message); }
+let totalEcosystemPerfectionOs = null;
+try { totalEcosystemPerfectionOs = require('./modules/total-ecosystem-perfection-os'); }
+catch (e) { console.warn('[TEP] not loaded:', e && e.message); }
 // ==================== SRC INNOVATION & DEPLOY MODULES ====================
 const innovationEngine      = require('../src/innovation/innovation-engine');
 const autoDeployOrchestrator = require('../src/modules/auto-deploy-orchestrator');
@@ -4289,6 +4292,15 @@ try {
   console.warn('[CHO] mesh register failed:', e && e.message);
 }
 
+// TEP/1.0 — total ecosystem inventory + Adaptive/Engine pool
+try {
+  if (totalEcosystemPerfectionOs && typeof totalEcosystemPerfectionOs.registerWithMesh === 'function') {
+    totalEcosystemPerfectionOs.registerWithMesh(meshOrchestrator);
+  }
+} catch (e) {
+  console.warn('[TEP] mesh register failed:', e && e.message);
+}
+
 // ── Wire Forward-Only Safety harmony registry ──────────────────────────────
 // registerEngine() existed but was never called, so /api/autonomy/harmony/status
 // always reported `no_engines_active`. Bridge every mesh-registered engine into
@@ -4442,6 +4454,17 @@ try {
     }
   } catch (e) {
     console.warn('[CHO] boot failed:', e && e.message);
+  }
+
+  // TEP/1.0 — ensure AdaptiveModule/Engine shims + inventory surface
+  try {
+    if (totalEcosystemPerfectionOs) {
+      totalEcosystemPerfectionOs.start();
+      totalEcosystemPerfectionOs.mountRoutes(app);
+      console.log('🌐 TEP/1.0 Total Ecosystem Perfection: STARTED');
+    }
+  } catch (e) {
+    console.warn('[TEP] boot failed:', e && e.message);
   }
 
   try {

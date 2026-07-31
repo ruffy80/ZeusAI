@@ -49,6 +49,8 @@ import HowItWorks from './pages/HowItWorks';
 import Terms from './pages/Terms';
 import Privacy from './pages/Privacy';
 import Checkout from './pages/Checkout';
+import ESIM from './pages/ESIM';
+import Payment from './pages/Payment';
 import CryptoFiatBridge from './pages/CryptoFiatBridge';
 import toast, { Toaster } from 'react-hot-toast';
 
@@ -225,8 +227,9 @@ function App() {
           <Route path="/capabilities" element={<ScrollReveal delay={0.2}><Capabilities /></ScrollReveal>} />
           <Route path="/wealth" element={<ScrollReveal delay={0.1}><Wealth /></ScrollReveal>} />
           <Route path="/marketplace" element={<ScrollReveal delay={0.2}><Marketplace /></ScrollReveal>} />
-          <Route path="/esim" element={<Navigate to="/marketplace" replace />} />
+          <Route path="/esim" element={<ScrollReveal delay={0.15}><ESIM /></ScrollReveal>} />
           <Route path="/payments" element={<ScrollReveal delay={0.15}><PaymentPage /></ScrollReveal>} />
+          <Route path="/payment" element={<ScrollReveal delay={0.15}><Payment /></ScrollReveal>} />
           <Route path="/enterprise" element={<ScrollReveal delay={0.1}><EnterpriseHub /></ScrollReveal>} />
           <Route path="/enterprise/aviation" element={<ScrollReveal delay={0.12}><AviationOps /></ScrollReveal>} />
           <Route path="/enterprise/government" element={<ScrollReveal delay={0.14}><GovernmentOps /></ScrollReveal>} />
@@ -252,6 +255,7 @@ function App() {
           <Route path="/executive" element={<ExecutiveDashboard />} />
           <Route path="/unicorn-lab" element={<UnicornLab />} />
           <Route path="/landing-generator" element={<LandingPageGenerator />} />
+          <Route path="/generator" element={<LandingPageGenerator />} />
           <Route path="/checkout" element={<ScrollReveal><Checkout /></ScrollReveal>} />
         </Routes>
       </main>
