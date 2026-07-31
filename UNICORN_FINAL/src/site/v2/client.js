@@ -279,12 +279,25 @@ async function hydratePaymentRails(){
     + (emailConfigured ? ' · Email armed' : ' · Email idle') + '.');
   const paypalPanel = document.getElementById('coPanelPaypal');
   const paypalChip = document.querySelector('.co-method .chip[data-method="paypal"]');
-  if (paypalPanel && !paypalActive) paypalPanel.style.display = 'none';
   if (paypalChip) paypalChip.style.display = paypalActive ? '' : 'none';
+  if (paypalPanel && paypalPanel.style.display !== 'none' && !paypalActive) paypalPanel.style.display = 'none';
   const nowPanel = document.getElementById('coPanelNow');
   const nowChip = document.querySelector('.co-method .chip[data-method="nowpayments"]');
-  if (nowPanel && !nowActive) nowPanel.style.display = 'none';
   if (nowChip) nowChip.style.display = nowActive ? '' : 'none';
+  if (nowPanel && nowPanel.style.display !== 'none' && !nowActive) nowPanel.style.display = 'none';
+  const topPp = document.getElementById('coBuyPaypalTop');
+  const topNp = document.getElementById('coBuyNowTop');
+  if (topPp) topPp.style.display = paypalActive ? '' : 'none';
+  if (topNp) topNp.style.display = nowActive ? '' : 'none';
+  const hint = document.getElementById('checkoutRailHint');
+  if (hint) {
+    hint.textContent = paypalActive || nowActive
+      ? ('Live rails: BTC'
+        + (paypalActive ? ' · PayPal' : '')
+        + (nowActive ? ' · card/crypto (NOWPayments)' : '')
+        + '. Pick any button above.')
+      : 'Bitcoin is live. PayPal / card-crypto unlock when those rails are armed.';
+  }
   const cardChip = document.querySelector('.co-method .chip[data-method="card"], .co-method .chip[data-method="stripe"]');
   const cardPanel = document.getElementById('coPanelCard') || document.getElementById('coPanelStripe');
   if (cardChip && !cardArmed) cardChip.style.display = 'none';
@@ -1857,14 +1870,18 @@ async function hydrateCommerceProof(){
   } catch (_) {
     if (btcEl) btcEl.textContent = 'BTC checkout ready';
   }
-  hydratePaymentRails().catch(function(){});
-
   try {
     const r = await fetch('/api/admin/commerce/refund', { method:'POST', headers:{'Content-Type':'application/json'}, body:'{}' });
     if (adminEl) adminEl.textContent = r.status === 401 ? 'Refund protected · 401' : 'Admin endpoint live';
   } catch (_) {
     if (adminEl) adminEl.textContent = 'Admin cockpit protected';
   }
+}
+
+// Always hydrate payment rails on boot (not only commerce-proof pages).
+if (typeof window !== 'undefined' && !window.__paymentRailsBooted) {
+  window.__paymentRailsBooted = true;
+  setTimeout(function () { hydratePaymentRails().catch(function () {}); }, 0);
 }
 
 function initZeusHeroImage(){
@@ -2496,9 +2513,10 @@ function clientBuyabilityCta(it) {
     return { mode: 'unavailable', buyable: false, ctaLabel: 'Not available yet', ctaHref: null };
   }
   if (/^professional-/i.test(id) || group === 'professional' || tier === 'professional') {
-    return { mode: 'reserve', buyable: true, ctaLabel: 'Reserve with BTC →', ctaHref: '/checkout/?plan=' + encodeURIComponent(id) };
+    return { mode: 'reserve', buyable: true, ctaLabel: 'Reserve →', ctaHref: '/checkout/?plan=' + encodeURIComponent(id) };
   }
-  return { mode: 'btc', buyable: true, ctaLabel: 'Buy with BTC →', ctaHref: '/checkout/?plan=' + encodeURIComponent(id) };
+  // Land on checkout method chooser (BTC + PayPal + NOWPayments when armed).
+  return { mode: 'checkout', buyable: true, ctaLabel: 'Buy now →', ctaHref: '/checkout/?plan=' + encodeURIComponent(id) };
 }
 
 // Sovereign BTC checkout: creates a non-custodial order on the server and
@@ -2609,7 +2627,18 @@ if (typeof window !== 'undefined') {
       if (typeof ev.stopImmediatePropagation === 'function') ev.stopImmediatePropagation();
       const id = t.getAttribute('data-sovereign-buy');
       const preorder = t.getAttribute('data-sovereign-preorder') === '1';
-      if (id) sovereignBuy(id, { preorder, el: t });
+      if (!id) return;
+      // Instant BTC mint only for explicit BTC CTAs on the checkout page.
+      // Product / catalog cards always open the method chooser (BTC · PayPal · NOW).
+      const mode = String(t.getAttribute('data-buy-mode') || '').toLowerCase();
+      const instantBtc = mode === 'btc-direct' || t.hasAttribute('data-sovereign-instant')
+        || t.id === 'coSovereignPrimary' || t.id === 'coPay';
+      if (instantBtc) {
+        sovereignBuy(id, { preorder, el: t });
+        return;
+      }
+      const href = '/checkout/?plan=' + encodeURIComponent(id) + (preorder ? '&preorder=1' : '');
+      window.location.href = href;
     }, true);
   }
 }
@@ -3081,6 +3110,10 @@ function hydrateCheckout(){
   const set = (id, v) => { const el = document.getElementById(id); if (el) el.value = v; };
   set('coAmount', amount != null ? amount : ''); set('coPlan', plan);
   set('coAmountPP', amount != null ? amount : ''); set('coPlanPP', plan);
+  set('coAmountNP', amount != null ? amount : ''); set('coPlanNP', plan);
+  // Critical: reveal PayPal / NOWPayments chips on this page. Boot-time
+  // hydrateCommerceProof often returns early (no proof DOM) and left chips hidden.
+  hydratePaymentRails().catch(function () {});
   try {
     const rememberedEmail = localStorage.getItem('u_email') || '';
     if (rememberedEmail && !q.get('email')) {
@@ -3183,15 +3216,28 @@ function hydrateCheckout(){
   $('#coAmount')?.addEventListener('input', draw);
   $('#coPlan')?.addEventListener('input', e => { if (sumP) sumP.textContent = e.target.value; });
 
-  // method switch — BTC primary; PayPal / NOWPayments panels only when armed chips visible
+  // method switch — BTC primary; PayPal / NOWPayments panels when armed
+  function selectCheckoutRail(m){
+    $$('.co-method .chip').forEach(x => {
+      x.classList.toggle('on', x.dataset.method === m);
+    });
+    if ($('#coPanelBtc')) $('#coPanelBtc').style.display = m === 'btc' ? '' : 'none';
+    if ($('#coPanelPaypal')) $('#coPanelPaypal').style.display = m === 'paypal' ? '' : 'none';
+    if ($('#coPanelNow')) $('#coPanelNow').style.display = m === 'nowpayments' ? '' : 'none';
+  }
   $$('.co-method .chip').forEach(c => c.addEventListener('click', () => {
-    $$('.co-method .chip').forEach(x=>x.classList.remove('on'));
-    c.classList.add('on');
-    const m = c.dataset.method;
-    if ($('#coPanelBtc')) $('#coPanelBtc').style.display = m==='btc' ? '' : 'none';
-    if ($('#coPanelPaypal')) $('#coPanelPaypal').style.display = m==='paypal' ? '' : 'none';
-    if ($('#coPanelNow')) $('#coPanelNow').style.display = m==='nowpayments' ? '' : 'none';
+    selectCheckoutRail(c.dataset.method);
   }));
+  document.getElementById('coBuyPaypalTop')?.addEventListener('click', () => {
+    selectCheckoutRail('paypal');
+    const btn = document.getElementById('coPayPP');
+    if (btn) btn.click();
+  });
+  document.getElementById('coBuyNowTop')?.addEventListener('click', () => {
+    selectCheckoutRail('nowpayments');
+    const btn = document.getElementById('coPayNP');
+    if (btn) btn.click();
+  });
 
   // PayPal — real Orders API only; no paypal.me/mailto fallback.
   refreshBtcUsd(true).then(draw).catch(()=>{});
