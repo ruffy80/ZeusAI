@@ -153,12 +153,12 @@ function verifyWebhookSignature(rawBody, receivedSig) {
 }
 
 function processWebhook(payload) {
-  const { payment_id, payment_status, order_id, price_amount, pay_currency, actually_paid } = payload;
+  const { payment_id, payment_status, order_id, price_amount, pay_currency, actually_paid, invoice_id } = payload;
   const id = (payment_id || '').toString();
   if (!id) return { status: 'rejected', reason: 'missing_payment_id' };
 
   const entry = pendingPayments.get(id) || {};
-  const isConfirmed = ['finished', 'confirmed', 'partially_paid'].includes(payment_status);
+  const isConfirmed = ['finished', 'confirmed'].includes(payment_status);
   const confirmationKey = `${id}:${payment_status}`;
 
   if (isConfirmed && processedConfirmations.has(confirmationKey)) {
@@ -169,9 +169,11 @@ function processWebhook(payload) {
     ...entry,
     status: payment_status,
     orderId: order_id,
+    invoiceId: invoice_id,
+    priceAmount: price_amount,
     payCurrency: pay_currency,
     actuallyPaid: actually_paid,
-    confirmedAt: new Date().toISOString()
+    ...(isConfirmed ? { confirmedAt: new Date().toISOString() } : {})
   };
   pendingPayments.set(id, updated);
 
@@ -186,11 +188,18 @@ function processWebhook(payload) {
       global._unicornEventBus.emit('payment:confirmed', {
         provider: 'nowpayments',
         paymentId: id,
+        invoiceId: invoice_id,
         orderId: order_id,
         serviceId: entry.itemId,
         clientId: entry.clientId,
         amountUsd: price_amount,
-        payCurrency: pay_currency
+        priceAmount: price_amount,
+        actuallyPaid: actually_paid,
+        payCurrency: pay_currency,
+        price_amount,
+        actually_paid,
+        invoice_id,
+        order_id
       });
     } catch (_) {}
   }

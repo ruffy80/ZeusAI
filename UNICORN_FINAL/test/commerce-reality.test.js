@@ -98,9 +98,11 @@ async function run() {
       assert.strictEqual(confirm.status, 200);
       assert.strictEqual(confirm.body.ok, true);
       assert.strictEqual(confirm.body.receipt.status, 'paid');
+      const deliveryToken = confirm.body.receipt.license && confirm.body.receipt.license.token;
+      assert.ok(deliveryToken, 'paid receipt must include delivery token');
 
       const artifacts = await waitFor(async () => {
-        const delivery = await request(base, `/api/delivery/${encodeURIComponent(receiptId)}?format=artifacts`);
+        const delivery = await request(base, `/api/delivery/${encodeURIComponent(receiptId)}?format=artifacts&access_token=${encodeURIComponent(deliveryToken)}`);
         if (delivery.status !== 200 || !delivery.body || !delivery.body.delivery) return null;
         if (delivery.body.delivery.fulfillmentStatus !== 'deterministic') return null;
         if (!Array.isArray(delivery.body.delivery.artifacts) || delivery.body.delivery.artifacts.length === 0) return null;
@@ -111,7 +113,7 @@ async function run() {
       assert.strictEqual(artifacts.artifacts[0].generatedBy, 'deterministic-engine');
       assert.ok(String(artifacts.artifacts[0].filename || '').includes('service-activation-pack'));
 
-      const activationPack = await request(base, `/api/delivery/${encodeURIComponent(receiptId)}?format=artifact&serviceId=adaptive-ai`);
+      const activationPack = await request(base, `/api/delivery/${encodeURIComponent(receiptId)}?format=artifact&serviceId=adaptive-ai&access_token=${encodeURIComponent(deliveryToken)}`);
       assert.strictEqual(activationPack.status, 200);
       assert.match(activationPack.text, /# Service Activation Pack/);
       assert.match(activationPack.text, new RegExp(receiptId));
