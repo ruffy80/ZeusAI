@@ -102,6 +102,8 @@ const STABLE_START_ALLOW = new Set([
   'TemporalDataLayer',
   'essential-modules-continuum',
   'essentialModulesContinuum',
+  'continuum-harmony-os',
+  'continuumHarmonyOs',
 ]);
 
 /** Commerce / payment — monitor+register only unless configured */

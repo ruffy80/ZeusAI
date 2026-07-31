@@ -328,12 +328,21 @@ function getStatus() {
   for (const [key, mod] of Object.entries(mods)) {
     if (key.startsWith('_')) continue;
     try {
-      const s = typeof mod.getStatus === 'function' ? mod.getStatus() : { ok: !mod.__loadError };
+      // Proxy adapters may return phantom functions for unknown props — only
+      // treat a string __loadError as a real load failure.
+      const loadErr = (mod && typeof mod.__loadError === 'string') ? mod.__loadError : null;
+      const s = typeof mod.getStatus === 'function' ? mod.getStatus() : { ok: !loadErr };
+      const boot = state.boots[key] || null;
+      // Intentional idle under stable/gates is healthy — not a fault.
+      const intentionalIdle = !!(boot && boot.idle);
+      const loadOk = !loadErr;
+      const statusOk = intentionalIdle || (s && s.ok !== false);
       details[key] = {
-        ok: s && s.ok !== false && !mod.__loadError,
+        ok: !!(loadOk && statusOk),
         running: !!(s && (s.running || s.isRunning || s.status === 'active' || s.active)),
-        error: mod.__loadError || (s && s.error) || null,
-        boot: state.boots[key] || null,
+        idle: intentionalIdle,
+        error: loadErr || ((!intentionalIdle && s && s.error) || null),
+        boot,
       };
       if (details[key].ok) okCount += 1;
     } catch (e) {
@@ -395,8 +404,10 @@ function registerWithMesh(mesh) {
 
 function mountRoutes(app) {
   if (!app || typeof app.get !== 'function') return { ok: false };
+  if (app.__emcRoutesMounted) return { ok: true, already: true };
   app.get('/api/emc/status', (req, res) => res.json(getStatus()));
   app.get('/api/essential/status', (req, res) => res.json(getStatus()));
+  app.__emcRoutesMounted = true;
   return { ok: true };
 }
 
