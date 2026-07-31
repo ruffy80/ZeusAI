@@ -341,6 +341,7 @@ function getStatus() {
 
 function mountRoutes(app) {
   if (!app || typeof app.get !== 'function') return { ok: false };
+  if (app.__occRoutesMounted) return { ok: true, already: true };
   app.get('/api/occ/status', (req, res) => res.json(getStatus()));
   app.get('/api/age/status', (req, res) => res.json(age.getStatus()));
   app.post('/api/age/act', (req, res) => {
@@ -348,6 +349,7 @@ function mountRoutes(app) {
       .then((out) => res.json(out))
       .catch((e) => res.status(500).json({ ok: false, error: e.message }));
   });
+  app.__occRoutesMounted = true;
   return { ok: true };
 }
 

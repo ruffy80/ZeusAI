@@ -3400,6 +3400,9 @@ catch (e) { console.warn('[OCC] not loaded:', e && e.message); }
 let essentialModulesContinuum = null;
 try { essentialModulesContinuum = require('./modules/essential-modules-continuum'); }
 catch (e) { console.warn('[EMC] not loaded:', e && e.message); }
+let continuumHarmonyOs = null;
+try { continuumHarmonyOs = require('./modules/continuum-harmony-os'); }
+catch (e) { console.warn('[CHO] not loaded:', e && e.message); }
 // ==================== SRC INNOVATION & DEPLOY MODULES ====================
 const innovationEngine      = require('../src/innovation/innovation-engine');
 const autoDeployOrchestrator = require('../src/modules/auto-deploy-orchestrator');
@@ -4277,6 +4280,15 @@ try {
   console.warn('[EMC] mesh register failed:', e && e.message);
 }
 
+// CHO/1.0 — continuum harmony plane (OCC↔EMC)
+try {
+  if (continuumHarmonyOs && typeof continuumHarmonyOs.registerWithMesh === 'function') {
+    continuumHarmonyOs.registerWithMesh(meshOrchestrator);
+  }
+} catch (e) {
+  console.warn('[CHO] mesh register failed:', e && e.message);
+}
+
 // ── Wire Forward-Only Safety harmony registry ──────────────────────────────
 // registerEngine() existed but was never called, so /api/autonomy/harmony/status
 // always reported `no_engines_active`. Bridge every mesh-registered engine into
@@ -4419,6 +4431,17 @@ try {
     }
   } catch (e) {
     console.warn('[EMC] boot failed:', e && e.message);
+  }
+
+  // CHO/1.0 — keep OCC+EMC conflict-free and route-healed
+  try {
+    if (continuumHarmonyOs) {
+      continuumHarmonyOs.start({ app, stable: _stableRuntime });
+      continuumHarmonyOs.mountRoutes(app);
+      console.log('🎼 CHO/1.0 Continuum Harmony OS: STARTED');
+    }
+  } catch (e) {
+    console.warn('[CHO] boot failed:', e && e.message);
   }
 
   try {
@@ -14248,6 +14271,8 @@ function _publicAutonomySnapshot(full) {
       profitControlLoop: summarize('profitControlLoop'),
       meshOrchestrator: summarize('meshOrchestrator'),
       orchestratedCapabilityContinuum: summarize('orchestratedCapabilityContinuum'),
+      essentialModulesContinuum: summarize('essentialModulesContinuum'),
+      continuumHarmonyOs: summarize('continuumHarmonyOs'),
     },
   };
 }
@@ -14271,6 +14296,12 @@ function _collectAutonomyStatus() {
   collect('meshOrchestrator',     () => meshOrchestrator.getStatus ? meshOrchestrator.getStatus() : { active: true });
   collect('orchestratedCapabilityContinuum', () => orchestratedCapabilityContinuum
     ? orchestratedCapabilityContinuum.getStatus()
+    : { running: false });
+  collect('essentialModulesContinuum', () => essentialModulesContinuum
+    ? essentialModulesContinuum.getStatus()
+    : { running: false });
+  collect('continuumHarmonyOs', () => continuumHarmonyOs
+    ? continuumHarmonyOs.getStatus()
     : { running: false });
 
   const activeCount = Object.values(status.modules).filter(
