@@ -271,8 +271,9 @@ async function _paypalAccessToken() {
   if (!d || !d.access_token) throw new Error('paypal_auth_empty');
   return d.access_token;
 }
-async function _createPaypalOrder({ amountUsd, description, customId }) {
+async function _createPaypalOrder({ amountUsd, description, customId, returnUrl, cancelUrl }) {
   const token = await _paypalAccessToken();
+  const base = String(process.env.PUBLIC_APP_URL || process.env.APP_BASE_URL || 'https://zeusai.pro').replace(/\/$/, '');
   const r = await fetch(_paypalBaseUrl() + '/v2/checkout/orders', {
     method: 'POST',
     headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' },
@@ -284,6 +285,13 @@ async function _createPaypalOrder({ amountUsd, description, customId }) {
         description: description || 'ZeusAI Service',
         amount: { currency_code: 'USD', value: Number(amountUsd || 0).toFixed(2) },
       }],
+      application_context: {
+        brand_name: 'ZeusAI',
+        landing_page: 'NO_PREFERENCE',
+        user_action: 'PAY_NOW',
+        return_url: returnUrl || (base + '/checkout/?paypal=return'),
+        cancel_url: cancelUrl || (base + '/checkout/?paypal=cancel'),
+      },
     }),
   });
   if (!r.ok) throw new Error('paypal_order_create_failed:' + r.status);

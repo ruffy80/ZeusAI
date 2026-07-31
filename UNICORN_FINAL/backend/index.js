@@ -7947,6 +7947,28 @@ app.post('/api/payment/webhook/paypal', async (req, res) => {
   };
 
   const markCompleted = (orderId, hint) => {
+    // Sovereign storefront: custom_id / reference_id is ord_* → settle on site.
+    const sovereignHint = String(hint || orderId || '').trim();
+    if (/^ord_[a-zA-Z0-9_-]{6,64}$/.test(sovereignHint)) {
+      const settleSecret = process.env.INTERNAL_SETTLE_SECRET || process.env.COMMERCE_ADMIN_SECRET || process.env.ADMIN_SECRET || process.env.ADMIN_TOKEN || '';
+      fetch(SITE_INTERNAL_BASE + '/api/order/' + encodeURIComponent(sovereignHint) + '/provider-settle', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-internal-settle-secret': settleSecret,
+        },
+        body: JSON.stringify({
+          provider: 'paypal',
+          providerRef: orderId || hint || null,
+          paypalOrderId: orderId || null,
+        }),
+        signal: AbortSignal.timeout(8000),
+      }).then(async (r) => {
+        const body = await r.json().catch(() => ({}));
+        if (!r.ok) console.warn('[PayPal Webhook] sovereign settle failed:', r.status, body && body.error);
+        else console.log('[PayPal Webhook] sovereign settle ok:', sovereignHint);
+      }).catch((e) => console.warn('[PayPal Webhook] sovereign settle error:', e && e.message));
+    }
     const payment = findPaymentByOrderId(orderId, hint);
     if (payment) {
       const updated = {
@@ -8404,6 +8426,28 @@ try {
         if (!evt || evt.provider !== 'nowpayments') return;
         const orderId = String(evt.orderId || evt.paymentId || '').trim();
         if (!orderId) return;
+        // Sovereign storefront orders (ord_*) settle on the site process.
+        if (/^ord_[a-zA-Z0-9_-]{6,64}$/.test(orderId)) {
+          const settleSecret = process.env.INTERNAL_SETTLE_SECRET || process.env.COMMERCE_ADMIN_SECRET || process.env.ADMIN_SECRET || process.env.ADMIN_TOKEN || '';
+          fetch(SITE_INTERNAL_BASE + '/api/order/' + encodeURIComponent(orderId) + '/provider-settle', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'x-internal-settle-secret': settleSecret,
+            },
+            body: JSON.stringify({
+              provider: 'nowpayments',
+              providerRef: evt.paymentId || null,
+              paymentId: evt.paymentId || null,
+              meta: { payCurrency: evt.payCurrency || null, amountUsd: evt.amountUsd || null },
+            }),
+            signal: AbortSignal.timeout(8000),
+          }).then(async (r) => {
+            const body = await r.json().catch(() => ({}));
+            if (!r.ok) console.warn('[NOWPayments] sovereign settle failed:', r.status, body && body.error);
+            else console.log('[NOWPayments] sovereign settle ok:', orderId);
+          }).catch((e) => console.warn('[NOWPayments] sovereign settle error:', e && e.message));
+        }
         const invoiceLike = {
           id: orderId,
           service: evt.serviceId || 'unknown',
@@ -9630,7 +9674,7 @@ app.get('/api/payments/config/status', (req, res) => {
     return !!v && !/^your_|_here$|^changeme$|^placeholder$/i.test(v);
   };
   const stripeConfigured = _set('STRIPE_SECRET_KEY');
-  const paypalConfigured = _set('PAYPAL_CLIENT_ID') && _set('PAYPAL_CLIENT_SECRET');
+  const paypalConfigured = _set('PAYPAL_CLIENT_ID') && (_set('PAYPAL_CLIENT_SECRET') || _set('PAYPAL_SECRET'));
   const btcpayConfigured = _set('BTCPAY_SERVER_URL') && _set('BTCPAY_API_KEY') && _set('BTCPAY_STORE_ID');
   const nowConfigured = _set('NOWPAYMENTS_API_KEY');
   const nowIpnConfigured = _set('NOWPAYMENTS_IPN_SECRET');

@@ -74,7 +74,7 @@ function nowRequest(method, path, body) {
   });
 }
 
-async function createInvoice({ amountUsd, itemName, itemId, clientId, successUrl, cancelUrl }) {
+async function createInvoice({ amountUsd, itemName, itemId, clientId, successUrl, cancelUrl, payCurrency, orderId: callerOrderId }) {
   if (!NOWPAYMENTS_API_KEY) {
     // Fail-honest: never mint a phantom np_* id that cannot be confirmed by IPN.
     // Callers must route to ZACC BtcPayments / direct BTC ledger instead.
@@ -91,19 +91,25 @@ async function createInvoice({ amountUsd, itemName, itemId, clientId, successUrl
     };
   }
 
-  const orderId = 'uf_' + Date.now() + '_' + (itemId || 'svc').toString().slice(0, 8);
+  // Prefer sovereign storefront order id (ord_*) so IPN can settle the same invoice.
+  const safeCaller = String(callerOrderId || '').trim().slice(0, 64);
+  const orderId = (/^ord_[a-zA-Z0-9_-]{6,64}$/.test(safeCaller))
+    ? safeCaller
+    : ('uf_' + Date.now() + '_' + (itemId || 'svc').toString().slice(0, 8));
   const payload = {
     price_amount: amountUsd,
     price_currency: 'usd',
-    pay_currency: 'btc',
     order_id: orderId,
     order_description: itemName || 'Unicorn AI Service',
     ipn_callback_url: BASE_URL + '/api/payment/nowpayments/webhook',
-    success_url: successUrl || BASE_URL + '/?payment=success&order=' + orderId,
+    success_url: successUrl || BASE_URL + '/?payment=success&order=' + encodeURIComponent(orderId),
     cancel_url: cancelUrl || BASE_URL + '/?payment=cancel',
     is_fixed_rate: false,
     is_fee_paid_by_user: false
   };
+  // Omit pay_currency when caller wants hosted multi-crypto picker ("any").
+  const cur = String(payCurrency || '').trim().toLowerCase();
+  if (cur && cur !== 'any' && cur !== 'multi') payload.pay_currency = cur;
 
   const result = await nowRequest('POST', '/invoice', payload);
   if (result.id) {
